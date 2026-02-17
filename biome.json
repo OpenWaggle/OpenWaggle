@@ -44,5 +44,17 @@
   },
   "files": {
     "includes": ["src/**"]
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["src/main/env.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noProcessEnv": "off"
+          }
+        }
+      }
+    }
+  ]
 }

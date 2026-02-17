@@ -12,12 +12,6 @@ export const BUILT_IN_TOOL_NAMES = [
 
 export type BuiltInToolName = (typeof BUILT_IN_TOOL_NAMES)[number]
 
-export interface ToolDefinition {
-  readonly name: string
-  readonly description: string
-  readonly requiresApproval: boolean
-}
-
 export interface ToolCallRequest {
   readonly id: ToolCallId
   readonly name: string

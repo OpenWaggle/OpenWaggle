@@ -1,4 +1,6 @@
+import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
+import fsPromises from 'node:fs/promises'
 import path from 'node:path'
 import type { MessagePart } from '@shared/types/agent'
 import { ConversationId, MessageId, ToolCallId } from '@shared/types/brand'
@@ -6,7 +8,6 @@ import type { Conversation, ConversationSummary } from '@shared/types/conversati
 import type { SupportedModelId } from '@shared/types/llm'
 import { SUPPORTED_MODELS } from '@shared/types/llm'
 import { app } from 'electron'
-import { v4 as uuid } from 'uuid'
 import { z } from 'zod'
 
 // ── Zod schemas for validating persisted conversations ──────────────────────
@@ -65,7 +66,14 @@ function migrateModelId(raw: string): SupportedModelId {
   if ((SUPPORTED_MODELS as readonly string[]).includes(raw)) {
     return raw as SupportedModelId
   }
-  return LEGACY_MODEL_MAP[raw] ?? 'claude-sonnet-4-5'
+  if (LEGACY_MODEL_MAP[raw]) {
+    return LEGACY_MODEL_MAP[raw]
+  }
+  // Preserve provider when falling back: OpenAI models → gpt-4.1-mini, Anthropic → claude-sonnet-4-5
+  if (/^(gpt-|o1-|o3-|o4-)/.test(raw)) {
+    return 'gpt-4.1-mini'
+  }
+  return 'claude-sonnet-4-5'
 }
 
 // ── Transform validated data into branded types ─────────────────────────────
@@ -142,18 +150,19 @@ function getConversationsDir(): string {
   return dir
 }
 
-function conversationPath(id: string): string {
+function conversationPath(id: ConversationId): string {
   return path.join(getConversationsDir(), `${id}.json`)
 }
 
-export function listConversations(): ConversationSummary[] {
+export async function listConversations(): Promise<ConversationSummary[]> {
   const dir = getConversationsDir()
-  const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json'))
+  const entries = await fsPromises.readdir(dir)
+  const files = entries.filter((f) => f.endsWith('.json'))
 
   const summaries: ConversationSummary[] = []
   for (const file of files) {
     try {
-      const raw = fs.readFileSync(path.join(dir, file), 'utf-8')
+      const raw = await fsPromises.readFile(path.join(dir, file), 'utf-8')
       const conv = parseConversation(raw)
       if (!conv) continue
 
@@ -173,25 +182,23 @@ export function listConversations(): ConversationSummary[] {
   return summaries.sort((a, b) => b.updatedAt - a.updatedAt)
 }
 
-export function getConversation(id: string): Conversation | null {
+export async function getConversation(id: ConversationId): Promise<Conversation | null> {
   const filePath = conversationPath(id)
-  if (!fs.existsSync(filePath)) return null
-
   try {
-    const raw = fs.readFileSync(filePath, 'utf-8')
+    const raw = await fsPromises.readFile(filePath, 'utf-8')
     return parseConversation(raw)
   } catch {
     return null
   }
 }
 
-export function createConversation(
+export async function createConversation(
   model: SupportedModelId,
   projectPath: string | null,
-): Conversation {
+): Promise<Conversation> {
   const now = Date.now()
   const conv: Conversation = {
-    id: ConversationId(uuid()),
+    id: ConversationId(randomUUID()),
     title: 'New Conversation',
     model,
     projectPath,
@@ -199,25 +206,32 @@ export function createConversation(
     createdAt: now,
     updatedAt: now,
   }
-  saveConversation(conv)
+  await saveConversation(conv)
   return conv
 }
 
-export function saveConversation(conv: Conversation): void {
+export async function saveConversation(conv: Conversation): Promise<void> {
   const updated = { ...conv, updatedAt: Date.now() }
-  fs.writeFileSync(conversationPath(conv.id), JSON.stringify(updated, null, 2), 'utf-8')
+  const filePath = conversationPath(conv.id)
+  const tmpPath = `${filePath}.tmp`
+
+  // Atomic write: write to temp file then rename
+  await fsPromises.writeFile(tmpPath, JSON.stringify(updated, null, 2), 'utf-8')
+  await fsPromises.rename(tmpPath, filePath)
 }
 
-export function deleteConversation(id: string): void {
+export async function deleteConversation(id: ConversationId): Promise<void> {
   const filePath = conversationPath(id)
-  if (fs.existsSync(filePath)) {
-    fs.unlinkSync(filePath)
+  try {
+    await fsPromises.unlink(filePath)
+  } catch {
+    // File may not exist
   }
 }
 
-export function updateConversationTitle(id: string, title: string): void {
-  const conv = getConversation(id)
+export async function updateConversationTitle(id: ConversationId, title: string): Promise<void> {
+  const conv = await getConversation(id)
   if (conv) {
-    saveConversation({ ...conv, title })
+    await saveConversation({ ...conv, title })
   }
 }

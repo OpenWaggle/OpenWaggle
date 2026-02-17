@@ -104,5 +104,5 @@ Always use granular selectors with `useChatStore((s) => s.field)` — never call
 - **Never use `React.FC`** — define components as plain functions with explicit props interfaces.
 - **Never use `forwardRef`** — React 19 supports direct ref props.
 - **Never mutate Zustand state directly** — always use store actions.
-- **Never use `process.env` or `import.meta.env`** — import from `@/env` (Biome enforces `noProcessEnv`). # TODO: this file needs to be created
+- **Never use `process.env` or `import.meta.env`** — import from `./env` in main process (`src/main/env.ts`) or `@/env` in renderer (`src/renderer/src/env.ts`). Biome enforces `noProcessEnv`; only `src/main/env.ts` has an override.
 - **Always use `cn()`** from `src/lib/utils` for conditional Tailwind classes.

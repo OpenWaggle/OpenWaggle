@@ -10,26 +10,29 @@ import {
 } from '../store/conversations'
 
 export function registerConversationsHandlers(): void {
-  ipcMain.handle('conversations:list', () => {
+  ipcMain.handle('conversations:list', async () => {
     return listConversations()
   })
 
-  ipcMain.handle('conversations:get', (_event, id: ConversationId) => {
+  ipcMain.handle('conversations:get', async (_event, id: ConversationId) => {
     return getConversation(id)
   })
 
   ipcMain.handle(
     'conversations:create',
-    (_event, model: SupportedModelId, projectPath: string | null) => {
+    async (_event, model: SupportedModelId, projectPath: string | null) => {
       return createConversation(model, projectPath)
     },
   )
 
-  ipcMain.handle('conversations:delete', (_event, id: ConversationId) => {
-    deleteConversation(id)
+  ipcMain.handle('conversations:delete', async (_event, id: ConversationId) => {
+    await deleteConversation(id)
   })
 
-  ipcMain.handle('conversations:update-title', (_event, id: ConversationId, title: string) => {
-    updateConversationTitle(id, title)
-  })
+  ipcMain.handle(
+    'conversations:update-title',
+    async (_event, id: ConversationId, title: string) => {
+      await updateConversationTitle(id, title)
+    },
+  )
 }

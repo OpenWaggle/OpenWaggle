@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process'
 import { z } from 'zod'
+import { getSafeChildEnv } from '../../env'
 import { defineHiveCodeTool } from '../define-tool'
 
 export const runCommandTool = defineHiveCodeTool({
@@ -25,7 +26,7 @@ export const runCommandTool = defineHiveCodeTool({
           cwd: context.projectPath,
           timeout,
           maxBuffer: 1024 * 1024,
-          env: { ...process.env, PATH: process.env.PATH },
+          env: getSafeChildEnv(),
         },
         (error, stdout, stderr) => {
           if (error?.killed) {

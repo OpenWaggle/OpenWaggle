@@ -1,5 +1,5 @@
 import type { StreamChunk } from '@tanstack/ai'
-import type { ConversationId } from './brand'
+import type { ConversationId, ToolCallId } from './brand'
 import type { Conversation, ConversationSummary } from './conversation'
 import type { SupportedModelId } from './llm'
 import type { Provider, Settings } from './settings'
@@ -62,10 +62,10 @@ export interface IpcInvokeChannelMap {
  */
 export interface IpcSendChannelMap {
   'agent:cancel': {
-    args: []
+    args: [conversationId?: ConversationId]
   }
   'tool:approval-response': {
-    args: [callId: string, status: ToolApprovalStatus]
+    args: [callId: ToolCallId, status: ToolApprovalStatus]
   }
 }
 
@@ -103,20 +103,6 @@ export type IpcEventPayload<C extends IpcEventChannel> = IpcEventChannelMap[C]['
 // ─── Typed API Surface ───────────────────────────────────────
 // This is what the preload exposes to the renderer via contextBridge.
 
-export interface IpcRendererApi {
-  invoke<C extends IpcInvokeChannel>(
-    channel: C,
-    ...args: IpcInvokeArgs<C>
-  ): Promise<IpcInvokeReturn<C>>
-
-  send<C extends IpcSendChannel>(channel: C, ...args: IpcSendArgs<C>): void
-
-  on<C extends IpcEventChannel>(
-    channel: C,
-    callback: (payload: IpcEventPayload<C>) => void,
-  ): () => void
-}
-
 // ─── Convenience API (what we actually expose on window.api) ─
 
 export interface HiveCodeApi {
@@ -126,12 +112,12 @@ export interface HiveCodeApi {
     content: string,
     model: SupportedModelId,
   ): Promise<void>
-  cancelAgent(): void
+  cancelAgent(conversationId?: ConversationId): void
   /** Subscribe to raw StreamChunks from TanStack AI — used by the IPC connection adapter */
   onStreamChunk(callback: (chunk: StreamChunk) => void): () => void
 
   // Tool approval
-  respondToolApproval(callId: string, status: ToolApprovalStatus): void
+  respondToolApproval(callId: ToolCallId, status: ToolApprovalStatus): void
   onToolApproval(callback: (request: ToolApprovalRequest) => void): () => void
 
   // Settings

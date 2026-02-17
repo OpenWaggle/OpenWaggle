@@ -1,6 +1,6 @@
 import type { SupportedModelId } from '@shared/types/llm'
-import { AlertCircle, Bot } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { AlertCircle, Bot, RefreshCw, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { Spinner } from '@/components/shared/Spinner'
 import { useAgentChat } from '@/hooks/useAgentChat'
 import { useChatStore } from '@/stores/chat-store'
@@ -26,6 +26,7 @@ export function ChatPanel({ model, projectPath, hasProject }: ChatPanelProps): R
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const pendingMessage = useRef<string | null>(null)
+  const [dismissedError, setDismissedError] = useState<string | null>(null)
 
   // Auto-scroll to bottom on new content
   useEffect(() => {
@@ -56,6 +57,14 @@ export function ChatPanel({ model, projectPath, hasProject }: ChatPanelProps): R
   // Detect if the last message is an assistant message still streaming
   const lastMsg = messages[messages.length - 1]
   const lastIsStreaming = isLoading && lastMsg?.role === 'assistant'
+
+  // Find last user message for retry functionality
+  const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')
+  const lastUserMessage =
+    lastUserMsg?.parts
+      .filter((p): p is Extract<typeof p, { type: 'text' }> => p.type === 'text')
+      .map((p) => p.content)
+      .join('\n') ?? null
 
   return (
     <div className="flex h-full flex-col">
@@ -101,14 +110,37 @@ export function ChatPanel({ model, projectPath, hasProject }: ChatPanelProps): R
                 </div>
               )}
 
-            {/* Error indicator */}
-            {error && !isLoading && (
-              <div className="flex gap-3 px-4 py-3">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-error/15 text-error">
-                  <AlertCircle className="h-4 w-4" />
-                </div>
-                <div className="flex items-center py-1">
-                  <span className="text-sm text-error">{error.message}</span>
+            {/* Error banner */}
+            {error && !isLoading && dismissedError !== error.message && (
+              <div className="mx-4 my-3 rounded-lg border border-error/30 bg-error/10 px-4 py-3">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 shrink-0 text-error mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-error">{error.message}</p>
+                    <div className="flex gap-2 mt-2">
+                      {lastUserMessage && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDismissedError(error.message)
+                            handleSend(lastUserMessage)
+                          }}
+                          className="flex items-center gap-1.5 rounded-md bg-error/15 px-2.5 py-1 text-xs font-medium text-error hover:bg-error/25 transition-colors"
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                          Retry
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setDismissedError(error.message)}
+                        className="flex items-center gap-1.5 rounded-md bg-bg-hover px-2.5 py-1 text-xs font-medium text-text-secondary hover:text-text-primary transition-colors"
+                      >
+                        <X className="h-3 w-3" />
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

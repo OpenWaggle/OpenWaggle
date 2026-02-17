@@ -1,16 +1,15 @@
-import type { Provider } from '@shared/types/settings'
 import { Check, Eye, EyeOff, Loader2, X } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/cn'
 
 interface ApiKeyFormProps {
-  provider: Provider
+  provider: string
   label: string
   currentKey: string
   onSave: (apiKey: string) => Promise<void>
   onTest: (apiKey: string) => Promise<boolean>
   isTestingKey: boolean
-  testResult: { provider: Provider; success: boolean } | null
+  testResult: { success: boolean } | null
 }
 
 export function ApiKeyForm({
@@ -33,8 +32,6 @@ export function ApiKeyForm({
   async function handleTest(): Promise<void> {
     await onTest(value)
   }
-
-  const showTestResult = testResult?.provider === provider
 
   return (
     <div className="space-y-2">
@@ -59,6 +56,7 @@ export function ApiKeyForm({
           <button
             type="button"
             onClick={() => setShowKey(!showKey)}
+            aria-label={showKey ? 'Hide API key' : 'Show API key'}
             className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary"
           >
             {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -94,7 +92,7 @@ export function ApiKeyForm({
         </button>
       </div>
 
-      {showTestResult && (
+      {testResult && (
         <div
           className={cn(
             'flex items-center gap-1.5 text-xs',

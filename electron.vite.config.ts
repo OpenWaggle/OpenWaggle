@@ -7,7 +7,7 @@ export default defineConfig({
   main: {
     build: {
       externalizeDeps: {
-        exclude: ['@tanstack/ai', '@tanstack/ai-anthropic', '@tanstack/ai-openai'],
+        exclude: ['@tanstack/ai', '@tanstack/ai-anthropic', '@tanstack/ai-openai', '@t3-oss/env-core'],
       },
       rollupOptions: {
         output: {

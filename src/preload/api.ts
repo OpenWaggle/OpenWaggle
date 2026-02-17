@@ -1,4 +1,4 @@
-import type { ConversationId } from '@shared/types/brand'
+import type { ConversationId, ToolCallId } from '@shared/types/brand'
 import type { Conversation, ConversationSummary } from '@shared/types/conversation'
 import type { HiveCodeApi } from '@shared/types/ipc'
 import type { SupportedModelId } from '@shared/types/llm'
@@ -21,8 +21,8 @@ export const api: HiveCodeApi = {
     return ipcRenderer.invoke('agent:send-message', conversationId, content, model)
   },
 
-  cancelAgent(): void {
-    ipcRenderer.send('agent:cancel')
+  cancelAgent(conversationId?: ConversationId): void {
+    ipcRenderer.send('agent:cancel', conversationId)
   },
 
   onStreamChunk(callback: (chunk: StreamChunk) => void): () => void {
@@ -34,7 +34,7 @@ export const api: HiveCodeApi = {
   },
 
   // ─── Tool Approval ──────────────────────────────────
-  respondToolApproval(callId: string, status: ToolApprovalStatus): void {
+  respondToolApproval(callId: ToolCallId, status: ToolApprovalStatus): void {
     ipcRenderer.send('tool:approval-response', callId, status)
   },
 

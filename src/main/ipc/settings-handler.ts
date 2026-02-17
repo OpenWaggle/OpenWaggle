@@ -20,7 +20,7 @@ async function testAnthropicKey(apiKey: string): Promise<boolean> {
 
 async function testOpenaiKey(apiKey: string): Promise<boolean> {
   try {
-    const adapter = createOpenaiChat('gpt-4.1-nano', apiKey)
+    const adapter = createOpenaiChat('gpt-4.1-mini', apiKey)
     const stream = chat({ adapter, messages: [{ role: 'user', content: 'Hi' }] })
     for await (const _ of stream) {
       break // first chunk confirms the key works

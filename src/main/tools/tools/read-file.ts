@@ -2,6 +2,8 @@ import fs from 'node:fs/promises'
 import { z } from 'zod'
 import { defineHiveCodeTool, resolveProjectPath } from '../define-tool'
 
+const MAX_FILE_SIZE = 1024 * 1024 // 1 MB
+
 export const readFileTool = defineHiveCodeTool({
   name: 'readFile',
   description:
@@ -15,6 +17,14 @@ export const readFileTool = defineHiveCodeTool({
   }),
   async execute(args, context) {
     const filePath = resolveProjectPath(context.projectPath, args.path)
+
+    const stat = await fs.stat(filePath)
+    if (stat.size > MAX_FILE_SIZE) {
+      throw new Error(
+        `File "${args.path}" is ${(stat.size / 1024 / 1024).toFixed(1)} MB — exceeds 1 MB limit. Use maxLines or read a specific section.`,
+      )
+    }
+
     const content = await fs.readFile(filePath, 'utf-8')
     if (args.maxLines) {
       const lines = content.split('\n')

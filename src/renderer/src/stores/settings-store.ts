@@ -7,21 +7,21 @@ interface SettingsState {
   settings: Settings
   isLoaded: boolean
   isTestingKey: boolean
-  testResult: { provider: Provider; success: boolean } | null
+  testResults: Record<Provider, { success: boolean } | null>
 
   loadSettings: () => Promise<void>
   updateApiKey: (provider: Provider, apiKey: string) => Promise<void>
   setDefaultModel: (model: SupportedModelId) => Promise<void>
   setProjectPath: (path: string | null) => Promise<void>
   testApiKey: (provider: Provider, apiKey: string) => Promise<boolean>
-  clearTestResult: () => void
+  clearTestResult: (provider: Provider) => void
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   settings: DEFAULT_SETTINGS,
   isLoaded: false,
   isTestingKey: false,
-  testResult: null,
+  testResults: { anthropic: null, openai: null },
 
   async loadSettings() {
     const settings = await api.getSettings()
@@ -29,6 +29,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   async updateApiKey(provider: Provider, apiKey: string) {
+    if (!apiKey.trim()) return
+
     const { settings } = get()
     const updated: Settings = {
       ...settings,
@@ -54,18 +56,26 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   async testApiKey(provider: Provider, apiKey: string) {
-    set({ isTestingKey: true, testResult: null })
+    set({ isTestingKey: true })
     try {
       const success = await api.testApiKey(provider, apiKey)
-      set({ testResult: { provider, success }, isTestingKey: false })
+      set((state) => ({
+        testResults: { ...state.testResults, [provider]: { success } },
+        isTestingKey: false,
+      }))
       return success
     } catch {
-      set({ testResult: { provider, success: false }, isTestingKey: false })
+      set((state) => ({
+        testResults: { ...state.testResults, [provider]: { success: false } },
+        isTestingKey: false,
+      }))
       return false
     }
   },
 
-  clearTestResult() {
-    set({ testResult: null })
+  clearTestResult(provider: Provider) {
+    set((state) => ({
+      testResults: { ...state.testResults, [provider]: null },
+    }))
   },
 }))

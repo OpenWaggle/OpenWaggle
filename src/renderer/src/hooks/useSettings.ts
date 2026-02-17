@@ -19,7 +19,7 @@ export function useSettings() {
   const settings = useSettingsStore((s) => s.settings)
   const isLoaded = useSettingsStore((s) => s.isLoaded)
   const isTestingKey = useSettingsStore((s) => s.isTestingKey)
-  const testResult = useSettingsStore((s) => s.testResult)
+  const testResults = useSettingsStore((s) => s.testResults)
   const updateApiKey = useSettingsStore((s) => s.updateApiKey)
   const setDefaultModel = useSettingsStore((s) => s.setDefaultModel)
   const setProjectPath = useSettingsStore((s) => s.setProjectPath)
@@ -30,7 +30,7 @@ export function useSettings() {
     settings,
     isLoaded,
     isTestingKey,
-    testResult,
+    testResults,
     updateApiKey,
     setDefaultModel,
     setProjectPath,

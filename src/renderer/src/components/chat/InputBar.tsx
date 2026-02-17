@@ -52,6 +52,9 @@ export function InputBar({
 
   return (
     <div className="border-t border-border bg-bg-secondary px-4 py-3">
+      <output aria-live="polite" className="sr-only">
+        {isLoading ? 'Agent is working' : ''}
+      </output>
       <div className="flex items-end gap-2 mx-auto max-w-3xl">
         <div className="relative flex-1">
           <textarea
@@ -59,6 +62,7 @@ export function InputBar({
             value={input}
             onChange={handleInput}
             onKeyDown={handleKeyDown}
+            aria-label="Message input"
             placeholder={isLoading ? 'Agent is working...' : 'Message HiveCode...'}
             disabled={isLoading || disabled}
             rows={1}

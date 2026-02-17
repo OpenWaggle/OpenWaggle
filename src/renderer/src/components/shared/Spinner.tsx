@@ -13,9 +13,10 @@ const sizes = {
 
 export function Spinner({ size = 'md', className }: SpinnerProps): React.JSX.Element {
   return (
-    <div
+    <output
+      aria-label="Loading"
       className={cn(
-        'animate-spin rounded-full border-current border-t-transparent opacity-70',
+        'block animate-spin rounded-full border-current border-t-transparent opacity-70',
         sizes[size],
         className,
       )}

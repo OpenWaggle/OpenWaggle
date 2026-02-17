@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import type { Message, MessagePart } from '@shared/types/agent'
 import { MessageId, ToolCallId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
@@ -10,7 +11,6 @@ import {
   createAnthropicChat,
 } from '@tanstack/ai-anthropic'
 import { createOpenaiChat, type OpenAIChatModel } from '@tanstack/ai-openai'
-import { v4 as uuid } from 'uuid'
 import { setToolContext } from '../tools/define-tool'
 import { getServerTools } from '../tools/registry'
 import { buildSystemPrompt } from './system-prompt'
@@ -165,7 +165,7 @@ function makeMessage(
   model?: SupportedModelId,
 ): Message {
   return {
-    id: MessageId(uuid()),
+    id: MessageId(randomUUID()),
     role,
     parts,
     model,
@@ -231,10 +231,15 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
 
       case 'TOOL_CALL_END': {
         let args: Record<string, unknown> = {}
+        const rawArgs = toolCallArgs[chunk.toolCallId] ?? '{}'
         try {
-          args = JSON.parse(toolCallArgs[chunk.toolCallId] ?? '{}')
-        } catch {
-          // malformed JSON — use empty args
+          args = JSON.parse(rawArgs)
+        } catch (parseError) {
+          console.warn(
+            `Failed to parse tool call args for "${chunk.toolName}":`,
+            parseError instanceof Error ? parseError.message : parseError,
+            `| raw: ${rawArgs.slice(0, 200)}`,
+          )
         }
 
         collectedParts.push({

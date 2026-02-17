@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { app, BrowserWindow, shell } from 'electron'
+import { env } from './env'
 import { registerAgentHandlers } from './ipc/agent-handler'
 import { registerConversationsHandlers } from './ipc/conversations-handler'
 import { registerProjectHandlers } from './ipc/project-handler'
@@ -33,8 +34,8 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
-  if (is.dev && process.env.ELECTRON_RENDERER_URL) {
-    mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
+  if (is.dev && env.ELECTRON_RENDERER_URL) {
+    mainWindow.loadURL(env.ELECTRON_RENDERER_URL)
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
