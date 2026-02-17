@@ -7,6 +7,7 @@ export const grokProvider: ProviderDefinition = {
   requiresApiKey: true,
   supportsBaseUrl: false,
   models: GROK_CHAT_MODELS,
+  testModel: 'grok-3-mini-fast',
   createAdapter(model, apiKey) {
     return createGrokText(model as (typeof GROK_CHAT_MODELS)[number], apiKey)
   },

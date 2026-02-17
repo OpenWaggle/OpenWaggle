@@ -1,5 +1,5 @@
 import { Check, Eye, EyeOff, Loader2, X } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { cn } from '@/lib/cn'
 
 interface ApiKeyFormProps {
@@ -8,7 +8,7 @@ interface ApiKeyFormProps {
   currentKey: string
   onSave: (apiKey: string) => Promise<void>
   onTest: (apiKey: string) => Promise<boolean>
-  isTestingKey: boolean
+  isTesting: boolean
   testResult: { success: boolean } | null
 }
 
@@ -18,12 +18,17 @@ export function ApiKeyForm({
   currentKey,
   onSave,
   onTest,
-  isTestingKey,
+  isTesting,
   testResult,
 }: ApiKeyFormProps): React.JSX.Element {
   const [value, setValue] = useState(currentKey)
   const [showKey, setShowKey] = useState(false)
   const hasChanged = value !== currentKey
+
+  // Sync local state when the saved key changes externally
+  useEffect(() => {
+    setValue(currentKey)
+  }, [currentKey])
 
   async function handleSave(): Promise<void> {
     await onSave(value)
@@ -66,15 +71,15 @@ export function ApiKeyForm({
         <button
           type="button"
           onClick={handleTest}
-          disabled={!value || isTestingKey}
+          disabled={!value || isTesting}
           className={cn(
             'rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-            value && !isTestingKey
+            value && !isTesting
               ? 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
               : 'bg-bg-tertiary text-text-muted cursor-not-allowed',
           )}
         >
-          {isTestingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Test'}
+          {isTesting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Test'}
         </button>
 
         <button

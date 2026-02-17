@@ -50,17 +50,18 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // Register providers first — other handlers depend on the registry
-  registerAllProviders()
-
-  // Register IPC handlers
+  // Register IPC handlers (these don't need the registry to be populated yet,
+  // they just reference it at call-time)
   registerAgentHandlers()
   registerSettingsHandlers()
   registerConversationsHandlers()
   registerProjectHandlers()
   registerProvidersHandlers()
 
-  createWindow()
+  // Register providers (async — individual failures are caught per-provider)
+  registerAllProviders().then(() => {
+    createWindow()
+  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

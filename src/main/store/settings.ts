@@ -1,23 +1,45 @@
-import { DEFAULT_SETTINGS, type ProviderConfig, type Settings } from '@shared/types/settings'
+import {
+  DEFAULT_SETTINGS,
+  PROVIDERS,
+  type Provider,
+  type ProviderConfig,
+  type Settings,
+} from '@shared/types/settings'
 import Store from 'electron-store'
+import { z } from 'zod'
 
 const store = new Store<Settings>({
   name: 'settings',
   defaults: DEFAULT_SETTINGS,
 })
 
-export function getSettings(): Settings {
-  const storedProviders = store.get('providers', {}) as Record<string, Partial<ProviderConfig>>
-  const providers: Record<string, ProviderConfig> = {}
+/** Schema for validating raw provider config from disk */
+const providerConfigSchema = z.object({
+  apiKey: z.string().default(''),
+  baseUrl: z.string().url().optional(),
+  enabled: z.boolean().default(false),
+})
 
-  for (const [id, defaults] of Object.entries(DEFAULT_SETTINGS.providers)) {
+export function getSettings(): Settings {
+  const storedProviders = store.get('providers', {}) as Record<string, unknown>
+  const providers: Partial<Record<Provider, ProviderConfig>> = {}
+
+  for (const id of PROVIDERS) {
+    const defaults = DEFAULT_SETTINGS.providers[id]
     if (!defaults) continue
-    const existing = storedProviders[id]
-    providers[id] = {
-      apiKey: existing?.apiKey ?? defaults.apiKey,
-      baseUrl: existing?.baseUrl ?? defaults.baseUrl,
-      // Auto-enable if user already has an API key configured
-      enabled: existing?.enabled ?? (existing?.apiKey ? true : defaults.enabled),
+
+    const raw = storedProviders[id]
+    const parsed = providerConfigSchema.safeParse(raw)
+
+    if (parsed.success) {
+      providers[id] = {
+        apiKey: parsed.data.apiKey,
+        baseUrl: parsed.data.baseUrl ?? defaults.baseUrl,
+        // Auto-enable if user already has an API key configured
+        enabled: parsed.data.enabled || !!parsed.data.apiKey,
+      }
+    } else {
+      providers[id] = { ...defaults }
     }
   }
 

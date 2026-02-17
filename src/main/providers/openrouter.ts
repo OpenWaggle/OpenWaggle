@@ -26,6 +26,7 @@ export const openrouterProvider: ProviderDefinition = {
   requiresApiKey: true,
   supportsBaseUrl: false,
   models: OPENROUTER_UI_MODELS,
+  testModel: 'openrouter/auto',
   createAdapter(model, apiKey) {
     // OpenRouter's type requires its internal model union,
     // but we allow any string since OpenRouter supports all models dynamically.

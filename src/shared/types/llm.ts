@@ -1,3 +1,5 @@
+import type { Provider } from './settings'
+
 // SupportedModelId widens to string — runtime validation via provider registry.
 // Kept as type alias for backward compatibility across the codebase.
 export type SupportedModelId = string
@@ -6,7 +8,16 @@ export type SupportedModelId = string
 export interface ModelDisplayInfo {
   readonly id: string
   readonly name: string
-  readonly provider: string
+  readonly provider: Provider
+}
+
+/** Provider metadata exposed to the renderer via IPC */
+export interface ProviderInfo {
+  readonly provider: Provider
+  readonly displayName: string
+  readonly requiresApiKey: boolean
+  readonly supportsBaseUrl: boolean
+  readonly models: ModelDisplayInfo[]
 }
 
 /** Human-readable name generation from model IDs */

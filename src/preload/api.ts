@@ -1,8 +1,8 @@
 import type { ConversationId, ToolCallId } from '@shared/types/brand'
 import type { Conversation, ConversationSummary } from '@shared/types/conversation'
 import type { HiveCodeApi } from '@shared/types/ipc'
-import type { ModelDisplayInfo, SupportedModelId } from '@shared/types/llm'
-import type { Settings } from '@shared/types/settings'
+import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from '@shared/types/llm'
+import type { Provider, Settings } from '@shared/types/settings'
 import type { ToolApprovalRequest, ToolApprovalStatus } from '@shared/types/tools'
 import type { StreamChunk } from '@tanstack/ai'
 import { ipcRenderer } from 'electron'
@@ -60,10 +60,16 @@ export const api: HiveCodeApi = {
   },
 
   // ─── Providers ───────────────────────────────────────
-  getProviderModels(): Promise<
-    Array<{ provider: string; displayName: string; models: ModelDisplayInfo[] }>
-  > {
+  getProviderModels(): Promise<ProviderInfo[]> {
     return ipcRenderer.invoke('providers:get-models')
+  },
+
+  fetchProviderModels(
+    provider: Provider,
+    baseUrl?: string,
+    apiKey?: string,
+  ): Promise<ModelDisplayInfo[]> {
+    return ipcRenderer.invoke('providers:fetch-models', provider, baseUrl, apiKey)
   },
 
   // ─── Project ─────────────────────────────────────────

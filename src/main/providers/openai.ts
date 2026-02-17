@@ -7,6 +7,7 @@ export const openaiProvider: ProviderDefinition = {
   requiresApiKey: true,
   supportsBaseUrl: false,
   models: OPENAI_CHAT_MODELS,
+  testModel: 'gpt-4.1-nano',
   createAdapter(model, apiKey) {
     return createOpenaiChat(model as (typeof OPENAI_CHAT_MODELS)[number], apiKey)
   },

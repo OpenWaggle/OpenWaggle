@@ -1,4 +1,4 @@
-import type { SupportedModelId } from '@shared/types/llm'
+import type { ProviderInfo, SupportedModelId } from '@shared/types/llm'
 import {
   DEFAULT_SETTINGS,
   type Provider,
@@ -11,10 +11,12 @@ import { api } from '@/lib/ipc'
 interface SettingsState {
   settings: Settings
   isLoaded: boolean
-  isTestingKey: boolean
-  testResults: Partial<Record<string, { success: boolean } | null>>
+  testingProviders: Partial<Record<Provider, boolean>>
+  testResults: Partial<Record<Provider, { success: boolean } | null>>
+  providerModels: ProviderInfo[]
 
   loadSettings: () => Promise<void>
+  loadProviderModels: () => Promise<void>
   updateApiKey: (provider: Provider, apiKey: string) => Promise<void>
   toggleProvider: (provider: Provider, enabled: boolean) => Promise<void>
   updateBaseUrl: (provider: Provider, baseUrl: string) => Promise<void>
@@ -27,12 +29,18 @@ interface SettingsState {
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   settings: DEFAULT_SETTINGS,
   isLoaded: false,
-  isTestingKey: false,
+  testingProviders: {},
   testResults: {},
+  providerModels: [],
 
   async loadSettings() {
     const settings = await api.getSettings()
     set({ settings, isLoaded: true })
+  },
+
+  async loadProviderModels() {
+    const providerModels = await api.getProviderModels()
+    set({ providerModels })
   },
 
   async updateApiKey(provider: Provider, apiKey: string) {
@@ -104,18 +112,20 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   async testApiKey(provider: Provider, apiKey: string, baseUrl?: string) {
-    set({ isTestingKey: true })
+    set((state) => ({
+      testingProviders: { ...state.testingProviders, [provider]: true },
+    }))
     try {
       const success = await api.testApiKey(provider, apiKey, baseUrl)
       set((state) => ({
         testResults: { ...state.testResults, [provider]: { success } },
-        isTestingKey: false,
+        testingProviders: { ...state.testingProviders, [provider]: false },
       }))
       return success
     } catch {
       set((state) => ({
         testResults: { ...state.testResults, [provider]: { success: false } },
-        isTestingKey: false,
+        testingProviders: { ...state.testingProviders, [provider]: false },
       }))
       return false
     }

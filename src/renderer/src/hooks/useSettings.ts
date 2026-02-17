@@ -2,14 +2,16 @@ import { useEffect } from 'react'
 import { useSettingsStore } from '@/stores/settings-store'
 
 /**
- * Load settings on mount. Call once at the app root.
+ * Load settings and provider models on mount. Call once at the app root.
  */
 export function useSettingsSetup(): void {
   const loadSettings = useSettingsStore((s) => s.loadSettings)
+  const loadProviderModels = useSettingsStore((s) => s.loadProviderModels)
 
   useEffect(() => {
     loadSettings()
-  }, [loadSettings])
+    loadProviderModels()
+  }, [loadSettings, loadProviderModels])
 }
 
 /**
@@ -18,8 +20,9 @@ export function useSettingsSetup(): void {
 export function useSettings() {
   const settings = useSettingsStore((s) => s.settings)
   const isLoaded = useSettingsStore((s) => s.isLoaded)
-  const isTestingKey = useSettingsStore((s) => s.isTestingKey)
+  const testingProviders = useSettingsStore((s) => s.testingProviders)
   const testResults = useSettingsStore((s) => s.testResults)
+  const providerModels = useSettingsStore((s) => s.providerModels)
   const updateApiKey = useSettingsStore((s) => s.updateApiKey)
   const toggleProvider = useSettingsStore((s) => s.toggleProvider)
   const updateBaseUrl = useSettingsStore((s) => s.updateBaseUrl)
@@ -31,8 +34,9 @@ export function useSettings() {
   return {
     settings,
     isLoaded,
-    isTestingKey,
+    testingProviders,
     testResults,
+    providerModels,
     updateApiKey,
     toggleProvider,
     updateBaseUrl,

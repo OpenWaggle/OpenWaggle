@@ -7,6 +7,7 @@ export const anthropicProvider: ProviderDefinition = {
   requiresApiKey: true,
   supportsBaseUrl: false,
   models: ANTHROPIC_MODELS,
+  testModel: 'claude-haiku-4-5',
   createAdapter(model, apiKey) {
     return createAnthropicChat(model as (typeof ANTHROPIC_MODELS)[number], apiKey)
   },

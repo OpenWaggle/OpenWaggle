@@ -1,6 +1,12 @@
 export const PROVIDERS = ['anthropic', 'openai', 'gemini', 'grok', 'openrouter', 'ollama'] as const
 export type Provider = (typeof PROVIDERS)[number]
 
+export const OLLAMA_DEFAULT_BASE_URL = 'http://localhost:11434'
+
+/** Fallback model IDs for migration — single source of truth */
+export const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-4-5'
+export const DEFAULT_OPENAI_MODEL = 'gpt-4.1-mini'
+
 export interface ProviderConfig {
   readonly apiKey: string
   readonly baseUrl?: string
@@ -20,9 +26,9 @@ export const DEFAULT_SETTINGS: Settings = {
     gemini: { apiKey: '', enabled: false },
     grok: { apiKey: '', enabled: false },
     openrouter: { apiKey: '', enabled: false },
-    ollama: { apiKey: '', baseUrl: 'http://localhost:11434', enabled: false },
+    ollama: { apiKey: '', baseUrl: OLLAMA_DEFAULT_BASE_URL, enabled: false },
   },
-  defaultModel: 'claude-sonnet-4-5',
+  defaultModel: DEFAULT_ANTHROPIC_MODEL,
   projectPath: null,
 }
 

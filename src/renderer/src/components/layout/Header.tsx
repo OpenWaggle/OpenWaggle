@@ -1,4 +1,4 @@
-import type { SupportedModelId } from '@shared/types/llm'
+import type { ProviderInfo, SupportedModelId } from '@shared/types/llm'
 import type { Settings as SettingsType } from '@shared/types/settings'
 import { FolderOpen, Plus, Settings } from 'lucide-react'
 import { ModelSelector } from '@/components/shared/ModelSelector'
@@ -9,6 +9,7 @@ interface HeaderProps {
   model: SupportedModelId
   onModelChange: (model: SupportedModelId) => void
   settings: SettingsType
+  providerModels: ProviderInfo[]
   projectPath: string | null
   conversationTitle: string | null
   onSelectProject: () => void
@@ -20,6 +21,7 @@ export function Header({
   model,
   onModelChange,
   settings,
+  providerModels,
   projectPath,
   conversationTitle,
   onSelectProject,
@@ -46,7 +48,12 @@ export function Header({
       </div>
 
       <div className="flex items-center gap-1">
-        <ModelSelector value={model} onChange={onModelChange} settings={settings} />
+        <ModelSelector
+          value={model}
+          onChange={onModelChange}
+          settings={settings}
+          providerModels={providerModels}
+        />
 
         <button
           type="button"

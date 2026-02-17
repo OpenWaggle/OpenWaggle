@@ -3,7 +3,7 @@ import type { Message, MessagePart } from '@shared/types/agent'
 import { MessageId, ToolCallId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
-import type { Provider, Settings } from '@shared/types/settings'
+import type { Settings } from '@shared/types/settings'
 import { chat, maxIterations, type StreamChunk } from '@tanstack/ai'
 import { providerRegistry } from '../providers'
 import { setToolContext } from '../tools/define-tool'
@@ -121,7 +121,7 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
   const provider = providerRegistry.getProviderForModel(model)
   if (!provider) throw new Error(`No provider registered for model: ${model}`)
 
-  const providerConfig = settings.providers[provider.id as Provider]
+  const providerConfig = settings.providers[provider.id]
   if (provider.requiresApiKey && !providerConfig?.apiKey) {
     throw new Error(`No API key configured for ${provider.displayName}`)
   }
@@ -219,7 +219,19 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
       }
 
       case 'RUN_FINISHED':
+        break
+
       case 'RUN_ERROR':
+        console.error('Agent run error:', chunk.error.message)
+        // Flush any accumulated text before appending the error
+        if (currentText.trim()) {
+          collectedParts.push({ type: 'text', text: currentText })
+          currentText = ''
+        }
+        collectedParts.push({
+          type: 'text',
+          text: `\n\n**Error:** ${chunk.error.message}`,
+        })
         break
     }
   }

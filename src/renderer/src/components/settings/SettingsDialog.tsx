@@ -1,6 +1,5 @@
-import { PROVIDERS } from '@shared/types/settings'
 import { X } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSettings } from '@/hooks/useSettings'
 import { cn } from '@/lib/cn'
 import { ApiKeyForm } from './ApiKeyForm'
@@ -10,40 +9,12 @@ interface SettingsDialogProps {
   onClose: () => void
 }
 
-const PROVIDER_LABELS: Record<string, string> = {
-  anthropic: 'Anthropic',
-  openai: 'OpenAI',
-  gemini: 'Gemini',
-  grok: 'Grok',
-  openrouter: 'OpenRouter',
-  ollama: 'Ollama',
-}
-
-/** Whether a provider requires an API key (matches ProviderDefinition on main side) */
-const PROVIDER_REQUIRES_KEY: Record<string, boolean> = {
-  anthropic: true,
-  openai: true,
-  gemini: true,
-  grok: true,
-  openrouter: true,
-  ollama: false,
-}
-
-/** Whether a provider supports a configurable base URL */
-const PROVIDER_SUPPORTS_BASE_URL: Record<string, boolean> = {
-  anthropic: false,
-  openai: false,
-  gemini: false,
-  grok: false,
-  openrouter: false,
-  ollama: true,
-}
-
 export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps): React.JSX.Element {
   const {
     settings,
-    isTestingKey,
+    testingProviders,
     testResults,
+    providerModels,
     updateApiKey,
     toggleProvider,
     updateBaseUrl,
@@ -105,23 +76,27 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps): React.
         <div>
           <h3 className="text-sm font-medium text-text-secondary mb-4">Providers</h3>
           <div className="space-y-5">
-            {PROVIDERS.map((providerId) => {
+            {providerModels.map((providerInfo) => {
+              const providerId = providerInfo.provider
               const config = settings.providers[providerId]
-              const label = PROVIDER_LABELS[providerId] ?? providerId
-              const requiresKey = PROVIDER_REQUIRES_KEY[providerId] ?? true
-              const supportsBaseUrl = PROVIDER_SUPPORTS_BASE_URL[providerId] ?? false
               const enabled = config?.enabled ?? false
+              const isTesting = testingProviders[providerId] ?? false
 
               return (
                 <div key={providerId} className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-text-primary">{label}</span>
+                    <span className="text-sm font-medium text-text-primary">
+                      {providerInfo.displayName}
+                    </span>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input
                         type="checkbox"
                         checked={enabled}
                         onChange={(e) => toggleProvider(providerId, e.target.checked)}
                         className="sr-only peer"
+                        role="switch"
+                        aria-checked={enabled}
+                        aria-label={`Enable ${providerInfo.displayName}`}
                       />
                       <div
                         className={cn(
@@ -137,55 +112,39 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps): React.
 
                   {enabled && (
                     <div className="pl-0 space-y-3">
-                      {requiresKey && (
+                      {providerInfo.requiresApiKey && (
                         <ApiKeyForm
                           provider={providerId}
-                          label={label}
+                          label={providerInfo.displayName}
                           currentKey={config?.apiKey ?? ''}
                           onSave={(key) => updateApiKey(providerId, key)}
                           onTest={(key) => testApiKey(providerId, key, config?.baseUrl)}
-                          isTestingKey={isTestingKey}
+                          isTesting={isTesting}
                           testResult={testResults[providerId] ?? null}
                         />
                       )}
 
-                      {supportsBaseUrl && (
-                        <div className="space-y-1.5">
-                          <label
-                            htmlFor={`base-url-${providerId}`}
-                            className="text-xs text-text-secondary"
-                          >
-                            Base URL
-                          </label>
-                          <input
-                            id={`base-url-${providerId}`}
-                            type="text"
-                            value={config?.baseUrl ?? ''}
-                            onChange={(e) => updateBaseUrl(providerId, e.target.value)}
-                            placeholder="http://localhost:11434"
-                            className={cn(
-                              'w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text-primary',
-                              'placeholder:text-text-muted',
-                              'focus:border-border-light focus:outline-none',
-                              'transition-colors',
-                            )}
-                          />
-                        </div>
+                      {providerInfo.supportsBaseUrl && (
+                        <BaseUrlInput
+                          providerId={providerId}
+                          value={config?.baseUrl ?? ''}
+                          onSave={(url) => updateBaseUrl(providerId, url)}
+                        />
                       )}
 
-                      {!requiresKey && (
+                      {!providerInfo.requiresApiKey && (
                         <button
                           type="button"
                           onClick={() => testApiKey(providerId, '', config?.baseUrl)}
-                          disabled={isTestingKey}
+                          disabled={isTesting}
                           className={cn(
                             'rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                            !isTestingKey
+                            !isTesting
                               ? 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
                               : 'bg-bg-tertiary text-text-muted cursor-not-allowed',
                           )}
                         >
-                          Test Connection
+                          {isTesting ? 'Testing...' : 'Test Connection'}
                         </button>
                       )}
                     </div>
@@ -204,5 +163,49 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps): React.
         </div>
       </div>
     </dialog>
+  )
+}
+
+/** Base URL input that only saves on blur, not on every keystroke */
+function BaseUrlInput({
+  providerId,
+  value,
+  onSave,
+}: {
+  providerId: string
+  value: string
+  onSave: (url: string) => void
+}): React.JSX.Element {
+  const [localValue, setLocalValue] = useState(value)
+
+  // Sync from parent if external update
+  useEffect(() => {
+    setLocalValue(value)
+  }, [value])
+
+  return (
+    <div className="space-y-1.5">
+      <label htmlFor={`base-url-${providerId}`} className="text-xs text-text-secondary">
+        Base URL
+      </label>
+      <input
+        id={`base-url-${providerId}`}
+        type="text"
+        value={localValue}
+        onChange={(e) => setLocalValue(e.target.value)}
+        onBlur={() => {
+          if (localValue !== value) {
+            onSave(localValue)
+          }
+        }}
+        placeholder="http://localhost:11434"
+        className={cn(
+          'w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text-primary',
+          'placeholder:text-text-muted',
+          'focus:border-border-light focus:outline-none',
+          'transition-colors',
+        )}
+      />
+    </div>
   )
 }

@@ -12,7 +12,7 @@ export function App(): React.JSX.Element {
   // Initialize subscriptions
   useSettingsSetup()
 
-  const { settings, isLoaded, setDefaultModel } = useSettings()
+  const { settings, isLoaded, providerModels, setDefaultModel } = useSettings()
   const { projectPath, selectFolder } = useProject()
   const { activeConversation, createConversation, loadConversations } = useChat()
 
@@ -49,6 +49,7 @@ export function App(): React.JSX.Element {
         model={currentModel}
         onModelChange={handleModelChange}
         settings={settings}
+        providerModels={providerModels}
         projectPath={projectPath}
         conversationTitle={activeConversation?.title ?? null}
         onSelectProject={selectFolder}
