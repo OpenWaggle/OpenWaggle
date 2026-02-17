@@ -15,10 +15,10 @@
         "noConfusingVoidType": "warn"
       },
       "complexity": {
-        "noForEach": "off"
+        "noForEach": "error"
       },
       "style": {
-        "noNonNullAssertion": "warn",
+        "noNonNullAssertion": "error",
         "useConst": "error",
         "useImportType": "error"
       },
