@@ -1,45 +1,45 @@
-import { ANTHROPIC_MODELS } from '@tanstack/ai-anthropic'
-import { OPENAI_CHAT_MODELS } from '@tanstack/ai-openai'
-import type { Provider } from './settings'
+// SupportedModelId widens to string — runtime validation via provider registry.
+// Kept as type alias for backward compatibility across the codebase.
+export type SupportedModelId = string
 
-// All supported model IDs — derived from TanStack AI's const tuples
-export const SUPPORTED_MODELS = [...ANTHROPIC_MODELS, ...OPENAI_CHAT_MODELS] as const
-export type SupportedModelId = (typeof SUPPORTED_MODELS)[number]
-
-// The subset we surface in the UI (curated list)
-export const UI_MODELS = [
-  // Anthropic
-  'claude-opus-4-6',
-  'claude-sonnet-4-5',
-  'claude-haiku-4-5',
-  'claude-sonnet-4',
-  // OpenAI
-  'gpt-4.1',
-  'gpt-4.1-mini',
-  'o3',
-  'o4-mini',
-] as const satisfies readonly SupportedModelId[]
-
-export type UIModelId = (typeof UI_MODELS)[number]
-
-export function getProvider(model: SupportedModelId): Provider {
-  return (ANTHROPIC_MODELS as readonly string[]).includes(model) ? 'anthropic' : 'openai'
-}
-
-// Display info for UI
+// Display info for UI — generated dynamically from the provider registry
 export interface ModelDisplayInfo {
-  readonly id: UIModelId
+  readonly id: string
   readonly name: string
-  readonly provider: Provider
+  readonly provider: string
 }
 
-export const MODEL_DISPLAY_INFO: readonly ModelDisplayInfo[] = [
-  { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', provider: 'anthropic' },
-  { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', provider: 'anthropic' },
-  { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5', provider: 'anthropic' },
-  { id: 'claude-sonnet-4', name: 'Claude Sonnet 4', provider: 'anthropic' },
-  { id: 'gpt-4.1', name: 'GPT-4.1', provider: 'openai' },
-  { id: 'gpt-4.1-mini', name: 'GPT-4.1 Mini', provider: 'openai' },
-  { id: 'o3', name: 'o3', provider: 'openai' },
-  { id: 'o4-mini', name: 'o4-mini', provider: 'openai' },
-]
+/** Human-readable name generation from model IDs */
+export function generateDisplayName(modelId: string): string {
+  // Brand capitalization rules
+  const brandMap: Record<string, string> = {
+    claude: 'Claude',
+    gpt: 'GPT',
+    gemini: 'Gemini',
+    grok: 'Grok',
+    ollama: 'Ollama',
+    deepseek: 'DeepSeek',
+    llama: 'Llama',
+    mistral: 'Mistral',
+    qwen: 'Qwen',
+    phi: 'Phi',
+  }
+
+  // Strip provider prefix for openrouter (e.g. "anthropic/claude-opus-4" → "claude-opus-4")
+  const segments = modelId.split('/')
+  const bare = segments.length > 1 ? (segments[segments.length - 1] ?? modelId) : modelId
+
+  // Split on hyphens, apply brand rules, capitalize the rest
+  const tokens = bare.split('-')
+  const mapped = tokens.map((token, i) => {
+    const lower = token.toLowerCase()
+    if (i === 0 && brandMap[lower]) return brandMap[lower]
+    // Keep version numbers as-is (e.g. "4.1", "4-5" stays)
+    if (/^\d/.test(token)) return token
+    // Capitalize first letter
+    return token.charAt(0).toUpperCase() + token.slice(1)
+  })
+
+  // Join with spaces, then collapse version-like patterns: "4 5" → "4.5"
+  return mapped.join(' ').replace(/(\d) (\d)/g, '$1.$2')
+}

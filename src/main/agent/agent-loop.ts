@@ -3,14 +3,9 @@ import type { Message, MessagePart } from '@shared/types/agent'
 import { MessageId, ToolCallId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
-import type { Settings } from '@shared/types/settings'
+import type { Provider, Settings } from '@shared/types/settings'
 import { chat, maxIterations, type StreamChunk } from '@tanstack/ai'
-import {
-  ANTHROPIC_MODELS,
-  type AnthropicChatModel,
-  createAnthropicChat,
-} from '@tanstack/ai-anthropic'
-import { createOpenaiChat, type OpenAIChatModel } from '@tanstack/ai-openai'
+import { providerRegistry } from '../providers'
 import { setToolContext } from '../tools/define-tool'
 import { getServerTools } from '../tools/registry'
 import { buildSystemPrompt } from './system-prompt'
@@ -42,66 +37,6 @@ interface SimpleChatMessage {
   content: string | null
   toolCalls?: Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }>
   toolCallId?: string
-}
-
-/** Type predicate: narrow SupportedModelId to AnthropicChatModel */
-function isAnthropicModel(model: SupportedModelId): model is AnthropicChatModel {
-  return (ANTHROPIC_MODELS as readonly string[]).includes(model)
-}
-
-function getApiKey(model: SupportedModelId, settings: Settings): string {
-  const provider = isAnthropicModel(model) ? 'anthropic' : 'openai'
-  const apiKey = settings.providers[provider]?.apiKey
-  if (!apiKey) throw new Error(`No API key configured for ${provider}`)
-  return apiKey
-}
-
-/**
- * Run the agent for the Anthropic provider.
- * Separated so TypeScript can fully infer adapter + chat() types.
- */
-function runAnthropicChat(
-  model: AnthropicChatModel,
-  apiKey: string,
-  messages: SimpleChatMessage[],
-  systemPrompt: string,
-  hasProject: boolean,
-  abortController: AbortController,
-) {
-  const adapter = createAnthropicChat(model, apiKey)
-  return chat({
-    adapter,
-    messages,
-    systemPrompts: [systemPrompt],
-    tools: hasProject ? getServerTools() : [],
-
-    agentLoopStrategy: maxIterations(MAX_ITERATIONS),
-    abortController,
-  })
-}
-
-/**
- * Run the agent for the OpenAI provider.
- * Separated so TypeScript can fully infer adapter + chat() types.
- */
-function runOpenaiChat(
-  model: OpenAIChatModel,
-  apiKey: string,
-  messages: SimpleChatMessage[],
-  systemPrompt: string,
-  hasProject: boolean,
-  abortController: AbortController,
-) {
-  const adapter = createOpenaiChat(model, apiKey)
-  return chat({
-    adapter,
-    messages,
-    systemPrompts: [systemPrompt],
-    tools: hasProject ? getServerTools() : [],
-
-    agentLoopStrategy: maxIterations(MAX_ITERATIONS),
-    abortController,
-  })
 }
 
 /**
@@ -182,7 +117,21 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
     signal,
   })
 
-  const apiKey = getApiKey(model, settings)
+  // Resolve provider and adapter via the registry
+  const provider = providerRegistry.getProviderForModel(model)
+  if (!provider) throw new Error(`No provider registered for model: ${model}`)
+
+  const providerConfig = settings.providers[provider.id as Provider]
+  if (provider.requiresApiKey && !providerConfig?.apiKey) {
+    throw new Error(`No API key configured for ${provider.displayName}`)
+  }
+
+  const adapter = provider.createAdapter(
+    model,
+    providerConfig?.apiKey ?? '',
+    providerConfig?.baseUrl,
+  )
+
   const systemPrompt = buildSystemPrompt(conversation.projectPath)
   const abortController = new AbortController()
   signal.addEventListener('abort', () => abortController.abort(), { once: true })
@@ -194,10 +143,14 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
 
   const hasProject = !!conversation.projectPath
 
-  // Dispatch to provider-specific function for proper type inference
-  const stream: AsyncIterable<StreamChunk> = isAnthropicModel(model)
-    ? runAnthropicChat(model, apiKey, allMessages, systemPrompt, hasProject, abortController)
-    : runOpenaiChat(model, apiKey, allMessages, systemPrompt, hasProject, abortController)
+  const stream: AsyncIterable<StreamChunk> = chat({
+    adapter,
+    messages: allMessages,
+    systemPrompts: [systemPrompt],
+    tools: hasProject ? getServerTools() : [],
+    agentLoopStrategy: maxIterations(MAX_ITERATIONS),
+    abortController,
+  })
 
   // Collect events for building our Message objects
   const collectedParts: MessagePart[] = []

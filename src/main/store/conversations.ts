@@ -6,9 +6,9 @@ import type { MessagePart } from '@shared/types/agent'
 import { ConversationId, MessageId, ToolCallId } from '@shared/types/brand'
 import type { Conversation, ConversationSummary } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
-import { SUPPORTED_MODELS } from '@shared/types/llm'
 import { app } from 'electron'
 import { z } from 'zod'
+import { providerRegistry } from '../providers'
 
 // ── Zod schemas for validating persisted conversations ──────────────────────
 
@@ -63,12 +63,8 @@ const LEGACY_MODEL_MAP: Record<string, SupportedModelId> = {
 }
 
 function migrateModelId(raw: string): SupportedModelId {
-  if ((SUPPORTED_MODELS as readonly string[]).includes(raw)) {
-    return raw as SupportedModelId
-  }
-  if (LEGACY_MODEL_MAP[raw]) {
-    return LEGACY_MODEL_MAP[raw]
-  }
+  if (providerRegistry.isKnownModel(raw)) return raw
+  if (LEGACY_MODEL_MAP[raw]) return LEGACY_MODEL_MAP[raw]
   // Preserve provider when falling back: OpenAI models → gpt-4.1-mini, Anthropic → claude-sonnet-4-5
   if (/^(gpt-|o1-|o3-|o4-)/.test(raw)) {
     return 'gpt-4.1-mini'

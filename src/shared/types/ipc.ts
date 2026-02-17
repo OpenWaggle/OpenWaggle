@@ -1,8 +1,8 @@
 import type { StreamChunk } from '@tanstack/ai'
 import type { ConversationId, ToolCallId } from './brand'
 import type { Conversation, ConversationSummary } from './conversation'
-import type { SupportedModelId } from './llm'
-import type { Provider, Settings } from './settings'
+import type { ModelDisplayInfo, SupportedModelId } from './llm'
+import type { Settings } from './settings'
 import type { ToolApprovalRequest, ToolApprovalStatus } from './tools'
 
 // ─── IPC Channel Map ─────────────────────────────────────────
@@ -28,7 +28,7 @@ export interface IpcInvokeChannelMap {
     return: undefined
   }
   'settings:test-api-key': {
-    args: [provider: Provider, apiKey: string]
+    args: [provider: string, apiKey: string, baseUrl?: string]
     return: boolean
   }
   'project:select-folder': {
@@ -54,6 +54,10 @@ export interface IpcInvokeChannelMap {
   'conversations:update-title': {
     args: [id: ConversationId, title: string]
     return: undefined
+  }
+  'providers:get-models': {
+    args: []
+    return: Array<{ provider: string; displayName: string; models: ModelDisplayInfo[] }>
   }
 }
 
@@ -123,7 +127,12 @@ export interface HiveCodeApi {
   // Settings
   getSettings(): Promise<Settings>
   updateSettings(settings: Partial<Settings>): Promise<void>
-  testApiKey(provider: Provider, apiKey: string): Promise<boolean>
+  testApiKey(provider: string, apiKey: string, baseUrl?: string): Promise<boolean>
+
+  // Providers
+  getProviderModels(): Promise<
+    Array<{ provider: string; displayName: string; models: ModelDisplayInfo[] }>
+  >
 
   // Project
   selectProjectFolder(): Promise<string | null>

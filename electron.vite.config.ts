@@ -7,9 +7,19 @@ export default defineConfig({
   main: {
     build: {
       externalizeDeps: {
-        exclude: ['@tanstack/ai', '@tanstack/ai-anthropic', '@tanstack/ai-openai', '@t3-oss/env-core'],
+        exclude: [
+          '@tanstack/ai',
+          '@tanstack/ai-anthropic',
+          '@tanstack/ai-openai',
+          '@tanstack/ai-gemini',
+          '@tanstack/ai-grok',
+          '@tanstack/ai-openrouter',
+          '@tanstack/ai-ollama',
+          '@t3-oss/env-core',
+        ],
       },
       rollupOptions: {
+        external: ['bufferutil', 'utf-8-validate'],
         output: {
           interop: 'auto',
         },

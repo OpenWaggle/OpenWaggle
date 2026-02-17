@@ -40,11 +40,20 @@ HiveCode is an Electron desktop coding agent with multi-model LLM support. Three
 
 The preload `api` object (`src/preload/api.ts`) implements `HiveCodeApi` — a convenience wrapper that maps friendly method names to IPC channels. The renderer imports this as `window.api` via `src/renderer/src/lib/ipc.ts`.
 
+### Provider Registry
+
+`src/main/providers/` implements a dynamic multi-provider system. `ProviderDefinition` (interface) defines each provider's capabilities. `ProviderRegistry` (singleton) manages registration and lookup:
+- 6 providers: Anthropic, OpenAI, Gemini, Grok, OpenRouter, Ollama
+- Each provider file exports a `ProviderDefinition` with model list, adapter factory, and capabilities
+- `registerAllProviders()` called at app startup before IPC handlers
+- Registry provides `getProviderForModel(id)` for model→provider resolution and `createAdapter()` for chat adapter creation
+- `providers:get-models` IPC channel exposes grouped model lists to the renderer
+
 ### Agent Loop
 
-`src/main/agent/agent-loop.ts` uses TanStack AI's `chat()` function with provider-specific adapters (`createAnthropicChat`, `createOpenaiChat`). The loop:
+`src/main/agent/agent-loop.ts` uses TanStack AI's `chat()` function with the provider registry to dynamically create adapters. The loop:
 1. Converts our `Message[]` to `SimpleChatMessage[]` (structural typing to avoid `ConstrainedModelMessage` generics)
-2. Dispatches to provider-specific functions (`runAnthropicChat`/`runOpenaiChat`) for full type inference — no `as any` casts
+2. Resolves the provider via `providerRegistry.getProviderForModel()` and creates an adapter with the provider's `createAdapter()` method
 3. Iterates the `AsyncIterable<StreamChunk>` stream, translating AG-UI events (`TEXT_MESSAGE_CONTENT`, `TOOL_CALL_*`, `RUN_ERROR`) into our `AgentStreamEvent` discriminated union
 4. Emits events over IPC via `emitAgentEvent()` (broadcasts to all renderer windows)
 
@@ -66,19 +75,19 @@ Six built-in tools in `src/main/tools/tools/`: `readFile`, `writeFile`, `editFil
 
 ### Model System
 
-`src/shared/types/llm.ts` derives `SupportedModelId` from TanStack AI's const tuples (`ANTHROPIC_MODELS`, `OPENAI_CHAT_MODELS`). Model IDs are compile-time validated — no branded type, just a literal union. `UI_MODELS` is a curated subset with `satisfies readonly SupportedModelId[]`.
+`SupportedModelId` is a `string` type alias — runtime validation is done via the provider registry's `isKnownModel()`. Each provider package exports its own model tuple (e.g. `ANTHROPIC_MODELS`, `OPENAI_CHAT_MODELS`, `GeminiTextModels`). The model selector in the renderer fetches grouped model lists dynamically via `providers:get-models` IPC. `generateDisplayName()` converts model IDs to human-readable names.
 
 ## Key Patterns
 
 - **Branded types** (`src/shared/types/brand.ts`): `ConversationId`, `MessageId`, `ToolCallId` prevent accidental ID mixing. Use constructors at boundaries: `ConversationId(uuid())`.
 - **Discriminated unions**: Message parts (`type: 'text' | 'tool-call' | 'tool-result'`), agent events (`type: 'text-delta' | 'tool-call-start' | ...`), stream chunks.
 - **Path aliases**: `@shared/*` → `src/shared/*` (all targets), `@/*` → `src/renderer/src/*` (renderer only).
-- **Provider narrowing**: `isAnthropicModel()` type predicate narrows `SupportedModelId` to `AnthropicChatModel`, enabling separate provider-specific chat functions with full type inference.
+- **Provider registry**: `providerRegistry` singleton resolves models to providers at runtime. Each provider implements `ProviderDefinition` with `createAdapter()` for chat adapter creation.
 
 ## Electron-Vite Config
 
 `electron.vite.config.ts` has two important settings:
-- `externalizeDepsPlugin({ exclude: ['@tanstack/ai', '@tanstack/ai-anthropic', '@tanstack/ai-openai'] })` — TanStack packages are ESM-only, must be bundled into main process output
+- `externalizeDeps.exclude` includes all `@tanstack/ai-*` packages (anthropic, openai, gemini, grok, openrouter, ollama) — ESM-only, must be bundled into main process output
 - `build.rollupOptions.output.interop: 'auto'` — Required for CJS interop with ESM-only externals like `electron-store`
 
 ## Performance

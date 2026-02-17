@@ -5,7 +5,9 @@ import { env } from './env'
 import { registerAgentHandlers } from './ipc/agent-handler'
 import { registerConversationsHandlers } from './ipc/conversations-handler'
 import { registerProjectHandlers } from './ipc/project-handler'
+import { registerProvidersHandlers } from './ipc/providers-handler'
 import { registerSettingsHandlers } from './ipc/settings-handler'
+import { registerAllProviders } from './providers'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -48,11 +50,15 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
+  // Register providers first — other handlers depend on the registry
+  registerAllProviders()
+
   // Register IPC handlers
   registerAgentHandlers()
   registerSettingsHandlers()
   registerConversationsHandlers()
   registerProjectHandlers()
+  registerProvidersHandlers()
 
   createWindow()
 

@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
+import { DEFAULT_SETTINGS, type ProviderConfig, type Settings } from '@shared/types/settings'
 import Store from 'electron-store'
 
 const store = new Store<Settings>({
@@ -7,8 +7,22 @@ const store = new Store<Settings>({
 })
 
 export function getSettings(): Settings {
+  const storedProviders = store.get('providers', {}) as Record<string, Partial<ProviderConfig>>
+  const providers: Record<string, ProviderConfig> = {}
+
+  for (const [id, defaults] of Object.entries(DEFAULT_SETTINGS.providers)) {
+    if (!defaults) continue
+    const existing = storedProviders[id]
+    providers[id] = {
+      apiKey: existing?.apiKey ?? defaults.apiKey,
+      baseUrl: existing?.baseUrl ?? defaults.baseUrl,
+      // Auto-enable if user already has an API key configured
+      enabled: existing?.enabled ?? (existing?.apiKey ? true : defaults.enabled),
+    }
+  }
+
   return {
-    providers: store.get('providers', DEFAULT_SETTINGS.providers),
+    providers,
     defaultModel: store.get('defaultModel', DEFAULT_SETTINGS.defaultModel),
     projectPath: store.get('projectPath', DEFAULT_SETTINGS.projectPath),
   }

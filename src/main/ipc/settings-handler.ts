@@ -1,26 +1,31 @@
-import type { Provider, Settings } from '@shared/types/settings'
+import type { Settings } from '@shared/types/settings'
 import { chat } from '@tanstack/ai'
-import { createAnthropicChat } from '@tanstack/ai-anthropic'
-import { createOpenaiChat } from '@tanstack/ai-openai'
 import { ipcMain } from 'electron'
+import { providerRegistry } from '../providers'
 import { getSettings, updateSettings } from '../store/settings'
 
-async function testAnthropicKey(apiKey: string): Promise<boolean> {
-  try {
-    const adapter = createAnthropicChat('claude-haiku-4-5', apiKey)
-    const stream = chat({ adapter, messages: [{ role: 'user', content: 'Hi' }] })
-    for await (const _ of stream) {
-      break // first chunk confirms the key works
+async function testProviderApiKey(
+  providerId: string,
+  apiKey: string,
+  baseUrl?: string,
+): Promise<boolean> {
+  const provider = providerRegistry.get(providerId)
+  if (!provider) return false
+
+  if (!provider.requiresApiKey) {
+    // For Ollama: test connectivity by fetching model list
+    if (provider.fetchModels) {
+      const models = await provider.fetchModels(baseUrl)
+      return models.length > 0
     }
     return true
-  } catch {
-    return false
   }
-}
 
-async function testOpenaiKey(apiKey: string): Promise<boolean> {
   try {
-    const adapter = createOpenaiChat('gpt-4.1-mini', apiKey)
+    // Use the last model in the list (typically cheapest)
+    const testModel = provider.models[provider.models.length - 1]
+    if (!testModel) return false
+    const adapter = provider.createAdapter(testModel, apiKey, baseUrl)
     const stream = chat({ adapter, messages: [{ role: 'user', content: 'Hi' }] })
     for await (const _ of stream) {
       break // first chunk confirms the key works
@@ -40,7 +45,10 @@ export function registerSettingsHandlers(): void {
     updateSettings(partial)
   })
 
-  ipcMain.handle('settings:test-api-key', async (_event, provider: Provider, apiKey: string) => {
-    return provider === 'anthropic' ? testAnthropicKey(apiKey) : testOpenaiKey(apiKey)
-  })
+  ipcMain.handle(
+    'settings:test-api-key',
+    async (_event, provider: string, apiKey: string, baseUrl?: string) => {
+      return testProviderApiKey(provider, apiKey, baseUrl)
+    },
+  )
 }
