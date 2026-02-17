@@ -1,4 +1,3 @@
-import type { AgentStatus } from '@shared/types/agent'
 import { ArrowUp, Square } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/cn'
@@ -6,24 +5,28 @@ import { cn } from '@/lib/cn'
 interface InputBarProps {
   onSend: (content: string) => void
   onCancel: () => void
-  status: AgentStatus
+  isLoading: boolean
   disabled?: boolean
 }
 
-export function InputBar({ onSend, onCancel, status, disabled }: InputBarProps): React.JSX.Element {
+export function InputBar({
+  onSend,
+  onCancel,
+  isLoading,
+  disabled,
+}: InputBarProps): React.JSX.Element {
   const [input, setInput] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const isActive = status === 'streaming' || status === 'tool-executing'
 
   useEffect(() => {
-    if (status === 'idle' && textareaRef.current) {
+    if (!isLoading && textareaRef.current) {
       textareaRef.current.focus()
     }
-  }, [status])
+  }, [isLoading])
 
   function handleSubmit(): void {
     const trimmed = input.trim()
-    if (!trimmed || isActive || disabled) return
+    if (!trimmed || isLoading || disabled) return
     onSend(trimmed)
     setInput('')
     // Reset textarea height
@@ -56,8 +59,8 @@ export function InputBar({ onSend, onCancel, status, disabled }: InputBarProps):
             value={input}
             onChange={handleInput}
             onKeyDown={handleKeyDown}
-            placeholder={isActive ? 'Agent is working...' : 'Message HiveCode...'}
-            disabled={isActive || disabled}
+            placeholder={isLoading ? 'Agent is working...' : 'Message HiveCode...'}
+            disabled={isLoading || disabled}
             rows={1}
             className={cn(
               'w-full resize-none rounded-xl border border-border bg-bg px-4 py-3 pr-12 text-sm text-text-primary',
@@ -69,7 +72,7 @@ export function InputBar({ onSend, onCancel, status, disabled }: InputBarProps):
           />
         </div>
 
-        {isActive ? (
+        {isLoading ? (
           <button
             type="button"
             onClick={onCancel}

@@ -1,13 +1,9 @@
-import type { AgentStatus, Message, MessagePart } from '@shared/types/agent'
+import type { SupportedModelId } from '@shared/types/llm'
 import { ChatPanel } from '@/components/chat/ChatPanel'
 
 interface MainPanelProps {
-  messages: readonly Message[]
-  status: AgentStatus
-  streamingText: string
-  streamingParts: readonly MessagePart[]
-  onSend: (content: string) => void
-  onCancel: () => void
+  model: SupportedModelId
+  projectPath: string | null
   hasProject: boolean
 }
 

@@ -1,10 +1,10 @@
-import type { AgentStreamEvent } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import type { Conversation, ConversationSummary } from '@shared/types/conversation'
 import type { HiveCodeApi } from '@shared/types/ipc'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { Provider, Settings } from '@shared/types/settings'
 import type { ToolApprovalRequest, ToolApprovalStatus } from '@shared/types/tools'
+import type { StreamChunk } from '@tanstack/ai'
 import { ipcRenderer } from 'electron'
 
 /**
@@ -25,12 +25,12 @@ export const api: HiveCodeApi = {
     ipcRenderer.send('agent:cancel')
   },
 
-  onAgentEvent(callback: (event: AgentStreamEvent) => void): () => void {
-    const handler = (_event: Electron.IpcRendererEvent, payload: AgentStreamEvent): void => {
+  onStreamChunk(callback: (chunk: StreamChunk) => void): () => void {
+    const handler = (_event: Electron.IpcRendererEvent, payload: StreamChunk): void => {
       callback(payload)
     }
-    ipcRenderer.on('agent:event', handler)
-    return () => ipcRenderer.removeListener('agent:event', handler)
+    ipcRenderer.on('agent:stream-chunk', handler)
+    return () => ipcRenderer.removeListener('agent:stream-chunk', handler)
   },
 
   // ─── Tool Approval ──────────────────────────────────

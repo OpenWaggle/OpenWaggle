@@ -23,6 +23,9 @@ importers:
       '@tanstack/ai-openai':
         specifier: ^0.5.0
         version: 0.5.0(@tanstack/ai@0.5.0)(zod@4.3.6)
+      '@tanstack/ai-react':
+        specifier: ^0.5.3
+        version: 0.5.3(@tanstack/ai@0.5.0)(@types/react@19.2.14)(react@19.2.4)
       electron-store:
         specifier: ^11.0.2
         version: 11.0.2
@@ -75,6 +78,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^5.1.4
         version: 5.1.4(vite@7.3.1(@types/node@25.2.3)(jiti@2.6.1)(lightningcss@1.30.2))
+      babel-plugin-react-compiler:
+        specifier: ^1.0.0
+        version: 1.0.0
       electron:
         specifier: ^40.4.1
         version: 40.4.1
@@ -909,11 +915,21 @@ packages:
       '@tanstack/ai': ^0.5.0
       zod: ^4.0.0
 
+  '@tanstack/ai-client@0.4.4':
+    resolution: {integrity: sha512-OEXDBHBKi8KO6wGYd4XA6MEqBDgKhCnRqUucp6aXVEob/HmXyqzWVyyUCsTT/Chc/802VKlC2ddWgwlr/fKSAg==}
+
   '@tanstack/ai-openai@0.5.0':
     resolution: {integrity: sha512-0xJg+BkqVgIRbl4LyiPQWCLOapfGpK4lSzqjaWRkz2Hf1C3m4exg76rBuv1mvr4G3XAR5SnMRSj3XxlWMuRImA==}
     peerDependencies:
       '@tanstack/ai': ^0.5.0
       zod: ^4.0.0
+
+  '@tanstack/ai-react@0.5.3':
+    resolution: {integrity: sha512-D17UbP6asaMhkgXWZayu7gRHXnliMTm4f1QLOWMrdggZ9NlD41p9jjuoGl5J3I5ne+XGunrBUHrBXGP+GbMK9g==}
+    peerDependencies:
+      '@tanstack/ai': ^0.5.0
+      '@types/react': '>=18.0.0'
+      react: '>=18.0.0'
 
   '@tanstack/ai@0.5.0':
     resolution: {integrity: sha512-RGTLobq2jFCddLINGsETAsVixIvZTfWVJFBkz+l5JaYaGp0uQkJBDhC375ru0LWH7WsE3BWIUeU1p9QQ0zBGzA==}
@@ -1090,6 +1106,9 @@ packages:
 
   atomically@2.1.1:
     resolution: {integrity: sha512-P4w9o2dqARji6P7MHprklbfiArZAWvo07yW7qs3pdljb3BWr12FIB7W+p0zJiuiVsUpRO0iZn1kFFcpPegg0tQ==}
+
+  babel-plugin-react-compiler@1.0.0:
+    resolution: {integrity: sha512-Ixm8tFfoKKIPYdCCKYTsqv+Fd4IJ0DQqMyEimo+pxUOMUR9cVPlwTrFt9Avu+3cb6Zp3mAzl+t1MrG2fxxKsxw==}
 
   bail@2.0.2:
     resolution: {integrity: sha512-0xO6mYd7JB2YesxDKplafRpsiOzPt9V02ddPCLbY1xYGPOX24NTyN50qnUxgCPcSoYMhKpAuBTjQoRZCAkUDRw==}
@@ -3488,6 +3507,10 @@ snapshots:
       '@tanstack/ai': 0.5.0
       zod: 4.3.6
 
+  '@tanstack/ai-client@0.4.4':
+    dependencies:
+      '@tanstack/ai': 0.5.0
+
   '@tanstack/ai-openai@0.5.0(@tanstack/ai@0.5.0)(zod@4.3.6)':
     dependencies:
       '@tanstack/ai': 0.5.0
@@ -3495,6 +3518,13 @@ snapshots:
       zod: 4.3.6
     transitivePeerDependencies:
       - ws
+
+  '@tanstack/ai-react@0.5.3(@tanstack/ai@0.5.0)(@types/react@19.2.14)(react@19.2.4)':
+    dependencies:
+      '@tanstack/ai': 0.5.0
+      '@tanstack/ai-client': 0.4.4
+      '@types/react': 19.2.14
+      react: 19.2.4
 
   '@tanstack/ai@0.5.0':
     dependencies:
@@ -3716,6 +3746,10 @@ snapshots:
     dependencies:
       stubborn-fs: 2.0.0
       when-exit: 2.1.5
+
+  babel-plugin-react-compiler@1.0.0:
+    dependencies:
+      '@babel/types': 7.29.0
 
   bail@2.0.2: {}
 

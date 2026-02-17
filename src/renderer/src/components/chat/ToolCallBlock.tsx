@@ -1,19 +1,31 @@
-import type { ToolCallRequest, ToolCallResult } from '@shared/types/tools'
 import { Check, ChevronRight, Loader2, Wrench, X } from 'lucide-react'
 import { useState } from 'react'
 import { Badge } from '@/components/shared/Badge'
 import { cn } from '@/lib/cn'
-import { formatDuration } from '@/lib/format'
 
 interface ToolCallBlockProps {
-  toolCall: ToolCallRequest
-  result?: ToolCallResult
+  name: string
+  args: string
+  state: string
+  result?: { content: string; state: string; error?: string }
 }
 
-export function ToolCallBlock({ toolCall, result }: ToolCallBlockProps): React.JSX.Element {
+export function ToolCallBlock({
+  name,
+  args,
+  state,
+  result,
+}: ToolCallBlockProps): React.JSX.Element {
   const [expanded, setExpanded] = useState(false)
-  const isRunning = !result
-  const isError = result?.isError ?? false
+  const isRunning = state !== 'input-complete' || !result
+  const isError = result?.state === 'error'
+
+  let parsedArgs: string
+  try {
+    parsedArgs = JSON.stringify(JSON.parse(args), null, 2)
+  } catch {
+    parsedArgs = args
+  }
 
   return (
     <div className="my-2 rounded-lg border border-border bg-bg-secondary overflow-hidden">
@@ -29,18 +41,15 @@ export function ToolCallBlock({ toolCall, result }: ToolCallBlockProps): React.J
           )}
         />
         <Wrench className="h-3.5 w-3.5 text-text-muted" />
-        <span className="font-mono text-text-secondary">{toolCall.name}</span>
+        <span className="font-mono text-text-secondary">{name}</span>
 
         <div className="ml-auto flex items-center gap-2">
-          {isRunning && <Loader2 className="h-3.5 w-3.5 text-accent animate-spin" />}
+          {isRunning && !result && <Loader2 className="h-3.5 w-3.5 text-accent animate-spin" />}
           {result && !isError && (
-            <>
-              <Badge variant="success">
-                <Check className="h-3 w-3 mr-0.5" />
-                Done
-              </Badge>
-              <span className="text-xs text-text-muted">{formatDuration(result.duration)}</span>
-            </>
+            <Badge variant="success">
+              <Check className="h-3 w-3 mr-0.5" />
+              Done
+            </Badge>
           )}
           {result && isError && (
             <Badge variant="error">
@@ -56,7 +65,7 @@ export function ToolCallBlock({ toolCall, result }: ToolCallBlockProps): React.J
           <div className="px-3 py-2">
             <div className="text-xs text-text-muted mb-1">Arguments</div>
             <pre className="text-xs font-mono text-text-secondary bg-bg rounded p-2 overflow-x-auto">
-              {JSON.stringify(toolCall.args, null, 2)}
+              {parsedArgs}
             </pre>
           </div>
 
@@ -69,7 +78,7 @@ export function ToolCallBlock({ toolCall, result }: ToolCallBlockProps): React.J
                   isError ? 'text-error' : 'text-text-secondary',
                 )}
               >
-                {result.result}
+                {result.error ?? result.content}
               </pre>
             </div>
           )}

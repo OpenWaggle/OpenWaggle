@@ -81,6 +81,28 @@ Six built-in tools in `src/main/tools/tools/`: `readFile`, `writeFile`, `editFil
 - `externalizeDepsPlugin({ exclude: ['@tanstack/ai', '@tanstack/ai-anthropic', '@tanstack/ai-openai'] })` — TanStack packages are ESM-only, must be bundled into main process output
 - `build.rollupOptions.output.interop: 'auto'` — Required for CJS interop with ESM-only externals like `electron-store`
 
-## Biome Rules
+## Performance
 
-Strict: no `any`, no unused imports/variables, `const` over `let`, `import type` for type-only imports. 2-space indent, 100-char lines, single quotes, no semicolons.
+### React Compiler
+
+`babel-plugin-react-compiler` is configured in `electron.vite.config.ts`. It auto-memoizes component renders, so:
+- **Never use `React.memo()`** — the compiler handles it.
+- **Never use `useMemo()` / `useCallback()` for render optimization** — the compiler handles it. Only use them for referential identity needed by external APIs (e.g. `useEffect` deps that must be stable for non-render reasons).
+
+### Streaming Rendering
+
+`StreamingText` accepts an `isStreaming` prop. When `true`, it renders plain text instead of running `ReactMarkdown` + `remarkGfm`. This avoids re-parsing markdown on every streaming token. Only pass `isStreaming` for the actively-accumulating text; completed text blocks and historical messages render full markdown.
+
+### Zustand Selectors
+
+Always use granular selectors with `useChatStore((s) => s.field)` — never call `useChatStore()` without a selector. Streaming state (`streamingText`, `streamingParts`, `status`) is subscribed to directly in `ChatPanel`, not passed down from `App.tsx`, so streaming tokens don't re-render the entire component tree.
+
+## Coding Conventions
+
+- **Always use `pnpm`** to run scripts, tests, or manage dependencies. Never use `npm` or `yarn`.
+- **Never use `any`** — prefer `unknown` plus narrowing, or Zod schemas for runtime validation.
+- **Never use `React.FC`** — define components as plain functions with explicit props interfaces.
+- **Never use `forwardRef`** — React 19 supports direct ref props.
+- **Never mutate Zustand state directly** — always use store actions.
+- **Never use `process.env` or `import.meta.env`** — import from `@/env` (Biome enforces `noProcessEnv`). # TODO: this file needs to be created
+- **Always use `cn()`** from `src/lib/utils` for conditional Tailwind classes.

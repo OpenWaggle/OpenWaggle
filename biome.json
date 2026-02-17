@@ -20,7 +20,8 @@
       "style": {
         "noNonNullAssertion": "error",
         "useConst": "error",
-        "useImportType": "error"
+        "useImportType": "error",
+         "noProcessEnv": "error"
       },
       "correctness": {
         "noUnusedVariables": "error",

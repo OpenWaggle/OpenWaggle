@@ -1,4 +1,4 @@
-import type { AgentStreamEvent } from './agent'
+import type { StreamChunk } from '@tanstack/ai'
 import type { ConversationId } from './brand'
 import type { Conversation, ConversationSummary } from './conversation'
 import type { SupportedModelId } from './llm'
@@ -73,8 +73,9 @@ export interface IpcSendChannelMap {
  * Event channels — one-way, main → renderer
  */
 export interface IpcEventChannelMap {
-  'agent:event': {
-    payload: AgentStreamEvent
+  /** Raw StreamChunk from TanStack AI — consumed by the useChat IPC adapter */
+  'agent:stream-chunk': {
+    payload: StreamChunk
   }
   'tool:approval-request': {
     payload: ToolApprovalRequest
@@ -126,7 +127,8 @@ export interface HiveCodeApi {
     model: SupportedModelId,
   ): Promise<void>
   cancelAgent(): void
-  onAgentEvent(callback: (event: AgentStreamEvent) => void): () => void
+  /** Subscribe to raw StreamChunks from TanStack AI — used by the IPC connection adapter */
+  onStreamChunk(callback: (chunk: StreamChunk) => void): () => void
 
   // Tool approval
   respondToolApproval(callId: string, status: ToolApprovalStatus): void

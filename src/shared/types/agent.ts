@@ -33,20 +33,6 @@ export interface Message {
   readonly createdAt: number
 }
 
-/**
- * Agent stream events — discriminated union.
- * Streamed from main → renderer during agent execution.
- */
-export type AgentStreamEvent =
-  | { readonly type: 'text-delta'; readonly delta: string }
-  | { readonly type: 'tool-call-start'; readonly toolCall: ToolCallRequest }
-  | { readonly type: 'tool-call-result'; readonly toolResult: ToolCallResult }
-  | { readonly type: 'finish'; readonly message: Message }
-  | { readonly type: 'error'; readonly error: string }
-
-export const AGENT_STATUSES = ['idle', 'streaming', 'tool-executing', 'error'] as const
-export type AgentStatus = (typeof AGENT_STATUSES)[number]
-
 /** Type-safe extraction helpers */
 export function isTextPart(part: MessagePart): part is TextPart {
   return part.type === 'text'

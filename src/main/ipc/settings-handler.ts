@@ -8,7 +8,7 @@ import { getSettings, updateSettings } from '../store/settings'
 async function testAnthropicKey(apiKey: string): Promise<boolean> {
   try {
     const adapter = createAnthropicChat('claude-haiku-4-5', apiKey)
-    const stream = chat({ adapter, messages: [{ role: 'user', content: 'Hi' }]})
+    const stream = chat({ adapter, messages: [{ role: 'user', content: 'Hi' }] })
     for await (const _ of stream) {
       break // first chunk confirms the key works
     }
@@ -21,7 +21,7 @@ async function testAnthropicKey(apiKey: string): Promise<boolean> {
 async function testOpenaiKey(apiKey: string): Promise<boolean> {
   try {
     const adapter = createOpenaiChat('gpt-4.1-nano', apiKey)
-    const stream = chat({ adapter, messages: [{ role: 'user', content: 'Hi' }]})
+    const stream = chat({ adapter, messages: [{ role: 'user', content: 'Hi' }] })
     for await (const _ of stream) {
       break // first chunk confirms the key works
     }

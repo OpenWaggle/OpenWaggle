@@ -1,9 +1,8 @@
-import type { AgentStreamEvent, Message, MessagePart } from '@shared/types/agent'
+import type { Message, MessagePart } from '@shared/types/agent'
 import { MessageId, ToolCallId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { Settings } from '@shared/types/settings'
-import type { ToolCallRequest, ToolCallResult } from '@shared/types/tools'
 import { chat, maxIterations, type StreamChunk } from '@tanstack/ai'
 import {
   ANTHROPIC_MODELS,
@@ -23,7 +22,8 @@ export interface AgentRunParams {
   readonly userMessage: string
   readonly model: SupportedModelId
   readonly settings: Settings
-  readonly onEvent: (event: AgentStreamEvent) => void
+  /** Forward raw StreamChunks to the renderer via IPC for the useChat adapter */
+  readonly onChunk: (chunk: StreamChunk) => void
   readonly signal: AbortSignal
 }
 
@@ -174,7 +174,7 @@ function makeMessage(
 }
 
 export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> {
-  const { conversation, userMessage, model, settings, onEvent, signal } = params
+  const { conversation, userMessage, model, settings, onChunk, signal } = params
 
   // Set tool context for this run
   setToolContext({
@@ -207,10 +207,13 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
   for await (const chunk of stream) {
     if (signal.aborted) break
 
+    // Forward raw chunk to renderer for the useChat IPC adapter
+    onChunk(chunk)
+
+    // Collect message parts for persistence
     switch (chunk.type) {
       case 'TEXT_MESSAGE_CONTENT':
         currentText += chunk.delta
-        onEvent({ type: 'text-delta', delta: chunk.delta })
         break
 
       case 'TOOL_CALL_START':
@@ -234,35 +237,31 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
           // malformed JSON — use empty args
         }
 
-        const toolCall: ToolCallRequest = {
-          id: ToolCallId(chunk.toolCallId),
-          name: chunk.toolName,
-          args,
-        }
-        collectedParts.push({ type: 'tool-call', toolCall })
-        onEvent({ type: 'tool-call-start', toolCall })
+        collectedParts.push({
+          type: 'tool-call',
+          toolCall: { id: ToolCallId(chunk.toolCallId), name: chunk.toolName, args },
+        })
 
         // TanStack AI executes the tool via ServerTool.execute and provides the result
         if (chunk.result !== undefined) {
-          const toolResult: ToolCallResult = {
-            id: ToolCallId(chunk.toolCallId),
-            name: chunk.toolName,
-            args,
-            result: typeof chunk.result === 'string' ? chunk.result : JSON.stringify(chunk.result),
-            isError: false,
-            duration: 0,
-          }
-          collectedParts.push({ type: 'tool-result', toolResult })
-          onEvent({ type: 'tool-call-result', toolResult })
+          collectedParts.push({
+            type: 'tool-result',
+            toolResult: {
+              id: ToolCallId(chunk.toolCallId),
+              name: chunk.toolName,
+              args,
+              result:
+                typeof chunk.result === 'string' ? chunk.result : JSON.stringify(chunk.result),
+              isError: false,
+              duration: 0,
+            },
+          })
         }
         break
       }
 
       case 'RUN_FINISHED':
-        break
-
       case 'RUN_ERROR':
-        onEvent({ type: 'error', error: chunk.error.message })
         break
     }
   }
@@ -278,6 +277,5 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
   const userMsg = makeMessage('user', [{ type: 'text', text: userMessage }])
   const assistantMsg = makeMessage('assistant', finalParts, model)
 
-  onEvent({ type: 'finish', message: assistantMsg })
   return { newMessages: [userMsg, assistantMsg], finalMessage: assistantMsg }
 }

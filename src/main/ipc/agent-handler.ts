@@ -5,7 +5,7 @@ import { ipcMain } from 'electron'
 import { runAgent } from '../agent/agent-loop'
 import { getConversation, saveConversation } from '../store/conversations'
 import { getSettings } from '../store/settings'
-import { emitAgentEvent } from '../utils/stream-bridge'
+import { emitStreamChunk } from '../utils/stream-bridge'
 
 let currentAbortController: AbortController | null = null
 
@@ -23,7 +23,11 @@ export function registerAgentHandlers(): void {
       const conversation = getConversation(conversationId)
 
       if (!conversation) {
-        emitAgentEvent({ type: 'error', error: 'Conversation not found' })
+        emitStreamChunk({
+          type: 'RUN_ERROR',
+          timestamp: Date.now(),
+          error: { message: 'Conversation not found' },
+        })
         return
       }
 
@@ -33,7 +37,7 @@ export function registerAgentHandlers(): void {
           userMessage: content,
           model,
           settings,
-          onEvent: emitAgentEvent,
+          onChunk: emitStreamChunk,
           signal: currentAbortController.signal,
         })
 
@@ -56,9 +60,10 @@ export function registerAgentHandlers(): void {
         saveConversation({ ...conversation, title, messages: updatedMessages })
       } catch (err) {
         if (!(err instanceof Error && err.message === 'aborted')) {
-          emitAgentEvent({
-            type: 'error',
-            error: err instanceof Error ? err.message : String(err),
+          emitStreamChunk({
+            type: 'RUN_ERROR',
+            timestamp: Date.now(),
+            error: { message: err instanceof Error ? err.message : String(err) },
           })
         }
       } finally {

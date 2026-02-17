@@ -1,0 +1,114 @@
+import type { ConversationId } from '@shared/types/brand'
+import type { Conversation } from '@shared/types/conversation'
+import type { SupportedModelId } from '@shared/types/llm'
+import type { UIMessage } from '@tanstack/ai-react'
+import { useChat } from '@tanstack/ai-react'
+import { useEffect, useRef } from 'react'
+import { createIpcConnectionAdapter } from '@/lib/ipc-connection-adapter'
+
+interface AgentChatReturn {
+  messages: UIMessage[]
+  sendMessage: (content: string) => Promise<void>
+  isLoading: boolean
+  status: 'ready' | 'submitted' | 'streaming' | 'error'
+  stop: () => void
+  error: Error | undefined
+}
+
+/**
+ * Wraps TanStack AI's useChat with an Electron IPC connection adapter.
+ *
+ * This replaces the custom Zustand streaming logic (streamingText, streamingParts,
+ * handleAgentEvent) with TanStack's built-in stream processing. useChat handles:
+ * - Message state (messages array with text + tool call parts)
+ * - Streaming state (isLoading, status)
+ * - Stream processing (StreamChunk → UIMessage)
+ * - Cancellation (stop)
+ *
+ * What we still manage externally:
+ * - Conversation list / switching (Zustand store)
+ * - Persistence (main process saves to disk)
+ * - Loading historical messages into useChat via setMessages()
+ */
+export function useAgentChat(
+  conversationId: ConversationId | null,
+  conversation: Conversation | null,
+  model: SupportedModelId,
+): AgentChatReturn {
+  // React Compiler handles memoization — no manual useMemo needed.
+  const connection = conversationId
+    ? createIpcConnectionAdapter(conversationId, model)
+    : { connect: () => emptyAsyncIterable() }
+
+  const { messages, sendMessage, isLoading, status, stop, setMessages, error } = useChat({
+    connection,
+    // Changing `id` recreates the ChatClient (it's in useChat's useMemo deps).
+    // This is necessary because useChat does NOT sync connection changes to an
+    // existing ChatClient — it only reads connection at construction time.
+    id: conversationId ?? undefined,
+  })
+
+  // Sync historical messages when switching conversations.
+  // Convert our Message[] → UIMessage[] for useChat's state.
+  const prevConvId = useRef<ConversationId | null>(null)
+  useEffect(() => {
+    if (conversationId !== prevConvId.current) {
+      prevConvId.current = conversationId
+      if (conversation) {
+        setMessages(conversationToUIMessages(conversation))
+      } else {
+        setMessages([])
+      }
+    }
+  }, [conversationId, conversation, setMessages])
+
+  return {
+    messages,
+    sendMessage,
+    isLoading,
+    status,
+    stop,
+    error,
+  }
+}
+
+// ─── Helpers ─────────────────────────────────────────────────
+
+function conversationToUIMessages(conv: Conversation): UIMessage[] {
+  return conv.messages.map((msg) => ({
+    id: String(msg.id),
+    role: msg.role,
+    parts: msg.parts.flatMap((part): UIMessage['parts'] => {
+      switch (part.type) {
+        case 'text':
+          return [{ type: 'text', content: part.text }]
+        case 'tool-call':
+          return [
+            {
+              type: 'tool-call',
+              id: String(part.toolCall.id),
+              name: part.toolCall.name,
+              arguments: JSON.stringify(part.toolCall.args),
+              state: 'input-complete',
+            },
+          ]
+        case 'tool-result':
+          return [
+            {
+              type: 'tool-result',
+              toolCallId: String(part.toolResult.id),
+              content: part.toolResult.result,
+              state: 'complete',
+            },
+          ]
+        default:
+          return []
+      }
+    }),
+    createdAt: new Date(msg.createdAt),
+  }))
+}
+
+async function* emptyAsyncIterable() {
+  // yields nothing — used when no conversation is active
+}
