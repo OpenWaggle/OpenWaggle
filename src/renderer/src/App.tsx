@@ -106,68 +106,66 @@ export function App(): React.JSX.Element {
   }
 
   return (
-    <div className="h-full w-full bg-transparent p-2">
-      <div className="flex h-full overflow-hidden rounded-[16px] border border-border/95 bg-bg shadow-[0_20px_56px_rgba(0,0,0,0.45)]">
-        {/* Sidebar with slide transition */}
+    <div className="flex h-full w-full overflow-hidden bg-bg">
+      {/* Sidebar with slide transition */}
+      <div
+        className={cn(
+          'shrink-0 overflow-hidden transition-[width] duration-200 ease-out',
+          sidebarOpen ? 'w-[224px]' : 'w-0',
+        )}
+      >
+        <Sidebar
+          conversations={conversations}
+          activeId={activeConversationId}
+          onSelect={setActiveConversation}
+          onDelete={deleteConversation}
+          onNew={handleNewConversation}
+          onOpenSettings={() => setSettingsOpen(true)}
+        />
+      </div>
+
+      {/* Main panel */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <Header
+          conversationTitle={activeConversation?.title ?? null}
+          projectPath={projectPath}
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          sidebarOpen={sidebarOpen}
+        />
+
+        {/* Main content — centers the chat panel */}
+        <div className="flex flex-1 justify-center overflow-hidden">
+          <ChatPanel
+            messages={messages}
+            isLoading={isLoading}
+            error={error}
+            projectPath={projectPath}
+            hasProject={!!projectPath}
+            onOpenSettings={() => setSettingsOpen(true)}
+            onRetry={handleSend}
+            onSend={handleSend}
+            onCancel={stop}
+            model={currentModel}
+            onModelChange={handleModelChange}
+            settings={settings}
+            providerModels={providerModels}
+          />
+        </div>
+
+        {/* Terminal with slide transition */}
         <div
           className={cn(
-            'shrink-0 overflow-hidden transition-[width] duration-200 ease-out',
-            sidebarOpen ? 'w-[224px]' : 'w-0',
+            'overflow-hidden transition-[height] duration-200 ease-out',
+            terminalOpen ? 'h-[228px]' : 'h-0',
           )}
         >
-          <Sidebar
-            conversations={conversations}
-            activeId={activeConversationId}
-            onSelect={setActiveConversation}
-            onDelete={deleteConversation}
-            onNew={handleNewConversation}
-            onOpenSettings={() => setSettingsOpen(true)}
-          />
+          {terminalOpen && (
+            <TerminalPanel projectPath={projectPath} onClose={() => setTerminalOpen(false)} />
+          )}
         </div>
-
-        {/* Main panel */}
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <Header
-            conversationTitle={activeConversation?.title ?? null}
-            projectPath={projectPath}
-            onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-            sidebarOpen={sidebarOpen}
-          />
-
-          {/* Main content — centers the chat panel */}
-          <div className="flex flex-1 justify-center overflow-hidden">
-            <ChatPanel
-              messages={messages}
-              isLoading={isLoading}
-              error={error}
-              projectPath={projectPath}
-              hasProject={!!projectPath}
-              onOpenSettings={() => setSettingsOpen(true)}
-              onRetry={handleSend}
-              onSend={handleSend}
-              onCancel={stop}
-              model={currentModel}
-              onModelChange={handleModelChange}
-              settings={settings}
-              providerModels={providerModels}
-            />
-          </div>
-
-          {/* Terminal with slide transition */}
-          <div
-            className={cn(
-              'overflow-hidden transition-[height] duration-200 ease-out',
-              terminalOpen ? 'h-[228px]' : 'h-0',
-            )}
-          >
-            {terminalOpen && (
-              <TerminalPanel projectPath={projectPath} onClose={() => setTerminalOpen(false)} />
-            )}
-          </div>
-        </div>
-
-        <SettingsDialog isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
       </div>
+
+      <SettingsDialog isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   )
 }
