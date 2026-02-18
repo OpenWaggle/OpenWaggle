@@ -9,7 +9,7 @@ interface ApiKeyFormProps {
   onSave: (apiKey: string) => Promise<void>
   onTest: (apiKey: string) => Promise<boolean>
   isTesting: boolean
-  testResult: { success: boolean } | null
+  testResult: { success: boolean; error?: string } | null
 }
 
 export function ApiKeyForm({
@@ -53,7 +53,7 @@ export function ApiKeyForm({
             placeholder={`Enter your ${label} API key`}
             className={cn(
               'w-full rounded-lg border border-border bg-bg px-3 py-2 pr-10 text-sm text-text-primary',
-              'placeholder:text-text-muted',
+              'placeholder:text-text-tertiary',
               'focus:border-border-light focus:outline-none',
               'transition-colors',
             )}
@@ -62,7 +62,7 @@ export function ApiKeyForm({
             type="button"
             onClick={() => setShowKey(!showKey)}
             aria-label={showKey ? 'Hide API key' : 'Show API key'}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-secondary"
           >
             {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
@@ -73,13 +73,20 @@ export function ApiKeyForm({
           onClick={handleTest}
           disabled={!value || isTesting}
           className={cn(
-            'rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+            'flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
             value && !isTesting
               ? 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
               : 'bg-bg-tertiary text-text-muted cursor-not-allowed',
           )}
         >
-          {isTesting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Test'}
+          {isTesting ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Testing...
+            </>
+          ) : (
+            'Test'
+          )}
         </button>
 
         <button
@@ -112,7 +119,7 @@ export function ApiKeyForm({
           ) : (
             <>
               <X className="h-3.5 w-3.5" />
-              Connection failed — check your API key
+              {testResult.error ?? 'Connection failed — check your API key'}
             </>
           )}
         </div>

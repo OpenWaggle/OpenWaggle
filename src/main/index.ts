@@ -7,6 +7,7 @@ import { registerConversationsHandlers } from './ipc/conversations-handler'
 import { registerProjectHandlers } from './ipc/project-handler'
 import { registerProvidersHandlers } from './ipc/providers-handler'
 import { registerSettingsHandlers } from './ipc/settings-handler'
+import { cleanupTerminals, registerTerminalHandlers } from './ipc/terminal-handler'
 import { registerAllProviders } from './providers'
 
 function createWindow(): void {
@@ -57,6 +58,7 @@ app.whenReady().then(() => {
   registerConversationsHandlers()
   registerProjectHandlers()
   registerProvidersHandlers()
+  registerTerminalHandlers()
 
   // Register providers (async — individual failures are caught per-provider)
   registerAllProviders().then(() => {
@@ -69,6 +71,7 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
+  cleanupTerminals()
   if (process.platform !== 'darwin') {
     app.quit()
   }

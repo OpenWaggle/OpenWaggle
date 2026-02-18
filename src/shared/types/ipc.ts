@@ -29,7 +29,7 @@ export interface IpcInvokeChannelMap {
   }
   'settings:test-api-key': {
     args: [provider: string, apiKey: string, baseUrl?: string]
-    return: boolean
+    return: { success: boolean; error?: string }
   }
   'project:select-folder': {
     args: []
@@ -63,6 +63,18 @@ export interface IpcInvokeChannelMap {
     args: [provider: Provider, baseUrl?: string, apiKey?: string]
     return: ModelDisplayInfo[]
   }
+  'terminal:create': {
+    args: [projectPath: string]
+    return: string
+  }
+  'terminal:close': {
+    args: [terminalId: string]
+    return: undefined
+  }
+  'terminal:resize': {
+    args: [terminalId: string, cols: number, rows: number]
+    return: undefined
+  }
 }
 
 /**
@@ -74,6 +86,9 @@ export interface IpcSendChannelMap {
   }
   'tool:approval-response': {
     args: [callId: ToolCallId, status: ToolApprovalStatus]
+  }
+  'terminal:write': {
+    args: [terminalId: string, data: string]
   }
 }
 
@@ -87,6 +102,9 @@ export interface IpcEventChannelMap {
   }
   'tool:approval-request': {
     payload: ToolApprovalRequest
+  }
+  'terminal:data': {
+    payload: { terminalId: string; data: string }
   }
 }
 
@@ -131,7 +149,11 @@ export interface HiveCodeApi {
   // Settings
   getSettings(): Promise<Settings>
   updateSettings(settings: Partial<Settings>): Promise<void>
-  testApiKey(provider: string, apiKey: string, baseUrl?: string): Promise<boolean>
+  testApiKey(
+    provider: string,
+    apiKey: string,
+    baseUrl?: string,
+  ): Promise<{ success: boolean; error?: string }>
 
   // Providers
   getProviderModels(): Promise<ProviderInfo[]>
@@ -150,4 +172,11 @@ export interface HiveCodeApi {
   createConversation(model: SupportedModelId, projectPath: string | null): Promise<Conversation>
   deleteConversation(id: ConversationId): Promise<void>
   updateConversationTitle(id: ConversationId, title: string): Promise<void>
+
+  // Terminal
+  createTerminal(projectPath: string): Promise<string>
+  closeTerminal(terminalId: string): Promise<void>
+  resizeTerminal(terminalId: string, cols: number, rows: number): Promise<void>
+  writeTerminal(terminalId: string, data: string): void
+  onTerminalData(callback: (payload: { terminalId: string; data: string }) => void): () => void
 }

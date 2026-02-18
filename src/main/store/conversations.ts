@@ -164,6 +164,7 @@ export async function listConversations(): Promise<ConversationSummary[]> {
         id: conv.id,
         title: conv.title,
         model: conv.model,
+        projectPath: conv.projectPath,
         messageCount: conv.messages.length,
         createdAt: conv.createdAt,
         updatedAt: conv.updatedAt,

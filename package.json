@@ -24,7 +24,8 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "electron",
-      "esbuild"
+      "esbuild",
+      "node-pty"
     ]
   },
   "dependencies": {
@@ -39,10 +40,14 @@
     "@tanstack/ai-openai": "^0.5.0",
     "@tanstack/ai-openrouter": "^0.5.1",
     "@tanstack/ai-react": "^0.5.3",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "diff": "^8.0.3",
     "electron-store": "^11.0.2",
     "fast-glob": "^3.3.3",
     "highlight.js": "^11.11.1",
     "lucide-react": "^0.572.0",
+    "node-pty": "^1.1.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-markdown": "^10.1.0",

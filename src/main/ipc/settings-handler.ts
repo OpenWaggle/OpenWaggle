@@ -11,17 +11,28 @@ async function testProviderApiKey(
   providerId: string,
   apiKey: string,
   baseUrl?: string,
-): Promise<boolean> {
+): Promise<{ success: boolean; error?: string }> {
   const provider = providerRegistry.get(providerId)
-  if (!provider) return false
+  if (!provider) return { success: false, error: `Unknown provider: ${providerId}` }
 
   if (!provider.requiresApiKey) {
     // For Ollama: test connectivity by fetching model list
     if (provider.fetchModels) {
-      const models = await provider.fetchModels(baseUrl)
-      return models.length > 0
+      try {
+        const models = await Promise.race([
+          provider.fetchModels(baseUrl),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Connection timed out')), TEST_TIMEOUT_MS),
+          ),
+        ])
+        return models.length > 0
+          ? { success: true }
+          : { success: false, error: 'No models found — is the service running?' }
+      } catch (err) {
+        return { success: false, error: err instanceof Error ? err.message : String(err) }
+      }
     }
-    return true
+    return { success: true }
   }
 
   const abortController = new AbortController()
@@ -34,12 +45,24 @@ async function testProviderApiKey(
       messages: [{ role: 'user', content: 'Hi' }],
       abortController,
     })
-    for await (const _ of stream) {
-      break // first chunk confirms the key works
-    }
-    return true
-  } catch {
-    return false
+
+    const result = await Promise.race([
+      (async () => {
+        for await (const _ of stream) {
+          break // first chunk confirms the key works
+        }
+        return { success: true } as const
+      })(),
+      new Promise<{ success: false; error: string }>((resolve) =>
+        setTimeout(() => {
+          abortController.abort()
+          resolve({ success: false, error: 'Connection timed out' })
+        }, TEST_TIMEOUT_MS + 1000),
+      ),
+    ])
+    return result
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) }
   } finally {
     clearTimeout(timeout)
   }

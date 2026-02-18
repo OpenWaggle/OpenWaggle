@@ -55,7 +55,11 @@ export const api: HiveCodeApi = {
     return ipcRenderer.invoke('settings:update', settings)
   },
 
-  testApiKey(provider: string, apiKey: string, baseUrl?: string): Promise<boolean> {
+  testApiKey(
+    provider: string,
+    apiKey: string,
+    baseUrl?: string,
+  ): Promise<{ success: boolean; error?: string }> {
     return ipcRenderer.invoke('settings:test-api-key', provider, apiKey, baseUrl)
   },
 
@@ -96,5 +100,33 @@ export const api: HiveCodeApi = {
 
   updateConversationTitle(id: ConversationId, title: string): Promise<void> {
     return ipcRenderer.invoke('conversations:update-title', id, title)
+  },
+
+  // ─── Terminal ──────────────────────────────────────────
+  createTerminal(projectPath: string): Promise<string> {
+    return ipcRenderer.invoke('terminal:create', projectPath)
+  },
+
+  closeTerminal(terminalId: string): Promise<void> {
+    return ipcRenderer.invoke('terminal:close', terminalId)
+  },
+
+  resizeTerminal(terminalId: string, cols: number, rows: number): Promise<void> {
+    return ipcRenderer.invoke('terminal:resize', terminalId, cols, rows)
+  },
+
+  writeTerminal(terminalId: string, data: string): void {
+    ipcRenderer.send('terminal:write', terminalId, data)
+  },
+
+  onTerminalData(callback: (payload: { terminalId: string; data: string }) => void): () => void {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      payload: { terminalId: string; data: string },
+    ): void => {
+      callback(payload)
+    }
+    ipcRenderer.on('terminal:data', handler)
+    return () => ipcRenderer.removeListener('terminal:data', handler)
   },
 }

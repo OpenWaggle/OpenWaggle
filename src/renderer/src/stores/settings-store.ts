@@ -12,7 +12,7 @@ interface SettingsState {
   settings: Settings
   isLoaded: boolean
   testingProviders: Partial<Record<Provider, boolean>>
-  testResults: Partial<Record<Provider, { success: boolean } | null>>
+  testResults: Partial<Record<Provider, { success: boolean; error?: string } | null>>
   providerModels: ProviderInfo[]
 
   loadSettings: () => Promise<void>
@@ -116,15 +116,18 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       testingProviders: { ...state.testingProviders, [provider]: true },
     }))
     try {
-      const success = await api.testApiKey(provider, apiKey, baseUrl)
+      const result = await api.testApiKey(provider, apiKey, baseUrl)
       set((state) => ({
-        testResults: { ...state.testResults, [provider]: { success } },
+        testResults: { ...state.testResults, [provider]: result },
         testingProviders: { ...state.testingProviders, [provider]: false },
       }))
-      return success
+      return result.success
     } catch {
       set((state) => ({
-        testResults: { ...state.testResults, [provider]: { success: false } },
+        testResults: {
+          ...state.testResults,
+          [provider]: { success: false, error: 'Unexpected error — check the console' },
+        },
         testingProviders: { ...state.testingProviders, [provider]: false },
       }))
       return false

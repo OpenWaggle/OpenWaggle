@@ -156,6 +156,7 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
   const collectedParts: MessagePart[] = []
   let currentText = ''
   const toolCallArgs: Record<string, string> = {}
+  const toolCallStartTimes: Record<string, number> = {}
 
   for await (const chunk of stream) {
     if (signal.aborted) break
@@ -176,6 +177,7 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
           currentText = ''
         }
         toolCallArgs[chunk.toolCallId] = ''
+        toolCallStartTimes[chunk.toolCallId] = Date.now()
         break
 
       case 'TOOL_CALL_ARGS':
@@ -202,6 +204,9 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
 
         // TanStack AI executes the tool via ServerTool.execute and provides the result
         if (chunk.result !== undefined) {
+          const startTime = toolCallStartTimes[chunk.toolCallId]
+          const duration = startTime ? Date.now() - startTime : 0
+
           collectedParts.push({
             type: 'tool-result',
             toolResult: {
@@ -211,7 +216,7 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
               result:
                 typeof chunk.result === 'string' ? chunk.result : JSON.stringify(chunk.result),
               isError: false,
-              duration: 0,
+              duration,
             },
           })
         }

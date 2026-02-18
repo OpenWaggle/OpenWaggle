@@ -109,7 +109,7 @@ export function ModelSelector({
         onKeyDown={handleKeyDown}
         aria-expanded={isOpen}
         aria-haspopup="listbox"
-        className="no-drag flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors"
+        className="no-drag flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors"
       >
         <span className="truncate max-w-[180px]">{selectedModel?.name ?? value}</span>
         <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
@@ -123,7 +123,7 @@ export function ModelSelector({
           }
           tabIndex={0}
           onKeyDown={handleKeyDown}
-          className="absolute top-full left-0 mt-1 z-50 min-w-[260px] max-h-[400px] overflow-y-auto rounded-lg border border-border bg-bg-secondary shadow-xl"
+          className="absolute bottom-full left-0 mb-1 z-50 min-w-[260px] max-h-[400px] overflow-y-auto rounded-lg border border-border-light bg-bg-secondary shadow-2xl"
         >
           {visibleGroups.length === 0 && (
             <div className="px-3 py-4 text-sm text-text-muted text-center">
@@ -132,7 +132,7 @@ export function ModelSelector({
           )}
           {visibleGroups.map((group) => (
             <div key={group.provider}>
-              <div className="px-3 py-1.5 text-xs font-medium text-text-muted uppercase tracking-wider sticky top-0 bg-bg-secondary">
+              <div className="px-3 py-1.5 text-[11px] font-medium text-text-muted uppercase tracking-wider sticky top-0 bg-bg-secondary">
                 {group.displayName}
               </div>
               {group.models.map((model) => {

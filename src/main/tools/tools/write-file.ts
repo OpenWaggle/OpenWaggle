@@ -15,7 +15,20 @@ export const writeFileTool = defineHiveCodeTool({
   async execute(args, context) {
     const filePath = resolveProjectPath(context.projectPath, args.path)
     await fs.mkdir(path.dirname(filePath), { recursive: true })
+
+    let beforeContent = ''
+    try {
+      beforeContent = await fs.readFile(filePath, 'utf-8')
+    } catch {
+      // File doesn't exist yet — before is empty
+    }
+
     await fs.writeFile(filePath, args.content, 'utf-8')
-    return `File written: ${args.path}`
+
+    return JSON.stringify({
+      message: `File written: ${args.path}`,
+      beforeContent,
+      afterContent: args.content,
+    })
   },
 })

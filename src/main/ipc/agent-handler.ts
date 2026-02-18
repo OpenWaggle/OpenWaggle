@@ -33,6 +33,12 @@ export function registerAgentHandlers(): void {
           timestamp: Date.now(),
           error: { message: 'Conversation not found' },
         })
+        emitStreamChunk({
+          type: 'RUN_FINISHED',
+          timestamp: Date.now(),
+          runId: '',
+          finishReason: 'stop',
+        })
         activeRuns.delete(conversationId)
         return
       }
@@ -70,6 +76,12 @@ export function registerAgentHandlers(): void {
             type: 'RUN_ERROR',
             timestamp: Date.now(),
             error: { message: err instanceof Error ? err.message : String(err) },
+          })
+          emitStreamChunk({
+            type: 'RUN_FINISHED',
+            timestamp: Date.now(),
+            runId: '',
+            finishReason: 'stop',
           })
         }
       } finally {

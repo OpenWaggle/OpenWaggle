@@ -1,13 +1,44 @@
-import { Check, ChevronRight, Loader2, Wrench, X } from 'lucide-react'
-import { useState } from 'react'
+import { AlertCircle, Check, ChevronRight, Clock, Loader2, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { Badge } from '@/components/shared/Badge'
+import { DiffView } from '@/components/thread/DiffView'
 import { cn } from '@/lib/cn'
+import { computeDiff } from '@/lib/diff'
+import { formatDuration } from '@/lib/format'
+import { getToolConfig, getToolSummary } from '@/lib/tool-display'
 
 interface ToolCallBlockProps {
   name: string
   args: string
   state: string
   result?: { content: string; state: string; error?: string }
+}
+
+function tryParseDiffResult(
+  content: string,
+  name: string,
+  args: Record<string, unknown>,
+): { beforeContent: string; afterContent: string; filePath: string } | null {
+  if (name !== 'editFile' && name !== 'writeFile') return null
+  try {
+    const parsed = JSON.parse(content)
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      typeof parsed.beforeContent === 'string' &&
+      typeof parsed.afterContent === 'string'
+    ) {
+      const filePath = typeof args.path === 'string' ? args.path : 'file'
+      return {
+        beforeContent: parsed.beforeContent,
+        afterContent: parsed.afterContent,
+        filePath,
+      }
+    }
+  } catch {
+    // not JSON
+  }
+  return null
 }
 
 export function ToolCallBlock({
@@ -18,32 +49,75 @@ export function ToolCallBlock({
 }: ToolCallBlockProps): React.JSX.Element {
   const [expanded, setExpanded] = useState(false)
   const isRunning = state !== 'input-complete' || !result
-  const isError = result?.state === 'error'
+  const isError = result?.state === 'error' || !!result?.error
 
-  let parsedArgs: string
+  const config = getToolConfig(name)
+  const Icon = config.icon
+
+  let parsedArgs: Record<string, unknown> = {}
   try {
-    parsedArgs = JSON.stringify(JSON.parse(args), null, 2)
+    parsedArgs = JSON.parse(args)
   } catch {
-    parsedArgs = args
+    // keep empty
   }
 
+  const summary = getToolSummary(name, parsedArgs)
+
+  // Check if result has diff data
+  const diffData = result && !isError ? tryParseDiffResult(result.content, name, parsedArgs) : null
+  const diff =
+    diffData && diffData.beforeContent !== diffData.afterContent
+      ? computeDiff(diffData.beforeContent, diffData.afterContent, diffData.filePath)
+      : null
+
+  const startTime = useRef<number | null>(null)
+  const [duration, setDuration] = useState(0)
+
+  useEffect(() => {
+    if (isRunning && !startTime.current) {
+      startTime.current = Date.now()
+    }
+    if (!isRunning && startTime.current) {
+      setDuration(Date.now() - startTime.current)
+      startTime.current = null
+    }
+  }, [isRunning])
+
   return (
-    <div className="my-2 rounded-lg border border-border bg-bg-secondary overflow-hidden">
+    <div className="my-1.5 rounded-lg border border-border bg-bg-secondary/60 overflow-hidden">
+      {/* Header row */}
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-bg-hover transition-colors"
+        className="flex w-full items-center gap-2 px-3 py-2 text-[13px] hover:bg-bg-hover transition-colors"
       >
         <ChevronRight
           className={cn(
-            'h-3.5 w-3.5 text-text-muted transition-transform',
+            'h-3.5 w-3.5 text-text-muted transition-transform shrink-0',
             expanded && 'rotate-90',
           )}
         />
-        <Wrench className="h-3.5 w-3.5 text-text-muted" />
-        <span className="font-mono text-text-secondary">{name}</span>
+        <Icon className="h-3.5 w-3.5 text-text-muted shrink-0" />
+        <span className="font-medium text-text-secondary text-xs">{config.displayName}</span>
 
-        <div className="ml-auto flex items-center gap-2">
+        {summary && (
+          <span className="truncate text-text-tertiary font-mono text-xs">{summary}</span>
+        )}
+
+        <div className="ml-auto flex items-center gap-2 shrink-0">
+          {/* Diff stats inline */}
+          {diff && (
+            <span className="flex items-center gap-1.5 text-xs">
+              <span className="text-success">+{diff.additions}</span>
+              <span className="text-error">-{diff.deletions}</span>
+            </span>
+          )}
+          {duration > 0 && (
+            <span className="flex items-center gap-1 text-xs text-text-tertiary">
+              <Clock className="h-3 w-3" />
+              {formatDuration(duration)}
+            </span>
+          )}
           {isRunning && !result && <Loader2 className="h-3.5 w-3.5 text-accent animate-spin" />}
           {result && !isError && (
             <Badge variant="success">
@@ -60,30 +134,140 @@ export function ToolCallBlock({
         </div>
       </button>
 
+      {/* Expanded content */}
       {expanded && (
         <div className="border-t border-border">
+          {/* Inline diff for file tools */}
+          {diff && diffData && (
+            <div className="px-3 py-2">
+              <DiffView diff={diff} filePath={diffData.filePath} />
+            </div>
+          )}
+
+          {/* Arguments */}
           <div className="px-3 py-2">
-            <div className="text-xs text-text-muted mb-1">Arguments</div>
-            <pre className="text-xs font-mono text-text-secondary bg-bg rounded p-2 overflow-x-auto">
-              {parsedArgs}
-            </pre>
+            <div className="text-xs text-text-tertiary mb-1">Arguments</div>
+            <ToolArgs name={name} args={parsedArgs} rawArgs={args} />
           </div>
 
-          {result && (
+          {/* Result */}
+          {result && !diff && (
             <div className="border-t border-border px-3 py-2">
-              <div className="text-xs text-text-muted mb-1">Result</div>
-              <pre
-                className={cn(
-                  'text-xs font-mono bg-bg rounded p-2 overflow-x-auto max-h-[300px] overflow-y-auto',
-                  isError ? 'text-error' : 'text-text-secondary',
-                )}
-              >
-                {result.error ?? result.content}
-              </pre>
+              <div className="text-xs text-text-tertiary mb-1">Result</div>
+              <ToolResult content={result.error ?? result.content} isError={isError} />
+            </div>
+          )}
+
+          {/* Error from diff tool */}
+          {result && isError && (
+            <div className="border-t border-border px-3 py-2">
+              <div className="text-xs text-text-tertiary mb-1">Error</div>
+              <ToolResult content={result.error ?? result.content} isError />
             </div>
           )}
         </div>
       )}
     </div>
+  )
+}
+
+// ─── Args display ────────────────────────────────────────────
+
+function ToolArgs({
+  name,
+  args,
+  rawArgs,
+}: {
+  name: string
+  args: Record<string, unknown>
+  rawArgs: string
+}): React.JSX.Element {
+  if (name === 'runCommand' && typeof args.command === 'string') {
+    return (
+      <div className="rounded-md bg-bg px-3 py-2 font-mono text-xs text-text-secondary">
+        <span className="text-text-muted select-none">$ </span>
+        {args.command}
+      </div>
+    )
+  }
+
+  const entries = Object.entries(args)
+  if (entries.length === 0) {
+    return (
+      <pre className="text-xs font-mono text-text-secondary bg-bg rounded-md p-2 overflow-x-auto">
+        {rawArgs || '{}'}
+      </pre>
+    )
+  }
+
+  return (
+    <div className="space-y-1">
+      {entries.map(([key, value]) => {
+        const display = typeof value === 'string' ? value : JSON.stringify(value, null, 2)
+        const isLong = typeof display === 'string' && display.length > 120
+        return (
+          <div key={key}>
+            <span className="text-xs text-text-tertiary">{key}: </span>
+            {isLong ? (
+              <pre className="mt-0.5 text-xs font-mono text-text-secondary bg-bg rounded-md p-2 overflow-x-auto max-h-[200px] overflow-y-auto">
+                {display}
+              </pre>
+            ) : (
+              <span className="text-xs font-mono text-text-secondary">{display}</span>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── Result display ──────────────────────────────────────────
+
+function ToolResult({
+  content,
+  isError,
+}: {
+  content: string
+  isError: boolean
+}): React.JSX.Element {
+  if (isError) {
+    let errorMessage = content
+    try {
+      const parsed = JSON.parse(content)
+      if (typeof parsed === 'object' && parsed !== null) {
+        errorMessage = parsed.error ?? parsed.message ?? content
+      }
+    } catch {
+      // use raw content
+    }
+
+    return (
+      <div className="rounded-md border border-error/20 bg-error/5 px-3 py-2">
+        <div className="flex items-start gap-2">
+          <AlertCircle className="h-3.5 w-3.5 text-error shrink-0 mt-0.5" />
+          <pre className="text-xs font-mono text-error whitespace-pre-wrap break-words flex-1">
+            {errorMessage}
+          </pre>
+        </div>
+      </div>
+    )
+  }
+
+  // Try to extract just the message if result is JSON with diff data
+  let displayContent = content
+  try {
+    const parsed = JSON.parse(content)
+    if (typeof parsed === 'object' && parsed !== null && typeof parsed.message === 'string') {
+      displayContent = parsed.message
+    }
+  } catch {
+    // use raw
+  }
+
+  return (
+    <pre className="text-xs font-mono text-text-secondary bg-bg rounded-md p-2 overflow-x-auto max-h-[300px] overflow-y-auto whitespace-pre-wrap break-words">
+      {displayContent}
+    </pre>
   )
 }

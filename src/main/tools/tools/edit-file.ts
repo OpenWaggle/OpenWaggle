@@ -30,6 +30,11 @@ export const editFileTool = defineHiveCodeTool({
 
     const newContent = content.replace(args.oldString, args.newString)
     await fs.writeFile(filePath, newContent, 'utf-8')
-    return `File edited: ${args.path}`
+
+    return JSON.stringify({
+      message: `File edited: ${args.path}`,
+      beforeContent: content,
+      afterContent: newContent,
+    })
   },
 })

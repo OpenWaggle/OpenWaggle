@@ -1,24 +1,34 @@
 @import "tailwindcss";
+@import "highlight.js/styles/github-dark.min.css";
 
 @theme {
-  --color-bg: #0a0a0a;
+  /* Surfaces — whisper-quiet elevation shifts */
+  --color-bg: #0d0d0d;
   --color-bg-secondary: #141414;
   --color-bg-tertiary: #1a1a1a;
-  --color-bg-hover: #1f1f1f;
-  --color-bg-active: #252525;
-  --color-border: #2a2a2a;
-  --color-border-light: #333333;
+  --color-bg-hover: #1a1a1a;
+  --color-bg-active: #222222;
+
+  /* Borders — subtle but findable */
+  --color-border: #252525;
+  --color-border-light: #353535;
+
+  /* Text — four-level hierarchy */
   --color-text-primary: #e5e5e5;
   --color-text-secondary: #a0a0a0;
-  --color-text-muted: #666666;
+  --color-text-tertiary: #7a7a7a;
+  --color-text-muted: #555555;
+
+  /* Semantic */
   --color-accent: #f59e0b;
   --color-accent-dim: #b45309;
-  --color-success: #22c55e;
-  --color-error: #ef4444;
-  --color-info: #3b82f6;
+  --color-success: #34d399;
+  --color-error: #f87171;
+  --color-info: #60a5fa;
 
-  --font-mono: "SF Mono", "Fira Code", "JetBrains Mono", monospace;
-  --font-sans: "Inter", -apple-system, system-ui, sans-serif;
+  /* Typography — system native, not generic */
+  --font-mono: "SF Mono", "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", sans-serif;
 }
 
 * {
@@ -39,6 +49,7 @@ body,
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Drag region for titlebar */
@@ -51,7 +62,7 @@ body,
   -webkit-app-region: no-drag;
 }
 
-/* Scrollbar */
+/* Scrollbar — barely visible until hover */
 ::-webkit-scrollbar {
   width: 6px;
 }
@@ -61,17 +72,17 @@ body,
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-border);
+  background: rgba(255, 255, 255, 0.08);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-border-light);
+  background: rgba(255, 255, 255, 0.14);
 }
 
 /* Selection */
 ::selection {
-  background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 25%, transparent);
 }
 
 /* Code blocks */
@@ -79,6 +90,12 @@ pre code {
   font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.6;
+}
+
+/* Override highlight.js background to use our theme colors */
+pre code.hljs {
+  background: transparent;
+  padding: 0;
 }
 
 /* Markdown prose */
@@ -95,10 +112,11 @@ pre code {
 }
 .prose code {
   font-family: var(--font-mono);
-  font-size: 0.9em;
+  font-size: 0.875em;
   background: var(--color-bg-tertiary);
-  padding: 0.15em 0.35em;
+  padding: 0.15em 0.4em;
   border-radius: 4px;
+  color: var(--color-text-secondary);
 }
 .prose pre {
   background: var(--color-bg-secondary);
@@ -112,6 +130,7 @@ pre code {
   background: none;
   padding: 0;
   border-radius: 0;
+  color: inherit;
 }
 .prose ul,
 .prose ol {
@@ -123,25 +142,29 @@ pre code {
 }
 .prose a {
   color: var(--color-accent);
+  text-decoration: none;
+}
+.prose a:hover {
   text-decoration: underline;
 }
 .prose h1,
 .prose h2,
 .prose h3 {
   font-weight: 600;
-  margin: 1em 0 0.5em;
+  margin: 1.25em 0 0.5em;
+  letter-spacing: -0.01em;
 }
 .prose h1 {
   font-size: 1.25em;
 }
 .prose h2 {
-  font-size: 1.15em;
+  font-size: 1.125em;
 }
 .prose h3 {
-  font-size: 1.05em;
+  font-size: 1em;
 }
 .prose blockquote {
-  border-left: 3px solid var(--color-border-light);
+  border-left: 2px solid var(--color-border-light);
   padding-left: 1em;
   color: var(--color-text-secondary);
   margin: 0.75em 0;
@@ -160,4 +183,6 @@ pre code {
 .prose th {
   background: var(--color-bg-tertiary);
   font-weight: 600;
+  font-size: 0.875em;
+  color: var(--color-text-secondary);
 }

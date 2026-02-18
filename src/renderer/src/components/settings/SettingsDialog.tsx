@@ -66,7 +66,7 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps): React.
         <button
           type="button"
           onClick={onClose}
-          className="rounded-md p-1 text-text-muted hover:bg-bg-hover hover:text-text-primary transition-colors"
+          className="rounded-md p-1 text-text-tertiary hover:bg-bg-hover hover:text-text-primary transition-colors"
         >
           <X className="h-5 w-5" />
         </button>
@@ -156,7 +156,7 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps): React.
         </div>
 
         <div className="border-t border-border pt-4">
-          <p className="text-xs text-text-muted">
+          <p className="text-xs text-text-tertiary">
             API keys are stored locally on your machine and never sent anywhere except to the
             respective API providers.
           </p>
@@ -201,7 +201,7 @@ function BaseUrlInput({
         placeholder="http://localhost:11434"
         className={cn(
           'w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text-primary',
-          'placeholder:text-text-muted',
+          'placeholder:text-text-tertiary',
           'focus:border-border-light focus:outline-none',
           'transition-colors',
         )}
