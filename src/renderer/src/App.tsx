@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChatPanel } from '@/components/chat/ChatPanel'
-import { Composer } from '@/components/composer/Composer'
-import { StatusBar } from '@/components/composer/StatusBar'
 import { Header } from '@/components/layout/Header'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { SettingsDialog } from '@/components/settings/SettingsDialog'
@@ -114,7 +112,7 @@ export function App(): React.JSX.Element {
         <div
           className={cn(
             'shrink-0 overflow-hidden transition-[width] duration-200 ease-out',
-            sidebarOpen ? 'w-[252px]' : 'w-0',
+            sidebarOpen ? 'w-[224px]' : 'w-0',
           )}
         >
           <Sidebar
@@ -128,7 +126,7 @@ export function App(): React.JSX.Element {
         </div>
 
         {/* Main panel */}
-        <div className="flex flex-1 flex-col overflow-hidden bg-bg/85">
+        <div className="flex flex-1 flex-col overflow-hidden">
           <Header
             conversationTitle={activeConversation?.title ?? null}
             projectPath={projectPath}
@@ -136,31 +134,24 @@ export function App(): React.JSX.Element {
             sidebarOpen={sidebarOpen}
           />
 
-          {/* Thread content area */}
-          <div className="flex flex-1 overflow-hidden">
-            <main className="flex-1 overflow-hidden">
-              <ChatPanel
-                messages={messages}
-                isLoading={isLoading}
-                error={error}
-                projectPath={projectPath}
-                hasProject={!!projectPath}
-                onOpenSettings={() => setSettingsOpen(true)}
-                onRetry={handleSend}
-              />
-            </main>
+          {/* Main content — centers the chat panel */}
+          <div className="flex flex-1 justify-center overflow-hidden">
+            <ChatPanel
+              messages={messages}
+              isLoading={isLoading}
+              error={error}
+              projectPath={projectPath}
+              hasProject={!!projectPath}
+              onOpenSettings={() => setSettingsOpen(true)}
+              onRetry={handleSend}
+              onSend={handleSend}
+              onCancel={stop}
+              model={currentModel}
+              onModelChange={handleModelChange}
+              settings={settings}
+              providerModels={providerModels}
+            />
           </div>
-
-          {/* Composer */}
-          <Composer
-            onSend={handleSend}
-            onCancel={stop}
-            isLoading={isLoading}
-            model={currentModel}
-            onModelChange={handleModelChange}
-            settings={settings}
-            providerModels={providerModels}
-          />
 
           {/* Terminal with slide transition */}
           <div
@@ -173,9 +164,6 @@ export function App(): React.JSX.Element {
               <TerminalPanel projectPath={projectPath} onClose={() => setTerminalOpen(false)} />
             )}
           </div>
-
-          {/* Status bar */}
-          <StatusBar projectPath={projectPath} />
         </div>
 
         <SettingsDialog isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
