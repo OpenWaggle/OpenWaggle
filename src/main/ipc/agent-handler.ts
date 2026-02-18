@@ -58,7 +58,7 @@ export function registerAgentHandlers(): void {
 
         // Auto-title on first user message
         let title = conversation.title
-        if (updatedMessages.length <= 2 && title === 'New Conversation') {
+        if (updatedMessages.length <= 2 && title === 'New thread') {
           const firstUserMsg = updatedMessages.find((m) => m.role === 'user')
           if (firstUserMsg) {
             const text = firstUserMsg.parts

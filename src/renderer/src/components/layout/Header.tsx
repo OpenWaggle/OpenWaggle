@@ -15,20 +15,20 @@ export function Header({
   sidebarOpen,
 }: HeaderProps): React.JSX.Element {
   return (
-    <header className="drag-region flex h-12 shrink-0 items-center justify-between border-b border-border bg-bg px-6">
-      <div className="flex items-center gap-3">
+    <header className="drag-region flex h-12 shrink-0 items-center justify-between border-b border-border/85 bg-bg/82 px-6 backdrop-blur-md">
+      <div className="flex items-center gap-2.5">
         {!sidebarOpen && (
           <button
             type="button"
             onClick={onToggleSidebar}
-            className="no-drag rounded-md p-1.5 text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors"
+            className="no-drag rounded-md p-1.5 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
             title="Show sidebar"
           >
             <PanelLeft className="h-4 w-4" />
           </button>
         )}
 
-        <span className="no-drag text-sm font-medium text-text-primary">
+        <span className="no-drag text-sm font-semibold tracking-tight text-text-primary">
           {conversationTitle ?? 'New thread'}
         </span>
       </div>
@@ -37,8 +37,8 @@ export function Header({
         <button
           type="button"
           className={cn(
-            'no-drag flex items-center gap-1.5 rounded-lg border border-border-light px-3 py-1.5 text-xs font-medium text-text-secondary',
-            'hover:bg-bg-hover hover:text-text-primary transition-colors',
+            'no-drag flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-text-secondary',
+            'bg-bg-secondary/40 transition-colors hover:border-border-light hover:bg-bg-hover hover:text-text-primary',
             !projectPath && 'opacity-30 pointer-events-none',
           )}
           disabled={!projectPath}
@@ -52,8 +52,8 @@ export function Header({
         <button
           type="button"
           className={cn(
-            'no-drag flex items-center gap-1.5 rounded-lg border border-border-light px-3 py-1.5 text-xs font-medium text-text-secondary',
-            'hover:bg-bg-hover hover:text-text-primary transition-colors',
+            'no-drag flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-text-secondary',
+            'bg-bg-secondary/40 transition-colors hover:border-border-light hover:bg-bg-hover hover:text-text-primary',
             !projectPath && 'opacity-30 pointer-events-none',
           )}
           disabled={!projectPath}

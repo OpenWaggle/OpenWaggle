@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from 'react'
 import { ModelSelector } from '@/components/shared/ModelSelector'
 import { cn } from '@/lib/cn'
 
+const CONTENT_MAX_WIDTH = 740
+
 interface ComposerProps {
   onSend: (content: string) => void
   onCancel: () => void
@@ -62,14 +64,16 @@ export function Composer({
   const canSend = !!input.trim() && !disabled
 
   return (
-    <div className="shrink-0 border-t border-border bg-bg px-8 pb-4 pt-4">
+    <div className="shrink-0 border-t border-border/85 bg-bg/72 pb-4 pt-4 backdrop-blur-md">
       <output aria-live="polite" className="sr-only">
         {isLoading ? 'Agent is working' : ''}
       </output>
 
-      <div className="mx-auto max-w-[680px] space-y-3">
-        {/* Input container */}
-        <div className="rounded-xl border border-border-light bg-bg-tertiary focus-within:border-text-muted/40 transition-colors">
+      <div className="flex w-full justify-center px-8 md:px-12">
+        <div
+          className="w-full rounded-2xl border border-border-light bg-bg-secondary shadow-[0_8px_20px_rgba(0,0,0,0.22)] transition-colors focus-within:border-border-light"
+          style={{ maxWidth: CONTENT_MAX_WIDTH }}
+        >
           <textarea
             ref={textareaRef}
             value={input}
@@ -82,74 +86,73 @@ export function Composer({
             disabled={isLoading || disabled}
             rows={2}
             className={cn(
-              'w-full min-h-[56px] resize-none bg-transparent px-4 py-3 text-sm text-text-primary',
+              'w-full min-h-[102px] resize-none bg-transparent px-5 pb-3 pt-4 text-sm leading-relaxed text-text-primary',
               'placeholder:text-text-tertiary',
               'focus:outline-none',
               'disabled:opacity-50',
             )}
           />
-        </div>
 
-        {/* Controls row */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-0.5">
-            {/* Attach button */}
-            <button
-              type="button"
-              disabled
-              className="flex items-center justify-center rounded-md p-1.5 text-text-muted hover:text-text-tertiary cursor-not-allowed transition-colors"
-              title="Attach file (coming soon)"
-            >
-              <Plus className="h-4 w-4" />
-            </button>
-
-            {/* Model selector */}
-            <ModelSelector
-              value={model}
-              onChange={onModelChange}
-              settings={settings}
-              providerModels={providerModels}
-            />
-
-            {/* Effort dropdown */}
-            <button
-              type="button"
-              disabled
-              className="flex items-center gap-1 rounded-md px-2 py-1.5 text-xs text-text-muted hover:text-text-tertiary cursor-not-allowed transition-colors"
-              title="Effort level (coming soon)"
-            >
-              <Gauge className="h-3.5 w-3.5" />
-              Auto
-              <ChevronDown className="h-3 w-3" />
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {isLoading ? (
+          <div className="flex items-center justify-between border-t border-border/75 px-4 py-2.5">
+            <div className="flex items-center gap-1">
+              {/* Attach button */}
               <button
                 type="button"
-                onClick={onCancel}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-error/15 text-error hover:bg-error/25 transition-colors"
-                title="Cancel"
+                disabled
+                className="flex cursor-not-allowed items-center justify-center rounded-md p-1.5 text-text-muted/80 transition-colors hover:text-text-tertiary"
+                title="Attach file (coming soon)"
               >
-                <Square className="h-3.5 w-3.5" />
+                <Plus className="h-4 w-4" />
               </button>
-            ) : (
+
+              {/* Model selector */}
+              <ModelSelector
+                value={model}
+                onChange={onModelChange}
+                settings={settings}
+                providerModels={providerModels}
+              />
+
+              {/* Effort dropdown */}
               <button
                 type="button"
-                onClick={handleSubmit}
-                disabled={!canSend}
-                className={cn(
-                  'flex h-8 w-8 items-center justify-center rounded-full transition-colors',
-                  canSend
-                    ? 'bg-accent text-bg hover:bg-accent/90'
-                    : 'bg-bg-tertiary text-text-muted cursor-not-allowed',
-                )}
-                title="Send message"
+                disabled
+                className="flex cursor-not-allowed items-center gap-1 rounded-md px-2 py-1.5 text-xs text-text-muted/80 transition-colors hover:text-text-tertiary"
+                title="Effort level (coming soon)"
               >
-                <ArrowUp className="h-4 w-4" />
+                <Gauge className="h-3.5 w-3.5" />
+                Auto
+                <ChevronDown className="h-3 w-3" />
               </button>
-            )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              {isLoading ? (
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-error/35 bg-error/10 text-error transition-colors hover:bg-error/18"
+                  title="Cancel"
+                >
+                  <Square className="h-3.5 w-3.5" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={!canSend}
+                  className={cn(
+                    'flex h-8 w-8 items-center justify-center rounded-full border transition-colors',
+                    canSend
+                      ? 'border-border-light bg-text-primary text-bg hover:bg-white'
+                      : 'border-border bg-bg-tertiary text-text-muted cursor-not-allowed',
+                  )}
+                  title="Send message"
+                >
+                  <ArrowUp className="h-4 w-4" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

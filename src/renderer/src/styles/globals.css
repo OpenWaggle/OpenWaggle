@@ -2,33 +2,34 @@
 @import "highlight.js/styles/github-dark.min.css";
 
 @theme {
-  /* Surfaces — whisper-quiet elevation shifts */
-  --color-bg: #0d0d0d;
-  --color-bg-secondary: #141414;
-  --color-bg-tertiary: #1a1a1a;
-  --color-bg-hover: #1a1a1a;
-  --color-bg-active: #222222;
+  /* Codex-like surfaces with subtle hive warmth */
+  --color-bg: #14161a;
+  --color-bg-secondary: #191c21;
+  --color-bg-tertiary: #20252e;
+  --color-bg-hover: #242a35;
+  --color-bg-active: #2b3341;
 
-  /* Borders — subtle but findable */
-  --color-border: #252525;
-  --color-border-light: #353535;
+  /* Borders */
+  --color-border: #2b313b;
+  --color-border-light: #363d4b;
 
-  /* Text — four-level hierarchy */
-  --color-text-primary: #e5e5e5;
-  --color-text-secondary: #a0a0a0;
-  --color-text-tertiary: #7a7a7a;
-  --color-text-muted: #555555;
+  /* Text hierarchy */
+  --color-text-primary: #e8ebf1;
+  --color-text-secondary: #b0b7c2;
+  --color-text-tertiary: #828a97;
+  --color-text-muted: #666f7d;
 
-  /* Semantic */
-  --color-accent: #f59e0b;
-  --color-accent-dim: #b45309;
-  --color-success: #34d399;
-  --color-error: #f87171;
-  --color-info: #60a5fa;
+  /* Semantic + brand */
+  --color-accent: #f3aa2f;
+  --color-accent-dim: #b77911;
+  --color-success: #39c993;
+  --color-error: #f77777;
+  --color-info: #61a8ff;
 
-  /* Typography — system native, not generic */
-  --font-mono: "SF Mono", "JetBrains Mono", "Fira Code", ui-monospace, monospace;
-  --font-sans: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", sans-serif;
+  /* Typography */
+  --font-mono: "SF Mono", "JetBrains Mono", "Cascadia Mono", ui-monospace, monospace;
+  --font-sans:
+    "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 * {
@@ -43,13 +44,28 @@ body,
   height: 100%;
   width: 100%;
   overflow: hidden;
-  background-color: var(--color-bg);
+  background: linear-gradient(180deg, #17191e 0%, #121419 100%);
   color: var(--color-text-primary);
   font-family: var(--font-sans);
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.4;
+  letter-spacing: 0.006em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.012) 0%,
+    rgba(255, 255, 255, 0) 18%,
+    rgba(255, 255, 255, 0) 82%
+  );
+  z-index: -1;
 }
 
 /* Drag region for titlebar */
@@ -64,7 +80,7 @@ body,
 
 /* Scrollbar — barely visible until hover */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 7px;
 }
 
 ::-webkit-scrollbar-track {
@@ -72,24 +88,31 @@ body,
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 3px;
+  background: color-mix(in srgb, var(--color-text-muted) 60%, transparent);
+  border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: color-mix(in srgb, var(--color-text-secondary) 52%, transparent);
 }
 
 /* Selection */
 ::selection {
-  background: color-mix(in srgb, var(--color-accent) 25%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, #9aa3b2 76%, transparent),
+    0 0 0 3px color-mix(in srgb, #9aa3b2 15%, transparent);
 }
 
 /* Code blocks */
 pre code {
   font-family: var(--font-mono);
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: 12.5px;
+  line-height: 1.55;
 }
 
 /* Override highlight.js background to use our theme colors */
@@ -101,11 +124,12 @@ pre code.hljs {
 /* Markdown prose */
 .prose {
   color: var(--color-text-primary);
-  line-height: 1.7;
+  line-height: 1.65;
+  font-size: 0.96rem;
 }
 
 .prose p {
-  margin-bottom: 0.75em;
+  margin-bottom: 0.72em;
 }
 .prose p:last-child {
   margin-bottom: 0;
@@ -113,15 +137,17 @@ pre code.hljs {
 .prose code {
   font-family: var(--font-mono);
   font-size: 0.875em;
-  background: var(--color-bg-tertiary);
+  background: color-mix(in srgb, var(--color-bg-tertiary) 84%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
   padding: 0.15em 0.4em;
-  border-radius: 4px;
+  border-radius: 6px;
   color: var(--color-text-secondary);
 }
 .prose pre {
   background: var(--color-bg-secondary);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--color-border) 85%, transparent);
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
   padding: 1em;
   overflow-x: auto;
   margin: 0.75em 0;
@@ -151,8 +177,8 @@ pre code.hljs {
 .prose h2,
 .prose h3 {
   font-weight: 600;
-  margin: 1.25em 0 0.5em;
-  letter-spacing: -0.01em;
+  margin: 1.15em 0 0.48em;
+  letter-spacing: -0.008em;
 }
 .prose h1 {
   font-size: 1.25em;
@@ -164,7 +190,7 @@ pre code.hljs {
   font-size: 1em;
 }
 .prose blockquote {
-  border-left: 2px solid var(--color-border-light);
+  border-left: 2px solid color-mix(in srgb, var(--color-accent) 55%, var(--color-border-light));
   padding-left: 1em;
   color: var(--color-text-secondary);
   margin: 0.75em 0;

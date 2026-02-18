@@ -194,7 +194,7 @@ export async function createConversation(
   const now = Date.now()
   const conv: Conversation = {
     id: ConversationId(randomUUID()),
-    title: 'New Conversation',
+    title: 'New thread',
     model,
     projectPath,
     messages: [],
