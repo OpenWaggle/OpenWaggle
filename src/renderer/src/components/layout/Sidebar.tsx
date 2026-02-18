@@ -12,7 +12,6 @@ import {
   SquareTerminal,
   Trash2,
 } from 'lucide-react'
-import { useState } from 'react'
 import { cn } from '@/lib/cn'
 import { formatRelativeTime, projectName, truncate } from '@/lib/format'
 
@@ -65,7 +64,6 @@ export function Sidebar({
   onOpenSettings,
 }: SidebarProps): React.JSX.Element {
   const groups = groupByProject(conversations)
-  const [hoveredThread, setHoveredThread] = useState<ConversationId | null>(null)
 
   return (
     <aside className="flex h-full w-[224px] shrink-0 flex-col border-r border-border bg-bg-secondary">
@@ -148,7 +146,6 @@ export function Sidebar({
                   <div className="space-y-px">
                     {group.conversations.map((conv) => {
                       const isActive = conv.id === activeId
-                      const isHovered = hoveredThread === conv.id
                       return (
                         <div
                           key={String(conv.id)}
@@ -158,8 +155,6 @@ export function Sidebar({
                               ? 'border-l-2 border-accent bg-bg-active'
                               : 'border-l-2 border-transparent hover:bg-bg-hover',
                           )}
-                          onMouseEnter={() => setHoveredThread(conv.id)}
-                          onMouseLeave={() => setHoveredThread(null)}
                         >
                           <button
                             type="button"
@@ -179,19 +174,17 @@ export function Sidebar({
                             </span>
                           </button>
 
-                          {isHovered && !isActive && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                onDelete(conv.id)
-                              }}
-                              className="mr-2 shrink-0 rounded-md p-1 text-text-muted transition-colors hover:bg-error/12 hover:text-error"
-                              title="Delete thread"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onDelete(conv.id)
+                            }}
+                            className="invisible mr-2 shrink-0 rounded-md p-1 text-text-muted transition-colors group-hover:visible hover:bg-error/12 hover:text-error"
+                            title="Delete thread"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
                         </div>
                       )
                     })}

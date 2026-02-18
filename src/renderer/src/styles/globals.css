@@ -62,7 +62,6 @@ body,
   -moz-osx-font-smoothing: grayscale;
 }
 
-
 /* Drag region for titlebar */
 .drag-region {
   -webkit-app-region: drag;
