@@ -1,15 +1,16 @@
 import type { ConversationId } from '@shared/types/brand'
 import type { ConversationSummary } from '@shared/types/conversation'
 import {
-  ChevronDown,
-  ChevronRight,
-  FolderOpen,
+  Edit3,
+  Folder,
+  FolderPlus,
+  LayoutList,
   MessageSquare,
-  PenLine,
+  RotateCw,
   Settings,
   Sparkles,
+  SquareTerminal,
   Trash2,
-  Zap,
 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/cn'
@@ -64,68 +65,67 @@ export function Sidebar({
   onOpenSettings,
 }: SidebarProps): React.JSX.Element {
   const groups = groupByProject(conversations)
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
-
-  function toggleGroup(key: string): void {
-    setCollapsedGroups((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) {
-        next.delete(key)
-      } else {
-        next.add(key)
-      }
-      return next
-    })
-  }
+  const [hoveredThread, setHoveredThread] = useState<ConversationId | null>(null)
 
   return (
-    <aside className="flex h-full w-[252px] shrink-0 flex-col border-r border-border bg-[#171916]">
-      {/* Traffic light area */}
-      <div className="drag-region h-[44px] shrink-0" />
+    <aside className="flex h-full w-[224px] shrink-0 flex-col border-r border-border bg-bg-secondary">
+      {/* Logo area — also acts as drag region */}
+      <div className="drag-region flex h-[48px] shrink-0 items-center gap-2 px-4">
+        <SquareTerminal className="no-drag h-4 w-4 text-accent" />
+        <span className="no-drag text-[13px] font-semibold text-text-primary">HiveCode</span>
+      </div>
 
       {/* Nav actions */}
-      <nav className="no-drag space-y-1 px-4 py-2">
+      <nav className="no-drag space-y-0.5 px-3">
         <button
           type="button"
           onClick={onNew}
-          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-text-primary transition-colors hover:bg-bg-hover/70"
+          className="flex w-full items-center gap-2 rounded-md px-3 py-[7px] text-[13px] text-text-secondary transition-colors hover:bg-bg-hover"
         >
-          <PenLine className="h-3.5 w-3.5 text-text-tertiary" />
+          <Edit3 className="h-3.5 w-3.5 text-text-tertiary" />
           New thread
         </button>
         <button
           type="button"
           disabled
-          className="flex w-full cursor-not-allowed items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-text-tertiary/75"
+          className="flex w-full cursor-not-allowed items-center gap-2 rounded-md px-3 py-[7px] text-[13px] text-text-tertiary/75"
         >
-          <Zap className="h-3.5 w-3.5" />
+          <RotateCw className="h-3.5 w-3.5" />
           Automations
         </button>
         <button
           type="button"
           disabled
-          className="flex w-full cursor-not-allowed items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-text-tertiary/75"
+          className="flex w-full cursor-not-allowed items-center gap-2 rounded-md px-3 py-[7px] text-[13px] text-text-tertiary/75"
         >
           <Sparkles className="h-3.5 w-3.5" />
           Skills
         </button>
       </nav>
 
-      {/* Separator */}
-      <div className="mx-4 my-3 h-px bg-border/70" />
-
       {/* Thread section header */}
-      <div className="mb-2 flex items-center justify-between px-4">
-        <span className="text-[11px] font-semibold tracking-[0.08em] text-text-tertiary uppercase">
-          Threads
-        </span>
-        <span className="rounded-full border border-border/70 px-2 py-0.5 text-[10px] text-text-muted">
-          {conversations.length}
-        </span>
+      <div className="mt-4 flex h-[30px] items-center justify-between px-4">
+        <span className="text-[11px] font-medium text-text-tertiary">Threads</span>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            disabled
+            className="cursor-not-allowed text-text-tertiary/60 hover:text-text-tertiary"
+          >
+            <FolderPlus className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            disabled
+            className="cursor-not-allowed text-text-tertiary/60 hover:text-text-tertiary"
+          >
+            <LayoutList className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
 
       {/* Scrollable thread list */}
-      <div className="no-drag flex-1 overflow-y-auto px-4 pb-4">
+      <div className="no-drag flex-1 overflow-y-auto px-3 pb-3">
         {conversations.length === 0 ? (
           <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
             <MessageSquare className="h-5 w-5 text-text-muted/75" />
@@ -135,69 +135,67 @@ export function Sidebar({
           <div className="space-y-1">
             {groups.map((group) => {
               const groupKey = group.path ?? '__none__'
-              const isCollapsed = collapsedGroups.has(groupKey)
 
               return (
                 <div key={groupKey}>
                   {/* Project group header */}
-                  <button
-                    type="button"
-                    onClick={() => toggleGroup(groupKey)}
-                    className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] text-text-tertiary transition-colors hover:bg-bg-hover/50 hover:text-text-secondary"
-                  >
-                    {isCollapsed ? (
-                      <ChevronRight className="h-3 w-3 shrink-0" />
-                    ) : (
-                      <ChevronDown className="h-3 w-3 shrink-0" />
-                    )}
-                    <FolderOpen className="h-3 w-3 shrink-0" />
-                    <span className="truncate font-medium">{group.displayName}</span>
-                  </button>
+                  <div className="flex items-center gap-1.5 px-2 py-1.5 text-[12px] text-text-tertiary">
+                    <Folder className="h-3 w-3 shrink-0" />
+                    <span className="truncate">{group.displayName}</span>
+                  </div>
 
                   {/* Thread items */}
-                  {!isCollapsed && (
-                    <div className="ml-2 mt-1 space-y-0.5 border-l border-border/45 pl-2">
-                      {group.conversations.map((conv) => {
-                        const isActive = conv.id === activeId
-                        return (
-                          <div
-                            key={String(conv.id)}
-                            className={cn(
-                              'group relative flex cursor-pointer items-center rounded-lg transition-colors',
-                              isActive
-                                ? 'bg-bg-active/60 text-text-primary'
-                                : 'text-text-secondary hover:bg-bg-hover/65 hover:text-text-primary',
-                            )}
+                  <div className="space-y-px">
+                    {group.conversations.map((conv) => {
+                      const isActive = conv.id === activeId
+                      const isHovered = hoveredThread === conv.id
+                      return (
+                        <div
+                          key={String(conv.id)}
+                          className={cn(
+                            'group relative flex cursor-pointer items-center rounded-md transition-colors',
+                            isActive
+                              ? 'border-l-2 border-accent bg-bg-active'
+                              : 'border-l-2 border-transparent hover:bg-bg-hover',
+                          )}
+                          onMouseEnter={() => setHoveredThread(conv.id)}
+                          onMouseLeave={() => setHoveredThread(null)}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => onSelect(conv.id)}
+                            className="flex min-w-0 flex-1 flex-col gap-0.5 px-3 py-1.5 text-left"
                           >
-                            <button
-                              type="button"
-                              onClick={() => onSelect(conv.id)}
-                              className="flex min-w-0 flex-1 items-center justify-between px-2.5 py-1.5 text-left"
+                            <span
+                              className={cn(
+                                'truncate text-[11px] font-medium leading-snug',
+                                isActive ? 'text-text-primary' : 'text-text-secondary',
+                              )}
                             >
-                              <span className="truncate text-[12.5px] leading-snug">
-                                {truncate(conv.title, 26)}
-                              </span>
-                              <span className="ml-2 shrink-0 text-[11px] leading-snug text-text-muted">
-                                {formatRelativeTime(conv.updatedAt)}
-                              </span>
-                            </button>
+                              {truncate(conv.title, 28)}
+                            </span>
+                            <span className="text-[10px] text-text-tertiary">
+                              {formatRelativeTime(conv.updatedAt)}
+                            </span>
+                          </button>
 
+                          {isHovered && !isActive && (
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation()
                                 onDelete(conv.id)
                               }}
-                              className="invisible mr-1 shrink-0 rounded-md p-1 text-text-muted transition-colors group-hover:visible hover:bg-error/12 hover:text-error"
+                              className="mr-2 shrink-0 rounded-md p-1 text-text-muted transition-colors hover:bg-error/12 hover:text-error"
                               title="Delete thread"
                             >
                               <Trash2 className="h-3 w-3" />
                             </button>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               )
             })}
@@ -206,11 +204,11 @@ export function Sidebar({
       </div>
 
       {/* Settings at bottom */}
-      <div className="no-drag shrink-0 border-t border-border px-4 py-3">
+      <div className="no-drag shrink-0 border-t border-border px-3 py-2">
         <button
           type="button"
           onClick={onOpenSettings}
-          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-text-tertiary transition-colors hover:bg-bg-hover/85 hover:text-text-secondary"
+          className="flex w-full items-center gap-2 rounded-md px-3 py-[7px] text-[13px] text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
         >
           <Settings className="h-3.5 w-3.5" />
           Settings
