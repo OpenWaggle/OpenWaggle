@@ -1,0 +1,192 @@
+---
+name: task-workflow
+description: Mandatory workflow for all development tasks. Use this skill when starting any task. Covers branching, planning, implementation, testing, and PR creation with knowledge transfer via LEARNINGS.md.
+---
+
+# Task Workflow
+
+**This workflow is MANDATORY. Skipping steps invalidates your work.**
+
+---
+
+## Phase 1: Setup (BEFORE writing any code)
+
+### 1.1 Read LEARNINGS.md
+```bash
+# Read sections 1-4, skip Archive
+cat LEARNINGS.md
+```
+Note any warnings relevant to your task. Apply them.
+
+### 1.2 Confirm to User
+Tell the user:
+> "Starting task: [description]
+> Created branch: `feature/xxx`
+> Relevant warnings from LEARNINGS.md: [list any, or 'None']"
+
+**DO NOT write any code until you have completed 1.1-1.2.**
+
+---
+
+## Phase 2: Plan (REQUIRED for non-trivial tasks)
+
+### 2.1 Enter Plan Mode
+Use `EnterPlanMode` tool. In plan mode:
+- Explore codebase thoroughly
+- Keep plan extremely concise
+- End with: "Unresolved questions:" (list any, or "None")
+
+### 2.2 Get Approval
+Wait for user to approve plan before proceeding.
+
+### 2.3 Exit Plan Mode
+Use `ExitPlanMode` when ready to implement.
+
+**Skip Phase 2 only for:** typo fixes, simple config changes, dependency updates.
+
+---
+
+## Phase 3: Implement
+
+### 3.1 Write Code
+- Follow existing codebase patterns
+- Respect React Compiler rules (no manual memoization)
+- Check `LEARNINGS.md` warnings as you work
+
+### 3.2 Commit Frequently
+After EACH logical unit of work:
+```bash
+git add <files>
+git commit -m "<type>(<scope>): <description>"
+```
+
+**Types:** `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
+
+**BAD:** One giant commit at the end
+**GOOD:** 3-5+ atomic commits during implementation
+
+---
+
+## Phase 4: Test (REQUIRED)
+
+### 4.1 Unit Tests
+```bash
+pnpm test                           # All tests
+pnpm test src/path/to/file.test.tsx # Specific file
+```
+Every feature needs unit tests. No exceptions.
+
+### 4.2 E2E Tests (if applicable)
+**Required for:** UI changes, user flows, multi-step interactions
+**Skip for:** Backend-only, refactors, utilities
+
+```bash
+pnpm test:e2e
+```
+
+### 4.3 Type Check
+```bash
+pnpm typecheck
+```
+Fix any errors before proceeding.
+
+---
+
+## Phase 5: QA (DO NOT skip this phase)
+
+Use browser tools to verify:
+
+```
+# Check for console errors
+# Verify network requests succeed  
+# Confirm UI renders correctly
+```
+
+**Skip for:** Backend-only changes, non-visual refactors.
+
+---
+
+## Phase 6: Push & Confirm
+
+### 6.1 Push Commits
+```bash
+git push
+```
+
+### 6.4 Notify User
+> "PR created: [link]
+> Ready for your review."
+
+---
+
+## Phase 7: Knowledge Transfer **(REQUIRED)**
+
+### 7.1 Update LEARNINGS.md
+Add your discoveries to "Recent Discoveries" section:
+```markdown
+### Task: <description> (YYYY-MM-DD)
+- Learning 1
+- Learning 2 [SKILL?]  ← mark significant ones
+```
+
+### 7.2 Curate If Needed
+- If any section exceeds its cap, consolidate or archive oldest items
+- Active Warnings: max 10
+- Pattern Preferences: max 15
+- Recent Discoveries: last 5 tasks
+
+### 7.3 Skill Promotion
+If YOUR learning is marked `[SKILL?]`, ask user:
+> "This learning seems significant: [learning]. Should I create a skill for it?"
+
+---
+
+## Completion Checklist
+
+Before marking task complete, verify ALL:
+
+- [ ] Read LEARNINGS.md at start
+- [ ] Multiple atomic commits (not one giant commit)
+- [ ] Tests pass (`pnpm test`, `pnpm typecheck`)
+- [ ] Branch pushed to remote
+- [ ] LEARNINGS.md updated with discoveries
+
+---
+
+## Exception Handling
+
+### When Things Go Wrong
+
+**Tests fail:**
+1. Read error output carefully
+2. Fix the issue
+3. Commit the fix
+4. Re-run tests
+
+**Merge conflicts:**
+1. `git fetch origin main`
+2. `git rebase origin/main`
+3. Resolve conflicts
+4. `git push --force-with-lease`
+
+---
+
+## Quick Reference
+
+```
+BEFORE CODE:   LEARNINGS.md → branch → confirm
+PLANNING:      EnterPlanMode → plan → approve → ExitPlanMode
+IMPLEMENTING:  code → commit → code → commit → code → commit
+TESTING:       pnpm test → pnpm typecheck → (e2e if UI)
+FINISHING:     LEARNINGS.md → commit → push → notify user
+```
+
+---
+
+## Recent Learnings
+
+Add learnings here on the format you understand the best. (remove this sentence once the first learning is introduced)
+
+## Old Learnings Archive
+
+Move old learnings here so we can review
