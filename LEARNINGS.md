@@ -185,7 +185,12 @@ FINISHING:     LEARNINGS.md → commit → push → notify user
 
 ## Recent Learnings
 
-Add learnings here on the format you understand the best. (remove this sentence once the first learning is introduced)
+### Task: Pencil "No Diff" UI Redesign (2026-02-18)
+- Biome enforces `noStaticElementInteractions` — use CSS `group-hover:visible` / `invisible` pattern instead of `useState` hover tracking with `onMouseEnter`/`onMouseLeave` on `<div>`
+- When restructuring layout (moving components between parent containers), update props interfaces in both parent and child to keep TypeScript happy
+- New design tokens added to `@theme` block: `--color-input-card-border`, `--color-button-border`, `--color-diff-card-bg`, `--color-diff-card-border`, `--color-link-yellow` — use Tailwind classes like `border-input-card-border`, `bg-diff-card-bg`
+- Composer now owns the status bar (Local/Full-access/git-branch) as its bottom row — no separate StatusBar component
+- Inter font added as primary sans-serif in `--font-sans`
 
 ## Old Learnings Archive
 
