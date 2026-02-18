@@ -1,0 +1,18 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": [
+    "src/index.ts",
+    "src/trials.ts"
+  ],
+  "entryPointStrategy": "expand",
+  "plugin": [
+    "typedoc-plugin-markdown"
+  ],
+  "readme": "none",
+  "out": "../../apps/web/src/content/docs/api-reference/generated",
+  "hideGenerator": true,
+  "hideBreadcrumbs": true,
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "excludeExternals": true
+}

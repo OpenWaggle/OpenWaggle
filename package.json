@@ -1,0 +1,85 @@
+{
+  "name": "condukt-ai",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "description": "TypeScript contract-first pipeline runtime for Condukt AI",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/diego-tech-dev/condukt-ai.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/diego-tech-dev/condukt-ai/tree/main/packages/core",
+  "bugs": {
+    "url": "https://github.com/diego-tech-dev/condukt-ai/issues"
+  },
+  "keywords": [
+    "agent",
+    "orchestration",
+    "contracts",
+    "trace",
+    "standard-schema",
+    "llm",
+    "tanstack-ai"
+  ],
+  "packageManager": "pnpm@10.29.3",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./trials": {
+      "types": "./dist/trials.d.ts",
+      "import": "./dist/trials.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.typecheck.json --noEmit",
+    "lint": "biome lint .",
+    "format": "biome format --write .",
+    "check": "pnpm lint && pnpm typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "docs:api": "typedoc --options typedoc.json && node ./scripts/postprocess-api-docs.mjs",
+    "docs:api:check": "pnpm docs:api && git diff --exit-code -- ../../apps/web/src/content/docs/api-reference/generated",
+    "quickstart": "tsx examples/quickstart-debug.ts",
+    "quickstart:broken": "tsx examples/quickstart-debug.ts --broken",
+    "trial:start": "tsx scripts/trial-metrics.ts start",
+    "trial:finish": "tsx scripts/trial-metrics.ts finish",
+    "trial:report": "tsx scripts/trial-metrics.ts report",
+    "release:guard": "tsx scripts/release-identity-guard.ts",
+    "release:check": "pnpm clean && pnpm check && pnpm test && pnpm build && pnpm release:guard && pnpm pack --pack-destination .artifacts && rm -rf .artifacts",
+    "prepack": "pnpm build"
+  },
+  "dependencies": {
+    "@standard-schema/spec": "^1.0.0",
+    "@tanstack/ai": "^0.5.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.15",
+    "@types/node": "^22.19.11",
+    "tsx": "^4.19.2",
+    "typedoc": "^0.28.17",
+    "typedoc-plugin-markdown": "^4.10.0",
+    "typescript": "^5.7.3",
+    "vitest": "^4.0.18",
+    "zod": "^3.24.1"
+  }
+}
