@@ -84,7 +84,7 @@ export function ToolCallBlock({
   }, [isRunning])
 
   return (
-    <div className="my-1.5 rounded-lg border border-border bg-bg-secondary/60 overflow-hidden">
+    <div className="my-1.5 rounded-lg border border-diff-card-border bg-diff-card-bg overflow-hidden">
       {/* Header row */}
       <button
         type="button"
