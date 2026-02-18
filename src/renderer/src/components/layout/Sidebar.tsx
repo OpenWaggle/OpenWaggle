@@ -66,145 +66,141 @@ export function Sidebar({
   const groups = groupByProject(conversations)
 
   return (
-    <aside className="flex h-full w-[224px] shrink-0 flex-col border-r border-border bg-bg-secondary">
-      {/* Logo area — also acts as drag region */}
-      <div className="drag-region flex h-[48px] shrink-0 items-center gap-2 px-4">
-        <SquareTerminal className="no-drag h-4 w-4 text-accent" />
-        <span className="no-drag text-[13px] font-semibold text-text-primary">HiveCode</span>
-      </div>
+    <aside className="flex h-full w-[224px] shrink-0 flex-col justify-between bg-bg-secondary border-r border-border">
+      {/* sidebar-top */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Logo — drag region, padding [14,16] */}
+        <div className="drag-region flex shrink-0 items-center gap-2 px-4 py-[14px]">
+          <SquareTerminal className="no-drag h-4 w-4 text-accent" />
+          <span className="no-drag text-[13px] font-semibold text-text-primary">HiveCode</span>
+        </div>
 
-      {/* Nav actions */}
-      <nav className="no-drag space-y-0.5 px-3">
-        <button
-          type="button"
-          onClick={onNew}
-          className="flex w-full items-center gap-2 rounded-md px-3 py-[7px] text-[13px] text-text-secondary transition-colors hover:bg-bg-hover"
-        >
-          <Edit3 className="h-3.5 w-3.5 text-text-tertiary" />
-          New thread
-        </button>
-        <button
-          type="button"
-          disabled
-          className="flex w-full cursor-not-allowed items-center gap-2 rounded-md px-3 py-[7px] text-[13px] text-text-tertiary/75"
-        >
-          <RotateCw className="h-3.5 w-3.5" />
-          Automations
-        </button>
-        <button
-          type="button"
-          disabled
-          className="flex w-full cursor-not-allowed items-center gap-2 rounded-md px-3 py-[7px] text-[13px] text-text-tertiary/75"
-        >
-          <Sparkles className="h-3.5 w-3.5" />
-          Skills
-        </button>
-      </nav>
-
-      {/* Thread section header */}
-      <div className="mt-4 flex h-[30px] items-center justify-between px-4">
-        <span className="text-[11px] font-medium text-text-tertiary">Threads</span>
-        <div className="flex items-center gap-1.5">
+        {/* Nav items — fixed */}
+        <div className="shrink-0">
+          {/* New thread — h34, padding [0,12], gap 8 */}
           <button
             type="button"
-            disabled
-            className="cursor-not-allowed text-text-tertiary/60 hover:text-text-tertiary"
+            onClick={onNew}
+            className="no-drag flex w-full items-center gap-2 h-[34px] px-3 text-left transition-colors hover:bg-bg-hover"
           >
-            <FolderPlus className="h-3.5 w-3.5" />
+            <Edit3 className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
+            <span className="text-[13px] text-text-secondary">New thread</span>
           </button>
+
+          {/* Automations — h32, padding [0,12], gap 8 */}
           <button
             type="button"
             disabled
-            className="cursor-not-allowed text-text-tertiary/60 hover:text-text-tertiary"
+            className="no-drag flex w-full cursor-not-allowed items-center gap-2 h-8 px-3"
           >
-            <LayoutList className="h-3.5 w-3.5" />
+            <RotateCw className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
+            <span className="text-[13px] text-text-secondary/60">Automations</span>
+          </button>
+
+          {/* Skills — h32, padding [0,12], gap 8 */}
+          <button
+            type="button"
+            disabled
+            className="no-drag flex w-full cursor-not-allowed items-center gap-2 h-8 px-3"
+          >
+            <Sparkles className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
+            <span className="text-[13px] text-text-secondary/60">Skills</span>
           </button>
         </div>
-      </div>
 
-      {/* Scrollable thread list */}
-      <div className="no-drag flex-1 overflow-y-auto px-3 pb-3">
-        {conversations.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
-            <MessageSquare className="h-5 w-5 text-text-muted/75" />
-            <p className="text-xs text-text-muted">No threads yet</p>
+        {/* Threads header — h30, padding [0,16], justify-between */}
+        <div className="no-drag flex shrink-0 items-center justify-between h-[30px] px-4">
+          <span className="text-[11px] font-medium text-text-tertiary">Threads</span>
+          <div className="flex items-center gap-1.5">
+            <FolderPlus className="h-[13px] w-[13px] text-text-tertiary" />
+            <LayoutList className="h-3 w-3 text-text-tertiary" />
           </div>
-        ) : (
-          <div className="space-y-1">
-            {groups.map((group) => {
-              const groupKey = group.path ?? '__none__'
+        </div>
 
+        {/* Scrollable thread list */}
+        <div className="no-drag flex-1 overflow-y-auto">
+          {conversations.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
+              <MessageSquare className="h-5 w-5 text-text-muted/75" />
+              <p className="text-xs text-text-muted">No threads yet</p>
+            </div>
+          ) : (
+            groups.map((group) => {
+              const groupKey = group.path ?? '__none__'
               return (
                 <div key={groupKey}>
-                  {/* Project group header */}
-                  <div className="flex items-center gap-1.5 px-2 py-1.5 text-[12px] text-text-tertiary">
-                    <Folder className="h-3 w-3 shrink-0" />
-                    <span className="truncate">{group.displayName}</span>
+                  {/* Project group header — h32, padding [0,12], gap 8 */}
+                  <div className="flex items-center gap-2 h-8 px-3">
+                    <Folder className="h-3 w-3 shrink-0 text-text-tertiary" />
+                    <span className="truncate text-[12px] text-text-secondary">
+                      {group.displayName}
+                    </span>
                   </div>
 
                   {/* Thread items */}
-                  <div className="space-y-px">
-                    {group.conversations.map((conv) => {
-                      const isActive = conv.id === activeId
-                      return (
-                        <div
-                          key={String(conv.id)}
-                          className={cn(
-                            'group relative flex cursor-pointer items-center rounded-md transition-colors',
-                            isActive
-                              ? 'border-l-2 border-accent bg-bg-active'
-                              : 'border-l-2 border-transparent hover:bg-bg-hover',
-                          )}
+                  {group.conversations.map((conv) => {
+                    const isActive = conv.id === activeId
+                    return (
+                      <div
+                        key={String(conv.id)}
+                        className={cn(
+                          'group flex items-center h-[34px] w-full',
+                          isActive
+                            ? 'bg-bg-active border-l-2 border-accent pr-3 pl-6'
+                            : 'px-3 hover:bg-bg-hover',
+                        )}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => onSelect(conv.id)}
+                          className="flex min-w-0 flex-1 items-center gap-1.5"
                         >
-                          <button
-                            type="button"
-                            onClick={() => onSelect(conv.id)}
-                            className="flex min-w-0 flex-1 flex-col gap-0.5 px-3 py-1.5 text-left"
+                          <span
+                            className={cn(
+                              'truncate text-[11px]',
+                              isActive ? 'font-medium text-text-primary' : 'text-text-secondary',
+                            )}
                           >
-                            <span
-                              className={cn(
-                                'truncate text-[11px] font-medium leading-snug',
-                                isActive ? 'text-text-primary' : 'text-text-secondary',
-                              )}
-                            >
-                              {truncate(conv.title, 28)}
-                            </span>
-                            <span className="text-[10px] text-text-tertiary">
-                              {formatRelativeTime(conv.updatedAt)}
-                            </span>
-                          </button>
+                            {truncate(conv.title, 20)}
+                          </span>
+                          <span className="shrink-0 text-[10px] text-text-tertiary">
+                            {formatRelativeTime(conv.updatedAt)}
+                          </span>
+                        </button>
 
+                        {!isActive && (
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation()
                               onDelete(conv.id)
                             }}
-                            className="invisible mr-2 shrink-0 rounded-md p-1 text-text-muted transition-colors group-hover:visible hover:bg-error/12 hover:text-error"
+                            className="invisible ml-1 shrink-0 rounded-md p-0.5 text-text-muted transition-colors group-hover:visible hover:text-error"
                             title="Delete thread"
                           >
                             <Trash2 className="h-3 w-3" />
                           </button>
-                        </div>
-                      )
-                    })}
-                  </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               )
-            })}
-          </div>
-        )}
+            })
+          )}
+        </div>
       </div>
 
-      {/* Settings at bottom */}
-      <div className="no-drag shrink-0 border-t border-border px-3 py-2">
+      {/* sidebar-bottom — no border-top */}
+      <div className="no-drag shrink-0">
+        {/* Settings — h36, padding [0,16], gap 10 */}
         <button
           type="button"
           onClick={onOpenSettings}
-          className="flex w-full items-center gap-2 rounded-md px-3 py-[7px] text-[13px] text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
+          className="flex w-full items-center gap-2.5 h-9 px-4 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
         >
           <Settings className="h-3.5 w-3.5" />
-          Settings
+          <span className="text-[13px] text-text-secondary">Settings</span>
         </button>
       </div>
     </aside>

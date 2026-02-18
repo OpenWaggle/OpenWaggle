@@ -1,5 +1,4 @@
 import type { UIMessage } from '@tanstack/ai-react'
-import { cn } from '@/lib/cn'
 import { StreamingText } from './StreamingText'
 import { ToolCallBlock } from './ToolCallBlock'
 
@@ -22,11 +21,13 @@ export function MessageBubble({ message, isStreaming }: MessageBubbleProps): Rea
     }
   }
 
-  return (
-    <div className={cn('py-2', isUser && 'flex justify-end')}>
-      {isUser ? (
-        <div className="max-w-[340px] rounded-[16px_16px_2px_16px] border border-border-light bg-bg-hover px-3.5 py-2.5">
-          <div className="text-[13px] leading-relaxed text-text-primary">
+  if (isUser) {
+    return (
+      /* User msg container — justifyContent: end, width: fill_container */
+      <div className="flex justify-end w-full">
+        {/* User bubble — cornerRadius [16,16,2,16], fill #1e2229, padding [10,14], stroke #2a3240 1px */}
+        <div className="rounded-[16px_16px_2px_16px] bg-bg-hover border border-border-light py-2.5 px-3.5">
+          <div className="text-[13px] leading-[1.5] text-text-primary">
             {message.parts
               .filter(
                 (p): p is Extract<(typeof message.parts)[number], { type: 'text' }> =>
@@ -37,36 +38,41 @@ export function MessageBubble({ message, isStreaming }: MessageBubbleProps): Rea
               ))}
           </div>
         </div>
-      ) : (
-        <div className="space-y-2">
-          {message.parts.map((part, i) => {
-            switch (part.type) {
-              case 'text':
-                return part.content.trim() ? (
-                  <StreamingText
-                    key={`${message.id}-text-${String(i)}`}
-                    text={part.content}
-                    isStreaming={isStreaming}
-                  />
-                ) : null
-              case 'tool-call':
-                return (
-                  <ToolCallBlock
-                    key={`tool-${part.id}`}
-                    name={part.name}
-                    args={part.arguments}
-                    state={part.state}
-                    result={toolResults.get(part.id)}
-                  />
-                )
-              case 'tool-result':
-                return null
-              default:
-                return null
-            }
-          })}
-        </div>
-      )}
+      </div>
+    )
+  }
+
+  return (
+    /* Assistant msg — width: fill_container, no background */
+    <div className="w-full">
+      <div className="flex flex-col gap-2">
+        {message.parts.map((part, i) => {
+          switch (part.type) {
+            case 'text':
+              return part.content.trim() ? (
+                <StreamingText
+                  key={`${message.id}-text-${String(i)}`}
+                  text={part.content}
+                  isStreaming={isStreaming}
+                />
+              ) : null
+            case 'tool-call':
+              return (
+                <ToolCallBlock
+                  key={`tool-${part.id}`}
+                  name={part.name}
+                  args={part.arguments}
+                  state={part.state}
+                  result={toolResults.get(part.id)}
+                />
+              )
+            case 'tool-result':
+              return null
+            default:
+              return null
+          }
+        })}
+      </div>
     </div>
   )
 }

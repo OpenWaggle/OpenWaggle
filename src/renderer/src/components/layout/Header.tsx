@@ -1,4 +1,4 @@
-import { Copy, MoreHorizontal, PanelLeft, Play } from 'lucide-react'
+import { Copy, PanelLeft } from 'lucide-react'
 import { cn } from '@/lib/cn'
 
 interface HeaderProps {
@@ -15,7 +15,8 @@ export function Header({
   sidebarOpen,
 }: HeaderProps): React.JSX.Element {
   return (
-    <header className="drag-region flex h-12 shrink-0 items-center justify-between border-b border-border bg-bg px-5">
+    <header className="drag-region flex shrink-0 items-center justify-between h-12 px-5 gap-3 bg-bg border-b border-border">
+      {/* hdrLeft — gap 8 */}
       <div className="flex items-center gap-2">
         {!sidebarOpen && (
           <button
@@ -28,44 +29,45 @@ export function Header({
           </button>
         )}
 
-        <Play className="no-drag h-3.5 w-3.5 text-text-secondary" />
+        {/* Play arrow — text character */}
+        <span className="no-drag text-[14px] text-text-secondary">&#x25B7;</span>
 
+        {/* Title */}
         <span className="no-drag text-[13px] font-medium text-text-primary">
           {conversationTitle ?? 'New thread'}
         </span>
 
-        <span className="no-drag rounded border border-border bg-bg-tertiary px-2 py-0.5 text-[11px] text-text-secondary">
+        {/* Tag pill — h20, padding [0,8], cornerRadius 4, bg #151922, stroke #1e2229 */}
+        <span className="no-drag flex items-center h-5 px-2 rounded border border-border bg-bg-tertiary text-[11px] text-text-secondary">
           HiveCode
         </span>
 
-        <button
-          type="button"
-          className="no-drag text-text-tertiary transition-colors hover:text-text-secondary"
-        >
-          <MoreHorizontal className="h-4 w-4" />
-        </button>
+        {/* Dots */}
+        <span className="no-drag text-[16px] leading-none text-text-tertiary">···</span>
       </div>
 
+      {/* hdrRight — gap 8 */}
       <div className="flex items-center gap-2">
-        {/* Open button */}
+        {/* Open button — h28, padding [0,10], cornerRadius 5, gap 4, stroke #252c36 */}
         <button
           type="button"
           className={cn(
-            'no-drag flex h-7 items-center rounded-[5px] border border-button-border px-2.5 text-[12px] font-medium text-text-primary',
-            'transition-colors hover:border-border-light hover:bg-bg-hover',
+            'no-drag flex items-center gap-1 h-7 px-2.5 rounded-[5px] border border-button-border',
+            'transition-colors hover:bg-bg-hover',
             !projectPath && 'pointer-events-none opacity-30',
           )}
           disabled={!projectPath}
           title={projectPath ?? 'No project selected'}
         >
-          Open
+          <span className="text-[12px] font-medium text-text-primary">Open</span>
+          <span className="text-[9px] text-text-tertiary">&#x2228;</span>
         </button>
 
-        {/* Commit button — amber gradient */}
+        {/* Commit button — h28, padding [0,10], cornerRadius 5, gap 4, amber gradient */}
         <button
           type="button"
           className={cn(
-            'no-drag flex h-7 items-center rounded-[5px] px-2.5 text-[12px] font-semibold text-bg',
+            'no-drag flex items-center gap-1 h-7 px-2.5 rounded-[5px]',
             'bg-gradient-to-b from-accent to-accent-dim',
             'transition-opacity hover:opacity-90',
             !projectPath && 'pointer-events-none opacity-30',
@@ -73,16 +75,17 @@ export function Header({
           disabled={!projectPath}
           title="Commit changes"
         >
-          Commit
+          <span className="text-[12px] font-semibold text-bg">Commit</span>
+          <span className="text-[9px] text-bg/50">&#x2228;</span>
         </button>
 
-        {/* Divider */}
-        <div className="h-5 w-px bg-border" />
+        {/* Divider — w1 h20 */}
+        <div className="w-px h-5 bg-border" />
 
-        {/* Diff stats */}
-        <div className="no-drag flex items-center gap-1 text-[12px] font-medium">
-          <span className="text-success">+441</span>
-          <span className="text-error">-348</span>
+        {/* Diff stats — gap 4 */}
+        <div className="no-drag flex items-center gap-1">
+          <span className="text-[12px] font-medium text-success">+441</span>
+          <span className="text-[12px] font-medium text-[#e05c5c]">-348</span>
         </div>
 
         {/* Copy icon */}

@@ -18,8 +18,6 @@ import { Spinner } from '@/components/shared/Spinner'
 import { projectName } from '@/lib/format'
 import { MessageBubble } from './MessageBubble'
 
-const CONTENT_MAX_WIDTH = 720
-
 interface ChatPanelProps {
   messages: UIMessage[]
   isLoading: boolean
@@ -111,9 +109,10 @@ export function ChatPanel({
       .join('\n') ?? null
 
   return (
-    <div className="flex h-full w-full flex-col" style={{ maxWidth: CONTENT_MAX_WIDTH }}>
-      {/* Scrollable messages area */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-5">
+    /* chat-panel: w720, padding [0,20,20,20], clip, vertical, fill #0d0f12 */
+    <div className="flex h-full w-full max-w-[720px] flex-col bg-bg pt-0 pr-5 pb-5 pl-5 overflow-hidden">
+      {/* chat-messages: flex-1, padding [20,28], gap 24, overflow scroll */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto py-5 px-7">
         {messages.length === 0 && !isLoading ? (
           <div className="flex min-h-full w-full justify-center">
             <div className="flex w-full flex-col pt-8">
@@ -167,7 +166,8 @@ export function ChatPanel({
             </div>
           </div>
         ) : (
-          <div className="w-full py-2">
+          /* Messages list — gap 24 between message groups */
+          <div className="flex flex-col gap-6 w-full">
             {messages.map((msg, i) => (
               <MessageBubble
                 key={msg.id}
@@ -178,7 +178,7 @@ export function ChatPanel({
 
             {isLoading &&
               (!lastMsg || lastMsg.role !== 'assistant' || lastMsg.parts.length === 0) && (
-                <div className="flex items-center gap-2 px-1 py-3">
+                <div className="flex items-center gap-2 py-3">
                   <Spinner size="sm" className="text-accent" />
                   <span className="text-sm text-text-tertiary">Thinking...</span>
                 </div>
