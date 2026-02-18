@@ -1,11 +1,20 @@
 import type { ProviderInfo, SupportedModelId } from '@shared/types/llm'
 import type { Settings as SettingsType } from '@shared/types/settings'
-import { ArrowUp, ChevronDown, Gauge, Plus, Square } from 'lucide-react'
+import {
+  ArrowUp,
+  ChevronDown,
+  Gauge,
+  GitBranch,
+  Mic,
+  Monitor,
+  Plus,
+  RefreshCw,
+  Shield,
+  Square,
+} from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { ModelSelector } from '@/components/shared/ModelSelector'
 import { cn } from '@/lib/cn'
-
-const CONTENT_MAX_WIDTH = 740
 
 interface ComposerProps {
   onSend: (content: string) => void
@@ -16,6 +25,7 @@ interface ComposerProps {
   onModelChange: (model: SupportedModelId) => void
   settings: SettingsType
   providerModels: ProviderInfo[]
+  projectPath?: string | null
 }
 
 export function Composer({
@@ -27,6 +37,7 @@ export function Composer({
   onModelChange,
   settings,
   providerModels,
+  projectPath,
 }: ComposerProps): React.JSX.Element {
   const [input, setInput] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -64,95 +75,144 @@ export function Composer({
   const canSend = !!input.trim() && !disabled
 
   return (
-    <div className="shrink-0 border-t border-border/85 bg-bg/72 pb-4 pt-4 backdrop-blur-md">
+    <div className="shrink-0 px-0 pb-5">
       <output aria-live="polite" className="sr-only">
         {isLoading ? 'Agent is working' : ''}
       </output>
 
-      <div className="flex w-full justify-center px-8 md:px-12">
-        <div
-          className="w-full rounded-2xl border border-border-light bg-bg-secondary shadow-[0_8px_20px_rgba(0,0,0,0.22)] transition-colors focus-within:border-border-light"
-          style={{ maxWidth: CONTENT_MAX_WIDTH }}
-        >
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={handleInput}
-            onKeyDown={handleKeyDown}
-            aria-label="Message input"
-            placeholder={
-              isLoading ? 'Agent is working...' : 'Ask anything, @ to add files, / for commands'
-            }
-            disabled={isLoading || disabled}
-            rows={2}
-            className={cn(
-              'w-full min-h-[102px] resize-none bg-transparent px-5 pb-3 pt-4 text-sm leading-relaxed text-text-primary',
-              'placeholder:text-text-tertiary',
-              'focus:outline-none',
-              'disabled:opacity-50',
+      <div className="w-full rounded-xl border border-input-card-border bg-bg-secondary">
+        {/* Input area */}
+        <textarea
+          ref={textareaRef}
+          value={input}
+          onChange={handleInput}
+          onKeyDown={handleKeyDown}
+          aria-label="Message input"
+          placeholder={isLoading ? 'Agent is working...' : 'Ask for follow-up changes'}
+          disabled={isLoading || disabled}
+          rows={1}
+          className={cn(
+            'w-full min-h-[60px] resize-none bg-transparent px-4 pb-2 pt-4 text-sm leading-relaxed text-text-primary',
+            'placeholder:text-text-tertiary',
+            'focus:outline-none',
+            'disabled:opacity-50',
+          )}
+        />
+
+        {/* Toolbar */}
+        <div className="flex h-11 items-center justify-between px-4">
+          <div className="flex items-center gap-1">
+            {/* Attach button */}
+            <button
+              type="button"
+              disabled
+              className="flex cursor-not-allowed items-center justify-center rounded-md p-1.5 text-text-tertiary transition-colors hover:text-text-secondary"
+              title="Attach file (coming soon)"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+
+            {/* Model selector */}
+            <ModelSelector
+              value={model}
+              onChange={onModelChange}
+              settings={settings}
+              providerModels={providerModels}
+              className="rounded-md border border-button-border px-2 py-0.5"
+            />
+
+            {/* Quality selector */}
+            <button
+              type="button"
+              disabled
+              className="flex cursor-not-allowed items-center gap-1 rounded-md border border-button-border px-2 py-1 text-[12px] text-text-secondary transition-colors hover:text-text-primary"
+              title="Quality (coming soon)"
+            >
+              <Gauge className="h-3.5 w-3.5" />
+              Extra High
+              <ChevronDown className="h-3 w-3 opacity-50" />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Mic button */}
+            <button
+              type="button"
+              disabled
+              className="cursor-not-allowed text-text-secondary transition-colors hover:text-text-primary"
+              title="Voice input (coming soon)"
+            >
+              <Mic className="h-4 w-4" />
+            </button>
+
+            {/* Send / Cancel */}
+            {isLoading ? (
+              <button
+                type="button"
+                onClick={onCancel}
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-error/35 bg-error/10 text-error transition-colors hover:bg-error/18"
+                title="Cancel"
+              >
+                <Square className="h-3.5 w-3.5" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={!canSend}
+                className={cn(
+                  'flex h-8 w-8 items-center justify-center rounded-full transition-colors',
+                  canSend
+                    ? 'bg-gradient-to-b from-accent to-accent-dim text-bg'
+                    : 'border border-border bg-bg-tertiary text-text-muted cursor-not-allowed',
+                )}
+                title="Send message"
+              >
+                <ArrowUp className="h-4 w-4" />
+              </button>
             )}
-          />
+          </div>
+        </div>
 
-          <div className="flex items-center justify-between border-t border-border/75 px-4 py-2.5">
-            <div className="flex items-center gap-1">
-              {/* Attach button */}
+        {/* Status row */}
+        <div className="flex h-9 items-center justify-between border-t border-border px-4 text-[11px] text-text-tertiary">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              disabled
+              className="flex cursor-not-allowed items-center gap-1 rounded-[5px] py-0.5 pr-1 text-text-tertiary"
+            >
+              <Monitor className="h-3.5 w-3.5" />
+              Local
+              <ChevronDown className="h-2.5 w-2.5 opacity-50" />
+            </button>
+
+            <span className="flex items-center gap-1 text-accent">
+              <Shield className="h-3.5 w-3.5" />
+              Full access
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {projectPath && (
               <button
                 type="button"
                 disabled
-                className="flex cursor-not-allowed items-center justify-center rounded-md p-1.5 text-text-muted/80 transition-colors hover:text-text-tertiary"
-                title="Attach file (coming soon)"
+                className="flex cursor-not-allowed items-center gap-1 rounded-[5px] py-0.5 pr-1 text-text-tertiary"
               >
-                <Plus className="h-4 w-4" />
+                <GitBranch className="h-3.5 w-3.5" />
+                main
+                <ChevronDown className="h-2.5 w-2.5 opacity-50" />
               </button>
-
-              {/* Model selector */}
-              <ModelSelector
-                value={model}
-                onChange={onModelChange}
-                settings={settings}
-                providerModels={providerModels}
-              />
-
-              {/* Effort dropdown */}
-              <button
-                type="button"
-                disabled
-                className="flex cursor-not-allowed items-center gap-1 rounded-md px-2 py-1.5 text-xs text-text-muted/80 transition-colors hover:text-text-tertiary"
-                title="Effort level (coming soon)"
-              >
-                <Gauge className="h-3.5 w-3.5" />
-                Auto
-                <ChevronDown className="h-3 w-3" />
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {isLoading ? (
-                <button
-                  type="button"
-                  onClick={onCancel}
-                  className="flex h-8 w-8 items-center justify-center rounded-full border border-error/35 bg-error/10 text-error transition-colors hover:bg-error/18"
-                  title="Cancel"
-                >
-                  <Square className="h-3.5 w-3.5" />
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={!canSend}
-                  className={cn(
-                    'flex h-8 w-8 items-center justify-center rounded-full border transition-colors',
-                    canSend
-                      ? 'border-border-light bg-text-primary text-bg hover:bg-white'
-                      : 'border-border bg-bg-tertiary text-text-muted cursor-not-allowed',
-                  )}
-                  title="Send message"
-                >
-                  <ArrowUp className="h-4 w-4" />
-                </button>
-              )}
-            </div>
+            )}
+            <button
+              type="button"
+              disabled
+              className="cursor-not-allowed text-text-tertiary transition-colors hover:text-text-secondary"
+              title="Refresh"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
       </div>
