@@ -97,6 +97,7 @@ export function App(): React.JSX.Element {
         refreshTimer = setTimeout(() => {
           refreshTimer = null
           void refreshGitStatus(projectPath)
+          setDiffRefreshKey((k) => k + 1)
         }, 500)
       }
     })
@@ -112,6 +113,18 @@ export function App(): React.JSX.Element {
     refreshGitStatus,
     setActiveConversation,
   ])
+
+  // Refresh git status + diff panel when window regains focus
+  useEffect(() => {
+    function handleFocus() {
+      if (projectPath) {
+        void refreshGitStatus(projectPath)
+        setDiffRefreshKey((k) => k + 1)
+      }
+    }
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
+  }, [projectPath, refreshGitStatus])
 
   async function handleSelectConversation(id: Parameters<typeof setActiveConversation>[0]) {
     const conv = conversations.find((c) => c.id === id)
