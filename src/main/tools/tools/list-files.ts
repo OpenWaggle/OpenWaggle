@@ -1,9 +1,9 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { z } from 'zod'
-import { defineHiveCodeTool, resolveProjectPath } from '../define-tool'
+import { defineOpenHiveTool, resolveProjectPath } from '../define-tool'
 
-export const listFilesTool = defineHiveCodeTool({
+export const listFilesTool = defineOpenHiveTool({
   name: 'listFiles',
   description:
     'List files and directories in a given path relative to the project root. Shows file types and sizes. Useful for exploring project structure.',

@@ -1,10 +1,10 @@
 import fs from 'node:fs/promises'
 import { z } from 'zod'
-import { defineHiveCodeTool, resolveProjectPath } from '../define-tool'
+import { defineOpenHiveTool, resolveProjectPath } from '../define-tool'
 
 const MAX_FILE_SIZE = 1024 * 1024 // 1 MB
 
-export const readFileTool = defineHiveCodeTool({
+export const readFileTool = defineOpenHiveTool({
   name: 'readFile',
   description:
     'Read the contents of a file at the given path relative to the project root. Returns the file content as text. Use this to understand existing code before making changes.',

@@ -134,7 +134,7 @@ export type IpcEventPayload<C extends IpcEventChannel> = IpcEventChannelMap[C]['
 
 // ─── Convenience API (what we actually expose on window.api) ─
 
-export interface HiveCodeApi {
+export interface OpenHiveApi {
   // Agent
   sendMessage(
     conversationId: ConversationId,

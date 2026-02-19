@@ -10,6 +10,7 @@ export function registerProvidersHandlers(): void {
       provider: p.id,
       displayName: p.displayName,
       requiresApiKey: p.requiresApiKey,
+      apiKeyManagementUrl: p.apiKeyManagementUrl,
       supportsBaseUrl: p.supportsBaseUrl,
       models: p.models.map((m) => ({
         id: m,

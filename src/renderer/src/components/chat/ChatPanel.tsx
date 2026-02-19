@@ -5,6 +5,7 @@ import {
   AlertCircle,
   ChevronDown,
   FileText,
+  FolderOpen,
   Gamepad2,
   Hexagon,
   PencilLine,
@@ -24,6 +25,7 @@ interface ChatPanelProps {
   error: Error | undefined
   projectPath: string | null
   hasProject: boolean
+  onOpenProject?: () => void
   onOpenSettings?: () => void
   onRetry?: (content: string) => void
   onSend: (content: string) => void
@@ -76,6 +78,7 @@ export function ChatPanel({
   error,
   projectPath,
   hasProject,
+  onOpenProject,
   onOpenSettings,
   onRetry,
   onSend,
@@ -130,16 +133,24 @@ export function ChatPanel({
                     {hasProject && (
                       <button
                         type="button"
+                        onClick={onOpenProject}
                         className="inline-flex max-w-full items-center gap-1 text-[clamp(28px,3.8vw,40px)] leading-none text-text-secondary transition-colors hover:text-text-primary"
+                        title="Open project picker"
                       >
                         <span className="truncate">{projectName(projectPath)}</span>
                         <ChevronDown className="mt-1 h-5 w-5" />
                       </button>
                     )}
                     {!hasProject && (
-                      <p className="max-w-sm text-sm text-text-tertiary">
-                        Select a project folder to get started, or just ask me anything.
-                      </p>
+                      <button
+                        type="button"
+                        onClick={onOpenProject}
+                        className="inline-flex max-w-sm items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm text-text-tertiary transition-colors hover:border-border-light hover:text-text-secondary"
+                        title="Open project picker"
+                      >
+                        <FolderOpen className="h-4 w-4 shrink-0" />
+                        <span>Select a project folder to get started</span>
+                      </button>
                     )}
                   </div>
                 </div>

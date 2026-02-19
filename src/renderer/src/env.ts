@@ -1,8 +1,8 @@
-import type { HiveCodeApi } from '@shared/types/ipc'
+import type { OpenHiveApi } from '@shared/types/ipc'
 
 declare global {
   interface Window {
-    api: HiveCodeApi
+    api: OpenHiveApi
   }
 }
 

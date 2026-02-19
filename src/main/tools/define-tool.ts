@@ -29,12 +29,12 @@ export function getToolContext(): ToolContext {
 }
 
 /**
- * Define a HiveCode tool using TanStack AI's toolDefinition().
+ * Define a OpenHive tool using TanStack AI's toolDefinition().
  * Uses Zod's own z.infer for type-safe args in execute().
  * Args are validated through Zod's .parse() at runtime,
  * and the schema is passed to TanStack AI for JSON Schema conversion.
  */
-export function defineHiveCodeTool<T extends z.ZodType, TName extends string>(config: {
+export function defineOpenHiveTool<T extends z.ZodType, TName extends string>(config: {
   name: TName
   description: string
   needsApproval?: boolean

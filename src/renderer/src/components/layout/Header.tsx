@@ -1,4 +1,4 @@
-import { Copy, Hash, PanelLeft } from 'lucide-react'
+import { Hash, PanelLeft, SquareTerminal } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { projectName } from '@/lib/format'
 
@@ -6,14 +6,18 @@ interface HeaderProps {
   conversationTitle: string | null
   projectPath: string | null
   onToggleSidebar: () => void
+  onToggleTerminal: () => void
   sidebarOpen: boolean
+  terminalOpen: boolean
 }
 
 export function Header({
   conversationTitle,
   projectPath,
   onToggleSidebar,
+  onToggleTerminal,
   sidebarOpen,
+  terminalOpen,
 }: HeaderProps): React.JSX.Element {
   return (
     <header className="drag-region flex shrink-0 items-center justify-between h-12 px-5 gap-3 bg-bg border-b border-border">
@@ -52,14 +56,18 @@ export function Header({
         {/* Open button — h28, padding [0,10], cornerRadius 5, gap 4, stroke #252c36 */}
         <button
           type="button"
+          onClick={onToggleTerminal}
           className={cn(
             'no-drag flex items-center gap-1 h-7 px-2.5 rounded-[5px] border border-button-border',
             'transition-colors hover:bg-bg-hover',
             !projectPath && 'pointer-events-none opacity-30',
           )}
           disabled={!projectPath}
-          title={projectPath ?? 'No project selected'}
+          title={
+            projectPath ? (terminalOpen ? 'Hide terminal' : 'Open terminal') : 'No project selected'
+          }
         >
+          <SquareTerminal className="h-3.5 w-3.5 text-text-secondary" />
           <span className="text-[12px] font-medium text-text-primary">Open</span>
           <span className="text-[9px] text-text-tertiary">&#x2228;</span>
         </button>
@@ -88,15 +96,6 @@ export function Header({
           <span className="text-[12px] font-medium text-success">+441</span>
           <span className="text-[12px] font-medium text-[#e05c5c]">-348</span>
         </div>
-
-        {/* Copy icon */}
-        <button
-          type="button"
-          className="no-drag text-text-tertiary transition-colors hover:text-text-secondary"
-          title="Copy"
-        >
-          <Copy className="h-3.5 w-3.5" />
-        </button>
       </div>
     </header>
   )

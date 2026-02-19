@@ -106,7 +106,7 @@ export function Composer({
               type="button"
               disabled
               className="cursor-not-allowed text-[16px] leading-none text-text-tertiary"
-              title="Attach file (coming soon)"
+              title="Coming soon"
             >
               +
             </button>
@@ -124,7 +124,7 @@ export function Composer({
               type="button"
               disabled
               className="flex cursor-not-allowed items-center gap-[5px] h-[26px] px-2.5 rounded-md border border-button-border"
-              title="Quality (coming soon)"
+              title="Coming soon"
             >
               <span className="text-[11px] text-text-secondary">Extra High</span>
               <span className="text-[9px] text-text-tertiary">&#x2228;</span>
@@ -138,7 +138,7 @@ export function Composer({
               type="button"
               disabled
               className="flex cursor-not-allowed items-center justify-center h-5 w-5"
-              title="Voice input (coming soon)"
+              title="Coming soon"
             >
               <Mic className="h-[15px] w-[15px] text-text-secondary" />
             </button>
@@ -177,18 +177,28 @@ export function Composer({
           {/* gbLeft — gap 4 */}
           <div className="flex items-center gap-1">
             {/* Local button — h24, padding [0,8], cornerRadius 5, gap 4 */}
-            <div className="flex items-center gap-1 h-6 px-2 rounded-[5px]">
+            <button
+              type="button"
+              disabled
+              className="flex cursor-not-allowed items-center gap-1 h-6 px-2 rounded-[5px] opacity-70"
+              title="Coming soon"
+            >
               <Monitor className="h-[13px] w-[13px] text-text-tertiary" />
               <span className="text-[11px] text-text-secondary">Local</span>
               <span className="text-[9px] text-text-tertiary">&#x2228;</span>
-            </div>
+            </button>
 
             {/* Full access — h24, padding [0,8], cornerRadius 5, gap 4, all amber */}
-            <div className="flex items-center gap-1 h-6 px-2 rounded-[5px]">
+            <button
+              type="button"
+              disabled
+              className="flex cursor-not-allowed items-center gap-1 h-6 px-2 rounded-[5px] opacity-70"
+              title="Coming soon"
+            >
               <span className="text-[10px] font-bold text-accent">!</span>
               <span className="text-[11px] font-medium text-accent">Full access</span>
               <span className="text-[9px] text-accent">&#x2228;</span>
-            </div>
+            </button>
           </div>
 
           {/* gbRight — gap 8 */}
@@ -196,14 +206,26 @@ export function Composer({
             {projectPath && (
               <>
                 {/* main button — h24, padding [0,8], cornerRadius 5, gap 4 */}
-                <div className="flex items-center gap-1 h-6 px-2 rounded-[5px]">
+                <button
+                  type="button"
+                  disabled
+                  className="flex cursor-not-allowed items-center gap-1 h-6 px-2 rounded-[5px] opacity-70"
+                  title="Coming soon"
+                >
                   <GitBranch className="h-[13px] w-[13px] text-text-tertiary" />
                   <span className="text-[11px] text-text-secondary">main</span>
                   <span className="text-[9px] text-text-tertiary">&#x2228;</span>
-                </div>
+                </button>
 
                 {/* Refresh icon — 14x14 */}
-                <RefreshCw className="h-3.5 w-3.5 text-text-tertiary" />
+                <button
+                  type="button"
+                  disabled
+                  className="flex h-5 w-5 cursor-not-allowed items-center justify-center opacity-70"
+                  title="Coming soon"
+                >
+                  <RefreshCw className="h-3.5 w-3.5 text-text-tertiary" />
+                </button>
               </>
             )}
           </div>

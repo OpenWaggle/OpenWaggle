@@ -1,8 +1,8 @@
 import fg from 'fast-glob'
 import { z } from 'zod'
-import { defineHiveCodeTool } from '../define-tool'
+import { defineOpenHiveTool } from '../define-tool'
 
-export const globTool = defineHiveCodeTool({
+export const globTool = defineOpenHiveTool({
   name: 'glob',
   description:
     'Find files matching a glob pattern within the project directory. Returns matching file paths. Useful for discovering project structure and finding files.',

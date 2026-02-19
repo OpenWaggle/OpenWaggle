@@ -171,7 +171,7 @@ export function Sidebar({
         {/* Logo — drag region, padding [14,16] */}
         <div className="drag-region flex shrink-0 items-center gap-2 px-4 py-[14px]">
           <SquareTerminal className="no-drag h-4 w-4 text-accent" />
-          <span className="no-drag text-[13px] font-semibold text-text-primary">HiveCode</span>
+          <span className="no-drag text-[13px] font-semibold text-text-primary">OpenHive</span>
         </div>
 
         <div
@@ -196,6 +196,7 @@ export function Sidebar({
             type="button"
             disabled
             className="no-drag flex w-full cursor-not-allowed items-center gap-2 h-8 px-3"
+            title="Coming soon"
           >
             <McpIcon className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
             <span className="text-[13px] text-text-secondary/60">MCPs</span>
@@ -206,6 +207,7 @@ export function Sidebar({
             type="button"
             disabled
             className="no-drag flex w-full cursor-not-allowed items-center gap-2 h-8 px-3"
+            title="Coming soon"
           >
             <Sparkles className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
             <span className="text-[13px] text-text-secondary/60">Skills</span>

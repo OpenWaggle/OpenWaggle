@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises'
 import { z } from 'zod'
-import { defineHiveCodeTool, resolveProjectPath } from '../define-tool'
+import { defineOpenHiveTool, resolveProjectPath } from '../define-tool'
 
-export const editFileTool = defineHiveCodeTool({
+export const editFileTool = defineOpenHiveTool({
   name: 'editFile',
   description:
     'Edit a file by replacing an exact string match with new content. The oldString must appear exactly once in the file. Read the file first to get the exact content to match.',

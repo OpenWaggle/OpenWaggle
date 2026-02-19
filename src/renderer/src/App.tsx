@@ -156,7 +156,9 @@ export function App(): React.JSX.Element {
           conversationTitle={activeConversation?.title ?? null}
           projectPath={projectPath}
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          onToggleTerminal={() => setTerminalOpen(!terminalOpen)}
           sidebarOpen={sidebarOpen}
+          terminalOpen={terminalOpen}
         />
 
         {/* Main content — centers the chat panel */}
@@ -167,6 +169,7 @@ export function App(): React.JSX.Element {
             error={error}
             projectPath={projectPath}
             hasProject={!!projectPath}
+            onOpenProject={handleOpenProject}
             onOpenSettings={() => setSettingsOpen(true)}
             onRetry={handleSend}
             onSend={handleSend}
