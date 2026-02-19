@@ -130,7 +130,9 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
 
   return runWithToolContext(
     {
+      conversationId: conversation.id,
       projectPath: conversation.projectPath ?? process.cwd(),
+      executionMode: settings.executionMode,
       signal,
     },
     async () => {
@@ -139,6 +141,9 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
       if (!provider) throw new Error(`No provider registered for model: ${model}`)
 
       const providerConfig = settings.providers[provider.id]
+      if (!providerConfig?.enabled) {
+        throw new Error(`${provider.displayName} is disabled in settings`)
+      }
       if (provider.requiresApiKey && !providerConfig?.apiKey) {
         throw new Error(`No API key configured for ${provider.displayName}`)
       }

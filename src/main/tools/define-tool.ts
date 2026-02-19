@@ -1,13 +1,17 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import fs from 'node:fs'
 import path from 'node:path'
+import type { ConversationId } from '@shared/types/brand'
+import type { ExecutionMode } from '@shared/types/settings'
 import { type ServerTool, toolDefinition } from '@tanstack/ai'
 import type { z } from 'zod'
 
 const MAX_TOOL_OUTPUT_BYTES = 100 * 1024 // 100 KB
 
 export interface ToolContext {
+  conversationId: ConversationId
   projectPath: string
+  executionMode: ExecutionMode
   signal?: AbortSignal
 }
 
@@ -60,6 +64,9 @@ export function defineOpenHiveTool<T extends z.ZodType, TName extends string>(co
   return def.server(async (args: unknown) => {
     const parsed: z.infer<T> = config.inputSchema.parse(args)
     const ctx = getToolContext()
+    if (ctx.executionMode === 'sandbox' && config.needsApproval) {
+      throw new Error(`Tool "${config.name}" is blocked in sandbox mode`)
+    }
     let result = await config.execute(parsed, ctx)
 
     // Truncate oversized tool output
