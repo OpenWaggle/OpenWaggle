@@ -257,7 +257,7 @@ Status legend: `implemented`, `deferred`, `future`
 - Location: `src/renderer/src/components/composer/Composer.tsx:137`
 - Current: mic button enters recording mode (waveform + timer + stop), then transcribes locally in-app with Whisper tiny by default (no external STT endpoint).
 - Target behavior:
-  - While in recording mode, `Enter` or the voice-row send arrow finalizes recording and auto-sends the transcribed message.
+- While in recording mode, `Enter` or the existing composer send arrow finalizes recording and auto-sends the transcribed message.
   - If recording is stopped without send, insert transcript into composer input (no auto-send) and provide typed fallback messaging when unavailable.
 
 ### HC-UI-011 Execution mode controls (Local / Full access)

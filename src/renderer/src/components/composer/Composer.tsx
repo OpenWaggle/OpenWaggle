@@ -1009,24 +1009,14 @@ export function Composer({
               </div>
 
               {isListening ? (
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => mediaRecorderRef.current?.stop()}
-                    className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-bg-tertiary text-text-primary transition-colors hover:bg-bg-hover"
-                    title="Stop recording"
-                  >
-                    <Square className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleVoiceSend}
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-text-primary text-bg transition-colors hover:bg-text-primary/90"
-                    title="Send recording"
-                  >
-                    <ArrowUp className="h-4 w-4" />
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => mediaRecorderRef.current?.stop()}
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-bg-tertiary text-text-primary transition-colors hover:bg-bg-hover"
+                  title="Stop recording"
+                >
+                  <Square className="h-3.5 w-3.5" />
+                </button>
               ) : (
                 <div className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-bg-tertiary text-text-tertiary">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1122,10 +1112,8 @@ export function Composer({
             <div />
           )}
 
-          {isVoiceModeActive ? (
-            <div />
-          ) : (
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            {!isVoiceModeActive && (
               <button
                 type="button"
                 onClick={handleVoiceToggle}
@@ -1152,34 +1140,49 @@ export function Composer({
                   <Mic className="h-[15px] w-[15px]" />
                 )}
               </button>
+            )}
 
-              {isLoading ? (
-                <button
-                  type="button"
-                  onClick={onCancel}
-                  className="flex h-8 w-8 items-center justify-center rounded-full border border-error/35 bg-error/10 text-error transition-colors hover:bg-error/18"
-                  title="Cancel"
-                >
-                  <Square className="h-3.5 w-3.5" />
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={!canSend}
-                  className={cn(
-                    'flex h-8 w-8 items-center justify-center rounded-full transition-colors',
-                    canSend
+            {isLoading ? (
+              <button
+                type="button"
+                onClick={onCancel}
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-error/35 bg-error/10 text-error transition-colors hover:bg-error/18"
+                title="Cancel"
+              >
+                <Square className="h-3.5 w-3.5" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={isVoiceModeActive ? handleVoiceSend : handleSubmit}
+                disabled={isVoiceModeActive ? isTranscribingVoice : !canSend}
+                className={cn(
+                  'flex h-8 w-8 items-center justify-center rounded-full transition-colors',
+                  isVoiceModeActive
+                    ? isTranscribingVoice
+                      ? 'border border-border bg-bg-tertiary cursor-not-allowed'
+                      : 'bg-gradient-to-b from-accent to-accent-dim'
+                    : canSend
                       ? 'bg-gradient-to-b from-accent to-accent-dim'
                       : 'border border-border bg-bg-tertiary cursor-not-allowed',
+                )}
+                title={isVoiceModeActive ? 'Send recording' : 'Send message'}
+              >
+                <ArrowUp
+                  className={cn(
+                    'h-4 w-4',
+                    isVoiceModeActive
+                      ? isTranscribingVoice
+                        ? 'text-text-muted'
+                        : 'text-bg'
+                      : canSend
+                        ? 'text-bg'
+                        : 'text-text-muted',
                   )}
-                  title="Send message"
-                >
-                  <ArrowUp className={cn('h-4 w-4', canSend ? 'text-bg' : 'text-text-muted')} />
-                </button>
-              )}
-            </div>
-          )}
+                />
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center justify-between h-9 px-4 border-t border-border">
