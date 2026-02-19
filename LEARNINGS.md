@@ -185,10 +185,6 @@ FINISHING:     LEARNINGS.md → commit → push → notify user
 
 ## Recent Learnings
 
-### Task: UI Placeholder Product Strategy Spec (2026-02-19)
-- The current branch no longer includes `BACKLOG.md`, so product planning artifacts should be stored under `docs/product/` as the source of truth.
-- For UI placeholder work, splitting documentation into a PRD (`why + priorities`) and implementation spec (`what + acceptance criteria`) keeps decisions stable while preserving execution clarity.
-
 ### Task: Backlog Completion (2026-02-19)
 - For conversation schema refactors, keep persisted JSON backward-compatible by making removed fields optional in Zod and using legacy values to backfill per-message data during parse
 - Root-level renderer error handling in React 19 still requires a class-based error boundary; wrap `<App />` in the boundary from `main.tsx` to avoid blank-screen failures
