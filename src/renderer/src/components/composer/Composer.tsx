@@ -185,6 +185,11 @@ export function Composer({
     actionDialog === 'create-branch' ||
     actionDialog === 'rename-branch' ||
     actionDialog === 'set-upstream'
+  const voiceStatus = isListening
+    ? 'Recording audio... tap mic to stop.'
+    : isTranscribingVoice
+      ? 'Transcribing locally with Whisper base...'
+      : null
 
   useEffect(() => {
     if (!isLoading && textareaRef.current) {
@@ -596,7 +601,7 @@ export function Composer({
     }
 
     setIsTranscribingVoice(true)
-    setVoiceError('Transcribing with local Whisper base model...')
+    setVoiceError(null)
 
     try {
       const blob = new Blob(chunks, { type: chunks[0].type || 'audio/webm' })
@@ -735,6 +740,26 @@ export function Composer({
               ))}
             </div>
           )}
+          {(voiceStatus && (
+            <div className="mb-2 flex items-center gap-2 rounded-md border border-border bg-bg px-2.5 py-1.5 text-[12px] text-text-secondary">
+              <span className="inline-flex h-3 items-end gap-[2px]" aria-hidden="true">
+                <span
+                  className="h-2 w-[3px] rounded-[2px] bg-accent animate-pulse"
+                  style={{ animationDelay: '0ms' }}
+                />
+                <span
+                  className="h-3 w-[3px] rounded-[2px] bg-accent animate-pulse"
+                  style={{ animationDelay: '120ms' }}
+                />
+                <span
+                  className="h-[7px] w-[3px] rounded-[2px] bg-accent animate-pulse"
+                  style={{ animationDelay: '240ms' }}
+                />
+              </span>
+              <span>{voiceStatus}</span>
+            </div>
+          )) ||
+            null}
           {([attachmentError, voiceError, branchMessage].some(Boolean) && (
             <div className="mb-2 rounded-md border border-border bg-bg px-2.5 py-1.5 text-[12px] text-text-secondary">
               {[attachmentError, voiceError, branchMessage]
