@@ -24,10 +24,10 @@ export function DiffLine({
       type="button"
       onClick={onClick}
       className={cn(
-        'flex items-center h-5 w-full text-left',
-        type === 'remove' && 'bg-diff-remove-bg',
-        type === 'add' && 'bg-diff-add-bg',
-        type === 'context' && 'bg-diff-bg',
+        'flex items-center h-5 w-full text-left transition-[background-color] duration-75',
+        type === 'remove' && 'bg-diff-remove-bg hover:bg-[#3d1a1e]',
+        type === 'add' && 'bg-diff-add-bg hover:bg-[#133d24]',
+        type === 'context' && 'bg-diff-bg hover:bg-[#151820]',
         isSelected && 'ring-1 ring-inset ring-accent/40',
       )}
     >
