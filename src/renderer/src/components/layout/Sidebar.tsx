@@ -21,7 +21,7 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { useFullscreen } from '@/hooks/useFullscreen'
 import { cn } from '@/lib/cn'
-import { formatRelativeTime, projectName } from '@/lib/format'
+import { formatRelativeTime, projectName, truncate } from '@/lib/format'
 
 type SortMode = 'recent' | 'oldest' | 'name' | 'threads'
 
@@ -288,8 +288,8 @@ export function Sidebar({
                             className={cn(
                               'group flex items-center h-[34px] w-full',
                               isActive
-                                ? 'bg-bg-active border-l-2 border-accent pr-3 pl-9'
-                                : 'pl-8 pr-3 hover:bg-bg-hover',
+                                ? 'bg-bg-active border-l-2 border-accent pr-3 pl-12'
+                                : 'pl-11 pr-3 hover:bg-bg-hover',
                             )}
                           >
                             <button
@@ -305,7 +305,7 @@ export function Sidebar({
                                     : 'text-text-secondary',
                                 )}
                               >
-                                {conv.title}
+                                {truncate(conv.title, 15)}
                               </span>
                             </button>
                             <span className="ml-auto shrink-0 text-[10px] text-text-tertiary group-hover:hidden">
