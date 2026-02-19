@@ -5,6 +5,7 @@ import {
   AlertCircle,
   ChevronDown,
   FileText,
+  FolderOpen,
   Gamepad2,
   Hexagon,
   PencilLine,
@@ -144,10 +145,11 @@ export function ChatPanel({
                       <button
                         type="button"
                         onClick={onOpenProject}
-                        className="max-w-sm text-sm text-text-tertiary transition-colors hover:text-text-secondary"
+                        className="inline-flex max-w-sm items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm text-text-tertiary transition-colors hover:border-border-light hover:text-text-secondary"
                         title="Open project picker"
                       >
-                        Select a project folder to get started, or just ask me anything.
+                        <FolderOpen className="h-4 w-4 shrink-0" />
+                        <span>Select a project folder to get started</span>
                       </button>
                     )}
                   </div>
