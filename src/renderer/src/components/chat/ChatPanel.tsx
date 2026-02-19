@@ -90,6 +90,7 @@ export function ChatPanel({
   messageModelLookup,
 }: ChatPanelProps): React.JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
   const [dismissedError, setDismissedError] = useState<string | null>(null)
   const starterPrompts = [
     { label: 'Build a coding game in this repo', icon: Gamepad2 },
@@ -103,6 +104,16 @@ export function ChatPanel({
     }
   })
 
+  function handleScroll() {
+    const el = scrollRef.current
+    if (!el) return
+    el.classList.add('is-scrolling')
+    if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current)
+    scrollTimerRef.current = setTimeout(() => {
+      el.classList.remove('is-scrolling')
+    }, 1200)
+  }
+
   const lastMsg = messages[messages.length - 1]
   const lastIsStreaming = isLoading && lastMsg?.role === 'assistant'
 
@@ -115,11 +126,15 @@ export function ChatPanel({
 
   return (
     /* chat-panel: w720, padding [0,20,20,20], clip, vertical, fill #0d0f12 */
-    <div className="flex h-full w-full max-w-[720px] flex-col bg-bg pt-0 pr-5 pb-5 pl-5 overflow-hidden">
+    <div className="flex h-full w-full max-w-[720px] flex-col bg-bg pt-0 pr-0 pb-5 pl-5 overflow-hidden">
       {/* chat-messages: flex-1, padding [20,28], gap 24, overflow scroll */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto py-5 px-7">
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto py-5 pl-7 chat-scroll"
+      >
         {messages.length === 0 && !isLoading ? (
-          <div className="flex min-h-full w-full justify-center">
+          <div className="flex min-h-full w-full justify-center pr-12">
             <div className="flex w-full flex-col pt-8">
               <div className="flex flex-1 items-center justify-center pb-20">
                 <div className="flex flex-col items-center text-center">
@@ -180,7 +195,7 @@ export function ChatPanel({
           </div>
         ) : (
           /* Messages list — gap 24 between message groups */
-          <div className="flex flex-col gap-6 w-full">
+          <div className="flex flex-col gap-6 w-full pr-12">
             {messages.map((msg, i) => (
               <MessageBubble
                 key={msg.id}
@@ -255,16 +270,18 @@ export function ChatPanel({
       </div>
 
       {/* Chat input card */}
-      <Composer
-        onSend={onSend}
-        onCancel={onCancel}
-        isLoading={isLoading}
-        model={model}
-        onModelChange={onModelChange}
-        settings={settings}
-        providerModels={providerModels}
-        projectPath={projectPath}
-      />
+      <div className="pr-5">
+        <Composer
+          onSend={onSend}
+          onCancel={onCancel}
+          isLoading={isLoading}
+          model={model}
+          onModelChange={onModelChange}
+          settings={settings}
+          providerModels={providerModels}
+          projectPath={projectPath}
+        />
+      </div>
     </div>
   )
 }
