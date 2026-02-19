@@ -18,6 +18,7 @@ import type { OpenHiveApi } from '@shared/types/ipc'
 import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from '@shared/types/llm'
 import type { QuestionAnswer, QuestionPayload } from '@shared/types/question'
 import type { Provider, Settings } from '@shared/types/settings'
+import type { AgentsInstructionStatus, SkillCatalogResult } from '@shared/types/standards'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from '@shared/types/voice'
 import type { StreamChunk } from '@tanstack/ai'
 import { ipcRenderer } from 'electron'
@@ -224,5 +225,23 @@ export const api: OpenHiveApi = {
 
   transcribeVoiceLocal(payload: VoiceTranscriptionRequest): Promise<VoiceTranscriptionResult> {
     return ipcRenderer.invoke('voice:transcribe-local', payload)
+  },
+
+  getStandardsStatus(
+    projectPath: string,
+  ): Promise<{ agents: AgentsInstructionStatus; agentsPath: string; error?: string }> {
+    return ipcRenderer.invoke('standards:get-status', projectPath)
+  },
+
+  listSkills(projectPath: string): Promise<SkillCatalogResult> {
+    return ipcRenderer.invoke('skills:list', projectPath)
+  },
+
+  setSkillEnabled(projectPath: string, skillId: string, enabled: boolean): Promise<void> {
+    return ipcRenderer.invoke('skills:set-enabled', projectPath, skillId, enabled)
+  },
+
+  getSkillPreview(projectPath: string, skillId: string): Promise<{ markdown: string }> {
+    return ipcRenderer.invoke('skills:get-preview', projectPath, skillId)
   },
 }

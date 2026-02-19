@@ -24,6 +24,7 @@ export interface Settings {
   readonly executionMode: ExecutionMode
   readonly qualityPreset: QualityPreset
   readonly recentProjects: readonly string[]
+  readonly skillTogglesByProject: Readonly<Record<string, Readonly<Record<string, boolean>>>>
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -40,6 +41,7 @@ export const DEFAULT_SETTINGS: Settings = {
   executionMode: 'sandbox',
   qualityPreset: 'medium',
   recentProjects: [],
+  skillTogglesByProject: {},
 }
 
 /** Type guard for Provider — uses widened array check to avoid cast */

@@ -18,6 +18,7 @@ import type {
 import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from './llm'
 import type { QuestionAnswer, QuestionPayload } from './question'
 import type { Provider, Settings } from './settings'
+import type { AgentsInstructionStatus, SkillCatalogResult } from './standards'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 
 // ─── IPC Channel Map ─────────────────────────────────────────
@@ -141,6 +142,22 @@ export interface IpcInvokeChannelMap {
   'voice:transcribe-local': {
     args: [payload: VoiceTranscriptionRequest]
     return: VoiceTranscriptionResult
+  }
+  'standards:get-status': {
+    args: [projectPath: string]
+    return: { agents: AgentsInstructionStatus; agentsPath: string; error?: string }
+  }
+  'skills:list': {
+    args: [projectPath: string]
+    return: SkillCatalogResult
+  }
+  'skills:set-enabled': {
+    args: [projectPath: string, skillId: string, enabled: boolean]
+    return: undefined
+  }
+  'skills:get-preview': {
+    args: [projectPath: string, skillId: string]
+    return: { markdown: string }
   }
 }
 
@@ -287,4 +304,12 @@ export interface OpenHiveApi {
 
   // Voice
   transcribeVoiceLocal(payload: VoiceTranscriptionRequest): Promise<VoiceTranscriptionResult>
+
+  // Standards and Skills
+  getStandardsStatus(
+    projectPath: string,
+  ): Promise<{ agents: AgentsInstructionStatus; agentsPath: string; error?: string }>
+  listSkills(projectPath: string): Promise<SkillCatalogResult>
+  setSkillEnabled(projectPath: string, skillId: string, enabled: boolean): Promise<void>
+  getSkillPreview(projectPath: string, skillId: string): Promise<{ markdown: string }>
 }

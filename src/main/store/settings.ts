@@ -67,6 +67,7 @@ export function getSettings(): Settings {
   const executionMode = resolveExecutionMode()
   const qualityPreset = resolveQualityPreset()
   const recentProjects = resolveRecentProjects()
+  const skillTogglesByProject = resolveSkillTogglesByProject()
 
   return {
     providers,
@@ -75,6 +76,7 @@ export function getSettings(): Settings {
     executionMode,
     qualityPreset,
     recentProjects,
+    skillTogglesByProject,
   }
 }
 
@@ -106,6 +108,9 @@ export function updateSettings(partial: Partial<Settings>): void {
   }
   if (partial.recentProjects !== undefined) {
     store.set('recentProjects', sanitizeRecentProjects(partial.recentProjects))
+  }
+  if (partial.skillTogglesByProject !== undefined) {
+    store.set('skillTogglesByProject', sanitizeSkillTogglesByProject(partial.skillTogglesByProject))
   }
 }
 
@@ -140,6 +145,11 @@ function resolveRecentProjects(): string[] {
   return sanitizeRecentProjects(store.get('recentProjects', DEFAULT_SETTINGS.recentProjects))
 }
 
+function resolveSkillTogglesByProject(): Record<string, Record<string, boolean>> {
+  const stored = store.get('skillTogglesByProject', DEFAULT_SETTINGS.skillTogglesByProject)
+  return sanitizeSkillTogglesByProject(stored)
+}
+
 function sanitizeRecentProjects(paths: readonly string[]): string[] {
   const seen = new Set<string>()
   const result: string[] = []
@@ -153,6 +163,30 @@ function sanitizeRecentProjects(paths: readonly string[]): string[] {
   }
 
   return result
+}
+
+function sanitizeSkillTogglesByProject(
+  value: Readonly<Record<string, Readonly<Record<string, boolean>>>>,
+): Record<string, Record<string, boolean>> {
+  const sanitized: Record<string, Record<string, boolean>> = {}
+
+  for (const [rawProjectPath, toggles] of Object.entries(value)) {
+    const projectPath = rawProjectPath.trim()
+    if (!projectPath || !toggles) continue
+
+    const nextToggles: Record<string, boolean> = {}
+    for (const [rawSkillId, enabled] of Object.entries(toggles)) {
+      const skillId = rawSkillId.trim()
+      if (!skillId || typeof enabled !== 'boolean') continue
+      nextToggles[skillId] = enabled
+    }
+
+    if (Object.keys(nextToggles).length > 0) {
+      sanitized[projectPath] = nextToggles
+    }
+  }
+
+  return sanitized
 }
 
 function readPersistedSettings(): Record<string, unknown> | null {
