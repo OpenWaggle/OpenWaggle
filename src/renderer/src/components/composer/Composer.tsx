@@ -70,7 +70,11 @@ export function Composer({
       </output>
 
       {/* Card — cornerRadius 12, fill #111418, stroke #2a2f3a 1px */}
-      <div className="rounded-xl bg-bg-secondary border border-input-card-border">
+      <div className={cn(
+        'rounded-xl bg-bg-secondary border transition-shadow',
+        'border-input-card-border',
+        'has-[:focus]:border-accent/50 has-[:focus]:shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]',
+      )}>
         {/* Input box — h60, padding [14,16] */}
         <div className="h-[60px] px-4 py-[14px]">
           <textarea
@@ -85,7 +89,7 @@ export function Composer({
             className={cn(
               'w-full h-full resize-none bg-transparent text-[14px] text-text-primary',
               'placeholder:text-text-tertiary',
-              'focus:outline-none',
+              'focus:outline-none focus-visible:shadow-none',
               'disabled:opacity-50',
             )}
           />
