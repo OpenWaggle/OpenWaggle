@@ -52,6 +52,6 @@
   <circle cx="296" cy="208" r="6" fill="#61a8ff"/>
   <path d="M250 400H262L256 424L250 400Z" fill="#9b5f0d"/>
 
-  <text x="500" y="294" fill="#e7e9ee" font-family="'Clash Display', 'Space Grotesk', 'Sora', sans-serif" font-size="196" font-weight="630" letter-spacing="-2">Open</text>
-  <text x="938" y="294" fill="#f5a623" font-family="'Clash Display', 'Space Grotesk', 'Sora', sans-serif" font-size="196" font-weight="730" letter-spacing="-2">Hive</text>
+  <text x="490" y="302" fill="#e7e9ee" font-family="'Clash Display', 'Space Grotesk', 'Sora', sans-serif" font-size="214" font-weight="640" letter-spacing="-2">Open</text>
+  <text x="970" y="302" fill="#f5a623" font-family="'Clash Display', 'Space Grotesk', 'Sora', sans-serif" font-size="214" font-weight="760" letter-spacing="-2">Hive</text>
 </svg>
