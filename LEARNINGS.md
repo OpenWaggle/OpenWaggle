@@ -185,6 +185,11 @@ FINISHING:     LEARNINGS.md → commit → push → notify user
 
 ## Recent Learnings
 
+### Task: Backlog Completion (2026-02-19)
+- For conversation schema refactors, keep persisted JSON backward-compatible by making removed fields optional in Zod and using legacy values to backfill per-message data during parse
+- Root-level renderer error handling in React 19 still requires a class-based error boundary; wrap `<App />` in the boundary from `main.tsx` to avoid blank-screen failures
+- `Object.fromEntries` can widen values to `string | undefined`; use an explicit `Record<string, SupportedModelId>` fill loop when strict prop types require defined values
+
 ### Task: Pencil "No Diff" UI Redesign (2026-02-18)
 - Biome enforces `noStaticElementInteractions` — use CSS `group-hover:visible` / `invisible` pattern instead of `useState` hover tracking with `onMouseEnter`/`onMouseLeave` on `<div>`
 - When restructuring layout (moving components between parent containers), update props interfaces in both parent and child to keep TypeScript happy
