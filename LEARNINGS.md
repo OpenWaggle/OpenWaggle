@@ -183,8 +183,10 @@ FINISHING:     LEARNINGS.md → commit → push → notify user
 
 ## Recent Learnings
 
-### Task: Anthropic Sampling Param Conflict (2026-02-19)
-- Anthropic chat requests can fail when both `temperature` and `top_p` are sent together; provider-specific quality resolvers should emit only one sampling control to avoid hard API rejection.
+### Task: AGENTS + `.openhive/skills` Runtime Standardization (2026-02-19)
+- Keep standards ingestion as a dedicated agent feature (`prompt fragments + context loader`) so AGENTS and skill instructions can evolve without changing `runAgent` orchestration.
+- For skill references in free-form composer input, token-start slash matching plus explicit parsing (`/skill-id`, `$skill-id`) avoids coupling UX insertion behavior to backend activation logic.
+- Project-scoped skill toggles fit naturally into existing `electron-store` settings when keyed by absolute project path, allowing per-repo skill enablement without changing conversation persistence schemas.
 
 ### Task: Offline Whisper Base Voice Input (2026-02-19)
 - `@xenova/transformers` can run Whisper-base locally in the Electron main process when audio is passed as normalized `Float32Array` PCM and the model cache is pinned to `app.getPath('userData')`.
@@ -208,6 +210,9 @@ FINISHING:     LEARNINGS.md → commit → push → notify user
 ## Old Learnings Archive
 
 Move old learnings here so we can review
+
+### Task: Anthropic Sampling Param Conflict (2026-02-19)
+- Anthropic chat requests can fail when both `temperature` and `top_p` are sent together; provider-specific quality resolvers should emit only one sampling control to avoid hard API rejection.
 
 ### Task: Diff Review Panel (2026-02-19)
 - Biome's `useExhaustiveDependencies` treats computed local variables (e.g. `const fetchKey = ...`) as "outer scope" and rejects them from deps arrays; use React `key` prop to force re-mount instead of `refreshKey` deps for data-fetching effects

@@ -26,7 +26,7 @@ OpenHive previously contained several visible controls that were static, disable
 ## Non-Goals
 
 - Full MCP management UI implementation.
-- Full skills catalog/installer UI implementation.
+- Full skills installer/import UI implementation.
 - Per-file diff review sidebar implementation in the first release.
 
 ## Target User and Jobs-to-be-Done
@@ -58,7 +58,7 @@ In scope:
 
 Out of scope:
 - Full right-side diff explorer UI (planned future phase).
-- MCP/Skills feature implementation beyond placeholder state.
+- MCP management surface implementation beyond placeholder state.
 
 ## Strategic Prioritization
 
@@ -87,6 +87,8 @@ Scoring: high impact + low/medium effort first.
 - Composer quality presets (Low/Medium/High) mapped to runtime model/parameter resolution.
 - Composer attachments (text/PDF/image) with extraction/OCR pipeline and provider fallback behavior.
 - Composer voice input via local Whisper transcription (tiny default, base optional) with typed fallback guidance.
+- Skills workspace with catalog, per-skill enable toggles, and SKILL.md preview from `.openhive/skills`.
+- Composer slash references (`/skill-id`) for explicit skill activation while typing.
 
 ## Success Metrics
 
@@ -226,12 +228,24 @@ Status legend: `implemented`, `deferred`, `future`
 
 ### HC-UI-007 Skills nav placeholder
 
-- Status: `deferred`
+- Status: `implemented`
 - Location: `src/renderer/src/components/layout/Sidebar.tsx:188`
-- Current: disabled button.
+- Current: enabled navigation to a dedicated Skills workspace view.
 - Target behavior:
-  - Keep disabled until skills management surface exists.
-  - Tooltip or helper text: `Coming soon`.
+  - Open a Skills workspace panel with:
+    - AGENTS.md status card
+    - Discovered skill catalog from `.openhive/skills/*/SKILL.md`
+    - Per-skill enable/disable toggles
+    - SKILL.md preview
+
+### HC-UI-013 Composer slash skill references
+
+- Status: `implemented`
+- Location: `src/renderer/src/components/composer/Composer.tsx`
+- Target behavior:
+  - Typing `/` at token start opens a filtered skill picker.
+  - Selecting an item inserts `/skill-id` into the prompt.
+  - Multiple skill references are supported in the same message.
 
 ### HC-UI-008 Composer attachment control
 

@@ -154,3 +154,10 @@ Always use granular selectors with `useChatStore((s) => s.field)` — never call
 - **Never mutate Zustand state directly** — always use store actions.
 - **Never use `process.env` or `import.meta.env`** — import from `./env` in main process (`src/main/env.ts`) or `@/env` in renderer (`src/renderer/src/env.ts`). Biome enforces `noProcessEnv`; only `src/main/env.ts` has an override.
 - **Always use `cn()`** from `src/lib/utils` for conditional Tailwind classes.
+
+## Skills Standard
+
+- Project-local skills live under `.openhive/skills/<skill-id>/`.
+- Each skill folder must contain a `SKILL.md` file.
+- Optional bundled resources (for example `scripts/`) should remain inside the same skill folder.
+- Runtime skill discovery is folder-based only (no `SKILLS.md` catalog file).
