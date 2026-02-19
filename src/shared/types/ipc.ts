@@ -18,6 +18,7 @@ import type {
 import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from './llm'
 import type { QuestionAnswer, QuestionPayload } from './question'
 import type { Provider, Settings } from './settings'
+import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 
 // ─── IPC Channel Map ─────────────────────────────────────────
 // Single source of truth for every IPC channel.
@@ -136,6 +137,10 @@ export interface IpcInvokeChannelMap {
   'agent:answer-question': {
     args: [conversationId: ConversationId, answers: QuestionAnswer[]]
     return: undefined
+  }
+  'voice:transcribe-local': {
+    args: [payload: VoiceTranscriptionRequest]
+    return: VoiceTranscriptionResult
   }
 }
 
@@ -279,4 +284,7 @@ export interface OpenHiveApi {
 
   // Attachments
   prepareAttachments(projectPath: string, paths: string[]): Promise<PreparedAttachment[]>
+
+  // Voice
+  transcribeVoiceLocal(payload: VoiceTranscriptionRequest): Promise<VoiceTranscriptionResult>
 }

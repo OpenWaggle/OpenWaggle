@@ -18,6 +18,7 @@ import type { OpenHiveApi } from '@shared/types/ipc'
 import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from '@shared/types/llm'
 import type { QuestionAnswer, QuestionPayload } from '@shared/types/question'
 import type { Provider, Settings } from '@shared/types/settings'
+import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from '@shared/types/voice'
 import type { StreamChunk } from '@tanstack/ai'
 import { ipcRenderer } from 'electron'
 
@@ -219,5 +220,9 @@ export const api: OpenHiveApi = {
 
   prepareAttachments(projectPath: string, paths: string[]): Promise<PreparedAttachment[]> {
     return ipcRenderer.invoke('attachments:prepare', projectPath, paths)
+  },
+
+  transcribeVoiceLocal(payload: VoiceTranscriptionRequest): Promise<VoiceTranscriptionResult> {
+    return ipcRenderer.invoke('voice:transcribe-local', payload)
   },
 }

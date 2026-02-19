@@ -6,6 +6,7 @@ import type {
 } from '@shared/types/git'
 import type { ProviderInfo, SupportedModelId } from '@shared/types/llm'
 import type { ExecutionMode, QualityPreset, Settings as SettingsType } from '@shared/types/settings'
+import { VOICE_MODEL_BASE } from '@shared/types/voice'
 import { ArrowUp, GitBranch, Loader2, Mic, Plus, RefreshCw, Square, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { ModelSelector } from '@/components/shared/ModelSelector'
@@ -44,20 +45,8 @@ interface ComposerProps {
   onToast?: (message: string) => void
 }
 
-interface SpeechRecognitionLike {
-  lang: string
-  continuous: boolean
-  interimResults: boolean
-  processLocally?: boolean
-  onstart: (() => void) | null
-  onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null
-  onerror: ((event: { error: string }) => void) | null
-  onend: (() => void) | null
-  start: () => void
-  stop: () => void
-}
-
-type SpeechRecognitionCtor = new () => SpeechRecognitionLike
+const VOICE_CAPTURE_MIME_TYPES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'] as const
+const WHISPER_TARGET_SAMPLE_RATE = 16_000
 
 const QUALITY_PRESET_LABEL: Record<QualityPreset, string> = {
   low: 'Low',
@@ -171,14 +160,16 @@ export function Composer({
   const [branchMessage, setBranchMessage] = useState<string | null>(null)
   const [voiceError, setVoiceError] = useState<string | null>(null)
   const [isListening, setIsListening] = useState(false)
+  const [isTranscribingVoice, setIsTranscribingVoice] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const actionDialogInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const qualityMenuRef = useRef<HTMLDivElement>(null)
   const executionMenuRef = useRef<HTMLDivElement>(null)
   const branchMenuRef = useRef<HTMLDivElement>(null)
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
-  const voiceNetworkUnavailableRef = useRef(false)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const mediaStreamRef = useRef<MediaStream | null>(null)
+  const recordedChunksRef = useRef<Blob[]>([])
   const canSend = (!!input.trim() || attachments.length > 0) && !disabled
 
   const branchQueryNormalized = branchQuery.trim().toLowerCase()
@@ -257,7 +248,15 @@ export function Composer({
 
   useEffect(() => {
     return () => {
-      recognitionRef.current?.stop()
+      mediaRecorderRef.current?.stop()
+      mediaRecorderRef.current = null
+      if (mediaStreamRef.current) {
+        for (const track of mediaStreamRef.current.getTracks()) {
+          track.stop()
+        }
+      }
+      mediaStreamRef.current = null
+      recordedChunksRef.current = []
     }
   }, [])
 
@@ -533,102 +532,160 @@ export function Composer({
     })
   }
 
-  async function ensureMicrophoneAccess(): Promise<boolean> {
-    if (!navigator.mediaDevices?.getUserMedia) return true
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      for (const track of stream.getTracks()) {
-        track.stop()
+  function cleanupVoiceStream(): void {
+    if (!mediaStreamRef.current) return
+    for (const track of mediaStreamRef.current.getTracks()) {
+      track.stop()
+    }
+    mediaStreamRef.current = null
+  }
+
+  function downsampleAudio(
+    samples: Float32Array,
+    sourceRate: number,
+    targetRate: number,
+  ): Float32Array {
+    if (sourceRate === targetRate) {
+      return new Float32Array(samples)
+    }
+    const ratio = sourceRate / targetRate
+    const outputLength = Math.max(1, Math.round(samples.length / ratio))
+    const output = new Float32Array(outputLength)
+    for (let index = 0; index < outputLength; index += 1) {
+      const sourceIndex = index * ratio
+      const lower = Math.floor(sourceIndex)
+      const upper = Math.min(samples.length - 1, lower + 1)
+      const blend = sourceIndex - lower
+      output[index] = samples[lower] * (1 - blend) + samples[upper] * blend
+    }
+    return output
+  }
+
+  function toMono(buffer: AudioBuffer): Float32Array {
+    if (buffer.numberOfChannels === 1) {
+      return new Float32Array(buffer.getChannelData(0))
+    }
+
+    const mono = new Float32Array(buffer.length)
+    const channelWeight = 1 / buffer.numberOfChannels
+    for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+      const data = buffer.getChannelData(channel)
+      for (let index = 0; index < data.length; index += 1) {
+        mono[index] += data[index] * channelWeight
       }
-      return true
-    } catch {
-      setVoiceError('Microphone permission is blocked. Continue by typing your prompt.')
-      return false
+    }
+    return mono
+  }
+
+  async function decodeRecordedAudio(blob: Blob): Promise<Float32Array> {
+    const audioContext = new AudioContext()
+    try {
+      const arrayBuffer = await blob.arrayBuffer()
+      const decoded = await audioContext.decodeAudioData(arrayBuffer)
+      const mono = toMono(decoded)
+      return downsampleAudio(mono, decoded.sampleRate, WHISPER_TARGET_SAMPLE_RATE)
+    } finally {
+      await audioContext.close().catch(() => undefined)
     }
   }
 
-  function mapVoiceError(errorCode: string): string {
-    switch (errorCode) {
-      case 'not-allowed':
-      case 'service-not-allowed':
-        return 'Microphone permission was denied. Continue by typing your prompt.'
-      case 'network':
-        return 'Speech recognition service is unavailable in this environment. Continue by typing your prompt.'
-      case 'no-speech':
-        return 'No speech detected. Try again or continue typing.'
-      default:
-        return `Voice input unavailable (${errorCode}). Continue by typing your prompt.`
+  async function transcribeRecordedChunks(chunks: Blob[]): Promise<void> {
+    if (chunks.length === 0) {
+      setVoiceError('No speech detected. Try again or continue typing.')
+      return
+    }
+
+    setIsTranscribingVoice(true)
+    setVoiceError('Transcribing with local Whisper base model...')
+
+    try {
+      const blob = new Blob(chunks, { type: chunks[0].type || 'audio/webm' })
+      const samples = await decodeRecordedAudio(blob)
+      if (samples.length === 0) {
+        setVoiceError('No speech detected. Try again or continue typing.')
+        return
+      }
+
+      const result = await api.transcribeVoiceLocal({
+        samples: Array.from(samples),
+        sampleRate: WHISPER_TARGET_SAMPLE_RATE,
+        language: 'en',
+        model: VOICE_MODEL_BASE,
+      })
+
+      if (!result.text.trim()) {
+        setVoiceError('No speech detected. Try again or continue typing.')
+        return
+      }
+
+      insertTranscriptAtCursor(result.text)
+      setVoiceError(null)
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Voice input is unavailable in this environment. Continue by typing your prompt.'
+      setVoiceError(message)
+    } finally {
+      setIsTranscribingVoice(false)
     }
   }
 
   async function startVoiceCapture(): Promise<void> {
-    if (voiceNetworkUnavailableRef.current) {
-      setVoiceError('Voice input is unavailable here. Continue by typing your prompt.')
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setVoiceError(
+        'Voice capture is unavailable in this environment. Continue by typing your prompt.',
+      )
       return
     }
 
-    const ctor =
-      (
-        window as Window & {
-          SpeechRecognition?: SpeechRecognitionCtor
-          webkitSpeechRecognition?: SpeechRecognitionCtor
-        }
-      ).SpeechRecognition ??
-      (
-        window as Window & {
-          SpeechRecognition?: SpeechRecognitionCtor
-          webkitSpeechRecognition?: SpeechRecognitionCtor
-        }
-      ).webkitSpeechRecognition
-
-    if (!ctor) {
-      setVoiceError('Voice input is not available on this system. Continue by typing your prompt.')
-      voiceNetworkUnavailableRef.current = true
-      return
-    }
-
-    const hasMicrophoneAccess = await ensureMicrophoneAccess()
-    if (!hasMicrophoneAccess) {
-      return
-    }
-
-    const recognition = new ctor()
-    recognition.lang = 'en-US'
-    recognition.continuous = false
-    recognition.interimResults = false
-    recognition.onstart = () => setIsListening(true)
-    recognition.onresult = (event) => {
-      const transcript = Array.from(event.results)
-        .flatMap((result) => Array.from(result))
-        .map((alt) => alt.transcript)
-        .join(' ')
-        .trim()
-      if (!transcript) return
-      insertTranscriptAtCursor(transcript)
-    }
-    recognition.onerror = (event) => {
-      if (event.error === 'network') {
-        voiceNetworkUnavailableRef.current = true
-      }
-      setVoiceError(mapVoiceError(event.error))
-      setIsListening(false)
-    }
-    recognition.onend = () => setIsListening(false)
-    recognitionRef.current?.stop()
-    recognitionRef.current = recognition
-    setVoiceError(null)
     try {
-      recognition.start()
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      mediaStreamRef.current = stream
+      recordedChunksRef.current = []
+
+      const mimeType = VOICE_CAPTURE_MIME_TYPES.find((candidate) =>
+        MediaRecorder.isTypeSupported(candidate),
+      )
+
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream)
+      recorder.ondataavailable = (event: BlobEvent) => {
+        if (event.data.size === 0) return
+        recordedChunksRef.current.push(event.data)
+      }
+      recorder.onerror = () => {
+        setIsListening(false)
+        setVoiceError('Unable to record audio. Continue by typing your prompt.')
+        mediaRecorderRef.current = null
+        recordedChunksRef.current = []
+        cleanupVoiceStream()
+      }
+      recorder.onstop = () => {
+        setIsListening(false)
+        mediaRecorderRef.current = null
+        const chunks = [...recordedChunksRef.current]
+        recordedChunksRef.current = []
+        cleanupVoiceStream()
+        void transcribeRecordedChunks(chunks)
+      }
+
+      mediaRecorderRef.current = recorder
+      setVoiceError(null)
+      recorder.start()
+      setIsListening(true)
     } catch {
+      cleanupVoiceStream()
       setIsListening(false)
-      setVoiceError('Unable to start voice input. Continue by typing your prompt.')
+      setVoiceError('Microphone permission is blocked. Continue by typing your prompt.')
     }
   }
 
   function handleVoiceToggle(): void {
+    if (isTranscribingVoice) return
     if (isListening) {
-      recognitionRef.current?.stop()
-      setIsListening(false)
+      mediaRecorderRef.current?.stop()
       return
     }
     void startVoiceCapture()
@@ -776,13 +833,28 @@ export function Composer({
             <button
               type="button"
               onClick={handleVoiceToggle}
+              disabled={isTranscribingVoice}
               className={cn(
                 'flex items-center justify-center h-5 w-5 transition-colors',
-                isListening ? 'text-accent' : 'text-text-secondary hover:text-text-primary',
+                isTranscribingVoice
+                  ? 'cursor-not-allowed text-text-tertiary'
+                  : isListening
+                    ? 'text-accent'
+                    : 'text-text-secondary hover:text-text-primary',
               )}
-              title={isListening ? 'Stop voice input' : 'Start voice input'}
+              title={
+                isTranscribingVoice
+                  ? 'Transcribing audio'
+                  : isListening
+                    ? 'Stop voice input'
+                    : 'Start voice input'
+              }
             >
-              <Mic className="h-[15px] w-[15px]" />
+              {isTranscribingVoice ? (
+                <Loader2 className="h-[15px] w-[15px] animate-spin" />
+              ) : (
+                <Mic className="h-[15px] w-[15px]" />
+              )}
             </button>
 
             {isLoading ? (

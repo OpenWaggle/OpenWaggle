@@ -10,6 +10,7 @@ import { registerProjectHandlers } from './ipc/project-handler'
 import { registerProvidersHandlers } from './ipc/providers-handler'
 import { registerSettingsHandlers } from './ipc/settings-handler'
 import { cleanupTerminals, registerTerminalHandlers } from './ipc/terminal-handler'
+import { registerVoiceHandlers } from './ipc/voice-handler'
 import { registerAllProviders } from './providers'
 
 if (env.OPENHIVE_USER_DATA_DIR) {
@@ -108,6 +109,7 @@ app.whenReady().then(() => {
   registerProjectHandlers()
   registerProvidersHandlers()
   registerTerminalHandlers()
+  registerVoiceHandlers()
 
   // Register providers (async — individual failures are caught per-provider)
   registerAllProviders().then(() => {
