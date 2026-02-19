@@ -11,7 +11,7 @@ import { z } from 'zod'
 
 const SAMPLE_RATE_MIN = 8_000
 const SAMPLE_RATE_MAX = 48_000
-const MAX_AUDIO_SECONDS = 30
+const MAX_AUDIO_SECONDS = 90
 const MAX_PCM16_BYTES = SAMPLE_RATE_MAX * MAX_AUDIO_SECONDS * 2
 
 const VOICE_MODEL_CONFIG: Record<

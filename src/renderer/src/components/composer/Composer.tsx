@@ -47,7 +47,7 @@ interface ComposerProps {
 
 const VOICE_CAPTURE_MIME_TYPES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'] as const
 const WHISPER_TARGET_SAMPLE_RATE = 16_000
-const VOICE_MAX_RECORDING_SECONDS = 20
+const VOICE_MAX_RECORDING_SECONDS = 90
 const VOICE_WAVEFORM_BARS = 72
 
 const QUALITY_PRESET_LABEL: Record<QualityPreset, string> = {
