@@ -30,6 +30,7 @@ import { conversationToMessages, type SimpleChatMessage } from './message-mapper
 import { buildSystemPrompt } from './prompt-pipeline'
 import { resolveQualityConfig } from './quality-config'
 import type { AgentLifecycleHook, AgentRunContext } from './runtime-types'
+import { loadAgentStandardsContext } from './standards-context'
 import { StreamPartCollector } from './stream-part-collector'
 
 const MAX_ITERATIONS = 25
@@ -228,8 +229,15 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
           hasProject: !!conversation.projectPath,
           provider,
           providerConfig,
+          standards: await withStageTiming(stageDurationsMs, 'standards-resolution', () =>
+            loadAgentStandardsContext(conversation.projectPath, payload.text, settings),
+          ),
         }
         const runContext = context
+
+        for (const warning of runContext.standards?.warnings ?? []) {
+          console.warn('[agent-standards]', warning)
+        }
 
         const features = getActiveAgentFeatures(runContext)
         hooks = getFeatureLifecycleHooks(runContext, features)
@@ -313,6 +321,8 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
           stageDurationsMs,
           toolCalls: stats.toolCalls,
           toolErrors: stats.toolErrors,
+          selectedSkillIds: runContext.standards?.activation.selectedSkillIds ?? [],
+          standardsWarnings: runContext.standards?.warnings ?? [],
         })
 
         const userMsg = makeMessage('user', buildPersistedUserMessageParts(payload))

@@ -9,6 +9,7 @@ import { registerGitHandlers } from './ipc/git-handler'
 import { registerProjectHandlers } from './ipc/project-handler'
 import { registerProvidersHandlers } from './ipc/providers-handler'
 import { registerSettingsHandlers } from './ipc/settings-handler'
+import { registerSkillsHandlers } from './ipc/skills-handler'
 import { cleanupTerminals, registerTerminalHandlers } from './ipc/terminal-handler'
 import { registerVoiceHandlers } from './ipc/voice-handler'
 import { registerAllProviders } from './providers'
@@ -110,6 +111,7 @@ app.whenReady().then(() => {
   registerProvidersHandlers()
   registerTerminalHandlers()
   registerVoiceHandlers()
+  registerSkillsHandlers()
 
   // Register providers (async — individual failures are caught per-provider)
   registerAllProviders().then(() => {

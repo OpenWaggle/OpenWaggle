@@ -2,6 +2,7 @@ import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { ProviderConfig, Settings } from '@shared/types/settings'
 import type { ServerTool, StreamChunk } from '@tanstack/ai'
+import type { AgentStandardsContext } from './standards-context'
 import type { ProviderDefinition } from '../providers/provider-definition'
 
 export interface AgentRunContext {
@@ -14,6 +15,7 @@ export interface AgentRunContext {
   readonly hasProject: boolean
   readonly provider: ProviderDefinition
   readonly providerConfig: ProviderConfig
+  readonly standards?: AgentStandardsContext
 }
 
 export interface AgentPromptFragment {
@@ -42,6 +44,8 @@ export interface AgentRunSummary {
   readonly stageDurationsMs: Readonly<Record<string, number>>
   readonly toolCalls: number
   readonly toolErrors: number
+  readonly selectedSkillIds?: readonly string[]
+  readonly standardsWarnings?: readonly string[]
 }
 
 export interface AgentLifecycleHook {

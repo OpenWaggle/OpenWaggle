@@ -13,12 +13,14 @@ import {
   projectContextPromptFragment,
   runtimeModelPromptFragment,
 } from './system-prompt'
+import { activeSkillsPromptFragment, agentsEntryPromptFragment } from './standards-prompt'
 
 interface AgentFeatureFlags {
   readonly [featureId: string]: boolean
 }
 
 const defaultFeatureFlags: AgentFeatureFlags = {
+  'standards.prompt': true,
   'core.prompt': true,
   'core.tools': true,
   'core.execution-mode': true,
@@ -42,6 +44,8 @@ const observabilityHook: AgentLifecycleHook = {
         model: context.model,
         provider: context.provider.id,
         executionMode: context.settings.executionMode,
+        selectedSkills: context.standards?.activation.selectedSkillIds ?? [],
+        standardsWarnings: context.standards?.warnings ?? [],
       }),
     )
   },
@@ -102,8 +106,15 @@ function logRunComplete(context: AgentRunContext, summary: AgentRunSummary): voi
       stageDurationsMs: summary.stageDurationsMs,
       toolCalls: summary.toolCalls,
       toolErrors: summary.toolErrors,
+      selectedSkillIds: summary.selectedSkillIds ?? [],
+      standardsWarnings: summary.standardsWarnings ?? [],
     }),
   )
+}
+
+const standardsPromptFeature: AgentFeature = {
+  id: 'standards.prompt',
+  getPromptFragments: () => [agentsEntryPromptFragment, activeSkillsPromptFragment],
 }
 
 const corePromptFeature: AgentFeature = {
@@ -139,6 +150,7 @@ const observabilityFeature: AgentFeature = {
 }
 
 const defaultFeatures: readonly AgentFeature[] = [
+  standardsPromptFeature,
   corePromptFeature,
   builtInToolsFeature,
   executionModeFeature,
