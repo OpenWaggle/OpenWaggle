@@ -66,7 +66,7 @@ const QUALITY_PRESET_LABEL: Record<QualityPreset, string> = {
 }
 
 const EXECUTION_MODE_LABEL: Record<ExecutionMode, string> = {
-  sandbox: 'Sandbox',
+  sandbox: 'Default permissions',
   'full-access': 'Full access',
 }
 
@@ -126,7 +126,7 @@ function getActionDialogConfig(
       return {
         title: 'Switch to Full access',
         description:
-          'This enables write/edit/command tools for agent runs. Continue only if you trust the workspace.',
+          'This enables write/edit/command tools. Default permissions runs commands in a sandbox.',
         confirmLabel: 'Switch',
         confirmTone: 'danger',
       }
