@@ -13,7 +13,6 @@ const SAMPLE_RATE_MIN = 8_000
 const SAMPLE_RATE_MAX = 48_000
 const MAX_AUDIO_SECONDS = 90
 const MAX_PCM16_BYTES = SAMPLE_RATE_MAX * MAX_AUDIO_SECONDS * 2
-const MAX_LEGACY_SAMPLE_COUNT = SAMPLE_RATE_MAX * MAX_AUDIO_SECONDS
 
 const VOICE_MODEL_CONFIG: Record<
   VoiceModel,
@@ -40,18 +39,7 @@ const modernTranscribePayloadSchema = z.object({
   language: z.string().trim().min(2).max(16).optional(),
   model: z.enum([VOICE_MODEL_TINY, VOICE_MODEL_BASE]).optional(),
 })
-
-const legacyTranscribePayloadSchema = z.object({
-  samples: z.array(z.number().finite()).min(1).max(MAX_LEGACY_SAMPLE_COUNT),
-  sampleRate: z.number().int().min(SAMPLE_RATE_MIN).max(SAMPLE_RATE_MAX),
-  language: z.string().trim().min(2).max(16).optional(),
-  model: z.literal(VOICE_MODEL_BASE).optional(),
-})
-
-const transcribePayloadSchema = z.union([
-  modernTranscribePayloadSchema,
-  legacyTranscribePayloadSchema,
-])
+const transcribePayloadSchema = modernTranscribePayloadSchema
 
 type WhisperTranscriber = (
   audio: Float32Array,
@@ -90,14 +78,6 @@ function pcm16BytesToFloat32(bytes: Uint8Array): Float32Array {
   for (let index = 0; index < sampleCount; index += 1) {
     const value = view.getInt16(index * 2, true)
     normalized[index] = Math.max(-1, Math.min(1, value / 32768))
-  }
-  return normalized
-}
-
-function normalizeLegacySamples(samples: number[]): Float32Array {
-  const normalized = new Float32Array(samples.length)
-  for (let index = 0; index < samples.length; index += 1) {
-    normalized[index] = Math.max(-1, Math.min(1, samples[index]))
   }
   return normalized
 }
@@ -180,11 +160,8 @@ export function resetVoiceHandlerForTests(): void {
 export function registerVoiceHandlers(): void {
   ipcMain.handle('voice:transcribe-local', async (_event, rawPayload: unknown) => {
     const payload = transcribePayloadSchema.parse(rawPayload)
-    const isModernPayload = 'pcm16' in payload
-    const model = payload.model ?? (isModernPayload ? VOICE_MODEL_TINY : VOICE_MODEL_BASE)
-    const sampleCount = isModernPayload
-      ? Math.floor(payload.pcm16.byteLength / 2)
-      : payload.samples.length
+    const model = payload.model ?? VOICE_MODEL_TINY
+    const sampleCount = Math.floor(payload.pcm16.byteLength / 2)
     if (sampleCount <= 0) {
       throw new Error('Audio payload is empty.')
     }
@@ -192,9 +169,7 @@ export function registerVoiceHandlers(): void {
     if (sampleCount > maxSampleCount) {
       throw new Error(`Audio exceeds ${String(MAX_AUDIO_SECONDS)} seconds; record a shorter clip.`)
     }
-    const audio = isModernPayload
-      ? pcm16BytesToFloat32(payload.pcm16)
-      : normalizeLegacySamples(payload.samples)
+    const audio = pcm16BytesToFloat32(payload.pcm16)
 
     let transcriber: WhisperTranscriber
     try {
