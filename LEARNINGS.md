@@ -183,6 +183,10 @@ FINISHING:     LEARNINGS.md → commit → push → notify user
 
 ## Recent Learnings
 
+### Task: UI Product Gap Closure (2026-02-19)
+- `electron-store` defaults can make migration checks ambiguous; use raw persisted settings presence (via store file) when deciding legacy-vs-new defaults for execution mode.
+- Attachment pipelines should strip binary payloads before persistence and keep only path/metadata/extracted text in conversation JSON to avoid oversized history files.
+
 ### Task: Agent Loop Extensibility Foundation (2026-02-19)
 - Treat the agent runtime as a feature pipeline (`prompt fragments + tool providers/filters + lifecycle hooks`) so new capabilities can be added without editing `runAgent` orchestration logic [SKILL?]
 - Execution-mode policy should filter tools before dispatch (for clearer model behavior) while keeping execution-time guards as a second safety layer
@@ -200,13 +204,13 @@ FINISHING:     LEARNINGS.md → commit → push → notify user
 - `fast-glob` can match parent-directory patterns like `../*` even with `cwd` set; validate glob inputs explicitly to keep file-discovery tools confined to the selected project root [SKILL?]
 - Settings write-time validation (especially provider `baseUrl`) should match read-time validation to prevent silent fallback to defaults after restart
 
-### Task: Test Coverage Baseline (2026-02-19)
-- Vitest `vi.mock()` factories are hoisted before top-level variables; shared mock handles referenced inside factory closures should be initialized via `vi.hoisted(...)` to avoid runtime `ReferenceError` in integration tests [SKILL?]
-- Electron e2e tests are deterministic when main-process `userData` can be overridden through an env var (`OPENHIVE_USER_DATA_DIR`), allowing relaunch persistence assertions without mutating local developer state
-
 ## Old Learnings Archive
 
 Move old learnings here so we can review
+
+### Task: Test Coverage Baseline (2026-02-19)
+- Vitest `vi.mock()` factories are hoisted before top-level variables; shared mock handles referenced inside factory closures should be initialized via `vi.hoisted(...)` to avoid runtime `ReferenceError` in integration tests [SKILL?]
+- Electron e2e tests are deterministic when main-process `userData` can be overridden through an env var (`OPENHIVE_USER_DATA_DIR`), allowing relaunch persistence assertions without mutating local developer state
 
 ### Task: IPC Stream Termination During Tool Calls (2026-02-19)
 - TanStack AI can emit an intermediate `RUN_FINISHED` with `finishReason: 'tool_calls'` before server tool execution results are streamed; treating any `RUN_FINISHED` as terminal in the renderer IPC adapter truncates later `TOOL_CALL_END.result` chunks and leaves tool blocks stuck running [SKILL?]

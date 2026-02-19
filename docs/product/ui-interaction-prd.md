@@ -2,32 +2,31 @@
 
 Last updated: 2026-02-19
 Owner: Product + Core App
-Status: Draft for implementation planning
+Status: Implemented (HC-UI gap-closure baseline)
 Document type: Combined PRD + detailed feature specification
 
 ## Executive Summary
 
-OpenHive currently contains several visible controls that are either static, disabled, or not wired to behavior. This creates a trust gap: the UI implies capability that does not yet exist. This PRD defines a phased strategy to convert placeholder controls into reliable workflows, starting with terminal and commit flows and preparing future sandbox/access controls.
+OpenHive previously contained several visible controls that were static, disabled, or not wired to behavior. The 2026-02-19 implementation pass closes the remaining HC-UI product gaps for project switching, branch operations, execution mode selection, quality presets, rich attachments, and voice input while preserving runtime safety enforcement.
 
 ## Problem Statement
 
-- Users see clickable-looking controls without behavior.
-- Header git stats are hardcoded, reducing confidence in code-state awareness.
-- Core daily actions (open terminal, commit) are not end-to-end from the top bar.
-- Execution-mode controls (Local / Full access) visually resemble controls but are not actionable.
+- Users need confidence that visible controls map to real behavior.
+- Agent input quality/safety controls must be explicit and persisted.
+- Attachment support must work across providers via native modality or text fallback.
 
 ## Goals
 
 - Deliver clear, predictable interaction behavior for high-value controls.
 - Prioritize developer workflow outcomes: inspect status, open terminal, commit quickly.
-- Keep unfinished features explicitly disabled to avoid misleading interactions.
-- Establish technical foundations (git IPC + execution mode settings) for later expansion.
+- Replace remaining placeholder controls with end-to-end behavior.
+- Keep runtime policy enforcement aligned with UI-selectable execution mode.
+- Preserve backward compatibility for existing settings and conversation history.
 
 ## Non-Goals
 
 - Full MCP management UI implementation.
 - Full skills catalog/installer UI implementation.
-- Voice input, attachment upload, and quality-mode execution in this phase.
 - Per-file diff review sidebar implementation in the first release.
 
 ## Target User and Jobs-to-be-Done
@@ -51,8 +50,11 @@ In scope:
 - Commit dialog and commit pipeline.
 - Live git diff summary in header.
 - Remove misleading copy action.
-- Keep unfinished controls disabled with explicit "coming soon" framing.
-- Define disabled execution-mode controls as future switchable system.
+- Add selectable execution mode controls with confirmation flow.
+- Add branch management UI + IPC (list/checkout/create/rename/delete/set-upstream).
+- Add rich attachment flow (text/PDF/image + OCR/text extraction fallback).
+- Add quality preset selection and runtime model/parameter mapping.
+- Add local speech recognition with typed fallback messaging.
 
 Out of scope:
 - Full right-side diff explorer UI (planned future phase).
@@ -76,25 +78,15 @@ Scoring: high impact + low/medium effort first.
 
 ## Roadmap
 
-### Now (0-3 weeks)
+### Completed (2026-02-19)
 
-- Implement Header terminal action and icon.
-- Remove Header copy button.
-- Keep Local / Full access / branch / refresh visually disabled and explicit.
-- Keep MCP, Skills, Attach, Quality, Mic as disabled placeholders.
-
-### Next (3-6 weeks)
-
-- Implement git status IPC (`git:status`) and wire live header diff numbers.
-- Implement commit dialog UX with validation.
-- Implement git commit IPC (`git:commit`) and post-commit refresh behavior.
-
-### Later (6-12+ weeks)
-
-- Implement right-side diff browser with per-file changes and patch preview.
-- Implement execution mode switching (sandbox vs full access).
-- Implement branch selection + refresh control.
-- Implement attachments, quality presets, and voice input.
+- Header terminal action, commit dialog, live git status, and copy-control removal.
+- Execution mode switching (Sandbox / Full access) with confirmation for Full access.
+- Branch list and mutation operations (checkout/create/rename/delete/set-upstream) with refresh wiring.
+- Empty-state project dropdown with recent projects and active-thread project path updates.
+- Composer quality presets (Low/Medium/High) mapped to runtime model/parameter resolution.
+- Composer attachments (text/PDF/image) with extraction/OCR pipeline and provider fallback behavior.
+- Composer voice input via local speech recognition with typed fallback guidance.
 
 ## Success Metrics
 
@@ -115,30 +107,35 @@ Quality metrics:
 - Risk: git status polling can cause performance overhead.
   - Mitigation: event-based refresh on project/thread changes and explicit refresh trigger.
 - Risk: execution mode controls may imply unimplemented security guarantees.
-  - Mitigation: disabled state until enforcement path exists end-to-end.
+  - Mitigation: runtime enforcement remains source of truth; UI toggles update persisted policy only.
+- Risk: multimodal support varies by provider/model.
+  - Mitigation: attach extracted text fallback for all providers; use native modality only where supported.
 
 ## Dependencies
 
-- New main/preload/renderer IPC for git operations:
-  - `git:status`
-  - `git:commit`
-- Shared types for git status/commit payloads.
-- Settings extension for execution policy mode (future phase).
+- New/extended main/preload/renderer IPC:
+  - `agent:send-message` payload contract
+  - `conversations:update-project-path`
+  - `git:branches:list|checkout|create|rename|delete|set-upstream`
+  - `attachments:prepare`
+- Shared types for settings quality/recent projects, branch DTOs/error codes, and attachment payloads.
+- Runtime quality resolver and multimodal message mapping in agent loop.
 
 ## Release Readiness Criteria
 
 - No clickable control in Header/Composer appears interactive without defined behavior.
 - Commit dialog handles clean repo, staged/unstaged, and error states.
 - Header git stats reflect actual repository status.
-- Placeholder controls are intentionally disabled with clear affordance.
+- No enabled control in Header/Composer is a no-op.
+- Attachment workflow works through native modality or text fallback across supported providers.
 
 ## Detailed Feature Specification
 
-Status legend: `planned`, `deferred`, `future`
+Status legend: `implemented`, `deferred`, `future`
 
 ### HC-UI-001 Header terminal action
 
-- Status: `planned`
+- Status: `implemented`
 - Location: `src/renderer/src/components/layout/Header.tsx:53`
 - Current: "Open" button has no click handler.
 - Target behavior:
@@ -158,7 +155,7 @@ Status legend: `planned`, `deferred`, `future`
 
 ### HC-UI-002 Header commit dialog
 
-- Status: `planned`
+- Status: `implemented` (with success toast feedback)
 - Location: `src/renderer/src/components/layout/Header.tsx:68`
 - Current: button has no click handler.
 - Target behavior:
@@ -181,7 +178,7 @@ Status legend: `planned`, `deferred`, `future`
 
 ### HC-UI-003 Header live git stats + diff sidebar
 
-- Status: `planned` (stats), `implemented` (sidebar)
+- Status: `implemented`
 - Location: `src/renderer/src/components/layout/Header.tsx:87`
 - Current: hardcoded `+441 / -348`.
 - Target behavior:
@@ -197,7 +194,7 @@ Status legend: `planned`, `deferred`, `future`
 
 ### HC-UI-004 Remove header copy action
 
-- Status: `planned`
+- Status: `implemented`
 - Location: `src/renderer/src/components/layout/Header.tsx:93`
 - Current: copy icon button exists but no defined product purpose.
 - Target behavior:
@@ -207,7 +204,7 @@ Status legend: `planned`, `deferred`, `future`
 
 ### HC-UI-005 Empty-state project dropdown behavior
 
-- Status: `planned`
+- Status: `implemented`
 - Location: `src/renderer/src/components/chat/ChatPanel.tsx:129`
 - Current: project name with chevron appears as button but no click handler.
 - Target behavior:
@@ -238,42 +235,40 @@ Status legend: `planned`, `deferred`, `future`
 
 ### HC-UI-008 Composer attachment control
 
-- Status: `future`
+- Status: `implemented`
 - Location: `src/renderer/src/components/composer/Composer.tsx:105`
-- Current: disabled `+` button.
+- Current: interactive attachment picker with chip preview/removal and preprocessing pipeline.
 - Target behavior:
-  - Keep disabled for now.
-  - Future: add file picker + attachment chips + send payload support.
+  - Support text/image/PDF uploads (max 5 files) with metadata + extracted-text persistence.
+  - Use provider-native modality where available; fallback to extracted text for unsupported providers.
 
 ### HC-UI-009 Composer quality control
 
-- Status: `future`
+- Status: `implemented`
 - Location: `src/renderer/src/components/composer/Composer.tsx:123`
-- Current: disabled "Extra High" selector.
+- Current: interactive Low/Medium/High selector persisted in settings.
 - Target behavior:
-  - Keep disabled for now.
-  - Future: map quality presets to provider execution options.
+  - Map quality presets to provider/model override + generation parameters.
+  - Preserve selected model as fallback where curated mapping is unavailable.
 
 ### HC-UI-010 Composer voice input
 
-- Status: `future`
+- Status: `implemented`
 - Location: `src/renderer/src/components/composer/Composer.tsx:137`
-- Current: disabled mic button.
+- Current: mic button starts/stops local speech recognition when available.
 - Target behavior:
-  - Keep disabled for now.
-  - Future: audio capture + transcription insertion in composer.
+  - Insert transcript into composer input (no auto-send) and provide typed fallback messaging when unavailable.
 
 ### HC-UI-011 Execution mode controls (Local / Full access)
 
-- Status: `planned` (disabled placeholders now), `future` (switchable)
+- Status: `implemented`
 - Location:
   - `src/renderer/src/components/composer/Composer.tsx:180` (Local)
   - `src/renderer/src/components/composer/Composer.tsx:187` (Full access)
-- Current: static display chips (not buttons), look selectable.
+- Current: selectable Sandbox / Full access controls with Full access confirmation.
 - Target behavior:
-  - Convert to explicit disabled controls now.
-  - Future: user-switchable execution mode, with initial support focused on Full access vs Sandbox.
-  - Local execution feasibility remains open.
+  - User-switchable execution mode persisted in settings.
+  - New-profile default is Sandbox; legacy profiles retain Full access until explicitly changed.
 - Technical requirements:
   - Settings type extension for execution policy.
   - Agent request path must enforce policy at runtime, not only in UI.
@@ -281,17 +276,16 @@ Status legend: `planned`, `deferred`, `future`
 
 ### HC-UI-012 Branch badge and git refresh affordance
 
-- Status: `planned` (disabled placeholder now), `future` (interactive)
+- Status: `implemented`
 - Location:
   - `src/renderer/src/components/composer/Composer.tsx:199` (branch chip)
   - `src/renderer/src/components/composer/Composer.tsx:206` (refresh icon)
-- Current: static visuals with no handlers.
+- Current: branch menu supports search, local/remote sections, and branch mutations; refresh icon is wired.
 - Target behavior:
-  - Keep disabled until git IPC foundations ship.
-  - Future: branch switcher + manual git status refresh.
+  - Manual git refresh updates status, branch list, and diff panel key.
+  - Branch operations emit visible success/error feedback and trigger post-op refresh.
 
 ## Open Product Questions
 
-- Should commit dialog include staging controls or commit all tracked changes by default?
-- Should per-file right diff sidebar be read-only initially, or include staging/unstaging actions?
-- What are minimum safety confirmations when switching to Full access mode?
+- Should branch management move from prompt/confirm flows to dedicated modal components?
+- Should attachment preview in chat bubbles render richer metadata (size/kind badges) beyond text summaries?
