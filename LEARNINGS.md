@@ -183,6 +183,10 @@ FINISHING:     LEARNINGS.md → commit → push → notify user
 
 ## Recent Learnings
 
+### Task: Test Coverage Baseline (2026-02-19)
+- Vitest `vi.mock()` factories are hoisted before top-level variables; shared mock handles referenced inside factory closures should be initialized via `vi.hoisted(...)` to avoid runtime `ReferenceError` in integration tests [SKILL?]
+- Electron e2e tests are deterministic when main-process `userData` can be overridden through an env var (`OPENHIVE_USER_DATA_DIR`), allowing relaunch persistence assertions without mutating local developer state
+
 ### Task: IPC Stream Termination During Tool Calls (2026-02-19)
 - TanStack AI can emit an intermediate `RUN_FINISHED` with `finishReason: 'tool_calls'` before server tool execution results are streamed; treating any `RUN_FINISHED` as terminal in the renderer IPC adapter truncates later `TOOL_CALL_END.result` chunks and leaves tool blocks stuck running [SKILL?]
 
