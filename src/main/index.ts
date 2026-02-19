@@ -15,6 +15,8 @@ if (env.OPENHIVE_USER_DATA_DIR) {
   app.setPath('userData', env.OPENHIVE_USER_DATA_DIR)
 }
 
+const appIconPath = join(__dirname, '../../build/icon.png')
+
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
     width: 1200,
@@ -25,6 +27,7 @@ function createWindow(): void {
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
     backgroundColor: '#141619',
+    icon: appIconPath,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -58,6 +61,9 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.openhive.app')
+  if (process.platform === 'darwin') {
+    app.dock?.setIcon(appIconPath)
+  }
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
