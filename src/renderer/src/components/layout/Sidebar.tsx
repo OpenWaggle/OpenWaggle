@@ -14,10 +14,10 @@ import {
   MessageSquare,
   Settings,
   Sparkles,
-  SquareTerminal,
   Trash2,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import openhiveMark from '@/assets/openhive-mark.png'
 import { useFullscreen } from '@/hooks/useFullscreen'
 import { cn } from '@/lib/cn'
 import { formatRelativeTime, projectName, truncate } from '@/lib/format'
@@ -170,7 +170,7 @@ export function Sidebar({
         />
         {/* Logo — drag region, padding [14,16] */}
         <div className="drag-region flex shrink-0 items-center gap-2 px-4 py-[14px]">
-          <SquareTerminal className="no-drag h-4 w-4 text-accent" />
+          <img src={openhiveMark} alt="" className="no-drag h-4 w-4 object-contain" />
           <span className="no-drag text-[13px] font-semibold text-text-primary">OpenHive</span>
         </div>
 
