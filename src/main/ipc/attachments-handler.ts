@@ -9,6 +9,9 @@ const MAX_ATTACHMENTS = 5
 const MAX_ATTACHMENT_SIZE_BYTES = 8 * 1024 * 1024
 const MAX_TOTAL_SIZE_BYTES = 20 * 1024 * 1024
 const MAX_EXTRACTED_TEXT_CHARS = 12_000
+const DOCX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+const RTF_MIME_TYPE = 'application/rtf'
+const ODT_MIME_TYPE = 'application/vnd.oasis.opendocument.text'
 
 const prepareArgsSchema = z.object({
   projectPath: z.string().min(1),
@@ -52,6 +55,12 @@ function guessMimeType(filePath: string): string | null {
       return 'text/csv'
     case '.log':
       return 'text/plain'
+    case '.docx':
+      return DOCX_MIME_TYPE
+    case '.rtf':
+      return RTF_MIME_TYPE
+    case '.odt':
+      return ODT_MIME_TYPE
     case '.ts':
     case '.tsx':
     case '.js':
@@ -81,6 +90,68 @@ function normalizeText(value: string): string {
   const trimmed = value.trim()
   if (trimmed.length <= MAX_EXTRACTED_TEXT_CHARS) return trimmed
   return `${trimmed.slice(0, MAX_EXTRACTED_TEXT_CHARS)}\n...[truncated]`
+}
+
+function decodeXmlEntities(value: string): string {
+  return value.replaceAll(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (_raw, entity: string): string => {
+    if (entity.startsWith('#x') || entity.startsWith('#X')) {
+      const codePoint = Number.parseInt(entity.slice(2), 16)
+      return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : ''
+    }
+    if (entity.startsWith('#')) {
+      const codePoint = Number.parseInt(entity.slice(1), 10)
+      return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : ''
+    }
+
+    switch (entity) {
+      case 'amp':
+        return '&'
+      case 'lt':
+        return '<'
+      case 'gt':
+        return '>'
+      case 'quot':
+        return '"'
+      case 'apos':
+        return "'"
+      default:
+        return ''
+    }
+  })
+}
+
+function extractTextFromRtf(raw: string): string {
+  const withParagraphs = raw.replaceAll(/\\par[d]?/g, '\n')
+  const withoutHexEscapes = withParagraphs.replaceAll(/\\'[0-9a-fA-F]{2}/g, '')
+  const withoutControls = withoutHexEscapes.replaceAll(/\\[a-z]+-?\d* ?/g, '')
+  const withoutGroups = withoutControls.replaceAll(/[{}]/g, '')
+  const withoutIndentedBreaks = withoutGroups.replaceAll(/\n\s+/g, '\n')
+  return normalizeText(withoutIndentedBreaks.replaceAll(/\n{3,}/g, '\n\n'))
+}
+
+async function extractTextFromDocx(buffer: Buffer): Promise<string> {
+  try {
+    const mammoth = await import('mammoth')
+    const result = await mammoth.extractRawText({ buffer })
+    return normalizeText(result.value ?? '')
+  } catch {
+    return ''
+  }
+}
+
+async function extractTextFromOdt(buffer: Buffer): Promise<string> {
+  try {
+    const JSZip = (await import('jszip')).default
+    const archive = await JSZip.loadAsync(buffer)
+    const content = await archive.file('content.xml')?.async('string')
+    if (!content) return ''
+    const withoutTags = content.replaceAll(/<[^>]+>/g, ' ')
+    const decoded = decodeXmlEntities(withoutTags)
+    const normalizedWhitespace = decoded.replaceAll(/\s+/g, ' ')
+    return normalizeText(normalizedWhitespace)
+  } catch {
+    return ''
+  }
 }
 
 async function extractTextFromPdf(buffer: Buffer): Promise<string> {
@@ -128,6 +199,12 @@ async function prepareAttachment(filePath: string): Promise<PreparedAttachment> 
     extractedText = await extractTextFromPdf(buffer)
   } else if (kind === 'image') {
     extractedText = await extractTextFromImage(buffer)
+  } else if (mimeType === DOCX_MIME_TYPE) {
+    extractedText = await extractTextFromDocx(buffer)
+  } else if (mimeType === ODT_MIME_TYPE) {
+    extractedText = await extractTextFromOdt(buffer)
+  } else if (mimeType === RTF_MIME_TYPE) {
+    extractedText = extractTextFromRtf(buffer.toString('utf8'))
   } else {
     extractedText = normalizeText(buffer.toString('utf8'))
   }
