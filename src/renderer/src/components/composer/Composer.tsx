@@ -49,6 +49,7 @@ const VOICE_CAPTURE_MIME_TYPES = ['audio/webm;codecs=opus', 'audio/webm', 'audio
 const WHISPER_TARGET_SAMPLE_RATE = 16_000
 const VOICE_MAX_RECORDING_SECONDS = 90
 const VOICE_WAVEFORM_BARS = 72
+const VOICE_WAVEFORM_SHIFT_PER_SECOND = 4
 
 const QUALITY_PRESET_LABEL: Record<QualityPreset, string> = {
   low: 'Low',
@@ -176,10 +177,10 @@ export function Composer({
   const recordedChunksRef = useRef<Blob[]>([])
   const voiceAudioContextRef = useRef<AudioContext | null>(null)
   const voiceAnalyserRef = useRef<AnalyserNode | null>(null)
-  const voiceAnimationFrameRef = useRef<number | null>(null)
   const voiceTickTimerRef = useRef<number | null>(null)
   const voiceAutoStopTimerRef = useRef<number | null>(null)
   const voiceRecordingStartRef = useRef<number | null>(null)
+  const voiceAutoSendRequestedRef = useRef(false)
   const canSend = (!!input.trim() || attachments.length > 0) && !disabled
 
   const branchQueryNormalized = branchQuery.trim().toLowerCase()
@@ -261,10 +262,6 @@ export function Composer({
     return () => {
       mediaRecorderRef.current?.stop()
       mediaRecorderRef.current = null
-      if (voiceAnimationFrameRef.current !== null) {
-        cancelAnimationFrame(voiceAnimationFrameRef.current)
-        voiceAnimationFrameRef.current = null
-      }
       if (voiceTickTimerRef.current !== null) {
         window.clearInterval(voiceTickTimerRef.current)
         voiceTickTimerRef.current = null
@@ -284,6 +281,7 @@ export function Composer({
       }
       mediaStreamRef.current = null
       recordedChunksRef.current = []
+      voiceAutoSendRequestedRef.current = false
     }
   }, [])
 
@@ -298,15 +296,19 @@ export function Composer({
     }
   }
 
+  function submitPayload(payload: AgentSendPayload): boolean {
+    if ((!payload.text && payload.attachments.length === 0) || isLoading || disabled) return false
+    onSend(payload)
+    resetComposerState()
+    return true
+  }
+
   function handleSubmit(): void {
-    const payload: AgentSendPayload = {
+    submitPayload({
       text: input.trim(),
       qualityPreset: settings.qualityPreset,
       attachments,
-    }
-    if ((!payload.text && payload.attachments.length === 0) || isLoading || disabled) return
-    onSend(payload)
-    resetComposerState()
+    })
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>): void {
@@ -567,10 +569,6 @@ export function Composer({
   }
 
   function stopVoiceMeter(): void {
-    if (voiceAnimationFrameRef.current !== null) {
-      cancelAnimationFrame(voiceAnimationFrameRef.current)
-      voiceAnimationFrameRef.current = null
-    }
     if (voiceTickTimerRef.current !== null) {
       window.clearInterval(voiceTickTimerRef.current)
       voiceTickTimerRef.current = null
@@ -596,6 +594,22 @@ export function Composer({
     mediaStreamRef.current = null
   }
 
+  function sampleVoiceLevel(): number {
+    const analyser = voiceAnalyserRef.current
+    if (!analyser) return 0.08
+
+    const waveformData = new Uint8Array(analyser.fftSize)
+    analyser.getByteTimeDomainData(waveformData)
+
+    let sumSquares = 0
+    for (let index = 0; index < waveformData.length; index += 1) {
+      const normalized = (waveformData[index] - 128) / 128
+      sumSquares += normalized * normalized
+    }
+    const rms = Math.sqrt(sumSquares / waveformData.length)
+    return Math.max(0.08, Math.min(1, rms * 3.5))
+  }
+
   async function startVoiceMeter(stream: MediaStream): Promise<void> {
     const context = new AudioContext()
     const source = context.createMediaStreamSource(stream)
@@ -608,35 +622,29 @@ export function Composer({
     voiceAnalyserRef.current = analyser
     voiceRecordingStartRef.current = Date.now()
     setVoiceElapsedSeconds(0)
-    setVoiceWaveform(Array.from({ length: VOICE_WAVEFORM_BARS }, () => 0.06))
-
-    const waveformData = new Uint8Array(analyser.fftSize)
-    const tick = () => {
-      const currentAnalyser = voiceAnalyserRef.current
-      if (!currentAnalyser || mediaRecorderRef.current?.state !== 'recording') return
-      currentAnalyser.getByteTimeDomainData(waveformData)
-
-      let sumSquares = 0
-      for (let index = 0; index < waveformData.length; index += 1) {
-        const normalized = (waveformData[index] - 128) / 128
-        sumSquares += normalized * normalized
-      }
-      const rms = Math.sqrt(sumSquares / waveformData.length)
-      const level = Math.max(0.05, Math.min(1, rms * 4))
-      setVoiceWaveform((prev) => {
-        const next = [...prev, level]
-        return next.slice(-VOICE_WAVEFORM_BARS)
-      })
-
-      voiceAnimationFrameRef.current = requestAnimationFrame(tick)
-    }
-    voiceAnimationFrameRef.current = requestAnimationFrame(tick)
+    setVoiceWaveform(
+      Array.from({ length: VOICE_WAVEFORM_BARS }, (_, index) =>
+        index % 3 === 0 ? 0.2 : index % 2 === 0 ? 0.12 : 0.08,
+      ),
+    )
 
     voiceTickTimerRef.current = window.setInterval(() => {
       if (!voiceRecordingStartRef.current) return
       const elapsed = Math.floor((Date.now() - voiceRecordingStartRef.current) / 1000)
       setVoiceElapsedSeconds(elapsed)
-    }, 250)
+
+      const level = sampleVoiceLevel()
+      const generated = Array.from({ length: VOICE_WAVEFORM_SHIFT_PER_SECOND }, (_entry, index) => {
+        const variance = (Math.random() - 0.5) * 0.12
+        const offset = index % 2 === 0 ? 0.03 : -0.02
+        return Math.max(0.08, Math.min(1, level + variance + offset))
+      })
+      setVoiceWaveform((prev) => {
+        const baseline =
+          prev.length > 0 ? prev : Array.from({ length: VOICE_WAVEFORM_BARS }, () => 0.08)
+        return [...baseline.slice(generated.length), ...generated]
+      })
+    }, 1000)
 
     voiceAutoStopTimerRef.current = window.setTimeout(() => {
       if (mediaRecorderRef.current?.state === 'recording') {
@@ -757,13 +765,31 @@ export function Composer({
       })
 
       if (!result.text.trim()) {
+        voiceAutoSendRequestedRef.current = false
         setVoiceError('No speech detected. Try again or continue typing.')
         return
       }
 
-      insertTranscriptAtCursor(result.text)
+      const transcript = result.text.trim()
+      const autoSend = voiceAutoSendRequestedRef.current
+      voiceAutoSendRequestedRef.current = false
+
+      if (autoSend) {
+        const composedText = [input.trim(), transcript].filter(Boolean).join(' ')
+        const submitted = submitPayload({
+          text: composedText,
+          qualityPreset: settings.qualityPreset,
+          attachments,
+        })
+        if (!submitted) {
+          insertTranscriptAtCursor(transcript)
+        }
+      } else {
+        insertTranscriptAtCursor(transcript)
+      }
       setVoiceError(null)
     } catch (error) {
+      voiceAutoSendRequestedRef.current = false
       const message =
         error instanceof Error
           ? error.message
@@ -786,6 +812,7 @@ export function Composer({
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       mediaStreamRef.current = stream
       recordedChunksRef.current = []
+      voiceAutoSendRequestedRef.current = false
 
       const mimeType = VOICE_CAPTURE_MIME_TYPES.find((candidate) =>
         MediaRecorder.isTypeSupported(candidate),
@@ -826,6 +853,16 @@ export function Composer({
     }
   }
 
+  function handleVoiceSend(): void {
+    if (isTranscribingVoice) return
+    if (isListening) {
+      voiceAutoSendRequestedRef.current = true
+      mediaRecorderRef.current?.stop()
+      return
+    }
+    handleSubmit()
+  }
+
   function handleVoiceToggle(): void {
     if (isTranscribingVoice) return
     if (isListening) {
@@ -834,6 +871,48 @@ export function Composer({
     }
     void startVoiceCapture()
   }
+
+  useEffect(() => {
+    if (!isVoiceModeActive) return
+    function onKeyDown(event: KeyboardEvent): void {
+      if (event.key !== 'Enter' || event.shiftKey) return
+      event.preventDefault()
+      if (isTranscribingVoice) return
+      if (isListening) {
+        voiceAutoSendRequestedRef.current = true
+        mediaRecorderRef.current?.stop()
+        return
+      }
+      if (isLoading || disabled) return
+      const text = input.trim()
+      if (!text && attachments.length === 0) return
+      onSend({
+        text,
+        qualityPreset: settings.qualityPreset,
+        attachments,
+      })
+      setInput('')
+      setAttachments([])
+      setAttachmentError(null)
+      setVoiceError(null)
+      setBranchMessage(null)
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto'
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [
+    isVoiceModeActive,
+    isListening,
+    isTranscribingVoice,
+    isLoading,
+    disabled,
+    input,
+    attachments,
+    onSend,
+    settings.qualityPreset,
+  ])
 
   return (
     <div className="shrink-0">
@@ -913,6 +992,7 @@ export function Composer({
                         style={{
                           height: `${String(Math.max(8, Math.round(level * 28)))}px`,
                           opacity: Math.max(0.35, level),
+                          transition: 'height 700ms ease, opacity 700ms ease',
                         }}
                       />
                     ))
@@ -929,14 +1009,24 @@ export function Composer({
               </div>
 
               {isListening ? (
-                <button
-                  type="button"
-                  onClick={() => mediaRecorderRef.current?.stop()}
-                  className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-bg-tertiary text-text-primary transition-colors hover:bg-bg-hover"
-                  title="Stop recording"
-                >
-                  <Square className="h-3.5 w-3.5" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => mediaRecorderRef.current?.stop()}
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-bg-tertiary text-text-primary transition-colors hover:bg-bg-hover"
+                    title="Stop recording"
+                  >
+                    <Square className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleVoiceSend}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-text-primary text-bg transition-colors hover:bg-text-primary/90"
+                    title="Send recording"
+                  >
+                    <ArrowUp className="h-4 w-4" />
+                  </button>
+                </div>
               ) : (
                 <div className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-bg-tertiary text-text-tertiary">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1032,8 +1122,10 @@ export function Composer({
             <div />
           )}
 
-          <div className="flex items-center gap-2">
-            {!isVoiceModeActive && (
+          {isVoiceModeActive ? (
+            <div />
+          ) : (
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={handleVoiceToggle}
@@ -1060,39 +1152,34 @@ export function Composer({
                   <Mic className="h-[15px] w-[15px]" />
                 )}
               </button>
-            )}
 
-            {isLoading ? (
-              <button
-                type="button"
-                onClick={onCancel}
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-error/35 bg-error/10 text-error transition-colors hover:bg-error/18"
-                title="Cancel"
-              >
-                <Square className="h-3.5 w-3.5" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={!canSend || isVoiceModeActive}
-                className={cn(
-                  'flex h-8 w-8 items-center justify-center rounded-full transition-colors',
-                  canSend && !isVoiceModeActive
-                    ? 'bg-gradient-to-b from-accent to-accent-dim'
-                    : 'border border-border bg-bg-tertiary cursor-not-allowed',
-                )}
-                title="Send message"
-              >
-                <ArrowUp
+              {isLoading ? (
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-error/35 bg-error/10 text-error transition-colors hover:bg-error/18"
+                  title="Cancel"
+                >
+                  <Square className="h-3.5 w-3.5" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={!canSend}
                   className={cn(
-                    'h-4 w-4',
-                    canSend && !isVoiceModeActive ? 'text-bg' : 'text-text-muted',
+                    'flex h-8 w-8 items-center justify-center rounded-full transition-colors',
+                    canSend
+                      ? 'bg-gradient-to-b from-accent to-accent-dim'
+                      : 'border border-border bg-bg-tertiary cursor-not-allowed',
                   )}
-                />
-              </button>
-            )}
-          </div>
+                  title="Send message"
+                >
+                  <ArrowUp className={cn('h-4 w-4', canSend ? 'text-bg' : 'text-text-muted')} />
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-between h-9 px-4 border-t border-border">

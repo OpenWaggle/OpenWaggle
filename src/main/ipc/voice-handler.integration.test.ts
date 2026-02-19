@@ -164,4 +164,27 @@ describe('registerVoiceHandlers', () => {
       'pnpm rebuild sharp',
     )
   })
+
+  it('accepts legacy samples payloads for backward compatibility', async () => {
+    const transcriber = vi.fn(async (_audio: Float32Array) => ({ text: 'legacy works' }))
+    pipelineMock.mockResolvedValue(transcriber)
+
+    registerVoiceHandlers()
+    const handler = registeredHandler('voice:transcribe-local')
+
+    const result = (await handler?.({}, { samples: [0.4, -0.2], sampleRate: 16_000 })) as {
+      text: string
+      model: string
+    }
+
+    expect(result).toEqual({
+      text: 'legacy works',
+      model: 'base',
+    })
+    expect(pipelineMock).toHaveBeenCalledWith(
+      'automatic-speech-recognition',
+      'Xenova/whisper-base',
+      { quantized: false },
+    )
+  })
 })
