@@ -165,12 +165,18 @@ export function Sidebar({
                     </span>
                   </button>
 
-                  {/* Thread items — animated collapse via grid-rows */}
+                  {/* Thread items — animated collapse via grid-rows + translateY */}
                   <div
                     className="grid transition-[grid-template-rows] duration-200 ease-out"
                     style={{ gridTemplateRows: isCollapsed ? '0fr' : '1fr' }}
                   >
-                    <div className="overflow-hidden">
+                    <div
+                      className="overflow-hidden transition-[transform,opacity] duration-200 ease-out"
+                      style={{
+                        transform: isCollapsed ? 'translateY(-100%)' : 'translateY(0)',
+                        opacity: isCollapsed ? 0 : 1,
+                      }}
+                    >
                       {group.conversations.map((conv) => {
                         const isActive = conv.id === activeId
                         return (
