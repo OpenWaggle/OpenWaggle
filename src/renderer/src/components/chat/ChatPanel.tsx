@@ -141,9 +141,14 @@ export function ChatPanel({
                       </button>
                     )}
                     {!hasProject && (
-                      <p className="max-w-sm text-sm text-text-tertiary">
+                      <button
+                        type="button"
+                        onClick={onOpenProject}
+                        className="max-w-sm text-sm text-text-tertiary transition-colors hover:text-text-secondary"
+                        title="Open project picker"
+                      >
                         Select a project folder to get started, or just ask me anything.
-                      </p>
+                      </button>
                     )}
                   </div>
                 </div>
