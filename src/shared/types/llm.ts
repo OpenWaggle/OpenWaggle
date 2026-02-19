@@ -16,6 +16,7 @@ export interface ProviderInfo {
   readonly provider: Provider
   readonly displayName: string
   readonly requiresApiKey: boolean
+  readonly apiKeyManagementUrl?: string
   readonly supportsBaseUrl: boolean
   readonly models: ModelDisplayInfo[]
 }

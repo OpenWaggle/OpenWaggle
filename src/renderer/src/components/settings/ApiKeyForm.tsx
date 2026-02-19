@@ -1,10 +1,11 @@
-import { Check, Eye, EyeOff, Loader2, X } from 'lucide-react'
+import { Check, ExternalLink, Eye, EyeOff, Loader2, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/cn'
 
 interface ApiKeyFormProps {
   provider: string
   label: string
+  createKeyUrl?: string
   currentKey: string
   onSave: (apiKey: string) => Promise<void>
   onTest: (apiKey: string) => Promise<boolean>
@@ -15,6 +16,7 @@ interface ApiKeyFormProps {
 export function ApiKeyForm({
   provider,
   label,
+  createKeyUrl,
   currentKey,
   onSave,
   onTest,
@@ -40,9 +42,25 @@ export function ApiKeyForm({
 
   return (
     <div className="space-y-2">
-      <label htmlFor={`api-key-${provider}`} className="text-sm font-medium text-text-primary">
-        {label}
-      </label>
+      <div className="flex items-center justify-between gap-3">
+        <label htmlFor={`api-key-${provider}`} className="text-sm font-medium text-text-primary">
+          {label}
+        </label>
+        {createKeyUrl && (
+          <a
+            href={createKeyUrl}
+            target="_blank"
+            rel="noreferrer"
+            className={cn(
+              'inline-flex items-center gap-1 text-xs font-medium text-link-yellow transition-opacity',
+              'hover:opacity-90',
+            )}
+          >
+            Get API key
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        )}
+      </div>
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
           <input

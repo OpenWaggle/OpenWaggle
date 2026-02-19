@@ -5,6 +5,7 @@ export const grokProvider: ProviderDefinition = {
   id: 'grok',
   displayName: 'Grok',
   requiresApiKey: true,
+  apiKeyManagementUrl: 'https://console.x.ai/team/default/api-keys',
   supportsBaseUrl: false,
   models: GROK_CHAT_MODELS,
   testModel: 'grok-3-mini-fast',

@@ -5,6 +5,7 @@ export const geminiProvider: ProviderDefinition = {
   id: 'gemini',
   displayName: 'Gemini',
   requiresApiKey: true,
+  apiKeyManagementUrl: 'https://aistudio.google.com/app/apikey',
   supportsBaseUrl: false,
   models: GeminiTextModels,
   testModel: 'gemini-2.0-flash-lite',

@@ -116,6 +116,7 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps): React.
                         <ApiKeyForm
                           provider={providerId}
                           label={providerInfo.displayName}
+                          createKeyUrl={providerInfo.apiKeyManagementUrl}
                           currentKey={config?.apiKey ?? ''}
                           onSave={(key) => updateApiKey(providerId, key)}
                           onTest={(key) => testApiKey(providerId, key, config?.baseUrl)}

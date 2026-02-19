@@ -5,6 +5,7 @@ export const anthropicProvider: ProviderDefinition = {
   id: 'anthropic',
   displayName: 'Anthropic',
   requiresApiKey: true,
+  apiKeyManagementUrl: 'https://platform.claude.com/settings/keys',
   supportsBaseUrl: false,
   models: ANTHROPIC_MODELS,
   testModel: 'claude-haiku-4-5',

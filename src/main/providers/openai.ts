@@ -5,6 +5,7 @@ export const openaiProvider: ProviderDefinition = {
   id: 'openai',
   displayName: 'OpenAI',
   requiresApiKey: true,
+  apiKeyManagementUrl: 'https://platform.openai.com/api-keys',
   supportsBaseUrl: false,
   models: OPENAI_CHAT_MODELS,
   testModel: 'gpt-4.1-nano',
