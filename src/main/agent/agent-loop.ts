@@ -177,14 +177,14 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
             if (signal.aborted) break
 
             onChunk(chunk)
-            await notifyStreamChunk(hooks, runContext, chunk)
+            notifyStreamChunk(hooks, runContext, chunk)
 
             const collected = collector.handleChunk(chunk)
             if (collected.toolCallStart) {
-              await notifyToolCallStart(hooks, runContext, collected.toolCallStart)
+              notifyToolCallStart(hooks, runContext, collected.toolCallStart)
             }
             if (collected.toolCallEnd) {
-              await notifyToolCallEnd(hooks, runContext, collected.toolCallEnd)
+              notifyToolCallEnd(hooks, runContext, collected.toolCallEnd)
             }
             if (collected.runError) {
               runErrorNotified = true

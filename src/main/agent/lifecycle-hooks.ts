@@ -33,6 +33,25 @@ async function runHookEvent(
   }
 }
 
+function runHookEventDetached(
+  hooks: readonly AgentLifecycleHook[],
+  context: AgentRunContext,
+  eventName: string,
+  invoke: HookCall,
+): void {
+  void runHookEvent(hooks, context, eventName, invoke).catch((error) => {
+    console.warn(
+      '[agent-hook]',
+      JSON.stringify({
+        event: 'hook-dispatch-error',
+        runId: context.runId,
+        hookEvent: eventName,
+        message: error instanceof Error ? error.message : String(error),
+      }),
+    )
+  })
+}
+
 export async function notifyRunStart(
   hooks: readonly AgentLifecycleHook[],
   context: AgentRunContext,
@@ -40,32 +59,32 @@ export async function notifyRunStart(
   await runHookEvent(hooks, context, 'onRunStart', (hook) => hook.onRunStart?.(context))
 }
 
-export async function notifyStreamChunk(
+export function notifyStreamChunk(
   hooks: readonly AgentLifecycleHook[],
   context: AgentRunContext,
   chunk: StreamChunk,
-): Promise<void> {
-  await runHookEvent(hooks, context, 'onStreamChunk', (hook) =>
+): void {
+  runHookEventDetached(hooks, context, 'onStreamChunk', (hook) =>
     hook.onStreamChunk?.(context, chunk),
   )
 }
 
-export async function notifyToolCallStart(
+export function notifyToolCallStart(
   hooks: readonly AgentLifecycleHook[],
   context: AgentRunContext,
   event: AgentToolCallStartEvent,
-): Promise<void> {
-  await runHookEvent(hooks, context, 'onToolCallStart', (hook) =>
+): void {
+  runHookEventDetached(hooks, context, 'onToolCallStart', (hook) =>
     hook.onToolCallStart?.(context, event),
   )
 }
 
-export async function notifyToolCallEnd(
+export function notifyToolCallEnd(
   hooks: readonly AgentLifecycleHook[],
   context: AgentRunContext,
   event: AgentToolCallEndEvent,
-): Promise<void> {
-  await runHookEvent(hooks, context, 'onToolCallEnd', (hook) =>
+): void {
+  runHookEventDetached(hooks, context, 'onToolCallEnd', (hook) =>
     hook.onToolCallEnd?.(context, event),
   )
 }

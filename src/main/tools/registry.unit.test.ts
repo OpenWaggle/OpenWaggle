@@ -3,7 +3,7 @@ import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
 import type { ServerTool } from '@tanstack/ai'
 import { describe, expect, it } from 'vitest'
 import { getActiveAgentFeatures } from '../agent/feature-registry'
-import type { AgentRunContext } from '../agent/runtime-types'
+import type { AgentFeature, AgentRunContext } from '../agent/runtime-types'
 import { openaiProvider } from '../providers/openai'
 import { getServerTools } from './registry'
 
@@ -54,6 +54,10 @@ function getToolNames(tools: readonly ServerTool[]): string[] {
   })
 }
 
+function makeNamedTool(name: string): ServerTool {
+  return { name } as unknown as ServerTool
+}
+
 describe('getServerTools', () => {
   it('returns full built-in toolset in full-access mode', () => {
     const context = makeContext({ executionMode: 'full-access', hasProject: true })
@@ -93,5 +97,23 @@ describe('getServerTools', () => {
     const tools = getServerTools(context, features)
 
     expect(tools).toEqual([])
+  })
+
+  it('throws when features register duplicate tool names', () => {
+    const context = makeContext({ executionMode: 'full-access', hasProject: true })
+    const features: AgentFeature[] = [
+      {
+        id: 'test.dup-a',
+        getTools: () => [makeNamedTool('duplicate')],
+      },
+      {
+        id: 'test.dup-b',
+        getTools: () => [makeNamedTool('duplicate')],
+      },
+    ]
+
+    expect(() => getServerTools(context, features)).toThrow(
+      'Duplicate tool registration for "duplicate"',
+    )
   })
 })

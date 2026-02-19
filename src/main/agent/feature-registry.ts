@@ -5,7 +5,6 @@ import type {
   AgentLifecycleHook,
   AgentRunContext,
   AgentRunSummary,
-  AgentToolCallEndEvent,
   AgentToolCallStartEvent,
 } from './runtime-types'
 import {
@@ -29,11 +28,6 @@ const defaultFeatureFlags: AgentFeatureFlags = {
 function isApprovalRequiredTool(tool: ServerTool): boolean {
   const maybeApprovalTool = tool as ServerTool & { readonly needsApproval?: boolean }
   return maybeApprovalTool.needsApproval === true
-}
-
-function toolName(tool: ServerTool): string {
-  const maybeTool = tool as ServerTool & { readonly name?: string }
-  return maybeTool.name ?? 'unknown'
 }
 
 const observabilityHook: AgentLifecycleHook = {
@@ -179,17 +173,4 @@ export function getFeatureLifecycleHooks(
   features: readonly AgentFeature[],
 ): AgentLifecycleHook[] {
   return features.flatMap((feature) => feature.getLifecycleHooks?.(context) ?? [])
-}
-
-export function describeFeatureTools(tools: readonly ServerTool[]): string[] {
-  return tools.map(toolName)
-}
-
-export function describeToolCallEvent(event: AgentToolCallEndEvent): Record<string, unknown> {
-  return {
-    toolCallId: event.toolCallId,
-    toolName: event.toolName,
-    durationMs: event.durationMs,
-    isError: event.isError,
-  }
 }
