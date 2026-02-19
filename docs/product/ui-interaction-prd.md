@@ -179,9 +179,9 @@ Status legend: `planned`, `deferred`, `future`
   - Commit can complete successfully and refreshes git status.
   - Failure states are visible and actionable.
 
-### HC-UI-003 Header live git stats + future diff sidebar
+### HC-UI-003 Header live git stats + diff sidebar
 
-- Status: `planned` (stats), `future` (sidebar)
+- Status: `planned` (stats), `implemented` (sidebar)
 - Location: `src/renderer/src/components/layout/Header.tsx:87`
 - Current: hardcoded `+441 / -348`.
 - Target behavior:
