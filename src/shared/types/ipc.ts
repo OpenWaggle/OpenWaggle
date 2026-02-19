@@ -1,9 +1,10 @@
 import type { StreamChunk } from '@tanstack/ai'
-import type { ConversationId, ToolCallId } from './brand'
+import type { ConversationId } from './brand'
 import type { Conversation, ConversationSummary } from './conversation'
+import type { GitCommitPayload, GitCommitResult, GitStatusSummary } from './git'
 import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from './llm'
+import type { QuestionAnswer, QuestionPayload } from './question'
 import type { Provider, Settings } from './settings'
-import type { ToolApprovalRequest, ToolApprovalStatus } from './tools'
 
 // ─── IPC Channel Map ─────────────────────────────────────────
 // Single source of truth for every IPC channel.
@@ -75,6 +76,18 @@ export interface IpcInvokeChannelMap {
     args: [terminalId: string, cols: number, rows: number]
     return: undefined
   }
+  'git:status': {
+    args: [projectPath: string]
+    return: GitStatusSummary
+  }
+  'git:commit': {
+    args: [projectPath: string, payload: GitCommitPayload]
+    return: GitCommitResult
+  }
+  'agent:answer-question': {
+    args: [conversationId: ConversationId, answers: QuestionAnswer[]]
+    return: void
+  }
 }
 
 /**
@@ -83,9 +96,6 @@ export interface IpcInvokeChannelMap {
 export interface IpcSendChannelMap {
   'agent:cancel': {
     args: [conversationId?: ConversationId]
-  }
-  'tool:approval-response': {
-    args: [callId: ToolCallId, status: ToolApprovalStatus]
   }
   'terminal:write': {
     args: [terminalId: string, data: string]
@@ -100,11 +110,11 @@ export interface IpcEventChannelMap {
   'agent:stream-chunk': {
     payload: { conversationId: ConversationId; chunk: StreamChunk }
   }
-  'tool:approval-request': {
-    payload: ToolApprovalRequest
-  }
   'terminal:data': {
     payload: { terminalId: string; data: string }
+  }
+  'agent:question': {
+    payload: QuestionPayload
   }
   'window:fullscreen-changed': {
     payload: boolean
@@ -147,9 +157,9 @@ export interface OpenHiveApi {
     callback: (payload: { conversationId: ConversationId; chunk: StreamChunk }) => void,
   ): () => void
 
-  // Tool approval
-  respondToolApproval(callId: ToolCallId, status: ToolApprovalStatus): void
-  onToolApproval(callback: (request: ToolApprovalRequest) => void): () => void
+  // Agent questions
+  answerQuestion(conversationId: ConversationId, answers: QuestionAnswer[]): Promise<void>
+  onQuestion(callback: (payload: QuestionPayload) => void): () => void
 
   // Settings
   getSettings(): Promise<Settings>
@@ -187,4 +197,8 @@ export interface OpenHiveApi {
 
   // Window
   onFullscreenChanged(callback: (isFullscreen: boolean) => void): () => void
+
+  // Git
+  getGitStatus(projectPath: string): Promise<GitStatusSummary>
+  commitGit(projectPath: string, payload: GitCommitPayload): Promise<GitCommitResult>
 }

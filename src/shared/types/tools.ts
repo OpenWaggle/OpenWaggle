@@ -8,6 +8,7 @@ export const BUILT_IN_TOOL_NAMES = [
   'runCommand',
   'glob',
   'listFiles',
+  'askUser',
 ] as const
 
 export type BuiltInToolName = (typeof BUILT_IN_TOOL_NAMES)[number]
