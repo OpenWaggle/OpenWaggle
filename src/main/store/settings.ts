@@ -1,8 +1,13 @@
+import fs from 'node:fs'
 import {
   DEFAULT_SETTINGS,
+  EXECUTION_MODES,
+  type ExecutionMode,
   PROVIDERS,
   type Provider,
   type ProviderConfig,
+  QUALITY_PRESETS,
+  type QualityPreset,
   type Settings,
 } from '@shared/types/settings'
 import { safeStorage } from 'electron'
@@ -16,6 +21,7 @@ const store = new Store<Settings>({
 })
 
 const ENCRYPTED_PREFIX = 'enc:v1:'
+const LEGACY_EXECUTION_MODE: ExecutionMode = 'full-access'
 
 /**
  * Schema for validating raw provider config from disk.
@@ -58,11 +64,17 @@ export function getSettings(): Settings {
     store.set('defaultModel', defaultModel)
   }
 
+  const executionMode = resolveExecutionMode()
+  const qualityPreset = resolveQualityPreset()
+  const recentProjects = resolveRecentProjects()
+
   return {
     providers,
     defaultModel,
     projectPath: store.get('projectPath', DEFAULT_SETTINGS.projectPath),
-    executionMode: store.get('executionMode', DEFAULT_SETTINGS.executionMode),
+    executionMode,
+    qualityPreset,
+    recentProjects,
   }
 }
 
@@ -88,6 +100,74 @@ export function updateSettings(partial: Partial<Settings>): void {
   }
   if (partial.executionMode !== undefined) {
     store.set('executionMode', partial.executionMode)
+  }
+  if (partial.qualityPreset !== undefined) {
+    store.set('qualityPreset', partial.qualityPreset)
+  }
+  if (partial.recentProjects !== undefined) {
+    store.set('recentProjects', sanitizeRecentProjects(partial.recentProjects))
+  }
+}
+
+function resolveExecutionMode(): ExecutionMode {
+  const persisted = readPersistedSettings()
+  const persistedExecutionMode = persisted?.executionMode
+  if (
+    typeof persistedExecutionMode === 'string' &&
+    (EXECUTION_MODES as readonly string[]).includes(persistedExecutionMode)
+  ) {
+    return persistedExecutionMode as ExecutionMode
+  }
+
+  // Keep existing profiles on the legacy default while new installs use sandbox.
+  const hasLegacyProfile =
+    persisted !== null &&
+    ('providers' in persisted || 'defaultModel' in persisted || 'projectPath' in persisted)
+  if (hasLegacyProfile) {
+    store.set('executionMode', LEGACY_EXECUTION_MODE)
+    return LEGACY_EXECUTION_MODE
+  }
+
+  return DEFAULT_SETTINGS.executionMode
+}
+
+function resolveQualityPreset(): QualityPreset {
+  const raw = store.get('qualityPreset', DEFAULT_SETTINGS.qualityPreset)
+  return QUALITY_PRESETS.includes(raw) ? raw : DEFAULT_SETTINGS.qualityPreset
+}
+
+function resolveRecentProjects(): string[] {
+  return sanitizeRecentProjects(store.get('recentProjects', DEFAULT_SETTINGS.recentProjects))
+}
+
+function sanitizeRecentProjects(paths: readonly string[]): string[] {
+  const seen = new Set<string>()
+  const result: string[] = []
+
+  for (const path of paths) {
+    const trimmed = path.trim()
+    if (!trimmed || seen.has(trimmed)) continue
+    seen.add(trimmed)
+    result.push(trimmed)
+    if (result.length >= 10) break
+  }
+
+  return result
+}
+
+function readPersistedSettings(): Record<string, unknown> | null {
+  try {
+    if (!fs.existsSync(store.path)) return null
+    const raw = fs.readFileSync(store.path, 'utf-8').trim()
+    if (!raw) return null
+
+    const parsed: unknown = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return null
+    }
+    return parsed as Record<string, unknown>
+  } catch {
+    return null
   }
 }
 

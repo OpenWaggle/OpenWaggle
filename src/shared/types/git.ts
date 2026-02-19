@@ -62,3 +62,68 @@ export interface GitFileDiff {
   readonly additions: number
   readonly deletions: number
 }
+
+export interface GitBranchInfo {
+  readonly name: string
+  readonly fullName: string
+  readonly isCurrent: boolean
+  readonly isRemote: boolean
+  readonly upstream: string | null
+  readonly ahead: number
+  readonly behind: number
+}
+
+export interface GitBranchListResult {
+  readonly currentBranch: string | null
+  readonly branches: readonly GitBranchInfo[]
+}
+
+export interface GitBranchCheckoutPayload {
+  readonly name: string
+}
+
+export interface GitBranchCreatePayload {
+  readonly name: string
+  readonly startPoint?: string
+  readonly checkout?: boolean
+}
+
+export interface GitBranchRenamePayload {
+  readonly from: string
+  readonly to: string
+}
+
+export interface GitBranchDeletePayload {
+  readonly name: string
+  readonly force?: boolean
+}
+
+export interface GitBranchSetUpstreamPayload {
+  readonly name: string
+  readonly upstream: string
+}
+
+export const GIT_BRANCH_ERROR_CODES = [
+  'not-git-repo',
+  'branch-not-found',
+  'branch-exists',
+  'dirty-worktree',
+  'invalid-name',
+  'upstream-not-found',
+  'unknown',
+] as const
+
+export type GitBranchErrorCode = (typeof GIT_BRANCH_ERROR_CODES)[number]
+
+export interface GitBranchMutationSuccess {
+  readonly ok: true
+  readonly message: string
+}
+
+export interface GitBranchMutationFailure {
+  readonly ok: false
+  readonly code: GitBranchErrorCode
+  readonly message: string
+}
+
+export type GitBranchMutationResult = GitBranchMutationSuccess | GitBranchMutationFailure

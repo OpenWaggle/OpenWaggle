@@ -2,6 +2,8 @@ export const PROVIDERS = ['anthropic', 'openai', 'gemini', 'grok', 'openrouter',
 export type Provider = (typeof PROVIDERS)[number]
 export const EXECUTION_MODES = ['sandbox', 'full-access'] as const
 export type ExecutionMode = (typeof EXECUTION_MODES)[number]
+export const QUALITY_PRESETS = ['low', 'medium', 'high'] as const
+export type QualityPreset = (typeof QUALITY_PRESETS)[number]
 
 export const OLLAMA_DEFAULT_BASE_URL = 'http://localhost:11434'
 
@@ -20,6 +22,8 @@ export interface Settings {
   readonly defaultModel: string
   readonly projectPath: string | null
   readonly executionMode: ExecutionMode
+  readonly qualityPreset: QualityPreset
+  readonly recentProjects: readonly string[]
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -33,7 +37,9 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   defaultModel: DEFAULT_ANTHROPIC_MODEL,
   projectPath: null,
-  executionMode: 'full-access',
+  executionMode: 'sandbox',
+  qualityPreset: 'medium',
+  recentProjects: [],
 }
 
 /** Type guard for Provider — uses widened array check to avoid cast */

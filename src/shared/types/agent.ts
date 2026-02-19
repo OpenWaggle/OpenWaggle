@@ -1,5 +1,6 @@
 import type { MessageId } from './brand'
 import type { SupportedModelId } from './llm'
+import type { QualityPreset } from './settings'
 import type { ToolCallRequest, ToolCallResult } from './tools'
 
 export type MessageRole = 'user' | 'assistant'
@@ -13,6 +14,23 @@ export interface TextPart {
   readonly text: string
 }
 
+export type AttachmentKind = 'text' | 'image' | 'pdf'
+
+export interface AttachmentRecord {
+  readonly id: string
+  readonly kind: AttachmentKind
+  readonly name: string
+  readonly path: string
+  readonly mimeType: string
+  readonly sizeBytes: number
+  readonly extractedText: string
+}
+
+export interface AttachmentPart {
+  readonly type: 'attachment'
+  readonly attachment: AttachmentRecord
+}
+
 export interface ToolCallPart {
   readonly type: 'tool-call'
   readonly toolCall: ToolCallRequest
@@ -23,7 +41,21 @@ export interface ToolResultPart {
   readonly toolResult: ToolCallResult
 }
 
-export type MessagePart = TextPart | ToolCallPart | ToolResultPart
+export type MessagePart = TextPart | AttachmentPart | ToolCallPart | ToolResultPart
+
+export interface PreparedAttachment extends AttachmentRecord {
+  readonly source: {
+    readonly type: 'data'
+    readonly value: string
+    readonly mimeType: string
+  } | null
+}
+
+export interface AgentSendPayload {
+  readonly text: string
+  readonly qualityPreset: QualityPreset
+  readonly attachments: readonly PreparedAttachment[]
+}
 
 export interface Message {
   readonly id: MessageId
@@ -44,6 +76,10 @@ export function isToolCallPart(part: MessagePart): part is ToolCallPart {
 
 export function isToolResultPart(part: MessagePart): part is ToolResultPart {
   return part.type === 'tool-result'
+}
+
+export function isAttachmentPart(part: MessagePart): part is AttachmentPart {
+  return part.type === 'attachment'
 }
 
 export function getMessageText(message: Message): string {

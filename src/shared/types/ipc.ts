@@ -1,7 +1,20 @@
 import type { StreamChunk } from '@tanstack/ai'
+import type { AgentSendPayload, PreparedAttachment } from './agent'
 import type { ConversationId } from './brand'
 import type { Conversation, ConversationSummary } from './conversation'
-import type { GitCommitPayload, GitCommitResult, GitFileDiff, GitStatusSummary } from './git'
+import type {
+  GitBranchCheckoutPayload,
+  GitBranchCreatePayload,
+  GitBranchDeletePayload,
+  GitBranchListResult,
+  GitBranchMutationResult,
+  GitBranchRenamePayload,
+  GitBranchSetUpstreamPayload,
+  GitCommitPayload,
+  GitCommitResult,
+  GitFileDiff,
+  GitStatusSummary,
+} from './git'
 import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from './llm'
 import type { QuestionAnswer, QuestionPayload } from './question'
 import type { Provider, Settings } from './settings'
@@ -17,7 +30,7 @@ import type { Provider, Settings } from './settings'
  */
 export interface IpcInvokeChannelMap {
   'agent:send-message': {
-    args: [conversationId: ConversationId, content: string, model: SupportedModelId]
+    args: [conversationId: ConversationId, payload: AgentSendPayload, model: SupportedModelId]
     return: undefined
   }
   'settings:get': {
@@ -56,6 +69,10 @@ export interface IpcInvokeChannelMap {
     args: [id: ConversationId, title: string]
     return: undefined
   }
+  'conversations:update-project-path': {
+    args: [id: ConversationId, projectPath: string | null]
+    return: Conversation | null
+  }
   'providers:get-models': {
     args: []
     return: ProviderInfo[]
@@ -87,6 +104,34 @@ export interface IpcInvokeChannelMap {
   'git:diff': {
     args: [projectPath: string]
     return: GitFileDiff[]
+  }
+  'git:branches:list': {
+    args: [projectPath: string]
+    return: GitBranchListResult
+  }
+  'git:branches:checkout': {
+    args: [projectPath: string, payload: GitBranchCheckoutPayload]
+    return: GitBranchMutationResult
+  }
+  'git:branches:create': {
+    args: [projectPath: string, payload: GitBranchCreatePayload]
+    return: GitBranchMutationResult
+  }
+  'git:branches:rename': {
+    args: [projectPath: string, payload: GitBranchRenamePayload]
+    return: GitBranchMutationResult
+  }
+  'git:branches:delete': {
+    args: [projectPath: string, payload: GitBranchDeletePayload]
+    return: GitBranchMutationResult
+  }
+  'git:branches:set-upstream': {
+    args: [projectPath: string, payload: GitBranchSetUpstreamPayload]
+    return: GitBranchMutationResult
+  }
+  'attachments:prepare': {
+    args: [projectPath: string, paths: string[]]
+    return: PreparedAttachment[]
   }
   'agent:answer-question': {
     args: [conversationId: ConversationId, answers: QuestionAnswer[]]
@@ -152,7 +197,7 @@ export interface OpenHiveApi {
   // Agent
   sendMessage(
     conversationId: ConversationId,
-    content: string,
+    payload: AgentSendPayload,
     model: SupportedModelId,
   ): Promise<void>
   cancelAgent(conversationId?: ConversationId): void
@@ -191,6 +236,10 @@ export interface OpenHiveApi {
   createConversation(projectPath: string | null): Promise<Conversation>
   deleteConversation(id: ConversationId): Promise<void>
   updateConversationTitle(id: ConversationId, title: string): Promise<void>
+  updateConversationProjectPath(
+    id: ConversationId,
+    projectPath: string | null,
+  ): Promise<Conversation | null>
 
   // Terminal
   createTerminal(projectPath: string): Promise<string>
@@ -206,4 +255,28 @@ export interface OpenHiveApi {
   getGitStatus(projectPath: string): Promise<GitStatusSummary>
   commitGit(projectPath: string, payload: GitCommitPayload): Promise<GitCommitResult>
   getGitDiff(projectPath: string): Promise<GitFileDiff[]>
+  listGitBranches(projectPath: string): Promise<GitBranchListResult>
+  checkoutGitBranch(
+    projectPath: string,
+    payload: GitBranchCheckoutPayload,
+  ): Promise<GitBranchMutationResult>
+  createGitBranch(
+    projectPath: string,
+    payload: GitBranchCreatePayload,
+  ): Promise<GitBranchMutationResult>
+  renameGitBranch(
+    projectPath: string,
+    payload: GitBranchRenamePayload,
+  ): Promise<GitBranchMutationResult>
+  deleteGitBranch(
+    projectPath: string,
+    payload: GitBranchDeletePayload,
+  ): Promise<GitBranchMutationResult>
+  setGitBranchUpstream(
+    projectPath: string,
+    payload: GitBranchSetUpstreamPayload,
+  ): Promise<GitBranchMutationResult>
+
+  // Attachments
+  prepareAttachments(projectPath: string, paths: string[]): Promise<PreparedAttachment[]>
 }

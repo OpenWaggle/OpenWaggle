@@ -1,3 +1,4 @@
+import type { AgentSendPayload } from '@shared/types/agent'
 import { isTextPart } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
@@ -15,7 +16,12 @@ const activeRuns = new Map<ConversationId, AbortController>()
 export function registerAgentHandlers(): void {
   ipcMain.handle(
     'agent:send-message',
-    async (_event, conversationId: ConversationId, content: string, model: SupportedModelId) => {
+    async (
+      _event,
+      conversationId: ConversationId,
+      payload: AgentSendPayload,
+      model: SupportedModelId,
+    ) => {
       // Cancel any existing run for this conversation
       const existing = activeRuns.get(conversationId)
       if (existing) {
@@ -45,7 +51,7 @@ export function registerAgentHandlers(): void {
       }
 
       if (conversation.title === 'New thread' && conversation.messages.length === 0) {
-        const trimmed = content.trim()
+        const trimmed = payload.text.trim()
         if (trimmed) {
           const provisionalTitle = trimmed.slice(0, 60) + (trimmed.length > 60 ? '...' : '')
           await saveConversation({ ...conversation, title: provisionalTitle })
@@ -55,7 +61,7 @@ export function registerAgentHandlers(): void {
       try {
         const { newMessages } = await runAgent({
           conversation,
-          userMessage: content,
+          payload,
           model,
           settings,
           onChunk: (chunk) => emitStreamChunk(conversationId, chunk),

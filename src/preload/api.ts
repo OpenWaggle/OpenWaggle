@@ -1,6 +1,14 @@
+import type { AgentSendPayload, PreparedAttachment } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import type { Conversation, ConversationSummary } from '@shared/types/conversation'
 import type {
+  GitBranchCheckoutPayload,
+  GitBranchCreatePayload,
+  GitBranchDeletePayload,
+  GitBranchListResult,
+  GitBranchMutationResult,
+  GitBranchRenamePayload,
+  GitBranchSetUpstreamPayload,
   GitCommitPayload,
   GitCommitResult,
   GitFileDiff,
@@ -21,10 +29,10 @@ export const api: OpenHiveApi = {
   // ─── Agent ───────────────────────────────────────────
   sendMessage(
     conversationId: ConversationId,
-    content: string,
+    payload: AgentSendPayload,
     model: SupportedModelId,
   ): Promise<void> {
-    return ipcRenderer.invoke('agent:send-message', conversationId, content, model)
+    return ipcRenderer.invoke('agent:send-message', conversationId, payload, model)
   },
 
   cancelAgent(conversationId?: ConversationId): void {
@@ -113,6 +121,13 @@ export const api: OpenHiveApi = {
     return ipcRenderer.invoke('conversations:update-title', id, title)
   },
 
+  updateConversationProjectPath(
+    id: ConversationId,
+    projectPath: string | null,
+  ): Promise<Conversation | null> {
+    return ipcRenderer.invoke('conversations:update-project-path', id, projectPath)
+  },
+
   // ─── Terminal ──────────────────────────────────────────
   createTerminal(projectPath: string): Promise<string> {
     return ipcRenderer.invoke('terminal:create', projectPath)
@@ -161,5 +176,48 @@ export const api: OpenHiveApi = {
 
   getGitDiff(projectPath: string): Promise<GitFileDiff[]> {
     return ipcRenderer.invoke('git:diff', projectPath)
+  },
+
+  listGitBranches(projectPath: string): Promise<GitBranchListResult> {
+    return ipcRenderer.invoke('git:branches:list', projectPath)
+  },
+
+  checkoutGitBranch(
+    projectPath: string,
+    payload: GitBranchCheckoutPayload,
+  ): Promise<GitBranchMutationResult> {
+    return ipcRenderer.invoke('git:branches:checkout', projectPath, payload)
+  },
+
+  createGitBranch(
+    projectPath: string,
+    payload: GitBranchCreatePayload,
+  ): Promise<GitBranchMutationResult> {
+    return ipcRenderer.invoke('git:branches:create', projectPath, payload)
+  },
+
+  renameGitBranch(
+    projectPath: string,
+    payload: GitBranchRenamePayload,
+  ): Promise<GitBranchMutationResult> {
+    return ipcRenderer.invoke('git:branches:rename', projectPath, payload)
+  },
+
+  deleteGitBranch(
+    projectPath: string,
+    payload: GitBranchDeletePayload,
+  ): Promise<GitBranchMutationResult> {
+    return ipcRenderer.invoke('git:branches:delete', projectPath, payload)
+  },
+
+  setGitBranchUpstream(
+    projectPath: string,
+    payload: GitBranchSetUpstreamPayload,
+  ): Promise<GitBranchMutationResult> {
+    return ipcRenderer.invoke('git:branches:set-upstream', projectPath, payload)
+  },
+
+  prepareAttachments(projectPath: string, paths: string[]): Promise<PreparedAttachment[]> {
+    return ipcRenderer.invoke('attachments:prepare', projectPath, paths)
   },
 }

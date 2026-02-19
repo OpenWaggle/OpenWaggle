@@ -1,9 +1,14 @@
 import { randomUUID } from 'node:crypto'
-import type { Message, MessagePart } from '@shared/types/agent'
+import type {
+  AgentSendPayload,
+  Message,
+  MessagePart,
+  PreparedAttachment,
+} from '@shared/types/agent'
 import { MessageId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
-import type { Settings } from '@shared/types/settings'
+import type { Provider, Settings } from '@shared/types/settings'
 import { chat, maxIterations, type StreamChunk } from '@tanstack/ai'
 import { providerRegistry } from '../providers'
 import { runWithToolContext } from '../tools/define-tool'
@@ -23,6 +28,7 @@ import {
 } from './lifecycle-hooks'
 import { conversationToMessages, type SimpleChatMessage } from './message-mapper'
 import { buildSystemPrompt } from './prompt-pipeline'
+import { resolveQualityConfig } from './quality-config'
 import type { AgentLifecycleHook, AgentRunContext } from './runtime-types'
 import { StreamPartCollector } from './stream-part-collector'
 
@@ -30,7 +36,7 @@ const MAX_ITERATIONS = 25
 
 export interface AgentRunParams {
   readonly conversation: Conversation
-  readonly userMessage: string
+  readonly payload: AgentSendPayload
   readonly model: SupportedModelId
   readonly settings: Settings
   /** Forward raw StreamChunks to the renderer via IPC for the useChat adapter */
@@ -70,8 +76,88 @@ async function withStageTiming<T>(
   }
 }
 
+function providerSupportsNativeAttachment(
+  provider: Provider,
+  attachment: PreparedAttachment,
+): boolean {
+  if (!attachment.source) return false
+
+  if (attachment.kind === 'image') {
+    return provider === 'openai' || provider === 'anthropic' || provider === 'gemini'
+  }
+  if (attachment.kind === 'pdf') {
+    return provider === 'openai' || provider === 'anthropic' || provider === 'gemini'
+  }
+
+  return false
+}
+
+function buildUserChatContent(
+  provider: Provider,
+  payload: AgentSendPayload,
+):
+  | string
+  | Array<
+      | { type: 'text'; content: string }
+      | { type: 'image'; source: { type: 'data'; value: string; mimeType: string } }
+      | { type: 'document'; source: { type: 'data'; value: string; mimeType: string } }
+    > {
+  const parts: Array<
+    | { type: 'text'; content: string }
+    | { type: 'image'; source: { type: 'data'; value: string; mimeType: string } }
+    | { type: 'document'; source: { type: 'data'; value: string; mimeType: string } }
+  > = []
+
+  if (payload.text.trim()) {
+    parts.push({ type: 'text', content: payload.text.trim() })
+  }
+
+  for (const attachment of payload.attachments) {
+    if (providerSupportsNativeAttachment(provider, attachment) && attachment.source) {
+      if (attachment.kind === 'image') {
+        parts.push({
+          type: 'image',
+          source: attachment.source,
+        })
+      } else if (attachment.kind === 'pdf') {
+        parts.push({
+          type: 'document',
+          source: attachment.source,
+        })
+      }
+    }
+
+    const extracted = attachment.extractedText.trim()
+    const summary = extracted
+      ? `[Attachment: ${attachment.name}]\n${extracted}`
+      : `[Attachment: ${attachment.name}] (no extractable text)`
+    parts.push({ type: 'text', content: summary })
+  }
+
+  if (parts.length === 0) return ''
+  if (parts.length === 1 && parts[0]?.type === 'text') {
+    return parts[0].content
+  }
+  return parts
+}
+
+function buildPersistedUserMessageParts(payload: AgentSendPayload): MessagePart[] {
+  const parts: MessagePart[] = []
+  if (payload.text.trim()) {
+    parts.push({ type: 'text', text: payload.text.trim() })
+  }
+  for (const attachment of payload.attachments) {
+    const { source: _source, ...persisted } = attachment
+    parts.push({
+      type: 'attachment',
+      attachment: persisted,
+    })
+  }
+  return parts.length > 0 ? parts : [{ type: 'text', text: '' }]
+}
+
 export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> {
-  const { conversation, userMessage, model, settings, onChunk, signal } = params
+  const { conversation, payload, model, settings, onChunk, signal } = params
 
   return runWithToolContext(
     {
@@ -92,13 +178,27 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
       try {
         const runId = randomUUID()
 
-        const { provider, providerConfig } = await withStageTiming(
+        const { provider, providerConfig, resolvedModel, qualityConfig } = await withStageTiming(
           stageDurationsMs,
           'provider-resolution',
           async () => {
-            const resolvedProvider = providerRegistry.getProviderForModel(model)
-            if (!resolvedProvider) {
+            const selectedProvider = providerRegistry.getProviderForModel(model)
+            if (!selectedProvider) {
               throw new Error(`No provider registered for model: ${model}`)
+            }
+
+            const qualityConfig = resolveQualityConfig(
+              selectedProvider.id,
+              model,
+              payload.qualityPreset,
+            )
+            const qualityModel = qualityConfig.model
+            const resolvedProvider =
+              providerRegistry.getProviderForModel(qualityModel) ?? selectedProvider
+            const resolvedModel = providerRegistry.isKnownModel(qualityModel) ? qualityModel : model
+
+            if (resolvedProvider.id !== selectedProvider.id) {
+              throw new Error('Quality preset cannot switch provider families.')
             }
 
             const resolvedProviderConfig = settings.providers[resolvedProvider.id]
@@ -112,6 +212,8 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
             return {
               provider: resolvedProvider,
               providerConfig: resolvedProviderConfig,
+              resolvedModel,
+              qualityConfig,
             }
           },
         )
@@ -119,7 +221,7 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
         context = {
           runId,
           conversation,
-          model,
+          model: resolvedModel,
           settings,
           signal,
           projectPath: conversation.projectPath ?? process.cwd(),
@@ -149,7 +251,7 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
         )
 
         const adapter = provider.createAdapter(
-          model,
+          resolvedModel,
           providerConfig.apiKey ?? '',
           providerConfig.baseUrl,
         )
@@ -159,7 +261,10 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
 
         const stream = await withStageTiming(stageDurationsMs, 'stream-setup', () => {
           const existingMessages = conversationToMessages(conversation.messages)
-          const newUserMessage: SimpleChatMessage = { role: 'user', content: userMessage }
+          const newUserMessage: SimpleChatMessage = {
+            role: 'user',
+            content: buildUserChatContent(provider.id, payload),
+          }
           const allMessages = [...existingMessages, newUserMessage]
 
           return chat({
@@ -167,6 +272,10 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
             messages: allMessages,
             systemPrompts: [systemPrompt],
             tools,
+            temperature: qualityConfig.temperature,
+            topP: qualityConfig.topP,
+            maxTokens: qualityConfig.maxTokens,
+            modelOptions: qualityConfig.modelOptions,
             agentLoopStrategy: maxIterations(MAX_ITERATIONS),
             abortController,
           })
@@ -203,8 +312,8 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
           toolErrors: stats.toolErrors,
         })
 
-        const userMsg = makeMessage('user', [{ type: 'text', text: userMessage }])
-        const assistantMsg = makeMessage('assistant', finalParts, model)
+        const userMsg = makeMessage('user', buildPersistedUserMessageParts(payload))
+        const assistantMsg = makeMessage('assistant', finalParts, resolvedModel)
 
         return { newMessages: [userMsg, assistantMsg], finalMessage: assistantMsg }
       } catch (error) {

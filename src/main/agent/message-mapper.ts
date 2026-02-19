@@ -7,7 +7,14 @@ import type { Message, MessagePart } from '@shared/types/agent'
  */
 export interface SimpleChatMessage {
   role: 'user' | 'assistant' | 'tool'
-  content: string | null
+  content:
+    | string
+    | null
+    | Array<
+        | { type: 'text'; content: string }
+        | { type: 'image'; source: { type: 'data'; value: string; mimeType: string } }
+        | { type: 'document'; source: { type: 'data'; value: string; mimeType: string } }
+      >
   toolCalls?: Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }>
   toolCallId?: string
 }
@@ -22,8 +29,18 @@ export function conversationToMessages(messages: readonly Message[]): SimpleChat
   for (const msg of messages) {
     if (msg.role === 'user') {
       const text = msg.parts
-        .filter((p): p is Extract<MessagePart, { type: 'text' }> => p.type === 'text')
-        .map((p) => p.text)
+        .map((part) => {
+          if (part.type === 'text') return part.text
+          if (part.type === 'attachment') {
+            const extracted = part.attachment.extractedText.trim()
+            if (!extracted) {
+              return `[Attachment: ${part.attachment.name}]`
+            }
+            return `[Attachment: ${part.attachment.name}]\n${extracted}`
+          }
+          return ''
+        })
+        .filter(Boolean)
         .join('\n')
       result.push({ role: 'user', content: text })
     } else if (msg.role === 'assistant') {

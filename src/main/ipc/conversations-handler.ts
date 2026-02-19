@@ -5,6 +5,7 @@ import {
   deleteConversation,
   getConversation,
   listConversations,
+  updateConversationProjectPath,
   updateConversationTitle,
 } from '../store/conversations'
 
@@ -29,6 +30,13 @@ export function registerConversationsHandlers(): void {
     'conversations:update-title',
     async (_event, id: ConversationId, title: string) => {
       await updateConversationTitle(id, title)
+    },
+  )
+
+  ipcMain.handle(
+    'conversations:update-project-path',
+    async (_event, id: ConversationId, projectPath: string | null) => {
+      return updateConversationProjectPath(id, projectPath)
     },
   )
 }

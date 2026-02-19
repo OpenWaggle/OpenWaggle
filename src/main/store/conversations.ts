@@ -30,6 +30,18 @@ const toolCallResultSchema = z.object({
 
 const messagePartSchema = z.union([
   z.object({ type: z.literal('text'), text: z.string() }),
+  z.object({
+    type: z.literal('attachment'),
+    attachment: z.object({
+      id: z.string(),
+      kind: z.enum(['text', 'image', 'pdf']),
+      name: z.string(),
+      path: z.string(),
+      mimeType: z.string(),
+      sizeBytes: z.number(),
+      extractedText: z.string(),
+    }),
+  }),
   z.object({ type: z.literal('tool-call'), toolCall: toolCallRequestSchema }),
   z.object({ type: z.literal('tool-result'), toolResult: toolCallResultSchema }),
 ])
@@ -87,6 +99,11 @@ function transformPart(part: ParsedPart): MessagePart {
           name: part.toolCall.name,
           args: part.toolCall.args,
         },
+      }
+    case 'attachment':
+      return {
+        type: 'attachment',
+        attachment: part.attachment,
       }
     case 'tool-result':
       return {
@@ -238,4 +255,15 @@ export async function updateConversationTitle(id: ConversationId, title: string)
   if (conv) {
     await saveConversation({ ...conv, title })
   }
+}
+
+export async function updateConversationProjectPath(
+  id: ConversationId,
+  projectPath: string | null,
+): Promise<Conversation | null> {
+  const conv = await getConversation(id)
+  if (!conv) return null
+  const updated = { ...conv, projectPath }
+  await saveConversation(updated)
+  return updated
 }
