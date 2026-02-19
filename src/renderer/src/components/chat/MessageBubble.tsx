@@ -1,5 +1,5 @@
-import type { UIMessage } from '@tanstack/ai-react'
 import { generateDisplayName, type SupportedModelId } from '@shared/types/llm'
+import type { UIMessage } from '@tanstack/ai-react'
 import { StreamingText } from './StreamingText'
 import { ToolCallBlock } from './ToolCallBlock'
 

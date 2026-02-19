@@ -176,9 +176,7 @@ export function ChatPanel({
                 message={msg}
                 isStreaming={lastIsStreaming && i === messages.length - 1}
                 assistantModel={
-                  msg.role === 'assistant'
-                    ? (messageModelLookup[msg.id] ?? model)
-                    : undefined
+                  msg.role === 'assistant' ? (messageModelLookup[msg.id] ?? model) : undefined
                 }
               />
             ))}

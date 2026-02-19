@@ -1,3 +1,4 @@
+import type { SupportedModelId } from '@shared/types/llm'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChatPanel } from '@/components/chat/ChatPanel'
 import { Header } from '@/components/layout/Header'
@@ -37,11 +38,12 @@ export function App(): React.JSX.Element {
   const currentModel = settings.defaultModel
 
   const conversation = useChatStore((s) => s.activeConversation)
-  const messageModelLookup = Object.fromEntries(
-    (conversation?.messages ?? [])
-      .filter((msg) => msg.role === 'assistant' && !!msg.model)
-      .map((msg) => [String(msg.id), msg.model]),
-  )
+  const messageModelLookup: Record<string, SupportedModelId> = {}
+  for (const msg of conversation?.messages ?? []) {
+    if (msg.role === 'assistant' && msg.model) {
+      messageModelLookup[String(msg.id)] = msg.model
+    }
+  }
   const { messages, sendMessage, isLoading, stop, error } = useAgentChat(
     activeConversationId,
     conversation,
