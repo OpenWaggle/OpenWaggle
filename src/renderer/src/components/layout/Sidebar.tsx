@@ -3,6 +3,7 @@ import type { ConversationSummary } from '@shared/types/conversation'
 import {
   Edit3,
   Folder,
+  FolderOpen,
   FolderPlus,
   LayoutList,
   MessageSquare,
@@ -12,6 +13,7 @@ import {
   SquareTerminal,
   Trash2,
 } from 'lucide-react'
+import { useState } from 'react'
 import { useFullscreen } from '@/hooks/useFullscreen'
 import { cn } from '@/lib/cn'
 import { formatRelativeTime, projectName, truncate } from '@/lib/format'
@@ -66,6 +68,19 @@ export function Sidebar({
 }: SidebarProps): React.JSX.Element {
   const groups = groupByProject(conversations)
   const isFullscreen = useFullscreen()
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+
+  function toggleGroup(key: string): void {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      return next
+    })
+  }
 
   return (
     <aside className="flex h-full w-[224px] shrink-0 flex-col justify-between bg-bg-secondary border-r border-border">
@@ -134,18 +149,24 @@ export function Sidebar({
           ) : (
             groups.map((group) => {
               const groupKey = group.path ?? '__none__'
+              const isCollapsed = collapsedGroups.has(groupKey)
+              const FolderIcon = isCollapsed ? Folder : FolderOpen
               return (
                 <div key={groupKey}>
                   {/* Project group header — h32, padding [0,12], gap 8 */}
-                  <div className="flex items-center gap-2 h-8 px-3">
-                    <Folder className="h-3 w-3 shrink-0 text-text-tertiary" />
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(groupKey)}
+                    className="flex w-full items-center gap-2 h-8 px-3 transition-colors hover:bg-bg-hover"
+                  >
+                    <FolderIcon className="h-3 w-3 shrink-0 text-text-tertiary" />
                     <span className="truncate text-[12px] text-text-secondary">
                       {group.displayName}
                     </span>
-                  </div>
+                  </button>
 
                   {/* Thread items */}
-                  {group.conversations.map((conv) => {
+                  {!isCollapsed && group.conversations.map((conv) => {
                     const isActive = conv.id === activeId
                     return (
                       <div
