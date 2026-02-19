@@ -49,7 +49,7 @@ const VOICE_CAPTURE_MIME_TYPES = ['audio/webm;codecs=opus', 'audio/webm', 'audio
 const WHISPER_TARGET_SAMPLE_RATE = 16_000
 const VOICE_MAX_RECORDING_SECONDS = 90
 const VOICE_WAVEFORM_BARS = 72
-const VOICE_WAVEFORM_SHIFT_PER_SECOND = 4
+const VOICE_WAVEFORM_SHIFT_PER_SECOND = 2
 
 const QUALITY_PRESET_LABEL: Record<QualityPreset, string> = {
   low: 'Low',
@@ -975,7 +975,7 @@ export function Composer({
             <div className="flex h-full items-center gap-3 rounded-lg border border-border bg-bg px-2.5">
               <button
                 type="button"
-                className="flex items-center justify-center h-6 w-6 rounded-md border border-button-border text-text-tertiary opacity-70"
+                className="flex items-center justify-center h-6 w-6 text-text-tertiary/90 transition-colors hover:text-text-primary"
                 title="Attach files"
                 disabled
               >
@@ -983,21 +983,26 @@ export function Composer({
               </button>
 
               <div className="flex min-w-0 flex-1 items-center gap-3">
-                <div className="flex h-8 flex-1 items-center gap-[2px] overflow-hidden">
+                <div className="relative flex h-8 flex-1 items-center gap-[2px] overflow-hidden">
+                  <div className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 border-t border-dashed border-text-tertiary/55" />
                   {isListening ? (
                     voiceWaveform.map((level, index) => (
                       <span
                         key={`voice-wave-${String(index)}`}
-                        className="w-[3px] rounded-[2px] bg-text-primary/95"
-                        style={{
-                          height: `${String(Math.max(8, Math.round(level * 28)))}px`,
-                          opacity: Math.max(0.35, level),
-                          transition: 'height 700ms ease, opacity 700ms ease',
-                        }}
-                      />
+                        className="relative z-10 inline-flex h-full items-center"
+                      >
+                        <span
+                          className="w-[3px] rounded-[2px] bg-text-primary/95"
+                          style={{
+                            height: `${String(Math.max(4, Math.round(level * 28)))}px`,
+                            opacity: Math.max(0.35, level),
+                            transition: 'height 800ms ease, opacity 800ms ease',
+                          }}
+                        />
+                      </span>
                     ))
                   ) : (
-                    <div className="flex items-center gap-2 text-[12px] text-text-secondary">
+                    <div className="relative z-10 flex items-center gap-2 text-[12px] text-text-secondary">
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       <span>Transcribing locally...</span>
                     </div>
@@ -1022,6 +1027,22 @@ export function Composer({
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 </div>
               )}
+              <button
+                type="button"
+                onClick={handleVoiceSend}
+                disabled={isTranscribingVoice}
+                className={cn(
+                  'flex h-8 w-8 items-center justify-center rounded-full transition-colors',
+                  isTranscribingVoice
+                    ? 'border border-border bg-bg-tertiary cursor-not-allowed'
+                    : 'bg-text-primary text-bg hover:bg-text-primary/90',
+                )}
+                title="Send recording"
+              >
+                <ArrowUp
+                  className={cn('h-4 w-4', isTranscribingVoice ? 'text-text-muted' : 'text-bg')}
+                />
+              </button>
             </div>
           </div>
         ) : (
@@ -1045,8 +1066,8 @@ export function Composer({
           </div>
         )}
 
-        <div className="flex items-center justify-between h-11 px-4">
-          {!isVoiceModeActive ? (
+        {!isVoiceModeActive && (
+          <div className="flex items-center justify-between h-11 px-4">
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
@@ -1108,12 +1129,8 @@ export function Composer({
                 )}
               </div>
             </div>
-          ) : (
-            <div />
-          )}
 
-          <div className="flex items-center gap-2">
-            {!isVoiceModeActive && (
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={handleVoiceToggle}
@@ -1140,50 +1157,35 @@ export function Composer({
                   <Mic className="h-[15px] w-[15px]" />
                 )}
               </button>
-            )}
 
-            {isLoading ? (
-              <button
-                type="button"
-                onClick={onCancel}
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-error/35 bg-error/10 text-error transition-colors hover:bg-error/18"
-                title="Cancel"
-              >
-                <Square className="h-3.5 w-3.5" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={isVoiceModeActive ? handleVoiceSend : handleSubmit}
-                disabled={isVoiceModeActive ? isTranscribingVoice : !canSend}
-                className={cn(
-                  'flex h-8 w-8 items-center justify-center rounded-full transition-colors',
-                  isVoiceModeActive
-                    ? isTranscribingVoice
-                      ? 'border border-border bg-bg-tertiary cursor-not-allowed'
-                      : 'bg-gradient-to-b from-accent to-accent-dim'
-                    : canSend
+              {isLoading ? (
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-error/35 bg-error/10 text-error transition-colors hover:bg-error/18"
+                  title="Cancel"
+                >
+                  <Square className="h-3.5 w-3.5" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={!canSend}
+                  className={cn(
+                    'flex h-8 w-8 items-center justify-center rounded-full transition-colors',
+                    canSend
                       ? 'bg-gradient-to-b from-accent to-accent-dim'
                       : 'border border-border bg-bg-tertiary cursor-not-allowed',
-                )}
-                title={isVoiceModeActive ? 'Send recording' : 'Send message'}
-              >
-                <ArrowUp
-                  className={cn(
-                    'h-4 w-4',
-                    isVoiceModeActive
-                      ? isTranscribingVoice
-                        ? 'text-text-muted'
-                        : 'text-bg'
-                      : canSend
-                        ? 'text-bg'
-                        : 'text-text-muted',
                   )}
-                />
-              </button>
-            )}
+                  title="Send message"
+                >
+                  <ArrowUp className={cn('h-4 w-4', canSend ? 'text-bg' : 'text-text-muted')} />
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="flex items-center justify-between h-9 px-4 border-t border-border">
           <div className="flex items-center gap-1">
