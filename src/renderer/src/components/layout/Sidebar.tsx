@@ -69,6 +69,8 @@ export function Sidebar({
     <aside className="flex h-full w-[224px] shrink-0 flex-col justify-between bg-bg-secondary border-r border-border">
       {/* sidebar-top */}
       <div className="flex flex-1 flex-col overflow-hidden">
+        {/* macOS traffic light clearance */}
+        <div className="drag-region shrink-0 h-[24px]" />
         {/* Logo — drag region, padding [14,16] */}
         <div className="drag-region flex shrink-0 items-center gap-2 px-4 py-[14px]">
           <SquareTerminal className="no-drag h-4 w-4 text-accent" />
