@@ -11,16 +11,31 @@
       <stop offset="0" stop-color="#f7be4e"/>
       <stop offset="1" stop-color="#b87410"/>
     </linearGradient>
-    <linearGradient id="wingGradient" x1="118" y1="210" x2="394" y2="330" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#c9d8ee" stop-opacity="0.72"/>
-      <stop offset="1" stop-color="#8ba3cf" stop-opacity="0.32"/>
+    <linearGradient id="wingGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c9d8ee" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#8ba3cf" stop-opacity="0.68"/>
     </linearGradient>
     <clipPath id="beeClip">
       <path d="M256 124C189 124 146 178 146 247C146 307 177 358 213 384V428H236V395C248 399 264 399 276 395V428H299V384C335 358 366 307 366 247C366 178 323 124 256 124Z"/>
     </clipPath>
+    <linearGradient id="honeyRimB" x1="92" y1="74" x2="420" y2="430" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fbe0a4"/>
+      <stop offset="1" stop-color="#cd8414"/>
+    </linearGradient>
+    <pattern id="honeyCellsB" width="24" height="21" patternUnits="userSpaceOnUse">
+      <path d="M12 1L22 6.5V17.5L12 23L2 17.5V6.5L12 1Z" fill="none" stroke="#f7cf7a" stroke-opacity="0.35" stroke-width="1"/>
+    </pattern>
+    <linearGradient id="honeyGlowB" x1="256" y1="58" x2="256" y2="250" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f7cf7a" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#f7cf7a" stop-opacity="0"/>
+    </linearGradient>
   </defs>
 
-  <path d="M256 32L440 138V374L256 480L72 374V138L256 32Z" fill="url(#panelGradient)" stroke="#2a3240" stroke-width="10"/>
+  <path d="M256 32L440 138V374L256 480L72 374V138L256 32Z" fill="url(#panelGradient)" stroke="#263149" stroke-width="11"/>
+  <path d="M256 32L440 138V374L256 480L72 374V138L256 32Z" fill="url(#honeyCellsB)" opacity="0.14"/>
+  <path d="M256 58L418 151V361L256 454L94 361V151L256 58Z" fill="url(#honeyGlowB)"/>
+  <path d="M256 32L440 138V374L256 480L72 374V138L256 32Z" fill="none" stroke="url(#honeyRimB)" stroke-width="5.8"/>
+  <path d="M256 52L422 148V364L256 460L90 364V148L256 52Z" fill="none" stroke="#f7cf7a" stroke-opacity="0.28" stroke-width="2"/>
 
   <path d="M153 236C102 218 78 254 92 299C107 348 164 344 188 299C198 279 193 251 153 236Z" fill="url(#wingGradient)" stroke="#7d95c0" stroke-opacity="0.6" stroke-width="6"/>
   <path d="M359 236C410 218 434 254 420 299C405 348 348 344 324 299C314 279 319 251 359 236Z" fill="url(#wingGradient)" stroke="#7d95c0" stroke-opacity="0.6" stroke-width="6"/>
