@@ -190,6 +190,8 @@ export function Sidebar({
           </button>
         </div>
 
+        <div className="shrink-0 h-6" />
+
         {/* Threads header — h30, padding [0,16], justify-between */}
         <div className="no-drag flex shrink-0 items-center justify-between h-[30px] px-4">
           <span className="text-[11px] font-medium text-text-tertiary">Threads</span>
