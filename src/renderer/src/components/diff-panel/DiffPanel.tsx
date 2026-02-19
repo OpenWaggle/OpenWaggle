@@ -83,7 +83,7 @@ export function DiffPanel({ projectPath, onSendMessage }: DiffPanelProps): React
   }
 
   return (
-    <div className="flex flex-col h-full w-[600px] bg-diff-bg shrink-0">
+    <div className="flex flex-col h-full w-full bg-diff-bg">
       {/* Main split: diff area + file tree */}
       <div className="flex flex-1 overflow-hidden">
         {/* Diff Area */}

@@ -2,6 +2,7 @@ import type { SupportedModelId } from '@shared/types/llm'
 import { useEffect, useRef, useState } from 'react'
 import { ChatPanel } from '@/components/chat/ChatPanel'
 import { DiffPanel } from '@/components/diff-panel/DiffPanel'
+import { ResizeHandle } from '@/components/diff-panel/ResizeHandle'
 import { Header } from '@/components/layout/Header'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { SettingsDialog } from '@/components/settings/SettingsDialog'
@@ -21,7 +22,12 @@ export function App(): React.JSX.Element {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [terminalOpen, setTerminalOpen] = useState(false)
   const [diffPanelOpen, setDiffPanelOpen] = useState(false)
+  const [diffPanelWidth, setDiffPanelWidth] = useState(600)
   const [diffRefreshKey, setDiffRefreshKey] = useState(0)
+
+  const DIFF_PANEL_MIN = 360
+  const DIFF_PANEL_MAX = 900
+  const CHAT_MIN_WIDTH = 480
 
   useSettingsSetup()
 
@@ -229,8 +235,11 @@ export function App(): React.JSX.Element {
         />
 
         {/* Main content — chat panel + optional diff panel */}
-        <div className="flex flex-1 overflow-hidden">
-          <div className="flex flex-1 justify-center overflow-hidden">
+        <div className={cn('flex flex-1', diffPanelOpen ? 'overflow-x-auto' : 'overflow-hidden')}>
+          <div
+            className="flex justify-center overflow-hidden shrink-0"
+            style={{ minWidth: `${String(CHAT_MIN_WIDTH)}px`, flex: '1 1 0%' }}
+          >
             <ChatPanel
               messages={messages}
               isLoading={isLoading}
@@ -256,21 +265,29 @@ export function App(): React.JSX.Element {
             />
           </div>
 
-          {/* Diff panel with slide transition */}
-          <div
-            className={cn(
-              'shrink-0 overflow-hidden transition-[width] duration-200 ease-out border-l border-border',
-              diffPanelOpen ? 'w-[600px]' : 'w-0 border-l-0',
-            )}
-          >
-            {diffPanelOpen && (
-              <DiffPanel
-                key={diffRefreshKey}
-                projectPath={projectPath}
-                onSendMessage={handleSend}
+          {/* Resize handle + Diff panel */}
+          {diffPanelOpen && (
+            <>
+              <ResizeHandle
+                onResize={(delta) =>
+                  setDiffPanelWidth((w) =>
+                    Math.min(DIFF_PANEL_MAX, Math.max(DIFF_PANEL_MIN, w + delta)),
+                  )
+                }
+                onResizeEnd={() => {}}
               />
-            )}
-          </div>
+              <div
+                className="shrink-0 overflow-hidden"
+                style={{ width: `${String(diffPanelWidth)}px` }}
+              >
+                <DiffPanel
+                  key={diffRefreshKey}
+                  projectPath={projectPath}
+                  onSendMessage={handleSend}
+                />
+              </div>
+            </>
+          )}
         </div>
 
         {/* Terminal with slide transition */}
