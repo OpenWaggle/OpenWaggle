@@ -33,6 +33,22 @@
   --color-diff-card-border: #252018;
   --color-link-yellow: #ffd166;
 
+  /* Diff panel */
+  --color-diff-bg: #0d0f12;
+  --color-diff-file-bg: #141922;
+  --color-diff-file-border: #343d4d;
+  --color-diff-header-bg: #111418;
+  --color-diff-add-bg: #0d2e1a;
+  --color-diff-remove-bg: #2d1214;
+  --color-diff-add-text: #ffd166;
+  --color-diff-add-mark: #f5a623;
+  --color-diff-remove-text: #ef4444;
+  --color-diff-remove-num: #ef444466;
+  --color-diff-add-num: #f5a62366;
+  --color-diff-context-text: #c9cdd6;
+  --color-diff-highlight-bg: #17130a;
+  --color-diff-stage-bg: #1a2e1a;
+
   /* Typography */
   --font-mono: "SF Mono", "JetBrains Mono", "Cascadia Mono", ui-monospace, monospace;
   --font-sans:
