@@ -165,53 +165,60 @@ export function Sidebar({
                     </span>
                   </button>
 
-                  {/* Thread items */}
-                  {!isCollapsed && group.conversations.map((conv) => {
-                    const isActive = conv.id === activeId
-                    return (
-                      <div
-                        key={String(conv.id)}
-                        className={cn(
-                          'group flex items-center h-[34px] w-full',
-                          isActive
-                            ? 'bg-bg-active border-l-2 border-accent pr-3 pl-6'
-                            : 'px-3 hover:bg-bg-hover',
-                        )}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => onSelect(conv.id)}
-                          className="flex min-w-0 flex-1 items-center gap-1.5"
-                        >
-                          <span
+                  {/* Thread items — animated collapse via grid-rows */}
+                  <div
+                    className="grid transition-[grid-template-rows] duration-200 ease-out"
+                    style={{ gridTemplateRows: isCollapsed ? '0fr' : '1fr' }}
+                  >
+                    <div className="overflow-hidden">
+                      {group.conversations.map((conv) => {
+                        const isActive = conv.id === activeId
+                        return (
+                          <div
+                            key={String(conv.id)}
                             className={cn(
-                              'truncate text-[11px]',
-                              isActive ? 'font-medium text-text-primary' : 'text-text-secondary',
+                              'group flex items-center h-[34px] w-full',
+                              isActive
+                                ? 'bg-bg-active border-l-2 border-accent pr-3 pl-6'
+                                : 'px-3 hover:bg-bg-hover',
                             )}
                           >
-                            {truncate(conv.title, 20)}
-                          </span>
-                          <span className="shrink-0 text-[10px] text-text-tertiary">
-                            {formatRelativeTime(conv.updatedAt)}
-                          </span>
-                        </button>
+                            <button
+                              type="button"
+                              onClick={() => onSelect(conv.id)}
+                              className="flex min-w-0 flex-1 items-center gap-1.5"
+                            >
+                              <span
+                                className={cn(
+                                  'truncate text-[11px]',
+                                  isActive ? 'font-medium text-text-primary' : 'text-text-secondary',
+                                )}
+                              >
+                                {truncate(conv.title, 20)}
+                              </span>
+                              <span className="shrink-0 text-[10px] text-text-tertiary">
+                                {formatRelativeTime(conv.updatedAt)}
+                              </span>
+                            </button>
 
-                        {!isActive && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onDelete(conv.id)
-                            }}
-                            className="invisible ml-1 shrink-0 rounded-md p-0.5 text-text-muted transition-colors group-hover:visible hover:text-error"
-                            title="Delete thread"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        )}
-                      </div>
-                    )
-                  })}
+                            {!isActive && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  onDelete(conv.id)
+                                }}
+                                className="invisible ml-1 shrink-0 rounded-md p-0.5 text-text-muted transition-colors group-hover:visible hover:text-error"
+                                title="Delete thread"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
                 </div>
               )
             })
