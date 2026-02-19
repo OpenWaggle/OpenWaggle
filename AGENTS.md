@@ -34,10 +34,12 @@ These rules are **non-negotiable**. Violating them invalidates your work.
 
 **After completing ANY task:**
 
-1. Add discoveries to "Recent Discoveries" section
-2. If a learning is significant, mark it with `[SKILL?]`
-3. If any section exceeds its cap, consolidate or archive oldest items
-4. If YOUR task's learning is marked `[SKILL?]`, ask user: *"This seems significant — should I create a skill for [X]?"*
+1. Add learnings to "Recent Learnings" only when they are high-signal technical findings (implementation, integration, architecture, debugging patterns, or non-obvious framework/tool constraints)
+2. Do NOT add routine project-management notes (e.g. missing docs/backlog file, branch names, generic process updates) unless they materially affect implementation behavior
+3. If there is no significant technical learning, add nothing for that task
+4. If a learning is significant, mark it with `[SKILL?]`
+5. If any section exceeds its cap, consolidate or archive oldest items
+6. If YOUR task's learning is marked `[SKILL?]`, ask user: *"This seems significant — should I create a skill for [X]?"*
 
 ### Git Workflow (MUST FOLLOW)
 
@@ -53,7 +55,7 @@ These rules are **non-negotiable**. Violating them invalidates your work.
 2. Tests added/updated for behavior changes.
 3. Required verification passed for task class.
 4. Docs updated if behavior, workflow, or developer expectations changed.
-5. Significant learnings appended to `LEARNINGS.md`.
+5. Significant learnings appended to `LEARNINGS.md` (**if there is any significant learning to add**).
 6. Changes are grouped into logical commits.
 
 ## Architecture
