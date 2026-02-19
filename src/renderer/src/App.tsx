@@ -1,7 +1,6 @@
+import type { SupportedModelId } from '@shared/types/llm'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChatPanel } from '@/components/chat/ChatPanel'
-import { Composer } from '@/components/composer/Composer'
-import { StatusBar } from '@/components/composer/StatusBar'
 import { Header } from '@/components/layout/Header'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { SettingsDialog } from '@/components/settings/SettingsDialog'
@@ -21,7 +20,7 @@ export function App(): React.JSX.Element {
   useSettingsSetup()
 
   const { settings, isLoaded, providerModels, setDefaultModel } = useSettings()
-  const { projectPath } = useProject()
+  const { projectPath, selectFolder, setProjectPath } = useProject()
   const {
     conversations,
     activeConversation,
@@ -39,6 +38,12 @@ export function App(): React.JSX.Element {
   const currentModel = settings.defaultModel
 
   const conversation = useChatStore((s) => s.activeConversation)
+  const messageModelLookup: Record<string, SupportedModelId> = {}
+  for (const msg of conversation?.messages ?? []) {
+    if (msg.role === 'assistant' && msg.model) {
+      messageModelLookup[String(msg.id)] = msg.model
+    }
+  }
   const { messages, sendMessage, isLoading, stop, error } = useAgentChat(
     activeConversationId,
     conversation,
@@ -55,9 +60,27 @@ export function App(): React.JSX.Element {
     }
   }, [activeConversationId, sendMessage])
 
+  const handleSelectConversation = useCallback(
+    async (id: Parameters<typeof setActiveConversation>[0]) => {
+      const conv = conversations.find((c) => c.id === id)
+      if (conv && conv.projectPath !== projectPath) {
+        await setProjectPath(conv.projectPath)
+      }
+      await setActiveConversation(id)
+    },
+    [conversations, projectPath, setActiveConversation, setProjectPath],
+  )
+
   const handleNewConversation = useCallback(async () => {
-    await createConversation(currentModel, projectPath)
-  }, [createConversation, currentModel, projectPath])
+    await createConversation(projectPath)
+  }, [createConversation, projectPath])
+
+  const handleOpenProject = useCallback(async () => {
+    const path = await selectFolder()
+    if (path) {
+      await createConversation(path)
+    }
+  }, [selectFolder, createConversation])
 
   const handleModelChange = useCallback(
     (model: typeof currentModel) => {
@@ -70,12 +93,12 @@ export function App(): React.JSX.Element {
     async (content: string) => {
       if (!activeConversationId) {
         pendingMessage.current = content
-        await createConversation(currentModel, projectPath)
+        await createConversation(projectPath)
         return
       }
       await sendMessage(content)
     },
-    [activeConversationId, createConversation, currentModel, projectPath, sendMessage],
+    [activeConversationId, createConversation, projectPath, sendMessage],
   )
 
   // Keyboard shortcuts
@@ -108,78 +131,68 @@ export function App(): React.JSX.Element {
   }
 
   return (
-    <div className="h-full w-full bg-transparent p-2">
-      <div className="flex h-full overflow-hidden rounded-[16px] border border-border/95 bg-bg shadow-[0_20px_56px_rgba(0,0,0,0.45)]">
-        {/* Sidebar with slide transition */}
-        <div
-          className={cn(
-            'shrink-0 overflow-hidden transition-[width] duration-200 ease-out',
-            sidebarOpen ? 'w-[252px]' : 'w-0',
-          )}
-        >
-          <Sidebar
-            conversations={conversations}
-            activeId={activeConversationId}
-            onSelect={setActiveConversation}
-            onDelete={deleteConversation}
-            onNew={handleNewConversation}
-            onOpenSettings={() => setSettingsOpen(true)}
-          />
-        </div>
+    <div className="flex h-full w-full overflow-hidden bg-bg">
+      {/* Sidebar with slide transition */}
+      <div
+        className={cn(
+          'shrink-0 overflow-hidden transition-[width] duration-200 ease-out',
+          sidebarOpen ? 'w-[272px]' : 'w-0',
+        )}
+      >
+        <Sidebar
+          conversations={conversations}
+          activeId={activeConversationId}
+          onSelect={handleSelectConversation}
+          onDelete={deleteConversation}
+          onNew={handleNewConversation}
+          onOpenProject={handleOpenProject}
+          onOpenSettings={() => setSettingsOpen(true)}
+        />
+      </div>
 
-        {/* Main panel */}
-        <div className="flex flex-1 flex-col overflow-hidden bg-bg/85">
-          <Header
-            conversationTitle={activeConversation?.title ?? null}
+      {/* Main panel */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <Header
+          conversationTitle={activeConversation?.title ?? null}
+          projectPath={projectPath}
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          sidebarOpen={sidebarOpen}
+        />
+
+        {/* Main content — centers the chat panel */}
+        <div className="flex flex-1 justify-center overflow-hidden">
+          <ChatPanel
+            messages={messages}
+            isLoading={isLoading}
+            error={error}
             projectPath={projectPath}
-            onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-            sidebarOpen={sidebarOpen}
-          />
-
-          {/* Thread content area */}
-          <div className="flex flex-1 overflow-hidden">
-            <main className="flex-1 overflow-hidden">
-              <ChatPanel
-                messages={messages}
-                isLoading={isLoading}
-                error={error}
-                projectPath={projectPath}
-                hasProject={!!projectPath}
-                onOpenSettings={() => setSettingsOpen(true)}
-                onRetry={handleSend}
-              />
-            </main>
-          </div>
-
-          {/* Composer */}
-          <Composer
+            hasProject={!!projectPath}
+            onOpenSettings={() => setSettingsOpen(true)}
+            onRetry={handleSend}
             onSend={handleSend}
             onCancel={stop}
-            isLoading={isLoading}
             model={currentModel}
             onModelChange={handleModelChange}
             settings={settings}
             providerModels={providerModels}
+            messageModelLookup={messageModelLookup}
           />
-
-          {/* Terminal with slide transition */}
-          <div
-            className={cn(
-              'overflow-hidden transition-[height] duration-200 ease-out',
-              terminalOpen ? 'h-[228px]' : 'h-0',
-            )}
-          >
-            {terminalOpen && (
-              <TerminalPanel projectPath={projectPath} onClose={() => setTerminalOpen(false)} />
-            )}
-          </div>
-
-          {/* Status bar */}
-          <StatusBar projectPath={projectPath} />
         </div>
 
-        <SettingsDialog isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+        {/* Terminal with slide transition */}
+        <div
+          className={cn(
+            'overflow-hidden transition-[height] duration-200 ease-out',
+            terminalOpen ? 'h-[228px]' : 'h-0',
+          )}
+        >
+          {terminalOpen && (
+            <TerminalPanel projectPath={projectPath} onClose={() => setTerminalOpen(false)} />
+          )}
+        </div>
       </div>
+
+      <SettingsDialog isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   )
 }

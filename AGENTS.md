@@ -1,6 +1,6 @@
-# CODEX.md
+# AGENTS.md
 
-This file provides guidance to CODEX when working with code in this repository.
+This file provides guidance to Agents when working with code in this repository.
 
 ## Commands
 
@@ -31,13 +31,17 @@ These rules are **non-negotiable**. Violating them invalidates your work.
 
 1. Read `LEARNINGS.md` sections 1-4 (skip Archive)
 2. Note any warnings relevant to your task
+3. Read `docs/product/ui-interaction-prd.md` and check whether the task maps to any planned/future UI feature (`HC-UI-*` items)
+4. If task is related, explicitly align implementation decisions with that PRD/spec and update the same document when scope/behavior changes
 
 **After completing ANY task:**
 
-1. Add discoveries to "Recent Discoveries" section
-2. If a learning is significant, mark it with `[SKILL?]`
-3. If any section exceeds its cap, consolidate or archive oldest items
-4. If YOUR task's learning is marked `[SKILL?]`, ask user: *"This seems significant — should I create a skill for [X]?"*
+1. Add learnings to "Recent Learnings" only when they are high-signal technical findings (implementation, integration, architecture, debugging patterns, or non-obvious framework/tool constraints)
+2. Do NOT add routine project-management notes (e.g. missing docs/backlog file, branch names, generic process updates) unless they materially affect implementation behavior
+3. If there is no significant technical learning, add nothing for that task
+4. If a learning is significant, mark it with `[SKILL?]`
+5. If any section exceeds its cap, consolidate or archive oldest items
+6. If YOUR task's learning is marked `[SKILL?]`, ask user: *"This seems significant — should I create a skill for [X]?"*
 
 ### Git Workflow (MUST FOLLOW)
 
@@ -53,7 +57,7 @@ These rules are **non-negotiable**. Violating them invalidates your work.
 2. Tests added/updated for behavior changes.
 3. Required verification passed for task class.
 4. Docs updated if behavior, workflow, or developer expectations changed.
-5. Significant learnings appended to `LEARNINGS.md`.
+5. Significant learnings appended to `LEARNINGS.md` (**if there is any significant learning to add**).
 6. Changes are grouped into logical commits.
 
 ## Architecture

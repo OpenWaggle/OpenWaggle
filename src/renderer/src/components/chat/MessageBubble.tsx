@@ -1,14 +1,19 @@
+import { generateDisplayName, type SupportedModelId } from '@shared/types/llm'
 import type { UIMessage } from '@tanstack/ai-react'
-import { cn } from '@/lib/cn'
 import { StreamingText } from './StreamingText'
 import { ToolCallBlock } from './ToolCallBlock'
 
 interface MessageBubbleProps {
   message: UIMessage
   isStreaming?: boolean
+  assistantModel?: SupportedModelId
 }
 
-export function MessageBubble({ message, isStreaming }: MessageBubbleProps): React.JSX.Element {
+export function MessageBubble({
+  message,
+  isStreaming,
+  assistantModel,
+}: MessageBubbleProps): React.JSX.Element {
   const isUser = message.role === 'user'
 
   const toolResults = new Map<string, { content: string; state: string; error?: string }>()
@@ -22,28 +27,13 @@ export function MessageBubble({ message, isStreaming }: MessageBubbleProps): Rea
     }
   }
 
-  return (
-    <div className="px-1 py-2">
-      <div
-        className={cn(
-          'rounded-2xl px-5 py-3.5',
-          isUser ? 'border border-border/75 bg-bg-secondary/62' : 'bg-transparent',
-        )}
-      >
-        {/* Role label */}
-        <div className="mb-1">
-          <span
-            className={cn(
-              'text-[11px] font-semibold tracking-[0.04em]',
-              isUser ? 'text-text-tertiary uppercase' : 'text-text-secondary uppercase',
-            )}
-          >
-            {isUser ? 'You' : 'HiveCode'}
-          </span>
-        </div>
-
-        {isUser ? (
-          <div className="text-sm leading-relaxed text-text-primary">
+  if (isUser) {
+    return (
+      /* User msg container — justifyContent: end, width: fill_container */
+      <div className="flex justify-end w-full">
+        {/* User bubble — cornerRadius [16,16,2,16], fill #1e2229, padding [10,14], stroke #2a3240 1px */}
+        <div className="rounded-[16px_16px_2px_16px] bg-bg-hover border border-border-light py-2.5 px-3.5">
+          <div className="text-[13px] leading-[1.5] text-text-primary">
             {message.parts
               .filter(
                 (p): p is Extract<(typeof message.parts)[number], { type: 'text' }> =>
@@ -53,36 +43,48 @@ export function MessageBubble({ message, isStreaming }: MessageBubbleProps): Rea
                 <span key={`${message.id}-text-${String(i)}`}>{p.content}</span>
               ))}
           </div>
-        ) : (
-          <div className="space-y-2">
-            {message.parts.map((part, i) => {
-              switch (part.type) {
-                case 'text':
-                  return part.content.trim() ? (
-                    <StreamingText
-                      key={`${message.id}-text-${String(i)}`}
-                      text={part.content}
-                      isStreaming={isStreaming}
-                    />
-                  ) : null
-                case 'tool-call':
-                  return (
-                    <ToolCallBlock
-                      key={`tool-${part.id}`}
-                      name={part.name}
-                      args={part.arguments}
-                      state={part.state}
-                      result={toolResults.get(part.id)}
-                    />
-                  )
-                case 'tool-result':
-                  return null
-                default:
-                  return null
-              }
-            })}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    /* Assistant msg — width: fill_container, no background */
+    <div className="w-full">
+      <div className="flex flex-col gap-2">
+        {assistantModel && (
+          <div>
+            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] text-text-muted bg-bg-tertiary/40 border border-border/70">
+              {generateDisplayName(assistantModel)}
+            </span>
           </div>
         )}
+        {message.parts.map((part, i) => {
+          switch (part.type) {
+            case 'text':
+              return part.content.trim() ? (
+                <StreamingText
+                  key={`${message.id}-text-${String(i)}`}
+                  text={part.content}
+                  isStreaming={isStreaming}
+                />
+              ) : null
+            case 'tool-call':
+              return (
+                <ToolCallBlock
+                  key={`tool-${part.id}`}
+                  name={part.name}
+                  args={part.arguments}
+                  state={part.state}
+                  result={toolResults.get(part.id)}
+                />
+              )
+            case 'tool-result':
+              return null
+            default:
+              return null
+          }
+        })}
       </div>
     </div>
   )

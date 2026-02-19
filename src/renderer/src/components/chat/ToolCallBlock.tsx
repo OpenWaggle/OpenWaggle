@@ -84,12 +84,12 @@ export function ToolCallBlock({
   }, [isRunning])
 
   return (
-    <div className="my-1.5 rounded-lg border border-border bg-bg-secondary/60 overflow-hidden">
-      {/* Header row */}
+    <div className="rounded-lg border border-diff-card-border bg-diff-card-bg overflow-hidden">
+      {/* Header row — h36, padding [0,14] */}
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-[13px] hover:bg-bg-hover transition-colors"
+        className="flex w-full items-center gap-2 h-9 px-3.5 text-[13px] hover:bg-bg-hover transition-colors"
       >
         <ChevronRight
           className={cn(

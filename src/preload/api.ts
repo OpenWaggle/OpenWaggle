@@ -90,8 +90,8 @@ export const api: HiveCodeApi = {
     return ipcRenderer.invoke('conversations:get', id)
   },
 
-  createConversation(model: SupportedModelId, projectPath: string | null): Promise<Conversation> {
-    return ipcRenderer.invoke('conversations:create', model, projectPath)
+  createConversation(projectPath: string | null): Promise<Conversation> {
+    return ipcRenderer.invoke('conversations:create', projectPath)
   },
 
   deleteConversation(id: ConversationId): Promise<void> {
@@ -128,5 +128,14 @@ export const api: HiveCodeApi = {
     }
     ipcRenderer.on('terminal:data', handler)
     return () => ipcRenderer.removeListener('terminal:data', handler)
+  },
+
+  // ─── Window ──────────────────────────────────────────
+  onFullscreenChanged(callback: (isFullscreen: boolean) => void): () => void {
+    const handler = (_event: Electron.IpcRendererEvent, payload: boolean): void => {
+      callback(payload)
+    }
+    ipcRenderer.on('window:fullscreen-changed', handler)
+    return () => ipcRenderer.removeListener('window:fullscreen-changed', handler)
   },
 }

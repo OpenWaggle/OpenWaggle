@@ -45,7 +45,7 @@ const messageSchema = z.object({
 const conversationSchema = z.object({
   id: z.string(),
   title: z.string(),
-  model: z.string(),
+  model: z.string().optional(),
   projectPath: z.string().nullable(),
   messages: z.array(messageSchema),
   createdAt: z.number(),
@@ -117,16 +117,21 @@ function parseConversation(raw: string): Conversation | null {
   if (!result.success) return null
 
   const data = result.data
+  const legacyConversationModel =
+    typeof data.model === 'string' ? migrateModelId(data.model) : undefined
   return {
     id: ConversationId(data.id),
     title: data.title,
-    model: migrateModelId(data.model),
     projectPath: data.projectPath,
     messages: data.messages.map((m: ParsedMessage) => ({
       id: MessageId(m.id),
       role: m.role,
       parts: m.parts.map(transformPart),
-      model: m.model ? migrateModelId(m.model) : undefined,
+      model: m.model
+        ? migrateModelId(m.model)
+        : m.role === 'assistant'
+          ? legacyConversationModel
+          : undefined,
       createdAt: m.createdAt,
     })),
     createdAt: data.createdAt,
@@ -163,7 +168,6 @@ export async function listConversations(): Promise<ConversationSummary[]> {
       summaries.push({
         id: conv.id,
         title: conv.title,
-        model: conv.model,
         projectPath: conv.projectPath,
         messageCount: conv.messages.length,
         createdAt: conv.createdAt,
@@ -187,15 +191,11 @@ export async function getConversation(id: ConversationId): Promise<Conversation 
   }
 }
 
-export async function createConversation(
-  model: SupportedModelId,
-  projectPath: string | null,
-): Promise<Conversation> {
+export async function createConversation(projectPath: string | null): Promise<Conversation> {
   const now = Date.now()
   const conv: Conversation = {
     id: ConversationId(randomUUID()),
     title: 'New thread',
-    model,
     projectPath,
     messages: [],
     createdAt: now,

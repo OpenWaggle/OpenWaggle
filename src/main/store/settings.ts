@@ -7,6 +7,7 @@ import {
 } from '@shared/types/settings'
 import Store from 'electron-store'
 import { z } from 'zod'
+import { providerRegistry } from '../providers'
 
 const store = new Store<Settings>({
   name: 'settings',
@@ -43,9 +44,17 @@ export function getSettings(): Settings {
     }
   }
 
+  const rawDefaultModel = store.get('defaultModel', DEFAULT_SETTINGS.defaultModel)
+  const defaultModel = providerRegistry.isKnownModel(rawDefaultModel)
+    ? rawDefaultModel
+    : DEFAULT_SETTINGS.defaultModel
+  if (defaultModel !== rawDefaultModel) {
+    store.set('defaultModel', defaultModel)
+  }
+
   return {
     providers,
-    defaultModel: store.get('defaultModel', DEFAULT_SETTINGS.defaultModel),
+    defaultModel,
     projectPath: store.get('projectPath', DEFAULT_SETTINGS.projectPath),
   }
 }

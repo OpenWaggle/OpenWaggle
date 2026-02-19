@@ -1,6 +1,6 @@
 import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from '@shared/types/llm'
 import type { Provider, Settings } from '@shared/types/settings'
-import { Check, ChevronDown } from 'lucide-react'
+import { Check } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/cn'
 
@@ -109,10 +109,10 @@ export function ModelSelector({
         onKeyDown={handleKeyDown}
         aria-expanded={isOpen}
         aria-haspopup="listbox"
-        className="no-drag flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+        className="no-drag flex items-center gap-[5px] h-[26px] px-2.5 rounded-md border border-button-border text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
       >
-        <span className="truncate max-w-[180px]">{selectedModel?.name ?? value}</span>
-        <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
+        <span className="truncate max-w-[180px] text-[11px]">{selectedModel?.name ?? value}</span>
+        <span className="text-[9px] text-text-tertiary">&#x2228;</span>
       </button>
 
       {isOpen && (
