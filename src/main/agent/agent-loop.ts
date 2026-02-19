@@ -6,7 +6,7 @@ import type { SupportedModelId } from '@shared/types/llm'
 import type { Settings } from '@shared/types/settings'
 import { chat, maxIterations, type StreamChunk } from '@tanstack/ai'
 import { providerRegistry } from '../providers'
-import { setToolContext } from '../tools/define-tool'
+import { runWithToolContext } from '../tools/define-tool'
 import { getServerTools } from '../tools/registry'
 import { buildSystemPrompt } from './system-prompt'
 
@@ -108,149 +108,170 @@ function makeMessage(
   }
 }
 
-export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> {
-  const { conversation, userMessage, model, settings, onChunk, signal } = params
-
-  // Set tool context for this run
-  setToolContext({
-    projectPath: conversation.projectPath ?? process.cwd(),
-    signal,
-  })
-
-  // Resolve provider and adapter via the registry
-  const provider = providerRegistry.getProviderForModel(model)
-  if (!provider) throw new Error(`No provider registered for model: ${model}`)
-
-  const providerConfig = settings.providers[provider.id]
-  if (provider.requiresApiKey && !providerConfig?.apiKey) {
-    throw new Error(`No API key configured for ${provider.displayName}`)
-  }
-
-  const adapter = provider.createAdapter(
-    model,
-    providerConfig?.apiKey ?? '',
-    providerConfig?.baseUrl,
-  )
-
-  const systemPrompt = buildSystemPrompt(conversation.projectPath)
-  const abortController = new AbortController()
-  signal.addEventListener('abort', () => abortController.abort(), { once: true })
-
-  // Build messages
-  const existingMessages = conversationToMessages(conversation.messages)
-  const newUserMessage: SimpleChatMessage = { role: 'user', content: userMessage }
-  const allMessages = [...existingMessages, newUserMessage]
-
-  const hasProject = !!conversation.projectPath
-
-  const stream: AsyncIterable<StreamChunk> = chat({
-    adapter,
-    messages: allMessages,
-    systemPrompts: [systemPrompt],
-    tools: hasProject ? getServerTools() : [],
-    agentLoopStrategy: maxIterations(MAX_ITERATIONS),
-    abortController,
-  })
-
-  // Collect events for building our Message objects
-  const collectedParts: MessagePart[] = []
-  let currentText = ''
-  const toolCallArgs: Record<string, string> = {}
-  const toolCallStartTimes: Record<string, number> = {}
-
-  for await (const chunk of stream) {
-    if (signal.aborted) break
-
-    // Forward raw chunk to renderer for the useChat IPC adapter
-    onChunk(chunk)
-
-    // Collect message parts for persistence
-    switch (chunk.type) {
-      case 'TEXT_MESSAGE_CONTENT':
-        currentText += chunk.delta
-        break
-
-      case 'TOOL_CALL_START':
-        // Flush accumulated text
-        if (currentText.trim()) {
-          collectedParts.push({ type: 'text', text: currentText })
-          currentText = ''
-        }
-        toolCallArgs[chunk.toolCallId] = ''
-        toolCallStartTimes[chunk.toolCallId] = Date.now()
-        break
-
-      case 'TOOL_CALL_ARGS':
-        toolCallArgs[chunk.toolCallId] = (toolCallArgs[chunk.toolCallId] ?? '') + chunk.delta
-        break
-
-      case 'TOOL_CALL_END': {
-        let args: Record<string, unknown> = {}
-        const rawArgs = toolCallArgs[chunk.toolCallId] ?? '{}'
-        try {
-          args = JSON.parse(rawArgs)
-        } catch (parseError) {
-          console.warn(
-            `Failed to parse tool call args for "${chunk.toolName}":`,
-            parseError instanceof Error ? parseError.message : parseError,
-            `| raw: ${rawArgs.slice(0, 200)}`,
-          )
-        }
-
-        collectedParts.push({
-          type: 'tool-call',
-          toolCall: { id: ToolCallId(chunk.toolCallId), name: chunk.toolName, args },
-        })
-
-        // TanStack AI executes the tool via ServerTool.execute and provides the result
-        if (chunk.result !== undefined) {
-          const startTime = toolCallStartTimes[chunk.toolCallId]
-          const duration = startTime ? Date.now() - startTime : 0
-
-          collectedParts.push({
-            type: 'tool-result',
-            toolResult: {
-              id: ToolCallId(chunk.toolCallId),
-              name: chunk.toolName,
-              args,
-              result:
-                typeof chunk.result === 'string' ? chunk.result : JSON.stringify(chunk.result),
-              isError: false,
-              duration,
-            },
-          })
-        }
-        break
-      }
-
-      case 'RUN_FINISHED':
-        break
-
-      case 'RUN_ERROR':
-        console.error('Agent run error:', chunk.error.message)
-        // Flush any accumulated text before appending the error
-        if (currentText.trim()) {
-          collectedParts.push({ type: 'text', text: currentText })
-          currentText = ''
-        }
-        collectedParts.push({
-          type: 'text',
-          text: `\n\n**Error:** ${chunk.error.message}`,
-        })
-        break
+function detectToolResultError(result: unknown): boolean {
+  if (typeof result === 'string') {
+    try {
+      const parsed = JSON.parse(result) as unknown
+      return detectToolResultError(parsed)
+    } catch {
+      return false
     }
   }
 
-  // Flush remaining text
-  if (currentText.trim()) {
-    collectedParts.push({ type: 'text', text: currentText })
-  }
+  if (typeof result !== 'object' || result === null) return false
 
-  const finalParts =
-    collectedParts.length > 0 ? collectedParts : [{ type: 'text' as const, text: '(no response)' }]
+  const maybeRecord = result as { error?: unknown; ok?: unknown }
+  if (maybeRecord.ok === false) return true
+  return typeof maybeRecord.error === 'string' && maybeRecord.error.length > 0
+}
 
-  const userMsg = makeMessage('user', [{ type: 'text', text: userMessage }])
-  const assistantMsg = makeMessage('assistant', finalParts, model)
+export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> {
+  const { conversation, userMessage, model, settings, onChunk, signal } = params
 
-  return { newMessages: [userMsg, assistantMsg], finalMessage: assistantMsg }
+  return runWithToolContext(
+    {
+      projectPath: conversation.projectPath ?? process.cwd(),
+      signal,
+    },
+    async () => {
+      // Resolve provider and adapter via the registry
+      const provider = providerRegistry.getProviderForModel(model)
+      if (!provider) throw new Error(`No provider registered for model: ${model}`)
+
+      const providerConfig = settings.providers[provider.id]
+      if (provider.requiresApiKey && !providerConfig?.apiKey) {
+        throw new Error(`No API key configured for ${provider.displayName}`)
+      }
+
+      const adapter = provider.createAdapter(
+        model,
+        providerConfig?.apiKey ?? '',
+        providerConfig?.baseUrl,
+      )
+
+      const systemPrompt = buildSystemPrompt(conversation.projectPath)
+      const abortController = new AbortController()
+      signal.addEventListener('abort', () => abortController.abort(), { once: true })
+
+      // Build messages
+      const existingMessages = conversationToMessages(conversation.messages)
+      const newUserMessage: SimpleChatMessage = { role: 'user', content: userMessage }
+      const allMessages = [...existingMessages, newUserMessage]
+
+      const hasProject = !!conversation.projectPath
+
+      const stream: AsyncIterable<StreamChunk> = chat({
+        adapter,
+        messages: allMessages,
+        systemPrompts: [systemPrompt],
+        tools: hasProject ? getServerTools() : [],
+        agentLoopStrategy: maxIterations(MAX_ITERATIONS),
+        abortController,
+      })
+
+      // Collect events for building our Message objects
+      const collectedParts: MessagePart[] = []
+      let currentText = ''
+      const toolCallArgs: Record<string, string> = {}
+      const toolCallStartTimes: Record<string, number> = {}
+
+      for await (const chunk of stream) {
+        if (signal.aborted) break
+
+        // Forward raw chunk to renderer for the useChat IPC adapter
+        onChunk(chunk)
+
+        // Collect message parts for persistence
+        switch (chunk.type) {
+          case 'TEXT_MESSAGE_CONTENT':
+            currentText += chunk.delta
+            break
+
+          case 'TOOL_CALL_START':
+            // Flush accumulated text
+            if (currentText.trim()) {
+              collectedParts.push({ type: 'text', text: currentText })
+              currentText = ''
+            }
+            toolCallArgs[chunk.toolCallId] = ''
+            toolCallStartTimes[chunk.toolCallId] = Date.now()
+            break
+
+          case 'TOOL_CALL_ARGS':
+            toolCallArgs[chunk.toolCallId] = (toolCallArgs[chunk.toolCallId] ?? '') + chunk.delta
+            break
+
+          case 'TOOL_CALL_END': {
+            let args: Record<string, unknown> = {}
+            const rawArgs = toolCallArgs[chunk.toolCallId] ?? '{}'
+            try {
+              args = JSON.parse(rawArgs)
+            } catch (parseError) {
+              console.warn(
+                `Failed to parse tool call args for "${chunk.toolName}":`,
+                parseError instanceof Error ? parseError.message : parseError,
+                `| raw: ${rawArgs.slice(0, 200)}`,
+              )
+            }
+
+            collectedParts.push({
+              type: 'tool-call',
+              toolCall: { id: ToolCallId(chunk.toolCallId), name: chunk.toolName, args },
+            })
+
+            // TanStack AI executes the tool via ServerTool.execute and provides the result
+            if (chunk.result !== undefined) {
+              const startTime = toolCallStartTimes[chunk.toolCallId]
+              const duration = startTime ? Date.now() - startTime : 0
+
+              collectedParts.push({
+                type: 'tool-result',
+                toolResult: {
+                  id: ToolCallId(chunk.toolCallId),
+                  name: chunk.toolName,
+                  args,
+                  result:
+                    typeof chunk.result === 'string' ? chunk.result : JSON.stringify(chunk.result),
+                  isError: detectToolResultError(chunk.result),
+                  duration,
+                },
+              })
+            }
+            break
+          }
+
+          case 'RUN_FINISHED':
+            break
+
+          case 'RUN_ERROR':
+            console.error('Agent run error:', chunk.error.message)
+            // Flush any accumulated text before appending the error
+            if (currentText.trim()) {
+              collectedParts.push({ type: 'text', text: currentText })
+              currentText = ''
+            }
+            collectedParts.push({
+              type: 'text',
+              text: `\n\n**Error:** ${chunk.error.message}`,
+            })
+            break
+        }
+      }
+
+      // Flush remaining text
+      if (currentText.trim()) {
+        collectedParts.push({ type: 'text', text: currentText })
+      }
+
+      const finalParts =
+        collectedParts.length > 0
+          ? collectedParts
+          : [{ type: 'text' as const, text: '(no response)' }]
+
+      const userMsg = makeMessage('user', [{ type: 'text', text: userMessage }])
+      const assistantMsg = makeMessage('assistant', finalParts, model)
+
+      return { newMessages: [userMsg, assistantMsg], finalMessage: assistantMsg }
+    },
+  )
 }

@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import fs from 'node:fs'
 import path from 'node:path'
 import { type ServerTool, toolDefinition } from '@tanstack/ai'
@@ -10,22 +11,30 @@ export interface ToolContext {
   signal?: AbortSignal
 }
 
-// Global mutable context set before each agent run
-let currentToolContext: ToolContext | null = null
-
-export function setToolContext(ctx: ToolContext): void {
-  currentToolContext = ctx
+export interface ToolTextResult {
+  kind: 'text'
+  text: string
 }
 
-export function clearToolContext(): void {
-  currentToolContext = null
+export interface ToolJsonResult {
+  kind: 'json'
+  data: unknown
+}
+
+export type NormalizedToolResult = ToolTextResult | ToolJsonResult
+
+const toolContextStorage = new AsyncLocalStorage<ToolContext>()
+
+export function runWithToolContext<T>(ctx: ToolContext, fn: () => T): T {
+  return toolContextStorage.run(ctx, fn)
 }
 
 export function getToolContext(): ToolContext {
-  if (!currentToolContext) {
+  const ctx = toolContextStorage.getStore()
+  if (!ctx) {
     throw new Error('Tool context not set — agent run not active')
   }
-  return currentToolContext
+  return ctx
 }
 
 /**
@@ -58,19 +67,33 @@ export function defineOpenHiveTool<T extends z.ZodType, TName extends string>(co
       result = `${result.slice(0, MAX_TOOL_OUTPUT_BYTES)}\n\n... [output truncated — ${result.length} bytes total, showing first ${MAX_TOOL_OUTPUT_BYTES}]`
     }
 
-    return result
+    return normalizeToolResult(result)
   })
+}
+
+function normalizeToolResult(result: string): NormalizedToolResult {
+  try {
+    return { kind: 'json', data: JSON.parse(result) as unknown }
+  } catch {
+    return { kind: 'text', text: result }
+  }
+}
+
+function isPathInside(basePath: string, targetPath: string): boolean {
+  const relative = path.relative(basePath, targetPath)
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
 }
 
 /** Validate and resolve a file path within the project directory */
 export function resolveProjectPath(projectPath: string, filePath: string): string {
   const resolved = path.resolve(projectPath, filePath)
   const projectRoot = path.resolve(projectPath)
+  const projectRootReal = fs.existsSync(projectRoot) ? fs.realpathSync(projectRoot) : projectRoot
 
   // For existing files, resolve symlinks before checking
   if (fs.existsSync(resolved)) {
     const real = fs.realpathSync(resolved)
-    if (!real.startsWith(projectRoot)) {
+    if (!isPathInside(projectRootReal, real)) {
       throw new Error(`Path "${filePath}" resolves outside the project directory (symlink)`)
     }
     return resolved
@@ -80,10 +103,10 @@ export function resolveProjectPath(projectPath: string, filePath: string): strin
   const parentDir = path.dirname(resolved)
   if (fs.existsSync(parentDir)) {
     const realParent = fs.realpathSync(parentDir)
-    if (!realParent.startsWith(projectRoot)) {
+    if (!isPathInside(projectRootReal, realParent)) {
       throw new Error(`Path "${filePath}" resolves outside the project directory (symlink)`)
     }
-  } else if (!resolved.startsWith(projectRoot)) {
+  } else if (!isPathInside(projectRoot, resolved)) {
     throw new Error(`Path "${filePath}" is outside the project directory`)
   }
 
