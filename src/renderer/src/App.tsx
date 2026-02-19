@@ -19,7 +19,7 @@ export function App(): React.JSX.Element {
   useSettingsSetup()
 
   const { settings, isLoaded, providerModels, setDefaultModel } = useSettings()
-  const { projectPath, setProjectPath } = useProject()
+  const { projectPath, selectFolder, setProjectPath } = useProject()
   const {
     conversations,
     activeConversation,
@@ -67,6 +67,13 @@ export function App(): React.JSX.Element {
   const handleNewConversation = useCallback(async () => {
     await createConversation(currentModel, projectPath)
   }, [createConversation, currentModel, projectPath])
+
+  const handleOpenProject = useCallback(async () => {
+    const path = await selectFolder()
+    if (path) {
+      await createConversation(currentModel, path)
+    }
+  }, [selectFolder, createConversation, currentModel])
 
   const handleModelChange = useCallback(
     (model: typeof currentModel) => {
@@ -131,6 +138,7 @@ export function App(): React.JSX.Element {
           onSelect={handleSelectConversation}
           onDelete={deleteConversation}
           onNew={handleNewConversation}
+          onOpenProject={handleOpenProject}
           onOpenSettings={() => setSettingsOpen(true)}
         />
       </div>

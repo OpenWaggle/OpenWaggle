@@ -1,10 +1,15 @@
 import type { ConversationId } from '@shared/types/brand'
 import type { ConversationSummary } from '@shared/types/conversation'
 import {
+  ArrowDownAZ,
+  Calendar,
+  Check,
+  Clock,
   Edit3,
   Folder,
   FolderOpen,
   FolderPlus,
+  Hash,
   LayoutList,
   MessageSquare,
   RotateCw,
@@ -13,10 +18,19 @@ import {
   SquareTerminal,
   Trash2,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useFullscreen } from '@/hooks/useFullscreen'
 import { cn } from '@/lib/cn'
 import { formatRelativeTime, projectName, truncate } from '@/lib/format'
+
+type SortMode = 'recent' | 'oldest' | 'name' | 'threads'
+
+const SORT_OPTIONS: { value: SortMode; label: string; icon: typeof Clock }[] = [
+  { value: 'recent', label: 'Recent', icon: Clock },
+  { value: 'oldest', label: 'Oldest', icon: Calendar },
+  { value: 'name', label: 'Name (A→Z)', icon: ArrowDownAZ },
+  { value: 'threads', label: 'Most threads', icon: Hash },
+]
 
 interface SidebarProps {
   conversations: ConversationSummary[]
@@ -24,6 +38,7 @@ interface SidebarProps {
   onSelect: (id: ConversationId) => void
   onDelete: (id: ConversationId) => void
   onNew: () => void
+  onOpenProject: () => void
   onOpenSettings: () => void
 }
 
@@ -58,17 +73,50 @@ function groupByProject(conversations: ConversationSummary[]): ProjectGroup[] {
   return result
 }
 
+function sortGroups(groups: ProjectGroup[], mode: SortMode): ProjectGroup[] {
+  const sorted = [...groups]
+  switch (mode) {
+    case 'recent':
+      sorted.sort((a, b) => {
+        const aMax = Math.max(...a.conversations.map((c) => c.updatedAt))
+        const bMax = Math.max(...b.conversations.map((c) => c.updatedAt))
+        return bMax - aMax
+      })
+      break
+    case 'oldest':
+      sorted.sort((a, b) => {
+        const aMin = Math.min(...a.conversations.map((c) => c.createdAt))
+        const bMin = Math.min(...b.conversations.map((c) => c.createdAt))
+        return aMin - bMin
+      })
+      break
+    case 'name':
+      sorted.sort((a, b) => a.displayName.localeCompare(b.displayName))
+      break
+    case 'threads':
+      sorted.sort((a, b) => b.conversations.length - a.conversations.length)
+      break
+  }
+  return sorted
+}
+
 export function Sidebar({
   conversations,
   activeId,
   onSelect,
   onDelete,
   onNew,
+  onOpenProject,
   onOpenSettings,
 }: SidebarProps): React.JSX.Element {
   const groups = groupByProject(conversations)
   const isFullscreen = useFullscreen()
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  const [sortMode, setSortMode] = useState<SortMode>('recent')
+  const [sortMenuOpen, setSortMenuOpen] = useState(false)
+  const sortMenuRef = useRef<HTMLDivElement>(null)
+
+  const sortedGroups = sortGroups(groups, sortMode)
 
   function toggleGroup(key: string): void {
     setCollapsedGroups((prev) => {
@@ -81,6 +129,18 @@ export function Sidebar({
       return next
     })
   }
+
+  // Close sort menu on outside click
+  useEffect(() => {
+    if (!sortMenuOpen) return
+    function handleClick(e: MouseEvent): void {
+      if (sortMenuRef.current && !sortMenuRef.current.contains(e.target as Node)) {
+        setSortMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [sortMenuOpen])
 
   return (
     <aside className="flex h-full w-[224px] shrink-0 flex-col justify-between bg-bg-secondary border-r border-border">
@@ -134,8 +194,51 @@ export function Sidebar({
         <div className="no-drag flex shrink-0 items-center justify-between h-[30px] px-4">
           <span className="text-[11px] font-medium text-text-tertiary">Threads</span>
           <div className="flex items-center gap-1.5">
-            <FolderPlus className="h-[13px] w-[13px] text-text-tertiary" />
-            <LayoutList className="h-3 w-3 text-text-tertiary" />
+            <button
+              type="button"
+              onClick={onOpenProject}
+              className="rounded p-0.5 text-text-tertiary transition-colors hover:text-text-secondary"
+              title="Open project folder"
+            >
+              <FolderPlus className="h-[13px] w-[13px]" />
+            </button>
+            <div ref={sortMenuRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setSortMenuOpen((p) => !p)}
+                className={cn(
+                  'rounded p-0.5 transition-colors',
+                  sortMenuOpen
+                    ? 'text-text-primary'
+                    : 'text-text-tertiary hover:text-text-secondary',
+                )}
+                title="Sort projects"
+              >
+                <LayoutList className="h-3 w-3" />
+              </button>
+              {sortMenuOpen && (
+                <div className="absolute right-0 top-full z-50 mt-1 min-w-[150px] rounded-lg border border-border-light bg-bg-secondary py-1 shadow-lg">
+                  {SORT_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => {
+                        setSortMode(opt.value)
+                        setSortMenuOpen(false)
+                      }}
+                      className={cn(
+                        'flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-bg-hover',
+                        sortMode === opt.value ? 'text-accent' : 'text-text-secondary',
+                      )}
+                    >
+                      <opt.icon className="h-3 w-3 shrink-0" />
+                      <span className="flex-1">{opt.label}</span>
+                      {sortMode === opt.value && <Check className="h-3 w-3 shrink-0" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -147,7 +250,7 @@ export function Sidebar({
               <p className="text-xs text-text-muted">No threads yet</p>
             </div>
           ) : (
-            groups.map((group) => {
+            sortedGroups.map((group) => {
               const groupKey = group.path ?? '__none__'
               const isCollapsed = collapsedGroups.has(groupKey)
               const FolderIcon = isCollapsed ? Folder : FolderOpen
@@ -197,7 +300,9 @@ export function Sidebar({
                               <span
                                 className={cn(
                                   'truncate text-[11px]',
-                                  isActive ? 'font-medium text-text-primary' : 'text-text-secondary',
+                                  isActive
+                                    ? 'font-medium text-text-primary'
+                                    : 'text-text-secondary',
                                 )}
                               >
                                 {truncate(conv.title, 20)}
