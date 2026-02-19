@@ -288,8 +288,8 @@ export function Sidebar({
                             className={cn(
                               'group flex items-center h-[34px] w-full',
                               isActive
-                                ? 'bg-bg-active border-l-2 border-accent pr-3 pl-10'
-                                : 'pl-9 pr-3 hover:bg-bg-hover',
+                                ? 'bg-bg-active border-l-2 border-accent pr-3 pl-12'
+                                : 'pl-11 pr-3 hover:bg-bg-hover',
                             )}
                           >
                             <button
