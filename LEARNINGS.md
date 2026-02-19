@@ -188,6 +188,7 @@ FINISHING:     LEARNINGS.md → commit → push → notify user
 - For Electron voice capture stability, record audio with `MediaRecorder` + local decode/resample in renderer and send PCM over IPC; avoid browser `SpeechRecognition` pathways in desktop shells.
 - When using pnpm `onlyBuiltDependencies`, native modules required by transitive runtime deps (like `sharp` for `@xenova/transformers`) must be explicitly allowlisted or local model loading fails at runtime.
 - Moving voice IPC payloads from JSON number arrays to binary PCM (`Uint8Array`) plus defaulting to tiny local Whisper significantly reduces transcription latency on desktop builds.
+- During active feature migrations, keep IPC handlers backward-compatible for one payload version (accepting both legacy and new shapes) to avoid renderer/main hot-reload contract mismatches in Electron dev sessions.
 
 ### Task: Composer Modal + Voice Crash Fixes (2026-02-19)
 - In Electron dev shells, `window.prompt`/`window.confirm` can be unsupported in renderer contexts; use in-app modal flows for branch and permission actions.
