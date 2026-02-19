@@ -106,6 +106,9 @@ export interface IpcEventChannelMap {
   'terminal:data': {
     payload: { terminalId: string; data: string }
   }
+  'window:fullscreen-changed': {
+    payload: boolean
+  }
 }
 
 // ─── Derived Types ───────────────────────────────────────────
@@ -179,4 +182,7 @@ export interface HiveCodeApi {
   resizeTerminal(terminalId: string, cols: number, rows: number): Promise<void>
   writeTerminal(terminalId: string, data: string): void
   onTerminalData(callback: (payload: { terminalId: string; data: string }) => void): () => void
+
+  // Window
+  onFullscreenChanged(callback: (isFullscreen: boolean) => void): () => void
 }

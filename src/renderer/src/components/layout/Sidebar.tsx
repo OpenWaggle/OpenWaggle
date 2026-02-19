@@ -12,6 +12,7 @@ import {
   SquareTerminal,
   Trash2,
 } from 'lucide-react'
+import { useFullscreen } from '@/hooks/useFullscreen'
 import { cn } from '@/lib/cn'
 import { formatRelativeTime, projectName, truncate } from '@/lib/format'
 
@@ -64,13 +65,17 @@ export function Sidebar({
   onOpenSettings,
 }: SidebarProps): React.JSX.Element {
   const groups = groupByProject(conversations)
+  const isFullscreen = useFullscreen()
 
   return (
     <aside className="flex h-full w-[224px] shrink-0 flex-col justify-between bg-bg-secondary border-r border-border">
       {/* sidebar-top */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* macOS traffic light clearance */}
-        <div className="drag-region shrink-0 h-[24px]" />
+        {/* macOS traffic light clearance — collapses in fullscreen */}
+        <div
+          className="drag-region shrink-0 transition-[height] duration-200 ease-out"
+          style={{ height: isFullscreen ? 0 : 24 }}
+        />
         {/* Logo — drag region, padding [14,16] */}
         <div className="drag-region flex shrink-0 items-center gap-2 px-4 py-[14px]">
           <SquareTerminal className="no-drag h-4 w-4 text-accent" />
