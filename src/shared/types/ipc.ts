@@ -86,7 +86,7 @@ export interface IpcInvokeChannelMap {
   }
   'agent:answer-question': {
     args: [conversationId: ConversationId, answers: QuestionAnswer[]]
-    return: void
+    return: undefined
   }
 }
 

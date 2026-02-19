@@ -45,10 +45,7 @@ export const api: OpenHiveApi = {
   },
 
   onQuestion(callback: (payload: QuestionPayload) => void): () => void {
-    const handler = (
-      _event: Electron.IpcRendererEvent,
-      payload: QuestionPayload,
-    ): void => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: QuestionPayload): void => {
       callback(payload)
     }
     ipcRenderer.on('agent:question', handler)

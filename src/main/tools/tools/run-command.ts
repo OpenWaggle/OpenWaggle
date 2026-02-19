@@ -1,4 +1,6 @@
 import { execFile } from 'node:child_process'
+import fs from 'node:fs'
+import os from 'node:os'
 import { z } from 'zod'
 import { getSafeChildEnv } from '../../env'
 import { defineOpenHiveTool } from '../define-tool'
@@ -17,11 +19,12 @@ export const runCommandTool = defineOpenHiveTool({
   }),
   async execute(args, context) {
     const timeout = args.timeout ?? 30000
+    const { shell, shellArgs } = resolveShellInvocation(args.command)
 
     return new Promise((resolve, reject) => {
       const proc = execFile(
-        '/bin/sh',
-        ['-c', args.command],
+        shell,
+        shellArgs,
         {
           cwd: context.projectPath,
           timeout,
@@ -49,3 +52,24 @@ export const runCommandTool = defineOpenHiveTool({
     })
   },
 })
+
+function resolveShellInvocation(command: string): { shell: string; shellArgs: string[] } {
+  if (os.platform() === 'win32') {
+    return {
+      shell: 'cmd.exe',
+      shellArgs: ['/d', '/s', '/c', command],
+    }
+  }
+
+  if (fs.existsSync('/bin/bash')) {
+    return {
+      shell: '/bin/bash',
+      shellArgs: ['-lc', command],
+    }
+  }
+
+  return {
+    shell: '/bin/sh',
+    shellArgs: ['-c', command],
+  }
+}

@@ -68,11 +68,7 @@ export function App(): React.JSX.Element {
     }
   }
   const { messages, sendMessage, isLoading, stop, error, respondToolApproval, answerQuestion } =
-    useAgentChat(
-    activeConversationId,
-    conversation,
-    currentModel,
-  )
+    useAgentChat(activeConversationId, conversation, currentModel)
 
   const pendingMessage = useRef<string | null>(null)
 

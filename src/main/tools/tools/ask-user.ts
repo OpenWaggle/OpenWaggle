@@ -1,7 +1,7 @@
 import type { QuestionAnswer } from '@shared/types/question'
 import { BrowserWindow } from 'electron'
 import { z } from 'zod'
-import { defineOpenHiveTool, getToolContext } from '../define-tool'
+import { defineOpenHiveTool } from '../define-tool'
 import { cancelQuestion, registerQuestion } from '../question-manager'
 
 const questionOptionSchema = z.object({
@@ -13,11 +13,7 @@ const userQuestionSchema = z.object({
   question: z
     .string()
     .describe('The question to ask the user — clear, specific, ending with a question mark'),
-  options: z
-    .array(questionOptionSchema)
-    .min(2)
-    .max(5)
-    .describe('Available choices (2-5 options)'),
+  options: z.array(questionOptionSchema).min(2).max(5).describe('Available choices (2-5 options)'),
 })
 
 export const askUserTool = defineOpenHiveTool({
