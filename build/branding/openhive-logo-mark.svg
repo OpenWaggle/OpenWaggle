@@ -40,7 +40,7 @@
   <circle cx="228" cy="208" r="6" fill="#61a8ff"/>
   <circle cx="296" cy="208" r="6" fill="#61a8ff"/>
 
-  <path d="M242 426H270L256 452L242 426Z" fill="#9b5f0d"/>
+  <path d="M236 428H276L256 462L236 428Z" fill="#9b5f0d"/>
 
   <path d="M140 169L171 151L202 169L202 205L171 223L140 205Z" stroke="#f5a623" stroke-opacity="0.2" stroke-width="6"/>
   <path d="M310 169L341 151L372 169L372 205L341 223L310 205Z" stroke="#f5a623" stroke-opacity="0.2" stroke-width="6"/>

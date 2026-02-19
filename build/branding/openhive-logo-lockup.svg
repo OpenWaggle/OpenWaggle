@@ -34,7 +34,7 @@
   <circle cx="290" cy="213" r="18" fill="#111319"/>
   <circle cx="228" cy="208" r="6" fill="#61a8ff"/>
   <circle cx="296" cy="208" r="6" fill="#61a8ff"/>
-  <path d="M242 426H270L256 452L242 426Z" fill="#9b5f0d"/>
+  <path d="M236 428H276L256 462L236 428Z" fill="#9b5f0d"/>
 
   <text x="520" y="290" fill="#e7e9ee" font-family="'Clash Display', 'Space Grotesk', 'Sora', sans-serif" font-size="172" font-weight="600" letter-spacing="-2">Open</text>
   <text x="908" y="290" fill="#f5a623" font-family="'Clash Display', 'Space Grotesk', 'Sora', sans-serif" font-size="172" font-weight="700" letter-spacing="-2">Hive</text>
