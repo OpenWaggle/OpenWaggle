@@ -18,6 +18,17 @@ if (env.OPENHIVE_USER_DATA_DIR) {
 
 const appIconPath = join(__dirname, '../../build/icon.png')
 
+function isTrustedRendererRequest(url: string): boolean {
+  if (url.startsWith('file://')) return true
+  if (!env.ELECTRON_RENDERER_URL) return false
+
+  try {
+    return new URL(url).origin === new URL(env.ELECTRON_RENDERER_URL).origin
+  } catch {
+    return false
+  }
+}
+
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
     width: 1200,
@@ -52,6 +63,23 @@ function createWindow(): void {
     shell.openExternal(details.url)
     return { action: 'deny' }
   })
+
+  const mediaPermissions = new Set(['media', 'microphone'])
+  mainWindow.webContents.session.setPermissionCheckHandler(
+    (_webContents, permission, requestingOrigin) => {
+      if (!mediaPermissions.has(permission)) return false
+      return isTrustedRendererRequest(requestingOrigin)
+    },
+  )
+  mainWindow.webContents.session.setPermissionRequestHandler(
+    (_webContents, permission, callback, details) => {
+      if (!mediaPermissions.has(permission)) {
+        callback(false)
+        return
+      }
+      callback(isTrustedRendererRequest(details.requestingUrl))
+    },
+  )
 
   if (is.dev && env.ELECTRON_RENDERER_URL) {
     mainWindow.loadURL(env.ELECTRON_RENDERER_URL)

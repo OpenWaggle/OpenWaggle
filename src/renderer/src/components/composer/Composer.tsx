@@ -48,6 +48,8 @@ interface SpeechRecognitionLike {
   lang: string
   continuous: boolean
   interimResults: boolean
+  processLocally?: boolean
+  onstart: (() => void) | null
   onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null
   onerror: ((event: { error: string }) => void) | null
   onend: (() => void) | null
@@ -61,6 +63,11 @@ const QUALITY_PRESET_LABEL: Record<QualityPreset, string> = {
   low: 'Low',
   medium: 'Medium',
   high: 'High',
+}
+
+const EXECUTION_MODE_LABEL: Record<ExecutionMode, string> = {
+  sandbox: 'Sandbox',
+  'full-access': 'Full access',
 }
 
 export function Composer({
@@ -91,6 +98,7 @@ export function Composer({
   const [attachments, setAttachments] = useState<PreparedAttachment[]>([])
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false)
+  const [executionMenuOpen, setExecutionMenuOpen] = useState(false)
   const [branchMenuOpen, setBranchMenuOpen] = useState(false)
   const [branchQuery, setBranchQuery] = useState('')
   const [branchMessage, setBranchMessage] = useState<string | null>(null)
@@ -99,10 +107,10 @@ export function Composer({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const qualityMenuRef = useRef<HTMLDivElement>(null)
+  const executionMenuRef = useRef<HTMLDivElement>(null)
   const branchMenuRef = useRef<HTMLDivElement>(null)
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
-
-  const isSandbox = settings.executionMode === 'sandbox'
+  const voiceNetworkUnavailableRef = useRef(false)
   const canSend = (!!input.trim() || attachments.length > 0) && !disabled
 
   const filteredBranches = useMemo(() => {
@@ -136,6 +144,17 @@ export function Composer({
     document.addEventListener('mousedown', onMouseDown)
     return () => document.removeEventListener('mousedown', onMouseDown)
   }, [qualityMenuOpen])
+
+  useEffect(() => {
+    if (!executionMenuOpen) return
+    function onMouseDown(event: MouseEvent): void {
+      if (executionMenuRef.current && !executionMenuRef.current.contains(event.target as Node)) {
+        setExecutionMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onMouseDown)
+    return () => document.removeEventListener('mousedown', onMouseDown)
+  }, [executionMenuOpen])
 
   useEffect(() => {
     if (!branchMenuOpen) return
@@ -232,6 +251,7 @@ export function Composer({
   }
 
   async function handleExecutionModeChange(mode: ExecutionMode): Promise<void> {
+    setExecutionMenuOpen(false)
     if (mode === settings.executionMode) return
     if (mode === 'full-access' && settings.executionMode === 'sandbox') {
       const confirmed = window.confirm(
@@ -289,7 +309,73 @@ export function Composer({
     setBranchMenuOpen(false)
   }
 
-  function startVoiceCapture(): void {
+  function insertTranscriptAtCursor(rawTranscript: string): void {
+    const transcript = rawTranscript.trim()
+    if (!transcript) return
+
+    const textarea = textareaRef.current
+    if (!textarea) {
+      setInput((prev) => [prev.trim(), transcript].filter(Boolean).join(' '))
+      return
+    }
+
+    const selectionStart = textarea.selectionStart ?? textarea.value.length
+    const selectionEnd = textarea.selectionEnd ?? textarea.value.length
+
+    setInput((prev) => {
+      const before = prev.slice(0, selectionStart)
+      const after = prev.slice(selectionEnd)
+      const needsLeadingSpace = before.length > 0 && !/\s$/.test(before)
+      const needsTrailingSpace = after.length > 0 && !/^\s/.test(after)
+      const inserted = `${needsLeadingSpace ? ' ' : ''}${transcript}${needsTrailingSpace ? ' ' : ''}`
+      const next = `${before}${inserted}${after}`
+
+      requestAnimationFrame(() => {
+        const caret = selectionStart + inserted.length
+        textarea.focus()
+        textarea.setSelectionRange(caret, caret)
+        textarea.style.height = 'auto'
+        textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`
+      })
+
+      return next
+    })
+  }
+
+  async function ensureMicrophoneAccess(): Promise<boolean> {
+    if (!navigator.mediaDevices?.getUserMedia) return true
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      for (const track of stream.getTracks()) {
+        track.stop()
+      }
+      return true
+    } catch {
+      setVoiceError('Microphone permission is blocked. Continue by typing your prompt.')
+      return false
+    }
+  }
+
+  function mapVoiceError(errorCode: string): string {
+    switch (errorCode) {
+      case 'not-allowed':
+      case 'service-not-allowed':
+        return 'Microphone permission was denied. Continue by typing your prompt.'
+      case 'network':
+        return 'Speech recognition service is unavailable in this environment. Continue by typing your prompt.'
+      case 'no-speech':
+        return 'No speech detected. Try again or continue typing.'
+      default:
+        return `Voice input unavailable (${errorCode}). Continue by typing your prompt.`
+    }
+  }
+
+  async function startVoiceCapture(): Promise<void> {
+    if (voiceNetworkUnavailableRef.current) {
+      setVoiceError('Voice input is unavailable here. Continue by typing your prompt.')
+      return
+    }
+
     const ctor =
       (
         window as Window & {
@@ -305,7 +391,13 @@ export function Composer({
       ).webkitSpeechRecognition
 
     if (!ctor) {
-      setVoiceError('Voice input is not available on this system. Continue typing.')
+      setVoiceError('Voice input is not available on this system. Continue by typing your prompt.')
+      voiceNetworkUnavailableRef.current = true
+      return
+    }
+
+    const hasMicrophoneAccess = await ensureMicrophoneAccess()
+    if (!hasMicrophoneAccess) {
       return
     }
 
@@ -313,6 +405,8 @@ export function Composer({
     recognition.lang = 'en-US'
     recognition.continuous = false
     recognition.interimResults = false
+    recognition.processLocally = true
+    recognition.onstart = () => setIsListening(true)
     recognition.onresult = (event) => {
       const transcript = Array.from(event.results)
         .flatMap((result) => Array.from(result))
@@ -320,20 +414,25 @@ export function Composer({
         .join(' ')
         .trim()
       if (!transcript) return
-      setInput((prev) => {
-        const next = [prev.trim(), transcript].filter(Boolean).join(' ')
-        return next
-      })
+      insertTranscriptAtCursor(transcript)
     }
     recognition.onerror = (event) => {
-      setVoiceError(`Voice input unavailable: ${event.error}. Continue typing.`)
+      if (event.error === 'network') {
+        voiceNetworkUnavailableRef.current = true
+      }
+      setVoiceError(mapVoiceError(event.error))
       setIsListening(false)
     }
     recognition.onend = () => setIsListening(false)
+    recognitionRef.current?.stop()
     recognitionRef.current = recognition
     setVoiceError(null)
-    setIsListening(true)
-    recognition.start()
+    try {
+      recognition.start()
+    } catch {
+      setIsListening(false)
+      setVoiceError('Unable to start voice input. Continue by typing your prompt.')
+    }
   }
 
   function handleVoiceToggle(): void {
@@ -342,7 +441,7 @@ export function Composer({
       setIsListening(false)
       return
     }
-    startVoiceCapture()
+    void startVoiceCapture()
   }
 
   return (
@@ -389,11 +488,16 @@ export function Composer({
               ))}
             </div>
           )}
-          {(attachmentError || voiceError || branchMessage) && (
+          {([attachmentError, voiceError, branchMessage].some(Boolean) && (
             <div className="mb-2 rounded-md border border-border bg-bg px-2.5 py-1.5 text-[12px] text-text-secondary">
-              {attachmentError ?? voiceError ?? branchMessage}
+              {[attachmentError, voiceError, branchMessage]
+                .filter((message): message is string => Boolean(message))
+                .map((message) => (
+                  <div key={message}>{message}</div>
+                ))}
             </div>
-          )}
+          )) ||
+            null}
         </div>
 
         <div className="h-[60px] px-4 py-[14px]">
@@ -442,7 +546,11 @@ export function Composer({
             <div ref={qualityMenuRef} className="relative">
               <button
                 type="button"
-                onClick={() => setQualityMenuOpen((prev) => !prev)}
+                onClick={() => {
+                  setExecutionMenuOpen(false)
+                  setBranchMenuOpen(false)
+                  setQualityMenuOpen((prev) => !prev)
+                }}
                 className="flex items-center gap-[5px] h-[26px] px-2.5 rounded-md border border-button-border transition-colors hover:bg-bg-hover"
                 title="Select quality preset"
               >
@@ -452,7 +560,7 @@ export function Composer({
                 <span className="text-[9px] text-text-tertiary">&#x2228;</span>
               </button>
               {qualityMenuOpen && (
-                <div className="absolute left-0 top-full z-20 mt-1 min-w-[140px] rounded-lg border border-border-light bg-bg-secondary py-1 shadow-lg">
+                <div className="absolute bottom-full left-0 z-30 mb-1 min-w-[140px] rounded-lg border border-border-light bg-bg-secondary py-1 shadow-lg">
                   {(['low', 'medium', 'high'] as const).map((preset) => (
                     <button
                       key={preset}
@@ -517,37 +625,42 @@ export function Composer({
 
         <div className="flex items-center justify-between h-9 px-4 border-t border-border">
           <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => {
-                void handleExecutionModeChange('sandbox')
-              }}
-              className={cn(
-                'flex items-center gap-1 h-6 px-2 rounded-[5px] border text-[12px] transition-colors',
-                isSandbox
-                  ? 'border-accent/40 bg-accent/10 text-accent'
-                  : 'border-border text-text-secondary hover:bg-bg-hover',
-              )}
-              title="Run with sandbox restrictions"
-            >
-              Sandbox
-            </button>
+            <div ref={executionMenuRef} className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setQualityMenuOpen(false)
+                  setBranchMenuOpen(false)
+                  setExecutionMenuOpen((prev) => !prev)
+                }}
+                className="flex items-center gap-[5px] h-6 px-2 rounded-[5px] border border-border text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
+                title="Select execution mode"
+              >
+                <span>{EXECUTION_MODE_LABEL[settings.executionMode]}</span>
+                <span className="text-[9px] text-text-tertiary">&#x2228;</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                void handleExecutionModeChange('full-access')
-              }}
-              className={cn(
-                'flex items-center gap-1 h-6 px-2 rounded-[5px] border text-[12px] transition-colors',
-                !isSandbox
-                  ? 'border-accent/40 bg-accent/10 text-accent'
-                  : 'border-border text-text-secondary hover:bg-bg-hover',
+              {executionMenuOpen && (
+                <div className="absolute bottom-full left-0 z-30 mb-1 min-w-[150px] rounded-lg border border-border-light bg-bg-secondary py-1 shadow-lg">
+                  {(['sandbox', 'full-access'] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => {
+                        void handleExecutionModeChange(mode)
+                      }}
+                      className={cn(
+                        'flex w-full items-center justify-between px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-bg-hover',
+                        settings.executionMode === mode ? 'text-accent' : 'text-text-secondary',
+                      )}
+                    >
+                      <span>{EXECUTION_MODE_LABEL[mode]}</span>
+                      {settings.executionMode === mode && <span>•</span>}
+                    </button>
+                  ))}
+                </div>
               )}
-              title="Run with full tool access"
-            >
-              Full access
-            </button>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -556,7 +669,11 @@ export function Composer({
                 <div ref={branchMenuRef} className="relative">
                   <button
                     type="button"
-                    onClick={() => setBranchMenuOpen((prev) => !prev)}
+                    onClick={() => {
+                      setExecutionMenuOpen(false)
+                      setQualityMenuOpen(false)
+                      setBranchMenuOpen((prev) => !prev)
+                    }}
                     className="flex items-center gap-1 h-6 px-2 rounded-[5px] border border-border text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
                     title="Manage branches"
                   >
@@ -566,7 +683,7 @@ export function Composer({
                   </button>
 
                   {branchMenuOpen && (
-                    <div className="absolute right-0 top-full z-20 mt-1 w-[320px] rounded-xl border border-border-light bg-bg-secondary p-2 shadow-xl">
+                    <div className="absolute bottom-full right-0 z-30 mb-1 w-[320px] rounded-xl border border-border-light bg-bg-secondary p-2 shadow-xl">
                       <div className="mb-2 flex items-center gap-1.5">
                         <input
                           value={branchQuery}
