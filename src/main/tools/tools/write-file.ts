@@ -1,9 +1,9 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { z } from 'zod'
-import { defineHiveCodeTool, resolveProjectPath } from '../define-tool'
+import { defineOpenHiveTool, resolveProjectPath } from '../define-tool'
 
-export const writeFileTool = defineHiveCodeTool({
+export const writeFileTool = defineOpenHiveTool({
   name: 'writeFile',
   description:
     "Write content to a file at the given path relative to the project root. Creates the file and any parent directories if they don't exist. Overwrites the file if it already exists.",

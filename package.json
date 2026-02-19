@@ -1,5 +1,5 @@
 {
-  "name": "hivecode",
+  "name": "openhive",
   "version": "0.1.0",
   "description": "Desktop coding agent with multi-model co-work",
   "main": "./out/main/index.js",

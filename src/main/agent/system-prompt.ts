@@ -1,5 +1,5 @@
 export function buildSystemPrompt(projectPath: string | null): string {
-  const base = `You are HiveCode, an expert coding assistant. You help developers understand, write, debug, and refactor code.
+  const base = `You are OpenHive, an expert coding assistant. You help developers understand, write, debug, and refactor code.
 
 You have access to tools that let you read files, write files, edit files, run commands, and explore the project structure. Use these tools proactively to understand the codebase before making changes.
 

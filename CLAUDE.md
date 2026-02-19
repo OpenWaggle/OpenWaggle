@@ -62,7 +62,7 @@ These rules are **non-negotiable**. Violating them invalidates your work.
 
 ## Architecture
 
-HiveCode is an Electron desktop coding agent with multi-model LLM support. Three process targets share types through `src/shared/`.
+OpenHive is an Electron desktop coding agent with multi-model LLM support. Three process targets share types through `src/shared/`.
 
 ### Process Boundaries
 
@@ -77,7 +77,7 @@ HiveCode is an Electron desktop coding agent with multi-model LLM support. Three
 - `IpcSendChannelMap` — fire-and-forget (renderer → main)
 - `IpcEventChannelMap` — events (main → renderer)
 
-The preload `api` object (`src/preload/api.ts`) implements `HiveCodeApi` — a convenience wrapper that maps friendly method names to IPC channels. The renderer imports this as `window.api` via `src/renderer/src/lib/ipc.ts`.
+The preload `api` object (`src/preload/api.ts`) implements `OpenHiveApi` — a convenience wrapper that maps friendly method names to IPC channels. The renderer imports this as `window.api` via `src/renderer/src/lib/ipc.ts`.
 
 ### Provider Registry
 

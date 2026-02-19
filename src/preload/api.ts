@@ -1,6 +1,6 @@
 import type { ConversationId, ToolCallId } from '@shared/types/brand'
 import type { Conversation, ConversationSummary } from '@shared/types/conversation'
-import type { HiveCodeApi } from '@shared/types/ipc'
+import type { OpenHiveApi } from '@shared/types/ipc'
 import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from '@shared/types/llm'
 import type { Provider, Settings } from '@shared/types/settings'
 import type { ToolApprovalRequest, ToolApprovalStatus } from '@shared/types/tools'
@@ -11,7 +11,7 @@ import { ipcRenderer } from 'electron'
  * Typed API exposed to the renderer via contextBridge.
  * Every method maps to a specific IPC channel with strict types.
  */
-export const api: HiveCodeApi = {
+export const api: OpenHiveApi = {
   // ─── Agent ───────────────────────────────────────────
   sendMessage(
     conversationId: ConversationId,

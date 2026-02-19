@@ -1,4 +1,4 @@
-# HiveCode UI Interaction PRD
+# OpenHive UI Interaction PRD
 
 Last updated: 2026-02-19
 Owner: Product + Core App
@@ -7,7 +7,7 @@ Document type: Combined PRD + detailed feature specification
 
 ## Executive Summary
 
-HiveCode currently contains several visible controls that are either static, disabled, or not wired to behavior. This creates a trust gap: the UI implies capability that does not yet exist. This PRD defines a phased strategy to convert placeholder controls into reliable workflows, starting with terminal and commit flows and preparing future sandbox/access controls.
+OpenHive currently contains several visible controls that are either static, disabled, or not wired to behavior. This creates a trust gap: the UI implies capability that does not yet exist. This PRD defines a phased strategy to convert placeholder controls into reliable workflows, starting with terminal and commit flows and preparing future sandbox/access controls.
 
 ## Problem Statement
 
@@ -32,12 +32,12 @@ HiveCode currently contains several visible controls that are either static, dis
 
 ## Target User and Jobs-to-be-Done
 
-Primary user: developer working inside a repository with HiveCode.
+Primary user: developer working inside a repository with OpenHive.
 
 Functional jobs:
 - "I need to quickly open a terminal where I am already working."
 - "I need to understand repo change state without leaving the chat."
-- "I need to commit from within HiveCode with confidence."
+- "I need to commit from within OpenHive with confidence."
 - "I need to control agent execution safety mode."
 
 Emotional jobs:

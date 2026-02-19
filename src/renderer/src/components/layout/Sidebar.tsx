@@ -171,7 +171,7 @@ export function Sidebar({
         {/* Logo — drag region, padding [14,16] */}
         <div className="drag-region flex shrink-0 items-center gap-2 px-4 py-[14px]">
           <SquareTerminal className="no-drag h-4 w-4 text-accent" />
-          <span className="no-drag text-[13px] font-semibold text-text-primary">HiveCode</span>
+          <span className="no-drag text-[13px] font-semibold text-text-primary">OpenHive</span>
         </div>
 
         <div

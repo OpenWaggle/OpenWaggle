@@ -1,5 +1,5 @@
-appId: com.hivecode.app
-productName: HiveCode
+appId: com.openhive.app
+productName: OpenHive
 directories:
   buildResources: build
 files:

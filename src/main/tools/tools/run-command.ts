@@ -1,9 +1,9 @@
 import { execFile } from 'node:child_process'
 import { z } from 'zod'
 import { getSafeChildEnv } from '../../env'
-import { defineHiveCodeTool } from '../define-tool'
+import { defineOpenHiveTool } from '../define-tool'
 
-export const runCommandTool = defineHiveCodeTool({
+export const runCommandTool = defineOpenHiveTool({
   name: 'runCommand',
   description:
     'Run a shell command in the project directory. Use this for tasks like running tests, installing dependencies, git operations, grep, etc. The command runs in a shell.',

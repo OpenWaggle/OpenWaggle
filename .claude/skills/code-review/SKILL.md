@@ -1,12 +1,12 @@
 ---
 name: code-review
-description: Review HiveCode pull requests and local diffs with repository-specific stack checks. Use for PR reviews, branch audits, and regression/security checks in this project.
+description: Review OpenHive pull requests and local diffs with repository-specific stack checks. Use for PR reviews, branch audits, and regression/security checks in this project.
 license: Complete terms in LICENSE.txt
 ---
 
 # Code Review
 
-HiveCode-specific review workflow for this repository.
+OpenHive-specific review workflow for this repository.
 
 ## When to use
 - Review pull requests or local branch changes in this repo.
@@ -34,14 +34,14 @@ python3 .claude/skills/code-review/scripts/pr_analyzer.py --base origin/main
 python3 .claude/skills/code-review/scripts/code_quality_checker.py --base origin/main
 ```
 4. Inspect changed files manually with the references listed below.
-5. Run verification commands suggested by the analyzer and required HiveCode checks:
+5. Run verification commands suggested by the analyzer and required OpenHive checks:
 - `pnpm typecheck`
 - `pnpm lint`
 - `pnpm check`
 - If behavior changed in renderer UI, call out manual validation expectations via `pnpm dev` (project has no automated test framework configured).
 6. Produce a Codex-compatible review response.
 
-## HiveCode stack checks (must enforce)
+## OpenHive stack checks (must enforce)
 - Electron process boundaries:
   - `src/main/`: agent loop, tools, IPC handlers, persistence.
   - `src/preload/`: typed bridge only, no business logic drift.
@@ -73,7 +73,7 @@ Emit one `::code-comment{...}` per finding when inline comments are requested or
 
 Example:
 ```text
-::code-comment{title="[P1] IPC contract mismatch" body="Renderer invokes `git:status` but preload bridge does not expose the channel, which will fail at runtime for header refresh behavior." file="/Users/diego.garciabrisa/Desktop/Projects/personal/hivecode/src/preload/api.ts" start=48 end=58 priority=1 confidence=0.93}
+::code-comment{title="[P1] IPC contract mismatch" body="Renderer invokes `git:status` but preload bridge does not expose the channel, which will fail at runtime for header refresh behavior." file="/Users/diego.garciabrisa/Desktop/Projects/personal/openhive/src/preload/api.ts" start=48 end=58 priority=1 confidence=0.93}
 ```
 
 ## Severity rubric
