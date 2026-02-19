@@ -14,6 +14,8 @@ import { ipcMain } from 'electron'
 import { z } from 'zod'
 
 const execFileAsync = promisify(execFile)
+const DEFAULT_GIT_MAX_BUFFER = 5 * 1024 * 1024
+const DIFF_GIT_MAX_BUFFER = 32 * 1024 * 1024
 
 interface GitExecResult {
   readonly stdout: string
@@ -25,6 +27,10 @@ interface ParsedPorcelainEntry {
   readonly path: string
   readonly status: GitFileStatus
   readonly staged: boolean
+}
+
+interface RunGitOptions {
+  readonly maxBuffer?: number
 }
 
 function mapStatusCode(code: string): GitFileStatus {
@@ -97,11 +103,16 @@ function parseNumstat(stdout: string): Map<string, { additions: number; deletion
   return result
 }
 
-async function runGit(projectPath: string, args: string[]): Promise<GitExecResult> {
+async function runGit(
+  projectPath: string,
+  args: string[],
+  options: RunGitOptions = {},
+): Promise<GitExecResult> {
+  const maxBuffer = options.maxBuffer ?? DEFAULT_GIT_MAX_BUFFER
   try {
     const output = await execFileAsync('git', args, {
       cwd: projectPath,
-      maxBuffer: 5 * 1024 * 1024,
+      maxBuffer,
     })
     if (typeof output === 'string') {
       return { stdout: output, stderr: '', code: 0 }
@@ -292,10 +303,8 @@ function parseUnifiedDiff(stdout: string): GitFileDiff[] {
 
     let additions = 0
     let deletions = 0
-    const diffLines: string[] = []
 
     for (const line of lines.slice(1)) {
-      diffLines.push(line)
       if (line.startsWith('+') && !line.startsWith('+++')) {
         additions++
       } else if (line.startsWith('-') && !line.startsWith('---')) {
@@ -316,27 +325,68 @@ function parseUnifiedDiff(stdout: string): GitFileDiff[] {
   return files
 }
 
+function mergeDiffsByPath(diffs: GitFileDiff[]): GitFileDiff[] {
+  const merged = new Map<string, GitFileDiff>()
+
+  for (const diff of diffs) {
+    const existing = merged.get(diff.path)
+    if (!existing) {
+      merged.set(diff.path, diff)
+      continue
+    }
+
+    merged.set(diff.path, {
+      path: diff.path,
+      diff: `${existing.diff}\n${diff.diff}`,
+      additions: existing.additions + diff.additions,
+      deletions: existing.deletions + diff.deletions,
+    })
+  }
+
+  return [...merged.values()].sort((a, b) => a.path.localeCompare(b.path))
+}
+
 async function getGitDiff(projectPath: string): Promise<GitFileDiff[]> {
   if (!(await isGitRepository(projectPath))) {
     throw new Error('Selected folder is not a Git repository.')
   }
 
-  // Get both staged and unstaged diffs against HEAD
-  const [headResult, worktreeResult, cachedResult] = await Promise.all([
-    runGit(projectPath, ['diff', 'HEAD']),
-    runGit(projectPath, ['diff']),
-    runGit(projectPath, ['diff', '--cached']),
-  ])
+  const hasHead = await runGit(projectPath, ['rev-parse', '--verify', 'HEAD'])
 
-  // Prefer HEAD diff (shows all uncommitted changes); fall back to worktree + cached
-  if (headResult.code === 0 && headResult.stdout.trim()) {
+  // Single-pass diff for normal repositories.
+  if (hasHead.code === 0) {
+    const headResult = await runGit(
+      projectPath,
+      ['diff', '--patch', '--find-renames', '--no-ext-diff', 'HEAD'],
+      { maxBuffer: DIFF_GIT_MAX_BUFFER },
+    )
+    if (headResult.code !== 0) {
+      throw new Error(headResult.stderr.trim() || 'Failed to load Git diff.')
+    }
+    if (!headResult.stdout.trim()) return []
     return parseUnifiedDiff(headResult.stdout)
   }
 
-  // Combine worktree and cached for initial commits
-  const combined = `${worktreeResult.stdout}\n${cachedResult.stdout}`.trim()
-  if (!combined) return []
-  return parseUnifiedDiff(combined)
+  // Initial commit path: combine unstaged + staged and merge by file path.
+  const [worktreeResult, cachedResult] = await Promise.all([
+    runGit(projectPath, ['diff', '--patch', '--no-ext-diff'], { maxBuffer: DIFF_GIT_MAX_BUFFER }),
+    runGit(projectPath, ['diff', '--patch', '--cached', '--no-ext-diff'], {
+      maxBuffer: DIFF_GIT_MAX_BUFFER,
+    }),
+  ])
+
+  if (worktreeResult.code !== 0 && cachedResult.code !== 0) {
+    throw new Error(
+      worktreeResult.stderr.trim() || cachedResult.stderr.trim() || 'Failed to load Git diff.',
+    )
+  }
+
+  const parsed = [
+    ...parseUnifiedDiff(worktreeResult.stdout),
+    ...parseUnifiedDiff(cachedResult.stdout),
+  ]
+  if (parsed.length === 0) return []
+  return mergeDiffsByPath(parsed)
 }
 
 const projectPathSchema = z

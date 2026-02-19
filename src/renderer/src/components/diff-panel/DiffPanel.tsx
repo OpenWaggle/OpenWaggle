@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { api } from '@/lib/ipc'
 import { useReviewStore } from '@/stores/review-store'
 import { DiffBottomBar } from './DiffBottomBar'
-import { DiffFileSection } from './DiffFileSection'
+import { buildDisplayItems, DiffFileSection, type DisplayItem } from './DiffFileSection'
 import { FileTree } from './FileTree'
 
 interface DiffPanelProps {
@@ -12,8 +12,12 @@ interface DiffPanelProps {
   onSendMessage: (content: string) => void
 }
 
+interface RenderableDiffFile extends GitFileDiff {
+  readonly items: DisplayItem[]
+}
+
 export function DiffPanel({ projectPath, onSendMessage }: DiffPanelProps): React.JSX.Element {
-  const [fileDiffs, setFileDiffs] = useState<GitFileDiff[]>([])
+  const [fileDiffs, setFileDiffs] = useState<RenderableDiffFile[]>([])
   const [isLoading, setIsLoading] = useState(false)
 
   const comments = useReviewStore((s) => s.comments)
@@ -29,12 +33,31 @@ export function DiffPanel({ projectPath, onSendMessage }: DiffPanelProps): React
       return
     }
 
+    let cancelled = false
     setIsLoading(true)
     api
       .getGitDiff(projectPath)
-      .then((diffs) => setFileDiffs(diffs))
-      .catch(() => setFileDiffs([]))
-      .finally(() => setIsLoading(false))
+      .then((diffs) => {
+        if (cancelled) return
+        setFileDiffs(
+          diffs.map((diff) => ({
+            ...diff,
+            items: buildDisplayItems(diff.diff),
+          })),
+        )
+      })
+      .catch(() => {
+        if (cancelled) return
+        setFileDiffs([])
+      })
+      .finally(() => {
+        if (cancelled) return
+        setIsLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [projectPath])
 
   function handleAddSingleComment(
@@ -102,7 +125,7 @@ export function DiffPanel({ projectPath, onSendMessage }: DiffPanelProps): React
             <div key={file.path} id={`diff-file-${file.path}`}>
               <DiffFileSection
                 filePath={file.path}
-                diff={file.diff}
+                items={file.items}
                 additions={file.additions}
                 deletions={file.deletions}
                 activeCommentLocation={activeCommentLocation}

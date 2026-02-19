@@ -9,6 +9,13 @@ interface ResizeHandleProps {
 export function ResizeHandle({ onResize, onResizeEnd }: ResizeHandleProps): React.JSX.Element {
   const isDragging = useRef(false)
   const lastX = useRef(0)
+  const onResizeRef = useRef(onResize)
+  const onResizeEndRef = useRef(onResizeEnd)
+
+  useEffect(() => {
+    onResizeRef.current = onResize
+    onResizeEndRef.current = onResizeEnd
+  }, [onResize, onResizeEnd])
 
   useEffect(() => {
     function handleMouseMove(e: MouseEvent): void {
@@ -17,7 +24,7 @@ export function ResizeHandle({ onResize, onResizeEnd }: ResizeHandleProps): Reac
       // Negative delta = dragging left = panel grows
       const delta = lastX.current - e.clientX
       lastX.current = e.clientX
-      onResize(delta)
+      onResizeRef.current(delta)
     }
 
     function handleMouseUp(): void {
@@ -25,16 +32,19 @@ export function ResizeHandle({ onResize, onResizeEnd }: ResizeHandleProps): Reac
       isDragging.current = false
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
-      onResizeEnd()
+      onResizeEndRef.current()
     }
 
     window.addEventListener('mousemove', handleMouseMove)
     window.addEventListener('mouseup', handleMouseUp)
     return () => {
+      isDragging.current = false
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [onResize, onResizeEnd])
+  }, [])
 
   function handleMouseDown(e: React.MouseEvent): void {
     e.preventDefault()

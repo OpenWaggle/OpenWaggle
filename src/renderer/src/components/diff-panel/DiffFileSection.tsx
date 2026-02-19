@@ -5,42 +5,17 @@ import { CollapsedLines } from './CollapsedLines'
 import { DiffLine } from './DiffLine'
 import { InlineComment } from './InlineComment'
 
-interface ParsedLine {
+export interface ParsedLine {
   type: 'add' | 'remove' | 'context'
   content: string
   lineNumber: number | null
 }
 
-interface DiffFileSectionProps {
-  filePath: string
-  diff: string
-  additions: number
-  deletions: number
-  activeCommentLocation: { filePath: string; line: number } | null
-  onSetActiveComment: (location: { filePath: string; line: number } | null) => void
-  onAddSingleComment: (
-    filePath: string,
-    startLine: number,
-    endLine: number,
-    content: string,
-  ) => void
-  onAddToReview: (comment: ReviewComment) => void
-}
+export type DisplayItem =
+  | { kind: 'line'; line: ParsedLine; index: number }
+  | { kind: 'collapsed'; lines: ParsedLine[]; key: string }
 
-export function DiffFileSection({
-  filePath,
-  diff,
-  additions,
-  deletions,
-  activeCommentLocation,
-  onSetActiveComment,
-  onAddSingleComment,
-  onAddToReview,
-}: DiffFileSectionProps): React.JSX.Element {
-  const [expanded, setExpanded] = useState(true)
-  const [expandedCollapsed, setExpandedCollapsed] = useState<Record<string, boolean>>({})
-
-  // Parse the raw diff into displayable lines
+function parseRawDiff(diff: string): ParsedLine[] {
   const rawLines = diff.split('\n')
   const displayLines: ParsedLine[] = []
   let oldLine = 0
@@ -88,11 +63,11 @@ export function DiffFileSection({
     }
   }
 
-  // Group context lines into collapsed sections
-  type DisplayItem =
-    | { kind: 'line'; line: ParsedLine; index: number }
-    | { kind: 'collapsed'; lines: ParsedLine[]; key: string }
+  return displayLines
+}
 
+export function buildDisplayItems(diff: string): DisplayItem[] {
+  const displayLines = parseRawDiff(diff)
   const items: DisplayItem[] = []
   let contextBuffer: ParsedLine[] = []
   let lineIdx = 0
@@ -100,20 +75,18 @@ export function DiffFileSection({
   function flushContext(): void {
     if (contextBuffer.length === 0) return
     if (contextBuffer.length <= 6) {
-      // Show short context directly
-      for (const l of contextBuffer) {
-        items.push({ kind: 'line', line: l, index: lineIdx++ })
+      for (const line of contextBuffer) {
+        items.push({ kind: 'line', line, index: lineIdx++ })
       }
     } else {
-      // Show first 3, collapsed middle, last 3
-      for (const l of contextBuffer.slice(0, 3)) {
-        items.push({ kind: 'line', line: l, index: lineIdx++ })
+      for (const line of contextBuffer.slice(0, 3)) {
+        items.push({ kind: 'line', line, index: lineIdx++ })
       }
       const key = `collapsed-${lineIdx}`
       items.push({ kind: 'collapsed', lines: contextBuffer.slice(3, -3), key })
       lineIdx += contextBuffer.length - 6
-      for (const l of contextBuffer.slice(-3)) {
-        items.push({ kind: 'line', line: l, index: lineIdx++ })
+      for (const line of contextBuffer.slice(-3)) {
+        items.push({ kind: 'line', line, index: lineIdx++ })
       }
     }
     contextBuffer = []
@@ -122,12 +95,44 @@ export function DiffFileSection({
   for (const line of displayLines) {
     if (line.type === 'context') {
       contextBuffer.push(line)
-    } else {
-      flushContext()
-      items.push({ kind: 'line', line, index: lineIdx++ })
+      continue
     }
+    flushContext()
+    items.push({ kind: 'line', line, index: lineIdx++ })
   }
+
   flushContext()
+  return items
+}
+
+interface DiffFileSectionProps {
+  filePath: string
+  items: DisplayItem[]
+  additions: number
+  deletions: number
+  activeCommentLocation: { filePath: string; line: number } | null
+  onSetActiveComment: (location: { filePath: string; line: number } | null) => void
+  onAddSingleComment: (
+    filePath: string,
+    startLine: number,
+    endLine: number,
+    content: string,
+  ) => void
+  onAddToReview: (comment: ReviewComment) => void
+}
+
+export function DiffFileSection({
+  filePath,
+  items,
+  additions,
+  deletions,
+  activeCommentLocation,
+  onSetActiveComment,
+  onAddSingleComment,
+  onAddToReview,
+}: DiffFileSectionProps): React.JSX.Element {
+  const [expanded, setExpanded] = useState(true)
+  const [expandedCollapsed, setExpandedCollapsed] = useState<Record<string, boolean>>({})
 
   const isCommentActiveHere = activeCommentLocation?.filePath === filePath
 

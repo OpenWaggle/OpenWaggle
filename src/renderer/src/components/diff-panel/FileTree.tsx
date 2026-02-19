@@ -1,6 +1,6 @@
 import type { GitFileDiff } from '@shared/types/git'
 import { Check, ChevronDown, ChevronRight } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { cn } from '@/lib/cn'
 
 interface TreeNode {
@@ -112,7 +112,11 @@ export function FileTree({
   onSendReview,
   reviewCount,
 }: FileTreeProps): React.JSX.Element {
-  const tree = buildTree(files)
+  const [tree, setTree] = useState<TreeNode[]>(() => buildTree(files))
+
+  useEffect(() => {
+    setTree(buildTree(files))
+  }, [files])
 
   return (
     <div className="flex flex-col justify-between h-full w-[200px] bg-diff-bg border-l border-border py-3 shrink-0">

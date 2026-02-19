@@ -27,7 +27,7 @@ export function App(): React.JSX.Element {
 
   const DIFF_PANEL_MIN = 360
   const DIFF_PANEL_MAX = 900
-  const CHAT_MIN_WIDTH = 480
+  const CHAT_MIN_WIDTH = 420
 
   useSettingsSetup()
 
@@ -160,7 +160,11 @@ export function App(): React.JSX.Element {
         message: 'No project selected.',
       }
     }
-    return commitGit(projectPath, { message, amend, paths })
+    const result = await commitGit(projectPath, { message, amend, paths })
+    if (result.ok) {
+      setDiffRefreshKey((k) => k + 1)
+    }
+    return result
   }
 
   // Keyboard shortcuts
@@ -235,11 +239,8 @@ export function App(): React.JSX.Element {
         />
 
         {/* Main content — chat panel + optional diff panel */}
-        <div className={cn('flex flex-1', diffPanelOpen ? 'overflow-x-auto' : 'overflow-hidden')}>
-          <div
-            className="flex justify-center overflow-hidden shrink-0"
-            style={{ minWidth: `${String(CHAT_MIN_WIDTH)}px`, flex: '1 1 0%' }}
-          >
+        <div className="flex flex-1 overflow-hidden">
+          <div className="flex min-w-0 flex-1 justify-center overflow-hidden">
             <ChatPanel
               messages={messages}
               isLoading={isLoading}
@@ -277,14 +278,21 @@ export function App(): React.JSX.Element {
                 onResizeEnd={() => {}}
               />
               <div
-                className="shrink-0 overflow-hidden"
-                style={{ width: `${String(diffPanelWidth)}px` }}
+                className="shrink-0 overflow-x-auto overflow-y-hidden"
+                style={{
+                  width: `min(${String(diffPanelWidth)}px, max(0px, calc(100% - ${String(CHAT_MIN_WIDTH)}px)))`,
+                }}
               >
-                <DiffPanel
-                  key={diffRefreshKey}
-                  projectPath={projectPath}
-                  onSendMessage={handleSend}
-                />
+                <div
+                  className="h-full overflow-hidden"
+                  style={{ width: `${String(diffPanelWidth)}px` }}
+                >
+                  <DiffPanel
+                    key={diffRefreshKey}
+                    projectPath={projectPath}
+                    onSendMessage={handleSend}
+                  />
+                </div>
               </div>
             </>
           )}
