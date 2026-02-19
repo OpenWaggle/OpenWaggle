@@ -32,6 +32,7 @@ interface ChatPanelProps {
   onModelChange: (model: SupportedModelId) => void
   settings: SettingsType
   providerModels: ProviderInfo[]
+  messageModelLookup: Readonly<Record<string, SupportedModelId>>
 }
 
 function classifyError(message: string): {
@@ -83,6 +84,7 @@ export function ChatPanel({
   onModelChange,
   settings,
   providerModels,
+  messageModelLookup,
 }: ChatPanelProps): React.JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [dismissedError, setDismissedError] = useState<string | null>(null)
@@ -173,6 +175,11 @@ export function ChatPanel({
                 key={msg.id}
                 message={msg}
                 isStreaming={lastIsStreaming && i === messages.length - 1}
+                assistantModel={
+                  msg.role === 'assistant'
+                    ? (messageModelLookup[msg.id] ?? model)
+                    : undefined
+                }
               />
             ))}
 

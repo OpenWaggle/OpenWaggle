@@ -1,13 +1,19 @@
 import type { UIMessage } from '@tanstack/ai-react'
+import { generateDisplayName, type SupportedModelId } from '@shared/types/llm'
 import { StreamingText } from './StreamingText'
 import { ToolCallBlock } from './ToolCallBlock'
 
 interface MessageBubbleProps {
   message: UIMessage
   isStreaming?: boolean
+  assistantModel?: SupportedModelId
 }
 
-export function MessageBubble({ message, isStreaming }: MessageBubbleProps): React.JSX.Element {
+export function MessageBubble({
+  message,
+  isStreaming,
+  assistantModel,
+}: MessageBubbleProps): React.JSX.Element {
   const isUser = message.role === 'user'
 
   const toolResults = new Map<string, { content: string; state: string; error?: string }>()
@@ -46,6 +52,13 @@ export function MessageBubble({ message, isStreaming }: MessageBubbleProps): Rea
     /* Assistant msg — width: fill_container, no background */
     <div className="w-full">
       <div className="flex flex-col gap-2">
+        {assistantModel && (
+          <div>
+            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] text-text-muted bg-bg-tertiary/40 border border-border/70">
+              {generateDisplayName(assistantModel)}
+            </span>
+          </div>
+        )}
         {message.parts.map((part, i) => {
           switch (part.type) {
             case 'text':

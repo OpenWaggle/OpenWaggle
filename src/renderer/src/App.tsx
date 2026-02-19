@@ -37,6 +37,11 @@ export function App(): React.JSX.Element {
   const currentModel = settings.defaultModel
 
   const conversation = useChatStore((s) => s.activeConversation)
+  const messageModelLookup = Object.fromEntries(
+    (conversation?.messages ?? [])
+      .filter((msg) => msg.role === 'assistant' && !!msg.model)
+      .map((msg) => [String(msg.id), msg.model]),
+  )
   const { messages, sendMessage, isLoading, stop, error } = useAgentChat(
     activeConversationId,
     conversation,
@@ -168,6 +173,7 @@ export function App(): React.JSX.Element {
             onModelChange={handleModelChange}
             settings={settings}
             providerModels={providerModels}
+            messageModelLookup={messageModelLookup}
           />
         </div>
 
