@@ -78,11 +78,10 @@ export function Header({
           className={cn(
             'no-drag flex items-center gap-1 h-7 px-2.5 rounded-[5px]',
             'bg-gradient-to-b from-accent to-accent-dim',
-            'transition-opacity hover:opacity-90',
-            !projectPath && 'pointer-events-none opacity-30',
+            'cursor-not-allowed opacity-30',
           )}
-          disabled={!projectPath}
-          title="Commit changes"
+          disabled
+          title="Commit flow coming soon"
         >
           <span className="text-[12px] font-semibold text-bg">Commit</span>
           <span className="text-[9px] text-bg/50">&#x2228;</span>
@@ -93,8 +92,7 @@ export function Header({
 
         {/* Diff stats — gap 4 */}
         <div className="no-drag flex items-center gap-1">
-          <span className="text-[12px] font-medium text-success">+441</span>
-          <span className="text-[12px] font-medium text-[#e05c5c]">-348</span>
+          <span className="text-[12px] font-medium text-text-tertiary">Diff unavailable</span>
         </div>
       </div>
     </header>
