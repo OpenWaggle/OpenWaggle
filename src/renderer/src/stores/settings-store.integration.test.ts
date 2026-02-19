@@ -67,6 +67,16 @@ describe('useSettingsStore integration', () => {
     expect(useSettingsStore.getState().settings.defaultModel).toBe('gpt-4.1-mini')
   })
 
+  it('persists execution mode and quality preset updates', async () => {
+    await useSettingsStore.getState().setExecutionMode('full-access')
+    await useSettingsStore.getState().setQualityPreset('high')
+
+    expect(apiMock.updateSettings).toHaveBeenCalledWith({ executionMode: 'full-access' })
+    expect(apiMock.updateSettings).toHaveBeenCalledWith({ qualityPreset: 'high' })
+    expect(useSettingsStore.getState().settings.executionMode).toBe('full-access')
+    expect(useSettingsStore.getState().settings.qualityPreset).toBe('high')
+  })
+
   it('clears API key when given empty string', async () => {
     await useSettingsStore.getState().updateApiKey('openai', '  ')
     expect(apiMock.updateSettings).toHaveBeenCalledWith(
@@ -101,5 +111,41 @@ describe('useSettingsStore integration', () => {
 
     useSettingsStore.getState().clearTestResult('openai')
     expect(useSettingsStore.getState().testResults.openai).toBeNull()
+  })
+
+  it('tracks recent projects in newest-first order with dedupe and max size', async () => {
+    const entries = [
+      '/tmp/repo-1',
+      '/tmp/repo-2',
+      '/tmp/repo-3',
+      '/tmp/repo-4',
+      '/tmp/repo-5',
+      '/tmp/repo-6',
+      '/tmp/repo-7',
+      '/tmp/repo-8',
+      '/tmp/repo-9',
+      '/tmp/repo-10',
+      '/tmp/repo-11',
+    ]
+
+    for (const path of entries) {
+      await useSettingsStore.getState().setProjectPath(path)
+    }
+    await useSettingsStore.getState().setProjectPath('/tmp/repo-9')
+
+    const recentProjects = useSettingsStore.getState().settings.recentProjects
+    expect(recentProjects).toEqual([
+      '/tmp/repo-9',
+      '/tmp/repo-11',
+      '/tmp/repo-10',
+      '/tmp/repo-8',
+      '/tmp/repo-7',
+      '/tmp/repo-6',
+      '/tmp/repo-5',
+      '/tmp/repo-4',
+      '/tmp/repo-3',
+      '/tmp/repo-2',
+    ])
+    expect(recentProjects).toHaveLength(10)
   })
 })

@@ -30,6 +30,7 @@ import {
   getConversation,
   listConversations,
   saveConversation,
+  updateConversationProjectPath,
   updateConversationTitle,
 } from './conversations'
 
@@ -146,5 +147,15 @@ describe('conversation store integration', () => {
 
     expect(fetched?.title).toBe('Saved again')
     expect((fetched?.updatedAt ?? 0) >= previousUpdatedAt).toBe(true)
+  })
+
+  it('updates project path for an existing conversation', async () => {
+    const conversation = await createConversation('/tmp/project-c')
+    const updated = await updateConversationProjectPath(conversation.id, '/tmp/project-d')
+
+    expect(updated?.projectPath).toBe('/tmp/project-d')
+
+    const reloaded = await getConversation(conversation.id)
+    expect(reloaded?.projectPath).toBe('/tmp/project-d')
   })
 })

@@ -7,6 +7,7 @@ const { apiMock } = vi.hoisted(() => ({
     createConversation: vi.fn(),
     getConversation: vi.fn(),
     deleteConversation: vi.fn(),
+    updateConversationProjectPath: vi.fn(),
   },
 }))
 
@@ -116,5 +117,55 @@ describe('useChatStore integration', () => {
     expect(apiMock.deleteConversation).toHaveBeenCalledWith(id)
     expect(useChatStore.getState().activeConversationId).toBeNull()
     expect(useChatStore.getState().activeConversation).toBeNull()
+  })
+
+  it('updates active conversation project path and reloads summaries', async () => {
+    const id = ConversationId('conv-5')
+    useChatStore.setState({
+      conversations: [
+        {
+          id,
+          title: 'Thread',
+          projectPath: '/tmp/old',
+          messageCount: 0,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ],
+      activeConversationId: id,
+      activeConversation: {
+        id,
+        title: 'Thread',
+        projectPath: '/tmp/old',
+        messages: [],
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    })
+
+    apiMock.updateConversationProjectPath.mockResolvedValue({
+      id,
+      title: 'Thread',
+      projectPath: '/tmp/new',
+      messages: [],
+      createdAt: 1,
+      updatedAt: 2,
+    })
+    apiMock.listConversations.mockResolvedValue([
+      {
+        id,
+        title: 'Thread',
+        projectPath: '/tmp/new',
+        messageCount: 0,
+        createdAt: 1,
+        updatedAt: 2,
+      },
+    ])
+
+    await useChatStore.getState().updateConversationProjectPath(id, '/tmp/new')
+
+    expect(apiMock.updateConversationProjectPath).toHaveBeenCalledWith(id, '/tmp/new')
+    expect(useChatStore.getState().activeConversation?.projectPath).toBe('/tmp/new')
+    expect(useChatStore.getState().conversations[0]?.projectPath).toBe('/tmp/new')
   })
 })

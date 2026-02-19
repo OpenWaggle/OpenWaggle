@@ -87,7 +87,7 @@ describe('createIpcConnectionAdapter', () => {
       } as StreamChunk)
     })
 
-    const connection = createIpcConnectionAdapter(conversationId, model)
+    const connection = createIpcConnectionAdapter(conversationId, model, () => null, 'medium')
     const userMessage = {
       id: 'msg-user',
       role: 'user',
@@ -104,7 +104,11 @@ describe('createIpcConnectionAdapter', () => {
 
     expect(apiMock.sendMessage).toHaveBeenCalledWith(
       conversationId,
-      'list files recursively',
+      {
+        text: 'list files recursively',
+        qualityPreset: 'medium',
+        attachments: [],
+      },
       model,
     )
     expect(chunks.map((chunk) => chunk.type)).toEqual([
@@ -120,7 +124,7 @@ describe('createIpcConnectionAdapter', () => {
   it('does not cancel the main-process run on adapter abort', async () => {
     apiMock.sendMessage.mockResolvedValueOnce(undefined)
 
-    const connection = createIpcConnectionAdapter(conversationId, model)
+    const connection = createIpcConnectionAdapter(conversationId, model, () => null, 'medium')
     const userMessage = {
       id: 'msg-user',
       role: 'user',
@@ -137,5 +141,48 @@ describe('createIpcConnectionAdapter', () => {
 
     expect(result.done).toBe(true)
     expect(apiMock.cancelAgent).not.toHaveBeenCalled()
+  })
+
+  it('uses provided pending payload for multimodal sends', async () => {
+    apiMock.sendMessage.mockImplementationOnce(async () => {
+      emitStreamChunk(conversationId, {
+        type: 'RUN_FINISHED',
+        timestamp: 10,
+        runId: 'run-10',
+        finishReason: 'stop',
+      } as StreamChunk)
+    })
+
+    const payload = {
+      text: 'Summarize attached files',
+      qualityPreset: 'high' as const,
+      attachments: [
+        {
+          id: 'a1',
+          kind: 'text' as const,
+          name: 'notes.txt',
+          path: '/tmp/repo/notes.txt',
+          mimeType: 'text/plain',
+          sizeBytes: 12,
+          extractedText: 'hello',
+          source: null,
+        },
+      ],
+    }
+
+    const connection = createIpcConnectionAdapter(conversationId, model, () => payload, 'medium')
+    const userMessage = {
+      id: 'msg-user',
+      role: 'user',
+      parts: [{ type: 'text', content: payload.text }],
+      createdAt: new Date(),
+    } as UIMessage
+
+    const stream = connection.connect([userMessage], undefined, undefined)
+    for await (const _chunk of stream) {
+      // consume
+    }
+
+    expect(apiMock.sendMessage).toHaveBeenCalledWith(conversationId, payload, model)
   })
 })
