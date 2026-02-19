@@ -1,22 +1,23 @@
 import type { ServerTool } from '@tanstack/ai'
-import { askUserTool } from './tools/ask-user'
-import { editFileTool } from './tools/edit-file'
-import { globTool } from './tools/glob'
-import { listFilesTool } from './tools/list-files'
-import { readFileTool } from './tools/read-file'
-import { runCommandTool } from './tools/run-command'
-import { writeFileTool } from './tools/write-file'
+import type { AgentFeature, AgentRunContext } from '../agent/runtime-types'
 
-const tools: ServerTool[] = [
-  readFileTool,
-  writeFileTool,
-  editFileTool,
-  runCommandTool,
-  globTool,
-  listFilesTool,
-  askUserTool,
-]
+/**
+ * Resolve tools from active features and then apply feature-level filters.
+ * This keeps tool composition extensible without hardcoding lists in the agent loop.
+ */
+export function getServerTools(
+  context: AgentRunContext,
+  features: readonly AgentFeature[],
+): ServerTool[] {
+  const providedTools = features.flatMap((feature) => feature.getTools?.(context) ?? [])
 
-export function getServerTools(): ServerTool[] {
-  return tools
+  return features.reduce<ServerTool[]>(
+    (currentTools, feature) => {
+      if (!feature.filterTools) {
+        return currentTools
+      }
+      return [...feature.filterTools(currentTools, context)]
+    },
+    [...providedTools],
+  )
 }

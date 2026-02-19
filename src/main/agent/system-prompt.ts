@@ -1,5 +1,6 @@
-export function buildSystemPrompt(projectPath: string | null): string {
-  const base = `You are OpenHive, an expert coding assistant. You help developers understand, write, debug, and refactor code.
+import type { AgentPromptFragment } from './runtime-types'
+
+const CORE_BEHAVIOR_PROMPT = `You are OpenHive, an expert coding assistant. You help developers understand, write, debug, and refactor code.
 
 You have access to tools that let you read files, write files, edit files, run commands, and explore the project structure. Use these tools proactively to understand the codebase before making changes.
 
@@ -12,9 +13,39 @@ Guidelines:
 - If you're unsure, ask for clarification
 - Use the askUser tool when you need to gather user preferences or choose between approaches. Present clear, concise questions with 2-5 options each. You can ask 1-4 questions at once. Only ask when the answer materially affects your approach — don't ask obvious questions.`
 
-  if (projectPath) {
-    return `${base}\n\nThe user's project is located at: ${projectPath}\nAll file paths in tool calls should be relative to this project root.`
-  }
+export const coreBehaviorPromptFragment: AgentPromptFragment = {
+  id: 'core.behavior',
+  order: 10,
+  build: () => CORE_BEHAVIOR_PROMPT,
+}
 
-  return `${base}\n\nNo project folder is currently selected. Ask the user to select a project folder if they want you to work with files.`
+export const runtimeModelPromptFragment: AgentPromptFragment = {
+  id: 'core.runtime-model',
+  order: 20,
+  build: (context) =>
+    `You are currently running on provider "${context.provider.displayName}" with model "${context.model}".`,
+}
+
+export const projectContextPromptFragment: AgentPromptFragment = {
+  id: 'core.project-context',
+  order: 30,
+  build: (context) => {
+    if (context.hasProject) {
+      return `The user's project is located at: ${context.projectPath}\nAll file paths in tool calls should be relative to this project root.`
+    }
+
+    return 'No project folder is currently selected. Ask the user to select a project folder if they want you to work with files.'
+  },
+}
+
+export const executionModePromptFragment: AgentPromptFragment = {
+  id: 'core.execution-mode',
+  order: 40,
+  build: (context) => {
+    if (context.settings.executionMode === 'sandbox') {
+      return 'Execution mode is Sandbox. You must avoid tools that require approval (write/edit/command execution) and solve the task with read-only inspection plus clear user guidance.'
+    }
+
+    return 'Execution mode is Full access. Use file-write and command tools when needed, but keep operations precise and avoid unnecessary destructive actions.'
+  },
 }

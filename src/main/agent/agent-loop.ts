@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { Message, MessagePart } from '@shared/types/agent'
-import { MessageId, ToolCallId } from '@shared/types/brand'
+import { MessageId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { Settings } from '@shared/types/settings'
@@ -8,7 +8,23 @@ import { chat, maxIterations, type StreamChunk } from '@tanstack/ai'
 import { providerRegistry } from '../providers'
 import { runWithToolContext } from '../tools/define-tool'
 import { getServerTools } from '../tools/registry'
-import { buildSystemPrompt } from './system-prompt'
+import {
+  getActiveAgentFeatures,
+  getFeatureLifecycleHooks,
+  getFeaturePromptFragments,
+} from './feature-registry'
+import {
+  notifyRunComplete,
+  notifyRunError,
+  notifyRunStart,
+  notifyStreamChunk,
+  notifyToolCallEnd,
+  notifyToolCallStart,
+} from './lifecycle-hooks'
+import { conversationToMessages, type SimpleChatMessage } from './message-mapper'
+import { buildSystemPrompt } from './prompt-pipeline'
+import type { AgentLifecycleHook, AgentRunContext } from './runtime-types'
+import { StreamPartCollector } from './stream-part-collector'
 
 const MAX_ITERATIONS = 25
 
@@ -27,73 +43,6 @@ export interface AgentRunResult {
   readonly finalMessage: Message
 }
 
-/**
- * Simple message shape for TanStack AI — content is always string | null.
- * Using structural typing instead of importing ModelMessage avoids
- * ConstrainedModelMessage type parameter mismatches across providers.
- */
-interface SimpleChatMessage {
-  role: 'user' | 'assistant' | 'tool'
-  content: string | null
-  toolCalls?: Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }>
-  toolCallId?: string
-}
-
-/**
- * Convert our Message[] to simple ChatMessage[].
- * Handles text, tool_use, and tool_result parts.
- */
-function conversationToMessages(messages: readonly Message[]): SimpleChatMessage[] {
-  const result: SimpleChatMessage[] = []
-
-  for (const msg of messages) {
-    if (msg.role === 'user') {
-      const text = msg.parts
-        .filter((p): p is Extract<MessagePart, { type: 'text' }> => p.type === 'text')
-        .map((p) => p.text)
-        .join('\n')
-      result.push({ role: 'user', content: text })
-    } else if (msg.role === 'assistant') {
-      const toolCalls = msg.parts
-        .filter((p): p is Extract<MessagePart, { type: 'tool-call' }> => p.type === 'tool-call')
-        .map((p) => ({
-          id: String(p.toolCall.id),
-          type: 'function' as const,
-          function: {
-            name: p.toolCall.name,
-            arguments: JSON.stringify(p.toolCall.args),
-          },
-        }))
-
-      const textParts = msg.parts.filter(
-        (p): p is Extract<MessagePart, { type: 'text' }> => p.type === 'text',
-      )
-
-      const textContent = textParts.map((p) => p.text).join('\n')
-
-      result.push({
-        role: 'assistant',
-        content: textContent || null,
-        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-      })
-
-      // Tool results as separate tool messages
-      const toolResults = msg.parts.filter(
-        (p): p is Extract<MessagePart, { type: 'tool-result' }> => p.type === 'tool-result',
-      )
-      for (const tr of toolResults) {
-        result.push({
-          role: 'tool',
-          content: tr.toolResult.result,
-          toolCallId: String(tr.toolResult.id),
-        })
-      }
-    }
-  }
-
-  return result
-}
-
 function makeMessage(
   role: 'user' | 'assistant',
   parts: MessagePart[],
@@ -108,21 +57,17 @@ function makeMessage(
   }
 }
 
-function detectToolResultError(result: unknown): boolean {
-  if (typeof result === 'string') {
-    try {
-      const parsed = JSON.parse(result) as unknown
-      return detectToolResultError(parsed)
-    } catch {
-      return false
-    }
+async function withStageTiming<T>(
+  stageDurationsMs: Record<string, number>,
+  stageName: string,
+  fn: () => Promise<T> | T,
+): Promise<T> {
+  const start = Date.now()
+  try {
+    return await fn()
+  } finally {
+    stageDurationsMs[stageName] = Date.now() - start
   }
-
-  if (typeof result !== 'object' || result === null) return false
-
-  const maybeRecord = result as { error?: unknown; ok?: unknown }
-  if (maybeRecord.ok === false) return true
-  return typeof maybeRecord.error === 'string' && maybeRecord.error.length > 0
 }
 
 export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> {
@@ -136,147 +81,139 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
       signal,
     },
     async () => {
-      // Resolve provider and adapter via the registry
-      const provider = providerRegistry.getProviderForModel(model)
-      if (!provider) throw new Error(`No provider registered for model: ${model}`)
+      const stageDurationsMs: Record<string, number> = {}
+      const collector = new StreamPartCollector()
+      let runErrorNotified = false
 
-      const providerConfig = settings.providers[provider.id]
-      if (!providerConfig?.enabled) {
-        throw new Error(`${provider.displayName} is disabled in settings`)
-      }
-      if (provider.requiresApiKey && !providerConfig?.apiKey) {
-        throw new Error(`No API key configured for ${provider.displayName}`)
-      }
+      let context: AgentRunContext | null = null
+      let hooks: AgentLifecycleHook[] = []
+      let promptFragmentIds: readonly string[] = []
 
-      const adapter = provider.createAdapter(
-        model,
-        providerConfig?.apiKey ?? '',
-        providerConfig?.baseUrl,
-      )
+      try {
+        const runId = randomUUID()
 
-      const systemPrompt = buildSystemPrompt(conversation.projectPath)
-      const abortController = new AbortController()
-      signal.addEventListener('abort', () => abortController.abort(), { once: true })
-
-      // Build messages
-      const existingMessages = conversationToMessages(conversation.messages)
-      const newUserMessage: SimpleChatMessage = { role: 'user', content: userMessage }
-      const allMessages = [...existingMessages, newUserMessage]
-
-      const hasProject = !!conversation.projectPath
-
-      const stream: AsyncIterable<StreamChunk> = chat({
-        adapter,
-        messages: allMessages,
-        systemPrompts: [systemPrompt],
-        tools: hasProject ? getServerTools() : [],
-        agentLoopStrategy: maxIterations(MAX_ITERATIONS),
-        abortController,
-      })
-
-      // Collect events for building our Message objects
-      const collectedParts: MessagePart[] = []
-      let currentText = ''
-      const toolCallArgs: Record<string, string> = {}
-      const toolCallStartTimes: Record<string, number> = {}
-
-      for await (const chunk of stream) {
-        if (signal.aborted) break
-
-        // Forward raw chunk to renderer for the useChat IPC adapter
-        onChunk(chunk)
-
-        // Collect message parts for persistence
-        switch (chunk.type) {
-          case 'TEXT_MESSAGE_CONTENT':
-            currentText += chunk.delta
-            break
-
-          case 'TOOL_CALL_START':
-            // Flush accumulated text
-            if (currentText.trim()) {
-              collectedParts.push({ type: 'text', text: currentText })
-              currentText = ''
-            }
-            toolCallArgs[chunk.toolCallId] = ''
-            toolCallStartTimes[chunk.toolCallId] = Date.now()
-            break
-
-          case 'TOOL_CALL_ARGS':
-            toolCallArgs[chunk.toolCallId] = (toolCallArgs[chunk.toolCallId] ?? '') + chunk.delta
-            break
-
-          case 'TOOL_CALL_END': {
-            let args: Record<string, unknown> = {}
-            const rawArgs = toolCallArgs[chunk.toolCallId] ?? '{}'
-            try {
-              args = JSON.parse(rawArgs)
-            } catch (parseError) {
-              console.warn(
-                `Failed to parse tool call args for "${chunk.toolName}":`,
-                parseError instanceof Error ? parseError.message : parseError,
-                `| raw: ${rawArgs.slice(0, 200)}`,
-              )
+        const { provider, providerConfig } = await withStageTiming(
+          stageDurationsMs,
+          'provider-resolution',
+          async () => {
+            const resolvedProvider = providerRegistry.getProviderForModel(model)
+            if (!resolvedProvider) {
+              throw new Error(`No provider registered for model: ${model}`)
             }
 
-            collectedParts.push({
-              type: 'tool-call',
-              toolCall: { id: ToolCallId(chunk.toolCallId), name: chunk.toolName, args },
-            })
-
-            // TanStack AI executes the tool via ServerTool.execute and provides the result
-            if (chunk.result !== undefined) {
-              const startTime = toolCallStartTimes[chunk.toolCallId]
-              const duration = startTime ? Date.now() - startTime : 0
-
-              collectedParts.push({
-                type: 'tool-result',
-                toolResult: {
-                  id: ToolCallId(chunk.toolCallId),
-                  name: chunk.toolName,
-                  args,
-                  result:
-                    typeof chunk.result === 'string' ? chunk.result : JSON.stringify(chunk.result),
-                  isError: detectToolResultError(chunk.result),
-                  duration,
-                },
-              })
+            const resolvedProviderConfig = settings.providers[resolvedProvider.id]
+            if (!resolvedProviderConfig?.enabled) {
+              throw new Error(`${resolvedProvider.displayName} is disabled in settings`)
             }
-            break
-          }
-
-          case 'RUN_FINISHED':
-            break
-
-          case 'RUN_ERROR':
-            console.error('Agent run error:', chunk.error.message)
-            // Flush any accumulated text before appending the error
-            if (currentText.trim()) {
-              collectedParts.push({ type: 'text', text: currentText })
-              currentText = ''
+            if (resolvedProvider.requiresApiKey && !resolvedProviderConfig.apiKey) {
+              throw new Error(`No API key configured for ${resolvedProvider.displayName}`)
             }
-            collectedParts.push({
-              type: 'text',
-              text: `\n\n**Error:** ${chunk.error.message}`,
-            })
-            break
+
+            return {
+              provider: resolvedProvider,
+              providerConfig: resolvedProviderConfig,
+            }
+          },
+        )
+
+        context = {
+          runId,
+          conversation,
+          model,
+          settings,
+          signal,
+          projectPath: conversation.projectPath ?? process.cwd(),
+          hasProject: !!conversation.projectPath,
+          provider,
+          providerConfig,
         }
+        const runContext = context
+
+        const features = getActiveAgentFeatures(runContext)
+        hooks = getFeatureLifecycleHooks(runContext, features)
+
+        await notifyRunStart(hooks, runContext)
+
+        const { prompt: systemPrompt, fragmentIds } = await withStageTiming(
+          stageDurationsMs,
+          'prompt-composition',
+          () => {
+            const fragments = getFeaturePromptFragments(runContext, features)
+            return buildSystemPrompt(runContext, fragments)
+          },
+        )
+        promptFragmentIds = fragmentIds
+
+        const tools = await withStageTiming(stageDurationsMs, 'tool-resolution', () =>
+          getServerTools(runContext, features),
+        )
+
+        const adapter = provider.createAdapter(
+          model,
+          providerConfig.apiKey ?? '',
+          providerConfig.baseUrl,
+        )
+
+        const abortController = new AbortController()
+        signal.addEventListener('abort', () => abortController.abort(), { once: true })
+
+        const stream = await withStageTiming(stageDurationsMs, 'stream-setup', () => {
+          const existingMessages = conversationToMessages(conversation.messages)
+          const newUserMessage: SimpleChatMessage = { role: 'user', content: userMessage }
+          const allMessages = [...existingMessages, newUserMessage]
+
+          return chat({
+            adapter,
+            messages: allMessages,
+            systemPrompts: [systemPrompt],
+            tools,
+            agentLoopStrategy: maxIterations(MAX_ITERATIONS),
+            abortController,
+          })
+        })
+
+        await withStageTiming(stageDurationsMs, 'stream-processing', async () => {
+          for await (const chunk of stream) {
+            if (signal.aborted) break
+
+            onChunk(chunk)
+            await notifyStreamChunk(hooks, runContext, chunk)
+
+            const collected = collector.handleChunk(chunk)
+            if (collected.toolCallStart) {
+              await notifyToolCallStart(hooks, runContext, collected.toolCallStart)
+            }
+            if (collected.toolCallEnd) {
+              await notifyToolCallEnd(hooks, runContext, collected.toolCallEnd)
+            }
+            if (collected.runError) {
+              runErrorNotified = true
+              await notifyRunError(hooks, runContext, collected.runError)
+            }
+          }
+        })
+
+        const finalParts = collector.finalizeParts()
+        const stats = collector.getStats()
+
+        await notifyRunComplete(hooks, runContext, {
+          promptFragmentIds,
+          stageDurationsMs,
+          toolCalls: stats.toolCalls,
+          toolErrors: stats.toolErrors,
+        })
+
+        const userMsg = makeMessage('user', [{ type: 'text', text: userMessage }])
+        const assistantMsg = makeMessage('assistant', finalParts, model)
+
+        return { newMessages: [userMsg, assistantMsg], finalMessage: assistantMsg }
+      } catch (error) {
+        if (context && !runErrorNotified) {
+          const runError = error instanceof Error ? error : new Error(String(error))
+          await notifyRunError(hooks, context, runError)
+        }
+        throw error
       }
-
-      // Flush remaining text
-      if (currentText.trim()) {
-        collectedParts.push({ type: 'text', text: currentText })
-      }
-
-      const finalParts =
-        collectedParts.length > 0
-          ? collectedParts
-          : [{ type: 'text' as const, text: '(no response)' }]
-
-      const userMsg = makeMessage('user', [{ type: 'text', text: userMessage }])
-      const assistantMsg = makeMessage('assistant', finalParts, model)
-
-      return { newMessages: [userMsg, assistantMsg], finalMessage: assistantMsg }
     },
   )
 }
