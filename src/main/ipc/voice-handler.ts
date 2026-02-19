@@ -49,6 +49,11 @@ interface TransformersEnv {
   allowLocalModels?: boolean
   allowRemoteModels?: boolean
   cacheDir?: string
+  backends?: {
+    onnx?: {
+      logLevel?: 'verbose' | 'info' | 'warning' | 'error' | 'fatal'
+    }
+  }
 }
 
 interface TransformersModule {
@@ -125,6 +130,9 @@ async function loadTranscriber(model: VoiceModel): Promise<WhisperTranscriber> {
     imported.env.allowLocalModels = true
     imported.env.allowRemoteModels = true
     imported.env.cacheDir = cacheDir
+    if (imported.env.backends?.onnx) {
+      imported.env.backends.onnx.logLevel = 'error'
+    }
 
     const transcriber = await imported.pipeline('automatic-speech-recognition', config.modelId, {
       quantized: config.quantized,

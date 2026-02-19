@@ -5,10 +5,21 @@ const { handleMock, getPathMock, mkdirMock, pipelineMock, transformersEnv } = vi
   getPathMock: vi.fn(() => '/tmp/openhive-user-data'),
   mkdirMock: vi.fn(async () => undefined),
   pipelineMock: vi.fn(),
-  transformersEnv: {} as {
+  transformersEnv: {
+    backends: {
+      onnx: {
+        logLevel: undefined as 'verbose' | 'info' | 'warning' | 'error' | 'fatal' | undefined,
+      },
+    },
+  } as {
     allowLocalModels?: boolean
     allowRemoteModels?: boolean
     cacheDir?: string
+    backends?: {
+      onnx?: {
+        logLevel?: 'verbose' | 'info' | 'warning' | 'error' | 'fatal'
+      }
+    }
   },
 }))
 
@@ -57,6 +68,9 @@ describe('registerVoiceHandlers', () => {
     transformersEnv.allowLocalModels = undefined
     transformersEnv.allowRemoteModels = undefined
     transformersEnv.cacheDir = undefined
+    if (transformersEnv.backends?.onnx) {
+      transformersEnv.backends.onnx.logLevel = undefined
+    }
     resetVoiceHandlerForTests()
   })
 
@@ -106,6 +120,7 @@ describe('registerVoiceHandlers', () => {
     expect(transformersEnv.allowLocalModels).toBe(true)
     expect(transformersEnv.allowRemoteModels).toBe(true)
     expect(transformersEnv.cacheDir).toBe('/tmp/openhive-user-data/models/transformers')
+    expect(transformersEnv.backends?.onnx?.logLevel).toBe('error')
   })
 
   it('reuses loaded transcriber between requests', async () => {
