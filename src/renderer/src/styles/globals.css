@@ -3,11 +3,11 @@
 
 @theme {
   /* Surfaces */
-  --color-bg: #0d0f12;
-  --color-bg-secondary: #111418;
-  --color-bg-tertiary: #151922;
-  --color-bg-hover: #1e2229;
-  --color-bg-active: #17130a;
+  --color-bg: #141619;
+  --color-bg-secondary: #1a1d22;
+  --color-bg-tertiary: #1f232a;
+  --color-bg-hover: #262b33;
+  --color-bg-active: #1d1a10;
 
   /* Borders */
   --color-border: #1e2229;
