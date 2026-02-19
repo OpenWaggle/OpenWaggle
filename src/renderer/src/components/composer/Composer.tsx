@@ -7,7 +7,7 @@ import type {
 import type { ProviderInfo, SupportedModelId } from '@shared/types/llm'
 import type { ExecutionMode, QualityPreset, Settings as SettingsType } from '@shared/types/settings'
 import { ArrowUp, GitBranch, Loader2, Mic, Plus, RefreshCw, Square, X } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ModelSelector } from '@/components/shared/ModelSelector'
 import { cn } from '@/lib/cn'
 import { api } from '@/lib/ipc'
@@ -181,20 +181,14 @@ export function Composer({
   const voiceNetworkUnavailableRef = useRef(false)
   const canSend = (!!input.trim() || attachments.length > 0) && !disabled
 
-  const filteredBranches = useMemo(() => {
-    const query = branchQuery.trim().toLowerCase()
-    const branches = gitBranches?.branches ?? []
-    if (!query) return branches
-    return branches.filter((branch) => branch.name.toLowerCase().includes(query))
-  }, [branchQuery, gitBranches])
-  const localBranches = useMemo(
-    () => filteredBranches.filter((branch) => !branch.isRemote),
-    [filteredBranches],
-  )
-  const remoteBranches = useMemo(
-    () => filteredBranches.filter((branch) => branch.isRemote),
-    [filteredBranches],
-  )
+  const branchQueryNormalized = branchQuery.trim().toLowerCase()
+  const allBranches = gitBranches?.branches ?? []
+  const filteredBranches =
+    branchQueryNormalized.length > 0
+      ? allBranches.filter((branch) => branch.name.toLowerCase().includes(branchQueryNormalized))
+      : allBranches
+  const localBranches = filteredBranches.filter((branch) => !branch.isRemote)
+  const remoteBranches = filteredBranches.filter((branch) => branch.isRemote)
   const actionDialogConfig = actionDialog ? getActionDialogConfig(actionDialog, gitBranch) : null
   const actionDialogHasInput =
     actionDialog === 'create-branch' ||
@@ -602,7 +596,6 @@ export function Composer({
     recognition.lang = 'en-US'
     recognition.continuous = false
     recognition.interimResults = false
-    recognition.processLocally = true
     recognition.onstart = () => setIsListening(true)
     recognition.onresult = (event) => {
       const transcript = Array.from(event.results)
