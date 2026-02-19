@@ -6,6 +6,7 @@ import type {
   GitCommitFailure,
   GitCommitPayload,
   GitCommitResult,
+  GitFileDiff,
   GitFileStatus,
   GitStatusSummary,
 } from '@shared/types/git'
@@ -277,6 +278,67 @@ async function commitGit(projectPath: string, payload: GitCommitPayload): Promis
   }
 }
 
+function parseUnifiedDiff(stdout: string): GitFileDiff[] {
+  const files: GitFileDiff[] = []
+  // Split on "diff --git" boundaries
+  const chunks = stdout.split(/^diff --git /m).filter(Boolean)
+
+  for (const chunk of chunks) {
+    const lines = chunk.split('\n')
+    // Extract file path from "a/path b/path" header
+    const header = lines[0] ?? ''
+    const bMatch = / b\/(.+)$/.exec(header)
+    const filePath = bMatch?.[1] ?? header.trim()
+
+    let additions = 0
+    let deletions = 0
+    const diffLines: string[] = []
+
+    for (const line of lines.slice(1)) {
+      diffLines.push(line)
+      if (line.startsWith('+') && !line.startsWith('+++')) {
+        additions++
+      } else if (line.startsWith('-') && !line.startsWith('---')) {
+        deletions++
+      }
+    }
+
+    if (filePath) {
+      files.push({
+        path: filePath,
+        diff: `diff --git ${chunk}`,
+        additions,
+        deletions,
+      })
+    }
+  }
+
+  return files
+}
+
+async function getGitDiff(projectPath: string): Promise<GitFileDiff[]> {
+  if (!(await isGitRepository(projectPath))) {
+    throw new Error('Selected folder is not a Git repository.')
+  }
+
+  // Get both staged and unstaged diffs against HEAD
+  const [headResult, worktreeResult, cachedResult] = await Promise.all([
+    runGit(projectPath, ['diff', 'HEAD']),
+    runGit(projectPath, ['diff']),
+    runGit(projectPath, ['diff', '--cached']),
+  ])
+
+  // Prefer HEAD diff (shows all uncommitted changes); fall back to worktree + cached
+  if (headResult.code === 0 && headResult.stdout.trim()) {
+    return parseUnifiedDiff(headResult.stdout)
+  }
+
+  // Combine worktree and cached for initial commits
+  const combined = `${worktreeResult.stdout}\n${cachedResult.stdout}`.trim()
+  if (!combined) return []
+  return parseUnifiedDiff(combined)
+}
+
 const projectPathSchema = z
   .string()
   .min(1)
@@ -298,5 +360,10 @@ export function registerGitHandlers(): void {
     const projectPath = projectPathSchema.parse(rawPath)
     const payload = commitPayloadSchema.parse(rawPayload)
     return commitGit(projectPath, payload)
+  })
+
+  ipcMain.handle('git:diff', async (_event, rawPath: unknown) => {
+    const projectPath = projectPathSchema.parse(rawPath)
+    return getGitDiff(projectPath)
   })
 }
