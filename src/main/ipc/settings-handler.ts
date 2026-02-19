@@ -48,10 +48,18 @@ async function testProviderApiKey(
 
     const result = await Promise.race([
       (async () => {
-        for await (const _ of stream) {
-          break // first chunk confirms the key works
+        for await (const chunk of stream) {
+          if (chunk.type === 'RUN_ERROR') {
+            return {
+              success: false,
+              error: chunk.error.message || 'Provider returned an error while testing credentials',
+            } as const
+          }
+          if (chunk.type === 'RUN_FINISHED') {
+            return { success: true } as const
+          }
         }
-        return { success: true } as const
+        return { success: false, error: 'Connection closed before completion' } as const
       })(),
       new Promise<{ success: false; error: string }>((resolve) =>
         setTimeout(() => {
@@ -75,7 +83,10 @@ const settingsUpdateSchema = z.object({
       z.enum(PROVIDERS),
       z.object({
         apiKey: z.string(),
-        baseUrl: z.string().optional(),
+        baseUrl: z.preprocess(
+          (value) => (value === '' ? undefined : value),
+          z.string().url().optional(),
+        ),
         enabled: z.boolean(),
       }),
     )

@@ -1,3 +1,4 @@
+import path from 'node:path'
 import fg from 'fast-glob'
 import { z } from 'zod'
 import { defineOpenHiveTool } from '../define-tool'
@@ -14,6 +15,8 @@ export const globTool = defineOpenHiveTool({
       .describe('Patterns to ignore (e.g., ["node_modules/**", "dist/**"])'),
   }),
   async execute(args, context) {
+    assertPatternInsideProject(args.pattern)
+
     const files = await fg(args.pattern, {
       cwd: context.projectPath,
       ignore: args.ignore ?? ['node_modules/**', '.git/**', 'dist/**', 'out/**'],
@@ -32,3 +35,15 @@ export const globTool = defineOpenHiveTool({
     return sorted.join('\n')
   },
 })
+
+function assertPatternInsideProject(pattern: string): void {
+  const normalized = pattern.replaceAll('\\', '/')
+  if (path.isAbsolute(pattern) || /^[A-Za-z]:\//.test(normalized)) {
+    throw new Error('Glob pattern must be relative to the project root')
+  }
+
+  const segments = normalized.split('/').filter(Boolean)
+  if (segments.includes('..')) {
+    throw new Error('Glob pattern cannot traverse outside the project root')
+  }
+}
