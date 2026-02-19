@@ -1,6 +1,6 @@
 ---
 name: task-workflow
-description: Mandatory workflow for all development tasks. Use this skill when starting any task. Covers branching, planning, implementation, testing, and PR creation with knowledge transfer via LEARNINGS.md.
+description: Mandatory workflow for all development tasks. Use this skill when starting any task. Covers planning, implementation, testing, and PR creation with knowledge transfer via LEARNINGS.md.
 ---
 
 # Task Workflow
@@ -21,7 +21,6 @@ Note any warnings relevant to your task. Apply them.
 ### 1.2 Confirm to User
 Tell the user:
 > "Starting task: [description]
-> Created branch: `feature/xxx`
 > Relevant warnings from LEARNINGS.md: [list any, or 'None']"
 
 **DO NOT write any code until you have completed 1.1-1.2.**
@@ -148,7 +147,6 @@ Before marking task complete, verify ALL:
 - [ ] Read LEARNINGS.md at start
 - [ ] Multiple atomic commits (not one giant commit)
 - [ ] Tests pass (`pnpm test`, `pnpm typecheck`)
-- [ ] Branch pushed to remote
 - [ ] LEARNINGS.md updated with discoveries
 
 ---
@@ -174,7 +172,7 @@ Before marking task complete, verify ALL:
 ## Quick Reference
 
 ```
-BEFORE CODE:   LEARNINGS.md → branch → confirm
+BEFORE CODE:   LEARNINGS.md → confirm
 PLANNING:      EnterPlanMode → plan → approve → ExitPlanMode
 IMPLEMENTING:  code → commit → code → commit → code → commit
 TESTING:       pnpm test → pnpm typecheck → (e2e if UI)
@@ -184,6 +182,10 @@ FINISHING:     LEARNINGS.md → commit → push → notify user
 ---
 
 ## Recent Learnings
+
+### Task: Agent File-Tool Stall Investigation (2026-02-19)
+- TanStack AI server tool execution treats string returns as JSON-encoded payloads; plain-text tool outputs can surface as tool errors unless wrapped in a structured result contract (`kind: 'text' | 'json'`) [SKILL?]
+- Persisted tool result error metadata should be derived in main-process stream handling (`TOOL_CALL_END`) and then mapped back into UI tool-result state; relying only on renderer-side content parsing causes contract drift
 
 ### Task: Backlog Completion (2026-02-19)
 - For conversation schema refactors, keep persisted JSON backward-compatible by making removed fields optional in Zod and using legacy values to backfill per-message data during parse
