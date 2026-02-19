@@ -157,7 +157,10 @@ export function Sidebar({
           <span className="no-drag text-[13px] font-semibold text-text-primary">HiveCode</span>
         </div>
 
-        <div className="shrink-0 h-20" />
+        <div
+          className="shrink-0 transition-[height] duration-200 ease-out"
+          style={{ height: isFullscreen ? 104 : 80 }}
+        />
 
         {/* Nav items — fixed */}
         <div className="shrink-0">
