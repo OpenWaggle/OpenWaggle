@@ -19,6 +19,7 @@ import openhiveMark from '@/assets/openhive-mark.png'
 import { Composer } from '@/components/composer/Composer'
 import { Spinner } from '@/components/shared/Spinner'
 import { projectName } from '@/lib/format'
+import { ApprovalBanner } from './ApprovalBanner'
 import { MessageBubble } from './MessageBubble'
 
 interface ChatPanelProps {
@@ -138,6 +139,26 @@ export function ChatPanel({
       .map((p) => p.content)
       .join('\n') ?? null
 
+  // Find the first pending tool approval across all messages
+  let pendingApproval: {
+    toolName: string
+    toolArgs: string
+    approvalId: string
+  } | null = null
+  for (const msg of messages) {
+    if (pendingApproval) break
+    for (const part of msg.parts) {
+      if (part.type === 'tool-call' && part.state === 'approval-requested' && part.approval?.id) {
+        pendingApproval = {
+          toolName: part.name,
+          toolArgs: part.arguments,
+          approvalId: part.approval.id,
+        }
+        break
+      }
+    }
+  }
+
   return (
     <div className="flex h-full w-full flex-col bg-bg overflow-hidden">
       {/* Scroll container — full width so scrollbar sits at right edge */}
@@ -217,7 +238,6 @@ export function ChatPanel({
                     msg.role === 'assistant' ? (messageModelLookup[msg.id] ?? model) : undefined
                   }
                   conversationId={conversationId}
-                  onToolApprovalResponse={onToolApprovalResponse}
                   onAnswerQuestion={onAnswerQuestion}
                 />
               ))}
@@ -284,6 +304,18 @@ export function ChatPanel({
           </div>
         )}
       </div>
+
+      {/* Pinned approval banner — always visible above composer */}
+      {pendingApproval && (
+        <div className="mx-auto w-full max-w-[720px] px-5 pb-2">
+          <ApprovalBanner
+            toolName={pendingApproval.toolName}
+            toolArgs={pendingApproval.toolArgs}
+            approvalId={pendingApproval.approvalId}
+            onApprovalResponse={onToolApprovalResponse}
+          />
+        </div>
+      )}
 
       {/* Chat input card — centered to match content width */}
       <div className="mx-auto w-full max-w-[720px] px-5 pb-5">

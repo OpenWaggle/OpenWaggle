@@ -11,7 +11,6 @@ interface MessageBubbleProps {
   isStreaming?: boolean
   assistantModel?: SupportedModelId
   conversationId: ConversationId | null
-  onToolApprovalResponse: (approvalId: string, approved: boolean) => Promise<void>
   onAnswerQuestion: (conversationId: ConversationId, answers: QuestionAnswer[]) => Promise<void>
 }
 
@@ -20,7 +19,6 @@ export function MessageBubble({
   isStreaming,
   assistantModel,
   conversationId,
-  onToolApprovalResponse,
   onAnswerQuestion,
 }: MessageBubbleProps): React.JSX.Element {
   const isUser = message.role === 'user'
@@ -104,8 +102,6 @@ export function MessageBubble({
                   args={part.arguments}
                   state={part.state}
                   result={toolResults.get(part.id)}
-                  approvalId={part.approval?.id}
-                  onApprovalResponse={onToolApprovalResponse}
                 />
               )
             case 'tool-result':
