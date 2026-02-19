@@ -1,10 +1,12 @@
 import { isTextPart } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
+import type { QuestionAnswer } from '@shared/types/question'
 import { ipcMain } from 'electron'
 import { runAgent } from '../agent/agent-loop'
 import { getConversation, saveConversation } from '../store/conversations'
 import { getSettings } from '../store/settings'
+import { answerQuestion, cancelQuestion } from '../tools/question-manager'
 import { emitStreamChunk } from '../utils/stream-bridge'
 
 /** Per-conversation abort controllers — allows concurrent runs on different conversations */
@@ -42,6 +44,14 @@ export function registerAgentHandlers(): void {
         return
       }
 
+      if (conversation.title === 'New thread' && conversation.messages.length === 0) {
+        const trimmed = content.trim()
+        if (trimmed) {
+          const provisionalTitle = trimmed.slice(0, 60) + (trimmed.length > 60 ? '...' : '')
+          await saveConversation({ ...conversation, title: provisionalTitle })
+        }
+      }
+
       try {
         const { newMessages } = await runAgent({
           conversation,
@@ -52,11 +62,18 @@ export function registerAgentHandlers(): void {
           signal: abortController.signal,
         })
 
-        // Append new messages to the conversation immutably
-        const updatedMessages = [...conversation.messages, ...newMessages]
+        // Re-read the latest snapshot before persisting to avoid resurrecting
+        // deleted conversations (e.g. user deletes while run is in flight).
+        const latestConversation = await getConversation(conversationId)
+        if (!latestConversation) {
+          return
+        }
+
+        // Append new messages to the latest conversation snapshot.
+        const updatedMessages = [...latestConversation.messages, ...newMessages]
 
         // Auto-title on first user message
-        let title = conversation.title
+        let title = latestConversation.title
         if (updatedMessages.length <= 2 && title === 'New thread') {
           const firstUserMsg = updatedMessages.find((m) => m.role === 'user')
           if (firstUserMsg) {
@@ -68,7 +85,7 @@ export function registerAgentHandlers(): void {
           }
         }
 
-        await saveConversation({ ...conversation, title, messages: updatedMessages })
+        await saveConversation({ ...latestConversation, title, messages: updatedMessages })
       } catch (err) {
         if (!(err instanceof Error && err.message === 'aborted')) {
           emitStreamChunk(conversationId, {
@@ -96,12 +113,21 @@ export function registerAgentHandlers(): void {
         controller.abort()
         activeRuns.delete(conversationId)
       }
+      cancelQuestion(conversationId)
     } else {
       // Cancel all active runs (backward compat)
       for (const [id, controller] of activeRuns) {
         controller.abort()
         activeRuns.delete(id)
+        cancelQuestion(id)
       }
     }
   })
+
+  ipcMain.handle(
+    'agent:answer-question',
+    (_event, conversationId: ConversationId, answers: QuestionAnswer[]) => {
+      answerQuestion(conversationId, answers)
+    },
+  )
 }

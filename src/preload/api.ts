@@ -1,9 +1,10 @@
-import type { ConversationId, ToolCallId } from '@shared/types/brand'
+import type { ConversationId } from '@shared/types/brand'
 import type { Conversation, ConversationSummary } from '@shared/types/conversation'
+import type { GitCommitPayload, GitCommitResult, GitStatusSummary } from '@shared/types/git'
 import type { OpenHiveApi } from '@shared/types/ipc'
 import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from '@shared/types/llm'
+import type { QuestionAnswer, QuestionPayload } from '@shared/types/question'
 import type { Provider, Settings } from '@shared/types/settings'
-import type { ToolApprovalRequest, ToolApprovalStatus } from '@shared/types/tools'
 import type { StreamChunk } from '@tanstack/ai'
 import { ipcRenderer } from 'electron'
 
@@ -38,17 +39,20 @@ export const api: OpenHiveApi = {
     return () => ipcRenderer.removeListener('agent:stream-chunk', handler)
   },
 
-  // ─── Tool Approval ──────────────────────────────────
-  respondToolApproval(callId: ToolCallId, status: ToolApprovalStatus): void {
-    ipcRenderer.send('tool:approval-response', callId, status)
+  // ─── Agent Questions ─────────────────────────────────
+  answerQuestion(conversationId: ConversationId, answers: QuestionAnswer[]): Promise<void> {
+    return ipcRenderer.invoke('agent:answer-question', conversationId, answers)
   },
 
-  onToolApproval(callback: (request: ToolApprovalRequest) => void): () => void {
-    const handler = (_event: Electron.IpcRendererEvent, payload: ToolApprovalRequest): void => {
+  onQuestion(callback: (payload: QuestionPayload) => void): () => void {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      payload: QuestionPayload,
+    ): void => {
       callback(payload)
     }
-    ipcRenderer.on('tool:approval-request', handler)
-    return () => ipcRenderer.removeListener('tool:approval-request', handler)
+    ipcRenderer.on('agent:question', handler)
+    return () => ipcRenderer.removeListener('agent:question', handler)
   },
 
   // ─── Settings ────────────────────────────────────────
@@ -142,5 +146,14 @@ export const api: OpenHiveApi = {
     }
     ipcRenderer.on('window:fullscreen-changed', handler)
     return () => ipcRenderer.removeListener('window:fullscreen-changed', handler)
+  },
+
+  // ─── Git ─────────────────────────────────────────────
+  getGitStatus(projectPath: string): Promise<GitStatusSummary> {
+    return ipcRenderer.invoke('git:status', projectPath)
+  },
+
+  commitGit(projectPath: string, payload: GitCommitPayload): Promise<GitCommitResult> {
+    return ipcRenderer.invoke('git:commit', projectPath, payload)
   },
 }
