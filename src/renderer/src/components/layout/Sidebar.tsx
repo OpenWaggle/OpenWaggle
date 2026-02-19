@@ -2,6 +2,7 @@ import type { ConversationId } from '@shared/types/brand'
 import type { ConversationSummary } from '@shared/types/conversation'
 import {
   ArrowDownAZ,
+  Cable,
   Calendar,
   Check,
   Clock,
@@ -12,7 +13,6 @@ import {
   Hash,
   LayoutList,
   MessageSquare,
-  RotateCw,
   Settings,
   Sparkles,
   SquareTerminal,
@@ -174,14 +174,14 @@ export function Sidebar({
             <span className="text-[13px] text-text-secondary">New thread</span>
           </button>
 
-          {/* Automations — h32, padding [0,12], gap 8 */}
+          {/* MCPs — h32, padding [0,12], gap 8 */}
           <button
             type="button"
             disabled
             className="no-drag flex w-full cursor-not-allowed items-center gap-2 h-8 px-3"
           >
-            <RotateCw className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
-            <span className="text-[13px] text-text-secondary/60">Automations</span>
+            <Cable className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
+            <span className="text-[13px] text-text-secondary/60">MCPs</span>
           </button>
 
           {/* Skills — h32, padding [0,12], gap 8 */}
