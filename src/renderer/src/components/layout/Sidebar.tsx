@@ -2,7 +2,6 @@ import type { ConversationId } from '@shared/types/brand'
 import type { ConversationSummary } from '@shared/types/conversation'
 import {
   ArrowDownAZ,
-  Cable,
   Calendar,
   Check,
   Clock,
@@ -22,6 +21,24 @@ import { useEffect, useRef, useState } from 'react'
 import { useFullscreen } from '@/hooks/useFullscreen'
 import { cn } from '@/lib/cn'
 import { formatRelativeTime, projectName, truncate } from '@/lib/format'
+
+function McpIcon({ className }: { className?: string }): React.JSX.Element {
+  return (
+    <svg
+      viewBox="0 0 195 195"
+      fill="none"
+      className={className}
+      stroke="currentColor"
+      strokeWidth="16"
+      strokeLinecap="round"
+    >
+      <title>MCP</title>
+      <path d="M25 97.85L92.88 29.97a24 24 0 0133.94 0 24 24 0 010 33.94L75.56 115.18" />
+      <path d="M76.27 114.47l50.56-50.56a24 24 0 0133.94 0l.35.35a24 24 0 010 33.94l-61.39 61.4a6 6 0 000 8.48l12.6 12.61" />
+      <path d="M109.85 46.94L59.65 97.15a24 24 0 000 33.94 24 24 0 0033.94 0l50.2-50.21" />
+    </svg>
+  )
+}
 
 type SortMode = 'recent' | 'oldest' | 'name' | 'threads'
 
@@ -180,7 +197,7 @@ export function Sidebar({
             disabled
             className="no-drag flex w-full cursor-not-allowed items-center gap-2 h-8 px-3"
           >
-            <Cable className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
+            <McpIcon className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
             <span className="text-[13px] text-text-secondary/60">MCPs</span>
           </button>
 
