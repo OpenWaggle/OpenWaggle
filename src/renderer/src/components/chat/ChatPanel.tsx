@@ -113,11 +113,16 @@ export function ChatPanel({
     { label: 'Create a refactor plan for this feature', icon: PencilLine },
   ]
 
+  const lastMsg = messages[messages.length - 1]
+  const lastIsStreaming = isLoading && lastMsg?.role === 'assistant'
+
   useEffect(() => {
+    if (!conversationId || messages.length === 0) return
+    if (lastIsStreaming) return
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
-  })
+  }, [conversationId, messages.length, lastIsStreaming])
 
   function handleScroll() {
     const el = scrollRef.current
@@ -128,9 +133,6 @@ export function ChatPanel({
       el.classList.remove('is-scrolling')
     }, 1200)
   }
-
-  const lastMsg = messages[messages.length - 1]
-  const lastIsStreaming = isLoading && lastMsg?.role === 'assistant'
 
   const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')
   const lastUserMessage =
