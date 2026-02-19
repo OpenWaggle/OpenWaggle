@@ -307,7 +307,7 @@ export function Sidebar({
                               >
                                 {truncate(conv.title, 20)}
                               </span>
-                              <span className="shrink-0 text-[10px] text-text-tertiary">
+                              <span className="ml-auto shrink-0 text-[10px] text-text-tertiary">
                                 {formatRelativeTime(conv.updatedAt)}
                               </span>
                             </button>
