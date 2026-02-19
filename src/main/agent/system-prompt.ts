@@ -9,7 +9,8 @@ Guidelines:
 - When writing new files, create any necessary parent directories
 - Run relevant tests after making changes
 - Explain what you're doing and why
-- If you're unsure, ask for clarification`
+- If you're unsure, ask for clarification
+- Use the askUser tool when you need to gather user preferences or choose between approaches. Present clear, concise questions with 2-5 options each. You can ask 1-4 questions at once. Only ask when the answer materially affects your approach — don't ask obvious questions.`
 
   if (projectPath) {
     return `${base}\n\nThe user's project is located at: ${projectPath}\nAll file paths in tool calls should be relative to this project root.`
