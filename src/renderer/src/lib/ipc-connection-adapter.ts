@@ -64,11 +64,21 @@ export function createIpcConnectionAdapter(
           let resolve: (() => void) | null = null
           let done = false
 
+          function isTerminalChunk(chunk: StreamChunk): boolean {
+            if (chunk.type === 'RUN_ERROR') return true
+            if (chunk.type === 'RUN_FINISHED') {
+              // TanStack emits intermediate RUN_FINISHED (finishReason: 'tool_calls')
+              // before server tool execution completes.
+              return chunk.finishReason !== 'tool_calls'
+            }
+            return false
+          }
+
           const unsub = api.onStreamChunk((payload) => {
             if (payload.conversationId !== conversationId) return
 
             queue.push(payload.chunk)
-            if (payload.chunk.type === 'RUN_FINISHED' || payload.chunk.type === 'RUN_ERROR') {
+            if (isTerminalChunk(payload.chunk)) {
               done = true
             }
             // Wake up the consumer if it's waiting
