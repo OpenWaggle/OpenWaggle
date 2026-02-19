@@ -19,7 +19,7 @@ const userQuestionSchema = z.object({
 export const askUserTool = defineOpenHiveTool({
   name: 'askUser',
   description:
-    'Ask the user a question with clickable options. Use this when you need to gather preferences or choose between approaches. Present clear, concise questions with 2-5 options each. You can ask 1-4 questions at once. Only ask when the answer materially affects your approach.',
+    'Ask the user a question with clickable options. Use this only when a user preference is required to proceed and different answers lead to materially different implementation actions. Do not use for simple capability yes/no questions, terminology disambiguation, or generic taxonomy prompts. First provide a direct best-effort answer when possible. Present clear, concise questions with 2-5 options each. You can ask 1-4 questions at once.',
   needsApproval: false,
   inputSchema: z.object({
     questions: z

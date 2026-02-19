@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { openaiProvider } from '../providers/openai'
 import { buildSystemPrompt } from './prompt-pipeline'
 import type { AgentPromptFragment, AgentRunContext } from './runtime-types'
+import { coreBehaviorPromptFragment, runtimeModelPromptFragment } from './system-prompt'
 
 function makeContext(overrides?: { executionMode?: Settings['executionMode'] }): AgentRunContext {
   const executionMode = overrides?.executionMode ?? 'full-access'
@@ -92,5 +93,29 @@ describe('buildSystemPrompt', () => {
 
     expect(result.prompt).toBe('core prompt')
     expect(result.fragmentIds).toEqual(['core'])
+  })
+
+  it('includes least-disclosure and askUser gating guidance in core behavior prompt', () => {
+    const context = makeContext()
+
+    const result = coreBehaviorPromptFragment.build(context)
+
+    expect(result).toContain(
+      'For short yes/no capability questions, do not use askUser before answering',
+    )
+    expect(result).toContain(
+      'Do not use askUser just to classify broad terms or generate generic taxonomies',
+    )
+  })
+
+  it('labels runtime model details as internal context', () => {
+    const context = makeContext()
+
+    const result = runtimeModelPromptFragment.build(context)
+
+    expect(result).toContain('Internal runtime context')
+    expect(result).toContain(
+      'do not mention this unless the user asks for technical/runtime details',
+    )
   })
 })
