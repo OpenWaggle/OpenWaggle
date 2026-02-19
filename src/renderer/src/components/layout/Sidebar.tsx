@@ -21,7 +21,7 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { useFullscreen } from '@/hooks/useFullscreen'
 import { cn } from '@/lib/cn'
-import { formatRelativeTime, projectName, truncate } from '@/lib/format'
+import { formatRelativeTime, projectName } from '@/lib/format'
 
 type SortMode = 'recent' | 'oldest' | 'name' | 'threads'
 
@@ -305,7 +305,7 @@ export function Sidebar({
                                     : 'text-text-secondary',
                                 )}
                               >
-                                {truncate(conv.title, 20)}
+                                {conv.title}
                               </span>
                             </button>
                             <span className="ml-auto shrink-0 text-[10px] text-text-tertiary group-hover:hidden">
