@@ -1,5 +1,6 @@
-import { Copy, PanelLeft } from 'lucide-react'
+import { Copy, Hash, PanelLeft } from 'lucide-react'
 import { cn } from '@/lib/cn'
+import { projectName } from '@/lib/format'
 
 interface HeaderProps {
   conversationTitle: string | null
@@ -29,17 +30,17 @@ export function Header({
           </button>
         )}
 
-        {/* Play arrow — text character */}
-        <span className="no-drag text-[14px] text-text-secondary">&#x25B7;</span>
+        {/* Thread icon */}
+        <Hash className="no-drag h-3.5 w-3.5 text-text-tertiary" />
 
         {/* Title */}
         <span className="no-drag text-[13px] font-medium text-text-primary">
           {conversationTitle ?? 'New thread'}
         </span>
 
-        {/* Tag pill — h20, padding [0,8], cornerRadius 4, bg #151922, stroke #1e2229 */}
+        {/* Project pill — h20, padding [0,8], cornerRadius 4, bg #151922, stroke #1e2229 */}
         <span className="no-drag flex items-center h-5 px-2 rounded border border-border bg-bg-tertiary text-[11px] text-text-secondary">
-          HiveCode
+          {projectName(projectPath)}
         </span>
 
         {/* Dots */}
