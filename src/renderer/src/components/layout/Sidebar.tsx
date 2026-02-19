@@ -305,7 +305,7 @@ export function Sidebar({
                                     : 'text-text-secondary',
                                 )}
                               >
-                                {truncate(conv.title, 15)}
+                                {truncate(conv.title, 25)}
                               </span>
                             </button>
                             <span className="ml-auto shrink-0 text-[10px] text-text-tertiary group-hover:hidden">
