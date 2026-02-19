@@ -81,7 +81,7 @@ Scoring: high impact + low/medium effort first.
 ### Completed (2026-02-19)
 
 - Header terminal action, commit dialog, live git status, and copy-control removal.
-- Execution mode switching (Sandbox / Full access) with confirmation for Full access.
+- Execution mode switching (Default permissions / Full access) with confirmation for Full access.
 - Branch list and mutation operations (checkout/create/rename/delete/set-upstream) with refresh wiring.
 - Empty-state project dropdown with recent projects and active-thread project path updates.
 - Composer quality presets (Low/Medium/High) mapped to runtime model/parameter resolution.
@@ -265,10 +265,10 @@ Status legend: `implemented`, `deferred`, `future`
 - Location:
   - `src/renderer/src/components/composer/Composer.tsx:180` (Local)
   - `src/renderer/src/components/composer/Composer.tsx:187` (Full access)
-- Current: selectable Sandbox / Full access controls with Full access confirmation.
+- Current: selectable Default permissions / Full access controls with Full access confirmation.
 - Target behavior:
   - User-switchable execution mode persisted in settings.
-  - New-profile default is Sandbox; legacy profiles retain Full access until explicitly changed.
+  - New-profile default is Default permissions (`sandbox` mode); legacy profiles retain Full access until explicitly changed.
 - Technical requirements:
   - Settings type extension for execution policy.
   - Agent request path must enforce policy at runtime, not only in UI.
