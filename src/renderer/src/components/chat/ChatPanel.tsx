@@ -30,11 +30,15 @@ interface ChatPanelProps {
   onRetry?: (content: string) => void
   onSend: (content: string) => void
   onCancel: () => void
+  onToolApprovalResponse: (approvalId: string, approved: boolean) => Promise<void>
   model: SupportedModelId
   onModelChange: (model: SupportedModelId) => void
   settings: SettingsType
   providerModels: ProviderInfo[]
   messageModelLookup: Readonly<Record<string, SupportedModelId>>
+  gitBranch?: string | null
+  onRefreshGit?: () => void
+  isRefreshingGit?: boolean
 }
 
 function classifyError(message: string): {
@@ -83,11 +87,15 @@ export function ChatPanel({
   onRetry,
   onSend,
   onCancel,
+  onToolApprovalResponse,
   model,
   onModelChange,
   settings,
   providerModels,
   messageModelLookup,
+  gitBranch,
+  onRefreshGit,
+  isRefreshingGit,
 }: ChatPanelProps): React.JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null)
   const scrollTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
@@ -125,16 +133,11 @@ export function ChatPanel({
       .join('\n') ?? null
 
   return (
-    /* chat-panel: w720, padding [0,20,20,20], clip, vertical, fill #0d0f12 */
-    <div className="flex h-full w-full max-w-[720px] flex-col bg-bg pt-0 pr-0 pb-5 pl-5 overflow-hidden">
-      {/* chat-messages: flex-1, padding [20,28], gap 24, overflow scroll */}
-      <div
-        ref={scrollRef}
-        onScroll={handleScroll}
-        className="flex-1 overflow-y-auto py-5 pl-7 chat-scroll"
-      >
+    <div className="flex h-full w-full flex-col bg-bg overflow-hidden">
+      {/* Scroll container — full width so scrollbar sits at right edge */}
+      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto chat-scroll">
         {messages.length === 0 && !isLoading ? (
-          <div className="flex min-h-full w-full justify-center pr-12">
+          <div className="mx-auto flex min-h-full w-full max-w-[720px] px-12 py-5">
             <div className="flex w-full flex-col pt-8">
               <div className="flex flex-1 items-center justify-center pb-20">
                 <div className="flex flex-col items-center text-center">
@@ -194,83 +197,86 @@ export function ChatPanel({
             </div>
           </div>
         ) : (
-          /* Messages list — gap 24 between message groups */
-          <div className="flex flex-col gap-6 w-full pr-12">
-            {messages.map((msg, i) => (
-              <MessageBubble
-                key={msg.id}
-                message={msg}
-                isStreaming={lastIsStreaming && i === messages.length - 1}
-                assistantModel={
-                  msg.role === 'assistant' ? (messageModelLookup[msg.id] ?? model) : undefined
-                }
-              />
-            ))}
+          /* Messages list — centered, gap 24 between message groups */
+          <div className="mx-auto w-full max-w-[720px] px-12 py-5">
+            <div className="flex flex-col gap-6 w-full">
+              {messages.map((msg, i) => (
+                <MessageBubble
+                  key={msg.id}
+                  message={msg}
+                  isStreaming={lastIsStreaming && i === messages.length - 1}
+                  assistantModel={
+                    msg.role === 'assistant' ? (messageModelLookup[msg.id] ?? model) : undefined
+                  }
+                  onToolApprovalResponse={onToolApprovalResponse}
+                />
+              ))}
 
-            {isLoading &&
-              (!lastMsg || lastMsg.role !== 'assistant' || lastMsg.parts.length === 0) && (
-                <div className="flex items-center gap-2 py-3">
-                  <Spinner size="sm" className="text-accent" />
-                  <span className="text-sm text-text-tertiary">Thinking...</span>
-                </div>
-              )}
+              {isLoading &&
+                (!lastMsg || lastMsg.role !== 'assistant' || lastMsg.parts.length === 0) && (
+                  <div className="flex items-center gap-2 py-3">
+                    <Spinner size="sm" className="text-accent" />
+                    <span className="text-sm text-text-tertiary">Thinking...</span>
+                  </div>
+                )}
 
-            {error &&
-              !isLoading &&
-              dismissedError !== error.message &&
-              (() => {
-                const { hint, isAuthError, isRateLimit } = classifyError(error.message)
-                return (
-                  <div className="my-3 rounded-xl border border-error/25 bg-error/6 px-4 py-3">
-                    <div className="flex items-start gap-3">
-                      <AlertCircle className="h-4 w-4 shrink-0 text-error mt-0.5" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-error/90">{error.message}</p>
-                        {hint && <p className="text-xs text-text-tertiary mt-1">{hint}</p>}
-                        <div className="flex gap-2 mt-2">
-                          {isAuthError && onOpenSettings && (
+              {error &&
+                !isLoading &&
+                dismissedError !== error.message &&
+                (() => {
+                  const { hint, isAuthError, isRateLimit } = classifyError(error.message)
+                  return (
+                    <div className="my-3 rounded-xl border border-error/25 bg-error/6 px-4 py-3">
+                      <div className="flex items-start gap-3">
+                        <AlertCircle className="h-4 w-4 shrink-0 text-error mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-error/90">{error.message}</p>
+                          {hint && <p className="text-xs text-text-tertiary mt-1">{hint}</p>}
+                          <div className="flex gap-2 mt-2">
+                            {isAuthError && onOpenSettings && (
+                              <button
+                                type="button"
+                                onClick={onOpenSettings}
+                                className="flex items-center gap-1.5 rounded-md bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent hover:bg-accent/20 transition-colors"
+                              >
+                                <Settings className="h-3 w-3" />
+                                Open Settings
+                              </button>
+                            )}
+                            {lastUserMessage && !isRateLimit && onRetry && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDismissedError(error.message)
+                                  onRetry(lastUserMessage)
+                                }}
+                                className="flex items-center gap-1.5 rounded-md bg-error/10 px-2.5 py-1 text-xs font-medium text-error hover:bg-error/20 transition-colors"
+                              >
+                                <RefreshCw className="h-3 w-3" />
+                                Retry
+                              </button>
+                            )}
                             <button
                               type="button"
-                              onClick={onOpenSettings}
-                              className="flex items-center gap-1.5 rounded-md bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent hover:bg-accent/20 transition-colors"
+                              onClick={() => setDismissedError(error.message)}
+                              className="flex items-center gap-1.5 rounded-md bg-bg-hover px-2.5 py-1 text-xs font-medium text-text-tertiary hover:text-text-secondary transition-colors"
                             >
-                              <Settings className="h-3 w-3" />
-                              Open Settings
+                              <X className="h-3 w-3" />
+                              Dismiss
                             </button>
-                          )}
-                          {lastUserMessage && !isRateLimit && onRetry && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setDismissedError(error.message)
-                                onRetry(lastUserMessage)
-                              }}
-                              className="flex items-center gap-1.5 rounded-md bg-error/10 px-2.5 py-1 text-xs font-medium text-error hover:bg-error/20 transition-colors"
-                            >
-                              <RefreshCw className="h-3 w-3" />
-                              Retry
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => setDismissedError(error.message)}
-                            className="flex items-center gap-1.5 rounded-md bg-bg-hover px-2.5 py-1 text-xs font-medium text-text-tertiary hover:text-text-secondary transition-colors"
-                          >
-                            <X className="h-3 w-3" />
-                            Dismiss
-                          </button>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )
-              })()}
+                  )
+                })()}
+            </div>
           </div>
         )}
       </div>
 
-      {/* Chat input card */}
-      <div className="pr-5">
+      {/* Chat input card — centered to match content width */}
+      <div className="mx-auto w-full max-w-[720px] px-5 pb-5">
         <Composer
           onSend={onSend}
           onCancel={onCancel}
@@ -280,6 +286,9 @@ export function ChatPanel({
           settings={settings}
           providerModels={providerModels}
           projectPath={projectPath}
+          gitBranch={gitBranch}
+          onRefreshGit={onRefreshGit}
+          isRefreshingGit={isRefreshingGit}
         />
       </div>
     </div>
