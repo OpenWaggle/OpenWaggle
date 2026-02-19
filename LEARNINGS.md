@@ -183,6 +183,10 @@ FINISHING:     LEARNINGS.md → commit → push → notify user
 
 ## Recent Learnings
 
+### Task: Repository-Wide Review Remediation (2026-02-19)
+- `fast-glob` can match parent-directory patterns like `../*` even with `cwd` set; validate glob inputs explicitly to keep file-discovery tools confined to the selected project root [SKILL?]
+- Settings write-time validation (especially provider `baseUrl`) should match read-time validation to prevent silent fallback to defaults after restart
+
 ### Task: Test Coverage Baseline (2026-02-19)
 - Vitest `vi.mock()` factories are hoisted before top-level variables; shared mock handles referenced inside factory closures should be initialized via `vi.hoisted(...)` to avoid runtime `ReferenceError` in integration tests [SKILL?]
 - Electron e2e tests are deterministic when main-process `userData` can be overridden through an env var (`OPENHIVE_USER_DATA_DIR`), allowing relaunch persistence assertions without mutating local developer state
@@ -199,13 +203,13 @@ FINISHING:     LEARNINGS.md → commit → push → notify user
 - Root-level renderer error handling in React 19 still requires a class-based error boundary; wrap `<App />` in the boundary from `main.tsx` to avoid blank-screen failures
 - `Object.fromEntries` can widen values to `string | undefined`; use an explicit `Record<string, SupportedModelId>` fill loop when strict prop types require defined values
 
+## Old Learnings Archive
+
+Move old learnings here so we can review
+
 ### Task: Pencil "No Diff" UI Redesign (2026-02-18)
 - Biome enforces `noStaticElementInteractions` — use CSS `group-hover:visible` / `invisible` pattern instead of `useState` hover tracking with `onMouseEnter`/`onMouseLeave` on `<div>`
 - When restructuring layout (moving components between parent containers), update props interfaces in both parent and child to keep TypeScript happy
 - New design tokens added to `@theme` block: `--color-input-card-border`, `--color-button-border`, `--color-diff-card-bg`, `--color-diff-card-border`, `--color-link-yellow` — use Tailwind classes like `border-input-card-border`, `bg-diff-card-bg`
 - Composer now owns the status bar (Local/Full-access/git-branch) as its bottom row — no separate StatusBar component
 - Inter font added as primary sans-serif in `--font-sans`
-
-## Old Learnings Archive
-
-Move old learnings here so we can review
