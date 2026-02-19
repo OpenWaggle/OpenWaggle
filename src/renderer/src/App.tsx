@@ -7,12 +7,14 @@ import { ResizeHandle } from '@/components/diff-panel/ResizeHandle'
 import { Header } from '@/components/layout/Header'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { SettingsDialog } from '@/components/settings/SettingsDialog'
+import { SkillsPanel } from '@/components/skills/SkillsPanel'
 import { TerminalPanel } from '@/components/terminal/TerminalPanel'
 import { useAgentChat } from '@/hooks/useAgentChat'
 import { useChat } from '@/hooks/useChat'
 import { useGit } from '@/hooks/useGit'
 import { useProject } from '@/hooks/useProject'
 import { useSettings, useSettingsSetup } from '@/hooks/useSettings'
+import { useSkills } from '@/hooks/useSkills'
 import { cn } from '@/lib/cn'
 import { api } from '@/lib/ipc'
 import { isTerminalChunk } from '@/lib/ipc-connection-adapter'
@@ -22,6 +24,7 @@ export function App(): React.JSX.Element {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [terminalOpen, setTerminalOpen] = useState(false)
+  const [activeView, setActiveView] = useState<'chat' | 'skills'>('chat')
   const [diffPanelOpen, setDiffPanelOpen] = useState(false)
   const [diffPanelWidth, setDiffPanelWidth] = useState(600)
   const [diffRefreshKey, setDiffRefreshKey] = useState(0)
@@ -42,6 +45,18 @@ export function App(): React.JSX.Element {
     setQualityPreset,
   } = useSettings()
   const { projectPath, selectFolder, setProjectPath } = useProject()
+  const {
+    standardsStatus,
+    catalog: skillCatalog,
+    selectedSkillId,
+    previewMarkdown,
+    isLoading: skillsLoading,
+    isPreviewLoading: skillPreviewLoading,
+    error: skillsError,
+    refresh: refreshSkills,
+    selectSkill,
+    toggleSkill,
+  } = useSkills(projectPath)
   const {
     status: gitStatus,
     branches: gitBranches,
@@ -157,6 +172,7 @@ export function App(): React.JSX.Element {
   }, [projectPath, refreshGitBranches, refreshGitStatus])
 
   async function handleSelectConversation(id: Parameters<typeof setActiveConversation>[0]) {
+    setActiveView('chat')
     const conv = conversations.find((c) => c.id === id)
     const nextProjectPath = conv?.projectPath ?? projectPath
     if (conv && conv.projectPath !== projectPath) {
@@ -167,10 +183,12 @@ export function App(): React.JSX.Element {
   }
 
   async function handleNewConversation() {
+    setActiveView('chat')
     await createConversation(projectPath)
   }
 
   async function handleOpenProject() {
+    setActiveView('chat')
     const path = await selectFolder()
     if (path) {
       if (activeConversationId) {
@@ -185,6 +203,7 @@ export function App(): React.JSX.Element {
   }
 
   async function handleSelectProjectPath(path: string) {
+    setActiveView('chat')
     if (activeConversationId) {
       await updateConversationProjectPath(activeConversationId, path)
       await setProjectPath(path)
@@ -286,10 +305,15 @@ export function App(): React.JSX.Element {
         <Sidebar
           conversations={conversations}
           activeId={activeConversationId}
+          activeView={activeView}
           onSelect={handleSelectConversation}
           onDelete={deleteConversation}
           onNew={handleNewConversation}
           onOpenProject={handleOpenProject}
+          onOpenSkills={() => {
+            setActiveView('skills')
+            setDiffPanelOpen(false)
+          }}
           onOpenSettings={() => setSettingsOpen(true)}
         />
       </div>
@@ -312,108 +336,131 @@ export function App(): React.JSX.Element {
           onCommitGit={handleCommitGit}
         />
 
-        {/* Main content — chat panel + optional diff panel */}
+        {/* Main content */}
         <div className="flex flex-1 overflow-hidden">
-          <div className="flex min-w-0 flex-1 justify-center overflow-hidden">
-            <ChatPanel
-              messages={messages}
-              isLoading={isLoading}
-              error={error}
+          {activeView === 'skills' ? (
+            <SkillsPanel
               projectPath={projectPath}
-              hasProject={!!projectPath}
-              conversationId={activeConversationId}
-              onOpenProject={handleOpenProject}
-              onSelectProjectPath={handleSelectProjectPath}
-              onOpenSettings={() => setSettingsOpen(true)}
-              onRetry={handleSendText}
-              onSend={handleSend}
-              onToast={showToast}
-              onCancel={stop}
-              onToolApprovalResponse={respondToolApproval}
-              onAnswerQuestion={answerQuestion}
-              onExecutionModeChange={setExecutionMode}
-              onQualityPresetChange={setQualityPreset}
-              model={currentModel}
-              onModelChange={handleModelChange}
-              settings={settings}
-              providerModels={providerModels}
-              messageModelLookup={messageModelLookup}
-              gitBranch={gitStatus?.branch ?? null}
-              gitBranches={gitBranches}
-              isBranchActionRunning={isBranchActionRunning}
-              onCheckoutBranch={(name) =>
-                projectPath
-                  ? checkoutBranch(projectPath, { name })
-                  : Promise.resolve({
-                      ok: false,
-                      code: 'not-git-repo',
-                      message: 'No project selected.',
-                    })
-              }
-              onCreateBranch={(name, startPoint, checkout) =>
-                projectPath
-                  ? createBranch(projectPath, { name, startPoint, checkout })
-                  : Promise.resolve({
-                      ok: false,
-                      code: 'not-git-repo',
-                      message: 'No project selected.',
-                    })
-              }
-              onRenameBranch={(from, to) =>
-                projectPath
-                  ? renameBranch(projectPath, { from, to })
-                  : Promise.resolve({
-                      ok: false,
-                      code: 'not-git-repo',
-                      message: 'No project selected.',
-                    })
-              }
-              onDeleteBranch={(name, force) =>
-                projectPath
-                  ? deleteBranch(projectPath, { name, force })
-                  : Promise.resolve({
-                      ok: false,
-                      code: 'not-git-repo',
-                      message: 'No project selected.',
-                    })
-              }
-              onSetBranchUpstream={(name, upstream) =>
-                projectPath
-                  ? setUpstream(projectPath, { name, upstream })
-                  : Promise.resolve({
-                      ok: false,
-                      code: 'not-git-repo',
-                      message: 'No project selected.',
-                    })
-              }
-              onRefreshGit={handleRefreshGit}
-              isRefreshingGit={gitLoading}
+              standardsStatus={standardsStatus}
+              catalog={skillCatalog}
+              selectedSkillId={selectedSkillId}
+              previewMarkdown={previewMarkdown}
+              isLoading={skillsLoading}
+              isPreviewLoading={skillPreviewLoading}
+              error={skillsError}
+              onRefresh={() => {
+                void refreshSkills()
+              }}
+              onSelectSkill={selectSkill}
+              onToggleSkill={(skillId, enabled) => {
+                void toggleSkill(skillId, enabled)
+              }}
             />
-          </div>
-
-          {/* Resize handle + Diff panel */}
-          {diffPanelOpen && (
+          ) : (
             <>
-              <ResizeHandle
-                onResize={(delta) =>
-                  setDiffPanelWidth((w) =>
-                    Math.min(DIFF_PANEL_MAX, Math.max(DIFF_PANEL_MIN, w + delta)),
-                  )
-                }
-                onResizeEnd={() => {}}
-              />
-              <div
-                className="shrink-0 overflow-hidden"
-                style={{
-                  width: `min(${String(diffPanelWidth)}px, max(0px, calc(100% - ${String(CHAT_MIN_WIDTH)}px)))`,
-                }}
-              >
-                <DiffPanel
-                  key={diffRefreshKey}
+              <div className="flex min-w-0 flex-1 justify-center overflow-hidden">
+                <ChatPanel
+                  messages={messages}
+                  isLoading={isLoading}
+                  error={error}
                   projectPath={projectPath}
-                  onSendMessage={handleSendText}
+                  hasProject={!!projectPath}
+                  conversationId={activeConversationId}
+                  onOpenProject={handleOpenProject}
+                  onSelectProjectPath={handleSelectProjectPath}
+                  onOpenSettings={() => setSettingsOpen(true)}
+                  onRetry={handleSendText}
+                  onSend={handleSend}
+                  onToast={showToast}
+                  onCancel={stop}
+                  onToolApprovalResponse={respondToolApproval}
+                  onAnswerQuestion={answerQuestion}
+                  onExecutionModeChange={setExecutionMode}
+                  onQualityPresetChange={setQualityPreset}
+                  model={currentModel}
+                  onModelChange={handleModelChange}
+                  settings={settings}
+                  providerModels={providerModels}
+                  messageModelLookup={messageModelLookup}
+                  slashSkills={skillCatalog?.skills ?? []}
+                  gitBranch={gitStatus?.branch ?? null}
+                  gitBranches={gitBranches}
+                  isBranchActionRunning={isBranchActionRunning}
+                  onCheckoutBranch={(name) =>
+                    projectPath
+                      ? checkoutBranch(projectPath, { name })
+                      : Promise.resolve({
+                          ok: false,
+                          code: 'not-git-repo',
+                          message: 'No project selected.',
+                        })
+                  }
+                  onCreateBranch={(name, startPoint, checkout) =>
+                    projectPath
+                      ? createBranch(projectPath, { name, startPoint, checkout })
+                      : Promise.resolve({
+                          ok: false,
+                          code: 'not-git-repo',
+                          message: 'No project selected.',
+                        })
+                  }
+                  onRenameBranch={(from, to) =>
+                    projectPath
+                      ? renameBranch(projectPath, { from, to })
+                      : Promise.resolve({
+                          ok: false,
+                          code: 'not-git-repo',
+                          message: 'No project selected.',
+                        })
+                  }
+                  onDeleteBranch={(name, force) =>
+                    projectPath
+                      ? deleteBranch(projectPath, { name, force })
+                      : Promise.resolve({
+                          ok: false,
+                          code: 'not-git-repo',
+                          message: 'No project selected.',
+                        })
+                  }
+                  onSetBranchUpstream={(name, upstream) =>
+                    projectPath
+                      ? setUpstream(projectPath, { name, upstream })
+                      : Promise.resolve({
+                          ok: false,
+                          code: 'not-git-repo',
+                          message: 'No project selected.',
+                        })
+                  }
+                  onRefreshGit={handleRefreshGit}
+                  isRefreshingGit={gitLoading}
                 />
               </div>
+
+              {/* Resize handle + Diff panel */}
+              {diffPanelOpen && (
+                <>
+                  <ResizeHandle
+                    onResize={(delta) =>
+                      setDiffPanelWidth((w) =>
+                        Math.min(DIFF_PANEL_MAX, Math.max(DIFF_PANEL_MIN, w + delta)),
+                      )
+                    }
+                    onResizeEnd={() => {}}
+                  />
+                  <div
+                    className="shrink-0 overflow-hidden"
+                    style={{
+                      width: `min(${String(diffPanelWidth)}px, max(0px, calc(100% - ${String(CHAT_MIN_WIDTH)}px)))`,
+                    }}
+                  >
+                    <DiffPanel
+                      key={diffRefreshKey}
+                      projectPath={projectPath}
+                      onSendMessage={handleSendText}
+                    />
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>

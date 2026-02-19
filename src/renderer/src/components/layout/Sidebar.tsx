@@ -52,10 +52,12 @@ const SORT_OPTIONS: { value: SortMode; label: string; icon: typeof Clock }[] = [
 interface SidebarProps {
   conversations: ConversationSummary[]
   activeId: ConversationId | null
+  activeView: 'chat' | 'skills'
   onSelect: (id: ConversationId) => void
   onDelete: (id: ConversationId) => void
   onNew: () => void
   onOpenProject: () => void
+  onOpenSkills: () => void
   onOpenSettings: () => void
 }
 
@@ -120,10 +122,12 @@ function sortGroups(groups: ProjectGroup[], mode: SortMode): ProjectGroup[] {
 export function Sidebar({
   conversations,
   activeId,
+  activeView,
   onSelect,
   onDelete,
   onNew,
   onOpenProject,
+  onOpenSkills,
   onOpenSettings,
 }: SidebarProps): React.JSX.Element {
   const groups = groupByProject(conversations)
@@ -204,12 +208,17 @@ export function Sidebar({
           {/* Skills — h32, padding [0,12], gap 8 */}
           <button
             type="button"
-            disabled
-            className="no-drag flex w-full cursor-not-allowed items-center gap-2 h-8 px-3"
-            title="Coming soon"
+            onClick={onOpenSkills}
+            className={cn(
+              'no-drag flex w-full items-center gap-2 h-8 px-3 transition-colors',
+              activeView === 'skills'
+                ? 'bg-bg-active text-text-primary'
+                : 'text-text-secondary hover:bg-bg-hover',
+            )}
+            title="Open skills"
           >
             <Sparkles className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
-            <span className="text-[14px] text-text-secondary/60">Skills</span>
+            <span className="text-[14px]">Skills</span>
           </button>
         </div>
 

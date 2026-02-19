@@ -4,6 +4,7 @@ import type { GitBranchListResult, GitBranchMutationResult } from '@shared/types
 import type { ProviderInfo, SupportedModelId } from '@shared/types/llm'
 import type { QuestionAnswer } from '@shared/types/question'
 import type { ExecutionMode, QualityPreset, Settings as SettingsType } from '@shared/types/settings'
+import type { SkillDiscoveryItem } from '@shared/types/standards'
 import type { UIMessage } from '@tanstack/ai-react'
 import {
   AlertCircle,
@@ -47,6 +48,7 @@ interface ChatPanelProps {
   settings: SettingsType
   providerModels: ProviderInfo[]
   messageModelLookup: Readonly<Record<string, SupportedModelId>>
+  slashSkills: readonly SkillDiscoveryItem[]
   gitBranch?: string | null
   gitBranches?: GitBranchListResult | null
   isBranchActionRunning?: boolean
@@ -121,6 +123,7 @@ export function ChatPanel({
   settings,
   providerModels,
   messageModelLookup,
+  slashSkills,
   gitBranch,
   gitBranches,
   isBranchActionRunning,
@@ -419,6 +422,7 @@ export function ChatPanel({
           onModelChange={onModelChange}
           settings={settings}
           providerModels={providerModels}
+          slashSkills={slashSkills}
           projectPath={projectPath}
           gitBranch={gitBranch}
           gitBranches={gitBranches}

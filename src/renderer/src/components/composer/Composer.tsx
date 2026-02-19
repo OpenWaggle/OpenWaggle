@@ -6,6 +6,7 @@ import type {
 } from '@shared/types/git'
 import type { ProviderInfo, SupportedModelId } from '@shared/types/llm'
 import type { ExecutionMode, QualityPreset, Settings as SettingsType } from '@shared/types/settings'
+import type { SkillDiscoveryItem } from '@shared/types/standards'
 import { VOICE_MODEL_TINY } from '@shared/types/voice'
 import { ArrowUp, GitBranch, Loader2, Mic, Plus, RefreshCw, Square, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -22,6 +23,7 @@ interface ComposerProps {
   onModelChange: (model: SupportedModelId) => void
   settings: SettingsType
   providerModels: ProviderInfo[]
+  slashSkills: readonly SkillDiscoveryItem[]
   projectPath?: string | null
   gitBranch?: string | null
   gitBranches?: GitBranchListResult | null
@@ -77,6 +79,18 @@ interface ComposerActionDialogConfig {
   inputPlaceholder?: string
 }
 
+interface SlashMatch {
+  readonly query: string
+  readonly start: number
+  readonly end: number
+}
+
+interface SlashSuggestion {
+  readonly id: string
+  readonly name: string
+  readonly description: string
+}
+
 function getActionDialogConfig(
   kind: ComposerActionDialogKind,
   gitBranch: string | null | undefined,
@@ -125,6 +139,23 @@ function getActionDialogConfig(
   }
 }
 
+function findSlashMatch(input: string, cursor: number): SlashMatch | null {
+  const safeCursor = Math.max(0, Math.min(cursor, input.length))
+  const beforeCursor = input.slice(0, safeCursor)
+  const match = /(?:^|\s)\/([a-z0-9-_]*)$/i.exec(beforeCursor)
+  if (!match) {
+    return null
+  }
+
+  const query = (match[1] ?? '').toLowerCase()
+  const start = safeCursor - query.length - 1
+  if (start < 0) {
+    return null
+  }
+
+  return { query, start, end: safeCursor }
+}
+
 export function Composer({
   onSend,
   onCancel,
@@ -134,6 +165,7 @@ export function Composer({
   onModelChange,
   settings,
   providerModels,
+  slashSkills,
   projectPath,
   gitBranch,
   gitBranches,
@@ -164,6 +196,9 @@ export function Composer({
   const [voiceError, setVoiceError] = useState<string | null>(null)
   const [isListening, setIsListening] = useState(false)
   const [isTranscribingVoice, setIsTranscribingVoice] = useState(false)
+  const [cursorIndex, setCursorIndex] = useState(0)
+  const [slashHighlightIndex, setSlashHighlightIndex] = useState(0)
+  const [dismissedSlashToken, setDismissedSlashToken] = useState<string | null>(null)
   const [voiceElapsedSeconds, setVoiceElapsedSeconds] = useState(0)
   const [voiceWaveform, setVoiceWaveform] = useState<number[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -197,12 +232,41 @@ export function Composer({
     actionDialog === 'rename-branch' ||
     actionDialog === 'set-upstream'
   const isVoiceModeActive = isListening || isTranscribingVoice
+  const slashMatch = findSlashMatch(input, cursorIndex)
+  const slashToken = slashMatch ? `${String(slashMatch.start)}:${slashMatch.query}` : null
+  const slashSuggestions: SlashSuggestion[] = slashMatch
+    ? slashSkills
+        .filter((skill) => skill.enabled)
+        .filter((skill) => skill.loadStatus === 'ok')
+        .filter((skill) => skill.id.includes(slashMatch.query) || skill.name.toLowerCase().includes(slashMatch.query))
+        .slice(0, 8)
+        .map((skill) => ({
+          id: skill.id,
+          name: skill.name,
+          description: skill.description,
+        }))
+    : []
+  const slashMenuOpen =
+    !isVoiceModeActive &&
+    !!slashMatch &&
+    slashSuggestions.length > 0 &&
+    dismissedSlashToken !== slashToken
 
   useEffect(() => {
     if (!isLoading && textareaRef.current) {
       textareaRef.current.focus()
     }
   }, [isLoading])
+
+  useEffect(() => {
+    if (!slashMenuOpen) {
+      setSlashHighlightIndex(0)
+      return
+    }
+    if (slashHighlightIndex >= slashSuggestions.length) {
+      setSlashHighlightIndex(0)
+    }
+  }, [slashHighlightIndex, slashMenuOpen, slashSuggestions.length])
 
   useEffect(() => {
     if (!qualityMenuOpen) return
@@ -287,6 +351,8 @@ export function Composer({
 
   function resetComposerState(): void {
     setInput('')
+    setCursorIndex(0)
+    setDismissedSlashToken(null)
     setAttachments([])
     setAttachmentError(null)
     setVoiceError(null)
@@ -311,7 +377,56 @@ export function Composer({
     })
   }
 
+  function handleSlashSelection(skillId: string): void {
+    if (!slashMatch) return
+
+    const before = input.slice(0, slashMatch.start)
+    const after = input.slice(slashMatch.end)
+    const replacement = `/${skillId}`
+    const needsTrailingSpace = after.length > 0 && !after.startsWith(' ')
+    const next = `${before}${replacement}${needsTrailingSpace ? ' ' : ''}${after}`
+    const nextCursor = slashMatch.start + replacement.length + (needsTrailingSpace ? 1 : 0)
+
+    setInput(next)
+    setCursorIndex(nextCursor)
+    setDismissedSlashToken(null)
+
+    requestAnimationFrame(() => {
+      const el = textareaRef.current
+      if (!el) return
+      el.focus()
+      el.setSelectionRange(nextCursor, nextCursor)
+      el.style.height = 'auto'
+      el.style.height = `${Math.min(el.scrollHeight, 200)}px`
+    })
+  }
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>): void {
+    if (slashMenuOpen) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setSlashHighlightIndex((index) => (index + 1) % slashSuggestions.length)
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setSlashHighlightIndex((index) =>
+          index === 0 ? slashSuggestions.length - 1 : index - 1,
+        )
+        return
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setDismissedSlashToken(slashToken)
+        return
+      }
+      if ((e.key === 'Enter' || e.key === 'Tab') && slashSuggestions[slashHighlightIndex]) {
+        e.preventDefault()
+        handleSlashSelection(slashSuggestions[slashHighlightIndex].id)
+        return
+      }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSubmit()
@@ -320,9 +435,16 @@ export function Composer({
 
   function handleInput(e: React.ChangeEvent<HTMLTextAreaElement>): void {
     setInput(e.target.value)
+    setCursorIndex(e.target.selectionStart ?? e.target.value.length)
+    setDismissedSlashToken(null)
     const el = e.target
     el.style.height = 'auto'
     el.style.height = `${Math.min(el.scrollHeight, 200)}px`
+  }
+
+  function syncCursorPosition(event: React.SyntheticEvent<HTMLTextAreaElement>): void {
+    const target = event.currentTarget
+    setCursorIndex(target.selectionStart ?? target.value.length)
   }
 
   async function handleAttachFiles(event: React.ChangeEvent<HTMLInputElement>): Promise<void> {
@@ -553,6 +675,7 @@ export function Composer({
         const caret = selectionStart + inserted.length
         textarea.focus()
         textarea.setSelectionRange(caret, caret)
+        setCursorIndex(caret)
         textarea.style.height = 'auto'
         textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`
       })
@@ -1046,12 +1169,15 @@ export function Composer({
             </div>
           </div>
         ) : (
-          <div className="h-[60px] px-4 py-[14px]">
+          <div className="relative h-[60px] px-4 py-[14px]">
             <textarea
               ref={textareaRef}
               value={input}
               onChange={handleInput}
               onKeyDown={handleKeyDown}
+              onClick={syncCursorPosition}
+              onKeyUp={syncCursorPosition}
+              onSelect={syncCursorPosition}
               aria-label="Message input"
               placeholder={isLoading ? 'Agent is working...' : 'Ask for follow-up changes'}
               disabled={isLoading || disabled}
@@ -1063,6 +1189,36 @@ export function Composer({
                 'disabled:opacity-50',
               )}
             />
+            {slashMenuOpen && (
+              <div className="absolute inset-x-4 top-full z-30 mt-1 overflow-hidden rounded-lg border border-border-light bg-bg-secondary py-1 shadow-lg">
+                {slashSuggestions.map((skill, index) => (
+                  <button
+                    key={skill.id}
+                    type="button"
+                    onMouseDown={(event) => {
+                      event.preventDefault()
+                      handleSlashSelection(skill.id)
+                    }}
+                    className={cn(
+                      'flex w-full items-start gap-2 px-3 py-2 text-left transition-colors',
+                      index === slashHighlightIndex ? 'bg-bg-hover' : 'hover:bg-bg-hover/80',
+                    )}
+                  >
+                    <span className="mt-0.5 rounded border border-border px-1.5 py-0.5 text-[10px] text-text-tertiary">
+                      /{skill.id}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-[12px] font-medium text-text-primary">
+                        {skill.name}
+                      </span>
+                      <span className="block truncate text-[11px] text-text-tertiary">
+                        {skill.description || 'No description'}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
