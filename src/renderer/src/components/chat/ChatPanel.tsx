@@ -24,6 +24,7 @@ interface ChatPanelProps {
   error: Error | undefined
   projectPath: string | null
   hasProject: boolean
+  onOpenProject?: () => void
   onOpenSettings?: () => void
   onRetry?: (content: string) => void
   onSend: (content: string) => void
@@ -76,6 +77,7 @@ export function ChatPanel({
   error,
   projectPath,
   hasProject,
+  onOpenProject,
   onOpenSettings,
   onRetry,
   onSend,
@@ -130,7 +132,9 @@ export function ChatPanel({
                     {hasProject && (
                       <button
                         type="button"
+                        onClick={onOpenProject}
                         className="inline-flex max-w-full items-center gap-1 text-[clamp(28px,3.8vw,40px)] leading-none text-text-secondary transition-colors hover:text-text-primary"
+                        title="Open project picker"
                       >
                         <span className="truncate">{projectName(projectPath)}</span>
                         <ChevronDown className="mt-1 h-5 w-5" />
