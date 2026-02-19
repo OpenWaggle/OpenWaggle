@@ -169,8 +169,8 @@ export function Sidebar({
           style={{ height: isFullscreen ? 0 : 24 }}
         />
         {/* Logo — drag region, padding [14,16] */}
-        <div className="drag-region flex shrink-0 items-center px-4 py-[14px]">
-          <img src={openhiveLockup} alt="OpenHive" className="no-drag h-7 w-auto object-contain" />
+        <div className="drag-region flex shrink-0 items-center px-4 py-[12px]">
+          <img src={openhiveLockup} alt="OpenHive" className="no-drag h-9 w-auto object-contain" />
         </div>
 
         <div
