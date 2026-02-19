@@ -11,32 +11,67 @@ interface ToolCallBlockProps {
   name: string
   args: string
   state: string
-  result?: { content: string; state: string; error?: string }
+  result?: { content: unknown; state: string; error?: string }
 }
 
 function tryParseDiffResult(
-  content: string,
+  content: unknown,
   name: string,
   args: Record<string, unknown>,
 ): { beforeContent: string; afterContent: string; filePath: string } | null {
   if (name !== 'editFile' && name !== 'writeFile') return null
-  try {
-    const parsed = JSON.parse(content)
-    if (
-      typeof parsed === 'object' &&
-      parsed !== null &&
-      typeof parsed.beforeContent === 'string' &&
-      typeof parsed.afterContent === 'string'
-    ) {
-      const filePath = typeof args.path === 'string' ? args.path : 'file'
-      return {
-        beforeContent: parsed.beforeContent,
-        afterContent: parsed.afterContent,
-        filePath,
-      }
+  const parsed = parseResultPayload(content)
+  if (
+    typeof parsed === 'object' &&
+    parsed !== null &&
+    typeof (parsed as { beforeContent?: unknown }).beforeContent === 'string' &&
+    typeof (parsed as { afterContent?: unknown }).afterContent === 'string'
+  ) {
+    const diffContent = parsed as { beforeContent: string; afterContent: string }
+    const filePath = typeof args.path === 'string' ? args.path : 'file'
+    return {
+      beforeContent: diffContent.beforeContent,
+      afterContent: diffContent.afterContent,
+      filePath,
     }
+  }
+  return null
+}
+
+function parseResultPayload(content: unknown): unknown {
+  const parsed = parseUnknownJson(content)
+  if (typeof parsed === 'object' && parsed !== null) {
+    const maybeNormalized = parsed as { kind?: unknown; data?: unknown; text?: unknown }
+    if (maybeNormalized.kind === 'json') {
+      return maybeNormalized.data
+    }
+    if (maybeNormalized.kind === 'text') {
+      return typeof maybeNormalized.text === 'string' ? maybeNormalized.text : ''
+    }
+  }
+  return parsed
+}
+
+function parseUnknownJson(content: unknown): unknown {
+  if (typeof content !== 'string') return content
+  try {
+    return JSON.parse(content) as unknown
   } catch {
-    // not JSON
+    return content
+  }
+}
+
+function getResultError(result: ToolCallBlockProps['result']): string | null {
+  if (!result) return null
+  if (result.error) return result.error
+  if (result.state === 'error') return 'Tool execution failed.'
+
+  const parsed = parseResultPayload(result.content)
+  if (typeof parsed === 'object' && parsed !== null) {
+    const maybeError = parsed as { error?: unknown }
+    if (typeof maybeError.error === 'string') {
+      return maybeError.error
+    }
   }
   return null
 }
@@ -49,7 +84,8 @@ export function ToolCallBlock({
 }: ToolCallBlockProps): React.JSX.Element {
   const [expanded, setExpanded] = useState(false)
   const isRunning = state !== 'input-complete' || !result
-  const isError = result?.state === 'error' || !!result?.error
+  const resultError = getResultError(result)
+  const isError = resultError !== null
 
   const config = getToolConfig(name)
   const Icon = config.icon
@@ -151,10 +187,10 @@ export function ToolCallBlock({
           </div>
 
           {/* Result */}
-          {result && !diff && (
+          {result && !diff && !isError && (
             <div className="border-t border-border px-3 py-2">
               <div className="text-xs text-text-tertiary mb-1">Result</div>
-              <ToolResult content={result.error ?? result.content} isError={isError} />
+              <ToolResult content={result.content} isError={isError} />
             </div>
           )}
 
@@ -162,7 +198,7 @@ export function ToolCallBlock({
           {result && isError && (
             <div className="border-t border-border px-3 py-2">
               <div className="text-xs text-text-tertiary mb-1">Error</div>
-              <ToolResult content={result.error ?? result.content} isError />
+              <ToolResult content={resultError ?? result.content} isError />
             </div>
           )}
         </div>
@@ -228,18 +264,19 @@ function ToolResult({
   content,
   isError,
 }: {
-  content: string
+  content: unknown
   isError: boolean
 }): React.JSX.Element {
   if (isError) {
-    let errorMessage = content
-    try {
-      const parsed = JSON.parse(content)
-      if (typeof parsed === 'object' && parsed !== null) {
-        errorMessage = parsed.error ?? parsed.message ?? content
+    const parsed = parseResultPayload(content)
+    let errorMessage = formatUnknownContent(parsed)
+    if (typeof parsed === 'object' && parsed !== null) {
+      const asObject = parsed as { error?: unknown; message?: unknown }
+      if (typeof asObject.error === 'string') {
+        errorMessage = asObject.error
+      } else if (typeof asObject.message === 'string') {
+        errorMessage = asObject.message
       }
-    } catch {
-      // use raw content
     }
 
     return (
@@ -254,15 +291,16 @@ function ToolResult({
     )
   }
 
-  // Try to extract just the message if result is JSON with diff data
-  let displayContent = content
-  try {
-    const parsed = JSON.parse(content)
-    if (typeof parsed === 'object' && parsed !== null && typeof parsed.message === 'string') {
-      displayContent = parsed.message
+  const parsed = parseResultPayload(content)
+  let displayContent = formatUnknownContent(parsed)
+
+  if (typeof parsed === 'object' && parsed !== null) {
+    const asObject = parsed as { message?: unknown; content?: unknown }
+    if (typeof asObject.message === 'string') {
+      displayContent = asObject.message
+    } else if (typeof asObject.content === 'string') {
+      displayContent = asObject.content
     }
-  } catch {
-    // use raw
   }
 
   return (
@@ -270,4 +308,15 @@ function ToolResult({
       {displayContent}
     </pre>
   )
+}
+
+function formatUnknownContent(content: unknown): string {
+  if (typeof content === 'string') return content
+  if (typeof content === 'number' || typeof content === 'boolean') return String(content)
+  if (content === null || content === undefined) return ''
+  try {
+    return JSON.stringify(content, null, 2)
+  } catch {
+    return String(content)
+  }
 }

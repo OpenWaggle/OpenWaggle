@@ -60,46 +60,37 @@ export function App(): React.JSX.Element {
     }
   }, [activeConversationId, sendMessage])
 
-  const handleSelectConversation = useCallback(
-    async (id: Parameters<typeof setActiveConversation>[0]) => {
-      const conv = conversations.find((c) => c.id === id)
-      if (conv && conv.projectPath !== projectPath) {
-        await setProjectPath(conv.projectPath)
-      }
-      await setActiveConversation(id)
-    },
-    [conversations, projectPath, setActiveConversation, setProjectPath],
-  )
+  async function handleSelectConversation(id: Parameters<typeof setActiveConversation>[0]) {
+    const conv = conversations.find((c) => c.id === id)
+    if (conv && conv.projectPath !== projectPath) {
+      await setProjectPath(conv.projectPath)
+    }
+    await setActiveConversation(id)
+  }
 
   const handleNewConversation = useCallback(async () => {
     await createConversation(projectPath)
   }, [createConversation, projectPath])
 
-  const handleOpenProject = useCallback(async () => {
+  async function handleOpenProject() {
     const path = await selectFolder()
     if (path) {
       await createConversation(path)
     }
-  }, [selectFolder, createConversation])
+  }
 
-  const handleModelChange = useCallback(
-    (model: typeof currentModel) => {
-      setDefaultModel(model)
-    },
-    [setDefaultModel],
-  )
+  function handleModelChange(model: typeof currentModel) {
+    setDefaultModel(model)
+  }
 
-  const handleSend = useCallback(
-    async (content: string) => {
-      if (!activeConversationId) {
-        pendingMessage.current = content
-        await createConversation(projectPath)
-        return
-      }
-      await sendMessage(content)
-    },
-    [activeConversationId, createConversation, projectPath, sendMessage],
-  )
+  async function handleSend(content: string) {
+    if (!activeConversationId) {
+      pendingMessage.current = content
+      await createConversation(projectPath)
+      return
+    }
+    await sendMessage(content)
+  }
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -110,7 +101,7 @@ export function App(): React.JSX.Element {
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
         e.preventDefault()
-        handleNewConversation()
+        void handleNewConversation()
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 'b') {
         e.preventDefault()

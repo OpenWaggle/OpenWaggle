@@ -16,7 +16,7 @@ export function MessageBubble({
 }: MessageBubbleProps): React.JSX.Element {
   const isUser = message.role === 'user'
 
-  const toolResults = new Map<string, { content: string; state: string; error?: string }>()
+  const toolResults = new Map<string, { content: unknown; state: string; error?: string }>()
   for (const part of message.parts) {
     if (part.type === 'tool-result') {
       toolResults.set(part.toolCallId, {

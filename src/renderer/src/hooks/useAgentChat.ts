@@ -98,7 +98,7 @@ function conversationToUIMessages(conv: Conversation): UIMessage[] {
               type: 'tool-result',
               toolCallId: String(part.toolResult.id),
               content: part.toolResult.result,
-              state: 'complete',
+              state: part.toolResult.isError ? 'error' : 'complete',
             },
           ]
         default:
