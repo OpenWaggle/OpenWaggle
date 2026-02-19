@@ -1,4 +1,6 @@
+import type { ConversationId } from '@shared/types/brand'
 import type { ProviderInfo, SupportedModelId } from '@shared/types/llm'
+import type { QuestionAnswer } from '@shared/types/question'
 import type { Settings as SettingsType } from '@shared/types/settings'
 import type { UIMessage } from '@tanstack/ai-react'
 import {
@@ -25,12 +27,14 @@ interface ChatPanelProps {
   error: Error | undefined
   projectPath: string | null
   hasProject: boolean
+  conversationId: ConversationId | null
   onOpenProject?: () => void
   onOpenSettings?: () => void
   onRetry?: (content: string) => void
   onSend: (content: string) => void
   onCancel: () => void
   onToolApprovalResponse: (approvalId: string, approved: boolean) => Promise<void>
+  onAnswerQuestion: (conversationId: ConversationId, answers: QuestionAnswer[]) => Promise<void>
   model: SupportedModelId
   onModelChange: (model: SupportedModelId) => void
   settings: SettingsType
@@ -82,12 +86,14 @@ export function ChatPanel({
   error,
   projectPath,
   hasProject,
+  conversationId,
   onOpenProject,
   onOpenSettings,
   onRetry,
   onSend,
   onCancel,
   onToolApprovalResponse,
+  onAnswerQuestion,
   model,
   onModelChange,
   settings,
@@ -208,7 +214,9 @@ export function ChatPanel({
                   assistantModel={
                     msg.role === 'assistant' ? (messageModelLookup[msg.id] ?? model) : undefined
                   }
+                  conversationId={conversationId}
                   onToolApprovalResponse={onToolApprovalResponse}
+                  onAnswerQuestion={onAnswerQuestion}
                 />
               ))}
 

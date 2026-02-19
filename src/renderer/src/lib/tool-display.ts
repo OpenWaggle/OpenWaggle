@@ -4,6 +4,7 @@ import {
   FileText,
   FolderTree,
   type LucideIcon,
+  MessageCircleQuestion,
   Search,
   Terminal,
   Wrench,
@@ -22,6 +23,7 @@ const TOOL_CONFIG: Record<string, ToolConfig> = {
   runCommand: { icon: Terminal, displayName: 'Run Command', primaryArg: 'command' },
   glob: { icon: Search, displayName: 'Glob', primaryArg: 'pattern' },
   listFiles: { icon: FolderTree, displayName: 'List Files', primaryArg: 'path' },
+  askUser: { icon: MessageCircleQuestion, displayName: 'Ask User', primaryArg: 'questions' },
 }
 
 const DEFAULT_CONFIG: ToolConfig = {

@@ -1,9 +1,11 @@
 import type { ConversationId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
+import type { QuestionAnswer } from '@shared/types/question'
 import type { UIMessage } from '@tanstack/ai-react'
 import { useChat } from '@tanstack/ai-react'
 import { useEffect, useRef } from 'react'
+import { api } from '@/lib/ipc'
 import { createIpcConnectionAdapter } from '@/lib/ipc-connection-adapter'
 
 interface AgentChatReturn {
@@ -13,6 +15,8 @@ interface AgentChatReturn {
   status: 'ready' | 'submitted' | 'streaming' | 'error'
   stop: () => void
   error: Error | undefined
+  respondToolApproval: (approvalId: string, approved: boolean) => Promise<void>
+  answerQuestion: (conversationId: ConversationId, answers: QuestionAnswer[]) => Promise<void>
 }
 
 /**
@@ -40,7 +44,16 @@ export function useAgentChat(
     ? createIpcConnectionAdapter(conversationId, model)
     : { connect: () => emptyAsyncIterable() }
 
-  const { messages, sendMessage, isLoading, status, stop, setMessages, error } = useChat({
+  const {
+    messages,
+    sendMessage,
+    isLoading,
+    status,
+    stop,
+    setMessages,
+    error,
+    addToolApprovalResponse,
+  } = useChat({
     connection,
     // Changing `id` recreates the ChatClient (it's in useChat's useMemo deps).
     // This is necessary because useChat does NOT sync connection changes to an
@@ -67,8 +80,19 @@ export function useAgentChat(
     sendMessage,
     isLoading,
     status,
-    stop,
+    stop: () => {
+      if (conversationId) {
+        api.cancelAgent(conversationId)
+      }
+      stop()
+    },
     error,
+    respondToolApproval: async (approvalId: string, approved: boolean) => {
+      await addToolApprovalResponse({ id: approvalId, approved })
+    },
+    answerQuestion: async (cid: ConversationId, answers: QuestionAnswer[]) => {
+      await api.answerQuestion(cid, answers)
+    },
   }
 }
 

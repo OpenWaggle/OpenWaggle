@@ -1,5 +1,8 @@
+import type { ConversationId } from '@shared/types/brand'
 import { generateDisplayName, type SupportedModelId } from '@shared/types/llm'
+import type { QuestionAnswer, UserQuestion } from '@shared/types/question'
 import type { UIMessage } from '@tanstack/ai-react'
+import { AskUserBlock } from './AskUserBlock'
 import { StreamingText } from './StreamingText'
 import { ToolCallBlock } from './ToolCallBlock'
 
@@ -7,12 +10,18 @@ interface MessageBubbleProps {
   message: UIMessage
   isStreaming?: boolean
   assistantModel?: SupportedModelId
+  conversationId: ConversationId | null
+  onToolApprovalResponse: (approvalId: string, approved: boolean) => Promise<void>
+  onAnswerQuestion: (conversationId: ConversationId, answers: QuestionAnswer[]) => Promise<void>
 }
 
 export function MessageBubble({
   message,
   isStreaming,
   assistantModel,
+  conversationId,
+  onToolApprovalResponse,
+  onAnswerQuestion,
 }: MessageBubbleProps): React.JSX.Element {
   const isUser = message.role === 'user'
 
@@ -70,6 +79,24 @@ export function MessageBubble({
                 />
               ) : null
             case 'tool-call':
+              if (part.name === 'askUser' && conversationId) {
+                let questions: UserQuestion[] = []
+                try {
+                  const parsed = JSON.parse(part.arguments) as { questions?: UserQuestion[] }
+                  questions = parsed.questions ?? []
+                } catch {
+                  // fallback to empty
+                }
+                return (
+                  <AskUserBlock
+                    key={`tool-${part.id}`}
+                    questions={questions}
+                    result={toolResults.get(part.id)}
+                    conversationId={conversationId}
+                    onAnswer={onAnswerQuestion}
+                  />
+                )
+              }
               return (
                 <ToolCallBlock
                   key={`tool-${part.id}`}
@@ -77,6 +104,8 @@ export function MessageBubble({
                   args={part.arguments}
                   state={part.state}
                   result={toolResults.get(part.id)}
+                  approvalId={part.approval?.id}
+                  onApprovalResponse={onToolApprovalResponse}
                 />
               )
             case 'tool-result':

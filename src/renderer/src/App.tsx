@@ -1,4 +1,5 @@
 import type { SupportedModelId } from '@shared/types/llm'
+import type { StreamChunk } from '@tanstack/ai'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChatPanel } from '@/components/chat/ChatPanel'
 import { Header } from '@/components/layout/Header'
@@ -7,10 +8,20 @@ import { SettingsDialog } from '@/components/settings/SettingsDialog'
 import { TerminalPanel } from '@/components/terminal/TerminalPanel'
 import { useAgentChat } from '@/hooks/useAgentChat'
 import { useChat } from '@/hooks/useChat'
+import { useGit } from '@/hooks/useGit'
 import { useProject } from '@/hooks/useProject'
 import { useSettings, useSettingsSetup } from '@/hooks/useSettings'
 import { cn } from '@/lib/cn'
+import { api } from '@/lib/ipc'
 import { useChatStore } from '@/stores/chat-store'
+
+function isTerminalRunChunk(chunk: StreamChunk): boolean {
+  if (chunk.type === 'RUN_ERROR') return true
+  if (chunk.type === 'RUN_FINISHED') {
+    return chunk.finishReason !== 'tool_calls'
+  }
+  return false
+}
 
 export function App(): React.JSX.Element {
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -21,6 +32,14 @@ export function App(): React.JSX.Element {
 
   const { settings, isLoaded, providerModels, setDefaultModel } = useSettings()
   const { projectPath, selectFolder, setProjectPath } = useProject()
+  const {
+    status: gitStatus,
+    isLoading: gitLoading,
+    isCommitting: gitCommitting,
+    error: gitError,
+    refreshStatus: refreshGitStatus,
+    commit: commitGit,
+  } = useGit()
   const {
     conversations,
     activeConversation,
@@ -35,6 +54,10 @@ export function App(): React.JSX.Element {
     loadConversations()
   }, [loadConversations])
 
+  useEffect(() => {
+    void refreshGitStatus(projectPath)
+  }, [projectPath, refreshGitStatus])
+
   const currentModel = settings.defaultModel
 
   const conversation = useChatStore((s) => s.activeConversation)
@@ -44,7 +67,8 @@ export function App(): React.JSX.Element {
       messageModelLookup[String(msg.id)] = msg.model
     }
   }
-  const { messages, sendMessage, isLoading, stop, error } = useAgentChat(
+  const { messages, sendMessage, isLoading, stop, error, respondToolApproval, answerQuestion } =
+    useAgentChat(
     activeConversationId,
     conversation,
     currentModel,
@@ -60,12 +84,36 @@ export function App(): React.JSX.Element {
     }
   }, [activeConversationId, sendMessage])
 
+  useEffect(() => {
+    const unsubscribe = api.onStreamChunk(({ conversationId, chunk }) => {
+      if (!isTerminalRunChunk(chunk)) return
+
+      void loadConversations()
+      if (activeConversationId === conversationId) {
+        void setActiveConversation(activeConversationId)
+      }
+      if (projectPath) {
+        void refreshGitStatus(projectPath)
+      }
+    })
+
+    return unsubscribe
+  }, [
+    activeConversationId,
+    loadConversations,
+    projectPath,
+    refreshGitStatus,
+    setActiveConversation,
+  ])
+
   async function handleSelectConversation(id: Parameters<typeof setActiveConversation>[0]) {
     const conv = conversations.find((c) => c.id === id)
+    const nextProjectPath = conv?.projectPath ?? projectPath
     if (conv && conv.projectPath !== projectPath) {
       await setProjectPath(conv.projectPath)
     }
     await setActiveConversation(id)
+    void refreshGitStatus(nextProjectPath)
   }
 
   const handleNewConversation = useCallback(async () => {
@@ -91,6 +139,24 @@ export function App(): React.JSX.Element {
     }
     await sendMessage(content)
   }
+
+  const handleRefreshGit = useCallback(() => {
+    void refreshGitStatus(projectPath)
+  }, [projectPath, refreshGitStatus])
+
+  const handleCommitGit = useCallback(
+    async (message: string, amend: boolean) => {
+      if (!projectPath) {
+        return {
+          ok: false as const,
+          code: 'not-git-repo' as const,
+          message: 'No project selected.',
+        }
+      }
+      return commitGit(projectPath, { message, amend })
+    },
+    [commitGit, projectPath],
+  )
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -150,6 +216,12 @@ export function App(): React.JSX.Element {
           onToggleTerminal={() => setTerminalOpen(!terminalOpen)}
           sidebarOpen={sidebarOpen}
           terminalOpen={terminalOpen}
+          gitStatus={gitStatus}
+          gitError={gitError}
+          gitLoading={gitLoading}
+          gitCommitting={gitCommitting}
+          onRefreshGit={handleRefreshGit}
+          onCommitGit={handleCommitGit}
         />
 
         {/* Main content — centers the chat panel */}
@@ -160,16 +232,22 @@ export function App(): React.JSX.Element {
             error={error}
             projectPath={projectPath}
             hasProject={!!projectPath}
+            conversationId={activeConversationId}
             onOpenProject={handleOpenProject}
             onOpenSettings={() => setSettingsOpen(true)}
             onRetry={handleSend}
             onSend={handleSend}
             onCancel={stop}
+            onToolApprovalResponse={respondToolApproval}
+            onAnswerQuestion={answerQuestion}
             model={currentModel}
             onModelChange={handleModelChange}
             settings={settings}
             providerModels={providerModels}
             messageModelLookup={messageModelLookup}
+            gitBranch={gitStatus?.branch ?? null}
+            onRefreshGit={handleRefreshGit}
+            isRefreshingGit={gitLoading}
           />
         </div>
 
