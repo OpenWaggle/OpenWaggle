@@ -157,6 +157,8 @@ export function Sidebar({
           <span className="no-drag text-[13px] font-semibold text-text-primary">HiveCode</span>
         </div>
 
+        <div className="shrink-0 h-20" />
+
         {/* Nav items — fixed */}
         <div className="shrink-0">
           {/* New thread — h34, padding [0,12], gap 8 */}
