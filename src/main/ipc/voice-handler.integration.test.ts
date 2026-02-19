@@ -120,4 +120,19 @@ describe('registerVoiceHandlers', () => {
       'Connect once to download it',
     )
   })
+
+  it('maps missing sharp binary failures to actionable local setup guidance', async () => {
+    pipelineMock.mockRejectedValue(
+      new Error(
+        'Something went wrong installing the "sharp" module. Cannot find module ../build/Release/sharp-darwin-arm64v8.node',
+      ),
+    )
+
+    registerVoiceHandlers()
+    const handler = registeredHandler('voice:transcribe-local')
+
+    await expect(handler?.({}, { samples: [0.1], sampleRate: 16_000 })).rejects.toThrow(
+      'pnpm rebuild sharp',
+    )
+  })
 })

@@ -66,10 +66,16 @@ function extractTranscriptionText(result: unknown): string {
 
 function mapLoadError(error: unknown): string {
   const message = error instanceof Error ? error.message : 'Unknown model load error.'
+  if (
+    /sharp/i.test(message) &&
+    /(cannot find module|went wrong installing|sharp-darwin|sharp-linux|sharp-win32)/i.test(message)
+  ) {
+    return 'Local voice dependency is missing (sharp). Run `pnpm install` or `pnpm rebuild sharp`, then restart OpenHive.'
+  }
   if (/(network|fetch|download|ENOTFOUND|ECONN|timed out)/i.test(message)) {
     return 'Local Whisper base model is not available yet. Connect once to download it, then retry.'
   }
-  return `Unable to load local Whisper base model: ${message}`
+  return 'Unable to load local Whisper base model. Verify local dependencies and retry.'
 }
 
 function mapTranscriptionError(error: unknown): string {

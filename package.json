@@ -30,7 +30,8 @@
     "onlyBuiltDependencies": [
       "electron",
       "esbuild",
-      "node-pty"
+      "node-pty",
+      "sharp"
     ]
   },
   "dependencies": {
