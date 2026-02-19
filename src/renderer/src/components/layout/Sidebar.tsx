@@ -170,11 +170,7 @@ export function Sidebar({
         />
         {/* Logo — drag region, padding [14,16] */}
         <div className="drag-region flex shrink-0 items-center px-4 py-1">
-          <img
-            src={openhiveLockup}
-            alt="OpenHive"
-            className="no-drag h-[4.5rem] w-auto object-contain"
-          />
+          <img src={openhiveLockup} alt="OpenHive" className="no-drag h-12 w-auto object-contain" />
         </div>
 
         <div
