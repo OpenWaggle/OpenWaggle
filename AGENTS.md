@@ -31,6 +31,8 @@ These rules are **non-negotiable**. Violating them invalidates your work.
 
 1. Read `LEARNINGS.md` sections 1-4 (skip Archive)
 2. Note any warnings relevant to your task
+3. Read `docs/product/ui-interaction-prd.md` and check whether the task maps to any planned/future UI feature (`HC-UI-*` items)
+4. If task is related, explicitly align implementation decisions with that PRD/spec and update the same document when scope/behavior changes
 
 **After completing ANY task:**
 
