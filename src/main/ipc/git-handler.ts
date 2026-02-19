@@ -530,19 +530,33 @@ async function checkoutGitBranch(
     `refs/remotes/${name}`,
   ])
   if (remoteRefResult.code === 0) {
-    const localName = name.includes('/') ? name.split('/').slice(1).join('/') : name
-    const localExistsResult = await runGit(projectPath, [
-      'show-ref',
-      '--verify',
-      '--quiet',
-      `refs/heads/${localName}`,
-    ])
-    if (localExistsResult.code === 0) {
-      const checkoutLocalResult = await runGit(projectPath, ['checkout', localName])
-      if (checkoutLocalResult.code !== 0) {
-        return mapBranchFailure(`${checkoutLocalResult.stderr}\n${checkoutLocalResult.stdout}`)
+    const localName = name.split('/').slice(1).join('/')
+    if (localName) {
+      const localExistsResult = await runGit(projectPath, [
+        'show-ref',
+        '--verify',
+        '--quiet',
+        `refs/heads/${localName}`,
+      ])
+      if (localExistsResult.code === 0) {
+        const upstreamResult = await runGit(projectPath, [
+          'for-each-ref',
+          '--format=%(upstream:short)',
+          `refs/heads/${localName}`,
+        ])
+        const upstream = upstreamResult.code === 0 ? upstreamResult.stdout.trim() : ''
+        if (upstream === name) {
+          const checkoutLocalResult = await runGit(projectPath, ['checkout', localName])
+          if (checkoutLocalResult.code !== 0) {
+            return mapBranchFailure(`${checkoutLocalResult.stderr}\n${checkoutLocalResult.stdout}`)
+          }
+          return { ok: true, message: `Switched to ${localName}.` }
+        }
+        return branchFailure(
+          'branch-exists',
+          `Local branch "${localName}" already exists and is not tracking "${name}".`,
+        )
       }
-      return { ok: true, message: `Switched to ${localName}.` }
     }
 
     const trackResult = await runGit(projectPath, ['checkout', '--track', name])

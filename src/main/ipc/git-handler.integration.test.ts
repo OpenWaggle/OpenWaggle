@@ -318,6 +318,55 @@ describe('registerGitHandlers', () => {
     ])
   })
 
+  it('fails remote checkout when local branch exists with different upstream', async () => {
+    execFileMock.mockImplementation(
+      (
+        _cmd: string,
+        args: string[],
+        _opts: unknown,
+        cb: (
+          err: (Error & { code?: number; stdout?: string; stderr?: string }) | null,
+          stdout: string,
+          stderr: string,
+        ) => void,
+      ) => {
+        const key = args.join(' ')
+
+        if (key === 'rev-parse --is-inside-work-tree') {
+          cb(null, 'true\n', '')
+          return
+        }
+        if (key === 'show-ref --verify --quiet refs/remotes/upstream/main') {
+          cb(null, '', '')
+          return
+        }
+        if (key === 'show-ref --verify --quiet refs/heads/main') {
+          cb(null, '', '')
+          return
+        }
+        if (key === 'for-each-ref --format=%(upstream:short) refs/heads/main') {
+          cb(null, 'origin/main\n', '')
+          return
+        }
+        cb(new Error(`Unexpected git command: ${key}`), '', '')
+      },
+    )
+
+    registerGitHandlers()
+    const handler = registeredHandler('git:branches:checkout')
+    expect(handler).toBeDefined()
+
+    const result = (await handler?.({}, '/tmp/repo', {
+      name: 'upstream/main',
+    })) as { ok: boolean; code?: string; message: string }
+
+    expect(result).toEqual({
+      ok: false,
+      code: 'branch-exists',
+      message: 'Local branch "main" already exists and is not tracking "upstream/main".',
+    })
+  })
+
   it('maps upstream branch failures to typed branch errors', async () => {
     execFileMock.mockImplementation(
       (
