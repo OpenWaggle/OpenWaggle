@@ -67,9 +67,15 @@ describe('useSettingsStore integration', () => {
     expect(useSettingsStore.getState().settings.defaultModel).toBe('gpt-4.1-mini')
   })
 
-  it('ignores empty API keys', async () => {
+  it('clears API key when given empty string', async () => {
     await useSettingsStore.getState().updateApiKey('openai', '  ')
-    expect(apiMock.updateSettings).not.toHaveBeenCalled()
+    expect(apiMock.updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providers: expect.objectContaining({
+          openai: expect.objectContaining({ apiKey: '', enabled: false }),
+        }),
+      }),
+    )
   })
 
   it('tracks testApiKey success and failure state', async () => {

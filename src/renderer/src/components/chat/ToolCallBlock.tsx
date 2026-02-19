@@ -12,6 +12,8 @@ interface ToolCallBlockProps {
   args: string
   state: string
   result?: { content: unknown; state: string; error?: string }
+  approvalId?: string
+  onApprovalResponse: (approvalId: string, approved: boolean) => Promise<void>
 }
 
 function tryParseDiffResult(
@@ -81,9 +83,13 @@ export function ToolCallBlock({
   args,
   state,
   result,
+  approvalId,
+  onApprovalResponse,
 }: ToolCallBlockProps): React.JSX.Element {
   const [expanded, setExpanded] = useState(false)
-  const isRunning = state !== 'input-complete' || !result
+  const [approvalLoading, setApprovalLoading] = useState(false)
+  const awaitingApproval = state === 'approval-requested'
+  const isRunning = !awaitingApproval && (state !== 'input-complete' || !result)
   const resultError = getResultError(result)
   const isError = resultError !== null
 
@@ -155,6 +161,12 @@ export function ToolCallBlock({
             </span>
           )}
           {isRunning && !result && <Loader2 className="h-3.5 w-3.5 text-accent animate-spin" />}
+          {awaitingApproval && (
+            <Badge variant="warning">
+              <Clock className="h-3 w-3 mr-0.5" />
+              Awaiting approval
+            </Badge>
+          )}
           {result && !isError && (
             <Badge variant="success">
               <Check className="h-3 w-3 mr-0.5" />
@@ -185,6 +197,40 @@ export function ToolCallBlock({
             <div className="text-xs text-text-tertiary mb-1">Arguments</div>
             <ToolArgs name={name} args={parsedArgs} rawArgs={args} />
           </div>
+
+          {awaitingApproval && approvalId && (
+            <div className="border-t border-border px-3 py-2">
+              <div className="text-xs text-text-tertiary mb-2">Approval required</div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={approvalLoading}
+                  onClick={() => {
+                    setApprovalLoading(true)
+                    void onApprovalResponse(approvalId, true).finally(() => {
+                      setApprovalLoading(false)
+                    })
+                  }}
+                  className="rounded-md bg-success/15 px-2.5 py-1 text-xs font-medium text-success transition-colors hover:bg-success/25 disabled:opacity-50"
+                >
+                  Approve
+                </button>
+                <button
+                  type="button"
+                  disabled={approvalLoading}
+                  onClick={() => {
+                    setApprovalLoading(true)
+                    void onApprovalResponse(approvalId, false).finally(() => {
+                      setApprovalLoading(false)
+                    })
+                  }}
+                  className="rounded-md bg-error/15 px-2.5 py-1 text-xs font-medium text-error transition-colors hover:bg-error/25 disabled:opacity-50"
+                >
+                  Deny
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Result */}
           {result && !diff && !isError && (

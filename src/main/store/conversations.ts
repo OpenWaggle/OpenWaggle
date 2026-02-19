@@ -163,7 +163,10 @@ export async function listConversations(): Promise<ConversationSummary[]> {
     try {
       const raw = await fsPromises.readFile(path.join(dir, file), 'utf-8')
       const conv = parseConversation(raw)
-      if (!conv) continue
+      if (!conv) {
+        console.warn(`Skipping invalid conversation file: ${file}`)
+        continue
+      }
 
       summaries.push({
         id: conv.id,
@@ -173,8 +176,11 @@ export async function listConversations(): Promise<ConversationSummary[]> {
         createdAt: conv.createdAt,
         updatedAt: conv.updatedAt,
       })
-    } catch {
-      // skip corrupt files
+    } catch (err) {
+      console.warn(
+        `Failed to read conversation file "${file}":`,
+        err instanceof Error ? err.message : err,
+      )
     }
   }
 
@@ -186,7 +192,10 @@ export async function getConversation(id: ConversationId): Promise<Conversation 
   try {
     const raw = await fsPromises.readFile(filePath, 'utf-8')
     return parseConversation(raw)
-  } catch {
+  } catch (err) {
+    if (!(err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT')) {
+      console.warn(`Failed to load conversation "${id}":`, err instanceof Error ? err.message : err)
+    }
     return null
   }
 }

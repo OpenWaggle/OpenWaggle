@@ -183,6 +183,10 @@ FINISHING:     LEARNINGS.md → commit → push → notify user
 
 ## Recent Learnings
 
+### Task: Conversation Lifecycle + Git IPC Foundations (2026-02-19)
+- In TanStack `useChat` IPC adapters, wiring `AbortSignal` directly to server-side cancellation causes runs to terminate when switching threads; use explicit user-cancel paths instead so background runs can complete [SKILL?]
+- `needsApproval` server tools surface as `tool-call` parts in `approval-requested` state and require `addToolApprovalResponse()` wiring in the renderer, otherwise tool execution stalls indefinitely
+
 ### Task: Repository-Wide Review Remediation (2026-02-19)
 - `fast-glob` can match parent-directory patterns like `../*` even with `cwd` set; validate glob inputs explicitly to keep file-discovery tools confined to the selected project root [SKILL?]
 - Settings write-time validation (especially provider `baseUrl`) should match read-time validation to prevent silent fallback to defaults after restart
@@ -198,14 +202,14 @@ FINISHING:     LEARNINGS.md → commit → push → notify user
 - TanStack AI server tool execution treats string returns as JSON-encoded payloads; plain-text tool outputs can surface as tool errors unless wrapped in a structured result contract (`kind: 'text' | 'json'`) [SKILL?]
 - Persisted tool result error metadata should be derived in main-process stream handling (`TOOL_CALL_END`) and then mapped back into UI tool-result state; relying only on renderer-side content parsing causes contract drift
 
+## Old Learnings Archive
+
+Move old learnings here so we can review
+
 ### Task: Backlog Completion (2026-02-19)
 - For conversation schema refactors, keep persisted JSON backward-compatible by making removed fields optional in Zod and using legacy values to backfill per-message data during parse
 - Root-level renderer error handling in React 19 still requires a class-based error boundary; wrap `<App />` in the boundary from `main.tsx` to avoid blank-screen failures
 - `Object.fromEntries` can widen values to `string | undefined`; use an explicit `Record<string, SupportedModelId>` fill loop when strict prop types require defined values
-
-## Old Learnings Archive
-
-Move old learnings here so we can review
 
 ### Task: Pencil "No Diff" UI Redesign (2026-02-18)
 - Biome enforces `noStaticElementInteractions` — use CSS `group-hover:visible` / `invisible` pattern instead of `useState` hover tracking with `onMouseEnter`/`onMouseLeave` on `<div>`

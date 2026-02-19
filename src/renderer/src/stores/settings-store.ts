@@ -55,7 +55,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         [provider]: {
           ...existing,
           apiKey: normalizedApiKey,
-          enabled: existing?.enabled ?? true,
+          enabled: normalizedApiKey ? (existing?.enabled ?? true) : false,
         } satisfies ProviderConfig,
       },
     }

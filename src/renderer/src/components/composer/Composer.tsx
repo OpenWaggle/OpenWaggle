@@ -15,6 +15,9 @@ interface ComposerProps {
   settings: SettingsType
   providerModels: ProviderInfo[]
   projectPath?: string | null
+  gitBranch?: string | null
+  onRefreshGit?: () => void
+  isRefreshingGit?: boolean
 }
 
 export function Composer({
@@ -27,6 +30,9 @@ export function Composer({
   settings,
   providerModels,
   projectPath,
+  gitBranch,
+  onRefreshGit,
+  isRefreshingGit,
 }: ComposerProps): React.JSX.Element {
   const [input, setInput] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -213,18 +219,29 @@ export function Composer({
                   title="Coming soon"
                 >
                   <GitBranch className="h-[13px] w-[13px] text-text-tertiary" />
-                  <span className="text-[11px] text-text-secondary">main</span>
+                  <span className="text-[11px] text-text-secondary">{gitBranch ?? 'branch'}</span>
                   <span className="text-[9px] text-text-tertiary">&#x2228;</span>
                 </button>
 
                 {/* Refresh icon — 14x14 */}
                 <button
                   type="button"
-                  disabled
-                  className="flex h-5 w-5 cursor-not-allowed items-center justify-center opacity-70"
-                  title="Coming soon"
+                  disabled={!onRefreshGit || !!isRefreshingGit}
+                  onClick={onRefreshGit}
+                  className={cn(
+                    'flex h-5 w-5 items-center justify-center opacity-70 transition-colors',
+                    !onRefreshGit || !!isRefreshingGit
+                      ? 'cursor-not-allowed'
+                      : 'hover:text-text-secondary',
+                  )}
+                  title="Refresh git status"
                 >
-                  <RefreshCw className="h-3.5 w-3.5 text-text-tertiary" />
+                  <RefreshCw
+                    className={cn(
+                      'h-3.5 w-3.5 text-text-tertiary',
+                      isRefreshingGit && 'animate-spin',
+                    )}
+                  />
                 </button>
               </>
             )}

@@ -1,4 +1,4 @@
-import { PROVIDERS, type Settings } from '@shared/types/settings'
+import { EXECUTION_MODES, PROVIDERS, type Settings } from '@shared/types/settings'
 import { chat } from '@tanstack/ai'
 import { ipcMain } from 'electron'
 import { z } from 'zod'
@@ -93,6 +93,7 @@ const settingsUpdateSchema = z.object({
     .optional(),
   defaultModel: z.string().optional(),
   projectPath: z.string().nullable().optional(),
+  executionMode: z.enum(EXECUTION_MODES).optional(),
 })
 
 export function registerSettingsHandlers(): void {

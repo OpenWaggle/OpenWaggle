@@ -1,6 +1,5 @@
 import type { SupportedModelId } from '@shared/types/llm'
-import type { StreamChunk } from '@tanstack/ai'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ChatPanel } from '@/components/chat/ChatPanel'
 import { Header } from '@/components/layout/Header'
 import { Sidebar } from '@/components/layout/Sidebar'
@@ -13,15 +12,8 @@ import { useProject } from '@/hooks/useProject'
 import { useSettings, useSettingsSetup } from '@/hooks/useSettings'
 import { cn } from '@/lib/cn'
 import { api } from '@/lib/ipc'
+import { isTerminalChunk } from '@/lib/ipc-connection-adapter'
 import { useChatStore } from '@/stores/chat-store'
-
-function isTerminalRunChunk(chunk: StreamChunk): boolean {
-  if (chunk.type === 'RUN_ERROR') return true
-  if (chunk.type === 'RUN_FINISHED') {
-    return chunk.finishReason !== 'tool_calls'
-  }
-  return false
-}
 
 export function App(): React.JSX.Element {
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -80,20 +72,30 @@ export function App(): React.JSX.Element {
     }
   }, [activeConversationId, sendMessage])
 
+  // Debounced git refresh for stream-chunk events to avoid excessive subprocess spawning
   useEffect(() => {
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null
+
     const unsubscribe = api.onStreamChunk(({ conversationId, chunk }) => {
-      if (!isTerminalRunChunk(chunk)) return
+      if (!isTerminalChunk(chunk)) return
 
       void loadConversations()
       if (activeConversationId === conversationId) {
         void setActiveConversation(activeConversationId)
       }
       if (projectPath) {
-        void refreshGitStatus(projectPath)
+        if (refreshTimer) clearTimeout(refreshTimer)
+        refreshTimer = setTimeout(() => {
+          refreshTimer = null
+          void refreshGitStatus(projectPath)
+        }, 500)
       }
     })
 
-    return unsubscribe
+    return () => {
+      unsubscribe()
+      if (refreshTimer) clearTimeout(refreshTimer)
+    }
   }, [
     activeConversationId,
     loadConversations,
@@ -112,9 +114,9 @@ export function App(): React.JSX.Element {
     void refreshGitStatus(nextProjectPath)
   }
 
-  const handleNewConversation = useCallback(async () => {
+  async function handleNewConversation() {
     await createConversation(projectPath)
-  }, [createConversation, projectPath])
+  }
 
   async function handleOpenProject() {
     const path = await selectFolder()
@@ -136,23 +138,20 @@ export function App(): React.JSX.Element {
     await sendMessage(content)
   }
 
-  const handleRefreshGit = useCallback(() => {
+  function handleRefreshGit() {
     void refreshGitStatus(projectPath)
-  }, [projectPath, refreshGitStatus])
+  }
 
-  const handleCommitGit = useCallback(
-    async (message: string, amend: boolean) => {
-      if (!projectPath) {
-        return {
-          ok: false as const,
-          code: 'not-git-repo' as const,
-          message: 'No project selected.',
-        }
+  async function handleCommitGit(message: string, amend: boolean, paths: string[]) {
+    if (!projectPath) {
+      return {
+        ok: false as const,
+        code: 'not-git-repo' as const,
+        message: 'No project selected.',
       }
-      return commitGit(projectPath, { message, amend })
-    },
-    [commitGit, projectPath],
-  )
+    }
+    return commitGit(projectPath, { message, amend, paths })
+  }
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -163,7 +162,7 @@ export function App(): React.JSX.Element {
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
         e.preventDefault()
-        void handleNewConversation()
+        void createConversation(projectPath)
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 'b') {
         e.preventDefault()
@@ -173,7 +172,7 @@ export function App(): React.JSX.Element {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleNewConversation])
+  }, [createConversation, projectPath])
 
   if (!isLoaded) {
     return (

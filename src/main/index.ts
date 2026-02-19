@@ -4,6 +4,7 @@ import { app, BrowserWindow, shell } from 'electron'
 import { env } from './env'
 import { registerAgentHandlers } from './ipc/agent-handler'
 import { registerConversationsHandlers } from './ipc/conversations-handler'
+import { registerGitHandlers } from './ipc/git-handler'
 import { registerProjectHandlers } from './ipc/project-handler'
 import { registerProvidersHandlers } from './ipc/providers-handler'
 import { registerSettingsHandlers } from './ipc/settings-handler'
@@ -67,6 +68,7 @@ app.whenReady().then(() => {
   registerAgentHandlers()
   registerSettingsHandlers()
   registerConversationsHandlers()
+  registerGitHandlers()
   registerProjectHandlers()
   registerProvidersHandlers()
   registerTerminalHandlers()

@@ -36,6 +36,20 @@ function extractLastUserContent(messages: Array<UIMessage> | Array<ModelMessage>
 }
 
 /**
+ * Detect whether a stream chunk signals the end of an agent run.
+ * TanStack emits intermediate RUN_FINISHED (finishReason: 'tool_calls')
+ * before server tool execution completes — only treat non-tool-call finishes
+ * and errors as terminal.
+ */
+export function isTerminalChunk(chunk: StreamChunk): boolean {
+  if (chunk.type === 'RUN_ERROR') return true
+  if (chunk.type === 'RUN_FINISHED') {
+    return chunk.finishReason !== 'tool_calls'
+  }
+  return false
+}
+
+/**
  * Custom ConnectionAdapter that bridges TanStack AI's useChat with Electron IPC.
  *
  * Flow:
@@ -64,16 +78,6 @@ export function createIpcConnectionAdapter(
           let resolve: (() => void) | null = null
           let done = false
 
-          function isTerminalChunk(chunk: StreamChunk): boolean {
-            if (chunk.type === 'RUN_ERROR') return true
-            if (chunk.type === 'RUN_FINISHED') {
-              // TanStack emits intermediate RUN_FINISHED (finishReason: 'tool_calls')
-              // before server tool execution completes.
-              return chunk.finishReason !== 'tool_calls'
-            }
-            return false
-          }
-
           const unsub = api.onStreamChunk((payload) => {
             if (payload.conversationId !== conversationId) return
 
@@ -89,7 +93,8 @@ export function createIpcConnectionAdapter(
           abortSignal?.addEventListener(
             'abort',
             () => {
-              api.cancelAgent(conversationId)
+              // Do not cancel main-process execution on chat client teardown.
+              // This allows runs to continue in the background when switching threads.
               done = true
               resolve?.()
             },

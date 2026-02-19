@@ -116,4 +116,26 @@ describe('createIpcConnectionAdapter', () => {
       'RUN_FINISHED',
     ])
   })
+
+  it('does not cancel the main-process run on adapter abort', async () => {
+    apiMock.sendMessage.mockResolvedValueOnce(undefined)
+
+    const connection = createIpcConnectionAdapter(conversationId, model)
+    const userMessage = {
+      id: 'msg-user',
+      role: 'user',
+      parts: [{ type: 'text', content: 'keep running in background' }],
+      createdAt: new Date(),
+    } as UIMessage
+
+    const abortController = new AbortController()
+    const stream = connection.connect([userMessage], undefined, abortController.signal)
+    const iterator = stream[Symbol.asyncIterator]()
+    const nextPromise = iterator.next()
+    abortController.abort()
+    const result = await nextPromise
+
+    expect(result.done).toBe(true)
+    expect(apiMock.cancelAgent).not.toHaveBeenCalled()
+  })
 })
