@@ -183,6 +183,9 @@ FINISHING:     LEARNINGS.md → commit → push → notify user
 
 ## Recent Learnings
 
+### Task: Anthropic Sampling Param Conflict (2026-02-19)
+- Anthropic chat requests can fail when both `temperature` and `top_p` are sent together; provider-specific quality resolvers should emit only one sampling control to avoid hard API rejection.
+
 ### Task: Offline Whisper Base Voice Input (2026-02-19)
 - `@xenova/transformers` can run Whisper-base locally in the Electron main process when audio is passed as normalized `Float32Array` PCM and the model cache is pinned to `app.getPath('userData')`.
 - For Electron voice capture stability, record audio with `MediaRecorder` + local decode/resample in renderer and send PCM over IPC; avoid browser `SpeechRecognition` pathways in desktop shells.
@@ -202,14 +205,14 @@ FINISHING:     LEARNINGS.md → commit → push → notify user
 - Treat the agent runtime as a feature pipeline (`prompt fragments + tool providers/filters + lifecycle hooks`) so new capabilities can be added without editing `runAgent` orchestration logic [SKILL?]
 - Execution-mode policy should filter tools before dispatch (for clearer model behavior) while keeping execution-time guards as a second safety layer
 
+## Old Learnings Archive
+
+Move old learnings here so we can review
+
 ### Task: Diff Review Panel (2026-02-19)
 - Biome's `useExhaustiveDependencies` treats computed local variables (e.g. `const fetchKey = ...`) as "outer scope" and rejects them from deps arrays; use React `key` prop to force re-mount instead of `refreshKey` deps for data-fetching effects
 - When parsing `git diff HEAD` output, split on `^diff --git ` boundary to get per-file chunks; the `b/` path from the header is the canonical file path for renames
 - Diff panel theme tokens: `--color-diff-file-bg: #141922`, `--color-diff-file-border: #343d4d` for the card-style diff sections (distinct from the existing `--color-diff-card-*` tokens)
-
-## Old Learnings Archive
-
-Move old learnings here so we can review
 
 ### Task: Conversation Lifecycle + Git IPC Foundations (2026-02-19)
 - In TanStack `useChat` IPC adapters, wiring `AbortSignal` directly to server-side cancellation causes runs to terminate when switching threads; use explicit user-cancel paths instead so background runs can complete [SKILL?]
