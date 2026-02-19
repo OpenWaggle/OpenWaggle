@@ -166,7 +166,7 @@ export function Sidebar({
         {/* macOS traffic light clearance — collapses in fullscreen */}
         <div
           className="drag-region shrink-0 transition-[height] duration-200 ease-out"
-          style={{ height: isFullscreen ? 0 : 24 }}
+          style={{ height: isFullscreen ? 0 : 32 }}
         />
         {/* Logo — drag region, padding [14,16] */}
         <div className="drag-region flex shrink-0 items-center px-4 py-1">
