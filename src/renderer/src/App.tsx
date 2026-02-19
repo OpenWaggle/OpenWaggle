@@ -1,6 +1,7 @@
 import type { SupportedModelId } from '@shared/types/llm'
 import { useEffect, useRef, useState } from 'react'
 import { ChatPanel } from '@/components/chat/ChatPanel'
+import { DiffPanel } from '@/components/diff-panel/DiffPanel'
 import { Header } from '@/components/layout/Header'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { SettingsDialog } from '@/components/settings/SettingsDialog'
@@ -19,6 +20,8 @@ export function App(): React.JSX.Element {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [terminalOpen, setTerminalOpen] = useState(false)
+  const [diffPanelOpen, setDiffPanelOpen] = useState(false)
+  const [diffRefreshKey, setDiffRefreshKey] = useState(0)
 
   useSettingsSetup()
 
@@ -140,6 +143,7 @@ export function App(): React.JSX.Element {
 
   function handleRefreshGit() {
     void refreshGitStatus(projectPath)
+    setDiffRefreshKey((k) => k + 1)
   }
 
   async function handleCommitGit(message: string, amend: boolean, paths: string[]) {
@@ -167,6 +171,10 @@ export function App(): React.JSX.Element {
       if ((e.metaKey || e.ctrlKey) && e.key === 'b') {
         e.preventDefault()
         setSidebarOpen((prev) => !prev)
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
+        e.preventDefault()
+        setDiffPanelOpen((prev) => !prev)
       }
     }
 
@@ -209,6 +217,7 @@ export function App(): React.JSX.Element {
           projectPath={projectPath}
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           onToggleTerminal={() => setTerminalOpen(!terminalOpen)}
+          onToggleDiffPanel={() => setDiffPanelOpen(!diffPanelOpen)}
           sidebarOpen={sidebarOpen}
           terminalOpen={terminalOpen}
           gitStatus={gitStatus}
@@ -219,31 +228,49 @@ export function App(): React.JSX.Element {
           onCommitGit={handleCommitGit}
         />
 
-        {/* Main content — centers the chat panel */}
-        <div className="flex flex-1 justify-center overflow-hidden">
-          <ChatPanel
-            messages={messages}
-            isLoading={isLoading}
-            error={error}
-            projectPath={projectPath}
-            hasProject={!!projectPath}
-            conversationId={activeConversationId}
-            onOpenProject={handleOpenProject}
-            onOpenSettings={() => setSettingsOpen(true)}
-            onRetry={handleSend}
-            onSend={handleSend}
-            onCancel={stop}
-            onToolApprovalResponse={respondToolApproval}
-            onAnswerQuestion={answerQuestion}
-            model={currentModel}
-            onModelChange={handleModelChange}
-            settings={settings}
-            providerModels={providerModels}
-            messageModelLookup={messageModelLookup}
-            gitBranch={gitStatus?.branch ?? null}
-            onRefreshGit={handleRefreshGit}
-            isRefreshingGit={gitLoading}
-          />
+        {/* Main content — chat panel + optional diff panel */}
+        <div className="flex flex-1 overflow-hidden">
+          <div className="flex flex-1 justify-center overflow-hidden">
+            <ChatPanel
+              messages={messages}
+              isLoading={isLoading}
+              error={error}
+              projectPath={projectPath}
+              hasProject={!!projectPath}
+              conversationId={activeConversationId}
+              onOpenProject={handleOpenProject}
+              onOpenSettings={() => setSettingsOpen(true)}
+              onRetry={handleSend}
+              onSend={handleSend}
+              onCancel={stop}
+              onToolApprovalResponse={respondToolApproval}
+              onAnswerQuestion={answerQuestion}
+              model={currentModel}
+              onModelChange={handleModelChange}
+              settings={settings}
+              providerModels={providerModels}
+              messageModelLookup={messageModelLookup}
+              gitBranch={gitStatus?.branch ?? null}
+              onRefreshGit={handleRefreshGit}
+              isRefreshingGit={gitLoading}
+            />
+          </div>
+
+          {/* Diff panel with slide transition */}
+          <div
+            className={cn(
+              'shrink-0 overflow-hidden transition-[width] duration-200 ease-out border-l border-border',
+              diffPanelOpen ? 'w-[600px]' : 'w-0 border-l-0',
+            )}
+          >
+            {diffPanelOpen && (
+              <DiffPanel
+                projectPath={projectPath}
+                onSendMessage={handleSend}
+                refreshKey={diffRefreshKey}
+              />
+            )}
+          </div>
         </div>
 
         {/* Terminal with slide transition */}

@@ -10,6 +10,7 @@ interface HeaderProps {
   projectPath: string | null
   onToggleSidebar: () => void
   onToggleTerminal: () => void
+  onToggleDiffPanel: () => void
   sidebarOpen: boolean
   terminalOpen: boolean
   gitStatus: GitStatusSummary | null
@@ -25,6 +26,7 @@ export function Header({
   projectPath,
   onToggleSidebar,
   onToggleTerminal,
+  onToggleDiffPanel,
   sidebarOpen,
   terminalOpen,
   gitStatus,
@@ -115,8 +117,17 @@ export function Header({
           {/* Divider — w1 h20 */}
           <div className="w-px h-5 bg-border" />
 
-          {/* Diff stats — gap 4 */}
-          <div className="no-drag flex items-center gap-1">
+          {/* Diff stats — clickable to toggle diff panel */}
+          <button
+            type="button"
+            onClick={onToggleDiffPanel}
+            disabled={!projectPath}
+            className={cn(
+              'no-drag flex items-center gap-1 transition-opacity hover:opacity-80',
+              !projectPath && 'pointer-events-none opacity-30',
+            )}
+            title="Toggle diff panel"
+          >
             {gitStatus ? (
               <>
                 <span className="text-[12px] font-medium text-success">+{gitStatus.additions}</span>
@@ -127,7 +138,7 @@ export function Header({
                 {gitLoading ? 'Loading diff…' : gitError ? 'Git unavailable' : 'Diff unavailable'}
               </span>
             )}
-          </div>
+          </button>
         </div>
       </header>
 
