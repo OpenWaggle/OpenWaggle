@@ -110,31 +110,33 @@ export function DiffPanel({ projectPath, onSendMessage }: DiffPanelProps): React
       {/* Main split: diff area + file tree */}
       <div className="flex flex-1 overflow-hidden">
         {/* Diff Area */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-2.5 flex flex-col gap-2.5">
-          {isLoading && (
-            <div className="flex items-center justify-center h-20 text-[11px] text-text-tertiary">
-              Loading diffs…
-            </div>
-          )}
-          {!isLoading && fileDiffs.length === 0 && (
-            <div className="flex items-center justify-center h-20 text-[11px] text-text-tertiary">
-              No uncommitted changes
-            </div>
-          )}
-          {fileDiffs.map((file) => (
-            <div key={file.path} id={`diff-file-${file.path}`}>
-              <DiffFileSection
-                filePath={file.path}
-                items={file.items}
-                additions={file.additions}
-                deletions={file.deletions}
-                activeCommentLocation={activeCommentLocation}
-                onSetActiveComment={setActiveCommentLocation}
-                onAddSingleComment={handleAddSingleComment}
-                onAddToReview={handleAddToReview}
-              />
-            </div>
-          ))}
+        <div className="flex-1 overflow-auto p-2.5">
+          <div className="flex min-w-full w-max flex-col gap-2.5">
+            {isLoading && (
+              <div className="flex items-center justify-center h-20 text-[11px] text-text-tertiary">
+                Loading diffs…
+              </div>
+            )}
+            {!isLoading && fileDiffs.length === 0 && (
+              <div className="flex items-center justify-center h-20 text-[11px] text-text-tertiary">
+                No uncommitted changes
+              </div>
+            )}
+            {fileDiffs.map((file) => (
+              <div key={file.path} id={`diff-file-${file.path}`}>
+                <DiffFileSection
+                  filePath={file.path}
+                  items={file.items}
+                  additions={file.additions}
+                  deletions={file.deletions}
+                  activeCommentLocation={activeCommentLocation}
+                  onSetActiveComment={setActiveCommentLocation}
+                  onAddSingleComment={handleAddSingleComment}
+                  onAddToReview={handleAddToReview}
+                />
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* File Tree */}

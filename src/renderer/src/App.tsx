@@ -278,21 +278,16 @@ export function App(): React.JSX.Element {
                 onResizeEnd={() => {}}
               />
               <div
-                className="shrink-0 overflow-x-auto overflow-y-hidden"
+                className="shrink-0 overflow-hidden"
                 style={{
                   width: `min(${String(diffPanelWidth)}px, max(0px, calc(100% - ${String(CHAT_MIN_WIDTH)}px)))`,
                 }}
               >
-                <div
-                  className="h-full overflow-hidden"
-                  style={{ width: `${String(diffPanelWidth)}px` }}
-                >
-                  <DiffPanel
-                    key={diffRefreshKey}
-                    projectPath={projectPath}
-                    onSendMessage={handleSend}
-                  />
-                </div>
+                <DiffPanel
+                  key={diffRefreshKey}
+                  projectPath={projectPath}
+                  onSendMessage={handleSend}
+                />
               </div>
             </>
           )}
