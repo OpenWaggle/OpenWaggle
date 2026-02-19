@@ -150,4 +150,25 @@ describe('settings store', () => {
 
     expect(settings.qualityPreset).toBe('medium')
   })
+
+  it('sanitizes skill toggles by project', async () => {
+    mockState.storeData.skillTogglesByProject = {
+      ' /tmp/repo ': {
+        ' code-review ': false,
+        '': true,
+      },
+      '': {
+        'frontend-design': true,
+      },
+    }
+
+    const { getSettings } = await loadSettingsModule()
+    const settings = getSettings()
+
+    expect(settings.skillTogglesByProject).toEqual({
+      '/tmp/repo': {
+        'code-review': false,
+      },
+    })
+  })
 })

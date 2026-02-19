@@ -7,13 +7,13 @@ import type {
   AgentRunSummary,
   AgentToolCallStartEvent,
 } from './runtime-types'
+import { activeSkillsPromptFragment, agentsEntryPromptFragment } from './standards-prompt'
 import {
   coreBehaviorPromptFragment,
   executionModePromptFragment,
   projectContextPromptFragment,
   runtimeModelPromptFragment,
 } from './system-prompt'
-import { activeSkillsPromptFragment, agentsEntryPromptFragment } from './standards-prompt'
 
 interface AgentFeatureFlags {
   readonly [featureId: string]: boolean

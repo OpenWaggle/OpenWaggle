@@ -2,8 +2,8 @@ import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { ProviderConfig, Settings } from '@shared/types/settings'
 import type { ServerTool, StreamChunk } from '@tanstack/ai'
-import type { AgentStandardsContext } from './standards-context'
 import type { ProviderDefinition } from '../providers/provider-definition'
+import type { AgentStandardsContext } from './standards-context'
 
 export interface AgentRunContext {
   readonly runId: string

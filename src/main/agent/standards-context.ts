@@ -1,7 +1,7 @@
-import type { SkillActivationResult } from '@shared/types/standards'
 import type { Settings } from '@shared/types/settings'
+import type { SkillActivationResult } from '@shared/types/standards'
 import { activateSkillsFromText } from '../skills/skill-activation'
-import { loadSkillCatalog, type LoadedSkillDefinition } from '../skills/skill-catalog'
+import { type LoadedSkillDefinition, loadSkillCatalog } from '../skills/skill-catalog'
 import { loadAgentsInstruction } from '../standards/agents-loader'
 
 export interface ActiveSkillInstruction {

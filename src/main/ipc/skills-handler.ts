@@ -44,22 +44,25 @@ export function registerSkillsHandlers(): void {
     },
   )
 
-  ipcMain.handle('skills:get-preview', async (_event, rawProjectPath: string, rawSkillId: string) => {
-    const projectPath = projectPathSchema.parse(rawProjectPath)
-    const skillId = skillIdSchema.parse(rawSkillId)
+  ipcMain.handle(
+    'skills:get-preview',
+    async (_event, rawProjectPath: string, rawSkillId: string) => {
+      const projectPath = projectPathSchema.parse(rawProjectPath)
+      const skillId = skillIdSchema.parse(rawSkillId)
 
-    const settings = getSettings()
-    const toggles = settings.skillTogglesByProject[projectPath] ?? {}
-    const catalog = await loadSkillCatalog(projectPath, toggles)
-    const skill = catalog.skills.find((entry) => entry.id === skillId)
+      const settings = getSettings()
+      const toggles = settings.skillTogglesByProject[projectPath] ?? {}
+      const catalog = await loadSkillCatalog(projectPath, toggles)
+      const skill = catalog.skills.find((entry) => entry.id === skillId)
 
-    if (!skill) {
-      throw new Error(`Skill "${skillId}" was not found.`)
-    }
-    if (skill.loadStatus === 'error') {
-      throw new Error(skill.loadError ?? `Skill "${skillId}" is invalid.`)
-    }
+      if (!skill) {
+        throw new Error(`Skill "${skillId}" was not found.`)
+      }
+      if (skill.loadStatus === 'error') {
+        throw new Error(skill.loadError ?? `Skill "${skillId}" is invalid.`)
+      }
 
-    return { markdown: skill.body ?? '' }
-  })
+      return { markdown: skill.body ?? '' }
+    },
+  )
 }

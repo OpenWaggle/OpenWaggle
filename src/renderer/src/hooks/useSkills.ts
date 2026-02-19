@@ -94,7 +94,9 @@ export function useSkills(projectPath: string | null): UseSkillsResult {
       .catch((previewError) => {
         if (isMounted) {
           setPreviewMarkdown('')
-          setError(previewError instanceof Error ? previewError.message : 'Failed to load skill preview.')
+          setError(
+            previewError instanceof Error ? previewError.message : 'Failed to load skill preview.',
+          )
         }
       })
       .finally(() => {

@@ -238,7 +238,11 @@ export function Composer({
     ? slashSkills
         .filter((skill) => skill.enabled)
         .filter((skill) => skill.loadStatus === 'ok')
-        .filter((skill) => skill.id.includes(slashMatch.query) || skill.name.toLowerCase().includes(slashMatch.query))
+        .filter(
+          (skill) =>
+            skill.id.includes(slashMatch.query) ||
+            skill.name.toLowerCase().includes(slashMatch.query),
+        )
         .slice(0, 8)
         .map((skill) => ({
           id: skill.id,
@@ -410,9 +414,7 @@ export function Composer({
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault()
-        setSlashHighlightIndex((index) =>
-          index === 0 ? slashSuggestions.length - 1 : index - 1,
-        )
+        setSlashHighlightIndex((index) => (index === 0 ? slashSuggestions.length - 1 : index - 1))
         return
       }
       if (e.key === 'Escape') {
