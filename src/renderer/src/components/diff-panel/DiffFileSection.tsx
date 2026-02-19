@@ -1,7 +1,6 @@
 import type { ReviewComment } from '@shared/types/review'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
-import { cn } from '@/lib/cn'
 import { CollapsedLines } from './CollapsedLines'
 import { DiffLine } from './DiffLine'
 import { InlineComment } from './InlineComment'
@@ -12,78 +11,6 @@ interface ParsedLine {
   lineNumber: number | null
 }
 
-interface Hunk {
-  contextBefore: ParsedLine[]
-  changes: ParsedLine[]
-  contextAfter: ParsedLine[]
-}
-
-function parseDiffContent(rawDiff: string): { hunks: Hunk[]; collapsedBefore: number } {
-  const lines = rawDiff.split('\n')
-  const allParsed: ParsedLine[] = []
-  let oldLine = 0
-  let newLine = 0
-  let headerSeen = false
-
-  for (const line of lines) {
-    // Skip file-level headers
-    if (
-      line.startsWith('diff --git') ||
-      line.startsWith('index ') ||
-      line.startsWith('---') ||
-      line.startsWith('+++') ||
-      line.startsWith('new file') ||
-      line.startsWith('deleted file') ||
-      line.startsWith('similarity') ||
-      line.startsWith('rename')
-    ) {
-      continue
-    }
-
-    const hunkMatch = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line)
-    if (hunkMatch) {
-      oldLine = Number.parseInt(hunkMatch[1] ?? '1', 10)
-      newLine = Number.parseInt(hunkMatch[2] ?? '1', 10)
-      headerSeen = true
-      continue
-    }
-
-    if (!headerSeen) continue
-
-    if (line.startsWith('+')) {
-      allParsed.push({ type: 'add', content: line.slice(1), lineNumber: newLine })
-      newLine++
-    } else if (line.startsWith('-')) {
-      allParsed.push({ type: 'remove', content: line.slice(1), lineNumber: oldLine })
-      oldLine++
-    } else if (line.startsWith(' ') || line === '') {
-      allParsed.push({ type: 'context', content: line.slice(1), lineNumber: newLine })
-      oldLine++
-      newLine++
-    }
-    // Skip "\ No newline at end of file"
-  }
-
-  // Group into hunks: collapsed context sections → change blocks
-  // First, find the first non-context line to determine leading context
-  let firstChangeIdx = allParsed.findIndex((l) => l.type !== 'context')
-  if (firstChangeIdx === -1) firstChangeIdx = allParsed.length
-
-  const collapsedBefore = Math.max(0, firstChangeIdx - 3)
-  const visibleStart = collapsedBefore
-
-  // For simplicity, return all visible lines as a single hunk
-  const hunks: Hunk[] = [
-    {
-      contextBefore: allParsed.slice(visibleStart, firstChangeIdx),
-      changes: allParsed.filter((l) => l.type !== 'context'),
-      contextAfter: [],
-    },
-  ]
-
-  return { hunks, collapsedBefore }
-}
-
 interface DiffFileSectionProps {
   filePath: string
   diff: string
@@ -91,7 +18,12 @@ interface DiffFileSectionProps {
   deletions: number
   activeCommentLocation: { filePath: string; line: number } | null
   onSetActiveComment: (location: { filePath: string; line: number } | null) => void
-  onAddSingleComment: (filePath: string, startLine: number, endLine: number, content: string) => void
+  onAddSingleComment: (
+    filePath: string,
+    startLine: number,
+    endLine: number,
+    content: string,
+  ) => void
   onAddToReview: (comment: ReviewComment) => void
 }
 
@@ -146,7 +78,11 @@ export function DiffFileSection({
       displayLines.push({ type: 'remove', content: line.slice(1), lineNumber: oldLine })
       oldLine++
     } else if (line.startsWith(' ') || (headerSeen && line === '')) {
-      displayLines.push({ type: 'context', content: line.startsWith(' ') ? line.slice(1) : '', lineNumber: newLine })
+      displayLines.push({
+        type: 'context',
+        content: line.startsWith(' ') ? line.slice(1) : '',
+        lineNumber: newLine,
+      })
       oldLine++
       newLine++
     }
@@ -247,9 +183,7 @@ export function DiffFileSection({
                 <CollapsedLines
                   key={item.key}
                   count={item.lines.length}
-                  onClick={() =>
-                    setExpandedCollapsed((prev) => ({ ...prev, [item.key]: true }))
-                  }
+                  onClick={() => setExpandedCollapsed((prev) => ({ ...prev, [item.key]: true }))}
                 />
               )
             }

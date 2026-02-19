@@ -17,7 +17,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import openhiveLockup from '@/assets/openhive-lockup.png'
+import openhiveLockup from '@/assets/openhive-lockup-sidebar.svg'
 import { useFullscreen } from '@/hooks/useFullscreen'
 import { cn } from '@/lib/cn'
 import { formatRelativeTime, projectName, truncate } from '@/lib/format'
@@ -169,8 +169,8 @@ export function Sidebar({
           style={{ height: isFullscreen ? 0 : 24 }}
         />
         {/* Logo — drag region, padding [14,16] */}
-        <div className="drag-region flex shrink-0 items-center px-4 py-[12px]">
-          <img src={openhiveLockup} alt="OpenHive" className="no-drag h-9 w-auto object-contain" />
+        <div className="drag-region flex shrink-0 items-center px-4 py-[10px]">
+          <img src={openhiveLockup} alt="OpenHive" className="no-drag h-11 w-auto object-contain" />
         </div>
 
         <div

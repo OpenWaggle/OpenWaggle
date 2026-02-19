@@ -1,0 +1,57 @@
+<svg width="1220" height="512" viewBox="40 0 1220 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">OpenHive Logo</title>
+  <desc id="desc">OpenHive wordmark with a stylized bee mascot icon.</desc>
+
+  <defs>
+    <linearGradient id="panelGradient" x1="100" y1="78" x2="412" y2="430" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1f232a"/>
+      <stop offset="1" stop-color="#141619"/>
+    </linearGradient>
+    <linearGradient id="beeGradient" x1="188" y1="142" x2="328" y2="410" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f7be4e"/>
+      <stop offset="1" stop-color="#b87410"/>
+    </linearGradient>
+    <linearGradient id="wingGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c9d8ee" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#8ba3cf" stop-opacity="0.68"/>
+    </linearGradient>
+    <clipPath id="beeClip">
+      <path d="M256 124C189 124 146 178 146 247C146 307 177 358 213 384V428H236V395C248 399 264 399 276 395V428H299V384C335 358 366 307 366 247C366 178 323 124 256 124Z"/>
+    </clipPath>
+
+    <linearGradient id="honeyRimB" x1="92" y1="74" x2="420" y2="430" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fbe0a4"/>
+      <stop offset="1" stop-color="#cd8414"/>
+    </linearGradient>
+    <pattern id="honeyCellsB" width="24" height="21" patternUnits="userSpaceOnUse">
+      <path d="M12 1L22 6.5V17.5L12 23L2 17.5V6.5L12 1Z" fill="none" stroke="#f7cf7a" stroke-opacity="0.35" stroke-width="1"/>
+    </pattern>
+    <linearGradient id="honeyGlowB" x1="256" y1="58" x2="256" y2="250" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f7cf7a" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#f7cf7a" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <path d="M256 32L440 138V374L256 480L72 374V138L256 32Z" fill="url(#panelGradient)" stroke="#263149" stroke-width="11"/>
+  <path d="M256 32L440 138V374L256 480L72 374V138L256 32Z" fill="url(#honeyCellsB)" opacity="0.14"/>
+  <path d="M256 58L418 151V361L256 454L94 361V151L256 58Z" fill="url(#honeyGlowB)"/>
+  <path d="M256 32L440 138V374L256 480L72 374V138L256 32Z" fill="none" stroke="url(#honeyRimB)" stroke-width="5.8"/>
+  <path d="M256 52L422 148V364L256 460L90 364V148L256 52Z" fill="none" stroke="#f7cf7a" stroke-opacity="0.28" stroke-width="2"/>
+  <path d="M153 236C102 218 78 254 92 299C107 348 164 344 188 299C198 279 193 251 153 236Z" fill="url(#wingGradient)" stroke="#7d95c0" stroke-opacity="0.6" stroke-width="6"/>
+  <path d="M359 236C410 218 434 254 420 299C405 348 348 344 324 299C314 279 319 251 359 236Z" fill="url(#wingGradient)" stroke="#7d95c0" stroke-opacity="0.6" stroke-width="6"/>
+  <path d="M256 124C189 124 146 178 146 247C146 307 177 358 213 384V428H236V395C248 399 264 399 276 395V428H299V384C335 358 366 307 366 247C366 178 323 124 256 124Z" fill="url(#beeGradient)" stroke="#9b5f0d" stroke-width="8"/>
+  <g clip-path="url(#beeClip)">
+    <rect x="118" y="244" width="276" height="32" fill="#2d3139" opacity="0.84"/>
+    <rect x="118" y="300" width="276" height="30" fill="#2d3139" opacity="0.78"/>
+  </g>
+  <path d="M222 129Q204 106 193 112" stroke="#f7be4e" stroke-width="8" stroke-linecap="round"/>
+  <path d="M290 129Q308 106 319 112" stroke="#f7be4e" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="222" cy="213" r="18" fill="#111319"/>
+  <circle cx="290" cy="213" r="18" fill="#111319"/>
+  <circle cx="228" cy="208" r="6" fill="#61a8ff"/>
+  <circle cx="296" cy="208" r="6" fill="#61a8ff"/>
+  <path d="M250 400H262L256 424L250 400Z" fill="#9b5f0d"/>
+
+  <text x="500" y="294" fill="#e7e9ee" font-family="'Clash Display', 'Space Grotesk', 'Sora', sans-serif" font-size="196" font-weight="630" letter-spacing="-2">Open</text>
+  <text x="938" y="294" fill="#f5a623" font-family="'Clash Display', 'Space Grotesk', 'Sora', sans-serif" font-size="196" font-weight="730" letter-spacing="-2">Hive</text>
+</svg>

@@ -265,9 +265,9 @@ export function App(): React.JSX.Element {
           >
             {diffPanelOpen && (
               <DiffPanel
+                key={diffRefreshKey}
                 projectPath={projectPath}
                 onSendMessage={handleSend}
-                refreshKey={diffRefreshKey}
               />
             )}
           </div>

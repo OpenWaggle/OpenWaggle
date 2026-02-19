@@ -10,14 +10,9 @@ import { FileTree } from './FileTree'
 interface DiffPanelProps {
   projectPath: string | null
   onSendMessage: (content: string) => void
-  refreshKey: number
 }
 
-export function DiffPanel({
-  projectPath,
-  onSendMessage,
-  refreshKey,
-}: DiffPanelProps): React.JSX.Element {
+export function DiffPanel({ projectPath, onSendMessage }: DiffPanelProps): React.JSX.Element {
   const [fileDiffs, setFileDiffs] = useState<GitFileDiff[]>([])
   const [isLoading, setIsLoading] = useState(false)
 
@@ -27,6 +22,7 @@ export function DiffPanel({
   const addComment = useReviewStore((s) => s.addComment)
   const clearComments = useReviewStore((s) => s.clearComments)
 
+  // Fetch diffs on mount, projectPath change, or explicit refresh from parent
   useEffect(() => {
     if (!projectPath) {
       setFileDiffs([])
@@ -39,7 +35,7 @@ export function DiffPanel({
       .then((diffs) => setFileDiffs(diffs))
       .catch(() => setFileDiffs([]))
       .finally(() => setIsLoading(false))
-  }, [projectPath, refreshKey])
+  }, [projectPath])
 
   function handleAddSingleComment(
     filePath: string,
@@ -47,7 +43,9 @@ export function DiffPanel({
     endLine: number,
     content: string,
   ): void {
-    const message = `**Review comment** on \`${filePath}\` (line${startLine !== endLine ? `s ${String(startLine)}-${String(endLine)}` : ` ${String(startLine)}`}):\n\n${content}`
+    const lineRef =
+      startLine !== endLine ? `s ${String(startLine)}-${String(endLine)}` : ` ${String(startLine)}`
+    const message = `**Review comment** on \`${filePath}\` (line${lineRef}):\n\n${content}`
     onSendMessage(message)
     setActiveCommentLocation(null)
   }
@@ -59,10 +57,13 @@ export function DiffPanel({
   function handleSendReview(): void {
     if (comments.length === 0) return
 
-    const lines = comments.map(
-      (c) =>
-        `- **\`${c.filePath}\`** line${c.startLine !== c.endLine ? `s ${String(c.startLine)}-${String(c.endLine)}` : ` ${String(c.startLine)}`}: ${c.content}`,
-    )
+    const lines = comments.map((c) => {
+      const lineRef =
+        c.startLine !== c.endLine
+          ? `s ${String(c.startLine)}-${String(c.endLine)}`
+          : ` ${String(c.startLine)}`
+      return `- **\`${c.filePath}\`** line${lineRef}: ${c.content}`
+    })
     const message = `**Code Review**\n\n${lines.join('\n')}`
     onSendMessage(message)
     clearComments()

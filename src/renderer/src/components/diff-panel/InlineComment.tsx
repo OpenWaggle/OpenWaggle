@@ -18,8 +18,7 @@ export function InlineComment({
 }: InlineCommentProps): React.JSX.Element {
   const [content, setContent] = useState('')
 
-  const lineLabel =
-    startLine === endLine ? `line ${startLine}` : `lines ${startLine}-${endLine}`
+  const lineLabel = startLine === endLine ? `line ${startLine}` : `lines ${startLine}-${endLine}`
 
   function handleAddSingle(): void {
     if (!content.trim()) return
@@ -38,9 +37,7 @@ export function InlineComment({
       {/* Comment Meta */}
       <div className="flex items-center gap-1.5 h-[18px]">
         <MessageSquare className="h-[11px] w-[11px] text-text-tertiary shrink-0" />
-        <span className="text-[10px] font-medium text-text-secondary">
-          Comment on {lineLabel}
-        </span>
+        <span className="text-[10px] font-medium text-text-secondary">Comment on {lineLabel}</span>
       </div>
 
       {/* Comment Editor */}

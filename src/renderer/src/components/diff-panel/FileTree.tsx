@@ -65,9 +65,7 @@ function FileTreeNode({ node, depth, onFileClick }: FileTreeNodeProps): React.JS
         )}
         style={{ paddingLeft: `${String(paddingLeft + 4)}px` }}
       >
-        {node.isChanged && (
-          <span className="shrink-0 h-[5px] w-[5px] rounded-full bg-accent" />
-        )}
+        {node.isChanged && <span className="shrink-0 h-[5px] w-[5px] rounded-full bg-accent" />}
         <span
           className={cn(
             'text-[11px] truncate',
@@ -95,12 +93,7 @@ function FileTreeNode({ node, depth, onFileClick }: FileTreeNodeProps): React.JS
       </button>
       {expanded &&
         node.children.map((child) => (
-          <FileTreeNode
-            key={child.path}
-            node={child}
-            depth={depth + 1}
-            onFileClick={onFileClick}
-          />
+          <FileTreeNode key={child.path} node={child} depth={depth + 1} onFileClick={onFileClick} />
         ))}
     </div>
   )
