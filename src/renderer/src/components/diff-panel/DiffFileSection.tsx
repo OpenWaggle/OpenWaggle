@@ -148,14 +148,14 @@ export function DiffFileSection({
       >
         <div className="flex items-center gap-1.5">
           <ChevIcon className="h-[13px] w-[13px] text-text-tertiary shrink-0" />
-          <span className="text-[11px] font-medium text-text-primary">{filePath}</span>
+          <span className="text-[12px] font-medium text-text-primary">{filePath}</span>
         </div>
         <div className="flex items-center gap-1">
           {additions > 0 && (
-            <span className="text-[10px] font-semibold text-accent">+{additions}</span>
+            <span className="text-[11px] font-semibold text-accent">+{additions}</span>
           )}
           {deletions > 0 && (
-            <span className="text-[10px] font-semibold text-error">-{deletions}</span>
+            <span className="text-[11px] font-semibold text-error">-{deletions}</span>
           )}
         </div>
       </button>

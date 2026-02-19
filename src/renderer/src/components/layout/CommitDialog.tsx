@@ -143,7 +143,7 @@ export function CommitDialog({
 
         <div className="space-y-4 px-4 py-4">
           <div className="flex items-center justify-between rounded-md border border-border bg-bg px-3 py-2">
-            <div className="text-xs text-text-secondary">
+            <div className="text-[13px] text-text-secondary">
               {status
                 ? `${selectedPaths.size}/${status.filesChanged} files selected • +${status.additions} / -${status.deletions}`
                 : 'Git status unavailable'}
@@ -151,7 +151,7 @@ export function CommitDialog({
             <button
               type="button"
               onClick={onRefresh}
-              className="flex items-center gap-1 text-xs text-text-tertiary transition-colors hover:text-text-secondary"
+              className="flex items-center gap-1 text-[13px] text-text-tertiary transition-colors hover:text-text-secondary"
               title="Refresh status"
               disabled={isRefreshing}
             >
@@ -160,11 +160,11 @@ export function CommitDialog({
             </button>
           </div>
 
-          {statusError && <p className="text-xs text-error">{statusError}</p>}
-          {error && <p className="text-xs text-error">{error}</p>}
+          {statusError && <p className="text-[13px] text-error">{statusError}</p>}
+          {error && <p className="text-[13px] text-error">{error}</p>}
 
           <label className="block">
-            <span className="mb-1.5 block text-xs font-medium text-text-secondary">
+            <span className="mb-1.5 block text-[13px] font-medium text-text-secondary">
               Commit message
             </span>
             <textarea
@@ -176,7 +176,7 @@ export function CommitDialog({
             />
           </label>
 
-          <label className="flex items-center gap-2 text-xs text-text-secondary">
+          <label className="flex items-center gap-2 text-[13px] text-text-secondary">
             <input
               type="checkbox"
               checked={amend}
@@ -195,13 +195,15 @@ export function CommitDialog({
                   onChange={toggleAll}
                   className="h-3.5 w-3.5 rounded border-border bg-bg"
                 />
-                <span className="text-[11px] font-medium text-text-tertiary">
+                <span className="text-[12px] font-medium text-text-tertiary">
                   {selectedPaths.size === changedFiles.length ? 'Deselect all' : 'Select all'}
                 </span>
               </div>
             )}
             {changedFiles.length === 0 ? (
-              <div className="px-3 py-2 text-xs text-text-tertiary">No file changes detected.</div>
+              <div className="px-3 py-2 text-[13px] text-text-tertiary">
+                No file changes detected.
+              </div>
             ) : (
               changedFiles.map((file) => (
                 <label
@@ -214,10 +216,10 @@ export function CommitDialog({
                     onChange={() => togglePath(file.path)}
                     className="h-3.5 w-3.5 shrink-0 rounded border-border bg-bg"
                   />
-                  <span className={cn('truncate text-xs flex-1', STATUS_CLASS[file.status])}>
+                  <span className={cn('truncate text-[13px] flex-1', STATUS_CLASS[file.status])}>
                     {file.path}
                   </span>
-                  <span className="shrink-0 text-[11px] text-text-tertiary">
+                  <span className="shrink-0 text-[12px] text-text-tertiary">
                     {file.additions > 0 ? `+${file.additions}` : ''}
                     {file.additions > 0 && file.deletions > 0 ? ' / ' : ''}
                     {file.deletions > 0 ? `-${file.deletions}` : ''}
@@ -232,7 +234,7 @@ export function CommitDialog({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border border-border px-3 py-1.5 text-xs text-text-secondary transition-colors hover:bg-bg-hover"
+            className="rounded-md border border-border px-3 py-1.5 text-[13px] text-text-secondary transition-colors hover:bg-bg-hover"
           >
             Cancel
           </button>
@@ -241,7 +243,7 @@ export function CommitDialog({
             onClick={() => void handleCommit()}
             disabled={!canSubmit}
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors',
+              'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-semibold transition-colors',
               canSubmit
                 ? 'bg-gradient-to-b from-accent to-accent-dim text-bg'
                 : 'cursor-not-allowed border border-border bg-bg-tertiary text-text-tertiary',

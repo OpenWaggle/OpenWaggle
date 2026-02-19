@@ -34,7 +34,7 @@ export function DiffLine({
       {/* Line number */}
       <span
         className={cn(
-          'shrink-0 w-8 text-right font-mono text-[10px] leading-5 select-none',
+          'shrink-0 w-8 text-right font-mono text-[11px] leading-5 select-none',
           type === 'remove' && 'text-diff-remove-num',
           type === 'add' && 'text-diff-add-num',
           type === 'context' && 'text-text-tertiary',
@@ -46,7 +46,7 @@ export function DiffLine({
       {/* Mark (+/-/space) */}
       <span
         className={cn(
-          'shrink-0 w-4 font-mono text-[10px] leading-5 select-none',
+          'shrink-0 w-4 font-mono text-[11px] leading-5 select-none',
           type === 'remove' && 'text-diff-remove-text',
           type === 'add' && 'text-diff-add-mark',
           type === 'context' && 'text-text-tertiary',
@@ -58,7 +58,7 @@ export function DiffLine({
       {/* Code content */}
       <span
         className={cn(
-          'pr-3 font-mono text-[10px] leading-5 whitespace-pre',
+          'pr-3 font-mono text-[11px] leading-5 whitespace-pre',
           type === 'remove' && 'text-diff-remove-text',
           type === 'add' && 'text-diff-add-text',
           type === 'context' && 'text-diff-context-text',

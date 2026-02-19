@@ -126,7 +126,7 @@ export function ToolCallBlock({
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center gap-2 h-9 px-3.5 text-[13px] hover:bg-bg-hover transition-colors"
+        className="flex w-full items-center gap-2 h-9 px-3.5 text-[14px] hover:bg-bg-hover transition-colors"
       >
         <ChevronRight
           className={cn(
@@ -135,22 +135,22 @@ export function ToolCallBlock({
           )}
         />
         <Icon className="h-3.5 w-3.5 text-text-muted shrink-0" />
-        <span className="font-medium text-text-secondary text-xs">{config.displayName}</span>
+        <span className="font-medium text-text-secondary text-[13px]">{config.displayName}</span>
 
         {summary && (
-          <span className="truncate text-text-tertiary font-mono text-xs">{summary}</span>
+          <span className="truncate text-text-tertiary font-mono text-[13px]">{summary}</span>
         )}
 
         <div className="ml-auto flex items-center gap-2 shrink-0">
           {/* Diff stats inline */}
           {diff && (
-            <span className="flex items-center gap-1.5 text-xs">
+            <span className="flex items-center gap-1.5 text-[13px]">
               <span className="text-success">+{diff.additions}</span>
               <span className="text-error">-{diff.deletions}</span>
             </span>
           )}
           {duration > 0 && (
-            <span className="flex items-center gap-1 text-xs text-text-tertiary">
+            <span className="flex items-center gap-1 text-[13px] text-text-tertiary">
               <Clock className="h-3 w-3" />
               {formatDuration(duration)}
             </span>
@@ -189,14 +189,14 @@ export function ToolCallBlock({
 
           {/* Arguments */}
           <div className="px-3 py-2">
-            <div className="text-xs text-text-tertiary mb-1">Arguments</div>
+            <div className="text-[13px] text-text-tertiary mb-1">Arguments</div>
             <ToolArgs name={name} args={parsedArgs} rawArgs={args} />
           </div>
 
           {/* Result */}
           {result && !diff && !isError && (
             <div className="border-t border-border px-3 py-2">
-              <div className="text-xs text-text-tertiary mb-1">Result</div>
+              <div className="text-[13px] text-text-tertiary mb-1">Result</div>
               <ToolResult content={result.content} isError={isError} />
             </div>
           )}
@@ -204,7 +204,7 @@ export function ToolCallBlock({
           {/* Error from diff tool */}
           {result && isError && (
             <div className="border-t border-border px-3 py-2">
-              <div className="text-xs text-text-tertiary mb-1">Error</div>
+              <div className="text-[13px] text-text-tertiary mb-1">Error</div>
               <ToolResult content={resultError ?? result.content} isError />
             </div>
           )}
@@ -227,7 +227,7 @@ function ToolArgs({
 }): React.JSX.Element {
   if (name === 'runCommand' && typeof args.command === 'string') {
     return (
-      <div className="rounded-md bg-bg px-3 py-2 font-mono text-xs text-text-secondary">
+      <div className="rounded-md bg-bg px-3 py-2 font-mono text-[13px] text-text-secondary">
         <span className="text-text-muted select-none">$ </span>
         {args.command}
       </div>
@@ -237,7 +237,7 @@ function ToolArgs({
   const entries = Object.entries(args)
   if (entries.length === 0) {
     return (
-      <pre className="text-xs font-mono text-text-secondary bg-bg rounded-md p-2 overflow-x-auto">
+      <pre className="text-[13px] font-mono text-text-secondary bg-bg rounded-md p-2 overflow-x-auto">
         {rawArgs || '{}'}
       </pre>
     )
@@ -250,13 +250,13 @@ function ToolArgs({
         const isLong = typeof display === 'string' && display.length > 120
         return (
           <div key={key}>
-            <span className="text-xs text-text-tertiary">{key}: </span>
+            <span className="text-[13px] text-text-tertiary">{key}: </span>
             {isLong ? (
-              <pre className="mt-0.5 text-xs font-mono text-text-secondary bg-bg rounded-md p-2 overflow-x-auto max-h-[200px] overflow-y-auto">
+              <pre className="mt-0.5 text-[13px] font-mono text-text-secondary bg-bg rounded-md p-2 overflow-x-auto max-h-[200px] overflow-y-auto">
                 {display}
               </pre>
             ) : (
-              <span className="text-xs font-mono text-text-secondary">{display}</span>
+              <span className="text-[13px] font-mono text-text-secondary">{display}</span>
             )}
           </div>
         )
@@ -290,7 +290,7 @@ function ToolResult({
       <div className="rounded-md border border-error/20 bg-error/5 px-3 py-2">
         <div className="flex items-start gap-2">
           <AlertCircle className="h-3.5 w-3.5 text-error shrink-0 mt-0.5" />
-          <pre className="text-xs font-mono text-error whitespace-pre-wrap break-words flex-1">
+          <pre className="text-[13px] font-mono text-error whitespace-pre-wrap break-words flex-1">
             {errorMessage}
           </pre>
         </div>
@@ -311,7 +311,7 @@ function ToolResult({
   }
 
   return (
-    <pre className="text-xs font-mono text-text-secondary bg-bg rounded-md p-2 overflow-x-auto max-h-[300px] overflow-y-auto whitespace-pre-wrap break-words">
+    <pre className="text-[13px] font-mono text-text-secondary bg-bg rounded-md p-2 overflow-x-auto max-h-[300px] overflow-y-auto whitespace-pre-wrap break-words">
       {displayContent}
     </pre>
   )

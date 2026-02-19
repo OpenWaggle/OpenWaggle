@@ -111,7 +111,7 @@ export function ModelSelector({
         aria-haspopup="listbox"
         className="no-drag flex items-center gap-[5px] h-[26px] px-2.5 rounded-md border border-button-border text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
       >
-        <span className="truncate max-w-[180px] text-[11px]">{selectedModel?.name ?? value}</span>
+        <span className="truncate max-w-[180px] text-[12px]">{selectedModel?.name ?? value}</span>
         <span className="text-[9px] text-text-tertiary">&#x2228;</span>
       </button>
 
@@ -132,7 +132,7 @@ export function ModelSelector({
           )}
           {visibleGroups.map((group) => (
             <div key={group.provider}>
-              <div className="sticky top-0 bg-bg-secondary px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+              <div className="sticky top-0 bg-bg-secondary px-3 py-1.5 text-[12px] font-semibold uppercase tracking-wider text-text-muted">
                 {group.displayName}
               </div>
               {group.models.map((model) => {
@@ -164,7 +164,9 @@ export function ModelSelector({
                   >
                     <span className="truncate">{model.name}</span>
                     <div className="flex items-center gap-2 shrink-0 ml-2">
-                      {!available && <span className="text-xs text-text-muted">No API key</span>}
+                      {!available && (
+                        <span className="text-[13px] text-text-muted">No API key</span>
+                      )}
                       {model.id === value && <Check className="h-3.5 w-3.5 text-accent" />}
                     </div>
                   </button>

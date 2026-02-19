@@ -68,7 +68,7 @@ function FileTreeNode({ node, depth, onFileClick }: FileTreeNodeProps): React.JS
         {node.isChanged && <span className="shrink-0 h-[5px] w-[5px] rounded-full bg-accent" />}
         <span
           className={cn(
-            'text-[11px] truncate',
+            'text-[12px] truncate',
             node.isChanged ? 'text-text-primary' : 'text-text-secondary',
           )}
         >
@@ -89,7 +89,7 @@ function FileTreeNode({ node, depth, onFileClick }: FileTreeNodeProps): React.JS
         style={{ paddingLeft: `${String(paddingLeft)}px` }}
       >
         <ChevIcon className="h-[11px] w-[11px] text-text-tertiary shrink-0" />
-        <span className="text-[11px] text-text-secondary">{node.name}</span>
+        <span className="text-[12px] text-text-secondary">{node.name}</span>
       </button>
       {expanded &&
         node.children.map((child) => (
@@ -135,7 +135,7 @@ export function FileTree({
           disabled={reviewCount === 0}
           className={cn(
             'flex items-center justify-center gap-1 w-full h-6 rounded bg-gradient-to-b from-accent to-accent-dim border border-accent-dim',
-            'text-[10px] font-semibold text-diff-bg',
+            'text-[11px] font-semibold text-diff-bg',
             'disabled:opacity-40 transition-opacity',
           )}
         >

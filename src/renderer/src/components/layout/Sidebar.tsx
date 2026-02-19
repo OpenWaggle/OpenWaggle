@@ -187,7 +187,7 @@ export function Sidebar({
             className="no-drag flex w-full items-center gap-2 h-[34px] px-3 text-left transition-colors hover:bg-bg-hover"
           >
             <Edit3 className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
-            <span className="text-[13px] text-text-secondary">New thread</span>
+            <span className="text-[14px] text-text-secondary">New thread</span>
           </button>
 
           {/* MCPs — h32, padding [0,12], gap 8 */}
@@ -198,7 +198,7 @@ export function Sidebar({
             title="Coming soon"
           >
             <McpIcon className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
-            <span className="text-[13px] text-text-secondary/60">MCPs</span>
+            <span className="text-[14px] text-text-secondary/60">MCPs</span>
           </button>
 
           {/* Skills — h32, padding [0,12], gap 8 */}
@@ -209,7 +209,7 @@ export function Sidebar({
             title="Coming soon"
           >
             <Sparkles className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
-            <span className="text-[13px] text-text-secondary/60">Skills</span>
+            <span className="text-[14px] text-text-secondary/60">Skills</span>
           </button>
         </div>
 
@@ -217,7 +217,7 @@ export function Sidebar({
 
         {/* Threads header — h30, padding [0,16], justify-between */}
         <div className="no-drag flex shrink-0 items-center justify-between h-[30px] px-4">
-          <span className="text-[11px] font-medium text-text-tertiary">Threads</span>
+          <span className="text-[12px] font-medium text-text-tertiary">Threads</span>
           <div className="flex items-center gap-1.5">
             <button
               type="button"
@@ -252,7 +252,7 @@ export function Sidebar({
                         setSortMenuOpen(false)
                       }}
                       className={cn(
-                        'flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-bg-hover',
+                        'flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-bg-hover',
                         sortMode === opt.value ? 'text-accent' : 'text-text-secondary',
                       )}
                     >
@@ -272,7 +272,7 @@ export function Sidebar({
           {conversations.length === 0 ? (
             <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
               <MessageSquare className="h-5 w-5 text-text-muted/75" />
-              <p className="text-xs text-text-muted">No threads yet</p>
+              <p className="text-[13px] text-text-muted">No threads yet</p>
             </div>
           ) : (
             sortedGroups.map((group) => {
@@ -288,7 +288,7 @@ export function Sidebar({
                     className="flex w-full items-center gap-2 h-8 px-3 transition-colors hover:bg-bg-hover"
                   >
                     <FolderIcon className="h-3 w-3 shrink-0 text-text-tertiary" />
-                    <span className="truncate text-[12px] text-text-secondary">
+                    <span className="truncate text-[13px] text-text-secondary">
                       {group.displayName}
                     </span>
                   </button>
@@ -324,7 +324,7 @@ export function Sidebar({
                             >
                               <span
                                 className={cn(
-                                  'truncate text-[11px]',
+                                  'truncate text-[12px]',
                                   isActive
                                     ? 'font-medium text-text-primary'
                                     : 'text-text-secondary',
@@ -333,7 +333,7 @@ export function Sidebar({
                                 {truncate(conv.title, 29)}
                               </span>
                             </button>
-                            <span className="ml-auto shrink-0 text-[10px] text-text-tertiary group-hover:hidden">
+                            <span className="ml-auto shrink-0 text-[11px] text-text-tertiary group-hover:hidden">
                               {formatRelativeTime(conv.updatedAt)}
                             </span>
                             {!isActive && (
@@ -370,7 +370,7 @@ export function Sidebar({
           className="flex w-full items-center gap-2.5 h-9 px-4 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
         >
           <Settings className="h-3.5 w-3.5" />
-          <span className="text-[13px] text-text-secondary">Settings</span>
+          <span className="text-[14px] text-text-secondary">Settings</span>
         </button>
       </div>
     </aside>

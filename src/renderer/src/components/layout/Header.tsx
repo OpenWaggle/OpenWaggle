@@ -58,12 +58,12 @@ export function Header({
           <Hash className="no-drag h-3.5 w-3.5 text-text-tertiary" />
 
           {/* Title */}
-          <span className="no-drag text-[13px] font-medium text-text-primary">
+          <span className="no-drag text-[14px] font-medium text-text-primary">
             {conversationTitle ?? 'New thread'}
           </span>
 
           {/* Project pill — h20, padding [0,8], cornerRadius 4, bg #151922, stroke #1e2229 */}
-          <span className="no-drag flex items-center h-5 px-2 rounded border border-border bg-bg-tertiary text-[11px] text-text-secondary">
+          <span className="no-drag flex items-center h-5 px-2 rounded border border-border bg-bg-tertiary text-[12px] text-text-secondary">
             {projectName(projectPath)}
           </span>
 
@@ -92,7 +92,7 @@ export function Header({
             }
           >
             <SquareTerminal className="h-3.5 w-3.5 text-text-secondary" />
-            <span className="text-[12px] font-medium text-text-primary">
+            <span className="text-[13px] font-medium text-text-primary">
               {terminalOpen ? 'Hide' : 'Open'}
             </span>
             <span className="text-[9px] text-text-tertiary">&#x2228;</span>
@@ -110,7 +110,7 @@ export function Header({
             disabled={!projectPath || gitCommitting}
             title={projectPath ? 'Open commit dialog' : 'No project selected'}
           >
-            <span className="text-[12px] font-semibold text-bg">Commit</span>
+            <span className="text-[13px] font-semibold text-bg">Commit</span>
             <span className="text-[9px] text-bg/50">&#x2228;</span>
           </button>
 
@@ -130,11 +130,11 @@ export function Header({
           >
             {gitStatus ? (
               <>
-                <span className="text-[12px] font-medium text-success">+{gitStatus.additions}</span>
-                <span className="text-[12px] font-medium text-error">-{gitStatus.deletions}</span>
+                <span className="text-[13px] font-medium text-success">+{gitStatus.additions}</span>
+                <span className="text-[13px] font-medium text-error">-{gitStatus.deletions}</span>
               </>
             ) : (
-              <span className="text-[12px] font-medium text-text-tertiary">
+              <span className="text-[13px] font-medium text-text-tertiary">
                 {gitLoading ? 'Loading diff…' : gitError ? 'Git unavailable' : 'Diff unavailable'}
               </span>
             )}

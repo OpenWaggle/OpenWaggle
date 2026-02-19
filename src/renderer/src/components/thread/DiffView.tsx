@@ -8,7 +8,7 @@ interface DiffViewProps {
 
 export function DiffView({ diff, filePath }: DiffViewProps): React.JSX.Element {
   return (
-    <div className="rounded-md border border-border overflow-hidden text-xs font-mono">
+    <div className="rounded-md border border-border overflow-hidden text-[13px] font-mono">
       {/* File header */}
       <div className="flex items-center justify-between bg-bg-secondary px-3 py-1.5 border-b border-border">
         <span className="text-text-secondary truncate">{filePath}</span>

@@ -80,15 +80,15 @@ export function AskUserBlock({
       <div className="rounded-lg border border-border-light bg-bg-secondary overflow-hidden">
         <div className="flex items-center gap-2 px-3.5 py-2 border-b border-border">
           <MessageCircleQuestion className="h-3.5 w-3.5 text-accent" />
-          <span className="text-xs font-medium text-text-secondary">Questions answered</span>
+          <span className="text-[13px] font-medium text-text-secondary">Questions answered</span>
         </div>
         <div className="px-3.5 py-2.5 space-y-2">
           {displayAnswers.map((a) => (
             <div key={a.question} className="flex items-start gap-2">
               <Check className="h-3.5 w-3.5 text-success mt-0.5 shrink-0" />
               <div className="min-w-0">
-                <div className="text-xs text-text-tertiary">{a.question}</div>
-                <div className="text-[13px] text-text-primary">{a.selectedOption}</div>
+                <div className="text-[13px] text-text-tertiary">{a.question}</div>
+                <div className="text-[14px] text-text-primary">{a.selectedOption}</div>
               </div>
             </div>
           ))}
@@ -103,9 +103,9 @@ export function AskUserBlock({
       {/* Header */}
       <div className="flex items-center gap-2 px-3.5 py-2 border-b border-border">
         <MessageCircleQuestion className="h-3.5 w-3.5 text-accent" />
-        <span className="text-xs font-medium text-text-secondary">Agent needs your input</span>
+        <span className="text-[13px] font-medium text-text-secondary">Agent needs your input</span>
         {!isSingleQuestion && (
-          <span className="ml-auto text-[10px] text-text-muted">
+          <span className="ml-auto text-[11px] text-text-muted">
             {currentStep + 1} / {questions.length}
           </span>
         )}
@@ -133,7 +133,7 @@ export function AskUserBlock({
       {/* Question */}
       {currentQuestion && (
         <div className="px-3.5 py-3">
-          <p className="text-[13px] text-text-primary mb-3">{currentQuestion.question}</p>
+          <p className="text-[14px] text-text-primary mb-3">{currentQuestion.question}</p>
           <div className="flex flex-col gap-1.5">
             {currentQuestion.options.map((opt) => (
               <OptionButton
@@ -154,7 +154,7 @@ export function AskUserBlock({
             type="button"
             disabled={currentStep === 0}
             onClick={() => setCurrentStep(currentStep - 1)}
-            className="flex items-center gap-1 text-xs text-text-tertiary hover:text-text-secondary disabled:opacity-30 disabled:cursor-default transition-colors"
+            className="flex items-center gap-1 text-[13px] text-text-tertiary hover:text-text-secondary disabled:opacity-30 disabled:cursor-default transition-colors"
           >
             <ChevronLeft className="h-3 w-3" />
             Back
@@ -165,7 +165,7 @@ export function AskUserBlock({
               type="button"
               disabled={!answers.has(currentStep)}
               onClick={() => setCurrentStep(currentStep + 1)}
-              className="flex items-center gap-1 text-xs text-accent hover:text-accent-dim disabled:opacity-30 disabled:cursor-default transition-colors"
+              className="flex items-center gap-1 text-[13px] text-accent hover:text-accent-dim disabled:opacity-30 disabled:cursor-default transition-colors"
             >
               Next
               <ChevronRight className="h-3 w-3" />
@@ -175,7 +175,7 @@ export function AskUserBlock({
               type="button"
               disabled={answers.size < questions.length}
               onClick={handleSubmitAll}
-              className="flex items-center gap-1 rounded-md bg-accent/15 px-2.5 py-1 text-xs font-medium text-accent hover:bg-accent/25 disabled:opacity-30 disabled:cursor-default transition-colors"
+              className="flex items-center gap-1 rounded-md bg-accent/15 px-2.5 py-1 text-[13px] font-medium text-accent hover:bg-accent/25 disabled:opacity-30 disabled:cursor-default transition-colors"
             >
               <Check className="h-3 w-3" />
               Submit
@@ -214,9 +214,9 @@ function OptionButton({
           : 'border-border-light bg-bg hover:border-accent/30 hover:bg-bg-hover',
       )}
     >
-      <span className="text-[13px] text-text-primary">{option.label}</span>
+      <span className="text-[14px] text-text-primary">{option.label}</span>
       {option.description && (
-        <span className="text-xs text-text-tertiary mt-0.5">{option.description}</span>
+        <span className="text-[13px] text-text-tertiary mt-0.5">{option.description}</span>
       )}
     </button>
   )

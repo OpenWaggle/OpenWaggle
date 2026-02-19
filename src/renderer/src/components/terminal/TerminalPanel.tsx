@@ -43,7 +43,7 @@ export function TerminalPanel({ projectPath, onClose }: TerminalPanelProps): Rea
         brightCyan: '#22d3ee',
         brightWhite: '#ffffff',
       },
-      fontSize: 13,
+      fontSize: 14,
       fontFamily: '"SF Mono", "Fira Code", "JetBrains Mono", monospace',
       cursorBlink: true,
       allowProposedApi: true,
@@ -109,7 +109,7 @@ export function TerminalPanel({ projectPath, onClose }: TerminalPanelProps): Rea
     <div className="flex shrink-0 flex-col border-t border-border bg-bg" style={{ height: 240 }}>
       {/* Terminal header */}
       <div className="flex h-8 items-center justify-between border-b border-border px-3">
-        <span className="text-xs text-text-secondary">
+        <span className="text-[13px] text-text-secondary">
           Terminal {isReady ? '/bin/zsh' : 'connecting...'}
         </span>
         <button

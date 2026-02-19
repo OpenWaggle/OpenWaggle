@@ -95,7 +95,7 @@ export function Composer({
             disabled={isLoading || disabled}
             rows={1}
             className={cn(
-              'w-full h-full resize-none bg-transparent text-[14px] text-text-primary',
+              'w-full h-full resize-none bg-transparent text-[15px] text-text-primary',
               'placeholder:text-text-tertiary',
               'focus:outline-none focus-visible:shadow-none',
               'disabled:opacity-50',
@@ -132,7 +132,7 @@ export function Composer({
               className="flex cursor-not-allowed items-center gap-[5px] h-[26px] px-2.5 rounded-md border border-button-border"
               title="Coming soon"
             >
-              <span className="text-[11px] text-text-secondary">Extra High</span>
+              <span className="text-[12px] text-text-secondary">Extra High</span>
               <span className="text-[9px] text-text-tertiary">&#x2228;</span>
             </button>
           </div>
@@ -190,7 +190,7 @@ export function Composer({
               title="Coming soon"
             >
               <Monitor className="h-[13px] w-[13px] text-text-tertiary" />
-              <span className="text-[11px] text-text-secondary">Local</span>
+              <span className="text-[12px] text-text-secondary">Local</span>
               <span className="text-[9px] text-text-tertiary">&#x2228;</span>
             </button>
 
@@ -201,8 +201,8 @@ export function Composer({
               className="flex cursor-not-allowed items-center gap-1 h-6 px-2 rounded-[5px] opacity-70"
               title="Coming soon"
             >
-              <span className="text-[10px] font-bold text-accent">!</span>
-              <span className="text-[11px] font-medium text-accent">Full access</span>
+              <span className="text-[11px] font-bold text-accent">!</span>
+              <span className="text-[12px] font-medium text-accent">Full access</span>
               <span className="text-[9px] text-accent">&#x2228;</span>
             </button>
           </div>
@@ -219,7 +219,7 @@ export function Composer({
                   title="Coming soon"
                 >
                   <GitBranch className="h-[13px] w-[13px] text-text-tertiary" />
-                  <span className="text-[11px] text-text-secondary">{gitBranch ?? 'branch'}</span>
+                  <span className="text-[12px] text-text-secondary">{gitBranch ?? 'branch'}</span>
                   <span className="text-[9px] text-text-tertiary">&#x2228;</span>
                 </button>
 

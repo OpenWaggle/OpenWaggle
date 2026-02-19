@@ -41,18 +41,18 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
             <AlertTriangle className="h-4 w-4" />
             <h1 className="text-sm font-semibold">Something went wrong</h1>
           </div>
-          <p className="text-xs text-text-secondary">
+          <p className="text-[13px] text-text-secondary">
             The renderer hit an unexpected error. You can reload to recover.
           </p>
           {this.state.message && (
-            <pre className="mt-3 max-h-40 overflow-auto rounded-md border border-border bg-bg p-2 text-[11px] text-text-tertiary whitespace-pre-wrap break-words">
+            <pre className="mt-3 max-h-40 overflow-auto rounded-md border border-border bg-bg p-2 text-[12px] text-text-tertiary whitespace-pre-wrap break-words">
               {this.state.message}
             </pre>
           )}
           <button
             type="button"
             onClick={this.handleReload}
-            className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-accent/12 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/20 transition-colors"
+            className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-accent/12 px-3 py-1.5 text-[13px] font-medium text-accent hover:bg-accent/20 transition-colors"
           >
             <RefreshCw className="h-3 w-3" />
             Reload app

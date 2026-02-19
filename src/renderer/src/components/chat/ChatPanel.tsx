@@ -206,7 +206,9 @@ export function ChatPanel({
               </div>
 
               <div className="pb-6">
-                <div className="mb-3 pr-2 text-right text-xs text-text-tertiary">Explore more</div>
+                <div className="mb-3 pr-2 text-right text-[13px] text-text-tertiary">
+                  Explore more
+                </div>
                 <div className="grid grid-cols-3 gap-4">
                   {starterPrompts.map((prompt) => (
                     <button
@@ -218,7 +220,7 @@ export function ChatPanel({
                       <span className="mb-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-bg/80">
                         <prompt.icon className="h-3.5 w-3.5 text-text-secondary transition-colors group-hover:text-text-primary" />
                       </span>
-                      <p className="text-[13px] leading-snug text-text-primary/92">
+                      <p className="text-[14px] leading-snug text-text-primary/92">
                         {prompt.label}
                       </p>
                     </button>
@@ -263,13 +265,13 @@ export function ChatPanel({
                         <AlertCircle className="h-4 w-4 shrink-0 text-error mt-0.5" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-error/90">{error.message}</p>
-                          {hint && <p className="text-xs text-text-tertiary mt-1">{hint}</p>}
+                          {hint && <p className="text-[13px] text-text-tertiary mt-1">{hint}</p>}
                           <div className="flex gap-2 mt-2">
                             {isAuthError && onOpenSettings && (
                               <button
                                 type="button"
                                 onClick={onOpenSettings}
-                                className="flex items-center gap-1.5 rounded-md bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent hover:bg-accent/20 transition-colors"
+                                className="flex items-center gap-1.5 rounded-md bg-accent/10 px-2.5 py-1 text-[13px] font-medium text-accent hover:bg-accent/20 transition-colors"
                               >
                                 <Settings className="h-3 w-3" />
                                 Open Settings
@@ -282,7 +284,7 @@ export function ChatPanel({
                                   setDismissedError(error.message)
                                   onRetry(lastUserMessage)
                                 }}
-                                className="flex items-center gap-1.5 rounded-md bg-error/10 px-2.5 py-1 text-xs font-medium text-error hover:bg-error/20 transition-colors"
+                                className="flex items-center gap-1.5 rounded-md bg-error/10 px-2.5 py-1 text-[13px] font-medium text-error hover:bg-error/20 transition-colors"
                               >
                                 <RefreshCw className="h-3 w-3" />
                                 Retry
@@ -291,7 +293,7 @@ export function ChatPanel({
                             <button
                               type="button"
                               onClick={() => setDismissedError(error.message)}
-                              className="flex items-center gap-1.5 rounded-md bg-bg-hover px-2.5 py-1 text-xs font-medium text-text-tertiary hover:text-text-secondary transition-colors"
+                              className="flex items-center gap-1.5 rounded-md bg-bg-hover px-2.5 py-1 text-[13px] font-medium text-text-tertiary hover:text-text-secondary transition-colors"
                             >
                               <X className="h-3 w-3" />
                               Dismiss

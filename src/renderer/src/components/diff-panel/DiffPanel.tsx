@@ -113,12 +113,12 @@ export function DiffPanel({ projectPath, onSendMessage }: DiffPanelProps): React
         <div className="diff-scroll flex-1 overflow-auto p-2.5">
           <div className="flex min-w-full w-max flex-col gap-2.5">
             {isLoading && (
-              <div className="flex items-center justify-center h-20 text-[11px] text-text-tertiary">
+              <div className="flex items-center justify-center h-20 text-[12px] text-text-tertiary">
                 Loading diffs…
               </div>
             )}
             {!isLoading && fileDiffs.length === 0 && (
-              <div className="flex items-center justify-center h-20 text-[11px] text-text-tertiary">
+              <div className="flex items-center justify-center h-20 text-[12px] text-text-tertiary">
                 No uncommitted changes
               </div>
             )}

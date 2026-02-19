@@ -157,7 +157,7 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps): React.
         </div>
 
         <div className="border-t border-border pt-4">
-          <p className="text-xs text-text-tertiary">
+          <p className="text-[13px] text-text-tertiary">
             API keys are stored locally on your machine and never sent anywhere except to the
             respective API providers.
           </p>
@@ -186,7 +186,7 @@ function BaseUrlInput({
 
   return (
     <div className="space-y-1.5">
-      <label htmlFor={`base-url-${providerId}`} className="text-xs text-text-secondary">
+      <label htmlFor={`base-url-${providerId}`} className="text-[13px] text-text-secondary">
         Base URL
       </label>
       <input

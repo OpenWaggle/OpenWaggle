@@ -46,10 +46,10 @@ export function ApprovalBanner({
             <Icon className="h-3.5 w-3.5 text-text-muted shrink-0" />
             <span className="font-medium">{config.displayName}</span>
             {summary && (
-              <span className="truncate text-text-tertiary font-mono text-xs">{summary}</span>
+              <span className="truncate text-text-tertiary font-mono text-[13px]">{summary}</span>
             )}
           </div>
-          <p className="text-xs text-text-tertiary mt-0.5">
+          <p className="text-[13px] text-text-tertiary mt-0.5">
             This action requires your approval before proceeding.
           </p>
         </div>
@@ -59,7 +59,7 @@ export function ApprovalBanner({
             disabled={loading}
             onClick={() => handleResponse(false)}
             className={cn(
-              'flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+              'flex items-center gap-1 rounded-md px-2.5 py-1 text-[13px] font-medium transition-colors',
               'bg-error/15 text-error hover:bg-error/25 disabled:opacity-50',
             )}
           >
@@ -71,7 +71,7 @@ export function ApprovalBanner({
             disabled={loading}
             onClick={() => handleResponse(true)}
             className={cn(
-              'flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+              'flex items-center gap-1 rounded-md px-2.5 py-1 text-[13px] font-medium transition-colors',
               'bg-success/15 text-success hover:bg-success/25 disabled:opacity-50',
             )}
           >

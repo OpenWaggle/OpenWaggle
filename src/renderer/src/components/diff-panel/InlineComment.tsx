@@ -37,7 +37,7 @@ export function InlineComment({
       {/* Comment Meta */}
       <div className="flex items-center gap-1.5 h-[18px]">
         <MessageSquare className="h-[11px] w-[11px] text-text-tertiary shrink-0" />
-        <span className="text-[10px] font-medium text-text-secondary">Comment on {lineLabel}</span>
+        <span className="text-[11px] font-medium text-text-secondary">Comment on {lineLabel}</span>
       </div>
 
       {/* Comment Editor */}
@@ -48,7 +48,7 @@ export function InlineComment({
           if (e.key === 'Escape') onCancel()
         }}
         placeholder="Leave feedback on this change…"
-        className="w-full h-[58px] bg-diff-bg rounded-md py-2 px-2.5 border border-button-border text-[11px] text-text-primary placeholder:text-text-tertiary font-sans resize-none focus:outline-none focus:border-accent/50"
+        className="w-full h-[58px] bg-diff-bg rounded-md py-2 px-2.5 border border-button-border text-[12px] text-text-primary placeholder:text-text-tertiary font-sans resize-none focus:outline-none focus:border-accent/50"
       />
 
       {/* Actions */}
@@ -57,7 +57,7 @@ export function InlineComment({
           type="button"
           onClick={handleAddSingle}
           disabled={!content.trim()}
-          className="flex items-center h-[26px] px-2.5 rounded-[5px] bg-gradient-to-b from-accent to-accent-dim border border-accent-dim text-[10px] font-semibold text-diff-bg disabled:opacity-40 transition-opacity"
+          className="flex items-center h-[26px] px-2.5 rounded-[5px] bg-gradient-to-b from-accent to-accent-dim border border-accent-dim text-[11px] font-semibold text-diff-bg disabled:opacity-40 transition-opacity"
         >
           Add single comment
         </button>
@@ -65,7 +65,7 @@ export function InlineComment({
           type="button"
           onClick={handleAddToReview}
           disabled={!content.trim()}
-          className="flex items-center h-[26px] px-2.5 rounded-[5px] border border-button-border text-[10px] text-text-secondary disabled:opacity-40 transition-opacity"
+          className="flex items-center h-[26px] px-2.5 rounded-[5px] border border-button-border text-[11px] text-text-secondary disabled:opacity-40 transition-opacity"
         >
           Add to review
         </button>

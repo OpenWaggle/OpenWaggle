@@ -52,7 +52,7 @@ export function ApiKeyForm({
             target="_blank"
             rel="noreferrer"
             className={cn(
-              'inline-flex items-center gap-1 text-xs font-medium text-link-yellow transition-opacity',
+              'inline-flex items-center gap-1 text-[13px] font-medium text-link-yellow transition-opacity',
               'hover:opacity-90',
             )}
           >
@@ -125,7 +125,7 @@ export function ApiKeyForm({
       {testResult && (
         <div
           className={cn(
-            'flex items-center gap-1.5 text-xs',
+            'flex items-center gap-1.5 text-[13px]',
             testResult.success ? 'text-success' : 'text-error',
           )}
         >

@@ -72,8 +72,8 @@
     background: #0d0f12;
     color: var(--color-text-primary);
     font-family: var(--font-sans);
-    font-size: 14px;
-    line-height: 1.4;
+    font-size: 16px;
+    line-height: 1.45;
     letter-spacing: 0.006em;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -160,7 +160,7 @@
   /* Code blocks */
   pre code {
     font-family: var(--font-mono);
-    font-size: 12.5px;
+    font-size: 13.5px;
     line-height: 1.55;
   }
 
@@ -174,7 +174,7 @@
   .prose {
     color: var(--color-text-primary);
     line-height: 1.65;
-    font-size: 0.96rem;
+    font-size: 1.05rem;
   }
 
   .prose p {
