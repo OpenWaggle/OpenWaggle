@@ -295,7 +295,7 @@ export function Sidebar({
                             <button
                               type="button"
                               onClick={() => onSelect(conv.id)}
-                              className="flex min-w-0 flex-1 items-center gap-1.5"
+                              className="min-w-0 flex-1 truncate text-left"
                             >
                               <span
                                 className={cn(
@@ -307,11 +307,10 @@ export function Sidebar({
                               >
                                 {truncate(conv.title, 20)}
                               </span>
-                              <span className="ml-auto shrink-0 text-[10px] text-text-tertiary">
-                                {formatRelativeTime(conv.updatedAt)}
-                              </span>
                             </button>
-
+                            <span className="ml-auto shrink-0 text-[10px] text-text-tertiary group-hover:hidden">
+                              {formatRelativeTime(conv.updatedAt)}
+                            </span>
                             {!isActive && (
                               <button
                                 type="button"
@@ -319,7 +318,7 @@ export function Sidebar({
                                   e.stopPropagation()
                                   onDelete(conv.id)
                                 }}
-                                className="invisible ml-1 shrink-0 rounded-md p-0.5 text-text-muted transition-colors group-hover:visible hover:text-error"
+                                className="ml-auto hidden shrink-0 rounded-md p-0.5 text-text-muted transition-colors group-hover:block hover:text-error"
                                 title="Delete thread"
                               >
                                 <Trash2 className="h-3 w-3" />
