@@ -277,6 +277,7 @@ Status legend: `planned`, `deferred`, `future`
 - Technical requirements:
   - Settings type extension for execution policy.
   - Agent request path must enforce policy at runtime, not only in UI.
+  - Implementation note (2026-02-19): Agent runtime now enforces sandbox policy server-side by filtering approval-required tools before dispatch (with execution-time guards still in place).
 
 ### HC-UI-012 Branch badge and git refresh affordance
 
