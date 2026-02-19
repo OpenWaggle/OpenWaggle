@@ -98,7 +98,7 @@ export interface IpcSendChannelMap {
 export interface IpcEventChannelMap {
   /** Raw StreamChunk from TanStack AI — consumed by the useChat IPC adapter */
   'agent:stream-chunk': {
-    payload: StreamChunk
+    payload: { conversationId: ConversationId; chunk: StreamChunk }
   }
   'tool:approval-request': {
     payload: ToolApprovalRequest
@@ -143,7 +143,9 @@ export interface OpenHiveApi {
   ): Promise<void>
   cancelAgent(conversationId?: ConversationId): void
   /** Subscribe to raw StreamChunks from TanStack AI — used by the IPC connection adapter */
-  onStreamChunk(callback: (chunk: StreamChunk) => void): () => void
+  onStreamChunk(
+    callback: (payload: { conversationId: ConversationId; chunk: StreamChunk }) => void,
+  ): () => void
 
   // Tool approval
   respondToolApproval(callId: ToolCallId, status: ToolApprovalStatus): void

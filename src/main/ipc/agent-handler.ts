@@ -5,7 +5,6 @@ import { ipcMain } from 'electron'
 import { runAgent } from '../agent/agent-loop'
 import { getConversation, saveConversation } from '../store/conversations'
 import { getSettings } from '../store/settings'
-import { clearToolContext } from '../tools/define-tool'
 import { emitStreamChunk } from '../utils/stream-bridge'
 
 /** Per-conversation abort controllers — allows concurrent runs on different conversations */
@@ -28,12 +27,12 @@ export function registerAgentHandlers(): void {
       const conversation = await getConversation(conversationId)
 
       if (!conversation) {
-        emitStreamChunk({
+        emitStreamChunk(conversationId, {
           type: 'RUN_ERROR',
           timestamp: Date.now(),
           error: { message: 'Conversation not found' },
         })
-        emitStreamChunk({
+        emitStreamChunk(conversationId, {
           type: 'RUN_FINISHED',
           timestamp: Date.now(),
           runId: '',
@@ -49,7 +48,7 @@ export function registerAgentHandlers(): void {
           userMessage: content,
           model,
           settings,
-          onChunk: emitStreamChunk,
+          onChunk: (chunk) => emitStreamChunk(conversationId, chunk),
           signal: abortController.signal,
         })
 
@@ -72,12 +71,12 @@ export function registerAgentHandlers(): void {
         await saveConversation({ ...conversation, title, messages: updatedMessages })
       } catch (err) {
         if (!(err instanceof Error && err.message === 'aborted')) {
-          emitStreamChunk({
+          emitStreamChunk(conversationId, {
             type: 'RUN_ERROR',
             timestamp: Date.now(),
             error: { message: err instanceof Error ? err.message : String(err) },
           })
-          emitStreamChunk({
+          emitStreamChunk(conversationId, {
             type: 'RUN_FINISHED',
             timestamp: Date.now(),
             runId: '',
@@ -86,7 +85,6 @@ export function registerAgentHandlers(): void {
         }
       } finally {
         activeRuns.delete(conversationId)
-        clearToolContext()
       }
     },
   )

@@ -64,9 +64,11 @@ export function createIpcConnectionAdapter(
           let resolve: (() => void) | null = null
           let done = false
 
-          const unsub = api.onStreamChunk((chunk) => {
-            queue.push(chunk)
-            if (chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR') {
+          const unsub = api.onStreamChunk((payload) => {
+            if (payload.conversationId !== conversationId) return
+
+            queue.push(payload.chunk)
+            if (payload.chunk.type === 'RUN_FINISHED' || payload.chunk.type === 'RUN_ERROR') {
               done = true
             }
             // Wake up the consumer if it's waiting
@@ -77,7 +79,7 @@ export function createIpcConnectionAdapter(
           abortSignal?.addEventListener(
             'abort',
             () => {
-              api.cancelAgent()
+              api.cancelAgent(conversationId)
               done = true
               resolve?.()
             },

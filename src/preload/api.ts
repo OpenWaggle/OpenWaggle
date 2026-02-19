@@ -25,8 +25,13 @@ export const api: OpenHiveApi = {
     ipcRenderer.send('agent:cancel', conversationId)
   },
 
-  onStreamChunk(callback: (chunk: StreamChunk) => void): () => void {
-    const handler = (_event: Electron.IpcRendererEvent, payload: StreamChunk): void => {
+  onStreamChunk(
+    callback: (payload: { conversationId: ConversationId; chunk: StreamChunk }) => void,
+  ): () => void {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      payload: { conversationId: ConversationId; chunk: StreamChunk },
+    ): void => {
       callback(payload)
     }
     ipcRenderer.on('agent:stream-chunk', handler)
