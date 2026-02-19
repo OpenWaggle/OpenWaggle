@@ -147,9 +147,11 @@ export function ChatPanel({
             <div className="flex w-full flex-col pt-8">
               <div className="flex flex-1 items-center justify-center pb-20">
                 <div className="flex flex-col items-center text-center">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-border-light bg-[radial-gradient(circle_at_30%_18%,rgba(245,166,35,0.16),rgba(13,15,18,0.86)_58%)] shadow-[0_10px_28px_rgba(0,0,0,0.32)]">
-                    <img src={openhiveMark} alt="" className="h-10 w-10 object-contain" />
-                  </div>
+                  <img
+                    src={openhiveMark}
+                    alt="OpenHive logo"
+                    className="h-20 w-20 object-contain"
+                  />
                   <div className="mt-5 space-y-1.5">
                     <h2 className="text-[clamp(40px,5vw,54px)] leading-none font-semibold tracking-tight text-text-primary">
                       Let&apos;s build
