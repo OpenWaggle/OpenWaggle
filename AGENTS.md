@@ -1,6 +1,6 @@
-# CODEX.md
+# AGENTS.md
 
-This file provides guidance to CODEX when working with code in this repository.
+This file provides guidance to Agents when working with code in this repository.
 
 ## Commands
 
