@@ -19,7 +19,7 @@ export function App(): React.JSX.Element {
   useSettingsSetup()
 
   const { settings, isLoaded, providerModels, setDefaultModel } = useSettings()
-  const { projectPath } = useProject()
+  const { projectPath, setProjectPath } = useProject()
   const {
     conversations,
     activeConversation,
@@ -52,6 +52,17 @@ export function App(): React.JSX.Element {
       sendMessage(content)
     }
   }, [activeConversationId, sendMessage])
+
+  const handleSelectConversation = useCallback(
+    async (id: Parameters<typeof setActiveConversation>[0]) => {
+      const conv = conversations.find((c) => c.id === id)
+      if (conv && conv.projectPath !== projectPath) {
+        await setProjectPath(conv.projectPath)
+      }
+      await setActiveConversation(id)
+    },
+    [conversations, projectPath, setActiveConversation, setProjectPath],
+  )
 
   const handleNewConversation = useCallback(async () => {
     await createConversation(currentModel, projectPath)
@@ -117,7 +128,7 @@ export function App(): React.JSX.Element {
         <Sidebar
           conversations={conversations}
           activeId={activeConversationId}
-          onSelect={setActiveConversation}
+          onSelect={handleSelectConversation}
           onDelete={deleteConversation}
           onNew={handleNewConversation}
           onOpenSettings={() => setSettingsOpen(true)}
