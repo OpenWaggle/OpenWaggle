@@ -1,20 +1,43 @@
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
-import { VOICE_MODEL_BASE, type VoiceTranscriptionResult } from '@shared/types/voice'
+import {
+  VOICE_MODEL_BASE,
+  VOICE_MODEL_TINY,
+  type VoiceModel,
+  type VoiceTranscriptionResult,
+} from '@shared/types/voice'
 import { app, ipcMain } from 'electron'
 import { z } from 'zod'
 
 const SAMPLE_RATE_MIN = 8_000
 const SAMPLE_RATE_MAX = 48_000
-const MAX_AUDIO_SECONDS = 90
-const MAX_SAMPLE_COUNT = SAMPLE_RATE_MAX * MAX_AUDIO_SECONDS
-const WHISPER_BASE_MODEL_ID = 'Xenova/whisper-base'
+const MAX_AUDIO_SECONDS = 30
+const MAX_PCM16_BYTES = SAMPLE_RATE_MAX * MAX_AUDIO_SECONDS * 2
+
+const VOICE_MODEL_CONFIG: Record<
+  VoiceModel,
+  { modelId: string; quantized: boolean; language?: string }
+> = {
+  tiny: {
+    modelId: 'Xenova/whisper-tiny.en',
+    quantized: true,
+    language: 'en',
+  },
+  base: {
+    modelId: 'Xenova/whisper-base',
+    quantized: false,
+  },
+}
 
 const transcribePayloadSchema = z.object({
-  samples: z.array(z.number().finite()).min(1).max(MAX_SAMPLE_COUNT),
+  pcm16: z.custom<Uint8Array>(
+    (value) =>
+      value instanceof Uint8Array && value.byteLength > 0 && value.byteLength <= MAX_PCM16_BYTES,
+    'pcm16 payload is invalid.',
+  ),
   sampleRate: z.number().int().min(SAMPLE_RATE_MIN).max(SAMPLE_RATE_MAX),
   language: z.string().trim().min(2).max(16).optional(),
-  model: z.literal(VOICE_MODEL_BASE).optional(),
+  model: z.enum([VOICE_MODEL_TINY, VOICE_MODEL_BASE]).optional(),
 })
 
 type WhisperTranscriber = (
@@ -33,7 +56,7 @@ interface TransformersModule {
   pipeline: (task: string, model: string, options?: Record<string, unknown>) => Promise<unknown>
 }
 
-let transcriberPromise: Promise<WhisperTranscriber> | null = null
+const transcriberPromises: Partial<Record<VoiceModel, Promise<WhisperTranscriber>>> = {}
 
 function isTransformersModule(value: unknown): value is TransformersModule {
   if (typeof value !== 'object' || value === null) return false
@@ -42,11 +65,13 @@ function isTransformersModule(value: unknown): value is TransformersModule {
   return true
 }
 
-function normalizeSamples(samples: number[]): Float32Array {
-  const normalized = new Float32Array(samples.length)
-  for (let index = 0; index < samples.length; index += 1) {
-    const value = samples[index]
-    normalized[index] = Math.max(-1, Math.min(1, value))
+function pcm16BytesToFloat32(bytes: Uint8Array): Float32Array {
+  const sampleCount = Math.floor(bytes.byteLength / 2)
+  const normalized = new Float32Array(sampleCount)
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  for (let index = 0; index < sampleCount; index += 1) {
+    const value = view.getInt16(index * 2, true)
+    normalized[index] = Math.max(-1, Math.min(1, value / 32768))
   }
   return normalized
 }
@@ -83,10 +108,12 @@ function mapTranscriptionError(error: unknown): string {
   return `Local voice transcription failed: ${message}`
 }
 
-async function loadWhisperBaseTranscriber(): Promise<WhisperTranscriber> {
-  if (transcriberPromise) return transcriberPromise
+async function loadTranscriber(model: VoiceModel): Promise<WhisperTranscriber> {
+  const existing = transcriberPromises[model]
+  if (existing) return existing
 
-  transcriberPromise = (async () => {
+  const config = VOICE_MODEL_CONFIG[model]
+  const transcriberPromise = (async () => {
     const imported: unknown = await import('@xenova/transformers')
     if (!isTransformersModule(imported)) {
       throw new Error('Transformers runtime is unavailable.')
@@ -99,47 +126,57 @@ async function loadWhisperBaseTranscriber(): Promise<WhisperTranscriber> {
     imported.env.allowRemoteModels = true
     imported.env.cacheDir = cacheDir
 
-    const transcriber = await imported.pipeline(
-      'automatic-speech-recognition',
-      WHISPER_BASE_MODEL_ID,
-      { quantized: false },
-    )
+    const transcriber = await imported.pipeline('automatic-speech-recognition', config.modelId, {
+      quantized: config.quantized,
+    })
     if (typeof transcriber !== 'function') {
       throw new Error('Whisper transcriber could not be created.')
     }
     return transcriber as WhisperTranscriber
   })().catch((error) => {
-    transcriberPromise = null
+    delete transcriberPromises[model]
     throw error
   })
 
+  transcriberPromises[model] = transcriberPromise
   return transcriberPromise
 }
 
 export function resetVoiceHandlerForTests(): void {
-  transcriberPromise = null
+  for (const model of [VOICE_MODEL_TINY, VOICE_MODEL_BASE] as const) {
+    delete transcriberPromises[model]
+  }
 }
 
 export function registerVoiceHandlers(): void {
   ipcMain.handle('voice:transcribe-local', async (_event, rawPayload: unknown) => {
     const payload = transcribePayloadSchema.parse(rawPayload)
-    const model = payload.model ?? VOICE_MODEL_BASE
-    const audio = normalizeSamples(payload.samples)
+    const model = payload.model ?? VOICE_MODEL_TINY
+    const sampleCount = Math.floor(payload.pcm16.byteLength / 2)
+    if (sampleCount <= 0) {
+      throw new Error('Audio payload is empty.')
+    }
+    const maxSampleCount = payload.sampleRate * MAX_AUDIO_SECONDS
+    if (sampleCount > maxSampleCount) {
+      throw new Error(`Audio exceeds ${String(MAX_AUDIO_SECONDS)} seconds; record a shorter clip.`)
+    }
+    const audio = pcm16BytesToFloat32(payload.pcm16)
 
     let transcriber: WhisperTranscriber
     try {
-      transcriber = await loadWhisperBaseTranscriber()
+      transcriber = await loadTranscriber(model)
     } catch (error) {
       throw new Error(mapLoadError(error))
     }
 
     try {
+      const modelConfig = VOICE_MODEL_CONFIG[model]
       const rawResult = await transcriber(audio, {
         task: 'transcribe',
         return_timestamps: false,
-        chunk_length_s: 20,
-        stride_length_s: 4,
-        language: payload.language,
+        chunk_length_s: 10,
+        stride_length_s: 2,
+        language: payload.language ?? modelConfig.language,
       })
       const text = extractTranscriptionText(rawResult)
       const response: VoiceTranscriptionResult = { text, model }

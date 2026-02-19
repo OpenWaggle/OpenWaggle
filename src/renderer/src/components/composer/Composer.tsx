@@ -6,7 +6,7 @@ import type {
 } from '@shared/types/git'
 import type { ProviderInfo, SupportedModelId } from '@shared/types/llm'
 import type { ExecutionMode, QualityPreset, Settings as SettingsType } from '@shared/types/settings'
-import { VOICE_MODEL_BASE } from '@shared/types/voice'
+import { VOICE_MODEL_TINY } from '@shared/types/voice'
 import { ArrowUp, GitBranch, Loader2, Mic, Plus, RefreshCw, Square, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { ModelSelector } from '@/components/shared/ModelSelector'
@@ -47,6 +47,8 @@ interface ComposerProps {
 
 const VOICE_CAPTURE_MIME_TYPES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'] as const
 const WHISPER_TARGET_SAMPLE_RATE = 16_000
+const VOICE_MAX_RECORDING_SECONDS = 20
+const VOICE_WAVEFORM_BARS = 72
 
 const QUALITY_PRESET_LABEL: Record<QualityPreset, string> = {
   low: 'Low',
@@ -161,6 +163,8 @@ export function Composer({
   const [voiceError, setVoiceError] = useState<string | null>(null)
   const [isListening, setIsListening] = useState(false)
   const [isTranscribingVoice, setIsTranscribingVoice] = useState(false)
+  const [voiceElapsedSeconds, setVoiceElapsedSeconds] = useState(0)
+  const [voiceWaveform, setVoiceWaveform] = useState<number[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const actionDialogInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -170,6 +174,12 @@ export function Composer({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
   const recordedChunksRef = useRef<Blob[]>([])
+  const voiceAudioContextRef = useRef<AudioContext | null>(null)
+  const voiceAnalyserRef = useRef<AnalyserNode | null>(null)
+  const voiceAnimationFrameRef = useRef<number | null>(null)
+  const voiceTickTimerRef = useRef<number | null>(null)
+  const voiceAutoStopTimerRef = useRef<number | null>(null)
+  const voiceRecordingStartRef = useRef<number | null>(null)
   const canSend = (!!input.trim() || attachments.length > 0) && !disabled
 
   const branchQueryNormalized = branchQuery.trim().toLowerCase()
@@ -185,11 +195,7 @@ export function Composer({
     actionDialog === 'create-branch' ||
     actionDialog === 'rename-branch' ||
     actionDialog === 'set-upstream'
-  const voiceStatus = isListening
-    ? 'Recording audio... tap mic to stop.'
-    : isTranscribingVoice
-      ? 'Transcribing locally with Whisper base...'
-      : null
+  const isVoiceModeActive = isListening || isTranscribingVoice
 
   useEffect(() => {
     if (!isLoading && textareaRef.current) {
@@ -255,6 +261,22 @@ export function Composer({
     return () => {
       mediaRecorderRef.current?.stop()
       mediaRecorderRef.current = null
+      if (voiceAnimationFrameRef.current !== null) {
+        cancelAnimationFrame(voiceAnimationFrameRef.current)
+        voiceAnimationFrameRef.current = null
+      }
+      if (voiceTickTimerRef.current !== null) {
+        window.clearInterval(voiceTickTimerRef.current)
+        voiceTickTimerRef.current = null
+      }
+      if (voiceAutoStopTimerRef.current !== null) {
+        window.clearTimeout(voiceAutoStopTimerRef.current)
+        voiceAutoStopTimerRef.current = null
+      }
+      voiceAnalyserRef.current = null
+      voiceRecordingStartRef.current = null
+      void voiceAudioContextRef.current?.close().catch(() => undefined)
+      voiceAudioContextRef.current = null
       if (mediaStreamRef.current) {
         for (const track of mediaStreamRef.current.getTracks()) {
           track.stop()
@@ -537,12 +559,90 @@ export function Composer({
     })
   }
 
+  function formatVoiceDuration(totalSeconds: number): string {
+    const seconds = Math.max(0, Math.floor(totalSeconds))
+    const minutesPart = Math.floor(seconds / 60)
+    const secondsPart = seconds % 60
+    return `${String(minutesPart)}:${String(secondsPart).padStart(2, '0')}`
+  }
+
+  function stopVoiceMeter(): void {
+    if (voiceAnimationFrameRef.current !== null) {
+      cancelAnimationFrame(voiceAnimationFrameRef.current)
+      voiceAnimationFrameRef.current = null
+    }
+    if (voiceTickTimerRef.current !== null) {
+      window.clearInterval(voiceTickTimerRef.current)
+      voiceTickTimerRef.current = null
+    }
+    if (voiceAutoStopTimerRef.current !== null) {
+      window.clearTimeout(voiceAutoStopTimerRef.current)
+      voiceAutoStopTimerRef.current = null
+    }
+    voiceAnalyserRef.current = null
+    voiceRecordingStartRef.current = null
+    void voiceAudioContextRef.current?.close().catch(() => undefined)
+    voiceAudioContextRef.current = null
+    setVoiceElapsedSeconds(0)
+    setVoiceWaveform([])
+  }
+
   function cleanupVoiceStream(): void {
+    stopVoiceMeter()
     if (!mediaStreamRef.current) return
     for (const track of mediaStreamRef.current.getTracks()) {
       track.stop()
     }
     mediaStreamRef.current = null
+  }
+
+  async function startVoiceMeter(stream: MediaStream): Promise<void> {
+    const context = new AudioContext()
+    const source = context.createMediaStreamSource(stream)
+    const analyser = context.createAnalyser()
+    analyser.fftSize = 1024
+    analyser.smoothingTimeConstant = 0.6
+    source.connect(analyser)
+
+    voiceAudioContextRef.current = context
+    voiceAnalyserRef.current = analyser
+    voiceRecordingStartRef.current = Date.now()
+    setVoiceElapsedSeconds(0)
+    setVoiceWaveform(Array.from({ length: VOICE_WAVEFORM_BARS }, () => 0.06))
+
+    const waveformData = new Uint8Array(analyser.fftSize)
+    const tick = () => {
+      const currentAnalyser = voiceAnalyserRef.current
+      if (!currentAnalyser || mediaRecorderRef.current?.state !== 'recording') return
+      currentAnalyser.getByteTimeDomainData(waveformData)
+
+      let sumSquares = 0
+      for (let index = 0; index < waveformData.length; index += 1) {
+        const normalized = (waveformData[index] - 128) / 128
+        sumSquares += normalized * normalized
+      }
+      const rms = Math.sqrt(sumSquares / waveformData.length)
+      const level = Math.max(0.05, Math.min(1, rms * 4))
+      setVoiceWaveform((prev) => {
+        const next = [...prev, level]
+        return next.slice(-VOICE_WAVEFORM_BARS)
+      })
+
+      voiceAnimationFrameRef.current = requestAnimationFrame(tick)
+    }
+    voiceAnimationFrameRef.current = requestAnimationFrame(tick)
+
+    voiceTickTimerRef.current = window.setInterval(() => {
+      if (!voiceRecordingStartRef.current) return
+      const elapsed = Math.floor((Date.now() - voiceRecordingStartRef.current) / 1000)
+      setVoiceElapsedSeconds(elapsed)
+    }, 250)
+
+    voiceAutoStopTimerRef.current = window.setTimeout(() => {
+      if (mediaRecorderRef.current?.state === 'recording') {
+        mediaRecorderRef.current.stop()
+      }
+    }, VOICE_MAX_RECORDING_SECONDS * 1000)
   }
 
   function downsampleAudio(
@@ -594,6 +694,42 @@ export function Composer({
     }
   }
 
+  function trimSilence(
+    samples: Float32Array,
+    sampleRate: number,
+    threshold = 0.012,
+    paddingMs = 160,
+  ): Float32Array {
+    if (samples.length === 0) return samples
+
+    let start = 0
+    while (start < samples.length && Math.abs(samples[start]) < threshold) {
+      start += 1
+    }
+
+    let end = samples.length - 1
+    while (end > start && Math.abs(samples[end]) < threshold) {
+      end -= 1
+    }
+
+    if (start >= end) return samples
+    const paddingSamples = Math.round((paddingMs / 1000) * sampleRate)
+    const paddedStart = Math.max(0, start - paddingSamples)
+    const paddedEnd = Math.min(samples.length, end + paddingSamples)
+    return samples.slice(paddedStart, paddedEnd)
+  }
+
+  function toPcm16(samples: Float32Array): Uint8Array {
+    const bytes = new Uint8Array(samples.length * 2)
+    const view = new DataView(bytes.buffer)
+    for (let index = 0; index < samples.length; index += 1) {
+      const value = Math.max(-1, Math.min(1, samples[index]))
+      const scaled = value < 0 ? Math.round(value * 32768) : Math.round(value * 32767)
+      view.setInt16(index * 2, scaled, true)
+    }
+    return bytes
+  }
+
   async function transcribeRecordedChunks(chunks: Blob[]): Promise<void> {
     if (chunks.length === 0) {
       setVoiceError('No speech detected. Try again or continue typing.')
@@ -605,17 +741,19 @@ export function Composer({
 
     try {
       const blob = new Blob(chunks, { type: chunks[0].type || 'audio/webm' })
-      const samples = await decodeRecordedAudio(blob)
-      if (samples.length === 0) {
+      const decodedSamples = await decodeRecordedAudio(blob)
+      const trimmedSamples = trimSilence(decodedSamples, WHISPER_TARGET_SAMPLE_RATE)
+      if (trimmedSamples.length === 0) {
         setVoiceError('No speech detected. Try again or continue typing.')
         return
       }
+      const pcm16 = toPcm16(trimmedSamples)
 
       const result = await api.transcribeVoiceLocal({
-        samples: Array.from(samples),
+        pcm16,
         sampleRate: WHISPER_TARGET_SAMPLE_RATE,
         language: 'en',
-        model: VOICE_MODEL_BASE,
+        model: VOICE_MODEL_TINY,
       })
 
       if (!result.text.trim()) {
@@ -680,6 +818,7 @@ export function Composer({
       setVoiceError(null)
       recorder.start()
       setIsListening(true)
+      await startVoiceMeter(stream)
     } catch {
       cleanupVoiceStream()
       setIsListening(false)
@@ -740,26 +879,6 @@ export function Composer({
               ))}
             </div>
           )}
-          {(voiceStatus && (
-            <div className="mb-2 flex items-center gap-2 rounded-md border border-border bg-bg px-2.5 py-1.5 text-[12px] text-text-secondary">
-              <span className="inline-flex h-3 items-end gap-[2px]" aria-hidden="true">
-                <span
-                  className="h-2 w-[3px] rounded-[2px] bg-accent animate-pulse"
-                  style={{ animationDelay: '0ms' }}
-                />
-                <span
-                  className="h-3 w-[3px] rounded-[2px] bg-accent animate-pulse"
-                  style={{ animationDelay: '120ms' }}
-                />
-                <span
-                  className="h-[7px] w-[3px] rounded-[2px] bg-accent animate-pulse"
-                  style={{ animationDelay: '240ms' }}
-                />
-              </span>
-              <span>{voiceStatus}</span>
-            </div>
-          )) ||
-            null}
           {([attachmentError, voiceError, branchMessage].some(Boolean) && (
             <div className="mb-2 rounded-md border border-border bg-bg px-2.5 py-1.5 text-[12px] text-text-secondary">
               {[attachmentError, voiceError, branchMessage]
@@ -772,115 +891,176 @@ export function Composer({
             null}
         </div>
 
-        <div className="h-[60px] px-4 py-[14px]">
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={handleInput}
-            onKeyDown={handleKeyDown}
-            aria-label="Message input"
-            placeholder={isLoading ? 'Agent is working...' : 'Ask for follow-up changes'}
-            disabled={isLoading || disabled}
-            rows={1}
-            className={cn(
-              'w-full h-full resize-none bg-transparent text-[15px] text-text-primary',
-              'placeholder:text-text-tertiary',
-              'focus:outline-none focus-visible:shadow-none',
-              'disabled:opacity-50',
-            )}
-          />
-        </div>
-
-        <div className="flex items-center justify-between h-11 px-4">
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={!projectPath}
-              className={cn(
-                'flex items-center justify-center h-6 w-6 rounded-md border border-button-border text-text-tertiary transition-colors',
-                projectPath
-                  ? 'hover:bg-bg-hover hover:text-text-secondary'
-                  : 'cursor-not-allowed opacity-60',
-              )}
-              title={projectPath ? 'Attach files' : 'Select a project first'}
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </button>
-
-            <ModelSelector
-              value={model}
-              onChange={onModelChange}
-              settings={settings}
-              providerModels={providerModels}
-            />
-
-            <div ref={qualityMenuRef} className="relative">
+        {isVoiceModeActive ? (
+          <div className="h-[60px] px-4 py-[12px]">
+            <div className="flex h-full items-center gap-3 rounded-lg border border-border bg-bg px-2.5">
               <button
                 type="button"
-                onClick={() => {
-                  setExecutionMenuOpen(false)
-                  setBranchMenuOpen(false)
-                  setQualityMenuOpen((prev) => !prev)
-                }}
-                className="flex items-center gap-[5px] h-[26px] px-2.5 rounded-md border border-button-border transition-colors hover:bg-bg-hover"
-                title="Select quality preset"
+                className="flex items-center justify-center h-6 w-6 rounded-md border border-button-border text-text-tertiary opacity-70"
+                title="Attach files"
+                disabled
               >
-                <span className="text-[12px] text-text-secondary">
-                  {QUALITY_PRESET_LABEL[settings.qualityPreset]}
-                </span>
-                <span className="text-[9px] text-text-tertiary">&#x2228;</span>
+                <Plus className="h-3.5 w-3.5" />
               </button>
-              {qualityMenuOpen && (
-                <div className="absolute bottom-full left-0 z-30 mb-1 min-w-[140px] rounded-lg border border-border-light bg-bg-secondary py-1 shadow-lg">
-                  {(['low', 'medium', 'high'] as const).map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => {
-                        void handleQualityChange(preset)
-                      }}
-                      className={cn(
-                        'flex w-full items-center justify-between px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-bg-hover',
-                        settings.qualityPreset === preset ? 'text-accent' : 'text-text-secondary',
-                      )}
-                    >
-                      <span>{QUALITY_PRESET_LABEL[preset]}</span>
-                      {settings.qualityPreset === preset && <span>•</span>}
-                    </button>
-                  ))}
+
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <div className="flex h-8 flex-1 items-center gap-[2px] overflow-hidden">
+                  {isListening ? (
+                    voiceWaveform.map((level, index) => (
+                      <span
+                        key={`voice-wave-${String(index)}`}
+                        className="w-[3px] rounded-[2px] bg-text-primary/95"
+                        style={{
+                          height: `${String(Math.max(8, Math.round(level * 28)))}px`,
+                          opacity: Math.max(0.35, level),
+                        }}
+                      />
+                    ))
+                  ) : (
+                    <div className="flex items-center gap-2 text-[12px] text-text-secondary">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span>Transcribing locally...</span>
+                    </div>
+                  )}
+                </div>
+                <span className="w-10 text-right text-[12px] tabular-nums text-text-tertiary">
+                  {isListening ? formatVoiceDuration(voiceElapsedSeconds) : '...'}
+                </span>
+              </div>
+
+              {isListening ? (
+                <button
+                  type="button"
+                  onClick={() => mediaRecorderRef.current?.stop()}
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-bg-tertiary text-text-primary transition-colors hover:bg-bg-hover"
+                  title="Stop recording"
+                >
+                  <Square className="h-3.5 w-3.5" />
+                </button>
+              ) : (
+                <div className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-bg-tertiary text-text-tertiary">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 </div>
               )}
             </div>
           </div>
+        ) : (
+          <div className="h-[60px] px-4 py-[14px]">
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={handleInput}
+              onKeyDown={handleKeyDown}
+              aria-label="Message input"
+              placeholder={isLoading ? 'Agent is working...' : 'Ask for follow-up changes'}
+              disabled={isLoading || disabled}
+              rows={1}
+              className={cn(
+                'w-full h-full resize-none bg-transparent text-[15px] text-text-primary',
+                'placeholder:text-text-tertiary',
+                'focus:outline-none focus-visible:shadow-none',
+                'disabled:opacity-50',
+              )}
+            />
+          </div>
+        )}
+
+        <div className="flex items-center justify-between h-11 px-4">
+          {!isVoiceModeActive ? (
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={!projectPath}
+                className={cn(
+                  'flex items-center justify-center h-6 w-6 rounded-md border border-button-border text-text-tertiary transition-colors',
+                  projectPath
+                    ? 'hover:bg-bg-hover hover:text-text-secondary'
+                    : 'cursor-not-allowed opacity-60',
+                )}
+                title={projectPath ? 'Attach files' : 'Select a project first'}
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+
+              <ModelSelector
+                value={model}
+                onChange={onModelChange}
+                settings={settings}
+                providerModels={providerModels}
+              />
+
+              <div ref={qualityMenuRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExecutionMenuOpen(false)
+                    setBranchMenuOpen(false)
+                    setQualityMenuOpen((prev) => !prev)
+                  }}
+                  className="flex items-center gap-[5px] h-[26px] px-2.5 rounded-md border border-button-border transition-colors hover:bg-bg-hover"
+                  title="Select quality preset"
+                >
+                  <span className="text-[12px] text-text-secondary">
+                    {QUALITY_PRESET_LABEL[settings.qualityPreset]}
+                  </span>
+                  <span className="text-[9px] text-text-tertiary">&#x2228;</span>
+                </button>
+                {qualityMenuOpen && (
+                  <div className="absolute bottom-full left-0 z-30 mb-1 min-w-[140px] rounded-lg border border-border-light bg-bg-secondary py-1 shadow-lg">
+                    {(['low', 'medium', 'high'] as const).map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => {
+                          void handleQualityChange(preset)
+                        }}
+                        className={cn(
+                          'flex w-full items-center justify-between px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-bg-hover',
+                          settings.qualityPreset === preset ? 'text-accent' : 'text-text-secondary',
+                        )}
+                      >
+                        <span>{QUALITY_PRESET_LABEL[preset]}</span>
+                        {settings.qualityPreset === preset && <span>•</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div />
+          )}
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleVoiceToggle}
-              disabled={isTranscribingVoice}
-              className={cn(
-                'flex items-center justify-center h-5 w-5 transition-colors',
-                isTranscribingVoice
-                  ? 'cursor-not-allowed text-text-tertiary'
-                  : isListening
-                    ? 'text-accent'
-                    : 'text-text-secondary hover:text-text-primary',
-              )}
-              title={
-                isTranscribingVoice
-                  ? 'Transcribing audio'
-                  : isListening
-                    ? 'Stop voice input'
-                    : 'Start voice input'
-              }
-            >
-              {isTranscribingVoice ? (
-                <Loader2 className="h-[15px] w-[15px] animate-spin" />
-              ) : (
-                <Mic className="h-[15px] w-[15px]" />
-              )}
-            </button>
+            {!isVoiceModeActive && (
+              <button
+                type="button"
+                onClick={handleVoiceToggle}
+                disabled={isTranscribingVoice}
+                className={cn(
+                  'flex items-center justify-center h-5 w-5 transition-colors',
+                  isTranscribingVoice
+                    ? 'cursor-not-allowed text-text-tertiary'
+                    : isListening
+                      ? 'text-accent'
+                      : 'text-text-secondary hover:text-text-primary',
+                )}
+                title={
+                  isTranscribingVoice
+                    ? 'Transcribing audio'
+                    : isListening
+                      ? 'Stop voice input'
+                      : 'Start voice input'
+                }
+              >
+                {isTranscribingVoice ? (
+                  <Loader2 className="h-[15px] w-[15px] animate-spin" />
+                ) : (
+                  <Mic className="h-[15px] w-[15px]" />
+                )}
+              </button>
+            )}
 
             {isLoading ? (
               <button
@@ -895,16 +1075,21 @@ export function Composer({
               <button
                 type="button"
                 onClick={handleSubmit}
-                disabled={!canSend}
+                disabled={!canSend || isVoiceModeActive}
                 className={cn(
                   'flex h-8 w-8 items-center justify-center rounded-full transition-colors',
-                  canSend
+                  canSend && !isVoiceModeActive
                     ? 'bg-gradient-to-b from-accent to-accent-dim'
                     : 'border border-border bg-bg-tertiary cursor-not-allowed',
                 )}
                 title="Send message"
               >
-                <ArrowUp className={cn('h-4 w-4', canSend ? 'text-bg' : 'text-text-muted')} />
+                <ArrowUp
+                  className={cn(
+                    'h-4 w-4',
+                    canSend && !isVoiceModeActive ? 'text-bg' : 'text-text-muted',
+                  )}
+                />
               </button>
             )}
           </div>

@@ -37,6 +37,17 @@ function registeredHandler(name: string): ((...args: unknown[]) => Promise<unkno
   return call?.[1] as ((...args: unknown[]) => Promise<unknown>) | undefined
 }
 
+function toPcm16(values: number[]): Uint8Array {
+  const bytes = new Uint8Array(values.length * 2)
+  const view = new DataView(bytes.buffer)
+  for (let index = 0; index < values.length; index += 1) {
+    const sample = Math.max(-1, Math.min(1, values[index]))
+    const int16 = sample < 0 ? Math.round(sample * 32768) : Math.round(sample * 32767)
+    view.setInt16(index * 2, int16, true)
+  }
+  return bytes
+}
+
 describe('registerVoiceHandlers', () => {
   beforeEach(() => {
     handleMock.mockReset()
@@ -49,7 +60,7 @@ describe('registerVoiceHandlers', () => {
     resetVoiceHandlerForTests()
   })
 
-  it('registers local voice transcription and returns Whisper base text', async () => {
+  it('registers local voice transcription and returns Whisper tiny text by default', async () => {
     const transcriber = vi.fn(async (_audio: Float32Array, _options?: Record<string, unknown>) => ({
       text: 'hello from local whisper',
     }))
@@ -59,7 +70,10 @@ describe('registerVoiceHandlers', () => {
     const handler = registeredHandler('voice:transcribe-local')
 
     expect(handler).toBeDefined()
-    const result = (await handler?.({}, { samples: [0.2, -1.3, 0.9], sampleRate: 16_000 })) as {
+    const result = (await handler?.(
+      {},
+      { pcm16: toPcm16([0.2, -1.3, 0.9]), sampleRate: 16_000 },
+    )) as {
       text: string
       model: string
     }
@@ -69,8 +83,8 @@ describe('registerVoiceHandlers', () => {
     })
     expect(pipelineMock).toHaveBeenCalledWith(
       'automatic-speech-recognition',
-      'Xenova/whisper-base',
-      { quantized: false },
+      'Xenova/whisper-tiny.en',
+      { quantized: true },
     )
     expect(transcriber).toHaveBeenCalledOnce()
 
@@ -82,12 +96,12 @@ describe('registerVoiceHandlers', () => {
       throw new Error('Expected transcriber audio argument to be Float32Array.')
     }
     const normalized = Array.from(transcriberArg)
-    expect(normalized[0]).toBeCloseTo(0.2, 6)
-    expect(normalized[1]).toBeCloseTo(-1, 6)
-    expect(normalized[2]).toBeCloseTo(0.9, 6)
+    expect(normalized[0]).toBeCloseTo(0.2, 3)
+    expect(normalized[1]).toBeCloseTo(-1, 3)
+    expect(normalized[2]).toBeCloseTo(0.9, 3)
     expect(result).toEqual({
       text: 'hello from local whisper',
-      model: 'base',
+      model: 'tiny',
     })
     expect(transformersEnv.allowLocalModels).toBe(true)
     expect(transformersEnv.allowRemoteModels).toBe(true)
@@ -103,8 +117,8 @@ describe('registerVoiceHandlers', () => {
     registerVoiceHandlers()
     const handler = registeredHandler('voice:transcribe-local')
 
-    await handler?.({}, { samples: [0.1], sampleRate: 16_000 })
-    await handler?.({}, { samples: [0.2], sampleRate: 16_000 })
+    await handler?.({}, { pcm16: toPcm16([0.1]), sampleRate: 16_000 })
+    await handler?.({}, { pcm16: toPcm16([0.2]), sampleRate: 16_000 })
 
     expect(pipelineMock).toHaveBeenCalledTimes(1)
     expect(transcriber).toHaveBeenCalledTimes(2)
@@ -116,7 +130,7 @@ describe('registerVoiceHandlers', () => {
     registerVoiceHandlers()
     const handler = registeredHandler('voice:transcribe-local')
 
-    await expect(handler?.({}, { samples: [0.1], sampleRate: 16_000 })).rejects.toThrow(
+    await expect(handler?.({}, { pcm16: toPcm16([0.1]), sampleRate: 16_000 })).rejects.toThrow(
       'Connect once to download it',
     )
   })
@@ -131,7 +145,7 @@ describe('registerVoiceHandlers', () => {
     registerVoiceHandlers()
     const handler = registeredHandler('voice:transcribe-local')
 
-    await expect(handler?.({}, { samples: [0.1], sampleRate: 16_000 })).rejects.toThrow(
+    await expect(handler?.({}, { pcm16: toPcm16([0.1]), sampleRate: 16_000 })).rejects.toThrow(
       'pnpm rebuild sharp',
     )
   })
