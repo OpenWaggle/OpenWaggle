@@ -44,7 +44,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   async updateApiKey(provider: Provider, apiKey: string) {
-    if (!apiKey.trim()) return
+    const normalizedApiKey = apiKey.trim()
 
     const { settings } = get()
     const existing = settings.providers[provider]
@@ -54,7 +54,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         ...settings.providers,
         [provider]: {
           ...existing,
-          apiKey,
+          apiKey: normalizedApiKey,
           enabled: existing?.enabled ?? true,
         } satisfies ProviderConfig,
       },
@@ -82,6 +82,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   async updateBaseUrl(provider: Provider, baseUrl: string) {
+    const normalizedBaseUrl = baseUrl.trim()
+    if (normalizedBaseUrl && !isValidUrl(normalizedBaseUrl)) return
+
     const { settings } = get()
     const existing = settings.providers[provider]
     const updated: Settings = {
@@ -91,7 +94,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         [provider]: {
           apiKey: existing?.apiKey ?? '',
           enabled: existing?.enabled ?? false,
-          baseUrl,
+          baseUrl: normalizedBaseUrl || undefined,
         },
       },
     }
@@ -140,3 +143,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }))
   },
 }))
+
+function isValidUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
