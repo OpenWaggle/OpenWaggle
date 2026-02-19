@@ -90,8 +90,8 @@ export const api: HiveCodeApi = {
     return ipcRenderer.invoke('conversations:get', id)
   },
 
-  createConversation(model: SupportedModelId, projectPath: string | null): Promise<Conversation> {
-    return ipcRenderer.invoke('conversations:create', model, projectPath)
+  createConversation(projectPath: string | null): Promise<Conversation> {
+    return ipcRenderer.invoke('conversations:create', projectPath)
   },
 
   deleteConversation(id: ConversationId): Promise<void> {

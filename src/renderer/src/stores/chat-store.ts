@@ -1,6 +1,5 @@
 import type { ConversationId } from '@shared/types/brand'
 import type { Conversation, ConversationSummary } from '@shared/types/conversation'
-import type { SupportedModelId } from '@shared/types/llm'
 import { create } from 'zustand'
 import { api } from '@/lib/ipc'
 
@@ -12,10 +11,7 @@ interface ChatState {
 
   // Actions
   loadConversations: () => Promise<void>
-  createConversation: (
-    model: SupportedModelId,
-    projectPath: string | null,
-  ) => Promise<ConversationId>
+  createConversation: (projectPath: string | null) => Promise<ConversationId>
   setActiveConversation: (id: ConversationId | null) => Promise<void>
   deleteConversation: (id: ConversationId) => Promise<void>
 }
@@ -30,8 +26,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ conversations })
   },
 
-  async createConversation(model: SupportedModelId, projectPath: string | null) {
-    const conv = await api.createConversation(model, projectPath)
+  async createConversation(projectPath: string | null) {
+    const conv = await api.createConversation(projectPath)
     await get().loadConversations()
     set({ activeConversationId: conv.id, activeConversation: conv })
     return conv.id

@@ -44,7 +44,7 @@ export interface IpcInvokeChannelMap {
     return: Conversation | null
   }
   'conversations:create': {
-    args: [model: SupportedModelId, projectPath: string | null]
+    args: [projectPath: string | null]
     return: Conversation
   }
   'conversations:delete': {
@@ -172,7 +172,7 @@ export interface HiveCodeApi {
   // Conversations
   listConversations(): Promise<ConversationSummary[]>
   getConversation(id: ConversationId): Promise<Conversation | null>
-  createConversation(model: SupportedModelId, projectPath: string | null): Promise<Conversation>
+  createConversation(projectPath: string | null): Promise<Conversation>
   deleteConversation(id: ConversationId): Promise<void>
   updateConversationTitle(id: ConversationId, title: string): Promise<void>
 

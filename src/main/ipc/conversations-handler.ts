@@ -1,5 +1,4 @@
 import type { ConversationId } from '@shared/types/brand'
-import type { SupportedModelId } from '@shared/types/llm'
 import { ipcMain } from 'electron'
 import {
   createConversation,
@@ -18,12 +17,9 @@ export function registerConversationsHandlers(): void {
     return getConversation(id)
   })
 
-  ipcMain.handle(
-    'conversations:create',
-    async (_event, model: SupportedModelId, projectPath: string | null) => {
-      return createConversation(model, projectPath)
-    },
-  )
+  ipcMain.handle('conversations:create', async (_event, projectPath: string | null) => {
+    return createConversation(projectPath)
+  })
 
   ipcMain.handle('conversations:delete', async (_event, id: ConversationId) => {
     await deleteConversation(id)

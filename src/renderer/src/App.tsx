@@ -70,15 +70,15 @@ export function App(): React.JSX.Element {
   )
 
   const handleNewConversation = useCallback(async () => {
-    await createConversation(currentModel, projectPath)
-  }, [createConversation, currentModel, projectPath])
+    await createConversation(projectPath)
+  }, [createConversation, projectPath])
 
   const handleOpenProject = useCallback(async () => {
     const path = await selectFolder()
     if (path) {
-      await createConversation(currentModel, path)
+      await createConversation(path)
     }
-  }, [selectFolder, createConversation, currentModel])
+  }, [selectFolder, createConversation])
 
   const handleModelChange = useCallback(
     (model: typeof currentModel) => {
@@ -91,12 +91,12 @@ export function App(): React.JSX.Element {
     async (content: string) => {
       if (!activeConversationId) {
         pendingMessage.current = content
-        await createConversation(currentModel, projectPath)
+        await createConversation(projectPath)
         return
       }
       await sendMessage(content)
     },
-    [activeConversationId, createConversation, currentModel, projectPath, sendMessage],
+    [activeConversationId, createConversation, projectPath, sendMessage],
   )
 
   // Keyboard shortcuts
