@@ -24,7 +24,7 @@ export function DiffLine({
       type="button"
       onClick={onClick}
       className={cn(
-        'flex h-5 min-w-full w-max items-center text-left transition-[background-color] duration-75',
+        'flex h-6 min-w-full w-max items-center text-left transition-[background-color] duration-75',
         type === 'remove' && 'bg-diff-remove-bg hover:bg-[#3d1a1e]',
         type === 'add' && 'bg-diff-add-bg hover:bg-[#133d24]',
         type === 'context' && 'bg-diff-bg hover:bg-[#151820]',
@@ -34,7 +34,7 @@ export function DiffLine({
       {/* Line number */}
       <span
         className={cn(
-          'shrink-0 w-8 text-right font-mono text-[11px] leading-5 select-none',
+          'shrink-0 w-8 text-right font-mono text-[13px] leading-6 select-none',
           type === 'remove' && 'text-diff-remove-num',
           type === 'add' && 'text-diff-add-num',
           type === 'context' && 'text-text-tertiary',
@@ -46,7 +46,7 @@ export function DiffLine({
       {/* Mark (+/-/space) */}
       <span
         className={cn(
-          'shrink-0 w-4 font-mono text-[11px] leading-5 select-none',
+          'shrink-0 w-4 font-mono text-[13px] leading-6 select-none',
           type === 'remove' && 'text-diff-remove-text',
           type === 'add' && 'text-diff-add-mark',
           type === 'context' && 'text-text-tertiary',
@@ -58,7 +58,7 @@ export function DiffLine({
       {/* Code content */}
       <span
         className={cn(
-          'pr-3 font-mono text-[11px] leading-5 whitespace-pre',
+          'pr-3 font-mono text-[13px] leading-6 whitespace-pre',
           type === 'remove' && 'text-diff-remove-text',
           type === 'add' && 'text-diff-add-text',
           type === 'context' && 'text-diff-context-text',
