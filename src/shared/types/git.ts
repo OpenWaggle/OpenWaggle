@@ -55,3 +55,10 @@ export interface GitCommitFailure {
 }
 
 export type GitCommitResult = GitCommitSuccess | GitCommitFailure
+
+export interface GitFileDiff {
+  readonly path: string
+  readonly diff: string
+  readonly additions: number
+  readonly deletions: number
+}

@@ -1,7 +1,7 @@
 import type { StreamChunk } from '@tanstack/ai'
 import type { ConversationId } from './brand'
 import type { Conversation, ConversationSummary } from './conversation'
-import type { GitCommitPayload, GitCommitResult, GitStatusSummary } from './git'
+import type { GitCommitPayload, GitCommitResult, GitFileDiff, GitStatusSummary } from './git'
 import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from './llm'
 import type { QuestionAnswer, QuestionPayload } from './question'
 import type { Provider, Settings } from './settings'
@@ -83,6 +83,10 @@ export interface IpcInvokeChannelMap {
   'git:commit': {
     args: [projectPath: string, payload: GitCommitPayload]
     return: GitCommitResult
+  }
+  'git:diff': {
+    args: [projectPath: string]
+    return: GitFileDiff[]
   }
   'agent:answer-question': {
     args: [conversationId: ConversationId, answers: QuestionAnswer[]]
@@ -201,4 +205,5 @@ export interface OpenHiveApi {
   // Git
   getGitStatus(projectPath: string): Promise<GitStatusSummary>
   commitGit(projectPath: string, payload: GitCommitPayload): Promise<GitCommitResult>
+  getGitDiff(projectPath: string): Promise<GitFileDiff[]>
 }

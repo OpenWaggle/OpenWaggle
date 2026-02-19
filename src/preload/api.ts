@@ -1,6 +1,11 @@
 import type { ConversationId } from '@shared/types/brand'
 import type { Conversation, ConversationSummary } from '@shared/types/conversation'
-import type { GitCommitPayload, GitCommitResult, GitStatusSummary } from '@shared/types/git'
+import type {
+  GitCommitPayload,
+  GitCommitResult,
+  GitFileDiff,
+  GitStatusSummary,
+} from '@shared/types/git'
 import type { OpenHiveApi } from '@shared/types/ipc'
 import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from '@shared/types/llm'
 import type { QuestionAnswer, QuestionPayload } from '@shared/types/question'
@@ -152,5 +157,9 @@ export const api: OpenHiveApi = {
 
   commitGit(projectPath: string, payload: GitCommitPayload): Promise<GitCommitResult> {
     return ipcRenderer.invoke('git:commit', projectPath, payload)
+  },
+
+  getGitDiff(projectPath: string): Promise<GitFileDiff[]> {
+    return ipcRenderer.invoke('git:diff', projectPath)
   },
 }
