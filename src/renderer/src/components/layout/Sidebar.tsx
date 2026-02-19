@@ -196,6 +196,7 @@ export function Sidebar({
             type="button"
             disabled
             className="no-drag flex w-full cursor-not-allowed items-center gap-2 h-8 px-3"
+            title="Coming soon"
           >
             <McpIcon className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
             <span className="text-[13px] text-text-secondary/60">MCPs</span>
@@ -206,6 +207,7 @@ export function Sidebar({
             type="button"
             disabled
             className="no-drag flex w-full cursor-not-allowed items-center gap-2 h-8 px-3"
+            title="Coming soon"
           >
             <Sparkles className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
             <span className="text-[13px] text-text-secondary/60">Skills</span>
