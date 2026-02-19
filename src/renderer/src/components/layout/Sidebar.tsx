@@ -143,7 +143,7 @@ export function Sidebar({
   }, [sortMenuOpen])
 
   return (
-    <aside className="flex h-full w-[224px] shrink-0 flex-col justify-between bg-bg-secondary border-r border-border">
+    <aside className="flex h-full w-[272px] shrink-0 flex-col justify-between bg-bg-secondary border-r border-border">
       {/* sidebar-top */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* macOS traffic light clearance — collapses in fullscreen */}

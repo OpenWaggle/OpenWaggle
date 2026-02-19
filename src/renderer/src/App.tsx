@@ -129,7 +129,7 @@ export function App(): React.JSX.Element {
       <div
         className={cn(
           'shrink-0 overflow-hidden transition-[width] duration-200 ease-out',
-          sidebarOpen ? 'w-[224px]' : 'w-0',
+          sidebarOpen ? 'w-[272px]' : 'w-0',
         )}
       >
         <Sidebar
