@@ -4,7 +4,7 @@ import type { Provider, QualityPreset } from '@shared/types/settings'
 interface QualityTierConfig {
   readonly model?: SupportedModelId
   readonly temperature: number
-  readonly topP: number
+  readonly topP?: number
   readonly maxTokens: number
   readonly modelOptions?: Record<string, unknown>
 }
@@ -12,7 +12,7 @@ interface QualityTierConfig {
 export interface ResolvedQualityConfig {
   readonly model: SupportedModelId
   readonly temperature: number
-  readonly topP: number
+  readonly topP?: number
   readonly maxTokens: number
   readonly modelOptions?: Record<string, unknown>
 }
@@ -75,11 +75,12 @@ export function resolveQualityConfig(
 ): ResolvedQualityConfig {
   const tier = QUALITY_TIER_CONFIG[preset]
   const mappedModel = QUALITY_MODEL_MAP[provider][preset]
+  const topP = provider === 'anthropic' ? undefined : tier.topP
 
   return {
     model: mappedModel ?? selectedModel,
     temperature: tier.temperature,
-    topP: tier.topP,
+    topP,
     maxTokens: tier.maxTokens,
     modelOptions: tier.modelOptions,
   }

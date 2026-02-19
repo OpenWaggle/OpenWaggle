@@ -51,4 +51,14 @@ describe('resolveQualityConfig', () => {
       maxTokens: 4200,
     })
   })
+
+  it('omits topP for anthropic to avoid conflicting sampling params', () => {
+    const resolved = resolveQualityConfig(
+      'anthropic',
+      'claude-sonnet-4-5' as SupportedModelId,
+      'medium',
+    )
+    expect(resolved.temperature).toBe(0.4)
+    expect(resolved.topP).toBeUndefined()
+  })
 })

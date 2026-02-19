@@ -266,14 +266,17 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
             content: buildUserChatContent(provider.id, payload),
           }
           const allMessages = [...existingMessages, newUserMessage]
+          const samplingOptions =
+            qualityConfig.topP === undefined
+              ? { temperature: qualityConfig.temperature }
+              : { temperature: qualityConfig.temperature, topP: qualityConfig.topP }
 
           return chat({
             adapter,
             messages: allMessages,
             systemPrompts: [systemPrompt],
             tools,
-            temperature: qualityConfig.temperature,
-            topP: qualityConfig.topP,
+            ...samplingOptions,
             maxTokens: qualityConfig.maxTokens,
             modelOptions: qualityConfig.modelOptions,
             agentLoopStrategy: maxIterations(MAX_ITERATIONS),
