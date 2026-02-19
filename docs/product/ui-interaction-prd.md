@@ -54,7 +54,7 @@ In scope:
 - Add branch management UI + IPC (list/checkout/create/rename/delete/set-upstream).
 - Add rich attachment flow (text/PDF/image + OCR/text extraction fallback).
 - Add quality preset selection and runtime model/parameter mapping.
-- Add local speech recognition with typed fallback messaging.
+- Add local Whisper-base transcription with typed fallback messaging.
 
 Out of scope:
 - Full right-side diff explorer UI (planned future phase).
@@ -86,7 +86,7 @@ Scoring: high impact + low/medium effort first.
 - Empty-state project dropdown with recent projects and active-thread project path updates.
 - Composer quality presets (Low/Medium/High) mapped to runtime model/parameter resolution.
 - Composer attachments (text/PDF/image) with extraction/OCR pipeline and provider fallback behavior.
-- Composer voice input via local speech recognition with typed fallback guidance.
+- Composer voice input via local Whisper-base transcription with typed fallback guidance.
 
 ## Success Metrics
 
@@ -255,7 +255,7 @@ Status legend: `implemented`, `deferred`, `future`
 
 - Status: `implemented`
 - Location: `src/renderer/src/components/composer/Composer.tsx:137`
-- Current: mic button starts/stops local speech recognition when available.
+- Current: mic button captures local audio and transcribes with Whisper-base in-app (no external STT endpoint).
 - Target behavior:
   - Insert transcript into composer input (no auto-send) and provide typed fallback messaging when unavailable.
 
