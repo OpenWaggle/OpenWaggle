@@ -70,6 +70,69 @@ const EXECUTION_MODE_LABEL: Record<ExecutionMode, string> = {
   'full-access': 'Full access',
 }
 
+type ComposerActionDialogKind =
+  | 'create-branch'
+  | 'rename-branch'
+  | 'delete-branch'
+  | 'set-upstream'
+  | 'confirm-full-access'
+
+interface ComposerActionDialogConfig {
+  title: string
+  description: string
+  confirmLabel: string
+  confirmTone: 'normal' | 'danger'
+  inputPlaceholder?: string
+}
+
+function getActionDialogConfig(
+  kind: ComposerActionDialogKind,
+  gitBranch: string | null | undefined,
+): ComposerActionDialogConfig {
+  const currentBranch = gitBranch ?? 'current branch'
+  switch (kind) {
+    case 'create-branch':
+      return {
+        title: 'Create branch',
+        description: 'Create and checkout a new branch from the current HEAD.',
+        confirmLabel: 'Create',
+        confirmTone: 'normal',
+        inputPlaceholder: 'feature/my-branch',
+      }
+    case 'rename-branch':
+      return {
+        title: `Rename "${currentBranch}"`,
+        description: 'Enter the new branch name.',
+        confirmLabel: 'Rename',
+        confirmTone: 'normal',
+        inputPlaceholder: 'feature/new-name',
+      }
+    case 'delete-branch':
+      return {
+        title: `Delete "${currentBranch}"`,
+        description: 'This removes the local branch. This action cannot be undone.',
+        confirmLabel: 'Delete',
+        confirmTone: 'danger',
+      }
+    case 'set-upstream':
+      return {
+        title: `Set upstream for "${currentBranch}"`,
+        description: 'Enter the remote tracking branch (for example origin/main).',
+        confirmLabel: 'Set upstream',
+        confirmTone: 'normal',
+        inputPlaceholder: `origin/${currentBranch}`,
+      }
+    case 'confirm-full-access':
+      return {
+        title: 'Switch to Full access',
+        description:
+          'This enables write/edit/command tools for agent runs. Continue only if you trust the workspace.',
+        confirmLabel: 'Switch',
+        confirmTone: 'danger',
+      }
+  }
+}
+
 export function Composer({
   onSend,
   onCancel,
@@ -100,11 +163,16 @@ export function Composer({
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false)
   const [executionMenuOpen, setExecutionMenuOpen] = useState(false)
   const [branchMenuOpen, setBranchMenuOpen] = useState(false)
+  const [actionDialog, setActionDialog] = useState<ComposerActionDialogKind | null>(null)
+  const [actionDialogInput, setActionDialogInput] = useState('')
+  const [actionDialogError, setActionDialogError] = useState<string | null>(null)
+  const [actionDialogBusy, setActionDialogBusy] = useState(false)
   const [branchQuery, setBranchQuery] = useState('')
   const [branchMessage, setBranchMessage] = useState<string | null>(null)
   const [voiceError, setVoiceError] = useState<string | null>(null)
   const [isListening, setIsListening] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const actionDialogInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const qualityMenuRef = useRef<HTMLDivElement>(null)
   const executionMenuRef = useRef<HTMLDivElement>(null)
@@ -127,6 +195,11 @@ export function Composer({
     () => filteredBranches.filter((branch) => branch.isRemote),
     [filteredBranches],
   )
+  const actionDialogConfig = actionDialog ? getActionDialogConfig(actionDialog, gitBranch) : null
+  const actionDialogHasInput =
+    actionDialog === 'create-branch' ||
+    actionDialog === 'rename-branch' ||
+    actionDialog === 'set-upstream'
 
   useEffect(() => {
     if (!isLoading && textareaRef.current) {
@@ -166,6 +239,27 @@ export function Composer({
     document.addEventListener('mousedown', onMouseDown)
     return () => document.removeEventListener('mousedown', onMouseDown)
   }, [branchMenuOpen])
+
+  useEffect(() => {
+    if (!actionDialog) return
+    function onKeyDown(event: KeyboardEvent): void {
+      if (event.key !== 'Escape') return
+      if (actionDialogBusy) return
+      event.preventDefault()
+      setActionDialog(null)
+      setActionDialogInput('')
+      setActionDialogError(null)
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [actionDialog, actionDialogBusy])
+
+  useEffect(() => {
+    if (!actionDialogHasInput) return
+    requestAnimationFrame(() => {
+      actionDialogInputRef.current?.focus()
+    })
+  }, [actionDialogHasInput])
 
   useEffect(() => {
     return () => {
@@ -250,14 +344,28 @@ export function Composer({
     setAttachments((prev) => prev.filter((entry) => entry.id !== id))
   }
 
+  function openActionDialog(kind: ComposerActionDialogKind, initialValue = ''): void {
+    setQualityMenuOpen(false)
+    setExecutionMenuOpen(false)
+    setBranchMenuOpen(false)
+    setActionDialog(kind)
+    setActionDialogInput(initialValue)
+    setActionDialogError(null)
+  }
+
+  function closeActionDialog(): void {
+    if (actionDialogBusy) return
+    setActionDialog(null)
+    setActionDialogInput('')
+    setActionDialogError(null)
+  }
+
   async function handleExecutionModeChange(mode: ExecutionMode): Promise<void> {
     setExecutionMenuOpen(false)
     if (mode === settings.executionMode) return
     if (mode === 'full-access' && settings.executionMode === 'sandbox') {
-      const confirmed = window.confirm(
-        'Switching to Full access allows write/edit/command tools. Continue?',
-      )
-      if (!confirmed) return
+      openActionDialog('confirm-full-access')
+      return
     }
     await onExecutionModeChange?.(mode)
   }
@@ -268,45 +376,134 @@ export function Composer({
     await onQualityPresetChange?.(preset)
   }
 
-  async function runBranchMutation(run: () => Promise<GitBranchMutationResult>): Promise<void> {
+  async function runBranchMutation(
+    run: () => Promise<GitBranchMutationResult>,
+  ): Promise<GitBranchMutationResult> {
     setBranchMessage(null)
-    const result = await run()
-    setBranchMessage(result.message)
-    onToast?.(result.message)
+    try {
+      const result = await run()
+      setBranchMessage(result.message)
+      onToast?.(result.message)
+      return result
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Branch operation failed.'
+      setBranchMessage(message)
+      onToast?.(message)
+      return {
+        ok: false,
+        code: 'unknown',
+        message,
+      }
+    }
   }
 
-  async function handleBranchCreate(): Promise<void> {
+  function handleBranchCreate(): void {
     if (!onCreateBranch) return
-    const name = window.prompt('New branch name')
-    if (!name) return
-    await runBranchMutation(() => onCreateBranch(name.trim(), undefined, true))
+    openActionDialog('create-branch')
   }
 
-  async function handleBranchRename(): Promise<void> {
+  function handleBranchRename(): void {
     if (!onRenameBranch || !gitBranch) return
-    const target = window.prompt(`Rename branch "${gitBranch}" to:`)
-    if (!target) return
-    await runBranchMutation(() => onRenameBranch(gitBranch, target.trim()))
+    openActionDialog('rename-branch', gitBranch)
   }
 
-  async function handleBranchDelete(): Promise<void> {
+  function handleBranchDelete(): void {
     if (!onDeleteBranch || !gitBranch) return
-    const confirmed = window.confirm(`Delete branch "${gitBranch}"?`)
-    if (!confirmed) return
-    await runBranchMutation(() => onDeleteBranch(gitBranch, false))
+    openActionDialog('delete-branch')
   }
 
-  async function handleSetUpstream(): Promise<void> {
+  function handleSetUpstream(): void {
     if (!onSetBranchUpstream || !gitBranch) return
-    const upstream = window.prompt(`Set upstream for "${gitBranch}" (example: origin/${gitBranch})`)
-    if (!upstream) return
-    await runBranchMutation(() => onSetBranchUpstream(gitBranch, upstream.trim()))
+    openActionDialog('set-upstream', `origin/${gitBranch}`)
   }
 
   async function handleBranchCheckout(name: string): Promise<void> {
     if (!onCheckoutBranch) return
-    await runBranchMutation(() => onCheckoutBranch(name))
-    setBranchMenuOpen(false)
+    const result = await runBranchMutation(() => onCheckoutBranch(name))
+    if (result.ok) {
+      setBranchMenuOpen(false)
+    }
+  }
+
+  async function handleActionDialogConfirm(): Promise<void> {
+    if (!actionDialog) return
+
+    setActionDialogError(null)
+    setActionDialogBusy(true)
+
+    try {
+      switch (actionDialog) {
+        case 'confirm-full-access': {
+          await onExecutionModeChange?.('full-access')
+          setActionDialog(null)
+          setActionDialogInput('')
+          return
+        }
+        case 'create-branch': {
+          if (!onCreateBranch) return
+          const name = actionDialogInput.trim()
+          if (!name) {
+            setActionDialogError('Branch name is required.')
+            return
+          }
+          const result = await runBranchMutation(() => onCreateBranch(name, undefined, true))
+          if (!result.ok) {
+            setActionDialogError(result.message)
+            return
+          }
+          setActionDialog(null)
+          setActionDialogInput('')
+          return
+        }
+        case 'rename-branch': {
+          if (!onRenameBranch || !gitBranch) return
+          const target = actionDialogInput.trim()
+          if (!target) {
+            setActionDialogError('New branch name is required.')
+            return
+          }
+          const result = await runBranchMutation(() => onRenameBranch(gitBranch, target))
+          if (!result.ok) {
+            setActionDialogError(result.message)
+            return
+          }
+          setActionDialog(null)
+          setActionDialogInput('')
+          return
+        }
+        case 'delete-branch': {
+          if (!onDeleteBranch || !gitBranch) return
+          const result = await runBranchMutation(() => onDeleteBranch(gitBranch, false))
+          if (!result.ok) {
+            setActionDialogError(result.message)
+            return
+          }
+          setActionDialog(null)
+          setActionDialogInput('')
+          return
+        }
+        case 'set-upstream': {
+          if (!onSetBranchUpstream || !gitBranch) return
+          const upstream = actionDialogInput.trim()
+          if (!upstream) {
+            setActionDialogError('Upstream branch is required.')
+            return
+          }
+          const result = await runBranchMutation(() => onSetBranchUpstream(gitBranch, upstream))
+          if (!result.ok) {
+            setActionDialogError(result.message)
+            return
+          }
+          setActionDialog(null)
+          setActionDialogInput('')
+        }
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Action failed.'
+      setActionDialogError(message)
+    } finally {
+      setActionDialogBusy(false)
+    }
   }
 
   function insertTranscriptAtCursor(rawTranscript: string): void {
@@ -699,7 +896,7 @@ export function Composer({
                         <button
                           type="button"
                           onClick={() => {
-                            void handleBranchCreate()
+                            handleBranchCreate()
                           }}
                           className="rounded-md border border-border px-2 py-1 text-[11px] text-text-secondary hover:bg-bg-hover"
                         >
@@ -708,7 +905,7 @@ export function Composer({
                         <button
                           type="button"
                           onClick={() => {
-                            void handleBranchRename()
+                            handleBranchRename()
                           }}
                           className="rounded-md border border-border px-2 py-1 text-[11px] text-text-secondary hover:bg-bg-hover"
                         >
@@ -717,7 +914,7 @@ export function Composer({
                         <button
                           type="button"
                           onClick={() => {
-                            void handleBranchDelete()
+                            handleBranchDelete()
                           }}
                           className="rounded-md border border-border px-2 py-1 text-[11px] text-text-secondary hover:bg-bg-hover"
                         >
@@ -726,7 +923,7 @@ export function Composer({
                         <button
                           type="button"
                           onClick={() => {
-                            void handleSetUpstream()
+                            handleSetUpstream()
                           }}
                           className="rounded-md border border-border px-2 py-1 text-[11px] text-text-secondary hover:bg-bg-hover"
                         >
@@ -817,6 +1014,62 @@ export function Composer({
           </div>
         </div>
       </div>
+
+      {actionDialog && actionDialogConfig && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4">
+          <div className="w-full max-w-[360px] rounded-xl border border-border-light bg-bg-secondary p-4 shadow-2xl">
+            <h3 className="text-sm font-semibold text-text-primary">{actionDialogConfig.title}</h3>
+            <p className="mt-1 text-[12px] text-text-tertiary">{actionDialogConfig.description}</p>
+
+            {actionDialogConfig.inputPlaceholder && (
+              <input
+                ref={actionDialogInputRef}
+                value={actionDialogInput}
+                onChange={(event) => setActionDialogInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter') return
+                  event.preventDefault()
+                  void handleActionDialogConfirm()
+                }}
+                placeholder={actionDialogConfig.inputPlaceholder}
+                className="mt-3 h-9 w-full rounded-md border border-border bg-bg px-2.5 text-[13px] text-text-primary placeholder:text-text-tertiary focus:border-accent/50 focus:outline-none"
+              />
+            )}
+
+            {actionDialogError && (
+              <div className="mt-3 rounded-md border border-error/30 bg-error/10 px-2.5 py-1.5 text-[12px] text-error">
+                {actionDialogError}
+              </div>
+            )}
+
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeActionDialog}
+                disabled={actionDialogBusy}
+                className="h-8 rounded-md border border-border px-3 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void handleActionDialogConfirm()
+                }}
+                disabled={actionDialogBusy}
+                className={cn(
+                  'h-8 rounded-md px-3 text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+                  actionDialogConfig.confirmTone === 'danger'
+                    ? 'bg-error/20 text-error hover:bg-error/30'
+                    : 'bg-accent/20 text-accent hover:bg-accent/30',
+                )}
+              >
+                {actionDialogBusy ? 'Working...' : actionDialogConfig.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
