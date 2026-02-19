@@ -4,6 +4,7 @@ import { z } from 'zod'
 export const env = createEnv({
   server: {
     ELECTRON_RENDERER_URL: z.string().url().optional(),
+    OPENHIVE_USER_DATA_DIR: z.string().optional(),
   },
   runtimeEnv: process.env,
 })

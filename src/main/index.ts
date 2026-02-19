@@ -10,6 +10,10 @@ import { registerSettingsHandlers } from './ipc/settings-handler'
 import { cleanupTerminals, registerTerminalHandlers } from './ipc/terminal-handler'
 import { registerAllProviders } from './providers'
 
+if (env.OPENHIVE_USER_DATA_DIR) {
+  app.setPath('userData', env.OPENHIVE_USER_DATA_DIR)
+}
+
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
     width: 1200,
