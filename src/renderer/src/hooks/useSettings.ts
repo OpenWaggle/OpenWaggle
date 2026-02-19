@@ -28,6 +28,9 @@ export function useSettings() {
   const updateBaseUrl = useSettingsStore((s) => s.updateBaseUrl)
   const setDefaultModel = useSettingsStore((s) => s.setDefaultModel)
   const setProjectPath = useSettingsStore((s) => s.setProjectPath)
+  const setExecutionMode = useSettingsStore((s) => s.setExecutionMode)
+  const setQualityPreset = useSettingsStore((s) => s.setQualityPreset)
+  const pushRecentProject = useSettingsStore((s) => s.pushRecentProject)
   const testApiKey = useSettingsStore((s) => s.testApiKey)
   const clearTestResult = useSettingsStore((s) => s.clearTestResult)
 
@@ -42,6 +45,9 @@ export function useSettings() {
     updateBaseUrl,
     setDefaultModel,
     setProjectPath,
+    setExecutionMode,
+    setQualityPreset,
+    pushRecentProject,
     testApiKey,
     clearTestResult,
   }

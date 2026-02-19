@@ -14,6 +14,7 @@ interface ChatState {
   createConversation: (projectPath: string | null) => Promise<ConversationId>
   setActiveConversation: (id: ConversationId | null) => Promise<void>
   deleteConversation: (id: ConversationId) => Promise<void>
+  updateConversationProjectPath: (id: ConversationId, projectPath: string | null) => Promise<void>
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -47,6 +48,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const { activeConversationId } = get()
     if (activeConversationId === id) {
       set({ activeConversationId: null, activeConversation: null })
+    }
+    await get().loadConversations()
+  },
+
+  async updateConversationProjectPath(id: ConversationId, projectPath: string | null) {
+    const updated = await api.updateConversationProjectPath(id, projectPath)
+    const { activeConversationId } = get()
+    if (updated && activeConversationId === id) {
+      set({ activeConversation: updated })
     }
     await get().loadConversations()
   },

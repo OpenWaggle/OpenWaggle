@@ -1,8 +1,10 @@
 import type { ProviderInfo, SupportedModelId } from '@shared/types/llm'
 import {
   DEFAULT_SETTINGS,
+  type ExecutionMode,
   type Provider,
   type ProviderConfig,
+  type QualityPreset,
   type Settings,
 } from '@shared/types/settings'
 import { create } from 'zustand'
@@ -22,6 +24,9 @@ interface SettingsState {
   updateBaseUrl: (provider: Provider, baseUrl: string) => Promise<void>
   setDefaultModel: (model: SupportedModelId) => Promise<void>
   setProjectPath: (path: string | null) => Promise<void>
+  setExecutionMode: (mode: ExecutionMode) => Promise<void>
+  setQualityPreset: (preset: QualityPreset) => Promise<void>
+  pushRecentProject: (path: string) => Promise<void>
   testApiKey: (provider: Provider, apiKey: string, baseUrl?: string) => Promise<boolean>
   clearTestResult: (provider: Provider) => void
 }
@@ -110,8 +115,38 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   async setProjectPath(path: string | null) {
     const { settings } = get()
-    await api.updateSettings({ projectPath: path })
-    set({ settings: { ...settings, projectPath: path } })
+    let recentProjects = settings.recentProjects
+    if (path) {
+      const deduped = [path, ...settings.recentProjects.filter((p) => p !== path)]
+      recentProjects = deduped.slice(0, 10)
+    }
+    await api.updateSettings({ projectPath: path, recentProjects })
+    set({ settings: { ...settings, projectPath: path, recentProjects } })
+  },
+
+  async setExecutionMode(mode: ExecutionMode) {
+    const { settings } = get()
+    await api.updateSettings({ executionMode: mode })
+    set({ settings: { ...settings, executionMode: mode } })
+  },
+
+  async setQualityPreset(preset: QualityPreset) {
+    const { settings } = get()
+    await api.updateSettings({ qualityPreset: preset })
+    set({ settings: { ...settings, qualityPreset: preset } })
+  },
+
+  async pushRecentProject(path: string) {
+    const normalized = path.trim()
+    if (!normalized) return
+
+    const { settings } = get()
+    const recentProjects = [
+      normalized,
+      ...settings.recentProjects.filter((p) => p !== normalized),
+    ].slice(0, 10)
+    await api.updateSettings({ recentProjects })
+    set({ settings: { ...settings, recentProjects } })
   },
 
   async testApiKey(provider: Provider, apiKey: string, baseUrl?: string) {

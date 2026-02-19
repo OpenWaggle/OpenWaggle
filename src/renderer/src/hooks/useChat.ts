@@ -11,6 +11,7 @@ export function useChat() {
   const createConversation = useChatStore((s) => s.createConversation)
   const setActiveConversation = useChatStore((s) => s.setActiveConversation)
   const deleteConversation = useChatStore((s) => s.deleteConversation)
+  const updateConversationProjectPath = useChatStore((s) => s.updateConversationProjectPath)
   const loadConversations = useChatStore((s) => s.loadConversations)
 
   return {
@@ -20,6 +21,7 @@ export function useChat() {
     createConversation,
     setActiveConversation,
     deleteConversation,
+    updateConversationProjectPath,
     loadConversations,
   }
 }

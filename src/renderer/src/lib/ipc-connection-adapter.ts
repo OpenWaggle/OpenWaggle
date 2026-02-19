@@ -1,5 +1,7 @@
+import type { AgentSendPayload } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
+import type { QualityPreset } from '@shared/types/settings'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { ConnectionAdapter, UIMessage } from '@tanstack/ai-react'
 import { api } from './ipc'
@@ -65,6 +67,8 @@ export function isTerminalChunk(chunk: StreamChunk): boolean {
 export function createIpcConnectionAdapter(
   conversationId: ConversationId,
   model: SupportedModelId,
+  consumePendingPayload: () => AgentSendPayload | null,
+  defaultQualityPreset: QualityPreset,
 ): ConnectionAdapter {
   return {
     connect(_messages, _data, abortSignal) {
@@ -104,11 +108,16 @@ export function createIpcConnectionAdapter(
           // Start the agent run in the main process.
           // We extract the user message from the last message in the array that
           // useChat passes us — it always appends the new user message before calling connect().
-          const content = extractLastUserContent(_messages)
+          const fallbackPayload: AgentSendPayload = {
+            text: extractLastUserContent(_messages),
+            qualityPreset: defaultQualityPreset,
+            attachments: [],
+          }
+          const payload = consumePendingPayload() ?? fallbackPayload
 
           // Fire and forget — main process streams chunks back via IPC.
           // Catch to avoid unhandled rejection (errors are delivered via stream chunks).
-          api.sendMessage(conversationId, content, model).catch((err) => {
+          api.sendMessage(conversationId, payload, model).catch((err) => {
             console.error('[ipc-adapter] sendMessage failed:', err)
             queue.push({
               type: 'RUN_ERROR',

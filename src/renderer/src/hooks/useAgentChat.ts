@@ -1,7 +1,9 @@
+import type { AgentSendPayload } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { QuestionAnswer } from '@shared/types/question'
+import type { QualityPreset } from '@shared/types/settings'
 import type { UIMessage } from '@tanstack/ai-react'
 import { useChat } from '@tanstack/ai-react'
 import { useEffect, useRef } from 'react'
@@ -10,7 +12,7 @@ import { createIpcConnectionAdapter } from '@/lib/ipc-connection-adapter'
 
 interface AgentChatReturn {
   messages: UIMessage[]
-  sendMessage: (content: string) => Promise<void>
+  sendMessage: (payload: AgentSendPayload) => Promise<void>
   isLoading: boolean
   status: 'ready' | 'submitted' | 'streaming' | 'error'
   stop: () => void
@@ -38,10 +40,22 @@ export function useAgentChat(
   conversationId: ConversationId | null,
   conversation: Conversation | null,
   model: SupportedModelId,
+  qualityPreset: QualityPreset,
 ): AgentChatReturn {
+  const pendingPayloadRef = useRef<AgentSendPayload | null>(null)
+
   // React Compiler handles memoization — no manual useMemo needed.
   const connection = conversationId
-    ? createIpcConnectionAdapter(conversationId, model)
+    ? createIpcConnectionAdapter(
+        conversationId,
+        model,
+        () => {
+          const payload = pendingPayloadRef.current
+          pendingPayloadRef.current = null
+          return payload
+        },
+        qualityPreset,
+      )
     : { connect: () => emptyAsyncIterable() }
 
   const {
@@ -77,7 +91,10 @@ export function useAgentChat(
 
   return {
     messages,
-    sendMessage,
+    sendMessage: async (payload: AgentSendPayload) => {
+      pendingPayloadRef.current = payload
+      await sendMessage(buildClientUserMessage(payload))
+    },
     isLoading,
     status,
     stop: () => {
@@ -97,6 +114,32 @@ export function useAgentChat(
 }
 
 // ─── Helpers ─────────────────────────────────────────────────
+
+const MAX_ATTACHMENT_PREVIEW_CHARS = 320
+
+function formatAttachmentPreview(name: string, extractedText: string): string {
+  const preview = extractedText.trim()
+  if (!preview) {
+    return `[Attachment] ${name}`
+  }
+  const clipped =
+    preview.length > MAX_ATTACHMENT_PREVIEW_CHARS
+      ? `${preview.slice(0, MAX_ATTACHMENT_PREVIEW_CHARS)}...`
+      : preview
+  return `[Attachment] ${name}\n${clipped}`
+}
+
+function buildClientUserMessage(payload: AgentSendPayload): string {
+  const chunks: string[] = []
+  const text = payload.text.trim()
+  if (text) {
+    chunks.push(text)
+  }
+  for (const attachment of payload.attachments) {
+    chunks.push(formatAttachmentPreview(attachment.name, attachment.extractedText))
+  }
+  return chunks.join('\n\n')
+}
 
 function conversationToUIMessages(conv: Conversation): UIMessage[] {
   return conv.messages.map((msg) => ({
@@ -123,6 +166,13 @@ function conversationToUIMessages(conv: Conversation): UIMessage[] {
               toolCallId: String(part.toolResult.id),
               content: part.toolResult.result,
               state: part.toolResult.isError ? 'error' : 'complete',
+            },
+          ]
+        case 'attachment':
+          return [
+            {
+              type: 'text',
+              content: formatAttachmentPreview(part.attachment.name, part.attachment.extractedText),
             },
           ]
         default:

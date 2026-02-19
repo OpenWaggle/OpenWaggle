@@ -1,3 +1,4 @@
+import type { AgentSendPayload } from '@shared/types/agent'
 import type { SupportedModelId } from '@shared/types/llm'
 import { useEffect, useRef, useState } from 'react'
 import { ChatPanel } from '@/components/chat/ChatPanel'
@@ -24,6 +25,7 @@ export function App(): React.JSX.Element {
   const [diffPanelOpen, setDiffPanelOpen] = useState(false)
   const [diffPanelWidth, setDiffPanelWidth] = useState(600)
   const [diffRefreshKey, setDiffRefreshKey] = useState(0)
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
 
   const DIFF_PANEL_MIN = 360
   const DIFF_PANEL_MAX = 900
@@ -31,15 +33,30 @@ export function App(): React.JSX.Element {
 
   useSettingsSetup()
 
-  const { settings, isLoaded, providerModels, setDefaultModel } = useSettings()
+  const {
+    settings,
+    isLoaded,
+    providerModels,
+    setDefaultModel,
+    setExecutionMode,
+    setQualityPreset,
+  } = useSettings()
   const { projectPath, selectFolder, setProjectPath } = useProject()
   const {
     status: gitStatus,
+    branches: gitBranches,
     isLoading: gitLoading,
     isCommitting: gitCommitting,
+    isBranchActionRunning,
     error: gitError,
     refreshStatus: refreshGitStatus,
+    refreshBranches: refreshGitBranches,
     commit: commitGit,
+    checkoutBranch,
+    createBranch,
+    renameBranch,
+    deleteBranch,
+    setUpstream,
   } = useGit()
   const {
     conversations,
@@ -48,6 +65,7 @@ export function App(): React.JSX.Element {
     createConversation,
     setActiveConversation,
     deleteConversation,
+    updateConversationProjectPath,
     loadConversations,
   } = useChat()
 
@@ -57,7 +75,8 @@ export function App(): React.JSX.Element {
 
   useEffect(() => {
     void refreshGitStatus(projectPath)
-  }, [projectPath, refreshGitStatus])
+    void refreshGitBranches(projectPath)
+  }, [projectPath, refreshGitStatus, refreshGitBranches])
 
   const currentModel = settings.defaultModel
 
@@ -69,15 +88,25 @@ export function App(): React.JSX.Element {
     }
   }
   const { messages, sendMessage, isLoading, stop, error, respondToolApproval, answerQuestion } =
-    useAgentChat(activeConversationId, conversation, currentModel)
+    useAgentChat(activeConversationId, conversation, currentModel, settings.qualityPreset)
 
-  const pendingMessage = useRef<string | null>(null)
+  const pendingMessage = useRef<AgentSendPayload | null>(null)
+
+  useEffect(() => {
+    if (!toastMessage) return
+    const timer = setTimeout(() => setToastMessage(null), 3500)
+    return () => clearTimeout(timer)
+  }, [toastMessage])
+
+  function showToast(message: string): void {
+    setToastMessage(message)
+  }
 
   useEffect(() => {
     if (activeConversationId && pendingMessage.current) {
-      const content = pendingMessage.current
+      const payload = pendingMessage.current
       pendingMessage.current = null
-      sendMessage(content)
+      void sendMessage(payload)
     }
   }, [activeConversationId, sendMessage])
 
@@ -96,7 +125,7 @@ export function App(): React.JSX.Element {
         if (refreshTimer) clearTimeout(refreshTimer)
         refreshTimer = setTimeout(() => {
           refreshTimer = null
-          void refreshGitStatus(projectPath)
+          void Promise.all([refreshGitStatus(projectPath), refreshGitBranches(projectPath)])
           setDiffRefreshKey((k) => k + 1)
         }, 500)
       }
@@ -110,6 +139,7 @@ export function App(): React.JSX.Element {
     activeConversationId,
     loadConversations,
     projectPath,
+    refreshGitBranches,
     refreshGitStatus,
     setActiveConversation,
   ])
@@ -118,13 +148,13 @@ export function App(): React.JSX.Element {
   useEffect(() => {
     function handleFocus() {
       if (projectPath) {
-        void refreshGitStatus(projectPath)
+        void Promise.all([refreshGitStatus(projectPath), refreshGitBranches(projectPath)])
         setDiffRefreshKey((k) => k + 1)
       }
     }
     window.addEventListener('focus', handleFocus)
     return () => window.removeEventListener('focus', handleFocus)
-  }, [projectPath, refreshGitStatus])
+  }, [projectPath, refreshGitBranches, refreshGitStatus])
 
   async function handleSelectConversation(id: Parameters<typeof setActiveConversation>[0]) {
     const conv = conversations.find((c) => c.id === id)
@@ -133,7 +163,7 @@ export function App(): React.JSX.Element {
       await setProjectPath(conv.projectPath)
     }
     await setActiveConversation(id)
-    void refreshGitStatus(nextProjectPath)
+    void Promise.all([refreshGitStatus(nextProjectPath), refreshGitBranches(nextProjectPath)])
   }
 
   async function handleNewConversation() {
@@ -143,25 +173,55 @@ export function App(): React.JSX.Element {
   async function handleOpenProject() {
     const path = await selectFolder()
     if (path) {
-      await createConversation(path)
+      if (activeConversationId) {
+        await updateConversationProjectPath(activeConversationId, path)
+        await setProjectPath(path)
+        await setActiveConversation(activeConversationId)
+      } else {
+        await createConversation(path)
+      }
+      void Promise.all([refreshGitStatus(path), refreshGitBranches(path)])
     }
+  }
+
+  async function handleSelectProjectPath(path: string) {
+    if (activeConversationId) {
+      await updateConversationProjectPath(activeConversationId, path)
+      await setProjectPath(path)
+      await setActiveConversation(activeConversationId)
+      void refreshGitStatus(path)
+      void refreshGitBranches(path)
+      return
+    }
+    await setProjectPath(path)
+    await createConversation(path)
+    void Promise.all([refreshGitStatus(path), refreshGitBranches(path)])
   }
 
   function handleModelChange(model: typeof currentModel) {
     setDefaultModel(model)
   }
 
-  async function handleSend(content: string) {
+  async function handleSend(payload: AgentSendPayload) {
     if (!activeConversationId) {
-      pendingMessage.current = content
+      pendingMessage.current = payload
       await createConversation(projectPath)
       return
     }
-    await sendMessage(content)
+    await sendMessage(payload)
+  }
+
+  async function handleSendText(content: string) {
+    await handleSend({
+      text: content,
+      qualityPreset: settings.qualityPreset,
+      attachments: [],
+    })
   }
 
   function handleRefreshGit() {
     void refreshGitStatus(projectPath)
+    void refreshGitBranches(projectPath)
     setDiffRefreshKey((k) => k + 1)
   }
 
@@ -176,6 +236,7 @@ export function App(): React.JSX.Element {
     const result = await commitGit(projectPath, { message, amend, paths })
     if (result.ok) {
       setDiffRefreshKey((k) => k + 1)
+      showToast(`Commit created: ${result.summary}`)
     }
     return result
   }
@@ -262,18 +323,69 @@ export function App(): React.JSX.Element {
               hasProject={!!projectPath}
               conversationId={activeConversationId}
               onOpenProject={handleOpenProject}
+              onSelectProjectPath={handleSelectProjectPath}
               onOpenSettings={() => setSettingsOpen(true)}
-              onRetry={handleSend}
+              onRetry={handleSendText}
               onSend={handleSend}
+              onToast={showToast}
               onCancel={stop}
               onToolApprovalResponse={respondToolApproval}
               onAnswerQuestion={answerQuestion}
+              onExecutionModeChange={setExecutionMode}
+              onQualityPresetChange={setQualityPreset}
               model={currentModel}
               onModelChange={handleModelChange}
               settings={settings}
               providerModels={providerModels}
               messageModelLookup={messageModelLookup}
               gitBranch={gitStatus?.branch ?? null}
+              gitBranches={gitBranches}
+              isBranchActionRunning={isBranchActionRunning}
+              onCheckoutBranch={(name) =>
+                projectPath
+                  ? checkoutBranch(projectPath, { name })
+                  : Promise.resolve({
+                      ok: false,
+                      code: 'not-git-repo',
+                      message: 'No project selected.',
+                    })
+              }
+              onCreateBranch={(name, startPoint, checkout) =>
+                projectPath
+                  ? createBranch(projectPath, { name, startPoint, checkout })
+                  : Promise.resolve({
+                      ok: false,
+                      code: 'not-git-repo',
+                      message: 'No project selected.',
+                    })
+              }
+              onRenameBranch={(from, to) =>
+                projectPath
+                  ? renameBranch(projectPath, { from, to })
+                  : Promise.resolve({
+                      ok: false,
+                      code: 'not-git-repo',
+                      message: 'No project selected.',
+                    })
+              }
+              onDeleteBranch={(name, force) =>
+                projectPath
+                  ? deleteBranch(projectPath, { name, force })
+                  : Promise.resolve({
+                      ok: false,
+                      code: 'not-git-repo',
+                      message: 'No project selected.',
+                    })
+              }
+              onSetBranchUpstream={(name, upstream) =>
+                projectPath
+                  ? setUpstream(projectPath, { name, upstream })
+                  : Promise.resolve({
+                      ok: false,
+                      code: 'not-git-repo',
+                      message: 'No project selected.',
+                    })
+              }
               onRefreshGit={handleRefreshGit}
               isRefreshingGit={gitLoading}
             />
@@ -299,7 +411,7 @@ export function App(): React.JSX.Element {
                 <DiffPanel
                   key={diffRefreshKey}
                   projectPath={projectPath}
-                  onSendMessage={handleSend}
+                  onSendMessage={handleSendText}
                 />
               </div>
             </>
@@ -320,6 +432,12 @@ export function App(): React.JSX.Element {
       </div>
 
       <SettingsDialog isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+
+      {toastMessage && (
+        <div className="pointer-events-none fixed right-5 top-5 z-[70] rounded-lg border border-border-light bg-bg-secondary px-3 py-2 text-[13px] text-text-secondary shadow-lg">
+          {toastMessage}
+        </div>
+      )}
     </div>
   )
 }

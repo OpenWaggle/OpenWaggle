@@ -1,7 +1,9 @@
+import type { AgentSendPayload } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
+import type { GitBranchListResult, GitBranchMutationResult } from '@shared/types/git'
 import type { ProviderInfo, SupportedModelId } from '@shared/types/llm'
 import type { QuestionAnswer } from '@shared/types/question'
-import type { Settings as SettingsType } from '@shared/types/settings'
+import type { ExecutionMode, QualityPreset, Settings as SettingsType } from '@shared/types/settings'
 import type { UIMessage } from '@tanstack/ai-react'
 import {
   AlertCircle,
@@ -30,18 +32,33 @@ interface ChatPanelProps {
   hasProject: boolean
   conversationId: ConversationId | null
   onOpenProject?: () => void
+  onSelectProjectPath?: (path: string) => Promise<void> | void
   onOpenSettings?: () => void
   onRetry?: (content: string) => void
-  onSend: (content: string) => void
+  onSend: (payload: AgentSendPayload) => void
+  onToast?: (message: string) => void
   onCancel: () => void
   onToolApprovalResponse: (approvalId: string, approved: boolean) => Promise<void>
   onAnswerQuestion: (conversationId: ConversationId, answers: QuestionAnswer[]) => Promise<void>
+  onExecutionModeChange?: (mode: ExecutionMode) => Promise<void> | void
+  onQualityPresetChange?: (preset: QualityPreset) => Promise<void> | void
   model: SupportedModelId
   onModelChange: (model: SupportedModelId) => void
   settings: SettingsType
   providerModels: ProviderInfo[]
   messageModelLookup: Readonly<Record<string, SupportedModelId>>
   gitBranch?: string | null
+  gitBranches?: GitBranchListResult | null
+  isBranchActionRunning?: boolean
+  onCheckoutBranch?: (name: string) => Promise<GitBranchMutationResult>
+  onCreateBranch?: (
+    name: string,
+    startPoint?: string,
+    checkout?: boolean,
+  ) => Promise<GitBranchMutationResult>
+  onRenameBranch?: (from: string, to: string) => Promise<GitBranchMutationResult>
+  onDeleteBranch?: (name: string, force?: boolean) => Promise<GitBranchMutationResult>
+  onSetBranchUpstream?: (name: string, upstream: string) => Promise<GitBranchMutationResult>
   onRefreshGit?: () => void
   isRefreshingGit?: boolean
 }
@@ -89,24 +106,37 @@ export function ChatPanel({
   hasProject,
   conversationId,
   onOpenProject,
+  onSelectProjectPath,
   onOpenSettings,
   onRetry,
   onSend,
+  onToast,
   onCancel,
   onToolApprovalResponse,
   onAnswerQuestion,
+  onExecutionModeChange,
+  onQualityPresetChange,
   model,
   onModelChange,
   settings,
   providerModels,
   messageModelLookup,
   gitBranch,
+  gitBranches,
+  isBranchActionRunning,
+  onCheckoutBranch,
+  onCreateBranch,
+  onRenameBranch,
+  onDeleteBranch,
+  onSetBranchUpstream,
   onRefreshGit,
   isRefreshingGit,
 }: ChatPanelProps): React.JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null)
   const scrollTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
+  const projectMenuRef = useRef<HTMLDivElement>(null)
   const [dismissedError, setDismissedError] = useState<string | null>(null)
+  const [projectMenuOpen, setProjectMenuOpen] = useState(false)
   const starterPrompts = [
     { label: 'Build a coding game in this repo', icon: Gamepad2 },
     { label: 'Draft a one-page summary of this app', icon: FileText },
@@ -115,6 +145,7 @@ export function ChatPanel({
 
   const lastMsg = messages[messages.length - 1]
   const lastIsStreaming = isLoading && lastMsg?.role === 'assistant'
+  const recentProjects = settings.recentProjects
 
   useEffect(() => {
     if (!conversationId || messages.length === 0) return
@@ -124,6 +155,17 @@ export function ChatPanel({
     }
   }, [conversationId, messages.length, lastIsStreaming])
 
+  useEffect(() => {
+    if (!projectMenuOpen) return
+    function handleClickOutside(event: MouseEvent): void {
+      if (projectMenuRef.current && !projectMenuRef.current.contains(event.target as Node)) {
+        setProjectMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [projectMenuOpen])
+
   function handleScroll() {
     const el = scrollRef.current
     if (!el) return
@@ -132,6 +174,11 @@ export function ChatPanel({
     scrollTimerRef.current = setTimeout(() => {
       el.classList.remove('is-scrolling')
     }, 1200)
+  }
+
+  function handleChooseProject(path: string): void {
+    setProjectMenuOpen(false)
+    void onSelectProjectPath?.(path)
   }
 
   const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')
@@ -179,28 +226,69 @@ export function ChatPanel({
                     <h2 className="text-[clamp(40px,5vw,54px)] leading-none font-semibold tracking-tight text-text-primary">
                       Let&apos;s build
                     </h2>
-                    {hasProject && (
-                      <button
-                        type="button"
-                        onClick={onOpenProject}
-                        className="inline-flex max-w-full items-center gap-1 text-[clamp(28px,3.8vw,40px)] leading-none text-text-secondary transition-colors hover:text-text-primary"
-                        title="Open project picker"
-                      >
-                        <span className="truncate">{projectName(projectPath)}</span>
-                        <ChevronDown className="mt-1 h-5 w-5" />
-                      </button>
-                    )}
-                    {!hasProject && (
-                      <button
-                        type="button"
-                        onClick={onOpenProject}
-                        className="inline-flex max-w-sm items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm text-text-tertiary transition-colors hover:border-border-light hover:text-text-secondary"
-                        title="Open project picker"
-                      >
-                        <FolderOpen className="h-4 w-4 shrink-0" />
-                        <span>Select a project folder to get started</span>
-                      </button>
-                    )}
+                    <div ref={projectMenuRef} className="relative inline-flex">
+                      {hasProject ? (
+                        <button
+                          type="button"
+                          onClick={() => setProjectMenuOpen((prev) => !prev)}
+                          className="inline-flex max-w-full items-center gap-1 text-[clamp(28px,3.8vw,40px)] leading-none text-text-secondary transition-colors hover:text-text-primary"
+                          title="Open project picker"
+                        >
+                          <span className="truncate">{projectName(projectPath)}</span>
+                          <ChevronDown className="mt-1 h-5 w-5" />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setProjectMenuOpen((prev) => !prev)}
+                          className="inline-flex max-w-sm items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm text-text-tertiary transition-colors hover:border-border-light hover:text-text-secondary"
+                          title="Open project picker"
+                        >
+                          <FolderOpen className="h-4 w-4 shrink-0" />
+                          <span>Select a project folder to get started</span>
+                        </button>
+                      )}
+
+                      {projectMenuOpen && (
+                        <div className="absolute left-1/2 top-full z-20 mt-3 w-[340px] -translate-x-1/2 rounded-xl border border-border-light bg-bg-secondary p-2 shadow-xl">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setProjectMenuOpen(false)
+                              onOpenProject?.()
+                            }}
+                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] text-text-secondary transition-colors hover:bg-bg-hover"
+                          >
+                            <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+                            Select folder…
+                          </button>
+
+                          {recentProjects.length > 0 && (
+                            <div className="mt-1 border-t border-border pt-1">
+                              <div className="px-2.5 py-1 text-[11px] uppercase tracking-wide text-text-muted">
+                                Recent projects
+                              </div>
+                              {recentProjects.map((path) => (
+                                <button
+                                  key={path}
+                                  type="button"
+                                  onClick={() => handleChooseProject(path)}
+                                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] text-text-secondary transition-colors hover:bg-bg-hover"
+                                >
+                                  <FolderOpen className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
+                                  <span className="min-w-0 flex-1 truncate">
+                                    {projectName(path)}
+                                  </span>
+                                  {path === projectPath && (
+                                    <span className="text-[11px] text-text-muted">Current</span>
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -333,8 +421,18 @@ export function ChatPanel({
           providerModels={providerModels}
           projectPath={projectPath}
           gitBranch={gitBranch}
+          gitBranches={gitBranches}
+          isBranchActionRunning={isBranchActionRunning}
+          onCheckoutBranch={onCheckoutBranch}
+          onCreateBranch={onCreateBranch}
+          onRenameBranch={onRenameBranch}
+          onDeleteBranch={onDeleteBranch}
+          onSetBranchUpstream={onSetBranchUpstream}
           onRefreshGit={onRefreshGit}
           isRefreshingGit={isRefreshingGit}
+          onExecutionModeChange={onExecutionModeChange}
+          onQualityPresetChange={onQualityPresetChange}
+          onToast={onToast}
         />
       </div>
     </div>
