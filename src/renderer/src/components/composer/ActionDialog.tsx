@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react'
 import { useGit } from '@/hooks/useGit'
 import { useProject } from '@/hooks/useProject'
 import { cn } from '@/lib/cn'
+import { runBranchMutation } from '@/lib/git-branch-mutation'
 import type { ComposerActionDialogKind } from '@/stores/composer-store'
 import { useComposerStore } from '@/stores/composer-store'
 import { useSettingsStore } from '@/stores/settings-store'
@@ -76,7 +77,6 @@ export function ActionDialog({ onToast }: ActionDialogProps): React.JSX.Element 
   const setActionDialogInput = useComposerStore((s) => s.setActionDialogInput)
   const setActionDialogError = useComposerStore((s) => s.setActionDialogError)
   const setActionDialogBusy = useComposerStore((s) => s.setActionDialogBusy)
-  const setBranchMessage = useComposerStore((s) => s.setBranchMessage)
 
   const { projectPath } = useProject()
   const { status: gitStatus, createBranch, renameBranch, deleteBranch, setUpstream } = useGit()
@@ -118,23 +118,6 @@ export function ActionDialog({ onToast }: ActionDialogProps): React.JSX.Element 
     message: 'No project selected.',
   }
 
-  async function runBranchMutation(
-    run: () => Promise<GitBranchMutationResult>,
-  ): Promise<GitBranchMutationResult> {
-    setBranchMessage(null)
-    try {
-      const result = await run()
-      setBranchMessage(result.message)
-      onToast?.(result.message)
-      return result
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Branch operation failed.'
-      setBranchMessage(message)
-      onToast?.(message)
-      return { ok: false, code: 'unknown', message }
-    }
-  }
-
   async function handleConfirm(): Promise<void> {
     if (!actionDialog) return
 
@@ -154,10 +137,12 @@ export function ActionDialog({ onToast }: ActionDialogProps): React.JSX.Element 
             setActionDialogError('Branch name is required.')
             return
           }
-          const result = await runBranchMutation(() =>
-            projectPath
-              ? createBranch(projectPath, { name, checkout: true })
-              : Promise.resolve(noProjectResult),
+          const result = await runBranchMutation(
+            () =>
+              projectPath
+                ? createBranch(projectPath, { name, checkout: true })
+                : Promise.resolve(noProjectResult),
+            onToast,
           )
           if (!result.ok) {
             setActionDialogError(result.message)
@@ -173,10 +158,12 @@ export function ActionDialog({ onToast }: ActionDialogProps): React.JSX.Element 
             setActionDialogError('New branch name is required.')
             return
           }
-          const result = await runBranchMutation(() =>
-            projectPath
-              ? renameBranch(projectPath, { from: gitBranch, to: target })
-              : Promise.resolve(noProjectResult),
+          const result = await runBranchMutation(
+            () =>
+              projectPath
+                ? renameBranch(projectPath, { from: gitBranch, to: target })
+                : Promise.resolve(noProjectResult),
+            onToast,
           )
           if (!result.ok) {
             setActionDialogError(result.message)
@@ -187,10 +174,12 @@ export function ActionDialog({ onToast }: ActionDialogProps): React.JSX.Element 
         }
         case 'delete-branch': {
           if (!gitBranch) return
-          const result = await runBranchMutation(() =>
-            projectPath
-              ? deleteBranch(projectPath, { name: gitBranch, force: false })
-              : Promise.resolve(noProjectResult),
+          const result = await runBranchMutation(
+            () =>
+              projectPath
+                ? deleteBranch(projectPath, { name: gitBranch, force: false })
+                : Promise.resolve(noProjectResult),
+            onToast,
           )
           if (!result.ok) {
             setActionDialogError(result.message)
@@ -206,10 +195,12 @@ export function ActionDialog({ onToast }: ActionDialogProps): React.JSX.Element 
             setActionDialogError('Upstream branch is required.')
             return
           }
-          const result = await runBranchMutation(() =>
-            projectPath
-              ? setUpstream(projectPath, { name: gitBranch, upstream })
-              : Promise.resolve(noProjectResult),
+          const result = await runBranchMutation(
+            () =>
+              projectPath
+                ? setUpstream(projectPath, { name: gitBranch, upstream })
+                : Promise.resolve(noProjectResult),
+            onToast,
           )
           if (!result.ok) {
             setActionDialogError(result.message)

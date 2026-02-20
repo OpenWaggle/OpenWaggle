@@ -1,0 +1,24 @@
+import type { GitBranchMutationResult } from '@shared/types/git'
+import { useComposerStore } from '@/stores/composer-store'
+
+/**
+ * Runs a branch mutation, updating the composer store's branch message
+ * and firing a toast on completion or error.
+ */
+export async function runBranchMutation(
+  run: () => Promise<GitBranchMutationResult>,
+  onToast?: (message: string) => void,
+): Promise<GitBranchMutationResult> {
+  useComposerStore.getState().setBranchMessage(null)
+  try {
+    const result = await run()
+    useComposerStore.getState().setBranchMessage(result.message)
+    onToast?.(result.message)
+    return result
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Branch operation failed.'
+    useComposerStore.getState().setBranchMessage(message)
+    onToast?.(message)
+    return { ok: false, code: 'unknown', message }
+  }
+}

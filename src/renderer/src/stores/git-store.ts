@@ -19,7 +19,8 @@ interface GitState {
   isLoading: boolean
   isCommitting: boolean
   isBranchActionRunning: boolean
-  error: string | null
+  statusError: string | null
+  branchesError: string | null
   refreshStatus: (projectPath: string | null) => Promise<void>
   refreshBranches: (projectPath: string | null) => Promise<void>
   commit: (projectPath: string, payload: GitCommitPayload) => Promise<GitCommitResult>
@@ -51,40 +52,41 @@ export const useGitStore = create<GitState>((set, get) => ({
   isLoading: false,
   isCommitting: false,
   isBranchActionRunning: false,
-  error: null,
+  statusError: null,
+  branchesError: null,
 
   async refreshStatus(projectPath: string | null) {
     if (!projectPath) {
-      set({ status: null, branches: null, error: null, isLoading: false })
+      set({ status: null, statusError: null, isLoading: false })
       return
     }
 
-    set({ isLoading: true, error: null })
+    set({ isLoading: true, statusError: null })
     try {
       const status = await api.getGitStatus(projectPath)
-      set({ status, isLoading: false, error: null })
+      set({ status, isLoading: false, statusError: null })
     } catch (err) {
       set({
         status: null,
         isLoading: false,
-        error: err instanceof Error ? err.message : 'Failed to load Git status.',
+        statusError: err instanceof Error ? err.message : 'Failed to load Git status.',
       })
     }
   },
 
   async refreshBranches(projectPath: string | null) {
     if (!projectPath) {
-      set({ branches: null, error: null })
+      set({ branches: null, branchesError: null })
       return
     }
 
     try {
       const branches = await api.listGitBranches(projectPath)
-      set({ branches, error: null })
+      set({ branches, branchesError: null })
     } catch (err) {
       set({
         branches: null,
-        error: err instanceof Error ? err.message : 'Failed to load Git branches.',
+        branchesError: err instanceof Error ? err.message : 'Failed to load Git branches.',
       })
     }
   },

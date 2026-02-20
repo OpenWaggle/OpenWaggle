@@ -1,6 +1,7 @@
 import { Check, ShieldAlert, X } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/cn'
+import { parseToolArgs } from '@/lib/tool-args'
 import { getToolConfig, getToolSummary } from '@/lib/tool-display'
 
 interface ApprovalBannerProps {
@@ -21,13 +22,7 @@ export function ApprovalBanner({
   const config = getToolConfig(toolName)
   const Icon = config.icon
 
-  let parsedArgs: Record<string, unknown> = {}
-  try {
-    parsedArgs = JSON.parse(toolArgs)
-  } catch {
-    // keep empty
-  }
-
+  const parsedArgs = parseToolArgs(toolArgs)
   const summary = getToolSummary(toolName, parsedArgs)
 
   function handleResponse(approved: boolean): void {

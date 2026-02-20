@@ -106,7 +106,7 @@ export function TerminalPanel({ projectPath, onClose }: TerminalPanelProps): Rea
   }, [projectPath])
 
   return (
-    <div className="flex shrink-0 flex-col border-t border-border bg-bg" style={{ height: 240 }}>
+    <div className="flex shrink-0 flex-col border-t border-border bg-bg h-full">
       {/* Terminal header */}
       <div className="flex h-8 items-center justify-between border-b border-border px-3">
         <span className="text-[13px] text-text-secondary">

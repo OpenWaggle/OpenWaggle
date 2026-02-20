@@ -5,6 +5,7 @@ import { DiffView } from '@/components/thread/DiffView'
 import { cn } from '@/lib/cn'
 import { computeDiff } from '@/lib/diff'
 import { formatDuration } from '@/lib/format'
+import { parseToolArgs } from '@/lib/tool-args'
 import { getToolConfig, getToolSummary } from '@/lib/tool-display'
 
 interface ToolCallBlockProps {
@@ -93,13 +94,7 @@ export function ToolCallBlock({
   const config = getToolConfig(name)
   const Icon = config.icon
 
-  let parsedArgs: Record<string, unknown> = {}
-  try {
-    parsedArgs = JSON.parse(args)
-  } catch {
-    // keep empty
-  }
-
+  const parsedArgs = parseToolArgs(args)
   const summary = getToolSummary(name, parsedArgs)
 
   // Check if result has diff data

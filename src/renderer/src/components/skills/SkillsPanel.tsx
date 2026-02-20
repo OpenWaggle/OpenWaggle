@@ -1,11 +1,12 @@
-import type { SkillCatalogResult } from '@shared/types/standards'
-import { AlertCircle, CheckCircle2, Loader2, RefreshCw, Sparkles, XCircle } from 'lucide-react'
+import type { AgentsInstructionStatus, SkillCatalogResult } from '@shared/types/standards'
+import { AlertCircle, CheckCircle2, RefreshCw, Sparkles, XCircle } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { Spinner } from '@/components/shared/Spinner'
 import { cn } from '@/lib/cn'
 
 interface StandardsStatus {
-  agents: 'found' | 'missing' | 'error'
+  agents: AgentsInstructionStatus
   agentsPath: string
   error?: string
 }
@@ -89,7 +90,7 @@ export function SkillsPanel({
           <section className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
             {isLoading ? (
               <div className="flex items-center justify-center py-6 text-text-tertiary">
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Spinner />
               </div>
             ) : (catalog?.skills.length ?? 0) === 0 ? (
               <div className="rounded-lg border border-border bg-bg-secondary px-3 py-3 text-[12px] text-text-tertiary">
@@ -113,17 +114,34 @@ export function SkillsPanel({
                       <span className="truncate text-[12px] font-medium text-text-primary">
                         {skill.name}
                       </span>
-                      <label className="inline-flex items-center gap-1 text-[11px] text-text-tertiary">
-                        <input
-                          type="checkbox"
-                          checked={skill.enabled}
-                          onChange={(event) => {
+                      <span
+                        role="switch"
+                        aria-checked={skill.enabled}
+                        aria-label={`${skill.enabled ? 'Disable' : 'Enable'} ${skill.name}`}
+                        tabIndex={0}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          onToggleSkill(skill.id, !skill.enabled)
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
                             event.stopPropagation()
-                            onToggleSkill(skill.id, event.target.checked)
-                          }}
+                            event.preventDefault()
+                            onToggleSkill(skill.id, !skill.enabled)
+                          }
+                        }}
+                        className={cn(
+                          'inline-flex h-4 w-7 shrink-0 cursor-pointer items-center rounded-full transition-colors',
+                          skill.enabled ? 'bg-accent' : 'bg-bg-hover',
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            'block h-3 w-3 rounded-full bg-white transition-transform',
+                            skill.enabled ? 'translate-x-3.5' : 'translate-x-0.5',
+                          )}
                         />
-                        Enabled
-                      </label>
+                      </span>
                     </div>
                     <p className="mt-1 text-[11px] text-text-tertiary">
                       {skill.description || 'No description'}
@@ -162,11 +180,11 @@ export function SkillsPanel({
             </div>
           ) : isPreviewLoading ? (
             <div className="flex items-center gap-2 text-[13px] text-text-tertiary">
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Spinner />
               Loading preview...
             </div>
           ) : (
-            <article className="prose prose-invert max-w-none text-[13px]">
+            <article className="prose max-w-none text-[13px]">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{previewMarkdown}</ReactMarkdown>
             </article>
           )}

@@ -151,7 +151,13 @@ export function createIpcConnectionAdapter(
           let resolve: (() => void) | null = null
           let done = false
 
-          const unsub = api.onStreamChunk((payload) => {
+          let unsubscribed = false
+          const unsub = () => {
+            if (unsubscribed) return
+            unsubscribed = true
+            rawUnsub()
+          }
+          const rawUnsub = api.onStreamChunk((payload) => {
             if (payload.conversationId !== conversationId) return
 
             queue.push(payload.chunk)
@@ -168,6 +174,10 @@ export function createIpcConnectionAdapter(
             () => {
               // Do not cancel main-process execution on chat client teardown.
               // This allows runs to continue in the background when switching threads.
+              // Unsubscribe from IPC events to prevent unbounded queue growth —
+              // the run still completes and persists in main process, so the user
+              // can reload the conversation later to see the full result.
+              unsub()
               done = true
               resolve?.()
             },

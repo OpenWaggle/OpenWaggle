@@ -43,16 +43,6 @@ export function StreamingText({ text, isStreaming }: StreamingTextProps): React.
             return <CodeBlock language={language}>{children}</CodeBlock>
           },
           code({ className, children, ...props }) {
-            // Inline code only — block code is handled by the pre override above
-            // which preserves rehype-highlight's token spans
-            const isBlock = className?.startsWith('language-')
-            if (isBlock) {
-              return (
-                <code className={className} {...props}>
-                  {children}
-                </code>
-              )
-            }
             return (
               <code className={className} {...props}>
                 {children}

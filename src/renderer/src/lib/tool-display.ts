@@ -1,4 +1,5 @@
 import {
+  BookOpen,
   FileEdit,
   FilePlus,
   FileText,
@@ -6,6 +7,7 @@ import {
   type LucideIcon,
   MessageCircleQuestion,
   Search,
+  Sparkles,
   Terminal,
   Wrench,
 } from 'lucide-react'
@@ -24,6 +26,8 @@ const TOOL_CONFIG: Record<string, ToolConfig> = {
   glob: { icon: Search, displayName: 'Glob', primaryArg: 'pattern' },
   listFiles: { icon: FolderTree, displayName: 'List Files', primaryArg: 'path' },
   askUser: { icon: MessageCircleQuestion, displayName: 'Ask User', primaryArg: 'questions' },
+  loadSkill: { icon: Sparkles, displayName: 'Load Skill', primaryArg: 'skillId' },
+  loadAgents: { icon: BookOpen, displayName: 'Load Agents', primaryArg: '' },
 }
 
 const DEFAULT_CONFIG: ToolConfig = {

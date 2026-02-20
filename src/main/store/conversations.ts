@@ -185,32 +185,35 @@ export async function listConversations(): Promise<ConversationSummary[]> {
   const entries = await fsPromises.readdir(dir)
   const files = entries.filter((f) => f.endsWith('.json'))
 
-  const summaries: ConversationSummary[] = []
-  for (const file of files) {
-    try {
-      const raw = await fsPromises.readFile(path.join(dir, file), 'utf-8')
-      const conv = parseConversation(raw)
-      if (!conv) {
-        logger.warn(`Skipping invalid conversation file: ${file}`)
-        continue
+  const results = await Promise.all(
+    files.map(async (file): Promise<ConversationSummary | null> => {
+      try {
+        const raw = await fsPromises.readFile(path.join(dir, file), 'utf-8')
+        const conv = parseConversation(raw)
+        if (!conv) {
+          logger.warn(`Skipping invalid conversation file: ${file}`)
+          return null
+        }
+        return {
+          id: conv.id,
+          title: conv.title,
+          projectPath: conv.projectPath,
+          messageCount: conv.messages.length,
+          createdAt: conv.createdAt,
+          updatedAt: conv.updatedAt,
+        }
+      } catch (err) {
+        logger.warn(`Failed to read conversation file "${file}"`, {
+          error: err instanceof Error ? err.message : String(err),
+        })
+        return null
       }
+    }),
+  )
 
-      summaries.push({
-        id: conv.id,
-        title: conv.title,
-        projectPath: conv.projectPath,
-        messageCount: conv.messages.length,
-        createdAt: conv.createdAt,
-        updatedAt: conv.updatedAt,
-      })
-    } catch (err) {
-      logger.warn(`Failed to read conversation file "${file}"`, {
-        error: err instanceof Error ? err.message : String(err),
-      })
-    }
-  }
-
-  return summaries.sort((a, b) => b.updatedAt - a.updatedAt)
+  return results
+    .filter((summary): summary is ConversationSummary => summary !== null)
+    .sort((a, b) => b.updatedAt - a.updatedAt)
 }
 
 export async function getConversation(id: ConversationId): Promise<Conversation | null> {

@@ -10,6 +10,22 @@ export type OrchestrationTaskStatus =
 
 export type OrchestrationRunStatus = 'running' | 'completed' | 'failed' | 'cancelled'
 
+export interface OrchestrationTaskAttempt {
+  readonly attempt: number
+  readonly status: 'ok' | 'error' | 'cancelled'
+  readonly errorCode?: string
+  readonly error?: string
+  readonly startedAt: string
+  readonly finishedAt: string
+  readonly durationMs: number
+}
+
+export interface OrchestrationTaskRetryPolicy {
+  readonly retries: number
+  readonly backoffMs: number
+  readonly jitterMs: number
+}
+
 export interface OrchestrationTaskRecord {
   readonly id: OrchestrationTaskId
   readonly kind: string
@@ -19,6 +35,9 @@ export interface OrchestrationTaskRecord {
   readonly finishedAt?: string
   readonly errorCode?: string
   readonly error?: string
+  readonly retry?: OrchestrationTaskRetryPolicy
+  readonly attempts?: readonly OrchestrationTaskAttempt[]
+  readonly createdOrder?: number
 }
 
 export interface OrchestrationRunRecord {

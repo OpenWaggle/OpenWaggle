@@ -34,7 +34,10 @@ function indexPath(): string {
   return path.join(getRunsDir(), INDEX_FILE)
 }
 
-function toSharedTaskRecord(task: CoreRunRecord['tasks'][string]): OrchestrationTaskRecord {
+function toSharedTaskRecord(
+  task: CoreRunRecord['tasks'][string],
+  createdOrder: number,
+): OrchestrationTaskRecord {
   return {
     id: OrchestrationTaskId(task.id),
     kind: task.kind,
@@ -44,6 +47,9 @@ function toSharedTaskRecord(task: CoreRunRecord['tasks'][string]): Orchestration
     finishedAt: task.finishedAt,
     errorCode: task.errorCode,
     error: task.error,
+    retry: task.retry,
+    attempts: task.attempts,
+    createdOrder: createdOrder,
   }
 }
 
@@ -54,10 +60,11 @@ function toSharedRunRecord(
   fallbackReason?: string,
 ): OrchestrationRunRecord {
   const tasks: Record<string, OrchestrationTaskRecord> = {}
-  for (const taskId of core.taskOrder) {
+  for (let i = 0; i < core.taskOrder.length; i++) {
+    const taskId = core.taskOrder[i]
     const task = core.tasks[taskId]
     if (!task) continue
-    tasks[taskId] = toSharedTaskRecord(task)
+    tasks[taskId] = toSharedTaskRecord(task, task.createdOrder ?? i)
   }
 
   return {
@@ -232,7 +239,8 @@ export class OrchestrationRunRepository {
   private toCore(run: OrchestrationRunRecord): CoreRunRecord {
     const tasks: Record<string, CoreRunRecord['tasks'][string]> = {}
 
-    for (const taskId of run.taskOrder) {
+    for (let i = 0; i < run.taskOrder.length; i++) {
+      const taskId = run.taskOrder[i]
       const key = String(taskId)
       const task = run.tasks[key]
       if (!task) continue
@@ -241,9 +249,9 @@ export class OrchestrationRunRepository {
         kind: task.kind,
         dependsOn: task.dependsOn.map((dep) => String(dep)),
         status: task.status,
-        retry: { retries: 0, backoffMs: 0, jitterMs: 0 },
-        attempts: [],
-        createdOrder: 0,
+        retry: task.retry ?? { retries: 0, backoffMs: 0, jitterMs: 0 },
+        attempts: task.attempts ? [...task.attempts] : [],
+        createdOrder: task.createdOrder ?? i,
         startedAt: task.startedAt,
         finishedAt: task.finishedAt,
         errorCode: task.errorCode,
