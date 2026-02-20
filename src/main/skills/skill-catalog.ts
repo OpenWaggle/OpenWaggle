@@ -88,7 +88,7 @@ export async function loadSkillInstructions(
   const hasScripts = await hasScriptsFolder(folderPath)
 
   try {
-    const raw = await fs.readFile(skillPath, 'utf8')
+    const raw = await readSkillFileWithinProject(projectPath, skillPath)
     const parsed = parseSkillDocument(raw)
 
     return {
@@ -139,7 +139,7 @@ async function loadSkillMetadata(
   const base = createDefaultSkillDefinition(skillId, folderPath, skillPath, enabled)
 
   try {
-    const raw = await fs.readFile(skillPath, 'utf8')
+    const raw = await readSkillFileWithinProject(projectPath, skillPath)
     const parsed = parseSkillDocument(raw)
     return {
       ...base,
@@ -155,6 +155,33 @@ async function loadSkillMetadata(
       loadError: formatSkillError(projectPath, folderName, error),
     }
   }
+}
+
+async function readSkillFileWithinProject(projectPath: string, skillPath: string): Promise<string> {
+  const projectRootReal = await resolveRealPath(projectPath)
+  const skillRealPath = await resolveRealPath(skillPath)
+
+  if (!isPathInside(projectRootReal, skillRealPath)) {
+    throw new Error('SKILL.md resolves outside the project directory (symlink)')
+  }
+
+  return fs.readFile(skillRealPath, 'utf8')
+}
+
+async function resolveRealPath(targetPath: string): Promise<string> {
+  try {
+    return await fs.realpath(targetPath)
+  } catch (error) {
+    if (isMissingError(error)) {
+      return path.resolve(targetPath)
+    }
+    throw error
+  }
+}
+
+function isPathInside(basePath: string, targetPath: string): boolean {
+  const relative = path.relative(basePath, targetPath)
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
 }
 
 function formatSkillError(projectPath: string, folderName: string, error: unknown): string {

@@ -1,5 +1,8 @@
 import type { AgentPromptFragment } from './runtime-types'
 
+const MAX_SKILLS_IN_CATALOG_PROMPT = 20
+const MAX_SKILL_DESCRIPTION_CHARS = 140
+
 export const agentsEntryPromptFragment: AgentPromptFragment = {
   id: 'standards.agents-entry',
   order: 5,
@@ -49,10 +52,23 @@ export const skillCatalogPromptFragment: AgentPromptFragment = {
       return null
     }
 
-    const lines = availableSkills.map((skill) => `- ${skill.id}: ${skill.description}`)
+    const listedSkills = availableSkills.slice(0, MAX_SKILLS_IN_CATALOG_PROMPT)
+    const remainingCount = availableSkills.length - listedSkills.length
+    const lines = listedSkills.map((skill) => {
+      const description =
+        skill.description.length > MAX_SKILL_DESCRIPTION_CHARS
+          ? `${skill.description.slice(0, MAX_SKILL_DESCRIPTION_CHARS)}...`
+          : skill.description
+      return `- ${skill.id}: ${description}`
+    })
+    const overflowLine =
+      remainingCount > 0
+        ? `- ... and ${String(remainingCount)} more available skills (use explicit /skill-id or loadSkill when needed).`
+        : null
     return [
       'Available project skills (metadata only):',
       ...lines,
+      ...(overflowLine ? [overflowLine] : []),
       'If a task needs skill-specific instructions, call the `loadSkill` tool before using that skill workflow.',
       'Do not assume details from skill names alone.',
     ].join('\n')

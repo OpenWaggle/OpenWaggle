@@ -149,6 +149,22 @@ Step 2`,
     expect(loaded.loadStatus).toBe('ok')
   })
 
+  it('rejects symlinked SKILL.md that points outside the project', async () => {
+    const projectPath = await makeTempProject()
+    const skillDir = path.join(projectPath, '.openhive', 'skills', 'escaped-skill')
+    const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openhive-skill-outside-'))
+    tempDirs.push(outsideDir)
+    const outsideFile = path.join(outsideDir, 'outside.md')
+
+    await fs.mkdir(skillDir, { recursive: true })
+    await fs.writeFile(outsideFile, '---\nname: out\ndescription: out\n---\nout', 'utf8')
+    await fs.symlink(outsideFile, path.join(skillDir, 'SKILL.md'))
+
+    await expect(loadSkillInstructions(projectPath, 'escaped-skill')).rejects.toThrow(
+      /outside the project directory/i,
+    )
+  })
+
   it('rejects invalid requested skill ids', () => {
     expect(() => normalizeRequestedSkillId('../skill')).toThrow(/invalid skill id/i)
   })
