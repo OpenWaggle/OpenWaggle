@@ -1,5 +1,6 @@
 import { resolve } from 'path'
 import { defineConfig } from 'electron-vite'
+import { devtools } from '@tanstack/devtools-vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
@@ -46,6 +47,11 @@ export default defineConfig({
       }
     },
     plugins: [
+      ...devtools({
+        eventBusConfig: {
+          enabled: false,
+        },
+      }),
       react({
         babel: {
           plugins: ['babel-plugin-react-compiler'],
