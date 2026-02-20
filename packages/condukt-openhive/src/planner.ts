@@ -130,9 +130,7 @@ function tryRepairPlan(raw: unknown): OpenHiveOrchestrationPlan {
   return repairDependencies(tasks)
 }
 
-function repairDependencies(
-  tasks: readonly OpenHivePlannedTask[],
-): OpenHiveOrchestrationPlan {
+function repairDependencies(tasks: readonly OpenHivePlannedTask[]): OpenHiveOrchestrationPlan {
   // Deduplicate task IDs — keep first occurrence
   const seen = new Set<string>()
   const deduped: OpenHivePlannedTask[] = []

@@ -1,6 +1,6 @@
 import type { WorkerAdapter } from 'condukt-ai'
-import type { OpenHivePlannedTask, OpenHiveTaskExecutor } from './types'
 import { resolveChildContextHeuristic } from './context-heuristic'
+import type { OpenHivePlannedTask, OpenHiveTaskExecutor } from './types'
 
 interface OpenHiveWorkerAdapterOptions {
   readonly executor: OpenHiveTaskExecutor

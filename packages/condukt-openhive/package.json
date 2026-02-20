@@ -7,6 +7,8 @@
   "types": "./src/index.ts",
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "biome check --config-path biome.json src",
+    "lint:fix": "biome check --write --config-path biome.json src",
     "test": "vitest run -c vitest.config.ts"
   },
   "dependencies": {

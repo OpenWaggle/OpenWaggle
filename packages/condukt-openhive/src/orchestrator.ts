@@ -6,8 +6,8 @@ import {
   type OrchestrationTaskRetryPolicy,
   type RunStore,
 } from 'condukt-ai'
-import { parseOpenHivePlan } from './planner'
 import { createOpenHiveAgentWorkerAdapter } from './openhive-worker-adapter'
+import { parseOpenHivePlan } from './planner'
 import type {
   OpenHiveOrchestrationPlan,
   OpenHiveOrchestrationResult,
@@ -166,7 +166,7 @@ async function runSingleTaskFallback(
     },
   ]
 
-  let summary
+  let summary: Awaited<ReturnType<typeof engine.run>>
   try {
     summary = await engine.run({
       runId: input.runId,

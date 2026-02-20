@@ -182,9 +182,7 @@ test('applies default retry policy to tasks', async () => {
     planner: {
       async plan() {
         return {
-          tasks: [
-            { id: 'flaky', kind: 'general', title: 'Flaky', prompt: 'May fail' },
-          ],
+          tasks: [{ id: 'flaky', kind: 'general', title: 'Flaky', prompt: 'May fail' }],
         }
       },
     },

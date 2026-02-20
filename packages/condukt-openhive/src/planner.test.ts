@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'vitest'
 
-import { OpenHivePlanValidationError, extractJson, parseOpenHivePlan } from './planner'
+import { extractJson, OpenHivePlanValidationError, parseOpenHivePlan } from './planner'
 
 describe('extractJson', () => {
   test('parses plain JSON', () => {
-    expect(extractJson('{"tasks": []}' )).toEqual({ tasks: [] })
+    expect(extractJson('{"tasks": []}')).toEqual({ tasks: [] })
   })
 
   test('strips markdown code fences', () => {
@@ -39,9 +39,7 @@ describe('extractJson', () => {
 describe('parseOpenHivePlan', () => {
   test('parses valid plan', () => {
     const plan = parseOpenHivePlan({
-      tasks: [
-        { id: 'a', kind: 'analysis', title: 'A', prompt: 'do A' },
-      ],
+      tasks: [{ id: 'a', kind: 'analysis', title: 'A', prompt: 'do A' }],
     })
     expect(plan.tasks).toHaveLength(1)
     expect(plan.tasks[0].id).toBe('a')
@@ -61,27 +59,21 @@ describe('parseOpenHivePlan', () => {
 
   test('removes invalid dependency references', () => {
     const plan = parseOpenHivePlan({
-      tasks: [
-        { id: 'a', kind: 'general', title: 'A', prompt: 'do A', dependsOn: ['nonexistent'] },
-      ],
+      tasks: [{ id: 'a', kind: 'general', title: 'A', prompt: 'do A', dependsOn: ['nonexistent'] }],
     })
     expect(plan.tasks[0].dependsOn).toEqual([])
   })
 
   test('removes self-referencing dependencies', () => {
     const plan = parseOpenHivePlan({
-      tasks: [
-        { id: 'a', kind: 'general', title: 'A', prompt: 'do A', dependsOn: ['a'] },
-      ],
+      tasks: [{ id: 'a', kind: 'general', title: 'A', prompt: 'do A', dependsOn: ['a'] }],
     })
     expect(plan.tasks[0].dependsOn).toEqual([])
   })
 
   test('coerces unknown task kind to general', () => {
     const plan = parseOpenHivePlan({
-      tasks: [
-        { id: 'a', kind: 'unknown-kind', title: 'A', prompt: 'do A' },
-      ],
+      tasks: [{ id: 'a', kind: 'unknown-kind', title: 'A', prompt: 'do A' }],
     })
     expect(plan.tasks[0].kind).toBe('general')
   })
@@ -102,9 +94,7 @@ describe('parseOpenHivePlan', () => {
 
   test('uses id as title fallback when title is missing', () => {
     const plan = parseOpenHivePlan({
-      tasks: [
-        { id: 'my-task', kind: 'general', prompt: 'do something' },
-      ],
+      tasks: [{ id: 'my-task', kind: 'general', prompt: 'do something' }],
     })
     expect(plan.tasks[0].title).toBe('my-task')
   })
