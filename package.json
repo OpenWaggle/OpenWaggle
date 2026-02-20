@@ -14,7 +14,8 @@
     "build:linux": "pnpm build && electron-builder --linux",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
-    "typecheck": "pnpm typecheck:node && pnpm typecheck:web",
+    "typecheck:packages": "pnpm --filter condukt-ai typecheck && pnpm --filter @openhive/condukt-openhive typecheck",
+    "typecheck": "pnpm typecheck:node && pnpm typecheck:web && pnpm typecheck:packages",
     "test": "pnpm test:unit && pnpm test:integration && pnpm test:component && pnpm test:packages",
     "test:unit": "vitest run -c vitest.unit.config.ts",
     "test:component": "vitest run -c vitest.component.config.ts",
@@ -23,9 +24,10 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "pnpm build && playwright test",
     "lint": "biome check src/",
+    "lint:packages": "pnpm --filter condukt-ai lint && pnpm --filter @openhive/condukt-openhive lint",
     "lint:fix": "biome check --write src/",
     "format": "biome format --write src/",
-    "check": "pnpm typecheck && pnpm lint"
+    "check": "pnpm typecheck && pnpm lint && pnpm lint:packages"
   },
   "packageManager": "pnpm@10.28.1",
   "pnpm": {

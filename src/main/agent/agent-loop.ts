@@ -67,6 +67,12 @@ async function withStageTiming<T>(
   }
 }
 
+function isAbortError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  if (error.name === 'AbortError') return true
+  return error.message.trim().toLowerCase() === 'aborted'
+}
+
 function providerSupportsNativeAttachment(
   provider: Provider,
   attachment: PreparedAttachment,
@@ -256,9 +262,13 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
           })
         })
 
+        let aborted = false
         await withStageTiming(stageDurationsMs, 'stream-processing', async () => {
           for await (const chunk of stream) {
-            if (signal.aborted) break
+            if (signal.aborted) {
+              aborted = true
+              break
+            }
 
             onChunk(chunk)
             notifyStreamChunk(hooks, runContext, chunk)
@@ -276,6 +286,9 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
             }
           }
         })
+        if (aborted || signal.aborted) {
+          throw new Error('aborted')
+        }
 
         const finalParts = collector.finalizeParts()
         const stats = collector.getStats()
@@ -300,9 +313,13 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
 
         return { newMessages, finalMessage: assistantMsg }
       } catch (error) {
-        if (context && !runErrorNotified) {
+        const aborted = signal.aborted || isAbortError(error)
+        if (context && !runErrorNotified && !aborted) {
           const runError = error instanceof Error ? error : new Error(String(error))
           await notifyRunError(hooks, context, runError)
+        }
+        if (aborted) {
+          throw new Error('aborted')
         }
         throw error
       }

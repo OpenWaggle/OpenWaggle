@@ -16,9 +16,11 @@ export function TerminalPanel({ projectPath, onClose }: TerminalPanelProps): Rea
   const fitAddonRef = useRef<FitAddon | null>(null)
   const terminalIdRef = useRef<string | null>(null)
   const [isReady, setIsReady] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   useEffect(() => {
     if (!containerRef.current) return
+    let cleanedUp = false
 
     const term = new Terminal({
       theme: {
@@ -63,13 +65,22 @@ export function TerminalPanel({ projectPath, onClose }: TerminalPanelProps): Rea
 
     // Create PTY
     const cwd = projectPath ?? ''
-    api.createTerminal(cwd).then((id) => {
-      terminalIdRef.current = id
-      setIsReady(true)
+    api
+      .createTerminal(cwd)
+      .then((id) => {
+        if (cleanedUp) return
+        terminalIdRef.current = id
+        setIsReady(true)
+        setErrorMessage(null)
 
-      // Send dimensions
-      api.resizeTerminal(id, term.cols, term.rows)
-    })
+        // Send dimensions
+        api.resizeTerminal(id, term.cols, term.rows)
+      })
+      .catch((error: unknown) => {
+        if (cleanedUp) return
+        setIsReady(false)
+        setErrorMessage(error instanceof Error ? error.message : 'Failed to open terminal.')
+      })
 
     // Forward keyboard input to PTY
     const inputDispose = term.onData((data) => {
@@ -95,6 +106,7 @@ export function TerminalPanel({ projectPath, onClose }: TerminalPanelProps): Rea
     resizeObserver.observe(containerRef.current)
 
     return () => {
+      cleanedUp = true
       inputDispose.dispose()
       unsubscribe()
       resizeObserver.disconnect()
@@ -110,7 +122,7 @@ export function TerminalPanel({ projectPath, onClose }: TerminalPanelProps): Rea
       {/* Terminal header */}
       <div className="flex h-8 items-center justify-between border-b border-border px-3">
         <span className="text-[13px] text-text-secondary">
-          Terminal {isReady ? '/bin/zsh' : 'connecting...'}
+          Terminal {errorMessage ? 'unavailable' : isReady ? '/bin/zsh' : 'connecting...'}
         </span>
         <button
           type="button"
@@ -124,6 +136,11 @@ export function TerminalPanel({ projectPath, onClose }: TerminalPanelProps): Rea
 
       {/* Terminal container */}
       <div ref={containerRef} className="flex-1 overflow-hidden px-1 py-1" />
+      {errorMessage && (
+        <div className="border-t border-border px-3 py-2 text-[12px] text-error">
+          {errorMessage}
+        </div>
+      )}
     </div>
   )
 }

@@ -116,6 +116,10 @@ export function registerAgentHandlers(): void {
           newMessages = classic.newMessages
         }
 
+        if (abortController.signal.aborted || newMessages.length === 0) {
+          return
+        }
+
         try {
           await withConversationLock(conversationId, async () => {
             // Re-read the latest snapshot before persisting to avoid resurrecting

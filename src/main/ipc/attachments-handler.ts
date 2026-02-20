@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { PreparedAttachment } from '@shared/types/agent'
+import { dialog } from 'electron'
 import { z } from 'zod'
 import { safeHandle } from './typed-ipc'
 
@@ -90,6 +91,33 @@ function normalizeText(value: string): string {
   const trimmed = value.trim()
   if (trimmed.length <= MAX_EXTRACTED_TEXT_CHARS) return trimmed
   return `${trimmed.slice(0, MAX_EXTRACTED_TEXT_CHARS)}\n...[truncated]`
+}
+
+function isPathInside(basePath: string, targetPath: string): boolean {
+  const relative = path.relative(basePath, targetPath)
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
+}
+
+async function requestExternalAttachmentAccess(
+  projectRootPath: string,
+  attachmentPath: string,
+): Promise<boolean> {
+  const result = await dialog.showMessageBox({
+    type: 'warning',
+    buttons: ['Allow once', 'Deny'],
+    defaultId: 1,
+    cancelId: 1,
+    noLink: true,
+    title: 'Attachment outside project',
+    message: 'This file is outside the active project folder.',
+    detail: [
+      `Project: ${projectRootPath}`,
+      `Attachment: ${attachmentPath}`,
+      '',
+      'Allow this file once?',
+    ].join('\n'),
+  })
+  return result.response === 0
 }
 
 function decodeXmlEntities(value: string): string {
@@ -253,7 +281,22 @@ export function registerAttachmentHandlers(): void {
       )
     }
 
-    const stats = await Promise.all(uniquePaths.map((filePath) => fs.stat(filePath)))
+    const projectRoot = await fs.realpath(projectPath)
+    const approvedPaths: string[] = []
+    for (const filePath of uniquePaths) {
+      const resolvedPath = await fs.realpath(filePath)
+      if (!isPathInside(projectRoot, resolvedPath)) {
+        const approved = await requestExternalAttachmentAccess(projectRoot, resolvedPath)
+        if (!approved) {
+          throw new Error(
+            `Attachment access denied for file outside project root: ${path.basename(resolvedPath)}`,
+          )
+        }
+      }
+      approvedPaths.push(resolvedPath)
+    }
+
+    const stats = await Promise.all(approvedPaths.map((filePath) => fs.stat(filePath)))
     const totalSize = stats.reduce((sum, stat) => sum + stat.size, 0)
     if (totalSize > MAX_TOTAL_SIZE_BYTES) {
       throw new Error(
@@ -262,7 +305,7 @@ export function registerAttachmentHandlers(): void {
     }
 
     const prepared: PreparedAttachment[] = []
-    for (const filePath of uniquePaths) {
+    for (const filePath of approvedPaths) {
       prepared.push(await prepareAttachment(filePath))
     }
     return prepared

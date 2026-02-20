@@ -4,19 +4,23 @@ const {
   safeHandleMock,
   statMock,
   readFileMock,
+  realpathMock,
   pdfParseMock,
   ocrRecognizeMock,
   mammothExtractMock,
   jszipLoadAsyncMock,
+  showMessageBoxMock,
   files,
 } = vi.hoisted(() => ({
   safeHandleMock: vi.fn(),
   statMock: vi.fn(),
   readFileMock: vi.fn(),
+  realpathMock: vi.fn(),
   pdfParseMock: vi.fn(),
   ocrRecognizeMock: vi.fn(),
   mammothExtractMock: vi.fn(),
   jszipLoadAsyncMock: vi.fn(),
+  showMessageBoxMock: vi.fn(),
   files: new Map<string, { size: number; content: Buffer; isFile: boolean }>(),
 }))
 
@@ -28,9 +32,17 @@ vi.mock('node:fs/promises', () => ({
   default: {
     stat: statMock,
     readFile: readFileMock,
+    realpath: realpathMock,
   },
   stat: statMock,
   readFile: readFileMock,
+  realpath: realpathMock,
+}))
+
+vi.mock('electron', () => ({
+  dialog: {
+    showMessageBox: showMessageBoxMock,
+  },
 }))
 
 vi.mock('pdf-parse', () => ({
@@ -72,10 +84,12 @@ describe('registerAttachmentHandlers', () => {
     safeHandleMock.mockReset()
     statMock.mockReset()
     readFileMock.mockReset()
+    realpathMock.mockReset()
     pdfParseMock.mockReset()
     ocrRecognizeMock.mockReset()
     mammothExtractMock.mockReset()
     jszipLoadAsyncMock.mockReset()
+    showMessageBoxMock.mockReset()
     files.clear()
 
     statMock.mockImplementation(async (filePath: string) => {
@@ -97,9 +111,17 @@ describe('registerAttachmentHandlers', () => {
       return file.content
     })
 
+    realpathMock.mockImplementation(async (filePath: string) => {
+      if (filePath === '/tmp/repo') return '/tmp/repo'
+      const file = files.get(filePath)
+      if (file) return filePath
+      throw new Error(`ENOENT: ${filePath}`)
+    })
+
     pdfParseMock.mockResolvedValue({ text: 'Extracted PDF text' })
     ocrRecognizeMock.mockResolvedValue({ data: { text: 'OCR extracted text' } })
     mammothExtractMock.mockResolvedValue({ value: 'Extracted DOCX text' })
+    showMessageBoxMock.mockResolvedValue({ response: 0 })
     jszipLoadAsyncMock.mockResolvedValue({
       file: (name: string) =>
         name === 'content.xml'
@@ -129,6 +151,7 @@ describe('registerAttachmentHandlers', () => {
       extractedText: 'Hello from notes',
       source: null,
     })
+    expect(showMessageBoxMock).not.toHaveBeenCalled()
   })
 
   it('prepares PDF attachments via parser', async () => {
@@ -268,5 +291,36 @@ describe('registerAttachmentHandlers', () => {
     await expect(
       handler?.({}, '/tmp/repo', ['/tmp/repo/a.txt', '/tmp/repo/b.txt']),
     ).rejects.toThrow('Total attachment size exceeds 20 MB')
+  })
+
+  it('rejects files outside project root when user denies access', async () => {
+    registerFile('/tmp/outside.txt', 'outside')
+    showMessageBoxMock.mockResolvedValueOnce({ response: 1 })
+
+    registerAttachmentHandlers()
+    const handler = registeredHandler('attachments:prepare')
+
+    await expect(handler?.({}, '/tmp/repo', ['/tmp/outside.txt'])).rejects.toThrow(
+      'Attachment access denied for file outside project root',
+    )
+    expect(showMessageBoxMock).toHaveBeenCalledOnce()
+  })
+
+  it('allows files outside project root when user approves one-time access', async () => {
+    registerFile('/tmp/outside.txt', 'outside')
+    showMessageBoxMock.mockResolvedValueOnce({ response: 0 })
+
+    registerAttachmentHandlers()
+    const handler = registeredHandler('attachments:prepare')
+
+    const result = (await handler?.({}, '/tmp/repo', ['/tmp/outside.txt'])) as Array<{
+      path: string
+      extractedText: string
+    }>
+    expect(result[0]).toMatchObject({
+      path: '/tmp/outside.txt',
+      extractedText: 'outside',
+    })
+    expect(showMessageBoxMock).toHaveBeenCalledOnce()
   })
 })
