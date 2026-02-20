@@ -23,6 +23,8 @@ This document stores project-specific technical learnings only.
 ### Task: Codebase Quality Remediation (2026-02-20)
 - `buildSamplingOptions` parameter type should accept `{ temperature; topP? }` (structural) rather than the full `ResolvedQualityConfig` — this allows both agent-loop (which has a full config) and orchestration service (which has a local sampling-only subset) to share the helper without redundant type widening.
 - When decomposing large React components, extracting callback-heavy prop bundles into named interfaces (`GitProps`, `OrchestrationProps`) at the type level reduces the parent component's JSX surface dramatically and makes the child's prop contract discoverable.
+- `@testing-library/react` auto-cleanup relies on a globally-available `afterEach`. When vitest runs without `globals: true`, cleanup doesn't happen automatically — add explicit `afterEach(() => cleanup())` in the test setup file to prevent DOM leakage between tests.
+- Component test configs using JSX need `@vitejs/plugin-react` in the vitest config's `plugins` array; without it, the automatic JSX runtime isn't configured and tests fail with "React is not defined".
 
 ### Task: Nested AGENTS.md Scope Resolution (2026-02-20)
 - Path-scoped AGENTS behavior is easiest to keep agents.md-aligned by resolving deterministic chains (`root -> ancestors -> nearest`) per target path and deduping discovered scope files across inferred candidates.

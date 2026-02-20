@@ -300,7 +300,7 @@ Status legend: `implemented`, `deferred`, `future`
 ### HC-UI-008 Composer attachment control
 
 - Status: `implemented`
-- Location: `src/renderer/src/components/composer/Composer.tsx:105`
+- Location: `src/renderer/src/components/composer/Composer.tsx` (attachment handling + chip rendering)
 - Current: interactive attachment picker with chip preview/removal and preprocessing pipeline.
 - Target behavior:
   - Support text/image/PDF uploads (max 5 files) with metadata + extracted-text persistence.
@@ -309,7 +309,7 @@ Status legend: `implemented`, `deferred`, `future`
 ### HC-UI-009 Composer quality control
 
 - Status: `implemented`
-- Location: `src/renderer/src/components/composer/Composer.tsx:123`
+- Location: `src/renderer/src/components/composer/ComposerToolbar.tsx` (quality preset dropdown)
 - Current: interactive Low/Medium/High selector persisted in settings.
 - Target behavior:
   - Map quality presets to provider/model override + generation parameters.
@@ -318,7 +318,7 @@ Status legend: `implemented`, `deferred`, `future`
 ### HC-UI-010 Composer voice input
 
 - Status: `implemented`
-- Location: `src/renderer/src/components/composer/Composer.tsx:137`
+- Location: `src/renderer/src/components/composer/VoiceRecorder.tsx` (UI) + `src/renderer/src/components/composer/useVoiceCapture.ts` (hook)
 - Current: mic button enters recording mode (waveform + timer + stop), then transcribes locally in-app with Whisper tiny by default (no external STT endpoint).
 - Target behavior:
 - While in recording mode, `Enter` or the existing composer send arrow finalizes recording and auto-sends the transcribed message.
@@ -327,9 +327,7 @@ Status legend: `implemented`, `deferred`, `future`
 ### HC-UI-011 Execution mode controls (Local / Full access)
 
 - Status: `implemented`
-- Location:
-  - `src/renderer/src/components/composer/Composer.tsx:180` (Local)
-  - `src/renderer/src/components/composer/Composer.tsx:187` (Full access)
+- Location: `src/renderer/src/components/composer/ComposerStatusBar.tsx` (execution mode badge)
 - Current: selectable Default permissions / Full access controls with Full access confirmation.
 - Target behavior:
   - User-switchable execution mode persisted in settings.
@@ -342,9 +340,7 @@ Status legend: `implemented`, `deferred`, `future`
 ### HC-UI-012 Branch badge and git refresh affordance
 
 - Status: `implemented`
-- Location:
-  - `src/renderer/src/components/composer/Composer.tsx:199` (branch chip)
-  - `src/renderer/src/components/composer/Composer.tsx:206` (refresh icon)
+- Location: `src/renderer/src/components/composer/BranchPicker.tsx` (branch chip, search, mutations, refresh)
 - Current: branch menu supports search, local/remote sections, and branch mutations; refresh icon is wired.
 - Target behavior:
   - Manual git refresh updates status, branch list, and diff panel key.
