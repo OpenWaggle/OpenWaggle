@@ -71,6 +71,7 @@ describe('getServerTools', () => {
     expect(toolNames).toContain('runCommand')
     expect(toolNames).toContain('glob')
     expect(toolNames).toContain('listFiles')
+    expect(toolNames).toContain('loadAgents')
     expect(toolNames).toContain('loadSkill')
     expect(toolNames).toContain('askUser')
   })
@@ -84,6 +85,7 @@ describe('getServerTools', () => {
     expect(toolNames).toContain('readFile')
     expect(toolNames).toContain('glob')
     expect(toolNames).toContain('listFiles')
+    expect(toolNames).toContain('loadAgents')
     expect(toolNames).toContain('loadSkill')
     expect(toolNames).toContain('askUser')
 

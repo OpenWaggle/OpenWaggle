@@ -6,6 +6,7 @@ import {
   toSkillCatalogResult,
 } from '../skills/skill-catalog'
 import { loadAgentsInstruction } from '../standards/agents-loader'
+import { resolveAgentsChainForPath, resolveAgentsForRun } from '../standards/agents-resolver'
 import { getSettings, updateSettings } from '../store/settings'
 
 const projectPathSchema = z.string().min(1)
@@ -21,6 +22,17 @@ export function registerSkillsHandlers(): void {
       error: agents.error,
     }
   })
+
+  ipcMain.handle(
+    'standards:get-effective-agents',
+    async (_event, rawProjectPath: string, rawTargetPath?: string) => {
+      const projectPath = projectPathSchema.parse(rawProjectPath)
+      if (typeof rawTargetPath === 'string' && rawTargetPath.trim().length > 0) {
+        return resolveAgentsChainForPath(projectPath, rawTargetPath)
+      }
+      return resolveAgentsForRun(projectPath, [])
+    },
+  )
 
   ipcMain.handle('skills:list', async (_event, rawProjectPath: string) => {
     const projectPath = projectPathSchema.parse(rawProjectPath)

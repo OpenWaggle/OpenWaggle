@@ -20,7 +20,11 @@ import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from './llm'
 import type { OrchestrationEventPayload, OrchestrationRunRecord } from './orchestration'
 import type { QuestionAnswer, QuestionPayload } from './question'
 import type { Provider, Settings } from './settings'
-import type { AgentsInstructionStatus, SkillCatalogResult } from './standards'
+import type {
+  AgentsInstructionStatus,
+  AgentsResolutionResult,
+  SkillCatalogResult,
+} from './standards'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 
 // ─── IPC Channel Map ─────────────────────────────────────────
@@ -152,6 +156,10 @@ export interface IpcInvokeChannelMap {
   'standards:get-status': {
     args: [projectPath: string]
     return: { agents: AgentsInstructionStatus; agentsPath: string; error?: string }
+  }
+  'standards:get-effective-agents': {
+    args: [projectPath: string, targetPath?: string]
+    return: AgentsResolutionResult
   }
   'skills:list': {
     args: [projectPath: string]
@@ -331,6 +339,7 @@ export interface OpenHiveApi {
   getStandardsStatus(
     projectPath: string,
   ): Promise<{ agents: AgentsInstructionStatus; agentsPath: string; error?: string }>
+  getEffectiveAgents(projectPath: string, targetPath?: string): Promise<AgentsResolutionResult>
   listSkills(projectPath: string): Promise<SkillCatalogResult>
   setSkillEnabled(projectPath: string, skillId: string, enabled: boolean): Promise<void>
   getSkillPreview(projectPath: string, skillId: string): Promise<{ markdown: string }>

@@ -17,6 +17,10 @@ export interface ToolContext {
     readonly loadedSkillIds: Set<string>
     readonly toggles: Readonly<Record<string, boolean>>
   }
+  dynamicAgents?: {
+    readonly loadedScopeFiles: Set<string>
+    readonly loadedRequestedPaths: Set<string>
+  }
 }
 
 export interface ToolTextResult {

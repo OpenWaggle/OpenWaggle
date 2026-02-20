@@ -20,7 +20,11 @@ import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from '@shared/t
 import type { OrchestrationEventPayload, OrchestrationRunRecord } from '@shared/types/orchestration'
 import type { QuestionAnswer, QuestionPayload } from '@shared/types/question'
 import type { Provider, Settings } from '@shared/types/settings'
-import type { AgentsInstructionStatus, SkillCatalogResult } from '@shared/types/standards'
+import type {
+  AgentsInstructionStatus,
+  AgentsResolutionResult,
+  SkillCatalogResult,
+} from '@shared/types/standards'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from '@shared/types/voice'
 import type { StreamChunk } from '@tanstack/ai'
 import { ipcRenderer } from 'electron'
@@ -237,6 +241,10 @@ export const api: OpenHiveApi = {
     projectPath: string,
   ): Promise<{ agents: AgentsInstructionStatus; agentsPath: string; error?: string }> {
     return ipcRenderer.invoke('standards:get-status', projectPath)
+  },
+
+  getEffectiveAgents(projectPath: string, targetPath?: string): Promise<AgentsResolutionResult> {
+    return ipcRenderer.invoke('standards:get-effective-agents', projectPath, targetPath)
   },
 
   listSkills(projectPath: string): Promise<SkillCatalogResult> {

@@ -162,6 +162,8 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
   const hasContinuationMessages = (payload.continuationMessages?.length ?? 0) > 0
   const projectPath = conversation.projectPath ?? process.cwd()
   const dynamicLoadedSkillIds = new Set<string>()
+  const dynamicLoadedAgentsScopeFiles = new Set<string>()
+  const dynamicLoadedAgentsRequestedPaths = new Set<string>()
   const skillToggles = conversation.projectPath
     ? (settings.skillTogglesByProject[conversation.projectPath] ?? {})
     : {}
@@ -175,6 +177,10 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
       dynamicSkills: {
         loadedSkillIds: dynamicLoadedSkillIds,
         toggles: skillToggles,
+      },
+      dynamicAgents: {
+        loadedScopeFiles: dynamicLoadedAgentsScopeFiles,
+        loadedRequestedPaths: dynamicLoadedAgentsRequestedPaths,
       },
     },
     async () => {
@@ -240,7 +246,12 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
           provider,
           providerConfig,
           standards: await withStageTiming(stageDurationsMs, 'standards-resolution', () =>
-            loadAgentStandardsContext(conversation.projectPath, payload.text, settings),
+            loadAgentStandardsContext(
+              conversation.projectPath,
+              payload.text,
+              settings,
+              payload.attachments,
+            ),
           ),
         }
         const runContext = context
@@ -338,6 +349,8 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
           toolErrors: stats.toolErrors,
           selectedSkillIds: runContext.standards?.activation.selectedSkillIds ?? [],
           dynamicallyLoadedSkillIds: [...dynamicLoadedSkillIds],
+          resolvedAgentsFiles: runContext.standards?.agentsResolvedFiles ?? [],
+          dynamicallyLoadedAgentsScopes: [...dynamicLoadedAgentsScopeFiles],
           standardsWarnings: runContext.standards?.warnings ?? [],
         })
 
