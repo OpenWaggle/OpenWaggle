@@ -311,6 +311,9 @@ async function commitGit(projectPath: string, payload: GitCommitPayload): Promis
   if (payload.amend) {
     commitArgs.push('--amend')
   }
+  if (payload.paths.length > 0) {
+    commitArgs.push('--', ...payload.paths)
+  }
 
   const commitResult = await runGit(projectPath, commitArgs)
   if (commitResult.code !== 0) {

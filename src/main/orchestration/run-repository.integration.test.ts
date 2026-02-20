@@ -71,4 +71,17 @@ describe('orchestration run repository', () => {
     const loaded = await repository.get('../conversations/secret')
     expect(loaded).toBeNull()
   })
+
+  it('keeps all run ids when saves happen concurrently', async () => {
+    const repository = new OrchestrationRunRepository()
+    const runIds = Array.from({ length: 20 }, (_value, index) => `safe-run-${index + 1}`)
+
+    await Promise.all(runIds.map((runId) => repository.save(makeRun(runId))))
+
+    const runs = await repository.list()
+    const listedIds = new Set(runs.map((run) => String(run.runId)))
+
+    expect(runs).toHaveLength(runIds.length)
+    expect(listedIds).toEqual(new Set(runIds))
+  })
 })
