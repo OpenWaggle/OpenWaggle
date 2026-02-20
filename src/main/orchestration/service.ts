@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import {
+  extractJson,
   type OpenHiveTaskExecutionInput,
   runOpenHiveOrchestration,
 } from '@openhive/condukt-openhive'
-import type { AgentSendPayload, Message, MessagePart } from '@shared/types/agent'
+import type { AgentSendPayload, Message } from '@shared/types/agent'
 import { type ConversationId, OrchestrationRunId, OrchestrationTaskId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
@@ -275,9 +276,9 @@ async function modelJson(
 ): Promise<unknown> {
   const text = await modelText(adapter, prompt, quality)
   try {
-    return JSON.parse(text) as unknown
+    return extractJson(text)
   } catch {
-    logger.warn('modelJson parse failure', { raw: text.slice(0, 200) })
+    logger.warn('modelJson extraction failure', { raw: text.slice(0, 200) })
     return { tasks: [] }
   }
 }
@@ -286,11 +287,25 @@ function summarizeConversation(conversation: Conversation): string {
   const recentMessages = conversation.messages.slice(-8)
   const rendered = recentMessages
     .map((message) => {
-      const text = message.parts
-        .filter((part): part is Extract<MessagePart, { type: 'text' }> => part.type === 'text')
-        .map((part) => part.text)
-        .join(' ')
-      return `${message.role.toUpperCase()}: ${text}`
+      const segments: string[] = []
+      for (const part of message.parts) {
+        switch (part.type) {
+          case 'text':
+            segments.push(part.text)
+            break
+          case 'tool-call':
+            segments.push(`[tool:${part.toolCall.name}]`)
+            break
+          case 'tool-result':
+            segments.push(
+              part.toolResult.isError
+                ? `[tool-error:${part.toolResult.name}]`
+                : `[tool-done:${part.toolResult.name}]`,
+            )
+            break
+        }
+      }
+      return `${message.role.toUpperCase()}: ${segments.join(' ')}`
     })
     .join('\n')
 
