@@ -3,6 +3,7 @@ import type { SupportedModelId } from '@shared/types/llm'
 import type { OrchestrationEventPayload, OrchestrationRunRecord } from '@shared/types/orchestration'
 import { useEffect, useRef, useState } from 'react'
 import { ChatPanel } from '@/components/chat/ChatPanel'
+import type { GitProps, OrchestrationProps } from '@/components/chat/types'
 import { DiffPanel } from '@/components/diff-panel/DiffPanel'
 import { ResizeHandle } from '@/components/diff-panel/ResizeHandle'
 import { Header } from '@/components/layout/Header'
@@ -316,6 +317,38 @@ export function App(): React.JSX.Element {
     )
   }
 
+  const noProjectResult = {
+    ok: false as const,
+    code: 'not-git-repo' as const,
+    message: 'No project selected.',
+  }
+
+  const gitProps: GitProps = {
+    gitBranch: gitStatus?.branch ?? null,
+    gitBranches,
+    isBranchActionRunning,
+    onCheckoutBranch: (name) =>
+      projectPath ? checkoutBranch(projectPath, { name }) : Promise.resolve(noProjectResult),
+    onCreateBranch: (name, startPoint, checkout) =>
+      projectPath
+        ? createBranch(projectPath, { name, startPoint, checkout })
+        : Promise.resolve(noProjectResult),
+    onRenameBranch: (from, to) =>
+      projectPath ? renameBranch(projectPath, { from, to }) : Promise.resolve(noProjectResult),
+    onDeleteBranch: (name, force) =>
+      projectPath ? deleteBranch(projectPath, { name, force }) : Promise.resolve(noProjectResult),
+    onSetBranchUpstream: (name, upstream) =>
+      projectPath ? setUpstream(projectPath, { name, upstream }) : Promise.resolve(noProjectResult),
+    onRefreshGit: handleRefreshGit,
+    isRefreshingGit: gitLoading,
+  }
+
+  const orchestrationPropsBundle: OrchestrationProps = {
+    orchestrationRuns,
+    orchestrationEvents,
+    onCancelOrchestrationRun: (runId) => api.cancelOrchestrationRun(runId),
+  }
+
   return (
     <div className="flex h-full w-full overflow-hidden bg-bg">
       {/* Sidebar with slide transition */}
@@ -406,59 +439,8 @@ export function App(): React.JSX.Element {
                   providerModels={providerModels}
                   messageModelLookup={messageModelLookup}
                   slashSkills={skillCatalog?.skills ?? []}
-                  gitBranch={gitStatus?.branch ?? null}
-                  gitBranches={gitBranches}
-                  isBranchActionRunning={isBranchActionRunning}
-                  orchestrationRuns={orchestrationRuns}
-                  orchestrationEvents={orchestrationEvents}
-                  onCancelOrchestrationRun={(runId) => api.cancelOrchestrationRun(runId)}
-                  onCheckoutBranch={(name) =>
-                    projectPath
-                      ? checkoutBranch(projectPath, { name })
-                      : Promise.resolve({
-                          ok: false,
-                          code: 'not-git-repo',
-                          message: 'No project selected.',
-                        })
-                  }
-                  onCreateBranch={(name, startPoint, checkout) =>
-                    projectPath
-                      ? createBranch(projectPath, { name, startPoint, checkout })
-                      : Promise.resolve({
-                          ok: false,
-                          code: 'not-git-repo',
-                          message: 'No project selected.',
-                        })
-                  }
-                  onRenameBranch={(from, to) =>
-                    projectPath
-                      ? renameBranch(projectPath, { from, to })
-                      : Promise.resolve({
-                          ok: false,
-                          code: 'not-git-repo',
-                          message: 'No project selected.',
-                        })
-                  }
-                  onDeleteBranch={(name, force) =>
-                    projectPath
-                      ? deleteBranch(projectPath, { name, force })
-                      : Promise.resolve({
-                          ok: false,
-                          code: 'not-git-repo',
-                          message: 'No project selected.',
-                        })
-                  }
-                  onSetBranchUpstream={(name, upstream) =>
-                    projectPath
-                      ? setUpstream(projectPath, { name, upstream })
-                      : Promise.resolve({
-                          ok: false,
-                          code: 'not-git-repo',
-                          message: 'No project selected.',
-                        })
-                  }
-                  onRefreshGit={handleRefreshGit}
-                  isRefreshingGit={gitLoading}
+                  git={gitProps}
+                  orchestration={orchestrationPropsBundle}
                 />
               </div>
 
