@@ -9,7 +9,7 @@ import { MessageId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { Provider, Settings } from '@shared/types/settings'
-import { chat, maxIterations, type StreamChunk } from '@tanstack/ai'
+import { chat, type ModelMessage, maxIterations, type StreamChunk } from '@tanstack/ai'
 import { providerRegistry } from '../providers'
 import { runWithToolContext } from '../tools/define-tool'
 import { getServerTools } from '../tools/registry'
@@ -278,8 +278,8 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
         signal.addEventListener('abort', () => abortController.abort(), { once: true })
 
         const stream = await withStageTiming(stageDurationsMs, 'stream-setup', () => {
-          const allMessages = hasContinuationMessages
-            ? (payload.continuationMessages as SimpleChatMessage[])
+          const allMessages: ModelMessage[] | SimpleChatMessage[] = hasContinuationMessages
+            ? [...(payload.continuationMessages ?? [])]
             : (() => {
                 const existingMessages = conversationToMessages(conversation.messages)
                 const newUserMessage: SimpleChatMessage = {

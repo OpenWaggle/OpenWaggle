@@ -1,3 +1,4 @@
+import type { ModelMessage } from '@tanstack/ai'
 import type { MessageId } from './brand'
 import type { SupportedModelId } from './llm'
 import type { QualityPreset } from './settings'
@@ -59,7 +60,7 @@ export interface AgentSendPayload {
    * Optional in-memory chat snapshot used for continuation flows
    * (e.g. tool approvals) where the client must preserve UI tool state.
    */
-  readonly continuationMessages?: readonly unknown[]
+  readonly continuationMessages?: readonly ModelMessage[]
 }
 
 export interface Message {

@@ -1,7 +1,7 @@
 import type { ConversationId } from '@shared/types/brand'
 import { ConversationId as toConversationId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
-import type { StreamChunk } from '@tanstack/ai'
+import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { UIMessage } from '@tanstack/ai-react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -241,5 +241,74 @@ describe('createIpcConnectionAdapter', () => {
       }),
       model,
     )
+  })
+
+  it('dedupes duplicate continuation tool-call IDs before sending', async () => {
+    apiMock.sendMessage.mockImplementationOnce(async () => {
+      emitStreamChunk(conversationId, {
+        type: 'RUN_FINISHED',
+        timestamp: 21,
+        runId: 'run-21',
+        finishReason: 'stop',
+      } as StreamChunk)
+    })
+
+    const connection = createIpcConnectionAdapter(conversationId, model, () => null, 'medium')
+    const conversationMessages = [
+      {
+        id: 'msg-user',
+        role: 'user',
+        parts: [{ type: 'text', content: 'create a summary file' }],
+        createdAt: new Date(),
+      },
+      {
+        id: 'msg-assistant',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'tool-dup',
+            name: 'writeFile',
+            arguments: '{"path":"SUMMARY.md"}',
+            state: 'input-complete',
+          },
+          {
+            type: 'tool-call',
+            id: 'tool-dup',
+            name: 'writeFile',
+            arguments: '{"path":"SUMMARY.md"}',
+            state: 'approval-responded',
+            approval: {
+              id: 'approval_tool-dup',
+              needsApproval: true,
+              approved: true,
+            },
+          },
+        ],
+        createdAt: new Date(),
+      },
+    ] as UIMessage[]
+
+    const stream = connection.connect(conversationMessages, undefined, undefined)
+    for await (const _chunk of stream) {
+      // consume
+    }
+
+    const sentPayload = apiMock.sendMessage.mock.calls[0]?.[1] as {
+      continuationMessages?: ModelMessage[]
+    }
+    const continuationMessages = sentPayload.continuationMessages ?? []
+
+    const assistantToolCalls = continuationMessages
+      .filter(
+        (
+          message,
+        ): message is ModelMessage & { toolCalls: NonNullable<ModelMessage['toolCalls']> } =>
+          message.role === 'assistant' && Array.isArray(message.toolCalls),
+      )
+      .flatMap((message) => message.toolCalls.map((toolCall) => toolCall.id))
+
+    expect(assistantToolCalls).toContain('tool-dup')
+    expect(new Set(assistantToolCalls).size).toBe(assistantToolCalls.length)
   })
 })
