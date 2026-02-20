@@ -14,6 +14,7 @@ import { TerminalPanel } from '@/components/terminal/TerminalPanel'
 import { useAgentChat } from '@/hooks/useAgentChat'
 import { useChat } from '@/hooks/useChat'
 import { useGit } from '@/hooks/useGit'
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { useProject } from '@/hooks/useProject'
 import { useSettings, useSettingsSetup } from '@/hooks/useSettings'
 import { useSkills } from '@/hooks/useSkills'
@@ -236,30 +237,12 @@ export function App(): React.JSX.Element {
     })
   }
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent): void {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'j') {
-        e.preventDefault()
-        setTerminalOpen((prev) => !prev)
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
-        e.preventDefault()
-        void createConversation(projectPath)
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key === 'b') {
-        e.preventDefault()
-        setSidebarOpen((prev) => !prev)
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
-        e.preventDefault()
-        setDiffPanelOpen((prev) => !prev)
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [createConversation, projectPath])
+  useKeyboardShortcuts([
+    { key: 'j', ctrl: true, action: () => setTerminalOpen((prev) => !prev) },
+    { key: 'n', ctrl: true, action: () => void createConversation(projectPath) },
+    { key: 'b', ctrl: true, action: () => setSidebarOpen((prev) => !prev) },
+    { key: 'd', ctrl: true, action: () => setDiffPanelOpen((prev) => !prev) },
+  ])
 
   if (!isLoaded) {
     return (
