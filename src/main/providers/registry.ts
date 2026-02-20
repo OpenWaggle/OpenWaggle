@@ -1,4 +1,7 @@
+import { createLogger } from '../logger'
 import type { ProviderDefinition } from './provider-definition'
+
+const logger = createLogger('providers')
 
 class ProviderRegistry {
   private providers = new Map<string, ProviderDefinition>()
@@ -6,7 +9,7 @@ class ProviderRegistry {
 
   register(provider: ProviderDefinition): void {
     if (this.providers.has(provider.id)) {
-      console.warn(`Provider "${provider.id}" is already registered — skipping duplicate`)
+      logger.warn(`Provider "${provider.id}" is already registered — skipping duplicate`)
       return
     }
     this.providers.set(provider.id, provider)

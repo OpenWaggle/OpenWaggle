@@ -1,4 +1,5 @@
 import type { StreamChunk } from '@tanstack/ai'
+import { createLogger } from '../logger'
 import type {
   AgentLifecycleHook,
   AgentRunContext,
@@ -6,6 +7,8 @@ import type {
   AgentToolCallEndEvent,
   AgentToolCallStartEvent,
 } from './runtime-types'
+
+const logger = createLogger('agent-hook')
 
 type HookCall = (hook: AgentLifecycleHook) => void | Promise<void>
 
@@ -19,16 +22,12 @@ async function runHookEvent(
     try {
       await invoke(hook)
     } catch (error) {
-      console.warn(
-        '[agent-hook]',
-        JSON.stringify({
-          event: 'hook-error',
-          runId: context.runId,
-          hookId: hook.id,
-          hookEvent: eventName,
-          message: error instanceof Error ? error.message : String(error),
-        }),
-      )
+      logger.warn('hook-error', {
+        runId: context.runId,
+        hookId: hook.id,
+        hookEvent: eventName,
+        message: error instanceof Error ? error.message : String(error),
+      })
     }
   }
 }
@@ -40,15 +39,11 @@ function runHookEventDetached(
   invoke: HookCall,
 ): void {
   void runHookEvent(hooks, context, eventName, invoke).catch((error) => {
-    console.warn(
-      '[agent-hook]',
-      JSON.stringify({
-        event: 'hook-dispatch-error',
-        runId: context.runId,
-        hookEvent: eventName,
-        message: error instanceof Error ? error.message : String(error),
-      }),
-    )
+    logger.warn('hook-dispatch-error', {
+      runId: context.runId,
+      hookEvent: eventName,
+      message: error instanceof Error ? error.message : String(error),
+    })
   })
 }
 

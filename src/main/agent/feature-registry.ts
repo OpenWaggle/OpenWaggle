@@ -1,4 +1,5 @@
 import type { ServerTool } from '@tanstack/ai'
+import { createLogger } from '../logger'
 import { builtInTools } from '../tools/built-in-tools'
 import type {
   AgentFeature,
@@ -20,6 +21,8 @@ import {
   runtimeModelPromptFragment,
 } from './system-prompt'
 
+const logger = createLogger('agent-run')
+
 interface AgentFeatureFlags {
   readonly [featureId: string]: boolean
 }
@@ -40,50 +43,38 @@ function isApprovalRequiredTool(tool: ServerTool): boolean {
 const observabilityHook: AgentLifecycleHook = {
   id: 'core.observability.logger',
   onRunStart: (context) => {
-    console.info(
-      '[agent-run]',
-      JSON.stringify({
-        event: 'run-start',
-        runId: context.runId,
-        conversationId: context.conversation.id,
-        model: context.model,
-        provider: context.provider.id,
-        executionMode: context.settings.executionMode,
-        selectedSkills: context.standards?.activation.selectedSkillIds ?? [],
-        resolvedAgentsFiles: context.standards?.agentsResolvedFiles ?? [],
-        standardsWarnings: context.standards?.warnings ?? [],
-      }),
-    )
+    logger.info('run-start', {
+      runId: context.runId,
+      conversationId: context.conversation.id,
+      model: context.model,
+      provider: context.provider.id,
+      executionMode: context.settings.executionMode,
+      selectedSkills: context.standards?.activation.selectedSkillIds ?? [],
+      resolvedAgentsFiles: context.standards?.agentsResolvedFiles ?? [],
+      standardsWarnings: context.standards?.warnings ?? [],
+    })
   },
   onToolCallStart: (context, event) => {
     logToolStart(context, event)
   },
   onToolCallEnd: (context, event) => {
     const errorSummary = event.isError ? summarizeToolError(event.result) : undefined
-    console.info(
-      '[agent-run]',
-      JSON.stringify({
-        event: 'tool-call-end',
-        runId: context.runId,
-        conversationId: context.conversation.id,
-        toolCallId: event.toolCallId,
-        toolName: event.toolName,
-        durationMs: event.durationMs,
-        isError: event.isError,
-        error: errorSummary,
-      }),
-    )
+    logger.info('tool-call-end', {
+      runId: context.runId,
+      conversationId: context.conversation.id,
+      toolCallId: event.toolCallId,
+      toolName: event.toolName,
+      durationMs: event.durationMs,
+      isError: event.isError,
+      error: errorSummary,
+    })
   },
   onRunError: (context, error) => {
-    console.error(
-      '[agent-run]',
-      JSON.stringify({
-        event: 'run-error',
-        runId: context.runId,
-        conversationId: context.conversation.id,
-        message: error.message,
-      }),
-    )
+    logger.error('run-error', {
+      runId: context.runId,
+      conversationId: context.conversation.id,
+      message: error.message,
+    })
   },
   onRunComplete: (context, summary) => {
     logRunComplete(context, summary)
@@ -91,36 +82,28 @@ const observabilityHook: AgentLifecycleHook = {
 }
 
 function logToolStart(context: AgentRunContext, event: AgentToolCallStartEvent): void {
-  console.info(
-    '[agent-run]',
-    JSON.stringify({
-      event: 'tool-call-start',
-      runId: context.runId,
-      conversationId: context.conversation.id,
-      toolCallId: event.toolCallId,
-      toolName: event.toolName,
-    }),
-  )
+  logger.info('tool-call-start', {
+    runId: context.runId,
+    conversationId: context.conversation.id,
+    toolCallId: event.toolCallId,
+    toolName: event.toolName,
+  })
 }
 
 function logRunComplete(context: AgentRunContext, summary: AgentRunSummary): void {
-  console.info(
-    '[agent-run]',
-    JSON.stringify({
-      event: 'run-complete',
-      runId: context.runId,
-      conversationId: context.conversation.id,
-      promptFragments: summary.promptFragmentIds,
-      stageDurationsMs: summary.stageDurationsMs,
-      toolCalls: summary.toolCalls,
-      toolErrors: summary.toolErrors,
-      selectedSkillIds: summary.selectedSkillIds ?? [],
-      dynamicallyLoadedSkillIds: summary.dynamicallyLoadedSkillIds ?? [],
-      resolvedAgentsFiles: summary.resolvedAgentsFiles ?? [],
-      dynamicallyLoadedAgentsScopes: summary.dynamicallyLoadedAgentsScopes ?? [],
-      standardsWarnings: summary.standardsWarnings ?? [],
-    }),
-  )
+  logger.info('run-complete', {
+    runId: context.runId,
+    conversationId: context.conversation.id,
+    promptFragments: summary.promptFragmentIds,
+    stageDurationsMs: summary.stageDurationsMs,
+    toolCalls: summary.toolCalls,
+    toolErrors: summary.toolErrors,
+    selectedSkillIds: summary.selectedSkillIds ?? [],
+    dynamicallyLoadedSkillIds: summary.dynamicallyLoadedSkillIds ?? [],
+    resolvedAgentsFiles: summary.resolvedAgentsFiles ?? [],
+    dynamicallyLoadedAgentsScopes: summary.dynamicallyLoadedAgentsScopes ?? [],
+    standardsWarnings: summary.standardsWarnings ?? [],
+  })
 }
 
 function summarizeToolError(result: string | undefined): string | undefined {

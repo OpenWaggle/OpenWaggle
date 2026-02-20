@@ -1,7 +1,10 @@
 import type { MessagePart } from '@shared/types/agent'
 import { ToolCallId } from '@shared/types/brand'
 import type { StreamChunk } from '@tanstack/ai'
+import { createLogger } from '../logger'
 import type { AgentToolCallEndEvent, AgentToolCallStartEvent } from './runtime-types'
+
+const logger = createLogger('stream')
 
 export interface StreamPartCollectorChunkResult {
   readonly toolCallStart?: AgentToolCallStartEvent
@@ -179,11 +182,10 @@ export class StreamPartCollector {
     try {
       return JSON.parse(rawArgs) as Record<string, unknown>
     } catch (parseError) {
-      console.warn(
-        `Failed to parse tool call args for "${toolName}":`,
-        parseError instanceof Error ? parseError.message : parseError,
-        `| raw: ${rawArgs.slice(0, 200)}`,
-      )
+      logger.warn(`Failed to parse tool call args for "${toolName}"`, {
+        error: parseError instanceof Error ? parseError.message : String(parseError),
+        raw: rawArgs.slice(0, 200),
+      })
       return {}
     }
   }

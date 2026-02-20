@@ -1,5 +1,8 @@
 import { is } from '@electron-toolkit/utils'
 import type { DevtoolsEventBusConfig } from '@shared/types/devtools'
+import { createLogger } from '../logger'
+
+const logger = createLogger('devtools')
 
 const DEVTOOLS_HOST = 'localhost'
 const DEVTOOLS_PORT = 4206
@@ -45,8 +48,9 @@ export async function startDevtoolsEventBus(): Promise<void> {
   } catch (error) {
     stopEventBus = null
     devtoolsEventBusConfig = DISABLED_CONFIG
-    const message = error instanceof Error ? error.message : String(error)
-    console.warn(`[devtools] Failed to start TanStack event bus: ${message}`)
+    logger.warn('Failed to start TanStack event bus', {
+      error: error instanceof Error ? error.message : String(error),
+    })
   }
 }
 

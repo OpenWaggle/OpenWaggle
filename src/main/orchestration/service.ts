@@ -17,7 +17,10 @@ import {
   makeMessage,
   resolveProviderAndQuality,
 } from '../agent/shared'
+import { createLogger } from '../logger'
 import { orchestrationRunRepository } from './run-repository'
+
+const logger = createLogger('orchestration')
 
 export interface OrchestratedAgentRunParams {
   readonly runId: string
@@ -274,7 +277,7 @@ async function modelJson(
   try {
     return JSON.parse(text) as unknown
   } catch {
-    console.warn('[orchestration] modelJson parse failure, raw text:', text.slice(0, 200))
+    logger.warn('modelJson parse failure', { raw: text.slice(0, 200) })
     return { tasks: [] }
   }
 }

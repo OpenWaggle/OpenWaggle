@@ -16,7 +16,10 @@ import { isValidBaseUrl } from '@shared/utils/validation'
 import { safeStorage } from 'electron'
 import Store from 'electron-store'
 import { z } from 'zod'
+import { createLogger } from '../logger'
 import { providerRegistry } from '../providers'
+
+const logger = createLogger('settings')
 
 const store = new Store<Settings>({
   name: 'settings',
@@ -236,7 +239,7 @@ function decryptApiKey(storedApiKey: string): string {
   if (!storedApiKey) return ''
   if (!storedApiKey.startsWith(ENCRYPTED_PREFIX)) return storedApiKey
   if (!safeStorage.isEncryptionAvailable()) {
-    console.warn('safeStorage encryption is unavailable — encrypted API keys cannot be decrypted.')
+    logger.warn('safeStorage encryption is unavailable — encrypted API keys cannot be decrypted.')
     return ''
   }
 
@@ -244,7 +247,7 @@ function decryptApiKey(storedApiKey: string): string {
   try {
     return safeStorage.decryptString(Buffer.from(payload, 'base64'))
   } catch {
-    console.warn('Failed to decrypt API key — the stored value may be corrupted.')
+    logger.warn('Failed to decrypt API key — the stored value may be corrupted.')
     return ''
   }
 }

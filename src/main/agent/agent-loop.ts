@@ -4,6 +4,7 @@ import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { Provider, Settings } from '@shared/types/settings'
 import { chat, type ModelMessage, maxIterations, type StreamChunk } from '@tanstack/ai'
+import { createLogger } from '../logger'
 import { runWithToolContext } from '../tools/define-tool'
 import { getServerTools } from '../tools/registry'
 import {
@@ -33,6 +34,8 @@ import {
 } from './shared'
 import { loadAgentStandardsContext } from './standards-context'
 import { StreamPartCollector } from './stream-part-collector'
+
+const logger = createLogger('agent')
 
 const MAX_ITERATIONS = 25
 
@@ -195,7 +198,7 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
         const runContext = context
 
         for (const warning of runContext.standards?.warnings ?? []) {
-          console.warn('[agent-standards]', warning)
+          logger.warn(warning)
         }
 
         const features = getActiveAgentFeatures(runContext)

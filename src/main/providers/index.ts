@@ -1,6 +1,9 @@
 import type { Provider } from '@shared/types/settings'
 import { PROVIDERS } from '@shared/types/settings'
+import { createLogger } from '../logger'
 import { providerRegistry } from './registry'
+
+const logger = createLogger('providers')
 
 /**
  * Register all provider definitions.
@@ -24,7 +27,9 @@ export async function registerAllProviders(): Promise<void> {
       const { default: provider } = await loaders[id]()
       providerRegistry.register(provider as import('./provider-definition').ProviderDefinition)
     } catch (err) {
-      console.warn(`Failed to load provider "${id}":`, err instanceof Error ? err.message : err)
+      logger.warn(`Failed to load provider "${id}"`, {
+        error: err instanceof Error ? err.message : String(err),
+      })
     }
   }
 }

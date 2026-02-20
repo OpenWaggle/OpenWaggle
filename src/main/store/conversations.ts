@@ -9,7 +9,10 @@ import type { SupportedModelId } from '@shared/types/llm'
 import { DEFAULT_ANTHROPIC_MODEL, DEFAULT_OPENAI_MODEL } from '@shared/types/settings'
 import { app } from 'electron'
 import { z } from 'zod'
+import { createLogger } from '../logger'
 import { providerRegistry } from '../providers'
+
+const logger = createLogger('conversations')
 
 // ── Zod schemas for validating persisted conversations ──────────────────────
 
@@ -188,7 +191,7 @@ export async function listConversations(): Promise<ConversationSummary[]> {
       const raw = await fsPromises.readFile(path.join(dir, file), 'utf-8')
       const conv = parseConversation(raw)
       if (!conv) {
-        console.warn(`Skipping invalid conversation file: ${file}`)
+        logger.warn(`Skipping invalid conversation file: ${file}`)
         continue
       }
 
@@ -201,10 +204,9 @@ export async function listConversations(): Promise<ConversationSummary[]> {
         updatedAt: conv.updatedAt,
       })
     } catch (err) {
-      console.warn(
-        `Failed to read conversation file "${file}":`,
-        err instanceof Error ? err.message : err,
-      )
+      logger.warn(`Failed to read conversation file "${file}"`, {
+        error: err instanceof Error ? err.message : String(err),
+      })
     }
   }
 
@@ -218,7 +220,9 @@ export async function getConversation(id: ConversationId): Promise<Conversation 
     return parseConversation(raw)
   } catch (err) {
     if (!(err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT')) {
-      console.warn(`Failed to load conversation "${id}":`, err instanceof Error ? err.message : err)
+      logger.warn(`Failed to load conversation "${id}"`, {
+        error: err instanceof Error ? err.message : String(err),
+      })
     }
     return null
   }
