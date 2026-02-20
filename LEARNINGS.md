@@ -183,6 +183,11 @@ FINISHING:     LEARNINGS.md → commit → push → notify user
 
 ## Recent Learnings
 
+### Task: Condukt In-Repo Orchestration + OpenHive Harness Integration (2026-02-20)
+- `git subtree split --prefix=packages/core` from the Condukt source repo provides a practical way to vendor only runtime package history into `packages/condukt-ai`, keeping syncability without importing docs/web app history. [SKILL?]
+- For Electron + TanStack `useChat` adapters, orchestration fallbacks must still emit terminal stream chunks (`RUN_FINISHED` / `RUN_ERROR`) and preferably text chunks, otherwise same-thread conversation reloads may not rehydrate UI state until a thread switch.
+- Keeping orchestration run persistence in a dedicated `{userData}/orchestration-runs` store decouples task-graph lifecycle from conversation JSON migrations and makes run-level IPC (`get/list/cancel`) straightforward.
+
 ### Task: Approval Continuation + Model Switch + Rename Parsing Fixes (2026-02-20)
 - TanStack `useChat` approval responses only continue correctly when continuation requests pass the full UI message snapshot (including `tool-call.approval` state) back to the server runtime; reconstructing from only the last user text drops approval state and stalls server tools. [SKILL?]
 - Continuation payloads must be converted from `UIMessage[]` to TanStack `ModelMessage[]` (for example via `convertMessagesToModelMessages`) before calling server `chat(...)`; passing raw UI message shapes causes malformed continuation runs and can leave tool blocks stuck in running state. [SKILL?]
@@ -204,16 +209,16 @@ FINISHING:     LEARNINGS.md → commit → push → notify user
 - For skill references in free-form composer input, token-start slash matching plus explicit parsing (`/skill-id`, `$skill-id`) avoids coupling UX insertion behavior to backend activation logic.
 - Project-scoped skill toggles fit naturally into existing `electron-store` settings when keyed by absolute project path, allowing per-repo skill enablement without changing conversation persistence schemas.
 
+## Old Learnings Archive
+
+Move old learnings here so we can review
+
 ### Task: Offline Whisper Base Voice Input (2026-02-19)
 - `@xenova/transformers` can run Whisper-base locally in the Electron main process when audio is passed as normalized `Float32Array` PCM and the model cache is pinned to `app.getPath('userData')`.
 - For Electron voice capture stability, record audio with `MediaRecorder` + local decode/resample in renderer and send PCM over IPC; avoid browser `SpeechRecognition` pathways in desktop shells.
 - When using pnpm `onlyBuiltDependencies`, native modules required by transitive runtime deps (like `sharp` for `@xenova/transformers`) must be explicitly allowlisted or local model loading fails at runtime.
 - Moving voice IPC payloads from JSON number arrays to binary PCM (`Uint8Array`) plus defaulting to tiny local Whisper significantly reduces transcription latency on desktop builds.
 - During active feature migrations, keep IPC handlers backward-compatible for one payload version (accepting both legacy and new shapes) to avoid renderer/main hot-reload contract mismatches in Electron dev sessions.
-
-## Old Learnings Archive
-
-Move old learnings here so we can review
 
 ### Task: Composer Modal + Voice Crash Fixes (2026-02-19)
 - In Electron dev shells, `window.prompt`/`window.confirm` can be unsupported in renderer contexts; use in-app modal flows for branch and permission actions.

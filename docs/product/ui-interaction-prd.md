@@ -265,6 +265,22 @@ Status legend: `implemented`, `deferred`, `future`
   - Duplicate `loadSkill` calls return structured `alreadyLoaded` information.
   - Missing/malformed/disabled skill requests return non-crashing structured errors.
 
+### HC-UI-015 Orchestration run timeline and controls
+
+- Status: `implemented` (beta baseline)
+- Location:
+  - `src/renderer/src/components/chat/ChatPanel.tsx`
+  - `src/renderer/src/App.tsx`
+- Target behavior:
+  - Show latest orchestration run card inline with chat messages.
+  - Surface run status (`running`, `completed`, `failed`, `cancelled`) plus fallback indicator.
+  - Render recent orchestration lifecycle events (`task_started`, `task_succeeded`, etc.).
+  - Provide `Cancel` control for active runs and `Retry` affordance for failed/cancelled runs.
+- Technical requirements:
+  - IPC channels for orchestration run listing/get/cancel and main-to-renderer orchestration events.
+  - Main process persistence of orchestration runs in a dedicated store (`orchestration-runs`), separate from conversation history.
+  - Agent send-message path defaults to orchestration mode with auto-fallback to classic execution when planning/orchestration setup fails.
+
 ### HC-UI-008 Composer attachment control
 
 - Status: `implemented`
