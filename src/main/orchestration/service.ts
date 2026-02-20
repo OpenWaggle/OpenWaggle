@@ -4,19 +4,19 @@ import {
   runOpenHiveOrchestration,
 } from '@openhive/condukt-openhive'
 import type { AgentSendPayload, Message, MessagePart } from '@shared/types/agent'
-import {
-  type ConversationId,
-  MessageId,
-  OrchestrationRunId,
-  OrchestrationTaskId,
-} from '@shared/types/brand'
+import { type ConversationId, OrchestrationRunId, OrchestrationTaskId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { OrchestrationEventPayload } from '@shared/types/orchestration'
 import type { Settings } from '@shared/types/settings'
 import { type AnyTextAdapter, chat, type StreamChunk } from '@tanstack/ai'
-import { resolveQualityConfig } from '../agent/quality-config'
-import { providerRegistry } from '../providers'
+import {
+  buildPersistedUserMessageParts,
+  buildSamplingOptions,
+  isResolutionError,
+  makeMessage,
+  resolveProviderAndQuality,
+} from '../agent/shared'
 import { orchestrationRunRepository } from './run-repository'
 
 export interface OrchestratedAgentRunParams {
@@ -47,40 +47,12 @@ export async function runOrchestratedAgent(
   const fallbackState = { used: false as boolean, reason: undefined as string | undefined }
   const runStore = orchestrationRunRepository.createRunStore(conversationId, fallbackState)
 
-  const provider = providerRegistry.getProviderForModel(model)
-  if (!provider) {
-    return {
-      status: 'fallback',
-      runId,
-      reason: `No provider registered for model: ${model}`,
-    }
+  const resolution = resolveProviderAndQuality(model, payload.qualityPreset, settings.providers)
+  if (isResolutionError(resolution)) {
+    return { status: 'fallback', runId, reason: resolution.reason }
   }
 
-  const providerConfig = settings.providers[provider.id]
-  if (!providerConfig?.enabled) {
-    return {
-      status: 'fallback',
-      runId,
-      reason: `${provider.displayName} is disabled in settings`,
-    }
-  }
-  if (provider.requiresApiKey && !providerConfig.apiKey) {
-    return {
-      status: 'fallback',
-      runId,
-      reason: `No API key configured for ${provider.displayName}`,
-    }
-  }
-
-  const quality = resolveQualityConfig(provider.id, model, payload.qualityPreset)
-  const resolvedProvider = providerRegistry.getProviderForModel(quality.model) ?? provider
-  if (resolvedProvider.id !== provider.id) {
-    return {
-      status: 'fallback',
-      runId,
-      reason: 'Quality preset cannot switch provider families',
-    }
-  }
+  const { provider, providerConfig, qualityConfig: quality } = resolution
 
   const adapter = provider.createAdapter(
     quality.model,
@@ -272,15 +244,19 @@ export async function runOrchestratedAgent(
   }
 }
 
+interface SamplingConfig {
+  readonly temperature: number
+  readonly topP?: number
+  readonly maxTokens: number
+  readonly modelOptions?: Record<string, unknown>
+}
+
 async function modelText(
   adapter: AnyTextAdapter,
   prompt: string,
-  quality: ReturnType<typeof resolveQualityConfig>,
+  quality: SamplingConfig,
 ): Promise<string> {
-  const samplingOptions =
-    quality.topP === undefined
-      ? { temperature: quality.temperature }
-      : { temperature: quality.temperature, topP: quality.topP }
+  const samplingOptions = buildSamplingOptions(quality)
 
   const output = await chat({
     adapter,
@@ -297,26 +273,15 @@ async function modelText(
 async function modelJson(
   adapter: AnyTextAdapter,
   prompt: string,
-  quality: ReturnType<typeof resolveQualityConfig>,
+  quality: SamplingConfig,
 ): Promise<unknown> {
   const text = await modelText(adapter, prompt, quality)
   try {
     return JSON.parse(text) as unknown
   } catch {
+    console.warn('[orchestration] modelJson parse failure, raw text:', text.slice(0, 200))
     return { tasks: [] }
   }
-}
-
-function buildPersistedUserMessageParts(payload: AgentSendPayload): MessagePart[] {
-  const parts: MessagePart[] = []
-  if (payload.text.trim()) {
-    parts.push({ type: 'text', text: payload.text.trim() })
-  }
-  for (const attachment of payload.attachments) {
-    const { source: _source, ...persisted } = attachment
-    parts.push({ type: 'attachment', attachment: persisted })
-  }
-  return parts.length > 0 ? parts : [{ type: 'text', text: '' }]
 }
 
 function summarizeConversation(conversation: Conversation): string {
@@ -332,20 +297,4 @@ function summarizeConversation(conversation: Conversation): string {
     .join('\n')
 
   return rendered.length > 3000 ? `${rendered.slice(0, 3000)}...` : rendered
-}
-
-function makeMessage(
-  role: 'user' | 'assistant',
-  parts: MessagePart[],
-  model?: SupportedModelId,
-  metadata?: Message['metadata'],
-): Message {
-  return {
-    id: MessageId(randomUUID()),
-    role,
-    parts,
-    model,
-    metadata,
-    createdAt: Date.now(),
-  }
 }

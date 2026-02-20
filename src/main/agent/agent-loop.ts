@@ -1,16 +1,9 @@
 import { randomUUID } from 'node:crypto'
-import type {
-  AgentSendPayload,
-  Message,
-  MessagePart,
-  PreparedAttachment,
-} from '@shared/types/agent'
-import { MessageId } from '@shared/types/brand'
+import type { AgentSendPayload, Message, PreparedAttachment } from '@shared/types/agent'
 import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { Provider, Settings } from '@shared/types/settings'
 import { chat, type ModelMessage, maxIterations, type StreamChunk } from '@tanstack/ai'
-import { providerRegistry } from '../providers'
 import { runWithToolContext } from '../tools/define-tool'
 import { getServerTools } from '../tools/registry'
 import {
@@ -28,8 +21,16 @@ import {
 } from './lifecycle-hooks'
 import { conversationToMessages, type SimpleChatMessage } from './message-mapper'
 import { buildSystemPrompt } from './prompt-pipeline'
-import { resolveQualityConfig } from './quality-config'
 import type { AgentLifecycleHook, AgentRunContext } from './runtime-types'
+import {
+  buildPersistedUserMessageParts,
+  buildSamplingOptions,
+  type ChatContentPart,
+  isResolutionError,
+  makeMessage,
+  resolveAgentProjectPath,
+  resolveProviderAndQuality,
+} from './shared'
 import { loadAgentStandardsContext } from './standards-context'
 import { StreamPartCollector } from './stream-part-collector'
 
@@ -48,20 +49,6 @@ export interface AgentRunParams {
 export interface AgentRunResult {
   readonly newMessages: readonly Message[]
   readonly finalMessage: Message
-}
-
-function makeMessage(
-  role: 'user' | 'assistant',
-  parts: MessagePart[],
-  model?: SupportedModelId,
-): Message {
-  return {
-    id: MessageId(randomUUID()),
-    role,
-    parts,
-    model,
-    createdAt: Date.now(),
-  }
 }
 
 async function withStageTiming<T>(
@@ -96,18 +83,8 @@ function providerSupportsNativeAttachment(
 function buildUserChatContent(
   provider: Provider,
   payload: AgentSendPayload,
-):
-  | string
-  | Array<
-      | { type: 'text'; content: string }
-      | { type: 'image'; source: { type: 'data'; value: string; mimeType: string } }
-      | { type: 'document'; source: { type: 'data'; value: string; mimeType: string } }
-    > {
-  const parts: Array<
-    | { type: 'text'; content: string }
-    | { type: 'image'; source: { type: 'data'; value: string; mimeType: string } }
-    | { type: 'document'; source: { type: 'data'; value: string; mimeType: string } }
-  > = []
+): string | ChatContentPart[] {
+  const parts: ChatContentPart[] = []
 
   if (payload.text.trim()) {
     parts.push({ type: 'text', content: payload.text.trim() })
@@ -142,25 +119,10 @@ function buildUserChatContent(
   return parts
 }
 
-function buildPersistedUserMessageParts(payload: AgentSendPayload): MessagePart[] {
-  const parts: MessagePart[] = []
-  if (payload.text.trim()) {
-    parts.push({ type: 'text', text: payload.text.trim() })
-  }
-  for (const attachment of payload.attachments) {
-    const { source: _source, ...persisted } = attachment
-    parts.push({
-      type: 'attachment',
-      attachment: persisted,
-    })
-  }
-  return parts.length > 0 ? parts : [{ type: 'text', text: '' }]
-}
-
 export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> {
   const { conversation, payload, model, settings, onChunk, signal } = params
   const hasContinuationMessages = (payload.continuationMessages?.length ?? 0) > 0
-  const projectPath = conversation.projectPath ?? process.cwd()
+  const projectPath = resolveAgentProjectPath(conversation.projectPath)
   const dynamicLoadedSkillIds = new Set<string>()
   const dynamicLoadedAgentsScopeFiles = new Set<string>()
   const dynamicLoadedAgentsRequestedPaths = new Set<string>()
@@ -198,40 +160,16 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
         const { provider, providerConfig, resolvedModel, qualityConfig } = await withStageTiming(
           stageDurationsMs,
           'provider-resolution',
-          async () => {
-            const selectedProvider = providerRegistry.getProviderForModel(model)
-            if (!selectedProvider) {
-              throw new Error(`No provider registered for model: ${model}`)
-            }
-
-            const qualityConfig = resolveQualityConfig(
-              selectedProvider.id,
+          () => {
+            const resolution = resolveProviderAndQuality(
               model,
               payload.qualityPreset,
+              settings.providers,
             )
-            const qualityModel = qualityConfig.model
-            const resolvedProvider =
-              providerRegistry.getProviderForModel(qualityModel) ?? selectedProvider
-            const resolvedModel = providerRegistry.isKnownModel(qualityModel) ? qualityModel : model
-
-            if (resolvedProvider.id !== selectedProvider.id) {
-              throw new Error('Quality preset cannot switch provider families.')
+            if (isResolutionError(resolution)) {
+              throw new Error(resolution.reason)
             }
-
-            const resolvedProviderConfig = settings.providers[resolvedProvider.id]
-            if (!resolvedProviderConfig?.enabled) {
-              throw new Error(`${resolvedProvider.displayName} is disabled in settings`)
-            }
-            if (resolvedProvider.requiresApiKey && !resolvedProviderConfig.apiKey) {
-              throw new Error(`No API key configured for ${resolvedProvider.displayName}`)
-            }
-
-            return {
-              provider: resolvedProvider,
-              providerConfig: resolvedProviderConfig,
-              resolvedModel,
-              qualityConfig,
-            }
+            return resolution
           },
         )
 
@@ -299,10 +237,7 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
                 }
                 return [...existingMessages, newUserMessage]
               })()
-          const samplingOptions =
-            qualityConfig.topP === undefined
-              ? { temperature: qualityConfig.temperature }
-              : { temperature: qualityConfig.temperature, topP: qualityConfig.topP }
+          const samplingOptions = buildSamplingOptions(qualityConfig)
 
           return chat({
             adapter,
