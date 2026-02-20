@@ -83,6 +83,62 @@ describe('registerGitHandlers', () => {
     })
   })
 
+  it('normalizes renamed paths from porcelain and numstat into a single changed file', async () => {
+    execFileMock.mockImplementation(
+      (
+        _cmd: string,
+        args: string[],
+        _opts: unknown,
+        cb: (err: Error | null, stdout: string, stderr: string) => void,
+      ) => {
+        const key = args.join(' ')
+        switch (key) {
+          case 'rev-parse --is-inside-work-tree':
+            cb(null, 'true\n', '')
+            return
+          case 'rev-parse --abbrev-ref HEAD':
+            cb(null, 'main\n', '')
+            return
+          case 'status --porcelain=v1':
+            cb(null, 'RM old.txt -> new.txt\n', '')
+            return
+          case 'diff --numstat HEAD':
+            cb(null, '1\t0\told.txt => new.txt\n', '')
+            return
+          case 'rev-list --left-right --count HEAD...@{upstream}':
+            cb(null, '0\t0\n', '')
+            return
+          default:
+            cb(new Error(`Unexpected git command: ${key}`), '', '')
+        }
+      },
+    )
+
+    registerGitHandlers()
+    const handler = registeredHandler('git:status')
+    expect(handler).toBeDefined()
+
+    const result = (await handler?.({}, '/tmp/repo')) as {
+      filesChanged: number
+      additions: number
+      deletions: number
+      changedFiles: Array<{ path: string; additions: number; deletions: number }>
+    }
+
+    expect(result.filesChanged).toBe(1)
+    expect(result.additions).toBe(1)
+    expect(result.deletions).toBe(0)
+    expect(result.changedFiles).toEqual([
+      {
+        path: 'new.txt',
+        additions: 1,
+        deletions: 0,
+        status: 'modified',
+        staged: true,
+      },
+    ])
+  })
+
   it('stages only specified paths when committing', async () => {
     const stagedPaths: string[][] = []
 

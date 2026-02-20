@@ -42,6 +42,37 @@ interface RunGitOptions {
   readonly maxBuffer?: number
 }
 
+function normalizeGitPath(rawPath: string): string {
+  const trimmed = rawPath.trim()
+  if (!trimmed) return ''
+
+  // Brace rename format, e.g. src/{old => new}.ts
+  const braceNormalized = trimmed.replaceAll(/\{([^{}]*?) => ([^{}]*?)\}/g, '$2')
+  if (braceNormalized !== trimmed) {
+    return stripSurroundingQuotes(braceNormalized.trim())
+  }
+
+  // Plain rename formats, e.g. old.txt => new.txt or old.txt -> new.txt
+  for (const delimiter of [' => ', ' -> ']) {
+    if (trimmed.includes(delimiter)) {
+      const parts = trimmed.split(delimiter)
+      const candidate = parts[parts.length - 1]?.trim()
+      if (candidate) {
+        return stripSurroundingQuotes(candidate)
+      }
+    }
+  }
+
+  return stripSurroundingQuotes(trimmed)
+}
+
+function stripSurroundingQuotes(value: string): string {
+  if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
+    return value.slice(1, -1).replaceAll('\\"', '"')
+  }
+  return value
+}
+
 function mapStatusCode(code: string): GitFileStatus {
   switch (code) {
     case 'M':
@@ -73,9 +104,7 @@ function parsePorcelain(stdout: string): ParsedPorcelainEntry[] {
     const x = line[0] ?? ' '
     const y = line[1] ?? ' '
     const rawPath = line.slice(3).trim()
-    const path = rawPath.includes(' -> ')
-      ? (rawPath.split(' -> ').at(-1)?.trim() ?? rawPath)
-      : rawPath
+    const path = normalizeGitPath(rawPath)
 
     const statusCode = x === '?' && y === '?' ? '?' : y !== ' ' ? y : x
     entries.push({
@@ -101,7 +130,8 @@ function parseNumstat(stdout: string): Map<string, { additions: number; deletion
 
     const additions = Number.parseInt(parts[0] ?? '0', 10)
     const deletions = Number.parseInt(parts[1] ?? '0', 10)
-    const path = parts.slice(2).pop()?.trim()
+    const rawPath = parts.slice(2).pop()?.trim()
+    const path = rawPath ? normalizeGitPath(rawPath) : undefined
     if (!path) continue
 
     const safeAdditions = Number.isFinite(additions) ? additions : 0
