@@ -9,6 +9,31 @@ const EXPLICIT_PATH_REGEX = /(?:^|\s)path:([^\s]+)/gi
 const SLASH_PATH_TOKEN_REGEX = /(?:^|\s)([./~]?[A-Za-z0-9._-]+(?:[\\/][A-Za-z0-9._-]+)+)/g
 const WINDOWS_PATH_TOKEN_REGEX = /(?:^|\s)([a-zA-Z]:\\[^\s`"'<>]+)/g
 const FENCED_BLOCK_REGEX = /```[\w-]*\n([\s\S]*?)```/g
+const BARE_PATH_ROOT_HINTS = new Set([
+  '.github',
+  '.openhive',
+  'app',
+  'apps',
+  'docs',
+  'lib',
+  'libs',
+  'main',
+  'module',
+  'modules',
+  'package',
+  'packages',
+  'preload',
+  'renderer',
+  'script',
+  'scripts',
+  'service',
+  'services',
+  'src',
+  'test',
+  'tests',
+  'tool',
+  'tools',
+])
 
 export function inferAgentsCandidatePaths(input: InferAgentsCandidatePathsInput): string[] {
   const maxCandidates = input.maxCandidates ?? DEFAULT_MAX_CANDIDATES
@@ -17,9 +42,14 @@ export function inferAgentsCandidatePaths(input: InferAgentsCandidatePathsInput)
   const ordered: string[] = []
   const seen = new Set<string>()
 
-  const addCandidate = (value: string): void => {
+  const addCandidate = (
+    value: string,
+    options?: {
+      allowExplicitBarePath?: boolean
+    },
+  ): void => {
     if (ordered.length >= maxCandidates) return
-    const normalized = normalizeCandidate(value)
+    const normalized = normalizeCandidate(value, options?.allowExplicitBarePath ?? false)
     if (!normalized || seen.has(normalized)) return
     seen.add(normalized)
     ordered.push(normalized)
@@ -30,7 +60,7 @@ export function inferAgentsCandidatePaths(input: InferAgentsCandidatePathsInput)
   }
 
   for (const explicitPath of extractMatches(input.text, EXPLICIT_PATH_REGEX)) {
-    addCandidate(explicitPath)
+    addCandidate(explicitPath, { allowExplicitBarePath: true })
   }
 
   for (const pathLike of extractFencedPathLines(input.text)) {
@@ -80,7 +110,7 @@ function extractFencedPathLines(text: string): string[] {
   return lines
 }
 
-function normalizeCandidate(value: string): string | null {
+function normalizeCandidate(value: string, allowExplicitBarePath: boolean): string | null {
   let normalized = value.trim()
   if (!normalized) return null
 
@@ -95,5 +125,43 @@ function normalizeCandidate(value: string): string | null {
     return null
   }
 
-  return normalized
+  if (allowExplicitBarePath) {
+    return normalized
+  }
+
+  if (isPrefixedPathLike(normalized)) {
+    return normalized
+  }
+
+  const lastSegment = normalized.split(/[\\/]/).at(-1) ?? ''
+  if (lastSegment.includes('.')) {
+    return normalized
+  }
+
+  if (isLikelyBareProjectPath(normalized)) {
+    return normalized
+  }
+
+  return null
+}
+
+function isPrefixedPathLike(candidate: string): boolean {
+  return (
+    candidate.startsWith('/') ||
+    candidate.startsWith('./') ||
+    candidate.startsWith('../') ||
+    candidate.startsWith('~/') ||
+    candidate.startsWith('.\\') ||
+    candidate.startsWith('..\\') ||
+    candidate.startsWith('~\\') ||
+    /^[a-zA-Z]:\\/.test(candidate)
+  )
+}
+
+function isLikelyBareProjectPath(candidate: string): boolean {
+  const segments = candidate.split(/[\\/]/).filter((segment) => segment.length > 0)
+  if (segments.length < 2) return false
+  const firstSegment = segments[0]?.toLowerCase()
+  if (!firstSegment) return false
+  return BARE_PATH_ROOT_HINTS.has(firstSegment)
 }

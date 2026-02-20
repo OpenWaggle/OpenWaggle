@@ -47,23 +47,32 @@ export async function resolveAgentsForRun(
   candidatePaths: readonly string[],
 ): Promise<AgentsResolutionResult> {
   const root = await resolveRootAgents(projectPath)
+  const seenWarnings = new Set<string>()
   const warnings: string[] = []
+  const addWarning = (warning: string): void => {
+    if (seenWarnings.has(warning)) return
+    seenWarnings.add(warning)
+    warnings.push(warning)
+  }
+
   if (root.status === 'error' && root.error) {
-    warnings.push(`Failed to load root AGENTS.md: ${root.error}`)
+    addWarning(`Failed to load root AGENTS.md: ${root.error}`)
   }
 
   const scopedByFilePath = new Map<string, AgentsScopeItem>()
   for (const candidatePath of candidatePaths) {
     try {
       const chain = await resolveAgentsChainForPath(projectPath, candidatePath)
-      warnings.push(...chain.warnings)
+      for (const warning of chain.warnings) {
+        addWarning(warning)
+      }
       for (const scope of chain.scoped) {
         if (!scopedByFilePath.has(scope.filePath)) {
           scopedByFilePath.set(scope.filePath, scope)
         }
       }
     } catch (error) {
-      warnings.push(
+      addWarning(
         `Failed to resolve AGENTS scope for "${candidatePath}": ${error instanceof Error ? error.message : String(error)}`,
       )
     }

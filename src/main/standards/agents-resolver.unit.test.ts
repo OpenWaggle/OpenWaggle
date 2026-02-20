@@ -88,4 +88,16 @@ describe('agents-resolver', () => {
       result.warnings.some((warning) => warning.includes('Failed to resolve AGENTS scope')),
     ).toBe(true)
   })
+
+  it('dedupes repeated root-load warnings across multiple candidates', async () => {
+    const projectPath = await makeTempProject()
+    await fs.mkdir(path.join(projectPath, 'AGENTS.md'), { recursive: true })
+
+    const result = await resolveAgentsForRun(projectPath, ['packages/a/src/index.ts', 'packages/b'])
+    const rootWarningCount = result.warnings.filter((warning) =>
+      warning.startsWith('Failed to load root AGENTS.md:'),
+    ).length
+
+    expect(rootWarningCount).toBe(1)
+  })
 })

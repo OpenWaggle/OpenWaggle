@@ -43,4 +43,20 @@ describe('inferAgentsCandidatePaths', () => {
     expect(result).toHaveLength(2)
     expect(result).toEqual(['packages/a/src/index.ts', 'packages/b/src/index.ts'])
   })
+
+  it('filters ambiguous bare slash tokens while keeping likely project paths', () => {
+    const result = inferAgentsCandidatePaths({
+      text: 'Compare v1/v2 and foo/bar with packages/a/src/index.ts plus src/main/index.ts',
+    })
+
+    expect(result).toEqual(['packages/a/src/index.ts', 'src/main/index.ts'])
+  })
+
+  it('keeps explicit path: references even when not matched by bare-path heuristics', () => {
+    const result = inferAgentsCandidatePaths({
+      text: 'Use path:foo/bar and path:packages/a/src/index.ts',
+    })
+
+    expect(result).toEqual(['foo/bar', 'packages/a/src/index.ts'])
+  })
 })
