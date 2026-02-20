@@ -6,6 +6,7 @@ import type { SupportedModelId } from '@shared/types/llm'
 import type { QuestionAnswer } from '@shared/types/question'
 import { ipcMain } from 'electron'
 import { runAgent } from '../agent/agent-loop'
+import { createLogger } from '../logger'
 import {
   cancelAllForConversation,
   registerActiveOrchestrationRun,
@@ -17,6 +18,8 @@ import { getConversation, saveConversation } from '../store/conversations'
 import { getSettings } from '../store/settings'
 import { answerQuestion, cancelQuestion } from '../tools/question-manager'
 import { emitOrchestrationEvent, emitStreamChunk } from '../utils/stream-bridge'
+
+const logger = createLogger('agent-handler')
 
 /** Per-conversation abort controllers — allows concurrent runs on different conversations */
 const activeRuns = new Map<ConversationId, AbortController>()
@@ -113,32 +116,44 @@ export function registerAgentHandlers(): void {
           newMessages = classic.newMessages
         }
 
-        await withConversationLock(conversationId, async () => {
-          // Re-read the latest snapshot before persisting to avoid resurrecting
-          // deleted conversations (e.g. user deletes while run is in flight).
-          const latestConversation = await getConversation(conversationId)
-          if (!latestConversation) {
-            return
-          }
-
-          // Append new messages to the latest conversation snapshot.
-          const updatedMessages = [...latestConversation.messages, ...newMessages]
-
-          // Auto-title on first user message
-          let title = latestConversation.title
-          if (updatedMessages.length <= 2 && title === 'New thread') {
-            const firstUserMsg = updatedMessages.find((m) => m.role === 'user')
-            if (firstUserMsg) {
-              const text = firstUserMsg.parts
-                .filter(isTextPart)
-                .map((p) => p.text)
-                .join(' ')
-              title = text.slice(0, 60) + (text.length > 60 ? '...' : '')
+        try {
+          await withConversationLock(conversationId, async () => {
+            // Re-read the latest snapshot before persisting to avoid resurrecting
+            // deleted conversations (e.g. user deletes while run is in flight).
+            const latestConversation = await getConversation(conversationId)
+            if (!latestConversation) {
+              return
             }
-          }
 
-          await saveConversation({ ...latestConversation, title, messages: updatedMessages })
-        })
+            // Append new messages to the latest conversation snapshot.
+            const updatedMessages = [...latestConversation.messages, ...newMessages]
+
+            // Auto-title on first user message
+            let title = latestConversation.title
+            if (updatedMessages.length <= 2 && title === 'New thread') {
+              const firstUserMsg = updatedMessages.find((m) => m.role === 'user')
+              if (firstUserMsg) {
+                const text = firstUserMsg.parts
+                  .filter(isTextPart)
+                  .map((p) => p.text)
+                  .join(' ')
+                title = text.slice(0, 60) + (text.length > 60 ? '...' : '')
+              }
+            }
+
+            await saveConversation({ ...latestConversation, title, messages: updatedMessages })
+          })
+        } catch (persistError) {
+          logger.error('Failed to persist conversation', {
+            conversationId,
+            error: persistError instanceof Error ? persistError.message : String(persistError),
+          })
+          emitStreamChunk(conversationId, {
+            type: 'RUN_ERROR',
+            timestamp: Date.now(),
+            error: { message: 'Failed to save conversation data to disk.' },
+          })
+        }
       } catch (err) {
         if (!(err instanceof Error && err.message === 'aborted')) {
           emitStreamChunk(conversationId, {
