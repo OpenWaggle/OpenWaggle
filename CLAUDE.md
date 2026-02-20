@@ -19,7 +19,16 @@ pnpm build:win        # Build Windows NSIS installer
 pnpm build:linux      # Build Linux AppImage
 ```
 
-No test framework is configured. All testing is manual via `pnpm dev`.
+### Testing
+
+```bash
+pnpm test               # All tests (unit + integration + packages)
+pnpm test:unit           # Unit tests only (*.unit.test.ts)
+pnpm test:integration    # Integration tests only (*.integration.test.ts)
+pnpm test:packages       # condukt-ai + condukt-openhive
+pnpm test:e2e            # Playwright E2E (requires build)
+pnpm test:coverage       # Coverage report (v8)
+```
 
 ## ⛔ MANDATORY RULES — READ BEFORE DOING ANYTHING
 
