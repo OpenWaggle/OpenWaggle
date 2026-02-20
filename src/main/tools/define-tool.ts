@@ -60,7 +60,7 @@ export function defineOpenHiveTool<T extends z.ZodType, TName extends string>(co
   description: string
   needsApproval?: boolean
   inputSchema: T
-  execute: (args: z.infer<T>, context: ToolContext) => Promise<string>
+  execute: (args: z.infer<T>, context: ToolContext) => Promise<string | NormalizedToolResult>
 }): ServerTool {
   const def = toolDefinition({
     name: config.name,
@@ -75,9 +75,15 @@ export function defineOpenHiveTool<T extends z.ZodType, TName extends string>(co
     if (ctx.executionMode === 'sandbox' && config.needsApproval) {
       throw new Error(`Tool "${config.name}" is blocked in sandbox mode`)
     }
-    let result = await config.execute(parsed, ctx)
+    const rawResult = await config.execute(parsed, ctx)
 
-    // Truncate oversized tool output
+    // If execute already returned a NormalizedToolResult, pass through directly
+    if (typeof rawResult === 'object' && rawResult !== null && 'kind' in rawResult) {
+      return rawResult
+    }
+
+    // Backward compat: string results go through truncation + normalization
+    let result = rawResult
     if (result.length > MAX_TOOL_OUTPUT_BYTES) {
       result = `${result.slice(0, MAX_TOOL_OUTPUT_BYTES)}\n\n... [output truncated — ${result.length} bytes total, showing first ${MAX_TOOL_OUTPUT_BYTES}]`
     }
