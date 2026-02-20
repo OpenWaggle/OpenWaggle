@@ -1,4 +1,5 @@
 import type { ConversationId } from '@shared/types/brand'
+import type { OrchestrationEventPayload } from '@shared/types/orchestration'
 import type { StreamChunk } from '@tanstack/ai'
 import { BrowserWindow } from 'electron'
 
@@ -14,6 +15,14 @@ export function emitStreamChunk(conversationId: ConversationId, chunk: StreamChu
       const serializable =
         chunk.type === 'RUN_ERROR' ? { ...chunk, error: { message: chunk.error.message } } : chunk
       win.webContents.send('agent:stream-chunk', { conversationId, chunk: serializable })
+    }
+  }
+}
+
+export function emitOrchestrationEvent(payload: OrchestrationEventPayload): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) {
+      win.webContents.send('orchestration:event', payload)
     }
   }
 }

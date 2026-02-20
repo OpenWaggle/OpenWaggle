@@ -2,6 +2,7 @@ import type { AgentSendPayload } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import type { GitBranchListResult, GitBranchMutationResult } from '@shared/types/git'
 import type { ProviderInfo, SupportedModelId } from '@shared/types/llm'
+import type { OrchestrationEventPayload, OrchestrationRunRecord } from '@shared/types/orchestration'
 import type { QuestionAnswer } from '@shared/types/question'
 import type { ExecutionMode, QualityPreset, Settings as SettingsType } from '@shared/types/settings'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
@@ -63,6 +64,9 @@ interface ChatPanelProps {
   onSetBranchUpstream?: (name: string, upstream: string) => Promise<GitBranchMutationResult>
   onRefreshGit?: () => void
   isRefreshingGit?: boolean
+  orchestrationRuns?: readonly OrchestrationRunRecord[]
+  orchestrationEvents?: readonly OrchestrationEventPayload[]
+  onCancelOrchestrationRun?: (runId: string) => Promise<void> | void
 }
 
 function classifyError(message: string): {
@@ -134,6 +138,9 @@ export function ChatPanel({
   onSetBranchUpstream,
   onRefreshGit,
   isRefreshingGit,
+  orchestrationRuns = [],
+  orchestrationEvents = [],
+  onCancelOrchestrationRun,
 }: ChatPanelProps): React.JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null)
   const scrollTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
@@ -190,6 +197,12 @@ export function ChatPanel({
       .filter((p): p is Extract<typeof p, { type: 'text' }> => p.type === 'text')
       .map((p) => p.content)
       .join('\n') ?? null
+  const latestOrchestrationRun = orchestrationRuns[0]
+  const latestRunEvents = latestOrchestrationRun
+    ? orchestrationEvents
+        .filter((event) => event.runId === latestOrchestrationRun.runId)
+        .slice(0, 6)
+    : []
 
   // Find the first pending tool approval across all messages
   let pendingApproval: {
@@ -324,6 +337,60 @@ export function ChatPanel({
           /* Messages list — centered, gap 24 between message groups */
           <div className="mx-auto w-full max-w-[720px] px-12 py-5">
             <div className="flex flex-col gap-6 w-full">
+              {latestOrchestrationRun && (
+                <div className="rounded-xl border border-border-light bg-bg-secondary/70 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-text-muted">
+                        Agent Orchestration
+                      </div>
+                      <div className="text-sm text-text-secondary">
+                        Run {String(latestOrchestrationRun.runId)} · {latestOrchestrationRun.status}
+                        {latestOrchestrationRun.fallbackUsed ? ' · fallback' : ''}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {latestOrchestrationRun.status === 'running' && onCancelOrchestrationRun && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onCancelOrchestrationRun(String(latestOrchestrationRun.runId))
+                          }
+                          className="rounded-md border border-error/40 px-2 py-1 text-xs text-error hover:bg-error/10"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                      {(latestOrchestrationRun.status === 'failed' ||
+                        latestOrchestrationRun.status === 'cancelled') &&
+                        lastUserMessage &&
+                        onRetry && (
+                          <button
+                            type="button"
+                            onClick={() => onRetry(lastUserMessage)}
+                            className="rounded-md border border-border-light px-2 py-1 text-xs text-text-secondary hover:bg-bg-hover"
+                          >
+                            Retry
+                          </button>
+                        )}
+                    </div>
+                  </div>
+                  {latestRunEvents.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {latestRunEvents.map((event) => (
+                        <div
+                          key={`${event.runId}-${event.type}-${event.at}-${event.taskId ?? ''}`}
+                          className="text-xs text-text-tertiary"
+                        >
+                          {event.type}
+                          {event.taskId ? ` · ${String(event.taskId)}` : ''}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {messages.map((msg, i) => (
                 <MessageBubble
                   key={msg.id}

@@ -17,6 +17,7 @@ import type {
   GitStatusSummary,
 } from './git'
 import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from './llm'
+import type { OrchestrationEventPayload, OrchestrationRunRecord } from './orchestration'
 import type { QuestionAnswer, QuestionPayload } from './question'
 import type { Provider, Settings } from './settings'
 import type { AgentsInstructionStatus, SkillCatalogResult } from './standards'
@@ -164,6 +165,18 @@ export interface IpcInvokeChannelMap {
     args: [projectPath: string, skillId: string]
     return: { markdown: string }
   }
+  'orchestration:get-run': {
+    args: [runId: string]
+    return: OrchestrationRunRecord | null
+  }
+  'orchestration:list-runs': {
+    args: [conversationId?: ConversationId]
+    return: OrchestrationRunRecord[]
+  }
+  'orchestration:cancel-run': {
+    args: [runId: string]
+    return: undefined
+  }
 }
 
 /**
@@ -194,6 +207,9 @@ export interface IpcEventChannelMap {
   }
   'window:fullscreen-changed': {
     payload: boolean
+  }
+  'orchestration:event': {
+    payload: OrchestrationEventPayload
   }
 }
 
@@ -318,4 +334,10 @@ export interface OpenHiveApi {
   listSkills(projectPath: string): Promise<SkillCatalogResult>
   setSkillEnabled(projectPath: string, skillId: string, enabled: boolean): Promise<void>
   getSkillPreview(projectPath: string, skillId: string): Promise<{ markdown: string }>
+
+  // Orchestration
+  getOrchestrationRun(runId: string): Promise<OrchestrationRunRecord | null>
+  listOrchestrationRuns(conversationId?: ConversationId): Promise<OrchestrationRunRecord[]>
+  cancelOrchestrationRun(runId: string): Promise<void>
+  onOrchestrationEvent(callback: (payload: OrchestrationEventPayload) => void): () => void
 }

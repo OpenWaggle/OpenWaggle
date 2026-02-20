@@ -1,4 +1,9 @@
-import type { OrchestrationEvent, OrchestrationRunRecord, OrchestrationTaskDefinition } from "../../condukt-ai/src/index.js"
+import type {
+  OrchestrationEvent,
+  OrchestrationRunRecord,
+  OrchestrationTaskDefinition,
+  RunStore,
+} from "../../condukt-ai/src/index.js"
 
 export type OpenHiveTaskKind = 'analysis' | 'synthesis' | 'repo-edit' | 'general'
 
@@ -61,6 +66,7 @@ export interface RunOpenHiveOrchestrationInput {
   readonly signal?: AbortSignal
   readonly maxParallelTasks?: number
   readonly maxContextTokens?: number
+  readonly runStore?: RunStore
   readonly onEvent?: (event: OrchestrationEvent) => void | Promise<void>
   readonly mode?: 'orchestrated' | 'auto-fallback'
 }

@@ -8,7 +8,11 @@ type Brand<T, B extends string> = T & { readonly [__brand]: B }
 export type ConversationId = Brand<string, 'ConversationId'>
 export type MessageId = Brand<string, 'MessageId'>
 export type ToolCallId = Brand<string, 'ToolCallId'>
+export type OrchestrationRunId = Brand<string, 'OrchestrationRunId'>
+export type OrchestrationTaskId = Brand<string, 'OrchestrationTaskId'>
 /** Create branded IDs from raw strings — only used at creation boundaries */
 export const ConversationId = (id: string): ConversationId => id as ConversationId
 export const MessageId = (id: string): MessageId => id as MessageId
 export const ToolCallId = (id: string): ToolCallId => id as ToolCallId
+export const OrchestrationRunId = (id: string): OrchestrationRunId => id as OrchestrationRunId
+export const OrchestrationTaskId = (id: string): OrchestrationTaskId => id as OrchestrationTaskId

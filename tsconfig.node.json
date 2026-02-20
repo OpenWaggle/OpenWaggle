@@ -12,13 +12,19 @@
     "outDir": "./out",
     "rootDir": ".",
     "paths": {
-      "@shared/*": ["./src/shared/*"]
+      "@shared/*": ["./src/shared/*"],
+      "condukt-ai": ["./packages/condukt-ai/src/index.ts"],
+      "condukt-ai/*": ["./packages/condukt-ai/src/*"],
+      "@openhive/condukt-openhive": ["./packages/condukt-openhive/src/index.ts"],
+      "@openhive/condukt-openhive/*": ["./packages/condukt-openhive/src/*"]
     }
   },
   "include": [
     "src/main/**/*",
     "src/preload/**/*",
     "src/shared/**/*",
+    "packages/condukt-ai/src/**/*",
+    "packages/condukt-openhive/src/**/*",
     "electron.vite.config.ts"
   ]
 }

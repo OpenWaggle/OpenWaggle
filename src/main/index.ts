@@ -8,6 +8,7 @@ import { registerAttachmentHandlers } from './ipc/attachments-handler'
 import { registerConversationsHandlers } from './ipc/conversations-handler'
 import { registerDevtoolsHandlers } from './ipc/devtools-handler'
 import { registerGitHandlers } from './ipc/git-handler'
+import { registerOrchestrationHandlers } from './ipc/orchestration-handler'
 import { registerProjectHandlers } from './ipc/project-handler'
 import { registerProvidersHandlers } from './ipc/providers-handler'
 import { registerSettingsHandlers } from './ipc/settings-handler'
@@ -112,6 +113,7 @@ app.whenReady().then(() => {
   registerGitHandlers()
   registerProjectHandlers()
   registerProvidersHandlers()
+  registerOrchestrationHandlers()
   registerTerminalHandlers()
   registerVoiceHandlers()
   registerSkillsHandlers()

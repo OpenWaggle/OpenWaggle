@@ -68,6 +68,10 @@ export interface Message {
   readonly role: MessageRole
   readonly parts: readonly MessagePart[]
   readonly model?: SupportedModelId
+  readonly metadata?: {
+    readonly orchestrationRunId?: string
+    readonly usedFallback?: boolean
+  }
   readonly createdAt: number
 }
 

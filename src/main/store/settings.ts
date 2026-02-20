@@ -3,6 +3,8 @@ import {
   DEFAULT_SETTINGS,
   EXECUTION_MODES,
   type ExecutionMode,
+  ORCHESTRATION_MODES,
+  type OrchestrationMode,
   PROVIDERS,
   type Provider,
   type ProviderConfig,
@@ -65,6 +67,7 @@ export function getSettings(): Settings {
   }
 
   const executionMode = resolveExecutionMode()
+  const orchestrationMode = resolveOrchestrationMode()
   const qualityPreset = resolveQualityPreset()
   const recentProjects = resolveRecentProjects()
   const skillTogglesByProject = resolveSkillTogglesByProject()
@@ -74,6 +77,7 @@ export function getSettings(): Settings {
     defaultModel,
     projectPath: store.get('projectPath', DEFAULT_SETTINGS.projectPath),
     executionMode,
+    orchestrationMode,
     qualityPreset,
     recentProjects,
     skillTogglesByProject,
@@ -102,6 +106,9 @@ export function updateSettings(partial: Partial<Settings>): void {
   }
   if (partial.executionMode !== undefined) {
     store.set('executionMode', partial.executionMode)
+  }
+  if (partial.orchestrationMode !== undefined) {
+    store.set('orchestrationMode', partial.orchestrationMode)
   }
   if (partial.qualityPreset !== undefined) {
     store.set('qualityPreset', partial.qualityPreset)
@@ -134,6 +141,11 @@ function resolveExecutionMode(): ExecutionMode {
   }
 
   return DEFAULT_SETTINGS.executionMode
+}
+
+function resolveOrchestrationMode(): OrchestrationMode {
+  const raw = store.get('orchestrationMode', DEFAULT_SETTINGS.orchestrationMode)
+  return ORCHESTRATION_MODES.includes(raw) ? raw : DEFAULT_SETTINGS.orchestrationMode
 }
 
 function resolveQualityPreset(): QualityPreset {

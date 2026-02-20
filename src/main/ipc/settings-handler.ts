@@ -1,4 +1,10 @@
-import { EXECUTION_MODES, PROVIDERS, QUALITY_PRESETS, type Settings } from '@shared/types/settings'
+import {
+  EXECUTION_MODES,
+  ORCHESTRATION_MODES,
+  PROVIDERS,
+  QUALITY_PRESETS,
+  type Settings,
+} from '@shared/types/settings'
 import { chat } from '@tanstack/ai'
 import { ipcMain } from 'electron'
 import { z } from 'zod'
@@ -94,6 +100,7 @@ const settingsUpdateSchema = z.object({
   defaultModel: z.string().optional(),
   projectPath: z.string().nullable().optional(),
   executionMode: z.enum(EXECUTION_MODES).optional(),
+  orchestrationMode: z.enum(ORCHESTRATION_MODES).optional(),
   qualityPreset: z.enum(QUALITY_PRESETS).optional(),
   recentProjects: z.array(z.string()).optional(),
   skillTogglesByProject: z.record(z.string(), z.record(z.string(), z.boolean())).optional(),

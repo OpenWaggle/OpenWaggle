@@ -1,5 +1,6 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SupportedModelId } from '@shared/types/llm'
+import type { OrchestrationEventPayload, OrchestrationRunRecord } from '@shared/types/orchestration'
 import { useEffect, useRef, useState } from 'react'
 import { ChatPanel } from '@/components/chat/ChatPanel'
 import { DiffPanel } from '@/components/diff-panel/DiffPanel'
@@ -29,6 +30,8 @@ export function App(): React.JSX.Element {
   const [diffPanelWidth, setDiffPanelWidth] = useState(600)
   const [diffRefreshKey, setDiffRefreshKey] = useState(0)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const [orchestrationRuns, setOrchestrationRuns] = useState<OrchestrationRunRecord[]>([])
+  const [orchestrationEvents, setOrchestrationEvents] = useState<OrchestrationEventPayload[]>([])
 
   const DIFF_PANEL_MIN = 360
   const DIFF_PANEL_MAX = 900
@@ -124,6 +127,26 @@ export function App(): React.JSX.Element {
       void sendMessage(payload)
     }
   }, [activeConversationId, sendMessage])
+
+  useEffect(() => {
+    if (!activeConversationId) {
+      setOrchestrationRuns([])
+      setOrchestrationEvents([])
+      return
+    }
+
+    void api.listOrchestrationRuns(activeConversationId).then((runs) => setOrchestrationRuns(runs))
+
+    const unsubscribe = api.onOrchestrationEvent((event) => {
+      if (event.conversationId !== activeConversationId) return
+      setOrchestrationEvents((previous) => [event, ...previous].slice(0, 80))
+      void api
+        .listOrchestrationRuns(activeConversationId)
+        .then((runs) => setOrchestrationRuns(runs))
+    })
+
+    return unsubscribe
+  }, [activeConversationId])
 
   // Debounced git refresh for stream-chunk events to avoid excessive subprocess spawning
   useEffect(() => {
@@ -386,6 +409,9 @@ export function App(): React.JSX.Element {
                   gitBranch={gitStatus?.branch ?? null}
                   gitBranches={gitBranches}
                   isBranchActionRunning={isBranchActionRunning}
+                  orchestrationRuns={orchestrationRuns}
+                  orchestrationEvents={orchestrationEvents}
+                  onCancelOrchestrationRun={(runId) => api.cancelOrchestrationRun(runId)}
                   onCheckoutBranch={(name) =>
                     projectPath
                       ? checkoutBranch(projectPath, { name })

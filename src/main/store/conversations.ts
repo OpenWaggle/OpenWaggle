@@ -51,6 +51,12 @@ const messageSchema = z.object({
   role: z.enum(['user', 'assistant']),
   parts: z.array(messagePartSchema),
   model: z.string().optional(),
+  metadata: z
+    .object({
+      orchestrationRunId: z.string().optional(),
+      usedFallback: z.boolean().optional(),
+    })
+    .optional(),
   createdAt: z.number(),
 })
 
@@ -149,6 +155,7 @@ function parseConversation(raw: string): Conversation | null {
         : m.role === 'assistant'
           ? legacyConversationModel
           : undefined,
+      metadata: m.metadata,
       createdAt: m.createdAt,
     })),
     createdAt: data.createdAt,

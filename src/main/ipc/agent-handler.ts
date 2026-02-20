@@ -1,14 +1,21 @@
-import type { AgentSendPayload } from '@shared/types/agent'
+import { randomUUID } from 'node:crypto'
+import type { AgentSendPayload, Message } from '@shared/types/agent'
 import { isTextPart } from '@shared/types/agent'
-import type { ConversationId } from '@shared/types/brand'
+import { type ConversationId, OrchestrationRunId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { QuestionAnswer } from '@shared/types/question'
 import { ipcMain } from 'electron'
 import { runAgent } from '../agent/agent-loop'
+import {
+  cancelAllForConversation,
+  registerActiveOrchestrationRun,
+  unregisterActiveOrchestrationRun,
+} from '../orchestration/active-runs'
+import { runOrchestratedAgent } from '../orchestration/service'
 import { getConversation, saveConversation } from '../store/conversations'
 import { getSettings } from '../store/settings'
 import { answerQuestion, cancelQuestion } from '../tools/question-manager'
-import { emitStreamChunk } from '../utils/stream-bridge'
+import { emitOrchestrationEvent, emitStreamChunk } from '../utils/stream-bridge'
 
 /** Per-conversation abort controllers — allows concurrent runs on different conversations */
 const activeRuns = new Map<ConversationId, AbortController>()
@@ -27,6 +34,7 @@ export function registerAgentHandlers(): void {
       if (existing) {
         existing.abort()
       }
+      cancelAllForConversation(conversationId)
 
       const abortController = new AbortController()
       activeRuns.set(conversationId, abortController)
@@ -59,14 +67,57 @@ export function registerAgentHandlers(): void {
       }
 
       try {
-        const { newMessages } = await runAgent({
-          conversation,
-          payload,
-          model,
-          settings,
-          onChunk: (chunk) => emitStreamChunk(conversationId, chunk),
-          signal: abortController.signal,
-        })
+        let newMessages: readonly Message[]
+        if (settings.orchestrationMode !== 'classic') {
+          const orchestrationRunId = randomUUID()
+          registerActiveOrchestrationRun(orchestrationRunId, conversationId, abortController)
+          try {
+            const orchestratedResult = await runOrchestratedAgent({
+              runId: orchestrationRunId,
+              conversationId,
+              conversation,
+              payload,
+              model,
+              settings,
+              emitChunk: (chunk) => emitStreamChunk(conversationId, chunk),
+              emitEvent: (event) => emitOrchestrationEvent(event),
+              signal: abortController.signal,
+            })
+
+            if (orchestratedResult.status === 'fallback' || !orchestratedResult.newMessages) {
+              emitOrchestrationEvent({
+                conversationId,
+                runId: OrchestrationRunId(orchestratedResult.runId),
+                type: 'fallback',
+                at: new Date().toISOString(),
+                message: orchestratedResult.reason ?? 'auto fallback to classic run',
+              })
+              const classic = await runAgent({
+                conversation,
+                payload,
+                model,
+                settings,
+                onChunk: (chunk) => emitStreamChunk(conversationId, chunk),
+                signal: abortController.signal,
+              })
+              newMessages = classic.newMessages
+            } else {
+              newMessages = orchestratedResult.newMessages
+            }
+          } finally {
+            unregisterActiveOrchestrationRun(orchestrationRunId)
+          }
+        } else {
+          const classic = await runAgent({
+            conversation,
+            payload,
+            model,
+            settings,
+            onChunk: (chunk) => emitStreamChunk(conversationId, chunk),
+            signal: abortController.signal,
+          })
+          newMessages = classic.newMessages
+        }
 
         // Re-read the latest snapshot before persisting to avoid resurrecting
         // deleted conversations (e.g. user deletes while run is in flight).
@@ -119,12 +170,14 @@ export function registerAgentHandlers(): void {
         controller.abort()
         activeRuns.delete(conversationId)
       }
+      cancelAllForConversation(conversationId)
       cancelQuestion(conversationId)
     } else {
       // Cancel all active runs (backward compat)
       for (const [id, controller] of activeRuns) {
         controller.abort()
         activeRuns.delete(id)
+        cancelAllForConversation(id)
         cancelQuestion(id)
       }
     }

@@ -17,6 +17,7 @@ import type {
 } from '@shared/types/git'
 import type { OpenHiveApi } from '@shared/types/ipc'
 import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from '@shared/types/llm'
+import type { OrchestrationEventPayload, OrchestrationRunRecord } from '@shared/types/orchestration'
 import type { QuestionAnswer, QuestionPayload } from '@shared/types/question'
 import type { Provider, Settings } from '@shared/types/settings'
 import type { AgentsInstructionStatus, SkillCatalogResult } from '@shared/types/standards'
@@ -248,5 +249,28 @@ export const api: OpenHiveApi = {
 
   getSkillPreview(projectPath: string, skillId: string): Promise<{ markdown: string }> {
     return ipcRenderer.invoke('skills:get-preview', projectPath, skillId)
+  },
+
+  getOrchestrationRun(runId: string): Promise<OrchestrationRunRecord | null> {
+    return ipcRenderer.invoke('orchestration:get-run', runId)
+  },
+
+  listOrchestrationRuns(conversationId?: ConversationId): Promise<OrchestrationRunRecord[]> {
+    return ipcRenderer.invoke('orchestration:list-runs', conversationId)
+  },
+
+  cancelOrchestrationRun(runId: string): Promise<void> {
+    return ipcRenderer.invoke('orchestration:cancel-run', runId)
+  },
+
+  onOrchestrationEvent(callback: (payload: OrchestrationEventPayload) => void): () => void {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      payload: OrchestrationEventPayload,
+    ): void => {
+      callback(payload)
+    }
+    ipcRenderer.on('orchestration:event', handler)
+    return () => ipcRenderer.removeListener('orchestration:event', handler)
   },
 }

@@ -11,7 +11,7 @@ export async function runOpenHiveOrchestration(
   input: RunOpenHiveOrchestrationInput,
 ): Promise<OpenHiveOrchestrationResult> {
   const mode = input.mode ?? 'auto-fallback'
-  const runStore = new MemoryRunStore()
+  const runStore = input.runStore ?? new MemoryRunStore()
 
   let planRaw: unknown
   try {
