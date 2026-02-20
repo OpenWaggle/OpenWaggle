@@ -1,42 +1,66 @@
-import type { GitCommitResult, GitStatusSummary } from '@shared/types/git'
 import { Hash, PanelLeft, SquareTerminal } from 'lucide-react'
 import { useState } from 'react'
 import { CommitDialog } from '@/components/layout/CommitDialog'
+import { useGit } from '@/hooks/useGit'
+import { useProject } from '@/hooks/useProject'
 import { cn } from '@/lib/cn'
 import { projectName } from '@/lib/format'
 
 interface HeaderProps {
   conversationTitle: string | null
-  projectPath: string | null
   onToggleSidebar: () => void
   onToggleTerminal: () => void
   onToggleDiffPanel: () => void
   sidebarOpen: boolean
   terminalOpen: boolean
-  gitStatus: GitStatusSummary | null
-  gitError: string | null
-  gitLoading: boolean
-  gitCommitting: boolean
-  onRefreshGit: () => void
-  onCommitGit: (message: string, amend: boolean, paths: string[]) => Promise<GitCommitResult>
+  onDiffRefresh: () => void
+  onToast: (message: string) => void
 }
 
 export function Header({
   conversationTitle,
-  projectPath,
   onToggleSidebar,
   onToggleTerminal,
   onToggleDiffPanel,
   sidebarOpen,
   terminalOpen,
-  gitStatus,
-  gitError,
-  gitLoading,
-  gitCommitting,
-  onRefreshGit,
-  onCommitGit,
+  onDiffRefresh,
+  onToast,
 }: HeaderProps): React.JSX.Element {
+  const { projectPath } = useProject()
+  const {
+    status: gitStatus,
+    error: gitError,
+    isLoading: gitLoading,
+    isCommitting: gitCommitting,
+    refreshStatus: refreshGitStatus,
+    refreshBranches: refreshGitBranches,
+    commit: commitGit,
+  } = useGit()
+
   const [commitOpen, setCommitOpen] = useState(false)
+
+  function handleRefreshGit(): void {
+    void refreshGitStatus(projectPath)
+    void refreshGitBranches(projectPath)
+    onDiffRefresh()
+  }
+
+  async function handleCommitGit(message: string, amend: boolean, paths: string[]) {
+    if (!projectPath) {
+      return {
+        ok: false as const,
+        code: 'not-git-repo' as const,
+        message: 'No project selected.',
+      }
+    }
+    const result = await commitGit(projectPath, { message, amend, paths })
+    if (result.ok) {
+      onDiffRefresh()
+      onToast(`Commit created: ${result.summary}`)
+    }
+    return result
+  }
 
   return (
     <>
@@ -62,7 +86,7 @@ export function Header({
             {conversationTitle ?? 'New thread'}
           </span>
 
-          {/* Project pill — h20, padding [0,8], cornerRadius 4, bg #151922, stroke #1e2229 */}
+          {/* Project pill */}
           <span className="no-drag flex items-center h-5 px-2 rounded border border-border bg-bg-tertiary text-[12px] text-text-secondary">
             {projectName(projectPath)}
           </span>
@@ -73,7 +97,6 @@ export function Header({
 
         {/* hdrRight — gap 8 */}
         <div className="flex items-center gap-2">
-          {/* Open button — h28, padding [0,10], cornerRadius 5, gap 4, stroke #252c36 */}
           <button
             type="button"
             onClick={onToggleTerminal}
@@ -114,7 +137,7 @@ export function Header({
             <span className="text-[9px] text-bg/50">&#x2228;</span>
           </button>
 
-          {/* Divider — w1 h20 */}
+          {/* Divider */}
           <div className="w-px h-5 bg-border" />
 
           {/* Diff stats — clickable to toggle diff panel */}
@@ -149,8 +172,8 @@ export function Header({
         statusError={gitError}
         isRefreshing={gitLoading}
         isCommitting={gitCommitting}
-        onRefresh={onRefreshGit}
-        onCommit={onCommitGit}
+        onRefresh={handleRefreshGit}
+        onCommit={handleCommitGit}
         onClose={() => setCommitOpen(false)}
       />
     </>

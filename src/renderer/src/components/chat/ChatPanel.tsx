@@ -1,8 +1,7 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
-import type { ProviderInfo, SupportedModelId } from '@shared/types/llm'
+import type { SupportedModelId } from '@shared/types/llm'
 import type { QuestionAnswer } from '@shared/types/question'
-import type { ExecutionMode, QualityPreset, Settings as SettingsType } from '@shared/types/settings'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import type { UIMessage } from '@tanstack/ai-react'
 import { useState } from 'react'
@@ -12,7 +11,7 @@ import { ApprovalBanner } from './ApprovalBanner'
 import { ChatErrorDisplay } from './ChatErrorDisplay'
 import { MessageBubble } from './MessageBubble'
 import { OrchestrationRunBanner } from './OrchestrationRunBanner'
-import type { GitProps, OrchestrationProps } from './types'
+import type { OrchestrationProps } from './types'
 import { useAutoScroll } from './useAutoScroll'
 import { WelcomeScreen } from './WelcomeScreen'
 
@@ -32,16 +31,11 @@ interface ChatPanelProps {
   onCancel: () => void
   onToolApprovalResponse: (approvalId: string, approved: boolean) => Promise<void>
   onAnswerQuestion: (conversationId: ConversationId, answers: QuestionAnswer[]) => Promise<void>
-  onExecutionModeChange?: (mode: ExecutionMode) => Promise<void> | void
-  onQualityPresetChange?: (preset: QualityPreset) => Promise<void> | void
   model: SupportedModelId
-  onModelChange: (model: SupportedModelId) => void
-  settings: SettingsType
-  providerModels: ProviderInfo[]
   messageModelLookup: Readonly<Record<string, SupportedModelId>>
   slashSkills: readonly SkillDiscoveryItem[]
-  git: GitProps
   orchestration: OrchestrationProps
+  recentProjects: readonly string[]
 }
 
 export function ChatPanel({
@@ -60,16 +54,11 @@ export function ChatPanel({
   onCancel,
   onToolApprovalResponse,
   onAnswerQuestion,
-  onExecutionModeChange,
-  onQualityPresetChange,
   model,
-  onModelChange,
-  settings,
-  providerModels,
   messageModelLookup,
   slashSkills,
-  git,
   orchestration,
+  recentProjects,
 }: ChatPanelProps): React.JSX.Element {
   const [dismissedError, setDismissedError] = useState<string | null>(null)
 
@@ -128,7 +117,7 @@ export function ChatPanel({
           <WelcomeScreen
             projectPath={projectPath}
             hasProject={hasProject}
-            recentProjects={settings.recentProjects}
+            recentProjects={recentProjects}
             onOpenProject={onOpenProject}
             onSelectProjectPath={onSelectProjectPath}
             onRetry={onRetry}
@@ -201,24 +190,7 @@ export function ChatPanel({
           onSend={onSend}
           onCancel={onCancel}
           isLoading={isLoading}
-          model={model}
-          onModelChange={onModelChange}
-          settings={settings}
-          providerModels={providerModels}
           slashSkills={slashSkills}
-          projectPath={projectPath}
-          gitBranch={git.gitBranch}
-          gitBranches={git.gitBranches}
-          isBranchActionRunning={git.isBranchActionRunning}
-          onCheckoutBranch={git.onCheckoutBranch}
-          onCreateBranch={git.onCreateBranch}
-          onRenameBranch={git.onRenameBranch}
-          onDeleteBranch={git.onDeleteBranch}
-          onSetBranchUpstream={git.onSetBranchUpstream}
-          onRefreshGit={git.onRefreshGit}
-          isRefreshingGit={git.isRefreshingGit}
-          onExecutionModeChange={onExecutionModeChange}
-          onQualityPresetChange={onQualityPresetChange}
           onToast={onToast}
         />
       </div>

@@ -3,7 +3,7 @@ import type { SupportedModelId } from '@shared/types/llm'
 import type { OrchestrationEventPayload, OrchestrationRunRecord } from '@shared/types/orchestration'
 import { useEffect, useRef, useState } from 'react'
 import { ChatPanel } from '@/components/chat/ChatPanel'
-import type { GitProps, OrchestrationProps } from '@/components/chat/types'
+import type { OrchestrationProps } from '@/components/chat/types'
 import { DiffPanel } from '@/components/diff-panel/DiffPanel'
 import { ResizeHandle } from '@/components/diff-panel/ResizeHandle'
 import { Header } from '@/components/layout/Header'
@@ -40,14 +40,7 @@ export function App(): React.JSX.Element {
 
   useSettingsSetup()
 
-  const {
-    settings,
-    isLoaded,
-    providerModels,
-    setDefaultModel,
-    setExecutionMode,
-    setQualityPreset,
-  } = useSettings()
+  const { settings, isLoaded } = useSettings()
   const { projectPath, selectFolder, setProjectPath } = useProject()
   const {
     standardsStatus,
@@ -61,22 +54,7 @@ export function App(): React.JSX.Element {
     selectSkill,
     toggleSkill,
   } = useSkills(projectPath)
-  const {
-    status: gitStatus,
-    branches: gitBranches,
-    isLoading: gitLoading,
-    isCommitting: gitCommitting,
-    isBranchActionRunning,
-    error: gitError,
-    refreshStatus: refreshGitStatus,
-    refreshBranches: refreshGitBranches,
-    commit: commitGit,
-    checkoutBranch,
-    createBranch,
-    renameBranch,
-    deleteBranch,
-    setUpstream,
-  } = useGit()
+  const { refreshStatus: refreshGitStatus, refreshBranches: refreshGitBranches } = useGit()
   const {
     conversations,
     activeConversation,
@@ -149,7 +127,7 @@ export function App(): React.JSX.Element {
     return unsubscribe
   }, [activeConversationId])
 
-  // Debounced git refresh for stream-chunk events to avoid excessive subprocess spawning
+  // Debounced git refresh for stream-chunk events
   useEffect(() => {
     let refreshTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -241,10 +219,6 @@ export function App(): React.JSX.Element {
     void Promise.all([refreshGitStatus(path), refreshGitBranches(path)])
   }
 
-  function handleModelChange(model: typeof currentModel) {
-    setDefaultModel(model)
-  }
-
   async function handleSend(payload: AgentSendPayload) {
     if (!activeConversationId) {
       pendingMessage.current = payload
@@ -260,28 +234,6 @@ export function App(): React.JSX.Element {
       qualityPreset: settings.qualityPreset,
       attachments: [],
     })
-  }
-
-  function handleRefreshGit() {
-    void refreshGitStatus(projectPath)
-    void refreshGitBranches(projectPath)
-    setDiffRefreshKey((k) => k + 1)
-  }
-
-  async function handleCommitGit(message: string, amend: boolean, paths: string[]) {
-    if (!projectPath) {
-      return {
-        ok: false as const,
-        code: 'not-git-repo' as const,
-        message: 'No project selected.',
-      }
-    }
-    const result = await commitGit(projectPath, { message, amend, paths })
-    if (result.ok) {
-      setDiffRefreshKey((k) => k + 1)
-      showToast(`Commit created: ${result.summary}`)
-    }
-    return result
   }
 
   // Keyboard shortcuts
@@ -315,32 +267,6 @@ export function App(): React.JSX.Element {
         <div className="text-text-tertiary text-sm">Loading...</div>
       </div>
     )
-  }
-
-  const noProjectResult = {
-    ok: false as const,
-    code: 'not-git-repo' as const,
-    message: 'No project selected.',
-  }
-
-  const gitProps: GitProps = {
-    gitBranch: gitStatus?.branch ?? null,
-    gitBranches,
-    isBranchActionRunning,
-    onCheckoutBranch: (name) =>
-      projectPath ? checkoutBranch(projectPath, { name }) : Promise.resolve(noProjectResult),
-    onCreateBranch: (name, startPoint, checkout) =>
-      projectPath
-        ? createBranch(projectPath, { name, startPoint, checkout })
-        : Promise.resolve(noProjectResult),
-    onRenameBranch: (from, to) =>
-      projectPath ? renameBranch(projectPath, { from, to }) : Promise.resolve(noProjectResult),
-    onDeleteBranch: (name, force) =>
-      projectPath ? deleteBranch(projectPath, { name, force }) : Promise.resolve(noProjectResult),
-    onSetBranchUpstream: (name, upstream) =>
-      projectPath ? setUpstream(projectPath, { name, upstream }) : Promise.resolve(noProjectResult),
-    onRefreshGit: handleRefreshGit,
-    isRefreshingGit: gitLoading,
   }
 
   const orchestrationPropsBundle: OrchestrationProps = {
@@ -378,18 +304,13 @@ export function App(): React.JSX.Element {
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header
           conversationTitle={activeConversation?.title ?? null}
-          projectPath={projectPath}
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           onToggleTerminal={() => setTerminalOpen(!terminalOpen)}
           onToggleDiffPanel={() => setDiffPanelOpen(!diffPanelOpen)}
           sidebarOpen={sidebarOpen}
           terminalOpen={terminalOpen}
-          gitStatus={gitStatus}
-          gitError={gitError}
-          gitLoading={gitLoading}
-          gitCommitting={gitCommitting}
-          onRefreshGit={handleRefreshGit}
-          onCommitGit={handleCommitGit}
+          onDiffRefresh={() => setDiffRefreshKey((k) => k + 1)}
+          onToast={showToast}
         />
 
         {/* Main content */}
@@ -431,16 +352,11 @@ export function App(): React.JSX.Element {
                   onCancel={stop}
                   onToolApprovalResponse={respondToolApproval}
                   onAnswerQuestion={answerQuestion}
-                  onExecutionModeChange={setExecutionMode}
-                  onQualityPresetChange={setQualityPreset}
                   model={currentModel}
-                  onModelChange={handleModelChange}
-                  settings={settings}
-                  providerModels={providerModels}
                   messageModelLookup={messageModelLookup}
                   slashSkills={skillCatalog?.skills ?? []}
-                  git={gitProps}
                   orchestration={orchestrationPropsBundle}
+                  recentProjects={settings.recentProjects}
                 />
               </div>
 
