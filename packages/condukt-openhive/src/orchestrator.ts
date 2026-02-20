@@ -2,7 +2,7 @@ import {
   createOrchestrationEngine,
   MemoryRunStore,
   type OrchestrationTaskDefinition,
-} from '../../condukt-ai/src/index.js'
+} from 'condukt-ai'
 import { parseOpenHivePlan } from './planner'
 import { createOpenHiveAgentWorkerAdapter } from './openhive-worker-adapter'
 import type { OpenHiveOrchestrationResult, RunOpenHiveOrchestrationInput } from './types'
@@ -77,6 +77,16 @@ export async function runOpenHiveOrchestration(
   const run = await engine.getRun(summary.runId)
   if (!run) {
     throw new Error(`Run ${summary.runId} was not persisted`)
+  }
+
+  if (summary.status !== 'completed') {
+    return {
+      runId: summary.runId,
+      usedFallback: false,
+      text: '',
+      runStatus: summary.status,
+      run,
+    }
   }
 
   const text = await input.synthesizer.synthesize({

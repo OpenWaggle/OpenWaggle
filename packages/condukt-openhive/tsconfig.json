@@ -3,9 +3,14 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "baseUrl": ".",
+    "paths": {
+      "condukt-ai": ["../condukt-ai/src/index.ts"],
+      "condukt-ai/*": ["../condukt-ai/src/*"]
+    },
     "strict": true,
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["src/**/*", "../condukt-ai/src/**/*.ts"]
+  "include": ["src/**/*"]
 }

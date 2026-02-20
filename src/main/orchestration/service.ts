@@ -87,11 +87,13 @@ export async function runOrchestratedAgent(
     providerConfig.apiKey ?? '',
     providerConfig.baseUrl,
   ) as AnyTextAdapter
+  const orchestrationMode =
+    settings.orchestrationMode === 'orchestrated' ? 'orchestrated' : 'auto-fallback'
 
   try {
     const orchestrationResult = await runOpenHiveOrchestration({
       runId,
-      mode: settings.orchestrationMode === 'classic' ? 'orchestrated' : 'auto-fallback',
+      mode: orchestrationMode,
       userPrompt: payload.text,
       signal,
       maxContextTokens: 1500,
@@ -180,6 +182,36 @@ export async function runOrchestratedAgent(
       }
     }
 
+    const runStatus = orchestrationResult.runStatus ?? 'completed'
+    if (runStatus === 'cancelled') {
+      emitChunk({ type: 'RUN_FINISHED', timestamp: Date.now(), runId, finishReason: 'stop' })
+      return {
+        status: 'cancelled',
+        runId,
+        newMessages: [],
+      }
+    }
+
+    if (runStatus === 'failed') {
+      const failedTask = orchestrationResult.run?.taskOrder
+        .map((taskId) => orchestrationResult.run?.tasks[String(taskId)])
+        .find((task) => task?.status === 'failed')
+      const failureMessage = failedTask?.error ?? 'orchestration run failed'
+      emitChunk({
+        type: 'RUN_ERROR',
+        timestamp: Date.now(),
+        runId,
+        error: { message: failureMessage },
+      })
+      emitChunk({ type: 'RUN_FINISHED', timestamp: Date.now(), runId, finishReason: 'stop' })
+      return {
+        status: 'failed',
+        runId,
+        reason: failureMessage,
+        newMessages: [],
+      }
+    }
+
     const text = orchestrationResult.text
 
     emitChunk({
@@ -220,10 +252,7 @@ export async function runOrchestratedAgent(
     })
 
     return {
-      status:
-        orchestrationResult.runStatus === 'running'
-          ? 'completed'
-          : (orchestrationResult.runStatus ?? 'completed'),
+      status: 'completed',
       runId,
       newMessages: [userMsg, assistantMsg],
     }

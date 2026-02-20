@@ -3,7 +3,7 @@ import type {
   OrchestrationRunRecord,
   OrchestrationTaskDefinition,
   RunStore,
-} from "../../condukt-ai/src/index.js"
+} from 'condukt-ai'
 
 export type OpenHiveTaskKind = 'analysis' | 'synthesis' | 'repo-edit' | 'general'
 

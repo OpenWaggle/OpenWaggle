@@ -11,6 +11,7 @@ interface PersistedRunIndex {
 }
 
 const INDEX_FILE = 'index.json'
+const RUN_ID_PATTERN = /^[a-zA-Z0-9_-]{1,128}$/
 
 function getRunsDir(): string {
   const dir = path.join(app.getPath('userData'), 'orchestration-runs')
@@ -21,7 +22,11 @@ function getRunsDir(): string {
 }
 
 function runPath(runId: string): string {
-  return path.join(getRunsDir(), `${runId}.json`)
+  const safeRunId = normalizeRunId(runId)
+  if (!safeRunId) {
+    throw new Error(`invalid run id: ${runId}`)
+  }
+  return path.join(getRunsDir(), `${safeRunId}.json`)
 }
 
 function indexPath(): string {
@@ -93,11 +98,23 @@ async function writeIndex(next: PersistedRunIndex): Promise<void> {
 }
 
 async function upsertIndex(runId: string): Promise<void> {
-  const idx = await readIndex()
-  if (idx.ids.includes(runId)) {
+  const safeRunId = normalizeRunId(runId)
+  if (!safeRunId) {
     return
   }
-  await writeIndex({ ids: [runId, ...idx.ids] })
+  const idx = await readIndex()
+  if (idx.ids.includes(safeRunId)) {
+    return
+  }
+  await writeIndex({ ids: [safeRunId, ...idx.ids] })
+}
+
+function normalizeRunId(runId: string): string | null {
+  const trimmed = runId.trim()
+  if (!trimmed) {
+    return null
+  }
+  return RUN_ID_PATTERN.test(trimmed) ? trimmed : null
 }
 
 export class OrchestrationRunRepository {

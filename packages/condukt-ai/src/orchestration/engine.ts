@@ -457,6 +457,10 @@ export function createOrchestrationEngine(options: OrchestrationEngineOptions): 
     try {
       while (true) {
         if (runController.signal.aborted) {
+          const inFlightTasks = [...running.values()];
+          if (inFlightTasks.length > 0) {
+            await Promise.allSettled(inFlightTasks);
+          }
           await markRemainingCancelled(activeReasonRef.reason ?? "run-cancelled");
           state.status = "cancelled";
           state.finishedAt = nowIso();

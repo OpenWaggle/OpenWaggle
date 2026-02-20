@@ -75,3 +75,42 @@ test('runs planner -> orchestration -> synthesizer', async () => {
     includeConversationSummary: true,
   })
 })
+
+test('does not synthesize when orchestration run fails', async () => {
+  let synthesizerCalls = 0
+
+  const result = await runOpenHiveOrchestration({
+    runId: 'run-fail',
+    userPrompt: 'Do failing work',
+    planner: {
+      async plan() {
+        return {
+          tasks: [
+            {
+              id: 'broken-task',
+              kind: 'analysis',
+              title: 'Broken',
+              prompt: 'This fails',
+            },
+          ],
+        }
+      },
+    },
+    executor: {
+      async execute() {
+        throw new Error('executor failed')
+      },
+    },
+    synthesizer: {
+      async synthesize() {
+        synthesizerCalls += 1
+        return 'should-not-run'
+      },
+    },
+  })
+
+  expect(result.usedFallback).toBe(false)
+  expect(result.runStatus).toBe('failed')
+  expect(result.text).toBe('')
+  expect(synthesizerCalls).toBe(0)
+})

@@ -143,6 +143,51 @@ test("supports run cancellation", async () => {
   expect(summary.cancelledTaskIds).toContain("long");
 });
 
+test("waits for in-flight task cleanup before resolving cancelled run", async () => {
+  let cleanedUp = false;
+
+  const worker: WorkerAdapter = {
+    async executeTask(_task, context) {
+      await new Promise<void>((resolve) => {
+        context.signal.addEventListener("abort", resolve, { once: true });
+      });
+      await new Promise<void>((resolve) => {
+        setTimeout(() => {
+          cleanedUp = true;
+          resolve();
+        }, 10);
+      });
+      throw new Error("aborted");
+    },
+  };
+
+  const store = new MemoryRunStore();
+  const engine = createOrchestrationEngine({ workerAdapter: worker, runStore: store });
+  const runPromise = engine.run({
+    runId: "run-cancel-cleanup",
+    tasks: [{ id: "long", kind: "long" }],
+  });
+
+  let started = false;
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const run = await store.getRun("run-cancel-cleanup");
+    if (run?.tasks.long?.status === "running") {
+      started = true;
+      break;
+    }
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 5);
+    });
+  }
+  expect(started).toBe(true);
+
+  await engine.cancel("run-cancel-cleanup", "user-cancel");
+  const summary = await runPromise;
+
+  expect(summary.status).toBe("cancelled");
+  expect(cleanedUp).toBe(true);
+});
+
 test("resumes from persisted non-terminal checkpoint", async () => {
   const worker: WorkerAdapter = {
     async executeTask(task, context) {

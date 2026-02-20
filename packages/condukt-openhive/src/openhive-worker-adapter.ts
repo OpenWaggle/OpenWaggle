@@ -1,4 +1,4 @@
-import type { WorkerAdapter } from '../../condukt-ai/src/index.js'
+import type { WorkerAdapter } from 'condukt-ai'
 import type { OpenHivePlannedTask, OpenHiveTaskExecutor } from './types'
 import { resolveChildContextHeuristic } from './context-heuristic'
 

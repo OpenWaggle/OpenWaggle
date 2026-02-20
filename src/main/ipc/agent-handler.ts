@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { AgentSendPayload, Message } from '@shared/types/agent'
 import { isTextPart } from '@shared/types/agent'
-import { type ConversationId, OrchestrationRunId } from '@shared/types/brand'
+import type { ConversationId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { QuestionAnswer } from '@shared/types/question'
 import { ipcMain } from 'electron'
@@ -84,14 +84,7 @@ export function registerAgentHandlers(): void {
               signal: abortController.signal,
             })
 
-            if (orchestratedResult.status === 'fallback' || !orchestratedResult.newMessages) {
-              emitOrchestrationEvent({
-                conversationId,
-                runId: OrchestrationRunId(orchestratedResult.runId),
-                type: 'fallback',
-                at: new Date().toISOString(),
-                message: orchestratedResult.reason ?? 'auto fallback to classic run',
-              })
+            if (orchestratedResult.status === 'fallback') {
               const classic = await runAgent({
                 conversation,
                 payload,
@@ -102,7 +95,7 @@ export function registerAgentHandlers(): void {
               })
               newMessages = classic.newMessages
             } else {
-              newMessages = orchestratedResult.newMessages
+              newMessages = orchestratedResult.newMessages ?? []
             }
           } finally {
             unregisterActiveOrchestrationRun(orchestrationRunId)
