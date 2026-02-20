@@ -2,13 +2,50 @@ import type { AgentPromptFragment } from './runtime-types'
 
 const MAX_SKILLS_IN_CATALOG_PROMPT = 20
 const MAX_SKILL_DESCRIPTION_CHARS = 140
+const MAX_AGENTS_SCOPES_IN_PROMPT = 5
 
 export const agentsEntryPromptFragment: AgentPromptFragment = {
   id: 'standards.agents-entry',
   order: 5,
   build: (context) => {
-    const instruction = context.standards?.agentsInstruction?.trim()
+    const instruction = context.standards?.agentsRootInstruction?.trim()
     return instruction && instruction.length > 0 ? instruction : null
+  },
+}
+
+export const scopedAgentsPromptFragment: AgentPromptFragment = {
+  id: 'standards.scoped-agents',
+  order: 6,
+  build: (context) => {
+    const scoped = context.standards?.agentsScopedInstructions ?? []
+    if (scoped.length === 0) {
+      return 'No additional nested AGENTS.md scopes were preloaded for this request. If you start working in a package/subdirectory, call the `loadAgents` tool for that path first.'
+    }
+
+    const listedScopes = scoped.slice(0, MAX_AGENTS_SCOPES_IN_PROMPT)
+    const overflowCount = scoped.length - listedScopes.length
+
+    const sections = listedScopes.map((scope) =>
+      [
+        `Scope: ${scope.scopeRelativeDir}`,
+        `- Source: ${scope.filePath}`,
+        '- Precedence: this scope applies to files under this path and overrides broader parent rules.',
+        'Instructions:',
+        scope.content.trim(),
+      ].join('\n'),
+    )
+
+    if (overflowCount > 0) {
+      sections.push(
+        `Additional scoped AGENTS.md files exist (${String(overflowCount)} more). Use loadAgents for target paths not yet covered.`,
+      )
+    }
+
+    sections.push(
+      'If you need instructions for a new file path not covered above, call the `loadAgents` tool first.',
+    )
+
+    return sections.join('\n\n')
   },
 }
 

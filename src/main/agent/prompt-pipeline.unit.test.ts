@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { openaiProvider } from '../providers/openai'
 import { buildSystemPrompt } from './prompt-pipeline'
 import type { AgentPromptFragment, AgentRunContext } from './runtime-types'
+import { agentsEntryPromptFragment, scopedAgentsPromptFragment } from './standards-prompt'
 import { coreBehaviorPromptFragment, runtimeModelPromptFragment } from './system-prompt'
 
 function makeContext(overrides?: { executionMode?: Settings['executionMode'] }): AgentRunContext {
@@ -117,5 +118,42 @@ describe('buildSystemPrompt', () => {
     expect(result).toContain(
       'do not mention this unless the user asks for technical/runtime details',
     )
+  })
+
+  it('orders AGENTS root before scoped AGENTS fragment', () => {
+    const baseContext = makeContext()
+    const context: AgentRunContext = {
+      ...baseContext,
+      standards: {
+        agentsPath: '/tmp/project/AGENTS.md',
+        agentsStatus: 'found',
+        agentsInstruction: '# Root',
+        agentsRootInstruction: '# Root',
+        agentsScopedInstructions: [
+          {
+            scopeRelativeDir: 'packages/a',
+            filePath: '/tmp/project/packages/a/AGENTS.md',
+            content: '# Scoped',
+          },
+        ],
+        agentsResolvedFiles: ['/tmp/project/AGENTS.md', '/tmp/project/packages/a/AGENTS.md'],
+        catalogSkills: [],
+        activation: {
+          explicitSkillIds: [],
+          heuristicSkillIds: [],
+          selectedSkillIds: [],
+        },
+        activeSkills: [],
+        warnings: [],
+      },
+    }
+
+    const result = buildSystemPrompt(context, [
+      scopedAgentsPromptFragment,
+      agentsEntryPromptFragment,
+    ])
+
+    expect(result.fragmentIds).toEqual(['standards.agents-entry', 'standards.scoped-agents'])
+    expect(result.prompt.startsWith('# Root')).toBe(true)
   })
 })

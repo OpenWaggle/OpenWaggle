@@ -3,8 +3,13 @@ import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import { describe, expect, it } from 'vitest'
 import { openaiProvider } from '../providers/openai'
+import { buildSystemPrompt } from './prompt-pipeline'
 import type { AgentRunContext } from './runtime-types'
-import { skillCatalogPromptFragment } from './standards-prompt'
+import {
+  agentsEntryPromptFragment,
+  scopedAgentsPromptFragment,
+  skillCatalogPromptFragment,
+} from './standards-prompt'
 
 function makeSkill(
   index: number,
@@ -56,6 +61,9 @@ function makeContext(catalogSkills: SkillDiscoveryItem[]): AgentRunContext {
       agentsPath: '/tmp/project/AGENTS.md',
       agentsStatus: 'found',
       agentsInstruction: '# Rules',
+      agentsRootInstruction: '# Rules',
+      agentsScopedInstructions: [],
+      agentsResolvedFiles: ['/tmp/project/AGENTS.md'],
       catalogSkills,
       activation: {
         explicitSkillIds: [],
@@ -89,5 +97,79 @@ describe('skillCatalogPromptFragment', () => {
 
     expect(prompt).toContain('...')
     expect(prompt).not.toContain(longDescription)
+  })
+})
+
+describe('nested AGENTS prompt fragments', () => {
+  it('renders scoped AGENTS entries with precedence note', () => {
+    const baseContext = makeContext([])
+    const context: AgentRunContext = {
+      ...baseContext,
+      standards: {
+        agentsPath: '/tmp/project/AGENTS.md',
+        agentsStatus: 'found',
+        agentsInstruction: '# Rules',
+        agentsRootInstruction: '# Rules',
+        agentsScopedInstructions: [
+          {
+            scopeRelativeDir: 'packages/a',
+            filePath: '/tmp/project/packages/a/AGENTS.md',
+            content: '# package-a rules',
+          },
+        ],
+        agentsResolvedFiles: ['/tmp/project/AGENTS.md', '/tmp/project/packages/a/AGENTS.md'],
+        catalogSkills: [],
+        activation: {
+          explicitSkillIds: [],
+          heuristicSkillIds: [],
+          selectedSkillIds: [],
+        },
+        activeSkills: [],
+        warnings: [],
+      },
+    }
+
+    const scopedPrompt = scopedAgentsPromptFragment.build(context)
+
+    expect(scopedPrompt).toContain('Scope: packages/a')
+    expect(scopedPrompt).toContain('overrides broader parent rules')
+    expect(scopedPrompt).toContain('# package-a rules')
+  })
+
+  it('keeps root AGENTS fragment before scoped fragment', () => {
+    const baseContext = makeContext([])
+    const context: AgentRunContext = {
+      ...baseContext,
+      standards: {
+        agentsPath: '/tmp/project/AGENTS.md',
+        agentsStatus: 'found',
+        agentsInstruction: '# Rules',
+        agentsRootInstruction: '# Rules',
+        agentsScopedInstructions: [
+          {
+            scopeRelativeDir: 'packages/a',
+            filePath: '/tmp/project/packages/a/AGENTS.md',
+            content: '# package-a rules',
+          },
+        ],
+        agentsResolvedFiles: ['/tmp/project/AGENTS.md', '/tmp/project/packages/a/AGENTS.md'],
+        catalogSkills: [],
+        activation: {
+          explicitSkillIds: [],
+          heuristicSkillIds: [],
+          selectedSkillIds: [],
+        },
+        activeSkills: [],
+        warnings: [],
+      },
+    }
+
+    const result = buildSystemPrompt(context, [
+      scopedAgentsPromptFragment,
+      agentsEntryPromptFragment,
+    ])
+
+    expect(result.fragmentIds).toEqual(['standards.agents-entry', 'standards.scoped-agents'])
+    expect(result.prompt.startsWith('# Rules')).toBe(true)
   })
 })

@@ -10,6 +10,7 @@ import type {
 import {
   activeSkillsPromptFragment,
   agentsEntryPromptFragment,
+  scopedAgentsPromptFragment,
   skillCatalogPromptFragment,
 } from './standards-prompt'
 import {
@@ -49,6 +50,7 @@ const observabilityHook: AgentLifecycleHook = {
         provider: context.provider.id,
         executionMode: context.settings.executionMode,
         selectedSkills: context.standards?.activation.selectedSkillIds ?? [],
+        resolvedAgentsFiles: context.standards?.agentsResolvedFiles ?? [],
         standardsWarnings: context.standards?.warnings ?? [],
       }),
     )
@@ -114,6 +116,8 @@ function logRunComplete(context: AgentRunContext, summary: AgentRunSummary): voi
       toolErrors: summary.toolErrors,
       selectedSkillIds: summary.selectedSkillIds ?? [],
       dynamicallyLoadedSkillIds: summary.dynamicallyLoadedSkillIds ?? [],
+      resolvedAgentsFiles: summary.resolvedAgentsFiles ?? [],
+      dynamicallyLoadedAgentsScopes: summary.dynamicallyLoadedAgentsScopes ?? [],
       standardsWarnings: summary.standardsWarnings ?? [],
     }),
   )
@@ -150,6 +154,7 @@ const standardsPromptFeature: AgentFeature = {
   id: 'standards.prompt',
   getPromptFragments: () => [
     agentsEntryPromptFragment,
+    scopedAgentsPromptFragment,
     skillCatalogPromptFragment,
     activeSkillsPromptFragment,
   ],

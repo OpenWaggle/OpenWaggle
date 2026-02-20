@@ -46,6 +46,8 @@ export interface AgentRunSummary {
   readonly toolErrors: number
   readonly selectedSkillIds?: readonly string[]
   readonly dynamicallyLoadedSkillIds?: readonly string[]
+  readonly resolvedAgentsFiles?: readonly string[]
+  readonly dynamicallyLoadedAgentsScopes?: readonly string[]
   readonly standardsWarnings?: readonly string[]
 }
 

@@ -1,12 +1,14 @@
+import type { PreparedAttachment } from '@shared/types/agent'
 import type { Settings } from '@shared/types/settings'
 import type { SkillActivationResult, SkillDiscoveryItem } from '@shared/types/standards'
+import { inferAgentsCandidatePaths } from '@shared/utils/agents-path-inference'
 import { activateSkillsFromText } from '../skills/skill-activation'
 import {
   type LoadedSkillCatalog,
   loadSkillCatalog,
   loadSkillInstructions,
 } from '../skills/skill-catalog'
-import { loadAgentsInstruction } from '../standards/agents-loader'
+import { resolveAgentsForRun } from '../standards/agents-resolver'
 
 export interface ActiveSkillInstruction {
   readonly id: string
@@ -23,6 +25,13 @@ export interface AgentStandardsContext {
   readonly agentsStatus: 'found' | 'missing' | 'error'
   readonly agentsInstruction: string | null
   readonly agentsError?: string
+  readonly agentsRootInstruction: string | null
+  readonly agentsScopedInstructions: readonly {
+    scopeRelativeDir: string
+    filePath: string
+    content: string
+  }[]
+  readonly agentsResolvedFiles: readonly string[]
   readonly catalogSkills: readonly SkillDiscoveryItem[]
   readonly activation: SkillActivationResult
   readonly activeSkills: readonly ActiveSkillInstruction[]
@@ -39,6 +48,9 @@ export const EMPTY_STANDARDS_CONTEXT: AgentStandardsContext = {
   agentsPath: '',
   agentsStatus: 'missing',
   agentsInstruction: null,
+  agentsRootInstruction: null,
+  agentsScopedInstructions: [],
+  agentsResolvedFiles: [],
   catalogSkills: [],
   activation: EMPTY_ACTIVATION,
   activeSkills: [],
@@ -49,16 +61,19 @@ export async function loadAgentStandardsContext(
   projectPath: string | null,
   userText: string,
   settings: Settings,
+  attachments: readonly PreparedAttachment[] = [],
 ): Promise<AgentStandardsContext> {
   if (!projectPath) {
     return EMPTY_STANDARDS_CONTEXT
   }
 
   const warnings: string[] = []
-  const agents = await loadAgentsInstruction(projectPath)
-  if (agents.status === 'error' && agents.error) {
-    warnings.push(`Failed to load AGENTS.md: ${agents.error}`)
-  }
+  const candidatePaths = inferAgentsCandidatePaths({
+    text: userText,
+    attachmentPaths: attachments.map((attachment) => attachment.path),
+  })
+  const agentsResolution = await resolveAgentsForRun(projectPath, candidatePaths)
+  warnings.push(...agentsResolution.warnings)
 
   const toggles = settings.skillTogglesByProject[projectPath] ?? {}
   let catalog: LoadedSkillCatalog = {
@@ -112,10 +127,22 @@ export async function loadAgentStandardsContext(
   }
 
   return {
-    agentsPath: agents.filePath,
-    agentsStatus: agents.status,
-    agentsInstruction: agents.content,
-    agentsError: agents.error,
+    agentsPath: agentsResolution.root.filePath,
+    agentsStatus: agentsResolution.root.status,
+    agentsInstruction:
+      agentsResolution.root.status === 'found' ? agentsResolution.root.content : null,
+    agentsError: agentsResolution.root.error,
+    agentsRootInstruction:
+      agentsResolution.root.status === 'found' ? agentsResolution.root.content : null,
+    agentsScopedInstructions: agentsResolution.scoped.map((scope) => ({
+      scopeRelativeDir: scope.scopeRelativeDir,
+      filePath: scope.filePath,
+      content: scope.content,
+    })),
+    agentsResolvedFiles: [
+      ...(agentsResolution.root.status === 'found' ? [agentsResolution.root.filePath] : []),
+      ...agentsResolution.scoped.map((scope) => scope.filePath),
+    ],
     catalogSkills: catalog.skills,
     activation: {
       explicitSkillIds: activation.explicitSkillIds,

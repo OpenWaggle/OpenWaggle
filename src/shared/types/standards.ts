@@ -1,5 +1,21 @@
 export type AgentsInstructionStatus = 'found' | 'missing' | 'error'
 
+export interface AgentsScopeItem {
+  readonly filePath: string
+  readonly scopeDir: string
+  readonly scopeRelativeDir: string
+  readonly content: string
+  readonly status: AgentsInstructionStatus
+  readonly error?: string
+}
+
+export interface AgentsResolutionResult {
+  readonly projectPath: string
+  readonly root: AgentsScopeItem
+  readonly scoped: readonly AgentsScopeItem[]
+  readonly warnings: readonly string[]
+}
+
 export interface SkillDiscoveryItem {
   readonly id: string
   readonly name: string
@@ -45,3 +61,22 @@ export interface SkillLoadErrorResult {
 }
 
 export type SkillLoadToolResult = SkillLoadSuccessResult | SkillLoadErrorResult
+
+export interface AgentsLoadSuccessResult {
+  readonly ok: true
+  readonly requestedPath: string
+  readonly alreadyLoaded: boolean
+  readonly resolution: AgentsResolutionResult
+  readonly effectiveInstruction: string
+  readonly warning?: string
+}
+
+export interface AgentsLoadErrorResult {
+  readonly ok: false
+  readonly requestedPath: string
+  readonly alreadyLoaded: boolean
+  readonly error: string
+  readonly warning?: string
+}
+
+export type AgentsLoadToolResult = AgentsLoadSuccessResult | AgentsLoadErrorResult

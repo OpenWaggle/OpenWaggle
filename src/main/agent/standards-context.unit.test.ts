@@ -43,4 +43,57 @@ describe('loadAgentStandardsContext', () => {
     expect(context.agentsStatus).toBe('missing')
     expect(context.activeSkills).toEqual([])
   })
+
+  it('loads inferred nested AGENTS scope from user path', async () => {
+    const projectPath = await makeTempProject()
+    await fs.mkdir(path.join(projectPath, 'packages', 'a', 'src'), { recursive: true })
+    await fs.writeFile(path.join(projectPath, 'AGENTS.md'), '# root rules', 'utf8')
+    await fs.writeFile(
+      path.join(projectPath, 'packages', 'a', 'AGENTS.md'),
+      '# package-a rules',
+      'utf8',
+    )
+
+    const context = await loadAgentStandardsContext(
+      projectPath,
+      'Please edit packages/a/src/index.ts',
+      DEFAULT_SETTINGS,
+    )
+
+    expect(context.agentsRootInstruction).toContain('# root rules')
+    expect(context.agentsScopedInstructions.map((scope) => scope.scopeRelativeDir)).toEqual([
+      'packages/a',
+    ])
+    expect(context.agentsResolvedFiles).toContain(path.join(projectPath, 'AGENTS.md'))
+    expect(context.agentsResolvedFiles).toContain(
+      path.join(projectPath, 'packages', 'a', 'AGENTS.md'),
+    )
+  })
+
+  it('does not inject unrelated nested AGENTS scopes', async () => {
+    const projectPath = await makeTempProject()
+    await fs.mkdir(path.join(projectPath, 'packages', 'a', 'src'), { recursive: true })
+    await fs.mkdir(path.join(projectPath, 'packages', 'b', 'src'), { recursive: true })
+    await fs.writeFile(path.join(projectPath, 'AGENTS.md'), '# root rules', 'utf8')
+    await fs.writeFile(
+      path.join(projectPath, 'packages', 'a', 'AGENTS.md'),
+      '# package-a rules',
+      'utf8',
+    )
+    await fs.writeFile(
+      path.join(projectPath, 'packages', 'b', 'AGENTS.md'),
+      '# package-b rules',
+      'utf8',
+    )
+
+    const context = await loadAgentStandardsContext(
+      projectPath,
+      'Please edit packages/a/src/index.ts',
+      DEFAULT_SETTINGS,
+    )
+
+    expect(context.agentsScopedInstructions.map((scope) => scope.scopeRelativeDir)).toEqual([
+      'packages/a',
+    ])
+  })
 })
