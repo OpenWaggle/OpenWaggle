@@ -1,6 +1,7 @@
 import { ChevronDown, FileText, FolderOpen, Gamepad2, PencilLine } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import openhiveMark from '@/assets/openhive-mark.png'
+import { useClickOutside } from '@/hooks/useClickOutside'
 import { projectName } from '@/lib/format'
 
 interface WelcomeScreenProps {
@@ -29,16 +30,7 @@ export function WelcomeScreen({
   const projectMenuRef = useRef<HTMLDivElement>(null)
   const [projectMenuOpen, setProjectMenuOpen] = useState(false)
 
-  useEffect(() => {
-    if (!projectMenuOpen) return
-    function handleClickOutside(event: MouseEvent): void {
-      if (projectMenuRef.current && !projectMenuRef.current.contains(event.target as Node)) {
-        setProjectMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [projectMenuOpen])
+  useClickOutside(projectMenuRef, () => setProjectMenuOpen(false), projectMenuOpen)
 
   function handleChooseProject(path: string): void {
     setProjectMenuOpen(false)

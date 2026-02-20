@@ -1,7 +1,8 @@
 import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from '@shared/types/llm'
 import type { Provider, Settings } from '@shared/types/settings'
 import { Check } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
+import { useClickOutside } from '@/hooks/useClickOutside'
 import { cn } from '@/lib/cn'
 
 interface ModelSelectorProps {
@@ -41,15 +42,7 @@ export function ModelSelector({
 
   const selectedModel = allModels.find((m) => m.id === value)
 
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent): void {
-      if (ref.current && event.target instanceof Node && !ref.current.contains(event.target)) {
-        setIsOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+  useClickOutside(ref, () => setIsOpen(false))
 
   function openDropdown(): void {
     setIsOpen(true)

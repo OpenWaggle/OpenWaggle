@@ -16,8 +16,9 @@ import {
   Sparkles,
   Trash2,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import openhiveLockup from '@/assets/openhive-lockup.png'
+import { useClickOutside } from '@/hooks/useClickOutside'
 import { useFullscreen } from '@/hooks/useFullscreen'
 import { cn } from '@/lib/cn'
 import { formatRelativeTime, projectName, truncate } from '@/lib/format'
@@ -151,17 +152,7 @@ export function Sidebar({
     })
   }
 
-  // Close sort menu on outside click
-  useEffect(() => {
-    if (!sortMenuOpen) return
-    function handleClick(e: MouseEvent): void {
-      if (sortMenuRef.current && !sortMenuRef.current.contains(e.target as Node)) {
-        setSortMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [sortMenuOpen])
+  useClickOutside(sortMenuRef, () => setSortMenuOpen(false), sortMenuOpen)
 
   return (
     <aside className="flex h-full w-[272px] shrink-0 flex-col justify-between bg-bg-secondary border-r border-border">
