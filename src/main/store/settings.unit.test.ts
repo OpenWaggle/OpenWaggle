@@ -55,6 +55,9 @@ vi.mock('electron-store', () => {
       this.data[key as string] = value
       mockState.storeData[key as string] = value
       mockState.setCalls.push({ key: key as string, value })
+      // Keep file mock in sync so resolveExecutionMode (which reads raw file) works
+      mockState.fsExists = true
+      mockState.fsRaw = JSON.stringify(mockState.storeData)
     }
   }
 
@@ -169,6 +172,77 @@ describe('settings store', () => {
       '/tmp/repo': {
         'code-review': false,
       },
+    })
+  })
+
+  it('roundtrips valid executionMode through updateSettings', async () => {
+    const { getSettings, updateSettings } = await loadSettingsModule()
+    updateSettings({ executionMode: 'full-access' })
+    const settings = getSettings()
+    expect(settings.executionMode).toBe('full-access')
+  })
+
+  it('rejects invalid executionMode in updateSettings', async () => {
+    const { getSettings, updateSettings } = await loadSettingsModule()
+    updateSettings({ executionMode: 'yolo' as 'sandbox' })
+    const settings = getSettings()
+    expect(settings.executionMode).toBe('sandbox')
+    expect(
+      mockState.setCalls.find((c) => c.key === 'executionMode' && c.value === 'yolo'),
+    ).toBeUndefined()
+  })
+
+  it('roundtrips valid orchestrationMode through updateSettings', async () => {
+    const { getSettings, updateSettings } = await loadSettingsModule()
+    updateSettings({ orchestrationMode: 'classic' })
+    const settings = getSettings()
+    expect(settings.orchestrationMode).toBe('classic')
+  })
+
+  it('rejects invalid orchestrationMode in updateSettings', async () => {
+    const { getSettings, updateSettings } = await loadSettingsModule()
+    updateSettings({ orchestrationMode: 'turbo' as 'classic' })
+    const settings = getSettings()
+    expect(settings.orchestrationMode).toBe('auto-fallback')
+    expect(
+      mockState.setCalls.find((c) => c.key === 'orchestrationMode' && c.value === 'turbo'),
+    ).toBeUndefined()
+  })
+
+  it('roundtrips valid qualityPreset through updateSettings', async () => {
+    const { getSettings, updateSettings } = await loadSettingsModule()
+    updateSettings({ qualityPreset: 'high' })
+    const settings = getSettings()
+    expect(settings.qualityPreset).toBe('high')
+  })
+
+  it('rejects invalid qualityPreset in updateSettings', async () => {
+    const { getSettings, updateSettings } = await loadSettingsModule()
+    updateSettings({ qualityPreset: 'ultra' as 'medium' })
+    const settings = getSettings()
+    expect(settings.qualityPreset).toBe('medium')
+    expect(
+      mockState.setCalls.find((c) => c.key === 'qualityPreset' && c.value === 'ultra'),
+    ).toBeUndefined()
+  })
+
+  it('roundtrips recentProjects through updateSettings', async () => {
+    const { getSettings, updateSettings } = await loadSettingsModule()
+    updateSettings({ recentProjects: ['/tmp/a', '/tmp/b'] })
+    const settings = getSettings()
+    expect(settings.recentProjects).toEqual(['/tmp/a', '/tmp/b'])
+  })
+
+  it('roundtrips skillTogglesByProject through updateSettings', async () => {
+    const { getSettings, updateSettings } = await loadSettingsModule()
+    updateSettings({
+      skillTogglesByProject: {
+        '/tmp/repo': { 'code-review': true, 'frontend-design': false },
+      },
+    })
+    const settings = getSettings()
+    expect(settings.skillTogglesByProject).toEqual({
+      '/tmp/repo': { 'code-review': true, 'frontend-design': false },
     })
   })
 })

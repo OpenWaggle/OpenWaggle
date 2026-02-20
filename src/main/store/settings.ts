@@ -97,6 +97,12 @@ export function updateSettings(partial: Partial<Settings>): void {
     for (const id of PROVIDERS) {
       const config = partial.providers[id]
       if (!config) continue
+
+      if (config.baseUrl !== undefined && !isValidBaseUrl(config.baseUrl)) {
+        logger.warn('Skipping invalid provider baseUrl', { provider: id, baseUrl: config.baseUrl })
+        continue
+      }
+
       encryptedProviders[id] = {
         ...config,
         apiKey: encryptApiKey(config.apiKey),
@@ -112,13 +118,25 @@ export function updateSettings(partial: Partial<Settings>): void {
     store.set('projectPath', partial.projectPath)
   }
   if (partial.executionMode !== undefined) {
-    store.set('executionMode', partial.executionMode)
+    if ((EXECUTION_MODES as readonly string[]).includes(partial.executionMode)) {
+      store.set('executionMode', partial.executionMode)
+    } else {
+      logger.warn('Skipping invalid executionMode', { value: partial.executionMode })
+    }
   }
   if (partial.orchestrationMode !== undefined) {
-    store.set('orchestrationMode', partial.orchestrationMode)
+    if ((ORCHESTRATION_MODES as readonly string[]).includes(partial.orchestrationMode)) {
+      store.set('orchestrationMode', partial.orchestrationMode)
+    } else {
+      logger.warn('Skipping invalid orchestrationMode', { value: partial.orchestrationMode })
+    }
   }
   if (partial.qualityPreset !== undefined) {
-    store.set('qualityPreset', partial.qualityPreset)
+    if ((QUALITY_PRESETS as readonly string[]).includes(partial.qualityPreset)) {
+      store.set('qualityPreset', partial.qualityPreset)
+    } else {
+      logger.warn('Skipping invalid qualityPreset', { value: partial.qualityPreset })
+    }
   }
   if (partial.recentProjects !== undefined) {
     store.set('recentProjects', sanitizeRecentProjects(partial.recentProjects))
