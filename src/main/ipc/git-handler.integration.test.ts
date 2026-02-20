@@ -141,6 +141,7 @@ describe('registerGitHandlers', () => {
 
   it('stages only specified paths when committing', async () => {
     const stagedPaths: string[][] = []
+    const commitCommands: string[] = []
 
     execFileMock.mockImplementation(
       (
@@ -169,6 +170,7 @@ describe('registerGitHandlers', () => {
           return
         }
         if (args[0] === 'commit') {
+          commitCommands.push(args.join(' '))
           cb(null, '[main abc1234] test commit\n 1 file changed\n', '')
           return
         }
@@ -193,6 +195,7 @@ describe('registerGitHandlers', () => {
     expect(result.ok).toBe(true)
     expect(result.commitHash).toBe('abc1234')
     expect(stagedPaths).toEqual([['src/main/index.ts', 'docs/new.md']])
+    expect(commitCommands).toEqual(['commit -m test commit -- src/main/index.ts docs/new.md'])
   })
 
   it('maps commit failures to structured error codes', async () => {
@@ -222,7 +225,7 @@ describe('registerGitHandlers', () => {
           case 'add -- src/file.ts':
             cb(null, '', '')
             return
-          case 'commit -m test commit':
+          case 'commit -m test commit -- src/file.ts':
             cb(
               {
                 name: 'GitError',
