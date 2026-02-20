@@ -12,6 +12,7 @@ interface PersistedRunIndex {
 
 const INDEX_FILE = 'index.json'
 const RUN_ID_PATTERN = /^[a-zA-Z0-9_-]{1,128}$/
+let indexUpdateQueue: Promise<void> = Promise.resolve()
 
 function getRunsDir(): string {
   const dir = path.join(app.getPath('userData'), 'orchestration-runs')
@@ -102,11 +103,28 @@ async function upsertIndex(runId: string): Promise<void> {
   if (!safeRunId) {
     return
   }
-  const idx = await readIndex()
-  if (idx.ids.includes(safeRunId)) {
-    return
+  await queueIndexUpdate(async () => {
+    const idx = await readIndex()
+    if (idx.ids.includes(safeRunId)) {
+      return
+    }
+    await writeIndex({ ids: [safeRunId, ...idx.ids] })
+  })
+}
+
+async function queueIndexUpdate(fn: () => Promise<void>): Promise<void> {
+  const previous = indexUpdateQueue
+  let releaseCurrent: (() => void) | undefined
+  indexUpdateQueue = new Promise<void>((resolve) => {
+    releaseCurrent = () => resolve()
+  })
+
+  await previous.catch(() => {})
+  try {
+    await fn()
+  } finally {
+    releaseCurrent?.()
   }
-  await writeIndex({ ids: [safeRunId, ...idx.ids] })
 }
 
 function normalizeRunId(runId: string): string | null {
