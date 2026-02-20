@@ -105,7 +105,7 @@ Tools are executed by TanStack AI internally during the stream — results arriv
 - Uses `z.infer<T>` for type-safe execute function (not TanStack's `InferSchemaType` which returns `unknown` for Zod)
 - Accesses `ToolContext` (projectPath, AbortSignal) via module-level getter — safe because agent runs are sequential
 
-Six built-in tools in `src/main/tools/tools/`: `readFile`, `writeFile`, `editFile`, `runCommand`, `glob`, `listFiles`. Write/edit/command require approval (`needsApproval: true`).
+Built-in tools in `src/main/tools/tools/`: `readFile`, `writeFile`, `editFile`, `runCommand`, `glob`, `listFiles`, `loadSkill`, `askUser`. Write/edit/command require approval (`needsApproval: true`).
 
 ### Persistence
 
@@ -161,3 +161,6 @@ Always use granular selectors with `useChatStore((s) => s.field)` — never call
 - Each skill folder must contain a `SKILL.md` file.
 - Optional bundled resources (for example `scripts/`) should remain inside the same skill folder.
 - Runtime skill discovery is folder-based only (no `SKILLS.md` catalog file).
+- Prompt behavior is metadata-first: skills are discovered by frontmatter (`name`, `description`) and activated by explicit refs/heuristics.
+- Full skill instructions are loaded only for selected skills or when the agent calls `loadSkill` mid-run.
+- Dynamic `loadSkill` activation is run-scoped; it does not auto-persist across turns.

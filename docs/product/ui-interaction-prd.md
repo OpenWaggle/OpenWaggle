@@ -1,6 +1,6 @@
 # OpenHive UI Interaction PRD
 
-Last updated: 2026-02-19
+Last updated: 2026-02-20
 Owner: Product + Core App
 Status: Implemented (HC-UI gap-closure baseline)
 Document type: Combined PRD + detailed feature specification
@@ -89,6 +89,7 @@ Scoring: high impact + low/medium effort first.
 - Composer voice input via local Whisper transcription (tiny default, base optional) with typed fallback guidance.
 - Skills workspace with catalog, per-skill enable toggles, and SKILL.md preview from `.openhive/skills`.
 - Composer slash references (`/skill-id`) for explicit skill activation while typing.
+- Dynamic mid-run skill loading via `loadSkill` tool (metadata-first catalog + run-scoped full instruction loading).
 
 ## Success Metrics
 
@@ -246,6 +247,23 @@ Status legend: `implemented`, `deferred`, `future`
   - Typing `/` at token start opens a filtered skill picker.
   - Selecting an item inserts `/skill-id` into the prompt.
   - Multiple skill references are supported in the same message.
+
+### HC-UI-014 Dynamic skill loading during active runs
+
+- Status: `implemented`
+- Location:
+  - `src/main/tools/tools/load-skill.ts`
+  - `src/main/agent/standards-context.ts`
+  - `src/main/agent/standards-prompt.ts`
+- Target behavior:
+  - Initial standards prompt exposes skill metadata only (id/name/description).
+  - Agent can call `loadSkill` mid-run to fetch full `SKILL.md` instructions for a specific skill id.
+  - Loaded skills remain run-scoped (no automatic persistence to future turns).
+  - Disabled skills are not dynamically loadable.
+- Acceptance criteria:
+  - Agent can continue the same run after loading a skill (no restart/memory wipe).
+  - Duplicate `loadSkill` calls return structured `alreadyLoaded` information.
+  - Missing/malformed/disabled skill requests return non-crashing structured errors.
 
 ### HC-UI-008 Composer attachment control
 
