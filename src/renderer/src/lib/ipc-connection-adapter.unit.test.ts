@@ -185,4 +185,61 @@ describe('createIpcConnectionAdapter', () => {
 
     expect(apiMock.sendMessage).toHaveBeenCalledWith(conversationId, payload, model)
   })
+
+  it('sends continuation messages when no pending payload exists and last message is not user', async () => {
+    apiMock.sendMessage.mockImplementationOnce(async () => {
+      emitStreamChunk(conversationId, {
+        type: 'RUN_FINISHED',
+        timestamp: 20,
+        runId: 'run-20',
+        finishReason: 'stop',
+      } as StreamChunk)
+    })
+
+    const connection = createIpcConnectionAdapter(conversationId, model, () => null, 'medium')
+    const conversationMessages = [
+      {
+        id: 'msg-user',
+        role: 'user',
+        parts: [{ type: 'text', content: 'write a file' }],
+        createdAt: new Date(),
+      },
+      {
+        id: 'msg-assistant',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'tool-1',
+            name: 'writeFile',
+            arguments: '{}',
+            state: 'approval-responded',
+            approval: {
+              id: 'approval_tool-1',
+              needsApproval: true,
+              approved: true,
+            },
+          },
+        ],
+        createdAt: new Date(),
+      },
+    ] as UIMessage[]
+
+    const stream = connection.connect(conversationMessages, undefined, undefined)
+    for await (const _chunk of stream) {
+      // consume
+    }
+
+    expect(apiMock.sendMessage).toHaveBeenCalledTimes(1)
+    expect(apiMock.sendMessage).toHaveBeenCalledWith(
+      conversationId,
+      expect.objectContaining({
+        text: '',
+        qualityPreset: 'medium',
+        attachments: [],
+        continuationMessages: expect.any(Array),
+      }),
+      model,
+    )
+  })
 })

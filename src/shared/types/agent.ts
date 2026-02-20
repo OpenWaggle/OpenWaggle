@@ -55,6 +55,11 @@ export interface AgentSendPayload {
   readonly text: string
   readonly qualityPreset: QualityPreset
   readonly attachments: readonly PreparedAttachment[]
+  /**
+   * Optional in-memory chat snapshot used for continuation flows
+   * (e.g. tool approvals) where the client must preserve UI tool state.
+   */
+  readonly continuationMessages?: readonly unknown[]
 }
 
 export interface Message {

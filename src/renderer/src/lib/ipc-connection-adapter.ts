@@ -37,6 +37,20 @@ function extractLastUserContent(messages: Array<UIMessage> | Array<ModelMessage>
   return ''
 }
 
+function shouldUseContinuationPayload(messages: Array<UIMessage> | Array<ModelMessage>): boolean {
+  const lastMsg = messages[messages.length - 1]
+  if (!lastMsg) return false
+  return lastMsg.role !== 'user'
+}
+
+function cloneMessagesForIpc(messages: Array<UIMessage> | Array<ModelMessage>): readonly unknown[] {
+  try {
+    return JSON.parse(JSON.stringify(messages)) as unknown[]
+  } catch {
+    return []
+  }
+}
+
 /**
  * Detect whether a stream chunk signals the end of an agent run.
  * TanStack emits intermediate RUN_FINISHED (finishReason: 'tool_calls')
@@ -72,9 +86,9 @@ export function createIpcConnectionAdapter(
 ): ConnectionAdapter {
   return {
     connect(_messages, _data, abortSignal) {
-      // We ignore the `messages` param from useChat — the main process
-      // loads conversation history from disk via conversationId.
-      // This keeps the main process as the single source of truth for persistence.
+      // For first user sends, main process loads conversation history from disk.
+      // For continuation sends (e.g. tool approval), we forward in-memory
+      // messages so approval state is preserved across the next run.
       return {
         async *[Symbol.asyncIterator]() {
           // Queue + signal pattern for bridging push-based IPC → pull-based AsyncIterable
@@ -106,14 +120,24 @@ export function createIpcConnectionAdapter(
           )
 
           // Start the agent run in the main process.
-          // We extract the user message from the last message in the array that
-          // useChat passes us — it always appends the new user message before calling connect().
+          // We extract the user message from the last message in the array for
+          // first sends. For continuation sends we attach the full message snapshot.
           const fallbackPayload: AgentSendPayload = {
             text: extractLastUserContent(_messages),
             qualityPreset: defaultQualityPreset,
             attachments: [],
           }
-          const payload = consumePendingPayload() ?? fallbackPayload
+          const pendingPayload = consumePendingPayload()
+          const payload =
+            pendingPayload ??
+            (shouldUseContinuationPayload(_messages)
+              ? {
+                  text: '',
+                  qualityPreset: defaultQualityPreset,
+                  attachments: [],
+                  continuationMessages: cloneMessagesForIpc(_messages),
+                }
+              : fallbackPayload)
 
           // Fire and forget — main process streams chunks back via IPC.
           // Catch to avoid unhandled rejection (errors are delivered via stream chunks).

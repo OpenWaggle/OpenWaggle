@@ -159,6 +159,7 @@ function buildPersistedUserMessageParts(payload: AgentSendPayload): MessagePart[
 
 export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> {
   const { conversation, payload, model, settings, onChunk, signal } = params
+  const hasContinuationMessages = (payload.continuationMessages?.length ?? 0) > 0
   const projectPath = conversation.projectPath ?? process.cwd()
   const dynamicLoadedSkillIds = new Set<string>()
   const skillToggles = conversation.projectPath
@@ -277,12 +278,16 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
         signal.addEventListener('abort', () => abortController.abort(), { once: true })
 
         const stream = await withStageTiming(stageDurationsMs, 'stream-setup', () => {
-          const existingMessages = conversationToMessages(conversation.messages)
-          const newUserMessage: SimpleChatMessage = {
-            role: 'user',
-            content: buildUserChatContent(provider.id, payload),
-          }
-          const allMessages = [...existingMessages, newUserMessage]
+          const allMessages = hasContinuationMessages
+            ? (payload.continuationMessages as SimpleChatMessage[])
+            : (() => {
+                const existingMessages = conversationToMessages(conversation.messages)
+                const newUserMessage: SimpleChatMessage = {
+                  role: 'user',
+                  content: buildUserChatContent(provider.id, payload),
+                }
+                return [...existingMessages, newUserMessage]
+              })()
           const samplingOptions =
             qualityConfig.topP === undefined
               ? { temperature: qualityConfig.temperature }
@@ -336,10 +341,13 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
           standardsWarnings: runContext.standards?.warnings ?? [],
         })
 
-        const userMsg = makeMessage('user', buildPersistedUserMessageParts(payload))
         const assistantMsg = makeMessage('assistant', finalParts, resolvedModel)
+        const userMsg = hasContinuationMessages
+          ? null
+          : makeMessage('user', buildPersistedUserMessageParts(payload))
+        const newMessages = userMsg ? [userMsg, assistantMsg] : [assistantMsg]
 
-        return { newMessages: [userMsg, assistantMsg], finalMessage: assistantMsg }
+        return { newMessages, finalMessage: assistantMsg }
       } catch (error) {
         if (context && !runErrorNotified) {
           const runError = error instanceof Error ? error : new Error(String(error))

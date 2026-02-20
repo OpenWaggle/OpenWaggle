@@ -69,10 +69,9 @@ export function useAgentChat(
     addToolApprovalResponse,
   } = useChat({
     connection,
-    // Changing `id` recreates the ChatClient (it's in useChat's useMemo deps).
-    // This is necessary because useChat does NOT sync connection changes to an
-    // existing ChatClient — it only reads connection at construction time.
-    id: conversationId ?? undefined,
+    // Recreate the ChatClient when conversation/model/preset changes.
+    // useChat does not live-update the connection object after construction.
+    id: conversationId ? `${conversationId}:${model}:${qualityPreset}` : undefined,
   })
 
   // Sync historical messages when switching conversations.
