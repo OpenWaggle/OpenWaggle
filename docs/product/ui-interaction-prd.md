@@ -90,6 +90,7 @@ Scoring: high impact + low/medium effort first.
 - Skills workspace with catalog, per-skill enable toggles, and SKILL.md preview from `.openhive/skills`.
 - Composer slash references (`/skill-id`) for explicit skill activation while typing.
 - Dynamic mid-run skill loading via `loadSkill` tool (metadata-first catalog + run-scoped full instruction loading).
+- Nested `AGENTS.md` resolution with path-scoped precedence (root baseline + inferred package scopes) and on-demand `loadAgents` runtime loading.
 
 ## Success Metrics
 
@@ -258,6 +259,21 @@ Status legend: `implemented`, `deferred`, `future`
 - Target behavior:
   - Initial standards prompt exposes skill metadata only (id/name/description).
   - Agent can call `loadSkill` mid-run to fetch full `SKILL.md` instructions for a specific skill id.
+
+### HC-UI-015 Nested AGENTS scope resolution (agents.md aligned)
+
+- Status: `implemented`
+- Location:
+  - `src/main/standards/agents-resolver.ts`
+  - `src/main/agent/standards-context.ts`
+  - `src/main/agent/standards-prompt.ts`
+  - `src/main/tools/tools/load-agents.ts`
+- Target behavior:
+  - Root `AGENTS.md` remains the baseline instruction source.
+  - Nested `AGENTS.md` files are resolved by scope chain (root -> ancestor dirs -> nearest dir for target path).
+  - Run-start prompt includes root plus inferred scoped instructions from user text/attachments.
+  - Agent can call `loadAgents` mid-run for additional target paths without restarting the run.
+  - Missing/malformed scoped files are warning-only and never block execution.
   - Loaded skills remain run-scoped (no automatic persistence to future turns).
   - Disabled skills are not dynamically loadable.
 - Acceptance criteria:

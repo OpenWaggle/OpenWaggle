@@ -183,6 +183,10 @@ FINISHING:     LEARNINGS.md → commit → push → notify user
 
 ## Recent Learnings
 
+### Task: Nested AGENTS.md Scope Resolution (2026-02-20)
+- Path-scoped AGENTS behavior is easiest to keep agents.md-aligned by resolving deterministic chains (`root -> ancestors -> nearest`) per target path and deduping discovered scope files across inferred candidates.
+- Mid-run scoped instruction loading works safely as a read-only tool (`loadAgents`) when loaded scope files and requested paths are tracked in run-local `ToolContext` state, avoiding prompt resets and preserving prior run context. [SKILL?]
+
 ### Task: Condukt In-Repo Orchestration + OpenHive Harness Integration (2026-02-20)
 - `git subtree split --prefix=packages/core` from the Condukt source repo provides a practical way to vendor only runtime package history into `packages/condukt-ai`, keeping syncability without importing docs/web app history. [SKILL?]
 - For Electron + TanStack `useChat` adapters, orchestration fallbacks must still emit terminal stream chunks (`RUN_FINISHED` / `RUN_ERROR`) and preferably text chunks, otherwise same-thread conversation reloads may not rehydrate UI state until a thread switch.
@@ -204,14 +208,14 @@ FINISHING:     LEARNINGS.md → commit → push → notify user
 - Keeping skill discovery metadata-only and introducing a dedicated `loadSkill` runtime tool allows mid-run specialization without mutating system prompt state or restarting the run.
 - Run-scoped skill-load dedupe is easiest and safest when tracked in `ToolContext` (AsyncLocalStorage) so observability can report dynamic loads without persisting conversation state.
 
+## Old Learnings Archive
+
+Move old learnings here so we can review
+
 ### Task: AGENTS + `.openhive/skills` Runtime Standardization (2026-02-19)
 - Keep standards ingestion as a dedicated agent feature (`prompt fragments + context loader`) so AGENTS and skill instructions can evolve without changing `runAgent` orchestration.
 - For skill references in free-form composer input, token-start slash matching plus explicit parsing (`/skill-id`, `$skill-id`) avoids coupling UX insertion behavior to backend activation logic.
 - Project-scoped skill toggles fit naturally into existing `electron-store` settings when keyed by absolute project path, allowing per-repo skill enablement without changing conversation persistence schemas.
-
-## Old Learnings Archive
-
-Move old learnings here so we can review
 
 ### Task: Offline Whisper Base Voice Input (2026-02-19)
 - `@xenova/transformers` can run Whisper-base locally in the Electron main process when audio is passed as normalized `Float32Array` PCM and the model cache is pinned to `app.getPath('userData')`.
