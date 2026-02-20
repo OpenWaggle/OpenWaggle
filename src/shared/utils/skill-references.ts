@@ -4,7 +4,7 @@ export interface ExplicitSkillReferences {
   readonly allSkillIds: readonly string[]
 }
 
-const SKILL_REFERENCE_REGEX = /(^|\s)([/$])([a-z0-9][a-z0-9-_]*)\b/gi
+const SKILL_REFERENCE_REGEX = /(^|\s)([/$])([a-z0-9][a-z0-9-_]*)(?=$|\s|[.,!?;:)\]}>"'])/gi
 
 export function extractExplicitSkillReferences(text: string): ExplicitSkillReferences {
   const slashSkillIds: string[] = []

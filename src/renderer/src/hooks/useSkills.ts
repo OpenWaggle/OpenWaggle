@@ -1,5 +1,5 @@
 import type { AgentsInstructionStatus, SkillCatalogResult } from '@shared/types/standards'
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '@/lib/ipc'
 
 interface StandardsStatus {
@@ -29,46 +29,60 @@ export function useSkills(projectPath: string | null): UseSkillsResult {
   const [isLoading, setIsLoading] = useState(false)
   const [isPreviewLoading, setIsPreviewLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  const refresh = useCallback(async () => {
-    if (!projectPath) {
-      setStandardsStatus(null)
-      setCatalog(null)
-      setSelectedSkillId(null)
-      setPreviewMarkdown('')
-      setError(null)
-      return
-    }
-
-    setIsLoading(true)
-    setError(null)
-    try {
-      const [status, catalogResult] = await Promise.all([
-        api.getStandardsStatus(projectPath),
-        api.listSkills(projectPath),
-      ])
-      setStandardsStatus(status)
-      setCatalog(catalogResult)
-      setSelectedSkillId((current) => {
-        if (current && catalogResult.skills.some((skill) => skill.id === current)) {
-          return current
-        }
-        return catalogResult.skills[0]?.id ?? null
-      })
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Failed to load skills.')
-      setStandardsStatus(null)
-      setCatalog(null)
-      setSelectedSkillId(null)
-      setPreviewMarkdown('')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [projectPath])
+  const [refreshTick, setRefreshTick] = useState(0)
 
   useEffect(() => {
-    void refresh()
-  }, [refresh])
+    let active = true
+    async function loadCurrentProjectSkills(refreshNonce: number): Promise<void> {
+      // refreshNonce is consumed so manual refreshes re-run this effect.
+      void refreshNonce
+
+      if (!projectPath) {
+        if (!active) return
+        setStandardsStatus(null)
+        setCatalog(null)
+        setSelectedSkillId(null)
+        setPreviewMarkdown('')
+        setError(null)
+        setIsLoading(false)
+        return
+      }
+
+      setIsLoading(true)
+      setError(null)
+      try {
+        const [status, catalogResult] = await Promise.all([
+          api.getStandardsStatus(projectPath),
+          api.listSkills(projectPath),
+        ])
+        if (!active) return
+        setStandardsStatus(status)
+        setCatalog(catalogResult)
+        setSelectedSkillId((current) => {
+          if (current && catalogResult.skills.some((skill) => skill.id === current)) {
+            return current
+          }
+          return catalogResult.skills[0]?.id ?? null
+        })
+      } catch (loadError) {
+        if (!active) return
+        setError(loadError instanceof Error ? loadError.message : 'Failed to load skills.')
+        setStandardsStatus(null)
+        setCatalog(null)
+        setSelectedSkillId(null)
+        setPreviewMarkdown('')
+      } finally {
+        if (active) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    void loadCurrentProjectSkills(refreshTick)
+    return () => {
+      active = false
+    }
+  }, [projectPath, refreshTick])
 
   useEffect(() => {
     if (!projectPath || !selectedSkillId) {
@@ -110,14 +124,15 @@ export function useSkills(projectPath: string | null): UseSkillsResult {
     }
   }, [projectPath, selectedSkillId, catalog])
 
-  const toggleSkill = useCallback(
-    async (skillId: string, enabled: boolean) => {
-      if (!projectPath) return
-      await api.setSkillEnabled(projectPath, skillId, enabled)
-      await refresh()
-    },
-    [projectPath, refresh],
-  )
+  async function toggleSkill(skillId: string, enabled: boolean): Promise<void> {
+    if (!projectPath) return
+    await api.setSkillEnabled(projectPath, skillId, enabled)
+    setRefreshTick((value) => value + 1)
+  }
+
+  async function refresh(): Promise<void> {
+    setRefreshTick((value) => value + 1)
+  }
 
   return {
     standardsStatus,

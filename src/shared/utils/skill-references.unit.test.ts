@@ -20,6 +20,11 @@ describe('extractExplicitSkillReferences', () => {
     expect(result.allSkillIds).toEqual([])
   })
 
+  it('ignores absolute path segments', () => {
+    const result = extractExplicitSkillReferences('Please inspect /tmp/repo/.openhive/skills')
+    expect(result.allSkillIds).toEqual([])
+  })
+
   it('captures slash references at the start of the prompt', () => {
     const result = extractExplicitSkillReferences('/tanstack-tool-streaming fix this issue')
 

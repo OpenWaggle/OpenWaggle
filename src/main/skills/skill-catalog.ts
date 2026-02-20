@@ -131,22 +131,16 @@ function normalizeSkillId(folderName: string): string {
 
 function parseSkillDocument(markdown: string): ParsedSkillDocument {
   const trimmed = markdown.trimStart()
-  if (!trimmed.startsWith('---')) {
-    throw new Error('SKILL.md is missing YAML frontmatter')
-  }
-
-  const contentStart = trimmed.indexOf('\n')
-  if (contentStart === -1) {
-    throw new Error('SKILL.md frontmatter is malformed')
-  }
-
-  const frontmatterEnd = trimmed.indexOf('\n---\n', contentStart + 1)
-  if (frontmatterEnd === -1) {
+  const frontmatterMatch = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(trimmed)
+  if (!frontmatterMatch) {
+    if (!trimmed.startsWith('---')) {
+      throw new Error('SKILL.md is missing YAML frontmatter')
+    }
     throw new Error('SKILL.md frontmatter closing delimiter is missing')
   }
 
-  const frontmatter = trimmed.slice(contentStart + 1, frontmatterEnd)
-  const body = trimmed.slice(frontmatterEnd + '\n---\n'.length).trim()
+  const frontmatter = frontmatterMatch[1] ?? ''
+  const body = (frontmatterMatch[2] ?? '').trim()
   const fields = parseFrontmatterFields(frontmatter)
 
   const name = fields.name?.trim()

@@ -1,7 +1,11 @@
 import type { Settings } from '@shared/types/settings'
 import type { SkillActivationResult } from '@shared/types/standards'
 import { activateSkillsFromText } from '../skills/skill-activation'
-import { type LoadedSkillDefinition, loadSkillCatalog } from '../skills/skill-catalog'
+import {
+  type LoadedSkillCatalog,
+  type LoadedSkillDefinition,
+  loadSkillCatalog,
+} from '../skills/skill-catalog'
 import { loadAgentsInstruction } from '../standards/agents-loader'
 
 export interface ActiveSkillInstruction {
@@ -55,7 +59,17 @@ export async function loadAgentStandardsContext(
   }
 
   const toggles = settings.skillTogglesByProject[projectPath] ?? {}
-  const catalog = await loadSkillCatalog(projectPath, toggles)
+  let catalog: LoadedSkillCatalog = {
+    projectPath,
+    skills: [],
+  }
+  try {
+    catalog = await loadSkillCatalog(projectPath, toggles)
+  } catch (error) {
+    warnings.push(
+      `Failed to load skills catalog: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
 
   const activation = activateSkillsFromText(userText, catalog.skills)
   if (activation.unresolvedExplicitIds.length > 0) {
