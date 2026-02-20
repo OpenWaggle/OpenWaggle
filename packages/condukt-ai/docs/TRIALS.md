@@ -16,7 +16,7 @@ This workflow records:
 pnpm --filter condukt-ai quickstart:broken
 ```
 
-This writes `packages/core/trace.quickstart.json`.
+This writes `packages/condukt-ai/trace.quickstart.json`.
 
 ## 2) Start a timed trial session
 
@@ -25,10 +25,10 @@ pnpm --filter condukt-ai trial:start \
   --participant p1 \
   --scenario quickstart-broken \
   --mode condukt-ai \
-  --trace packages/core/trace.quickstart.json
+  --trace packages/condukt-ai/trace.quickstart.json
 ```
 
-Output includes a session file path (stored under `packages/core/trials/sessions/` by default).
+Output includes a session file path (stored under `packages/condukt-ai/trials/sessions/` by default).
 
 Legacy note:
 - mode alias `condukt` is still accepted and normalized to `condukt-ai` for compatibility.
@@ -48,12 +48,12 @@ pnpm --filter condukt-ai trial:start \
 
 ```bash
 pnpm --filter condukt-ai trial:finish \
-  --session packages/core/trials/sessions/<session-id>.session.json \
+  --session packages/condukt-ai/trials/sessions/<session-id>.session.json \
   --diagnosed-task draft \
   --diagnosed-error-code CONTRACT_OUTPUT_VIOLATION
 ```
 
-This appends one record to `packages/core/trials/diagnosis-metrics.jsonl`.
+This appends one record to `packages/condukt-ai/trials/diagnosis-metrics.jsonl`.
 
 ## 4) Generate summary report
 
@@ -89,7 +89,7 @@ Gate behavior:
 
 ```bash
 pnpm --filter condukt-ai trial:report -- \
-  --markdown-out packages/core/trials/report.md \
+  --markdown-out packages/condukt-ai/trials/report.md \
   --title "Condukt AI Trial Report" \
   --max-pairs 20 \
   --min-records 6 \

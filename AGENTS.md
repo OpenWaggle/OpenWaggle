@@ -19,7 +19,7 @@ pnpm build:win        # Build Windows NSIS installer
 pnpm build:linux      # Build Linux AppImage
 ```
 
-No test framework is configured. All testing is manual via `pnpm dev`.
+Automated tests are configured with Vitest (`pnpm test`). Manual QA via `pnpm dev` is still required for renderer behavior.
 
 ## ⛔ MANDATORY RULES — READ BEFORE DOING ANYTHING
 
@@ -47,9 +47,13 @@ These rules are **non-negotiable**. Violating them invalidates your work.
 
 **During implementation:**
 
-- Commit after EACH logical unit of work (not just at the end)
-- Format: `<type>(<scope>): <description>`
-- Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
+- Before starting implementation, create a branch and open a PR for review.
+- Do not commit any changes until the maintainer explicitly approves committing.
+- After approval to commit, create atomic commits per logical unit of work.
+- Commit message format: `<type>(<scope>): <description>`
+- Allowed commit types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
+- After approved commits are complete, merge the working branch into local `main`.
+- Push the updated `main` branch to `origin`.
 
 ## Definition of Done
 

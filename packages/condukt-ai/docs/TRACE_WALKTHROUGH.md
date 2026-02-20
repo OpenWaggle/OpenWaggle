@@ -9,7 +9,7 @@ pnpm install
 pnpm --filter condukt-ai quickstart
 ```
 
-This writes `packages/core/trace.quickstart.json`.
+This writes `packages/condukt-ai/trace.quickstart.json`.
 
 Confirm:
 - `status` is `"ok"`
@@ -30,7 +30,7 @@ Confirm in console output:
 
 ## 3. Diagnose from trace (no re-run required)
 
-Open `packages/core/trace.quickstart.json` and inspect:
+Open `packages/condukt-ai/trace.quickstart.json` and inspect:
 - `tasks[]` entry for `task == "draft"`
 - `error_code`
 - `contract_issues[]` path/message
@@ -53,5 +53,5 @@ This is the core Condukt TS value proposition: contract failures are explicit an
 To capture trial metrics for this run, feed the same trace into:
 
 ```bash
-pnpm --filter condukt-ai trial:start --participant p1 --scenario quickstart-broken --mode condukt-ai --trace packages/core/trace.quickstart.json
+pnpm --filter condukt-ai trial:start --participant p1 --scenario quickstart-broken --mode condukt-ai --trace packages/condukt-ai/trace.quickstart.json
 ```

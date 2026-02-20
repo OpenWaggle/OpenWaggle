@@ -13,6 +13,7 @@ Focus of this package:
 - typed dependency context via `pipeline.addLLMTask(...)` so `dependencyOutputs` matches declared `after` tasks
 - duplicate task IDs rejected during typed builder composition (and runtime-guarded for dynamic IDs)
 - task-level retry policies (`retries`, `backoffMs`, `jitterMs`, `retryIf`) with attempt history in traces
+- dynamic orchestration runtime (`createOrchestrationEngine`) with task spawning, cancellation, retry/backoff, and run-store persistence hooks
 - Vitest-powered TypeScript test workflow
 
 ## Install
@@ -58,18 +59,18 @@ Run intentionally broken flow:
 pnpm --filter condukt-ai quickstart:broken
 ```
 
-Both commands write `packages/core/trace.quickstart.json`. Follow `docs/TRACE_WALKTHROUGH.md` to diagnose the broken run from trace data.
+Both commands write `packages/condukt-ai/trace.quickstart.json`. Follow `docs/TRACE_WALKTHROUGH.md` to diagnose the broken run from trace data.
 
 ## External trial instrumentation
 
 Capture diagnosis-time metrics for external users:
 
 ```bash
-pnpm --filter condukt-ai trial:start --participant p1 --scenario quickstart-broken --mode condukt-ai --trace packages/core/trace.quickstart.json
-pnpm --filter condukt-ai trial:finish --session packages/core/trials/sessions/<session-id>.session.json --diagnosed-task draft --diagnosed-error-code CONTRACT_OUTPUT_VIOLATION
+pnpm --filter condukt-ai trial:start --participant p1 --scenario quickstart-broken --mode condukt-ai --trace packages/condukt-ai/trace.quickstart.json
+pnpm --filter condukt-ai trial:finish --session packages/condukt-ai/trials/sessions/<session-id>.session.json --diagnosed-task draft --diagnosed-error-code CONTRACT_OUTPUT_VIOLATION
 pnpm --filter condukt-ai trial:report
 pnpm --filter condukt-ai trial:report -- --min-records 6 --min-accuracy 0.75 --min-pairs 3 --min-speedup 1.5
-pnpm --filter condukt-ai trial:report -- --markdown-out packages/core/trials/report.md --title "Condukt AI Trial Report"
+pnpm --filter condukt-ai trial:report -- --markdown-out packages/condukt-ai/trials/report.md --title "Condukt AI Trial Report"
 ```
 
 Trial protocol details: `docs/TRIALS.md`.
@@ -139,3 +140,37 @@ const pipeline = new Pipeline("tanstack").addTask(
 ```
 
 `tanstackChatTask` executes `chat({ stream: false })` and parses JSON text for contract validation.
+
+## Orchestration runtime
+
+Use the orchestration engine when you need dynamic multi-task runs with progress events and persistence.
+
+```ts
+import {
+  createOrchestrationEngine,
+  MemoryRunStore,
+  type WorkerAdapter,
+} from "condukt-ai";
+
+const worker: WorkerAdapter = {
+  async executeTask(task) {
+    return { output: { taskId: task.id, kind: task.kind } };
+  },
+};
+
+const engine = createOrchestrationEngine({
+  workerAdapter: worker,
+  runStore: new MemoryRunStore(),
+});
+
+const summary = await engine.run({
+  runId: "example-run",
+  tasks: [
+    { id: "a", kind: "analysis" },
+    { id: "b", kind: "synthesis", dependsOn: ["a"] },
+  ],
+  maxParallelTasks: 2,
+});
+
+console.log(summary.status); // completed | failed | cancelled
+```
