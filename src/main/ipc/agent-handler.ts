@@ -12,6 +12,7 @@ import {
   unregisterActiveOrchestrationRun,
 } from '../orchestration/active-runs'
 import { runOrchestratedAgent } from '../orchestration/service'
+import { withConversationLock } from '../store/conversation-lock'
 import { getConversation, saveConversation } from '../store/conversations'
 import { getSettings } from '../store/settings'
 import { answerQuestion, cancelQuestion } from '../tools/question-manager'
@@ -112,30 +113,32 @@ export function registerAgentHandlers(): void {
           newMessages = classic.newMessages
         }
 
-        // Re-read the latest snapshot before persisting to avoid resurrecting
-        // deleted conversations (e.g. user deletes while run is in flight).
-        const latestConversation = await getConversation(conversationId)
-        if (!latestConversation) {
-          return
-        }
-
-        // Append new messages to the latest conversation snapshot.
-        const updatedMessages = [...latestConversation.messages, ...newMessages]
-
-        // Auto-title on first user message
-        let title = latestConversation.title
-        if (updatedMessages.length <= 2 && title === 'New thread') {
-          const firstUserMsg = updatedMessages.find((m) => m.role === 'user')
-          if (firstUserMsg) {
-            const text = firstUserMsg.parts
-              .filter(isTextPart)
-              .map((p) => p.text)
-              .join(' ')
-            title = text.slice(0, 60) + (text.length > 60 ? '...' : '')
+        await withConversationLock(conversationId, async () => {
+          // Re-read the latest snapshot before persisting to avoid resurrecting
+          // deleted conversations (e.g. user deletes while run is in flight).
+          const latestConversation = await getConversation(conversationId)
+          if (!latestConversation) {
+            return
           }
-        }
 
-        await saveConversation({ ...latestConversation, title, messages: updatedMessages })
+          // Append new messages to the latest conversation snapshot.
+          const updatedMessages = [...latestConversation.messages, ...newMessages]
+
+          // Auto-title on first user message
+          let title = latestConversation.title
+          if (updatedMessages.length <= 2 && title === 'New thread') {
+            const firstUserMsg = updatedMessages.find((m) => m.role === 'user')
+            if (firstUserMsg) {
+              const text = firstUserMsg.parts
+                .filter(isTextPart)
+                .map((p) => p.text)
+                .join(' ')
+              title = text.slice(0, 60) + (text.length > 60 ? '...' : '')
+            }
+          }
+
+          await saveConversation({ ...latestConversation, title, messages: updatedMessages })
+        })
       } catch (err) {
         if (!(err instanceof Error && err.message === 'aborted')) {
           emitStreamChunk(conversationId, {
