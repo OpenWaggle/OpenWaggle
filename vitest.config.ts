@@ -11,6 +11,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    exclude: ['src/**/*.component.test.tsx'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
@@ -30,10 +31,10 @@ export default defineConfig({
         'src/shared/types/tools.ts',
       ],
       thresholds: {
-        lines: 25,
-        functions: 20,
-        statements: 25,
-        branches: 20,
+        lines: 40,
+        functions: 35,
+        statements: 40,
+        branches: 30,
       },
     },
   },

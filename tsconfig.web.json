@@ -19,5 +19,11 @@
   "include": [
     "src/renderer/src/**/*",
     "src/shared/**/*"
+  ],
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/renderer/src/test-setup.ts",
+    "src/renderer/src/test-utils.tsx"
   ]
 }
