@@ -1,14 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { execFileMock, handleMock } = vi.hoisted(() => ({
+const { execFileMock, safeHandleMock } = vi.hoisted(() => ({
   execFileMock: vi.fn(),
-  handleMock: vi.fn(),
+  safeHandleMock: vi.fn(),
 }))
 
-vi.mock('electron', () => ({
-  ipcMain: {
-    handle: handleMock,
-  },
+vi.mock('./typed-ipc', () => ({
+  safeHandle: safeHandleMock,
 }))
 
 vi.mock('node:child_process', () => ({
@@ -18,13 +16,13 @@ vi.mock('node:child_process', () => ({
 import { registerGitHandlers } from './git-handler'
 
 function registeredHandler(name: string): ((...args: unknown[]) => Promise<unknown>) | undefined {
-  const call = handleMock.mock.calls.find(([channel]) => channel === name)
+  const call = safeHandleMock.mock.calls.find((c: unknown[]) => c[0] === name)
   return call?.[1] as ((...args: unknown[]) => Promise<unknown>) | undefined
 }
 
 describe('registerGitHandlers', () => {
   beforeEach(() => {
-    handleMock.mockReset()
+    safeHandleMock.mockReset()
     execFileMock.mockReset()
   })
 

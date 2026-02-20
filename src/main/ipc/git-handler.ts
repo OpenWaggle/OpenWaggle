@@ -19,8 +19,8 @@ import type {
   GitFileStatus,
   GitStatusSummary,
 } from '@shared/types/git'
-import { ipcMain } from 'electron'
 import { z } from 'zod'
+import { safeHandle } from './typed-ipc'
 
 const execFileAsync = promisify(execFile)
 const DEFAULT_GIT_MAX_BUFFER = 5 * 1024 * 1024
@@ -42,7 +42,7 @@ interface RunGitOptions {
   readonly maxBuffer?: number
 }
 
-function normalizeGitPath(rawPath: string): string {
+export function normalizeGitPath(rawPath: string): string {
   const trimmed = rawPath.trim()
   if (!trimmed) return ''
 
@@ -755,57 +755,54 @@ const branchSetUpstreamPayloadSchema = z.object({
 })
 
 export function registerGitHandlers(): void {
-  ipcMain.handle('git:status', async (_event, rawPath: unknown) => {
+  safeHandle('git:status', async (_event, rawPath: unknown) => {
     const projectPath = projectPathSchema.parse(rawPath)
     return getGitStatus(projectPath)
   })
 
-  ipcMain.handle('git:commit', async (_event, rawPath: unknown, rawPayload: unknown) => {
+  safeHandle('git:commit', async (_event, rawPath: unknown, rawPayload: unknown) => {
     const projectPath = projectPathSchema.parse(rawPath)
     const payload = commitPayloadSchema.parse(rawPayload)
     return commitGit(projectPath, payload)
   })
 
-  ipcMain.handle('git:diff', async (_event, rawPath: unknown) => {
+  safeHandle('git:diff', async (_event, rawPath: unknown) => {
     const projectPath = projectPathSchema.parse(rawPath)
     return getGitDiff(projectPath)
   })
 
-  ipcMain.handle('git:branches:list', async (_event, rawPath: unknown) => {
+  safeHandle('git:branches:list', async (_event, rawPath: unknown) => {
     const projectPath = projectPathSchema.parse(rawPath)
     return listGitBranches(projectPath)
   })
 
-  ipcMain.handle('git:branches:checkout', async (_event, rawPath: unknown, rawPayload: unknown) => {
+  safeHandle('git:branches:checkout', async (_event, rawPath: unknown, rawPayload: unknown) => {
     const projectPath = projectPathSchema.parse(rawPath)
     const payload = branchCheckoutPayloadSchema.parse(rawPayload)
     return checkoutGitBranch(projectPath, payload)
   })
 
-  ipcMain.handle('git:branches:create', async (_event, rawPath: unknown, rawPayload: unknown) => {
+  safeHandle('git:branches:create', async (_event, rawPath: unknown, rawPayload: unknown) => {
     const projectPath = projectPathSchema.parse(rawPath)
     const payload = branchCreatePayloadSchema.parse(rawPayload)
     return createGitBranch(projectPath, payload)
   })
 
-  ipcMain.handle('git:branches:rename', async (_event, rawPath: unknown, rawPayload: unknown) => {
+  safeHandle('git:branches:rename', async (_event, rawPath: unknown, rawPayload: unknown) => {
     const projectPath = projectPathSchema.parse(rawPath)
     const payload = branchRenamePayloadSchema.parse(rawPayload)
     return renameGitBranch(projectPath, payload)
   })
 
-  ipcMain.handle('git:branches:delete', async (_event, rawPath: unknown, rawPayload: unknown) => {
+  safeHandle('git:branches:delete', async (_event, rawPath: unknown, rawPayload: unknown) => {
     const projectPath = projectPathSchema.parse(rawPath)
     const payload = branchDeletePayloadSchema.parse(rawPayload)
     return deleteGitBranch(projectPath, payload)
   })
 
-  ipcMain.handle(
-    'git:branches:set-upstream',
-    async (_event, rawPath: unknown, rawPayload: unknown) => {
-      const projectPath = projectPathSchema.parse(rawPath)
-      const payload = branchSetUpstreamPayloadSchema.parse(rawPayload)
-      return setGitBranchUpstream(projectPath, payload)
-    },
-  )
+  safeHandle('git:branches:set-upstream', async (_event, rawPath: unknown, rawPayload: unknown) => {
+    const projectPath = projectPathSchema.parse(rawPath)
+    const payload = branchSetUpstreamPayloadSchema.parse(rawPayload)
+    return setGitBranchUpstream(projectPath, payload)
+  })
 }

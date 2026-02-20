@@ -4,7 +4,6 @@ import { isTextPart } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { QuestionAnswer } from '@shared/types/question'
-import { ipcMain } from 'electron'
 import { runAgent } from '../agent/agent-loop'
 import { createLogger } from '../logger'
 import {
@@ -18,6 +17,7 @@ import { getConversation, saveConversation } from '../store/conversations'
 import { getSettings } from '../store/settings'
 import { answerQuestion, cancelQuestion } from '../tools/question-manager'
 import { emitOrchestrationEvent, emitStreamChunk } from '../utils/stream-bridge'
+import { typedHandle, typedOn } from './typed-ipc'
 
 const logger = createLogger('agent-handler')
 
@@ -25,7 +25,7 @@ const logger = createLogger('agent-handler')
 const activeRuns = new Map<ConversationId, AbortController>()
 
 export function registerAgentHandlers(): void {
-  ipcMain.handle(
+  typedHandle(
     'agent:send-message',
     async (
       _event,
@@ -174,7 +174,7 @@ export function registerAgentHandlers(): void {
     },
   )
 
-  ipcMain.on('agent:cancel', (_event, conversationId?: ConversationId) => {
+  typedOn('agent:cancel', (_event, conversationId?: ConversationId) => {
     if (conversationId) {
       const controller = activeRuns.get(conversationId)
       if (controller) {
@@ -194,7 +194,7 @@ export function registerAgentHandlers(): void {
     }
   })
 
-  ipcMain.handle(
+  typedHandle(
     'agent:answer-question',
     (_event, conversationId: ConversationId, answers: QuestionAnswer[]) => {
       answerQuestion(conversationId, answers)

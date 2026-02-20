@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { PreparedAttachment } from '@shared/types/agent'
-import { ipcMain } from 'electron'
 import { z } from 'zod'
+import { safeHandle } from './typed-ipc'
 
 const MAX_ATTACHMENTS = 5
 const MAX_ATTACHMENT_SIZE_BYTES = 8 * 1024 * 1024
@@ -231,43 +231,40 @@ async function prepareAttachment(filePath: string): Promise<PreparedAttachment> 
 }
 
 export function registerAttachmentHandlers(): void {
-  ipcMain.handle(
-    'attachments:prepare',
-    async (_event, rawProjectPath: unknown, rawPaths: unknown) => {
-      const { projectPath, paths } = prepareArgsSchema.parse({
-        projectPath: rawProjectPath,
-        paths: rawPaths,
-      })
+  safeHandle('attachments:prepare', async (_event, rawProjectPath: unknown, rawPaths: unknown) => {
+    const { projectPath, paths } = prepareArgsSchema.parse({
+      projectPath: rawProjectPath,
+      paths: rawPaths,
+    })
 
-      if (!path.isAbsolute(projectPath)) {
-        throw new Error('Project path must be absolute.')
-      }
+    if (!path.isAbsolute(projectPath)) {
+      throw new Error('Project path must be absolute.')
+    }
 
-      const normalized = paths
-        .map((entry) => (path.isAbsolute(entry) ? entry : path.resolve(projectPath, entry)))
-        .map((entry) => path.normalize(entry))
+    const normalized = paths
+      .map((entry) => (path.isAbsolute(entry) ? entry : path.resolve(projectPath, entry)))
+      .map((entry) => path.normalize(entry))
 
-      const uniquePaths = [...new Set(normalized)]
-      if (uniquePaths.length === 0) return []
-      if (uniquePaths.length > MAX_ATTACHMENTS) {
-        throw new Error(
-          `A maximum of ${String(MAX_ATTACHMENTS)} attachments is supported per message.`,
-        )
-      }
+    const uniquePaths = [...new Set(normalized)]
+    if (uniquePaths.length === 0) return []
+    if (uniquePaths.length > MAX_ATTACHMENTS) {
+      throw new Error(
+        `A maximum of ${String(MAX_ATTACHMENTS)} attachments is supported per message.`,
+      )
+    }
 
-      const stats = await Promise.all(uniquePaths.map((filePath) => fs.stat(filePath)))
-      const totalSize = stats.reduce((sum, stat) => sum + stat.size, 0)
-      if (totalSize > MAX_TOTAL_SIZE_BYTES) {
-        throw new Error(
-          `Total attachment size exceeds ${String(MAX_TOTAL_SIZE_BYTES / (1024 * 1024))} MB.`,
-        )
-      }
+    const stats = await Promise.all(uniquePaths.map((filePath) => fs.stat(filePath)))
+    const totalSize = stats.reduce((sum, stat) => sum + stat.size, 0)
+    if (totalSize > MAX_TOTAL_SIZE_BYTES) {
+      throw new Error(
+        `Total attachment size exceeds ${String(MAX_TOTAL_SIZE_BYTES / (1024 * 1024))} MB.`,
+      )
+    }
 
-      const prepared: PreparedAttachment[] = []
-      for (const filePath of uniquePaths) {
-        prepared.push(await prepareAttachment(filePath))
-      }
-      return prepared
-    },
-  )
+    const prepared: PreparedAttachment[] = []
+    for (const filePath of uniquePaths) {
+      prepared.push(await prepareAttachment(filePath))
+    }
+    return prepared
+  })
 }

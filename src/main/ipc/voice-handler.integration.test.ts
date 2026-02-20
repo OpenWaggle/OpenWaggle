@@ -1,34 +1,37 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { handleMock, getPathMock, mkdirMock, pipelineMock, transformersEnv } = vi.hoisted(() => ({
-  handleMock: vi.fn(),
-  getPathMock: vi.fn(() => '/tmp/openhive-user-data'),
-  mkdirMock: vi.fn(async () => undefined),
-  pipelineMock: vi.fn(),
-  transformersEnv: {
-    backends: {
-      onnx: {
-        logLevel: undefined as 'verbose' | 'info' | 'warning' | 'error' | 'fatal' | undefined,
+const { safeHandleMock, getPathMock, mkdirMock, pipelineMock, transformersEnv } = vi.hoisted(
+  () => ({
+    safeHandleMock: vi.fn(),
+    getPathMock: vi.fn(() => '/tmp/openhive-user-data'),
+    mkdirMock: vi.fn(async () => undefined),
+    pipelineMock: vi.fn(),
+    transformersEnv: {
+      backends: {
+        onnx: {
+          logLevel: undefined as 'verbose' | 'info' | 'warning' | 'error' | 'fatal' | undefined,
+        },
       },
-    },
-  } as {
-    allowLocalModels?: boolean
-    allowRemoteModels?: boolean
-    cacheDir?: string
-    backends?: {
-      onnx?: {
-        logLevel?: 'verbose' | 'info' | 'warning' | 'error' | 'fatal'
+    } as {
+      allowLocalModels?: boolean
+      allowRemoteModels?: boolean
+      cacheDir?: string
+      backends?: {
+        onnx?: {
+          logLevel?: 'verbose' | 'info' | 'warning' | 'error' | 'fatal'
+        }
       }
-    }
-  },
+    },
+  }),
+)
+
+vi.mock('./typed-ipc', () => ({
+  safeHandle: safeHandleMock,
 }))
 
 vi.mock('electron', () => ({
   app: {
     getPath: getPathMock,
-  },
-  ipcMain: {
-    handle: handleMock,
   },
 }))
 
@@ -44,7 +47,7 @@ vi.mock('@xenova/transformers', () => ({
 import { registerVoiceHandlers, resetVoiceHandlerForTests } from './voice-handler'
 
 function registeredHandler(name: string): ((...args: unknown[]) => Promise<unknown>) | undefined {
-  const call = handleMock.mock.calls.find(([channel]) => channel === name)
+  const call = safeHandleMock.mock.calls.find((c: unknown[]) => c[0] === name)
   return call?.[1] as ((...args: unknown[]) => Promise<unknown>) | undefined
 }
 
@@ -61,7 +64,7 @@ function toPcm16(values: number[]): Uint8Array {
 
 describe('registerVoiceHandlers', () => {
   beforeEach(() => {
-    handleMock.mockReset()
+    safeHandleMock.mockReset()
     getPathMock.mockClear()
     mkdirMock.mockClear()
     pipelineMock.mockReset()

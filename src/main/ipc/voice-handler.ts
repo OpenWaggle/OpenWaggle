@@ -6,8 +6,9 @@ import {
   type VoiceModel,
   type VoiceTranscriptionResult,
 } from '@shared/types/voice'
-import { app, ipcMain } from 'electron'
+import { app } from 'electron'
 import { z } from 'zod'
+import { safeHandle } from './typed-ipc'
 
 const SAMPLE_RATE_MIN = 8_000
 const SAMPLE_RATE_MAX = 48_000
@@ -158,7 +159,7 @@ export function resetVoiceHandlerForTests(): void {
 }
 
 export function registerVoiceHandlers(): void {
-  ipcMain.handle('voice:transcribe-local', async (_event, rawPayload: unknown) => {
+  safeHandle('voice:transcribe-local', async (_event, rawPayload: unknown) => {
     const payload = transcribePayloadSchema.parse(rawPayload)
     const model = payload.model ?? VOICE_MODEL_TINY
     const sampleCount = Math.floor(payload.pcm16.byteLength / 2)

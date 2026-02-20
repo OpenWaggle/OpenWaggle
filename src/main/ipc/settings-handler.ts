@@ -6,11 +6,11 @@ import {
   type Settings,
 } from '@shared/types/settings'
 import { chat } from '@tanstack/ai'
-import { ipcMain } from 'electron'
 import { z } from 'zod'
 import { createLogger } from '../logger'
 import { providerRegistry } from '../providers'
 import { getSettings, updateSettings } from '../store/settings'
+import { safeHandle, typedHandle } from './typed-ipc'
 
 const logger = createLogger('ipc-settings')
 
@@ -110,11 +110,11 @@ const settingsUpdateSchema = z.object({
 })
 
 export function registerSettingsHandlers(): void {
-  ipcMain.handle('settings:get', () => {
+  typedHandle('settings:get', () => {
     return getSettings()
   })
 
-  ipcMain.handle('settings:update', (_event, raw: unknown) => {
+  safeHandle('settings:update', (_event, raw: unknown) => {
     const result = settingsUpdateSchema.safeParse(raw)
     if (!result.success) {
       logger.warn('Invalid settings update payload', { error: result.error.message })
@@ -124,7 +124,7 @@ export function registerSettingsHandlers(): void {
     return { ok: true as const }
   })
 
-  ipcMain.handle(
+  typedHandle(
     'settings:test-api-key',
     async (_event, provider: string, apiKey: string, baseUrl?: string) => {
       return testProviderApiKey(provider, apiKey, baseUrl)

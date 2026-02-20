@@ -1,15 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { handleMock, getAllMock, getMock } = vi.hoisted(() => ({
-  handleMock: vi.fn(),
+const { typedHandleMock, getAllMock, getMock } = vi.hoisted(() => ({
+  typedHandleMock: vi.fn(),
   getAllMock: vi.fn(),
   getMock: vi.fn(),
 }))
 
-vi.mock('electron', () => ({
-  ipcMain: {
-    handle: handleMock,
-  },
+vi.mock('./typed-ipc', () => ({
+  typedHandle: typedHandleMock,
 }))
 
 vi.mock('../providers', () => ({
@@ -22,13 +20,13 @@ vi.mock('../providers', () => ({
 import { registerProvidersHandlers } from './providers-handler'
 
 function registeredHandler(name: string): ((...args: unknown[]) => unknown) | undefined {
-  const call = handleMock.mock.calls.find(([channel]) => channel === name)
+  const call = typedHandleMock.mock.calls.find((c: unknown[]) => c[0] === name)
   return call?.[1] as ((...args: unknown[]) => unknown) | undefined
 }
 
 describe('registerProvidersHandlers', () => {
   beforeEach(() => {
-    handleMock.mockReset()
+    typedHandleMock.mockReset()
     getAllMock.mockReset()
     getMock.mockReset()
   })

@@ -1,11 +1,10 @@
-import type { ModelDisplayInfo, ProviderInfo } from '@shared/types/llm'
 import { generateDisplayName } from '@shared/types/llm'
 import type { Provider } from '@shared/types/settings'
-import { ipcMain } from 'electron'
 import { providerRegistry } from '../providers'
+import { typedHandle } from './typed-ipc'
 
 export function registerProvidersHandlers(): void {
-  ipcMain.handle('providers:get-models', (): ProviderInfo[] => {
+  typedHandle('providers:get-models', () => {
     return providerRegistry.getAll().map((p) => ({
       provider: p.id,
       displayName: p.displayName,
@@ -20,14 +19,9 @@ export function registerProvidersHandlers(): void {
     }))
   })
 
-  ipcMain.handle(
+  typedHandle(
     'providers:fetch-models',
-    async (
-      _event,
-      providerId: Provider,
-      baseUrl?: string,
-      apiKey?: string,
-    ): Promise<ModelDisplayInfo[]> => {
+    async (_event, providerId: Provider, baseUrl?: string, apiKey?: string) => {
       const provider = providerRegistry.get(providerId)
       if (!provider?.fetchModels) return []
 

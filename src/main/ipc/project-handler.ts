@@ -1,7 +1,8 @@
-import { dialog, ipcMain } from 'electron'
+import { dialog } from 'electron'
+import { typedHandle } from './typed-ipc'
 
 export function registerProjectHandlers(): void {
-  ipcMain.handle('project:select-folder', async () => {
+  typedHandle('project:select-folder', async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory'],
       title: 'Select Project Folder',
@@ -11,10 +12,10 @@ export function registerProjectHandlers(): void {
       return null
     }
 
-    return result.filePaths[0]
+    return result.filePaths[0] ?? null
   })
 
-  ipcMain.handle('dialog:confirm', async (_event, message: string, detail?: string) => {
+  typedHandle('dialog:confirm', async (_event, message: string, detail?: string) => {
     const result = await dialog.showMessageBox({
       type: 'warning',
       buttons: ['Cancel', 'Confirm'],

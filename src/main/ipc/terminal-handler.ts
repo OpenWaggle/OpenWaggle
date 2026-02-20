@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import os from 'node:os'
-import { BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow } from 'electron'
 import { getSafeChildEnv } from '../env'
+import { typedHandle, typedOn } from './typed-ipc'
 
 // node-pty is a native module — dynamically require to avoid bundling issues
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -23,7 +24,7 @@ function broadcast(channel: string, ...args: unknown[]): void {
 }
 
 export function registerTerminalHandlers(): void {
-  ipcMain.handle('terminal:create', (_event, projectPath: string) => {
+  typedHandle('terminal:create', (_event, projectPath: string) => {
     const childEnv = getSafeChildEnv()
     const shell = os.platform() === 'win32' ? 'powershell.exe' : (childEnv.SHELL ?? '/bin/zsh')
     const id = randomUUID()
@@ -48,7 +49,7 @@ export function registerTerminalHandlers(): void {
     return id
   })
 
-  ipcMain.handle('terminal:close', (_event, terminalId: string) => {
+  typedHandle('terminal:close', (_event, terminalId: string) => {
     const terminal = terminals.get(terminalId)
     if (terminal) {
       terminal.process.kill()
@@ -56,14 +57,14 @@ export function registerTerminalHandlers(): void {
     }
   })
 
-  ipcMain.handle('terminal:resize', (_event, terminalId: string, cols: number, rows: number) => {
+  typedHandle('terminal:resize', (_event, terminalId: string, cols: number, rows: number) => {
     const terminal = terminals.get(terminalId)
     if (terminal) {
       terminal.process.resize(cols, rows)
     }
   })
 
-  ipcMain.on('terminal:write', (_event, terminalId: string, data: string) => {
+  typedOn('terminal:write', (_event, terminalId: string, data: string) => {
     const terminal = terminals.get(terminalId)
     if (terminal) {
       terminal.process.write(data)

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  handleMock,
+  safeHandleMock,
   statMock,
   readFileMock,
   pdfParseMock,
@@ -10,7 +10,7 @@ const {
   jszipLoadAsyncMock,
   files,
 } = vi.hoisted(() => ({
-  handleMock: vi.fn(),
+  safeHandleMock: vi.fn(),
   statMock: vi.fn(),
   readFileMock: vi.fn(),
   pdfParseMock: vi.fn(),
@@ -20,10 +20,8 @@ const {
   files: new Map<string, { size: number; content: Buffer; isFile: boolean }>(),
 }))
 
-vi.mock('electron', () => ({
-  ipcMain: {
-    handle: handleMock,
-  },
+vi.mock('./typed-ipc', () => ({
+  safeHandle: safeHandleMock,
 }))
 
 vi.mock('node:fs/promises', () => ({
@@ -56,7 +54,7 @@ vi.mock('jszip', () => ({
 import { registerAttachmentHandlers } from './attachments-handler'
 
 function registeredHandler(name: string): ((...args: unknown[]) => Promise<unknown>) | undefined {
-  const call = handleMock.mock.calls.find(([channel]) => channel === name)
+  const call = safeHandleMock.mock.calls.find((c: unknown[]) => c[0] === name)
   return call?.[1] as ((...args: unknown[]) => Promise<unknown>) | undefined
 }
 
@@ -71,7 +69,7 @@ function registerFile(path: string, content: string | Buffer, size?: number): vo
 
 describe('registerAttachmentHandlers', () => {
   beforeEach(() => {
-    handleMock.mockReset()
+    safeHandleMock.mockReset()
     statMock.mockReset()
     readFileMock.mockReset()
     pdfParseMock.mockReset()
