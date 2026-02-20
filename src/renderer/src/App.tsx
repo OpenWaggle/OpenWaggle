@@ -1,6 +1,5 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SupportedModelId } from '@shared/types/llm'
-import type { OrchestrationEventPayload, OrchestrationRunRecord } from '@shared/types/orchestration'
 import { useEffect, useRef, useState } from 'react'
 import { ChatPanel } from '@/components/chat/ChatPanel'
 import type { OrchestrationProps } from '@/components/chat/types'
@@ -15,6 +14,7 @@ import { useAgentChat } from '@/hooks/useAgentChat'
 import { useChat } from '@/hooks/useChat'
 import { useGit } from '@/hooks/useGit'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
+import { useOrchestration } from '@/hooks/useOrchestration'
 import { useProject } from '@/hooks/useProject'
 import { useSettings, useSettingsSetup } from '@/hooks/useSettings'
 import { useSkills } from '@/hooks/useSkills'
@@ -32,8 +32,6 @@ export function App(): React.JSX.Element {
   const [diffPanelWidth, setDiffPanelWidth] = useState(600)
   const [diffRefreshKey, setDiffRefreshKey] = useState(0)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
-  const [orchestrationRuns, setOrchestrationRuns] = useState<OrchestrationRunRecord[]>([])
-  const [orchestrationEvents, setOrchestrationEvents] = useState<OrchestrationEventPayload[]>([])
 
   const DIFF_PANEL_MIN = 360
   const DIFF_PANEL_MAX = 900
@@ -108,25 +106,8 @@ export function App(): React.JSX.Element {
     }
   }, [activeConversationId, sendMessage])
 
-  useEffect(() => {
-    if (!activeConversationId) {
-      setOrchestrationRuns([])
-      setOrchestrationEvents([])
-      return
-    }
-
-    void api.listOrchestrationRuns(activeConversationId).then((runs) => setOrchestrationRuns(runs))
-
-    const unsubscribe = api.onOrchestrationEvent((event) => {
-      if (event.conversationId !== activeConversationId) return
-      setOrchestrationEvents((previous) => [event, ...previous].slice(0, 80))
-      void api
-        .listOrchestrationRuns(activeConversationId)
-        .then((runs) => setOrchestrationRuns(runs))
-    })
-
-    return unsubscribe
-  }, [activeConversationId])
+  const { orchestrationRuns, orchestrationEvents, cancelRun } =
+    useOrchestration(activeConversationId)
 
   // Debounced git refresh for stream-chunk events
   useEffect(() => {
@@ -255,7 +236,7 @@ export function App(): React.JSX.Element {
   const orchestrationPropsBundle: OrchestrationProps = {
     orchestrationRuns,
     orchestrationEvents,
-    onCancelOrchestrationRun: (runId) => api.cancelOrchestrationRun(runId),
+    onCancelOrchestrationRun: cancelRun,
   }
 
   return (
