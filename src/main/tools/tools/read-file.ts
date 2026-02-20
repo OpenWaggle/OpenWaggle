@@ -4,6 +4,10 @@ import { defineOpenHiveTool, resolveProjectPath } from '../define-tool'
 
 const MAX_FILE_SIZE = 1024 * 1024 // 1 MB
 
+function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && 'code' in error
+}
+
 export const readFileTool = defineOpenHiveTool({
   name: 'readFile',
   description:
@@ -18,22 +22,34 @@ export const readFileTool = defineOpenHiveTool({
   async execute(args, context) {
     const filePath = resolveProjectPath(context.projectPath, args.path)
 
-    const stat = await fs.stat(filePath)
-    if (stat.size > MAX_FILE_SIZE) {
-      throw new Error(
-        `File "${args.path}" is ${(stat.size / 1024 / 1024).toFixed(1)} MB — exceeds 1 MB limit. Use maxLines or read a specific section.`,
-      )
-    }
-
-    const content = await fs.readFile(filePath, 'utf-8')
-    if (args.maxLines) {
-      const lines = content.split('\n')
-      const truncated = lines.slice(0, args.maxLines).join('\n')
-      if (lines.length > args.maxLines) {
-        return `${truncated}\n\n... (${lines.length - args.maxLines} more lines)`
+    try {
+      const stat = await fs.stat(filePath)
+      if (stat.size > MAX_FILE_SIZE) {
+        throw new Error(
+          `File "${args.path}" is ${(stat.size / 1024 / 1024).toFixed(1)} MB — exceeds 1 MB limit. Use maxLines or read a specific section.`,
+        )
       }
-      return truncated
+
+      const content = await fs.readFile(filePath, 'utf-8')
+      if (args.maxLines) {
+        const lines = content.split('\n')
+        const truncated = lines.slice(0, args.maxLines).join('\n')
+        if (lines.length > args.maxLines) {
+          return `${truncated}\n\n... (${lines.length - args.maxLines} more lines)`
+        }
+        return truncated
+      }
+      return content
+    } catch (error) {
+      if (isErrnoException(error) && error.code === 'ENOENT') {
+        throw new Error(
+          `File "${args.path}" was not found in the project. Run listFiles first to confirm the path.`,
+        )
+      }
+      if (isErrnoException(error) && error.code === 'EISDIR') {
+        throw new Error(`"${args.path}" is a directory, not a file.`)
+      }
+      throw error
     }
-    return content
   },
 })

@@ -36,6 +36,8 @@ export class StreamPartCollector {
   private readonly collectedParts: MessagePart[] = []
   private readonly toolCallArgs: Record<string, string> = {}
   private readonly toolCallStartTimes: Record<string, number> = {}
+  private readonly emittedToolCallIds = new Set<string>()
+  private readonly emittedToolResultIds = new Set<string>()
 
   private toolCalls = 0
   private toolErrors = 0
@@ -69,14 +71,17 @@ export class StreamPartCollector {
 
       case 'TOOL_CALL_END': {
         const args = this.parseToolArgs(chunk.toolCallId, chunk.toolName)
-        this.collectedParts.push({
-          type: 'tool-call',
-          toolCall: { id: ToolCallId(chunk.toolCallId), name: chunk.toolName, args },
-        })
+        if (!this.emittedToolCallIds.has(chunk.toolCallId)) {
+          this.collectedParts.push({
+            type: 'tool-call',
+            toolCall: { id: ToolCallId(chunk.toolCallId), name: chunk.toolName, args },
+          })
+          this.emittedToolCallIds.add(chunk.toolCallId)
+          this.toolCalls += 1
+        }
 
         const startTime = this.toolCallStartTimes[chunk.toolCallId]
         const durationMs = startTime ? Date.now() - startTime : 0
-        this.toolCalls += 1
 
         if (chunk.result === undefined) {
           return {
@@ -91,24 +96,27 @@ export class StreamPartCollector {
         }
 
         const isError = detectToolResultError(chunk.result)
-        if (isError) {
+        if (isError && !this.emittedToolResultIds.has(chunk.toolCallId)) {
           this.toolErrors += 1
         }
 
         const resultString =
           typeof chunk.result === 'string' ? chunk.result : JSON.stringify(chunk.result)
 
-        this.collectedParts.push({
-          type: 'tool-result',
-          toolResult: {
-            id: ToolCallId(chunk.toolCallId),
-            name: chunk.toolName,
-            args,
-            result: resultString,
-            isError,
-            duration: durationMs,
-          },
-        })
+        if (!this.emittedToolResultIds.has(chunk.toolCallId)) {
+          this.collectedParts.push({
+            type: 'tool-result',
+            toolResult: {
+              id: ToolCallId(chunk.toolCallId),
+              name: chunk.toolName,
+              args,
+              result: resultString,
+              isError,
+              duration: durationMs,
+            },
+          })
+          this.emittedToolResultIds.add(chunk.toolCallId)
+        }
 
         return {
           toolCallEnd: {

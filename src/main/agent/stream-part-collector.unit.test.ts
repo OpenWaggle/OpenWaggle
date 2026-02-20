@@ -117,6 +117,46 @@ describe('StreamPartCollector', () => {
     })
   })
 
+  it('does not duplicate persisted tool-call parts across repeated TOOL_CALL_END chunks', () => {
+    const collector = new StreamPartCollector()
+
+    collector.handleChunk({
+      type: 'TOOL_CALL_START',
+      timestamp: 1,
+      toolCallId: 'tool-3',
+      toolName: 'writeFile',
+    } as StreamChunk)
+
+    collector.handleChunk({
+      type: 'TOOL_CALL_ARGS',
+      timestamp: 1.5,
+      toolCallId: 'tool-3',
+      delta: '{"path":"SUMMARY.md"}',
+    } as StreamChunk)
+
+    collector.handleChunk({
+      type: 'TOOL_CALL_END',
+      timestamp: 2,
+      toolCallId: 'tool-3',
+      toolName: 'writeFile',
+    } as unknown as StreamChunk)
+
+    collector.handleChunk({
+      type: 'TOOL_CALL_END',
+      timestamp: 3,
+      toolCallId: 'tool-3',
+      toolName: 'writeFile',
+      result: { kind: 'text', text: 'ok' },
+    } as unknown as StreamChunk)
+
+    const parts = collector.finalizeParts()
+    const stats = collector.getStats()
+
+    expect(stats.toolCalls).toBe(1)
+    expect(parts.filter((part) => part.type === 'tool-call')).toHaveLength(1)
+    expect(parts.filter((part) => part.type === 'tool-result')).toHaveLength(1)
+  })
+
   it('appends run errors as markdown error text', () => {
     const collector = new StreamPartCollector()
 

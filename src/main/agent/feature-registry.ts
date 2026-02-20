@@ -57,6 +57,7 @@ const observabilityHook: AgentLifecycleHook = {
     logToolStart(context, event)
   },
   onToolCallEnd: (context, event) => {
+    const errorSummary = event.isError ? summarizeToolError(event.result) : undefined
     console.info(
       '[agent-run]',
       JSON.stringify({
@@ -67,6 +68,7 @@ const observabilityHook: AgentLifecycleHook = {
         toolName: event.toolName,
         durationMs: event.durationMs,
         isError: event.isError,
+        error: errorSummary,
       }),
     )
   },
@@ -115,6 +117,33 @@ function logRunComplete(context: AgentRunContext, summary: AgentRunSummary): voi
       standardsWarnings: summary.standardsWarnings ?? [],
     }),
   )
+}
+
+function summarizeToolError(result: string | undefined): string | undefined {
+  if (!result) return undefined
+
+  try {
+    const parsed = JSON.parse(result) as unknown
+    if (typeof parsed === 'string') {
+      return parsed.slice(0, 300)
+    }
+    if (typeof parsed === 'object' && parsed !== null) {
+      const record = parsed as { error?: unknown; message?: unknown; text?: unknown }
+      if (typeof record.error === 'string' && record.error.trim()) {
+        return record.error.slice(0, 300)
+      }
+      if (typeof record.message === 'string' && record.message.trim()) {
+        return record.message.slice(0, 300)
+      }
+      if (typeof record.text === 'string' && record.text.trim()) {
+        return record.text.slice(0, 300)
+      }
+    }
+  } catch {
+    return result.slice(0, 300)
+  }
+
+  return undefined
 }
 
 const standardsPromptFeature: AgentFeature = {
