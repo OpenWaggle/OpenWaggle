@@ -20,6 +20,9 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Task: Workspace Package Lint Gate Expansion (2026-02-20)
+- Root-level Biome `files.includes` scope (`src/**`) can silently exclude workspace package files even when explicit paths are passed; package-local Biome configs that extend root rules plus per-package lint scripts are a reliable way to enforce package linting from root gates.
+
 ### Task: Review Findings Hardening (2026-02-20)
 - In orchestration fallback flows, emitting terminal stream chunks (`RUN_ERROR`/`RUN_FINISHED`) before handing off to the classic agent path can close TanStack IPC consumers early and drop fallback output; fallback paths should hand off without terminal stream emission. [SKILL?]
 - Commit pipelines that expose per-file selection must pass explicit pathspecs to `git commit` (for example `-- <paths>`), otherwise previously staged unrelated files are included despite UI selection.
