@@ -185,6 +185,10 @@ export interface IpcInvokeChannelMap {
     args: [runId: string]
     return: undefined
   }
+  'dialog:confirm': {
+    args: [message: string, detail?: string]
+    return: boolean
+  }
 }
 
 /**
@@ -343,6 +347,9 @@ export interface OpenHiveApi {
   listSkills(projectPath: string): Promise<SkillCatalogResult>
   setSkillEnabled(projectPath: string, skillId: string, enabled: boolean): Promise<void>
   getSkillPreview(projectPath: string, skillId: string): Promise<{ markdown: string }>
+
+  // Dialog
+  showConfirm(message: string, detail?: string): Promise<boolean>
 
   // Orchestration
   getOrchestrationRun(runId: string): Promise<OrchestrationRunRecord | null>

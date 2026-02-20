@@ -13,4 +13,16 @@ export function registerProjectHandlers(): void {
 
     return result.filePaths[0]
   })
+
+  ipcMain.handle('dialog:confirm', async (_event, message: string, detail?: string) => {
+    const result = await dialog.showMessageBox({
+      type: 'warning',
+      buttons: ['Cancel', 'Confirm'],
+      defaultId: 0,
+      cancelId: 0,
+      message,
+      detail,
+    })
+    return result.response === 1
+  })
 }
