@@ -186,6 +186,7 @@ FINISHING:     LEARNINGS.md → commit → push → notify user
 ### Task: TanStack AI Devtools End-to-End Integration (2026-02-20)
 - For Electron apps where TanStack AI runs in the main process, expose a main-process `ServerEventBus` and point renderer `TanStackDevtools` at it; keep the Vite plugin event bus disabled to avoid split or duplicate streams. [SKILL?]
 - Pass `conversationId` into `chat(...)` so server-side observability events correlate with renderer conversation state in AI Devtools.
+- Renderer CSP must explicitly allow `img-src data:` and localhost `connect-src` (`ws/http`) or TanStack Devtools shows broken icons and cannot attach to the event bus.
 
 ### Task: Dynamic Mid-Run Skill Loading (2026-02-20)
 - Keeping skill discovery metadata-only and introducing a dedicated `loadSkill` runtime tool allows mid-run specialization without mutating system prompt state or restarting the run.
