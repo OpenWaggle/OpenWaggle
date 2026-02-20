@@ -55,3 +55,26 @@ export type { ContractIssue, ContractValidationResult } from "./contracts.js";
 
 export { diagnoseFailure } from "./diagnostics.js";
 export type { FailureDiagnosis } from "./diagnostics.js";
+
+export { createOrchestrationEngine, MemoryRunStore } from "./orchestration.js";
+export {
+  ORCHESTRATION_ERROR_TASK_CANCELLED,
+  ORCHESTRATION_ERROR_TASK_EXECUTION,
+  ORCHESTRATION_ERROR_TASK_TIMEOUT,
+} from "./orchestration.js";
+export type {
+  OrchestrationEngine,
+  OrchestrationEvent,
+  OrchestrationRunDefinition,
+  OrchestrationRunRecord,
+  OrchestrationRunStatus,
+  OrchestrationTaskAttempt,
+  OrchestrationTaskContext,
+  OrchestrationTaskDefinition,
+  OrchestrationTaskRecord,
+  OrchestrationTaskRetryPolicy,
+  OrchestrationTaskStatus,
+  RunStore,
+  RunSummary,
+  WorkerAdapter,
+} from "./orchestration.js";
