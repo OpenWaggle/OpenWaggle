@@ -42,7 +42,7 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultModel: DEFAULT_ANTHROPIC_MODEL,
   projectPath: null,
   executionMode: 'sandbox',
-  orchestrationMode: 'orchestrated',
+  orchestrationMode: 'auto-fallback',
   qualityPreset: 'medium',
   recentProjects: [],
   skillTogglesByProject: {},
