@@ -10,7 +10,7 @@ import { ChatPanel } from '../ChatPanel'
 vi.mock('@/lib/ipc', () => ({
   api: {
     getSettings: vi.fn().mockResolvedValue({}),
-    updateSettings: vi.fn().mockResolvedValue(undefined),
+    updateSettings: vi.fn().mockResolvedValue({ ok: true }),
     getProviderModels: vi.fn().mockResolvedValue([]),
     getGitStatus: vi.fn().mockResolvedValue(null),
     listGitBranches: vi.fn().mockResolvedValue(null),

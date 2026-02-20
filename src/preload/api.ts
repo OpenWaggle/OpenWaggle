@@ -78,7 +78,9 @@ export const api: OpenHiveApi = {
     return ipcRenderer.invoke('settings:get')
   },
 
-  updateSettings(settings: Partial<Settings>): Promise<void> {
+  updateSettings(
+    settings: Partial<Settings>,
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
     return ipcRenderer.invoke('settings:update', settings)
   },
 

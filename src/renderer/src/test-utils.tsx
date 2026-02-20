@@ -13,7 +13,7 @@ import { useSettingsStore } from '@/stores/settings-store'
 export function createMockApi() {
   return {
     getSettings: vi.fn().mockResolvedValue(DEFAULT_SETTINGS),
-    updateSettings: vi.fn().mockResolvedValue(undefined),
+    updateSettings: vi.fn().mockResolvedValue({ ok: true }),
     getProviderModels: vi.fn().mockResolvedValue([]),
     selectProjectFolder: vi.fn().mockResolvedValue(null),
     listConversations: vi.fn().mockResolvedValue([]),

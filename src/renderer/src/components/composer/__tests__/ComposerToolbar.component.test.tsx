@@ -8,7 +8,7 @@ import { ComposerToolbar } from '../ComposerToolbar'
 vi.mock('@/lib/ipc', () => ({
   api: {
     getSettings: vi.fn().mockResolvedValue({}),
-    updateSettings: vi.fn().mockResolvedValue(undefined),
+    updateSettings: vi.fn().mockResolvedValue({ ok: true }),
     getProviderModels: vi.fn().mockResolvedValue([]),
   },
 }))

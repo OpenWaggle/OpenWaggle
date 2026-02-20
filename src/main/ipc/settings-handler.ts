@@ -8,8 +8,11 @@ import {
 import { chat } from '@tanstack/ai'
 import { ipcMain } from 'electron'
 import { z } from 'zod'
+import { createLogger } from '../logger'
 import { providerRegistry } from '../providers'
 import { getSettings, updateSettings } from '../store/settings'
+
+const logger = createLogger('ipc-settings')
 
 const TEST_TIMEOUT_MS = 15_000
 
@@ -114,10 +117,11 @@ export function registerSettingsHandlers(): void {
   ipcMain.handle('settings:update', (_event, raw: unknown) => {
     const result = settingsUpdateSchema.safeParse(raw)
     if (!result.success) {
-      console.warn('Invalid settings update payload:', result.error.message)
-      return
+      logger.warn('Invalid settings update payload', { error: result.error.message })
+      return { ok: false as const, error: result.error.message }
     }
     updateSettings(result.data as Partial<Settings>)
+    return { ok: true as const }
   })
 
   ipcMain.handle(

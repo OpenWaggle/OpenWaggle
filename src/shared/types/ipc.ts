@@ -47,7 +47,7 @@ export interface IpcInvokeChannelMap {
   }
   'settings:update': {
     args: [settings: Partial<Settings>]
-    return: undefined
+    return: { ok: true } | { ok: false; error: string }
   }
   'settings:test-api-key': {
     args: [provider: string, apiKey: string, baseUrl?: string]
@@ -263,7 +263,7 @@ export interface OpenHiveApi {
 
   // Settings
   getSettings(): Promise<Settings>
-  updateSettings(settings: Partial<Settings>): Promise<void>
+  updateSettings(settings: Partial<Settings>): Promise<{ ok: true } | { ok: false; error: string }>
   testApiKey(
     provider: string,
     apiKey: string,
