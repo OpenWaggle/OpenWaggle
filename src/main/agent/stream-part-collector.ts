@@ -17,7 +17,7 @@ export interface StreamPartCollectorStats {
   readonly toolErrors: number
 }
 
-function detectToolResultError(result: unknown): boolean {
+export function detectToolResultError(result: unknown): boolean {
   if (typeof result === 'string') {
     try {
       const parsed = JSON.parse(result) as unknown
@@ -29,8 +29,15 @@ function detectToolResultError(result: unknown): boolean {
 
   if (typeof result !== 'object' || result === null) return false
 
-  const maybeRecord = result as { error?: unknown; ok?: unknown }
-  if (maybeRecord.ok === false) return true
+  const maybeRecord = result as { error?: unknown; ok?: unknown; message?: unknown }
+  // Require `ok === false` to also have an `error` or `message` field to prevent
+  // false positives on arbitrary objects that happen to contain `{ ok: false }`.
+  if (maybeRecord.ok === false) {
+    return (
+      (typeof maybeRecord.error === 'string' && maybeRecord.error.length > 0) ||
+      (typeof maybeRecord.message === 'string' && maybeRecord.message.length > 0)
+    )
+  }
   return typeof maybeRecord.error === 'string' && maybeRecord.error.length > 0
 }
 
