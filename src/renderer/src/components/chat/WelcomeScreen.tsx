@@ -1,7 +1,7 @@
 import { ChevronDown, FileText, FolderOpen, Gamepad2, PencilLine } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import openhiveMark from '@/assets/openhive-mark.png'
-import { useClickOutside } from '@/hooks/useClickOutside'
+import { Popover } from '@/components/shared/Popover'
 import { projectName } from '@/lib/format'
 
 interface WelcomeScreenProps {
@@ -27,10 +27,7 @@ export function WelcomeScreen({
   onSelectProjectPath,
   onRetry,
 }: WelcomeScreenProps): React.JSX.Element {
-  const projectMenuRef = useRef<HTMLDivElement>(null)
   const [projectMenuOpen, setProjectMenuOpen] = useState(false)
-
-  useClickOutside(projectMenuRef, () => setProjectMenuOpen(false), projectMenuOpen)
 
   function handleChooseProject(path: string): void {
     setProjectMenuOpen(false)
@@ -47,67 +44,69 @@ export function WelcomeScreen({
               <h2 className="text-[clamp(40px,5vw,54px)] leading-none font-semibold tracking-tight text-text-primary">
                 Let&apos;s build
               </h2>
-              <div ref={projectMenuRef} className="relative inline-flex">
-                {hasProject ? (
-                  <button
-                    type="button"
-                    onClick={() => setProjectMenuOpen((prev) => !prev)}
-                    className="inline-flex max-w-full items-center gap-1 text-[clamp(28px,3.8vw,40px)] leading-none text-text-secondary transition-colors hover:text-text-primary"
-                    title="Open project picker"
-                  >
-                    <span className="truncate">{projectName(projectPath)}</span>
-                    <ChevronDown className="mt-1 h-5 w-5" />
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setProjectMenuOpen((prev) => !prev)}
-                    className="inline-flex max-w-sm items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm text-text-tertiary transition-colors hover:border-border-light hover:text-text-secondary"
-                    title="Open project picker"
-                  >
-                    <FolderOpen className="h-4 w-4 shrink-0" />
-                    <span>Select a project folder to get started</span>
-                  </button>
-                )}
-
-                {projectMenuOpen && (
-                  <div className="absolute left-1/2 top-full z-20 mt-3 w-[340px] -translate-x-1/2 rounded-xl border border-border-light bg-bg-secondary p-2 shadow-xl">
+              <Popover
+                open={projectMenuOpen}
+                onOpenChange={setProjectMenuOpen}
+                placement="bottom-start"
+                className="w-[340px] p-2 left-1/2 -translate-x-1/2 mt-2"
+                trigger={
+                  hasProject ? (
                     <button
                       type="button"
-                      onClick={() => {
-                        setProjectMenuOpen(false)
-                        onOpenProject?.()
-                      }}
-                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] text-text-secondary transition-colors hover:bg-bg-hover"
+                      onClick={() => setProjectMenuOpen((prev) => !prev)}
+                      className="inline-flex max-w-full items-center gap-1 text-[clamp(28px,3.8vw,40px)] leading-none text-text-secondary transition-colors hover:text-text-primary"
+                      title="Open project picker"
                     >
-                      <FolderOpen className="h-3.5 w-3.5 shrink-0" />
-                      Select folder…
+                      <span className="truncate">{projectName(projectPath)}</span>
+                      <ChevronDown className="mt-1 h-5 w-5" />
                     </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setProjectMenuOpen((prev) => !prev)}
+                      className="inline-flex max-w-sm items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm text-text-tertiary transition-colors hover:border-border-light hover:text-text-secondary"
+                      title="Open project picker"
+                    >
+                      <FolderOpen className="h-4 w-4 shrink-0" />
+                      <span>Select a project folder to get started</span>
+                    </button>
+                  )
+                }
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProjectMenuOpen(false)
+                    onOpenProject?.()
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] text-text-secondary transition-colors hover:bg-bg-hover"
+                >
+                  <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+                  Select folder…
+                </button>
 
-                    {recentProjects.length > 0 && (
-                      <div className="mt-1 border-t border-border pt-1">
-                        <div className="px-2.5 py-1 text-[11px] uppercase tracking-wide text-text-muted">
-                          Recent projects
-                        </div>
-                        {recentProjects.map((path) => (
-                          <button
-                            key={path}
-                            type="button"
-                            onClick={() => handleChooseProject(path)}
-                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] text-text-secondary transition-colors hover:bg-bg-hover"
-                          >
-                            <FolderOpen className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
-                            <span className="min-w-0 flex-1 truncate">{projectName(path)}</span>
-                            {path === projectPath && (
-                              <span className="text-[11px] text-text-muted">Current</span>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                {recentProjects.length > 0 && (
+                  <div className="mt-1 border-t border-border pt-1">
+                    <div className="px-2.5 py-1 text-[11px] uppercase tracking-wide text-text-muted">
+                      Recent projects
+                    </div>
+                    {recentProjects.map((path) => (
+                      <button
+                        key={path}
+                        type="button"
+                        onClick={() => handleChooseProject(path)}
+                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] text-text-secondary transition-colors hover:bg-bg-hover"
+                      >
+                        <FolderOpen className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
+                        <span className="min-w-0 flex-1 truncate">{projectName(path)}</span>
+                        {path === projectPath && (
+                          <span className="text-[11px] text-text-muted">Current</span>
+                        )}
+                      </button>
+                    ))}
                   </div>
                 )}
-              </div>
+              </Popover>
             </div>
           </div>
         </div>

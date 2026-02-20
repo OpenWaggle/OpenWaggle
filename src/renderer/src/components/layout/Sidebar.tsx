@@ -16,12 +16,13 @@ import {
   Sparkles,
   Trash2,
 } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import openhiveLockup from '@/assets/openhive-lockup.png'
-import { useClickOutside } from '@/hooks/useClickOutside'
+import { Popover } from '@/components/shared/Popover'
 import { useFullscreen } from '@/hooks/useFullscreen'
 import { cn } from '@/lib/cn'
 import { formatRelativeTime, projectName, truncate } from '@/lib/format'
+import { api } from '@/lib/ipc'
 
 function McpIcon({ className }: { className?: string }): React.JSX.Element {
   return (
@@ -136,7 +137,6 @@ export function Sidebar({
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [sortMode, setSortMode] = useState<SortMode>('recent')
   const [sortMenuOpen, setSortMenuOpen] = useState(false)
-  const sortMenuRef = useRef<HTMLDivElement>(null)
 
   const sortedGroups = sortGroups(groups, sortMode)
 
@@ -151,8 +151,6 @@ export function Sidebar({
       return next
     })
   }
-
-  useClickOutside(sortMenuRef, () => setSortMenuOpen(false), sortMenuOpen)
 
   return (
     <aside className="flex h-full w-[272px] shrink-0 flex-col justify-between bg-bg-secondary border-r border-border">
@@ -227,43 +225,46 @@ export function Sidebar({
             >
               <FolderPlus className="h-[13px] w-[13px]" />
             </button>
-            <div ref={sortMenuRef} className="relative">
-              <button
-                type="button"
-                onClick={() => setSortMenuOpen((p) => !p)}
-                className={cn(
-                  'rounded p-0.5 transition-colors',
-                  sortMenuOpen
-                    ? 'text-text-primary'
-                    : 'text-text-tertiary hover:text-text-secondary',
-                )}
-                title="Sort projects"
-              >
-                <LayoutList className="h-3 w-3" />
-              </button>
-              {sortMenuOpen && (
-                <div className="absolute right-0 top-full z-50 mt-1 min-w-[150px] rounded-lg border border-border-light bg-bg-secondary py-1 shadow-lg">
-                  {SORT_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => {
-                        setSortMode(opt.value)
-                        setSortMenuOpen(false)
-                      }}
-                      className={cn(
-                        'flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-bg-hover',
-                        sortMode === opt.value ? 'text-accent' : 'text-text-secondary',
-                      )}
-                    >
-                      <opt.icon className="h-3 w-3 shrink-0" />
-                      <span className="flex-1">{opt.label}</span>
-                      {sortMode === opt.value && <Check className="h-3 w-3 shrink-0" />}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <Popover
+              open={sortMenuOpen}
+              onOpenChange={setSortMenuOpen}
+              placement="bottom-end"
+              className="min-w-[150px] py-1"
+              trigger={
+                <button
+                  type="button"
+                  onClick={() => setSortMenuOpen((p) => !p)}
+                  className={cn(
+                    'rounded p-0.5 transition-colors',
+                    sortMenuOpen
+                      ? 'text-text-primary'
+                      : 'text-text-tertiary hover:text-text-secondary',
+                  )}
+                  title="Sort projects"
+                >
+                  <LayoutList className="h-3 w-3" />
+                </button>
+              }
+            >
+              {SORT_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    setSortMode(opt.value)
+                    setSortMenuOpen(false)
+                  }}
+                  className={cn(
+                    'flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-bg-hover',
+                    sortMode === opt.value ? 'text-accent' : 'text-text-secondary',
+                  )}
+                >
+                  <opt.icon className="h-3 w-3 shrink-0" />
+                  <span className="flex-1">{opt.label}</span>
+                  {sortMode === opt.value && <Check className="h-3 w-3 shrink-0" />}
+                </button>
+              ))}
+            </Popover>
           </div>
         </div>
 
@@ -335,7 +336,11 @@ export function Sidebar({
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  onDelete(conv.id)
+                                  void api
+                                    .showConfirm('Delete this thread?', 'This cannot be undone.')
+                                    .then((confirmed) => {
+                                      if (confirmed) onDelete(conv.id)
+                                    })
                                 }}
                                 className="ml-auto hidden shrink-0 rounded-md p-0.5 text-text-muted transition-colors group-hover:block hover:text-error"
                                 title="Delete thread"

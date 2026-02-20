@@ -1,8 +1,7 @@
 import type { QualityPreset } from '@shared/types/settings'
 import { ArrowUp, Loader2, Mic, Plus, Square } from 'lucide-react'
-import { useRef } from 'react'
 import { ModelSelector } from '@/components/shared/ModelSelector'
-import { useClickOutside } from '@/hooks/useClickOutside'
+import { Popover } from '@/components/shared/Popover'
 import { useProject } from '@/hooks/useProject'
 import { cn } from '@/lib/cn'
 import { useComposerStore } from '@/stores/composer-store'
@@ -42,9 +41,6 @@ export function ComposerToolbar({
   const isListening = useComposerStore((s) => s.isListening)
   const isTranscribingVoice = useComposerStore((s) => s.isTranscribingVoice)
 
-  const qualityMenuRef = useRef<HTMLDivElement>(null)
-  useClickOutside(qualityMenuRef, () => openMenu(null), qualityMenuOpen)
-
   async function handleQualityChange(preset: QualityPreset): Promise<void> {
     openMenu(null)
     if (preset === settings.qualityPreset) return
@@ -76,39 +72,42 @@ export function ComposerToolbar({
           providerModels={providerModels}
         />
 
-        <div ref={qualityMenuRef} className="relative">
-          <button
-            type="button"
-            onClick={() => openMenu(qualityMenuOpen ? null : 'quality')}
-            className="flex items-center gap-[5px] h-[26px] px-2.5 rounded-md border border-button-border transition-colors hover:bg-bg-hover"
-            title="Select quality preset"
-          >
-            <span className="text-[12px] text-text-secondary">
-              {QUALITY_PRESET_LABEL[settings.qualityPreset]}
-            </span>
-            <span className="text-[9px] text-text-tertiary">&#x2228;</span>
-          </button>
-          {qualityMenuOpen && (
-            <div className="absolute bottom-full left-0 z-30 mb-1 min-w-[140px] rounded-lg border border-border-light bg-bg-secondary py-1 shadow-lg">
-              {(['low', 'medium', 'high'] as const).map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  onClick={() => {
-                    void handleQualityChange(preset)
-                  }}
-                  className={cn(
-                    'flex w-full items-center justify-between px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-bg-hover',
-                    settings.qualityPreset === preset ? 'text-accent' : 'text-text-secondary',
-                  )}
-                >
-                  <span>{QUALITY_PRESET_LABEL[preset]}</span>
-                  {settings.qualityPreset === preset && <span>•</span>}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <Popover
+          open={qualityMenuOpen}
+          onOpenChange={(open) => openMenu(open ? 'quality' : null)}
+          placement="top-start"
+          className="min-w-[140px] py-1"
+          trigger={
+            <button
+              type="button"
+              onClick={() => openMenu(qualityMenuOpen ? null : 'quality')}
+              className="flex items-center gap-[5px] h-[26px] px-2.5 rounded-md border border-button-border transition-colors hover:bg-bg-hover"
+              title="Select quality preset"
+            >
+              <span className="text-[12px] text-text-secondary">
+                {QUALITY_PRESET_LABEL[settings.qualityPreset]}
+              </span>
+              <span className="text-[9px] text-text-tertiary">&#x2228;</span>
+            </button>
+          }
+        >
+          {(['low', 'medium', 'high'] as const).map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              onClick={() => {
+                void handleQualityChange(preset)
+              }}
+              className={cn(
+                'flex w-full items-center justify-between px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-bg-hover',
+                settings.qualityPreset === preset ? 'text-accent' : 'text-text-secondary',
+              )}
+            >
+              <span>{QUALITY_PRESET_LABEL[preset]}</span>
+              {settings.qualityPreset === preset && <span>•</span>}
+            </button>
+          ))}
+        </Popover>
       </div>
 
       <div className="flex items-center gap-2">
