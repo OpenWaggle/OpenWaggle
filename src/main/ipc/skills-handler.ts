@@ -1,6 +1,10 @@
 import { ipcMain } from 'electron'
 import { z } from 'zod'
-import { loadSkillCatalog, toSkillCatalogResult } from '../skills/skill-catalog'
+import {
+  loadSkillCatalog,
+  loadSkillInstructions,
+  toSkillCatalogResult,
+} from '../skills/skill-catalog'
 import { loadAgentsInstruction } from '../standards/agents-loader'
 import { getSettings, updateSettings } from '../store/settings'
 
@@ -52,17 +56,8 @@ export function registerSkillsHandlers(): void {
 
       const settings = getSettings()
       const toggles = settings.skillTogglesByProject[projectPath] ?? {}
-      const catalog = await loadSkillCatalog(projectPath, toggles)
-      const skill = catalog.skills.find((entry) => entry.id === skillId)
-
-      if (!skill) {
-        throw new Error(`Skill "${skillId}" was not found.`)
-      }
-      if (skill.loadStatus === 'error') {
-        throw new Error(skill.loadError ?? `Skill "${skillId}" is invalid.`)
-      }
-
-      return { markdown: skill.body ?? '' }
+      const skill = await loadSkillInstructions(projectPath, skillId, toggles)
+      return { markdown: skill.instructions }
     },
   )
 }

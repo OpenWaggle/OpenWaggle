@@ -13,6 +13,10 @@ export interface ToolContext {
   projectPath: string
   executionMode: ExecutionMode
   signal?: AbortSignal
+  dynamicSkills?: {
+    readonly loadedSkillIds: Set<string>
+    readonly toggles: Readonly<Record<string, boolean>>
+  }
 }
 
 export interface ToolTextResult {

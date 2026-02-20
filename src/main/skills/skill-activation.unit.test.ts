@@ -17,7 +17,6 @@ function makeSkill(
     hasScripts: false,
     enabled,
     loadStatus: 'ok',
-    body: '# Skill',
   }
 }
 

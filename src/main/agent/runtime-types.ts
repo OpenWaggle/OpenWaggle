@@ -45,6 +45,7 @@ export interface AgentRunSummary {
   readonly toolCalls: number
   readonly toolErrors: number
   readonly selectedSkillIds?: readonly string[]
+  readonly dynamicallyLoadedSkillIds?: readonly string[]
   readonly standardsWarnings?: readonly string[]
 }
 

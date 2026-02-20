@@ -22,3 +22,26 @@ export interface SkillActivationResult {
   readonly heuristicSkillIds: readonly string[]
   readonly selectedSkillIds: readonly string[]
 }
+
+export interface SkillLoadSuccessResult {
+  readonly ok: true
+  readonly skillId: string
+  readonly name: string
+  readonly description: string
+  readonly instructions: string
+  readonly folderPath: string
+  readonly skillPath: string
+  readonly hasScripts: boolean
+  readonly alreadyLoaded: boolean
+  readonly warning?: string
+}
+
+export interface SkillLoadErrorResult {
+  readonly ok: false
+  readonly skillId: string
+  readonly alreadyLoaded: boolean
+  readonly error: string
+  readonly warning?: string
+}
+
+export type SkillLoadToolResult = SkillLoadSuccessResult | SkillLoadErrorResult

@@ -9,12 +9,14 @@ interface ParsedSkillDocument {
   readonly body: string
 }
 
-export interface LoadedSkillDefinition extends SkillDiscoveryItem {
-  readonly body: string | null
-}
+export type LoadedSkillDefinition = SkillDiscoveryItem
 
 export interface LoadedSkillCatalog extends SkillCatalogResult {
   readonly skills: readonly LoadedSkillDefinition[]
+}
+
+export interface LoadedSkillInstructions extends SkillDiscoveryItem {
+  readonly instructions: string
 }
 
 export async function loadSkillCatalog(
@@ -33,7 +35,7 @@ export async function loadSkillCatalog(
   const skills = await Promise.all(
     folderEntries
       .filter((entry) => entry.isDirectory())
-      .map((entry) => loadSkillDefinition(projectPath, skillsRoot, entry.name, toggles)),
+      .map((entry) => loadSkillMetadata(projectPath, skillsRoot, entry.name, toggles)),
   )
 
   skills.sort((a, b) => a.id.localeCompare(b.id))
@@ -45,9 +47,63 @@ export async function loadSkillCatalog(
 }
 
 export function toSkillCatalogResult(catalog: LoadedSkillCatalog): SkillCatalogResult {
-  return {
-    projectPath: catalog.projectPath,
-    skills: catalog.skills.map(({ body: _body, ...skill }) => skill),
+  return catalog
+}
+
+export async function loadSkillInstructions(
+  projectPath: string,
+  skillId: string,
+  toggles: Readonly<Record<string, boolean>> = {},
+): Promise<LoadedSkillInstructions> {
+  const canonicalSkillId = normalizeRequestedSkillId(skillId)
+  const skillsRoot = path.join(projectPath, '.openhive', 'skills')
+  const folderEntries = await readDirectoryEntries(skillsRoot)
+  if (folderEntries === null) {
+    throw new Error(`Skill "${canonicalSkillId}" was not found.`)
+  }
+
+  const matchingFolders = folderEntries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .filter((folderName) => normalizeSkillId(folderName) === canonicalSkillId)
+
+  if (matchingFolders.length === 0) {
+    throw new Error(`Skill "${canonicalSkillId}" was not found.`)
+  }
+
+  if (matchingFolders.length > 1) {
+    throw new Error(
+      `Skill "${canonicalSkillId}" is ambiguous (${matchingFolders.join(', ')}). Use a unique folder id.`,
+    )
+  }
+
+  const folderName = matchingFolders[0]
+  if (!folderName) {
+    throw new Error(`Skill "${canonicalSkillId}" was not found.`)
+  }
+
+  const folderPath = path.join(skillsRoot, folderName)
+  const skillPath = path.join(folderPath, 'SKILL.md')
+  const enabled = toggles[canonicalSkillId] ?? true
+  const hasScripts = await hasScriptsFolder(folderPath)
+
+  try {
+    const raw = await fs.readFile(skillPath, 'utf8')
+    const parsed = parseSkillDocument(raw)
+
+    return {
+      id: canonicalSkillId,
+      name: parsed.name,
+      description: parsed.description,
+      folderPath,
+      skillPath,
+      hasScripts,
+      enabled,
+      loadStatus: 'ok',
+      instructions: parsed.body,
+    }
+  } catch (error) {
+    throw new Error(formatSkillError(projectPath, folderName, error))
   }
 }
 
@@ -66,11 +122,10 @@ function createDefaultSkillDefinition(
     hasScripts: false,
     enabled,
     loadStatus: 'error',
-    body: null,
   }
 }
 
-async function loadSkillDefinition(
+async function loadSkillMetadata(
   projectPath: string,
   skillsRoot: string,
   folderName: string,
@@ -92,7 +147,6 @@ async function loadSkillDefinition(
       description: parsed.description,
       hasScripts,
       loadStatus: 'ok',
-      body: parsed.body,
     }
   } catch (error) {
     return {
@@ -119,7 +173,20 @@ async function hasScriptsFolder(folderPath: string): Promise<boolean> {
   }
 }
 
-function normalizeSkillId(folderName: string): string {
+export function normalizeRequestedSkillId(skillId: string): string {
+  const canonicalSkillId = skillId.trim().toLowerCase()
+  if (!canonicalSkillId) {
+    throw new Error('skillId is required')
+  }
+
+  if (normalizeSkillId(canonicalSkillId) !== canonicalSkillId) {
+    throw new Error(`Invalid skill id "${skillId}". Use lowercase letters, numbers, '-' or '_'.`)
+  }
+
+  return canonicalSkillId
+}
+
+export function normalizeSkillId(folderName: string): string {
   const normalized = folderName
     .trim()
     .toLowerCase()

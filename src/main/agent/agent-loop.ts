@@ -159,13 +159,22 @@ function buildPersistedUserMessageParts(payload: AgentSendPayload): MessagePart[
 
 export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> {
   const { conversation, payload, model, settings, onChunk, signal } = params
+  const projectPath = conversation.projectPath ?? process.cwd()
+  const dynamicLoadedSkillIds = new Set<string>()
+  const skillToggles = conversation.projectPath
+    ? (settings.skillTogglesByProject[conversation.projectPath] ?? {})
+    : {}
 
   return runWithToolContext(
     {
       conversationId: conversation.id,
-      projectPath: conversation.projectPath ?? process.cwd(),
+      projectPath,
       executionMode: settings.executionMode,
       signal,
+      dynamicSkills: {
+        loadedSkillIds: dynamicLoadedSkillIds,
+        toggles: skillToggles,
+      },
     },
     async () => {
       const stageDurationsMs: Record<string, number> = {}
@@ -225,7 +234,7 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
           model: resolvedModel,
           settings,
           signal,
-          projectPath: conversation.projectPath ?? process.cwd(),
+          projectPath,
           hasProject: !!conversation.projectPath,
           provider,
           providerConfig,
@@ -322,6 +331,7 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
           toolCalls: stats.toolCalls,
           toolErrors: stats.toolErrors,
           selectedSkillIds: runContext.standards?.activation.selectedSkillIds ?? [],
+          dynamicallyLoadedSkillIds: [...dynamicLoadedSkillIds],
           standardsWarnings: runContext.standards?.warnings ?? [],
         })
 

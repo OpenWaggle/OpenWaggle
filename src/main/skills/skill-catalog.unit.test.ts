@@ -2,7 +2,12 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { loadSkillCatalog, toSkillCatalogResult } from './skill-catalog'
+import {
+  loadSkillCatalog,
+  loadSkillInstructions,
+  normalizeRequestedSkillId,
+  toSkillCatalogResult,
+} from './skill-catalog'
 
 const tempDirs: string[] = []
 
@@ -121,5 +126,30 @@ Body text`,
 
     expect(result.skills).toHaveLength(1)
     expect(result.skills[0]).not.toHaveProperty('body')
+  })
+
+  it('loads full skill instructions by id', async () => {
+    const projectPath = await makeTempProject()
+    await writeSkill(
+      projectPath,
+      'skill-loader',
+      `---
+name: skill-loader
+description: desc
+---
+
+Step 1
+Step 2`,
+    )
+
+    const loaded = await loadSkillInstructions(projectPath, 'skill-loader')
+
+    expect(loaded.id).toBe('skill-loader')
+    expect(loaded.instructions).toContain('Step 1')
+    expect(loaded.loadStatus).toBe('ok')
+  })
+
+  it('rejects invalid requested skill ids', () => {
+    expect(() => normalizeRequestedSkillId('../skill')).toThrow(/invalid skill id/i)
   })
 })

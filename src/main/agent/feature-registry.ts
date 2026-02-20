@@ -7,7 +7,11 @@ import type {
   AgentRunSummary,
   AgentToolCallStartEvent,
 } from './runtime-types'
-import { activeSkillsPromptFragment, agentsEntryPromptFragment } from './standards-prompt'
+import {
+  activeSkillsPromptFragment,
+  agentsEntryPromptFragment,
+  skillCatalogPromptFragment,
+} from './standards-prompt'
 import {
   coreBehaviorPromptFragment,
   executionModePromptFragment,
@@ -107,6 +111,7 @@ function logRunComplete(context: AgentRunContext, summary: AgentRunSummary): voi
       toolCalls: summary.toolCalls,
       toolErrors: summary.toolErrors,
       selectedSkillIds: summary.selectedSkillIds ?? [],
+      dynamicallyLoadedSkillIds: summary.dynamicallyLoadedSkillIds ?? [],
       standardsWarnings: summary.standardsWarnings ?? [],
     }),
   )
@@ -114,7 +119,11 @@ function logRunComplete(context: AgentRunContext, summary: AgentRunSummary): voi
 
 const standardsPromptFeature: AgentFeature = {
   id: 'standards.prompt',
-  getPromptFragments: () => [agentsEntryPromptFragment, activeSkillsPromptFragment],
+  getPromptFragments: () => [
+    agentsEntryPromptFragment,
+    skillCatalogPromptFragment,
+    activeSkillsPromptFragment,
+  ],
 }
 
 const corePromptFeature: AgentFeature = {

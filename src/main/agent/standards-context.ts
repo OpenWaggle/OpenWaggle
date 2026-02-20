@@ -1,10 +1,10 @@
 import type { Settings } from '@shared/types/settings'
-import type { SkillActivationResult } from '@shared/types/standards'
+import type { SkillActivationResult, SkillDiscoveryItem } from '@shared/types/standards'
 import { activateSkillsFromText } from '../skills/skill-activation'
 import {
   type LoadedSkillCatalog,
-  type LoadedSkillDefinition,
   loadSkillCatalog,
+  loadSkillInstructions,
 } from '../skills/skill-catalog'
 import { loadAgentsInstruction } from '../standards/agents-loader'
 
@@ -23,6 +23,7 @@ export interface AgentStandardsContext {
   readonly agentsStatus: 'found' | 'missing' | 'error'
   readonly agentsInstruction: string | null
   readonly agentsError?: string
+  readonly catalogSkills: readonly SkillDiscoveryItem[]
   readonly activation: SkillActivationResult
   readonly activeSkills: readonly ActiveSkillInstruction[]
   readonly warnings: readonly string[]
@@ -38,6 +39,7 @@ export const EMPTY_STANDARDS_CONTEXT: AgentStandardsContext = {
   agentsPath: '',
   agentsStatus: 'missing',
   agentsInstruction: null,
+  catalogSkills: [],
   activation: EMPTY_ACTIVATION,
   activeSkills: [],
   warnings: [],
@@ -84,27 +86,37 @@ export async function loadAgentStandardsContext(
     }
   }
 
-  const skillsById = new Map(catalog.skills.map((skill) => [skill.id, skill]))
-  const activeSkills: ActiveSkillInstruction[] = activation.selectedSkillIds
-    .map((skillId) => skillsById.get(skillId))
-    .filter((skill): skill is LoadedSkillDefinition => {
-      return Boolean(skill && skill.loadStatus === 'ok' && skill.body)
-    })
-    .map((skill) => ({
-      id: skill.id,
-      name: skill.name,
-      description: skill.description,
-      body: skill.body ?? '',
-      folderPath: skill.folderPath,
-      skillPath: skill.skillPath,
-      hasScripts: skill.hasScripts,
-    }))
+  const activeSkills: ActiveSkillInstruction[] = []
+  for (const skillId of activation.selectedSkillIds) {
+    try {
+      const skill = await loadSkillInstructions(projectPath, skillId, toggles)
+      if (!skill.enabled) {
+        warnings.push(`Skill "${skillId}" is disabled and could not be activated.`)
+        continue
+      }
+
+      activeSkills.push({
+        id: skill.id,
+        name: skill.name,
+        description: skill.description,
+        body: skill.instructions,
+        folderPath: skill.folderPath,
+        skillPath: skill.skillPath,
+        hasScripts: skill.hasScripts,
+      })
+    } catch (error) {
+      warnings.push(
+        `Failed to load active skill "${skillId}": ${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
+  }
 
   return {
     agentsPath: agents.filePath,
     agentsStatus: agents.status,
     agentsInstruction: agents.content,
     agentsError: agents.error,
+    catalogSkills: catalog.skills,
     activation: {
       explicitSkillIds: activation.explicitSkillIds,
       heuristicSkillIds: activation.heuristicSkillIds,

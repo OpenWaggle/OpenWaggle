@@ -8,6 +8,7 @@ export const BUILT_IN_TOOL_NAMES = [
   'runCommand',
   'glob',
   'listFiles',
+  'loadSkill',
   'askUser',
 ] as const
 
