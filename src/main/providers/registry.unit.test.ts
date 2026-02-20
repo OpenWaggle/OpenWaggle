@@ -45,4 +45,30 @@ describe('providerRegistry', () => {
     expect(providerRegistry.getAll()).toHaveLength(1)
     expect(warnSpy).toHaveBeenCalledOnce()
   })
+
+  it('resolves models across multiple providers in O(1)', async () => {
+    const { providerRegistry } = await import('./registry')
+    const openai = createProvider('openai', ['gpt-4.1-mini', 'gpt-5'])
+    const anthropic = createProvider('anthropic', ['claude-sonnet-4-5', 'claude-opus-4-6'])
+    const gemini = createProvider('gemini', ['gemini-2.5-flash', 'gemini-2.5-pro'])
+
+    providerRegistry.register(openai)
+    providerRegistry.register(anthropic)
+    providerRegistry.register(gemini)
+
+    // Each model resolves to its correct provider
+    expect(providerRegistry.getProviderForModel('gpt-4.1-mini')?.id).toBe('openai')
+    expect(providerRegistry.getProviderForModel('gpt-5')?.id).toBe('openai')
+    expect(providerRegistry.getProviderForModel('claude-sonnet-4-5')?.id).toBe('anthropic')
+    expect(providerRegistry.getProviderForModel('claude-opus-4-6')?.id).toBe('anthropic')
+    expect(providerRegistry.getProviderForModel('gemini-2.5-flash')?.id).toBe('gemini')
+    expect(providerRegistry.getProviderForModel('gemini-2.5-pro')?.id).toBe('gemini')
+
+    // Unknown models return undefined
+    expect(providerRegistry.getProviderForModel('llama-3')).toBeUndefined()
+
+    // isKnownModel uses the same index
+    expect(providerRegistry.isKnownModel('gpt-5')).toBe(true)
+    expect(providerRegistry.isKnownModel('nonexistent')).toBe(false)
+  })
 })

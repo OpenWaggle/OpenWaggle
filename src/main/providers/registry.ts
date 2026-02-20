@@ -2,6 +2,7 @@ import type { ProviderDefinition } from './provider-definition'
 
 class ProviderRegistry {
   private providers = new Map<string, ProviderDefinition>()
+  private modelIndex = new Map<string, ProviderDefinition>()
 
   register(provider: ProviderDefinition): void {
     if (this.providers.has(provider.id)) {
@@ -9,6 +10,9 @@ class ProviderRegistry {
       return
     }
     this.providers.set(provider.id, provider)
+    for (const modelId of provider.models) {
+      this.modelIndex.set(modelId, provider)
+    }
   }
 
   get(id: string): ProviderDefinition | undefined {
@@ -20,16 +24,11 @@ class ProviderRegistry {
   }
 
   getProviderForModel(modelId: string): ProviderDefinition | undefined {
-    for (const provider of this.providers.values()) {
-      if (provider.models.includes(modelId)) {
-        return provider
-      }
-    }
-    return undefined
+    return this.modelIndex.get(modelId)
   }
 
   isKnownModel(modelId: string): boolean {
-    return this.getProviderForModel(modelId) !== undefined
+    return this.modelIndex.has(modelId)
   }
 }
 
