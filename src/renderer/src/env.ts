@@ -6,4 +6,8 @@ declare global {
   }
 }
 
-export const env = {} as const
+const isDevelopment = typeof window !== 'undefined' && window.location.protocol !== 'file:'
+
+export const env = {
+  isDevelopment,
+} as const
