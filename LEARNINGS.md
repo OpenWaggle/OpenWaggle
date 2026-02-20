@@ -185,6 +185,8 @@ FINISHING:     LEARNINGS.md → commit → push → notify user
 
 ### Task: Approval Continuation + Model Switch + Rename Parsing Fixes (2026-02-20)
 - TanStack `useChat` approval responses only continue correctly when continuation requests pass the full UI message snapshot (including `tool-call.approval` state) back to the server runtime; reconstructing from only the last user text drops approval state and stalls server tools. [SKILL?]
+- Continuation payloads must be converted from `UIMessage[]` to TanStack `ModelMessage[]` (for example via `convertMessagesToModelMessages`) before calling server `chat(...)`; passing raw UI message shapes causes malformed continuation runs and can leave tool blocks stuck in running state. [SKILL?]
+- Continuation snapshots should dedupe repeated tool-call IDs before provider dispatch, because TanStack can surface multiple `tool-call` UI parts for one tool ID across approval transitions and Anthropic rejects duplicate `tool_use` IDs in a single request. [SKILL?]
 - Recreating `useChat` client identity with `(conversationId, model, qualityPreset)` ensures adapter model/preset changes apply immediately inside existing threads.
 - Git rename parsing should normalize both porcelain (`old -> new`) and numstat (`old => new`, `{old => new}`) formats to one canonical path before merging status entries.
 
