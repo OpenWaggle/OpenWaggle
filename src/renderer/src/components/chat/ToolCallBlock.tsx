@@ -24,14 +24,15 @@ function tryParseDiffResult(
   if (
     typeof parsed === 'object' &&
     parsed !== null &&
-    typeof (parsed as { beforeContent?: unknown }).beforeContent === 'string' &&
-    typeof (parsed as { afterContent?: unknown }).afterContent === 'string'
+    'beforeContent' in parsed &&
+    typeof parsed.beforeContent === 'string' &&
+    'afterContent' in parsed &&
+    typeof parsed.afterContent === 'string'
   ) {
-    const diffContent = parsed as { beforeContent: string; afterContent: string }
     const filePath = typeof args.path === 'string' ? args.path : 'file'
     return {
-      beforeContent: diffContent.beforeContent,
-      afterContent: diffContent.afterContent,
+      beforeContent: parsed.beforeContent,
+      afterContent: parsed.afterContent,
       filePath,
     }
   }
@@ -40,13 +41,12 @@ function tryParseDiffResult(
 
 function parseResultPayload(content: unknown): unknown {
   const parsed = parseUnknownJson(content)
-  if (typeof parsed === 'object' && parsed !== null) {
-    const maybeNormalized = parsed as { kind?: unknown; data?: unknown; text?: unknown }
-    if (maybeNormalized.kind === 'json') {
-      return maybeNormalized.data
+  if (typeof parsed === 'object' && parsed !== null && 'kind' in parsed) {
+    if (parsed.kind === 'json' && 'data' in parsed) {
+      return parsed.data
     }
-    if (maybeNormalized.kind === 'text') {
-      return typeof maybeNormalized.text === 'string' ? maybeNormalized.text : ''
+    if (parsed.kind === 'text' && 'text' in parsed) {
+      return typeof parsed.text === 'string' ? parsed.text : ''
     }
   }
   return parsed
@@ -67,11 +67,13 @@ function getResultError(result: ToolCallBlockProps['result']): string | null {
   if (result.state === 'error') return 'Tool execution failed.'
 
   const parsed = parseResultPayload(result.content)
-  if (typeof parsed === 'object' && parsed !== null) {
-    const maybeError = parsed as { error?: unknown }
-    if (typeof maybeError.error === 'string') {
-      return maybeError.error
-    }
+  if (
+    typeof parsed === 'object' &&
+    parsed !== null &&
+    'error' in parsed &&
+    typeof parsed.error === 'string'
+  ) {
+    return parsed.error
   }
   return null
 }
@@ -278,11 +280,10 @@ function ToolResult({
     const parsed = parseResultPayload(content)
     let errorMessage = formatUnknownContent(parsed)
     if (typeof parsed === 'object' && parsed !== null) {
-      const asObject = parsed as { error?: unknown; message?: unknown }
-      if (typeof asObject.error === 'string') {
-        errorMessage = asObject.error
-      } else if (typeof asObject.message === 'string') {
-        errorMessage = asObject.message
+      if ('error' in parsed && typeof parsed.error === 'string') {
+        errorMessage = parsed.error
+      } else if ('message' in parsed && typeof parsed.message === 'string') {
+        errorMessage = parsed.message
       }
     }
 
@@ -302,11 +303,10 @@ function ToolResult({
   let displayContent = formatUnknownContent(parsed)
 
   if (typeof parsed === 'object' && parsed !== null) {
-    const asObject = parsed as { message?: unknown; content?: unknown }
-    if (typeof asObject.message === 'string') {
-      displayContent = asObject.message
-    } else if (typeof asObject.content === 'string') {
-      displayContent = asObject.content
+    if ('message' in parsed && typeof parsed.message === 'string') {
+      displayContent = parsed.message
+    } else if ('content' in parsed && typeof parsed.content === 'string') {
+      displayContent = parsed.content
     }
   }
 
