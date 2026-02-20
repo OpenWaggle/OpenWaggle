@@ -2,6 +2,7 @@ import type { StreamChunk } from '@tanstack/ai'
 import type { AgentSendPayload, PreparedAttachment } from './agent'
 import type { ConversationId } from './brand'
 import type { Conversation, ConversationSummary } from './conversation'
+import type { DevtoolsEventBusConfig } from './devtools'
 import type {
   GitBranchCheckoutPayload,
   GitBranchCreatePayload,
@@ -74,6 +75,10 @@ export interface IpcInvokeChannelMap {
   'conversations:update-project-path': {
     args: [id: ConversationId, projectPath: string | null]
     return: Conversation | null
+  }
+  'devtools:get-event-bus-config': {
+    args: []
+    return: DevtoolsEventBusConfig
   }
   'providers:get-models': {
     args: []
@@ -262,6 +267,7 @@ export interface OpenHiveApi {
     id: ConversationId,
     projectPath: string | null,
   ): Promise<Conversation | null>
+  getDevtoolsEventBusConfig(): Promise<DevtoolsEventBusConfig>
 
   // Terminal
   createTerminal(projectPath: string): Promise<string>

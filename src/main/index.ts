@@ -1,10 +1,12 @@
 import { join } from 'node:path'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { app, BrowserWindow, shell } from 'electron'
+import { startDevtoolsEventBus, stopDevtoolsEventBus } from './devtools/event-bus'
 import { env } from './env'
 import { registerAgentHandlers } from './ipc/agent-handler'
 import { registerAttachmentHandlers } from './ipc/attachments-handler'
 import { registerConversationsHandlers } from './ipc/conversations-handler'
+import { registerDevtoolsHandlers } from './ipc/devtools-handler'
 import { registerGitHandlers } from './ipc/git-handler'
 import { registerProjectHandlers } from './ipc/project-handler'
 import { registerProvidersHandlers } from './ipc/providers-handler'
@@ -106,6 +108,7 @@ app.whenReady().then(() => {
   registerSettingsHandlers()
   registerConversationsHandlers()
   registerAttachmentHandlers()
+  registerDevtoolsHandlers()
   registerGitHandlers()
   registerProjectHandlers()
   registerProvidersHandlers()
@@ -114,7 +117,7 @@ app.whenReady().then(() => {
   registerSkillsHandlers()
 
   // Register providers (async — individual failures are caught per-provider)
-  registerAllProviders().then(() => {
+  Promise.all([registerAllProviders(), startDevtoolsEventBus()]).then(() => {
     createWindow()
   })
 
@@ -128,4 +131,8 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+app.on('before-quit', () => {
+  stopDevtoolsEventBus()
 })

@@ -1,6 +1,7 @@
 export * from './agent'
 export * from './brand'
 export * from './conversation'
+export * from './devtools'
 export * from './git'
 export * from './ipc'
 export * from './llm'

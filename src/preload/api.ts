@@ -1,6 +1,7 @@
 import type { AgentSendPayload, PreparedAttachment } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import type { Conversation, ConversationSummary } from '@shared/types/conversation'
+import type { DevtoolsEventBusConfig } from '@shared/types/devtools'
 import type {
   GitBranchCheckoutPayload,
   GitBranchCreatePayload,
@@ -128,6 +129,10 @@ export const api: OpenHiveApi = {
     projectPath: string | null,
   ): Promise<Conversation | null> {
     return ipcRenderer.invoke('conversations:update-project-path', id, projectPath)
+  },
+
+  getDevtoolsEventBusConfig(): Promise<DevtoolsEventBusConfig> {
+    return ipcRenderer.invoke('devtools:get-event-bus-config')
   },
 
   // ─── Terminal ──────────────────────────────────────────

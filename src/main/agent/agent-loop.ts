@@ -292,6 +292,7 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
             adapter,
             messages: allMessages,
             systemPrompts: [systemPrompt],
+            conversationId: String(conversation.id),
             tools,
             ...samplingOptions,
             maxTokens: qualityConfig.maxTokens,
