@@ -29,7 +29,7 @@ These rules are **non-negotiable**. Violating them invalidates your work.
 
 **Before starting ANY task:**
 
-1. Read `LEARNINGS.md` sections 1-4 (skip Archive)
+1. Read `LEARNINGS.md` sections 1-3 (skip Archive)
 2. Note any warnings relevant to your task
 3. Read `docs/product/ui-interaction-prd.md` and check whether the task maps to any planned/future UI feature (`HC-UI-*` items)
 4. If task is related, explicitly align implementation decisions with that PRD/spec and update the same document when scope/behavior changes
@@ -47,11 +47,14 @@ These rules are **non-negotiable**. Violating them invalidates your work.
 
 **During implementation:**
 
-- Before starting implementation, create a branch and open a PR for review.
+- Before starting implementation, create a branch using `<type>/<task-slug>`.
+- Allowed branch/commit types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
 - Do not commit any changes until the maintainer explicitly approves committing.
+- Keep changes on the branch for local user review first.
+- Before the first commit, explicitly tell the user: `Changes are ready for review on <type>/<task-slug>.`
+- Pause and wait for explicit approval before creating any commit.
 - After approval to commit, create atomic commits per logical unit of work.
 - Commit message format: `<type>(<scope>): <description>`
-- Allowed commit types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
 - After approved commits are complete, merge the working branch into local `main`.
 - Push the updated `main` branch to `origin`.
 
