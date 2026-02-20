@@ -229,13 +229,8 @@ export async function runOrchestratedAgent(
       newMessages: [userMsg, assistantMsg],
     }
   } catch (error) {
-    emitChunk({
-      type: 'RUN_ERROR',
-      timestamp: Date.now(),
-      runId,
-      error: { message: error instanceof Error ? error.message : String(error) },
-    })
-    emitChunk({ type: 'RUN_FINISHED', timestamp: Date.now(), runId, finishReason: 'stop' })
+    // Let the caller fall back to the classic agent path without terminating
+    // the current UI stream prematurely.
     return {
       status: 'fallback',
       runId,
