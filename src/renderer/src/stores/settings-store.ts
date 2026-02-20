@@ -7,6 +7,7 @@ import {
   type QualityPreset,
   type Settings,
 } from '@shared/types/settings'
+import { isValidBaseUrl } from '@shared/utils/validation'
 import { create } from 'zustand'
 import { api } from '@/lib/ipc'
 
@@ -88,7 +89,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   async updateBaseUrl(provider: Provider, baseUrl: string) {
     const normalizedBaseUrl = baseUrl.trim()
-    if (normalizedBaseUrl && !isValidUrl(normalizedBaseUrl)) return
+    if (normalizedBaseUrl && !isValidBaseUrl(normalizedBaseUrl)) return
 
     const { settings } = get()
     const existing = settings.providers[provider]
@@ -178,12 +179,3 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }))
   },
 }))
-
-function isValidUrl(value: string): boolean {
-  try {
-    const parsed = new URL(value)
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
-  } catch {
-    return false
-  }
-}

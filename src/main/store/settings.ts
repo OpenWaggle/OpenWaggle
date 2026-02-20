@@ -12,6 +12,7 @@ import {
   type QualityPreset,
   type Settings,
 } from '@shared/types/settings'
+import { isValidBaseUrl } from '@shared/utils/validation'
 import { safeStorage } from 'electron'
 import Store from 'electron-store'
 import { z } from 'zod'
@@ -32,7 +33,10 @@ const LEGACY_EXECUTION_MODE: ExecutionMode = 'full-access'
  */
 const providerConfigSchema = z.object({
   apiKey: z.string().default(''),
-  baseUrl: z.string().url().optional(),
+  baseUrl: z
+    .string()
+    .refine((v) => isValidBaseUrl(v), { message: 'Must be a valid http/https URL' })
+    .optional(),
   enabled: z.boolean().optional(),
 })
 
