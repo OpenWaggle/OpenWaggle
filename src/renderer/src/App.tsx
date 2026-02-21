@@ -8,19 +8,19 @@ import { ResizeHandle } from '@/components/diff-panel/ResizeHandle'
 import { Header } from '@/components/layout/Header'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { SettingsDialog } from '@/components/settings/SettingsDialog'
+import { PanelErrorBoundary } from '@/components/shared/PanelErrorBoundary'
 import { SkillsPanel } from '@/components/skills/SkillsPanel'
 import { TerminalPanel } from '@/components/terminal/TerminalPanel'
 import { useAgentChat } from '@/hooks/useAgentChat'
 import { useChat } from '@/hooks/useChat'
 import { useGit } from '@/hooks/useGit'
+import { useGitRefresh } from '@/hooks/useGitRefresh'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { useOrchestration } from '@/hooks/useOrchestration'
 import { useProject } from '@/hooks/useProject'
 import { useSettings, useSettingsSetup } from '@/hooks/useSettings'
 import { useSkills } from '@/hooks/useSkills'
 import { cn } from '@/lib/cn'
-import { api } from '@/lib/ipc'
-import { isTerminalChunk } from '@/lib/ipc-connection-adapter'
 import { useChatStore } from '@/stores/chat-store'
 
 export function App(): React.JSX.Element {
@@ -30,7 +30,6 @@ export function App(): React.JSX.Element {
   const [activeView, setActiveView] = useState<'chat' | 'skills'>('chat')
   const [diffPanelOpen, setDiffPanelOpen] = useState(false)
   const [diffPanelWidth, setDiffPanelWidth] = useState(600)
-  const [diffRefreshKey, setDiffRefreshKey] = useState(0)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
 
   const DIFF_PANEL_MIN = 360
@@ -109,51 +108,14 @@ export function App(): React.JSX.Element {
   const { orchestrationRuns, orchestrationEvents, cancelRun } =
     useOrchestration(activeConversationId)
 
-  // Debounced git refresh for stream-chunk events
-  useEffect(() => {
-    let refreshTimer: ReturnType<typeof setTimeout> | null = null
-
-    const unsubscribe = api.onStreamChunk(({ conversationId, chunk }) => {
-      if (!isTerminalChunk(chunk)) return
-
-      void loadConversations()
-      if (activeConversationId === conversationId) {
-        void setActiveConversation(activeConversationId)
-      }
-      if (projectPath) {
-        if (refreshTimer) clearTimeout(refreshTimer)
-        refreshTimer = setTimeout(() => {
-          refreshTimer = null
-          void Promise.all([refreshGitStatus(projectPath), refreshGitBranches(projectPath)])
-          setDiffRefreshKey((k) => k + 1)
-        }, 500)
-      }
-    })
-
-    return () => {
-      unsubscribe()
-      if (refreshTimer) clearTimeout(refreshTimer)
-    }
-  }, [
-    activeConversationId,
-    loadConversations,
+  const { diffRefreshKey, bumpDiffRefreshKey } = useGitRefresh({
     projectPath,
-    refreshGitBranches,
+    activeConversationId,
     refreshGitStatus,
+    refreshGitBranches,
+    loadConversations,
     setActiveConversation,
-  ])
-
-  // Refresh git status + diff panel when window regains focus
-  useEffect(() => {
-    function handleFocus() {
-      if (projectPath) {
-        void Promise.all([refreshGitStatus(projectPath), refreshGitBranches(projectPath)])
-        setDiffRefreshKey((k) => k + 1)
-      }
-    }
-    window.addEventListener('focus', handleFocus)
-    return () => window.removeEventListener('focus', handleFocus)
-  }, [projectPath, refreshGitBranches, refreshGitStatus])
+  })
 
   async function handleSelectConversation(id: Parameters<typeof setActiveConversation>[0]) {
     setActiveView('chat')
@@ -273,33 +235,38 @@ export function App(): React.JSX.Element {
           onToggleDiffPanel={() => setDiffPanelOpen(!diffPanelOpen)}
           sidebarOpen={sidebarOpen}
           terminalOpen={terminalOpen}
-          onDiffRefresh={() => setDiffRefreshKey((k) => k + 1)}
+          onDiffRefresh={bumpDiffRefreshKey}
           onToast={showToast}
         />
 
         {/* Main content */}
         <div className="flex flex-1 overflow-hidden">
           {activeView === 'skills' ? (
-            <SkillsPanel
-              projectPath={projectPath}
-              standardsStatus={standardsStatus}
-              catalog={skillCatalog}
-              selectedSkillId={selectedSkillId}
-              previewMarkdown={previewMarkdown}
-              isLoading={skillsLoading}
-              isPreviewLoading={skillPreviewLoading}
-              error={skillsError}
-              onRefresh={() => {
-                void refreshSkills()
-              }}
-              onSelectSkill={selectSkill}
-              onToggleSkill={(skillId, enabled) => {
-                void toggleSkill(skillId, enabled)
-              }}
-            />
+            <PanelErrorBoundary name="Skills" className="flex flex-1 overflow-hidden">
+              <SkillsPanel
+                projectPath={projectPath}
+                standardsStatus={standardsStatus}
+                catalog={skillCatalog}
+                selectedSkillId={selectedSkillId}
+                previewMarkdown={previewMarkdown}
+                isLoading={skillsLoading}
+                isPreviewLoading={skillPreviewLoading}
+                error={skillsError}
+                onRefresh={() => {
+                  void refreshSkills()
+                }}
+                onSelectSkill={selectSkill}
+                onToggleSkill={(skillId, enabled) => {
+                  void toggleSkill(skillId, enabled)
+                }}
+              />
+            </PanelErrorBoundary>
           ) : (
             <>
-              <div className="flex min-w-0 flex-1 justify-center overflow-hidden">
+              <PanelErrorBoundary
+                name="Chat"
+                className="flex min-w-0 flex-1 justify-center overflow-hidden"
+              >
                 <ChatPanel
                   messages={messages}
                   isLoading={isLoading}
@@ -322,7 +289,7 @@ export function App(): React.JSX.Element {
                   orchestration={orchestrationPropsBundle}
                   recentProjects={settings.recentProjects}
                 />
-              </div>
+              </PanelErrorBoundary>
 
               {/* Resize handle + Diff panel */}
               {diffPanelOpen && (
@@ -341,11 +308,13 @@ export function App(): React.JSX.Element {
                       width: `min(${String(diffPanelWidth)}px, max(0px, calc(100% - ${String(CHAT_MIN_WIDTH)}px)))`,
                     }}
                   >
-                    <DiffPanel
-                      key={diffRefreshKey}
-                      projectPath={projectPath}
-                      onSendMessage={handleSendText}
-                    />
+                    <PanelErrorBoundary name="Diff">
+                      <DiffPanel
+                        key={diffRefreshKey}
+                        projectPath={projectPath}
+                        onSendMessage={handleSendText}
+                      />
+                    </PanelErrorBoundary>
                   </div>
                 </>
               )}
@@ -361,7 +330,9 @@ export function App(): React.JSX.Element {
           )}
         >
           {terminalOpen && (
-            <TerminalPanel projectPath={projectPath} onClose={() => setTerminalOpen(false)} />
+            <PanelErrorBoundary name="Terminal">
+              <TerminalPanel projectPath={projectPath} onClose={() => setTerminalOpen(false)} />
+            </PanelErrorBoundary>
           )}
         </div>
       </div>
