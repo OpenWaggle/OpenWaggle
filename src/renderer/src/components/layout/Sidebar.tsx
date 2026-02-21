@@ -6,23 +6,20 @@ import {
   Check,
   Clock,
   Edit3,
-  Folder,
-  FolderOpen,
   FolderPlus,
   Hash,
   LayoutList,
   MessageSquare,
   Settings,
   Sparkles,
-  Trash2,
 } from 'lucide-react'
 import { useState } from 'react'
 import openhiveLockup from '@/assets/openhive-lockup.png'
 import { Popover } from '@/components/shared/Popover'
 import { useFullscreen } from '@/hooks/useFullscreen'
 import { cn } from '@/lib/cn'
-import { formatRelativeTime, projectName, truncate } from '@/lib/format'
-import { api } from '@/lib/ipc'
+import { ConversationGroup } from './ConversationGroup'
+import { groupConversationsByProject, type SortMode, sortConversationGroups } from './sidebar-utils'
 
 function McpIcon({ className }: { className?: string }): React.JSX.Element {
   return (
@@ -41,8 +38,6 @@ function McpIcon({ className }: { className?: string }): React.JSX.Element {
     </svg>
   )
 }
-
-type SortMode = 'recent' | 'oldest' | 'name' | 'threads'
 
 const SORT_OPTIONS: { value: SortMode; label: string; icon: typeof Clock }[] = [
   { value: 'recent', label: 'Recent', icon: Clock },
@@ -63,64 +58,6 @@ interface SidebarProps {
   onOpenSettings: () => void
 }
 
-interface ProjectGroup {
-  path: string | null
-  displayName: string
-  conversations: ConversationSummary[]
-}
-
-function groupByProject(conversations: ConversationSummary[]): ProjectGroup[] {
-  const groups = new Map<string, ConversationSummary[]>()
-
-  for (const conv of conversations) {
-    const key = conv.projectPath ?? '__none__'
-    const existing = groups.get(key)
-    if (existing) {
-      existing.push(conv)
-    } else {
-      groups.set(key, [conv])
-    }
-  }
-
-  const result: ProjectGroup[] = []
-  for (const [key, convs] of groups) {
-    result.push({
-      path: key === '__none__' ? null : key,
-      displayName: key === '__none__' ? 'No project' : projectName(key),
-      conversations: convs,
-    })
-  }
-
-  return result
-}
-
-function sortGroups(groups: ProjectGroup[], mode: SortMode): ProjectGroup[] {
-  const sorted = [...groups]
-  switch (mode) {
-    case 'recent':
-      sorted.sort((a, b) => {
-        const aMax = Math.max(...a.conversations.map((c) => c.updatedAt))
-        const bMax = Math.max(...b.conversations.map((c) => c.updatedAt))
-        return bMax - aMax
-      })
-      break
-    case 'oldest':
-      sorted.sort((a, b) => {
-        const aMin = Math.min(...a.conversations.map((c) => c.createdAt))
-        const bMin = Math.min(...b.conversations.map((c) => c.createdAt))
-        return aMin - bMin
-      })
-      break
-    case 'name':
-      sorted.sort((a, b) => a.displayName.localeCompare(b.displayName))
-      break
-    case 'threads':
-      sorted.sort((a, b) => b.conversations.length - a.conversations.length)
-      break
-  }
-  return sorted
-}
-
 export function Sidebar({
   conversations,
   activeId,
@@ -132,13 +69,13 @@ export function Sidebar({
   onOpenSkills,
   onOpenSettings,
 }: SidebarProps): React.JSX.Element {
-  const groups = groupByProject(conversations)
+  const groups = groupConversationsByProject(conversations)
   const isFullscreen = useFullscreen()
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [sortMode, setSortMode] = useState<SortMode>('recent')
   const [sortMenuOpen, setSortMenuOpen] = useState(false)
 
-  const sortedGroups = sortGroups(groups, sortMode)
+  const sortedGroups = sortConversationGroups(groups, sortMode)
 
   function toggleGroup(key: string): void {
     setCollapsedGroups((prev) => {
@@ -278,82 +215,16 @@ export function Sidebar({
           ) : (
             sortedGroups.map((group) => {
               const groupKey = group.path ?? '__none__'
-              const isCollapsed = collapsedGroups.has(groupKey)
-              const FolderIcon = isCollapsed ? Folder : FolderOpen
               return (
-                <div key={groupKey}>
-                  {/* Project group header — h32, padding [0,12], gap 8 */}
-                  <button
-                    type="button"
-                    onClick={() => toggleGroup(groupKey)}
-                    className="flex w-full items-center gap-2 h-8 px-3 transition-colors hover:bg-bg-hover"
-                  >
-                    <FolderIcon className="h-3 w-3 shrink-0 text-text-tertiary" />
-                    <span className="truncate text-[13px] text-text-secondary">
-                      {group.displayName}
-                    </span>
-                  </button>
-
-                  {/* Thread items — accordion collapse via grid-rows */}
-                  <div
-                    className="grid transition-[grid-template-rows] duration-200 ease-out"
-                    style={{ gridTemplateRows: isCollapsed ? '0fr' : '1fr' }}
-                  >
-                    <div className="min-h-0 overflow-hidden">
-                      {group.conversations.map((conv) => {
-                        const isActive = conv.id === activeId
-                        return (
-                          <div
-                            key={String(conv.id)}
-                            className={cn(
-                              'group flex items-center h-[34px] w-full',
-                              isActive
-                                ? 'bg-bg-active border-l-2 border-accent pr-3 pl-12'
-                                : 'pl-11 pr-3 hover:bg-bg-hover',
-                            )}
-                          >
-                            <button
-                              type="button"
-                              onClick={() => onSelect(conv.id)}
-                              className="min-w-0 flex-1 truncate text-left"
-                            >
-                              <span
-                                className={cn(
-                                  'truncate text-[12px]',
-                                  isActive
-                                    ? 'font-medium text-text-primary'
-                                    : 'text-text-secondary',
-                                )}
-                              >
-                                {truncate(conv.title, 29)}
-                              </span>
-                            </button>
-                            <span className="ml-auto shrink-0 text-[11px] text-text-tertiary group-hover:hidden">
-                              {formatRelativeTime(conv.updatedAt)}
-                            </span>
-                            {!isActive && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  void api
-                                    .showConfirm('Delete this thread?', 'This cannot be undone.')
-                                    .then((confirmed) => {
-                                      if (confirmed) onDelete(conv.id)
-                                    })
-                                }}
-                                className="ml-auto hidden shrink-0 rounded-md p-0.5 text-text-muted transition-colors group-hover:block hover:text-error"
-                                title="Delete thread"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </button>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                </div>
+                <ConversationGroup
+                  key={groupKey}
+                  group={group}
+                  isCollapsed={collapsedGroups.has(groupKey)}
+                  activeId={activeId}
+                  onToggle={() => toggleGroup(groupKey)}
+                  onSelect={onSelect}
+                  onDelete={onDelete}
+                />
               )
             })
           )}
