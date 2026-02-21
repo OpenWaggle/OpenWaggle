@@ -19,8 +19,10 @@ interface ActionDialogConfig {
 function getActionDialogConfig(
   kind: ComposerActionDialogKind,
   gitBranch: string | null | undefined,
+  actionDialogInput: string,
 ): ActionDialogConfig {
   const currentBranch = gitBranch ?? 'current branch'
+  const targetBranch = actionDialogInput.trim() || currentBranch
   switch (kind) {
     case 'create-branch':
       return {
@@ -40,7 +42,7 @@ function getActionDialogConfig(
       }
     case 'delete-branch':
       return {
-        title: `Delete "${currentBranch}"`,
+        title: `Delete "${targetBranch}"`,
         description: 'This removes the local branch. This action cannot be undone.',
         confirmLabel: 'Delete',
         confirmTone: 'danger',
@@ -85,7 +87,9 @@ export function ActionDialog({ onToast }: ActionDialogProps): React.JSX.Element 
   const inputRef = useRef<HTMLInputElement>(null)
   const gitBranch = gitStatus?.branch ?? null
 
-  const config = actionDialog ? getActionDialogConfig(actionDialog, gitBranch) : null
+  const config = actionDialog
+    ? getActionDialogConfig(actionDialog, gitBranch, actionDialogInput)
+    : null
   const hasInput =
     actionDialog === 'create-branch' ||
     actionDialog === 'rename-branch' ||
@@ -173,11 +177,18 @@ export function ActionDialog({ onToast }: ActionDialogProps): React.JSX.Element 
           return
         }
         case 'delete-branch': {
-          if (!gitBranch) return
+          const target = actionDialogInput.trim() || gitBranch
+          if (!target) return
+          if (target === gitBranch) {
+            setActionDialogError(
+              'Cannot delete the currently checked out branch. Checkout another branch first.',
+            )
+            return
+          }
           const result = await runBranchMutation(
             () =>
               projectPath
-                ? deleteBranch(projectPath, { name: gitBranch, force: false })
+                ? deleteBranch(projectPath, { name: target, force: false })
                 : Promise.resolve(noProjectResult),
             onToast,
           )

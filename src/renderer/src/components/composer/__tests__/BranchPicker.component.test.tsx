@@ -97,7 +97,7 @@ describe('BranchPicker', () => {
     render(<BranchPicker />)
     expect(screen.getByText('Create')).toBeInTheDocument()
     expect(screen.getByText('Rename')).toBeInTheDocument()
-    expect(screen.getByText('Delete')).toBeInTheDocument()
+    expect(screen.getByText('Delete current')).toBeInTheDocument()
     expect(screen.getByText('Upstream')).toBeInTheDocument()
   })
 
@@ -106,6 +106,14 @@ describe('BranchPicker', () => {
     render(<BranchPicker />)
     fireEvent.click(screen.getByText('Create'))
     expect(useComposerStore.getState().actionDialog).toBe('create-branch')
+  })
+
+  it('opens delete dialog for the selected local branch row action', () => {
+    useComposerStore.setState({ branchMenuOpen: true })
+    render(<BranchPicker />)
+    fireEvent.click(screen.getByTitle('Delete "develop"'))
+    expect(useComposerStore.getState().actionDialog).toBe('delete-branch')
+    expect(useComposerStore.getState().actionDialogInput).toBe('develop')
   })
 
   it('renders refresh button', () => {

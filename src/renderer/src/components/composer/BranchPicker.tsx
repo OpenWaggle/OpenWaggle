@@ -1,5 +1,5 @@
 import type { GitBranchMutationResult } from '@shared/types/git'
-import { GitBranch, Loader2, RefreshCw } from 'lucide-react'
+import { GitBranch, Loader2, RefreshCw, Trash2 } from 'lucide-react'
 import { Popover } from '@/components/shared/Popover'
 import { useGit } from '@/hooks/useGit'
 import { useProject } from '@/hooks/useProject'
@@ -110,11 +110,12 @@ export function BranchPicker({ onToast }: BranchPickerProps): React.JSX.Element 
           <button
             type="button"
             onClick={() => {
-              if (gitBranch) openActionDialog('delete-branch')
+              if (gitBranch) openActionDialog('delete-branch', gitBranch)
             }}
+            disabled={!gitBranch}
             className="rounded-md border border-border px-2 py-1 text-[11px] text-text-secondary hover:bg-bg-hover"
           >
-            Delete
+            Delete current
           </button>
           <button
             type="button"
@@ -137,20 +138,37 @@ export function BranchPicker({ onToast }: BranchPickerProps): React.JSX.Element 
                     Local
                   </div>
                   {localBranches.map((branch) => (
-                    <button
+                    <div
                       key={branch.fullName}
-                      type="button"
-                      onClick={() => {
-                        void handleCheckout(branch.name)
-                      }}
                       className={cn(
-                        'flex w-full items-center justify-between border-b border-border px-2.5 py-1.5 text-left text-[12px] transition-colors hover:bg-bg-hover last:border-b-0',
+                        'flex items-center gap-1 border-b border-border px-1.5 py-1 last:border-b-0',
                         branch.isCurrent ? 'text-accent' : 'text-text-secondary',
                       )}
                     >
-                      <span className="truncate">{branch.name}</span>
-                      {branch.isCurrent && <span>●</span>}
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void handleCheckout(branch.name)
+                        }}
+                        className={cn(
+                          'flex min-w-0 flex-1 items-center justify-between rounded px-1 py-0.5 text-left text-[12px] transition-colors hover:bg-bg-hover',
+                          branch.isCurrent ? 'text-accent' : 'text-text-secondary',
+                        )}
+                      >
+                        <span className="truncate">{branch.name}</span>
+                        {branch.isCurrent && <span>●</span>}
+                      </button>
+                      {!branch.isCurrent && (
+                        <button
+                          type="button"
+                          onClick={() => openActionDialog('delete-branch', branch.name)}
+                          className="flex h-6 w-6 items-center justify-center rounded border border-border text-text-tertiary transition-colors hover:bg-error/10 hover:text-error"
+                          title={`Delete "${branch.name}"`}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
                   ))}
                 </div>
               )}

@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useComposerStore } from '@/stores/composer-store'
+import { useGitStore } from '@/stores/git-store'
 import { ActionDialog } from '../ActionDialog'
 
 vi.mock('@/lib/ipc', () => ({
@@ -20,6 +21,7 @@ vi.mock('@/lib/ipc', () => ({
 describe('ActionDialog', () => {
   beforeEach(() => {
     useComposerStore.setState(useComposerStore.getInitialState())
+    useGitStore.setState(useGitStore.getInitialState())
   })
 
   it('renders nothing when no action dialog is open', () => {
@@ -115,5 +117,32 @@ describe('ActionDialog', () => {
     const input = screen.getByPlaceholderText('feature/my-branch')
     fireEvent.change(input, { target: { value: 'feat/new' } })
     expect(useComposerStore.getState().actionDialogInput).toBe('feat/new')
+  })
+
+  it('blocks deleting the currently checked out branch', () => {
+    useGitStore.setState({
+      ...useGitStore.getInitialState(),
+      status: {
+        branch: 'main',
+        additions: 0,
+        deletions: 0,
+        filesChanged: 0,
+        changedFiles: [],
+        clean: true,
+        ahead: 0,
+        behind: 0,
+      },
+    })
+    useComposerStore.setState({
+      actionDialog: 'delete-branch',
+      actionDialogInput: 'main',
+    })
+    render(<ActionDialog />)
+    fireEvent.click(screen.getByText('Delete'))
+    expect(
+      screen.getByText(
+        'Cannot delete the currently checked out branch. Checkout another branch first.',
+      ),
+    ).toBeInTheDocument()
   })
 })
