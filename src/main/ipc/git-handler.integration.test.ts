@@ -13,7 +13,7 @@ vi.mock('node:child_process', () => ({
   execFile: execFileMock,
 }))
 
-import { registerGitHandlers } from './git-handler'
+import { registerGitHandlers } from './git'
 
 function registeredHandler(name: string): ((...args: unknown[]) => Promise<unknown>) | undefined {
   const call = safeHandleMock.mock.calls.find((c: unknown[]) => c[0] === name)

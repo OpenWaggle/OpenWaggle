@@ -8,7 +8,7 @@ vi.mock('node:child_process', () => ({
   execFile: vi.fn(),
 }))
 
-import { normalizeGitPath } from './git-handler'
+import { normalizeGitPath } from './git'
 
 describe('normalizeGitPath', () => {
   it('returns simple paths unchanged', () => {
