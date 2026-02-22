@@ -5,6 +5,7 @@ import { askUserArgsSchema } from '@shared/types/question'
 import type { UIMessage } from '@tanstack/ai-react'
 import { Check } from 'lucide-react'
 import { StreamingText } from './StreamingText'
+import { ThinkingBlock } from './ThinkingBlock'
 import { ToolCallBlock } from './ToolCallBlock'
 
 interface MessageBubbleProps {
@@ -107,6 +108,14 @@ export function MessageBubble({
                 />
               )
             }
+            case 'thinking':
+              return part.content.trim() ? (
+                <ThinkingBlock
+                  key={`${message.id}-thinking-${String(i)}`}
+                  content={part.content}
+                  isStreaming={isStreaming}
+                />
+              ) : null
             case 'tool-result':
               return null
             default:

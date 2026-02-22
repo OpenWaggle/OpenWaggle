@@ -118,7 +118,10 @@ export function useStreamingPhase(
       // Push the previous phase as completed
       if (phaseRef.current) {
         const durationMs = Date.now() - phaseRef.current.startedAt
-        completedRef.current = [...completedRef.current, { label: phaseRef.current.label, durationMs }]
+        completedRef.current = [
+          ...completedRef.current,
+          { label: phaseRef.current.label, durationMs },
+        ]
       }
       phaseRef.current = { label: currentLabel, startedAt: Date.now() }
     }

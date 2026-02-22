@@ -19,6 +19,7 @@ import {
   type StreamChunk,
 } from '@tanstack/ai'
 import { z } from 'zod'
+import { isReasoningModel } from '../agent/quality-config'
 import {
   buildPersistedUserMessageParts,
   buildSamplingOptions,
@@ -147,8 +148,16 @@ export async function runOrchestratedAgent(
       '- The system will automatically synthesize task results — do NOT create a synthesis/summary task',
       '- DO NOT answer the user request yourself — let the task executors do the work',
     ].join('\n')
+    // Planner needs high output budget (structured JSON) but low reasoning effort
+    const plannerQuality: SamplingConfig = {
+      ...quality,
+      maxTokens: Math.max(quality.maxTokens, 8192),
+      modelOptions: isReasoningModel(quality.model)
+        ? { ...quality.modelOptions, reasoning: { effort: 'low', summary: 'auto' } }
+        : quality.modelOptions,
+    }
     logger.info('planner call starting', { elapsed: elapsed(), promptLength: plannerPrompt.length })
-    const planResult = await modelJson(adapter, plannerPrompt, quality)
+    const planResult = await modelJson(adapter, plannerPrompt, plannerQuality)
     logger.info('planner call completed', {
       elapsed: elapsed(),
       planResult: JSON.stringify(planResult).slice(0, 200),
@@ -249,7 +258,7 @@ export async function runOrchestratedAgent(
             taskCount: input.run.taskOrder.length,
             outputKeys: Object.keys(input.run.outputs),
           })
-              const synthesisPrompt = [
+          const synthesisPrompt = [
             'Synthesize the final assistant response from orchestration outputs.',
             'Keep it actionable and concise.',
             '',

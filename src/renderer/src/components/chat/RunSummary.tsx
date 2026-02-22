@@ -22,7 +22,9 @@ export function RunSummary({ phases, totalMs }: RunSummaryProps): React.JSX.Elem
             className="flex items-center justify-between text-xs"
           >
             <span className="text-text-tertiary">{phase.label}</span>
-            <span className={cn('text-text-muted tabular-nums')}>{formatElapsed(phase.durationMs)}</span>
+            <span className={cn('text-text-muted tabular-nums')}>
+              {formatElapsed(phase.durationMs)}
+            </span>
           </div>
         ))}
       </div>

@@ -71,8 +71,51 @@ const QUALITY_TIER_CONFIG: Record<QualityPreset, QualityTierConfig> = {
 /**
  * Reasoning models (GPT-5 family, o-series) reject temperature/topP parameters.
  */
-function isReasoningModel(model: string): boolean {
+export function isReasoningModel(model: string): boolean {
   return /^(gpt-5|o[1-4])/.test(model)
+}
+
+/**
+ * Build provider-specific model options for reasoning/thinking support.
+ * OpenAI reasoning models use `reasoning` options; Anthropic uses `thinking`.
+ */
+function buildModelOptions(
+  provider: Provider,
+  model: string,
+  preset: QualityPreset,
+): Record<string, unknown> | undefined {
+  if (provider === 'openai' && isReasoningModel(model)) {
+    return {
+      reasoning: { effort: preset === 'low' ? 'low' : 'medium', summary: 'auto' },
+    }
+  }
+  if (provider === 'anthropic') {
+    if (model.includes('opus')) {
+      return {
+        thinking: { type: 'adaptive' },
+        effort: preset === 'low' ? 'low' : 'medium',
+      }
+    }
+    return {
+      thinking: { type: 'enabled', budget_tokens: preset === 'low' ? 1024 : 4096 },
+    }
+  }
+  return undefined
+}
+
+/**
+ * Adjust maxTokens for reasoning/thinking models.
+ * OpenAI: max_output_tokens includes reasoning + visible output → multiply.
+ * Anthropic: max_tokens must exceed thinking budget_tokens → floor at 8192.
+ */
+function resolveMaxTokens(provider: Provider, model: string, baseMaxTokens: number): number {
+  if (provider === 'openai' && isReasoningModel(model)) {
+    return baseMaxTokens * 4
+  }
+  if (provider === 'anthropic') {
+    return Math.max(baseMaxTokens, 8192)
+  }
+  return baseMaxTokens
 }
 
 export function resolveQualityConfig(
@@ -90,7 +133,7 @@ export function resolveQualityConfig(
     model,
     temperature: reasoning ? undefined : tier.temperature,
     topP,
-    maxTokens: tier.maxTokens,
-    modelOptions: tier.modelOptions,
+    maxTokens: resolveMaxTokens(provider, model, tier.maxTokens),
+    modelOptions: buildModelOptions(provider, model, preset),
   }
 }
