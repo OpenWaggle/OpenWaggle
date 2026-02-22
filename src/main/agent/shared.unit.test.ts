@@ -113,6 +113,14 @@ describe('shared agent helpers', () => {
       })
       expect(result).toEqual({ temperature: 0.4, topP: 0.95 })
     })
+
+    it('omits temperature when undefined (reasoning models)', async () => {
+      const { buildSamplingOptions } = await import('./shared')
+      const result = buildSamplingOptions({})
+      expect(result).toEqual({})
+      expect('temperature' in result).toBe(false)
+      expect('topP' in result).toBe(false)
+    })
   })
 
   describe('resolveAgentProjectPath', () => {

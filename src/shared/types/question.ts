@@ -1,14 +1,23 @@
+import { z } from 'zod'
 import type { ConversationId } from './brand'
 
-export interface QuestionOption {
-  label: string
-  description?: string
-}
+export const questionOptionSchema = z.object({
+  label: z.string(),
+  description: z.string().optional(),
+})
 
-export interface UserQuestion {
-  question: string
-  options: QuestionOption[]
-}
+export const userQuestionSchema = z.object({
+  question: z.string(),
+  options: z.array(questionOptionSchema),
+})
+
+/** Schema for parsing askUser tool-call arguments from JSON. */
+export const askUserArgsSchema = z.object({
+  questions: z.array(userQuestionSchema),
+})
+
+export type QuestionOption = z.infer<typeof questionOptionSchema>
+export type UserQuestion = z.infer<typeof userQuestionSchema>
 
 export interface QuestionPayload {
   conversationId: ConversationId

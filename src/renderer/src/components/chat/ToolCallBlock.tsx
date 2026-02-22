@@ -1,12 +1,11 @@
 import { AlertCircle, Check, ChevronRight, Clock, Loader2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { Badge } from '@/components/shared/Badge'
 import { DiffView } from '@/components/thread/DiffView'
 import { cn } from '@/lib/cn'
 import { computeDiff } from '@/lib/diff'
 import { formatDuration } from '@/lib/format'
 import { parseToolArgs } from '@/lib/tool-args'
-import { getToolConfig, getToolSummary } from '@/lib/tool-display'
+import { getToolActionText } from '@/lib/tool-display'
 
 interface ToolCallBlockProps {
   name: string
@@ -91,11 +90,7 @@ export function ToolCallBlock({
   const resultError = getResultError(result)
   const isError = resultError !== null
 
-  const config = getToolConfig(name)
-  const Icon = config.icon
-
   const parsedArgs = parseToolArgs(args)
-  const summary = getToolSummary(name, parsedArgs)
 
   // Check if result has diff data
   const diffData = result && !isError ? tryParseDiffResult(result.content, name, parsedArgs) : null
@@ -117,66 +112,69 @@ export function ToolCallBlock({
     }
   }, [isRunning])
 
+  const actionText = getToolActionText(name, parsedArgs, isRunning)
+
   return (
-    <div className="rounded-lg border border-diff-card-border bg-diff-card-bg overflow-hidden">
-      {/* Header row — h36, padding [0,14] */}
+    <div className="group/tool">
+      {/* Compact activity line */}
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center gap-2 h-9 px-3.5 text-[14px] hover:bg-bg-hover transition-colors"
+        className="flex w-full items-center gap-2 py-0.5 text-[13px] transition-colors"
       >
-        <ChevronRight
-          className={cn(
-            'h-3.5 w-3.5 text-text-muted transition-transform shrink-0',
-            expanded && 'rotate-90',
-          )}
-        />
-        <Icon className="h-3.5 w-3.5 text-text-muted shrink-0" />
-        <span className="font-medium text-text-secondary text-[13px]">{config.displayName}</span>
+        {/* Status icon */}
+        {isRunning && !awaitingApproval && (
+          <Loader2 className="h-3.5 w-3.5 text-text-tertiary animate-spin shrink-0" />
+        )}
+        {awaitingApproval && <Clock className="h-3.5 w-3.5 text-warning shrink-0" />}
+        {result && !isError && !isRunning && (
+          <Check className="h-3.5 w-3.5 text-text-muted shrink-0" />
+        )}
+        {result && isError && <X className="h-3.5 w-3.5 text-error/80 shrink-0" />}
 
-        {summary && (
-          <span className="truncate text-text-tertiary font-mono text-[13px]">{summary}</span>
+        {/* Action text */}
+        <span
+          className={cn(
+            'truncate',
+            isRunning && !awaitingApproval && 'text-text-tertiary',
+            awaitingApproval && 'text-warning',
+            result && !isError && !isRunning && 'text-text-muted',
+            result && isError && 'text-error/80',
+          )}
+        >
+          {actionText}
+        </span>
+
+        {awaitingApproval && (
+          <span className="text-warning/70 text-[12px] shrink-0">(approval needed)</span>
         )}
 
-        <div className="ml-auto flex items-center gap-2 shrink-0">
-          {/* Diff stats inline */}
-          {diff && (
-            <span className="flex items-center gap-1.5 text-[13px]">
-              <span className="text-success">+{diff.additions}</span>
-              <span className="text-error">-{diff.deletions}</span>
-            </span>
+        {/* Diff stats */}
+        {diff && (
+          <span className="flex items-center gap-1 text-[12px] shrink-0">
+            <span className="text-success">+{diff.additions}</span>
+            <span className="text-error">-{diff.deletions}</span>
+          </span>
+        )}
+
+        {/* Duration */}
+        {duration > 0 && !isRunning && (
+          <span className="text-[12px] text-text-muted shrink-0">{formatDuration(duration)}</span>
+        )}
+
+        {/* Chevron — visible on hover */}
+        <ChevronRight
+          className={cn(
+            'ml-auto h-3 w-3 text-text-muted shrink-0 transition-transform',
+            'invisible group-hover/tool:visible',
+            expanded && 'visible rotate-90',
           )}
-          {duration > 0 && (
-            <span className="flex items-center gap-1 text-[13px] text-text-tertiary">
-              <Clock className="h-3 w-3" />
-              {formatDuration(duration)}
-            </span>
-          )}
-          {isRunning && !result && <Loader2 className="h-3.5 w-3.5 text-accent animate-spin" />}
-          {awaitingApproval && (
-            <Badge variant="warning">
-              <Clock className="h-3 w-3 mr-0.5" />
-              Awaiting approval
-            </Badge>
-          )}
-          {result && !isError && (
-            <Badge variant="success">
-              <Check className="h-3 w-3 mr-0.5" />
-              Done
-            </Badge>
-          )}
-          {result && isError && (
-            <Badge variant="error">
-              <X className="h-3 w-3 mr-0.5" />
-              Error
-            </Badge>
-          )}
-        </div>
+        />
       </button>
 
       {/* Expanded content */}
       {expanded && (
-        <div className="border-t border-border">
+        <div className="ml-5 mt-1 rounded-md border border-border bg-bg-secondary/50 overflow-hidden">
           {/* Inline diff for file tools */}
           {diff && diffData && (
             <div className="px-3 py-2">

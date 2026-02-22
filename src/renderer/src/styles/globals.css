@@ -175,7 +175,7 @@
   .prose {
     color: var(--color-text-primary);
     line-height: 1.65;
-    font-size: 1.05rem;
+    font-size: 14px;
   }
 
   .prose p {

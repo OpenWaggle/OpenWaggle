@@ -11,7 +11,7 @@ interface QualityTierConfig {
 
 export interface ResolvedQualityConfig {
   readonly model: SupportedModelId
-  readonly temperature: number
+  readonly temperature?: number
   readonly topP?: number
   readonly maxTokens: number
   readonly modelOptions?: Record<string, unknown>
@@ -68,6 +68,13 @@ const QUALITY_TIER_CONFIG: Record<QualityPreset, QualityTierConfig> = {
   },
 }
 
+/**
+ * Reasoning models (GPT-5 family, o-series) reject temperature/topP parameters.
+ */
+function isReasoningModel(model: string): boolean {
+  return /^(gpt-5|o[1-4])/.test(model)
+}
+
 export function resolveQualityConfig(
   provider: Provider,
   selectedModel: SupportedModelId,
@@ -75,11 +82,13 @@ export function resolveQualityConfig(
 ): ResolvedQualityConfig {
   const tier = QUALITY_TIER_CONFIG[preset]
   const mappedModel = QUALITY_MODEL_MAP[provider][preset]
-  const topP = provider === 'anthropic' ? undefined : tier.topP
+  const model = mappedModel ?? selectedModel
+  const reasoning = isReasoningModel(model)
+  const topP = provider === 'anthropic' || reasoning ? undefined : tier.topP
 
   return {
-    model: mappedModel ?? selectedModel,
-    temperature: tier.temperature,
+    model,
+    temperature: reasoning ? undefined : tier.temperature,
     topP,
     maxTokens: tier.maxTokens,
     modelOptions: tier.modelOptions,

@@ -1,8 +1,9 @@
 import type { ConversationId } from '@shared/types/brand'
 import { generateDisplayName, type SupportedModelId } from '@shared/types/llm'
-import type { QuestionAnswer, UserQuestion } from '@shared/types/question'
+import type { QuestionAnswer } from '@shared/types/question'
+import { askUserArgsSchema } from '@shared/types/question'
 import type { UIMessage } from '@tanstack/ai-react'
-import { AskUserBlock } from './AskUserBlock'
+import { Check } from 'lucide-react'
 import { StreamingText } from './StreamingText'
 import { ToolCallBlock } from './ToolCallBlock'
 
@@ -18,8 +19,6 @@ export function MessageBubble({
   message,
   isStreaming,
   assistantModel,
-  conversationId,
-  onAnswerQuestion,
 }: MessageBubbleProps): React.JSX.Element {
   const isUser = message.role === 'user'
 
@@ -66,6 +65,7 @@ export function MessageBubble({
             </span>
           </div>
         )}
+
         {message.parts.map((part, i) => {
           switch (part.type) {
             case 'text':
@@ -76,24 +76,26 @@ export function MessageBubble({
                   isStreaming={isStreaming}
                 />
               ) : null
-            case 'tool-call':
-              if (part.name === 'askUser' && conversationId) {
-                let questions: UserQuestion[] = []
-                try {
-                  const parsed = JSON.parse(part.arguments) as { questions?: UserQuestion[] }
-                  questions = parsed.questions ?? []
-                } catch {
-                  // fallback to empty
+            case 'tool-call': {
+              if (part.name === 'askUser') {
+                const result = toolResults.get(part.id)
+                if (result) {
+                  // Answered — show compact muted summary
+                  const questionCount = countQuestions(part.arguments)
+                  return (
+                    <div
+                      key={`tool-${part.id}`}
+                      className="flex items-center gap-2 py-0.5 text-[13px]"
+                    >
+                      <Check className="h-3.5 w-3.5 text-text-muted shrink-0" />
+                      <span className="text-text-muted">
+                        Answered {questionCount} {questionCount === 1 ? 'question' : 'questions'}
+                      </span>
+                    </div>
+                  )
                 }
-                return (
-                  <AskUserBlock
-                    key={`tool-${part.id}`}
-                    questions={questions}
-                    result={toolResults.get(part.id)}
-                    conversationId={conversationId}
-                    onAnswer={onAnswerQuestion}
-                  />
-                )
+                // Unanswered — render nothing inline (active prompt renders above composer)
+                return null
               }
               return (
                 <ToolCallBlock
@@ -104,6 +106,7 @@ export function MessageBubble({
                   result={toolResults.get(part.id)}
                 />
               )
+            }
             case 'tool-result':
               return null
             default:
@@ -113,4 +116,14 @@ export function MessageBubble({
       </div>
     </div>
   )
+}
+
+function countQuestions(argsJson: string): number {
+  try {
+    const parsed: unknown = JSON.parse(argsJson)
+    const result = askUserArgsSchema.safeParse(parsed)
+    return result.success ? result.data.questions.length : 1
+  } catch {
+    return 1
+  }
 }

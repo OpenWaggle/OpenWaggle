@@ -1,3 +1,4 @@
+import type { OrchestrationEvent } from 'condukt-ai'
 import { expect, test } from 'vitest'
 
 import { runOpenHiveOrchestration } from './orchestrator'
@@ -55,10 +56,7 @@ test('runs planner -> orchestration -> synthesizer', async () => {
     },
     executor: {
       async execute(input) {
-        return {
-          taskId: input.task.id,
-          includeConversationSummary: input.includeConversationSummary,
-        }
+        return { text: `done:${input.task.id}` }
       },
     },
     synthesizer: {
@@ -71,10 +69,7 @@ test('runs planner -> orchestration -> synthesizer', async () => {
   expect(result.usedFallback).toBe(false)
   expect(result.runStatus).toBe('completed')
   expect(result.text).toBe('completed:2')
-  expect(result.run?.outputs.research).toEqual({
-    taskId: 'research',
-    includeConversationSummary: true,
-  })
+  expect(result.run?.outputs.research).toEqual({ text: 'done:research' })
 })
 
 test('does not synthesize when orchestration run fails', async () => {
@@ -205,4 +200,102 @@ test('applies default retry policy to tasks', async () => {
   expect(result.usedFallback).toBe(false)
   expect(result.runStatus).toBe('completed')
   expect(executionCount).toBe(2)
+})
+
+test('threads reportProgress to executor', async () => {
+  const progressPayloads: unknown[] = []
+
+  await runOpenHiveOrchestration({
+    runId: 'run-progress',
+    userPrompt: 'test',
+    planner: {
+      async plan() {
+        return { tasks: [{ id: 'a', kind: 'general', title: 'A', prompt: 'do A' }] }
+      },
+    },
+    executor: {
+      async execute(input) {
+        input.reportProgress?.({ type: 'tool_start', toolName: 'readFile', toolCallId: 'tc-1' })
+        input.reportProgress?.({ type: 'tool_end', toolName: 'readFile', toolCallId: 'tc-1' })
+        return { text: 'done' }
+      },
+    },
+    synthesizer: {
+      async synthesize() {
+        return 'ok'
+      },
+    },
+    onEvent: async (event: OrchestrationEvent) => {
+      if (event.type === 'task_progress') progressPayloads.push(event.payload)
+    },
+  })
+
+  expect(progressPayloads).toHaveLength(2)
+  expect(progressPayloads[0]).toEqual({
+    type: 'tool_start',
+    toolName: 'readFile',
+    toolCallId: 'tc-1',
+  })
+})
+
+test('emits synthesis fallback concatenation when synthesizer fails', async () => {
+  const result = await runOpenHiveOrchestration({
+    runId: 'run-synth-fallback',
+    userPrompt: 'check fallback',
+    planner: {
+      async plan() {
+        return {
+          tasks: [{ id: 'x', kind: 'general', title: 'X', prompt: 'Do X' }],
+        }
+      },
+    },
+    executor: {
+      async execute() {
+        return { text: 'output-x' }
+      },
+    },
+    synthesizer: {
+      async synthesize() {
+        throw new Error('synthesis crashed')
+      },
+    },
+  })
+
+  // Should have concatenated outputs instead of empty string
+  expect(result.text).toBe('output-x')
+  expect(result.runStatus).toBe('completed')
+})
+
+test('rejects plans exceeding max task count', async () => {
+  const result = await runOpenHiveOrchestration({
+    runId: 'run-max-tasks',
+    userPrompt: 'big plan',
+    planner: {
+      async plan() {
+        return {
+          tasks: Array.from({ length: 15 }, (_, i) => ({
+            id: `task-${i}`,
+            kind: 'general',
+            title: `Task ${i}`,
+            prompt: `Do ${i}`,
+          })),
+        }
+      },
+    },
+    executor: {
+      async execute(input) {
+        return { text: `done-${input.task.id}` }
+      },
+    },
+    synthesizer: {
+      async synthesize() {
+        return 'synthesized'
+      },
+    },
+  })
+
+  // Plan should have been truncated to MAX_PLAN_TASKS (10)
+  expect(result.runStatus).toBe('completed')
+  const taskCount = result.run?.taskOrder.length ?? 0
+  expect(taskCount).toBeLessThanOrEqual(10)
 })

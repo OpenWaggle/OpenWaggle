@@ -6,10 +6,11 @@ export interface Logger {
 }
 
 function formatLine(namespace: string, message: string, data?: Record<string, unknown>): string {
+  const ts = new Date().toISOString().slice(11, 23) // HH:mm:ss.mmm
   if (data && Object.keys(data).length > 0) {
-    return `[${namespace}] ${message} ${JSON.stringify(data)}`
+    return `${ts} [${namespace}] ${message} ${JSON.stringify(data)}`
   }
-  return `[${namespace}] ${message}`
+  return `${ts} [${namespace}] ${message}`
 }
 
 export function createLogger(namespace: string): Logger {

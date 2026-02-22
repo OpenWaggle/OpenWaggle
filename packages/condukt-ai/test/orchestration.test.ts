@@ -4,6 +4,7 @@ import {
   createOrchestrationEngine,
   MemoryRunStore,
   ORCHESTRATION_ERROR_TASK_TIMEOUT,
+  type OrchestrationEvent,
   type OrchestrationRunRecord,
   type WorkerAdapter,
 } from "../src/index.js";
@@ -247,4 +248,53 @@ test("resumes from persisted non-terminal checkpoint", async () => {
 
   expect(summary.status).toBe("completed");
   expect(summary.outputs.right).toEqual({ merged: "left-done" });
+});
+
+test("emits task_progress events via reportProgress callback", async () => {
+  const events: OrchestrationEvent[] = [];
+  const worker: WorkerAdapter = {
+    async executeTask(_task, context) {
+      context.reportProgress({ step: "reading", file: "README.md" });
+      return { output: "done" };
+    },
+  };
+  const engine = createOrchestrationEngine({
+    workerAdapter: worker,
+    onEvent: async (event) => {
+      events.push(event);
+    },
+  });
+  await engine.run({
+    runId: "run-progress",
+    tasks: [{ id: "t1", kind: "work" }],
+  });
+
+  const progressEvents = events.filter((e) => e.type === "task_progress");
+  expect(progressEvents).toHaveLength(1);
+  expect(progressEvents[0].type === "task_progress" && progressEvents[0].payload).toEqual({
+    step: "reading",
+    file: "README.md",
+  });
+});
+
+test("respects maxParallelTasks limit", async () => {
+  let maxConcurrent = 0;
+  let current = 0;
+  const worker: WorkerAdapter = {
+    async executeTask() {
+      current += 1;
+      maxConcurrent = Math.max(maxConcurrent, current);
+      await new Promise((r) => setTimeout(r, 20));
+      current -= 1;
+      return { output: "ok" };
+    },
+  };
+  const engine = createOrchestrationEngine({ workerAdapter: worker });
+  await engine.run({
+    runId: "run-parallel",
+    maxParallelTasks: 2,
+    tasks: Array.from({ length: 5 }, (_, i) => ({ id: `t${i}`, kind: "work" })),
+  });
+
+  expect(maxConcurrent).toBeLessThanOrEqual(2);
 });

@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'vitest'
 
-import { extractJson, OpenHivePlanValidationError, parseOpenHivePlan } from './planner'
+import {
+  extractJson,
+  MAX_PLAN_TASKS,
+  OpenHivePlanValidationError,
+  parseOpenHivePlan,
+} from './planner'
 
 describe('extractJson', () => {
   test('parses plain JSON', () => {
@@ -33,6 +38,12 @@ describe('extractJson', () => {
 
   test('throws for empty input', () => {
     expect(() => extractJson('')).toThrow()
+  })
+
+  test('handles inner code fences', () => {
+    const input = '```json\n{"key":"value with ```bash\\npnpm dev\\n``` inside"}\n```'
+    const result = extractJson(input)
+    expect(result).toHaveProperty('key')
   })
 })
 
@@ -104,5 +115,16 @@ describe('parseOpenHivePlan', () => {
     expect(() => parseOpenHivePlan({ tasks: [null, {}] })).toThrow(OpenHivePlanValidationError)
     expect(() => parseOpenHivePlan(null)).toThrow(OpenHivePlanValidationError)
     expect(() => parseOpenHivePlan('string')).toThrow(OpenHivePlanValidationError)
+  })
+
+  test('truncates plans exceeding max task count', () => {
+    const tasks = Array.from({ length: 15 }, (_, i) => ({
+      id: `task-${i}`,
+      kind: 'general',
+      title: `Task ${i}`,
+      prompt: `Do ${i}`,
+    }))
+    const plan = parseOpenHivePlan({ tasks })
+    expect(plan.tasks.length).toBeLessThanOrEqual(MAX_PLAN_TASKS)
   })
 })

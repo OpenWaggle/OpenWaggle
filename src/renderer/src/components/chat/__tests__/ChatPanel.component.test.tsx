@@ -75,8 +75,10 @@ describe('ChatPanel', () => {
     expect(screen.getByText("Let's build")).toBeInTheDocument()
   })
 
-  it('shows thinking indicator when loading with no assistant message', () => {
+  it('shows thinking phase indicator when loading with no assistant message', () => {
     renderPanel({ isLoading: true })
+    const spinner = document.querySelector('[class*="animate-spin"]')
+    expect(spinner).toBeInTheDocument()
     expect(screen.getByText('Thinking...')).toBeInTheDocument()
   })
 
@@ -95,12 +97,25 @@ describe('ChatPanel', () => {
     expect(screen.getByRole('textbox')).toBeInTheDocument()
   })
 
-  it('does not show thinking when loading but last message is assistant', () => {
+  it('shows Writing phase when loading and assistant has streaming content', () => {
     const messages: UIMessage[] = [
       makeMessage({ id: 'u1', role: 'user', parts: [{ type: 'text', content: 'Hi' }] }),
       makeMessage({ id: 'a1', role: 'assistant', parts: [{ type: 'text', content: 'Hello!' }] }),
     ]
     renderPanel({ messages, isLoading: true })
-    expect(screen.queryByText('Thinking...')).toBeNull()
+    // Spinner should be visible with "Writing..." label
+    const spinner = document.querySelector('[class*="animate-spin"]')
+    expect(spinner).toBeInTheDocument()
+    expect(screen.getByText('Writing...')).toBeInTheDocument()
+  })
+
+  it('does not show phase indicator when not loading', () => {
+    const messages: UIMessage[] = [
+      makeMessage({ id: 'u1', role: 'user', parts: [{ type: 'text', content: 'Hi' }] }),
+      makeMessage({ id: 'a1', role: 'assistant', parts: [{ type: 'text', content: 'Hello!' }] }),
+    ]
+    renderPanel({ messages, isLoading: false })
+    const spinner = document.querySelector('[class*="animate-spin"]')
+    expect(spinner).toBeNull()
   })
 })

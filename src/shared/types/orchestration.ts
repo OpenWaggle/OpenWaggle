@@ -31,6 +31,7 @@ export interface OrchestrationTaskRecord {
   readonly kind: string
   readonly status: OrchestrationTaskStatus
   readonly dependsOn: readonly OrchestrationTaskId[]
+  readonly title?: string
   readonly startedAt?: string
   readonly finishedAt?: string
   readonly errorCode?: string
@@ -66,6 +67,13 @@ export type OrchestrationLifecycleEventType =
   | 'run_failed'
   | 'run_cancelled'
   | 'fallback'
+
+export interface TaskToolProgressDetail {
+  readonly type: 'tool_start' | 'tool_end'
+  readonly toolName: string
+  readonly toolCallId: string
+  readonly toolInput?: Readonly<Record<string, unknown>>
+}
 
 export interface OrchestrationEventPayload {
   readonly conversationId: ConversationId

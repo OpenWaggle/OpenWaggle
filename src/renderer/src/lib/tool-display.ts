@@ -36,6 +36,22 @@ const DEFAULT_CONFIG: ToolConfig = {
   primaryArg: '',
 }
 
+interface ToolVerbs {
+  running: string
+  completed: string
+}
+
+const TOOL_VERBS: Record<string, ToolVerbs> = {
+  readFile: { running: 'Reading', completed: 'Read' },
+  writeFile: { running: 'Writing', completed: 'Wrote' },
+  editFile: { running: 'Editing', completed: 'Edited' },
+  runCommand: { running: 'Running', completed: 'Ran' },
+  glob: { running: 'Searching', completed: 'Searched' },
+  listFiles: { running: 'Listing', completed: 'Listed' },
+  loadSkill: { running: 'Loading skill', completed: 'Loaded skill' },
+  loadAgents: { running: 'Loading agents', completed: 'Loaded agents' },
+}
+
 export function getToolConfig(name: string): ToolConfig {
   return TOOL_CONFIG[name] ?? { ...DEFAULT_CONFIG, displayName: name }
 }
@@ -46,4 +62,29 @@ export function getToolSummary(name: string, args: Record<string, unknown>): str
   const value = args[config.primaryArg]
   if (typeof value === 'string') return value
   return null
+}
+
+export function getToolVerbs(name: string): ToolVerbs {
+  return TOOL_VERBS[name] ?? { running: name, completed: name }
+}
+
+export function getToolActionText(
+  name: string,
+  args: Record<string, unknown>,
+  isRunning: boolean,
+): string {
+  const verbs = getToolVerbs(name)
+  const verb = isRunning ? verbs.running : verbs.completed
+  const config = TOOL_CONFIG[name]
+
+  if (!config) return verb
+
+  const value = args[config.primaryArg]
+  if (typeof value !== 'string') return isRunning ? `${verb}...` : verb
+
+  if (name === 'runCommand') {
+    return `${verb} \`${value}\``
+  }
+
+  return isRunning ? `${verb} ${value}...` : `${verb} ${value}`
 }

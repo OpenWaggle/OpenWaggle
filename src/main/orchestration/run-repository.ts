@@ -5,6 +5,7 @@ import { type ConversationId, OrchestrationRunId, OrchestrationTaskId } from '@s
 import type { OrchestrationRunRecord, OrchestrationTaskRecord } from '@shared/types/orchestration'
 import type { OrchestrationRunRecord as CoreRunRecord, RunStore } from 'condukt-ai'
 import { app } from 'electron'
+import { z } from 'zod'
 
 interface PersistedRunIndex {
   readonly ids: string[]
@@ -34,6 +35,13 @@ function indexPath(): string {
   return path.join(getRunsDir(), INDEX_FILE)
 }
 
+const taskInputSchema = z.object({ title: z.string() })
+
+function extractTaskTitle(task: CoreRunRecord['tasks'][string]): string | undefined {
+  const result = taskInputSchema.safeParse(task.input)
+  return result.success ? result.data.title : undefined
+}
+
 function toSharedTaskRecord(
   task: CoreRunRecord['tasks'][string],
   createdOrder: number,
@@ -43,6 +51,7 @@ function toSharedTaskRecord(
     kind: task.kind,
     status: task.status,
     dependsOn: task.dependsOn.map((dep) => OrchestrationTaskId(dep)),
+    title: extractTaskTitle(task),
     startedAt: task.startedAt,
     finishedAt: task.finishedAt,
     errorCode: task.errorCode,

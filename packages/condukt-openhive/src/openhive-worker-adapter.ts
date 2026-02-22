@@ -31,6 +31,7 @@ export function createOpenHiveAgentWorkerAdapter(
         maxContextTokens: heuristic.maxContextTokens,
         dependencyOutputs: context.dependencyOutputs,
         signal: context.signal,
+        reportProgress: context.reportProgress,
       })
 
       return { output }

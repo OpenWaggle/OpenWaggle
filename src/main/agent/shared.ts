@@ -57,13 +57,14 @@ export function buildPersistedUserMessageParts(payload: AgentSendPayload): Messa
 // buildSamplingOptions — extract the topP conditional
 // ---------------------------------------------------------------------------
 
-export function buildSamplingOptions(qualityConfig: { temperature: number; topP?: number }): {
-  temperature: number
+export function buildSamplingOptions(qualityConfig: { temperature?: number; topP?: number }): {
+  temperature?: number
   topP?: number
 } {
-  return qualityConfig.topP === undefined
-    ? { temperature: qualityConfig.temperature }
-    : { temperature: qualityConfig.temperature, topP: qualityConfig.topP }
+  const opts: { temperature?: number; topP?: number } = {}
+  if (qualityConfig.temperature !== undefined) opts.temperature = qualityConfig.temperature
+  if (qualityConfig.topP !== undefined) opts.topP = qualityConfig.topP
+  return opts
 }
 
 // ---------------------------------------------------------------------------

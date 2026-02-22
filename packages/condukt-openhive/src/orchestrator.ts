@@ -14,6 +14,12 @@ import type {
   RunOpenHiveOrchestrationInput,
 } from './types'
 
+const logger = {
+  warn(message: string, data?: Record<string, unknown>) {
+    console.warn(`[condukt-openhive] ${message}`, data ?? '')
+  },
+}
+
 const DEFAULT_TASK_RETRY: OrchestrationTaskRetryPolicy = {
   retries: 1,
   backoffMs: 500,
@@ -108,8 +114,12 @@ export async function runOpenHiveOrchestration(
       plan,
       run,
     })
-  } catch {
+  } catch (error) {
     // Synthesis fallback: concatenate task outputs directly
+    logger.warn('synthesis failed, concatenating outputs', {
+      runId: summary.runId,
+      error: error instanceof Error ? error.message : String(error),
+    })
     text = concatenateOutputs(run)
   }
 
@@ -130,7 +140,7 @@ export async function runOpenHiveOrchestration(
 async function runSingleTaskFallback(
   input: RunOpenHiveOrchestrationInput,
   runStore: RunStore,
-  _reason: string,
+  reason: string,
 ): Promise<OpenHiveOrchestrationResult> {
   const plan: OpenHiveOrchestrationPlan = {
     tasks: [
@@ -179,7 +189,7 @@ async function runSingleTaskFallback(
     return {
       runId: input.runId ?? 'fallback',
       usedFallback: true,
-      fallbackReason: _reason,
+      fallbackReason: reason,
       text: input.userPrompt,
     }
   }
@@ -189,7 +199,7 @@ async function runSingleTaskFallback(
     return {
       runId: input.runId ?? 'fallback',
       usedFallback: true,
-      fallbackReason: _reason,
+      fallbackReason: reason,
       text: input.userPrompt,
     }
   }
@@ -198,7 +208,7 @@ async function runSingleTaskFallback(
     return {
       runId: summary.runId,
       usedFallback: true,
-      fallbackReason: _reason,
+      fallbackReason: reason,
       text: '',
       runStatus: summary.status,
       run,

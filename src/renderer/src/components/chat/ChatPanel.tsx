@@ -1,16 +1,19 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
-import type { QuestionAnswer } from '@shared/types/question'
+import type { QuestionAnswer, UserQuestion } from '@shared/types/question'
+import { askUserArgsSchema } from '@shared/types/question'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import type { UIMessage } from '@tanstack/ai-react'
 import { useState } from 'react'
 import { Composer } from '@/components/composer/Composer'
 import { Spinner } from '@/components/shared/Spinner'
+import { formatElapsed, useStreamingPhase } from '@/hooks/useStreamingPhase'
 import { ApprovalBanner } from './ApprovalBanner'
+import { RunSummary } from './RunSummary'
+import { AskUserBlock } from './AskUserBlock'
 import { ChatErrorDisplay } from './ChatErrorDisplay'
 import { MessageBubble } from './MessageBubble'
-import { OrchestrationRunBanner } from './OrchestrationRunBanner'
 import type { OrchestrationProps } from './types'
 import { useAutoScroll } from './useAutoScroll'
 import { WelcomeScreen } from './WelcomeScreen'
@@ -77,17 +80,14 @@ export function ChatPanel({
       .map((p) => p.content)
       .join('\n') ?? null
 
-  const {
-    orchestrationRuns = [],
-    orchestrationEvents = [],
-    onCancelOrchestrationRun,
-  } = orchestration
-  const latestOrchestrationRun = orchestrationRuns[0]
-  const latestRunEvents = latestOrchestrationRun
-    ? orchestrationEvents
-        .filter((event) => event.runId === latestOrchestrationRun.runId)
-        .slice(0, 6)
-    : []
+  const { orchestrationRuns = [] } = orchestration
+
+  const hasStreamingContent =
+    !!lastMsg &&
+    lastMsg.role === 'assistant' &&
+    lastMsg.parts.some((p) => p.type === 'text' && p.content.trim())
+
+  const phase = useStreamingPhase(isLoading, orchestrationRuns, hasStreamingContent)
 
   // Find the first pending tool approval across all messages
   let pendingApproval: {
@@ -109,6 +109,32 @@ export function ChatPanel({
     }
   }
 
+  // Find pending askUser tool call (unanswered)
+  let pendingAskUser: {
+    questions: UserQuestion[]
+  } | null = null
+  for (const msg of messages) {
+    if (pendingAskUser) break
+    for (const part of msg.parts) {
+      if (part.type === 'tool-call' && part.name === 'askUser') {
+        // Check if there's a matching result
+        const hasResult = msg.parts.some(
+          (p) => p.type === 'tool-result' && p.toolCallId === part.id,
+        )
+        if (!hasResult) {
+          try {
+            const parsed: unknown = JSON.parse(part.arguments)
+            const result = askUserArgsSchema.safeParse(parsed)
+            pendingAskUser = { questions: result.success ? result.data.questions : [] }
+          } catch {
+            pendingAskUser = { questions: [] }
+          }
+          break
+        }
+      }
+    }
+  }
+
   return (
     <div className="flex h-full w-full flex-col bg-bg overflow-hidden">
       {/* Scroll container — full width so scrollbar sits at right edge */}
@@ -126,16 +152,6 @@ export function ChatPanel({
           /* Messages list — centered, gap 24 between message groups */
           <div className="mx-auto w-full max-w-[720px] px-12 py-5">
             <div className="flex flex-col gap-6 w-full">
-              {latestOrchestrationRun && (
-                <OrchestrationRunBanner
-                  run={latestOrchestrationRun}
-                  events={latestRunEvents}
-                  lastUserMessage={lastUserMessage}
-                  onCancelOrchestrationRun={onCancelOrchestrationRun}
-                  onRetry={onRetry}
-                />
-              )}
-
               {messages.map((msg, i) => (
                 <MessageBubble
                   key={msg.id}
@@ -149,13 +165,21 @@ export function ChatPanel({
                 />
               ))}
 
-              {isLoading &&
-                (!lastMsg || lastMsg.role !== 'assistant' || lastMsg.parts.length === 0) && (
-                  <div className="flex items-center gap-2 py-3">
-                    <Spinner size="sm" className="text-accent" />
-                    <span className="text-sm text-text-tertiary">Thinking...</span>
-                  </div>
-                )}
+              {/* Phase indicator — visible whenever the agent is running */}
+              {phase.current && (
+                <div className="flex items-center gap-2 py-3">
+                  <Spinner size="sm" className="text-accent" />
+                  <span className="text-sm text-text-tertiary">{phase.current.label}...</span>
+                  <span className="text-sm text-text-muted tabular-nums">
+                    {formatElapsed(phase.current.elapsedMs)}
+                  </span>
+                </div>
+              )}
+
+              {/* Run summary — shown after run completes */}
+              {!isLoading && phase.completed.length > 0 && (
+                <RunSummary phases={phase.completed} totalMs={phase.totalElapsedMs} />
+              )}
 
               {error && !isLoading && (
                 <ChatErrorDisplay
@@ -180,6 +204,17 @@ export function ChatPanel({
             toolArgs={pendingApproval.toolArgs}
             approvalId={pendingApproval.approvalId}
             onApprovalResponse={onToolApprovalResponse}
+          />
+        </div>
+      )}
+
+      {/* Pinned askUser block — above composer */}
+      {pendingAskUser && conversationId && (
+        <div className="mx-auto w-full max-w-[720px] px-5 pb-2">
+          <AskUserBlock
+            questions={pendingAskUser.questions}
+            conversationId={conversationId}
+            onAnswer={onAnswerQuestion}
           />
         </div>
       )}

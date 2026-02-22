@@ -18,6 +18,7 @@ export interface OpenHivePlannedTask {
   readonly kind: OpenHiveTaskKind
   readonly title: string
   readonly prompt: string
+  readonly narration?: string
   readonly dependsOn?: readonly string[]
   readonly needsConversationContext?: boolean
 }
@@ -34,6 +35,17 @@ export interface OpenHivePlanner {
   plan(input: OpenHivePlannerInput): Promise<unknown>
 }
 
+export interface OpenHiveProgressPayload {
+  readonly type: 'tool_start' | 'tool_end'
+  readonly toolName: string
+  readonly toolCallId: string
+  readonly toolInput?: Readonly<Record<string, unknown>>
+}
+
+export interface OpenHiveTaskOutput {
+  readonly text: string
+}
+
 export interface OpenHiveTaskExecutionInput {
   readonly task: OpenHivePlannedTask
   readonly orchestrationTask: OrchestrationTaskDefinition
@@ -41,10 +53,11 @@ export interface OpenHiveTaskExecutionInput {
   readonly maxContextTokens: number
   readonly dependencyOutputs: Readonly<Record<string, unknown>>
   readonly signal: AbortSignal
+  readonly reportProgress?: (payload: OpenHiveProgressPayload) => void
 }
 
 export interface OpenHiveTaskExecutor {
-  execute(input: OpenHiveTaskExecutionInput): Promise<unknown>
+  execute(input: OpenHiveTaskExecutionInput): Promise<OpenHiveTaskOutput>
 }
 
 export interface OpenHiveSynthesizerInput {

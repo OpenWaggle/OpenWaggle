@@ -2,6 +2,8 @@ import { z } from 'zod'
 
 import type { OpenHiveOrchestrationPlan, OpenHivePlannedTask } from './types'
 
+export const MAX_PLAN_TASKS = 10
+
 const planTaskSchema = z.object({
   id: z.string().min(1),
   kind: z.enum(['analysis', 'synthesis', 'repo-edit', 'general']),
@@ -12,7 +14,7 @@ const planTaskSchema = z.object({
 })
 
 const planSchema = z.object({
-  tasks: z.array(planTaskSchema).min(1),
+  tasks: z.array(planTaskSchema).min(1).max(MAX_PLAN_TASKS),
 })
 
 export class OpenHivePlanValidationError extends Error {
@@ -34,10 +36,13 @@ const VALID_KINDS = new Set(['analysis', 'synthesis', 'repo-edit', 'general'])
 export function extractJson(text: string): unknown {
   let cleaned = text.trim()
 
-  // Strip markdown code fences (```json ... ``` or ``` ... ```)
-  const fenceMatch = cleaned.match(/```(?:json)?\s*\n?([\s\S]*?)```/)
-  if (fenceMatch) {
-    cleaned = fenceMatch[1].trim()
+  // Strip outer code fences using lastIndexOf to handle inner backtick blocks
+  if (cleaned.startsWith('```')) {
+    const firstNewline = cleaned.indexOf('\n')
+    const lastFence = cleaned.lastIndexOf('```')
+    if (firstNewline !== -1 && lastFence > firstNewline) {
+      cleaned = cleaned.slice(firstNewline + 1, lastFence).trim()
+    }
   }
 
   // Try direct parse
@@ -120,11 +125,27 @@ function tryRepairPlan(raw: unknown): OpenHiveOrchestrationPlan {
     const needsConversationContext =
       typeof t.needsConversationContext === 'boolean' ? t.needsConversationContext : undefined
 
-    tasks.push({ id, kind, title: title ?? id, prompt, dependsOn, needsConversationContext })
+    const narration =
+      typeof t.narration === 'string' && t.narration.length > 0 ? t.narration : undefined
+
+    tasks.push({
+      id,
+      kind,
+      title: title ?? id,
+      prompt,
+      narration,
+      dependsOn,
+      needsConversationContext,
+    })
   }
 
   if (tasks.length === 0) {
     throw new OpenHivePlanValidationError(['No valid tasks could be extracted from plan'])
+  }
+
+  // Enforce max task count
+  if (tasks.length > MAX_PLAN_TASKS) {
+    tasks.splice(MAX_PLAN_TASKS)
   }
 
   return repairDependencies(tasks)

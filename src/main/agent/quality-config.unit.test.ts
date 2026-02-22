@@ -61,4 +61,16 @@ describe('resolveQualityConfig', () => {
     expect(resolved.temperature).toBe(0.4)
     expect(resolved.topP).toBeUndefined()
   })
+
+  it('omits temperature and topP for reasoning models (GPT-5, o-series)', () => {
+    const gpt5 = resolveQualityConfig('openai', 'gpt-5' as SupportedModelId, 'medium')
+    expect(gpt5.temperature).toBeUndefined()
+    expect(gpt5.topP).toBeUndefined()
+
+    const gpt5Mini = resolveQualityConfig('openai', 'gpt-5-mini' as SupportedModelId, 'low')
+    expect(gpt5Mini.temperature).toBeUndefined()
+
+    const gpt52 = resolveQualityConfig('openai', 'gpt-5.2' as SupportedModelId, 'high')
+    expect(gpt52.temperature).toBeUndefined()
+  })
 })

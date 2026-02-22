@@ -7,32 +7,45 @@ describe('ToolCallBlock', () => {
     // No store setup needed — ToolCallBlock is self-contained
   })
 
-  it('renders tool display name for known tool', () => {
-    render(<ToolCallBlock name="readFile" args='{"path":"src/main.ts"}' state="input-complete" />)
-    expect(screen.getByText('Read File')).toBeInTheDocument()
+  it('renders natural action text for known tool', () => {
+    render(
+      <ToolCallBlock
+        name="readFile"
+        args='{"path":"src/main.ts"}'
+        state="input-complete"
+        result={{ content: 'file content', state: 'success' }}
+      />,
+    )
+    expect(screen.getByText('Read src/main.ts')).toBeInTheDocument()
   })
 
   it('renders tool name as fallback for unknown tool', () => {
-    render(<ToolCallBlock name="customTool" args="{}" state="input-complete" />)
+    render(
+      <ToolCallBlock
+        name="customTool"
+        args="{}"
+        state="input-complete"
+        result={{ content: '', state: 'success' }}
+      />,
+    )
     expect(screen.getByText('customTool')).toBeInTheDocument()
   })
 
-  it('shows summary for known tools', () => {
-    render(<ToolCallBlock name="readFile" args='{"path":"src/index.ts"}' state="input-complete" />)
-    expect(screen.getByText('src/index.ts')).toBeInTheDocument()
+  it('shows running action text with ellipsis when running', () => {
+    render(<ToolCallBlock name="readFile" args='{"path":"src/index.ts"}' state="running" />)
+    expect(screen.getByText('Reading src/index.ts...')).toBeInTheDocument()
   })
 
   it('shows spinner when tool is running', () => {
     const { container } = render(
       <ToolCallBlock name="runCommand" args='{"command":"ls"}' state="running" />,
     )
-    // Loader2 renders an svg with animate-spin class
     const spinner = container.querySelector('.animate-spin')
     expect(spinner).toBeTruthy()
   })
 
-  it('shows Done badge when completed successfully', () => {
-    render(
+  it('shows check icon when completed successfully', () => {
+    const { container } = render(
       <ToolCallBlock
         name="readFile"
         args='{"path":"file.ts"}'
@@ -40,10 +53,13 @@ describe('ToolCallBlock', () => {
         result={{ content: 'file content', state: 'success' }}
       />,
     )
-    expect(screen.getByText('Done')).toBeInTheDocument()
+    // Check icon is rendered as an SVG — look for the completed action text style
+    expect(screen.getByText('Read file.ts')).toBeInTheDocument()
+    // No spinner should be present
+    expect(container.querySelector('.animate-spin')).toBeNull()
   })
 
-  it('shows Error badge when result has error', () => {
+  it('shows error text when result has error', () => {
     render(
       <ToolCallBlock
         name="readFile"
@@ -52,16 +68,35 @@ describe('ToolCallBlock', () => {
         result={{ content: '', state: 'error', error: 'File not found' }}
       />,
     )
-    expect(screen.getByText('Error')).toBeInTheDocument()
+    expect(screen.getByText('Read missing.ts')).toBeInTheDocument()
   })
 
-  it('shows Awaiting approval badge', () => {
+  it('shows approval needed text', () => {
     render(<ToolCallBlock name="writeFile" args='{"path":"out.ts"}' state="approval-requested" />)
-    expect(screen.getByText('Awaiting approval')).toBeInTheDocument()
+    expect(screen.getByText('(approval needed)')).toBeInTheDocument()
+  })
+
+  it('shows runCommand with backtick-wrapped verb', () => {
+    render(
+      <ToolCallBlock
+        name="runCommand"
+        args='{"command":"pnpm test"}'
+        state="input-complete"
+        result={{ content: '"passed"', state: 'success' }}
+      />,
+    )
+    expect(screen.getByText('Ran `pnpm test`')).toBeInTheDocument()
   })
 
   it('expands to show arguments on click', () => {
-    render(<ToolCallBlock name="readFile" args='{"path":"src/main.ts"}' state="input-complete" />)
+    render(
+      <ToolCallBlock
+        name="readFile"
+        args='{"path":"src/main.ts"}'
+        state="input-complete"
+        result={{ content: 'file content', state: 'success' }}
+      />,
+    )
     // Arguments not visible initially
     expect(screen.queryByText('Arguments')).toBeNull()
 
@@ -83,7 +118,7 @@ describe('ToolCallBlock', () => {
     expect(screen.getByText('Result')).toBeInTheDocument()
   })
 
-  it('shows command with $ prefix for runCommand args', () => {
+  it('shows command with $ prefix for runCommand args when expanded', () => {
     render(
       <ToolCallBlock
         name="runCommand"
@@ -93,9 +128,6 @@ describe('ToolCallBlock', () => {
       />,
     )
     fireEvent.click(screen.getByRole('button'))
-    // "npm test" appears in header summary and expanded args — both valid
-    const matches = screen.getAllByText('npm test')
-    expect(matches.length).toBeGreaterThanOrEqual(2)
     expect(screen.getByText('$')).toBeInTheDocument()
   })
 
@@ -109,9 +141,6 @@ describe('ToolCallBlock', () => {
       />,
     )
     fireEvent.click(screen.getByRole('button'))
-    // "Error" appears in badge and section label
-    const errorLabels = screen.getAllByText('Error')
-    expect(errorLabels.length).toBeGreaterThanOrEqual(2)
     expect(screen.getByText('ENOENT')).toBeInTheDocument()
   })
 
