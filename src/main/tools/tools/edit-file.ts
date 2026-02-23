@@ -20,7 +20,9 @@ export const editFileTool = defineOpenHiveTool({
 
     const occurrences = content.split(args.oldString).length - 1
     if (occurrences === 0) {
-      throw new Error(`String not found in ${args.path}. Make sure the old string matches exactly.`)
+      throw new Error(
+        `String not found in ${args.path}. The old string must match exactly including whitespace and line breaks. Read the file first to verify the exact content.`,
+      )
     }
     if (occurrences > 1) {
       throw new Error(

@@ -33,7 +33,13 @@ export const runCommandTool = defineOpenHiveTool({
         },
         (error, stdout, stderr) => {
           if (error?.killed) {
-            reject(new Error(`Command timed out after ${timeout}ms`))
+            const truncatedCmd =
+              args.command.length > 80 ? `${args.command.slice(0, 80)}...` : args.command
+            reject(
+              new Error(
+                `Command "${truncatedCmd}" timed out after ${timeout}ms. Try a shorter command or increase the timeout.`,
+              ),
+            )
             return
           }
 

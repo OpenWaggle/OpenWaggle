@@ -234,10 +234,15 @@ describe('runOrchestratedAgent', () => {
       runId: 'run-1',
       reason: 'planner unavailable',
     })
-    // RUN_STARTED is emitted, but no message or RUN_FINISHED — the classic
-    // fallback agent will emit its own RUN_STARTED → text → RUN_FINISHED.
+    // RUN_STARTED is emitted, plus fallback reason text is surfaced to the user.
+    // No RUN_FINISHED — the classic fallback agent will emit its own.
     const chunkTypes = emitChunk.mock.calls.map((c) => (c[0] as { type: string }).type)
-    expect(chunkTypes).toEqual(['RUN_STARTED'])
+    expect(chunkTypes).toEqual([
+      'RUN_STARTED',
+      'TEXT_MESSAGE_START',
+      'TEXT_MESSAGE_CONTENT',
+      'TEXT_MESSAGE_END',
+    ])
   })
 
   it('emits TEXT_MESSAGE_END but not RUN_FINISHED when fallback after partial text', async () => {

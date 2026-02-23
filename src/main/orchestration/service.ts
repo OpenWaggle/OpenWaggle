@@ -383,9 +383,12 @@ export async function runOrchestratedAgent(
       newMessages: [userMsg, assistantMsg],
     }
   } catch (error) {
-    logger.error('orchestration failed, falling back', {
-      error: error instanceof Error ? error.message : String(error),
-    })
+    const reason = error instanceof Error ? error.message : String(error)
+    logger.error('orchestration failed, falling back', { error: reason })
+    // Surface the failure reason in the stream so the user sees why fallback happened.
+    appendText(
+      `\nOrchestration encountered an issue: ${reason}. Falling back to direct execution.\n`,
+    )
     // Close the message if one was started, but do NOT emit RUN_FINISHED —
     // the classic fallback agent will emit its own RUN_STARTED → RUN_FINISHED.
     if (messageStarted) {
@@ -394,7 +397,7 @@ export async function runOrchestratedAgent(
     return {
       status: 'fallback',
       runId,
-      reason: error instanceof Error ? error.message : String(error),
+      reason,
     }
   }
 }
@@ -533,12 +536,15 @@ async function modelJson(
     return extractJson(trimmed)
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err)
-    logger.warn('modelJson extraction failure', {
-      reason,
-      rawLength: text.length,
-      rawStart: text.slice(0, 300),
-      rawEnd: text.slice(-100),
-    })
+    logger.warn(
+      'modelJson extraction failure — planner output could not be parsed as JSON, returning empty task list',
+      {
+        reason,
+        rawLength: text.length,
+        rawStart: text.slice(0, 300),
+        rawEnd: text.slice(-100),
+      },
+    )
     return { tasks: [] }
   }
 }
