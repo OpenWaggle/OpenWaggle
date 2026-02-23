@@ -33,6 +33,7 @@ const toolCallResultSchema = z.object({
 
 const messagePartSchema = z.union([
   z.object({ type: z.literal('text'), text: z.string() }),
+  z.object({ type: z.literal('thinking'), text: z.string() }),
   z.object({
     type: z.literal('attachment'),
     attachment: z.object({
@@ -100,6 +101,8 @@ function transformPart(part: ParsedPart): MessagePart {
   switch (part.type) {
     case 'text':
       return { type: 'text', text: part.text }
+    case 'thinking':
+      return { type: 'thinking', text: part.text }
     case 'tool-call':
       return {
         type: 'tool-call',
@@ -180,13 +183,40 @@ function conversationPath(id: ConversationId): string {
   return path.join(getConversationsDir(), `${id}.json`)
 }
 
-export async function listConversations(): Promise<ConversationSummary[]> {
+const CONVERSATION_LOAD_CONCURRENCY = 10
+
+async function pMap<T, R>(
+  items: readonly T[],
+  mapper: (item: T) => Promise<R>,
+  concurrency: number,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length)
+  // nextIndex is safe to share across workers because the read + increment
+  // is synchronous (no await between check and ++) in Node's single-threaded model.
+  let nextIndex = 0
+
+  async function worker(): Promise<void> {
+    while (nextIndex < items.length) {
+      const idx = nextIndex++
+      const item = items[idx]
+      if (item !== undefined) {
+        results[idx] = await mapper(item)
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()))
+  return results
+}
+
+export async function listConversations(limit?: number): Promise<ConversationSummary[]> {
   const dir = getConversationsDir()
   const entries = await fsPromises.readdir(dir)
   const files = entries.filter((f) => f.endsWith('.json'))
 
-  const results = await Promise.all(
-    files.map(async (file): Promise<ConversationSummary | null> => {
+  const results = await pMap(
+    files,
+    async (file): Promise<ConversationSummary | null> => {
       try {
         const raw = await fsPromises.readFile(path.join(dir, file), 'utf-8')
         const conv = parseConversation(raw)
@@ -208,12 +238,15 @@ export async function listConversations(): Promise<ConversationSummary[]> {
         })
         return null
       }
-    }),
+    },
+    CONVERSATION_LOAD_CONCURRENCY,
   )
 
-  return results
+  const sorted = results
     .filter((summary): summary is ConversationSummary => summary !== null)
     .sort((a, b) => b.updatedAt - a.updatedAt)
+
+  return limit !== undefined ? sorted.slice(0, limit) : sorted
 }
 
 export async function getConversation(id: ConversationId): Promise<Conversation | null> {

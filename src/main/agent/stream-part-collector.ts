@@ -43,6 +43,7 @@ export function detectToolResultError(result: unknown): boolean {
 
 export class StreamPartCollector {
   private currentText = ''
+  private currentThinking = ''
   private readonly collectedParts: MessagePart[] = []
   private readonly toolCallArgs: Record<string, string> = {}
   private readonly toolCallStartTimes: Record<string, number> = {}
@@ -58,7 +59,17 @@ export class StreamPartCollector {
         this.currentText += chunk.delta
         return {}
 
+      case 'STEP_STARTED':
+        this.flushThinkingPart()
+        this.flushTextPart()
+        return {}
+
+      case 'STEP_FINISHED':
+        this.currentThinking += chunk.delta
+        return {}
+
       case 'TOOL_CALL_START': {
+        this.flushThinkingPart()
         this.flushTextPart()
         const startedAt = Date.now()
         this.toolCallArgs[chunk.toolCallId] = ''
@@ -141,6 +152,7 @@ export class StreamPartCollector {
       }
 
       case 'RUN_ERROR': {
+        this.flushThinkingPart()
         this.flushTextPart()
         this.collectedParts.push({
           type: 'text',
@@ -154,12 +166,14 @@ export class StreamPartCollector {
 
       case 'RUN_FINISHED':
         return {}
-    }
 
-    return {}
+      default:
+        return {}
+    }
   }
 
   finalizeParts(): MessagePart[] {
+    this.flushThinkingPart()
     this.flushTextPart()
 
     if (this.collectedParts.length === 0) {
@@ -180,6 +194,13 @@ export class StreamPartCollector {
     if (this.currentText.trim()) {
       this.collectedParts.push({ type: 'text', text: this.currentText })
       this.currentText = ''
+    }
+  }
+
+  private flushThinkingPart(): void {
+    if (this.currentThinking.trim()) {
+      this.collectedParts.push({ type: 'thinking', text: this.currentThinking })
+      this.currentThinking = ''
     }
   }
 

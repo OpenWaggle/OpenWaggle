@@ -42,7 +42,12 @@ export interface ToolResultPart {
   readonly toolResult: ToolCallResult
 }
 
-export type MessagePart = TextPart | AttachmentPart | ToolCallPart | ToolResultPart
+export interface ThinkingPart {
+  readonly type: 'thinking'
+  readonly text: string
+}
+
+export type MessagePart = TextPart | AttachmentPart | ToolCallPart | ToolResultPart | ThinkingPart
 
 export interface PreparedAttachment extends AttachmentRecord {
   readonly source: {
@@ -90,6 +95,10 @@ export function isToolResultPart(part: MessagePart): part is ToolResultPart {
 
 export function isAttachmentPart(part: MessagePart): part is AttachmentPart {
   return part.type === 'attachment'
+}
+
+export function isThinkingPart(part: MessagePart): part is ThinkingPart {
+  return part.type === 'thinking'
 }
 
 export function getMessageText(message: Message): string {

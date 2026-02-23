@@ -616,6 +616,9 @@ function summarizeConversation(conversation: Conversation): string {
           case 'text':
             segments.push(part.text)
             break
+          case 'thinking':
+            segments.push('[thinking]')
+            break
           case 'tool-call':
             segments.push(`[tool:${part.toolCall.name}]`)
             break
