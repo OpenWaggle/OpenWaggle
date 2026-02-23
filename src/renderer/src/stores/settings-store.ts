@@ -14,12 +14,14 @@ import { api } from '@/lib/ipc'
 interface SettingsState {
   settings: Settings
   isLoaded: boolean
+  loadError: string | null
   testingProviders: Partial<Record<Provider, boolean>>
   testResults: Partial<Record<Provider, { success: boolean; error?: string } | null>>
   providerModels: ProviderInfo[]
 
   loadSettings: () => Promise<void>
   loadProviderModels: () => Promise<void>
+  retryLoad: () => Promise<void>
   updateApiKey: (provider: Provider, apiKey: string) => Promise<void>
   toggleProvider: (provider: Provider, enabled: boolean) => Promise<void>
   updateBaseUrl: (provider: Provider, baseUrl: string) => Promise<void>
@@ -36,18 +38,34 @@ interface SettingsState {
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   settings: DEFAULT_SETTINGS,
   isLoaded: false,
+  loadError: null,
   testingProviders: {},
   testResults: {},
   providerModels: [],
 
   async loadSettings() {
-    const settings = await api.getSettings()
-    set({ settings, isLoaded: true })
+    try {
+      const settings = await api.getSettings()
+      set({ settings, isLoaded: true, loadError: null })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load settings'
+      set({ isLoaded: true, loadError: message })
+    }
   },
 
   async loadProviderModels() {
-    const providerModels = await api.getProviderModels()
-    set({ providerModels })
+    try {
+      const providerModels = await api.getProviderModels()
+      set({ providerModels })
+    } catch {
+      // Models are non-critical — keep existing empty array
+    }
+  },
+
+  async retryLoad() {
+    set({ loadError: null, isLoaded: false })
+    await get().loadSettings()
+    await get().loadProviderModels()
   },
 
   async updateApiKey(provider: Provider, apiKey: string) {

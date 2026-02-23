@@ -20,6 +20,7 @@ export function useSettingsSetup(): void {
 export function useSettings() {
   const settings = useSettingsStore((s) => s.settings)
   const isLoaded = useSettingsStore((s) => s.isLoaded)
+  const loadError = useSettingsStore((s) => s.loadError)
   const testingProviders = useSettingsStore((s) => s.testingProviders)
   const testResults = useSettingsStore((s) => s.testResults)
   const providerModels = useSettingsStore((s) => s.providerModels)
@@ -34,10 +35,12 @@ export function useSettings() {
   const pushRecentProject = useSettingsStore((s) => s.pushRecentProject)
   const testApiKey = useSettingsStore((s) => s.testApiKey)
   const clearTestResult = useSettingsStore((s) => s.clearTestResult)
+  const retryLoad = useSettingsStore((s) => s.retryLoad)
 
   return {
     settings,
     isLoaded,
+    loadError,
     testingProviders,
     testResults,
     providerModels,
@@ -52,5 +55,6 @@ export function useSettings() {
     pushRecentProject,
     testApiKey,
     clearTestResult,
+    retryLoad,
   }
 }
