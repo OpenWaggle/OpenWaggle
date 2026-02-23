@@ -157,7 +157,7 @@ export async function runOrchestratedAgent(
         : quality.modelOptions,
     }
     logger.info('planner call starting', { elapsed: elapsed(), promptLength: plannerPrompt.length })
-    const planResult = await modelJson(adapter, plannerPrompt, plannerQuality)
+    const planResult = await modelJson(adapter, plannerPrompt, plannerQuality, emitChunk)
     logger.info('planner call completed', {
       elapsed: elapsed(),
       planResult: JSON.stringify(planResult).slice(0, 200),
@@ -197,6 +197,7 @@ export async function runOrchestratedAgent(
     const taskTitles = new Map<string, string>()
     const taskStartTimes = new Map<string, number>()
     const taskFileCount = new Map<string, number>()
+    const taskTokens = new Map<string, number>()
     for (const t of planTasks) {
       const task = t as Record<string, unknown>
       const id = String(task.id ?? '')
@@ -248,7 +249,9 @@ export async function runOrchestratedAgent(
             quality,
             tools,
             input.reportProgress,
+            emitChunk,
           )
+          taskTokens.set(String(input.task.id), Math.ceil(text.length / 4))
           return { text }
         },
       },
@@ -268,7 +271,7 @@ export async function runOrchestratedAgent(
             'Task outputs (JSON):',
             JSON.stringify(input.run.outputs, null, 2),
           ].join('\n')
-          const result = await modelText(adapter, synthesisPrompt, quality)
+          const result = await modelText(adapter, synthesisPrompt, quality, emitChunk)
           logger.info('synthesis completed', { resultLength: result.length })
           return result
         },
@@ -305,10 +308,14 @@ export async function runOrchestratedAgent(
         if (event.type === 'task_succeeded' && taskId) {
           const title = taskTitles.get(taskId) ?? taskId
           const files = taskFileCount.get(taskId) ?? 0
+          const tokens = taskTokens.get(taskId) ?? 0
           const startTime = taskStartTimes.get(taskId) ?? Date.now()
           const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
-          const fileSuffix = files > 0 ? ` — ${String(files)} files, ${elapsed}s` : ` — ${elapsed}s`
-          appendText(`\n✓ ${title}${fileSuffix}\n\n`)
+          const parts: string[] = []
+          if (files > 0) parts.push(`${String(files)} files`)
+          if (tokens > 0) parts.push(`~${String(tokens)} output tokens`)
+          parts.push(`${elapsed}s`)
+          appendText(`\n✓ ${title} — ${parts.join(', ')}\n\n`)
         }
 
         // Also emit orchestration event for the run record
@@ -408,22 +415,32 @@ async function modelText(
   adapter: AnyTextAdapter,
   prompt: string,
   quality: SamplingConfig,
+  onChunk?: (chunk: StreamChunk) => void,
 ): Promise<string> {
   const samplingOptions = buildSamplingOptions(quality)
   logger.info('modelText: calling chat()', { promptLength: prompt.length })
 
-  const output = await chat({
+  const stream = chat({
     adapter,
-    stream: false,
+    stream: true,
     messages: [{ role: 'user', content: prompt }],
     ...samplingOptions,
     maxTokens: quality.maxTokens,
     modelOptions: quality.modelOptions,
   })
 
-  const result = String(output).trim()
-  logger.info('modelText: chat() returned', { outputLength: result.length })
-  return result
+  let result = ''
+  for await (const chunk of stream) {
+    if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+      result += chunk.delta
+    } else if (chunk.type === 'STEP_STARTED' || chunk.type === 'STEP_FINISHED') {
+      onChunk?.(chunk)
+    }
+  }
+
+  const trimmed = result.trim()
+  logger.info('modelText: chat() returned', { outputLength: trimmed.length })
+  return trimmed
 }
 
 async function modelTextWithTools(
@@ -432,9 +449,10 @@ async function modelTextWithTools(
   quality: SamplingConfig,
   tools: ServerTool[],
   reportProgress?: (payload: OpenHiveProgressPayload) => void,
+  onChunk?: (chunk: StreamChunk) => void,
 ): Promise<string> {
   if (tools.length === 0) {
-    return modelText(adapter, prompt, quality)
+    return modelText(adapter, prompt, quality, onChunk)
   }
 
   const samplingOptions = buildSamplingOptions(quality)
@@ -457,6 +475,8 @@ async function modelTextWithTools(
   for await (const chunk of stream) {
     if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
       result += chunk.delta
+    } else if (chunk.type === 'STEP_STARTED' || chunk.type === 'STEP_FINISHED') {
+      onChunk?.(chunk)
     } else if (chunk.type === 'TOOL_CALL_START') {
       toolCalls++
       pendingArgs.set(chunk.toolCallId, '')
@@ -499,8 +519,9 @@ async function modelJson(
   adapter: AnyTextAdapter,
   prompt: string,
   quality: SamplingConfig,
+  onChunk?: (chunk: StreamChunk) => void,
 ): Promise<unknown> {
-  const text = await modelText(adapter, prompt, quality)
+  const text = await modelText(adapter, prompt, quality, onChunk)
 
   // Try direct JSON.parse first (most common case — raw JSON output)
   const trimmed = text.trim()

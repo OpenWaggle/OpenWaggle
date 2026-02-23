@@ -108,14 +108,24 @@ export function MessageBubble({
                 />
               )
             }
-            case 'thinking':
+            case 'thinking': {
+              // A thinking part is still streaming only if no non-thinking parts
+              // follow it. Once text/tool parts appear after, the reasoning is done.
+              let isThinkingDone = false
+              for (let j = i + 1; j < message.parts.length; j++) {
+                if (message.parts[j].type !== 'thinking') {
+                  isThinkingDone = true
+                  break
+                }
+              }
               return part.content.trim() ? (
                 <ThinkingBlock
                   key={`${message.id}-thinking-${String(i)}`}
                   content={part.content}
-                  isStreaming={isStreaming}
+                  isStreaming={isStreaming && !isThinkingDone}
                 />
               ) : null
+            }
             case 'tool-result':
               return null
             default:

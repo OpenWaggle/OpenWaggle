@@ -1,6 +1,7 @@
 import { ConversationId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import type { Settings } from '@shared/types/settings'
+import type { StreamChunk } from '@tanstack/ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -45,6 +46,37 @@ vi.mock('./project-context', () => ({
 }))
 
 import { runOrchestratedAgent } from './service'
+
+// --- Stream chunk helpers ---
+
+async function* createStreamChunks(text: string): AsyncGenerator<StreamChunk> {
+  yield { type: 'TEXT_MESSAGE_CONTENT', timestamp: Date.now(), messageId: 'msg-1', delta: text }
+  yield { type: 'RUN_FINISHED', timestamp: Date.now(), runId: 'run-1', finishReason: 'stop' }
+}
+
+async function* createStreamChunksWithThinking(
+  thinking: string,
+  text: string,
+): AsyncGenerator<StreamChunk> {
+  yield { type: 'STEP_STARTED', timestamp: Date.now(), stepId: 'step-1' }
+  yield { type: 'STEP_FINISHED', timestamp: Date.now(), stepId: 'step-1', delta: thinking }
+  yield { type: 'TEXT_MESSAGE_CONTENT', timestamp: Date.now(), messageId: 'msg-1', delta: text }
+  yield { type: 'RUN_FINISHED', timestamp: Date.now(), runId: 'run-1', finishReason: 'stop' }
+}
+
+function createErrorStream(error: Error): AsyncIterable<StreamChunk> {
+  return {
+    [Symbol.asyncIterator]() {
+      return {
+        next(): Promise<IteratorResult<StreamChunk>> {
+          return Promise.reject(error)
+        },
+      }
+    },
+  }
+}
+
+// --- Fixtures ---
 
 const MOCK_CONTEXT_TEXT =
   '## Project Context\n\n### Tech Stack\nProject: test-app\nStack: TypeScript, React'
@@ -123,7 +155,7 @@ describe('runOrchestratedAgent', () => {
   })
 
   it('returns fallback and closes ack run when planner call throws', async () => {
-    chatMock.mockRejectedValue(new Error('planner unavailable'))
+    chatMock.mockImplementation(() => createErrorStream(new Error('planner unavailable')))
 
     const emitChunk = vi.fn()
     const emitEvent = vi.fn()
@@ -161,7 +193,7 @@ describe('runOrchestratedAgent', () => {
       ackText: 'Working on it.',
       tasks: [{ id: 'task-1', kind: 'general', title: 'Task 1', prompt: 'Do thing 1' }],
     }
-    chatMock.mockResolvedValue(JSON.stringify(planTasks))
+    chatMock.mockImplementation(() => createStreamChunks(JSON.stringify(planTasks)))
     extractJsonMock.mockReturnValue(planTasks)
     runOpenHiveOrchestrationMock.mockResolvedValue({
       runId: 'run-1',
@@ -196,7 +228,9 @@ describe('runOrchestratedAgent', () => {
   })
 
   it('direct response path still emits RUN_FINISHED (regression guard)', async () => {
-    chatMock.mockResolvedValue('{"direct":true,"response":"Quick answer."}')
+    chatMock.mockImplementation(() =>
+      createStreamChunks('{"direct":true,"response":"Quick answer."}'),
+    )
     extractJsonMock.mockReturnValue({ direct: true, response: 'Quick answer.' })
 
     const emitChunk = vi.fn()
@@ -221,7 +255,9 @@ describe('runOrchestratedAgent', () => {
   })
 
   it('returns direct response when planner decides no orchestration needed', async () => {
-    chatMock.mockResolvedValue('{"direct":true,"response":"Here is the answer."}')
+    chatMock.mockImplementation(() =>
+      createStreamChunks('{"direct":true,"response":"Here is the answer."}'),
+    )
     extractJsonMock.mockReturnValue({ direct: true, response: 'Here is the answer.' })
 
     const emitChunk = vi.fn()
@@ -254,7 +290,7 @@ describe('runOrchestratedAgent', () => {
   })
 
   it('includes project context in planner prompt', async () => {
-    chatMock.mockResolvedValue('{"direct":true,"response":"Got it."}')
+    chatMock.mockImplementation(() => createStreamChunks('{"direct":true,"response":"Got it."}'))
     extractJsonMock.mockReturnValue({ direct: true, response: 'Got it.' })
 
     await runOrchestratedAgent({
@@ -296,7 +332,7 @@ describe('runOrchestratedAgent', () => {
         },
       ],
     }
-    chatMock.mockResolvedValue(JSON.stringify(planTasks))
+    chatMock.mockImplementation(() => createStreamChunks(JSON.stringify(planTasks)))
     extractJsonMock.mockReturnValue(planTasks)
     runOpenHiveOrchestrationMock.mockImplementation(
       async (input: { executor: { execute: (arg: unknown) => Promise<unknown> } }) => {
@@ -357,7 +393,7 @@ describe('runOrchestratedAgent', () => {
         },
       ],
     }
-    chatMock.mockResolvedValue(JSON.stringify(planTasks))
+    chatMock.mockImplementation(() => createStreamChunks(JSON.stringify(planTasks)))
     extractJsonMock.mockReturnValue(planTasks)
     runOpenHiveOrchestrationMock.mockResolvedValue({
       runId: 'run-1',
@@ -397,7 +433,7 @@ describe('runOrchestratedAgent', () => {
 
   it('falls back to extractJson when direct JSON.parse fails (code fences)', async () => {
     const codeFencedResponse = '```json\n{"direct":true,"response":"Summary here."}\n```'
-    chatMock.mockResolvedValue(codeFencedResponse)
+    chatMock.mockImplementation(() => createStreamChunks(codeFencedResponse))
     extractJsonMock.mockReturnValue({
       direct: true,
       response: 'Summary here.',
@@ -426,7 +462,7 @@ describe('runOrchestratedAgent', () => {
   })
 
   it('passes executor tools to createExecutorTools with project path', async () => {
-    chatMock.mockResolvedValue('{"direct":true,"response":"OK"}')
+    chatMock.mockImplementation(() => createStreamChunks('{"direct":true,"response":"OK"}'))
     extractJsonMock.mockReturnValue({ direct: true, response: 'OK' })
 
     await runOrchestratedAgent({
@@ -446,5 +482,91 @@ describe('runOrchestratedAgent', () => {
     })
 
     expect(createExecutorToolsMock).toHaveBeenCalledWith('/tmp/project')
+  })
+
+  it('forwards STEP_FINISHED chunks from planner to emitChunk', async () => {
+    chatMock.mockImplementation(() =>
+      createStreamChunksWithThinking(
+        'Reasoning about the plan...',
+        '{"direct":true,"response":"Answer."}',
+      ),
+    )
+
+    const emitChunk = vi.fn()
+
+    await runOrchestratedAgent({
+      runId: 'run-1',
+      conversationId: ConversationId('conversation-1'),
+      conversation: createConversation(),
+      payload: { text: 'What is TypeScript?', qualityPreset: 'medium', attachments: [] },
+      model: 'gpt-4.1-mini',
+      settings: createSettings(),
+      signal: new AbortController().signal,
+      emitEvent: vi.fn(),
+      emitChunk,
+    })
+
+    const stepChunks = emitChunk.mock.calls.filter((c) => {
+      const t = (c[0] as { type: string }).type
+      return t === 'STEP_STARTED' || t === 'STEP_FINISHED'
+    })
+    expect(stepChunks.length).toBe(2)
+    expect((stepChunks[0][0] as { type: string }).type).toBe('STEP_STARTED')
+    expect((stepChunks[1][0] as { type: string }).type).toBe('STEP_FINISHED')
+  })
+
+  it('forwards thinking chunks from executor to emitChunk', async () => {
+    const planTasks = {
+      tasks: [{ id: 'task-1', kind: 'general', title: 'Task 1', prompt: 'Do thing 1' }],
+    }
+    // First call (planner): plain text stream
+    // Second call (executor): stream with thinking
+    let callCount = 0
+    chatMock.mockImplementation(() => {
+      callCount++
+      if (callCount === 1) {
+        return createStreamChunks(JSON.stringify(planTasks))
+      }
+      return createStreamChunksWithThinking('Reasoning about task...', 'Task result.')
+    })
+    extractJsonMock.mockReturnValue(planTasks)
+    runOpenHiveOrchestrationMock.mockImplementation(
+      async (input: { executor: { execute: (arg: unknown) => Promise<unknown> } }) => {
+        await input.executor.execute({
+          task: { title: 'Task 1', kind: 'general', prompt: 'Do thing 1' },
+          orchestrationTask: {},
+          includeConversationSummary: false,
+          maxContextTokens: 1500,
+          dependencyOutputs: {},
+          signal: new AbortController().signal,
+        })
+        return {
+          runId: 'run-1',
+          usedFallback: false,
+          text: 'Final result',
+          runStatus: 'completed',
+        }
+      },
+    )
+
+    const emitChunk = vi.fn()
+
+    await runOrchestratedAgent({
+      runId: 'run-1',
+      conversationId: ConversationId('conversation-1'),
+      conversation: createConversation(),
+      payload: { text: 'Analyze code', qualityPreset: 'medium', attachments: [] },
+      model: 'gpt-4.1-mini',
+      settings: createSettings(),
+      signal: new AbortController().signal,
+      emitEvent: vi.fn(),
+      emitChunk,
+    })
+
+    // Executor thinking chunks should be forwarded via emitChunk
+    const stepFinished = emitChunk.mock.calls.filter(
+      (c) => (c[0] as { type: string }).type === 'STEP_FINISHED',
+    )
+    expect(stepFinished.length).toBeGreaterThan(0)
   })
 })

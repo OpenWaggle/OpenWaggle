@@ -8,15 +8,15 @@ describe('ThinkingBlock', () => {
     // Brain icon is rendered (no spinner)
     expect(container.querySelector('.animate-spin')).toBeNull()
     // Token estimate shown
-    expect(screen.getByText(/Thought for \d+ tokens/)).toBeInTheDocument()
+    expect(screen.getByText(/Reasoned for \d+ tokens/)).toBeInTheDocument()
     // Content not visible when collapsed
     expect(screen.queryByText('Let me think about this...')).toBeNull()
   })
 
-  it('shows "Thinking..." with spinner when isStreaming', () => {
+  it('shows "Reasoning..." with spinner when isStreaming', () => {
     const { container } = render(<ThinkingBlock content="partial thought" isStreaming />)
     expect(container.querySelector('.animate-spin')).toBeTruthy()
-    expect(screen.getByText('Thinking...')).toBeInTheDocument()
+    expect(screen.getByText('Reasoning...')).toBeInTheDocument()
   })
 
   it('expands on click and shows content', () => {
@@ -42,6 +42,6 @@ describe('ThinkingBlock', () => {
     // 100 chars ≈ 25 tokens (ceil(100/4))
     const content = 'a'.repeat(100)
     render(<ThinkingBlock content={content} />)
-    expect(screen.getByText('Thought for 25 tokens')).toBeInTheDocument()
+    expect(screen.getByText('Reasoned for 25 tokens')).toBeInTheDocument()
   })
 })
