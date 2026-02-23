@@ -1,68 +1,63 @@
-import { AlertCircle, RefreshCw, Settings, X } from 'lucide-react'
+import { type AgentErrorInfo, classifyErrorMessage } from '@shared/types/errors'
+import { AlertCircle, Check, Copy, RefreshCw, Settings, X } from 'lucide-react'
+import { useState } from 'react'
+import { clearLastAgentErrorInfo, getLastAgentErrorInfo } from '@/lib/ipc-connection-adapter'
 
 interface ChatErrorDisplayProps {
   error: Error
   lastUserMessage: string | null
   dismissedError: string | null
+  conversationId: string | null
   onDismiss: (message: string) => void
   onOpenSettings?: () => void
   onRetry?: (content: string) => void
 }
 
-function classifyError(message: string): {
-  hint: string
-  isAuthError: boolean
-  isRateLimit: boolean
-} {
-  const lower = message.toLowerCase()
-  if (
-    lower.includes('api key') ||
-    lower.includes('401') ||
-    lower.includes('403') ||
-    lower.includes('unauthorized') ||
-    lower.includes('authentication')
-  ) {
-    return { hint: 'Check your API key in settings', isAuthError: true, isRateLimit: false }
+function resolveErrorInfo(error: Error, conversationId: string | null): AgentErrorInfo {
+  if (conversationId) {
+    const stored = getLastAgentErrorInfo(conversationId)
+    if (stored) return stored
   }
-  if (
-    lower.includes('rate limit') ||
-    lower.includes('429') ||
-    lower.includes('too many requests')
-  ) {
-    return { hint: 'Rate limited — try again in a moment', isAuthError: false, isRateLimit: true }
-  }
-  if (
-    lower.includes('model') &&
-    (lower.includes('not found') || lower.includes('not exist') || lower.includes('invalid'))
-  ) {
-    return {
-      hint: 'The selected model may not be available — try a different one',
-      isAuthError: false,
-      isRateLimit: false,
-    }
-  }
-  return { hint: '', isAuthError: false, isRateLimit: false }
+  return classifyErrorMessage(error.message)
 }
 
 export function ChatErrorDisplay({
   error,
   lastUserMessage,
   dismissedError,
+  conversationId,
   onDismiss,
   onOpenSettings,
   onRetry,
 }: ChatErrorDisplayProps): React.JSX.Element | null {
+  const [copied, setCopied] = useState(false)
+
   if (dismissedError === error.message) return null
 
-  const { hint, isAuthError, isRateLimit } = classifyError(error.message)
+  const info = resolveErrorInfo(error, conversationId)
+  const isAuthError = info.code === 'api-key-invalid'
+
+  function handleCopy(): void {
+    const text = `${info.userMessage}${info.suggestion ? `\n${info.suggestion}` : ''}\n\nRaw: ${info.message}`
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  function handleDismiss(): void {
+    if (conversationId) clearLastAgentErrorInfo(conversationId)
+    onDismiss(error.message)
+  }
 
   return (
     <div className="my-3 rounded-xl border border-error/25 bg-error/6 px-4 py-3">
       <div className="flex items-start gap-3">
         <AlertCircle className="h-4 w-4 shrink-0 text-error mt-0.5" />
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-error/90">{error.message}</p>
-          {hint && <p className="text-[13px] text-text-tertiary mt-1">{hint}</p>}
+          <p className="text-sm text-error/90">{info.userMessage}</p>
+          {info.suggestion && (
+            <p className="text-[13px] text-text-tertiary mt-1">{info.suggestion}</p>
+          )}
           <div className="flex gap-2 mt-2">
             {isAuthError && onOpenSettings && (
               <button
@@ -74,11 +69,11 @@ export function ChatErrorDisplay({
                 Open Settings
               </button>
             )}
-            {lastUserMessage && !isRateLimit && onRetry && (
+            {info.retryable && lastUserMessage && onRetry && (
               <button
                 type="button"
                 onClick={() => {
-                  onDismiss(error.message)
+                  handleDismiss()
                   onRetry(lastUserMessage)
                 }}
                 className="flex items-center gap-1.5 rounded-md bg-error/10 px-2.5 py-1 text-[13px] font-medium text-error hover:bg-error/20 transition-colors"
@@ -89,7 +84,15 @@ export function ChatErrorDisplay({
             )}
             <button
               type="button"
-              onClick={() => onDismiss(error.message)}
+              onClick={handleCopy}
+              className="flex items-center gap-1.5 rounded-md bg-bg-hover px-2.5 py-1 text-[13px] font-medium text-text-tertiary hover:text-text-secondary transition-colors"
+            >
+              {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+            <button
+              type="button"
+              onClick={handleDismiss}
               className="flex items-center gap-1.5 rounded-md bg-bg-hover px-2.5 py-1 text-[13px] font-medium text-text-tertiary hover:text-text-secondary transition-colors"
             >
               <X className="h-3 w-3" />

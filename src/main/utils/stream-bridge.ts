@@ -12,8 +12,17 @@ export function emitStreamChunk(conversationId: ConversationId, chunk: StreamChu
     if (!win.isDestroyed()) {
       // StreamChunk may contain Error objects (RUN_ERROR) which don't serialize
       // well over IPC structured clone. Normalize before sending.
+      // Preserve our custom `code` field for structured error classification.
       const serializable =
-        chunk.type === 'RUN_ERROR' ? { ...chunk, error: { message: chunk.error.message } } : chunk
+        chunk.type === 'RUN_ERROR'
+          ? {
+              ...chunk,
+              error: {
+                message: chunk.error.message,
+                ...('code' in chunk.error && chunk.error.code ? { code: chunk.error.code } : {}),
+              },
+            }
+          : chunk
       win.webContents.send('agent:stream-chunk', { conversationId, chunk: serializable })
     }
   }

@@ -1,10 +1,33 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
+import {
+  type AgentErrorCode,
+  type AgentErrorInfo,
+  classifyErrorMessage,
+  ERROR_CODE_META,
+  makeErrorInfo,
+} from '@shared/types/errors'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { QualityPreset } from '@shared/types/settings'
 import { convertMessagesToModelMessages, type ModelMessage, type StreamChunk } from '@tanstack/ai'
 import type { ConnectionAdapter, UIMessage } from '@tanstack/ai-react'
 import { api } from './ipc'
+
+/**
+ * Side-channel for structured error info.
+ * TanStack AI's RUN_ERROR handling strips everything except `message`,
+ * so we store classified error info here before it gets lost.
+ * Cleared on new run start (RUN_STARTED) and on user dismiss.
+ */
+const lastErrorInfoMap = new Map<string, AgentErrorInfo>()
+
+export function getLastAgentErrorInfo(conversationId: string): AgentErrorInfo | null {
+  return lastErrorInfoMap.get(conversationId) ?? null
+}
+
+export function clearLastAgentErrorInfo(conversationId: string): void {
+  lastErrorInfoMap.delete(conversationId)
+}
 
 /**
  * Extract the text content from the last user message in the array.
@@ -160,6 +183,22 @@ export function createIpcConnectionAdapter(
           const rawUnsub = api.onStreamChunk((payload) => {
             if (payload.conversationId !== conversationId) return
 
+            // Clear stale error info when a new run begins.
+            if (payload.chunk.type === 'RUN_STARTED') {
+              lastErrorInfoMap.delete(conversationId)
+            }
+
+            // Intercept RUN_ERROR to capture structured error info before
+            // TanStack strips it to just `message`.
+            if (payload.chunk.type === 'RUN_ERROR') {
+              const error = payload.chunk.error as { message: string; code?: string }
+              const info =
+                error.code && error.code in ERROR_CODE_META
+                  ? makeErrorInfo(error.code as AgentErrorCode, error.message)
+                  : classifyErrorMessage(error.message)
+              lastErrorInfoMap.set(conversationId, info)
+            }
+
             queue.push(payload.chunk)
             if (isTerminalChunk(payload.chunk)) {
               done = true
@@ -219,10 +258,13 @@ export function createIpcConnectionAdapter(
             })
             .catch((err) => {
               console.error('[ipc-adapter] sendMessage failed:', err)
+              const errMsg = err instanceof Error ? err.message : String(err)
+              const info = classifyErrorMessage(errMsg)
+              lastErrorInfoMap.set(conversationId, info)
               queue.push({
                 type: 'RUN_ERROR',
                 timestamp: Date.now(),
-                error: { message: err instanceof Error ? err.message : String(err) },
+                error: { message: errMsg },
               } as StreamChunk)
               done = true
               resolve?.()

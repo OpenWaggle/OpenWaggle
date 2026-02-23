@@ -5,6 +5,7 @@ import type { ConversationId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { QuestionAnswer } from '@shared/types/question'
 import { runAgent } from '../agent/agent-loop'
+import { classifyAgentError, makeErrorInfo } from '../agent/error-classifier'
 import { createLogger } from '../logger'
 import {
   cancelAllForConversation,
@@ -47,10 +48,11 @@ export function registerAgentHandlers(): void {
       const conversation = await getConversation(conversationId)
 
       if (!conversation) {
+        const errorInfo = makeErrorInfo('conversation-not-found', 'Conversation not found')
         emitStreamChunk(conversationId, {
           type: 'RUN_ERROR',
           timestamp: Date.now(),
-          error: { message: 'Conversation not found' },
+          error: { message: errorInfo.userMessage, code: errorInfo.code },
         })
         emitStreamChunk(conversationId, {
           type: 'RUN_FINISHED',
@@ -152,18 +154,23 @@ export function registerAgentHandlers(): void {
             conversationId,
             error: persistError instanceof Error ? persistError.message : String(persistError),
           })
+          const persistInfo = makeErrorInfo(
+            'persist-failed',
+            'Failed to save conversation data to disk.',
+          )
           emitStreamChunk(conversationId, {
             type: 'RUN_ERROR',
             timestamp: Date.now(),
-            error: { message: 'Failed to save conversation data to disk.' },
+            error: { message: persistInfo.userMessage, code: persistInfo.code },
           })
         }
       } catch (err) {
         if (!(err instanceof Error && err.message === 'aborted')) {
+          const classified = classifyAgentError(err)
           emitStreamChunk(conversationId, {
             type: 'RUN_ERROR',
             timestamp: Date.now(),
-            error: { message: err instanceof Error ? err.message : String(err) },
+            error: { message: classified.userMessage, code: classified.code },
           })
           emitStreamChunk(conversationId, {
             type: 'RUN_FINISHED',

@@ -186,6 +186,7 @@ export function ChatPanel({
                   error={error}
                   lastUserMessage={lastUserMessage}
                   dismissedError={dismissedError}
+                  conversationId={conversationId ? String(conversationId) : null}
                   onDismiss={setDismissedError}
                   onOpenSettings={onOpenSettings}
                   onRetry={onRetry}
