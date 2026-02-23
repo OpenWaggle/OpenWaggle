@@ -29,19 +29,24 @@ These rules are **non-negotiable**. Violating them invalidates your work.
 
 **Before starting ANY task:**
 
-1. Read `LEARNINGS.md` sections 1-3 (skip Archive)
+1. Read `tasks/learnings.md` sections 1-3 (skip Archive) and review `tasks/lessons.md` for user corrections
 2. Note any warnings relevant to your task
 3. Read `docs/product/ui-interaction-prd.md` and check whether the task maps to any planned/future UI feature (`HC-UI-*` items)
 4. If task is related, explicitly align implementation decisions with that PRD/spec and update the same document when scope/behavior changes
 
 **After completing ANY task:**
 
-1. Add learnings to "Recent Learnings" only when they are high-signal technical findings (implementation, integration, architecture, debugging patterns, or non-obvious framework/tool constraints)
+1. Add learnings to `tasks/learnings.md` "Recent Learnings" when they are high-signal technical findings (implementation, integration, architecture, debugging patterns, or non-obvious framework/tool constraints)
 2. Do NOT add routine project-management notes (e.g. missing docs/backlog file, branch names, generic process updates) unless they materially affect implementation behavior
-3. If there is no significant technical learning, add nothing for that task
+3. If there is no significant technical learning, add nothing to `tasks/learnings.md` for that task
 4. If a learning is significant, mark it with `[SKILL?]`
 5. If any section exceeds its cap, consolidate or archive oldest items
 6. If YOUR task's learning is marked `[SKILL?]`, ask user: *"This seems significant — should I create a skill for [X]?"*
+
+**Two knowledge files — different purposes:**
+
+- **`tasks/learnings.md`** — Technical findings discovered during implementation (architecture patterns, framework quirks, integration gotchas). Written by the agent autonomously.
+- **`tasks/lessons.md`** — User corrections and behavioral rules. Updated whenever the user corrects you. These are patterns to never repeat.
 
 ### Git Workflow (MUST FOLLOW)
 
@@ -49,8 +54,8 @@ These rules are **non-negotiable**. Violating them invalidates your work.
 
 - Before starting implementation, create a branch using `<type>/<task-slug>`.
 - Allowed branch/commit types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
-- Do not commit any changes until the maintainer explicitly approves committing.
-- Keep changes on the branch for local user review first.
+- Fix bugs, implement features, and resolve issues autonomously — don't ask the user for guidance during implementation.
+- Do not commit any changes until the maintainer explicitly approves. Code freely, commit only with permission.
 - Before the first commit, explicitly tell the user: `Changes are ready for review on <type>/<task-slug>.`
 - Pause and wait for explicit approval before creating any commit.
 - After approval to commit, create atomic commits per logical unit of work.
@@ -62,9 +67,9 @@ These rules are **non-negotiable**. Violating them invalidates your work.
 
 1. Scope is met with no unapproved side-effects.
 2. Tests added/updated for behavior changes.
-3. Required verification passed for task class.
+3. Verified: tests pass, logs are clean, behavior matches intent. Ask yourself: "Would a staff engineer approve this?"
 4. Docs updated if behavior, workflow, or developer expectations changed.
-5. Significant learnings appended to `LEARNINGS.md` (**if there is any significant learning to add**).
+5. Significant learnings appended to `tasks/learnings.md` (**if there is any significant learning to add**).
 6. Changes are grouped into logical commits.
 
 ## Architecture
@@ -172,3 +177,50 @@ Always use granular selectors with `useChatStore((s) => s.field)` — never call
 - Prompt behavior is metadata-first: skills are discovered by frontmatter (`name`, `description`) and activated by explicit refs/heuristics.
 - Full skill instructions are loaded only for selected skills or when the agent calls `loadSkill` mid-run.
 - Dynamic `loadSkill` activation is run-scoped; it does not auto-persist across turns.
+
+## Workflow Orchestration
+
+### 1. Plan Mode Default
+- Enter plan mode for ANY non-trivial task (3+ steps or architectural decisions)
+- If something goes sideways, STOP and re-plan immediately — don't keep pushing
+- Use plan mode for verification steps, not just building
+- Write detailed specs upfront to reduce ambiguity
+
+### 2. Subagent Strategy
+- Use subagents liberally to keep main context window clean
+- Offload research, exploration, and parallel analysis to subagents
+- For complex problems, throw more compute at it via subagents
+- One task per subagent for focused execution
+
+### 3. Self-Improvement Loop
+- After ANY correction from the user: update `tasks/lessons.md` with the pattern
+- Write rules for yourself that prevent the same mistake
+- Ruthlessly iterate on these lessons until mistake rate drops
+- Review lessons at session start for relevant project
+
+### 4. Demand Simplicity
+- Simple and correct first. Elegant only when it reduces complexity.
+- If a fix feels hacky: "Knowing everything I know now, implement the clean solution"
+- Skip this for simple, obvious fixes — don't over-engineer
+- Challenge your own work before presenting it
+
+### 5. Autonomous Bug Fixing
+- When given a bug report: fix it autonomously. Don't ask for guidance during the fix.
+- Point at logs, errors, failing tests — then resolve them
+- Present the fix for review when done (commit approval still required per Git Workflow)
+- Go fix failing CI tests without being told how
+
+## Task Management
+
+1. **Plan First**: Write plan to `specs/<task-name>.md` with checkable items
+2. **Verify Plan**: Check in before starting implementation
+3. **Track Progress**: Mark items complete as you go
+4. **Explain Changes**: High-level summary at each step
+5. **Document Results**: Add review section to `specs/<task-name>.md`
+6. **Capture Lessons**: Update `tasks/lessons.md` after user corrections; update `tasks/learnings.md` for technical findings
+
+## Core Principles
+
+- **Simplicity First**: Make every change as simple as possible. Impact minimal code.
+- **No Laziness**: Find root causes. No temporary fixes. Senior developer standards.
+- **Minimal Impact**: Changes should only touch what's necessary. Avoid introducing bugs.
