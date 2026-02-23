@@ -71,9 +71,12 @@ function createWindow(): void {
   })
 
   // Prevent in-app navigation — all external URLs open in the user's default browser
+  const rendererOrigin = is.dev && env.ELECTRON_RENDERER_URL ? env.ELECTRON_RENDERER_URL : 'file://'
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    event.preventDefault()
-    shell.openExternal(url)
+    if (!url.startsWith(rendererOrigin)) {
+      event.preventDefault()
+      shell.openExternal(url)
+    }
   })
 
   const mediaPermissions = new Set(['media', 'microphone'])
