@@ -114,6 +114,12 @@ export async function runOpenHiveOrchestration(
       plan,
       run,
     })
+    if (!text.trim()) {
+      logger.warn('synthesis returned empty output, concatenating task outputs', {
+        runId: summary.runId,
+      })
+      text = concatenateOutputs(run)
+    }
   } catch (error) {
     // Synthesis fallback: concatenate task outputs directly
     logger.warn('synthesis failed, concatenating outputs', {

@@ -435,6 +435,11 @@ async function modelText(
       result += chunk.delta
     } else if (chunk.type === 'STEP_STARTED' || chunk.type === 'STEP_FINISHED') {
       onChunk?.(chunk)
+    } else if (chunk.type === 'RUN_ERROR') {
+      const code = chunk.error.code ?? 'unknown'
+      const message = chunk.error.message
+      logger.error('modelText: RUN_ERROR received', { code, message })
+      throw new Error(`Model error [${code}]: ${message}`)
     }
   }
 
@@ -509,6 +514,11 @@ async function modelTextWithTools(
         toolCallId: chunk.toolCallId,
         toolInput,
       })
+    } else if (chunk.type === 'RUN_ERROR') {
+      const code = chunk.error.code ?? 'unknown'
+      const message = chunk.error.message
+      logger.error('modelTextWithTools: RUN_ERROR received', { code, message })
+      throw new Error(`Model error [${code}]: ${message}`)
     }
   }
   logger.info('executor finished', { resultLength: result.length, toolCalls })
@@ -525,6 +535,10 @@ async function modelJson(
 
   // Try direct JSON.parse first (most common case — raw JSON output)
   const trimmed = text.trim()
+
+  if (!trimmed) {
+    logger.warn('modelJson: modelText returned empty — possible swallowed error')
+  }
   try {
     return JSON.parse(trimmed) as unknown
   } catch {

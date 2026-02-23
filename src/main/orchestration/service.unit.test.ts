@@ -114,6 +114,18 @@ async function* createStreamChunksWithThinking(
   yield { type: 'RUN_FINISHED', timestamp: Date.now(), runId: 'run-1', finishReason: 'stop' }
 }
 
+async function* createRunErrorStream(
+  code = 'rate_limit_error',
+  message = 'Rate limit exceeded',
+): AsyncGenerator<StreamChunk> {
+  yield {
+    type: 'RUN_ERROR',
+    timestamp: Date.now(),
+    model: 'test-model',
+    error: { code, message },
+  } as StreamChunk
+}
+
 function createErrorStream(error: Error): AsyncIterable<StreamChunk> {
   return {
     [Symbol.asyncIterator]() {
@@ -627,5 +639,128 @@ describe('runOrchestratedAgent', () => {
       (c) => (c[0] as { type: string }).type === 'STEP_FINISHED',
     )
     expect(stepFinished.length).toBeGreaterThan(0)
+  })
+
+  it('modelText throws when planner stream contains RUN_ERROR', async () => {
+    chatMock.mockImplementation(() =>
+      createRunErrorStream('rate_limit_error', 'Rate limit exceeded'),
+    )
+
+    const emitChunk = vi.fn()
+    const emitEvent = vi.fn()
+
+    const result = await runOrchestratedAgent({
+      runId: 'run-1',
+      conversationId: ConversationId('conversation-1'),
+      conversation: createConversation(),
+      payload: { text: 'Analyze code', qualityPreset: 'medium', attachments: [] },
+      model: 'gpt-4.1-mini',
+      settings: createSettings(),
+      signal: new AbortController().signal,
+      emitEvent,
+      emitChunk,
+    })
+
+    // The error should bubble up and trigger fallback
+    expect(result.status).toBe('fallback')
+    expect(result.reason).toContain('rate_limit_error')
+    expect(result.reason).toContain('Rate limit exceeded')
+  })
+
+  it('modelTextWithTools throws when executor stream contains RUN_ERROR', async () => {
+    const planTasks = {
+      tasks: [{ id: 'task-1', kind: 'general', title: 'Task 1', prompt: 'Do thing 1' }],
+    }
+    let callCount = 0
+    chatMock.mockImplementation(() => {
+      callCount++
+      if (callCount === 1) {
+        return createStreamChunks(JSON.stringify(planTasks))
+      }
+      // Executor call returns RUN_ERROR
+      return createRunErrorStream('server_error', 'Internal server error')
+    })
+    extractJsonMock.mockReturnValue(planTasks)
+    let executorError: Error | undefined
+    runOpenHiveOrchestrationMock.mockImplementation(
+      async (input: { executor: { execute: (arg: unknown) => Promise<unknown> } }) => {
+        try {
+          await input.executor.execute({
+            task: { title: 'Task 1', kind: 'general', prompt: 'Do thing 1' },
+            orchestrationTask: {},
+            includeConversationSummary: false,
+            maxContextTokens: 1500,
+            dependencyOutputs: {},
+            signal: new AbortController().signal,
+          })
+        } catch (e) {
+          executorError = e as Error
+        }
+        return {
+          runId: 'run-1',
+          usedFallback: false,
+          text: 'Fallback text',
+          runStatus: 'completed',
+        }
+      },
+    )
+
+    const emitChunk = vi.fn()
+
+    await runOrchestratedAgent({
+      runId: 'run-1',
+      conversationId: ConversationId('conversation-1'),
+      conversation: createConversation(),
+      payload: { text: 'Analyze code', qualityPreset: 'medium', attachments: [] },
+      model: 'gpt-4.1-mini',
+      settings: createSettings(),
+      signal: new AbortController().signal,
+      emitEvent: vi.fn(),
+      emitChunk,
+    })
+
+    expect(chatMock).toHaveBeenCalledTimes(2)
+    expect(executorError).toBeDefined()
+    expect(executorError?.message).toContain('server_error')
+    expect(executorError?.message).toContain('Internal server error')
+  })
+
+  it('synthesis falls back to concatenated outputs on empty result', async () => {
+    const planTasks = {
+      tasks: [{ id: 'task-1', kind: 'general', title: 'Task 1', prompt: 'Do thing 1' }],
+    }
+    chatMock.mockImplementation(() => createStreamChunks(JSON.stringify(planTasks)))
+    extractJsonMock.mockReturnValue(planTasks)
+    // Simulate runOpenHiveOrchestration returning empty text (synthesis returned empty)
+    // The orchestrator's empty-output guard should concatenate task outputs instead,
+    // but from the service perspective we just verify it handles empty text gracefully
+    runOpenHiveOrchestrationMock.mockResolvedValue({
+      runId: 'run-1',
+      usedFallback: false,
+      text: '',
+      runStatus: 'completed',
+    })
+
+    const emitChunk = vi.fn()
+
+    const result = await runOrchestratedAgent({
+      runId: 'run-1',
+      conversationId: ConversationId('conversation-1'),
+      conversation: createConversation(),
+      payload: { text: 'Analyze code', qualityPreset: 'medium', attachments: [] },
+      model: 'gpt-4.1-mini',
+      settings: createSettings(),
+      signal: new AbortController().signal,
+      emitEvent: vi.fn(),
+      emitChunk,
+    })
+
+    // Even with empty synthesis, the run should complete (not crash)
+    expect(result.status).toBe('completed')
+    // The separator should still be emitted
+    const contentChunks = emitChunk.mock.calls
+      .filter((c) => (c[0] as { type: string }).type === 'TEXT_MESSAGE_CONTENT')
+      .map((c) => (c[0] as { delta: string }).delta)
+    expect(contentChunks.join('')).toContain('---')
   })
 })

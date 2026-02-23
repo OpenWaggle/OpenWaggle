@@ -266,6 +266,38 @@ test('emits synthesis fallback concatenation when synthesizer fails', async () =
   expect(result.runStatus).toBe('completed')
 })
 
+test('concatenates task outputs when synthesizer returns empty string', async () => {
+  const result = await runOpenHiveOrchestration({
+    runId: 'run-synth-empty',
+    userPrompt: 'multi task',
+    planner: {
+      async plan() {
+        return {
+          tasks: [
+            { id: 'a', kind: 'general', title: 'A', prompt: 'Do A' },
+            { id: 'b', kind: 'general', title: 'B', prompt: 'Do B' },
+          ],
+        }
+      },
+    },
+    executor: {
+      async execute(input) {
+        return { text: `result-${input.task.id}` }
+      },
+    },
+    synthesizer: {
+      async synthesize() {
+        return ''
+      },
+    },
+  })
+
+  expect(result.usedFallback).toBe(false)
+  expect(result.runStatus).toBe('completed')
+  // Empty synthesis should fall back to concatenated task outputs
+  expect(result.text).toBe('result-a\n\nresult-b')
+})
+
 test('rejects plans exceeding max task count', async () => {
   const result = await runOpenHiveOrchestration({
     runId: 'run-max-tasks',
