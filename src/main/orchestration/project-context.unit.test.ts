@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createExecutorTools, gatherProjectContext } from './project-context'
 
 let tmpDir: string
@@ -151,9 +151,9 @@ describe('createExecutorTools', () => {
     expect(tools).toEqual([])
   })
 
-  it('returns readFile and glob tools for valid projectPath', () => {
+  it('returns readFile, glob, and webFetch tools for valid projectPath', () => {
     const tools = createExecutorTools(tmpDir)
-    expect(tools).toHaveLength(2)
+    expect(tools).toHaveLength(3)
   })
 
   it('readFile tool can read a file', async () => {
@@ -183,6 +183,77 @@ describe('createExecutorTools', () => {
       kind: 'text',
       text: 'Error: path is outside the project directory',
     })
+  })
+
+  it('webFetch tool returns error for failed fetch', async () => {
+    const tools = createExecutorTools(tmpDir)
+    const webFetchTool = tools[2]
+
+    // Mock fetch to simulate a network error
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = vi.fn().mockRejectedValue(new Error('getaddrinfo ENOTFOUND bad.invalid'))
+
+    try {
+      const result = (await (
+        webFetchTool as { execute: (args: unknown) => Promise<unknown> }
+      ).execute({
+        url: 'https://bad.invalid',
+      })) as { kind: string; text: string }
+      expect(result.kind).toBe('text')
+      expect(result.text).toContain('Error fetching URL:')
+      expect(result.text).toContain('ENOTFOUND')
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  it('webFetch tool returns HTTP error status as text', async () => {
+    const tools = createExecutorTools(tmpDir)
+    const webFetchTool = tools[2]
+
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response('Not Found', { status: 404, statusText: 'Not Found' }))
+
+    try {
+      const result = (await (
+        webFetchTool as { execute: (args: unknown) => Promise<unknown> }
+      ).execute({
+        url: 'https://example.com/missing',
+      })) as { kind: string; text: string }
+      expect(result.kind).toBe('text')
+      expect(result.text).toContain('HTTP 404')
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  it('webFetch tool strips HTML and returns plain text', async () => {
+    const tools = createExecutorTools(tmpDir)
+    const webFetchTool = tools[2]
+
+    const htmlBody = '<html><head><title>Test</title></head><body><p>Hello world</p></body></html>'
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(htmlBody, {
+        status: 200,
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+      }),
+    )
+
+    try {
+      const result = (await (
+        webFetchTool as { execute: (args: unknown) => Promise<unknown> }
+      ).execute({
+        url: 'https://example.com',
+      })) as { kind: string; text: string }
+      expect(result.kind).toBe('text')
+      expect(result.text).toContain('Hello world')
+      expect(result.text).not.toContain('<p>')
+    } finally {
+      globalThis.fetch = originalFetch
+    }
   })
 
   it('glob tool finds files', async () => {

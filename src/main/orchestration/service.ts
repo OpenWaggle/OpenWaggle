@@ -89,7 +89,7 @@ export async function runOrchestratedAgent(
     settings.orchestrationMode === 'orchestrated' ? 'orchestrated' : 'auto-fallback'
 
   const projectContext = await gatherProjectContext(conversation.projectPath)
-  const executorTools = createExecutorTools(conversation.projectPath)
+  const executorTools = createExecutorTools(conversation.projectPath, signal)
 
   // --- Pre-planning step ---
   // Run the planner BEFORE orchestration so we can short-circuit for direct responses.
@@ -122,32 +122,12 @@ export async function runOrchestratedAgent(
   }
 
   try {
-    const plannerPrompt = [
-      ...(projectContext.text ? [projectContext.text, ''] : []),
-      `User request: ${payload.text}`,
-      '',
-      'You are a task planner. Decide how to handle this request.',
-      'Return ONLY raw JSON — no markdown, no code fences, no commentary.',
-      '',
-      'ONLY use direct response for trivial queries that need NO project file access',
-      '(e.g. "what is TypeScript?", "explain React hooks", general knowledge questions).',
-      'Direct response format:',
-      '{"direct":true,"response":"your answer"}',
-      '',
-      'For ANYTHING that involves the project — summaries, analysis, code changes,',
-      'debugging, reviewing, explaining project code — ALWAYS decompose into tasks.',
-      'Each task executor has tools (readFile, glob) to read actual project files.',
-      'Task response format:',
-      '{"ackText":"<brief 1-sentence acknowledgment>","tasks":[{"id":"string","kind":"analysis|debugging|refactoring|testing|documentation|repo-edit|synthesis|general","title":"string","prompt":"string","narration":"<short natural-language intro for this task, e.g. Let me read the core documentation...>","dependsOn":["id"],"needsConversationContext":boolean}]}',
-      '',
-      'Task constraints:',
-      '- 2 to 5 tasks (analysis or general work — do NOT include a synthesis task)',
-      '- id must be stable kebab-case',
-      '- Each task MUST have a narration — a brief, natural sentence the agent says before starting the task',
-      '- dependsOn optional and must reference prior tasks',
-      '- The system will automatically synthesize task results — do NOT create a synthesis/summary task',
-      '- DO NOT answer the user request yourself — let the task executors do the work',
-    ].join('\n')
+    const webIntentDetected = hasWebIntent(payload.text)
+    if (webIntentDetected) {
+      logger.info('web intent detected — forcing task decomposition')
+    }
+
+    const plannerPrompt = buildPlannerPrompt(projectContext.text, payload.text, webIntentDetected)
     // Planner needs high output budget (structured JSON) but low reasoning effort
     const plannerQuality: SamplingConfig = {
       ...quality,
@@ -164,7 +144,7 @@ export async function runOrchestratedAgent(
     })
 
     // --- Direct response path — skip orchestration entirely ---
-    if (isDirectPlanResult(planResult)) {
+    if (!webIntentDetected && isDirectPlanResult(planResult)) {
       logger.info('direct response path — skipping orchestration')
       ensureMessageStarted()
       const directText = planResult.response
@@ -236,9 +216,19 @@ export async function runOrchestratedAgent(
               ? `Conversation context (truncated):\n${summarizeConversation(conversation)}`
               : 'Conversation context omitted by heuristic.',
             '',
-            'You have access to `readFile` and `glob` tools to explore the project.',
-            'Use them to read any files you need to produce an accurate, grounded response.',
+            'You have access to readFile and glob tools to explore the project, and webFetch to fetch content from URLs.',
+            'Use readFile/glob to read any files you need to produce an accurate, grounded response.',
+            'Use webFetch to look up documentation, APIs, or any web content the user asks about.',
             'Do not guess or hallucinate file contents — read the actual files.',
+            '',
+            'IMPORTANT — be persistent and adaptive with webFetch:',
+            '- If a URL returns an error, analyze WHY it failed (404? timeout? wrong domain?) and adapt your next attempt.',
+            '- Try variations: different paths, with/without www, trailing slashes, /docs vs /documentation, /latest vs /overview.',
+            '- If the specific page fails, fetch the root domain first to discover the correct URL structure from links in the page.',
+            '- If one domain fails entirely, try alternatives (e.g. GitHub README, npm page, official blog).',
+            '- Learn from each attempt — if /v1/docs 404s but the root page mentions /ai/latest/docs, use that.',
+            '- Never give up after a single failure. Iterate until you find working content or exhaust all reasonable alternatives.',
+            '- Your goal is to deliver the information the user requested, not to report fetch errors.',
             '',
             'Return concise, high-signal result as plain text.',
           ].join('\n')
@@ -409,7 +399,7 @@ interface SamplingConfig {
   readonly modelOptions?: Record<string, unknown>
 }
 
-const EXECUTOR_MAX_ITERATIONS = 8
+const EXECUTOR_MAX_ITERATIONS = 20
 
 async function modelText(
   adapter: AnyTextAdapter,
@@ -625,6 +615,7 @@ const TOOL_VERBS: Record<string, string> = {
   runCommand: 'Ran',
   glob: 'Searched',
   listFiles: 'Listed',
+  webFetch: 'Fetched',
 }
 
 const TOOL_PRIMARY_ARG: Record<string, string> = {
@@ -634,6 +625,7 @@ const TOOL_PRIMARY_ARG: Record<string, string> = {
   runCommand: 'command',
   glob: 'pattern',
   listFiles: 'path',
+  webFetch: 'url',
 }
 
 function formatToolActivity(
@@ -649,4 +641,115 @@ function formatToolActivity(
 
   if (toolName === 'runCommand') return `${verb} \`${value}\``
   return `${verb} ${value}`
+}
+
+// --- Web intent detection ---
+
+const WEB_INTENT_KEYWORDS = [
+  'go to',
+  'visit',
+  'look up',
+  'check out',
+  'browse',
+  'fetch',
+  'open the',
+  'read the docs',
+  'official site',
+  'official docs',
+  'official documentation',
+  'official page',
+]
+
+const WEB_INTENT_TOKENS = [
+  'docs',
+  'documentation',
+  'website',
+  'webpage',
+  'web page',
+  'url',
+  'homepage',
+]
+
+const URL_PATTERN = /https?:\/\/\S+/i
+
+/**
+ * Deterministic check for web intent in user text.
+ * Returns true when the user's message signals they want web content fetched,
+ * so the planner prompt omits the direct-response option entirely.
+ */
+export function hasWebIntent(text: string): boolean {
+  if (URL_PATTERN.test(text)) return true
+  const lower = text.toLowerCase()
+  for (const phrase of WEB_INTENT_KEYWORDS) {
+    if (lower.includes(phrase)) return true
+  }
+  for (const token of WEB_INTENT_TOKENS) {
+    // Match as whole word boundary to avoid false positives (e.g. "documentary")
+    const pattern = new RegExp(`\\b${token}\\b`, 'i')
+    if (pattern.test(lower)) return true
+  }
+  return false
+}
+
+// --- Planner prompt builder ---
+
+const TASK_FORMAT_LINES = [
+  'Task response format:',
+  '{"ackText":"<brief 1-sentence acknowledgment>","tasks":[{"id":"string","kind":"analysis|debugging|refactoring|testing|documentation|repo-edit|synthesis|general","title":"string","prompt":"string","narration":"<short natural-language intro for this task, e.g. Let me read the core documentation...>","dependsOn":["id"],"needsConversationContext":boolean}]}',
+  '',
+  'Task constraints:',
+  '- 2 to 5 tasks (analysis or general work — do NOT include a synthesis task)',
+  '- id must be stable kebab-case',
+  '- Each task MUST have a narration — a brief, natural sentence the agent says before starting the task',
+  '- dependsOn optional and must reference prior tasks',
+  '- The system will automatically synthesize task results — do NOT create a synthesis/summary task',
+  '- DO NOT answer the user request yourself — let the task executors do the work',
+]
+
+function buildPlannerPrompt(
+  projectContextText: string,
+  userText: string,
+  forceTaskDecomposition: boolean,
+): string {
+  const lines: string[] = []
+
+  if (projectContextText) {
+    lines.push(projectContextText, '')
+  }
+  lines.push(`User request: ${userText}`, '')
+
+  if (forceTaskDecomposition) {
+    // Web intent detected — no direct response option
+    lines.push(
+      'You are a task planner. The user wants web content fetched.',
+      'Return ONLY raw JSON — no markdown, no code fences, no commentary.',
+      '',
+      'Task executors have tools: readFile, glob (project files), and webFetch (fetch any URL and return text content).',
+      'You MUST decompose this into tasks. At least one task MUST use webFetch to fetch the requested web content.',
+      'Do NOT answer from your own knowledge — the user wants actual content from the web.',
+      '',
+      ...TASK_FORMAT_LINES,
+    )
+  } else {
+    // Normal planner — allow direct response for trivial knowledge questions
+    lines.push(
+      'You are a task planner. Decide how to handle this request.',
+      'Return ONLY raw JSON — no markdown, no code fences, no commentary.',
+      '',
+      'Task executors have tools: readFile, glob (project files), and webFetch (fetch any URL and return text content).',
+      '',
+      'ONLY use direct response for pure knowledge questions with NO web intent and NO project file access',
+      '(e.g. "what is a closure?", "explain the difference between let and const").',
+      'Direct response format:',
+      '{"direct":true,"response":"your answer"}',
+      '',
+      'For ANYTHING that involves the project — summaries, analysis, code changes,',
+      'debugging, reviewing, explaining project code — ALWAYS decompose into tasks.',
+      'For ANYTHING that involves web content — documentation, websites, APIs — ALWAYS decompose into tasks using webFetch.',
+      'Each task executor has tools: readFile, glob (project files), webFetch (any URL).',
+      ...TASK_FORMAT_LINES,
+    )
+  }
+
+  return lines.join('\n')
 }

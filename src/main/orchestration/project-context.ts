@@ -5,6 +5,7 @@ import { toolDefinition } from '@tanstack/ai'
 import fg from 'fast-glob'
 import { z } from 'zod'
 import { createLogger } from '../logger'
+import { readBodyWithLimit, stripHtml } from '../utils/http'
 
 const logger = createLogger('orchestration:context')
 
@@ -247,7 +248,10 @@ function isPathInside(basePath: string, targetPath: string): boolean {
  * These tools let executor LLMs dynamically explore project files
  * without requiring the full ToolContext (AsyncLocalStorage).
  */
-export function createExecutorTools(projectPath: string | null): ServerTool[] {
+export function createExecutorTools(
+  projectPath: string | null,
+  signal?: AbortSignal,
+): ServerTool[] {
   if (!projectPath) return []
 
   const readFile = toolDefinition({
@@ -326,5 +330,52 @@ export function createExecutorTools(projectPath: string | null): ServerTool[] {
     }
   })
 
-  return [readFile, glob]
+  const webFetch = toolDefinition({
+    name: 'webFetch',
+    description:
+      'Fetch the content of a URL and return it as text. HTML is stripped to plain text. Use this to look up documentation, APIs, or any web content.',
+    inputSchema: z.object({
+      url: z.string().describe('The URL to fetch (must be a valid http/https URL)'),
+      maxLength: z
+        .number()
+        .optional()
+        .describe('Maximum character length of the returned text (default 50000)'),
+    }),
+  }).server(async (args: { url: string; maxLength?: number }) => {
+    const maxLength = args.maxLength ?? 50_000
+    const maxBodyBytes = 5 * 1024 * 1024 // 5 MB
+
+    try {
+      const fetchSignal = signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(30_000)])
+        : AbortSignal.timeout(30_000)
+      const response = await fetch(args.url, {
+        headers: { 'User-Agent': 'OpenHive/1.0' },
+        signal: fetchSignal,
+      })
+
+      if (!response.ok) {
+        return {
+          kind: 'text' as const,
+          text: `HTTP ${String(response.status)} ${response.statusText} for ${args.url}`,
+        }
+      }
+
+      const contentType = response.headers.get('content-type') ?? ''
+      const raw = await readBodyWithLimit(response, maxBodyBytes)
+
+      let text = contentType.includes('text/html') ? stripHtml(raw) : raw
+
+      if (text.length > maxLength) {
+        text = `${text.slice(0, maxLength)}\n\n... [truncated — ${String(text.length)} chars total, showing first ${String(maxLength)}]`
+      }
+
+      return { kind: 'text' as const, text }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      return { kind: 'text' as const, text: `Error fetching URL: ${msg}` }
+    }
+  })
+
+  return [readFile, glob, webFetch]
 }

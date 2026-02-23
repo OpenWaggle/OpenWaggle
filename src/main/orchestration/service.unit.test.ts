@@ -45,7 +45,51 @@ vi.mock('./project-context', () => ({
   createExecutorTools: createExecutorToolsMock,
 }))
 
-import { runOrchestratedAgent } from './service'
+import { hasWebIntent, runOrchestratedAgent } from './service'
+
+// --- hasWebIntent unit tests ---
+
+describe('hasWebIntent', () => {
+  it('detects explicit URL', () => {
+    expect(hasWebIntent('check https://tanstack.com/ai')).toBe(true)
+  })
+
+  it('detects "go to" keyword', () => {
+    expect(hasWebIntent('go to tanstack ai docs')).toBe(true)
+  })
+
+  it('detects "docs" token', () => {
+    expect(hasWebIntent('tanstack ai docs')).toBe(true)
+  })
+
+  it('detects "documentation" token', () => {
+    expect(hasWebIntent('read the React documentation')).toBe(true)
+  })
+
+  it('detects "visit" keyword', () => {
+    expect(hasWebIntent('visit the official site')).toBe(true)
+  })
+
+  it('detects "look up" keyword', () => {
+    expect(hasWebIntent('look up the API reference')).toBe(true)
+  })
+
+  it('detects "website" token', () => {
+    expect(hasWebIntent('what does the website say')).toBe(true)
+  })
+
+  it('returns false for pure knowledge question', () => {
+    expect(hasWebIntent('what is TypeScript?')).toBe(false)
+  })
+
+  it('returns false for project-only question', () => {
+    expect(hasWebIntent('explain how the agent loop works')).toBe(false)
+  })
+
+  it('does not false-positive on "documentary"', () => {
+    expect(hasWebIntent('write a documentary-style summary')).toBe(false)
+  })
+})
 
 // --- Stream chunk helpers ---
 
@@ -96,6 +140,7 @@ function createSettings(): Settings {
     qualityPreset: 'medium',
     recentProjects: [],
     skillTogglesByProject: {},
+    browserHeadless: true,
   }
 }
 
@@ -377,6 +422,7 @@ describe('runOrchestratedAgent', () => {
     expect(executorMessages[0].content).toContain('## Project Context')
     expect(executorMessages[0].content).toContain('Project: test-app')
     expect(executorMessages[0].content).toContain('readFile')
+    expect(executorMessages[0].content).toContain('webFetch')
   })
 
   it('runs orchestration when planner returns tasks', async () => {
@@ -481,7 +527,7 @@ describe('runOrchestratedAgent', () => {
       emitChunk: vi.fn(),
     })
 
-    expect(createExecutorToolsMock).toHaveBeenCalledWith('/tmp/project')
+    expect(createExecutorToolsMock).toHaveBeenCalledWith('/tmp/project', expect.any(Object))
   })
 
   it('forwards STEP_FINISHED chunks from planner to emitChunk', async () => {
