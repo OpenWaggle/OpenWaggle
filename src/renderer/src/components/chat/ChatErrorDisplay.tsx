@@ -1,5 +1,14 @@
 import { type AgentErrorInfo, classifyErrorMessage } from '@shared/types/errors'
-import { AlertCircle, Check, Copy, RefreshCw, Settings, X } from 'lucide-react'
+import {
+  AlertCircle,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  RefreshCw,
+  Settings,
+  X,
+} from 'lucide-react'
 import { useState } from 'react'
 import { clearLastAgentErrorInfo, getLastAgentErrorInfo } from '@/lib/ipc-connection-adapter'
 
@@ -31,6 +40,7 @@ export function ChatErrorDisplay({
   onRetry,
 }: ChatErrorDisplayProps): React.JSX.Element | null {
   const [copied, setCopied] = useState(false)
+  const [showDetails, setShowDetails] = useState(false)
 
   if (dismissedError === error.message) return null
 
@@ -57,6 +67,27 @@ export function ChatErrorDisplay({
           <p className="text-sm text-error/90">{info.userMessage}</p>
           {info.suggestion && (
             <p className="text-[13px] text-text-tertiary mt-1">{info.suggestion}</p>
+          )}
+          {error.stack && (
+            <div className="mt-1.5">
+              <button
+                type="button"
+                onClick={() => setShowDetails(!showDetails)}
+                className="flex items-center gap-1 text-[12px] text-text-tertiary hover:text-text-secondary transition-colors"
+              >
+                {showDetails ? (
+                  <ChevronDown className="h-3 w-3" />
+                ) : (
+                  <ChevronRight className="h-3 w-3" />
+                )}
+                Show details
+              </button>
+              {showDetails && (
+                <pre className="mt-1.5 max-h-40 overflow-auto rounded-md bg-bg/50 p-2 text-[11px] text-text-tertiary font-mono whitespace-pre-wrap break-all">
+                  {error.stack}
+                </pre>
+              )}
+            </div>
           )}
           <div className="flex gap-2 mt-2">
             {isAuthError && onOpenSettings && (
