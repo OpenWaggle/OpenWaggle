@@ -159,6 +159,7 @@ function createSettings(): Settings {
     recentProjects: [],
     skillTogglesByProject: {},
     browserHeadless: true,
+    encryptionAvailable: true,
   }
 }
 

@@ -5,7 +5,7 @@ const {
   statMock,
   readFileMock,
   realpathMock,
-  pdfParseMock,
+  unpdfExtractTextMock,
   ocrRecognizeMock,
   mammothExtractMock,
   jszipLoadAsyncMock,
@@ -16,7 +16,7 @@ const {
   statMock: vi.fn(),
   readFileMock: vi.fn(),
   realpathMock: vi.fn(),
-  pdfParseMock: vi.fn(),
+  unpdfExtractTextMock: vi.fn(),
   ocrRecognizeMock: vi.fn(),
   mammothExtractMock: vi.fn(),
   jszipLoadAsyncMock: vi.fn(),
@@ -45,8 +45,8 @@ vi.mock('electron', () => ({
   },
 }))
 
-vi.mock('pdf-parse', () => ({
-  default: pdfParseMock,
+vi.mock('unpdf', () => ({
+  extractText: unpdfExtractTextMock,
 }))
 
 vi.mock('tesseract.js', () => ({
@@ -85,7 +85,7 @@ describe('registerAttachmentHandlers', () => {
     statMock.mockReset()
     readFileMock.mockReset()
     realpathMock.mockReset()
-    pdfParseMock.mockReset()
+    unpdfExtractTextMock.mockReset()
     ocrRecognizeMock.mockReset()
     mammothExtractMock.mockReset()
     jszipLoadAsyncMock.mockReset()
@@ -118,7 +118,7 @@ describe('registerAttachmentHandlers', () => {
       throw new Error(`ENOENT: ${filePath}`)
     })
 
-    pdfParseMock.mockResolvedValue({ text: 'Extracted PDF text' })
+    unpdfExtractTextMock.mockResolvedValue({ text: 'Extracted PDF text' })
     ocrRecognizeMock.mockResolvedValue({ data: { text: 'OCR extracted text' } })
     mammothExtractMock.mockResolvedValue({ value: 'Extracted DOCX text' })
     showMessageBoxMock.mockResolvedValue({ response: 0 })
@@ -166,7 +166,7 @@ describe('registerAttachmentHandlers', () => {
       source: { type: string; mimeType: string } | null
     }>
 
-    expect(pdfParseMock).toHaveBeenCalledOnce()
+    expect(unpdfExtractTextMock).toHaveBeenCalledOnce()
     expect(result[0]).toMatchObject({
       kind: 'pdf',
       extractedText: 'Extracted PDF text',

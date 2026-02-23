@@ -13,7 +13,7 @@ vi.mock('node:child_process', () => ({
   execFile: execFileMock,
 }))
 
-import { registerGitHandlers } from './git'
+import { invalidateGitStatusCache, registerGitHandlers } from './git'
 
 function registeredHandler(name: string): ((...args: unknown[]) => Promise<unknown>) | undefined {
   const call = safeHandleMock.mock.calls.find((c: unknown[]) => c[0] === name)
@@ -24,6 +24,7 @@ describe('registerGitHandlers', () => {
   beforeEach(() => {
     safeHandleMock.mockReset()
     execFileMock.mockReset()
+    invalidateGitStatusCache()
   })
 
   it('returns parsed git status summary with correct ahead/behind', async () => {
