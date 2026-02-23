@@ -80,6 +80,7 @@ export function getSettings(): Settings {
   const skillTogglesByProject = resolveSkillTogglesByProject()
 
   const browserHeadless = resolveBrowserHeadless()
+  const encryptionAvailable = safeStorage.isEncryptionAvailable()
 
   return {
     providers,
@@ -91,6 +92,7 @@ export function getSettings(): Settings {
     recentProjects,
     skillTogglesByProject,
     browserHeadless,
+    encryptionAvailable,
   }
 }
 

@@ -1,8 +1,26 @@
-import { X } from 'lucide-react'
+import type { Settings } from '@shared/types/settings'
+import { AlertTriangle, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useSettings } from '@/hooks/useSettings'
 import { cn } from '@/lib/cn'
 import { ApiKeyForm } from './ApiKeyForm'
+
+function hasAnyApiKey(settings: Settings): boolean {
+  return Object.values(settings.providers).some((config) => config && config.apiKey.length > 0)
+}
+
+function EncryptionWarning({ settings }: { settings: Settings }): React.JSX.Element | null {
+  if (settings.encryptionAvailable || !hasAnyApiKey(settings)) return null
+
+  return (
+    <div className="flex items-start gap-2.5 rounded-lg border border-warning/25 bg-warning/6 px-3 py-2.5">
+      <AlertTriangle className="h-4 w-4 shrink-0 text-warning mt-0.5" />
+      <p className="text-[13px] text-warning/90">
+        Your API keys are stored unencrypted. Install a system keyring to enable encryption.
+      </p>
+    </div>
+  )
+}
 
 interface SettingsDialogProps {
   isOpen: boolean
@@ -12,6 +30,7 @@ interface SettingsDialogProps {
 export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps): React.JSX.Element {
   const {
     settings,
+    loadError,
     testingProviders,
     testResults,
     providerModels,
@@ -20,6 +39,7 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps): React.
     updateBaseUrl,
     testApiKey,
     setBrowserHeadless,
+    retryLoad,
   } = useSettings()
   const dialogRef = useRef<HTMLDialogElement>(null)
 
@@ -74,6 +94,22 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps): React.
       </div>
 
       <div className="space-y-6 px-6 py-5 max-h-[70vh] overflow-y-auto">
+        {loadError && (
+          <div className="flex items-start gap-2.5 rounded-lg border border-error/25 bg-error/6 px-3 py-2.5">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-error mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] text-error/90">{loadError}</p>
+              <button
+                type="button"
+                onClick={retryLoad}
+                className="mt-1.5 rounded-md bg-error/10 px-2.5 py-1 text-[13px] font-medium text-error hover:bg-error/20 transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
+        <EncryptionWarning settings={settings} />
         <div>
           <h3 className="text-sm font-medium text-text-secondary mb-4">Providers</h3>
           <div className="space-y-5">

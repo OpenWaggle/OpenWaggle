@@ -29,6 +29,8 @@ export interface Settings {
   readonly recentProjects: readonly string[]
   readonly skillTogglesByProject: Readonly<Record<string, Readonly<Record<string, boolean>>>>
   readonly browserHeadless: boolean
+  /** Whether the system keyring is available for API key encryption. Computed on load. */
+  readonly encryptionAvailable: boolean
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -48,6 +50,7 @@ export const DEFAULT_SETTINGS: Settings = {
   recentProjects: [],
   skillTogglesByProject: {},
   browserHeadless: true,
+  encryptionAvailable: true,
 }
 
 /** Type guard for Provider — uses widened array check to avoid cast */
