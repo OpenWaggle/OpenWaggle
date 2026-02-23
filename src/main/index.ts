@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { app, BrowserWindow, shell } from 'electron'
+import { closeAllSessions } from './browser'
 import { startDevtoolsEventBus, stopDevtoolsEventBus } from './devtools/event-bus'
 import { env } from './env'
 import { registerAgentHandlers } from './ipc/agent-handler'
@@ -128,6 +129,8 @@ app.whenReady().then(() => {
   })
 })
 
+let browserCleanupDone = false
+
 app.on('window-all-closed', () => {
   cleanupTerminals()
   if (process.platform !== 'darwin') {
@@ -135,6 +138,13 @@ app.on('window-all-closed', () => {
   }
 })
 
-app.on('before-quit', () => {
+app.on('before-quit', (e) => {
   stopDevtoolsEventBus()
+  if (!browserCleanupDone) {
+    e.preventDefault()
+    closeAllSessions().finally(() => {
+      browserCleanupDone = true
+      app.quit()
+    })
+  }
 })
