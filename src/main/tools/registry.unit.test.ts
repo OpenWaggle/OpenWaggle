@@ -82,12 +82,13 @@ describe('getServerTools', () => {
     expect(toolNames).toContain('browserScreenshot')
   })
 
-  it('filters approval-required tools in sandbox mode', () => {
+  it('keeps all tools available in sandbox mode (approval handled by TanStack)', () => {
     const context = makeContext({ executionMode: 'sandbox', hasProject: true })
     const features = getActiveAgentFeatures(context)
 
     const toolNames = getToolNames(getServerTools(context, features))
 
+    // Read-only tools available
     expect(toolNames).toContain('readFile')
     expect(toolNames).toContain('glob')
     expect(toolNames).toContain('listFiles')
@@ -95,15 +96,14 @@ describe('getServerTools', () => {
     expect(toolNames).toContain('loadSkill')
     expect(toolNames).toContain('askUser')
 
-    expect(toolNames).not.toContain('writeFile')
-    expect(toolNames).not.toContain('editFile')
-    expect(toolNames).not.toContain('runCommand')
+    // Approval-required tools are now kept — TanStack handles the approval flow
+    expect(toolNames).toContain('writeFile')
+    expect(toolNames).toContain('editFile')
+    expect(toolNames).toContain('runCommand')
 
-    // Browser approval-required tools are filtered in sandbox
-    expect(toolNames).not.toContain('webFetch')
-    expect(toolNames).not.toContain('browserNavigate')
-
-    // Non-approval browser tools remain
+    // Browser tools all available
+    expect(toolNames).toContain('webFetch')
+    expect(toolNames).toContain('browserNavigate')
     expect(toolNames).toContain('browserClick')
     expect(toolNames).toContain('browserScreenshot')
   })

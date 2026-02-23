@@ -30,7 +30,6 @@ function makeContext(
   return {
     conversationId: ConversationId('conv-load-skill-tool'),
     projectPath,
-    executionMode: 'full-access',
     dynamicSkills: {
       loadedSkillIds: overrides?.loadedSkillIds ?? new Set<string>(),
       toggles: overrides?.toggles ?? {},

@@ -206,16 +206,27 @@ export function createIpcConnectionAdapter(
 
           // Fire and forget — main process streams chunks back via IPC.
           // Catch to avoid unhandled rejection (errors are delivered via stream chunks).
-          api.sendMessage(conversationId, payload, model).catch((err) => {
-            console.error('[ipc-adapter] sendMessage failed:', err)
-            queue.push({
-              type: 'RUN_ERROR',
-              timestamp: Date.now(),
-              error: { message: err instanceof Error ? err.message : String(err) },
-            } as StreamChunk)
-            done = true
-            resolve?.()
-          })
+          api
+            .sendMessage(conversationId, payload, model)
+            .then(() => {
+              // Main process run completed. For approval-pending runs,
+              // TanStack may skip the terminal RUN_FINISHED(stop) chunk.
+              // Mark stream as done so the consumer exits cleanly.
+              if (!done) {
+                done = true
+                resolve?.()
+              }
+            })
+            .catch((err) => {
+              console.error('[ipc-adapter] sendMessage failed:', err)
+              queue.push({
+                type: 'RUN_ERROR',
+                timestamp: Date.now(),
+                error: { message: err instanceof Error ? err.message : String(err) },
+              } as StreamChunk)
+              done = true
+              resolve?.()
+            })
 
           try {
             while (!done || queue.length > 0) {

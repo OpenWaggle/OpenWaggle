@@ -143,6 +143,39 @@ describe('createIpcConnectionAdapter', () => {
     expect(apiMock.cancelAgent).not.toHaveBeenCalled()
   })
 
+  it('exits cleanly when sendMessage resolves without a terminal chunk (approval-pending)', async () => {
+    // Simulates TanStack pausing for tool approval: the main process run completes
+    // (sendMessage resolves) but no RUN_FINISHED(stop) chunk is emitted.
+    // The .then() handler should mark the stream as done.
+    apiMock.sendMessage.mockImplementationOnce(async () => {
+      emitStreamChunk(conversationId, {
+        type: 'TOOL_CALL_START',
+        timestamp: 1,
+        toolCallId: 'tool-approval',
+        toolName: 'writeFile',
+      } as StreamChunk)
+      // No terminal chunk emitted — run paused for approval
+    })
+
+    const connection = createIpcConnectionAdapter(conversationId, model, () => null, 'medium')
+    const userMessage = {
+      id: 'msg-user',
+      role: 'user',
+      parts: [{ type: 'text', content: 'create a file' }],
+      createdAt: new Date(),
+    } as UIMessage
+
+    const stream = connection.connect([userMessage], undefined, undefined)
+    const chunks: StreamChunk[] = []
+
+    for await (const chunk of stream) {
+      chunks.push(chunk)
+    }
+
+    expect(chunks).toHaveLength(1)
+    expect(chunks[0]?.type).toBe('TOOL_CALL_START')
+  })
+
   it('uses provided pending payload for multimodal sends', async () => {
     apiMock.sendMessage.mockImplementationOnce(async () => {
       emitStreamChunk(conversationId, {

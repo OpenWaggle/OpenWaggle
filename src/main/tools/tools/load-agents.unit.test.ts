@@ -24,7 +24,6 @@ function makeContext(
   return {
     conversationId: ConversationId('conv-load-agents-tool'),
     projectPath,
-    executionMode: 'full-access',
     dynamicAgents: {
       loadedScopeFiles: overrides?.loadedScopeFiles ?? new Set<string>(),
       loadedRequestedPaths: overrides?.loadedRequestedPaths ?? new Set<string>(),

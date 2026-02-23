@@ -49,7 +49,7 @@ export const executionModePromptFragment: AgentPromptFragment = {
   order: 40,
   build: (context) => {
     if (context.settings.executionMode === 'sandbox') {
-      return 'Execution mode is Sandbox. You must avoid tools that require approval (write/edit/command execution) and solve the task with read-only inspection plus clear user guidance.'
+      return 'Execution mode is Default permissions. Tools that modify files or run commands (writeFile, editFile, runCommand) require explicit user approval before each use. The user will see an approval prompt and can approve or deny each tool call individually. Read-only tools (readFile, glob, listFiles) execute immediately without approval. Proceed normally and use any tool you need — the user controls what gets executed.'
     }
 
     return 'Execution mode is Full access. Use file-write and command tools when needed, but keep operations precise and avoid unnecessary destructive actions.'

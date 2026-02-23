@@ -144,7 +144,6 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
     {
       conversationId: conversation.id,
       projectPath,
-      executionMode: settings.executionMode,
       signal,
       dynamicSkills: {
         loadedSkillIds: dynamicLoadedSkillIds,

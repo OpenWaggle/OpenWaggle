@@ -1,4 +1,3 @@
-import type { ServerTool } from '@tanstack/ai'
 import { createLogger } from '../logger'
 import { builtInTools } from '../tools/built-in-tools'
 import { browserTools } from '../tools/tools/browser'
@@ -36,11 +35,6 @@ const defaultFeatureFlags: AgentFeatureFlags = {
   'core.execution-mode': true,
   'core.observability': true,
   'browser.tools': true,
-}
-
-function isApprovalRequiredTool(tool: ServerTool): boolean {
-  const maybeApprovalTool = tool as ServerTool & { readonly needsApproval?: boolean }
-  return maybeApprovalTool.needsApproval === true
 }
 
 const observabilityHook: AgentLifecycleHook = {
@@ -164,13 +158,6 @@ const builtInToolsFeature: AgentFeature = {
 const executionModeFeature: AgentFeature = {
   id: 'core.execution-mode',
   getPromptFragments: () => [executionModePromptFragment],
-  filterTools: (tools, context) => {
-    if (context.settings.executionMode !== 'sandbox') {
-      return tools
-    }
-
-    return tools.filter((tool) => !isApprovalRequiredTool(tool))
-  },
 }
 
 const observabilityFeature: AgentFeature = {
