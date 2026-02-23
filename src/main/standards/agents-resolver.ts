@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { AgentsResolutionResult, AgentsScopeItem } from '@shared/types/standards'
+import { isPathInside } from '@shared/utils/paths'
 
 export async function resolveRootAgents(projectPath: string): Promise<AgentsScopeItem> {
   return readAgentsScope(projectPath, projectPath)
@@ -218,11 +219,6 @@ async function resolveRealPath(targetPath: string): Promise<string> {
     }
     throw error
   }
-}
-
-function isPathInside(basePath: string, targetPath: string): boolean {
-  const relative = path.relative(basePath, targetPath)
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
 }
 
 function isMissingError(error: unknown): boolean {

@@ -2,9 +2,9 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { BrowserWindow } from 'electron'
 import { z } from 'zod'
 import { getSafeChildEnv } from '../env'
+import { broadcastToWindows } from '../utils/broadcast'
 import { typedHandle, typedOn } from './typed-ipc'
 
 // node-pty is a native module — dynamically require to avoid bundling issues
@@ -27,14 +27,6 @@ const terminalResizeSchema = z.object({
   rows: z.number().int().min(5).max(MAX_TERMINAL_ROWS),
 })
 const terminalWriteSchema = z.string().max(MAX_TERMINAL_INPUT_BYTES)
-
-function broadcast(channel: string, ...args: unknown[]): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) {
-      win.webContents.send(channel, ...args)
-    }
-  }
-}
 
 function resolveTerminalCwd(projectPath: string): string {
   const candidate = terminalPathSchema.parse(projectPath).trim()
@@ -67,7 +59,7 @@ export function registerTerminalHandlers(): void {
     })
 
     proc.onData((data: string) => {
-      broadcast('terminal:data', { terminalId: id, data })
+      broadcastToWindows('terminal:data', { terminalId: id, data })
     })
 
     proc.onExit(() => {

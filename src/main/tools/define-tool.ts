@@ -2,9 +2,12 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import fs from 'node:fs'
 import path from 'node:path'
 import type { ConversationId } from '@shared/types/brand'
+import { isPathInside } from '@shared/utils/paths'
 import { type ServerTool, toolDefinition } from '@tanstack/ai'
 import type { z } from 'zod'
+import { createLogger } from '../logger'
 
+const logger = createLogger('tools')
 const MAX_TOOL_OUTPUT_BYTES = 100 * 1024 // 100 KB
 
 export interface ToolContext {
@@ -70,19 +73,42 @@ export function defineOpenHiveTool<T extends z.ZodType, TName extends string>(co
   return def.server(async (args: unknown) => {
     const parsed: z.infer<T> = config.inputSchema.parse(args)
     const ctx = getToolContext()
-    const rawResult = await config.execute(parsed, ctx)
+    const argKeys =
+      typeof parsed === 'object' && parsed !== null
+        ? Object.keys(parsed as Record<string, unknown>)
+        : []
+    logger.info('tool:start', { tool: config.name, argKeys })
+    const startTime = Date.now()
+
+    let rawResult: string | NormalizedToolResult
+    try {
+      rawResult = await config.execute(parsed, ctx)
+    } catch (err) {
+      const durationMs = Date.now() - startTime
+      logger.error('tool:error', {
+        tool: config.name,
+        error: err instanceof Error ? err.message : String(err),
+        durationMs,
+      })
+      throw err
+    }
+
+    const durationMs = Date.now() - startTime
 
     // If execute already returned a NormalizedToolResult, pass through directly
     if (typeof rawResult === 'object' && rawResult !== null && 'kind' in rawResult) {
+      logger.info('tool:end', { tool: config.name, resultKind: rawResult.kind, durationMs })
       return rawResult
     }
 
     // Backward compat: string results go through truncation + normalization
     let result = rawResult
-    if (result.length > MAX_TOOL_OUTPUT_BYTES) {
+    const truncated = result.length > MAX_TOOL_OUTPUT_BYTES
+    if (truncated) {
       result = `${result.slice(0, MAX_TOOL_OUTPUT_BYTES)}\n\n... [output truncated — ${result.length} bytes total, showing first ${MAX_TOOL_OUTPUT_BYTES}]`
     }
 
+    logger.info('tool:end', { tool: config.name, resultKind: 'string', durationMs, truncated })
     return normalizeToolResult(result)
   })
 }
@@ -93,11 +119,6 @@ function normalizeToolResult(result: string): NormalizedToolResult {
   } catch {
     return { kind: 'text', text: result }
   }
-}
-
-function isPathInside(basePath: string, targetPath: string): boolean {
-  const relative = path.relative(basePath, targetPath)
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
 }
 
 /** Validate and resolve a file path within the project directory */

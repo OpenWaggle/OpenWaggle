@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { isPathInside } from '@shared/utils/paths'
 import type { ServerTool } from '@tanstack/ai'
 import { toolDefinition } from '@tanstack/ai'
 import fg from 'fast-glob'
@@ -237,11 +238,6 @@ async function buildTree(projectPath: string): Promise<string> {
 
 const MAX_READ_SIZE = 512 * 1024 // 512 KB
 const MAX_READ_LINES = 500
-
-function isPathInside(basePath: string, targetPath: string): boolean {
-  const relative = path.relative(basePath, targetPath)
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
-}
 
 /**
  * Create read-only tools for orchestration executors.

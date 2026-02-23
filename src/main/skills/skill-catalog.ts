@@ -2,6 +2,7 @@ import type { Dirent } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { SkillCatalogResult, SkillDiscoveryItem } from '@shared/types/standards'
+import { isPathInside } from '@shared/utils/paths'
 
 interface ParsedSkillDocument {
   readonly name: string
@@ -177,11 +178,6 @@ async function resolveRealPath(targetPath: string): Promise<string> {
     }
     throw error
   }
-}
-
-function isPathInside(basePath: string, targetPath: string): boolean {
-  const relative = path.relative(basePath, targetPath)
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
 }
 
 function formatSkillError(projectPath: string, folderName: string, error: unknown): string {

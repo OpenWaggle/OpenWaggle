@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { PreparedAttachment } from '@shared/types/agent'
+import { isPathInside } from '@shared/utils/paths'
 import { dialog } from 'electron'
 import { z } from 'zod'
 import { safeHandle } from './typed-ipc'
@@ -93,11 +94,6 @@ function normalizeText(value: string): string {
   return `${trimmed.slice(0, MAX_EXTRACTED_TEXT_CHARS)}\n...[truncated]`
 }
 
-function isPathInside(basePath: string, targetPath: string): boolean {
-  const relative = path.relative(basePath, targetPath)
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
-}
-
 async function requestExternalAttachmentAccess(
   projectRootPath: string,
   attachmentPath: string,
@@ -157,6 +153,7 @@ function extractTextFromRtf(raw: string): string {
   return normalizeText(withoutIndentedBreaks.replaceAll(/\n{3,}/g, '\n\n'))
 }
 
+// TODO: replace mammoth with actively maintained alternative when available
 async function extractTextFromDocx(buffer: Buffer): Promise<string> {
   try {
     const mammoth = await import('mammoth')
@@ -184,9 +181,9 @@ async function extractTextFromOdt(buffer: Buffer): Promise<string> {
 
 async function extractTextFromPdf(buffer: Buffer): Promise<string> {
   try {
-    const pdfParse = (await import('pdf-parse')).default
-    const parsed = await pdfParse(buffer)
-    return normalizeText(parsed.text ?? '')
+    const { extractText } = await import('unpdf')
+    const result = await extractText(new Uint8Array(buffer), { mergePages: true })
+    return normalizeText(result.text ?? '')
   } catch {
     return ''
   }
