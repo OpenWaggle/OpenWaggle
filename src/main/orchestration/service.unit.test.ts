@@ -12,6 +12,7 @@ const {
   gatherProjectContextMock,
   createExecutorToolsMock,
   maxIterationsMock,
+  loadProjectConfigMock,
 } = vi.hoisted(() => ({
   runOpenHiveOrchestrationMock: vi.fn(),
   resolveProviderAndQualityMock: vi.fn(),
@@ -20,6 +21,7 @@ const {
   gatherProjectContextMock: vi.fn(),
   createExecutorToolsMock: vi.fn(),
   maxIterationsMock: vi.fn(),
+  loadProjectConfigMock: vi.fn(),
 }))
 
 vi.mock('@openhive/condukt-openhive', () => ({
@@ -43,6 +45,10 @@ vi.mock('../agent/shared', () => ({
 vi.mock('./project-context', () => ({
   gatherProjectContext: gatherProjectContextMock,
   createExecutorTools: createExecutorToolsMock,
+}))
+
+vi.mock('../config/project-config', () => ({
+  loadProjectConfig: loadProjectConfigMock,
 }))
 
 import { hasWebIntent, runOrchestratedAgent } from './service'
@@ -164,6 +170,8 @@ describe('runOrchestratedAgent', () => {
     gatherProjectContextMock.mockReset()
     createExecutorToolsMock.mockReset()
     maxIterationsMock.mockReset()
+    loadProjectConfigMock.mockReset()
+    loadProjectConfigMock.mockResolvedValue({})
 
     resolveProviderAndQualityMock.mockReturnValue({
       ok: true,

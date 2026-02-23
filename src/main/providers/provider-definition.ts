@@ -1,5 +1,18 @@
-import type { Provider } from '@shared/types/settings'
+import type { Provider, QualityPreset } from '@shared/types/settings'
 import type { AnyTextAdapter } from '@tanstack/ai'
+
+export interface BaseSamplingConfig {
+  readonly temperature: number
+  readonly topP: number
+  readonly maxTokens: number
+}
+
+export interface ResolvedSamplingConfig {
+  readonly temperature?: number
+  readonly topP?: number
+  readonly maxTokens: number
+  readonly modelOptions?: Record<string, unknown>
+}
 
 export interface ProviderDefinition {
   readonly id: Provider
@@ -13,4 +26,17 @@ export interface ProviderDefinition {
   readonly testModel: string
   createAdapter(model: string, apiKey: string, baseUrl?: string): AnyTextAdapter
   fetchModels?(baseUrl?: string, apiKey?: string): Promise<string[]>
+  resolveSampling?(
+    model: string,
+    preset: QualityPreset,
+    base: BaseSamplingConfig,
+  ): ResolvedSamplingConfig
+}
+
+export function defaultResolveSampling(
+  _m: string,
+  _p: QualityPreset,
+  base: BaseSamplingConfig,
+): ResolvedSamplingConfig {
+  return { temperature: base.temperature, topP: base.topP, maxTokens: base.maxTokens }
 }

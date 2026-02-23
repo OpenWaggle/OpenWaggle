@@ -4,6 +4,7 @@ import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { Provider, Settings } from '@shared/types/settings'
 import { chat, type ModelMessage, maxIterations, type StreamChunk } from '@tanstack/ai'
+import { loadProjectConfig } from '../config/project-config'
 import { createLogger } from '../logger'
 import { runWithToolContext } from '../tools/define-tool'
 import { getServerTools } from '../tools/registry'
@@ -166,6 +167,10 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
       try {
         const runId = randomUUID()
 
+        const projectConfig = await withStageTiming(stageDurationsMs, 'project-config', () =>
+          loadProjectConfig(projectPath),
+        )
+
         const { provider, providerConfig, resolvedModel, qualityConfig } = await withStageTiming(
           stageDurationsMs,
           'provider-resolution',
@@ -174,6 +179,7 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
               model,
               payload.qualityPreset,
               settings.providers,
+              projectConfig.quality,
             )
             if (isResolutionError(resolution)) {
               throw new Error(resolution.reason)

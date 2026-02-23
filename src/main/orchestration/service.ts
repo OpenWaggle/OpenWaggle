@@ -27,6 +27,7 @@ import {
   makeMessage,
   resolveProviderAndQuality,
 } from '../agent/shared'
+import { loadProjectConfig } from '../config/project-config'
 import { createLogger } from '../logger'
 import { createExecutorTools, gatherProjectContext } from './project-context'
 import { orchestrationRunRepository } from './run-repository'
@@ -71,7 +72,13 @@ export async function runOrchestratedAgent(
   const fallbackState = { used: false as boolean, reason: undefined as string | undefined }
   const runStore = orchestrationRunRepository.createRunStore(conversationId, fallbackState)
 
-  const resolution = resolveProviderAndQuality(model, payload.qualityPreset, settings.providers)
+  const projectConfig = await loadProjectConfig(conversation.projectPath ?? '')
+  const resolution = resolveProviderAndQuality(
+    model,
+    payload.qualityPreset,
+    settings.providers,
+    projectConfig.quality,
+  )
   if (isResolutionError(resolution)) {
     return { status: 'fallback', runId, reason: resolution.reason }
   }

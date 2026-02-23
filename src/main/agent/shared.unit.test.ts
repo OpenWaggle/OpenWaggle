@@ -163,7 +163,6 @@ describe('shared agent helpers', () => {
 
     it('returns error when provider is disabled', async () => {
       mockGetProviderForModel.mockReturnValue(fakeProvider)
-      mockIsKnownModel.mockReturnValue(true)
       const { resolveProviderAndQuality } = await import('./shared')
       const result = resolveProviderAndQuality('claude-sonnet-4-5', 'medium', {
         anthropic: { apiKey: 'key', enabled: false },
@@ -176,7 +175,6 @@ describe('shared agent helpers', () => {
 
     it('returns error when API key is missing', async () => {
       mockGetProviderForModel.mockReturnValue(fakeProvider)
-      mockIsKnownModel.mockReturnValue(true)
       const { resolveProviderAndQuality } = await import('./shared')
       const result = resolveProviderAndQuality('claude-sonnet-4-5', 'medium', {
         anthropic: { apiKey: '', enabled: true },
@@ -187,9 +185,8 @@ describe('shared agent helpers', () => {
       }
     })
 
-    it('returns resolved result on success', async () => {
+    it('returns resolved result on success with model unchanged', async () => {
       mockGetProviderForModel.mockReturnValue(fakeProvider)
-      mockIsKnownModel.mockReturnValue(true)
       const { resolveProviderAndQuality } = await import('./shared')
       const result = resolveProviderAndQuality('claude-sonnet-4-5', 'medium', {
         anthropic: { apiKey: 'sk-test', enabled: true },
@@ -198,7 +195,7 @@ describe('shared agent helpers', () => {
       if (result.ok) {
         expect(result.provider).toBe(fakeProvider)
         expect(result.providerConfig.apiKey).toBe('sk-test')
-        expect(result.qualityConfig.temperature).toBeDefined()
+        expect(result.resolvedModel).toBe('claude-sonnet-4-5')
       }
     })
   })

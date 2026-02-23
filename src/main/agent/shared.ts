@@ -3,6 +3,7 @@ import type { AgentSendPayload, Message, MessagePart } from '@shared/types/agent
 import { MessageId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { Provider, ProviderConfig, QualityPreset } from '@shared/types/settings'
+import type { ProjectQualityOverrides } from '../config/project-config'
 import { providerRegistry } from '../providers'
 import type { ProviderDefinition } from '../providers/provider-definition'
 import { type ResolvedQualityConfig, resolveQualityConfig } from './quality-config'
@@ -105,34 +106,28 @@ export function resolveProviderAndQuality(
   model: SupportedModelId,
   qualityPreset: QualityPreset,
   providers: Readonly<Partial<Record<Provider, ProviderConfig>>>,
+  projectOverrides?: ProjectQualityOverrides,
 ): ProviderResolution {
-  const selectedProvider = providerRegistry.getProviderForModel(model)
-  if (!selectedProvider) {
+  const provider = providerRegistry.getProviderForModel(model)
+  if (!provider) {
     return { ok: false, reason: `No provider registered for model: ${model}` }
   }
 
-  const qualityConfig = resolveQualityConfig(selectedProvider.id, model, qualityPreset)
-  const qualityModel = qualityConfig.model
-  const resolvedProvider = providerRegistry.getProviderForModel(qualityModel) ?? selectedProvider
-  const resolvedModel = providerRegistry.isKnownModel(qualityModel) ? qualityModel : model
-
-  if (resolvedProvider.id !== selectedProvider.id) {
-    return { ok: false, reason: 'Quality preset cannot switch provider families.' }
-  }
-
-  const providerConfig = providers[resolvedProvider.id]
+  const providerConfig = providers[provider.id]
   if (!providerConfig?.enabled) {
-    return { ok: false, reason: `${resolvedProvider.displayName} is disabled in settings` }
+    return { ok: false, reason: `${provider.displayName} is disabled in settings` }
   }
-  if (resolvedProvider.requiresApiKey && !providerConfig.apiKey) {
-    return { ok: false, reason: `No API key configured for ${resolvedProvider.displayName}` }
+  if (provider.requiresApiKey && !providerConfig.apiKey) {
+    return { ok: false, reason: `No API key configured for ${provider.displayName}` }
   }
+
+  const qualityConfig = resolveQualityConfig(provider, model, qualityPreset, projectOverrides)
 
   return {
     ok: true,
-    provider: resolvedProvider,
+    provider,
     providerConfig,
-    resolvedModel,
+    resolvedModel: model,
     qualityConfig,
   }
 }
