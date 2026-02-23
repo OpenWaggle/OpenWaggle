@@ -5,7 +5,6 @@ import { z } from 'zod'
 
 export const execFileAsync = promisify(execFile)
 export const DEFAULT_GIT_MAX_BUFFER = 5 * 1024 * 1024
-export const DIFF_GIT_MAX_BUFFER = 32 * 1024 * 1024
 
 export interface GitExecResult {
   readonly stdout: string

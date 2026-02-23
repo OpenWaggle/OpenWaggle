@@ -5,13 +5,20 @@ import type {
   GitStatusSummary,
 } from '@shared/types/git'
 import { safeHandle } from '../typed-ipc'
-import {
-  DIFF_GIT_MAX_BUFFER,
-  isGitRepository,
-  projectPathSchema,
-  runGit,
-  stripSurroundingQuotes,
-} from './shared'
+import { isGitRepository, projectPathSchema, runGit, stripSurroundingQuotes } from './shared'
+
+const GIT_STATUS_CACHE_TTL = 2000 // 2 seconds
+const DIFF_GIT_MAX_BUFFER = 8 * 1024 * 1024 // 8 MB (reduced from shared.ts 32 MB)
+
+const statusCache = new Map<string, { result: GitStatusSummary; timestamp: number }>()
+
+export function invalidateGitStatusCache(projectPath?: string): void {
+  if (projectPath) {
+    statusCache.delete(projectPath)
+  } else {
+    statusCache.clear()
+  }
+}
 
 interface ParsedPorcelainEntry {
   readonly path: string
@@ -294,7 +301,13 @@ async function getGitDiff(projectPath: string): Promise<GitFileDiff[]> {
 export function registerGitStatusHandlers(): void {
   safeHandle('git:status', async (_event, rawPath: unknown) => {
     const projectPath = projectPathSchema.parse(rawPath)
-    return getGitStatus(projectPath)
+    const cached = statusCache.get(projectPath)
+    if (cached && Date.now() - cached.timestamp < GIT_STATUS_CACHE_TTL) {
+      return cached.result
+    }
+    const result = await getGitStatus(projectPath)
+    statusCache.set(projectPath, { result, timestamp: Date.now() })
+    return result
   })
 
   safeHandle('git:diff', async (_event, rawPath: unknown) => {

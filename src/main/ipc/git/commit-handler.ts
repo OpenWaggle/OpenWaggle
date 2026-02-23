@@ -2,6 +2,7 @@ import type { GitCommitFailure, GitCommitPayload, GitCommitResult } from '@share
 import { z } from 'zod'
 import { safeHandle } from '../typed-ipc'
 import { isGitRepository, projectPathSchema, runGit } from './shared'
+import { invalidateGitStatusCache } from './status-handler'
 
 function commitFailure(code: GitCommitFailure['code'], message: string): GitCommitFailure {
   return { ok: false, code, message }
@@ -84,6 +85,10 @@ export function registerGitCommitHandlers(): void {
   safeHandle('git:commit', async (_event, rawPath: unknown, rawPayload: unknown) => {
     const projectPath = projectPathSchema.parse(rawPath)
     const payload = commitPayloadSchema.parse(rawPayload)
-    return commitGit(projectPath, payload)
+    const result = await commitGit(projectPath, payload)
+    if (result.ok) {
+      invalidateGitStatusCache(projectPath)
+    }
+    return result
   })
 }
