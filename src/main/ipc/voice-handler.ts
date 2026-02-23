@@ -63,7 +63,11 @@ interface TransformersModule {
   pipeline: (task: string, model: string, options?: Record<string, unknown>) => Promise<unknown>
 }
 
+const MODEL_IDLE_TIMEOUT = 5 * 60 * 1000 // 5 minutes
+
 const transcriberPromises: Partial<Record<VoiceModel, Promise<WhisperTranscriber>>> = {}
+const lastUsedAt: Partial<Record<VoiceModel, number>> = {}
+const evictionTimers: Partial<Record<VoiceModel, ReturnType<typeof setTimeout>>> = {}
 
 function isTransformersModule(value: unknown): value is TransformersModule {
   if (typeof value !== 'object' || value === null) return false
@@ -152,9 +156,32 @@ async function loadTranscriber(model: VoiceModel): Promise<WhisperTranscriber> {
   return transcriberPromise
 }
 
+function scheduleEviction(model: VoiceModel): void {
+  const existingTimer = evictionTimers[model]
+  if (existingTimer) clearTimeout(existingTimer)
+
+  evictionTimers[model] = setTimeout(() => {
+    const last = lastUsedAt[model] ?? 0
+    if (Date.now() - last >= MODEL_IDLE_TIMEOUT) {
+      delete transcriberPromises[model]
+      delete lastUsedAt[model]
+      delete evictionTimers[model]
+    }
+  }, MODEL_IDLE_TIMEOUT)
+}
+
+function markModelUsed(model: VoiceModel): void {
+  lastUsedAt[model] = Date.now()
+  scheduleEviction(model)
+}
+
 export function resetVoiceHandlerForTests(): void {
   for (const model of [VOICE_MODEL_TINY, VOICE_MODEL_BASE] as const) {
     delete transcriberPromises[model]
+    delete lastUsedAt[model]
+    const timer = evictionTimers[model]
+    if (timer) clearTimeout(timer)
+    delete evictionTimers[model]
   }
 }
 
@@ -188,6 +215,7 @@ export function registerVoiceHandlers(): void {
         stride_length_s: 2,
         language: payload.language ?? modelConfig.language,
       })
+      markModelUsed(model)
       const text = extractTranscriptionText(rawResult)
       const response: VoiceTranscriptionResult = { text, model }
       return response
