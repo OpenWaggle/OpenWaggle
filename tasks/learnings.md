@@ -60,6 +60,13 @@ This document stores project-specific technical learnings only.
 - Run-scoped skill-load dedupe is easiest and safest when tracked in `ToolContext` (AsyncLocalStorage) so observability can report dynamic loads without persisting conversation state.
 
 
+### Task: P1 Bug + Hardening Sweep H-01–H-11 (2026-02-23)
+- Module-level caches (e.g. git status TTL cache) leak between test cases in Vitest; export an `invalidate*()` function and call it in `beforeEach` to prevent cross-test pollution.
+- `unpdf`'s `extractText()` returns `{ text: string[] }` by default; pass `{ mergePages: true }` to get a single concatenated `string` instead.
+- TanStack AI `StreamChunk` RUN_ERROR type only declares `{ message: string; code?: string }` — runtime errors carry `name`/`stack` but accessing them requires `'in'` operator narrowing + type assertion.
+- `StreamPartCollector` STEP_STARTED/STEP_FINISHED handling: flush text on STEP_STARTED and flush thinking on STEP_FINISHED to break TanStack's thinking accumulation across orchestration sub-calls.
+- When replacing a dependency (e.g. `pdf-parse` → `unpdf`), update integration test mocks from the old module to the new module's import path and API shape; dynamic `import()` mocks require `vi.mock()` at the correct module specifier.
+
 ## 4) Old Learnings Archive
 
 ### Task: AGENTS + `.openhive/skills` Runtime Standardization (2026-02-19)

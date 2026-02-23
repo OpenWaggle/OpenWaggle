@@ -1,7 +1,7 @@
 # Bug: Orchestration synthesis returns empty output — `modelText` silently swallows `RUN_ERROR` chunks
 
 ## Status
-Open
+Resolved — `64be6b5`
 
 ## Severity
 P1 — User-facing data loss in orchestration mode
