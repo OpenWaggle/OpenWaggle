@@ -414,7 +414,7 @@ The project has 14k of CLAUDE.md and no README.md. There is no entry point for a
   - Prerequisites (Node, pnpm, platform requirements)
   - Install + run instructions (`pnpm install && pnpm dev`)
   - Brief architecture overview (link to CLAUDE.md for details)
-  - Link to specs/ for roadmap
+  - Link to tasks/specs/ for roadmap
   - License
 
 **Files to touch**

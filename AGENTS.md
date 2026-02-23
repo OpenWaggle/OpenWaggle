@@ -212,11 +212,11 @@ Always use granular selectors with `useChatStore((s) => s.field)` — never call
 
 ## Task Management
 
-1. **Plan First**: Write plan to `specs/<task-name>.md` with checkable items
+1. **Plan First**: Write plan to `tasks/specs/<task-name>.md` with checkable items
 2. **Verify Plan**: Check in before starting implementation
 3. **Track Progress**: Mark items complete as you go
 4. **Explain Changes**: High-level summary at each step
-5. **Document Results**: Add review section to `specs/<task-name>.md`
+5. **Document Results**: Add review section to `tasks/specs/<task-name>.md`
 6. **Capture Lessons**: Update `tasks/lessons.md` after user corrections; update `tasks/learnings.md` for technical findings
 
 ## Core Principles
