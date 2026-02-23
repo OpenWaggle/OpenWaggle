@@ -30,6 +30,7 @@ export function useSettings() {
   const setProjectPath = useSettingsStore((s) => s.setProjectPath)
   const setExecutionMode = useSettingsStore((s) => s.setExecutionMode)
   const setQualityPreset = useSettingsStore((s) => s.setQualityPreset)
+  const setBrowserHeadless = useSettingsStore((s) => s.setBrowserHeadless)
   const pushRecentProject = useSettingsStore((s) => s.pushRecentProject)
   const testApiKey = useSettingsStore((s) => s.testApiKey)
   const clearTestResult = useSettingsStore((s) => s.clearTestResult)
@@ -47,6 +48,7 @@ export function useSettings() {
     setProjectPath,
     setExecutionMode,
     setQualityPreset,
+    setBrowserHeadless,
     pushRecentProject,
     testApiKey,
     clearTestResult,

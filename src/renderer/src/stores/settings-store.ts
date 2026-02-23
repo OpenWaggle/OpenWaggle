@@ -27,6 +27,7 @@ interface SettingsState {
   setProjectPath: (path: string | null) => Promise<void>
   setExecutionMode: (mode: ExecutionMode) => Promise<void>
   setQualityPreset: (preset: QualityPreset) => Promise<void>
+  setBrowserHeadless: (headless: boolean) => Promise<void>
   pushRecentProject: (path: string) => Promise<void>
   testApiKey: (provider: Provider, apiKey: string, baseUrl?: string) => Promise<boolean>
   clearTestResult: (provider: Provider) => void
@@ -135,6 +136,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const { settings } = get()
     await api.updateSettings({ qualityPreset: preset })
     set({ settings: { ...settings, qualityPreset: preset } })
+  },
+
+  async setBrowserHeadless(headless: boolean) {
+    const { settings } = get()
+    await api.updateSettings({ browserHeadless: headless })
+    set({ settings: { ...settings, browserHeadless: headless } })
   },
 
   async pushRecentProject(path: string) {

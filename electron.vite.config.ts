@@ -20,7 +20,7 @@ export default defineConfig({
         ],
       },
       rollupOptions: {
-        external: ['bufferutil', 'utf-8-validate', 'node-pty'],
+        external: ['bufferutil', 'utf-8-validate', 'node-pty', 'playwright', 'playwright-core'],
         output: {
           interop: 'auto',
         },

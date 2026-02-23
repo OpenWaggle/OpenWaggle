@@ -1,9 +1,11 @@
 import type { ServerTool } from '@tanstack/ai'
 import { createLogger } from '../logger'
 import { builtInTools } from '../tools/built-in-tools'
+import { browserTools } from '../tools/tools/browser'
 import type {
   AgentFeature,
   AgentLifecycleHook,
+  AgentPromptFragment,
   AgentRunContext,
   AgentRunSummary,
   AgentToolCallStartEvent,
@@ -33,6 +35,7 @@ const defaultFeatureFlags: AgentFeatureFlags = {
   'core.tools': true,
   'core.execution-mode': true,
   'core.observability': true,
+  'browser.tools': true,
 }
 
 function isApprovalRequiredTool(tool: ServerTool): boolean {
@@ -175,10 +178,34 @@ const observabilityFeature: AgentFeature = {
   getLifecycleHooks: () => [observabilityHook],
 }
 
+const browserPromptFragment: AgentPromptFragment = {
+  id: 'browser.capabilities',
+  order: 50,
+  build: () =>
+    `You have web browsing capabilities. Available browser tools:
+- webFetch: Fetch a URL and return its text content (lightweight, no browser needed)
+- browserNavigate: Navigate to a URL (launches Chromium if needed)
+- browserClick: Click an element by CSS selector
+- browserType: Type text into an input field
+- browserScreenshot: Take a screenshot of the page or an element
+- browserExtractText: Extract visible text from the page or an element
+- browserFillForm: Fill multiple form fields at once
+- browserClose: Close the browser when done
+
+Use webFetch for quick lookups. Use the browser tools for interactive web tasks (testing web apps, filling forms, taking screenshots). Always call browserNavigate before other browser tools. Close the browser when finished to free resources.`,
+}
+
+const browserToolsFeature: AgentFeature = {
+  id: 'browser.tools',
+  getPromptFragments: () => [browserPromptFragment],
+  getTools: () => browserTools,
+}
+
 const defaultFeatures: readonly AgentFeature[] = [
   standardsPromptFeature,
   corePromptFeature,
   builtInToolsFeature,
+  browserToolsFeature,
   executionModeFeature,
   observabilityFeature,
 ]

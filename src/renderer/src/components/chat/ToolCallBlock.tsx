@@ -1,5 +1,6 @@
 import { AlertCircle, Check, ChevronRight, Clock, Loader2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { z } from 'zod'
 import { DiffView } from '@/components/thread/DiffView'
 import { cn } from '@/lib/cn'
 import { computeDiff } from '@/lib/diff'
@@ -12,6 +13,22 @@ interface ToolCallBlockProps {
   args: string
   state: string
   result?: { content: unknown; state: string; error?: string }
+}
+
+const screenshotResultSchema = z.object({
+  base64Image: z.string(),
+  pageTitle: z.string(),
+  url: z.string(),
+})
+
+function tryParseScreenshotResult(
+  content: unknown,
+  name: string,
+): z.infer<typeof screenshotResultSchema> | null {
+  if (name !== 'browserScreenshot') return null
+  const payload = parseResultPayload(content)
+  const parsed = screenshotResultSchema.safeParse(payload)
+  return parsed.success ? parsed.data : null
 }
 
 function tryParseDiffResult(
@@ -91,6 +108,9 @@ export function ToolCallBlock({
   const isError = resultError !== null
 
   const parsedArgs = parseToolArgs(args)
+
+  // Check if result has screenshot data
+  const screenshotData = result && !isError ? tryParseScreenshotResult(result.content, name) : null
 
   // Check if result has diff data
   const diffData = result && !isError ? tryParseDiffResult(result.content, name, parsedArgs) : null
@@ -175,6 +195,20 @@ export function ToolCallBlock({
       {/* Expanded content */}
       {expanded && (
         <div className="ml-5 mt-1 rounded-md border border-border bg-bg-secondary/50 overflow-hidden">
+          {/* Screenshot preview */}
+          {screenshotData && (
+            <div className="px-3 py-2">
+              <div className="text-[13px] text-text-tertiary mb-1">
+                {screenshotData.pageTitle} — {screenshotData.url}
+              </div>
+              <img
+                src={`data:image/png;base64,${screenshotData.base64Image}`}
+                alt={`Screenshot of ${screenshotData.pageTitle}`}
+                className="max-w-full rounded-md"
+              />
+            </div>
+          )}
+
           {/* Inline diff for file tools */}
           {diff && diffData && (
             <div className="px-3 py-2">
@@ -189,7 +223,7 @@ export function ToolCallBlock({
           </div>
 
           {/* Result */}
-          {result && !diff && !isError && (
+          {result && !diff && !screenshotData && !isError && (
             <div className="border-t border-border px-3 py-2">
               <div className="text-[13px] text-text-tertiary mb-1">Result</div>
               <ToolResult content={result.content} isError={isError} />

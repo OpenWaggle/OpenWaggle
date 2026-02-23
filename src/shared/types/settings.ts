@@ -28,6 +28,7 @@ export interface Settings {
   readonly qualityPreset: QualityPreset
   readonly recentProjects: readonly string[]
   readonly skillTogglesByProject: Readonly<Record<string, Readonly<Record<string, boolean>>>>
+  readonly browserHeadless: boolean
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -46,6 +47,7 @@ export const DEFAULT_SETTINGS: Settings = {
   qualityPreset: 'medium',
   recentProjects: [],
   skillTogglesByProject: {},
+  browserHeadless: true,
 }
 
 /** Type guard for Provider — uses widened array check to avoid cast */

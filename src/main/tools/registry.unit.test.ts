@@ -74,6 +74,12 @@ describe('getServerTools', () => {
     expect(toolNames).toContain('loadAgents')
     expect(toolNames).toContain('loadSkill')
     expect(toolNames).toContain('askUser')
+
+    // Browser tools
+    expect(toolNames).toContain('webFetch')
+    expect(toolNames).toContain('browserNavigate')
+    expect(toolNames).toContain('browserClick')
+    expect(toolNames).toContain('browserScreenshot')
   })
 
   it('filters approval-required tools in sandbox mode', () => {
@@ -92,15 +98,30 @@ describe('getServerTools', () => {
     expect(toolNames).not.toContain('writeFile')
     expect(toolNames).not.toContain('editFile')
     expect(toolNames).not.toContain('runCommand')
+
+    // Browser approval-required tools are filtered in sandbox
+    expect(toolNames).not.toContain('webFetch')
+    expect(toolNames).not.toContain('browserNavigate')
+
+    // Non-approval browser tools remain
+    expect(toolNames).toContain('browserClick')
+    expect(toolNames).toContain('browserScreenshot')
   })
 
-  it('returns no tools when no project is selected', () => {
+  it('returns only browser tools when no project is selected', () => {
     const context = makeContext({ executionMode: 'full-access', hasProject: false })
     const features = getActiveAgentFeatures(context)
 
-    const tools = getServerTools(context, features)
+    const toolNames = getToolNames(getServerTools(context, features))
 
-    expect(tools).toEqual([])
+    // Built-in file tools are hidden without a project
+    expect(toolNames).not.toContain('readFile')
+    expect(toolNames).not.toContain('writeFile')
+    expect(toolNames).not.toContain('glob')
+
+    // Browser tools are project-independent
+    expect(toolNames).toContain('webFetch')
+    expect(toolNames).toContain('browserNavigate')
   })
 
   it('throws when features register duplicate tool names', () => {

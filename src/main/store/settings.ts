@@ -79,6 +79,8 @@ export function getSettings(): Settings {
   const recentProjects = resolveRecentProjects()
   const skillTogglesByProject = resolveSkillTogglesByProject()
 
+  const browserHeadless = resolveBrowserHeadless()
+
   return {
     providers,
     defaultModel,
@@ -88,6 +90,7 @@ export function getSettings(): Settings {
     qualityPreset,
     recentProjects,
     skillTogglesByProject,
+    browserHeadless,
   }
 }
 
@@ -144,6 +147,14 @@ export function updateSettings(partial: Partial<Settings>): void {
   if (partial.skillTogglesByProject !== undefined) {
     store.set('skillTogglesByProject', sanitizeSkillTogglesByProject(partial.skillTogglesByProject))
   }
+  if (partial.browserHeadless !== undefined) {
+    const parsed = z.boolean().safeParse(partial.browserHeadless)
+    if (parsed.success) {
+      store.set('browserHeadless', parsed.data)
+    } else {
+      logger.warn('Skipping invalid browserHeadless', { value: partial.browserHeadless })
+    }
+  }
 }
 
 function resolveExecutionMode(): ExecutionMode {
@@ -185,6 +196,11 @@ function resolveRecentProjects(): string[] {
 function resolveSkillTogglesByProject(): Record<string, Record<string, boolean>> {
   const stored = store.get('skillTogglesByProject', DEFAULT_SETTINGS.skillTogglesByProject)
   return sanitizeSkillTogglesByProject(stored)
+}
+
+function resolveBrowserHeadless(): boolean {
+  const raw = store.get('browserHeadless', DEFAULT_SETTINGS.browserHeadless)
+  return typeof raw === 'boolean' ? raw : DEFAULT_SETTINGS.browserHeadless
 }
 
 function sanitizeRecentProjects(paths: readonly string[]): string[] {

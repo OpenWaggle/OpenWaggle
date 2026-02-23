@@ -1,15 +1,21 @@
 import {
   BookOpen,
+  Camera,
   FileEdit,
   FilePlus,
   FileText,
   FolderTree,
+  FormInput,
+  Globe,
   type LucideIcon,
   MessageCircleQuestion,
+  MousePointer,
   Search,
   Sparkles,
   Terminal,
+  Type,
   Wrench,
+  XCircle,
 } from 'lucide-react'
 
 interface ToolConfig {
@@ -28,6 +34,14 @@ const TOOL_CONFIG: Record<string, ToolConfig> = {
   askUser: { icon: MessageCircleQuestion, displayName: 'Ask User', primaryArg: 'questions' },
   loadSkill: { icon: Sparkles, displayName: 'Load Skill', primaryArg: 'skillId' },
   loadAgents: { icon: BookOpen, displayName: 'Load Agents', primaryArg: '' },
+  webFetch: { icon: Globe, displayName: 'Web Fetch', primaryArg: 'url' },
+  browserNavigate: { icon: Globe, displayName: 'Navigate', primaryArg: 'url' },
+  browserClick: { icon: MousePointer, displayName: 'Click', primaryArg: 'selector' },
+  browserType: { icon: Type, displayName: 'Type', primaryArg: 'selector' },
+  browserScreenshot: { icon: Camera, displayName: 'Screenshot', primaryArg: '' },
+  browserExtractText: { icon: FileText, displayName: 'Extract Text', primaryArg: 'selector' },
+  browserFillForm: { icon: FormInput, displayName: 'Fill Form', primaryArg: '' },
+  browserClose: { icon: XCircle, displayName: 'Close Browser', primaryArg: '' },
 }
 
 const DEFAULT_CONFIG: ToolConfig = {
@@ -50,6 +64,14 @@ const TOOL_VERBS: Record<string, ToolVerbs> = {
   listFiles: { running: 'Listing', completed: 'Listed' },
   loadSkill: { running: 'Loading skill', completed: 'Loaded skill' },
   loadAgents: { running: 'Loading agents', completed: 'Loaded agents' },
+  webFetch: { running: 'Fetching', completed: 'Fetched' },
+  browserNavigate: { running: 'Navigating to', completed: 'Navigated to' },
+  browserClick: { running: 'Clicking', completed: 'Clicked' },
+  browserType: { running: 'Typing into', completed: 'Typed into' },
+  browserScreenshot: { running: 'Taking screenshot', completed: 'Took screenshot' },
+  browserExtractText: { running: 'Extracting text', completed: 'Extracted text' },
+  browserFillForm: { running: 'Filling form', completed: 'Filled form' },
+  browserClose: { running: 'Closing browser', completed: 'Closed browser' },
 }
 
 export function getToolConfig(name: string): ToolConfig {
