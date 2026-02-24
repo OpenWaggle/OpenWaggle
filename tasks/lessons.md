@@ -4,4 +4,4 @@ User corrections and behavioral rules. Updated whenever the user corrects the ag
 
 ## Active Rules
 
-- **Never type-cast** — use Zod validation or construct values that satisfy the type structurally. If a type is a discriminated union, construct a value matching the specific variant's interface. `as Foo` and `as unknown as Foo` are never acceptable.
+- **Never type-cast** — always validate and infer types top-to-bottom. Use Zod schemas (`.parse()` / `.safeParse()`) for runtime boundaries (JSON.parse results, IPC payloads, external data). For discriminated unions, construct values matching the specific variant's interface. `as Foo`, `as unknown as Foo`, and `as Record<string, unknown>` are never acceptable — if you need a `Record<string, unknown>`, validate with `z.record(z.unknown())`.

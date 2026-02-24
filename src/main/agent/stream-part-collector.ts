@@ -1,12 +1,15 @@
 import type { MessagePart } from '@shared/types/agent'
 import { ToolCallId } from '@shared/types/brand'
 import type { StreamChunk } from '@tanstack/ai'
+import { z } from 'zod'
 import { createLogger } from '../logger'
 import type { AgentToolCallEndEvent, AgentToolCallStartEvent } from './runtime-types'
 
 const logger = createLogger('stream')
 
-function hasNonEmptyString(obj: Record<string, unknown>, key: string): boolean {
+const recordSchema = z.record(z.string(), z.unknown())
+
+function hasNonEmptyString(obj: z.infer<typeof recordSchema>, key: string): boolean {
   const val = obj[key]
   return typeof val === 'string' && val.length > 0
 }
@@ -32,9 +35,10 @@ export function detectToolResultError(result: unknown): boolean {
     }
   }
 
-  if (typeof result !== 'object' || result === null) return false
+  const parsed = recordSchema.safeParse(result)
+  if (!parsed.success) return false
 
-  const record = Object.fromEntries(Object.entries(result))
+  const record = parsed.data
   // Require `ok === false` to also have an `error` or `message` field to prevent
   // false positives on arbitrary objects that happen to contain `{ ok: false }`.
   if (record.ok === false) {
@@ -211,11 +215,8 @@ export class StreamPartCollector {
     const rawArgs = this.toolCallArgs[toolCallId] ?? '{}'
 
     try {
-      const parsed: unknown = JSON.parse(rawArgs)
-      if (typeof parsed === 'object' && parsed !== null) {
-        return parsed as Record<string, unknown>
-      }
-      return {}
+      const parsed = recordSchema.parse(JSON.parse(rawArgs))
+      return parsed
     } catch (parseError) {
       logger.warn(`Failed to parse tool call args for "${toolName}"`, {
         error: parseError instanceof Error ? parseError.message : String(parseError),
