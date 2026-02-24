@@ -42,9 +42,9 @@ Phase 4 — Long-term moat
 | Spec | Title | Status |
 |------|-------|--------|
 | [00](./00-multi-agent-conversation.md) | Multi-Agent Conversation (North Star) | Planned |
-| [01](./01-fix-tool-approval-flow.md) | Fix Tool Approval Flow | Planned |
+| [01](./01-fix-tool-approval-flow.md) | Fix Tool Approval Flow | Done (TanStack native) |
 | [02](./02-fix-orchestration-executor-permissions.md) | Fix Orchestration Executor Permissions | Planned |
-| [03](./03-fix-error-messages.md) | Fix Error Messages | Planned |
+| [03](./03-fix-error-messages.md) | Fix Error Messages | Partial (4 gaps remaining) |
 | [04](./04-add-mcp-support.md) | Add MCP Support | Planned |
 | [05](./05-add-codebase-indexing.md) | Add Codebase Indexing | Planned |
 | [06](./06-wire-quality-presets-to-model-routing.md) | Wire Quality Presets to Model Routing | Planned |
