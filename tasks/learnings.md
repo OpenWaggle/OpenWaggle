@@ -60,6 +60,10 @@ This document stores project-specific technical learnings only.
 - Run-scoped skill-load dedupe is easiest and safest when tracked in `ToolContext` (AsyncLocalStorage) so observability can report dynamic loads without persisting conversation state.
 
 
+### Task: Provider Model Type Guard Refactor (2026-02-24)
+- When an SDK function requires `TModel extends (typeof MODELS)[number]` but your code receives `string`, use a `Set<string>.has()` inclusion check with a type predicate (`value is T`) instead of widening the array to `readonly string[]` or casting the value. `Set<string>.has()` naturally accepts `string` as input, so no intermediate cast is needed — and the type predicate narrows for the downstream call. [SKILL?]
+- `OpenRouterTextAdapter<T>` extends `BaseTextAdapter` which implements `TextAdapter`, making it assignable to `AnyTextAdapter = TextAdapter<any, any, any, any>` — the `as unknown as AnyTextAdapter` double-cast on the OpenRouter adapter return was unnecessary.
+
 ### Task: Spec 03 — Fix Error Messages Remaining Gaps (2026-02-24)
 - IPC channels exposed to the renderer should be scoped to specific actions (e.g. `app:open-logs-dir`) rather than generic path openers (`shell:open-path`) — the renderer is an untrusted boundary.
 - Main-process utilities like the file logger should not import `electron` directly; inject dependencies (e.g. `initFileLogger(logsDir)`) at startup so the module remains testable without mocking Electron.
