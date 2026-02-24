@@ -60,6 +60,12 @@ This document stores project-specific technical learnings only.
 - Run-scoped skill-load dedupe is easiest and safest when tracked in `ToolContext` (AsyncLocalStorage) so observability can report dynamic loads without persisting conversation state.
 
 
+### Task: Spec 03 — Fix Error Messages Remaining Gaps (2026-02-24)
+- IPC channels exposed to the renderer should be scoped to specific actions (e.g. `app:open-logs-dir`) rather than generic path openers (`shell:open-path`) — the renderer is an untrusted boundary.
+- Main-process utilities like the file logger should not import `electron` directly; inject dependencies (e.g. `initFileLogger(logsDir)`) at startup so the module remains testable without mocking Electron.
+- Async buffered file writes (`process.nextTick` + `fs.appendFile`) avoid blocking the event loop from synchronous `fs.writeSync` in logging; tests need a small `setTimeout` to observe flushed output.
+- When a downstream package type (e.g. condukt-ai's `OrchestrationTaskRecord`) lacks a field you need (like `title`), keep a local Map built during planning rather than casting or patching the external type.
+
 ### Task: P1 Bug + Hardening Sweep H-01–H-11 (2026-02-23)
 - Module-level caches (e.g. git status TTL cache) leak between test cases in Vitest; export an `invalidate*()` function and call it in `beforeEach` to prevent cross-test pollution.
 - `unpdf`'s `extractText()` returns `{ text: string[] }` by default; pass `{ mergePages: true }` to get a single concatenated `string` instead.
