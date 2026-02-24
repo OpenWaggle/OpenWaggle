@@ -28,3 +28,5 @@ The OpenRouter provider had a double cast: `model as 'openrouter/auto'` to satis
 - [x] `pnpm test:unit` passes (339 tests, 44 files)
 - [x] `pnpm lint` clean (only pre-existing `service.ts` format issue)
 - [x] No `as (typeof ...MODELS)` casts remain in `src/`
+
+## Status: DONE (2026-02-24)
