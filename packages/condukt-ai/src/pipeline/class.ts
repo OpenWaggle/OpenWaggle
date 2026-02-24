@@ -14,6 +14,8 @@ import type {
   TaskOutputKey,
   TaskOutputMap,
 } from "./types.js";
+import type { AnyTextAdapter } from "@tanstack/ai";
+import { tanstackChatTask, type TanStackChatTaskDefinition } from "../tanstack.js";
 
 interface PipelineState {
   readonly runtime: PipelineRuntimeEnvironment;
@@ -86,6 +88,25 @@ export class Pipeline<TOutputs extends TaskOutputMap = Record<never, never>> {
       DuplicateTaskIdConstraint<TOutputs, TTaskId>,
   ): Pipeline<MergeTaskOutputs<TOutputs, TTaskId, TOutput>> {
     return this.addTaskInternal(llmTask(definition));
+  }
+
+  /** Adds a TanStack AI chat-backed task with pipeline-aware output typing. */
+  addTanStackChatTask<
+    TOutput,
+    TAdapter extends AnyTextAdapter,
+    TDependencies extends readonly TaskOutputKey<TOutputs>[],
+    const TTaskId extends string,
+  >(
+    definition: TanStackChatTaskDefinition<
+      TOutput,
+      TAdapter,
+      TOutputs,
+      TDependencies,
+      TTaskId
+    > &
+      DuplicateTaskIdConstraint<TOutputs, TTaskId>,
+  ): Pipeline<MergeTaskOutputs<TOutputs, TTaskId, TOutput>> {
+    return this.addTaskInternal(tanstackChatTask(definition));
   }
 
   /** Runs the pipeline and returns trace plus typed outputs and task results. */

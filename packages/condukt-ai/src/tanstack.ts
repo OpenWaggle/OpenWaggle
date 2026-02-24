@@ -53,10 +53,10 @@ export interface TanStackChatTaskDefinition<
  */
 export function tanstackChatTask<
   TOutput,
-  TAdapter extends AnyTextAdapter,
-  TOutputs extends TaskOutputMap,
-  TDependencies extends readonly TaskOutputKey<TOutputs>[],
-  const TTaskId extends string,
+  TAdapter extends AnyTextAdapter = AnyTextAdapter,
+  TOutputs extends TaskOutputMap = TaskOutputMap,
+  TDependencies extends readonly TaskOutputKey<TOutputs>[] = readonly [],
+  const TTaskId extends string = string,
 >(
   definition: TanStackChatTaskDefinition<TOutput, TAdapter, TOutputs, TDependencies, TTaskId>,
 ): TaskDefinition<TOutput, TOutputs, TDependencies, TTaskId> {

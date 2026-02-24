@@ -2,7 +2,7 @@ import type { AnyTextAdapter } from "@tanstack/ai";
 import { beforeEach, expect, test, vi } from "vitest";
 import { z } from "zod";
 
-import { ERROR_CODE_TASK_EXECUTION_FAILURE, Pipeline, tanstackChatTask } from "../src/index.js";
+import { ERROR_CODE_TASK_EXECUTION_FAILURE, Pipeline } from "../src/index.js";
 
 const hoisted = vi.hoisted(() => ({
   chatMock: vi.fn<typeof import("@tanstack/ai")["chat"]>(),
@@ -38,26 +38,24 @@ test("runs a tanstack task and validates output through pipeline contracts", asy
         data: { topic: "typed handoffs" },
       }),
     })
-    .addTask(
-      tanstackChatTask({
-        id: "analyze",
-        after: ["seed"] as const,
-        adapter: fakeAdapter,
-        output: z.object({
-          summary: z.string(),
-          score: z.number(),
-        }),
-        system: "Respond with strict JSON only.",
-        options: ({ dependencyOutputs }) => ({
-          temperature: 0.1,
-          metadata: {
-            topic: dependencyOutputs.seed.topic,
-          },
-        }),
-        prompt: ({ dependencyOutputs }) =>
-          `Analyze this topic and return JSON: ${dependencyOutputs.seed.topic}`,
+    .addTanStackChatTask({
+      id: "analyze",
+      after: ["seed"] as const,
+      adapter: fakeAdapter,
+      output: z.object({
+        summary: z.string(),
+        score: z.number(),
       }),
-    );
+      system: "Respond with strict JSON only.",
+      options: ({ dependencyOutputs }) => ({
+        temperature: 0.1,
+        metadata: {
+          topic: dependencyOutputs.seed.topic,
+        },
+      }),
+      prompt: ({ dependencyOutputs }) =>
+        `Analyze this topic and return JSON: ${dependencyOutputs.seed.topic}`,
+    });
 
   const result = await pipeline.runDetailed();
 
@@ -87,14 +85,12 @@ test("runs a tanstack task and validates output through pipeline contracts", asy
 test("returns execution failure when tanstack text output is not valid JSON", async () => {
   hoisted.chatMock.mockResolvedValueOnce("not-json");
 
-  const pipeline = new Pipeline("tanstack-invalid-json").addTask(
-    tanstackChatTask({
-      id: "broken",
-      adapter: fakeAdapter,
-      output: z.object({ ok: z.boolean() }),
-      prompt: () => "return malformed content",
-    }),
-  );
+  const pipeline = new Pipeline("tanstack-invalid-json").addTanStackChatTask({
+    id: "broken",
+    adapter: fakeAdapter,
+    output: z.object({ ok: z.boolean() }),
+    prompt: () => "return malformed content",
+  });
 
   const trace = await pipeline.run();
 

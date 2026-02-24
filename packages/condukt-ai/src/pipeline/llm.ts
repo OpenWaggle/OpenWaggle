@@ -55,12 +55,12 @@ export type LLMTaskDefinition<
  */
 export function llmTask<
   TOutput,
-  TModel extends string,
-  TSettingsByModel extends Record<TModel, object>,
-  TSelectedModel extends TModel,
-  TOutputs extends TaskOutputMap,
-  TDependencies extends readonly TaskOutputKey<TOutputs>[],
-  TTaskId extends string,
+  TModel extends string = string,
+  TSettingsByModel extends Record<TModel, object> = Record<TModel, Record<string, never>>,
+  TSelectedModel extends TModel = TModel,
+  TOutputs extends TaskOutputMap = TaskOutputMap,
+  TDependencies extends readonly TaskOutputKey<TOutputs>[] = readonly [],
+  TTaskId extends string = string,
 >(
   definition: LLMTaskDefinition<
     TOutput,
