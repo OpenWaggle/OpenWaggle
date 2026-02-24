@@ -8,22 +8,25 @@ import { defineOpenHiveTool } from '../define-tool'
 
 const logger = createLogger('tools:command')
 
-const DANGEROUS_PATTERNS = [
-  /rm\s+-rf\s+\//,
-  /rm\s+-rf\s+~/,
-  /rm\s+-rf\s+\$HOME/,
-  /curl\s.*\|\s*bash/,
-  /wget\s.*\|\s*sh/,
-  /chmod\s+777/,
-  />\s*\/dev\/sda/,
-  /dd\s+if=/,
-  /:\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:/,
+const DANGEROUS_PATTERNS: Array<{ pattern: RegExp; description: string }> = [
+  { pattern: /rm\s+-rf\s+\//, description: 'recursive delete from root (/)' },
+  { pattern: /rm\s+-rf\s+~/, description: 'recursive delete from home (~)' },
+  { pattern: /rm\s+-rf\s+\$HOME/, description: 'recursive delete from $HOME' },
+  { pattern: /curl\s.*\|\s*bash/, description: 'piping remote script to bash' },
+  { pattern: /wget\s.*\|\s*sh/, description: 'piping remote script to sh' },
+  { pattern: /chmod\s+777/, description: 'setting world-writable permissions' },
+  { pattern: />\s*\/dev\/sda/, description: 'writing directly to disk device' },
+  { pattern: /dd\s+if=/, description: 'raw disk copy (dd)' },
+  {
+    pattern: /:\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:/,
+    description: 'fork bomb',
+  },
 ]
 
-function isDangerousCommand(command: string): string | null {
-  for (const pattern of DANGEROUS_PATTERNS) {
+export function isDangerousCommand(command: string): string | null {
+  for (const { pattern, description } of DANGEROUS_PATTERNS) {
     if (pattern.test(command)) {
-      return `Command blocked: matches dangerous pattern ${pattern.source}`
+      return `Command blocked for safety: ${description}. Rephrase the command to avoid this pattern.`
     }
   }
   return null
