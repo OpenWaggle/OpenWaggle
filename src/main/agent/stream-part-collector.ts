@@ -7,12 +7,13 @@ import type { AgentToolCallEndEvent, AgentToolCallStartEvent } from './runtime-t
 
 const logger = createLogger('stream')
 
-const recordSchema = z.record(z.string(), z.unknown())
+const toolArgsSchema = z.record(z.string(), z.unknown())
 
-function hasNonEmptyString(obj: z.infer<typeof recordSchema>, key: string): boolean {
-  const val = obj[key]
-  return typeof val === 'string' && val.length > 0
-}
+const errorResultSchema = z.union([
+  z.object({ ok: z.literal(false), error: z.string().min(1) }),
+  z.object({ ok: z.literal(false), message: z.string().min(1) }),
+  z.object({ error: z.string().min(1) }),
+])
 
 export interface StreamPartCollectorChunkResult {
   readonly toolCallStart?: AgentToolCallStartEvent
@@ -35,16 +36,7 @@ export function detectToolResultError(result: unknown): boolean {
     }
   }
 
-  const parsed = recordSchema.safeParse(result)
-  if (!parsed.success) return false
-
-  const record = parsed.data
-  // Require `ok === false` to also have an `error` or `message` field to prevent
-  // false positives on arbitrary objects that happen to contain `{ ok: false }`.
-  if (record.ok === false) {
-    return hasNonEmptyString(record, 'error') || hasNonEmptyString(record, 'message')
-  }
-  return hasNonEmptyString(record, 'error')
+  return errorResultSchema.safeParse(result).success
 }
 
 export class StreamPartCollector {
@@ -215,7 +207,7 @@ export class StreamPartCollector {
     const rawArgs = this.toolCallArgs[toolCallId] ?? '{}'
 
     try {
-      const parsed = recordSchema.parse(JSON.parse(rawArgs))
+      const parsed = toolArgsSchema.parse(JSON.parse(rawArgs))
       return parsed
     } catch (parseError) {
       logger.warn(`Failed to parse tool call args for "${toolName}"`, {
