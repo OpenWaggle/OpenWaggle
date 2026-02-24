@@ -20,8 +20,14 @@ export const editFileTool = defineOpenHiveTool({
 
     const occurrences = content.split(args.oldString).length - 1
     if (occurrences === 0) {
+      const lineCount = content.split('\n').length
+      const preview =
+        args.oldString.length > 100 ? `${args.oldString.slice(0, 100)}...` : args.oldString
       throw new Error(
-        `String not found in ${args.path}. The old string must match exactly including whitespace and line breaks. Read the file first to verify the exact content.`,
+        `String not found in ${args.path} (${lineCount} lines). ` +
+          `Searched for: "${preview}". ` +
+          `The old string must match exactly including whitespace and line breaks. ` +
+          `Read the file first to verify the exact content.`,
       )
     }
     if (occurrences > 1) {
