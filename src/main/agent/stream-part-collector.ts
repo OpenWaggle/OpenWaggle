@@ -6,6 +6,11 @@ import type { AgentToolCallEndEvent, AgentToolCallStartEvent } from './runtime-t
 
 const logger = createLogger('stream')
 
+function hasNonEmptyString(obj: Record<string, unknown>, key: string): boolean {
+  const val = obj[key]
+  return typeof val === 'string' && val.length > 0
+}
+
 export interface StreamPartCollectorChunkResult {
   readonly toolCallStart?: AgentToolCallStartEvent
   readonly toolCallEnd?: AgentToolCallEndEvent
@@ -20,7 +25,7 @@ export interface StreamPartCollectorStats {
 export function detectToolResultError(result: unknown): boolean {
   if (typeof result === 'string') {
     try {
-      const parsed = JSON.parse(result) as unknown
+      const parsed: unknown = JSON.parse(result)
       return detectToolResultError(parsed)
     } catch {
       return false
@@ -29,16 +34,13 @@ export function detectToolResultError(result: unknown): boolean {
 
   if (typeof result !== 'object' || result === null) return false
 
-  const maybeRecord = result as { error?: unknown; ok?: unknown; message?: unknown }
+  const record = Object.fromEntries(Object.entries(result))
   // Require `ok === false` to also have an `error` or `message` field to prevent
   // false positives on arbitrary objects that happen to contain `{ ok: false }`.
-  if (maybeRecord.ok === false) {
-    return (
-      (typeof maybeRecord.error === 'string' && maybeRecord.error.length > 0) ||
-      (typeof maybeRecord.message === 'string' && maybeRecord.message.length > 0)
-    )
+  if (record.ok === false) {
+    return hasNonEmptyString(record, 'error') || hasNonEmptyString(record, 'message')
   }
-  return typeof maybeRecord.error === 'string' && maybeRecord.error.length > 0
+  return hasNonEmptyString(record, 'error')
 }
 
 export class StreamPartCollector {
@@ -56,6 +58,7 @@ export class StreamPartCollector {
   handleChunk(chunk: StreamChunk): StreamPartCollectorChunkResult {
     switch (chunk.type) {
       case 'TEXT_MESSAGE_CONTENT':
+        this.flushThinkingPart()
         this.currentText += chunk.delta
         return {}
 
@@ -208,7 +211,11 @@ export class StreamPartCollector {
     const rawArgs = this.toolCallArgs[toolCallId] ?? '{}'
 
     try {
-      return JSON.parse(rawArgs) as Record<string, unknown>
+      const parsed: unknown = JSON.parse(rawArgs)
+      if (typeof parsed === 'object' && parsed !== null) {
+        return parsed as Record<string, unknown>
+      }
+      return {}
     } catch (parseError) {
       logger.warn(`Failed to parse tool call args for "${toolName}"`, {
         error: parseError instanceof Error ? parseError.message : String(parseError),

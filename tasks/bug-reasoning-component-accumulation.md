@@ -1,7 +1,7 @@
 # Bug: Reasoning chunks accumulate into a single component
 
 ## Status
-Open
+Resolved
 
 ## Severity
 P1 — UX regression in orchestration streaming
@@ -32,6 +32,14 @@ Key files to investigate:
 - `src/main/orchestration/service.ts` — how thinking chunks are emitted during orchestration streaming
 - `src/main/agent/message-mapper.ts` — how thinking chunks map to message parts
 - `src/renderer/src/components/chat/` — how reasoning components are rendered from message parts
+
+## Root Cause
+
+`StreamPartCollector.handleChunk()` in `src/main/agent/stream-part-collector.ts:67-69` — the `STEP_FINISHED` case accumulated thinking text into `this.currentThinking` via `+=` but never flushed it as a separate part. All thinking deltas between `STEP_STARTED` events concatenated into one buffer, producing a single `thinking` part on finalization instead of one per reasoning step.
+
+## Fix
+
+Added `this.flushThinkingPart()` after the delta accumulation in the `STEP_FINISHED` case. Each finished step now immediately becomes its own `thinking` part in `collectedParts[]`, so the renderer receives multiple discrete `ThinkingBlock` components.
 
 ## Impact
 
