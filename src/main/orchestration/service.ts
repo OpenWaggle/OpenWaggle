@@ -350,7 +350,10 @@ export async function runOrchestratedAgent(
       const failedTask = orchestrationResult.run?.taskOrder
         .map((tid) => orchestrationResult.run?.tasks[String(tid)])
         .find((task) => task?.status === 'failed')
-      const failureMessage = failedTask?.error ?? 'orchestration run failed'
+      const failedTitle = failedTask ? taskTitles.get(String(failedTask.id)) : undefined
+      const failureMessage = failedTitle
+        ? `Task "${failedTitle}" failed: ${failedTask?.error ?? 'unknown error'}`
+        : (failedTask?.error ?? 'orchestration run failed')
       appendText(`\n⚠ ${failureMessage}\n`)
       emitChunk({ type: 'TEXT_MESSAGE_END', timestamp: Date.now(), messageId: ackMessageId })
       emitChunk({ type: 'RUN_FINISHED', timestamp: Date.now(), runId, finishReason: 'stop' })
@@ -550,16 +553,12 @@ async function modelJson(
     return extractJson(trimmed)
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err)
-    logger.warn(
-      'modelJson extraction failure — planner output could not be parsed as JSON, returning empty task list',
-      {
-        reason,
-        rawLength: text.length,
-        rawStart: text.slice(0, 300),
-        rawEnd: text.slice(-100),
-      },
-    )
-    return { tasks: [] }
+    logger.warn('modelJson extraction failure', {
+      reason,
+      rawLength: text.length,
+      rawStart: text.slice(0, 300),
+    })
+    throw new Error(`Planner output could not be parsed as JSON: ${reason}`)
   }
 }
 

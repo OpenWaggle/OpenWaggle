@@ -764,4 +764,87 @@ describe('runOrchestratedAgent', () => {
       .map((c) => (c[0] as { delta: string }).delta)
     expect(contentChunks.join('')).toContain('---')
   })
+
+  it('falls back with visible message when planner JSON extraction fails', async () => {
+    // Simulate planner returning garbage text that can't be parsed as JSON
+    chatMock.mockImplementation(() => createStreamChunks('This is not JSON at all'))
+    extractJsonMock.mockImplementation(() => {
+      throw new Error('No JSON found in text')
+    })
+
+    const emitChunk = vi.fn()
+
+    const result = await runOrchestratedAgent({
+      runId: 'run-1',
+      conversationId: ConversationId('conversation-1'),
+      conversation: createConversation(),
+      payload: { text: 'Help me', qualityPreset: 'medium', attachments: [] },
+      model: 'gpt-4.1-mini',
+      settings: createSettings(),
+      signal: new AbortController().signal,
+      emitEvent: vi.fn(),
+      emitChunk,
+    })
+
+    // Should fall back (not silently proceed with empty tasks)
+    expect(result.status).toBe('fallback')
+    expect(result.reason).toContain('Planner output could not be parsed as JSON')
+    // The fallback message should be streamed to the user
+    const contentChunks = emitChunk.mock.calls
+      .filter((c) => (c[0] as { type: string }).type === 'TEXT_MESSAGE_CONTENT')
+      .map((c) => (c[0] as { delta: string }).delta)
+    const fullText = contentChunks.join('')
+    expect(fullText).toContain('Orchestration encountered an issue')
+    expect(fullText).toContain('Falling back to direct execution')
+  })
+
+  it('includes task title in failure message', async () => {
+    const planTasks = {
+      tasks: [
+        { id: 'task-1', kind: 'general', title: 'Analyze config', prompt: 'Read config files' },
+      ],
+    }
+    chatMock.mockImplementation(() => createStreamChunks(JSON.stringify(planTasks)))
+    extractJsonMock.mockReturnValue(planTasks)
+    runOpenHiveOrchestrationMock.mockResolvedValue({
+      runId: 'run-1',
+      usedFallback: false,
+      text: '',
+      runStatus: 'failed',
+      run: {
+        taskOrder: ['task-1'],
+        tasks: {
+          'task-1': {
+            id: 'task-1',
+            status: 'failed',
+            error: 'API timeout',
+          },
+        },
+      },
+    })
+
+    const emitChunk = vi.fn()
+
+    const result = await runOrchestratedAgent({
+      runId: 'run-1',
+      conversationId: ConversationId('conversation-1'),
+      conversation: createConversation(),
+      payload: { text: 'Analyze my config', qualityPreset: 'medium', attachments: [] },
+      model: 'gpt-4.1-mini',
+      settings: createSettings(),
+      signal: new AbortController().signal,
+      emitEvent: vi.fn(),
+      emitChunk,
+    })
+
+    expect(result.status).toBe('failed')
+    // The failure message should include the task title
+    expect(result.reason).toContain('Analyze config')
+    expect(result.reason).toContain('API timeout')
+    // Also streamed to the user
+    const contentChunks = emitChunk.mock.calls
+      .filter((c) => (c[0] as { type: string }).type === 'TEXT_MESSAGE_CONTENT')
+      .map((c) => (c[0] as { delta: string }).delta)
+    expect(contentChunks.join('')).toContain('Analyze config')
+  })
 })
