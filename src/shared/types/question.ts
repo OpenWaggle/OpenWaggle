@@ -28,3 +28,21 @@ export interface QuestionAnswer {
   question: string
   selectedOption: string
 }
+
+const questionAnswerSchema = z.object({
+  question: z.string(),
+  selectedOption: z.string(),
+})
+
+/**
+ * Schema for parsing the `result.content` of an askUser tool result.
+ * Handles both the `{ kind: 'json', data: { answers } }` envelope
+ * and the direct `{ answers }` shape.
+ */
+export const askUserResultContentSchema = z.union([
+  z.object({
+    kind: z.literal('json'),
+    data: z.object({ answers: z.array(questionAnswerSchema) }),
+  }),
+  z.object({ answers: z.array(questionAnswerSchema) }),
+])

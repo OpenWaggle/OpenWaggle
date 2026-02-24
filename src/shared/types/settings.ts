@@ -1,3 +1,5 @@
+import { includes } from '@shared/utils/validation'
+
 export const PROVIDERS = ['anthropic', 'openai', 'gemini', 'grok', 'openrouter', 'ollama'] as const
 export type Provider = (typeof PROVIDERS)[number]
 export const EXECUTION_MODES = ['sandbox', 'full-access'] as const
@@ -53,7 +55,7 @@ export const DEFAULT_SETTINGS: Settings = {
   encryptionAvailable: true,
 }
 
-/** Type guard for Provider — uses widened array check to avoid cast */
+/** Type guard for Provider — uses includes() type predicate to avoid cast */
 export function isProvider(value: string): value is Provider {
-  return (PROVIDERS as readonly string[]).includes(value)
+  return includes(PROVIDERS, value)
 }

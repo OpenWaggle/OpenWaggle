@@ -1,14 +1,17 @@
 import type { ConversationId, OrchestrationRunId, OrchestrationTaskId } from './brand'
 
-export type OrchestrationTaskStatus =
-  | 'queued'
-  | 'running'
-  | 'retrying'
-  | 'completed'
-  | 'failed'
-  | 'cancelled'
+export const ORCHESTRATION_TASK_STATUSES = [
+  'queued',
+  'running',
+  'retrying',
+  'completed',
+  'failed',
+  'cancelled',
+] as const
+export type OrchestrationTaskStatus = (typeof ORCHESTRATION_TASK_STATUSES)[number]
 
-export type OrchestrationRunStatus = 'running' | 'completed' | 'failed' | 'cancelled'
+export const ORCHESTRATION_RUN_STATUSES = ['running', 'completed', 'failed', 'cancelled'] as const
+export type OrchestrationRunStatus = (typeof ORCHESTRATION_RUN_STATUSES)[number]
 
 export interface OrchestrationTaskAttempt {
   readonly attempt: number

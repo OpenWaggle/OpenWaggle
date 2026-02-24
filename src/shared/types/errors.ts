@@ -72,6 +72,11 @@ export const ERROR_CODE_META: Record<AgentErrorCode, ErrorCodeMeta> = {
   },
 }
 
+/** Type guard for validating a string is a known AgentErrorCode. */
+export function isAgentErrorCode(code: string): code is AgentErrorCode {
+  return code in ERROR_CODE_META
+}
+
 /**
  * Build an `AgentErrorInfo` from a known error code and raw message.
  */
