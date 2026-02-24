@@ -13,9 +13,11 @@ import { registerOrchestrationHandlers } from './ipc/orchestration-handler'
 import { registerProjectHandlers } from './ipc/project-handler'
 import { registerProvidersHandlers } from './ipc/providers-handler'
 import { registerSettingsHandlers } from './ipc/settings-handler'
+import { registerShellHandlers } from './ipc/shell-handler'
 import { registerSkillsHandlers } from './ipc/skills-handler'
 import { cleanupTerminals, registerTerminalHandlers } from './ipc/terminal-handler'
 import { registerVoiceHandlers } from './ipc/voice-handler'
+import { initFileLogger } from './logger'
 import { registerAllProviders } from './providers'
 
 if (env.OPENHIVE_USER_DATA_DIR) {
@@ -127,6 +129,10 @@ app.whenReady().then(() => {
   registerTerminalHandlers()
   registerVoiceHandlers()
   registerSkillsHandlers()
+  registerShellHandlers()
+
+  // Initialize file logger now that app paths are available
+  initFileLogger(app.getPath('logs'))
 
   // Register providers (async — individual failures are caught per-provider)
   Promise.all([registerAllProviders(), startDevtoolsEventBus()]).then(() => {
