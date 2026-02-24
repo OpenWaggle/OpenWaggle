@@ -1,4 +1,5 @@
 import type { QualityPreset } from '@shared/types/settings'
+import { includes } from '@shared/utils/validation'
 import { createOpenaiChat, OPENAI_CHAT_MODELS } from '@tanstack/ai-openai'
 import { isReasoningModel } from '../agent/quality-config'
 import type {
@@ -16,7 +17,8 @@ export const openaiProvider: ProviderDefinition = {
   models: OPENAI_CHAT_MODELS,
   testModel: 'gpt-4.1-nano',
   createAdapter(model, apiKey) {
-    return createOpenaiChat(model as (typeof OPENAI_CHAT_MODELS)[number], apiKey)
+    if (!includes(OPENAI_CHAT_MODELS, model)) throw new Error(`Unknown OpenAI model: ${model}`)
+    return createOpenaiChat(model, apiKey)
   },
   resolveSampling(
     model: string,

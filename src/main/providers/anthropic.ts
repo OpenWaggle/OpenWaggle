@@ -1,4 +1,5 @@
 import type { QualityPreset } from '@shared/types/settings'
+import { includes } from '@shared/utils/validation'
 import { ANTHROPIC_MODELS, createAnthropicChat } from '@tanstack/ai-anthropic'
 import type {
   BaseSamplingConfig,
@@ -26,7 +27,8 @@ export const anthropicProvider: ProviderDefinition = {
   models: ANTHROPIC_MODELS,
   testModel: 'claude-haiku-4-5',
   createAdapter(model, apiKey) {
-    return createAnthropicChat(model as (typeof ANTHROPIC_MODELS)[number], apiKey)
+    if (!includes(ANTHROPIC_MODELS, model)) throw new Error(`Unknown Anthropic model: ${model}`)
+    return createAnthropicChat(model, apiKey)
   },
   resolveSampling(
     model: string,

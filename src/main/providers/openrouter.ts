@@ -1,4 +1,4 @@
-import type { AnyTextAdapter } from '@tanstack/ai'
+import { includes } from '@shared/utils/validation'
 import { createOpenRouterText } from '@tanstack/ai-openrouter'
 import type { ProviderDefinition } from './provider-definition'
 
@@ -29,10 +29,8 @@ export const openrouterProvider: ProviderDefinition = {
   models: OPENROUTER_UI_MODELS,
   testModel: 'openrouter/auto',
   createAdapter(model, apiKey) {
-    // OpenRouter's type requires its internal model union,
-    // but we allow any string since OpenRouter supports all models dynamically.
-    // The intermediate unknown cast is needed because the generic type parameter
-    // of OpenRouterTextAdapter doesn't directly satisfy AnyTextAdapter.
-    return createOpenRouterText(model as 'openrouter/auto', apiKey) as unknown as AnyTextAdapter
+    if (!includes(OPENROUTER_UI_MODELS, model))
+      throw new Error(`Unknown OpenRouter model: ${model}`)
+    return createOpenRouterText(model, apiKey)
   },
 }

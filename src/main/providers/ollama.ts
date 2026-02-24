@@ -1,3 +1,4 @@
+import { ollamaTagsResponseSchema } from '@shared/schemas/validation'
 import { OLLAMA_DEFAULT_BASE_URL } from '@shared/types/settings'
 import { createOllamaChat, OllamaTextModels } from '@tanstack/ai-ollama'
 import type { ProviderDefinition } from './provider-definition'
@@ -17,8 +18,9 @@ export const ollamaProvider: ProviderDefinition = {
     try {
       const response = await fetch(`${host}/api/tags`)
       if (!response.ok) return []
-      const data = (await response.json()) as { models?: Array<{ name: string }> }
-      return data.models?.map((m) => m.name) ?? []
+      const raw: unknown = await response.json()
+      const result = ollamaTagsResponseSchema.safeParse(raw)
+      return result.success ? (result.data.models?.map((m) => m.name) ?? []) : []
     } catch {
       return []
     }

@@ -1,3 +1,4 @@
+import { includes } from '@shared/utils/validation'
 import { createGeminiChat, GeminiTextModels } from '@tanstack/ai-gemini'
 import type { ProviderDefinition } from './provider-definition'
 
@@ -10,6 +11,7 @@ export const geminiProvider: ProviderDefinition = {
   models: GeminiTextModels,
   testModel: 'gemini-2.0-flash-lite',
   createAdapter(model, apiKey) {
-    return createGeminiChat(model as (typeof GeminiTextModels)[number], apiKey)
+    if (!includes(GeminiTextModels, model)) throw new Error(`Unknown Gemini model: ${model}`)
+    return createGeminiChat(model, apiKey)
   },
 }

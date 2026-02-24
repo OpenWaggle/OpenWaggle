@@ -1,6 +1,7 @@
 import type { Provider } from '@shared/types/settings'
 import { PROVIDERS } from '@shared/types/settings'
 import { createLogger } from '../logger'
+import type { ProviderDefinition } from './provider-definition'
 import { providerRegistry } from './registry'
 
 const logger = createLogger('providers')
@@ -11,7 +12,7 @@ const logger = createLogger('providers')
  * package doesn't prevent the entire app from starting.
  */
 export async function registerAllProviders(): Promise<void> {
-  const loaders: Record<Provider, () => Promise<{ default: unknown }>> = {
+  const loaders: Record<Provider, () => Promise<{ default: ProviderDefinition }>> = {
     anthropic: () => import('./anthropic').then((m) => ({ default: m.anthropicProvider })),
     openai: () => import('./openai').then((m) => ({ default: m.openaiProvider })),
     gemini: () => import('./gemini').then((m) => ({ default: m.geminiProvider })),
@@ -25,7 +26,7 @@ export async function registerAllProviders(): Promise<void> {
   for (const id of PROVIDERS) {
     try {
       const { default: provider } = await loaders[id]()
-      providerRegistry.register(provider as import('./provider-definition').ProviderDefinition)
+      providerRegistry.register(provider)
     } catch (err) {
       logger.warn(`Failed to load provider "${id}"`, {
         error: err instanceof Error ? err.message : String(err),

@@ -1,3 +1,4 @@
+import { includes } from '@shared/utils/validation'
 import { createGrokText, GROK_CHAT_MODELS } from '@tanstack/ai-grok'
 import type { ProviderDefinition } from './provider-definition'
 
@@ -10,6 +11,7 @@ export const grokProvider: ProviderDefinition = {
   models: GROK_CHAT_MODELS,
   testModel: 'grok-3-mini-fast',
   createAdapter(model, apiKey) {
-    return createGrokText(model as (typeof GROK_CHAT_MODELS)[number], apiKey)
+    if (!includes(GROK_CHAT_MODELS, model)) throw new Error(`Unknown Grok model: ${model}`)
+    return createGrokText(model, apiKey)
   },
 }
