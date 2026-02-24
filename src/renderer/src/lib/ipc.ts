@@ -8,22 +8,22 @@ import type { OpenHiveApi } from '@shared/types/ipc'
  * Return a safe proxy so renderer stays mounted and surfaces actionable errors.
  */
 function createUnavailableApiProxy(): OpenHiveApi {
-  const fallback = new Proxy<Record<string, unknown>>(
-    {},
-    {
-      get(_target, prop) {
-        return (..._args: unknown[]) => {
-          const message = `[ipc] window.api unavailable; attempted to call "${String(prop)}". Ensure renderer is running inside Electron with preload loaded.`
-          console.error(message)
-          if (String(prop).startsWith('on')) {
-            return () => {}
-          }
-          return Promise.reject(new Error(message))
+  const handler: ProxyHandler<OpenHiveApi> = {
+    get(_target, prop) {
+      return (..._args: unknown[]) => {
+        const message = `[ipc] window.api unavailable; attempted to call "${String(prop)}". Ensure renderer is running inside Electron with preload loaded.`
+        console.error(message)
+        if (String(prop).startsWith('on')) {
+          return () => {}
         }
-      },
+        return Promise.reject(new Error(message))
+      }
     },
-  )
-  return fallback as unknown as OpenHiveApi
+  }
+  // Proxy intercepts all property access via the handler — the target is never
+  // accessed directly. Object.create(null) returns `any` which satisfies the
+  // Proxy<T> constructor; this is an inherent limitation of proxying interfaces.
+  return new Proxy<OpenHiveApi>(Object.create(null), handler)
 }
 
 export const api: OpenHiveApi = window.api ?? createUnavailableApiProxy()

@@ -1,7 +1,8 @@
 import { Check, Copy } from 'lucide-react'
-import type { ReactElement, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { cn } from '@/lib/cn'
+import { isReactElementWithProps } from '@/lib/react-element-guard'
 
 interface CodeBlockProps {
   children: ReactNode
@@ -17,9 +18,8 @@ function getTextContent(node: ReactNode): string {
   if (typeof node === 'number') return String(node)
   if (!node) return ''
   if (Array.isArray(node)) return node.map(getTextContent).join('')
-  if (typeof node === 'object' && 'props' in node) {
-    const el = node as ReactElement<{ children?: ReactNode }>
-    return getTextContent(el.props.children)
+  if (isReactElementWithProps<{ children?: ReactNode }>(node)) {
+    return getTextContent(node.props.children)
   }
   return ''
 }

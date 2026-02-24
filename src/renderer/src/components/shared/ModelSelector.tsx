@@ -1,5 +1,6 @@
 import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from '@shared/types/llm'
-import type { Provider, Settings } from '@shared/types/settings'
+import type { Settings } from '@shared/types/settings'
+import { isProvider } from '@shared/types/settings'
 import { Check } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { useClickOutside } from '@/hooks/useClickOutside'
@@ -52,7 +53,8 @@ export function ModelSelector({
   function isModelAvailable(model: ModelDisplayInfo): boolean {
     const providerInfo = providerModels.find((p) => p.provider === model.provider)
     if (providerInfo && !providerInfo.requiresApiKey) return true
-    const config = settings.providers[model.provider as Provider]
+    if (!isProvider(model.provider)) return false
+    const config = settings.providers[model.provider]
     return !!config?.apiKey
   }
 

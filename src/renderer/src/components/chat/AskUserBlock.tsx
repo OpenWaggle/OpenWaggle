@@ -1,5 +1,6 @@
 import type { ConversationId } from '@shared/types/brand'
 import type { QuestionAnswer, QuestionOption, UserQuestion } from '@shared/types/question'
+import { askUserResultContentSchema } from '@shared/types/question'
 import { Check, ChevronLeft, ChevronRight, MessageCircleQuestion } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/cn'
@@ -29,16 +30,12 @@ export function AskUserBlock({
   let historicalAnswers: QuestionAnswer[] = []
   if (result) {
     try {
-      const parsed =
-        typeof result.content === 'string'
-          ? (JSON.parse(result.content) as unknown)
-          : result.content
-      if (typeof parsed === 'object' && parsed !== null) {
-        const normalized = parsed as { kind?: string; data?: unknown }
-        const data = normalized.kind === 'json' ? normalized.data : parsed
-        if (typeof data === 'object' && data !== null && 'answers' in data) {
-          historicalAnswers = (data as { answers: QuestionAnswer[] }).answers
-        }
+      const raw: unknown =
+        typeof result.content === 'string' ? JSON.parse(result.content) : result.content
+      const validated = askUserResultContentSchema.safeParse(raw)
+      if (validated.success) {
+        historicalAnswers =
+          'data' in validated.data ? validated.data.data.answers : validated.data.answers
       }
     } catch {
       // ignore parse errors

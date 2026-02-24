@@ -72,7 +72,8 @@ function parseResultPayload(content: unknown): unknown {
 function parseUnknownJson(content: unknown): unknown {
   if (typeof content !== 'string') return content
   try {
-    return JSON.parse(content) as unknown
+    const data: unknown = JSON.parse(content)
+    return data
   } catch {
     return content
   }

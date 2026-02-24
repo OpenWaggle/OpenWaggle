@@ -73,28 +73,51 @@ interface ComposerState {
   reset: () => void
 }
 
-const INITIAL_STATE = {
+interface InitialComposerState {
+  input: string
+  cursorIndex: number
+  attachments: PreparedAttachment[]
+  attachmentError: string | null
+  qualityMenuOpen: boolean
+  executionMenuOpen: boolean
+  branchMenuOpen: boolean
+  actionDialog: ComposerActionDialogKind | null
+  actionDialogInput: string
+  actionDialogError: string | null
+  actionDialogBusy: boolean
+  branchQuery: string
+  branchMessage: string | null
+  isListening: boolean
+  isTranscribingVoice: boolean
+  voiceError: string | null
+  voiceElapsedSeconds: number
+  voiceWaveform: number[]
+  slashHighlightIndex: number
+  dismissedSlashToken: string | null
+}
+
+const INITIAL_STATE: InitialComposerState = {
   input: '',
   cursorIndex: 0,
-  attachments: [] as PreparedAttachment[],
-  attachmentError: null as string | null,
+  attachments: [],
+  attachmentError: null,
   qualityMenuOpen: false,
   executionMenuOpen: false,
   branchMenuOpen: false,
-  actionDialog: null as ComposerActionDialogKind | null,
+  actionDialog: null,
   actionDialogInput: '',
-  actionDialogError: null as string | null,
+  actionDialogError: null,
   actionDialogBusy: false,
   branchQuery: '',
-  branchMessage: null as string | null,
+  branchMessage: null,
   isListening: false,
   isTranscribingVoice: false,
-  voiceError: null as string | null,
+  voiceError: null,
   voiceElapsedSeconds: 0,
-  voiceWaveform: [] as number[],
+  voiceWaveform: [],
   slashHighlightIndex: 0,
-  dismissedSlashToken: null as string | null,
-} as const
+  dismissedSlashToken: null,
+}
 
 export const useComposerStore = create<ComposerState>((set, get) => ({
   ...INITIAL_STATE,

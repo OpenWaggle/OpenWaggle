@@ -1,10 +1,9 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import {
-  type AgentErrorCode,
   type AgentErrorInfo,
   classifyErrorMessage,
-  ERROR_CODE_META,
+  isAgentErrorCode,
   makeErrorInfo,
 } from '@shared/types/errors'
 import type { SupportedModelId } from '@shared/types/llm'
@@ -191,10 +190,10 @@ export function createIpcConnectionAdapter(
             // Intercept RUN_ERROR to capture structured error info before
             // TanStack strips it to just `message`.
             if (payload.chunk.type === 'RUN_ERROR') {
-              const error = payload.chunk.error as { message: string; code?: string }
+              const error = payload.chunk.error
               const info =
-                error.code && error.code in ERROR_CODE_META
-                  ? makeErrorInfo(error.code as AgentErrorCode, error.message)
+                error.code && isAgentErrorCode(error.code)
+                  ? makeErrorInfo(error.code, error.message)
                   : classifyErrorMessage(error.message)
               lastErrorInfoMap.set(conversationId, info)
             }
@@ -261,11 +260,12 @@ export function createIpcConnectionAdapter(
               const errMsg = err instanceof Error ? err.message : String(err)
               const info = classifyErrorMessage(errMsg)
               lastErrorInfoMap.set(conversationId, info)
-              queue.push({
+              const errorChunk: StreamChunk = {
                 type: 'RUN_ERROR',
                 timestamp: Date.now(),
                 error: { message: errMsg },
-              } as StreamChunk)
+              }
+              queue.push(errorChunk)
               done = true
               resolve?.()
             })

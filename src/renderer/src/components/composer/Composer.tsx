@@ -1,3 +1,4 @@
+import { electronFileSchema } from '@shared/schemas/validation'
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import { X } from 'lucide-react'
@@ -242,7 +243,10 @@ export function Composer({
   async function handleAttachFiles(event: React.ChangeEvent<HTMLInputElement>): Promise<void> {
     const files = Array.from(event.target.files ?? [])
     const paths = files
-      .map((file) => (file as File & { path?: string }).path)
+      .map((file) => {
+        const parsed = electronFileSchema.safeParse(file)
+        return parsed.success ? parsed.data.path : undefined
+      })
       .filter((filePath): filePath is string => typeof filePath === 'string' && filePath.length > 0)
     event.target.value = ''
 

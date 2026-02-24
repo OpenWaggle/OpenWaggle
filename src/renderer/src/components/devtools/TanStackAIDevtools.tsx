@@ -13,9 +13,9 @@ const DEFAULT_EVENT_BUS_CONFIG: DevtoolsEventBusConfig = {
 }
 const DEVTOOLS_PLUGINS = [aiDevtoolsPlugin()]
 
-function getRuntimeApi(): Partial<OpenHiveApi> | null {
+function getRuntimeApi(): OpenHiveApi | null {
   if (typeof window === 'undefined') return null
-  return (window as { api?: Partial<OpenHiveApi> }).api ?? null
+  return 'api' in window ? window.api : null
 }
 
 export function TanStackAIDevtools(): React.JSX.Element | null {

@@ -1,7 +1,8 @@
-import type { ReactElement, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
+import { isReactElementWithProps } from '@/lib/react-element-guard'
 import { CodeBlock } from './CodeBlock'
 
 interface StreamingTextProps {
@@ -14,9 +15,8 @@ interface StreamingTextProps {
  * Extract language from a <code className="language-xxx"> child inside a <pre>.
  */
 function extractLanguage(children: ReactNode): string | undefined {
-  if (!Array.isArray(children) && typeof children === 'object' && children !== null) {
-    const el = children as ReactElement<{ className?: string }>
-    const className = el.props?.className
+  if (isReactElementWithProps<{ className?: string }>(children)) {
+    const className = children.props?.className
     if (typeof className === 'string') {
       const match = /language-(\w+)/.exec(className)
       if (match) return match[1]
