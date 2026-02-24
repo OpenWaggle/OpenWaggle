@@ -39,7 +39,7 @@ This document stores project-specific technical learnings only.
 - Mid-run scoped instruction loading works safely as a read-only tool (`loadAgents`) when loaded scope files and requested paths are tracked in run-local `ToolContext` state, avoiding prompt resets and preserving prior run context. [SKILL?]
 
 ### Task: Condukt In-Repo Orchestration + OpenHive Harness Integration (2026-02-20)
-- `git subtree split --prefix=packages/core` from the Condukt source repo provides a practical way to vendor only runtime package history into `packages/condukt-ai`, keeping syncability without importing docs/web app history. [SKILL?]
+- `git subtree split --prefix=packages/core` from external repos provides a practical way to vendor only runtime package history, keeping syncability without importing docs/web app history. (condukt packages were later merged into `src/main/orchestration/engine/` — Spec 07) [SKILL?]
 - For Electron + TanStack `useChat` adapters, orchestration fallbacks must still emit terminal stream chunks (`RUN_FINISHED` / `RUN_ERROR`) and preferably text chunks, otherwise same-thread conversation reloads may not rehydrate UI state until a thread switch.
 - Keeping orchestration run persistence in a dedicated `{userData}/orchestration-runs` store decouples task-graph lifecycle from conversation JSON migrations and makes run-level IPC (`get/list/cancel`) straightforward.
 
@@ -68,7 +68,7 @@ This document stores project-specific technical learnings only.
 - IPC channels exposed to the renderer should be scoped to specific actions (e.g. `app:open-logs-dir`) rather than generic path openers (`shell:open-path`) — the renderer is an untrusted boundary.
 - Main-process utilities like the file logger should not import `electron` directly; inject dependencies (e.g. `initFileLogger(logsDir)`) at startup so the module remains testable without mocking Electron.
 - Async buffered file writes (`process.nextTick` + `fs.appendFile`) avoid blocking the event loop from synchronous `fs.writeSync` in logging; tests need a small `setTimeout` to observe flushed output.
-- When a downstream package type (e.g. condukt-ai's `OrchestrationTaskRecord`) lacks a field you need (like `title`), keep a local Map built during planning rather than casting or patching the external type.
+- When an orchestration type (e.g. `OrchestrationTaskRecord`) lacks a field you need (like `title`), keep a local Map built during planning rather than casting or patching the type.
 
 ### Task: P1 Bug + Hardening Sweep H-01–H-11 (2026-02-23)
 - Module-level caches (e.g. git status TTL cache) leak between test cases in Vitest; export an `invalidate*()` function and call it in `beforeEach` to prevent cross-test pollution.

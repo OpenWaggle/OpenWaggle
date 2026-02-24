@@ -9,9 +9,9 @@ import {
 import { ConversationId, OrchestrationRunId, OrchestrationTaskId } from '@shared/types/brand'
 import type { OrchestrationRunRecord, OrchestrationTaskRecord } from '@shared/types/orchestration'
 import { parseJsonSafe } from '@shared/utils/parse-json'
-import type { OrchestrationRunRecord as CoreRunRecord, RunStore } from 'condukt-ai'
 import { app } from 'electron'
 import { z } from 'zod'
+import type { OrchestrationRunRecord as CoreRunRecord, RunStore } from './engine'
 
 interface PersistedRunIndex {
   readonly ids: string[]

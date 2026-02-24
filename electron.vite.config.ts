@@ -29,8 +29,6 @@ export default defineConfig({
     resolve: {
       alias: {
         '@shared': resolve('src/shared'),
-        'condukt-ai': resolve('packages/condukt-ai/src/index.ts'),
-        '@openhive/condukt-openhive': resolve('packages/condukt-openhive/src/index.ts'),
       }
     }
   },

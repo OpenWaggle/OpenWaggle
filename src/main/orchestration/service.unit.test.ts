@@ -24,7 +24,7 @@ const {
   loadProjectConfigMock: vi.fn(),
 }))
 
-vi.mock('@openhive/condukt-openhive', () => ({
+vi.mock('./engine', () => ({
   runOpenHiveOrchestration: runOpenHiveOrchestrationMock,
   extractJson: extractJsonMock,
 }))

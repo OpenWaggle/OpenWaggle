@@ -22,10 +22,10 @@ pnpm build:linux      # Build Linux AppImage
 ### Testing
 
 ```bash
-pnpm test               # All tests (unit + integration + packages)
+pnpm test               # All tests (unit + integration + component)
 pnpm test:unit           # Unit tests only (*.unit.test.ts)
 pnpm test:integration    # Integration tests only (*.integration.test.ts)
-pnpm test:packages       # condukt-ai + condukt-openhive
+pnpm test:component      # Component tests (*.component.test.tsx)
 pnpm test:e2e            # Playwright E2E (requires build)
 pnpm test:coverage       # Coverage report (v8)
 ```

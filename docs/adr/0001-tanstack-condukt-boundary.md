@@ -1,6 +1,6 @@
 # ADR 0001: TanStack AI and Condukt Boundary
 
-- Status: Accepted
+- Status: Superseded — condukt packages merged into `src/main/orchestration/engine/` (Spec 07)
 - Date: 2026-02-20
 - Owners: OpenHive Core
 
