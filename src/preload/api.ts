@@ -261,6 +261,15 @@ export const api: OpenHiveApi = {
     return ipcRenderer.invoke('skills:get-preview', projectPath, skillId)
   },
 
+  // ─── Shell / App ────────────────────────────────────
+  openLogsDir(): Promise<void> {
+    return ipcRenderer.invoke('app:open-logs-dir')
+  },
+
+  getLogsPath(): Promise<string> {
+    return ipcRenderer.invoke('app:get-logs-path')
+  },
+
   // ─── Dialog ─────────────────────────────────────────
   showConfirm(message: string, detail?: string): Promise<boolean> {
     return ipcRenderer.invoke('dialog:confirm', message, detail)

@@ -189,6 +189,14 @@ export interface IpcInvokeChannelMap {
     args: [message: string, detail?: string]
     return: boolean
   }
+  'app:open-logs-dir': {
+    args: []
+    return: undefined
+  }
+  'app:get-logs-path': {
+    args: []
+    return: string
+  }
 }
 
 /**
@@ -350,6 +358,10 @@ export interface OpenHiveApi {
 
   // Dialog
   showConfirm(message: string, detail?: string): Promise<boolean>
+
+  // Shell / App
+  openLogsDir(): Promise<void>
+  getLogsPath(): Promise<string>
 
   // Orchestration
   getOrchestrationRun(runId: string): Promise<OrchestrationRunRecord | null>

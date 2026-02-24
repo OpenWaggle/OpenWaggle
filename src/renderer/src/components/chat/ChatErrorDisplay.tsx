@@ -5,11 +5,13 @@ import {
   ChevronDown,
   ChevronRight,
   Copy,
+  FolderOpen,
   RefreshCw,
   Settings,
   X,
 } from 'lucide-react'
 import { useState } from 'react'
+import { api } from '@/lib/ipc'
 import { clearLastAgentErrorInfo, getLastAgentErrorInfo } from '@/lib/ipc-connection-adapter'
 
 interface ChatErrorDisplayProps {
@@ -121,6 +123,18 @@ export function ChatErrorDisplay({
               {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
               {copied ? 'Copied' : 'Copy'}
             </button>
+            {!isAuthError && (
+              <button
+                type="button"
+                onClick={() => {
+                  api.openLogsDir().catch(() => {})
+                }}
+                className="flex items-center gap-1.5 rounded-md bg-bg-hover px-2.5 py-1 text-[13px] font-medium text-text-tertiary hover:text-text-secondary transition-colors"
+              >
+                <FolderOpen className="h-3 w-3" />
+                Open Logs
+              </button>
+            )}
             <button
               type="button"
               onClick={handleDismiss}
