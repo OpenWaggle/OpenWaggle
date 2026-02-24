@@ -1,5 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { packageJsonSchema } from '@shared/schemas/validation'
+import { parseJsonSafe } from '@shared/utils/parse-json'
 import { isPathInside } from '@shared/utils/paths'
 import type { ServerTool } from '@tanstack/ai'
 import { toolDefinition } from '@tanstack/ai'
@@ -82,23 +84,19 @@ export async function gatherProjectContext(projectPath: string | null): Promise<
 async function buildTechStack(projectPath: string): Promise<string> {
   try {
     const raw = await fs.readFile(path.join(projectPath, 'package.json'), 'utf-8')
-    const pkg = JSON.parse(raw) as Record<string, unknown>
+    const parsed = parseJsonSafe(raw, packageJsonSchema)
+    if (!parsed.success) return ''
+    const pkg = parsed.data
 
     const lines: string[] = []
 
-    const name = typeof pkg.name === 'string' ? pkg.name : null
-    const description = typeof pkg.description === 'string' ? pkg.description : null
-    if (name) {
-      lines.push(`Project: ${name}${description ? ` — ${description}` : ''}`)
+    if (pkg.name) {
+      lines.push(`Project: ${pkg.name}${pkg.description ? ` — ${pkg.description}` : ''}`)
     }
 
     const allDeps = {
-      ...(pkg.dependencies && typeof pkg.dependencies === 'object'
-        ? (pkg.dependencies as Record<string, string>)
-        : {}),
-      ...(pkg.devDependencies && typeof pkg.devDependencies === 'object'
-        ? (pkg.devDependencies as Record<string, string>)
-        : {}),
+      ...(pkg.dependencies ?? {}),
+      ...(pkg.devDependencies ?? {}),
     }
 
     const detected: string[] = []
@@ -182,7 +180,9 @@ async function buildKeyFiles(projectPath: string): Promise<string> {
   if (totalChars < KEY_FILES_BUDGET) {
     try {
       const raw = await fs.readFile(path.join(projectPath, 'package.json'), 'utf-8')
-      const pkg = JSON.parse(raw) as Record<string, unknown>
+      const pkgResult = parseJsonSafe(raw, packageJsonSchema)
+      if (!pkgResult.success) throw new Error('invalid package.json')
+      const pkg = pkgResult.data
       const summary: Record<string, unknown> = {}
       if (pkg.name) summary.name = pkg.name
       if (pkg.description) summary.description = pkg.description

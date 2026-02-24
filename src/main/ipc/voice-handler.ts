@@ -47,6 +47,10 @@ type WhisperTranscriber = (
   options?: Record<string, unknown>,
 ) => Promise<unknown>
 
+function isWhisperTranscriber(value: unknown): value is WhisperTranscriber {
+  return typeof value === 'function'
+}
+
 interface TransformersEnv {
   allowLocalModels?: boolean
   allowRemoteModels?: boolean
@@ -143,10 +147,10 @@ async function loadTranscriber(model: VoiceModel): Promise<WhisperTranscriber> {
     const transcriber = await imported.pipeline('automatic-speech-recognition', config.modelId, {
       quantized: config.quantized,
     })
-    if (typeof transcriber !== 'function') {
+    if (!isWhisperTranscriber(transcriber)) {
       throw new Error('Whisper transcriber could not be created.')
     }
-    return transcriber as WhisperTranscriber
+    return transcriber
   })().catch((error) => {
     delete transcriberPromises[model]
     throw error

@@ -2,6 +2,7 @@ import type { Dirent } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { SkillCatalogResult, SkillDiscoveryItem } from '@shared/types/standards'
+import { isEnoent } from '@shared/utils/node-error'
 import { isPathInside } from '@shared/utils/paths'
 
 interface ParsedSkillDocument {
@@ -173,7 +174,7 @@ async function resolveRealPath(targetPath: string): Promise<string> {
   try {
     return await fs.realpath(targetPath)
   } catch (error) {
-    if (isMissingError(error)) {
+    if (isEnoent(error)) {
       return path.resolve(targetPath)
     }
     throw error
@@ -274,18 +275,9 @@ async function readDirectoryEntries(dirPath: string): Promise<Dirent[] | null> {
   try {
     return await fs.readdir(dirPath, { withFileTypes: true })
   } catch (error) {
-    if (isMissingError(error)) {
+    if (isEnoent(error)) {
       return null
     }
     throw error
   }
-}
-
-function isMissingError(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as { code?: string }).code === 'ENOENT'
-  )
 }

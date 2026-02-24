@@ -3,7 +3,6 @@ import {
   ORCHESTRATION_MODES,
   PROVIDERS,
   QUALITY_PRESETS,
-  type Settings,
 } from '@shared/types/settings'
 import { chat } from '@tanstack/ai'
 import { z } from 'zod'
@@ -120,7 +119,7 @@ export function registerSettingsHandlers(): void {
       logger.warn('Invalid settings update payload', { error: result.error.message })
       return { ok: false as const, error: result.error.message }
     }
-    updateSettings(result.data as Partial<Settings>)
+    updateSettings(result.data)
     return { ok: true as const }
   })
 

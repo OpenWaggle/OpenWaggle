@@ -2,8 +2,7 @@ import type { ServerTool } from '@tanstack/ai'
 import type { AgentFeature, AgentRunContext } from '../agent/runtime-types'
 
 function toolName(tool: ServerTool): string {
-  const maybeTool = tool as ServerTool & { readonly name?: string }
-  return maybeTool.name ?? 'unknown'
+  return tool.name ?? 'unknown'
 }
 
 function assertUniqueToolNames(tools: readonly ServerTool[]): void {

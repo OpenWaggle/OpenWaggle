@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { AgentsResolutionResult, AgentsScopeItem } from '@shared/types/standards'
+import { isEnoent } from '@shared/utils/node-error'
 import { isPathInside } from '@shared/utils/paths'
 
 export async function resolveRootAgents(projectPath: string): Promise<AgentsScopeItem> {
@@ -121,7 +122,7 @@ async function resolveTargetDirectoryWithinProject(
     const stat = await fs.stat(candidateAbsolutePath)
     return stat.isDirectory() ? candidateAbsolutePath : path.dirname(candidateAbsolutePath)
   } catch (error) {
-    if (isMissingError(error)) {
+    if (isEnoent(error)) {
       return path.dirname(candidateAbsolutePath)
     }
     throw error
@@ -132,7 +133,7 @@ async function resolveCandidatePathForBoundary(targetPath: string): Promise<stri
   try {
     return await fs.realpath(targetPath)
   } catch (error) {
-    if (!isMissingError(error)) {
+    if (!isEnoent(error)) {
       throw error
     }
   }
@@ -142,7 +143,7 @@ async function resolveCandidatePathForBoundary(targetPath: string): Promise<stri
     try {
       return await fs.realpath(parent)
     } catch (error) {
-      if (!isMissingError(error)) {
+      if (!isEnoent(error)) {
         throw error
       }
       parent = path.dirname(parent)
@@ -184,7 +185,7 @@ async function readAgentsScope(projectPath: string, scopeDir: string): Promise<A
       status: 'found',
     }
   } catch (error) {
-    if (isMissingError(error)) {
+    if (isEnoent(error)) {
       return {
         filePath,
         scopeDir,
@@ -214,18 +215,9 @@ async function resolveRealPath(targetPath: string): Promise<string> {
   try {
     return await fs.realpath(targetPath)
   } catch (error) {
-    if (isMissingError(error)) {
+    if (isEnoent(error)) {
       return path.resolve(targetPath)
     }
     throw error
   }
-}
-
-function isMissingError(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as { code?: string }).code === 'ENOENT'
-  )
 }

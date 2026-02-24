@@ -5,6 +5,11 @@ import {
   type OpenHiveTaskExecutionInput,
   runOpenHiveOrchestration,
 } from '@openhive/condukt-openhive'
+import {
+  plannedTaskSchema,
+  taskToolProgressSchema,
+  unknownRecordSchema,
+} from '@shared/schemas/validation'
 import type { AgentSendPayload, Message } from '@shared/types/agent'
 import { type ConversationId, OrchestrationRunId, OrchestrationTaskId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
@@ -39,7 +44,7 @@ const directPlanResultSchema = z.object({
 
 const taskPlanResultSchema = z.object({
   ackText: z.string().optional(),
-  tasks: z.array(z.object({ id: z.string() }).passthrough()),
+  tasks: z.array(plannedTaskSchema),
 })
 
 const logger = createLogger('orchestration')
@@ -69,7 +74,10 @@ export async function runOrchestratedAgent(
   const { conversationId, conversation, payload, model, settings, signal, emitChunk, emitEvent } =
     params
   const { runId } = params
-  const fallbackState = { used: false as boolean, reason: undefined as string | undefined }
+  const fallbackState: { used: boolean; reason: string | undefined } = {
+    used: false,
+    reason: undefined,
+  }
   const runStore = orchestrationRunRepository.createRunStore(conversationId, fallbackState)
 
   const projectConfig = await loadProjectConfig(conversation.projectPath ?? '')
@@ -91,7 +99,7 @@ export async function runOrchestratedAgent(
     quality.model,
     providerConfig.apiKey ?? '',
     providerConfig.baseUrl,
-  ) as AnyTextAdapter
+  )
   const orchestrationMode =
     settings.orchestrationMode === 'orchestrated' ? 'orchestrated' : 'auto-fallback'
 
@@ -185,13 +193,12 @@ export async function runOrchestratedAgent(
     const taskStartTimes = new Map<string, number>()
     const taskFileCount = new Map<string, number>()
     const taskTokens = new Map<string, number>()
-    for (const t of planTasks) {
-      const task = t as Record<string, unknown>
-      const id = String(task.id ?? '')
-      if (task.narration && typeof task.narration === 'string') {
+    for (const task of planTasks) {
+      const id = task.id
+      if (task.narration) {
         taskNarrations.set(id, task.narration)
       }
-      taskTitles.set(id, typeof task.title === 'string' ? task.title : id)
+      taskTitles.set(id, task.title ?? id)
     }
 
     // 3. Run orchestration — stream narration + progress into the same message
@@ -287,13 +294,12 @@ export async function runOrchestratedAgent(
 
         // Stream tool activity as it happens
         if (event.type === 'task_progress' && taskId) {
-          const detail = event as Record<string, unknown>
-          const payload = (detail.payload ?? detail) as Record<string, unknown>
-          if (payload.type === 'tool_end') {
-            const line = formatToolActivity(
-              String(payload.toolName ?? ''),
-              payload.toolInput as Record<string, unknown> | undefined,
-            )
+          const progressResult = taskToolProgressSchema.safeParse(
+            'payload' in event ? event.payload : event,
+          )
+          const payload = progressResult.success ? progressResult.data : null
+          if (payload?.type === 'tool_end') {
+            const line = formatToolActivity(payload.toolName, payload.toolInput)
             if (line) {
               taskFileCount.set(taskId, (taskFileCount.get(taskId) ?? 0) + 1)
               appendText(`- ${line}\n`)
@@ -494,15 +500,17 @@ async function modelTextWithTools(
     } else if (chunk.type === 'TOOL_CALL_END') {
       // Prefer chunk.input, fall back to accumulated TOOL_CALL_ARGS
       let toolInput: Record<string, unknown> | undefined
-      if (chunk.input && typeof chunk.input === 'object') {
-        toolInput = chunk.input as Record<string, unknown>
+      const inputResult = unknownRecordSchema.safeParse(chunk.input)
+      if (inputResult.success) {
+        toolInput = inputResult.data
       } else {
         const argsStr = pendingArgs.get(chunk.toolCallId)
         if (argsStr) {
           try {
-            const parsed: unknown = JSON.parse(argsStr)
-            if (parsed && typeof parsed === 'object') {
-              toolInput = parsed as Record<string, unknown>
+            const data: unknown = JSON.parse(argsStr)
+            const argsResult = unknownRecordSchema.safeParse(data)
+            if (argsResult.success) {
+              toolInput = argsResult.data
             }
           } catch {
             /* ignore parse failures */
@@ -543,7 +551,8 @@ async function modelJson(
     logger.warn('modelJson: modelText returned empty — possible swallowed error')
   }
   try {
-    return JSON.parse(trimmed) as unknown
+    const data: unknown = JSON.parse(trimmed)
+    return data
   } catch {
     // continue to extractJson
   }
@@ -600,7 +609,7 @@ function getPlanAckText(value: unknown): string | null {
   return null
 }
 
-function getPlanTasks(value: unknown): readonly Record<string, unknown>[] {
+function getPlanTasks(value: unknown): readonly z.infer<typeof plannedTaskSchema>[] {
   const result = taskPlanResultSchema.safeParse(value)
   return result.success ? result.data.tasks : []
 }

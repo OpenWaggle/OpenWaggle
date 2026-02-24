@@ -2,21 +2,29 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import type { IPty } from 'node-pty'
 import { z } from 'zod'
 import { getSafeChildEnv } from '../env'
 import { broadcastToWindows } from '../utils/broadcast'
 import { typedHandle, typedOn } from './typed-ipc'
 
-// node-pty is a native module — dynamically require to avoid bundling issues
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pty = require('node-pty') as typeof import('node-pty')
+// node-pty is a native module loaded via dynamic import at first use
+let ptyModule: typeof import('node-pty') | undefined
+
+async function getPty(): Promise<typeof import('node-pty')> {
+  if (!ptyModule) {
+    ptyModule = await import('node-pty')
+  }
+  return ptyModule
+}
+
 const MAX_TERMINAL_COLS = 500
 const MAX_TERMINAL_ROWS = 200
 const MAX_TERMINAL_INPUT_BYTES = 16 * 1024
 
 interface PtyProcess {
   id: string
-  process: ReturnType<typeof pty.spawn>
+  process: IPty
 }
 
 const terminals = new Map<string, PtyProcess>()
@@ -44,18 +52,23 @@ function resolveTerminalCwd(projectPath: string): string {
 }
 
 export function registerTerminalHandlers(): void {
-  typedHandle('terminal:create', (_event, projectPath: string) => {
+  typedHandle('terminal:create', async (_event, projectPath: string) => {
     const cwd = resolveTerminalCwd(projectPath)
     const childEnv = getSafeChildEnv()
     const shell = os.platform() === 'win32' ? 'powershell.exe' : (childEnv.SHELL ?? '/bin/zsh')
     const id = randomUUID()
+    const pty = await getPty()
 
     const proc = pty.spawn(shell, [], {
       name: 'xterm-256color',
       cols: 80,
       rows: 24,
       cwd,
-      env: childEnv as Record<string, string>,
+      env: Object.fromEntries(
+        Object.entries(childEnv).filter(
+          (entry): entry is [string, string] => entry[1] !== undefined,
+        ),
+      ),
     })
 
     proc.onData((data: string) => {

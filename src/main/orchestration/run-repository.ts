@@ -1,8 +1,14 @@
 import fs from 'node:fs'
 import fsPromises from 'node:fs/promises'
 import path from 'node:path'
-import { type ConversationId, OrchestrationRunId, OrchestrationTaskId } from '@shared/types/brand'
+import {
+  orchestrationRunRecordSchema,
+  type orchestrationTaskRecordSchema,
+  persistedRunIndexSchema,
+} from '@shared/schemas/validation'
+import { ConversationId, OrchestrationRunId, OrchestrationTaskId } from '@shared/types/brand'
 import type { OrchestrationRunRecord, OrchestrationTaskRecord } from '@shared/types/orchestration'
+import { parseJsonSafe } from '@shared/utils/parse-json'
 import type { OrchestrationRunRecord as CoreRunRecord, RunStore } from 'condukt-ai'
 import { app } from 'electron'
 import { z } from 'zod'
@@ -91,10 +97,35 @@ function toSharedRunRecord(
   }
 }
 
+function toBrandedTaskRecord(
+  plain: z.infer<typeof orchestrationTaskRecordSchema>,
+): OrchestrationTaskRecord {
+  return {
+    ...plain,
+    id: OrchestrationTaskId(plain.id),
+    dependsOn: plain.dependsOn.map(OrchestrationTaskId),
+  }
+}
+
+function toBrandedRunRecord(
+  plain: z.infer<typeof orchestrationRunRecordSchema>,
+): OrchestrationRunRecord {
+  return {
+    ...plain,
+    runId: OrchestrationRunId(plain.runId),
+    conversationId: ConversationId(plain.conversationId),
+    taskOrder: plain.taskOrder.map(OrchestrationTaskId),
+    tasks: Object.fromEntries(
+      Object.entries(plain.tasks).map(([key, task]) => [key, toBrandedTaskRecord(task)]),
+    ),
+  }
+}
+
 async function readRun(runId: string): Promise<OrchestrationRunRecord | null> {
   try {
     const raw = await fsPromises.readFile(runPath(runId), 'utf-8')
-    return JSON.parse(raw) as OrchestrationRunRecord
+    const result = parseJsonSafe(raw, orchestrationRunRecordSchema)
+    return result.success ? toBrandedRunRecord(result.data) : null
   } catch {
     return null
   }
@@ -103,8 +134,8 @@ async function readRun(runId: string): Promise<OrchestrationRunRecord | null> {
 async function readIndex(): Promise<PersistedRunIndex> {
   try {
     const raw = await fsPromises.readFile(indexPath(), 'utf-8')
-    const parsed = JSON.parse(raw) as PersistedRunIndex
-    return Array.isArray(parsed.ids) ? parsed : { ids: [] }
+    const result = parseJsonSafe(raw, persistedRunIndexSchema)
+    return result.success ? result.data : { ids: [] }
   } catch {
     return { ids: [] }
   }

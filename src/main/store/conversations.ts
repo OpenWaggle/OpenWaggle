@@ -7,6 +7,7 @@ import { ConversationId, MessageId, ToolCallId } from '@shared/types/brand'
 import type { Conversation, ConversationSummary } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
 import { DEFAULT_ANTHROPIC_MODEL, DEFAULT_OPENAI_MODEL } from '@shared/types/settings'
+import { isEnoent } from '@shared/utils/node-error'
 import { app } from 'electron'
 import { z } from 'zod'
 import { createLogger } from '../logger'
@@ -255,7 +256,7 @@ export async function getConversation(id: ConversationId): Promise<Conversation 
     const raw = await fsPromises.readFile(filePath, 'utf-8')
     return parseConversation(raw)
   } catch (err) {
-    if (!(err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT')) {
+    if (!isEnoent(err)) {
       logger.warn(`Failed to load conversation "${id}"`, {
         error: err instanceof Error ? err.message : String(err),
       })

@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { unknownRecordSchema } from '@shared/schemas/validation'
 import {
   DEFAULT_SETTINGS,
   EXECUTION_MODES,
@@ -12,7 +13,7 @@ import {
   type QualityPreset,
   type Settings,
 } from '@shared/types/settings'
-import { isValidBaseUrl } from '@shared/utils/validation'
+import { includes, isValidBaseUrl } from '@shared/utils/validation'
 import { safeStorage } from 'electron'
 import Store from 'electron-store'
 import { z } from 'zod'
@@ -44,14 +45,16 @@ const providerConfigSchema = z.object({
 })
 
 export function getSettings(): Settings {
-  const storedProviders = store.get('providers', {}) as Record<string, unknown>
+  const rawProviders: unknown = store.get('providers', {})
+  const storedProviders = unknownRecordSchema.safeParse(rawProviders)
+  const validProviders = storedProviders.success ? storedProviders.data : {}
   const providers: Partial<Record<Provider, ProviderConfig>> = {}
 
   for (const id of PROVIDERS) {
     const defaults = DEFAULT_SETTINGS.providers[id]
     if (!defaults) continue
 
-    const raw = storedProviders[id]
+    const raw = validProviders[id]
     const parsed = providerConfigSchema.safeParse(raw)
 
     if (parsed.success) {
@@ -113,7 +116,9 @@ export function updateSettings(partial: Partial<Settings>): void {
         apiKey: encryptApiKey(config.apiKey),
       }
     }
-    const existingProviders = store.get('providers', {}) as Record<string, unknown>
+    const rawExisting: unknown = store.get('providers', {})
+    const parsedExisting = unknownRecordSchema.safeParse(rawExisting)
+    const existingProviders = parsedExisting.success ? parsedExisting.data : {}
     store.set('providers', { ...existingProviders, ...encryptedProviders })
   }
   if (partial.defaultModel !== undefined) {
@@ -123,21 +128,21 @@ export function updateSettings(partial: Partial<Settings>): void {
     store.set('projectPath', partial.projectPath)
   }
   if (partial.executionMode !== undefined) {
-    if ((EXECUTION_MODES as readonly string[]).includes(partial.executionMode)) {
+    if (includes(EXECUTION_MODES, partial.executionMode)) {
       store.set('executionMode', partial.executionMode)
     } else {
       logger.warn('Skipping invalid executionMode', { value: partial.executionMode })
     }
   }
   if (partial.orchestrationMode !== undefined) {
-    if ((ORCHESTRATION_MODES as readonly string[]).includes(partial.orchestrationMode)) {
+    if (includes(ORCHESTRATION_MODES, partial.orchestrationMode)) {
       store.set('orchestrationMode', partial.orchestrationMode)
     } else {
       logger.warn('Skipping invalid orchestrationMode', { value: partial.orchestrationMode })
     }
   }
   if (partial.qualityPreset !== undefined) {
-    if ((QUALITY_PRESETS as readonly string[]).includes(partial.qualityPreset)) {
+    if (includes(QUALITY_PRESETS, partial.qualityPreset)) {
       store.set('qualityPreset', partial.qualityPreset)
     } else {
       logger.warn('Skipping invalid qualityPreset', { value: partial.qualityPreset })
@@ -164,9 +169,9 @@ function resolveExecutionMode(): ExecutionMode {
   const persistedExecutionMode = persisted?.executionMode
   if (
     typeof persistedExecutionMode === 'string' &&
-    (EXECUTION_MODES as readonly string[]).includes(persistedExecutionMode)
+    includes(EXECUTION_MODES, persistedExecutionMode)
   ) {
-    return persistedExecutionMode as ExecutionMode
+    return persistedExecutionMode
   }
 
   // Keep existing profiles on the legacy default while new installs use sandbox.
@@ -254,7 +259,8 @@ function readPersistedSettings(): Record<string, unknown> | null {
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       return null
     }
-    return parsed as Record<string, unknown>
+    const result = unknownRecordSchema.safeParse(parsed)
+    return result.success ? result.data : null
   } catch {
     return null
   }

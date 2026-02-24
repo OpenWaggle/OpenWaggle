@@ -1,6 +1,9 @@
 import { statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { projectConfigSchema, type qualityTierSchema } from '@shared/schemas/validation'
+import { isEnoent } from '@shared/utils/node-error'
+import type { z } from 'zod'
 import { createLogger } from '../logger'
 import type { BaseSamplingConfig } from '../providers/provider-definition'
 
@@ -37,13 +40,14 @@ export async function loadProjectConfig(projectPath: string): Promise<ProjectCon
 
     const raw = await readFile(filePath, 'utf-8')
     const { parse } = await import('smol-toml')
-    const parsed = parse(raw) as Record<string, unknown>
-    const config = parseProjectConfig(parsed)
+    const tomlData: unknown = parse(raw)
+    const validated = projectConfigSchema.safeParse(tomlData)
+    const config = validated.success ? parseProjectConfig(validated.data) : EMPTY_CONFIG
 
     configCache.set(filePath, { config, mtime: stat.mtimeMs })
     return config
   } catch (error) {
-    if (isFileNotFoundError(error)) {
+    if (isEnoent(error)) {
       configCache.delete(filePath)
       return EMPTY_CONFIG
     }
@@ -54,17 +58,16 @@ export async function loadProjectConfig(projectPath: string): Promise<ProjectCon
   }
 }
 
-function parseProjectConfig(parsed: Record<string, unknown>): ProjectConfig {
+function parseProjectConfig(parsed: z.infer<typeof projectConfigSchema>): ProjectConfig {
   const quality = parsed.quality
-  if (!quality || typeof quality !== 'object') {
+  if (!quality) {
     return EMPTY_CONFIG
   }
 
-  const qualityObj = quality as Record<string, unknown>
   const overrides: ProjectQualityOverrides = {
-    low: parseTierOverride(qualityObj.low),
-    medium: parseTierOverride(qualityObj.medium),
-    high: parseTierOverride(qualityObj.high),
+    low: parseTierOverride(quality.low),
+    medium: parseTierOverride(quality.medium),
+    high: parseTierOverride(quality.high),
   }
 
   return { quality: overrides }
@@ -78,30 +81,25 @@ function clampOptional(value: number, min: number, max: number, name: string): n
   return undefined
 }
 
-function parseTierOverride(tier: unknown): Partial<BaseSamplingConfig> | undefined {
-  if (!tier || typeof tier !== 'object') return undefined
+function parseTierOverride(
+  tier: z.infer<typeof qualityTierSchema> | undefined,
+): Partial<BaseSamplingConfig> | undefined {
+  if (!tier) return undefined
 
-  const obj = tier as Record<string, unknown>
   const out: { temperature?: number; topP?: number; maxTokens?: number } = {}
 
-  if (typeof obj.temperature === 'number') {
-    const v = clampOptional(obj.temperature, 0, 2, 'temperature')
+  if (typeof tier.temperature === 'number') {
+    const v = clampOptional(tier.temperature, 0, 2, 'temperature')
     if (v !== undefined) out.temperature = v
   }
-  if (typeof obj.top_p === 'number') {
-    const v = clampOptional(obj.top_p, 0, 1, 'top_p')
+  if (typeof tier.top_p === 'number') {
+    const v = clampOptional(tier.top_p, 0, 1, 'top_p')
     if (v !== undefined) out.topP = v
   }
-  if (typeof obj.max_tokens === 'number') {
-    const v = clampOptional(obj.max_tokens, 1, 1_000_000, 'max_tokens')
+  if (typeof tier.max_tokens === 'number') {
+    const v = clampOptional(tier.max_tokens, 1, 1_000_000, 'max_tokens')
     if (v !== undefined) out.maxTokens = v
   }
 
   return Object.keys(out).length > 0 ? out : undefined
-}
-
-function isFileNotFoundError(error: unknown): boolean {
-  return (
-    error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code === 'ENOENT'
-  )
 }

@@ -66,12 +66,14 @@ describe('registerTerminalHandlers', () => {
     })
   })
 
-  it('rejects non-absolute project paths for terminal creation', () => {
+  it('rejects non-absolute project paths for terminal creation', async () => {
     registerTerminalHandlers()
     const createHandler = getInvokeHandler('terminal:create')
     expect(createHandler).toBeDefined()
 
-    expect(() => createHandler?.({}, 'relative/path')).toThrow('Project path must be absolute.')
+    await expect(createHandler?.({}, 'relative/path')).rejects.toThrow(
+      'Project path must be absolute.',
+    )
     expect(spawnMock).not.toHaveBeenCalled()
   })
 

@@ -73,10 +73,7 @@ export function defineOpenHiveTool<T extends z.ZodType, TName extends string>(co
   return def.server(async (args: unknown) => {
     const parsed: z.infer<T> = config.inputSchema.parse(args)
     const ctx = getToolContext()
-    const argKeys =
-      typeof parsed === 'object' && parsed !== null
-        ? Object.keys(parsed as Record<string, unknown>)
-        : []
+    const argKeys = typeof parsed === 'object' && parsed !== null ? Object.keys(parsed) : []
     logger.info('tool:start', { tool: config.name, argKeys })
     const startTime = Date.now()
 
@@ -115,7 +112,8 @@ export function defineOpenHiveTool<T extends z.ZodType, TName extends string>(co
 
 function normalizeToolResult(result: string): NormalizedToolResult {
   try {
-    return { kind: 'json', data: JSON.parse(result) as unknown }
+    const data: unknown = JSON.parse(result)
+    return { kind: 'json', data }
   } catch {
     return { kind: 'text', text: result }
   }

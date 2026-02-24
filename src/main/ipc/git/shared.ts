@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process'
 import path from 'node:path'
 import { promisify } from 'node:util'
+import { unknownRecordSchema } from '@shared/schemas/validation'
 import { z } from 'zod'
 
 export const execFileAsync = promisify(execFile)
@@ -36,16 +37,24 @@ export async function runGit(
       code: 0,
     }
   } catch (err) {
-    const error = err as {
-      stdout?: string
-      stderr?: string
-      code?: number
-      message?: string
+    const result = unknownRecordSchema.safeParse(err)
+    if (result.success) {
+      const e = result.data
+      return {
+        stdout: typeof e.stdout === 'string' ? e.stdout : '',
+        stderr:
+          typeof e.stderr === 'string'
+            ? e.stderr
+            : typeof e.message === 'string'
+              ? e.message
+              : 'Git command failed',
+        code: typeof e.code === 'number' ? e.code : 1,
+      }
     }
     return {
-      stdout: error.stdout ?? '',
-      stderr: error.stderr ?? error.message ?? 'Git command failed',
-      code: typeof error.code === 'number' ? error.code : 1,
+      stdout: '',
+      stderr: err instanceof Error ? err.message : 'Git command failed',
+      code: 1,
     }
   }
 }

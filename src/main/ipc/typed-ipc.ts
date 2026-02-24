@@ -18,16 +18,23 @@ const logger = createLogger('ipc')
 type MaybeVoid<T> = T extends undefined ? void | undefined : T
 
 /**
+ * Generic IPC handler type — accepts the event + channel-specific args.
+ * Used internally by typedHandle/safeHandle to bridge Electron's untyped
+ * ipcMain to our typed channel maps.
+ */
+type IpcHandler<C extends IpcInvokeChannel> = (
+  event: IpcMainInvokeEvent,
+  ...args: IpcInvokeArgs<C>
+) => MaybeVoid<IpcInvokeReturn<C>> | Promise<MaybeVoid<IpcInvokeReturn<C>>>
+
+/**
  * Type-safe wrapper around `ipcMain.handle()`.
  * Constrains the channel name, handler args, and return type to `IpcInvokeChannelMap`.
+ *
+ * The cast bridges our typed handler to Electron's untyped `(...args: any[]) => any`
+ * signature — this is an inherent IPC boundary where Electron delivers untyped args.
  */
-export function typedHandle<C extends IpcInvokeChannel>(
-  channel: C,
-  handler: (
-    event: IpcMainInvokeEvent,
-    ...args: IpcInvokeArgs<C>
-  ) => MaybeVoid<IpcInvokeReturn<C>> | Promise<MaybeVoid<IpcInvokeReturn<C>>>,
-): void {
+export function typedHandle<C extends IpcInvokeChannel>(channel: C, handler: IpcHandler<C>): void {
   ipcMain.handle(channel, handler as Parameters<typeof ipcMain.handle>[1])
 }
 
@@ -47,13 +54,7 @@ export function typedOn<C extends IpcSendChannel>(
  * and re-throws with a human-readable message.
  * Use this for handlers that validate args via Zod `.parse()`.
  */
-export function safeHandle<C extends IpcInvokeChannel>(
-  channel: C,
-  handler: (
-    event: IpcMainInvokeEvent,
-    ...args: IpcInvokeArgs<C>
-  ) => MaybeVoid<IpcInvokeReturn<C>> | Promise<MaybeVoid<IpcInvokeReturn<C>>>,
-): void {
+export function safeHandle<C extends IpcInvokeChannel>(channel: C, handler: IpcHandler<C>): void {
   ipcMain.handle(channel, async (event, ...rawArgs) => {
     try {
       return await (handler as (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<unknown>)(

@@ -10,20 +10,26 @@ import { broadcastToWindows } from './broadcast'
 export function emitStreamChunk(conversationId: ConversationId, chunk: StreamChunk): void {
   // StreamChunk may contain Error objects (RUN_ERROR) which don't serialize
   // well over IPC structured clone. Normalize before sending.
-  // Preserve our custom `code` field for structured error classification.
-  const serializable =
-    chunk.type === 'RUN_ERROR'
-      ? {
-          ...chunk,
-          error: {
-            message: chunk.error.message,
-            ...('name' in chunk.error ? { name: (chunk.error as { name?: string }).name } : {}),
-            ...('stack' in chunk.error ? { stack: (chunk.error as { stack?: string }).stack } : {}),
-            ...('code' in chunk.error && chunk.error.code ? { code: chunk.error.code } : {}),
-          },
-        }
-      : chunk
+  const serializable = chunk.type === 'RUN_ERROR' ? serializeRunError(chunk) : chunk
   broadcastToWindows('agent:stream-chunk', { conversationId, chunk: serializable })
+}
+
+/**
+ * Normalize a RUN_ERROR chunk for IPC serialization.
+ * Preserves our custom `code` field for structured error classification,
+ * plus `name`/`stack` when present on the runtime error object.
+ */
+function serializeRunError(chunk: StreamChunk & { type: 'RUN_ERROR' }): StreamChunk {
+  const { error } = chunk
+  return {
+    ...chunk,
+    error: {
+      message: error.message,
+      ...('name' in error && typeof error.name === 'string' ? { name: error.name } : {}),
+      ...('stack' in error && typeof error.stack === 'string' ? { stack: error.stack } : {}),
+      ...('code' in error && error.code ? { code: error.code } : {}),
+    },
+  }
 }
 
 export function emitOrchestrationEvent(payload: OrchestrationEventPayload): void {
