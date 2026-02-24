@@ -1,11 +1,5 @@
 import { randomUUID } from 'node:crypto'
 import {
-  extractJson,
-  type OpenHiveProgressPayload,
-  type OpenHiveTaskExecutionInput,
-  runOpenHiveOrchestration,
-} from '@openhive/condukt-openhive'
-import {
   plannedTaskSchema,
   taskToolProgressSchema,
   unknownRecordSchema,
@@ -34,6 +28,12 @@ import {
 } from '../agent/shared'
 import { loadProjectConfig } from '../config/project-config'
 import { createLogger } from '../logger'
+import {
+  extractJson,
+  type OpenHiveProgressPayload,
+  type OpenHiveTaskExecutionInput,
+  runOpenHiveOrchestration,
+} from './engine'
 import { createExecutorTools, gatherProjectContext } from './project-context'
 import { orchestrationRunRepository } from './run-repository'
 
@@ -698,7 +698,7 @@ const WEB_INTENT_KEYWORDS = [
   'official page',
 ]
 
-const WEB_INTENT_TOKENS = [
+const WEB_INTENT_TOKEN_PATTERNS = [
   'docs',
   'documentation',
   'website',
@@ -706,7 +706,7 @@ const WEB_INTENT_TOKENS = [
   'web page',
   'url',
   'homepage',
-]
+].map((token) => new RegExp(`\\b${token}\\b`, 'i'))
 
 const URL_PATTERN = /https?:\/\/\S+/i
 
@@ -721,9 +721,7 @@ export function hasWebIntent(text: string): boolean {
   for (const phrase of WEB_INTENT_KEYWORDS) {
     if (lower.includes(phrase)) return true
   }
-  for (const token of WEB_INTENT_TOKENS) {
-    // Match as whole word boundary to avoid false positives (e.g. "documentary")
-    const pattern = new RegExp(`\\b${token}\\b`, 'i')
+  for (const pattern of WEB_INTENT_TOKEN_PATTERNS) {
     if (pattern.test(lower)) return true
   }
   return false
