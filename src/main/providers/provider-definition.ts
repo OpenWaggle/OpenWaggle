@@ -21,10 +21,16 @@ export interface ProviderDefinition {
   /** Optional URL where users can create/manage API keys for this provider */
   readonly apiKeyManagementUrl?: string
   readonly supportsBaseUrl: boolean
+  readonly supportsSubscription: boolean
   readonly models: readonly string[]
   /** Model used for API key testing — should be the cheapest/fastest available */
   readonly testModel: string
-  createAdapter(model: string, apiKey: string, baseUrl?: string): AnyTextAdapter
+  createAdapter(
+    model: string,
+    apiKey: string,
+    baseUrl?: string,
+    authMethod?: 'api-key' | 'subscription',
+  ): AnyTextAdapter
   fetchModels?(baseUrl?: string, apiKey?: string): Promise<string[]>
   resolveSampling?(
     model: string,

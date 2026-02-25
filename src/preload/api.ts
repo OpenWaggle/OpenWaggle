@@ -1,4 +1,9 @@
 import type { AgentSendPayload, PreparedAttachment } from '@shared/types/agent'
+import type {
+  OAuthFlowStatus,
+  SubscriptionAccountInfo,
+  SubscriptionProvider,
+} from '@shared/types/auth'
 import type { ConversationId, TeamConfigId } from '@shared/types/brand'
 import type { Conversation, ConversationSummary } from '@shared/types/conversation'
 import type { DevtoolsEventBusConfig } from '@shared/types/devtools'
@@ -349,6 +354,31 @@ export const api: OpenWaggleApi = {
     }
     ipcRenderer.on('multi-agent:turn-event', handler)
     return () => ipcRenderer.removeListener('multi-agent:turn-event', handler)
+  },
+
+  // ─── Auth ─────────────────────────────────────────────
+  startOAuth(provider: SubscriptionProvider): Promise<void> {
+    return ipcRenderer.invoke('auth:start-oauth', provider)
+  },
+
+  submitAuthCode(provider: SubscriptionProvider, code: string): Promise<void> {
+    return ipcRenderer.invoke('auth:submit-code', provider, code)
+  },
+
+  disconnectAuth(provider: SubscriptionProvider): Promise<void> {
+    return ipcRenderer.invoke('auth:disconnect', provider)
+  },
+
+  getAuthAccountInfo(provider: SubscriptionProvider): Promise<SubscriptionAccountInfo> {
+    return ipcRenderer.invoke('auth:get-account-info', provider)
+  },
+
+  onOAuthStatus(callback: (status: OAuthFlowStatus) => void): () => void {
+    const handler = (_event: Electron.IpcRendererEvent, status: OAuthFlowStatus): void => {
+      callback(status)
+    }
+    ipcRenderer.on('auth:oauth-status', handler)
+    return () => ipcRenderer.removeListener('auth:oauth-status', handler)
   },
 
   // ─── Teams ────────────────────────────────────────────

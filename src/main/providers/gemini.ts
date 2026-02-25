@@ -8,6 +8,7 @@ export const geminiProvider: ProviderDefinition = {
   requiresApiKey: true,
   apiKeyManagementUrl: 'https://aistudio.google.com/app/apikey',
   supportsBaseUrl: false,
+  supportsSubscription: false,
   models: GeminiTextModels,
   testModel: 'gemini-2.0-flash-lite',
   createAdapter(model, apiKey) {

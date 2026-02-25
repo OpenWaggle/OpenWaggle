@@ -14,6 +14,7 @@ export const openaiProvider: ProviderDefinition = {
   requiresApiKey: true,
   apiKeyManagementUrl: 'https://platform.openai.com/api-keys',
   supportsBaseUrl: false,
+  supportsSubscription: true,
   models: OPENAI_CHAT_MODELS,
   testModel: 'gpt-4.1-nano',
   createAdapter(model, apiKey) {

@@ -2,6 +2,7 @@ import { ArrowLeft } from 'lucide-react'
 import type { SettingsTab } from '@/stores/ui-store'
 import { useUIStore } from '@/stores/ui-store'
 import { SettingsNav } from './SettingsNav'
+import { ConnectionsSection } from './sections/ConnectionsSection'
 import { CoworkSection } from './sections/CoworkSection'
 import { GeneralSection } from './sections/GeneralSection'
 
@@ -44,6 +45,8 @@ function SettingsTabContent({ tab }: { tab: SettingsTab }): React.JSX.Element {
       return <GeneralSection />
     case 'cowork':
       return <CoworkSection />
+    case 'connections':
+      return <ConnectionsSection />
     default:
       return (
         <div className="flex items-center justify-center py-20">

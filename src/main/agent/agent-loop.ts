@@ -179,8 +179,8 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
         const { provider, providerConfig, resolvedModel, qualityConfig } = await withStageTiming(
           stageDurationsMs,
           'provider-resolution',
-          () => {
-            const resolution = resolveProviderAndQuality(
+          async () => {
+            const resolution = await resolveProviderAndQuality(
               model,
               payload.qualityPreset,
               settings.providers,
@@ -250,6 +250,7 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
           resolvedModel,
           providerConfig.apiKey ?? '',
           providerConfig.baseUrl,
+          providerConfig.authMethod,
         )
 
         const abortController = new AbortController()

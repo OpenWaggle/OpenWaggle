@@ -1,5 +1,6 @@
 import type { StreamChunk } from '@tanstack/ai'
 import type { AgentSendPayload, PreparedAttachment } from './agent'
+import type { OAuthFlowStatus, SubscriptionAccountInfo, SubscriptionProvider } from './auth'
 import type { ConversationId, TeamConfigId } from './brand'
 import type { Conversation, ConversationSummary } from './conversation'
 import type { DevtoolsEventBusConfig } from './devtools'
@@ -208,6 +209,23 @@ export interface IpcInvokeChannelMap {
     args: [conversationId: ConversationId, payload: AgentSendPayload, config: MultiAgentConfig]
     return: undefined
   }
+  // Auth
+  'auth:start-oauth': {
+    args: [provider: SubscriptionProvider]
+    return: undefined
+  }
+  'auth:disconnect': {
+    args: [provider: SubscriptionProvider]
+    return: undefined
+  }
+  'auth:get-account-info': {
+    args: [provider: SubscriptionProvider]
+    return: SubscriptionAccountInfo
+  }
+  'auth:submit-code': {
+    args: [provider: SubscriptionProvider, code: string]
+    return: undefined
+  }
   // Teams
   'teams:list': {
     args: []
@@ -257,6 +275,9 @@ export interface IpcEventChannelMap {
   }
   'orchestration:event': {
     payload: OrchestrationEventPayload
+  }
+  'auth:oauth-status': {
+    payload: OAuthFlowStatus
   }
   'multi-agent:stream-chunk': {
     payload: { conversationId: ConversationId; chunk: StreamChunk; meta: MultiAgentStreamMetadata }
@@ -419,6 +440,13 @@ export interface OpenWaggleApi {
   onMultiAgentTurnEvent(
     callback: (payload: { conversationId: ConversationId; event: MultiAgentTurnEvent }) => void,
   ): () => void
+
+  // Auth
+  startOAuth(provider: SubscriptionProvider): Promise<void>
+  submitAuthCode(provider: SubscriptionProvider, code: string): Promise<void>
+  disconnectAuth(provider: SubscriptionProvider): Promise<void>
+  getAuthAccountInfo(provider: SubscriptionProvider): Promise<SubscriptionAccountInfo>
+  onOAuthStatus(callback: (status: OAuthFlowStatus) => void): () => void
 
   // Teams
   listTeams(): Promise<TeamPreset[]>

@@ -12,6 +12,7 @@ function stubProvider(id: ProviderDefinition['id'] = 'gemini'): ProviderDefiniti
     displayName: id,
     requiresApiKey: false,
     supportsBaseUrl: false,
+    supportsSubscription: false,
     models: [],
     testModel: '',
     createAdapter: () => ({}) as never,

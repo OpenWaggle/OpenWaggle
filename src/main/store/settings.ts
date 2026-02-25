@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import { unknownRecordSchema } from '@shared/schemas/validation'
+import { AUTH_METHODS } from '@shared/types/auth'
 import {
   DEFAULT_SETTINGS,
   EXECUTION_MODES,
@@ -19,6 +20,7 @@ import Store from 'electron-store'
 import { z } from 'zod'
 import { createLogger } from '../logger'
 import { providerRegistry } from '../providers'
+import { decryptString, encryptString } from './encryption'
 
 const logger = createLogger('settings')
 
@@ -27,7 +29,6 @@ const store = new Store<Settings>({
   defaults: DEFAULT_SETTINGS,
 })
 
-const ENCRYPTED_PREFIX = 'enc:v1:'
 const LEGACY_EXECUTION_MODE: ExecutionMode = 'full-access'
 
 /**
@@ -42,6 +43,7 @@ const providerConfigSchema = z.object({
     .refine((v) => isValidBaseUrl(v), { message: 'Must be a valid http/https URL' })
     .optional(),
   enabled: z.boolean().optional(),
+  authMethod: z.enum(AUTH_METHODS).default('api-key'),
 })
 
 export function getSettings(): Settings {
@@ -59,9 +61,10 @@ export function getSettings(): Settings {
 
     if (parsed.success) {
       providers[id] = {
-        apiKey: decryptApiKey(parsed.data.apiKey),
+        apiKey: decryptString(parsed.data.apiKey),
         baseUrl: parsed.data.baseUrl ?? defaults.baseUrl,
         enabled: parsed.data.enabled ?? defaults.enabled,
+        authMethod: parsed.data.authMethod,
       } satisfies ProviderConfig
     } else {
       providers[id] = { ...defaults }
@@ -113,7 +116,7 @@ export function updateSettings(partial: Partial<Settings>): void {
 
       encryptedProviders[id] = {
         ...config,
-        apiKey: encryptApiKey(config.apiKey),
+        apiKey: encryptString(config.apiKey),
       }
     }
     const rawExisting: unknown = store.get('providers', {})
@@ -263,33 +266,5 @@ function readPersistedSettings(): Record<string, unknown> | null {
     return result.success ? result.data : null
   } catch {
     return null
-  }
-}
-
-function encryptApiKey(apiKey: string): string {
-  if (!apiKey) return ''
-  if (!safeStorage.isEncryptionAvailable()) return apiKey
-  try {
-    const encrypted = safeStorage.encryptString(apiKey)
-    return `${ENCRYPTED_PREFIX}${encrypted.toString('base64')}`
-  } catch {
-    return apiKey
-  }
-}
-
-function decryptApiKey(storedApiKey: string): string {
-  if (!storedApiKey) return ''
-  if (!storedApiKey.startsWith(ENCRYPTED_PREFIX)) return storedApiKey
-  if (!safeStorage.isEncryptionAvailable()) {
-    logger.warn('safeStorage encryption is unavailable — encrypted API keys cannot be decrypted.')
-    return ''
-  }
-
-  const payload = storedApiKey.slice(ENCRYPTED_PREFIX.length)
-  try {
-    return safeStorage.decryptString(Buffer.from(payload, 'base64'))
-  } catch {
-    logger.warn('Failed to decrypt API key — the stored value may be corrupted.')
-    return ''
   }
 }

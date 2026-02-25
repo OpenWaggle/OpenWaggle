@@ -26,6 +26,7 @@ export const openrouterProvider: ProviderDefinition = {
   requiresApiKey: true,
   apiKeyManagementUrl: 'https://openrouter.ai/settings/keys',
   supportsBaseUrl: false,
+  supportsSubscription: true,
   models: OPENROUTER_UI_MODELS,
   testModel: 'openrouter/auto',
   createAdapter(model, apiKey) {
