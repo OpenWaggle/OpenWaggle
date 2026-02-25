@@ -4,76 +4,141 @@ North star: **Multi-agent conversation** — two LLMs collaborating on a task in
 
 Everything else either unblocks it or strengthens it.
 
-## Execution Order
+## How to pick what to work on
+
+Each spec file has a `**Priority:**` field in its frontmatter. Scan the spec files directly — don't rely on this README for status. The spec file is the source of truth for its own status, priority, and progress.
+
+Priority levels:
+- **P0** — Do this first. Blocks the user right now.
+- **P1** — Critical. Security or data-loss risk.
+- **P2** — High. Significant bugs or high-impact features.
+- **P3** — Medium. Quality-of-life improvements.
+- **P4** — Low or strategic. Nice-to-have, long-term.
+
+## Spec template
+
+Every spec file follows this format. Use it when creating new specs.
+
+### For a bug or fix
+
+```markdown
+# NN — Title
+
+**Status:** Planned | In Progress | Done
+**Priority:** P0 | P1 | P2 | P3 | P4
+**Severity:** Critical | High | Medium | Low | Strategic
+**Category:** Fix
+**Depends on:** (list spec numbers, or "None")
+**Origin:** (where this was identified — H-XX, Spec XX, multi-agent review, etc.)
+
+---
+
+## Problem
+
+What is broken and why it matters. Be specific — include file paths, line numbers,
+and exact error messages when relevant. Future agents will use this as their entry point.
+
+## Implementation
+
+### Phase 1: ...
+- [ ] Checkable items with specific file paths and code changes
+
+### Phase 2: ...
+- [ ] ...
+
+## Tests
+
+- Unit: ...
+- Component: ...
+- Integration: ...
+```
+
+### For a feature
+
+```markdown
+# NN — Title
+
+**Status:** Planned | In Progress | Done
+**Priority:** P0 | P1 | P2 | P3 | P4
+**Category:** Feature
+**Depends on:** (list spec numbers, or "None")
+**Origin:** (where this was identified)
+
+---
+
+## Problem
+
+What capability is missing and why users need it. Include references to existing
+stubs, dead-end UI, or related code. Reference other tools that solve this well.
+
+## Architecture
+
+How the feature fits into the existing system. Include type definitions, data flow
+diagrams, storage strategy. This section helps agents understand the design before
+they start coding.
+
+## Implementation
+
+### Phase 1: Core
+- [ ] Checkable items — one per logical unit of work
+
+### Phase 2: UI
+- [ ] ...
+
+### Phase 3: Polish (optional)
+- [ ] ...
+
+## Tests
+
+- Unit: ...
+- Component: ...
+- Integration: ...
+```
+
+### Key principles
+
+- **Be specific**: Include file paths, line numbers, and type definitions. Agents work better with concrete references than abstract descriptions.
+- **Phases are incremental**: Each phase should produce a working increment. Phase 1 should be the minimum viable implementation.
+- **Tests are mandatory**: Every behavior change needs corresponding test expectations.
+- **Origin tracking**: Always note where the spec came from so we can trace decisions back to its source.
+- **Update the spec**: When you start a spec, set Status to `In Progress`. When done, set it to `Done` and move the file to `tasks/archive/`.
+
+## Dependency graph
 
 ```
-Phase 1 — Fix foundations (unblocks multi-agent)
-  01  Fix tool approval flow          <- multi-agent needs safe tool use for both agents
-  03  Fix error messages              <- multi-agent needs clear "which agent failed" errors
-  07  Merge condukt into main         <- simplifies codebase before building on top of it
+00 (subscription auth) — P0, no deps
 
-Phase 2 — Build the differentiator
-  00  Multi-agent conversation (MVP)  <- the product. sequential turn-taking, two models, shared tools
+Bugs & Fixes (01-24):
+  01-05 (critical)  — P1, no deps
+  06-14 (high)      — P2, 06 benefits from provider registry
+  15-18 (medium)    — P3
+  19-24 (low/strat) — P4
 
-Phase 3 — Amplify the differentiator
-  02  Orchestration executor perms    <- multi-agent + orchestration = agents that can actually write code
-  06  Quality presets -> model routing <- per-agent model selection in orchestration tasks
-  04  MCP support                     <- both agents get access to external tools (GitHub, Slack, etc.)
-  08  Build actual skills             <- "Code Review" skill where Agent A writes, Agent B reviews
+Core Features (25-35):
+  25 (auto-verification)     — no deps, high impact
+  26 (MCP)                   — no deps, ecosystem table-stakes
+  27 (quality routing)       — benefits from 06 (executor perms)
+  28 (skills)                — no deps, existing infrastructure
+  29 (codebase indexing)     — no deps
+  30 (browser feedback)      — no deps, Playwright in deps
+  31 (codebase memory)       — evolves 29
+  32 (cross-agent review)    — builds on multi-agent (done)
+  33 (skill marketplace)     — extends 28 (skills)
+  35 (ship to users)         — should come after critical fixes
 
-Phase 4 — Long-term moat
-  05  Codebase indexing               <- both agents get semantic search, smarter collaboration
-
-Phase 5 — Competitive differentiation
-  13  Browser visual feedback loop    <- agent sees running UI, evaluates, iterates autonomously
-  14  Codebase memory & indexing      <- passive knowledge graph that builds as the agent works
-  15  Cross-agent review loop         <- Agent A generates, Agent B reviews, they negotiate
-  17  Shareable skill marketplace     <- npm-like distribution for agent behaviors
-  18  Auto-verification pipeline      <- agent verifies its own work (typecheck, lint, tests) + git undo
-  19  Conversation handoff            <- seamless context transfer when conversations get long
-  20  Subscription auth providers     <- one-click sign-in via ChatGPT/OpenRouter subscriptions
+UI & UX Features (36-45):
+  36 (settings consolidation) — no deps, reduces UI debt
+  37 (command palette wiring) — depends on backing features (28, 40, 41, 42)
+  38 (token & cost tracking)  — no deps
+  39 (context window)         — benefits from 38 (token tracking)
+  40 (plan mode)              — no deps
+  41 (personalization)        — no deps
+  42 (git worktrees)          — benefits from 44 (git settings)
+  43 (environments)           — no deps
+  44 (git settings)           — no deps
+  45 (archived threads)       — benefits from 39 (context window awareness)
 ```
 
-## Dependency Graph
+## Archived
 
-```
-01 (approval) --> 00 (multi-agent) --> 02 (orchestration perms)
-03 (errors)   --> 00 (multi-agent)
-07 (condukt)  --> 00 (multi-agent)     (simplifies, not hard dependency)
-                  00 (multi-agent) --> 06 (quality routing)
-                                   --> 04 (MCP)
-                                   --> 08 (skills)
-                                   --> 05 (indexing)
-
-13 (browser feedback)    -- no hard deps, Playwright already in deps
-14 (codebase memory)     -- evolves 05
-15 (cross-agent review)  --> 00 (multi-agent) -- builds on coordinator
-17 (skill marketplace)   --> 08 (skills) -- extends existing skill system
-18 (auto-verification)   -- no hard deps
-19 (conversation handoff) -- complements 14, no hard deps
-20 (subscription auth)    -- no hard deps, enhances existing provider registry
-```
-
-## Files
-
-| Spec | Title | Status |
-|------|-------|--------|
-| [00](./00-multi-agent-conversation.md) | Multi-Agent Conversation (North Star) | Planned |
-| [01](./01-fix-tool-approval-flow.md) | Fix Tool Approval Flow | Done (TanStack native) |
-| [02](./02-fix-orchestration-executor-permissions.md) | Fix Orchestration Executor Permissions | Planned |
-| [03](./03-fix-error-messages.md) | Fix Error Messages | Partial (4 gaps remaining) |
-| [04](./04-add-mcp-support.md) | Add MCP Support | Planned |
-| [05](./05-add-codebase-indexing.md) | Add Codebase Indexing | Planned |
-| [06](./06-wire-quality-presets-to-model-routing.md) | Wire Quality Presets to Model Routing | Planned |
-| [07](./07-merge-condukt-into-main.md) | Merge Condukt Into Main | Planned |
-| [08](./08-build-actual-skills.md) | Build Actual Skills | Planned |
-| [09](./09-type-safety-audit.md) | Type Safety Audit | Done |
-| [10](./10-provider-model-type-guards.md) | Provider Model Type Guards | Done |
-| [11](./11-ship-to-users.md) | Ship OpenWaggle to Users | Planned |
-| [13](./13-browser-visual-feedback-loop.md) | Browser-Aware Visual Feedback Loop | Planned |
-| [14](./14-codebase-memory-semantic-indexing.md) | Codebase Memory & Semantic Indexing | Planned |
-| [15](./15-cross-agent-review-loop.md) | Cross-Agent Review Loop | Planned |
-| [17](./17-shareable-skill-marketplace.md) | Shareable Skill Marketplace | Planned |
-| [18](./18-auto-verification-pipeline.md) | Auto-Verification Pipeline | Planned |
-| [19](./19-conversation-handoff.md) | Conversation Handoff | Planned |
-| [20](./20-subscription-auth-providers.md) | Subscription Auth for Providers | Planned |
+Completed specs and resolved bugs live in [`tasks/archive/`](../archive/).
