@@ -185,19 +185,19 @@ export interface OrchestrationEngine {
   listRuns(): Promise<readonly OrchestrationRunRecord[]>
 }
 
-// --- OpenHive-specific orchestration types ---
+// --- OpenWaggle-specific orchestration types ---
 
-export type OpenHiveTaskKind = 'analysis' | 'synthesis' | 'repo-edit' | 'general'
+export type OpenWaggleTaskKind = 'analysis' | 'synthesis' | 'repo-edit' | 'general'
 
-export interface OpenHiveChildContextOptions {
-  readonly taskKind?: OpenHiveTaskKind
+export interface OpenWaggleChildContextOptions {
+  readonly taskKind?: OpenWaggleTaskKind
   readonly needsConversationContext?: boolean
   readonly maxContextTokens?: number
 }
 
-export interface OpenHivePlannedTask {
+export interface OpenWagglePlannedTask {
   readonly id: string
-  readonly kind: OpenHiveTaskKind
+  readonly kind: OpenWaggleTaskKind
   readonly title: string
   readonly prompt: string
   readonly narration?: string
@@ -205,59 +205,59 @@ export interface OpenHivePlannedTask {
   readonly needsConversationContext?: boolean
 }
 
-export interface OpenHiveOrchestrationPlan {
-  readonly tasks: readonly OpenHivePlannedTask[]
+export interface OpenWaggleOrchestrationPlan {
+  readonly tasks: readonly OpenWagglePlannedTask[]
 }
 
-export interface OpenHivePlannerInput {
+export interface OpenWagglePlannerInput {
   readonly userPrompt: string
 }
 
-export interface OpenHivePlanner {
-  plan(input: OpenHivePlannerInput): Promise<unknown>
+export interface OpenWagglePlanner {
+  plan(input: OpenWagglePlannerInput): Promise<unknown>
 }
 
-export interface OpenHiveProgressPayload {
+export interface OpenWaggleProgressPayload {
   readonly type: 'tool_start' | 'tool_end'
   readonly toolName: string
   readonly toolCallId: string
   readonly toolInput?: Readonly<Record<string, unknown>>
 }
 
-export interface OpenHiveTaskOutput {
+export interface OpenWaggleTaskOutput {
   readonly text: string
 }
 
-export interface OpenHiveTaskExecutionInput {
-  readonly task: OpenHivePlannedTask
+export interface OpenWaggleTaskExecutionInput {
+  readonly task: OpenWagglePlannedTask
   readonly orchestrationTask: OrchestrationTaskDefinition
   readonly includeConversationSummary: boolean
   readonly maxContextTokens: number
   readonly dependencyOutputs: Readonly<Record<string, unknown>>
   readonly signal: AbortSignal
-  readonly reportProgress?: (payload: OpenHiveProgressPayload) => void
+  readonly reportProgress?: (payload: OpenWaggleProgressPayload) => void
 }
 
-export interface OpenHiveTaskExecutor {
-  execute(input: OpenHiveTaskExecutionInput): Promise<OpenHiveTaskOutput>
+export interface OpenWaggleTaskExecutor {
+  execute(input: OpenWaggleTaskExecutionInput): Promise<OpenWaggleTaskOutput>
 }
 
-export interface OpenHiveSynthesizerInput {
+export interface OpenWaggleSynthesizerInput {
   readonly userPrompt: string
-  readonly plan: OpenHiveOrchestrationPlan
+  readonly plan: OpenWaggleOrchestrationPlan
   readonly run: OrchestrationRunRecord
 }
 
-export interface OpenHiveSynthesizer {
-  synthesize(input: OpenHiveSynthesizerInput): Promise<string>
+export interface OpenWaggleSynthesizer {
+  synthesize(input: OpenWaggleSynthesizerInput): Promise<string>
 }
 
-export interface RunOpenHiveOrchestrationInput {
+export interface RunOpenWaggleOrchestrationInput {
   readonly runId?: string
   readonly userPrompt: string
-  readonly planner: OpenHivePlanner
-  readonly executor: OpenHiveTaskExecutor
-  readonly synthesizer: OpenHiveSynthesizer
+  readonly planner: OpenWagglePlanner
+  readonly executor: OpenWaggleTaskExecutor
+  readonly synthesizer: OpenWaggleSynthesizer
   readonly signal?: AbortSignal
   readonly maxParallelTasks?: number
   readonly maxContextTokens?: number
@@ -266,7 +266,7 @@ export interface RunOpenHiveOrchestrationInput {
   readonly mode?: 'orchestrated' | 'auto-fallback'
 }
 
-export interface OpenHiveOrchestrationResult {
+export interface OpenWaggleOrchestrationResult {
   readonly runId: string
   readonly usedFallback: boolean
   readonly fallbackReason?: string

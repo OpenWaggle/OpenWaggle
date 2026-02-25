@@ -8,7 +8,7 @@ import { loadAgentStandardsContext } from './standards-context'
 const tempDirs: string[] = []
 
 async function makeTempProject(): Promise<string> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'openhive-standards-context-'))
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-standards-context-'))
   tempDirs.push(dir)
   return dir
 }
@@ -21,8 +21,8 @@ describe('loadAgentStandardsContext', () => {
   it('continues gracefully when skills catalog read fails', async () => {
     const projectPath = await makeTempProject()
     await fs.writeFile(path.join(projectPath, 'AGENTS.md'), '# Rules', 'utf8')
-    await fs.mkdir(path.join(projectPath, '.openhive'), { recursive: true })
-    await fs.writeFile(path.join(projectPath, '.openhive', 'skills'), 'not-a-directory', 'utf8')
+    await fs.mkdir(path.join(projectPath, '.openwaggle'), { recursive: true })
+    await fs.writeFile(path.join(projectPath, '.openwaggle', 'skills'), 'not-a-directory', 'utf8')
 
     const context = await loadAgentStandardsContext(projectPath, 'hello', {
       ...DEFAULT_SETTINGS,

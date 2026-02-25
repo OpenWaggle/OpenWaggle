@@ -12,7 +12,7 @@ import {
 const tempDirs: string[] = []
 
 async function makeTempProject(): Promise<string> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'openhive-skill-catalog-'))
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-skill-catalog-'))
   tempDirs.push(dir)
   return dir
 }
@@ -23,7 +23,7 @@ async function writeSkill(
   content: string,
   withScripts = false,
 ): Promise<void> {
-  const skillDir = path.join(projectPath, '.openhive', 'skills', folder)
+  const skillDir = path.join(projectPath, '.openwaggle', 'skills', folder)
   await fs.mkdir(skillDir, { recursive: true })
   await fs.writeFile(path.join(skillDir, 'SKILL.md'), content, 'utf8')
   if (withScripts) {
@@ -151,8 +151,8 @@ Step 2`,
 
   it('rejects symlinked SKILL.md that points outside the project', async () => {
     const projectPath = await makeTempProject()
-    const skillDir = path.join(projectPath, '.openhive', 'skills', 'escaped-skill')
-    const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openhive-skill-outside-'))
+    const skillDir = path.join(projectPath, '.openwaggle', 'skills', 'escaped-skill')
+    const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-skill-outside-'))
     tempDirs.push(outsideDir)
     const outsideFile = path.join(outsideDir, 'outside.md')
 

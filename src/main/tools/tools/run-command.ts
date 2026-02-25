@@ -4,7 +4,7 @@ import os from 'node:os'
 import { z } from 'zod'
 import { getSafeChildEnv } from '../../env'
 import { createLogger } from '../../logger'
-import { defineOpenHiveTool } from '../define-tool'
+import { defineOpenWaggleTool } from '../define-tool'
 
 const logger = createLogger('tools:command')
 
@@ -32,7 +32,7 @@ export function isDangerousCommand(command: string): string | null {
   return null
 }
 
-export const runCommandTool = defineOpenHiveTool({
+export const runCommandTool = defineOpenWaggleTool({
   name: 'runCommand',
   description:
     'Run a shell command in the project directory. Use this for tasks like running tests, installing dependencies, git operations, grep, etc. The command runs in a shell.',

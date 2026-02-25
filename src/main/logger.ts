@@ -56,7 +56,7 @@ class FileWriter {
     const dateStr = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
     if (dateStr === this.currentDate) return
     this.currentDate = dateStr
-    this.currentPath = path.join(this.logsDir ?? '', `openhive-${dateStr}.log`)
+    this.currentPath = path.join(this.logsDir ?? '', `openwaggle-${dateStr}.log`)
     if (!this.pruned) {
       this.pruned = true
       this.pruneOldLogs()
@@ -80,7 +80,7 @@ class FileWriter {
       const cutoff = Date.now() - LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000
       const entries = fs.readdirSync(logsDir)
       for (const entry of entries) {
-        if (!entry.startsWith('openhive-') || !entry.endsWith('.log')) continue
+        if (!entry.startsWith('openwaggle-') || !entry.endsWith('.log')) continue
         const filePath = path.join(logsDir, entry)
         const stat = fs.statSync(filePath)
         if (stat.mtimeMs < cutoff) {

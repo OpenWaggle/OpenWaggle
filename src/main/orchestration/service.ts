@@ -30,9 +30,9 @@ import { loadProjectConfig } from '../config/project-config'
 import { createLogger } from '../logger'
 import {
   extractJson,
-  type OpenHiveProgressPayload,
-  type OpenHiveTaskExecutionInput,
-  runOpenHiveOrchestration,
+  type OpenWaggleProgressPayload,
+  type OpenWaggleTaskExecutionInput,
+  runOpenWaggleOrchestration,
 } from './engine'
 import { createExecutorTools, gatherProjectContext } from './project-context'
 import { orchestrationRunRepository } from './run-repository'
@@ -202,7 +202,7 @@ export async function runOrchestratedAgent(
     }
 
     // 3. Run orchestration — stream narration + progress into the same message
-    const orchestrationResult = await runOpenHiveOrchestration({
+    const orchestrationResult = await runOpenWaggleOrchestration({
       runId,
       mode: orchestrationMode,
       userPrompt: payload.text,
@@ -216,7 +216,7 @@ export async function runOrchestratedAgent(
         },
       },
       executor: {
-        async execute(input: OpenHiveTaskExecutionInput) {
+        async execute(input: OpenWaggleTaskExecutionInput) {
           const executionPrompt = [
             `Task: ${input.task.title}`,
             `Task kind: ${input.task.kind}`,
@@ -462,7 +462,7 @@ async function modelTextWithTools(
   prompt: string,
   quality: SamplingConfig,
   tools: ServerTool[],
-  reportProgress?: (payload: OpenHiveProgressPayload) => void,
+  reportProgress?: (payload: OpenWaggleProgressPayload) => void,
   onChunk?: (chunk: StreamChunk) => void,
 ): Promise<string> {
   if (tools.length === 0) {

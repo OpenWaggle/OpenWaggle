@@ -1,4 +1,4 @@
-import type { OpenHiveChildContextOptions } from './types'
+import type { OpenWaggleChildContextOptions } from './types'
 
 export interface ContextHeuristicDecision {
   readonly includeConversationSummary: boolean
@@ -10,7 +10,7 @@ const DEFAULT_MAX_CONTEXT_TOKENS = 1500
 const CONTEXT_HEAVY_KINDS = new Set(['analysis', 'synthesis', 'repo-edit'])
 
 export function resolveChildContextHeuristic(
-  options: OpenHiveChildContextOptions,
+  options: OpenWaggleChildContextOptions,
 ): ContextHeuristicDecision {
   const includeConversationSummary =
     options.needsConversationContext === true ||

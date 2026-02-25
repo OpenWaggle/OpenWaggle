@@ -25,7 +25,7 @@ export function buildSystemPrompt(
 
   if (sections.length === 0) {
     return {
-      prompt: 'You are OpenHive, an expert coding assistant.',
+      prompt: 'You are OpenWaggle, an expert coding assistant.',
       fragmentIds,
     }
   }

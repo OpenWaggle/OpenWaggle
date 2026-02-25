@@ -11,7 +11,7 @@ const WINDOWS_PATH_TOKEN_REGEX = /(?:^|\s)([a-zA-Z]:\\[^\s`"'<>]+)/g
 const FENCED_BLOCK_REGEX = /```[\w-]*\n([\s\S]*?)```/g
 const BARE_PATH_ROOT_HINTS = new Set([
   '.github',
-  '.openhive',
+  '.openwaggle',
   'app',
   'apps',
   'docs',

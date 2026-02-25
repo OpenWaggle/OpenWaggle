@@ -1,8 +1,8 @@
 import { z } from 'zod'
 import { getOrCreateSession } from '../../../browser'
-import { defineOpenHiveTool } from '../../define-tool'
+import { defineOpenWaggleTool } from '../../define-tool'
 
-export const browserTypeTool = defineOpenHiveTool({
+export const browserTypeTool = defineOpenWaggleTool({
   name: 'browserType',
   description:
     'Type text into an input field on the current page. Optionally press Enter after typing.',

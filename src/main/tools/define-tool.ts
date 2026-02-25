@@ -51,12 +51,12 @@ export function getToolContext(): ToolContext {
 }
 
 /**
- * Define a OpenHive tool using TanStack AI's toolDefinition().
+ * Define a OpenWaggle tool using TanStack AI's toolDefinition().
  * Uses Zod's own z.infer for type-safe args in execute().
  * Args are validated through Zod's .parse() at runtime,
  * and the schema is passed to TanStack AI for JSON Schema conversion.
  */
-export function defineOpenHiveTool<T extends z.ZodType, TName extends string>(config: {
+export function defineOpenWaggleTool<T extends z.ZodType, TName extends string>(config: {
   name: TName
   description: string
   needsApproval?: boolean

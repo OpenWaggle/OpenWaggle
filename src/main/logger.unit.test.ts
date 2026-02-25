@@ -7,7 +7,7 @@ let createLogger: typeof import('./logger').createLogger
 let getLogFilePath: typeof import('./logger').getLogFilePath
 let initFileLogger: typeof import('./logger').initFileLogger
 
-const mockLogsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'openhive-log-test-'))
+const mockLogsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'openwaggle-log-test-'))
 
 describe('file logger', () => {
   beforeEach(async () => {
@@ -35,7 +35,7 @@ describe('file logger', () => {
     logger.warn('a warning', { key: 'val' })
 
     const logPath = getLogFilePath()
-    expect(logPath).toContain('openhive-')
+    expect(logPath).toContain('openwaggle-')
     expect(logPath).toMatch(/\.log$/)
 
     // Wait for async flush (process.nextTick + fs.appendFile)
@@ -53,7 +53,7 @@ describe('file logger', () => {
 
     // No log file should exist
     const files = fs.readdirSync(mockLogsDir)
-    expect(files.filter((f) => f.startsWith('openhive-'))).toHaveLength(0)
+    expect(files.filter((f) => f.startsWith('openwaggle-'))).toHaveLength(0)
   })
 
   it('getLogFilePath returns correct date-based path', () => {
@@ -62,13 +62,13 @@ describe('file logger', () => {
 
     const logPath = getLogFilePath()
     const dateStr = new Date().toISOString().slice(0, 10)
-    expect(logPath).toContain(`openhive-${dateStr}.log`)
+    expect(logPath).toContain(`openwaggle-${dateStr}.log`)
   })
 
   it('prunes old log files on init', async () => {
     // Create an old log file (4 days ago)
     const oldDate = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-    const oldFile = path.join(mockLogsDir, `openhive-${oldDate}.log`)
+    const oldFile = path.join(mockLogsDir, `openwaggle-${oldDate}.log`)
     fs.writeFileSync(oldFile, 'old log content')
     // Set mtime to 4 days ago
     const fourDaysAgo = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000)

@@ -5,7 +5,7 @@ import {
   resolveAgentsChainForPath,
 } from '../../standards/agents-resolver'
 import type { ToolContext } from '../define-tool'
-import { defineOpenHiveTool } from '../define-tool'
+import { defineOpenWaggleTool } from '../define-tool'
 
 const loadAgentsInputSchema = z.object({
   path: z.string().min(1).describe('File or directory path inside the project root.'),
@@ -65,7 +65,7 @@ export async function loadAgentsForRun(
   }
 }
 
-export const loadAgentsTool = defineOpenHiveTool({
+export const loadAgentsTool = defineOpenWaggleTool({
   name: 'loadAgents',
   description:
     'Load effective AGENTS.md instructions for a target file/directory path inside the project. Use this when you need scoped instructions for nested packages during the current run.',

@@ -32,17 +32,17 @@ describe('formatRelativeTime', () => {
 
 describe('truncate', () => {
   it('returns full string when within max length', () => {
-    expect(truncate('OpenHive', 20)).toBe('OpenHive')
+    expect(truncate('OpenWaggle', 20)).toBe('OpenWaggle')
   })
 
   it('adds ellipsis when input exceeds max length', () => {
-    expect(truncate('OpenHiveDesktop', 10)).toBe('OpenHiv...')
+    expect(truncate('OpenWaggleDesktop', 10)).toBe('OpenWag...')
   })
 })
 
 describe('projectName', () => {
   it('handles null and slash-delimited paths', () => {
     expect(projectName(null)).toBe('No project')
-    expect(projectName('/Users/diego/OpenHive')).toBe('OpenHive')
+    expect(projectName('/Users/diego/OpenWaggle')).toBe('OpenWaggle')
   })
 })

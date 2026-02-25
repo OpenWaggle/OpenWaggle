@@ -1,8 +1,8 @@
 import { z } from 'zod'
 import { closeSession } from '../../../browser'
-import { defineOpenHiveTool } from '../../define-tool'
+import { defineOpenWaggleTool } from '../../define-tool'
 
-export const browserCloseTool = defineOpenHiveTool({
+export const browserCloseTool = defineOpenWaggleTool({
   name: 'browserClose',
   description: 'Close the browser instance for the current conversation, freeing resources.',
   inputSchema: z.object({}),

@@ -7,7 +7,7 @@ import { loadAgentsInstruction } from './agents-loader'
 const tempDirs: string[] = []
 
 async function makeTempProject(): Promise<string> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'openhive-agents-loader-'))
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-agents-loader-'))
   tempDirs.push(dir)
   return dir
 }

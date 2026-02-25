@@ -59,7 +59,7 @@ export function SkillsPanel({
         <div>
           <h2 className="text-sm font-semibold text-text-primary">Skills</h2>
           <p className="text-[12px] text-text-tertiary">
-            Discover and manage `.openhive/skills` for this project.
+            Discover and manage `.openwaggle/skills` for this project.
           </p>
         </div>
         <button
@@ -94,7 +94,7 @@ export function SkillsPanel({
               </div>
             ) : (catalog?.skills.length ?? 0) === 0 ? (
               <div className="rounded-lg border border-border bg-bg-secondary px-3 py-3 text-[12px] text-text-tertiary">
-                No skills found under `.openhive/skills`.
+                No skills found under `.openwaggle/skills`.
               </div>
             ) : (
               <div className="space-y-1">

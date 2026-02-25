@@ -29,7 +29,7 @@ export function clearConfigCache(): void {
 }
 
 export async function loadProjectConfig(projectPath: string): Promise<ProjectConfig> {
-  const filePath = join(projectPath, '.openhive', 'config.toml')
+  const filePath = join(projectPath, '.openwaggle', 'config.toml')
 
   try {
     const stat = statSync(filePath)
@@ -51,7 +51,7 @@ export async function loadProjectConfig(projectPath: string): Promise<ProjectCon
       configCache.delete(filePath)
       return EMPTY_CONFIG
     }
-    logger.warn('Failed to parse .openhive/config.toml', {
+    logger.warn('Failed to parse .openwaggle/config.toml', {
       error: error instanceof Error ? error.message : String(error),
     })
     return EMPTY_CONFIG

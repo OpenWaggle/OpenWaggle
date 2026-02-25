@@ -3,26 +3,26 @@ export { resolveChildContextHeuristic } from './context-heuristic'
 export { createOrchestrationEngine } from './engine'
 export { extractJson } from './json'
 export { MemoryRunStore } from './memory-run-store'
-export { runOpenHiveOrchestration } from './orchestrator'
+export { runOpenWaggleOrchestration } from './orchestrator'
 export {
   MAX_PLAN_TASKS,
-  OpenHivePlanValidationError,
-  parseOpenHivePlan,
+  OpenWagglePlanValidationError,
+  parseOpenWagglePlan,
 } from './planner'
 export type {
-  OpenHiveChildContextOptions,
-  OpenHiveOrchestrationPlan,
-  OpenHiveOrchestrationResult,
-  OpenHivePlannedTask,
-  OpenHivePlanner,
-  OpenHivePlannerInput,
-  OpenHiveProgressPayload,
-  OpenHiveSynthesizer,
-  OpenHiveSynthesizerInput,
-  OpenHiveTaskExecutionInput,
-  OpenHiveTaskExecutor,
-  OpenHiveTaskKind,
-  OpenHiveTaskOutput,
+  OpenWaggleChildContextOptions,
+  OpenWaggleOrchestrationPlan,
+  OpenWaggleOrchestrationResult,
+  OpenWagglePlannedTask,
+  OpenWagglePlanner,
+  OpenWagglePlannerInput,
+  OpenWaggleProgressPayload,
+  OpenWaggleSynthesizer,
+  OpenWaggleSynthesizerInput,
+  OpenWaggleTaskExecutionInput,
+  OpenWaggleTaskExecutor,
+  OpenWaggleTaskKind,
+  OpenWaggleTaskOutput,
   OrchestrationEngine,
   OrchestrationEvent,
   OrchestrationRunDefinition,
@@ -34,7 +34,7 @@ export type {
   OrchestrationTaskRecord,
   OrchestrationTaskRetryPolicy,
   OrchestrationTaskStatus,
-  RunOpenHiveOrchestrationInput,
+  RunOpenWaggleOrchestrationInput,
   RunStore,
   RunSummary,
   WorkerAdapter,
@@ -44,4 +44,4 @@ export {
   ORCHESTRATION_ERROR_TASK_EXECUTION,
   ORCHESTRATION_ERROR_TASK_TIMEOUT,
 } from './types'
-export { createOpenHiveAgentWorkerAdapter } from './worker-adapter'
+export { createOpenWaggleAgentWorkerAdapter } from './worker-adapter'

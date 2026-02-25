@@ -1,8 +1,8 @@
 import { z } from 'zod'
 import { getOrCreateSession } from '../../../browser'
-import { defineOpenHiveTool } from '../../define-tool'
+import { defineOpenWaggleTool } from '../../define-tool'
 
-export const browserClickTool = defineOpenHiveTool({
+export const browserClickTool = defineOpenWaggleTool({
   name: 'browserClick',
   description:
     'Click an element on the current page using a CSS selector. The browser must already be navigated to a page.',

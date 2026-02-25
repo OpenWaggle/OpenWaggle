@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import type { OpenHiveOrchestrationPlan, OpenHivePlannedTask } from './types'
+import type { OpenWaggleOrchestrationPlan, OpenWagglePlannedTask } from './types'
 
 export const MAX_PLAN_TASKS = 10
 
@@ -17,19 +17,19 @@ const planSchema = z.object({
   tasks: z.array(planTaskSchema).min(1).max(MAX_PLAN_TASKS),
 })
 
-export class OpenHivePlanValidationError extends Error {
+export class OpenWagglePlanValidationError extends Error {
   readonly issues: readonly string[]
 
   constructor(issues: readonly string[]) {
     super(`Invalid orchestration plan: ${issues.join('; ')}`)
-    this.name = 'OpenHivePlanValidationError'
+    this.name = 'OpenWagglePlanValidationError'
     this.issues = issues
   }
 }
 
 const VALID_KINDS: ReadonlySet<string> = new Set(['analysis', 'synthesis', 'repo-edit', 'general'])
 
-function isValidTaskKind(value: string): value is OpenHivePlannedTask['kind'] {
+function isValidTaskKind(value: string): value is OpenWagglePlannedTask['kind'] {
   return VALID_KINDS.has(value)
 }
 
@@ -41,9 +41,9 @@ function isValidTaskKind(value: string): value is OpenHivePlannedTask['kind'] {
  * - Removes invalid or self-referencing dependency references
  * - Coerces unknown task kinds to 'general'
  *
- * Only throws OpenHivePlanValidationError when no valid tasks can be salvaged.
+ * Only throws OpenWagglePlanValidationError when no valid tasks can be salvaged.
  */
-export function parseOpenHivePlan(raw: unknown): OpenHiveOrchestrationPlan {
+export function parseOpenWagglePlan(raw: unknown): OpenWaggleOrchestrationPlan {
   const parsed = planSchema.safeParse(raw)
   if (parsed.success) {
     return repairDependencies(parsed.data.tasks)
@@ -57,14 +57,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function tryRepairPlan(raw: unknown): OpenHiveOrchestrationPlan {
+function tryRepairPlan(raw: unknown): OpenWaggleOrchestrationPlan {
   if (!isRecord(raw)) {
-    throw new OpenHivePlanValidationError(['Plan is not an object'])
+    throw new OpenWagglePlanValidationError(['Plan is not an object'])
   }
 
   const rawTasks = Array.isArray(raw.tasks) ? raw.tasks : []
 
-  const tasks: OpenHivePlannedTask[] = []
+  const tasks: OpenWagglePlannedTask[] = []
   for (const item of rawTasks) {
     if (!isRecord(item)) continue
 
@@ -97,7 +97,7 @@ function tryRepairPlan(raw: unknown): OpenHiveOrchestrationPlan {
   }
 
   if (tasks.length === 0) {
-    throw new OpenHivePlanValidationError(['No valid tasks could be extracted from plan'])
+    throw new OpenWagglePlanValidationError(['No valid tasks could be extracted from plan'])
   }
 
   // Enforce max task count
@@ -108,10 +108,10 @@ function tryRepairPlan(raw: unknown): OpenHiveOrchestrationPlan {
   return repairDependencies(tasks)
 }
 
-function repairDependencies(tasks: readonly OpenHivePlannedTask[]): OpenHiveOrchestrationPlan {
+function repairDependencies(tasks: readonly OpenWagglePlannedTask[]): OpenWaggleOrchestrationPlan {
   // Deduplicate task IDs — keep first occurrence
   const seen = new Set<string>()
-  const deduped: OpenHivePlannedTask[] = []
+  const deduped: OpenWagglePlannedTask[] = []
   for (const task of tasks) {
     if (!seen.has(task.id)) {
       seen.add(task.id)

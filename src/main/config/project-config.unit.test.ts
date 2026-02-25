@@ -9,8 +9,8 @@ describe('loadProjectConfig', () => {
 
   beforeEach(() => {
     clearConfigCache()
-    tmpDir = join(tmpdir(), `openhive-test-${Date.now()}`)
-    mkdirSync(join(tmpDir, '.openhive'), { recursive: true })
+    tmpDir = join(tmpdir(), `openwaggle-test-${Date.now()}`)
+    mkdirSync(join(tmpDir, '.openwaggle'), { recursive: true })
   })
 
   afterEach(() => {
@@ -19,7 +19,7 @@ describe('loadProjectConfig', () => {
 
   it('parses valid TOML with all quality tiers', async () => {
     writeFileSync(
-      join(tmpDir, '.openhive', 'config.toml'),
+      join(tmpDir, '.openwaggle', 'config.toml'),
       `
 [quality.low]
 temperature = 0.2
@@ -48,14 +48,14 @@ top_p = 0.8
   })
 
   it('returns empty config for invalid TOML with warning', async () => {
-    writeFileSync(join(tmpDir, '.openhive', 'config.toml'), '{{invalid toml}}')
+    writeFileSync(join(tmpDir, '.openwaggle', 'config.toml'), '{{invalid toml}}')
     const config = await loadProjectConfig(tmpDir)
     expect(config).toEqual({})
   })
 
   it('handles partial overrides — only some tiers present', async () => {
     writeFileSync(
-      join(tmpDir, '.openhive', 'config.toml'),
+      join(tmpDir, '.openwaggle', 'config.toml'),
       `
 [quality.high]
 max_tokens = 8000
@@ -70,7 +70,7 @@ max_tokens = 8000
 
   it('ignores non-numeric values in tier overrides', async () => {
     writeFileSync(
-      join(tmpDir, '.openhive', 'config.toml'),
+      join(tmpDir, '.openwaggle', 'config.toml'),
       `
 [quality.medium]
 temperature = "not a number"
@@ -83,14 +83,14 @@ max_tokens = 3000
   })
 
   it('returns empty config when quality section is absent', async () => {
-    writeFileSync(join(tmpDir, '.openhive', 'config.toml'), '[other]\nkey = "value"\n')
+    writeFileSync(join(tmpDir, '.openwaggle', 'config.toml'), '[other]\nkey = "value"\n')
     const config = await loadProjectConfig(tmpDir)
     expect(config).toEqual({})
   })
 
   it('ignores out-of-range values', async () => {
     writeFileSync(
-      join(tmpDir, '.openhive', 'config.toml'),
+      join(tmpDir, '.openwaggle', 'config.toml'),
       `
 [quality.medium]
 temperature = -5
@@ -106,7 +106,7 @@ max_tokens = 0
 
   it('keeps valid values and ignores invalid ones in the same tier', async () => {
     writeFileSync(
-      join(tmpDir, '.openhive', 'config.toml'),
+      join(tmpDir, '.openwaggle', 'config.toml'),
       `
 [quality.high]
 temperature = 0.8

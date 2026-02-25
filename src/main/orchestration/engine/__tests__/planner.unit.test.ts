@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 
 import { extractJson } from '../json'
-import { MAX_PLAN_TASKS, OpenHivePlanValidationError, parseOpenHivePlan } from '../planner'
+import { MAX_PLAN_TASKS, OpenWagglePlanValidationError, parseOpenWagglePlan } from '../planner'
 
 describe('extractJson', () => {
   test('parses plain JSON', () => {
@@ -43,9 +43,9 @@ describe('extractJson', () => {
   })
 })
 
-describe('parseOpenHivePlan', () => {
+describe('parseOpenWagglePlan', () => {
   test('parses valid plan', () => {
-    const plan = parseOpenHivePlan({
+    const plan = parseOpenWagglePlan({
       tasks: [{ id: 'a', kind: 'analysis', title: 'A', prompt: 'do A' }],
     })
     expect(plan.tasks).toHaveLength(1)
@@ -53,7 +53,7 @@ describe('parseOpenHivePlan', () => {
   })
 
   test('deduplicates task IDs', () => {
-    const plan = parseOpenHivePlan({
+    const plan = parseOpenWagglePlan({
       tasks: [
         { id: 'a', kind: 'general', title: 'First', prompt: 'first' },
         { id: 'a', kind: 'general', title: 'Duplicate', prompt: 'duplicate' },
@@ -65,28 +65,28 @@ describe('parseOpenHivePlan', () => {
   })
 
   test('removes invalid dependency references', () => {
-    const plan = parseOpenHivePlan({
+    const plan = parseOpenWagglePlan({
       tasks: [{ id: 'a', kind: 'general', title: 'A', prompt: 'do A', dependsOn: ['nonexistent'] }],
     })
     expect(plan.tasks[0].dependsOn).toEqual([])
   })
 
   test('removes self-referencing dependencies', () => {
-    const plan = parseOpenHivePlan({
+    const plan = parseOpenWagglePlan({
       tasks: [{ id: 'a', kind: 'general', title: 'A', prompt: 'do A', dependsOn: ['a'] }],
     })
     expect(plan.tasks[0].dependsOn).toEqual([])
   })
 
   test('coerces unknown task kind to general', () => {
-    const plan = parseOpenHivePlan({
+    const plan = parseOpenWagglePlan({
       tasks: [{ id: 'a', kind: 'unknown-kind', title: 'A', prompt: 'do A' }],
     })
     expect(plan.tasks[0].kind).toBe('general')
   })
 
   test('extracts valid tasks from partially invalid array', () => {
-    const plan = parseOpenHivePlan({
+    const plan = parseOpenWagglePlan({
       tasks: [
         { id: 'good', kind: 'general', title: 'Good', prompt: 'valid task' },
         { id: '', kind: 'general', title: 'Bad', prompt: 'empty id' },
@@ -100,17 +100,17 @@ describe('parseOpenHivePlan', () => {
   })
 
   test('uses id as title fallback when title is missing', () => {
-    const plan = parseOpenHivePlan({
+    const plan = parseOpenWagglePlan({
       tasks: [{ id: 'my-task', kind: 'general', prompt: 'do something' }],
     })
     expect(plan.tasks[0].title).toBe('my-task')
   })
 
   test('throws when no valid tasks can be extracted', () => {
-    expect(() => parseOpenHivePlan({ tasks: [] })).toThrow(OpenHivePlanValidationError)
-    expect(() => parseOpenHivePlan({ tasks: [null, {}] })).toThrow(OpenHivePlanValidationError)
-    expect(() => parseOpenHivePlan(null)).toThrow(OpenHivePlanValidationError)
-    expect(() => parseOpenHivePlan('string')).toThrow(OpenHivePlanValidationError)
+    expect(() => parseOpenWagglePlan({ tasks: [] })).toThrow(OpenWagglePlanValidationError)
+    expect(() => parseOpenWagglePlan({ tasks: [null, {}] })).toThrow(OpenWagglePlanValidationError)
+    expect(() => parseOpenWagglePlan(null)).toThrow(OpenWagglePlanValidationError)
+    expect(() => parseOpenWagglePlan('string')).toThrow(OpenWagglePlanValidationError)
   })
 
   test('truncates plans exceeding max task count', () => {
@@ -120,7 +120,7 @@ describe('parseOpenHivePlan', () => {
       title: `Task ${i}`,
       prompt: `Do ${i}`,
     }))
-    const plan = parseOpenHivePlan({ tasks })
+    const plan = parseOpenWagglePlan({ tasks })
     expect(plan.tasks.length).toBeLessThanOrEqual(MAX_PLAN_TASKS)
   })
 })

@@ -1,11 +1,11 @@
 import { z } from 'zod'
 import { readBodyWithLimit, stripHtml } from '../../../utils/http'
-import { defineOpenHiveTool } from '../../define-tool'
+import { defineOpenWaggleTool } from '../../define-tool'
 
 const DEFAULT_MAX_LENGTH = 50_000
 const MAX_BODY_BYTES = 5 * 1024 * 1024 // 5 MB hard cap on response body
 
-export const webFetchTool = defineOpenHiveTool({
+export const webFetchTool = defineOpenWaggleTool({
   name: 'webFetch',
   description:
     'Fetch the content of a URL and return it as text. HTML is stripped to plain text. Useful for quick web lookups without starting a full browser.',
@@ -20,7 +20,7 @@ export const webFetchTool = defineOpenHiveTool({
   async execute(args, context) {
     const maxLength = args.maxLength ?? DEFAULT_MAX_LENGTH
     const response = await fetch(args.url, {
-      headers: { 'User-Agent': 'OpenHive/1.0' },
+      headers: { 'User-Agent': 'OpenWaggle/1.0' },
       signal: context.signal
         ? AbortSignal.any([context.signal, AbortSignal.timeout(30_000)])
         : AbortSignal.timeout(30_000),

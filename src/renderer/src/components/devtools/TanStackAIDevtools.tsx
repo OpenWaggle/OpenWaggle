@@ -1,5 +1,5 @@
 import type { DevtoolsEventBusConfig } from '@shared/types/devtools'
-import type { OpenHiveApi } from '@shared/types/ipc'
+import type { OpenWaggleApi } from '@shared/types/ipc'
 import { aiDevtoolsPlugin } from '@tanstack/react-ai-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { useEffect, useState } from 'react'
@@ -13,7 +13,7 @@ const DEFAULT_EVENT_BUS_CONFIG: DevtoolsEventBusConfig = {
 }
 const DEVTOOLS_PLUGINS = [aiDevtoolsPlugin()]
 
-function getRuntimeApi(): OpenHiveApi | null {
+function getRuntimeApi(): OpenWaggleApi | null {
   if (typeof window === 'undefined') return null
   return 'api' in window ? window.api : null
 }

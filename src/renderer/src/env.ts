@@ -1,8 +1,8 @@
-import type { OpenHiveApi } from '@shared/types/ipc'
+import type { OpenWaggleApi } from '@shared/types/ipc'
 
 declare global {
   interface Window {
-    api: OpenHiveApi
+    api: OpenWaggleApi
   }
 }
 

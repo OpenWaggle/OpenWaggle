@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import { z } from 'zod'
-import { defineOpenHiveTool, resolveProjectPath } from '../define-tool'
+import { defineOpenWaggleTool, resolveProjectPath } from '../define-tool'
 
 const MAX_FILE_SIZE = 1024 * 1024 // 1 MB
 
@@ -8,7 +8,7 @@ function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && 'code' in error
 }
 
-export const readFileTool = defineOpenHiveTool({
+export const readFileTool = defineOpenWaggleTool({
   name: 'readFile',
   description:
     'Read the contents of a file at the given path relative to the project root. Returns the file content as text. Use this to understand existing code before making changes.',

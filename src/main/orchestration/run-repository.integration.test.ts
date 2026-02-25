@@ -43,7 +43,7 @@ function makeRun(runId: string): OrchestrationRunRecord {
 
 describe('orchestration run repository', () => {
   beforeEach(async () => {
-    state.userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openhive-orch-test-'))
+    state.userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-orch-test-'))
   })
 
   afterEach(async () => {

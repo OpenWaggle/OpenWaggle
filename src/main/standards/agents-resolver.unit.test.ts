@@ -12,7 +12,7 @@ import {
 const tempDirs: string[] = []
 
 async function makeTempProject(): Promise<string> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'openhive-agents-resolver-'))
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-agents-resolver-'))
   tempDirs.push(dir)
   return dir
 }

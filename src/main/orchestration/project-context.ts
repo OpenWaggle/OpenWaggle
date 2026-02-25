@@ -346,7 +346,7 @@ export function createExecutorTools(
         ? AbortSignal.any([signal, AbortSignal.timeout(30_000)])
         : AbortSignal.timeout(30_000)
       const response = await fetch(args.url, {
-        headers: { 'User-Agent': 'OpenHive/1.0' },
+        headers: { 'User-Agent': 'OpenWaggle/1.0' },
         signal: fetchSignal,
       })
 

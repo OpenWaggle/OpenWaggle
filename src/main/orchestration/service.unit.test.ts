@@ -5,7 +5,7 @@ import type { StreamChunk } from '@tanstack/ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  runOpenHiveOrchestrationMock,
+  runOpenWaggleOrchestrationMock,
   resolveProviderAndQualityMock,
   extractJsonMock,
   chatMock,
@@ -14,7 +14,7 @@ const {
   maxIterationsMock,
   loadProjectConfigMock,
 } = vi.hoisted(() => ({
-  runOpenHiveOrchestrationMock: vi.fn(),
+  runOpenWaggleOrchestrationMock: vi.fn(),
   resolveProviderAndQualityMock: vi.fn(),
   extractJsonMock: vi.fn(),
   chatMock: vi.fn(),
@@ -25,7 +25,7 @@ const {
 }))
 
 vi.mock('./engine', () => ({
-  runOpenHiveOrchestration: runOpenHiveOrchestrationMock,
+  runOpenWaggleOrchestration: runOpenWaggleOrchestrationMock,
   extractJson: extractJsonMock,
 }))
 
@@ -177,7 +177,7 @@ function createConversation(): Conversation {
 
 describe('runOrchestratedAgent', () => {
   beforeEach(() => {
-    runOpenHiveOrchestrationMock.mockReset()
+    runOpenWaggleOrchestrationMock.mockReset()
     resolveProviderAndQualityMock.mockReset()
     chatMock.mockReset()
     gatherProjectContextMock.mockReset()
@@ -266,7 +266,7 @@ describe('runOrchestratedAgent', () => {
     }
     chatMock.mockImplementation(() => createStreamChunks(JSON.stringify(planTasks)))
     extractJsonMock.mockReturnValue(planTasks)
-    runOpenHiveOrchestrationMock.mockResolvedValue({
+    runOpenWaggleOrchestrationMock.mockResolvedValue({
       runId: 'run-1',
       usedFallback: true,
       fallbackReason: 'executor timeout',
@@ -352,7 +352,7 @@ describe('runOrchestratedAgent', () => {
 
     expect(result.status).toBe('completed')
     // Orchestration should NOT have been called
-    expect(runOpenHiveOrchestrationMock).not.toHaveBeenCalled()
+    expect(runOpenWaggleOrchestrationMock).not.toHaveBeenCalled()
     // Should have emitted text content chunks for the direct response
     const contentChunks = emitChunk.mock.calls.filter(
       (c) => (c[0] as { type: string }).type === 'TEXT_MESSAGE_CONTENT',
@@ -405,7 +405,7 @@ describe('runOrchestratedAgent', () => {
     }
     chatMock.mockImplementation(() => createStreamChunks(JSON.stringify(planTasks)))
     extractJsonMock.mockReturnValue(planTasks)
-    runOpenHiveOrchestrationMock.mockImplementation(
+    runOpenWaggleOrchestrationMock.mockImplementation(
       async (input: { executor: { execute: (arg: unknown) => Promise<unknown> } }) => {
         // Call the executor to verify its prompt includes context
         await input.executor.execute({
@@ -467,7 +467,7 @@ describe('runOrchestratedAgent', () => {
     }
     chatMock.mockImplementation(() => createStreamChunks(JSON.stringify(planTasks)))
     extractJsonMock.mockReturnValue(planTasks)
-    runOpenHiveOrchestrationMock.mockResolvedValue({
+    runOpenWaggleOrchestrationMock.mockResolvedValue({
       runId: 'run-1',
       usedFallback: false,
       text: 'Final synthesis result',
@@ -494,7 +494,7 @@ describe('runOrchestratedAgent', () => {
     })
 
     expect(result.status).toBe('completed')
-    expect(runOpenHiveOrchestrationMock).toHaveBeenCalledTimes(1)
+    expect(runOpenWaggleOrchestrationMock).toHaveBeenCalledTimes(1)
     // Should have emitted ack text (LLM-generated or fallback)
     const ackContent = emitChunk.mock.calls.find((c) => {
       const chunk = c[0] as { type: string; delta?: string }
@@ -602,7 +602,7 @@ describe('runOrchestratedAgent', () => {
       return createStreamChunksWithThinking('Reasoning about task...', 'Task result.')
     })
     extractJsonMock.mockReturnValue(planTasks)
-    runOpenHiveOrchestrationMock.mockImplementation(
+    runOpenWaggleOrchestrationMock.mockImplementation(
       async (input: { executor: { execute: (arg: unknown) => Promise<unknown> } }) => {
         await input.executor.execute({
           task: { title: 'Task 1', kind: 'general', prompt: 'Do thing 1' },
@@ -683,7 +683,7 @@ describe('runOrchestratedAgent', () => {
     })
     extractJsonMock.mockReturnValue(planTasks)
     let executorError: Error | undefined
-    runOpenHiveOrchestrationMock.mockImplementation(
+    runOpenWaggleOrchestrationMock.mockImplementation(
       async (input: { executor: { execute: (arg: unknown) => Promise<unknown> } }) => {
         try {
           await input.executor.execute({
@@ -732,10 +732,10 @@ describe('runOrchestratedAgent', () => {
     }
     chatMock.mockImplementation(() => createStreamChunks(JSON.stringify(planTasks)))
     extractJsonMock.mockReturnValue(planTasks)
-    // Simulate runOpenHiveOrchestration returning empty text (synthesis returned empty)
+    // Simulate runOpenWaggleOrchestration returning empty text (synthesis returned empty)
     // The orchestrator's empty-output guard should concatenate task outputs instead,
     // but from the service perspective we just verify it handles empty text gracefully
-    runOpenHiveOrchestrationMock.mockResolvedValue({
+    runOpenWaggleOrchestrationMock.mockResolvedValue({
       runId: 'run-1',
       usedFallback: false,
       text: '',
@@ -806,7 +806,7 @@ describe('runOrchestratedAgent', () => {
     }
     chatMock.mockImplementation(() => createStreamChunks(JSON.stringify(planTasks)))
     extractJsonMock.mockReturnValue(planTasks)
-    runOpenHiveOrchestrationMock.mockResolvedValue({
+    runOpenWaggleOrchestrationMock.mockResolvedValue({
       runId: 'run-1',
       usedFallback: false,
       text: '',

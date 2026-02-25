@@ -2,10 +2,10 @@ import type { QuestionAnswer } from '@shared/types/question'
 import { userQuestionSchema } from '@shared/types/question'
 import { BrowserWindow } from 'electron'
 import { z } from 'zod'
-import { defineOpenHiveTool } from '../define-tool'
+import { defineOpenWaggleTool } from '../define-tool'
 import { cancelQuestion, registerQuestion } from '../question-manager'
 
-export const askUserTool = defineOpenHiveTool({
+export const askUserTool = defineOpenWaggleTool({
   name: 'askUser',
   description:
     'Ask the user a question with clickable options. Use this only when a user preference is required to proceed and different answers lead to materially different implementation actions. Do not use for simple capability yes/no questions, terminology disambiguation, or generic taxonomy prompts. First provide a direct best-effort answer when possible. Present clear, concise questions with 2-5 options each. You can ask 1-4 questions at once.',

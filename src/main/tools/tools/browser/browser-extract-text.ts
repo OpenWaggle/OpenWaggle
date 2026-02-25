@@ -1,8 +1,8 @@
 import { z } from 'zod'
 import { getOrCreateSession } from '../../../browser'
-import { defineOpenHiveTool } from '../../define-tool'
+import { defineOpenWaggleTool } from '../../define-tool'
 
-export const browserExtractTextTool = defineOpenHiveTool({
+export const browserExtractTextTool = defineOpenWaggleTool({
   name: 'browserExtractText',
   description:
     'Extract visible text from the current page or a specific element. Useful for reading page content without a screenshot.',

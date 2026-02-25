@@ -1,14 +1,14 @@
 import { resolveChildContextHeuristic } from './context-heuristic'
-import type { OpenHivePlannedTask, OpenHiveTaskExecutor, WorkerAdapter } from './types'
+import type { OpenWagglePlannedTask, OpenWaggleTaskExecutor, WorkerAdapter } from './types'
 
-interface OpenHiveWorkerAdapterOptions {
-  readonly executor: OpenHiveTaskExecutor
-  readonly taskById: Readonly<Record<string, OpenHivePlannedTask>>
+interface OpenWaggleWorkerAdapterOptions {
+  readonly executor: OpenWaggleTaskExecutor
+  readonly taskById: Readonly<Record<string, OpenWagglePlannedTask>>
   readonly maxContextTokens?: number
 }
 
-export function createOpenHiveAgentWorkerAdapter(
-  options: OpenHiveWorkerAdapterOptions,
+export function createOpenWaggleAgentWorkerAdapter(
+  options: OpenWaggleWorkerAdapterOptions,
 ): WorkerAdapter {
   return {
     async executeTask(task, context) {

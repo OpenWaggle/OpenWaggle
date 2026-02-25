@@ -10,7 +10,7 @@ import { editFileTool } from './edit-file'
 const tempDirs: string[] = []
 
 function makeTempDir(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'openhive-edit-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'openwaggle-edit-'))
   tempDirs.push(dir)
   return dir
 }

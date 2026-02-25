@@ -9,13 +9,13 @@ import { loadSkillForRun } from './load-skill'
 const tempDirs: string[] = []
 
 async function makeTempProject(): Promise<string> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'openhive-load-skill-tool-'))
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-load-skill-tool-'))
   tempDirs.push(dir)
   return dir
 }
 
 async function writeSkill(projectPath: string, folder: string, content: string): Promise<void> {
-  const skillDir = path.join(projectPath, '.openhive', 'skills', folder)
+  const skillDir = path.join(projectPath, '.openwaggle', 'skills', folder)
   await fs.mkdir(skillDir, { recursive: true })
   await fs.writeFile(path.join(skillDir, 'SKILL.md'), content, 'utf8')
 }

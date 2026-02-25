@@ -1,17 +1,17 @@
 import { createLogger } from '../../logger'
 import { createOrchestrationEngine } from './engine'
 import { MemoryRunStore } from './memory-run-store'
-import { parseOpenHivePlan } from './planner'
+import { parseOpenWagglePlan } from './planner'
 import type {
-  OpenHiveOrchestrationPlan,
-  OpenHiveOrchestrationResult,
+  OpenWaggleOrchestrationPlan,
+  OpenWaggleOrchestrationResult,
   OrchestrationRunRecord,
   OrchestrationTaskDefinition,
   OrchestrationTaskRetryPolicy,
-  RunOpenHiveOrchestrationInput,
+  RunOpenWaggleOrchestrationInput,
   RunStore,
 } from './types'
-import { createOpenHiveAgentWorkerAdapter } from './worker-adapter'
+import { createOpenWaggleAgentWorkerAdapter } from './worker-adapter'
 
 const logger = createLogger('orchestration')
 
@@ -21,9 +21,9 @@ const DEFAULT_TASK_RETRY: OrchestrationTaskRetryPolicy = {
   jitterMs: 200,
 }
 
-export async function runOpenHiveOrchestration(
-  input: RunOpenHiveOrchestrationInput,
-): Promise<OpenHiveOrchestrationResult> {
+export async function runOpenWaggleOrchestration(
+  input: RunOpenWaggleOrchestrationInput,
+): Promise<OpenWaggleOrchestrationResult> {
   const mode = input.mode ?? 'auto-fallback'
   const runStore = input.runStore ?? new MemoryRunStore()
 
@@ -41,9 +41,9 @@ export async function runOpenHiveOrchestration(
     throw error
   }
 
-  let plan: OpenHiveOrchestrationPlan
+  let plan: OpenWaggleOrchestrationPlan
   try {
-    plan = parseOpenHivePlan(planRaw)
+    plan = parseOpenWagglePlan(planRaw)
   } catch (error) {
     if (mode === 'auto-fallback') {
       return runSingleTaskFallback(
@@ -57,7 +57,7 @@ export async function runOpenHiveOrchestration(
 
   const taskById = Object.fromEntries(plan.tasks.map((task) => [task.id, task] as const))
 
-  const workerAdapter = createOpenHiveAgentWorkerAdapter({
+  const workerAdapter = createOpenWaggleAgentWorkerAdapter({
     executor: input.executor,
     taskById,
     maxContextTokens: input.maxContextTokens,
@@ -139,11 +139,11 @@ export async function runOpenHiveOrchestration(
  * (with retry support) instead of falling back to classic agent entirely.
  */
 async function runSingleTaskFallback(
-  input: RunOpenHiveOrchestrationInput,
+  input: RunOpenWaggleOrchestrationInput,
   runStore: RunStore,
   reason: string,
-): Promise<OpenHiveOrchestrationResult> {
-  const plan: OpenHiveOrchestrationPlan = {
+): Promise<OpenWaggleOrchestrationResult> {
+  const plan: OpenWaggleOrchestrationPlan = {
     tasks: [
       {
         id: 'fallback-task',
@@ -156,7 +156,7 @@ async function runSingleTaskFallback(
   }
 
   const taskById = { 'fallback-task': plan.tasks[0] }
-  const workerAdapter = createOpenHiveAgentWorkerAdapter({
+  const workerAdapter = createOpenWaggleAgentWorkerAdapter({
     executor: input.executor,
     taskById,
     maxContextTokens: input.maxContextTokens,

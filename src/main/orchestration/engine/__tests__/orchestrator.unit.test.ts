@@ -1,9 +1,9 @@
 import { expect, test } from 'vitest'
-import { runOpenHiveOrchestration } from '../orchestrator'
+import { runOpenWaggleOrchestration } from '../orchestrator'
 import type { OrchestrationEvent } from '../types'
 
 test('falls back to single-task when planner output is empty in auto-fallback mode', async () => {
-  const result = await runOpenHiveOrchestration({
+  const result = await runOpenWaggleOrchestration({
     userPrompt: 'hello world',
     planner: {
       async plan() {
@@ -29,7 +29,7 @@ test('falls back to single-task when planner output is empty in auto-fallback mo
 })
 
 test('runs planner -> orchestration -> synthesizer', async () => {
-  const result = await runOpenHiveOrchestration({
+  const result = await runOpenWaggleOrchestration({
     runId: 'run-1',
     userPrompt: 'Do work',
     planner: {
@@ -74,7 +74,7 @@ test('runs planner -> orchestration -> synthesizer', async () => {
 test('does not synthesize when orchestration run fails', async () => {
   let synthesizerCalls = 0
 
-  const result = await runOpenHiveOrchestration({
+  const result = await runOpenWaggleOrchestration({
     runId: 'run-fail',
     userPrompt: 'Do failing work',
     planner: {
@@ -111,7 +111,7 @@ test('does not synthesize when orchestration run fails', async () => {
 })
 
 test('falls back to single-task when planner throws in auto-fallback mode', async () => {
-  const result = await runOpenHiveOrchestration({
+  const result = await runOpenWaggleOrchestration({
     userPrompt: 'do something',
     planner: {
       async plan() {
@@ -137,7 +137,7 @@ test('falls back to single-task when planner throws in auto-fallback mode', asyn
 })
 
 test('concatenates task outputs when synthesizer fails', async () => {
-  const result = await runOpenHiveOrchestration({
+  const result = await runOpenWaggleOrchestration({
     runId: 'run-synth-fail',
     userPrompt: 'multi task',
     planner: {
@@ -170,7 +170,7 @@ test('concatenates task outputs when synthesizer fails', async () => {
 test('applies default retry policy to tasks', async () => {
   let executionCount = 0
 
-  const result = await runOpenHiveOrchestration({
+  const result = await runOpenWaggleOrchestration({
     runId: 'run-retry',
     userPrompt: 'retry test',
     planner: {
@@ -204,7 +204,7 @@ test('applies default retry policy to tasks', async () => {
 test('threads reportProgress to executor', async () => {
   const progressPayloads: unknown[] = []
 
-  await runOpenHiveOrchestration({
+  await runOpenWaggleOrchestration({
     runId: 'run-progress',
     userPrompt: 'test',
     planner: {
@@ -238,7 +238,7 @@ test('threads reportProgress to executor', async () => {
 })
 
 test('emits synthesis fallback concatenation when synthesizer fails', async () => {
-  const result = await runOpenHiveOrchestration({
+  const result = await runOpenWaggleOrchestration({
     runId: 'run-synth-fallback',
     userPrompt: 'check fallback',
     planner: {
@@ -266,7 +266,7 @@ test('emits synthesis fallback concatenation when synthesizer fails', async () =
 })
 
 test('concatenates task outputs when synthesizer returns empty string', async () => {
-  const result = await runOpenHiveOrchestration({
+  const result = await runOpenWaggleOrchestration({
     runId: 'run-synth-empty',
     userPrompt: 'multi task',
     planner: {
@@ -298,7 +298,7 @@ test('concatenates task outputs when synthesizer returns empty string', async ()
 })
 
 test('rejects plans exceeding max task count', async () => {
-  const result = await runOpenHiveOrchestration({
+  const result = await runOpenWaggleOrchestration({
     runId: 'run-max-tasks',
     userPrompt: 'big plan',
     planner: {

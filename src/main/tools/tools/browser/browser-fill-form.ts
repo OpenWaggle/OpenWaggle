@@ -1,8 +1,8 @@
 import { z } from 'zod'
 import { getOrCreateSession } from '../../../browser'
-import { defineOpenHiveTool } from '../../define-tool'
+import { defineOpenWaggleTool } from '../../define-tool'
 
-export const browserFillFormTool = defineOpenHiveTool({
+export const browserFillFormTool = defineOpenWaggleTool({
   name: 'browserFillForm',
   description:
     'Fill multiple form fields at once. Each field is identified by a CSS selector and filled with the given value.',

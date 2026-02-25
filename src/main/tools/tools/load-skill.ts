@@ -2,10 +2,10 @@ import type { SkillLoadToolResult } from '@shared/types/standards'
 import { z } from 'zod'
 import { loadSkillInstructions, normalizeRequestedSkillId } from '../../skills/skill-catalog'
 import type { ToolContext } from '../define-tool'
-import { defineOpenHiveTool } from '../define-tool'
+import { defineOpenWaggleTool } from '../define-tool'
 
 const loadSkillInputSchema = z.object({
-  skillId: z.string().min(1).describe('Skill id from .openhive/skills/<skill-id>'),
+  skillId: z.string().min(1).describe('Skill id from .openwaggle/skills/<skill-id>'),
 })
 
 export async function loadSkillForRun(
@@ -65,10 +65,10 @@ export async function loadSkillForRun(
   }
 }
 
-export const loadSkillTool = defineOpenHiveTool({
+export const loadSkillTool = defineOpenWaggleTool({
   name: 'loadSkill',
   description:
-    'Load full instructions for a project skill from .openhive/skills/<skill-id>/SKILL.md. Use this when you need detailed skill workflow guidance during the current run.',
+    'Load full instructions for a project skill from .openwaggle/skills/<skill-id>/SKILL.md. Use this when you need detailed skill workflow guidance during the current run.',
   inputSchema: loadSkillInputSchema,
   async execute(args, context) {
     const result = await loadSkillForRun(context, args.skillId)

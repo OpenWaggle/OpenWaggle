@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const { safeHandleMock, getPathMock, mkdirMock, pipelineMock, transformersEnv } = vi.hoisted(
   () => ({
     safeHandleMock: vi.fn(),
-    getPathMock: vi.fn(() => '/tmp/openhive-user-data'),
+    getPathMock: vi.fn(() => '/tmp/openwaggle-user-data'),
     mkdirMock: vi.fn(async () => undefined),
     pipelineMock: vi.fn(),
     transformersEnv: {
@@ -95,7 +95,7 @@ describe('registerVoiceHandlers', () => {
       model: string
     }
 
-    expect(mkdirMock).toHaveBeenCalledWith('/tmp/openhive-user-data/models/transformers', {
+    expect(mkdirMock).toHaveBeenCalledWith('/tmp/openwaggle-user-data/models/transformers', {
       recursive: true,
     })
     expect(pipelineMock).toHaveBeenCalledWith(
@@ -122,7 +122,7 @@ describe('registerVoiceHandlers', () => {
     })
     expect(transformersEnv.allowLocalModels).toBe(true)
     expect(transformersEnv.allowRemoteModels).toBe(true)
-    expect(transformersEnv.cacheDir).toBe('/tmp/openhive-user-data/models/transformers')
+    expect(transformersEnv.cacheDir).toBe('/tmp/openwaggle-user-data/models/transformers')
     expect(transformersEnv.backends?.onnx?.logLevel).toBe('error')
   })
 

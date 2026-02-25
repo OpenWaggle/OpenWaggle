@@ -1,9 +1,9 @@
 import path from 'node:path'
 import fg from 'fast-glob'
 import { z } from 'zod'
-import { defineOpenHiveTool } from '../define-tool'
+import { defineOpenWaggleTool } from '../define-tool'
 
-export const globTool = defineOpenHiveTool({
+export const globTool = defineOpenWaggleTool({
   name: 'glob',
   description:
     'Find files matching a glob pattern within the project directory. Returns matching file paths. Useful for discovering project structure and finding files.',

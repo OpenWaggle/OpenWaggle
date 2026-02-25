@@ -21,7 +21,7 @@ describe('extractExplicitSkillReferences', () => {
   })
 
   it('ignores absolute path segments', () => {
-    const result = extractExplicitSkillReferences('Please inspect /tmp/repo/.openhive/skills')
+    const result = extractExplicitSkillReferences('Please inspect /tmp/repo/.openwaggle/skills')
     expect(result.allSkillIds).toEqual([])
   })
 

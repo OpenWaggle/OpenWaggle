@@ -20,20 +20,20 @@ describe('resolveProjectPath', () => {
   })
 
   it('resolves paths inside the project root', () => {
-    const projectRoot = makeTempDir('openhive-tool-project-')
+    const projectRoot = makeTempDir('openwaggle-tool-project-')
     const resolved = resolveProjectPath(projectRoot, 'src/main/index.ts')
     expect(resolved).toBe(path.resolve(projectRoot, 'src/main/index.ts'))
   })
 
   it('rejects traversal outside the project root', () => {
-    const projectRoot = makeTempDir('openhive-tool-project-')
+    const projectRoot = makeTempDir('openwaggle-tool-project-')
     expect(() => resolveProjectPath(projectRoot, '../outside.txt')).toThrow(
       /outside the project directory/i,
     )
   })
 
   it('rejects symlink escapes when target exists', () => {
-    const workspace = makeTempDir('openhive-tool-workspace-')
+    const workspace = makeTempDir('openwaggle-tool-workspace-')
     const projectRoot = path.join(workspace, 'project')
     const outside = path.join(workspace, 'outside')
     const insideLink = path.join(projectRoot, 'linked')

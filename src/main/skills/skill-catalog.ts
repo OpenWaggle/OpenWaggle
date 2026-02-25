@@ -25,7 +25,7 @@ export async function loadSkillCatalog(
   projectPath: string,
   toggles: Readonly<Record<string, boolean>> = {},
 ): Promise<LoadedSkillCatalog> {
-  const skillsRoot = path.join(projectPath, '.openhive', 'skills')
+  const skillsRoot = path.join(projectPath, '.openwaggle', 'skills')
   const folderEntries = await readDirectoryEntries(skillsRoot)
   if (folderEntries === null) {
     return {
@@ -58,7 +58,7 @@ export async function loadSkillInstructions(
   toggles: Readonly<Record<string, boolean>> = {},
 ): Promise<LoadedSkillInstructions> {
   const canonicalSkillId = normalizeRequestedSkillId(skillId)
-  const skillsRoot = path.join(projectPath, '.openhive', 'skills')
+  const skillsRoot = path.join(projectPath, '.openwaggle', 'skills')
   const folderEntries = await readDirectoryEntries(skillsRoot)
   if (folderEntries === null) {
     throw new Error(`Skill "${canonicalSkillId}" was not found.`)
@@ -183,7 +183,7 @@ async function resolveRealPath(targetPath: string): Promise<string> {
 
 function formatSkillError(projectPath: string, folderName: string, error: unknown): string {
   const message = error instanceof Error ? error.message : String(error)
-  const relativePath = path.join(projectPath, '.openhive', 'skills', folderName, 'SKILL.md')
+  const relativePath = path.join(projectPath, '.openwaggle', 'skills', folderName, 'SKILL.md')
   return `${relativePath}: ${message}`
 }
 

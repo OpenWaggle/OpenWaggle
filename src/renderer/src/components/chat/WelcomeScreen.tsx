@@ -1,6 +1,6 @@
 import { ChevronDown, FileText, FolderOpen, Gamepad2, PencilLine } from 'lucide-react'
 import { useState } from 'react'
-import openhiveMark from '@/assets/openhive-mark.png'
+import openwaggleMark from '@/assets/openwaggle-mark.png'
 import { Popover } from '@/components/shared/Popover'
 import { projectName } from '@/lib/format'
 
@@ -39,7 +39,7 @@ export function WelcomeScreen({
       <div className="flex w-full flex-col pt-8">
         <div className="flex flex-1 items-center justify-center pb-20">
           <div className="flex flex-col items-center text-center">
-            <img src={openhiveMark} alt="OpenHive logo" className="h-20 w-20 object-contain" />
+            <img src={openwaggleMark} alt="OpenWaggle logo" className="h-20 w-20 object-contain" />
             <div className="mt-5 space-y-1.5">
               <h2 className="text-[clamp(40px,5vw,54px)] leading-none font-semibold tracking-tight text-text-primary">
                 Let&apos;s build

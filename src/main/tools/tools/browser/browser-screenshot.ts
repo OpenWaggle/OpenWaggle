@@ -1,9 +1,9 @@
 import { z } from 'zod'
 import { getOrCreateSession } from '../../../browser'
 import type { NormalizedToolResult } from '../../define-tool'
-import { defineOpenHiveTool } from '../../define-tool'
+import { defineOpenWaggleTool } from '../../define-tool'
 
-export const browserScreenshotTool = defineOpenHiveTool({
+export const browserScreenshotTool = defineOpenWaggleTool({
   name: 'browserScreenshot',
   description:
     'Take a screenshot of the current page or a specific element. Returns a base64-encoded PNG image.',

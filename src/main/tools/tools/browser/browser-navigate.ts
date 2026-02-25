@@ -1,14 +1,14 @@
 import { z } from 'zod'
 import { getOrCreateSession } from '../../../browser'
-import { defineOpenHiveTool } from '../../define-tool'
+import { defineOpenWaggleTool } from '../../define-tool'
 
-export const browserNavigateTool = defineOpenHiveTool({
+export const browserNavigateTool = defineOpenWaggleTool({
   name: 'browserNavigate',
   description:
     'Navigate the browser to a URL. Launches a Chromium instance if none is running. Returns the page title, final URL, and HTTP status.',
   needsApproval: true,
   inputSchema: z.object({
-    url: z.string().url().describe('The URL to navigate to'),
+    url: z.string().describe('The URL to navigate to'),
     waitUntil: z
       .enum(['load', 'domcontentloaded', 'networkidle'])
       .optional()
