@@ -20,6 +20,13 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Task: Orchestration Runner Pipeline Refactor (2026-02-25)
+- In async orchestration coordinators, returning a stage promise directly from inside a `try` block does not route downstream rejection through that `catch`; `await` the stage call (`return await ...`) to preserve centralized terminal error handling (fallback/cancel policy).
+
+### Task: Orchestration Service Refactor + Hardening (2026-02-25)
+- For TanStack `chat(...)` integration points, dependency injection is significantly easier and safer when internal code defines a narrowed `stream: true` runner contract instead of reusing the full generic `typeof chat` signature; this keeps production wiring identical while enabling deterministic, cast-free tests.
+- Explicit stream lifecycle state machines (`RUN_STARTED`/`TEXT_MESSAGE_*`/`RUN_FINISHED` + terminal guard) prevent subtle fallback/cancellation regressions that ad-hoc chunk emission logic tends to reintroduce.
+
 ### Task: Workspace Package Lint Gate Expansion (2026-02-20)
 - Root-level Biome `files.includes` scope (`src/**`) can silently exclude workspace package files even when explicit paths are passed; package-local Biome configs that extend root rules plus per-package lint scripts are a reliable way to enforce package linting from root gates.
 

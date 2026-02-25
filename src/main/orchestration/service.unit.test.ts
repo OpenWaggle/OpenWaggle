@@ -51,51 +51,7 @@ vi.mock('../config/project-config', () => ({
   loadProjectConfig: loadProjectConfigMock,
 }))
 
-import { hasWebIntent, runOrchestratedAgent } from './service'
-
-// --- hasWebIntent unit tests ---
-
-describe('hasWebIntent', () => {
-  it('detects explicit URL', () => {
-    expect(hasWebIntent('check https://tanstack.com/ai')).toBe(true)
-  })
-
-  it('detects "go to" keyword', () => {
-    expect(hasWebIntent('go to tanstack ai docs')).toBe(true)
-  })
-
-  it('detects "docs" token', () => {
-    expect(hasWebIntent('tanstack ai docs')).toBe(true)
-  })
-
-  it('detects "documentation" token', () => {
-    expect(hasWebIntent('read the React documentation')).toBe(true)
-  })
-
-  it('detects "visit" keyword', () => {
-    expect(hasWebIntent('visit the official site')).toBe(true)
-  })
-
-  it('detects "look up" keyword', () => {
-    expect(hasWebIntent('look up the API reference')).toBe(true)
-  })
-
-  it('detects "website" token', () => {
-    expect(hasWebIntent('what does the website say')).toBe(true)
-  })
-
-  it('returns false for pure knowledge question', () => {
-    expect(hasWebIntent('what is TypeScript?')).toBe(false)
-  })
-
-  it('returns false for project-only question', () => {
-    expect(hasWebIntent('explain how the agent loop works')).toBe(false)
-  })
-
-  it('does not false-positive on "documentary"', () => {
-    expect(hasWebIntent('write a documentary-style summary')).toBe(false)
-  })
-})
+import { runOrchestratedAgent } from './service'
 
 // --- Stream chunk helpers ---
 
@@ -218,6 +174,126 @@ describe('runOrchestratedAgent', () => {
 
     createExecutorToolsMock.mockReturnValue([])
     maxIterationsMock.mockReturnValue(undefined)
+  })
+
+  it('returns fallback immediately when model resolution fails', async () => {
+    resolveProviderAndQualityMock.mockReturnValue({
+      ok: false,
+      reason: 'missing API key',
+    })
+
+    const emitChunk = vi.fn()
+
+    const result = await runOrchestratedAgent({
+      runId: 'run-1',
+      conversationId: ConversationId('conversation-1'),
+      conversation: createConversation(),
+      payload: {
+        text: 'Help me',
+        qualityPreset: 'medium',
+        attachments: [],
+      },
+      model: 'gpt-4.1-mini',
+      settings: createSettings(),
+      signal: new AbortController().signal,
+      emitEvent: vi.fn(),
+      emitChunk,
+    })
+
+    expect(result).toEqual({
+      status: 'fallback',
+      runId: 'run-1',
+      reason: 'missing API key',
+    })
+    expect(emitChunk).not.toHaveBeenCalled()
+    expect(chatMock).not.toHaveBeenCalled()
+    expect(runOpenWaggleOrchestrationMock).not.toHaveBeenCalled()
+  })
+
+  it('returns fallback when setup fails before stream starts', async () => {
+    resolveProviderAndQualityMock.mockReturnValue({
+      ok: true,
+      provider: {
+        id: 'openai',
+        displayName: 'OpenAI',
+        requiresApiKey: true,
+        supportsBaseUrl: true,
+        models: ['gpt-4.1-mini'],
+        testModel: 'gpt-4.1-mini',
+        createAdapter: vi.fn(() => {
+          throw new Error('adapter init failed')
+        }),
+      },
+      providerConfig: {
+        apiKey: 'test-key',
+        enabled: true,
+      },
+      resolvedModel: 'gpt-4.1-mini',
+      qualityConfig: {
+        model: 'gpt-4.1-mini',
+        temperature: 0.4,
+        topP: 0.95,
+        maxTokens: 2200,
+      },
+    })
+
+    const emitChunk = vi.fn()
+
+    const result = await runOrchestratedAgent({
+      runId: 'run-1',
+      conversationId: ConversationId('conversation-1'),
+      conversation: createConversation(),
+      payload: {
+        text: 'Help me',
+        qualityPreset: 'medium',
+        attachments: [],
+      },
+      model: 'gpt-4.1-mini',
+      settings: createSettings(),
+      signal: new AbortController().signal,
+      emitEvent: vi.fn(),
+      emitChunk,
+    })
+
+    expect(result).toEqual({
+      status: 'fallback',
+      runId: 'run-1',
+      reason: 'adapter init failed',
+    })
+    expect(emitChunk).not.toHaveBeenCalled()
+    expect(chatMock).not.toHaveBeenCalled()
+    expect(runOpenWaggleOrchestrationMock).not.toHaveBeenCalled()
+  })
+
+  it('returns cancelled when setup aborts before stream starts', async () => {
+    loadProjectConfigMock.mockRejectedValue(new Error('aborted'))
+
+    const emitChunk = vi.fn()
+
+    const result = await runOrchestratedAgent({
+      runId: 'run-1',
+      conversationId: ConversationId('conversation-1'),
+      conversation: createConversation(),
+      payload: {
+        text: 'Help me',
+        qualityPreset: 'medium',
+        attachments: [],
+      },
+      model: 'gpt-4.1-mini',
+      settings: createSettings(),
+      signal: new AbortController().signal,
+      emitEvent: vi.fn(),
+      emitChunk,
+    })
+
+    expect(result).toEqual({
+      status: 'cancelled',
+      runId: 'run-1',
+      newMessages: [],
+    })
+    expect(emitChunk).not.toHaveBeenCalled()
+    expect(chatMock).not.toHaveBeenCalled()
+    expect(runOpenWaggleOrchestrationMock).not.toHaveBeenCalled()
   })
 
   it('returns fallback and closes ack run when planner call throws', async () => {
@@ -503,6 +579,42 @@ describe('runOrchestratedAgent', () => {
     expect(ackContent).toBeTruthy()
   })
 
+  it('returns cancelled when orchestration engine reports cancelled status', async () => {
+    const planTasks = {
+      tasks: [{ id: 'task-1', kind: 'general', title: 'Task 1', prompt: 'Do thing 1' }],
+    }
+    chatMock.mockImplementation(() => createStreamChunks(JSON.stringify(planTasks)))
+    extractJsonMock.mockReturnValue(planTasks)
+    runOpenWaggleOrchestrationMock.mockResolvedValue({
+      runId: 'run-1',
+      usedFallback: false,
+      text: '',
+      runStatus: 'cancelled',
+    })
+
+    const emitChunk = vi.fn()
+
+    const result = await runOrchestratedAgent({
+      runId: 'run-1',
+      conversationId: ConversationId('conversation-1'),
+      conversation: createConversation(),
+      payload: { text: 'Analyze', qualityPreset: 'medium', attachments: [] },
+      model: 'gpt-4.1-mini',
+      settings: createSettings(),
+      signal: new AbortController().signal,
+      emitEvent: vi.fn(),
+      emitChunk,
+    })
+
+    expect(result).toEqual({
+      status: 'cancelled',
+      runId: 'run-1',
+      newMessages: [],
+    })
+    const chunkTypes = emitChunk.mock.calls.map((c) => (c[0] as { type: string }).type)
+    expect(chunkTypes).toEqual(['RUN_STARTED', 'RUN_FINISHED'])
+  })
+
   it('falls back to extractJson when direct JSON.parse fails (code fences)', async () => {
     const codeFencedResponse = '```json\n{"direct":true,"response":"Summary here."}\n```'
     chatMock.mockImplementation(() => createStreamChunks(codeFencedResponse))
@@ -724,6 +836,211 @@ describe('runOrchestratedAgent', () => {
     expect(executorError).toBeDefined()
     expect(executorError?.message).toContain('server_error')
     expect(executorError?.message).toContain('Internal server error')
+  })
+
+  it('returns cancelled when planner path is aborted before any message starts', async () => {
+    chatMock.mockImplementation(() => createErrorStream(new Error('aborted')))
+
+    const emitChunk = vi.fn()
+
+    const result = await runOrchestratedAgent({
+      runId: 'run-1',
+      conversationId: ConversationId('conversation-1'),
+      conversation: createConversation(),
+      payload: { text: 'Analyze code', qualityPreset: 'medium', attachments: [] },
+      model: 'gpt-4.1-mini',
+      settings: createSettings(),
+      signal: new AbortController().signal,
+      emitEvent: vi.fn(),
+      emitChunk,
+    })
+
+    expect(result).toEqual({
+      status: 'cancelled',
+      runId: 'run-1',
+      newMessages: [],
+    })
+    const chunkTypes = emitChunk.mock.calls.map((c) => (c[0] as { type: string }).type)
+    expect(chunkTypes).toEqual(['RUN_STARTED', 'RUN_FINISHED'])
+  })
+
+  it('returns cancelled when executor path aborts after ack text is streamed', async () => {
+    const planTasks = {
+      ackText: 'Working on it.',
+      tasks: [{ id: 'task-1', kind: 'general', title: 'Task 1', prompt: 'Do thing 1' }],
+    }
+    let callCount = 0
+    chatMock.mockImplementation(() => {
+      callCount += 1
+      if (callCount === 1) {
+        return createStreamChunks(JSON.stringify(planTasks))
+      }
+      return createErrorStream(new Error('aborted'))
+    })
+    extractJsonMock.mockReturnValue(planTasks)
+    runOpenWaggleOrchestrationMock.mockImplementation(
+      async (input: { executor: { execute: (arg: unknown) => Promise<unknown> } }) => {
+        await input.executor.execute({
+          task: { id: 'task-1', title: 'Task 1', kind: 'general', prompt: 'Do thing 1' },
+          orchestrationTask: {},
+          includeConversationSummary: false,
+          maxContextTokens: 1500,
+          dependencyOutputs: {},
+          signal: new AbortController().signal,
+        })
+        return {
+          runId: 'run-1',
+          usedFallback: false,
+          text: '',
+          runStatus: 'completed',
+        }
+      },
+    )
+
+    const emitChunk = vi.fn()
+
+    const result = await runOrchestratedAgent({
+      runId: 'run-1',
+      conversationId: ConversationId('conversation-1'),
+      conversation: createConversation(),
+      payload: { text: 'Analyze code', qualityPreset: 'medium', attachments: [] },
+      model: 'gpt-4.1-mini',
+      settings: createSettings(),
+      signal: new AbortController().signal,
+      emitEvent: vi.fn(),
+      emitChunk,
+    })
+
+    expect(result.status).toBe('cancelled')
+    const chunkTypes = emitChunk.mock.calls.map((c) => (c[0] as { type: string }).type)
+    expect(chunkTypes).toContain('TEXT_MESSAGE_START')
+    expect(chunkTypes).toContain('TEXT_MESSAGE_END')
+    expect(chunkTypes).toContain('RUN_FINISHED')
+    const content = emitChunk.mock.calls
+      .filter((c) => (c[0] as { type: string }).type === 'TEXT_MESSAGE_CONTENT')
+      .map((c) => (c[0] as { delta: string }).delta)
+      .join('')
+    expect(content).not.toContain('Falling back to direct execution')
+  })
+
+  it('ignores malformed task progress payloads without failing the run', async () => {
+    const planTasks = {
+      tasks: [{ id: 'task-1', kind: 'general', title: 'Task 1', prompt: 'Do thing 1' }],
+    }
+    chatMock.mockImplementation(() => createStreamChunks(JSON.stringify(planTasks)))
+    extractJsonMock.mockReturnValue(planTasks)
+    runOpenWaggleOrchestrationMock.mockImplementation(
+      async (input: {
+        onEvent?: (event: {
+          type: string
+          runId: string
+          taskId?: string
+          at: string
+          payload?: unknown
+        }) => Promise<void>
+      }) => {
+        await input.onEvent?.({
+          type: 'task_progress',
+          runId: 'run-1',
+          taskId: 'task-1',
+          at: new Date().toISOString(),
+          payload: { type: 'tool_end' },
+        })
+        await input.onEvent?.({
+          type: 'task_succeeded',
+          runId: 'run-1',
+          taskId: 'task-1',
+          at: new Date().toISOString(),
+        })
+        return {
+          runId: 'run-1',
+          usedFallback: false,
+          text: 'Done',
+          runStatus: 'completed',
+        }
+      },
+    )
+
+    const emitChunk = vi.fn()
+
+    const result = await runOrchestratedAgent({
+      runId: 'run-1',
+      conversationId: ConversationId('conversation-1'),
+      conversation: createConversation(),
+      payload: { text: 'Analyze code', qualityPreset: 'medium', attachments: [] },
+      model: 'gpt-4.1-mini',
+      settings: createSettings(),
+      signal: new AbortController().signal,
+      emitEvent: vi.fn(),
+      emitChunk,
+    })
+
+    expect(result.status).toBe('completed')
+    const content = emitChunk.mock.calls
+      .filter((c) => (c[0] as { type: string }).type === 'TEXT_MESSAGE_CONTENT')
+      .map((c) => (c[0] as { delta: string }).delta)
+      .join('')
+    expect(content).toContain('✓ Task 1')
+  })
+
+  it('emits task narration when orchestration reports task_started', async () => {
+    const planTasks = {
+      tasks: [
+        {
+          id: 'task-1',
+          kind: 'general',
+          title: 'Task 1',
+          prompt: 'Do thing 1',
+          narration: 'Let me inspect the repository structure first.',
+        },
+      ],
+    }
+    chatMock.mockImplementation(() => createStreamChunks(JSON.stringify(planTasks)))
+    extractJsonMock.mockReturnValue(planTasks)
+    runOpenWaggleOrchestrationMock.mockImplementation(
+      async (input: {
+        onEvent?: (event: {
+          type: string
+          runId: string
+          taskId?: string
+          at: string
+        }) => Promise<void>
+      }) => {
+        await input.onEvent?.({
+          type: 'task_started',
+          runId: 'run-1',
+          taskId: 'task-1',
+          at: new Date().toISOString(),
+        })
+        return {
+          runId: 'run-1',
+          usedFallback: false,
+          text: 'Done',
+          runStatus: 'completed',
+        }
+      },
+    )
+
+    const emitChunk = vi.fn()
+
+    const result = await runOrchestratedAgent({
+      runId: 'run-1',
+      conversationId: ConversationId('conversation-1'),
+      conversation: createConversation(),
+      payload: { text: 'Analyze code', qualityPreset: 'medium', attachments: [] },
+      model: 'gpt-4.1-mini',
+      settings: createSettings(),
+      signal: new AbortController().signal,
+      emitEvent: vi.fn(),
+      emitChunk,
+    })
+
+    expect(result.status).toBe('completed')
+    const content = emitChunk.mock.calls
+      .filter((c) => (c[0] as { type: string }).type === 'TEXT_MESSAGE_CONTENT')
+      .map((c) => (c[0] as { delta: string }).delta)
+      .join('')
+    expect(content).toContain('Let me inspect the repository structure first.')
   })
 
   it('synthesis falls back to concatenated outputs on empty result', async () => {
