@@ -10,6 +10,7 @@ function createProvider(
     displayName: `Provider ${id}`,
     requiresApiKey: true,
     supportsBaseUrl: false,
+    supportsSubscription: false,
     models,
     testModel: models[0] ?? 'fallback-model',
     createAdapter: () => ({}) as never,

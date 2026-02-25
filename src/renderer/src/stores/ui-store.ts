@@ -13,6 +13,7 @@ export type SettingsTab =
   | 'environments'
   | 'worktrees'
   | 'archived'
+  | 'connections'
 
 interface UIState {
   settingsOpen: boolean

@@ -60,6 +60,13 @@ This document stores project-specific technical learnings only.
 - Run-scoped skill-load dedupe is easiest and safest when tracked in `ToolContext` (AsyncLocalStorage) so observability can report dynamic loads without persisting conversation state.
 
 
+### Task: Subscription Auth for Providers — Spec 00 (2026-02-25)
+- `node:http` `server.listen()` is async — `server.address()` returns `null` if called synchronously after `.listen()`. Use the `listening` callback or wrap in a `Promise` to reliably get the resolved port for ephemeral-port servers.
+- When making a previously synchronous function async (e.g. `resolveProviderAndQuality`), all callers must be updated to `await` the result — TypeScript doesn't flag missing `await` on `Promise<T>` where `T` has `.ok` property because the Promise object itself is truthy.
+- `electron-store` mocks in Vitest need a class-based mock (`class MockStore { get = ... }`) rather than a factory function, because `electron-store` uses `new Store()` constructor syntax.
+- `Promise.race()` does not cancel losing branches — when racing clipboard polling against manual OAuth code input, explicitly abort/cleanup the polling branch to avoid lingering timers.
+- Manual OAuth code handoff state should be keyed by provider (e.g. `Map<SubscriptionProvider, handler>`) rather than a single global resolver to prevent cross-provider or overlapping-flow resolution bugs.
+
 ### Task: Multi-Agent Conversation — Spec 00 (2026-02-24)
 - TanStack `UIMessage` strips custom metadata during `conversationToUIMessages` conversion; use a parallel lookup map (same pattern as `useMessageModelLookup`) keyed by message ID to preserve multi-agent metadata across the conversion boundary.
 - Multi-agent handlers must emit stream chunks on BOTH the regular `agent:stream-chunk` channel (for TanStack adapter compatibility) AND a dedicated `multi-agent:stream-chunk` channel (for metadata); emitting only on the dedicated channel breaks the existing `useAgentChat` hook's stream consumption.

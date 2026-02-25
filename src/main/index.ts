@@ -6,6 +6,7 @@ import { startDevtoolsEventBus, stopDevtoolsEventBus } from './devtools/event-bu
 import { env } from './env'
 import { registerAgentHandlers } from './ipc/agent-handler'
 import { registerAttachmentHandlers } from './ipc/attachments-handler'
+import { registerAuthHandlers } from './ipc/auth-handler'
 import { registerConversationsHandlers } from './ipc/conversations-handler'
 import { registerDevtoolsHandlers } from './ipc/devtools-handler'
 import { registerGitHandlers } from './ipc/git'
@@ -119,6 +120,7 @@ app.whenReady().then(() => {
 
   // Register IPC handlers (these don't need the registry to be populated yet,
   // they just reference it at call-time)
+  registerAuthHandlers()
   registerAgentHandlers()
   registerSettingsHandlers()
   registerConversationsHandlers()

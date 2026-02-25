@@ -81,7 +81,7 @@ export async function runOrchestratedAgent(
   const runStore = orchestrationRunRepository.createRunStore(conversationId, fallbackState)
 
   const projectConfig = await loadProjectConfig(conversation.projectPath ?? '')
-  const resolution = resolveProviderAndQuality(
+  const resolution = await resolveProviderAndQuality(
     model,
     payload.qualityPreset,
     settings.providers,
@@ -99,6 +99,7 @@ export async function runOrchestratedAgent(
     quality.model,
     providerConfig.apiKey ?? '',
     providerConfig.baseUrl,
+    providerConfig.authMethod,
   )
   const orchestrationMode =
     settings.orchestrationMode === 'orchestrated' ? 'orchestrated' : 'auto-fallback'

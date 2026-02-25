@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import type { AgentSendPayload, Message, MessagePart } from '@shared/types/agent'
+import { isSubscriptionProvider } from '@shared/types/auth'
 import { MessageId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { Provider, ProviderConfig, QualityPreset } from '@shared/types/settings'
+import { getActiveApiKey } from '../auth'
 import type { ProjectQualityOverrides } from '../config/project-config'
 import { providerRegistry } from '../providers'
 import type { ProviderDefinition } from '../providers/provider-definition'
@@ -102,12 +104,12 @@ export function isResolutionError(result: ProviderResolution): result is Provide
   return !result.ok
 }
 
-export function resolveProviderAndQuality(
+export async function resolveProviderAndQuality(
   model: SupportedModelId,
   qualityPreset: QualityPreset,
   providers: Readonly<Partial<Record<Provider, ProviderConfig>>>,
   projectOverrides?: ProjectQualityOverrides,
-): ProviderResolution {
+): Promise<ProviderResolution> {
   const provider = providerRegistry.getProviderForModel(model)
   if (!provider) {
     return { ok: false, reason: `No provider registered for model: ${model}` }
@@ -117,7 +119,21 @@ export function resolveProviderAndQuality(
   if (!providerConfig?.enabled) {
     return { ok: false, reason: `${provider.displayName} is disabled in settings` }
   }
-  if (provider.requiresApiKey && !providerConfig.apiKey) {
+
+  // For subscription auth, refresh the token before proceeding
+  let effectiveConfig = providerConfig
+  if (providerConfig.authMethod === 'subscription' && isSubscriptionProvider(provider.id)) {
+    const freshToken = await getActiveApiKey(provider.id)
+    if (!freshToken) {
+      return {
+        ok: false,
+        reason: `Session expired for ${provider.displayName}. Please sign in again.`,
+      }
+    }
+    effectiveConfig = { ...providerConfig, apiKey: freshToken }
+  }
+
+  if (provider.requiresApiKey && !effectiveConfig.apiKey) {
     return { ok: false, reason: `No API key configured for ${provider.displayName}` }
   }
 
@@ -126,7 +142,7 @@ export function resolveProviderAndQuality(
   return {
     ok: true,
     provider,
-    providerConfig,
+    providerConfig: effectiveConfig,
     resolvedModel: model,
     qualityConfig,
   }

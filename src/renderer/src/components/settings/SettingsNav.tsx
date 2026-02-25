@@ -1,6 +1,7 @@
 import {
   Archive,
   Blocks,
+  Cable,
   Folders,
   GitBranch,
   Palette,
@@ -27,6 +28,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'environments', label: 'Environments', icon: Blocks, enabled: false },
   { id: 'worktrees', label: 'Worktrees', icon: Folders, enabled: false },
   { id: 'archived', label: 'Archived threads', icon: Archive, enabled: false },
+  { id: 'connections', label: 'Connections', icon: Cable, enabled: true },
 ]
 
 interface SettingsNavProps {

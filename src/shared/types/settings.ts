@@ -1,4 +1,5 @@
 import { includes } from '@shared/utils/validation'
+import type { AuthMethod } from './auth'
 
 export const PROVIDERS = ['anthropic', 'openai', 'gemini', 'grok', 'openrouter', 'ollama'] as const
 export type Provider = (typeof PROVIDERS)[number]
@@ -19,6 +20,7 @@ export interface ProviderConfig {
   readonly apiKey: string
   readonly baseUrl?: string
   readonly enabled: boolean
+  readonly authMethod?: AuthMethod
 }
 
 export interface Settings {

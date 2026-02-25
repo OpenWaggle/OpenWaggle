@@ -1,6 +1,11 @@
 import type { QualityPreset } from '@shared/types/settings'
 import { includes } from '@shared/utils/validation'
-import { ANTHROPIC_MODELS, createAnthropicChat } from '@tanstack/ai-anthropic'
+import {
+  ANTHROPIC_MODELS,
+  AnthropicTextAdapter,
+  type AnthropicTextConfig,
+  createAnthropicChat,
+} from '@tanstack/ai-anthropic'
 import type {
   BaseSamplingConfig,
   ProviderDefinition,
@@ -24,10 +29,19 @@ export const anthropicProvider: ProviderDefinition = {
   requiresApiKey: true,
   apiKeyManagementUrl: 'https://platform.claude.com/settings/keys',
   supportsBaseUrl: false,
+  supportsSubscription: true,
   models: ANTHROPIC_MODELS,
   testModel: 'claude-haiku-4-5',
-  createAdapter(model, apiKey) {
+  createAdapter(model, apiKey, _baseUrl, authMethod) {
     if (!includes(ANTHROPIC_MODELS, model)) throw new Error(`Unknown Anthropic model: ${model}`)
+    if (authMethod === 'subscription') {
+      const config: AnthropicTextConfig = {
+        apiKey: '',
+        authToken: apiKey,
+        defaultHeaders: { 'anthropic-beta': 'oauth-2025-04-20' },
+      }
+      return new AnthropicTextAdapter(config, model)
+    }
     return createAnthropicChat(model, apiKey)
   },
   resolveSampling(

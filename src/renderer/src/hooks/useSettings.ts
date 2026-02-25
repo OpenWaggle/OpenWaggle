@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { api } from '@/lib/ipc'
 import { useSettingsStore } from '@/stores/settings-store'
 
 /**
@@ -7,11 +8,25 @@ import { useSettingsStore } from '@/stores/settings-store'
 export function useSettingsSetup(): void {
   const loadSettings = useSettingsStore((s) => s.loadSettings)
   const loadProviderModels = useSettingsStore((s) => s.loadProviderModels)
+  const loadAllAuthAccounts = useSettingsStore((s) => s.loadAllAuthAccounts)
 
   useEffect(() => {
     loadSettings()
     loadProviderModels()
-  }, [loadSettings, loadProviderModels])
+    loadAllAuthAccounts()
+  }, [loadSettings, loadProviderModels, loadAllAuthAccounts])
+
+  // Subscribe to OAuth status events from main process (per-provider)
+  useEffect(() => {
+    return api.onOAuthStatus((status) => {
+      // Only update for statuses that include a provider
+      if ('provider' in status) {
+        useSettingsStore.setState((state) => ({
+          oauthStatuses: { ...state.oauthStatuses, [status.provider]: status },
+        }))
+      }
+    })
+  }, [])
 }
 
 /**
@@ -36,6 +51,11 @@ export function useSettings() {
   const testApiKey = useSettingsStore((s) => s.testApiKey)
   const clearTestResult = useSettingsStore((s) => s.clearTestResult)
   const retryLoad = useSettingsStore((s) => s.retryLoad)
+  const oauthStatuses = useSettingsStore((s) => s.oauthStatuses)
+  const authAccounts = useSettingsStore((s) => s.authAccounts)
+  const startOAuth = useSettingsStore((s) => s.startOAuth)
+  const submitAuthCode = useSettingsStore((s) => s.submitAuthCode)
+  const disconnectAuth = useSettingsStore((s) => s.disconnectAuth)
 
   return {
     settings,
@@ -56,5 +76,10 @@ export function useSettings() {
     testApiKey,
     clearTestResult,
     retryLoad,
+    oauthStatuses,
+    authAccounts,
+    startOAuth,
+    submitAuthCode,
+    disconnectAuth,
   }
 }

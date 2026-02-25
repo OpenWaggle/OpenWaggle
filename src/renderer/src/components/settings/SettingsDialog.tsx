@@ -1,9 +1,11 @@
+import { isSubscriptionProvider } from '@shared/types/auth'
 import type { Settings } from '@shared/types/settings'
 import { AlertTriangle, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useSettings } from '@/hooks/useSettings'
 import { cn } from '@/lib/cn'
 import { ApiKeyForm } from './ApiKeyForm'
+import { SubscriptionAuthButton } from './SubscriptionAuthButton'
 
 function hasAnyApiKey(settings: Settings): boolean {
   return Object.values(settings.providers).some((config) => config && config.apiKey.length > 0)
@@ -40,6 +42,10 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps): React.
     testApiKey,
     setBrowserHeadless,
     retryLoad,
+    oauthStatuses,
+    authAccounts,
+    startOAuth,
+    disconnectAuth,
   } = useSettings()
   const dialogRef = useRef<HTMLDialogElement>(null)
 
@@ -149,41 +155,65 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps): React.
 
                   {enabled && (
                     <div className="pl-0 space-y-3">
-                      {providerInfo.requiresApiKey && (
-                        <ApiKeyForm
-                          provider={providerId}
-                          label={providerInfo.displayName}
-                          createKeyUrl={providerInfo.apiKeyManagementUrl}
-                          currentKey={config?.apiKey ?? ''}
-                          onSave={(key) => updateApiKey(providerId, key)}
-                          onTest={(key) => testApiKey(providerId, key, config?.baseUrl)}
-                          isTesting={isTesting}
-                          testResult={testResults[providerId] ?? null}
-                        />
-                      )}
-
-                      {providerInfo.supportsBaseUrl && (
-                        <BaseUrlInput
-                          providerId={providerId}
-                          value={config?.baseUrl ?? ''}
-                          onSave={(url) => updateBaseUrl(providerId, url)}
-                        />
-                      )}
-
-                      {!providerInfo.requiresApiKey && (
-                        <button
-                          type="button"
-                          onClick={() => testApiKey(providerId, '', config?.baseUrl)}
-                          disabled={isTesting}
-                          className={cn(
-                            'rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                            !isTesting
-                              ? 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
-                              : 'bg-bg-tertiary text-text-muted cursor-not-allowed',
+                      {providerInfo.supportsSubscription && isSubscriptionProvider(providerId) && (
+                        <>
+                          <SubscriptionAuthButton
+                            provider={providerId}
+                            providerDisplayName={providerInfo.displayName}
+                            accountInfo={authAccounts[providerId]}
+                            oauthStatus={oauthStatuses[providerId] ?? { type: 'idle' }}
+                            onSignIn={() => startOAuth(providerId)}
+                            onDisconnect={() => disconnectAuth(providerId)}
+                          />
+                          {config?.authMethod !== 'subscription' && (
+                            <div className="flex items-center gap-3 text-[12px] text-text-tertiary">
+                              <div className="flex-1 border-t border-border" />
+                              or enter API key manually
+                              <div className="flex-1 border-t border-border" />
+                            </div>
                           )}
-                        >
-                          {isTesting ? 'Testing...' : 'Test Connection'}
-                        </button>
+                        </>
+                      )}
+
+                      {config?.authMethod !== 'subscription' && (
+                        <>
+                          {providerInfo.requiresApiKey && (
+                            <ApiKeyForm
+                              provider={providerId}
+                              label={providerInfo.displayName}
+                              createKeyUrl={providerInfo.apiKeyManagementUrl}
+                              currentKey={config?.apiKey ?? ''}
+                              onSave={(key) => updateApiKey(providerId, key)}
+                              onTest={(key) => testApiKey(providerId, key, config?.baseUrl)}
+                              isTesting={isTesting}
+                              testResult={testResults[providerId] ?? null}
+                            />
+                          )}
+
+                          {providerInfo.supportsBaseUrl && (
+                            <BaseUrlInput
+                              providerId={providerId}
+                              value={config?.baseUrl ?? ''}
+                              onSave={(url) => updateBaseUrl(providerId, url)}
+                            />
+                          )}
+
+                          {!providerInfo.requiresApiKey && (
+                            <button
+                              type="button"
+                              onClick={() => testApiKey(providerId, '', config?.baseUrl)}
+                              disabled={isTesting}
+                              className={cn(
+                                'rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                                !isTesting
+                                  ? 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
+                                  : 'bg-bg-tertiary text-text-muted cursor-not-allowed',
+                              )}
+                            >
+                              {isTesting ? 'Testing...' : 'Test Connection'}
+                            </button>
+                          )}
+                        </>
                       )}
                     </div>
                   )}

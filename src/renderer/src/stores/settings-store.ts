@@ -1,3 +1,9 @@
+import type {
+  OAuthFlowStatus,
+  SubscriptionAccountInfo,
+  SubscriptionProvider,
+} from '@shared/types/auth'
+import { SUBSCRIPTION_PROVIDERS } from '@shared/types/auth'
 import type { ProviderInfo, SupportedModelId } from '@shared/types/llm'
 import {
   DEFAULT_SETTINGS,
@@ -19,6 +25,10 @@ interface SettingsState {
   testResults: Partial<Record<Provider, { success: boolean; error?: string } | null>>
   providerModels: ProviderInfo[]
 
+  // Auth — per-provider status tracking
+  oauthStatuses: Partial<Record<SubscriptionProvider, OAuthFlowStatus>>
+  authAccounts: Partial<Record<SubscriptionProvider, SubscriptionAccountInfo | null>>
+
   loadSettings: () => Promise<void>
   loadProviderModels: () => Promise<void>
   retryLoad: () => Promise<void>
@@ -33,6 +43,14 @@ interface SettingsState {
   pushRecentProject: (path: string) => Promise<void>
   testApiKey: (provider: Provider, apiKey: string, baseUrl?: string) => Promise<boolean>
   clearTestResult: (provider: Provider) => void
+
+  // Auth actions
+  startOAuth: (provider: SubscriptionProvider) => Promise<void>
+  submitAuthCode: (provider: SubscriptionProvider, code: string) => Promise<void>
+  disconnectAuth: (provider: SubscriptionProvider) => Promise<void>
+  loadAuthAccount: (provider: SubscriptionProvider) => Promise<void>
+  loadAllAuthAccounts: () => Promise<void>
+  getOAuthStatus: (provider: SubscriptionProvider) => OAuthFlowStatus
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -42,6 +60,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   testingProviders: {},
   testResults: {},
   providerModels: [],
+  oauthStatuses: {},
+  authAccounts: {},
 
   async loadSettings() {
     try {
@@ -202,5 +222,68 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set((state) => ({
       testResults: { ...state.testResults, [provider]: null },
     }))
+  },
+
+  async startOAuth(provider: SubscriptionProvider) {
+    set((state) => ({
+      oauthStatuses: { ...state.oauthStatuses, [provider]: { type: 'in-progress', provider } },
+    }))
+
+    // Listen for status events from the main process (e.g. 'awaiting-code')
+    const cleanup = api.onOAuthStatus((status) => {
+      const statusProvider = 'provider' in status ? status.provider : provider
+      set((state) => ({
+        oauthStatuses: { ...state.oauthStatuses, [statusProvider]: status },
+      }))
+    })
+
+    try {
+      await api.startOAuth(provider)
+      // Reload settings + auth account to reflect new connected state
+      await get().loadSettings()
+      await get().loadAuthAccount(provider)
+      // Reset status to idle now that auth account is loaded
+      set((state) => ({
+        oauthStatuses: { ...state.oauthStatuses, [provider]: { type: 'idle' } },
+      }))
+    } catch {
+      // Error status arrives via IPC event before this catch runs.
+      // Reload auth account so the UI can show disconnected state if needed.
+      await get().loadAuthAccount(provider)
+    } finally {
+      cleanup()
+    }
+  },
+
+  async submitAuthCode(provider: SubscriptionProvider, code: string) {
+    await api.submitAuthCode(provider, code)
+  },
+
+  async disconnectAuth(provider: SubscriptionProvider) {
+    await api.disconnectAuth(provider)
+    await get().loadSettings()
+    await get().loadAuthAccount(provider)
+    set((state) => ({
+      oauthStatuses: { ...state.oauthStatuses, [provider]: { type: 'idle' } },
+    }))
+  },
+
+  async loadAuthAccount(provider: SubscriptionProvider) {
+    try {
+      const info = await api.getAuthAccountInfo(provider)
+      set((state) => ({
+        authAccounts: { ...state.authAccounts, [provider]: info },
+      }))
+    } catch {
+      // Non-critical — leave existing state
+    }
+  },
+
+  async loadAllAuthAccounts() {
+    await Promise.all(SUBSCRIPTION_PROVIDERS.map((provider) => get().loadAuthAccount(provider)))
+  },
+
+  getOAuthStatus(provider: SubscriptionProvider): OAuthFlowStatus {
+    return get().oauthStatuses[provider] ?? { type: 'idle' }
   },
 }))
