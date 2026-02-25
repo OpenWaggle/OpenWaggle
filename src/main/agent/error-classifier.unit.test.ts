@@ -32,6 +32,90 @@ describe('classifyErrorMessage', () => {
     expect(info.code).toBe(expectedCode)
   })
 
+  // ─── Credit / billing errors — per-provider coverage ───────────
+
+  describe('insufficient credits (Anthropic)', () => {
+    it.each([
+      'Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.',
+      '400 {"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits."}}',
+    ])('classifies Anthropic credit error: %s', (message) => {
+      const info = classifyErrorMessage(message)
+      expect(info.code).toBe('insufficient-credits')
+    })
+  })
+
+  describe('insufficient credits (OpenAI)', () => {
+    it.each([
+      'You exceeded your current quota, please check your plan and billing details.',
+      '429 {"error":{"message":"You exceeded your current quota, please check your plan and billing details.","type":"insufficient_quota","param":null,"code":"insufficient_quota"}}',
+      'Error code: insufficient_quota - You exceeded your current quota.',
+      'OpenAI API error: insufficient_quota',
+    ])('classifies OpenAI credit error: %s', (message) => {
+      const info = classifyErrorMessage(message)
+      expect(info.code).toBe('insufficient-credits')
+    })
+  })
+
+  describe('insufficient credits (Gemini)', () => {
+    it.each([
+      '429 {"error":{"code":429,"message":"Quota exceeded for quota metric","status":"RESOURCE_EXHAUSTED"}}',
+      'RESOURCE_EXHAUSTED: Quota exceeded for project',
+      'Quota exceeded for quota metric',
+    ])('classifies Gemini credit error: %s', (message) => {
+      const info = classifyErrorMessage(message)
+      expect(info.code).toBe('insufficient-credits')
+    })
+  })
+
+  describe('insufficient credits (Grok/xAI)', () => {
+    it.each([
+      'Your team abc123 has either used all available credits or reached its monthly spending limit. To continue making API requests, please purchase more credits or raise your spending limit.',
+      'monthly spending limit reached',
+    ])('classifies Grok credit error: %s', (message) => {
+      const info = classifyErrorMessage(message)
+      expect(info.code).toBe('insufficient-credits')
+    })
+  })
+
+  describe('insufficient credits (OpenRouter)', () => {
+    it.each([
+      'Your account or API key has insufficient credits.',
+      '402 {"error":{"code":402,"message":"Your account or API key has insufficient credits."}}',
+      'Payment required',
+      'You requested up to 229018 tokens, but can only afford 92985. Payment required.',
+    ])('classifies OpenRouter credit error: %s', (message) => {
+      const info = classifyErrorMessage(message)
+      expect(info.code).toBe('insufficient-credits')
+    })
+  })
+
+  describe('insufficient credits (generic)', () => {
+    it.each([
+      'out of credits',
+      'purchase credits to continue',
+    ])('classifies generic credit error: %s', (message) => {
+      const info = classifyErrorMessage(message)
+      expect(info.code).toBe('insufficient-credits')
+    })
+  })
+
+  it('does not misclassify billing address errors as credit errors', () => {
+    const info = classifyErrorMessage('Please update your billing address')
+    expect(info.code).not.toBe('insufficient-credits')
+  })
+
+  it('does not misclassify subscription-gated payment errors as credit errors', () => {
+    const info = classifyErrorMessage('PaymentRequired: This feature requires a Pro subscription')
+    expect(info.code).not.toBe('insufficient-credits')
+  })
+
+  it('classifies messages with both "api key" and credit terms as credits (not auth)', () => {
+    const info = classifyErrorMessage('Your API key has insufficient credits')
+    expect(info.code).toBe('insufficient-credits')
+  })
+
+  // ─── Rate limiting ──────────────────────────────────────────────
+
   it.each([
     ['429 Too Many Requests', 'rate-limited'],
     ['Rate limit exceeded', 'rate-limited'],
@@ -40,6 +124,13 @@ describe('classifyErrorMessage', () => {
     const info = classifyErrorMessage(message)
     expect(info.code).toBe(expectedCode)
   })
+
+  it('classifies 429 without credit context as rate-limited (not credits)', () => {
+    const info = classifyErrorMessage('429 Too Many Requests - please try again later')
+    expect(info.code).toBe('rate-limited')
+  })
+
+  // ─── Provider down ──────────────────────────────────────────────
 
   it.each([
     ['500 Internal Server Error', 'provider-down'],
@@ -50,6 +141,8 @@ describe('classifyErrorMessage', () => {
     expect(info.code).toBe(expectedCode)
   })
 
+  // ─── Model not found ───────────────────────────────────────────
+
   it.each([
     ['model gpt-5 not found', 'model-not-found'],
     ['The model does not exist', 'model-not-found'],
@@ -57,6 +150,8 @@ describe('classifyErrorMessage', () => {
     const info = classifyErrorMessage(message)
     expect(info.code).toBe(expectedCode)
   })
+
+  // ─── Network / connectivity ─────────────────────────────────────
 
   it.each([
     ['connect ECONNREFUSED 127.0.0.1:443', 'provider-unavailable'],
@@ -68,10 +163,57 @@ describe('classifyErrorMessage', () => {
     expect(info.code).toBe(expectedCode)
   })
 
+  // ─── Unknown fallback ──────────────────────────────────────────
+
   it('falls back to unknown for unrecognized errors', () => {
     const info = classifyErrorMessage('something completely unexpected')
     expect(info.code).toBe('unknown')
     expect(info.retryable).toBe(true)
+  })
+})
+
+describe('extractInnerErrorMessage (via classifyErrorMessage)', () => {
+  it('extracts inner message from Anthropic JSON wrapper', () => {
+    const raw =
+      '400 {"type":"error","error":{"type":"invalid_request_error","message":"Credit balance too low"}}'
+    const info = classifyErrorMessage(raw)
+    // Display message should be the extracted inner message, not the raw wrapper
+    expect(info.message).toBe('Credit balance too low')
+  })
+
+  it('extracts inner message from OpenAI JSON wrapper', () => {
+    const raw =
+      '429 {"error":{"message":"You exceeded your current quota","type":"insufficient_quota","code":"insufficient_quota"}}'
+    const info = classifyErrorMessage(raw)
+    expect(info.message).toBe('You exceeded your current quota')
+  })
+
+  it('keeps Gemini status out of display message but uses it for classification', () => {
+    const raw =
+      '429 {"error":{"code":429,"message":"Resource limit hit","status":"RESOURCE_EXHAUSTED"}}'
+    const info = classifyErrorMessage(raw)
+    // Display message should NOT contain the [RESOURCE_EXHAUSTED] suffix
+    expect(info.message).toBe('Resource limit hit')
+    // But it should still classify as credits thanks to RESOURCE_EXHAUSTED in classifyTarget
+    expect(info.code).toBe('insufficient-credits')
+  })
+
+  it('falls back to raw message when JSON is malformed', () => {
+    const raw = '429 {not valid json'
+    const info = classifyErrorMessage(raw)
+    expect(info.message).toBe(raw)
+  })
+
+  it('falls back to raw message when JSON has no message fields', () => {
+    const raw = '400 {"type":"error","code":400}'
+    const info = classifyErrorMessage(raw)
+    expect(info.message).toBe(raw)
+  })
+
+  it('extracts top-level message when error.message is absent', () => {
+    const raw = '{"message":"Something went wrong"}'
+    const info = classifyErrorMessage(raw)
+    expect(info.message).toBe('Something went wrong')
   })
 })
 
