@@ -1,6 +1,5 @@
 import { electronFileSchema } from '@shared/schemas/validation'
 import type { AgentSendPayload } from '@shared/types/agent'
-import type { SkillDiscoveryItem } from '@shared/types/standards'
 import { X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { useProject } from '@/hooks/useProject'
@@ -8,31 +7,12 @@ import { cn } from '@/lib/cn'
 import { api } from '@/lib/ipc'
 import { useComposerStore } from '@/stores/composer-store'
 import { useSettingsStore } from '@/stores/settings-store'
+import { useUIStore } from '@/stores/ui-store'
 import { ActionDialog } from './ActionDialog'
 import { ComposerStatusBar } from './ComposerStatusBar'
 import { ComposerToolbar } from './ComposerToolbar'
-import { SlashMenu, type SlashSuggestion } from './SlashMenu'
 import { useVoiceCapture } from './useVoiceCapture'
 import { VoiceRecorder } from './VoiceRecorder'
-
-// ── Slash skill helpers ──
-
-interface SlashMatch {
-  readonly query: string
-  readonly start: number
-  readonly end: number
-}
-
-function findSlashMatch(input: string, cursor: number): SlashMatch | null {
-  const safeCursor = Math.max(0, Math.min(cursor, input.length))
-  const beforeCursor = input.slice(0, safeCursor)
-  const match = /(?:^|\s)\/([a-z0-9-_]*)$/i.exec(beforeCursor)
-  if (!match) return null
-  const query = (match[1] ?? '').toLowerCase()
-  const start = safeCursor - query.length - 1
-  if (start < 0) return null
-  return { query, start, end: safeCursor }
-}
 
 // ── Component ──
 
@@ -41,7 +21,6 @@ interface ComposerProps {
   onCancel: () => void
   isLoading: boolean
   disabled?: boolean
-  slashSkills: readonly SkillDiscoveryItem[]
   onToast?: (message: string) => void
 }
 
@@ -50,12 +29,10 @@ export function Composer({
   onCancel,
   isLoading,
   disabled,
-  slashSkills,
   onToast,
 }: ComposerProps): React.JSX.Element {
   const input = useComposerStore((s) => s.input)
   const setInput = useComposerStore((s) => s.setInput)
-  const cursorIndex = useComposerStore((s) => s.cursorIndex)
   const setCursorIndex = useComposerStore((s) => s.setCursorIndex)
   const attachments = useComposerStore((s) => s.attachments)
   const attachmentError = useComposerStore((s) => s.attachmentError)
@@ -66,11 +43,9 @@ export function Composer({
   const branchMessage = useComposerStore((s) => s.branchMessage)
   const isListening = useComposerStore((s) => s.isListening)
   const isTranscribingVoice = useComposerStore((s) => s.isTranscribingVoice)
-  const slashHighlightIndex = useComposerStore((s) => s.slashHighlightIndex)
-  const setSlashHighlightIndex = useComposerStore((s) => s.setSlashHighlightIndex)
-  const dismissedSlashToken = useComposerStore((s) => s.dismissedSlashToken)
-  const setDismissedSlashToken = useComposerStore((s) => s.setDismissedSlashToken)
   const reset = useComposerStore((s) => s.reset)
+
+  const openCommandPalette = useUIStore((s) => s.openCommandPalette)
 
   const { projectPath } = useProject()
   const qualityPreset = useSettingsStore((s) => s.settings.qualityPreset)
@@ -80,26 +55,6 @@ export function Composer({
 
   const canSend = (!!input.trim() || attachments.length > 0) && !disabled
   const isVoiceModeActive = isListening || isTranscribingVoice
-
-  // ── Slash skill derivation ──
-
-  const slashMatch = findSlashMatch(input, cursorIndex)
-  const slashToken = slashMatch ? `${String(slashMatch.start)}:${slashMatch.query}` : null
-  const slashSuggestions: SlashSuggestion[] = slashMatch
-    ? slashSkills
-        .filter((s) => s.enabled)
-        .filter((s) => s.loadStatus === 'ok')
-        .filter(
-          (s) => s.id.includes(slashMatch.query) || s.name.toLowerCase().includes(slashMatch.query),
-        )
-        .slice(0, 8)
-        .map((s) => ({ id: s.id, name: s.name, description: s.description }))
-    : []
-  const slashMenuOpen =
-    !isVoiceModeActive &&
-    !!slashMatch &&
-    slashSuggestions.length > 0 &&
-    dismissedSlashToken !== slashToken
 
   // ── Submission ──
 
@@ -133,14 +88,6 @@ export function Composer({
     if (!isLoading && textareaRef.current) textareaRef.current.focus()
   }, [isLoading])
 
-  useEffect(() => {
-    if (!slashMenuOpen) {
-      setSlashHighlightIndex(0)
-      return
-    }
-    if (slashHighlightIndex >= slashSuggestions.length) setSlashHighlightIndex(0)
-  }, [slashHighlightIndex, slashMenuOpen, slashSuggestions.length, setSlashHighlightIndex])
-
   // Voice mode Enter key handler
   const voiceSendRef = useRef(voice.sendVoice)
   voiceSendRef.current = voice.sendVoice
@@ -167,58 +114,9 @@ export function Composer({
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [isVoiceModeActive, isListening, isTranscribingVoice, qualityPreset])
 
-  // ── Slash selection ──
-
-  function handleSlashSelection(skillId: string): void {
-    if (!slashMatch) return
-    const before = input.slice(0, slashMatch.start)
-    const after = input.slice(slashMatch.end)
-    const replacement = `/${skillId}`
-    const needsTrailingSpace = after.length > 0 && !after.startsWith(' ')
-    const next = `${before}${replacement}${needsTrailingSpace ? ' ' : ''}${after}`
-    const nextCursor = slashMatch.start + replacement.length + (needsTrailingSpace ? 1 : 0)
-
-    setInput(next)
-    setCursorIndex(nextCursor)
-    setDismissedSlashToken(null)
-
-    requestAnimationFrame(() => {
-      const el = textareaRef.current
-      if (!el) return
-      el.focus()
-      el.setSelectionRange(nextCursor, nextCursor)
-      el.style.height = 'auto'
-      el.style.height = `${Math.min(el.scrollHeight, 200)}px`
-    })
-  }
-
   // ── Input handlers ──
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>): void {
-    if (slashMenuOpen) {
-      if (e.key === 'ArrowDown') {
-        e.preventDefault()
-        setSlashHighlightIndex((slashHighlightIndex + 1) % slashSuggestions.length)
-        return
-      }
-      if (e.key === 'ArrowUp') {
-        e.preventDefault()
-        setSlashHighlightIndex(
-          slashHighlightIndex === 0 ? slashSuggestions.length - 1 : slashHighlightIndex - 1,
-        )
-        return
-      }
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        setDismissedSlashToken(slashToken)
-        return
-      }
-      if ((e.key === 'Enter' || e.key === 'Tab') && slashSuggestions[slashHighlightIndex]) {
-        e.preventDefault()
-        handleSlashSelection(slashSuggestions[slashHighlightIndex].id)
-        return
-      }
-    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSubmit()
@@ -226,9 +124,15 @@ export function Composer({
   }
 
   function handleInput(e: React.ChangeEvent<HTMLTextAreaElement>): void {
-    setInput(e.target.value)
-    setCursorIndex(e.target.selectionStart ?? e.target.value.length)
-    setDismissedSlashToken(null)
+    const value = e.target.value
+    setInput(value)
+    setCursorIndex(e.target.selectionStart ?? value.length)
+
+    // Open command palette when user types "/" at start or after whitespace
+    if (value === '/' || (value.endsWith('/') && value[value.length - 2] === ' ')) {
+      openCommandPalette()
+    }
+
     const el = e.target
     el.style.height = 'auto'
     el.style.height = `${Math.min(el.scrollHeight, 200)}px`
@@ -344,7 +248,7 @@ export function Composer({
         {isVoiceModeActive ? (
           <VoiceRecorder onSendVoice={voice.sendVoice} mediaRecorderRef={voice.mediaRecorderRef} />
         ) : (
-          <div className="relative h-[60px] px-4 py-[14px]">
+          <div className="h-[60px] px-4 py-[14px]">
             <textarea
               ref={textareaRef}
               value={input}
@@ -363,12 +267,6 @@ export function Composer({
                 'focus:outline-none focus-visible:shadow-none',
                 'disabled:opacity-50',
               )}
-            />
-            <SlashMenu
-              suggestions={slashSuggestions}
-              highlightIndex={slashHighlightIndex}
-              onSelect={handleSlashSelection}
-              visible={slashMenuOpen}
             />
           </div>
         )}

@@ -14,7 +14,7 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { useState } from 'react'
-import openhiveLockup from '@/assets/openhive-lockup.png'
+import openwaggleLockup from '@/assets/openwaggle-lockup.png'
 import { Popover } from '@/components/shared/Popover'
 import { useFullscreen } from '@/hooks/useFullscreen'
 import { cn } from '@/lib/cn'
@@ -49,7 +49,7 @@ const SORT_OPTIONS: { value: SortMode; label: string; icon: typeof Clock }[] = [
 interface SidebarProps {
   conversations: ConversationSummary[]
   activeId: ConversationId | null
-  activeView: 'chat' | 'skills'
+  activeView: 'chat' | 'skills' | 'settings'
   onSelect: (id: ConversationId) => void
   onDelete: (id: ConversationId) => void
   onNew: () => void
@@ -100,7 +100,11 @@ export function Sidebar({
         />
         {/* Logo — drag region, padding [14,16] */}
         <div className="drag-region flex shrink-0 items-center px-4 py-1">
-          <img src={openhiveLockup} alt="OpenHive" className="no-drag h-12 w-auto object-contain" />
+          <img
+            src={openwaggleLockup}
+            alt="OpenWaggle"
+            className="no-drag h-12 w-auto object-contain"
+          />
         </div>
 
         <div

@@ -1,6 +1,7 @@
 import type { ModelMessage } from '@tanstack/ai'
 import type { MessageId } from './brand'
 import type { SupportedModelId } from './llm'
+import type { MultiAgentMessageMetadata } from './multi-agent'
 import type { QualityPreset } from './settings'
 import type { ToolCallRequest, ToolCallResult } from './tools'
 
@@ -76,6 +77,7 @@ export interface Message {
   readonly metadata?: {
     readonly orchestrationRunId?: string
     readonly usedFallback?: boolean
+    readonly multiAgent?: MultiAgentMessageMetadata
   }
   readonly createdAt: number
 }

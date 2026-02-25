@@ -12,7 +12,9 @@ function makeDeps(overrides: Record<string, unknown> = {}) {
       .fn<(p: string | null) => Promise<ConversationId>>()
       .mockResolvedValue('new-conv' as ConversationId),
     sendMessage: vi.fn<(p: AgentSendPayload) => Promise<void>>().mockResolvedValue(undefined),
+    sendMultiAgentMessage: vi.fn().mockResolvedValue(undefined),
     setPendingMessage: vi.fn(),
+    setPendingMultiAgentConfig: vi.fn(),
     ...overrides,
   }
 }

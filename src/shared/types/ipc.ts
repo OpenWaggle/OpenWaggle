@@ -1,6 +1,6 @@
 import type { StreamChunk } from '@tanstack/ai'
 import type { AgentSendPayload, PreparedAttachment } from './agent'
-import type { ConversationId } from './brand'
+import type { ConversationId, TeamConfigId } from './brand'
 import type { Conversation, ConversationSummary } from './conversation'
 import type { DevtoolsEventBusConfig } from './devtools'
 import type {
@@ -17,6 +17,12 @@ import type {
   GitStatusSummary,
 } from './git'
 import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from './llm'
+import type {
+  MultiAgentConfig,
+  MultiAgentStreamMetadata,
+  MultiAgentTurnEvent,
+  TeamPreset,
+} from './multi-agent'
 import type { OrchestrationEventPayload, OrchestrationRunRecord } from './orchestration'
 import type { QuestionAnswer, QuestionPayload } from './question'
 import type { Provider, Settings } from './settings'
@@ -197,6 +203,24 @@ export interface IpcInvokeChannelMap {
     args: []
     return: string
   }
+  // Multi-agent
+  'agent:send-multi-agent-message': {
+    args: [conversationId: ConversationId, payload: AgentSendPayload, config: MultiAgentConfig]
+    return: undefined
+  }
+  // Teams
+  'teams:list': {
+    args: []
+    return: TeamPreset[]
+  }
+  'teams:save': {
+    args: [preset: TeamPreset]
+    return: TeamPreset
+  }
+  'teams:delete': {
+    args: [id: TeamConfigId]
+    return: undefined
+  }
 }
 
 /**
@@ -205,6 +229,9 @@ export interface IpcInvokeChannelMap {
 export interface IpcSendChannelMap {
   'agent:cancel': {
     args: [conversationId?: ConversationId]
+  }
+  'agent:cancel-multi-agent': {
+    args: [conversationId: ConversationId]
   }
   'terminal:write': {
     args: [terminalId: string, data: string]
@@ -231,6 +258,12 @@ export interface IpcEventChannelMap {
   'orchestration:event': {
     payload: OrchestrationEventPayload
   }
+  'multi-agent:stream-chunk': {
+    payload: { conversationId: ConversationId; chunk: StreamChunk; meta: MultiAgentStreamMetadata }
+  }
+  'multi-agent:turn-event': {
+    payload: { conversationId: ConversationId; event: MultiAgentTurnEvent }
+  }
 }
 
 // ─── Derived Types ───────────────────────────────────────────
@@ -256,7 +289,7 @@ export type IpcEventPayload<C extends IpcEventChannel> = IpcEventChannelMap[C]['
 
 // ─── Convenience API (what we actually expose on window.api) ─
 
-export interface OpenHiveApi {
+export interface OpenWaggleApi {
   // Agent
   sendMessage(
     conversationId: ConversationId,
@@ -368,4 +401,27 @@ export interface OpenHiveApi {
   listOrchestrationRuns(conversationId?: ConversationId): Promise<OrchestrationRunRecord[]>
   cancelOrchestrationRun(runId: string): Promise<void>
   onOrchestrationEvent(callback: (payload: OrchestrationEventPayload) => void): () => void
+
+  // Multi-Agent
+  sendMultiAgentMessage(
+    conversationId: ConversationId,
+    payload: AgentSendPayload,
+    config: MultiAgentConfig,
+  ): Promise<void>
+  cancelMultiAgent(conversationId: ConversationId): void
+  onMultiAgentStreamChunk(
+    callback: (payload: {
+      conversationId: ConversationId
+      chunk: StreamChunk
+      meta: MultiAgentStreamMetadata
+    }) => void,
+  ): () => void
+  onMultiAgentTurnEvent(
+    callback: (payload: { conversationId: ConversationId; event: MultiAgentTurnEvent }) => void,
+  ): () => void
+
+  // Teams
+  listTeams(): Promise<TeamPreset[]>
+  saveTeam(preset: TeamPreset): Promise<TeamPreset>
+  deleteTeam(id: TeamConfigId): Promise<void>
 }

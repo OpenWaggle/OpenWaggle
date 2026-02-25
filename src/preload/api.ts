@@ -1,5 +1,5 @@
 import type { AgentSendPayload, PreparedAttachment } from '@shared/types/agent'
-import type { ConversationId } from '@shared/types/brand'
+import type { ConversationId, TeamConfigId } from '@shared/types/brand'
 import type { Conversation, ConversationSummary } from '@shared/types/conversation'
 import type { DevtoolsEventBusConfig } from '@shared/types/devtools'
 import type {
@@ -15,8 +15,14 @@ import type {
   GitFileDiff,
   GitStatusSummary,
 } from '@shared/types/git'
-import type { OpenHiveApi } from '@shared/types/ipc'
+import type { OpenWaggleApi } from '@shared/types/ipc'
 import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from '@shared/types/llm'
+import type {
+  MultiAgentConfig,
+  MultiAgentStreamMetadata,
+  MultiAgentTurnEvent,
+  TeamPreset,
+} from '@shared/types/multi-agent'
 import type { OrchestrationEventPayload, OrchestrationRunRecord } from '@shared/types/orchestration'
 import type { QuestionAnswer, QuestionPayload } from '@shared/types/question'
 import type { Provider, Settings } from '@shared/types/settings'
@@ -33,7 +39,7 @@ import { ipcRenderer } from 'electron'
  * Typed API exposed to the renderer via contextBridge.
  * Every method maps to a specific IPC channel with strict types.
  */
-export const api: OpenHiveApi = {
+export const api: OpenWaggleApi = {
   // ─── Agent ───────────────────────────────────────────
   sendMessage(
     conversationId: ConversationId,
@@ -296,5 +302,65 @@ export const api: OpenHiveApi = {
     }
     ipcRenderer.on('orchestration:event', handler)
     return () => ipcRenderer.removeListener('orchestration:event', handler)
+  },
+
+  // ─── Multi-Agent ──────────────────────────────────────
+  sendMultiAgentMessage(
+    conversationId: ConversationId,
+    payload: AgentSendPayload,
+    config: MultiAgentConfig,
+  ): Promise<void> {
+    return ipcRenderer.invoke('agent:send-multi-agent-message', conversationId, payload, config)
+  },
+
+  cancelMultiAgent(conversationId: ConversationId): void {
+    ipcRenderer.send('agent:cancel-multi-agent', conversationId)
+  },
+
+  onMultiAgentStreamChunk(
+    callback: (payload: {
+      conversationId: ConversationId
+      chunk: StreamChunk
+      meta: MultiAgentStreamMetadata
+    }) => void,
+  ): () => void {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      payload: {
+        conversationId: ConversationId
+        chunk: StreamChunk
+        meta: MultiAgentStreamMetadata
+      },
+    ): void => {
+      callback(payload)
+    }
+    ipcRenderer.on('multi-agent:stream-chunk', handler)
+    return () => ipcRenderer.removeListener('multi-agent:stream-chunk', handler)
+  },
+
+  onMultiAgentTurnEvent(
+    callback: (payload: { conversationId: ConversationId; event: MultiAgentTurnEvent }) => void,
+  ): () => void {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      payload: { conversationId: ConversationId; event: MultiAgentTurnEvent },
+    ): void => {
+      callback(payload)
+    }
+    ipcRenderer.on('multi-agent:turn-event', handler)
+    return () => ipcRenderer.removeListener('multi-agent:turn-event', handler)
+  },
+
+  // ─── Teams ────────────────────────────────────────────
+  listTeams(): Promise<TeamPreset[]> {
+    return ipcRenderer.invoke('teams:list')
+  },
+
+  saveTeam(preset: TeamPreset): Promise<TeamPreset> {
+    return ipcRenderer.invoke('teams:save', preset)
+  },
+
+  deleteTeam(id: TeamConfigId): Promise<void> {
+    return ipcRenderer.invoke('teams:delete', id)
   },
 }

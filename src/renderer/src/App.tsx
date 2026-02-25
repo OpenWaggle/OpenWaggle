@@ -1,10 +1,13 @@
+import type { AgentSendPayload } from '@shared/types/agent'
+import type { ConversationId } from '@shared/types/brand'
+import type { MultiAgentConfig } from '@shared/types/multi-agent'
 import { useEffect } from 'react'
 import { ChatPanel } from '@/components/chat/ChatPanel'
 import { DiffPanel } from '@/components/diff-panel/DiffPanel'
 import { ResizeHandle } from '@/components/diff-panel/ResizeHandle'
 import { Header } from '@/components/layout/Header'
 import { Sidebar } from '@/components/layout/Sidebar'
-import { SettingsDialog } from '@/components/settings/SettingsDialog'
+import { SettingsPage } from '@/components/settings/SettingsPage'
 import { PanelErrorBoundary } from '@/components/shared/PanelErrorBoundary'
 import { SkillsPanel } from '@/components/skills/SkillsPanel'
 import { TerminalPanel } from '@/components/terminal/TerminalPanel'
@@ -15,17 +18,20 @@ import { useGit } from '@/hooks/useGit'
 import { useGitRefresh } from '@/hooks/useGitRefresh'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { useMessageModelLookup } from '@/hooks/useMessageModelLookup'
+import { useMultiAgentChat } from '@/hooks/useMultiAgentChat'
+import { useMultiAgentMetadataLookup } from '@/hooks/useMultiAgentMetadataLookup'
 import { useOrchestration } from '@/hooks/useOrchestration'
 import { useProject } from '@/hooks/useProject'
 import { useSendMessage } from '@/hooks/useSendMessage'
 import { useSettings, useSettingsSetup } from '@/hooks/useSettings'
 import { useSkills } from '@/hooks/useSkills'
 import { cn } from '@/lib/cn'
+import { api } from '@/lib/ipc'
 import { useChatStore } from '@/stores/chat-store'
+import { useMultiAgentStore } from '@/stores/multi-agent-store'
 import { CHAT_MIN_WIDTH, useUIStore } from '@/stores/ui-store'
 
 export function App(): React.JSX.Element {
-  const settingsOpen = useUIStore((s) => s.settingsOpen)
   const sidebarOpen = useUIStore((s) => s.sidebarOpen)
   const terminalOpen = useUIStore((s) => s.terminalOpen)
   const activeView = useUIStore((s) => s.activeView)
@@ -37,7 +43,6 @@ export function App(): React.JSX.Element {
   const toggleTerminal = useUIStore((s) => s.toggleTerminal)
   const toggleDiffPanel = useUIStore((s) => s.toggleDiffPanel)
   const openSettings = useUIStore((s) => s.openSettings)
-  const closeSettings = useUIStore((s) => s.closeSettings)
   const setActiveView = useUIStore((s) => s.setActiveView)
   const openSkillsView = useUIStore((s) => s.openSkillsView)
   const resizeDiffPanel = useUIStore((s) => s.resizeDiffPanel)
@@ -74,8 +79,16 @@ export function App(): React.JSX.Element {
 
   const currentModel = settings.defaultModel
   const conversation = useChatStore((s) => s.activeConversation)
-  const { messages, sendMessage, isLoading, stop, error, respondToolApproval, answerQuestion } =
-    useAgentChat(activeConversationId, conversation, currentModel, settings.qualityPreset)
+  const {
+    messages,
+    sendMessage,
+    sendMultiAgentMessage,
+    isLoading,
+    stop,
+    error,
+    respondToolApproval,
+    answerQuestion,
+  } = useAgentChat(activeConversationId, conversation, currentModel, settings.qualityPreset)
 
   const { orchestrationRuns, orchestrationEvents, cancelRun } =
     useOrchestration(activeConversationId)
@@ -101,15 +114,49 @@ export function App(): React.JSX.Element {
     refreshGitBranches,
   })
 
-  const { handleSend, handleSendText } = useSendMessage({
+  const { handleSend, handleSendText, handleSendMultiAgent } = useSendMessage({
     activeConversationId,
     projectPath,
     qualityPreset: settings.qualityPreset,
     createConversation,
     sendMessage,
+    sendMultiAgentMessage,
   })
 
   const messageModelLookup = useMessageModelLookup(conversation)
+  const multiAgentMetadataLookup = useMultiAgentMetadataLookup(conversation, messages)
+
+  // --- Multi-agent ---
+
+  useMultiAgentChat(activeConversationId)
+
+  const multiAgentStatus = useMultiAgentStore((s) => s.status)
+  const multiAgentConfig = useMultiAgentStore((s) => s.activeConfig)
+  const setMultiAgentConfig = useMultiAgentStore((s) => s.setConfig)
+  const startMultiAgentCollaboration = useMultiAgentStore((s) => s.startCollaboration)
+  const stopMultiAgentCollaboration = useMultiAgentStore((s) => s.stopCollaboration)
+  const toggleCommandPalette = useUIStore((s) => s.toggleCommandPalette)
+
+  function handleStartCowork(config: MultiAgentConfig): void {
+    setMultiAgentConfig(config)
+  }
+
+  function handleStopCollaboration(): void {
+    if (activeConversationId) {
+      api.cancelMultiAgent(activeConversationId)
+    }
+    stopMultiAgentCollaboration()
+  }
+
+  // When multi-agent is configured, route sends through the useChat pipeline
+  async function handleSendWithMultiAgent(payload: AgentSendPayload): Promise<void> {
+    if (multiAgentConfig && multiAgentStatus === 'idle') {
+      startMultiAgentCollaboration(activeConversationId ?? ('' as ConversationId), multiAgentConfig)
+      await handleSendMultiAgent(payload, multiAgentConfig)
+      return
+    }
+    await handleSend(payload)
+  }
 
   // --- Lifecycle effects ---
 
@@ -138,12 +185,30 @@ export function App(): React.JSX.Element {
     { key: 'n', ctrl: true, action: () => void createConversation(projectPath) },
     { key: 'b', ctrl: true, action: toggleSidebar },
     { key: 'd', ctrl: true, action: toggleDiffPanel },
+    { key: 'k', ctrl: true, action: toggleCommandPalette },
   ])
 
   if (!isLoaded) {
     return (
       <div className="flex h-full items-center justify-center bg-bg">
         <div className="text-text-tertiary text-sm">Loading...</div>
+      </div>
+    )
+  }
+
+  // Settings takes over the full screen — no sidebar, header, or terminal
+  if (activeView === 'settings') {
+    return (
+      <div className="flex h-full w-full overflow-hidden bg-bg">
+        <PanelErrorBoundary name="Settings" className="flex flex-1 overflow-hidden">
+          <SettingsPage />
+        </PanelErrorBoundary>
+
+        {toastMessage && (
+          <div className="pointer-events-none fixed right-5 top-5 z-[70] rounded-lg border border-border-light bg-bg-secondary px-3 py-2 text-[13px] text-text-secondary shadow-lg">
+            {toastMessage}
+          </div>
+        )}
       </div>
     )
   }
@@ -222,13 +287,14 @@ export function App(): React.JSX.Element {
                   onSelectProjectPath={handleSelectProjectPath}
                   onOpenSettings={openSettings}
                   onRetry={handleSendText}
-                  onSend={handleSend}
+                  onSend={handleSendWithMultiAgent}
                   onToast={showToast}
                   onCancel={stop}
                   onToolApprovalResponse={respondToolApproval}
                   onAnswerQuestion={answerQuestion}
                   model={currentModel}
                   messageModelLookup={messageModelLookup}
+                  multiAgentMetadataLookup={multiAgentMetadataLookup}
                   slashSkills={skillCatalog?.skills ?? []}
                   orchestration={{
                     orchestrationRuns,
@@ -236,6 +302,10 @@ export function App(): React.JSX.Element {
                     onCancelOrchestrationRun: cancelRun,
                   }}
                   recentProjects={settings.recentProjects}
+                  onStopCollaboration={
+                    multiAgentStatus !== 'idle' ? handleStopCollaboration : undefined
+                  }
+                  onStartCowork={handleStartCowork}
                 />
               </PanelErrorBoundary>
 
@@ -277,8 +347,6 @@ export function App(): React.JSX.Element {
           )}
         </div>
       </div>
-
-      <SettingsDialog isOpen={settingsOpen} onClose={closeSettings} />
 
       {toastMessage && (
         <div className="pointer-events-none fixed right-5 top-5 z-[70] rounded-lg border border-border-light bg-bg-secondary px-3 py-2 text-[13px] text-text-secondary shadow-lg">

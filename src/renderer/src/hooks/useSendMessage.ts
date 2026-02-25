@@ -1,5 +1,6 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
+import type { MultiAgentConfig } from '@shared/types/multi-agent'
 import type { QualityPreset } from '@shared/types/settings'
 import { useEffect, useRef } from 'react'
 
@@ -9,12 +10,21 @@ interface SendMessageDeps {
   readonly qualityPreset: QualityPreset
   readonly createConversation: (projectPath: string | null) => Promise<ConversationId>
   readonly sendMessage: (payload: AgentSendPayload) => Promise<void>
+  readonly sendMultiAgentMessage: (
+    payload: AgentSendPayload,
+    config: MultiAgentConfig,
+  ) => Promise<void>
   readonly setPendingMessage: (payload: AgentSendPayload | null) => void
+  readonly setPendingMultiAgentConfig: (config: MultiAgentConfig | null) => void
 }
 
 interface SendMessageHandlers {
   readonly handleSend: (payload: AgentSendPayload) => Promise<void>
   readonly handleSendText: (content: string) => Promise<void>
+  readonly handleSendMultiAgent: (
+    payload: AgentSendPayload,
+    config: MultiAgentConfig,
+  ) => Promise<void>
 }
 
 /** Pure factory — testable without React. */
@@ -25,7 +35,9 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
     qualityPreset,
     createConversation,
     sendMessage,
+    sendMultiAgentMessage,
     setPendingMessage,
+    setPendingMultiAgentConfig,
   } = deps
 
   async function handleSend(payload: AgentSendPayload): Promise<void> {
@@ -41,7 +53,20 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
     await handleSend({ text: content, qualityPreset, attachments: [] })
   }
 
-  return { handleSend, handleSendText }
+  async function handleSendMultiAgent(
+    payload: AgentSendPayload,
+    config: MultiAgentConfig,
+  ): Promise<void> {
+    if (!activeConversationId) {
+      setPendingMessage(payload)
+      setPendingMultiAgentConfig(config)
+      await createConversation(projectPath)
+      return
+    }
+    await sendMultiAgentMessage(payload, config)
+  }
+
+  return { handleSend, handleSendText, handleSendMultiAgent }
 }
 
 interface UseSendMessageOptions {
@@ -50,19 +75,28 @@ interface UseSendMessageOptions {
   readonly qualityPreset: QualityPreset
   readonly createConversation: (projectPath: string | null) => Promise<ConversationId>
   readonly sendMessage: (payload: AgentSendPayload) => Promise<void>
+  readonly sendMultiAgentMessage: (
+    payload: AgentSendPayload,
+    config: MultiAgentConfig,
+  ) => Promise<void>
 }
 
 /** Hook wrapper — manages the pending-message ref and dispatch effect. */
 export function useSendMessage(options: UseSendMessageOptions): SendMessageHandlers {
-  const { activeConversationId, sendMessage, ...rest } = options
+  const { activeConversationId, sendMessage, sendMultiAgentMessage, ...rest } = options
   const pendingMessage = useRef<AgentSendPayload | null>(null)
+  const pendingMultiAgentConfig = useRef<MultiAgentConfig | null>(null)
 
   const handlers = createSendHandlers({
     ...rest,
     activeConversationId,
     sendMessage,
+    sendMultiAgentMessage,
     setPendingMessage: (payload) => {
       pendingMessage.current = payload
+    },
+    setPendingMultiAgentConfig: (config) => {
+      pendingMultiAgentConfig.current = config
     },
   })
 
@@ -70,10 +104,16 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
   useEffect(() => {
     if (activeConversationId && pendingMessage.current) {
       const payload = pendingMessage.current
+      const config = pendingMultiAgentConfig.current
       pendingMessage.current = null
-      void sendMessage(payload)
+      pendingMultiAgentConfig.current = null
+      if (config) {
+        void sendMultiAgentMessage(payload, config)
+      } else {
+        void sendMessage(payload)
+      }
     }
-  }, [activeConversationId, sendMessage])
+  }, [activeConversationId, sendMessage, sendMultiAgentMessage])
 
   return handlers
 }

@@ -1,4 +1,5 @@
 import type { ConversationId } from '@shared/types/brand'
+import type { MultiAgentStreamMetadata, MultiAgentTurnEvent } from '@shared/types/multi-agent'
 import type { OrchestrationEventPayload } from '@shared/types/orchestration'
 import type { StreamChunk } from '@tanstack/ai'
 import { broadcastToWindows } from './broadcast'
@@ -34,4 +35,20 @@ function serializeRunError(chunk: StreamChunk & { type: 'RUN_ERROR' }): StreamCh
 
 export function emitOrchestrationEvent(payload: OrchestrationEventPayload): void {
   broadcastToWindows('orchestration:event', payload)
+}
+
+export function emitMultiAgentStreamChunk(
+  conversationId: ConversationId,
+  chunk: StreamChunk,
+  meta: MultiAgentStreamMetadata,
+): void {
+  const serializable = chunk.type === 'RUN_ERROR' ? serializeRunError(chunk) : chunk
+  broadcastToWindows('multi-agent:stream-chunk', { conversationId, chunk: serializable, meta })
+}
+
+export function emitMultiAgentTurnEvent(
+  conversationId: ConversationId,
+  event: MultiAgentTurnEvent,
+): void {
+  broadcastToWindows('multi-agent:turn-event', { conversationId, event })
 }

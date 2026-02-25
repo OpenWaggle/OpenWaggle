@@ -51,6 +51,8 @@ const messagePartSchema = z.union([
   z.object({ type: z.literal('tool-result'), toolResult: toolCallResultSchema }),
 ])
 
+import { multiAgentConfigSchema, multiAgentMetadataSchema } from '@shared/schemas/multi-agent'
+
 const messageSchema = z.object({
   id: z.string(),
   role: z.enum(['user', 'assistant']),
@@ -60,6 +62,7 @@ const messageSchema = z.object({
     .object({
       orchestrationRunId: z.string().optional(),
       usedFallback: z.boolean().optional(),
+      multiAgent: multiAgentMetadataSchema.optional(),
     })
     .optional(),
   createdAt: z.number(),
@@ -71,6 +74,7 @@ const conversationSchema = z.object({
   model: z.string().optional(),
   projectPath: z.string().nullable(),
   messages: z.array(messageSchema),
+  multiAgentConfig: multiAgentConfigSchema.optional(),
   createdAt: z.number(),
   updatedAt: z.number(),
 })
@@ -144,7 +148,12 @@ function transformPart(part: ParsedPart): MessagePart {
 function parseConversation(raw: string): Conversation | null {
   const json: unknown = JSON.parse(raw)
   const result = conversationSchema.safeParse(json)
-  if (!result.success) return null
+  if (!result.success) {
+    logger.warn('Conversation validation failed', {
+      issues: result.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`),
+    })
+    return null
+  }
 
   const data = result.data
   const legacyConversationModel =
@@ -165,6 +174,7 @@ function parseConversation(raw: string): Conversation | null {
       metadata: m.metadata,
       createdAt: m.createdAt,
     })),
+    multiAgentConfig: data.multiAgentConfig,
     createdAt: data.createdAt,
     updatedAt: data.updatedAt,
   }

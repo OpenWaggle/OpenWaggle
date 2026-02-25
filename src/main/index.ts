@@ -9,19 +9,21 @@ import { registerAttachmentHandlers } from './ipc/attachments-handler'
 import { registerConversationsHandlers } from './ipc/conversations-handler'
 import { registerDevtoolsHandlers } from './ipc/devtools-handler'
 import { registerGitHandlers } from './ipc/git'
+import { registerMultiAgentHandlers } from './ipc/multi-agent-handler'
 import { registerOrchestrationHandlers } from './ipc/orchestration-handler'
 import { registerProjectHandlers } from './ipc/project-handler'
 import { registerProvidersHandlers } from './ipc/providers-handler'
 import { registerSettingsHandlers } from './ipc/settings-handler'
 import { registerShellHandlers } from './ipc/shell-handler'
 import { registerSkillsHandlers } from './ipc/skills-handler'
+import { registerTeamsHandlers } from './ipc/teams-handler'
 import { cleanupTerminals, registerTerminalHandlers } from './ipc/terminal-handler'
 import { registerVoiceHandlers } from './ipc/voice-handler'
 import { initFileLogger } from './logger'
 import { registerAllProviders } from './providers'
 
-if (env.OPENHIVE_USER_DATA_DIR) {
-  app.setPath('userData', env.OPENHIVE_USER_DATA_DIR)
+if (env.OPENWAGGLE_USER_DATA_DIR) {
+  app.setPath('userData', env.OPENWAGGLE_USER_DATA_DIR)
 }
 
 const appIconPath = join(__dirname, '../../build/icon.png')
@@ -106,7 +108,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.openhive.app')
+  electronApp.setAppUserModelId('com.openwaggle.app')
   if (process.platform === 'darwin') {
     app.dock?.setIcon(appIconPath)
   }
@@ -130,6 +132,8 @@ app.whenReady().then(() => {
   registerVoiceHandlers()
   registerSkillsHandlers()
   registerShellHandlers()
+  registerMultiAgentHandlers()
+  registerTeamsHandlers()
 
   // Initialize file logger now that app paths are available
   initFileLogger(app.getPath('logs'))

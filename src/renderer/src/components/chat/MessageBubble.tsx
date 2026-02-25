@@ -1,12 +1,20 @@
 import type { ConversationId } from '@shared/types/brand'
 import { generateDisplayName, type SupportedModelId } from '@shared/types/llm'
+import type { AgentColor } from '@shared/types/multi-agent'
 import type { QuestionAnswer } from '@shared/types/question'
 import { askUserArgsSchema } from '@shared/types/question'
 import type { UIMessage } from '@tanstack/ai-react'
 import { Check } from 'lucide-react'
+import { AGENT_BORDER_LEFT, AGENT_TEXT } from '@/lib/agent-colors'
+import { cn } from '@/lib/cn'
 import { StreamingText } from './StreamingText'
 import { ThinkingBlock } from './ThinkingBlock'
 import { ToolCallBlock } from './ToolCallBlock'
+
+interface MultiAgentInfo {
+  agentLabel: string
+  agentColor: AgentColor
+}
 
 interface MessageBubbleProps {
   message: UIMessage
@@ -14,12 +22,14 @@ interface MessageBubbleProps {
   assistantModel?: SupportedModelId
   conversationId: ConversationId | null
   onAnswerQuestion: (conversationId: ConversationId, answers: QuestionAnswer[]) => Promise<void>
+  multiAgent?: MultiAgentInfo
 }
 
 export function MessageBubble({
   message,
   isStreaming,
   assistantModel,
+  multiAgent,
 }: MessageBubbleProps): React.JSX.Element {
   const isUser = message.role === 'user'
 
@@ -57,15 +67,33 @@ export function MessageBubble({
 
   return (
     /* Assistant msg — width: fill_container, no background */
-    <div className="w-full">
+    <div
+      className={cn(
+        'w-full',
+        multiAgent && `border-l-2 pl-3 ${AGENT_BORDER_LEFT[multiAgent.agentColor]}`,
+      )}
+    >
       <div className="flex flex-col gap-2">
-        {assistantModel && (
+        {multiAgent ? (
+          <div>
+            <span
+              className={cn(
+                'inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium',
+                AGENT_TEXT[multiAgent.agentColor],
+                'bg-bg-tertiary/40 border border-border/70',
+              )}
+            >
+              {multiAgent.agentLabel}
+              {assistantModel && ` \u00b7 ${generateDisplayName(assistantModel)}`}
+            </span>
+          </div>
+        ) : assistantModel ? (
           <div>
             <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] text-text-muted bg-bg-tertiary/40 border border-border/70">
               {generateDisplayName(assistantModel)}
             </span>
           </div>
-        )}
+        ) : null}
 
         {message.parts.map((part, i) => {
           switch (part.type) {
@@ -78,6 +106,10 @@ export function MessageBubble({
                 />
               ) : null
             case 'tool-call': {
+              // Synthetic turn-boundary markers are only structural separators
+              // for multi-agent streaming — never render them as tool calls.
+              if (part.name === '_turnBoundary') return null
+
               if (part.name === 'askUser') {
                 const result = toolResults.get(part.id)
                 if (result) {

@@ -2,6 +2,7 @@ import type { AgentSendPayload } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
+import type { MultiAgentConfig } from '@shared/types/multi-agent'
 import type { QuestionAnswer } from '@shared/types/question'
 import type { QualityPreset } from '@shared/types/settings'
 import type { UIMessage } from '@tanstack/ai-react'
@@ -13,6 +14,7 @@ import { createIpcConnectionAdapter } from '@/lib/ipc-connection-adapter'
 interface AgentChatReturn {
   messages: UIMessage[]
   sendMessage: (payload: AgentSendPayload) => Promise<void>
+  sendMultiAgentMessage: (payload: AgentSendPayload, config: MultiAgentConfig) => Promise<void>
   isLoading: boolean
   status: 'ready' | 'submitted' | 'streaming' | 'error'
   stop: () => void
@@ -43,6 +45,7 @@ export function useAgentChat(
   qualityPreset: QualityPreset,
 ): AgentChatReturn {
   const pendingPayloadRef = useRef<AgentSendPayload | null>(null)
+  const pendingMultiAgentConfigRef = useRef<MultiAgentConfig | null>(null)
 
   // React Compiler handles memoization — no manual useMemo needed.
   const connection = conversationId
@@ -55,6 +58,11 @@ export function useAgentChat(
           return payload
         },
         qualityPreset,
+        () => {
+          const config = pendingMultiAgentConfigRef.current
+          pendingMultiAgentConfigRef.current = null
+          return config
+        },
       )
     : { connect: () => emptyAsyncIterable() }
 
@@ -92,6 +100,11 @@ export function useAgentChat(
     messages,
     sendMessage: async (payload: AgentSendPayload) => {
       pendingPayloadRef.current = payload
+      await sendMessage(buildClientUserMessage(payload))
+    },
+    sendMultiAgentMessage: async (payload: AgentSendPayload, config: MultiAgentConfig) => {
+      pendingPayloadRef.current = payload
+      pendingMultiAgentConfigRef.current = config
       await sendMessage(buildClientUserMessage(payload))
     },
     isLoading,

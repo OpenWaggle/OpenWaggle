@@ -42,7 +42,7 @@ async function writeConversationFile(id: string, content: unknown): Promise<void
 
 describe('conversation store integration', () => {
   beforeEach(async () => {
-    state.userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openhive-conversations-test-'))
+    state.userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-conversations-test-'))
     isKnownModelMock.mockReset()
     isKnownModelMock.mockReturnValue(false)
   })

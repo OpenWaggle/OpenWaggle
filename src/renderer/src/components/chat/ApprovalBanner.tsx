@@ -2,13 +2,41 @@ import { Check, ShieldAlert, X } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/cn'
 import { parseToolArgs } from '@/lib/tool-args'
-import { getToolConfig, getToolSummary } from '@/lib/tool-display'
+import { getToolConfig } from '@/lib/tool-display'
 
 interface ApprovalBannerProps {
   toolName: string
   toolArgs: string
   approvalId: string
   onApprovalResponse: (approvalId: string, approved: boolean) => Promise<void>
+}
+
+/**
+ * Format the tool arguments into a human-readable detail string.
+ * Shows the most relevant info for each tool type.
+ */
+function formatToolDetail(toolName: string, args: Record<string, unknown>): string | null {
+  switch (toolName) {
+    case 'runCommand': {
+      return typeof args.command === 'string' ? args.command : null
+    }
+    case 'writeFile':
+    case 'editFile':
+    case 'readFile':
+    case 'listFiles': {
+      return typeof args.path === 'string' ? args.path : null
+    }
+    case 'browserNavigate':
+    case 'webFetch': {
+      return typeof args.url === 'string' ? args.url : null
+    }
+    default: {
+      // Fall back to the primary arg from tool config
+      const config = getToolConfig(toolName)
+      const value = args[config.primaryArg]
+      return typeof value === 'string' ? value : null
+    }
+  }
 }
 
 export function ApprovalBanner({
@@ -23,7 +51,7 @@ export function ApprovalBanner({
   const Icon = config.icon
 
   const parsedArgs = parseToolArgs(toolArgs)
-  const summary = getToolSummary(toolName, parsedArgs)
+  const detail = formatToolDetail(toolName, parsedArgs)
 
   function handleResponse(approved: boolean): void {
     setLoading(true)
@@ -33,22 +61,15 @@ export function ApprovalBanner({
   }
 
   return (
-    <div className="rounded-xl border border-warning/25 bg-warning/6 px-4 py-3">
+    <div className="rounded-xl border border-warning/25 bg-warning/6 px-4 py-3 space-y-2.5">
+      {/* Header: icon + tool name + action buttons */}
       <div className="flex items-center gap-3">
         <ShieldAlert className="h-4 w-4 shrink-0 text-warning" />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 text-sm text-text-primary">
-            <Icon className="h-3.5 w-3.5 text-text-muted shrink-0" />
-            <span className="font-medium">{config.displayName}</span>
-            {summary && (
-              <span className="truncate text-text-tertiary font-mono text-[13px]">{summary}</span>
-            )}
-          </div>
-          <p className="text-[13px] text-text-tertiary mt-0.5">
-            This action requires your approval before proceeding.
-          </p>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <Icon className="h-3.5 w-3.5 text-text-muted shrink-0" />
+          <span className="text-sm font-medium text-text-primary">{config.displayName}</span>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 ml-auto">
           <button
             type="button"
             disabled={loading}
@@ -75,6 +96,15 @@ export function ApprovalBanner({
           </button>
         </div>
       </div>
+
+      {/* Detail: full command/path shown in a readable code block */}
+      {detail && (
+        <div className="rounded-md bg-bg/60 border border-border/50 px-3 py-2">
+          <code className="text-[12.5px] text-text-secondary break-all whitespace-pre-wrap font-mono leading-relaxed">
+            {detail}
+          </code>
+        </div>
+      )}
     </div>
   )
 }

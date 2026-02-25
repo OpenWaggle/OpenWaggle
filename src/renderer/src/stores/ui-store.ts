@@ -4,26 +4,42 @@ export const DIFF_PANEL_MIN = 360
 export const DIFF_PANEL_MAX = 900
 export const CHAT_MIN_WIDTH = 420
 
+export type SettingsTab =
+  | 'general'
+  | 'configuration'
+  | 'cowork'
+  | 'personalization'
+  | 'git'
+  | 'environments'
+  | 'worktrees'
+  | 'archived'
+
 interface UIState {
   settingsOpen: boolean
   sidebarOpen: boolean
   terminalOpen: boolean
-  activeView: 'chat' | 'skills'
+  activeView: 'chat' | 'skills' | 'settings'
+  activeSettingsTab: SettingsTab
   diffPanelOpen: boolean
   diffPanelWidth: number
   toastMessage: string | null
+  commandPaletteOpen: boolean
 
   toggleSidebar: () => void
   toggleTerminal: () => void
   toggleDiffPanel: () => void
-  openSettings: () => void
+  openSettings: (tab?: SettingsTab) => void
   closeSettings: () => void
-  setActiveView: (view: 'chat' | 'skills') => void
+  setActiveView: (view: 'chat' | 'skills' | 'settings') => void
+  setActiveSettingsTab: (tab: SettingsTab) => void
   openSkillsView: () => void
   resizeDiffPanel: (delta: number) => void
   closeTerminal: () => void
   showToast: (message: string) => void
   clearToast: () => void
+  openCommandPalette: () => void
+  closeCommandPalette: () => void
+  toggleCommandPalette: () => void
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null
@@ -33,9 +49,11 @@ export const useUIStore = create<UIState>((set, get) => ({
   sidebarOpen: true,
   terminalOpen: false,
   activeView: 'chat',
+  activeSettingsTab: 'general',
   diffPanelOpen: false,
   diffPanelWidth: 600,
   toastMessage: null,
+  commandPaletteOpen: false,
 
   toggleSidebar() {
     set({ sidebarOpen: !get().sidebarOpen })
@@ -49,16 +67,25 @@ export const useUIStore = create<UIState>((set, get) => ({
     set({ diffPanelOpen: !get().diffPanelOpen })
   },
 
-  openSettings() {
-    set({ settingsOpen: true })
+  openSettings(tab) {
+    set({
+      activeView: 'settings',
+      activeSettingsTab: tab ?? get().activeSettingsTab,
+      settingsOpen: true,
+      diffPanelOpen: false,
+    })
   },
 
   closeSettings() {
-    set({ settingsOpen: false })
+    set({ activeView: 'chat', settingsOpen: false })
   },
 
   setActiveView(view) {
     set({ activeView: view })
+  },
+
+  setActiveSettingsTab(tab) {
+    set({ activeSettingsTab: tab })
   },
 
   openSkillsView() {
@@ -89,6 +116,18 @@ export const useUIStore = create<UIState>((set, get) => ({
       toastTimer = null
     }
     set({ toastMessage: null })
+  },
+
+  openCommandPalette() {
+    set({ commandPaletteOpen: true })
+  },
+
+  closeCommandPalette() {
+    set({ commandPaletteOpen: false })
+  },
+
+  toggleCommandPalette() {
+    set({ commandPaletteOpen: !get().commandPaletteOpen })
   },
 }))
 

@@ -52,9 +52,11 @@ function renderPanel(overrides: Partial<Parameters<typeof ChatPanel>[0]> = {}) {
     onAnswerQuestion: vi.fn().mockResolvedValue(undefined),
     model: 'claude-sonnet-4-20250514' as const,
     messageModelLookup: {},
+    multiAgentMetadataLookup: {},
     slashSkills: [],
     orchestration: ORCHESTRATION_DEFAULTS,
     recentProjects: [],
+    onStartCowork: vi.fn(),
   }
   return render(<ChatPanel {...defaults} {...overrides} />)
 }

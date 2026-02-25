@@ -1,0 +1,43 @@
+import type { ConversationId } from '@shared/types/brand'
+import { useEffect } from 'react'
+import { api } from '@/lib/ipc'
+import { useMultiAgentStore } from '@/stores/multi-agent-store'
+
+/**
+ * Subscribe to multi-agent IPC events and route them to the multi-agent store.
+ * Tracks both turn events (status changes) and stream chunks (live message metadata).
+ */
+export function useMultiAgentChat(conversationId: ConversationId | null): void {
+  const handleTurnEvent = useMultiAgentStore((s) => s.handleTurnEvent)
+  const trackMessageMetadata = useMultiAgentStore((s) => s.trackMessageMetadata)
+
+  useEffect(() => {
+    const unsubTurn = api.onMultiAgentTurnEvent((payload) => {
+      if (conversationId && payload.conversationId === conversationId) {
+        handleTurnEvent(payload.event)
+      }
+    })
+
+    // Track live message → agent metadata from multi-agent stream chunks.
+    // When a TEXT_MESSAGE_START arrives, we map the messageId to the agent metadata
+    // so ChatPanel can show agent labels during streaming (before persistence).
+    const unsubChunk = api.onMultiAgentStreamChunk((payload) => {
+      if (conversationId && payload.conversationId === conversationId) {
+        if (payload.chunk.type === 'TEXT_MESSAGE_START' && payload.chunk.messageId) {
+          trackMessageMetadata(payload.chunk.messageId, {
+            agentIndex: payload.meta.agentIndex,
+            agentLabel: payload.meta.agentLabel,
+            agentColor: payload.meta.agentColor,
+            agentModel: payload.meta.agentModel,
+            turnNumber: payload.meta.turnNumber,
+          })
+        }
+      }
+    })
+
+    return () => {
+      unsubTurn()
+      unsubChunk()
+    }
+  }, [conversationId, handleTurnEvent, trackMessageMetadata])
+}

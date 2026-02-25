@@ -7,6 +7,7 @@ import {
   makeErrorInfo,
 } from '@shared/types/errors'
 import type { SupportedModelId } from '@shared/types/llm'
+import type { MultiAgentConfig } from '@shared/types/multi-agent'
 import type { QualityPreset } from '@shared/types/settings'
 import { convertMessagesToModelMessages, type ModelMessage, type StreamChunk } from '@tanstack/ai'
 import type { ConnectionAdapter, UIMessage } from '@tanstack/ai-react'
@@ -147,7 +148,7 @@ export function isTerminalChunk(chunk: StreamChunk): boolean {
  *
  * Flow:
  * 1. useChat calls connect() when sendMessage() is invoked
- * 2. We fire agent:send-message to the main process (which runs the agent loop)
+ * 2. We fire agent:send-message (or agent:send-multi-agent-message) to the main process
  * 3. Main process forwards raw StreamChunks via agent:stream-chunk IPC channel
  * 4. We yield them as an AsyncIterable<StreamChunk> back to useChat
  * 5. useChat processes chunks into UIMessages (text, tool calls, etc.)
@@ -160,6 +161,7 @@ export function createIpcConnectionAdapter(
   model: SupportedModelId,
   consumePendingPayload: () => AgentSendPayload | null,
   defaultQualityPreset: QualityPreset,
+  consumeMultiAgentConfig?: () => MultiAgentConfig | null,
 ): ConnectionAdapter {
   return {
     connect(_messages, _data, abortSignal) {
@@ -172,6 +174,9 @@ export function createIpcConnectionAdapter(
           const queue: StreamChunk[] = []
           let resolve: (() => void) | null = null
           let done = false
+
+          // Consume the multi-agent config (if any) so sendPromise uses it
+          const multiAgentConfig = consumeMultiAgentConfig?.()
 
           let unsubscribed = false
           const unsub = () => {
@@ -199,9 +204,14 @@ export function createIpcConnectionAdapter(
             }
 
             queue.push(payload.chunk)
+
+            // Determine if this chunk closes the stream.
+            // For multi-agent, per-turn terminal events are filtered in the
+            // handler — only the envelope RUN_STARTED/RUN_FINISHED reach here.
             if (isTerminalChunk(payload.chunk)) {
               done = true
             }
+
             // Wake up the consumer if it's waiting
             resolve?.()
           })
@@ -244,16 +254,28 @@ export function createIpcConnectionAdapter(
 
           // Fire and forget — main process streams chunks back via IPC.
           // Catch to avoid unhandled rejection (errors are delivered via stream chunks).
-          api
-            .sendMessage(conversationId, payload, model)
+          const sendPromise = multiAgentConfig
+            ? api.sendMultiAgentMessage(conversationId, payload, multiAgentConfig)
+            : api.sendMessage(conversationId, payload, model)
+
+          sendPromise
             .then(() => {
               // Main process run completed. For approval-pending runs,
               // TanStack may skip the terminal RUN_FINISHED(stop) chunk.
               // Mark stream as done so the consumer exits cleanly.
-              if (!done) {
-                done = true
-                resolve?.()
-              }
+              //
+              // Use a short delay to avoid a race condition: in fast-failure
+              // cases (e.g. no project path), the handler emits RUN_ERROR +
+              // RUN_FINISHED synchronously before returning, but the IPC event
+              // channel (webContents.send) and the invoke response channel
+              // are processed separately — the invoke can resolve before the
+              // stream chunks arrive. The delay gives those chunks time to land.
+              setTimeout(() => {
+                if (!done) {
+                  done = true
+                  resolve?.()
+                }
+              }, 50)
             })
             .catch((err) => {
               console.error('[ipc-adapter] sendMessage failed:', err)

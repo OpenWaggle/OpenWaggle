@@ -48,6 +48,12 @@ export interface AgentRunParams {
   /** Forward raw StreamChunks to the renderer via IPC for the useChat adapter */
   readonly onChunk: (chunk: StreamChunk) => void
   readonly signal: AbortSignal
+  /**
+   * When true, tools that normally require approval are auto-executed.
+   * Used in multi-agent mode where the coordinator controls the flow and
+   * TanStack AI's approval/continuation mechanism isn't available.
+   */
+  readonly skipApproval?: boolean
 }
 
 export interface AgentRunResult {
@@ -130,7 +136,7 @@ function buildUserChatContent(
 }
 
 export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> {
-  const { conversation, payload, model, settings, onChunk, signal } = params
+  const { conversation, payload, model, settings, onChunk, signal, skipApproval } = params
   const hasContinuationMessages = (payload.continuationMessages?.length ?? 0) > 0
   const projectPath = resolveAgentProjectPath(conversation.projectPath)
   const dynamicLoadedSkillIds = new Set<string>()
@@ -227,9 +233,18 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
         )
         promptFragmentIds = fragmentIds
 
-        const tools = await withStageTiming(stageDurationsMs, 'tool-resolution', () =>
+        let tools = await withStageTiming(stageDurationsMs, 'tool-resolution', () =>
           getServerTools(runContext, features),
         )
+
+        // In multi-agent mode, strip needsApproval so tools execute immediately.
+        // The coordinator controls the flow — TanStack AI's approval/continuation
+        // mechanism isn't available when runAgent() is called directly.
+        if (skipApproval) {
+          tools = tools.map((tool) =>
+            tool.needsApproval ? { ...tool, needsApproval: false } : tool,
+          )
+        }
 
         const adapter = provider.createAdapter(
           resolvedModel,
