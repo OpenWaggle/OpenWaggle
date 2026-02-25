@@ -1,6 +1,6 @@
 # Agent Extensibility Guide
 
-This document describes how to add new agent capabilities in OpenHive without editing the core loop.
+This document describes how to add new agent capabilities in OpenWaggle without editing the core loop.
 
 ## Architecture
 

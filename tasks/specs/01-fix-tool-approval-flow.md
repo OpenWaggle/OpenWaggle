@@ -51,3 +51,78 @@ The approval system is incomplete end-to-end. The renderer has `ApprovalBanner.t
 - Unit test: approval flow in `define-tool.ts` (mock IPC, verify await/resolve)
 - Integration test: approval banner renders on event, calls back correctly
 - E2E: send message that triggers `writeFile` in sandbox → approval banner appears → approve → file written
+
+---
+
+## Phase 2 — Learned Approvals
+
+**Status**: Planned
+
+### Problem
+
+The current approval UX is binary: paranoid (approve everything) or yolo (full-access mode). Heavy agent users rubber-stamp approvals because the friction is too high. Approving `writeFile` to `.tsx` files for the 50th time teaches the user nothing — it just slows them down.
+
+### Design
+
+Track approval patterns and offer progressive trust:
+
+1. **Pattern tracking**: Record every approval decision with context:
+   - Tool name (`writeFile`, `editFile`, `runCommand`)
+   - File path pattern (e.g., `src/renderer/**/*.tsx`)
+   - Command pattern (e.g., `pnpm test*`)
+   - Decision (approved / denied)
+   - Count (how many times this pattern was approved)
+
+2. **Auto-approve suggestion**: After N approvals of the same pattern (default: 5), offer:
+   > "You've approved writeFile to `src/renderer/**/*.tsx` 5 times. Auto-approve this pattern?"
+   > [Yes for this session] [Yes always] [No, keep asking]
+
+3. **Approval rules**: Persisted rules that auto-approve matching patterns:
+   ```json
+   {
+     "rules": [
+       { "tool": "writeFile", "pathPattern": "src/renderer/**/*.tsx", "scope": "always" },
+       { "tool": "runCommand", "commandPattern": "pnpm test*", "scope": "session" },
+       { "tool": "editFile", "pathPattern": "src/**", "scope": "always" }
+     ]
+   }
+   ```
+
+4. **Scope levels**:
+   - `session` — auto-approve for this conversation only
+   - `project` — auto-approve for this project (stored in `.openwaggle/approvals.json`)
+   - `always` — auto-approve globally (stored in `electron-store`)
+
+5. **Never auto-approve**: Some patterns stay manual regardless:
+   - `runCommand` with destructive patterns (`rm`, `git push`, `git reset`)
+   - `writeFile` to config files (`.env`, `package.json`, `tsconfig.json`)
+   - Any tool call the user has denied before
+
+### Implementation
+
+- [ ] Create `src/main/agent/approval-tracker.ts`
+  - Track approval decisions with tool + path/command pattern
+  - Count approvals per pattern
+  - After threshold, emit suggestion to renderer
+- [ ] Create `src/main/agent/approval-rules.ts`
+  - Load rules from `electron-store` (global) and `.openwaggle/approvals.json` (project)
+  - Match incoming tool calls against rules
+  - Auto-approve if rule matches, otherwise fall through to manual approval
+- [ ] Add "Auto-approve this pattern?" UI in approval banner
+  - Three options: session / always / no
+  - Shows the pattern that would be auto-approved
+- [ ] Add approval rules editor in settings
+  - List of active rules with delete option
+  - "Reset all rules" button
+- [ ] Blocklist: patterns that never auto-approve
+  - Destructive commands
+  - Config/env files
+  - Previously denied patterns
+
+### Files to Modify
+
+- `src/main/tools/define-tool.ts` — check approval rules before prompting
+- `src/main/agent/approval-tracker.ts` — new: pattern tracking
+- `src/main/agent/approval-rules.ts` — new: rule matching
+- `src/renderer/src/components/chat/ApprovalBanner.tsx` — auto-approve suggestion UI
+- `src/renderer/src/stores/settings-store.ts` — approval rules state

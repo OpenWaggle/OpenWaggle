@@ -4,7 +4,7 @@
 
 ## Summary
 
-Inlined the 6 used source files from `packages/condukt-ai` and `packages/condukt-openhive` into `src/main/orchestration/engine/`, updated all consumers, moved tests, and deleted both workspace packages.
+Inlined the 6 used source files from `packages/condukt-ai` and `packages/condukt-openwaggle` into `src/main/orchestration/engine/`, updated all consumers, moved tests, and deleted both workspace packages.
 
 ## Changes
 
@@ -32,7 +32,7 @@ Inlined the 6 used source files from `packages/condukt-ai` and `packages/condukt
 
 ### Removed infrastructure
 - [x] `packages/condukt-ai/` directory deleted
-- [x] `packages/condukt-openhive/` directory deleted
+- [x] `packages/condukt-openwaggle/` directory deleted
 - [x] `packages/` directory removed
 - [x] `pnpm-workspace.yaml` — removed `packages/*` entry
 - [x] `package.json` — removed `typecheck:packages`, `test:packages`, `lint:packages` scripts

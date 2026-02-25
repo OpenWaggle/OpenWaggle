@@ -14,14 +14,14 @@ The skill system machinery is sophisticated (dynamic loading, path-scoped resolu
 
 - `src/main/tools/tools/load-skill.ts` — Runtime skill loading tool
 - `src/main/tools/tools/load-agents.ts` — Runtime agents.md loading
-- `.openhive/skills/` directory structure convention
+- `.openwaggle/skills/` directory structure convention
 - `src/renderer/src/components/skills/SkillsPanel.tsx` — Full UI for browsing/toggling skills
 - `src/renderer/src/components/composer/SlashMenu.tsx` — Slash command autocomplete for skill references
 - `src/main/agent/standards-context.ts` — Skill discovery and metadata parsing
 
 ## Skills to Build (In Order of User Value)
 
-### 8a. Code Review — `.openhive/skills/code-review/SKILL.md`
+### 8a. Code Review — `.openwaggle/skills/code-review/SKILL.md`
 
 - Reads git diff, analyzes changes, produces structured review
 - Checks for: security issues, type safety, error handling, test coverage gaps
@@ -29,7 +29,7 @@ The skill system machinery is sophisticated (dynamic loading, path-scoped resolu
 - Uses existing tools: `glob`, `readFile`, `runCommand` (for `git diff`)
 - Trigger phrases: "review", "code review", "check my changes"
 
-### 8b. Test Generation — `.openhive/skills/test-gen/SKILL.md`
+### 8b. Test Generation — `.openwaggle/skills/test-gen/SKILL.md`
 
 - Given a source file, generates comprehensive tests
 - Detects test framework from project config (vitest, jest, mocha)
@@ -38,7 +38,7 @@ The skill system machinery is sophisticated (dynamic loading, path-scoped resolu
 - Uses existing tools: `readFile` (source + existing tests), `writeFile` (new tests), `runCommand` (run tests to verify)
 - Trigger phrases: "generate tests", "add tests for", "test this"
 
-### 8c. Dependency Audit — `.openhive/skills/dep-audit/SKILL.md`
+### 8c. Dependency Audit — `.openwaggle/skills/dep-audit/SKILL.md`
 
 - Reads `package.json` + lock file
 - Identifies: outdated deps, known vulnerabilities, unused deps, duplicate deps
@@ -46,7 +46,7 @@ The skill system machinery is sophisticated (dynamic loading, path-scoped resolu
 - Uses: `readFile`, `runCommand` (`npm audit`, `pnpm outdated`)
 - Trigger phrases: "audit deps", "check dependencies", "security scan"
 
-### 8d. PR Description Writer — `.openhive/skills/pr-writer/SKILL.md`
+### 8d. PR Description Writer — `.openwaggle/skills/pr-writer/SKILL.md`
 
 - Reads git log and diff between current branch and main
 - Produces structured PR description: summary, changes by file, testing notes, breaking changes
@@ -54,7 +54,7 @@ The skill system machinery is sophisticated (dynamic loading, path-scoped resolu
 - Uses: `runCommand` (git log, git diff), `readFile` (changed files for context)
 - Trigger phrases: "write PR", "PR description", "describe my changes"
 
-### 8e. Migration Helper — `.openhive/skills/migrate/SKILL.md`
+### 8e. Migration Helper — `.openwaggle/skills/migrate/SKILL.md`
 
 - Helps with framework/library migrations (e.g., React 18→19, Tailwind v3→v4)
 - Reads project deps, identifies migration targets
@@ -66,7 +66,7 @@ The skill system machinery is sophisticated (dynamic loading, path-scoped resolu
 
 Per `CLAUDE.md` skill standard:
 ```
-.openhive/skills/<skill-id>/
+.openwaggle/skills/<skill-id>/
   SKILL.md          — Frontmatter (name, description, triggers) + full instructions
   scripts/          — Optional helper scripts
 ```
@@ -85,11 +85,11 @@ triggers:
 
 ## Files to Create
 
-- `.openhive/skills/code-review/SKILL.md`
-- `.openhive/skills/test-gen/SKILL.md`
-- `.openhive/skills/dep-audit/SKILL.md`
-- `.openhive/skills/pr-writer/SKILL.md`
-- `.openhive/skills/migrate/SKILL.md`
+- `.openwaggle/skills/code-review/SKILL.md`
+- `.openwaggle/skills/test-gen/SKILL.md`
+- `.openwaggle/skills/dep-audit/SKILL.md`
+- `.openwaggle/skills/pr-writer/SKILL.md`
+- `.openwaggle/skills/migrate/SKILL.md`
 
 ## No Code Changes Needed
 

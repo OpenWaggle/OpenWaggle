@@ -1,4 +1,4 @@
-# Coding Standards (OpenHive)
+# Coding Standards (OpenWaggle)
 
 ## Baseline expectations
 - Follow repository-local standards first (`AGENTS.md`, `LEARNINGS.md`, and relevant docs under `docs/`).
@@ -31,7 +31,7 @@
 - Treat `electron.vite.config.ts` and provider wiring changes as high risk.
 
 ## Test and verification standards
-- OpenHive has no automated test framework configured by default; require manual verification notes for behavior/UI changes (`pnpm dev`).
+- OpenWaggle has no automated test framework configured by default; require manual verification notes for behavior/UI changes (`pnpm dev`).
 - Run repository checks where applicable:
   - `pnpm typecheck`
   - `pnpm lint`

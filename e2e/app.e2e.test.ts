@@ -8,13 +8,13 @@ async function launchWithUserData(userDataDir: string) {
     args: ['.'],
     env: {
       ...process.env,
-      OPENHIVE_USER_DATA_DIR: userDataDir,
+      OPENWAGGLE_USER_DATA_DIR: userDataDir,
     },
   })
 }
 
 test('app launches and persists a created thread', async () => {
-  const userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openhive-e2e-'))
+  const userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-e2e-'))
   let app = await launchWithUserData(userDataDir)
 
   try {

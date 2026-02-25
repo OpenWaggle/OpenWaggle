@@ -157,18 +157,18 @@ These are `JSON.parse → cast` sites where corrupted disk data silently propaga
 
 ### 3.2 — IPC fallback proxy (`src/renderer/src/lib/ipc.ts:26`)
 
-**Pattern**: `as unknown as OpenHiveApi`
-- [x] Create a typed proxy factory that implements `OpenHiveApi` interface:
+**Pattern**: `as unknown as OpenWaggleApi`
+- [x] Create a typed proxy factory that implements `OpenWaggleApi` interface:
   ```
-  function createFallbackApi(): OpenHiveApi {
+  function createFallbackApi(): OpenWaggleApi {
     const handler: ProxyHandler<object> = {
       get: (_, prop) => (...args) => { console.warn(...); return Promise.resolve(undefined) }
     }
-    return new Proxy({} as OpenHiveApi, handler)
+    return new Proxy({} as OpenWaggleApi, handler)
     // Note: Proxy itself requires the cast — but we can validate the contract with a satisfies check
   }
   ```
-- [x] Alternative: if all methods are known, create an explicit no-op implementation object typed as `OpenHiveApi`
+- [x] Alternative: if all methods are known, create an explicit no-op implementation object typed as `OpenWaggleApi`
 
 ### 3.3 — Feature registry error parse (`src/main/agent/feature-registry.ts:115`)
 

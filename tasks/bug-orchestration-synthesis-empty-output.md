@@ -107,7 +107,7 @@ User sends message
   → runOrchestratedAgent()
     → modelJson(plannerPrompt) → modelText() → chat() stream
       → [Planner succeeds, returns task plan]
-    → runOpenHiveOrchestration()
+    → runOpenWaggleOrchestration()
       → engine.run() — executes tasks via modelTextWithTools()
         → [Task 1: 4893 chars ✓]
         → [Task 2: 109 chars ✓]
@@ -119,7 +119,7 @@ User sends message
           → modelText: RUN_ERROR chunk falls through if/else → DROPPED
           → modelText: stream ends → returns ""
         ← synthesize() returns ""
-      ← runOpenHiveOrchestration returns { text: "" }
+      ← runOpenWaggleOrchestration returns { text: "" }
     → streamText(emitChunk, messageId, "") → nothing streamed
     → User sees: narrations + tool activity + "---" + [nothing]
 ```
@@ -229,7 +229,7 @@ for (let attempt = 0; attempt < 2; attempt++) {
 | `src/main/orchestration/service.ts:443-513` | `modelTextWithTools` — executor LLM wrapper | Same `RUN_ERROR` drop |
 | `src/main/orchestration/service.ts:515-543` | `modelJson` — planner LLM wrapper | Falls back to `{ tasks: [] }` on empty |
 | `src/main/orchestration/service.ts:255-275` | Synthesis callback | Doesn't guard against empty result |
-| `packages/condukt-openhive/src/orchestrator.ts:110-124` | Synthesis invocation | Catches thrown errors but not empty returns |
+| `packages/condukt-openwaggle/src/orchestrator.ts:110-124` | Synthesis invocation | Catches thrown errors but not empty returns |
 | `node_modules/@tanstack/ai-anthropic/src/adapters/text.ts:135-146` | Adapter error handling | Yields `RUN_ERROR` (correct behavior) |
 | `node_modules/@tanstack/ai/src/activities/chat/index.ts:440-448` | Chat activity stream | Yields chunk before handling (correct) |
 

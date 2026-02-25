@@ -13,4 +13,4 @@ User corrections and behavioral rules. Updated whenever the user corrects the ag
   - **Type inference top-to-bottom** — let TypeScript infer from Zod schemas (`z.infer<typeof schema>`), function return types, and generic parameters. If inference doesn't reach a consumer, fix the type chain — don't cast at the consumer.
   - **Type guards** — use `function isFoo(x: unknown): x is Foo` for narrowing, not casts after manual checks.
 - **`// SAFETY:` comments are NEVER allowed** — they rationalize casts instead of fixing them. If a cast exists, the code needs a proper structural fix (type guard, generic, discriminated union, Zod validation). No exceptions.
-- **Use Zod v4 API** — `.loose()` not `.passthrough()`, `z.globalRegistry` not `z.getSchema()`. Reference `.openhive/skills/zod-v4/SKILL.md`.
+- **Use Zod v4 API** — `.loose()` not `.passthrough()`, `z.globalRegistry` not `z.getSchema()`. Reference `.openwaggle/skills/zod-v4/SKILL.md`.

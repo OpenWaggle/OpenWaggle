@@ -14,7 +14,7 @@ The agent wastes context tokens on file discovery. It does `glob` → `readFile`
 
 - `@xenova/transformers` 2.17.2 is already a dependency (used for Whisper voice transcription)
 - `fast-glob` is used for file discovery
-- The tool system can easily accept new tools via `defineOpenHiveTool`
+- The tool system can easily accept new tools via `defineOpenWaggleTool`
 
 ## Implementation
 
@@ -47,7 +47,7 @@ Create `src/main/indexing/indexer.ts`:
 
 Create `src/main/tools/tools/search-codebase.ts`:
 ```ts
-defineOpenHiveTool({
+defineOpenWaggleTool({
   name: 'searchCodebase',
   description: 'Semantic search across the project. Returns the most relevant code chunks for a natural language query.',
   inputSchema: z.object({

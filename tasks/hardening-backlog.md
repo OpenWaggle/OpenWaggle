@@ -334,12 +334,12 @@ Similarly, `isPathInside()` exists in `src/main/tools/define-tool.ts:103-106` an
 
 **Problem**
 
-`src/shared/types/ipc.ts:188-191` defines a `'dialog:confirm'` invoke channel. A handler exists in `src/main/ipc/project-handler.ts`. The `OpenHiveApi` exposes `showConfirm()`. But no renderer code ever calls `api.showConfirm()` — the channel is dead code.
+`src/shared/types/ipc.ts:188-191` defines a `'dialog:confirm'` invoke channel. A handler exists in `src/main/ipc/project-handler.ts`. The `OpenWaggleApi` exposes `showConfirm()`. But no renderer code ever calls `api.showConfirm()` — the channel is dead code.
 
 **What to do**
 
 - [ ] Verify with a project-wide grep that `showConfirm` and `dialog:confirm` have zero renderer call sites.
-- [ ] If confirmed dead: remove `'dialog:confirm'` from `IpcInvokeChannelMap`, remove `showConfirm` from `OpenHiveApi`, remove the handler registration, remove the preload binding.
+- [ ] If confirmed dead: remove `'dialog:confirm'` from `IpcInvokeChannelMap`, remove `showConfirm` from `OpenWaggleApi`, remove the handler registration, remove the preload binding.
 - [ ] If it was intended for future use (e.g., spec-01 approval flow): add a `// TODO: used by spec-01` comment and leave it.
 
 **Files to touch**
@@ -409,7 +409,7 @@ The project has 14k of CLAUDE.md and no README.md. There is no entry point for a
 **What to do**
 
 - [ ] Create `README.md` with:
-  - One-paragraph description of what OpenHive is
+  - One-paragraph description of what OpenWaggle is
   - Screenshot or GIF of the app
   - Prerequisites (Node, pnpm, platform requirements)
   - Install + run instructions (`pnpm install && pnpm dev`)
@@ -623,4 +623,4 @@ The risk is not that these features are bad — they're well-built. The risk is 
 - [ ] Suggested core set for multi-agent MVP: agent loop, tool system, provider registry (2-3 providers, not 6), conversation persistence, basic chat UI. Everything else is gravy.
 - [ ] Add a `FEATURE_FLAGS` constant (or settings toggle) that allows disabling voice, OCR, orchestration, terminal, and diff panel. This makes it easy to ship a focused MVP and re-enable features later.
 
-**Risk if skipped**: Attention dilution. Every hour spent on voice input bugs or diff panel polish is an hour not spent on the only feature that makes OpenHive worth existing.
+**Risk if skipped**: Attention dilution. Every hour spent on voice input bugs or diff panel polish is an hour not spent on the only feature that makes OpenWaggle worth existing.

@@ -8,24 +8,24 @@
 
 ## Problem
 
-The `condukt-ai` and `condukt-openhive` packages add indirection with exactly one consumer. You have 34 source files across two packages implementing a generic orchestration abstraction that's only used by OpenHive. The type translations between three systems (OpenHive plan → condukt-ai tasks → condukt-ai run records) add cognitive overhead and make debugging harder.
+The `condukt-ai` and `condukt-openwaggle` packages add indirection with exactly one consumer. You have 34 source files across two packages implementing a generic orchestration abstraction that's only used by OpenWaggle. The type translations between three systems (OpenWaggle plan → condukt-ai tasks → condukt-ai run records) add cognitive overhead and make debugging harder.
 
 ## What Exists
 
 - `packages/condukt-ai/src/` — 25 files: generic orchestration engine, pipeline, trials, diagnostics, providers, JSON utilities
-- `packages/condukt-openhive/src/` — 9 files: OpenHive-specific planner, orchestrator, worker adapter, context heuristic
-- `src/main/orchestration/service.ts` imports from `@openhive/condukt-openhive` which re-exports from `condukt-ai`
+- `packages/condukt-openwaggle/src/` — 9 files: OpenWaggle-specific planner, orchestrator, worker adapter, context heuristic
+- `src/main/orchestration/service.ts` imports from `@openwaggle/condukt-openwaggle` which re-exports from `condukt-ai`
 - `src/main/orchestration/run-repository.ts` implements the `RunStore` interface from condukt-ai
 
-## What's Actually Used by OpenHive
+## What's Actually Used by OpenWaggle
 
-- `runOpenHiveOrchestration()` from condukt-openhive — the main entry point
-- `extractJson()` from condukt-openhive — JSON extraction with code fence handling
-- `OpenHiveProgressPayload`, `OpenHiveTaskExecutionInput` types
+- `runOpenWaggleOrchestration()` from condukt-openwaggle — the main entry point
+- `extractJson()` from condukt-openwaggle — JSON extraction with code fence handling
+- `OpenWaggleProgressPayload`, `OpenWaggleTaskExecutionInput` types
 - The orchestration engine (`condukt-ai/src/orchestration/engine.ts`) — task execution with dependency resolution
 - `MemoryRunStore` from condukt-ai — in-memory run tracking
 
-## What's NOT Used by OpenHive
+## What's NOT Used by OpenWaggle
 
 - `pipeline/` — entire pipeline module (class, execution, graph, llm, runtime, trace, types) — 7 files
 - `trials/` — trial normalization, session, summary — 5 files
@@ -39,7 +39,7 @@ The `condukt-ai` and `condukt-openhive` packages add indirection with exactly on
 ### 1. Identify the minimal surface
 
 Only bring over what `service.ts` actually imports:
-- `runOpenHiveOrchestration` function
+- `runOpenWaggleOrchestration` function
 - `extractJson` utility
 - Orchestration engine (task execution with DAG resolution)
 - Run store types and memory implementation
@@ -53,8 +53,8 @@ Move the relevant condukt code here:
 - `run-store.ts` — run tracking (from `condukt-ai/src/orchestration/memory-run-store.ts`)
 - `types.ts` — orchestration types (merge from both packages)
 - `json.ts` — extractJson utility (from `condukt-ai/src/json.ts`)
-- `planner.ts` — plan parsing/repair (from `condukt-openhive/src/planner.ts`)
-- `context-heuristic.ts` — (from `condukt-openhive/src/context-heuristic.ts`)
+- `planner.ts` — plan parsing/repair (from `condukt-openwaggle/src/planner.ts`)
+- `context-heuristic.ts` — (from `condukt-openwaggle/src/context-heuristic.ts`)
 
 ### 3. Update imports
 
@@ -63,13 +63,13 @@ In `service.ts`, change imports to point to local modules instead of package imp
 ### 4. Remove packages
 
 - Delete `packages/condukt-ai/`
-- Delete `packages/condukt-openhive/`
+- Delete `packages/condukt-openwaggle/`
 - Remove from `pnpm-workspace.yaml`
 - Remove from root `package.json` workspace config
 
 ### 5. Move tests
 
-From `packages/condukt-openhive/src/*.test.ts` to `src/main/orchestration/engine/__tests__/`
+From `packages/condukt-openwaggle/src/*.test.ts` to `src/main/orchestration/engine/__tests__/`
 
 ## Risk
 
@@ -93,4 +93,4 @@ Low. Purely structural refactor. No behavior changes. Run `pnpm typecheck && pnp
 ## Files to Delete
 
 - `packages/condukt-ai/` (entire directory)
-- `packages/condukt-openhive/` (entire directory)
+- `packages/condukt-openwaggle/` (entire directory)

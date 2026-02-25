@@ -1,4 +1,4 @@
-# OpenHive UI Interaction PRD
+# OpenWaggle UI Interaction PRD
 
 Last updated: 2026-02-20
 Owner: Product + Core App
@@ -7,7 +7,7 @@ Document type: Combined PRD + detailed feature specification
 
 ## Executive Summary
 
-OpenHive previously contained several visible controls that were static, disabled, or not wired to behavior. The 2026-02-19 implementation pass closes the remaining HC-UI product gaps for project switching, branch operations, execution mode selection, quality presets, rich attachments, and voice input while preserving runtime safety enforcement.
+OpenWaggle previously contained several visible controls that were static, disabled, or not wired to behavior. The 2026-02-19 implementation pass closes the remaining HC-UI product gaps for project switching, branch operations, execution mode selection, quality presets, rich attachments, and voice input while preserving runtime safety enforcement.
 
 ## Problem Statement
 
@@ -31,12 +31,12 @@ OpenHive previously contained several visible controls that were static, disable
 
 ## Target User and Jobs-to-be-Done
 
-Primary user: developer working inside a repository with OpenHive.
+Primary user: developer working inside a repository with OpenWaggle.
 
 Functional jobs:
 - "I need to quickly open a terminal where I am already working."
 - "I need to understand repo change state without leaving the chat."
-- "I need to commit from within OpenHive with confidence."
+- "I need to commit from within OpenWaggle with confidence."
 - "I need to control agent execution safety mode."
 
 Emotional jobs:
@@ -87,7 +87,7 @@ Scoring: high impact + low/medium effort first.
 - Composer quality presets (Low/Medium/High) mapped to runtime model/parameter resolution.
 - Composer attachments (text/PDF/image) with extraction/OCR pipeline and provider fallback behavior.
 - Composer voice input via local Whisper transcription (tiny default, base optional) with typed fallback guidance.
-- Skills workspace with catalog, per-skill enable toggles, and SKILL.md preview from `.openhive/skills`.
+- Skills workspace with catalog, per-skill enable toggles, and SKILL.md preview from `.openwaggle/skills`.
 - Composer slash references (`/skill-id`) for explicit skill activation while typing.
 - Dynamic mid-run skill loading via `loadSkill` tool (metadata-first catalog + run-scoped full instruction loading).
 - Nested `AGENTS.md` resolution with path-scoped precedence (root baseline + inferred package scopes) and on-demand `loadAgents` runtime loading.
@@ -236,7 +236,7 @@ Status legend: `implemented`, `deferred`, `future`
 - Target behavior:
   - Open a Skills workspace panel with:
     - AGENTS.md status card
-    - Discovered skill catalog from `.openhive/skills/*/SKILL.md`
+    - Discovered skill catalog from `.openwaggle/skills/*/SKILL.md`
     - Per-skill enable/disable toggles
     - SKILL.md preview
 

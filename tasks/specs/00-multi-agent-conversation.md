@@ -10,7 +10,7 @@
 
 Two LLMs (same provider or different providers) have a conversation and co-work on a task together. Example: Codex and Opus discussing an architecture decision, each bringing different strengths. The user watches, intervenes when needed, and gets a better result than either model alone.
 
-This is what no competitor offers. Cursor, Claude Code, Copilot — all single-model. OpenHive becomes the place where models collaborate.
+This is what no competitor offers. Cursor, Claude Code, Copilot — all single-model. OpenWaggle becomes the place where models collaborate.
 
 ## What Already Exists (Foundations)
 
@@ -284,4 +284,4 @@ No one else does this. The closest is:
 - AutoGen/CrewAI (Python frameworks, not desktop apps, no real-time UI)
 - Multi-agent research papers (not productized)
 
-OpenHive would be the first desktop app where you pick two models, give them a task, and watch them collaborate in real-time with full tool access. That's the pitch.
+OpenWaggle would be the first desktop app where you pick two models, give them a task, and watch them collaborate in real-time with full tool access. That's the pitch.

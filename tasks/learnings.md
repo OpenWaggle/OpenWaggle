@@ -1,7 +1,7 @@
 ---
 name: project-learnings
-description: Technical learnings log for OpenHive. Stores warnings, pattern preferences, and historical engineering learnings; workflow policy lives in AGENTS.md and CLAUDE.md.
-owner: openhive-core
+description: Technical learnings log for OpenWaggle. Stores warnings, pattern preferences, and historical engineering learnings; workflow policy lives in AGENTS.md and CLAUDE.md.
+owner: openwaggle-core
 last_updated: 2026-02-20
 ---
 
@@ -38,7 +38,7 @@ This document stores project-specific technical learnings only.
 - Path-scoped AGENTS behavior is easiest to keep agents.md-aligned by resolving deterministic chains (`root -> ancestors -> nearest`) per target path and deduping discovered scope files across inferred candidates.
 - Mid-run scoped instruction loading works safely as a read-only tool (`loadAgents`) when loaded scope files and requested paths are tracked in run-local `ToolContext` state, avoiding prompt resets and preserving prior run context. [SKILL?]
 
-### Task: Condukt In-Repo Orchestration + OpenHive Harness Integration (2026-02-20)
+### Task: Condukt In-Repo Orchestration + OpenWaggle Harness Integration (2026-02-20)
 - `git subtree split --prefix=packages/core` from external repos provides a practical way to vendor only runtime package history, keeping syncability without importing docs/web app history. (condukt packages were later merged into `src/main/orchestration/engine/` — Spec 07) [SKILL?]
 - For Electron + TanStack `useChat` adapters, orchestration fallbacks must still emit terminal stream chunks (`RUN_FINISHED` / `RUN_ERROR`) and preferably text chunks, otherwise same-thread conversation reloads may not rehydrate UI state until a thread switch.
 - Keeping orchestration run persistence in a dedicated `{userData}/orchestration-runs` store decouples task-graph lifecycle from conversation JSON migrations and makes run-level IPC (`get/list/cancel`) straightforward.
@@ -60,6 +60,11 @@ This document stores project-specific technical learnings only.
 - Run-scoped skill-load dedupe is easiest and safest when tracked in `ToolContext` (AsyncLocalStorage) so observability can report dynamic loads without persisting conversation state.
 
 
+### Task: Multi-Agent Conversation — Spec 00 (2026-02-24)
+- TanStack `UIMessage` strips custom metadata during `conversationToUIMessages` conversion; use a parallel lookup map (same pattern as `useMessageModelLookup`) keyed by message ID to preserve multi-agent metadata across the conversion boundary.
+- Multi-agent handlers must emit stream chunks on BOTH the regular `agent:stream-chunk` channel (for TanStack adapter compatibility) AND a dedicated `multi-agent:stream-chunk` channel (for metadata); emitting only on the dedicated channel breaks the existing `useAgentChat` hook's stream consumption.
+- Heuristic consensus detection (Jaccard similarity, explicit agreement phrases, shrinking response) avoids LLM calls and keeps multi-agent coordination costs constant; weighted confidence aggregation with a 0.7 threshold works well for code review / debate scenarios.
+
 ### Task: Provider Model Type Guard Refactor (2026-02-24)
 - When an SDK function requires `TModel extends (typeof MODELS)[number]` but your code receives `string`, use a `Set<string>.has()` inclusion check with a type predicate (`value is T`) instead of widening the array to `readonly string[]` or casting the value. `Set<string>.has()` naturally accepts `string` as input, so no intermediate cast is needed — and the type predicate narrows for the downstream call. [SKILL?]
 - `OpenRouterTextAdapter<T>` extends `BaseTextAdapter` which implements `TextAdapter`, making it assignable to `AnyTextAdapter = TextAdapter<any, any, any, any>` — the `as unknown as AnyTextAdapter` double-cast on the OpenRouter adapter return was unnecessary.
@@ -79,7 +84,7 @@ This document stores project-specific technical learnings only.
 
 ## 4) Old Learnings Archive
 
-### Task: AGENTS + `.openhive/skills` Runtime Standardization (2026-02-19)
+### Task: AGENTS + `.openwaggle/skills` Runtime Standardization (2026-02-19)
 - Keep standards ingestion as a dedicated agent feature (`prompt fragments + context loader`) so AGENTS and skill instructions can evolve without changing `runAgent` orchestration.
 - For skill references in free-form composer input, token-start slash matching plus explicit parsing (`/skill-id`, `$skill-id`) avoids coupling UX insertion behavior to backend activation logic.
 - Project-scoped skill toggles fit naturally into existing `electron-store` settings when keyed by absolute project path, allowing per-repo skill enablement without changing conversation persistence schemas.
@@ -121,7 +126,7 @@ This document stores project-specific technical learnings only.
 
 ### Task: Test Coverage Baseline (2026-02-19)
 - Vitest `vi.mock()` factories are hoisted before top-level variables; shared mock handles referenced inside factory closures should be initialized via `vi.hoisted(...)` to avoid runtime `ReferenceError` in integration tests [SKILL?]
-- Electron e2e tests are deterministic when main-process `userData` can be overridden through an env var (`OPENHIVE_USER_DATA_DIR`), allowing relaunch persistence assertions without mutating local developer state
+- Electron e2e tests are deterministic when main-process `userData` can be overridden through an env var (`OPENWAGGLE_USER_DATA_DIR`), allowing relaunch persistence assertions without mutating local developer state
 
 ### Task: IPC Stream Termination During Tool Calls (2026-02-19)
 - TanStack AI can emit an intermediate `RUN_FINISHED` with `finishReason: 'tool_calls'` before server tool execution results are streamed; treating any `RUN_FINISHED` as terminal in the renderer IPC adapter truncates later `TOOL_CALL_END.result` chunks and leaves tool blocks stuck running [SKILL?]

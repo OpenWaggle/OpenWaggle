@@ -83,7 +83,7 @@ These rules are **non-negotiable**. Violating them invalidates your work.
 
 ## Architecture
 
-OpenHive is an Electron desktop coding agent with multi-model LLM support. Three process targets share types through `src/shared/`.
+OpenWaggle is an Electron desktop coding agent with multi-model LLM support. Three process targets share types through `src/shared/`.
 
 ### Process Boundaries
 
@@ -98,7 +98,7 @@ OpenHive is an Electron desktop coding agent with multi-model LLM support. Three
 - `IpcSendChannelMap` — fire-and-forget (renderer → main)
 - `IpcEventChannelMap` — events (main → renderer)
 
-The preload `api` object (`src/preload/api.ts`) implements `OpenHiveApi` — a convenience wrapper that maps friendly method names to IPC channels. The renderer imports this as `window.api` via `src/renderer/src/lib/ipc.ts`.
+The preload `api` object (`src/preload/api.ts`) implements `OpenWaggleApi` — a convenience wrapper that maps friendly method names to IPC channels. The renderer imports this as `window.api` via `src/renderer/src/lib/ipc.ts`.
 
 ### Provider Registry
 
@@ -179,7 +179,7 @@ Always use granular selectors with `useChatStore((s) => s.field)` — never call
 
 ## Skills Standard
 
-- Project-local skills live under `.openhive/skills/<skill-id>/`.
+- Project-local skills live under `.openwaggle/skills/<skill-id>/`.
 - Each skill folder must contain a `SKILL.md` file.
 - Optional bundled resources (for example `scripts/`) should remain inside the same skill folder.
 - Runtime skill discovery is folder-based only (no `SKILLS.md` catalog file).

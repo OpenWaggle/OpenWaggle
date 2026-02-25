@@ -2,13 +2,13 @@
 
 **Priority:** 4 — Ecosystem
 **Depends on:** Nothing
-**Blocks:** Nothing, but dramatically increases OpenHive's utility
+**Blocks:** Nothing, but dramatically increases OpenWaggle's utility
 
 ---
 
 ## Problem
 
-OpenHive is a closed system. MCP (Model Context Protocol) is the emerging standard for connecting LLMs to external tools and resources. Without it, users can't connect to GitHub, Slack, databases, or any of the hundreds of existing MCP servers. Cursor, Claude Desktop, and GitHub Copilot all support it.
+OpenWaggle is a closed system. MCP (Model Context Protocol) is the emerging standard for connecting LLMs to external tools and resources. Without it, users can't connect to GitHub, Slack, databases, or any of the hundreds of existing MCP servers. Cursor, Claude Desktop, and GitHub Copilot all support it.
 
 ## What Exists Today
 

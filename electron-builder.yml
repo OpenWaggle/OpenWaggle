@@ -1,5 +1,5 @@
-appId: com.openhive.app
-productName: OpenHive
+appId: com.openwaggle.app
+productName: OpenWaggle
 directories:
   buildResources: build
 files:

@@ -113,7 +113,7 @@ const failureMessage = failedTitle
 
 Add a file writer that appends log lines to a rotating file in `app.getPath('logs')`:
 - Lazy-initialize on first log call (avoid import-time `app` access)
-- Write to `openhive.log` with day-based rotation (keep last 3 days)
+- Write to `openwaggle.log` with day-based rotation (keep last 3 days)
 - All log levels (debug, info, warn, error) write to file
 - Expose `getLogFilePath(): string` for IPC
 
@@ -154,13 +154,13 @@ Register in `src/main/index.ts` alongside other handlers.
 
 #### 3e-iv. Add to preload API
 
-**File:** `src/preload/api.ts` — Add to `OpenHiveApi`:
+**File:** `src/preload/api.ts` — Add to `OpenWaggleApi`:
 ```typescript
 openPath(filePath: string): Promise<void>
 getLogsPath(): Promise<string>
 ```
 
-**File:** `src/shared/types/ipc.ts` — Add to `OpenHiveApi` interface:
+**File:** `src/shared/types/ipc.ts` — Add to `OpenWaggleApi` interface:
 ```typescript
 // Shell
 openPath(filePath: string): Promise<void>
@@ -210,7 +210,7 @@ All 5 gaps closed:
 - **3b**: run-command blocked message shows human-readable description instead of raw regex
 - **3c**: modelJson() throws on extraction failure → visible fallback message via existing catch
 - **3d**: orchestration task failure message includes task title from taskTitles map
-- **3e**: File logger writes to `{logs}/openhive-{date}.log` with 3-day pruning; `shell:open-path` and `app:get-logs-path` IPC channels; "Open Logs" button in ChatErrorDisplay for non-auth errors
+- **3e**: File logger writes to `{logs}/openwaggle-{date}.log` with 3-day pruning; `shell:open-path` and `app:get-logs-path` IPC channels; "Open Logs" button in ChatErrorDisplay for non-auth errors
 
 Tests added:
 - `src/main/tools/tools/edit-file.unit.test.ts` (3 tests)
