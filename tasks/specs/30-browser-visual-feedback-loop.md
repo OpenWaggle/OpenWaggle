@@ -64,3 +64,19 @@ Give the agent the ability to see, evaluate, and iterate on running UI by integr
 
 - `src/main/tools/index.ts` — register new tool
 - `package.json` — add `playwright-core`
+
+## Review Notes (2026-02-25, codebase audit)
+
+**Dependency bloat warning:** The full `playwright` package (v1.58.2, ~100MB+ with browser
+binaries) is currently in `dependencies` (not `devDependencies`). This ships in every
+install despite the feature being Planned and unimplemented.
+
+Phase 1 already correctly specifies `playwright-core` (~3MB, no bundled browsers) as the
+target. Immediate action: **move `playwright` from `dependencies` to `devDependencies`
+now**, and only add `playwright-core` when this spec is actively worked on. The current
+state adds massive install footprint for zero user value.
+
+The `src/main/tools/tools/browser/session.ts` does `import('playwright')` dynamically,
+so moving it to devDependencies won't break the build — the import will simply fail at
+runtime if someone tries to use the unfinished browser tools, which is the correct
+behavior for an unimplemented feature.

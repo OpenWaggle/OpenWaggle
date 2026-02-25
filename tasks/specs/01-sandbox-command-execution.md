@@ -46,3 +46,14 @@
 ## Risk if Skipped
 
 A compromised or hallucinating LLM can exfiltrate data or destroy the filesystem after a single user approval.
+
+## Review Notes (2026-02-25, codebase audit)
+
+This is the single most critical security gap in the project. The app's core value
+proposition is running LLM-generated shell commands — and the only protection layer
+between "user clicks approve" and "arbitrary code execution" is `getSafeChildEnv()`.
+There is no audit trail, no output redaction, and no restricted shell mode.
+
+Consider prioritizing this **before Spec 35 (ship to users)**. Shipping a coding agent
+without command sandboxing is a liability — even with user approval gating, a single
+misclick on a destructive command has no safety net.

@@ -70,3 +70,15 @@ The UI Interaction PRD (`docs/product/ui-interaction-prd.md`) states: "Users nee
 - Component: only one settings entry point exists in the render tree
 - Component: no "Coming soon" text renders for any accessible tab
 - Unit: `SettingsDialog` import references are zero
+
+## Review Notes (2026-02-25, codebase audit)
+
+The disabled "Coming soon" tabs are actively misleading UX. Users who explore the settings
+nav see 6 tabs they can't click with no indication of whether they're coming next week or
+next year. This erodes trust in the interface — it signals an incomplete product rather
+than a focused one.
+
+**Recommendation for Phase 2:** Don't just relabel to "Planned" — remove tabs that don't
+have a backing spec in active development. A settings nav with 2 working tabs is a better
+UX than 8 tabs where 6 are disabled. Tabs can be added back when their backing features
+land. The `ui-store.ts` `SettingsTab` type should shrink to match only implemented tabs.

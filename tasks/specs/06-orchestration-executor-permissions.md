@@ -53,3 +53,18 @@ Orchestration executors only get `readFile` + `glob` tools. They cannot write fi
 - Unit: executor receives write tools when run inside tool context
 - Integration: orchestration task that writes a file succeeds
 - Unit: project boundary enforcement still works within orchestration
+
+## Review Notes (2026-02-25, codebase audit)
+
+`service.ts` is ~800 lines with 6+ distinct responsibilities: planner prompt building,
+direct response streaming, orchestration wiring, multi-level event handling, tool activity
+formatting, web intent detection, and JSON model calling. Before this spec piles more
+changes onto it, consider extracting into smaller collaborators:
+
+- `buildPlannerPrompt()` → `planner-prompt.ts` (~90 lines of string array joining)
+- `hasWebIntent()` → already a pure function, trivially extractable
+- Tool activity formatting (`TOOL_VERBS`, `TOOL_PRIMARY_ARG`) → `tool-activity.ts`
+- Direct response streaming logic → separate from orchestration wiring
+
+This decomposition would make both this spec and Spec 27 (quality routing) significantly
+easier to implement and review.

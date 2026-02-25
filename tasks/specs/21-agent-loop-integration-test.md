@@ -1,8 +1,8 @@
 # 21 — Agent Loop Integration Test
 
 **Status:** Planned
-**Priority:** P4
-**Severity:** Strategic
+**Priority:** P2
+**Severity:** High
 **Depends on:** None
 **Origin:** H-14
 
@@ -30,3 +30,16 @@ The highest-risk code path — user sends message, agent loop streams response, 
 - Integration: happy path with tool calls
 - Integration: mid-stream error handling
 - Integration: AbortSignal cancellation
+
+## Review Notes (2026-02-25, codebase audit)
+
+**Priority upgraded from P4 → P2.** The agent loop is the highest-risk code path in the
+entire application — it talks to LLMs, executes tools, manages streaming state, and wires
+abort signals. It has zero integration test coverage. Every other critical system (IPC,
+conversations, auth) has integration tests. This gap is disproportionate to the risk.
+
+Additionally, the `resolveProviderAndQuality` function was recently changed from sync to
+async (for subscription token refresh). TypeScript won't catch a missing `await` because
+the Promise object is truthy and structurally overlaps with the return type (both have
+`.ok`). An integration test exercising the full provider resolution → stream → tool
+execution path would catch this class of regression mechanically.

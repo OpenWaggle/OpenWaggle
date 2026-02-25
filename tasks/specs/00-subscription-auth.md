@@ -63,3 +63,15 @@ Implemented OAuth-based "Sign in with..." flows for OpenRouter, OpenAI, and Anth
 - [x] Tighten token presence checks to require decryptable/parseable token payloads.
 - [x] Scope pending manual code handlers by provider to avoid cross-flow resolution.
 - [x] Remove unsafe cast usage from updated auth/provider setup paths.
+
+## Open Risk: Anthropic OAuth TOS (2026-02-25, codebase audit)
+
+`SubscriptionAuthButton.tsx` surfaces a warning: *"Anthropic's Terms of Service prohibit
+using subscription OAuth tokens in third-party applications."* The feature works
+technically, but shipping it with a disclaimer is not a product strategy — it's deferred
+risk.
+
+**Decision needed:** Either (a) remove Anthropic subscription auth entirely until TOS
+permits it, (b) get explicit permission from Anthropic, or (c) accept the risk and
+document the rationale. The current state of "ship it but warn users" leaves both the
+project and users in a gray area. This should be resolved before Spec 35 (ship to users).

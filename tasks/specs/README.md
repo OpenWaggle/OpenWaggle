@@ -112,7 +112,9 @@ Bugs & Fixes (01-24):
   01-05 (critical)  — P1, no deps
   06-14 (high)      — P2, 06 benefits from provider registry
   15-18 (medium)    — P3
-  19-24 (low/strat) — P4
+  19-20 (low/strat) — P4
+  21 (agent loop test) — P2 (upgraded from P4, see spec for rationale)
+  22-24 (low/strat) — P4
 
 Core Features (25-35):
   25 (auto-verification)     — no deps, high impact
