@@ -132,6 +132,7 @@ function createIntegrationDeps(responses: readonly string[]): {
           requiresApiKey: true,
           supportsBaseUrl: true,
           supportsSubscription: true,
+          supportsDynamicModelFetch: false,
           models: [model],
           testModel: model,
           createAdapter(_targetModel, apiKey) {
