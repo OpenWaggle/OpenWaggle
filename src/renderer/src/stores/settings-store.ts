@@ -22,7 +22,19 @@ interface ProviderModelRefreshResult {
   readonly models: ModelDisplayInfo[] | null
 }
 
-let providerModelRefreshRequestToken = 0
+const providerModelRefreshTokens: Partial<Record<Provider, number>> = {}
+
+function issueProviderRefreshTokens(providers: readonly Provider[]): Map<Provider, number> {
+  const expectedTokens = new Map<Provider, number>()
+
+  for (const provider of providers) {
+    const nextToken = (providerModelRefreshTokens[provider] ?? 0) + 1
+    providerModelRefreshTokens[provider] = nextToken
+    expectedTokens.set(provider, nextToken)
+  }
+
+  return expectedTokens
+}
 
 function dedupeProviderModels(
   provider: Provider,
@@ -156,9 +168,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   async refreshProviderModels(provider?: Provider) {
-    const requestToken = providerModelRefreshRequestToken + 1
-    providerModelRefreshRequestToken = requestToken
-
     const { baseProviderModels, settings } = get()
     const targetProviders = provider
       ? baseProviderModels.filter(
@@ -167,6 +176,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       : baseProviderModels.filter((group) => group.supportsDynamicModelFetch)
 
     if (targetProviders.length === 0) return
+    const targetProviderIds = targetProviders.map((group) => group.provider)
+    const expectedTokens = issueProviderRefreshTokens(targetProviderIds)
 
     const results = await Promise.all(
       targetProviders.map(async (group): Promise<ProviderModelRefreshResult> => {
@@ -192,12 +203,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         }
       }),
     )
-
-    if (requestToken !== providerModelRefreshRequestToken) return
+    const freshProviderIds = targetProviderIds.filter(
+      (providerId) => providerModelRefreshTokens[providerId] === expectedTokens.get(providerId),
+    )
+    if (freshProviderIds.length === 0) return
+    const freshProviderSet = new Set(freshProviderIds)
 
     const refreshedDynamicModels = new Map<Provider, readonly ModelDisplayInfo[]>()
     for (const result of results) {
-      if (result.models && result.models.length > 0) {
+      if (freshProviderSet.has(result.provider) && result.models && result.models.length > 0) {
         refreshedDynamicModels.set(result.provider, result.models)
       }
     }
@@ -206,7 +220,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const nextProviderModels = mergeProviderGroups({
       baseProviderModels: latestState.baseProviderModels,
       currentProviderModels: latestState.providerModels,
-      refreshedProviders: targetProviders.map((group) => group.provider),
+      refreshedProviders: freshProviderIds,
       refreshedDynamicModels,
     })
     set({ providerModels: nextProviderModels })
