@@ -27,15 +27,19 @@ export function DiffPanel({ projectPath, onSendMessage }: DiffPanelProps): React
   const addComment = useReviewStore((s) => s.addComment)
   const clearComments = useReviewStore((s) => s.clearComments)
 
-  // Fetch diffs on mount, projectPath change, or explicit refresh from parent
-  useEffect(() => {
+  const [prevProjectPath, setPrevProjectPath] = useState(projectPath)
+  if (projectPath !== prevProjectPath) {
+    setPrevProjectPath(projectPath)
     if (!projectPath) {
       setFileDiffs([])
-      return
     }
+    setIsLoading(!!projectPath)
+  }
+
+  useEffect(() => {
+    if (!projectPath) return
 
     let cancelled = false
-    setIsLoading(true)
     api
       .getGitDiff(projectPath)
       .then((diffs) => {

@@ -70,6 +70,17 @@ interface ChatPanelProps {
   onStartWaggle: (config: MultiAgentConfig) => void
 }
 
+function parseAskUserQuestions(args: string): UserQuestion[] {
+  try {
+    const parsed: unknown = JSON.parse(args)
+    const result = askUserArgsSchema.safeParse(parsed)
+    if (result.success) {
+      return result.data.questions
+    }
+  } catch {}
+  return []
+}
+
 export function ChatPanel({
   messages,
   isLoading,
@@ -170,13 +181,7 @@ export function ChatPanel({
           (p) => p.type === 'tool-result' && p.toolCallId === part.id,
         )
         if (!hasResult) {
-          try {
-            const parsed: unknown = JSON.parse(part.arguments)
-            const result = askUserArgsSchema.safeParse(parsed)
-            pendingAskUser = { questions: result.success ? result.data.questions : [] }
-          } catch {
-            pendingAskUser = { questions: [] }
-          }
+          pendingAskUser = { questions: parseAskUserQuestions(part.arguments) }
           break
         }
       }

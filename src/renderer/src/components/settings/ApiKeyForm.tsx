@@ -1,5 +1,5 @@
 import { Check, ExternalLink, Eye, EyeOff, Loader2, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { cn } from '@/lib/cn'
 
 interface ApiKeyFormProps {
@@ -24,13 +24,13 @@ export function ApiKeyForm({
   testResult,
 }: ApiKeyFormProps): React.JSX.Element {
   const [value, setValue] = useState(currentKey)
+  const [prevCurrentKey, setPrevCurrentKey] = useState(currentKey)
   const [showKey, setShowKey] = useState(false)
   const hasChanged = value !== currentKey
-
-  // Sync local state when the saved key changes externally
-  useEffect(() => {
+  if (currentKey !== prevCurrentKey) {
+    setPrevCurrentKey(currentKey)
     setValue(currentKey)
-  }, [currentKey])
+  }
 
   async function handleSave(): Promise<void> {
     await onSave(value)

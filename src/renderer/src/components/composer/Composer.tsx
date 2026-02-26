@@ -14,6 +14,25 @@ import { ComposerToolbar } from './ComposerToolbar'
 import { useVoiceCapture } from './useVoiceCapture'
 import { VoiceRecorder } from './VoiceRecorder'
 
+async function prepareAndAttach(
+  projectPath: string,
+  paths: string[],
+  addAttachments: (attachments: Awaited<ReturnType<typeof api.prepareAttachments>>) => void,
+  setAttachmentError: (error: string | null) => void,
+  onToast: ((message: string) => void) | undefined,
+): Promise<void> {
+  try {
+    setAttachmentError(null)
+    const prepared = await api.prepareAttachments(projectPath, paths)
+    addAttachments(prepared)
+    onToast?.(`Attached ${String(prepared.length)} file${prepared.length === 1 ? '' : 's'}.`)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to prepare attachments.'
+    setAttachmentError(message)
+    onToast?.(message)
+  }
+}
+
 // ── Component ──
 
 interface ComposerProps {
@@ -90,9 +109,11 @@ export function Composer({
 
   // Voice mode Enter key handler
   const voiceSendRef = useRef(voice.sendVoice)
-  voiceSendRef.current = voice.sendVoice
   const submitPayloadRef = useRef(submitPayload)
-  submitPayloadRef.current = submitPayload
+  useEffect(() => {
+    voiceSendRef.current = voice.sendVoice
+    submitPayloadRef.current = submitPayload
+  })
   useEffect(() => {
     if (!isVoiceModeActive) return
     function onKeyDown(event: KeyboardEvent): void {
@@ -172,16 +193,7 @@ export function Composer({
       return
     }
 
-    try {
-      setAttachmentError(null)
-      const prepared = await api.prepareAttachments(projectPath, paths)
-      addAttachments(prepared)
-      onToast?.(`Attached ${String(prepared.length)} file${prepared.length === 1 ? '' : 's'}.`)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to prepare attachments.'
-      setAttachmentError(message)
-      onToast?.(message)
-    }
+    await prepareAndAttach(projectPath, paths, addAttachments, setAttachmentError, onToast)
   }
 
   // ── Render ──

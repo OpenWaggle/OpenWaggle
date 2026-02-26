@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { cn } from '@/lib/cn'
 
 interface BaseUrlInputProps {
@@ -10,10 +10,11 @@ interface BaseUrlInputProps {
 /** Base URL input that only saves on blur, not on every keystroke */
 export function BaseUrlInput({ providerId, value, onSave }: BaseUrlInputProps): React.JSX.Element {
   const [localValue, setLocalValue] = useState(value)
-
-  useEffect(() => {
+  const [prevValue, setPrevValue] = useState(value)
+  if (value !== prevValue) {
+    setPrevValue(value)
     setLocalValue(value)
-  }, [value])
+  }
 
   return (
     <div className="space-y-1.5">

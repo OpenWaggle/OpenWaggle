@@ -12,6 +12,20 @@ interface AskUserBlockProps {
   onAnswer: (conversationId: ConversationId, answers: QuestionAnswer[]) => Promise<void>
 }
 
+function parseHistoricalAnswers(content: unknown): QuestionAnswer[] {
+  try {
+    const raw: unknown = typeof content === 'string' ? JSON.parse(content) : content
+    const validated = askUserResultContentSchema.safeParse(raw)
+    if (validated.success) {
+      if ('data' in validated.data) {
+        return validated.data.data.answers
+      }
+      return validated.data.answers
+    }
+  } catch {}
+  return []
+}
+
 export function AskUserBlock({
   questions,
   result,
@@ -26,21 +40,7 @@ export function AskUserBlock({
   const isSingleQuestion = questions.length === 1
   const currentQuestion = questions[currentStep]
 
-  // Parse answered state from result for historical messages
-  let historicalAnswers: QuestionAnswer[] = []
-  if (result) {
-    try {
-      const raw: unknown =
-        typeof result.content === 'string' ? JSON.parse(result.content) : result.content
-      const validated = askUserResultContentSchema.safeParse(raw)
-      if (validated.success) {
-        historicalAnswers =
-          'data' in validated.data ? validated.data.data.answers : validated.data.answers
-      }
-    } catch {
-      // ignore parse errors
-    }
-  }
+  const historicalAnswers = result ? parseHistoricalAnswers(result.content) : []
 
   function handleSelect(optionLabel: string) {
     if (isAnswered) return
@@ -73,7 +73,13 @@ export function AskUserBlock({
     void onAnswer(conversationId, finalAnswers)
   }
 
-  // Answered state — show read-only summary
+  function buildCurrentAnswers(): QuestionAnswer[] {
+    return questions.map((q, i) => ({
+      question: q.question,
+      selectedOption: answers.get(i) ?? '',
+    }))
+  }
+
   if (isAnswered) {
     const displayAnswers = historicalAnswers.length > 0 ? historicalAnswers : buildCurrentAnswers()
     return (
@@ -185,13 +191,6 @@ export function AskUserBlock({
       )}
     </div>
   )
-
-  function buildCurrentAnswers(): QuestionAnswer[] {
-    return questions.map((q, i) => ({
-      question: q.question,
-      selectedOption: answers.get(i) ?? '',
-    }))
-  }
 }
 
 function OptionButton({
