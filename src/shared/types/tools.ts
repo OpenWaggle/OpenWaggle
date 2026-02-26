@@ -1,4 +1,5 @@
 import type { ToolCallId } from './brand'
+import type { JsonObject } from './json'
 
 /** Names of all built-in tools — extensible via the registry */
 export const BUILT_IN_TOOL_NAMES = [
@@ -18,13 +19,13 @@ export type BuiltInToolName = (typeof BUILT_IN_TOOL_NAMES)[number]
 export interface ToolCallRequest {
   readonly id: ToolCallId
   readonly name: string
-  readonly args: Readonly<Record<string, unknown>>
+  readonly args: Readonly<JsonObject>
 }
 
 export interface ToolCallResult {
   readonly id: ToolCallId
   readonly name: string
-  readonly args: Readonly<Record<string, unknown>>
+  readonly args: Readonly<JsonObject>
   readonly result: string
   readonly isError: boolean
   /** Duration in ms */
@@ -37,5 +38,5 @@ export type ToolApprovalStatus = (typeof TOOL_APPROVAL_STATUSES)[number]
 export interface ToolApprovalRequest {
   readonly callId: ToolCallId
   readonly name: string
-  readonly args: Readonly<Record<string, unknown>>
+  readonly args: Readonly<JsonObject>
 }

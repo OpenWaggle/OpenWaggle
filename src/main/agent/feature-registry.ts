@@ -1,4 +1,4 @@
-import { unknownRecordSchema } from '@shared/schemas/validation'
+import { jsonObjectSchema } from '@shared/schemas/validation'
 import { createLogger } from '../logger'
 import { builtInTools } from '../tools/built-in-tools'
 import { browserTools } from '../tools/tools/browser'
@@ -113,7 +113,7 @@ function summarizeToolError(result: string | undefined): string | undefined {
       return parsed.slice(0, 300)
     }
     if (typeof parsed === 'object' && parsed !== null) {
-      const result = unknownRecordSchema.safeParse(parsed)
+      const result = jsonObjectSchema.safeParse(parsed)
       if (!result.success) return undefined
       const record = result.data
       if (typeof record.error === 'string' && record.error.trim()) {

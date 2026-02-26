@@ -78,7 +78,7 @@ describe('registerVoiceHandlers', () => {
   })
 
   it('registers local voice transcription and returns Whisper tiny text by default', async () => {
-    const transcriber = vi.fn(async (_audio: Float32Array, _options?: Record<string, unknown>) => ({
+    const transcriber = vi.fn(async (_audio: Float32Array, _options?: object) => ({
       text: 'hello from local whisper',
     }))
     pipelineMock.mockResolvedValue(transcriber)
@@ -127,7 +127,7 @@ describe('registerVoiceHandlers', () => {
   })
 
   it('reuses loaded transcriber between requests', async () => {
-    const transcriber = vi.fn(async (_audio: Float32Array, _options?: Record<string, unknown>) => ({
+    const transcriber = vi.fn(async (_audio: Float32Array, _options?: object) => ({
       text: 'ok',
     }))
     pipelineMock.mockResolvedValue(transcriber)

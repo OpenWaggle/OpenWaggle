@@ -1,3 +1,4 @@
+import type { JsonValue } from '@shared/types/json'
 import { z } from 'zod'
 
 import type { OpenWaggleOrchestrationPlan, OpenWagglePlannedTask } from './types'
@@ -43,7 +44,7 @@ function isValidTaskKind(value: string): value is OpenWagglePlannedTask['kind'] 
  *
  * Only throws OpenWagglePlanValidationError when no valid tasks can be salvaged.
  */
-export function parseOpenWagglePlan(raw: unknown): OpenWaggleOrchestrationPlan {
+export function parseOpenWagglePlan(raw: JsonValue): OpenWaggleOrchestrationPlan {
   const parsed = planSchema.safeParse(raw)
   if (parsed.success) {
     return repairDependencies(parsed.data.tasks)
@@ -53,11 +54,11 @@ export function parseOpenWagglePlan(raw: unknown): OpenWaggleOrchestrationPlan {
   return tryRepairPlan(raw)
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord(value: JsonValue): value is { [key: string]: JsonValue } {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function tryRepairPlan(raw: unknown): OpenWaggleOrchestrationPlan {
+function tryRepairPlan(raw: JsonValue): OpenWaggleOrchestrationPlan {
   if (!isRecord(raw)) {
     throw new OpenWagglePlanValidationError(['Plan is not an object'])
   }

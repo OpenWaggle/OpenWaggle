@@ -24,7 +24,7 @@ function hasOwnKey<T extends object>(object: T, key: PropertyKey): key is keyof 
 
 export function formatToolActivity(
   toolName: string,
-  toolInput: Readonly<Record<string, unknown>> | undefined,
+  toolInput: Readonly<JsonObject> | undefined,
 ): string | null {
   const verb = hasOwnKey(TOOL_VERBS, toolName) ? TOOL_VERBS[toolName] : toolName
   if (!toolInput) return null
@@ -36,3 +36,5 @@ export function formatToolActivity(
   if (toolName === 'runCommand') return `${verb} \`${value}\``
   return `${verb} ${value}`
 }
+
+import type { JsonObject } from '@shared/types/json'

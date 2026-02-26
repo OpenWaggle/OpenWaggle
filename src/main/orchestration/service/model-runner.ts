@@ -1,4 +1,5 @@
-import { unknownRecordSchema } from '@shared/schemas/validation'
+import { jsonObjectSchema, jsonValueSchema } from '@shared/schemas/validation'
+import type { JsonObject, JsonValue } from '@shared/types/json'
 import { chooseBy } from '@shared/utils/decision'
 import type { StreamChunk } from '@tanstack/ai'
 import type { ModelRunner, OrchestrationServiceDeps, SamplingConfig } from './types'
@@ -106,16 +107,15 @@ export function createModelRunner(deps: OrchestrationServiceDeps): ModelRunner {
           return null
         })
         .case('TOOL_CALL_END', (value) => {
-          let toolInput: Readonly<Record<string, unknown>> | undefined
-          const inputResult = unknownRecordSchema.safeParse(value.input)
+          let toolInput: Readonly<JsonObject> | undefined
+          const inputResult = jsonObjectSchema.safeParse(value.input)
           if (inputResult.success) {
             toolInput = inputResult.data
           } else {
             const argsStr = pendingArgs.get(value.toolCallId)
             if (argsStr) {
               try {
-                const argsUnknown: unknown = JSON.parse(argsStr)
-                const argsResult = unknownRecordSchema.safeParse(argsUnknown)
+                const argsResult = jsonObjectSchema.safeParse(JSON.parse(argsStr))
                 if (argsResult.success) {
                   toolInput = argsResult.data
                 }
@@ -153,7 +153,7 @@ export function createModelRunner(deps: OrchestrationServiceDeps): ModelRunner {
     prompt: string,
     quality: SamplingConfig,
     onChunk?: (chunk: StreamChunk) => void,
-  ): Promise<unknown> {
+  ): Promise<JsonValue> {
     const text = await modelText(adapter, prompt, quality, onChunk)
     const trimmed = text.trim()
     if (!trimmed) {
@@ -161,8 +161,11 @@ export function createModelRunner(deps: OrchestrationServiceDeps): ModelRunner {
     }
 
     try {
-      const data: unknown = JSON.parse(trimmed)
-      return data
+      const parsed = JSON.parse(trimmed)
+      const parseResult = jsonValueSchema.safeParse(parsed)
+      if (parseResult.success) {
+        return parseResult.data
+      }
     } catch {
       // Continue to extractJson fallback.
     }

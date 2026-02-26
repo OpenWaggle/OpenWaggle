@@ -2,13 +2,13 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 export interface Logger {
-  debug(message: string, data?: Record<string, unknown>): void
-  info(message: string, data?: Record<string, unknown>): void
-  warn(message: string, data?: Record<string, unknown>): void
-  error(message: string, data?: Record<string, unknown>): void
+  debug<TData extends object>(message: string, data?: TData): void
+  info<TData extends object>(message: string, data?: TData): void
+  warn<TData extends object>(message: string, data?: TData): void
+  error<TData extends object>(message: string, data?: TData): void
 }
 
-function formatLine(namespace: string, message: string, data?: Record<string, unknown>): string {
+function formatLine(namespace: string, message: string, data?: object): string {
   const ts = new Date().toISOString().slice(11, 23) // HH:mm:ss.mmm
   if (data && Object.keys(data).length > 0) {
     return `${ts} [${namespace}] ${message} ${JSON.stringify(data)}`

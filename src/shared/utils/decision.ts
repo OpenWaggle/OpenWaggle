@@ -18,7 +18,7 @@ interface EitherRule<TRules extends readonly unknown[]> extends BaseRule<'either
   readonly rules: TRules
 }
 
-interface ObjectRule<TShape extends Record<string, unknown>> extends BaseRule<'object'> {
+interface ObjectRule<TShape extends DecisionRuleObject> extends BaseRule<'object'> {
   readonly shape: TShape
 }
 
@@ -34,7 +34,7 @@ type RuleValue =
   | AnyRule
   | GuardRule<unknown>
   | EitherRule<readonly unknown[]>
-  | ObjectRule<Record<string, unknown>>
+  | ObjectRule<DecisionRuleObject>
   | ArrayRule<unknown>
   | ExcludeRule<unknown>
 
@@ -44,6 +44,10 @@ interface DecisionRuleArray extends ReadonlyArray<DecisionRule> {}
 
 interface DecisionRuleObject {
   readonly [key: string]: DecisionRule
+}
+
+interface DecisionMatchObject {
+  readonly [key: string]: unknown
 }
 
 type NarrowByRules<TValue, TRules extends readonly unknown[]> = TRules[number] extends infer TItem
@@ -62,8 +66,8 @@ export type NarrowByRule<TValue, TRule> = TRule extends AnyRule
           ? Extract<TValue, TRule>
           : TRule extends readonly unknown[]
             ? Extract<TValue, readonly unknown[]>
-            : TRule extends Record<string, unknown>
-              ? Extract<TValue, Record<string, unknown>>
+            : TRule extends DecisionRuleObject
+              ? Extract<TValue, DecisionMatchObject>
               : never
 
 interface MatchFound<TResult> {
@@ -106,7 +110,7 @@ function isNonNullObject(value: unknown): value is Record<PropertyKey, unknown> 
   return typeof value === 'object' && value !== null
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord(value: unknown): value is DecisionMatchObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -126,7 +130,7 @@ function isEitherRule(value: unknown): value is EitherRule<readonly unknown[]> {
   return hasRuleTag(value) && value[RULE_TOKEN] === 'either'
 }
 
-function isObjectRule(value: unknown): value is ObjectRule<Record<string, unknown>> {
+function isObjectRule(value: unknown): value is ObjectRule<DecisionRuleObject> {
   return hasRuleTag(value) && value[RULE_TOKEN] === 'object'
 }
 
@@ -138,7 +142,7 @@ function isExcludeRule(value: unknown): value is ExcludeRule<unknown> {
   return hasRuleTag(value) && value[RULE_TOKEN] === 'exclude'
 }
 
-function matchesShape(value: Record<string, unknown>, shape: Record<string, unknown>): boolean {
+function matchesShape(value: DecisionMatchObject, shape: DecisionMatchObject): boolean {
   for (const [key, pattern] of Object.entries(shape)) {
     if (!(key in value)) return false
     if (!matchesRule(value[key], pattern)) return false
@@ -312,7 +316,7 @@ function either<TRules extends readonly unknown[]>(...rules: TRules): EitherRule
   }
 }
 
-function object<TShape extends Record<string, unknown>>(shape: TShape): ObjectRule<TShape> {
+function object<TShape extends DecisionRuleObject>(shape: TShape): ObjectRule<TShape> {
   return {
     [RULE_TOKEN]: 'object',
     shape,

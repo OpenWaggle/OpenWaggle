@@ -1,10 +1,16 @@
 import { SupportedModelId } from '@shared/types/brand'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+type MockStoreValue = string | number | boolean | null | undefined | object
+
+interface MockStoreData {
+  [key: string]: MockStoreValue
+}
+
 const mockState = vi.hoisted(() => ({
   fsExists: false,
   fsRaw: '',
-  storeData: {} as Record<string, unknown>,
+  storeData: {} as MockStoreData,
   setCalls: [] as Array<{ key: string; value: unknown }>,
   isKnownModel: vi.fn((modelId: string) => modelId === 'claude-sonnet-4-5'),
 }))
@@ -36,7 +42,7 @@ vi.mock('../providers', () => ({
 vi.mock('electron-store', () => {
   class MockStore<T extends object> {
     path = '/mock/settings.json'
-    private data: Record<string, unknown>
+    private data: MockStoreData
 
     constructor(options: { defaults?: Partial<T> }) {
       this.data = {
@@ -46,16 +52,22 @@ vi.mock('electron-store', () => {
     }
 
     get<K extends keyof T>(key: K, defaultValue?: T[K]): T[K] {
-      if (key in this.data) {
-        return this.data[key as string] as T[K]
+      const keyName = String(key)
+      const value = this.data[keyName]
+      if (value !== undefined) {
+        return value as T[K]
       }
-      return defaultValue as T[K]
+      if (defaultValue !== undefined) {
+        return defaultValue
+      }
+      throw new Error(`Missing settings key: ${keyName}`)
     }
 
     set<K extends keyof T>(key: K, value: T[K]): void {
-      this.data[key as string] = value
-      mockState.storeData[key as string] = value
-      mockState.setCalls.push({ key: key as string, value })
+      const keyName = String(key)
+      this.data[keyName] = value as MockStoreValue
+      mockState.storeData[keyName] = value as MockStoreValue
+      mockState.setCalls.push({ key: String(key), value })
       // Keep file mock in sync so resolveExecutionMode (which reads raw file) works
       mockState.fsExists = true
       mockState.fsRaw = JSON.stringify(mockState.storeData)
@@ -279,6 +291,10 @@ describe('settings store', () => {
           enabled: true,
         },
       },
+    })
+
+    expect(mockState.storeData.providers).toEqual({
+      openai: expect.objectContaining({ authMethod: 'subscription' }),
     })
 
     const settings = getSettings()

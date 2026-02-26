@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { runOpenWaggleOrchestration } from '../orchestrator'
-import type { OrchestrationEvent } from '../types'
+import type { OrchestrationEvent, OrchestrationProgressPayload } from '../types'
 
 test('falls back to single-task when planner output is empty in auto-fallback mode', async () => {
   const result = await runOpenWaggleOrchestration({
@@ -41,6 +41,7 @@ test('runs planner -> orchestration -> synthesizer', async () => {
               kind: 'analysis',
               title: 'Research',
               prompt: 'Find things',
+              dependsOn: [],
             },
             {
               id: 'write',
@@ -202,7 +203,7 @@ test('applies default retry policy to tasks', async () => {
 })
 
 test('threads reportProgress to executor', async () => {
-  const progressPayloads: unknown[] = []
+  const progressPayloads: OrchestrationProgressPayload[] = []
 
   await runOpenWaggleOrchestration({
     runId: 'run-progress',

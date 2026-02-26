@@ -1,6 +1,7 @@
 import type { AgentSendPayload, MessagePart } from '@shared/types/agent'
 import { ConversationId, MessageId, SupportedModelId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
+import type { OrchestrationEventPayload } from '@shared/types/orchestration'
 import type { Settings } from '@shared/types/settings'
 import { maxIterations, type StreamChunk } from '@tanstack/ai'
 import { createOpenaiChat } from '@tanstack/ai-openai'
@@ -77,10 +78,8 @@ function buildPersistedUserParts(payload: AgentSendPayload): MessagePart[] {
   return parts.length > 0 ? parts : [{ type: 'text', text: '' }]
 }
 
-function readChunkType(chunk: unknown): string | null {
-  if (!chunk || typeof chunk !== 'object' || !('type' in chunk)) return null
-  const typeValue = chunk.type
-  return typeof typeValue === 'string' ? typeValue : null
+function readChunkType(chunk: StreamChunk): string {
+  return chunk.type
 }
 
 function createIntegrationDeps(responses: readonly string[]): {
@@ -207,7 +206,7 @@ describe('createOrchestratedAgentRunner integration', () => {
     const { deps, chatCalls } = createIntegrationDeps([plannerResponse])
     const runOrchestratedAgent = createOrchestratedAgentRunner(deps)
 
-    const chunks: unknown[] = []
+    const chunks: StreamChunk[] = []
     const result = await runOrchestratedAgent({
       runId: 'run-1',
       conversationId: ConversationId('conversation-1'),
@@ -233,7 +232,7 @@ describe('createOrchestratedAgentRunner integration', () => {
     expect(assistantTextPart.text).toContain('Direct answer')
     expect(chatCalls).toHaveBeenCalledTimes(1)
 
-    const chunkTypes = chunks.map(readChunkType).filter((type): type is string => type !== null)
+    const chunkTypes = chunks.map(readChunkType)
     expect(chunkTypes).toContain('RUN_STARTED')
     expect(chunkTypes).toContain('RUN_FINISHED')
   })
@@ -259,8 +258,8 @@ describe('createOrchestratedAgentRunner integration', () => {
     ])
     const runOrchestratedAgent = createOrchestratedAgentRunner(deps)
 
-    const chunks: unknown[] = []
-    const events: unknown[] = []
+    const chunks: StreamChunk[] = []
+    const events: OrchestrationEventPayload[] = []
     const result = await runOrchestratedAgent({
       runId: 'run-1',
       conversationId: ConversationId('conversation-1'),
@@ -288,7 +287,7 @@ describe('createOrchestratedAgentRunner integration', () => {
     expect(assistantTextPart.text).toContain('Final synthesized answer')
     expect(chatCalls).toHaveBeenCalledTimes(3)
 
-    const chunkTypes = chunks.map(readChunkType).filter((type): type is string => type !== null)
+    const chunkTypes = chunks.map(readChunkType)
     expect(chunkTypes[0]).toBe('RUN_STARTED')
     expect(chunkTypes).toContain('RUN_FINISHED')
     expect(events.length).toBeGreaterThan(0)
@@ -298,7 +297,7 @@ describe('createOrchestratedAgentRunner integration', () => {
     const { deps } = createIntegrationDeps(['not-json'])
     const runOrchestratedAgent = createOrchestratedAgentRunner(deps)
 
-    const chunks: unknown[] = []
+    const chunks: StreamChunk[] = []
     const result = await runOrchestratedAgent({
       runId: 'run-1',
       conversationId: ConversationId('conversation-1'),
@@ -316,7 +315,7 @@ describe('createOrchestratedAgentRunner integration', () => {
     })
 
     expect(result.status).toBe('fallback')
-    const chunkTypes = chunks.map(readChunkType).filter((type): type is string => type !== null)
+    const chunkTypes = chunks.map(readChunkType)
     expect(chunkTypes).toEqual([
       'RUN_STARTED',
       'TEXT_MESSAGE_START',

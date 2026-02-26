@@ -1,6 +1,7 @@
 import type { AgentSendPayload, Message } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
+import type { JsonObject, JsonValue } from '@shared/types/json'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { OrchestrationEventPayload } from '@shared/types/orchestration'
 import type { Settings } from '@shared/types/settings'
@@ -42,7 +43,7 @@ export interface SamplingConfig {
   readonly temperature?: number
   readonly topP?: number
   readonly maxTokens: number
-  readonly modelOptions?: Record<string, unknown>
+  readonly modelOptions?: JsonObject
 }
 
 export interface FallbackState {
@@ -70,7 +71,7 @@ export interface ModelRunner {
     prompt: string,
     quality: SamplingConfig,
     onChunk?: (chunk: StreamChunk) => void,
-  ): Promise<unknown>
+  ): Promise<JsonValue>
 }
 
 export interface ChatRunOptions {
@@ -81,7 +82,7 @@ export interface ChatRunOptions {
   readonly temperature?: number
   readonly topP?: number
   readonly maxTokens?: number
-  readonly modelOptions?: Record<string, unknown>
+  readonly modelOptions?: JsonObject
   readonly agentLoopStrategy?: ReturnType<typeof maxIterations>
 }
 

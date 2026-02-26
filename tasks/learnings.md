@@ -20,6 +20,9 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Task: Record-Unknown Cleanup Across Runtime Boundaries (2026-02-26)
+- Replacing broad object validators in settings persistence with strict JSON-only schemas can silently drop valid provider records when nested `undefined` fields are present (common in `electron-store` defaults); use a recursive schema that explicitly allows `undefined` for settings-store hydration paths while keeping strict JSON schemas for pure JSON persistence.
+
 ### Task: Orchestration Atomic Write Race Fix (2026-02-26)
 - Atomic JSON writers that reuse a fixed temp filename (`<target>.tmp`) are unsafe under concurrent writes to the same target; per-write unique temp filenames are required to prevent rename collisions (`ENOENT`) that can leave orchestration task state half-persisted (for example `running` with zero attempts) and trigger deadlock-style run failures.
 

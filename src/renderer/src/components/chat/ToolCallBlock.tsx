@@ -1,3 +1,4 @@
+import type { JsonObject } from '@shared/types/json'
 import { AlertCircle, Check, ChevronRight, Clock, Loader2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { z } from 'zod'
@@ -34,7 +35,7 @@ function tryParseScreenshotResult(
 function tryParseDiffResult(
   content: unknown,
   name: string,
-  args: Record<string, unknown>,
+  args: JsonObject,
 ): { beforeContent: string; afterContent: string; filePath: string } | null {
   if (name !== 'editFile' && name !== 'writeFile') return null
   const parsed = parseResultPayload(content)
@@ -252,7 +253,7 @@ function ToolArgs({
   rawArgs,
 }: {
   name: string
-  args: Record<string, unknown>
+  args: JsonObject
   rawArgs: string
 }): React.JSX.Element {
   if (name === 'runCommand' && typeof args.command === 'string') {

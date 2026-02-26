@@ -53,7 +53,10 @@ describe('message-mapper screenshot injection', () => {
     expect(toolMsg.role).toBe('tool')
     expect(Array.isArray(toolMsg.content)).toBe(true)
 
-    const content = toolMsg.content as Array<Record<string, unknown>>
+    if (!Array.isArray(toolMsg.content)) {
+      throw new Error('Expected multimodal array content for browserScreenshot result.')
+    }
+    const content = toolMsg.content
     expect(content).toHaveLength(2)
     expect(content[0]).toEqual({
       type: 'text',

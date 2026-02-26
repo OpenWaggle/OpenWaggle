@@ -1,8 +1,14 @@
+import type { JsonObject, JsonValue } from '@shared/types/json'
+
 // --- Core orchestration types ---
 
 export const ORCHESTRATION_ERROR_TASK_TIMEOUT = 'TASK_TIMEOUT'
 export const ORCHESTRATION_ERROR_TASK_EXECUTION = 'TASK_EXECUTION_FAILURE'
 export const ORCHESTRATION_ERROR_TASK_CANCELLED = 'TASK_CANCELLED'
+
+export type OrchestrationTaskOutputValue = JsonValue | OpenWaggleTaskOutput
+
+export type OrchestrationProgressPayload = JsonValue | OpenWaggleProgressPayload
 
 export interface OrchestrationTaskRetryPolicy {
   readonly retries?: number
@@ -13,11 +19,11 @@ export interface OrchestrationTaskRetryPolicy {
 export interface OrchestrationTaskDefinition {
   readonly id: string
   readonly kind: string
-  readonly input?: unknown
+  readonly input?: JsonValue
   readonly dependsOn?: readonly string[]
   readonly retry?: OrchestrationTaskRetryPolicy
   readonly timeoutMs?: number
-  readonly metadata?: Readonly<Record<string, unknown>>
+  readonly metadata?: Readonly<JsonObject>
 }
 
 export type OrchestrationTaskStatus =
@@ -42,8 +48,8 @@ export interface OrchestrationTaskRecord {
   readonly id: string
   readonly kind: string
   readonly dependsOn: readonly string[]
-  readonly input?: unknown
-  readonly output?: unknown
+  readonly input?: JsonValue
+  readonly output?: OrchestrationTaskOutputValue
   readonly status: OrchestrationTaskStatus
   readonly retry: Required<OrchestrationTaskRetryPolicy>
   readonly timeoutMs?: number
@@ -52,7 +58,7 @@ export interface OrchestrationTaskRecord {
   readonly finishedAt?: string
   readonly errorCode?: string
   readonly error?: string
-  readonly metadata?: Readonly<Record<string, unknown>>
+  readonly metadata?: Readonly<JsonObject>
   readonly createdOrder: number
 }
 
@@ -65,7 +71,7 @@ export interface OrchestrationRunRecord {
   readonly finishedAt?: string
   readonly tasks: Readonly<Record<string, OrchestrationTaskRecord>>
   readonly taskOrder: readonly string[]
-  readonly outputs: Readonly<Record<string, unknown>>
+  readonly outputs: Readonly<{ [taskId: string]: OrchestrationTaskOutputValue }>
   readonly summary: {
     readonly total: number
     readonly completed: number
@@ -97,7 +103,7 @@ export type OrchestrationEvent =
       readonly runId: string
       readonly taskId: string
       readonly at: string
-      readonly payload: unknown
+      readonly payload: OrchestrationProgressPayload
     }
   | {
       readonly type: 'task_retried'
@@ -116,7 +122,7 @@ export type OrchestrationEvent =
       readonly taskId: string
       readonly attempt: number
       readonly at: string
-      readonly output?: unknown
+      readonly output?: OrchestrationTaskOutputValue
     }
   | {
       readonly type: 'task_failed'
@@ -144,8 +150,8 @@ export type OrchestrationEvent =
 export interface OrchestrationTaskContext {
   readonly runId: string
   readonly signal: AbortSignal
-  readonly dependencyOutputs: Readonly<Record<string, unknown>>
-  reportProgress: (payload: unknown) => void
+  readonly dependencyOutputs: Readonly<{ [taskId: string]: OrchestrationTaskOutputValue }>
+  reportProgress: (payload: OrchestrationProgressPayload) => void
   spawn: (task: OrchestrationTaskDefinition) => Promise<void>
 }
 
@@ -153,7 +159,7 @@ export interface WorkerAdapter {
   executeTask(
     task: OrchestrationTaskDefinition,
     context: OrchestrationTaskContext,
-  ): Promise<{ readonly output?: unknown }>
+  ): Promise<{ readonly output?: OrchestrationTaskOutputValue }>
 }
 
 export interface RunStore {
@@ -172,7 +178,7 @@ export interface OrchestrationRunDefinition {
 export interface RunSummary {
   readonly runId: string
   readonly status: OrchestrationRunStatus
-  readonly outputs: Readonly<Record<string, unknown>>
+  readonly outputs: Readonly<{ [taskId: string]: OrchestrationTaskOutputValue }>
   readonly failedTaskIds: readonly string[]
   readonly cancelledTaskIds: readonly string[]
 }
@@ -214,17 +220,18 @@ export interface OpenWagglePlannerInput {
 }
 
 export interface OpenWagglePlanner {
-  plan(input: OpenWagglePlannerInput): Promise<unknown>
+  plan(input: OpenWagglePlannerInput): Promise<JsonValue>
 }
 
 export interface OpenWaggleProgressPayload {
   readonly type: 'tool_start' | 'tool_end'
   readonly toolName: string
   readonly toolCallId: string
-  readonly toolInput?: Readonly<Record<string, unknown>>
+  readonly toolInput?: Readonly<JsonObject>
 }
 
 export interface OpenWaggleTaskOutput {
+  readonly [key: string]: JsonValue
   readonly text: string
 }
 
@@ -233,7 +240,7 @@ export interface OpenWaggleTaskExecutionInput {
   readonly orchestrationTask: OrchestrationTaskDefinition
   readonly includeConversationSummary: boolean
   readonly maxContextTokens: number
-  readonly dependencyOutputs: Readonly<Record<string, unknown>>
+  readonly dependencyOutputs: Readonly<{ [taskId: string]: OrchestrationTaskOutputValue }>
   readonly signal: AbortSignal
   readonly reportProgress?: (payload: OpenWaggleProgressPayload) => void
 }

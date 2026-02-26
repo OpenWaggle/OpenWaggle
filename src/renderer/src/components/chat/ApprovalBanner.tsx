@@ -1,3 +1,4 @@
+import type { JsonObject } from '@shared/types/json'
 import { choose } from '@shared/utils/decision'
 import { Check, ShieldAlert, X } from 'lucide-react'
 import { useState } from 'react'
@@ -16,7 +17,7 @@ interface ApprovalBannerProps {
  * Format the tool arguments into a human-readable detail string.
  * Shows the most relevant info for each tool type.
  */
-function formatToolDetail(toolName: string, args: Record<string, unknown>): string | null {
+function formatToolDetail(toolName: string, args: JsonObject): string | null {
   return choose(toolName)
     .case('runCommand', () => (typeof args.command === 'string' ? args.command : null))
     .case('writeFile', () => (typeof args.path === 'string' ? args.path : null))

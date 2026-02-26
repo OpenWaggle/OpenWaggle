@@ -1,3 +1,4 @@
+import type { JsonObject } from '@shared/types/json'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { QualityPreset } from '@shared/types/settings'
 import type { ProjectQualityOverrides } from '../config/project-config'
@@ -12,7 +13,7 @@ export interface ResolvedQualityConfig {
   readonly temperature?: number
   readonly topP?: number
   readonly maxTokens: number
-  readonly modelOptions?: Record<string, unknown>
+  readonly modelOptions?: Readonly<JsonObject>
 }
 
 const QUALITY_TIER_CONFIG: Record<QualityPreset, BaseSamplingConfig> = {

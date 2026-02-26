@@ -1,3 +1,4 @@
+import type { JsonValue } from '@shared/types/json'
 import { createLogger } from '../../logger'
 import { createOrchestrationEngine } from './engine'
 import { MemoryRunStore } from './memory-run-store'
@@ -27,7 +28,7 @@ export async function runOpenWaggleOrchestration(
   const mode = input.mode ?? 'auto-fallback'
   const runStore = input.runStore ?? new MemoryRunStore()
 
-  let planRaw: unknown
+  let planRaw: JsonValue
   try {
     planRaw = await input.planner.plan({ userPrompt: input.userPrompt })
   } catch (error) {

@@ -1,4 +1,5 @@
 import type { Conversation } from '@shared/types/conversation'
+import type { JsonObject } from '@shared/types/json'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { ProviderConfig, Settings } from '@shared/types/settings'
 import type { ServerTool, StreamChunk } from '@tanstack/ai'
@@ -33,7 +34,7 @@ export interface AgentToolCallStartEvent {
 export interface AgentToolCallEndEvent {
   readonly toolCallId: string
   readonly toolName: string
-  readonly args: Readonly<Record<string, unknown>>
+  readonly args: Readonly<JsonObject>
   readonly result?: string
   readonly durationMs: number
   readonly isError: boolean

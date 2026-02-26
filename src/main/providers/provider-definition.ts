@@ -1,3 +1,4 @@
+import type { JsonObject } from '@shared/types/json'
 import type { Provider, QualityPreset } from '@shared/types/settings'
 import type { AnyTextAdapter } from '@tanstack/ai'
 
@@ -11,7 +12,7 @@ export interface ResolvedSamplingConfig {
   readonly temperature?: number
   readonly topP?: number
   readonly maxTokens: number
-  readonly modelOptions?: Record<string, unknown>
+  readonly modelOptions?: Readonly<JsonObject>
 }
 
 export interface ProviderDefinition {

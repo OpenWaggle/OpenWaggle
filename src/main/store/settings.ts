@@ -1,7 +1,8 @@
 import fs from 'node:fs'
-import { unknownRecordSchema } from '@shared/schemas/validation'
+import { jsonObjectSchema } from '@shared/schemas/validation'
 import { AUTH_METHODS } from '@shared/types/auth'
 import { SupportedModelId } from '@shared/types/brand'
+import type { JsonObject } from '@shared/types/json'
 import {
   DEFAULT_SETTINGS,
   EXECUTION_MODES,
@@ -47,9 +48,23 @@ const providerConfigSchema = z.object({
   authMethod: z.enum(AUTH_METHODS).default('api-key'),
 })
 
+const settingsValueSchema: z.ZodType<unknown> = z.lazy(() =>
+  z.union([
+    z.undefined(),
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.null(),
+    z.array(settingsValueSchema),
+    z.record(z.string(), settingsValueSchema),
+  ]),
+)
+
+const settingsObjectSchema = z.record(z.string(), settingsValueSchema)
+
 export function getSettings(): Settings {
   const rawProviders: unknown = store.get('providers', {})
-  const storedProviders = unknownRecordSchema.safeParse(rawProviders)
+  const storedProviders = settingsObjectSchema.safeParse(rawProviders)
   const validProviders = storedProviders.success ? storedProviders.data : {}
   const providers: Partial<Record<Provider, ProviderConfig>> = {}
 
@@ -108,7 +123,7 @@ export function getSettings(): Settings {
 export function updateSettings(partial: Partial<Settings>): void {
   if (partial.providers !== undefined) {
     const rawExisting: unknown = store.get('providers', {})
-    const parsedExisting = unknownRecordSchema.safeParse(rawExisting)
+    const parsedExisting = settingsObjectSchema.safeParse(rawExisting)
     const existingProviders = parsedExisting.success ? parsedExisting.data : {}
 
     const encryptedProviders: Partial<Record<Provider, ProviderConfig>> = {}
@@ -289,7 +304,7 @@ function sanitizeSkillTogglesByProject(
   return sanitized
 }
 
-function readPersistedSettings(): Record<string, unknown> | null {
+function readPersistedSettings(): JsonObject | null {
   try {
     if (!fs.existsSync(store.path)) return null
     const raw = fs.readFileSync(store.path, 'utf-8').trim()
@@ -299,7 +314,7 @@ function readPersistedSettings(): Record<string, unknown> | null {
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       return null
     }
-    const result = unknownRecordSchema.safeParse(parsed)
+    const result = jsonObjectSchema.safeParse(parsed)
     return result.success ? result.data : null
   } catch {
     return null

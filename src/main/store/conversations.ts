@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import fsPromises from 'node:fs/promises'
 import path from 'node:path'
+import { jsonObjectSchema } from '@shared/schemas/validation'
 import type { MessagePart } from '@shared/types/agent'
 import { ConversationId, MessageId, SupportedModelId, ToolCallId } from '@shared/types/brand'
 import type { Conversation, ConversationSummary } from '@shared/types/conversation'
@@ -21,13 +22,13 @@ const logger = createLogger('conversations')
 const toolCallRequestSchema = z.object({
   id: z.string(),
   name: z.string(),
-  args: z.record(z.string(), z.unknown()),
+  args: jsonObjectSchema,
 })
 
 const toolCallResultSchema = z.object({
   id: z.string(),
   name: z.string(),
-  args: z.record(z.string(), z.unknown()),
+  args: jsonObjectSchema,
   result: z.string(),
   isError: z.boolean(),
   duration: z.number(),

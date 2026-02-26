@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import type { JsonObject, JsonValue } from '@shared/types/json'
 
 import { MemoryRunStore } from './memory-run-store'
 import {
@@ -12,6 +13,7 @@ import {
   type OrchestrationRunStatus,
   type OrchestrationTaskAttempt,
   type OrchestrationTaskDefinition,
+  type OrchestrationTaskOutputValue,
   type OrchestrationTaskRecord,
   type OrchestrationTaskRetryPolicy,
   type OrchestrationTaskStatus,
@@ -28,15 +30,15 @@ interface MutableRunState {
   maxParallelTasks: number
   tasks: Map<string, MutableTask>
   taskOrder: string[]
-  outputs: Record<string, unknown>
+  outputs: { [taskId: string]: OrchestrationTaskOutputValue }
 }
 
 interface MutableTask {
   id: string
   kind: string
   dependsOn: string[]
-  input?: unknown
-  output?: unknown
+  input?: JsonValue
+  output?: OrchestrationTaskOutputValue
   status: OrchestrationTaskStatus
   retry: Required<OrchestrationTaskRetryPolicy>
   timeoutMs?: number
@@ -45,7 +47,7 @@ interface MutableTask {
   finishedAt?: string
   errorCode?: string
   error?: string
-  metadata?: Readonly<Record<string, unknown>>
+  metadata?: Readonly<JsonObject>
   createdOrder: number
 }
 
@@ -310,22 +312,6 @@ export function createOrchestrationEngine(
       if (!task.startedAt) {
         task.startedAt = startedAt
       }
-      await emit({
-        type: 'task_started',
-        runId: state.runId,
-        taskId,
-        attempt: attemptNumber,
-        at: startedAt,
-      })
-      await saveState(state)
-
-      const dependencyOutputs: Record<string, unknown> = {}
-      for (const dependencyId of task.dependsOn) {
-        if (dependencyId in state.outputs) {
-          dependencyOutputs[dependencyId] = state.outputs[dependencyId]
-        }
-      }
-
       const taskController = new AbortController()
       let timedOut = false
       const onRunAbort = (): void => taskController.abort()
@@ -340,6 +326,21 @@ export function createOrchestrationEngine(
       }
 
       try {
+        await emit({
+          type: 'task_started',
+          runId: state.runId,
+          taskId,
+          attempt: attemptNumber,
+          at: startedAt,
+        })
+        await saveState(state)
+
+        const dependencyOutputs = Object.fromEntries(
+          task.dependsOn
+            .filter((dependencyId) => dependencyId in state.outputs)
+            .map((dependencyId) => [dependencyId, state.outputs[dependencyId]]),
+        )
+
         const response = await options.workerAdapter.executeTask(taskToDefinition(task), {
           runId: state.runId,
           signal: taskController.signal,

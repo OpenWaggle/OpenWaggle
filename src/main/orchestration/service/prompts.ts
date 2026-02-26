@@ -1,3 +1,5 @@
+import type { OrchestrationTaskOutputValue } from '../engine'
+
 interface ExecutionPromptTask {
   readonly title: string
   readonly kind: string
@@ -7,7 +9,7 @@ interface ExecutionPromptTask {
 interface BuildExecutionPromptInput {
   readonly task: ExecutionPromptTask
   readonly projectContextText: string
-  readonly dependencyOutputs: Readonly<Record<string, unknown>>
+  readonly dependencyOutputs: Readonly<{ [taskId: string]: OrchestrationTaskOutputValue }>
   readonly includeConversationSummary: boolean
   readonly conversationSummaryText: string
 }
@@ -15,7 +17,7 @@ interface BuildExecutionPromptInput {
 interface BuildSynthesisPromptInput {
   readonly userPrompt: string
   readonly projectContextText: string
-  readonly outputs: Readonly<Record<string, unknown>>
+  readonly outputs: Readonly<{ [taskId: string]: OrchestrationTaskOutputValue }>
 }
 
 export function buildExecutionPrompt(input: BuildExecutionPromptInput): string {

@@ -6,12 +6,13 @@ import {
   ORCHESTRATION_ERROR_TASK_TIMEOUT,
   type OrchestrationEvent,
   type OrchestrationRunRecord,
+  type OrchestrationTaskOutputValue,
   type WorkerAdapter,
 } from '../index'
 
 test('executes dependency graph and allows dynamic spawn', async () => {
   const worker: WorkerAdapter = {
-    async executeTask(task, context) {
+    async executeTask(task, context): Promise<{ output?: OrchestrationTaskOutputValue }> {
       if (task.kind === 'root') {
         await context.spawn({ id: 'spawned', kind: 'echo', input: { value: 'child' } })
         return { output: { root: true } }
@@ -119,6 +120,41 @@ test('marks timed out tasks as failed with timeout code', async () => {
   expect(run?.tasks.slow?.errorCode).toBe(ORCHESTRATION_ERROR_TASK_TIMEOUT)
 })
 
+test('fails task cleanly when task_started emission throws', async () => {
+  const worker: WorkerAdapter = {
+    async executeTask() {
+      return { output: 'ok' }
+    },
+  }
+
+  const store = new MemoryRunStore()
+  const engine = createOrchestrationEngine({
+    workerAdapter: worker,
+    runStore: store,
+    onEvent: async (event) => {
+      if (event.type === 'task_started' && event.taskId === 'review') {
+        throw new Error('emit failed')
+      }
+    },
+  })
+
+  const summary = await engine.run({
+    runId: 'run-event-failure',
+    tasks: [
+      { id: 'read', kind: 'analysis' },
+      { id: 'review', kind: 'analysis', dependsOn: ['read'] },
+    ],
+  })
+
+  expect(summary.status).toBe('failed')
+  expect(summary.failedTaskIds).toEqual(['review'])
+
+  const run = await store.getRun('run-event-failure')
+  expect(run?.tasks.review?.status).toBe('failed')
+  expect(run?.tasks.review?.attempts).toHaveLength(1)
+  expect(run?.tasks.review?.attempts[0]?.error).toContain('emit failed')
+})
+
 test('supports run cancellation', async () => {
   const worker: WorkerAdapter = {
     async executeTask(_task, context) {
@@ -191,7 +227,7 @@ test('waits for in-flight task cleanup before resolving cancelled run', async ()
 
 test('resumes from persisted non-terminal checkpoint', async () => {
   const worker: WorkerAdapter = {
-    async executeTask(task, context) {
+    async executeTask(task, context): Promise<{ output?: OrchestrationTaskOutputValue }> {
       if (task.kind === 'combine') {
         const left = context.dependencyOutputs.left
         const value = left && typeof left === 'object' && 'value' in left ? String(left.value) : ''

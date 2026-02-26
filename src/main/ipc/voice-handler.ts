@@ -44,8 +44,17 @@ const transcribePayloadSchema = modernTranscribePayloadSchema
 
 type WhisperTranscriber = (
   audio: Float32Array,
-  options?: Record<string, unknown>,
+  options?: WhisperTranscriberOptions,
 ) => Promise<unknown>
+
+interface WhisperTranscriberOptions {
+  readonly quantized?: boolean
+  readonly task?: 'transcribe'
+  readonly return_timestamps?: boolean
+  readonly chunk_length_s?: number
+  readonly stride_length_s?: number
+  readonly language?: string
+}
 
 function isWhisperTranscriber(value: unknown): value is WhisperTranscriber {
   return typeof value === 'function'
@@ -64,7 +73,7 @@ interface TransformersEnv {
 
 interface TransformersModule {
   env: TransformersEnv
-  pipeline: (task: string, model: string, options?: Record<string, unknown>) => Promise<unknown>
+  pipeline: (task: string, model: string, options?: WhisperTranscriberOptions) => Promise<unknown>
 }
 
 const MODEL_IDLE_TIMEOUT = 5 * 60 * 1000 // 5 minutes

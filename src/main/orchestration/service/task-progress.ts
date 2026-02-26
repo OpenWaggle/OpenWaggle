@@ -1,4 +1,5 @@
 import { taskToolProgressSchema } from '@shared/schemas/validation'
+import type { OrchestrationProgressPayload } from '../engine'
 import type { PlannedTask } from './planner'
 import { formatToolActivity } from './tool-activity'
 
@@ -29,7 +30,7 @@ export class TaskProgressTracker {
     return this.taskNarrations.get(taskId) ?? null
   }
 
-  onTaskProgress(taskId: string, payload: unknown): string | null {
+  onTaskProgress(taskId: string, payload: OrchestrationProgressPayload): string | null {
     const progressResult = taskToolProgressSchema.safeParse(payload)
     if (!progressResult.success || progressResult.data.type !== 'tool_end') {
       return null

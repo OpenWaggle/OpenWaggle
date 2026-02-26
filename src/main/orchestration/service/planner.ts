@@ -1,4 +1,5 @@
 import { plannedTaskSchema } from '@shared/schemas/validation'
+import type { JsonValue } from '@shared/types/json'
 import { z } from 'zod'
 
 const directPlanResultSchema = z.object({
@@ -24,7 +25,7 @@ export type PlannerDecision =
       readonly tasks: readonly PlannedTask[]
     }
 
-export function parsePlannerDecision(value: unknown): PlannerDecision {
+export function parsePlannerDecision(value: JsonValue): PlannerDecision {
   const direct = directPlanResultSchema.safeParse(value)
   if (direct.success) {
     return { kind: 'direct', response: direct.data.response }
@@ -46,7 +47,7 @@ export function parsePlannerDecision(value: unknown): PlannerDecision {
   }
 }
 
-export function getPlanTaskCount(value: unknown): number {
+export function getPlanTaskCount(value: JsonValue): number {
   const result = taskPlanResultSchema.safeParse(value)
   return result.success ? result.data.tasks.length : 0
 }

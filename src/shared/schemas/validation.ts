@@ -7,15 +7,28 @@
  *
  * Uses Zod v4 API — `.loose()` instead of deprecated `.passthrough()`.
  */
+
+import type { JsonValue } from '@shared/types/json'
 import {
   ORCHESTRATION_RUN_STATUSES,
   ORCHESTRATION_TASK_STATUSES,
 } from '@shared/types/orchestration'
 import { z } from 'zod'
 
-// ─── Generic record ─────────────────────────────────────────────────
-/** Validates any JSON object — replaces `JSON.parse(...) as Record<string, unknown>`. */
-export const unknownRecordSchema = z.record(z.string(), z.unknown())
+// ─── Generic JSON ────────────────────────────────────────────────────
+/** Validates any JSON object returned from dynamic runtime boundaries. */
+export const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
+  z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.null(),
+    z.array(jsonValueSchema),
+    z.record(z.string(), jsonValueSchema),
+  ]),
+)
+
+export const jsonObjectSchema = z.record(z.string(), jsonValueSchema)
 
 // ─── Orchestration ──────────────────────────────────────────────────
 /** Task tool progress event from orchestration executors. */
@@ -23,7 +36,7 @@ export const taskToolProgressSchema = z.object({
   type: z.enum(['tool_start', 'tool_end']),
   toolName: z.string(),
   toolCallId: z.string(),
-  toolInput: unknownRecordSchema.optional(),
+  toolInput: jsonObjectSchema.optional(),
 })
 
 /** Persisted run index shape. */
@@ -80,7 +93,7 @@ export const orchestrationRunRecordSchema = z
     finishedAt: z.string().optional(),
     taskOrder: z.array(z.string()),
     tasks: z.record(z.string(), orchestrationTaskRecordSchema),
-    outputs: z.record(z.string(), z.unknown()),
+    outputs: z.record(z.string(), jsonValueSchema),
     fallbackUsed: z.boolean(),
     fallbackReason: z.string().optional(),
     updatedAt: z.number(),

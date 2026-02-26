@@ -1,13 +1,14 @@
+import type { StreamChunk } from '@tanstack/ai'
 import { describe, expect, it, vi } from 'vitest'
 import { StreamSession } from './stream-session'
 
 interface ChunkRecorder {
-  readonly chunks: unknown[]
-  readonly emit: (chunk: unknown) => void
+  readonly chunks: StreamChunk[]
+  readonly emit: (chunk: StreamChunk) => void
 }
 
 function createRecorder(): ChunkRecorder {
-  const chunks: unknown[] = []
+  const chunks: StreamChunk[] = []
   return {
     chunks,
     emit(chunk) {
@@ -16,17 +17,8 @@ function createRecorder(): ChunkRecorder {
   }
 }
 
-function chunkTypes(chunks: readonly unknown[]): string[] {
-  const types: string[] = []
-  for (const chunk of chunks) {
-    if (chunk && typeof chunk === 'object' && 'type' in chunk) {
-      const maybeType = chunk.type
-      if (typeof maybeType === 'string') {
-        types.push(maybeType)
-      }
-    }
-  }
-  return types
+function chunkTypes(chunks: readonly StreamChunk[]): string[] {
+  return chunks.map((chunk) => chunk.type)
 }
 
 describe('StreamSession', () => {

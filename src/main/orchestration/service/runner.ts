@@ -1,14 +1,17 @@
+import { jsonObjectSchema } from '@shared/schemas/validation'
 import {
   type ConversationId,
   OrchestrationRunId,
   OrchestrationTaskId,
   type SupportedModelId,
 } from '@shared/types/brand'
+import type { JsonValue } from '@shared/types/json'
 import type { AnyTextAdapter } from '@tanstack/ai'
 import type {
   OpenWaggleTaskExecutionInput,
   OrchestrationEvent,
   OrchestrationRunRecord,
+  OrchestrationTaskOutputValue,
 } from '../engine'
 import { summarizeConversation } from './conversation-summary'
 import { createModelRunner } from './model-runner'
@@ -47,7 +50,7 @@ interface RunnerContext {
 
 interface PlannerStageResult {
   readonly webIntentDetected: boolean
-  readonly planResult: unknown
+  readonly planResult: JsonValue
   readonly plannerDecision: PlannerDecision
 }
 
@@ -137,8 +140,18 @@ async function prepareRunnerContext(
   const { provider, providerConfig, qualityConfig: quality } = resolution
   const t0 = deps.now()
 
+  const modelOptionsResult =
+    quality.modelOptions === undefined ? null : jsonObjectSchema.safeParse(quality.modelOptions)
+  if (modelOptionsResult && !modelOptionsResult.success) {
+    deps.logger.warn('invalid modelOptions shape, dropping options for orchestration run')
+  }
+  const normalizedQuality: SamplingConfig & { readonly model: SupportedModelId } = {
+    ...quality,
+    modelOptions: modelOptionsResult?.success ? modelOptionsResult.data : undefined,
+  }
+
   const adapter = provider.createAdapter(
-    quality.model,
+    normalizedQuality.model,
     providerConfig.apiKey ?? '',
     providerConfig.baseUrl,
     providerConfig.authMethod,
@@ -168,7 +181,7 @@ async function prepareRunnerContext(
       modelRunner,
       runStore,
       fallbackState,
-      quality,
+      quality: normalizedQuality,
       adapter,
       orchestrationMode,
       projectContext,
@@ -375,7 +388,7 @@ async function executeTask(
 
 async function synthesize(
   context: RunnerContext,
-  outputs: Readonly<Record<string, unknown>>,
+  outputs: Readonly<{ [taskId: string]: OrchestrationTaskOutputValue }>,
 ): Promise<string> {
   context.deps.logger.info('synthesis starting', {
     taskCount: Object.keys(outputs).length,

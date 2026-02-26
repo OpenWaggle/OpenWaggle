@@ -1,4 +1,12 @@
 import type { ConversationId, OrchestrationRunId, OrchestrationTaskId } from './brand'
+import type { JsonObject, JsonValue } from './json'
+
+export interface OrchestrationTextOutput {
+  readonly [key: string]: JsonValue
+  readonly text: string
+}
+
+export type OrchestrationOutputValue = JsonValue | OrchestrationTextOutput
 
 export const ORCHESTRATION_TASK_STATUSES = [
   'queued',
@@ -52,7 +60,7 @@ export interface OrchestrationRunRecord {
   readonly finishedAt?: string
   readonly taskOrder: readonly OrchestrationTaskId[]
   readonly tasks: Readonly<Record<string, OrchestrationTaskRecord>>
-  readonly outputs: Readonly<Record<string, unknown>>
+  readonly outputs: Readonly<{ [taskId: string]: OrchestrationOutputValue }>
   readonly fallbackUsed: boolean
   readonly fallbackReason?: string
   readonly updatedAt: number
@@ -75,7 +83,7 @@ export interface TaskToolProgressDetail {
   readonly type: 'tool_start' | 'tool_end'
   readonly toolName: string
   readonly toolCallId: string
-  readonly toolInput?: Readonly<Record<string, unknown>>
+  readonly toolInput?: Readonly<JsonObject>
 }
 
 export interface OrchestrationEventPayload {
@@ -86,5 +94,77 @@ export interface OrchestrationEventPayload {
   readonly taskId?: OrchestrationTaskId
   readonly taskKind?: string
   readonly message?: string
-  readonly detail?: unknown
+  readonly detail?: OrchestrationEventDetail
 }
+
+export type OrchestrationEventDetail =
+  | {
+      readonly type: 'run_started'
+      readonly runId: string
+      readonly at: string
+    }
+  | {
+      readonly type: 'task_queued'
+      readonly runId: string
+      readonly taskId: string
+      readonly at: string
+    }
+  | {
+      readonly type: 'task_started'
+      readonly runId: string
+      readonly taskId: string
+      readonly attempt: number
+      readonly at: string
+    }
+  | {
+      readonly type: 'task_progress'
+      readonly runId: string
+      readonly taskId: string
+      readonly at: string
+      readonly payload: TaskToolProgressDetail | JsonValue
+    }
+  | {
+      readonly type: 'task_retried'
+      readonly runId: string
+      readonly taskId: string
+      readonly attempt: number
+      readonly nextAttempt: number
+      readonly delayMs: number
+      readonly at: string
+      readonly errorCode?: string
+      readonly error?: string
+    }
+  | {
+      readonly type: 'task_succeeded'
+      readonly runId: string
+      readonly taskId: string
+      readonly attempt: number
+      readonly at: string
+      readonly output?: OrchestrationOutputValue
+    }
+  | {
+      readonly type: 'task_failed'
+      readonly runId: string
+      readonly taskId: string
+      readonly attempt: number
+      readonly at: string
+      readonly errorCode?: string
+      readonly error?: string
+    }
+  | {
+      readonly type: 'run_completed'
+      readonly runId: string
+      readonly at: string
+    }
+  | {
+      readonly type: 'run_failed'
+      readonly runId: string
+      readonly at: string
+      readonly error?: string
+    }
+  | {
+      readonly type: 'run_cancelled'
+      readonly runId: string
+      readonly at: string
+      readonly reason?: string
+    }

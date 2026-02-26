@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process'
 import path from 'node:path'
 import { promisify } from 'node:util'
-import { unknownRecordSchema } from '@shared/schemas/validation'
+import { jsonObjectSchema } from '@shared/schemas/validation'
 import { z } from 'zod'
 
 export const execFileAsync = promisify(execFile)
@@ -37,7 +37,7 @@ export async function runGit(
       code: 0,
     }
   } catch (err) {
-    const result = unknownRecordSchema.safeParse(err)
+    const result = jsonObjectSchema.safeParse(err)
     if (result.success) {
       const e = result.data
       return {

@@ -3,7 +3,9 @@ import type { ConversationId } from '@shared/types/brand'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createSendHandlers } from '../useSendMessage'
 
-function makeDeps(overrides: Record<string, unknown> = {}) {
+type SendDeps = Parameters<typeof createSendHandlers>[0]
+
+function makeDeps(overrides: Partial<SendDeps> = {}): SendDeps {
   return {
     activeConversationId: null as ConversationId | null,
     projectPath: '/test/project' as string | null,

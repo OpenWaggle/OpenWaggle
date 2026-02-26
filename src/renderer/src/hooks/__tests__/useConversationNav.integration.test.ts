@@ -3,7 +3,9 @@ import type { ConversationSummary } from '@shared/types/conversation'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createConversationNavHandlers } from '../useConversationNav'
 
-function makeDeps(overrides: Record<string, unknown> = {}) {
+type ConversationNavDeps = Parameters<typeof createConversationNavHandlers>[0]
+
+function makeDeps(overrides: Partial<ConversationNavDeps> = {}): ConversationNavDeps {
   return {
     conversations: [] as ConversationSummary[],
     activeConversationId: null as ConversationId | null,

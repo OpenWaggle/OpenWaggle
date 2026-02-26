@@ -1,5 +1,7 @@
+import { jsonObjectSchema } from '@shared/schemas/validation'
 import type { MessagePart } from '@shared/types/agent'
 import { ToolCallId } from '@shared/types/brand'
+import type { JsonObject } from '@shared/types/json'
 import { chooseBy } from '@shared/utils/decision'
 import type { StreamChunk } from '@tanstack/ai'
 import { z } from 'zod'
@@ -7,8 +9,6 @@ import { createLogger } from '../logger'
 import type { AgentToolCallEndEvent, AgentToolCallStartEvent } from './runtime-types'
 
 const logger = createLogger('stream')
-
-const toolArgsSchema = z.record(z.string(), z.unknown())
 
 const errorResultSchema = z.union([
   z.object({ ok: z.literal(false), error: z.string().min(1) }),
@@ -196,11 +196,11 @@ export class StreamPartCollector {
     }
   }
 
-  private parseToolArgs(toolCallId: string, toolName: string): Record<string, unknown> {
+  private parseToolArgs(toolCallId: string, toolName: string): JsonObject {
     const rawArgs = this.toolCallArgs[toolCallId] ?? '{}'
 
     try {
-      const parsed = toolArgsSchema.parse(JSON.parse(rawArgs))
+      const parsed = jsonObjectSchema.parse(JSON.parse(rawArgs))
       return parsed
     } catch (parseError) {
       logger.warn(`Failed to parse tool call args for "${toolName}"`, {

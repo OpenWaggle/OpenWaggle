@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // ---------------------------------------------------------------------------
 
 const mockStoreData = vi.hoisted(() => ({
-  data: {} as Record<string, unknown>,
+  data: {} as { presets?: object[] },
 }))
 
 // ---------------------------------------------------------------------------
@@ -17,28 +17,30 @@ const mockStoreData = vi.hoisted(() => ({
 // ---------------------------------------------------------------------------
 
 vi.mock('electron-store', () => {
-  class MockStore<T extends object> {
-    constructor(options: { defaults?: Partial<T> }) {
+  class MockStore {
+    constructor(options: { defaults?: { presets?: object[] } }) {
       // Seed defaults only if the key is absent from the shared state object.
       if (options.defaults) {
         for (const [key, value] of Object.entries(options.defaults)) {
           if (!(key in mockStoreData.data)) {
-            mockStoreData.data[key] = value
+            if (key === 'presets' && Array.isArray(value)) {
+              mockStoreData.data.presets = value
+            }
           }
         }
       }
     }
 
-    get<K extends keyof T>(key: K, defaultValue?: T[K]): T[K] {
-      const k = key as string
-      if (k in mockStoreData.data) {
-        return mockStoreData.data[k] as T[K]
+    get(_key: 'presets', defaultValue: object[] = []): object[] {
+      const presets = mockStoreData.data.presets
+      if (Array.isArray(presets)) {
+        return presets
       }
-      return defaultValue as T[K]
+      return defaultValue
     }
 
-    set<K extends keyof T>(key: K, value: T[K]): void {
-      mockStoreData.data[key as string] = value
+    set(_key: 'presets', value: object[]): void {
+      mockStoreData.data.presets = value
     }
   }
 

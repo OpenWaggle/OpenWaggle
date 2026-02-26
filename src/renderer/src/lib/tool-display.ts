@@ -1,3 +1,4 @@
+import type { JsonObject } from '@shared/types/json'
 import {
   BookOpen,
   Camera,
@@ -78,7 +79,7 @@ export function getToolConfig(name: string): ToolConfig {
   return TOOL_CONFIG[name] ?? { ...DEFAULT_CONFIG, displayName: name }
 }
 
-export function getToolSummary(name: string, args: Record<string, unknown>): string | null {
+export function getToolSummary(name: string, args: JsonObject): string | null {
   const config = TOOL_CONFIG[name]
   if (!config) return null
   const value = args[config.primaryArg]
@@ -90,11 +91,7 @@ export function getToolVerbs(name: string): ToolVerbs {
   return TOOL_VERBS[name] ?? { running: name, completed: name }
 }
 
-export function getToolActionText(
-  name: string,
-  args: Record<string, unknown>,
-  isRunning: boolean,
-): string {
+export function getToolActionText(name: string, args: JsonObject, isRunning: boolean): string {
   const verbs = getToolVerbs(name)
   const verb = isRunning ? verbs.running : verbs.completed
   const config = TOOL_CONFIG[name]

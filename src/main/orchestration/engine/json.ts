@@ -1,8 +1,11 @@
+import { jsonValueSchema } from '@shared/schemas/validation'
+import type { JsonValue } from '@shared/types/json'
+
 /**
  * Extract a JSON object from LLM text output.
  * Handles markdown code fences, preamble text, and trailing commas.
  */
-export function extractJson(text: string): unknown {
+export function extractJson(text: string): JsonValue {
   let cleaned = text.trim()
 
   // Strip outer code fences using lastIndexOf to handle inner backtick blocks
@@ -16,8 +19,7 @@ export function extractJson(text: string): unknown {
 
   // Try direct parse
   try {
-    const parsed: unknown = JSON.parse(cleaned)
-    return parsed
+    return parseJsonValue(cleaned)
   } catch {
     // continue
   }
@@ -28,8 +30,7 @@ export function extractJson(text: string): unknown {
   if (firstBrace !== -1 && lastBrace > firstBrace) {
     const slice = cleaned.slice(firstBrace, lastBrace + 1)
     try {
-      const parsed: unknown = JSON.parse(slice)
-      return parsed
+      return parseJsonValue(slice)
     } catch {
       // continue
     }
@@ -37,12 +38,20 @@ export function extractJson(text: string): unknown {
     // Fix trailing commas before } or ]
     const fixedCommas = slice.replace(/,\s*([}\]])/g, '$1')
     try {
-      const parsed: unknown = JSON.parse(fixedCommas)
-      return parsed
+      return parseJsonValue(fixedCommas)
     } catch {
       // continue
     }
   }
 
   throw new Error('Could not extract valid JSON from text')
+}
+
+function parseJsonValue(raw: string): JsonValue {
+  const parsed = JSON.parse(raw)
+  const result = jsonValueSchema.safeParse(parsed)
+  if (!result.success) {
+    throw new Error('Parsed value is not valid JSON')
+  }
+  return result.data
 }

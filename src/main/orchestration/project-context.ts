@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { packageJsonSchema } from '@shared/schemas/validation'
+import type { JsonObject } from '@shared/types/json'
 import { parseJsonSafe } from '@shared/utils/parse-json'
 import { isPathInside } from '@shared/utils/paths'
 import type { ServerTool } from '@tanstack/ai'
@@ -183,7 +184,7 @@ async function buildKeyFiles(projectPath: string): Promise<string> {
       const pkgResult = parseJsonSafe(raw, packageJsonSchema)
       if (!pkgResult.success) throw new Error('invalid package.json')
       const pkg = pkgResult.data
-      const summary: Record<string, unknown> = {}
+      const summary: JsonObject = {}
       if (pkg.name) summary.name = pkg.name
       if (pkg.description) summary.description = pkg.description
       if (pkg.scripts) summary.scripts = pkg.scripts
