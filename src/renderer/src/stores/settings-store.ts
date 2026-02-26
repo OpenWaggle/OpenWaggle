@@ -4,7 +4,7 @@ import type {
   SubscriptionProvider,
 } from '@shared/types/auth'
 import { SUBSCRIPTION_PROVIDERS } from '@shared/types/auth'
-import type { ProviderInfo, SupportedModelId } from '@shared/types/llm'
+import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from '@shared/types/llm'
 import {
   DEFAULT_SETTINGS,
   type ExecutionMode,
@@ -17,12 +17,81 @@ import { isValidBaseUrl } from '@shared/utils/validation'
 import { create } from 'zustand'
 import { api } from '@/lib/ipc'
 
+interface ProviderModelRefreshResult {
+  readonly provider: Provider
+  readonly models: ModelDisplayInfo[] | null
+}
+
+let providerModelRefreshRequestToken = 0
+
+function dedupeProviderModels(
+  provider: Provider,
+  models: readonly ModelDisplayInfo[],
+): ModelDisplayInfo[] {
+  const seen = new Set<string>()
+  const deduped: ModelDisplayInfo[] = []
+
+  for (const model of models) {
+    const normalizedId = model.id.trim()
+    if (!normalizedId) continue
+
+    const key = `${provider}:${normalizedId}`
+    if (seen.has(key)) continue
+    seen.add(key)
+
+    deduped.push({
+      id: normalizedId,
+      name: model.name,
+      provider,
+    })
+  }
+
+  return deduped
+}
+
+function normalizeProviderGroups(providerModels: readonly ProviderInfo[]): ProviderInfo[] {
+  return providerModels.map((group) => ({
+    ...group,
+    models: dedupeProviderModels(group.provider, group.models),
+  }))
+}
+
+function mergeProviderGroups({
+  baseProviderModels,
+  currentProviderModels,
+  refreshedProviders,
+  refreshedDynamicModels,
+}: {
+  baseProviderModels: readonly ProviderInfo[]
+  currentProviderModels: readonly ProviderInfo[]
+  refreshedProviders: readonly Provider[]
+  refreshedDynamicModels: ReadonlyMap<Provider, readonly ModelDisplayInfo[]>
+}): ProviderInfo[] {
+  const currentByProvider = new Map(currentProviderModels.map((group) => [group.provider, group]))
+  const refreshedProviderSet = new Set(refreshedProviders)
+
+  return baseProviderModels.map((baseGroup) => {
+    const dynamicModels = refreshedDynamicModels.get(baseGroup.provider)
+    const currentModels = currentByProvider.get(baseGroup.provider)?.models
+
+    const sourceModels = refreshedProviderSet.has(baseGroup.provider)
+      ? (dynamicModels ?? baseGroup.models)
+      : (currentModels ?? baseGroup.models)
+
+    return {
+      ...baseGroup,
+      models: dedupeProviderModels(baseGroup.provider, sourceModels),
+    }
+  })
+}
+
 interface SettingsState {
   settings: Settings
   isLoaded: boolean
   loadError: string | null
   testingProviders: Partial<Record<Provider, boolean>>
   testResults: Partial<Record<Provider, { success: boolean; error?: string } | null>>
+  baseProviderModels: ProviderInfo[]
   providerModels: ProviderInfo[]
 
   // Auth — per-provider status tracking
@@ -31,6 +100,7 @@ interface SettingsState {
 
   loadSettings: () => Promise<void>
   loadProviderModels: () => Promise<void>
+  refreshProviderModels: (provider?: Provider) => Promise<void>
   retryLoad: () => Promise<void>
   updateApiKey: (provider: Provider, apiKey: string) => Promise<void>
   toggleProvider: (provider: Provider, enabled: boolean) => Promise<void>
@@ -60,6 +130,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   loadError: null,
   testingProviders: {},
   testResults: {},
+  baseProviderModels: [],
   providerModels: [],
   oauthStatuses: {},
   authAccounts: {},
@@ -76,11 +147,69 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   async loadProviderModels() {
     try {
-      const providerModels = await api.getProviderModels()
-      set({ providerModels })
+      const baseProviderModels = normalizeProviderGroups(await api.getProviderModels())
+      set({ baseProviderModels, providerModels: baseProviderModels })
+      await get().refreshProviderModels()
     } catch {
       // Models are non-critical — keep existing empty array
     }
+  },
+
+  async refreshProviderModels(provider?: Provider) {
+    const requestToken = providerModelRefreshRequestToken + 1
+    providerModelRefreshRequestToken = requestToken
+
+    const { baseProviderModels, settings } = get()
+    const targetProviders = provider
+      ? baseProviderModels.filter(
+          (group) => group.provider === provider && group.supportsDynamicModelFetch,
+        )
+      : baseProviderModels.filter((group) => group.supportsDynamicModelFetch)
+
+    if (targetProviders.length === 0) return
+
+    const results = await Promise.all(
+      targetProviders.map(async (group): Promise<ProviderModelRefreshResult> => {
+        const config = settings.providers[group.provider]
+        const apiKey = config?.apiKey?.trim() || undefined
+        if (group.requiresApiKey && !apiKey) {
+          return { provider: group.provider, models: null }
+        }
+
+        const baseUrl = config?.baseUrl?.trim() || undefined
+        try {
+          const fetchedModels = await api.fetchProviderModels(group.provider, baseUrl, apiKey)
+          if (fetchedModels.length === 0) {
+            return { provider: group.provider, models: null }
+          }
+
+          return {
+            provider: group.provider,
+            models: dedupeProviderModels(group.provider, fetchedModels),
+          }
+        } catch {
+          return { provider: group.provider, models: null }
+        }
+      }),
+    )
+
+    if (requestToken !== providerModelRefreshRequestToken) return
+
+    const refreshedDynamicModels = new Map<Provider, readonly ModelDisplayInfo[]>()
+    for (const result of results) {
+      if (result.models && result.models.length > 0) {
+        refreshedDynamicModels.set(result.provider, result.models)
+      }
+    }
+
+    const latestState = get()
+    const nextProviderModels = mergeProviderGroups({
+      baseProviderModels: latestState.baseProviderModels,
+      currentProviderModels: latestState.providerModels,
+      refreshedProviders: targetProviders.map((group) => group.provider),
+      refreshedDynamicModels,
+    })
+    set({ providerModels: nextProviderModels })
   },
 
   async retryLoad() {
@@ -107,6 +236,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
     await api.updateSettings({ providers: updated.providers })
     set({ settings: updated })
+    void get().refreshProviderModels(provider)
   },
 
   async toggleProvider(provider: Provider, enabled: boolean) {
@@ -126,6 +256,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
     await api.updateSettings({ providers: updated.providers })
     set({ settings: updated })
+    void get().refreshProviderModels(provider)
   },
 
   async updateBaseUrl(provider: Provider, baseUrl: string) {
@@ -148,6 +279,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
     await api.updateSettings({ providers: updated.providers })
     set({ settings: updated })
+    void get().refreshProviderModels(provider)
   },
 
   async setDefaultModel(model: SupportedModelId) {

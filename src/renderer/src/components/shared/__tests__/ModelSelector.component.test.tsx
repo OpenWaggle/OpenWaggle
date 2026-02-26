@@ -29,6 +29,7 @@ const PROVIDER_MODELS: ProviderInfo[] = [
     requiresApiKey: true,
     supportsBaseUrl: false,
     supportsSubscription: true,
+    supportsDynamicModelFetch: false,
     models: [
       { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', provider: 'anthropic' },
       { id: 'claude-opus-4-5', name: 'Claude Opus 4.5', provider: 'anthropic' },
@@ -40,6 +41,7 @@ const PROVIDER_MODELS: ProviderInfo[] = [
     requiresApiKey: true,
     supportsBaseUrl: false,
     supportsSubscription: true,
+    supportsDynamicModelFetch: false,
     models: [{ id: 'gpt-4.1-mini', name: 'GPT 4.1 Mini', provider: 'openai' }],
   },
   {
@@ -48,6 +50,7 @@ const PROVIDER_MODELS: ProviderInfo[] = [
     requiresApiKey: true,
     supportsBaseUrl: false,
     supportsSubscription: false,
+    supportsDynamicModelFetch: false,
     models: [{ id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'gemini' }],
   },
 ]
@@ -137,6 +140,7 @@ describe('ModelSelector', () => {
           requiresApiKey: false,
           supportsBaseUrl: false,
           supportsSubscription: false,
+          supportsDynamicModelFetch: true,
           models: [
             {
               id: 'llama3.2:latest',
@@ -151,6 +155,7 @@ describe('ModelSelector', () => {
           requiresApiKey: true,
           supportsBaseUrl: false,
           supportsSubscription: false,
+          supportsDynamicModelFetch: false,
           models: [{ id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'gemini' }],
         },
       ],
@@ -183,6 +188,7 @@ describe('ModelSelector', () => {
           requiresApiKey: false,
           supportsBaseUrl: false,
           supportsSubscription: false,
+          supportsDynamicModelFetch: true,
           models: [
             { id: 'llama3.2:latest', name: 'Llama3.2:latest', provider: 'ollama' },
             { id: 'llama3.2:latest', name: 'Llama3.2:latest', provider: 'ollama' },
