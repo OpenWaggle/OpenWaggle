@@ -4,6 +4,11 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Spinner } from '@/components/shared/Spinner'
 import { cn } from '@/lib/cn'
+import {
+  safeMarkdownComponents,
+  safeMarkdownRehypePlugins,
+  safeMarkdownUrlTransform,
+} from '@/lib/markdown-safety'
 
 interface StandardsStatus {
   agents: AgentsInstructionStatus
@@ -185,7 +190,14 @@ export function SkillsPanel({
             </div>
           ) : (
             <article className="prose max-w-none text-[13px]">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{previewMarkdown}</ReactMarkdown>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={safeMarkdownRehypePlugins}
+                urlTransform={safeMarkdownUrlTransform}
+                components={safeMarkdownComponents}
+              >
+                {previewMarkdown}
+              </ReactMarkdown>
             </article>
           )}
         </div>

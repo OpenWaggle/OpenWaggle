@@ -1,7 +1,11 @@
 import type { ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
-import rehypeHighlight from 'rehype-highlight'
 import remarkGfm from 'remark-gfm'
+import {
+  safeMarkdownComponents,
+  safeMarkdownRehypePlugins,
+  safeMarkdownUrlTransform,
+} from '@/lib/markdown-safety'
 import { isReactElementWithProps } from '@/lib/react-element-guard'
 import { CodeBlock } from './CodeBlock'
 
@@ -36,8 +40,10 @@ export function StreamingText({ text, isStreaming }: StreamingTextProps): React.
     <div className="prose">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeHighlight]}
+        rehypePlugins={safeMarkdownRehypePlugins}
+        urlTransform={safeMarkdownUrlTransform}
         components={{
+          ...safeMarkdownComponents,
           pre({ children }) {
             const language = extractLanguage(children)
             return <CodeBlock language={language}>{children}</CodeBlock>
