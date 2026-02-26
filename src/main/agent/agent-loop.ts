@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { AgentSendPayload, Message, PreparedAttachment } from '@shared/types/agent'
+import type { HydratedAgentSendPayload, HydratedAttachment, Message } from '@shared/types/agent'
 import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { Provider, Settings } from '@shared/types/settings'
@@ -9,6 +9,7 @@ import { loadProjectConfig } from '../config/project-config'
 import { createLogger } from '../logger'
 import { runWithToolContext } from '../tools/define-tool'
 import { getServerTools } from '../tools/registry'
+import { withoutApproval } from '../tools/without-approval'
 import {
   getActiveAgentFeatures,
   getFeatureLifecycleHooks,
@@ -43,7 +44,7 @@ const MAX_ITERATIONS = 25
 
 export interface AgentRunParams {
   readonly conversation: Conversation
-  readonly payload: AgentSendPayload
+  readonly payload: HydratedAgentSendPayload
   readonly model: SupportedModelId
   readonly settings: Settings
   /** Forward raw StreamChunks to the renderer via IPC for the useChat adapter */
@@ -83,7 +84,7 @@ function isAbortError(error: unknown): boolean {
 
 function providerSupportsNativeAttachment(
   provider: Provider,
-  attachment: PreparedAttachment,
+  attachment: HydratedAttachment,
 ): boolean {
   if (!attachment.source) return false
 
@@ -99,7 +100,7 @@ function providerSupportsNativeAttachment(
 
 function buildUserChatContent(
   provider: Provider,
-  payload: AgentSendPayload,
+  payload: HydratedAgentSendPayload,
 ): string | ChatContentPart[] {
   const parts: ChatContentPart[] = []
 
@@ -246,9 +247,7 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
         // The coordinator controls the flow — TanStack AI's approval/continuation
         // mechanism isn't available when runAgent() is called directly.
         if (skipApproval) {
-          tools = tools.map((tool) =>
-            tool.needsApproval ? { ...tool, needsApproval: false } : tool,
-          )
+          tools = withoutApproval(tools)
         }
 
         const adapter = provider.createAdapter(
