@@ -1,28 +1,48 @@
-import { multiAgentMetadataSchema } from '@shared/schemas/multi-agent'
 import type { AgentSendPayload } from '@shared/types/agent'
-import { type ConversationId, SupportedModelId } from '@shared/types/brand'
+import type { ConversationId, SupportedModelId } from '@shared/types/brand'
 import type { MultiAgentConfig, MultiAgentMessageMetadata } from '@shared/types/multi-agent'
 import type { QuestionAnswer, UserQuestion } from '@shared/types/question'
 import { askUserArgsSchema } from '@shared/types/question'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import type { UIMessage } from '@tanstack/ai-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { Virtuoso } from 'react-virtuoso'
 import { CommandPalette } from '@/components/command-palette/CommandPalette'
 import { Composer } from '@/components/composer/Composer'
 import { CollaborationStatus } from '@/components/multi-agent/CollaborationStatus'
-import { TurnDivider } from '@/components/multi-agent/TurnDivider'
-import { Spinner } from '@/components/shared/Spinner'
-import { formatElapsed, useStreamingPhase } from '@/hooks/useStreamingPhase'
+import { useStreamingPhase } from '@/hooks/useStreamingPhase'
+import { cn } from '@/lib/cn'
 import { useComposerStore } from '@/stores/composer-store'
 import { useUIStore } from '@/stores/ui-store'
 import { ApprovalBanner } from './ApprovalBanner'
 import { AskUserBlock } from './AskUserBlock'
-import { ChatErrorDisplay } from './ChatErrorDisplay'
-import { MessageBubble } from './MessageBubble'
-import { RunSummary } from './RunSummary'
 import type { OrchestrationProps } from './types'
-import { useAutoScroll } from './useAutoScroll'
+import type { VirtualRow } from './types-virtual'
+import { buildVirtualRows } from './useVirtualRows'
+import { VirtualRowRenderer } from './VirtualRowRenderer'
 import { WelcomeScreen } from './WelcomeScreen'
+
+// ─── Custom Scroller ────────────────────────────────────────────
+
+/** Custom Virtuoso scroller that adds the chat-scroll class and is-scrolling timer. */
+function ChatScroller(props: React.ComponentPropsWithRef<'div'>): React.JSX.Element {
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
+
+  function handleScroll(e: React.UIEvent<HTMLDivElement>): void {
+    const el = e.currentTarget
+    el.classList.add('is-scrolling')
+    if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current)
+    scrollTimerRef.current = setTimeout(() => {
+      el.classList.remove('is-scrolling')
+    }, 1200)
+    // Forward the original onScroll if Virtuoso provided one
+    props.onScroll?.(e)
+  }
+
+  return <div {...props} onScroll={handleScroll} className={cn(props.className, 'chat-scroll')} />
+}
+
+// ─── ChatPanel ──────────────────────────────────────────────────
 
 interface ChatPanelProps {
   messages: UIMessage[]
@@ -87,14 +107,6 @@ export function ChatPanel({
   }
   const [dismissedError, setDismissedError] = useState<string | null>(null)
 
-  const lastMsg = messages[messages.length - 1]
-  const lastIsStreaming = isLoading && lastMsg?.role === 'assistant'
-
-  const { scrollRef, handleScroll } = useAutoScroll({
-    enabled: !!conversationId && messages.length > 0,
-    skipWhileStreaming: lastIsStreaming,
-  })
-
   const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')
   const lastUserMessage =
     lastUserMsg?.parts
@@ -104,12 +116,26 @@ export function ChatPanel({
 
   const { orchestrationRuns = [] } = orchestration
 
+  const lastMsg = messages[messages.length - 1]
   const hasStreamingContent =
     !!lastMsg &&
     lastMsg.role === 'assistant' &&
     lastMsg.parts.some((p) => p.type === 'text' && p.content.trim())
 
   const phase = useStreamingPhase(isLoading, orchestrationRuns, hasStreamingContent)
+
+  const virtualRows = buildVirtualRows({
+    messages,
+    isLoading,
+    error,
+    lastUserMessage,
+    dismissedError,
+    conversationId: conversationId ? String(conversationId) : null,
+    model,
+    messageModelLookup,
+    multiAgentMetadataLookup,
+    phase,
+  })
 
   // Find the first pending tool approval across all messages
   let pendingApproval: {
@@ -157,11 +183,28 @@ export function ChatPanel({
     }
   }
 
+  function renderRow(_index: number, row: VirtualRow): React.JSX.Element {
+    return (
+      <div
+        className="mx-auto w-full max-w-[720px] px-12 pb-6"
+        style={_index === 0 ? { paddingTop: 20 } : undefined}
+      >
+        <VirtualRowRenderer
+          row={row}
+          conversationId={conversationId}
+          onAnswerQuestion={onAnswerQuestion}
+          onOpenSettings={onOpenSettings}
+          onRetry={onRetry}
+          onDismissError={setDismissedError}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-full w-full flex-col bg-bg overflow-hidden">
-      {/* Scroll container — full width so scrollbar sits at right edge */}
-      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto chat-scroll">
-        {messages.length === 0 && !isLoading ? (
+      {messages.length === 0 && !isLoading ? (
+        <div className="flex-1 overflow-y-auto chat-scroll">
           <WelcomeScreen
             projectPath={projectPath}
             hasProject={hasProject}
@@ -170,129 +213,19 @@ export function ChatPanel({
             onSelectProjectPath={onSelectProjectPath}
             onRetry={onRetry}
           />
-        ) : (
-          /* Messages list — centered, gap 24 between message groups */
-          <div className="mx-auto w-full max-w-[720px] px-12 py-5">
-            <div className="flex flex-col gap-6 w-full">
-              {messages.map((msg, i) => {
-                const meta = multiAgentMetadataLookup[msg.id]
-
-                // During streaming, a multi-agent message contains synthetic
-                // _turnBoundary tool-call parts that separate each turn's content.
-                // Split them into per-turn visual segments so each renders as its
-                // own bubble with the correct agent label/color.
-                const hasTurnBoundaries =
-                  msg.role === 'assistant' &&
-                  msg.parts.some((p) => p.type === 'tool-call' && p.name === '_turnBoundary')
-
-                if (hasTurnBoundaries) {
-                  const segments = splitAtTurnBoundaries(msg, meta)
-                  return segments.map((seg, segIdx) => {
-                    const segMeta = seg.meta
-                    const prevSegMeta = segIdx > 0 ? segments[segIdx - 1].meta : undefined
-                    const showDivider =
-                      segMeta && segIdx > 0 && prevSegMeta?.agentIndex !== segMeta.agentIndex
-
-                    return (
-                      <div key={seg.id} className="flex flex-col gap-6">
-                        {showDivider && segMeta && (
-                          <TurnDivider
-                            turnNumber={segMeta.turnNumber}
-                            agentLabel={segMeta.agentLabel}
-                            agentColor={segMeta.agentColor}
-                            isSynthesis={segMeta.isSynthesis}
-                          />
-                        )}
-                        <MessageBubble
-                          message={{ ...msg, id: seg.id, parts: seg.parts }}
-                          isStreaming={
-                            lastIsStreaming &&
-                            i === messages.length - 1 &&
-                            segIdx === segments.length - 1
-                          }
-                          assistantModel={segMeta?.agentModel ?? model}
-                          conversationId={conversationId}
-                          onAnswerQuestion={onAnswerQuestion}
-                          multiAgent={
-                            segMeta
-                              ? { agentLabel: segMeta.agentLabel, agentColor: segMeta.agentColor }
-                              : undefined
-                          }
-                        />
-                      </div>
-                    )
-                  })
-                }
-
-                const prevMeta = i > 0 ? multiAgentMetadataLookup[messages[i - 1].id] : undefined
-
-                // Show a turn divider when the agent changes between assistant messages
-                const showTurnDivider =
-                  meta &&
-                  msg.role === 'assistant' &&
-                  (!prevMeta || prevMeta.agentIndex !== meta.agentIndex)
-
-                return (
-                  <div key={msg.id} className="flex flex-col gap-6">
-                    {showTurnDivider && (
-                      <TurnDivider
-                        turnNumber={meta.turnNumber}
-                        agentLabel={meta.agentLabel}
-                        agentColor={meta.agentColor}
-                        isSynthesis={meta.isSynthesis}
-                      />
-                    )}
-                    <MessageBubble
-                      message={msg}
-                      isStreaming={lastIsStreaming && i === messages.length - 1}
-                      assistantModel={
-                        msg.role === 'assistant'
-                          ? (meta?.agentModel ?? messageModelLookup[msg.id] ?? model)
-                          : undefined
-                      }
-                      conversationId={conversationId}
-                      onAnswerQuestion={onAnswerQuestion}
-                      multiAgent={
-                        meta
-                          ? { agentLabel: meta.agentLabel, agentColor: meta.agentColor }
-                          : undefined
-                      }
-                    />
-                  </div>
-                )
-              })}
-
-              {/* Phase indicator — visible whenever the agent is running */}
-              {phase.current && (
-                <div className="flex items-center gap-2 py-3">
-                  <Spinner size="sm" className="text-accent" />
-                  <span className="text-sm text-text-tertiary">{phase.current.label}...</span>
-                  <span className="text-sm text-text-muted tabular-nums">
-                    {formatElapsed(phase.current.elapsedMs)}
-                  </span>
-                </div>
-              )}
-
-              {/* Run summary — shown after run completes */}
-              {!isLoading && phase.completed.length > 0 && (
-                <RunSummary phases={phase.completed} totalMs={phase.totalElapsedMs} />
-              )}
-
-              {error && !isLoading && (
-                <ChatErrorDisplay
-                  error={error}
-                  lastUserMessage={lastUserMessage}
-                  dismissedError={dismissedError}
-                  conversationId={conversationId ? String(conversationId) : null}
-                  onDismiss={setDismissedError}
-                  onOpenSettings={onOpenSettings}
-                  onRetry={onRetry}
-                />
-              )}
-            </div>
-          </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <Virtuoso
+          key={conversationId ?? 'empty'}
+          data={virtualRows}
+          followOutput="smooth"
+          initialTopMostItemIndex={Math.max(0, virtualRows.length - 1)}
+          overscan={800}
+          className="flex-1"
+          components={{ Scroller: ChatScroller }}
+          itemContent={renderRow}
+        />
+      )}
 
       {/* Pinned approval banner — always visible above composer */}
       {pendingApproval && (
@@ -337,93 +270,4 @@ export function ChatPanel({
       </div>
     </div>
   )
-}
-
-// ─── Multi-agent streaming helpers ──────────────────────────────
-
-interface TurnSegment {
-  id: string
-  parts: UIMessage['parts']
-  meta: MultiAgentMessageMetadata | undefined
-}
-
-/**
- * Parse agent metadata from a _turnBoundary tool call's output.
- * The StreamProcessor parses the JSON result string into an object,
- * so `output` is typically already an object. Handle both cases.
- */
-function parseBoundaryMeta(output: unknown): MultiAgentMessageMetadata | undefined {
-  let obj: unknown = output
-  if (typeof obj === 'string') {
-    try {
-      obj = JSON.parse(obj)
-    } catch {
-      return undefined
-    }
-  }
-  const result = multiAgentMetadataSchema.safeParse(obj)
-  if (!result.success) return undefined
-  const data = result.data
-  return {
-    agentIndex: data.agentIndex,
-    agentLabel: data.agentLabel,
-    agentColor: data.agentColor,
-    agentModel: data.agentModel ? SupportedModelId(data.agentModel) : undefined,
-    turnNumber: data.turnNumber,
-    ...(data.isSynthesis === true ? { isSynthesis: true } : {}),
-  }
-}
-
-/**
- * Split a single streaming UIMessage at _turnBoundary tool-call parts.
- * Returns one segment per turn, each with its own parts and agent metadata.
- */
-function splitAtTurnBoundaries(
-  msg: UIMessage,
-  firstTurnMeta: MultiAgentMessageMetadata | undefined,
-): TurnSegment[] {
-  const segments: TurnSegment[] = []
-  let currentParts: UIMessage['parts'] = []
-  let currentMeta = firstTurnMeta
-  let turnIndex = 0
-
-  for (const part of msg.parts) {
-    if (part.type === 'tool-call' && part.name === '_turnBoundary') {
-      // Flush current segment
-      segments.push({
-        id: `${msg.id}-turn-${String(turnIndex)}`,
-        parts: currentParts,
-        meta: currentMeta,
-      })
-
-      // Extract metadata for the next turn from the boundary's output
-      currentMeta = parseBoundaryMeta(part.output) ?? currentMeta
-      turnIndex++
-      currentParts = []
-      continue
-    }
-
-    // Skip tool-result parts for _turnBoundary (shouldn't exist, but guard)
-    if (
-      part.type === 'tool-result' &&
-      msg.parts.some(
-        (p) => p.type === 'tool-call' && p.name === '_turnBoundary' && p.id === part.toolCallId,
-      )
-    ) {
-      continue
-    }
-
-    currentParts.push(part)
-  }
-
-  // Flush the final segment (may be empty if still streaming)
-  if (currentParts.length > 0 || turnIndex > 0) {
-    segments.push({
-      id: `${msg.id}-turn-${String(turnIndex)}`,
-      parts: currentParts,
-      meta: currentMeta,
-    })
-  }
-
-  return segments
 }
