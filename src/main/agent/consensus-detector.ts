@@ -1,4 +1,4 @@
-import type { ConsensusCheckResult, ConsensusSignal } from '@shared/types/multi-agent'
+import type { WaggleConsensusCheckResult, WaggleConsensusSignal } from '@shared/types/waggle'
 
 const AGREEMENT_PHRASES = [
   'i agree',
@@ -55,7 +55,7 @@ export function checkConsensus(
   lastTwoMessages: readonly [string, string],
   totalTurns: number,
   maxTurns: number,
-): ConsensusCheckResult {
+): WaggleConsensusCheckResult {
   const [previousText, currentText] = lastTwoMessages
 
   // Guard: don't declare consensus on empty or near-empty messages
@@ -71,7 +71,7 @@ export function checkConsensus(
     }
   }
 
-  const signals: ConsensusSignal[] = []
+  const signals: WaggleConsensusSignal[] = []
 
   // Layer 1: Explicit agreement phrases
   const explicitSignal = checkExplicitAgreement(currentText)
@@ -113,7 +113,7 @@ export function checkConsensus(
   }
 }
 
-function checkExplicitAgreement(text: string): ConsensusSignal | null {
+function checkExplicitAgreement(text: string): WaggleConsensusSignal | null {
   const lower = text.toLowerCase()
   for (const phrase of AGREEMENT_PHRASES) {
     if (lower.includes(phrase)) {
@@ -134,7 +134,7 @@ function checkExplicitAgreement(text: string): ConsensusSignal | null {
   return null
 }
 
-function checkContentSimilarity(text1: string, text2: string): ConsensusSignal | null {
+function checkContentSimilarity(text1: string, text2: string): WaggleConsensusSignal | null {
   const sentences1 = extractSentences(text1)
   const sentences2 = extractSentences(text2)
 
@@ -157,7 +157,10 @@ function checkContentSimilarity(text1: string, text2: string): ConsensusSignal |
   return null
 }
 
-function checkShrinkingResponse(previousText: string, currentText: string): ConsensusSignal | null {
+function checkShrinkingResponse(
+  previousText: string,
+  currentText: string,
+): WaggleConsensusSignal | null {
   const prevLen = previousText.trim().length
   const currLen = currentText.trim().length
 

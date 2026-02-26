@@ -119,6 +119,30 @@ describe('conversation store integration', () => {
     expect(conversation?.messages[1]?.model).toBe('claude-sonnet-4')
   })
 
+  it('normalizes legacy thinking parts to reasoning on load', async () => {
+    await writeConversationFile('legacy-thinking-part', {
+      id: 'legacy-thinking-part',
+      title: 'Legacy thinking',
+      projectPath: null,
+      messages: [
+        {
+          id: 'm1',
+          role: 'assistant',
+          parts: [{ type: 'thinking', text: 'Legacy chain of thought' }],
+          createdAt: 1,
+        },
+      ],
+      createdAt: 1,
+      updatedAt: 1,
+    })
+
+    const conversation = await getConversation(ConversationId('legacy-thinking-part'))
+    expect(conversation?.messages[0]?.parts[0]).toEqual({
+      type: 'reasoning',
+      text: 'Legacy chain of thought',
+    })
+  })
+
   it('keeps known models unchanged during migration', async () => {
     isKnownModelMock.mockImplementation((modelId) => modelId === 'custom-model-v1')
 

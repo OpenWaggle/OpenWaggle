@@ -4,7 +4,7 @@
 **Priority:** P3
 **Category:** Feature
 **Depends on:** None
-**Origin:** Multi-agent conversation review — Command Palette has "Plan mode" entry (line 144-151 of CommandPalette.tsx) that is a no-op. CLAUDE.md mandates "Plan Mode Default" workflow but the product has no runtime concept of it.
+**Origin:** Waggle conversation review — Command Palette has "Plan mode" entry (line 144-151 of CommandPalette.tsx) that is a no-op. CLAUDE.md mandates "Plan Mode Default" workflow but the product has no runtime concept of it.
 
 ---
 

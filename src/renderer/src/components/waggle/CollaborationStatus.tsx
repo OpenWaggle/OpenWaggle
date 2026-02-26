@@ -1,23 +1,23 @@
 import { AlertTriangle, Loader2, X } from 'lucide-react'
 import { AGENT_BG } from '@/lib/agent-colors'
 import { cn } from '@/lib/cn'
-import { useMultiAgentStore } from '@/stores/multi-agent-store'
+import { useWaggleStore } from '@/stores/waggle-store'
 
 interface CollaborationStatusProps {
   onStop: () => void
 }
 
-export function CollaborationStatus({
+export function WaggleCollaborationStatus({
   onStop,
 }: CollaborationStatusProps): React.JSX.Element | null {
-  const status = useMultiAgentStore((s) => s.status)
-  const config = useMultiAgentStore((s) => s.activeConfig)
-  const currentTurn = useMultiAgentStore((s) => s.currentTurn)
-  const currentAgentLabel = useMultiAgentStore((s) => s.currentAgentLabel)
-  const fileConflicts = useMultiAgentStore((s) => s.fileConflicts)
-  const completionReason = useMultiAgentStore((s) => s.completionReason)
-  const clearConfig = useMultiAgentStore((s) => s.clearConfig)
-  const reset = useMultiAgentStore((s) => s.reset)
+  const status = useWaggleStore((s) => s.status)
+  const config = useWaggleStore((s) => s.activeConfig)
+  const currentTurn = useWaggleStore((s) => s.currentTurn)
+  const currentAgentLabel = useWaggleStore((s) => s.currentAgentLabel)
+  const fileConflicts = useWaggleStore((s) => s.fileConflicts)
+  const completionReason = useWaggleStore((s) => s.completionReason)
+  const clearConfig = useWaggleStore((s) => s.clearConfig)
+  const reset = useWaggleStore((s) => s.reset)
 
   if (!config) return null
 

@@ -35,6 +35,8 @@ const toolCallResultSchema = z.object({
 
 const messagePartSchema = z.union([
   z.object({ type: z.literal('text'), text: z.string() }),
+  z.object({ type: z.literal('reasoning'), text: z.string() }),
+  // Backward compatibility: legacy persisted conversations stored reasoning as `thinking`.
   z.object({ type: z.literal('thinking'), text: z.string() }),
   z.object({
     type: z.literal('attachment'),
@@ -52,7 +54,7 @@ const messagePartSchema = z.union([
   z.object({ type: z.literal('tool-result'), toolResult: toolCallResultSchema }),
 ])
 
-import { multiAgentConfigSchema, multiAgentMetadataSchema } from '@shared/schemas/multi-agent'
+import { waggleConfigSchema, waggleMetadataSchema } from '@shared/schemas/waggle'
 
 const messageSchema = z.object({
   id: z.string(),
@@ -63,7 +65,7 @@ const messageSchema = z.object({
     .object({
       orchestrationRunId: z.string().optional(),
       usedFallback: z.boolean().optional(),
-      multiAgent: multiAgentMetadataSchema.optional(),
+      waggle: waggleMetadataSchema.optional(),
     })
     .optional(),
   createdAt: z.number(),
@@ -75,7 +77,7 @@ const conversationSchema = z.object({
   model: z.string().optional(),
   projectPath: z.string().nullable(),
   messages: z.array(messageSchema),
-  multiAgentConfig: multiAgentConfigSchema.optional(),
+  waggleConfig: waggleConfigSchema.optional(),
   createdAt: z.number(),
   updatedAt: z.number(),
 })
@@ -121,7 +123,8 @@ type ParsedConversationSummary = z.infer<typeof conversationSummarySchema>
 function transformPart(part: ParsedPart): MessagePart {
   return chooseBy(part, 'type')
     .case('text', (value): MessagePart => ({ type: 'text', text: value.text }))
-    .case('thinking', (value): MessagePart => ({ type: 'thinking', text: value.text }))
+    .case('reasoning', (value): MessagePart => ({ type: 'reasoning', text: value.text }))
+    .case('thinking', (value): MessagePart => ({ type: 'reasoning', text: value.text }))
     .case(
       'tool-call',
       (value): MessagePart => ({
@@ -190,11 +193,11 @@ function parseConversation(raw: string): Conversation | null {
       metadata: m.metadata
         ? {
             ...m.metadata,
-            multiAgent: m.metadata.multiAgent
+            waggle: m.metadata.waggle
               ? {
-                  ...m.metadata.multiAgent,
-                  agentModel: m.metadata.multiAgent.agentModel
-                    ? SupportedModelId(m.metadata.multiAgent.agentModel)
+                  ...m.metadata.waggle,
+                  agentModel: m.metadata.waggle.agentModel
+                    ? SupportedModelId(m.metadata.waggle.agentModel)
                     : undefined,
                 }
               : undefined,
@@ -202,17 +205,17 @@ function parseConversation(raw: string): Conversation | null {
         : undefined,
       createdAt: m.createdAt,
     })),
-    multiAgentConfig: data.multiAgentConfig
+    waggleConfig: data.waggleConfig
       ? {
-          ...data.multiAgentConfig,
+          ...data.waggleConfig,
           agents: [
             {
-              ...data.multiAgentConfig.agents[0],
-              model: SupportedModelId(data.multiAgentConfig.agents[0].model),
+              ...data.waggleConfig.agents[0],
+              model: SupportedModelId(data.waggleConfig.agents[0].model),
             },
             {
-              ...data.multiAgentConfig.agents[1],
-              model: SupportedModelId(data.multiAgentConfig.agents[1].model),
+              ...data.waggleConfig.agents[1],
+              model: SupportedModelId(data.waggleConfig.agents[1].model),
             },
           ],
         }

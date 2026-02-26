@@ -1,37 +1,37 @@
 import { z } from 'zod'
 
-export const agentColorSchema = z.enum(['blue', 'amber', 'emerald', 'violet'])
+export const waggleAgentColorSchema = z.enum(['blue', 'amber', 'emerald', 'violet'])
 
-export const multiAgentMetadataSchema = z.object({
+export const waggleMetadataSchema = z.object({
   agentIndex: z.number(),
   agentLabel: z.string(),
-  agentColor: agentColorSchema,
+  agentColor: waggleAgentColorSchema,
   agentModel: z.string().optional(),
   turnNumber: z.number(),
   isSynthesis: z.boolean().optional(),
 })
 
-export const agentSlotSchema = z.object({
+export const waggleAgentSlotSchema = z.object({
   label: z.string(),
   model: z.string(),
   roleDescription: z.string(),
-  color: agentColorSchema,
+  color: waggleAgentColorSchema,
 })
 
-export const multiAgentConfigSchema = z.object({
+export const waggleConfigSchema = z.object({
   mode: z.enum(['sequential', 'parallel']),
-  agents: z.tuple([agentSlotSchema, agentSlotSchema]),
+  agents: z.tuple([waggleAgentSlotSchema, waggleAgentSlotSchema]),
   stop: z.object({
     primary: z.enum(['consensus', 'user-stop']),
     maxTurnsSafety: z.number().int().min(1).max(100),
   }),
 })
 
-export const teamPresetSchema = z.object({
+export const waggleTeamPresetSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string(),
-  config: multiAgentConfigSchema,
+  config: waggleConfigSchema,
   isBuiltIn: z.boolean(),
   createdAt: z.number(),
   updatedAt: z.number(),

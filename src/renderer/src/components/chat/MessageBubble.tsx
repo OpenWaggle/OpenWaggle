@@ -1,20 +1,19 @@
 import type { ConversationId } from '@shared/types/brand'
 import { generateDisplayName, type SupportedModelId } from '@shared/types/llm'
-import type { AgentColor } from '@shared/types/multi-agent'
 import type { QuestionAnswer } from '@shared/types/question'
 import { askUserArgsSchema } from '@shared/types/question'
+import type { WaggleAgentColor } from '@shared/types/waggle'
 import { chooseBy } from '@shared/utils/decision'
 import type { UIMessage } from '@tanstack/ai-react'
 import { Check } from 'lucide-react'
 import { AGENT_BORDER_LEFT, AGENT_TEXT } from '@/lib/agent-colors'
 import { cn } from '@/lib/cn'
 import { StreamingText } from './StreamingText'
-import { ThinkingBlock } from './ThinkingBlock'
 import { ToolCallBlock } from './ToolCallBlock'
 
-interface MultiAgentInfo {
+interface WaggleInfo {
   agentLabel: string
-  agentColor: AgentColor
+  agentColor: WaggleAgentColor
 }
 
 interface MessageBubbleProps {
@@ -23,14 +22,14 @@ interface MessageBubbleProps {
   assistantModel?: SupportedModelId
   conversationId: ConversationId | null
   onAnswerQuestion: (conversationId: ConversationId, answers: QuestionAnswer[]) => Promise<void>
-  multiAgent?: MultiAgentInfo
+  waggle?: WaggleInfo
 }
 
 export function MessageBubble({
   message,
   isStreaming,
   assistantModel,
-  multiAgent,
+  waggle,
 }: MessageBubbleProps): React.JSX.Element {
   const isUser = message.role === 'user'
 
@@ -69,22 +68,19 @@ export function MessageBubble({
   return (
     /* Assistant msg — width: fill_container, no background */
     <div
-      className={cn(
-        'w-full',
-        multiAgent && `border-l-2 pl-3 ${AGENT_BORDER_LEFT[multiAgent.agentColor]}`,
-      )}
+      className={cn('w-full', waggle && `border-l-2 pl-3 ${AGENT_BORDER_LEFT[waggle.agentColor]}`)}
     >
       <div className="flex flex-col gap-2">
-        {multiAgent ? (
+        {waggle ? (
           <div>
             <span
               className={cn(
                 'inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium',
-                AGENT_TEXT[multiAgent.agentColor],
+                AGENT_TEXT[waggle.agentColor],
                 'bg-bg-tertiary/40 border border-border/70',
               )}
             >
-              {multiAgent.agentLabel}
+              {waggle.agentLabel}
               {assistantModel && ` \u00b7 ${generateDisplayName(assistantModel)}`}
             </span>
           </div>
@@ -109,7 +105,7 @@ export function MessageBubble({
             )
             .case('tool-call', (value) => {
               // Synthetic turn-boundary markers are only structural separators
-              // for multi-agent streaming — never render them as tool calls.
+              // for Waggle streaming — never render them as tool calls.
               if (value.name === '_turnBoundary') return null
 
               if (value.name === 'askUser') {
@@ -143,25 +139,7 @@ export function MessageBubble({
                 />
               )
             })
-            .case('thinking', (value) => {
-              // A thinking part is still streaming only if no non-thinking parts
-              // follow it. Once text/tool parts appear after, the reasoning is done.
-              let isThinkingDone = false
-              for (let j = i + 1; j < message.parts.length; j += 1) {
-                if (message.parts[j].type !== 'thinking') {
-                  isThinkingDone = true
-                  break
-                }
-              }
-
-              return value.content.trim() ? (
-                <ThinkingBlock
-                  key={`${message.id}-thinking-${String(i)}`}
-                  content={value.content}
-                  isStreaming={isStreaming && !isThinkingDone}
-                />
-              ) : null
-            })
+            .case('thinking', () => null)
             .case('tool-result', () => null)
             .catchAll(() => null),
         )}

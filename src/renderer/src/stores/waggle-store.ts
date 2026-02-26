@@ -1,47 +1,47 @@
 import type { ConversationId } from '@shared/types/brand'
 import type {
-  CollaborationStatus,
-  ConsensusCheckResult,
-  FileConflictWarning,
-  MultiAgentConfig,
-  MultiAgentMessageMetadata,
-  MultiAgentTurnEvent,
-} from '@shared/types/multi-agent'
+  WaggleCollaborationStatus,
+  WaggleConfig,
+  WaggleConsensusCheckResult,
+  WaggleFileConflictWarning,
+  WaggleMessageMetadata,
+  WaggleTurnEvent,
+} from '@shared/types/waggle'
 import { chooseBy } from '@shared/utils/decision'
 import { create } from 'zustand'
 
-interface MultiAgentState {
+interface WaggleState {
   // Active collaboration
   activeCollaborationId: ConversationId | null
-  activeConfig: MultiAgentConfig | null
-  status: CollaborationStatus
+  activeConfig: WaggleConfig | null
+  status: WaggleCollaborationStatus
   currentTurn: number
   currentAgentIndex: number
   currentAgentLabel: string
 
   // Ordered metadata for completed (successful) turns — built from turn-end events.
   // The Nth entry corresponds to the Nth assistant UIMessage during live streaming.
-  completedTurnMeta: MultiAgentMessageMetadata[]
+  completedTurnMeta: WaggleMessageMetadata[]
 
   // Live message metadata — maps stream messageId → agent metadata during streaming
-  liveMessageMetadata: Record<string, MultiAgentMessageMetadata>
+  liveMessageMetadata: Record<string, WaggleMessageMetadata>
 
   // Events
-  fileConflicts: FileConflictWarning[]
-  lastConsensusResult: ConsensusCheckResult | null
+  fileConflicts: WaggleFileConflictWarning[]
+  lastConsensusResult: WaggleConsensusCheckResult | null
   completionReason: string | null
 
   // Actions
-  setConfig: (config: MultiAgentConfig) => void
+  setConfig: (config: WaggleConfig) => void
   clearConfig: () => void
-  startCollaboration: (conversationId: ConversationId, config: MultiAgentConfig) => void
-  handleTurnEvent: (event: MultiAgentTurnEvent) => void
-  trackMessageMetadata: (messageId: string, meta: MultiAgentMessageMetadata) => void
+  startCollaboration: (conversationId: ConversationId, config: WaggleConfig) => void
+  handleTurnEvent: (event: WaggleTurnEvent) => void
+  trackMessageMetadata: (messageId: string, meta: WaggleMessageMetadata) => void
   stopCollaboration: () => void
   reset: () => void
 }
 
-export const useMultiAgentStore = create<MultiAgentState>((set) => ({
+export const useWaggleStore = create<WaggleState>((set) => ({
   activeCollaborationId: null,
   activeConfig: null,
   status: 'idle',

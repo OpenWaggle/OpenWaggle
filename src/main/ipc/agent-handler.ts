@@ -6,6 +6,7 @@ import type { SupportedModelId } from '@shared/types/llm'
 import type { QuestionAnswer } from '@shared/types/question'
 import { runAgent } from '../agent/agent-loop'
 import { classifyAgentError, makeErrorInfo } from '../agent/error-classifier'
+import { getPhaseForConversation } from '../agent/phase-tracker'
 import { createLogger } from '../logger'
 import {
   cancelAllForConversation,
@@ -17,7 +18,7 @@ import { withConversationLock } from '../store/conversation-lock'
 import { getConversation, saveConversation } from '../store/conversations'
 import { getSettings } from '../store/settings'
 import { answerQuestion, cancelQuestion } from '../tools/question-manager'
-import { emitOrchestrationEvent, emitStreamChunk } from '../utils/stream-bridge'
+import { clearAgentPhase, emitOrchestrationEvent, emitStreamChunk } from '../utils/stream-bridge'
 import { hydrateAttachmentSources } from './attachments-handler'
 import { typedHandle, typedOn } from './typed-ipc'
 
@@ -39,6 +40,8 @@ export function registerAgentHandlers(): void {
       const existing = activeRuns.get(conversationId)
       if (existing) {
         existing.abort()
+        activeRuns.delete(conversationId)
+        clearAgentPhase(conversationId)
       }
       cancelAllForConversation(conversationId)
 
@@ -198,6 +201,7 @@ export function registerAgentHandlers(): void {
         controller.abort()
         activeRuns.delete(conversationId)
       }
+      clearAgentPhase(conversationId)
       cancelAllForConversation(conversationId)
       cancelQuestion(conversationId)
     } else {
@@ -205,10 +209,15 @@ export function registerAgentHandlers(): void {
       for (const [id, controller] of activeRuns) {
         controller.abort()
         activeRuns.delete(id)
+        clearAgentPhase(id)
         cancelAllForConversation(id)
         cancelQuestion(id)
       }
     }
+  })
+
+  typedHandle('agent:get-phase', (_event, conversationId: ConversationId) => {
+    return getPhaseForConversation(conversationId)
   })
 
   typedHandle(

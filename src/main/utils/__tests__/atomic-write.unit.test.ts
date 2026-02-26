@@ -50,6 +50,23 @@ describe('atomicWriteJSON', () => {
     expect(JSON.parse(raw)).toEqual({ version: 2 })
   })
 
+  it('supports concurrent writes to the same file', async () => {
+    const filePath = path.join(tmpDir, 'concurrent.json')
+    const payloads = Array.from({ length: 25 }, (_unused, index) => ({
+      version: index,
+    }))
+
+    const writes = await Promise.allSettled(
+      payloads.map((payload) => atomicWriteJSON(filePath, payload)),
+    )
+    const rejected = writes.filter((result) => result.status === 'rejected')
+    expect(rejected).toHaveLength(0)
+
+    const raw = await fsPromises.readFile(filePath, 'utf-8')
+    const parsed: unknown = JSON.parse(raw)
+    expect(payloads).toContainEqual(parsed)
+  })
+
   it('does not leave .tmp file on success', async () => {
     const filePath = path.join(tmpDir, 'clean.json')
     await atomicWriteJSON(filePath, { clean: true })

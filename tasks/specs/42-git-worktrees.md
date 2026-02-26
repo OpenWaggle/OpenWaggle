@@ -4,7 +4,7 @@
 **Priority:** P4
 **Category:** Feature
 **Depends on:** None (benefits from Spec 44 Git Settings for configuration surface)
-**Origin:** Multi-agent conversation review — CommandPalette has "New worktree" no-op (line 132-137), SettingsNav has disabled "Worktrees" tab (line 28), `SettingsTab` type includes `'worktrees'` (ui-store.ts line 14)
+**Origin:** Waggle conversation review — CommandPalette has "New worktree" no-op (line 132-137), SettingsNav has disabled "Worktrees" tab (line 28), `SettingsTab` type includes `'worktrees'` (ui-store.ts line 14)
 
 ---
 

@@ -4,7 +4,7 @@
 **Priority:** P4
 **Category:** Feature
 **Depends on:** None (benefits from Spec 39 context window awareness for auto-archive suggestions)
-**Origin:** Multi-agent conversation review — SettingsNav has disabled "Archived threads" tab (line 29), `SettingsTab` type includes `'archived'` (ui-store.ts line 15)
+**Origin:** Waggle conversation review — SettingsNav has disabled "Archived threads" tab (line 29), `SettingsTab` type includes `'archived'` (ui-store.ts line 15)
 
 ---
 

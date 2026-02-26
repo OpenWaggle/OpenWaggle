@@ -1,4 +1,4 @@
-# Multi-Agent Conversation (North Star)
+# Waggle Conversation (North Star)
 
 **Priority:** 0 — This is the product differentiator. Everything else serves this.
 **Depends on:** Task 1 (approval flow) for safe tool use, Task 3 (error messages) for debuggability
@@ -34,7 +34,7 @@ const activeRuns = new Map<ConversationId, AbortController>()
 // When a new message arrives, it ABORTS the existing run
 ```
 
-The handler enforces one run at a time per conversation. For multi-agent, we need sequential turn-taking within a single conversation.
+The handler enforces one run at a time per conversation. For waggle, we need sequential turn-taking within a single conversation.
 
 ### Blocker 2: IPC stream chunks lack agent identity
 
@@ -79,17 +79,17 @@ User sees the full back-and-forth in real-time
 
 Both agents analyze the same input simultaneously, then a synthesis step merges their perspectives. This is the orchestration system upgraded.
 
-### Phase 3 — Free-form Multi-Agent (Later)
+### Phase 3 — Free-form Waggle (Later)
 
 Agents can interrupt, ask each other questions, delegate sub-tasks. Requires more complex coordination.
 
 ## Implementation — Phase 1 Detail
 
-### 1. Multi-Agent Conversation Config
+### 1. Waggle Conversation Config
 
-Create `src/shared/types/multi-agent.ts`:
+Create `src/shared/types/waggle.ts`:
 ```ts
-interface MultiAgentConfig {
+interface WaggleConfig {
   /** The two models that will converse */
   agents: [AgentSlot, AgentSlot]
   /** Max back-and-forth turns before stopping (each agent response = 1 turn) */
@@ -109,21 +109,21 @@ interface AgentSlot {
 }
 ```
 
-### 2. Multi-Agent Coordinator
+### 2. Waggle Coordinator
 
-Create `src/main/agent/multi-agent-coordinator.ts`:
+Create `src/main/agent/waggle-coordinator.ts`:
 
 ```ts
-interface MultiAgentRunParams {
+interface WaggleRunParams {
   conversation: Conversation
   payload: AgentSendPayload
-  config: MultiAgentConfig
+  config: WaggleConfig
   settings: Settings
   onChunk: (agentIndex: number, chunk: StreamChunk) => void
   signal: AbortSignal
 }
 
-async function runMultiAgentConversation(params: MultiAgentRunParams): Promise<MultiAgentRunResult> {
+async function runWaggleConversation(params: WaggleRunParams): Promise<WaggleRunResult> {
   // 1. Append user message to conversation
   // 2. Loop up to maxTurns:
   //    a. Pick current agent (alternating: 0, 1, 0, 1, ...)
@@ -149,8 +149,8 @@ Key design decisions:
 In `src/shared/types/ipc.ts`, add:
 ```ts
 // New send channel
-'agent:send-multi-agent-message': {
-  args: [conversationId: ConversationId, payload: AgentSendPayload, config: MultiAgentConfig]
+'agent:send-waggle-message': {
+  args: [conversationId: ConversationId, payload: AgentSendPayload, config: WaggleConfig]
   return: undefined
 }
 
@@ -165,20 +165,20 @@ In `src/shared/types/ipc.ts`, add:
 }
 ```
 
-In `agent-handler.ts`, add a new handler for `'agent:send-multi-agent-message'` that:
+In `agent-handler.ts`, add a new handler for `'agent:send-waggle-message'` that:
 - Creates the coordinator
 - Manages the run lifecycle (abort, cleanup)
 - Routes chunks with agent identity
 
 ### 4. Renderer — Agent Selector UI
 
-The composer needs a way to configure multi-agent mode. Options:
+The composer needs a way to configure waggle mode. Options:
 
 **Option A — Minimal (recommended for MVP):**
 - Add a "Collaborate" button next to the model selector
 - Clicking it opens a small dialog: pick Model A, pick Model B, set max turns (default 6)
 - When active, the composer shows both model names: "Opus + Codex"
-- Send button triggers multi-agent flow
+- Send button triggers waggle flow
 
 **Option B — Advanced (later):**
 - Named agent slots with role descriptions
@@ -186,13 +186,13 @@ The composer needs a way to configure multi-agent mode. Options:
 - Save/load agent team configs
 
 **Files to modify:**
-- `src/renderer/src/components/shared/ModelSelector.tsx` — add multi-agent toggle
-- `src/renderer/src/components/composer/Composer.tsx` — multi-agent send flow
+- `src/renderer/src/components/shared/ModelSelector.tsx` — add waggle toggle
+- `src/renderer/src/components/composer/Composer.tsx` — waggle send flow
 - `src/renderer/src/components/composer/ComposerStatusBar.tsx` — show active agents
 
 ### 5. Renderer — Conversation Display
 
-`MessageBubble.tsx` already shows model badges. For multi-agent, enhance with:
+`MessageBubble.tsx` already shows model badges. For waggle, enhance with:
 - **Color-coded agent identity** — Agent A messages have one accent color, Agent B another
 - **Agent label** — Show "Architect (Opus)" instead of just "Claude Opus 4"
 - **Turn indicator** — "Turn 3 of 6" in the conversation flow
@@ -217,7 +217,7 @@ The coordinator needs to decide when to stop the back-and-forth:
 
 Start with `max-turns` for MVP. Add `consensus` detection later.
 
-### 7. Tool Access in Multi-Agent Mode
+### 7. Tool Access in Waggle Mode
 
 Both agents should have access to the same tool set. The coordinator runs each agent in the same `runWithToolContext()`. This means:
 - Both agents can read/write files
@@ -231,9 +231,9 @@ Both agents should have access to the same tool set. The coordinator runs each a
 
 ## Files to Create
 
-- `src/shared/types/multi-agent.ts` — types and config
-- `src/main/agent/multi-agent-coordinator.ts` — turn-taking orchestration
-- `src/renderer/src/components/composer/MultiAgentSelector.tsx` — UI for picking two models
+- `src/shared/types/waggle.ts` — types and config
+- `src/main/agent/waggle-coordinator.ts` — turn-taking orchestration
+- `src/renderer/src/components/composer/WaggleSelector.tsx` — UI for picking two models
 
 ## Files to Modify
 
@@ -243,9 +243,9 @@ Both agents should have access to the same tool set. The coordinator runs each a
 - `src/renderer/src/lib/ipc-connection-adapter.ts` — pass agentIndex through
 - `src/renderer/src/components/chat/MessageBubble.tsx` — agent colors/labels
 - `src/renderer/src/components/chat/ChatPanel.tsx` — turn indicators
-- `src/renderer/src/components/composer/Composer.tsx` — multi-agent send
-- `src/renderer/src/components/shared/ModelSelector.tsx` — multi-agent toggle
-- `src/renderer/src/stores/chat-store.ts` — track multi-agent state
+- `src/renderer/src/components/composer/Composer.tsx` — waggle send
+- `src/renderer/src/components/shared/ModelSelector.tsx` — waggle toggle
+- `src/renderer/src/stores/chat-store.ts` — track waggle state
 
 ## UX Flow (MVP)
 
@@ -262,11 +262,11 @@ Both agents should have access to the same tool set. The coordinator runs each a
 
 ## Relationship to Other Specs
 
-- **Spec 01 (Approval Flow):** Multi-agent mode needs working approval for tool calls. Both agents trigger approvals independently.
+- **Spec 01 (Approval Flow):** Waggle mode needs working approval for tool calls. Both agents trigger approvals independently.
 - **Spec 02 (Orchestration Permissions):** If orchestration is used as the coordination layer, executors need write tools.
 - **Spec 03 (Error Messages):** When one agent fails mid-conversation, the error needs to identify which agent failed and suggest recovery.
-- **Spec 04 (MCP):** MCP tools should be available to both agents in multi-agent mode.
-- **Spec 06 (Quality Presets):** In multi-agent mode, each agent slot has its own quality/model, making the preset system per-agent.
+- **Spec 04 (MCP):** MCP tools should be available to both agents in waggle mode.
+- **Spec 06 (Quality Presets):** In waggle mode, each agent slot has its own quality/model, making the preset system per-agent.
 - **Spec 08 (Skills):** A "Code Review" skill becomes even more powerful when Agent A writes code and Agent B reviews it in the same conversation.
 
 ## What Makes This Hard
@@ -282,6 +282,6 @@ Both agents should have access to the same tool set. The coordinator runs each a
 No one else does this. The closest is:
 - ChatGPT Arena (compare outputs side-by-side, but no conversation between them)
 - AutoGen/CrewAI (Python frameworks, not desktop apps, no real-time UI)
-- Multi-agent research papers (not productized)
+- Waggle research papers (not productized)
 
 OpenWaggle would be the first desktop app where you pick two models, give them a task, and watch them collaborate in real-time with full tool access. That's the pitch.

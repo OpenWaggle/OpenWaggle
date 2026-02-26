@@ -4,7 +4,7 @@
 **Priority:** P3
 **Category:** Feature
 **Depends on:** None (benefits from Spec 38 token tracking)
-**Origin:** Identified as missing during multi-agent review — Spec 00 explicitly flags "context fills 2x faster" as a hard problem
+**Origin:** Identified as missing during waggle review — Spec 00 explicitly flags "context fills 2x faster" as a hard problem
 
 ---
 
@@ -17,7 +17,7 @@ There is no mechanism to detect, warn about, or mitigate context window exhausti
 3. The entire conversation becomes unusable
 4. The user must start a new conversation and re-explain everything
 
-This is already a problem with single-agent conversations. With multi-agent mode (2x token accumulation per turn), it becomes critical. The multi-agent spec (Spec 00, archived) explicitly calls this out: "Context window management — Each turn adds tokens. With two agents, context fills 2x faster."
+This is already a problem with single-agent conversations. With waggle mode (2x token accumulation per turn), it becomes critical. The waggle spec (Spec 00, archived) explicitly calls this out: "Context window management — Each turn adds tokens. With two agents, context fills 2x faster."
 
 ## What Exists
 
@@ -92,12 +92,12 @@ Exact token counting requires per-model tokenizers (tiktoken for OpenAI, Anthrop
   - "Continue this conversation in a new thread with context summary"
   - One-click action that creates new conversation with summary + recent messages
 
-### Phase 4: Multi-agent context management
+### Phase 4: Waggle context management
 
-- [ ] In multi-agent mode, show per-agent context usage
+- [ ] In waggle mode, show per-agent context usage
   - Each agent may be using a different model with different limits
   - Show: "Architect (Opus): 45K/200K | Reviewer (Sonnet): 38K/200K"
-- [ ] Multi-agent coordinator should check context before each turn
+- [ ] Waggle coordinator should check context before each turn
   - If either agent is approaching limit, warn before starting the turn
   - Option: "Agent A is at 85% context. Stop collaboration and present results?"
 
@@ -111,7 +111,7 @@ Exact token counting requires per-model tokenizers (tiktoken for OpenAI, Anthrop
 
 - `src/renderer/src/components/chat/ChatPanel.tsx` — render context meter
 - `src/renderer/src/components/composer/Composer.tsx` — pre-send context check
-- `src/main/agent/multi-agent-coordinator.ts` — per-turn context check
+- `src/main/agent/waggle-coordinator.ts` — per-turn context check
 - `src/shared/types/agent.ts` — add context metadata to conversation
 
 ## Tests
@@ -120,4 +120,4 @@ Exact token counting requires per-model tokenizers (tiktoken for OpenAI, Anthrop
 - Unit: context utilization calculation correct for various conversation sizes
 - Unit: warning thresholds trigger at correct percentages
 - Component: context meter renders with correct color at each threshold
-- Unit: multi-agent coordinator checks context before each turn
+- Unit: waggle coordinator checks context before each turn

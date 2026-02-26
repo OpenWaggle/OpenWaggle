@@ -76,7 +76,7 @@ Implement a custom, optimized branching utility in-repo (`decision.ts`) and migr
 - `src/renderer/src/hooks/useAgentChat.ts`
 - `src/renderer/src/components/chat/MessageBubble.tsx`
 - `src/renderer/src/components/composer/ActionDialog.tsx`
-- `src/renderer/src/stores/multi-agent-store.ts`
+- `src/renderer/src/stores/waggle-store.ts`
 - `src/renderer/src/components/layout/CommitDialog.tsx`
 - `src/renderer/src/components/layout/sidebar-utils.ts`
 - `src/renderer/src/components/shared/ModelSelector.tsx`

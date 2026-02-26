@@ -1,54 +1,57 @@
-import { multiAgentConfigSchema } from '@shared/schemas/multi-agent'
+import { waggleConfigSchema } from '@shared/schemas/waggle'
 import type { AgentSendPayload } from '@shared/types/agent'
 import { isTextPart } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
-import type { MultiAgentConfig } from '@shared/types/multi-agent'
+import type { WaggleConfig } from '@shared/types/waggle'
 import { classifyAgentError, makeErrorInfo } from '../agent/error-classifier'
-import { runMultiAgentSequential } from '../agent/multi-agent-coordinator'
+import { runWaggleSequential } from '../agent/waggle-coordinator'
 import { createLogger } from '../logger'
 import { withConversationLock } from '../store/conversation-lock'
 import { getConversation, saveConversation } from '../store/conversations'
 import { getSettings } from '../store/settings'
 import {
-  emitMultiAgentStreamChunk,
-  emitMultiAgentTurnEvent,
+  clearAgentPhase,
   emitStreamChunk,
+  emitWaggleStreamChunk,
+  emitWaggleTurnEvent,
 } from '../utils/stream-bridge'
 import { hydrateAttachmentSources } from './attachments-handler'
 import { typedHandle, typedOn } from './typed-ipc'
 
-const logger = createLogger('multi-agent-handler')
+const logger = createLogger('waggle-handler')
 
-const activeMultiAgentRuns = new Map<ConversationId, AbortController>()
+const activeWaggleRuns = new Map<ConversationId, AbortController>()
 
-export function registerMultiAgentHandlers(): void {
+export function registerWaggleHandlers(): void {
   typedHandle(
-    'agent:send-multi-agent-message',
+    'agent:send-waggle-message',
     async (
       _event,
       conversationId: ConversationId,
       payload: AgentSendPayload,
-      config: MultiAgentConfig,
+      config: WaggleConfig,
     ) => {
       // Validate config at IPC boundary
-      const parseResult = multiAgentConfigSchema.safeParse(config)
+      const parseResult = waggleConfigSchema.safeParse(config)
       if (!parseResult.success) {
         emitStreamChunk(conversationId, {
           type: 'RUN_ERROR',
           timestamp: Date.now(),
-          error: { message: 'Invalid multi-agent configuration', code: 'validation-error' },
+          error: { message: 'Invalid Waggle mode configuration', code: 'validation-error' },
         })
         return
       }
 
-      // Cancel any existing multi-agent run for this conversation
-      const existing = activeMultiAgentRuns.get(conversationId)
+      // Cancel any existing Waggle run for this conversation.
+      const existing = activeWaggleRuns.get(conversationId)
       if (existing) {
         existing.abort()
+        activeWaggleRuns.delete(conversationId)
+        clearAgentPhase(conversationId)
       }
 
       const abortController = new AbortController()
-      activeMultiAgentRuns.set(conversationId, abortController)
+      activeWaggleRuns.set(conversationId, abortController)
 
       const settings = getSettings()
       const conversation = await getConversation(conversationId)
@@ -60,21 +63,21 @@ export function registerMultiAgentHandlers(): void {
           timestamp: Date.now(),
           error: { message: errorInfo.userMessage, code: errorInfo.code },
         })
-        activeMultiAgentRuns.delete(conversationId)
+        activeWaggleRuns.delete(conversationId)
         return
       }
 
-      // Multi-agent collaboration requires a project — agents need tool access
+      // Waggle mode requires a project because agents need tool access.
       if (!conversation.projectPath) {
         emitStreamChunk(conversationId, {
           type: 'RUN_ERROR',
           timestamp: Date.now(),
           error: {
-            message: 'Please select a project folder before starting a collaboration.',
+            message: 'Please select a project folder before starting Waggle mode.',
             code: 'no-project',
           },
         })
-        activeMultiAgentRuns.delete(conversationId)
+        activeWaggleRuns.delete(conversationId)
         return
       }
 
@@ -93,13 +96,13 @@ export function registerMultiAgentHandlers(): void {
           attachments: await hydrateAttachmentSources(payload.attachments),
         }
 
-        // Emit a single RUN_STARTED envelope for the entire multi-agent run.
+        // Emit a single RUN_STARTED envelope for the entire Waggle run.
         // Individual per-turn RUN_STARTED/RUN_FINISHED are filtered below so
         // the TanStack adapter treats the whole collaboration as one run.
         emitStreamChunk(conversationId, {
           type: 'RUN_STARTED',
           timestamp: Date.now(),
-          runId: `multi-agent-${conversationId}`,
+          runId: `waggle-${conversationId}`,
         })
 
         // Track which turn we last emitted chunks for.
@@ -107,7 +110,7 @@ export function registerMultiAgentHandlers(): void {
         // so TanStack creates a separate text part per turn (prevents text wiping).
         let lastEmittedTurn = -1
 
-        const result = await runMultiAgentSequential({
+        const result = await runWaggleSequential({
           conversationId,
           conversation,
           payload: hydratedPayload,
@@ -115,8 +118,8 @@ export function registerMultiAgentHandlers(): void {
           settings,
           signal: abortController.signal,
           onStreamChunk: (chunk, meta) => {
-            // Always emit on the multi-agent channel for metadata tracking
-            emitMultiAgentStreamChunk(conversationId, chunk, meta)
+            // Emit on the dedicated Waggle metadata channel.
+            emitWaggleStreamChunk(conversationId, chunk, meta)
 
             // Filter ALL per-turn terminal events. The envelope emits its own
             // RUN_STARTED/RUN_FINISHED around the entire collaboration.
@@ -165,7 +168,7 @@ export function registerMultiAgentHandlers(): void {
             emitStreamChunk(conversationId, chunk)
           },
           onTurnEvent: (event) => {
-            emitMultiAgentTurnEvent(conversationId, event)
+            emitWaggleTurnEvent(conversationId, event)
           },
         })
 
@@ -174,7 +177,7 @@ export function registerMultiAgentHandlers(): void {
           emitStreamChunk(conversationId, {
             type: 'RUN_FINISHED',
             timestamp: Date.now(),
-            runId: `multi-agent-${conversationId}`,
+            runId: `waggle-${conversationId}`,
             finishReason: 'stop',
           })
           return
@@ -193,7 +196,7 @@ export function registerMultiAgentHandlers(): void {
           emitStreamChunk(conversationId, {
             type: 'RUN_FINISHED',
             timestamp: Date.now(),
-            runId: `multi-agent-${conversationId}`,
+            runId: `waggle-${conversationId}`,
             finishReason: 'stop',
           })
           return
@@ -222,11 +225,11 @@ export function registerMultiAgentHandlers(): void {
               ...latestConversation,
               title,
               messages: updatedMessages,
-              multiAgentConfig: config,
+              waggleConfig: config,
             })
           })
         } catch (persistError) {
-          logger.error('Failed to persist multi-agent conversation', {
+          logger.error('Failed to persist Waggle conversation', {
             conversationId,
             error: persistError instanceof Error ? persistError.message : String(persistError),
           })
@@ -236,7 +239,7 @@ export function registerMultiAgentHandlers(): void {
         emitStreamChunk(conversationId, {
           type: 'RUN_FINISHED',
           timestamp: Date.now(),
-          runId: `multi-agent-${conversationId}`,
+          runId: `waggle-${conversationId}`,
           finishReason: 'stop',
         })
       } catch (err) {
@@ -250,21 +253,22 @@ export function registerMultiAgentHandlers(): void {
           emitStreamChunk(conversationId, {
             type: 'RUN_FINISHED',
             timestamp: Date.now(),
-            runId: `multi-agent-${conversationId}`,
+            runId: `waggle-${conversationId}`,
             finishReason: 'stop',
           })
         }
       } finally {
-        activeMultiAgentRuns.delete(conversationId)
+        activeWaggleRuns.delete(conversationId)
       }
     },
   )
 
-  typedOn('agent:cancel-multi-agent', (_event, conversationId: ConversationId) => {
-    const controller = activeMultiAgentRuns.get(conversationId)
+  typedOn('agent:cancel-waggle', (_event, conversationId: ConversationId) => {
+    const controller = activeWaggleRuns.get(conversationId)
     if (controller) {
       controller.abort()
-      activeMultiAgentRuns.delete(conversationId)
+      activeWaggleRuns.delete(conversationId)
     }
+    clearAgentPhase(conversationId)
   })
 }

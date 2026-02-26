@@ -1,22 +1,22 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { ConversationId, SupportedModelId } from '@shared/types/brand'
-import type { MultiAgentConfig, MultiAgentMessageMetadata } from '@shared/types/multi-agent'
+import type { AgentPhaseState } from '@shared/types/phase'
 import type { QuestionAnswer, UserQuestion } from '@shared/types/question'
 import { askUserArgsSchema } from '@shared/types/question'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
+import type { WaggleConfig, WaggleMessageMetadata } from '@shared/types/waggle'
 import type { UIMessage } from '@tanstack/ai-react'
 import { useRef, useState } from 'react'
 import { Virtuoso } from 'react-virtuoso'
 import { CommandPalette } from '@/components/command-palette/CommandPalette'
 import { Composer } from '@/components/composer/Composer'
-import { CollaborationStatus } from '@/components/multi-agent/CollaborationStatus'
+import { WaggleCollaborationStatus } from '@/components/waggle/CollaborationStatus'
 import { useStreamingPhase } from '@/hooks/useStreamingPhase'
 import { cn } from '@/lib/cn'
 import { useComposerStore } from '@/stores/composer-store'
 import { useUIStore } from '@/stores/ui-store'
 import { ApprovalBanner } from './ApprovalBanner'
 import { AskUserBlock } from './AskUserBlock'
-import type { OrchestrationProps } from './types'
 import type { VirtualRow } from './types-virtual'
 import { buildVirtualRows } from './useVirtualRows'
 import { VirtualRowRenderer } from './VirtualRowRenderer'
@@ -62,12 +62,12 @@ interface ChatPanelProps {
   onAnswerQuestion: (conversationId: ConversationId, answers: QuestionAnswer[]) => Promise<void>
   model: SupportedModelId
   messageModelLookup: Readonly<Record<string, SupportedModelId>>
-  multiAgentMetadataLookup: Readonly<Record<string, MultiAgentMessageMetadata>>
+  waggleMetadataLookup: Readonly<Record<string, WaggleMessageMetadata>>
   slashSkills: readonly SkillDiscoveryItem[]
-  orchestration: OrchestrationProps
+  agentPhase: AgentPhaseState | null
   recentProjects: readonly string[]
   onStopCollaboration?: () => void
-  onStartWaggle: (config: MultiAgentConfig) => void
+  onStartWaggle: (config: WaggleConfig) => void
 }
 
 function parseAskUserQuestions(args: string): UserQuestion[] {
@@ -99,9 +99,9 @@ export function ChatPanel({
   onAnswerQuestion,
   model,
   messageModelLookup,
-  multiAgentMetadataLookup,
+  waggleMetadataLookup,
   slashSkills,
-  orchestration,
+  agentPhase,
   recentProjects,
   onStopCollaboration,
   onStartWaggle,
@@ -125,15 +125,7 @@ export function ChatPanel({
       .map((p) => p.content)
       .join('\n') ?? null
 
-  const { orchestrationRuns = [] } = orchestration
-
-  const lastMsg = messages[messages.length - 1]
-  const hasStreamingContent =
-    !!lastMsg &&
-    lastMsg.role === 'assistant' &&
-    lastMsg.parts.some((p) => p.type === 'text' && p.content.trim())
-
-  const phase = useStreamingPhase(isLoading, orchestrationRuns, hasStreamingContent)
+  const phase = useStreamingPhase(agentPhase)
 
   const virtualRows = buildVirtualRows({
     messages,
@@ -144,7 +136,7 @@ export function ChatPanel({
     conversationId: conversationId ? String(conversationId) : null,
     model,
     messageModelLookup,
-    multiAgentMetadataLookup,
+    waggleMetadataLookup,
     phase,
   })
 
@@ -255,8 +247,8 @@ export function ChatPanel({
         </div>
       )}
 
-      {/* Multi-agent collaboration status (armed + running states) */}
-      <CollaborationStatus onStop={onStopCollaboration ?? (() => {})} />
+      {/* Waggle collaboration status (armed + running states) */}
+      <WaggleCollaborationStatus onStop={onStopCollaboration ?? (() => {})} />
 
       {/* Command palette — above composer */}
       {commandPaletteOpen && (

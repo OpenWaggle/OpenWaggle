@@ -35,9 +35,9 @@ Both create avoidable memory pressure (especially with many conversations or lar
 - `src/main/ipc/attachments-handler.ts`
 - `src/main/ipc/attachments-handler.integration.test.ts`
 - `src/main/ipc/agent-handler.ts`
-- `src/main/ipc/multi-agent-handler.ts`
+- `src/main/ipc/waggle-handler.ts`
 - `src/main/agent/agent-loop.ts`
-- `src/main/agent/multi-agent-coordinator.ts`
+- `src/main/agent/waggle-coordinator.ts`
 - `src/main/agent/shared.ts`
 - related unit tests for updated handler contracts
 
@@ -52,4 +52,4 @@ Both create avoidable memory pressure (especially with many conversations or lar
 - Added conversation summary indexing (`conversations/index.json`) with index read-first listing, fallback full scan, and index self-healing on corruption/missing index.
 - Synchronized index updates on save/delete paths to avoid repeated full file scans during routine refreshes.
 - Split attachment contracts into renderer-safe `PreparedAttachment` and main-runtime `HydratedAttachment`.
-- `attachments:prepare` now returns metadata-only attachments; binary source is hydrated in main just-in-time in classic and multi-agent handlers.
+- `attachments:prepare` now returns metadata-only attachments; binary source is hydrated in main just-in-time in classic and waggle handlers.

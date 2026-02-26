@@ -1,7 +1,13 @@
 import type { ConversationId } from '@shared/types/brand'
-import type { MultiAgentStreamMetadata, MultiAgentTurnEvent } from '@shared/types/multi-agent'
 import type { OrchestrationEventPayload } from '@shared/types/orchestration'
+import type { AgentPhaseEventPayload } from '@shared/types/phase'
+import type { WaggleStreamMetadata, WaggleTurnEvent } from '@shared/types/waggle'
 import type { StreamChunk } from '@tanstack/ai'
+import {
+  resetPhaseForConversation,
+  updatePhaseFromOrchestrationEvent,
+  updatePhaseFromStreamChunk,
+} from '../agent/phase-tracker'
 import { broadcastToWindows } from './broadcast'
 
 /**
@@ -12,6 +18,10 @@ export function emitStreamChunk(conversationId: ConversationId, chunk: StreamChu
   // StreamChunk may contain Error objects (RUN_ERROR) which don't serialize
   // well over IPC structured clone. Normalize before sending.
   const serializable = chunk.type === 'RUN_ERROR' ? serializeRunError(chunk) : chunk
+  maybeEmitPhase({
+    conversationId,
+    phase: updatePhaseFromStreamChunk(conversationId, serializable, Date.now()),
+  })
   broadcastToWindows('agent:stream-chunk', { conversationId, chunk: serializable })
 }
 
@@ -34,21 +44,39 @@ function serializeRunError(chunk: StreamChunk & { type: 'RUN_ERROR' }): StreamCh
 }
 
 export function emitOrchestrationEvent(payload: OrchestrationEventPayload): void {
+  maybeEmitPhase({
+    conversationId: payload.conversationId,
+    phase: updatePhaseFromOrchestrationEvent(payload, Date.now()),
+  })
   broadcastToWindows('orchestration:event', payload)
 }
 
-export function emitMultiAgentStreamChunk(
+export function emitWaggleStreamChunk(
   conversationId: ConversationId,
   chunk: StreamChunk,
-  meta: MultiAgentStreamMetadata,
+  meta: WaggleStreamMetadata,
 ): void {
   const serializable = chunk.type === 'RUN_ERROR' ? serializeRunError(chunk) : chunk
-  broadcastToWindows('multi-agent:stream-chunk', { conversationId, chunk: serializable, meta })
+  broadcastToWindows('waggle:stream-chunk', { conversationId, chunk: serializable, meta })
 }
 
-export function emitMultiAgentTurnEvent(
-  conversationId: ConversationId,
-  event: MultiAgentTurnEvent,
-): void {
-  broadcastToWindows('multi-agent:turn-event', { conversationId, event })
+export function emitWaggleTurnEvent(conversationId: ConversationId, event: WaggleTurnEvent): void {
+  broadcastToWindows('waggle:turn-event', { conversationId, event })
+}
+
+export function clearAgentPhase(conversationId: ConversationId): void {
+  const result = resetPhaseForConversation(conversationId)
+  if (!result.changed) return
+  broadcastToWindows('agent:phase', { conversationId, phase: null })
+}
+
+function maybeEmitPhase(input: {
+  conversationId: ConversationId
+  phase: { changed: boolean; phase: AgentPhaseEventPayload['phase'] }
+}): void {
+  if (!input.phase.changed) return
+  broadcastToWindows('agent:phase', {
+    conversationId: input.conversationId,
+    phase: input.phase.phase,
+  })
 }

@@ -1,5 +1,5 @@
 import { SupportedModelId } from '@shared/types/brand'
-import type { AgentSlot } from '@shared/types/multi-agent'
+import type { WaggleAgentSlot } from '@shared/types/waggle'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { FileConflictTracker } from '../file-conflict-tracker'
 
@@ -7,7 +7,10 @@ import { FileConflictTracker } from '../file-conflict-tracker'
 // Fixture helpers
 // ---------------------------------------------------------------------------
 
-function makeAgents(labelA = 'Architect', labelB = 'Reviewer'): readonly [AgentSlot, AgentSlot] {
+function makeAgents(
+  labelA = 'Architect',
+  labelB = 'Reviewer',
+): readonly [WaggleAgentSlot, WaggleAgentSlot] {
   return [
     {
       label: labelA,
@@ -216,7 +219,7 @@ describe('FileConflictTracker', () => {
           roleDescription: '',
           color: 'amber',
         },
-      ] as unknown as readonly [AgentSlot, AgentSlot]
+      ] as unknown as readonly [WaggleAgentSlot, WaggleAgentSlot]
 
       tracker.recordModification('src/index.ts', 0, sparseAgents, 1)
       const warning = tracker.recordModification('src/index.ts', 1, sparseAgents, 2)
@@ -234,7 +237,7 @@ describe('FileConflictTracker', () => {
           color: 'blue',
         },
         undefined,
-      ] as unknown as readonly [AgentSlot, AgentSlot]
+      ] as unknown as readonly [WaggleAgentSlot, WaggleAgentSlot]
 
       tracker.recordModification('src/index.ts', 0, sparseAgents, 1)
       const warning = tracker.recordModification('src/index.ts', 1, sparseAgents, 2)

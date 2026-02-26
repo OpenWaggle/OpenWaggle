@@ -136,10 +136,10 @@ describe('StreamPartCollector', () => {
     expect(parts.filter((part) => part.type === 'tool-result')).toHaveLength(1)
   })
 
-  it('accumulates incremental thinking deltas into one part per step', () => {
+  it('accumulates incremental reasoning deltas into one part per step', () => {
     const collector = new StreamPartCollector()
 
-    // Anthropic adapter emits STEP_FINISHED per thinking token, all same stepId
+    // Anthropic adapter emits STEP_FINISHED per reasoning token, all same stepId
     collector.handleChunk(stepStarted('step-1', 1))
     collector.handleChunk(stepFinished('step-1', 'Planning ', 2))
     collector.handleChunk(stepFinished('step-1', 'the ', 3))
@@ -150,12 +150,12 @@ describe('StreamPartCollector', () => {
     const parts = collector.finalizeParts()
 
     expect(parts).toEqual([
-      { type: 'thinking', text: 'Planning the approach...' },
+      { type: 'reasoning', text: 'Planning the approach...' },
       { type: 'text', text: 'Final answer.' },
     ])
   })
 
-  it('creates separate thinking parts for distinct reasoning steps', () => {
+  it('creates separate reasoning parts for distinct reasoning steps', () => {
     const collector = new StreamPartCollector()
 
     // Step 1: planner reasoning
@@ -171,13 +171,13 @@ describe('StreamPartCollector', () => {
     const parts = collector.finalizeParts()
 
     expect(parts).toEqual([
-      { type: 'thinking', text: 'Planning...' },
-      { type: 'thinking', text: 'Executing...' },
+      { type: 'reasoning', text: 'Planning...' },
+      { type: 'reasoning', text: 'Executing...' },
       { type: 'text', text: 'Done.' },
     ])
   })
 
-  it('flushes thinking when text content arrives without STEP_STARTED boundary', () => {
+  it('flushes reasoning when text content arrives without STEP_STARTED boundary', () => {
     const collector = new StreamPartCollector()
 
     // Thinking deltas arrive, then text without an intervening STEP_STARTED
@@ -188,12 +188,12 @@ describe('StreamPartCollector', () => {
     const parts = collector.finalizeParts()
 
     expect(parts).toEqual([
-      { type: 'thinking', text: 'Thinking...' },
+      { type: 'reasoning', text: 'Thinking...' },
       { type: 'text', text: 'Response text.' },
     ])
   })
 
-  it('skips empty thinking parts from STEP_FINISHED with no delta', () => {
+  it('skips empty reasoning parts from STEP_FINISHED with no delta', () => {
     const collector = new StreamPartCollector()
 
     collector.handleChunk(stepStarted('step-1', 1))

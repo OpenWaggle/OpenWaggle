@@ -1,9 +1,9 @@
 import type { ModelMessage } from '@tanstack/ai'
 import type { MessageId } from './brand'
 import type { SupportedModelId } from './llm'
-import type { MultiAgentMessageMetadata } from './multi-agent'
 import type { QualityPreset } from './settings'
 import type { ToolCallRequest, ToolCallResult } from './tools'
+import type { WaggleMessageMetadata } from './waggle'
 
 export type MessageRole = 'user' | 'assistant'
 
@@ -43,12 +43,12 @@ export interface ToolResultPart {
   readonly toolResult: ToolCallResult
 }
 
-export interface ThinkingPart {
-  readonly type: 'thinking'
+export interface ReasoningPart {
+  readonly type: 'reasoning'
   readonly text: string
 }
 
-export type MessagePart = TextPart | AttachmentPart | ToolCallPart | ToolResultPart | ThinkingPart
+export type MessagePart = TextPart | AttachmentPart | ToolCallPart | ToolResultPart | ReasoningPart
 
 export interface AttachmentSource {
   readonly source: {
@@ -87,7 +87,7 @@ export interface Message {
   readonly metadata?: {
     readonly orchestrationRunId?: string
     readonly usedFallback?: boolean
-    readonly multiAgent?: MultiAgentMessageMetadata
+    readonly waggle?: WaggleMessageMetadata
   }
   readonly createdAt: number
 }
@@ -109,8 +109,8 @@ export function isAttachmentPart(part: MessagePart): part is AttachmentPart {
   return part.type === 'attachment'
 }
 
-export function isThinkingPart(part: MessagePart): part is ThinkingPart {
-  return part.type === 'thinking'
+export function isReasoningPart(part: MessagePart): part is ReasoningPart {
+  return part.type === 'reasoning'
 }
 
 export function getMessageText(message: Message): string {

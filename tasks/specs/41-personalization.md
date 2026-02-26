@@ -4,7 +4,7 @@
 **Priority:** P3
 **Category:** Feature
 **Depends on:** None
-**Origin:** Multi-agent conversation review — SettingsNav has disabled "Personalization" tab (line 25), CommandPalette has "Personality" no-op (line 138-143), `SettingsTab` type includes `'personalization'` (ui-store.ts line 11)
+**Origin:** Waggle conversation review — SettingsNav has disabled "Personalization" tab (line 25), CommandPalette has "Personality" no-op (line 138-143), `SettingsTab` type includes `'personalization'` (ui-store.ts line 11)
 
 ---
 

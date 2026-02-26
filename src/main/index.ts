@@ -10,7 +10,6 @@ import { registerAuthHandlers } from './ipc/auth-handler'
 import { registerConversationsHandlers } from './ipc/conversations-handler'
 import { registerDevtoolsHandlers } from './ipc/devtools-handler'
 import { registerGitHandlers } from './ipc/git'
-import { registerMultiAgentHandlers } from './ipc/multi-agent-handler'
 import { registerOrchestrationHandlers } from './ipc/orchestration-handler'
 import { registerProjectHandlers } from './ipc/project-handler'
 import { registerProvidersHandlers } from './ipc/providers-handler'
@@ -20,6 +19,7 @@ import { registerSkillsHandlers } from './ipc/skills-handler'
 import { registerTeamsHandlers } from './ipc/teams-handler'
 import { cleanupTerminals, registerTerminalHandlers } from './ipc/terminal-handler'
 import { registerVoiceHandlers } from './ipc/voice-handler'
+import { registerWaggleHandlers } from './ipc/waggle-handler'
 import { initFileLogger } from './logger'
 import { registerAllProviders } from './providers'
 
@@ -134,7 +134,7 @@ app.whenReady().then(() => {
   registerVoiceHandlers()
   registerSkillsHandlers()
   registerShellHandlers()
-  registerMultiAgentHandlers()
+  registerWaggleHandlers()
   registerTeamsHandlers()
 
   // Initialize file logger now that app paths are available

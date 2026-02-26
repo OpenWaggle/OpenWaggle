@@ -6,6 +6,7 @@ export class TaskProgressTracker {
   private readonly now: () => number
   private readonly taskNarrations = new Map<string, string>()
   private readonly taskTitles = new Map<string, string>()
+  private readonly taskKinds = new Map<string, string>()
   private readonly taskStartTimes = new Map<string, number>()
   private readonly taskFileCount = new Map<string, number>()
   private readonly taskTokens = new Map<string, number>()
@@ -17,6 +18,9 @@ export class TaskProgressTracker {
         this.taskNarrations.set(task.id, task.narration)
       }
       this.taskTitles.set(task.id, task.title ?? task.id)
+      if (task.kind) {
+        this.taskKinds.set(task.id, task.kind)
+      }
     }
   }
 
@@ -60,5 +64,9 @@ export class TaskProgressTracker {
 
   getTaskTitle(taskId: string): string | undefined {
     return this.taskTitles.get(taskId)
+  }
+
+  getTaskKind(taskId: string): string | undefined {
+    return this.taskKinds.get(taskId)
   }
 }

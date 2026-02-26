@@ -1,26 +1,26 @@
 import type {
-  AgentSlot,
-  FileConflictWarning,
-  FileModificationRecord,
-} from '@shared/types/multi-agent'
+  WaggleAgentSlot,
+  WaggleFileConflictWarning,
+  WaggleFileModificationRecord,
+} from '@shared/types/waggle'
 
 /**
- * Tracks which agent last modified each file path during a multi-agent collaboration.
+ * Tracks which agent last modified each file path during a Waggle collaboration.
  * Returns conflict warnings when a different agent edits a file previously modified by another.
  */
 export class FileConflictTracker {
-  private readonly modifications = new Map<string, FileModificationRecord>()
+  private readonly modifications = new Map<string, WaggleFileModificationRecord>()
 
   recordModification(
     filePath: string,
     agentIndex: number,
-    agents: readonly [AgentSlot, AgentSlot],
+    agents: readonly [WaggleAgentSlot, WaggleAgentSlot],
     turnNumber: number,
-  ): FileConflictWarning | null {
+  ): WaggleFileConflictWarning | null {
     const existing = this.modifications.get(filePath)
 
     if (existing && existing.lastModifiedBy !== agentIndex) {
-      const warning: FileConflictWarning = {
+      const warning: WaggleFileConflictWarning = {
         path: filePath,
         previousAgent:
           agents[existing.lastModifiedBy]?.label ?? `Agent ${String(existing.lastModifiedBy)}`,
@@ -48,7 +48,7 @@ export class FileConflictTracker {
     return null
   }
 
-  getModifications(): ReadonlyMap<string, FileModificationRecord> {
+  getModifications(): ReadonlyMap<string, WaggleFileModificationRecord> {
     return this.modifications
   }
 

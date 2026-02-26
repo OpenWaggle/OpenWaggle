@@ -7,7 +7,7 @@ import {
   Palette,
   Settings2,
   Sliders,
-  Users,
+  Waypoints,
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import type { SettingsTab } from '@/stores/ui-store'
@@ -22,7 +22,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { id: 'general', label: 'General', icon: Settings2, enabled: true },
   { id: 'configuration', label: 'Configuration', icon: Sliders, enabled: false },
-  { id: 'waggle', label: 'Waggle Mode', icon: Users, enabled: true },
+  { id: 'waggle', label: 'Waggle Mode', icon: Waypoints, enabled: true },
   { id: 'personalization', label: 'Personalization', icon: Palette, enabled: false },
   { id: 'git', label: 'Git', icon: GitBranch, enabled: false },
   { id: 'environments', label: 'Environments', icon: Blocks, enabled: false },

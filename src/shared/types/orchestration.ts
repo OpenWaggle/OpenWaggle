@@ -84,6 +84,7 @@ export interface OrchestrationEventPayload {
   readonly type: OrchestrationLifecycleEventType
   readonly at: string
   readonly taskId?: OrchestrationTaskId
+  readonly taskKind?: string
   readonly message?: string
   readonly detail?: unknown
 }

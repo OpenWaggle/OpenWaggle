@@ -4,7 +4,7 @@
 **Priority:** P4
 **Category:** Feature
 **Depends on:** None
-**Origin:** Multi-agent conversation review — SettingsNav has disabled "Environments" tab (line 27), `SettingsTab` type includes `'environments'` (ui-store.ts line 13)
+**Origin:** Waggle conversation review — SettingsNav has disabled "Environments" tab (line 27), `SettingsTab` type includes `'environments'` (ui-store.ts line 13)
 
 ---
 
@@ -31,7 +31,7 @@ There's no way to save, name, or quickly switch between these bundles. The Setti
 - `ui-store.ts` line 13: `SettingsTab` type includes `'environments'`
 - `SettingsPage.tsx`: No handler for `environments` tab (falls through to "Coming soon")
 - **Settings store** already manages individual settings (model, API keys, tool approval preferences)
-- **Multi-agent presets** (`TeamPreset` in `src/shared/types/multi-agent.ts`): Concept of named, switchable configurations already exists for multi-agent mode — environments extend this pattern to single-agent settings
+- **Waggle presets** (`TeamPreset` in `src/shared/types/waggle.ts`): Concept of named, switchable configurations already exists for waggle mode — environments extend this pattern to single-agent settings
 
 ### Reference: How other tools do this
 
@@ -69,8 +69,8 @@ interface Environment {
   /** Personalization override (from Spec 41) */
   customInstructions?: string     // Additional instructions for this environment
 
-  /** Multi-agent default (from Spec 00) */
-  multiAgentConfig?: MultiAgentConfig
+  /** Waggle default (from Spec 00) */
+  waggleConfig?: WaggleConfig
 }
 ```
 
@@ -86,7 +86,7 @@ When an environment is activated:
 1. Model selector updates to show the environment's model (if set)
 2. Tool approval behavior changes
 3. Custom instructions are merged with global personalization
-4. Multi-agent config is applied (if set)
+4. Waggle config is applied (if set)
 5. UI shows environment badge in header/status bar
 
 ## Implementation
@@ -113,7 +113,7 @@ When an environment is activated:
 - [ ] When an environment is activated, propagate overrides to:
   - Agent loop: model selection, tool approval behavior
   - System prompt: custom instructions merge
-  - Multi-agent coordinator: default config
+  - Waggle coordinator: default config
 - [ ] Store active environment ID in session state (Zustand)
 - [ ] Optionally persist per-conversation: add `environmentId?: string` to `Conversation` type
 

@@ -42,12 +42,6 @@ vi.mock('@/lib/ipc', () => ({
   },
 }))
 
-const ORCHESTRATION_DEFAULTS = {
-  orchestrationRuns: [],
-  orchestrationEvents: [],
-  onCancelOrchestrationRun: vi.fn(),
-}
-
 function makeMessage(
   overrides: Partial<UIMessage> & { id: string; role: 'user' | 'assistant' },
 ): UIMessage {
@@ -71,9 +65,9 @@ function renderPanel(overrides: Partial<Parameters<typeof ChatPanel>[0]> = {}) {
     onAnswerQuestion: vi.fn().mockResolvedValue(undefined),
     model: 'claude-sonnet-4-20250514' as const,
     messageModelLookup: {},
-    multiAgentMetadataLookup: {},
+    waggleMetadataLookup: {},
     slashSkills: [],
-    orchestration: ORCHESTRATION_DEFAULTS,
+    agentPhase: null,
     recentProjects: [],
     onStartWaggle: vi.fn(),
   }
@@ -100,7 +94,10 @@ describe('ChatPanel', () => {
   })
 
   it('shows thinking phase indicator when loading with no assistant message', () => {
-    renderPanel({ isLoading: true })
+    renderPanel({
+      isLoading: true,
+      agentPhase: { label: 'Thinking', startedAt: Date.now() },
+    })
     const spinner = document.querySelector('[class*="animate-spin"]')
     expect(spinner).toBeInTheDocument()
     expect(screen.getByText('Thinking...')).toBeInTheDocument()
@@ -126,7 +123,11 @@ describe('ChatPanel', () => {
       makeMessage({ id: 'u1', role: 'user', parts: [{ type: 'text', content: 'Hi' }] }),
       makeMessage({ id: 'a1', role: 'assistant', parts: [{ type: 'text', content: 'Hello!' }] }),
     ]
-    renderPanel({ messages, isLoading: true })
+    renderPanel({
+      messages,
+      isLoading: true,
+      agentPhase: { label: 'Writing', startedAt: Date.now() },
+    })
     // Spinner should be visible with "Writing..." label
     const spinner = document.querySelector('[class*="animate-spin"]')
     expect(spinner).toBeInTheDocument()
