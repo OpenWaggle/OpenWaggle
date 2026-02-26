@@ -16,7 +16,8 @@ Get OpenWaggle from local dev project to publicly downloadable product. Users ca
 
 ### Phase 1: Repository & Release Foundation
 - [ ] Public repo setup (README, LICENSE, CONTRIBUTING, SECURITY, CHANGELOG)
-- [ ] Code signing (macOS — blocked on Apple Developer enrollment)
+- [ ] Homebrew tap (`openwaggle/homebrew-tap`) with cask formula pointing to GitHub Release `.dmg`
+- [ ] `install.sh` curl script — downloads release, strips quarantine (`xattr -cr`), moves to `/Applications`
 - [ ] Auto-updates via `electron-updater`
 - [ ] In-app feedback system (creates GitHub issues)
 - [ ] First-run UX polish (API key preflight, welcome screen, app menu, about dialog)
@@ -39,12 +40,12 @@ Get OpenWaggle from local dev project to publicly downloadable product. Users ca
 ### Phase 5: Community & Distribution
 - [ ] Discord server
 - [ ] GitHub Discussions
-- [ ] Homebrew Cask (post-launch)
+- [ ] Apple Developer enrollment + code signing + notarization (optional — improves UX for non-Homebrew installs)
 
 ## Prerequisites (Manual / External)
 
-- [ ] Apple Developer Program enrollment ($99/year)
 - [ ] Create GitHub org `openwaggle`
+- [ ] Create Homebrew tap repo (`openwaggle/homebrew-tap`)
 - [ ] Register domain `openwaggle.ai`
 - [ ] Create Discord server
 
