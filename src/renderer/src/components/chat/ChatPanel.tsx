@@ -1,11 +1,7 @@
+import { multiAgentMetadataSchema } from '@shared/schemas/multi-agent'
 import type { AgentSendPayload } from '@shared/types/agent'
-import type { ConversationId } from '@shared/types/brand'
-import type { SupportedModelId } from '@shared/types/llm'
-import type {
-  AgentColor,
-  MultiAgentConfig,
-  MultiAgentMessageMetadata,
-} from '@shared/types/multi-agent'
+import { type ConversationId, SupportedModelId } from '@shared/types/brand'
+import type { MultiAgentConfig, MultiAgentMessageMetadata } from '@shared/types/multi-agent'
 import type { QuestionAnswer, UserQuestion } from '@shared/types/question'
 import { askUserArgsSchema } from '@shared/types/question'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
@@ -365,18 +361,17 @@ function parseBoundaryMeta(output: unknown): MultiAgentMessageMetadata | undefin
       return undefined
     }
   }
-  if (obj && typeof obj === 'object' && 'agentIndex' in obj) {
-    const p = obj as Record<string, unknown>
-    return {
-      agentIndex: p.agentIndex as number,
-      agentLabel: p.agentLabel as string,
-      agentColor: p.agentColor as AgentColor,
-      agentModel: p.agentModel as SupportedModelId,
-      turnNumber: p.turnNumber as number,
-      ...(p.isSynthesis === true ? { isSynthesis: true } : {}),
-    }
+  const result = multiAgentMetadataSchema.safeParse(obj)
+  if (!result.success) return undefined
+  const data = result.data
+  return {
+    agentIndex: data.agentIndex,
+    agentLabel: data.agentLabel,
+    agentColor: data.agentColor,
+    agentModel: data.agentModel ? SupportedModelId(data.agentModel) : undefined,
+    turnNumber: data.turnNumber,
+    ...(data.isSynthesis === true ? { isSynthesis: true } : {}),
   }
-  return undefined
 }
 
 /**
