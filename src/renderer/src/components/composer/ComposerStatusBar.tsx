@@ -2,7 +2,7 @@ import type { ExecutionMode } from '@shared/types/settings'
 import { Popover } from '@/components/shared/Popover'
 import { cn } from '@/lib/cn'
 import { useComposerStore } from '@/stores/composer-store'
-import { useSettingsStore } from '@/stores/settings-store'
+import { usePreferencesStore } from '@/stores/preferences-store'
 import { BranchPicker } from './BranchPicker'
 
 const EXECUTION_MODE_LABEL: Record<ExecutionMode, string> = {
@@ -15,8 +15,8 @@ interface ComposerStatusBarProps {
 }
 
 export function ComposerStatusBar({ onToast }: ComposerStatusBarProps): React.JSX.Element {
-  const settings = useSettingsStore((s) => s.settings)
-  const setExecutionMode = useSettingsStore((s) => s.setExecutionMode)
+  const settings = usePreferencesStore((s) => s.settings)
+  const setExecutionMode = usePreferencesStore((s) => s.setExecutionMode)
 
   const executionMenuOpen = useComposerStore((s) => s.executionMenuOpen)
   const openMenu = useComposerStore((s) => s.openMenu)

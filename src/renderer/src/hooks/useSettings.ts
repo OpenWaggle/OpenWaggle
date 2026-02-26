@@ -1,14 +1,16 @@
 import { useEffect } from 'react'
 import { api } from '@/lib/ipc'
-import { useSettingsStore } from '@/stores/settings-store'
+import { useAuthStore } from '@/stores/auth-store'
+import { usePreferencesStore } from '@/stores/preferences-store'
+import { useProviderStore } from '@/stores/provider-store'
 
 /**
  * Load settings and provider models on mount. Call once at the app root.
  */
 export function useSettingsSetup(): void {
-  const loadSettings = useSettingsStore((s) => s.loadSettings)
-  const loadProviderModels = useSettingsStore((s) => s.loadProviderModels)
-  const loadAllAuthAccounts = useSettingsStore((s) => s.loadAllAuthAccounts)
+  const loadSettings = usePreferencesStore((s) => s.loadSettings)
+  const loadProviderModels = useProviderStore((s) => s.loadProviderModels)
+  const loadAllAuthAccounts = useAuthStore((s) => s.loadAllAuthAccounts)
 
   useEffect(() => {
     loadSettings()
@@ -21,7 +23,7 @@ export function useSettingsSetup(): void {
     return api.onOAuthStatus((status) => {
       // Only update for statuses that include a provider
       if ('provider' in status) {
-        useSettingsStore.setState((state) => ({
+        useAuthStore.setState((state) => ({
           oauthStatuses: { ...state.oauthStatuses, [status.provider]: status },
         }))
       }
@@ -33,31 +35,33 @@ export function useSettingsSetup(): void {
  * Hook for settings UI — uses granular selectors to avoid unnecessary re-renders.
  */
 export function useSettings() {
-  const settings = useSettingsStore((s) => s.settings)
-  const isLoaded = useSettingsStore((s) => s.isLoaded)
-  const loadError = useSettingsStore((s) => s.loadError)
-  const testingProviders = useSettingsStore((s) => s.testingProviders)
-  const testResults = useSettingsStore((s) => s.testResults)
-  const providerModels = useSettingsStore((s) => s.providerModels)
-  const modelFetchErrors = useSettingsStore((s) => s.modelFetchErrors)
-  const updateApiKey = useSettingsStore((s) => s.updateApiKey)
-  const toggleProvider = useSettingsStore((s) => s.toggleProvider)
-  const updateBaseUrl = useSettingsStore((s) => s.updateBaseUrl)
-  const setDefaultModel = useSettingsStore((s) => s.setDefaultModel)
-  const toggleFavoriteModel = useSettingsStore((s) => s.toggleFavoriteModel)
-  const setProjectPath = useSettingsStore((s) => s.setProjectPath)
-  const setExecutionMode = useSettingsStore((s) => s.setExecutionMode)
-  const setQualityPreset = useSettingsStore((s) => s.setQualityPreset)
-  const setBrowserHeadless = useSettingsStore((s) => s.setBrowserHeadless)
-  const pushRecentProject = useSettingsStore((s) => s.pushRecentProject)
-  const testApiKey = useSettingsStore((s) => s.testApiKey)
-  const clearTestResult = useSettingsStore((s) => s.clearTestResult)
-  const retryLoad = useSettingsStore((s) => s.retryLoad)
-  const oauthStatuses = useSettingsStore((s) => s.oauthStatuses)
-  const authAccounts = useSettingsStore((s) => s.authAccounts)
-  const startOAuth = useSettingsStore((s) => s.startOAuth)
-  const submitAuthCode = useSettingsStore((s) => s.submitAuthCode)
-  const disconnectAuth = useSettingsStore((s) => s.disconnectAuth)
+  const settings = usePreferencesStore((s) => s.settings)
+  const isLoaded = usePreferencesStore((s) => s.isLoaded)
+  const loadError = usePreferencesStore((s) => s.loadError)
+  const setDefaultModel = usePreferencesStore((s) => s.setDefaultModel)
+  const toggleFavoriteModel = usePreferencesStore((s) => s.toggleFavoriteModel)
+  const setProjectPath = usePreferencesStore((s) => s.setProjectPath)
+  const setExecutionMode = usePreferencesStore((s) => s.setExecutionMode)
+  const setQualityPreset = usePreferencesStore((s) => s.setQualityPreset)
+  const setBrowserHeadless = usePreferencesStore((s) => s.setBrowserHeadless)
+  const pushRecentProject = usePreferencesStore((s) => s.pushRecentProject)
+  const retryLoad = usePreferencesStore((s) => s.retryLoad)
+
+  const testingProviders = useProviderStore((s) => s.testingProviders)
+  const testResults = useProviderStore((s) => s.testResults)
+  const providerModels = useProviderStore((s) => s.providerModels)
+  const modelFetchErrors = useProviderStore((s) => s.modelFetchErrors)
+  const updateApiKey = useProviderStore((s) => s.updateApiKey)
+  const toggleProvider = useProviderStore((s) => s.toggleProvider)
+  const updateBaseUrl = useProviderStore((s) => s.updateBaseUrl)
+  const testApiKey = useProviderStore((s) => s.testApiKey)
+  const clearTestResult = useProviderStore((s) => s.clearTestResult)
+
+  const oauthStatuses = useAuthStore((s) => s.oauthStatuses)
+  const authAccounts = useAuthStore((s) => s.authAccounts)
+  const startOAuth = useAuthStore((s) => s.startOAuth)
+  const submitAuthCode = useAuthStore((s) => s.submitAuthCode)
+  const disconnectAuth = useAuthStore((s) => s.disconnectAuth)
 
   return {
     settings,

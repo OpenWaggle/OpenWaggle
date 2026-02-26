@@ -27,6 +27,7 @@ vi.mock('../providers', () => ({
 
 import {
   createConversation,
+  deleteConversation,
   getConversation,
   listConversations,
   saveConversation,
@@ -38,6 +39,10 @@ async function writeConversationFile(id: string, content: unknown): Promise<void
   const dir = path.join(state.userDataDir, 'conversations')
   await fs.mkdir(dir, { recursive: true })
   await fs.writeFile(path.join(dir, `${id}.json`), JSON.stringify(content), 'utf-8')
+}
+
+function indexPath(): string {
+  return path.join(state.userDataDir, 'conversations', 'index.json')
 }
 
 describe('conversation store integration', () => {
@@ -157,5 +162,44 @@ describe('conversation store integration', () => {
 
     const reloaded = await getConversation(conversation.id)
     expect(reloaded?.projectPath).toBe('/tmp/project-d')
+  })
+
+  it('creates and uses conversation index for listing', async () => {
+    const created = await createConversation('/tmp/project-index')
+    const first = await listConversations()
+
+    expect(first.some((summary) => summary.id === created.id)).toBe(true)
+
+    // Corrupt the conversation file; listing should still work from index.
+    const convPath = path.join(state.userDataDir, 'conversations', `${created.id}.json`)
+    await fs.writeFile(convPath, '{broken-json}', 'utf-8')
+
+    const second = await listConversations()
+    expect(second.some((summary) => summary.id === created.id)).toBe(true)
+  })
+
+  it('rebuilds index when index file is corrupt', async () => {
+    const created = await createConversation('/tmp/project-rebuild')
+    await listConversations()
+
+    await fs.writeFile(indexPath(), '{not-valid-json}', 'utf-8')
+
+    const summaries = await listConversations()
+    expect(summaries.some((summary) => summary.id === created.id)).toBe(true)
+
+    const repairedRaw = await fs.readFile(indexPath(), 'utf-8')
+    const repaired: unknown = JSON.parse(repairedRaw)
+    expect(typeof repaired).toBe('object')
+    expect(repaired).toMatchObject({ version: 1 })
+  })
+
+  it('updates index on delete', async () => {
+    const created = await createConversation('/tmp/project-delete')
+    await listConversations()
+
+    await deleteConversation(created.id)
+
+    const summaries = await listConversations()
+    expect(summaries.some((summary) => summary.id === created.id)).toBe(false)
   })
 })

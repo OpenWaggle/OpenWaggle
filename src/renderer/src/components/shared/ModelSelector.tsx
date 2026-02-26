@@ -14,7 +14,8 @@ import {
   OpenRouterIcon,
 } from '@/components/icons/provider-icons'
 import { cn } from '@/lib/cn'
-import { useSettingsStore } from '@/stores/settings-store'
+import { usePreferencesStore } from '@/stores/preferences-store'
+import { useProviderStore } from '@/stores/provider-store'
 
 type RailTab = 'favorites' | Provider
 
@@ -88,8 +89,8 @@ export function ModelSelector({
   const dropdownRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
-  const toggleFavoriteModel = useSettingsStore((s) => s.toggleFavoriteModel)
-  const toggleProvider = useSettingsStore((s) => s.toggleProvider)
+  const toggleFavoriteModel = usePreferencesStore((s) => s.toggleFavoriteModel)
+  const toggleProvider = useProviderStore((s) => s.toggleProvider)
 
   const indexedModels: IndexedModel[] = []
   const seenModelKeys = new Set<string>()

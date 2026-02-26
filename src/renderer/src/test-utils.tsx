@@ -3,10 +3,12 @@ import type { Settings } from '@shared/types/settings'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { type RenderOptions, type RenderResult, render } from '@testing-library/react'
 import type { ReactElement } from 'react'
+import { useAuthStore } from '@/stores/auth-store'
 import { useChatStore } from '@/stores/chat-store'
 import { useComposerStore } from '@/stores/composer-store'
 import { useGitStore } from '@/stores/git-store'
-import { useSettingsStore } from '@/stores/settings-store'
+import { usePreferencesStore } from '@/stores/preferences-store'
+import { resetRefreshTokens, useProviderStore } from '@/stores/provider-store'
 
 // ── Mock IPC API ──
 
@@ -48,11 +50,14 @@ export function resetStores(overrides?: {
   useComposerStore.setState(useComposerStore.getInitialState())
   useChatStore.setState(useChatStore.getInitialState())
 
-  useSettingsStore.setState({
-    ...useSettingsStore.getInitialState(),
+  usePreferencesStore.setState({
+    ...usePreferencesStore.getInitialState(),
     settings: { ...DEFAULT_SETTINGS, ...overrides?.settings },
     isLoaded: true,
   })
+  useProviderStore.setState(useProviderStore.getInitialState())
+  resetRefreshTokens()
+  useAuthStore.setState(useAuthStore.getInitialState())
 
   useGitStore.setState({
     ...useGitStore.getInitialState(),

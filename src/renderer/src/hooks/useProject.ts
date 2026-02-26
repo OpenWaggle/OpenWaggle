@@ -1,12 +1,12 @@
 import { api } from '@/lib/ipc'
-import { useSettingsStore } from '@/stores/settings-store'
+import { usePreferencesStore } from '@/stores/preferences-store'
 
 /**
  * Hook for project folder selection.
  */
 export function useProject() {
-  const projectPath = useSettingsStore((s) => s.settings.projectPath)
-  const setProjectPath = useSettingsStore((s) => s.setProjectPath)
+  const projectPath = usePreferencesStore((s) => s.settings.projectPath)
+  const setProjectPath = usePreferencesStore((s) => s.setProjectPath)
 
   async function selectFolder() {
     const path = await api.selectProjectFolder()

@@ -11,6 +11,7 @@ import type { OrchestrationRunRecord, OrchestrationTaskRecord } from '@shared/ty
 import { parseJsonSafe } from '@shared/utils/parse-json'
 import { app } from 'electron'
 import { z } from 'zod'
+import { atomicWriteJSON } from '../utils/atomic-write'
 import type { OrchestrationRunRecord as CoreRunRecord, RunStore } from './engine'
 
 interface PersistedRunIndex {
@@ -142,7 +143,7 @@ async function readIndex(): Promise<PersistedRunIndex> {
 }
 
 async function writeIndex(next: PersistedRunIndex): Promise<void> {
-  await fsPromises.writeFile(indexPath(), JSON.stringify(next, null, 2), 'utf-8')
+  await atomicWriteJSON(indexPath(), next)
 }
 
 async function upsertIndex(runId: string): Promise<void> {
@@ -210,7 +211,7 @@ export class OrchestrationRunRepository {
   }
 
   async save(run: OrchestrationRunRecord): Promise<void> {
-    await fsPromises.writeFile(runPath(String(run.runId)), JSON.stringify(run, null, 2), 'utf-8')
+    await atomicWriteJSON(runPath(String(run.runId)), run)
     await upsertIndex(String(run.runId))
   }
 
