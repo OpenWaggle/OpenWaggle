@@ -20,6 +20,16 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Task: Model Picker Duplicate Key Fix (2026-02-26)
+- Provider model payloads can contain duplicate entries (especially local Ollama models); de-duplicate by `provider:modelId` before rendering so React keys stay stable and duplicated rows never appear.
+
+### Task: Model Picker Provider Filter Leak Fix (2026-02-26)
+- For grouped model UIs, provider tab filtering should be keyed from the containing provider group metadata, not duplicated per-model provider fields; this prevents cross-tab leaks when any individual model record is mis-tagged.
+
+### Task: Universal Model Picker + Favorites (2026-02-26)
+- Preference arrays persisted in settings (for example `favoriteModels`) should be sanitized on both read and write paths (trim + dedupe + cap) to prevent unbounded growth and stale duplicates from older persisted data.
+- If model selection UI exposes providers beyond currently enabled toggles, enabling the chosen provider at selection time (when credentials already exist) prevents avoidable runtime failures (`<provider> is disabled in settings`).
+
 ### Task: Sandbox Command Execution Hardening (2026-02-26)
 - Returning structured `kind: 'json'` tool results for blocked command policies (instead of throwing) keeps the agent loop alive and lets the model immediately pivot to safer follow-up commands.
 - Redacting sensitive output before log-preview truncation is safer than truncating first, because secrets can otherwise leak inside the first kilobyte.

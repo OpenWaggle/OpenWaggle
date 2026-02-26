@@ -91,6 +91,7 @@ Scoring: high impact + low/medium effort first.
 - Composer slash references (`/skill-id`) for explicit skill activation while typing.
 - Dynamic mid-run skill loading via `loadSkill` tool (metadata-first catalog + run-scoped full instruction loading).
 - Nested `AGENTS.md` resolution with path-scoped precedence (root baseline + inferred package scopes) and on-demand `loadAgents` runtime loading.
+- Universal model picker redesign with provider-logo tabs, model search, and persistent favorites in composer/settings selectors.
 
 ## Success Metrics
 
@@ -345,6 +346,25 @@ Status legend: `implemented`, `deferred`, `future`
 - Target behavior:
   - Manual git refresh updates status, branch list, and diff panel key.
   - Branch operations emit visible success/error feedback and trigger post-op refresh.
+
+### HC-UI-016 Universal model picker (multi-provider + favorites)
+
+- Status: `implemented`
+- Location:
+  - `src/renderer/src/components/shared/ModelSelector.tsx`
+  - `src/renderer/src/stores/settings-store.ts`
+  - `src/main/store/settings.ts`
+  - `src/main/ipc/settings-handler.ts`
+- Target behavior:
+  - Present models in a searchable picker with provider logo rail tabs.
+  - Support a favorites tab and row-level star toggle to favorite/unfavorite instantly.
+  - Persist favorites in settings (`favoriteModels`) and hydrate across app restarts.
+  - Show all provider groups in the picker while preventing selection when required API keys are missing.
+  - Auto-enable a provider on successful model selection when credentials are already configured.
+- Acceptance criteria:
+  - Users can select models from all providers without opening a separate settings screen.
+  - Clicking the star toggles favorite state immediately and persists it.
+  - Picker supports keyboard navigation and retains accessible `listbox/option` semantics.
 
 ## Open Product Questions
 

@@ -43,6 +43,7 @@ export function useSettings() {
   const toggleProvider = useSettingsStore((s) => s.toggleProvider)
   const updateBaseUrl = useSettingsStore((s) => s.updateBaseUrl)
   const setDefaultModel = useSettingsStore((s) => s.setDefaultModel)
+  const toggleFavoriteModel = useSettingsStore((s) => s.toggleFavoriteModel)
   const setProjectPath = useSettingsStore((s) => s.setProjectPath)
   const setExecutionMode = useSettingsStore((s) => s.setExecutionMode)
   const setQualityPreset = useSettingsStore((s) => s.setQualityPreset)
@@ -68,6 +69,7 @@ export function useSettings() {
     toggleProvider,
     updateBaseUrl,
     setDefaultModel,
+    toggleFavoriteModel,
     setProjectPath,
     setExecutionMode,
     setQualityPreset,

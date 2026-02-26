@@ -154,6 +154,23 @@ describe('settings store', () => {
     expect(settings.qualityPreset).toBe('medium')
   })
 
+  it('sanitizes and limits favorite models from persisted settings', async () => {
+    mockState.storeData.favoriteModels = [
+      'gpt-4.1-mini',
+      'gpt-4.1-mini',
+      ' claude-sonnet-4-5 ',
+      '',
+      ...Array.from({ length: 110 }, (_value, index) => `openrouter/model-${String(index)}`),
+    ]
+
+    const { getSettings } = await loadSettingsModule()
+    const settings = getSettings()
+
+    expect(settings.favoriteModels[0]).toBe('gpt-4.1-mini')
+    expect(settings.favoriteModels[1]).toBe('claude-sonnet-4-5')
+    expect(settings.favoriteModels).toHaveLength(100)
+  })
+
   it('sanitizes skill toggles by project', async () => {
     mockState.storeData.skillTogglesByProject = {
       ' /tmp/repo ': {
@@ -231,6 +248,35 @@ describe('settings store', () => {
     updateSettings({ recentProjects: ['/tmp/a', '/tmp/b'] })
     const settings = getSettings()
     expect(settings.recentProjects).toEqual(['/tmp/a', '/tmp/b'])
+  })
+
+  it('roundtrips favoriteModels through updateSettings', async () => {
+    const { getSettings, updateSettings } = await loadSettingsModule()
+    updateSettings({
+      favoriteModels: ['gpt-4.1-mini', 'gpt-4.1-mini', ' claude-sonnet-4-5 ', ''],
+    })
+    const settings = getSettings()
+    expect(settings.favoriteModels).toEqual(['gpt-4.1-mini', 'claude-sonnet-4-5'])
+  })
+
+  it('preserves provider authMethod when provider updates omit it', async () => {
+    mockState.storeData.providers = {
+      openai: { apiKey: 'sk-existing', enabled: true, authMethod: 'subscription' },
+    }
+
+    const { getSettings, updateSettings } = await loadSettingsModule()
+
+    updateSettings({
+      providers: {
+        openai: {
+          apiKey: 'sk-next',
+          enabled: true,
+        },
+      },
+    })
+
+    const settings = getSettings()
+    expect(settings.providers.openai?.authMethod).toBe('subscription')
   })
 
   it('roundtrips skillTogglesByProject through updateSettings', async () => {

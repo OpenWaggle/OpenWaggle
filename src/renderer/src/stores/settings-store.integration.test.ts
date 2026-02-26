@@ -52,6 +52,7 @@ describe('useSettingsStore integration', () => {
         displayName: 'OpenAI',
         requiresApiKey: true,
         supportsBaseUrl: false,
+        supportsSubscription: true,
         models: [{ id: 'gpt-4.1-mini', name: 'GPT 4.1 Mini', provider: 'openai' }],
       },
     ])
@@ -77,6 +78,105 @@ describe('useSettingsStore integration', () => {
     )
     expect(apiMock.updateSettings).toHaveBeenCalledWith({ defaultModel: 'gpt-4.1-mini' })
     expect(useSettingsStore.getState().settings.defaultModel).toBe('gpt-4.1-mini')
+  })
+
+  it('preserves provider authMethod when toggling provider enabled state', async () => {
+    useSettingsStore.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        providers: {
+          ...DEFAULT_SETTINGS.providers,
+          openai: {
+            apiKey: 'sk-openai',
+            enabled: true,
+            authMethod: 'subscription',
+          },
+        },
+      },
+    })
+
+    await useSettingsStore.getState().toggleProvider('openai', false)
+
+    expect(apiMock.updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providers: expect.objectContaining({
+          openai: expect.objectContaining({
+            enabled: false,
+            authMethod: 'subscription',
+          }),
+        }),
+      }),
+    )
+    expect(useSettingsStore.getState().settings.providers.openai?.authMethod).toBe('subscription')
+  })
+
+  it('preserves provider authMethod when updating base URL', async () => {
+    useSettingsStore.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        providers: {
+          ...DEFAULT_SETTINGS.providers,
+          ollama: {
+            apiKey: '',
+            enabled: true,
+            baseUrl: 'http://localhost:11434',
+            authMethod: 'api-key',
+          },
+        },
+      },
+    })
+
+    await useSettingsStore.getState().updateBaseUrl('ollama', 'http://localhost:11435')
+
+    expect(apiMock.updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providers: expect.objectContaining({
+          ollama: expect.objectContaining({
+            baseUrl: 'http://localhost:11435',
+            authMethod: 'api-key',
+          }),
+        }),
+      }),
+    )
+    expect(useSettingsStore.getState().settings.providers.ollama?.authMethod).toBe('api-key')
+  })
+
+  it('auto-enables provider when selecting a model from a disabled configured provider', async () => {
+    useSettingsStore.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        providers: {
+          ...DEFAULT_SETTINGS.providers,
+          gemini: {
+            apiKey: 'gemini-key',
+            enabled: false,
+          },
+        },
+      },
+      providerModels: [
+        {
+          provider: 'gemini',
+          displayName: 'Gemini',
+          requiresApiKey: true,
+          supportsBaseUrl: false,
+          supportsSubscription: false,
+          models: [{ id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'gemini' }],
+        },
+      ],
+    })
+
+    await useSettingsStore.getState().setDefaultModel('gemini-2.5-flash')
+
+    expect(apiMock.updateSettings).toHaveBeenCalledWith({
+      defaultModel: 'gemini-2.5-flash',
+      providers: expect.objectContaining({
+        gemini: expect.objectContaining({
+          apiKey: 'gemini-key',
+          enabled: true,
+        }),
+      }),
+    })
+    expect(useSettingsStore.getState().settings.providers.gemini?.enabled).toBe(true)
   })
 
   it('persists execution mode and quality preset updates', async () => {
@@ -159,6 +259,24 @@ describe('useSettingsStore integration', () => {
       '/tmp/repo-2',
     ])
     expect(recentProjects).toHaveLength(10)
+  })
+
+  it('toggles favorite models and persists deduped order', async () => {
+    await useSettingsStore.getState().toggleFavoriteModel('gpt-4.1-mini')
+    await useSettingsStore.getState().toggleFavoriteModel('claude-sonnet-4-5')
+    await useSettingsStore.getState().toggleFavoriteModel('gpt-4.1-mini')
+
+    expect(apiMock.updateSettings).toHaveBeenNthCalledWith(1, {
+      favoriteModels: ['gpt-4.1-mini'],
+    })
+    expect(apiMock.updateSettings).toHaveBeenNthCalledWith(2, {
+      favoriteModels: ['claude-sonnet-4-5', 'gpt-4.1-mini'],
+    })
+    expect(apiMock.updateSettings).toHaveBeenNthCalledWith(3, {
+      favoriteModels: ['claude-sonnet-4-5'],
+    })
+
+    expect(useSettingsStore.getState().settings.favoriteModels).toEqual(['claude-sonnet-4-5'])
   })
 
   it('requires explicit risk confirmation before Anthropic subscription sign-in', async () => {

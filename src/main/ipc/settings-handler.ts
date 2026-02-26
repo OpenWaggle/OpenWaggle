@@ -1,3 +1,4 @@
+import { AUTH_METHODS } from '@shared/types/auth'
 import {
   EXECUTION_MODES,
   ORCHESTRATION_MODES,
@@ -96,10 +97,12 @@ const settingsUpdateSchema = z.object({
           z.string().url().optional(),
         ),
         enabled: z.boolean(),
+        authMethod: z.enum(AUTH_METHODS).optional(),
       }),
     )
     .optional(),
   defaultModel: z.string().optional(),
+  favoriteModels: z.array(z.string()).optional(),
   projectPath: z.string().nullable().optional(),
   executionMode: z.enum(EXECUTION_MODES).optional(),
   orchestrationMode: z.enum(ORCHESTRATION_MODES).optional(),
