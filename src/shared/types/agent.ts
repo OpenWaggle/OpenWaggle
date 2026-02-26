@@ -50,12 +50,22 @@ export interface ThinkingPart {
 
 export type MessagePart = TextPart | AttachmentPart | ToolCallPart | ToolResultPart | ThinkingPart
 
-export interface PreparedAttachment extends AttachmentRecord {
+export interface AttachmentSource {
   readonly source: {
     readonly type: 'data'
     readonly value: string
     readonly mimeType: string
   } | null
+}
+
+/** Renderer-safe attachment shape returned by `attachments:prepare` (no binary payload). */
+export interface PreparedAttachment extends AttachmentRecord {}
+
+/** Main-process runtime attachment shape with hydrated binary source. */
+export interface HydratedAttachment extends AttachmentRecord, AttachmentSource {}
+
+export interface HydratedAgentSendPayload extends Omit<AgentSendPayload, 'attachments'> {
+  readonly attachments: readonly HydratedAttachment[]
 }
 
 export interface AgentSendPayload {

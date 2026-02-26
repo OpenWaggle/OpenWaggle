@@ -14,6 +14,7 @@ import {
   emitMultiAgentTurnEvent,
   emitStreamChunk,
 } from '../utils/stream-bridge'
+import { hydrateAttachmentSources } from './attachments-handler'
 import { typedHandle, typedOn } from './typed-ipc'
 
 const logger = createLogger('multi-agent-handler')
@@ -87,6 +88,11 @@ export function registerMultiAgentHandlers(): void {
       }
 
       try {
+        const hydratedPayload = {
+          ...payload,
+          attachments: await hydrateAttachmentSources(payload.attachments),
+        }
+
         // Emit a single RUN_STARTED envelope for the entire multi-agent run.
         // Individual per-turn RUN_STARTED/RUN_FINISHED are filtered below so
         // the TanStack adapter treats the whole collaboration as one run.
@@ -104,7 +110,7 @@ export function registerMultiAgentHandlers(): void {
         const result = await runMultiAgentSequential({
           conversationId,
           conversation,
-          payload,
+          payload: hydratedPayload,
           config,
           settings,
           signal: abortController.signal,

@@ -63,7 +63,15 @@ function buildPersistedUserParts(payload: AgentSendPayload): MessagePart[] {
     parts.push({ type: 'text', text: payload.text.trim() })
   }
   for (const attachment of payload.attachments) {
-    const { source: _source, ...persisted } = attachment
+    const persisted = {
+      id: attachment.id,
+      kind: attachment.kind,
+      name: attachment.name,
+      path: attachment.path,
+      mimeType: attachment.mimeType,
+      sizeBytes: attachment.sizeBytes,
+      extractedText: attachment.extractedText,
+    }
     parts.push({ type: 'attachment', attachment: persisted })
   }
   return parts.length > 0 ? parts : [{ type: 'text', text: '' }]

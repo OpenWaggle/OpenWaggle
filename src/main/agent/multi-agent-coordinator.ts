@@ -1,4 +1,4 @@
-import type { AgentSendPayload, Message } from '@shared/types/agent'
+import type { HydratedAgentSendPayload, Message } from '@shared/types/agent'
 import { getMessageText, isToolCallPart } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
@@ -21,7 +21,7 @@ const logger = createLogger('multi-agent')
 export interface MultiAgentRunParams {
   readonly conversationId: ConversationId
   readonly conversation: Conversation
-  readonly payload: AgentSendPayload
+  readonly payload: HydratedAgentSendPayload
   readonly config: MultiAgentConfig
   readonly settings: Settings
   readonly signal: AbortSignal
@@ -122,7 +122,7 @@ export async function runMultiAgentSequential(
       agents,
       turnNumber,
     )
-    const augmentedPayload: AgentSendPayload = {
+    const augmentedPayload: HydratedAgentSendPayload = {
       ...payload,
       text: `${collaborationContext}\n\n---\n\nUser request:\n${payload.text}`,
       attachments: turnNumber === 0 ? payload.attachments : [],
@@ -373,7 +373,7 @@ function buildCollaborationSystemPrompt(
 interface SynthesisParams {
   readonly conversationId: ConversationId
   readonly workingConversation: Conversation
-  readonly payload: AgentSendPayload
+  readonly payload: HydratedAgentSendPayload
   readonly agents: MultiAgentConfig['agents']
   readonly settings: Settings
   readonly signal: AbortSignal
@@ -421,7 +421,7 @@ async function runSynthesisStep(params: SynthesisParams): Promise<void> {
 
   const synthesisPrompt = buildSynthesisPrompt(payload.text, successfulAssistantMsgs, agents)
 
-  const synthesisPayload: AgentSendPayload = {
+  const synthesisPayload: HydratedAgentSendPayload = {
     ...payload,
     text: synthesisPrompt,
     attachments: [],

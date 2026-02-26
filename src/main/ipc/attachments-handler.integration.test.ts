@@ -63,7 +63,7 @@ vi.mock('jszip', () => ({
   },
 }))
 
-import { registerAttachmentHandlers } from './attachments-handler'
+import { hydrateAttachmentSources, registerAttachmentHandlers } from './attachments-handler'
 
 function registeredHandler(name: string): ((...args: unknown[]) => Promise<unknown>) | undefined {
   const call = safeHandleMock.mock.calls.find((c: unknown[]) => c[0] === name)
@@ -142,15 +142,14 @@ describe('registerAttachmentHandlers', () => {
     const result = (await handler?.({}, '/tmp/repo', ['/tmp/repo/notes.txt'])) as Array<{
       kind: string
       extractedText: string
-      source: unknown
     }>
 
     expect(result).toHaveLength(1)
     expect(result[0]).toMatchObject({
       kind: 'text',
       extractedText: 'Hello from notes',
-      source: null,
     })
+    expect(result[0]).not.toHaveProperty('source')
     expect(showMessageBoxMock).not.toHaveBeenCalled()
   })
 
@@ -163,18 +162,14 @@ describe('registerAttachmentHandlers', () => {
     const result = (await handler?.({}, '/tmp/repo', ['/tmp/repo/spec.pdf'])) as Array<{
       kind: string
       extractedText: string
-      source: { type: string; mimeType: string } | null
     }>
 
     expect(unpdfExtractTextMock).toHaveBeenCalledOnce()
     expect(result[0]).toMatchObject({
       kind: 'pdf',
       extractedText: 'Extracted PDF text',
-      source: {
-        type: 'data',
-        mimeType: 'application/pdf',
-      },
     })
+    expect(result[0]).not.toHaveProperty('source')
   })
 
   it('prepares image attachments with OCR fallback text', async () => {
@@ -186,18 +181,14 @@ describe('registerAttachmentHandlers', () => {
     const result = (await handler?.({}, '/tmp/repo', ['/tmp/repo/screenshot.png'])) as Array<{
       kind: string
       extractedText: string
-      source: { type: string; mimeType: string } | null
     }>
 
     expect(ocrRecognizeMock).toHaveBeenCalledOnce()
     expect(result[0]).toMatchObject({
       kind: 'image',
       extractedText: 'OCR extracted text',
-      source: {
-        type: 'data',
-        mimeType: 'image/png',
-      },
     })
+    expect(result[0]).not.toHaveProperty('source')
   })
 
   it('extracts text from DOCX attachments', async () => {
@@ -209,15 +200,14 @@ describe('registerAttachmentHandlers', () => {
     const result = (await handler?.({}, '/tmp/repo', ['/tmp/repo/spec.docx'])) as Array<{
       kind: string
       extractedText: string
-      source: unknown
     }>
 
     expect(mammothExtractMock).toHaveBeenCalledOnce()
     expect(result[0]).toMatchObject({
       kind: 'text',
       extractedText: 'Extracted DOCX text',
-      source: null,
     })
+    expect(result[0]).not.toHaveProperty('source')
   })
 
   it('extracts text from ODT attachments', async () => {
@@ -229,15 +219,14 @@ describe('registerAttachmentHandlers', () => {
     const result = (await handler?.({}, '/tmp/repo', ['/tmp/repo/spec.odt'])) as Array<{
       kind: string
       extractedText: string
-      source: unknown
     }>
 
     expect(jszipLoadAsyncMock).toHaveBeenCalledOnce()
     expect(result[0]).toMatchObject({
       kind: 'text',
       extractedText: 'Hello ODT',
-      source: null,
     })
+    expect(result[0]).not.toHaveProperty('source')
   })
 
   it('extracts text from RTF attachments', async () => {
@@ -249,14 +238,13 @@ describe('registerAttachmentHandlers', () => {
     const result = (await handler?.({}, '/tmp/repo', ['/tmp/repo/spec.rtf'])) as Array<{
       kind: string
       extractedText: string
-      source: unknown
     }>
 
     expect(result[0]).toMatchObject({
       kind: 'text',
       extractedText: 'Hello\nworld',
-      source: null,
     })
+    expect(result[0]).not.toHaveProperty('source')
   })
 
   it('rejects unsupported attachment types', async () => {
@@ -322,5 +310,53 @@ describe('registerAttachmentHandlers', () => {
       extractedText: 'outside',
     })
     expect(showMessageBoxMock).toHaveBeenCalledOnce()
+  })
+
+  it('hydrates binary source for image/pdf attachments in main process', async () => {
+    registerFile('/tmp/repo/diagram.png', Buffer.from('image-bytes'))
+    registerFile('/tmp/repo/spec.pdf', Buffer.from('pdf-bytes'))
+
+    const hydrated = await hydrateAttachmentSources([
+      {
+        id: 'a1',
+        kind: 'image',
+        name: 'diagram.png',
+        path: '/tmp/repo/diagram.png',
+        mimeType: 'image/png',
+        sizeBytes: 11,
+        extractedText: 'image',
+      },
+      {
+        id: 'a2',
+        kind: 'pdf',
+        name: 'spec.pdf',
+        path: '/tmp/repo/spec.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: 9,
+        extractedText: 'pdf',
+      },
+      {
+        id: 'a3',
+        kind: 'text',
+        name: 'notes.txt',
+        path: '/tmp/repo/notes.txt',
+        mimeType: 'text/plain',
+        sizeBytes: 4,
+        extractedText: 'notes',
+      },
+    ])
+
+    expect(hydrated[0]).toMatchObject({
+      kind: 'image',
+      source: { type: 'data', mimeType: 'image/png' },
+    })
+    expect(hydrated[1]).toMatchObject({
+      kind: 'pdf',
+      source: { type: 'data', mimeType: 'application/pdf' },
+    })
+    expect(hydrated[2]).toMatchObject({
+      kind: 'text',
+      source: null,
+    })
   })
 })

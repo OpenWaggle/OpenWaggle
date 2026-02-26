@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import type { PreparedAttachment } from '@shared/types/agent'
+import type { HydratedAttachment, PreparedAttachment } from '@shared/types/agent'
 import { choose } from '@shared/utils/decision'
 import { isPathInside } from '@shared/utils/paths'
 import { dialog } from 'electron'
@@ -205,15 +205,6 @@ async function prepareAttachment(filePath: string): Promise<PreparedAttachment> 
         .catchAll(() => Promise.resolve(normalizeText(buffer.toString('utf8')))),
     )
 
-  const source =
-    kind === 'image' || kind === 'pdf'
-      ? {
-          type: 'data' as const,
-          value: buffer.toString('base64'),
-          mimeType,
-        }
-      : null
-
   return {
     id: randomUUID(),
     kind,
@@ -222,8 +213,45 @@ async function prepareAttachment(filePath: string): Promise<PreparedAttachment> 
     mimeType,
     sizeBytes: stats.size,
     extractedText,
-    source,
   }
+}
+
+async function hydrateAttachmentSource(
+  attachment: PreparedAttachment,
+): Promise<HydratedAttachment> {
+  if (attachment.kind !== 'image' && attachment.kind !== 'pdf') {
+    return { ...attachment, source: null }
+  }
+
+  const stats = await fs.stat(attachment.path)
+  if (!stats.isFile()) {
+    throw new Error(`Attachment is no longer a file: ${attachment.name}`)
+  }
+  if (stats.size > MAX_ATTACHMENT_SIZE_BYTES) {
+    throw new Error(
+      `Attachment exceeds ${String(MAX_ATTACHMENT_SIZE_BYTES / (1024 * 1024))} MB: ${attachment.name}`,
+    )
+  }
+
+  const buffer = await fs.readFile(attachment.path)
+  return {
+    ...attachment,
+    source: {
+      type: 'data',
+      value: buffer.toString('base64'),
+      mimeType: attachment.mimeType,
+    },
+  }
+}
+
+export async function hydrateAttachmentSources(
+  attachments: readonly PreparedAttachment[],
+): Promise<HydratedAttachment[]> {
+  const hydrated: HydratedAttachment[] = []
+  for (const attachment of attachments) {
+    hydrated.push(await hydrateAttachmentSource(attachment))
+  }
+  return hydrated
 }
 
 export function registerAttachmentHandlers(): void {

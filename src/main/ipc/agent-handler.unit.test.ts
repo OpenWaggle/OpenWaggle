@@ -20,6 +20,7 @@ const {
   unregisterActiveOrchestrationRunMock,
   answerQuestionMock,
   cancelQuestionMock,
+  hydrateAttachmentSourcesMock,
 } = vi.hoisted(() => ({
   typedHandleMock: vi.fn(),
   typedOnMock: vi.fn(),
@@ -36,6 +37,7 @@ const {
   unregisterActiveOrchestrationRunMock: vi.fn(),
   answerQuestionMock: vi.fn(),
   cancelQuestionMock: vi.fn(),
+  hydrateAttachmentSourcesMock: vi.fn(async (attachments: unknown) => attachments),
 }))
 
 vi.mock('./typed-ipc', () => ({
@@ -78,6 +80,10 @@ vi.mock('../orchestration/active-runs', () => ({
 vi.mock('../tools/question-manager', () => ({
   answerQuestion: answerQuestionMock,
   cancelQuestion: cancelQuestionMock,
+}))
+
+vi.mock('./attachments-handler', () => ({
+  hydrateAttachmentSources: hydrateAttachmentSourcesMock,
 }))
 
 import { registerAgentHandlers } from './agent-handler'
@@ -129,6 +135,8 @@ describe('registerAgentHandlers', () => {
     unregisterActiveOrchestrationRunMock.mockReset()
     answerQuestionMock.mockReset()
     cancelQuestionMock.mockReset()
+    hydrateAttachmentSourcesMock.mockReset()
+    hydrateAttachmentSourcesMock.mockImplementation(async (attachments: unknown) => attachments)
 
     withConversationLockMock.mockImplementation(async (_id: unknown, fn: () => Promise<void>) =>
       fn(),

@@ -18,6 +18,7 @@ import { getConversation, saveConversation } from '../store/conversations'
 import { getSettings } from '../store/settings'
 import { answerQuestion, cancelQuestion } from '../tools/question-manager'
 import { emitOrchestrationEvent, emitStreamChunk } from '../utils/stream-bridge'
+import { hydrateAttachmentSources } from './attachments-handler'
 import { typedHandle, typedOn } from './typed-ipc'
 
 const logger = createLogger('agent-handler')
@@ -73,6 +74,11 @@ export function registerAgentHandlers(): void {
       }
 
       try {
+        const hydratedPayload = {
+          ...payload,
+          attachments: await hydrateAttachmentSources(payload.attachments),
+        }
+
         let newMessages: readonly Message[]
         if (settings.orchestrationMode !== 'classic') {
           const orchestrationRunId = randomUUID()
@@ -82,7 +88,7 @@ export function registerAgentHandlers(): void {
               runId: orchestrationRunId,
               conversationId,
               conversation,
-              payload,
+              payload: hydratedPayload,
               model,
               settings,
               emitChunk: (chunk) => emitStreamChunk(conversationId, chunk),
@@ -93,7 +99,7 @@ export function registerAgentHandlers(): void {
             if (orchestratedResult.status === 'fallback') {
               const classic = await runAgent({
                 conversation,
-                payload,
+                payload: hydratedPayload,
                 model,
                 settings,
                 onChunk: (chunk) => emitStreamChunk(conversationId, chunk),
@@ -109,7 +115,7 @@ export function registerAgentHandlers(): void {
         } else {
           const classic = await runAgent({
             conversation,
-            payload,
+            payload: hydratedPayload,
             model,
             settings,
             onChunk: (chunk) => emitStreamChunk(conversationId, chunk),

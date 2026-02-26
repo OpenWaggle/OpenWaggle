@@ -1,5 +1,10 @@
 import { randomUUID } from 'node:crypto'
-import type { AgentSendPayload, Message, MessagePart } from '@shared/types/agent'
+import type {
+  AgentSendPayload,
+  Message,
+  MessagePart,
+  PreparedAttachment,
+} from '@shared/types/agent'
 import { isSubscriptionProvider } from '@shared/types/auth'
 import { MessageId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
@@ -50,7 +55,15 @@ export function buildPersistedUserMessageParts(payload: AgentSendPayload): Messa
     parts.push({ type: 'text', text: payload.text.trim() })
   }
   for (const attachment of payload.attachments) {
-    const { source: _source, ...persisted } = attachment
+    const persisted: PreparedAttachment = {
+      id: attachment.id,
+      kind: attachment.kind,
+      name: attachment.name,
+      path: attachment.path,
+      mimeType: attachment.mimeType,
+      sizeBytes: attachment.sizeBytes,
+      extractedText: attachment.extractedText,
+    }
     parts.push({ type: 'attachment', attachment: persisted })
   }
   return parts.length > 0 ? parts : [{ type: 'text', text: '' }]

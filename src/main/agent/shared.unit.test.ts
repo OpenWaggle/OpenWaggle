@@ -1,4 +1,4 @@
-import type { AgentSendPayload } from '@shared/types/agent'
+import type { AgentSendPayload, HydratedAgentSendPayload } from '@shared/types/agent'
 import { SupportedModelId } from '@shared/types/brand'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -72,7 +72,7 @@ describe('shared agent helpers', () => {
 
     it('strips binary source from attachments', async () => {
       const { buildPersistedUserMessageParts } = await import('./shared')
-      const payload: AgentSendPayload = {
+      const payload: HydratedAgentSendPayload = {
         text: 'check this',
         qualityPreset: 'medium',
         attachments: [
