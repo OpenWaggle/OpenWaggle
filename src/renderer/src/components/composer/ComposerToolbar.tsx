@@ -5,7 +5,8 @@ import { Popover } from '@/components/shared/Popover'
 import { useProject } from '@/hooks/useProject'
 import { cn } from '@/lib/cn'
 import { useComposerStore } from '@/stores/composer-store'
-import { useSettingsStore } from '@/stores/settings-store'
+import { usePreferencesStore } from '@/stores/preferences-store'
+import { useProviderStore } from '@/stores/provider-store'
 
 const QUALITY_PRESET_LABEL: Record<QualityPreset, string> = {
   low: 'Low',
@@ -31,10 +32,10 @@ export function ComposerToolbar({
   fileInputRef,
 }: ComposerToolbarProps): React.JSX.Element {
   const { projectPath } = useProject()
-  const settings = useSettingsStore((s) => s.settings)
-  const providerModels = useSettingsStore((s) => s.providerModels)
-  const setDefaultModel = useSettingsStore((s) => s.setDefaultModel)
-  const setQualityPreset = useSettingsStore((s) => s.setQualityPreset)
+  const settings = usePreferencesStore((s) => s.settings)
+  const providerModels = useProviderStore((s) => s.providerModels)
+  const setDefaultModel = usePreferencesStore((s) => s.setDefaultModel)
+  const setQualityPreset = usePreferencesStore((s) => s.setQualityPreset)
 
   const qualityMenuOpen = useComposerStore((s) => s.qualityMenuOpen)
   const openMenu = useComposerStore((s) => s.openMenu)

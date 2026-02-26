@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useComposerStore } from '@/stores/composer-store'
 import { useGitStore } from '@/stores/git-store'
-import { useSettingsStore } from '@/stores/settings-store'
+import { usePreferencesStore } from '@/stores/preferences-store'
 import { BranchPicker } from '../BranchPicker'
 
 vi.mock('@/lib/ipc', () => ({
@@ -23,8 +23,8 @@ vi.mock('@/lib/ipc', () => ({
 describe('BranchPicker', () => {
   beforeEach(() => {
     useComposerStore.setState(useComposerStore.getInitialState())
-    useSettingsStore.setState({
-      ...useSettingsStore.getInitialState(),
+    usePreferencesStore.setState({
+      ...usePreferencesStore.getInitialState(),
       settings: { ...DEFAULT_SETTINGS, projectPath: '/test/project' },
       isLoaded: true,
     })
@@ -51,7 +51,7 @@ describe('BranchPicker', () => {
   })
 
   it('renders nothing when no project path', () => {
-    useSettingsStore.setState({
+    usePreferencesStore.setState({
       settings: { ...DEFAULT_SETTINGS, projectPath: null },
     })
     const { container } = render(<BranchPicker />)

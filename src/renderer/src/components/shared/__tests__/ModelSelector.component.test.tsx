@@ -2,7 +2,8 @@ import type { ProviderInfo } from '@shared/types/llm'
 import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useSettingsStore } from '@/stores/settings-store'
+import { usePreferencesStore } from '@/stores/preferences-store'
+import { useProviderStore } from '@/stores/provider-store'
 import { ModelSelector } from '../ModelSelector'
 
 const { apiMock } = vi.hoisted(() => ({
@@ -60,8 +61,8 @@ interface TestHarnessProps {
 }
 
 function TestHarness({ onChange }: TestHarnessProps): React.JSX.Element {
-  const settings = useSettingsStore((s) => s.settings)
-  const providerModels = useSettingsStore((s) => s.providerModels)
+  const settings = usePreferencesStore((s) => s.settings)
+  const providerModels = useProviderStore((s) => s.providerModels)
 
   return (
     <ModelSelector
@@ -86,10 +87,13 @@ function seedStore(overrides?: {
     },
   }
 
-  useSettingsStore.setState({
-    ...useSettingsStore.getInitialState(),
+  usePreferencesStore.setState({
+    ...usePreferencesStore.getInitialState(),
     isLoaded: true,
     settings: nextSettings,
+  })
+  useProviderStore.setState({
+    ...useProviderStore.getInitialState(),
     providerModels: overrides?.providerModels ?? PROVIDER_MODELS,
   })
 }
@@ -237,13 +241,13 @@ describe('ModelSelector', () => {
         favoriteModels: ['claude-opus-4-5'],
       })
     })
-    expect(useSettingsStore.getState().settings.favoriteModels).toEqual(['claude-opus-4-5'])
+    expect(usePreferencesStore.getState().settings.favoriteModels).toEqual(['claude-opus-4-5'])
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove Claude Opus 4.5 from favorites' }))
     await waitFor(() => {
       expect(apiMock.updateSettings).toHaveBeenCalledWith({ favoriteModels: [] })
     })
-    expect(useSettingsStore.getState().settings.favoriteModels).toEqual([])
+    expect(usePreferencesStore.getState().settings.favoriteModels).toEqual([])
   })
 
   it('blocks selection for models missing required API keys', () => {

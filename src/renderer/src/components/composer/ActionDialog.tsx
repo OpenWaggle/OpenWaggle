@@ -7,7 +7,7 @@ import { cn } from '@/lib/cn'
 import { runBranchMutation } from '@/lib/git-branch-mutation'
 import type { ComposerActionDialogKind } from '@/stores/composer-store'
 import { useComposerStore } from '@/stores/composer-store'
-import { useSettingsStore } from '@/stores/settings-store'
+import { usePreferencesStore } from '@/stores/preferences-store'
 
 interface ActionDialogConfig {
   title: string
@@ -78,7 +78,7 @@ export function ActionDialog({ onToast }: ActionDialogProps): React.JSX.Element 
 
   const { projectPath } = useProject()
   const { status: gitStatus, createBranch, renameBranch, deleteBranch, setUpstream } = useGit()
-  const setExecutionMode = useSettingsStore((s) => s.setExecutionMode)
+  const setExecutionMode = usePreferencesStore((s) => s.setExecutionMode)
 
   const inputRef = useRef<HTMLInputElement>(null)
   const gitBranch = gitStatus?.branch ?? null

@@ -12,6 +12,8 @@ const { apiMock } = vi.hoisted(() => ({
     startOAuth: vi.fn(),
     onOAuthStatus: vi.fn(),
     getAuthAccountInfo: vi.fn(),
+    disconnectAuth: vi.fn(),
+    submitAuthCode: vi.fn(),
   },
 }))
 
@@ -19,36 +21,126 @@ vi.mock('@/lib/ipc', () => ({
   api: apiMock,
 }))
 
-import { useSettingsStore } from './settings-store'
+import { useAuthStore } from './auth-store'
+import { usePreferencesStore } from './preferences-store'
+import { useProviderStore } from './provider-store'
 
-describe('useSettingsStore integration', () => {
+describe('preferences-store integration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    apiMock.onOAuthStatus.mockReturnValue(() => {})
-    apiMock.showConfirm.mockResolvedValue(true)
-    apiMock.getAuthAccountInfo.mockResolvedValue({
-      provider: 'anthropic',
-      connected: false,
-      label: 'Not connected',
-    })
     apiMock.getSettings.mockResolvedValue(DEFAULT_SETTINGS)
-    apiMock.fetchProviderModels.mockResolvedValue([])
-    useSettingsStore.setState({
+    usePreferencesStore.setState({
       settings: DEFAULT_SETTINGS,
       isLoaded: false,
-      testingProviders: {},
-      testResults: {},
+      loadError: null,
+    })
+    useProviderStore.setState({
       baseProviderModels: [],
       providerModels: [],
+      testingProviders: {},
+      testResults: {},
+      modelFetchErrors: {},
     })
   })
 
-  it('loads persisted settings and models', async () => {
+  it('loads persisted settings', async () => {
     const loadedSettings = {
       ...DEFAULT_SETTINGS,
       projectPath: '/tmp/repo',
     }
     apiMock.getSettings.mockResolvedValue(loadedSettings)
+
+    await usePreferencesStore.getState().loadSettings()
+
+    expect(usePreferencesStore.getState().isLoaded).toBe(true)
+    expect(usePreferencesStore.getState().settings.projectPath).toBe('/tmp/repo')
+  })
+
+  it('persists execution mode and quality preset updates', async () => {
+    await usePreferencesStore.getState().setExecutionMode('full-access')
+    await usePreferencesStore.getState().setQualityPreset('high')
+
+    expect(apiMock.updateSettings).toHaveBeenCalledWith({ executionMode: 'full-access' })
+    expect(apiMock.updateSettings).toHaveBeenCalledWith({ qualityPreset: 'high' })
+    expect(usePreferencesStore.getState().settings.executionMode).toBe('full-access')
+    expect(usePreferencesStore.getState().settings.qualityPreset).toBe('high')
+  })
+
+  it('tracks recent projects in newest-first order with dedupe and max size', async () => {
+    const entries = [
+      '/tmp/repo-1',
+      '/tmp/repo-2',
+      '/tmp/repo-3',
+      '/tmp/repo-4',
+      '/tmp/repo-5',
+      '/tmp/repo-6',
+      '/tmp/repo-7',
+      '/tmp/repo-8',
+      '/tmp/repo-9',
+      '/tmp/repo-10',
+      '/tmp/repo-11',
+    ]
+
+    for (const path of entries) {
+      await usePreferencesStore.getState().setProjectPath(path)
+    }
+    await usePreferencesStore.getState().setProjectPath('/tmp/repo-9')
+
+    const recentProjects = usePreferencesStore.getState().settings.recentProjects
+    expect(recentProjects).toEqual([
+      '/tmp/repo-9',
+      '/tmp/repo-11',
+      '/tmp/repo-10',
+      '/tmp/repo-8',
+      '/tmp/repo-7',
+      '/tmp/repo-6',
+      '/tmp/repo-5',
+      '/tmp/repo-4',
+      '/tmp/repo-3',
+      '/tmp/repo-2',
+    ])
+    expect(recentProjects).toHaveLength(10)
+  })
+
+  it('toggles favorite models and persists deduped order', async () => {
+    await usePreferencesStore.getState().toggleFavoriteModel('gpt-4.1-mini')
+    await usePreferencesStore.getState().toggleFavoriteModel('claude-sonnet-4-5')
+    await usePreferencesStore.getState().toggleFavoriteModel('gpt-4.1-mini')
+
+    expect(apiMock.updateSettings).toHaveBeenNthCalledWith(1, {
+      favoriteModels: ['gpt-4.1-mini'],
+    })
+    expect(apiMock.updateSettings).toHaveBeenNthCalledWith(2, {
+      favoriteModels: ['claude-sonnet-4-5', 'gpt-4.1-mini'],
+    })
+    expect(apiMock.updateSettings).toHaveBeenNthCalledWith(3, {
+      favoriteModels: ['claude-sonnet-4-5'],
+    })
+
+    expect(usePreferencesStore.getState().settings.favoriteModels).toEqual(['claude-sonnet-4-5'])
+  })
+})
+
+describe('provider-store integration', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    apiMock.getSettings.mockResolvedValue(DEFAULT_SETTINGS)
+    apiMock.fetchProviderModels.mockResolvedValue([])
+    usePreferencesStore.setState({
+      settings: DEFAULT_SETTINGS,
+      isLoaded: true,
+      loadError: null,
+    })
+    useProviderStore.setState({
+      baseProviderModels: [],
+      providerModels: [],
+      testingProviders: {},
+      testResults: {},
+      modelFetchErrors: {},
+    })
+  })
+
+  it('loads provider models', async () => {
     apiMock.getProviderModels.mockResolvedValue([
       {
         provider: 'openai',
@@ -61,12 +153,9 @@ describe('useSettingsStore integration', () => {
       },
     ])
 
-    await useSettingsStore.getState().loadSettings()
-    await useSettingsStore.getState().loadProviderModels()
+    await useProviderStore.getState().loadProviderModels()
 
-    expect(useSettingsStore.getState().isLoaded).toBe(true)
-    expect(useSettingsStore.getState().settings.projectPath).toBe('/tmp/repo')
-    expect(useSettingsStore.getState().providerModels).toHaveLength(1)
+    expect(useProviderStore.getState().providerModels).toHaveLength(1)
   })
 
   it('loads static models first and then replaces dynamic-capable providers on success', async () => {
@@ -101,11 +190,11 @@ describe('useSettingsStore integration', () => {
         }),
     )
 
-    const loadPromise = useSettingsStore.getState().loadProviderModels()
+    const loadPromise = useProviderStore.getState().loadProviderModels()
 
     await vi.waitFor(() => {
       expect(
-        useSettingsStore.getState().providerModels.find((g) => g.provider === 'ollama')?.models,
+        useProviderStore.getState().providerModels.find((g) => g.provider === 'ollama')?.models,
       ).toEqual([{ id: 'llama3.2:latest', name: 'Llama3.2:latest', provider: 'ollama' }])
     })
 
@@ -115,7 +204,7 @@ describe('useSettingsStore integration', () => {
     await loadPromise
 
     expect(
-      useSettingsStore.getState().providerModels.find((g) => g.provider === 'ollama')?.models,
+      useProviderStore.getState().providerModels.find((g) => g.provider === 'ollama')?.models,
     ).toEqual([{ id: 'qwen2.5-coder:latest', name: 'Qwen2.5 Coder:latest', provider: 'ollama' }])
     expect(apiMock.fetchProviderModels).toHaveBeenCalledWith(
       'ollama',
@@ -138,9 +227,9 @@ describe('useSettingsStore integration', () => {
     ])
     apiMock.fetchProviderModels.mockResolvedValueOnce([])
 
-    await useSettingsStore.getState().loadProviderModels()
+    await useProviderStore.getState().loadProviderModels()
 
-    expect(useSettingsStore.getState().providerModels[0]?.models).toEqual([
+    expect(useProviderStore.getState().providerModels[0]?.models).toEqual([
       { id: 'llama3.2:latest', name: 'Llama3.2:latest', provider: 'ollama' },
     ])
   })
@@ -159,9 +248,9 @@ describe('useSettingsStore integration', () => {
     ])
     apiMock.fetchProviderModels.mockRejectedValueOnce(new Error('offline'))
 
-    await useSettingsStore.getState().loadProviderModels()
+    await useProviderStore.getState().loadProviderModels()
 
-    expect(useSettingsStore.getState().providerModels[0]?.models).toEqual([
+    expect(useProviderStore.getState().providerModels[0]?.models).toEqual([
       { id: 'llama3.2:latest', name: 'Llama3.2:latest', provider: 'ollama' },
     ])
   })
@@ -183,16 +272,15 @@ describe('useSettingsStore integration', () => {
       { id: 'llama3.2:latest', name: 'Llama3.2:latest', provider: 'ollama' },
     ])
 
-    await useSettingsStore.getState().loadProviderModels()
+    await useProviderStore.getState().loadProviderModels()
 
-    expect(useSettingsStore.getState().providerModels[0]?.models).toEqual([
+    expect(useProviderStore.getState().providerModels[0]?.models).toEqual([
       { id: 'llama3.2:latest', name: 'Llama3.2:latest', provider: 'ollama' },
     ])
   })
 
-  it('updates API key and default model through IPC', async () => {
-    await useSettingsStore.getState().updateApiKey('openai', 'sk-live')
-    await useSettingsStore.getState().setDefaultModel('gpt-4.1-mini')
+  it('updates API key via provider store and persists to preferences', async () => {
+    await useProviderStore.getState().updateApiKey('openai', 'sk-live')
 
     expect(apiMock.updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -201,12 +289,19 @@ describe('useSettingsStore integration', () => {
         }),
       }),
     )
+    // Settings are persisted on the preferences store
+    expect(usePreferencesStore.getState().settings.providers.openai?.apiKey).toBe('sk-live')
+  })
+
+  it('sets default model through preferences store', async () => {
+    await usePreferencesStore.getState().setDefaultModel('gpt-4.1-mini')
+
     expect(apiMock.updateSettings).toHaveBeenCalledWith({ defaultModel: 'gpt-4.1-mini' })
-    expect(useSettingsStore.getState().settings.defaultModel).toBe('gpt-4.1-mini')
+    expect(usePreferencesStore.getState().settings.defaultModel).toBe('gpt-4.1-mini')
   })
 
   it('preserves provider authMethod when toggling provider enabled state', async () => {
-    useSettingsStore.setState({
+    usePreferencesStore.setState({
       settings: {
         ...DEFAULT_SETTINGS,
         providers: {
@@ -220,7 +315,7 @@ describe('useSettingsStore integration', () => {
       },
     })
 
-    await useSettingsStore.getState().toggleProvider('openai', false)
+    await useProviderStore.getState().toggleProvider('openai', false)
 
     expect(apiMock.updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -232,11 +327,13 @@ describe('useSettingsStore integration', () => {
         }),
       }),
     )
-    expect(useSettingsStore.getState().settings.providers.openai?.authMethod).toBe('subscription')
+    expect(usePreferencesStore.getState().settings.providers.openai?.authMethod).toBe(
+      'subscription',
+    )
   })
 
   it('preserves provider authMethod when updating base URL', async () => {
-    useSettingsStore.setState({
+    usePreferencesStore.setState({
       settings: {
         ...DEFAULT_SETTINGS,
         providers: {
@@ -251,7 +348,7 @@ describe('useSettingsStore integration', () => {
       },
     })
 
-    await useSettingsStore.getState().updateBaseUrl('ollama', 'http://localhost:11435')
+    await useProviderStore.getState().updateBaseUrl('ollama', 'http://localhost:11435')
 
     expect(apiMock.updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -263,11 +360,11 @@ describe('useSettingsStore integration', () => {
         }),
       }),
     )
-    expect(useSettingsStore.getState().settings.providers.ollama?.authMethod).toBe('api-key')
+    expect(usePreferencesStore.getState().settings.providers.ollama?.authMethod).toBe('api-key')
   })
 
   it('triggers targeted model refresh after updating base URL', async () => {
-    useSettingsStore.setState({
+    usePreferencesStore.setState({
       settings: {
         ...DEFAULT_SETTINGS,
         providers: {
@@ -279,6 +376,8 @@ describe('useSettingsStore integration', () => {
           },
         },
       },
+    })
+    useProviderStore.setState({
       baseProviderModels: [
         {
           provider: 'ollama',
@@ -303,7 +402,7 @@ describe('useSettingsStore integration', () => {
       ],
     })
 
-    await useSettingsStore.getState().updateBaseUrl('ollama', 'http://localhost:11435')
+    await useProviderStore.getState().updateBaseUrl('ollama', 'http://localhost:11435')
 
     await vi.waitFor(() => {
       expect(apiMock.fetchProviderModels).toHaveBeenCalledWith(
@@ -315,7 +414,7 @@ describe('useSettingsStore integration', () => {
   })
 
   it('triggers targeted model refresh after API key updates', async () => {
-    useSettingsStore.setState({
+    usePreferencesStore.setState({
       settings: {
         ...DEFAULT_SETTINGS,
         providers: {
@@ -326,6 +425,8 @@ describe('useSettingsStore integration', () => {
           },
         },
       },
+    })
+    useProviderStore.setState({
       baseProviderModels: [
         {
           provider: 'openai',
@@ -350,7 +451,7 @@ describe('useSettingsStore integration', () => {
       ],
     })
 
-    await useSettingsStore.getState().updateApiKey('openai', 'sk-live')
+    await useProviderStore.getState().updateApiKey('openai', 'sk-live')
 
     await vi.waitFor(() => {
       expect(apiMock.fetchProviderModels).toHaveBeenCalledWith('openai', undefined, 'sk-live')
@@ -358,7 +459,7 @@ describe('useSettingsStore integration', () => {
   })
 
   it('triggers targeted model refresh after provider toggle', async () => {
-    useSettingsStore.setState({
+    usePreferencesStore.setState({
       settings: {
         ...DEFAULT_SETTINGS,
         providers: {
@@ -370,6 +471,8 @@ describe('useSettingsStore integration', () => {
           },
         },
       },
+    })
+    useProviderStore.setState({
       baseProviderModels: [
         {
           provider: 'ollama',
@@ -394,7 +497,7 @@ describe('useSettingsStore integration', () => {
       ],
     })
 
-    await useSettingsStore.getState().toggleProvider('ollama', true)
+    await useProviderStore.getState().toggleProvider('ollama', true)
 
     await vi.waitFor(() => {
       expect(apiMock.fetchProviderModels).toHaveBeenCalledWith(
@@ -410,7 +513,7 @@ describe('useSettingsStore integration', () => {
       | ((value: { id: string; name: string; provider: 'openai' }[]) => void)
       | null = null
 
-    useSettingsStore.setState({
+    usePreferencesStore.setState({
       settings: {
         ...DEFAULT_SETTINGS,
         providers: {
@@ -426,6 +529,8 @@ describe('useSettingsStore integration', () => {
           },
         },
       },
+    })
+    useProviderStore.setState({
       baseProviderModels: [
         {
           provider: 'openai',
@@ -483,14 +588,14 @@ describe('useSettingsStore integration', () => {
       ])
     })
 
-    const openAiRefresh = useSettingsStore.getState().refreshProviderModels('openai')
+    const openAiRefresh = useProviderStore.getState().refreshProviderModels('openai')
     await vi.waitFor(() => {
       expect(apiMock.fetchProviderModels).toHaveBeenCalledWith('openai', undefined, 'sk-openai')
     })
 
-    await useSettingsStore.getState().refreshProviderModels('ollama')
+    await useProviderStore.getState().refreshProviderModels('ollama')
     expect(
-      useSettingsStore.getState().providerModels.find((g) => g.provider === 'ollama')?.models,
+      useProviderStore.getState().providerModels.find((g) => g.provider === 'ollama')?.models,
     ).toEqual([
       {
         id: 'qwen2.5-coder:latest',
@@ -509,7 +614,7 @@ describe('useSettingsStore integration', () => {
     await openAiRefresh
 
     expect(
-      useSettingsStore.getState().providerModels.find((g) => g.provider === 'openai')?.models,
+      useProviderStore.getState().providerModels.find((g) => g.provider === 'openai')?.models,
     ).toEqual([
       {
         id: 'gpt-5-mini',
@@ -518,7 +623,7 @@ describe('useSettingsStore integration', () => {
       },
     ])
     expect(
-      useSettingsStore.getState().providerModels.find((g) => g.provider === 'ollama')?.models,
+      useProviderStore.getState().providerModels.find((g) => g.provider === 'ollama')?.models,
     ).toEqual([
       {
         id: 'qwen2.5-coder:latest',
@@ -529,7 +634,7 @@ describe('useSettingsStore integration', () => {
   })
 
   it('auto-enables provider when selecting a model from a disabled configured provider', async () => {
-    useSettingsStore.setState({
+    usePreferencesStore.setState({
       settings: {
         ...DEFAULT_SETTINGS,
         providers: {
@@ -540,6 +645,8 @@ describe('useSettingsStore integration', () => {
           },
         },
       },
+    })
+    useProviderStore.setState({
       providerModels: [
         {
           provider: 'gemini',
@@ -553,7 +660,7 @@ describe('useSettingsStore integration', () => {
       ],
     })
 
-    await useSettingsStore.getState().setDefaultModel('gemini-2.5-flash')
+    await usePreferencesStore.getState().setDefaultModel('gemini-2.5-flash')
 
     expect(apiMock.updateSettings).toHaveBeenCalledWith({
       defaultModel: 'gemini-2.5-flash',
@@ -564,21 +671,11 @@ describe('useSettingsStore integration', () => {
         }),
       }),
     })
-    expect(useSettingsStore.getState().settings.providers.gemini?.enabled).toBe(true)
-  })
-
-  it('persists execution mode and quality preset updates', async () => {
-    await useSettingsStore.getState().setExecutionMode('full-access')
-    await useSettingsStore.getState().setQualityPreset('high')
-
-    expect(apiMock.updateSettings).toHaveBeenCalledWith({ executionMode: 'full-access' })
-    expect(apiMock.updateSettings).toHaveBeenCalledWith({ qualityPreset: 'high' })
-    expect(useSettingsStore.getState().settings.executionMode).toBe('full-access')
-    expect(useSettingsStore.getState().settings.qualityPreset).toBe('high')
+    expect(usePreferencesStore.getState().settings.providers.gemini?.enabled).toBe(true)
   })
 
   it('clears API key when given empty string', async () => {
-    await useSettingsStore.getState().updateApiKey('openai', '  ')
+    await useProviderStore.getState().updateApiKey('openai', '  ')
     expect(apiMock.updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         providers: expect.objectContaining({
@@ -590,87 +687,56 @@ describe('useSettingsStore integration', () => {
 
   it('tracks testApiKey success and failure state', async () => {
     apiMock.testApiKey.mockResolvedValueOnce({ success: true })
-    const success = await useSettingsStore.getState().testApiKey('openai', 'sk-test')
+    const success = await useProviderStore.getState().testApiKey('openai', 'sk-test')
     expect(success).toBe(true)
-    expect(useSettingsStore.getState().testResults.openai).toEqual({ success: true })
+    expect(useProviderStore.getState().testResults.openai).toEqual({ success: true })
 
     apiMock.testApiKey.mockRejectedValueOnce(new Error('network'))
-    const failure = await useSettingsStore.getState().testApiKey('openai', 'sk-test')
+    const failure = await useProviderStore.getState().testApiKey('openai', 'sk-test')
     expect(failure).toBe(false)
-    expect(useSettingsStore.getState().testResults.openai).toEqual({
+    expect(useProviderStore.getState().testResults.openai).toEqual({
       success: false,
       error: 'Unexpected error — check the console',
     })
-    expect(useSettingsStore.getState().testingProviders.openai).toBe(false)
+    expect(useProviderStore.getState().testingProviders.openai).toBe(false)
   })
 
   it('clears provider test results', () => {
-    useSettingsStore.setState({
+    useProviderStore.setState({
       testResults: { openai: { success: false, error: 'bad key' } },
     })
 
-    useSettingsStore.getState().clearTestResult('openai')
-    expect(useSettingsStore.getState().testResults.openai).toBeNull()
+    useProviderStore.getState().clearTestResult('openai')
+    expect(useProviderStore.getState().testResults.openai).toBeNull()
   })
+})
 
-  it('tracks recent projects in newest-first order with dedupe and max size', async () => {
-    const entries = [
-      '/tmp/repo-1',
-      '/tmp/repo-2',
-      '/tmp/repo-3',
-      '/tmp/repo-4',
-      '/tmp/repo-5',
-      '/tmp/repo-6',
-      '/tmp/repo-7',
-      '/tmp/repo-8',
-      '/tmp/repo-9',
-      '/tmp/repo-10',
-      '/tmp/repo-11',
-    ]
-
-    for (const path of entries) {
-      await useSettingsStore.getState().setProjectPath(path)
-    }
-    await useSettingsStore.getState().setProjectPath('/tmp/repo-9')
-
-    const recentProjects = useSettingsStore.getState().settings.recentProjects
-    expect(recentProjects).toEqual([
-      '/tmp/repo-9',
-      '/tmp/repo-11',
-      '/tmp/repo-10',
-      '/tmp/repo-8',
-      '/tmp/repo-7',
-      '/tmp/repo-6',
-      '/tmp/repo-5',
-      '/tmp/repo-4',
-      '/tmp/repo-3',
-      '/tmp/repo-2',
-    ])
-    expect(recentProjects).toHaveLength(10)
-  })
-
-  it('toggles favorite models and persists deduped order', async () => {
-    await useSettingsStore.getState().toggleFavoriteModel('gpt-4.1-mini')
-    await useSettingsStore.getState().toggleFavoriteModel('claude-sonnet-4-5')
-    await useSettingsStore.getState().toggleFavoriteModel('gpt-4.1-mini')
-
-    expect(apiMock.updateSettings).toHaveBeenNthCalledWith(1, {
-      favoriteModels: ['gpt-4.1-mini'],
+describe('auth-store integration', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    apiMock.onOAuthStatus.mockReturnValue(() => {})
+    apiMock.showConfirm.mockResolvedValue(true)
+    apiMock.getSettings.mockResolvedValue(DEFAULT_SETTINGS)
+    apiMock.getAuthAccountInfo.mockResolvedValue({
+      provider: 'anthropic',
+      connected: false,
+      label: 'Not connected',
     })
-    expect(apiMock.updateSettings).toHaveBeenNthCalledWith(2, {
-      favoriteModels: ['claude-sonnet-4-5', 'gpt-4.1-mini'],
+    usePreferencesStore.setState({
+      settings: DEFAULT_SETTINGS,
+      isLoaded: true,
+      loadError: null,
     })
-    expect(apiMock.updateSettings).toHaveBeenNthCalledWith(3, {
-      favoriteModels: ['claude-sonnet-4-5'],
+    useAuthStore.setState({
+      oauthStatuses: {},
+      authAccounts: {},
     })
-
-    expect(useSettingsStore.getState().settings.favoriteModels).toEqual(['claude-sonnet-4-5'])
   })
 
   it('requires explicit risk confirmation before Anthropic subscription sign-in', async () => {
     apiMock.showConfirm.mockResolvedValue(false)
 
-    await useSettingsStore.getState().startOAuth('anthropic')
+    await useAuthStore.getState().startOAuth('anthropic')
 
     expect(apiMock.showConfirm).toHaveBeenCalledTimes(1)
     expect(apiMock.startOAuth).not.toHaveBeenCalled()
@@ -680,7 +746,7 @@ describe('useSettingsStore integration', () => {
     apiMock.showConfirm.mockResolvedValue(true)
     apiMock.startOAuth.mockResolvedValue(undefined)
 
-    await useSettingsStore.getState().startOAuth('anthropic')
+    await useAuthStore.getState().startOAuth('anthropic')
 
     expect(apiMock.showConfirm).toHaveBeenCalledTimes(1)
     expect(apiMock.startOAuth).toHaveBeenCalledWith('anthropic')

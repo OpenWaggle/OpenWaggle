@@ -6,7 +6,7 @@ import { useProject } from '@/hooks/useProject'
 import { cn } from '@/lib/cn'
 import { api } from '@/lib/ipc'
 import { useComposerStore } from '@/stores/composer-store'
-import { useSettingsStore } from '@/stores/settings-store'
+import { usePreferencesStore } from '@/stores/preferences-store'
 import { useUIStore } from '@/stores/ui-store'
 import { ActionDialog } from './ActionDialog'
 import { ComposerStatusBar } from './ComposerStatusBar'
@@ -48,7 +48,7 @@ export function Composer({
   const openCommandPalette = useUIStore((s) => s.openCommandPalette)
 
   const { projectPath } = useProject()
-  const qualityPreset = useSettingsStore((s) => s.settings.qualityPreset)
+  const qualityPreset = usePreferencesStore((s) => s.settings.qualityPreset)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)

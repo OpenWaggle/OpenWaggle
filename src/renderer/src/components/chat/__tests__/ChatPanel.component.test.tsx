@@ -4,7 +4,8 @@ import type { UIMessage } from '@tanstack/ai-react'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useComposerStore } from '@/stores/composer-store'
-import { useSettingsStore } from '@/stores/settings-store'
+import { usePreferencesStore } from '@/stores/preferences-store'
+import { useProviderStore } from '@/stores/provider-store'
 import { ChatPanel } from '../ChatPanel'
 
 vi.mock('@/lib/ipc', () => ({
@@ -64,10 +65,13 @@ function renderPanel(overrides: Partial<Parameters<typeof ChatPanel>[0]> = {}) {
 describe('ChatPanel', () => {
   beforeEach(() => {
     useComposerStore.setState(useComposerStore.getInitialState())
-    useSettingsStore.setState({
-      ...useSettingsStore.getInitialState(),
+    usePreferencesStore.setState({
+      ...usePreferencesStore.getInitialState(),
       settings: DEFAULT_SETTINGS,
       isLoaded: true,
+    })
+    useProviderStore.setState({
+      ...useProviderStore.getInitialState(),
       providerModels: [],
     })
   })
