@@ -1,8 +1,6 @@
 <p align="center">
-  <img src="resources/icon.png" width="128" height="128" alt="OpenWaggle" />
+  <img src="build/branding/openwaggle-logo-lockup.svg" width="528" alt="OpenWaggle" />
 </p>
-
-<h1 align="center">OpenWaggle</h1>
 
 <p align="center">
   <strong>A desktop coding agent that pairs AI models to solve problems together.</strong>

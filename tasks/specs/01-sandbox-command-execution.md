@@ -1,6 +1,6 @@
 # 01 — Sandbox Command Execution
 
-**Status:** Planned
+**Status:** In Progress
 **Priority:** P1
 **Severity:** Critical
 **Depends on:** None
@@ -22,15 +22,16 @@
 
 ## Implementation
 
-- [ ] Add structured logging for every command execution: tool name, full command string, working directory, exit code, duration. Use the existing `createLogger('tools:runCommand')` pattern.
-- [ ] Add a blocklist of high-risk patterns that require a second confirmation or are outright denied:
+- [x] Add structured logging for every command execution: tool name, full command string, working directory, exit code, duration. Use the existing `createLogger('tools:runCommand')` pattern.
+- [x] Add a blocklist/policy of high-risk patterns that returns guided alternatives for the agent instead of dead-ending the loop:
   - `rm -rf /` or `rm -rf ~`
   - `curl ... | bash`, `wget ... | sh`
   - `chmod 777`
   - `> /dev/sda`, `dd if=`
   - `:(){ :|:& };:` (fork bomb)
-- [ ] Log the first 1KB of stdout/stderr per execution for post-hoc debugging (redact if it matches known secret patterns).
-- [ ] Consider adding a `--restricted` bash flag or using a restricted shell for sandbox mode, so shell builtins like `exec`, `enable`, and PATH modification are blocked.
+- [x] Log the first 1KB of stdout/stderr per execution for post-hoc debugging (redact if it matches known secret patterns).
+- [x] Consider adding a `--restricted` bash flag or using a restricted shell for sandbox mode, so shell builtins like `exec`, `enable`, and PATH modification are blocked.
+  - Decision: keep current shell invocation for compatibility; enforce policy redirects + explicit user approval + audit logging for this phase.
 
 ## Files to Touch
 

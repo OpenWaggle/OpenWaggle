@@ -22,7 +22,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { id: 'general', label: 'General', icon: Settings2, enabled: true },
   { id: 'configuration', label: 'Configuration', icon: Sliders, enabled: false },
-  { id: 'cowork', label: 'LLM Co-work', icon: Users, enabled: true },
+  { id: 'waggle', label: 'Waggle Mode', icon: Users, enabled: true },
   { id: 'personalization', label: 'Personalization', icon: Palette, enabled: false },
   { id: 'git', label: 'Git', icon: GitBranch, enabled: false },
   { id: 'environments', label: 'Environments', icon: Blocks, enabled: false },

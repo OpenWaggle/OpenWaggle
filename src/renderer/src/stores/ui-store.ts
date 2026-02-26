@@ -7,7 +7,7 @@ export const CHAT_MIN_WIDTH = 420
 export type SettingsTab =
   | 'general'
   | 'configuration'
-  | 'cowork'
+  | 'waggle'
   | 'personalization'
   | 'git'
   | 'environments'

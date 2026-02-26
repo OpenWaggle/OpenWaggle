@@ -137,7 +137,7 @@ export function App(): React.JSX.Element {
   const stopMultiAgentCollaboration = useMultiAgentStore((s) => s.stopCollaboration)
   const toggleCommandPalette = useUIStore((s) => s.toggleCommandPalette)
 
-  function handleStartCowork(config: MultiAgentConfig): void {
+  function handleStartWaggle(config: MultiAgentConfig): void {
     setMultiAgentConfig(config)
   }
 
@@ -305,7 +305,7 @@ export function App(): React.JSX.Element {
                   onStopCollaboration={
                     multiAgentStatus !== 'idle' ? handleStopCollaboration : undefined
                   }
-                  onStartCowork={handleStartCowork}
+                  onStartWaggle={handleStartWaggle}
                 />
               </PanelErrorBoundary>
 

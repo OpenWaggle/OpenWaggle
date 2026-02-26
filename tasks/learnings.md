@@ -2,7 +2,7 @@
 name: project-learnings
 description: Technical learnings log for OpenWaggle. Stores warnings, pattern preferences, and historical engineering learnings; workflow policy lives in AGENTS.md and CLAUDE.md.
 owner: openwaggle-core
-last_updated: 2026-02-25
+last_updated: 2026-02-26
 ---
 
 # LEARNINGS.md
@@ -19,6 +19,10 @@ This document stores project-specific technical learnings only.
 - Do not add routine project-management notes unless they materially affect implementation behavior.
 
 ## 3) Recent Learnings
+
+### Task: Sandbox Command Execution Hardening (2026-02-26)
+- Returning structured `kind: 'json'` tool results for blocked command policies (instead of throwing) keeps the agent loop alive and lets the model immediately pivot to safer follow-up commands.
+- Redacting sensitive output before log-preview truncation is safer than truncating first, because secrets can otherwise leak inside the first kilobyte.
 
 ### Task: Decision Utility + Branching Refactor (2026-02-26)
 - Exhaustive discriminated-union checks can be enforced without casts by threading remaining tag literals through a builder generic and making `.assertComplete()` require an argument when coverage is incomplete (`...args: [TRemaining] extends [never] ? [] : [missing: TRemaining]`).

@@ -51,7 +51,7 @@ interface ChatPanelProps {
   orchestration: OrchestrationProps
   recentProjects: readonly string[]
   onStopCollaboration?: () => void
-  onStartCowork: (config: MultiAgentConfig) => void
+  onStartWaggle: (config: MultiAgentConfig) => void
 }
 
 export function ChatPanel({
@@ -77,7 +77,7 @@ export function ChatPanel({
   orchestration,
   recentProjects,
   onStopCollaboration,
-  onStartCowork,
+  onStartWaggle,
 }: ChatPanelProps): React.JSX.Element {
   const commandPaletteOpen = useUIStore((s) => s.commandPaletteOpen)
 
@@ -330,7 +330,7 @@ export function ChatPanel({
           <CommandPalette
             slashSkills={slashSkills}
             onSelectSkill={handleSkillSelect}
-            onStartCowork={onStartCowork}
+            onStartWaggle={onStartWaggle}
           />
         </div>
       )}

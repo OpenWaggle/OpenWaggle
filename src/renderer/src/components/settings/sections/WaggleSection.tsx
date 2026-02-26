@@ -34,7 +34,7 @@ function configMatchesPreset(config: MultiAgentConfig, preset: TeamPreset): bool
   return true
 }
 
-export function CoworkSection(): React.JSX.Element {
+export function WaggleSection(): React.JSX.Element {
   const { settings, providerModels } = useSettings()
   const [presets, setPresets] = useState<TeamPreset[]>([])
   const [activePresetId, setActivePresetId] = useState<string | null>(null)
@@ -133,7 +133,7 @@ export function CoworkSection(): React.JSX.Element {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-[20px] font-semibold text-text-primary">LLM Co-work</h2>
+      <h2 className="text-[20px] font-semibold text-text-primary">Waggle Mode</h2>
 
       {/* Team Presets */}
       <div className="rounded-lg border border-border bg-[#111418] p-5">

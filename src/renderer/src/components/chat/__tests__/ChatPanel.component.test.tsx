@@ -56,7 +56,7 @@ function renderPanel(overrides: Partial<Parameters<typeof ChatPanel>[0]> = {}) {
     slashSkills: [],
     orchestration: ORCHESTRATION_DEFAULTS,
     recentProjects: [],
-    onStartCowork: vi.fn(),
+    onStartWaggle: vi.fn(),
   }
   return render(<ChatPanel {...defaults} {...overrides} />)
 }

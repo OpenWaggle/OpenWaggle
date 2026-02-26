@@ -33,9 +33,9 @@
 - [x] Extend `stream-bridge.ts` — Multi-agent stream emitter
 - [x] Register handlers in `index.ts`
 
-### Step 4: Renderer — Co-work Settings Tab
-- [x] `CoworkSection.tsx` — Presets, agent slots, collaboration config
-- [x] `multi-agent-store.ts` — Zustand store for co-work state
+### Step 4: Renderer — Waggle Mode Settings Tab
+- [x] `WaggleSection.tsx` — Presets, agent slots, collaboration config
+- [x] `multi-agent-store.ts` — Zustand store for waggle mode state
 
 ### Step 5: Renderer — Chat Integration
 - [x] Modify `MessageBubble.tsx` — Agent color borders + labels
@@ -56,7 +56,7 @@
 - [ ] Parallel mode (`runMultiAgentParallel`)
 - [ ] Synthesis step for parallel outputs
 - [ ] User intervention between turns
-- [ ] Command palette co-work entry
+- [ ] Command palette waggle mode entry
 
 ## Review
 

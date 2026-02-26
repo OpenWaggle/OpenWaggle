@@ -24,9 +24,9 @@
 
 The key insight from the multi-agent review: even when the underlying feature gets implemented (e.g., Spec 28 code-review skill, Spec 35 feedback system), **nothing in those specs plans to wire the command palette entries to them**. So these dead-end commands will persist even after those features ship.
 
-### Only `co-work` works
+### Only `waggle` works
 
-The `cowork` command (line 113-119) is the only base command with real behavior — it either starts a collaboration via `handleStartCowork()` or opens the Co-work settings tab via `handleConfigureCowork()`. This proves the pattern works; the other 5 just need similar wiring.
+The `cowork` command (line 113-119) is the only base command with real behavior — it either starts a collaboration via `handleStartCowork()` or opens the Waggle Mode settings tab via `handleConfigureCowork()`. This proves the pattern works; the other 5 just need similar wiring.
 
 ## Implementation
 

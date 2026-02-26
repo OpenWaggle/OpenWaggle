@@ -12,7 +12,7 @@
 
 There are two diverging settings surfaces in the app:
 
-1. **`SettingsPage`** (`src/renderer/src/components/settings/SettingsPage.tsx`) — A full-page layout with left nav (8 tabs) and content area. Added during the multi-agent (Spec 00) work. Only `GeneralSection` and `CoworkSection` render real content; all other tabs show "Coming soon" (line 49).
+1. **`SettingsPage`** (`src/renderer/src/components/settings/SettingsPage.tsx`) — A full-page layout with left nav (8 tabs) and content area. Added during the multi-agent (Spec 00) work. Only `GeneralSection` and `WaggleSection` render real content; all other tabs show "Coming soon" (line 49).
 
 2. **`SettingsDialog`** (`src/renderer/src/components/settings/SettingsDialog.tsx`) — A modal dialog that renders provider API key forms, base URL inputs, and browser headless toggle. This was the **original** settings UI before `SettingsPage` was introduced.
 
@@ -30,7 +30,7 @@ The UI Interaction PRD (`docs/product/ui-interaction-prd.md`) states: "Users nee
 
 | File | Surface | Content |
 |------|---------|---------|
-| `src/renderer/src/components/settings/SettingsPage.tsx` | Full-page | General + Co-work tabs, 6 disabled "Coming soon" tabs |
+| `src/renderer/src/components/settings/SettingsPage.tsx` | Full-page | General + Waggle Mode tabs, 6 disabled "Coming soon" tabs |
 | `src/renderer/src/components/settings/SettingsDialog.tsx` | Modal | Provider API keys, base URL, browser headless, encryption warning |
 | `src/renderer/src/components/settings/SettingsNav.tsx` | Left nav | 8 tabs, 2 enabled, 6 disabled |
 | `src/renderer/src/stores/ui-store.ts` | State | `settingsOpen`, `activeView: 'settings'`, `activeSettingsTab` (line 7-15) |

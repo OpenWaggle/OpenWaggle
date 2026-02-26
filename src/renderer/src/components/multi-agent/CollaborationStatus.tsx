@@ -81,7 +81,7 @@ export function CollaborationStatus({
           type="button"
           onClick={status === 'idle' ? clearConfig : handleDismiss}
           className="ml-auto shrink-0 rounded-md p-1 text-text-muted hover:text-text-primary hover:bg-[#1e2229] transition-colors"
-          title={status === 'running' ? 'Stop & dismiss co-work' : 'Dismiss co-work'}
+          title={status === 'running' ? 'Stop & dismiss waggle' : 'Dismiss waggle'}
         >
           <X className="h-3 w-3" />
         </button>
