@@ -9,6 +9,7 @@ export const ollamaProvider: ProviderDefinition = {
   requiresApiKey: false,
   supportsBaseUrl: true,
   supportsSubscription: false,
+  supportsDynamicModelFetch: true,
   models: OllamaTextModels,
   testModel: OllamaTextModels[0] ?? 'llama3.2',
   createAdapter(model, _apiKey, baseUrl) {

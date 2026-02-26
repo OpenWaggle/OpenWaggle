@@ -150,6 +150,8 @@ describe('runOrchestratedAgent', () => {
         displayName: 'OpenAI',
         requiresApiKey: true,
         supportsBaseUrl: true,
+        supportsSubscription: true,
+        supportsDynamicModelFetch: false,
         models: ['gpt-4.1-mini'],
         testModel: 'gpt-4.1-mini',
         createAdapter: vi.fn(() => ({}) as never),
@@ -219,6 +221,8 @@ describe('runOrchestratedAgent', () => {
         displayName: 'OpenAI',
         requiresApiKey: true,
         supportsBaseUrl: true,
+        supportsSubscription: true,
+        supportsDynamicModelFetch: false,
         models: ['gpt-4.1-mini'],
         testModel: 'gpt-4.1-mini',
         createAdapter: vi.fn(() => {

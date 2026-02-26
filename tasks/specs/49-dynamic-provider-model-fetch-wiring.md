@@ -97,3 +97,28 @@ Wire dynamic provider model discovery into renderer settings/model state so Open
   - Start Ollama and pull a model (e.g. `ollama pull qwen2.5-coder`).
   - Open OpenWaggle model picker, switch to Ollama tab, verify runtime model appears.
   - Change Ollama base URL, verify list refreshes/falls back appropriately.
+
+## Implementation Review (2026-02-26)
+
+### Delivered
+- Added explicit provider metadata flag `supportsDynamicModelFetch` and propagated it through provider definitions and `providers:get-models` IPC mapping.
+- Wired renderer `useSettingsStore` with:
+  - static baseline cache (`baseProviderModels`),
+  - race-guarded `refreshProviderModels(provider?)`,
+  - replace-on-success provider merge policy with static fallback on empty/error,
+  - deterministic de-duplication by `provider:modelId`,
+  - targeted refresh triggers after `updateApiKey`, `updateBaseUrl`, and `toggleProvider`.
+- Updated HC-UI-016 PRD text to capture runtime dynamic model hydration behavior.
+
+### Test Coverage Added
+- `settings-store.integration.test.ts`:
+  - static-first load then dynamic replacement,
+  - empty/error fallback retention,
+  - duplicate dynamic entry de-duplication,
+  - targeted refresh triggers after provider config mutations.
+- `providers-handler.integration.test.ts`:
+  - `supportsDynamicModelFetch` included in `providers:get-models`.
+
+### Verification
+- `pnpm check` ✅
+- `pnpm test` ✅

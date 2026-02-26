@@ -151,6 +151,7 @@ describe('shared agent helpers', () => {
       requiresApiKey: true,
       supportsBaseUrl: false,
       supportsSubscription: true,
+      supportsDynamicModelFetch: false,
       models: ['claude-sonnet-4-5'],
       testModel: 'claude-sonnet-4-5',
       createAdapter: () => ({}) as never,

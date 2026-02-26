@@ -12,6 +12,7 @@ export function registerProvidersHandlers(): void {
       apiKeyManagementUrl: p.apiKeyManagementUrl,
       supportsBaseUrl: p.supportsBaseUrl,
       supportsSubscription: p.supportsSubscription,
+      supportsDynamicModelFetch: p.supportsDynamicModelFetch,
       models: p.models.map((m) => ({
         id: m,
         name: generateDisplayName(m),
@@ -24,7 +25,7 @@ export function registerProvidersHandlers(): void {
     'providers:fetch-models',
     async (_event, providerId: Provider, baseUrl?: string, apiKey?: string) => {
       const provider = providerRegistry.get(providerId)
-      if (!provider?.fetchModels) return []
+      if (!provider?.supportsDynamicModelFetch || !provider.fetchModels) return []
 
       const models = await provider.fetchModels(baseUrl, apiKey)
       return models.map((m) => ({

@@ -5,6 +5,7 @@ const { apiMock } = vi.hoisted(() => ({
   apiMock: {
     getSettings: vi.fn(),
     getProviderModels: vi.fn(),
+    fetchProviderModels: vi.fn(),
     updateSettings: vi.fn(),
     testApiKey: vi.fn(),
     showConfirm: vi.fn(),
@@ -31,11 +32,13 @@ describe('useSettingsStore integration', () => {
       label: 'Not connected',
     })
     apiMock.getSettings.mockResolvedValue(DEFAULT_SETTINGS)
+    apiMock.fetchProviderModels.mockResolvedValue([])
     useSettingsStore.setState({
       settings: DEFAULT_SETTINGS,
       isLoaded: false,
       testingProviders: {},
       testResults: {},
+      baseProviderModels: [],
       providerModels: [],
     })
   })
@@ -53,6 +56,7 @@ describe('useSettingsStore integration', () => {
         requiresApiKey: true,
         supportsBaseUrl: false,
         supportsSubscription: true,
+        supportsDynamicModelFetch: false,
         models: [{ id: 'gpt-4.1-mini', name: 'GPT 4.1 Mini', provider: 'openai' }],
       },
     ])
@@ -63,6 +67,127 @@ describe('useSettingsStore integration', () => {
     expect(useSettingsStore.getState().isLoaded).toBe(true)
     expect(useSettingsStore.getState().settings.projectPath).toBe('/tmp/repo')
     expect(useSettingsStore.getState().providerModels).toHaveLength(1)
+  })
+
+  it('loads static models first and then replaces dynamic-capable providers on success', async () => {
+    let resolveDynamic:
+      | ((value: { id: string; name: string; provider: 'ollama' }[]) => void)
+      | null = null
+
+    apiMock.getProviderModels.mockResolvedValue([
+      {
+        provider: 'openai',
+        displayName: 'OpenAI',
+        requiresApiKey: true,
+        supportsBaseUrl: false,
+        supportsSubscription: true,
+        supportsDynamicModelFetch: false,
+        models: [{ id: 'gpt-4.1-mini', name: 'GPT 4.1 Mini', provider: 'openai' }],
+      },
+      {
+        provider: 'ollama',
+        displayName: 'Ollama',
+        requiresApiKey: false,
+        supportsBaseUrl: true,
+        supportsSubscription: false,
+        supportsDynamicModelFetch: true,
+        models: [{ id: 'llama3.2:latest', name: 'Llama3.2:latest', provider: 'ollama' }],
+      },
+    ])
+    apiMock.fetchProviderModels.mockImplementationOnce(
+      () =>
+        new Promise<{ id: string; name: string; provider: 'ollama' }[]>((resolve) => {
+          resolveDynamic = resolve
+        }),
+    )
+
+    const loadPromise = useSettingsStore.getState().loadProviderModels()
+
+    await vi.waitFor(() => {
+      expect(
+        useSettingsStore.getState().providerModels.find((g) => g.provider === 'ollama')?.models,
+      ).toEqual([{ id: 'llama3.2:latest', name: 'Llama3.2:latest', provider: 'ollama' }])
+    })
+
+    resolveDynamic?.([
+      { id: 'qwen2.5-coder:latest', name: 'Qwen2.5 Coder:latest', provider: 'ollama' },
+    ])
+    await loadPromise
+
+    expect(
+      useSettingsStore.getState().providerModels.find((g) => g.provider === 'ollama')?.models,
+    ).toEqual([{ id: 'qwen2.5-coder:latest', name: 'Qwen2.5 Coder:latest', provider: 'ollama' }])
+    expect(apiMock.fetchProviderModels).toHaveBeenCalledWith(
+      'ollama',
+      'http://localhost:11434',
+      undefined,
+    )
+  })
+
+  it('keeps static models when dynamic fetch returns empty list', async () => {
+    apiMock.getProviderModels.mockResolvedValue([
+      {
+        provider: 'ollama',
+        displayName: 'Ollama',
+        requiresApiKey: false,
+        supportsBaseUrl: true,
+        supportsSubscription: false,
+        supportsDynamicModelFetch: true,
+        models: [{ id: 'llama3.2:latest', name: 'Llama3.2:latest', provider: 'ollama' }],
+      },
+    ])
+    apiMock.fetchProviderModels.mockResolvedValueOnce([])
+
+    await useSettingsStore.getState().loadProviderModels()
+
+    expect(useSettingsStore.getState().providerModels[0]?.models).toEqual([
+      { id: 'llama3.2:latest', name: 'Llama3.2:latest', provider: 'ollama' },
+    ])
+  })
+
+  it('keeps static models when dynamic fetch fails', async () => {
+    apiMock.getProviderModels.mockResolvedValue([
+      {
+        provider: 'ollama',
+        displayName: 'Ollama',
+        requiresApiKey: false,
+        supportsBaseUrl: true,
+        supportsSubscription: false,
+        supportsDynamicModelFetch: true,
+        models: [{ id: 'llama3.2:latest', name: 'Llama3.2:latest', provider: 'ollama' }],
+      },
+    ])
+    apiMock.fetchProviderModels.mockRejectedValueOnce(new Error('offline'))
+
+    await useSettingsStore.getState().loadProviderModels()
+
+    expect(useSettingsStore.getState().providerModels[0]?.models).toEqual([
+      { id: 'llama3.2:latest', name: 'Llama3.2:latest', provider: 'ollama' },
+    ])
+  })
+
+  it('dedupes duplicate dynamic models by provider:modelId', async () => {
+    apiMock.getProviderModels.mockResolvedValue([
+      {
+        provider: 'ollama',
+        displayName: 'Ollama',
+        requiresApiKey: false,
+        supportsBaseUrl: true,
+        supportsSubscription: false,
+        supportsDynamicModelFetch: true,
+        models: [{ id: 'llama3.2:latest', name: 'Llama3.2:latest', provider: 'ollama' }],
+      },
+    ])
+    apiMock.fetchProviderModels.mockResolvedValueOnce([
+      { id: 'llama3.2:latest', name: 'Llama3.2:latest', provider: 'ollama' },
+      { id: 'llama3.2:latest', name: 'Llama3.2:latest', provider: 'ollama' },
+    ])
+
+    await useSettingsStore.getState().loadProviderModels()
+
+    expect(useSettingsStore.getState().providerModels[0]?.models).toEqual([
+      { id: 'llama3.2:latest', name: 'Llama3.2:latest', provider: 'ollama' },
+    ])
   })
 
   it('updates API key and default model through IPC', async () => {
@@ -141,6 +266,268 @@ describe('useSettingsStore integration', () => {
     expect(useSettingsStore.getState().settings.providers.ollama?.authMethod).toBe('api-key')
   })
 
+  it('triggers targeted model refresh after updating base URL', async () => {
+    useSettingsStore.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        providers: {
+          ...DEFAULT_SETTINGS.providers,
+          ollama: {
+            apiKey: '',
+            enabled: true,
+            baseUrl: 'http://localhost:11434',
+          },
+        },
+      },
+      baseProviderModels: [
+        {
+          provider: 'ollama',
+          displayName: 'Ollama',
+          requiresApiKey: false,
+          supportsBaseUrl: true,
+          supportsSubscription: false,
+          supportsDynamicModelFetch: true,
+          models: [{ id: 'llama3.2:latest', name: 'Llama3.2:latest', provider: 'ollama' }],
+        },
+      ],
+      providerModels: [
+        {
+          provider: 'ollama',
+          displayName: 'Ollama',
+          requiresApiKey: false,
+          supportsBaseUrl: true,
+          supportsSubscription: false,
+          supportsDynamicModelFetch: true,
+          models: [{ id: 'llama3.2:latest', name: 'Llama3.2:latest', provider: 'ollama' }],
+        },
+      ],
+    })
+
+    await useSettingsStore.getState().updateBaseUrl('ollama', 'http://localhost:11435')
+
+    await vi.waitFor(() => {
+      expect(apiMock.fetchProviderModels).toHaveBeenCalledWith(
+        'ollama',
+        'http://localhost:11435',
+        undefined,
+      )
+    })
+  })
+
+  it('triggers targeted model refresh after API key updates', async () => {
+    useSettingsStore.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        providers: {
+          ...DEFAULT_SETTINGS.providers,
+          openai: {
+            apiKey: '',
+            enabled: true,
+          },
+        },
+      },
+      baseProviderModels: [
+        {
+          provider: 'openai',
+          displayName: 'OpenAI',
+          requiresApiKey: true,
+          supportsBaseUrl: false,
+          supportsSubscription: true,
+          supportsDynamicModelFetch: true,
+          models: [{ id: 'gpt-4.1-mini', name: 'GPT 4.1 Mini', provider: 'openai' }],
+        },
+      ],
+      providerModels: [
+        {
+          provider: 'openai',
+          displayName: 'OpenAI',
+          requiresApiKey: true,
+          supportsBaseUrl: false,
+          supportsSubscription: true,
+          supportsDynamicModelFetch: true,
+          models: [{ id: 'gpt-4.1-mini', name: 'GPT 4.1 Mini', provider: 'openai' }],
+        },
+      ],
+    })
+
+    await useSettingsStore.getState().updateApiKey('openai', 'sk-live')
+
+    await vi.waitFor(() => {
+      expect(apiMock.fetchProviderModels).toHaveBeenCalledWith('openai', undefined, 'sk-live')
+    })
+  })
+
+  it('triggers targeted model refresh after provider toggle', async () => {
+    useSettingsStore.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        providers: {
+          ...DEFAULT_SETTINGS.providers,
+          ollama: {
+            apiKey: '',
+            enabled: false,
+            baseUrl: 'http://localhost:11434',
+          },
+        },
+      },
+      baseProviderModels: [
+        {
+          provider: 'ollama',
+          displayName: 'Ollama',
+          requiresApiKey: false,
+          supportsBaseUrl: true,
+          supportsSubscription: false,
+          supportsDynamicModelFetch: true,
+          models: [{ id: 'llama3.2:latest', name: 'Llama3.2:latest', provider: 'ollama' }],
+        },
+      ],
+      providerModels: [
+        {
+          provider: 'ollama',
+          displayName: 'Ollama',
+          requiresApiKey: false,
+          supportsBaseUrl: true,
+          supportsSubscription: false,
+          supportsDynamicModelFetch: true,
+          models: [{ id: 'llama3.2:latest', name: 'Llama3.2:latest', provider: 'ollama' }],
+        },
+      ],
+    })
+
+    await useSettingsStore.getState().toggleProvider('ollama', true)
+
+    await vi.waitFor(() => {
+      expect(apiMock.fetchProviderModels).toHaveBeenCalledWith(
+        'ollama',
+        'http://localhost:11434',
+        undefined,
+      )
+    })
+  })
+
+  it('does not cancel one provider refresh when another provider refresh starts', async () => {
+    let resolveOpenAi:
+      | ((value: { id: string; name: string; provider: 'openai' }[]) => void)
+      | null = null
+
+    useSettingsStore.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        providers: {
+          ...DEFAULT_SETTINGS.providers,
+          openai: {
+            apiKey: 'sk-openai',
+            enabled: true,
+          },
+          ollama: {
+            apiKey: '',
+            enabled: true,
+            baseUrl: 'http://localhost:11434',
+          },
+        },
+      },
+      baseProviderModels: [
+        {
+          provider: 'openai',
+          displayName: 'OpenAI',
+          requiresApiKey: true,
+          supportsBaseUrl: false,
+          supportsSubscription: true,
+          supportsDynamicModelFetch: true,
+          models: [{ id: 'gpt-4.1-mini', name: 'GPT 4.1 Mini', provider: 'openai' }],
+        },
+        {
+          provider: 'ollama',
+          displayName: 'Ollama',
+          requiresApiKey: false,
+          supportsBaseUrl: true,
+          supportsSubscription: false,
+          supportsDynamicModelFetch: true,
+          models: [{ id: 'llama3.2:latest', name: 'Llama3.2:latest', provider: 'ollama' }],
+        },
+      ],
+      providerModels: [
+        {
+          provider: 'openai',
+          displayName: 'OpenAI',
+          requiresApiKey: true,
+          supportsBaseUrl: false,
+          supportsSubscription: true,
+          supportsDynamicModelFetch: true,
+          models: [{ id: 'gpt-4.1-mini', name: 'GPT 4.1 Mini', provider: 'openai' }],
+        },
+        {
+          provider: 'ollama',
+          displayName: 'Ollama',
+          requiresApiKey: false,
+          supportsBaseUrl: true,
+          supportsSubscription: false,
+          supportsDynamicModelFetch: true,
+          models: [{ id: 'llama3.2:latest', name: 'Llama3.2:latest', provider: 'ollama' }],
+        },
+      ],
+    })
+
+    apiMock.fetchProviderModels.mockImplementation((provider: string) => {
+      if (provider === 'openai') {
+        return new Promise<{ id: string; name: string; provider: 'openai' }[]>((resolve) => {
+          resolveOpenAi = resolve
+        })
+      }
+      return Promise.resolve([
+        {
+          id: 'qwen2.5-coder:latest',
+          name: 'Qwen2.5 Coder:latest',
+          provider: 'ollama',
+        },
+      ])
+    })
+
+    const openAiRefresh = useSettingsStore.getState().refreshProviderModels('openai')
+    await vi.waitFor(() => {
+      expect(apiMock.fetchProviderModels).toHaveBeenCalledWith('openai', undefined, 'sk-openai')
+    })
+
+    await useSettingsStore.getState().refreshProviderModels('ollama')
+    expect(
+      useSettingsStore.getState().providerModels.find((g) => g.provider === 'ollama')?.models,
+    ).toEqual([
+      {
+        id: 'qwen2.5-coder:latest',
+        name: 'Qwen2.5 Coder:latest',
+        provider: 'ollama',
+      },
+    ])
+
+    resolveOpenAi?.([
+      {
+        id: 'gpt-5-mini',
+        name: 'GPT 5 Mini',
+        provider: 'openai',
+      },
+    ])
+    await openAiRefresh
+
+    expect(
+      useSettingsStore.getState().providerModels.find((g) => g.provider === 'openai')?.models,
+    ).toEqual([
+      {
+        id: 'gpt-5-mini',
+        name: 'GPT 5 Mini',
+        provider: 'openai',
+      },
+    ])
+    expect(
+      useSettingsStore.getState().providerModels.find((g) => g.provider === 'ollama')?.models,
+    ).toEqual([
+      {
+        id: 'qwen2.5-coder:latest',
+        name: 'Qwen2.5 Coder:latest',
+        provider: 'ollama',
+      },
+    ])
+  })
+
   it('auto-enables provider when selecting a model from a disabled configured provider', async () => {
     useSettingsStore.setState({
       settings: {
@@ -160,6 +547,7 @@ describe('useSettingsStore integration', () => {
           requiresApiKey: true,
           supportsBaseUrl: false,
           supportsSubscription: false,
+          supportsDynamicModelFetch: false,
           models: [{ id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'gemini' }],
         },
       ],

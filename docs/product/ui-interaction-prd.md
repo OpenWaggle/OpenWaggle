@@ -361,6 +361,7 @@ Status legend: `implemented`, `deferred`, `future`
   - Persist favorites in settings (`favoriteModels`) and hydrate across app restarts.
   - Show all provider groups in the picker while preventing selection when required API keys are missing.
   - Auto-enable a provider on successful model selection when credentials are already configured.
+  - Hydrate dynamic runtime model lists for providers that declare dynamic fetch support (for example Ollama tags) while keeping static fallback lists on fetch failure/empty responses.
 - Acceptance criteria:
   - Users can select models from all providers without opening a separate settings screen.
   - Clicking the star toggles favorite state immediately and persists it.
