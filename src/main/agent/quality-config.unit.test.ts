@@ -1,4 +1,4 @@
-import type { SupportedModelId } from '@shared/types/llm'
+import { SupportedModelId } from '@shared/types/brand'
 import { describe, expect, it } from 'vitest'
 import { anthropicProvider } from '../providers/anthropic'
 import { openaiProvider } from '../providers/openai'
@@ -28,7 +28,7 @@ function stubProviderFrom(real: ProviderDefinition): ProviderDefinition {
 describe('resolveQualityConfig', () => {
   it('default passthrough returns base tier values for providers without resolveSampling', () => {
     const provider = stubProvider('gemini')
-    const result = resolveQualityConfig(provider, 'gemini-2.5-flash' as SupportedModelId, 'medium')
+    const result = resolveQualityConfig(provider, SupportedModelId('gemini-2.5-flash'), 'medium')
     expect(result).toMatchObject({
       model: 'gemini-2.5-flash',
       temperature: 0.4,
@@ -42,21 +42,21 @@ describe('resolveQualityConfig', () => {
     const provider = stubProvider('gemini')
 
     expect(
-      resolveQualityConfig(provider, 'gemini-2.5-flash' as SupportedModelId, 'low'),
+      resolveQualityConfig(provider, SupportedModelId('gemini-2.5-flash'), 'low'),
     ).toMatchObject({
       temperature: 0.25,
       topP: 0.9,
       maxTokens: 1200,
     })
     expect(
-      resolveQualityConfig(provider, 'gemini-2.5-flash' as SupportedModelId, 'medium'),
+      resolveQualityConfig(provider, SupportedModelId('gemini-2.5-flash'), 'medium'),
     ).toMatchObject({
       temperature: 0.4,
       topP: 0.95,
       maxTokens: 2200,
     })
     expect(
-      resolveQualityConfig(provider, 'gemini-2.5-flash' as SupportedModelId, 'high'),
+      resolveQualityConfig(provider, SupportedModelId('gemini-2.5-flash'), 'high'),
     ).toMatchObject({
       temperature: 0.55,
       topP: 1,
@@ -66,7 +66,7 @@ describe('resolveQualityConfig', () => {
 
   it('never swaps the user model — model always equals input', () => {
     const provider = stubProviderFrom(anthropicProvider)
-    const selected = 'claude-sonnet-4-5' as SupportedModelId
+    const selected = SupportedModelId('claude-sonnet-4-5')
     expect(resolveQualityConfig(provider, selected, 'low').model).toBe(selected)
     expect(resolveQualityConfig(provider, selected, 'medium').model).toBe(selected)
     expect(resolveQualityConfig(provider, selected, 'high').model).toBe(selected)
@@ -76,44 +76,36 @@ describe('resolveQualityConfig', () => {
     const provider = stubProviderFrom(anthropicProvider)
 
     it('omits temperature and topP', () => {
-      const result = resolveQualityConfig(
-        provider,
-        'claude-sonnet-4-5' as SupportedModelId,
-        'medium',
-      )
+      const result = resolveQualityConfig(provider, SupportedModelId('claude-sonnet-4-5'), 'medium')
       expect(result.temperature).toBeUndefined()
       expect(result.topP).toBeUndefined()
     })
 
     it('sets thinking config per preset tier', () => {
-      const low = resolveQualityConfig(provider, 'claude-sonnet-4-5' as SupportedModelId, 'low')
+      const low = resolveQualityConfig(provider, SupportedModelId('claude-sonnet-4-5'), 'low')
       expect(low.modelOptions).toEqual({ thinking: { type: 'enabled', budget_tokens: 1024 } })
 
-      const medium = resolveQualityConfig(
-        provider,
-        'claude-sonnet-4-5' as SupportedModelId,
-        'medium',
-      )
+      const medium = resolveQualityConfig(provider, SupportedModelId('claude-sonnet-4-5'), 'medium')
       expect(medium.modelOptions).toEqual({ thinking: { type: 'enabled', budget_tokens: 4096 } })
 
-      const high = resolveQualityConfig(provider, 'claude-sonnet-4-5' as SupportedModelId, 'high')
+      const high = resolveQualityConfig(provider, SupportedModelId('claude-sonnet-4-5'), 'high')
       expect(high.modelOptions).toEqual({ thinking: { type: 'enabled', budget_tokens: 10240 } })
     })
 
     it('sets larger thinking budgets for Opus per preset tier', () => {
-      const opusLow = resolveQualityConfig(provider, 'claude-opus-4-6' as SupportedModelId, 'low')
+      const opusLow = resolveQualityConfig(provider, SupportedModelId('claude-opus-4-6'), 'low')
       expect(opusLow.modelOptions).toEqual({ thinking: { type: 'enabled', budget_tokens: 2048 } })
 
       const opusMedium = resolveQualityConfig(
         provider,
-        'claude-opus-4-6' as SupportedModelId,
+        SupportedModelId('claude-opus-4-6'),
         'medium',
       )
       expect(opusMedium.modelOptions).toEqual({
         thinking: { type: 'enabled', budget_tokens: 8192 },
       })
 
-      const opusHigh = resolveQualityConfig(provider, 'claude-opus-4-6' as SupportedModelId, 'high')
+      const opusHigh = resolveQualityConfig(provider, SupportedModelId('claude-opus-4-6'), 'high')
       expect(opusHigh.modelOptions).toEqual({
         thinking: { type: 'enabled', budget_tokens: 16384 },
       })
@@ -121,13 +113,13 @@ describe('resolveQualityConfig', () => {
 
     it('floors maxTokens at 8192 for thinking budget', () => {
       expect(
-        resolveQualityConfig(provider, 'claude-sonnet-4-5' as SupportedModelId, 'low').maxTokens,
+        resolveQualityConfig(provider, SupportedModelId('claude-sonnet-4-5'), 'low').maxTokens,
       ).toBe(8192)
       expect(
-        resolveQualityConfig(provider, 'claude-sonnet-4-5' as SupportedModelId, 'medium').maxTokens,
+        resolveQualityConfig(provider, SupportedModelId('claude-sonnet-4-5'), 'medium').maxTokens,
       ).toBe(8192)
       expect(
-        resolveQualityConfig(provider, 'claude-sonnet-4-5' as SupportedModelId, 'high').maxTokens,
+        resolveQualityConfig(provider, SupportedModelId('claude-sonnet-4-5'), 'high').maxTokens,
       ).toBe(8192)
     })
   })
@@ -136,33 +128,33 @@ describe('resolveQualityConfig', () => {
     const provider = stubProviderFrom(openaiProvider)
 
     it('omits temperature and topP for reasoning models', () => {
-      const result = resolveQualityConfig(provider, 'gpt-5' as SupportedModelId, 'medium')
+      const result = resolveQualityConfig(provider, SupportedModelId('gpt-5'), 'medium')
       expect(result.temperature).toBeUndefined()
       expect(result.topP).toBeUndefined()
     })
 
     it('reasoning effort equals preset directly', () => {
-      const low = resolveQualityConfig(provider, 'gpt-5' as SupportedModelId, 'low')
+      const low = resolveQualityConfig(provider, SupportedModelId('gpt-5'), 'low')
       expect(low.modelOptions).toEqual({ reasoning: { effort: 'low', summary: 'auto' } })
 
-      const medium = resolveQualityConfig(provider, 'gpt-5' as SupportedModelId, 'medium')
+      const medium = resolveQualityConfig(provider, SupportedModelId('gpt-5'), 'medium')
       expect(medium.modelOptions).toEqual({ reasoning: { effort: 'medium', summary: 'auto' } })
 
-      const high = resolveQualityConfig(provider, 'gpt-5' as SupportedModelId, 'high')
+      const high = resolveQualityConfig(provider, SupportedModelId('gpt-5'), 'high')
       expect(high.modelOptions).toEqual({ reasoning: { effort: 'high', summary: 'auto' } })
     })
 
     it('multiplies maxTokens by 4 for reasoning models', () => {
-      expect(resolveQualityConfig(provider, 'gpt-5' as SupportedModelId, 'medium').maxTokens).toBe(
+      expect(resolveQualityConfig(provider, SupportedModelId('gpt-5'), 'medium').maxTokens).toBe(
         2200 * 4,
       )
-      expect(
-        resolveQualityConfig(provider, 'gpt-5-mini' as SupportedModelId, 'low').maxTokens,
-      ).toBe(1200 * 4)
+      expect(resolveQualityConfig(provider, SupportedModelId('gpt-5-mini'), 'low').maxTokens).toBe(
+        1200 * 4,
+      )
     })
 
     it('passes through base values for non-reasoning models', () => {
-      const result = resolveQualityConfig(provider, 'gpt-4.1' as SupportedModelId, 'medium')
+      const result = resolveQualityConfig(provider, SupportedModelId('gpt-4.1'), 'medium')
       expect(result.temperature).toBe(0.4)
       expect(result.topP).toBe(0.95)
       expect(result.maxTokens).toBe(2200)
@@ -176,7 +168,7 @@ describe('resolveQualityConfig', () => {
     it('merges project overrides with app defaults', () => {
       const result = resolveQualityConfig(
         provider,
-        'gemini-2.5-flash' as SupportedModelId,
+        SupportedModelId('gemini-2.5-flash'),
         'medium',
         { medium: { temperature: 0.7, maxTokens: 5000 } },
       )
@@ -189,7 +181,7 @@ describe('resolveQualityConfig', () => {
       const anthropic = stubProviderFrom(anthropicProvider)
       const result = resolveQualityConfig(
         anthropic,
-        'claude-sonnet-4-5' as SupportedModelId,
+        SupportedModelId('claude-sonnet-4-5'),
         'medium',
         { medium: { temperature: 0.8 } },
       )
@@ -200,7 +192,7 @@ describe('resolveQualityConfig', () => {
     it('ignores undefined override tiers', () => {
       const result = resolveQualityConfig(
         provider,
-        'gemini-2.5-flash' as SupportedModelId,
+        SupportedModelId('gemini-2.5-flash'),
         'low',
         { medium: { temperature: 0.9 } }, // only medium overridden
       )

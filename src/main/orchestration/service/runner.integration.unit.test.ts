@@ -1,7 +1,6 @@
 import type { AgentSendPayload, MessagePart } from '@shared/types/agent'
-import { ConversationId, MessageId } from '@shared/types/brand'
+import { ConversationId, MessageId, SupportedModelId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
-import type { SupportedModelId } from '@shared/types/llm'
 import type { Settings } from '@shared/types/settings'
 import { maxIterations, type StreamChunk } from '@tanstack/ai'
 import { createOpenaiChat } from '@tanstack/ai-openai'
@@ -18,7 +17,7 @@ function createSettings(): Settings {
         enabled: true,
       },
     },
-    defaultModel: 'gpt-4.1-mini',
+    defaultModel: SupportedModelId('gpt-4.1-mini'),
     favoriteModels: [],
     projectPath: '/tmp/project',
     executionMode: 'full-access',
@@ -210,7 +209,7 @@ describe('createOrchestratedAgentRunner integration', () => {
         qualityPreset: 'medium',
         attachments: [],
       },
-      model: 'gpt-4.1-mini',
+      model: SupportedModelId('gpt-4.1-mini'),
       settings: createSettings(),
       signal: new AbortController().signal,
       emitChunk: (chunk) => chunks.push(chunk),
@@ -263,7 +262,7 @@ describe('createOrchestratedAgentRunner integration', () => {
         qualityPreset: 'medium',
         attachments: [],
       } satisfies AgentSendPayload,
-      model: 'gpt-4.1-mini',
+      model: SupportedModelId('gpt-4.1-mini'),
       settings: createSettings(),
       signal: new AbortController().signal,
       emitChunk: (chunk) => chunks.push(chunk),
@@ -301,7 +300,7 @@ describe('createOrchestratedAgentRunner integration', () => {
         qualityPreset: 'medium',
         attachments: [],
       },
-      model: 'gpt-4.1-mini',
+      model: SupportedModelId('gpt-4.1-mini'),
       settings: createSettings(),
       signal: new AbortController().signal,
       emitChunk: (chunk) => chunks.push(chunk),

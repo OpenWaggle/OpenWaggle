@@ -1,4 +1,5 @@
 import type { AgentSendPayload } from '@shared/types/agent'
+import { SupportedModelId } from '@shared/types/brand'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Use vi.hoisted to avoid hoisting issues with vi.mock factories
@@ -33,9 +34,14 @@ describe('shared agent helpers', () => {
 
     it('includes optional model and metadata', async () => {
       const { makeMessage } = await import('./shared')
-      const msg = makeMessage('assistant', [{ type: 'text', text: 'hi' }], 'gpt-4.1-mini', {
-        orchestrationRunId: 'run-1',
-      })
+      const msg = makeMessage(
+        'assistant',
+        [{ type: 'text', text: 'hi' }],
+        SupportedModelId('gpt-4.1-mini'),
+        {
+          orchestrationRunId: 'run-1',
+        },
+      )
       expect(msg.model).toBe('gpt-4.1-mini')
       expect(msg.metadata?.orchestrationRunId).toBe('run-1')
     })
@@ -160,7 +166,11 @@ describe('shared agent helpers', () => {
     it('returns error when no provider found', async () => {
       mockGetProviderForModel.mockReturnValue(undefined)
       const { resolveProviderAndQuality, isResolutionError } = await import('./shared')
-      const result = await resolveProviderAndQuality('unknown-model', 'medium', {})
+      const result = await resolveProviderAndQuality(
+        SupportedModelId('unknown-model'),
+        'medium',
+        {},
+      )
       expect(isResolutionError(result)).toBe(true)
       if (!result.ok) {
         expect(result.reason).toContain('No provider registered')
@@ -170,9 +180,13 @@ describe('shared agent helpers', () => {
     it('returns error when provider is disabled', async () => {
       mockGetProviderForModel.mockReturnValue(fakeProvider)
       const { resolveProviderAndQuality } = await import('./shared')
-      const result = await resolveProviderAndQuality('claude-sonnet-4-5', 'medium', {
-        anthropic: { apiKey: 'key', enabled: false },
-      })
+      const result = await resolveProviderAndQuality(
+        SupportedModelId('claude-sonnet-4-5'),
+        'medium',
+        {
+          anthropic: { apiKey: 'key', enabled: false },
+        },
+      )
       expect(result.ok).toBe(false)
       if (!result.ok) {
         expect(result.reason).toContain('disabled')
@@ -182,9 +196,13 @@ describe('shared agent helpers', () => {
     it('returns error when API key is missing', async () => {
       mockGetProviderForModel.mockReturnValue(fakeProvider)
       const { resolveProviderAndQuality } = await import('./shared')
-      const result = await resolveProviderAndQuality('claude-sonnet-4-5', 'medium', {
-        anthropic: { apiKey: '', enabled: true },
-      })
+      const result = await resolveProviderAndQuality(
+        SupportedModelId('claude-sonnet-4-5'),
+        'medium',
+        {
+          anthropic: { apiKey: '', enabled: true },
+        },
+      )
       expect(result.ok).toBe(false)
       if (!result.ok) {
         expect(result.reason).toContain('No API key')
@@ -194,9 +212,13 @@ describe('shared agent helpers', () => {
     it('returns resolved result on success with model unchanged', async () => {
       mockGetProviderForModel.mockReturnValue(fakeProvider)
       const { resolveProviderAndQuality } = await import('./shared')
-      const result = await resolveProviderAndQuality('claude-sonnet-4-5', 'medium', {
-        anthropic: { apiKey: 'sk-test', enabled: true },
-      })
+      const result = await resolveProviderAndQuality(
+        SupportedModelId('claude-sonnet-4-5'),
+        'medium',
+        {
+          anthropic: { apiKey: 'sk-test', enabled: true },
+        },
+      )
       expect(result.ok).toBe(true)
       if (result.ok) {
         expect(result.provider).toBe(fakeProvider)

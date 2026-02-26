@@ -1,6 +1,5 @@
 import type { ConversationId } from '@shared/types/brand'
-import { ConversationId as toConversationId } from '@shared/types/brand'
-import type { SupportedModelId } from '@shared/types/llm'
+import { SupportedModelId, ConversationId as toConversationId } from '@shared/types/brand'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { UIMessage } from '@tanstack/ai-react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -39,7 +38,7 @@ function emitStreamChunk(conversationId: ConversationId, chunk: StreamChunk): vo
 
 describe('createIpcConnectionAdapter', () => {
   const conversationId = toConversationId('conv-stream')
-  const model = 'gpt-5-mini' as SupportedModelId
+  const model = SupportedModelId('gpt-5-mini')
 
   beforeEach(() => {
     vi.clearAllMocks()

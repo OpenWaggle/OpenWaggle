@@ -1,4 +1,4 @@
-import { ConversationId } from '@shared/types/brand'
+import { ConversationId, SupportedModelId } from '@shared/types/brand'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import type { StreamChunk } from '@tanstack/ai'
 import { describe, expect, it } from 'vitest'
@@ -30,7 +30,7 @@ function makeContext(): AgentRunContext {
       createdAt: 0,
       updatedAt: 0,
     },
-    model: 'gpt-4.1-mini',
+    model: SupportedModelId('gpt-4.1-mini'),
     settings: {
       ...DEFAULT_SETTINGS,
       providers: {

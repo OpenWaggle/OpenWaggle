@@ -1,3 +1,4 @@
+import { SupportedModelId } from '@shared/types/brand'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockState = vi.hoisted(() => ({
@@ -253,7 +254,12 @@ describe('settings store', () => {
   it('roundtrips favoriteModels through updateSettings', async () => {
     const { getSettings, updateSettings } = await loadSettingsModule()
     updateSettings({
-      favoriteModels: ['gpt-4.1-mini', 'gpt-4.1-mini', ' claude-sonnet-4-5 ', ''],
+      favoriteModels: [
+        SupportedModelId('gpt-4.1-mini'),
+        SupportedModelId('gpt-4.1-mini'),
+        SupportedModelId(' claude-sonnet-4-5 '),
+        SupportedModelId(''),
+      ],
     })
     const settings = getSettings()
     expect(settings.favoriteModels).toEqual(['gpt-4.1-mini', 'claude-sonnet-4-5'])

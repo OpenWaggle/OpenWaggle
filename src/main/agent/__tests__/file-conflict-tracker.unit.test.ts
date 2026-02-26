@@ -1,3 +1,4 @@
+import { SupportedModelId } from '@shared/types/brand'
 import type { AgentSlot } from '@shared/types/multi-agent'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { FileConflictTracker } from '../file-conflict-tracker'
@@ -8,8 +9,18 @@ import { FileConflictTracker } from '../file-conflict-tracker'
 
 function makeAgents(labelA = 'Architect', labelB = 'Reviewer'): readonly [AgentSlot, AgentSlot] {
   return [
-    { label: labelA, model: 'claude-sonnet-4-5', roleDescription: 'Role A', color: 'blue' },
-    { label: labelB, model: 'claude-sonnet-4-5', roleDescription: 'Role B', color: 'amber' },
+    {
+      label: labelA,
+      model: SupportedModelId('claude-sonnet-4-5'),
+      roleDescription: 'Role A',
+      color: 'blue',
+    },
+    {
+      label: labelB,
+      model: SupportedModelId('claude-sonnet-4-5'),
+      roleDescription: 'Role B',
+      color: 'amber',
+    },
   ] as const
 }
 
@@ -199,7 +210,12 @@ describe('FileConflictTracker', () => {
       // Cast to satisfy the readonly tuple type while simulating a missing entry
       const sparseAgents = [
         undefined,
-        { label: 'Reviewer', model: 'claude-sonnet-4-5', roleDescription: '', color: 'amber' },
+        {
+          label: 'Reviewer',
+          model: SupportedModelId('claude-sonnet-4-5'),
+          roleDescription: '',
+          color: 'amber',
+        },
       ] as unknown as readonly [AgentSlot, AgentSlot]
 
       tracker.recordModification('src/index.ts', 0, sparseAgents, 1)
@@ -211,7 +227,12 @@ describe('FileConflictTracker', () => {
 
     it('falls back to "Agent 1" when agents tuple does not cover index 1', () => {
       const sparseAgents = [
-        { label: 'Architect', model: 'claude-sonnet-4-5', roleDescription: '', color: 'blue' },
+        {
+          label: 'Architect',
+          model: SupportedModelId('claude-sonnet-4-5'),
+          roleDescription: '',
+          color: 'blue',
+        },
         undefined,
       ] as unknown as readonly [AgentSlot, AgentSlot]
 

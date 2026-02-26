@@ -1,4 +1,4 @@
-import { ConversationId } from '@shared/types/brand'
+import { ConversationId, SupportedModelId } from '@shared/types/brand'
 import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
 import { describe, expect, it } from 'vitest'
 import { openaiProvider } from '../providers/openai'
@@ -20,7 +20,7 @@ function makeContext(overrides?: { executionMode?: Settings['executionMode'] }):
       createdAt: 0,
       updatedAt: 0,
     },
-    model: 'gpt-4.1-mini',
+    model: SupportedModelId('gpt-4.1-mini'),
     settings: {
       ...DEFAULT_SETTINGS,
       executionMode,
