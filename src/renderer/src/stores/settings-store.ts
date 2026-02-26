@@ -225,6 +225,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   async startOAuth(provider: SubscriptionProvider) {
+    if (provider === 'anthropic') {
+      const confirmed = await api.showConfirm(
+        'Claude subscription sign-in has Terms of Service risk.',
+        'Anthropic may prohibit using subscription OAuth tokens in third-party applications. Continue only if you understand this risk.',
+      )
+      if (!confirmed) return
+    }
+
     set((state) => ({
       oauthStatuses: { ...state.oauthStatuses, [provider]: { type: 'in-progress', provider } },
     }))

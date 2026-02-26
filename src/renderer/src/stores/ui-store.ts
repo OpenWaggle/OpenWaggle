@@ -71,7 +71,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   openSettings(tab) {
     set({
       activeView: 'settings',
-      activeSettingsTab: tab ?? get().activeSettingsTab,
+      activeSettingsTab: tab ?? 'general',
       settingsOpen: true,
       diffPanelOpen: false,
     })

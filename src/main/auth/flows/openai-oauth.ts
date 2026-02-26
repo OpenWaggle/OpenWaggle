@@ -26,14 +26,63 @@ interface OpenAIOAuthResult {
   readonly expiresAt: number
 }
 
-export async function startOpenAIOAuth(): Promise<OpenAIOAuthResult> {
+interface OpenAIOAuthCode {
+  readonly code: string
+  readonly state?: string
+  readonly source: 'callback' | 'manual'
+}
+
+interface StartOpenAIOAuthOptions {
+  readonly manualCodePromise?: Promise<string>
+  readonly onAwaitingCode?: () => void
+  readonly onCodeReceived?: () => void
+}
+
+function parseManualCodeInput(raw: string): OpenAIOAuthCode {
+  const input = raw.trim()
+  if (!input) {
+    throw new Error('Authorization code input is empty.')
+  }
+
+  // Full callback URL is preferred, but we also accept "code#state".
+  try {
+    const parsedUrl = new URL(input)
+    const code = parsedUrl.searchParams.get('code')?.trim() ?? ''
+    const state = parsedUrl.searchParams.get('state')?.trim() ?? ''
+    if (code) {
+      return { code, state, source: 'manual' }
+    }
+  } catch {
+    // continue with non-URL parsing
+  }
+
+  const [code, state = ''] = input.split('#', 2)
+  const normalizedCode = code.trim()
+  const normalizedState = state.trim()
+  if (!normalizedCode) {
+    throw new Error('Unable to parse OpenAI authorization code from input.')
+  }
+  return { code: normalizedCode, state: normalizedState, source: 'manual' }
+}
+
+export async function startOpenAIOAuth(
+  options: StartOpenAIOAuthOptions = {},
+): Promise<OpenAIOAuthResult> {
   const verifier = generateCodeVerifier()
   const challenge = generateCodeChallenge(verifier)
   const state = randomBytes(16).toString('hex')
-
-  const server = await createCallbackServer({ port: OPENAI_CALLBACK_PORT })
+  let server: Awaited<ReturnType<typeof createCallbackServer>> | null = null
 
   try {
+    try {
+      server = await createCallbackServer({ port: OPENAI_CALLBACK_PORT })
+    } catch (error) {
+      logger.warn('OpenAI callback server unavailable, waiting for manual code input', {
+        port: OPENAI_CALLBACK_PORT,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+
     const authUrl = new URL(OPENAI_AUTH_URL)
     authUrl.searchParams.set('client_id', OPENAI_CLIENT_ID)
     authUrl.searchParams.set('redirect_uri', OPENAI_REDIRECT_URI)
@@ -49,10 +98,36 @@ export async function startOpenAIOAuth(): Promise<OpenAIOAuthResult> {
     logger.info('Opening OpenAI auth page')
     await shell.openExternal(authUrl.toString())
 
-    const callback = await server.waitForCallback()
+    const candidates: Promise<OpenAIOAuthCode>[] = []
+    if (server) {
+      candidates.push(
+        server
+          .waitForCallback()
+          .then((callback) => ({ code: callback.code, state: callback.state, source: 'callback' })),
+      )
+    }
+    if (options.manualCodePromise) {
+      options.onAwaitingCode?.()
+      candidates.push(
+        options.manualCodePromise.then((rawCode) => {
+          options.onCodeReceived?.()
+          return parseManualCodeInput(rawCode)
+        }),
+      )
+    }
+    if (candidates.length === 0) {
+      throw new Error('Unable to receive OpenAI authorization code. Please try again.')
+    }
 
-    if (callback.state !== state) {
+    const callback = await Promise.race(candidates)
+    if (callback.source === 'callback' && callback.state !== state) {
       throw new Error('OAuth state mismatch — possible CSRF attack')
+    }
+    if (callback.source === 'manual' && callback.state && callback.state !== state) {
+      throw new Error('OAuth state mismatch — possible CSRF attack')
+    }
+    if (callback.source === 'manual' && !callback.state) {
+      logger.warn('Manual OpenAI auth code submitted without state verification')
     }
 
     logger.info('Received auth code, exchanging for tokens')
@@ -85,7 +160,7 @@ export async function startOpenAIOAuth(): Promise<OpenAIOAuthResult> {
       expiresAt: Date.now() + parsed.expires_in * 1000,
     }
   } finally {
-    server.close()
+    server?.close()
   }
 }
 

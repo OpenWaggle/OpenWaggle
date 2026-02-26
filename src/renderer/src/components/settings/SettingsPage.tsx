@@ -1,4 +1,6 @@
 import { ArrowLeft } from 'lucide-react'
+import { useFullscreen } from '@/hooks/useFullscreen'
+import { cn } from '@/lib/cn'
 import type { SettingsTab } from '@/stores/ui-store'
 import { useUIStore } from '@/stores/ui-store'
 import { SettingsNav } from './SettingsNav'
@@ -10,20 +12,26 @@ export function SettingsPage(): React.JSX.Element {
   const activeTab = useUIStore((s) => s.activeSettingsTab)
   const setActiveSettingsTab = useUIStore((s) => s.setActiveSettingsTab)
   const closeSettings = useUIStore((s) => s.closeSettings)
+  const isFullscreen = useFullscreen()
 
   return (
     <div className="flex h-full w-full flex-col bg-bg">
       {/* Header */}
-      <div className="flex shrink-0 items-center gap-3 border-b border-border px-4 h-12">
+      <div
+        className={cn(
+          'drag-region flex shrink-0 items-center gap-3 border-b border-border px-4 h-12',
+          !isFullscreen && 'pl-[80px]',
+        )}
+      >
         <button
           type="button"
           onClick={closeSettings}
-          className="flex items-center gap-2 rounded-md px-2 py-1 text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors"
+          className="no-drag flex items-center gap-2 rounded-md px-2 py-1 text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           <span className="text-[13px]">Back to app</span>
         </button>
-        <span className="text-[15px] font-medium text-text-primary">Settings</span>
+        <span className="no-drag text-[15px] font-medium text-text-primary">Settings</span>
       </div>
 
       {/* Body: Nav + Content */}
@@ -48,10 +56,6 @@ function SettingsTabContent({ tab }: { tab: SettingsTab }): React.JSX.Element {
     case 'connections':
       return <ConnectionsSection />
     default:
-      return (
-        <div className="flex items-center justify-center py-20">
-          <p className="text-text-muted text-sm">Coming soon</p>
-        </div>
-      )
+      return <GeneralSection />
   }
 }

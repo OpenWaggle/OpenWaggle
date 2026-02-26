@@ -13,7 +13,9 @@ vi.mock('../logger', () => ({
 
 vi.mock('../auth', () => ({
   startOAuth: vi.fn(),
+  startAuthLifecycle: vi.fn(() => vi.fn()),
   disconnect: vi.fn(),
+  submitCode: vi.fn(),
   getAccountInfo: vi.fn().mockReturnValue({
     provider: 'openrouter',
     connected: false,
@@ -32,6 +34,7 @@ describe('auth-handler', () => {
 
     const registeredChannels = mockHandle.mock.calls.map((call: unknown[]) => call[0])
     expect(registeredChannels).toContain('auth:start-oauth')
+    expect(registeredChannels).toContain('auth:submit-code')
     expect(registeredChannels).toContain('auth:disconnect')
     expect(registeredChannels).toContain('auth:get-account-info')
   })

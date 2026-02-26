@@ -12,14 +12,10 @@ vi.mock('../../logger', () => ({
 
 const mockWaitForCallback = vi.hoisted(() => vi.fn())
 const mockClose = vi.hoisted(() => vi.fn())
+const mockCreateCallbackServer = vi.hoisted(() => vi.fn())
 
 vi.mock('../oauth-callback-server', () => ({
-  createCallbackServer: () =>
-    Promise.resolve({
-      port: 1455,
-      waitForCallback: mockWaitForCallback,
-      close: mockClose,
-    }),
+  createCallbackServer: mockCreateCallbackServer,
 }))
 
 vi.mock('../pkce', () => ({
@@ -30,6 +26,11 @@ vi.mock('../pkce', () => ({
 describe('OpenAI OAuth', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockCreateCallbackServer.mockResolvedValue({
+      port: 1455,
+      waitForCallback: mockWaitForCallback,
+      close: mockClose,
+    })
   })
 
   afterEach(() => {
@@ -137,6 +138,44 @@ describe('OpenAI OAuth', () => {
     await expect(startOpenAIOAuth()).rejects.toThrow('timeout')
 
     expect(mockClose).toHaveBeenCalled()
+  })
+
+  it('falls back to manual code entry when callback server is unavailable', async () => {
+    mockCreateCallbackServer.mockRejectedValue(new Error('EADDRINUSE'))
+    const tokenResponse = {
+      access_token: 'openai-access-token',
+      refresh_token: 'openai-refresh-token',
+      expires_in: 7200,
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(tokenResponse),
+      }),
+    )
+    const onAwaitingCode = vi.fn()
+    const onCodeReceived = vi.fn()
+
+    const { startOpenAIOAuth } = await import('./openai-oauth')
+    const result = await startOpenAIOAuth({
+      manualCodePromise: Promise.resolve('auth-code'),
+      onAwaitingCode,
+      onCodeReceived,
+    })
+
+    expect(result.accessToken).toBe('openai-access-token')
+    expect(onAwaitingCode).toHaveBeenCalledTimes(1)
+    expect(onCodeReceived).toHaveBeenCalledTimes(1)
+  })
+
+  it('fails fast when callback server is unavailable and no manual input is provided', async () => {
+    mockCreateCallbackServer.mockRejectedValue(new Error('EADDRINUSE'))
+
+    const { startOpenAIOAuth } = await import('./openai-oauth')
+    await expect(startOpenAIOAuth()).rejects.toThrow(
+      'Unable to receive OpenAI authorization code. Please try again.',
+    )
   })
 
   describe('refreshOpenAIToken', () => {

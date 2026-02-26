@@ -2,7 +2,7 @@
 name: project-learnings
 description: Technical learnings log for OpenWaggle. Stores warnings, pattern preferences, and historical engineering learnings; workflow policy lives in AGENTS.md and CLAUDE.md.
 owner: openwaggle-core
-last_updated: 2026-02-20
+last_updated: 2026-02-25
 ---
 
 # LEARNINGS.md
@@ -19,6 +19,10 @@ This document stores project-specific technical learnings only.
 - Do not add routine project-management notes unless they materially affect implementation behavior.
 
 ## 3) Recent Learnings
+
+### Task: Subscription Auth Gap Hardening (2026-02-25)
+- When wiring optional manual OAuth fallback promises, attach a sink (`void promise.catch(...)`) at creation time. Otherwise, flows that complete through automatic callback paths can still reject the unused manual promise in cleanup and trigger unhandled rejection warnings.
+- Background auth refresh checks should dedupe connectivity state transitions (`connected -> disconnected -> connected`) before broadcasting status events; emitting on every interval tick creates noisy UX and makes renderer state harder to reason about.
 
 ### Task: Orchestration Runner Pipeline Refactor (2026-02-25)
 - In async orchestration coordinators, returning a stage promise directly from inside a `try` block does not route downstream rejection through that `catch`; `await` the stage call (`return await ...`) to preserve centralized terminal error handling (fallback/cancel policy).

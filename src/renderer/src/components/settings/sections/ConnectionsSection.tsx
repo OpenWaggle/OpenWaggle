@@ -498,6 +498,13 @@ function SubscriptionRow({
     }
   }
 
+  const codeHelpText =
+    provider === 'openai'
+      ? 'If automatic redirect capture fails, paste the full callback URL from your browser address bar (preferred), or paste "code#state".'
+      : 'Copy the authorization code from the browser page. It will be detected automatically from your clipboard, or you can paste it below.'
+  const codePlaceholder =
+    provider === 'openai' ? 'Paste callback URL or code#state' : 'Paste code here (code#state)'
+
   return (
     <div className={cn(!isLast && 'border-b border-border')}>
       <div className="flex items-center justify-between h-[68px] px-5">
@@ -570,10 +577,7 @@ function SubscriptionRow({
       {/* Paste authorization code input (Anthropic) */}
       {isAwaitingCode && (
         <div className="mx-5 mb-3 space-y-2">
-          <p className="text-[11px] text-text-tertiary">
-            Copy the authorization code from the browser page. It will be detected automatically
-            from your clipboard, or you can paste it below.
-          </p>
+          <p className="text-[11px] text-text-tertiary">{codeHelpText}</p>
           <div className="flex items-center gap-2">
             <input
               type="text"
@@ -582,7 +586,7 @@ function SubscriptionRow({
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleSubmitCode()
               }}
-              placeholder="Paste code here (code#state)"
+              placeholder={codePlaceholder}
               className={cn(
                 'flex-1 rounded-lg border border-input-card-border bg-bg px-3 py-2 text-[12px] text-text-primary font-mono',
                 'placeholder:text-text-muted placeholder:font-sans',

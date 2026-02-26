@@ -7,6 +7,10 @@ const { apiMock } = vi.hoisted(() => ({
     getProviderModels: vi.fn(),
     updateSettings: vi.fn(),
     testApiKey: vi.fn(),
+    showConfirm: vi.fn(),
+    startOAuth: vi.fn(),
+    onOAuthStatus: vi.fn(),
+    getAuthAccountInfo: vi.fn(),
   },
 }))
 
@@ -19,6 +23,14 @@ import { useSettingsStore } from './settings-store'
 describe('useSettingsStore integration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    apiMock.onOAuthStatus.mockReturnValue(() => {})
+    apiMock.showConfirm.mockResolvedValue(true)
+    apiMock.getAuthAccountInfo.mockResolvedValue({
+      provider: 'anthropic',
+      connected: false,
+      label: 'Not connected',
+    })
+    apiMock.getSettings.mockResolvedValue(DEFAULT_SETTINGS)
     useSettingsStore.setState({
       settings: DEFAULT_SETTINGS,
       isLoaded: false,
@@ -147,5 +159,24 @@ describe('useSettingsStore integration', () => {
       '/tmp/repo-2',
     ])
     expect(recentProjects).toHaveLength(10)
+  })
+
+  it('requires explicit risk confirmation before Anthropic subscription sign-in', async () => {
+    apiMock.showConfirm.mockResolvedValue(false)
+
+    await useSettingsStore.getState().startOAuth('anthropic')
+
+    expect(apiMock.showConfirm).toHaveBeenCalledTimes(1)
+    expect(apiMock.startOAuth).not.toHaveBeenCalled()
+  })
+
+  it('starts Anthropic subscription sign-in after risk confirmation', async () => {
+    apiMock.showConfirm.mockResolvedValue(true)
+    apiMock.startOAuth.mockResolvedValue(undefined)
+
+    await useSettingsStore.getState().startOAuth('anthropic')
+
+    expect(apiMock.showConfirm).toHaveBeenCalledTimes(1)
+    expect(apiMock.startOAuth).toHaveBeenCalledWith('anthropic')
   })
 })
