@@ -20,6 +20,10 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Task: Decision Utility + Branching Refactor (2026-02-26)
+- Exhaustive discriminated-union checks can be enforced without casts by threading remaining tag literals through a builder generic and making `.assertComplete()` require an argument when coverage is incomplete (`...args: [TRemaining] extends [never] ? [] : [missing: TRemaining]`).
+- A lightweight AST gate using the TypeScript compiler API (`SwitchStatement` + `IfStatement` with `else` as `IfStatement`) is a reliable way to enforce branching-style conventions repo-wide without brittle regex parsing.
+
 ### Task: Subscription Auth Gap Hardening (2026-02-25)
 - When wiring optional manual OAuth fallback promises, attach a sink (`void promise.catch(...)`) at creation time. Otherwise, flows that complete through automatic callback paths can still reject the unused manual promise in cleanup and trigger unhandled rejection warnings.
 - Background auth refresh checks should dedupe connectivity state transitions (`connected -> disconnected -> connected`) before broadcasting status events; emitting on every interval tick creates noisy UX and makes renderer state harder to reason about.

@@ -1,7 +1,7 @@
 {
   "name": "openwaggle",
   "version": "0.1.0",
-  "description": "Desktop coding agent with multi-model co-work",
+  "description": "Desktop coding agent with multi-model waggle mode",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -24,7 +24,9 @@
     "lint": "biome check src/",
     "lint:fix": "biome check --write src/",
     "format": "biome format --write src/",
-    "check": "pnpm typecheck && pnpm lint"
+    "check:pattern-style": "node scripts/check-pattern-style.mjs",
+    "check:decision-size": "node scripts/check-decision-size.mjs",
+    "check": "pnpm typecheck && pnpm lint && pnpm check:pattern-style && pnpm check:decision-size"
   },
   "packageManager": "pnpm@10.28.1",
   "pnpm": {
