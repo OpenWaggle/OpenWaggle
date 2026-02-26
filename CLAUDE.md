@@ -77,9 +77,10 @@ These rules are **non-negotiable**. Violating them invalidates your work.
 1. Scope is met with no unapproved side-effects.
 2. Tests added/updated for behavior changes.
 3. Verified: tests pass, logs are clean, behavior matches intent. Ask yourself: "Would a staff engineer approve this?"
-4. Docs updated if behavior, workflow, or developer expectations changed.
-5. Significant learnings appended to `tasks/learnings.md` (**if there is any significant learning to add**).
-6. Changes are grouped into logical commits.
+4. If renderer code (`src/renderer/`) was touched: run React Doctor diagnostics (`npx -y react-doctor@latest . --verbose --diff main`), fix all errors, verify score did not drop. Load the `react-doctor` skill for fix patterns.
+5. Docs updated if behavior, workflow, or developer expectations changed.
+6. Significant learnings appended to `tasks/learnings.md` (**if there is any significant learning to add**).
+7. Changes are grouped into logical commits.
 
 ## Architecture
 
