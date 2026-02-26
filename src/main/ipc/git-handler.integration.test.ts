@@ -1,3 +1,4 @@
+import { choose } from '@shared/utils/decision'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { execFileMock, safeHandleMock } = vi.hoisted(() => ({
@@ -36,26 +37,18 @@ describe('registerGitHandlers', () => {
         cb: (err: Error | null, stdout: string, stderr: string) => void,
       ) => {
         const key = args.join(' ')
-        switch (key) {
-          case 'rev-parse --is-inside-work-tree':
-            cb(null, 'true\n', '')
-            return
-          case 'rev-parse --abbrev-ref HEAD':
-            cb(null, 'main\n', '')
-            return
-          case 'status --porcelain=v1':
-            cb(null, ' M src/main/index.ts\n?? docs/new.md\n', '')
-            return
-          case 'diff --numstat HEAD':
-            cb(null, '10\t2\tsrc/main/index.ts\n', '')
-            return
-          case 'rev-list --left-right --count HEAD...@{upstream}':
+        choose(key)
+          .case('rev-parse --is-inside-work-tree', () => cb(null, 'true\n', ''))
+          .case('rev-parse --abbrev-ref HEAD', () => cb(null, 'main\n', ''))
+          .case('status --porcelain=v1', () =>
+            cb(null, ' M src/main/index.ts\n?? docs/new.md\n', ''),
+          )
+          .case('diff --numstat HEAD', () => cb(null, '10\t2\tsrc/main/index.ts\n', ''))
+          .case('rev-list --left-right --count HEAD...@{upstream}', () => {
             // Output format: <ahead>\t<behind>
             cb(null, '3\t1\n', '')
-            return
-          default:
-            cb(new Error(`Unexpected git command: ${key}`), '', '')
-        }
+          })
+          .catchAll(() => cb(new Error(`Unexpected git command: ${key}`), '', ''))
       },
     )
 
@@ -91,25 +84,13 @@ describe('registerGitHandlers', () => {
         cb: (err: Error | null, stdout: string, stderr: string) => void,
       ) => {
         const key = args.join(' ')
-        switch (key) {
-          case 'rev-parse --is-inside-work-tree':
-            cb(null, 'true\n', '')
-            return
-          case 'rev-parse --abbrev-ref HEAD':
-            cb(null, 'main\n', '')
-            return
-          case 'status --porcelain=v1':
-            cb(null, 'RM old.txt -> new.txt\n', '')
-            return
-          case 'diff --numstat HEAD':
-            cb(null, '1\t0\told.txt => new.txt\n', '')
-            return
-          case 'rev-list --left-right --count HEAD...@{upstream}':
-            cb(null, '0\t0\n', '')
-            return
-          default:
-            cb(new Error(`Unexpected git command: ${key}`), '', '')
-        }
+        choose(key)
+          .case('rev-parse --is-inside-work-tree', () => cb(null, 'true\n', ''))
+          .case('rev-parse --abbrev-ref HEAD', () => cb(null, 'main\n', ''))
+          .case('status --porcelain=v1', () => cb(null, 'RM old.txt -> new.txt\n', ''))
+          .case('diff --numstat HEAD', () => cb(null, '1\t0\told.txt => new.txt\n', ''))
+          .case('rev-list --left-right --count HEAD...@{upstream}', () => cb(null, '0\t0\n', ''))
+          .catchAll(() => cb(new Error(`Unexpected git command: ${key}`), '', ''))
       },
     )
 
@@ -210,21 +191,17 @@ describe('registerGitHandlers', () => {
         ) => void,
       ) => {
         const key = args.join(' ')
-        switch (key) {
-          case 'rev-parse --is-inside-work-tree':
-            cb(null, 'true\n', '')
-            return
-          case 'rev-parse -q --verify MERGE_HEAD':
+        choose(key)
+          .case('rev-parse --is-inside-work-tree', () => cb(null, 'true\n', ''))
+          .case('rev-parse -q --verify MERGE_HEAD', () =>
             cb(
               { name: 'GitError', message: 'not merging', code: 1, stdout: '', stderr: '' },
               '',
               '',
-            )
-            return
-          case 'add -- src/file.ts':
-            cb(null, '', '')
-            return
-          case 'commit -m test commit -- src/file.ts':
+            ),
+          )
+          .case('add -- src/file.ts', () => cb(null, '', ''))
+          .case('commit -m test commit -- src/file.ts', () =>
             cb(
               {
                 name: 'GitError',
@@ -235,11 +212,9 @@ describe('registerGitHandlers', () => {
               },
               '',
               '',
-            )
-            return
-          default:
-            cb(new Error(`Unexpected git command: ${key}`), '', '')
-        }
+            ),
+          )
+          .catchAll(() => cb(new Error(`Unexpected git command: ${key}`), '', ''))
       },
     )
 
@@ -269,28 +244,24 @@ describe('registerGitHandlers', () => {
         cb: (err: Error | null, stdout: string, stderr: string) => void,
       ) => {
         const key = args.join(' ')
-        switch (key) {
-          case 'rev-parse --is-inside-work-tree':
-            cb(null, 'true\n', '')
-            return
-          case 'rev-parse --abbrev-ref HEAD':
-            cb(null, 'main\n', '')
-            return
-          case 'for-each-ref --format=%(refname)%09%(refname:short)%09%(upstream:short)%09%(HEAD)%09%(upstream:track) refs/heads refs/remotes':
-            cb(
-              null,
-              [
-                'refs/heads/main\tmain\torigin/main\t*\t[ahead 2, behind 1]',
-                'refs/heads/feature\tfeature\torigin/feature\t\t',
-                'refs/remotes/origin/main\torigin/main\t\t\t',
-                'refs/remotes/origin/HEAD\torigin/HEAD\t\t\t',
-              ].join('\n'),
-              '',
-            )
-            return
-          default:
-            cb(new Error(`Unexpected git command: ${key}`), '', '')
-        }
+        choose(key)
+          .case('rev-parse --is-inside-work-tree', () => cb(null, 'true\n', ''))
+          .case('rev-parse --abbrev-ref HEAD', () => cb(null, 'main\n', ''))
+          .case(
+            'for-each-ref --format=%(refname)%09%(refname:short)%09%(upstream:short)%09%(HEAD)%09%(upstream:track) refs/heads refs/remotes',
+            () =>
+              cb(
+                null,
+                [
+                  'refs/heads/main\tmain\torigin/main\t*\t[ahead 2, behind 1]',
+                  'refs/heads/feature\tfeature\torigin/feature\t\t',
+                  'refs/remotes/origin/main\torigin/main\t\t\t',
+                  'refs/remotes/origin/HEAD\torigin/HEAD\t\t\t',
+                ].join('\n'),
+                '',
+              ),
+          )
+          .catchAll(() => cb(new Error(`Unexpected git command: ${key}`), '', ''))
       },
     )
 

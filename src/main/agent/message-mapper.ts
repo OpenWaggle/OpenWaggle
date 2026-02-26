@@ -44,7 +44,9 @@ export function conversationToMessages(messages: readonly Message[]): SimpleChat
         .filter(Boolean)
         .join('\n')
       result.push({ role: 'user', content: text })
-    } else if (msg.role === 'assistant') {
+    }
+
+    if (msg.role === 'assistant') {
       const toolCalls = msg.parts
         .filter((p): p is Extract<MessagePart, { type: 'tool-call' }> => p.type === 'tool-call')
         .map((p) => ({

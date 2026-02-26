@@ -3,6 +3,7 @@ import type { AgentSendPayload, Message, PreparedAttachment } from '@shared/type
 import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { Provider, Settings } from '@shared/types/settings'
+import { choose } from '@shared/utils/decision'
 import { chat, type ModelMessage, maxIterations, type StreamChunk } from '@tanstack/ai'
 import { loadProjectConfig } from '../config/project-config'
 import { createLogger } from '../logger'
@@ -108,17 +109,21 @@ function buildUserChatContent(
 
   for (const attachment of payload.attachments) {
     if (providerSupportsNativeAttachment(provider, attachment) && attachment.source) {
-      if (attachment.kind === 'image') {
-        parts.push({
-          type: 'image',
-          source: attachment.source,
+      const source = attachment.source
+      choose(attachment.kind)
+        .case('image', () => {
+          parts.push({
+            type: 'image',
+            source,
+          })
         })
-      } else if (attachment.kind === 'pdf') {
-        parts.push({
-          type: 'document',
-          source: attachment.source,
+        .case('pdf', () => {
+          parts.push({
+            type: 'document',
+            source,
+          })
         })
-      }
+        .catchAll(() => undefined)
     }
 
     const extracted = attachment.extractedText.trim()

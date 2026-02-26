@@ -1,3 +1,4 @@
+import { choose } from '@shared/utils/decision'
 import { Check, ShieldAlert, X } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/cn'
@@ -16,27 +17,20 @@ interface ApprovalBannerProps {
  * Shows the most relevant info for each tool type.
  */
 function formatToolDetail(toolName: string, args: Record<string, unknown>): string | null {
-  switch (toolName) {
-    case 'runCommand': {
-      return typeof args.command === 'string' ? args.command : null
-    }
-    case 'writeFile':
-    case 'editFile':
-    case 'readFile':
-    case 'listFiles': {
-      return typeof args.path === 'string' ? args.path : null
-    }
-    case 'browserNavigate':
-    case 'webFetch': {
-      return typeof args.url === 'string' ? args.url : null
-    }
-    default: {
+  return choose(toolName)
+    .case('runCommand', () => (typeof args.command === 'string' ? args.command : null))
+    .case('writeFile', () => (typeof args.path === 'string' ? args.path : null))
+    .case('editFile', () => (typeof args.path === 'string' ? args.path : null))
+    .case('readFile', () => (typeof args.path === 'string' ? args.path : null))
+    .case('listFiles', () => (typeof args.path === 'string' ? args.path : null))
+    .case('browserNavigate', () => (typeof args.url === 'string' ? args.url : null))
+    .case('webFetch', () => (typeof args.url === 'string' ? args.url : null))
+    .catchAll(() => {
       // Fall back to the primary arg from tool config
       const config = getToolConfig(toolName)
       const value = args[config.primaryArg]
       return typeof value === 'string' ? value : null
-    }
-  }
+    })
 }
 
 export function ApprovalBanner({

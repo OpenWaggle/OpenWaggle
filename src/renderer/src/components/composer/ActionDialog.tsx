@@ -1,4 +1,5 @@
 import type { GitBranchMutationResult } from '@shared/types/git'
+import { choose } from '@shared/utils/decision'
 import { useEffect, useRef } from 'react'
 import { useGit } from '@/hooks/useGit'
 import { useProject } from '@/hooks/useProject'
@@ -23,47 +24,42 @@ function getActionDialogConfig(
 ): ActionDialogConfig {
   const currentBranch = gitBranch ?? 'current branch'
   const targetBranch = actionDialogInput.trim() || currentBranch
-  switch (kind) {
-    case 'create-branch':
-      return {
-        title: 'Create branch',
-        description: 'Create and checkout a new branch from the current HEAD.',
-        confirmLabel: 'Create',
-        confirmTone: 'normal',
-        inputPlaceholder: 'feature/my-branch',
-      }
-    case 'rename-branch':
-      return {
-        title: `Rename "${currentBranch}"`,
-        description: 'Enter the new branch name.',
-        confirmLabel: 'Rename',
-        confirmTone: 'normal',
-        inputPlaceholder: 'feature/new-name',
-      }
-    case 'delete-branch':
-      return {
-        title: `Delete "${targetBranch}"`,
-        description: 'This removes the local branch. This action cannot be undone.',
-        confirmLabel: 'Delete',
-        confirmTone: 'danger',
-      }
-    case 'set-upstream':
-      return {
-        title: `Set upstream for "${currentBranch}"`,
-        description: 'Enter the remote tracking branch (for example origin/main).',
-        confirmLabel: 'Set upstream',
-        confirmTone: 'normal',
-        inputPlaceholder: `origin/${currentBranch}`,
-      }
-    case 'confirm-full-access':
-      return {
-        title: 'Switch to Full access',
-        description:
-          'This enables write/edit/command tools. Default permissions runs commands in a sandbox.',
-        confirmLabel: 'Switch',
-        confirmTone: 'danger',
-      }
-  }
+  return choose(kind)
+    .case('create-branch', () => ({
+      title: 'Create branch',
+      description: 'Create and checkout a new branch from the current HEAD.',
+      confirmLabel: 'Create',
+      confirmTone: 'normal' as const,
+      inputPlaceholder: 'feature/my-branch',
+    }))
+    .case('rename-branch', () => ({
+      title: `Rename "${currentBranch}"`,
+      description: 'Enter the new branch name.',
+      confirmLabel: 'Rename',
+      confirmTone: 'normal' as const,
+      inputPlaceholder: 'feature/new-name',
+    }))
+    .case('delete-branch', () => ({
+      title: `Delete "${targetBranch}"`,
+      description: 'This removes the local branch. This action cannot be undone.',
+      confirmLabel: 'Delete',
+      confirmTone: 'danger' as const,
+    }))
+    .case('set-upstream', () => ({
+      title: `Set upstream for "${currentBranch}"`,
+      description: 'Enter the remote tracking branch (for example origin/main).',
+      confirmLabel: 'Set upstream',
+      confirmTone: 'normal' as const,
+      inputPlaceholder: `origin/${currentBranch}`,
+    }))
+    .case('confirm-full-access', () => ({
+      title: 'Switch to Full access',
+      description:
+        'This enables write/edit/command tools. Default permissions runs commands in a sandbox.',
+      confirmLabel: 'Switch',
+      confirmTone: 'danger' as const,
+    }))
+    .assertComplete()
 }
 
 interface ActionDialogProps {
@@ -129,13 +125,12 @@ export function ActionDialog({ onToast }: ActionDialogProps): React.JSX.Element 
     setActionDialogBusy(true)
 
     try {
-      switch (actionDialog) {
-        case 'confirm-full-access': {
+      await choose(actionDialog)
+        .case('confirm-full-access', async () => {
           await setExecutionMode('full-access')
           closeActionDialog()
-          return
-        }
-        case 'create-branch': {
+        })
+        .case('create-branch', async () => {
           const name = actionDialogInput.trim()
           if (!name) {
             setActionDialogError('Branch name is required.')
@@ -153,9 +148,8 @@ export function ActionDialog({ onToast }: ActionDialogProps): React.JSX.Element 
             return
           }
           closeActionDialog()
-          return
-        }
-        case 'rename-branch': {
+        })
+        .case('rename-branch', async () => {
           if (!gitBranch) return
           const target = actionDialogInput.trim()
           if (!target) {
@@ -174,9 +168,8 @@ export function ActionDialog({ onToast }: ActionDialogProps): React.JSX.Element 
             return
           }
           closeActionDialog()
-          return
-        }
-        case 'delete-branch': {
+        })
+        .case('delete-branch', async () => {
           const target = actionDialogInput.trim() || gitBranch
           if (!target) return
           if (target === gitBranch) {
@@ -197,9 +190,8 @@ export function ActionDialog({ onToast }: ActionDialogProps): React.JSX.Element 
             return
           }
           closeActionDialog()
-          return
-        }
-        case 'set-upstream': {
+        })
+        .case('set-upstream', async () => {
           if (!gitBranch) return
           const upstream = actionDialogInput.trim()
           if (!upstream) {
@@ -218,8 +210,8 @@ export function ActionDialog({ onToast }: ActionDialogProps): React.JSX.Element 
             return
           }
           closeActionDialog()
-        }
-      }
+        })
+        .assertComplete()
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Action failed.'
       setActionDialogError(message)

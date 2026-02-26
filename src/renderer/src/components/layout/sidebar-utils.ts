@@ -1,4 +1,5 @@
 import type { ConversationSummary } from '@shared/types/conversation'
+import { choose } from '@shared/utils/decision'
 import { projectName } from '@/lib/format'
 
 export type SortMode = 'recent' | 'oldest' | 'name' | 'threads'
@@ -36,27 +37,27 @@ export function groupConversationsByProject(conversations: ConversationSummary[]
 
 export function sortConversationGroups(groups: ProjectGroup[], mode: SortMode): ProjectGroup[] {
   const sorted = [...groups]
-  switch (mode) {
-    case 'recent':
+  choose(mode)
+    .case('recent', () => {
       sorted.sort((a, b) => {
         const aMax = Math.max(...a.conversations.map((c) => c.updatedAt))
         const bMax = Math.max(...b.conversations.map((c) => c.updatedAt))
         return bMax - aMax
       })
-      break
-    case 'oldest':
+    })
+    .case('oldest', () => {
       sorted.sort((a, b) => {
         const aMin = Math.min(...a.conversations.map((c) => c.createdAt))
         const bMin = Math.min(...b.conversations.map((c) => c.createdAt))
         return aMin - bMin
       })
-      break
-    case 'name':
+    })
+    .case('name', () => {
       sorted.sort((a, b) => a.displayName.localeCompare(b.displayName))
-      break
-    case 'threads':
+    })
+    .case('threads', () => {
       sorted.sort((a, b) => b.conversations.length - a.conversations.length)
-      break
-  }
+    })
+    .assertComplete()
   return sorted
 }

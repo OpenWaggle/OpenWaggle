@@ -54,7 +54,10 @@ export function AskUserBlock({
       void onAnswer(conversationId, [
         { question: questions[0].question, selectedOption: optionLabel },
       ])
-    } else if (currentStep < questions.length - 1) {
+      return
+    }
+
+    if (currentStep < questions.length - 1) {
       // Auto-advance to next question
       setCurrentStep(currentStep + 1)
     }

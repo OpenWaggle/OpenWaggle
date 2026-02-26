@@ -1,4 +1,5 @@
 import { unknownRecordSchema } from '@shared/schemas/validation'
+import { chooseBy } from '@shared/utils/decision'
 import type { StreamChunk } from '@tanstack/ai'
 import type { ModelRunner, OrchestrationServiceDeps, SamplingConfig } from './types'
 
@@ -25,16 +26,26 @@ export function createModelRunner(deps: OrchestrationServiceDeps): ModelRunner {
 
     let result = ''
     for await (const chunk of stream) {
-      if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
-        result += chunk.delta
-      } else if (chunk.type === 'STEP_STARTED' || chunk.type === 'STEP_FINISHED') {
-        onChunk?.(chunk)
-      } else if (chunk.type === 'RUN_ERROR') {
-        const code = chunk.error.code ?? 'unknown'
-        const message = chunk.error.message
-        deps.logger.error('modelText: RUN_ERROR received', { code, message })
-        throw new Error(`Model error [${code}]: ${message}`)
-      }
+      chooseBy(chunk, 'type')
+        .case('TEXT_MESSAGE_CONTENT', (value) => {
+          result += value.delta
+          return null
+        })
+        .case('STEP_STARTED', (value) => {
+          onChunk?.(value)
+          return null
+        })
+        .case('STEP_FINISHED', (value) => {
+          onChunk?.(value)
+          return null
+        })
+        .case('RUN_ERROR', (value) => {
+          const code = value.error.code ?? 'unknown'
+          const message = value.error.message
+          deps.logger.error('modelText: RUN_ERROR received', { code, message })
+          throw new Error(`Model error [${code}]: ${message}`)
+        })
+        .catchAll(() => null)
     }
 
     const trimmed = result.trim()
@@ -71,50 +82,66 @@ export function createModelRunner(deps: OrchestrationServiceDeps): ModelRunner {
     const pendingArgs = new Map<string, string>()
 
     for await (const chunk of stream) {
-      if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
-        result += chunk.delta
-      } else if (chunk.type === 'STEP_STARTED' || chunk.type === 'STEP_FINISHED') {
-        onChunk?.(chunk)
-      } else if (chunk.type === 'TOOL_CALL_START') {
-        toolCalls += 1
-        pendingArgs.set(chunk.toolCallId, '')
-      } else if (chunk.type === 'TOOL_CALL_ARGS') {
-        const existing = pendingArgs.get(chunk.toolCallId) ?? ''
-        pendingArgs.set(chunk.toolCallId, existing + chunk.delta)
-      } else if (chunk.type === 'TOOL_CALL_END') {
-        let toolInput: Readonly<Record<string, unknown>> | undefined
-        const inputResult = unknownRecordSchema.safeParse(chunk.input)
-        if (inputResult.success) {
-          toolInput = inputResult.data
-        } else {
-          const argsStr = pendingArgs.get(chunk.toolCallId)
-          if (argsStr) {
-            try {
-              const argsUnknown: unknown = JSON.parse(argsStr)
-              const argsResult = unknownRecordSchema.safeParse(argsUnknown)
-              if (argsResult.success) {
-                toolInput = argsResult.data
+      chooseBy(chunk, 'type')
+        .case('TEXT_MESSAGE_CONTENT', (value) => {
+          result += value.delta
+          return null
+        })
+        .case('STEP_STARTED', (value) => {
+          onChunk?.(value)
+          return null
+        })
+        .case('STEP_FINISHED', (value) => {
+          onChunk?.(value)
+          return null
+        })
+        .case('TOOL_CALL_START', (value) => {
+          toolCalls += 1
+          pendingArgs.set(value.toolCallId, '')
+          return null
+        })
+        .case('TOOL_CALL_ARGS', (value) => {
+          const existing = pendingArgs.get(value.toolCallId) ?? ''
+          pendingArgs.set(value.toolCallId, existing + value.delta)
+          return null
+        })
+        .case('TOOL_CALL_END', (value) => {
+          let toolInput: Readonly<Record<string, unknown>> | undefined
+          const inputResult = unknownRecordSchema.safeParse(value.input)
+          if (inputResult.success) {
+            toolInput = inputResult.data
+          } else {
+            const argsStr = pendingArgs.get(value.toolCallId)
+            if (argsStr) {
+              try {
+                const argsUnknown: unknown = JSON.parse(argsStr)
+                const argsResult = unknownRecordSchema.safeParse(argsUnknown)
+                if (argsResult.success) {
+                  toolInput = argsResult.data
+                }
+              } catch {
+                // Best-effort fallback from partial args stream.
               }
-            } catch {
-              // Best-effort fallback from partial args stream.
             }
           }
-        }
 
-        pendingArgs.delete(chunk.toolCallId)
-        deps.logger.info('executor tool_end', { toolName: chunk.toolName, toolInput })
-        reportProgress?.({
-          type: 'tool_end',
-          toolName: chunk.toolName,
-          toolCallId: chunk.toolCallId,
-          toolInput,
+          pendingArgs.delete(value.toolCallId)
+          deps.logger.info('executor tool_end', { toolName: value.toolName, toolInput })
+          reportProgress?.({
+            type: 'tool_end',
+            toolName: value.toolName,
+            toolCallId: value.toolCallId,
+            toolInput,
+          })
+          return null
         })
-      } else if (chunk.type === 'RUN_ERROR') {
-        const code = chunk.error.code ?? 'unknown'
-        const message = chunk.error.message
-        deps.logger.error('modelTextWithTools: RUN_ERROR received', { code, message })
-        throw new Error(`Model error [${code}]: ${message}`)
-      }
+        .case('RUN_ERROR', (value) => {
+          const code = value.error.code ?? 'unknown'
+          const message = value.error.message
+          deps.logger.error('modelTextWithTools: RUN_ERROR received', { code, message })
+          throw new Error(`Model error [${code}]: ${message}`)
+        })
+        .catchAll(() => null)
     }
 
     deps.logger.info('executor finished', { resultLength: result.length, toolCalls })

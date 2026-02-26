@@ -1,5 +1,6 @@
 import type { MessagePart } from '@shared/types/agent'
 import { ToolCallId } from '@shared/types/brand'
+import { chooseBy } from '@shared/utils/decision'
 import type { StreamChunk } from '@tanstack/ai'
 import { z } from 'zod'
 import { createLogger } from '../logger'
@@ -52,62 +53,60 @@ export class StreamPartCollector {
   private toolErrors = 0
 
   handleChunk(chunk: StreamChunk): StreamPartCollectorChunkResult {
-    switch (chunk.type) {
-      case 'TEXT_MESSAGE_CONTENT':
+    return chooseBy(chunk, 'type')
+      .case('TEXT_MESSAGE_CONTENT', (value) => {
         this.flushThinkingPart()
-        this.currentText += chunk.delta
+        this.currentText += value.delta
         return {}
-
-      case 'STEP_STARTED':
+      })
+      .case('STEP_STARTED', () => {
         this.flushThinkingPart()
         this.flushTextPart()
         return {}
-
-      case 'STEP_FINISHED':
-        this.currentThinking += chunk.delta
+      })
+      .case('STEP_FINISHED', (value) => {
+        this.currentThinking += value.delta
         return {}
-
-      case 'TOOL_CALL_START': {
+      })
+      .case('TOOL_CALL_START', (value) => {
         this.flushThinkingPart()
         this.flushTextPart()
         const startedAt = Date.now()
-        this.toolCallArgs[chunk.toolCallId] = ''
-        this.toolCallStartTimes[chunk.toolCallId] = startedAt
+        this.toolCallArgs[value.toolCallId] = ''
+        this.toolCallStartTimes[value.toolCallId] = startedAt
 
         return {
           toolCallStart: {
-            toolCallId: chunk.toolCallId,
-            toolName: chunk.toolName,
+            toolCallId: value.toolCallId,
+            toolName: value.toolName,
             startedAt,
           },
         }
-      }
-
-      case 'TOOL_CALL_ARGS': {
-        this.toolCallArgs[chunk.toolCallId] =
-          (this.toolCallArgs[chunk.toolCallId] ?? '') + chunk.delta
+      })
+      .case('TOOL_CALL_ARGS', (value) => {
+        this.toolCallArgs[value.toolCallId] =
+          (this.toolCallArgs[value.toolCallId] ?? '') + value.delta
         return {}
-      }
-
-      case 'TOOL_CALL_END': {
-        const args = this.parseToolArgs(chunk.toolCallId, chunk.toolName)
-        if (!this.emittedToolCallIds.has(chunk.toolCallId)) {
+      })
+      .case('TOOL_CALL_END', (value) => {
+        const args = this.parseToolArgs(value.toolCallId, value.toolName)
+        if (!this.emittedToolCallIds.has(value.toolCallId)) {
           this.collectedParts.push({
             type: 'tool-call',
-            toolCall: { id: ToolCallId(chunk.toolCallId), name: chunk.toolName, args },
+            toolCall: { id: ToolCallId(value.toolCallId), name: value.toolName, args },
           })
-          this.emittedToolCallIds.add(chunk.toolCallId)
+          this.emittedToolCallIds.add(value.toolCallId)
           this.toolCalls += 1
         }
 
-        const startTime = this.toolCallStartTimes[chunk.toolCallId]
+        const startTime = this.toolCallStartTimes[value.toolCallId]
         const durationMs = startTime ? Date.now() - startTime : 0
 
-        if (chunk.result === undefined) {
+        if (value.result === undefined) {
           return {
             toolCallEnd: {
-              toolCallId: chunk.toolCallId,
-              toolName: chunk.toolName,
+              toolCallId: value.toolCallId,
+              toolName: value.toolName,
               args,
               durationMs,
               isError: false,
@@ -115,60 +114,54 @@ export class StreamPartCollector {
           }
         }
 
-        const isError = detectToolResultError(chunk.result)
-        if (isError && !this.emittedToolResultIds.has(chunk.toolCallId)) {
+        const isError = detectToolResultError(value.result)
+        if (isError && !this.emittedToolResultIds.has(value.toolCallId)) {
           this.toolErrors += 1
         }
 
         const resultString =
-          typeof chunk.result === 'string' ? chunk.result : JSON.stringify(chunk.result)
+          typeof value.result === 'string' ? value.result : JSON.stringify(value.result)
 
-        if (!this.emittedToolResultIds.has(chunk.toolCallId)) {
+        if (!this.emittedToolResultIds.has(value.toolCallId)) {
           this.collectedParts.push({
             type: 'tool-result',
             toolResult: {
-              id: ToolCallId(chunk.toolCallId),
-              name: chunk.toolName,
+              id: ToolCallId(value.toolCallId),
+              name: value.toolName,
               args,
               result: resultString,
               isError,
               duration: durationMs,
             },
           })
-          this.emittedToolResultIds.add(chunk.toolCallId)
+          this.emittedToolResultIds.add(value.toolCallId)
         }
 
         return {
           toolCallEnd: {
-            toolCallId: chunk.toolCallId,
-            toolName: chunk.toolName,
+            toolCallId: value.toolCallId,
+            toolName: value.toolName,
             args,
             result: resultString,
             durationMs,
             isError,
           },
         }
-      }
-
-      case 'RUN_ERROR': {
+      })
+      .case('RUN_ERROR', (value) => {
         this.flushThinkingPart()
         this.flushTextPart()
         this.collectedParts.push({
           type: 'text',
-          text: `\n\n**Error:** ${chunk.error.message}`,
+          text: `\n\n**Error:** ${value.error.message}`,
         })
 
         return {
-          runError: new Error(chunk.error.message),
+          runError: new Error(value.error.message),
         }
-      }
-
-      case 'RUN_FINISHED':
-        return {}
-
-      default:
-        return {}
-    }
+      })
+      .case('RUN_FINISHED', () => ({}))
+      .catchAll(() => ({}))
   }
 
   finalizeParts(): MessagePart[] {

@@ -52,7 +52,10 @@ export function computeDiff(oldContent: string, newContent: string, filePath: st
       })
       additions++
       newLine++
-    } else if (line.startsWith('-')) {
+      continue
+    }
+
+    if (line.startsWith('-')) {
       lines.push({
         type: 'remove',
         content: line.slice(1),
@@ -61,7 +64,10 @@ export function computeDiff(oldContent: string, newContent: string, filePath: st
       })
       deletions++
       oldLine++
-    } else if (line.startsWith(' ')) {
+      continue
+    }
+
+    if (line.startsWith(' ')) {
       lines.push({
         type: 'context',
         content: line.slice(1),

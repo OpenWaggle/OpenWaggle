@@ -310,7 +310,12 @@ function ToolResult({
     if (typeof parsed === 'object' && parsed !== null) {
       if ('error' in parsed && typeof parsed.error === 'string') {
         errorMessage = parsed.error
-      } else if ('message' in parsed && typeof parsed.message === 'string') {
+      }
+      if (
+        !('error' in parsed && typeof parsed.error === 'string') &&
+        'message' in parsed &&
+        typeof parsed.message === 'string'
+      ) {
         errorMessage = parsed.message
       }
     }
@@ -333,7 +338,12 @@ function ToolResult({
   if (typeof parsed === 'object' && parsed !== null) {
     if ('message' in parsed && typeof parsed.message === 'string') {
       displayContent = parsed.message
-    } else if ('content' in parsed && typeof parsed.content === 'string') {
+    }
+    if (
+      !('message' in parsed && typeof parsed.message === 'string') &&
+      'content' in parsed &&
+      typeof parsed.content === 'string'
+    ) {
       displayContent = parsed.content
     }
   }

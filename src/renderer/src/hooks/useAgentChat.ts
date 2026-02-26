@@ -5,6 +5,7 @@ import type { SupportedModelId } from '@shared/types/llm'
 import type { MultiAgentConfig } from '@shared/types/multi-agent'
 import type { QuestionAnswer } from '@shared/types/question'
 import type { QualityPreset } from '@shared/types/settings'
+import { chooseBy } from '@shared/utils/decision'
 import type { UIMessage } from '@tanstack/ai-react'
 import { useChat } from '@tanstack/ai-react'
 import { useEffect, useRef } from 'react'
@@ -158,38 +159,33 @@ function conversationToUIMessages(conv: Conversation): UIMessage[] {
     id: String(msg.id),
     role: msg.role,
     parts: msg.parts.flatMap((part): UIMessage['parts'] => {
-      switch (part.type) {
-        case 'text':
-          return [{ type: 'text', content: part.text }]
-        case 'tool-call':
-          return [
-            {
-              type: 'tool-call',
-              id: String(part.toolCall.id),
-              name: part.toolCall.name,
-              arguments: JSON.stringify(part.toolCall.args),
-              state: 'input-complete',
-            },
-          ]
-        case 'tool-result':
-          return [
-            {
-              type: 'tool-result',
-              toolCallId: String(part.toolResult.id),
-              content: part.toolResult.result,
-              state: part.toolResult.isError ? 'error' : 'complete',
-            },
-          ]
-        case 'attachment':
-          return [
-            {
-              type: 'text',
-              content: formatAttachmentPreview(part.attachment.name, part.attachment.extractedText),
-            },
-          ]
-        default:
-          return []
-      }
+      return chooseBy(part, 'type')
+        .case('text', (value): UIMessage['parts'] => [{ type: 'text', content: value.text }])
+        .case('tool-call', (value): UIMessage['parts'] => [
+          {
+            type: 'tool-call',
+            id: String(value.toolCall.id),
+            name: value.toolCall.name,
+            arguments: JSON.stringify(value.toolCall.args),
+            state: 'input-complete',
+          },
+        ])
+        .case('tool-result', (value): UIMessage['parts'] => [
+          {
+            type: 'tool-result',
+            toolCallId: String(value.toolResult.id),
+            content: value.toolResult.result,
+            state: value.toolResult.isError ? 'error' : 'complete',
+          },
+        ])
+        .case('attachment', (value): UIMessage['parts'] => [
+          {
+            type: 'text',
+            content: formatAttachmentPreview(value.attachment.name, value.attachment.extractedText),
+          },
+        ])
+        .case('thinking', (): UIMessage['parts'] => [])
+        .assertComplete()
     }),
     createdAt: new Date(msg.createdAt),
   }))

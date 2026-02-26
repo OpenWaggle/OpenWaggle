@@ -49,10 +49,16 @@ function parseRawDiff(diff: string): ParsedLine[] {
     if (line.startsWith('+')) {
       displayLines.push({ type: 'add', content: line.slice(1), lineNumber: newLine })
       newLine++
-    } else if (line.startsWith('-')) {
+      continue
+    }
+
+    if (line.startsWith('-')) {
       displayLines.push({ type: 'remove', content: line.slice(1), lineNumber: oldLine })
       oldLine++
-    } else if (line.startsWith(' ') || (headerSeen && line === '')) {
+      continue
+    }
+
+    if (line.startsWith(' ') || (headerSeen && line === '')) {
       displayLines.push({
         type: 'context',
         content: line.startsWith(' ') ? line.slice(1) : '',

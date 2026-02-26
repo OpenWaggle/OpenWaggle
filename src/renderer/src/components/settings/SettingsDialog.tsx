@@ -55,7 +55,8 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps): React.
 
     if (isOpen && !dialog.open) {
       dialog.showModal()
-    } else if (!isOpen && dialog.open) {
+    }
+    if (!isOpen && dialog.open) {
       dialog.close()
     }
   }, [isOpen])

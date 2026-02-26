@@ -3,6 +3,7 @@ import { generateDisplayName, type SupportedModelId } from '@shared/types/llm'
 import type { AgentColor } from '@shared/types/multi-agent'
 import type { QuestionAnswer } from '@shared/types/question'
 import { askUserArgsSchema } from '@shared/types/question'
+import { chooseBy } from '@shared/utils/decision'
 import type { UIMessage } from '@tanstack/ai-react'
 import { Check } from 'lucide-react'
 import { AGENT_BORDER_LEFT, AGENT_TEXT } from '@/lib/agent-colors'
@@ -95,29 +96,30 @@ export function MessageBubble({
           </div>
         ) : null}
 
-        {message.parts.map((part, i) => {
-          switch (part.type) {
-            case 'text':
-              return part.content.trim() ? (
+        {message.parts.map((part, i) =>
+          chooseBy(part, 'type')
+            .case('text', (value) =>
+              value.content.trim() ? (
                 <StreamingText
                   key={`${message.id}-text-${String(i)}`}
-                  text={part.content}
+                  text={value.content}
                   isStreaming={isStreaming}
                 />
-              ) : null
-            case 'tool-call': {
+              ) : null,
+            )
+            .case('tool-call', (value) => {
               // Synthetic turn-boundary markers are only structural separators
               // for multi-agent streaming — never render them as tool calls.
-              if (part.name === '_turnBoundary') return null
+              if (value.name === '_turnBoundary') return null
 
-              if (part.name === 'askUser') {
-                const result = toolResults.get(part.id)
+              if (value.name === 'askUser') {
+                const result = toolResults.get(value.id)
                 if (result) {
                   // Answered — show compact muted summary
-                  const questionCount = countQuestions(part.arguments)
+                  const questionCount = countQuestions(value.arguments)
                   return (
                     <div
-                      key={`tool-${part.id}`}
+                      key={`tool-${value.id}`}
                       className="flex items-center gap-2 py-0.5 text-[13px]"
                     >
                       <Check className="h-3.5 w-3.5 text-text-muted shrink-0" />
@@ -130,40 +132,39 @@ export function MessageBubble({
                 // Unanswered — render nothing inline (active prompt renders above composer)
                 return null
               }
+
               return (
                 <ToolCallBlock
-                  key={`tool-${part.id}`}
-                  name={part.name}
-                  args={part.arguments}
-                  state={part.state}
-                  result={toolResults.get(part.id)}
+                  key={`tool-${value.id}`}
+                  name={value.name}
+                  args={value.arguments}
+                  state={value.state}
+                  result={toolResults.get(value.id)}
                 />
               )
-            }
-            case 'thinking': {
+            })
+            .case('thinking', (value) => {
               // A thinking part is still streaming only if no non-thinking parts
               // follow it. Once text/tool parts appear after, the reasoning is done.
               let isThinkingDone = false
-              for (let j = i + 1; j < message.parts.length; j++) {
+              for (let j = i + 1; j < message.parts.length; j += 1) {
                 if (message.parts[j].type !== 'thinking') {
                   isThinkingDone = true
                   break
                 }
               }
-              return part.content.trim() ? (
+
+              return value.content.trim() ? (
                 <ThinkingBlock
                   key={`${message.id}-thinking-${String(i)}`}
-                  content={part.content}
+                  content={value.content}
                   isStreaming={isStreaming && !isThinkingDone}
                 />
               ) : null
-            }
-            case 'tool-result':
-              return null
-            default:
-              return null
-          }
-        })}
+            })
+            .case('tool-result', () => null)
+            .catchAll(() => null),
+        )}
       </div>
     </div>
   )

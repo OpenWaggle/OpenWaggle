@@ -4,6 +4,7 @@ import type {
   SubscriptionProvider,
 } from '@shared/types/auth'
 import { SUBSCRIPTION_PROVIDERS } from '@shared/types/auth'
+import { choose } from '@shared/utils/decision'
 import { createLogger } from '../logger'
 import { getSettings, updateSettings } from '../store/settings'
 import { refreshAnthropicToken, startAnthropicOAuth } from './flows/anthropic-oauth'
@@ -59,14 +60,6 @@ export function submitCode(provider: SubscriptionProvider, code: string): void {
   }
 }
 
-// ─── OAuth Flow Registry ────────────────────────────────────────────
-
-interface OAuthFlowResult {
-  readonly accessToken: string
-  readonly refreshToken?: string
-  readonly expiresAt?: number
-}
-
 // ─── Public API ─────────────────────────────────────────────────────
 
 export async function startOAuth(
@@ -120,39 +113,41 @@ async function runOAuthFlow(
       storePreviousApiKey(provider, currentKey)
     }
 
-    let result: OAuthFlowResult
-
-    if (provider === 'openrouter') {
-      const r = await startOpenRouterOAuth()
-      storeTokens('openrouter', { apiKey: r.apiKey })
-      result = { accessToken: r.apiKey }
-    } else if (provider === 'openai') {
-      const manualCodePromise = createManualCodePromise(provider)
-      const r = await startOpenAIOAuth({
-        manualCodePromise,
-        onAwaitingCode: () => emitStatus({ type: 'awaiting-code', provider }),
-        onCodeReceived: () => emitStatus({ type: 'code-received', provider }),
+    const result = await choose(provider)
+      .case('openrouter', async () => {
+        const r = await startOpenRouterOAuth()
+        storeTokens('openrouter', { apiKey: r.apiKey })
+        return { accessToken: r.apiKey }
       })
-      storeTokens('openai', {
-        accessToken: r.accessToken,
-        refreshToken: r.refreshToken,
-        expiresAt: r.expiresAt,
+      .case('openai', async () => {
+        const manualCodePromise = createManualCodePromise(provider)
+        const r = await startOpenAIOAuth({
+          manualCodePromise,
+          onAwaitingCode: () => emitStatus({ type: 'awaiting-code', provider }),
+          onCodeReceived: () => emitStatus({ type: 'code-received', provider }),
+        })
+        storeTokens('openai', {
+          accessToken: r.accessToken,
+          refreshToken: r.refreshToken,
+          expiresAt: r.expiresAt,
+        })
+        return { accessToken: r.accessToken }
       })
-      result = { accessToken: r.accessToken }
-    } else {
-      const manualCodePromise = createManualCodePromise(provider)
-      // Anthropic needs a manual code handoff from clipboard/paste.
-      emitStatus({ type: 'awaiting-code', provider })
-      const r = await startAnthropicOAuth(manualCodePromise, () => {
-        emitStatus({ type: 'code-received', provider })
+      .case('anthropic', async () => {
+        const manualCodePromise = createManualCodePromise(provider)
+        // Anthropic needs a manual code handoff from clipboard/paste.
+        emitStatus({ type: 'awaiting-code', provider })
+        const r = await startAnthropicOAuth(manualCodePromise, () => {
+          emitStatus({ type: 'code-received', provider })
+        })
+        storeTokens('anthropic', {
+          accessToken: r.accessToken,
+          refreshToken: r.refreshToken,
+          expiresAt: r.expiresAt,
+        })
+        return { accessToken: r.accessToken }
       })
-      storeTokens('anthropic', {
-        accessToken: r.accessToken,
-        refreshToken: r.refreshToken,
-        expiresAt: r.expiresAt,
-      })
-      result = { accessToken: r.accessToken }
-    }
+      .assertComplete()
 
     applySubscriptionToSettings(provider, result.accessToken)
     lifecycleConnectivity.set(provider, true)
@@ -206,7 +201,8 @@ async function runAuthLifecycleTick(emitStatus: StatusEmitter): Promise<void> {
 
       if (!connected && previous !== false) {
         emitStatus({ type: 'error', provider, message: 'Session expired. Please sign in again.' })
-      } else if (connected && previous === false) {
+      }
+      if (connected && previous === false) {
         emitStatus({ type: 'success', provider })
       }
 

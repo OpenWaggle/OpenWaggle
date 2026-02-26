@@ -7,6 +7,7 @@ import type {
   MultiAgentMessageMetadata,
   MultiAgentTurnEvent,
 } from '@shared/types/multi-agent'
+import { chooseBy } from '@shared/utils/decision'
 import { create } from 'zustand'
 
 interface MultiAgentState {
@@ -78,54 +79,54 @@ export const useMultiAgentStore = create<MultiAgentState>((set) => ({
   },
 
   handleTurnEvent(event) {
-    switch (event.type) {
-      case 'turn-start':
+    chooseBy(event, 'type')
+      .case('turn-start', (value) => {
         set({
-          currentTurn: event.turnNumber,
-          currentAgentIndex: event.agentIndex,
-          currentAgentLabel: event.agentLabel,
+          currentTurn: value.turnNumber,
+          currentAgentIndex: value.agentIndex,
+          currentAgentLabel: value.agentLabel,
         })
-        break
-      case 'consensus-reached':
-        set({ lastConsensusResult: event.result })
-        break
-      case 'file-conflict':
-        set((s) => ({ fileConflicts: [...s.fileConflicts, event.warning] }))
-        break
-      case 'collaboration-complete':
+      })
+      .case('consensus-reached', (value) => {
+        set({ lastConsensusResult: value.result })
+      })
+      .case('file-conflict', (value) => {
+        set((s) => ({ fileConflicts: [...s.fileConflicts, value.warning] }))
+      })
+      .case('collaboration-complete', (value) => {
         set({
           status: 'completed',
-          completionReason: event.reason,
+          completionReason: value.reason,
         })
-        break
-      case 'collaboration-stopped':
+      })
+      .case('collaboration-stopped', (value) => {
         set({
           status: 'stopped',
-          completionReason: event.reason,
+          completionReason: value.reason,
         })
-        break
-      case 'synthesis-start':
+      })
+      .case('synthesis-start', () => {
         set({
           currentAgentIndex: -1,
           currentAgentLabel: 'Synthesis',
         })
-        break
-      case 'turn-end':
+      })
+      .case('turn-end', (value) => {
         set((s) => ({
           completedTurnMeta: [
             ...s.completedTurnMeta,
             {
-              agentIndex: event.agentIndex,
-              agentLabel: event.agentLabel,
-              agentColor: event.agentColor,
-              agentModel: event.agentModel,
-              turnNumber: event.turnNumber,
-              ...(event.agentIndex === -1 ? { isSynthesis: true } : {}),
+              agentIndex: value.agentIndex,
+              agentLabel: value.agentLabel,
+              agentColor: value.agentColor,
+              agentModel: value.agentModel,
+              turnNumber: value.turnNumber,
+              ...(value.agentIndex === -1 ? { isSynthesis: true } : {}),
             },
           ],
         }))
-        break
-    }
+      })
+      .assertComplete()
   },
 
   trackMessageMetadata(messageId, meta) {

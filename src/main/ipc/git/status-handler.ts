@@ -4,6 +4,7 @@ import type {
   GitFileStatus,
   GitStatusSummary,
 } from '@shared/types/git'
+import { choose } from '@shared/utils/decision'
 import { safeHandle } from '../typed-ipc'
 import { isGitRepository, projectPathSchema, runGit, stripSurroundingQuotes } from './shared'
 
@@ -51,22 +52,14 @@ export function normalizeGitPath(rawPath: string): string {
 }
 
 function mapStatusCode(code: string): GitFileStatus {
-  switch (code) {
-    case 'M':
-      return 'modified'
-    case 'A':
-      return 'added'
-    case 'D':
-      return 'deleted'
-    case 'R':
-      return 'renamed'
-    case 'C':
-      return 'copied'
-    case '?':
-      return 'untracked'
-    default:
-      return 'unknown'
-  }
+  return choose(code)
+    .case('M', (): GitFileStatus => 'modified')
+    .case('A', (): GitFileStatus => 'added')
+    .case('D', (): GitFileStatus => 'deleted')
+    .case('R', (): GitFileStatus => 'renamed')
+    .case('C', (): GitFileStatus => 'copied')
+    .case('?', (): GitFileStatus => 'untracked')
+    .catchAll((): GitFileStatus => 'unknown')
 }
 
 function parsePorcelain(stdout: string): ParsedPorcelainEntry[] {
@@ -216,7 +209,8 @@ export function parseUnifiedDiff(stdout: string): GitFileDiff[] {
     for (const line of lines.slice(1)) {
       if (line.startsWith('+') && !line.startsWith('+++')) {
         additions++
-      } else if (line.startsWith('-') && !line.startsWith('---')) {
+      }
+      if (line.startsWith('-') && !line.startsWith('---')) {
         deletions++
       }
     }

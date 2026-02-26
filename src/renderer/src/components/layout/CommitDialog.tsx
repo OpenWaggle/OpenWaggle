@@ -1,4 +1,5 @@
 import type { GitCommitResult, GitStatusSummary } from '@shared/types/git'
+import { choose } from '@shared/utils/decision'
 import { Loader2, RefreshCw, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/cn'
@@ -28,18 +29,12 @@ const STATUS_CLASS: Record<string, string> = {
 function humanCommitError(result: GitCommitResult): string {
   if (result.ok) return ''
 
-  switch (result.code) {
-    case 'empty-message':
-      return 'Commit message is required.'
-    case 'nothing-to-commit':
-      return 'No changes are available to commit.'
-    case 'merge-in-progress':
-      return 'A merge is in progress. Resolve it before committing.'
-    case 'not-git-repo':
-      return 'Selected folder is not a Git repository.'
-    default:
-      return result.message
-  }
+  return choose(result.code)
+    .case('empty-message', () => 'Commit message is required.')
+    .case('nothing-to-commit', () => 'No changes are available to commit.')
+    .case('merge-in-progress', () => 'A merge is in progress. Resolve it before committing.')
+    .case('not-git-repo', () => 'Selected folder is not a Git repository.')
+    .catchAll(() => result.message)
 }
 
 export function CommitDialog({

@@ -125,7 +125,9 @@ export function useStreamingPhase(
       }
       phaseRef.current = { label: currentLabel, startedAt: Date.now() }
     }
-  } else if (phaseRef.current) {
+  }
+
+  if (currentLabel === null && phaseRef.current) {
     // isLoading went false — finalize the last phase
     const durationMs = Date.now() - phaseRef.current.startedAt
     completedRef.current = [...completedRef.current, { label: phaseRef.current.label, durationMs }]

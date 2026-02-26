@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { PreparedAttachment } from '@shared/types/agent'
+import { choose } from '@shared/utils/decision'
 import { isPathInside } from '@shared/utils/paths'
 import { dialog } from 'electron'
 import { z } from 'zod'
@@ -28,64 +29,45 @@ function resolveAttachmentKind(mimeType: string): PreparedAttachment['kind'] {
 
 function guessMimeType(filePath: string): string | null {
   const ext = path.extname(filePath).toLowerCase()
-  switch (ext) {
-    case '.pdf':
-      return 'application/pdf'
-    case '.png':
-      return 'image/png'
-    case '.jpg':
-    case '.jpeg':
-      return 'image/jpeg'
-    case '.webp':
-      return 'image/webp'
-    case '.gif':
-      return 'image/gif'
-    case '.bmp':
-      return 'image/bmp'
-    case '.svg':
-      return 'image/svg+xml'
-    case '.md':
-      return 'text/markdown'
-    case '.json':
-      return 'application/json'
-    case '.yaml':
-    case '.yml':
-      return 'application/yaml'
-    case '.xml':
-      return 'application/xml'
-    case '.csv':
-      return 'text/csv'
-    case '.log':
-      return 'text/plain'
-    case '.docx':
-      return DOCX_MIME_TYPE
-    case '.rtf':
-      return RTF_MIME_TYPE
-    case '.odt':
-      return ODT_MIME_TYPE
-    case '.ts':
-    case '.tsx':
-    case '.js':
-    case '.jsx':
-    case '.mjs':
-    case '.cjs':
-    case '.py':
-    case '.java':
-    case '.go':
-    case '.rs':
-    case '.swift':
-    case '.kt':
-    case '.css':
-    case '.scss':
-    case '.sass':
-    case '.less':
-    case '.html':
-    case '.htm':
-    case '.txt':
-      return 'text/plain'
-    default:
-      return null
-  }
+  return choose(ext)
+    .case('.pdf', () => 'application/pdf')
+    .case('.png', () => 'image/png')
+    .case('.jpg', () => 'image/jpeg')
+    .case('.jpeg', () => 'image/jpeg')
+    .case('.webp', () => 'image/webp')
+    .case('.gif', () => 'image/gif')
+    .case('.bmp', () => 'image/bmp')
+    .case('.svg', () => 'image/svg+xml')
+    .case('.md', () => 'text/markdown')
+    .case('.json', () => 'application/json')
+    .case('.yaml', () => 'application/yaml')
+    .case('.yml', () => 'application/yaml')
+    .case('.xml', () => 'application/xml')
+    .case('.csv', () => 'text/csv')
+    .case('.log', () => 'text/plain')
+    .case('.docx', () => DOCX_MIME_TYPE)
+    .case('.rtf', () => RTF_MIME_TYPE)
+    .case('.odt', () => ODT_MIME_TYPE)
+    .case('.ts', () => 'text/plain')
+    .case('.tsx', () => 'text/plain')
+    .case('.js', () => 'text/plain')
+    .case('.jsx', () => 'text/plain')
+    .case('.mjs', () => 'text/plain')
+    .case('.cjs', () => 'text/plain')
+    .case('.py', () => 'text/plain')
+    .case('.java', () => 'text/plain')
+    .case('.go', () => 'text/plain')
+    .case('.rs', () => 'text/plain')
+    .case('.swift', () => 'text/plain')
+    .case('.kt', () => 'text/plain')
+    .case('.css', () => 'text/plain')
+    .case('.scss', () => 'text/plain')
+    .case('.sass', () => 'text/plain')
+    .case('.less', () => 'text/plain')
+    .case('.html', () => 'text/plain')
+    .case('.htm', () => 'text/plain')
+    .case('.txt', () => 'text/plain')
+    .catchAll(() => null)
 }
 
 function normalizeText(value: string): string {
@@ -127,20 +109,13 @@ function decodeXmlEntities(value: string): string {
       return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : ''
     }
 
-    switch (entity) {
-      case 'amp':
-        return '&'
-      case 'lt':
-        return '<'
-      case 'gt':
-        return '>'
-      case 'quot':
-        return '"'
-      case 'apos':
-        return "'"
-      default:
-        return ''
-    }
+    return choose(entity)
+      .case('amp', () => '&')
+      .case('lt', () => '<')
+      .case('gt', () => '>')
+      .case('quot', () => '"')
+      .case('apos', () => "'")
+      .catchAll(() => '')
   })
 }
 
@@ -219,20 +194,16 @@ async function prepareAttachment(filePath: string): Promise<PreparedAttachment> 
   const buffer = await fs.readFile(filePath)
   const kind = resolveAttachmentKind(mimeType)
 
-  let extractedText = ''
-  if (kind === 'pdf') {
-    extractedText = await extractTextFromPdf(buffer)
-  } else if (kind === 'image') {
-    extractedText = await extractTextFromImage(buffer)
-  } else if (mimeType === DOCX_MIME_TYPE) {
-    extractedText = await extractTextFromDocx(buffer)
-  } else if (mimeType === ODT_MIME_TYPE) {
-    extractedText = await extractTextFromOdt(buffer)
-  } else if (mimeType === RTF_MIME_TYPE) {
-    extractedText = extractTextFromRtf(buffer.toString('utf8'))
-  } else {
-    extractedText = normalizeText(buffer.toString('utf8'))
-  }
+  const extractedText = await choose(kind)
+    .case('pdf', () => extractTextFromPdf(buffer))
+    .case('image', () => extractTextFromImage(buffer))
+    .catchAll(() =>
+      choose(mimeType)
+        .case(DOCX_MIME_TYPE, () => extractTextFromDocx(buffer))
+        .case(ODT_MIME_TYPE, () => extractTextFromOdt(buffer))
+        .case(RTF_MIME_TYPE, () => Promise.resolve(extractTextFromRtf(buffer.toString('utf8'))))
+        .catchAll(() => Promise.resolve(normalizeText(buffer.toString('utf8')))),
+    )
 
   const source =
     kind === 'image' || kind === 'pdf'

@@ -1,6 +1,7 @@
 import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from '@shared/types/llm'
 import type { Settings } from '@shared/types/settings'
 import { isProvider } from '@shared/types/settings'
+import { choose } from '@shared/utils/decision'
 import { Check } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { useClickOutside } from '@/hooks/useClickOutside'
@@ -67,33 +68,36 @@ export function ModelSelector({
       return
     }
 
-    switch (e.key) {
-      case 'ArrowDown': {
+    choose(e.key)
+      .case('ArrowDown', () => {
         e.preventDefault()
         setFocusedIndex((prev) => (prev + 1) % allModels.length)
-        break
-      }
-      case 'ArrowUp': {
+      })
+      .case('ArrowUp', () => {
         e.preventDefault()
         setFocusedIndex((prev) => (prev - 1 + allModels.length) % allModels.length)
-        break
-      }
-      case 'Enter':
-      case ' ': {
+      })
+      .case('Enter', () => {
         e.preventDefault()
         const model = allModels[focusedIndex]
         if (model && isModelAvailable(model)) {
           onChange(model.id)
           setIsOpen(false)
         }
-        break
-      }
-      case 'Escape': {
+      })
+      .case(' ', () => {
+        e.preventDefault()
+        const model = allModels[focusedIndex]
+        if (model && isModelAvailable(model)) {
+          onChange(model.id)
+          setIsOpen(false)
+        }
+      })
+      .case('Escape', () => {
         e.preventDefault()
         setIsOpen(false)
-        break
-      }
-    }
+      })
+      .catchAll(() => undefined)
   }
 
   return (

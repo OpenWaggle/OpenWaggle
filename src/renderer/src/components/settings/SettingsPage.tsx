@@ -1,3 +1,4 @@
+import { choose } from '@shared/utils/decision'
 import { ArrowLeft } from 'lucide-react'
 import { useFullscreen } from '@/hooks/useFullscreen'
 import { cn } from '@/lib/cn'
@@ -5,8 +6,8 @@ import type { SettingsTab } from '@/stores/ui-store'
 import { useUIStore } from '@/stores/ui-store'
 import { SettingsNav } from './SettingsNav'
 import { ConnectionsSection } from './sections/ConnectionsSection'
-import { CoworkSection } from './sections/CoworkSection'
 import { GeneralSection } from './sections/GeneralSection'
+import { WaggleSection } from './sections/WaggleSection'
 
 export function SettingsPage(): React.JSX.Element {
   const activeTab = useUIStore((s) => s.activeSettingsTab)
@@ -48,14 +49,9 @@ export function SettingsPage(): React.JSX.Element {
 }
 
 function SettingsTabContent({ tab }: { tab: SettingsTab }): React.JSX.Element {
-  switch (tab) {
-    case 'general':
-      return <GeneralSection />
-    case 'cowork':
-      return <CoworkSection />
-    case 'connections':
-      return <ConnectionsSection />
-    default:
-      return <GeneralSection />
-  }
+  return choose(tab)
+    .case('general', () => <GeneralSection />)
+    .case('waggle', () => <WaggleSection />)
+    .case('connections', () => <ConnectionsSection />)
+    .catchAll(() => <GeneralSection />)
 }

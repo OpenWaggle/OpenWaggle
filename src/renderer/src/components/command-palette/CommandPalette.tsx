@@ -1,5 +1,6 @@
 import type { MultiAgentConfig, TeamPreset } from '@shared/types/multi-agent'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
+import { choose } from '@shared/utils/decision'
 import {
   GitBranch,
   GitPullRequest,
@@ -39,13 +40,13 @@ interface CommandItem {
 interface CommandPaletteProps {
   slashSkills: readonly SkillDiscoveryItem[]
   onSelectSkill: (skillId: string) => void
-  onStartCowork: (config: MultiAgentConfig) => void
+  onStartWaggle: (config: MultiAgentConfig) => void
 }
 
 export function CommandPalette({
   slashSkills,
   onSelectSkill,
-  onStartCowork,
+  onStartWaggle,
 }: CommandPaletteProps): React.JSX.Element {
   const closeCommandPalette = useUIStore((s) => s.closeCommandPalette)
   const openSettings = useUIStore((s) => s.openSettings)
@@ -79,26 +80,26 @@ export function CommandPalette({
 
   const lowerQuery = query.toLowerCase().trim()
 
-  // ── Co-work handlers ──
+  // ── Waggle handlers ──
 
   function handleSelectPreset(preset: TeamPreset): void {
     setConfig(preset.config)
-    onStartCowork(preset.config)
+    onStartWaggle(preset.config)
     closeCommandPalette()
   }
 
-  function handleConfigureCowork(): void {
+  function handleConfigureWaggle(): void {
     closeCommandPalette()
-    openSettings('cowork')
+    openSettings('waggle')
   }
 
-  function handleStartCowork(): void {
+  function handleStartWaggle(): void {
     const config = useMultiAgentStore.getState().activeConfig
     if (config) {
-      onStartCowork(config)
+      onStartWaggle(config)
       closeCommandPalette()
     } else {
-      handleConfigureCowork()
+      handleConfigureWaggle()
     }
   }
 
@@ -111,11 +112,11 @@ export function CommandPalette({
 
   const baseCommands: CommandItem[] = [
     {
-      id: 'cowork',
-      label: 'Co-work',
+      id: 'waggle',
+      label: 'Waggle Mode',
       description: 'Start LLM collaboration session',
       icon: <Users className="h-3.5 w-3.5" />,
-      action: handleStartCowork,
+      action: handleStartWaggle,
     },
     {
       id: 'code-review',
@@ -170,18 +171,18 @@ export function CommandPalette({
       action: () => handleSkillSelect(s.id),
     }))
 
-  // Co-work presets
-  const coworkPresetItems: CommandItem[] = presets
+  // Waggle presets
+  const wagglePresetItems: CommandItem[] = presets
     .filter(
       (p) =>
-        !lowerQuery || p.name.toLowerCase().includes(lowerQuery) || 'co-work'.includes(lowerQuery),
+        !lowerQuery || p.name.toLowerCase().includes(lowerQuery) || 'waggle'.includes(lowerQuery),
     )
     .map((preset) => ({
-      id: `cowork-preset-${preset.id}`,
+      id: `waggle-preset-${preset.id}`,
       label: preset.name,
       description: truncate(preset.description, 40),
       icon: presetIcon(preset),
-      section: 'Co-work',
+      section: 'Waggle Mode',
       trailing: preset.config.mode === 'sequential' ? 'Sequential' : 'Parallel',
       trailingBadge: preset.isBuiltIn ? undefined : 'Custom',
       action: () => handleSelectPreset(preset),
@@ -196,24 +197,24 @@ export function CommandPalette({
       )
     : baseCommands
 
-  // Co-work expanded view (when searching "co-work")
-  const isCoworkFilter =
-    lowerQuery.length > 0 && 'co-work'.includes(lowerQuery) && !lowerQuery.startsWith('co-work ')
-  const configureItem: CommandItem | null = isCoworkFilter
+  // Waggle expanded view (when searching "waggle")
+  const isWaggleFilter =
+    lowerQuery.length > 0 && 'waggle'.includes(lowerQuery) && !lowerQuery.startsWith('waggle ')
+  const configureItem: CommandItem | null = isWaggleFilter
     ? {
-        id: 'configure-cowork',
-        label: 'Configure Co-work...',
-        description: 'Open LLM Co-work settings',
+        id: 'configure-waggle',
+        label: 'Configure Waggle Mode...',
+        description: 'Open Waggle Mode settings',
         icon: <Settings className="h-3.5 w-3.5" />,
         section: 'configure',
-        action: handleConfigureCowork,
+        action: handleConfigureWaggle,
       }
     : null
 
   const allItems = [
     ...filteredCommands,
     ...skillItems,
-    ...coworkPresetItems,
+    ...wagglePresetItems,
     ...(configureItem ? [configureItem] : []),
   ]
 
@@ -234,18 +235,23 @@ export function CommandPalette({
   }
 
   function handleKeyDown(e: React.KeyboardEvent): void {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      setHighlightIndex((prev) => (prev + 1) % allItems.length)
-      scrollHighlightedIntoView()
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      setHighlightIndex((prev) => (prev === 0 ? allItems.length - 1 : prev - 1))
-      scrollHighlightedIntoView()
-    } else if (e.key === 'Enter' && allItems[highlightIndex]) {
-      e.preventDefault()
-      allItems[highlightIndex].action()
-    }
+    choose(e.key)
+      .case('ArrowDown', () => {
+        e.preventDefault()
+        setHighlightIndex((prev) => (prev + 1) % allItems.length)
+        scrollHighlightedIntoView()
+      })
+      .case('ArrowUp', () => {
+        e.preventDefault()
+        setHighlightIndex((prev) => (prev === 0 ? allItems.length - 1 : prev - 1))
+        scrollHighlightedIntoView()
+      })
+      .case('Enter', () => {
+        if (!allItems[highlightIndex]) return
+        e.preventDefault()
+        allItems[highlightIndex].action()
+      })
+      .catchAll(() => undefined)
   }
 
   // Track section boundaries for headers

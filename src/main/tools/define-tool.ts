@@ -141,7 +141,10 @@ export function resolveProjectPath(projectPath: string, filePath: string): strin
     if (!isPathInside(projectRootReal, realParent)) {
       throw new Error(`Path "${filePath}" resolves outside the project directory (symlink)`)
     }
-  } else if (!isPathInside(projectRoot, resolved)) {
+    return resolved
+  }
+
+  if (!isPathInside(projectRoot, resolved)) {
     throw new Error(`Path "${filePath}" is outside the project directory`)
   }
 

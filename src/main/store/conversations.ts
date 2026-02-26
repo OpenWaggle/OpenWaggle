@@ -7,6 +7,7 @@ import { ConversationId, MessageId, ToolCallId } from '@shared/types/brand'
 import type { Conversation, ConversationSummary } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
 import { DEFAULT_ANTHROPIC_MODEL, DEFAULT_OPENAI_MODEL } from '@shared/types/settings'
+import { chooseBy } from '@shared/utils/decision'
 import { isEnoent } from '@shared/utils/node-error'
 import { app } from 'electron'
 import { z } from 'zod'
@@ -103,42 +104,42 @@ type ParsedPart = z.infer<typeof messagePartSchema>
 type ParsedMessage = z.infer<typeof messageSchema>
 
 function transformPart(part: ParsedPart): MessagePart {
-  switch (part.type) {
-    case 'text':
-      return { type: 'text', text: part.text }
-    case 'thinking':
-      return { type: 'thinking', text: part.text }
-    case 'tool-call':
-      return {
+  return chooseBy(part, 'type')
+    .case('text', (value): MessagePart => ({ type: 'text', text: value.text }))
+    .case('thinking', (value): MessagePart => ({ type: 'thinking', text: value.text }))
+    .case(
+      'tool-call',
+      (value): MessagePart => ({
         type: 'tool-call',
         toolCall: {
-          id: ToolCallId(part.toolCall.id),
-          name: part.toolCall.name,
-          args: part.toolCall.args,
+          id: ToolCallId(value.toolCall.id),
+          name: value.toolCall.name,
+          args: value.toolCall.args,
         },
-      }
-    case 'attachment':
-      return {
+      }),
+    )
+    .case(
+      'attachment',
+      (value): MessagePart => ({
         type: 'attachment',
-        attachment: part.attachment,
-      }
-    case 'tool-result':
-      return {
+        attachment: value.attachment,
+      }),
+    )
+    .case(
+      'tool-result',
+      (value): MessagePart => ({
         type: 'tool-result',
         toolResult: {
-          id: ToolCallId(part.toolResult.id),
-          name: part.toolResult.name,
-          args: part.toolResult.args,
-          result: part.toolResult.result,
-          isError: part.toolResult.isError,
-          duration: part.toolResult.duration,
+          id: ToolCallId(value.toolResult.id),
+          name: value.toolResult.name,
+          args: value.toolResult.args,
+          result: value.toolResult.result,
+          isError: value.toolResult.isError,
+          duration: value.toolResult.duration,
         },
-      }
-    default: {
-      const _exhaustive: never = part
-      throw new Error(`Unknown part type: ${JSON.stringify(_exhaustive)}`)
-    }
-  }
+      }),
+    )
+    .assertComplete()
 }
 
 /**
