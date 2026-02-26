@@ -23,7 +23,7 @@ import { useMultiAgentMetadataLookup } from '@/hooks/useMultiAgentMetadataLookup
 import { useOrchestration } from '@/hooks/useOrchestration'
 import { useProject } from '@/hooks/useProject'
 import { useSendMessage } from '@/hooks/useSendMessage'
-import { useSettings, useSettingsSetup } from '@/hooks/useSettings'
+import { usePreferences, useSettingsSetup } from '@/hooks/useSettings'
 import { useSkills } from '@/hooks/useSkills'
 import { cn } from '@/lib/cn'
 import { api } from '@/lib/ipc'
@@ -51,7 +51,7 @@ export function App(): React.JSX.Element {
 
   useSettingsSetup()
 
-  const { settings, isLoaded } = useSettings()
+  const { settings, isLoaded } = usePreferences()
   const { projectPath, selectFolder, setProjectPath } = useProject()
   const {
     standardsStatus,

@@ -32,9 +32,10 @@ export function useSettingsSetup(): void {
 }
 
 /**
- * Hook for settings UI — uses granular selectors to avoid unnecessary re-renders.
+ * Preferences-only hook — settings, load state, and preference actions.
+ * Does NOT subscribe to provider or auth stores.
  */
-export function useSettings() {
+export function usePreferences() {
   const settings = usePreferencesStore((s) => s.settings)
   const isLoaded = usePreferencesStore((s) => s.isLoaded)
   const loadError = usePreferencesStore((s) => s.loadError)
@@ -47,6 +48,26 @@ export function useSettings() {
   const pushRecentProject = usePreferencesStore((s) => s.pushRecentProject)
   const retryLoad = usePreferencesStore((s) => s.retryLoad)
 
+  return {
+    settings,
+    isLoaded,
+    loadError,
+    setDefaultModel,
+    toggleFavoriteModel,
+    setProjectPath,
+    setExecutionMode,
+    setQualityPreset,
+    setBrowserHeadless,
+    pushRecentProject,
+    retryLoad,
+  }
+}
+
+/**
+ * Provider-only hook — model lists, API testing, provider config actions.
+ * Does NOT subscribe to preferences or auth stores.
+ */
+export function useProviders() {
   const testingProviders = useProviderStore((s) => s.testingProviders)
   const testResults = useProviderStore((s) => s.testResults)
   const providerModels = useProviderStore((s) => s.providerModels)
@@ -57,16 +78,7 @@ export function useSettings() {
   const testApiKey = useProviderStore((s) => s.testApiKey)
   const clearTestResult = useProviderStore((s) => s.clearTestResult)
 
-  const oauthStatuses = useAuthStore((s) => s.oauthStatuses)
-  const authAccounts = useAuthStore((s) => s.authAccounts)
-  const startOAuth = useAuthStore((s) => s.startOAuth)
-  const submitAuthCode = useAuthStore((s) => s.submitAuthCode)
-  const disconnectAuth = useAuthStore((s) => s.disconnectAuth)
-
   return {
-    settings,
-    isLoaded,
-    loadError,
     testingProviders,
     testResults,
     providerModels,
@@ -74,20 +86,39 @@ export function useSettings() {
     updateApiKey,
     toggleProvider,
     updateBaseUrl,
-    setDefaultModel,
-    toggleFavoriteModel,
-    setProjectPath,
-    setExecutionMode,
-    setQualityPreset,
-    setBrowserHeadless,
-    pushRecentProject,
     testApiKey,
     clearTestResult,
-    retryLoad,
+  }
+}
+
+/**
+ * Auth-only hook — OAuth flow status and subscription accounts.
+ * Does NOT subscribe to preferences or provider stores.
+ */
+export function useAuth() {
+  const oauthStatuses = useAuthStore((s) => s.oauthStatuses)
+  const authAccounts = useAuthStore((s) => s.authAccounts)
+  const startOAuth = useAuthStore((s) => s.startOAuth)
+  const submitAuthCode = useAuthStore((s) => s.submitAuthCode)
+  const disconnectAuth = useAuthStore((s) => s.disconnectAuth)
+
+  return {
     oauthStatuses,
     authAccounts,
     startOAuth,
     submitAuthCode,
     disconnectAuth,
+  }
+}
+
+/**
+ * @deprecated Use usePreferences(), useProviders(), or useAuth() directly.
+ * Subscribes to all 3 stores — any change triggers re-render.
+ */
+export function useSettings() {
+  return {
+    ...usePreferences(),
+    ...useProviders(),
+    ...useAuth(),
   }
 }

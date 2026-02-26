@@ -2,7 +2,7 @@ import { isSubscriptionProvider } from '@shared/types/auth'
 import type { Settings } from '@shared/types/settings'
 import { AlertTriangle, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { useSettings } from '@/hooks/useSettings'
+import { useAuth, usePreferences, useProviders } from '@/hooks/useSettings'
 import { cn } from '@/lib/cn'
 import { ApiKeyForm } from './ApiKeyForm'
 import { SubscriptionAuthButton } from './SubscriptionAuthButton'
@@ -30,9 +30,8 @@ interface SettingsDialogProps {
 }
 
 export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps): React.JSX.Element {
+  const { settings, loadError, setBrowserHeadless, retryLoad } = usePreferences()
   const {
-    settings,
-    loadError,
     testingProviders,
     testResults,
     providerModels,
@@ -40,13 +39,8 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps): React.
     toggleProvider,
     updateBaseUrl,
     testApiKey,
-    setBrowserHeadless,
-    retryLoad,
-    oauthStatuses,
-    authAccounts,
-    startOAuth,
-    disconnectAuth,
-  } = useSettings()
+  } = useProviders()
+  const { oauthStatuses, authAccounts, startOAuth, disconnectAuth } = useAuth()
   const dialogRef = useRef<HTMLDialogElement>(null)
 
   useEffect(() => {

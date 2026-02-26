@@ -1,8 +1,8 @@
-import { useSettings } from '@/hooks/useSettings'
+import { usePreferences } from '@/hooks/useSettings'
 import { cn } from '@/lib/cn'
 
 export function GeneralSection(): React.JSX.Element {
-  const { settings, setBrowserHeadless } = useSettings()
+  const { settings, setBrowserHeadless } = usePreferences()
 
   return (
     <div className="space-y-6">

@@ -25,7 +25,7 @@ import {
   OpenAIIcon,
   OpenRouterIcon,
 } from '@/components/icons/provider-icons'
-import { useSettings } from '@/hooks/useSettings'
+import { useAuth, usePreferences, useProviders } from '@/hooks/useSettings'
 import { cn } from '@/lib/cn'
 
 // Provider visual metadata — official logos, colors, descriptions
@@ -280,8 +280,9 @@ function KeyEditor({
 }
 
 function BaseUrlField({ provider }: { provider: Provider }): React.JSX.Element {
-  const settings = useSettings()
-  const config = settings.settings.providers[provider]
+  const { settings } = usePreferences()
+  const { updateBaseUrl } = useProviders()
+  const config = settings.providers[provider]
   const [localValue, setLocalValue] = useState(config?.baseUrl ?? '')
 
   useEffect(() => {
@@ -297,7 +298,7 @@ function BaseUrlField({ provider }: { provider: Provider }): React.JSX.Element {
         onChange={(e) => setLocalValue(e.target.value)}
         onBlur={() => {
           if (localValue !== (config?.baseUrl ?? '')) {
-            settings.updateBaseUrl(provider, localValue)
+            updateBaseUrl(provider, localValue)
           }
         }}
         placeholder="http://localhost:11434"
@@ -327,7 +328,8 @@ function ProviderRow({
   onEditingChange?: (editing: boolean) => void
   fetchError?: string
 }): React.JSX.Element {
-  const { settings, testingProviders, testResults, updateApiKey, testApiKey } = useSettings()
+  const { settings } = usePreferences()
+  const { testingProviders, testResults, updateApiKey, testApiKey } = useProviders()
 
   const [editing, setEditing] = useState(autoEdit ?? false)
   const providerId = providerInfo.provider
@@ -660,17 +662,9 @@ function SubscriptionRow({
 // ─── Main Section ────────────────────────────────────────────────────────────
 
 export function ConnectionsSection(): React.JSX.Element {
-  const {
-    settings,
-    providerModels,
-    modelFetchErrors,
-    toggleProvider,
-    oauthStatuses,
-    authAccounts,
-    startOAuth,
-    submitAuthCode,
-    disconnectAuth,
-  } = useSettings()
+  const { settings } = usePreferences()
+  const { providerModels, modelFetchErrors, toggleProvider } = useProviders()
+  const { oauthStatuses, authAccounts, startOAuth, submitAuthCode, disconnectAuth } = useAuth()
 
   // Providers that have keys configured or are enabled — shown in the API Keys card
   const configuredProviders = providerModels.filter((p) => {

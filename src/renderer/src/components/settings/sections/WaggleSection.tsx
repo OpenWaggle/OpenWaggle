@@ -10,7 +10,7 @@ import type {
 import type { Settings } from '@shared/types/settings'
 import { Plus, Save, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useSettings } from '@/hooks/useSettings'
+import { usePreferences, useProviders } from '@/hooks/useSettings'
 import { AGENT_BG, AGENT_BORDER } from '@/lib/agent-colors'
 import { cn } from '@/lib/cn'
 import { api } from '@/lib/ipc'
@@ -35,7 +35,8 @@ function configMatchesPreset(config: MultiAgentConfig, preset: TeamPreset): bool
 }
 
 export function WaggleSection(): React.JSX.Element {
-  const { settings, providerModels } = useSettings()
+  const { settings } = usePreferences()
+  const { providerModels } = useProviders()
   const [presets, setPresets] = useState<TeamPreset[]>([])
   const [activePresetId, setActivePresetId] = useState<string | null>(null)
 
