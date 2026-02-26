@@ -1,4 +1,5 @@
 import { AUTH_METHODS } from '@shared/types/auth'
+import { SupportedModelId } from '@shared/types/brand'
 import {
   EXECUTION_MODES,
   ORCHESTRATION_MODES,
@@ -122,7 +123,13 @@ export function registerSettingsHandlers(): void {
       logger.warn('Invalid settings update payload', { error: result.error.message })
       return { ok: false as const, error: result.error.message }
     }
-    updateSettings(result.data)
+    updateSettings({
+      ...result.data,
+      defaultModel: result.data.defaultModel
+        ? SupportedModelId(result.data.defaultModel)
+        : undefined,
+      favoriteModels: result.data.favoriteModels?.map(SupportedModelId),
+    })
     return { ok: true as const }
   })
 

@@ -1,4 +1,9 @@
-import { type ConversationId, OrchestrationRunId, OrchestrationTaskId } from '@shared/types/brand'
+import {
+  type ConversationId,
+  OrchestrationRunId,
+  OrchestrationTaskId,
+  type SupportedModelId,
+} from '@shared/types/brand'
 import type { AnyTextAdapter } from '@tanstack/ai'
 import type {
   OpenWaggleTaskExecutionInput,
@@ -31,7 +36,7 @@ interface RunnerContext {
   readonly modelRunner: ReturnType<typeof createModelRunner>
   readonly runStore: ReturnType<OrchestrationServiceDeps['runRepository']['createRunStore']>
   readonly fallbackState: { used: boolean; reason: string | undefined }
-  readonly quality: SamplingConfig & { readonly model: string }
+  readonly quality: SamplingConfig & { readonly model: SupportedModelId }
   readonly adapter: AnyTextAdapter
   readonly orchestrationMode: 'orchestrated' | 'auto-fallback'
   readonly projectContext: Awaited<ReturnType<OrchestrationServiceDeps['gatherProjectContext']>>
@@ -413,7 +418,7 @@ function createCompletionMessages(context: RunnerContext) {
 }
 
 function buildPlannerQuality(
-  quality: SamplingConfig & { readonly model: string },
+  quality: SamplingConfig & { readonly model: SupportedModelId },
   deps: OrchestrationServiceDeps,
 ): SamplingConfig {
   return {

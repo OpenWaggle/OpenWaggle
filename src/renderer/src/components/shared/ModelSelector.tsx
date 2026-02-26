@@ -1,4 +1,5 @@
-import type { ProviderInfo, SupportedModelId } from '@shared/types/llm'
+import { SupportedModelId } from '@shared/types/brand'
+import type { ProviderInfo } from '@shared/types/llm'
 import type { Provider, Settings } from '@shared/types/settings'
 import { isProvider } from '@shared/types/settings'
 import { Search, Star } from 'lucide-react'
@@ -27,7 +28,7 @@ interface ModelSelectorProps {
 
 interface IndexedModel {
   readonly key: string
-  readonly id: string
+  readonly id: SupportedModelId
   readonly name: string
   readonly provider: Provider
   readonly providerDisplayName: string
@@ -103,8 +104,9 @@ export function ModelSelector({
     }
 
     for (const model of group.models) {
-      const modelId = model.id.trim()
-      if (!modelId) continue
+      const trimmedId = model.id.trim()
+      if (!trimmedId) continue
+      const modelId = SupportedModelId(trimmedId)
 
       const key = `${group.provider}:${modelId}`
       if (seenModelKeys.has(key)) continue

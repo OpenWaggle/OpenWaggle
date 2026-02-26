@@ -1,12 +1,12 @@
+import type { SupportedModelId } from './brand'
 import type { Provider } from './settings'
 
-// SupportedModelId widens to string — runtime validation via provider registry.
-// Kept as type alias for backward compatibility across the codebase.
-export type SupportedModelId = string
+// Re-export branded SupportedModelId from the canonical brand module.
+export type { SupportedModelId } from './brand'
 
 // Display info for UI — generated dynamically from the provider registry
 export interface ModelDisplayInfo {
-  readonly id: string
+  readonly id: SupportedModelId
   readonly name: string
   readonly provider: Provider
 }

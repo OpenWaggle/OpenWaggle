@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { teamPresetSchema } from '@shared/schemas/multi-agent'
-import { TeamConfigId } from '@shared/types/brand'
+import { SupportedModelId, TeamConfigId } from '@shared/types/brand'
 import type { TeamPreset } from '@shared/types/multi-agent'
 import Store from 'electron-store'
 import { z } from 'zod'
@@ -20,14 +20,14 @@ const BUILT_IN_PRESETS: TeamPreset[] = [
       agents: [
         {
           label: 'Architect',
-          model: 'claude-sonnet-4-5',
+          model: SupportedModelId('claude-sonnet-4-5'),
           roleDescription:
             'You are a senior software architect. Review the code for design patterns, architecture decisions, and best practices. Suggest structural improvements.',
           color: 'blue',
         },
         {
           label: 'Reviewer',
-          model: 'claude-sonnet-4-5',
+          model: SupportedModelId('claude-sonnet-4-5'),
           roleDescription:
             "You are a code reviewer focused on correctness. Check for bugs, edge cases, security issues, and test coverage gaps. Verify the architect's suggestions are practical.",
           color: 'amber',
@@ -48,14 +48,14 @@ const BUILT_IN_PRESETS: TeamPreset[] = [
       agents: [
         {
           label: 'Advocate',
-          model: 'claude-sonnet-4-5',
+          model: SupportedModelId('claude-sonnet-4-5'),
           roleDescription:
             "You argue for the proposed approach. Present its strengths, defend against criticisms, and show why it's the best path forward.",
           color: 'emerald',
         },
         {
           label: 'Critic',
-          model: 'claude-sonnet-4-5',
+          model: SupportedModelId('claude-sonnet-4-5'),
           roleDescription:
             'You challenge the proposed approach. Find weaknesses, propose alternatives, and push for the strongest possible solution.',
           color: 'violet',
@@ -76,14 +76,14 @@ const BUILT_IN_PRESETS: TeamPreset[] = [
       agents: [
         {
           label: 'Attacker',
-          model: 'claude-sonnet-4-5',
+          model: SupportedModelId('claude-sonnet-4-5'),
           roleDescription:
             'You are a security researcher. Analyze the code for vulnerabilities: injection, auth bypass, data leaks, OWASP top 10. Explain each finding clearly.',
           color: 'amber',
         },
         {
           label: 'Defender',
-          model: 'claude-sonnet-4-5',
+          model: SupportedModelId('claude-sonnet-4-5'),
           roleDescription:
             'You are a security engineer. For each vulnerability found, implement fixes, add validation, and explain the defense strategy.',
           color: 'blue',
@@ -115,10 +115,22 @@ function loadUserPresets(): TeamPreset[] {
     logger.warn('Failed to parse team presets, using empty list')
     return []
   }
-  return result.data.map((p) => ({
-    ...p,
-    id: TeamConfigId(p.id),
-  }))
+  return result.data.map((p) => {
+    const brandAgent = (
+      a: (typeof p.config.agents)[number],
+    ): TeamPreset['config']['agents'][number] => ({
+      ...a,
+      model: SupportedModelId(a.model),
+    })
+    return {
+      ...p,
+      id: TeamConfigId(p.id),
+      config: {
+        ...p.config,
+        agents: [brandAgent(p.config.agents[0]), brandAgent(p.config.agents[1])],
+      },
+    }
+  })
 }
 
 export function listTeamPresets(): TeamPreset[] {

@@ -3,9 +3,8 @@ import fs from 'node:fs'
 import fsPromises from 'node:fs/promises'
 import path from 'node:path'
 import type { MessagePart } from '@shared/types/agent'
-import { ConversationId, MessageId, ToolCallId } from '@shared/types/brand'
+import { ConversationId, MessageId, SupportedModelId, ToolCallId } from '@shared/types/brand'
 import type { Conversation, ConversationSummary } from '@shared/types/conversation'
-import type { SupportedModelId } from '@shared/types/llm'
 import { DEFAULT_ANTHROPIC_MODEL, DEFAULT_OPENAI_MODEL } from '@shared/types/settings'
 import { chooseBy } from '@shared/utils/decision'
 import { isEnoent } from '@shared/utils/node-error'
@@ -84,13 +83,13 @@ const conversationSchema = z.object({
 
 /** Maps old model IDs to their current equivalents. Only includes actual renames. */
 const LEGACY_MODEL_MAP: Record<string, SupportedModelId> = {
-  'claude-sonnet-4-20250514': 'claude-sonnet-4',
-  'claude-haiku-3-5-20241022': 'claude-haiku-4-5',
-  'claude-3-5-haiku-20241022': 'claude-haiku-4-5',
+  'claude-sonnet-4-20250514': SupportedModelId('claude-sonnet-4'),
+  'claude-haiku-3-5-20241022': SupportedModelId('claude-haiku-4-5'),
+  'claude-3-5-haiku-20241022': SupportedModelId('claude-haiku-4-5'),
 }
 
 function migrateModelId(raw: string): SupportedModelId {
-  if (providerRegistry.isKnownModel(raw)) return raw
+  if (providerRegistry.isKnownModel(raw)) return SupportedModelId(raw)
   const mapped = LEGACY_MODEL_MAP[raw]
   if (mapped) return mapped
   // Preserve provider when falling back
@@ -172,10 +171,36 @@ function parseConversation(raw: string): Conversation | null {
         : m.role === 'assistant'
           ? legacyConversationModel
           : undefined,
-      metadata: m.metadata,
+      metadata: m.metadata
+        ? {
+            ...m.metadata,
+            multiAgent: m.metadata.multiAgent
+              ? {
+                  ...m.metadata.multiAgent,
+                  agentModel: m.metadata.multiAgent.agentModel
+                    ? SupportedModelId(m.metadata.multiAgent.agentModel)
+                    : undefined,
+                }
+              : undefined,
+          }
+        : undefined,
       createdAt: m.createdAt,
     })),
-    multiAgentConfig: data.multiAgentConfig,
+    multiAgentConfig: data.multiAgentConfig
+      ? {
+          ...data.multiAgentConfig,
+          agents: [
+            {
+              ...data.multiAgentConfig.agents[0],
+              model: SupportedModelId(data.multiAgentConfig.agents[0].model),
+            },
+            {
+              ...data.multiAgentConfig.agents[1],
+              model: SupportedModelId(data.multiAgentConfig.agents[1].model),
+            },
+          ],
+        }
+      : undefined,
     createdAt: data.createdAt,
     updatedAt: data.updatedAt,
   }

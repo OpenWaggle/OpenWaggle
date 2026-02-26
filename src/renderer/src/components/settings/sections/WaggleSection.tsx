@@ -1,5 +1,5 @@
-import { TeamConfigId } from '@shared/types/brand'
-import { generateDisplayName, type ProviderInfo, type SupportedModelId } from '@shared/types/llm'
+import { SupportedModelId, TeamConfigId } from '@shared/types/brand'
+import { generateDisplayName, type ProviderInfo } from '@shared/types/llm'
 import type {
   AgentColor,
   CollaborationMode,
@@ -41,13 +41,13 @@ export function WaggleSection(): React.JSX.Element {
 
   // Agent A config
   const [agentALabel, setAgentALabel] = useState('Agent A')
-  const [agentAModel, setAgentAModel] = useState<SupportedModelId>('claude-sonnet-4-5')
+  const [agentAModel, setAgentAModel] = useState(SupportedModelId('claude-sonnet-4-5'))
   const [agentARole, setAgentARole] = useState('')
   const [agentAColor, setAgentAColor] = useState<AgentColor>('blue')
 
   // Agent B config
   const [agentBLabel, setAgentBLabel] = useState('Agent B')
-  const [agentBModel, setAgentBModel] = useState<SupportedModelId>('claude-sonnet-4-5')
+  const [agentBModel, setAgentBModel] = useState(SupportedModelId('claude-sonnet-4-5'))
   const [agentBRole, setAgentBRole] = useState('')
   const [agentBColor, setAgentBColor] = useState<AgentColor>('amber')
 

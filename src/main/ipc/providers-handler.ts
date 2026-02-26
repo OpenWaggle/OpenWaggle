@@ -1,3 +1,4 @@
+import { SupportedModelId } from '@shared/types/brand'
 import { generateDisplayName } from '@shared/types/llm'
 import type { Provider } from '@shared/types/settings'
 import { providerRegistry } from '../providers'
@@ -14,7 +15,7 @@ export function registerProvidersHandlers(): void {
       supportsSubscription: p.supportsSubscription,
       supportsDynamicModelFetch: p.supportsDynamicModelFetch,
       models: p.models.map((m) => ({
-        id: m,
+        id: SupportedModelId(m),
         name: generateDisplayName(m),
         provider: p.id,
       })),
@@ -29,7 +30,7 @@ export function registerProvidersHandlers(): void {
 
       const models = await provider.fetchModels(baseUrl, apiKey)
       return models.map((m) => ({
-        id: m,
+        id: SupportedModelId(m),
         name: generateDisplayName(m),
         provider: providerId,
       }))

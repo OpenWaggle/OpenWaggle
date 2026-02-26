@@ -1,5 +1,6 @@
 import { includes } from '@shared/utils/validation'
 import type { AuthMethod } from './auth'
+import { SupportedModelId } from './brand'
 
 export const PROVIDERS = ['anthropic', 'openai', 'gemini', 'grok', 'openrouter', 'ollama'] as const
 export type Provider = (typeof PROVIDERS)[number]
@@ -13,8 +14,8 @@ export type QualityPreset = (typeof QUALITY_PRESETS)[number]
 export const OLLAMA_DEFAULT_BASE_URL = 'http://localhost:11434'
 
 /** Fallback model IDs for migration — single source of truth */
-export const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-4-5'
-export const DEFAULT_OPENAI_MODEL = 'gpt-4.1-mini'
+export const DEFAULT_ANTHROPIC_MODEL = SupportedModelId('claude-sonnet-4-5')
+export const DEFAULT_OPENAI_MODEL = SupportedModelId('gpt-4.1-mini')
 
 export interface ProviderConfig {
   readonly apiKey: string
@@ -25,8 +26,8 @@ export interface ProviderConfig {
 
 export interface Settings {
   readonly providers: Readonly<Partial<Record<Provider, ProviderConfig>>>
-  readonly defaultModel: string
-  readonly favoriteModels: readonly string[]
+  readonly defaultModel: SupportedModelId
+  readonly favoriteModels: readonly SupportedModelId[]
   readonly projectPath: string | null
   readonly executionMode: ExecutionMode
   readonly orchestrationMode: OrchestrationMode

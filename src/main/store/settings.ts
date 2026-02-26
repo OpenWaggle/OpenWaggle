@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import { unknownRecordSchema } from '@shared/schemas/validation'
 import { AUTH_METHODS } from '@shared/types/auth'
+import { SupportedModelId } from '@shared/types/brand'
 import {
   DEFAULT_SETTINGS,
   EXECUTION_MODES,
@@ -71,9 +72,9 @@ export function getSettings(): Settings {
     }
   }
 
-  const rawDefaultModel = store.get('defaultModel', DEFAULT_SETTINGS.defaultModel)
+  const rawDefaultModel = String(store.get('defaultModel', DEFAULT_SETTINGS.defaultModel))
   const defaultModel = providerRegistry.isKnownModel(rawDefaultModel)
-    ? rawDefaultModel
+    ? SupportedModelId(rawDefaultModel)
     : DEFAULT_SETTINGS.defaultModel
   if (defaultModel !== rawDefaultModel) {
     store.set('defaultModel', defaultModel)
@@ -216,7 +217,7 @@ function resolveQualityPreset(): QualityPreset {
   return QUALITY_PRESETS.includes(raw) ? raw : DEFAULT_SETTINGS.qualityPreset
 }
 
-function resolveFavoriteModels(): string[] {
+function resolveFavoriteModels(): SupportedModelId[] {
   return sanitizeFavoriteModels(store.get('favoriteModels', DEFAULT_SETTINGS.favoriteModels))
 }
 
@@ -234,15 +235,15 @@ function resolveBrowserHeadless(): boolean {
   return typeof raw === 'boolean' ? raw : DEFAULT_SETTINGS.browserHeadless
 }
 
-function sanitizeFavoriteModels(models: readonly string[]): string[] {
+function sanitizeFavoriteModels(models: readonly string[]): SupportedModelId[] {
   const seen = new Set<string>()
-  const result: string[] = []
+  const result: SupportedModelId[] = []
 
   for (const model of models) {
     const trimmed = model.trim()
     if (!trimmed || seen.has(trimmed)) continue
     seen.add(trimmed)
-    result.push(trimmed)
+    result.push(SupportedModelId(trimmed))
     if (result.length >= 100) break
   }
 
