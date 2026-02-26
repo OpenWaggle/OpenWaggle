@@ -158,6 +158,12 @@
       0 0 0 3px color-mix(in srgb, #9aa3b2 15%, transparent);
   }
 
+  .model-selector-search-input:focus,
+  .model-selector-search-input:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
+
   /* Code blocks */
   pre code {
     font-family: var(--font-mono);
