@@ -19,6 +19,7 @@ export interface ProviderInfo {
   readonly apiKeyManagementUrl?: string
   readonly supportsBaseUrl: boolean
   readonly supportsSubscription: boolean
+  readonly supportsDynamicModelFetch: boolean
   readonly models: ModelDisplayInfo[]
 }
 

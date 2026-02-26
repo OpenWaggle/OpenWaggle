@@ -22,6 +22,7 @@ export interface ProviderDefinition {
   readonly apiKeyManagementUrl?: string
   readonly supportsBaseUrl: boolean
   readonly supportsSubscription: boolean
+  readonly supportsDynamicModelFetch: boolean
   readonly models: readonly string[]
   /** Model used for API key testing — should be the cheapest/fastest available */
   readonly testModel: string

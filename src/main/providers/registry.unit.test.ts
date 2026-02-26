@@ -11,6 +11,7 @@ function createProvider(
     requiresApiKey: true,
     supportsBaseUrl: false,
     supportsSubscription: false,
+    supportsDynamicModelFetch: false,
     models,
     testModel: models[0] ?? 'fallback-model',
     createAdapter: () => ({}) as never,

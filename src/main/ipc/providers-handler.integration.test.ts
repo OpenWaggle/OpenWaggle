@@ -39,6 +39,7 @@ describe('registerProvidersHandlers', () => {
         requiresApiKey: true,
         apiKeyManagementUrl: 'https://platform.openai.com/api-keys',
         supportsBaseUrl: false,
+        supportsDynamicModelFetch: false,
         models: ['gpt-4.1-mini'],
       },
     ])
@@ -55,6 +56,7 @@ describe('registerProvidersHandlers', () => {
         requiresApiKey: true,
         apiKeyManagementUrl: 'https://platform.openai.com/api-keys',
         supportsBaseUrl: false,
+        supportsDynamicModelFetch: false,
         models: [{ id: 'gpt-4.1-mini', name: 'GPT 4.1 Mini', provider: 'openai' }],
       },
     ])
@@ -63,6 +65,7 @@ describe('registerProvidersHandlers', () => {
   it('registers providers:fetch-models and returns empty array when provider has no fetchModels', async () => {
     getMock.mockReturnValue({
       id: 'anthropic',
+      supportsDynamicModelFetch: false,
       models: ['claude-sonnet-4-5'],
     })
 
@@ -77,6 +80,7 @@ describe('registerProvidersHandlers', () => {
   it('maps fetched models to display entries', async () => {
     getMock.mockReturnValue({
       id: 'ollama',
+      supportsDynamicModelFetch: true,
       models: ['llama3.1'],
       fetchModels: vi.fn(async () => ['llama3.1', 'qwen2.5-coder']),
     })

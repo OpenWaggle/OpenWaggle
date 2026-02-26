@@ -30,6 +30,7 @@ export const anthropicProvider: ProviderDefinition = {
   apiKeyManagementUrl: 'https://platform.claude.com/settings/keys',
   supportsBaseUrl: false,
   supportsSubscription: true,
+  supportsDynamicModelFetch: false,
   models: ANTHROPIC_MODELS,
   testModel: 'claude-haiku-4-5',
   createAdapter(model, apiKey, _baseUrl, authMethod) {
