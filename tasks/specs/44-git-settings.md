@@ -4,7 +4,7 @@
 **Priority:** P3
 **Category:** Feature
 **Depends on:** None
-**Origin:** Multi-agent conversation review — SettingsNav has disabled "Git" tab (line 26), `SettingsTab` type includes `'git'` (ui-store.ts line 12)
+**Origin:** Waggle conversation review — SettingsNav has disabled "Git" tab (line 26), `SettingsTab` type includes `'git'` (ui-store.ts line 12)
 
 ---
 

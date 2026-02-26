@@ -41,7 +41,7 @@ files. Specific high-risk untested components:
   component tests. This is the primary user-facing settings surface.
 - **`SettingsDialog.tsx` (~280 lines)** — May be orphaned (Spec 36), but should be
   tested before deletion to confirm feature parity with `GeneralSection`.
-- **`ChatPanel.tsx` (434 lines)** — Multi-agent turn splitting, streaming phase display,
+- **`ChatPanel.tsx` (434 lines)** — Waggle turn splitting, streaming phase display,
   pending approval detection, askUser block detection. Core user experience, no component
   tests.
 

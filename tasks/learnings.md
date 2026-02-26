@@ -20,6 +20,21 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Task: Orchestration Atomic Write Race Fix (2026-02-26)
+- Atomic JSON writers that reuse a fixed temp filename (`<target>.tmp`) are unsafe under concurrent writes to the same target; per-write unique temp filenames are required to prevent rename collisions (`ENOENT`) that can leave orchestration task state half-persisted (for example `running` with zero attempts) and trigger deadlock-style run failures.
+
+### Task: Waggle Clean-Break Rename (2026-02-26)
+- Removing terminology compatibility in Electron apps requires a boundary-wide rename at once (IPC channel ids, preload API method names, persisted JSON keys, and renderer metadata selectors); partial renames leave silent runtime mismatches even when TypeScript compiles. [SKILL?]
+
+### Task: Phase Snapshot Bootstrap + Run Replacement Reset (2026-02-26)
+- Event-only phase subscriptions can render stale/null UI after remount or conversation switch; exposing a read-side `agent:get-phase` snapshot and applying it only when no newer event arrived avoids race-induced phase flicker/regression.
+
+### Task: Backend-Driven Phase Labels Across Modes (2026-02-26)
+- When moving phase-label mapping to backend, combining stream-chunk transitions (single-agent/waggle) with orchestration lifecycle events (task kind + status) in one main-process tracker keeps labels consistent without coupling renderer logic to orchestration run snapshots.
+
+### Task: Reasoning Part Type vs UI Phase Labels (2026-02-26)
+- TanStack `UIMessage` typing can still expose `thinking` parts even when internal persisted/domain message parts are renamed to `reasoning`; keep a clear boundary where domain payloads are normalized at storage/agent layers while renderer `UIMessage` handling remains compatible with TanStack's part taxonomy.
+
 ### Task: Memory Optimizations — Conversation Index + Attachment Hydration (2026-02-26)
 - For Electron IPC attachment flows, splitting renderer-safe metadata from main-process hydrated binary sources avoids storing large base64 blobs in renderer state while preserving provider-native image/pdf support by hydrating just-in-time before agent execution. [SKILL?]
 - Conversation list performance/memory is materially improved by reading a lightweight summary index and self-healing it from disk scans only when missing/corrupt; keeping index updates in save/delete paths avoids repeated full-history parsing on refresh-heavy UI events.
@@ -106,10 +121,10 @@ This document stores project-specific technical learnings only.
 - `Promise.race()` does not cancel losing branches — when racing clipboard polling against manual OAuth code input, explicitly abort/cleanup the polling branch to avoid lingering timers.
 - Manual OAuth code handoff state should be keyed by provider (e.g. `Map<SubscriptionProvider, handler>`) rather than a single global resolver to prevent cross-provider or overlapping-flow resolution bugs.
 
-### Task: Multi-Agent Conversation — Spec 00 (2026-02-24)
-- TanStack `UIMessage` strips custom metadata during `conversationToUIMessages` conversion; use a parallel lookup map (same pattern as `useMessageModelLookup`) keyed by message ID to preserve multi-agent metadata across the conversion boundary.
-- Multi-agent handlers must emit stream chunks on BOTH the regular `agent:stream-chunk` channel (for TanStack adapter compatibility) AND a dedicated `multi-agent:stream-chunk` channel (for metadata); emitting only on the dedicated channel breaks the existing `useAgentChat` hook's stream consumption.
-- Heuristic consensus detection (Jaccard similarity, explicit agreement phrases, shrinking response) avoids LLM calls and keeps multi-agent coordination costs constant; weighted confidence aggregation with a 0.7 threshold works well for code review / debate scenarios.
+### Task: Waggle Conversation — Spec 00 (2026-02-24)
+- TanStack `UIMessage` strips custom metadata during `conversationToUIMessages` conversion; use a parallel lookup map (same pattern as `useMessageModelLookup`) keyed by message ID to preserve waggle metadata across the conversion boundary.
+- Waggle handlers must emit stream chunks on BOTH the regular `agent:stream-chunk` channel (for TanStack adapter compatibility) AND a dedicated `waggle:stream-chunk` channel (for metadata); emitting only on the dedicated channel breaks the existing `useAgentChat` hook's stream consumption.
+- Heuristic consensus detection (Jaccard similarity, explicit agreement phrases, shrinking response) avoids LLM calls and keeps waggle coordination costs constant; weighted confidence aggregation with a 0.7 threshold works well for code review / debate scenarios.
 
 ### Task: Provider Model Type Guard Refactor (2026-02-24)
 - When an SDK function requires `TModel extends (typeof MODELS)[number]` but your code receives `string`, use a `Set<string>.has()` inclusion check with a type predicate (`value is T`) instead of widening the array to `readonly string[]` or casting the value. `Set<string>.has()` naturally accepts `string` as input, so no intermediate cast is needed — and the type predicate narrows for the downstream call. [SKILL?]

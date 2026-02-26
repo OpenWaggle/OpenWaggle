@@ -1,7 +1,7 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
-import type { MultiAgentConfig } from '@shared/types/multi-agent'
 import type { QualityPreset } from '@shared/types/settings'
+import type { WaggleConfig } from '@shared/types/waggle'
 import { useEffect, useRef } from 'react'
 
 interface SendMessageDeps {
@@ -10,21 +10,15 @@ interface SendMessageDeps {
   readonly qualityPreset: QualityPreset
   readonly createConversation: (projectPath: string | null) => Promise<ConversationId>
   readonly sendMessage: (payload: AgentSendPayload) => Promise<void>
-  readonly sendMultiAgentMessage: (
-    payload: AgentSendPayload,
-    config: MultiAgentConfig,
-  ) => Promise<void>
+  readonly sendWaggleMessage: (payload: AgentSendPayload, config: WaggleConfig) => Promise<void>
   readonly setPendingMessage: (payload: AgentSendPayload | null) => void
-  readonly setPendingMultiAgentConfig: (config: MultiAgentConfig | null) => void
+  readonly setPendingWaggleConfig: (config: WaggleConfig | null) => void
 }
 
 interface SendMessageHandlers {
   readonly handleSend: (payload: AgentSendPayload) => Promise<void>
   readonly handleSendText: (content: string) => Promise<void>
-  readonly handleSendMultiAgent: (
-    payload: AgentSendPayload,
-    config: MultiAgentConfig,
-  ) => Promise<void>
+  readonly handleSendWaggle: (payload: AgentSendPayload, config: WaggleConfig) => Promise<void>
 }
 
 /** Pure factory — testable without React. */
@@ -35,9 +29,9 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
     qualityPreset,
     createConversation,
     sendMessage,
-    sendMultiAgentMessage,
+    sendWaggleMessage,
     setPendingMessage,
-    setPendingMultiAgentConfig,
+    setPendingWaggleConfig,
   } = deps
 
   async function handleSend(payload: AgentSendPayload): Promise<void> {
@@ -53,20 +47,17 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
     await handleSend({ text: content, qualityPreset, attachments: [] })
   }
 
-  async function handleSendMultiAgent(
-    payload: AgentSendPayload,
-    config: MultiAgentConfig,
-  ): Promise<void> {
+  async function handleSendWaggle(payload: AgentSendPayload, config: WaggleConfig): Promise<void> {
     if (!activeConversationId) {
       setPendingMessage(payload)
-      setPendingMultiAgentConfig(config)
+      setPendingWaggleConfig(config)
       await createConversation(projectPath)
       return
     }
-    await sendMultiAgentMessage(payload, config)
+    await sendWaggleMessage(payload, config)
   }
 
-  return { handleSend, handleSendText, handleSendMultiAgent }
+  return { handleSend, handleSendText, handleSendWaggle }
 }
 
 interface UseSendMessageOptions {
@@ -75,28 +66,25 @@ interface UseSendMessageOptions {
   readonly qualityPreset: QualityPreset
   readonly createConversation: (projectPath: string | null) => Promise<ConversationId>
   readonly sendMessage: (payload: AgentSendPayload) => Promise<void>
-  readonly sendMultiAgentMessage: (
-    payload: AgentSendPayload,
-    config: MultiAgentConfig,
-  ) => Promise<void>
+  readonly sendWaggleMessage: (payload: AgentSendPayload, config: WaggleConfig) => Promise<void>
 }
 
 /** Hook wrapper — manages the pending-message ref and dispatch effect. */
 export function useSendMessage(options: UseSendMessageOptions): SendMessageHandlers {
-  const { activeConversationId, sendMessage, sendMultiAgentMessage, ...rest } = options
+  const { activeConversationId, sendMessage, sendWaggleMessage, ...rest } = options
   const pendingMessage = useRef<AgentSendPayload | null>(null)
-  const pendingMultiAgentConfig = useRef<MultiAgentConfig | null>(null)
+  const pendingWaggleConfig = useRef<WaggleConfig | null>(null)
 
   const handlers = createSendHandlers({
     ...rest,
     activeConversationId,
     sendMessage,
-    sendMultiAgentMessage,
+    sendWaggleMessage,
     setPendingMessage: (payload) => {
       pendingMessage.current = payload
     },
-    setPendingMultiAgentConfig: (config) => {
-      pendingMultiAgentConfig.current = config
+    setPendingWaggleConfig: (config) => {
+      pendingWaggleConfig.current = config
     },
   })
 
@@ -104,16 +92,16 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
   useEffect(() => {
     if (activeConversationId && pendingMessage.current) {
       const payload = pendingMessage.current
-      const config = pendingMultiAgentConfig.current
+      const config = pendingWaggleConfig.current
       pendingMessage.current = null
-      pendingMultiAgentConfig.current = null
+      pendingWaggleConfig.current = null
       if (config) {
-        void sendMultiAgentMessage(payload, config)
+        void sendWaggleMessage(payload, config)
       } else {
         void sendMessage(payload)
       }
     }
-  }, [activeConversationId, sendMessage, sendMultiAgentMessage])
+  }, [activeConversationId, sendMessage, sendWaggleMessage])
 
   return handlers
 }

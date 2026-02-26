@@ -22,13 +22,8 @@ import type {
 } from '@shared/types/git'
 import type { OpenWaggleApi } from '@shared/types/ipc'
 import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from '@shared/types/llm'
-import type {
-  MultiAgentConfig,
-  MultiAgentStreamMetadata,
-  MultiAgentTurnEvent,
-  TeamPreset,
-} from '@shared/types/multi-agent'
 import type { OrchestrationEventPayload, OrchestrationRunRecord } from '@shared/types/orchestration'
+import type { AgentPhaseEventPayload, AgentPhaseState } from '@shared/types/phase'
 import type { QuestionAnswer, QuestionPayload } from '@shared/types/question'
 import type { Provider, Settings } from '@shared/types/settings'
 import type {
@@ -37,6 +32,12 @@ import type {
   SkillCatalogResult,
 } from '@shared/types/standards'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from '@shared/types/voice'
+import type {
+  WaggleConfig,
+  WaggleStreamMetadata,
+  WaggleTeamPreset,
+  WaggleTurnEvent,
+} from '@shared/types/waggle'
 import type { StreamChunk } from '@tanstack/ai'
 import { ipcRenderer } from 'electron'
 
@@ -76,12 +77,24 @@ export const api: OpenWaggleApi = {
     return ipcRenderer.invoke('agent:answer-question', conversationId, answers)
   },
 
+  getAgentPhase(conversationId: ConversationId): Promise<AgentPhaseState | null> {
+    return ipcRenderer.invoke('agent:get-phase', conversationId)
+  },
+
   onQuestion(callback: (payload: QuestionPayload) => void): () => void {
     const handler = (_event: Electron.IpcRendererEvent, payload: QuestionPayload): void => {
       callback(payload)
     }
     ipcRenderer.on('agent:question', handler)
     return () => ipcRenderer.removeListener('agent:question', handler)
+  },
+
+  onAgentPhase(callback: (payload: AgentPhaseEventPayload) => void): () => void {
+    const handler = (_event: Electron.IpcRendererEvent, payload: AgentPhaseEventPayload): void => {
+      callback(payload)
+    }
+    ipcRenderer.on('agent:phase', handler)
+    return () => ipcRenderer.removeListener('agent:phase', handler)
   },
 
   // ─── Settings ────────────────────────────────────────
@@ -309,24 +322,24 @@ export const api: OpenWaggleApi = {
     return () => ipcRenderer.removeListener('orchestration:event', handler)
   },
 
-  // ─── Multi-Agent ──────────────────────────────────────
-  sendMultiAgentMessage(
+  // ─── Waggle Mode ──────────────────────────────────────
+  sendWaggleMessage(
     conversationId: ConversationId,
     payload: AgentSendPayload,
-    config: MultiAgentConfig,
+    config: WaggleConfig,
   ): Promise<void> {
-    return ipcRenderer.invoke('agent:send-multi-agent-message', conversationId, payload, config)
+    return ipcRenderer.invoke('agent:send-waggle-message', conversationId, payload, config)
   },
 
-  cancelMultiAgent(conversationId: ConversationId): void {
-    ipcRenderer.send('agent:cancel-multi-agent', conversationId)
+  cancelWaggle(conversationId: ConversationId): void {
+    ipcRenderer.send('agent:cancel-waggle', conversationId)
   },
 
-  onMultiAgentStreamChunk(
+  onWaggleStreamChunk(
     callback: (payload: {
       conversationId: ConversationId
       chunk: StreamChunk
-      meta: MultiAgentStreamMetadata
+      meta: WaggleStreamMetadata
     }) => void,
   ): () => void {
     const handler = (
@@ -334,26 +347,26 @@ export const api: OpenWaggleApi = {
       payload: {
         conversationId: ConversationId
         chunk: StreamChunk
-        meta: MultiAgentStreamMetadata
+        meta: WaggleStreamMetadata
       },
     ): void => {
       callback(payload)
     }
-    ipcRenderer.on('multi-agent:stream-chunk', handler)
-    return () => ipcRenderer.removeListener('multi-agent:stream-chunk', handler)
+    ipcRenderer.on('waggle:stream-chunk', handler)
+    return () => ipcRenderer.removeListener('waggle:stream-chunk', handler)
   },
 
-  onMultiAgentTurnEvent(
-    callback: (payload: { conversationId: ConversationId; event: MultiAgentTurnEvent }) => void,
+  onWaggleTurnEvent(
+    callback: (payload: { conversationId: ConversationId; event: WaggleTurnEvent }) => void,
   ): () => void {
     const handler = (
       _event: Electron.IpcRendererEvent,
-      payload: { conversationId: ConversationId; event: MultiAgentTurnEvent },
+      payload: { conversationId: ConversationId; event: WaggleTurnEvent },
     ): void => {
       callback(payload)
     }
-    ipcRenderer.on('multi-agent:turn-event', handler)
-    return () => ipcRenderer.removeListener('multi-agent:turn-event', handler)
+    ipcRenderer.on('waggle:turn-event', handler)
+    return () => ipcRenderer.removeListener('waggle:turn-event', handler)
   },
 
   // ─── Auth ─────────────────────────────────────────────
@@ -382,11 +395,11 @@ export const api: OpenWaggleApi = {
   },
 
   // ─── Teams ────────────────────────────────────────────
-  listTeams(): Promise<TeamPreset[]> {
+  listTeams(): Promise<WaggleTeamPreset[]> {
     return ipcRenderer.invoke('teams:list')
   },
 
-  saveTeam(preset: TeamPreset): Promise<TeamPreset> {
+  saveTeam(preset: WaggleTeamPreset): Promise<WaggleTeamPreset> {
     return ipcRenderer.invoke('teams:save', preset)
   },
 

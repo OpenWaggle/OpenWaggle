@@ -4,7 +4,7 @@
 **Priority:** P3
 **Category:** Fix (UI debt)
 **Depends on:** Related specs for underlying features
-**Origin:** Multi-agent conversation review (GPT 5.2 + GPT 5.1 Codex analysis)
+**Origin:** Waggle conversation review (GPT 5.2 + GPT 5.1 Codex analysis)
 
 ---
 
@@ -22,7 +22,7 @@
 | `personality` | 138-143 | Smile | **No** | N/A |
 | `plan-mode` | 144-151 | Layers | **No** | N/A |
 
-The key insight from the multi-agent review: even when the underlying feature gets implemented (e.g., Spec 28 code-review skill, Spec 35 feedback system), **nothing in those specs plans to wire the command palette entries to them**. So these dead-end commands will persist even after those features ship.
+The key insight from the waggle review: even when the underlying feature gets implemented (e.g., Spec 28 code-review skill, Spec 35 feedback system), **nothing in those specs plans to wire the command palette entries to them**. So these dead-end commands will persist even after those features ship.
 
 ### Only `waggle` works
 

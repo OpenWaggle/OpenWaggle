@@ -541,6 +541,7 @@ function handleOrchestrationEvent({
     type: event.type,
     at: event.at,
     taskId: taskId ? OrchestrationTaskId(taskId) : undefined,
+    taskKind: taskId ? tracker.getTaskKind(taskId) : undefined,
     detail: event,
   })
 }

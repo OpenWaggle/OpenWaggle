@@ -44,7 +44,7 @@ Give the agent the ability to see, evaluate, and iterate on running UI by integr
 ### Phase 4: Multi-Viewport & Responsive Testing
 - [ ] Viewport presets: desktop, tablet, mobile
 
-### Phase 5: Cross-Agent Visual Review (integrates with multi-agent)
+### Phase 5: Cross-Agent Visual Review (integrates with waggle)
 - [ ] Agent A writes UI code, Agent B uses `visualFeedback` to review
 
 ## Security Constraints

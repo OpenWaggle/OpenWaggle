@@ -1,5 +1,5 @@
-import type { MultiAgentConfig, TeamPreset } from '@shared/types/multi-agent'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
+import type { WaggleConfig, WaggleTeamPreset } from '@shared/types/waggle'
 import { choose } from '@shared/utils/decision'
 import {
   GitBranch,
@@ -13,13 +13,13 @@ import {
   Smile,
   Swords,
   User,
-  Users,
+  Waypoints,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/cn'
 import { api } from '@/lib/ipc'
-import { useMultiAgentStore } from '@/stores/multi-agent-store'
 import { useUIStore } from '@/stores/ui-store'
+import { useWaggleStore } from '@/stores/waggle-store'
 
 // ── Types ──
 
@@ -40,7 +40,7 @@ interface CommandItem {
 interface CommandPaletteProps {
   slashSkills: readonly SkillDiscoveryItem[]
   onSelectSkill: (skillId: string) => void
-  onStartWaggle: (config: MultiAgentConfig) => void
+  onStartWaggle: (config: WaggleConfig) => void
 }
 
 export function CommandPalette({
@@ -50,11 +50,11 @@ export function CommandPalette({
 }: CommandPaletteProps): React.JSX.Element {
   const closeCommandPalette = useUIStore((s) => s.closeCommandPalette)
   const openSettings = useUIStore((s) => s.openSettings)
-  const setConfig = useMultiAgentStore((s) => s.setConfig)
+  const setConfig = useWaggleStore((s) => s.setConfig)
 
   const [query, setQuery] = useState('')
   const [highlightIndex, setHighlightIndex] = useState(0)
-  const [presets, setPresets] = useState<TeamPreset[]>([])
+  const [presets, setPresets] = useState<WaggleTeamPreset[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
@@ -82,7 +82,7 @@ export function CommandPalette({
 
   // ── Waggle handlers ──
 
-  function handleSelectPreset(preset: TeamPreset): void {
+  function handleSelectPreset(preset: WaggleTeamPreset): void {
     setConfig(preset.config)
     onStartWaggle(preset.config)
     closeCommandPalette()
@@ -94,7 +94,7 @@ export function CommandPalette({
   }
 
   function handleStartWaggle(): void {
-    const config = useMultiAgentStore.getState().activeConfig
+    const config = useWaggleStore.getState().activeConfig
     if (config) {
       onStartWaggle(config)
       closeCommandPalette()
@@ -115,7 +115,7 @@ export function CommandPalette({
       id: 'waggle',
       label: 'Waggle Mode',
       description: 'Start LLM collaboration session',
-      icon: <Users className="h-3.5 w-3.5" />,
+      icon: <Waypoints className="h-3.5 w-3.5" />,
       action: handleStartWaggle,
     },
     {
@@ -354,7 +354,7 @@ function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max)}...` : text
 }
 
-function presetIcon(preset: TeamPreset): React.ReactNode {
+function presetIcon(preset: WaggleTeamPreset): React.ReactNode {
   const name = preset.name.toLowerCase()
   if (name.includes('review')) return <GitPullRequest className="h-3.5 w-3.5" />
   if (name.includes('debate')) return <Swords className="h-3.5 w-3.5" />

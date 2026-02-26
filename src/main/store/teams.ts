@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import { teamPresetSchema } from '@shared/schemas/multi-agent'
+import { waggleTeamPresetSchema } from '@shared/schemas/waggle'
 import { SupportedModelId, TeamConfigId } from '@shared/types/brand'
-import type { TeamPreset } from '@shared/types/multi-agent'
+import type { WaggleTeamPreset } from '@shared/types/waggle'
 import Store from 'electron-store'
 import { z } from 'zod'
 import { createLogger } from '../logger'
@@ -10,7 +10,7 @@ const logger = createLogger('teams')
 
 // ── Built-in presets ─────────────────────────────────────────
 
-const BUILT_IN_PRESETS: TeamPreset[] = [
+const BUILT_IN_PRESETS: WaggleTeamPreset[] = [
   {
     id: TeamConfigId('builtin-code-review'),
     name: 'Code Review',
@@ -100,7 +100,7 @@ const BUILT_IN_PRESETS: TeamPreset[] = [
 // ── Store ────────────────────────────────────────────────────
 
 interface TeamsStoreData {
-  presets: TeamPreset[]
+  presets: WaggleTeamPreset[]
 }
 
 const store = new Store<TeamsStoreData>({
@@ -108,9 +108,9 @@ const store = new Store<TeamsStoreData>({
   defaults: { presets: [] },
 })
 
-function loadUserPresets(): TeamPreset[] {
+function loadUserPresets(): WaggleTeamPreset[] {
   const raw: unknown = store.get('presets', [])
-  const result = z.array(teamPresetSchema).safeParse(raw)
+  const result = z.array(waggleTeamPresetSchema).safeParse(raw)
   if (!result.success) {
     logger.warn('Failed to parse team presets, using empty list')
     return []
@@ -118,7 +118,7 @@ function loadUserPresets(): TeamPreset[] {
   return result.data.map((p) => {
     const brandAgent = (
       a: (typeof p.config.agents)[number],
-    ): TeamPreset['config']['agents'][number] => ({
+    ): WaggleTeamPreset['config']['agents'][number] => ({
       ...a,
       model: SupportedModelId(a.model),
     })
@@ -133,7 +133,7 @@ function loadUserPresets(): TeamPreset[] {
   })
 }
 
-export function listTeamPresets(): TeamPreset[] {
+export function listTeamPresets(): WaggleTeamPreset[] {
   const userPresets = loadUserPresets()
   const userIds = new Set(userPresets.map((p) => p.id))
 
@@ -142,10 +142,10 @@ export function listTeamPresets(): TeamPreset[] {
   return [...builtIns, ...userPresets]
 }
 
-export function saveTeamPreset(preset: TeamPreset): TeamPreset {
+export function saveTeamPreset(preset: WaggleTeamPreset): WaggleTeamPreset {
   const userPresets = loadUserPresets()
 
-  const saved: TeamPreset = {
+  const saved: WaggleTeamPreset = {
     ...preset,
     id: preset.id === '' ? TeamConfigId(randomUUID()) : preset.id,
     isBuiltIn: false,

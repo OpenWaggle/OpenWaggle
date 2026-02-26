@@ -52,7 +52,7 @@ export interface AgentRunParams {
   readonly signal: AbortSignal
   /**
    * When true, tools that normally require approval are auto-executed.
-   * Used in multi-agent mode where the coordinator controls the flow and
+   * Used in Waggle mode where the coordinator controls the flow and
    * TanStack AI's approval/continuation mechanism isn't available.
    */
   readonly skipApproval?: boolean
@@ -243,7 +243,7 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
           getServerTools(runContext, features),
         )
 
-        // In multi-agent mode, strip needsApproval so tools execute immediately.
+        // In Waggle mode, strip needsApproval so tools execute immediately.
         // The coordinator controls the flow — TanStack AI's approval/continuation
         // mechanism isn't available when runAgent() is called directly.
         if (skipApproval) {

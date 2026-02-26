@@ -1,6 +1,6 @@
 # OpenWaggle Specs
 
-North star: **Multi-agent conversation** — two LLMs collaborating on a task in real-time.
+North star: **Waggle conversation** — two LLMs collaborating on a task in real-time.
 
 Everything else either unblocks it or strengthens it.
 
@@ -29,7 +29,7 @@ Every spec file follows this format. Use it when creating new specs.
 **Severity:** Critical | High | Medium | Low | Strategic
 **Category:** Fix
 **Depends on:** (list spec numbers, or "None")
-**Origin:** (where this was identified — H-XX, Spec XX, multi-agent review, etc.)
+**Origin:** (where this was identified — H-XX, Spec XX, waggle review, etc.)
 
 ---
 
@@ -124,7 +124,7 @@ Core Features (25-35):
   29 (codebase indexing)     — no deps
   30 (browser feedback)      — no deps, Playwright in deps
   31 (codebase memory)       — evolves 29
-  32 (cross-agent review)    — builds on multi-agent (done)
+  32 (cross-agent review)    — builds on waggle (done)
   33 (skill marketplace)     — extends 28 (skills)
   35 (ship to users)         — should come after critical fixes
 

@@ -1,4 +1,4 @@
-import type { ConsensusCheckResult } from '@shared/types/multi-agent'
+import type { WaggleConsensusCheckResult } from '@shared/types/waggle'
 import { describe, expect, it } from 'vitest'
 import { checkConsensus } from '../consensus-detector'
 
@@ -22,7 +22,7 @@ describe('checkConsensus', () => {
 
   describe('when messages are clearly different and turns are well below the limit', () => {
     it('returns reached: false with zero confidence', () => {
-      const result: ConsensusCheckResult = checkConsensus(
+      const result: WaggleConsensusCheckResult = checkConsensus(
         msgs(
           'We should refactor the database layer to use a repository pattern.',
           'I think we need to focus on the UI performance issues first before touching the backend.',

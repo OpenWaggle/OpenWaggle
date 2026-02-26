@@ -4,7 +4,7 @@
 **Priority:** P3
 **Category:** Feature
 **Depends on:** None
-**Origin:** Identified as missing during multi-agent review — no UI stub, no spec, but critical for multi-agent mode (2x cost)
+**Origin:** Identified as missing during waggle review — no UI stub, no spec, but critical for waggle mode (2x cost)
 
 ---
 
@@ -12,7 +12,7 @@
 
 Users have zero visibility into how many tokens they're consuming or how much each conversation costs. This is especially acute with:
 
-1. **Multi-agent mode** (Spec 00, done): two models per turn = 2x token consumption. Users can't see this.
+1. **Waggle mode** (Spec 00, done): two models per turn = 2x token consumption. Users can't see this.
 2. **Orchestration mode**: planner + N executors + synthesizer = multiple API calls per user message.
 3. **Model diversity**: switching between Opus ($15/MTok) and Haiku ($0.25/MTok) has a 60x cost difference. Users pick models with no cost feedback.
 
@@ -80,7 +80,7 @@ Costs are **estimates** — actual billing depends on caching, batching, etc. Sh
   - Format: "1,247 tokens · ~$0.02"
   - Only show for assistant messages (user messages have negligible cost)
   - Collapsed by default, visible on hover or via a toggle
-- [ ] For multi-agent messages: show per-agent cost + combined
+- [ ] For waggle messages: show per-agent cost + combined
   - "Architect (Opus): 2,100 tokens · ~$0.16  |  Reviewer (Sonnet): 1,500 tokens · ~$0.02"
 
 ### Phase 4: Conversation-level summary
@@ -97,16 +97,16 @@ Costs are **estimates** — actual billing depends on caching, batching, etc. Sh
   - Breakdown by model
   - Daily/weekly trend
 
-## Multi-Agent Cost Implications
+## Waggle Cost Implications
 
-Multi-agent mode (Spec 00) creates compound costs that are invisible today:
+Waggle mode (Spec 00) creates compound costs that are invisible today:
 
-| Scenario | Single Agent | Multi-Agent (6 turns) |
+| Scenario | Single Agent | Waggle (6 turns) |
 |----------|-------------|----------------------|
 | Simple question | ~1K tokens, ~$0.01 | ~6K tokens, ~$0.06 |
 | Complex task (Opus) | ~10K tokens, ~$0.75 | ~60K tokens, ~$4.50 |
 
-Without cost visibility, users can accidentally burn $5+ on a single multi-agent conversation. This spec makes that transparent.
+Without cost visibility, users can accidentally burn $5+ on a single waggle conversation. This spec makes that transparent.
 
 ## Files to Create
 

@@ -2,13 +2,13 @@ import type { HydratedAgentSendPayload, Message } from '@shared/types/agent'
 import { getMessageText, isToolCallPart } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
-import type {
-  CollaborationStatus,
-  MultiAgentConfig,
-  MultiAgentStreamMetadata,
-  MultiAgentTurnEvent,
-} from '@shared/types/multi-agent'
 import type { Settings } from '@shared/types/settings'
+import type {
+  WaggleCollaborationStatus,
+  WaggleConfig,
+  WaggleStreamMetadata,
+  WaggleTurnEvent,
+} from '@shared/types/waggle'
 import type { StreamChunk } from '@tanstack/ai'
 import { createLogger } from '../logger'
 import { runAgent } from './agent-loop'
@@ -16,34 +16,32 @@ import { checkConsensus } from './consensus-detector'
 import { FileConflictTracker } from './file-conflict-tracker'
 import { makeMessage } from './shared'
 
-const logger = createLogger('multi-agent')
+const logger = createLogger('waggle')
 
-export interface MultiAgentRunParams {
+export interface WaggleRunParams {
   readonly conversationId: ConversationId
   readonly conversation: Conversation
   readonly payload: HydratedAgentSendPayload
-  readonly config: MultiAgentConfig
+  readonly config: WaggleConfig
   readonly settings: Settings
   readonly signal: AbortSignal
-  readonly onStreamChunk: (chunk: StreamChunk, meta: MultiAgentStreamMetadata) => void
-  readonly onTurnEvent: (event: MultiAgentTurnEvent) => void
+  readonly onStreamChunk: (chunk: StreamChunk, meta: WaggleStreamMetadata) => void
+  readonly onTurnEvent: (event: WaggleTurnEvent) => void
 }
 
-export interface MultiAgentRunResult {
+export interface WaggleRunResult {
   readonly newMessages: readonly Message[]
-  readonly status: CollaborationStatus
+  readonly status: WaggleCollaborationStatus
   readonly totalTurns: number
   readonly consensusReason?: string
   readonly lastError?: string
 }
 
 /**
- * Run a multi-agent sequential collaboration.
+ * Run a Waggle mode sequential collaboration.
  * Two agents take turns responding, building on each other's output.
  */
-export async function runMultiAgentSequential(
-  params: MultiAgentRunParams,
-): Promise<MultiAgentRunResult> {
+export async function runWaggleSequential(params: WaggleRunParams): Promise<WaggleRunResult> {
   const {
     conversationId,
     conversation,
@@ -74,12 +72,12 @@ export async function runMultiAgentSequential(
   let workingConversation: Conversation = { ...conversation }
 
   let lastAssistantTexts: [string, string] = ['', '']
-  let status: CollaborationStatus = 'running'
+  let status: WaggleCollaborationStatus = 'running'
   let consensusReason: string | undefined
   let consecutiveErrorTurns = 0
   let lastTurnError: string | undefined
 
-  logger.info('Starting multi-agent sequential collaboration', {
+  logger.info('Starting Waggle mode sequential collaboration', {
     conversationId,
     userMessage: payload.text.slice(0, 200),
     agents: agents.map((a) => a.label),
@@ -105,7 +103,7 @@ export async function runMultiAgentSequential(
       agentLabel: agent.label,
     })
 
-    const meta: MultiAgentStreamMetadata = {
+    const meta: WaggleStreamMetadata = {
       agentIndex,
       agentLabel: agent.label,
       agentColor: agent.color,
@@ -200,10 +198,10 @@ export async function runMultiAgentSequential(
 
       consecutiveErrorTurns = 0
 
-      // Tag assistant message with multi-agent metadata
+      // Tag assistant message with Waggle metadata.
       const taggedMessage = makeMessage('assistant', [...assistantMsg.parts], assistantMsg.model, {
         ...assistantMsg.metadata,
-        multiAgent: {
+        waggle: {
           agentIndex,
           agentLabel: agent.label,
           agentColor: agent.color,
@@ -309,9 +307,9 @@ export async function runMultiAgentSequential(
   }
 
   const totalTurns = accumulatedMessages.filter(
-    (m) => m.role === 'assistant' && !m.metadata?.multiAgent?.isSynthesis,
+    (m) => m.role === 'assistant' && !m.metadata?.waggle?.isSynthesis,
   ).length
-  logger.info('Multi-agent collaboration finished', {
+  logger.info('Waggle collaboration finished', {
     conversationId,
     status,
     totalTurns,
@@ -374,13 +372,13 @@ interface SynthesisParams {
   readonly conversationId: ConversationId
   readonly workingConversation: Conversation
   readonly payload: HydratedAgentSendPayload
-  readonly agents: MultiAgentConfig['agents']
+  readonly agents: WaggleConfig['agents']
   readonly settings: Settings
   readonly signal: AbortSignal
   readonly accumulatedMessages: Message[]
   readonly successfulAssistantMsgs: Message[]
-  readonly onStreamChunk: (chunk: StreamChunk, meta: MultiAgentStreamMetadata) => void
-  readonly onTurnEvent: (event: MultiAgentTurnEvent) => void
+  readonly onStreamChunk: (chunk: StreamChunk, meta: WaggleStreamMetadata) => void
+  readonly onTurnEvent: (event: WaggleTurnEvent) => void
 }
 
 async function runSynthesisStep(params: SynthesisParams): Promise<void> {
@@ -409,7 +407,7 @@ async function runSynthesisStep(params: SynthesisParams): Promise<void> {
 
   onTurnEvent({ type: 'synthesis-start' })
 
-  const synthesisMeta: MultiAgentStreamMetadata = {
+  const synthesisMeta: WaggleStreamMetadata = {
     agentIndex: -1,
     agentLabel: 'Synthesis',
     agentColor: 'emerald',
@@ -458,7 +456,7 @@ async function runSynthesisStep(params: SynthesisParams): Promise<void> {
         assistantMsg.model,
         {
           ...assistantMsg.metadata,
-          multiAgent: {
+          waggle: {
             agentIndex: -1,
             agentLabel: 'Synthesis',
             agentColor: 'emerald',
@@ -498,10 +496,10 @@ async function runSynthesisStep(params: SynthesisParams): Promise<void> {
 function buildSynthesisPrompt(
   userRequest: string,
   assistantMessages: Message[],
-  agents: MultiAgentConfig['agents'],
+  agents: WaggleConfig['agents'],
 ): string {
   const summaries = assistantMessages.map((msg, i) => {
-    const agentMeta = msg.metadata?.multiAgent
+    const agentMeta = msg.metadata?.waggle
     const label = agentMeta?.agentLabel ?? agents[i % agents.length]?.label ?? `Agent ${String(i)}`
     const text = getMessageText(msg)
     // Truncate very long turns to keep synthesis prompt focused
@@ -510,7 +508,7 @@ function buildSynthesisPrompt(
   })
 
   return [
-    'You are a neutral synthesis agent. Your job is to produce a clear, structured summary of the multi-agent collaboration that just took place.',
+    'You are a neutral synthesis agent. Your job is to produce a clear, structured summary of the Waggle mode collaboration that just took place.',
     '',
     `## Original User Request`,
     userRequest,

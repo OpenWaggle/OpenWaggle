@@ -1,5 +1,5 @@
 import type { SupportedModelId } from '@shared/types/brand'
-import type { AgentColor, MultiAgentMessageMetadata } from '@shared/types/multi-agent'
+import type { WaggleAgentColor, WaggleMessageMetadata } from '@shared/types/waggle'
 import type { UIMessage } from '@tanstack/ai-react'
 import type { CompletedPhase } from '@/hooks/useStreamingPhase'
 
@@ -8,23 +8,23 @@ import type { CompletedPhase } from '@/hooks/useStreamingPhase'
 export interface TurnDividerProps {
   turnNumber: number
   agentLabel: string
-  agentColor: AgentColor
+  agentColor: WaggleAgentColor
   isSynthesis?: boolean
 }
 
-// ─── Multi-Agent Info ────────────────────────────────────────
+// ─── Waggle Info ──────────────────────────────────────────────
 
-export interface MultiAgentInfo {
+export interface WaggleInfo {
   agentLabel: string
-  agentColor: AgentColor
+  agentColor: WaggleAgentColor
 }
 
-// ─── Turn Segment (per-turn slice of a multi-agent message) ──
+// ─── Turn Segment (per-turn slice of a Waggle message) ───────
 
 export interface TurnSegment {
   id: string
   parts: UIMessage['parts']
-  meta: MultiAgentMessageMetadata | undefined
+  meta: WaggleMessageMetadata | undefined
 }
 
 // ─── VirtualRow Discriminated Union ──────────────────────────
@@ -37,7 +37,7 @@ export type VirtualRow =
       showTurnDivider: boolean
       turnDividerProps?: TurnDividerProps
       assistantModel?: SupportedModelId
-      multiAgent?: MultiAgentInfo
+      waggle?: WaggleInfo
     }
   | {
       type: 'segment'
@@ -47,7 +47,7 @@ export type VirtualRow =
       showDivider: boolean
       dividerProps?: TurnDividerProps
       assistantModel?: SupportedModelId
-      multiAgent?: MultiAgentInfo
+      waggle?: WaggleInfo
     }
   | { type: 'phase-indicator'; label: string; elapsedMs: number }
   | { type: 'run-summary'; phases: readonly CompletedPhase[]; totalMs: number }

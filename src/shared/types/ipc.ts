@@ -18,13 +18,8 @@ import type {
   GitStatusSummary,
 } from './git'
 import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from './llm'
-import type {
-  MultiAgentConfig,
-  MultiAgentStreamMetadata,
-  MultiAgentTurnEvent,
-  TeamPreset,
-} from './multi-agent'
 import type { OrchestrationEventPayload, OrchestrationRunRecord } from './orchestration'
+import type { AgentPhaseEventPayload, AgentPhaseState } from './phase'
 import type { QuestionAnswer, QuestionPayload } from './question'
 import type { Provider, Settings } from './settings'
 import type {
@@ -33,6 +28,12 @@ import type {
   SkillCatalogResult,
 } from './standards'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
+import type {
+  WaggleConfig,
+  WaggleStreamMetadata,
+  WaggleTeamPreset,
+  WaggleTurnEvent,
+} from './waggle'
 
 // ─── IPC Channel Map ─────────────────────────────────────────
 // Single source of truth for every IPC channel.
@@ -156,6 +157,10 @@ export interface IpcInvokeChannelMap {
     args: [conversationId: ConversationId, answers: QuestionAnswer[]]
     return: undefined
   }
+  'agent:get-phase': {
+    args: [conversationId: ConversationId]
+    return: AgentPhaseState | null
+  }
   'voice:transcribe-local': {
     args: [payload: VoiceTranscriptionRequest]
     return: VoiceTranscriptionResult
@@ -204,9 +209,9 @@ export interface IpcInvokeChannelMap {
     args: []
     return: string
   }
-  // Multi-agent
-  'agent:send-multi-agent-message': {
-    args: [conversationId: ConversationId, payload: AgentSendPayload, config: MultiAgentConfig]
+  // Waggle mode
+  'agent:send-waggle-message': {
+    args: [conversationId: ConversationId, payload: AgentSendPayload, config: WaggleConfig]
     return: undefined
   }
   // Auth
@@ -229,11 +234,11 @@ export interface IpcInvokeChannelMap {
   // Teams
   'teams:list': {
     args: []
-    return: TeamPreset[]
+    return: WaggleTeamPreset[]
   }
   'teams:save': {
-    args: [preset: TeamPreset]
-    return: TeamPreset
+    args: [preset: WaggleTeamPreset]
+    return: WaggleTeamPreset
   }
   'teams:delete': {
     args: [id: TeamConfigId]
@@ -248,7 +253,7 @@ export interface IpcSendChannelMap {
   'agent:cancel': {
     args: [conversationId?: ConversationId]
   }
-  'agent:cancel-multi-agent': {
+  'agent:cancel-waggle': {
     args: [conversationId: ConversationId]
   }
   'terminal:write': {
@@ -270,6 +275,9 @@ export interface IpcEventChannelMap {
   'agent:question': {
     payload: QuestionPayload
   }
+  'agent:phase': {
+    payload: AgentPhaseEventPayload
+  }
   'window:fullscreen-changed': {
     payload: boolean
   }
@@ -279,11 +287,11 @@ export interface IpcEventChannelMap {
   'auth:oauth-status': {
     payload: OAuthFlowStatus
   }
-  'multi-agent:stream-chunk': {
-    payload: { conversationId: ConversationId; chunk: StreamChunk; meta: MultiAgentStreamMetadata }
+  'waggle:stream-chunk': {
+    payload: { conversationId: ConversationId; chunk: StreamChunk; meta: WaggleStreamMetadata }
   }
-  'multi-agent:turn-event': {
-    payload: { conversationId: ConversationId; event: MultiAgentTurnEvent }
+  'waggle:turn-event': {
+    payload: { conversationId: ConversationId; event: WaggleTurnEvent }
   }
 }
 
@@ -325,7 +333,9 @@ export interface OpenWaggleApi {
 
   // Agent questions
   answerQuestion(conversationId: ConversationId, answers: QuestionAnswer[]): Promise<void>
+  getAgentPhase(conversationId: ConversationId): Promise<AgentPhaseState | null>
   onQuestion(callback: (payload: QuestionPayload) => void): () => void
+  onAgentPhase(callback: (payload: AgentPhaseEventPayload) => void): () => void
 
   // Settings
   getSettings(): Promise<Settings>
@@ -423,22 +433,22 @@ export interface OpenWaggleApi {
   cancelOrchestrationRun(runId: string): Promise<void>
   onOrchestrationEvent(callback: (payload: OrchestrationEventPayload) => void): () => void
 
-  // Multi-Agent
-  sendMultiAgentMessage(
+  // Waggle mode
+  sendWaggleMessage(
     conversationId: ConversationId,
     payload: AgentSendPayload,
-    config: MultiAgentConfig,
+    config: WaggleConfig,
   ): Promise<void>
-  cancelMultiAgent(conversationId: ConversationId): void
-  onMultiAgentStreamChunk(
+  cancelWaggle(conversationId: ConversationId): void
+  onWaggleStreamChunk(
     callback: (payload: {
       conversationId: ConversationId
       chunk: StreamChunk
-      meta: MultiAgentStreamMetadata
+      meta: WaggleStreamMetadata
     }) => void,
   ): () => void
-  onMultiAgentTurnEvent(
-    callback: (payload: { conversationId: ConversationId; event: MultiAgentTurnEvent }) => void,
+  onWaggleTurnEvent(
+    callback: (payload: { conversationId: ConversationId; event: WaggleTurnEvent }) => void,
   ): () => void
 
   // Auth
@@ -449,7 +459,7 @@ export interface OpenWaggleApi {
   onOAuthStatus(callback: (status: OAuthFlowStatus) => void): () => void
 
   // Teams
-  listTeams(): Promise<TeamPreset[]>
-  saveTeam(preset: TeamPreset): Promise<TeamPreset>
+  listTeams(): Promise<WaggleTeamPreset[]>
+  saveTeam(preset: WaggleTeamPreset): Promise<WaggleTeamPreset>
   deleteTeam(id: TeamConfigId): Promise<void>
 }

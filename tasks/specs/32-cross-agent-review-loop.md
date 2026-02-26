@@ -3,7 +3,7 @@
 **Status:** Planned
 **Priority:** P3
 **Category:** Feature
-**Depends on:** Multi-Agent Conversation (done)
+**Depends on:** Waggle Conversation (done)
 **Origin:** Spec 15
 
 ---
@@ -15,7 +15,7 @@ Agent A generates code, Agent B reviews it with a different model and criteria, 
 ### Research Support
 
 - **CriticGPT** (OpenAI): LLM critics caught 85% of bugs vs 25% by humans
-- **AgentCoder**: Multi-agent achieved 96.3% pass@1 on HumanEval vs 90.2% single-model
+- **AgentCoder**: Waggle achieved 96.3% pass@1 on HumanEval vs 90.2% single-model
 - **Model diversity**: 78% fewer bugs when using diverse AI tools vs single-model
 
 ## Architecture

@@ -4,7 +4,7 @@
 **Priority:** P3
 **Category:** Fix (UI debt)
 **Depends on:** None
-**Origin:** Multi-agent conversation review (GPT 5.2 + GPT 5.1 Codex analysis)
+**Origin:** Waggle conversation review (GPT 5.2 + GPT 5.1 Codex analysis)
 
 ---
 
@@ -12,7 +12,7 @@
 
 There are two diverging settings surfaces in the app:
 
-1. **`SettingsPage`** (`src/renderer/src/components/settings/SettingsPage.tsx`) — A full-page layout with left nav (8 tabs) and content area. Added during the multi-agent (Spec 00) work. Only `GeneralSection` and `WaggleSection` render real content; all other tabs show "Coming soon" (line 49).
+1. **`SettingsPage`** (`src/renderer/src/components/settings/SettingsPage.tsx`) — A full-page layout with left nav (8 tabs) and content area. Added during the waggle (Spec 00) work. Only `GeneralSection` and `WaggleSection` render real content; all other tabs show "Coming soon" (line 49).
 
 2. **`SettingsDialog`** (`src/renderer/src/components/settings/SettingsDialog.tsx`) — A modal dialog that renders provider API key forms, base URL inputs, and browser headless toggle. This was the **original** settings UI before `SettingsPage` was introduced.
 

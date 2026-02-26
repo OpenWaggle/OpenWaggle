@@ -1,4 +1,4 @@
-import type { TeamPreset } from '@shared/types/multi-agent'
+import type { WaggleTeamPreset } from '@shared/types/waggle'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // ---------------------------------------------------------------------------
@@ -62,10 +62,10 @@ vi.mock('../logger', () => ({
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Minimal valid TeamPreset fixture for user-created presets. */
-function makeUserPreset(overrides: Partial<TeamPreset> = {}): TeamPreset {
+/** Minimal valid WaggleTeamPreset fixture for user-created presets. */
+function makeUserPreset(overrides: Partial<WaggleTeamPreset> = {}): WaggleTeamPreset {
   return {
-    id: 'user-preset-1' as TeamPreset['id'],
+    id: 'user-preset-1' as WaggleTeamPreset['id'],
     name: 'My Custom Team',
     description: 'A custom team preset',
     config: {
@@ -90,7 +90,7 @@ function makeUserPreset(overrides: Partial<TeamPreset> = {}): TeamPreset {
     createdAt: 1_000_000,
     updatedAt: 1_000_000,
     ...overrides,
-  } as TeamPreset
+  } as WaggleTeamPreset
 }
 
 /** Lazily import the module under test AFTER mocks are set up. */
@@ -229,8 +229,8 @@ describe('teams store', () => {
     it('can save multiple distinct user presets', async () => {
       const { saveTeamPreset, listTeamPresets } = await loadTeamsModule()
 
-      saveTeamPreset(makeUserPreset({ id: 'user-1' as TeamPreset['id'], name: 'Team Alpha' }))
-      saveTeamPreset(makeUserPreset({ id: 'user-2' as TeamPreset['id'], name: 'Team Beta' }))
+      saveTeamPreset(makeUserPreset({ id: 'user-1' as WaggleTeamPreset['id'], name: 'Team Alpha' }))
+      saveTeamPreset(makeUserPreset({ id: 'user-2' as WaggleTeamPreset['id'], name: 'Team Beta' }))
 
       const all = listTeamPresets()
       const userPresets = all.filter((p) => !p.isBuiltIn)
@@ -253,7 +253,7 @@ describe('teams store', () => {
   describe('deleteTeamPreset', () => {
     it('removes a previously saved user preset', async () => {
       const { saveTeamPreset, deleteTeamPreset, listTeamPresets } = await loadTeamsModule()
-      saveTeamPreset(makeUserPreset({ id: 'to-delete' as TeamPreset['id'] }))
+      saveTeamPreset(makeUserPreset({ id: 'to-delete' as WaggleTeamPreset['id'] }))
 
       deleteTeamPreset('to-delete')
 
@@ -263,8 +263,8 @@ describe('teams store', () => {
 
     it('does not affect other user presets when one is deleted', async () => {
       const { saveTeamPreset, deleteTeamPreset, listTeamPresets } = await loadTeamsModule()
-      saveTeamPreset(makeUserPreset({ id: 'keep-me' as TeamPreset['id'], name: 'Keep' }))
-      saveTeamPreset(makeUserPreset({ id: 'remove-me' as TeamPreset['id'], name: 'Remove' }))
+      saveTeamPreset(makeUserPreset({ id: 'keep-me' as WaggleTeamPreset['id'], name: 'Keep' }))
+      saveTeamPreset(makeUserPreset({ id: 'remove-me' as WaggleTeamPreset['id'], name: 'Remove' }))
 
       deleteTeamPreset('remove-me')
 

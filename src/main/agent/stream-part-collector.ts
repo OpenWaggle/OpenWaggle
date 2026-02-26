@@ -42,7 +42,7 @@ export function detectToolResultError(result: unknown): boolean {
 
 export class StreamPartCollector {
   private currentText = ''
-  private currentThinking = ''
+  private currentReasoning = ''
   private readonly collectedParts: MessagePart[] = []
   private readonly toolCallArgs: Record<string, string> = {}
   private readonly toolCallStartTimes: Record<string, number> = {}
@@ -55,21 +55,21 @@ export class StreamPartCollector {
   handleChunk(chunk: StreamChunk): StreamPartCollectorChunkResult {
     return chooseBy(chunk, 'type')
       .case('TEXT_MESSAGE_CONTENT', (value) => {
-        this.flushThinkingPart()
+        this.flushReasoningPart()
         this.currentText += value.delta
         return {}
       })
       .case('STEP_STARTED', () => {
-        this.flushThinkingPart()
+        this.flushReasoningPart()
         this.flushTextPart()
         return {}
       })
       .case('STEP_FINISHED', (value) => {
-        this.currentThinking += value.delta
+        this.currentReasoning += value.delta
         return {}
       })
       .case('TOOL_CALL_START', (value) => {
-        this.flushThinkingPart()
+        this.flushReasoningPart()
         this.flushTextPart()
         const startedAt = Date.now()
         this.toolCallArgs[value.toolCallId] = ''
@@ -149,7 +149,7 @@ export class StreamPartCollector {
         }
       })
       .case('RUN_ERROR', (value) => {
-        this.flushThinkingPart()
+        this.flushReasoningPart()
         this.flushTextPart()
         this.collectedParts.push({
           type: 'text',
@@ -165,7 +165,7 @@ export class StreamPartCollector {
   }
 
   finalizeParts(): MessagePart[] {
-    this.flushThinkingPart()
+    this.flushReasoningPart()
     this.flushTextPart()
 
     if (this.collectedParts.length === 0) {
@@ -189,10 +189,10 @@ export class StreamPartCollector {
     }
   }
 
-  private flushThinkingPart(): void {
-    if (this.currentThinking.trim()) {
-      this.collectedParts.push({ type: 'thinking', text: this.currentThinking })
-      this.currentThinking = ''
+  private flushReasoningPart(): void {
+    if (this.currentReasoning.trim()) {
+      this.collectedParts.push({ type: 'reasoning', text: this.currentReasoning })
+      this.currentReasoning = ''
     }
   }
 

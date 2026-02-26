@@ -1,11 +1,11 @@
-import type { AgentColor } from '@shared/types/multi-agent'
+import type { WaggleAgentColor } from '@shared/types/waggle'
 import { AGENT_TEXT } from '@/lib/agent-colors'
 import { cn } from '@/lib/cn'
 
 interface TurnDividerProps {
   turnNumber: number
   agentLabel: string
-  agentColor: AgentColor
+  agentColor: WaggleAgentColor
   isSynthesis?: boolean
 }
 

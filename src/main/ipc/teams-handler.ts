@@ -1,5 +1,5 @@
 import type { TeamConfigId } from '@shared/types/brand'
-import type { TeamPreset } from '@shared/types/multi-agent'
+import type { WaggleTeamPreset } from '@shared/types/waggle'
 import { deleteTeamPreset, listTeamPresets, saveTeamPreset } from '../store/teams'
 import { typedHandle } from './typed-ipc'
 
@@ -8,7 +8,7 @@ export function registerTeamsHandlers(): void {
     return listTeamPresets()
   })
 
-  typedHandle('teams:save', (_event, preset: TeamPreset) => {
+  typedHandle('teams:save', (_event, preset: WaggleTeamPreset) => {
     return saveTeamPreset(preset)
   })
 

@@ -1,6 +1,6 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
-import type { MultiAgentConfig } from '@shared/types/multi-agent'
+import type { WaggleConfig } from '@shared/types/waggle'
 import { useEffect } from 'react'
 import { ChatPanel } from '@/components/chat/ChatPanel'
 import { DiffPanel } from '@/components/diff-panel/DiffPanel'
@@ -12,24 +12,24 @@ import { PanelErrorBoundary } from '@/components/shared/PanelErrorBoundary'
 import { SkillsPanel } from '@/components/skills/SkillsPanel'
 import { TerminalPanel } from '@/components/terminal/TerminalPanel'
 import { useAgentChat } from '@/hooks/useAgentChat'
+import { useAgentPhase } from '@/hooks/useAgentPhase'
 import { useChat } from '@/hooks/useChat'
 import { useConversationNav } from '@/hooks/useConversationNav'
 import { useGit } from '@/hooks/useGit'
 import { useGitRefresh } from '@/hooks/useGitRefresh'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { useMessageModelLookup } from '@/hooks/useMessageModelLookup'
-import { useMultiAgentChat } from '@/hooks/useMultiAgentChat'
-import { useMultiAgentMetadataLookup } from '@/hooks/useMultiAgentMetadataLookup'
-import { useOrchestration } from '@/hooks/useOrchestration'
 import { useProject } from '@/hooks/useProject'
 import { useSendMessage } from '@/hooks/useSendMessage'
 import { usePreferences, useSettingsSetup } from '@/hooks/useSettings'
 import { useSkills } from '@/hooks/useSkills'
+import { useWaggleChat } from '@/hooks/useWaggleChat'
+import { useWaggleMetadataLookup } from '@/hooks/useWaggleMetadataLookup'
 import { cn } from '@/lib/cn'
 import { api } from '@/lib/ipc'
 import { useChatStore } from '@/stores/chat-store'
-import { useMultiAgentStore } from '@/stores/multi-agent-store'
 import { CHAT_MIN_WIDTH, useUIStore } from '@/stores/ui-store'
+import { useWaggleStore } from '@/stores/waggle-store'
 
 export function App(): React.JSX.Element {
   const sidebarOpen = useUIStore((s) => s.sidebarOpen)
@@ -82,7 +82,7 @@ export function App(): React.JSX.Element {
   const {
     messages,
     sendMessage,
-    sendMultiAgentMessage,
+    sendWaggleMessage,
     isLoading,
     stop,
     error,
@@ -90,8 +90,7 @@ export function App(): React.JSX.Element {
     answerQuestion,
   } = useAgentChat(activeConversationId, conversation, currentModel, settings.qualityPreset)
 
-  const { orchestrationRuns, orchestrationEvents, cancelRun } =
-    useOrchestration(activeConversationId)
+  const agentPhase = useAgentPhase(activeConversationId)
 
   // --- Composable workflow hooks ---
 
@@ -114,45 +113,45 @@ export function App(): React.JSX.Element {
     refreshGitBranches,
   })
 
-  const { handleSend, handleSendText, handleSendMultiAgent } = useSendMessage({
+  const { handleSend, handleSendText, handleSendWaggle } = useSendMessage({
     activeConversationId,
     projectPath,
     qualityPreset: settings.qualityPreset,
     createConversation,
     sendMessage,
-    sendMultiAgentMessage,
+    sendWaggleMessage,
   })
 
   const messageModelLookup = useMessageModelLookup(conversation)
-  const multiAgentMetadataLookup = useMultiAgentMetadataLookup(conversation, messages)
+  const waggleMetadataLookup = useWaggleMetadataLookup(conversation, messages)
 
-  // --- Multi-agent ---
+  // --- Waggle mode ---
 
-  useMultiAgentChat(activeConversationId)
+  useWaggleChat(activeConversationId)
 
-  const multiAgentStatus = useMultiAgentStore((s) => s.status)
-  const multiAgentConfig = useMultiAgentStore((s) => s.activeConfig)
-  const setMultiAgentConfig = useMultiAgentStore((s) => s.setConfig)
-  const startMultiAgentCollaboration = useMultiAgentStore((s) => s.startCollaboration)
-  const stopMultiAgentCollaboration = useMultiAgentStore((s) => s.stopCollaboration)
+  const waggleStatus = useWaggleStore((s) => s.status)
+  const waggleConfig = useWaggleStore((s) => s.activeConfig)
+  const setWaggleConfig = useWaggleStore((s) => s.setConfig)
+  const startWaggleCollaboration = useWaggleStore((s) => s.startCollaboration)
+  const stopWaggleCollaboration = useWaggleStore((s) => s.stopCollaboration)
   const toggleCommandPalette = useUIStore((s) => s.toggleCommandPalette)
 
-  function handleStartWaggle(config: MultiAgentConfig): void {
-    setMultiAgentConfig(config)
+  function handleStartWaggle(config: WaggleConfig): void {
+    setWaggleConfig(config)
   }
 
   function handleStopCollaboration(): void {
     if (activeConversationId) {
-      api.cancelMultiAgent(activeConversationId)
+      api.cancelWaggle(activeConversationId)
     }
-    stopMultiAgentCollaboration()
+    stopWaggleCollaboration()
   }
 
-  // When multi-agent is configured, route sends through the useChat pipeline
-  async function handleSendWithMultiAgent(payload: AgentSendPayload): Promise<void> {
-    if (multiAgentConfig && multiAgentStatus === 'idle') {
-      startMultiAgentCollaboration(activeConversationId ?? ('' as ConversationId), multiAgentConfig)
-      await handleSendMultiAgent(payload, multiAgentConfig)
+  // When Waggle mode is configured, route sends through the useChat pipeline.
+  async function handleSendWithWaggle(payload: AgentSendPayload): Promise<void> {
+    if (waggleConfig && waggleStatus === 'idle') {
+      startWaggleCollaboration(activeConversationId ?? ('' as ConversationId), waggleConfig)
+      await handleSendWaggle(payload, waggleConfig)
       return
     }
     await handleSend(payload)
@@ -287,23 +286,19 @@ export function App(): React.JSX.Element {
                   onSelectProjectPath={handleSelectProjectPath}
                   onOpenSettings={openSettings}
                   onRetry={handleSendText}
-                  onSend={handleSendWithMultiAgent}
+                  onSend={handleSendWithWaggle}
                   onToast={showToast}
                   onCancel={stop}
                   onToolApprovalResponse={respondToolApproval}
                   onAnswerQuestion={answerQuestion}
                   model={currentModel}
                   messageModelLookup={messageModelLookup}
-                  multiAgentMetadataLookup={multiAgentMetadataLookup}
+                  waggleMetadataLookup={waggleMetadataLookup}
                   slashSkills={skillCatalog?.skills ?? []}
-                  orchestration={{
-                    orchestrationRuns,
-                    orchestrationEvents,
-                    onCancelOrchestrationRun: cancelRun,
-                  }}
+                  agentPhase={agentPhase}
                   recentProjects={settings.recentProjects}
                   onStopCollaboration={
-                    multiAgentStatus !== 'idle' ? handleStopCollaboration : undefined
+                    waggleStatus !== 'idle' ? handleStopCollaboration : undefined
                   }
                   onStartWaggle={handleStartWaggle}
                 />

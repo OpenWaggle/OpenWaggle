@@ -1,18 +1,18 @@
-import { multiAgentMetadataSchema } from '@shared/schemas/multi-agent'
+import { waggleMetadataSchema } from '@shared/schemas/waggle'
 import { SupportedModelId } from '@shared/types/brand'
-import type { MultiAgentMessageMetadata } from '@shared/types/multi-agent'
+import type { WaggleMessageMetadata } from '@shared/types/waggle'
 import type { UIMessage } from '@tanstack/ai-react'
 import type { StreamingPhaseState } from '@/hooks/useStreamingPhase'
 import type { TurnSegment, VirtualRow } from './types-virtual'
 
-// ─── Multi-agent streaming helpers ──────────────────────────────
+// ─── Waggle streaming helpers ──────────────────────────────
 
 /**
  * Parse agent metadata from a _turnBoundary tool call's output.
  * The StreamProcessor parses the JSON result string into an object,
  * so `output` is typically already an object. Handle both cases.
  */
-function parseBoundaryMeta(output: unknown): MultiAgentMessageMetadata | undefined {
+function parseBoundaryMeta(output: unknown): WaggleMessageMetadata | undefined {
   let obj: unknown = output
   if (typeof obj === 'string') {
     try {
@@ -21,7 +21,7 @@ function parseBoundaryMeta(output: unknown): MultiAgentMessageMetadata | undefin
       return undefined
     }
   }
-  const result = multiAgentMetadataSchema.safeParse(obj)
+  const result = waggleMetadataSchema.safeParse(obj)
   if (!result.success) return undefined
   const data = result.data
   return {
@@ -40,7 +40,7 @@ function parseBoundaryMeta(output: unknown): MultiAgentMessageMetadata | undefin
  */
 function splitAtTurnBoundaries(
   msg: UIMessage,
-  firstTurnMeta: MultiAgentMessageMetadata | undefined,
+  firstTurnMeta: WaggleMessageMetadata | undefined,
 ): TurnSegment[] {
   const segments: TurnSegment[] = []
   let currentParts: UIMessage['parts'] = []
@@ -99,7 +99,7 @@ interface BuildVirtualRowsParams {
   conversationId: string | null
   model: SupportedModelId
   messageModelLookup: Readonly<Record<string, SupportedModelId>>
-  multiAgentMetadataLookup: Readonly<Record<string, MultiAgentMessageMetadata>>
+  waggleMetadataLookup: Readonly<Record<string, WaggleMessageMetadata>>
   phase: StreamingPhaseState
 }
 
@@ -112,7 +112,7 @@ export function buildVirtualRows({
   conversationId,
   model,
   messageModelLookup,
-  multiAgentMetadataLookup,
+  waggleMetadataLookup,
   phase,
 }: BuildVirtualRowsParams): VirtualRow[] {
   const rows: VirtualRow[] = []
@@ -122,9 +122,9 @@ export function buildVirtualRows({
 
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i]
-    const meta = multiAgentMetadataLookup[msg.id]
+    const meta = waggleMetadataLookup[msg.id]
 
-    // Check for turn boundaries (multi-agent streaming)
+    // Check for turn boundaries (Waggle streaming)
     const hasTurnBoundaries =
       msg.role === 'assistant' &&
       msg.parts.some((p) => p.type === 'tool-call' && p.name === '_turnBoundary')
@@ -155,7 +155,7 @@ export function buildVirtualRows({
                 }
               : undefined,
           assistantModel: segMeta?.agentModel ?? model,
-          multiAgent: segMeta
+          waggle: segMeta
             ? { agentLabel: segMeta.agentLabel, agentColor: segMeta.agentColor }
             : undefined,
         })
@@ -164,7 +164,7 @@ export function buildVirtualRows({
     }
 
     // Regular message
-    const prevMeta = i > 0 ? multiAgentMetadataLookup[messages[i - 1].id] : undefined
+    const prevMeta = i > 0 ? waggleMetadataLookup[messages[i - 1].id] : undefined
     const showTurnDivider =
       !!meta && msg.role === 'assistant' && (!prevMeta || prevMeta.agentIndex !== meta.agentIndex)
 
@@ -185,7 +185,7 @@ export function buildVirtualRows({
         msg.role === 'assistant'
           ? (meta?.agentModel ?? messageModelLookup[msg.id] ?? model)
           : undefined,
-      multiAgent: meta ? { agentLabel: meta.agentLabel, agentColor: meta.agentColor } : undefined,
+      waggle: meta ? { agentLabel: meta.agentLabel, agentColor: meta.agentColor } : undefined,
     })
   }
 

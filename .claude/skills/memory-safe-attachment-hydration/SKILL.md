@@ -24,7 +24,7 @@ Apply a memory-safe contract across Electron process boundaries:
 - Do not include base64 bytes in renderer state or long-lived stores.
 
 3. Hydrate binary sources just-in-time in main.
-- Right before `runAgent` and multi-agent execution, resolve file paths and read image/pdf bytes.
+- Right before `runAgent` and waggle execution, resolve file paths and read image/pdf bytes.
 - Re-validate file size and existence during hydration.
 - Fail fast with a user-visible error if attachments are no longer readable.
 

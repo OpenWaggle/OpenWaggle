@@ -7,8 +7,8 @@ import {
   makeErrorInfo,
 } from '@shared/types/errors'
 import type { SupportedModelId } from '@shared/types/llm'
-import type { MultiAgentConfig } from '@shared/types/multi-agent'
 import type { QualityPreset } from '@shared/types/settings'
+import type { WaggleConfig } from '@shared/types/waggle'
 import { convertMessagesToModelMessages, type ModelMessage, type StreamChunk } from '@tanstack/ai'
 import type { ConnectionAdapter, UIMessage } from '@tanstack/ai-react'
 import { api } from './ipc'
@@ -148,7 +148,7 @@ export function isTerminalChunk(chunk: StreamChunk): boolean {
  *
  * Flow:
  * 1. useChat calls connect() when sendMessage() is invoked
- * 2. We fire agent:send-message (or agent:send-multi-agent-message) to the main process
+ * 2. We fire agent:send-message (or agent:send-waggle-message for Waggle mode)
  * 3. Main process forwards raw StreamChunks via agent:stream-chunk IPC channel
  * 4. We yield them as an AsyncIterable<StreamChunk> back to useChat
  * 5. useChat processes chunks into UIMessages (text, tool calls, etc.)
@@ -161,7 +161,7 @@ export function createIpcConnectionAdapter(
   model: SupportedModelId,
   consumePendingPayload: () => AgentSendPayload | null,
   defaultQualityPreset: QualityPreset,
-  consumeMultiAgentConfig?: () => MultiAgentConfig | null,
+  consumeWaggleConfig?: () => WaggleConfig | null,
 ): ConnectionAdapter {
   return {
     connect(_messages, _data, abortSignal) {
@@ -175,8 +175,8 @@ export function createIpcConnectionAdapter(
           let resolve: (() => void) | null = null
           let done = false
 
-          // Consume the multi-agent config (if any) so sendPromise uses it
-          const multiAgentConfig = consumeMultiAgentConfig?.()
+          // Consume the Waggle config (if any) so sendPromise uses it.
+          const waggleConfig = consumeWaggleConfig?.()
 
           let unsubscribed = false
           const unsub = () => {
@@ -206,7 +206,7 @@ export function createIpcConnectionAdapter(
             queue.push(payload.chunk)
 
             // Determine if this chunk closes the stream.
-            // For multi-agent, per-turn terminal events are filtered in the
+            // For Waggle mode, per-turn terminal events are filtered in the
             // handler — only the envelope RUN_STARTED/RUN_FINISHED reach here.
             if (isTerminalChunk(payload.chunk)) {
               done = true
@@ -254,8 +254,8 @@ export function createIpcConnectionAdapter(
 
           // Fire and forget — main process streams chunks back via IPC.
           // Catch to avoid unhandled rejection (errors are delivered via stream chunks).
-          const sendPromise = multiAgentConfig
-            ? api.sendMultiAgentMessage(conversationId, payload, multiAgentConfig)
+          const sendPromise = waggleConfig
+            ? api.sendWaggleMessage(conversationId, payload, waggleConfig)
             : api.sendMessage(conversationId, payload, model)
 
           sendPromise

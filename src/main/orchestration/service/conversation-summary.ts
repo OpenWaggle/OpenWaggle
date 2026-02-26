@@ -12,7 +12,7 @@ export function summarizeConversation(conversation: Conversation): string {
       for (const part of message.parts) {
         const segment = chooseBy(part, 'type')
           .case('text', (value) => value.text)
-          .case('thinking', () => '[thinking]')
+          .case('reasoning', () => '[reasoning]')
           .case('tool-call', (value) => `[tool:${value.toolCall.name}]`)
           .case('attachment', () => '')
           .case('tool-result', (value) =>

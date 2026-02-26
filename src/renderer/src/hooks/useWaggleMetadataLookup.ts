@@ -1,10 +1,10 @@
 import type { Conversation } from '@shared/types/conversation'
-import type { MultiAgentConfig, MultiAgentMessageMetadata } from '@shared/types/multi-agent'
+import type { WaggleConfig, WaggleMessageMetadata } from '@shared/types/waggle'
 import type { UIMessage } from '@tanstack/ai-react'
-import { useMultiAgentStore } from '@/stores/multi-agent-store'
+import { useWaggleStore } from '@/stores/waggle-store'
 
 /**
- * Derives a UIMessage-id → multi-agent metadata lookup.
+ * Derives a UIMessage-id -> Waggle metadata lookup.
  *
  * During live streaming, uses `completedTurnMeta` from the store — an ordered
  * list built from `turn-end` events which only fire for successful turns.
@@ -14,29 +14,29 @@ import { useMultiAgentStore } from '@/stores/multi-agent-store'
  * For the in-progress turn (last assistant message, no `turn-end` yet), falls
  * back to the store's `currentAgentIndex` / `currentAgentLabel`.
  *
- * For historical (reloaded) conversations, uses persisted `metadata.multiAgent`
+ * For historical (reloaded) conversations, uses persisted `metadata.waggle`
  * when available (handles synthesis messages correctly), with position-based
  * derivation as fallback for older conversations.
  */
-export function useMultiAgentMetadataLookup(
+export function useWaggleMetadataLookup(
   conversation: Conversation | null,
   messages: UIMessage[],
-): Record<string, MultiAgentMessageMetadata> {
-  const activeConfig = useMultiAgentStore((s) => s.activeConfig)
-  const completedTurnMeta = useMultiAgentStore((s) => s.completedTurnMeta)
-  const status = useMultiAgentStore((s) => s.status)
-  const currentAgentIndex = useMultiAgentStore((s) => s.currentAgentIndex)
-  const currentAgentLabel = useMultiAgentStore((s) => s.currentAgentLabel)
+): Record<string, WaggleMessageMetadata> {
+  const activeConfig = useWaggleStore((s) => s.activeConfig)
+  const completedTurnMeta = useWaggleStore((s) => s.completedTurnMeta)
+  const status = useWaggleStore((s) => s.status)
+  const currentAgentIndex = useWaggleStore((s) => s.currentAgentIndex)
+  const currentAgentLabel = useWaggleStore((s) => s.currentAgentLabel)
 
   // Use the active config (live run) or the conversation's stored config (historical)
-  const config: MultiAgentConfig | null | undefined = activeConfig ?? conversation?.multiAgentConfig
+  const config: WaggleConfig | null | undefined = activeConfig ?? conversation?.waggleConfig
 
   if (!config) return {}
 
-  const lookup: Record<string, MultiAgentMessageMetadata> = {}
+  const lookup: Record<string, WaggleMessageMetadata> = {}
   const isLive = status === 'running'
 
-  // Build a map of persisted multi-agent metadata indexed by assistant position.
+  // Build a map of persisted Waggle metadata indexed by assistant position.
   // This handles synthesis messages and any metadata persisted on disk.
   const persistedMeta = buildPersistedMetaMap(conversation)
 
@@ -104,20 +104,20 @@ export function useMultiAgentMetadataLookup(
 }
 
 /**
- * Extract persisted multi-agent metadata from conversation messages,
+ * Extract persisted Waggle metadata from conversation messages,
  * indexed by assistant message position. Returns an empty map if
- * no conversation or no multiAgent metadata is found.
+ * no conversation or no Waggle metadata is found.
  */
 function buildPersistedMetaMap(
   conversation: Conversation | null,
-): Map<number, MultiAgentMessageMetadata> {
-  const map = new Map<number, MultiAgentMessageMetadata>()
+): Map<number, WaggleMessageMetadata> {
+  const map = new Map<number, WaggleMessageMetadata>()
   if (!conversation) return map
 
   let assistantIdx = 0
   for (const msg of conversation.messages) {
     if (msg.role !== 'assistant') continue
-    const meta = msg.metadata?.multiAgent
+    const meta = msg.metadata?.waggle
     if (meta) {
       map.set(assistantIdx, meta)
     }

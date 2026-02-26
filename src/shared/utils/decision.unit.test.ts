@@ -66,7 +66,7 @@ describe('decision utility', () => {
     type Part =
       | { type: 'text'; text: string }
       | { type: 'tool'; name: string }
-      | { type: 'thinking'; note: string }
+      | { type: 'reasoning'; note: string }
 
     function getPart(): Part {
       return { type: 'tool', name: 'readFile' }
@@ -77,7 +77,7 @@ describe('decision utility', () => {
     const result = chooseBy(part, 'type')
       .case('text', (value) => value.text)
       .case('tool', (value) => value.name)
-      .case('thinking', (value) => value.note)
+      .case('reasoning', (value) => value.note)
       .assertComplete()
 
     expect(result).toBe('readFile')

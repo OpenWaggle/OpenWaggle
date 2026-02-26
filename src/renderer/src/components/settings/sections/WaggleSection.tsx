@@ -1,13 +1,13 @@
 import { SupportedModelId, TeamConfigId } from '@shared/types/brand'
 import { generateDisplayName, type ProviderInfo } from '@shared/types/llm'
-import type {
-  AgentColor,
-  CollaborationMode,
-  MultiAgentConfig,
-  StopCondition,
-  TeamPreset,
-} from '@shared/types/multi-agent'
 import type { Settings } from '@shared/types/settings'
+import type {
+  WaggleAgentColor,
+  WaggleCollaborationMode,
+  WaggleConfig,
+  WaggleStopCondition,
+  WaggleTeamPreset,
+} from '@shared/types/waggle'
 import { Plus, Save, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { usePreferences, useProviders } from '@/hooks/useSettings'
@@ -17,7 +17,7 @@ import { api } from '@/lib/ipc'
 import { ModelSelector } from '../../shared/ModelSelector'
 
 /** Shallow structural comparison between form config and a preset's config. */
-function configMatchesPreset(config: MultiAgentConfig, preset: TeamPreset): boolean {
+function configMatchesPreset(config: WaggleConfig, preset: WaggleTeamPreset): boolean {
   const pc = preset.config
   if (config.mode !== pc.mode) return false
   if (config.stop.primary !== pc.stop.primary) return false
@@ -37,31 +37,31 @@ function configMatchesPreset(config: MultiAgentConfig, preset: TeamPreset): bool
 export function WaggleSection(): React.JSX.Element {
   const { settings } = usePreferences()
   const { providerModels } = useProviders()
-  const [presets, setPresets] = useState<TeamPreset[]>([])
+  const [presets, setPresets] = useState<WaggleTeamPreset[]>([])
   const [activePresetId, setActivePresetId] = useState<string | null>(null)
 
   // Agent A config
   const [agentALabel, setAgentALabel] = useState('Agent A')
-  const [agentAModel, setAgentAModel] = useState(SupportedModelId('claude-sonnet-4-5'))
+  const [agentAModel, setAgentAModel] = useState(() => SupportedModelId('claude-sonnet-4-5'))
   const [agentARole, setAgentARole] = useState('')
-  const [agentAColor, setAgentAColor] = useState<AgentColor>('blue')
+  const [agentAColor, setAgentAColor] = useState<WaggleAgentColor>('blue')
 
   // Agent B config
   const [agentBLabel, setAgentBLabel] = useState('Agent B')
-  const [agentBModel, setAgentBModel] = useState(SupportedModelId('claude-sonnet-4-5'))
+  const [agentBModel, setAgentBModel] = useState(() => SupportedModelId('claude-sonnet-4-5'))
   const [agentBRole, setAgentBRole] = useState('')
-  const [agentBColor, setAgentBColor] = useState<AgentColor>('amber')
+  const [agentBColor, setAgentBColor] = useState<WaggleAgentColor>('amber')
 
   // Collaboration config
-  const [mode, setMode] = useState<CollaborationMode>('sequential')
-  const [stopCondition, setStopCondition] = useState<StopCondition>('consensus')
+  const [mode, setMode] = useState<WaggleCollaborationMode>('sequential')
+  const [stopCondition, setStopCondition] = useState<WaggleStopCondition>('consensus')
   const [maxTurns, setMaxTurns] = useState(8)
 
   useEffect(() => {
     void api.listTeams().then(setPresets)
   }, [])
 
-  function loadPreset(preset: TeamPreset): void {
+  function loadPreset(preset: WaggleTeamPreset): void {
     setActivePresetId(preset.id)
     const [a, b] = preset.config.agents
     setAgentALabel(a.label)
@@ -77,7 +77,7 @@ export function WaggleSection(): React.JSX.Element {
     setMaxTurns(preset.config.stop.maxTurnsSafety)
   }
 
-  function buildConfig(): MultiAgentConfig {
+  function buildConfig(): WaggleConfig {
     return {
       mode,
       agents: [
@@ -376,8 +376,8 @@ interface AgentSlotCardProps {
   onModelChange: (model: SupportedModelId) => void
   role: string
   onRoleChange: (role: string) => void
-  color: AgentColor
-  onColorChange: (color: AgentColor) => void
+  color: WaggleAgentColor
+  onColorChange: (color: WaggleAgentColor) => void
   dotLabel: string
   settings: Settings
   providerModels: ProviderInfo[]

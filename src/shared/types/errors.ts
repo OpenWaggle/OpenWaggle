@@ -73,7 +73,7 @@ export const ERROR_CODE_META: Record<AgentErrorCode, ErrorCodeMeta> = {
   },
   'no-project': {
     userMessage: 'No project selected',
-    suggestion: 'Select a project folder before starting a collaboration.',
+    suggestion: 'Select a project folder before starting Waggle mode.',
     retryable: false,
   },
   'persist-failed': {
