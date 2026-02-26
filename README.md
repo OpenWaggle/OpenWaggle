@@ -94,7 +94,7 @@ Full PTY terminal emulation powered by xterm.js. Toggle with `Ctrl+J` / `Cmd+J`.
 ### Install and run
 
 ```bash
-git clone https://github.com/nicepkg/openwaggle.git
+git clone https://github.com/OpenWaggle/OpenWaggle.git
 cd openwaggle
 pnpm install
 pnpm dev
@@ -162,6 +162,18 @@ Skills extend the agent's capabilities with specialized knowledge and workflows.
 - **Branch picker** — click the branch name in the header to switch or create branches
 - **Diff panel** — toggle with `Ctrl+D` to see all working tree changes
 - **Commit dialog** — select files, write a message, commit — all from the header
+
+## Project Configuration
+
+OpenWaggle supports per-project configuration via `.openwaggle/config.toml`. Currently you can override quality preset sampling parameters (temperature, top_p, max_tokens) per tier:
+
+```toml
+[quality.high]
+temperature = 0.7
+max_tokens = 8000
+```
+
+See [docs/configuration.md](docs/configuration.md) for the full reference, default values, and parameter ranges.
 
 ## Development
 

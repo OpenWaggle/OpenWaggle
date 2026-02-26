@@ -47,7 +47,7 @@ describe('buildSynthesisPrompt', () => {
   it('includes original user request and pretty-printed outputs', () => {
     const prompt = buildSynthesisPrompt({
       userPrompt: 'Summarize findings',
-      projectContextText: '## Project Context\n\nRepo: openhive',
+      projectContextText: '## Project Context\n\nRepo: openwaggle',
       outputs: {
         'task-1': { text: 'Checked docs' },
         'task-2': { text: 'Validated behavior' },
