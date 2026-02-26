@@ -17,3 +17,4 @@ User corrections and behavioral rules. Updated whenever the user corrects the ag
 - **Use Zod v4 API** — `.loose()` not `.passthrough()`, `z.globalRegistry` not `z.getSchema()`. Reference `.openwaggle/skills/zod-v4/SKILL.md`.
 - **Skill creation workflow is mandatory** — when creating or updating any skill, always load and follow the `skill-creator` skill first. Treat this as a hard requirement, not optional guidance.
 - **Skill location support must be comprehensive** — when applying `skill-creator` outputs, create skills under the corresponding `skills` subfolder (`.openwaggle/skills/`, `.claude/skills/`, `.codex/skills/`) as requested by the user.
+- **Never unstage/revert unknown work** — do not unstage, reset, checkout, or otherwise undo any existing unstaged/staged changes that were not explicitly implemented by this agent in the current turn, because they may belong to another agent's in-progress work.
