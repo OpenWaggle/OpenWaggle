@@ -1,5 +1,5 @@
 import { Brain, ChevronRight, Loader2 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { cn } from '@/lib/cn'
 
 interface ThinkingBlockProps {
@@ -9,15 +9,13 @@ interface ThinkingBlockProps {
 
 export function ThinkingBlock({ content, isStreaming }: ThinkingBlockProps): React.JSX.Element {
   const [expanded, setExpanded] = useState(false)
-  const wasStreaming = useRef(isStreaming)
-
-  // Auto-collapse when reasoning finishes
-  useEffect(() => {
-    if (wasStreaming.current && !isStreaming) {
-      setExpanded(false)
-    }
-    wasStreaming.current = isStreaming
-  }, [isStreaming])
+  const [prevIsStreaming, setPrevIsStreaming] = useState(isStreaming)
+  if (prevIsStreaming && !isStreaming) {
+    setExpanded(false)
+  }
+  if (prevIsStreaming !== isStreaming) {
+    setPrevIsStreaming(isStreaming)
+  }
 
   const tokenEstimate = Math.ceil(content.length / 4)
 

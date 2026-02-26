@@ -273,11 +273,11 @@ function BaseUrlInput({
   onSave: (url: string) => void
 }): React.JSX.Element {
   const [localValue, setLocalValue] = useState(value)
-
-  // Sync from parent if external update
-  useEffect(() => {
+  const [prevValue, setPrevValue] = useState(value)
+  if (value !== prevValue) {
+    setPrevValue(value)
     setLocalValue(value)
-  }, [value])
+  }
 
   return (
     <div className="space-y-1.5">

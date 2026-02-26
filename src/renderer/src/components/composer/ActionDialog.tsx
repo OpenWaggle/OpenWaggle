@@ -212,10 +212,10 @@ export function ActionDialog({ onToast }: ActionDialogProps): React.JSX.Element 
           closeActionDialog()
         })
         .assertComplete()
+      setActionDialogBusy(false)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Action failed.'
       setActionDialogError(message)
-    } finally {
       setActionDialogBusy(false)
     }
   }

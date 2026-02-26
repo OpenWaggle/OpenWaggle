@@ -53,10 +53,14 @@ export function CommitDialog({
   const [error, setError] = useState<string | null>(null)
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set())
 
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen)
+  const [prevStatus, setPrevStatus] = useState(status)
+
   const changedFiles = status?.changedFiles ?? []
 
-  // Reset state when dialog opens/closes; sync selected paths with status
-  useEffect(() => {
+  if (isOpen !== prevIsOpen || status !== prevStatus) {
+    setPrevIsOpen(isOpen)
+    setPrevStatus(status)
     if (isOpen && status) {
       setSelectedPaths(new Set(status.changedFiles.map((f) => f.path)))
     }
@@ -66,7 +70,7 @@ export function CommitDialog({
       setError(null)
       setSelectedPaths(new Set())
     }
-  }, [isOpen, status])
+  }
 
   // Escape to close
   useEffect(() => {

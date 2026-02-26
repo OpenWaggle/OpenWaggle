@@ -16,7 +16,7 @@ import {
   Plus,
   X,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   AnthropicIcon,
   GeminiIcon,
@@ -152,12 +152,13 @@ function KeyEditor({
   onClose: () => void
 }): React.JSX.Element {
   const [value, setValue] = useState(currentKey)
+  const [prevCurrentKey, setPrevCurrentKey] = useState(currentKey)
   const [showKey, setShowKey] = useState(!currentKey)
   const hasChanged = value !== currentKey
-
-  useEffect(() => {
+  if (currentKey !== prevCurrentKey) {
+    setPrevCurrentKey(currentKey)
     setValue(currentKey)
-  }, [currentKey])
+  }
 
   async function handleSave(): Promise<void> {
     await onSave(value)
@@ -283,11 +284,13 @@ function BaseUrlField({ provider }: { provider: Provider }): React.JSX.Element {
   const { settings } = usePreferences()
   const { updateBaseUrl } = useProviders()
   const config = settings.providers[provider]
-  const [localValue, setLocalValue] = useState(config?.baseUrl ?? '')
-
-  useEffect(() => {
-    setLocalValue(config?.baseUrl ?? '')
-  }, [config?.baseUrl])
+  const baseUrl = config?.baseUrl ?? ''
+  const [localValue, setLocalValue] = useState(baseUrl)
+  const [prevBaseUrl, setPrevBaseUrl] = useState(baseUrl)
+  if (baseUrl !== prevBaseUrl) {
+    setPrevBaseUrl(baseUrl)
+    setLocalValue(baseUrl)
+  }
 
   return (
     <div className="space-y-1.5">

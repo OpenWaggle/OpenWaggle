@@ -35,18 +35,23 @@ export function Popover({
   className,
 }: PopoverProps): React.JSX.Element {
   const isControlled = controlledOpen !== undefined
-  const popover = usePopover({
+  const {
+    isOpen: popoverIsOpen,
+    close: popoverClose,
+    toggle: popoverToggle,
+    containerRef,
+  } = usePopover({
     onClose: () => onOpenChange?.(false),
     isActive: isControlled ? controlledOpen : undefined,
   })
 
-  const isOpen = isControlled ? controlledOpen : popover.isOpen
+  const isOpen = isControlled ? controlledOpen : popoverIsOpen
 
   function toggle(): void {
     if (isControlled) {
       onOpenChange?.(!controlledOpen)
     } else {
-      popover.toggle()
+      popoverToggle()
     }
   }
 
@@ -60,19 +65,19 @@ export function Popover({
         if (isControlled) {
           onOpenChange?.(false)
         } else {
-          popover.close()
+          popoverClose()
         }
       }
     }
 
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [isOpen, isControlled, onOpenChange, popover])
+  }, [isOpen, isControlled, onOpenChange, popoverClose])
 
   const triggerContent = typeof trigger === 'function' ? trigger({ isOpen, toggle }) : trigger
 
   return (
-    <div ref={popover.containerRef} className="relative">
+    <div ref={containerRef} className="relative">
       {triggerContent}
 
       {isOpen && (
