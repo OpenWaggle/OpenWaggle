@@ -2,10 +2,28 @@ import type { ConversationId } from '@shared/types/brand'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import type { UIMessage } from '@tanstack/ai-react'
 import { render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useComposerStore } from '@/stores/composer-store'
 import { useSettingsStore } from '@/stores/settings-store'
 import { ChatPanel } from '../ChatPanel'
+
+// Mock react-virtuoso so all items render without actual virtualization in JSDOM
+vi.mock('react-virtuoso', () => ({
+  Virtuoso: ({
+    data,
+    itemContent,
+  }: {
+    data: unknown[]
+    itemContent: (index: number, item: unknown) => ReactNode
+  }) => (
+    <div data-testid="virtuoso-list">
+      {data.map((item, index) => (
+        <div key={`vr-${String(index)}`}>{itemContent(index, item)}</div>
+      ))}
+    </div>
+  ),
+}))
 
 vi.mock('@/lib/ipc', () => ({
   api: {
