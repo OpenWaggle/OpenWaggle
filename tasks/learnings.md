@@ -20,6 +20,10 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Task: Memory Optimizations — Conversation Index + Attachment Hydration (2026-02-26)
+- For Electron IPC attachment flows, splitting renderer-safe metadata from main-process hydrated binary sources avoids storing large base64 blobs in renderer state while preserving provider-native image/pdf support by hydrating just-in-time before agent execution. [SKILL?]
+- Conversation list performance/memory is materially improved by reading a lightweight summary index and self-healing it from disk scans only when missing/corrupt; keeping index updates in save/delete paths avoids repeated full-history parsing on refresh-heavy UI events.
+
 ### Task: LLM Output Sanitization (2026-02-26)
 - `rehype-sanitize` drops syntax-highlighting metadata unless `className` allowlists are explicitly added for `code`/`span`/`pre`; preserving highlight.js rendering requires whitelisting both `language-*` and `hljs*` classes while keeping URL protocols tightly constrained.
 
