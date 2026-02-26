@@ -20,6 +20,9 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Task: LLM Output Sanitization (2026-02-26)
+- `rehype-sanitize` drops syntax-highlighting metadata unless `className` allowlists are explicitly added for `code`/`span`/`pre`; preserving highlight.js rendering requires whitelisting both `language-*` and `hljs*` classes while keeping URL protocols tightly constrained.
+
 ### Task: Dynamic Provider Model Fetch Wiring (2026-02-26)
 - For static+dynamic provider model hydration, keeping a static baseline and merging refresh results against current runtime state (not only baseline) prevents targeted provider refreshes from accidentally wiping previously hydrated dynamic models from other providers.
 
