@@ -20,6 +20,9 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Task: Dynamic Provider Model Fetch Wiring (2026-02-26)
+- For static+dynamic provider model hydration, keeping a static baseline and merging refresh results against current runtime state (not only baseline) prevents targeted provider refreshes from accidentally wiping previously hydrated dynamic models from other providers.
+
 ### Task: Model Picker Duplicate Key Fix (2026-02-26)
 - Provider model payloads can contain duplicate entries (especially local Ollama models); de-duplicate by `provider:modelId` before rendering so React keys stay stable and duplicated rows never appear.
 
