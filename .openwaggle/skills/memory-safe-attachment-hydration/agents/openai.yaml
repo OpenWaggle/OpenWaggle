@@ -1,0 +1,4 @@
+interface:
+  display_name: "Memory Safe Attachment Hydration"
+  short_description: "Keep renderer memory low by hydrating binary attachments in main only when needed"
+  default_prompt: "Apply memory-safe attachment contract split and just-in-time hydration across Electron IPC boundaries"
