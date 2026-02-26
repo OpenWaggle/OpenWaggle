@@ -319,11 +319,13 @@ function ProviderRow({
   isLast,
   autoEdit,
   onEditingChange,
+  fetchError,
 }: {
   providerInfo: ProviderInfo
   isLast: boolean
   autoEdit?: boolean
   onEditingChange?: (editing: boolean) => void
+  fetchError?: string
 }): React.JSX.Element {
   const { settings, testingProviders, testResults, updateApiKey, testApiKey } = useSettings()
 
@@ -386,6 +388,16 @@ function ProviderRow({
           testResult={testResults[providerId] ?? null}
           onClose={() => setEditing(false)}
         />
+      )}
+
+      {/* Model fetch error — shown when dynamic model list fetch fails */}
+      {fetchError && !editing && (
+        <div className="flex items-start gap-2 mx-5 mb-3 rounded-lg border border-warning/25 bg-warning/6 px-3 py-2">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning mt-0.5" />
+          <p className="text-[11px] leading-relaxed text-warning/80">
+            Could not fetch models: {fetchError}
+          </p>
+        </div>
       )}
     </div>
   )
@@ -651,6 +663,7 @@ export function ConnectionsSection(): React.JSX.Element {
   const {
     settings,
     providerModels,
+    modelFetchErrors,
     toggleProvider,
     oauthStatuses,
     authAccounts,
@@ -705,6 +718,7 @@ export function ConnectionsSection(): React.JSX.Element {
                     setJustAddedProvider(null)
                   }
                 }}
+                fetchError={modelFetchErrors[p.provider]}
               />
             ))}
           </div>

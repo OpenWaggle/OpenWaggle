@@ -4,7 +4,8 @@ import type {
   SubscriptionProvider,
 } from '@shared/types/auth'
 import { SUBSCRIPTION_PROVIDERS } from '@shared/types/auth'
-import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from '@shared/types/llm'
+import { SupportedModelId } from '@shared/types/brand'
+import type { ModelDisplayInfo, ProviderInfo } from '@shared/types/llm'
 import {
   DEFAULT_SETTINGS,
   type ExecutionMode,
@@ -20,6 +21,7 @@ import { api } from '@/lib/ipc'
 interface ProviderModelRefreshResult {
   readonly provider: Provider
   readonly models: ModelDisplayInfo[] | null
+  readonly error?: string
 }
 
 const providerModelRefreshTokens: Partial<Record<Provider, number>> = {}
@@ -52,7 +54,7 @@ function dedupeProviderModels(
     seen.add(key)
 
     deduped.push({
-      id: normalizedId,
+      id: SupportedModelId(normalizedId),
       name: model.name,
       provider,
     })
@@ -105,6 +107,7 @@ interface SettingsState {
   testResults: Partial<Record<Provider, { success: boolean; error?: string } | null>>
   baseProviderModels: ProviderInfo[]
   providerModels: ProviderInfo[]
+  modelFetchErrors: Partial<Record<Provider, string>>
 
   // Auth — per-provider status tracking
   oauthStatuses: Partial<Record<SubscriptionProvider, OAuthFlowStatus>>
@@ -144,6 +147,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   testResults: {},
   baseProviderModels: [],
   providerModels: [],
+  modelFetchErrors: {},
   oauthStatuses: {},
   authAccounts: {},
 
@@ -198,8 +202,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
             provider: group.provider,
             models: dedupeProviderModels(group.provider, fetchedModels),
           }
-        } catch {
-          return { provider: group.provider, models: null }
+        } catch (err) {
+          return {
+            provider: group.provider,
+            models: null,
+            error: err instanceof Error ? err.message : 'Failed to fetch models',
+          }
         }
       }),
     )
@@ -223,7 +231,18 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       refreshedProviders: freshProviderIds,
       refreshedDynamicModels,
     })
-    set({ providerModels: nextProviderModels })
+
+    const nextErrors: Partial<Record<Provider, string>> = { ...latestState.modelFetchErrors }
+    for (const result of results) {
+      if (!freshProviderSet.has(result.provider)) continue
+      if (result.error) {
+        nextErrors[result.provider] = result.error
+      } else {
+        delete nextErrors[result.provider]
+      }
+    }
+
+    set({ providerModels: nextProviderModels, modelFetchErrors: nextErrors })
   },
 
   async retryLoad() {
@@ -335,12 +354,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   async toggleFavoriteModel(model: SupportedModelId) {
-    const normalizedModel = model.trim()
-    if (!normalizedModel) return
+    const trimmed = model.trim()
+    if (!trimmed) return
+    const normalizedModel = SupportedModelId(trimmed)
 
     const { settings } = get()
     const isFavorite = settings.favoriteModels.includes(normalizedModel)
-    const favoriteModels = isFavorite
+    const favoriteModels: SupportedModelId[] = isFavorite
       ? settings.favoriteModels.filter((entry) => entry !== normalizedModel)
       : [
           normalizedModel,

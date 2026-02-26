@@ -39,6 +39,7 @@ export function useSettings() {
   const testingProviders = useSettingsStore((s) => s.testingProviders)
   const testResults = useSettingsStore((s) => s.testResults)
   const providerModels = useSettingsStore((s) => s.providerModels)
+  const modelFetchErrors = useSettingsStore((s) => s.modelFetchErrors)
   const updateApiKey = useSettingsStore((s) => s.updateApiKey)
   const toggleProvider = useSettingsStore((s) => s.toggleProvider)
   const updateBaseUrl = useSettingsStore((s) => s.updateBaseUrl)
@@ -65,6 +66,7 @@ export function useSettings() {
     testingProviders,
     testResults,
     providerModels,
+    modelFetchErrors,
     updateApiKey,
     toggleProvider,
     updateBaseUrl,
