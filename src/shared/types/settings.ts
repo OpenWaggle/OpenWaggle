@@ -26,6 +26,7 @@ export interface ProviderConfig {
 export interface Settings {
   readonly providers: Readonly<Partial<Record<Provider, ProviderConfig>>>
   readonly defaultModel: string
+  readonly favoriteModels: readonly string[]
   readonly projectPath: string | null
   readonly executionMode: ExecutionMode
   readonly orchestrationMode: OrchestrationMode
@@ -47,6 +48,7 @@ export const DEFAULT_SETTINGS: Settings = {
     ollama: { apiKey: '', baseUrl: OLLAMA_DEFAULT_BASE_URL, enabled: false },
   },
   defaultModel: DEFAULT_ANTHROPIC_MODEL,
+  favoriteModels: [],
   projectPath: null,
   executionMode: 'sandbox',
   orchestrationMode: 'auto-fallback',

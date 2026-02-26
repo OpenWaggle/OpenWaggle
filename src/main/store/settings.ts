@@ -82,6 +82,7 @@ export function getSettings(): Settings {
   const executionMode = resolveExecutionMode()
   const orchestrationMode = resolveOrchestrationMode()
   const qualityPreset = resolveQualityPreset()
+  const favoriteModels = resolveFavoriteModels()
   const recentProjects = resolveRecentProjects()
   const skillTogglesByProject = resolveSkillTogglesByProject()
 
@@ -91,6 +92,7 @@ export function getSettings(): Settings {
   return {
     providers,
     defaultModel,
+    favoriteModels,
     projectPath: store.get('projectPath', DEFAULT_SETTINGS.projectPath),
     executionMode,
     orchestrationMode,
@@ -104,6 +106,10 @@ export function getSettings(): Settings {
 
 export function updateSettings(partial: Partial<Settings>): void {
   if (partial.providers !== undefined) {
+    const rawExisting: unknown = store.get('providers', {})
+    const parsedExisting = unknownRecordSchema.safeParse(rawExisting)
+    const existingProviders = parsedExisting.success ? parsedExisting.data : {}
+
     const encryptedProviders: Partial<Record<Provider, ProviderConfig>> = {}
     for (const id of PROVIDERS) {
       const config = partial.providers[id]
@@ -114,18 +120,29 @@ export function updateSettings(partial: Partial<Settings>): void {
         continue
       }
 
+      const existingConfig = providerConfigSchema.safeParse(existingProviders[id])
+      const defaults = DEFAULT_SETTINGS.providers[id]
+      if (!defaults) continue
+
       encryptedProviders[id] = {
-        ...config,
         apiKey: encryptString(config.apiKey),
+        enabled: config.enabled,
+        baseUrl:
+          config.baseUrl ??
+          (existingConfig.success ? existingConfig.data.baseUrl : defaults.baseUrl),
+        authMethod:
+          config.authMethod ??
+          (existingConfig.success ? existingConfig.data.authMethod : defaults.authMethod),
       }
     }
-    const rawExisting: unknown = store.get('providers', {})
-    const parsedExisting = unknownRecordSchema.safeParse(rawExisting)
-    const existingProviders = parsedExisting.success ? parsedExisting.data : {}
+
     store.set('providers', { ...existingProviders, ...encryptedProviders })
   }
   if (partial.defaultModel !== undefined) {
     store.set('defaultModel', partial.defaultModel)
+  }
+  if (partial.favoriteModels !== undefined) {
+    store.set('favoriteModels', sanitizeFavoriteModels(partial.favoriteModels))
   }
   if (partial.projectPath !== undefined) {
     store.set('projectPath', partial.projectPath)
@@ -199,6 +216,10 @@ function resolveQualityPreset(): QualityPreset {
   return QUALITY_PRESETS.includes(raw) ? raw : DEFAULT_SETTINGS.qualityPreset
 }
 
+function resolveFavoriteModels(): string[] {
+  return sanitizeFavoriteModels(store.get('favoriteModels', DEFAULT_SETTINGS.favoriteModels))
+}
+
 function resolveRecentProjects(): string[] {
   return sanitizeRecentProjects(store.get('recentProjects', DEFAULT_SETTINGS.recentProjects))
 }
@@ -211,6 +232,21 @@ function resolveSkillTogglesByProject(): Record<string, Record<string, boolean>>
 function resolveBrowserHeadless(): boolean {
   const raw = store.get('browserHeadless', DEFAULT_SETTINGS.browserHeadless)
   return typeof raw === 'boolean' ? raw : DEFAULT_SETTINGS.browserHeadless
+}
+
+function sanitizeFavoriteModels(models: readonly string[]): string[] {
+  const seen = new Set<string>()
+  const result: string[] = []
+
+  for (const model of models) {
+    const trimmed = model.trim()
+    if (!trimmed || seen.has(trimmed)) continue
+    seen.add(trimmed)
+    result.push(trimmed)
+    if (result.length >= 100) break
+  }
+
+  return result
 }
 
 function sanitizeRecentProjects(paths: readonly string[]): string[] {

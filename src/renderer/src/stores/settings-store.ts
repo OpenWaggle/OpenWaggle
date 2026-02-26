@@ -36,6 +36,7 @@ interface SettingsState {
   toggleProvider: (provider: Provider, enabled: boolean) => Promise<void>
   updateBaseUrl: (provider: Provider, baseUrl: string) => Promise<void>
   setDefaultModel: (model: SupportedModelId) => Promise<void>
+  toggleFavoriteModel: (model: SupportedModelId) => Promise<void>
   setProjectPath: (path: string | null) => Promise<void>
   setExecutionMode: (mode: ExecutionMode) => Promise<void>
   setQualityPreset: (preset: QualityPreset) => Promise<void>
@@ -119,6 +120,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           apiKey: existing?.apiKey ?? '',
           baseUrl: existing?.baseUrl,
           enabled,
+          authMethod: existing?.authMethod,
         },
       },
     }
@@ -140,6 +142,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           apiKey: existing?.apiKey ?? '',
           enabled: existing?.enabled ?? false,
           baseUrl: normalizedBaseUrl || undefined,
+          authMethod: existing?.authMethod,
         },
       },
     }
@@ -148,9 +151,58 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   async setDefaultModel(model: SupportedModelId) {
+    const { settings, providerModels } = get()
+    const providerInfo = providerModels.find((group) =>
+      group.models.some((entry) => entry.id === model),
+    )
+
+    if (!providerInfo) {
+      await api.updateSettings({ defaultModel: model })
+      set({ settings: { ...settings, defaultModel: model } })
+      return
+    }
+
+    const providerId = providerInfo.provider
+    const existingConfig = settings.providers[providerId]
+    const hasApiKey = (existingConfig?.apiKey?.trim().length ?? 0) > 0
+    const canEnable = !providerInfo.requiresApiKey || hasApiKey
+    const shouldEnableProvider = canEnable && !(existingConfig?.enabled ?? false)
+
+    if (!shouldEnableProvider) {
+      await api.updateSettings({ defaultModel: model })
+      set({ settings: { ...settings, defaultModel: model } })
+      return
+    }
+
+    const nextProviders: Settings['providers'] = {
+      ...settings.providers,
+      [providerId]: {
+        apiKey: existingConfig?.apiKey ?? '',
+        baseUrl: existingConfig?.baseUrl,
+        enabled: true,
+        authMethod: existingConfig?.authMethod,
+      } satisfies ProviderConfig,
+    }
+
+    await api.updateSettings({ defaultModel: model, providers: nextProviders })
+    set({ settings: { ...settings, defaultModel: model, providers: nextProviders } })
+  },
+
+  async toggleFavoriteModel(model: SupportedModelId) {
+    const normalizedModel = model.trim()
+    if (!normalizedModel) return
+
     const { settings } = get()
-    await api.updateSettings({ defaultModel: model })
-    set({ settings: { ...settings, defaultModel: model } })
+    const isFavorite = settings.favoriteModels.includes(normalizedModel)
+    const favoriteModels = isFavorite
+      ? settings.favoriteModels.filter((entry) => entry !== normalizedModel)
+      : [
+          normalizedModel,
+          ...settings.favoriteModels.filter((entry) => entry !== normalizedModel),
+        ].slice(0, 100)
+
+    await api.updateSettings({ favoriteModels })
+    set({ settings: { ...settings, favoriteModels } })
   },
 
   async setProjectPath(path: string | null) {

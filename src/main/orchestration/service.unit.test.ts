@@ -108,6 +108,7 @@ function createSettings(): Settings {
       },
     },
     defaultModel: 'gpt-4.1-mini',
+    favoriteModels: [],
     projectPath: '/tmp/project',
     executionMode: 'full-access',
     orchestrationMode: 'orchestrated',
