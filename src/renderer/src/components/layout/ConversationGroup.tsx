@@ -27,6 +27,8 @@ export function ConversationGroup({
       {/* Project group header — h32, padding [0,12], gap 8 */}
       <button
         type="button"
+        aria-expanded={!isCollapsed}
+        aria-label={`${group.displayName} project group`}
         onClick={onToggle}
         className="flex w-full items-center gap-2 h-8 px-3 transition-colors hover:bg-bg-hover"
       >

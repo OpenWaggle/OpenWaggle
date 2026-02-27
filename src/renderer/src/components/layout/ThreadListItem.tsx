@@ -20,6 +20,7 @@ export function ThreadListItem({
 }: ThreadListItemProps): React.JSX.Element {
   return (
     <div
+      aria-current={isActive ? 'true' : undefined}
       className={cn(
         'group flex items-center h-[34px] w-full',
         isActive

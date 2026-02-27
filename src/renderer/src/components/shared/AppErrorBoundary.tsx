@@ -1,5 +1,8 @@
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { createRendererLogger } from '@/lib/logger'
+
+const logger = createRendererLogger('AppErrorBoundary')
 
 interface AppErrorBoundaryProps {
   readonly children: ReactNode
@@ -24,7 +27,10 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
   }
 
   override componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    console.error('[renderer] Unhandled render error:', error, errorInfo)
+    logger.error('Unhandled render error', {
+      message: error.message,
+      stack: errorInfo.componentStack,
+    })
   }
 
   private readonly handleReload = (): void => {
@@ -35,7 +41,7 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
     if (!this.state.hasError) return this.props.children
 
     return (
-      <div className="flex h-full w-full items-center justify-center bg-bg px-6">
+      <div role="alert" className="flex h-full w-full items-center justify-center bg-bg px-6">
         <div className="w-full max-w-md rounded-xl border border-error/30 bg-bg-secondary p-5">
           <div className="mb-3 flex items-center gap-2 text-error">
             <AlertTriangle className="h-4 w-4" />
@@ -51,6 +57,7 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
           )}
           <button
             type="button"
+            aria-label="Reload app"
             onClick={this.handleReload}
             className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-accent/12 px-3 py-1.5 text-[13px] font-medium text-accent hover:bg-accent/20 transition-colors"
           >

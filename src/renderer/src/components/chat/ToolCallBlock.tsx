@@ -141,12 +141,18 @@ export function ToolCallBlock({
       {/* Compact activity line */}
       <button
         type="button"
+        aria-expanded={expanded}
+        aria-label={`${actionText} — ${expanded ? 'collapse' : 'expand'} details`}
         onClick={() => setExpanded(!expanded)}
         className="flex w-full items-center gap-2 py-0.5 text-[13px] transition-colors"
       >
         {/* Status icon */}
         {isRunning && !awaitingApproval && (
-          <Loader2 className="h-3.5 w-3.5 text-text-tertiary animate-spin shrink-0" />
+          <Loader2
+            role="status"
+            aria-label="Running"
+            className="h-3.5 w-3.5 text-text-tertiary animate-spin shrink-0"
+          />
         )}
         {awaitingApproval && <Clock className="h-3.5 w-3.5 text-warning shrink-0" />}
         {result && !isError && !isRunning && (
@@ -234,7 +240,7 @@ export function ToolCallBlock({
 
           {/* Error from diff tool */}
           {result && isError && (
-            <div className="border-t border-border px-3 py-2">
+            <div role="alert" className="border-t border-border px-3 py-2">
               <div className="text-[13px] text-text-tertiary mb-1">Error</div>
               <ToolResult content={resultError ?? result.content} isError />
             </div>

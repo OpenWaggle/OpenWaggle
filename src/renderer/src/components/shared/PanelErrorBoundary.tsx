@@ -1,6 +1,9 @@
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { cn } from '@/lib/cn'
+import { createRendererLogger } from '@/lib/logger'
+
+const logger = createRendererLogger('PanelErrorBoundary')
 
 interface PanelErrorBoundaryProps {
   readonly name: string
@@ -35,7 +38,10 @@ export class PanelErrorBoundary extends Component<
   }
 
   override componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    console.error(`[PanelErrorBoundary:${this.props.name}]`, error, errorInfo)
+    logger.error(`Panel "${this.props.name}" error`, {
+      message: error.message,
+      stack: errorInfo.componentStack,
+    })
   }
 
   private readonly handleRetry = (): void => {
@@ -52,7 +58,10 @@ export class PanelErrorBoundary extends Component<
     }
 
     return (
-      <div className={cn('flex items-center justify-center p-4', this.props.className)}>
+      <div
+        role="alert"
+        className={cn('flex items-center justify-center p-4', this.props.className)}
+      >
         <div className="w-full max-w-sm rounded-lg border border-error/30 bg-bg-secondary p-4">
           <div className="mb-2 flex items-center gap-2 text-error">
             <AlertTriangle className="h-3.5 w-3.5" />
@@ -63,6 +72,7 @@ export class PanelErrorBoundary extends Component<
           )}
           <button
             type="button"
+            aria-label="Retry"
             onClick={this.handleRetry}
             className="inline-flex items-center gap-1.5 rounded-md bg-accent/12 px-2.5 py-1 text-[12px] font-medium text-accent transition-colors hover:bg-accent/20"
           >

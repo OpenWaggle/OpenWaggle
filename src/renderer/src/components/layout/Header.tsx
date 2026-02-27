@@ -63,6 +63,8 @@ export function Header(): React.JSX.Element {
           {!sidebarOpen && (
             <button
               type="button"
+              aria-label="Show sidebar"
+              aria-expanded={sidebarOpen}
               onClick={toggleSidebar}
               className="no-drag rounded-md p-1.5 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
               title="Show sidebar"
@@ -92,6 +94,8 @@ export function Header(): React.JSX.Element {
         <div className="flex items-center gap-2">
           <button
             type="button"
+            aria-label={terminalOpen ? 'Hide terminal' : 'Open terminal'}
+            aria-expanded={terminalOpen}
             onClick={toggleTerminal}
             className={cn(
               'no-drag flex items-center gap-1 h-7 px-2.5 rounded-[5px] border border-button-border',
@@ -116,6 +120,7 @@ export function Header(): React.JSX.Element {
 
           <button
             type="button"
+            aria-label="Open commit dialog"
             onClick={() => setCommitOpen(true)}
             className={cn(
               'no-drag flex items-center gap-1 h-7 px-2.5 rounded-[5px]',
@@ -136,6 +141,7 @@ export function Header(): React.JSX.Element {
           {/* Diff stats — clickable to toggle diff panel */}
           <button
             type="button"
+            aria-label="Toggle diff panel"
             onClick={toggleDiffPanel}
             disabled={!projectPath}
             className={cn(

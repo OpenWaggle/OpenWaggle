@@ -111,7 +111,10 @@ export function Sidebar(): React.JSX.Element {
         sidebarOpen ? 'w-[272px]' : 'w-0',
       )}
     >
-      <aside className="flex h-full w-[272px] shrink-0 flex-col justify-between bg-bg-secondary border-r border-border">
+      <nav
+        aria-label="Sidebar"
+        className="flex h-full w-[272px] shrink-0 flex-col justify-between bg-bg-secondary border-r border-border"
+      >
         {/* sidebar-top */}
         <div className="flex flex-1 flex-col overflow-hidden">
           {/* macOS traffic light clearance — collapses in fullscreen */}
@@ -138,6 +141,7 @@ export function Sidebar(): React.JSX.Element {
             {/* New thread — h34, padding [0,12], gap 8 */}
             <button
               type="button"
+              aria-label="New thread"
               onClick={() => {
                 void handleNewConversation()
               }}
@@ -151,6 +155,7 @@ export function Sidebar(): React.JSX.Element {
             <button
               type="button"
               disabled
+              aria-label="MCPs (coming soon)"
               className="no-drag flex w-full cursor-not-allowed items-center gap-2 h-8 px-3"
               title="Coming soon"
             >
@@ -161,6 +166,7 @@ export function Sidebar(): React.JSX.Element {
             {/* Skills — h32, padding [0,12], gap 8 */}
             <button
               type="button"
+              aria-label="Skills"
               onClick={openSkillsView}
               className={cn(
                 'no-drag flex w-full items-center gap-2 h-8 px-3 transition-colors',
@@ -183,6 +189,7 @@ export function Sidebar(): React.JSX.Element {
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
+                aria-label="Open project folder"
                 onClick={() => {
                   void handleOpenProject()
                 }}
@@ -199,6 +206,7 @@ export function Sidebar(): React.JSX.Element {
                 trigger={
                   <button
                     type="button"
+                    aria-label="Sort projects"
                     onClick={() => setSortMenuOpen((p) => !p)}
                     className={cn(
                       'rounded p-0.5 transition-colors',
@@ -269,6 +277,7 @@ export function Sidebar(): React.JSX.Element {
           {/* Settings — h36, padding [0,16], gap 10 */}
           <button
             type="button"
+            aria-label="Settings"
             onClick={() => openSettings()}
             className="flex w-full items-center gap-2.5 h-9 px-4 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
           >
@@ -276,7 +285,7 @@ export function Sidebar(): React.JSX.Element {
             <span className="text-[14px] text-text-secondary">Settings</span>
           </button>
         </div>
-      </aside>
+      </nav>
     </div>
   )
 }

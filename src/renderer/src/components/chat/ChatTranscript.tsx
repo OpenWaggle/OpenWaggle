@@ -94,25 +94,32 @@ export function ChatTranscript({ section }: ChatTranscriptProps): React.JSX.Elem
   }
 
   return (
-    <Virtuoso
-      key={activeConversationId ?? 'empty'}
-      data={virtualRows}
-      followOutput="smooth"
-      initialTopMostItemIndex={Math.max(0, virtualRows.length - 1)}
-      overscan={800}
-      className="flex-1"
-      components={{ Scroller: ChatScroller }}
-      itemContent={(index, row) =>
-        renderTranscriptRow(
-          row,
-          index,
-          activeConversationId,
-          onAnswerQuestion,
-          onOpenSettings,
-          onRetryText,
-          onDismissError,
-        )
-      }
-    />
+    <div
+      role="log"
+      aria-label="Chat messages"
+      aria-busy={isLoading}
+      className="flex flex-1 flex-col overflow-hidden"
+    >
+      <Virtuoso
+        key={activeConversationId ?? 'empty'}
+        data={virtualRows}
+        followOutput="smooth"
+        initialTopMostItemIndex={Math.max(0, virtualRows.length - 1)}
+        overscan={800}
+        className="flex-1"
+        components={{ Scroller: ChatScroller }}
+        itemContent={(index, row) =>
+          renderTranscriptRow(
+            row,
+            index,
+            activeConversationId,
+            onAnswerQuestion,
+            onOpenSettings,
+            onRetryText,
+            onDismissError,
+          )
+        }
+      />
+    </div>
   )
 }
