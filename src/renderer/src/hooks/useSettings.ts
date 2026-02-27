@@ -110,15 +110,3 @@ export function useAuth() {
     disconnectAuth,
   }
 }
-
-/**
- * @deprecated Use usePreferences(), useProviders(), or useAuth() directly.
- * Subscribes to all 3 stores — any change triggers re-render.
- */
-export function useSettings() {
-  return {
-    ...usePreferences(),
-    ...useProviders(),
-    ...useAuth(),
-  }
-}

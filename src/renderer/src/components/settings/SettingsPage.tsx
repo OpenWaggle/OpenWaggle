@@ -11,7 +11,6 @@ import { WaggleSection } from './sections/WaggleSection'
 
 export function SettingsPage(): React.JSX.Element {
   const activeTab = useUIStore((s) => s.activeSettingsTab)
-  const setActiveSettingsTab = useUIStore((s) => s.setActiveSettingsTab)
   const closeSettings = useUIStore((s) => s.closeSettings)
   const isFullscreen = useFullscreen()
 
@@ -37,7 +36,7 @@ export function SettingsPage(): React.JSX.Element {
 
       {/* Body: Nav + Content */}
       <div className="flex flex-1 overflow-hidden">
-        <SettingsNav activeTab={activeTab} onTabChange={setActiveSettingsTab} />
+        <SettingsNav />
 
         {/* Content area — fills available width */}
         <div className="flex-1 overflow-y-auto px-10 py-8">

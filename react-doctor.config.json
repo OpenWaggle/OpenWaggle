@@ -1,11 +1,6 @@
 {
   "ignore": {
     "files": [".claude/worktrees/**", ".codex/worktrees/**"],
-    "rules": [
-      "knip/files",
-      "knip/exports",
-      "knip/types",
-      "react-doctor/no-giant-component"
-    ]
+    "rules": []
   }
 }

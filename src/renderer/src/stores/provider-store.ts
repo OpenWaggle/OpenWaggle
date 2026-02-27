@@ -11,11 +11,7 @@ interface ProviderModelRefreshResult {
   readonly error?: string
 }
 
-let providerModelRefreshTokens: Partial<Record<Provider, number>> = {}
-
-export function resetRefreshTokens(): void {
-  providerModelRefreshTokens = {}
-}
+const providerModelRefreshTokens: Partial<Record<Provider, number>> = {}
 
 function issueProviderRefreshTokens(providers: readonly Provider[]): Map<Provider, number> {
   const expectedTokens = new Map<Provider, number>()

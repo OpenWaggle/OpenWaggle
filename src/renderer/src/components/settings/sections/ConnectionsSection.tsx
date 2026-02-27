@@ -1,7 +1,7 @@
 import type { Provider } from '@shared/types/settings'
 import { useState } from 'react'
 import { WarningCallout } from '@/components/settings/common/WarningCallout'
-import { useAuth, usePreferences, useProviders } from '@/hooks/useSettings'
+import { usePreferences, useProviders } from '@/hooks/useSettings'
 import { AddProviderRow } from './connections/AddProviderRow'
 import { hasAnyApiKey } from './connections/helpers'
 import { SUBSCRIPTION_PROVIDER_ORDER } from './connections/meta'
@@ -11,7 +11,6 @@ import { SubscriptionRow } from './connections/SubscriptionRow'
 export function ConnectionsSection(): React.JSX.Element {
   const { settings } = usePreferences()
   const { providerModels, modelFetchErrors, toggleProvider } = useProviders()
-  const { oauthStatuses, authAccounts, startOAuth, submitAuthCode, disconnectAuth } = useAuth()
 
   const showUnencryptedWarning = !settings.encryptionAvailable && hasAnyApiKey(settings.providers)
   const showManualResaveWarning = settings.apiKeysRequireManualResave
@@ -99,11 +98,6 @@ export function ConnectionsSection(): React.JSX.Element {
             <SubscriptionRow
               key={provider}
               provider={provider}
-              accountInfo={authAccounts[provider]}
-              oauthStatus={oauthStatuses[provider] ?? { type: 'idle' }}
-              onSignIn={() => startOAuth(provider)}
-              onDisconnect={() => disconnectAuth(provider)}
-              onSubmitCode={(code) => submitAuthCode(provider, code)}
               isLast={index === SUBSCRIPTION_PROVIDER_ORDER.length - 1}
             />
           ))}

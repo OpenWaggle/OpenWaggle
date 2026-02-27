@@ -1,12 +1,5 @@
 import type { WaggleAgentColor } from '@shared/types/waggle'
 
-export const AGENT_HEX: Record<WaggleAgentColor, string> = {
-  blue: '#4c8cf5',
-  amber: '#f5a623',
-  emerald: '#34d399',
-  violet: '#a78bfa',
-}
-
 export const AGENT_BG: Record<WaggleAgentColor, string> = {
   blue: 'bg-[#4c8cf5]',
   amber: 'bg-[#f5a623]',

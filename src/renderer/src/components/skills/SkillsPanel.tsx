@@ -1,8 +1,9 @@
-import type { AgentsInstructionStatus, SkillCatalogResult } from '@shared/types/standards'
 import { AlertCircle, CheckCircle2, RefreshCw, Sparkles, XCircle } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Spinner } from '@/components/shared/Spinner'
+import { useProject } from '@/hooks/useProject'
+import { useSkills } from '@/hooks/useSkills'
 import { cn } from '@/lib/cn'
 import {
   safeMarkdownComponents,
@@ -10,39 +11,21 @@ import {
   safeMarkdownUrlTransform,
 } from '@/lib/markdown-safety'
 
-interface StandardsStatus {
-  agents: AgentsInstructionStatus
-  agentsPath: string
-  error?: string
-}
+export function SkillsPanel(): React.JSX.Element {
+  const { projectPath } = useProject()
+  const {
+    standardsStatus,
+    catalog,
+    selectedSkillId,
+    previewMarkdown,
+    isLoading,
+    isPreviewLoading,
+    error,
+    refresh,
+    selectSkill,
+    toggleSkill,
+  } = useSkills(projectPath)
 
-interface SkillsPanelProps {
-  projectPath: string | null
-  standardsStatus: StandardsStatus | null
-  catalog: SkillCatalogResult | null
-  selectedSkillId: string | null
-  previewMarkdown: string
-  isLoading: boolean
-  isPreviewLoading: boolean
-  error: string | null
-  onRefresh: () => void
-  onSelectSkill: (skillId: string) => void
-  onToggleSkill: (skillId: string, enabled: boolean) => void
-}
-
-export function SkillsPanel({
-  projectPath,
-  standardsStatus,
-  catalog,
-  selectedSkillId,
-  previewMarkdown,
-  isLoading,
-  isPreviewLoading,
-  error,
-  onRefresh,
-  onSelectSkill,
-  onToggleSkill,
-}: SkillsPanelProps): React.JSX.Element {
   if (!projectPath) {
     return (
       <div className="flex h-full items-center justify-center bg-bg">
@@ -69,7 +52,9 @@ export function SkillsPanel({
         </div>
         <button
           type="button"
-          onClick={onRefresh}
+          onClick={() => {
+            void refresh()
+          }}
           className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
         >
           <RefreshCw className="h-3.5 w-3.5" />
@@ -107,7 +92,7 @@ export function SkillsPanel({
                   <button
                     key={skill.id}
                     type="button"
-                    onClick={() => onSelectSkill(skill.id)}
+                    onClick={() => selectSkill(skill.id)}
                     className={cn(
                       'w-full rounded-md border px-2.5 py-2 text-left transition-colors',
                       selectedSkillId === skill.id
@@ -126,13 +111,13 @@ export function SkillsPanel({
                         tabIndex={0}
                         onClick={(event) => {
                           event.stopPropagation()
-                          onToggleSkill(skill.id, !skill.enabled)
+                          void toggleSkill(skill.id, !skill.enabled)
                         }}
                         onKeyDown={(event) => {
                           if (event.key === 'Enter' || event.key === ' ') {
                             event.stopPropagation()
                             event.preventDefault()
-                            onToggleSkill(skill.id, !skill.enabled)
+                            void toggleSkill(skill.id, !skill.enabled)
                           }
                         }}
                         className={cn(

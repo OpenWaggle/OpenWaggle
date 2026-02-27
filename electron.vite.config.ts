@@ -3,6 +3,7 @@ import { defineConfig } from 'electron-vite'
 import { devtools } from '@tanstack/devtools-vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import reactCompiler from 'babel-plugin-react-compiler'
 
 export default defineConfig({
   main: {
@@ -54,7 +55,7 @@ export default defineConfig({
       }),
       react({
         babel: {
-          plugins: ['babel-plugin-react-compiler'],
+          plugins: [reactCompiler],
         },
       }),
       tailwindcss(),

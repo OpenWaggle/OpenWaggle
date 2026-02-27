@@ -1,33 +1,26 @@
 import { Hash, PanelLeft, SquareTerminal } from 'lucide-react'
 import { useState } from 'react'
 import { CommitDialog } from '@/components/layout/CommitDialog'
+import { useChat } from '@/hooks/useChat'
 import { useGit } from '@/hooks/useGit'
 import { useProject } from '@/hooks/useProject'
 import { cn } from '@/lib/cn'
 import { projectName } from '@/lib/format'
+import { useUIStore } from '@/stores/ui-store'
 
-interface HeaderProps {
-  conversationTitle: string | null
-  onToggleSidebar: () => void
-  onToggleTerminal: () => void
-  onToggleDiffPanel: () => void
-  sidebarOpen: boolean
-  terminalOpen: boolean
-  onDiffRefresh: () => void
-  onToast: (message: string) => void
-}
-
-export function Header({
-  conversationTitle,
-  onToggleSidebar,
-  onToggleTerminal,
-  onToggleDiffPanel,
-  sidebarOpen,
-  terminalOpen,
-  onDiffRefresh,
-  onToast,
-}: HeaderProps): React.JSX.Element {
+export function Header(): React.JSX.Element {
+  const { activeConversation } = useChat()
   const { projectPath } = useProject()
+
+  const sidebarOpen = useUIStore((s) => s.sidebarOpen)
+  const terminalOpen = useUIStore((s) => s.terminalOpen)
+
+  const toggleSidebar = useUIStore((s) => s.toggleSidebar)
+  const toggleTerminal = useUIStore((s) => s.toggleTerminal)
+  const toggleDiffPanel = useUIStore((s) => s.toggleDiffPanel)
+  const bumpDiffRefreshKey = useUIStore((s) => s.bumpDiffRefreshKey)
+  const showToast = useUIStore((s) => s.showToast)
+
   const {
     status: gitStatus,
     error: gitError,
@@ -43,7 +36,7 @@ export function Header({
   function handleRefreshGit(): void {
     void refreshGitStatus(projectPath)
     void refreshGitBranches(projectPath)
-    onDiffRefresh()
+    bumpDiffRefreshKey()
   }
 
   async function handleCommitGit(message: string, amend: boolean, paths: string[]) {
@@ -56,8 +49,8 @@ export function Header({
     }
     const result = await commitGit(projectPath, { message, amend, paths })
     if (result.ok) {
-      onDiffRefresh()
-      onToast(`Commit created: ${result.summary}`)
+      bumpDiffRefreshKey()
+      showToast(`Commit created: ${result.summary}`)
     }
     return result
   }
@@ -70,7 +63,7 @@ export function Header({
           {!sidebarOpen && (
             <button
               type="button"
-              onClick={onToggleSidebar}
+              onClick={toggleSidebar}
               className="no-drag rounded-md p-1.5 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
               title="Show sidebar"
             >
@@ -83,7 +76,7 @@ export function Header({
 
           {/* Title */}
           <span className="no-drag text-[14px] font-medium text-text-primary">
-            {conversationTitle ?? 'New thread'}
+            {activeConversation?.title ?? 'New thread'}
           </span>
 
           {/* Project pill */}
@@ -99,7 +92,7 @@ export function Header({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={onToggleTerminal}
+            onClick={toggleTerminal}
             className={cn(
               'no-drag flex items-center gap-1 h-7 px-2.5 rounded-[5px] border border-button-border',
               'transition-colors hover:bg-bg-hover',
@@ -143,7 +136,7 @@ export function Header({
           {/* Diff stats — clickable to toggle diff panel */}
           <button
             type="button"
-            onClick={onToggleDiffPanel}
+            onClick={toggleDiffPanel}
             disabled={!projectPath}
             className={cn(
               'no-drag flex items-center gap-1 transition-opacity hover:opacity-80',

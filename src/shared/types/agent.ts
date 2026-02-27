@@ -92,25 +92,14 @@ export interface Message {
   readonly createdAt: number
 }
 
-/** Type-safe extraction helpers */
+/** Type-safe extraction helper used by getMessageText and IPC handlers. */
 export function isTextPart(part: MessagePart): part is TextPart {
   return part.type === 'text'
 }
 
+/** Used by waggle coordination to detect tool-only assistant turns. */
 export function isToolCallPart(part: MessagePart): part is ToolCallPart {
   return part.type === 'tool-call'
-}
-
-export function isToolResultPart(part: MessagePart): part is ToolResultPart {
-  return part.type === 'tool-result'
-}
-
-export function isAttachmentPart(part: MessagePart): part is AttachmentPart {
-  return part.type === 'attachment'
-}
-
-export function isReasoningPart(part: MessagePart): part is ReasoningPart {
-  return part.type === 'reasoning'
 }
 
 export function getMessageText(message: Message): string {

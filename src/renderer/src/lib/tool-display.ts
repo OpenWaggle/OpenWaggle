@@ -79,14 +79,6 @@ export function getToolConfig(name: string): ToolConfig {
   return TOOL_CONFIG[name] ?? { ...DEFAULT_CONFIG, displayName: name }
 }
 
-export function getToolSummary(name: string, args: JsonObject): string | null {
-  const config = TOOL_CONFIG[name]
-  if (!config) return null
-  const value = args[config.primaryArg]
-  if (typeof value === 'string') return value
-  return null
-}
-
 export function getToolVerbs(name: string): ToolVerbs {
   return TOOL_VERBS[name] ?? { running: name, completed: name }
 }

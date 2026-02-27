@@ -23,6 +23,7 @@ interface UIState {
   activeSettingsTab: SettingsTab
   diffPanelOpen: boolean
   diffPanelWidth: number
+  diffRefreshKey: number
   toastMessage: string | null
   commandPaletteOpen: boolean
 
@@ -35,6 +36,7 @@ interface UIState {
   setActiveSettingsTab: (tab: SettingsTab) => void
   openSkillsView: () => void
   resizeDiffPanel: (delta: number) => void
+  bumpDiffRefreshKey: () => void
   closeTerminal: () => void
   showToast: (message: string) => void
   clearToast: () => void
@@ -53,6 +55,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   activeSettingsTab: 'general',
   diffPanelOpen: false,
   diffPanelWidth: 600,
+  diffRefreshKey: 0,
   toastMessage: null,
   commandPaletteOpen: false,
 
@@ -96,6 +99,10 @@ export const useUIStore = create<UIState>((set, get) => ({
   resizeDiffPanel(delta) {
     const next = get().diffPanelWidth + delta
     set({ diffPanelWidth: Math.min(DIFF_PANEL_MAX, Math.max(DIFF_PANEL_MIN, next)) })
+  },
+
+  bumpDiffRefreshKey() {
+    set((state) => ({ diffRefreshKey: state.diffRefreshKey + 1 }))
   },
 
   closeTerminal() {

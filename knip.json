@@ -1,0 +1,22 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "electron.vite.config.ts",
+    "src/main/index.ts",
+    "src/preload/index.ts",
+    "src/renderer/src/main.tsx",
+    "src/renderer/src/**/*.d.ts",
+    "src/shared/utils/decision.typecheck.ts",
+    "scripts/**/*.mjs",
+    "vitest.*.config.ts",
+    "playwright.config.ts"
+  ],
+  "project": [
+    "src/**/*.{ts,tsx}",
+    "scripts/**/*.mjs",
+    "*.config.{js,cjs,mjs,ts}",
+    "electron.vite.config.ts"
+  ],
+  "ignore": ["out/**", "dist/**", "release/**", "node_modules/**"],
+  "ignoreExportsUsedInFile": true
+}

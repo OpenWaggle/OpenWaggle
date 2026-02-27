@@ -1,7 +1,8 @@
 import type { ConversationId } from '@shared/types/brand'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { api } from '@/lib/ipc'
 import { isTerminalChunk } from '@/lib/ipc-connection-adapter'
+import { useUIStore } from '@/stores/ui-store'
 
 interface UseGitRefreshOptions {
   readonly projectPath: string | null
@@ -10,11 +11,6 @@ interface UseGitRefreshOptions {
   readonly refreshGitBranches: (projectPath: string | null) => Promise<void>
   readonly loadConversations: () => Promise<void>
   readonly setActiveConversation: (id: ConversationId | null) => Promise<void>
-}
-
-interface UseGitRefreshResult {
-  readonly diffRefreshKey: number
-  readonly bumpDiffRefreshKey: () => void
 }
 
 /**
@@ -28,12 +24,8 @@ export function useGitRefresh({
   refreshGitBranches,
   loadConversations,
   setActiveConversation,
-}: UseGitRefreshOptions): UseGitRefreshResult {
-  const [diffRefreshKey, setDiffRefreshKey] = useState(0)
-
-  function bumpDiffRefreshKey(): void {
-    setDiffRefreshKey((k) => k + 1)
-  }
+}: UseGitRefreshOptions): void {
+  const bumpDiffRefreshKey = useUIStore((s) => s.bumpDiffRefreshKey)
 
   // Debounced git refresh for stream-chunk events
   useEffect(() => {
@@ -51,7 +43,7 @@ export function useGitRefresh({
         refreshTimer = setTimeout(() => {
           refreshTimer = null
           void Promise.all([refreshGitStatus(projectPath), refreshGitBranches(projectPath)])
-          setDiffRefreshKey((k) => k + 1)
+          bumpDiffRefreshKey()
         }, 500)
       }
     })
@@ -62,6 +54,7 @@ export function useGitRefresh({
     }
   }, [
     activeConversationId,
+    bumpDiffRefreshKey,
     loadConversations,
     projectPath,
     refreshGitBranches,
@@ -74,12 +67,10 @@ export function useGitRefresh({
     function handleFocus() {
       if (projectPath) {
         void Promise.all([refreshGitStatus(projectPath), refreshGitBranches(projectPath)])
-        setDiffRefreshKey((k) => k + 1)
+        bumpDiffRefreshKey()
       }
     }
     window.addEventListener('focus', handleFocus)
     return () => window.removeEventListener('focus', handleFocus)
-  }, [projectPath, refreshGitBranches, refreshGitStatus])
-
-  return { diffRefreshKey, bumpDiffRefreshKey }
+  }, [bumpDiffRefreshKey, projectPath, refreshGitBranches, refreshGitStatus])
 }

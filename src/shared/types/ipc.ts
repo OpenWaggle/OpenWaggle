@@ -264,7 +264,7 @@ export interface IpcSendChannelMap {
 /**
  * Event channels — one-way, main → renderer
  */
-export interface IpcEventChannelMap {
+interface IpcEventChannelMap {
   /** Raw StreamChunk from TanStack AI — consumed by the useChat IPC adapter */
   'agent:stream-chunk': {
     payload: { conversationId: ConversationId; chunk: StreamChunk }
@@ -299,7 +299,6 @@ export interface IpcEventChannelMap {
 
 export type IpcInvokeChannel = keyof IpcInvokeChannelMap
 export type IpcSendChannel = keyof IpcSendChannelMap
-export type IpcEventChannel = keyof IpcEventChannelMap
 
 /** Extract args for an invoke channel */
 export type IpcInvokeArgs<C extends IpcInvokeChannel> = IpcInvokeChannelMap[C]['args']
@@ -310,8 +309,8 @@ export type IpcInvokeReturn<C extends IpcInvokeChannel> = IpcInvokeChannelMap[C]
 /** Extract args for a send channel */
 export type IpcSendArgs<C extends IpcSendChannel> = IpcSendChannelMap[C]['args']
 
-/** Extract payload for an event channel */
-export type IpcEventPayload<C extends IpcEventChannel> = IpcEventChannelMap[C]['payload']
+/** Extract payload type for an event channel. */
+type IpcEventPayload<C extends keyof IpcEventChannelMap> = IpcEventChannelMap[C]['payload']
 
 // ─── Typed API Surface ───────────────────────────────────────
 // This is what the preload exposes to the renderer via contextBridge.
@@ -327,15 +326,13 @@ export interface OpenWaggleApi {
   ): Promise<void>
   cancelAgent(conversationId?: ConversationId): void
   /** Subscribe to raw StreamChunks from TanStack AI — used by the IPC connection adapter */
-  onStreamChunk(
-    callback: (payload: { conversationId: ConversationId; chunk: StreamChunk }) => void,
-  ): () => void
+  onStreamChunk(callback: (payload: IpcEventPayload<'agent:stream-chunk'>) => void): () => void
 
   // Agent questions
   answerQuestion(conversationId: ConversationId, answers: QuestionAnswer[]): Promise<void>
   getAgentPhase(conversationId: ConversationId): Promise<AgentPhaseState | null>
-  onQuestion(callback: (payload: QuestionPayload) => void): () => void
-  onAgentPhase(callback: (payload: AgentPhaseEventPayload) => void): () => void
+  onQuestion(callback: (payload: IpcEventPayload<'agent:question'>) => void): () => void
+  onAgentPhase(callback: (payload: IpcEventPayload<'agent:phase'>) => void): () => void
 
   // Settings
   getSettings(): Promise<Settings>
@@ -374,7 +371,7 @@ export interface OpenWaggleApi {
   closeTerminal(terminalId: string): Promise<void>
   resizeTerminal(terminalId: string, cols: number, rows: number): Promise<void>
   writeTerminal(terminalId: string, data: string): void
-  onTerminalData(callback: (payload: { terminalId: string; data: string }) => void): () => void
+  onTerminalData(callback: (payload: IpcEventPayload<'terminal:data'>) => void): () => void
 
   // Window
   onFullscreenChanged(callback: (isFullscreen: boolean) => void): () => void
@@ -431,7 +428,9 @@ export interface OpenWaggleApi {
   getOrchestrationRun(runId: string): Promise<OrchestrationRunRecord | null>
   listOrchestrationRuns(conversationId?: ConversationId): Promise<OrchestrationRunRecord[]>
   cancelOrchestrationRun(runId: string): Promise<void>
-  onOrchestrationEvent(callback: (payload: OrchestrationEventPayload) => void): () => void
+  onOrchestrationEvent(
+    callback: (payload: IpcEventPayload<'orchestration:event'>) => void,
+  ): () => void
 
   // Waggle mode
   sendWaggleMessage(
@@ -441,22 +440,16 @@ export interface OpenWaggleApi {
   ): Promise<void>
   cancelWaggle(conversationId: ConversationId): void
   onWaggleStreamChunk(
-    callback: (payload: {
-      conversationId: ConversationId
-      chunk: StreamChunk
-      meta: WaggleStreamMetadata
-    }) => void,
+    callback: (payload: IpcEventPayload<'waggle:stream-chunk'>) => void,
   ): () => void
-  onWaggleTurnEvent(
-    callback: (payload: { conversationId: ConversationId; event: WaggleTurnEvent }) => void,
-  ): () => void
+  onWaggleTurnEvent(callback: (payload: IpcEventPayload<'waggle:turn-event'>) => void): () => void
 
   // Auth
   startOAuth(provider: SubscriptionProvider): Promise<void>
   submitAuthCode(provider: SubscriptionProvider, code: string): Promise<void>
   disconnectAuth(provider: SubscriptionProvider): Promise<void>
   getAuthAccountInfo(provider: SubscriptionProvider): Promise<SubscriptionAccountInfo>
-  onOAuthStatus(callback: (status: OAuthFlowStatus) => void): () => void
+  onOAuthStatus(callback: (status: IpcEventPayload<'auth:oauth-status'>) => void): () => void
 
   // Teams
   listTeams(): Promise<WaggleTeamPreset[]>

@@ -46,11 +46,6 @@ export interface SamplingConfig {
   readonly modelOptions?: JsonObject
 }
 
-export interface FallbackState {
-  used: boolean
-  reason: string | undefined
-}
-
 export interface ModelRunner {
   modelText(
     adapter: AnyTextAdapter,

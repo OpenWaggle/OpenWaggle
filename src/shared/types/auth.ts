@@ -1,5 +1,4 @@
 import { includes } from '@shared/utils/validation'
-import { z } from 'zod'
 
 // ─── Subscription Providers ─────────────────────────────────────────
 
@@ -33,27 +32,3 @@ export interface SubscriptionAccountInfo {
   readonly label: string
   readonly disconnectedReason?: string
 }
-
-// ─── Zod Schemas (IPC boundary validation) ──────────────────────────
-
-export const subscriptionProviderSchema = z.enum(SUBSCRIPTION_PROVIDERS)
-
-export const oauthFlowStatusSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('idle') }),
-  z.object({ type: z.literal('in-progress'), provider: subscriptionProviderSchema }),
-  z.object({ type: z.literal('awaiting-code'), provider: subscriptionProviderSchema }),
-  z.object({ type: z.literal('code-received'), provider: subscriptionProviderSchema }),
-  z.object({ type: z.literal('success'), provider: subscriptionProviderSchema }),
-  z.object({
-    type: z.literal('error'),
-    provider: subscriptionProviderSchema,
-    message: z.string(),
-  }),
-])
-
-export const subscriptionAccountInfoSchema = z.object({
-  provider: subscriptionProviderSchema,
-  connected: z.boolean(),
-  label: z.string(),
-  disconnectedReason: z.string().optional(),
-})

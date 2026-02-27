@@ -8,6 +8,9 @@ import { useComposerStore } from '@/stores/composer-store'
 import { usePreferencesStore } from '@/stores/preferences-store'
 import { useProviderStore } from '@/stores/provider-store'
 import { ChatPanel } from '../ChatPanel'
+import type { ChatPanelSections } from '../use-chat-panel-controller'
+
+const useChatPanelSectionsMock = vi.hoisted(() => vi.fn<() => ChatPanelSections>())
 
 // Mock react-virtuoso so all items render without actual virtualization in JSDOM
 vi.mock('react-virtuoso', () => ({
@@ -24,6 +27,10 @@ vi.mock('react-virtuoso', () => ({
       ))}
     </div>
   ),
+}))
+
+vi.mock('../use-chat-panel-controller', () => ({
+  useChatPanelSections: useChatPanelSectionsMock,
 }))
 
 vi.mock('@/lib/ipc', () => ({
@@ -51,27 +58,54 @@ function makeMessage(
   } as UIMessage
 }
 
-function renderPanel(overrides: Partial<Parameters<typeof ChatPanel>[0]> = {}) {
-  const defaults = {
-    messages: [] as UIMessage[],
+function createSections(
+  overrides: Partial<ChatPanelSections['transcript']> = {},
+): ChatPanelSections {
+  const transcript = {
+    messages: [],
     isLoading: false,
-    error: undefined,
     projectPath: '/test/project',
-    hasProject: true,
-    conversationId: 'conv-1' as ConversationId,
-    onSend: vi.fn(),
-    onCancel: vi.fn(),
-    onToolApprovalResponse: vi.fn().mockResolvedValue(undefined),
-    onAnswerQuestion: vi.fn().mockResolvedValue(undefined),
-    model: 'claude-sonnet-4-20250514' as const,
-    messageModelLookup: {},
-    waggleMetadataLookup: {},
-    slashSkills: [],
-    agentPhase: null,
     recentProjects: [],
-    onStartWaggle: vi.fn(),
+    activeConversationId: 'conv-1' as ConversationId,
+    virtualRows: [],
+    onOpenProject: vi.fn().mockResolvedValue(undefined),
+    onSelectProjectPath: vi.fn(),
+    onRetryText: vi.fn().mockResolvedValue(undefined),
+    onAnswerQuestion: vi.fn().mockResolvedValue(undefined),
+    onOpenSettings: vi.fn(),
+    onDismissError: vi.fn(),
+    ...overrides,
   }
-  return render(<ChatPanel {...defaults} {...overrides} />)
+
+  return {
+    transcript,
+    composer: {
+      pendingApproval: null,
+      pendingAskUser: null,
+      activeConversationId: transcript.activeConversationId,
+      waggleStatus: 'idle',
+      commandPaletteOpen: false,
+      slashSkills: [],
+      isLoading: transcript.isLoading,
+      onToolApprovalResponse: vi.fn().mockResolvedValue(undefined),
+      onAnswerQuestion: transcript.onAnswerQuestion,
+      onStopCollaboration: vi.fn(),
+      onSelectSkill: vi.fn(),
+      onStartWaggle: vi.fn(),
+      onSendWithWaggle: vi.fn().mockResolvedValue(undefined),
+      onCancel: vi.fn(),
+      onToast: vi.fn(),
+    },
+    diff: {
+      projectPath: transcript.projectPath,
+      onSendMessage: transcript.onRetryText,
+    },
+  }
+}
+
+function renderPanel(overrides: Partial<ChatPanelSections['transcript']> = {}) {
+  useChatPanelSectionsMock.mockReturnValue(createSections(overrides))
+  return render(<ChatPanel />)
 }
 
 describe('ChatPanel', () => {
@@ -96,7 +130,7 @@ describe('ChatPanel', () => {
   it('shows thinking phase indicator when loading with no assistant message', () => {
     renderPanel({
       isLoading: true,
-      agentPhase: { label: 'Thinking', startedAt: Date.now() },
+      virtualRows: [{ type: 'phase-indicator', label: 'Thinking', elapsedMs: 123 }],
     })
     const spinner = document.querySelector('[class*="animate-spin"]')
     expect(spinner).toBeInTheDocument()
@@ -104,42 +138,67 @@ describe('ChatPanel', () => {
   })
 
   it('renders messages when present', () => {
-    const messages: UIMessage[] = [
-      makeMessage({ id: 'u1', role: 'user', parts: [{ type: 'text', content: 'Hello agent' }] }),
-    ]
-    renderPanel({ messages })
-    // Should not show welcome screen
+    const message = makeMessage({
+      id: 'u1',
+      role: 'user',
+      parts: [{ type: 'text', content: 'Hello agent' }],
+    })
+    renderPanel({
+      messages: [message],
+      virtualRows: [{ type: 'message', message, isStreaming: false, showTurnDivider: false }],
+    })
     expect(screen.queryByText(/open a project/i)).toBeNull()
   })
 
   it('renders the composer input area', () => {
     renderPanel()
-    // Composer renders — look for the textarea
     expect(screen.getByRole('textbox')).toBeInTheDocument()
   })
 
   it('shows Writing phase when loading and assistant has streaming content', () => {
-    const messages: UIMessage[] = [
-      makeMessage({ id: 'u1', role: 'user', parts: [{ type: 'text', content: 'Hi' }] }),
-      makeMessage({ id: 'a1', role: 'assistant', parts: [{ type: 'text', content: 'Hello!' }] }),
-    ]
-    renderPanel({
-      messages,
-      isLoading: true,
-      agentPhase: { label: 'Writing', startedAt: Date.now() },
+    const userMessage = makeMessage({
+      id: 'u1',
+      role: 'user',
+      parts: [{ type: 'text', content: 'Hi' }],
     })
-    // Spinner should be visible with "Writing..." label
+    const assistantMessage = makeMessage({
+      id: 'a1',
+      role: 'assistant',
+      parts: [{ type: 'text', content: 'Hello!' }],
+    })
+    renderPanel({
+      messages: [userMessage, assistantMessage],
+      isLoading: true,
+      virtualRows: [
+        { type: 'message', message: userMessage, isStreaming: false, showTurnDivider: false },
+        { type: 'message', message: assistantMessage, isStreaming: true, showTurnDivider: false },
+        { type: 'phase-indicator', label: 'Writing', elapsedMs: 456 },
+      ],
+    })
     const spinner = document.querySelector('[class*="animate-spin"]')
     expect(spinner).toBeInTheDocument()
     expect(screen.getByText('Writing...')).toBeInTheDocument()
   })
 
   it('does not show phase indicator when not loading', () => {
-    const messages: UIMessage[] = [
-      makeMessage({ id: 'u1', role: 'user', parts: [{ type: 'text', content: 'Hi' }] }),
-      makeMessage({ id: 'a1', role: 'assistant', parts: [{ type: 'text', content: 'Hello!' }] }),
-    ]
-    renderPanel({ messages, isLoading: false })
+    const userMessage = makeMessage({
+      id: 'u1',
+      role: 'user',
+      parts: [{ type: 'text', content: 'Hi' }],
+    })
+    const assistantMessage = makeMessage({
+      id: 'a1',
+      role: 'assistant',
+      parts: [{ type: 'text', content: 'Hello!' }],
+    })
+    renderPanel({
+      messages: [userMessage, assistantMessage],
+      isLoading: false,
+      virtualRows: [
+        { type: 'message', message: userMessage, isStreaming: false, showTurnDivider: false },
+        { type: 'message', message: assistantMessage, isStreaming: false, showTurnDivider: false },
+      ],
+    })
     const spinner = document.querySelector('[class*="animate-spin"]')
     expect(spinner).toBeNull()
   })

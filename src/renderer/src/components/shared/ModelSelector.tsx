@@ -72,6 +72,219 @@ function getModelSubtitle(model: IndexedModel, availability: ModelAvailability):
   return null
 }
 
+interface ModelSelectorDropdownRefs {
+  readonly dropdownRef: React.RefObject<HTMLDivElement | null>
+  readonly searchRef: React.RefObject<HTMLInputElement | null>
+}
+
+interface ModelSelectorDropdownState {
+  readonly overlayPosition: OverlayPosition
+  readonly searchQuery: string
+  readonly railProviders: ProviderInfo[]
+  readonly activeTab: RailTab
+  readonly favoriteModels: IndexedModel[]
+  readonly visibleModels: IndexedModel[]
+  readonly selectedModelId: SupportedModelId
+  readonly favoriteSet: Set<SupportedModelId>
+}
+
+interface ModelSelectorDropdownActions {
+  readonly onListboxKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void
+  readonly onSearchKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void
+  readonly onSearchQueryChange: (query: string) => void
+  readonly onSelectTab: (tab: RailTab) => void
+  readonly getModelAvailability: (model: IndexedModel) => ModelAvailability
+  readonly onSelectModel: (model: IndexedModel) => Promise<void>
+  readonly onToggleFavoriteModel: (model: SupportedModelId) => Promise<void>
+}
+
+interface ModelSelectorDropdownOptions {
+  readonly refs: ModelSelectorDropdownRefs
+  readonly state: ModelSelectorDropdownState
+  readonly actions: ModelSelectorDropdownActions
+}
+
+function renderModelSelectorDropdown(options: ModelSelectorDropdownOptions): React.JSX.Element {
+  const { refs, state, actions } = options
+  const {
+    overlayPosition,
+    searchQuery,
+    railProviders,
+    activeTab,
+    favoriteModels,
+    visibleModels,
+    selectedModelId,
+    favoriteSet,
+  } = state
+  const {
+    onListboxKeyDown,
+    onSearchKeyDown,
+    onSearchQueryChange,
+    onSelectTab,
+    getModelAvailability,
+    onSelectModel,
+    onToggleFavoriteModel,
+  } = actions
+
+  return (
+    <div
+      ref={refs.dropdownRef}
+      role="listbox"
+      tabIndex={0}
+      onKeyDown={onListboxKeyDown}
+      className="fixed z-[9999] flex h-[620px] w-[480px] flex-col gap-[10px] overflow-hidden rounded-2xl border border-[#1e2229] bg-[#0d0f12] p-3 shadow-2xl"
+      style={{ top: overlayPosition.top, left: overlayPosition.left }}
+    >
+      <div className="flex h-[44px] shrink-0 items-center gap-2 rounded-xl border border-[#1e2229] bg-[#111418] px-3">
+        <Search className="h-4 w-4 text-[#7A708D]" />
+        <input
+          ref={refs.searchRef}
+          value={searchQuery}
+          onChange={(event) => onSearchQueryChange(event.target.value)}
+          onKeyDown={onSearchKeyDown}
+          placeholder="Search models..."
+          className="model-selector-search-input h-full flex-1 bg-transparent text-[14px] text-[#e7e9ee] placeholder:text-[#9098a8] outline-none focus:outline-none focus-visible:outline-none"
+          aria-label="Search models"
+        />
+      </div>
+
+      <div className="flex min-h-0 flex-1 gap-[10px]">
+        <div className="flex h-full w-[52px] shrink-0 flex-col items-center gap-6 overflow-hidden rounded-[12px] border border-[#1e2229] bg-[#111418] px-0 py-[14px]">
+          <button
+            type="button"
+            title="Favorite models"
+            onClick={() => onSelectTab('favorites')}
+            className={cn(
+              'flex h-[34px] w-[34px] items-center justify-center rounded-[10px] border transition-colors',
+              activeTab === 'favorites'
+                ? 'border-[#2a2f3a] bg-[#1a1f28] text-[#F3C969]'
+                : 'border-transparent bg-transparent text-[#9098a8] hover:text-[#b7bfce]',
+            )}
+            aria-label="Show favorite models"
+          >
+            <Star className="h-4 w-4" fill={activeTab === 'favorites' ? 'currentColor' : 'none'} />
+          </button>
+
+          {railProviders.map((group) => {
+            const provider = group.provider
+            const Icon = PROVIDER_ICON_BY_ID[provider]
+            const isActive = activeTab === provider
+
+            return (
+              <button
+                key={provider}
+                type="button"
+                title={group.displayName}
+                onClick={() => onSelectTab(provider)}
+                className={cn(
+                  'flex h-[34px] w-[34px] items-center justify-center rounded-[10px] border transition-colors',
+                  isActive
+                    ? 'border-[#2a2f3a] bg-[#1a1f28] text-[#e7e9ee]'
+                    : 'border-transparent bg-transparent text-[#9098a8] hover:text-[#b7bfce]',
+                )}
+                aria-label={`Show ${group.displayName} models`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+              </button>
+            )
+          })}
+
+          <div aria-hidden className="min-h-0 flex-1" />
+        </div>
+
+        <div className="flex min-h-0 h-full flex-1 flex-col overflow-hidden rounded-xl p-0.5">
+          <div className="h-full overflow-y-auto">
+            {railProviders.length === 0 && (
+              <div className="px-4 py-6 text-[13px] text-[#9098a8]">No providers available.</div>
+            )}
+
+            {railProviders.length > 0 &&
+              activeTab === 'favorites' &&
+              favoriteModels.length === 0 && (
+                <div className="px-4 py-6 text-[13px] text-[#9098a8]">
+                  No favorites yet. Click the star on any model to save it.
+                </div>
+              )}
+
+            {railProviders.length > 0 &&
+              visibleModels.length === 0 &&
+              !(activeTab === 'favorites' && favoriteModels.length === 0) && (
+                <div className="px-4 py-6 text-[13px] text-[#9098a8]">
+                  No models match your search.
+                </div>
+              )}
+
+            <div className="space-y-[2px]">
+              {visibleModels.map((model) => {
+                const availability = getModelAvailability(model)
+                const isSelected = model.id === selectedModelId
+                const isFavorite = favoriteSet.has(model.id)
+                const subtitle = getModelSubtitle(model, availability)
+
+                return (
+                  <div
+                    id={modelOptionId(model)}
+                    key={model.key}
+                    role="option"
+                    tabIndex={-1}
+                    aria-selected={isSelected}
+                    aria-disabled={!availability.selectable}
+                    aria-label={model.name}
+                    onClick={() => {
+                      if (!availability.selectable) return
+                      void onSelectModel(model)
+                    }}
+                    onKeyDown={(event) => {
+                      if (!availability.selectable) return
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        void onSelectModel(model)
+                      }
+                    }}
+                    className={cn(
+                      'group flex h-[78px] w-full items-center gap-2 rounded-[10px] px-[10px] py-[10px] text-left transition-colors',
+                      availability.selectable
+                        ? 'cursor-pointer text-[#e7e9ee] hover:bg-[#171b21]'
+                        : 'cursor-not-allowed text-[#6f7786]',
+                      isSelected && 'bg-[#1a1f28]',
+                    )}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[16px] font-semibold text-[#e7e9ee]">
+                        {model.name}
+                      </div>
+                      <div className="mt-1 truncate text-[12px] text-[#9098a8]">
+                        {subtitle ?? '\u00A0'}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        void onToggleFavoriteModel(model.id)
+                      }}
+                      className="flex h-[34px] w-[34px] items-center justify-center rounded-full border border-[#2a2f3a] bg-[#1a1f28] text-[#F3C969] transition-colors hover:brightness-110"
+                      aria-label={
+                        isFavorite
+                          ? `Remove ${model.name} from favorites`
+                          : `Add ${model.name} to favorites`
+                      }
+                      aria-pressed={isFavorite}
+                    >
+                      <Star className="h-4 w-4" fill={isFavorite ? 'currentColor' : 'none'} />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function ModelSelector({
   value,
   onChange,
@@ -290,225 +503,33 @@ export function ModelSelector({
 
       {isOpen &&
         createPortal(
-          <ModelSelectorDropdown
-            dropdownRef={dropdownRef}
-            searchRef={searchRef}
-            overlayPosition={overlayPosition}
-            searchQuery={searchQuery}
-            onSearchQueryChange={setSearchQuery}
-            listboxKeyDown={listboxKeyDown}
-            searchKeyDown={searchKeyDown}
-            railProviders={railProviders}
-            activeTab={activeTab}
-            onSelectTab={setActiveTab}
-            favoriteModels={favoriteModels}
-            visibleModels={visibleModels}
-            selectedModelId={value}
-            favoriteSet={favoriteSet}
-            getModelAvailability={getModelAvailability}
-            onSelectModel={selectModel}
-            onToggleFavoriteModel={toggleFavoriteModel}
-          />,
+          renderModelSelectorDropdown({
+            refs: {
+              dropdownRef,
+              searchRef,
+            },
+            state: {
+              overlayPosition,
+              searchQuery,
+              railProviders,
+              activeTab,
+              favoriteModels,
+              visibleModels,
+              selectedModelId: value,
+              favoriteSet,
+            },
+            actions: {
+              onListboxKeyDown: listboxKeyDown,
+              onSearchKeyDown: searchKeyDown,
+              onSearchQueryChange: setSearchQuery,
+              onSelectTab: setActiveTab,
+              getModelAvailability,
+              onSelectModel: selectModel,
+              onToggleFavoriteModel: toggleFavoriteModel,
+            },
+          }),
           document.body,
         )}
-    </div>
-  )
-}
-
-interface ModelSelectorDropdownProps {
-  readonly dropdownRef: React.RefObject<HTMLDivElement | null>
-  readonly searchRef: React.RefObject<HTMLInputElement | null>
-  readonly overlayPosition: OverlayPosition
-  readonly searchQuery: string
-  readonly onSearchQueryChange: (value: string) => void
-  readonly listboxKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void
-  readonly searchKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void
-  readonly railProviders: ProviderInfo[]
-  readonly activeTab: RailTab
-  readonly onSelectTab: (tab: RailTab) => void
-  readonly favoriteModels: IndexedModel[]
-  readonly visibleModels: IndexedModel[]
-  readonly selectedModelId: SupportedModelId
-  readonly favoriteSet: Set<SupportedModelId>
-  readonly getModelAvailability: (model: IndexedModel) => ModelAvailability
-  readonly onSelectModel: (model: IndexedModel) => Promise<void>
-  readonly onToggleFavoriteModel: (model: SupportedModelId) => Promise<void>
-}
-
-function ModelSelectorDropdown({
-  dropdownRef,
-  searchRef,
-  overlayPosition,
-  searchQuery,
-  onSearchQueryChange,
-  listboxKeyDown,
-  searchKeyDown,
-  railProviders,
-  activeTab,
-  onSelectTab,
-  favoriteModels,
-  visibleModels,
-  selectedModelId,
-  favoriteSet,
-  getModelAvailability,
-  onSelectModel,
-  onToggleFavoriteModel,
-}: ModelSelectorDropdownProps): React.JSX.Element {
-  return (
-    <div
-      ref={dropdownRef}
-      role="listbox"
-      tabIndex={0}
-      onKeyDown={listboxKeyDown}
-      className="fixed z-[9999] flex h-[620px] w-[480px] flex-col gap-[10px] overflow-hidden rounded-2xl border border-[#1e2229] bg-[#0d0f12] p-3 shadow-2xl"
-      style={{ top: overlayPosition.top, left: overlayPosition.left }}
-    >
-      <div className="flex h-[44px] shrink-0 items-center gap-2 rounded-xl border border-[#1e2229] bg-[#111418] px-3">
-        <Search className="h-4 w-4 text-[#7A708D]" />
-        <input
-          ref={searchRef}
-          value={searchQuery}
-          onChange={(event) => onSearchQueryChange(event.target.value)}
-          onKeyDown={searchKeyDown}
-          placeholder="Search models..."
-          className="model-selector-search-input h-full flex-1 bg-transparent text-[14px] text-[#e7e9ee] placeholder:text-[#9098a8] outline-none focus:outline-none focus-visible:outline-none"
-          aria-label="Search models"
-        />
-      </div>
-
-      <div className="flex min-h-0 flex-1 gap-[10px]">
-        <div className="flex h-full w-[52px] shrink-0 flex-col items-center gap-6 overflow-hidden rounded-[12px] border border-[#1e2229] bg-[#111418] px-0 py-[14px]">
-          <button
-            type="button"
-            title="Favorite models"
-            onClick={() => onSelectTab('favorites')}
-            className={cn(
-              'flex h-[34px] w-[34px] items-center justify-center rounded-[10px] border transition-colors',
-              activeTab === 'favorites'
-                ? 'border-[#2a2f3a] bg-[#1a1f28] text-[#F3C969]'
-                : 'border-transparent bg-transparent text-[#9098a8] hover:text-[#b7bfce]',
-            )}
-            aria-label="Show favorite models"
-          >
-            <Star className="h-4 w-4" fill={activeTab === 'favorites' ? 'currentColor' : 'none'} />
-          </button>
-
-          {railProviders.map((group) => {
-            const provider = group.provider
-            const Icon = PROVIDER_ICON_BY_ID[provider]
-            const isActive = activeTab === provider
-
-            return (
-              <button
-                key={provider}
-                type="button"
-                title={group.displayName}
-                onClick={() => onSelectTab(provider)}
-                className={cn(
-                  'flex h-[34px] w-[34px] items-center justify-center rounded-[10px] border transition-colors',
-                  isActive
-                    ? 'border-[#2a2f3a] bg-[#1a1f28] text-[#e7e9ee]'
-                    : 'border-transparent bg-transparent text-[#9098a8] hover:text-[#b7bfce]',
-                )}
-                aria-label={`Show ${group.displayName} models`}
-              >
-                <Icon className="h-3.5 w-3.5" />
-              </button>
-            )
-          })}
-
-          <div aria-hidden className="min-h-0 flex-1" />
-        </div>
-
-        <div className="flex min-h-0 h-full flex-1 flex-col overflow-hidden rounded-xl p-0.5">
-          <div className="h-full overflow-y-auto">
-            {railProviders.length === 0 && (
-              <div className="px-4 py-6 text-[13px] text-[#9098a8]">No providers available.</div>
-            )}
-
-            {railProviders.length > 0 &&
-              activeTab === 'favorites' &&
-              favoriteModels.length === 0 && (
-                <div className="px-4 py-6 text-[13px] text-[#9098a8]">
-                  No favorites yet. Click the star on any model to save it.
-                </div>
-              )}
-
-            {railProviders.length > 0 &&
-              visibleModels.length === 0 &&
-              !(activeTab === 'favorites' && favoriteModels.length === 0) && (
-                <div className="px-4 py-6 text-[13px] text-[#9098a8]">
-                  No models match your search.
-                </div>
-              )}
-
-            <div className="space-y-[2px]">
-              {visibleModels.map((model) => {
-                const availability = getModelAvailability(model)
-                const isSelected = model.id === selectedModelId
-                const isFavorite = favoriteSet.has(model.id)
-                const subtitle = getModelSubtitle(model, availability)
-
-                return (
-                  <div
-                    id={modelOptionId(model)}
-                    key={model.key}
-                    role="option"
-                    tabIndex={-1}
-                    aria-selected={isSelected}
-                    aria-disabled={!availability.selectable}
-                    aria-label={model.name}
-                    onClick={() => {
-                      if (!availability.selectable) return
-                      void onSelectModel(model)
-                    }}
-                    onKeyDown={(event) => {
-                      if (!availability.selectable) return
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault()
-                        void onSelectModel(model)
-                      }
-                    }}
-                    className={cn(
-                      'group flex h-[78px] w-full items-center gap-2 rounded-[10px] px-[10px] py-[10px] text-left transition-colors',
-                      availability.selectable
-                        ? 'cursor-pointer text-[#e7e9ee] hover:bg-[#171b21]'
-                        : 'cursor-not-allowed text-[#6f7786]',
-                      isSelected && 'bg-[#1a1f28]',
-                    )}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[16px] font-semibold text-[#e7e9ee]">
-                        {model.name}
-                      </div>
-                      <div className="mt-1 truncate text-[12px] text-[#9098a8]">
-                        {subtitle ?? '\u00A0'}
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        void onToggleFavoriteModel(model.id)
-                      }}
-                      className="flex h-[34px] w-[34px] items-center justify-center rounded-full border border-[#2a2f3a] bg-[#1a1f28] text-[#F3C969] transition-colors hover:brightness-110"
-                      aria-label={
-                        isFavorite
-                          ? `Remove ${model.name} from favorites`
-                          : `Add ${model.name} to favorites`
-                      }
-                      aria-pressed={isFavorite}
-                    >
-                      <Star className="h-4 w-4" fill={isFavorite ? 'currentColor' : 'none'} />
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import type { SettingsTab } from '@/stores/ui-store'
+import { useUIStore } from '@/stores/ui-store'
 
 interface NavItem {
   id: SettingsTab
@@ -31,12 +32,10 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'connections', label: 'Connections', icon: Cable, enabled: true },
 ]
 
-interface SettingsNavProps {
-  activeTab: SettingsTab
-  onTabChange: (tab: SettingsTab) => void
-}
+export function SettingsNav(): React.JSX.Element {
+  const activeTab = useUIStore((s) => s.activeSettingsTab)
+  const setActiveSettingsTab = useUIStore((s) => s.setActiveSettingsTab)
 
-export function SettingsNav({ activeTab, onTabChange }: SettingsNavProps): React.JSX.Element {
   return (
     <nav className="flex w-[200px] shrink-0 flex-col gap-0.5 border-r border-border py-2 px-2">
       {NAV_ITEMS.map((item) => {
@@ -46,7 +45,7 @@ export function SettingsNav({ activeTab, onTabChange }: SettingsNavProps): React
             key={item.id}
             type="button"
             disabled={!item.enabled}
-            onClick={() => onTabChange(item.id)}
+            onClick={() => setActiveSettingsTab(item.id)}
             className={cn(
               'flex items-center gap-2.5 rounded-md px-3 py-2 text-left text-[13px] transition-colors',
               isActive

@@ -2,7 +2,7 @@
 name: project-learnings
 description: Technical learnings log for OpenWaggle. Stores warnings, pattern preferences, and historical engineering learnings; workflow policy lives in AGENTS.md and CLAUDE.md.
 owner: openwaggle-core
-last_updated: 2026-02-26
+last_updated: 2026-02-27
 ---
 
 # LEARNINGS.md
@@ -19,6 +19,22 @@ This document stores project-specific technical learnings only.
 - Do not add routine project-management notes unless they materially affect implementation behavior.
 
 ## 3) Recent Learnings
+
+### Task: Wrapper/Prop Pattern Remediation (2026-02-27)
+- Synchronizing a large render-built controller object into a shared store via effect (`setController(controller)`) causes broad subscription churn even when only a few fields change; sectioned contracts passed at component boundaries (`transcript/composer/diff`) remove that update pressure while keeping a single `useAgentChat` instance.
+- Oversized pass-through prop interfaces in renderer composition are often best removed by collapsing the intermediate contract (e.g., inlining a dropdown portal and passing reducer/index tuple for editable cards) instead of introducing another wrapper abstraction.
+
+### Task: ChatPanel Controller Decomposition (2026-02-27)
+- When decomposed chat sections (`ChatTranscript`, `ChatComposerStack`, `ChatDiffPane`) need shared `useAgentChat` runtime state, a small local Zustand bridge (`chat-panel-controller-store`) lets leaf sections self-wire without reintroducing context providers or mega prop-drilling from `ChatPanel`.
+- Zustand selector fallbacks must use stable module-level constants (arrays/functions) instead of inline `?? []` / `?? (() => {})`, otherwise React can warn about uncached `getSnapshot` values and trigger avoidable extra renders in tests/runtime.
+
+### Task: AppWorkspace Decomposition (2026-02-27)
+- For large renderer shell components, combining a local controller hook with a small context provider lets you split rendering into focused files without reintroducing prop-drilling complexity or duplicating hook subscriptions.
+- For Zustand-driven workspace UIs, a cleaner long-term shape is often shell-only composition plus self-wired feature panels (`ChatPanel`, `SkillsPanel`, `Header`) that consume focused hooks/stores directly; this removes pass-through wrappers and keeps data ownership close to the feature surface.
+- Repository-wide wrapper cleanup works best by targeting true prop-injection wrappers (components that only gather hooks and forward props) while preserving components that still own layout behavior (transitions, containers, panel boundaries).
+
+### Task: App Shell Decomposition (2026-02-27)
+- App-shell readability improves substantially when `App.tsx` only owns top-level routing/loading and delegates workspace wiring to dedicated app-shell components; this removes fragile prop-bundle indirection while preserving existing behavior and making future edits safer.
 
 ### Task: React Doctor + Pattern Style Remediation (2026-02-27)
 - React Doctor component-size warnings can be resolved without behavior drift by splitting orchestration-heavy settings components into focused presentational subcomponents while keeping reducer/state logic centralized in the parent.

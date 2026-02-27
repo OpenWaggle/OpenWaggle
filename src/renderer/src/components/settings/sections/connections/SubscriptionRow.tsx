@@ -6,28 +6,30 @@ import type {
 import { AlertTriangle, Check, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import { WarningCallout } from '@/components/settings/common/WarningCallout'
+import { useAuth } from '@/hooks/useSettings'
 import { cn } from '@/lib/cn'
 import { SUBSCRIPTION_META } from './meta'
 
 interface SubscriptionRowProps {
-  provider: SubscriptionProvider
-  accountInfo: SubscriptionAccountInfo | null | undefined
-  oauthStatus: OAuthFlowStatus
-  onSignIn: () => void
-  onDisconnect: () => void
-  onSubmitCode?: (code: string) => void
-  isLast: boolean
+  readonly provider: SubscriptionProvider
+  readonly isLast: boolean
 }
 
-export function SubscriptionRow({
-  provider,
-  accountInfo,
-  oauthStatus,
-  onSignIn,
-  onDisconnect,
-  onSubmitCode,
-  isLast,
-}: SubscriptionRowProps): React.JSX.Element {
+function resolveOauthStatus(status: OAuthFlowStatus | undefined): OAuthFlowStatus {
+  return status ?? { type: 'idle' }
+}
+
+function resolveAccountInfo(
+  accountInfo: SubscriptionAccountInfo | null | undefined,
+): SubscriptionAccountInfo | null {
+  return accountInfo ?? null
+}
+
+export function SubscriptionRow({ provider, isLast }: SubscriptionRowProps): React.JSX.Element {
+  const { oauthStatuses, authAccounts, startOAuth, submitAuthCode, disconnectAuth } = useAuth()
+  const oauthStatus = resolveOauthStatus(oauthStatuses[provider])
+  const accountInfo = resolveAccountInfo(authAccounts[provider])
+
   const meta = SUBSCRIPTION_META[provider]
   const Icon = meta.icon
   const connected = accountInfo?.connected ?? false
@@ -49,16 +51,16 @@ export function SubscriptionRow({
 
   function handleToggle(): void {
     if (connected) {
-      onDisconnect()
+      disconnectAuth(provider)
     } else {
-      onSignIn()
+      startOAuth(provider)
     }
   }
 
   function handleSubmitCode(): void {
     const trimmed = pasteValue.trim()
-    if (trimmed && onSubmitCode) {
-      onSubmitCode(trimmed)
+    if (trimmed) {
+      submitAuthCode(provider, trimmed)
       setPasteValue('')
     }
   }
@@ -184,7 +186,7 @@ export function SubscriptionRow({
             <p className="text-[11px] text-error/80">{oauthStatus.message}</p>
             <button
               type="button"
-              onClick={onSignIn}
+              onClick={() => startOAuth(provider)}
               className="mt-1 text-[11px] font-medium text-error hover:text-error/80 transition-colors"
             >
               Try again

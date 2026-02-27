@@ -215,16 +215,9 @@ export function WaggleSection(): React.JSX.Element {
 
       {/* Agent A */}
       <AgentSlotCard
-        label={agentA.label}
-        onLabelChange={(label) => dispatchForm({ type: 'set-agent-label', index: 0, label })}
-        model={agentA.model}
-        onModelChange={(model) => dispatchForm({ type: 'set-agent-model', index: 0, model })}
-        role={agentA.roleDescription}
-        onRoleChange={(roleDescription) =>
-          dispatchForm({ type: 'set-agent-role', index: 0, roleDescription })
-        }
-        color={agentA.color}
-        onColorChange={(color) => dispatchForm({ type: 'set-agent-color', index: 0, color })}
+        index={0}
+        agent={agentA}
+        dispatchForm={dispatchForm}
         dotLabel="A"
         settings={settings}
         providerModels={providerModels}
@@ -232,16 +225,9 @@ export function WaggleSection(): React.JSX.Element {
 
       {/* Agent B */}
       <AgentSlotCard
-        label={agentB.label}
-        onLabelChange={(label) => dispatchForm({ type: 'set-agent-label', index: 1, label })}
-        model={agentB.model}
-        onModelChange={(model) => dispatchForm({ type: 'set-agent-model', index: 1, model })}
-        role={agentB.roleDescription}
-        onRoleChange={(roleDescription) =>
-          dispatchForm({ type: 'set-agent-role', index: 1, roleDescription })
-        }
-        color={agentB.color}
-        onColorChange={(color) => dispatchForm({ type: 'set-agent-color', index: 1, color })}
+        index={1}
+        agent={agentB}
+        dispatchForm={dispatchForm}
         dotLabel="B"
         settings={settings}
         providerModels={providerModels}
@@ -545,36 +531,26 @@ function MaxTurnsSlider({ maxTurns, onMaxTurnsChange }: MaxTurnsSliderProps): Re
 // ─── Agent Slot Card ──────────────────────────────────────────
 
 interface AgentSlotCardProps {
-  label: string
-  onLabelChange: (label: string) => void
-  model: SupportedModelId
-  onModelChange: (model: SupportedModelId) => void
-  role: string
-  onRoleChange: (role: string) => void
-  color: WaggleAgentColor
-  onColorChange: (color: WaggleAgentColor) => void
+  index: 0 | 1
+  agent: WaggleAgentSlot
+  dispatchForm: (action: WaggleFormAction) => void
   dotLabel: string
   settings: Settings
   providerModels: ProviderInfo[]
 }
 
 function AgentSlotCard({
-  label,
-  onLabelChange,
-  model,
-  onModelChange,
-  role,
-  onRoleChange,
-  color,
-  onColorChange,
+  index,
+  agent,
+  dispatchForm,
   dotLabel,
   settings,
   providerModels,
 }: AgentSlotCardProps): React.JSX.Element {
   return (
-    <div className={cn('rounded-lg border bg-[#111418] p-5 space-y-4', AGENT_BORDER[color])}>
+    <div className={cn('rounded-lg border bg-[#111418] p-5 space-y-4', AGENT_BORDER[agent.color])}>
       <div className="flex items-center gap-2">
-        <div className={cn('h-2.5 w-2.5 rounded-full', AGENT_BG[color])} />
+        <div className={cn('h-2.5 w-2.5 rounded-full', AGENT_BG[agent.color])} />
         <h3 className="text-sm font-medium text-text-secondary">Agent {dotLabel}</h3>
       </div>
 
@@ -583,8 +559,8 @@ function AgentSlotCard({
         <span className="text-[13px] text-text-primary">Label</span>
         <input
           type="text"
-          value={label}
-          onChange={(e) => onLabelChange(e.target.value)}
+          value={agent.label}
+          onChange={(e) => dispatchForm({ type: 'set-agent-label', index, label: e.target.value })}
           className="w-[200px] rounded-md border border-border bg-bg px-2.5 py-1.5 text-[13px] text-text-primary focus:border-border-light focus:outline-none"
         />
       </div>
@@ -593,8 +569,8 @@ function AgentSlotCard({
       <div className="flex items-center justify-between h-[40px]">
         <span className="text-[13px] text-text-primary">Model</span>
         <ModelSelector
-          value={model}
-          onChange={onModelChange}
+          value={agent.model}
+          onChange={(model) => dispatchForm({ type: 'set-agent-model', index, model })}
           settings={settings}
           providerModels={providerModels}
         />
@@ -604,8 +580,10 @@ function AgentSlotCard({
       <div className="space-y-1.5">
         <span className="text-[13px] text-text-primary">Role description</span>
         <textarea
-          value={role}
-          onChange={(e) => onRoleChange(e.target.value)}
+          value={agent.roleDescription}
+          onChange={(e) =>
+            dispatchForm({ type: 'set-agent-role', index, roleDescription: e.target.value })
+          }
           rows={3}
           placeholder="Describe this agent's role and perspective..."
           className={cn(
@@ -623,11 +601,11 @@ function AgentSlotCard({
             <button
               key={c}
               type="button"
-              onClick={() => onColorChange(c)}
+              onClick={() => dispatchForm({ type: 'set-agent-color', index, color: c })}
               className={cn(
                 'h-6 w-6 rounded-full transition-all',
                 AGENT_BG[c],
-                color === c
+                agent.color === c
                   ? 'ring-2 ring-white/40 ring-offset-1 ring-offset-[#111418]'
                   : 'opacity-50 hover:opacity-75',
               )}
