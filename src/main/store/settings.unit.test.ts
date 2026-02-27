@@ -13,6 +13,8 @@ const mockState = vi.hoisted(() => ({
   storeData: {} as MockStoreData,
   setCalls: [] as Array<{ key: string; value: unknown }>,
   isKnownModel: vi.fn((modelId: string) => modelId === 'claude-sonnet-4-5'),
+  encryptionAvailable: false,
+  encryptThrows: false,
 }))
 
 vi.mock('node:fs', () => {
@@ -27,8 +29,13 @@ vi.mock('node:fs', () => {
 
 vi.mock('electron', () => ({
   safeStorage: {
-    isEncryptionAvailable: () => false,
-    encryptString: (value: string) => Buffer.from(value, 'utf8'),
+    isEncryptionAvailable: () => mockState.encryptionAvailable,
+    encryptString: (value: string) => {
+      if (mockState.encryptThrows) {
+        throw new Error('encrypt failed')
+      }
+      return Buffer.from(value, 'utf8')
+    },
     decryptString: (value: Buffer) => value.toString('utf8'),
   },
 }))
@@ -90,6 +97,8 @@ describe('settings store', () => {
     mockState.setCalls = []
     mockState.isKnownModel.mockReset()
     mockState.isKnownModel.mockImplementation((modelId: string) => modelId === 'claude-sonnet-4-5')
+    mockState.encryptionAvailable = false
+    mockState.encryptThrows = false
   })
 
   it('defaults execution mode to sandbox for new installs', async () => {
@@ -299,6 +308,53 @@ describe('settings store', () => {
 
     const settings = getSettings()
     expect(settings.providers.openai?.authMethod).toBe('subscription')
+  })
+
+  it('auto-migrates plaintext provider API keys when encryption becomes available', async () => {
+    mockState.encryptionAvailable = true
+    mockState.storeData.providers = {
+      openai: { apiKey: 'sk-plain', enabled: true, authMethod: 'api-key' },
+    }
+
+    const { getSettings } = await loadSettingsModule()
+    const settings = getSettings()
+
+    expect(settings.providers.openai?.apiKey).toBe('sk-plain')
+    expect(settings.apiKeysRequireManualResave).toBe(false)
+
+    const providersUpdate = mockState.setCalls.find((call) => call.key === 'providers')
+    expect(providersUpdate).toBeDefined()
+    if (!providersUpdate) {
+      throw new Error('Expected providers update call')
+    }
+    const providersValue = providersUpdate.value
+    if (!providersValue || typeof providersValue !== 'object' || Array.isArray(providersValue)) {
+      throw new Error('Expected providers update payload to be an object')
+    }
+    const openaiValue = Reflect.get(providersValue, 'openai')
+    if (!openaiValue || typeof openaiValue !== 'object' || Array.isArray(openaiValue)) {
+      throw new Error('Expected openai provider payload')
+    }
+    const apiKeyValue = Reflect.get(openaiValue, 'apiKey')
+    expect(typeof apiKeyValue).toBe('string')
+    if (typeof apiKeyValue !== 'string') {
+      throw new Error('Expected migrated openai apiKey to be a string')
+    }
+    expect(apiKeyValue.startsWith('enc:v1:')).toBe(true)
+  })
+
+  it('flags manual re-save when plaintext API key migration fails', async () => {
+    mockState.encryptionAvailable = true
+    mockState.encryptThrows = true
+    mockState.storeData.providers = {
+      openai: { apiKey: 'sk-plain', enabled: true, authMethod: 'api-key' },
+    }
+
+    const { getSettings } = await loadSettingsModule()
+    const settings = getSettings()
+
+    expect(settings.providers.openai?.apiKey).toBe('sk-plain')
+    expect(settings.apiKeysRequireManualResave).toBe(true)
   })
 
   it('roundtrips skillTogglesByProject through updateSettings', async () => {

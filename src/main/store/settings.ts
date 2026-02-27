@@ -22,7 +22,7 @@ import Store from 'electron-store'
 import { z } from 'zod'
 import { createLogger } from '../logger'
 import { providerRegistry } from '../providers'
-import { decryptString, encryptString } from './encryption'
+import { decryptString, encryptString, isEncryptedString } from './encryption'
 
 const logger = createLogger('settings')
 
@@ -67,6 +67,9 @@ export function getSettings(): Settings {
   const storedProviders = settingsObjectSchema.safeParse(rawProviders)
   const validProviders = storedProviders.success ? storedProviders.data : {}
   const providers: Partial<Record<Provider, ProviderConfig>> = {}
+  const encryptionAvailable = safeStorage.isEncryptionAvailable()
+  const migratedProviders: Partial<Record<Provider, ProviderConfig>> = {}
+  let apiKeysRequireManualResave = false
 
   for (const id of PROVIDERS) {
     const defaults = DEFAULT_SETTINGS.providers[id]
@@ -76,15 +79,41 @@ export function getSettings(): Settings {
     const parsed = providerConfigSchema.safeParse(raw)
 
     if (parsed.success) {
+      const storedApiKey = parsed.data.apiKey
+      const decryptedApiKey = decryptString(storedApiKey)
       providers[id] = {
-        apiKey: decryptString(parsed.data.apiKey),
+        apiKey: decryptedApiKey,
         baseUrl: parsed.data.baseUrl ?? defaults.baseUrl,
         enabled: parsed.data.enabled ?? defaults.enabled,
         authMethod: parsed.data.authMethod,
       } satisfies ProviderConfig
+
+      const shouldMigrate =
+        encryptionAvailable && decryptedApiKey.trim().length > 0 && !isEncryptedString(storedApiKey)
+
+      if (shouldMigrate) {
+        const migratedApiKey = encryptString(decryptedApiKey)
+        if (isEncryptedString(migratedApiKey)) {
+          migratedProviders[id] = {
+            apiKey: migratedApiKey,
+            baseUrl: parsed.data.baseUrl ?? defaults.baseUrl,
+            enabled: parsed.data.enabled ?? defaults.enabled,
+            authMethod: parsed.data.authMethod,
+          } satisfies ProviderConfig
+        } else {
+          apiKeysRequireManualResave = true
+          logger.warn('Failed to auto-migrate plaintext API key; manual re-save required', {
+            provider: id,
+          })
+        }
+      }
     } else {
       providers[id] = { ...defaults }
     }
+  }
+
+  if (Object.keys(migratedProviders).length > 0) {
+    store.set('providers', { ...validProviders, ...migratedProviders })
   }
 
   const rawDefaultModel = String(store.get('defaultModel', DEFAULT_SETTINGS.defaultModel))
@@ -103,7 +132,6 @@ export function getSettings(): Settings {
   const skillTogglesByProject = resolveSkillTogglesByProject()
 
   const browserHeadless = resolveBrowserHeadless()
-  const encryptionAvailable = safeStorage.isEncryptionAvailable()
 
   return {
     providers,
@@ -117,6 +145,7 @@ export function getSettings(): Settings {
     skillTogglesByProject,
     browserHeadless,
     encryptionAvailable,
+    apiKeysRequireManualResave,
   }
 }
 

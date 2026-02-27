@@ -37,6 +37,8 @@ export interface Settings {
   readonly browserHeadless: boolean
   /** Whether the system keyring is available for API key encryption. Computed on load. */
   readonly encryptionAvailable: boolean
+  /** True when auto-migrating stored plaintext API keys to encrypted storage failed. */
+  readonly apiKeysRequireManualResave: boolean
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -58,6 +60,7 @@ export const DEFAULT_SETTINGS: Settings = {
   skillTogglesByProject: {},
   browserHeadless: true,
   encryptionAvailable: true,
+  apiKeysRequireManualResave: false,
 }
 
 /** Type guard for Provider — uses includes() type predicate to avoid cast */

@@ -117,6 +117,7 @@ function createSettings(): Settings {
     skillTogglesByProject: {},
     browserHeadless: true,
     encryptionAvailable: true,
+    apiKeysRequireManualResave: false,
   }
 }
 

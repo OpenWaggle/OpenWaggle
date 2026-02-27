@@ -70,13 +70,17 @@ function resolveCodexResponsesUrl(url: string): string {
     const normalizedPath = parsed.pathname.replace(/\/+$/, '')
     if (normalizedPath.endsWith('/codex/responses')) {
       parsed.pathname = normalizedPath
-    } else if (normalizedPath.endsWith('/codex')) {
-      parsed.pathname = `${normalizedPath}/responses`
-    } else if (normalizedPath.endsWith('/responses')) {
-      parsed.pathname = normalizedPath.replace(/\/responses$/, '/codex/responses')
-    } else {
-      parsed.pathname = `${normalizedPath}/codex/responses`
+      return parsed.toString()
     }
+    if (normalizedPath.endsWith('/codex')) {
+      parsed.pathname = `${normalizedPath}/responses`
+      return parsed.toString()
+    }
+    if (normalizedPath.endsWith('/responses')) {
+      parsed.pathname = normalizedPath.replace(/\/responses$/, '/codex/responses')
+      return parsed.toString()
+    }
+    parsed.pathname = `${normalizedPath}/codex/responses`
     return parsed.toString()
   } catch {
     return url

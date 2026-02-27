@@ -5,6 +5,10 @@ const logger = createLogger('encryption')
 
 const ENCRYPTED_PREFIX = 'enc:v1:'
 
+export function isEncryptedString(value: string): boolean {
+  return value.startsWith(ENCRYPTED_PREFIX)
+}
+
 export function isEncryptionAvailable(): boolean {
   return safeStorage.isEncryptionAvailable()
 }
@@ -26,7 +30,7 @@ export function encryptString(value: string): string {
 
 export function decryptString(stored: string): string {
   if (!stored) return ''
-  if (!stored.startsWith(ENCRYPTED_PREFIX)) return stored
+  if (!isEncryptedString(stored)) return stored
   if (!safeStorage.isEncryptionAvailable()) {
     logger.warn('safeStorage encryption is unavailable — encrypted values cannot be decrypted.')
     return ''
