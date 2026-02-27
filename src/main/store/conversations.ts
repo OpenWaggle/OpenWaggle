@@ -13,6 +13,7 @@ import { app } from 'electron'
 import { z } from 'zod'
 import { createLogger } from '../logger'
 import { providerRegistry } from '../providers'
+import { AsyncMutex } from '../utils/async-mutex'
 import { atomicWriteJSON } from '../utils/atomic-write'
 
 const logger = createLogger('conversations')
@@ -366,6 +367,9 @@ async function scanConversationSummaries(): Promise<ConversationSummary[]> {
   )
 }
 
+/** Serializes all index mutations to prevent concurrent read-modify-write races. */
+const indexMutex = new AsyncMutex()
+
 async function loadIndexForMutation(): Promise<ConversationSummary[]> {
   const indexed = await readConversationIndex()
   if (indexed) return indexed
@@ -373,35 +377,41 @@ async function loadIndexForMutation(): Promise<ConversationSummary[]> {
 }
 
 async function upsertConversationSummary(summary: ConversationSummary): Promise<void> {
-  const summaries = await loadIndexForMutation()
-  const next = summaries.filter((item) => item.id !== summary.id)
-  next.push(summary)
-  await writeConversationIndex(next)
+  await indexMutex.run(async () => {
+    const summaries = await loadIndexForMutation()
+    const next = summaries.filter((item) => item.id !== summary.id)
+    next.push(summary)
+    await writeConversationIndex(next)
+  })
 }
 
 async function removeConversationSummary(id: ConversationId): Promise<void> {
-  const summaries = await readConversationIndex()
-  if (!summaries) return
-  const next = summaries.filter((item) => item.id !== id)
-  if (next.length === summaries.length) return
-  await writeConversationIndex(next)
+  await indexMutex.run(async () => {
+    const summaries = await readConversationIndex()
+    if (!summaries) return
+    const next = summaries.filter((item) => item.id !== id)
+    if (next.length === summaries.length) return
+    await writeConversationIndex(next)
+  })
 }
 
 export async function listConversations(limit?: number): Promise<ConversationSummary[]> {
-  const indexed = await readConversationIndex()
-  if (indexed) {
-    return limit !== undefined ? indexed.slice(0, limit) : indexed
-  }
+  return indexMutex.run(async () => {
+    const indexed = await readConversationIndex()
+    if (indexed) {
+      return limit !== undefined ? indexed.slice(0, limit) : indexed
+    }
 
-  const scanned = await scanConversationSummaries()
-  try {
-    await writeConversationIndex(scanned)
-  } catch (err) {
-    logger.warn('Failed to write rebuilt conversation index', {
-      error: err instanceof Error ? err.message : String(err),
-    })
-  }
-  return limit !== undefined ? scanned.slice(0, limit) : scanned
+    const scanned = await scanConversationSummaries()
+    try {
+      await writeConversationIndex(scanned)
+    } catch (err) {
+      logger.warn('Failed to write rebuilt conversation index', {
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+    return limit !== undefined ? scanned.slice(0, limit) : scanned
+  })
 }
 
 export async function getConversation(id: ConversationId): Promise<Conversation | null> {
