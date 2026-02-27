@@ -1,3 +1,4 @@
+import { PanelErrorBoundary } from '@/components/shared/PanelErrorBoundary'
 import { useUIStore } from '@/stores/ui-store'
 import { ChatComposerStack } from './ChatComposerStack'
 import { ChatDiffPane } from './ChatDiffPane'
@@ -12,9 +13,13 @@ export function ChatPanel(): React.JSX.Element {
   return (
     <div className="flex h-full w-full overflow-hidden">
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-bg">
-        <ChatTranscript section={sections.transcript} />
+        <PanelErrorBoundary name="Chat transcript" className="flex-1 overflow-hidden">
+          <ChatTranscript section={sections.transcript} />
+        </PanelErrorBoundary>
 
-        <ChatComposerStack section={sections.composer} />
+        <PanelErrorBoundary name="Composer">
+          <ChatComposerStack section={sections.composer} />
+        </PanelErrorBoundary>
       </div>
 
       {diffPanelOpen && <ChatDiffPane section={sections.diff} />}
