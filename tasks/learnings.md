@@ -20,6 +20,12 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Task: OpenAI Subscription Cloudflare 403 Fix (2026-02-26)
+- OpenAI ChatGPT subscription OAuth tokens and OpenAI API keys require different transport endpoints: API-key traffic should use OpenAI API (`api.openai.com`), while Codex OAuth traffic should use ChatGPT Codex responses (`https://chatgpt.com/backend-api/codex/responses`); mixing them produces either Cloudflare challenge `403` or scope-based `401` (`api.responses.write`).
+- Codex responses require `store=false` in request payloads; forcing this at transport level prevents endpoint incompatibility regressions when using generic OpenAI Responses adapters.
+- ChatGPT Codex requests can fail with opaque `400` responses unless OpenClaw-style Codex headers are present (`chatgpt-account-id`, `OpenAI-Beta`, `originator`, and an explicit `User-Agent`) and the URL is normalized to `/backend-api/codex/responses` even when the upstream client posts to `/backend-api`. [SKILL?]
+- ChatGPT Codex responses currently reject `max_output_tokens`; when reusing generic OpenAI Responses clients for subscription transport, strip unsupported params in the request-rewrite layer instead of relying on upstream SDK defaults.
+
 ### Task: Record-Unknown Cleanup Across Runtime Boundaries (2026-02-26)
 - Replacing broad object validators in settings persistence with strict JSON-only schemas can silently drop valid provider records when nested `undefined` fields are present (common in `electron-store` defaults); use a recursive schema that explicitly allows `undefined` for settings-store hydration paths while keeping strict JSON schemas for pure JSON persistence.
 
