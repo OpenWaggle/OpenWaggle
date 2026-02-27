@@ -35,6 +35,7 @@ export const anthropicProvider: ProviderDefinition = {
   testModel: 'claude-haiku-4-5',
   createAdapter(model, apiKey, _baseUrl, authMethod) {
     if (!includes(ANTHROPIC_MODELS, model)) throw new Error(`Unknown Anthropic model: ${model}`)
+    if (!apiKey) throw new Error('Anthropic API key is required')
     if (authMethod === 'subscription') {
       const config: AnthropicTextConfig = {
         apiKey: '',

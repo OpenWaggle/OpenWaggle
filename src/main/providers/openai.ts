@@ -194,6 +194,7 @@ export const openaiProvider: ProviderDefinition = {
   testModel: 'gpt-4.1-nano',
   createAdapter(model, apiKey, _baseUrl, authMethod) {
     if (!includes(OPENAI_CHAT_MODELS, model)) throw new Error(`Unknown OpenAI model: ${model}`)
+    if (!apiKey) throw new Error('OpenAI API key is required')
     if (authMethod === 'subscription') {
       const accountId = extractChatgptAccountId(apiKey)
       if (!accountId) {

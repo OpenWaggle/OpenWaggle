@@ -14,6 +14,7 @@ export const geminiProvider: ProviderDefinition = {
   testModel: 'gemini-2.0-flash-lite',
   createAdapter(model, apiKey) {
     if (!includes(GeminiTextModels, model)) throw new Error(`Unknown Gemini model: ${model}`)
+    if (!apiKey) throw new Error('Gemini API key is required')
     return createGeminiChat(model, apiKey)
   },
 }

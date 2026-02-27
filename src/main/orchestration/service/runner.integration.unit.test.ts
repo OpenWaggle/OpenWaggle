@@ -143,7 +143,7 @@ function createIntegrationDeps(responses: readonly string[]): {
           models: [model],
           testModel: model,
           createAdapter(_targetModel, apiKey) {
-            return createOpenaiChat('gpt-4.1-mini', apiKey)
+            return createOpenaiChat('gpt-4.1-mini', apiKey ?? '')
           },
         },
         providerConfig,

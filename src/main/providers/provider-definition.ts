@@ -29,7 +29,7 @@ export interface ProviderDefinition {
   readonly testModel: string
   createAdapter(
     model: string,
-    apiKey: string,
+    apiKey: string | undefined,
     baseUrl?: string,
     authMethod?: 'api-key' | 'subscription',
   ): AnyTextAdapter

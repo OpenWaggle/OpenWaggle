@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { HydratedAgentSendPayload, HydratedAttachment, Message } from '@shared/types/agent'
+import type { SkipApprovalToken } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { Provider, Settings } from '@shared/types/settings'
@@ -8,23 +9,9 @@ import { chat, type ModelMessage, maxIterations, type StreamChunk } from '@tanst
 import { loadProjectConfig } from '../config/project-config'
 import { createLogger } from '../logger'
 import { runWithToolContext } from '../tools/define-tool'
-import { getServerTools } from '../tools/registry'
-import { withoutApproval } from '../tools/without-approval'
-import {
-  getActiveAgentFeatures,
-  getFeatureLifecycleHooks,
-  getFeaturePromptFragments,
-} from './feature-registry'
-import {
-  notifyRunComplete,
-  notifyRunError,
-  notifyRunStart,
-  notifyStreamChunk,
-  notifyToolCallEnd,
-  notifyToolCallStart,
-} from './lifecycle-hooks'
+import { notifyRunComplete, notifyRunError, notifyRunStart } from './lifecycle-hooks'
 import { conversationToMessages, type SimpleChatMessage } from './message-mapper'
-import { buildSystemPrompt } from './prompt-pipeline'
+import { buildAgentPrompt } from './prompt-builder'
 import type { AgentLifecycleHook, AgentRunContext } from './runtime-types'
 import {
   buildPersistedUserMessageParts,
@@ -37,6 +24,7 @@ import {
 } from './shared'
 import { loadAgentStandardsContext } from './standards-context'
 import { StreamPartCollector } from './stream-part-collector'
+import { processAgentStream } from './stream-processor'
 
 const logger = createLogger('agent')
 
@@ -51,11 +39,11 @@ export interface AgentRunParams {
   readonly onChunk: (chunk: StreamChunk) => void
   readonly signal: AbortSignal
   /**
-   * When true, tools that normally require approval are auto-executed.
-   * Used in Waggle mode where the coordinator controls the flow and
-   * TanStack AI's approval/continuation mechanism isn't available.
+   * When set with a branded token, tools that normally require approval
+   * are auto-executed. Only the waggle coordinator should create this token.
+   * Using a branded type prevents accidental `skipApproval: true`.
    */
-  readonly skipApproval?: boolean
+  readonly skipApproval?: SkipApprovalToken
 }
 
 export interface AgentRunResult {
@@ -169,19 +157,21 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
     async () => {
       const stageDurationsMs: Record<string, number> = {}
       const collector = new StreamPartCollector()
-      let runErrorNotified = false
 
       let context: AgentRunContext | null = null
-      let hooks: AgentLifecycleHook[] = []
+      let hooks: readonly AgentLifecycleHook[] = []
       let promptFragmentIds: readonly string[] = []
+      let runErrorNotified = false
 
       try {
         const runId = randomUUID()
 
+        // ── Stage 1: Project config ──
         const projectConfig = await withStageTiming(stageDurationsMs, 'project-config', () =>
           loadProjectConfig(projectPath),
         )
 
+        // ── Stage 2: Provider + quality resolution ──
         const { provider, providerConfig, resolvedModel, qualityConfig } = await withStageTiming(
           stageDurationsMs,
           'provider-resolution',
@@ -199,6 +189,7 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
           },
         )
 
+        // ── Stage 3: Build run context ──
         context = {
           runId,
           conversation,
@@ -224,35 +215,19 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
           logger.warn(warning)
         }
 
-        const features = getActiveAgentFeatures(runContext)
-        hooks = getFeatureLifecycleHooks(runContext, features)
+        // ── Stage 4: Prompt + tools ──
+        const built = await withStageTiming(stageDurationsMs, 'prompt-composition', () =>
+          buildAgentPrompt(runContext, !!skipApproval),
+        )
+        hooks = built.hooks
+        promptFragmentIds = built.promptFragmentIds
 
         await notifyRunStart(hooks, runContext)
 
-        const { prompt: systemPrompt, fragmentIds } = await withStageTiming(
-          stageDurationsMs,
-          'prompt-composition',
-          () => {
-            const fragments = getFeaturePromptFragments(runContext, features)
-            return buildSystemPrompt(runContext, fragments)
-          },
-        )
-        promptFragmentIds = fragmentIds
-
-        let tools = await withStageTiming(stageDurationsMs, 'tool-resolution', () =>
-          getServerTools(runContext, features),
-        )
-
-        // In Waggle mode, strip needsApproval so tools execute immediately.
-        // The coordinator controls the flow — TanStack AI's approval/continuation
-        // mechanism isn't available when runAgent() is called directly.
-        if (skipApproval) {
-          tools = withoutApproval(tools)
-        }
-
+        // ── Stage 5: Create adapter + stream ──
         const adapter = provider.createAdapter(
           resolvedModel,
-          providerConfig.apiKey ?? '',
+          providerConfig.apiKey,
           providerConfig.baseUrl,
           providerConfig.authMethod,
         )
@@ -276,9 +251,9 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
           return chat({
             adapter,
             messages: allMessages,
-            systemPrompts: [systemPrompt],
+            systemPrompts: [built.systemPrompt],
             conversationId: String(conversation.id),
-            tools,
+            tools: [...built.tools],
             ...samplingOptions,
             maxTokens: qualityConfig.maxTokens,
             modelOptions: qualityConfig.modelOptions,
@@ -287,34 +262,24 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
           })
         })
 
-        let aborted = false
-        await withStageTiming(stageDurationsMs, 'stream-processing', async () => {
-          for await (const chunk of stream) {
-            if (signal.aborted) {
-              aborted = true
-              break
-            }
+        // ── Stage 6: Process stream ──
+        const streamResult = await withStageTiming(stageDurationsMs, 'stream-processing', () =>
+          processAgentStream({
+            stream,
+            collector,
+            onChunk,
+            signal,
+            hooks,
+            runContext,
+          }),
+        )
+        runErrorNotified = streamResult.runErrorNotified
 
-            onChunk(chunk)
-            notifyStreamChunk(hooks, runContext, chunk)
-
-            const collected = collector.handleChunk(chunk)
-            if (collected.toolCallStart) {
-              notifyToolCallStart(hooks, runContext, collected.toolCallStart)
-            }
-            if (collected.toolCallEnd) {
-              notifyToolCallEnd(hooks, runContext, collected.toolCallEnd)
-            }
-            if (collected.runError) {
-              runErrorNotified = true
-              await notifyRunError(hooks, runContext, collected.runError)
-            }
-          }
-        })
-        if (aborted || signal.aborted) {
+        if (streamResult.aborted || signal.aborted) {
           throw new Error('aborted')
         }
 
+        // ── Stage 7: Finalize ──
         const finalParts = collector.finalizeParts()
         const stats = collector.getStats()
 

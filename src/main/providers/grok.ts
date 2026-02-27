@@ -14,6 +14,7 @@ export const grokProvider: ProviderDefinition = {
   testModel: 'grok-3-mini-fast',
   createAdapter(model, apiKey) {
     if (!includes(GROK_CHAT_MODELS, model)) throw new Error(`Unknown Grok model: ${model}`)
+    if (!apiKey) throw new Error('Grok API key is required')
     return createGrokText(model, apiKey)
   },
 }

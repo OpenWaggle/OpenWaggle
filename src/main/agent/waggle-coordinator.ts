@@ -1,6 +1,6 @@
 import type { HydratedAgentSendPayload, Message } from '@shared/types/agent'
 import { getMessageText, isToolCallPart } from '@shared/types/agent'
-import type { ConversationId } from '@shared/types/brand'
+import { type ConversationId, createSkipApprovalToken } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import type { Settings } from '@shared/types/settings'
 import type {
@@ -133,7 +133,7 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
         payload: augmentedPayload,
         model: agent.model,
         settings,
-        skipApproval: true,
+        skipApproval: createSkipApprovalToken(),
         onChunk: (chunk) => {
           onStreamChunk(chunk, meta)
 
@@ -431,7 +431,7 @@ async function runSynthesisStep(params: SynthesisParams): Promise<void> {
       payload: synthesisPayload,
       model: synthesisModel,
       settings,
-      skipApproval: true,
+      skipApproval: createSkipApprovalToken(),
       onChunk: (chunk) => {
         // Filter terminal events — the envelope handles those
         if (

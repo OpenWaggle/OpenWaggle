@@ -33,6 +33,7 @@ export const openrouterProvider: ProviderDefinition = {
   createAdapter(model, apiKey) {
     if (!includes(OPENROUTER_UI_MODELS, model))
       throw new Error(`Unknown OpenRouter model: ${model}`)
+    if (!apiKey) throw new Error('OpenRouter API key is required')
     return createOpenRouterText(model, apiKey)
   },
 }
