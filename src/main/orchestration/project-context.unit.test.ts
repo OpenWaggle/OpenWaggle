@@ -259,22 +259,21 @@ describe('buildIgnorePatterns', () => {
 })
 
 describe('createExecutorTools', () => {
-  it('returns empty array for null projectPath', () => {
-    const tools = createExecutorTools(null)
+  it('returns empty array for null projectPath', async () => {
+    const tools = await createExecutorTools(null)
     expect(tools).toEqual([])
   })
 
-  it('returns readFile, glob, and webFetch tools for valid projectPath', () => {
-    const tools = createExecutorTools(tmpDir)
+  it('returns readFile, glob, and webFetch tools for valid projectPath', async () => {
+    const tools = await createExecutorTools(tmpDir)
     expect(tools).toHaveLength(3)
   })
 
   it('readFile tool can read a file', async () => {
     await fs.writeFile(path.join(tmpDir, 'test.txt'), 'hello world')
-    const tools = createExecutorTools(tmpDir)
+    const tools = await createExecutorTools(tmpDir)
     const readFileTool = tools[0]
 
-    // Execute the tool by calling it directly (ServerTool has an execute method)
     const result = await (readFileTool as { execute: (args: unknown) => Promise<unknown> }).execute(
       {
         path: 'test.txt',
@@ -284,7 +283,7 @@ describe('createExecutorTools', () => {
   })
 
   it('readFile tool rejects paths outside project', async () => {
-    const tools = createExecutorTools(tmpDir)
+    const tools = await createExecutorTools(tmpDir)
     const readFileTool = tools[0]
 
     const result = await (readFileTool as { execute: (args: unknown) => Promise<unknown> }).execute(
@@ -298,11 +297,41 @@ describe('createExecutorTools', () => {
     })
   })
 
+  it('readFile tool blocks gitignored files like .env', async () => {
+    await fs.writeFile(path.join(tmpDir, '.gitignore'), '.env\n')
+    await fs.writeFile(path.join(tmpDir, '.env'), 'SECRET_KEY=leaked')
+    const tools = await createExecutorTools(tmpDir)
+    const readFileTool = tools[0]
+
+    const result = await (readFileTool as { execute: (args: unknown) => Promise<unknown> }).execute(
+      {
+        path: '.env',
+      },
+    )
+    expect(result).toEqual({
+      kind: 'text',
+      text: 'Error: file is excluded by project ignore patterns (.gitignore)',
+    })
+  })
+
+  it('glob tool excludes gitignored files', async () => {
+    await fs.writeFile(path.join(tmpDir, '.gitignore'), '.env\n')
+    await fs.writeFile(path.join(tmpDir, '.env'), 'SECRET=leaked')
+    await fs.writeFile(path.join(tmpDir, 'index.ts'), '')
+    const tools = await createExecutorTools(tmpDir)
+    const globTool = tools[1]
+
+    const result = (await (globTool as { execute: (args: unknown) => Promise<unknown> }).execute({
+      pattern: '**/*',
+    })) as { kind: string; text: string }
+    expect(result.text).toContain('index.ts')
+    expect(result.text).not.toContain('.env')
+  })
+
   it('webFetch tool returns error for failed fetch', async () => {
-    const tools = createExecutorTools(tmpDir)
+    const tools = await createExecutorTools(tmpDir)
     const webFetchTool = tools[2]
 
-    // Mock fetch to simulate a network error
     const originalFetch = globalThis.fetch
     globalThis.fetch = vi.fn().mockRejectedValue(new Error('getaddrinfo ENOTFOUND bad.invalid'))
 
@@ -321,7 +350,7 @@ describe('createExecutorTools', () => {
   })
 
   it('webFetch tool returns HTTP error status as text', async () => {
-    const tools = createExecutorTools(tmpDir)
+    const tools = await createExecutorTools(tmpDir)
     const webFetchTool = tools[2]
 
     const originalFetch = globalThis.fetch
@@ -343,7 +372,7 @@ describe('createExecutorTools', () => {
   })
 
   it('webFetch tool strips HTML and returns plain text', async () => {
-    const tools = createExecutorTools(tmpDir)
+    const tools = await createExecutorTools(tmpDir)
     const webFetchTool = tools[2]
 
     const htmlBody = '<html><head><title>Test</title></head><body><p>Hello world</p></body></html>'
@@ -374,7 +403,7 @@ describe('createExecutorTools', () => {
     await fs.writeFile(path.join(tmpDir, 'src', 'app.ts'), '')
     await fs.writeFile(path.join(tmpDir, 'src', 'utils.ts'), '')
 
-    const tools = createExecutorTools(tmpDir)
+    const tools = await createExecutorTools(tmpDir)
     const globTool = tools[1]
 
     const result = (await (globTool as { execute: (args: unknown) => Promise<unknown> }).execute({

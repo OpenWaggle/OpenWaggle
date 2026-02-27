@@ -43,7 +43,7 @@ interface RunnerContext {
   readonly adapter: AnyTextAdapter
   readonly orchestrationMode: 'orchestrated' | 'auto-fallback'
   readonly projectContext: Awaited<ReturnType<OrchestrationServiceDeps['gatherProjectContext']>>
-  readonly executorTools: ReturnType<OrchestrationServiceDeps['createExecutorTools']>
+  readonly executorTools: Awaited<ReturnType<OrchestrationServiceDeps['createExecutorTools']>>
   readonly streamSession: StreamSession
   readonly elapsed: () => string
 }
@@ -159,8 +159,10 @@ async function prepareRunnerContext(
   const orchestrationMode =
     settings.orchestrationMode === 'orchestrated' ? 'orchestrated' : 'auto-fallback'
 
-  const projectContext = await deps.gatherProjectContext(conversation.projectPath)
-  const executorTools = deps.createExecutorTools(conversation.projectPath, signal)
+  const [projectContext, executorTools] = await Promise.all([
+    deps.gatherProjectContext(conversation.projectPath),
+    deps.createExecutorTools(conversation.projectPath, signal),
+  ])
 
   const streamSession = new StreamSession({
     runId,

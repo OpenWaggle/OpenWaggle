@@ -178,7 +178,7 @@ function createIntegrationDeps(responses: readonly string[]): {
       rawLength: 0,
       durationMs: 0,
     }),
-    createExecutorTools: () => [],
+    createExecutorTools: async () => [],
     runOpenWaggleOrchestration,
     extractJson: (text) => {
       const open = text.indexOf('{')

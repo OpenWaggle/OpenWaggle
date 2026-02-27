@@ -176,7 +176,7 @@ describe('runOrchestratedAgent', () => {
       durationMs: 5,
     })
 
-    createExecutorToolsMock.mockReturnValue([])
+    createExecutorToolsMock.mockResolvedValue([])
     maxIterationsMock.mockReturnValue(undefined)
   })
 

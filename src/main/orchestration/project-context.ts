@@ -213,7 +213,7 @@ async function buildTechStack(projectPath: string): Promise<string> {
         lines.push(`Project: ${parsed.data.name}${desc}`)
       }
     } catch {
-    // No package.json — skip project line
+      // No package.json — skip project line
     }
 
     if (ecosystems.length > 0) {
@@ -235,9 +235,7 @@ async function buildTechStack(projectPath: string): Promise<string> {
 
 async function buildKeyFiles(projectPath: string): Promise<string> {
   const readmeCandidates = [{ glob: '[Rr][Ee][Aa][Dd][Mm][Ee].[Mm][Dd]', label: 'README.md' }]
-  const referenceCandidates = [
-    { glob: 'AGENTS.md', label: 'AGENTS.md' }
-  ]
+  const referenceCandidates = [{ glob: 'AGENTS.md', label: 'AGENTS.md' }]
 
   const sections: string[] = []
   let totalChars = 0
@@ -341,13 +339,17 @@ const MAX_READ_LINES = 500
  * Create read-only tools for orchestration executors.
  * These tools let executor LLMs dynamically explore project files
  * without requiring the full ToolContext (AsyncLocalStorage).
+ *
+ * Computes `.gitignore`-based ignore patterns and applies them to both
+ * `readFile` (blocks reads of ignored files) and `glob` (excludes ignored files).
  */
-export function createExecutorTools(
+export async function createExecutorTools(
   projectPath: string | null,
   signal?: AbortSignal,
-  ignorePatterns?: string[],
-): ServerTool[] {
+): Promise<ServerTool[]> {
   if (!projectPath) return []
+
+  const ignore = await buildIgnorePatterns(projectPath)
 
   const readFile = toolDefinition({
     name: 'readFile',
@@ -360,6 +362,25 @@ export function createExecutorTools(
     const resolved = path.resolve(projectPath, args.path)
     if (!isPathInside(projectPath, resolved)) {
       return { kind: 'text' as const, text: 'Error: path is outside the project directory' }
+    }
+
+    // Block reads of files excluded by .gitignore (secrets, build artifacts, deps)
+    const relPath = path.relative(projectPath, resolved)
+    const [allowed] = await fg(relPath, {
+      cwd: projectPath,
+      ignore,
+      onlyFiles: true,
+    })
+    if (!allowed) {
+      try {
+        await fs.stat(resolved)
+        return {
+          kind: 'text' as const,
+          text: 'Error: file is excluded by project ignore patterns (.gitignore)',
+        }
+      } catch {
+        return { kind: 'text' as const, text: 'Error reading file: file not found' }
+      }
     }
 
     try {
@@ -402,7 +423,7 @@ export function createExecutorTools(
     try {
       const files = await fg(args.pattern, {
         cwd: projectPath,
-        ignore: ignorePatterns ?? ['.git/**'],
+        ignore,
         onlyFiles: true,
         dot: false,
       })
