@@ -226,4 +226,17 @@ describe('conversation store integration', () => {
     const summaries = await listConversations()
     expect(summaries.some((summary) => summary.id === created.id)).toBe(false)
   })
+
+  it('applies optional listing limit', async () => {
+    await createConversation('/tmp/project-limit-a')
+    await new Promise<void>((resolve) => setTimeout(resolve, 1))
+    await createConversation('/tmp/project-limit-b')
+
+    const all = await listConversations()
+    const limited = await listConversations(1)
+
+    expect(all.length).toBeGreaterThanOrEqual(2)
+    expect(limited).toHaveLength(1)
+    expect(limited[0]?.id).toBe(all[0]?.id)
+  })
 })

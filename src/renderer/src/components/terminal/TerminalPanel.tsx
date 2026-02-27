@@ -15,8 +15,13 @@ export function TerminalPanel({ projectPath, onClose }: TerminalPanelProps): Rea
   const terminalRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
   const terminalIdRef = useRef<string | null>(null)
-  const [isReady, setIsReady] = useState(false)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [terminalStatus, setTerminalStatus] = useState<{
+    readonly isReady: boolean
+    readonly errorMessage: string | null
+  }>({
+    isReady: false,
+    errorMessage: null,
+  })
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -70,16 +75,20 @@ export function TerminalPanel({ projectPath, onClose }: TerminalPanelProps): Rea
       .then((id) => {
         if (cleanedUp) return
         terminalIdRef.current = id
-        setIsReady(true)
-        setErrorMessage(null)
+        setTerminalStatus({
+          isReady: true,
+          errorMessage: null,
+        })
 
         // Send dimensions
         api.resizeTerminal(id, term.cols, term.rows)
       })
       .catch((error: unknown) => {
         if (cleanedUp) return
-        setIsReady(false)
-        setErrorMessage(error instanceof Error ? error.message : 'Failed to open terminal.')
+        setTerminalStatus({
+          isReady: false,
+          errorMessage: error instanceof Error ? error.message : 'Failed to open terminal.',
+        })
       })
 
     // Forward keyboard input to PTY
@@ -122,7 +131,12 @@ export function TerminalPanel({ projectPath, onClose }: TerminalPanelProps): Rea
       {/* Terminal header */}
       <div className="flex h-8 items-center justify-between border-b border-border px-3">
         <span className="text-[13px] text-text-secondary">
-          Terminal {errorMessage ? 'unavailable' : isReady ? '/bin/zsh' : 'connecting...'}
+          Terminal{' '}
+          {terminalStatus.errorMessage
+            ? 'unavailable'
+            : terminalStatus.isReady
+              ? '/bin/zsh'
+              : 'connecting...'}
         </span>
         <button
           type="button"
@@ -136,9 +150,9 @@ export function TerminalPanel({ projectPath, onClose }: TerminalPanelProps): Rea
 
       {/* Terminal container */}
       <div ref={containerRef} className="flex-1 overflow-hidden px-1 py-1" />
-      {errorMessage && (
+      {terminalStatus.errorMessage && (
         <div className="border-t border-border px-3 py-2 text-[12px] text-error">
-          {errorMessage}
+          {terminalStatus.errorMessage}
         </div>
       )}
     </div>

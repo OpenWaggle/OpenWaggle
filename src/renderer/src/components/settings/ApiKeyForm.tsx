@@ -23,21 +23,20 @@ export function ApiKeyForm({
   isTesting,
   testResult,
 }: ApiKeyFormProps): React.JSX.Element {
-  const [value, setValue] = useState(currentKey)
-  const [prevCurrentKey, setPrevCurrentKey] = useState(currentKey)
+  const [value, setValue] = useState('')
+  const [isDirty, setIsDirty] = useState(false)
   const [showKey, setShowKey] = useState(false)
-  const hasChanged = value !== currentKey
-  if (currentKey !== prevCurrentKey) {
-    setPrevCurrentKey(currentKey)
-    setValue(currentKey)
-  }
+  const draftValue = isDirty ? value : currentKey
+  const hasChanged = draftValue !== currentKey
 
   async function handleSave(): Promise<void> {
-    await onSave(value)
+    await onSave(draftValue)
+    setIsDirty(false)
+    setValue('')
   }
 
   async function handleTest(): Promise<void> {
-    await onTest(value)
+    await onTest(draftValue)
   }
 
   return (
@@ -66,8 +65,11 @@ export function ApiKeyForm({
           <input
             id={`api-key-${provider}`}
             type={showKey ? 'text' : 'password'}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
+            value={draftValue}
+            onChange={(e) => {
+              setValue(e.target.value)
+              setIsDirty(true)
+            }}
             placeholder={`Enter your ${label} API key`}
             className={cn(
               'w-full rounded-lg border border-border bg-bg px-3 py-2 pr-10 text-sm text-text-primary',
@@ -89,10 +91,10 @@ export function ApiKeyForm({
         <button
           type="button"
           onClick={handleTest}
-          disabled={!value || isTesting}
+          disabled={!draftValue || isTesting}
           className={cn(
             'flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-            value && !isTesting
+            draftValue && !isTesting
               ? 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover hover:text-text-primary'
               : 'bg-bg-tertiary text-text-muted cursor-not-allowed',
           )}

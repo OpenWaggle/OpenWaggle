@@ -9,13 +9,6 @@ interface ThinkingBlockProps {
 
 export function ThinkingBlock({ content, isStreaming }: ThinkingBlockProps): React.JSX.Element {
   const [expanded, setExpanded] = useState(false)
-  const [prevIsStreaming, setPrevIsStreaming] = useState(isStreaming)
-  if (prevIsStreaming && !isStreaming) {
-    setExpanded(false)
-  }
-  if (prevIsStreaming !== isStreaming) {
-    setPrevIsStreaming(isStreaming)
-  }
 
   const tokenEstimate = Math.ceil(content.length / 4)
 

@@ -1,6 +1,7 @@
 import type { GitFileDiff } from '@shared/types/git'
 import type { ReviewComment } from '@shared/types/review'
-import { useEffect, useState } from 'react'
+import { chooseBy } from '@shared/utils/decision'
+import { useEffect, useReducer } from 'react'
 import { Spinner } from '@/components/shared/Spinner'
 import { api } from '@/lib/ipc'
 import { useReviewStore } from '@/stores/review-store'
@@ -17,9 +18,31 @@ interface RenderableDiffFile extends GitFileDiff {
   readonly items: DisplayItem[]
 }
 
+interface DiffPanelState {
+  readonly fileDiffs: RenderableDiffFile[]
+  readonly isLoading: boolean
+}
+
+type DiffPanelAction =
+  | { readonly type: 'clear' }
+  | { readonly type: 'start-loading' }
+  | { readonly type: 'load-success'; readonly fileDiffs: RenderableDiffFile[] }
+  | { readonly type: 'load-failure' }
+
+function diffPanelReducer(state: DiffPanelState, action: DiffPanelAction): DiffPanelState {
+  return chooseBy(action, 'type')
+    .case('clear', () => ({ fileDiffs: [], isLoading: false }))
+    .case('start-loading', () => ({ ...state, isLoading: true }))
+    .case('load-success', (value) => ({ fileDiffs: value.fileDiffs, isLoading: false }))
+    .case('load-failure', () => ({ fileDiffs: [], isLoading: false }))
+    .assertComplete()
+}
+
 export function DiffPanel({ projectPath, onSendMessage }: DiffPanelProps): React.JSX.Element {
-  const [fileDiffs, setFileDiffs] = useState<RenderableDiffFile[]>([])
-  const [isLoading, setIsLoading] = useState(false)
+  const [state, dispatch] = useReducer(diffPanelReducer, {
+    fileDiffs: [],
+    isLoading: false,
+  })
 
   const comments = useReviewStore((s) => s.comments)
   const activeCommentLocation = useReviewStore((s) => s.activeCommentLocation)
@@ -27,43 +50,37 @@ export function DiffPanel({ projectPath, onSendMessage }: DiffPanelProps): React
   const addComment = useReviewStore((s) => s.addComment)
   const clearComments = useReviewStore((s) => s.clearComments)
 
-  const [prevProjectPath, setPrevProjectPath] = useState(projectPath)
-  if (projectPath !== prevProjectPath) {
-    setPrevProjectPath(projectPath)
-    if (!projectPath) {
-      setFileDiffs([])
-    }
-    setIsLoading(!!projectPath)
-  }
-
   useEffect(() => {
-    if (!projectPath) return
+    if (!projectPath) {
+      dispatch({ type: 'clear' })
+      return
+    }
 
+    dispatch({ type: 'start-loading' })
     let cancelled = false
     api
       .getGitDiff(projectPath)
       .then((diffs) => {
         if (cancelled) return
-        setFileDiffs(
-          diffs.map((diff) => ({
+        dispatch({
+          type: 'load-success',
+          fileDiffs: diffs.map((diff) => ({
             ...diff,
             items: buildDisplayItems(diff.diff),
           })),
-        )
+        })
       })
       .catch(() => {
         if (cancelled) return
-        setFileDiffs([])
-      })
-      .finally(() => {
-        if (cancelled) return
-        setIsLoading(false)
+        dispatch({ type: 'load-failure' })
       })
 
     return () => {
       cancelled = true
     }
   }, [projectPath])
+
+  const { fileDiffs, isLoading } = state
 
   function handleAddSingleComment(
     filePath: string,

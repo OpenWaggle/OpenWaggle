@@ -1,6 +1,6 @@
 import type { ProviderInfo } from '@shared/types/llm'
 import { Pencil } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { WarningCallout } from '@/components/settings/common/WarningCallout'
 import { usePreferences, useProviders } from '@/hooks/useSettings'
 import { cn } from '@/lib/cn'
@@ -26,7 +26,7 @@ export function ProviderRow({
   const { settings } = usePreferences()
   const { testingProviders, testResults, updateApiKey, testApiKey } = useProviders()
 
-  const [editing, setEditing] = useState(autoEdit ?? false)
+  const [editing, setEditing] = useState(Boolean(autoEdit))
   const providerId = providerInfo.provider
   const config = settings.providers[providerId]
   const meta = PROVIDER_META[providerId]
@@ -35,13 +35,6 @@ export function ProviderRow({
   const isTesting = testingProviders[providerId] ?? false
 
   const Icon = meta.icon
-
-  useEffect(() => {
-    if (autoEdit) {
-      setEditing(true)
-      onEditingChange?.(true)
-    }
-  }, [autoEdit, onEditingChange])
 
   return (
     <div className={cn(!isLast && 'border-b border-border')}>

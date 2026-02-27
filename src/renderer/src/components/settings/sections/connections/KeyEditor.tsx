@@ -1,7 +1,7 @@
 import type { ProviderInfo } from '@shared/types/llm'
 import type { Provider } from '@shared/types/settings'
 import { Check, ExternalLink, Eye, EyeOff, Loader2, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { usePreferences, useProviders } from '@/hooks/useSettings'
 import { cn } from '@/lib/cn'
 
@@ -26,22 +26,21 @@ export function KeyEditor({
   testResult,
   onClose,
 }: KeyEditorProps): React.JSX.Element {
-  const [value, setValue] = useState(currentKey)
+  const [value, setValue] = useState('')
+  const [isDirty, setIsDirty] = useState(false)
   const [showKey, setShowKey] = useState(!currentKey)
-
-  useEffect(() => {
-    setValue(currentKey)
-  }, [currentKey])
-
-  const hasChanged = value !== currentKey
+  const draftValue = isDirty ? value : currentKey
+  const hasChanged = draftValue !== currentKey
 
   async function handleSave(): Promise<void> {
-    await onSave(value)
+    await onSave(draftValue)
+    setIsDirty(false)
+    setValue('')
     onClose()
   }
 
   async function handleTest(): Promise<void> {
-    await onTest(value)
+    await onTest(draftValue)
   }
 
   return (
@@ -74,8 +73,11 @@ export function KeyEditor({
         <div className="relative flex-1">
           <input
             type={showKey ? 'text' : 'password'}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
+            value={draftValue}
+            onChange={(e) => {
+              setValue(e.target.value)
+              setIsDirty(true)
+            }}
             placeholder={`Enter your ${providerInfo.displayName} API key`}
             className={cn(
               'w-full rounded-lg border border-input-card-border bg-bg px-3 py-2 pr-9 text-[13px] text-text-primary font-mono',
@@ -96,10 +98,10 @@ export function KeyEditor({
         <button
           type="button"
           onClick={handleTest}
-          disabled={!value || isTesting}
+          disabled={!draftValue || isTesting}
           className={cn(
             'flex items-center gap-1.5 rounded-md px-3 py-2 text-[12px] font-medium transition-colors',
-            value && !isTesting
+            draftValue && !isTesting
               ? 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover border border-input-card-border'
               : 'bg-bg-tertiary text-text-muted cursor-not-allowed border border-input-card-border',
           )}
@@ -160,23 +162,26 @@ function BaseUrlField({ provider }: { provider: Provider }): React.JSX.Element {
   const { updateBaseUrl } = useProviders()
   const config = settings.providers[provider]
   const baseUrl = config?.baseUrl ?? ''
-  const [localValue, setLocalValue] = useState(baseUrl)
-
-  useEffect(() => {
-    setLocalValue(baseUrl)
-  }, [baseUrl])
+  const [localValue, setLocalValue] = useState('')
+  const [isDirty, setIsDirty] = useState(false)
+  const draftValue = isDirty ? localValue : baseUrl
 
   return (
     <div className="space-y-1.5">
       <span className="text-[12px] text-text-tertiary">Base URL</span>
       <input
         type="text"
-        value={localValue}
-        onChange={(e) => setLocalValue(e.target.value)}
+        value={draftValue}
+        onChange={(e) => {
+          setLocalValue(e.target.value)
+          setIsDirty(true)
+        }}
         onBlur={() => {
-          if (localValue !== (config?.baseUrl ?? '')) {
-            updateBaseUrl(provider, localValue)
+          if (draftValue !== (config?.baseUrl ?? '')) {
+            updateBaseUrl(provider, draftValue)
           }
+          setIsDirty(false)
+          setLocalValue('')
         }}
         placeholder="http://localhost:11434"
         className={cn(

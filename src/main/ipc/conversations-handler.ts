@@ -10,8 +10,8 @@ import {
 import { typedHandle } from './typed-ipc'
 
 export function registerConversationsHandlers(): void {
-  typedHandle('conversations:list', async () => {
-    return listConversations()
+  typedHandle('conversations:list', async (_event, limit?: number) => {
+    return listConversations(limit)
   })
 
   typedHandle('conversations:get', async (_event, id: ConversationId) => {

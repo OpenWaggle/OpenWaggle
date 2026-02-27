@@ -165,17 +165,18 @@ export function Header({
         </div>
       </header>
 
-      <CommitDialog
-        isOpen={commitOpen}
-        projectPath={projectPath}
-        status={gitStatus}
-        statusError={gitError}
-        isRefreshing={gitLoading}
-        isCommitting={gitCommitting}
-        onRefresh={handleRefreshGit}
-        onCommit={handleCommitGit}
-        onClose={() => setCommitOpen(false)}
-      />
+      {commitOpen && (
+        <CommitDialog
+          projectPath={projectPath}
+          status={gitStatus}
+          statusError={gitError}
+          isRefreshing={gitLoading}
+          isCommitting={gitCommitting}
+          onRefresh={handleRefreshGit}
+          onCommit={handleCommitGit}
+          onClose={() => setCommitOpen(false)}
+        />
+      )}
     </>
   )
 }

@@ -272,12 +272,9 @@ function BaseUrlInput({
   value: string
   onSave: (url: string) => void
 }): React.JSX.Element {
-  const [localValue, setLocalValue] = useState(value)
-  const [prevValue, setPrevValue] = useState(value)
-  if (value !== prevValue) {
-    setPrevValue(value)
-    setLocalValue(value)
-  }
+  const [localValue, setLocalValue] = useState('')
+  const [isDirty, setIsDirty] = useState(false)
+  const draftValue = isDirty ? localValue : value
 
   return (
     <div className="space-y-1.5">
@@ -287,12 +284,17 @@ function BaseUrlInput({
       <input
         id={`base-url-${providerId}`}
         type="text"
-        value={localValue}
-        onChange={(e) => setLocalValue(e.target.value)}
+        value={draftValue}
+        onChange={(e) => {
+          setLocalValue(e.target.value)
+          setIsDirty(true)
+        }}
         onBlur={() => {
-          if (localValue !== value) {
-            onSave(localValue)
+          if (draftValue !== value) {
+            onSave(draftValue)
           }
+          setIsDirty(false)
+          setLocalValue('')
         }}
         placeholder="http://localhost:11434"
         className={cn(

@@ -1,6 +1,6 @@
 # 03 — Unbounded Conversation Loading
 
-**Status:** Planned
+**Status:** Completed
 **Priority:** P1
 **Severity:** Critical
 **Depends on:** None
@@ -27,8 +27,8 @@ For a user with 200+ conversations, this means 200 concurrent `readFile` calls, 
 
 **Option C (minimum):** Add concurrency limiting — process at most 10 files in parallel using a simple semaphore.
 
-- [ ] Implement chosen option
-- [ ] Add a `limit` parameter to `listConversations(limit?: number)` for future pagination support
+- [x] Implement chosen option
+- [x] Add a `limit` parameter to `listConversations(limit?: number)` for future pagination support
 
 ## Files to Touch
 
@@ -40,6 +40,22 @@ For a user with 200+ conversations, this means 200 concurrent `readFile` calls, 
 - Unit: index-based listing returns correct summaries
 - Unit: fallback to full scan when index missing
 - Unit: concurrent read limit prevents I/O exhaustion
+
+## Review (2026-02-27)
+
+- Confirmed Option A + C are implemented in `src/main/store/conversations.ts`:
+  - Conversation summary index (`index.json`) with rebuild fallback when missing/corrupt.
+  - Bounded scan fallback with `CONVERSATION_LOAD_CONCURRENCY = 10`.
+  - `listConversations(limit?: number)` applies optional slicing.
+- Wired optional `limit?: number` through IPC for future pagination:
+  - `src/shared/types/ipc.ts`
+  - `src/preload/api.ts`
+  - `src/main/ipc/conversations-handler.ts`
+- Added integration coverage for optional limit behavior:
+  - `src/main/store/conversations.integration.test.ts`
+- Verification:
+  - `pnpm test:integration -- src/main/store/conversations.integration.test.ts` (pass)
+  - `pnpm check` (pass)
 
 ## Risk if Skipped
 
