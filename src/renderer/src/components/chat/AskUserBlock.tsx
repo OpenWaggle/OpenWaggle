@@ -59,7 +59,7 @@ export function AskUserBlock({
 
     if (currentStep < questions.length - 1) {
       // Auto-advance to next question
-      setCurrentStep(currentStep + 1)
+      setCurrentStep((prev) => prev + 1)
     }
   }
 
@@ -159,7 +159,7 @@ export function AskUserBlock({
           <button
             type="button"
             disabled={currentStep === 0}
-            onClick={() => setCurrentStep(currentStep - 1)}
+            onClick={() => setCurrentStep((prev) => prev - 1)}
             className="flex items-center gap-1 text-[13px] text-text-tertiary hover:text-text-secondary disabled:opacity-30 disabled:cursor-default transition-colors"
           >
             <ChevronLeft className="h-3 w-3" />
@@ -170,7 +170,7 @@ export function AskUserBlock({
             <button
               type="button"
               disabled={!answers.has(currentStep)}
-              onClick={() => setCurrentStep(currentStep + 1)}
+              onClick={() => setCurrentStep((prev) => prev + 1)}
               className="flex items-center gap-1 text-[13px] text-accent hover:text-accent-dim disabled:opacity-30 disabled:cursor-default transition-colors"
             >
               Next

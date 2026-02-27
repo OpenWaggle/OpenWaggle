@@ -82,7 +82,6 @@ export function ModelSelector({
   const [isOpen, setIsOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [activeTab, setActiveTab] = useState<RailTab>('favorites')
-  const [focusedIndex, setFocusedIndex] = useState(-1)
   const [overlayPosition, setOverlayPosition] = useState<OverlayPosition>({ top: 0, left: 0 })
 
   const ref = useRef<HTMLDivElement>(null)
@@ -155,8 +154,6 @@ export function ModelSelector({
         })
 
   const selectedModel = modelById.get(value)
-  const activeDescendantModel = focusedIndex >= 0 ? visibleModels[focusedIndex] : undefined
-
   useEffect(() => {
     if (!isOpen) return
 
@@ -166,23 +163,6 @@ export function ModelSelector({
 
     return () => window.clearTimeout(timeoutId)
   }, [isOpen])
-
-  useEffect(() => {
-    if (!isOpen) return
-
-    const selectedIndex = visibleModels.findIndex((model) => model.id === value)
-    if (selectedIndex >= 0) {
-      setFocusedIndex(selectedIndex)
-      return
-    }
-
-    if (visibleModels.length > 0) {
-      setFocusedIndex(0)
-      return
-    }
-
-    setFocusedIndex(-1)
-  }, [isOpen, value, visibleModels])
 
   useEffect(() => {
     if (!isOpen) return
@@ -266,18 +246,6 @@ export function ModelSelector({
     setIsOpen(false)
   }
 
-  function moveFocus(step: 1 | -1): void {
-    if (visibleModels.length === 0) return
-
-    setFocusedIndex((prev) => {
-      if (prev < 0) {
-        return step > 0 ? 0 : visibleModels.length - 1
-      }
-
-      return (prev + step + visibleModels.length) % visibleModels.length
-    })
-  }
-
   function triggerKeyDown(event: React.KeyboardEvent<HTMLButtonElement>): void {
     if (
       event.key === 'ArrowDown' ||
@@ -291,27 +259,6 @@ export function ModelSelector({
   }
 
   function listboxKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
-    if (event.key === 'ArrowDown') {
-      event.preventDefault()
-      moveFocus(1)
-      return
-    }
-
-    if (event.key === 'ArrowUp') {
-      event.preventDefault()
-      moveFocus(-1)
-      return
-    }
-
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      const focusedModel = focusedIndex >= 0 ? visibleModels[focusedIndex] : undefined
-      if (focusedModel) {
-        void selectModel(focusedModel)
-      }
-      return
-    }
-
     if (event.key === 'Escape') {
       event.preventDefault()
       setIsOpen(false)
@@ -320,27 +267,6 @@ export function ModelSelector({
 
   function searchKeyDown(event: React.KeyboardEvent<HTMLInputElement>): void {
     event.stopPropagation()
-
-    if (event.key === 'ArrowDown') {
-      event.preventDefault()
-      moveFocus(1)
-      return
-    }
-
-    if (event.key === 'ArrowUp') {
-      event.preventDefault()
-      moveFocus(-1)
-      return
-    }
-
-    if (event.key === 'Enter') {
-      const focusedModel = focusedIndex >= 0 ? visibleModels[focusedIndex] : undefined
-      if (focusedModel) {
-        event.preventDefault()
-        void selectModel(focusedModel)
-      }
-      return
-    }
 
     if (event.key === 'Escape') {
       event.preventDefault()
@@ -364,174 +290,225 @@ export function ModelSelector({
 
       {isOpen &&
         createPortal(
-          <div
-            ref={dropdownRef}
-            role="listbox"
-            aria-activedescendant={
-              activeDescendantModel ? modelOptionId(activeDescendantModel) : undefined
-            }
-            tabIndex={0}
-            onKeyDown={listboxKeyDown}
-            className="fixed z-[9999] flex h-[620px] w-[480px] flex-col gap-[10px] overflow-hidden rounded-2xl border border-[#1e2229] bg-[#0d0f12] p-3 shadow-2xl"
-            style={{ top: overlayPosition.top, left: overlayPosition.left }}
-          >
-            <div className="flex h-[44px] shrink-0 items-center gap-2 rounded-xl border border-[#1e2229] bg-[#111418] px-3">
-              <Search className="h-4 w-4 text-[#7A708D]" />
-              <input
-                ref={searchRef}
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                onKeyDown={searchKeyDown}
-                placeholder="Search models..."
-                className="model-selector-search-input h-full flex-1 bg-transparent text-[14px] text-[#e7e9ee] placeholder:text-[#9098a8] outline-none focus:outline-none focus-visible:outline-none"
-                aria-label="Search models"
-              />
-            </div>
-
-            <div className="flex min-h-0 flex-1 gap-[10px]">
-              <div className="flex h-full w-[52px] shrink-0 flex-col items-center gap-6 overflow-hidden rounded-[12px] border border-[#1e2229] bg-[#111418] px-0 py-[14px]">
-                <button
-                  type="button"
-                  title="Favorite models"
-                  onClick={() => setActiveTab('favorites')}
-                  className={cn(
-                    'flex h-[34px] w-[34px] items-center justify-center rounded-[10px] border transition-colors',
-                    activeTab === 'favorites'
-                      ? 'border-[#2a2f3a] bg-[#1a1f28] text-[#F3C969]'
-                      : 'border-transparent bg-transparent text-[#9098a8] hover:text-[#b7bfce]',
-                  )}
-                  aria-label="Show favorite models"
-                >
-                  <Star
-                    className="h-4 w-4"
-                    fill={activeTab === 'favorites' ? 'currentColor' : 'none'}
-                  />
-                </button>
-
-                {railProviders.map((group) => {
-                  const provider = group.provider
-                  const Icon = PROVIDER_ICON_BY_ID[provider]
-                  const isActive = activeTab === provider
-
-                  return (
-                    <button
-                      key={provider}
-                      type="button"
-                      title={group.displayName}
-                      onClick={() => setActiveTab(provider)}
-                      className={cn(
-                        'flex h-[34px] w-[34px] items-center justify-center rounded-[10px] border transition-colors',
-                        isActive
-                          ? 'border-[#2a2f3a] bg-[#1a1f28] text-[#e7e9ee]'
-                          : 'border-transparent bg-transparent text-[#9098a8] hover:text-[#b7bfce]',
-                      )}
-                      aria-label={`Show ${group.displayName} models`}
-                    >
-                      <Icon className="h-3.5 w-3.5" />
-                    </button>
-                  )
-                })}
-
-                <div aria-hidden className="min-h-0 flex-1" />
-              </div>
-
-              <div className="flex min-h-0 h-full flex-1 flex-col overflow-hidden rounded-xl p-0.5">
-                <div className="h-full overflow-y-auto">
-                  {railProviders.length === 0 && (
-                    <div className="px-4 py-6 text-[13px] text-[#9098a8]">
-                      No providers available.
-                    </div>
-                  )}
-
-                  {railProviders.length > 0 &&
-                    activeTab === 'favorites' &&
-                    favoriteModels.length === 0 && (
-                      <div className="px-4 py-6 text-[13px] text-[#9098a8]">
-                        No favorites yet. Click the star on any model to save it.
-                      </div>
-                    )}
-
-                  {railProviders.length > 0 &&
-                    visibleModels.length === 0 &&
-                    !(activeTab === 'favorites' && favoriteModels.length === 0) && (
-                      <div className="px-4 py-6 text-[13px] text-[#9098a8]">
-                        No models match your search.
-                      </div>
-                    )}
-
-                  <div className="space-y-[2px]">
-                    {visibleModels.map((model, index) => {
-                      const availability = getModelAvailability(model)
-                      const isSelected = model.id === value
-                      const isFocused = index === focusedIndex
-                      const isFavorite = favoriteSet.has(model.id)
-                      const subtitle = getModelSubtitle(model, availability)
-
-                      return (
-                        <div
-                          id={modelOptionId(model)}
-                          key={model.key}
-                          role="option"
-                          tabIndex={-1}
-                          aria-selected={isSelected}
-                          aria-disabled={!availability.selectable}
-                          aria-label={model.name}
-                          onClick={() => {
-                            if (!availability.selectable) return
-                            void selectModel(model)
-                          }}
-                          onKeyDown={(event) => {
-                            if (!availability.selectable) return
-                            if (event.key === 'Enter' || event.key === ' ') {
-                              event.preventDefault()
-                              void selectModel(model)
-                            }
-                          }}
-                          onMouseEnter={() => setFocusedIndex(index)}
-                          className={cn(
-                            'group flex h-[78px] w-full items-center gap-2 rounded-[10px] px-[10px] py-[10px] text-left transition-colors',
-                            availability.selectable
-                              ? 'cursor-pointer text-[#e7e9ee] hover:bg-[#171b21]'
-                              : 'cursor-not-allowed text-[#6f7786]',
-                            isSelected && 'bg-[#1a1f28]',
-                            isFocused && 'ring-1 ring-inset ring-[#2a2f3a]',
-                          )}
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate text-[16px] font-semibold text-[#e7e9ee]">
-                              {model.name}
-                            </div>
-                            <div className="mt-1 truncate text-[12px] text-[#9098a8]">
-                              {subtitle ?? '\u00A0'}
-                            </div>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              void toggleFavoriteModel(model.id)
-                            }}
-                            className="flex h-[34px] w-[34px] items-center justify-center rounded-full border border-[#2a2f3a] bg-[#1a1f28] text-[#F3C969] transition-colors hover:brightness-110"
-                            aria-label={
-                              isFavorite
-                                ? `Remove ${model.name} from favorites`
-                                : `Add ${model.name} to favorites`
-                            }
-                            aria-pressed={isFavorite}
-                          >
-                            <Star className="h-4 w-4" fill={isFavorite ? 'currentColor' : 'none'} />
-                          </button>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>,
+          <ModelSelectorDropdown
+            dropdownRef={dropdownRef}
+            searchRef={searchRef}
+            overlayPosition={overlayPosition}
+            searchQuery={searchQuery}
+            onSearchQueryChange={setSearchQuery}
+            listboxKeyDown={listboxKeyDown}
+            searchKeyDown={searchKeyDown}
+            railProviders={railProviders}
+            activeTab={activeTab}
+            onSelectTab={setActiveTab}
+            favoriteModels={favoriteModels}
+            visibleModels={visibleModels}
+            selectedModelId={value}
+            favoriteSet={favoriteSet}
+            getModelAvailability={getModelAvailability}
+            onSelectModel={selectModel}
+            onToggleFavoriteModel={toggleFavoriteModel}
+          />,
           document.body,
         )}
+    </div>
+  )
+}
+
+interface ModelSelectorDropdownProps {
+  readonly dropdownRef: React.RefObject<HTMLDivElement | null>
+  readonly searchRef: React.RefObject<HTMLInputElement | null>
+  readonly overlayPosition: OverlayPosition
+  readonly searchQuery: string
+  readonly onSearchQueryChange: (value: string) => void
+  readonly listboxKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void
+  readonly searchKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void
+  readonly railProviders: ProviderInfo[]
+  readonly activeTab: RailTab
+  readonly onSelectTab: (tab: RailTab) => void
+  readonly favoriteModels: IndexedModel[]
+  readonly visibleModels: IndexedModel[]
+  readonly selectedModelId: SupportedModelId
+  readonly favoriteSet: Set<SupportedModelId>
+  readonly getModelAvailability: (model: IndexedModel) => ModelAvailability
+  readonly onSelectModel: (model: IndexedModel) => Promise<void>
+  readonly onToggleFavoriteModel: (model: SupportedModelId) => Promise<void>
+}
+
+function ModelSelectorDropdown({
+  dropdownRef,
+  searchRef,
+  overlayPosition,
+  searchQuery,
+  onSearchQueryChange,
+  listboxKeyDown,
+  searchKeyDown,
+  railProviders,
+  activeTab,
+  onSelectTab,
+  favoriteModels,
+  visibleModels,
+  selectedModelId,
+  favoriteSet,
+  getModelAvailability,
+  onSelectModel,
+  onToggleFavoriteModel,
+}: ModelSelectorDropdownProps): React.JSX.Element {
+  return (
+    <div
+      ref={dropdownRef}
+      role="listbox"
+      tabIndex={0}
+      onKeyDown={listboxKeyDown}
+      className="fixed z-[9999] flex h-[620px] w-[480px] flex-col gap-[10px] overflow-hidden rounded-2xl border border-[#1e2229] bg-[#0d0f12] p-3 shadow-2xl"
+      style={{ top: overlayPosition.top, left: overlayPosition.left }}
+    >
+      <div className="flex h-[44px] shrink-0 items-center gap-2 rounded-xl border border-[#1e2229] bg-[#111418] px-3">
+        <Search className="h-4 w-4 text-[#7A708D]" />
+        <input
+          ref={searchRef}
+          value={searchQuery}
+          onChange={(event) => onSearchQueryChange(event.target.value)}
+          onKeyDown={searchKeyDown}
+          placeholder="Search models..."
+          className="model-selector-search-input h-full flex-1 bg-transparent text-[14px] text-[#e7e9ee] placeholder:text-[#9098a8] outline-none focus:outline-none focus-visible:outline-none"
+          aria-label="Search models"
+        />
+      </div>
+
+      <div className="flex min-h-0 flex-1 gap-[10px]">
+        <div className="flex h-full w-[52px] shrink-0 flex-col items-center gap-6 overflow-hidden rounded-[12px] border border-[#1e2229] bg-[#111418] px-0 py-[14px]">
+          <button
+            type="button"
+            title="Favorite models"
+            onClick={() => onSelectTab('favorites')}
+            className={cn(
+              'flex h-[34px] w-[34px] items-center justify-center rounded-[10px] border transition-colors',
+              activeTab === 'favorites'
+                ? 'border-[#2a2f3a] bg-[#1a1f28] text-[#F3C969]'
+                : 'border-transparent bg-transparent text-[#9098a8] hover:text-[#b7bfce]',
+            )}
+            aria-label="Show favorite models"
+          >
+            <Star className="h-4 w-4" fill={activeTab === 'favorites' ? 'currentColor' : 'none'} />
+          </button>
+
+          {railProviders.map((group) => {
+            const provider = group.provider
+            const Icon = PROVIDER_ICON_BY_ID[provider]
+            const isActive = activeTab === provider
+
+            return (
+              <button
+                key={provider}
+                type="button"
+                title={group.displayName}
+                onClick={() => onSelectTab(provider)}
+                className={cn(
+                  'flex h-[34px] w-[34px] items-center justify-center rounded-[10px] border transition-colors',
+                  isActive
+                    ? 'border-[#2a2f3a] bg-[#1a1f28] text-[#e7e9ee]'
+                    : 'border-transparent bg-transparent text-[#9098a8] hover:text-[#b7bfce]',
+                )}
+                aria-label={`Show ${group.displayName} models`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+              </button>
+            )
+          })}
+
+          <div aria-hidden className="min-h-0 flex-1" />
+        </div>
+
+        <div className="flex min-h-0 h-full flex-1 flex-col overflow-hidden rounded-xl p-0.5">
+          <div className="h-full overflow-y-auto">
+            {railProviders.length === 0 && (
+              <div className="px-4 py-6 text-[13px] text-[#9098a8]">No providers available.</div>
+            )}
+
+            {railProviders.length > 0 &&
+              activeTab === 'favorites' &&
+              favoriteModels.length === 0 && (
+                <div className="px-4 py-6 text-[13px] text-[#9098a8]">
+                  No favorites yet. Click the star on any model to save it.
+                </div>
+              )}
+
+            {railProviders.length > 0 &&
+              visibleModels.length === 0 &&
+              !(activeTab === 'favorites' && favoriteModels.length === 0) && (
+                <div className="px-4 py-6 text-[13px] text-[#9098a8]">
+                  No models match your search.
+                </div>
+              )}
+
+            <div className="space-y-[2px]">
+              {visibleModels.map((model) => {
+                const availability = getModelAvailability(model)
+                const isSelected = model.id === selectedModelId
+                const isFavorite = favoriteSet.has(model.id)
+                const subtitle = getModelSubtitle(model, availability)
+
+                return (
+                  <div
+                    id={modelOptionId(model)}
+                    key={model.key}
+                    role="option"
+                    tabIndex={-1}
+                    aria-selected={isSelected}
+                    aria-disabled={!availability.selectable}
+                    aria-label={model.name}
+                    onClick={() => {
+                      if (!availability.selectable) return
+                      void onSelectModel(model)
+                    }}
+                    onKeyDown={(event) => {
+                      if (!availability.selectable) return
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        void onSelectModel(model)
+                      }
+                    }}
+                    className={cn(
+                      'group flex h-[78px] w-full items-center gap-2 rounded-[10px] px-[10px] py-[10px] text-left transition-colors',
+                      availability.selectable
+                        ? 'cursor-pointer text-[#e7e9ee] hover:bg-[#171b21]'
+                        : 'cursor-not-allowed text-[#6f7786]',
+                      isSelected && 'bg-[#1a1f28]',
+                    )}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[16px] font-semibold text-[#e7e9ee]">
+                        {model.name}
+                      </div>
+                      <div className="mt-1 truncate text-[12px] text-[#9098a8]">
+                        {subtitle ?? '\u00A0'}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        void onToggleFavoriteModel(model.id)
+                      }}
+                      className="flex h-[34px] w-[34px] items-center justify-center rounded-full border border-[#2a2f3a] bg-[#1a1f28] text-[#F3C969] transition-colors hover:brightness-110"
+                      aria-label={
+                        isFavorite
+                          ? `Remove ${model.name} from favorites`
+                          : `Add ${model.name} to favorites`
+                      }
+                      aria-pressed={isFavorite}
+                    >
+                      <Star className="h-4 w-4" fill={isFavorite ? 'currentColor' : 'none'} />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

@@ -20,6 +20,10 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Task: React Doctor + Pattern Style Remediation (2026-02-27)
+- React Doctor component-size warnings can be resolved without behavior drift by splitting orchestration-heavy settings components into focused presentational subcomponents while keeping reducer/state logic centralized in the parent.
+- `pnpm check` enforces the project’s branching-style rule (`choose`/`chooseBy`) across renderer code too; introducing `switch` reducers in UI components will fail CI-style gates even when typecheck/lint pass.
+
 ### Task: ConnectionsSection Composition Refactor (2026-02-27)
 - Large renderer settings surfaces become easier to maintain and safer to refactor when split by responsibility (metadata, warnings, key-editor row, add-row, subscription row) under a co-located subfolder, keeping the top-level section component as orchestration-only composition.
 - React Doctor `useState initialized from prop` warnings in form editors are resolved cleanly by syncing prop-derived editable state with `useEffect` rather than setting state during render.

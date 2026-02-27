@@ -5,7 +5,6 @@ import { useEffect, useState } from 'react'
 import { cn } from '@/lib/cn'
 
 interface CommitDialogProps {
-  isOpen: boolean
   projectPath: string | null
   status: GitStatusSummary | null
   statusError: string | null
@@ -38,7 +37,6 @@ function humanCommitError(result: GitCommitResult): string {
 }
 
 export function CommitDialog({
-  isOpen,
   projectPath,
   status,
   statusError,
@@ -51,30 +49,14 @@ export function CommitDialog({
   const [message, setMessage] = useState('')
   const [amend, setAmend] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set())
-
-  const [prevIsOpen, setPrevIsOpen] = useState(isOpen)
-  const [prevStatus, setPrevStatus] = useState(status)
+  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(
+    () => new Set((status?.changedFiles ?? []).map((file) => file.path)),
+  )
 
   const changedFiles = status?.changedFiles ?? []
 
-  if (isOpen !== prevIsOpen || status !== prevStatus) {
-    setPrevIsOpen(isOpen)
-    setPrevStatus(status)
-    if (isOpen && status) {
-      setSelectedPaths(new Set(status.changedFiles.map((f) => f.path)))
-    }
-    if (!isOpen) {
-      setMessage('')
-      setAmend(false)
-      setError(null)
-      setSelectedPaths(new Set())
-    }
-  }
-
   // Escape to close
   useEffect(() => {
-    if (!isOpen) return
     function handleKeyDown(e: KeyboardEvent): void {
       if (e.key === 'Escape') {
         e.preventDefault()
@@ -83,9 +65,7 @@ export function CommitDialog({
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, onClose])
-
-  if (!isOpen) return null
+  }, [onClose])
 
   function togglePath(filePath: string): void {
     setSelectedPaths((prev) => {

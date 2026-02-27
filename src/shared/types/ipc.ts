@@ -66,7 +66,7 @@ export interface IpcInvokeChannelMap {
     return: string | null
   }
   'conversations:list': {
-    args: []
+    args: [limit?: number]
     return: ConversationSummary[]
   }
   'conversations:get': {
@@ -358,7 +358,7 @@ export interface OpenWaggleApi {
   selectProjectFolder(): Promise<string | null>
 
   // Conversations
-  listConversations(): Promise<ConversationSummary[]>
+  listConversations(limit?: number): Promise<ConversationSummary[]>
   getConversation(id: ConversationId): Promise<Conversation | null>
   createConversation(projectPath: string | null): Promise<Conversation>
   deleteConversation(id: ConversationId): Promise<void>

@@ -135,8 +135,8 @@ export const api: OpenWaggleApi = {
   },
 
   // ─── Conversations ──────────────────────────────────
-  listConversations(): Promise<ConversationSummary[]> {
-    return ipcRenderer.invoke('conversations:list')
+  listConversations(limit?: number): Promise<ConversationSummary[]> {
+    return ipcRenderer.invoke('conversations:list', limit)
   },
 
   getConversation(id: ConversationId): Promise<Conversation | null> {
