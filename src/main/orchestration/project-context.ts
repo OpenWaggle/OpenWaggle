@@ -24,25 +24,136 @@ const KEY_FILES_BUDGET = 3000
 const TREE_BUDGET = 1500
 const PER_FILE_CAP = 1500
 
-const TREE_IGNORE = ['node_modules/**', '.git/**', 'dist/**', 'out/**', 'build/**', 'coverage/**']
+interface DetectionSignal {
+  readonly label: string
+  readonly patterns: readonly string[]
+}
 
-const KNOWN_FRAMEWORKS: ReadonlyArray<readonly [string, string]> = [
-  ['react', 'React'],
-  ['next', 'Next.js'],
-  ['vue', 'Vue'],
-  ['nuxt', 'Nuxt'],
-  ['svelte', 'Svelte'],
-  ['angular', 'Angular'],
-  ['electron', 'Electron'],
-  ['express', 'Express'],
-  ['fastify', 'Fastify'],
-  ['hono', 'Hono'],
-  ['tailwindcss', 'Tailwind CSS'],
-  ['zustand', 'Zustand'],
-  ['redux', 'Redux'],
-  ['prisma', 'Prisma'],
-  ['drizzle-orm', 'Drizzle'],
+const ECOSYSTEM_SIGNALS: readonly DetectionSignal[] = [
+  { label: 'JavaScript/Node.js', patterns: ['**/package.json'] },
+  { label: 'TypeScript', patterns: ['**/tsconfig.json'] },
+  { label: 'Python', patterns: ['**/pyproject.toml', '**/requirements.txt', '**/Pipfile'] },
+  { label: 'Rust', patterns: ['**/Cargo.toml'] },
+  { label: 'Go', patterns: ['**/go.mod'] },
+  { label: 'Java/Kotlin', patterns: ['**/pom.xml', '**/build.gradle', '**/build.gradle.kts'] },
+  { label: 'Ruby', patterns: ['**/Gemfile'] },
+  { label: 'PHP', patterns: ['**/composer.json'] },
+  { label: 'Swift', patterns: ['**/Package.swift'] },
+  { label: 'C#/.NET', patterns: ['**/*.sln', '**/*.csproj'] },
 ]
+
+const BUILD_TOOL_SIGNALS: readonly DetectionSignal[] = [
+  {
+    label: 'electron-vite',
+    patterns: [
+      '**/electron.vite.config.ts',
+      '**/electron.vite.config.js',
+      '**/electron.vite.config.mjs',
+      '**/electron.vite.config.cjs',
+    ],
+  },
+  {
+    label: 'Vite',
+    patterns: [
+      '**/vite.config.ts',
+      '**/vite.config.js',
+      '**/vite.config.mjs',
+      '**/vite.config.cjs',
+    ],
+  },
+  {
+    label: 'Webpack',
+    patterns: [
+      '**/webpack.config.ts',
+      '**/webpack.config.js',
+      '**/webpack.config.mjs',
+      '**/webpack.config.cjs',
+    ],
+  },
+  {
+    label: 'Rollup',
+    patterns: [
+      '**/rollup.config.ts',
+      '**/rollup.config.js',
+      '**/rollup.config.mjs',
+      '**/rollup.config.cjs',
+    ],
+  },
+  {
+    label: 'esbuild',
+    patterns: [
+      '**/esbuild.config.ts',
+      '**/esbuild.config.js',
+      '**/esbuild.config.mjs',
+      '**/esbuild.config.cjs',
+    ],
+  },
+  { label: 'Turborepo', patterns: ['**/turbo.json'] },
+]
+
+const PACKAGE_MANAGER_SIGNALS: readonly DetectionSignal[] = [
+  { label: 'pnpm', patterns: ['**/pnpm-lock.yaml'] },
+  { label: 'npm', patterns: ['**/package-lock.json'] },
+  { label: 'yarn', patterns: ['**/yarn.lock'] },
+  { label: 'bun', patterns: ['**/bun.lock', '**/bun.lockb'] },
+  { label: 'Cargo', patterns: ['**/Cargo.lock'] },
+  { label: 'Go', patterns: ['**/go.sum'] },
+  { label: 'Poetry', patterns: ['**/poetry.lock'] },
+  { label: 'uv', patterns: ['**/uv.lock'] },
+  { label: 'Pipenv', patterns: ['**/Pipfile.lock'] },
+]
+
+/**
+ * Parse `.gitignore` into fast-glob ignore patterns.
+ * Falls back to `['.git/**']` when no `.gitignore` exists.
+ */
+export async function buildIgnorePatterns(projectPath: string): Promise<string[]> {
+  const patterns: string[] = ['.git/**']
+
+  try {
+    const raw = await fs.readFile(path.join(projectPath, '.gitignore'), 'utf-8')
+    for (const rawLine of raw.split('\n')) {
+      const line = rawLine.trim()
+      if (!line || line.startsWith('#') || line.startsWith('!')) continue
+
+      if (line.endsWith('/')) {
+        // Directory pattern → match everything inside
+        patterns.push(`${line}**`)
+      } else if (line.startsWith('/')) {
+        // Root-anchored → strip leading slash (already relative)
+        patterns.push(line.slice(1))
+      } else if (!line.includes('/')) {
+        // Unanchored filename/glob → match anywhere in tree
+        patterns.push(`**/${line}`)
+      } else {
+        // Already a relative path with directory component
+        patterns.push(line)
+      }
+    }
+  } catch {
+    // No .gitignore — default is just .git/**
+  }
+
+  return patterns
+}
+
+async function detectSignals(
+  projectPath: string,
+  signals: readonly DetectionSignal[],
+): Promise<string[]> {
+  const labels: string[] = []
+  for (const signal of signals) {
+    const matches = await fg([...signal.patterns], {
+      cwd: projectPath,
+      onlyFiles: true,
+      deep: 2,
+    })
+    if (matches.length > 0) {
+      labels.push(signal.label)
+    }
+  }
+  return labels
+}
 
 export async function gatherProjectContext(projectPath: string | null): Promise<ProjectContext> {
   if (!projectPath) {
@@ -50,11 +161,12 @@ export async function gatherProjectContext(projectPath: string | null): Promise<
   }
 
   const start = Date.now()
+  const ignorePatterns = await buildIgnorePatterns(projectPath)
 
   const [techStack, keyFiles, tree] = await Promise.all([
     buildTechStack(projectPath),
     buildKeyFiles(projectPath),
-    buildTree(projectPath),
+    buildTree(projectPath, ignorePatterns),
   ])
 
   const sections: string[] = ['## Project Context', '']
@@ -84,47 +196,34 @@ export async function gatherProjectContext(projectPath: string | null): Promise<
 
 async function buildTechStack(projectPath: string): Promise<string> {
   try {
-    const raw = await fs.readFile(path.join(projectPath, 'package.json'), 'utf-8')
-    const parsed = parseJsonSafe(raw, packageJsonSchema)
-    if (!parsed.success) return ''
-    const pkg = parsed.data
+    const [ecosystems, buildTools, packageManagers] = await Promise.all([
+      detectSignals(projectPath, ECOSYSTEM_SIGNALS),
+      detectSignals(projectPath, BUILD_TOOL_SIGNALS),
+      detectSignals(projectPath, PACKAGE_MANAGER_SIGNALS),
+    ])
 
     const lines: string[] = []
 
-    if (pkg.name) {
-      lines.push(`Project: ${pkg.name}${pkg.description ? ` — ${pkg.description}` : ''}`)
-    }
-
-    const allDeps = {
-      ...(pkg.dependencies ?? {}),
-      ...(pkg.devDependencies ?? {}),
-    }
-
-    const detected: string[] = []
-    for (const [key, label] of KNOWN_FRAMEWORKS) {
-      if (key in allDeps) {
-        detected.push(label)
-      }
-    }
-
-    let hasTypeScript = false
+    // Include project name/description from package.json if available
     try {
-      await fs.access(path.join(projectPath, 'tsconfig.json'))
-      hasTypeScript = true
+      const raw = await fs.readFile(path.join(projectPath, 'package.json'), 'utf-8')
+      const parsed = parseJsonSafe(raw, packageJsonSchema)
+      if (parsed.success && parsed.data.name) {
+        const desc = parsed.data.description ? ` — ${parsed.data.description}` : ''
+        lines.push(`Project: ${parsed.data.name}${desc}`)
+      }
     } catch {
-      // not typescript
-    }
-    if (hasTypeScript) {
-      detected.unshift('TypeScript')
+    // No package.json — skip project line
     }
 
-    if (detected.length > 0) {
-      lines.push(`Stack: ${detected.join(', ')}`)
+    if (ecosystems.length > 0) {
+      lines.push(`Ecosystem: ${ecosystems.join(', ')}`)
     }
-
-    const buildTool = detectBuildTool(allDeps)
-    if (buildTool) {
-      lines.push(`Build: ${buildTool}`)
+    if (buildTools.length > 0) {
+      lines.push(`Build: ${buildTools.join(', ')}`)
+    }
+    if (packageManagers.length > 0) {
+      lines.push(`Package manager: ${packageManagers.join(', ')}`)
     }
 
     const result = lines.join('\n')
@@ -134,32 +233,21 @@ async function buildTechStack(projectPath: string): Promise<string> {
   }
 }
 
-function detectBuildTool(deps: Record<string, string>): string | null {
-  if ('electron-vite' in deps) return 'electron-vite'
-  if ('vite' in deps) return 'Vite'
-  if ('webpack' in deps) return 'Webpack'
-  if ('esbuild' in deps) return 'esbuild'
-  if ('rollup' in deps) return 'Rollup'
-  if ('turbopack' in deps) return 'Turbopack'
-  return null
-}
-
 async function buildKeyFiles(projectPath: string): Promise<string> {
-  const candidates = [
-    { glob: '[Rr][Ee][Aa][Dd][Mm][Ee].[Mm][Dd]', label: 'README.md' },
-    { glob: 'CLAUDE.md', label: 'CLAUDE.md' },
-    { glob: 'AGENTS.md', label: 'AGENTS.md' },
+  const readmeCandidates = [{ glob: '[Rr][Ee][Aa][Dd][Mm][Ee].[Mm][Dd]', label: 'README.md' }]
+  const referenceCandidates = [
+    { glob: 'AGENTS.md', label: 'AGENTS.md' }
   ]
 
   const sections: string[] = []
   let totalChars = 0
 
-  for (const { glob, label } of candidates) {
-    if (totalChars >= KEY_FILES_BUDGET) break
+  const appendFileByGlob = async (glob: string, label: string): Promise<void> => {
+    if (totalChars >= KEY_FILES_BUDGET) return
 
     try {
       const matches = await fg(glob, { cwd: projectPath, onlyFiles: true, deep: 1 })
-      if (matches.length === 0) continue
+      if (matches.length === 0) return
 
       const filePath = path.join(projectPath, matches[0])
       let content = await fs.readFile(filePath, 'utf-8')
@@ -175,6 +263,10 @@ async function buildKeyFiles(projectPath: string): Promise<string> {
     } catch {
       // skip unreadable files
     }
+  }
+
+  for (const { glob, label } of readmeCandidates) {
+    await appendFileByGlob(glob, label)
   }
 
   // package.json summary (scripts only, not full deps)
@@ -197,21 +289,26 @@ async function buildKeyFiles(projectPath: string): Promise<string> {
       }
 
       sections.push('--- package.json (summary) ---', content)
+      totalChars += content.length
     } catch {
       // skip
     }
   }
 
+  for (const { glob, label } of referenceCandidates) {
+    await appendFileByGlob(glob, label)
+  }
+
   return sections.join('\n')
 }
 
-async function buildTree(projectPath: string): Promise<string> {
+async function buildTree(projectPath: string, ignorePatterns: string[]): Promise<string> {
   try {
     const files = await fg('**/*', {
       cwd: projectPath,
       deep: 3,
       onlyFiles: true,
-      ignore: TREE_IGNORE,
+      ignore: ignorePatterns,
     })
 
     if (files.length === 0) return ''
@@ -248,6 +345,7 @@ const MAX_READ_LINES = 500
 export function createExecutorTools(
   projectPath: string | null,
   signal?: AbortSignal,
+  ignorePatterns?: string[],
 ): ServerTool[] {
   if (!projectPath) return []
 
@@ -304,7 +402,7 @@ export function createExecutorTools(
     try {
       const files = await fg(args.pattern, {
         cwd: projectPath,
-        ignore: TREE_IGNORE,
+        ignore: ignorePatterns ?? ['.git/**'],
         onlyFiles: true,
         dot: false,
       })

@@ -272,6 +272,7 @@ Status legend: `implemented`, `deferred`, `future`
 - Target behavior:
   - Root `AGENTS.md` remains the baseline instruction source.
   - Nested `AGENTS.md` files are resolved by scope chain (root -> ancestor dirs -> nearest dir for target path).
+  - When assembling orchestration project key-file context, include `AGENTS.md` before `CLAUDE.md` so AGENTS remains the canonical project instruction reference across providers.
   - Run-start prompt includes root plus inferred scoped instructions from user text/attachments.
   - Agent can call `loadAgents` mid-run for additional target paths without restarting the run.
   - Missing/malformed scoped files are warning-only and never block execution.

@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createExecutorTools, gatherProjectContext } from './project-context'
+import { buildIgnorePatterns, createExecutorTools, gatherProjectContext } from './project-context'
 
 let tmpDir: string
 
@@ -36,10 +36,7 @@ describe('gatherProjectContext', () => {
     expect(result.text).toContain('## Project Context')
     expect(result.text).toContain('### Tech Stack')
     expect(result.text).toContain('Project: my-app')
-    expect(result.text).toContain('TypeScript')
-    expect(result.text).toContain('React')
-    expect(result.text).toContain('Electron')
-    expect(result.text).toContain('Tailwind CSS')
+    expect(result.text).toContain('Ecosystem: JavaScript/Node.js, TypeScript')
     expect(result.text).toContain('### Key Files')
     expect(result.text).toContain('README.md')
     expect(result.text).toContain('This is a cool app')
@@ -47,6 +44,29 @@ describe('gatherProjectContext', () => {
     expect(result.text).toContain('src/index.ts')
     expect(result.durationMs).toBeGreaterThanOrEqual(0)
     expect(result.rawLength).toBeGreaterThan(0)
+  })
+
+  it('orders key files with AGENTS before CLAUDE after README and package summary', async () => {
+    await fs.writeFile(
+      path.join(tmpDir, 'package.json'),
+      JSON.stringify({
+        name: 'order-test',
+        scripts: { test: 'vitest' },
+      }),
+    )
+    await fs.writeFile(path.join(tmpDir, 'README.md'), '# Order Test')
+    await fs.writeFile(path.join(tmpDir, 'AGENTS.md'), '# AGENTS rules')
+
+    const result = await gatherProjectContext(tmpDir)
+
+    const readmeIndex = result.text.indexOf('--- README.md ---')
+    const packageSummaryIndex = result.text.indexOf('--- package.json (summary) ---')
+    const agentsIndex = result.text.indexOf('--- AGENTS.md ---')
+
+    expect(readmeIndex).toBeGreaterThanOrEqual(0)
+    expect(packageSummaryIndex).toBeGreaterThan(readmeIndex)
+    expect(agentsIndex).toBeGreaterThan(packageSummaryIndex)
+    expect(result.text).not.toContain('CLAUDE.md')
   })
 
   it('produces tree and tech stack even without README', async () => {
@@ -63,7 +83,7 @@ describe('gatherProjectContext', () => {
     const result = await gatherProjectContext(tmpDir)
 
     expect(result.text).toContain('### Tech Stack')
-    expect(result.text).toContain('Express')
+    expect(result.text).toContain('Ecosystem: JavaScript/Node.js')
     expect(result.text).not.toContain('README')
     expect(result.text).toContain('### File Structure')
     expect(result.text).toContain('src/server.ts')
@@ -91,14 +111,9 @@ describe('gatherProjectContext', () => {
     expect(readmeSection).toContain('...')
   })
 
-  it('detects build tools from dependencies', async () => {
-    await fs.writeFile(
-      path.join(tmpDir, 'package.json'),
-      JSON.stringify({
-        name: 'vite-app',
-        devDependencies: { vite: '^5.0.0' },
-      }),
-    )
+  it('detects build tools from config files', async () => {
+    await fs.writeFile(path.join(tmpDir, 'package.json'), JSON.stringify({ name: 'vite-app' }))
+    await fs.writeFile(path.join(tmpDir, 'vite.config.ts'), 'export default {}')
 
     const result = await gatherProjectContext(tmpDir)
 
@@ -106,21 +121,17 @@ describe('gatherProjectContext', () => {
   })
 
   it('detects electron-vite as build tool', async () => {
-    await fs.writeFile(
-      path.join(tmpDir, 'package.json'),
-      JSON.stringify({
-        name: 'electron-app',
-        devDependencies: { 'electron-vite': '^2.0.0', vite: '^5.0.0' },
-      }),
-    )
+    await fs.writeFile(path.join(tmpDir, 'package.json'), JSON.stringify({ name: 'electron-app' }))
+    await fs.writeFile(path.join(tmpDir, 'electron.vite.config.ts'), 'export default {}')
 
     const result = await gatherProjectContext(tmpDir)
 
     expect(result.text).toContain('Build: electron-vite')
   })
 
-  it('ignores node_modules and .git in tree', async () => {
+  it('ignores node_modules and .git in tree via .gitignore', async () => {
     await fs.writeFile(path.join(tmpDir, 'package.json'), JSON.stringify({ name: 'test' }))
+    await fs.writeFile(path.join(tmpDir, '.gitignore'), 'node_modules/\n')
     await fs.mkdir(path.join(tmpDir, 'node_modules', 'foo'), { recursive: true })
     await fs.writeFile(path.join(tmpDir, 'node_modules', 'foo', 'index.js'), '')
     await fs.mkdir(path.join(tmpDir, '.git', 'objects'), { recursive: true })
@@ -142,6 +153,108 @@ describe('gatherProjectContext', () => {
     // Should still have file structure and key files, just no tech stack
     expect(result.text).toContain('README.md')
     expect(result.text).toContain('Hello')
+  })
+
+  it('detects Python project via pyproject.toml', async () => {
+    await fs.writeFile(path.join(tmpDir, 'pyproject.toml'), '[project]\nname = "my-py"')
+    await fs.writeFile(path.join(tmpDir, 'poetry.lock'), '')
+
+    const result = await gatherProjectContext(tmpDir)
+
+    expect(result.text).toContain('Ecosystem: Python')
+    expect(result.text).toContain('Package manager: Poetry')
+  })
+
+  it('detects Rust project via Cargo.toml', async () => {
+    await fs.writeFile(path.join(tmpDir, 'Cargo.toml'), '[package]\nname = "my-rs"')
+    await fs.writeFile(path.join(tmpDir, 'Cargo.lock'), '')
+
+    const result = await gatherProjectContext(tmpDir)
+
+    expect(result.text).toContain('Ecosystem: Rust')
+    expect(result.text).toContain('Package manager: Cargo')
+  })
+
+  it('detects Go project via go.mod', async () => {
+    await fs.writeFile(path.join(tmpDir, 'go.mod'), 'module example.com/foo')
+    await fs.writeFile(path.join(tmpDir, 'go.sum'), '')
+
+    const result = await gatherProjectContext(tmpDir)
+
+    expect(result.text).toContain('Ecosystem: Go')
+    expect(result.text).toContain('Package manager: Go')
+  })
+
+  it('detects mixed ecosystem with both package.json and Cargo.toml', async () => {
+    await fs.writeFile(path.join(tmpDir, 'package.json'), JSON.stringify({ name: 'mixed-project' }))
+    await fs.writeFile(path.join(tmpDir, 'Cargo.toml'), '[package]\nname = "wasm-lib"')
+
+    const result = await gatherProjectContext(tmpDir)
+
+    expect(result.text).toContain('JavaScript/Node.js')
+    expect(result.text).toContain('Rust')
+  })
+
+  it('detects pnpm package manager from lock file', async () => {
+    await fs.writeFile(path.join(tmpDir, 'package.json'), JSON.stringify({ name: 'pnpm-project' }))
+    await fs.writeFile(path.join(tmpDir, 'pnpm-lock.yaml'), '')
+
+    const result = await gatherProjectContext(tmpDir)
+
+    expect(result.text).toContain('Package manager: pnpm')
+  })
+})
+
+describe('buildIgnorePatterns', () => {
+  it('returns only .git/** when no .gitignore exists', async () => {
+    const patterns = await buildIgnorePatterns(tmpDir)
+    expect(patterns).toEqual(['.git/**'])
+  })
+
+  it('converts directory patterns to glob format', async () => {
+    await fs.writeFile(path.join(tmpDir, '.gitignore'), 'node_modules/\ndist/\n')
+
+    const patterns = await buildIgnorePatterns(tmpDir)
+
+    expect(patterns).toContain('.git/**')
+    expect(patterns).toContain('node_modules/**')
+    expect(patterns).toContain('dist/**')
+  })
+
+  it('handles unanchored patterns by prepending **/', async () => {
+    await fs.writeFile(path.join(tmpDir, '.gitignore'), '*.log\n.env\n')
+
+    const patterns = await buildIgnorePatterns(tmpDir)
+
+    expect(patterns).toContain('**/*.log')
+    expect(patterns).toContain('**/.env')
+  })
+
+  it('strips leading / from root-anchored patterns', async () => {
+    await fs.writeFile(path.join(tmpDir, '.gitignore'), '/build\n')
+
+    const patterns = await buildIgnorePatterns(tmpDir)
+
+    expect(patterns).toContain('build')
+  })
+
+  it('skips comments, empty lines, and negation patterns', async () => {
+    await fs.writeFile(
+      path.join(tmpDir, '.gitignore'),
+      '# Comment\n\nnode_modules/\n!important.log\n',
+    )
+
+    const patterns = await buildIgnorePatterns(tmpDir)
+
+    expect(patterns).toEqual(['.git/**', 'node_modules/**'])
+  })
+
+  it('passes through relative paths with directory components', async () => {
+    await fs.writeFile(path.join(tmpDir, '.gitignore'), 'src/generated\n')
+
+    const patterns = await buildIgnorePatterns(tmpDir)
+
+    expect(patterns).toContain('src/generated')
   })
 })
 
