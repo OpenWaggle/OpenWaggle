@@ -99,6 +99,54 @@ const POLICY_RULES = [
     ],
     safeCommandExamples: ['ps aux | head -n 20', 'top -l 1', 'kill -TERM <pid>'],
   },
+  {
+    id: 'eval-exec-source-untrusted',
+    pattern: /\b(eval|exec)\s+\$\(|\bsource\s+<\(|\bsource\s+\$\(/i,
+    reason: 'eval/exec/source from dynamically generated or remote input',
+    instruction:
+      'Avoid eval/exec/source with dynamic or remote input. Write the generated content to a file, inspect it, then execute explicitly.',
+    nextSteps: [
+      'Redirect the dynamic output to a local file instead of eval/exec.',
+      'Inspect the generated content before running it.',
+      'Execute the file explicitly after validation.',
+    ],
+    safeCommandExamples: [
+      'command_output=$(some-tool); echo "$command_output" > generated.sh',
+      'cat generated.sh',
+      'bash generated.sh',
+    ],
+  },
+  {
+    id: 'recursive-permission-change-root',
+    pattern:
+      /\b(chmod|chown)\s+-R\s+\S+\s+(\/($|[^A-Za-z0-9_])|~($|[^A-Za-z0-9_])|\$HOME($|[^A-Za-z0-9_]))/i,
+    reason: 'recursive permission/ownership change on root or home paths',
+    instruction:
+      'Never recursively change permissions on root or home directories. Scope changes to specific project directories.',
+    nextSteps: [
+      'Identify the specific directory that needs permission changes.',
+      'Use a scoped, non-recursive command for targeted files.',
+      'Verify current permissions before making changes.',
+    ],
+    safeCommandExamples: [
+      'ls -la <directory>',
+      'chmod 755 ./specific-dir',
+      'chown user:group ./specific-file',
+    ],
+  },
+  {
+    id: 'env-secret-exfiltration',
+    pattern: /\b(env|printenv|set)\b[^|]*\|\s*(curl|wget|nc|ncat|netcat)\b/i,
+    reason: 'environment variable exfiltration via network tools',
+    instruction:
+      'Never pipe environment variables to network tools. Access specific environment variables individually when needed.',
+    nextSteps: [
+      'Identify the specific variable you need.',
+      'Use echo $VARIABLE_NAME to inspect individual values.',
+      'Never send environment contents over the network.',
+    ],
+    safeCommandExamples: ['echo $PATH', 'echo $HOME', 'printenv SPECIFIC_VAR'],
+  },
 ] as const satisfies readonly CommandPolicyRule[]
 
 export function evaluateCommandPolicy(command: string): CommandPolicyDecision {
