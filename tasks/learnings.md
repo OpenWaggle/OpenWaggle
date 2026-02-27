@@ -20,6 +20,14 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Task: ConnectionsSection Composition Refactor (2026-02-27)
+- Large renderer settings surfaces become easier to maintain and safer to refactor when split by responsibility (metadata, warnings, key-editor row, add-row, subscription row) under a co-located subfolder, keeping the top-level section component as orchestration-only composition.
+- React Doctor `useState initialized from prop` warnings in form editors are resolved cleanly by syncing prop-derived editable state with `useEffect` rather than setting state during render.
+
+### Task: Spec 02 API Key Plaintext Warning Completion (2026-02-27)
+- Security warnings implemented in non-mounted/legacy settings components do not protect users in practice; warning paths for sensitive states (like unencrypted API keys) must live in the currently mounted settings surface (`SettingsPage` sections), not only in deprecated dialogs.
+- For encrypted-storage migrations, detect plaintext vs encrypted payloads using the persisted storage format marker (`enc:v1:`) at read time; this enables safe one-shot auto-migration to encrypted values while still surfacing a deterministic user action (`manual re-save`) when encryption operations fail.
+
 ### Task: OpenAI Subscription Cloudflare 403 Fix (2026-02-26)
 - OpenAI ChatGPT subscription OAuth tokens and OpenAI API keys require different transport endpoints: API-key traffic should use OpenAI API (`api.openai.com`), while Codex OAuth traffic should use ChatGPT Codex responses (`https://chatgpt.com/backend-api/codex/responses`); mixing them produces either Cloudflare challenge `403` or scope-based `401` (`api.responses.write`).
 - Codex responses require `store=false` in request payloads; forcing this at transport level prevents endpoint incompatibility regressions when using generic OpenAI Responses adapters.

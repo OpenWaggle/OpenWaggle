@@ -1,6 +1,6 @@
 # 01 — Sandbox Command Execution
 
-**Status:** In Progress
+**Status:** Done
 **Priority:** P1
 **Severity:** Critical
 **Depends on:** None
@@ -58,3 +58,9 @@ There is no audit trail, no output redaction, and no restricted shell mode.
 Consider prioritizing this **before Spec 35 (ship to users)**. Shipping a coding agent
 without command sandboxing is a liability — even with user approval gating, a single
 misclick on a destructive command has no safety net.
+
+## Validation (2026-02-27)
+
+- `pnpm exec vitest run -c vitest.unit.config.ts src/main/tools/tools/run-command.unit.test.ts` ✅
+- `pnpm test` ✅
+- `pnpm check` ⚠️ blocked by unrelated pattern-style finding in `src/main/providers/openai.ts` (Spec 01 code path unaffected)
