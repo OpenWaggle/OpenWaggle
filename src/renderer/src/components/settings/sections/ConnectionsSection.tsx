@@ -35,31 +35,39 @@ export function ConnectionsSection(): React.JSX.Element {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h2 className="text-[20px] font-semibold text-text-primary">Connections</h2>
+        <h2 className="text-[20px] font-semibold text-text-primary">
+          Connections
+        </h2>
         <p className="text-[13px] text-text-tertiary">
           Manage API keys and SDK connections for your AI providers.
         </p>
       </div>
 
       <div className="space-y-3">
-        <h3 className="text-[16px] font-semibold text-text-primary">API Keys</h3>
+        <h3 className="text-[16px] font-semibold text-text-primary">
+          API Keys
+        </h3>
 
         {showUnencryptedWarning && (
           <WarningCallout>
             <p>Your API keys are stored unencrypted on this system.</p>
             <p className="mt-1">
-              What to do: enable your OS credential store (macOS Keychain, Windows Credential
-              Manager, or Linux gnome-keyring/kwallet), restart OpenHive, then open this page and
-              save each API key again so it is re-encrypted.
+              What to do: enable your OS credential store (macOS Keychain,
+              Windows Credential Manager, or Linux gnome-keyring/kwallet),
+              restart OpenWaggle, then open this page and save each API key
+              again so it is re-encrypted.
             </p>
           </WarningCallout>
         )}
 
         {showManualResaveWarning && (
           <WarningCallout>
-            <p>We could not re-encrypt one or more saved API keys automatically.</p>
+            <p>
+              We could not re-encrypt one or more saved API keys automatically.
+            </p>
             <p className="mt-1">
-              Please open each configured provider key and click Save again to encrypt it.
+              Please open each configured provider key and click Save again to
+              encrypt it.
             </p>
           </WarningCallout>
         )}
@@ -74,7 +82,7 @@ export function ConnectionsSection(): React.JSX.Element {
                 autoEdit={justAddedProvider === providerInfo.provider}
                 onEditingChange={(editing) => {
                   if (!editing && justAddedProvider === providerInfo.provider) {
-                    setJustAddedProvider(null)
+                    setJustAddedProvider(null);
                   }
                 }}
                 fetchError={modelFetchErrors[providerInfo.provider]}
@@ -83,14 +91,19 @@ export function ConnectionsSection(): React.JSX.Element {
           </div>
         )}
 
-        <AddProviderRow availableProviders={unconfiguredProviders} onAdd={handleAddProvider} />
+        <AddProviderRow
+          availableProviders={unconfiguredProviders}
+          onAdd={handleAddProvider}
+        />
       </div>
 
       <div className="space-y-3">
-        <h3 className="text-[16px] font-semibold text-text-primary">Subscription Connections</h3>
+        <h3 className="text-[16px] font-semibold text-text-primary">
+          Subscription Connections
+        </h3>
         <p className="text-[12px] text-text-tertiary max-w-[500px]">
-          Sign in with your existing provider subscriptions. Toggle to connect or disconnect at any
-          time.
+          Sign in with your existing provider subscriptions. Toggle to connect
+          or disconnect at any time.
         </p>
 
         <div className="rounded-lg border border-border bg-[#111418] overflow-hidden">
@@ -105,9 +118,9 @@ export function ConnectionsSection(): React.JSX.Element {
       </div>
 
       <p className="text-[13px] text-text-tertiary">
-        API keys are stored locally on your machine and never sent anywhere except to the respective
-        API providers.
+        API keys are stored locally on your machine and never sent anywhere
+        except to the respective API providers.
       </p>
     </div>
-  )
+  );
 }
