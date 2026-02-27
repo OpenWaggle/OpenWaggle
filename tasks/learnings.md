@@ -20,6 +20,10 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Task: Polyglot Project Context Detection (2026-02-27)
+- File-presence signal detection (`fast-glob` with `deep: 2`) is a more portable approach to ecosystem detection than dependency-key lookups in `package.json`, since it works across all language ecosystems (Python, Rust, Go, etc.) without language-specific parsing.
+- `.gitignore` patterns map closely to fast-glob ignore patterns with three simple transforms: directory patterns (`dir/` → `dir/**`), unanchored patterns (no `/` → `**/<pattern>`), and root-anchored patterns (leading `/` → strip). This avoids hardcoded ignore lists that drift from actual project config.
+
 ### Task: Wrapper/Prop Pattern Remediation (2026-02-27)
 - Synchronizing a large render-built controller object into a shared store via effect (`setController(controller)`) causes broad subscription churn even when only a few fields change; sectioned contracts passed at component boundaries (`transcript/composer/diff`) remove that update pressure while keeping a single `useAgentChat` instance.
 - Oversized pass-through prop interfaces in renderer composition are often best removed by collapsing the intermediate contract (e.g., inlining a dropdown portal and passing reducer/index tuple for editable cards) instead of introducing another wrapper abstraction.
