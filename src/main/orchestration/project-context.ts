@@ -119,16 +119,20 @@ export async function buildIgnorePatterns(projectPath: string): Promise<string[]
       if (line.endsWith('/')) {
         // Directory pattern → match everything inside
         patterns.push(`${line}**`)
-      } else if (line.startsWith('/')) {
+        continue
+      }
+      if (line.startsWith('/')) {
         // Root-anchored → strip leading slash (already relative)
         patterns.push(line.slice(1))
-      } else if (!line.includes('/')) {
+        continue
+      }
+      if (!line.includes('/')) {
         // Unanchored filename/glob → match anywhere in tree
         patterns.push(`**/${line}`)
-      } else {
-        // Already a relative path with directory component
-        patterns.push(line)
+        continue
       }
+      // Already a relative path with directory component
+      patterns.push(line)
     }
   } catch {
     // No .gitignore — default is just .git/**
