@@ -30,13 +30,6 @@ export function createModelRunner(deps: OrchestrationServiceDeps): ModelRunner {
       chooseBy(chunk, 'type')
         .case('TEXT_MESSAGE_CONTENT', (value) => {
           result += value.delta
-          return null
-        })
-        .case('STEP_STARTED', (value) => {
-          onChunk?.(value)
-          return null
-        })
-        .case('STEP_FINISHED', (value) => {
           onChunk?.(value)
           return null
         })
@@ -63,7 +56,13 @@ export function createModelRunner(deps: OrchestrationServiceDeps): ModelRunner {
     onChunk?: (chunk: StreamChunk) => void,
   ): Promise<string> {
     if (tools.length === 0) {
-      return modelText(adapter, prompt, quality, onChunk)
+      // Executor output is not user-facing — suppress raw text deltas
+      const filtered = onChunk
+        ? (chunk: StreamChunk) => {
+            if (chunk.type !== 'TEXT_MESSAGE_CONTENT') onChunk(chunk)
+          }
+        : undefined
+      return modelText(adapter, prompt, quality, filtered)
     }
 
     const samplingOptions = deps.buildSamplingOptions(quality)
@@ -154,7 +153,13 @@ export function createModelRunner(deps: OrchestrationServiceDeps): ModelRunner {
     quality: SamplingConfig,
     onChunk?: (chunk: StreamChunk) => void,
   ): Promise<JsonValue> {
-    const text = await modelText(adapter, prompt, quality, onChunk)
+    // Planner output is JSON — suppress raw text deltas
+    const filtered = onChunk
+      ? (chunk: StreamChunk) => {
+          if (chunk.type !== 'TEXT_MESSAGE_CONTENT') onChunk(chunk)
+        }
+      : undefined
+    const text = await modelText(adapter, prompt, quality, filtered)
     const trimmed = text.trim()
     if (!trimmed) {
       deps.logger.warn('modelJson: modelText returned empty — possible swallowed error')

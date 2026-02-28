@@ -18,6 +18,7 @@ export function emitStreamChunk(conversationId: ConversationId, chunk: StreamChu
   // StreamChunk may contain Error objects (RUN_ERROR) which don't serialize
   // well over IPC structured clone. Normalize before sending.
   const serializable = chunk.type === 'RUN_ERROR' ? serializeRunError(chunk) : chunk
+
   maybeEmitPhase({
     conversationId,
     phase: updatePhaseFromStreamChunk(conversationId, serializable, Date.now()),

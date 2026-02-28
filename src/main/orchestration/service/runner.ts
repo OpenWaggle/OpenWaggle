@@ -218,7 +218,7 @@ async function runPlannerStage(context: RunnerContext): Promise<PlannerStageResu
     adapter,
     plannerPrompt,
     plannerQuality,
-    params.emitChunk,
+    // No chunk forwarding — StreamSession manages renderer-facing events.
   )
 
   deps.logger.info('planner call completed', {
@@ -284,6 +284,8 @@ async function runOrchestrationStage({
     context.streamSession.appendText(`${plannerDecision.ackText}\n\n`)
   }
 
+  let synthesisDone = false
+
   const orchestrationResult = await deps.runOpenWaggleOrchestration({
     runId: params.runId,
     mode: context.orchestrationMode,
@@ -304,7 +306,10 @@ async function runOrchestrationStage({
     },
     synthesizer: {
       async synthesize(input) {
-        return synthesize(context, input.run.outputs)
+        context.streamSession.appendText('---\n\n')
+        const text = await synthesizeStreaming(context, input.run.outputs)
+        synthesisDone = true
+        return text
       },
     },
     onEvent: async (event) => {
@@ -350,8 +355,10 @@ async function runOrchestrationStage({
     }
   }
 
-  context.streamSession.appendText('---\n\n')
-  await context.streamSession.streamText(orchestrationResult.text)
+  if (!synthesisDone && orchestrationResult.text) {
+    context.streamSession.appendText('---\n\n')
+    await context.streamSession.streamText(orchestrationResult.text)
+  }
   context.streamSession.closeMessage()
   context.streamSession.finishRun()
 
@@ -382,13 +389,15 @@ async function executeTask(
     context.quality,
     tools,
     input.reportProgress,
-    context.params.emitChunk,
+    // Intentionally omitted: raw executor chunks (STEP_STARTED/STEP_FINISHED) must NOT
+    // reach the renderer — they carry accumulated text/thinking content that corrupts
+    // useChat's message state. StreamSession manages all renderer-facing AG-UI events.
   )
   tracker.recordTaskOutput(String(input.task.id), text)
   return { text }
 }
 
-async function synthesize(
+async function synthesizeStreaming(
   context: RunnerContext,
   outputs: Readonly<{ [taskId: string]: OrchestrationTaskOutputValue }>,
 ): Promise<string> {
@@ -407,7 +416,13 @@ async function synthesize(
     context.adapter,
     synthesisPrompt,
     context.quality,
-    context.params.emitChunk,
+    (chunk) => {
+      if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+        context.streamSession.appendText(chunk.delta)
+      }
+      // modelText() only forwards TEXT_MESSAGE_CONTENT to onChunk;
+      // all other chunk types are dropped by its catchAll handler.
+    },
   )
 
   context.deps.logger.info('synthesis completed', { resultLength: result.length })
@@ -530,11 +545,12 @@ function handleOrchestrationEvent({
   tracker,
 }: HandleOrchestrationEventInput): void {
   const taskId = getTaskId(event)
+
   if (event.type === 'task_started' && taskId) {
     const narration = tracker.onTaskStarted(taskId)
-    if (narration) {
-      streamSession.appendText(`${narration}\n\n`)
-    }
+    const title = tracker.getTaskTitle(taskId) ?? taskId
+    const text = narration ?? `Working on: ${title}`
+    streamSession.appendText(`${text}\n\n`)
   }
 
   if (event.type === 'task_progress' && taskId) {
