@@ -13,7 +13,7 @@ export function ChatPanel(): React.JSX.Element {
   return (
     <div className="flex h-full w-full overflow-hidden">
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-bg">
-        <PanelErrorBoundary name="Chat transcript" className="flex-1 overflow-hidden">
+        <PanelErrorBoundary name="Chat transcript" className="flex flex-1 flex-col overflow-hidden">
           <ChatTranscript section={sections.transcript} />
         </PanelErrorBoundary>
 
