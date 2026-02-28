@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { readBodyWithLimit, stripHtml } from '../../../utils/http'
-import { defineOpenWaggleTool } from '../../define-tool'
+import { readBodyWithLimit, stripHtml } from '../../utils/http'
+import { defineOpenWaggleTool } from '../define-tool'
 
 const DEFAULT_MAX_LENGTH = 50_000
 const MAX_BODY_BYTES = 5 * 1024 * 1024 // 5 MB hard cap on response body

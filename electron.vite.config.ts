@@ -18,10 +18,11 @@ export default defineConfig({
           '@tanstack/ai-openrouter',
           '@tanstack/ai-ollama',
           '@t3-oss/env-core',
+          '@modelcontextprotocol/sdk',
         ],
       },
       rollupOptions: {
-        external: ['bufferutil', 'utf-8-validate', 'node-pty', 'playwright', 'playwright-core'],
+        external: ['bufferutil', 'utf-8-validate', 'node-pty'],
         output: {
           interop: 'auto',
         },

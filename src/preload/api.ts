@@ -4,7 +4,7 @@ import type {
   SubscriptionAccountInfo,
   SubscriptionProvider,
 } from '@shared/types/auth'
-import type { ConversationId, TeamConfigId } from '@shared/types/brand'
+import type { ConversationId, McpServerId, TeamConfigId } from '@shared/types/brand'
 import type { Conversation, ConversationSummary } from '@shared/types/conversation'
 import type { DevtoolsEventBusConfig } from '@shared/types/devtools'
 import type {
@@ -22,6 +22,7 @@ import type {
 } from '@shared/types/git'
 import type { OpenWaggleApi } from '@shared/types/ipc'
 import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from '@shared/types/llm'
+import type { McpServerConfig, McpServerStatus } from '@shared/types/mcp'
 import type { OrchestrationEventPayload, OrchestrationRunRecord } from '@shared/types/orchestration'
 import type { AgentPhaseEventPayload, AgentPhaseState } from '@shared/types/phase'
 import type { QuestionAnswer, QuestionPayload } from '@shared/types/question'
@@ -392,6 +393,43 @@ export const api: OpenWaggleApi = {
     }
     ipcRenderer.on('auth:oauth-status', handler)
     return () => ipcRenderer.removeListener('auth:oauth-status', handler)
+  },
+
+  // ─── MCP ──────────────────────────────────────────────
+  listMcpServers(): Promise<McpServerStatus[]> {
+    return ipcRenderer.invoke('mcp:list-servers')
+  },
+
+  addMcpServer(
+    config: Omit<McpServerConfig, 'id'>,
+  ): Promise<{ ok: true; id: McpServerId } | { ok: false; error: string }> {
+    return ipcRenderer.invoke('mcp:add-server', config)
+  },
+
+  removeMcpServer(id: McpServerId): Promise<{ ok: true } | { ok: false; error: string }> {
+    return ipcRenderer.invoke('mcp:remove-server', id)
+  },
+
+  toggleMcpServer(
+    id: McpServerId,
+    enabled: boolean,
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
+    return ipcRenderer.invoke('mcp:toggle-server', id, enabled)
+  },
+
+  updateMcpServer(
+    id: McpServerId,
+    updates: Partial<Omit<McpServerConfig, 'id'>>,
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
+    return ipcRenderer.invoke('mcp:update-server', id, updates)
+  },
+
+  onMcpStatusChanged(callback: (payload: McpServerStatus) => void): () => void {
+    const handler = (_event: Electron.IpcRendererEvent, payload: McpServerStatus): void => {
+      callback(payload)
+    }
+    ipcRenderer.on('mcp:status-changed', handler)
+    return () => ipcRenderer.removeListener('mcp:status-changed', handler)
   },
 
   // ─── Teams ────────────────────────────────────────────

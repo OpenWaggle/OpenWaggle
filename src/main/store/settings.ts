@@ -3,6 +3,8 @@ import { jsonObjectSchema } from '@shared/schemas/validation'
 import { AUTH_METHODS } from '@shared/types/auth'
 import { SupportedModelId } from '@shared/types/brand'
 import type { JsonObject } from '@shared/types/json'
+import type { McpServerConfig } from '@shared/types/mcp'
+import { mcpServerConfigSchema } from '@shared/types/mcp'
 import {
   DEFAULT_SETTINGS,
   EXECUTION_MODES,
@@ -130,8 +132,7 @@ export function getSettings(): Settings {
   const favoriteModels = resolveFavoriteModels()
   const recentProjects = resolveRecentProjects()
   const skillTogglesByProject = resolveSkillTogglesByProject()
-
-  const browserHeadless = resolveBrowserHeadless()
+  const mcpServers = resolveMcpServers()
 
   return {
     providers,
@@ -143,7 +144,7 @@ export function getSettings(): Settings {
     qualityPreset,
     recentProjects,
     skillTogglesByProject,
-    browserHeadless,
+    mcpServers,
     encryptionAvailable,
     apiKeysRequireManualResave,
   }
@@ -219,13 +220,8 @@ export function updateSettings(partial: Partial<Settings>): void {
   if (partial.skillTogglesByProject !== undefined) {
     store.set('skillTogglesByProject', sanitizeSkillTogglesByProject(partial.skillTogglesByProject))
   }
-  if (partial.browserHeadless !== undefined) {
-    const parsed = z.boolean().safeParse(partial.browserHeadless)
-    if (parsed.success) {
-      store.set('browserHeadless', parsed.data)
-    } else {
-      logger.warn('Skipping invalid browserHeadless', { value: partial.browserHeadless })
-    }
+  if (partial.mcpServers !== undefined) {
+    store.set('mcpServers', sanitizeMcpServers(partial.mcpServers))
   }
 }
 
@@ -274,9 +270,23 @@ function resolveSkillTogglesByProject(): Record<string, Record<string, boolean>>
   return sanitizeSkillTogglesByProject(stored)
 }
 
-function resolveBrowserHeadless(): boolean {
-  const raw = store.get('browserHeadless', DEFAULT_SETTINGS.browserHeadless)
-  return typeof raw === 'boolean' ? raw : DEFAULT_SETTINGS.browserHeadless
+function resolveMcpServers(): McpServerConfig[] {
+  const raw: unknown = store.get('mcpServers', DEFAULT_SETTINGS.mcpServers)
+  if (!Array.isArray(raw)) return []
+  return sanitizeMcpServers(raw)
+}
+
+function sanitizeMcpServers(servers: readonly unknown[]): McpServerConfig[] {
+  const result: McpServerConfig[] = []
+  for (const entry of servers) {
+    const parsed = mcpServerConfigSchema.safeParse(entry)
+    if (parsed.success) {
+      result.push(parsed.data as McpServerConfig)
+    } else {
+      logger.warn('Skipping invalid MCP server config', { entry })
+    }
+  }
+  return result
 }
 
 function sanitizeFavoriteModels(models: readonly string[]): SupportedModelId[] {

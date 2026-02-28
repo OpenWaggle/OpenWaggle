@@ -1,7 +1,7 @@
 import type { StreamChunk } from '@tanstack/ai'
 import type { AgentSendPayload, PreparedAttachment } from './agent'
 import type { OAuthFlowStatus, SubscriptionAccountInfo, SubscriptionProvider } from './auth'
-import type { ConversationId, TeamConfigId } from './brand'
+import type { ConversationId, McpServerId, TeamConfigId } from './brand'
 import type { Conversation, ConversationSummary } from './conversation'
 import type { DevtoolsEventBusConfig } from './devtools'
 import type {
@@ -18,6 +18,7 @@ import type {
   GitStatusSummary,
 } from './git'
 import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from './llm'
+import type { McpServerConfig, McpServerStatus } from './mcp'
 import type { OrchestrationEventPayload, OrchestrationRunRecord } from './orchestration'
 import type { AgentPhaseEventPayload, AgentPhaseState } from './phase'
 import type { QuestionAnswer, QuestionPayload } from './question'
@@ -231,6 +232,27 @@ export interface IpcInvokeChannelMap {
     args: [provider: SubscriptionProvider, code: string]
     return: undefined
   }
+  // MCP
+  'mcp:list-servers': {
+    args: []
+    return: McpServerStatus[]
+  }
+  'mcp:add-server': {
+    args: [config: Omit<McpServerConfig, 'id'>]
+    return: { ok: true; id: McpServerId } | { ok: false; error: string }
+  }
+  'mcp:remove-server': {
+    args: [id: McpServerId]
+    return: { ok: true } | { ok: false; error: string }
+  }
+  'mcp:toggle-server': {
+    args: [id: McpServerId, enabled: boolean]
+    return: { ok: true } | { ok: false; error: string }
+  }
+  'mcp:update-server': {
+    args: [id: McpServerId, updates: Partial<Omit<McpServerConfig, 'id'>>]
+    return: { ok: true } | { ok: false; error: string }
+  }
   // Teams
   'teams:list': {
     args: []
@@ -292,6 +314,9 @@ interface IpcEventChannelMap {
   }
   'waggle:turn-event': {
     payload: { conversationId: ConversationId; event: WaggleTurnEvent }
+  }
+  'mcp:status-changed': {
+    payload: McpServerStatus
   }
 }
 
@@ -450,6 +475,22 @@ export interface OpenWaggleApi {
   disconnectAuth(provider: SubscriptionProvider): Promise<void>
   getAuthAccountInfo(provider: SubscriptionProvider): Promise<SubscriptionAccountInfo>
   onOAuthStatus(callback: (status: IpcEventPayload<'auth:oauth-status'>) => void): () => void
+
+  // MCP
+  listMcpServers(): Promise<McpServerStatus[]>
+  addMcpServer(
+    config: Omit<McpServerConfig, 'id'>,
+  ): Promise<{ ok: true; id: McpServerId } | { ok: false; error: string }>
+  removeMcpServer(id: McpServerId): Promise<{ ok: true } | { ok: false; error: string }>
+  toggleMcpServer(
+    id: McpServerId,
+    enabled: boolean,
+  ): Promise<{ ok: true } | { ok: false; error: string }>
+  updateMcpServer(
+    id: McpServerId,
+    updates: Partial<Omit<McpServerConfig, 'id'>>,
+  ): Promise<{ ok: true } | { ok: false; error: string }>
+  onMcpStatusChanged(callback: (payload: McpServerStatus) => void): () => void
 
   // Teams
   listTeams(): Promise<WaggleTeamPreset[]>

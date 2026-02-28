@@ -1,6 +1,7 @@
 import { includes } from '@shared/utils/validation'
 import type { AuthMethod } from './auth'
 import { SupportedModelId } from './brand'
+import type { McpServerConfig } from './mcp'
 
 export const PROVIDERS = ['anthropic', 'openai', 'gemini', 'grok', 'openrouter', 'ollama'] as const
 export type Provider = (typeof PROVIDERS)[number]
@@ -34,7 +35,7 @@ export interface Settings {
   readonly qualityPreset: QualityPreset
   readonly recentProjects: readonly string[]
   readonly skillTogglesByProject: Readonly<Record<string, Readonly<Record<string, boolean>>>>
-  readonly browserHeadless: boolean
+  readonly mcpServers: readonly McpServerConfig[]
   /** Whether the system keyring is available for API key encryption. Computed on load. */
   readonly encryptionAvailable: boolean
   /** True when auto-migrating stored plaintext API keys to encrypted storage failed. */
@@ -58,7 +59,7 @@ export const DEFAULT_SETTINGS: Settings = {
   qualityPreset: 'medium',
   recentProjects: [],
   skillTogglesByProject: {},
-  browserHeadless: true,
+  mcpServers: [],
   encryptionAvailable: true,
   apiKeysRequireManualResave: false,
 }

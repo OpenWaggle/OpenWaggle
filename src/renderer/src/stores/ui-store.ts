@@ -19,7 +19,7 @@ interface UIState {
   settingsOpen: boolean
   sidebarOpen: boolean
   terminalOpen: boolean
-  activeView: 'chat' | 'skills' | 'settings'
+  activeView: 'chat' | 'skills' | 'mcps' | 'settings'
   activeSettingsTab: SettingsTab
   diffPanelOpen: boolean
   diffPanelWidth: number
@@ -32,9 +32,10 @@ interface UIState {
   toggleDiffPanel: () => void
   openSettings: (tab?: SettingsTab) => void
   closeSettings: () => void
-  setActiveView: (view: 'chat' | 'skills' | 'settings') => void
+  setActiveView: (view: 'chat' | 'skills' | 'mcps' | 'settings') => void
   setActiveSettingsTab: (tab: SettingsTab) => void
   openSkillsView: () => void
+  openMcpsView: () => void
   resizeDiffPanel: (delta: number) => void
   bumpDiffRefreshKey: () => void
   closeTerminal: () => void
@@ -94,6 +95,10 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   openSkillsView() {
     set({ activeView: 'skills', diffPanelOpen: false })
+  },
+
+  openMcpsView() {
+    set({ activeView: 'mcps', diffPanelOpen: false })
   },
 
   resizeDiffPanel(delta) {

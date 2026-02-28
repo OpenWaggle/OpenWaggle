@@ -22,7 +22,6 @@ interface PreferencesState {
   pushRecentProject: (path: string) => Promise<void>
   setExecutionMode: (mode: ExecutionMode) => Promise<void>
   setQualityPreset: (preset: QualityPreset) => Promise<void>
-  setBrowserHeadless: (headless: boolean) => Promise<void>
 }
 
 export const usePreferencesStore = create<PreferencesState>((set, get) => ({
@@ -127,12 +126,6 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     const { settings } = get()
     await api.updateSettings({ qualityPreset: preset })
     set({ settings: { ...settings, qualityPreset: preset } })
-  },
-
-  async setBrowserHeadless(headless: boolean) {
-    const { settings } = get()
-    await api.updateSettings({ browserHeadless: headless })
-    set({ settings: { ...settings, browserHeadless: headless } })
   },
 
   async pushRecentProject(path: string) {

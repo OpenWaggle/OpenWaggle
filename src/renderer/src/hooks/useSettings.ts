@@ -44,7 +44,6 @@ export function usePreferences() {
   const setProjectPath = usePreferencesStore((s) => s.setProjectPath)
   const setExecutionMode = usePreferencesStore((s) => s.setExecutionMode)
   const setQualityPreset = usePreferencesStore((s) => s.setQualityPreset)
-  const setBrowserHeadless = usePreferencesStore((s) => s.setBrowserHeadless)
   const pushRecentProject = usePreferencesStore((s) => s.pushRecentProject)
   const retryLoad = usePreferencesStore((s) => s.retryLoad)
 
@@ -57,7 +56,6 @@ export function usePreferences() {
     setProjectPath,
     setExecutionMode,
     setQualityPreset,
-    setBrowserHeadless,
     pushRecentProject,
     retryLoad,
   }

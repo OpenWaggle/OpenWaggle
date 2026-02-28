@@ -25,3 +25,17 @@ export function getSafeChildEnv(): Record<string, string | undefined> {
     TMPDIR: process.env.TMPDIR,
   }
 }
+
+/**
+ * Full process environment with undefined values filtered out.
+ * Used by MCP stdio transports that need to inherit the parent environment.
+ */
+export function getFullProcessEnv(): Record<string, string> {
+  const result: Record<string, string> = {}
+  for (const [key, value] of Object.entries(process.env)) {
+    if (typeof value === 'string') {
+      result[key] = value
+    }
+  }
+  return result
+}

@@ -55,6 +55,7 @@ export function Sidebar(): React.JSX.Element {
   const activeView = useUIStore((s) => s.activeView)
   const setActiveView = useUIStore((s) => s.setActiveView)
   const openSkillsView = useUIStore((s) => s.openSkillsView)
+  const openMcpsView = useUIStore((s) => s.openMcpsView)
   const openSettings = useUIStore((s) => s.openSettings)
 
   const { projectPath, selectFolder, setProjectPath } = useProject()
@@ -154,13 +155,18 @@ export function Sidebar(): React.JSX.Element {
             {/* MCPs — h32, padding [0,12], gap 8 */}
             <button
               type="button"
-              disabled
-              aria-label="MCPs (coming soon)"
-              className="no-drag flex w-full cursor-not-allowed items-center gap-2 h-8 px-3"
-              title="Coming soon"
+              aria-label="MCPs"
+              onClick={openMcpsView}
+              className={cn(
+                'no-drag flex w-full items-center gap-2 h-8 px-3 transition-colors',
+                activeView === 'mcps'
+                  ? 'bg-bg-active text-text-primary'
+                  : 'text-text-secondary hover:bg-bg-hover',
+              )}
+              title="Open MCPs"
             >
               <McpIcon className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
-              <span className="text-[14px] text-text-secondary/60">MCPs</span>
+              <span className="text-[14px]">MCPs</span>
             </button>
 
             {/* Skills — h32, padding [0,12], gap 8 */}

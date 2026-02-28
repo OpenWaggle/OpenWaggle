@@ -220,14 +220,16 @@ Status legend: `implemented`, `deferred`, `future`
 - Acceptance criteria:
   - Button always does something when shown.
 
-### HC-UI-006 MCPs nav placeholder
+### HC-UI-006 MCP management surface
 
-- Status: `deferred`
-- Location: `src/renderer/src/components/layout/Sidebar.tsx:178`
-- Current: disabled button.
-- Target behavior:
-  - Keep disabled until MCP management surface exists.
-  - Tooltip or helper text: `Coming soon`.
+- Status: `implemented`
+- Location: `src/renderer/src/components/mcp/McpPanel.tsx`, `Sidebar.tsx`
+- Current: Full MCP management UI — list view with connected/disconnected/registry sections, add server form with stdio/http transport support, env var management, toggle/remove per server. Sidebar button active with routing to MCPs panel.
+- Implementation notes:
+  - `McpListView`: top bar with badge + "Add MCP" button, CONNECTED/DISCONNECTED/REGISTRY sections
+  - `McpAddForm`: centered 560px form, transport-conditional fields, env var key-value editor
+  - `McpServerCard`: icon/name/description, tool count badge, toggle switch, hover-reveal delete
+  - Real-time status updates via `mcp:status-changed` IPC event subscription
 
 ### HC-UI-007 Skills nav placeholder
 

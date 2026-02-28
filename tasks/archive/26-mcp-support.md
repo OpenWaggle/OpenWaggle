@@ -1,6 +1,6 @@
 # 26 — MCP Support
 
-**Status:** Planned
+**Status:** Done
 **Priority:** P2
 **Category:** Feature
 **Depends on:** None

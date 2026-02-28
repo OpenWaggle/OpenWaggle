@@ -20,6 +20,17 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Task: Orchestration Streaming Fix (2026-02-28)
+- TanStack AI `model-runner` stream chunks carry TanStack's internal `messageId` which differs from the orchestration `StreamSession`'s `messageId`. Forwarding raw TEXT_MESSAGE_CONTENT to `emitChunk` confuses useChat in the renderer. Instead, intercept TEXT_MESSAGE_CONTENT at the caller and route the delta through `streamSession.appendText()` which re-emits with the correct messageId.
+- `modelText()` can forward TEXT_MESSAGE_CONTENT to `onChunk`, but callers that don't want raw text streaming (planner/JSON, executor tasks) must wrap `onChunk` to filter it. Only synthesis should route text through StreamSession for real-time display.
+- `Promise.race([work, timeout])` leaves the `setTimeout` timer running after the work resolves. Always wrap in `try/finally` to `clearTimeout` — leaked timers keep the Node event loop alive and prevent clean shutdown.
+
+### Task: MCP Client Infrastructure (2026-02-27)
+- `@modelcontextprotocol/sdk` is ESM-only and must be added to `externalizeDeps.exclude` in electron-vite config to be bundled into the CJS main process output (same pattern as `@tanstack/ai-*` packages).
+- `StdioClientTransport.env` expects `Record<string, string>` but `process.env` values are `string | undefined`. A helper that filters out undefined entries (`getFullProcessEnv()` in env module) avoids unsafe spreading. [SKILL?]
+- MCP SDK's `setNotificationHandler` requires the exported schema object (`ToolListChangedNotificationSchema`) not an inline `{ method: '...' }` object — the type system uses branded schema types for notification dispatch.
+- MCP `callTool` returns content parts as an array of `{ type: string; text?: string }` objects. Use Zod `safeParse` instead of `as` casts to validate content structure at MCP boundaries for runtime safety.
+
 ### Task: Polyglot Project Context Detection (2026-02-27)
 - File-presence signal detection (`fast-glob` with `deep: 2`) is a more portable approach to ecosystem detection than dependency-key lookups in `package.json`, since it works across all language ecosystems (Python, Rust, Go, etc.) without language-specific parsing.
 - `.gitignore` patterns map closely to fast-glob ignore patterns with three simple transforms: directory patterns (`dir/` → `dir/**`), unanchored patterns (no `/` → `**/<pattern>`), and root-anchored patterns (leading `/` → strip). This avoids hardcoded ignore lists that drift from actual project config.

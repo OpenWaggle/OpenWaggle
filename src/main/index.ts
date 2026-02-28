@@ -1,7 +1,6 @@
 import { join } from 'node:path'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { app, BrowserWindow, shell } from 'electron'
-import { closeAllSessions } from './browser'
 import { startDevtoolsEventBus, stopDevtoolsEventBus } from './devtools/event-bus'
 import { env } from './env'
 import { registerAgentHandlers } from './ipc/agent-handler'
@@ -10,6 +9,7 @@ import { registerAuthHandlers } from './ipc/auth-handler'
 import { registerConversationsHandlers } from './ipc/conversations-handler'
 import { registerDevtoolsHandlers } from './ipc/devtools-handler'
 import { registerGitHandlers } from './ipc/git'
+import { registerMcpHandlers } from './ipc/mcp-handler'
 import { registerOrchestrationHandlers } from './ipc/orchestration-handler'
 import { registerProjectHandlers } from './ipc/project-handler'
 import { registerProvidersHandlers } from './ipc/providers-handler'
@@ -21,7 +21,9 @@ import { cleanupTerminals, registerTerminalHandlers } from './ipc/terminal-handl
 import { registerVoiceHandlers } from './ipc/voice-handler'
 import { registerWaggleHandlers } from './ipc/waggle-handler'
 import { initFileLogger } from './logger'
+import { mcpManager } from './mcp'
 import { registerAllProviders } from './providers'
+import { getSettings } from './store/settings'
 
 if (env.OPENWAGGLE_USER_DATA_DIR) {
   app.setPath('userData', env.OPENWAGGLE_USER_DATA_DIR)
@@ -136,12 +138,16 @@ app.whenReady().then(() => {
   registerShellHandlers()
   registerWaggleHandlers()
   registerTeamsHandlers()
+  registerMcpHandlers()
 
   // Initialize file logger now that app paths are available
   initFileLogger(app.getPath('logs'))
 
   // Register providers (async — individual failures are caught per-provider)
-  Promise.all([registerAllProviders(), startDevtoolsEventBus()]).then(() => {
+  Promise.all([registerAllProviders(), startDevtoolsEventBus()]).then(async () => {
+    // Initialize MCP servers from persisted config
+    const settings = getSettings()
+    await mcpManager.initialize(settings.mcpServers)
     createWindow()
   })
 
@@ -150,7 +156,7 @@ app.whenReady().then(() => {
   })
 })
 
-let browserCleanupDone = false
+let mcpCleanupDone = false
 
 app.on('window-all-closed', () => {
   cleanupTerminals()
@@ -161,10 +167,10 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', (e) => {
   stopDevtoolsEventBus()
-  if (!browserCleanupDone) {
+  if (!mcpCleanupDone) {
     e.preventDefault()
-    closeAllSessions().finally(() => {
-      browserCleanupDone = true
+    mcpManager.disconnectAll().finally(() => {
+      mcpCleanupDone = true
       app.quit()
     })
   }

@@ -11,6 +11,7 @@ export type ToolCallId = Brand<string, 'ToolCallId'>
 export type OrchestrationRunId = Brand<string, 'OrchestrationRunId'>
 export type OrchestrationTaskId = Brand<string, 'OrchestrationTaskId'>
 export type TeamConfigId = Brand<string, 'TeamConfigId'>
+export type McpServerId = Brand<string, 'McpServerId'>
 export type SupportedModelId = Brand<string, 'SupportedModelId'>
 
 /**
@@ -27,6 +28,7 @@ export const ToolCallId = (id: string): ToolCallId => id as ToolCallId
 export const OrchestrationRunId = (id: string): OrchestrationRunId => id as OrchestrationRunId
 export const OrchestrationTaskId = (id: string): OrchestrationTaskId => id as OrchestrationTaskId
 export const TeamConfigId = (id: string): TeamConfigId => id as TeamConfigId
+export const McpServerId = (id: string): McpServerId => id as McpServerId
 export const SupportedModelId = (id: string): SupportedModelId => id as SupportedModelId
 
 const SKIP_APPROVAL_SYMBOL = Symbol('SkipApprovalToken')

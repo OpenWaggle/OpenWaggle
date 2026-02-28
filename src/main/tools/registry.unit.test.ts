@@ -74,12 +74,7 @@ describe('getServerTools', () => {
     expect(toolNames).toContain('loadAgents')
     expect(toolNames).toContain('loadSkill')
     expect(toolNames).toContain('askUser')
-
-    // Browser tools
     expect(toolNames).toContain('webFetch')
-    expect(toolNames).toContain('browserNavigate')
-    expect(toolNames).toContain('browserClick')
-    expect(toolNames).toContain('browserScreenshot')
   })
 
   it('keeps all tools available in sandbox mode (approval handled by TanStack)', () => {
@@ -100,15 +95,10 @@ describe('getServerTools', () => {
     expect(toolNames).toContain('writeFile')
     expect(toolNames).toContain('editFile')
     expect(toolNames).toContain('runCommand')
-
-    // Browser tools all available
     expect(toolNames).toContain('webFetch')
-    expect(toolNames).toContain('browserNavigate')
-    expect(toolNames).toContain('browserClick')
-    expect(toolNames).toContain('browserScreenshot')
   })
 
-  it('returns only browser tools when no project is selected', () => {
+  it('returns no built-in tools when no project is selected', () => {
     const context = makeContext({ executionMode: 'full-access', hasProject: false })
     const features = getActiveAgentFeatures(context)
 
@@ -118,10 +108,7 @@ describe('getServerTools', () => {
     expect(toolNames).not.toContain('readFile')
     expect(toolNames).not.toContain('writeFile')
     expect(toolNames).not.toContain('glob')
-
-    // Browser tools are project-independent
-    expect(toolNames).toContain('webFetch')
-    expect(toolNames).toContain('browserNavigate')
+    expect(toolNames).not.toContain('webFetch')
   })
 
   it('throws when features register duplicate tool names', () => {
