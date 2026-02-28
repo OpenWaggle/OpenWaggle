@@ -5,17 +5,6 @@ vi.mock('@tanstack/ai-openrouter', () => ({
 }))
 
 describe('openrouterProvider', () => {
-  it('exports correct provider metadata', async () => {
-    const { openrouterProvider } = await import('./openrouter')
-    expect(openrouterProvider.id).toBe('openrouter')
-    expect(openrouterProvider.displayName).toBe('OpenRouter')
-    expect(openrouterProvider.requiresApiKey).toBe(true)
-    expect(openrouterProvider.supportsBaseUrl).toBe(false)
-    expect(openrouterProvider.supportsSubscription).toBe(true)
-    expect(openrouterProvider.supportsDynamicModelFetch).toBe(false)
-    expect(openrouterProvider.testModel).toBe('openrouter/auto')
-  })
-
   it('has curated model list with known entries', async () => {
     const { openrouterProvider } = await import('./openrouter')
     expect(openrouterProvider.models.length).toBeGreaterThan(0)

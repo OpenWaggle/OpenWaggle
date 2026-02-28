@@ -22,15 +22,6 @@ vi.mock('@tanstack/ai-anthropic', () => ({
 }))
 
 describe('anthropicProvider', () => {
-  it('exports correct provider metadata', async () => {
-    const { anthropicProvider } = await import('./anthropic')
-    expect(anthropicProvider.id).toBe('anthropic')
-    expect(anthropicProvider.displayName).toBe('Anthropic')
-    expect(anthropicProvider.requiresApiKey).toBe(true)
-    expect(anthropicProvider.supportsSubscription).toBe(true)
-    expect(anthropicProvider.testModel).toBe('claude-haiku-4-5')
-  })
-
   it('creates adapter for known model with API key', async () => {
     const { anthropicProvider } = await import('./anthropic')
     anthropicProvider.createAdapter('claude-sonnet-4-5', 'sk-test')

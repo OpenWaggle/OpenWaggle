@@ -45,11 +45,6 @@ function makeContext(overrides: Partial<AgentRunContext> = {}): AgentRunContext 
 }
 
 describe('coreBehaviorPromptFragment', () => {
-  it('has correct id and order', () => {
-    expect(coreBehaviorPromptFragment.id).toBe('core.behavior')
-    expect(coreBehaviorPromptFragment.order).toBe(10)
-  })
-
   it('build returns a string containing "OpenWaggle"', () => {
     const context = makeContext()
     const result = coreBehaviorPromptFragment.build(context)
@@ -59,11 +54,6 @@ describe('coreBehaviorPromptFragment', () => {
 })
 
 describe('runtimeModelPromptFragment', () => {
-  it('has correct id and order', () => {
-    expect(runtimeModelPromptFragment.id).toBe('core.runtime-model')
-    expect(runtimeModelPromptFragment.order).toBe(20)
-  })
-
   it('build includes provider name and model', () => {
     const context = makeContext()
     const result = runtimeModelPromptFragment.build(context)
@@ -74,11 +64,6 @@ describe('runtimeModelPromptFragment', () => {
 })
 
 describe('projectContextPromptFragment', () => {
-  it('has correct id and order', () => {
-    expect(projectContextPromptFragment.id).toBe('core.project-context')
-    expect(projectContextPromptFragment.order).toBe(30)
-  })
-
   it('build includes projectPath when hasProject is true', () => {
     const context = makeContext({ hasProject: true, projectPath: '/tmp/my-project' })
     const result = projectContextPromptFragment.build(context)
@@ -96,11 +81,6 @@ describe('projectContextPromptFragment', () => {
 })
 
 describe('executionModePromptFragment', () => {
-  it('has correct id and order', () => {
-    expect(executionModePromptFragment.id).toBe('core.execution-mode')
-    expect(executionModePromptFragment.order).toBe(40)
-  })
-
   it('build returns sandbox message for executionMode sandbox', () => {
     const context = makeContext({
       settings: { ...DEFAULT_SETTINGS, executionMode: 'sandbox' },

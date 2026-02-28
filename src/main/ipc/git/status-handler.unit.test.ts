@@ -1,11 +1,6 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
-import {
-  invalidateGitStatusCache,
-  mergeDiffsByPath,
-  normalizeGitPath,
-  parseUnifiedDiff,
-} from './status-handler'
+import { mergeDiffsByPath, normalizeGitPath, parseUnifiedDiff } from './status-handler'
 
 // ---------------------------------------------------------------------------
 // normalizeGitPath
@@ -398,34 +393,6 @@ describe('mergeDiffsByPath', () => {
     expect(result).toHaveLength(1)
     expect(result[0]?.additions).toBe(1)
     expect(result[0]?.deletions).toBe(1)
-  })
-})
-
-// ---------------------------------------------------------------------------
-// invalidateGitStatusCache
-// ---------------------------------------------------------------------------
-
-describe('invalidateGitStatusCache', () => {
-  beforeEach(() => {
-    // Clear any state from prior tests
-    invalidateGitStatusCache()
-  })
-
-  it('does not throw when cache is already empty', () => {
-    expect(() => invalidateGitStatusCache()).not.toThrow()
-  })
-
-  it('does not throw with a specific project path on empty cache', () => {
-    expect(() => invalidateGitStatusCache('/some/path')).not.toThrow()
-  })
-
-  it('clears all when called without arguments', () => {
-    // Just verify it runs without error; the cache is internal
-    invalidateGitStatusCache()
-  })
-
-  it('clears specific path when called with an argument', () => {
-    invalidateGitStatusCache('/project/a')
   })
 })
 

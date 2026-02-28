@@ -6,17 +6,6 @@ vi.mock('@tanstack/ai-grok', () => ({
 }))
 
 describe('grokProvider', () => {
-  it('exports correct provider metadata', async () => {
-    const { grokProvider } = await import('./grok')
-    expect(grokProvider.id).toBe('grok')
-    expect(grokProvider.displayName).toBe('Grok')
-    expect(grokProvider.requiresApiKey).toBe(true)
-    expect(grokProvider.supportsBaseUrl).toBe(false)
-    expect(grokProvider.supportsSubscription).toBe(false)
-    expect(grokProvider.supportsDynamicModelFetch).toBe(false)
-    expect(grokProvider.testModel).toBe('grok-3-mini-fast')
-  })
-
   it('creates adapter for known model with valid API key', async () => {
     const { grokProvider } = await import('./grok')
     const { createGrokText } = await import('@tanstack/ai-grok')

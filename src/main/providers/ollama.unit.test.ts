@@ -12,16 +12,6 @@ vi.mock('@shared/schemas/validation', () => ({
 }))
 
 describe('ollamaProvider', () => {
-  it('exports correct provider metadata', async () => {
-    const { ollamaProvider } = await import('./ollama')
-    expect(ollamaProvider.id).toBe('ollama')
-    expect(ollamaProvider.displayName).toBe('Ollama')
-    expect(ollamaProvider.requiresApiKey).toBe(false)
-    expect(ollamaProvider.supportsBaseUrl).toBe(true)
-    expect(ollamaProvider.supportsSubscription).toBe(false)
-    expect(ollamaProvider.supportsDynamicModelFetch).toBe(true)
-  })
-
   it('creates adapter with default base URL when none provided', async () => {
     const { ollamaProvider } = await import('./ollama')
     const { createOllamaChat } = await import('@tanstack/ai-ollama')

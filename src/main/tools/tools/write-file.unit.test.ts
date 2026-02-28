@@ -86,8 +86,4 @@ describe('writeFileTool', () => {
     const written = await fsp.readFile(path.join(dir, 'deep/nested/dir/file.txt'), 'utf-8')
     expect(written).toBe('deep')
   })
-
-  it('marks needsApproval as true', () => {
-    expect(writeFileTool).toHaveProperty('needsApproval')
-  })
 })

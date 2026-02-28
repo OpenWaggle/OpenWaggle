@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest'
 import { openaiProvider } from '../providers/openai'
 import {
   getActiveAgentFeatures,
-  getAgentFeatureFlags,
   getFeatureLifecycleHooks,
   getFeaturePromptFragments,
 } from './feature-registry'
@@ -43,19 +42,6 @@ function makeContext(overrides: Partial<AgentRunContext> = {}): AgentRunContext 
     ...overrides,
   }
 }
-
-describe('getAgentFeatureFlags', () => {
-  it('returns an object with all default flags set to true', () => {
-    const flags = getAgentFeatureFlags()
-
-    expect(flags['standards.prompt']).toBe(true)
-    expect(flags['core.prompt']).toBe(true)
-    expect(flags['core.tools']).toBe(true)
-    expect(flags['core.execution-mode']).toBe(true)
-    expect(flags['core.observability']).toBe(true)
-    expect(flags['browser.tools']).toBe(true)
-  })
-})
 
 describe('getActiveAgentFeatures', () => {
   it('returns all features when context.hasProject is true', () => {

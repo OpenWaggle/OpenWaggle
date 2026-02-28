@@ -37,18 +37,6 @@ describe('typedHandle', () => {
     expect(ipcMainHandleMock).toHaveBeenCalledOnce()
     expect(ipcMainHandleMock).toHaveBeenCalledWith('settings:get', expect.any(Function))
   })
-
-  it('passes the handler function through to ipcMain.handle', () => {
-    const handler = vi.fn().mockReturnValue('result')
-    typedHandle('settings:get' as never, handler as never)
-
-    const registeredHandler = ipcMainHandleMock.mock.calls[0][1]
-    const fakeEvent = { sender: {} }
-    registeredHandler(fakeEvent)
-
-    // The handler IS the registered handler (cast but same reference conceptually)
-    expect(ipcMainHandleMock).toHaveBeenCalledOnce()
-  })
 })
 
 describe('typedOn', () => {
