@@ -115,7 +115,7 @@ function createSettings(): Settings {
     qualityPreset: 'medium',
     recentProjects: [],
     skillTogglesByProject: {},
-    browserHeadless: true,
+    mcpServers: [],
     encryptionAvailable: true,
     apiKeysRequireManualResave: false,
   }
@@ -674,7 +674,7 @@ describe('runOrchestratedAgent', () => {
     expect(createExecutorToolsMock).toHaveBeenCalledWith('/tmp/project', expect.any(Object))
   })
 
-  it('forwards STEP_FINISHED chunks from planner to emitChunk', async () => {
+  it('does not forward STEP events from planner to emitChunk', async () => {
     chatMock.mockImplementation(() =>
       createStreamChunksWithThinking(
         'Reasoning about the plan...',
@@ -696,16 +696,17 @@ describe('runOrchestratedAgent', () => {
       emitChunk,
     })
 
+    // STEP events from planner's internal chat() must NOT leak to the renderer —
+    // they carry accumulated text/thinking that corrupts useChat's message state.
+    // Only StreamSession-framed chunks (RUN_STARTED, TEXT_MESSAGE_*, RUN_FINISHED) should appear.
     const stepChunks = emitChunk.mock.calls.filter((c) => {
       const t = (c[0] as { type: string }).type
       return t === 'STEP_STARTED' || t === 'STEP_FINISHED'
     })
-    expect(stepChunks.length).toBe(2)
-    expect((stepChunks[0][0] as { type: string }).type).toBe('STEP_STARTED')
-    expect((stepChunks[1][0] as { type: string }).type).toBe('STEP_FINISHED')
+    expect(stepChunks.length).toBe(0)
   })
 
-  it('forwards thinking chunks from executor to emitChunk', async () => {
+  it('does not forward STEP events from executor to emitChunk', async () => {
     const planTasks = {
       tasks: [{ id: 'task-1', kind: 'general', title: 'Task 1', prompt: 'Do thing 1' }],
     }
@@ -753,11 +754,13 @@ describe('runOrchestratedAgent', () => {
       emitChunk,
     })
 
-    // Executor thinking chunks should be forwarded via emitChunk
+    // Executor STEP events must NOT reach the renderer — they carry accumulated
+    // text/thinking content that corrupts useChat's message state.
+    // StreamSession manages all renderer-facing AG-UI protocol events.
     const stepFinished = emitChunk.mock.calls.filter(
       (c) => (c[0] as { type: string }).type === 'STEP_FINISHED',
     )
-    expect(stepFinished.length).toBeGreaterThan(0)
+    expect(stepFinished.length).toBe(0)
   })
 
   it('modelText throws when planner stream contains RUN_ERROR', async () => {
@@ -1049,6 +1052,188 @@ describe('runOrchestratedAgent', () => {
     expect(content).toContain('Let me inspect the repository structure first.')
   })
 
+  it('emits "Working on: <title>" when task_started has no narration', async () => {
+    const planTasks = {
+      tasks: [
+        {
+          id: 'task-1',
+          kind: 'general',
+          title: 'Analyze dependencies',
+          prompt: 'Check package.json',
+          // No narration field — should fall back to title
+        },
+      ],
+    }
+    chatMock.mockImplementation(() => createStreamChunks(JSON.stringify(planTasks)))
+    extractJsonMock.mockReturnValue(planTasks)
+    runOpenWaggleOrchestrationMock.mockImplementation(
+      async (input: {
+        onEvent?: (event: {
+          type: string
+          runId: string
+          taskId?: string
+          at: string
+        }) => Promise<void>
+      }) => {
+        await input.onEvent?.({
+          type: 'task_started',
+          runId: 'run-1',
+          taskId: 'task-1',
+          at: new Date().toISOString(),
+        })
+        return {
+          runId: 'run-1',
+          usedFallback: false,
+          text: 'Done',
+          runStatus: 'completed',
+        }
+      },
+    )
+
+    const emitChunk = vi.fn()
+
+    const result = await runOrchestratedAgent({
+      runId: 'run-1',
+      conversationId: ConversationId('conversation-1'),
+      conversation: createConversation(),
+      payload: { text: 'Analyze code', qualityPreset: 'medium', attachments: [] },
+      model: SupportedModelId('gpt-4.1-mini'),
+      settings: createSettings(),
+      signal: new AbortController().signal,
+      emitEvent: vi.fn(),
+      emitChunk,
+    })
+
+    expect(result.status).toBe('completed')
+    const content = emitChunk.mock.calls
+      .filter((c) => (c[0] as { type: string }).type === 'TEXT_MESSAGE_CONTENT')
+      .map((c) => (c[0] as { delta: string }).delta)
+      .join('')
+    expect(content).toContain('Working on: Analyze dependencies')
+  })
+
+  it('synthesis streams text in real-time through StreamSession', async () => {
+    const planTasks = {
+      tasks: [{ id: 'task-1', kind: 'general', title: 'Task 1', prompt: 'Do thing 1' }],
+    }
+    // First call: planner returns tasks
+    // Second call: executor produces output
+    // Third call: synthesis produces streamed text
+    let callCount = 0
+    chatMock.mockImplementation(() => {
+      callCount++
+      if (callCount <= 2) {
+        return createStreamChunks(
+          callCount === 1 ? JSON.stringify(planTasks) : 'Executor output text',
+        )
+      }
+      // Synthesis call — returns text that should be streamed via StreamSession
+      return createStreamChunks('Synthesized final answer.')
+    })
+    extractJsonMock.mockReturnValue(planTasks)
+    runOpenWaggleOrchestrationMock.mockImplementation(
+      async (input: {
+        executor: { execute: (arg: unknown) => Promise<unknown> }
+        synthesizer: {
+          synthesize: (arg: { run: { outputs: Record<string, unknown> } }) => Promise<string>
+        }
+      }) => {
+        await input.executor.execute({
+          task: { title: 'Task 1', kind: 'general', prompt: 'Do thing 1' },
+          orchestrationTask: {},
+          includeConversationSummary: false,
+          maxContextTokens: 1500,
+          dependencyOutputs: {},
+          signal: new AbortController().signal,
+        })
+        const text = await input.synthesizer.synthesize({
+          run: { outputs: { 'task-1': { text: 'Task 1 output' } } },
+        })
+        return {
+          runId: 'run-1',
+          usedFallback: false,
+          text,
+          runStatus: 'completed',
+        }
+      },
+    )
+
+    const emitChunk = vi.fn()
+
+    const result = await runOrchestratedAgent({
+      runId: 'run-1',
+      conversationId: ConversationId('conversation-1'),
+      conversation: createConversation(),
+      payload: { text: 'Analyze code', qualityPreset: 'medium', attachments: [] },
+      model: SupportedModelId('gpt-4.1-mini'),
+      settings: createSettings(),
+      signal: new AbortController().signal,
+      emitEvent: vi.fn(),
+      emitChunk,
+    })
+
+    expect(result.status).toBe('completed')
+    const contentChunks = emitChunk.mock.calls
+      .filter((c) => (c[0] as { type: string }).type === 'TEXT_MESSAGE_CONTENT')
+      .map((c) => (c[0] as { delta: string }).delta)
+    const fullContent = contentChunks.join('')
+    // Synthesis divider and text should be present
+    expect(fullContent).toContain('---')
+    expect(fullContent).toContain('Synthesized final answer.')
+  })
+
+  it('does not emit duplicate divider when synthesis already streamed', async () => {
+    const planTasks = {
+      tasks: [{ id: 'task-1', kind: 'general', title: 'Task 1', prompt: 'Do thing 1' }],
+    }
+    chatMock.mockImplementation(() => createStreamChunks(JSON.stringify(planTasks)))
+    extractJsonMock.mockReturnValue(planTasks)
+
+    runOpenWaggleOrchestrationMock.mockImplementation(
+      async (input: {
+        synthesizer: {
+          synthesize: (arg: { run: { outputs: Record<string, unknown> } }) => Promise<string>
+        }
+      }) => {
+        // Synthesizer callback runs and sets synthesisDone = true internally
+        const text = await input.synthesizer.synthesize({
+          run: { outputs: { 'task-1': { text: 'Task 1 output' } } },
+        })
+        return {
+          runId: 'run-1',
+          usedFallback: false,
+          // Return the same text as the synthesizer produced
+          text,
+          runStatus: 'completed',
+        }
+      },
+    )
+
+    const emitChunk = vi.fn()
+
+    const result = await runOrchestratedAgent({
+      runId: 'run-1',
+      conversationId: ConversationId('conversation-1'),
+      conversation: createConversation(),
+      payload: { text: 'Analyze code', qualityPreset: 'medium', attachments: [] },
+      model: SupportedModelId('gpt-4.1-mini'),
+      settings: createSettings(),
+      signal: new AbortController().signal,
+      emitEvent: vi.fn(),
+      emitChunk,
+    })
+
+    expect(result.status).toBe('completed')
+    const contentChunks = emitChunk.mock.calls
+      .filter((c) => (c[0] as { type: string }).type === 'TEXT_MESSAGE_CONTENT')
+      .map((c) => (c[0] as { delta: string }).delta)
+    const fullContent = contentChunks.join('')
+    // The divider '---' should appear exactly once (from the synthesizer callback),
+    // NOT twice (which would happen if the post-orchestration guard failed)
+    const dividerCount = fullContent.split('---').length - 1
+    expect(dividerCount).toBe(1)
+  })
+
   it('synthesis falls back to concatenated outputs on empty result', async () => {
     const planTasks = {
       tasks: [{ id: 'task-1', kind: 'general', title: 'Task 1', prompt: 'Do thing 1' }],
@@ -1081,11 +1266,11 @@ describe('runOrchestratedAgent', () => {
 
     // Even with empty synthesis, the run should complete (not crash)
     expect(result.status).toBe('completed')
-    // The separator should still be emitted
+    // With empty synthesis text, no divider should be emitted (nothing to separate)
     const contentChunks = emitChunk.mock.calls
       .filter((c) => (c[0] as { type: string }).type === 'TEXT_MESSAGE_CONTENT')
       .map((c) => (c[0] as { delta: string }).delta)
-    expect(contentChunks.join('')).toContain('---')
+    expect(contentChunks.join('')).not.toContain('---')
   })
 
   it('falls back with visible message when planner JSON extraction fails', async () => {

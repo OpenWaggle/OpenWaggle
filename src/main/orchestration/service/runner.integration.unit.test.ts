@@ -26,7 +26,7 @@ function createSettings(): Settings {
     qualityPreset: 'medium',
     recentProjects: [],
     skillTogglesByProject: {},
-    browserHeadless: true,
+    mcpServers: [],
     encryptionAvailable: true,
     apiKeysRequireManualResave: false,
   }
