@@ -103,11 +103,7 @@ export function MessageBubble({
           chooseBy(part, 'type')
             .case('text', (value) =>
               value.content.trim() ? (
-                <StreamingText
-                  key={`${message.id}-text-${String(i)}`}
-                  text={value.content}
-                  isStreaming={isStreaming}
-                />
+                <StreamingText key={`${message.id}-text-${String(i)}`} text={value.content} />
               ) : null,
             )
             .case('tool-call', (value) => {

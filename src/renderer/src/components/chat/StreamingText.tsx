@@ -11,8 +11,6 @@ import { CodeBlock } from './CodeBlock'
 
 interface StreamingTextProps {
   text: string
-  /** When true, renders plain text instead of parsing markdown — avoids re-parsing on every token. */
-  isStreaming?: boolean
 }
 
 /**
@@ -29,12 +27,8 @@ function extractLanguage(children: ReactNode): string | undefined {
   return undefined
 }
 
-export function StreamingText({ text, isStreaming }: StreamingTextProps): React.JSX.Element | null {
+export function StreamingText({ text }: StreamingTextProps): React.JSX.Element | null {
   if (!text) return null
-
-  if (isStreaming) {
-    return <div className="prose whitespace-pre-wrap">{text}</div>
-  }
 
   return (
     <div className="prose">

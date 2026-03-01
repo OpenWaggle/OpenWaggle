@@ -152,7 +152,7 @@ Built-in tools in `src/main/tools/tools/`: `readFile`, `writeFile`, `editFile`, 
 
 ### Streaming Rendering
 
-`StreamingText` accepts an `isStreaming` prop. When `true`, it renders plain text instead of running `ReactMarkdown` + `remarkGfm`. This avoids re-parsing markdown on every streaming token. Only pass `isStreaming` for the actively-accumulating text; completed text blocks and historical messages render full markdown.
+`StreamingText` always renders through `ReactMarkdown` + `remarkGfm`, including during streaming. There is no plain-text fallback or throttle — ReactMarkdown handles token-by-token updates fine at typical LLM streaming rates.
 
 ### Zustand Selectors
 
