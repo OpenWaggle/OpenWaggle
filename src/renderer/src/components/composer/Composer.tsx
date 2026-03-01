@@ -37,6 +37,7 @@ async function prepareAndAttach(
 
 interface ComposerProps {
   onSend: (payload: AgentSendPayload) => void
+  onEnqueue: (payload: AgentSendPayload) => void
   onCancel: () => void
   isLoading: boolean
   disabled?: boolean
@@ -45,6 +46,7 @@ interface ComposerProps {
 
 export function Composer({
   onSend,
+  onEnqueue,
   onCancel,
   isLoading,
   disabled,
@@ -78,8 +80,12 @@ export function Composer({
   // ── Submission ──
 
   function submitPayload(payload: AgentSendPayload): boolean {
-    if ((!payload.text && payload.attachments.length === 0) || isLoading || disabled) return false
-    onSend(payload)
+    if ((!payload.text && payload.attachments.length === 0) || disabled) return false
+    if (isLoading) {
+      onEnqueue(payload)
+    } else {
+      onSend(payload)
+    }
     reset()
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     return true
@@ -270,8 +276,10 @@ export function Composer({
               onKeyUp={syncCursorPosition}
               onSelect={syncCursorPosition}
               aria-label="Message input"
-              placeholder={isLoading ? 'Agent is working...' : 'Ask for follow-up changes'}
-              disabled={isLoading || disabled}
+              placeholder={
+                isLoading ? 'Add a message to the conversation...' : 'Ask for follow-up changes'
+              }
+              disabled={disabled}
               rows={1}
               className={cn(
                 'w-full h-full resize-none bg-transparent text-[15px] text-text-primary',

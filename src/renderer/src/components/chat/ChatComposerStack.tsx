@@ -1,6 +1,8 @@
 import { CommandPalette } from '@/components/command-palette/CommandPalette'
 import { Composer } from '@/components/composer/Composer'
+import { QueuedMessages } from '@/components/composer/QueuedMessages'
 import { WaggleCollaborationStatus as WaggleCollaborationStatusBanner } from '@/components/waggle/CollaborationStatus'
+import { useMessageQueueStore } from '@/stores/message-queue-store'
 import { ApprovalBanner } from './ApprovalBanner'
 import { AskUserBlock } from './AskUserBlock'
 import type { ChatComposerSectionState } from './use-chat-panel-controller'
@@ -20,15 +22,19 @@ export function ChatComposerStack({ section }: ChatComposerStackProps): React.JS
     commandPaletteOpen,
     slashSkills,
     isLoading,
+    status,
     onToolApprovalResponse,
     onAnswerQuestion,
     onStopCollaboration,
     onSelectSkill,
     onStartWaggle,
     onSendWithWaggle,
+    onSteer,
     onCancel,
     onToast,
   } = section
+
+  const enqueue = useMessageQueueStore((s) => s.enqueue)
 
   return (
     <>
@@ -68,9 +74,19 @@ export function ChatComposerStack({ section }: ChatComposerStackProps): React.JS
       )}
 
       <div className="mx-auto w-full max-w-[720px] px-5 pb-5">
+        <QueuedMessages
+          conversationId={activeConversationId}
+          onSteer={onSteer}
+          isStreaming={status === 'streaming' || status === 'submitted'}
+        />
         <Composer
           onSend={(payload) => {
             void onSendWithWaggle(payload)
+          }}
+          onEnqueue={(payload) => {
+            if (activeConversationId) {
+              enqueue(activeConversationId, payload)
+            }
           }}
           onCancel={onCancel}
           isLoading={isLoading}

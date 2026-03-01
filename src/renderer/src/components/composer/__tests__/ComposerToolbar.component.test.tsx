@@ -64,6 +64,12 @@ describe('ComposerToolbar', () => {
     expect(screen.getByTitle('Cancel')).toBeInTheDocument()
   })
 
+  it('renders both cancel and add-message buttons when loading and canSend', () => {
+    renderToolbar({ isLoading: true, canSend: true })
+    expect(screen.getByTitle('Cancel')).toBeInTheDocument()
+    expect(screen.getByTitle('Add message')).toBeInTheDocument()
+  })
+
   it('calls onSend when send button is clicked', () => {
     const onSend = vi.fn()
     renderToolbar({ onSend })

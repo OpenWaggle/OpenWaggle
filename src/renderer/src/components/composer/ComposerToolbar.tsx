@@ -139,7 +139,7 @@ export function ComposerToolbar({
           )}
         </button>
 
-        {isLoading ? (
+        {isLoading && (
           <button
             type="button"
             onClick={onCancel}
@@ -147,6 +147,22 @@ export function ComposerToolbar({
             title="Cancel"
           >
             <Square className="h-3.5 w-3.5" />
+          </button>
+        )}
+        {isLoading ? (
+          <button
+            type="button"
+            onClick={onSend}
+            disabled={!canSend}
+            className={cn(
+              'flex h-8 w-8 items-center justify-center rounded-full transition-colors',
+              canSend
+                ? 'border border-accent/35 bg-accent/10 text-accent hover:bg-accent/18'
+                : 'border border-border bg-bg-tertiary cursor-not-allowed',
+            )}
+            title="Add message"
+          >
+            <ArrowUp className={cn('h-4 w-4', canSend ? 'text-accent' : 'text-text-muted')} />
           </button>
         ) : (
           <button
