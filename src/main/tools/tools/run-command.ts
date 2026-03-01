@@ -4,24 +4,10 @@ import os from 'node:os'
 import { z } from 'zod'
 import { getSafeChildEnv } from '../../env'
 import { createLogger } from '../../logger'
-import type { NormalizedToolResult } from '../define-tool'
 import { defineOpenWaggleTool } from '../define-tool'
-import {
-  type CommandPolicyRedirectDecision,
-  evaluateCommandPolicy,
-  formatCommandRedirectMessage,
-} from './run-command-policy'
 
 const logger = createLogger('tools:runCommand')
 const MAX_LOG_PREVIEW_BYTES = 1024
-
-export function isDangerousCommand(command: string): string | null {
-  const decision = evaluateCommandPolicy(command)
-  if (decision.action === 'redirect') {
-    return formatCommandRedirectMessage(decision)
-  }
-  return null
-}
 
 export const runCommandTool = defineOpenWaggleTool({
   name: 'runCommand',
@@ -36,17 +22,6 @@ export const runCommandTool = defineOpenWaggleTool({
       .describe('Timeout in milliseconds. Defaults to 30000 (30 seconds).'),
   }),
   async execute(args, context) {
-    const decision = evaluateCommandPolicy(args.command)
-    if (decision.action === 'redirect') {
-      const guidance = buildGuidedPolicyResult(args.command, decision)
-      logger.warn('command redirected by safety policy', {
-        command: redactSensitiveText(args.command),
-        ruleId: decision.ruleId,
-        reason: decision.reason,
-      })
-      return guidance
-    }
-
     const timeout = args.timeout ?? 30000
     const displayCommand =
       args.command.length > 200 ? `${args.command.slice(0, 200)}...` : args.command
@@ -220,26 +195,5 @@ export function toLogPreview(value: string): LogPreview {
   return {
     preview: `${preview}... [truncated in log]`,
     truncated: true,
-  }
-}
-
-function buildGuidedPolicyResult(
-  command: string,
-  decision: CommandPolicyRedirectDecision,
-): NormalizedToolResult {
-  return {
-    kind: 'json',
-    data: {
-      ok: false,
-      status: 'blocked_with_guidance',
-      policy: 'command-safety',
-      attemptedCommand: redactSensitiveText(command),
-      ruleId: decision.ruleId,
-      reason: decision.reason,
-      instruction: decision.instruction,
-      nextSteps: [...decision.nextSteps],
-      safeCommandExamples: [...decision.safeCommandExamples],
-      message: formatCommandRedirectMessage(decision),
-    },
   }
 }
