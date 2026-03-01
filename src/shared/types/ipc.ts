@@ -50,6 +50,10 @@ export interface IpcInvokeChannelMap {
     args: [conversationId: ConversationId, payload: AgentSendPayload, model: SupportedModelId]
     return: undefined
   }
+  'agent:steer': {
+    args: [conversationId: ConversationId]
+    return: { preserved: boolean }
+  }
   'settings:get': {
     args: []
     return: Settings
@@ -350,6 +354,7 @@ export interface OpenWaggleApi {
     model: SupportedModelId,
   ): Promise<void>
   cancelAgent(conversationId?: ConversationId): void
+  steerAgent(conversationId: ConversationId): Promise<{ preserved: boolean }>
   /** Subscribe to raw StreamChunks from TanStack AI — used by the IPC connection adapter */
   onStreamChunk(callback: (payload: IpcEventPayload<'agent:stream-chunk'>) => void): () => void
 

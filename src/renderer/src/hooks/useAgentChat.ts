@@ -19,6 +19,7 @@ interface AgentChatReturn {
   isLoading: boolean
   status: 'ready' | 'submitted' | 'streaming' | 'error'
   stop: () => void
+  steer: () => Promise<void>
   error: Error | undefined
   respondToolApproval: (approvalId: string, approved: boolean) => Promise<void>
   answerQuestion: (conversationId: ConversationId, answers: QuestionAnswer[]) => Promise<void>
@@ -113,6 +114,12 @@ export function useAgentChat(
     stop: () => {
       if (conversationId) {
         api.cancelAgent(conversationId)
+      }
+      stop()
+    },
+    steer: async () => {
+      if (conversationId) {
+        await api.steerAgent(conversationId)
       }
       stop()
     },

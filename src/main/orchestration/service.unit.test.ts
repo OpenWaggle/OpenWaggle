@@ -783,10 +783,16 @@ describe('runOrchestratedAgent', () => {
       emitChunk,
     })
 
-    // The error should bubble up and trigger fallback
-    expect(result.status).toBe('fallback')
+    // Known provider error → 'failed' (not 'fallback'), with proper RUN_ERROR chunk
+    expect(result.status).toBe('failed')
     expect(result.reason).toContain('rate_limit_error')
     expect(result.reason).toContain('Rate limit exceeded')
+
+    const errorChunks = emitChunk.mock.calls.filter(
+      (c) => (c[0] as { type: string }).type === 'RUN_ERROR',
+    )
+    expect(errorChunks).toHaveLength(1)
+    expect((errorChunks[0][0] as { error: { code: string } }).error.code).toBe('rate-limited')
   })
 
   it('modelTextWithTools throws when executor stream contains RUN_ERROR', async () => {

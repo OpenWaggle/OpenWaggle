@@ -6,6 +6,7 @@ import type { UIMessage } from '@tanstack/ai-react'
 import { useState } from 'react'
 import { useAgentChat } from '@/hooks/useAgentChat'
 import { useAgentPhase } from '@/hooks/useAgentPhase'
+import { useAutoSendQueue } from '@/hooks/useAutoSendQueue'
 import { useChat } from '@/hooks/useChat'
 import { useConversationNav } from '@/hooks/useConversationNav'
 import { useGit } from '@/hooks/useGit'
@@ -18,6 +19,7 @@ import { useWaggleChat } from '@/hooks/useWaggleChat'
 import { useWaggleMetadataLookup } from '@/hooks/useWaggleMetadataLookup'
 import { api } from '@/lib/ipc'
 import { useComposerStore } from '@/stores/composer-store'
+import { useMessageQueueStore } from '@/stores/message-queue-store'
 import { usePreferencesStore } from '@/stores/preferences-store'
 import { useUIStore } from '@/stores/ui-store'
 import { useWaggleStore } from '@/stores/waggle-store'
@@ -53,12 +55,14 @@ export interface ChatComposerSectionState {
   readonly commandPaletteOpen: boolean
   readonly slashSkills: readonly SkillDiscoveryItem[]
   readonly isLoading: boolean
+  readonly status: 'ready' | 'submitted' | 'streaming' | 'error'
   onToolApprovalResponse: ReturnType<typeof useAgentChat>['respondToolApproval']
   onAnswerQuestion: ReturnType<typeof useAgentChat>['answerQuestion']
   onStopCollaboration: () => void
   onSelectSkill: (skillId: string) => void
   onStartWaggle: (config: WaggleConfig) => void
   onSendWithWaggle: (payload: AgentSendPayload) => Promise<void>
+  onSteer: (messageId: string) => Promise<void>
   onCancel: () => void
   onToast: (message: string) => void
 }
@@ -128,7 +132,9 @@ export function useChatPanelSections(): ChatPanelSections {
     sendMessage,
     sendWaggleMessage,
     isLoading,
+    status,
     stop,
+    steer,
     error,
     respondToolApproval,
     answerQuestion,
@@ -159,12 +165,20 @@ export function useChatPanelSections(): ChatPanelSections {
   const stopWaggleCollaboration = useWaggleStore((s) => s.stopCollaboration)
 
   const [dismissedError, setDismissedError] = useState<string | null>(null)
+  const [isSteering, setIsSteering] = useState(false)
+
+  useAutoSendQueue({
+    conversationId: activeConversationId,
+    status,
+    sendMessage: handleSend,
+    paused: isSteering,
+  })
 
   const lastUserMessage = resolveLastUserMessage(messages)
 
   const virtualRows = buildVirtualRows({
     messages,
-    isLoading,
+    isLoading: isLoading || isSteering,
     error,
     lastUserMessage,
     dismissedError,
@@ -197,6 +211,24 @@ export function useChatPanelSections(): ChatPanelSections {
     stopWaggleCollaboration()
   }
 
+  async function handleSteer(messageId: string): Promise<void> {
+    if (!activeConversationId) return
+    const queue = useMessageQueueStore.getState().queues.get(activeConversationId)
+    const item = queue?.find((i) => i.id === messageId)
+    if (!item) return
+    setIsSteering(true)
+    useMessageQueueStore.getState().dismiss(activeConversationId, messageId)
+    try {
+      await steer()
+      await handleSendWithWaggle(item.payload)
+    } catch {
+      // Re-enqueue on failure so the message isn't silently lost
+      useMessageQueueStore.getState().enqueue(activeConversationId, item.payload)
+    } finally {
+      setIsSteering(false)
+    }
+  }
+
   async function handleSendWithWaggle(payload: AgentSendPayload): Promise<void> {
     if (waggleConfig && waggleStatus === 'idle') {
       if (activeConversationId) {
@@ -212,7 +244,7 @@ export function useChatPanelSections(): ChatPanelSections {
   return {
     transcript: {
       messages,
-      isLoading,
+      isLoading: isLoading || isSteering,
       projectPath,
       recentProjects,
       activeConversationId,
@@ -231,13 +263,15 @@ export function useChatPanelSections(): ChatPanelSections {
       waggleStatus,
       commandPaletteOpen,
       slashSkills: catalog?.skills ?? [],
-      isLoading,
+      isLoading: isLoading || isSteering,
+      status,
       onToolApprovalResponse: respondToolApproval,
       onAnswerQuestion: answerQuestion,
       onStopCollaboration: handleStopCollaboration,
       onSelectSkill: handleSelectSkill,
       onStartWaggle: handleStartWaggle,
       onSendWithWaggle: handleSendWithWaggle,
+      onSteer: handleSteer,
       onCancel: stop,
       onToast: showToast,
     },
