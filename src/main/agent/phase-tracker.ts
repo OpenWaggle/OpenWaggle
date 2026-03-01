@@ -133,13 +133,20 @@ export function updatePhaseFromStreamChunk(
   }
 
   if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
+    if (state.mode === 'orchestration') {
+      return { changed: false, phase: state.current }
+    }
     if (state.runStatus !== 'running') {
       return { changed: false, phase: state.current }
     }
-    if (state.mode === 'orchestration' && state.runStatus === 'running') {
+    return setPhase(state, 'Writing', now)
+  }
+
+  if (chunk.type === 'TOOL_CALL_START') {
+    if (state.mode === 'orchestration') {
       return { changed: false, phase: state.current }
     }
-    return setPhase(state, 'Writing', now)
+    return setPhase(state, 'Thinking', now)
   }
 
   if (chunk.type === 'RUN_ERROR') {
@@ -168,17 +175,17 @@ export function updatePhaseFromOrchestrationEvent(
 
   if (payload.type === 'run_completed') {
     state.runStatus = 'completed'
-    return setPhase(state, 'Writing', now)
+    return setPhase(state, 'Reviewing', now)
   }
 
   if (payload.type === 'run_failed') {
     state.runStatus = 'failed'
-    return setPhase(state, 'Writing', now)
+    return setPhase(state, 'Reviewing', now)
   }
 
   if (payload.type === 'run_cancelled') {
     state.runStatus = 'cancelled'
-    return setPhase(state, 'Writing', now)
+    return setPhase(state, 'Reviewing', now)
   }
 
   if (payload.type === 'fallback') {

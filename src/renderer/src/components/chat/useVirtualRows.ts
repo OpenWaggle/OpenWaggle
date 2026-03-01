@@ -199,7 +199,7 @@ export function buildVirtualRows({
   }
 
   // Run summary — shown after run completes
-  if (!isLoading && phase.completed.length > 0) {
+  if (!isLoading && !phase.current && phase.completed.length > 0) {
     rows.push({
       type: 'run-summary',
       phases: phase.completed,

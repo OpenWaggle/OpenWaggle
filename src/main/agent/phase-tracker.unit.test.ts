@@ -71,7 +71,41 @@ describe('phase-tracker', () => {
     ).toMatchObject({ changed: true, phase: null })
   })
 
-  it('maps orchestration events to Planning/Researching/Reviewing/Writing', () => {
+  it('transitions Writing -> Thinking when tool calls start', () => {
+    const t0 = 7_000
+    streamChunk({ type: 'RUN_STARTED', timestamp: t0, runId: 'r5' }, t0)
+    streamChunk(
+      { type: 'TEXT_MESSAGE_CONTENT', timestamp: t0 + 1, messageId: 'm3', delta: 'Let me check' },
+      t0 + 1,
+    )
+    expect(getPhaseForConversation(conversationId)).toMatchObject({ label: 'Writing' })
+
+    // Tool call starts — should flip back to Thinking
+    const result = streamChunk(
+      { type: 'TOOL_CALL_START', timestamp: t0 + 2, toolCallId: 'tc-1', toolName: 'readFile' },
+      t0 + 2,
+    )
+    expect(result).toMatchObject({ changed: true, phase: { label: 'Thinking', startedAt: t0 + 2 } })
+
+    // Text after tool execution flips back to Writing
+    streamChunk(
+      {
+        type: 'RUN_FINISHED',
+        timestamp: t0 + 3,
+        runId: 'r5',
+        finishReason: 'tool_calls',
+      },
+      t0 + 3,
+    )
+    streamChunk({ type: 'RUN_STARTED', timestamp: t0 + 4, runId: 'r5' }, t0 + 4)
+    const writeResult = streamChunk(
+      { type: 'TEXT_MESSAGE_CONTENT', timestamp: t0 + 5, messageId: 'm4', delta: 'Here are' },
+      t0 + 5,
+    )
+    expect(writeResult).toMatchObject({ changed: true, phase: { label: 'Writing' } })
+  })
+
+  it('maps orchestration events to Planning/Researching/Reviewing', () => {
     const t0 = 2_000
     expect(orchestrationEvent({ type: 'run_started' }, t0)).toMatchObject({
       changed: true,
@@ -99,10 +133,33 @@ describe('phase-tracker', () => {
       phase: { label: 'Reviewing', startedAt: t0 + 3 },
     })
 
+    // run_completed stays on Reviewing (not Writing) — synthesis text is still orchestration
     expect(orchestrationEvent({ type: 'run_completed' }, t0 + 4)).toMatchObject({
-      changed: true,
-      phase: { label: 'Writing', startedAt: t0 + 4 },
+      changed: false,
+      phase: { label: 'Reviewing', startedAt: t0 + 3 },
     })
+  })
+
+  it('suppresses Writing phase during orchestration synthesis', () => {
+    const t0 = 6_000
+    orchestrationEvent({ type: 'run_started' }, t0)
+    orchestrationEvent(
+      { type: 'task_queued', taskId: OrchestrationTaskId('task-2'), taskKind: 'analysis' },
+      t0 + 1,
+    )
+    orchestrationEvent(
+      { type: 'task_started', taskId: OrchestrationTaskId('task-2'), taskKind: 'analysis' },
+      t0 + 2,
+    )
+    orchestrationEvent({ type: 'task_succeeded', taskId: OrchestrationTaskId('task-2') }, t0 + 3)
+    orchestrationEvent({ type: 'run_completed' }, t0 + 4)
+
+    // TEXT_MESSAGE_CONTENT during orchestration must NOT flip to Writing
+    const result = streamChunk(
+      { type: 'TEXT_MESSAGE_CONTENT', timestamp: t0 + 5, messageId: 'm2', delta: 'synthesis' },
+      t0 + 5,
+    )
+    expect(result).toMatchObject({ changed: false, phase: { label: 'Reviewing' } })
   })
 
   it('supports explicit phase reset', () => {

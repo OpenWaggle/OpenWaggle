@@ -74,6 +74,7 @@ Do NOT use orchestrate for:
 - Sequential tasks where each depends on the previous result
 - Simple tasks you can handle directly
 - Tasks that need file writes or command execution (sub-agents are read-only)
+IMPORTANT: Before calling orchestrate, you MUST tell the user specifically what sub-tasks you are spawning. List each task by name (e.g., "I'll run three sub-agents in parallel: one to analyze the auth module, one to review the API routes, and one to check the test coverage."). A vague intro like "Let me look into this" is NOT sufficient — the user needs to know what work is being parallelized.
 The tool returns the synthesized results from all sub-agents.`,
 }
 
