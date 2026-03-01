@@ -130,6 +130,16 @@ describe('classifyErrorMessage', () => {
     expect(info.code).toBe('rate-limited')
   })
 
+  it('classifies model-runner wrapped Anthropic 429 with clean message', () => {
+    const raw =
+      'Model error [429]: 429 {"type":"error","error":{"type":"rate_limit_error","message":"This request would exceed your account\'s rate limit. Please try again later."},"request_id":"req_011CYbC6m5kckZcZoHLfL3Ru"}'
+    const info = classifyErrorMessage(raw)
+    expect(info.code).toBe('rate-limited')
+    expect(info.message).toBe(
+      "This request would exceed your account's rate limit. Please try again later.",
+    )
+  })
+
   // ─── Provider down ──────────────────────────────────────────────
 
   it.each([

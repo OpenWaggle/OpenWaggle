@@ -5,6 +5,7 @@ import {
   OrchestrationTaskId,
   type SupportedModelId,
 } from '@shared/types/brand'
+import { classifyErrorMessage } from '@shared/types/errors'
 import type { JsonValue } from '@shared/types/json'
 import type { AnyTextAdapter } from '@tanstack/ai'
 import type {
@@ -479,9 +480,27 @@ async function handleRunnerError(
   }
 
   const reason = error instanceof Error ? error.message : String(error)
+  const classified = classifyErrorMessage(reason)
+
+  // Known provider errors (rate-limit, auth, credits, provider-down):
+  // emit a proper RUN_ERROR so the renderer shows ChatErrorDisplay
+  // instead of inline text. Skip fallback — same error would recur.
+  if (classified.code !== 'unknown') {
+    context.deps.logger.error('orchestration failed with provider error', { error: reason })
+    context.streamSession.closeMessage()
+    context.params.emitChunk({
+      type: 'RUN_ERROR',
+      timestamp: Date.now(),
+      error: { message: classified.userMessage, code: classified.code },
+    })
+    context.streamSession.finishRun()
+    return { status: 'failed', runId: context.params.runId, reason }
+  }
+
+  // Unknown errors: fall back to direct execution with a clean message
   context.deps.logger.error('orchestration failed, falling back', { error: reason })
   context.streamSession.appendText(
-    `\nOrchestration encountered an issue: ${reason}. Falling back to direct execution.\n`,
+    `\nOrchestration encountered an issue: ${classified.message}. Falling back to direct execution.\n`,
   )
   context.streamSession.closeMessage()
   context.streamSession.handoffToFallback()
