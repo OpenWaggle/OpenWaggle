@@ -20,6 +20,8 @@ interface UseAutoSendQueueOptions {
  * 2. When the agent is 'streaming' and messages appear in the queue, forwards
  *    them to the main-process context injection buffer (via `api.injectContext`)
  *    so the agent reads them at the next tool boundary without stopping.
+ *    Items remain in the queue so the QueuedMessages UI stays visible —
+ *    the user can still Steer or Trash individual items.
  *
  * When `paused` is true the hook skips firing AND preserves the previous status
  * so the non-ready → ready transition is still detected once unpaused.
@@ -61,9 +63,10 @@ export function useAutoSendQueue({
 
   // Path 2: streaming → forward newly-queued messages to injection buffer.
   // Uses Zustand subscribe() to react to queue additions outside React's
-  // render cycle, avoiding self-mutation loops (dismiss changes queue state).
-  // Only forwards items added *after* the subscription starts — pre-existing
-  // queue items are left for Path 1 to dequeue on the ready transition.
+  // render cycle. Only forwards items added *after* the subscription starts —
+  // pre-existing queue items are left for Path 1 to dequeue on the ready
+  // transition. Items are NOT dismissed so they stay visible in QueuedMessages
+  // (the user can still Steer or Trash them).
   useEffect(() => {
     if (status !== 'streaming' || !conversationId || paused) return
 
@@ -77,7 +80,6 @@ export function useAutoSendQueue({
       const newItems = curr.filter((i) => !prevIds.has(i.id))
       for (const item of newItems) {
         api.injectContext(conversationId, item.payload.text)
-        useMessageQueueStore.getState().dismiss(conversationId, item.id)
       }
     })
 

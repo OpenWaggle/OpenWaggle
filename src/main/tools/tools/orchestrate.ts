@@ -1,15 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import type { ConversationId } from '@shared/types/brand'
 import { OrchestrationRunId, OrchestrationTaskId } from '@shared/types/brand'
 import type { JsonValue } from '@shared/types/json'
 import type { OrchestrationEventPayload } from '@shared/types/orchestration'
-import { BrowserWindow } from 'electron'
 import { z } from 'zod'
 import { createLogger } from '../../logger'
-import type {
-  OpenWaggleTaskExecutionInput,
-  OrchestrationEvent,
-} from '../../orchestration/engine/types'
+import type { OpenWaggleTaskExecutionInput } from '../../orchestration/engine/types'
+import { emitOrchestrationEvent } from '../../utils/stream-bridge'
 import { defineOpenWaggleTool } from '../define-tool'
 
 const logger = createLogger('tool:orchestrate')
@@ -104,6 +100,7 @@ export const orchestrateTool = defineOpenWaggleTool({
     })
 
     // ── Build the pre-formatted plan for the orchestration engine ──
+    const taskKindLookup = new Map<string, string>()
     const planJson: JsonValue = {
       tasks: args.tasks.map((task) => {
         const base: Record<string, JsonValue> = {
@@ -112,6 +109,7 @@ export const orchestrateTool = defineOpenWaggleTool({
           title: task.title,
           prompt: task.prompt,
         }
+        taskKindLookup.set(task.id, 'general')
         if (task.dependsOn && task.dependsOn.length > 0) {
           base.dependsOn = task.dependsOn
         }
@@ -162,7 +160,17 @@ export const orchestrateTool = defineOpenWaggleTool({
         },
       },
       onEvent: (event) => {
-        emitSubAgentEvent(conversationId, event)
+        const taskId = 'taskId' in event && event.taskId ? String(event.taskId) : undefined
+        const payload: OrchestrationEventPayload = {
+          conversationId,
+          runId: OrchestrationRunId(event.runId),
+          type: event.type,
+          at: event.at,
+          taskId: taskId ? OrchestrationTaskId(taskId) : undefined,
+          taskKind: taskId ? taskKindLookup.get(taskId) : undefined,
+          detail: event,
+        }
+        emitOrchestrationEvent(payload)
       },
     })
 
@@ -188,21 +196,3 @@ export const orchestrateTool = defineOpenWaggleTool({
     return result.text || 'Orchestration completed but produced no output.'
   },
 })
-
-function emitSubAgentEvent(conversationId: ConversationId, event: OrchestrationEvent): void {
-  const taskId = 'taskId' in event && event.taskId ? String(event.taskId) : undefined
-  const payload: OrchestrationEventPayload = {
-    conversationId,
-    runId: OrchestrationRunId(event.runId),
-    type: event.type,
-    at: event.at,
-    taskId: taskId ? OrchestrationTaskId(taskId) : undefined,
-    detail: event,
-  }
-
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) {
-      win.webContents.send('orchestration:event', payload)
-    }
-  }
-}

@@ -42,6 +42,9 @@ export default defineConfig({
     }
   },
   renderer: {
+    optimizeDeps: {
+      include: ['react/compiler-runtime'],
+    },
     resolve: {
       alias: {
         '@': resolve('src/renderer/src'),

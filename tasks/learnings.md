@@ -20,6 +20,9 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Task: Phase Tracking & Orchestration Narration Bugs (2026-03-01)
+- When orchestration events bypass `stream-bridge.emitOrchestrationEvent()` and send directly via `webContents.send()`, the phase tracker never learns orchestration is happening — its `mode` stays `'classic'` and TEXT_MESSAGE_CONTENT sets "Writing" instead of orchestration-specific labels. Always route orchestration events through the stream-bridge to keep phase state and IPC broadcasting in sync.
+
 ### Task: Orchestration Redesign — Dead Code Cleanup (2026-03-01)
 - When removing a pipeline stage (planner) from an orchestration runner, the cleanest approach is to accept pre-computed plan data as a parameter (`planJson?: JsonValue`) instead of conditionally skipping the stage — this eliminates the need for mock-heavy planner tests and makes the runner's contract explicit about what it requires.
 - TypeScript infers `dependsOn?: undefined` when some object literal variants omit the field in a union; since `undefined` is not assignable to `JsonValue`, test fixtures containing optional fields must be explicitly typed as `JsonValue` to avoid TS2322 errors.
