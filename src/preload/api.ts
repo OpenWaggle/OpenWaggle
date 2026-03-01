@@ -60,6 +60,10 @@ export const api: OpenWaggleApi = {
     ipcRenderer.send('agent:cancel', conversationId)
   },
 
+  steerAgent(conversationId: ConversationId): Promise<{ preserved: boolean }> {
+    return ipcRenderer.invoke('agent:steer', conversationId)
+  },
+
   onStreamChunk(
     callback: (payload: { conversationId: ConversationId; chunk: StreamChunk }) => void,
   ): () => void {

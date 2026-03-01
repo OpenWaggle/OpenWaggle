@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { AgentSendPayload, Message } from '@shared/types/agent'
+import type { AgentSendPayload, HydratedAgentSendPayload, Message } from '@shared/types/agent'
 import { isTextPart } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
@@ -7,6 +7,8 @@ import type { QuestionAnswer } from '@shared/types/question'
 import { runAgent } from '../agent/agent-loop'
 import { classifyAgentError, makeErrorInfo } from '../agent/error-classifier'
 import { getPhaseForConversation } from '../agent/phase-tracker'
+import { buildPersistedUserMessageParts, makeMessage } from '../agent/shared'
+import type { StreamPartCollector } from '../agent/stream-part-collector'
 import { createLogger } from '../logger'
 import {
   cancelAllForConversation,
@@ -24,8 +26,15 @@ import { typedHandle, typedOn } from './typed-ipc'
 
 const logger = createLogger('agent-handler')
 
-/** Per-conversation abort controllers — allows concurrent runs on different conversations */
-const activeRuns = new Map<ConversationId, AbortController>()
+interface ActiveRun {
+  readonly controller: AbortController
+  collector: StreamPartCollector | null
+  model: SupportedModelId
+  payload: HydratedAgentSendPayload | null
+}
+
+/** Per-conversation active runs — allows concurrent runs on different conversations */
+const activeRuns = new Map<ConversationId, ActiveRun>()
 
 export function registerAgentHandlers(): void {
   typedHandle(
@@ -39,14 +48,15 @@ export function registerAgentHandlers(): void {
       // Cancel any existing run for this conversation
       const existing = activeRuns.get(conversationId)
       if (existing) {
-        existing.abort()
+        existing.controller.abort()
         activeRuns.delete(conversationId)
         clearAgentPhase(conversationId)
       }
       cancelAllForConversation(conversationId)
 
       const abortController = new AbortController()
-      activeRuns.set(conversationId, abortController)
+      const run: ActiveRun = { controller: abortController, collector: null, model, payload: null }
+      activeRuns.set(conversationId, run)
 
       const settings = getSettings()
       const conversation = await getConversation(conversationId)
@@ -107,6 +117,14 @@ export function registerAgentHandlers(): void {
                 settings,
                 onChunk: (chunk) => emitStreamChunk(conversationId, chunk),
                 signal: abortController.signal,
+                onCollectorCreated: (c) => {
+                  const r = activeRuns.get(conversationId)
+                  if (r) {
+                    r.collector = c
+                    r.model = model
+                    r.payload = hydratedPayload
+                  }
+                },
               })
               newMessages = classic.newMessages
             } else {
@@ -123,6 +141,14 @@ export function registerAgentHandlers(): void {
             settings,
             onChunk: (chunk) => emitStreamChunk(conversationId, chunk),
             signal: abortController.signal,
+            onCollectorCreated: (c) => {
+              const r = activeRuns.get(conversationId)
+              if (r) {
+                r.collector = c
+                r.model = model
+                r.payload = hydratedPayload
+              }
+            },
           })
           newMessages = classic.newMessages
         }
@@ -196,9 +222,9 @@ export function registerAgentHandlers(): void {
 
   typedOn('agent:cancel', (_event, conversationId?: ConversationId) => {
     if (conversationId) {
-      const controller = activeRuns.get(conversationId)
-      if (controller) {
-        controller.abort()
+      const run = activeRuns.get(conversationId)
+      if (run) {
+        run.controller.abort()
         activeRuns.delete(conversationId)
       }
       clearAgentPhase(conversationId)
@@ -206,8 +232,8 @@ export function registerAgentHandlers(): void {
       cancelQuestion(conversationId)
     } else {
       // Cancel all active runs (backward compat)
-      for (const [id, controller] of activeRuns) {
-        controller.abort()
+      for (const [id, run] of activeRuns) {
+        run.controller.abort()
         activeRuns.delete(id)
         clearAgentPhase(id)
         cancelAllForConversation(id)
@@ -226,4 +252,53 @@ export function registerAgentHandlers(): void {
       answerQuestion(conversationId, answers)
     },
   )
+
+  typedHandle('agent:steer', async (_event, conversationId: ConversationId) => {
+    const run = activeRuns.get(conversationId)
+    if (!run) return { preserved: false }
+
+    // Orchestration or early stage: no collector yet
+    if (!run.collector || !run.payload) {
+      run.controller.abort()
+      activeRuns.delete(conversationId)
+      clearAgentPhase(conversationId)
+      return { preserved: false }
+    }
+
+    // Snapshot partial response synchronously before any async work.
+    // The conversation lock below serialises with the send-message handler's
+    // persistence (line ~160): whichever acquires the lock first persists its
+    // snapshot, and the other reads the latest state. The abort (below the
+    // lock) ensures the send-message handler's `signal.aborted` guard (line
+    // ~156) prevents double-persistence once we're done.
+    const partialParts = run.collector.finalizeParts()
+    const resolvedModel = run.model
+    const originalPayload = run.payload
+
+    try {
+      await withConversationLock(conversationId, async () => {
+        const conv = await getConversation(conversationId)
+        if (!conv) return
+        const userMsg = makeMessage('user', buildPersistedUserMessageParts(originalPayload))
+        const assistantMsg = makeMessage('assistant', partialParts, resolvedModel)
+        await saveConversation({
+          ...conv,
+          messages: [...conv.messages, userMsg, assistantMsg],
+        })
+      })
+    } catch (err) {
+      logger.error('Failed to persist partial response during steer', {
+        conversationId,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+
+    // Abort the run
+    run.controller.abort()
+    activeRuns.delete(conversationId)
+    clearAgentPhase(conversationId)
+    cancelAllForConversation(conversationId)
+
+    return { preserved: true }
+  })
 }

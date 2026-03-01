@@ -44,6 +44,7 @@ export interface AgentRunParams {
    * Using a branded type prevents accidental `skipApproval: true`.
    */
   readonly skipApproval?: SkipApprovalToken
+  readonly onCollectorCreated?: (collector: StreamPartCollector) => void
 }
 
 export interface AgentRunResult {
@@ -157,6 +158,7 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
     async () => {
       const stageDurationsMs: Record<string, number> = {}
       const collector = new StreamPartCollector()
+      params.onCollectorCreated?.(collector)
 
       let context: AgentRunContext | null = null
       let hooks: readonly AgentLifecycleHook[] = []

@@ -18,6 +18,7 @@ describe('preload api surface contract', () => {
     // Agent
     'sendMessage',
     'cancelAgent',
+    'steerAgent',
     'onStreamChunk',
     // Agent Questions
     'answerQuestion',
