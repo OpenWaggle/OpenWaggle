@@ -25,6 +25,7 @@ import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from '@shared/t
 import type { McpServerConfig, McpServerStatus } from '@shared/types/mcp'
 import type { OrchestrationEventPayload, OrchestrationRunRecord } from '@shared/types/orchestration'
 import type { AgentPhaseEventPayload, AgentPhaseState } from '@shared/types/phase'
+import type { PlanPayload, PlanResponse } from '@shared/types/plan'
 import type { QuestionAnswer, QuestionPayload } from '@shared/types/question'
 import type { Provider, Settings } from '@shared/types/settings'
 import type {
@@ -100,6 +101,19 @@ export const api: OpenWaggleApi = {
     }
     ipcRenderer.on('agent:phase', handler)
     return () => ipcRenderer.removeListener('agent:phase', handler)
+  },
+
+  // ─── Plan Proposals ────────────────────────────────
+  respondToPlan(conversationId: ConversationId, response: PlanResponse): Promise<void> {
+    return ipcRenderer.invoke('agent:respond-to-plan', conversationId, response)
+  },
+
+  onPlanProposal(callback: (payload: PlanPayload) => void): () => void {
+    const handler = (_event: Electron.IpcRendererEvent, payload: PlanPayload): void => {
+      callback(payload)
+    }
+    ipcRenderer.on('agent:plan-proposal', handler)
+    return () => ipcRenderer.removeListener('agent:plan-proposal', handler)
   },
 
   // ─── Settings ────────────────────────────────────────

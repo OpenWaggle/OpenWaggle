@@ -25,35 +25,28 @@ const DEFAULT_TASK_RETRY: OrchestrationTaskRetryPolicy = {
 export async function runOpenWaggleOrchestration(
   input: RunOpenWaggleOrchestrationInput,
 ): Promise<OpenWaggleOrchestrationResult> {
-  const mode = input.mode ?? 'auto-fallback'
   const runStore = input.runStore ?? new MemoryRunStore()
 
   let planRaw: JsonValue
   try {
     planRaw = await input.planner.plan({ userPrompt: input.userPrompt })
   } catch (error) {
-    if (mode === 'auto-fallback') {
-      return runSingleTaskFallback(
-        input,
-        runStore,
-        `planner-error: ${error instanceof Error ? error.message : String(error)}`,
-      )
-    }
-    throw error
+    return runSingleTaskFallback(
+      input,
+      runStore,
+      `planner-error: ${error instanceof Error ? error.message : String(error)}`,
+    )
   }
 
   let plan: OpenWaggleOrchestrationPlan
   try {
     plan = parseOpenWagglePlan(planRaw)
   } catch (error) {
-    if (mode === 'auto-fallback') {
-      return runSingleTaskFallback(
-        input,
-        runStore,
-        error instanceof Error ? error.message : String(error),
-      )
-    }
-    throw error
+    return runSingleTaskFallback(
+      input,
+      runStore,
+      error instanceof Error ? error.message : String(error),
+    )
   }
 
   const taskById = Object.fromEntries(plan.tasks.map((task) => [task.id, task] as const))

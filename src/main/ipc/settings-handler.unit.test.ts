@@ -229,20 +229,6 @@ describe('registerSettingsHandlers', () => {
       expect(updateSettingsMock).toHaveBeenCalledOnce()
     })
 
-    it('accepts valid orchestrationMode update', () => {
-      registerSettingsHandlers()
-
-      const handler = getSafeInvokeHandler('settings:update')
-      expect(handler).toBeDefined()
-
-      const payload = { orchestrationMode: 'classic' }
-      const result = handler?.({}, payload)
-      expect(result).toEqual({ ok: true })
-      expect(updateSettingsMock).toHaveBeenCalledWith(
-        expect.objectContaining({ orchestrationMode: 'classic' }),
-      )
-    })
-
     it('accepts projectPath as null', () => {
       registerSettingsHandlers()
 

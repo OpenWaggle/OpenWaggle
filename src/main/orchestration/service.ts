@@ -1,5 +1,4 @@
 import { defaultOrchestrationServiceDeps } from './service/deps'
-import { hasWebIntent } from './service/planner'
 import { createOrchestratedAgentRunner } from './service/runner'
 
 export type {
@@ -8,6 +7,6 @@ export type {
   OrchestrationServiceDeps,
 } from './service/types'
 
-export { createOrchestratedAgentRunner, hasWebIntent }
+export { createOrchestratedAgentRunner }
 
 export const runOrchestratedAgent = createOrchestratedAgentRunner(defaultOrchestrationServiceDeps)

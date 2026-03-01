@@ -231,23 +231,6 @@ describe('settings store', () => {
     ).toBeUndefined()
   })
 
-  it('roundtrips valid orchestrationMode through updateSettings', async () => {
-    const { getSettings, updateSettings } = await loadSettingsModule()
-    updateSettings({ orchestrationMode: 'classic' })
-    const settings = getSettings()
-    expect(settings.orchestrationMode).toBe('classic')
-  })
-
-  it('rejects invalid orchestrationMode in updateSettings', async () => {
-    const { getSettings, updateSettings } = await loadSettingsModule()
-    updateSettings({ orchestrationMode: 'turbo' as 'classic' })
-    const settings = getSettings()
-    expect(settings.orchestrationMode).toBe('auto-fallback')
-    expect(
-      mockState.setCalls.find((c) => c.key === 'orchestrationMode' && c.value === 'turbo'),
-    ).toBeUndefined()
-  })
-
   it('roundtrips valid qualityPreset through updateSettings', async () => {
     const { getSettings, updateSettings } = await loadSettingsModule()
     updateSettings({ qualityPreset: 'high' })

@@ -5,6 +5,8 @@ import { globTool } from './tools/glob'
 import { listFilesTool } from './tools/list-files'
 import { loadAgentsTool } from './tools/load-agents'
 import { loadSkillTool } from './tools/load-skill'
+import { orchestrateTool } from './tools/orchestrate'
+import { proposePlanTool } from './tools/propose-plan'
 import { readFileTool } from './tools/read-file'
 import { runCommandTool } from './tools/run-command'
 import { webFetchTool } from './tools/web-fetch'
@@ -20,5 +22,7 @@ export const builtInTools: readonly ServerTool[] = [
   loadAgentsTool,
   loadSkillTool,
   askUserTool,
+  proposePlanTool,
+  orchestrateTool,
   webFetchTool,
 ]

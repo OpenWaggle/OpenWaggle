@@ -43,6 +43,7 @@ export interface ChatTranscriptSectionState {
   onSelectProjectPath: (path: string) => void
   onRetryText: (content: string) => Promise<void>
   onAnswerQuestion: ReturnType<typeof useAgentChat>['answerQuestion']
+  onRespondToPlan: ReturnType<typeof useAgentChat>['respondToPlan']
   onOpenSettings: () => void
   onDismissError: (errorId: string | null) => void
 }
@@ -138,6 +139,7 @@ export function useChatPanelSections(): ChatPanelSections {
     error,
     respondToolApproval,
     answerQuestion,
+    respondToPlan,
   } = useAgentChat(activeConversationId, activeConversation, model, qualityPreset)
 
   const { handleSend, handleSendText, handleSendWaggle } = useSendMessage({
@@ -253,6 +255,7 @@ export function useChatPanelSections(): ChatPanelSections {
       onSelectProjectPath: handleSelectProjectPath,
       onRetryText: handleSendText,
       onAnswerQuestion: answerQuestion,
+      onRespondToPlan: respondToPlan,
       onOpenSettings: openSettings,
       onDismissError: setDismissedError,
     },

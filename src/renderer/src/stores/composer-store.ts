@@ -63,6 +63,10 @@ interface ComposerState {
   voiceWaveform: number[]
   setVoiceState: (patch: VoicePatch) => void
 
+  // Plan mode
+  planModeActive: boolean
+  togglePlanMode: () => void
+
   // Slash skills
   slashHighlightIndex: number
   dismissedSlashToken: string | null
@@ -87,6 +91,7 @@ interface InitialComposerState {
   actionDialogBusy: boolean
   branchQuery: string
   branchMessage: string | null
+  planModeActive: boolean
   isListening: boolean
   isTranscribingVoice: boolean
   voiceError: string | null
@@ -110,6 +115,7 @@ const INITIAL_STATE: InitialComposerState = {
   actionDialogBusy: false,
   branchQuery: '',
   branchMessage: null,
+  planModeActive: false,
   isListening: false,
   isTranscribingVoice: false,
   voiceError: null,
@@ -200,6 +206,10 @@ export const useComposerStore = create<ComposerState>((set, get) => ({
     }))
   },
 
+  togglePlanMode() {
+    set((s) => ({ planModeActive: !s.planModeActive }))
+  },
+
   setSlashHighlightIndex(index: number) {
     set({ slashHighlightIndex: index })
   },
@@ -221,6 +231,7 @@ export const useComposerStore = create<ComposerState>((set, get) => ({
       qualityMenuOpen: false,
       executionMenuOpen: false,
       branchMenuOpen: false,
+      planModeActive: false,
     })
   },
 }))

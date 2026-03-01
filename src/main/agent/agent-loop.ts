@@ -202,6 +202,7 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
           hasProject: !!conversation.projectPath,
           provider,
           providerConfig,
+          planModeRequested: payload.planModeRequested,
           standards: await withStageTiming(stageDurationsMs, 'standards-resolution', () =>
             loadAgentStandardsContext(
               conversation.projectPath,

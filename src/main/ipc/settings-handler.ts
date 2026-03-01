@@ -1,11 +1,6 @@
 import { AUTH_METHODS } from '@shared/types/auth'
 import { SupportedModelId } from '@shared/types/brand'
-import {
-  EXECUTION_MODES,
-  ORCHESTRATION_MODES,
-  PROVIDERS,
-  QUALITY_PRESETS,
-} from '@shared/types/settings'
+import { EXECUTION_MODES, PROVIDERS, QUALITY_PRESETS } from '@shared/types/settings'
 import { chat } from '@tanstack/ai'
 import { z } from 'zod'
 import { createLogger } from '../logger'
@@ -106,7 +101,6 @@ const settingsUpdateSchema = z.object({
   favoriteModels: z.array(z.string()).optional(),
   projectPath: z.string().nullable().optional(),
   executionMode: z.enum(EXECUTION_MODES).optional(),
-  orchestrationMode: z.enum(ORCHESTRATION_MODES).optional(),
   qualityPreset: z.enum(QUALITY_PRESETS).optional(),
   recentProjects: z.array(z.string()).optional(),
   skillTogglesByProject: z.record(z.string(), z.record(z.string(), z.boolean())).optional(),

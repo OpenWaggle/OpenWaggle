@@ -1,4 +1,5 @@
 import type { ConversationId } from '@shared/types/brand'
+import type { PlanResponse } from '@shared/types/plan'
 import type { QuestionAnswer } from '@shared/types/question'
 import { chooseBy } from '@shared/utils/decision'
 import { Spinner } from '@/components/shared/Spinner'
@@ -13,6 +14,7 @@ interface VirtualRowRendererProps {
   row: VirtualRow
   conversationId: ConversationId | null
   onAnswerQuestion: (conversationId: ConversationId, answers: QuestionAnswer[]) => Promise<void>
+  onRespondToPlan?: (conversationId: ConversationId, response: PlanResponse) => Promise<void>
   onOpenSettings?: () => void
   onRetry?: (content: string) => void
   onDismissError: (message: string) => void
@@ -22,6 +24,7 @@ export function VirtualRowRenderer({
   row,
   conversationId,
   onAnswerQuestion,
+  onRespondToPlan,
   onOpenSettings,
   onRetry,
   onDismissError,
@@ -43,6 +46,7 @@ export function VirtualRowRenderer({
           assistantModel={value.assistantModel}
           conversationId={conversationId}
           onAnswerQuestion={onAnswerQuestion}
+          onRespondToPlan={onRespondToPlan}
           waggle={value.waggle}
         />
       </div>
@@ -67,6 +71,7 @@ export function VirtualRowRenderer({
           assistantModel={value.assistantModel}
           conversationId={conversationId}
           onAnswerQuestion={onAnswerQuestion}
+          onRespondToPlan={onRespondToPlan}
           waggle={value.waggle}
         />
       </div>

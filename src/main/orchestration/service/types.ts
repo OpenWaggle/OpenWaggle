@@ -30,6 +30,8 @@ export interface OrchestratedAgentRunParams {
   readonly signal: AbortSignal
   readonly emitEvent: (payload: OrchestrationEventPayload) => void
   readonly emitChunk: (chunk: StreamChunk) => void
+  /** Pre-computed plan JSON (from the orchestrate tool). Defaults to empty tasks. */
+  readonly planJson?: JsonValue
 }
 
 export interface OrchestratedAgentRunResult {

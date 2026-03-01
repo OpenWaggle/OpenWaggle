@@ -17,6 +17,7 @@ export interface AgentRunContext {
   readonly provider: ProviderDefinition
   readonly providerConfig: ProviderConfig
   readonly standards?: AgentStandardsContext
+  readonly planModeRequested?: boolean
 }
 
 export interface AgentPromptFragment {

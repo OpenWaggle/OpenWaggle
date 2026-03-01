@@ -2,6 +2,7 @@ import type { AgentSendPayload } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
+import type { PlanResponse } from '@shared/types/plan'
 import type { QuestionAnswer } from '@shared/types/question'
 import type { QualityPreset } from '@shared/types/settings'
 import type { WaggleConfig } from '@shared/types/waggle'
@@ -23,6 +24,7 @@ interface AgentChatReturn {
   error: Error | undefined
   respondToolApproval: (approvalId: string, approved: boolean) => Promise<void>
   answerQuestion: (conversationId: ConversationId, answers: QuestionAnswer[]) => Promise<void>
+  respondToPlan: (conversationId: ConversationId, response: PlanResponse) => Promise<void>
 }
 
 /**
@@ -129,6 +131,9 @@ export function useAgentChat(
     },
     answerQuestion: async (cid: ConversationId, answers: QuestionAnswer[]) => {
       await api.answerQuestion(cid, answers)
+    },
+    respondToPlan: async (cid: ConversationId, response: PlanResponse) => {
+      await api.respondToPlan(cid, response)
     },
   }
 }

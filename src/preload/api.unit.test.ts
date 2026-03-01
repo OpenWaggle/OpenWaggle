@@ -25,6 +25,9 @@ describe('preload api surface contract', () => {
     'getAgentPhase',
     'onQuestion',
     'onAgentPhase',
+    // Agent Plan
+    'respondToPlan',
+    'onPlanProposal',
     // Settings
     'getSettings',
     'updateSettings',
@@ -128,6 +131,7 @@ describe('preload api surface contract', () => {
       'onStreamChunk',
       'onQuestion',
       'onAgentPhase',
+      'onPlanProposal',
       'onTerminalData',
       'onFullscreenChanged',
       'onOrchestrationEvent',

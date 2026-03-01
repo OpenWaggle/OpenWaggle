@@ -17,9 +17,7 @@ import type {
 import { summarizeConversation } from './conversation-summary'
 import { createModelRunner } from './model-runner'
 import {
-  buildPlannerPrompt,
   getPlanTaskCount,
-  hasWebIntent,
   type PlannedTask,
   type PlannerDecision,
   parsePlannerDecision,
@@ -42,22 +40,10 @@ interface RunnerContext {
   readonly fallbackState: { used: boolean; reason: string | undefined }
   readonly quality: SamplingConfig & { readonly model: SupportedModelId }
   readonly adapter: AnyTextAdapter
-  readonly orchestrationMode: 'orchestrated' | 'auto-fallback'
   readonly projectContext: Awaited<ReturnType<OrchestrationServiceDeps['gatherProjectContext']>>
   readonly executorTools: Awaited<ReturnType<OrchestrationServiceDeps['createExecutorTools']>>
   readonly streamSession: StreamSession
   readonly elapsed: () => string
-}
-
-interface PlannerStageResult {
-  readonly webIntentDetected: boolean
-  readonly planResult: JsonValue
-  readonly plannerDecision: PlannerDecision
-}
-
-interface OrchestrationStageInput {
-  readonly context: RunnerContext
-  readonly plannerStage: PlannerStageResult
 }
 
 interface PrepareContextResult {
@@ -91,11 +77,13 @@ export function createOrchestratedAgentRunner(
       context = prepared.context
       context.streamSession.startRun()
 
-      const plannerStage = await runPlannerStage(context)
-      if (shouldUseDirectPath(plannerStage)) {
-        return await runDirectStage(context, plannerStage.plannerDecision)
-      }
-      return await runOrchestrationStage({ context, plannerStage })
+      // Plan is provided externally (by the orchestrate tool or tests).
+      // The old planner stage has been removed — planning is now done
+      // by the agent via the proposePlan tool before calling orchestrate.
+      const planResult = params.planJson ?? { tasks: [] }
+      const plannerDecision = parsePlannerDecision(planResult)
+
+      return await runOrchestrationStage(context, planResult, plannerDecision)
     } catch (error) {
       if (context) {
         return handleRunnerError(context, error)
@@ -157,9 +145,6 @@ async function prepareRunnerContext(
     providerConfig.baseUrl,
     providerConfig.authMethod,
   )
-  const orchestrationMode =
-    settings.orchestrationMode === 'orchestrated' ? 'orchestrated' : 'auto-fallback'
-
   const [projectContext, executorTools] = await Promise.all([
     deps.gatherProjectContext(conversation.projectPath),
     deps.createExecutorTools(conversation.projectPath, signal),
@@ -186,7 +171,6 @@ async function prepareRunnerContext(
       fallbackState,
       quality: normalizedQuality,
       adapter,
-      orchestrationMode,
       projectContext,
       executorTools,
       streamSession,
@@ -195,87 +179,16 @@ async function prepareRunnerContext(
   }
 }
 
-async function runPlannerStage(context: RunnerContext): Promise<PlannerStageResult> {
-  const { deps, params, projectContext, quality, modelRunner, adapter } = context
-
-  const webIntentDetected = hasWebIntent(params.payload.text)
-  if (webIntentDetected) {
-    deps.logger.info('web intent detected — forcing task decomposition')
-  }
-
-  const plannerPrompt = buildPlannerPrompt(
-    projectContext.text,
-    params.payload.text,
-    webIntentDetected,
-  )
-  const plannerQuality = buildPlannerQuality(quality, deps)
-
-  deps.logger.info('planner call starting', {
-    elapsed: context.elapsed(),
-    promptLength: plannerPrompt.length,
-  })
-
-  const planResult = await modelRunner.modelJson(
-    adapter,
-    plannerPrompt,
-    plannerQuality,
-    // No chunk forwarding — StreamSession manages renderer-facing events.
-  )
-
-  deps.logger.info('planner call completed', {
-    elapsed: context.elapsed(),
-    planResult: JSON.stringify(planResult).slice(0, 200),
-  })
-
-  return {
-    webIntentDetected,
-    planResult,
-    plannerDecision: parsePlannerDecision(planResult),
-  }
-}
-
-function shouldUseDirectPath(plannerStage: PlannerStageResult): boolean {
-  return !plannerStage.webIntentDetected && plannerStage.plannerDecision.kind === 'direct'
-}
-
-async function runDirectStage(
+async function runOrchestrationStage(
   context: RunnerContext,
+  planResult: JsonValue,
   plannerDecision: PlannerDecision,
 ): Promise<OrchestratedAgentRunResult> {
-  if (plannerDecision.kind !== 'direct') {
-    return {
-      status: 'failed',
-      runId: context.params.runId,
-      reason: 'invalid planner decision for direct stage',
-      newMessages: [],
-    }
-  }
-
-  context.deps.logger.info('direct response path — skipping orchestration')
-  await context.streamSession.streamText(plannerDecision.response)
-  context.streamSession.closeMessage()
-  context.streamSession.finishRun()
-
-  return {
-    status: 'completed',
-    runId: context.params.runId,
-    newMessages: createCompletionMessages(context),
-  }
-}
-
-async function runOrchestrationStage({
-  context,
-  plannerStage,
-}: OrchestrationStageInput): Promise<OrchestratedAgentRunResult> {
-  const { deps, params, plannerDecision } = {
-    deps: context.deps,
-    params: context.params,
-    plannerDecision: plannerStage.plannerDecision,
-  }
+  const { deps, params } = context
 
   deps.logger.info('orchestrated path', {
     elapsed: context.elapsed(),
-    taskCount: getPlanTaskCount(plannerStage.planResult),
+    taskCount: getPlanTaskCount(planResult),
   })
 
   const tasks = getPlannedTasks(plannerDecision)
@@ -289,7 +202,6 @@ async function runOrchestrationStage({
 
   const orchestrationResult = await deps.runOpenWaggleOrchestration({
     runId: params.runId,
-    mode: context.orchestrationMode,
     userPrompt: params.payload.text,
     signal: params.signal,
     maxContextTokens: 1500,
@@ -297,7 +209,7 @@ async function runOrchestrationStage({
     runStore: context.runStore,
     planner: {
       async plan() {
-        return plannerStage.planResult
+        return planResult
       },
     },
     executor: {
@@ -446,19 +358,6 @@ function createCompletionMessages(context: RunnerContext) {
   )
 
   return [userMsg, assistantMsg] as const
-}
-
-function buildPlannerQuality(
-  quality: SamplingConfig & { readonly model: SupportedModelId },
-  deps: OrchestrationServiceDeps,
-): SamplingConfig {
-  return {
-    ...quality,
-    maxTokens: Math.max(quality.maxTokens, 8192),
-    modelOptions: deps.isReasoningModel(quality.model)
-      ? { ...quality.modelOptions, reasoning: { effort: 'low', summary: 'auto' } }
-      : quality.modelOptions,
-  }
 }
 
 function getPlannedTasks(plannerDecision: PlannerDecision): readonly PlannedTask[] {

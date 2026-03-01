@@ -20,7 +20,6 @@ test('falls back to single-task when planner output is empty in auto-fallback mo
         return 'never'
       },
     },
-    mode: 'auto-fallback',
   })
 
   // Single-task fallback executes the user prompt as a general task
@@ -129,7 +128,6 @@ test('falls back to single-task when planner throws in auto-fallback mode', asyn
         return 'never'
       },
     },
-    mode: 'auto-fallback',
   })
 
   // Single-task fallback ran instead of fully falling back to classic

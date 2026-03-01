@@ -22,7 +22,6 @@ function createSettings(): Settings {
     favoriteModels: [],
     projectPath: '/tmp/project',
     executionMode: 'full-access',
-    orchestrationMode: 'orchestrated',
     qualityPreset: 'medium',
     recentProjects: [],
     skillTogglesByProject: {},
@@ -199,47 +198,13 @@ function createIntegrationDeps(responses: readonly string[]): {
 }
 
 describe('createOrchestratedAgentRunner integration', () => {
-  it('returns direct planner response without invoking orchestration engine', async () => {
-    const plannerResponse = JSON.stringify({
-      direct: true,
-      response: 'Direct answer',
-    })
-    const { deps, chatCalls } = createIntegrationDeps([plannerResponse])
+  it('runs executor and synthesizer through the real orchestration engine', async () => {
+    const executorResponse = 'Executor output'
+    const synthesisResponse = 'Final synthesized answer'
+    const { deps, chatCalls } = createIntegrationDeps([executorResponse, synthesisResponse])
     const runOrchestratedAgent = createOrchestratedAgentRunner(deps)
 
-    const chunks: StreamChunk[] = []
-    const result = await runOrchestratedAgent({
-      runId: 'run-1',
-      conversationId: ConversationId('conversation-1'),
-      conversation: createConversation(),
-      payload: {
-        text: 'What is TypeScript?',
-        qualityPreset: 'medium',
-        attachments: [],
-      },
-      model: SupportedModelId('gpt-4.1-mini'),
-      settings: createSettings(),
-      signal: new AbortController().signal,
-      emitChunk: (chunk) => chunks.push(chunk),
-      emitEvent: () => {},
-    })
-
-    expect(result.status).toBe('completed')
-    const assistantMessage = result.newMessages?.[1]
-    const assistantTextPart = assistantMessage?.parts.find((part) => part.type === 'text')
-    if (!assistantTextPart || assistantTextPart.type !== 'text') {
-      throw new Error('expected assistant text part')
-    }
-    expect(assistantTextPart.text).toContain('Direct answer')
-    expect(chatCalls).toHaveBeenCalledTimes(1)
-
-    const chunkTypes = chunks.map(readChunkType)
-    expect(chunkTypes).toContain('RUN_STARTED')
-    expect(chunkTypes).toContain('RUN_FINISHED')
-  })
-
-  it('runs planner, executor, and synthesizer through the real orchestration engine', async () => {
-    const plannerResponse = JSON.stringify({
+    const planJson = {
       ackText: 'Working through the task list.',
       tasks: [
         {
@@ -249,15 +214,7 @@ describe('createOrchestratedAgentRunner integration', () => {
           prompt: 'Read key files',
         },
       ],
-    })
-    const executorResponse = 'Executor output'
-    const synthesisResponse = 'Final synthesized answer'
-    const { deps, chatCalls } = createIntegrationDeps([
-      plannerResponse,
-      executorResponse,
-      synthesisResponse,
-    ])
-    const runOrchestratedAgent = createOrchestratedAgentRunner(deps)
+    }
 
     const chunks: StreamChunk[] = []
     const events: OrchestrationEventPayload[] = []
@@ -275,6 +232,7 @@ describe('createOrchestratedAgentRunner integration', () => {
       signal: new AbortController().signal,
       emitChunk: (chunk) => chunks.push(chunk),
       emitEvent: (event) => events.push(event),
+      planJson,
     })
 
     expect(result.status).toBe('completed')
@@ -286,7 +244,8 @@ describe('createOrchestratedAgentRunner integration', () => {
     }
     expect(assistantTextPart.text).toContain('Working through the task list')
     expect(assistantTextPart.text).toContain('Final synthesized answer')
-    expect(chatCalls).toHaveBeenCalledTimes(3)
+    // Executor + synthesis (no planner call)
+    expect(chatCalls).toHaveBeenCalledTimes(2)
 
     const chunkTypes = chunks.map(readChunkType)
     expect(chunkTypes[0]).toBe('RUN_STARTED')
@@ -294,8 +253,8 @@ describe('createOrchestratedAgentRunner integration', () => {
     expect(events.length).toBeGreaterThan(0)
   })
 
-  it('keeps fallback handoff semantics when planner JSON cannot be parsed', async () => {
-    const { deps } = createIntegrationDeps(['not-json'])
+  it('completes with empty plan when no planJson is provided', async () => {
+    const { deps } = createIntegrationDeps([])
     const runOrchestratedAgent = createOrchestratedAgentRunner(deps)
 
     const chunks: StreamChunk[] = []
@@ -304,7 +263,7 @@ describe('createOrchestratedAgentRunner integration', () => {
       conversationId: ConversationId('conversation-1'),
       conversation: createConversation(),
       payload: {
-        text: 'Analyze this project',
+        text: 'Quick question',
         qualityPreset: 'medium',
         attachments: [],
       },
@@ -315,14 +274,10 @@ describe('createOrchestratedAgentRunner integration', () => {
       emitEvent: () => {},
     })
 
-    expect(result.status).toBe('fallback')
+    expect(result.status).toBe('completed')
+    // Synthesis may still be called by the engine even with empty tasks
     const chunkTypes = chunks.map(readChunkType)
-    expect(chunkTypes).toEqual([
-      'RUN_STARTED',
-      'TEXT_MESSAGE_START',
-      'TEXT_MESSAGE_CONTENT',
-      'TEXT_MESSAGE_END',
-    ])
-    expect(chunkTypes).not.toContain('RUN_FINISHED')
+    expect(chunkTypes).toContain('RUN_STARTED')
+    expect(chunkTypes).toContain('RUN_FINISHED')
   })
 })

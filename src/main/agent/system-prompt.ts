@@ -44,6 +44,39 @@ export const projectContextPromptFragment: AgentPromptFragment = {
   },
 }
 
+export const planToolPromptFragment: AgentPromptFragment = {
+  id: 'core.plan-tool',
+  order: 35,
+  build: () =>
+    `You have access to a "proposePlan" tool. Use it to present a structured plan to the user before executing complex or multi-step tasks. The plan should describe your approach, key steps, and expected changes in markdown format. The tool blocks until the user approves or requests revisions. If they request revisions, incorporate their feedback and call proposePlan again. Use this tool when:
+- The user explicitly asks for a plan ("create a plan", "let's plan this", "plan first")
+- A plan mode flag is active (indicated in the message context)
+- The task involves significant code changes, architectural decisions, or 3+ distinct steps
+Do NOT use proposePlan for simple questions, single-file edits, or straightforward tasks.`,
+}
+
+export const planModeActivePromptFragment: AgentPromptFragment = {
+  id: 'core.plan-mode-active',
+  order: 36,
+  build: () =>
+    'IMPORTANT: Plan mode is active for this message. You MUST call the proposePlan tool with your plan BEFORE executing any file modifications or commands. Present your approach and wait for user approval.',
+}
+
+export const orchestrateToolPromptFragment: AgentPromptFragment = {
+  id: 'core.orchestrate-tool',
+  order: 37,
+  build: () =>
+    `You have access to an "orchestrate" tool that spawns 2-5 parallel sub-agents. Each sub-agent can read files, search with glob, and fetch web content. Use this tool when:
+- You identify 2-5 genuinely independent sub-tasks that can run in parallel
+- The tasks are research-heavy or involve analyzing different parts of the codebase
+- Parallel execution would meaningfully speed up the work
+Do NOT use orchestrate for:
+- Sequential tasks where each depends on the previous result
+- Simple tasks you can handle directly
+- Tasks that need file writes or command execution (sub-agents are read-only)
+The tool returns the synthesized results from all sub-agents.`,
+}
+
 export const executionModePromptFragment: AgentPromptFragment = {
   id: 'core.execution-mode',
   order: 40,

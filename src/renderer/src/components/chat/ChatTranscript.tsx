@@ -1,4 +1,5 @@
 import type { ConversationId } from '@shared/types/brand'
+import type { PlanResponse } from '@shared/types/plan'
 import type { QuestionAnswer } from '@shared/types/question'
 import { useRef } from 'react'
 import { Virtuoso } from 'react-virtuoso'
@@ -35,6 +36,7 @@ function renderTranscriptRow(
   index: number,
   conversationId: ConversationId | null,
   onAnswerQuestion: (conversationId: ConversationId, answers: QuestionAnswer[]) => Promise<void>,
+  onRespondToPlan: (conversationId: ConversationId, response: PlanResponse) => Promise<void>,
   onOpenSettings: () => void,
   onRetryText: (content: string) => Promise<void>,
   onDismissError: (errorId: string | null) => void,
@@ -48,6 +50,7 @@ function renderTranscriptRow(
         row={row}
         conversationId={conversationId}
         onAnswerQuestion={onAnswerQuestion}
+        onRespondToPlan={onRespondToPlan}
         onOpenSettings={onOpenSettings}
         onRetry={(content) => {
           void onRetryText(content)
@@ -70,6 +73,7 @@ export function ChatTranscript({ section }: ChatTranscriptProps): React.JSX.Elem
     onSelectProjectPath,
     onRetryText,
     onAnswerQuestion,
+    onRespondToPlan,
     onOpenSettings,
     onDismissError,
   } = section
@@ -114,6 +118,7 @@ export function ChatTranscript({ section }: ChatTranscriptProps): React.JSX.Elem
             index,
             activeConversationId,
             onAnswerQuestion,
+            onRespondToPlan,
             onOpenSettings,
             onRetryText,
             onDismissError,

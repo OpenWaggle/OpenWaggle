@@ -1,14 +1,18 @@
 import type { ConversationId } from '@shared/types/brand'
 import { generateDisplayName, type SupportedModelId } from '@shared/types/llm'
+import type { OrchestrationTaskStatus } from '@shared/types/orchestration'
+import type { PlanResponse } from '@shared/types/plan'
 import type { QuestionAnswer } from '@shared/types/question'
 import { askUserArgsSchema } from '@shared/types/question'
 import type { WaggleAgentColor } from '@shared/types/waggle'
 import { chooseBy } from '@shared/utils/decision'
 import type { UIMessage } from '@tanstack/ai-react'
-import { Check } from 'lucide-react'
+import { Check, ClipboardList } from 'lucide-react'
 import { AGENT_BORDER_LEFT, AGENT_TEXT } from '@/lib/agent-colors'
 import { cn } from '@/lib/cn'
+import { PlanCard } from './PlanCard'
 import { StreamingText } from './StreamingText'
+import { SubAgentGroup } from './SubAgentGroup'
 import { ToolCallBlock } from './ToolCallBlock'
 
 interface WaggleInfo {
@@ -22,6 +26,7 @@ interface MessageBubbleProps {
   assistantModel?: SupportedModelId
   conversationId: ConversationId | null
   onAnswerQuestion: (conversationId: ConversationId, answers: QuestionAnswer[]) => Promise<void>
+  onRespondToPlan?: (conversationId: ConversationId, response: PlanResponse) => Promise<void>
   waggle?: WaggleInfo
 }
 
@@ -29,6 +34,8 @@ export function MessageBubble({
   message,
   isStreaming,
   assistantModel,
+  conversationId,
+  onRespondToPlan,
   waggle,
 }: MessageBubbleProps): React.JSX.Element {
   const isUser = message.role === 'user'
@@ -129,6 +136,52 @@ export function MessageBubble({
                 return null
               }
 
+              if (value.name === 'proposePlan' && conversationId && onRespondToPlan) {
+                const planText = parsePlanText(value.arguments)
+                const result = toolResults.get(value.id)
+                const isToolStreaming = !result && value.state !== 'input-complete' && isStreaming
+                if (result) {
+                  // Answered — show compact inline summary
+                  const action = parsePlanAction(result.content)
+                  return (
+                    <div
+                      key={`tool-${value.id}`}
+                      className="flex items-center gap-2 py-0.5 text-[13px]"
+                    >
+                      <ClipboardList className="h-3.5 w-3.5 text-text-muted shrink-0" />
+                      <span className="text-text-muted">
+                        Plan {action === 'approve' ? 'approved' : 'revised'}
+                      </span>
+                    </div>
+                  )
+                }
+                return (
+                  <PlanCard
+                    key={`tool-${value.id}`}
+                    planText={planText}
+                    conversationId={conversationId}
+                    isStreaming={isToolStreaming}
+                    onRespond={onRespondToPlan}
+                  />
+                )
+              }
+
+              if (value.name === 'orchestrate') {
+                const result = toolResults.get(value.id)
+                const tasks = parseOrchestrateTasks(value.arguments)
+                const isComplete = !!result
+                return (
+                  <SubAgentGroup
+                    key={`tool-${value.id}`}
+                    tasks={tasks.map((t) => ({
+                      ...t,
+                      status: (isComplete ? 'completed' : 'running') as OrchestrationTaskStatus,
+                    }))}
+                    isComplete={isComplete}
+                  />
+                )
+              }
+
               return (
                 <ToolCallBlock
                   key={`tool-${value.id}`}
@@ -156,4 +209,53 @@ function countQuestions(argsJson: string): number {
   } catch {
     return 1
   }
+}
+
+function parsePlanText(argsJson: string): string {
+  try {
+    const parsed: unknown = JSON.parse(argsJson)
+    if (typeof parsed === 'object' && parsed !== null && 'planText' in parsed) {
+      const planText = (parsed as { planText: unknown }).planText
+      if (typeof planText === 'string') return planText
+    }
+  } catch {}
+  return ''
+}
+
+function parsePlanAction(content: unknown): 'approve' | 'revise' {
+  try {
+    const raw: unknown = typeof content === 'string' ? JSON.parse(content) : content
+    if (typeof raw === 'object' && raw !== null && 'action' in raw) {
+      return (raw as { action: string }).action === 'approve' ? 'approve' : 'revise'
+    }
+  } catch {}
+  return 'approve'
+}
+
+interface OrchestrateTaskArg {
+  id: string
+  title: string
+}
+
+function parseOrchestrateTasks(argsJson: string): OrchestrateTaskArg[] {
+  try {
+    const parsed: unknown = JSON.parse(argsJson)
+    if (typeof parsed === 'object' && parsed !== null && 'tasks' in parsed) {
+      const tasks = (parsed as { tasks: unknown }).tasks
+      if (Array.isArray(tasks)) {
+        return tasks
+          .filter(
+            (t): t is { id: string; title: string } =>
+              typeof t === 'object' &&
+              t !== null &&
+              'id' in t &&
+              typeof t.id === 'string' &&
+              'title' in t &&
+              typeof t.title === 'string',
+          )
+          .map((t) => ({ id: t.id, title: t.title }))
+      }
+    }
+  } catch {}
+  return []
 }

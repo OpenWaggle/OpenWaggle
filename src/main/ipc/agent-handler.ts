@@ -1,8 +1,8 @@
-import { randomUUID } from 'node:crypto'
 import type { AgentSendPayload, HydratedAgentSendPayload, Message } from '@shared/types/agent'
 import { isTextPart } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
+import type { PlanResponse } from '@shared/types/plan'
 import type { QuestionAnswer } from '@shared/types/question'
 import { runAgent } from '../agent/agent-loop'
 import { classifyAgentError, makeErrorInfo } from '../agent/error-classifier'
@@ -10,17 +10,13 @@ import { getPhaseForConversation } from '../agent/phase-tracker'
 import { buildPersistedUserMessageParts, makeMessage } from '../agent/shared'
 import type { StreamPartCollector } from '../agent/stream-part-collector'
 import { createLogger } from '../logger'
-import {
-  cancelAllForConversation,
-  registerActiveOrchestrationRun,
-  unregisterActiveOrchestrationRun,
-} from '../orchestration/active-runs'
-import { runOrchestratedAgent } from '../orchestration/service'
+import { cancelAllForConversation } from '../orchestration/active-runs'
 import { withConversationLock } from '../store/conversation-lock'
 import { getConversation, saveConversation } from '../store/conversations'
 import { getSettings } from '../store/settings'
+import { cancelPlanProposal, respondToPlan } from '../tools/plan-manager'
 import { answerQuestion, cancelQuestion } from '../tools/question-manager'
-import { clearAgentPhase, emitOrchestrationEvent, emitStreamChunk } from '../utils/stream-bridge'
+import { clearAgentPhase, emitStreamChunk } from '../utils/stream-bridge'
 import { hydrateAttachmentSources } from './attachments-handler'
 import { typedHandle, typedOn } from './typed-ipc'
 
@@ -92,66 +88,23 @@ export function registerAgentHandlers(): void {
           attachments: await hydrateAttachmentSources(payload.attachments),
         }
 
-        let newMessages: readonly Message[]
-        if (settings.orchestrationMode !== 'classic') {
-          const orchestrationRunId = randomUUID()
-          registerActiveOrchestrationRun(orchestrationRunId, conversationId, abortController)
-          try {
-            const orchestratedResult = await runOrchestratedAgent({
-              runId: orchestrationRunId,
-              conversationId,
-              conversation,
-              payload: hydratedPayload,
-              model,
-              settings,
-              emitChunk: (chunk) => emitStreamChunk(conversationId, chunk),
-              emitEvent: (event) => emitOrchestrationEvent(event),
-              signal: abortController.signal,
-            })
-
-            if (orchestratedResult.status === 'fallback') {
-              const classic = await runAgent({
-                conversation,
-                payload: hydratedPayload,
-                model,
-                settings,
-                onChunk: (chunk) => emitStreamChunk(conversationId, chunk),
-                signal: abortController.signal,
-                onCollectorCreated: (c) => {
-                  const r = activeRuns.get(conversationId)
-                  if (r) {
-                    r.collector = c
-                    r.model = model
-                    r.payload = hydratedPayload
-                  }
-                },
-              })
-              newMessages = classic.newMessages
-            } else {
-              newMessages = orchestratedResult.newMessages ?? []
+        const classic = await runAgent({
+          conversation,
+          payload: hydratedPayload,
+          model,
+          settings,
+          onChunk: (chunk) => emitStreamChunk(conversationId, chunk),
+          signal: abortController.signal,
+          onCollectorCreated: (c) => {
+            const r = activeRuns.get(conversationId)
+            if (r) {
+              r.collector = c
+              r.model = model
+              r.payload = hydratedPayload
             }
-          } finally {
-            unregisterActiveOrchestrationRun(orchestrationRunId)
-          }
-        } else {
-          const classic = await runAgent({
-            conversation,
-            payload: hydratedPayload,
-            model,
-            settings,
-            onChunk: (chunk) => emitStreamChunk(conversationId, chunk),
-            signal: abortController.signal,
-            onCollectorCreated: (c) => {
-              const r = activeRuns.get(conversationId)
-              if (r) {
-                r.collector = c
-                r.model = model
-                r.payload = hydratedPayload
-              }
-            },
-          })
-          newMessages = classic.newMessages
-        }
+          },
+        })
+        const newMessages = classic.newMessages
 
         if (abortController.signal.aborted || newMessages.length === 0) {
           return
@@ -230,6 +183,7 @@ export function registerAgentHandlers(): void {
       clearAgentPhase(conversationId)
       cancelAllForConversation(conversationId)
       cancelQuestion(conversationId)
+      cancelPlanProposal(conversationId)
     } else {
       // Cancel all active runs (backward compat)
       for (const [id, run] of activeRuns) {
@@ -238,6 +192,7 @@ export function registerAgentHandlers(): void {
         clearAgentPhase(id)
         cancelAllForConversation(id)
         cancelQuestion(id)
+        cancelPlanProposal(id)
       }
     }
   })
@@ -266,11 +221,6 @@ export function registerAgentHandlers(): void {
     }
 
     // Snapshot partial response synchronously before any async work.
-    // The conversation lock below serialises with the send-message handler's
-    // persistence (line ~160): whichever acquires the lock first persists its
-    // snapshot, and the other reads the latest state. The abort (below the
-    // lock) ensures the send-message handler's `signal.aborted` guard (line
-    // ~156) prevents double-persistence once we're done.
     const partialParts = run.collector.finalizeParts()
     const resolvedModel = run.model
     const originalPayload = run.payload
@@ -301,4 +251,11 @@ export function registerAgentHandlers(): void {
 
     return { preserved: true }
   })
+
+  typedHandle(
+    'agent:respond-to-plan',
+    (_event, conversationId: ConversationId, response: PlanResponse) => {
+      respondToPlan(conversationId, response)
+    },
+  )
 }

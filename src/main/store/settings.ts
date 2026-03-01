@@ -9,8 +9,6 @@ import {
   DEFAULT_SETTINGS,
   EXECUTION_MODES,
   type ExecutionMode,
-  ORCHESTRATION_MODES,
-  type OrchestrationMode,
   PROVIDERS,
   type Provider,
   type ProviderConfig,
@@ -127,7 +125,6 @@ export function getSettings(): Settings {
   }
 
   const executionMode = resolveExecutionMode()
-  const orchestrationMode = resolveOrchestrationMode()
   const qualityPreset = resolveQualityPreset()
   const favoriteModels = resolveFavoriteModels()
   const recentProjects = resolveRecentProjects()
@@ -140,7 +137,6 @@ export function getSettings(): Settings {
     favoriteModels,
     projectPath: store.get('projectPath', DEFAULT_SETTINGS.projectPath),
     executionMode,
-    orchestrationMode,
     qualityPreset,
     recentProjects,
     skillTogglesByProject,
@@ -200,13 +196,6 @@ export function updateSettings(partial: Partial<Settings>): void {
       logger.warn('Skipping invalid executionMode', { value: partial.executionMode })
     }
   }
-  if (partial.orchestrationMode !== undefined) {
-    if (includes(ORCHESTRATION_MODES, partial.orchestrationMode)) {
-      store.set('orchestrationMode', partial.orchestrationMode)
-    } else {
-      logger.warn('Skipping invalid orchestrationMode', { value: partial.orchestrationMode })
-    }
-  }
   if (partial.qualityPreset !== undefined) {
     if (includes(QUALITY_PRESETS, partial.qualityPreset)) {
       store.set('qualityPreset', partial.qualityPreset)
@@ -245,11 +234,6 @@ function resolveExecutionMode(): ExecutionMode {
   }
 
   return DEFAULT_SETTINGS.executionMode
-}
-
-function resolveOrchestrationMode(): OrchestrationMode {
-  const raw = store.get('orchestrationMode', DEFAULT_SETTINGS.orchestrationMode)
-  return ORCHESTRATION_MODES.includes(raw) ? raw : DEFAULT_SETTINGS.orchestrationMode
 }
 
 function resolveQualityPreset(): QualityPreset {

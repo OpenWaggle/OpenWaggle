@@ -7,8 +7,6 @@ export const PROVIDERS = ['anthropic', 'openai', 'gemini', 'grok', 'openrouter',
 export type Provider = (typeof PROVIDERS)[number]
 export const EXECUTION_MODES = ['sandbox', 'full-access'] as const
 export type ExecutionMode = (typeof EXECUTION_MODES)[number]
-export const ORCHESTRATION_MODES = ['orchestrated', 'classic', 'auto-fallback'] as const
-export type OrchestrationMode = (typeof ORCHESTRATION_MODES)[number]
 export const QUALITY_PRESETS = ['low', 'medium', 'high'] as const
 export type QualityPreset = (typeof QUALITY_PRESETS)[number]
 
@@ -31,7 +29,6 @@ export interface Settings {
   readonly favoriteModels: readonly SupportedModelId[]
   readonly projectPath: string | null
   readonly executionMode: ExecutionMode
-  readonly orchestrationMode: OrchestrationMode
   readonly qualityPreset: QualityPreset
   readonly recentProjects: readonly string[]
   readonly skillTogglesByProject: Readonly<Record<string, Readonly<Record<string, boolean>>>>
@@ -55,7 +52,6 @@ export const DEFAULT_SETTINGS: Settings = {
   favoriteModels: [],
   projectPath: null,
   executionMode: 'sandbox',
-  orchestrationMode: 'auto-fallback',
   qualityPreset: 'medium',
   recentProjects: [],
   skillTogglesByProject: {},

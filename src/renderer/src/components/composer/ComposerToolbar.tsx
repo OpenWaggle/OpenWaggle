@@ -1,5 +1,5 @@
 import type { QualityPreset } from '@shared/types/settings'
-import { ArrowUp, Loader2, Mic, Plus, Square } from 'lucide-react'
+import { ArrowUp, ClipboardList, Loader2, Mic, Plus, Square } from 'lucide-react'
 import { ModelSelector } from '@/components/shared/ModelSelector'
 import { Popover } from '@/components/shared/Popover'
 import { useProject } from '@/hooks/useProject'
@@ -39,6 +39,8 @@ export function ComposerToolbar({
 
   const qualityMenuOpen = useComposerStore((s) => s.qualityMenuOpen)
   const openMenu = useComposerStore((s) => s.openMenu)
+  const planModeActive = useComposerStore((s) => s.planModeActive)
+  const togglePlanMode = useComposerStore((s) => s.togglePlanMode)
   const isListening = useComposerStore((s) => s.isListening)
   const isTranscribingVoice = useComposerStore((s) => s.isTranscribingVoice)
 
@@ -109,6 +111,21 @@ export function ComposerToolbar({
             </button>
           ))}
         </Popover>
+
+        <button
+          type="button"
+          onClick={togglePlanMode}
+          className={cn(
+            'flex items-center gap-[5px] h-[26px] px-2.5 rounded-md border transition-colors',
+            planModeActive
+              ? 'border-accent/50 bg-accent/10 text-accent'
+              : 'border-button-border text-text-secondary hover:bg-bg-hover',
+          )}
+          title={planModeActive ? 'Disable plan mode' : 'Enable plan mode'}
+        >
+          <ClipboardList className="h-3 w-3" />
+          <span className="text-[12px]">Plan</span>
+        </button>
       </div>
 
       <div className="flex items-center gap-2">

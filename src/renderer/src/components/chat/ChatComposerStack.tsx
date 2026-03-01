@@ -2,9 +2,11 @@ import { CommandPalette } from '@/components/command-palette/CommandPalette'
 import { Composer } from '@/components/composer/Composer'
 import { QueuedMessages } from '@/components/composer/QueuedMessages'
 import { WaggleCollaborationStatus as WaggleCollaborationStatusBanner } from '@/components/waggle/CollaborationStatus'
+import { useComposerStore } from '@/stores/composer-store'
 import { useMessageQueueStore } from '@/stores/message-queue-store'
 import { ApprovalBanner } from './ApprovalBanner'
 import { AskUserBlock } from './AskUserBlock'
+import { PlanModeBanner } from './PlanModeBanner'
 import type { ChatComposerSectionState } from './use-chat-panel-controller'
 
 interface ChatComposerStackProps {
@@ -14,6 +16,8 @@ interface ChatComposerStackProps {
 function noOp(): void {}
 
 export function ChatComposerStack({ section }: ChatComposerStackProps): React.JSX.Element {
+  const planModeActive = useComposerStore((s) => s.planModeActive)
+
   const {
     pendingApproval,
     pendingAskUser,
@@ -70,6 +74,12 @@ export function ChatComposerStack({ section }: ChatComposerStackProps): React.JS
             onSelectSkill={onSelectSkill}
             onStartWaggle={onStartWaggle}
           />
+        </div>
+      )}
+
+      {planModeActive && (
+        <div className="mx-auto w-full max-w-[720px] px-5 pb-2">
+          <PlanModeBanner />
         </div>
       )}
 

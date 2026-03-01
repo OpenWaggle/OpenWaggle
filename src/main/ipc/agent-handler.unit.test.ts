@@ -8,17 +8,13 @@ const {
   typedHandleMock,
   typedOnMock,
   runAgentMock,
-  runOrchestratedAgentMock,
   getSettingsMock,
   getConversationMock,
   saveConversationMock,
   withConversationLockMock,
   emitStreamChunkMock,
-  emitOrchestrationEventMock,
   clearAgentPhaseMock,
   cancelAllForConversationMock,
-  registerActiveOrchestrationRunMock,
-  unregisterActiveOrchestrationRunMock,
   answerQuestionMock,
   cancelQuestionMock,
   hydrateAttachmentSourcesMock,
@@ -29,17 +25,13 @@ const {
   typedHandleMock: vi.fn(),
   typedOnMock: vi.fn(),
   runAgentMock: vi.fn(),
-  runOrchestratedAgentMock: vi.fn(),
   getSettingsMock: vi.fn(),
   getConversationMock: vi.fn(),
   saveConversationMock: vi.fn(),
   withConversationLockMock: vi.fn(),
   emitStreamChunkMock: vi.fn(),
-  emitOrchestrationEventMock: vi.fn(),
   clearAgentPhaseMock: vi.fn(),
   cancelAllForConversationMock: vi.fn(),
-  registerActiveOrchestrationRunMock: vi.fn(),
-  unregisterActiveOrchestrationRunMock: vi.fn(),
   answerQuestionMock: vi.fn(),
   cancelQuestionMock: vi.fn(),
   hydrateAttachmentSourcesMock: vi.fn(async (attachments: unknown) => attachments),
@@ -65,10 +57,6 @@ vi.mock('../agent/agent-loop', () => ({
   runAgent: runAgentMock,
 }))
 
-vi.mock('../orchestration/service', () => ({
-  runOrchestratedAgent: runOrchestratedAgentMock,
-}))
-
 vi.mock('../store/settings', () => ({
   getSettings: getSettingsMock,
 }))
@@ -84,14 +72,11 @@ vi.mock('../store/conversation-lock', () => ({
 
 vi.mock('../utils/stream-bridge', () => ({
   emitStreamChunk: emitStreamChunkMock,
-  emitOrchestrationEvent: emitOrchestrationEventMock,
   clearAgentPhase: clearAgentPhaseMock,
 }))
 
 vi.mock('../orchestration/active-runs', () => ({
   cancelAllForConversation: cancelAllForConversationMock,
-  registerActiveOrchestrationRun: registerActiveOrchestrationRunMock,
-  unregisterActiveOrchestrationRun: unregisterActiveOrchestrationRunMock,
 }))
 
 vi.mock('../tools/question-manager', () => ({
@@ -165,7 +150,6 @@ function newThreadConversation(): Conversation {
 function baseSettings() {
   return {
     ...DEFAULT_SETTINGS,
-    orchestrationMode: 'classic' as const,
   }
 }
 
@@ -191,17 +175,13 @@ describe('registerAgentHandlers', () => {
     typedHandleMock.mockReset()
     typedOnMock.mockReset()
     runAgentMock.mockReset()
-    runOrchestratedAgentMock.mockReset()
     getSettingsMock.mockReset()
     getConversationMock.mockReset()
     saveConversationMock.mockReset()
     withConversationLockMock.mockReset()
     emitStreamChunkMock.mockReset()
-    emitOrchestrationEventMock.mockReset()
     clearAgentPhaseMock.mockReset()
     cancelAllForConversationMock.mockReset()
-    registerActiveOrchestrationRunMock.mockReset()
-    unregisterActiveOrchestrationRunMock.mockReset()
     answerQuestionMock.mockReset()
     cancelQuestionMock.mockReset()
     hydrateAttachmentSourcesMock.mockReset()
@@ -463,64 +443,6 @@ describe('registerAgentHandlers', () => {
       // biome-ignore lint/style/noNonNullAssertion: test helper
       firstRunResolve!({ newMessages: [] })
       await Promise.all([run1, run2])
-    })
-
-    it('uses orchestrated mode when settings.orchestrationMode is not classic', async () => {
-      getSettingsMock.mockReturnValue({
-        ...DEFAULT_SETTINGS,
-        orchestrationMode: 'orchestrated',
-      })
-      runOrchestratedAgentMock.mockResolvedValueOnce({
-        status: 'completed',
-        newMessages: [assistantMessage()],
-      })
-
-      registerAgentHandlers()
-      const handler = getInvokeHandler('agent:send-message')
-
-      await handler?.({}, ConversationId('conv-1'), basePayload(), 'claude-sonnet-4-5')
-
-      expect(registerActiveOrchestrationRunMock).toHaveBeenCalled()
-      expect(runOrchestratedAgentMock).toHaveBeenCalled()
-      expect(unregisterActiveOrchestrationRunMock).toHaveBeenCalled()
-      expect(runAgentMock).not.toHaveBeenCalled()
-    })
-
-    it('falls back to classic agent when orchestration returns fallback status', async () => {
-      getSettingsMock.mockReturnValue({
-        ...DEFAULT_SETTINGS,
-        orchestrationMode: 'auto-fallback',
-      })
-      runOrchestratedAgentMock.mockResolvedValueOnce({ status: 'fallback' })
-      runAgentMock.mockResolvedValueOnce({ newMessages: [assistantMessage()] })
-
-      registerAgentHandlers()
-      const handler = getInvokeHandler('agent:send-message')
-
-      await handler?.({}, ConversationId('conv-1'), basePayload(), 'claude-sonnet-4-5')
-
-      expect(runOrchestratedAgentMock).toHaveBeenCalled()
-      expect(runAgentMock).toHaveBeenCalled()
-      expect(unregisterActiveOrchestrationRunMock).toHaveBeenCalled()
-    })
-
-    it('unregisters orchestration run even if orchestration throws', async () => {
-      getSettingsMock.mockReturnValue({
-        ...DEFAULT_SETTINGS,
-        orchestrationMode: 'orchestrated',
-      })
-      runOrchestratedAgentMock.mockRejectedValueOnce(new Error('orchestration failure'))
-
-      registerAgentHandlers()
-      const handler = getInvokeHandler('agent:send-message')
-
-      await handler?.({}, ConversationId('conv-1'), basePayload(), 'claude-sonnet-4-5')
-
-      expect(unregisterActiveOrchestrationRunMock).toHaveBeenCalled()
-      expect(emitStreamChunkMock).toHaveBeenCalledWith(
-        ConversationId('conv-1'),
-        expect.objectContaining({ type: 'RUN_ERROR' }),
-      )
     })
 
     it('auto-titles conversation from first user message text', async () => {

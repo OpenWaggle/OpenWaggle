@@ -60,6 +60,7 @@ export function Composer({
   const setAttachmentError = useComposerStore((s) => s.setAttachmentError)
   const addAttachments = useComposerStore((s) => s.addAttachments)
   const removeAttachment = useComposerStore((s) => s.removeAttachment)
+  const planModeActive = useComposerStore((s) => s.planModeActive)
   const voiceError = useComposerStore((s) => s.voiceError)
   const branchMessage = useComposerStore((s) => s.branchMessage)
   const isListening = useComposerStore((s) => s.isListening)
@@ -92,7 +93,12 @@ export function Composer({
   }
 
   function handleSubmit(): void {
-    submitPayload({ text: input.trim(), qualityPreset, attachments })
+    submitPayload({
+      text: input.trim(),
+      qualityPreset,
+      attachments,
+      planModeRequested: planModeActive || undefined,
+    })
   }
 
   function sendComposed(text: string): boolean {
@@ -100,6 +106,7 @@ export function Composer({
       text,
       qualityPreset,
       attachments: useComposerStore.getState().attachments,
+      planModeRequested: useComposerStore.getState().planModeActive || undefined,
     })
   }
 
@@ -130,11 +137,12 @@ export function Composer({
         voiceSendRef.current()
         return
       }
-      const { input: currentInput, attachments: currentAttachments } = useComposerStore.getState()
+      const state = useComposerStore.getState()
       submitPayloadRef.current({
-        text: currentInput.trim(),
+        text: state.input.trim(),
         qualityPreset,
-        attachments: currentAttachments,
+        attachments: state.attachments,
+        planModeRequested: state.planModeActive || undefined,
       })
     }
     document.addEventListener('keydown', onKeyDown)

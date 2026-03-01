@@ -77,6 +77,11 @@ export interface AgentSendPayload {
    * (e.g. tool approvals) where the client must preserve UI tool state.
    */
   readonly continuationMessages?: readonly ModelMessage[]
+  /**
+   * When true, the agent should use proposePlan before executing anything.
+   * Set by the composer plan mode toggle.
+   */
+  readonly planModeRequested?: boolean
 }
 
 export interface Message {

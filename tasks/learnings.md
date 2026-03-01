@@ -20,6 +20,11 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Task: Orchestration Redesign — Dead Code Cleanup (2026-03-01)
+- When removing a pipeline stage (planner) from an orchestration runner, the cleanest approach is to accept pre-computed plan data as a parameter (`planJson?: JsonValue`) instead of conditionally skipping the stage — this eliminates the need for mock-heavy planner tests and makes the runner's contract explicit about what it requires.
+- TypeScript infers `dependsOn?: undefined` when some object literal variants omit the field in a union; since `undefined` is not assignable to `JsonValue`, test fixtures containing optional fields must be explicitly typed as `JsonValue` to avoid TS2322 errors.
+- `Rule.either('running' as const, 'retrying' as const)` is required when combining literal values in `choose()` chains — without `as const`, TypeScript widens to `string` and breaks the exhaustiveness checker.
+
 ### Task: Orchestration Streaming Fix (2026-02-28)
 - TanStack AI `model-runner` stream chunks carry TanStack's internal `messageId` which differs from the orchestration `StreamSession`'s `messageId`. Forwarding raw TEXT_MESSAGE_CONTENT to `emitChunk` confuses useChat in the renderer. Instead, intercept TEXT_MESSAGE_CONTENT at the caller and route the delta through `streamSession.appendText()` which re-emits with the correct messageId.
 - `modelText()` can forward TEXT_MESSAGE_CONTENT to `onChunk`, but callers that don't want raw text streaming (planner/JSON, executor tasks) must wrap `onChunk` to filter it. Only synthesis should route text through StreamSession for real-time display.

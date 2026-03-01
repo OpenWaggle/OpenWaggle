@@ -21,6 +21,7 @@ import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from './llm'
 import type { McpServerConfig, McpServerStatus } from './mcp'
 import type { OrchestrationEventPayload, OrchestrationRunRecord } from './orchestration'
 import type { AgentPhaseEventPayload, AgentPhaseState } from './phase'
+import type { PlanPayload, PlanResponse } from './plan'
 import type { QuestionAnswer, QuestionPayload } from './question'
 import type { Provider, Settings } from './settings'
 import type {
@@ -162,6 +163,10 @@ export interface IpcInvokeChannelMap {
     args: [conversationId: ConversationId, answers: QuestionAnswer[]]
     return: undefined
   }
+  'agent:respond-to-plan': {
+    args: [conversationId: ConversationId, response: PlanResponse]
+    return: undefined
+  }
   'agent:get-phase': {
     args: [conversationId: ConversationId]
     return: AgentPhaseState | null
@@ -301,6 +306,9 @@ interface IpcEventChannelMap {
   'agent:question': {
     payload: QuestionPayload
   }
+  'agent:plan-proposal': {
+    payload: PlanPayload
+  }
   'agent:phase': {
     payload: AgentPhaseEventPayload
   }
@@ -363,6 +371,10 @@ export interface OpenWaggleApi {
   getAgentPhase(conversationId: ConversationId): Promise<AgentPhaseState | null>
   onQuestion(callback: (payload: IpcEventPayload<'agent:question'>) => void): () => void
   onAgentPhase(callback: (payload: IpcEventPayload<'agent:phase'>) => void): () => void
+
+  // Plan proposals
+  respondToPlan(conversationId: ConversationId, response: PlanResponse): Promise<void>
+  onPlanProposal(callback: (payload: IpcEventPayload<'agent:plan-proposal'>) => void): () => void
 
   // Settings
   getSettings(): Promise<Settings>

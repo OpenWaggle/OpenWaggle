@@ -270,7 +270,6 @@ export interface RunOpenWaggleOrchestrationInput {
   readonly maxContextTokens?: number
   readonly runStore?: RunStore
   readonly onEvent?: (event: OrchestrationEvent) => void | Promise<void>
-  readonly mode?: 'orchestrated' | 'auto-fallback'
 }
 
 export interface OpenWaggleOrchestrationResult {

@@ -18,6 +18,9 @@ import {
 import {
   coreBehaviorPromptFragment,
   executionModePromptFragment,
+  orchestrateToolPromptFragment,
+  planModeActivePromptFragment,
+  planToolPromptFragment,
   projectContextPromptFragment,
   runtimeModelPromptFragment,
 } from './system-prompt'
@@ -148,7 +151,15 @@ const corePromptFeature: AgentFeature = {
     coreBehaviorPromptFragment,
     runtimeModelPromptFragment,
     projectContextPromptFragment,
+    planToolPromptFragment,
+    orchestrateToolPromptFragment,
   ],
+}
+
+const planModeFeature: AgentFeature = {
+  id: 'core.plan-mode',
+  isEnabled: (context) => !!context.planModeRequested,
+  getPromptFragments: () => [planModeActivePromptFragment],
 }
 
 const builtInToolsFeature: AgentFeature = {
@@ -170,6 +181,7 @@ const observabilityFeature: AgentFeature = {
 const defaultFeatures: readonly AgentFeature[] = [
   standardsPromptFeature,
   corePromptFeature,
+  planModeFeature,
   builtInToolsFeature,
   mcpToolsFeature,
   executionModeFeature,
