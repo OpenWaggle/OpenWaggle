@@ -1,4 +1,4 @@
-import type { AgentSendPayload, HydratedAgentSendPayload, Message } from '@shared/types/agent'
+import type { AgentSendPayload, HydratedAgentSendPayload } from '@shared/types/agent'
 import { isTextPart } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
@@ -14,6 +14,7 @@ import { cancelAllForConversation } from '../orchestration/active-runs'
 import { withConversationLock } from '../store/conversation-lock'
 import { getConversation, saveConversation } from '../store/conversations'
 import { getSettings } from '../store/settings'
+import { clearContext, pushContext } from '../tools/context-injection-buffer'
 import { cancelPlanProposal, respondToPlan } from '../tools/plan-manager'
 import { answerQuestion, cancelQuestion } from '../tools/question-manager'
 import { clearAgentPhase, emitStreamChunk } from '../utils/stream-bridge'
@@ -31,6 +32,14 @@ interface ActiveRun {
 
 /** Per-conversation active runs — allows concurrent runs on different conversations */
 const activeRuns = new Map<ConversationId, ActiveRun>()
+
+/** Cleanup all per-conversation ephemeral state (questions, plans, context injection) */
+function cleanupConversationRun(conversationId: ConversationId): void {
+  cancelAllForConversation(conversationId)
+  cancelQuestion(conversationId)
+  cancelPlanProposal(conversationId)
+  clearContext(conversationId)
+}
 
 export function registerAgentHandlers(): void {
   typedHandle(
@@ -53,6 +62,8 @@ export function registerAgentHandlers(): void {
       const abortController = new AbortController()
       const run: ActiveRun = { controller: abortController, collector: null, model, payload: null }
       activeRuns.set(conversationId, run)
+
+      clearContext(conversationId)
 
       const settings = getSettings()
       const conversation = await getConversation(conversationId)
@@ -181,20 +192,20 @@ export function registerAgentHandlers(): void {
         activeRuns.delete(conversationId)
       }
       clearAgentPhase(conversationId)
-      cancelAllForConversation(conversationId)
-      cancelQuestion(conversationId)
-      cancelPlanProposal(conversationId)
+      cleanupConversationRun(conversationId)
     } else {
       // Cancel all active runs (backward compat)
       for (const [id, run] of activeRuns) {
         run.controller.abort()
         activeRuns.delete(id)
         clearAgentPhase(id)
-        cancelAllForConversation(id)
-        cancelQuestion(id)
-        cancelPlanProposal(id)
+        cleanupConversationRun(id)
       }
     }
+  })
+
+  typedOn('agent:inject-context', (_event, conversationId: ConversationId, text: string) => {
+    pushContext(conversationId, text)
   })
 
   typedHandle('agent:get-phase', (_event, conversationId: ConversationId) => {
@@ -217,6 +228,7 @@ export function registerAgentHandlers(): void {
       run.controller.abort()
       activeRuns.delete(conversationId)
       clearAgentPhase(conversationId)
+      cleanupConversationRun(conversationId)
       return { preserved: false }
     }
 
@@ -247,7 +259,7 @@ export function registerAgentHandlers(): void {
     run.controller.abort()
     activeRuns.delete(conversationId)
     clearAgentPhase(conversationId)
-    cancelAllForConversation(conversationId)
+    cleanupConversationRun(conversationId)
 
     return { preserved: true }
   })

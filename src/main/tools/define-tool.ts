@@ -6,6 +6,8 @@ import { isPathInside } from '@shared/utils/paths'
 import { type ServerTool, toolDefinition } from '@tanstack/ai'
 import type { z } from 'zod'
 import { createLogger } from '../logger'
+import { emitContextInjected } from '../utils/stream-bridge'
+import { applyContextInjection } from './context-injection-buffer'
 
 const logger = createLogger('tools')
 const MAX_TOOL_OUTPUT_BYTES = 100 * 1024 // 100 KB
@@ -91,6 +93,20 @@ export function defineOpenWaggleTool<T extends z.ZodType, TName extends string>(
     }
 
     const durationMs = Date.now() - startTime
+
+    // Inject any user context that arrived while the tool was executing
+    const injection = applyContextInjection(ctx.conversationId, rawResult)
+    if (injection.injectedItems.length > 0) {
+      rawResult = injection.result
+      for (const item of injection.injectedItems) {
+        emitContextInjected(ctx.conversationId, item.text, item.timestamp)
+      }
+      logger.info('tool:context-injected', {
+        tool: config.name,
+        conversationId: ctx.conversationId,
+        count: injection.injectedItems.length,
+      })
+    }
 
     // If execute already returned a NormalizedToolResult, pass through directly
     if (typeof rawResult === 'object' && rawResult !== null && 'kind' in rawResult) {

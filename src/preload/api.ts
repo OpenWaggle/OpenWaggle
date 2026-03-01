@@ -78,6 +78,28 @@ export const api: OpenWaggleApi = {
     return () => ipcRenderer.removeListener('agent:stream-chunk', handler)
   },
 
+  // ─── Context Injection ───────────────────────────────
+  injectContext(conversationId: ConversationId, text: string): void {
+    ipcRenderer.send('agent:inject-context', conversationId, text)
+  },
+
+  onContextInjected(
+    callback: (payload: {
+      conversationId: ConversationId
+      text: string
+      timestamp: number
+    }) => void,
+  ): () => void {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      payload: { conversationId: ConversationId; text: string; timestamp: number },
+    ): void => {
+      callback(payload)
+    }
+    ipcRenderer.on('agent:context-injected', handler)
+    return () => ipcRenderer.removeListener('agent:context-injected', handler)
+  },
+
   // ─── Agent Questions ─────────────────────────────────
   answerQuestion(conversationId: ConversationId, answers: QuestionAnswer[]): Promise<void> {
     return ipcRenderer.invoke('agent:answer-question', conversationId, answers)

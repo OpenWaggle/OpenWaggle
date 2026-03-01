@@ -20,6 +20,9 @@ describe('preload api surface contract', () => {
     'cancelAgent',
     'steerAgent',
     'onStreamChunk',
+    // Context Injection
+    'injectContext',
+    'onContextInjected',
     // Agent Questions
     'answerQuestion',
     'getAgentPhase',
@@ -129,6 +132,7 @@ describe('preload api surface contract', () => {
 
     const EVENT_METHODS = [
       'onStreamChunk',
+      'onContextInjected',
       'onQuestion',
       'onAgentPhase',
       'onPlanProposal',

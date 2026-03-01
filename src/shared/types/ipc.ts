@@ -290,6 +290,9 @@ export interface IpcSendChannelMap {
   'terminal:write': {
     args: [terminalId: string, data: string]
   }
+  'agent:inject-context': {
+    args: [conversationId: ConversationId, text: string]
+  }
 }
 
 /**
@@ -330,6 +333,9 @@ interface IpcEventChannelMap {
   'mcp:status-changed': {
     payload: McpServerStatus
   }
+  'agent:context-injected': {
+    payload: { conversationId: ConversationId; text: string; timestamp: number }
+  }
 }
 
 // ─── Derived Types ───────────────────────────────────────────
@@ -365,6 +371,12 @@ export interface OpenWaggleApi {
   steerAgent(conversationId: ConversationId): Promise<{ preserved: boolean }>
   /** Subscribe to raw StreamChunks from TanStack AI — used by the IPC connection adapter */
   onStreamChunk(callback: (payload: IpcEventPayload<'agent:stream-chunk'>) => void): () => void
+
+  // Context injection
+  injectContext(conversationId: ConversationId, text: string): void
+  onContextInjected(
+    callback: (payload: IpcEventPayload<'agent:context-injected'>) => void,
+  ): () => void
 
   // Agent questions
   answerQuestion(conversationId: ConversationId, answers: QuestionAnswer[]): Promise<void>

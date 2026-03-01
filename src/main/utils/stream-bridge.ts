@@ -65,6 +65,14 @@ export function emitWaggleTurnEvent(conversationId: ConversationId, event: Waggl
   broadcastToWindows('waggle:turn-event', { conversationId, event })
 }
 
+export function emitContextInjected(
+  conversationId: ConversationId,
+  text: string,
+  timestamp: number,
+): void {
+  broadcastToWindows('agent:context-injected', { conversationId, text, timestamp })
+}
+
 export function clearAgentPhase(conversationId: ConversationId): void {
   const result = resetPhaseForConversation(conversationId)
   if (!result.changed) return

@@ -77,6 +77,17 @@ Do NOT use orchestrate for:
 The tool returns the synthesized results from all sub-agents.`,
 }
 
+export const contextInjectionPromptFragment: AgentPromptFragment = {
+  id: 'core.context-injection',
+  order: 38,
+  build: () =>
+    `Tool results may occasionally include a <user_context_update> tag. This contains messages the user sent while you were working. When you see this tag:
+- Read and incorporate the user's context naturally into your ongoing work
+- Do not stop or restart your current task unless the user explicitly asks you to
+- Briefly acknowledge that you received the update ("Got it" or similar) in your next text output
+- Adjust your approach if the update is relevant to what you're currently doing`,
+}
+
 export const executionModePromptFragment: AgentPromptFragment = {
   id: 'core.execution-mode',
   order: 40,

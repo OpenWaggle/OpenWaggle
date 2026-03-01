@@ -16,6 +16,7 @@ import {
   skillCatalogPromptFragment,
 } from './standards-prompt'
 import {
+  contextInjectionPromptFragment,
   coreBehaviorPromptFragment,
   executionModePromptFragment,
   orchestrateToolPromptFragment,
@@ -153,6 +154,7 @@ const corePromptFeature: AgentFeature = {
     projectContextPromptFragment,
     planToolPromptFragment,
     orchestrateToolPromptFragment,
+    contextInjectionPromptFragment,
   ],
 }
 

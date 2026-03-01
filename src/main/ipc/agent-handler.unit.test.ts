@@ -17,6 +17,12 @@ const {
   cancelAllForConversationMock,
   answerQuestionMock,
   cancelQuestionMock,
+  cancelPlanProposalMock,
+  respondToPlanMock,
+  clearContextMock,
+  pushContextMock,
+  buildPersistedUserMessagePartsMock,
+  makeMessageMock,
   hydrateAttachmentSourcesMock,
   getPhaseForConversationMock,
   classifyAgentErrorMock,
@@ -34,6 +40,15 @@ const {
   cancelAllForConversationMock: vi.fn(),
   answerQuestionMock: vi.fn(),
   cancelQuestionMock: vi.fn(),
+  cancelPlanProposalMock: vi.fn(),
+  respondToPlanMock: vi.fn(),
+  clearContextMock: vi.fn(),
+  pushContextMock: vi.fn(),
+  buildPersistedUserMessagePartsMock: vi.fn(() => [{ type: 'text', text: '' }]),
+  makeMessageMock: vi.fn(
+    (role: string, parts: unknown[], model?: string) =>
+      ({ id: 'msg-mock', role, parts, model, createdAt: Date.now() }) as unknown,
+  ),
   hydrateAttachmentSourcesMock: vi.fn(async (attachments: unknown) => attachments),
   getPhaseForConversationMock: vi.fn(),
   classifyAgentErrorMock: vi.fn(() => ({
@@ -82,6 +97,21 @@ vi.mock('../orchestration/active-runs', () => ({
 vi.mock('../tools/question-manager', () => ({
   answerQuestion: answerQuestionMock,
   cancelQuestion: cancelQuestionMock,
+}))
+
+vi.mock('../tools/plan-manager', () => ({
+  cancelPlanProposal: cancelPlanProposalMock,
+  respondToPlan: respondToPlanMock,
+}))
+
+vi.mock('../tools/context-injection-buffer', () => ({
+  clearContext: clearContextMock,
+  pushContext: pushContextMock,
+}))
+
+vi.mock('../agent/shared', () => ({
+  buildPersistedUserMessageParts: buildPersistedUserMessagePartsMock,
+  makeMessage: makeMessageMock,
 }))
 
 vi.mock('./attachments-handler', () => ({
@@ -184,6 +214,8 @@ describe('registerAgentHandlers', () => {
     cancelAllForConversationMock.mockReset()
     answerQuestionMock.mockReset()
     cancelQuestionMock.mockReset()
+    clearContextMock.mockReset()
+    pushContextMock.mockReset()
     hydrateAttachmentSourcesMock.mockReset()
     getPhaseForConversationMock.mockReset()
     classifyAgentErrorMock.mockReset()
@@ -217,6 +249,7 @@ describe('registerAgentHandlers', () => {
     expect(handleChannels).toContain('agent:get-phase')
     expect(handleChannels).toContain('agent:answer-question')
     expect(onChannels).toContain('agent:cancel')
+    expect(onChannels).toContain('agent:inject-context')
   })
 
   // ─── agent:send-message ────────────────────────────────────
@@ -624,6 +657,72 @@ describe('registerAgentHandlers', () => {
       handler?.({}, ConversationId('conv-1'), answers)
 
       expect(answerQuestionMock).toHaveBeenCalledWith(ConversationId('conv-1'), answers)
+    })
+  })
+
+  // ─── context injection buffer cleanup ──────────────────────
+
+  describe('context injection buffer', () => {
+    it('clears context on run start', async () => {
+      runAgentMock.mockResolvedValueOnce({ newMessages: [] })
+
+      registerAgentHandlers()
+      const handler = getInvokeHandler('agent:send-message')
+
+      await handler?.({}, ConversationId('conv-1'), basePayload(), 'claude-sonnet-4-5')
+
+      expect(clearContextMock).toHaveBeenCalledWith(ConversationId('conv-1'))
+    })
+
+    it('clears context on cancel', () => {
+      registerAgentHandlers()
+      const cancelHandler = getOnHandler('agent:cancel')
+
+      cancelHandler?.({}, ConversationId('conv-1'))
+
+      expect(clearContextMock).toHaveBeenCalledWith(ConversationId('conv-1'))
+    })
+
+    it('clears context on cancel-all', async () => {
+      registerAgentHandlers()
+      const sendHandler = getInvokeHandler('agent:send-message')
+      const cancelHandler = getOnHandler('agent:cancel')
+
+      runAgentMock.mockReturnValue(new Promise(() => {}))
+      sendHandler?.({}, ConversationId('conv-a'), basePayload(), 'claude-sonnet-4-5')
+
+      cancelHandler?.({})
+
+      expect(clearContextMock).toHaveBeenCalledWith(ConversationId('conv-a'))
+    })
+
+    it('agent:inject-context handler calls pushContext', () => {
+      registerAgentHandlers()
+      const handler = getOnHandler('agent:inject-context')
+      expect(handler).toBeDefined()
+
+      handler?.({}, ConversationId('conv-1'), 'user hint')
+
+      expect(pushContextMock).toHaveBeenCalledWith(ConversationId('conv-1'), 'user hint')
+    })
+
+    it('clears context on steer early-return (no collector)', async () => {
+      // Start a run to populate activeRuns
+      runAgentMock.mockReturnValueOnce(new Promise(() => {})) // never resolves
+
+      registerAgentHandlers()
+      const sendHandler = getInvokeHandler('agent:send-message')
+      const steerHandler = getInvokeHandler('agent:steer')
+
+      // Start a run (don't await)
+      sendHandler?.({}, ConversationId('conv-1'), basePayload(), 'claude-sonnet-4-5')
+
+      // Steer — collector is null at this point, so early-return path fires
+      clearContextMock.mockReset()
+      const result = await steerHandler?.({}, ConversationId('conv-1'))
+
+      expect(result).toEqual({ preserved: false })
+      expect(clearContextMock).toHaveBeenCalledWith(ConversationId('conv-1'))
     })
   })
 })
