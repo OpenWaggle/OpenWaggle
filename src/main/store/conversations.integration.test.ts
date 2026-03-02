@@ -26,11 +26,14 @@ vi.mock('../providers', () => ({
 }))
 
 import {
+  archiveConversation,
   createConversation,
   deleteConversation,
   getConversation,
+  listArchivedConversations,
   listConversations,
   saveConversation,
+  unarchiveConversation,
   updateConversationProjectPath,
   updateConversationTitle,
 } from './conversations'
@@ -225,6 +228,49 @@ describe('conversation store integration', () => {
 
     const summaries = await listConversations()
     expect(summaries.some((summary) => summary.id === created.id)).toBe(false)
+  })
+
+  it('archives a conversation and excludes it from active listing', async () => {
+    const conv = await createConversation('/tmp/project-archive')
+    await listConversations() // prime index
+
+    await archiveConversation(conv.id)
+
+    const active = await listConversations()
+    expect(active.some((s) => s.id === conv.id)).toBe(false)
+
+    const archived = await listArchivedConversations()
+    expect(archived.some((s) => s.id === conv.id)).toBe(true)
+    expect(archived.find((s) => s.id === conv.id)?.archived).toBe(true)
+  })
+
+  it('unarchives a conversation and returns it to active listing', async () => {
+    const conv = await createConversation('/tmp/project-unarchive')
+    await listConversations()
+
+    await archiveConversation(conv.id)
+    await unarchiveConversation(conv.id)
+
+    const active = await listConversations()
+    expect(active.some((s) => s.id === conv.id)).toBe(true)
+
+    const archived = await listArchivedConversations()
+    expect(archived.some((s) => s.id === conv.id)).toBe(false)
+  })
+
+  it('persists archived flag to disk and index', async () => {
+    const conv = await createConversation('/tmp/project-persist-archive')
+    await listConversations()
+
+    await archiveConversation(conv.id)
+
+    const reloaded = await getConversation(conv.id)
+    expect(reloaded?.archived).toBe(true)
+
+    const raw = await fs.readFile(indexPath(), 'utf-8')
+    const index = JSON.parse(raw) as { conversations: Array<{ id: string; archived?: boolean }> }
+    const entry = index.conversations.find((c) => c.id === conv.id)
+    expect(entry?.archived).toBe(true)
   })
 
   it('applies optional listing limit', async () => {

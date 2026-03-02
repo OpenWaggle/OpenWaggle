@@ -114,6 +114,7 @@ function createSettings(): Settings {
     recentProjects: [],
     skillTogglesByProject: {},
     mcpServers: [],
+    projectDisplayNames: {},
     encryptionAvailable: true,
     apiKeysRequireManualResave: false,
   }

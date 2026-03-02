@@ -5,6 +5,7 @@ import { cn } from '@/lib/cn'
 import type { SettingsTab } from '@/stores/ui-store'
 import { useUIStore } from '@/stores/ui-store'
 import { SettingsNav } from './SettingsNav'
+import { ArchivedSection } from './sections/ArchivedSection'
 import { ConnectionsSection } from './sections/ConnectionsSection'
 import { GeneralSection } from './sections/GeneralSection'
 import { WaggleSection } from './sections/WaggleSection'
@@ -52,5 +53,6 @@ function SettingsTabContent({ tab }: { tab: SettingsTab }): React.JSX.Element {
     .case('general', () => <GeneralSection />)
     .case('waggle', () => <WaggleSection />)
     .case('connections', () => <ConnectionsSection />)
+    .case('archived', () => <ArchivedSection />)
     .catchAll(() => <GeneralSection />)
 }

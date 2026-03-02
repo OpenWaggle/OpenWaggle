@@ -1,9 +1,12 @@
 import type { ConversationId } from '@shared/types/brand'
 import {
+  archiveConversation,
   createConversation,
   deleteConversation,
   getConversation,
+  listArchivedConversations,
   listConversations,
+  unarchiveConversation,
   updateConversationProjectPath,
   updateConversationTitle,
 } from '../store/conversations'
@@ -24,6 +27,18 @@ export function registerConversationsHandlers(): void {
 
   typedHandle('conversations:delete', async (_event, id: ConversationId) => {
     await deleteConversation(id)
+  })
+
+  typedHandle('conversations:archive', async (_event, id: ConversationId) => {
+    await archiveConversation(id)
+  })
+
+  typedHandle('conversations:unarchive', async (_event, id: ConversationId) => {
+    await unarchiveConversation(id)
+  })
+
+  typedHandle('conversations:list-archived', async () => {
+    return listArchivedConversations()
   })
 
   typedHandle('conversations:update-title', async (_event, id: ConversationId, title: string) => {

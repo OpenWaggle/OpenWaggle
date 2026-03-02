@@ -20,8 +20,11 @@ interface PreferencesState {
   toggleFavoriteModel: (model: SupportedModelId) => Promise<void>
   setProjectPath: (path: string | null) => Promise<void>
   pushRecentProject: (path: string) => Promise<void>
+  removeRecentProject: (path: string) => Promise<void>
   setExecutionMode: (mode: ExecutionMode) => Promise<void>
   setQualityPreset: (preset: QualityPreset) => Promise<void>
+  setProjectDisplayName: (path: string, name: string) => Promise<void>
+  clearProjectDisplayName: (path: string) => Promise<void>
 }
 
 export const usePreferencesStore = create<PreferencesState>((set, get) => ({
@@ -139,5 +142,26 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     ].slice(0, 10)
     await api.updateSettings({ recentProjects })
     set({ settings: { ...settings, recentProjects } })
+  },
+
+  async removeRecentProject(path: string) {
+    const { settings } = get()
+    const recentProjects = settings.recentProjects.filter((p) => p !== path)
+    await api.updateSettings({ recentProjects })
+    set({ settings: { ...settings, recentProjects } })
+  },
+
+  async setProjectDisplayName(path: string, name: string) {
+    const { settings } = get()
+    const projectDisplayNames = { ...settings.projectDisplayNames, [path]: name }
+    await api.updateSettings({ projectDisplayNames })
+    set({ settings: { ...settings, projectDisplayNames } })
+  },
+
+  async clearProjectDisplayName(path: string) {
+    const { settings } = get()
+    const { [path]: _, ...rest } = settings.projectDisplayNames
+    await api.updateSettings({ projectDisplayNames: rest })
+    set({ settings: { ...settings, projectDisplayNames: rest } })
   },
 }))

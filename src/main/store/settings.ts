@@ -141,6 +141,7 @@ export function getSettings(): Settings {
     recentProjects,
     skillTogglesByProject,
     mcpServers,
+    projectDisplayNames: resolveProjectDisplayNames(),
     encryptionAvailable,
     apiKeysRequireManualResave,
   }
@@ -212,6 +213,9 @@ export function updateSettings(partial: Partial<Settings>): void {
   if (partial.mcpServers !== undefined) {
     store.set('mcpServers', sanitizeMcpServers(partial.mcpServers))
   }
+  if (partial.projectDisplayNames !== undefined) {
+    store.set('projectDisplayNames', sanitizeProjectDisplayNames(partial.projectDisplayNames))
+  }
 }
 
 function resolveExecutionMode(): ExecutionMode {
@@ -252,6 +256,23 @@ function resolveRecentProjects(): string[] {
 function resolveSkillTogglesByProject(): Record<string, Record<string, boolean>> {
   const stored = store.get('skillTogglesByProject', DEFAULT_SETTINGS.skillTogglesByProject)
   return sanitizeSkillTogglesByProject(stored)
+}
+
+function resolveProjectDisplayNames(): Record<string, string> {
+  return sanitizeProjectDisplayNames(
+    store.get('projectDisplayNames', DEFAULT_SETTINGS.projectDisplayNames),
+  )
+}
+
+function sanitizeProjectDisplayNames(raw: unknown): Record<string, string> {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return {}
+  const result: Record<string, string> = {}
+  for (const [key, value] of Object.entries(raw)) {
+    if (typeof key === 'string' && typeof value === 'string') {
+      result[key] = value
+    }
+  }
+  return result
 }
 
 function resolveMcpServers(): McpServerConfig[] {

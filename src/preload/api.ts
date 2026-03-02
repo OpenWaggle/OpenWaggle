@@ -192,6 +192,18 @@ export const api: OpenWaggleApi = {
     return ipcRenderer.invoke('conversations:delete', id)
   },
 
+  archiveConversation(id: ConversationId): Promise<void> {
+    return ipcRenderer.invoke('conversations:archive', id)
+  },
+
+  unarchiveConversation(id: ConversationId): Promise<void> {
+    return ipcRenderer.invoke('conversations:unarchive', id)
+  },
+
+  listArchivedConversations(): Promise<ConversationSummary[]> {
+    return ipcRenderer.invoke('conversations:list-archived')
+  },
+
   updateConversationTitle(id: ConversationId, title: string): Promise<void> {
     return ipcRenderer.invoke('conversations:update-title', id, title)
   },

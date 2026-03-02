@@ -33,6 +33,7 @@ export interface Settings {
   readonly recentProjects: readonly string[]
   readonly skillTogglesByProject: Readonly<Record<string, Readonly<Record<string, boolean>>>>
   readonly mcpServers: readonly McpServerConfig[]
+  readonly projectDisplayNames: Readonly<Record<string, string>>
   /** Whether the system keyring is available for API key encryption. Computed on load. */
   readonly encryptionAvailable: boolean
   /** True when auto-migrating stored plaintext API keys to encrypted storage failed. */
@@ -56,6 +57,7 @@ export const DEFAULT_SETTINGS: Settings = {
   recentProjects: [],
   skillTogglesByProject: {},
   mcpServers: [],
+  projectDisplayNames: {},
   encryptionAvailable: true,
   apiKeysRequireManualResave: false,
 }
