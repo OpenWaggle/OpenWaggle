@@ -5,17 +5,11 @@
  * In dev: outputs to browser console with namespace prefix.
  * In prod: errors are forwarded to main process via IPC for aggregation.
  */
+import type { Logger } from '@shared/types/logger'
 
-interface RendererLogger {
-  info: (message: string, data?: unknown) => void
-  warn: (message: string, data?: unknown) => void
-  error: (message: string, data?: unknown) => void
-}
-
-function formatMessage(namespace: string, message: string, data?: unknown): string {
+function formatMessage(namespace: string, message: string, data?: object): string {
   const prefix = `[${namespace}] ${message}`
-  if (data === undefined) return prefix
-  if (typeof data === 'string') return `${prefix} ${data}`
+  if (!data || Object.keys(data).length === 0) return prefix
   try {
     return `${prefix} ${JSON.stringify(data)}`
   } catch {
@@ -23,15 +17,18 @@ function formatMessage(namespace: string, message: string, data?: unknown): stri
   }
 }
 
-export function createRendererLogger(namespace: string): RendererLogger {
+export function createRendererLogger(namespace: string): Logger {
   return {
-    info(message: string, data?: unknown) {
+    debug(message, data) {
+      console.debug(formatMessage(namespace, message, data))
+    },
+    info(message, data) {
       console.info(formatMessage(namespace, message, data))
     },
-    warn(message: string, data?: unknown) {
+    warn(message, data) {
       console.warn(formatMessage(namespace, message, data))
     },
-    error(message: string, data?: unknown) {
+    error(message, data) {
       console.error(formatMessage(namespace, message, data))
     },
   }

@@ -32,8 +32,8 @@ describe('createRendererLogger', () => {
 
   it('routes error calls to console.error with data', () => {
     const logger = createRendererLogger('db')
-    logger.error('failed', 'reason-string')
-    expect(console.error).toHaveBeenCalledWith('[db] failed reason-string')
+    logger.error('failed', { reason: 'timeout' })
+    expect(console.error).toHaveBeenCalledWith('[db] failed {"reason":"timeout"}')
   })
 
   it('handles unserializable data gracefully', () => {

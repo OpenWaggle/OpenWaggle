@@ -192,6 +192,7 @@ export const openaiProvider: ProviderDefinition = {
   supportsDynamicModelFetch: false,
   models: OPENAI_CHAT_MODELS,
   testModel: 'gpt-4.1-nano',
+  supportsAttachment: (kind) => kind === 'image' || kind === 'pdf',
   createAdapter(model, apiKey, _baseUrl, authMethod) {
     if (!includes(OPENAI_CHAT_MODELS, model)) throw new Error(`Unknown OpenAI model: ${model}`)
     if (!apiKey) throw new Error('OpenAI API key is required')

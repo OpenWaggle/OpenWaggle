@@ -30,6 +30,7 @@ import type {
   AgentsResolutionResult,
   SkillCatalogResult,
 } from './standards'
+import type { SubAgentEventPayload, TeamEventPayload } from './sub-agent'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 import type {
   WaggleConfig,
@@ -360,6 +361,12 @@ interface IpcEventChannelMap {
   'agent:context-injected': {
     payload: { conversationId: ConversationId; text: string; timestamp: number }
   }
+  'sub-agent:event': {
+    payload: SubAgentEventPayload
+  }
+  'team:event': {
+    payload: TeamEventPayload
+  }
 }
 
 // ─── Derived Types ───────────────────────────────────────────
@@ -555,4 +562,8 @@ export interface OpenWaggleApi {
   listTeams(): Promise<WaggleTeamPreset[]>
   saveTeam(preset: WaggleTeamPreset): Promise<WaggleTeamPreset>
   deleteTeam(id: TeamConfigId): Promise<void>
+
+  // Sub-agents
+  onSubAgentEvent(callback: (payload: SubAgentEventPayload) => void): () => void
+  onTeamEvent(callback: (payload: TeamEventPayload) => void): () => void
 }

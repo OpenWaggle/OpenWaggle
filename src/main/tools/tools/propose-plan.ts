@@ -1,8 +1,8 @@
-import type { PlanResponse } from '@shared/types/plan'
 import { BrowserWindow } from 'electron'
 import { z } from 'zod'
+import { sendAgentMessage } from '../../sub-agents/message-bus'
 import { defineOpenWaggleTool } from '../define-tool'
-import { cancelPlanProposal, registerPlanProposal } from '../plan-manager'
+import { waitForPlanResponse } from '../plan-manager'
 
 export const proposePlanTool = defineOpenWaggleTool({
   name: 'proposePlan',
@@ -16,9 +16,21 @@ export const proposePlanTool = defineOpenWaggleTool({
       .describe('The plan text in markdown format describing the approach and steps'),
   }),
   async execute(args, context) {
-    const { conversationId, signal } = context
+    const { conversationId, signal, subAgentContext } = context
 
-    // Emit plan proposal event to all renderer windows
+    // Sub-agents in a team route plan proposals to the team lead via message bus
+    if (subAgentContext?.teamId) {
+      sendAgentMessage({
+        type: 'plan_approval_request',
+        sender: subAgentContext.agentName,
+        content: args.planText,
+      })
+
+      const response = await waitForPlanResponse(conversationId, signal)
+      return JSON.stringify(response)
+    }
+
+    // Standard path: emit plan proposal to all renderer windows
     for (const win of BrowserWindow.getAllWindows()) {
       if (!win.isDestroyed()) {
         win.webContents.send('agent:plan-proposal', {
@@ -29,24 +41,7 @@ export const proposePlanTool = defineOpenWaggleTool({
     }
 
     // Block until the user responds or the run is aborted
-    const response = await new Promise<PlanResponse>((resolve, reject) => {
-      registerPlanProposal(conversationId, resolve, reject)
-
-      if (signal?.aborted) {
-        cancelPlanProposal(conversationId)
-        reject(new Error('Plan proposal cancelled'))
-        return
-      }
-
-      signal?.addEventListener(
-        'abort',
-        () => {
-          cancelPlanProposal(conversationId)
-        },
-        { once: true },
-      )
-    })
-
+    const response = await waitForPlanResponse(conversationId, signal)
     return JSON.stringify(response)
   },
 })

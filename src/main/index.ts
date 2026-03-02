@@ -24,6 +24,8 @@ import { initFileLogger } from './logger'
 import { mcpManager } from './mcp'
 import { registerAllProviders } from './providers'
 import { getSettings } from './store/settings'
+import { registerRunSubAgent } from './sub-agents/facade'
+import { runSubAgent } from './sub-agents/sub-agent-runner'
 
 if (env.OPENWAGGLE_USER_DATA_DIR) {
   app.setPath('userData', env.OPENWAGGLE_USER_DATA_DIR)
@@ -142,6 +144,9 @@ app.whenReady().then(() => {
 
   // Initialize file logger now that app paths are available
   initFileLogger(app.getPath('logs'))
+
+  // Late-bind runSubAgent to break spawn-agent → sub-agent-runner cycle
+  registerRunSubAgent(runSubAgent)
 
   // Register providers (async — individual failures are caught per-provider)
   Promise.all([registerAllProviders(), startDevtoolsEventBus()]).then(async () => {

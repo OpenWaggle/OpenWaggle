@@ -1,6 +1,9 @@
+import type { AttachmentKind } from '@shared/types/agent'
 import type { JsonObject } from '@shared/types/json'
 import type { Provider, QualityPreset } from '@shared/types/settings'
 import type { AnyTextAdapter } from '@tanstack/ai'
+
+export type { AttachmentKind }
 
 export interface BaseSamplingConfig {
   readonly temperature: number
@@ -27,6 +30,8 @@ export interface ProviderDefinition {
   readonly models: readonly string[]
   /** Model used for API key testing — should be the cheapest/fastest available */
   readonly testModel: string
+  /** Whether the provider's adapter natively handles the given attachment kind */
+  supportsAttachment(kind: AttachmentKind): boolean
   createAdapter(
     model: string,
     apiKey: string | undefined,

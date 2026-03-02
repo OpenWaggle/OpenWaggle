@@ -19,6 +19,7 @@ vi.mock('@/lib/ipc', () => ({
 // Silence the renderer logger so test output stays clean
 vi.mock('@/lib/logger', () => ({
   createRendererLogger: () => ({
+    debug: vi.fn(),
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
@@ -66,6 +67,40 @@ describe('useChatStore unit', () => {
   // ── createConversation ──
 
   describe('createConversation', () => {
+    it('prepends new summary locally without calling listConversations', async () => {
+      const conv = {
+        id: ConversationId('new-1'),
+        title: 'New thread',
+        projectPath: '/repo',
+        messages: [],
+        createdAt: 100,
+        updatedAt: 100,
+      }
+      apiMock.createConversation.mockResolvedValue(conv)
+
+      useChatStore.setState({
+        conversations: [
+          {
+            id: ConversationId('old-1'),
+            title: 'Old',
+            projectPath: null,
+            messageCount: 5,
+            createdAt: 50,
+            updatedAt: 50,
+          },
+        ],
+      })
+
+      await useChatStore.getState().createConversation('/repo')
+
+      expect(apiMock.listConversations).not.toHaveBeenCalled()
+      const convs = useChatStore.getState().conversations
+      expect(convs).toHaveLength(2)
+      expect(convs[0].id).toBe('new-1')
+      expect(convs[0].messageCount).toBe(0)
+      expect(convs[1].id).toBe('old-1')
+    })
+
     it('sets error and re-throws when createConversation fails', async () => {
       apiMock.createConversation.mockRejectedValue(new Error('quota exceeded'))
 
@@ -110,6 +145,21 @@ describe('useChatStore unit', () => {
   // ── deleteConversation ──
 
   describe('deleteConversation', () => {
+    it('optimistically removes item without calling listConversations', async () => {
+      const id = ConversationId('del-1')
+      useChatStore.setState({
+        conversations: [
+          { id, title: 'Doomed', projectPath: null, messageCount: 1, createdAt: 1, updatedAt: 1 },
+        ],
+      })
+      apiMock.deleteConversation.mockResolvedValue(undefined)
+
+      await useChatStore.getState().deleteConversation(id)
+
+      expect(apiMock.listConversations).not.toHaveBeenCalled()
+      expect(useChatStore.getState().conversations).toHaveLength(0)
+    })
+
     it('does not clear active conversation when deleting a different one', async () => {
       const activeId = ConversationId('active-1')
       const deleteId = ConversationId('other-1')
@@ -124,10 +174,27 @@ describe('useChatStore unit', () => {
           createdAt: 1,
           updatedAt: 1,
         },
+        conversations: [
+          {
+            id: activeId,
+            title: 'Active',
+            projectPath: null,
+            messageCount: 0,
+            createdAt: 1,
+            updatedAt: 1,
+          },
+          {
+            id: deleteId,
+            title: 'Other',
+            projectPath: null,
+            messageCount: 0,
+            createdAt: 1,
+            updatedAt: 1,
+          },
+        ],
       })
 
       apiMock.deleteConversation.mockResolvedValue(undefined)
-      apiMock.listConversations.mockResolvedValue([])
 
       await useChatStore.getState().deleteConversation(deleteId)
 
@@ -136,11 +203,20 @@ describe('useChatStore unit', () => {
       expect(useChatStore.getState().activeConversation?.id).toBe(activeId)
     })
 
-    it('sets error when deleteConversation throws', async () => {
+    it('rolls back on error and sets error message', async () => {
+      const id = ConversationId('rollback-1')
+      const original = [
+        { id, title: 'Keep', projectPath: null, messageCount: 0, createdAt: 1, updatedAt: 1 },
+      ]
+      useChatStore.setState({ conversations: original })
+
       apiMock.deleteConversation.mockRejectedValue(new Error('permission denied'))
 
-      await useChatStore.getState().deleteConversation(ConversationId('locked'))
+      await useChatStore.getState().deleteConversation(id)
 
+      // Should rollback
+      expect(useChatStore.getState().conversations).toHaveLength(1)
+      expect(useChatStore.getState().conversations[0].id).toBe(id)
       expect(useChatStore.getState().error).toBe('Failed to delete conversation: permission denied')
     })
 
@@ -156,6 +232,39 @@ describe('useChatStore unit', () => {
   // ── updateConversationProjectPath ──
 
   describe('updateConversationProjectPath', () => {
+    it('patches projectPath locally without calling listConversations', async () => {
+      const id = ConversationId('patch-conv')
+      useChatStore.setState({
+        activeConversationId: id,
+        activeConversation: {
+          id,
+          title: 'Active',
+          projectPath: '/old',
+          messages: [],
+          createdAt: 1,
+          updatedAt: 1,
+        },
+        conversations: [
+          { id, title: 'Active', projectPath: '/old', messageCount: 0, createdAt: 1, updatedAt: 1 },
+        ],
+      })
+
+      apiMock.updateConversationProjectPath.mockResolvedValue({
+        id,
+        title: 'Active',
+        projectPath: '/new',
+        messages: [],
+        createdAt: 1,
+        updatedAt: 2,
+      })
+
+      await useChatStore.getState().updateConversationProjectPath(id, '/new')
+
+      expect(apiMock.listConversations).not.toHaveBeenCalled()
+      expect(useChatStore.getState().conversations[0].projectPath).toBe('/new')
+      expect(useChatStore.getState().activeConversation?.projectPath).toBe('/new')
+    })
+
     it('does not update activeConversation when updating a different conversation', async () => {
       const activeId = ConversationId('active-conv')
       const otherId = ConversationId('other-conv')
@@ -170,6 +279,24 @@ describe('useChatStore unit', () => {
           createdAt: 1,
           updatedAt: 1,
         },
+        conversations: [
+          {
+            id: activeId,
+            title: 'Active',
+            projectPath: '/old',
+            messageCount: 0,
+            createdAt: 1,
+            updatedAt: 1,
+          },
+          {
+            id: otherId,
+            title: 'Other',
+            projectPath: '/orig',
+            messageCount: 0,
+            createdAt: 1,
+            updatedAt: 1,
+          },
+        ],
       })
 
       apiMock.updateConversationProjectPath.mockResolvedValue({
@@ -180,12 +307,15 @@ describe('useChatStore unit', () => {
         createdAt: 1,
         updatedAt: 2,
       })
-      apiMock.listConversations.mockResolvedValue([])
 
       await useChatStore.getState().updateConversationProjectPath(otherId, '/new')
 
       // Active conversation should not be updated
       expect(useChatStore.getState().activeConversation?.projectPath).toBe('/old')
+      // But the list entry should be patched
+      expect(useChatStore.getState().conversations.find((c) => c.id === otherId)?.projectPath).toBe(
+        '/new',
+      )
     })
 
     it('does not update activeConversation when API returns null/undefined', async () => {
@@ -201,15 +331,26 @@ describe('useChatStore unit', () => {
           createdAt: 1,
           updatedAt: 1,
         },
+        conversations: [
+          {
+            id,
+            title: 'Existing',
+            projectPath: '/original',
+            messageCount: 0,
+            createdAt: 1,
+            updatedAt: 1,
+          },
+        ],
       })
 
       apiMock.updateConversationProjectPath.mockResolvedValue(null)
-      apiMock.listConversations.mockResolvedValue([])
 
       await useChatStore.getState().updateConversationProjectPath(id, '/new')
 
-      // Should not update since returned value is falsy
+      // Should not update activeConversation since returned value is falsy
       expect(useChatStore.getState().activeConversation?.projectPath).toBe('/original')
+      // But the list entry should still be patched optimistically
+      expect(useChatStore.getState().conversations[0].projectPath).toBe('/new')
     })
 
     it('sets error when updateConversationProjectPath throws', async () => {

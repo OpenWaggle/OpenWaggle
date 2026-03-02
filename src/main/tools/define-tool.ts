@@ -12,6 +12,11 @@ import { applyContextInjection } from './context-injection-buffer'
 const logger = createLogger('tools')
 const MAX_TOOL_OUTPUT_BYTES = 100 * 1024 // 100 KB
 
+import type { SubAgentContext } from '@shared/types/sub-agent'
+
+/** Re-export shared SubAgentContext for tool-layer consumption */
+export type SubAgentToolContext = SubAgentContext
+
 export interface ToolContext {
   conversationId: ConversationId
   projectPath: string
@@ -24,6 +29,7 @@ export interface ToolContext {
     readonly loadedScopeFiles: Set<string>
     readonly loadedRequestedPaths: Set<string>
   }
+  subAgentContext?: SubAgentToolContext
 }
 
 export interface ToolTextResult {
@@ -36,6 +42,10 @@ export interface ToolJsonResult {
   data: unknown
 }
 
+/**
+ * Soft errors (coordination failures) → return `{ ok: false, error }`. LLM sees and retries.
+ * Hard errors (constraint violations) → throw Error. TanStack AI halts run.
+ */
 export type NormalizedToolResult = ToolTextResult | ToolJsonResult
 
 const toolContextStorage = new AsyncLocalStorage<ToolContext>()

@@ -30,6 +30,7 @@ export const openrouterProvider: ProviderDefinition = {
   supportsDynamicModelFetch: false,
   models: OPENROUTER_UI_MODELS,
   testModel: 'openrouter/auto',
+  supportsAttachment: () => false,
   createAdapter(model, apiKey) {
     if (!includes(OPENROUTER_UI_MODELS, model))
       throw new Error(`Unknown OpenRouter model: ${model}`)

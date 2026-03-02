@@ -12,7 +12,7 @@ function handleStoreError(
   set: (state: { error: string }) => void,
 ): void {
   const message = err instanceof Error ? err.message : String(err)
-  logger.error(`Failed to ${action}`, message)
+  logger.error(`Failed to ${action}`, { message })
   set({ error: `Failed to ${action}: ${message}` })
 }
 
@@ -50,8 +50,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
   async createConversation(projectPath: string | null) {
     try {
       const conv = await api.createConversation(projectPath)
-      await get().loadConversations()
-      set({ activeConversationId: conv.id, activeConversation: conv })
+      const summary: ConversationSummary = {
+        id: conv.id,
+        title: conv.title,
+        projectPath: conv.projectPath,
+        messageCount: 0,
+        createdAt: conv.createdAt,
+        updatedAt: conv.updatedAt,
+      }
+      set({
+        conversations: [summary, ...get().conversations],
+        activeConversationId: conv.id,
+        activeConversation: conv,
+      })
       return conv.id
     } catch (err) {
       handleStoreError(err, 'create conversation', set)
@@ -73,14 +84,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   async deleteConversation(id: ConversationId) {
+    const snapshot = get().conversations
+    const { activeConversationId } = get()
+    // Optimistic update
+    set({
+      conversations: snapshot.filter((c) => c.id !== id),
+      ...(activeConversationId === id
+        ? { activeConversationId: null, activeConversation: null }
+        : {}),
+    })
     try {
       await api.deleteConversation(id)
-      const { activeConversationId } = get()
-      if (activeConversationId === id) {
-        set({ activeConversationId: null, activeConversation: null })
-      }
-      await get().loadConversations()
     } catch (err) {
+      // Rollback on failure
+      set({ conversations: snapshot })
       handleStoreError(err, 'delete conversation', set)
     }
   },
@@ -92,7 +109,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (updated && activeConversationId === id) {
         set({ activeConversation: updated })
       }
-      await get().loadConversations()
+      set({
+        conversations: get().conversations.map((c) => (c.id === id ? { ...c, projectPath } : c)),
+      })
     } catch (err) {
       handleStoreError(err, 'update project path', set)
     }

@@ -14,6 +14,7 @@ function createProvider(
     supportsDynamicModelFetch: false,
     models,
     testModel: models[0] ?? 'fallback-model',
+    supportsAttachment: () => false,
     createAdapter: () => ({}) as never,
   }
 }

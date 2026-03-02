@@ -115,6 +115,9 @@ describe('preload api surface contract', () => {
     'toggleMcpServer',
     'updateMcpServer',
     'onMcpStatusChanged',
+    // Sub-Agents
+    'onSubAgentEvent',
+    'onTeamEvent',
   ] as const
 
   it('has every expected method as a function', () => {
@@ -150,6 +153,8 @@ describe('preload api surface contract', () => {
       'onWaggleTurnEvent',
       'onOAuthStatus',
       'onMcpStatusChanged',
+      'onSubAgentEvent',
+      'onTeamEvent',
     ] as const
 
     for (const method of EVENT_METHODS) {

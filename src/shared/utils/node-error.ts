@@ -16,3 +16,8 @@ export function isNodeError(err: unknown, code?: string): err is NodeJS.ErrnoExc
 export function isEnoent(err: unknown): err is NodeJS.ErrnoException {
   return isNodeError(err, 'ENOENT')
 }
+
+/** Extract a human-readable message from an unknown error value */
+export function formatErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}

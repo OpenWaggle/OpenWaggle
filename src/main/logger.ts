@@ -1,12 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import type { Logger } from '@shared/types/logger'
 
-export interface Logger {
-  debug<TData extends object>(message: string, data?: TData): void
-  info<TData extends object>(message: string, data?: TData): void
-  warn<TData extends object>(message: string, data?: TData): void
-  error<TData extends object>(message: string, data?: TData): void
-}
+export type { Logger }
 
 function formatLine(namespace: string, message: string, data?: object): string {
   const ts = new Date().toISOString().slice(11, 23) // HH:mm:ss.mmm

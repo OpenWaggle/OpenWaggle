@@ -34,6 +34,7 @@ import type {
   AgentsResolutionResult,
   SkillCatalogResult,
 } from '@shared/types/standards'
+import type { SubAgentEventPayload, TeamEventPayload } from '@shared/types/sub-agent'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from '@shared/types/voice'
 import type {
   WaggleConfig,
@@ -515,5 +516,22 @@ export const api: OpenWaggleApi = {
 
   deleteTeam(id: TeamConfigId): Promise<void> {
     return ipcRenderer.invoke('teams:delete', id)
+  },
+
+  // ─── Sub-Agents ──────────────────────────────────────
+  onSubAgentEvent(callback: (payload: SubAgentEventPayload) => void): () => void {
+    const handler = (_event: Electron.IpcRendererEvent, payload: SubAgentEventPayload): void => {
+      callback(payload)
+    }
+    ipcRenderer.on('sub-agent:event', handler)
+    return () => ipcRenderer.removeListener('sub-agent:event', handler)
+  },
+
+  onTeamEvent(callback: (payload: TeamEventPayload) => void): () => void {
+    const handler = (_event: Electron.IpcRendererEvent, payload: TeamEventPayload): void => {
+      callback(payload)
+    }
+    ipcRenderer.on('team:event', handler)
+    return () => ipcRenderer.removeListener('team:event', handler)
   },
 }

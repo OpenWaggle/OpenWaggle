@@ -33,6 +33,7 @@ export const anthropicProvider: ProviderDefinition = {
   supportsDynamicModelFetch: false,
   models: ANTHROPIC_MODELS,
   testModel: 'claude-haiku-4-5',
+  supportsAttachment: (kind) => kind === 'image' || kind === 'pdf',
   createAdapter(model, apiKey, _baseUrl, authMethod) {
     if (!includes(ANTHROPIC_MODELS, model)) throw new Error(`Unknown Anthropic model: ${model}`)
     if (!apiKey) throw new Error('Anthropic API key is required')

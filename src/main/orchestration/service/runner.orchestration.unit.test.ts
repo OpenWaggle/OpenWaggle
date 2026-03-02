@@ -142,6 +142,7 @@ function createIntegrationDeps(responses: readonly string[]): {
           supportsDynamicModelFetch: false,
           models: [model],
           testModel: model,
+          supportsAttachment: () => false,
           createAdapter(_targetModel, apiKey) {
             return createOpenaiChat('gpt-4.1-mini', apiKey ?? '')
           },

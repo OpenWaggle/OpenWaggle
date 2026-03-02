@@ -2,9 +2,16 @@ import type { Conversation } from '@shared/types/conversation'
 import type { JsonObject } from '@shared/types/json'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { ProviderConfig, Settings } from '@shared/types/settings'
+import type { AgentToolFilter, SubAgentContext } from '@shared/types/sub-agent'
 import type { ServerTool, StreamChunk } from '@tanstack/ai'
 import type { ProviderDefinition } from '../providers/provider-definition'
 import type { AgentStandardsContext } from './standards-context'
+
+/** Extends the shared SubAgentContext with agent-loop-specific fields */
+export type SubAgentRunContext = SubAgentContext & {
+  readonly agentType: string
+  readonly toolFilter: AgentToolFilter
+}
 
 export interface AgentRunContext {
   readonly runId: string
@@ -18,6 +25,7 @@ export interface AgentRunContext {
   readonly providerConfig: ProviderConfig
   readonly standards?: AgentStandardsContext
   readonly planModeRequested?: boolean
+  readonly subAgentContext?: SubAgentRunContext
 }
 
 export interface AgentPromptFragment {

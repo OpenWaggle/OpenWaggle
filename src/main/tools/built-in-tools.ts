@@ -9,6 +9,14 @@ import { orchestrateTool } from './tools/orchestrate'
 import { proposePlanTool } from './tools/propose-plan'
 import { readFileTool } from './tools/read-file'
 import { runCommandTool } from './tools/run-command'
+import { sendMessageTool } from './tools/send-message'
+import { spawnAgentTool } from './tools/spawn-agent'
+import { taskCreateTool } from './tools/task-create'
+import { taskGetTool } from './tools/task-get'
+import { taskListTool } from './tools/task-list'
+import { taskUpdateTool } from './tools/task-update'
+import { teamCreateTool } from './tools/team-create'
+import { teamDeleteTool } from './tools/team-delete'
 import { webFetchTool } from './tools/web-fetch'
 import { writeFileTool } from './tools/write-file'
 
@@ -25,4 +33,12 @@ export const builtInTools: readonly ServerTool[] = [
   proposePlanTool,
   orchestrateTool,
   webFetchTool,
+  spawnAgentTool,
+  teamCreateTool,
+  teamDeleteTool,
+  taskCreateTool,
+  taskUpdateTool,
+  taskListTool,
+  taskGetTool,
+  sendMessageTool,
 ]

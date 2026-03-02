@@ -32,6 +32,8 @@ const {
   listStreamBuffersMock,
   classifyAgentErrorMock,
   makeErrorInfoMock,
+  cleanupConversationRunMock,
+  providerRegistryMock,
 } = vi.hoisted(() => ({
   typedHandleMock: vi.fn(),
   typedOnMock: vi.fn(),
@@ -71,6 +73,8 @@ const {
     userMessage: msg,
     retry: false,
   })),
+  cleanupConversationRunMock: vi.fn(),
+  providerRegistryMock: { isKnownModel: vi.fn(() => true) },
 }))
 
 vi.mock('./typed-ipc', () => ({
@@ -140,6 +144,14 @@ vi.mock('../agent/phase-tracker', () => ({
 vi.mock('../agent/error-classifier', () => ({
   classifyAgentError: classifyAgentErrorMock,
   makeErrorInfo: makeErrorInfoMock,
+}))
+
+vi.mock('../agent/conversation-cleanup', () => ({
+  cleanupConversationRun: cleanupConversationRunMock,
+}))
+
+vi.mock('../providers/registry', () => ({
+  providerRegistry: providerRegistryMock,
 }))
 
 vi.mock('../logger', () => ({
@@ -227,6 +239,9 @@ describe('registerAgentHandlers', () => {
     emitStreamChunkMock.mockReset()
     clearAgentPhaseMock.mockReset()
     cancelAllForConversationMock.mockReset()
+    cleanupConversationRunMock.mockReset()
+    providerRegistryMock.isKnownModel.mockReset()
+    providerRegistryMock.isKnownModel.mockReturnValue(true)
     answerQuestionMock.mockReset()
     cancelQuestionMock.mockReset()
     clearContextMock.mockReset()
@@ -601,8 +616,7 @@ describe('registerAgentHandlers', () => {
       cancelHandler?.({}, ConversationId('conv-1'))
 
       expect(clearAgentPhaseMock).toHaveBeenCalledWith(ConversationId('conv-1'))
-      expect(cancelAllForConversationMock).toHaveBeenCalledWith(ConversationId('conv-1'))
-      expect(cancelQuestionMock).toHaveBeenCalledWith(ConversationId('conv-1'))
+      expect(cleanupConversationRunMock).toHaveBeenCalledWith(ConversationId('conv-1'))
     })
 
     it('cancels all active runs when no conversationId is provided', async () => {
@@ -619,8 +633,7 @@ describe('registerAgentHandlers', () => {
       cancelHandler?.({})
 
       expect(clearAgentPhaseMock).toHaveBeenCalled()
-      expect(cancelAllForConversationMock).toHaveBeenCalled()
-      expect(cancelQuestionMock).toHaveBeenCalled()
+      expect(cleanupConversationRunMock).toHaveBeenCalled()
     })
 
     it('is a no-op when cancelling a non-existent conversation', () => {
@@ -631,7 +644,7 @@ describe('registerAgentHandlers', () => {
       cancelHandler?.({}, ConversationId('nonexistent'))
 
       expect(clearAgentPhaseMock).toHaveBeenCalledWith(ConversationId('nonexistent'))
-      expect(cancelAllForConversationMock).toHaveBeenCalledWith(ConversationId('nonexistent'))
+      expect(cleanupConversationRunMock).toHaveBeenCalledWith(ConversationId('nonexistent'))
     })
   })
 
@@ -678,7 +691,7 @@ describe('registerAgentHandlers', () => {
   // ─── context injection buffer cleanup ──────────────────────
 
   describe('context injection buffer', () => {
-    it('clears context on run start', async () => {
+    it('calls cleanupConversationRun on run start', async () => {
       runAgentMock.mockResolvedValueOnce({ newMessages: [] })
 
       registerAgentHandlers()
@@ -686,19 +699,19 @@ describe('registerAgentHandlers', () => {
 
       await handler?.({}, ConversationId('conv-1'), basePayload(), 'claude-sonnet-4-5')
 
-      expect(clearContextMock).toHaveBeenCalledWith(ConversationId('conv-1'))
+      expect(cleanupConversationRunMock).toHaveBeenCalledWith(ConversationId('conv-1'))
     })
 
-    it('clears context on cancel', () => {
+    it('calls cleanupConversationRun on cancel', () => {
       registerAgentHandlers()
       const cancelHandler = getOnHandler('agent:cancel')
 
       cancelHandler?.({}, ConversationId('conv-1'))
 
-      expect(clearContextMock).toHaveBeenCalledWith(ConversationId('conv-1'))
+      expect(cleanupConversationRunMock).toHaveBeenCalledWith(ConversationId('conv-1'))
     })
 
-    it('clears context on cancel-all', async () => {
+    it('calls cleanupConversationRun on cancel-all', async () => {
       registerAgentHandlers()
       const sendHandler = getInvokeHandler('agent:send-message')
       const cancelHandler = getOnHandler('agent:cancel')
@@ -708,7 +721,7 @@ describe('registerAgentHandlers', () => {
 
       cancelHandler?.({})
 
-      expect(clearContextMock).toHaveBeenCalledWith(ConversationId('conv-a'))
+      expect(cleanupConversationRunMock).toHaveBeenCalledWith(ConversationId('conv-a'))
     })
 
     it('agent:inject-context handler calls pushContext', () => {
@@ -721,7 +734,7 @@ describe('registerAgentHandlers', () => {
       expect(pushContextMock).toHaveBeenCalledWith(ConversationId('conv-1'), 'user hint')
     })
 
-    it('clears context on steer early-return (no collector)', async () => {
+    it('calls cleanupConversationRun on steer early-return (no collector)', async () => {
       // Start a run to populate activeRuns
       runAgentMock.mockReturnValueOnce(new Promise(() => {})) // never resolves
 
@@ -733,11 +746,11 @@ describe('registerAgentHandlers', () => {
       sendHandler?.({}, ConversationId('conv-1'), basePayload(), 'claude-sonnet-4-5')
 
       // Steer — collector is null at this point, so early-return path fires
-      clearContextMock.mockReset()
+      cleanupConversationRunMock.mockReset()
       const result = await steerHandler?.({}, ConversationId('conv-1'))
 
       expect(result).toEqual({ preserved: false })
-      expect(clearContextMock).toHaveBeenCalledWith(ConversationId('conv-1'))
+      expect(cleanupConversationRunMock).toHaveBeenCalledWith(ConversationId('conv-1'))
     })
   })
 })

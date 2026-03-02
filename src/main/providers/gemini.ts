@@ -12,6 +12,7 @@ export const geminiProvider: ProviderDefinition = {
   supportsDynamicModelFetch: false,
   models: GeminiTextModels,
   testModel: 'gemini-2.0-flash-lite',
+  supportsAttachment: (kind) => kind === 'image' || kind === 'pdf',
   createAdapter(model, apiKey) {
     if (!includes(GeminiTextModels, model)) throw new Error(`Unknown Gemini model: ${model}`)
     if (!apiKey) throw new Error('Gemini API key is required')

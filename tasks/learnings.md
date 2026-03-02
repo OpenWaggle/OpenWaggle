@@ -20,6 +20,11 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Task: Review Findings Hardening (2026-03-02)
+- When extracting a shared cleanup function from one IPC handler to a separate module (for reuse in another handler), all unit tests that mock the individual functions must also mock the new module. Test failures manifest as "function not called" because the mocked individual modules are no longer reached through the extracted wrapper.
+- Late-binding DI (`registerFn`/`getFn` pattern in a facade module) is a clean solution for breaking circular import cycles in tool→runner→tool chains. Only the `import type` is safe as a static import from the cycle-creating module; the runtime function is registered once at app startup after all modules are loaded.
+- `electron-store` creates a store instance at module-level import time. Any module that statically imports a settings module triggers Electron's app path resolution, which fails in test environments. Keep settings imports lazy (`await import(...)`) in tool files that are imported transitively by test suites.
+
 ### Task: Background Streaming & Stream Reconnection (2026-03-02)
 - TanStack AI's `setMessages()` only accepts `UIMessage[]`, not a functional updater `(prev) => UIMessage[]`. When subscribing to IPC events that need to append deltas to the latest message array, use a `messagesRef` pattern (a ref always pointing to the latest messages) to read current state inside listeners without needing a functional updater.
 - For unified stream buffering across agent modes (classic + Waggle), buffer at the `stream-bridge` level (where `emitStreamChunk` broadcasts to all windows) rather than per-handler — one `StreamPartCollector` per active conversation covers both modes with zero handler changes. [SKILL?]
@@ -208,6 +213,24 @@ This document stores project-specific technical learnings only.
 - TanStack AI `StreamChunk` RUN_ERROR type only declares `{ message: string; code?: string }` — runtime errors carry `name`/`stack` but accessing them requires `'in'` operator narrowing + type assertion.
 - `StreamPartCollector` STEP_STARTED/STEP_FINISHED handling: flush text on STEP_STARTED and flush thinking on STEP_FINISHED to break TanStack's thinking accumulation across orchestration sub-calls.
 - When replacing a dependency (e.g. `pdf-parse` → `unpdf`), update integration test mocks from the old module to the new module's import path and API shape; dynamic `import()` mocks require `vi.mock()` at the correct module specifier.
+
+### Task: Sub-Agent System — Full Agent Tool Parity (2026-03-02)
+- The existing `AgentFeature.filterTools` hook (`runtime-types.ts:74`) was already defined and wired in `registry.ts` but never used by any feature — it's a ready-made extension point for per-agent-type tool restriction without modifying the core agent loop. [SKILL?]
+- Splitting sub-agent context into two separate interfaces avoids circular concerns: `SubAgentToolContext` (minimal: agentId, agentName, teamId, permissionMode, depth — lives on `ToolContext`) for tool-level code, and `SubAgentRunContext` (full: adds toolFilter, systemPromptAddition) on `AgentRunContext` for the feature pipeline. Tools don't need to know about prompt fragments; features don't need tool context.
+- Permission escalation prevention requires comparing parent and child modes at spawn time using a numeric restrictiveness ordering (`plan=0 < default=1 < acceptEdits=2 < dontAsk=3 < bypassPermissions=4`); children cannot exceed parent's level.
+- `runAgent()` uses a hardcoded `MAX_ITERATIONS = 25` and doesn't accept `maxTurns` as a parameter — the spawn input's `maxTurns` field is forward-looking but currently has no effect. Declared but unused variables will fail Biome lint.
+- Zod v4: `z.record(z.unknown())` requires two arguments — `z.record(z.string(), z.unknown())` — unlike v3 where the key schema defaulted to `z.string()`.
+- When 6 parallel test-writing agents produce test files, expect import ordering and formatting violations that need a single `pnpm lint:fix` pass to clean up — agents don't share the same Biome config awareness.
+
+### Task: Sub-Agent System — Hardening (2026-03-02)
+- Task dependency cycle detection via DFS on the `blockedBy` graph is O(V+E) and handles self-cycles, 2-node, and 3-node cycles correctly. The `blocks` field is intentionally excluded from cycle checks — it's informational only and doesn't affect scheduling.
+- Changing `updateTask` from `TaskRecord | null` to a discriminated union `UpdateTaskResult` (with `kind: 'not_found'` and `kind: 'cycle_detected'` variants) requires the tool layer to narrow via `'kind' in result` — but makes error conditions explicit and composable.
+- A facade re-export module (`sub-agents/facade.ts`) eliminates lazy `await import(...)` in 7 tool files while preserving the genuine lazy import for `spawn-agent.ts` (which has a real circular dependency chain through `agent-loop → built-in-tools`).
+
+### Task: Sub-Agent System — Integration Gap Closure (2026-03-02)
+- The bridge pattern (`sub-agent-bridge.ts` wrapping `broadcastToWindows`) keeps IPC emission concerns out of business-logic modules (team-manager, task-board, sub-agent-runner), making those modules testable by mocking only the bridge instead of Electron's BrowserWindow.
+- For sub-agent plan approval routing, team-bound sub-agents should route `proposePlan` through the message bus (to the team lead) rather than through the renderer. The `subscribe()` + `respondToPlan()` pattern in the runner function resolves pending plan proposals via the existing `plan-manager` promise infrastructure.
+- Lazy team loading from disk (attempt `loadPersistedTeam` when `getTeam` returns undefined before throwing) keeps team state recoverable after app restart without requiring app-startup scanning of project directories. Loaded members are set to `status: 'shutdown'` since no agents are running.
 
 ## 4) Old Learnings Archive
 

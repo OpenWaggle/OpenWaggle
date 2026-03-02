@@ -1,18 +1,19 @@
 import { randomUUID } from 'node:crypto'
-import type { HydratedAgentSendPayload, HydratedAttachment, Message } from '@shared/types/agent'
+import type { HydratedAgentSendPayload, Message } from '@shared/types/agent'
 import type { SkipApprovalToken } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
-import type { Provider, Settings } from '@shared/types/settings'
+import type { Settings } from '@shared/types/settings'
 import { choose } from '@shared/utils/decision'
 import { chat, type ModelMessage, maxIterations, type StreamChunk } from '@tanstack/ai'
 import { loadProjectConfig } from '../config/project-config'
 import { createLogger } from '../logger'
+import type { ProviderDefinition } from '../providers/provider-definition'
 import { runWithToolContext } from '../tools/define-tool'
 import { notifyRunComplete, notifyRunError, notifyRunStart } from './lifecycle-hooks'
 import { conversationToMessages, type SimpleChatMessage } from './message-mapper'
 import { buildAgentPrompt } from './prompt-builder'
-import type { AgentLifecycleHook, AgentRunContext } from './runtime-types'
+import type { AgentLifecycleHook, AgentRunContext, SubAgentRunContext } from './runtime-types'
 import {
   buildPersistedUserMessageParts,
   buildSamplingOptions,
@@ -45,6 +46,9 @@ export interface AgentRunParams {
    */
   readonly skipApproval?: SkipApprovalToken
   readonly onCollectorCreated?: (collector: StreamPartCollector) => void
+  readonly subAgentContext?: SubAgentRunContext
+  /** Maximum agent loop iterations. Defaults to MAX_ITERATIONS (25). */
+  readonly maxTurns?: number
 }
 
 export interface AgentRunResult {
@@ -71,24 +75,8 @@ function isAbortError(error: unknown): boolean {
   return error.message.trim().toLowerCase() === 'aborted'
 }
 
-function providerSupportsNativeAttachment(
-  provider: Provider,
-  attachment: HydratedAttachment,
-): boolean {
-  if (!attachment.source) return false
-
-  if (attachment.kind === 'image') {
-    return provider === 'openai' || provider === 'anthropic' || provider === 'gemini'
-  }
-  if (attachment.kind === 'pdf') {
-    return provider === 'openai' || provider === 'anthropic' || provider === 'gemini'
-  }
-
-  return false
-}
-
 function buildUserChatContent(
-  provider: Provider,
+  provider: ProviderDefinition,
   payload: HydratedAgentSendPayload,
 ): string | ChatContentPart[] {
   const parts: ChatContentPart[] = []
@@ -98,7 +86,7 @@ function buildUserChatContent(
   }
 
   for (const attachment of payload.attachments) {
-    if (providerSupportsNativeAttachment(provider, attachment) && attachment.source) {
+    if (attachment.source && provider.supportsAttachment(attachment.kind)) {
       const source = attachment.source
       choose(attachment.kind)
         .case('image', () => {
@@ -154,6 +142,15 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
         loadedScopeFiles: dynamicLoadedAgentsScopeFiles,
         loadedRequestedPaths: dynamicLoadedAgentsRequestedPaths,
       },
+      subAgentContext: params.subAgentContext
+        ? {
+            agentId: params.subAgentContext.agentId,
+            agentName: params.subAgentContext.agentName,
+            teamId: params.subAgentContext.teamId,
+            permissionMode: params.subAgentContext.permissionMode,
+            depth: params.subAgentContext.depth,
+          }
+        : undefined,
     },
     async () => {
       const stageDurationsMs: Record<string, number> = {}
@@ -203,6 +200,7 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
           provider,
           providerConfig,
           planModeRequested: payload.planModeRequested,
+          subAgentContext: params.subAgentContext,
           standards: await withStageTiming(stageDurationsMs, 'standards-resolution', () =>
             loadAgentStandardsContext(
               conversation.projectPath,
@@ -245,7 +243,7 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
                 const existingMessages = conversationToMessages(conversation.messages)
                 const newUserMessage: SimpleChatMessage = {
                   role: 'user',
-                  content: buildUserChatContent(provider.id, payload),
+                  content: buildUserChatContent(provider, payload),
                 }
                 return [...existingMessages, newUserMessage]
               })()
@@ -260,7 +258,7 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
             ...samplingOptions,
             maxTokens: qualityConfig.maxTokens,
             modelOptions: qualityConfig.modelOptions,
-            agentLoopStrategy: maxIterations(MAX_ITERATIONS),
+            agentLoopStrategy: maxIterations(params.maxTurns ?? MAX_ITERATIONS),
             abortController,
           })
         })

@@ -110,20 +110,24 @@ export function useAgentChat(
         return
       }
 
-      if (conversation && conversationId && hasActiveRun(conversationId)) {
-        // Reconnect to background run
-        void reconnectToBackgroundRun(conversationId, conversation, setMessages).then(
-          (reconnected) => {
-            if (reconnected) {
-              setBackgroundStreaming(true)
-            }
-          },
-        )
-      } else if (conversation) {
-        setMessages(conversationToUIMessages(conversation))
-      } else {
+      if (!conversation) {
         setMessages([])
+        return
       }
+
+      if (hasActiveRun(conversationId)) {
+        // Reconnect to background run
+        const capturedId = conversationId
+        void reconnectToBackgroundRun(capturedId, conversation, setMessages).then((reconnected) => {
+          // Only apply if we're still on the same conversation
+          if (reconnected && prevConvId.current === capturedId) {
+            setBackgroundStreaming(true)
+          }
+        })
+        return
+      }
+
+      setMessages(conversationToUIMessages(conversation))
     }
   }, [conversationId, conversation, setMessages, hasActiveRun])
 
@@ -139,6 +143,10 @@ export function useAgentChat(
 
     const unsubChunk = api.onStreamChunk((payload) => {
       if (payload.conversationId !== conversationId) return
+      if (payload.chunk.type === 'RUN_ERROR') {
+        setBackgroundStreaming(false)
+        return
+      }
       const prev = messagesRef.current
       const next = applyStreamDelta(payload.chunk, prev)
       if (next !== prev) {

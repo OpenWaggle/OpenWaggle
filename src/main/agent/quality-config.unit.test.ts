@@ -16,6 +16,7 @@ function stubProvider(id: ProviderDefinition['id'] = 'gemini'): ProviderDefiniti
     supportsDynamicModelFetch: false,
     models: [],
     testModel: '',
+    supportsAttachment: () => false,
     createAdapter: () => ({}) as never,
   }
 }

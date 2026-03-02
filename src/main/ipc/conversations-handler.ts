@@ -1,4 +1,5 @@
 import type { ConversationId } from '@shared/types/brand'
+import { cleanupConversationRun } from '../agent/conversation-cleanup'
 import {
   archiveConversation,
   createConversation,
@@ -26,10 +27,12 @@ export function registerConversationsHandlers(): void {
   })
 
   typedHandle('conversations:delete', async (_event, id: ConversationId) => {
+    cleanupConversationRun(id)
     await deleteConversation(id)
   })
 
   typedHandle('conversations:archive', async (_event, id: ConversationId) => {
+    cleanupConversationRun(id)
     await archiveConversation(id)
   })
 

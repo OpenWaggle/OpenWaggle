@@ -13,6 +13,10 @@ export type OrchestrationTaskId = Brand<string, 'OrchestrationTaskId'>
 export type TeamConfigId = Brand<string, 'TeamConfigId'>
 export type McpServerId = Brand<string, 'McpServerId'>
 export type SupportedModelId = Brand<string, 'SupportedModelId'>
+export type SubAgentId = Brand<string, 'SubAgentId'>
+export type TaskId = Brand<string, 'TaskId'>
+export type AgentMessageId = Brand<string, 'AgentMessageId'>
+export type TeamId = Brand<string, 'TeamId'>
 
 /**
  * Branded token that gates tool-approval bypass.
@@ -30,6 +34,10 @@ export const OrchestrationTaskId = (id: string): OrchestrationTaskId => id as Or
 export const TeamConfigId = (id: string): TeamConfigId => id as TeamConfigId
 export const McpServerId = (id: string): McpServerId => id as McpServerId
 export const SupportedModelId = (id: string): SupportedModelId => id as SupportedModelId
+export const SubAgentId = (id: string): SubAgentId => id as SubAgentId
+export const TaskId = (id: string): TaskId => id as TaskId
+export const AgentMessageId = (id: string): AgentMessageId => id as AgentMessageId
+export const TeamId = (id: string): TeamId => id as TeamId
 
 const SKIP_APPROVAL_SYMBOL = Symbol('SkipApprovalToken')
 

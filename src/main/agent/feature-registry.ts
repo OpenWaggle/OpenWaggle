@@ -1,7 +1,10 @@
 import { jsonObjectSchema } from '@shared/schemas/validation'
+import type { AgentToolFilter } from '@shared/types/sub-agent'
+import type { ServerTool } from '@tanstack/ai'
 import { createLogger } from '../logger'
 import { mcpToolsFeature } from '../mcp'
 import { builtInTools } from '../tools/built-in-tools'
+import { withoutApproval } from '../tools/without-approval'
 import type {
   AgentFeature,
   AgentLifecycleHook,
@@ -117,7 +120,12 @@ function summarizeToolError(result: string | undefined): string | undefined {
     }
     if (typeof parsed === 'object' && parsed !== null) {
       const result = jsonObjectSchema.safeParse(parsed)
-      if (!result.success) return undefined
+      if (!result.success) {
+        logger.debug('tool-error-parse-mismatch', {
+          preview: String(parsed).slice(0, 200),
+        })
+        return undefined
+      }
       const record = result.data
       if (typeof record.error === 'string' && record.error.trim()) {
         return record.error.slice(0, 300)
@@ -128,6 +136,9 @@ function summarizeToolError(result: string | undefined): string | undefined {
       if (typeof record.text === 'string' && record.text.trim()) {
         return record.text.slice(0, 300)
       }
+      logger.debug('tool-error-no-recognized-key', {
+        keys: Object.keys(record),
+      })
     }
   } catch {
     return result.slice(0, 300)
@@ -180,6 +191,70 @@ const observabilityFeature: AgentFeature = {
   getLifecycleHooks: () => [observabilityHook],
 }
 
+/**
+ * Sub-agent tool filtering feature.
+ * When a sub-agent context is present on the run context, applies the agent type's
+ * tool filter and permission mode to restrict the available tool set.
+ */
+const subAgentToolsFeature: AgentFeature = {
+  id: 'sub-agent.tools',
+  isEnabled: (context) => !!context.subAgentContext,
+  filterTools: (tools, context) => {
+    if (!context.subAgentContext) return tools
+
+    const { toolFilter, permissionMode } = context.subAgentContext
+
+    // Apply permission mode first
+    let filtered: ServerTool[]
+    if (permissionMode === 'plan') {
+      // Plan mode forces read-only tool set regardless of agent type
+      const readOnlyNames = new Set([
+        'readFile',
+        'glob',
+        'listFiles',
+        'webFetch',
+        'loadSkill',
+        'loadAgents',
+      ])
+      filtered = tools.filter((t) => readOnlyNames.has(t.name ?? ''))
+    } else {
+      filtered = [...tools]
+    }
+
+    // Apply agent type tool filter
+    if (permissionMode !== 'plan' && toolFilter) {
+      filtered = applyToolFilter(filtered, toolFilter)
+    }
+
+    // Apply permission mode approval stripping
+    if (permissionMode === 'dontAsk' || permissionMode === 'bypassPermissions') {
+      return withoutApproval(filtered)
+    }
+
+    if (permissionMode === 'acceptEdits') {
+      const editToolNames = new Set(['writeFile', 'editFile'])
+      return filtered.map((t) =>
+        t.needsApproval && editToolNames.has(t.name ?? '') ? { ...t, needsApproval: false } : t,
+      )
+    }
+
+    return filtered
+  },
+}
+
+function applyToolFilter(tools: readonly ServerTool[], filter: AgentToolFilter): ServerTool[] {
+  if (filter.kind === 'all') return [...tools]
+  if (filter.kind === 'allow') {
+    const allowed = new Set(filter.names)
+    return tools.filter((t) => allowed.has(t.name ?? ''))
+  }
+  if (filter.kind === 'deny') {
+    const denied = new Set(filter.names)
+    return tools.filter((t) => !denied.has(t.name ?? ''))
+  }
+  return [...tools]
+}
+
 const defaultFeatures: readonly AgentFeature[] = [
   standardsPromptFeature,
   corePromptFeature,
@@ -188,6 +263,7 @@ const defaultFeatures: readonly AgentFeature[] = [
   mcpToolsFeature,
   executionModeFeature,
   observabilityFeature,
+  subAgentToolsFeature,
 ]
 
 export function getAgentFeatureFlags(): AgentFeatureFlags {

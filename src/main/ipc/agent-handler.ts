@@ -4,19 +4,21 @@ import type { ConversationId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { PlanResponse } from '@shared/types/plan'
 import type { QuestionAnswer } from '@shared/types/question'
+import { formatErrorMessage } from '@shared/utils/node-error'
 import { runAgent } from '../agent/agent-loop'
+import { cleanupConversationRun } from '../agent/conversation-cleanup'
 import { classifyAgentError, makeErrorInfo } from '../agent/error-classifier'
 import { getPhaseForConversation } from '../agent/phase-tracker'
 import { buildPersistedUserMessageParts, makeMessage } from '../agent/shared'
 import type { StreamPartCollector } from '../agent/stream-part-collector'
 import { createLogger } from '../logger'
-import { cancelAllForConversation } from '../orchestration/active-runs'
+import { providerRegistry } from '../providers/registry'
 import { withConversationLock } from '../store/conversation-lock'
 import { getConversation, saveConversation } from '../store/conversations'
 import { getSettings } from '../store/settings'
-import { clearContext, pushContext } from '../tools/context-injection-buffer'
-import { cancelPlanProposal, respondToPlan } from '../tools/plan-manager'
-import { answerQuestion, cancelQuestion } from '../tools/question-manager'
+import { pushContext } from '../tools/context-injection-buffer'
+import { respondToPlan } from '../tools/plan-manager'
+import { answerQuestion } from '../tools/question-manager'
 import {
   clearAgentPhase,
   clearStreamBuffer,
@@ -41,12 +43,19 @@ interface ActiveRun {
 /** Per-conversation active runs — allows concurrent runs on different conversations */
 const activeRuns = new Map<ConversationId, ActiveRun>()
 
-/** Cleanup all per-conversation ephemeral state (questions, plans, context injection) */
-function cleanupConversationRun(conversationId: ConversationId): void {
-  cancelAllForConversation(conversationId)
-  cancelQuestion(conversationId)
-  cancelPlanProposal(conversationId)
-  clearContext(conversationId)
+/** Emit RUN_ERROR + RUN_FINISHED pair for early-exit error paths. */
+function emitErrorAndFinish(conversationId: ConversationId, message: string, code: string): void {
+  emitStreamChunk(conversationId, {
+    type: 'RUN_ERROR',
+    timestamp: Date.now(),
+    error: { message, code },
+  })
+  emitStreamChunk(conversationId, {
+    type: 'RUN_FINISHED',
+    timestamp: Date.now(),
+    runId: '',
+    finishReason: 'stop',
+  })
 }
 
 export function registerAgentHandlers(): void {
@@ -65,30 +74,25 @@ export function registerAgentHandlers(): void {
         activeRuns.delete(conversationId)
         clearAgentPhase(conversationId)
       }
-      cancelAllForConversation(conversationId)
+      cleanupConversationRun(conversationId)
 
       const abortController = new AbortController()
       const run: ActiveRun = { controller: abortController, collector: null, model, payload: null }
       activeRuns.set(conversationId, run)
 
-      clearContext(conversationId)
-
       const settings = getSettings()
+
+      if (!providerRegistry.isKnownModel(model)) {
+        emitErrorAndFinish(conversationId, `Unknown model: ${model}`, 'invalid-model')
+        activeRuns.delete(conversationId)
+        return
+      }
+
       const conversation = await getConversation(conversationId)
 
       if (!conversation) {
         const errorInfo = makeErrorInfo('conversation-not-found', 'Conversation not found')
-        emitStreamChunk(conversationId, {
-          type: 'RUN_ERROR',
-          timestamp: Date.now(),
-          error: { message: errorInfo.userMessage, code: errorInfo.code },
-        })
-        emitStreamChunk(conversationId, {
-          type: 'RUN_FINISHED',
-          timestamp: Date.now(),
-          runId: '',
-          finishReason: 'stop',
-        })
+        emitErrorAndFinish(conversationId, errorInfo.userMessage, errorInfo.code)
         activeRuns.delete(conversationId)
         return
       }
@@ -161,7 +165,7 @@ export function registerAgentHandlers(): void {
         } catch (persistError) {
           logger.error('Failed to persist conversation', {
             conversationId,
-            error: persistError instanceof Error ? persistError.message : String(persistError),
+            error: formatErrorMessage(persistError),
           })
           const persistInfo = makeErrorInfo(
             'persist-failed',
@@ -176,17 +180,7 @@ export function registerAgentHandlers(): void {
       } catch (err) {
         if (!(err instanceof Error && err.message === 'aborted')) {
           const classified = classifyAgentError(err)
-          emitStreamChunk(conversationId, {
-            type: 'RUN_ERROR',
-            timestamp: Date.now(),
-            error: { message: classified.userMessage, code: classified.code },
-          })
-          emitStreamChunk(conversationId, {
-            type: 'RUN_FINISHED',
-            timestamp: Date.now(),
-            runId: '',
-            finishReason: 'stop',
-          })
+          emitErrorAndFinish(conversationId, classified.userMessage, classified.code)
         }
       } finally {
         activeRuns.delete(conversationId)
@@ -271,7 +265,7 @@ export function registerAgentHandlers(): void {
     } catch (err) {
       logger.error('Failed to persist partial response during steer', {
         conversationId,
-        error: err instanceof Error ? err.message : String(err),
+        error: formatErrorMessage(err),
       })
     }
 

@@ -27,7 +27,9 @@ export function useBackgroundRunMonitor(): void {
     const unsubChunk = api.onStreamChunk((payload) => {
       if (payload.chunk.type === 'RUN_STARTED') {
         addActiveRun(payload.conversationId)
-      } else if (isTerminalChunk(payload.chunk)) {
+        return
+      }
+      if (isTerminalChunk(payload.chunk)) {
         removeActiveRun(payload.conversationId)
       }
     })

@@ -12,6 +12,7 @@ export const ollamaProvider: ProviderDefinition = {
   supportsDynamicModelFetch: true,
   models: OllamaTextModels,
   testModel: OllamaTextModels[0] ?? 'llama3.2',
+  supportsAttachment: () => false,
   createAdapter(model, _apiKey, baseUrl) {
     return createOllamaChat(model, baseUrl ?? OLLAMA_DEFAULT_BASE_URL)
   },

@@ -1,6 +1,9 @@
 import type { ConversationId } from '@shared/types/brand'
 import type { PlanResponse } from '@shared/types/plan'
 
+/** Maximum time a plan proposal can remain pending before auto-rejection (10 minutes) */
+const PLAN_PROPOSAL_TTL_MS = 10 * 60 * 1000
+
 interface PendingPlanProposal {
   resolve: (response: PlanResponse) => void
   reject: (reason: Error) => void
@@ -38,3 +41,49 @@ export function cancelPlanProposal(conversationId: ConversationId): void {
     entry.reject(new Error('Plan proposal cancelled'))
   }
 }
+
+/**
+ * Register a plan proposal and wire abort signal + TTL cleanup.
+ * Shared by both team-routed and renderer-routed plan flows.
+ */
+export function waitForPlanResponse(
+  conversationId: ConversationId,
+  signal?: AbortSignal,
+): Promise<PlanResponse> {
+  return new Promise<PlanResponse>((resolve, reject) => {
+    const ttlTimer = setTimeout(() => {
+      cancelPlanProposal(conversationId)
+    }, PLAN_PROPOSAL_TTL_MS)
+
+    const wrappedResolve = (response: PlanResponse): void => {
+      clearTimeout(ttlTimer)
+      resolve(response)
+    }
+
+    const wrappedReject = (reason: Error): void => {
+      clearTimeout(ttlTimer)
+      reject(reason)
+    }
+
+    registerPlanProposal(conversationId, wrappedResolve, wrappedReject)
+
+    if (signal?.aborted) {
+      clearTimeout(ttlTimer)
+      cancelPlanProposal(conversationId)
+      reject(new Error('Plan proposal cancelled'))
+      return
+    }
+
+    signal?.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(ttlTimer)
+        cancelPlanProposal(conversationId)
+      },
+      { once: true },
+    )
+  })
+}
+
+/** Exposed for testing */
+export { PLAN_PROPOSAL_TTL_MS }
