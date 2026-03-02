@@ -45,6 +45,9 @@ describe('preload api surface contract', () => {
     'getConversation',
     'createConversation',
     'deleteConversation',
+    'archiveConversation',
+    'unarchiveConversation',
+    'listArchivedConversations',
     'updateConversationTitle',
     'updateConversationProjectPath',
     // Devtools
