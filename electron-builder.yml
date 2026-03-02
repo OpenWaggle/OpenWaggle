@@ -8,7 +8,14 @@ files:
   - '!electron.vite.config.*'
   - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+extraResources:
+  - from: build/icon.png
+    to: icon.png
 mac:
+  # Local builds: skip codesigning (no Apple Developer ID).
+  # Distribution: remove this, configure CSC_LINK/CSC_KEY_PASSWORD.
+  # See tasks/specs/35-ship-to-users.md Phase 5.
+  identity: null
   icon: build/icon.icns
   artifactName: ${name}-${version}-${arch}.${ext}
   target:

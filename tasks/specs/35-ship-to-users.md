@@ -41,6 +41,7 @@ Get OpenWaggle from local dev project to publicly downloadable product. Users ca
 - [ ] Discord server
 - [ ] GitHub Discussions
 - [ ] Apple Developer enrollment + code signing + notarization (optional — improves UX for non-Homebrew installs)
+  - Remove `identity: null` from `electron-builder.yml`, set `CSC_LINK`/`CSC_KEY_PASSWORD` env vars, add `build/entitlements.mac.plist`
 
 ## Prerequisites (Manual / External)
 

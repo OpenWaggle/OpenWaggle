@@ -31,7 +31,9 @@ if (env.OPENWAGGLE_USER_DATA_DIR) {
   app.setPath('userData', env.OPENWAGGLE_USER_DATA_DIR)
 }
 
-const appIconPath = join(__dirname, '../../build/icon.png')
+const appIconPath = is.dev
+  ? join(__dirname, '../../build/icon.png')
+  : join(process.resourcesPath, 'icon.png')
 const logger = createLogger('main/index')
 let ipcHandlersRegistered = false
 
