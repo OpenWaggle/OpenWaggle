@@ -20,7 +20,7 @@ import { registerTeamsHandlers } from './ipc/teams-handler'
 import { cleanupTerminals, registerTerminalHandlers } from './ipc/terminal-handler'
 import { registerVoiceHandlers } from './ipc/voice-handler'
 import { registerWaggleHandlers } from './ipc/waggle-handler'
-import { initFileLogger } from './logger'
+import { createLogger, initFileLogger } from './logger'
 import { mcpManager } from './mcp'
 import { registerAllProviders } from './providers'
 import { getSettings } from './store/settings'
@@ -32,6 +32,70 @@ if (env.OPENWAGGLE_USER_DATA_DIR) {
 }
 
 const appIconPath = join(__dirname, '../../build/icon.png')
+const logger = createLogger('main/index')
+let ipcHandlersRegistered = false
+
+function describeError(error: unknown): { message: string; name?: string; stack?: string } {
+  if (error instanceof Error) {
+    return {
+      message: error.message,
+      name: error.name,
+      stack: error.stack,
+    }
+  }
+
+  return { message: String(error) }
+}
+
+function registerIpcHandlersOnce(): void {
+  if (ipcHandlersRegistered) {
+    logger.warn('Skipping duplicate IPC handler registration')
+    return
+  }
+
+  ipcHandlersRegistered = true
+
+  registerAuthHandlers()
+  registerAgentHandlers()
+  registerSettingsHandlers()
+  registerConversationsHandlers()
+  registerAttachmentHandlers()
+  registerDevtoolsHandlers()
+  registerGitHandlers()
+  registerProjectHandlers()
+  registerProvidersHandlers()
+  registerOrchestrationHandlers()
+  registerTerminalHandlers()
+  registerVoiceHandlers()
+  registerSkillsHandlers()
+  registerShellHandlers()
+  registerWaggleHandlers()
+  registerTeamsHandlers()
+  registerMcpHandlers()
+}
+
+async function bootstrapServicesAndWindow(): Promise<void> {
+  try {
+    await Promise.all([registerAllProviders(), startDevtoolsEventBus()])
+  } catch (error) {
+    logger.error(
+      'Provider or devtools bootstrap failed; continuing with degraded startup',
+      describeError(error),
+    )
+  }
+
+  try {
+    const settings = getSettings()
+    await mcpManager.initialize(settings.mcpServers)
+  } catch (error) {
+    logger.error(
+      'MCP initialization failed; continuing without MCP connectivity',
+      describeError(error),
+    )
+  }
+
+  createWindow()
+}
 
 function isTrustedRendererRequest(url: string): boolean {
   if (url.startsWith('file://')) return true
@@ -112,54 +176,37 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.openwaggle.app')
-  if (process.platform === 'darwin') {
-    app.dock?.setIcon(appIconPath)
-  }
+app
+  .whenReady()
+  .then(() => {
+    electronApp.setAppUserModelId('com.openwaggle.app')
+    if (process.platform === 'darwin') {
+      app.dock?.setIcon(appIconPath)
+    }
 
-  app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window)
+    app.on('browser-window-created', (_, window) => {
+      optimizer.watchWindowShortcuts(window)
+    })
+
+    // Register IPC handlers (these don't need the registry to be populated yet,
+    // they just reference it at call-time)
+    registerIpcHandlersOnce()
+
+    // Initialize file logger now that app paths are available
+    initFileLogger(app.getPath('logs'))
+
+    // Late-bind runSubAgent to break spawn-agent → sub-agent-runner cycle
+    registerRunSubAgent(runSubAgent)
+
+    void bootstrapServicesAndWindow()
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    })
   })
-
-  // Register IPC handlers (these don't need the registry to be populated yet,
-  // they just reference it at call-time)
-  registerAuthHandlers()
-  registerAgentHandlers()
-  registerSettingsHandlers()
-  registerConversationsHandlers()
-  registerAttachmentHandlers()
-  registerDevtoolsHandlers()
-  registerGitHandlers()
-  registerProjectHandlers()
-  registerProvidersHandlers()
-  registerOrchestrationHandlers()
-  registerTerminalHandlers()
-  registerVoiceHandlers()
-  registerSkillsHandlers()
-  registerShellHandlers()
-  registerWaggleHandlers()
-  registerTeamsHandlers()
-  registerMcpHandlers()
-
-  // Initialize file logger now that app paths are available
-  initFileLogger(app.getPath('logs'))
-
-  // Late-bind runSubAgent to break spawn-agent → sub-agent-runner cycle
-  registerRunSubAgent(runSubAgent)
-
-  // Register providers (async — individual failures are caught per-provider)
-  Promise.all([registerAllProviders(), startDevtoolsEventBus()]).then(async () => {
-    // Initialize MCP servers from persisted config
-    const settings = getSettings()
-    await mcpManager.initialize(settings.mcpServers)
-    createWindow()
+  .catch((error: unknown) => {
+    logger.error('App startup failed before ready', describeError(error))
   })
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
-  })
-})
 
 let mcpCleanupDone = false
 
