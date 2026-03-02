@@ -11,9 +11,12 @@ import { getConversation, saveConversation } from '../store/conversations'
 import { getSettings } from '../store/settings'
 import {
   clearAgentPhase,
+  clearStreamBuffer,
+  emitRunCompleted,
   emitStreamChunk,
   emitWaggleStreamChunk,
   emitWaggleTurnEvent,
+  startStreamBuffer,
 } from '../utils/stream-bridge'
 import { hydrateAttachmentSources } from './attachments-handler'
 import { typedHandle, typedOn } from './typed-ipc'
@@ -89,6 +92,8 @@ export function registerWaggleHandlers(): void {
           await saveConversation({ ...conversation, title: provisionalTitle })
         }
       }
+
+      startStreamBuffer(conversationId, config.agents[0].model, 'waggle')
 
       try {
         const hydratedPayload = {
@@ -259,6 +264,8 @@ export function registerWaggleHandlers(): void {
         }
       } finally {
         activeWaggleRuns.delete(conversationId)
+        clearStreamBuffer(conversationId)
+        emitRunCompleted(conversationId)
       }
     },
   )

@@ -6,12 +6,18 @@ import type { PlanResponse } from '@shared/types/plan'
 import type { QuestionAnswer } from '@shared/types/question'
 import type { QualityPreset } from '@shared/types/settings'
 import type { WaggleConfig } from '@shared/types/waggle'
-import { chooseBy } from '@shared/utils/decision'
 import type { UIMessage } from '@tanstack/ai-react'
 import { useChat } from '@tanstack/ai-react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '@/lib/ipc'
 import { createIpcConnectionAdapter } from '@/lib/ipc-connection-adapter'
+import { useBackgroundRunStore } from '@/stores/background-run-store'
+import {
+  applyStreamDelta,
+  buildPartialAssistantMessage,
+  conversationToUIMessages,
+  formatAttachmentPreview,
+} from './useAgentChat.utils'
 
 interface AgentChatReturn {
   messages: UIMessage[]
@@ -25,6 +31,8 @@ interface AgentChatReturn {
   respondToolApproval: (approvalId: string, approved: boolean) => Promise<void>
   answerQuestion: (conversationId: ConversationId, answers: QuestionAnswer[]) => Promise<void>
   respondToPlan: (conversationId: ConversationId, response: PlanResponse) => Promise<void>
+  /** True when we're showing a reconnected background stream (not via TanStack) */
+  backgroundStreaming: boolean
 }
 
 /**
@@ -41,6 +49,7 @@ interface AgentChatReturn {
  * - Conversation list / switching (Zustand store)
  * - Persistence (main process saves to disk)
  * - Loading historical messages into useChat via setMessages()
+ * - Background stream reconnection when switching back to an active run
  */
 export function useAgentChat(
   conversationId: ConversationId | null,
@@ -50,6 +59,8 @@ export function useAgentChat(
 ): AgentChatReturn {
   const pendingPayloadRef = useRef<AgentSendPayload | null>(null)
   const pendingWaggleConfigRef = useRef<WaggleConfig | null>(null)
+  const [backgroundStreaming, setBackgroundStreaming] = useState(false)
+  const hasActiveRun = useBackgroundRunStore((s) => s.hasActiveRun)
 
   // React Compiler handles memoization — no manual useMemo needed.
   const connection = conversationId
@@ -87,42 +98,98 @@ export function useAgentChat(
   })
 
   // Sync historical messages when switching conversations.
-  // Convert our Message[] → UIMessage[] for useChat's state.
+  // If the conversation has a background run, reconnect to it.
   const prevConvId = useRef<ConversationId | null>(null)
   useEffect(() => {
     if (conversationId !== prevConvId.current) {
       prevConvId.current = conversationId
-      if (conversation) {
+      setBackgroundStreaming(false)
+
+      if (!conversationId) {
+        setMessages([])
+        return
+      }
+
+      if (conversation && conversationId && hasActiveRun(conversationId)) {
+        // Reconnect to background run
+        void reconnectToBackgroundRun(conversationId, conversation, setMessages).then(
+          (reconnected) => {
+            if (reconnected) {
+              setBackgroundStreaming(true)
+            }
+          },
+        )
+      } else if (conversation) {
         setMessages(conversationToUIMessages(conversation))
       } else {
         setMessages([])
       }
     }
-  }, [conversationId, conversation, setMessages])
+  }, [conversationId, conversation, setMessages, hasActiveRun])
+
+  // Keep a ref to the latest messages so stream chunk listeners can
+  // read current state without needing a functional updater.
+  const messagesRef = useRef(messages)
+  messagesRef.current = messages
+
+  // While background-streaming, subscribe to live chunk updates
+  // and update messages on each text/tool chunk.
+  useEffect(() => {
+    if (!backgroundStreaming || !conversationId) return
+
+    const unsubChunk = api.onStreamChunk((payload) => {
+      if (payload.conversationId !== conversationId) return
+      const prev = messagesRef.current
+      const next = applyStreamDelta(payload.chunk, prev)
+      if (next !== prev) {
+        setMessages(next)
+      }
+    })
+
+    const unsubCompleted = api.onRunCompleted((payload) => {
+      if (payload.conversationId !== conversationId) return
+      setBackgroundStreaming(false)
+      // Reload canonical state from disk
+      void api.getConversation(conversationId).then((conv) => {
+        if (conv) {
+          setMessages(conversationToUIMessages(conv))
+        }
+      })
+    })
+
+    return () => {
+      unsubChunk()
+      unsubCompleted()
+    }
+  }, [backgroundStreaming, conversationId, setMessages])
 
   return {
     messages,
     sendMessage: async (payload: AgentSendPayload) => {
+      setBackgroundStreaming(false)
       pendingPayloadRef.current = payload
       await sendMessage(buildClientUserMessage(payload))
     },
     sendWaggleMessage: async (payload: AgentSendPayload, config: WaggleConfig) => {
+      setBackgroundStreaming(false)
       pendingPayloadRef.current = payload
       pendingWaggleConfigRef.current = config
       await sendMessage(buildClientUserMessage(payload))
     },
-    isLoading,
-    status,
+    isLoading: isLoading || backgroundStreaming,
+    status: backgroundStreaming ? 'streaming' : status,
     stop: () => {
       if (conversationId) {
         api.cancelAgent(conversationId)
       }
+      setBackgroundStreaming(false)
       stop()
     },
     steer: async () => {
       if (conversationId) {
         await api.steerAgent(conversationId)
       }
+      setBackgroundStreaming(false)
       stop()
     },
     error,
@@ -135,24 +202,31 @@ export function useAgentChat(
     respondToPlan: async (cid: ConversationId, response: PlanResponse) => {
       await api.respondToPlan(cid, response)
     },
+    backgroundStreaming,
   }
+}
+
+// ─── Background Run Reconnection ─────────────────────────────
+
+async function reconnectToBackgroundRun(
+  conversationId: ConversationId,
+  conversation: Conversation,
+  setMessages: (msgs: UIMessage[]) => void,
+): Promise<boolean> {
+  const snapshot = await api.getBackgroundRun(conversationId)
+  if (!snapshot) {
+    // No active run — just load historical messages
+    setMessages(conversationToUIMessages(conversation))
+    return false
+  }
+
+  const historicalMessages = conversationToUIMessages(conversation)
+  const partialAssistant = buildPartialAssistantMessage(snapshot.parts)
+  setMessages([...historicalMessages, partialAssistant])
+  return true
 }
 
 // ─── Helpers ─────────────────────────────────────────────────
-
-const MAX_ATTACHMENT_PREVIEW_CHARS = 320
-
-function formatAttachmentPreview(name: string, extractedText: string): string {
-  const preview = extractedText.trim()
-  if (!preview) {
-    return `[Attachment] ${name}`
-  }
-  const clipped =
-    preview.length > MAX_ATTACHMENT_PREVIEW_CHARS
-      ? `${preview.slice(0, MAX_ATTACHMENT_PREVIEW_CHARS)}...`
-      : preview
-  return `[Attachment] ${name}\n${clipped}`
-}
 
 function buildClientUserMessage(payload: AgentSendPayload): string {
   const chunks: string[] = []
@@ -164,43 +238,6 @@ function buildClientUserMessage(payload: AgentSendPayload): string {
     chunks.push(formatAttachmentPreview(attachment.name, attachment.extractedText))
   }
   return chunks.join('\n\n')
-}
-
-function conversationToUIMessages(conv: Conversation): UIMessage[] {
-  return conv.messages.map((msg) => ({
-    id: String(msg.id),
-    role: msg.role,
-    parts: msg.parts.flatMap((part): UIMessage['parts'] => {
-      return chooseBy(part, 'type')
-        .case('text', (value): UIMessage['parts'] => [{ type: 'text', content: value.text }])
-        .case('tool-call', (value): UIMessage['parts'] => [
-          {
-            type: 'tool-call',
-            id: String(value.toolCall.id),
-            name: value.toolCall.name,
-            arguments: JSON.stringify(value.toolCall.args),
-            state: 'input-complete',
-          },
-        ])
-        .case('tool-result', (value): UIMessage['parts'] => [
-          {
-            type: 'tool-result',
-            toolCallId: String(value.toolResult.id),
-            content: value.toolResult.result,
-            state: value.toolResult.isError ? 'error' : 'complete',
-          },
-        ])
-        .case('attachment', (value): UIMessage['parts'] => [
-          {
-            type: 'text',
-            content: formatAttachmentPreview(value.attachment.name, value.attachment.extractedText),
-          },
-        ])
-        .case('reasoning', (): UIMessage['parts'] => [])
-        .assertComplete()
-    }),
-    createdAt: new Date(msg.createdAt),
-  }))
 }
 
 async function* emptyAsyncIterable() {

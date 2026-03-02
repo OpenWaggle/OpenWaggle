@@ -4,6 +4,7 @@ import type {
   SubscriptionAccountInfo,
   SubscriptionProvider,
 } from '@shared/types/auth'
+import type { ActiveRunInfo, BackgroundRunSnapshot } from '@shared/types/background-run'
 import type { ConversationId, McpServerId, TeamConfigId } from '@shared/types/brand'
 import type { Conversation, ConversationSummary } from '@shared/types/conversation'
 import type { DevtoolsEventBusConfig } from '@shared/types/devtools'
@@ -107,6 +108,25 @@ export const api: OpenWaggleApi = {
 
   getAgentPhase(conversationId: ConversationId): Promise<AgentPhaseState | null> {
     return ipcRenderer.invoke('agent:get-phase', conversationId)
+  },
+
+  getBackgroundRun(conversationId: ConversationId): Promise<BackgroundRunSnapshot | null> {
+    return ipcRenderer.invoke('agent:get-background-run', conversationId)
+  },
+
+  listActiveRuns(): Promise<ActiveRunInfo[]> {
+    return ipcRenderer.invoke('agent:list-active-runs')
+  },
+
+  onRunCompleted(callback: (payload: { conversationId: ConversationId }) => void): () => void {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      payload: { conversationId: ConversationId },
+    ): void => {
+      callback(payload)
+    }
+    ipcRenderer.on('agent:run-completed', handler)
+    return () => ipcRenderer.removeListener('agent:run-completed', handler)
   },
 
   onQuestion(callback: (payload: QuestionPayload) => void): () => void {

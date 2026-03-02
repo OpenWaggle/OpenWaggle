@@ -16,6 +16,9 @@ const {
   emitWaggleStreamChunkMock,
   emitWaggleTurnEventMock,
   clearAgentPhaseMock,
+  startStreamBufferMock,
+  clearStreamBufferMock,
+  emitRunCompletedMock,
   classifyAgentErrorMock,
   makeErrorInfoMock,
   hydrateAttachmentSourcesMock,
@@ -31,6 +34,9 @@ const {
   emitWaggleStreamChunkMock: vi.fn(),
   emitWaggleTurnEventMock: vi.fn(),
   clearAgentPhaseMock: vi.fn(),
+  startStreamBufferMock: vi.fn(),
+  clearStreamBufferMock: vi.fn(),
+  emitRunCompletedMock: vi.fn(),
   classifyAgentErrorMock: vi.fn(),
   makeErrorInfoMock: vi.fn(),
   hydrateAttachmentSourcesMock: vi.fn(async (attachments: unknown) => attachments),
@@ -68,6 +74,9 @@ vi.mock('../utils/stream-bridge', () => ({
   emitWaggleStreamChunk: emitWaggleStreamChunkMock,
   emitWaggleTurnEvent: emitWaggleTurnEventMock,
   clearAgentPhase: clearAgentPhaseMock,
+  startStreamBuffer: startStreamBufferMock,
+  clearStreamBuffer: clearStreamBufferMock,
+  emitRunCompleted: emitRunCompletedMock,
 }))
 
 vi.mock('./attachments-handler', () => ({

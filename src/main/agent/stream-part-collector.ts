@@ -164,6 +164,22 @@ export class StreamPartCollector {
       .catchAll(() => ({}))
   }
 
+  /**
+   * Non-destructive read — returns accumulated parts plus any pending
+   * text/reasoning WITHOUT flushing internal state. Used by stream-bridge
+   * to snapshot progress for background run reconnection.
+   */
+  snapshotParts(): MessagePart[] {
+    const snapshot = [...this.collectedParts]
+    if (this.currentReasoning.trim()) {
+      snapshot.push({ type: 'reasoning', text: this.currentReasoning })
+    }
+    if (this.currentText.trim()) {
+      snapshot.push({ type: 'text', text: this.currentText })
+    }
+    return snapshot
+  }
+
   finalizeParts(): MessagePart[] {
     this.flushReasoningPart()
     this.flushTextPart()

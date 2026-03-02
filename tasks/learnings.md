@@ -20,6 +20,11 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Task: Background Streaming & Stream Reconnection (2026-03-02)
+- TanStack AI's `setMessages()` only accepts `UIMessage[]`, not a functional updater `(prev) => UIMessage[]`. When subscribing to IPC events that need to append deltas to the latest message array, use a `messagesRef` pattern (a ref always pointing to the latest messages) to read current state inside listeners without needing a functional updater.
+- For unified stream buffering across agent modes (classic + Waggle), buffer at the `stream-bridge` level (where `emitStreamChunk` broadcasts to all windows) rather than per-handler — one `StreamPartCollector` per active conversation covers both modes with zero handler changes. [SKILL?]
+- `StreamPartCollector.snapshotParts()` must be non-destructive (no flush) so the collector can continue accumulating chunks after a renderer reads the snapshot for reconnection.
+
 ### Task: Phase Tracking & Orchestration Narration Bugs (2026-03-01)
 - When orchestration events bypass `stream-bridge.emitOrchestrationEvent()` and send directly via `webContents.send()`, the phase tracker never learns orchestration is happening — its `mode` stays `'classic'` and TEXT_MESSAGE_CONTENT sets "Writing" instead of orchestration-specific labels. Always route orchestration events through the stream-bridge to keep phase state and IPC broadcasting in sync.
 

@@ -4,6 +4,7 @@ import { Trash2 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { formatRelativeTime, truncate } from '@/lib/format'
 import { api } from '@/lib/ipc'
+import { useBackgroundRunStore } from '@/stores/background-run-store'
 
 interface ThreadListItemProps {
   readonly conversation: ConversationSummary
@@ -18,6 +19,9 @@ export function ThreadListItem({
   onSelect,
   onDelete,
 }: ThreadListItemProps): React.JSX.Element {
+  const hasActiveRun = useBackgroundRunStore((s) => s.hasActiveRun)
+  const isStreaming = hasActiveRun(conversation.id)
+
   return (
     <div
       aria-current={isActive ? 'true' : undefined}
@@ -28,6 +32,9 @@ export function ThreadListItem({
           : 'pl-11 pr-3 hover:bg-bg-hover',
       )}
     >
+      {isStreaming && !isActive && (
+        <span className="mr-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent animate-pulse" />
+      )}
       <button
         type="button"
         onClick={() => onSelect(conversation.id)}

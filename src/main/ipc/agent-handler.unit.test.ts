@@ -25,6 +25,11 @@ const {
   makeMessageMock,
   hydrateAttachmentSourcesMock,
   getPhaseForConversationMock,
+  startStreamBufferMock,
+  clearStreamBufferMock,
+  emitRunCompletedMock,
+  getStreamBufferMock,
+  listStreamBuffersMock,
   classifyAgentErrorMock,
   makeErrorInfoMock,
 } = vi.hoisted(() => ({
@@ -51,6 +56,11 @@ const {
   ),
   hydrateAttachmentSourcesMock: vi.fn(async (attachments: unknown) => attachments),
   getPhaseForConversationMock: vi.fn(),
+  startStreamBufferMock: vi.fn(),
+  clearStreamBufferMock: vi.fn(),
+  emitRunCompletedMock: vi.fn(),
+  getStreamBufferMock: vi.fn(() => null),
+  listStreamBuffersMock: vi.fn(() => []),
   classifyAgentErrorMock: vi.fn(() => ({
     code: 'unknown',
     userMessage: 'An error occurred',
@@ -88,6 +98,11 @@ vi.mock('../store/conversation-lock', () => ({
 vi.mock('../utils/stream-bridge', () => ({
   emitStreamChunk: emitStreamChunkMock,
   clearAgentPhase: clearAgentPhaseMock,
+  startStreamBuffer: startStreamBufferMock,
+  clearStreamBuffer: clearStreamBufferMock,
+  emitRunCompleted: emitRunCompletedMock,
+  getStreamBuffer: getStreamBufferMock,
+  listStreamBuffers: listStreamBuffersMock,
 }))
 
 vi.mock('../orchestration/active-runs', () => ({

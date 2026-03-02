@@ -1,6 +1,7 @@
 import type { StreamChunk } from '@tanstack/ai'
 import type { AgentSendPayload, PreparedAttachment } from './agent'
 import type { OAuthFlowStatus, SubscriptionAccountInfo, SubscriptionProvider } from './auth'
+import type { ActiveRunInfo, BackgroundRunSnapshot } from './background-run'
 import type { ConversationId, McpServerId, TeamConfigId } from './brand'
 import type { Conversation, ConversationSummary } from './conversation'
 import type { DevtoolsEventBusConfig } from './devtools'
@@ -183,6 +184,14 @@ export interface IpcInvokeChannelMap {
     args: [conversationId: ConversationId]
     return: AgentPhaseState | null
   }
+  'agent:get-background-run': {
+    args: [conversationId: ConversationId]
+    return: BackgroundRunSnapshot | null
+  }
+  'agent:list-active-runs': {
+    args: []
+    return: ActiveRunInfo[]
+  }
   'voice:transcribe-local': {
     args: [payload: VoiceTranscriptionRequest]
     return: VoiceTranscriptionResult
@@ -327,6 +336,9 @@ interface IpcEventChannelMap {
   'agent:phase': {
     payload: AgentPhaseEventPayload
   }
+  'agent:run-completed': {
+    payload: { conversationId: ConversationId }
+  }
   'window:fullscreen-changed': {
     payload: boolean
   }
@@ -393,6 +405,9 @@ export interface OpenWaggleApi {
   // Agent questions
   answerQuestion(conversationId: ConversationId, answers: QuestionAnswer[]): Promise<void>
   getAgentPhase(conversationId: ConversationId): Promise<AgentPhaseState | null>
+  getBackgroundRun(conversationId: ConversationId): Promise<BackgroundRunSnapshot | null>
+  listActiveRuns(): Promise<ActiveRunInfo[]>
+  onRunCompleted(callback: (payload: IpcEventPayload<'agent:run-completed'>) => void): () => void
   onQuestion(callback: (payload: IpcEventPayload<'agent:question'>) => void): () => void
   onAgentPhase(callback: (payload: IpcEventPayload<'agent:phase'>) => void): () => void
 

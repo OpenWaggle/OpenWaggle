@@ -17,7 +17,15 @@ import { getSettings } from '../store/settings'
 import { clearContext, pushContext } from '../tools/context-injection-buffer'
 import { cancelPlanProposal, respondToPlan } from '../tools/plan-manager'
 import { answerQuestion, cancelQuestion } from '../tools/question-manager'
-import { clearAgentPhase, emitStreamChunk } from '../utils/stream-bridge'
+import {
+  clearAgentPhase,
+  clearStreamBuffer,
+  emitRunCompleted,
+  emitStreamChunk,
+  getStreamBuffer,
+  listStreamBuffers,
+  startStreamBuffer,
+} from '../utils/stream-bridge'
 import { hydrateAttachmentSources } from './attachments-handler'
 import { typedHandle, typedOn } from './typed-ipc'
 
@@ -92,6 +100,8 @@ export function registerAgentHandlers(): void {
           await saveConversation({ ...conversation, title: provisionalTitle })
         }
       }
+
+      startStreamBuffer(conversationId, model, 'classic')
 
       try {
         const hydratedPayload = {
@@ -180,6 +190,8 @@ export function registerAgentHandlers(): void {
         }
       } finally {
         activeRuns.delete(conversationId)
+        clearStreamBuffer(conversationId)
+        emitRunCompleted(conversationId)
       }
     },
   )
@@ -210,6 +222,14 @@ export function registerAgentHandlers(): void {
 
   typedHandle('agent:get-phase', (_event, conversationId: ConversationId) => {
     return getPhaseForConversation(conversationId)
+  })
+
+  typedHandle('agent:get-background-run', (_event, conversationId: ConversationId) => {
+    return getStreamBuffer(conversationId)
+  })
+
+  typedHandle('agent:list-active-runs', () => {
+    return listStreamBuffers()
   })
 
   typedHandle(

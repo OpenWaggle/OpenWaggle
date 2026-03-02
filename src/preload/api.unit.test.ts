@@ -26,6 +26,9 @@ describe('preload api surface contract', () => {
     // Agent Questions
     'answerQuestion',
     'getAgentPhase',
+    'getBackgroundRun',
+    'listActiveRuns',
+    'onRunCompleted',
     'onQuestion',
     'onAgentPhase',
     // Agent Plan
@@ -138,6 +141,7 @@ describe('preload api surface contract', () => {
       'onContextInjected',
       'onQuestion',
       'onAgentPhase',
+      'onRunCompleted',
       'onPlanProposal',
       'onTerminalData',
       'onFullscreenChanged',
