@@ -87,6 +87,18 @@ export interface IpcInvokeChannelMap {
     args: [id: ConversationId]
     return: undefined
   }
+  'conversations:archive': {
+    args: [id: ConversationId]
+    return: undefined
+  }
+  'conversations:unarchive': {
+    args: [id: ConversationId]
+    return: undefined
+  }
+  'conversations:list-archived': {
+    args: []
+    return: ConversationSummary[]
+  }
   'conversations:update-title': {
     args: [id: ConversationId, title: string]
     return: undefined
@@ -413,6 +425,9 @@ export interface OpenWaggleApi {
   getConversation(id: ConversationId): Promise<Conversation | null>
   createConversation(projectPath: string | null): Promise<Conversation>
   deleteConversation(id: ConversationId): Promise<void>
+  archiveConversation(id: ConversationId): Promise<void>
+  unarchiveConversation(id: ConversationId): Promise<void>
+  listArchivedConversations(): Promise<ConversationSummary[]>
   updateConversationTitle(id: ConversationId, title: string): Promise<void>
   updateConversationProjectPath(
     id: ConversationId,
