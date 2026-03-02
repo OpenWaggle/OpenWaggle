@@ -21,6 +21,8 @@ import { useFullscreen } from '@/hooks/useFullscreen'
 import { useGit } from '@/hooks/useGit'
 import { useProject } from '@/hooks/useProject'
 import { cn } from '@/lib/cn'
+import { api } from '@/lib/ipc'
+import { usePreferencesStore } from '@/stores/preferences-store'
 import { useUIStore } from '@/stores/ui-store'
 import { ConversationGroup } from './ConversationGroup'
 import { groupConversationsByProject, type SortMode, sortConversationGroups } from './sidebar-utils'
@@ -85,7 +87,13 @@ export function Sidebar(): React.JSX.Element {
     },
   )
 
-  const groups = groupConversationsByProject(conversations)
+  const projectDisplayNames = usePreferencesStore((s) => s.settings.projectDisplayNames)
+  const setProjectDisplayName = usePreferencesStore((s) => s.setProjectDisplayName)
+  const clearProjectDisplayName = usePreferencesStore((s) => s.clearProjectDisplayName)
+  const removeRecentProject = usePreferencesStore((s) => s.removeRecentProject)
+  const { loadConversations } = useChat()
+
+  const groups = groupConversationsByProject(conversations, projectDisplayNames)
   const isFullscreen = useFullscreen()
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [sortMode, setSortMode] = useState<SortMode>('recent')
@@ -270,6 +278,32 @@ export function Sidebar(): React.JSX.Element {
                     }}
                     onDelete={(id: ConversationId) => {
                       void deleteConversation(id)
+                    }}
+                    onNewThread={() => {
+                      void createConversation(group.path)
+                    }}
+                    onRename={(name: string) => {
+                      if (!group.path) return
+                      if (name.trim()) {
+                        void setProjectDisplayName(group.path, name.trim())
+                      } else {
+                        void clearProjectDisplayName(group.path)
+                      }
+                    }}
+                    onRemove={() => {
+                      if (!group.path) return
+                      void api
+                        .showConfirm(
+                          `Remove "${group.displayName}"?`,
+                          'All threads in this project will be archived. You can restore them from Settings → Archived threads.',
+                        )
+                        .then(async (confirmed) => {
+                          if (!confirmed || !group.path) return
+                          await Promise.all(
+                            group.conversations.map((conv) => api.archiveConversation(conv.id)),
+                          )
+                          await Promise.all([removeRecentProject(group.path), loadConversations()])
+                        })
                     }}
                   />
                 )

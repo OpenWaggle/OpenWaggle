@@ -10,7 +10,10 @@ export interface ProjectGroup {
   conversations: ConversationSummary[]
 }
 
-export function groupConversationsByProject(conversations: ConversationSummary[]): ProjectGroup[] {
+export function groupConversationsByProject(
+  conversations: ConversationSummary[],
+  displayNameOverrides: Record<string, string> = {},
+): ProjectGroup[] {
   const groups = new Map<string, ConversationSummary[]>()
 
   for (const conv of conversations) {
@@ -25,11 +28,10 @@ export function groupConversationsByProject(conversations: ConversationSummary[]
 
   const result: ProjectGroup[] = []
   for (const [key, convs] of groups) {
-    result.push({
-      path: key === '__none__' ? null : key,
-      displayName: key === '__none__' ? 'No project' : projectName(key),
-      conversations: convs,
-    })
+    const path = key === '__none__' ? null : key
+    const displayName =
+      key === '__none__' ? 'No project' : (displayNameOverrides[key] ?? projectName(key))
+    result.push({ path, displayName, conversations: convs })
   }
 
   return result
