@@ -104,6 +104,7 @@ const settingsUpdateSchema = z.object({
   qualityPreset: z.enum(QUALITY_PRESETS).optional(),
   recentProjects: z.array(z.string()).optional(),
   skillTogglesByProject: z.record(z.string(), z.record(z.string(), z.boolean())).optional(),
+  projectDisplayNames: z.record(z.string(), z.string()).optional(),
 })
 
 export function registerSettingsHandlers(): void {

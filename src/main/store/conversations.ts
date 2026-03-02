@@ -80,6 +80,7 @@ const conversationSchema = z.object({
   projectPath: z.string().nullable(),
   messages: z.array(messageSchema),
   waggleConfig: waggleConfigSchema.optional(),
+  archived: z.boolean().optional(),
   createdAt: z.number(),
   updatedAt: z.number(),
 })
@@ -89,6 +90,7 @@ const conversationSummarySchema = z.object({
   title: z.string(),
   projectPath: z.string().nullable(),
   messageCount: z.number().int().nonnegative(),
+  archived: z.boolean().optional(),
   createdAt: z.number(),
   updatedAt: z.number(),
 })
@@ -183,6 +185,7 @@ function parseConversation(raw: string): Conversation | null {
     id: ConversationId(data.id),
     title: data.title,
     projectPath: data.projectPath,
+    archived: data.archived ?? undefined,
     messages: data.messages.map((m: ParsedMessage) => ({
       id: MessageId(m.id),
       role: m.role,
@@ -253,6 +256,7 @@ function toSummary(conv: Conversation): ConversationSummary {
     title: conv.title,
     projectPath: conv.projectPath,
     messageCount: conv.messages.length,
+    archived: conv.archived ?? undefined,
     createdAt: conv.createdAt,
     updatedAt: conv.updatedAt,
   }
@@ -264,6 +268,7 @@ function fromParsedSummary(summary: ParsedConversationSummary): ConversationSumm
     title: summary.title,
     projectPath: summary.projectPath,
     messageCount: summary.messageCount,
+    archived: summary.archived ?? undefined,
     createdAt: summary.createdAt,
     updatedAt: summary.updatedAt,
   }
@@ -330,6 +335,7 @@ async function writeConversationIndex(summaries: readonly ConversationSummary[])
       title: summary.title,
       projectPath: summary.projectPath,
       messageCount: summary.messageCount,
+      ...(summary.archived ? { archived: true } : {}),
       createdAt: summary.createdAt,
       updatedAt: summary.updatedAt,
     })),
@@ -399,7 +405,8 @@ export async function listConversations(limit?: number): Promise<ConversationSum
   return indexMutex.run(async () => {
     const indexed = await readConversationIndex()
     if (indexed) {
-      return limit !== undefined ? indexed.slice(0, limit) : indexed
+      const active = indexed.filter((s) => !s.archived)
+      return limit !== undefined ? active.slice(0, limit) : active
     }
 
     const scanned = await scanConversationSummaries()
@@ -410,8 +417,42 @@ export async function listConversations(limit?: number): Promise<ConversationSum
         error: err instanceof Error ? err.message : String(err),
       })
     }
-    return limit !== undefined ? scanned.slice(0, limit) : scanned
+    const active = scanned.filter((s) => !s.archived)
+    return limit !== undefined ? active.slice(0, limit) : active
   })
+}
+
+export async function listArchivedConversations(): Promise<ConversationSummary[]> {
+  return indexMutex.run(async () => {
+    const indexed = await readConversationIndex()
+    if (indexed) {
+      return indexed.filter((s) => s.archived === true)
+    }
+
+    const scanned = await scanConversationSummaries()
+    try {
+      await writeConversationIndex(scanned)
+    } catch (err) {
+      logger.warn('Failed to write rebuilt conversation index', {
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+    return scanned.filter((s) => s.archived === true)
+  })
+}
+
+export async function archiveConversation(id: ConversationId): Promise<void> {
+  const conv = await getConversation(id)
+  if (conv) {
+    await saveConversation({ ...conv, archived: true })
+  }
+}
+
+export async function unarchiveConversation(id: ConversationId): Promise<void> {
+  const conv = await getConversation(id)
+  if (conv) {
+    await saveConversation({ ...conv, archived: undefined })
+  }
 }
 
 export async function getConversation(id: ConversationId): Promise<Conversation | null> {
