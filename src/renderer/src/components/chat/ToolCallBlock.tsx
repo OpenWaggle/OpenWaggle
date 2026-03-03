@@ -9,6 +9,9 @@ import { formatDuration } from '@/lib/format'
 import { parseToolArgs } from '@/lib/tool-args'
 import { getToolActionText } from '@/lib/tool-display'
 
+const STRINGIFY_ARG_3 = 2
+const FUNCTION_VALUE_120 = 120
+
 interface ToolCallBlockProps {
   name: string
   args: string
@@ -283,8 +286,9 @@ function ToolArgs({
   return (
     <div className="space-y-1">
       {entries.map(([key, value]) => {
-        const display = typeof value === 'string' ? value : JSON.stringify(value, null, 2)
-        const isLong = typeof display === 'string' && display.length > 120
+        const display =
+          typeof value === 'string' ? value : JSON.stringify(value, null, STRINGIFY_ARG_3)
+        const isLong = typeof display === 'string' && display.length > FUNCTION_VALUE_120
         return (
           <div key={key}>
             <span className="text-[13px] text-text-tertiary">{key}: </span>
@@ -367,7 +371,7 @@ function formatUnknownContent(content: unknown): string {
   if (typeof content === 'number' || typeof content === 'boolean') return String(content)
   if (content === null || content === undefined) return ''
   try {
-    return JSON.stringify(content, null, 2)
+    return JSON.stringify(content, null, STRINGIFY_ARG_3)
   } catch {
     return String(content)
   }

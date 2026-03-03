@@ -9,6 +9,9 @@ import {
 import { create } from 'zustand'
 import { api } from '@/lib/ipc'
 
+const SLICE_ARG_2 = 100
+const SLICE_ARG_2_VALUE_10 = 10
+
 interface PreferencesState {
   settings: Settings
   isLoaded: boolean
@@ -102,7 +105,7 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
       : [
           normalizedModel,
           ...settings.favoriteModels.filter((entry) => entry !== normalizedModel),
-        ].slice(0, 100)
+        ].slice(0, SLICE_ARG_2)
 
     await api.updateSettings({ favoriteModels })
     set({ settings: { ...settings, favoriteModels } })
@@ -113,7 +116,7 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     let recentProjects = settings.recentProjects
     if (path) {
       const deduped = [path, ...settings.recentProjects.filter((p) => p !== path)]
-      recentProjects = deduped.slice(0, 10)
+      recentProjects = deduped.slice(0, SLICE_ARG_2_VALUE_10)
     }
     await api.updateSettings({ projectPath: path, recentProjects })
     set({ settings: { ...settings, projectPath: path, recentProjects } })
@@ -139,7 +142,7 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     const recentProjects = [
       normalized,
       ...settings.recentProjects.filter((p) => p !== normalized),
-    ].slice(0, 10)
+    ].slice(0, SLICE_ARG_2_VALUE_10)
     await api.updateSettings({ recentProjects })
     set({ settings: { ...settings, recentProjects } })
   },

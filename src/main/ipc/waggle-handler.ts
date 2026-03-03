@@ -1,3 +1,4 @@
+import { SECONDS_PER_MINUTE, TRIPLE_FACTOR } from '@shared/constants/constants'
 import { waggleConfigSchema } from '@shared/schemas/waggle'
 import type { AgentSendPayload } from '@shared/types/agent'
 import { isTextPart } from '@shared/types/agent'
@@ -20,6 +21,8 @@ import {
 } from '../utils/stream-bridge'
 import { hydrateAttachmentSources } from './attachments-handler'
 import { typedHandle, typedOn } from './typed-ipc'
+
+const SLICE_ARG_2 = 60
 
 const logger = createLogger('waggle-handler')
 
@@ -88,7 +91,8 @@ export function registerWaggleHandlers(): void {
       if (conversation.title === 'New thread' && conversation.messages.length === 0) {
         const trimmed = payload.text.trim()
         if (trimmed) {
-          const provisionalTitle = trimmed.slice(0, 60) + (trimmed.length > 60 ? '...' : '')
+          const provisionalTitle =
+            trimmed.slice(0, SLICE_ARG_2) + (trimmed.length > SECONDS_PER_MINUTE ? '...' : '')
           await saveConversation({ ...conversation, title: provisionalTitle })
         }
       }
@@ -215,14 +219,14 @@ export function registerWaggleHandlers(): void {
             const updatedMessages = [...latestConversation.messages, ...result.newMessages]
 
             let title = latestConversation.title
-            if (updatedMessages.length <= 3 && title === 'New thread') {
+            if (updatedMessages.length <= TRIPLE_FACTOR && title === 'New thread') {
               const firstUserMsg = updatedMessages.find((m) => m.role === 'user')
               if (firstUserMsg) {
                 const text = firstUserMsg.parts
                   .filter(isTextPart)
                   .map((p) => p.text)
                   .join(' ')
-                title = text.slice(0, 60) + (text.length > 60 ? '...' : '')
+                title = text.slice(0, SLICE_ARG_2) + (text.length > SECONDS_PER_MINUTE ? '...' : '')
               }
             }
 

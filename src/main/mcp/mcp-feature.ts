@@ -1,9 +1,11 @@
 import type { AgentFeature, AgentPromptFragment } from '../agent/runtime-types'
 import { mcpManager } from './mcp-manager'
 
+const ORDER = 50
+
 const mcpPromptFragment: AgentPromptFragment = {
   id: 'mcp.capabilities',
-  order: 50,
+  order: ORDER,
   build: () => {
     const statuses = mcpManager.getServerStatuses()
     const connected = statuses.filter((s) => s.status === 'connected')

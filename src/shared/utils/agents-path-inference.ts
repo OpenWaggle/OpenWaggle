@@ -1,3 +1,5 @@
+import { DOUBLE_FACTOR } from '@shared/constants/constants'
+
 interface InferAgentsCandidatePathsInput {
   readonly text: string
   readonly attachmentPaths?: readonly string[]
@@ -160,7 +162,7 @@ function isPrefixedPathLike(candidate: string): boolean {
 
 function isLikelyBareProjectPath(candidate: string): boolean {
   const segments = candidate.split(/[\\/]/).filter((segment) => segment.length > 0)
-  if (segments.length < 2) return false
+  if (segments.length < DOUBLE_FACTOR) return false
   const firstSegment = segments[0]?.toLowerCase()
   if (!firstSegment) return false
   return BARE_PATH_ROOT_HINTS.has(firstSegment)

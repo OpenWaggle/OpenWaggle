@@ -1,10 +1,12 @@
 import { createHash, randomBytes } from 'node:crypto'
 
+const RANDOM_BYTES_ARG_1 = 32
+
 /**
  * Generate a PKCE code verifier (43-128 chars, base64url-encoded random bytes).
  */
 export function generateCodeVerifier(): string {
-  return randomBytes(32).toString('base64url')
+  return randomBytes(RANDOM_BYTES_ARG_1).toString('base64url')
 }
 
 /**

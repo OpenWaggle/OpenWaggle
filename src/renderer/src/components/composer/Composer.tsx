@@ -1,3 +1,4 @@
+import { DOUBLE_FACTOR } from '@shared/constants/constants'
 import { electronFileSchema } from '@shared/schemas/validation'
 import type { AgentSendPayload } from '@shared/types/agent'
 import { X } from 'lucide-react'
@@ -13,6 +14,8 @@ import { ComposerStatusBar } from './ComposerStatusBar'
 import { ComposerToolbar } from './ComposerToolbar'
 import { useVoiceCapture } from './useVoiceCapture'
 import { VoiceRecorder } from './VoiceRecorder'
+
+const HANDLE_ATTACH_FILES_VALUE_5 = 5
 
 async function prepareAndAttach(
   projectPath: string,
@@ -213,7 +216,7 @@ export function Composer({
     setCursorIndex(e.target.selectionStart ?? value.length)
 
     // Open command palette when user types "/" at start or after whitespace
-    if (value === '/' || (value.endsWith('/') && value[value.length - 2] === ' ')) {
+    if (value === '/' || (value.endsWith('/') && value[value.length - DOUBLE_FACTOR] === ' ')) {
       openCommandPalette()
     }
 
@@ -242,7 +245,7 @@ export function Composer({
     }
     if (paths.length === 0) return
 
-    const remainingSlots = Math.max(0, 5 - attachments.length)
+    const remainingSlots = Math.max(0, HANDLE_ATTACH_FILES_VALUE_5 - attachments.length)
     if (remainingSlots === 0) {
       setAttachmentError('You can attach up to 5 files per message.')
       return

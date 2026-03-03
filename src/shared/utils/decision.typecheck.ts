@@ -1,5 +1,7 @@
 import { choose, chooseBy } from './decision'
 
+const MODULE_VALUE_0_5 = 0.5
+
 type Equal<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false
 
@@ -11,9 +13,9 @@ type Entry =
   | { kind: 'gamma'; value: boolean }
 
 const entry: Entry =
-  Math.random() > 0.5
+  Math.random() > MODULE_VALUE_0_5
     ? { kind: 'alpha', value: 1 }
-    : Math.random() > 0.5
+    : Math.random() > MODULE_VALUE_0_5
       ? { kind: 'beta', value: 'x' }
       : { kind: 'gamma', value: true }
 

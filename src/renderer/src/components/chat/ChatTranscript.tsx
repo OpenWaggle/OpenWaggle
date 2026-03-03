@@ -9,6 +9,10 @@ import type { ChatTranscriptSectionState } from './use-chat-panel-controller'
 import { VirtualRowRenderer } from './VirtualRowRenderer'
 import { WelcomeScreen } from './WelcomeScreen'
 
+const DELAY_MS = 1200
+const PADDING_TOP = 20
+const OVERSCAN = 800
+
 interface ChatTranscriptProps {
   readonly section: ChatTranscriptSectionState
 }
@@ -24,7 +28,7 @@ function ChatScroller(props: React.ComponentPropsWithRef<'div'>): React.JSX.Elem
     }
     scrollTimerRef.current = setTimeout(() => {
       element.classList.remove('is-scrolling')
-    }, 1200)
+    }, DELAY_MS)
     props.onScroll?.(event)
   }
 
@@ -44,7 +48,7 @@ function renderTranscriptRow(
   return (
     <div
       className="mx-auto w-full max-w-[720px] px-12 pb-6"
-      style={index === 0 ? { paddingTop: 20 } : undefined}
+      style={index === 0 ? { paddingTop: PADDING_TOP } : undefined}
     >
       <VirtualRowRenderer
         row={row}
@@ -109,7 +113,7 @@ export function ChatTranscript({ section }: ChatTranscriptProps): React.JSX.Elem
         data={virtualRows}
         followOutput="smooth"
         initialTopMostItemIndex={Math.max(0, virtualRows.length - 1)}
-        overscan={800}
+        overscan={OVERSCAN}
         className="flex-1"
         components={{ Scroller: ChatScroller }}
         itemContent={(index, row) =>

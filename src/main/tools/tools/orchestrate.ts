@@ -8,6 +8,10 @@ import type { OpenWaggleTaskExecutionInput } from '../../orchestration/engine/ty
 import { emitOrchestrationEvent } from '../../utils/stream-bridge'
 import { defineOpenWaggleTool } from '../define-tool'
 
+const MIN_ARG_1 = 2
+const MAX_ARG_1 = 5
+const MAX_PARALLEL_TASKS = 4
+
 const logger = createLogger('tool:orchestrate')
 
 const taskSchema = z.object({
@@ -28,8 +32,8 @@ export const orchestrateTool = defineOpenWaggleTool({
   inputSchema: z.object({
     tasks: z
       .array(taskSchema)
-      .min(2)
-      .max(5)
+      .min(MIN_ARG_1)
+      .max(MAX_ARG_1)
       .describe('The tasks to execute in parallel. 2-5 tasks.'),
   }),
   async execute(args, context) {
@@ -122,7 +126,7 @@ export const orchestrateTool = defineOpenWaggleTool({
       runId,
       userPrompt: args.tasks.map((t) => `[${t.id}] ${t.title}: ${t.prompt}`).join('\n'),
       signal,
-      maxParallelTasks: 4,
+      maxParallelTasks: MAX_PARALLEL_TASKS,
       planner: {
         async plan() {
           return planJson

@@ -14,12 +14,15 @@ import type {
 } from './types'
 import { createOpenWaggleAgentWorkerAdapter } from './worker-adapter'
 
+const BACKOFF_MS = 500
+const JITTER_MS = 200
+
 const logger = createLogger('orchestration')
 
 const DEFAULT_TASK_RETRY: OrchestrationTaskRetryPolicy = {
   retries: 1,
-  backoffMs: 500,
-  jitterMs: 200,
+  backoffMs: BACKOFF_MS,
+  jitterMs: JITTER_MS,
 }
 
 export async function runOpenWaggleOrchestration(

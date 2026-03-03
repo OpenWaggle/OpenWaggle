@@ -1,3 +1,5 @@
+import { DOUBLE_FACTOR, TRIPLE_FACTOR } from '@shared/constants/constants'
+
 export interface ExplicitSkillReferences {
   readonly slashSkillIds: readonly string[]
   readonly dollarSkillIds: readonly string[]
@@ -14,8 +16,8 @@ export function extractExplicitSkillReferences(text: string): ExplicitSkillRefer
 
   let match: RegExpExecArray | null = SKILL_REFERENCE_REGEX.exec(text)
   while (match) {
-    const marker = match[2]
-    const rawSkillId = match[3]
+    const marker = match[DOUBLE_FACTOR]
+    const rawSkillId = match[TRIPLE_FACTOR]
     if (marker && rawSkillId) {
       const skillId = rawSkillId.toLowerCase()
       if (marker === '/' && !seenSlash.has(skillId)) {

@@ -3,6 +3,7 @@ import type { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js'
+import { DOUBLE_FACTOR } from '@shared/constants/constants'
 import type { McpConnectionStatus, McpServerConfig, McpToolInfo } from '@shared/types/mcp'
 import { z } from 'zod'
 import { getFullProcessEnv } from '../env'
@@ -203,7 +204,10 @@ export class McpClient {
     }
 
     this.reconnectAttempts++
-    const delay = Math.min(RECONNECT_BASE_MS * 2 ** (this.reconnectAttempts - 1), RECONNECT_MAX_MS)
+    const delay = Math.min(
+      RECONNECT_BASE_MS * DOUBLE_FACTOR ** (this.reconnectAttempts - 1),
+      RECONNECT_MAX_MS,
+    )
 
     logger.info('scheduling reconnect', {
       server: this.config.name,

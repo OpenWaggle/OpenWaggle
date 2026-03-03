@@ -3,6 +3,8 @@ import { AGENT_BG } from '@/lib/agent-colors'
 import { cn } from '@/lib/cn'
 import { useWaggleStore } from '@/stores/waggle-store'
 
+const SLICE_ARG_1 = -3
+
 interface CollaborationStatusProps {
   onStop: () => void
 }
@@ -90,7 +92,7 @@ export function WaggleCollaborationStatus({
       {/* File conflict warnings — only during/after run */}
       {fileConflicts.length > 0 && (
         <div className="space-y-1">
-          {fileConflicts.slice(-3).map((conflict, i) => (
+          {fileConflicts.slice(SLICE_ARG_1).map((conflict, i) => (
             <div
               key={`${conflict.path}-${String(i)}`}
               className="flex items-center gap-2 rounded-md border border-warning/20 bg-warning/5 px-2.5 py-1.5"

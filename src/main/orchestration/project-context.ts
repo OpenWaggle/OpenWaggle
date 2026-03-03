@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { BYTES_PER_KIBIBYTE, DOUBLE_FACTOR, PERCENT_BASE } from '@shared/constants/constants'
 import { packageJsonSchema } from '@shared/schemas/validation'
 import type { JsonObject } from '@shared/types/json'
 import { parseJsonSafe } from '@shared/utils/parse-json'
@@ -10,6 +11,15 @@ import fg from 'fast-glob'
 import { z } from 'zod'
 import { createLogger } from '../logger'
 import { readBodyWithLimit, stripHtml } from '../utils/http'
+
+const DEEP = 2
+const STRINGIFY_ARG_3 = 2
+const DEEP_VALUE_3 = 3
+const MODULE_VALUE_512 = 512
+const SLICE_ARG_2 = 100
+const FUNCTION_VALUE_50_000 = 50_000
+const FUNCTION_VALUE_5 = 5
+const TIMEOUT_ARG_1 = 30_000
 
 const logger = createLogger('orchestration:context')
 
@@ -150,7 +160,7 @@ async function detectSignals(
     const matches = await fg([...signal.patterns], {
       cwd: projectPath,
       onlyFiles: true,
-      deep: 2,
+      deep: DEEP,
     })
     if (matches.length > 0) {
       labels.push(signal.label)
@@ -187,7 +197,7 @@ export async function gatherProjectContext(projectPath: string | null): Promise<
     sections.push('### File Structure', tree, '')
   }
 
-  const text = sections.length > 2 ? sections.join('\n').trim() : ''
+  const text = sections.length > DOUBLE_FACTOR ? sections.join('\n').trim() : ''
   const durationMs = Date.now() - start
 
   logger.debug('project context gathered', {
@@ -283,7 +293,7 @@ async function buildKeyFiles(projectPath: string): Promise<string> {
       if (pkg.description) summary.description = pkg.description
       if (pkg.scripts) summary.scripts = pkg.scripts
 
-      let content = JSON.stringify(summary, null, 2)
+      let content = JSON.stringify(summary, null, STRINGIFY_ARG_3)
       const remaining = KEY_FILES_BUDGET - totalChars
       const cap = Math.min(PER_FILE_CAP, remaining)
       if (content.length > cap) {
@@ -308,7 +318,7 @@ async function buildTree(projectPath: string, ignorePatterns: string[]): Promise
   try {
     const files = await fg('**/*', {
       cwd: projectPath,
-      deep: 3,
+      deep: DEEP_VALUE_3,
       onlyFiles: true,
       ignore: ignorePatterns,
     })
@@ -336,7 +346,7 @@ async function buildTree(projectPath: string, ignorePatterns: string[]): Promise
   }
 }
 
-const MAX_READ_SIZE = 512 * 1024 // 512 KB
+const MAX_READ_SIZE = MODULE_VALUE_512 * BYTES_PER_KIBIBYTE // 512 KB
 const MAX_READ_LINES = 500
 
 /**
@@ -392,7 +402,7 @@ export async function createExecutorTools(
       if (stat.size > MAX_READ_SIZE) {
         return {
           kind: 'text' as const,
-          text: `File too large (${(stat.size / 1024).toFixed(0)} KB). Try a more specific file.`,
+          text: `File too large (${(stat.size / BYTES_PER_KIBIBYTE).toFixed(0)} KB). Try a more specific file.`,
         }
       }
 
@@ -437,10 +447,10 @@ export async function createExecutorTools(
       }
 
       const sorted = files.sort()
-      if (sorted.length > 100) {
+      if (sorted.length > PERCENT_BASE) {
         return {
           kind: 'text' as const,
-          text: `${sorted.slice(0, 100).join('\n')}\n\n... and ${String(sorted.length - 100)} more files`,
+          text: `${sorted.slice(0, SLICE_ARG_2).join('\n')}\n\n... and ${String(sorted.length - PERCENT_BASE)} more files`,
         }
       }
       return { kind: 'text' as const, text: sorted.join('\n') }
@@ -462,13 +472,13 @@ export async function createExecutorTools(
         .describe('Maximum character length of the returned text (default 50000)'),
     }),
   }).server(async (args: { url: string; maxLength?: number }) => {
-    const maxLength = args.maxLength ?? 50_000
-    const maxBodyBytes = 5 * 1024 * 1024 // 5 MB
+    const maxLength = args.maxLength ?? FUNCTION_VALUE_50_000
+    const maxBodyBytes = FUNCTION_VALUE_5 * BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE // 5 MB
 
     try {
       const fetchSignal = signal
-        ? AbortSignal.any([signal, AbortSignal.timeout(30_000)])
-        : AbortSignal.timeout(30_000)
+        ? AbortSignal.any([signal, AbortSignal.timeout(TIMEOUT_ARG_1)])
+        : AbortSignal.timeout(TIMEOUT_ARG_1)
       const response = await fetch(args.url, {
         headers: { 'User-Agent': 'OpenWaggle/1.0' },
         signal: fetchSignal,

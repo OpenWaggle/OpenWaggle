@@ -1,8 +1,9 @@
+import { BASE_TEN, MILLISECONDS_PER_SECOND, SECONDS_PER_MINUTE } from '@shared/constants/constants'
 import type { ConversationId } from '@shared/types/brand'
 import type { PlanResponse } from '@shared/types/plan'
 
 /** Maximum time a plan proposal can remain pending before auto-rejection (10 minutes) */
-const PLAN_PROPOSAL_TTL_MS = 10 * 60 * 1000
+const PLAN_PROPOSAL_TTL_MS = BASE_TEN * SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND
 
 interface PendingPlanProposal {
   resolve: (response: PlanResponse) => void

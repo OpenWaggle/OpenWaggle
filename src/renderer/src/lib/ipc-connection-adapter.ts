@@ -13,6 +13,8 @@ import { convertMessagesToModelMessages, type ModelMessage, type StreamChunk } f
 import type { ConnectionAdapter, UIMessage } from '@tanstack/ai-react'
 import { api } from './ipc'
 
+const DELAY_MS = 50
+
 /**
  * Side-channel for structured error info.
  * TanStack AI's RUN_ERROR handling strips everything except `message`,
@@ -275,7 +277,7 @@ export function createIpcConnectionAdapter(
                   done = true
                   resolve?.()
                 }
-              }, 50)
+              }, DELAY_MS)
             })
             .catch((err) => {
               console.error('[ipc-adapter] sendMessage failed:', err)

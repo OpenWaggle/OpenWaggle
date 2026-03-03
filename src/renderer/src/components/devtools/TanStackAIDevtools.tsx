@@ -5,10 +5,12 @@ import { TanStackDevtools } from '@tanstack/react-devtools'
 import { useEffect, useState } from 'react'
 import { env } from '@/env'
 
+const PORT = 4206
+
 const DEFAULT_EVENT_BUS_CONFIG: DevtoolsEventBusConfig = {
   enabled: false,
   host: 'localhost',
-  port: 4206,
+  port: PORT,
   protocol: 'http',
 }
 const DEVTOOLS_PLUGINS = [aiDevtoolsPlugin()]

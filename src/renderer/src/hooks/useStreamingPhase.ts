@@ -1,5 +1,8 @@
+import { MILLISECONDS_PER_SECOND, SECONDS_PER_MINUTE } from '@shared/constants/constants'
 import type { AgentPhaseState } from '@shared/types/phase'
 import { useEffect, useRef, useState } from 'react'
+
+const DELAY_MS = 1000
 
 export interface StreamingPhase {
   label: string
@@ -18,10 +21,10 @@ export interface StreamingPhaseState {
 }
 
 export function formatElapsed(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000)
-  if (totalSeconds < 60) return `${totalSeconds}s`
-  const minutes = Math.floor(totalSeconds / 60)
-  const seconds = totalSeconds % 60
+  const totalSeconds = Math.floor(ms / MILLISECONDS_PER_SECOND)
+  if (totalSeconds < SECONDS_PER_MINUTE) return `${totalSeconds}s`
+  const minutes = Math.floor(totalSeconds / SECONDS_PER_MINUTE)
+  const seconds = totalSeconds % SECONDS_PER_MINUTE
   return `${minutes}m ${seconds}s`
 }
 
@@ -67,7 +70,7 @@ export function useStreamingPhase(agentPhase: AgentPhaseState | null): Streaming
     setElapsedMs(Math.max(0, Date.now() - agentPhase.startedAt))
     const interval = setInterval(() => {
       setElapsedMs(Math.max(0, Date.now() - agentPhase.startedAt))
-    }, 1000)
+    }, DELAY_MS)
 
     return () => clearInterval(interval)
   }, [agentPhase])

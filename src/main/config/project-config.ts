@@ -6,6 +6,9 @@ import type { z } from 'zod'
 import { createLogger } from '../logger'
 import type { BaseSamplingConfig } from '../providers/provider-definition'
 
+const CLAMP_OPTIONAL_ARG_3 = 2
+const CLAMP_OPTIONAL_ARG_3_VALUE_1_000_000 = 1_000_000
+
 const logger = createLogger('project-config')
 
 export interface ProjectQualityOverrides {
@@ -88,7 +91,7 @@ function parseTierOverride(
   const out: { temperature?: number; topP?: number; maxTokens?: number } = {}
 
   if (typeof tier.temperature === 'number') {
-    const v = clampOptional(tier.temperature, 0, 2, 'temperature')
+    const v = clampOptional(tier.temperature, 0, CLAMP_OPTIONAL_ARG_3, 'temperature')
     if (v !== undefined) out.temperature = v
   }
   if (typeof tier.top_p === 'number') {
@@ -96,7 +99,7 @@ function parseTierOverride(
     if (v !== undefined) out.topP = v
   }
   if (typeof tier.max_tokens === 'number') {
-    const v = clampOptional(tier.max_tokens, 1, 1_000_000, 'max_tokens')
+    const v = clampOptional(tier.max_tokens, 1, CLAMP_OPTIONAL_ARG_3_VALUE_1_000_000, 'max_tokens')
     if (v !== undefined) out.maxTokens = v
   }
 

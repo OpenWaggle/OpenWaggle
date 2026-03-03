@@ -3,6 +3,9 @@ import fg from 'fast-glob'
 import { z } from 'zod'
 import { defineOpenWaggleTool } from '../define-tool'
 
+const EXECUTE_VALUE_200 = 200
+const SLICE_ARG_2 = 200
+
 export const globTool = defineOpenWaggleTool({
   name: 'glob',
   description:
@@ -29,8 +32,8 @@ export const globTool = defineOpenWaggleTool({
     }
 
     const sorted = files.sort()
-    if (sorted.length > 200) {
-      return `${sorted.slice(0, 200).join('\n')}\n\n... and ${sorted.length - 200} more files`
+    if (sorted.length > EXECUTE_VALUE_200) {
+      return `${sorted.slice(0, SLICE_ARG_2).join('\n')}\n\n... and ${sorted.length - EXECUTE_VALUE_200} more files`
     }
     return sorted.join('\n')
   },

@@ -29,6 +29,14 @@ import {
 } from './team-manager'
 import { cleanupWorktree, createWorktree, hasWorktreeChanges } from './worktree-manager'
 
+const AGENT_ID_PREVIEW_LENGTH = 8
+const BACKGROUND_OUTPUT_PREVIEW_LENGTH = 500
+const PERMISSION_LEVEL_PLAN = 0
+const PERMISSION_LEVEL_DEFAULT = 1
+const PERMISSION_LEVEL_ACCEPT_EDITS = 2
+const PERMISSION_LEVEL_DONT_ASK = 3
+const PERMISSION_LEVEL_BYPASS_PERMISSIONS = 4
+
 const logger = createLogger('sub-agent-runner')
 
 /** Max sub-agent nesting depth. Bounds resource consumption — each level adds a full agent loop with LLM calls. */
@@ -82,7 +90,7 @@ export async function runSubAgent(params: RunSubAgentParams): Promise<SubAgentRe
 
   const agentId = input.resume ?? SubAgentId(randomUUID())
   // First 8 hex chars of UUID for human-readable default name; full ID preserved in registry
-  const agentName = input.name ?? `${agentType.id}-${agentId.slice(0, 8)}`
+  const agentName = input.name ?? `${agentType.id}-${agentId.slice(0, AGENT_ID_PREVIEW_LENGTH)}`
   const conversationId = ConversationId(randomUUID())
   const model = input.model ?? parentModel
 
@@ -322,7 +330,7 @@ export async function runSubAgent(params: RunSubAgentParams): Promise<SubAgentRe
     startBackground(agentId, runnerFn, (result) => {
       pushContext(
         parentConversationId,
-        `<agent_notification type="background_completed" from="${agentName}">\nBackground agent "${agentName}" completed with status: ${result.status}.\nOutput: ${result.output.slice(0, 500)}\n</agent_notification>`,
+        `<agent_notification type="background_completed" from="${agentName}">\nBackground agent "${agentName}" completed with status: ${result.status}.\nOutput: ${result.output.slice(0, BACKGROUND_OUTPUT_PREVIEW_LENGTH)}\n</agent_notification>`,
       )
       logger.info('Background sub-agent completed', {
         agentId,
@@ -354,11 +362,11 @@ function resolvePermissionMode(
   parent: AgentPermissionMode,
 ): AgentPermissionMode {
   const levels: Record<AgentPermissionMode, number> = {
-    plan: 0,
-    default: 1,
-    acceptEdits: 2,
-    dontAsk: 3,
-    bypassPermissions: 4,
+    plan: PERMISSION_LEVEL_PLAN,
+    default: PERMISSION_LEVEL_DEFAULT,
+    acceptEdits: PERMISSION_LEVEL_ACCEPT_EDITS,
+    dontAsk: PERMISSION_LEVEL_DONT_ASK,
+    bypassPermissions: PERMISSION_LEVEL_BYPASS_PERMISSIONS,
   }
 
   const parentLevel = levels[parent]

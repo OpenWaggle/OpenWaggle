@@ -21,6 +21,9 @@ import { api } from '@/lib/ipc'
 import { useUIStore } from '@/stores/ui-store'
 import { useWaggleStore } from '@/stores/waggle-store'
 
+const TRUNCATE_ARG_2 = 50
+const TRUNCATE_ARG_2_VALUE_40 = 40
+
 // ── Types ──
 
 interface CommandItem {
@@ -164,7 +167,7 @@ export function CommandPalette({
     .map((s) => ({
       id: `skill-${s.id}`,
       label: s.name,
-      description: truncate(s.description, 50),
+      description: truncate(s.description, TRUNCATE_ARG_2),
       icon: <Shield className="h-3.5 w-3.5" />,
       section: 'Skills',
       trailing: undefined,
@@ -180,7 +183,7 @@ export function CommandPalette({
     .map((preset) => ({
       id: `waggle-preset-${preset.id}`,
       label: preset.name,
-      description: truncate(preset.description, 40),
+      description: truncate(preset.description, TRUNCATE_ARG_2_VALUE_40),
       icon: presetIcon(preset),
       section: 'Waggle Mode',
       trailing: preset.config.mode === 'sequential' ? 'Sequential' : 'Parallel',

@@ -2,7 +2,7 @@
 name: project-learnings
 description: Technical learnings log for OpenWaggle. Stores warnings, pattern preferences, and historical engineering learnings; workflow policy lives in AGENTS.md and CLAUDE.md.
 owner: openwaggle-core
-last_updated: 2026-02-27
+last_updated: 2026-03-03
 ---
 
 # LEARNINGS.md
@@ -19,6 +19,16 @@ This document stores project-specific technical learnings only.
 - Do not add routine project-management notes unless they materially affect implementation behavior.
 
 ## 3) Recent Learnings
+
+### Task: Magic Number Review Fixes (2026-03-03)
+- A strict inline-literal checker needs to treat numeric literals nested inside named constant initializers (e.g. `FIVE_MINUTES_IN_MILLISECONDS = 5 * ...`) as valid; checking only direct literal initializers creates false positives.
+- For large existing codebases, a practical anti-regression guardrail is to enforce a baseline cap for non-descriptive numeric constant names and fail only when the count increases, while still reporting the remaining debt for incremental cleanup.
+
+### Task: Repository-Wide Magic Number Extraction (2026-03-03)
+- A TypeScript AST-based checker is reliable for enforcing a strict no-magic-number policy in mixed TS/TSX/JS codebases when it explicitly excludes test files, type-only numeric literals, enum members, and named constant initializers.
+- Keeping `0`/`1` allowances as explicit guard conditions in the checker avoids noisy false positives for self-evident indexing/comparison while still blocking all other inline numeric literals.
+- After a broad extraction pass, a second DRY pass that centralizes repeated literals into a shared constants module (`src/shared/constants/constants.ts`) significantly reduces duplication and improves naming consistency without changing runtime behavior.
+- Script governance checks are easier to maintain as TypeScript entrypoints executed with `tsx`; this preserves full Node runtime behavior while allowing typed script evolution and keeps script tooling consistent with the rest of the repo.
 
 ### Task: Review Findings Hardening (2026-03-02)
 - When extracting a shared cleanup function from one IPC handler to a separate module (for reuse in another handler), all unit tests that mock the individual functions must also mock the new module. Test failures manifest as "function not called" because the mocked individual modules are no longer reached through the extracted wrapper.

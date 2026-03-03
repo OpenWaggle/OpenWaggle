@@ -1,3 +1,4 @@
+import { TRIPLE_FACTOR } from '@shared/constants/constants'
 import type { QualityPreset } from '@shared/types/settings'
 import { includes } from '@shared/utils/validation'
 import { createOpenaiChat, OPENAI_CHAT_MODELS } from '@tanstack/ai-openai'
@@ -8,6 +9,10 @@ import type {
   ProviderDefinition,
   ResolvedSamplingConfig,
 } from './provider-definition'
+
+const DECODE_BASE64_URL_VALUE_4 = 4
+const SLICE_ARG_2 = 512
+const RESOLVE_SAMPLING_VALUE_4 = 4
 
 const logger = createLogger('openai-provider')
 const OPENAI_CODEX_BASE_URL = 'https://chatgpt.com/backend-api'
@@ -35,13 +40,16 @@ function getRequestMethod(input: RequestInfo | URL, init?: RequestInit): string 
 
 function decodeBase64Url(value: string): string {
   const normalized = value.replace(/-/g, '+').replace(/_/g, '/')
-  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')
+  const padded = normalized.padEnd(
+    Math.ceil(normalized.length / DECODE_BASE64_URL_VALUE_4) * DECODE_BASE64_URL_VALUE_4,
+    '=',
+  )
   return Buffer.from(padded, 'base64').toString('utf8')
 }
 
 function extractChatgptAccountId(accessToken: string): string | null {
   const segments = accessToken.split('.')
-  if (segments.length !== 3) {
+  if (segments.length !== TRIPLE_FACTOR) {
     return null
   }
   try {
@@ -168,7 +176,7 @@ function createCodexResponsesFetch(accountId: string): typeof fetch {
     if (!response.ok) {
       let responsePreview = ''
       try {
-        responsePreview = (await response.clone().text()).slice(0, 512)
+        responsePreview = (await response.clone().text()).slice(0, SLICE_ARG_2)
       } catch {
         responsePreview = ''
       }
@@ -219,7 +227,7 @@ export const openaiProvider: ProviderDefinition = {
       return {
         temperature: undefined,
         topP: undefined,
-        maxTokens: base.maxTokens * 4,
+        maxTokens: base.maxTokens * RESOLVE_SAMPLING_VALUE_4,
         modelOptions: { reasoning: { effort: preset, summary: 'auto' } },
       }
     }

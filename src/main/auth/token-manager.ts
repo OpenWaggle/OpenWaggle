@@ -1,3 +1,4 @@
+import { FIVE_MINUTES_IN_MILLISECONDS } from '@shared/constants/constants'
 import type { SubscriptionProvider } from '@shared/types/auth'
 import Store from 'electron-store'
 import { z } from 'zod'
@@ -78,7 +79,7 @@ export function clearPreviousApiKey(provider: SubscriptionProvider): void {
 
 // ─── Public API ─────────────────────────────────────────────────────
 
-const REFRESH_MARGIN_MS = 5 * 60 * 1000 // 5 minutes
+const REFRESH_MARGIN_MS = FIVE_MINUTES_IN_MILLISECONDS
 
 export function storeTokens(provider: 'openrouter', tokens: OpenRouterTokens): void
 export function storeTokens(provider: OAuthProvider, tokens: OAuthTokens): void

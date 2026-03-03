@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import fs from 'node:fs'
 import path from 'node:path'
+import { BYTES_PER_KIBIBYTE, PERCENT_BASE } from '@shared/constants/constants'
 import type { ConversationId } from '@shared/types/brand'
 import { isPathInside } from '@shared/utils/paths'
 import { type ServerTool, toolDefinition } from '@tanstack/ai'
@@ -10,7 +11,7 @@ import { emitContextInjected } from '../utils/stream-bridge'
 import { applyContextInjection } from './context-injection-buffer'
 
 const logger = createLogger('tools')
-const MAX_TOOL_OUTPUT_BYTES = 100 * 1024 // 100 KB
+const MAX_TOOL_OUTPUT_BYTES = PERCENT_BASE * BYTES_PER_KIBIBYTE // 100 KB
 const projectRootCache = new Map<string, string>()
 
 import type { SubAgentContext } from '@shared/types/sub-agent'

@@ -29,6 +29,9 @@ import {
   runtimeModelPromptFragment,
 } from './system-prompt'
 
+const SLICE_ARG_2 = 300
+const SLICE_ARG_2_VALUE_200 = 200
+
 const logger = createLogger('agent-run')
 
 interface AgentFeatureFlags {
@@ -116,32 +119,32 @@ function summarizeToolError(result: string | undefined): string | undefined {
   try {
     const parsed: unknown = JSON.parse(result)
     if (typeof parsed === 'string') {
-      return parsed.slice(0, 300)
+      return parsed.slice(0, SLICE_ARG_2)
     }
     if (typeof parsed === 'object' && parsed !== null) {
       const result = jsonObjectSchema.safeParse(parsed)
       if (!result.success) {
         logger.debug('tool-error-parse-mismatch', {
-          preview: String(parsed).slice(0, 200),
+          preview: String(parsed).slice(0, SLICE_ARG_2_VALUE_200),
         })
         return undefined
       }
       const record = result.data
       if (typeof record.error === 'string' && record.error.trim()) {
-        return record.error.slice(0, 300)
+        return record.error.slice(0, SLICE_ARG_2)
       }
       if (typeof record.message === 'string' && record.message.trim()) {
-        return record.message.slice(0, 300)
+        return record.message.slice(0, SLICE_ARG_2)
       }
       if (typeof record.text === 'string' && record.text.trim()) {
-        return record.text.slice(0, 300)
+        return record.text.slice(0, SLICE_ARG_2)
       }
       logger.debug('tool-error-no-recognized-key', {
         keys: Object.keys(record),
       })
     }
   } catch {
-    return result.slice(0, 300)
+    return result.slice(0, SLICE_ARG_2)
   }
 
   return undefined

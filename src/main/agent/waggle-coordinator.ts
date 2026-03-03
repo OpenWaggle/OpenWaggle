@@ -1,3 +1,4 @@
+import { DOUBLE_FACTOR } from '@shared/constants/constants'
 import type { HydratedAgentSendPayload, Message } from '@shared/types/agent'
 import { getMessageText, isToolCallPart } from '@shared/types/agent'
 import { type ConversationId, createSkipApprovalToken } from '@shared/types/brand'
@@ -15,6 +16,11 @@ import { runAgent } from './agent-loop'
 import { checkConsensus } from './consensus-detector'
 import { FileConflictTracker } from './file-conflict-tracker'
 import { makeMessage } from './shared'
+
+const SLICE_ARG_2 = 200
+const RUN_WAGGLE_SEQUENTIAL_VALUE_20 = 20
+const FUNCTION_VALUE_3000 = 3000
+const SLICE_ARG_2_VALUE_3000 = 3000
 
 const logger = createLogger('waggle')
 
@@ -79,7 +85,7 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
 
   logger.info('Starting Waggle mode sequential collaboration', {
     conversationId,
-    userMessage: payload.text.slice(0, 200),
+    userMessage: payload.text.slice(0, SLICE_ARG_2),
     agents: agents.map((a) => a.label),
     maxTurns,
     stopCondition: stop.primary,
@@ -92,7 +98,7 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
       break
     }
 
-    const agentIndex = turnNumber % 2
+    const agentIndex = turnNumber % DOUBLE_FACTOR
     const agent = agents[agentIndex]
     if (!agent) break
 
@@ -185,7 +191,7 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
           error: lastTurnError,
         })
 
-        if (consecutiveErrorTurns >= 2) {
+        if (consecutiveErrorTurns >= DOUBLE_FACTOR) {
           status = 'stopped'
           onTurnEvent({
             type: 'collaboration-stopped',
@@ -243,9 +249,9 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
       const successfulTurns = accumulatedMessages.filter((m) => m.role === 'assistant').length
       if (
         stop.primary === 'consensus' &&
-        successfulTurns >= 2 &&
-        lastAssistantTexts[0].trim().length > 20 &&
-        lastAssistantTexts[1].trim().length > 20
+        successfulTurns >= DOUBLE_FACTOR &&
+        lastAssistantTexts[0].trim().length > RUN_WAGGLE_SEQUENTIAL_VALUE_20 &&
+        lastAssistantTexts[1].trim().length > RUN_WAGGLE_SEQUENTIAL_VALUE_20
       ) {
         const consensusResult = checkConsensus(lastAssistantTexts, turnNumber + 1, maxTurns)
         if (consensusResult.reached) {
@@ -291,7 +297,7 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
   // After the collaboration loop, produce a final synthesis if we had
   // at least 2 successful assistant turns and the run wasn't aborted.
   const successfulAssistantMsgs = accumulatedMessages.filter((m) => m.role === 'assistant')
-  if (successfulAssistantMsgs.length >= 2 && status !== 'stopped' && !signal.aborted) {
+  if (successfulAssistantMsgs.length >= DOUBLE_FACTOR && status !== 'stopped' && !signal.aborted) {
     await runSynthesisStep({
       conversationId,
       workingConversation,
@@ -503,7 +509,10 @@ function buildSynthesisPrompt(
     const label = agentMeta?.agentLabel ?? agents[i % agents.length]?.label ?? `Agent ${String(i)}`
     const text = getMessageText(msg)
     // Truncate very long turns to keep synthesis prompt focused
-    const truncated = text.length > 3000 ? `${text.slice(0, 3000)}... [truncated]` : text
+    const truncated =
+      text.length > FUNCTION_VALUE_3000
+        ? `${text.slice(0, SLICE_ARG_2_VALUE_3000)}... [truncated]`
+        : text
     return `### ${label} (Turn ${String(i + 1)}):\n${truncated}`
   })
 

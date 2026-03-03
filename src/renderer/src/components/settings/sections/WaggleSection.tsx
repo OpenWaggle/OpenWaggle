@@ -1,3 +1,4 @@
+import { DOUBLE_FACTOR } from '@shared/constants/constants'
 import { SupportedModelId, TeamConfigId } from '@shared/types/brand'
 import { generateDisplayName, type ProviderInfo } from '@shared/types/llm'
 import type { Settings } from '@shared/types/settings'
@@ -18,13 +19,19 @@ import { cn } from '@/lib/cn'
 import { api } from '@/lib/ipc'
 import { ModelSelector } from '../../shared/ModelSelector'
 
+const MAX_TURNS = 8
+const SLICE_ARG_2 = 60
+const MIN = 4
+const MAX = 20
+const ROWS = 3
+
 /** Shallow structural comparison between form config and a preset's config. */
 function configMatchesPreset(config: WaggleConfig, preset: WaggleTeamPreset): boolean {
   const pc = preset.config
   if (config.mode !== pc.mode) return false
   if (config.stop.primary !== pc.stop.primary) return false
   if (config.stop.maxTurnsSafety !== pc.stop.maxTurnsSafety) return false
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < DOUBLE_FACTOR; i++) {
     const a = config.agents[i]
     const p = pc.agents[i]
     if (!a || !p) return false
@@ -70,7 +77,7 @@ const INITIAL_WAGGLE_FORM_STATE: WaggleFormState = {
   ],
   mode: 'sequential',
   stopCondition: 'consensus',
-  maxTurns: 8,
+  maxTurns: MAX_TURNS,
 }
 
 function updateAgentAt(
@@ -166,7 +173,7 @@ export function WaggleSection(): React.JSX.Element {
       name: activePreset.isBuiltIn ? activePreset.name : `${agentA.label} + ${agentB.label}`,
       description: activePreset.isBuiltIn
         ? activePreset.description
-        : `Custom: ${agentA.roleDescription.slice(0, 60)}`,
+        : `Custom: ${agentA.roleDescription.slice(0, SLICE_ARG_2)}`,
       config,
     })
     setPresets(await api.listTeams())
@@ -181,7 +188,7 @@ export function WaggleSection(): React.JSX.Element {
     const saved = await api.saveTeam({
       id: TeamConfigId(''),
       name,
-      description: `Custom: ${agentA.roleDescription.slice(0, 60)}`,
+      description: `Custom: ${agentA.roleDescription.slice(0, SLICE_ARG_2)}`,
       config,
       isBuiltIn: false,
       createdAt: 0,
@@ -517,8 +524,8 @@ function MaxTurnsSlider({ maxTurns, onMaxTurnsChange }: MaxTurnsSliderProps): Re
     <div className="flex items-center gap-3">
       <input
         type="range"
-        min={4}
-        max={20}
+        min={MIN}
+        max={MAX}
         value={maxTurns}
         onChange={(e) => onMaxTurnsChange(Number(e.target.value))}
         className="w-[120px] accent-accent"
@@ -584,7 +591,7 @@ function AgentSlotCard({
           onChange={(e) =>
             dispatchForm({ type: 'set-agent-role', index, roleDescription: e.target.value })
           }
-          rows={3}
+          rows={ROWS}
           placeholder="Describe this agent's role and perspective..."
           className={cn(
             'w-full rounded-md border border-border bg-bg px-3 py-2 text-[13px] text-text-primary resize-none',

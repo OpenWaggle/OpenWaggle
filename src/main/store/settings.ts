@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs'
+import { BASE_TEN, PERCENT_BASE } from '@shared/constants/constants'
 import { AUTH_METHODS } from '@shared/types/auth'
 import { SupportedModelId } from '@shared/types/brand'
 import type { McpServerConfig } from '@shared/types/mcp'
@@ -301,7 +302,7 @@ function sanitizeFavoriteModels(models: readonly string[]): SupportedModelId[] {
     if (!trimmed || seen.has(trimmed)) continue
     seen.add(trimmed)
     result.push(SupportedModelId(trimmed))
-    if (result.length >= 100) break
+    if (result.length >= PERCENT_BASE) break
   }
 
   return result
@@ -316,7 +317,7 @@ function sanitizeRecentProjects(paths: readonly string[]): string[] {
     if (!trimmed || seen.has(trimmed)) continue
     seen.add(trimmed)
     result.push(trimmed)
-    if (result.length >= 10) break
+    if (result.length >= BASE_TEN) break
   }
 
   return result

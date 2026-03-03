@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
+import { DOUBLE_FACTOR } from '@shared/constants/constants'
 import type { JsonObject, JsonValue } from '@shared/types/json'
-
 import { MemoryRunStore } from './memory-run-store'
 import {
   ORCHESTRATION_ERROR_TASK_CANCELLED,
@@ -665,7 +665,8 @@ function retryDelayMs(
   attemptNumber: number,
   random: () => number,
 ): number {
-  const backoff = policy.backoffMs > 0 ? policy.backoffMs * 2 ** Math.max(0, attemptNumber - 1) : 0
+  const backoff =
+    policy.backoffMs > 0 ? policy.backoffMs * DOUBLE_FACTOR ** Math.max(0, attemptNumber - 1) : 0
   const jitter = policy.jitterMs > 0 ? random() * policy.jitterMs : 0
   return Math.max(0, Math.floor(backoff + jitter))
 }

@@ -12,6 +12,14 @@ import type {
   ResolvedSamplingConfig,
 } from './provider-definition'
 
+const LOW = 1024
+const MEDIUM = 4096
+const HIGH = 10240
+const LOW_VALUE_2048 = 2048
+const MEDIUM_VALUE_8192 = 8192
+const HIGH_VALUE_16384 = 16384
+const MAX_ARG_2 = 8192
+
 /**
  * Thinking token budgets per quality tier.
  * Opus gets larger budgets to leverage its deeper reasoning capabilities.
@@ -20,8 +28,12 @@ import type {
  * is included in validKeys but spread raw into the API request, causing a 400.
  * We use budget_tokens for all models until this is fixed upstream.
  */
-const THINKING_BUDGET: Record<QualityPreset, number> = { low: 1024, medium: 4096, high: 10240 }
-const OPUS_THINKING_BUDGET: Record<QualityPreset, number> = { low: 2048, medium: 8192, high: 16384 }
+const THINKING_BUDGET: Record<QualityPreset, number> = { low: LOW, medium: MEDIUM, high: HIGH }
+const OPUS_THINKING_BUDGET: Record<QualityPreset, number> = {
+  low: LOW_VALUE_2048,
+  medium: MEDIUM_VALUE_8192,
+  high: HIGH_VALUE_16384,
+}
 
 export const anthropicProvider: ProviderDefinition = {
   id: 'anthropic',
@@ -56,7 +68,7 @@ export const anthropicProvider: ProviderDefinition = {
     return {
       temperature: undefined,
       topP: undefined,
-      maxTokens: Math.max(base.maxTokens, 8192),
+      maxTokens: Math.max(base.maxTokens, MAX_ARG_2),
       modelOptions: { thinking: { type: 'enabled', budget_tokens: budget } },
     }
   },

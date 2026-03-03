@@ -1,11 +1,14 @@
 import { execFile } from 'node:child_process'
 import path from 'node:path'
 import { promisify } from 'node:util'
+import { BYTES_PER_KIBIBYTE, DOUBLE_FACTOR } from '@shared/constants/constants'
 import { jsonObjectSchema } from '@shared/schemas/validation'
 import { z } from 'zod'
 
+const MODULE_VALUE_5 = 5
+
 export const execFileAsync = promisify(execFile)
-export const DEFAULT_GIT_MAX_BUFFER = 5 * 1024 * 1024
+export const DEFAULT_GIT_MAX_BUFFER = MODULE_VALUE_5 * BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE
 
 export interface GitExecResult {
   readonly stdout: string
@@ -65,7 +68,7 @@ export async function isGitRepository(projectPath: string): Promise<boolean> {
 }
 
 export function stripSurroundingQuotes(value: string): string {
-  if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
+  if (value.length >= DOUBLE_FACTOR && value.startsWith('"') && value.endsWith('"')) {
     return value.slice(1, -1).replaceAll('\\"', '"')
   }
   return value

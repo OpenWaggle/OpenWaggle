@@ -1,5 +1,6 @@
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
+import { DOUBLE_FACTOR, FIVE_MINUTES_IN_MILLISECONDS } from '@shared/constants/constants'
 import {
   VOICE_MODEL_BASE,
   VOICE_MODEL_TINY,
@@ -10,10 +11,16 @@ import { app } from 'electron'
 import { z } from 'zod'
 import { safeHandle } from './typed-ipc'
 
+const MIN_LANGUAGE_CODE_LENGTH = 2
+const MAX_LANGUAGE_CODE_LENGTH = 16
+const PCM16_SIGNED_NORMALIZATION_FACTOR = 32768
+const CHUNK_LENGTH_S = 10
+const STRIDE_LENGTH_S = 2
+
 const SAMPLE_RATE_MIN = 8_000
 const SAMPLE_RATE_MAX = 48_000
 const MAX_AUDIO_SECONDS = 90
-const MAX_PCM16_BYTES = SAMPLE_RATE_MAX * MAX_AUDIO_SECONDS * 2
+const MAX_PCM16_BYTES = SAMPLE_RATE_MAX * MAX_AUDIO_SECONDS * DOUBLE_FACTOR
 
 const VOICE_MODEL_CONFIG: Record<
   VoiceModel,
@@ -37,7 +44,12 @@ const modernTranscribePayloadSchema = z.object({
     'pcm16 payload is invalid.',
   ),
   sampleRate: z.number().int().min(SAMPLE_RATE_MIN).max(SAMPLE_RATE_MAX),
-  language: z.string().trim().min(2).max(16).optional(),
+  language: z
+    .string()
+    .trim()
+    .min(MIN_LANGUAGE_CODE_LENGTH)
+    .max(MAX_LANGUAGE_CODE_LENGTH)
+    .optional(),
   model: z.enum([VOICE_MODEL_TINY, VOICE_MODEL_BASE]).optional(),
 })
 const transcribePayloadSchema = modernTranscribePayloadSchema
@@ -76,7 +88,7 @@ interface TransformersModule {
   pipeline: (task: string, model: string, options?: WhisperTranscriberOptions) => Promise<unknown>
 }
 
-const MODEL_IDLE_TIMEOUT = 5 * 60 * 1000 // 5 minutes
+const MODEL_IDLE_TIMEOUT = FIVE_MINUTES_IN_MILLISECONDS
 
 const transcriberPromises: Partial<Record<VoiceModel, Promise<WhisperTranscriber>>> = {}
 const lastUsedAt: Partial<Record<VoiceModel, number>> = {}
@@ -90,12 +102,12 @@ function isTransformersModule(value: unknown): value is TransformersModule {
 }
 
 function pcm16BytesToFloat32(bytes: Uint8Array): Float32Array {
-  const sampleCount = Math.floor(bytes.byteLength / 2)
+  const sampleCount = Math.floor(bytes.byteLength / DOUBLE_FACTOR)
   const normalized = new Float32Array(sampleCount)
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
   for (let index = 0; index < sampleCount; index += 1) {
-    const value = view.getInt16(index * 2, true)
-    normalized[index] = Math.max(-1, Math.min(1, value / 32768))
+    const value = view.getInt16(index * DOUBLE_FACTOR, true)
+    normalized[index] = Math.max(-1, Math.min(1, value / PCM16_SIGNED_NORMALIZATION_FACTOR))
   }
   return normalized
 }
@@ -202,7 +214,7 @@ export function registerVoiceHandlers(): void {
   safeHandle('voice:transcribe-local', async (_event, rawPayload: unknown) => {
     const payload = transcribePayloadSchema.parse(rawPayload)
     const model = payload.model ?? VOICE_MODEL_TINY
-    const sampleCount = Math.floor(payload.pcm16.byteLength / 2)
+    const sampleCount = Math.floor(payload.pcm16.byteLength / DOUBLE_FACTOR)
     if (sampleCount <= 0) {
       throw new Error('Audio payload is empty.')
     }
@@ -224,8 +236,8 @@ export function registerVoiceHandlers(): void {
       const rawResult = await transcriber(audio, {
         task: 'transcribe',
         return_timestamps: false,
-        chunk_length_s: 10,
-        stride_length_s: 2,
+        chunk_length_s: CHUNK_LENGTH_S,
+        stride_length_s: STRIDE_LENGTH_S,
         language: payload.language ?? modelConfig.language,
       })
       markModelUsed(model)

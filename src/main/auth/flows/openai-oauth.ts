@@ -1,9 +1,13 @@
 import { randomBytes } from 'node:crypto'
+import { MILLISECONDS_PER_SECOND } from '@shared/constants/constants'
 import { shell } from 'electron'
 import { z } from 'zod'
 import { createLogger } from '../../logger'
 import { createCallbackServer } from '../oauth-callback-server'
 import { generateCodeChallenge, generateCodeVerifier } from '../pkce'
+
+const SPLIT_ARG_2 = 2
+const RANDOM_BYTES_ARG_1 = 16
 
 const logger = createLogger('openai-oauth')
 
@@ -56,7 +60,7 @@ function parseManualCodeInput(raw: string): OpenAIOAuthCode {
     // continue with non-URL parsing
   }
 
-  const [code, state = ''] = input.split('#', 2)
+  const [code, state = ''] = input.split('#', SPLIT_ARG_2)
   const normalizedCode = code.trim()
   const normalizedState = state.trim()
   if (!normalizedCode) {
@@ -70,7 +74,7 @@ export async function startOpenAIOAuth(
 ): Promise<OpenAIOAuthResult> {
   const verifier = generateCodeVerifier()
   const challenge = generateCodeChallenge(verifier)
-  const state = randomBytes(16).toString('hex')
+  const state = randomBytes(RANDOM_BYTES_ARG_1).toString('hex')
   let server: Awaited<ReturnType<typeof createCallbackServer>> | null = null
 
   try {
@@ -157,7 +161,7 @@ export async function startOpenAIOAuth(
     return {
       accessToken: parsed.access_token,
       refreshToken: parsed.refresh_token,
-      expiresAt: Date.now() + parsed.expires_in * 1000,
+      expiresAt: Date.now() + parsed.expires_in * MILLISECONDS_PER_SECOND,
     }
   } finally {
     server?.close()
@@ -188,6 +192,6 @@ export async function refreshOpenAIToken(
 
   return {
     accessToken: parsed.access_token,
-    expiresAt: Date.now() + parsed.expires_in * 1000,
+    expiresAt: Date.now() + parsed.expires_in * MILLISECONDS_PER_SECOND,
   }
 }

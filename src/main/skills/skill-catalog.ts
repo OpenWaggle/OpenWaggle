@@ -1,6 +1,7 @@
 import type { Dirent } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { DOUBLE_FACTOR } from '@shared/constants/constants'
 import type { SkillCatalogResult, SkillDiscoveryItem } from '@shared/types/standards'
 import { isEnoent } from '@shared/utils/node-error'
 import { isPathInside } from '@shared/utils/paths'
@@ -231,7 +232,7 @@ function parseSkillDocument(markdown: string): ParsedSkillDocument {
   }
 
   const frontmatter = frontmatterMatch[1] ?? ''
-  const body = (frontmatterMatch[2] ?? '').trim()
+  const body = (frontmatterMatch[DOUBLE_FACTOR] ?? '').trim()
   const fields = parseFrontmatterFields(frontmatter)
 
   const name = fields.name?.trim()

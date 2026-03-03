@@ -4,6 +4,8 @@ import { Loader2, RefreshCw, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/cn'
 
+const ROWS = 3
+
 interface CommitDialogProps {
   projectPath: string | null
   status: GitStatusSummary | null
@@ -147,7 +149,7 @@ export function CommitDialog({
               Commit message
             </span>
             <textarea
-              rows={3}
+              rows={ROWS}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Describe your changes"

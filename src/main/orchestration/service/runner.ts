@@ -32,6 +32,9 @@ import type {
   SamplingConfig,
 } from './types'
 
+const MAX_CONTEXT_TOKENS = 1500
+const MAX_PARALLEL_TASKS = 4
+
 interface RunnerContext {
   readonly params: OrchestratedAgentRunParams
   readonly deps: OrchestrationServiceDeps
@@ -204,8 +207,8 @@ async function runOrchestrationStage(
     runId: params.runId,
     userPrompt: params.payload.text,
     signal: params.signal,
-    maxContextTokens: 1500,
-    maxParallelTasks: 4,
+    maxContextTokens: MAX_CONTEXT_TOKENS,
+    maxParallelTasks: MAX_PARALLEL_TASKS,
     runStore: context.runStore,
     planner: {
       async plan() {

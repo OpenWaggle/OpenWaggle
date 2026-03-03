@@ -1,3 +1,4 @@
+import { PERCENT_BASE } from '@shared/constants/constants'
 import type { WaggleConsensusCheckResult, WaggleConsensusSignal } from '@shared/types/waggle'
 
 const AGREEMENT_PHRASES = [
@@ -107,7 +108,7 @@ export function checkConsensus(
 
   return {
     reached,
-    confidence: Math.round(avgConfidence * 100) / 100,
+    confidence: Math.round(avgConfidence * PERCENT_BASE) / PERCENT_BASE,
     reason: reached ? topSignal.reason : 'Insufficient consensus signals',
     signals,
   }
@@ -151,7 +152,7 @@ function checkContentSimilarity(text1: string, text2: string): WaggleConsensusSi
     return {
       type: 'no-new-information',
       confidence: CONTENT_SIMILARITY_CONFIDENCE,
-      reason: `High content overlap (Jaccard: ${String(Math.round(jaccard * 100))}%)`,
+      reason: `High content overlap (Jaccard: ${String(Math.round(jaccard * PERCENT_BASE))}%)`,
     }
   }
   return null

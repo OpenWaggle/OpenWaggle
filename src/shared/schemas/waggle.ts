@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+const MAX_ARG_1 = 100
+
 export const waggleAgentColorSchema = z.enum(['blue', 'amber', 'emerald', 'violet'])
 
 export const waggleMetadataSchema = z.object({
@@ -23,7 +25,7 @@ export const waggleConfigSchema = z.object({
   agents: z.tuple([waggleAgentSlotSchema, waggleAgentSlotSchema]),
   stop: z.object({
     primary: z.enum(['consensus', 'user-stop']),
-    maxTurnsSafety: z.number().int().min(1).max(100),
+    maxTurnsSafety: z.number().int().min(1).max(MAX_ARG_1),
   }),
 })
 

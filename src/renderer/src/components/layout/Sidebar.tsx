@@ -27,6 +27,10 @@ import { useUIStore } from '@/stores/ui-store'
 import { ConversationGroup } from './ConversationGroup'
 import { groupConversationsByProject, type SortMode, sortConversationGroups } from './sidebar-utils'
 
+const BITS_PER_UINT32 = 32
+const SIDEBAR_VALUE_104 = 104
+const SIDEBAR_VALUE_80 = 80
+
 function McpIcon({ className }: { className?: string }): React.JSX.Element {
   return (
     <svg
@@ -129,7 +133,7 @@ export function Sidebar(): React.JSX.Element {
           {/* macOS traffic light clearance — collapses in fullscreen */}
           <div
             className="drag-region shrink-0 transition-[height] duration-200 ease-out"
-            style={{ height: isFullscreen ? 0 : 32 }}
+            style={{ height: isFullscreen ? 0 : BITS_PER_UINT32 }}
           />
           {/* Logo — drag region, padding [14,16] */}
           <div className="drag-region flex shrink-0 items-center px-4 py-1">
@@ -142,7 +146,7 @@ export function Sidebar(): React.JSX.Element {
 
           <div
             className="shrink-0 transition-[height] duration-200 ease-out"
-            style={{ height: isFullscreen ? 104 : 80 }}
+            style={{ height: isFullscreen ? SIDEBAR_VALUE_104 : SIDEBAR_VALUE_80 }}
           />
 
           {/* Nav items — fixed */}

@@ -1,3 +1,4 @@
+import { BYTES_PER_KIBIBYTE, TRIPLE_FACTOR } from '@shared/constants/constants'
 import type {
   GitChangedFile,
   GitFileDiff,
@@ -8,8 +9,13 @@ import { choose } from '@shared/utils/decision'
 import { safeHandle } from '../typed-ipc'
 import { isGitRepository, projectPathSchema, runGit, stripSurroundingQuotes } from './shared'
 
+const MODULE_VALUE_8 = 8
+const SLICE_ARG_1 = 3
+const PARSE_INT_ARG_2 = 10
+const SLICE_ARG_1_VALUE_2 = 2
+
 const GIT_STATUS_CACHE_TTL = 2000 // 2 seconds
-const DIFF_GIT_MAX_BUFFER = 8 * 1024 * 1024 // 8 MB (reduced from shared.ts 32 MB)
+const DIFF_GIT_MAX_BUFFER = MODULE_VALUE_8 * BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE // 8 MB (reduced from shared.ts 32 MB)
 
 const statusCache = new Map<string, { result: GitStatusSummary; timestamp: number }>()
 
@@ -70,10 +76,10 @@ function parsePorcelain(stdout: string): ParsedPorcelainEntry[] {
     .filter(Boolean)
 
   for (const line of lines) {
-    if (line.length < 3) continue
+    if (line.length < TRIPLE_FACTOR) continue
     const x = line[0] ?? ' '
     const y = line[1] ?? ' '
-    const rawPath = line.slice(3).trim()
+    const rawPath = line.slice(SLICE_ARG_1).trim()
     const path = normalizeGitPath(rawPath)
 
     const statusCode = x === '?' && y === '?' ? '?' : y !== ' ' ? y : x
@@ -96,11 +102,11 @@ function parseNumstat(stdout: string): Map<string, { additions: number; deletion
 
   for (const line of lines) {
     const parts = line.split('\t')
-    if (parts.length < 3) continue
+    if (parts.length < TRIPLE_FACTOR) continue
 
-    const additions = Number.parseInt(parts[0] ?? '0', 10)
-    const deletions = Number.parseInt(parts[1] ?? '0', 10)
-    const rawPath = parts.slice(2).pop()?.trim()
+    const additions = Number.parseInt(parts[0] ?? '0', PARSE_INT_ARG_2)
+    const deletions = Number.parseInt(parts[1] ?? '0', PARSE_INT_ARG_2)
+    const rawPath = parts.slice(SLICE_ARG_1_VALUE_2).pop()?.trim()
     const path = rawPath ? normalizeGitPath(rawPath) : undefined
     if (!path) continue
 
@@ -137,8 +143,8 @@ async function getGitStatus(projectPath: string): Promise<GitStatusSummary> {
   if (upstreamResult.code === 0) {
     // git rev-list --left-right --count outputs: <ahead>\t<behind>
     const [aheadStr, behindStr] = upstreamResult.stdout.trim().split('\t')
-    ahead = Number.parseInt(aheadStr ?? '0', 10) || 0
-    behind = Number.parseInt(behindStr ?? '0', 10) || 0
+    ahead = Number.parseInt(aheadStr ?? '0', PARSE_INT_ARG_2) || 0
+    behind = Number.parseInt(behindStr ?? '0', PARSE_INT_ARG_2) || 0
   }
 
   const porcelainEntries = parsePorcelain(porcelainResult.stdout)

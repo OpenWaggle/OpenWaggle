@@ -1,6 +1,7 @@
 import type { Dirent } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { DOUBLE_FACTOR } from '@shared/constants/constants'
 import type { AgentToolFilter, AgentTypeDefinition } from '@shared/types/sub-agent'
 import { formatErrorMessage, isEnoent } from '@shared/utils/node-error'
 import { isPathInside } from '@shared/utils/paths'
@@ -199,7 +200,7 @@ function parseAgentDocument(markdown: string): ParsedAgentDocument | null {
   if (!match) return null
 
   const frontmatter = match[1] ?? ''
-  const body = (match[2] ?? '').trim()
+  const body = (match[DOUBLE_FACTOR] ?? '').trim()
   const fields = parseFrontmatterFields(frontmatter)
 
   const name = fields.name?.trim()
