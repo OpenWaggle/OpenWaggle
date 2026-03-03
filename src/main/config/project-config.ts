@@ -1,5 +1,4 @@
-import { statSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { projectConfigSchema, type qualityTierSchema } from '@shared/schemas/validation'
 import { isEnoent } from '@shared/utils/node-error'
@@ -32,9 +31,9 @@ export async function loadProjectConfig(projectPath: string): Promise<ProjectCon
   const filePath = join(projectPath, '.openwaggle', 'config.toml')
 
   try {
-    const stat = statSync(filePath)
+    const st = await stat(filePath)
     const cached = configCache.get(filePath)
-    if (cached && cached.mtime === stat.mtimeMs) {
+    if (cached && cached.mtime === st.mtimeMs) {
       return cached.config
     }
 
@@ -44,7 +43,7 @@ export async function loadProjectConfig(projectPath: string): Promise<ProjectCon
     const validated = projectConfigSchema.safeParse(tomlData)
     const config = validated.success ? parseProjectConfig(validated.data) : EMPTY_CONFIG
 
-    configCache.set(filePath, { config, mtime: stat.mtimeMs })
+    configCache.set(filePath, { config, mtime: st.mtimeMs })
     return config
   } catch (error) {
     if (isEnoent(error)) {
