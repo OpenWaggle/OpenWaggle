@@ -308,7 +308,11 @@ Status legend: `implemented`, `deferred`, `future`
 - Current: interactive attachment picker with chip preview/removal and preprocessing pipeline.
 - Target behavior:
   - Support text/image/PDF uploads (max 5 files) with metadata + extracted-text persistence.
+  - Auto-convert pasted prompt text longer than 12,000 chars into temporary markdown attachments (`prompt-<timestamp>.md`) before submit to keep transcripts concise.
+  - Preserve full long-prompt content in attachment `extractedText` (no truncation).
+  - Surface real conversion progress in composer chips using bytes-written/total-bytes updates, then show completed state.
   - Use provider-native modality where available; fallback to extracted text for unsupported providers.
+  - If all 5 attachment slots are already used, skip auto-conversion and send long prompt inline as fallback.
 
 ### HC-UI-009 Composer quality control
 

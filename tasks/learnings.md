@@ -20,6 +20,11 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Task: Auto-Convert Long Prompt to Attachment (2026-03-03)
+- React Compiler + React Doctor can flag renderer code as non-optimizable when `try/catch` blocks contain value-branching logic. Rewriting async error handling to `await promise.catch(() => null)` and branching outside `try/catch` preserves behavior and clears the compiler error. [SKILL?]
+- For real progress UI on local file generation in Electron, replacing `fs.writeFile` with chunked `fs.open(...).write(...)` loops plus renderer progress events (`bytesWritten/totalBytes`) provides accurate progress bars without network/upload semantics. [SKILL?]
+- Attachment transcript previews are a UX contract: clipping extracted text for auto-generated long-prompt files can be misinterpreted as payload truncation even when backend receives full content. Suppressing preview bodies for those generated files preserves user trust while keeping full extracted text in the agent payload path.
+
 ### Task: Stream Stall Detection & Auto-Recovery (2026-03-03)
 - `for await (const chunk of stream)` on an `AsyncIterable<StreamChunk>` blocks indefinitely when the provider API stalls mid-stream. Replace with manual `iterator.next()` + `Promise.race` against a timeout promise to detect stalls and allow retry.
 - When an agent handler's `finally` block omits `clearAgentPhase()`, the phase tracker retains a stale phase forever ("Thinking..." ghost), because no terminal event resets it — only explicit cleanup does.
