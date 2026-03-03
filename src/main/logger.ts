@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { mkdir, readdir, stat, unlink } from 'node:fs/promises'
 import path from 'node:path'
 import type { Logger } from '@shared/types/logger'
 
@@ -22,16 +23,14 @@ class FileWriter {
   private currentPath: string | null = null
   private buffer: string[] = []
   private flushScheduled = false
-  private pruned = false
 
-  init(logsDir: string): void {
+  init(logsDir: string): Promise<void> {
     this.logsDir = logsDir
-    try {
-      fs.mkdirSync(logsDir, { recursive: true })
-    } catch {
-      // Best-effort directory creation
-    }
     this.ensureDatePath()
+    // Directory creation + old log pruning runs async — best-effort, non-blocking
+    return mkdir(logsDir, { recursive: true })
+      .then(() => this.pruneOldLogs())
+      .catch(() => {})
   }
 
   write(line: string): void {
@@ -53,10 +52,6 @@ class FileWriter {
     if (dateStr === this.currentDate) return
     this.currentDate = dateStr
     this.currentPath = path.join(this.logsDir ?? '', `openwaggle-${dateStr}.log`)
-    if (!this.pruned) {
-      this.pruned = true
-      this.pruneOldLogs()
-    }
   }
 
   private flush(): void {
@@ -69,20 +64,22 @@ class FileWriter {
     })
   }
 
-  private pruneOldLogs(): void {
+  private async pruneOldLogs(): Promise<void> {
     if (!this.logsDir) return
     const logsDir = this.logsDir
     try {
       const cutoff = Date.now() - LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000
-      const entries = fs.readdirSync(logsDir)
-      for (const entry of entries) {
-        if (!entry.startsWith('openwaggle-') || !entry.endsWith('.log')) continue
-        const filePath = path.join(logsDir, entry)
-        const stat = fs.statSync(filePath)
-        if (stat.mtimeMs < cutoff) {
-          fs.unlinkSync(filePath)
-        }
-      }
+      const entries = await readdir(logsDir)
+      const deletions = entries
+        .filter((entry) => entry.startsWith('openwaggle-') && entry.endsWith('.log'))
+        .map(async (entry) => {
+          const filePath = path.join(logsDir, entry)
+          const st = await stat(filePath)
+          if (st.mtimeMs < cutoff) {
+            await unlink(filePath)
+          }
+        })
+      await Promise.allSettled(deletions)
     } catch {
       // Pruning is best-effort
     }
@@ -91,9 +88,13 @@ class FileWriter {
 
 const fileWriter = new FileWriter()
 
-/** Call once from index.ts after app.whenReady() to enable file logging. */
-export function initFileLogger(logsDir: string): void {
-  fileWriter.init(logsDir)
+/**
+ * Call once from index.ts after app.whenReady() to enable file logging.
+ * Returns a promise that resolves when directory creation and log pruning complete.
+ * Callers may ignore the return value for fire-and-forget initialization.
+ */
+export function initFileLogger(logsDir: string): Promise<void> {
+  return fileWriter.init(logsDir)
 }
 
 export function getLogFilePath(): string {

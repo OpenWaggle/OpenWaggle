@@ -74,8 +74,8 @@ describe('file logger', () => {
     const fourDaysAgo = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000)
     fs.utimesSync(oldFile, fourDaysAgo, fourDaysAgo)
 
-    // Trigger logger init (which prunes)
-    initFileLogger(mockLogsDir)
+    // Trigger logger init and await pruning completion
+    await initFileLogger(mockLogsDir)
     createLogger('prune').info('trigger init')
 
     // Old file should be pruned
