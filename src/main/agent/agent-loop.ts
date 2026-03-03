@@ -30,6 +30,8 @@ import { processAgentStream } from './stream-processor'
 const logger = createLogger('agent')
 
 const MAX_ITERATIONS = 25
+const MAX_STALL_RETRIES = 2
+const STALL_RETRY_DELAY_MS = 2000
 
 export interface AgentRunParams {
   readonly conversation: Conversation
@@ -154,7 +156,7 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
     },
     async () => {
       const stageDurationsMs: Record<string, number> = {}
-      const collector = new StreamPartCollector()
+      let collector = new StreamPartCollector()
       params.onCollectorCreated?.(collector)
 
       let context: AgentRunContext | null = null
@@ -236,19 +238,19 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
         const abortController = new AbortController()
         signal.addEventListener('abort', () => abortController.abort(), { once: true })
 
-        const stream = await withStageTiming(stageDurationsMs, 'stream-setup', () => {
-          const allMessages: ModelMessage[] | SimpleChatMessage[] = hasContinuationMessages
-            ? [...(payload.continuationMessages ?? [])]
-            : (() => {
-                const existingMessages = conversationToMessages(conversation.messages)
-                const newUserMessage: SimpleChatMessage = {
-                  role: 'user',
-                  content: buildUserChatContent(provider, payload),
-                }
-                return [...existingMessages, newUserMessage]
-              })()
-          const samplingOptions = buildSamplingOptions(qualityConfig)
+        const allMessages: ModelMessage[] | SimpleChatMessage[] = hasContinuationMessages
+          ? [...(payload.continuationMessages ?? [])]
+          : (() => {
+              const existingMessages = conversationToMessages(conversation.messages)
+              const newUserMessage: SimpleChatMessage = {
+                role: 'user',
+                content: buildUserChatContent(provider, payload),
+              }
+              return [...existingMessages, newUserMessage]
+            })()
+        const samplingOptions = buildSamplingOptions(qualityConfig)
 
+        function createStream(): ReturnType<typeof chat> {
           return chat({
             adapter,
             messages: allMessages,
@@ -261,10 +263,13 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
             agentLoopStrategy: maxIterations(params.maxTurns ?? MAX_ITERATIONS),
             abortController,
           })
-        })
+        }
 
-        // ── Stage 6: Process stream ──
-        const streamResult = await withStageTiming(stageDurationsMs, 'stream-processing', () =>
+        let stream = await withStageTiming(stageDurationsMs, 'stream-setup', createStream)
+
+        // ── Stage 6: Process stream (with stall retry) ──
+        let stallAttempt = 0
+        let streamResult = await withStageTiming(stageDurationsMs, 'stream-processing', () =>
           processAgentStream({
             stream,
             collector,
@@ -275,6 +280,31 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
           }),
         )
         runErrorNotified = streamResult.runErrorNotified
+
+        while (streamResult.timedOut && !signal.aborted && stallAttempt < MAX_STALL_RETRIES) {
+          stallAttempt++
+          logger.warn(`Stream stalled, retry ${stallAttempt}/${MAX_STALL_RETRIES}`, {
+            conversationId: conversation.id,
+          })
+
+          await new Promise((resolve) => setTimeout(resolve, STALL_RETRY_DELAY_MS))
+          if (signal.aborted) break
+
+          // Fresh stream and collector for the retry attempt
+          stream = await createStream()
+          collector = new StreamPartCollector()
+          params.onCollectorCreated?.(collector)
+
+          streamResult = await processAgentStream({
+            stream,
+            collector,
+            onChunk,
+            signal,
+            hooks,
+            runContext,
+          })
+          runErrorNotified = streamResult.runErrorNotified
+        }
 
         if (streamResult.aborted || signal.aborted) {
           throw new Error('aborted')
