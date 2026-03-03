@@ -18,12 +18,55 @@ interface VoicePatch {
   voiceWaveform?: number[]
 }
 
+const PROMPT_HISTORY_KEY = 'openwaggle:prompt-history'
+const PROMPT_HISTORY_MAX = 100
+
+function getStorage(): Storage | null {
+  try {
+    return typeof localStorage !== 'undefined' ? localStorage : null
+  } catch {
+    return null
+  }
+}
+
+function loadPromptHistory(): string[] {
+  try {
+    const stored = getStorage()?.getItem(PROMPT_HISTORY_KEY)
+    if (!stored) return []
+    const parsed: unknown = JSON.parse(stored)
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
+      .slice(-PROMPT_HISTORY_MAX)
+  } catch {
+    return []
+  }
+}
+
+function savePromptHistory(entries: readonly string[]): void {
+  try {
+    getStorage()?.setItem(PROMPT_HISTORY_KEY, JSON.stringify(entries))
+  } catch {
+    // Ignore localStorage quota errors or missing storage
+  }
+}
+
 interface ComposerState {
   // Text input
   input: string
   cursorIndex: number
   setInput: (value: string) => void
   setCursorIndex: (index: number) => void
+
+  // Prompt history (ArrowUp/ArrowDown navigation)
+  promptHistory: readonly string[]
+  historyIndex: number
+  draftInput: string
+  pushHistory: (text: string) => void
+  /** Navigate to previous prompt. Returns the text to display, or null if at boundary. */
+  historyUp: (currentInput: string) => string | null
+  /** Navigate to next prompt (or draft). Returns the text to display, or null if at boundary. */
+  historyDown: () => string | null
 
   // Attachments
   attachments: PreparedAttachment[]
@@ -80,6 +123,9 @@ interface ComposerState {
 interface InitialComposerState {
   input: string
   cursorIndex: number
+  promptHistory: readonly string[]
+  historyIndex: number
+  draftInput: string
   attachments: PreparedAttachment[]
   attachmentError: string | null
   qualityMenuOpen: boolean
@@ -101,29 +147,37 @@ interface InitialComposerState {
   dismissedSlashToken: string | null
 }
 
-const INITIAL_STATE: InitialComposerState = {
-  input: '',
-  cursorIndex: 0,
-  attachments: [],
-  attachmentError: null,
-  qualityMenuOpen: false,
-  executionMenuOpen: false,
-  branchMenuOpen: false,
-  actionDialog: null,
-  actionDialogInput: '',
-  actionDialogError: null,
-  actionDialogBusy: false,
-  branchQuery: '',
-  branchMessage: null,
-  planModeActive: false,
-  isListening: false,
-  isTranscribingVoice: false,
-  voiceError: null,
-  voiceElapsedSeconds: 0,
-  voiceWaveform: [],
-  slashHighlightIndex: 0,
-  dismissedSlashToken: null,
+function buildInitialState(): InitialComposerState {
+  const loaded = loadPromptHistory()
+  return {
+    input: '',
+    cursorIndex: 0,
+    promptHistory: loaded,
+    historyIndex: loaded.length,
+    draftInput: '',
+    attachments: [],
+    attachmentError: null,
+    qualityMenuOpen: false,
+    executionMenuOpen: false,
+    branchMenuOpen: false,
+    actionDialog: null,
+    actionDialogInput: '',
+    actionDialogError: null,
+    actionDialogBusy: false,
+    branchQuery: '',
+    branchMessage: null,
+    planModeActive: false,
+    isListening: false,
+    isTranscribingVoice: false,
+    voiceError: null,
+    voiceElapsedSeconds: 0,
+    voiceWaveform: [],
+    slashHighlightIndex: 0,
+    dismissedSlashToken: null,
+  }
 }
+
+const INITIAL_STATE: InitialComposerState = buildInitialState()
 
 export const useComposerStore = create<ComposerState>((set, get) => ({
   ...INITIAL_STATE,
@@ -134,6 +188,42 @@ export const useComposerStore = create<ComposerState>((set, get) => ({
 
   setCursorIndex(index: number) {
     set({ cursorIndex: index })
+  },
+
+  pushHistory(text: string) {
+    const trimmed = text.trim()
+    if (!trimmed) return
+    set((s) => {
+      // Deduplicate if same as the most recent entry
+      const last = s.promptHistory[s.promptHistory.length - 1]
+      if (last === trimmed) {
+        return { historyIndex: s.promptHistory.length, draftInput: '' }
+      }
+      const entries = [...s.promptHistory, trimmed].slice(-PROMPT_HISTORY_MAX)
+      savePromptHistory(entries)
+      return { promptHistory: entries, historyIndex: entries.length, draftInput: '' }
+    })
+  },
+
+  historyUp(currentInput: string): string | null {
+    const { promptHistory, historyIndex } = get()
+    if (promptHistory.length === 0 || historyIndex <= 0) return null
+    const isAtDraft = historyIndex === promptHistory.length
+    const newIndex = historyIndex - 1
+    set((s) => ({
+      historyIndex: newIndex,
+      draftInput: isAtDraft ? currentInput : s.draftInput,
+    }))
+    return promptHistory[newIndex] ?? null
+  },
+
+  historyDown(): string | null {
+    const { promptHistory, historyIndex } = get()
+    if (historyIndex >= promptHistory.length) return null
+    const newIndex = historyIndex + 1
+    set(() => ({ historyIndex: newIndex }))
+    if (newIndex === promptHistory.length) return get().draftInput
+    return promptHistory[newIndex] ?? null
   },
 
   addAttachments(files: PreparedAttachment[]) {
@@ -219,9 +309,12 @@ export const useComposerStore = create<ComposerState>((set, get) => ({
   },
 
   reset() {
+    const { promptHistory } = get()
     set({
       input: '',
       cursorIndex: 0,
+      historyIndex: promptHistory.length,
+      draftInput: '',
       attachments: [],
       attachmentError: null,
       voiceError: null,

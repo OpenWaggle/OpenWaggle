@@ -33,6 +33,9 @@ async function prepareAndAttach(
   }
 }
 
+/** Max textarea auto-grow height in pixels (scrolls beyond this). */
+const TEXTAREA_MAX_HEIGHT = 300
+
 // ── Component ──
 
 interface ComposerProps {
@@ -66,6 +69,9 @@ export function Composer({
   const isListening = useComposerStore((s) => s.isListening)
   const isTranscribingVoice = useComposerStore((s) => s.isTranscribingVoice)
   const reset = useComposerStore((s) => s.reset)
+  const pushHistory = useComposerStore((s) => s.pushHistory)
+  const historyUp = useComposerStore((s) => s.historyUp)
+  const historyDown = useComposerStore((s) => s.historyDown)
 
   const openCommandPalette = useUIStore((s) => s.openCommandPalette)
 
@@ -82,6 +88,7 @@ export function Composer({
 
   function submitPayload(payload: AgentSendPayload): boolean {
     if ((!payload.text && payload.attachments.length === 0) || disabled) return false
+    if (payload.text) pushHistory(payload.text)
     if (isLoading) {
       onEnqueue(payload)
     } else {
@@ -151,10 +158,52 @@ export function Composer({
 
   // ── Input handlers ──
 
+  function resizeTextarea(): void {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, TEXTAREA_MAX_HEIGHT)}px`
+  }
+
+  function applyHistoryEntry(text: string): void {
+    setInput(text)
+    // Defer cursor + resize until React flushes the new value to the DOM
+    requestAnimationFrame(() => {
+      const el = textareaRef.current
+      if (!el) return
+      el.selectionStart = text.length
+      el.selectionEnd = text.length
+      resizeTextarea()
+    })
+  }
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>): void {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSubmit()
+      return
+    }
+
+    const textarea = e.currentTarget
+    const hasSelection = textarea.selectionStart !== textarea.selectionEnd
+
+    // ArrowUp at the very start of input → recall previous prompt
+    if (e.key === 'ArrowUp' && !hasSelection && textarea.selectionStart === 0) {
+      const prev = historyUp(input)
+      if (prev !== null) {
+        e.preventDefault()
+        applyHistoryEntry(prev)
+      }
+      return
+    }
+
+    // ArrowDown at the very end of input → recall next prompt (or draft)
+    if (e.key === 'ArrowDown' && !hasSelection && textarea.selectionStart === input.length) {
+      const next = historyDown()
+      if (next !== null) {
+        e.preventDefault()
+        applyHistoryEntry(next)
+      }
     }
   }
 
@@ -168,9 +217,7 @@ export function Composer({
       openCommandPalette()
     }
 
-    const el = e.target
-    el.style.height = 'auto'
-    el.style.height = `${Math.min(el.scrollHeight, 200)}px`
+    resizeTextarea()
   }
 
   function syncCursorPosition(event: React.SyntheticEvent<HTMLTextAreaElement>): void {
@@ -274,7 +321,7 @@ export function Composer({
         {isVoiceModeActive ? (
           <VoiceRecorder onSendVoice={voice.sendVoice} mediaRecorderRef={voice.mediaRecorderRef} />
         ) : (
-          <div className="h-[60px] px-4 py-[14px]">
+          <div className="min-h-[60px] px-4 py-[14px]">
             <textarea
               ref={textareaRef}
               value={input}
@@ -290,7 +337,7 @@ export function Composer({
               disabled={disabled}
               rows={1}
               className={cn(
-                'w-full h-full resize-none bg-transparent text-[15px] text-text-primary',
+                'w-full resize-none bg-transparent text-[15px] text-text-primary',
                 'placeholder:text-text-tertiary',
                 'focus:outline-none focus-visible:shadow-none',
                 'disabled:opacity-50',
