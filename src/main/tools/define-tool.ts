@@ -11,6 +11,7 @@ import { applyContextInjection } from './context-injection-buffer'
 
 const logger = createLogger('tools')
 const MAX_TOOL_OUTPUT_BYTES = 100 * 1024 // 100 KB
+const projectRootCache = new Map<string, string>()
 
 import type { SubAgentContext } from '@shared/types/sub-agent'
 
@@ -149,7 +150,11 @@ function normalizeToolResult(result: string): NormalizedToolResult {
 export function resolveProjectPath(projectPath: string, filePath: string): string {
   const resolved = path.resolve(projectPath, filePath)
   const projectRoot = path.resolve(projectPath)
-  const projectRootReal = fs.existsSync(projectRoot) ? fs.realpathSync(projectRoot) : projectRoot
+  let projectRootReal = projectRootCache.get(projectPath)
+  if (projectRootReal === undefined) {
+    projectRootReal = fs.existsSync(projectRoot) ? fs.realpathSync(projectRoot) : projectRoot
+    projectRootCache.set(projectPath, projectRootReal)
+  }
 
   // For existing files, resolve symlinks before checking
   if (fs.existsSync(resolved)) {
