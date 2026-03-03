@@ -20,6 +20,20 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Task: SRP/DRY/Type Safety Review Fixes (2026-03-03)
+- Continuation normalization must drop `UIMessage` entries with `role: "system"` instead of remapping them to `ModelMessage` user turns; TanStack’s native conversion path skips system snapshots, and remapping can unintentionally promote system guidance into user context.
+- Stream loops that repeatedly wait on `iterator.next()` with abort support need explicit abort-listener cleanup on every iteration (`removeEventListener`), otherwise unresolved tool waits can accumulate stale listeners over long-lived approval pauses.
+
+### Task: Tool-Call Hang After Long-Attachment Follow-up (2026-03-03)
+- TanStack streams can emit `TOOL_CALL_END` without a result payload and never deliver a follow-up result chunk; if persisted as a bare `tool-call`, renderer tool blocks remain in perpetual running state (`Writing...`). Collector finalization must synthesize an explicit error `tool-result` for unresolved tool calls to guarantee terminal UI state. [SKILL?]
+- Stream-stall retries should be disabled when the collector has incomplete tool calls; retrying in that state can duplicate side-effectful tools (for example `writeFile`) and extends perceived hangs without improving recovery.
+- Large pasted attachments can cause provider streams to stall while the model serializes huge `writeFile.content` JSON args. The reliable fix is attachment-aware tool execution (`writeFile` with `attachmentName` / single-attachment fallback), so tools read content from run context instead of re-streaming the full payload through tool-call args.
+- Attachment-aware tool context must include the latest user attachment turn on follow-up messages (e.g. "save it to root"), not only current payload attachments; otherwise `writeFile` cannot resolve `attachmentName` in subsequent turns and silently fails user intent.
+- `TOOL_CALL_END` without result payload should not be treated as an error on normal stream completion; reserve synthetic error results for true timeout/incomplete conditions to avoid false `toolErrors` and misleading failure UX.
+- Project-level trust persistence should use a single config writer that guarantees `.openwaggle/config.toml` exists before writes and performs atomic updates; this prevents first-write approval persistence from failing on missing config files and avoids partial writes during process interruption.
+- Approval continuation state must keep assistant `tool-call` parts (especially `state: "approval-responded"` + `approval.id/approved`) through renderer->main payloads; pre-converting continuations to plain model messages drops this metadata and causes approved tools to no-op on follow-up runs.
+- Approval-pending tool calls should not use fixed unresolved-result grace timeouts; streams must wait indefinitely (until user approval/denial or explicit abort) to match user-driven approval pacing and prevent false timeout terminations.
+
 ### Task: Auto-Convert Long Prompt to Attachment (2026-03-03)
 - React Compiler + React Doctor can flag renderer code as non-optimizable when `try/catch` blocks contain value-branching logic. Rewriting async error handling to `await promise.catch(() => null)` and branching outside `try/catch` preserves behavior and clears the compiler error. [SKILL?]
 - For real progress UI on local file generation in Electron, replacing `fs.writeFile` with chunked `fs.open(...).write(...)` loops plus renderer progress events (`bytesWritten/totalBytes`) provides accurate progress bars without network/upload semantics. [SKILL?]

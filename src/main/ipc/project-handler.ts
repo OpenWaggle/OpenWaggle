@@ -1,4 +1,5 @@
 import { dialog } from 'electron'
+import { setWriteFileTrust } from '../config/project-config'
 import { typedHandle } from './typed-ipc'
 
 export function registerProjectHandlers(): void {
@@ -14,6 +15,16 @@ export function registerProjectHandlers(): void {
 
     return result.filePaths[0] ?? null
   })
+
+  typedHandle(
+    'project-config:set-tool-trust',
+    async (_event, projectPath: string, toolName: 'writeFile', trusted: boolean) => {
+      if (toolName !== 'writeFile') {
+        return
+      }
+      await setWriteFileTrust(projectPath, trusted, 'tool-approval')
+    },
+  )
 
   typedHandle('dialog:confirm', async (_event, message: string, detail?: string) => {
     const result = await dialog.showMessageBox({

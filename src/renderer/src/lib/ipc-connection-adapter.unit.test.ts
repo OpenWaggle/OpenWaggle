@@ -1,6 +1,6 @@
 import type { ConversationId } from '@shared/types/brand'
 import { SupportedModelId, ConversationId as toConversationId } from '@shared/types/brand'
-import type { ModelMessage, StreamChunk } from '@tanstack/ai'
+import type { StreamChunk } from '@tanstack/ai'
 import type { UIMessage } from '@tanstack/ai-react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -275,7 +275,7 @@ describe('createIpcConnectionAdapter', () => {
     )
   })
 
-  it('dedupes duplicate continuation tool-call IDs before sending', async () => {
+  it('preserves approval metadata in continuation message snapshots', async () => {
     apiMock.sendMessage.mockImplementationOnce(async () => {
       emitStreamChunk(conversationId, {
         type: 'RUN_FINISHED',
@@ -326,21 +326,24 @@ describe('createIpcConnectionAdapter', () => {
       // consume
     }
 
-    const sentPayload = apiMock.sendMessage.mock.calls[0]?.[1] as {
-      continuationMessages?: ModelMessage[]
-    }
-    const continuationMessages = sentPayload.continuationMessages ?? []
-
-    const assistantToolCalls = continuationMessages
-      .filter(
-        (
-          message,
-        ): message is ModelMessage & { toolCalls: NonNullable<ModelMessage['toolCalls']> } =>
-          message.role === 'assistant' && Array.isArray(message.toolCalls),
-      )
-      .flatMap((message) => message.toolCalls.map((toolCall) => toolCall.id))
-
-    expect(assistantToolCalls).toContain('tool-dup')
-    expect(new Set(assistantToolCalls).size).toBe(assistantToolCalls.length)
+    const sentPayload = apiMock.sendMessage.mock.calls[0]?.[1]
+    expect(sentPayload).toMatchObject({
+      continuationMessages: expect.arrayContaining([
+        expect.objectContaining({
+          role: 'assistant',
+          parts: expect.arrayContaining([
+            expect.objectContaining({
+              type: 'tool-call',
+              id: 'tool-dup',
+              state: 'approval-responded',
+              approval: expect.objectContaining({
+                id: 'approval_tool-dup',
+                approved: true,
+              }),
+            }),
+          ]),
+        }),
+      ]),
+    })
   })
 })

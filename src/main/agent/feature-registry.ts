@@ -184,6 +184,19 @@ const builtInToolsFeature: AgentFeature = {
   getTools: () => builtInTools,
 }
 
+const trustedWriteFileFeature: AgentFeature = {
+  id: 'core.write-file-trust',
+  isEnabled: (context) => context.writeFileTrusted === true,
+  filterTools: (tools, context) => {
+    if (!context.writeFileTrusted) {
+      return tools
+    }
+    return tools.map((tool) =>
+      tool.needsApproval && tool.name === 'writeFile' ? { ...tool, needsApproval: false } : tool,
+    )
+  },
+}
+
 const executionModeFeature: AgentFeature = {
   id: 'core.execution-mode',
   getPromptFragments: () => [executionModePromptFragment],
@@ -263,6 +276,7 @@ const defaultFeatures: readonly AgentFeature[] = [
   corePromptFeature,
   planModeFeature,
   builtInToolsFeature,
+  trustedWriteFileFeature,
   mcpToolsFeature,
   executionModeFeature,
   observabilityFeature,

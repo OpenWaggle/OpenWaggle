@@ -17,6 +17,7 @@ interface ToolCallBlockProps {
   args: string
   state: string
   result?: { content: unknown; state: string; error?: string }
+  isStreaming?: boolean
 }
 
 const screenshotResultSchema = z.object({
@@ -100,17 +101,29 @@ function getResultError(result: ToolCallBlockProps['result']): string | null {
   return null
 }
 
+function getPendingToolActionText(name: string, args: JsonObject): string {
+  if (typeof args.path === 'string') {
+    return `Requested ${name} ${args.path}`
+  }
+  if (name === 'runCommand' && typeof args.command === 'string') {
+    return `Requested ${name} \`${args.command}\``
+  }
+  return `Requested ${name}`
+}
+
 export function ToolCallBlock({
   name,
   args,
   state,
   result,
+  isStreaming = false,
 }: ToolCallBlockProps): React.JSX.Element {
   const [expanded, setExpanded] = useState(false)
   const awaitingApproval = state === 'approval-requested'
-  const isRunning = !awaitingApproval && (state !== 'input-complete' || !result)
+  const isRunning = !awaitingApproval && isStreaming && (state !== 'input-complete' || !result)
   const resultError = getResultError(result)
   const isError = resultError !== null
+  const awaitingResult = !result && !isRunning && !awaitingApproval
 
   const parsedArgs = parseToolArgs(args)
 
@@ -137,7 +150,9 @@ export function ToolCallBlock({
     }
   }, [isRunning])
 
-  const actionText = getToolActionText(name, parsedArgs, isRunning)
+  const actionText = awaitingResult
+    ? getPendingToolActionText(name, parsedArgs)
+    : getToolActionText(name, parsedArgs, isRunning)
 
   return (
     <div className="group/tool">

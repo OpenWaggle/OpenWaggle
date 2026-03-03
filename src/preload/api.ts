@@ -202,6 +202,10 @@ export const api: OpenWaggleApi = {
     return ipcRenderer.invoke('project:select-folder')
   },
 
+  setProjectToolTrust(projectPath: string, toolName: 'writeFile', trusted: boolean): Promise<void> {
+    return ipcRenderer.invoke('project-config:set-tool-trust', projectPath, toolName, trusted)
+  },
+
   // ─── Conversations ──────────────────────────────────
   listConversations(limit?: number): Promise<ConversationSummary[]> {
     return ipcRenderer.invoke('conversations:list', limit)

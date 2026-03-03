@@ -43,6 +43,7 @@ describe('preload api surface contract', () => {
     'fetchProviderModels',
     // Project
     'selectProjectFolder',
+    'setProjectToolTrust',
     // Conversations
     'listConversations',
     'getConversation',
@@ -75,6 +76,8 @@ describe('preload api surface contract', () => {
     'setGitBranchUpstream',
     // Attachments
     'prepareAttachments',
+    'prepareAttachmentFromText',
+    'onPrepareAttachmentFromTextProgress',
     // Voice
     'transcribeVoiceLocal',
     // Standards & Skills
@@ -147,6 +150,7 @@ describe('preload api surface contract', () => {
       'onAgentPhase',
       'onRunCompleted',
       'onPlanProposal',
+      'onPrepareAttachmentFromTextProgress',
       'onTerminalData',
       'onFullscreenChanged',
       'onOrchestrationEvent',

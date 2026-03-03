@@ -22,6 +22,10 @@ export type SubAgentToolContext = SubAgentContext
 export interface ToolContext {
   conversationId: ConversationId
   projectPath: string
+  attachments?: readonly {
+    readonly name: string
+    readonly extractedText: string
+  }[]
   signal?: AbortSignal
   dynamicSkills?: {
     readonly loadedSkillIds: Set<string>

@@ -23,6 +23,7 @@ export interface AgentRunContext {
   readonly hasProject: boolean
   readonly provider: ProviderDefinition
   readonly providerConfig: ProviderConfig
+  readonly writeFileTrusted?: boolean
   readonly standards?: AgentStandardsContext
   readonly planModeRequested?: boolean
   readonly subAgentContext?: SubAgentRunContext

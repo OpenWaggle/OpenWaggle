@@ -3,15 +3,59 @@ import path from 'node:path'
 import { z } from 'zod'
 import { defineOpenWaggleTool, resolveProjectPath } from '../define-tool'
 
+const MAX_ATTACHMENT_LIST_PREVIEW = 5
+
+const writeFileArgsSchema = z.object({
+  path: z.string().describe('File path relative to the project root'),
+  content: z
+    .string()
+    .optional()
+    .describe('Content to write to the file. Prefer attachmentName for large attachment content.'),
+  attachmentName: z
+    .string()
+    .optional()
+    .describe(
+      'Optional attachment name to write from the current user message (for example "Pasted Text 1.md").',
+    ),
+})
+
+function resolveContentFromAttachment(
+  attachmentName: string | undefined,
+  attachments: readonly { name: string; extractedText: string }[],
+): string {
+  if (attachments.length === 0) {
+    throw new Error('No message attachments are available for writeFile.')
+  }
+
+  if (attachmentName) {
+    const attachment = attachments.find((candidate) => candidate.name === attachmentName)
+    if (!attachment) {
+      const names = attachments
+        .map((candidate) => candidate.name)
+        .slice(0, MAX_ATTACHMENT_LIST_PREVIEW)
+      const suffix = attachments.length > MAX_ATTACHMENT_LIST_PREVIEW ? ', ...' : ''
+      throw new Error(
+        `Attachment "${attachmentName}" not found. Available attachments: ${names.join(', ')}${suffix}`,
+      )
+    }
+    return attachment.extractedText
+  }
+
+  if (attachments.length === 1) {
+    return attachments[0]?.extractedText ?? ''
+  }
+
+  throw new Error(
+    'Multiple attachments are available. Provide attachmentName when calling writeFile without content.',
+  )
+}
+
 export const writeFileTool = defineOpenWaggleTool({
   name: 'writeFile',
   description:
-    "Write content to a file at the given path relative to the project root. Creates the file and any parent directories if they don't exist. Overwrites the file if it already exists.",
+    'Write content to a file at the given path relative to the project root. Creates the file and any parent directories if they do not exist, and overwrites the file if it already exists. For large user attachments, prefer passing attachmentName (or only path when exactly one attachment is present) instead of embedding full text in content.',
   needsApproval: true,
-  inputSchema: z.object({
-    path: z.string().describe('File path relative to the project root'),
-    content: z.string().describe('Content to write to the file'),
-  }),
+  inputSchema: writeFileArgsSchema,
   async execute(args, context) {
     const filePath = resolveProjectPath(context.projectPath, args.path)
     await fs.mkdir(path.dirname(filePath), { recursive: true })
@@ -23,12 +67,15 @@ export const writeFileTool = defineOpenWaggleTool({
       // File doesn't exist yet — before is empty
     }
 
-    await fs.writeFile(filePath, args.content, 'utf-8')
+    const content =
+      args.content ?? resolveContentFromAttachment(args.attachmentName, context.attachments ?? [])
+
+    await fs.writeFile(filePath, content, 'utf-8')
 
     return JSON.stringify({
       message: `File written: ${args.path}`,
       beforeContent,
-      afterContent: args.content,
+      afterContent: content,
     })
   },
 })

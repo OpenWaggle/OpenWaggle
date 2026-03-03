@@ -146,6 +146,22 @@ export const projectConfigSchema = z
         high: qualityTierSchema.optional(),
       })
       .optional(),
+    approvals: z
+      .object({
+        tools: z
+          .object({
+            writeFile: z
+              .object({
+                trusted: z.boolean().optional().catch(undefined),
+                timestamp: z.string().optional().catch(undefined),
+                source: z.string().optional().catch(undefined),
+              })
+              .loose()
+              .optional(),
+          })
+          .optional(),
+      })
+      .optional(),
   })
   .loose()
 

@@ -69,6 +69,7 @@ describe('processAgentStream', () => {
     const result = await processAgentStream(params)
 
     expect(result.timedOut).toBe(false)
+    expect(result.stallReason).toBeNull()
     expect(result.aborted).toBe(false)
     expect(result.runErrorNotified).toBe(false)
     expect(params.onChunk).toHaveBeenCalledTimes(chunks.length)
@@ -88,6 +89,7 @@ describe('processAgentStream', () => {
     const result = await processAgentStream(params)
 
     expect(result.timedOut).toBe(true)
+    expect(result.stallReason).toBe('stream-stall')
     expect(result.aborted).toBe(false)
     expect(params.onChunk).toHaveBeenCalledTimes(1)
   })
@@ -104,6 +106,7 @@ describe('processAgentStream', () => {
 
     expect(result.aborted).toBe(true)
     expect(result.timedOut).toBe(false)
+    expect(result.stallReason).toBeNull()
     expect(params.onChunk).not.toHaveBeenCalled()
   })
 
@@ -122,6 +125,7 @@ describe('processAgentStream', () => {
     const result = await processAgentStream(params)
 
     expect(result.aborted).toBe(true)
+    expect(result.stallReason).toBeNull()
     // Should have processed at least the first chunk
     expect(params.onChunk).toHaveBeenCalledWith(expect.objectContaining({ delta: 'before' }))
   })
@@ -143,6 +147,89 @@ describe('processAgentStream', () => {
     const result = await processAgentStream(params)
 
     expect(result.timedOut).toBe(false)
+    expect(result.stallReason).toBeNull()
     expect(params.onChunk).toHaveBeenCalledTimes(3)
+  })
+
+  it('flags incomplete tool calls as a non-retryable stall reason', async () => {
+    async function* toolCallThenStall(): AsyncIterable<StreamChunk> {
+      yield {
+        type: 'TOOL_CALL_START',
+        timestamp: Date.now(),
+        toolCallId: 'tc-1',
+        toolName: 'writeFile',
+      } as StreamChunk
+      await new Promise(() => {})
+    }
+
+    const FAST_TIMEOUT_MS = 30
+    const params = baseParams(toolCallThenStall(), { stallTimeoutMs: FAST_TIMEOUT_MS })
+
+    const result = await processAgentStream(params)
+
+    expect(result.timedOut).toBe(true)
+    expect(result.stallReason).toBe('incomplete-tool-call')
+    expect(params.onChunk).toHaveBeenCalledTimes(1)
+  })
+
+  it('waits for approval response indefinitely until aborted', async () => {
+    async function* endedWithoutResultThenStall(): AsyncIterable<StreamChunk> {
+      yield {
+        type: 'TOOL_CALL_START',
+        timestamp: Date.now(),
+        toolCallId: 'tc-2',
+        toolName: 'writeFile',
+      } as StreamChunk
+      yield {
+        type: 'TOOL_CALL_END',
+        timestamp: Date.now(),
+        toolCallId: 'tc-2',
+        toolName: 'writeFile',
+      } as StreamChunk
+      await new Promise(() => {})
+    }
+
+    const FAST_ABORT_MS = 20
+    const controller = new AbortController()
+    setTimeout(() => controller.abort(), FAST_ABORT_MS)
+    const params = baseParams(endedWithoutResultThenStall(), {
+      signal: controller.signal,
+      stallTimeoutMs: FAST_ABORT_MS,
+    })
+
+    const result = await processAgentStream(params)
+
+    expect(result.aborted).toBe(true)
+    expect(result.timedOut).toBe(false)
+    expect(result.stallReason).toBeNull()
+  })
+
+  it('removes abort listener after unresolved-tool wait receives a chunk', async () => {
+    async function* unresolvedThenResumes(): AsyncIterable<StreamChunk> {
+      yield {
+        type: 'TOOL_CALL_START',
+        timestamp: Date.now(),
+        toolCallId: 'tc-cleanup',
+        toolName: 'writeFile',
+      } as StreamChunk
+      yield {
+        type: 'TOOL_CALL_END',
+        timestamp: Date.now(),
+        toolCallId: 'tc-cleanup',
+        toolName: 'writeFile',
+      } as StreamChunk
+      yield makeTextChunk('approved-result')
+      yield makeFinishedChunk()
+    }
+
+    const controller = new AbortController()
+    const removeListenerSpy = vi.spyOn(controller.signal, 'removeEventListener')
+    const params = baseParams(unresolvedThenResumes(), { signal: controller.signal })
+
+    const result = await processAgentStream(params)
+
+    expect(result.timedOut).toBe(false)
+    expect(result.aborted).toBe(false)
+    expect(removeListenerSpy).toHaveBeenCalled()
   })
 })

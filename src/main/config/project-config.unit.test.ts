@@ -1,8 +1,14 @@
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { clearConfigCache, loadProjectConfig } from './project-config'
+import {
+  clearConfigCache,
+  ensureProjectConfigFile,
+  loadProjectConfig,
+  setWriteFileTrust,
+  updateProjectConfig,
+} from './project-config'
 
 describe('loadProjectConfig', () => {
   let tmpDir: string
@@ -117,5 +123,56 @@ max_tokens = 5000
 
     const config = await loadProjectConfig(tmpDir)
     expect(config.quality?.high).toEqual({ temperature: 0.8, maxTokens: 5000 })
+  })
+
+  it('creates .openwaggle/config.toml on first trust write when missing', async () => {
+    const isolatedDir = join(tmpDir, 'new-project')
+    mkdirSync(isolatedDir, { recursive: true })
+
+    await setWriteFileTrust(isolatedDir, true, 'test')
+
+    const configPath = join(isolatedDir, '.openwaggle', 'config.toml')
+    expect(existsSync(configPath)).toBe(true)
+    const config = await loadProjectConfig(isolatedDir)
+    expect(config.approvals?.tools?.writeFile?.trusted).toBe(true)
+  })
+
+  it('persists writeFile trust metadata', async () => {
+    await setWriteFileTrust(tmpDir, true, 'tool-approval')
+
+    const config = await loadProjectConfig(tmpDir)
+    expect(config.approvals?.tools?.writeFile?.trusted).toBe(true)
+    expect(config.approvals?.tools?.writeFile?.source).toBe('tool-approval')
+    expect(config.approvals?.tools?.writeFile?.timestamp).toBeDefined()
+  })
+
+  it('fails safely on invalid config parsing during update and does not overwrite file', async () => {
+    const configPath = join(tmpDir, '.openwaggle', 'config.toml')
+    writeFileSync(configPath, '{{invalid toml}}', 'utf-8')
+    const before = readFileSync(configPath, 'utf-8')
+
+    await expect(
+      updateProjectConfig(tmpDir, (current) => ({
+        ...current,
+        approvals: {
+          tools: {
+            writeFile: {
+              trusted: true,
+            },
+          },
+        },
+      })),
+    ).rejects.toThrow()
+
+    const after = readFileSync(configPath, 'utf-8')
+    expect(after).toBe(before)
+  })
+
+  it('ensureProjectConfigFile creates file when missing', async () => {
+    const isolatedDir = join(tmpDir, 'ensure-project')
+    mkdirSync(isolatedDir, { recursive: true })
+
+    const filePath = await ensureProjectConfigFile(isolatedDir)
+    expect(existsSync(filePath)).toBe(true)
   })
 })
