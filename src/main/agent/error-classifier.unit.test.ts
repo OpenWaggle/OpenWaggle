@@ -146,9 +146,18 @@ describe('classifyErrorMessage', () => {
     ['500 Internal Server Error', 'provider-down'],
     ['502 Bad Gateway', 'provider-down'],
     ['503 Service Unavailable', 'provider-down'],
+    ['529 Overloaded', 'provider-down'],
   ])('classifies "%s" as %s', (message, expectedCode) => {
     const info = classifyErrorMessage(message)
     expect(info.code).toBe(expectedCode)
+  })
+
+  it('classifies Anthropic 529 overloaded JSON wrapper as provider-down with clean message', () => {
+    const raw = '529 {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}'
+    const info = classifyErrorMessage(raw)
+    expect(info.code).toBe('provider-down')
+    expect(info.message).toBe('Overloaded')
+    expect(info.userMessage).toBe('Provider is temporarily unavailable')
   })
 
   // ─── Model not found ───────────────────────────────────────────

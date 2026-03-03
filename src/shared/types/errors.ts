@@ -170,11 +170,13 @@ export function classifyErrorMessage(message: string): AgentErrorInfo {
     return makeErrorInfo('rate-limited', displayMessage)
   }
 
-  // Provider server errors
+  // Provider server errors (includes Anthropic 529 overloaded)
   if (
     lower.includes('500') ||
     lower.includes('502') ||
     lower.includes('503') ||
+    lower.includes('529') ||
+    lower.includes('overloaded') ||
     lower.includes('internal server error') ||
     lower.includes('service unavailable') ||
     lower.includes('bad gateway')
