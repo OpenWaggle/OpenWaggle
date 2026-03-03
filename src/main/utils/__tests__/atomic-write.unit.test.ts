@@ -75,8 +75,13 @@ describe('atomicWriteJSON', () => {
     expect(entries).toEqual(['clean.json'])
   })
 
-  it('propagates errors for invalid paths', async () => {
+  it('creates missing parent directories before writing', async () => {
     const filePath = path.join(tmpDir, 'nonexistent', 'nested', 'data.json')
-    await expect(atomicWriteJSON(filePath, { fail: true })).rejects.toThrow()
+    const data = { created: true }
+
+    await atomicWriteJSON(filePath, data)
+
+    const raw = await fsPromises.readFile(filePath, 'utf-8')
+    expect(JSON.parse(raw)).toEqual(data)
   })
 })

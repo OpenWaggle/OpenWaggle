@@ -236,7 +236,12 @@ function parseConversation(raw: string): Conversation | null {
 let cachedConversationsDir: string | null = null
 
 function getConversationsDir(): string {
-  if (cachedConversationsDir !== null) return cachedConversationsDir
+  if (cachedConversationsDir !== null) {
+    if (fs.existsSync(cachedConversationsDir)) {
+      return cachedConversationsDir
+    }
+    cachedConversationsDir = null
+  }
   const dir = path.join(app.getPath('userData'), 'conversations')
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true })

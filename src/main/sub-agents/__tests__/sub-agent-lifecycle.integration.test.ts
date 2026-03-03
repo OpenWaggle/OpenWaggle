@@ -111,7 +111,8 @@ describe('sub-agent lifecycle integration', () => {
     const tasks = listTasks('team')
     expect(tasks).toHaveLength(3)
 
-    // Complete build
+    // Start and complete build
+    updateTask({ teamId: 'team', taskId: build.id, status: 'in_progress' })
     updateTask({ teamId: 'team', taskId: build.id, status: 'completed' })
 
     // Deploy can now proceed
