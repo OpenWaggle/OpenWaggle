@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, Menu, shell } from 'electron'
 import { startDevtoolsEventBus, stopDevtoolsEventBus } from './devtools/event-bus'
 import { env } from './env'
 import { registerAgentHandlers } from './ipc/agent-handler'
@@ -36,6 +36,41 @@ const appIconPath = is.dev
   : join(process.resourcesPath, 'icon.png')
 const logger = createLogger('main/index')
 let ipcHandlersRegistered = false
+
+function buildApplicationMenu(): void {
+  if (process.platform === 'darwin') {
+    Menu.setApplicationMenu(
+      Menu.buildFromTemplate([
+        {
+          label: app.name,
+          submenu: [
+            { role: 'about' },
+            { type: 'separator' },
+            { role: 'hide' },
+            { role: 'hideOthers' },
+            { role: 'unhide' },
+            { type: 'separator' },
+            { role: 'quit' },
+          ],
+        },
+        {
+          label: 'Edit',
+          submenu: [
+            { role: 'undo' },
+            { role: 'redo' },
+            { type: 'separator' },
+            { role: 'cut' },
+            { role: 'copy' },
+            { role: 'paste' },
+            { role: 'selectAll' },
+          ],
+        },
+      ]),
+    )
+  } else {
+    Menu.setApplicationMenu(null)
+  }
+}
 
 function describeError(error: unknown): { message: string; name?: string; stack?: string } {
   if (error instanceof Error) {
@@ -86,17 +121,16 @@ async function bootstrapServicesAndWindow(): Promise<void> {
     )
   }
 
-  try {
-    const settings = getSettings()
-    await mcpManager.initialize(settings.mcpServers)
-  } catch (error) {
+  createWindow()
+
+  // MCP connects in background — not needed for initial render
+  const settings = getSettings()
+  mcpManager.initialize(settings.mcpServers).catch((error: unknown) => {
     logger.error(
       'MCP initialization failed; continuing without MCP connectivity',
       describeError(error),
     )
-  }
-
-  createWindow()
+  })
 }
 
 function isTrustedRendererRequest(url: string): boolean {
@@ -190,12 +224,14 @@ app
       optimizer.watchWindowShortcuts(window)
     })
 
+    buildApplicationMenu()
+
     // Register IPC handlers (these don't need the registry to be populated yet,
     // they just reference it at call-time)
     registerIpcHandlersOnce()
 
     // Initialize file logger now that app paths are available
-    initFileLogger(app.getPath('logs'))
+    void initFileLogger(app.getPath('logs'))
 
     // Late-bind runSubAgent to break spawn-agent → sub-agent-runner cycle
     registerRunSubAgent(runSubAgent)
