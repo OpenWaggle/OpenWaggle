@@ -105,6 +105,14 @@ export const runCommandTool = defineOpenWaggleTool({
   },
 })
 
+let cachedUnixShell: '/bin/bash' | '/bin/sh' | null = null
+
+function getUnixShell(): '/bin/bash' | '/bin/sh' {
+  if (cachedUnixShell !== null) return cachedUnixShell
+  cachedUnixShell = fs.existsSync('/bin/bash') ? '/bin/bash' : '/bin/sh'
+  return cachedUnixShell
+}
+
 function resolveShellInvocation(command: string): { shell: string; shellArgs: string[] } {
   if (os.platform() === 'win32') {
     return {
@@ -113,17 +121,10 @@ function resolveShellInvocation(command: string): { shell: string; shellArgs: st
     }
   }
 
-  if (fs.existsSync('/bin/bash')) {
-    return {
-      shell: '/bin/bash',
-      shellArgs: ['-lc', command],
-    }
-  }
-
-  return {
-    shell: '/bin/sh',
-    shellArgs: ['-c', command],
-  }
+  const shell = getUnixShell()
+  return shell === '/bin/bash'
+    ? { shell, shellArgs: ['-lc', command] }
+    : { shell, shellArgs: ['-c', command] }
 }
 
 interface KilledCommandOutcome {
