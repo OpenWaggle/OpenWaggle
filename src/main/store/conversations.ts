@@ -232,11 +232,15 @@ function parseConversation(raw: string): Conversation | null {
 
 // ── File system operations ──────────────────────────────────────────────────
 
+let cachedConversationsDir: string | null = null
+
 function getConversationsDir(): string {
+  if (cachedConversationsDir !== null) return cachedConversationsDir
   const dir = path.join(app.getPath('userData'), 'conversations')
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true })
   }
+  cachedConversationsDir = dir
   return dir
 }
 

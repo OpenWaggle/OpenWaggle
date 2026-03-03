@@ -22,11 +22,15 @@ const INDEX_FILE = 'index.json'
 const RUN_ID_PATTERN = /^[a-zA-Z0-9_-]{1,128}$/
 let indexUpdateQueue: Promise<void> = Promise.resolve()
 
+let cachedRunsDir: string | null = null
+
 function getRunsDir(): string {
+  if (cachedRunsDir !== null) return cachedRunsDir
   const dir = path.join(app.getPath('userData'), 'orchestration-runs')
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true })
   }
+  cachedRunsDir = dir
   return dir
 }
 
