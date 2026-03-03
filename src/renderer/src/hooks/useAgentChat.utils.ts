@@ -1,4 +1,4 @@
-import type { MessagePart } from '@shared/types/agent'
+import type { AttachmentRecord, MessagePart } from '@shared/types/agent'
 import type { Conversation } from '@shared/types/conversation'
 import { chooseBy } from '@shared/utils/decision'
 import type { StreamChunk } from '@tanstack/ai'
@@ -8,16 +8,21 @@ import type { UIMessage } from '@tanstack/ai-react'
 
 const MAX_ATTACHMENT_PREVIEW_CHARS = 320
 
-export function formatAttachmentPreview(name: string, extractedText: string): string {
-  const preview = extractedText.trim()
+export function formatAttachmentPreview(
+  attachment: Pick<AttachmentRecord, 'name' | 'extractedText' | 'origin'>,
+): string {
+  if (attachment.origin === 'auto-paste-text') {
+    return `[Attachment] ${attachment.name}`
+  }
+  const preview = attachment.extractedText.trim()
   if (!preview) {
-    return `[Attachment] ${name}`
+    return `[Attachment] ${attachment.name}`
   }
   const clipped =
     preview.length > MAX_ATTACHMENT_PREVIEW_CHARS
       ? `${preview.slice(0, MAX_ATTACHMENT_PREVIEW_CHARS)}...`
       : preview
-  return `[Attachment] ${name}\n${clipped}`
+  return `[Attachment] ${attachment.name}\n${clipped}`
 }
 
 /**
@@ -48,7 +53,7 @@ export function messagePartToUIParts(part: MessagePart): UIMessage['parts'] {
     .case('attachment', (value): UIMessage['parts'] => [
       {
         type: 'text',
-        content: formatAttachmentPreview(value.attachment.name, value.attachment.extractedText),
+        content: formatAttachmentPreview(value.attachment),
       },
     ])
     .case('reasoning', (): UIMessage['parts'] => [])

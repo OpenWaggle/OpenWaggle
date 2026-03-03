@@ -243,7 +243,7 @@ function buildClientUserMessage(payload: AgentSendPayload): string {
     chunks.push(text)
   }
   for (const attachment of payload.attachments) {
-    chunks.push(formatAttachmentPreview(attachment.name, attachment.extractedText))
+    chunks.push(formatAttachmentPreview(attachment))
   }
   return chunks.join('\n\n')
 }
