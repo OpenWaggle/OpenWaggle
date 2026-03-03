@@ -1,8 +1,6 @@
-import fs from 'node:fs'
-import { jsonObjectSchema } from '@shared/schemas/validation'
+import { existsSync, readFileSync } from 'node:fs'
 import { AUTH_METHODS } from '@shared/types/auth'
 import { SupportedModelId } from '@shared/types/brand'
-import type { JsonObject } from '@shared/types/json'
 import type { McpServerConfig } from '@shared/types/mcp'
 import { mcpServerConfigSchema } from '@shared/types/mcp'
 import {
@@ -348,18 +346,17 @@ function sanitizeSkillTogglesByProject(
   return sanitized
 }
 
-function readPersistedSettings(): JsonObject | null {
-  try {
-    if (!fs.existsSync(store.path)) return null
-    const raw = fs.readFileSync(store.path, 'utf-8').trim()
-    if (!raw) return null
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
 
+function readPersistedSettings(): Record<string, unknown> | null {
+  try {
+    if (!existsSync(store.path)) return null
+    const raw = readFileSync(store.path, 'utf-8').trim()
+    if (!raw) return null
     const parsed: unknown = JSON.parse(raw)
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return null
-    }
-    const result = jsonObjectSchema.safeParse(parsed)
-    return result.success ? result.data : null
+    return isPlainObject(parsed) ? parsed : null
   } catch {
     return null
   }
