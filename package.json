@@ -16,18 +16,22 @@
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
     "typecheck": "pnpm typecheck:node && pnpm typecheck:web",
     "test": "pnpm test:unit && pnpm test:integration && pnpm test:component",
+    "test:all": "pnpm test && pnpm test:e2e:headless",
     "test:unit": "vitest run -c vitest.unit.config.ts",
     "test:component": "vitest run -c vitest.component.config.ts",
     "test:integration": "vitest run -c vitest.integration.config.ts",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "pnpm build && playwright test",
+    "test:e2e": "pnpm test:e2e:headless",
+    "test:e2e:headless": "pnpm build && playwright test",
     "lint": "biome check src/",
     "lint:fix": "biome check --write src/",
     "format": "biome format --write src/",
     "check:pattern-style": "tsx scripts/check-pattern-style.ts",
     "check:decision-size": "tsx scripts/check-decision-size.ts",
     "check:magic-numbers": "tsx scripts/check-magic-numbers.ts",
-    "check": "pnpm typecheck && pnpm lint && pnpm check:pattern-style && pnpm check:decision-size && pnpm check:magic-numbers"
+    "check": "pnpm typecheck && pnpm lint && pnpm check:pattern-style && pnpm check:decision-size && pnpm check:magic-numbers",
+    "prepush:main": "pnpm check && pnpm format && pnpm test:all",
+    "prepare": "husky"
   },
   "packageManager": "pnpm@10.28.1",
   "pnpm": {
@@ -75,7 +79,6 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
-    "playwright": "^1.58.2",
     "@biomejs/biome": "^2.4.2",
     "@playwright/test": "^1.58.2",
     "@tailwindcss/vite": "^4.1.18",
@@ -95,10 +98,12 @@
     "electron": "^40.4.1",
     "electron-builder": "^26.7.0",
     "electron-vite": "^5.0.0",
+    "husky": "^9.1.7",
     "jsdom": "^28.1.0",
+    "playwright": "^1.58.2",
     "tailwindcss": "^4.1.18",
-    "typescript": "^5.9.3",
     "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
     "vite": "7.3.1",
     "vitest": "^4.0.18"
   }

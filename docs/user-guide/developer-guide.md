@@ -53,11 +53,23 @@ pnpm build:linux  # Linux AppImage (x64)
 | `pnpm format` | Biome format |
 | `pnpm check` | typecheck + lint combined |
 | `pnpm test` | All tests (unit + integration + component) |
+| `pnpm test:all` | All tests including headless e2e |
 | `pnpm test:unit` | Unit tests only (`*.unit.test.ts`) |
 | `pnpm test:integration` | Integration tests only (`*.integration.test.ts`) |
 | `pnpm test:component` | Component tests only (`*.component.test.tsx`) |
-| `pnpm test:e2e` | Playwright E2E tests (requires `pnpm build` first) |
+| `pnpm test:e2e` | Playwright E2E tests (headless, requires `pnpm build` first) |
 | `pnpm test:coverage` | Coverage report (v8 provider) |
+| `pnpm prepush:main` | Quality gate used by the pre-push hook when pushing `main` |
+
+## Git Hooks
+
+Husky manages a `pre-push` hook that runs only when the push includes `refs/heads/main`.
+
+The hook runs:
+
+- `pnpm check`
+- `pnpm format`
+- `pnpm test:all`
 
 ## Architecture
 
@@ -206,10 +218,11 @@ Default features: core prompt, core tools, execution mode, standards/skills, MCP
 
 ```bash
 pnpm test             # All tests
+pnpm test:all         # All tests including headless E2E
 pnpm test:unit        # Unit tests only
 pnpm test:integration # Integration tests only
 pnpm test:component   # Component tests only
-pnpm test:e2e         # Playwright E2E (requires build)
+pnpm test:e2e         # Playwright E2E (headless, requires build)
 pnpm test:coverage    # Coverage report
 ```
 

@@ -1,0 +1,17 @@
+MAIN_BRANCH_REF='refs/heads/main'
+IS_MAIN_PUSH=0
+
+while IFS=' ' read -r _local_ref _local_oid remote_ref _remote_oid; do
+  if [ "$remote_ref" = "$MAIN_BRANCH_REF" ]; then
+    IS_MAIN_PUSH=1
+    break
+  fi
+done
+
+if [ "$IS_MAIN_PUSH" -eq 0 ]; then
+  echo 'pre-push: skipping quality gates (no push target for main).'
+  exit 0
+fi
+
+echo 'pre-push: running quality gates for pushes to main.'
+pnpm prepush:main
