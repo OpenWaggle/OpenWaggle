@@ -5,6 +5,12 @@ const {
   statMock,
   readFileMock,
   realpathMock,
+  mkdirMock,
+  openMock,
+  readdirMock,
+  unlinkMock,
+  appGetPathMock,
+  broadcastToWindowsMock,
   unpdfExtractTextMock,
   ocrRecognizeMock,
   mammothExtractMock,
@@ -16,12 +22,18 @@ const {
   statMock: vi.fn(),
   readFileMock: vi.fn(),
   realpathMock: vi.fn(),
+  mkdirMock: vi.fn(),
+  openMock: vi.fn(),
+  readdirMock: vi.fn(),
+  unlinkMock: vi.fn(),
+  appGetPathMock: vi.fn(),
+  broadcastToWindowsMock: vi.fn(),
   unpdfExtractTextMock: vi.fn(),
   ocrRecognizeMock: vi.fn(),
   mammothExtractMock: vi.fn(),
   jszipLoadAsyncMock: vi.fn(),
   showMessageBoxMock: vi.fn(),
-  files: new Map<string, { size: number; content: Buffer; isFile: boolean }>(),
+  files: new Map<string, { size: number; content: Buffer; isFile: boolean; mtimeMs: number }>(),
 }))
 
 vi.mock('./typed-ipc', () => ({
@@ -33,13 +45,28 @@ vi.mock('node:fs/promises', () => ({
     stat: statMock,
     readFile: readFileMock,
     realpath: realpathMock,
+    mkdir: mkdirMock,
+    open: openMock,
+    readdir: readdirMock,
+    unlink: unlinkMock,
   },
   stat: statMock,
   readFile: readFileMock,
   realpath: realpathMock,
+  mkdir: mkdirMock,
+  open: openMock,
+  readdir: readdirMock,
+  unlink: unlinkMock,
+}))
+
+vi.mock('../utils/broadcast', () => ({
+  broadcastToWindows: broadcastToWindowsMock,
 }))
 
 vi.mock('electron', () => ({
+  app: {
+    getPath: appGetPathMock,
+  },
   dialog: {
     showMessageBox: showMessageBoxMock,
   },
@@ -70,12 +97,18 @@ function registeredHandler(name: string): ((...args: unknown[]) => Promise<unkno
   return call?.[1] as ((...args: unknown[]) => Promise<unknown>) | undefined
 }
 
-function registerFile(path: string, content: string | Buffer, size?: number): void {
+function registerFile(
+  path: string,
+  content: string | Buffer,
+  size?: number,
+  mtimeMs = Date.now(),
+): void {
   const buffer = typeof content === 'string' ? Buffer.from(content, 'utf8') : content
   files.set(path, {
     size: size ?? buffer.length,
     content: buffer,
     isFile: true,
+    mtimeMs,
   })
 }
 
@@ -85,6 +118,12 @@ describe('registerAttachmentHandlers', () => {
     statMock.mockReset()
     readFileMock.mockReset()
     realpathMock.mockReset()
+    mkdirMock.mockReset()
+    openMock.mockReset()
+    readdirMock.mockReset()
+    unlinkMock.mockReset()
+    appGetPathMock.mockReset()
+    broadcastToWindowsMock.mockReset()
     unpdfExtractTextMock.mockReset()
     ocrRecognizeMock.mockReset()
     mammothExtractMock.mockReset()
@@ -100,6 +139,7 @@ describe('registerAttachmentHandlers', () => {
       return {
         size: file.size,
         isFile: () => file.isFile,
+        mtimeMs: file.mtimeMs,
       }
     })
 
@@ -117,6 +157,31 @@ describe('registerAttachmentHandlers', () => {
       if (file) return filePath
       throw new Error(`ENOENT: ${filePath}`)
     })
+    mkdirMock.mockResolvedValue(undefined)
+    openMock.mockImplementation(async (filePath: string) => {
+      let output = Buffer.alloc(0)
+      return {
+        write: async (buffer: Buffer, offset: number, length: number, position: number) => {
+          const chunk = Buffer.from(buffer.subarray(offset, offset + length))
+          const requiredBytes = position + chunk.length
+          if (output.length < requiredBytes) {
+            const grown = Buffer.alloc(requiredBytes)
+            output.copy(grown)
+            output = grown
+          }
+          chunk.copy(output, position)
+          return { bytesWritten: chunk.length, buffer: chunk }
+        },
+        close: async () => {
+          registerFile(filePath, Buffer.from(output))
+        },
+      }
+    })
+    readdirMock.mockResolvedValue([])
+    unlinkMock.mockImplementation(async (filePath: string) => {
+      files.delete(filePath)
+    })
+    appGetPathMock.mockReturnValue('/tmp/user-data')
 
     unpdfExtractTextMock.mockResolvedValue({ text: 'Extracted PDF text' })
     ocrRecognizeMock.mockResolvedValue({ data: { text: 'OCR extracted text' } })
@@ -147,6 +212,7 @@ describe('registerAttachmentHandlers', () => {
     expect(result).toHaveLength(1)
     expect(result[0]).toMatchObject({
       kind: 'text',
+      origin: 'user-file',
       extractedText: 'Hello from notes',
     })
     expect(result[0]).not.toHaveProperty('source')
@@ -358,5 +424,56 @@ describe('registerAttachmentHandlers', () => {
       kind: 'text',
       source: null,
     })
+  })
+
+  describe('attachments:prepare-from-text', () => {
+    it('preserves full long text without truncation and returns markdown metadata', async () => {
+      registerAttachmentHandlers()
+      const handler = registeredHandler('attachments:prepare-from-text')
+      expect(handler).toBeDefined()
+
+      const longText = 'x'.repeat(50_000)
+      const result = await handler?.({}, longText, 'operation-1')
+
+      expect(result).toMatchObject({
+        kind: 'text',
+        origin: 'auto-paste-text',
+        mimeType: 'text/markdown',
+        extractedText: longText,
+      })
+      expect(result).toEqual(
+        expect.objectContaining({
+          name: expect.stringMatching(/^prompt-\d+\.md$/),
+        }),
+      )
+      expect(openMock).toHaveBeenCalledOnce()
+      const progressCalls = broadcastToWindowsMock.mock.calls.filter(
+        (call: unknown[]) => call[0] === 'attachments:prepare-from-text-progress',
+      )
+      expect(progressCalls.length).toBeGreaterThan(1)
+      const lastProgressCall = progressCalls[progressCalls.length - 1]
+      expect(lastProgressCall?.[1]).toMatchObject({
+        operationId: 'operation-1',
+        stage: 'completed',
+        progressPercent: 100,
+      })
+    })
+
+    it('rejects empty text input', async () => {
+      registerAttachmentHandlers()
+      const handler = registeredHandler('attachments:prepare-from-text')
+
+      await expect(handler?.({}, '', 'operation-2')).rejects.toThrow()
+    })
+  })
+
+  it('runs cleanup on registration and ignores cleanup errors', async () => {
+    readdirMock.mockRejectedValueOnce(new Error('cleanup failed'))
+
+    registerAttachmentHandlers()
+    await Promise.resolve()
+
+    expect(registeredHandler('attachments:prepare')).toBeDefined()
+    expect(registeredHandler('attachments:prepare-from-text')).toBeDefined()
   })
 })

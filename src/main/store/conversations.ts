@@ -45,6 +45,7 @@ const messagePartSchema = z.union([
     attachment: z.object({
       id: z.string(),
       kind: z.enum(['text', 'image', 'pdf']),
+      origin: z.enum(['user-file', 'auto-paste-text']).optional(),
       name: z.string(),
       path: z.string(),
       mimeType: z.string(),

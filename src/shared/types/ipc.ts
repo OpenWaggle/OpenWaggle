@@ -173,6 +173,10 @@ export interface IpcInvokeChannelMap {
     args: [projectPath: string, paths: string[]]
     return: PreparedAttachment[]
   }
+  'attachments:prepare-from-text': {
+    args: [text: string, operationId: string]
+    return: PreparedAttachment
+  }
   'agent:answer-question': {
     args: [conversationId: ConversationId, answers: QuestionAnswer[]]
     return: undefined
@@ -364,6 +368,15 @@ interface IpcEventChannelMap {
   'agent:context-injected': {
     payload: { conversationId: ConversationId; text: string; timestamp: number }
   }
+  'attachments:prepare-from-text-progress': {
+    payload: {
+      operationId: string
+      bytesWritten: number
+      totalBytes: number
+      progressPercent: number
+      stage: 'writing' | 'completed'
+    }
+  }
   'sub-agent:event': {
     payload: SubAgentEventPayload
   }
@@ -498,6 +511,10 @@ export interface OpenWaggleApi {
 
   // Attachments
   prepareAttachments(projectPath: string, paths: string[]): Promise<PreparedAttachment[]>
+  prepareAttachmentFromText(text: string, operationId: string): Promise<PreparedAttachment>
+  onPrepareAttachmentFromTextProgress(
+    callback: (payload: IpcEventPayload<'attachments:prepare-from-text-progress'>) => void,
+  ): () => void
 
   // Voice
   transcribeVoiceLocal(payload: VoiceTranscriptionRequest): Promise<VoiceTranscriptionResult>

@@ -1,7 +1,9 @@
+import path from 'node:path'
 import type { PreparedAttachment } from '@shared/types/agent'
 import type { Settings } from '@shared/types/settings'
 import type { SkillActivationResult, SkillDiscoveryItem } from '@shared/types/standards'
 import { inferAgentsCandidatePaths } from '@shared/utils/agents-path-inference'
+import { isPathInside } from '@shared/utils/paths'
 import { activateSkillsFromText } from '../skills/skill-activation'
 import {
   type LoadedSkillCatalog,
@@ -68,9 +70,12 @@ export async function loadAgentStandardsContext(
   }
 
   const warnings: string[] = []
+  const attachmentPathsInsideProject = attachments
+    .map((attachment) => path.resolve(attachment.path))
+    .filter((attachmentPath) => isPathInside(projectPath, attachmentPath))
   const candidatePaths = inferAgentsCandidatePaths({
     text: userText,
-    attachmentPaths: attachments.map((attachment) => attachment.path),
+    attachmentPaths: attachmentPathsInsideProject,
   })
   const agentsResolution = await resolveAgentsForRun(projectPath, candidatePaths)
   warnings.push(...agentsResolution.warnings)

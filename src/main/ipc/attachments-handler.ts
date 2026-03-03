@@ -1,12 +1,20 @@
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { BYTES_PER_KIBIBYTE } from '@shared/constants/constants'
+import {
+  BYTES_PER_KIBIBYTE,
+  HOURS_PER_DAY,
+  MILLISECONDS_PER_SECOND,
+  PERCENT_BASE,
+  SECONDS_PER_MINUTE,
+} from '@shared/constants/constants'
 import type { HydratedAttachment, PreparedAttachment } from '@shared/types/agent'
 import { choose } from '@shared/utils/decision'
 import { isPathInside } from '@shared/utils/paths'
-import { dialog } from 'electron'
+import { app, dialog } from 'electron'
 import { z } from 'zod'
+import { createLogger } from '../logger'
+import { broadcastToWindows } from '../utils/broadcast'
 import { safeHandle } from './typed-ipc'
 
 const MODULE_VALUE_8 = 8
@@ -15,18 +23,134 @@ const SLICE_ARG_1 = 2
 const PARSE_INT_ARG_2 = 16
 const PARSE_INT_ARG_2_VALUE_10 = 10
 
+const logger = createLogger('ipc/attachments')
+
 const MAX_ATTACHMENTS = 5
 const MAX_ATTACHMENT_SIZE_BYTES = MODULE_VALUE_8 * BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE
 const MAX_TOTAL_SIZE_BYTES = MODULE_VALUE_20 * BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE
 const MAX_EXTRACTED_TEXT_CHARS = 12_000
+const MILLISECONDS_PER_HOUR = SECONDS_PER_MINUTE * SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND
+const TEMP_ATTACHMENT_RETENTION_MS = HOURS_PER_DAY * MILLISECONDS_PER_HOUR
+const TEMP_ATTACHMENTS_DIRECTORY_NAME = 'temp-attachments'
+const TEMP_PROMPT_FILENAME_PREFIX = 'prompt-'
+const TEMP_PROMPT_FILENAME_EXTENSION = '.md'
+const TEMP_PROMPT_MIME_TYPE = 'text/markdown'
+const TEMP_TEXT_ATTACHMENT_WRITE_CHUNK_BYTES = 32 * BYTES_PER_KIBIBYTE
 const DOCX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 const RTF_MIME_TYPE = 'application/rtf'
 const ODT_MIME_TYPE = 'application/vnd.oasis.opendocument.text'
+const TEMP_PROMPT_FILENAME_PATTERN = /^prompt-\d+\.md$/
 
 const prepareArgsSchema = z.object({
   projectPath: z.string().min(1),
   paths: z.array(z.string()).max(MAX_ATTACHMENTS),
 })
+const prepareFromTextArgsSchema = z.object({
+  text: z.string().min(1),
+  operationId: z.string().min(1),
+})
+
+function buildTempPromptFilename(timestamp: number): string {
+  return `${TEMP_PROMPT_FILENAME_PREFIX}${String(timestamp)}${TEMP_PROMPT_FILENAME_EXTENSION}`
+}
+
+function describeUnknownError(error: unknown): { message: string } {
+  if (error instanceof Error) {
+    return { message: error.message }
+  }
+
+  return { message: String(error) }
+}
+
+async function ensureTempAttachmentsDirectory(): Promise<string> {
+  const tempAttachmentsDir = path.join(app.getPath('userData'), TEMP_ATTACHMENTS_DIRECTORY_NAME)
+  await fs.mkdir(tempAttachmentsDir, { recursive: true })
+  return tempAttachmentsDir
+}
+
+async function cleanupTempAttachments(): Promise<void> {
+  const tempAttachmentsDir = await ensureTempAttachmentsDirectory()
+  const entries = await fs.readdir(tempAttachmentsDir)
+  if (entries.length === 0) return
+
+  const staleBefore = Date.now() - TEMP_ATTACHMENT_RETENTION_MS
+  for (const entry of entries) {
+    if (!TEMP_PROMPT_FILENAME_PATTERN.test(entry)) continue
+
+    const filePath = path.join(tempAttachmentsDir, entry)
+    try {
+      const stats = await fs.stat(filePath)
+      if (!stats.isFile()) continue
+      if (stats.mtimeMs >= staleBefore) continue
+      await fs.unlink(filePath)
+    } catch (error) {
+      logger.warn(
+        `Failed to clean up stale prompt attachment: ${entry}`,
+        describeUnknownError(error),
+      )
+    }
+  }
+}
+
+function emitPrepareFromTextProgress(payload: {
+  operationId: string
+  bytesWritten: number
+  totalBytes: number
+  progressPercent: number
+  stage: 'writing' | 'completed'
+}): void {
+  broadcastToWindows('attachments:prepare-from-text-progress', payload)
+}
+
+function toProgressPercent(bytesWritten: number, totalBytes: number): number {
+  if (totalBytes <= 0) return PERCENT_BASE
+  const percent = Math.round((bytesWritten / totalBytes) * PERCENT_BASE)
+  return Math.max(0, Math.min(PERCENT_BASE, percent))
+}
+
+async function writePromptTextFileWithProgress(
+  filePath: string,
+  text: string,
+  operationId: string,
+): Promise<void> {
+  const encodedText = Buffer.from(text, 'utf8')
+  const totalBytes = encodedText.byteLength
+  let bytesWritten = 0
+  const fileHandle = await fs.open(filePath, 'w')
+  emitPrepareFromTextProgress({
+    operationId,
+    bytesWritten,
+    totalBytes,
+    progressPercent: toProgressPercent(bytesWritten, totalBytes),
+    stage: 'writing',
+  })
+
+  try {
+    while (bytesWritten < totalBytes) {
+      const remainingBytes = totalBytes - bytesWritten
+      const chunkBytes = Math.min(TEMP_TEXT_ATTACHMENT_WRITE_CHUNK_BYTES, remainingBytes)
+      const result = await fileHandle.write(encodedText, bytesWritten, chunkBytes, bytesWritten)
+      bytesWritten += result.bytesWritten
+      emitPrepareFromTextProgress({
+        operationId,
+        bytesWritten,
+        totalBytes,
+        progressPercent: toProgressPercent(bytesWritten, totalBytes),
+        stage: 'writing',
+      })
+    }
+  } finally {
+    await fileHandle.close()
+  }
+
+  emitPrepareFromTextProgress({
+    operationId,
+    bytesWritten: totalBytes,
+    totalBytes,
+    progressPercent: PERCENT_BASE,
+    stage: 'completed',
+  })
+}
 
 function resolveAttachmentKind(mimeType: string): PreparedAttachment['kind'] {
   if (mimeType === 'application/pdf') return 'pdf'
@@ -215,6 +339,7 @@ async function prepareAttachment(filePath: string): Promise<PreparedAttachment> 
   return {
     id: randomUUID(),
     kind,
+    origin: 'user-file',
     name: path.basename(filePath),
     path: filePath,
     mimeType,
@@ -262,6 +387,10 @@ export async function hydrateAttachmentSources(
 }
 
 export function registerAttachmentHandlers(): void {
+  void cleanupTempAttachments().catch((error: unknown) => {
+    logger.warn('Temp prompt attachment cleanup failed during startup', describeUnknownError(error))
+  })
+
   safeHandle('attachments:prepare', async (_event, rawProjectPath: unknown, rawPaths: unknown) => {
     const { projectPath, paths } = prepareArgsSchema.parse({
       projectPath: rawProjectPath,
@@ -313,4 +442,34 @@ export function registerAttachmentHandlers(): void {
     }
     return prepared
   })
+
+  safeHandle(
+    'attachments:prepare-from-text',
+    async (_event, rawText: unknown, rawOperationId: unknown) => {
+      const { text, operationId } = prepareFromTextArgsSchema.parse({
+        text: rawText,
+        operationId: rawOperationId,
+      })
+      const tempAttachmentsDir = await ensureTempAttachmentsDirectory()
+      const fileName = buildTempPromptFilename(Date.now())
+      const filePath = path.join(tempAttachmentsDir, fileName)
+
+      await writePromptTextFileWithProgress(filePath, text, operationId)
+      const stats = await fs.stat(filePath)
+      if (!stats.isFile()) {
+        throw new Error(`Temporary prompt attachment is not a file: ${fileName}`)
+      }
+
+      return {
+        id: randomUUID(),
+        kind: 'text',
+        origin: 'auto-paste-text',
+        name: fileName,
+        path: filePath,
+        mimeType: TEMP_PROMPT_MIME_TYPE,
+        sizeBytes: stats.size,
+        extractedText: text,
+      }
+    },
+  )
 }

@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import type { PreparedAttachment } from '@shared/types/agent'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { afterEach, describe, expect, it } from 'vitest'
 import { loadAgentStandardsContext } from './standards-context'
@@ -95,5 +96,40 @@ describe('loadAgentStandardsContext', () => {
     expect(context.agentsScopedInstructions.map((scope) => scope.scopeRelativeDir)).toEqual([
       'packages/a',
     ])
+  })
+
+  it('ignores temp attachments outside project when resolving AGENTS scopes', async () => {
+    const projectPath = await makeTempProject()
+    await fs.mkdir(path.join(projectPath, 'packages', 'a', 'src'), { recursive: true })
+    await fs.writeFile(path.join(projectPath, 'AGENTS.md'), '# root rules', 'utf8')
+    await fs.writeFile(
+      path.join(projectPath, 'packages', 'a', 'AGENTS.md'),
+      '# package-a rules',
+      'utf8',
+    )
+
+    const outsideAttachment: PreparedAttachment = {
+      id: 'outside-attachment',
+      kind: 'text',
+      name: 'prompt-123.md',
+      path: path.join(os.tmpdir(), 'openwaggle-temp-attachments', 'prompt-123.md'),
+      mimeType: 'text/markdown',
+      sizeBytes: 10,
+      extractedText: 'hello',
+    }
+
+    const context = await loadAgentStandardsContext(
+      projectPath,
+      'Please edit packages/a/src/index.ts',
+      DEFAULT_SETTINGS,
+      [outsideAttachment],
+    )
+
+    expect(context.agentsScopedInstructions.map((scope) => scope.scopeRelativeDir)).toEqual([
+      'packages/a',
+    ])
+    expect(
+      context.warnings.some((warning) => warning.includes('Failed to resolve AGENTS scope')),
+    ).toBe(false)
   })
 })

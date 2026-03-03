@@ -17,10 +17,12 @@ export interface TextPart {
 }
 
 export type AttachmentKind = 'text' | 'image' | 'pdf'
+export type AttachmentOrigin = 'user-file' | 'auto-paste-text'
 
 export interface AttachmentRecord {
   readonly id: string
   readonly kind: AttachmentKind
+  readonly origin?: AttachmentOrigin
   readonly name: string
   readonly path: string
   readonly mimeType: string

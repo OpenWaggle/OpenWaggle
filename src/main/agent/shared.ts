@@ -58,6 +58,7 @@ export function buildPersistedUserMessageParts(payload: AgentSendPayload): Messa
     const persisted: PreparedAttachment = {
       id: attachment.id,
       kind: attachment.kind,
+      origin: attachment.origin,
       name: attachment.name,
       path: attachment.path,
       mimeType: attachment.mimeType,

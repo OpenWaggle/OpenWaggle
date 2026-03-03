@@ -45,6 +45,12 @@ import type {
 import type { StreamChunk } from '@tanstack/ai'
 import { ipcRenderer } from 'electron'
 
+type PrepareAttachmentFromTextProgressPayload = Parameters<
+  OpenWaggleApi['onPrepareAttachmentFromTextProgress']
+>[0] extends (payload: infer T) => void
+  ? T
+  : never
+
 /**
  * Typed API exposed to the renderer via contextBridge.
  * Every method maps to a specific IPC channel with strict types.
@@ -331,6 +337,23 @@ export const api: OpenWaggleApi = {
 
   prepareAttachments(projectPath: string, paths: string[]): Promise<PreparedAttachment[]> {
     return ipcRenderer.invoke('attachments:prepare', projectPath, paths)
+  },
+
+  prepareAttachmentFromText(text: string, operationId: string): Promise<PreparedAttachment> {
+    return ipcRenderer.invoke('attachments:prepare-from-text', text, operationId)
+  },
+
+  onPrepareAttachmentFromTextProgress(
+    callback: (payload: PrepareAttachmentFromTextProgressPayload) => void,
+  ): () => void {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      payload: PrepareAttachmentFromTextProgressPayload,
+    ): void => {
+      callback(payload)
+    }
+    ipcRenderer.on('attachments:prepare-from-text-progress', handler)
+    return () => ipcRenderer.removeListener('attachments:prepare-from-text-progress', handler)
   },
 
   transcribeVoiceLocal(payload: VoiceTranscriptionRequest): Promise<VoiceTranscriptionResult> {
