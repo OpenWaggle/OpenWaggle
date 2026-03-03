@@ -80,7 +80,14 @@ export interface ChatPanelSections {
 }
 
 function resolveLastUserMessage(messages: UIMessage[]): string | null {
-  const lastUserMessage = [...messages].reverse().find((message) => message.role === 'user')
+  let lastUserMessage: UIMessage | undefined
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i]
+    if (message && message.role === 'user') {
+      lastUserMessage = message
+      break
+    }
+  }
   if (!lastUserMessage) {
     return null
   }

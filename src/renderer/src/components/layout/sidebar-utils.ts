@@ -41,18 +41,22 @@ export function sortConversationGroups(groups: ProjectGroup[], mode: SortMode): 
   const sorted = [...groups]
   choose(mode)
     .case('recent', () => {
-      sorted.sort((a, b) => {
-        const aMax = Math.max(...a.conversations.map((c) => c.updatedAt))
-        const bMax = Math.max(...b.conversations.map((c) => c.updatedAt))
-        return bMax - aMax
-      })
+      const maxUpdated = new Map<ProjectGroup, number>()
+      for (const g of sorted) {
+        let max = -Infinity
+        for (const c of g.conversations) if (c.updatedAt > max) max = c.updatedAt
+        maxUpdated.set(g, max)
+      }
+      sorted.sort((a, b) => (maxUpdated.get(b) ?? 0) - (maxUpdated.get(a) ?? 0))
     })
     .case('oldest', () => {
-      sorted.sort((a, b) => {
-        const aMin = Math.min(...a.conversations.map((c) => c.createdAt))
-        const bMin = Math.min(...b.conversations.map((c) => c.createdAt))
-        return aMin - bMin
-      })
+      const minCreated = new Map<ProjectGroup, number>()
+      for (const g of sorted) {
+        let min = Infinity
+        for (const c of g.conversations) if (c.createdAt < min) min = c.createdAt
+        minCreated.set(g, min)
+      }
+      sorted.sort((a, b) => (minCreated.get(a) ?? 0) - (minCreated.get(b) ?? 0))
     })
     .case('name', () => {
       sorted.sort((a, b) => a.displayName.localeCompare(b.displayName))
