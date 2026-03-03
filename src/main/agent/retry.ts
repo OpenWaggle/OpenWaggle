@@ -5,6 +5,7 @@ const DELAY_MS = 1000
 const IS_TRANSIENT_ERROR_VALUE_429 = 429
 const IS_TRANSIENT_ERROR_VALUE_502 = 502
 const IS_TRANSIENT_ERROR_VALUE_503 = 503
+const IS_TRANSIENT_ERROR_VALUE_529 = 529
 
 const logger = createLogger('retry')
 
@@ -28,8 +29,8 @@ function getErrorStatus(error: Error): number | undefined {
 
 /**
  * Returns true for errors that are likely transient and worth retrying.
- * Only retries on network errors, rate limits (429), and service unavailable (502/503).
- * Auth errors (401, 403) are never retried.
+ * Retries on network errors, rate limits (429), service unavailable (502/503),
+ * and overloaded (529). Auth errors (401, 403) are never retried.
  */
 function isTransientError(error: unknown): boolean {
   if (!(error instanceof Error)) return false
@@ -39,7 +40,8 @@ function isTransientError(error: unknown): boolean {
   if (
     status === IS_TRANSIENT_ERROR_VALUE_429 ||
     status === IS_TRANSIENT_ERROR_VALUE_502 ||
-    status === IS_TRANSIENT_ERROR_VALUE_503
+    status === IS_TRANSIENT_ERROR_VALUE_503 ||
+    status === IS_TRANSIENT_ERROR_VALUE_529
   )
     return true
   if (status !== undefined) return false // Known HTTP status, not transient
@@ -61,6 +63,7 @@ function isTransientError(error: unknown): boolean {
   if (message.includes('rate limit')) return true
   if (message.includes('service unavailable')) return true
   if (message.includes('bad gateway')) return true
+  if (message.includes('overloaded')) return true
 
   return false
 }

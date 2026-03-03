@@ -20,6 +20,11 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Task: Stream Stall Detection & Auto-Recovery (2026-03-03)
+- `for await (const chunk of stream)` on an `AsyncIterable<StreamChunk>` blocks indefinitely when the provider API stalls mid-stream. Replace with manual `iterator.next()` + `Promise.race` against a timeout promise to detect stalls and allow retry.
+- When an agent handler's `finally` block omits `clearAgentPhase()`, the phase tracker retains a stale phase forever ("Thinking..." ghost), because no terminal event resets it — only explicit cleanup does.
+- TanStack AI's `isLoading` can go `false` when the `sendPromise` resolves even though the main process still has an active run (e.g. stuck stream). Augmenting the renderer's `isLoading` with `agentPhase !== null` keeps the cancel button visible whenever the main process reports an active run.
+
 ### Task: Magic Number Review Fixes (2026-03-03)
 - A strict inline-literal checker needs to treat numeric literals nested inside named constant initializers (e.g. `FIVE_MINUTES_IN_MILLISECONDS = 5 * ...`) as valid; checking only direct literal initializers creates false positives.
 - For large existing codebases, a practical anti-regression guardrail is to enforce a baseline cap for non-descriptive numeric constant names and fail only when the count increases, while still reporting the remaining debt for incremental cleanup.
