@@ -2,6 +2,7 @@ import { ConversationId, SupportedModelId } from '@shared/types/brand'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { describe, expect, it } from 'vitest'
 import { openaiProvider } from '../providers/openai'
+import { builtInTools } from '../tools/built-in-tools'
 import {
   getActiveAgentFeatures,
   getFeatureLifecycleHooks,
@@ -72,6 +73,31 @@ describe('getActiveAgentFeatures', () => {
     // mcp.tools excluded — no connected servers in test environment
     expect(ids).not.toContain('mcp.tools')
     expect(features.length).toBe(4)
+  })
+
+  it('enables trusted writeFile feature when writeFileTrusted is true', () => {
+    const context = makeContext({ writeFileTrusted: true })
+    const features = getActiveAgentFeatures(context)
+
+    const ids = features.map((f) => f.id)
+    expect(ids).toContain('core.write-file-trust')
+  })
+})
+
+describe('trusted writeFile filtering', () => {
+  it('strips writeFile approval when project trust is enabled', () => {
+    const context = makeContext({ writeFileTrusted: true })
+    const features = getActiveAgentFeatures(context)
+
+    let filteredTools = [...builtInTools]
+    for (const feature of features) {
+      if (feature.filterTools) {
+        filteredTools = [...feature.filterTools(filteredTools, context)]
+      }
+    }
+
+    const writeFile = filteredTools.find((tool) => tool.name === 'writeFile')
+    expect(writeFile?.needsApproval).toBe(false)
   })
 })
 

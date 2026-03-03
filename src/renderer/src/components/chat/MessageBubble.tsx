@@ -185,6 +185,7 @@ export function MessageBubble({
                   args={value.arguments}
                   state={value.state}
                   result={toolResults.get(value.id)}
+                  isStreaming={!!isStreaming}
                 />
               )
             })

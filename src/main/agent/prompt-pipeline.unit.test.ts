@@ -107,6 +107,21 @@ describe('buildSystemPrompt', () => {
     expect(result).toContain(
       'Do not use askUser just to classify broad terms or generate generic taxonomies',
     )
+    expect(result).toContain(
+      'Do not assume the user wants attachments saved to project files; only save/copy attachment content when the user explicitly asks for it',
+    )
+    expect(result).toContain(
+      'If a user message contains only attachment content and no explicit instruction, ask a neutral clarifying question about intent before taking action',
+    )
+    expect(result).toContain(
+      'Do not frame attachment-only follow-ups as "save to project" by default',
+    )
+    expect(result).toContain(
+      'For attachment-only clarification examples, avoid suggesting save/copy file operations unless the user explicitly asks for file persistence',
+    )
+    expect(result).toContain(
+      'prefer writeFile with attachmentName (or just path when there is exactly one attachment)',
+    )
   })
 
   it('labels runtime model details as internal context', () => {

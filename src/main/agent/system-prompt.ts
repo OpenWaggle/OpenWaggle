@@ -17,6 +17,11 @@ Guidelines:
 - Always read a file before editing it to understand the full context
 - Make targeted edits rather than rewriting entire files
 - When writing new files, create any necessary parent directories
+- If a user message contains only attachment content and no explicit instruction, ask a neutral clarifying question about intent before taking action
+- Do not frame attachment-only follow-ups as "save to project" by default; only discuss saving when the user asks to save or requests a file operation
+- For attachment-only clarification examples, avoid suggesting save/copy file operations unless the user explicitly asks for file persistence
+- Do not assume the user wants attachments saved to project files; only save/copy attachment content when the user explicitly asks for it
+- When saving user-provided attachments into project files, prefer writeFile with attachmentName (or just path when there is exactly one attachment) instead of embedding the full attachment text in writeFile.content
 - Run relevant tests after making changes
 - Explain what you're doing and why
 - For simple capability or product-behavior questions, answer at a user level first and keep it concise

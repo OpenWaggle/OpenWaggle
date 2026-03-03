@@ -8,7 +8,9 @@ import { z } from 'zod'
 import { createLogger } from '../logger'
 import type { AgentToolCallEndEvent, AgentToolCallStartEvent } from './runtime-types'
 
-const SLICE_ARG_2 = 200
+const SLICE_ARG_PREVIEW_CHARS = 200
+const UNRESOLVED_TOOL_CALL_ERROR = 'Tool call did not complete before the stream ended.'
+const UNKNOWN_TOOL_NAME = 'unknownTool'
 
 const logger = createLogger('stream')
 
@@ -29,6 +31,10 @@ export interface StreamPartCollectorStats {
   readonly toolErrors: number
 }
 
+export interface StreamPartCollectorFinalizeOptions {
+  readonly timedOut?: boolean
+}
+
 export function detectToolResultError(result: unknown): boolean {
   if (typeof result === 'string') {
     try {
@@ -46,8 +52,11 @@ export class StreamPartCollector {
   private currentText = ''
   private currentReasoning = ''
   private readonly collectedParts: MessagePart[] = []
-  private readonly toolCallArgs: Record<string, string> = {}
-  private readonly toolCallStartTimes: Record<string, number> = {}
+  private readonly toolCallArgs = new Map<string, string>()
+  private readonly toolCallNames = new Map<string, string>()
+  private readonly toolCallStartTimes = new Map<string, number>()
+  private readonly pendingToolCallIds = new Set<string>()
+  private readonly awaitingToolResultIds = new Set<string>()
   private readonly emittedToolCallIds = new Set<string>()
   private readonly emittedToolResultIds = new Set<string>()
 
@@ -74,8 +83,10 @@ export class StreamPartCollector {
         this.flushReasoningPart()
         this.flushTextPart()
         const startedAt = Date.now()
-        this.toolCallArgs[value.toolCallId] = ''
-        this.toolCallStartTimes[value.toolCallId] = startedAt
+        this.toolCallNames.set(value.toolCallId, value.toolName)
+        this.toolCallArgs.set(value.toolCallId, '')
+        this.toolCallStartTimes.set(value.toolCallId, startedAt)
+        this.pendingToolCallIds.add(value.toolCallId)
 
         return {
           toolCallStart: {
@@ -86,25 +97,20 @@ export class StreamPartCollector {
         }
       })
       .case('TOOL_CALL_ARGS', (value) => {
-        this.toolCallArgs[value.toolCallId] =
-          (this.toolCallArgs[value.toolCallId] ?? '') + value.delta
+        this.toolCallArgs.set(
+          value.toolCallId,
+          (this.toolCallArgs.get(value.toolCallId) ?? '') + value.delta,
+        )
         return {}
       })
       .case('TOOL_CALL_END', (value) => {
-        const args = this.parseToolArgs(value.toolCallId, value.toolName)
-        if (!this.emittedToolCallIds.has(value.toolCallId)) {
-          this.collectedParts.push({
-            type: 'tool-call',
-            toolCall: { id: ToolCallId(value.toolCallId), name: value.toolName, args },
-          })
-          this.emittedToolCallIds.add(value.toolCallId)
-          this.toolCalls += 1
-        }
-
-        const startTime = this.toolCallStartTimes[value.toolCallId]
-        const durationMs = startTime ? Date.now() - startTime : 0
+        this.pendingToolCallIds.delete(value.toolCallId)
+        this.toolCallNames.set(value.toolCallId, value.toolName)
+        const args = this.ensureToolCallPart(value.toolCallId, value.toolName)
+        const durationMs = this.getDurationMs(value.toolCallId)
 
         if (value.result === undefined) {
+          this.awaitingToolResultIds.add(value.toolCallId)
           return {
             toolCallEnd: {
               toolCallId: value.toolCallId,
@@ -116,6 +122,7 @@ export class StreamPartCollector {
           }
         }
 
+        this.awaitingToolResultIds.delete(value.toolCallId)
         const isError = detectToolResultError(value.result)
         if (isError && !this.emittedToolResultIds.has(value.toolCallId)) {
           this.toolErrors += 1
@@ -182,9 +189,18 @@ export class StreamPartCollector {
     return snapshot
   }
 
-  finalizeParts(): MessagePart[] {
+  hasIncompleteToolCalls(): boolean {
+    return this.pendingToolCallIds.size > 0 || this.awaitingToolResultIds.size > 0
+  }
+
+  hasUnresolvedToolResults(): boolean {
+    return this.awaitingToolResultIds.size > 0
+  }
+
+  finalizeParts(options: StreamPartCollectorFinalizeOptions = {}): MessagePart[] {
     this.flushReasoningPart()
     this.flushTextPart()
+    this.appendSyntheticToolResultsForIncompleteCalls(options.timedOut ?? false)
 
     if (this.collectedParts.length === 0) {
       return [{ type: 'text', text: '(no response)' }]
@@ -214,8 +230,75 @@ export class StreamPartCollector {
     }
   }
 
+  private ensureToolCallPart(toolCallId: string, toolName: string): JsonObject {
+    const resolvedName = this.toolCallNames.get(toolCallId) ?? toolName
+    const args = this.parseToolArgs(toolCallId, resolvedName)
+
+    if (!this.emittedToolCallIds.has(toolCallId)) {
+      this.collectedParts.push({
+        type: 'tool-call',
+        toolCall: { id: ToolCallId(toolCallId), name: resolvedName, args },
+      })
+      this.emittedToolCallIds.add(toolCallId)
+      this.toolCalls += 1
+    }
+
+    return args
+  }
+
+  private getDurationMs(toolCallId: string): number {
+    const startTime = this.toolCallStartTimes.get(toolCallId)
+    return startTime ? Date.now() - startTime : 0
+  }
+
+  private appendSyntheticToolResultsForIncompleteCalls(timedOut: boolean): void {
+    if (!this.hasIncompleteToolCalls()) {
+      return
+    }
+
+    const unresolvedToolCallIds = new Set([
+      ...this.pendingToolCallIds,
+      ...this.awaitingToolResultIds,
+    ])
+
+    for (const toolCallId of unresolvedToolCallIds) {
+      if (this.emittedToolResultIds.has(toolCallId)) {
+        continue
+      }
+
+      const toolName = this.toolCallNames.get(toolCallId) ?? UNKNOWN_TOOL_NAME
+      const args = this.ensureToolCallPart(toolCallId, toolName)
+      const durationMs = this.getDurationMs(toolCallId)
+      const isAwaitingResult = this.awaitingToolResultIds.has(toolCallId)
+      if (isAwaitingResult && !timedOut) {
+        // `TOOL_CALL_END` without `result` can indicate approval/client-execution
+        // pending. Keep the tool-call unresolved so continuation can complete it.
+        continue
+      }
+      const isError = true
+      const result = JSON.stringify({
+        ok: false,
+        error: UNRESOLVED_TOOL_CALL_ERROR,
+      })
+
+      this.collectedParts.push({
+        type: 'tool-result',
+        toolResult: {
+          id: ToolCallId(toolCallId),
+          name: toolName,
+          args,
+          result,
+          isError,
+          duration: durationMs,
+        },
+      })
+      this.emittedToolResultIds.add(toolCallId)
+      this.toolErrors += 1
+    }
+  }
+
   private parseToolArgs(toolCallId: string, toolName: string): JsonObject {
-    const rawArgs = this.toolCallArgs[toolCallId] ?? '{}'
+    const rawArgs = this.toolCallArgs.get(toolCallId) ?? '{}'
 
     try {
       const parsed = jsonObjectSchema.parse(JSON.parse(rawArgs))
@@ -223,7 +306,7 @@ export class StreamPartCollector {
     } catch (parseError) {
       logger.warn(`Failed to parse tool call args for "${toolName}"`, {
         error: parseError instanceof Error ? parseError.message : String(parseError),
-        raw: rawArgs.slice(0, SLICE_ARG_2),
+        raw: rawArgs.slice(0, SLICE_ARG_PREVIEW_CHARS),
       })
       return {}
     }

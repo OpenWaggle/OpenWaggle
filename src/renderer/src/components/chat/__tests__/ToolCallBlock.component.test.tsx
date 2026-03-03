@@ -32,16 +32,27 @@ describe('ToolCallBlock', () => {
   })
 
   it('shows running action text with ellipsis when running', () => {
-    render(<ToolCallBlock name="readFile" args='{"path":"src/index.ts"}' state="running" />)
+    render(
+      <ToolCallBlock name="readFile" args='{"path":"src/index.ts"}' state="running" isStreaming />,
+    )
     expect(screen.getByText('Reading src/index.ts...')).toBeInTheDocument()
   })
 
   it('shows spinner when tool is running', () => {
     const { container } = render(
-      <ToolCallBlock name="runCommand" args='{"command":"ls"}' state="running" />,
+      <ToolCallBlock name="runCommand" args='{"command":"ls"}' state="running" isStreaming />,
     )
     const spinner = container.querySelector('.animate-spin')
     expect(spinner).toBeTruthy()
+  })
+
+  it('does not render running state for historical unresolved tool calls', () => {
+    const { container } = render(
+      <ToolCallBlock name="writeFile" args='{"path":"out.txt"}' state="input-complete" />,
+    )
+
+    expect(screen.getByText('Requested writeFile out.txt')).toBeInTheDocument()
+    expect(container.querySelector('.animate-spin')).toBeNull()
   })
 
   it('shows check icon when completed successfully', () => {

@@ -35,7 +35,7 @@ function extractData(result: unknown): Record<string, unknown> {
 }
 
 async function executeWriteFile(
-  args: { path: string; content: string },
+  args: { path: string; content?: string; attachmentName?: string },
   ctx: ToolContext,
 ): Promise<Record<string, unknown>> {
   // biome-ignore lint/style/noNonNullAssertion: test helper
@@ -85,5 +85,54 @@ describe('writeFileTool', () => {
 
     const written = await fsp.readFile(path.join(dir, 'deep/nested/dir/file.txt'), 'utf-8')
     expect(written).toBe('deep')
+  })
+
+  it('writes content from the only attachment when content is omitted', async () => {
+    const dir = makeTempDir()
+    const context: ToolContext = {
+      ...makeContext(dir),
+      attachments: [{ name: 'Pasted Text 1.md', extractedText: 'from attachment' }],
+    }
+
+    const parsed = await executeWriteFile({ path: 'attachment-output.txt' }, context)
+    expect(parsed.afterContent).toBe('from attachment')
+
+    const written = await fsp.readFile(path.join(dir, 'attachment-output.txt'), 'utf-8')
+    expect(written).toBe('from attachment')
+  })
+
+  it('writes content from a named attachment when multiple attachments exist', async () => {
+    const dir = makeTempDir()
+    const context: ToolContext = {
+      ...makeContext(dir),
+      attachments: [
+        { name: 'A.md', extractedText: 'aaa' },
+        { name: 'B.md', extractedText: 'bbb' },
+      ],
+    }
+
+    const parsed = await executeWriteFile(
+      { path: 'selected-output.txt', attachmentName: 'B.md' },
+      context,
+    )
+    expect(parsed.afterContent).toBe('bbb')
+
+    const written = await fsp.readFile(path.join(dir, 'selected-output.txt'), 'utf-8')
+    expect(written).toBe('bbb')
+  })
+
+  it('throws when multiple attachments exist but no attachmentName is provided', async () => {
+    const dir = makeTempDir()
+    const context: ToolContext = {
+      ...makeContext(dir),
+      attachments: [
+        { name: 'A.md', extractedText: 'aaa' },
+        { name: 'B.md', extractedText: 'bbb' },
+      ],
+    }
+
+    await expect(executeWriteFile({ path: 'ambiguous-output.txt' }, context)).rejects.toThrow(
+      'Multiple attachments are available. Provide attachmentName when calling writeFile without content.',
+    )
   })
 })

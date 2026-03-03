@@ -136,6 +136,88 @@ describe('StreamPartCollector', () => {
     expect(parts.filter((part) => part.type === 'tool-result')).toHaveLength(1)
   })
 
+  it('does not synthesize a tool-result when TOOL_CALL_END has no result payload on normal completion', () => {
+    const collector = new StreamPartCollector()
+
+    collector.handleChunk(toolCallStart('tool-4', 'writeFile', 1))
+    collector.handleChunk(toolCallArgs('tool-4', '{"path":"out.txt"}', 2))
+    collector.handleChunk(toolCallEnd('tool-4', 'writeFile', undefined, 3))
+
+    expect(collector.hasIncompleteToolCalls()).toBe(true)
+    expect(collector.hasUnresolvedToolResults()).toBe(true)
+
+    const parts = collector.finalizeParts()
+    const stats = collector.getStats()
+    const toolResultPart = parts.find((part) => part.type === 'tool-result')
+
+    expect(toolResultPart).toBeUndefined()
+    expect(stats.toolCalls).toBe(1)
+    expect(stats.toolErrors).toBe(0)
+  })
+
+  it('synthesizes an error tool-result when TOOL_CALL_END has no result payload after timeout', () => {
+    const collector = new StreamPartCollector()
+
+    collector.handleChunk(toolCallStart('tool-4b', 'writeFile', 1))
+    collector.handleChunk(toolCallArgs('tool-4b', '{"path":"out.txt"}', 2))
+    collector.handleChunk(toolCallEnd('tool-4b', 'writeFile', undefined, 3))
+
+    const parts = collector.finalizeParts({ timedOut: true })
+    const stats = collector.getStats()
+    const toolResultPart = parts.find((part) => part.type === 'tool-result')
+
+    expect(toolResultPart).toEqual({
+      type: 'tool-result',
+      toolResult: {
+        id: 'tool-4b',
+        name: 'writeFile',
+        args: { path: 'out.txt' },
+        result: expect.stringContaining('Tool call did not complete before the stream ended.'),
+        isError: true,
+        duration: expect.any(Number),
+      },
+    })
+    expect(stats.toolCalls).toBe(1)
+    expect(stats.toolErrors).toBe(1)
+  })
+
+  it('synthesizes missing tool-call + tool-result when stream ends after TOOL_CALL_START', () => {
+    const collector = new StreamPartCollector()
+
+    collector.handleChunk(toolCallStart('tool-5', 'editFile', 1))
+    collector.handleChunk(toolCallArgs('tool-5', '{"path":"src/a.ts"}', 2))
+
+    expect(collector.hasIncompleteToolCalls()).toBe(true)
+    expect(collector.hasUnresolvedToolResults()).toBe(false)
+
+    const parts = collector.finalizeParts()
+    const stats = collector.getStats()
+
+    expect(parts).toEqual([
+      {
+        type: 'tool-call',
+        toolCall: {
+          id: 'tool-5',
+          name: 'editFile',
+          args: { path: 'src/a.ts' },
+        },
+      },
+      {
+        type: 'tool-result',
+        toolResult: {
+          id: 'tool-5',
+          name: 'editFile',
+          args: { path: 'src/a.ts' },
+          result: expect.stringContaining('Tool call did not complete before the stream ended.'),
+          isError: true,
+          duration: expect.any(Number),
+        },
+      },
+    ])
+    expect(stats.toolCalls).toBe(1)
+    expect(stats.toolErrors).toBe(1)
+  })
+
   it('accumulates incremental reasoning deltas into one part per step', () => {
     const collector = new StreamPartCollector()
 

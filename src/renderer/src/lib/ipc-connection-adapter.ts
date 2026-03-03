@@ -9,7 +9,7 @@ import {
 import type { SupportedModelId } from '@shared/types/llm'
 import type { QualityPreset } from '@shared/types/settings'
 import type { WaggleConfig } from '@shared/types/waggle'
-import { convertMessagesToModelMessages, type ModelMessage, type StreamChunk } from '@tanstack/ai'
+import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { ConnectionAdapter, UIMessage } from '@tanstack/ai-react'
 import { api } from './ipc'
 
@@ -70,65 +70,8 @@ function shouldUseContinuationPayload(messages: Array<UIMessage> | Array<ModelMe
 
 function toContinuationMessages(
   messages: Array<UIMessage> | Array<ModelMessage>,
-): readonly ModelMessage[] {
-  const converted = convertMessagesToModelMessages(messages)
-  return normalizeContinuationMessages(converted)
-}
-
-function hasModelMessageContent(message: ModelMessage): boolean {
-  if (message.content === null) return false
-  if (typeof message.content === 'string') return message.content.length > 0
-  return message.content.length > 0
-}
-
-function normalizeContinuationMessages(messages: readonly ModelMessage[]): readonly ModelMessage[] {
-  const normalized: ModelMessage[] = []
-  const seenToolCallIds = new Set<string>()
-  const seenToolResultIds = new Set<string>()
-
-  for (const message of messages) {
-    if (message.role === 'tool' && message.toolCallId) {
-      if (seenToolResultIds.has(message.toolCallId)) {
-        continue
-      }
-      seenToolResultIds.add(message.toolCallId)
-      normalized.push(message)
-      continue
-    }
-
-    if (message.role !== 'assistant' || !message.toolCalls || message.toolCalls.length === 0) {
-      normalized.push(message)
-      continue
-    }
-
-    // Anthropic rejects payloads with duplicate tool_use IDs in continuation history.
-    const dedupedToolCalls = message.toolCalls.filter((toolCall) => {
-      if (seenToolCallIds.has(toolCall.id)) {
-        return false
-      }
-      seenToolCallIds.add(toolCall.id)
-      return true
-    })
-
-    if (dedupedToolCalls.length === 0 && !hasModelMessageContent(message)) {
-      continue
-    }
-
-    if (dedupedToolCalls.length === message.toolCalls.length) {
-      normalized.push(message)
-      continue
-    }
-
-    if (dedupedToolCalls.length > 0) {
-      normalized.push({ ...message, toolCalls: dedupedToolCalls })
-      continue
-    }
-
-    const { toolCalls: _toolCalls, ...messageWithoutToolCalls } = message
-    normalized.push(messageWithoutToolCalls)
-  }
-
-  return normalized
+): readonly (ModelMessage | UIMessage)[] {
+  return [...messages]
 }
 
 /**

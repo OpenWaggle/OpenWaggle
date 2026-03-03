@@ -1,15 +1,16 @@
 import { randomUUID } from 'node:crypto'
-import type { HydratedAgentSendPayload, Message } from '@shared/types/agent'
+import type { HydratedAgentSendPayload, Message, MessagePart } from '@shared/types/agent'
 import type { SkipApprovalToken } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { Settings } from '@shared/types/settings'
 import { choose } from '@shared/utils/decision'
 import { chat, type ModelMessage, maxIterations, type StreamChunk } from '@tanstack/ai'
-import { loadProjectConfig } from '../config/project-config'
+import { loadProjectConfig, setWriteFileTrust } from '../config/project-config'
 import { createLogger } from '../logger'
 import type { ProviderDefinition } from '../providers/provider-definition'
 import { runWithToolContext } from '../tools/define-tool'
+import { normalizeContinuationInput } from './continuation-normalizer'
 import { notifyRunComplete, notifyRunError, notifyRunStart } from './lifecycle-hooks'
 import { conversationToMessages, type SimpleChatMessage } from './message-mapper'
 import { buildAgentPrompt } from './prompt-builder'
@@ -26,6 +27,7 @@ import {
 import { loadAgentStandardsContext } from './standards-context'
 import { StreamPartCollector } from './stream-part-collector'
 import { processAgentStream } from './stream-processor'
+import { resolveToolContextAttachments } from './tool-context-attachments'
 
 const logger = createLogger('agent')
 
@@ -120,10 +122,23 @@ function buildUserChatContent(
   return parts
 }
 
+function hasSuccessfulWriteFileResult(parts: readonly MessagePart[]): boolean {
+  for (const part of parts) {
+    if (part.type !== 'tool-result') {
+      continue
+    }
+    if (part.toolResult.name === 'writeFile' && part.toolResult.isError === false) {
+      return true
+    }
+  }
+  return false
+}
+
 export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> {
   const { conversation, payload, model, settings, onChunk, signal, skipApproval } = params
   const hasContinuationMessages = (payload.continuationMessages?.length ?? 0) > 0
   const projectPath = resolveAgentProjectPath(conversation.projectPath)
+  const toolContextAttachments = resolveToolContextAttachments(conversation, payload)
   const dynamicLoadedSkillIds = new Set<string>()
   const dynamicLoadedAgentsScopeFiles = new Set<string>()
   const dynamicLoadedAgentsRequestedPaths = new Set<string>()
@@ -135,6 +150,7 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
     {
       conversationId: conversation.id,
       projectPath,
+      attachments: toolContextAttachments,
       signal,
       dynamicSkills: {
         loadedSkillIds: dynamicLoadedSkillIds,
@@ -201,6 +217,7 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
           hasProject: !!conversation.projectPath,
           provider,
           providerConfig,
+          writeFileTrusted: projectConfig.approvals?.tools?.writeFile?.trusted === true,
           planModeRequested: payload.planModeRequested,
           subAgentContext: params.subAgentContext,
           standards: await withStageTiming(stageDurationsMs, 'standards-resolution', () =>
@@ -239,7 +256,7 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
         signal.addEventListener('abort', () => abortController.abort(), { once: true })
 
         const allMessages: ModelMessage[] | SimpleChatMessage[] = hasContinuationMessages
-          ? [...(payload.continuationMessages ?? [])]
+          ? normalizeContinuationInput(payload.continuationMessages ?? [])
           : (() => {
               const existingMessages = conversationToMessages(conversation.messages)
               const newUserMessage: SimpleChatMessage = {
@@ -281,7 +298,12 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
         )
         runErrorNotified = streamResult.runErrorNotified
 
-        while (streamResult.timedOut && !signal.aborted && stallAttempt < MAX_STALL_RETRIES) {
+        while (
+          streamResult.timedOut &&
+          streamResult.stallReason === 'stream-stall' &&
+          !signal.aborted &&
+          stallAttempt < MAX_STALL_RETRIES
+        ) {
           stallAttempt++
           logger.warn(`Stream stalled, retry ${stallAttempt}/${MAX_STALL_RETRIES}`, {
             conversationId: conversation.id,
@@ -306,13 +328,34 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
           runErrorNotified = streamResult.runErrorNotified
         }
 
+        if (streamResult.timedOut && streamResult.stallReason === 'incomplete-tool-call') {
+          logger.warn('Stream stalled with incomplete tool call; skipping retry', {
+            conversationId: conversation.id,
+          })
+        }
+
         if (streamResult.aborted || signal.aborted) {
           throw new Error('aborted')
         }
 
         // ── Stage 7: Finalize ──
-        const finalParts = collector.finalizeParts()
+        const finalParts = collector.finalizeParts({ timedOut: streamResult.timedOut })
         const stats = collector.getStats()
+
+        if (
+          runContext.writeFileTrusted !== true &&
+          !skipApproval &&
+          hasSuccessfulWriteFileResult(finalParts)
+        ) {
+          try {
+            await setWriteFileTrust(projectPath, true, 'tool-approval')
+          } catch (error) {
+            logger.warn('Failed to persist writeFile trust', {
+              conversationId: conversation.id,
+              error: error instanceof Error ? error.message : String(error),
+            })
+          }
+        }
 
         await notifyRunComplete(hooks, runContext, {
           promptFragmentIds,

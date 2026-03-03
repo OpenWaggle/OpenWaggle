@@ -73,6 +73,10 @@ export interface IpcInvokeChannelMap {
     args: []
     return: string | null
   }
+  'project-config:set-tool-trust': {
+    args: [projectPath: string, toolName: 'writeFile', trusted: boolean]
+    return: undefined
+  }
   'conversations:list': {
     args: [limit?: number]
     return: ConversationSummary[]
@@ -457,6 +461,7 @@ export interface OpenWaggleApi {
 
   // Project
   selectProjectFolder(): Promise<string | null>
+  setProjectToolTrust(projectPath: string, toolName: 'writeFile', trusted: boolean): Promise<void>
 
   // Conversations
   listConversations(limit?: number): Promise<ConversationSummary[]>
