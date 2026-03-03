@@ -191,6 +191,7 @@ export function registerAgentHandlers(): void {
         }
       } finally {
         activeRuns.delete(conversationId)
+        clearAgentPhase(conversationId)
         clearStreamBuffer(conversationId)
         emitRunCompleted(conversationId)
       }

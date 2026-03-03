@@ -273,7 +273,7 @@ export function useChatPanelSections(): ChatPanelSections {
       waggleStatus,
       commandPaletteOpen,
       slashSkills: catalog?.skills ?? [],
-      isLoading: isLoading || isSteering,
+      isLoading: isLoading || isSteering || agentPhase !== null,
       status,
       onToolApprovalResponse: respondToolApproval,
       onAnswerQuestion: answerQuestion,

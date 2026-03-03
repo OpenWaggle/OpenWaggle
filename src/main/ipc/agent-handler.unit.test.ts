@@ -558,13 +558,35 @@ describe('registerAgentHandlers', () => {
       await handler?.({}, ConversationId('conv-1'), basePayload(), 'claude-sonnet-4-5')
 
       // The handler should have cleaned up — a second send should not call clearAgentPhase
-      // for a stale controller
+      // for a stale controller (only from the finally block)
       clearAgentPhaseMock.mockReset()
       runAgentMock.mockResolvedValueOnce({ newMessages: [] })
       await handler?.({}, ConversationId('conv-1'), basePayload(), 'claude-sonnet-4-5')
 
-      // clearAgentPhase should NOT be called because there's no stale controller
-      expect(clearAgentPhaseMock).not.toHaveBeenCalled()
+      // clearAgentPhase IS called once (from finally block), but NOT for aborting a stale controller
+      expect(clearAgentPhaseMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('clears agent phase in finally block after successful run', async () => {
+      runAgentMock.mockResolvedValueOnce({ newMessages: [assistantMessage()] })
+
+      registerAgentHandlers()
+      const handler = getInvokeHandler('agent:send-message')
+
+      await handler?.({}, ConversationId('conv-1'), basePayload(), 'claude-sonnet-4-5')
+
+      expect(clearAgentPhaseMock).toHaveBeenCalledWith(ConversationId('conv-1'))
+    })
+
+    it('clears agent phase in finally block after error', async () => {
+      runAgentMock.mockRejectedValueOnce(new Error('API error'))
+
+      registerAgentHandlers()
+      const handler = getInvokeHandler('agent:send-message')
+
+      await handler?.({}, ConversationId('conv-1'), basePayload(), 'claude-sonnet-4-5')
+
+      expect(clearAgentPhaseMock).toHaveBeenCalledWith(ConversationId('conv-1'))
     })
 
     it('hydrates attachment sources before passing to agent', async () => {
