@@ -13,12 +13,14 @@ import { z } from 'zod'
 import { safeHandle } from '../typed-ipc'
 import { isGitRepository, projectPathSchema, runGit } from './shared'
 
+const PARSE_INT_ARG_2 = 10
+
 function parseTrackCounts(track: string): { ahead: number; behind: number } {
   const aheadMatch = /ahead (\d+)/.exec(track)
   const behindMatch = /behind (\d+)/.exec(track)
   return {
-    ahead: aheadMatch ? Number.parseInt(aheadMatch[1] ?? '0', 10) || 0 : 0,
-    behind: behindMatch ? Number.parseInt(behindMatch[1] ?? '0', 10) || 0 : 0,
+    ahead: aheadMatch ? Number.parseInt(aheadMatch[1] ?? '0', PARSE_INT_ARG_2) || 0 : 0,
+    behind: behindMatch ? Number.parseInt(behindMatch[1] ?? '0', PARSE_INT_ARG_2) || 0 : 0,
   }
 }
 

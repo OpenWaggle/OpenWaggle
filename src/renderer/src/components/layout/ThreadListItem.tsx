@@ -6,6 +6,8 @@ import { formatRelativeTime, truncate } from '@/lib/format'
 import { api } from '@/lib/ipc'
 import { useBackgroundRunStore } from '@/stores/background-run-store'
 
+const TRUNCATE_ARG_2 = 29
+
 interface ThreadListItemProps {
   readonly conversation: ConversationSummary
   readonly isActive: boolean
@@ -46,7 +48,7 @@ export function ThreadListItem({
             isActive ? 'font-medium text-text-primary' : 'text-text-secondary',
           )}
         >
-          {truncate(conversation.title, 29)}
+          {truncate(conversation.title, TRUNCATE_ARG_2)}
         </span>
       </button>
       <span className="ml-auto shrink-0 text-[11px] text-text-tertiary group-hover:hidden">

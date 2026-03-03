@@ -3,6 +3,10 @@ import { Check, ChevronDown, ChevronRight } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/cn'
 
+const FILE_TREE_NODE_VALUE_12 = 12
+const FILE_TREE_NODE_VALUE_8 = 8
+const FILE_TREE_NODE_VALUE_4 = 4
+
 interface TreeNode {
   name: string
   path: string
@@ -52,7 +56,7 @@ function FileTreeNode({ node, depth, onFileClick }: FileTreeNodeProps): React.JS
   const [expanded, setExpanded] = useState(true)
 
   // Indentation: 12px root, increases by 8px per level
-  const paddingLeft = 12 + depth * 8
+  const paddingLeft = FILE_TREE_NODE_VALUE_12 + depth * FILE_TREE_NODE_VALUE_8
 
   if (node.isFile) {
     return (
@@ -63,7 +67,7 @@ function FileTreeNode({ node, depth, onFileClick }: FileTreeNodeProps): React.JS
           'flex items-center gap-1.5 h-5 w-full text-left',
           node.isChanged && 'bg-diff-highlight-bg',
         )}
-        style={{ paddingLeft: `${String(paddingLeft + 4)}px` }}
+        style={{ paddingLeft: `${String(paddingLeft + FILE_TREE_NODE_VALUE_4)}px` }}
       >
         {node.isChanged && <span className="shrink-0 h-[5px] w-[5px] rounded-full bg-accent" />}
         <span

@@ -1,5 +1,11 @@
 import { createLogger } from '../logger'
 
+const MAX_ATTEMPTS = 2
+const DELAY_MS = 1000
+const IS_TRANSIENT_ERROR_VALUE_429 = 429
+const IS_TRANSIENT_ERROR_VALUE_502 = 502
+const IS_TRANSIENT_ERROR_VALUE_503 = 503
+
 const logger = createLogger('retry')
 
 interface RetryOptions {
@@ -7,7 +13,7 @@ interface RetryOptions {
   readonly delayMs: number
 }
 
-const DEFAULT_OPTIONS: RetryOptions = { maxAttempts: 2, delayMs: 1000 }
+const DEFAULT_OPTIONS: RetryOptions = { maxAttempts: MAX_ATTEMPTS, delayMs: DELAY_MS }
 
 /**
  * Extract a numeric HTTP status from an error, if available.
@@ -30,7 +36,12 @@ function isTransientError(error: unknown): boolean {
 
   // Prefer structured status code when available
   const status = getErrorStatus(error)
-  if (status === 429 || status === 502 || status === 503) return true
+  if (
+    status === IS_TRANSIENT_ERROR_VALUE_429 ||
+    status === IS_TRANSIENT_ERROR_VALUE_502 ||
+    status === IS_TRANSIENT_ERROR_VALUE_503
+  )
+    return true
   if (status !== undefined) return false // Known HTTP status, not transient
 
   const message = error.message.toLowerCase()

@@ -2,6 +2,8 @@ import { Brain, ChevronRight, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/cn'
 
+const THINKING_BLOCK_VALUE_4 = 4
+
 interface ThinkingBlockProps {
   content: string
   isStreaming?: boolean
@@ -10,7 +12,7 @@ interface ThinkingBlockProps {
 export function ThinkingBlock({ content, isStreaming }: ThinkingBlockProps): React.JSX.Element {
   const [expanded, setExpanded] = useState(false)
 
-  const tokenEstimate = Math.ceil(content.length / 4)
+  const tokenEstimate = Math.ceil(content.length / THINKING_BLOCK_VALUE_4)
 
   return (
     <div className="group/thinking">

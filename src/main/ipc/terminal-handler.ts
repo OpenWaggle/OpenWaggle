@@ -2,11 +2,17 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { BYTES_PER_KIBIBYTE, HEX_RADIX } from '@shared/constants/constants'
 import type { IPty } from 'node-pty'
 import { z } from 'zod'
 import { getSafeChildEnv } from '../env'
 import { broadcastToWindows } from '../utils/broadcast'
 import { typedHandle, typedOn } from './typed-ipc'
+
+const MIN_ARG_1 = 10
+const MIN_ARG_1_VALUE_5 = 5
+const COLS = 80
+const ROWS = 24
 
 // node-pty is a native module loaded via dynamic import at first use
 let ptyModule: typeof import('node-pty') | undefined
@@ -20,7 +26,7 @@ async function getPty(): Promise<typeof import('node-pty')> {
 
 const MAX_TERMINAL_COLS = 500
 const MAX_TERMINAL_ROWS = 200
-const MAX_TERMINAL_INPUT_BYTES = 16 * 1024
+const MAX_TERMINAL_INPUT_BYTES = HEX_RADIX * BYTES_PER_KIBIBYTE
 
 interface PtyProcess {
   id: string
@@ -31,8 +37,8 @@ const terminals = new Map<string, PtyProcess>()
 
 const terminalPathSchema = z.string().min(1)
 const terminalResizeSchema = z.object({
-  cols: z.number().int().min(10).max(MAX_TERMINAL_COLS),
-  rows: z.number().int().min(5).max(MAX_TERMINAL_ROWS),
+  cols: z.number().int().min(MIN_ARG_1).max(MAX_TERMINAL_COLS),
+  rows: z.number().int().min(MIN_ARG_1_VALUE_5).max(MAX_TERMINAL_ROWS),
 })
 const terminalWriteSchema = z.string().max(MAX_TERMINAL_INPUT_BYTES)
 
@@ -61,8 +67,8 @@ export function registerTerminalHandlers(): void {
 
     const proc = pty.spawn(shell, [], {
       name: 'xterm-256color',
-      cols: 80,
-      rows: 24,
+      cols: COLS,
+      rows: ROWS,
       cwd,
       env: Object.fromEntries(
         Object.entries(childEnv).filter(

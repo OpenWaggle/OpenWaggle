@@ -1,7 +1,10 @@
+import { MILLISECONDS_PER_SECOND } from '@shared/constants/constants'
 import { taskToolProgressSchema } from '@shared/schemas/validation'
 import type { OrchestrationProgressPayload } from '../engine'
 import type { PlannedTask } from './planner'
 import { formatToolActivity } from './tool-activity'
+
+const RECORD_TASK_OUTPUT_VALUE_4 = 4
 
 export class TaskProgressTracker {
   private readonly now: () => number
@@ -45,7 +48,7 @@ export class TaskProgressTracker {
   }
 
   recordTaskOutput(taskId: string, text: string): void {
-    this.taskTokens.set(taskId, Math.ceil(text.length / 4))
+    this.taskTokens.set(taskId, Math.ceil(text.length / RECORD_TASK_OUTPUT_VALUE_4))
   }
 
   onTaskSucceeded(taskId: string): string {
@@ -53,7 +56,7 @@ export class TaskProgressTracker {
     const files = this.taskFileCount.get(taskId) ?? 0
     const tokens = this.taskTokens.get(taskId) ?? 0
     const startedAt = this.taskStartTimes.get(taskId) ?? this.now()
-    const elapsed = ((this.now() - startedAt) / 1000).toFixed(1)
+    const elapsed = ((this.now() - startedAt) / MILLISECONDS_PER_SECOND).toFixed(1)
 
     const parts: string[] = []
     if (files > 0) parts.push(`${String(files)} files`)

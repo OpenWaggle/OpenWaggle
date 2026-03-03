@@ -1,11 +1,20 @@
+import {
+  HOURS_PER_DAY,
+  MILLISECONDS_PER_SECOND,
+  SECONDS_PER_MINUTE,
+  TRIPLE_FACTOR,
+} from '@shared/constants/constants'
+
+const FORMAT_DURATION_VALUE_60000 = 60000
+
 /**
  * Format a duration in ms to a human readable string.
  */
 export function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`
-  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
-  const mins = Math.floor(ms / 60000)
-  const secs = Math.floor((ms % 60000) / 1000)
+  if (ms < MILLISECONDS_PER_SECOND) return `${ms}ms`
+  if (ms < FORMAT_DURATION_VALUE_60000) return `${(ms / MILLISECONDS_PER_SECOND).toFixed(1)}s`
+  const mins = Math.floor(ms / FORMAT_DURATION_VALUE_60000)
+  const secs = Math.floor((ms % FORMAT_DURATION_VALUE_60000) / MILLISECONDS_PER_SECOND)
   return `${mins}m ${secs}s`
 }
 
@@ -14,10 +23,10 @@ export function formatDuration(ms: number): string {
  */
 export function formatRelativeTime(timestamp: number): string {
   const diff = Date.now() - timestamp
-  const seconds = Math.floor(diff / 1000)
-  const minutes = Math.floor(seconds / 60)
-  const hours = Math.floor(minutes / 60)
-  const days = Math.floor(hours / 24)
+  const seconds = Math.floor(diff / MILLISECONDS_PER_SECOND)
+  const minutes = Math.floor(seconds / SECONDS_PER_MINUTE)
+  const hours = Math.floor(minutes / SECONDS_PER_MINUTE)
+  const days = Math.floor(hours / HOURS_PER_DAY)
 
   if (days > 0) return `${days}d ago`
   if (hours > 0) return `${hours}h ago`
@@ -30,7 +39,7 @@ export function formatRelativeTime(timestamp: number): string {
  */
 export function truncate(str: string, maxLength: number): string {
   if (str.length <= maxLength) return str
-  return `${str.slice(0, maxLength - 3)}...`
+  return `${str.slice(0, maxLength - TRIPLE_FACTOR)}...`
 }
 
 /**

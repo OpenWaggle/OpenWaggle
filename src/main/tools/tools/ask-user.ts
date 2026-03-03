@@ -5,6 +5,8 @@ import { z } from 'zod'
 import { defineOpenWaggleTool } from '../define-tool'
 import { cancelQuestion, registerQuestion } from '../question-manager'
 
+const MAX_ARG_1 = 4
+
 export const askUserTool = defineOpenWaggleTool({
   name: 'askUser',
   description:
@@ -14,7 +16,7 @@ export const askUserTool = defineOpenWaggleTool({
     questions: z
       .array(userQuestionSchema)
       .min(1)
-      .max(4)
+      .max(MAX_ARG_1)
       .describe('Questions to present to the user (1-4)'),
   }),
   async execute(args, context) {

@@ -3,6 +3,8 @@ import process from 'node:process'
 import { gzipSync } from 'node:zlib'
 import * as ts from 'typescript'
 
+const LEVEL = 9
+
 const TS_PATTERN_BASELINE_RAW = 8130
 const TS_PATTERN_BASELINE_GZIP = 2680
 
@@ -18,7 +20,7 @@ async function main() {
   }).outputText
 
   const rawBytes = Buffer.byteLength(compiled)
-  const gzipBytes = gzipSync(compiled, { level: 9 }).byteLength
+  const gzipBytes = gzipSync(compiled, { level: LEVEL }).byteLength
 
   const rawOk = rawBytes < TS_PATTERN_BASELINE_RAW
   const gzipOk = gzipBytes < TS_PATTERN_BASELINE_GZIP

@@ -1,3 +1,4 @@
+import { MILLISECONDS_PER_SECOND } from '@shared/constants/constants'
 import { AUTH_METHODS } from '@shared/types/auth'
 import { SupportedModelId } from '@shared/types/brand'
 import { EXECUTION_MODES, PROVIDERS, QUALITY_PRESETS } from '@shared/types/settings'
@@ -70,7 +71,7 @@ async function testProviderApiKey(
         setTimeout(() => {
           abortController.abort()
           resolve({ success: false, error: 'Connection timed out' })
-        }, TEST_TIMEOUT_MS + 1000),
+        }, TEST_TIMEOUT_MS + MILLISECONDS_PER_SECOND),
       ),
     ])
     return result

@@ -5,6 +5,8 @@ import { createLogger } from '../../logger'
 import { createCallbackServer } from '../oauth-callback-server'
 import { generateCodeChallenge, generateCodeVerifier } from '../pkce'
 
+const RANDOM_BYTES_ARG_1 = 16
+
 const logger = createLogger('openrouter-oauth')
 
 const keyResponseSchema = z.object({
@@ -18,7 +20,7 @@ interface OpenRouterOAuthResult {
 export async function startOpenRouterOAuth(): Promise<OpenRouterOAuthResult> {
   const verifier = generateCodeVerifier()
   const challenge = generateCodeChallenge(verifier)
-  const state = randomBytes(16).toString('hex')
+  const state = randomBytes(RANDOM_BYTES_ARG_1).toString('hex')
 
   const server = await createCallbackServer()
 

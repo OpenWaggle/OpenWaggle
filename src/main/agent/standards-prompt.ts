@@ -1,12 +1,17 @@
 import type { AgentPromptFragment } from './runtime-types'
 
+const ORDER = 5
+const ORDER_VALUE_6 = 6
+const ORDER_VALUE_45 = 45
+const ORDER_VALUE_44 = 44
+
 const MAX_SKILLS_IN_CATALOG_PROMPT = 20
 const MAX_SKILL_DESCRIPTION_CHARS = 140
 const MAX_AGENTS_SCOPES_IN_PROMPT = 5
 
 export const agentsEntryPromptFragment: AgentPromptFragment = {
   id: 'standards.agents-entry',
-  order: 5,
+  order: ORDER,
   build: (context) => {
     const instruction = context.standards?.agentsRootInstruction?.trim()
     return instruction && instruction.length > 0 ? instruction : null
@@ -15,7 +20,7 @@ export const agentsEntryPromptFragment: AgentPromptFragment = {
 
 export const scopedAgentsPromptFragment: AgentPromptFragment = {
   id: 'standards.scoped-agents',
-  order: 6,
+  order: ORDER_VALUE_6,
   build: (context) => {
     const scoped = context.standards?.agentsScopedInstructions ?? []
     if (scoped.length === 0) {
@@ -51,7 +56,7 @@ export const scopedAgentsPromptFragment: AgentPromptFragment = {
 
 export const activeSkillsPromptFragment: AgentPromptFragment = {
   id: 'standards.active-skills',
-  order: 45,
+  order: ORDER_VALUE_45,
   build: (context) => {
     const activeSkills = context.standards?.activeSkills ?? []
     if (activeSkills.length === 0) {
@@ -78,7 +83,7 @@ export const activeSkillsPromptFragment: AgentPromptFragment = {
 
 export const skillCatalogPromptFragment: AgentPromptFragment = {
   id: 'standards.skill-catalog',
-  order: 44,
+  order: ORDER_VALUE_44,
   build: (context) => {
     const catalogSkills = context.standards?.catalogSkills ?? []
     const availableSkills = catalogSkills.filter(

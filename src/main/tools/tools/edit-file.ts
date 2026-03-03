@@ -1,6 +1,9 @@
 import fs from 'node:fs/promises'
+import { PERCENT_BASE } from '@shared/constants/constants'
 import { z } from 'zod'
 import { defineOpenWaggleTool, resolveProjectPath } from '../define-tool'
+
+const SLICE_ARG_2 = 100
 
 export const editFileTool = defineOpenWaggleTool({
   name: 'editFile',
@@ -22,7 +25,9 @@ export const editFileTool = defineOpenWaggleTool({
     if (occurrences === 0) {
       const lineCount = content.split('\n').length
       const preview =
-        args.oldString.length > 100 ? `${args.oldString.slice(0, 100)}...` : args.oldString
+        args.oldString.length > PERCENT_BASE
+          ? `${args.oldString.slice(0, SLICE_ARG_2)}...`
+          : args.oldString
       throw new Error(
         `String not found in ${args.path} (${lineCount} lines). ` +
           `Searched for: "${preview}". ` +

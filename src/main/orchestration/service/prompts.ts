@@ -1,5 +1,7 @@
 import type { OrchestrationTaskOutputValue } from '../engine'
 
+const STRINGIFY_ARG_3 = 2
+
 interface ExecutionPromptTask {
   readonly title: string
   readonly kind: string
@@ -55,7 +57,7 @@ export function buildSynthesisPrompt(input: BuildSynthesisPromptInput): string {
     '',
     ...(input.projectContextText ? [input.projectContextText, ''] : []),
     'Task outputs (JSON):',
-    JSON.stringify(input.outputs, null, 2),
+    JSON.stringify(input.outputs, null, STRINGIFY_ARG_3),
   ]
 
   return lines.join('\n')

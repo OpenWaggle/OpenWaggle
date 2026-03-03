@@ -6,6 +6,9 @@ import Store from 'electron-store'
 import { z } from 'zod'
 import { createLogger } from '../logger'
 
+const MAX_TURNS_SAFETY = 8
+const MAX_TURNS_SAFETY_VALUE_10 = 10
+
 const logger = createLogger('teams')
 
 // ── Built-in presets ─────────────────────────────────────────
@@ -33,7 +36,7 @@ const BUILT_IN_PRESETS: WaggleTeamPreset[] = [
           color: 'amber',
         },
       ],
-      stop: { primary: 'consensus', maxTurnsSafety: 8 },
+      stop: { primary: 'consensus', maxTurnsSafety: MAX_TURNS_SAFETY },
     },
     isBuiltIn: true,
     createdAt: 0,
@@ -61,7 +64,7 @@ const BUILT_IN_PRESETS: WaggleTeamPreset[] = [
           color: 'violet',
         },
       ],
-      stop: { primary: 'consensus', maxTurnsSafety: 10 },
+      stop: { primary: 'consensus', maxTurnsSafety: MAX_TURNS_SAFETY_VALUE_10 },
     },
     isBuiltIn: true,
     createdAt: 0,
@@ -89,7 +92,7 @@ const BUILT_IN_PRESETS: WaggleTeamPreset[] = [
           color: 'blue',
         },
       ],
-      stop: { primary: 'consensus', maxTurnsSafety: 8 },
+      stop: { primary: 'consensus', maxTurnsSafety: MAX_TURNS_SAFETY },
     },
     isBuiltIn: true,
     createdAt: 0,

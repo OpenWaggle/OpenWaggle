@@ -168,6 +168,7 @@ Always use granular selectors with `useChatStore((s) => s.field)` — never call
 - **Never use `process.env` or `import.meta.env`** — import from `./env` in main process (`src/main/env.ts`) or `@/env` in renderer (`src/renderer/src/env.ts`). Biome enforces `noProcessEnv`; only `src/main/env.ts` has an override.
 - **Always use `cn()`** from `src/lib/utils` for conditional Tailwind classes.
 - **Never use raw `console.*` in main process code** — use the structured logger from `src/main/logger.ts`. Create a module-level instance with `const logger = createLogger('<namespace>')` and call `logger.info(message, data?)`. The logger auto-formats output as `[namespace] message {data}`. Pass structured data as the second argument instead of `JSON.stringify()` wrappers.
+- **Never introduce inline numeric literals (magic numbers)** — extract them into descriptive `SCREAMING_SNAKE_CASE` constants (module-local by default, shared constants only when reused across modules). Validate with `pnpm check:magic-numbers` before handoff.
 
 ## Skills Standard
 

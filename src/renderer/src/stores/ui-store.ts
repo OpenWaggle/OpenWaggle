@@ -1,5 +1,8 @@
 import { create } from 'zustand'
 
+const DIFF_PANEL_WIDTH = 600
+const DELAY_MS = 3500
+
 export const DIFF_PANEL_MIN = 360
 export const DIFF_PANEL_MAX = 900
 export const CHAT_MIN_WIDTH = 420
@@ -55,7 +58,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   activeView: 'chat',
   activeSettingsTab: 'general',
   diffPanelOpen: false,
-  diffPanelWidth: 600,
+  diffPanelWidth: DIFF_PANEL_WIDTH,
   diffRefreshKey: 0,
   toastMessage: null,
   commandPaletteOpen: false,
@@ -120,7 +123,7 @@ export const useUIStore = create<UIState>((set, get) => ({
     toastTimer = setTimeout(() => {
       toastTimer = null
       set({ toastMessage: null })
-    }, 3500)
+    }, DELAY_MS)
   },
 
   clearToast() {

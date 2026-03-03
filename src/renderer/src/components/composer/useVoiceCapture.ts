@@ -1,8 +1,30 @@
+import {
+  BYTES_PER_KIBIBYTE,
+  DOUBLE_FACTOR,
+  MILLISECONDS_PER_SECOND,
+  TRIPLE_FACTOR,
+} from '@shared/constants/constants'
 import { VOICE_MODEL_TINY } from '@shared/types/voice'
 import type { RefObject } from 'react'
 import { useEffect, useRef } from 'react'
 import { api } from '@/lib/ipc'
 import { useComposerStore } from '@/stores/composer-store'
+
+const DEFAULT_THRESHOLD = 0.012
+const DEFAULT_PADDING_MS = 160
+const PCM16_NEGATIVE_SCALE = 32768
+const PCM16_POSITIVE_SCALE = 32767
+const PCM_LEVEL_MIDPOINT = 128
+const MIN_WAVEFORM_LEVEL = 0.08
+const LEVEL_AMPLIFICATION_FACTOR = 3.5
+const METER_SMOOTHING_FACTOR = 0.6
+const WAVEFORM_SEED_HIGH = 0.2
+const WAVEFORM_SEED_MEDIUM = 0.12
+const RANDOM_VARIANCE_CENTER = 0.5
+const EVEN_INDEX_WAVEFORM_OFFSET = 0.03
+const ODD_INDEX_WAVEFORM_OFFSET = -0.02
+const WAVEFORM_TICK_INTERVAL_MS = 1000
+const MAX_TEXTAREA_HEIGHT_PX = 200
 
 const VOICE_CAPTURE_MIME_TYPES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'] as const
 const WHISPER_TARGET_SAMPLE_RATE = 16_000
@@ -68,8 +90,8 @@ async function decodeRecordedAudio(blob: Blob): Promise<Float32Array> {
 function trimSilence(
   samples: Float32Array,
   sampleRate: number,
-  threshold = 0.012,
-  paddingMs = 160,
+  threshold = DEFAULT_THRESHOLD,
+  paddingMs = DEFAULT_PADDING_MS,
 ): Float32Array {
   if (samples.length === 0) return samples
   let start = 0
@@ -77,16 +99,20 @@ function trimSilence(
   let end = samples.length - 1
   while (end > start && Math.abs(samples[end]) < threshold) end -= 1
   if (start >= end) return samples
-  const pad = Math.round((paddingMs / 1000) * sampleRate)
+  const pad = Math.round((paddingMs / MILLISECONDS_PER_SECOND) * sampleRate)
   return samples.slice(Math.max(0, start - pad), Math.min(samples.length, end + pad))
 }
 
 function toPcm16(samples: Float32Array): Uint8Array {
-  const bytes = new Uint8Array(samples.length * 2)
+  const bytes = new Uint8Array(samples.length * DOUBLE_FACTOR)
   const view = new DataView(bytes.buffer)
   for (let i = 0; i < samples.length; i += 1) {
     const v = Math.max(-1, Math.min(1, samples[i]))
-    view.setInt16(i * 2, v < 0 ? Math.round(v * 32768) : Math.round(v * 32767), true)
+    view.setInt16(
+      i * DOUBLE_FACTOR,
+      v < 0 ? Math.round(v * PCM16_NEGATIVE_SCALE) : Math.round(v * PCM16_POSITIVE_SCALE),
+      true,
+    )
   }
   return bytes
 }
@@ -156,23 +182,26 @@ export function useVoiceCapture({
 
   function sampleLevel(): number {
     const analyser = analyserRef.current
-    if (!analyser) return 0.08
+    if (!analyser) return MIN_WAVEFORM_LEVEL
     const data = new Uint8Array(analyser.fftSize)
     analyser.getByteTimeDomainData(data)
     let sum = 0
     for (let i = 0; i < data.length; i += 1) {
-      const n = (data[i] - 128) / 128
+      const n = (data[i] - PCM_LEVEL_MIDPOINT) / PCM_LEVEL_MIDPOINT
       sum += n * n
     }
-    return Math.max(0.08, Math.min(1, Math.sqrt(sum / data.length) * 3.5))
+    return Math.max(
+      MIN_WAVEFORM_LEVEL,
+      Math.min(1, Math.sqrt(sum / data.length) * LEVEL_AMPLIFICATION_FACTOR),
+    )
   }
 
   async function startMeter(stream: MediaStream): Promise<void> {
     const ctx = new AudioContext()
     const source = ctx.createMediaStreamSource(stream)
     const analyser = ctx.createAnalyser()
-    analyser.fftSize = 1024
-    analyser.smoothingTimeConstant = 0.6
+    analyser.fftSize = BYTES_PER_KIBIBYTE
+    analyser.smoothingTimeConstant = METER_SMOOTHING_FACTOR
     source.connect(analyser)
 
     audioCtxRef.current = ctx
@@ -181,31 +210,38 @@ export function useVoiceCapture({
     setVoiceState({
       voiceElapsedSeconds: 0,
       voiceWaveform: Array.from({ length: VOICE_WAVEFORM_BARS }, (_, i) =>
-        i % 3 === 0 ? 0.2 : i % 2 === 0 ? 0.12 : 0.08,
+        i % TRIPLE_FACTOR === 0
+          ? WAVEFORM_SEED_HIGH
+          : i % DOUBLE_FACTOR === 0
+            ? WAVEFORM_SEED_MEDIUM
+            : MIN_WAVEFORM_LEVEL,
       ),
     })
 
     tickTimerRef.current = window.setInterval(() => {
       if (!recordingStartRef.current) return
-      const elapsed = Math.floor((Date.now() - recordingStartRef.current) / 1000)
+      const elapsed = Math.floor((Date.now() - recordingStartRef.current) / MILLISECONDS_PER_SECOND)
       const level = sampleLevel()
       const generated = Array.from({ length: VOICE_WAVEFORM_SHIFT_PER_SECOND }, (_, i) => {
-        const variance = (Math.random() - 0.5) * 0.12
-        const offset = i % 2 === 0 ? 0.03 : -0.02
-        return Math.max(0.08, Math.min(1, level + variance + offset))
+        const variance = (Math.random() - RANDOM_VARIANCE_CENTER) * WAVEFORM_SEED_MEDIUM
+        const offset =
+          i % DOUBLE_FACTOR === 0 ? EVEN_INDEX_WAVEFORM_OFFSET : ODD_INDEX_WAVEFORM_OFFSET
+        return Math.max(MIN_WAVEFORM_LEVEL, Math.min(1, level + variance + offset))
       })
       const prev = useComposerStore.getState().voiceWaveform
       const baseline =
-        prev.length > 0 ? prev : Array.from({ length: VOICE_WAVEFORM_BARS }, () => 0.08)
+        prev.length > 0
+          ? prev
+          : Array.from({ length: VOICE_WAVEFORM_BARS }, () => MIN_WAVEFORM_LEVEL)
       setVoiceState({
         voiceElapsedSeconds: elapsed,
         voiceWaveform: [...baseline.slice(generated.length), ...generated],
       })
-    }, 1000)
+    }, WAVEFORM_TICK_INTERVAL_MS)
 
     autoStopTimerRef.current = window.setTimeout(() => {
       if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop()
-    }, VOICE_MAX_RECORDING_SECONDS * 1000)
+    }, VOICE_MAX_RECORDING_SECONDS * MILLISECONDS_PER_SECOND)
   }
 
   function insertTranscriptAtCursor(rawTranscript: string): void {
@@ -237,7 +273,7 @@ export function useVoiceCapture({
       textarea.setSelectionRange(caret, caret)
       store.setCursorIndex(caret)
       textarea.style.height = 'auto'
-      textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`
+      textarea.style.height = `${Math.min(textarea.scrollHeight, MAX_TEXTAREA_HEIGHT_PX)}px`
     })
   }
 

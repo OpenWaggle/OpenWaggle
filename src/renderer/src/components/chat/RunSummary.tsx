@@ -1,3 +1,4 @@
+import { MILLISECONDS_PER_SECOND } from '@shared/constants/constants'
 import type { CompletedPhase } from '@/hooks/useStreamingPhase'
 import { formatElapsed } from '@/hooks/useStreamingPhase'
 import { cn } from '@/lib/cn'
@@ -8,7 +9,7 @@ interface RunSummaryProps {
 }
 
 export function RunSummary({ phases, totalMs }: RunSummaryProps): React.JSX.Element {
-  const visiblePhases = phases.filter((p) => p.durationMs >= 1000)
+  const visiblePhases = phases.filter((p) => p.durationMs >= MILLISECONDS_PER_SECOND)
 
   return (
     <div className="flex flex-col gap-1 py-3">

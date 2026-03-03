@@ -1,13 +1,19 @@
+import { SECONDS_PER_MINUTE } from '@shared/constants/constants'
 import { ArrowUp, Loader2, Plus, Square } from 'lucide-react'
 import type { RefObject } from 'react'
 import { cn } from '@/lib/cn'
 import { useComposerStore } from '@/stores/composer-store'
 
+const PAD_START_ARG_1 = 2
+const MAX_ARG_1 = 4
+const FUNCTION_VALUE_28 = 28
+const MAX_ARG_1_VALUE_0_35 = 0.35
+
 function formatVoiceDuration(totalSeconds: number): string {
   const seconds = Math.max(0, Math.floor(totalSeconds))
-  const minutesPart = Math.floor(seconds / 60)
-  const secondsPart = seconds % 60
-  return `${String(minutesPart)}:${String(secondsPart).padStart(2, '0')}`
+  const minutesPart = Math.floor(seconds / SECONDS_PER_MINUTE)
+  const secondsPart = seconds % SECONDS_PER_MINUTE
+  return `${String(minutesPart)}:${String(secondsPart).padStart(PAD_START_ARG_1, '0')}`
 }
 
 interface VoiceRecorderProps {
@@ -48,8 +54,8 @@ export function VoiceRecorder({
                   <span
                     className="w-[3px] rounded-[2px] bg-text-primary/95"
                     style={{
-                      height: `${String(Math.max(4, Math.round(level * 28)))}px`,
-                      opacity: Math.max(0.35, level),
+                      height: `${String(Math.max(MAX_ARG_1, Math.round(level * FUNCTION_VALUE_28)))}px`,
+                      opacity: Math.max(MAX_ARG_1_VALUE_0_35, level),
                       transition: 'height 800ms ease, opacity 800ms ease',
                     }}
                   />

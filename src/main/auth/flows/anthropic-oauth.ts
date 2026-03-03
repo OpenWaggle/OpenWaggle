@@ -1,3 +1,4 @@
+import { FIVE_MINUTES_IN_MILLISECONDS, MILLISECONDS_PER_SECOND } from '@shared/constants/constants'
 import { clipboard, shell } from 'electron'
 import { z } from 'zod'
 import { createLogger } from '../../logger'
@@ -12,7 +13,8 @@ const ANTHROPIC_REDIRECT_URI = 'https://console.anthropic.com/oauth/code/callbac
 const ANTHROPIC_SCOPES = 'org:create_api_key user:profile user:inference'
 
 const CLIPBOARD_POLL_INTERVAL_MS = 500
-const CLIPBOARD_POLL_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
+const CLIPBOARD_POLL_TIMEOUT_MS = FIVE_MINUTES_IN_MILLISECONDS
+const TOKEN_EXPIRY_BUFFER_MS = FIVE_MINUTES_IN_MILLISECONDS
 
 const tokenResponseSchema = z.object({
   access_token: z.string(),
@@ -157,7 +159,8 @@ export async function startAnthropicOAuth(
   const parsed = tokenResponseSchema.parse(raw)
 
   // 5-minute buffer on expiry (matching pi-ai)
-  const expiresAt = Date.now() + parsed.expires_in * 1000 - 5 * 60 * 1000
+  const expiresAt =
+    Date.now() + parsed.expires_in * MILLISECONDS_PER_SECOND - TOKEN_EXPIRY_BUFFER_MS
 
   logger.info('Anthropic OAuth completed successfully')
   return {
@@ -193,6 +196,6 @@ export async function refreshAnthropicToken(
   return {
     accessToken: parsed.access_token,
     refreshToken: parsed.refresh_token,
-    expiresAt: Date.now() + parsed.expires_in * 1000 - 5 * 60 * 1000,
+    expiresAt: Date.now() + parsed.expires_in * MILLISECONDS_PER_SECOND - TOKEN_EXPIRY_BUFFER_MS,
   }
 }

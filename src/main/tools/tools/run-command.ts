@@ -1,10 +1,15 @@
 import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
+import { BYTES_PER_KIBIBYTE } from '@shared/constants/constants'
 import { z } from 'zod'
 import { getSafeChildEnv } from '../../env'
 import { createLogger } from '../../logger'
 import { defineOpenWaggleTool } from '../define-tool'
+
+const EXECUTE_VALUE_30000 = 30000
+const EXECUTE_VALUE_200 = 200
+const SLICE_ARG_2 = 200
 
 const logger = createLogger('tools:runCommand')
 const MAX_LOG_PREVIEW_BYTES = 1024
@@ -22,9 +27,11 @@ export const runCommandTool = defineOpenWaggleTool({
       .describe('Timeout in milliseconds. Defaults to 30000 (30 seconds).'),
   }),
   async execute(args, context) {
-    const timeout = args.timeout ?? 30000
+    const timeout = args.timeout ?? EXECUTE_VALUE_30000
     const displayCommand =
-      args.command.length > 200 ? `${args.command.slice(0, 200)}...` : args.command
+      args.command.length > EXECUTE_VALUE_200
+        ? `${args.command.slice(0, SLICE_ARG_2)}...`
+        : args.command
     logger.info('executing command', {
       command: redactSensitiveText(args.command),
       cwd: context.projectPath,
@@ -41,7 +48,7 @@ export const runCommandTool = defineOpenWaggleTool({
         {
           cwd: context.projectPath,
           timeout,
-          maxBuffer: 1024 * 1024,
+          maxBuffer: BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE,
           env: getSafeChildEnv(),
         },
         (error, stdout, stderr) => {

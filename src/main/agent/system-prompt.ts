@@ -1,5 +1,14 @@
 import type { AgentPromptFragment } from './runtime-types'
 
+const ORDER = 10
+const ORDER_VALUE_20 = 20
+const ORDER_VALUE_30 = 30
+const ORDER_VALUE_35 = 35
+const ORDER_VALUE_36 = 36
+const ORDER_VALUE_37 = 37
+const ORDER_VALUE_38 = 38
+const ORDER_VALUE_40 = 40
+
 const CORE_BEHAVIOR_PROMPT = `You are OpenWaggle, an expert coding assistant. You help developers understand, write, debug, and refactor code.
 
 You have access to tools that let you read files, write files, edit files, run commands, and explore the project structure. Use these tools proactively to understand the codebase before making changes.
@@ -21,20 +30,20 @@ Guidelines:
 
 export const coreBehaviorPromptFragment: AgentPromptFragment = {
   id: 'core.behavior',
-  order: 10,
+  order: ORDER,
   build: () => CORE_BEHAVIOR_PROMPT,
 }
 
 export const runtimeModelPromptFragment: AgentPromptFragment = {
   id: 'core.runtime-model',
-  order: 20,
+  order: ORDER_VALUE_20,
   build: (context) =>
     `Internal runtime context (do not mention this unless the user asks for technical/runtime details): provider "${context.provider.displayName}", model "${context.model}".`,
 }
 
 export const projectContextPromptFragment: AgentPromptFragment = {
   id: 'core.project-context',
-  order: 30,
+  order: ORDER_VALUE_30,
   build: (context) => {
     if (context.hasProject) {
       return `The user's project is located at: ${context.projectPath}\nAll file paths in tool calls should be relative to this project root.`
@@ -46,7 +55,7 @@ export const projectContextPromptFragment: AgentPromptFragment = {
 
 export const planToolPromptFragment: AgentPromptFragment = {
   id: 'core.plan-tool',
-  order: 35,
+  order: ORDER_VALUE_35,
   build: () =>
     `You have access to a "proposePlan" tool. Use it to present a structured plan to the user before executing complex or multi-step tasks. The plan should describe your approach, key steps, and expected changes in markdown format. The tool blocks until the user approves or requests revisions. If they request revisions, incorporate their feedback and call proposePlan again. Use this tool when:
 - The user explicitly asks for a plan ("create a plan", "let's plan this", "plan first")
@@ -57,14 +66,14 @@ Do NOT use proposePlan for simple questions, single-file edits, or straightforwa
 
 export const planModeActivePromptFragment: AgentPromptFragment = {
   id: 'core.plan-mode-active',
-  order: 36,
+  order: ORDER_VALUE_36,
   build: () =>
     'IMPORTANT: Plan mode is active for this message. You MUST call the proposePlan tool with your plan BEFORE executing any file modifications or commands. Present your approach and wait for user approval.',
 }
 
 export const orchestrateToolPromptFragment: AgentPromptFragment = {
   id: 'core.orchestrate-tool',
-  order: 37,
+  order: ORDER_VALUE_37,
   build: () =>
     `You have access to an "orchestrate" tool that spawns 2-5 parallel sub-agents. Each sub-agent can read files, search with glob, and fetch web content. Use this tool when:
 - You identify 2-5 genuinely independent sub-tasks that can run in parallel
@@ -80,7 +89,7 @@ The tool returns the synthesized results from all sub-agents.`,
 
 export const contextInjectionPromptFragment: AgentPromptFragment = {
   id: 'core.context-injection',
-  order: 38,
+  order: ORDER_VALUE_38,
   build: () =>
     `Tool results may occasionally include a <user_context_update> tag. This contains messages the user sent while you were working. When you see this tag:
 - Read and incorporate the user's context naturally into your ongoing work
@@ -91,7 +100,7 @@ export const contextInjectionPromptFragment: AgentPromptFragment = {
 
 export const executionModePromptFragment: AgentPromptFragment = {
   id: 'core.execution-mode',
-  order: 40,
+  order: ORDER_VALUE_40,
   build: (context) => {
     if (context.settings.executionMode === 'sandbox') {
       return 'Execution mode is Default permissions. Tools that modify files or run commands (writeFile, editFile, runCommand) require explicit user approval before each use. The user will see an approval prompt and can approve or deny each tool call individually. Read-only tools (readFile, glob, listFiles) execute immediately without approval. Proceed normally and use any tool you need — the user controls what gets executed.'

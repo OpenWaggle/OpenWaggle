@@ -1,3 +1,8 @@
+import {
+  DOUBLE_FACTOR,
+  MILLISECONDS_PER_SECOND,
+  SECONDS_PER_MINUTE,
+} from '@shared/constants/constants'
 import type {
   OAuthFlowStatus,
   SubscriptionAccountInfo,
@@ -21,7 +26,7 @@ import {
 } from './token-manager'
 
 const logger = createLogger('auth')
-const AUTH_LIFECYCLE_INTERVAL_MS = 2 * 60 * 1000
+const AUTH_LIFECYCLE_INTERVAL_MS = DOUBLE_FACTOR * SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND
 
 // Register refresh functions for token-manager
 registerRefreshFn('openai', refreshOpenAIToken)

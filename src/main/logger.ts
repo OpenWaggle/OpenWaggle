@@ -1,12 +1,21 @@
 import fs from 'node:fs'
 import { mkdir, readdir, stat, unlink } from 'node:fs/promises'
 import path from 'node:path'
+import {
+  HOURS_PER_DAY,
+  MILLISECONDS_PER_SECOND,
+  SECONDS_PER_MINUTE,
+} from '@shared/constants/constants'
 import type { Logger } from '@shared/types/logger'
+
+const SLICE_ARG_1 = 11
+const SLICE_ARG_2 = 23
+const SLICE_ARG_2_VALUE_10 = 10
 
 export type { Logger }
 
 function formatLine(namespace: string, message: string, data?: object): string {
-  const ts = new Date().toISOString().slice(11, 23) // HH:mm:ss.mmm
+  const ts = new Date().toISOString().slice(SLICE_ARG_1, SLICE_ARG_2) // HH:mm:ss.mmm
   if (data && Object.keys(data).length > 0) {
     return `${ts} [${namespace}] ${message} ${JSON.stringify(data)}`
   }
@@ -48,7 +57,7 @@ class FileWriter {
   }
 
   private ensureDatePath(): void {
-    const dateStr = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
+    const dateStr = new Date().toISOString().slice(0, SLICE_ARG_2_VALUE_10) // YYYY-MM-DD
     if (dateStr === this.currentDate) return
     this.currentDate = dateStr
     this.currentPath = path.join(this.logsDir ?? '', `openwaggle-${dateStr}.log`)
@@ -68,7 +77,13 @@ class FileWriter {
     if (!this.logsDir) return
     const logsDir = this.logsDir
     try {
-      const cutoff = Date.now() - LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000
+      const cutoff =
+        Date.now() -
+        LOG_RETENTION_DAYS *
+          HOURS_PER_DAY *
+          SECONDS_PER_MINUTE *
+          SECONDS_PER_MINUTE *
+          MILLISECONDS_PER_SECOND
       const entries = await readdir(logsDir)
       const deletions = entries
         .filter((entry) => entry.startsWith('openwaggle-') && entry.endsWith('.log'))

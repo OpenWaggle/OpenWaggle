@@ -1,10 +1,18 @@
 import type { Settings } from '@shared/types/settings'
 
+const MASK_API_KEY_VALUE_8 = 8
+const MASK_API_KEY_VALUE_4 = 4
+const SLICE_ARG_1 = -4
+const SLICE_ARG_2 = 8
+
 export function maskApiKey(key: string): string {
-  if (!key || key.length < 8) return ''
-  const prefix = key.slice(0, key.indexOf('-') > 0 ? key.indexOf('-', key.indexOf('-') + 1) + 1 : 4)
-  const suffix = key.slice(-4)
-  const visiblePrefix = prefix.length > 8 ? prefix.slice(0, 8) : prefix
+  if (!key || key.length < MASK_API_KEY_VALUE_8) return ''
+  const prefix = key.slice(
+    0,
+    key.indexOf('-') > 0 ? key.indexOf('-', key.indexOf('-') + 1) + 1 : MASK_API_KEY_VALUE_4,
+  )
+  const suffix = key.slice(SLICE_ARG_1)
+  const visiblePrefix = prefix.length > MASK_API_KEY_VALUE_8 ? prefix.slice(0, SLICE_ARG_2) : prefix
   return `${visiblePrefix}${'••••••'}${suffix}`
 }
 

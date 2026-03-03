@@ -5,6 +5,8 @@ import { cn } from '@/lib/cn'
 import { api } from '@/lib/ipc'
 import { isReactElementWithProps } from '@/lib/react-element-guard'
 
+const DELAY_MS = 2000
+
 interface CodeBlockProps {
   children: ReactNode
   language?: string
@@ -32,7 +34,7 @@ export function CodeBlock({ children, language, className }: CodeBlockProps): Re
     const text = getTextContent(children).replace(/\n$/, '')
     api.copyToClipboard(text)
     setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    setTimeout(() => setCopied(false), DELAY_MS)
   }
 
   return (

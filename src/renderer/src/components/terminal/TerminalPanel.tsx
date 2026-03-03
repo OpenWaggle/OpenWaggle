@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from 'react'
 import { api } from '@/lib/ipc'
 import '@xterm/xterm/css/xterm.css'
 
+const FONT_SIZE = 14
+
 interface TerminalPanelProps {
   projectPath: string | null
   onClose: () => void
@@ -50,7 +52,7 @@ export function TerminalPanel({ projectPath, onClose }: TerminalPanelProps): Rea
         brightCyan: '#22d3ee',
         brightWhite: '#ffffff',
       },
-      fontSize: 14,
+      fontSize: FONT_SIZE,
       fontFamily: '"SF Mono", "Fira Code", "JetBrains Mono", monospace',
       cursorBlink: true,
       allowProposedApi: true,

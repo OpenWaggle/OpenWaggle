@@ -1,4 +1,8 @@
+import { DOUBLE_FACTOR } from '@shared/constants/constants'
 import { createPatch } from 'diff'
+
+const CONTEXT = 3
+const PARSE_INT_ARG_2 = 10
 
 export interface DiffLine {
   type: 'add' | 'remove' | 'context'
@@ -14,7 +18,7 @@ export interface DiffResult {
 }
 
 export function computeDiff(oldContent: string, newContent: string, filePath: string): DiffResult {
-  const patch = createPatch(filePath, oldContent, newContent, '', '', { context: 3 })
+  const patch = createPatch(filePath, oldContent, newContent, '', '', { context: CONTEXT })
 
   const lines: DiffLine[] = []
   let additions = 0
@@ -38,8 +42,8 @@ export function computeDiff(oldContent: string, newContent: string, filePath: st
     // Parse hunk header
     const hunkMatch = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line)
     if (hunkMatch) {
-      oldLine = Number.parseInt(hunkMatch[1], 10)
-      newLine = Number.parseInt(hunkMatch[2], 10)
+      oldLine = Number.parseInt(hunkMatch[1], PARSE_INT_ARG_2)
+      newLine = Number.parseInt(hunkMatch[DOUBLE_FACTOR], PARSE_INT_ARG_2)
       continue
     }
 

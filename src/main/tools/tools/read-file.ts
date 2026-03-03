@@ -1,8 +1,9 @@
 import fs from 'node:fs/promises'
+import { BYTES_PER_KIBIBYTE } from '@shared/constants/constants'
 import { z } from 'zod'
 import { defineOpenWaggleTool, resolveProjectPath } from '../define-tool'
 
-const MAX_FILE_SIZE = 1024 * 1024 // 1 MB
+const MAX_FILE_SIZE = BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE // 1 MB
 
 function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && 'code' in error
@@ -26,7 +27,7 @@ export const readFileTool = defineOpenWaggleTool({
       const stat = await fs.stat(filePath)
       if (stat.size > MAX_FILE_SIZE) {
         throw new Error(
-          `File "${args.path}" is ${(stat.size / 1024 / 1024).toFixed(1)} MB — exceeds 1 MB limit. Use maxLines or read a specific section.`,
+          `File "${args.path}" is ${(stat.size / BYTES_PER_KIBIBYTE / BYTES_PER_KIBIBYTE).toFixed(1)} MB — exceeds 1 MB limit. Use maxLines or read a specific section.`,
         )
       }
 

@@ -14,6 +14,8 @@ import { useState } from 'react'
 import { api } from '@/lib/ipc'
 import { clearLastAgentErrorInfo, getLastAgentErrorInfo } from '@/lib/ipc-connection-adapter'
 
+const DELAY_MS = 2000
+
 interface ChatErrorDisplayProps {
   error: Error
   lastUserMessage: string | null
@@ -53,7 +55,7 @@ export function ChatErrorDisplay({
     const text = `${info.userMessage}${info.suggestion ? `\n${info.suggestion}` : ''}\n\nRaw: ${info.message}`
     api.copyToClipboard(text)
     setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    setTimeout(() => setCopied(false), DELAY_MS)
   }
 
   function handleDismiss(): void {

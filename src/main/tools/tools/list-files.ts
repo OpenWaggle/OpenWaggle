@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { BYTES_PER_KIBIBYTE, TRIPLE_FACTOR } from '@shared/constants/constants'
 import { z } from 'zod'
 import { defineOpenWaggleTool, resolveProjectPath } from '../define-tool'
 
@@ -30,7 +31,7 @@ export const listFilesTool = defineOpenWaggleTool({
 
         if (entry.isDirectory()) {
           lines.push(`${indent}${entry.name}/`)
-          if (args.recursive && depth < 3) {
+          if (args.recursive && depth < TRIPLE_FACTOR) {
             const subLines = await listDir(path.join(dir, entry.name), depth + 1)
             lines.push(...subLines)
           }
@@ -49,7 +50,8 @@ export const listFilesTool = defineOpenWaggleTool({
 })
 
 function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes}B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
+  if (bytes < BYTES_PER_KIBIBYTE) return `${bytes}B`
+  if (bytes < BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE)
+    return `${(bytes / BYTES_PER_KIBIBYTE).toFixed(1)}KB`
+  return `${(bytes / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE)).toFixed(1)}MB`
 }

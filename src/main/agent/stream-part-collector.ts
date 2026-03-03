@@ -8,6 +8,8 @@ import { z } from 'zod'
 import { createLogger } from '../logger'
 import type { AgentToolCallEndEvent, AgentToolCallStartEvent } from './runtime-types'
 
+const SLICE_ARG_2 = 200
+
 const logger = createLogger('stream')
 
 const errorResultSchema = z.union([
@@ -221,7 +223,7 @@ export class StreamPartCollector {
     } catch (parseError) {
       logger.warn(`Failed to parse tool call args for "${toolName}"`, {
         error: parseError instanceof Error ? parseError.message : String(parseError),
-        raw: rawArgs.slice(0, 200),
+        raw: rawArgs.slice(0, SLICE_ARG_2),
       })
       return {}
     }

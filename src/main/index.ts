@@ -27,6 +27,13 @@ import { getSettings } from './store/settings'
 import { registerRunSubAgent } from './sub-agents/facade'
 import { runSubAgent } from './sub-agents/sub-agent-runner'
 
+const WIDTH = 1200
+const HEIGHT = 800
+const MIN_WIDTH = 800
+const MIN_HEIGHT = 600
+const X = 16
+const Y = 16
+
 if (env.OPENWAGGLE_USER_DATA_DIR) {
   app.setPath('userData', env.OPENWAGGLE_USER_DATA_DIR)
 }
@@ -146,13 +153,13 @@ function isTrustedRendererRequest(url: string): boolean {
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    minWidth: 800,
-    minHeight: 600,
+    width: WIDTH,
+    height: HEIGHT,
+    minWidth: MIN_WIDTH,
+    minHeight: MIN_HEIGHT,
     show: false,
     titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 16, y: 16 },
+    trafficLightPosition: { x: X, y: Y },
     backgroundColor: '#141619',
     icon: appIconPath,
     webPreferences: {

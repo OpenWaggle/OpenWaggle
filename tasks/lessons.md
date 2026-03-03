@@ -5,6 +5,9 @@ User corrections and behavioral rules. Updated whenever the user corrects the ag
 ## Active Rules
 
 - Scope fidelity first: when the user asks for a targeted UI change (for example remove one icon), preserve all other behavior/layout unless explicitly asked to redesign more.
+- Magic-number policy is strict when requested repository-wide: replace all inline numeric literals (including UI/layout values) with named `SCREAMING_SNAKE_CASE` constants, and keep `pnpm check:magic-numbers` green before handoff.
+- DRY constant design preference: when the same numeric constant appears across files, centralize it in a shared constants module and group related constants into domain objects when that improves clarity.
+- Script runtime preference: prefer TypeScript scripts (`.ts`) executed with `tsx` over `.mjs` scripts when adding or updating project scripts.
 - **Never type-cast** — `as Foo`, `as unknown as Foo`, and `as Record<string, unknown>` are never acceptable. Instead, always use the proper TypeScript/Zod primitives to achieve type safety from top to bottom:
   - **Union types & discriminated unions** — model data variants with `type` discriminators, not casts after runtime checks.
   - **Zod v4 validation** — `.parse()` / `.safeParse()` at runtime boundaries (JSON.parse, IPC, external APIs). Use `.catch(defaultValue)` for graceful degradation, not `z.unknown()` which defeats validation. Centralize schemas in `src/shared/schemas/validation.ts`.

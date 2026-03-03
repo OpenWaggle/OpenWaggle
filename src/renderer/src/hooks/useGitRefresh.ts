@@ -4,6 +4,8 @@ import { api } from '@/lib/ipc'
 import { isTerminalChunk } from '@/lib/ipc-connection-adapter'
 import { useUIStore } from '@/stores/ui-store'
 
+const DELAY_MS = 500
+
 interface UseGitRefreshOptions {
   readonly projectPath: string | null
   readonly activeConversationId: ConversationId | null
@@ -44,7 +46,7 @@ export function useGitRefresh({
           refreshTimer = null
           void Promise.all([refreshGitStatus(projectPath), refreshGitBranches(projectPath)])
           bumpDiffRefreshKey()
-        }, 500)
+        }, DELAY_MS)
       }
     })
 

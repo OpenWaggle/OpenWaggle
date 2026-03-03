@@ -1,0 +1,312 @@
+# Magic Number Audit Inventory
+
+## Modified Files
+- `AGENTS.md`
+- `package.json`
+- `playwright.config.ts`
+- `pnpm-lock.yaml`
+- `scripts/check-decision-size.ts`
+- `scripts/check-magic-numbers.ts`
+- `scripts/check-pattern-style.ts`
+- `src/main/agent/consensus-detector.ts`
+- `src/main/agent/feature-registry.ts`
+- `src/main/agent/quality-config.ts`
+- `src/main/agent/retry.ts`
+- `src/main/agent/standards-prompt.ts`
+- `src/main/agent/stream-part-collector.ts`
+- `src/main/agent/system-prompt.ts`
+- `src/main/agent/waggle-coordinator.ts`
+- `src/main/auth/flows/anthropic-oauth.ts`
+- `src/main/auth/flows/openai-oauth.ts`
+- `src/main/auth/flows/openrouter-oauth.ts`
+- `src/main/auth/index.ts`
+- `src/main/auth/oauth-callback-server.ts`
+- `src/main/auth/pkce.ts`
+- `src/main/auth/token-manager.ts`
+- `src/main/config/project-config.ts`
+- `src/main/index.ts`
+- `src/main/ipc/agent-handler.ts`
+- `src/main/ipc/attachments-handler.ts`
+- `src/main/ipc/git/branches-handler.ts`
+- `src/main/ipc/git/shared.ts`
+- `src/main/ipc/git/status-handler.ts`
+- `src/main/ipc/settings-handler.ts`
+- `src/main/ipc/terminal-handler.ts`
+- `src/main/ipc/voice-handler.ts`
+- `src/main/ipc/waggle-handler.ts`
+- `src/main/logger.ts`
+- `src/main/mcp/mcp-client.ts`
+- `src/main/mcp/mcp-feature.ts`
+- `src/main/orchestration/engine/engine.ts`
+- `src/main/orchestration/engine/orchestrator.ts`
+- `src/main/orchestration/project-context.ts`
+- `src/main/orchestration/service/model-runner.ts`
+- `src/main/orchestration/service/prompts.ts`
+- `src/main/orchestration/service/runner.ts`
+- `src/main/orchestration/service/task-progress.ts`
+- `src/main/providers/anthropic.ts`
+- `src/main/providers/openai.ts`
+- `src/main/skills/skill-catalog.ts`
+- `src/main/store/settings.ts`
+- `src/main/store/teams.ts`
+- `src/main/sub-agents/agent-type-registry.ts`
+- `src/main/sub-agents/sub-agent-runner.ts`
+- `src/main/tools/define-tool.ts`
+- `src/main/tools/plan-manager.ts`
+- `src/main/tools/tools/ask-user.ts`
+- `src/main/tools/tools/edit-file.ts`
+- `src/main/tools/tools/glob.ts`
+- `src/main/tools/tools/list-files.ts`
+- `src/main/tools/tools/orchestrate.ts`
+- `src/main/tools/tools/read-file.ts`
+- `src/main/tools/tools/run-command.ts`
+- `src/main/tools/tools/web-fetch.ts`
+- `src/main/utils/atomic-write.ts`
+- `src/renderer/src/components/chat/ChatErrorDisplay.tsx`
+- `src/renderer/src/components/chat/ChatTranscript.tsx`
+- `src/renderer/src/components/chat/CodeBlock.tsx`
+- `src/renderer/src/components/chat/RunSummary.tsx`
+- `src/renderer/src/components/chat/ThinkingBlock.tsx`
+- `src/renderer/src/components/chat/ToolCallBlock.tsx`
+- `src/renderer/src/components/command-palette/CommandPalette.tsx`
+- `src/renderer/src/components/composer/Composer.tsx`
+- `src/renderer/src/components/composer/VoiceRecorder.tsx`
+- `src/renderer/src/components/composer/useVoiceCapture.ts`
+- `src/renderer/src/components/devtools/TanStackAIDevtools.tsx`
+- `src/renderer/src/components/diff-panel/DiffFileSection.tsx`
+- `src/renderer/src/components/diff-panel/FileTree.tsx`
+- `src/renderer/src/components/layout/CommitDialog.tsx`
+- `src/renderer/src/components/layout/Sidebar.tsx`
+- `src/renderer/src/components/layout/ThreadListItem.tsx`
+- `src/renderer/src/components/settings/sections/WaggleSection.tsx`
+- `src/renderer/src/components/settings/sections/connections/helpers.ts`
+- `src/renderer/src/components/terminal/TerminalPanel.tsx`
+- `src/renderer/src/components/waggle/CollaborationStatus.tsx`
+- `src/renderer/src/hooks/useGitRefresh.ts`
+- `src/renderer/src/hooks/useStreamingPhase.ts`
+- `src/renderer/src/lib/diff.ts`
+- `src/renderer/src/lib/format.ts`
+- `src/renderer/src/lib/ipc-connection-adapter.ts`
+- `src/renderer/src/stores/preferences-store.ts`
+- `src/renderer/src/stores/ui-store.ts`
+- `src/shared/constants/constants.ts`
+- `src/shared/schemas/waggle.ts`
+- `src/shared/utils/agents-path-inference.ts`
+- `src/shared/utils/decision.typecheck.ts`
+- `src/shared/utils/skill-references.ts`
+- `tasks/learnings.md`
+- `tasks/lessons.md`
+- `tasks/specs/52-magic-number-constants-audit.md`
+- `tasks/specs/52-magic-number-constants-inventory.md`
+
+## Created Constants (Name = Replaced Value)
+- `playwright.config.ts`: `TIMEOUT = 90_000`
+- `src/main/agent/feature-registry.ts`: `SLICE_ARG_2_VALUE_200 = 200`
+- `src/main/agent/feature-registry.ts`: `SLICE_ARG_2 = 300`
+- `src/main/agent/quality-config.ts`: `MAX_TOKENS_VALUE_2200 = 2200`
+- `src/main/agent/quality-config.ts`: `MAX_TOKENS_VALUE_4200 = 4200`
+- `src/main/agent/quality-config.ts`: `MAX_TOKENS = 1200`
+- `src/main/agent/quality-config.ts`: `TEMPERATURE_VALUE_0_4 = 0.4`
+- `src/main/agent/quality-config.ts`: `TEMPERATURE_VALUE_0_55 = 0.55`
+- `src/main/agent/quality-config.ts`: `TEMPERATURE = 0.25`
+- `src/main/agent/quality-config.ts`: `TOP_P_VALUE_0_95 = 0.95`
+- `src/main/agent/quality-config.ts`: `TOP_P = 0.9`
+- `src/main/agent/retry.ts`: `DELAY_MS = 1000`
+- `src/main/agent/retry.ts`: `IS_TRANSIENT_ERROR_VALUE_429 = 429`
+- `src/main/agent/retry.ts`: `IS_TRANSIENT_ERROR_VALUE_502 = 502`
+- `src/main/agent/retry.ts`: `IS_TRANSIENT_ERROR_VALUE_503 = 503`
+- `src/main/agent/retry.ts`: `MAX_ATTEMPTS = 2`
+- `src/main/agent/standards-prompt.ts`: `ORDER_VALUE_44 = 44`
+- `src/main/agent/standards-prompt.ts`: `ORDER_VALUE_45 = 45`
+- `src/main/agent/standards-prompt.ts`: `ORDER_VALUE_6 = 6`
+- `src/main/agent/standards-prompt.ts`: `ORDER = 5`
+- `src/main/agent/stream-part-collector.ts`: `SLICE_ARG_2 = 200`
+- `src/main/agent/system-prompt.ts`: `ORDER_VALUE_20 = 20`
+- `src/main/agent/system-prompt.ts`: `ORDER_VALUE_30 = 30`
+- `src/main/agent/system-prompt.ts`: `ORDER_VALUE_35 = 35`
+- `src/main/agent/system-prompt.ts`: `ORDER_VALUE_36 = 36`
+- `src/main/agent/system-prompt.ts`: `ORDER_VALUE_37 = 37`
+- `src/main/agent/system-prompt.ts`: `ORDER_VALUE_38 = 38`
+- `src/main/agent/system-prompt.ts`: `ORDER_VALUE_40 = 40`
+- `src/main/agent/system-prompt.ts`: `ORDER = 10`
+- `src/main/agent/waggle-coordinator.ts`: `FUNCTION_VALUE_3000 = 3000`
+- `src/main/agent/waggle-coordinator.ts`: `RUN_WAGGLE_SEQUENTIAL_VALUE_20 = 20`
+- `src/main/agent/waggle-coordinator.ts`: `SLICE_ARG_2_VALUE_3000 = 3000`
+- `src/main/agent/waggle-coordinator.ts`: `SLICE_ARG_2 = 200`
+- `src/main/auth/flows/anthropic-oauth.ts`: `CLIPBOARD_POLL_TIMEOUT_MS = MODULE_VALUE_5 * SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND`
+- `src/main/auth/flows/anthropic-oauth.ts`: `MODULE_VALUE_5 = 5`
+- `src/main/auth/flows/anthropic-oauth.ts`: `REFRESH_ANTHROPIC_TOKEN_VALUE_5 = 5`
+- `src/main/auth/flows/anthropic-oauth.ts`: `START_ANTHROPIC_O_AUTH_VALUE_5 = 5`
+- `src/main/auth/flows/openai-oauth.ts`: `RANDOM_BYTES_ARG_1 = 16`
+- `src/main/auth/flows/openai-oauth.ts`: `SPLIT_ARG_2 = 2`
+- `src/main/auth/flows/openrouter-oauth.ts`: `RANDOM_BYTES_ARG_1 = 16`
+- `src/main/auth/index.ts`: `AUTH_LIFECYCLE_INTERVAL_MS = DOUBLE_FACTOR * SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND`
+- `src/main/auth/oauth-callback-server.ts`: `MODULE_VALUE_5 = 5`
+- `src/main/auth/oauth-callback-server.ts`: `TIMEOUT_MS = MODULE_VALUE_5 * SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND`
+- `src/main/auth/oauth-callback-server.ts`: `WRITE_HEAD_ARG_1_VALUE_200 = 200`
+- `src/main/auth/oauth-callback-server.ts`: `WRITE_HEAD_ARG_1 = 400`
+- `src/main/auth/pkce.ts`: `RANDOM_BYTES_ARG_1 = 32`
+- `src/main/auth/token-manager.ts`: `MODULE_VALUE_5 = 5`
+- `src/main/auth/token-manager.ts`: `REFRESH_MARGIN_MS = MODULE_VALUE_5 * SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND`
+- `src/main/config/project-config.ts`: `CLAMP_OPTIONAL_ARG_3_VALUE_1_000_000 = 1_000_000`
+- `src/main/config/project-config.ts`: `CLAMP_OPTIONAL_ARG_3 = 2`
+- `src/main/index.ts`: `HEIGHT = 800`
+- `src/main/index.ts`: `MIN_HEIGHT = 600`
+- `src/main/index.ts`: `MIN_WIDTH = 800`
+- `src/main/index.ts`: `WIDTH = 1200`
+- `src/main/index.ts`: `X = 16`
+- `src/main/index.ts`: `Y = 16`
+- `src/main/ipc/agent-handler.ts`: `SLICE_ARG_2 = 60`
+- `src/main/ipc/attachments-handler.ts`: `MAX_ATTACHMENT_SIZE_BYTES = MODULE_VALUE_8 * BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE`
+- `src/main/ipc/attachments-handler.ts`: `MAX_TOTAL_SIZE_BYTES = MODULE_VALUE_20 * BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE`
+- `src/main/ipc/attachments-handler.ts`: `MODULE_VALUE_20 = 20`
+- `src/main/ipc/attachments-handler.ts`: `MODULE_VALUE_8 = 8`
+- `src/main/ipc/attachments-handler.ts`: `PARSE_INT_ARG_2_VALUE_10 = 10`
+- `src/main/ipc/attachments-handler.ts`: `PARSE_INT_ARG_2 = 16`
+- `src/main/ipc/attachments-handler.ts`: `SLICE_ARG_1 = 2`
+- `src/main/ipc/git/branches-handler.ts`: `PARSE_INT_ARG_2 = 10`
+- `src/main/ipc/git/shared.ts`: `DEFAULT_GIT_MAX_BUFFER = MODULE_VALUE_5 * BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE`
+- `src/main/ipc/git/shared.ts`: `MODULE_VALUE_5 = 5`
+- `src/main/ipc/git/status-handler.ts`: `DIFF_GIT_MAX_BUFFER = MODULE_VALUE_8 * BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE`
+- `src/main/ipc/git/status-handler.ts`: `MODULE_VALUE_8 = 8`
+- `src/main/ipc/git/status-handler.ts`: `PARSE_INT_ARG_2 = 10`
+- `src/main/ipc/git/status-handler.ts`: `SLICE_ARG_1_VALUE_2 = 2`
+- `src/main/ipc/git/status-handler.ts`: `SLICE_ARG_1 = 3`
+- `src/main/ipc/terminal-handler.ts`: `COLS = 80`
+- `src/main/ipc/terminal-handler.ts`: `MAX_TERMINAL_INPUT_BYTES = HEX_RADIX * BYTES_PER_KIBIBYTE`
+- `src/main/ipc/terminal-handler.ts`: `MIN_ARG_1_VALUE_5 = 5`
+- `src/main/ipc/terminal-handler.ts`: `MIN_ARG_1 = 10`
+- `src/main/ipc/terminal-handler.ts`: `ROWS = 24`
+- `src/main/ipc/voice-handler.ts`: `CHUNK_LENGTH_S = 10`
+- `src/main/ipc/voice-handler.ts`: `MAX_ARG_1 = 16`
+- `src/main/ipc/voice-handler.ts`: `MAX_PCM16_BYTES = SAMPLE_RATE_MAX * MAX_AUDIO_SECONDS * DOUBLE_FACTOR`
+- `src/main/ipc/voice-handler.ts`: `MIN_ARG_1 = 2`
+- `src/main/ipc/voice-handler.ts`: `MODEL_IDLE_TIMEOUT = MODULE_VALUE_5 * SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND`
+- `src/main/ipc/voice-handler.ts`: `MODULE_VALUE_5 = 5`
+- `src/main/ipc/voice-handler.ts`: `PCM16_BYTES_TO_FLOAT32_VALUE_32768 = 32768`
+- `src/main/ipc/voice-handler.ts`: `STRIDE_LENGTH_S = 2`
+- `src/main/ipc/waggle-handler.ts`: `SLICE_ARG_2 = 60`
+- `src/main/logger.ts`: `SLICE_ARG_1 = 11`
+- `src/main/logger.ts`: `SLICE_ARG_2_VALUE_10 = 10`
+- `src/main/logger.ts`: `SLICE_ARG_2 = 23`
+- `src/main/mcp/mcp-feature.ts`: `ORDER = 50`
+- `src/main/orchestration/engine/orchestrator.ts`: `BACKOFF_MS = 500`
+- `src/main/orchestration/engine/orchestrator.ts`: `JITTER_MS = 200`
+- `src/main/orchestration/project-context.ts`: `DEEP_VALUE_3 = 3`
+- `src/main/orchestration/project-context.ts`: `DEEP = 2`
+- `src/main/orchestration/project-context.ts`: `FUNCTION_VALUE_50_000 = 50_000`
+- `src/main/orchestration/project-context.ts`: `FUNCTION_VALUE_5 = 5`
+- `src/main/orchestration/project-context.ts`: `MAX_READ_SIZE = MODULE_VALUE_512 * BYTES_PER_KIBIBYTE`
+- `src/main/orchestration/project-context.ts`: `MODULE_VALUE_512 = 512`
+- `src/main/orchestration/project-context.ts`: `SLICE_ARG_2 = 100`
+- `src/main/orchestration/project-context.ts`: `STRINGIFY_ARG_3 = 2`
+- `src/main/orchestration/project-context.ts`: `TIMEOUT_ARG_1 = 30_000`
+- `src/main/orchestration/service/model-runner.ts`: `SLICE_ARG_2 = 300`
+- `src/main/orchestration/service/prompts.ts`: `STRINGIFY_ARG_3 = 2`
+- `src/main/orchestration/service/runner.ts`: `MAX_CONTEXT_TOKENS = 1500`
+- `src/main/orchestration/service/runner.ts`: `MAX_PARALLEL_TASKS = 4`
+- `src/main/orchestration/service/task-progress.ts`: `RECORD_TASK_OUTPUT_VALUE_4 = 4`
+- `src/main/providers/anthropic.ts`: `HIGH_VALUE_16384 = 16384`
+- `src/main/providers/anthropic.ts`: `HIGH = 10240`
+- `src/main/providers/anthropic.ts`: `LOW_VALUE_2048 = 2048`
+- `src/main/providers/anthropic.ts`: `LOW = 1024`
+- `src/main/providers/anthropic.ts`: `MAX_ARG_2 = 8192`
+- `src/main/providers/anthropic.ts`: `MEDIUM_VALUE_8192 = 8192`
+- `src/main/providers/anthropic.ts`: `MEDIUM = 4096`
+- `src/main/providers/openai.ts`: `DECODE_BASE64_URL_VALUE_4 = 4`
+- `src/main/providers/openai.ts`: `RESOLVE_SAMPLING_VALUE_4 = 4`
+- `src/main/providers/openai.ts`: `SLICE_ARG_2 = 512`
+- `src/main/store/teams.ts`: `MAX_TURNS_SAFETY_VALUE_10 = 10`
+- `src/main/store/teams.ts`: `MAX_TURNS_SAFETY = 8`
+- `src/main/sub-agents/sub-agent-runner.ts`: `ACCEPT_EDITS = 2`
+- `src/main/sub-agents/sub-agent-runner.ts`: `BYPASS_PERMISSIONS = 4`
+- `src/main/sub-agents/sub-agent-runner.ts`: `DONT_ASK = 3`
+- `src/main/sub-agents/sub-agent-runner.ts`: `SLICE_ARG_2_VALUE_500 = 500`
+- `src/main/sub-agents/sub-agent-runner.ts`: `SLICE_ARG_2 = 8`
+- `src/main/tools/define-tool.ts`: `MAX_TOOL_OUTPUT_BYTES = PERCENT_BASE * BYTES_PER_KIBIBYTE`
+- `src/main/tools/plan-manager.ts`: `PLAN_PROPOSAL_TTL_MS = BASE_TEN * SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND`
+- `src/main/tools/tools/ask-user.ts`: `MAX_ARG_1 = 4`
+- `src/main/tools/tools/edit-file.ts`: `SLICE_ARG_2 = 100`
+- `src/main/tools/tools/glob.ts`: `EXECUTE_VALUE_200 = 200`
+- `src/main/tools/tools/glob.ts`: `SLICE_ARG_2 = 200`
+- `src/main/tools/tools/orchestrate.ts`: `MAX_ARG_1 = 5`
+- `src/main/tools/tools/orchestrate.ts`: `MAX_PARALLEL_TASKS = 4`
+- `src/main/tools/tools/orchestrate.ts`: `MIN_ARG_1 = 2`
+- `src/main/tools/tools/read-file.ts`: `MAX_FILE_SIZE = BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE`
+- `src/main/tools/tools/run-command.ts`: `EXECUTE_VALUE_200 = 200`
+- `src/main/tools/tools/run-command.ts`: `EXECUTE_VALUE_30000 = 30000`
+- `src/main/tools/tools/run-command.ts`: `SLICE_ARG_2 = 200`
+- `src/main/tools/tools/web-fetch.ts`: `MAX_BODY_BYTES = MODULE_VALUE_5 * BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE`
+- `src/main/tools/tools/web-fetch.ts`: `MODULE_VALUE_5 = 5`
+- `src/main/tools/tools/web-fetch.ts`: `TIMEOUT_ARG_1 = 30_000`
+- `src/main/utils/atomic-write.ts`: `DEFAULT_INDENT = 2`
+- `src/renderer/src/components/chat/ChatErrorDisplay.tsx`: `DELAY_MS = 2000`
+- `src/renderer/src/components/chat/ChatTranscript.tsx`: `DELAY_MS = 1200`
+- `src/renderer/src/components/chat/ChatTranscript.tsx`: `OVERSCAN = 800`
+- `src/renderer/src/components/chat/ChatTranscript.tsx`: `PADDING_TOP = 20`
+- `src/renderer/src/components/chat/CodeBlock.tsx`: `DELAY_MS = 2000`
+- `src/renderer/src/components/chat/ThinkingBlock.tsx`: `THINKING_BLOCK_VALUE_4 = 4`
+- `src/renderer/src/components/chat/ToolCallBlock.tsx`: `FUNCTION_VALUE_120 = 120`
+- `src/renderer/src/components/chat/ToolCallBlock.tsx`: `STRINGIFY_ARG_3 = 2`
+- `src/renderer/src/components/command-palette/CommandPalette.tsx`: `TRUNCATE_ARG_2_VALUE_40 = 40`
+- `src/renderer/src/components/command-palette/CommandPalette.tsx`: `TRUNCATE_ARG_2 = 50`
+- `src/renderer/src/components/composer/Composer.tsx`: `HANDLE_ATTACH_FILES_VALUE_5 = 5`
+- `src/renderer/src/components/composer/VoiceRecorder.tsx`: `FUNCTION_VALUE_28 = 28`
+- `src/renderer/src/components/composer/VoiceRecorder.tsx`: `MAX_ARG_1_VALUE_0_35 = 0.35`
+- `src/renderer/src/components/composer/VoiceRecorder.tsx`: `MAX_ARG_1 = 4`
+- `src/renderer/src/components/composer/VoiceRecorder.tsx`: `PAD_START_ARG_1 = 2`
+- `src/renderer/src/components/composer/useVoiceCapture.ts`: `DEFAULT_PADDING_MS = 160`
+- `src/renderer/src/components/composer/useVoiceCapture.ts`: `DEFAULT_THRESHOLD = 0.012`
+- `src/renderer/src/components/composer/useVoiceCapture.ts`: `DELAY_MS = 1000`
+- `src/renderer/src/components/composer/useVoiceCapture.ts`: `FUNCTION_NEGATIVE_0_02 = -0.02`
+- `src/renderer/src/components/composer/useVoiceCapture.ts`: `FUNCTION_VALUE_0_03 = 0.03`
+- `src/renderer/src/components/composer/useVoiceCapture.ts`: `FUNCTION_VALUE_0_08 = 0.08`
+- `src/renderer/src/components/composer/useVoiceCapture.ts`: `FUNCTION_VALUE_0_12 = 0.12`
+- `src/renderer/src/components/composer/useVoiceCapture.ts`: `FUNCTION_VALUE_0_2 = 0.2`
+- `src/renderer/src/components/composer/useVoiceCapture.ts`: `FUNCTION_VALUE_0_5 = 0.5`
+- `src/renderer/src/components/composer/useVoiceCapture.ts`: `MAX_ARG_1 = 0.08`
+- `src/renderer/src/components/composer/useVoiceCapture.ts`: `MIN_ARG_2 = 200`
+- `src/renderer/src/components/composer/useVoiceCapture.ts`: `SAMPLE_LEVEL_VALUE_0_08 = 0.08`
+- `src/renderer/src/components/composer/useVoiceCapture.ts`: `SAMPLE_LEVEL_VALUE_128 = 128`
+- `src/renderer/src/components/composer/useVoiceCapture.ts`: `SAMPLE_LEVEL_VALUE_3_5 = 3.5`
+- `src/renderer/src/components/composer/useVoiceCapture.ts`: `START_METER_VALUE_0_6 = 0.6`
+- `src/renderer/src/components/composer/useVoiceCapture.ts`: `TO_PCM16_VALUE_32767 = 32767`
+- `src/renderer/src/components/composer/useVoiceCapture.ts`: `TO_PCM16_VALUE_32768 = 32768`
+- `src/renderer/src/components/devtools/TanStackAIDevtools.tsx`: `PORT = 4206`
+- `src/renderer/src/components/diff-panel/DiffFileSection.tsx`: `FLUSH_CONTEXT_VALUE_6 = 6`
+- `src/renderer/src/components/diff-panel/DiffFileSection.tsx`: `PARSE_INT_ARG_2 = 10`
+- `src/renderer/src/components/diff-panel/DiffFileSection.tsx`: `SLICE_ARG_1_NEGATIVE_3 = -3`
+- `src/renderer/src/components/diff-panel/DiffFileSection.tsx`: `SLICE_ARG_1 = 3`
+- `src/renderer/src/components/diff-panel/DiffFileSection.tsx`: `SLICE_ARG_2_NEGATIVE_3 = -3`
+- `src/renderer/src/components/diff-panel/DiffFileSection.tsx`: `SLICE_ARG_2 = 3`
+- `src/renderer/src/components/diff-panel/FileTree.tsx`: `FILE_TREE_NODE_VALUE_12 = 12`
+- `src/renderer/src/components/diff-panel/FileTree.tsx`: `FILE_TREE_NODE_VALUE_4 = 4`
+- `src/renderer/src/components/diff-panel/FileTree.tsx`: `FILE_TREE_NODE_VALUE_8 = 8`
+- `src/renderer/src/components/layout/CommitDialog.tsx`: `ROWS = 3`
+- `src/renderer/src/components/layout/Sidebar.tsx`: `BITS_PER_UINT32 = 32`
+- `src/renderer/src/components/layout/Sidebar.tsx`: `SIDEBAR_VALUE_104 = 104`
+- `src/renderer/src/components/layout/Sidebar.tsx`: `SIDEBAR_VALUE_80 = 80`
+- `src/renderer/src/components/layout/ThreadListItem.tsx`: `TRUNCATE_ARG_2 = 29`
+- `src/renderer/src/components/settings/sections/WaggleSection.tsx`: `MAX_TURNS = 8`
+- `src/renderer/src/components/settings/sections/WaggleSection.tsx`: `MAX = 20`
+- `src/renderer/src/components/settings/sections/WaggleSection.tsx`: `MIN = 4`
+- `src/renderer/src/components/settings/sections/WaggleSection.tsx`: `ROWS = 3`
+- `src/renderer/src/components/settings/sections/WaggleSection.tsx`: `SLICE_ARG_2 = 60`
+- `src/renderer/src/components/settings/sections/connections/helpers.ts`: `MASK_API_KEY_VALUE_4 = 4`
+- `src/renderer/src/components/settings/sections/connections/helpers.ts`: `MASK_API_KEY_VALUE_8 = 8`
+- `src/renderer/src/components/settings/sections/connections/helpers.ts`: `SLICE_ARG_1 = -4`
+- `src/renderer/src/components/settings/sections/connections/helpers.ts`: `SLICE_ARG_2 = 8`
+- `src/renderer/src/components/terminal/TerminalPanel.tsx`: `FONT_SIZE = 14`
+- `src/renderer/src/components/waggle/CollaborationStatus.tsx`: `SLICE_ARG_1 = -3`
+- `src/renderer/src/hooks/useGitRefresh.ts`: `DELAY_MS = 500`
+- `src/renderer/src/hooks/useStreamingPhase.ts`: `DELAY_MS = 1000`
+- `src/renderer/src/lib/diff.ts`: `CONTEXT = 3`
+- `src/renderer/src/lib/diff.ts`: `PARSE_INT_ARG_2 = 10`
+- `src/renderer/src/lib/format.ts`: `FORMAT_DURATION_VALUE_60000 = 60000`
+- `src/renderer/src/lib/ipc-connection-adapter.ts`: `DELAY_MS = 50`
+- `src/renderer/src/stores/preferences-store.ts`: `SLICE_ARG_2_VALUE_10 = 10`
+- `src/renderer/src/stores/preferences-store.ts`: `SLICE_ARG_2 = 100`
+- `src/renderer/src/stores/ui-store.ts`: `DELAY_MS = 3500`
+- `src/renderer/src/stores/ui-store.ts`: `DIFF_PANEL_WIDTH = 600`
+- `src/shared/schemas/waggle.ts`: `MAX_ARG_1 = 100`
+- `src/shared/utils/decision.typecheck.ts`: `MODULE_VALUE_0_5 = 0.5`

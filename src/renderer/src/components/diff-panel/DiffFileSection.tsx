@@ -1,9 +1,17 @@
+import { DOUBLE_FACTOR } from '@shared/constants/constants'
 import type { ReviewComment } from '@shared/types/review'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 import { CollapsedLines } from './CollapsedLines'
 import { DiffLine } from './DiffLine'
 import { InlineComment } from './InlineComment'
+
+const PARSE_INT_ARG_2 = 10
+const FLUSH_CONTEXT_VALUE_6 = 6
+const SLICE_ARG_2 = 3
+const SLICE_ARG_1 = 3
+const SLICE_ARG_2_NEGATIVE_3 = -3
+const SLICE_ARG_1_NEGATIVE_3 = -3
 
 export interface ParsedLine {
   type: 'add' | 'remove' | 'context'
@@ -38,8 +46,8 @@ function parseRawDiff(diff: string): ParsedLine[] {
 
     const hunkMatch = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line)
     if (hunkMatch) {
-      oldLine = Number.parseInt(hunkMatch[1] ?? '1', 10)
-      newLine = Number.parseInt(hunkMatch[2] ?? '1', 10)
+      oldLine = Number.parseInt(hunkMatch[1] ?? '1', PARSE_INT_ARG_2)
+      newLine = Number.parseInt(hunkMatch[DOUBLE_FACTOR] ?? '1', PARSE_INT_ARG_2)
       headerSeen = true
       continue
     }
@@ -80,18 +88,22 @@ export function buildDisplayItems(diff: string): DisplayItem[] {
 
   function flushContext(): void {
     if (contextBuffer.length === 0) return
-    if (contextBuffer.length <= 6) {
+    if (contextBuffer.length <= FLUSH_CONTEXT_VALUE_6) {
       for (const line of contextBuffer) {
         items.push({ kind: 'line', line, index: lineIdx++ })
       }
     } else {
-      for (const line of contextBuffer.slice(0, 3)) {
+      for (const line of contextBuffer.slice(0, SLICE_ARG_2)) {
         items.push({ kind: 'line', line, index: lineIdx++ })
       }
       const key = `collapsed-${lineIdx}`
-      items.push({ kind: 'collapsed', lines: contextBuffer.slice(3, -3), key })
-      lineIdx += contextBuffer.length - 6
-      for (const line of contextBuffer.slice(-3)) {
+      items.push({
+        kind: 'collapsed',
+        lines: contextBuffer.slice(SLICE_ARG_1, SLICE_ARG_2_NEGATIVE_3),
+        key,
+      })
+      lineIdx += contextBuffer.length - FLUSH_CONTEXT_VALUE_6
+      for (const line of contextBuffer.slice(SLICE_ARG_1_NEGATIVE_3)) {
         items.push({ kind: 'line', line, index: lineIdx++ })
       }
     }

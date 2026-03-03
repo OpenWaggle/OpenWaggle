@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { BYTES_PER_KIBIBYTE } from '@shared/constants/constants'
 import type { HydratedAttachment, PreparedAttachment } from '@shared/types/agent'
 import { choose } from '@shared/utils/decision'
 import { isPathInside } from '@shared/utils/paths'
@@ -8,9 +9,15 @@ import { dialog } from 'electron'
 import { z } from 'zod'
 import { safeHandle } from './typed-ipc'
 
+const MODULE_VALUE_8 = 8
+const MODULE_VALUE_20 = 20
+const SLICE_ARG_1 = 2
+const PARSE_INT_ARG_2 = 16
+const PARSE_INT_ARG_2_VALUE_10 = 10
+
 const MAX_ATTACHMENTS = 5
-const MAX_ATTACHMENT_SIZE_BYTES = 8 * 1024 * 1024
-const MAX_TOTAL_SIZE_BYTES = 20 * 1024 * 1024
+const MAX_ATTACHMENT_SIZE_BYTES = MODULE_VALUE_8 * BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE
+const MAX_TOTAL_SIZE_BYTES = MODULE_VALUE_20 * BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE
 const MAX_EXTRACTED_TEXT_CHARS = 12_000
 const DOCX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 const RTF_MIME_TYPE = 'application/rtf'
@@ -101,11 +108,11 @@ async function requestExternalAttachmentAccess(
 function decodeXmlEntities(value: string): string {
   return value.replaceAll(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (_raw, entity: string): string => {
     if (entity.startsWith('#x') || entity.startsWith('#X')) {
-      const codePoint = Number.parseInt(entity.slice(2), 16)
+      const codePoint = Number.parseInt(entity.slice(SLICE_ARG_1), PARSE_INT_ARG_2)
       return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : ''
     }
     if (entity.startsWith('#')) {
-      const codePoint = Number.parseInt(entity.slice(1), 10)
+      const codePoint = Number.parseInt(entity.slice(1), PARSE_INT_ARG_2_VALUE_10)
       return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : ''
     }
 
@@ -181,7 +188,7 @@ async function prepareAttachment(filePath: string): Promise<PreparedAttachment> 
   }
   if (stats.size > MAX_ATTACHMENT_SIZE_BYTES) {
     throw new Error(
-      `Attachment exceeds ${String(MAX_ATTACHMENT_SIZE_BYTES / (1024 * 1024))} MB: ${path.basename(filePath)}`,
+      `Attachment exceeds ${String(MAX_ATTACHMENT_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB: ${path.basename(filePath)}`,
     )
   }
 
@@ -229,7 +236,7 @@ async function hydrateAttachmentSource(
   }
   if (stats.size > MAX_ATTACHMENT_SIZE_BYTES) {
     throw new Error(
-      `Attachment exceeds ${String(MAX_ATTACHMENT_SIZE_BYTES / (1024 * 1024))} MB: ${attachment.name}`,
+      `Attachment exceeds ${String(MAX_ATTACHMENT_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB: ${attachment.name}`,
     )
   }
 
@@ -296,7 +303,7 @@ export function registerAttachmentHandlers(): void {
     const totalSize = stats.reduce((sum, stat) => sum + stat.size, 0)
     if (totalSize > MAX_TOTAL_SIZE_BYTES) {
       throw new Error(
-        `Total attachment size exceeds ${String(MAX_TOTAL_SIZE_BYTES / (1024 * 1024))} MB.`,
+        `Total attachment size exceeds ${String(MAX_TOTAL_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB.`,
       )
     }
 

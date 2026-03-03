@@ -1,9 +1,13 @@
+import { BYTES_PER_KIBIBYTE } from '@shared/constants/constants'
 import { z } from 'zod'
 import { readBodyWithLimit, stripHtml } from '../../utils/http'
 import { defineOpenWaggleTool } from '../define-tool'
 
+const MODULE_VALUE_5 = 5
+const TIMEOUT_ARG_1 = 30_000
+
 const DEFAULT_MAX_LENGTH = 50_000
-const MAX_BODY_BYTES = 5 * 1024 * 1024 // 5 MB hard cap on response body
+const MAX_BODY_BYTES = MODULE_VALUE_5 * BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE // 5 MB hard cap on response body
 
 export const webFetchTool = defineOpenWaggleTool({
   name: 'webFetch',
@@ -22,8 +26,8 @@ export const webFetchTool = defineOpenWaggleTool({
     const response = await fetch(args.url, {
       headers: { 'User-Agent': 'OpenWaggle/1.0' },
       signal: context.signal
-        ? AbortSignal.any([context.signal, AbortSignal.timeout(30_000)])
-        : AbortSignal.timeout(30_000),
+        ? AbortSignal.any([context.signal, AbortSignal.timeout(TIMEOUT_ARG_1)])
+        : AbortSignal.timeout(TIMEOUT_ARG_1),
     })
 
     if (!response.ok) {

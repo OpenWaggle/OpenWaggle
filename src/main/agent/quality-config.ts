@@ -8,6 +8,15 @@ import {
   type ProviderDefinition,
 } from '../providers/provider-definition'
 
+const TEMPERATURE = 0.25
+const TOP_P = 0.9
+const MAX_TOKENS = 1200
+const TEMPERATURE_VALUE_0_4 = 0.4
+const TOP_P_VALUE_0_95 = 0.95
+const MAX_TOKENS_VALUE_2200 = 2200
+const TEMPERATURE_VALUE_0_55 = 0.55
+const MAX_TOKENS_VALUE_4200 = 4200
+
 export interface ResolvedQualityConfig {
   readonly model: SupportedModelId
   readonly temperature?: number
@@ -18,19 +27,19 @@ export interface ResolvedQualityConfig {
 
 const QUALITY_TIER_CONFIG: Record<QualityPreset, BaseSamplingConfig> = {
   low: {
-    temperature: 0.25,
-    topP: 0.9,
-    maxTokens: 1200,
+    temperature: TEMPERATURE,
+    topP: TOP_P,
+    maxTokens: MAX_TOKENS,
   },
   medium: {
-    temperature: 0.4,
-    topP: 0.95,
-    maxTokens: 2200,
+    temperature: TEMPERATURE_VALUE_0_4,
+    topP: TOP_P_VALUE_0_95,
+    maxTokens: MAX_TOKENS_VALUE_2200,
   },
   high: {
-    temperature: 0.55,
+    temperature: TEMPERATURE_VALUE_0_55,
     topP: 1,
-    maxTokens: 4200,
+    maxTokens: MAX_TOKENS_VALUE_4200,
   },
 }
 

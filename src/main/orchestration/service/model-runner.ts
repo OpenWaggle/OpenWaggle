@@ -4,6 +4,8 @@ import { chooseBy } from '@shared/utils/decision'
 import type { StreamChunk } from '@tanstack/ai'
 import type { ModelRunner, OrchestrationServiceDeps, SamplingConfig } from './types'
 
+const SLICE_ARG_2 = 300
+
 const EXECUTOR_MAX_ITERATIONS = 20
 
 export function createModelRunner(deps: OrchestrationServiceDeps): ModelRunner {
@@ -182,7 +184,7 @@ export function createModelRunner(deps: OrchestrationServiceDeps): ModelRunner {
       deps.logger.warn('modelJson extraction failure', {
         reason,
         rawLength: text.length,
-        rawStart: text.slice(0, 300),
+        rawStart: text.slice(0, SLICE_ARG_2),
       })
       throw new Error(`Planner output could not be parsed as JSON: ${reason}`)
     }

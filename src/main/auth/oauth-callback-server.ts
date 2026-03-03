@@ -1,10 +1,14 @@
 import { createServer, type Server } from 'node:http'
 import { URL } from 'node:url'
+import { FIVE_MINUTES_IN_MILLISECONDS } from '@shared/constants/constants'
 import { createLogger } from '../logger'
+
+const HTTP_STATUS_OK = 200
+const HTTP_STATUS_BAD_REQUEST = 400
 
 const logger = createLogger('oauth-callback')
 
-const TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
+const OAUTH_CALLBACK_TIMEOUT_MS = FIVE_MINUTES_IN_MILLISECONDS
 
 const SUCCESS_HTML = `<!DOCTYPE html>
 <html><head><title>Authentication Successful</title>
@@ -36,7 +40,7 @@ export async function createCallbackServer(options?: { port?: number }): Promise
 
   const server: Server = createServer((req, res) => {
     if (!req.url) {
-      res.writeHead(400)
+      res.writeHead(HTTP_STATUS_BAD_REQUEST)
       res.end('Bad request')
       return
     }
@@ -48,7 +52,7 @@ export async function createCallbackServer(options?: { port?: number }): Promise
     if (oauthError) {
       const errorDescription =
         url.searchParams.get('error_description') ?? 'Authorization was denied'
-      res.writeHead(200, { 'Content-Type': 'text/html' })
+      res.writeHead(HTTP_STATUS_OK, { 'Content-Type': 'text/html' })
       res.end(ERROR_HTML)
 
       if (rejectCallback) {
@@ -62,14 +66,14 @@ export async function createCallbackServer(options?: { port?: number }): Promise
     const code = url.searchParams.get('code')
 
     if (!code) {
-      res.writeHead(400)
+      res.writeHead(HTTP_STATUS_BAD_REQUEST)
       res.end('Missing authorization code')
       return
     }
 
     const state = url.searchParams.get('state') ?? undefined
 
-    res.writeHead(200, { 'Content-Type': 'text/html' })
+    res.writeHead(HTTP_STATUS_OK, { 'Content-Type': 'text/html' })
     res.end(SUCCESS_HTML)
 
     if (resolveCallback) {
@@ -112,7 +116,7 @@ export async function createCallbackServer(options?: { port?: number }): Promise
         timeoutId = setTimeout(() => {
           reject(new Error('OAuth callback timed out after 5 minutes'))
           server.close()
-        }, TIMEOUT_MS)
+        }, OAUTH_CALLBACK_TIMEOUT_MS)
       })
     },
     close() {
