@@ -1,7 +1,6 @@
 import { DOUBLE_FACTOR } from '@shared/constants/constants'
 import { electronFileSchema } from '@shared/schemas/validation'
 import type { AgentSendPayload } from '@shared/types/agent'
-import { X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { useProject } from '@/hooks/useProject'
 import { cn } from '@/lib/cn'
@@ -10,12 +9,14 @@ import { useComposerStore } from '@/stores/composer-store'
 import { usePreferencesStore } from '@/stores/preferences-store'
 import { useUIStore } from '@/stores/ui-store'
 import { ActionDialog } from './ActionDialog'
+import { AutoTextAttachmentChips } from './AutoTextAttachmentChips'
 import { ComposerStatusBar } from './ComposerStatusBar'
 import { ComposerToolbar } from './ComposerToolbar'
+import { useAutoTextAttachment } from './useAutoTextAttachment'
 import { useVoiceCapture } from './useVoiceCapture'
 import { VoiceRecorder } from './VoiceRecorder'
 
-const HANDLE_ATTACH_FILES_VALUE_5 = 5
+const MAX_ATTACHMENTS = 5
 
 async function prepareAndAttach(
   projectPath: string,
@@ -84,27 +85,35 @@ export function Composer({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const canSend = (!!input.trim() || attachments.length > 0) && !disabled
-  const isVoiceModeActive = isListening || isTranscribingVoice
-
   // ── Submission ──
 
-  function submitPayload(payload: AgentSendPayload): boolean {
+  function clearComposerInput(): void {
+    reset()
+    if (textareaRef.current) textareaRef.current.style.height = 'auto'
+  }
+
+  function dispatchPayload(payload: AgentSendPayload): boolean {
     if ((!payload.text && payload.attachments.length === 0) || disabled) return false
-    if (payload.text) pushHistory(payload.text)
     if (isLoading) {
       onEnqueue(payload)
     } else {
       onSend(payload)
     }
-    reset()
-    if (textareaRef.current) textareaRef.current.style.height = 'auto'
+    return true
+  }
+
+  function submitPayload(payload: AgentSendPayload): boolean {
+    const sent = dispatchPayload(payload)
+    if (!sent) return false
+    if (payload.text) pushHistory(payload.text)
+    clearComposerInput()
     return true
   }
 
   function handleSubmit(): void {
+    const trimmedInput = input.trim()
     submitPayload({
-      text: input.trim(),
+      text: trimmedInput,
       qualityPreset,
       attachments,
       planModeRequested: planModeActive || undefined,
@@ -123,6 +132,26 @@ export function Composer({
   // ── Voice ──
 
   const voice = useVoiceCapture({ textareaRef, sendComposed })
+  const {
+    pendingTextAttachmentChips,
+    hasPreparingTextAttachment,
+    preparingPendingCount,
+    handlePaste,
+    removePendingTextAttachment,
+  } = useAutoTextAttachment({
+    attachments,
+    addAttachments,
+    removeAttachment,
+    setAttachmentError,
+    setInput,
+    setCursorIndex,
+    textareaRef,
+    resizeTextarea,
+    onToast,
+  })
+  const canSend =
+    (!!input.trim() || attachments.length > 0) && !disabled && !hasPreparingTextAttachment
+  const isVoiceModeActive = isListening || isTranscribingVoice
 
   // ── Effects ──
 
@@ -183,7 +212,7 @@ export function Composer({
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>): void {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      handleSubmit()
+      void handleSubmit()
       return
     }
 
@@ -245,7 +274,8 @@ export function Composer({
     }
     if (paths.length === 0) return
 
-    const remainingSlots = Math.max(0, HANDLE_ATTACH_FILES_VALUE_5 - attachments.length)
+    const usedAttachmentSlots = attachments.length + preparingPendingCount
+    const remainingSlots = Math.max(0, MAX_ATTACHMENTS - usedAttachmentSlots)
     if (remainingSlots === 0) {
       setAttachmentError('You can attach up to 5 files per message.')
       return
@@ -286,26 +316,12 @@ export function Composer({
         )}
       >
         <div className="px-4 pt-3">
-          {attachments.length > 0 && (
-            <div className="mb-2 flex flex-wrap gap-1.5">
-              {attachments.map((attachment) => (
-                <span
-                  key={attachment.id}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-bg px-2 py-1 text-[12px] text-text-secondary"
-                >
-                  <span className="max-w-[190px] truncate">{attachment.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => removeAttachment(attachment.id)}
-                    className="text-text-tertiary transition-colors hover:text-text-primary"
-                    title={`Remove ${attachment.name}`}
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
+          <AutoTextAttachmentChips
+            pendingTextAttachmentChips={pendingTextAttachmentChips}
+            attachments={attachments}
+            onRemoveAttachment={removeAttachment}
+            onRemovePendingAttachment={removePendingTextAttachment}
+          />
           {(() => {
             const errors = [attachmentError, voiceError, branchMessage].filter(
               (msg): msg is string => Boolean(msg),
@@ -329,6 +345,7 @@ export function Composer({
               ref={textareaRef}
               value={input}
               onChange={handleInput}
+              onPaste={handlePaste}
               onKeyDown={handleKeyDown}
               onClick={syncCursorPosition}
               onKeyUp={syncCursorPosition}
@@ -351,7 +368,9 @@ export function Composer({
 
         {!isVoiceModeActive && (
           <ComposerToolbar
-            onSend={handleSubmit}
+            onSend={() => {
+              void handleSubmit()
+            }}
             onCancel={onCancel}
             isLoading={isLoading}
             canSend={canSend}
