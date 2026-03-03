@@ -84,6 +84,7 @@ describe('preload api surface contract', () => {
     'setSkillEnabled',
     'getSkillPreview',
     // Shell / App
+    'copyToClipboard',
     'openLogsDir',
     'getLogsPath',
     // Dialog

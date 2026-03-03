@@ -315,6 +315,9 @@ export interface IpcSendChannelMap {
   'agent:inject-context': {
     args: [conversationId: ConversationId, text: string]
   }
+  'clipboard:write-text': {
+    args: [text: string]
+  }
 }
 
 /**
@@ -512,6 +515,7 @@ export interface OpenWaggleApi {
   showConfirm(message: string, detail?: string): Promise<boolean>
 
   // Shell / App
+  copyToClipboard(text: string): void
   openLogsDir(): Promise<void>
   getLogsPath(): Promise<string>
 

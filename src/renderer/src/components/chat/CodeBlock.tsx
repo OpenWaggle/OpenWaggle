@@ -2,6 +2,7 @@ import { Check, Copy } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { cn } from '@/lib/cn'
+import { api } from '@/lib/ipc'
 import { isReactElementWithProps } from '@/lib/react-element-guard'
 
 interface CodeBlockProps {
@@ -29,7 +30,7 @@ export function CodeBlock({ children, language, className }: CodeBlockProps): Re
 
   function handleCopy(): void {
     const text = getTextContent(children).replace(/\n$/, '')
-    navigator.clipboard.writeText(text)
+    api.copyToClipboard(text)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }

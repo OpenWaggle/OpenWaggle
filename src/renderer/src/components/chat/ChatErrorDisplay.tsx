@@ -51,7 +51,7 @@ export function ChatErrorDisplay({
 
   function handleCopy(): void {
     const text = `${info.userMessage}${info.suggestion ? `\n${info.suggestion}` : ''}\n\nRaw: ${info.message}`
-    navigator.clipboard.writeText(text)
+    api.copyToClipboard(text)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }

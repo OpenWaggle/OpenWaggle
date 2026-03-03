@@ -360,6 +360,10 @@ export const api: OpenWaggleApi = {
   },
 
   // ─── Shell / App ────────────────────────────────────
+  copyToClipboard(text: string): void {
+    ipcRenderer.send('clipboard:write-text', text)
+  },
+
   openLogsDir(): Promise<void> {
     return ipcRenderer.invoke('app:open-logs-dir')
   },
