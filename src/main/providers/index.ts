@@ -23,16 +23,19 @@ export async function registerAllProviders(): Promise<void> {
 
   // Exhaustiveness: if a new Provider is added to PROVIDERS but not to loaders,
   // TypeScript will error on the Record<Provider, ...> type above.
-  for (const id of PROVIDERS) {
-    try {
+  const settled = await Promise.allSettled(
+    PROVIDERS.map(async (id) => {
       const { default: provider } = await loaders[id]()
       providerRegistry.register(provider)
-    } catch (err) {
-      logger.warn(`Failed to load provider "${id}"`, {
-        error: err instanceof Error ? err.message : String(err),
+    }),
+  )
+  settled.forEach((result, i) => {
+    if (result.status === 'rejected') {
+      logger.warn(`Failed to load provider "${PROVIDERS[i]}"`, {
+        error: result.reason instanceof Error ? result.reason.message : String(result.reason),
       })
     }
-  }
+  })
 }
 
 export { providerRegistry }
