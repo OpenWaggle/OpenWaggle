@@ -23,6 +23,7 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "pnpm test:e2e:headless",
     "test:e2e:headless": "pnpm build && playwright test",
+    "test:e2e:headed": "pnpm build && playwright test --headed",
     "lint": "biome check src/",
     "lint:fix": "biome check --write src/",
     "format": "biome format --write src/",
