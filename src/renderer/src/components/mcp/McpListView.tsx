@@ -2,6 +2,7 @@ import type { McpServerId } from '@shared/types/brand'
 import type { McpServerConfig, McpServerStatus } from '@shared/types/mcp'
 import { LayoutGrid, Plug, Plus } from 'lucide-react'
 import { useState } from 'react'
+import { createRendererLogger } from '@/lib/logger'
 import { McpRegistryCard } from './McpRegistryCard'
 import { McpServerCard } from './McpServerCard'
 
@@ -81,6 +82,8 @@ const REGISTRY_ENTRIES: readonly McpRegistryEntry[] = [
   },
 ]
 
+const logger = createRendererLogger('mcp/list-view')
+
 export function McpListView({
   servers,
   isLoading,
@@ -105,11 +108,21 @@ export function McpListView({
   async function handleInstall(entry: McpRegistryEntry): Promise<void> {
     if (!entry.config) return
     setInstallingName(entry.config.name)
-    try {
-      await onInstall(entry.config)
-    } finally {
-      setInstallingName(null)
+    const result = await onInstall(entry.config).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error)
+      logger.error('Failed to install MCP registry entry', {
+        serverName: entry.config?.name,
+        error: message,
+      })
+      return null
+    })
+    if (result && !result.ok) {
+      logger.warn('MCP install returned non-ok result', {
+        serverName: entry.config.name,
+        error: result.error,
+      })
     }
+    setInstallingName(null)
   }
 
   return (
