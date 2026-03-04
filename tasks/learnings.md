@@ -2,7 +2,7 @@
 name: project-learnings
 description: Technical learnings log for OpenWaggle. Stores warnings, pattern preferences, and historical engineering learnings; workflow policy lives in AGENTS.md and CLAUDE.md.
 owner: openwaggle-core
-last_updated: 2026-03-03
+last_updated: 2026-03-04
 ---
 
 # LEARNINGS.md
@@ -19,6 +19,9 @@ This document stores project-specific technical learnings only.
 - Do not add routine project-management notes unless they materially affect implementation behavior.
 
 ## 3) Recent Learnings
+
+### Task: Spec 04 — Electron Security Defaults (2026-03-04)
+- Electron's current TypeScript declarations do not expose a typed `webContents.getLastWebPreferences()` path, so startup hardening checks are most robustly enforced by asserting the exact `webPreferences` object passed into `BrowserWindow` before creation, then failing closed on bootstrap errors.
 
 ### Task: Spec Verification + Archive Sweep (2026-03-04)
 - `react-doctor` can default to changed-files-only scanning on feature branches; for a true full-repo baseline scan during verification, disabling git diff detection (for example `GIT_DIR=/nonexistent`) forces full source discovery.

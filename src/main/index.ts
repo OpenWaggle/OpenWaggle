@@ -23,6 +23,11 @@ import { registerWaggleHandlers } from './ipc/waggle-handler'
 import { createLogger, initFileLogger } from './logger'
 import { mcpManager } from './mcp'
 import { registerAllProviders } from './providers'
+import {
+  assertSecureWebPreferences,
+  installCspHeaders,
+  SECURE_WEB_PREFERENCES,
+} from './security/electron-security'
 import { getSettings } from './store/settings'
 import { registerRunSubAgent } from './sub-agents/facade'
 import { runSubAgent } from './sub-agents/sub-agent-runner'
@@ -33,6 +38,7 @@ const MIN_WIDTH = 800
 const MIN_HEIGHT = 600
 const X = 16
 const Y = 16
+const FAILURE_EXIT_CODE = 1
 
 if (env.OPENWAGGLE_USER_DATA_DIR) {
   app.setPath('userData', env.OPENWAGGLE_USER_DATA_DIR)
@@ -152,6 +158,12 @@ function isTrustedRendererRequest(url: string): boolean {
 }
 
 function createWindow(): void {
+  const webPreferences = {
+    preload: join(__dirname, '../preload/index.js'),
+    ...SECURE_WEB_PREFERENCES,
+  }
+  assertSecureWebPreferences(webPreferences)
+
   const mainWindow = new BrowserWindow({
     width: WIDTH,
     height: HEIGHT,
@@ -162,13 +174,9 @@ function createWindow(): void {
     trafficLightPosition: { x: X, y: Y },
     backgroundColor: '#141619',
     icon: appIconPath,
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      sandbox: true,
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
+    webPreferences,
   })
+  installCspHeaders(mainWindow.webContents.session)
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
@@ -243,7 +251,10 @@ app
     // Late-bind runSubAgent to break spawn-agent → sub-agent-runner cycle
     registerRunSubAgent(runSubAgent)
 
-    void bootstrapServicesAndWindow()
+    void bootstrapServicesAndWindow().catch((error: unknown) => {
+      logger.error('Bootstrap failed; quitting for safety', describeError(error))
+      app.exit(FAILURE_EXIT_CODE)
+    })
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()

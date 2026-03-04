@@ -147,6 +147,26 @@ Built-in tools in `src/main/tools/tools/`: `readFile`, `writeFile`, `editFile`, 
 - `externalizeDeps.exclude` includes all `@tanstack/ai-*` packages (anthropic, openai, gemini, grok, openrouter, ollama) — ESM-only, must be bundled into main process output
 - `build.rollupOptions.output.interop: 'auto'` — Required for CJS interop with ESM-only externals like `electron-store`
 
+## Security
+
+- Canonical security posture is documented in both this file and `CLAUDE.md`; keep them synchronized.
+- Renderer `BrowserWindow` defaults are fail-closed and asserted at runtime via `src/main/security/electron-security.ts`.
+- Required `webPreferences` posture:
+  - `nodeIntegration: false`
+  - `contextIsolation: true`
+  - `sandbox: true`
+  - `webSecurity: true`
+  - `allowRunningInsecureContent: false`
+- CSP is enforced in two layers:
+  - Main process response-header enforcement (`session.webRequest.onHeadersReceived`)
+  - Renderer meta tag in `src/renderer/index.html`
+- CSP baseline:
+  - `default-src 'self'`
+  - `script-src 'self'`
+  - `style-src 'self' 'unsafe-inline'`
+  - `img-src 'self' data:`
+  - `connect-src 'self' ws://localhost:* http://localhost:* https://localhost:* wss://localhost:*`
+
 ## Performance
 
 ### React Compiler
