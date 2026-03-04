@@ -20,6 +20,10 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Task: Spec Verification + Archive Sweep (2026-03-04)
+- `react-doctor` can default to changed-files-only scanning on feature branches; for a true full-repo baseline scan during verification, disabling git diff detection (for example `GIT_DIR=/nonexistent`) forces full source discovery.
+- React Compiler checks can fail on `try`/`finally` blocks without a `catch` clause in renderer components; rewriting to promise-chain cleanup (`await fn().catch(() => null); cleanup()`) preserves behavior and clears the compiler error.
+
 ### Task: Shared vs Local Project Config Split (2026-03-03)
 - Preventing git pollution for machine-local config in project/worktree setups requires handling both `.git/` directories and `.git` pointer files (`gitdir: ...`) before writing to `info/exclude`; assuming `.git` is always a directory misses common worktree layouts.
 
