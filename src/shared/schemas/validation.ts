@@ -137,7 +137,7 @@ export const qualityTierSchema = z
   })
   .loose()
 
-export const projectConfigSchema = z
+export const projectSharedConfigSchema = z
   .object({
     quality: z
       .object({
@@ -146,6 +146,11 @@ export const projectConfigSchema = z
         high: qualityTierSchema.optional(),
       })
       .optional(),
+  })
+  .loose()
+
+export const projectLocalConfigSchema = z
+  .object({
     approvals: z
       .object({
         tools: z
@@ -162,6 +167,13 @@ export const projectConfigSchema = z
           .optional(),
       })
       .optional(),
+  })
+  .loose()
+
+export const projectConfigSchema = z
+  .object({
+    quality: projectSharedConfigSchema.shape.quality,
+    approvals: projectLocalConfigSchema.shape.approvals,
   })
   .loose()
 
