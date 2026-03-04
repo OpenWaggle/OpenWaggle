@@ -20,6 +20,9 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Task: Shared vs Local Project Config Split (2026-03-03)
+- Preventing git pollution for machine-local config in project/worktree setups requires handling both `.git/` directories and `.git` pointer files (`gitdir: ...`) before writing to `info/exclude`; assuming `.git` is always a directory misses common worktree layouts.
+
 ### Task: SRP/DRY/Type Safety Review Fixes (2026-03-03)
 - Continuation normalization must drop `UIMessage` entries with `role: "system"` instead of remapping them to `ModelMessage` user turns; TanStack’s native conversion path skips system snapshots, and remapping can unintentionally promote system guidance into user context.
 - Stream loops that repeatedly wait on `iterator.next()` with abort support need explicit abort-listener cleanup on every iteration (`removeEventListener`), otherwise unresolved tool waits can accumulate stale listeners over long-lived approval pauses.

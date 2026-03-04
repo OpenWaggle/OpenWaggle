@@ -62,7 +62,12 @@ Some providers have additional behavior:
 
 ## Per-Project Configuration
 
-Override quality preset parameters per project by creating a `.openwaggle/config.toml` file in your project root.
+OpenWaggle uses two project config files:
+
+- `.openwaggle/config.toml` — shared project settings (safe to commit)
+- `.openwaggle/config.local.toml` — local trust/approval state (machine-specific)
+
+Override quality preset parameters per project in `.openwaggle/config.toml`:
 
 ```toml
 [quality.low]
@@ -81,7 +86,9 @@ top_p = 1.0
 max_tokens = 8000
 ```
 
-Only specify the values you want to override — unspecified values use the built-in defaults. Invalid values are silently ignored. The config is cached by file modification time and reloaded at the start of each agent run.
+Only specify the values you want to override — unspecified values use the built-in defaults. Invalid values are silently ignored. Config files are cached by file modification time and reloaded at the start of each agent run.
+
+`writeFile` trust approvals are stored in `.openwaggle/config.local.toml`. OpenWaggle also attempts to add this file to `.git/info/exclude` automatically so local trust state does not pollute git status.
 
 ## Orchestration Modes
 

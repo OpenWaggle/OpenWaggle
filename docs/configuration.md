@@ -1,6 +1,6 @@
 # Project Configuration
 
-OpenWaggle supports per-project configuration via a TOML file at `.openwaggle/config.toml` in your project root.
+OpenWaggle supports per-project configuration via TOML files under `.openwaggle/` in your project root.
 
 The file is optional. When absent or unparseable, OpenWaggle falls back to built-in defaults. Invalid values within a valid file are silently ignored — they don't break the rest of the config.
 
@@ -9,8 +9,9 @@ The file is optional. When absent or unparseable, OpenWaggle falls back to built
 ```
 your-project/
   .openwaggle/
-    config.toml      # Project configuration
-    skills/          # Project skills (see Skills section)
+    config.toml        # Shared project configuration (safe to commit)
+    config.local.toml  # Local machine trust/approval state (do not commit)
+    skills/            # Project skills (see Skills section)
 ```
 
 ## Quality Presets
@@ -61,6 +62,15 @@ Out-of-range values are silently ignored. Non-numeric values (e.g. `temperature 
 3. If `.openwaggle/config.toml` has overrides for that tier, they replace the defaults
 4. The provider may further adjust parameters (e.g. reasoning models like GPT-5 and o-series strip temperature/top_p since they reject those parameters)
 
+## Local Trust and Approvals
+
+Tool trust and approvals (for example trusted `writeFile`) are stored in `.openwaggle/config.local.toml`, not in the shared `config.toml`.
+
+- `config.toml` is for shareable, repository-level settings.
+- `config.local.toml` is for user-specific local state.
+
+When OpenWaggle creates `config.local.toml`, it also attempts to add `.openwaggle/config.local.toml` to repository-local git excludes (`.git/info/exclude`) to prevent status pollution without requiring manual `.gitignore` edits.
+
 ## Example
 
 A minimal config that only increases max tokens for the high preset:
@@ -89,8 +99,8 @@ max_tokens = 8000
 
 ## Caching
 
-The config file is cached by modification time. Edits to `config.toml` take effect on the next agent run without restarting the app.
+Config files are cached by modification time. Edits to `config.toml` or `config.local.toml` take effect on the next agent run without restarting the app.
 
 ## Future Configuration
 
-The `.openwaggle/config.toml` file is designed to be extended. Future sections may include tool policies, skill defaults, and agent behavior settings. The parser uses `.loose()` validation, so unknown sections are silently ignored — forward-compatible by design.
+The `.openwaggle/config.toml` and `.openwaggle/config.local.toml` files are designed to be extended. The parser uses `.loose()` validation, so unknown sections are silently ignored — forward-compatible by design.
