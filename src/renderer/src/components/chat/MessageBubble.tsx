@@ -165,13 +165,21 @@ export function MessageBubble({
               if (value.name === 'orchestrate') {
                 const result = toolResults.get(value.id)
                 const tasks = parseOrchestrateTasks(value.arguments)
-                const isComplete = !!result
+                const hasToolError = result?.state === 'error' || !!result?.error
+                const taskStatus: OrchestrationTaskStatus = result
+                  ? hasToolError
+                    ? 'failed'
+                    : 'completed'
+                  : isStreaming
+                    ? 'running'
+                    : 'cancelled'
+                const isComplete = !!result || !isStreaming
                 return (
                   <SubAgentGroup
                     key={`tool-${value.id}`}
                     tasks={tasks.map((t) => ({
                       ...t,
-                      status: (isComplete ? 'completed' : 'running') as OrchestrationTaskStatus,
+                      status: taskStatus,
                     }))}
                     isComplete={isComplete}
                   />

@@ -5,6 +5,7 @@ import type { OrchestrationEventPayload } from '@shared/types/orchestration'
 import { z } from 'zod'
 import { createLogger } from '../../logger'
 import type { OpenWaggleTaskExecutionInput } from '../../orchestration/engine/types'
+import { buildExecutorTools } from '../../orchestration/executor-tools'
 import { emitOrchestrationEvent } from '../../utils/stream-bridge'
 import { defineOpenWaggleTool } from '../define-tool'
 
@@ -50,7 +51,7 @@ export const orchestrateTool = defineOpenWaggleTool({
       { loadProjectConfig },
       { isResolutionError, resolveProviderAndQuality },
       { runOpenWaggleOrchestration },
-      { gatherProjectContext, createExecutorTools },
+      { gatherProjectContext },
       { defaultOrchestrationServiceDeps },
       { createModelRunner },
       { buildExecutionPrompt, buildSynthesisPrompt },
@@ -88,10 +89,8 @@ export const orchestrateTool = defineOpenWaggleTool({
     )
 
     // ── Gather context and tools ──
-    const [projectContext, executorTools] = await Promise.all([
-      gatherProjectContext(projectPath),
-      createExecutorTools(projectPath, signal),
-    ])
+    const projectContext = await gatherProjectContext(projectPath)
+    const executorTools = buildExecutorTools(settings.executionMode, projectConfig)
 
     const deps = defaultOrchestrationServiceDeps
     const modelRunner = createModelRunner(deps)

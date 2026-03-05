@@ -31,6 +31,7 @@ import type {
   SkillCatalogResult,
 } from './standards'
 import type { SubAgentEventPayload, TeamEventPayload } from './sub-agent'
+import type { TrustableToolName } from './tool-approval'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 import type {
   WaggleConfig,
@@ -73,8 +74,12 @@ export interface IpcInvokeChannelMap {
     args: []
     return: string | null
   }
-  'project-config:set-tool-trust': {
-    args: [projectPath: string, toolName: 'writeFile', trusted: boolean]
+  'project-config:is-tool-call-trusted': {
+    args: [projectPath: string, toolName: TrustableToolName, rawArgs: string]
+    return: boolean
+  }
+  'project-config:record-tool-approval': {
+    args: [projectPath: string, toolName: TrustableToolName, rawArgs: string]
     return: undefined
   }
   'conversations:list': {
@@ -461,7 +466,16 @@ export interface OpenWaggleApi {
 
   // Project
   selectProjectFolder(): Promise<string | null>
-  setProjectToolTrust(projectPath: string, toolName: 'writeFile', trusted: boolean): Promise<void>
+  isProjectToolCallTrusted(
+    projectPath: string,
+    toolName: TrustableToolName,
+    rawArgs: string,
+  ): Promise<boolean>
+  recordProjectToolApproval(
+    projectPath: string,
+    toolName: TrustableToolName,
+    rawArgs: string,
+  ): Promise<void>
 
   // Conversations
   listConversations(limit?: number): Promise<ConversationSummary[]>

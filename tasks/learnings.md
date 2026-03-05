@@ -2,7 +2,7 @@
 name: project-learnings
 description: Technical learnings log for OpenWaggle. Stores warnings, pattern preferences, and historical engineering learnings; workflow policy lives in AGENTS.md and CLAUDE.md.
 owner: openwaggle-core
-last_updated: 2026-03-04
+last_updated: 2026-03-05
 ---
 
 # LEARNINGS.md
@@ -19,6 +19,59 @@ This document stores project-specific technical learnings only.
 - Do not add routine project-management notes unless they materially affect implementation behavior.
 
 ## 3) Recent Learnings
+
+### Task: TanStack Known Issues Regression Matrix (2026-03-05)
+- `@tanstack/ai` root runtime export surface does not include `BaseTextAdapter` even though typings suggest it; tests that need lightweight adapters should use structural `TextAdapter` objects instead of subclassing the base class. [SKILL?]
+- A deterministic continuation probe can be reproduced without external providers by seeding `chat(...)` with an unresolved tool call (`assistant` toolCall + `tool` message containing `pendingExecution: true`) and a local mock adapter; this makes upstream chunk-shape changes testable in CI.
+
+### Task: Review Follow-up Regression Hardening (2026-03-05)
+- Trusted `runCommand` wildcard matching should reject shell-chain operator continuations (`;`, `&&`, `||`, pipes) even when prefix patterns match; safe allowlists need token-boundary-aware matching rather than generic glob-to-regex conversion. [SKILL?]
+- Transcript-level tool-call deduplication must reset per user turn; global dedup across the full message list hides legitimate repeated commands in later turns and distorts conversation history reconstruction.
+
+### Task: Trusted Approval Auto-Respond Race Guard (2026-03-05)
+- Auto-responding tool approvals before TanStack emits `approval` metadata can silently no-op continuation: `addToolApprovalResponse` only marks `approval-responded` when a matching `part.approval.id` is already present in UI message parts.
+- Pending-approval fallback detection (for delayed custom chunks) should carry an explicit `hasApprovalMetadata` flag so renderer logic can defer both manual and trusted auto-approval actions until metadata is present.
+- Hiding approval controls while `hasApprovalMetadata === false` avoids dispatching synthetic approval responses that appear successful in UI but never resume the run.
+
+### Task: Approval Continuation Runtime Patch Coherence (2026-03-04)
+- TanStack patching in this repo must target `dist/esm` files, not only `src`, because Electron runtime executes bundled `dist` exports. A source-only patch can appear “fixed” in code review but be inert at runtime after reinstall.
+- `runCompleted` can race ahead of final stream chunks; a very short renderer close grace can truncate late terminal/final-text chunks. A bounded grace window plus regression coverage for delayed terminal chunks is needed to preserve completion fidelity.
+- `ERR_PNPM_INVALID_PATCH` with “hunk header integrity check failed” can come from a hand-edited patch artifact even when the underlying fix is correct. The reliable recovery path is to regenerate `patches/@tanstack__ai@0.6.1.patch` from a clean vanilla-vs-patched package diff (or `pnpm patch/patch-commit` when available), then rerun `pnpm i` to refresh the lockfile patch hash.
+- Approval continuation reliability also depends on delayed approval metadata chunks: when a `TOOL_CALL_END` arrives without `result`, the renderer stream adapter must keep the stream open longer after `run-completed`, otherwise late `CUSTOM: approval-requested` chunks are dropped and trust/auto-approval cannot proceed.
+- Trusted-approval checks should use the active conversation project path as primary source, not only the global settings project path; when these diverge, trust APIs are skipped and the UI remains stuck in approval-needed state despite valid allow-patterns.
+
+### Task: Prompt-Matrix Verification Harness (2026-03-04)
+- Electron runs launched through Playwright can hit macOS `safeStorage` decrypt failures for persisted `enc:v1:` provider secrets, producing generic renderer `RUN_ERROR` surfaces (`"Something went wrong"`) before any tool-call validation path is exercised. Prompt-level verification harnesses must account for this environment constraint (or seed plaintext test credentials) to avoid false negatives on continuation/approval regressions.
+
+### Task: Approval Continuation Pairing + Trusted Approval UX (2026-03-04)
+- Synthetic unresolved `tool-result` entries for `TOOL_CALL_END` chunks without `result` can poison continuation history and trigger Anthropic `unexpected tool_use_id` contract errors on resumed runs. For non-timeout completions, unresolved tool calls should remain unresolved instead of being converted into error results.
+- Continuation normalization must enforce assistant-tool adjacency for tool results: any `tool` message without a matching `tool_call` in the immediately preceding assistant message should be dropped before sending to provider APIs.
+- Assistant-to-tool pairing in continuation normalization must persist across consecutive `tool` messages emitted from the same assistant turn (e.g. assistant with tool A+B followed by tool(A), tool(B)); enforcing strict immediate-adjacency per tool message drops valid results and can desync follow-up context.
+- Trusted approval checks in the renderer should hide pending approval UI while trust resolution is in-flight; otherwise pre-approved commands can briefly flash approval banners and degrade perceived responsiveness.
+- Renderer trust-check side effects should always include cleanup guards for async continuations (`active`/abort flag), so stale promise resolutions cannot auto-approve superseded tool calls after pending-approval state changes.
+- Pending-approval selection must use newest-unresolved semantics (reverse traversal + filter out tool-call ids with existing tool results). Returning the first historical `approval-requested` part can keep selecting stale approvals and prevent later tool calls from ever receiving auto-approval/approval UI.
+- TanStack AI `updateToolCallPart` can overwrite existing `tool-call` parts and drop `approval` metadata unless the updater explicitly preserves previously attached `approval`/`output` fields. When this happens, follow-up approvals become invisible to the renderer and continuation no-ops.
+- Pending-approval detection must treat `pendingExecution` as unresolved even when it appears on `tool-call.output` or inside stringified/wrapped payloads (for example `{"kind":"json","data":{"pendingExecution":true}}`), otherwise the approval banner can disappear while the tool row still shows `(approval needed)`.
+- In Vite/Electron dev mode, patch-package updates under `node_modules` can be masked by stale `.vite/deps` prebundles. For TanStack runtime contract fixes, forcing renderer dependency re-optimization in dev (`optimizeDeps.force = true`) prevents running an old prebundle after patch changes.
+
+### Task: TanStack AI 0.6.1 Upgrade + Patch Surface Reduction (2026-03-04)
+- `@tanstack/ai` `0.6.1` already includes early `tool-result` emission before approval/client-execution wait branches, so local patches that previously moved result emission in `activities/chat/index.ts` can be dropped.
+- Mixed approval/non-approval tool batches still need explicit approval-first gating to avoid running side-effecting tools before unresolved approvals in the same batch; this behavior is still not enforced upstream in `activities/chat/tools/tool-calls.ts`.
+- TanStack `CustomEvent` typing now uses `value` instead of `data`; local helper/test fixtures that construct custom chunks must use `value` to keep `tsc` green after upgrade.
+
+### Task: Continuation No-Op After Malformed Tool Args (2026-03-04)
+- Continuation fallback logic in the renderer adapter must be scoped to actual approval-continuation snapshots; falling back on any non-user last message can trigger instant no-op runs (`run-start` + `run-complete` in milliseconds) that look like the conversation cannot continue.
+- For malformed tool-call argument JSON in continuation snapshots, normalizing arguments to valid object JSON (`{}`) prevents TanStack parse crashes, but adapter-side guardrails are still needed to avoid accidentally sending empty continuation payloads.
+- Persisted assistant turns can contain unresolved tool calls (tool-call without tool-result). Replaying those unresolved calls into provider history can cause subsequent runs to terminate immediately with `(no response)`. History mappers should only replay tool calls that have matching tool results.
+- Reverse-ordered continuation dedupe must be tool-call-aware when keeping tool-results: if a newer assistant turn already owns a tool-call id, older tool-result entries for that id should be dropped, otherwise Anthropic can reject follow-up requests with `unexpected tool_use_id` due to broken call/result pairing.
+
+### Task: Dev Blank Screen — CSP + Vite React Preamble (2026-03-04)
+- A strict `script-src 'self'` CSP can break Electron renderer startup in Vite dev mode because `@vitejs/plugin-react` injects an inline preamble script; when blocked, renderer fails with `@vitejs/plugin-react can't detect preamble` and shows a blank window.
+- The least-privilege fix is to allow only the exact preamble hash in `script-src` (instead of adding `'unsafe-inline'`), preserving CSP protection while restoring dev boot behavior.
+
+### Task: Spec 06 — Executor Permissions + Default-Permissions Trust (2026-03-04)
+- Zod v4 `z.record(z.enum([...]), valueSchema)` enforces a complete enum-keyed map, not a partial map. For optional per-tool config objects, a `z.object({...optional keys...})` schema avoids false validation failures when only one tool entry is persisted.
+- Orchestration executor runs that use TanStack tools with `needsApproval: true` can hang when there is no direct approval bridge in that nested execution path. A safe fallback is to strip approval requirements in executor scope and enforce trust policy synchronously (allow trusted patterns, return structured block errors otherwise).
 
 ### Task: Spec 04 — Electron Security Defaults (2026-03-04)
 - Electron's current TypeScript declarations do not expose a typed `webContents.getLastWebPreferences()` path, so startup hardening checks are most robustly enforced by asserting the exact `webPreferences` object passed into `BrowserWindow` before creation, then failing closed on bootstrap errors.

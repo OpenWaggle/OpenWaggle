@@ -10,7 +10,10 @@ const SECURITY_PREFERENCE_EXPECTATIONS = [
 
 const DIRECTIVE_SEPARATOR = '; '
 const VALUE_SEPARATOR = ' '
-const SCRIPT_SRC_VALUES = ["'self'"] as const
+// Vite React injects a deterministic inline preamble script in dev.
+// Allow only that exact script hash so dev boot works without enabling broad unsafe-inline.
+const VITE_REACT_PREAMBLE_HASH = "'sha256-Z2/iFzh9VMlVkEOar1f/oSHWwQk3ve1qk/C2WdsC4Xk='" as const
+const SCRIPT_SRC_VALUES = ["'self'", VITE_REACT_PREAMBLE_HASH] as const
 const STYLE_SRC_VALUES = ["'self'", "'unsafe-inline'"] as const
 const IMG_SRC_VALUES = ["'self'", 'data:'] as const
 const CONNECT_SRC_VALUES = [

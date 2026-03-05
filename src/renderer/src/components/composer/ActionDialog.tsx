@@ -54,8 +54,7 @@ function getActionDialogConfig(
     }))
     .case('confirm-full-access', () => ({
       title: 'Switch to Full access',
-      description:
-        'This enables write/edit/command tools. Default permissions runs commands in a sandbox.',
+      description: 'This enables write/edit/command tools without approval prompts.',
       confirmLabel: 'Switch',
       confirmTone: 'danger' as const,
     }))

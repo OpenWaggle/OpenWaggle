@@ -88,6 +88,56 @@ function splitAtTurnBoundaries(
   return segments
 }
 
+// ─── Tool-call dedup helpers ─────────────────────────────────
+
+/**
+ * Build a normalised key for a tool-call part so we can detect
+ * duplicates across continuation runs.
+ * TanStack AI's TextEngine may cause the model to re-propose
+ * an identical tool call after a continuation re-execution.
+ */
+function toolCallKey(name: string, args: string): string {
+  return `${name}:${args}`
+}
+
+/**
+ * Given a message and a set of already-seen tool-call keys,
+ * returns a filtered copy of the message with duplicate tool-call
+ * (and their matching tool-result) parts removed.
+ * Returns `null` when the message has no visible content left.
+ */
+function deduplicateToolCalls(msg: UIMessage, seenKeys: Set<string>): UIMessage | null {
+  const duplicateIds = new Set<string>()
+
+  for (const p of msg.parts) {
+    if (p.type === 'tool-call' && p.name !== '_turnBoundary') {
+      const key = toolCallKey(p.name, p.arguments)
+      if (seenKeys.has(key)) {
+        duplicateIds.add(p.id)
+      } else {
+        seenKeys.add(key)
+      }
+    }
+  }
+
+  if (duplicateIds.size === 0) return msg
+
+  const filtered = msg.parts.filter((p) => {
+    if (p.type === 'tool-call' && duplicateIds.has(p.id)) return false
+    if (p.type === 'tool-result' && duplicateIds.has(p.toolCallId)) return false
+    return true
+  })
+
+  const hasVisible = filtered.some((p) => {
+    if (p.type === 'thinking') return false
+    if (p.type === 'text') return p.content.trim().length > 0
+    return true
+  })
+
+  if (!hasVisible) return null
+  return { ...msg, parts: filtered }
+}
+
 // ─── Row builder ────────────────────────────────────────────────
 
 interface BuildVirtualRowsParams {
@@ -116,13 +166,28 @@ export function buildVirtualRows({
   phase,
 }: BuildVirtualRowsParams): VirtualRow[] {
   const rows: VirtualRow[] = []
+  const seenToolCallKeys = new Set<string>()
 
   const lastMsg = messages[messages.length - 1]
   const lastIsStreaming = isLoading && lastMsg?.role === 'assistant'
 
   for (let i = 0; i < messages.length; i++) {
-    const msg = messages[i]
+    let msg = messages[i]
     const meta = waggleMetadataLookup[msg.id]
+
+    // Reset dedup scope at each new user turn. Identical tool calls in later
+    // user turns are legitimate and should remain visible.
+    if (msg.role === 'user') {
+      seenToolCallKeys.clear()
+    }
+
+    // Deduplicate tool-call parts that were re-proposed by the model
+    // across continuation runs (TanStack AI TextEngine limitation).
+    if (msg.role === 'assistant') {
+      const deduped = deduplicateToolCalls(msg, seenToolCallKeys)
+      if (!deduped) continue
+      msg = deduped
+    }
 
     // Check for turn boundaries (Waggle streaming)
     const hasTurnBoundaries =
@@ -189,12 +254,22 @@ export function buildVirtualRows({
     })
   }
 
-  // Phase indicator — visible whenever the agent is running
+  // Phase indicator — visible whenever the agent is running.
+  // During gaps between continuation runs (clearAgentPhase fired but next
+  // run hasn't started yet), show "Thinking" with the total elapsed time
+  // so the spinner stays visible throughout the entire interaction.
   if (phase.current) {
     rows.push({
       type: 'phase-indicator',
       label: phase.current.label,
       elapsedMs: phase.current.elapsedMs,
+    })
+  }
+  if (!phase.current && isLoading) {
+    rows.push({
+      type: 'phase-indicator',
+      label: 'Thinking',
+      elapsedMs: phase.totalElapsedMs,
     })
   }
 

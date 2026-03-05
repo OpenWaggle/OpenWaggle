@@ -6,7 +6,9 @@ import {
   clearConfigCache,
   ensureLocalProjectConfigFile,
   ensureProjectConfigFile,
+  isProjectToolCallTrusted,
   loadProjectConfig,
+  recordToolCallApproval,
   setWriteFileTrust,
   updateProjectConfig,
 } from './project-config'
@@ -181,6 +183,107 @@ max_tokens = 9000
     const config = await loadProjectConfig(tmpDir)
     expect(config.quality?.high).toEqual({ maxTokens: 9000 })
     expect(config.approvals?.tools?.writeFile?.trusted).toBe(true)
+  })
+
+  it('records runCommand approvals as wildcard patterns and matches trusted commands', async () => {
+    await recordToolCallApproval(
+      tmpDir,
+      'runCommand',
+      JSON.stringify({ command: 'pnpm test --watch=false' }),
+      'tool-approval',
+    )
+
+    const config = await loadProjectConfig(tmpDir)
+    const patterns = config.approvals?.tools?.runCommand?.allowPatterns ?? []
+    expect(patterns).toHaveLength(1)
+    expect(patterns[0]?.pattern).toBe('pnpm test*')
+
+    await expect(
+      isProjectToolCallTrusted(
+        tmpDir,
+        'runCommand',
+        JSON.stringify({ command: 'pnpm test src/main/project-config.unit.test.ts' }),
+      ),
+    ).resolves.toBe(true)
+
+    await expect(
+      isProjectToolCallTrusted(tmpDir, 'runCommand', JSON.stringify({ command: 'pnpm lint' })),
+    ).resolves.toBe(false)
+  })
+
+  it('does not trust shell-chain suffixes for runCommand patterns', async () => {
+    await recordToolCallApproval(
+      tmpDir,
+      'runCommand',
+      JSON.stringify({ command: 'git status' }),
+      'tool-approval',
+    )
+
+    await expect(
+      isProjectToolCallTrusted(
+        tmpDir,
+        'runCommand',
+        JSON.stringify({ command: 'git status --short' }),
+      ),
+    ).resolves.toBe(true)
+
+    await expect(
+      isProjectToolCallTrusted(
+        tmpDir,
+        'runCommand',
+        JSON.stringify({ command: 'git status; rm -rf /' }),
+      ),
+    ).resolves.toBe(false)
+
+    await expect(
+      isProjectToolCallTrusted(
+        tmpDir,
+        'runCommand',
+        JSON.stringify({ command: 'git status && echo "unsafe"' }),
+      ),
+    ).resolves.toBe(false)
+  })
+
+  it('records webFetch approvals as origin/path wildcard patterns and matches trusted urls', async () => {
+    await recordToolCallApproval(
+      tmpDir,
+      'webFetch',
+      JSON.stringify({ url: 'https://docs.example.com/reference/getting-started' }),
+      'tool-approval',
+    )
+
+    const config = await loadProjectConfig(tmpDir)
+    const patterns = config.approvals?.tools?.webFetch?.allowPatterns ?? []
+    expect(patterns).toHaveLength(1)
+    expect(patterns[0]?.pattern).toBe('https://docs.example.com/reference/*')
+
+    await expect(
+      isProjectToolCallTrusted(
+        tmpDir,
+        'webFetch',
+        JSON.stringify({ url: 'https://docs.example.com/reference/api' }),
+      ),
+    ).resolves.toBe(true)
+
+    await expect(
+      isProjectToolCallTrusted(
+        tmpDir,
+        'webFetch',
+        JSON.stringify({ url: 'https://docs.example.com/blog/announcement' }),
+      ),
+    ).resolves.toBe(false)
+  })
+
+  it('marks editFile trusted after approval recording', async () => {
+    await recordToolCallApproval(
+      tmpDir,
+      'editFile',
+      JSON.stringify({ path: 'src/main/index.ts' }),
+      'tool-approval',
+    )
+
+    const config = await loadProjectConfig(tmpDir)
+    expect(config.approvals?.tools?.editFile?.trusted).toBe(true)
   })
 
   it('does not mutate shared config.toml when persisting trust', async () => {

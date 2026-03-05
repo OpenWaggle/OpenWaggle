@@ -5,7 +5,7 @@ import type { McpServerConfig } from './mcp'
 
 export const PROVIDERS = ['anthropic', 'openai', 'gemini', 'grok', 'openrouter', 'ollama'] as const
 export type Provider = (typeof PROVIDERS)[number]
-export const EXECUTION_MODES = ['sandbox', 'full-access'] as const
+export const EXECUTION_MODES = ['default-permissions', 'full-access'] as const
 export type ExecutionMode = (typeof EXECUTION_MODES)[number]
 export const QUALITY_PRESETS = ['low', 'medium', 'high'] as const
 export type QualityPreset = (typeof QUALITY_PRESETS)[number]
@@ -52,7 +52,7 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultModel: DEFAULT_ANTHROPIC_MODEL,
   favoriteModels: [],
   projectPath: null,
-  executionMode: 'sandbox',
+  executionMode: 'default-permissions',
   qualityPreset: 'medium',
   recentProjects: [],
   skillTogglesByProject: {},

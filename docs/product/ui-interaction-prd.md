@@ -339,11 +339,11 @@ Status legend: `implemented`, `deferred`, `future`
 - Current: selectable Default permissions / Full access controls with Full access confirmation.
 - Target behavior:
   - User-switchable execution mode persisted in settings.
-  - New-profile default is Default permissions (`sandbox` mode); legacy profiles retain Full access until explicitly changed.
+  - New-profile default is Default permissions (`default-permissions` mode).
 - Technical requirements:
   - Settings type extension for execution policy.
   - Agent request path must enforce policy at runtime, not only in UI.
-  - Implementation note (2026-02-19): Agent runtime now enforces sandbox policy server-side by filtering approval-required tools before dispatch (with execution-time guards still in place).
+  - Implementation note (2026-03-04): Agent runtime enforces default-permissions server-side with runtime approval gating + trust-based reuse, and full-access strips approval requirements.
 
 ### HC-UI-012 Branch badge and git refresh affordance
 

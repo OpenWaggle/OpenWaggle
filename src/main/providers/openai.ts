@@ -1,6 +1,6 @@
 import { TRIPLE_FACTOR } from '@shared/constants/constants'
 import type { QualityPreset } from '@shared/types/settings'
-import { includes } from '@shared/utils/validation'
+import { includes, isRecord } from '@shared/utils/validation'
 import { createOpenaiChat, OPENAI_CHAT_MODELS } from '@tanstack/ai-openai'
 import { isReasoningModel } from '../agent/quality-config'
 import { createLogger } from '../logger'
@@ -19,10 +19,6 @@ const OPENAI_CODEX_BASE_URL = 'https://chatgpt.com/backend-api'
 const OPENAI_CODEX_JWT_CLAIM_PATH = 'https://api.openai.com/auth'
 const OPENAI_CODEX_REASONING_INCLUDE = 'reasoning.encrypted_content'
 const OPENAI_CODEX_USER_AGENT = `pi (${process.platform} ${process.release?.name ?? 'node'}; ${process.arch})`
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
 
 function getRequestUrl(input: RequestInfo | URL): string {
   if (typeof input === 'string') return input

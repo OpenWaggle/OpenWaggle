@@ -35,6 +35,7 @@ import type {
   SkillCatalogResult,
 } from '@shared/types/standards'
 import type { SubAgentEventPayload, TeamEventPayload } from '@shared/types/sub-agent'
+import type { TrustableToolName } from '@shared/types/tool-approval'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from '@shared/types/voice'
 import type {
   WaggleConfig,
@@ -202,8 +203,20 @@ export const api: OpenWaggleApi = {
     return ipcRenderer.invoke('project:select-folder')
   },
 
-  setProjectToolTrust(projectPath: string, toolName: 'writeFile', trusted: boolean): Promise<void> {
-    return ipcRenderer.invoke('project-config:set-tool-trust', projectPath, toolName, trusted)
+  isProjectToolCallTrusted(
+    projectPath: string,
+    toolName: TrustableToolName,
+    rawArgs: string,
+  ): Promise<boolean> {
+    return ipcRenderer.invoke('project-config:is-tool-call-trusted', projectPath, toolName, rawArgs)
+  },
+
+  recordProjectToolApproval(
+    projectPath: string,
+    toolName: TrustableToolName,
+    rawArgs: string,
+  ): Promise<void> {
+    return ipcRenderer.invoke('project-config:record-tool-approval', projectPath, toolName, rawArgs)
   },
 
   // ─── Conversations ──────────────────────────────────

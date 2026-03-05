@@ -47,8 +47,16 @@ export function conversationToMessages(messages: readonly Message[]): SimpleChat
     }
 
     if (msg.role === 'assistant') {
+      const toolResultIds = new Set(
+        msg.parts
+          .filter(
+            (p): p is Extract<MessagePart, { type: 'tool-result' }> => p.type === 'tool-result',
+          )
+          .map((p) => String(p.toolResult.id)),
+      )
       const toolCalls = msg.parts
         .filter((p): p is Extract<MessagePart, { type: 'tool-call' }> => p.type === 'tool-call')
+        .filter((p) => toolResultIds.has(String(p.toolCall.id)))
         .map((p) => ({
           id: String(p.toolCall.id),
           type: 'function' as const,

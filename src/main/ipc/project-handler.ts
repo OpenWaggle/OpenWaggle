@@ -1,5 +1,5 @@
 import { dialog } from 'electron'
-import { setWriteFileTrust } from '../config/project-config'
+import { isProjectToolCallTrusted, recordToolCallApproval } from '../config/project-config'
 import { typedHandle } from './typed-ipc'
 
 export function registerProjectHandlers(): void {
@@ -17,12 +17,16 @@ export function registerProjectHandlers(): void {
   })
 
   typedHandle(
-    'project-config:set-tool-trust',
-    async (_event, projectPath: string, toolName: 'writeFile', trusted: boolean) => {
-      if (toolName !== 'writeFile') {
-        return
-      }
-      await setWriteFileTrust(projectPath, trusted, 'tool-approval')
+    'project-config:is-tool-call-trusted',
+    async (_event, projectPath: string, toolName, rawArgs: string) => {
+      return isProjectToolCallTrusted(projectPath, toolName, rawArgs)
+    },
+  )
+
+  typedHandle(
+    'project-config:record-tool-approval',
+    async (_event, projectPath: string, toolName, rawArgs: string) => {
+      await recordToolCallApproval(projectPath, toolName, rawArgs, 'tool-approval')
     },
   )
 

@@ -1,4 +1,5 @@
 import type {
+  CustomEvent,
   RunErrorEvent,
   StepFinishedEvent,
   StepStartedEvent,
@@ -41,6 +42,10 @@ function toolCallEnd(
 
 function runError(message: string, ts = 0): RunErrorEvent {
   return { type: 'RUN_ERROR', timestamp: ts, error: { message } }
+}
+
+function customEvent(name: string, data: unknown, ts = 0): CustomEvent {
+  return { type: 'CUSTOM', timestamp: ts, name, value: data }
 }
 
 describe('StreamPartCollector', () => {
@@ -136,7 +141,7 @@ describe('StreamPartCollector', () => {
     expect(parts.filter((part) => part.type === 'tool-result')).toHaveLength(1)
   })
 
-  it('does not synthesize a tool-result when TOOL_CALL_END has no result payload on normal completion', () => {
+  it('preserves unresolved tool call when TOOL_CALL_END has no result payload on normal completion', () => {
     const collector = new StreamPartCollector()
 
     collector.handleChunk(toolCallStart('tool-4', 'writeFile', 1))
@@ -147,6 +152,96 @@ describe('StreamPartCollector', () => {
     expect(collector.hasUnresolvedToolResults()).toBe(true)
 
     const parts = collector.finalizeParts()
+    const stats = collector.getStats()
+    const toolResultPart = parts.find((part) => part.type === 'tool-result')
+    const toolCallPart = parts.find((part) => part.type === 'tool-call')
+
+    expect(toolResultPart).toBeUndefined()
+    expect(toolCallPart).toEqual({
+      type: 'tool-call',
+      toolCall: {
+        id: 'tool-4',
+        name: 'writeFile',
+        args: { path: 'out.txt' },
+      },
+    })
+    expect(stats.toolCalls).toBe(1)
+    expect(stats.toolErrors).toBe(0)
+  })
+
+  it('preserves unresolved tool call when approval-requested custom events are present', () => {
+    const collector = new StreamPartCollector()
+
+    collector.handleChunk(toolCallStart('tool-4a', 'writeFile', 1))
+    collector.handleChunk(toolCallArgs('tool-4a', '{"path":"out.txt"}', 2))
+    collector.handleChunk(
+      customEvent(
+        'approval-requested',
+        {
+          toolCallId: 'tool-4a',
+          toolName: 'writeFile',
+          input: { path: 'out.txt' },
+          approval: { id: 'approval_tool-4a', needsApproval: true },
+        },
+        2.5,
+      ),
+    )
+    collector.handleChunk(toolCallEnd('tool-4a', 'writeFile', undefined, 3))
+
+    const parts = collector.finalizeParts()
+    const stats = collector.getStats()
+    const toolResultPart = parts.find((part) => part.type === 'tool-result')
+    const toolCallPart = parts.find((part) => part.type === 'tool-call')
+
+    expect(toolResultPart).toBeUndefined()
+    expect(toolCallPart).toEqual({
+      type: 'tool-call',
+      toolCall: {
+        id: 'tool-4a',
+        name: 'writeFile',
+        args: { path: 'out.txt' },
+      },
+    })
+    expect(stats.toolCalls).toBe(1)
+    expect(stats.toolErrors).toBe(0)
+  })
+
+  it('synthesizes unresolved tool result when explicitly requested unresolved id is not preserved', () => {
+    const collector = new StreamPartCollector()
+
+    collector.handleChunk(toolCallStart('tool-4a-explicit', 'writeFile', 1))
+    collector.handleChunk(toolCallArgs('tool-4a-explicit', '{"path":"out.txt"}', 2))
+    collector.handleChunk(toolCallEnd('tool-4a-explicit', 'writeFile', undefined, 3))
+
+    const parts = collector.finalizeParts({ timedOut: true })
+    const stats = collector.getStats()
+    const toolResultPart = parts.find((part) => part.type === 'tool-result')
+
+    expect(toolResultPart).toEqual({
+      type: 'tool-result',
+      toolResult: {
+        id: 'tool-4a-explicit',
+        name: 'writeFile',
+        args: { path: 'out.txt' },
+        result: expect.stringContaining('Tool call did not complete before the stream ended.'),
+        isError: true,
+        duration: expect.any(Number),
+      },
+    })
+    expect(stats.toolCalls).toBe(1)
+    expect(stats.toolErrors).toBe(1)
+  })
+
+  it('preserves explicitly requested unresolved tool calls', () => {
+    const collector = new StreamPartCollector()
+
+    collector.handleChunk(toolCallStart('tool-4c', 'writeFile', 1))
+    collector.handleChunk(toolCallArgs('tool-4c', '{"path":"out.txt"}', 2))
+    collector.handleChunk(toolCallEnd('tool-4c', 'writeFile', undefined, 3))
+
+    const parts = collector.finalizeParts({
+      preserveUnresolvedToolCallIds: new Set(['tool-4c']),
+    })
     const stats = collector.getStats()
     const toolResultPart = parts.find((part) => part.type === 'tool-result')
 

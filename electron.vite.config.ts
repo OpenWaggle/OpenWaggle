@@ -43,6 +43,10 @@ export default defineConfig({
   },
   renderer: {
     optimizeDeps: {
+      // TanStack AI runtime behavior is patched via patch-package.
+      // Force re-optimization in dev so Vite never serves stale prebundled
+      // copies that can drift from patched node_modules code.
+      force: true,
       include: ['react/compiler-runtime'],
     },
     resolve: {

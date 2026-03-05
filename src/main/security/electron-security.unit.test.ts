@@ -65,7 +65,9 @@ describe('buildContentSecurityPolicy', () => {
   it('returns the expected directives', () => {
     expect(buildContentSecurityPolicy()).toBe(CONTENT_SECURITY_POLICY)
     expect(CONTENT_SECURITY_POLICY).toContain("default-src 'self'")
-    expect(CONTENT_SECURITY_POLICY).toContain("script-src 'self'")
+    expect(CONTENT_SECURITY_POLICY).toContain(
+      "script-src 'self' 'sha256-Z2/iFzh9VMlVkEOar1f/oSHWwQk3ve1qk/C2WdsC4Xk='",
+    )
     expect(CONTENT_SECURITY_POLICY).toContain("style-src 'self' 'unsafe-inline'")
     expect(CONTENT_SECURITY_POLICY).toContain("img-src 'self' data:")
     expect(CONTENT_SECURITY_POLICY).toContain(

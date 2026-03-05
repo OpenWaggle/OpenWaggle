@@ -107,8 +107,8 @@ export const executionModePromptFragment: AgentPromptFragment = {
   id: 'core.execution-mode',
   order: ORDER_VALUE_40,
   build: (context) => {
-    if (context.settings.executionMode === 'sandbox') {
-      return 'Execution mode is Default permissions. Tools that modify files or run commands (writeFile, editFile, runCommand) require explicit user approval before each use. The user will see an approval prompt and can approve or deny each tool call individually. Read-only tools (readFile, glob, listFiles) execute immediately without approval. Proceed normally and use any tool you need — the user controls what gets executed.'
+    if (context.settings.executionMode === 'default-permissions') {
+      return 'Execution mode is Default permissions. Tools that modify files, run commands, or fetch web content (writeFile, editFile, runCommand, webFetch) require explicit user approval before each use unless previously trusted by policy. Read-only tools (readFile, glob, listFiles) execute immediately without approval. If you need an approval-gated tool, call only that single tool first and wait for its outcome before calling additional tools. Proceed normally and use any tool you need — the user controls what gets executed.'
     }
 
     return 'Execution mode is Full access. Use file-write and command tools when needed, but keep operations precise and avoid unnecessary destructive actions.'

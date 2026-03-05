@@ -74,7 +74,7 @@ describe('safeHandle', () => {
 
     const registeredHandler = ipcMainHandleMock.mock.calls[0][1]
     const fakeEvent = { sender: {} }
-    const result = await registeredHandler(fakeEvent, { executionMode: 'sandbox' })
+    const result = await registeredHandler(fakeEvent, { executionMode: 'default-permissions' })
 
     expect(result).toEqual({ ok: true })
   })

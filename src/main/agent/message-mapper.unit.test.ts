@@ -4,6 +4,38 @@ import { describe, expect, it } from 'vitest'
 import { conversationToMessages } from './message-mapper'
 
 describe('message-mapper screenshot injection', () => {
+  it('omits unresolved assistant tool calls from provider replay history', () => {
+    const messages: Message[] = [
+      {
+        id: MessageId('msg-unresolved'),
+        role: 'assistant',
+        parts: [
+          {
+            type: 'text',
+            text: 'I attempted a command.',
+          },
+          {
+            type: 'tool-call',
+            toolCall: {
+              id: ToolCallId('tc-unresolved'),
+              name: 'runCommand',
+              args: { command: 'echo hello' },
+            },
+          },
+        ],
+        createdAt: Date.now(),
+      },
+    ]
+
+    const result = conversationToMessages(messages)
+    expect(result).toHaveLength(1)
+    expect(result[0]).toMatchObject({
+      role: 'assistant',
+      content: 'I attempted a command.',
+    })
+    expect(result[0]?.toolCalls).toBeUndefined()
+  })
+
   it('injects multimodal image content for browserScreenshot tool results', () => {
     const screenshotData = {
       kind: 'json',

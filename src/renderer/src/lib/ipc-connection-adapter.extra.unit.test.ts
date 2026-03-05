@@ -9,10 +9,11 @@ import type { UIMessage } from '@tanstack/ai-react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // ─── IPC Mock ───────────────────────────────────────────────
-const { streamListeners, apiMock } = vi.hoisted(() => {
+const { streamListeners, runCompletedListeners, apiMock } = vi.hoisted(() => {
   const listeners = new Set<
     (payload: { conversationId: ConversationId; chunk: StreamChunk }) => void
   >()
+  const runCompletedListeners = new Set<(payload: { conversationId: ConversationId }) => void>()
 
   return {
     streamListeners: listeners,
@@ -23,10 +24,15 @@ const { streamListeners, apiMock } = vi.hoisted(() => {
           return () => listeners.delete(callback)
         },
       ),
+      onRunCompleted: vi.fn((callback: (payload: { conversationId: ConversationId }) => void) => {
+        runCompletedListeners.add(callback)
+        return () => runCompletedListeners.delete(callback)
+      }),
       sendMessage: vi.fn(),
       sendWaggleMessage: vi.fn(),
       cancelAgent: vi.fn(),
     },
+    runCompletedListeners,
   }
 })
 
@@ -44,6 +50,12 @@ import {
 function emitStreamChunk(conversationId: ConversationId, chunk: StreamChunk): void {
   for (const callback of streamListeners) {
     callback({ conversationId, chunk })
+  }
+}
+
+function emitRunCompleted(conversationId: ConversationId): void {
+  for (const callback of runCompletedListeners) {
+    callback({ conversationId })
   }
 }
 
@@ -121,6 +133,7 @@ describe('createIpcConnectionAdapter — additional branches', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     streamListeners.clear()
+    runCompletedListeners.clear()
     clearLastAgentErrorInfo(conversationId)
   })
 
@@ -245,6 +258,8 @@ describe('createIpcConnectionAdapter — additional branches', () => {
         runId: 'r-correct',
         finishReason: 'stop',
       } as StreamChunk)
+      emitRunCompleted(otherConv)
+      emitRunCompleted(conversationId)
     })
 
     const connection = createIpcConnectionAdapter(conversationId, model, () => null, 'medium')
@@ -386,26 +401,17 @@ describe('createIpcConnectionAdapter — additional branches', () => {
     expect(apiMock.sendWaggleMessage).not.toHaveBeenCalled()
   })
 
-  it('extracts text from empty message array', async () => {
-    apiMock.sendMessage.mockImplementationOnce(async () => {
-      emitStreamChunk(conversationId, {
-        type: 'RUN_FINISHED',
-        timestamp: 1,
-        runId: 'r-empty',
-        finishReason: 'stop',
-      } as StreamChunk)
-    })
-
+  it('returns RUN_ERROR when connect is called with no message context', async () => {
     const connection = createIpcConnectionAdapter(conversationId, model, () => null, 'medium')
     const stream = connection.connect([], undefined, undefined)
+    const chunks: StreamChunk[] = []
+
     for await (const _chunk of stream) {
-      // consume
+      chunks.push(_chunk)
     }
 
-    expect(apiMock.sendMessage).toHaveBeenCalledWith(
-      conversationId,
-      expect.objectContaining({ text: '' }),
-      model,
-    )
+    expect(apiMock.sendMessage).not.toHaveBeenCalled()
+    expect(chunks).toHaveLength(1)
+    expect(chunks[0]?.type).toBe('RUN_ERROR')
   })
 })

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { BASE_TEN, PERCENT_BASE } from '@shared/constants/constants'
 import { AUTH_METHODS } from '@shared/types/auth'
-import { SupportedModelId } from '@shared/types/brand'
+import { McpServerId, SupportedModelId } from '@shared/types/brand'
 import type { McpServerConfig } from '@shared/types/mcp'
 import { mcpServerConfigSchema } from '@shared/types/mcp'
 import {
@@ -29,8 +29,6 @@ const store = new Store<Settings>({
   name: 'settings',
   defaults: DEFAULT_SETTINGS,
 })
-
-const LEGACY_EXECUTION_MODE: ExecutionMode = 'full-access'
 
 /**
  * Schema for validating raw provider config from disk.
@@ -218,22 +216,14 @@ export function updateSettings(partial: Partial<Settings>): void {
 }
 
 function resolveExecutionMode(): ExecutionMode {
-  const persisted = readPersistedSettings()
-  const persistedExecutionMode = persisted?.executionMode
-  if (
-    typeof persistedExecutionMode === 'string' &&
-    includes(EXECUTION_MODES, persistedExecutionMode)
-  ) {
-    return persistedExecutionMode
+  const persisted = readPersistedSettings()?.executionMode
+  if (typeof persisted === 'string' && includes(EXECUTION_MODES, persisted)) {
+    return persisted
   }
 
-  // Keep existing profiles on the legacy default while new installs use sandbox.
-  const hasLegacyProfile =
-    persisted !== null &&
-    ('providers' in persisted || 'defaultModel' in persisted || 'projectPath' in persisted)
-  if (hasLegacyProfile) {
-    store.set('executionMode', LEGACY_EXECUTION_MODE)
-    return LEGACY_EXECUTION_MODE
+  const storedMode = store.get('executionMode', DEFAULT_SETTINGS.executionMode)
+  if (includes(EXECUTION_MODES, storedMode)) {
+    return storedMode
   }
 
   return DEFAULT_SETTINGS.executionMode
@@ -285,7 +275,10 @@ function sanitizeMcpServers(servers: readonly unknown[]): McpServerConfig[] {
   for (const entry of servers) {
     const parsed = mcpServerConfigSchema.safeParse(entry)
     if (parsed.success) {
-      result.push(parsed.data as McpServerConfig)
+      result.push({
+        ...parsed.data,
+        id: McpServerId(parsed.data.id),
+      })
     } else {
       logger.warn('Skipping invalid MCP server config', { entry })
     }

@@ -135,7 +135,7 @@ describe('conversationToMessages — user message mapping', () => {
     expect(result[1].content).toBe('file content')
   })
 
-  it('maps assistant message with no text (null content)', () => {
+  it('maps assistant message with no text (null content) and omits unresolved tool calls', () => {
     const messages: Message[] = [
       {
         id: MessageId('msg-1'),
@@ -152,7 +152,7 @@ describe('conversationToMessages — user message mapping', () => {
 
     const result = conversationToMessages(messages)
     expect(result[0].content).toBeNull()
-    expect(result[0].toolCalls).toHaveLength(1)
+    expect(result[0].toolCalls).toBeUndefined()
   })
 
   it('maps a multi-message conversation', () => {

@@ -6,7 +6,15 @@ import {
   projectSharedConfigSchema,
   type qualityTierSchema,
 } from '@shared/schemas/validation'
-import { isEnoent } from '@shared/utils/node-error'
+import type {
+  ToolApprovalConfig,
+  ToolApprovalPatternRule,
+  ToolApprovalTrustEntry,
+  TrustableToolName,
+} from '@shared/types/tool-approval'
+import { TRUSTABLE_TOOL_NAMES } from '@shared/types/tool-approval'
+import { formatErrorMessage, isEnoent } from '@shared/utils/node-error'
+import { isRecord } from '@shared/utils/validation'
 import type { z } from 'zod'
 import { createLogger } from '../logger'
 import type { BaseSamplingConfig } from '../providers/provider-definition'
@@ -29,19 +37,9 @@ export interface ProjectQualityOverrides {
   readonly high?: Partial<BaseSamplingConfig>
 }
 
-export interface ProjectWriteFileApprovalTrust {
-  readonly trusted?: boolean
-  readonly timestamp?: string
-  readonly source?: string
-}
-
 export interface ProjectConfig {
   readonly quality?: ProjectQualityOverrides
-  readonly approvals?: {
-    readonly tools?: {
-      readonly writeFile?: ProjectWriteFileApprovalTrust
-    }
-  }
+  readonly approvals?: ToolApprovalConfig
 }
 
 const EMPTY_CONFIG: ProjectConfig = {}
@@ -55,6 +53,22 @@ interface ConfigCacheEntry {
 }
 
 const configCache = new Map<string, ConfigCacheEntry>()
+
+const COMMAND_WHITESPACE_REGEX = /\s+/gu
+const COMMAND_CHAIN_OPERATOR_REGEX = /(^|\s)(?:&&|\|\||[;|<>])(?=\s|$)/u
+const HTTP_PROTOCOL = 'http:'
+const HTTPS_PROTOCOL = 'https:'
+
+const COMMAND_PREFIX_TOKEN_COUNT: Readonly<Record<string, number>> = {
+  bun: 2,
+  git: 2,
+  npm: 2,
+  npx: 2,
+  pnpm: 2,
+  python: 1,
+  python3: 1,
+  yarn: 2,
+}
 
 /** Clear cached configs — useful for tests and after known config edits. */
 export function clearConfigCache(): void {
@@ -131,8 +145,132 @@ async function readConfigMtime(filePath: string): Promise<number | null> {
   }
 }
 
-function formatUnknownError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+function parseRawArgsObject(rawArgs: string): Record<string, unknown> | null {
+  try {
+    const parsed: unknown = JSON.parse(rawArgs)
+    return isRecord(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function getStringProperty(record: Record<string, unknown>, key: string): string | null {
+  const value = record[key]
+  return typeof value === 'string' ? value : null
+}
+
+function normalizeCommand(command: string): string {
+  return command.trim().replace(COMMAND_WHITESPACE_REGEX, ' ')
+}
+
+function deriveCommandPattern(command: string): string | null {
+  const normalized = normalizeCommand(command)
+  if (normalized.length === 0) {
+    return null
+  }
+
+  const tokens = normalized.split(' ')
+  const commandName = tokens[0]?.toLowerCase()
+  if (!commandName) {
+    return null
+  }
+
+  const requestedTokenCount = COMMAND_PREFIX_TOKEN_COUNT[commandName] ?? 1
+  const tokenCount = Math.min(tokens.length, requestedTokenCount)
+  const prefix = tokens.slice(0, tokenCount).join(' ')
+  return `${prefix}*`
+}
+
+function normalizeWebUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url)
+    const protocol = parsed.protocol.toLowerCase()
+    if (protocol !== HTTP_PROTOCOL && protocol !== HTTPS_PROTOCOL) {
+      return null
+    }
+    const host = parsed.hostname.toLowerCase()
+    const port = parsed.port.length > 0 ? `:${parsed.port}` : ''
+    const pathname = parsed.pathname.length > 0 ? parsed.pathname : '/'
+    return `${protocol}//${host}${port}${pathname}${parsed.search}`
+  } catch {
+    return null
+  }
+}
+
+function deriveWebFetchPattern(url: string): string | null {
+  const normalized = normalizeWebUrl(url)
+  if (!normalized) {
+    return null
+  }
+
+  const parsed = new URL(normalized)
+  const segments = parsed.pathname.split('/').filter((segment) => segment.length > 0)
+  if (segments.length === 0) {
+    return `${parsed.origin}/*`
+  }
+  return `${parsed.origin}/${segments[0]}/*`
+}
+
+function wildcardToRegExp(pattern: string): RegExp {
+  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/gu, '\\$&')
+  const wildcardRegex = escaped.replaceAll('*', '.*')
+  return new RegExp(`^${wildcardRegex}$`, 'u')
+}
+
+function wildcardMatch(value: string, pattern: string): boolean {
+  return wildcardToRegExp(pattern).test(value)
+}
+
+function commandPatternMatch(command: string, pattern: string): boolean {
+  if (!pattern.includes('*')) {
+    return command === pattern
+  }
+
+  const singleTrailingWildcard =
+    pattern.endsWith('*') && pattern.indexOf('*') === pattern.length - 1
+  if (!singleTrailingWildcard) {
+    return false
+  }
+
+  const prefix = pattern.slice(0, -1)
+  if (!command.startsWith(prefix)) {
+    return false
+  }
+
+  const suffix = command.slice(prefix.length)
+  if (suffix.length === 0) {
+    return true
+  }
+
+  if (!suffix.startsWith(' ')) {
+    return false
+  }
+
+  const normalizedSuffix = normalizeCommand(suffix).trimStart()
+  return !COMMAND_CHAIN_OPERATOR_REGEX.test(normalizedSuffix)
+}
+
+function hasTrustData(entry: ToolApprovalTrustEntry | undefined): boolean {
+  return (
+    entry?.trusted !== undefined ||
+    entry?.timestamp !== undefined ||
+    entry?.source !== undefined ||
+    (entry?.allowPatterns?.length ?? 0) > 0
+  )
+}
+
+function appendAllowPattern(
+  existing: readonly ToolApprovalPatternRule[] | undefined,
+  pattern: string,
+  timestamp: string,
+  source: string,
+): ToolApprovalPatternRule[] {
+  const next = existing ? [...existing] : []
+  const duplicate = next.some((rule) => rule.pattern === pattern)
+  if (!duplicate) {
+    next.push({ pattern, timestamp, source })
+  }
+  return next
 }
 
 async function ensureLocalConfigGitExcludeBestEffort(projectPath: string): Promise<void> {
@@ -140,7 +278,7 @@ async function ensureLocalConfigGitExcludeBestEffort(projectPath: string): Promi
     await ensureLocalConfigGitExclude(projectPath)
   } catch (error) {
     logger.warn('Failed to update .git/info/exclude for local config', {
-      error: formatUnknownError(error),
+      error: formatErrorMessage(error),
     })
   }
 }
@@ -159,7 +297,7 @@ export async function loadProjectConfig(projectPath: string): Promise<ProjectCon
     ])
   } catch (error) {
     logger.warn('Failed to stat project config files', {
-      error: formatUnknownError(error),
+      error: formatErrorMessage(error),
     })
     configCache.delete(projectPath)
     return EMPTY_CONFIG
@@ -356,8 +494,82 @@ async function updateLocalProjectConfig(
   return parseProjectConfig(null, next)
 }
 
-export async function setWriteFileTrust(
+function getToolTrust(config: ProjectConfig, toolName: TrustableToolName): ToolApprovalTrustEntry {
+  return config.approvals?.tools?.[toolName] ?? {}
+}
+
+function isTrustedWriteOrEditTool(
+  config: ProjectConfig,
+  toolName: 'writeFile' | 'editFile',
+): boolean {
+  return getToolTrust(config, toolName).trusted === true
+}
+
+function isTrustedRunCommand(config: ProjectConfig, rawArgs: string): boolean {
+  const parsed = parseRawArgsObject(rawArgs)
+  if (!parsed) {
+    return false
+  }
+
+  const command = getStringProperty(parsed, 'command')
+  if (!command) {
+    return false
+  }
+
+  const normalized = normalizeCommand(command)
+  const patterns = getToolTrust(config, 'runCommand').allowPatterns ?? []
+  return patterns.some((rule) => commandPatternMatch(normalized, rule.pattern))
+}
+
+function isTrustedWebFetch(config: ProjectConfig, rawArgs: string): boolean {
+  const parsed = parseRawArgsObject(rawArgs)
+  if (!parsed) {
+    return false
+  }
+
+  const url = getStringProperty(parsed, 'url')
+  if (!url) {
+    return false
+  }
+
+  const normalized = normalizeWebUrl(url)
+  if (!normalized) {
+    return false
+  }
+
+  const patterns = getToolTrust(config, 'webFetch').allowPatterns ?? []
+  return patterns.some((rule) => wildcardMatch(normalized, rule.pattern.toLowerCase()))
+}
+
+export function isToolCallTrusted(
+  config: ProjectConfig,
+  toolName: TrustableToolName,
+  rawArgs: string,
+): boolean {
+  if (toolName === 'writeFile') {
+    return isTrustedWriteOrEditTool(config, 'writeFile')
+  }
+  if (toolName === 'editFile') {
+    return isTrustedWriteOrEditTool(config, 'editFile')
+  }
+  if (toolName === 'runCommand') {
+    return isTrustedRunCommand(config, rawArgs)
+  }
+  return isTrustedWebFetch(config, rawArgs)
+}
+
+export async function isProjectToolCallTrusted(
   projectPath: string,
+  toolName: TrustableToolName,
+  rawArgs: string,
+): Promise<boolean> {
+  const config = await loadProjectConfig(projectPath)
+  return isToolCallTrusted(config, toolName, rawArgs)
+}
+
+export async function setToolTrusted(
+  projectPath: string,
+  toolName: 'writeFile' | 'editFile',
   trusted: boolean,
   source: string,
 ): Promise<ProjectConfig> {
@@ -368,11 +580,71 @@ export async function setWriteFileTrust(
       ...current.approvals,
       tools: {
         ...current.approvals?.tools,
-        writeFile: {
-          ...current.approvals?.tools?.writeFile,
+        [toolName]: {
+          ...current.approvals?.tools?.[toolName],
           trusted,
           timestamp,
           source,
+        },
+      },
+    },
+  }))
+
+  await ensureLocalConfigGitExcludeBestEffort(projectPath)
+
+  return config
+}
+
+export async function setWriteFileTrust(
+  projectPath: string,
+  trusted: boolean,
+  source: string,
+): Promise<ProjectConfig> {
+  return setToolTrusted(projectPath, 'writeFile', trusted, source)
+}
+
+export async function recordToolCallApproval(
+  projectPath: string,
+  toolName: TrustableToolName,
+  rawArgs: string,
+  source: string,
+): Promise<ProjectConfig> {
+  if (toolName === 'writeFile' || toolName === 'editFile') {
+    return setToolTrusted(projectPath, toolName, true, source)
+  }
+
+  const parsed = parseRawArgsObject(rawArgs)
+  if (!parsed) {
+    return loadProjectConfig(projectPath)
+  }
+
+  const timestamp = new Date().toISOString()
+  const candidatePattern =
+    toolName === 'runCommand'
+      ? deriveCommandPattern(getStringProperty(parsed, 'command') ?? '')
+      : deriveWebFetchPattern(getStringProperty(parsed, 'url') ?? '')
+
+  if (!candidatePattern) {
+    return loadProjectConfig(projectPath)
+  }
+
+  const normalizedPattern =
+    toolName === 'runCommand' ? normalizeCommand(candidatePattern) : candidatePattern.toLowerCase()
+
+  const config = await updateLocalProjectConfig(projectPath, (current) => ({
+    ...current,
+    approvals: {
+      ...current.approvals,
+      tools: {
+        ...current.approvals?.tools,
+        [toolName]: {
+          ...current.approvals?.tools?.[toolName],
+          allowPatterns: appendAllowPattern(
+            current.approvals?.tools?.[toolName]?.allowPatterns,
+            normalizedPattern,
+            timestamp,
+            source,
+          ),
         },
       },
     },
@@ -388,7 +660,6 @@ function parseProjectConfig(
   local: ParsedProjectLocalConfig | null,
 ): ProjectConfig {
   const quality = shared?.quality
-  const writeFileTrust = local?.approvals?.tools?.writeFile
 
   const qualityOverrides: ProjectQualityOverrides = {
     low: parseTierOverride(quality?.low),
@@ -401,27 +672,36 @@ function parseProjectConfig(
     qualityOverrides.medium !== undefined ||
     qualityOverrides.high !== undefined
 
-  const hasWriteFileTrust =
-    writeFileTrust?.trusted !== undefined ||
-    writeFileTrust?.timestamp !== undefined ||
-    writeFileTrust?.source !== undefined
+  const toolApprovals: Partial<Record<TrustableToolName, ToolApprovalTrustEntry>> = {}
+  let hasToolApprovals = false
+  for (const toolName of TRUSTABLE_TOOL_NAMES) {
+    const entry = local?.approvals?.tools?.[toolName]
+    const normalizedEntry: ToolApprovalTrustEntry = {
+      trusted: entry?.trusted,
+      timestamp: entry?.timestamp,
+      source: entry?.source,
+      allowPatterns: entry?.allowPatterns?.map((rule) => ({
+        pattern: rule.pattern,
+        timestamp: rule.timestamp,
+        source: rule.source,
+      })),
+    }
+    if (hasTrustData(normalizedEntry)) {
+      toolApprovals[toolName] = normalizedEntry
+      hasToolApprovals = true
+    }
+  }
 
-  if (!hasQuality && !hasWriteFileTrust) {
+  if (!hasQuality && !hasToolApprovals) {
     return EMPTY_CONFIG
   }
 
   return {
     ...(hasQuality ? { quality: qualityOverrides } : {}),
-    ...(hasWriteFileTrust
+    ...(hasToolApprovals
       ? {
           approvals: {
-            tools: {
-              writeFile: {
-                trusted: writeFileTrust?.trusted,
-                timestamp: writeFileTrust?.timestamp,
-                source: writeFileTrust?.source,
-              },
-            },
+            tools: toolApprovals,
           },
         }
       : {}),

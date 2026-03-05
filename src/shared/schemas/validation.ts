@@ -149,22 +149,37 @@ export const projectSharedConfigSchema = z
   })
   .loose()
 
+const toolApprovalPatternSchema = z
+  .object({
+    pattern: z.string(),
+    timestamp: z.string().optional().catch(undefined),
+    source: z.string().optional().catch(undefined),
+  })
+  .loose()
+
+const toolApprovalEntrySchema = z
+  .object({
+    trusted: z.boolean().optional().catch(undefined),
+    timestamp: z.string().optional().catch(undefined),
+    source: z.string().optional().catch(undefined),
+    allowPatterns: z.array(toolApprovalPatternSchema).optional(),
+  })
+  .loose()
+
+const toolsApprovalSchema = z
+  .object({
+    writeFile: toolApprovalEntrySchema.optional(),
+    editFile: toolApprovalEntrySchema.optional(),
+    runCommand: toolApprovalEntrySchema.optional(),
+    webFetch: toolApprovalEntrySchema.optional(),
+  })
+  .loose()
+
 export const projectLocalConfigSchema = z
   .object({
     approvals: z
       .object({
-        tools: z
-          .object({
-            writeFile: z
-              .object({
-                trusted: z.boolean().optional().catch(undefined),
-                timestamp: z.string().optional().catch(undefined),
-                source: z.string().optional().catch(undefined),
-              })
-              .loose()
-              .optional(),
-          })
-          .optional(),
+        tools: toolsApprovalSchema.optional(),
       })
       .optional(),
   })

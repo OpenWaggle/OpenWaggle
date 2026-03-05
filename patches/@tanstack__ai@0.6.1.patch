@@ -1,0 +1,495 @@
+diff --git a/dist/esm/activities/chat/messages.js b/dist/esm/activities/chat/messages.js
+index edb477c..83f0c62 100644
+--- a/dist/esm/activities/chat/messages.js
++++ b/dist/esm/activities/chat/messages.js
+@@ -107,7 +107,7 @@ function buildAssistantMessages(uiMessage) {
+   flushSegment();
+   for (const part of uiMessage.parts) {
+     if (part.type !== "tool-call") continue;
+-    if (part.output !== void 0 && !part.approval && !emittedToolResultIds.has(part.id)) {
++    if (part.output !== void 0 && !emittedToolResultIds.has(part.id)) {
+       messageList.push({
+         role: "tool",
+         content: JSON.stringify(part.output),
+@@ -115,7 +115,7 @@ function buildAssistantMessages(uiMessage) {
+       });
+       emittedToolResultIds.add(part.id);
+     }
+-    if (part.state === "approval-responded" && part.approval?.approved !== void 0 && !emittedToolResultIds.has(part.id)) {
++    if (part.output === void 0 && part.state === "approval-responded" && part.approval?.approved !== void 0 && !emittedToolResultIds.has(part.id)) {
+       const approved = part.approval.approved;
+       messageList.push({
+         role: "tool",
+diff --git a/dist/esm/activities/chat/stream/message-updaters.js b/dist/esm/activities/chat/stream/message-updaters.js
+index 2da213a..23d6c4b 100644
+--- a/dist/esm/activities/chat/stream/message-updaters.js
++++ b/dist/esm/activities/chat/stream/message-updaters.js
+@@ -22,12 +22,15 @@ function updateToolCallPart(messages, messageId, toolCall) {
+     const existingPartIndex = parts.findIndex(
+       (p) => p.type === "tool-call" && p.id === toolCall.id
+     );
++    const existingPart = existingPartIndex >= 0 ? parts[existingPartIndex] : void 0;
+     const toolCallPart = {
+       type: "tool-call",
+       id: toolCall.id,
+       name: toolCall.name,
+       arguments: toolCall.arguments,
+-      state: toolCall.state
++      state: toolCall.state,
++      ...existingPart?.approval ? { approval: { ...existingPart.approval } } : {},
++      ...existingPart?.output !== void 0 ? { output: existingPart.output } : {}
+     };
+     if (existingPartIndex >= 0) {
+       parts[existingPartIndex] = toolCallPart;
+diff --git a/dist/esm/activities/chat/tools/tool-calls.js b/dist/esm/activities/chat/tools/tool-calls.js
+index 81a3f92..98fcc64 100644
+--- a/dist/esm/activities/chat/tools/tool-calls.js
++++ b/dist/esm/activities/chat/tools/tool-calls.js
+@@ -156,6 +156,7 @@ async function* executeToolCalls(toolCalls, tools, approvals = /* @__PURE__ */ n
+   const results = [];
+   const needsApproval = [];
+   const needsClientExecution = [];
++  const executableCalls = [];
+   const toolMap = /* @__PURE__ */ new Map();
+   for (const tool of tools) {
+     toolMap.set(tool.name, tool);
+@@ -197,6 +198,25 @@ async function* executeToolCalls(toolCalls, tools, approvals = /* @__PURE__ */ n
+         continue;
+       }
+     }
++    if (tool.needsApproval) {
++      const approvalId = `approval_${toolCall.id}`;
++      if (!approvals.has(approvalId)) {
++        needsApproval.push({
++          toolCallId: toolCall.id,
++          toolName,
++          input,
++          approvalId
++        });
++        continue;
++      }
++    }
++    executableCalls.push({ toolCall, tool, toolName, input });
++  }
++  if (needsApproval.length > 0) {
++    return { results, needsApproval, needsClientExecution };
++  }
++  for (const call of executableCalls) {
++    const { toolCall, tool, toolName, input } = call;
+     const pendingEvents = [];
+     const context = {
+       toolCallId: toolCall.id,
+@@ -219,36 +239,27 @@ async function* executeToolCalls(toolCalls, tools, approvals = /* @__PURE__ */ n
+     if (!tool.execute) {
+       if (tool.needsApproval) {
+         const approvalId = `approval_${toolCall.id}`;
+-        if (approvals.has(approvalId)) {
+-          const approved = approvals.get(approvalId);
+-          if (approved) {
+-            if (clientResults.has(toolCall.id)) {
+-              results.push({
+-                toolCallId: toolCall.id,
+-                toolName,
+-                result: clientResults.get(toolCall.id)
+-              });
+-            } else {
+-              needsClientExecution.push({
+-                toolCallId: toolCall.id,
+-                toolName,
+-                input
+-              });
+-            }
+-          } else {
++        const approved = approvals.get(approvalId);
++        if (approved) {
++          if (clientResults.has(toolCall.id)) {
+             results.push({
+               toolCallId: toolCall.id,
+               toolName,
+-              result: { error: "User declined tool execution" },
+-              state: "output-error"
++              result: clientResults.get(toolCall.id)
++            });
++          } else {
++            needsClientExecution.push({
++              toolCallId: toolCall.id,
++              toolName,
++              input
+             });
+           }
+         } else {
+-          needsApproval.push({
++          results.push({
+             toolCallId: toolCall.id,
+-            toolName: toolCall.function.name,
+-            input,
+-            approvalId
++            toolName,
++            result: { error: "User declined tool execution" },
++            state: "output-error"
+           });
+         }
+       } else {
+@@ -270,55 +281,46 @@ async function* executeToolCalls(toolCalls, tools, approvals = /* @__PURE__ */ n
+     }
+     if (tool.needsApproval) {
+       const approvalId = `approval_${toolCall.id}`;
+-      if (approvals.has(approvalId)) {
+-        const approved = approvals.get(approvalId);
+-        if (approved) {
+-          const startTime2 = Date.now();
+-          try {
+-            const executionPromise = Promise.resolve(
+-              tool.execute(input, context)
+-            );
+-            let result = yield* executeWithEventPolling(
+-              executionPromise,
+-              pendingEvents
+-            );
+-            const duration = Date.now() - startTime2;
+-            yield* flushEvents();
+-            if (tool.outputSchema && isStandardSchema(tool.outputSchema) && result !== void 0 && result !== null) {
+-              result = parseWithStandardSchema(tool.outputSchema, result);
+-            }
+-            results.push({
+-              toolCallId: toolCall.id,
+-              toolName,
+-              result: typeof result === "string" ? JSON.parse(result) : result || null,
+-              duration
+-            });
+-          } catch (error) {
+-            const duration = Date.now() - startTime2;
+-            yield* flushEvents();
+-            const message = error instanceof Error ? error.message : "Unknown error";
+-            results.push({
+-              toolCallId: toolCall.id,
+-              toolName,
+-              result: { error: message },
+-              state: "output-error",
+-              duration
+-            });
++      const approved = approvals.get(approvalId);
++      if (approved) {
++        const startTime2 = Date.now();
++        try {
++          const executionPromise = Promise.resolve(
++            tool.execute(input, context)
++          );
++          let result = yield* executeWithEventPolling(
++            executionPromise,
++            pendingEvents
++          );
++          const duration = Date.now() - startTime2;
++          yield* flushEvents();
++          if (tool.outputSchema && isStandardSchema(tool.outputSchema) && result !== void 0 && result !== null) {
++            result = parseWithStandardSchema(tool.outputSchema, result);
+           }
+-        } else {
+           results.push({
+             toolCallId: toolCall.id,
+             toolName,
+-            result: { error: "User declined tool execution" },
+-            state: "output-error"
++            result: typeof result === "string" ? JSON.parse(result) : result || null,
++            duration
++          });
++        } catch (error) {
++          const duration = Date.now() - startTime2;
++          yield* flushEvents();
++          const message = error instanceof Error ? error.message : "Unknown error";
++          results.push({
++            toolCallId: toolCall.id,
++            toolName,
++            result: { error: message },
++            state: "output-error",
++            duration
+           });
+         }
+       } else {
+-        needsApproval.push({
++        results.push({
+           toolCallId: toolCall.id,
+           toolName,
+-          input,
+-          approvalId
++          result: { error: "User declined tool execution" },
++          state: "output-error"
+         });
+       }
+       continue;
+diff --git a/src/activities/chat/messages.ts b/src/activities/chat/messages.ts
+index c8dc922..9de1a7a 100644
+--- a/src/activities/chat/messages.ts
++++ b/src/activities/chat/messages.ts
+@@ -243,12 +243,10 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
+   for (const part of uiMessage.parts) {
+     if (part.type !== 'tool-call') continue
+ 
+-    // Client tool with output - add as tool result (if not already emitted)
+-    if (
+-      part.output !== undefined &&
+-      !part.approval &&
+-      !emittedToolResultIds.has(part.id)
+-    ) {
++    // Prefer concrete output over approval state when both are present.
++    // A tool-call part can retain approval metadata after execution;
++    // replaying it as pendingExecution would incorrectly re-run the tool.
++    if (part.output !== undefined && !emittedToolResultIds.has(part.id)) {
+       messageList.push({
+         role: 'tool',
+         content: JSON.stringify(part.output),
+@@ -259,6 +257,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
+ 
+     // Approval response - add as tool result for iteration tracking
+     if (
++      part.output === undefined &&
+       part.state === 'approval-responded' &&
+       part.approval?.approved !== undefined &&
+       !emittedToolResultIds.has(part.id)
+diff --git a/src/activities/chat/stream/message-updaters.ts b/src/activities/chat/stream/message-updaters.ts
+index 5deb39f..7a5b393 100644
+--- a/src/activities/chat/stream/message-updaters.ts
++++ b/src/activities/chat/stream/message-updaters.ts
+@@ -67,6 +67,8 @@ export function updateToolCallPart(
+     const existingPartIndex = parts.findIndex(
+       (p): p is ToolCallPart => p.type === 'tool-call' && p.id === toolCall.id,
+     )
++    const existingPart =
++      existingPartIndex >= 0 ? (parts[existingPartIndex] as ToolCallPart) : undefined
+ 
+     const toolCallPart: ToolCallPart = {
+       type: 'tool-call',
+@@ -74,6 +76,8 @@ export function updateToolCallPart(
+       name: toolCall.name,
+       arguments: toolCall.arguments,
+       state: toolCall.state,
++      ...(existingPart?.approval ? { approval: { ...existingPart.approval } } : {}),
++      ...(existingPart?.output !== undefined ? { output: existingPart.output } : {}),
+     }
+ 
+     if (existingPartIndex >= 0) {
+diff --git a/src/activities/chat/tools/tool-calls.ts b/src/activities/chat/tools/tool-calls.ts
+index 5942741..b4e1592 100644
+--- a/src/activities/chat/tools/tool-calls.ts
++++ b/src/activities/chat/tools/tool-calls.ts
+@@ -317,6 +317,12 @@ export async function* executeToolCalls(
+   const results: Array<ToolResult> = []
+   const needsApproval: Array<ApprovalRequest> = []
+   const needsClientExecution: Array<ClientToolRequest> = []
++  const executableCalls: Array<{
++    toolCall: ToolCall
++    tool: Tool
++    toolName: string
++    input: unknown
++  }> = []
+ 
+   // Create tool lookup map
+   const toolMap = new Map<string, Tool>()
+@@ -372,6 +378,32 @@ export async function* executeToolCalls(
+       }
+     }
+ 
++    if (tool.needsApproval) {
++      const approvalId = `approval_${toolCall.id}`
++      if (!approvals.has(approvalId)) {
++        needsApproval.push({
++          toolCallId: toolCall.id,
++          toolName,
++          input,
++          approvalId,
++        })
++        continue
++      }
++    }
++
++    executableCalls.push({ toolCall, tool, toolName, input })
++  }
++
++  // Defer all executable tool calls until every approval-needed call in this
++  // batch has an approval decision. This keeps approval-first UX deterministic
++  // and avoids side-effecting non-approved calls from running early.
++  if (needsApproval.length > 0) {
++    return { results, needsApproval, needsClientExecution }
++  }
++
++  for (const call of executableCalls) {
++    const { toolCall, tool, toolName, input } = call
++
+     // Create a ToolExecutionContext for this tool call with event emission
+     const pendingEvents: Array<CustomEvent> = []
+     const context: ToolExecutionContext = {
+@@ -397,50 +429,33 @@ export async function* executeToolCalls(
+ 
+     // CASE 1: Client-side tool (no execute function)
+     if (!tool.execute) {
+-      // Check if tool needs approval
+       if (tool.needsApproval) {
+         const approvalId = `approval_${toolCall.id}`
++        const approved = approvals.get(approvalId)
+ 
+-        // Check if approval decision exists
+-        if (approvals.has(approvalId)) {
+-          const approved = approvals.get(approvalId)
+-
+-          if (approved) {
+-            // Approved - check if client has executed
+-            if (clientResults.has(toolCall.id)) {
+-              results.push({
+-                toolCallId: toolCall.id,
+-                toolName,
+-                result: clientResults.get(toolCall.id),
+-              })
+-            } else {
+-              // Approved but not executed yet - request client execution
+-              needsClientExecution.push({
+-                toolCallId: toolCall.id,
+-                toolName,
+-                input,
+-              })
+-            }
+-          } else {
+-            // User declined
++        if (approved) {
++          if (clientResults.has(toolCall.id)) {
+             results.push({
+               toolCallId: toolCall.id,
+               toolName,
+-              result: { error: 'User declined tool execution' },
+-              state: 'output-error',
++              result: clientResults.get(toolCall.id),
++            })
++          } else {
++            needsClientExecution.push({
++              toolCallId: toolCall.id,
++              toolName,
++              input,
+             })
+           }
+         } else {
+-          // Need approval first
+-          needsApproval.push({
++          results.push({
+             toolCallId: toolCall.id,
+-            toolName: toolCall.function.name,
+-            input,
+-            approvalId,
++            toolName,
++            result: { error: 'User declined tool execution' },
++            state: 'output-error',
+           })
+         }
+       } else {
+-        // No approval needed - check if client has executed
+         if (clientResults.has(toolCall.id)) {
+           results.push({
+             toolCallId: toolCall.id,
+@@ -462,73 +477,54 @@ export async function* executeToolCalls(
+     // CASE 2: Server tool with approval required
+     if (tool.needsApproval) {
+       const approvalId = `approval_${toolCall.id}`
++      const approved = approvals.get(approvalId)
+ 
+-      // Check if approval decision exists
+-      if (approvals.has(approvalId)) {
+-        const approved = approvals.get(approvalId)
+-
+-        if (approved) {
+-          // Execute after approval
+-          const startTime = Date.now()
+-          try {
+-            const executionPromise = Promise.resolve(
+-              tool.execute(input, context),
+-            )
+-            let result = yield* executeWithEventPolling(
+-              executionPromise,
+-              pendingEvents,
+-            )
+-            const duration = Date.now() - startTime
+-            yield* flushEvents()
+-
+-            // Validate output against outputSchema if provided (for Standard Schema compliant schemas)
+-            if (
+-              tool.outputSchema &&
+-              isStandardSchema(tool.outputSchema) &&
+-              result !== undefined &&
+-              result !== null
+-            ) {
+-              result = parseWithStandardSchema(tool.outputSchema, result)
+-            }
++      if (approved) {
++        const startTime = Date.now()
++        try {
++          const executionPromise = Promise.resolve(tool.execute(input, context))
++          let result = yield* executeWithEventPolling(
++            executionPromise,
++            pendingEvents,
++          )
++          const duration = Date.now() - startTime
++          yield* flushEvents()
+ 
+-            results.push({
+-              toolCallId: toolCall.id,
+-              toolName,
+-              result:
+-                typeof result === 'string'
+-                  ? JSON.parse(result)
+-                  : result || null,
+-              duration,
+-            })
+-          } catch (error: unknown) {
+-            const duration = Date.now() - startTime
+-            yield* flushEvents()
+-            const message =
+-              error instanceof Error ? error.message : 'Unknown error'
+-            results.push({
+-              toolCallId: toolCall.id,
+-              toolName,
+-              result: { error: message },
+-              state: 'output-error',
+-              duration,
+-            })
++          // Validate output against outputSchema if provided (for Standard Schema compliant schemas)
++          if (
++            tool.outputSchema &&
++            isStandardSchema(tool.outputSchema) &&
++            result !== undefined &&
++            result !== null
++          ) {
++            result = parseWithStandardSchema(tool.outputSchema, result)
+           }
+-        } else {
+-          // User declined
++
+           results.push({
+             toolCallId: toolCall.id,
+             toolName,
+-            result: { error: 'User declined tool execution' },
++            result:
++              typeof result === 'string' ? JSON.parse(result) : result || null,
++            duration,
++          })
++        } catch (error: unknown) {
++          const duration = Date.now() - startTime
++          yield* flushEvents()
++          const message = error instanceof Error ? error.message : 'Unknown error'
++          results.push({
++            toolCallId: toolCall.id,
++            toolName,
++            result: { error: message },
+             state: 'output-error',
++            duration,
+           })
+         }
+       } else {
+-        // Need approval
+-        needsApproval.push({
++        results.push({
+           toolCallId: toolCall.id,
+           toolName,
+-          input,
+-          approvalId,
++          result: { error: 'User declined tool execution' },
++          state: 'output-error',
+         })
+       }
+       continue

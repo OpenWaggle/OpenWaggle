@@ -1,18 +1,21 @@
 import { randomUUID } from 'node:crypto'
-import type { HydratedAgentSendPayload, Message, MessagePart } from '@shared/types/agent'
+import type { HydratedAgentSendPayload, Message } from '@shared/types/agent'
 import type { SkipApprovalToken } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { Settings } from '@shared/types/settings'
 import { choose } from '@shared/utils/decision'
 import { chat, type ModelMessage, maxIterations, type StreamChunk } from '@tanstack/ai'
-import { loadProjectConfig, setWriteFileTrust } from '../config/project-config'
+import { loadProjectConfig } from '../config/project-config'
 import { createLogger } from '../logger'
 import type { ProviderDefinition } from '../providers/provider-definition'
 import { runWithToolContext } from '../tools/define-tool'
-import { normalizeContinuationInput } from './continuation-normalizer'
+import {
+  type ContinuationMessage,
+  normalizeContinuationAsUIMessages,
+} from './continuation-normalizer'
 import { notifyRunComplete, notifyRunError, notifyRunStart } from './lifecycle-hooks'
-import { conversationToMessages, type SimpleChatMessage } from './message-mapper'
+import { conversationToMessages } from './message-mapper'
 import { buildAgentPrompt } from './prompt-builder'
 import type { AgentLifecycleHook, AgentRunContext, SubAgentRunContext } from './runtime-types'
 import {
@@ -73,6 +76,95 @@ async function withStageTiming<T>(
   }
 }
 
+/**
+ * Enrich normalized continuation UIMessages with args/output from the server's
+ * persisted conversation history, and inject synthetic output for approved-but-
+ * never-executed tools in non-last assistant messages.
+ */
+function enrichContinuationMessages(
+  normalized: ContinuationMessage[],
+  serverMessages: readonly Message[],
+): ContinuationMessage[] {
+  // Build lookup maps from server-side persisted messages
+  const toolArgsMap = new Map<string, string>()
+  const toolResultMap = new Map<string, string>()
+  for (const msg of serverMessages) {
+    if (msg.role === 'assistant') {
+      for (const part of msg.parts) {
+        if (part.type === 'tool-call') {
+          const argsStr = JSON.stringify(part.toolCall.args)
+          // Only store non-empty args — later messages from re-executions
+          // may have empty args (no TOOL_CALL_ARGS chunks for continuation
+          // tool re-runs), and we don't want them overwriting correct args.
+          if (Object.keys(part.toolCall.args).length > 0) {
+            toolArgsMap.set(String(part.toolCall.id), argsStr)
+          }
+        }
+        if (part.type === 'tool-result') {
+          toolResultMap.set(String(part.toolResult.id), part.toolResult.result)
+        }
+      }
+    }
+  }
+
+  // Find the last assistant message index for synthetic output logic
+  let lastAssistantIdx = -1
+  for (let mi = normalized.length - 1; mi >= 0; mi--) {
+    const m = normalized[mi]
+    if (!m) {
+      continue
+    }
+    if ('parts' in m && m.role === 'assistant') {
+      lastAssistantIdx = mi
+      break
+    }
+  }
+
+  // Enrich tool-call parts and inject synthetic output in a single pass
+  for (let mi = 0; mi < normalized.length; mi++) {
+    const msg = normalized[mi]
+    if (!msg) {
+      continue
+    }
+    if (!('parts' in msg) || msg.role !== 'assistant') continue
+
+    for (const part of msg.parts) {
+      if (part.type !== 'tool-call') continue
+
+      // Patch args from server history
+      const patchedArgs = toolArgsMap.get(part.id)
+      if (patchedArgs !== undefined) {
+        ;(part as { arguments: string }).arguments = patchedArgs
+      }
+
+      // Patch output from server history
+      const resultStr = toolResultMap.get(part.id)
+      if (part.output === undefined && resultStr !== undefined) {
+        try {
+          ;(part as { output: unknown }).output = JSON.parse(resultStr)
+        } catch {
+          ;(part as { output: unknown }).output = resultStr
+        }
+      }
+
+      // Synthetic output for approved-but-never-executed tools in
+      // non-last assistant messages. Without output, the TextEngine
+      // re-executes the tool and places its tool_result after the wrong
+      // assistant message, violating Anthropic's tool_use/tool_result pairing.
+      if (
+        mi !== lastAssistantIdx &&
+        part.output === undefined &&
+        (part as { approval?: { approved?: boolean } }).approval?.approved === true
+      ) {
+        ;(part as { output: unknown }).output =
+          'Tool execution was skipped because a new message was sent.'
+      }
+    }
+  }
+
+  return normalized
+}
+
 function isAbortError(error: unknown): boolean {
   if (!(error instanceof Error)) return false
   if (error.name === 'AbortError') return true
@@ -120,18 +212,6 @@ function buildUserChatContent(
     return parts[0].content
   }
   return parts
-}
-
-function hasSuccessfulWriteFileResult(parts: readonly MessagePart[]): boolean {
-  for (const part of parts) {
-    if (part.type !== 'tool-result') {
-      continue
-    }
-    if (part.toolResult.name === 'writeFile' && part.toolResult.isError === false) {
-      return true
-    }
-  }
-  return false
 }
 
 export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> {
@@ -217,7 +297,7 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
           hasProject: !!conversation.projectPath,
           provider,
           providerConfig,
-          writeFileTrusted: projectConfig.approvals?.tools?.writeFile?.trusted === true,
+          toolApprovals: projectConfig.approvals,
           planModeRequested: payload.planModeRequested,
           subAgentContext: params.subAgentContext,
           standards: await withStageTiming(stageDurationsMs, 'standards-resolution', () =>
@@ -255,22 +335,29 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
         const abortController = new AbortController()
         signal.addEventListener('abort', () => abortController.abort(), { once: true })
 
-        const allMessages: ModelMessage[] | SimpleChatMessage[] = hasContinuationMessages
-          ? normalizeContinuationInput(payload.continuationMessages ?? [])
-          : (() => {
-              const existingMessages = conversationToMessages(conversation.messages)
-              const newUserMessage: SimpleChatMessage = {
-                role: 'user',
-                content: buildUserChatContent(provider, payload),
-              }
-              return [...existingMessages, newUserMessage]
-            })()
+        // For continuation (e.g. after tool approval), normalize but preserve
+        // UIMessage format so the TextEngine can extract approval state from
+        // parts via extractClientStateFromOriginalMessages(). The old path
+        // (normalizeContinuationInput) converted to ModelMessages which strips
+        // parts, causing the engine to re-request approval endlessly.
+        const allMessages = hasContinuationMessages
+          ? enrichContinuationMessages(
+              normalizeContinuationAsUIMessages(payload.continuationMessages ?? []),
+              conversation.messages,
+            )
+          : [
+              ...conversationToMessages(conversation.messages),
+              { role: 'user' as const, content: buildUserChatContent(provider, payload) },
+            ]
+
         const samplingOptions = buildSamplingOptions(qualityConfig)
 
         function createStream(): ReturnType<typeof chat> {
           return chat({
             adapter,
-            messages: allMessages,
+            // Type assertion: continuation messages are UIMessages with parts
+            // that the TextEngine handles via convertMessagesToModelMessages().
+            messages: allMessages as ModelMessage[],
             systemPrompts: [built.systemPrompt],
             conversationId: String(conversation.id),
             tools: [...built.tools],
@@ -340,22 +427,8 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
 
         // ── Stage 7: Finalize ──
         const finalParts = collector.finalizeParts({ timedOut: streamResult.timedOut })
-        const stats = collector.getStats()
 
-        if (
-          runContext.writeFileTrusted !== true &&
-          !skipApproval &&
-          hasSuccessfulWriteFileResult(finalParts)
-        ) {
-          try {
-            await setWriteFileTrust(projectPath, true, 'tool-approval')
-          } catch (error) {
-            logger.warn('Failed to persist writeFile trust', {
-              conversationId: conversation.id,
-              error: error instanceof Error ? error.message : String(error),
-            })
-          }
-        }
+        const stats = collector.getStats()
 
         await notifyRunComplete(hooks, runContext, {
           promptFragmentIds,

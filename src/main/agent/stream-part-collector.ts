@@ -33,6 +33,7 @@ export interface StreamPartCollectorStats {
 
 export interface StreamPartCollectorFinalizeOptions {
   readonly timedOut?: boolean
+  readonly preserveUnresolvedToolCallIds?: ReadonlySet<string>
 }
 
 export function detectToolResultError(result: unknown): boolean {
@@ -169,6 +170,7 @@ export class StreamPartCollector {
           runError: new Error(value.error.message),
         }
       })
+      .case('CUSTOM', () => ({}))
       .case('RUN_FINISHED', () => ({}))
       .catchAll(() => ({}))
   }
@@ -200,7 +202,12 @@ export class StreamPartCollector {
   finalizeParts(options: StreamPartCollectorFinalizeOptions = {}): MessagePart[] {
     this.flushReasoningPart()
     this.flushTextPart()
-    this.appendSyntheticToolResultsForIncompleteCalls(options.timedOut ?? false)
+    const preservedUnresolvedToolCallIds =
+      options.preserveUnresolvedToolCallIds ?? new Set<string>()
+    this.appendSyntheticToolResultsForIncompleteCalls(
+      options.timedOut ?? false,
+      preservedUnresolvedToolCallIds,
+    )
 
     if (this.collectedParts.length === 0) {
       return [{ type: 'text', text: '(no response)' }]
@@ -251,7 +258,10 @@ export class StreamPartCollector {
     return startTime ? Date.now() - startTime : 0
   }
 
-  private appendSyntheticToolResultsForIncompleteCalls(timedOut: boolean): void {
+  private appendSyntheticToolResultsForIncompleteCalls(
+    timedOut: boolean,
+    preserveUnresolvedToolCallIds: ReadonlySet<string>,
+  ): void {
     if (!this.hasIncompleteToolCalls()) {
       return
     }
@@ -270,9 +280,10 @@ export class StreamPartCollector {
       const args = this.ensureToolCallPart(toolCallId, toolName)
       const durationMs = this.getDurationMs(toolCallId)
       const isAwaitingResult = this.awaitingToolResultIds.has(toolCallId)
-      if (isAwaitingResult && !timedOut) {
-        // `TOOL_CALL_END` without `result` can indicate approval/client-execution
-        // pending. Keep the tool-call unresolved so continuation can complete it.
+      if (isAwaitingResult && (!timedOut || preserveUnresolvedToolCallIds.has(toolCallId))) {
+        // `TOOL_CALL_END` without `result` commonly means approval/client-execution
+        // pending. On normal completion (non-timeout), keep it unresolved so
+        // continuation can complete instead of persisting a synthetic error.
         continue
       }
       const isError = true

@@ -12,8 +12,13 @@ import type { WaggleConfig } from '@shared/types/waggle'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { ConnectionAdapter, UIMessage } from '@tanstack/ai-react'
 import { api } from './ipc'
+import { createRendererLogger } from './logger'
 
-const DELAY_MS = 50
+const ipcLogger = createRendererLogger('ipc-adapter')
+
+const SEND_RESOLVE_FALLBACK_MS = 2000
+const RUN_COMPLETED_CLOSE_GRACE_MS = 300
+const RUN_COMPLETED_PENDING_TOOL_GRACE_MS = 2000
 
 /**
  * Side-channel for structured error info.
@@ -65,7 +70,30 @@ function extractLastUserContent(messages: Array<UIMessage> | Array<ModelMessage>
 function shouldUseContinuationPayload(messages: Array<UIMessage> | Array<ModelMessage>): boolean {
   const lastMsg = messages[messages.length - 1]
   if (!lastMsg) return false
-  return lastMsg.role !== 'user'
+  if (lastMsg.role === 'user') return false
+  return hasApprovalContinuationSnapshot(messages)
+}
+
+function hasApprovalContinuationSnapshot(
+  messages: Array<UIMessage> | Array<ModelMessage>,
+): boolean {
+  for (const message of messages) {
+    if (!('parts' in message)) {
+      continue
+    }
+    for (const part of message.parts) {
+      if (part.type !== 'tool-call') {
+        continue
+      }
+      if (part.state === 'approval-responded') {
+        return true
+      }
+      if (part.approval?.approved === true) {
+        return true
+      }
+    }
+  }
+  return false
 }
 
 function toContinuationMessages(
@@ -117,24 +145,86 @@ export function createIpcConnectionAdapter(
         async *[Symbol.asyncIterator]() {
           // Queue + signal pattern for bridging push-based IPC → pull-based AsyncIterable
           const queue: StreamChunk[] = []
+          const pendingToolResultIds = new Set<string>()
           let resolve: (() => void) | null = null
           let done = false
+          let runCompletedEventSeen = false
+          let fallbackCloseTimer: ReturnType<typeof setTimeout> | null = null
+          let runCompletedCloseTimer: ReturnType<typeof setTimeout> | null = null
 
           // Consume the Waggle config (if any) so sendPromise uses it.
           const waggleConfig = consumeWaggleConfig?.()
 
           let unsubscribed = false
+          const clearFallbackCloseTimer = (): void => {
+            if (fallbackCloseTimer !== null) {
+              clearTimeout(fallbackCloseTimer)
+              fallbackCloseTimer = null
+            }
+          }
+          const clearRunCompletedCloseTimer = (): void => {
+            if (runCompletedCloseTimer !== null) {
+              clearTimeout(runCompletedCloseTimer)
+              runCompletedCloseTimer = null
+            }
+          }
+          const closeStream = (): void => {
+            if (done) {
+              return
+            }
+            done = true
+            clearFallbackCloseTimer()
+            clearRunCompletedCloseTimer()
+            resolve?.()
+          }
+          const scheduleFallbackClose = (): void => {
+            if (fallbackCloseTimer !== null || done || runCompletedEventSeen) {
+              return
+            }
+            fallbackCloseTimer = setTimeout(() => {
+              fallbackCloseTimer = null
+              if (!done && !runCompletedEventSeen) {
+                closeStream()
+              }
+            }, SEND_RESOLVE_FALLBACK_MS)
+          }
+          const scheduleRunCompletedClose = (): void => {
+            clearRunCompletedCloseTimer()
+            if (done) {
+              return
+            }
+            const closeDelayMs =
+              pendingToolResultIds.size > 0
+                ? RUN_COMPLETED_PENDING_TOOL_GRACE_MS
+                : RUN_COMPLETED_CLOSE_GRACE_MS
+            runCompletedCloseTimer = setTimeout(() => {
+              runCompletedCloseTimer = null
+              if (!done) {
+                closeStream()
+              }
+            }, closeDelayMs)
+          }
           const unsub = () => {
             if (unsubscribed) return
             unsubscribed = true
             rawUnsub()
+            runCompletedUnsub()
           }
           const rawUnsub = api.onStreamChunk((payload) => {
             if (payload.conversationId !== conversationId) return
 
+            if (payload.chunk.type === 'TOOL_CALL_END') {
+              if (payload.chunk.result === undefined) {
+                pendingToolResultIds.add(payload.chunk.toolCallId)
+              } else {
+                pendingToolResultIds.delete(payload.chunk.toolCallId)
+              }
+            }
+
             // Clear stale error info when a new run begins.
             if (payload.chunk.type === 'RUN_STARTED') {
               lastErrorInfoMap.delete(conversationId)
+              pendingToolResultIds.clear()
             }
 
             // Intercept RUN_ERROR to capture structured error info before
@@ -154,10 +244,36 @@ export function createIpcConnectionAdapter(
             // For Waggle mode, per-turn terminal events are filtered in the
             // handler — only the envelope RUN_STARTED/RUN_FINISHED reach here.
             if (isTerminalChunk(payload.chunk)) {
-              done = true
+              if (pendingToolResultIds.size > 0) {
+                // Tool calls are awaiting approval — don't close immediately.
+                // Use the grace timer so the CUSTOM approval metadata chunk
+                // has time to arrive before the stream shuts down.
+                scheduleRunCompletedClose()
+              } else {
+                clearFallbackCloseTimer()
+                clearRunCompletedCloseTimer()
+                closeStream()
+              }
+            }
+            if (!isTerminalChunk(payload.chunk) && runCompletedEventSeen) {
+              // Allow a short grace period for in-flight chunks that arrive
+              // around run-completed, then close if no terminal chunk appears.
+              scheduleRunCompletedClose()
             }
 
             // Wake up the consumer if it's waiting
+            resolve?.()
+          })
+          const runCompletedUnsub = api.onRunCompleted((payload) => {
+            if (payload.conversationId !== conversationId) {
+              return
+            }
+            runCompletedEventSeen = true
+            clearFallbackCloseTimer()
+            // Do not close immediately: in practice, run-completed can race
+            // slightly ahead of final stream chunks (text deltas / RUN_FINISHED).
+            // Keep the stream open briefly to drain late chunks.
+            scheduleRunCompletedClose()
             resolve?.()
           })
 
@@ -170,9 +286,9 @@ export function createIpcConnectionAdapter(
               // Unsubscribe from IPC events to prevent unbounded queue growth —
               // the run still completes and persists in main process, so the user
               // can reload the conversation later to see the full result.
+              clearFallbackCloseTimer()
               unsub()
-              done = true
-              resolve?.()
+              closeStream()
             },
             { once: true },
           )
@@ -186,56 +302,68 @@ export function createIpcConnectionAdapter(
             attachments: [],
           }
           const pendingPayload = consumePendingPayload()
-          const payload =
-            pendingPayload ??
-            (shouldUseContinuationPayload(_messages)
-              ? {
-                  text: '',
-                  qualityPreset: defaultQualityPreset,
-                  attachments: [],
-                  continuationMessages: toContinuationMessages(_messages),
-                }
-              : fallbackPayload)
+          const useContinuationPayload = shouldUseContinuationPayload(_messages)
+          const lastMessage = _messages[_messages.length - 1]
+          const lastMessageIsUser = Boolean(lastMessage && lastMessage.role === 'user')
 
-          // Fire and forget — main process streams chunks back via IPC.
-          // Catch to avoid unhandled rejection (errors are delivered via stream chunks).
-          const sendPromise = waggleConfig
-            ? api.sendWaggleMessage(conversationId, payload, waggleConfig)
-            : api.sendMessage(conversationId, payload, model)
+          if (!pendingPayload && !useContinuationPayload && !lastMessageIsUser) {
+            const errMsg =
+              'Cannot continue prior tool state because no pending payload or approval context was found. Send your message again.'
+            const info = classifyErrorMessage(errMsg)
+            lastErrorInfoMap.set(conversationId, info)
+            const errorChunk: StreamChunk = {
+              type: 'RUN_ERROR',
+              timestamp: Date.now(),
+              error: { message: errMsg },
+            }
+            queue.push(errorChunk)
+            done = true
+          }
+          if (!done) {
+            const payload =
+              pendingPayload ??
+              (useContinuationPayload
+                ? {
+                    text: '',
+                    qualityPreset: defaultQualityPreset,
+                    attachments: [],
+                    continuationMessages: toContinuationMessages(_messages),
+                  }
+                : fallbackPayload)
 
-          sendPromise
-            .then(() => {
-              // Main process run completed. For approval-pending runs,
-              // TanStack may skip the terminal RUN_FINISHED(stop) chunk.
-              // Mark stream as done so the consumer exits cleanly.
-              //
-              // Use a short delay to avoid a race condition: in fast-failure
-              // cases (e.g. no project path), the handler emits RUN_ERROR +
-              // RUN_FINISHED synchronously before returning, but the IPC event
-              // channel (webContents.send) and the invoke response channel
-              // are processed separately — the invoke can resolve before the
-              // stream chunks arrive. The delay gives those chunks time to land.
-              setTimeout(() => {
-                if (!done) {
-                  done = true
-                  resolve?.()
+            // Fire and forget — main process streams chunks back via IPC.
+            // Catch to avoid unhandled rejection (errors are delivered via stream chunks).
+            const sendPromise = waggleConfig
+              ? api.sendWaggleMessage(conversationId, payload, waggleConfig)
+              : api.sendMessage(conversationId, payload, model)
+
+            sendPromise
+              .then(() => {
+                // Keep the stream alive until either:
+                // 1) a terminal chunk arrives, or
+                // 2) the explicit run-completed event is emitted.
+                //
+                // The fallback timer is defensive in case a run-completed event
+                // is ever missed; it avoids infinite hanging streams.
+                scheduleFallbackClose()
+              })
+              .catch((err) => {
+                ipcLogger.error('[ipc-adapter] sendMessage failed', {
+                  error: err instanceof Error ? err.message : String(err),
+                })
+                const errMsg = err instanceof Error ? err.message : String(err)
+                const info = classifyErrorMessage(errMsg)
+                lastErrorInfoMap.set(conversationId, info)
+                const errorChunk: StreamChunk = {
+                  type: 'RUN_ERROR',
+                  timestamp: Date.now(),
+                  error: { message: errMsg },
                 }
-              }, DELAY_MS)
-            })
-            .catch((err) => {
-              console.error('[ipc-adapter] sendMessage failed:', err)
-              const errMsg = err instanceof Error ? err.message : String(err)
-              const info = classifyErrorMessage(errMsg)
-              lastErrorInfoMap.set(conversationId, info)
-              const errorChunk: StreamChunk = {
-                type: 'RUN_ERROR',
-                timestamp: Date.now(),
-                error: { message: errMsg },
-              }
-              queue.push(errorChunk)
-              done = true
-              resolve?.()
-            })
+                queue.push(errorChunk)
+                clearFallbackCloseTimer()
+                closeStream()
+              })
+          }
 
           try {
             while (!done || queue.length > 0) {
@@ -250,6 +378,7 @@ export function createIpcConnectionAdapter(
               }
             }
           } finally {
+            clearFallbackCloseTimer()
             unsub()
           }
         },

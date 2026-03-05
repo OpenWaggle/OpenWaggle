@@ -75,18 +75,31 @@ describe('getActiveAgentFeatures', () => {
     expect(features.length).toBe(4)
   })
 
-  it('enables trusted writeFile feature when writeFileTrusted is true', () => {
-    const context = makeContext({ writeFileTrusted: true })
+  it('enables trusted tool feature when writeFile is trusted in project config', () => {
+    const context = makeContext({
+      toolApprovals: {
+        tools: {
+          writeFile: { trusted: true },
+        },
+      },
+    })
     const features = getActiveAgentFeatures(context)
 
     const ids = features.map((f) => f.id)
-    expect(ids).toContain('core.write-file-trust')
+    expect(ids).toContain('core.tool-trust')
   })
 })
 
-describe('trusted writeFile filtering', () => {
-  it('strips writeFile approval when project trust is enabled', () => {
-    const context = makeContext({ writeFileTrusted: true })
+describe('trusted tool filtering', () => {
+  it('strips writeFile and editFile approvals when trust is enabled', () => {
+    const context = makeContext({
+      toolApprovals: {
+        tools: {
+          writeFile: { trusted: true },
+          editFile: { trusted: true },
+        },
+      },
+    })
     const features = getActiveAgentFeatures(context)
 
     let filteredTools = [...builtInTools]
@@ -97,7 +110,26 @@ describe('trusted writeFile filtering', () => {
     }
 
     const writeFile = filteredTools.find((tool) => tool.name === 'writeFile')
+    const editFile = filteredTools.find((tool) => tool.name === 'editFile')
     expect(writeFile?.needsApproval).toBe(false)
+    expect(editFile?.needsApproval).toBe(false)
+  })
+
+  it('strips all approvals in full-access mode', () => {
+    const context = makeContext({
+      settings: { ...DEFAULT_SETTINGS, executionMode: 'full-access' },
+    })
+    const features = getActiveAgentFeatures(context)
+
+    let filteredTools = [...builtInTools]
+    for (const feature of features) {
+      if (feature.filterTools) {
+        filteredTools = [...feature.filterTools(filteredTools, context)]
+      }
+    }
+
+    const approvalTools = filteredTools.filter((tool) => tool.needsApproval)
+    expect(approvalTools).toHaveLength(0)
   })
 })
 

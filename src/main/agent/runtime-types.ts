@@ -3,6 +3,7 @@ import type { JsonObject } from '@shared/types/json'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { ProviderConfig, Settings } from '@shared/types/settings'
 import type { AgentToolFilter, SubAgentContext } from '@shared/types/sub-agent'
+import type { ToolApprovalConfig } from '@shared/types/tool-approval'
 import type { ServerTool, StreamChunk } from '@tanstack/ai'
 import type { ProviderDefinition } from '../providers/provider-definition'
 import type { AgentStandardsContext } from './standards-context'
@@ -23,7 +24,7 @@ export interface AgentRunContext {
   readonly hasProject: boolean
   readonly provider: ProviderDefinition
   readonly providerConfig: ProviderConfig
-  readonly writeFileTrusted?: boolean
+  readonly toolApprovals?: ToolApprovalConfig
   readonly standards?: AgentStandardsContext
   readonly planModeRequested?: boolean
   readonly subAgentContext?: SubAgentRunContext

@@ -77,8 +77,8 @@ describe('getServerTools', () => {
     expect(toolNames).toContain('webFetch')
   })
 
-  it('keeps all tools available in sandbox mode (approval handled by TanStack)', () => {
-    const context = makeContext({ executionMode: 'sandbox', hasProject: true })
+  it('keeps all tools available in default-permissions mode (approval handled by TanStack)', () => {
+    const context = makeContext({ executionMode: 'default-permissions', hasProject: true })
     const features = getActiveAgentFeatures(context)
 
     const toolNames = getToolNames(getServerTools(context, features))

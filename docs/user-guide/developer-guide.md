@@ -155,7 +155,7 @@ Agent capabilities are composed via `AgentFeature` interface:
 Feature → {
   getPromptFragments()   // System prompt additions
   getTools()             // Tool contributions
-  filterTools()          // Tool filtering (e.g., sandbox mode)
+  filterTools()          // Tool filtering (e.g., default-permissions/full-access policy)
   getLifecycleHooks()    // Run lifecycle callbacks
 }
 ```

@@ -6,11 +6,14 @@ import { cn } from '@/lib/cn'
 import { parseToolArgs } from '@/lib/tool-args'
 import { getToolConfig } from '@/lib/tool-display'
 
+import type { PendingApproval } from './pending-tool-interactions'
+
 interface ApprovalBannerProps {
+  toolCallId: string
   toolName: string
   toolArgs: string
   approvalId: string
-  onApprovalResponse: (approvalId: string, approved: boolean) => Promise<void>
+  onApprovalResponse: (pendingApproval: PendingApproval, approved: boolean) => Promise<void>
 }
 
 /**
@@ -35,6 +38,7 @@ function formatToolDetail(toolName: string, args: JsonObject): string | null {
 }
 
 export function ApprovalBanner({
+  toolCallId,
   toolName,
   toolArgs,
   approvalId,
@@ -50,7 +54,10 @@ export function ApprovalBanner({
 
   function handleResponse(approved: boolean): void {
     setLoading(true)
-    void onApprovalResponse(approvalId, approved).finally(() => {
+    void onApprovalResponse(
+      { approvalId, toolCallId, toolName, toolArgs, hasApprovalMetadata: true },
+      approved,
+    ).finally(() => {
       setLoading(false)
     })
   }

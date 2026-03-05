@@ -101,36 +101,20 @@ describe('settings store', () => {
     mockState.encryptThrows = false
   })
 
-  it('defaults execution mode to sandbox for new installs', async () => {
+  it('defaults execution mode to default-permissions for new installs', async () => {
     const { getSettings } = await loadSettingsModule()
     const settings = getSettings()
-    expect(settings.executionMode).toBe('sandbox')
-  })
-
-  it('migrates legacy profiles to full-access when execution mode is absent', async () => {
-    mockState.fsExists = true
-    mockState.fsRaw = JSON.stringify({
-      providers: {
-        openai: { apiKey: 'sk-test', enabled: true },
-      },
-      projectPath: '/tmp/repo',
-    })
-
-    const { getSettings } = await loadSettingsModule()
-    const settings = getSettings()
-
-    expect(settings.executionMode).toBe('full-access')
-    expect(mockState.setCalls).toContainEqual({ key: 'executionMode', value: 'full-access' })
+    expect(settings.executionMode).toBe('default-permissions')
   })
 
   it('uses persisted execution mode when present', async () => {
     mockState.fsExists = true
-    mockState.fsRaw = JSON.stringify({ executionMode: 'sandbox' })
+    mockState.fsRaw = JSON.stringify({ executionMode: 'default-permissions' })
 
     const { getSettings } = await loadSettingsModule()
     const settings = getSettings()
 
-    expect(settings.executionMode).toBe('sandbox')
+    expect(settings.executionMode).toBe('default-permissions')
     expect(mockState.setCalls.find((call) => call.key === 'executionMode')).toBeUndefined()
   })
 
@@ -223,9 +207,9 @@ describe('settings store', () => {
 
   it('rejects invalid executionMode in updateSettings', async () => {
     const { getSettings, updateSettings } = await loadSettingsModule()
-    updateSettings({ executionMode: 'yolo' as 'sandbox' })
+    updateSettings({ executionMode: 'yolo' as 'default-permissions' })
     const settings = getSettings()
-    expect(settings.executionMode).toBe('sandbox')
+    expect(settings.executionMode).toBe('default-permissions')
     expect(
       mockState.setCalls.find((c) => c.key === 'executionMode' && c.value === 'yolo'),
     ).toBeUndefined()

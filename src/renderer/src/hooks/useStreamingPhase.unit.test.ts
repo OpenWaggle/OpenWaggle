@@ -1,4 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/ipc', () => ({
+  api: {
+    onAgentPhase: vi.fn(() => vi.fn()),
+    getAgentPhase: vi.fn(async () => null),
+  },
+}))
+
 import { formatElapsed } from './useStreamingPhase'
 
 describe('formatElapsed', () => {

@@ -33,12 +33,12 @@ Control how the agent handles potentially destructive operations.
 
 | Mode | Behavior |
 |------|----------|
-| **Default permissions** (sandbox) | File writes, edits, and shell commands require your approval. Read-only operations execute immediately. |
+| **Default permissions** | File writes, edits, shell commands, and web fetches require your approval unless already trusted by policy. Read-only operations execute immediately. |
 | **Full access** | All tools execute immediately without approval prompts. |
 
 Toggle the execution mode via the badge in the composer status bar. Switching to Full access shows a confirmation dialog.
 
-The default for new installations is **Default permissions**. Existing installations that predated this feature retain **Full access** until explicitly changed.
+The default for new installations is **Default permissions**.
 
 ## Quality Presets
 
@@ -88,7 +88,7 @@ max_tokens = 8000
 
 Only specify the values you want to override — unspecified values use the built-in defaults. Invalid values are silently ignored. Config files are cached by file modification time and reloaded at the start of each agent run.
 
-`writeFile` trust approvals are stored in `.openwaggle/config.local.toml`. OpenWaggle also attempts to add this file to `.git/info/exclude` automatically so local trust state does not pollute git status.
+Tool trust approvals are stored in `.openwaggle/config.local.toml`. OpenWaggle also attempts to add this file to `.git/info/exclude` automatically so local trust state does not pollute git status.
 
 ## Orchestration Modes
 

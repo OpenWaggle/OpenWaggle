@@ -94,7 +94,7 @@ The agent pauses until you respond. If denied, it receives a structured rejectio
 
 OpenWaggle has two execution modes that control how approvals work:
 
-- **Default permissions** (sandbox) — Write operations and commands require approval. This is the default for new installations.
+- **Default permissions** — Write operations, commands, and web fetches require approval unless already trusted by policy.
 - **Full access** — All tools execute immediately without approval prompts. A confirmation dialog appears when switching to this mode.
 
 Toggle the execution mode via the status bar at the bottom of the composer.

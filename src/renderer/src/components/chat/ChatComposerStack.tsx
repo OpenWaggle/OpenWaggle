@@ -45,6 +45,7 @@ export function ChatComposerStack({ section }: ChatComposerStackProps): React.JS
       {pendingApproval && (
         <div className="mx-auto w-full max-w-[720px] px-5 pb-2">
           <ApprovalBanner
+            toolCallId={pendingApproval.toolCallId}
             toolName={pendingApproval.toolName}
             toolArgs={pendingApproval.toolArgs}
             approvalId={pendingApproval.approvalId}

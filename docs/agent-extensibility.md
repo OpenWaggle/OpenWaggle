@@ -41,9 +41,9 @@ The builder sorts by `order` then `id` and joins sections with blank lines.
 Execution mode policy is enforced in two places:
 
 1. Prompt constraints via `executionModePromptFragment`
-2. Runtime tool filtering in `core.execution-mode` feature
+2. Runtime tool filtering in execution-mode features
 
-In `sandbox` mode, tools marked `needsApproval: true` are excluded before the run starts.
+In `default-permissions` mode, approval-required tools stay available and are approval-gated at runtime. In `full-access` mode, approval requirements are stripped before the run starts.
 
 ## Observability
 

@@ -1,11 +1,11 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
+import { isTrustableToolName } from '@shared/types/tool-approval'
 import type { WaggleCollaborationStatus, WaggleConfig } from '@shared/types/waggle'
 import type { UIMessage } from '@tanstack/ai-react'
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAgentChat } from '@/hooks/useAgentChat'
-import { useAgentPhase } from '@/hooks/useAgentPhase'
 import { useAutoSendQueue } from '@/hooks/useAutoSendQueue'
 import { useChat } from '@/hooks/useChat'
 import { useConversationNav } from '@/hooks/useConversationNav'
@@ -18,11 +18,16 @@ import { useStreamingPhase } from '@/hooks/useStreamingPhase'
 import { useWaggleChat } from '@/hooks/useWaggleChat'
 import { useWaggleMetadataLookup } from '@/hooks/useWaggleMetadataLookup'
 import { api } from '@/lib/ipc'
+import { createRendererLogger } from '@/lib/logger'
 import { useComposerStore } from '@/stores/composer-store'
 import { useMessageQueueStore } from '@/stores/message-queue-store'
 import { usePreferencesStore } from '@/stores/preferences-store'
 import { useUIStore } from '@/stores/ui-store'
 import { useWaggleStore } from '@/stores/waggle-store'
+import {
+  type ApprovalTrustStatus,
+  resolvePendingApprovalForUI,
+} from './pending-approval-visibility'
 import {
   findPendingApproval,
   findPendingAskUser,
@@ -31,6 +36,9 @@ import {
 } from './pending-tool-interactions'
 import type { VirtualRow } from './types-virtual'
 import { buildVirtualRows } from './useVirtualRows'
+import { waitForNotLoading } from './wait-for-not-loading'
+
+const logger = createRendererLogger('chat-panel')
 
 export interface ChatTranscriptSectionState {
   readonly messages: UIMessage[]
@@ -57,7 +65,7 @@ export interface ChatComposerSectionState {
   readonly slashSkills: readonly SkillDiscoveryItem[]
   readonly isLoading: boolean
   readonly status: 'ready' | 'submitted' | 'streaming' | 'error'
-  onToolApprovalResponse: ReturnType<typeof useAgentChat>['respondToolApproval']
+  onToolApprovalResponse: (pendingApproval: PendingApproval, approved: boolean) => Promise<void>
   onAnswerQuestion: ReturnType<typeof useAgentChat>['answerQuestion']
   onStopCollaboration: () => void
   onSelectSkill: (skillId: string) => void
@@ -77,6 +85,10 @@ export interface ChatPanelSections {
   readonly transcript: ChatTranscriptSectionState
   readonly composer: ChatComposerSectionState
   readonly diff: ChatDiffSectionState
+}
+
+function getApprovalTrustStatusKey(pendingApproval: PendingApproval): string {
+  return `${pendingApproval.approvalId}:${pendingApproval.toolCallId}`
 }
 
 function resolveLastUserMessage(messages: UIMessage[]): string | null {
@@ -109,6 +121,7 @@ export function useChatPanelSections(): ChatPanelSections {
   const model = usePreferencesStore((s) => s.settings.defaultModel)
   const qualityPreset = usePreferencesStore((s) => s.settings.qualityPreset)
   const recentProjects = usePreferencesStore((s) => s.settings.recentProjects)
+  const executionMode = usePreferencesStore((s) => s.settings.executionMode)
 
   const { projectPath, selectFolder, setProjectPath } = useProject()
   const {
@@ -149,6 +162,10 @@ export function useChatPanelSections(): ChatPanelSections {
     respondToPlan,
   } = useAgentChat(activeConversationId, activeConversation, model, qualityPreset)
 
+  // Keep a ref to isLoading so async callbacks can poll it without a dep.
+  const isLoadingRef = useRef(isLoading)
+  isLoadingRef.current = isLoading
+
   const { handleSend, handleSendText, handleSendWaggle } = useSendMessage({
     activeConversationId,
     projectPath,
@@ -162,8 +179,7 @@ export function useChatPanelSections(): ChatPanelSections {
   const waggleMetadataLookup = useWaggleMetadataLookup(activeConversation, messages)
   useWaggleChat(activeConversationId)
 
-  const agentPhase = useAgentPhase(activeConversationId)
-  const phase = useStreamingPhase(agentPhase)
+  const phase = useStreamingPhase(activeConversationId)
 
   const { catalog } = useSkills(projectPath)
 
@@ -175,6 +191,22 @@ export function useChatPanelSections(): ChatPanelSections {
 
   const [dismissedError, setDismissedError] = useState<string | null>(null)
   const [isSteering, setIsSteering] = useState(false)
+  const approvalTrustStatusRef = useRef<Record<string, ApprovalTrustStatus>>({})
+  const [approvalTrustStatusById, setApprovalTrustStatusById] = useState<
+    Record<string, ApprovalTrustStatus>
+  >({})
+
+  const setApprovalTrustStatus = useCallback(
+    (approvalTrustKey: string, status: ApprovalTrustStatus): void => {
+      const nextStatus = {
+        ...approvalTrustStatusRef.current,
+        [approvalTrustKey]: status,
+      } satisfies Record<string, ApprovalTrustStatus>
+      approvalTrustStatusRef.current = nextStatus
+      setApprovalTrustStatusById(nextStatus)
+    },
+    [],
+  )
 
   useAutoSendQueue({
     conversationId: activeConversationId,
@@ -200,6 +232,155 @@ export function useChatPanelSections(): ChatPanelSections {
 
   const pendingApproval = findPendingApproval(messages)
   const pendingAskUser = findPendingAskUser(messages)
+  const pendingApprovalTrustableToolName =
+    pendingApproval && isTrustableToolName(pendingApproval.toolName)
+      ? pendingApproval.toolName
+      : null
+  const pendingApprovalHasApprovalMetadata = pendingApproval?.hasApprovalMetadata === true
+  const trustProjectPath = activeConversation?.projectPath ?? projectPath
+  const pendingApprovalTrustKey = pendingApproval
+    ? getApprovalTrustStatusKey(pendingApproval)
+    : null
+  const canCheckPendingApprovalTrust = Boolean(
+    pendingApproval &&
+      executionMode === 'default-permissions' &&
+      trustProjectPath &&
+      pendingApprovalTrustableToolName &&
+      typeof api.isProjectToolCallTrusted === 'function',
+  )
+  const canAutoApprovePendingTool =
+    canCheckPendingApprovalTrust && pendingApprovalHasApprovalMetadata
+  const pendingApprovalTrustStatus = pendingApprovalTrustKey
+    ? approvalTrustStatusById[pendingApprovalTrustKey]
+    : undefined
+  const pendingApprovalForUI = resolvePendingApprovalForUI({
+    pendingApproval,
+    canCheckPendingApprovalTrust,
+    pendingApprovalTrustStatus,
+  })
+
+  useEffect(() => {
+    if (!pendingApprovalTrustKey && Object.keys(approvalTrustStatusRef.current).length > 0) {
+      approvalTrustStatusRef.current = {}
+      setApprovalTrustStatusById({})
+    }
+  }, [pendingApprovalTrustKey])
+
+  // Use stable primitive key to avoid re-firing the effect when
+  // findPendingApproval returns a new object reference for the same
+  // logical approval (which happens on every messages change).
+  const pendingApprovalKey = pendingApprovalTrustKey
+  const pendingApprovalArgs = pendingApproval?.toolArgs
+  const pendingApprovalId = pendingApproval?.approvalId
+
+  // Keep a ref to the current trust status so the auto-approve effect can
+  // read it as a guard without depending on it. Including it as a dep would
+  // cause the effect to re-fire (and cancel the in-flight trust check via the
+  // cleanup function) as soon as the status moves from undefined → 'checking'.
+  const pendingApprovalTrustStatusRef = useRef(pendingApprovalTrustStatus)
+  pendingApprovalTrustStatusRef.current = pendingApprovalTrustStatus
+
+  // Detect duplicate tool calls — the model may re-propose an already-executed
+  // tool after a continuation re-execution (TanStack AI known issue #1).
+  // Computed as a ref so the auto-approve effect can read it without a dep.
+  const pendingApprovalIsDuplicateRef = useRef(false)
+  pendingApprovalIsDuplicateRef.current = (() => {
+    if (!pendingApproval) return false
+    for (const msg of messages) {
+      for (const part of msg.parts) {
+        if (
+          part.type === 'tool-call' &&
+          part.name === pendingApproval.toolName &&
+          part.arguments === pendingApproval.toolArgs &&
+          part.id !== pendingApproval.toolCallId
+        ) {
+          const hasResult = messages.some((m) =>
+            m.parts.some((p) => p.type === 'tool-result' && p.toolCallId === part.id),
+          )
+          if (hasResult) return true
+        }
+      }
+    }
+    return false
+  })()
+
+  useEffect(() => {
+    if (
+      !pendingApprovalKey ||
+      !pendingApprovalId ||
+      !canAutoApprovePendingTool ||
+      !trustProjectPath ||
+      !pendingApprovalTrustableToolName
+    ) {
+      return
+    }
+    // Read from ref so this check doesn't create a dependency.
+    if (pendingApprovalTrustStatusRef.current !== undefined) {
+      return
+    }
+
+    let active = true
+
+    // Auto-approve duplicate tool calls that were re-proposed by the model
+    // after a continuation re-execution (TanStack AI known issue #1).
+    // The user already approved the identical tool+args earlier in this
+    // conversation, so it's safe to auto-approve without a trust check.
+    if (pendingApprovalIsDuplicateRef.current) {
+      setApprovalTrustStatus(pendingApprovalKey, 'trusted')
+      void (async () => {
+        try {
+          await waitForNotLoading(isLoadingRef)
+          if (!active) return
+          await respondToolApproval(pendingApprovalId, true)
+        } catch (err) {
+          logger.error('[AUTO-APPROVE] Error auto-approving duplicate', {
+            error: err instanceof Error ? err.message : String(err),
+          })
+        }
+      })()
+      return () => {
+        active = false
+      }
+    }
+
+    setApprovalTrustStatus(pendingApprovalKey, 'checking')
+
+    void (async () => {
+      try {
+        const trusted = await api.isProjectToolCallTrusted(
+          trustProjectPath,
+          pendingApprovalTrustableToolName,
+          pendingApprovalArgs ?? '',
+        )
+        if (!active) return
+        setApprovalTrustStatus(pendingApprovalKey, trusted ? 'trusted' : 'untrusted')
+        if (trusted) {
+          await waitForNotLoading(isLoadingRef)
+          if (!active) return
+          await respondToolApproval(pendingApprovalId, true)
+        }
+      } catch (err) {
+        logger.error('[AUTO-APPROVE] Error in trust check or approval', {
+          error: err instanceof Error ? err.message : String(err),
+        })
+        if (!active) return
+        setApprovalTrustStatus(pendingApprovalKey, 'untrusted')
+      }
+    })()
+
+    return () => {
+      active = false
+    }
+  }, [
+    canAutoApprovePendingTool,
+    pendingApprovalKey,
+    pendingApprovalId,
+    pendingApprovalArgs,
+    pendingApprovalTrustableToolName,
+    trustProjectPath,
+    respondToolApproval,
+    setApprovalTrustStatus,
+  ])
 
   function handleSelectSkill(skillId: string): void {
     const composerStore = useComposerStore.getState()
@@ -239,6 +420,11 @@ export function useChatPanelSections(): ChatPanelSections {
   }
 
   async function handleSendWithWaggle(payload: AgentSendPayload): Promise<void> {
+    // Reset phase tracking for the new user interaction so the RunSummary
+    // accumulates phases across all continuation runs (tool approval loops)
+    // instead of resetting on each continuation.
+    phase.reset()
+
     if (waggleConfig && waggleStatus === 'idle') {
       if (activeConversationId) {
         startWaggleCollaboration(activeConversationId, waggleConfig)
@@ -248,6 +434,45 @@ export function useChatPanelSections(): ChatPanelSections {
     }
 
     await handleSend(payload)
+  }
+
+  async function handleToolApprovalResponse(
+    currentPendingApproval: PendingApproval,
+    approved: boolean,
+  ): Promise<void> {
+    await respondToolApproval(currentPendingApproval.approvalId, approved)
+
+    if (!approved) {
+      return
+    }
+    if (executionMode !== 'default-permissions') {
+      return
+    }
+    if (!trustProjectPath) {
+      return
+    }
+    if (!isTrustableToolName(currentPendingApproval.toolName)) {
+      return
+    }
+    if (typeof api.recordProjectToolApproval !== 'function') {
+      return
+    }
+
+    try {
+      await api.recordProjectToolApproval(
+        trustProjectPath,
+        currentPendingApproval.toolName,
+        currentPendingApproval.toolArgs,
+      )
+    } catch (error) {
+      // Trust persistence is best effort; approval response already succeeded.
+      logger.warn('Failed to persist tool approval trust', {
+        toolName: currentPendingApproval.toolName,
+        toolCallId: currentPendingApproval.toolCallId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      showToast('Approved. Could not save trust rule; approval may be requested again.')
+    }
   }
 
   return {
@@ -267,15 +492,15 @@ export function useChatPanelSections(): ChatPanelSections {
       onDismissError: setDismissedError,
     },
     composer: {
-      pendingApproval,
+      pendingApproval: pendingApprovalForUI,
       pendingAskUser,
       activeConversationId,
       waggleStatus,
       commandPaletteOpen,
       slashSkills: catalog?.skills ?? [],
-      isLoading: isLoading || isSteering || agentPhase !== null,
+      isLoading: isLoading || isSteering || phase.current !== null,
       status,
-      onToolApprovalResponse: respondToolApproval,
+      onToolApprovalResponse: handleToolApprovalResponse,
       onAnswerQuestion: answerQuestion,
       onStopCollaboration: handleStopCollaboration,
       onSelectSkill: handleSelectSkill,

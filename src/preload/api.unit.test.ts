@@ -43,7 +43,8 @@ describe('preload api surface contract', () => {
     'fetchProviderModels',
     // Project
     'selectProjectFolder',
-    'setProjectToolTrust',
+    'isProjectToolCallTrusted',
+    'recordProjectToolApproval',
     // Conversations
     'listConversations',
     'getConversation',

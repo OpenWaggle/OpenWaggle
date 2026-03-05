@@ -184,17 +184,38 @@ const builtInToolsFeature: AgentFeature = {
   getTools: () => builtInTools,
 }
 
-const trustedWriteFileFeature: AgentFeature = {
-  id: 'core.write-file-trust',
-  isEnabled: (context) => context.writeFileTrusted === true,
+const trustedToolFeature: AgentFeature = {
+  id: 'core.tool-trust',
+  isEnabled: (context) => !!context.toolApprovals?.tools,
   filterTools: (tools, context) => {
-    if (!context.writeFileTrusted) {
+    if (!context.toolApprovals?.tools) {
       return tools
     }
+
+    const trustedTools = new Set<string>()
+    if (context.toolApprovals.tools.writeFile?.trusted === true) {
+      trustedTools.add('writeFile')
+    }
+    if (context.toolApprovals.tools.editFile?.trusted === true) {
+      trustedTools.add('editFile')
+    }
+
+    if (trustedTools.size === 0) {
+      return tools
+    }
+
     return tools.map((tool) =>
-      tool.needsApproval && tool.name === 'writeFile' ? { ...tool, needsApproval: false } : tool,
+      tool.needsApproval && trustedTools.has(tool.name ?? '')
+        ? { ...tool, needsApproval: false }
+        : tool,
     )
   },
+}
+
+const fullAccessApprovalBypassFeature: AgentFeature = {
+  id: 'core.full-access-approval-bypass',
+  isEnabled: (context) => context.settings.executionMode === 'full-access',
+  filterTools: (tools) => withoutApproval(tools),
 }
 
 const executionModeFeature: AgentFeature = {
@@ -276,7 +297,8 @@ const defaultFeatures: readonly AgentFeature[] = [
   corePromptFeature,
   planModeFeature,
   builtInToolsFeature,
-  trustedWriteFileFeature,
+  trustedToolFeature,
+  fullAccessApprovalBypassFeature,
   mcpToolsFeature,
   executionModeFeature,
   observabilityFeature,

@@ -6,7 +6,7 @@ import { usePreferencesStore } from '@/stores/preferences-store'
 import { BranchPicker } from './BranchPicker'
 
 const EXECUTION_MODE_LABEL: Record<ExecutionMode, string> = {
-  sandbox: 'Default permissions',
+  'default-permissions': 'Default permissions',
   'full-access': 'Full access',
 }
 
@@ -25,7 +25,7 @@ export function ComposerStatusBar({ onToast }: ComposerStatusBarProps): React.JS
   async function handleExecutionModeChange(mode: ExecutionMode): Promise<void> {
     openMenu(null)
     if (mode === settings.executionMode) return
-    if (mode === 'full-access' && settings.executionMode === 'sandbox') {
+    if (mode === 'full-access' && settings.executionMode === 'default-permissions') {
       openActionDialog('confirm-full-access')
       return
     }
@@ -52,7 +52,7 @@ export function ComposerStatusBar({ onToast }: ComposerStatusBarProps): React.JS
             </button>
           }
         >
-          {(['sandbox', 'full-access'] as const).map((mode) => (
+          {(['default-permissions', 'full-access'] as const).map((mode) => (
             <button
               key={mode}
               type="button"

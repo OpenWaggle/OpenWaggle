@@ -81,9 +81,9 @@ describe('projectContextPromptFragment', () => {
 })
 
 describe('executionModePromptFragment', () => {
-  it('build returns sandbox message for executionMode sandbox', () => {
+  it('build returns default-permissions message for executionMode default-permissions', () => {
     const context = makeContext({
-      settings: { ...DEFAULT_SETTINGS, executionMode: 'sandbox' },
+      settings: { ...DEFAULT_SETTINGS, executionMode: 'default-permissions' },
     })
     const result = executionModePromptFragment.build(context)
 
