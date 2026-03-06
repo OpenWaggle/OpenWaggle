@@ -9,6 +9,7 @@ interface UseAutoSendQueueOptions {
   status: 'ready' | 'submitted' | 'streaming' | 'error'
   sendMessage: (payload: AgentSendPayload) => Promise<void>
   paused?: boolean
+  onSendFailure?: (payload: AgentSendPayload, error: unknown) => void
 }
 
 /**
@@ -31,12 +32,17 @@ export function useAutoSendQueue({
   status,
   sendMessage,
   paused = false,
+  onSendFailure,
 }: UseAutoSendQueueOptions): void {
   const prevStatusRef = useRef(status)
   const sendMessageRef = useRef(sendMessage)
+  const onSendFailureRef = useRef(onSendFailure)
   useEffect(() => {
     sendMessageRef.current = sendMessage
   })
+  useEffect(() => {
+    onSendFailureRef.current = onSendFailure
+  }, [onSendFailure])
 
   // Path 1: non-ready → ready transition → auto-send next queued message as new turn
   useEffect(() => {
@@ -55,9 +61,11 @@ export function useAutoSendQueue({
     const item = useMessageQueueStore.getState().dequeue(conversationId)
     if (!item) return
 
-    sendMessageRef.current(item.payload).catch(() => {
+    const reportSendFailure = onSendFailureRef.current
+    sendMessageRef.current(item.payload).catch((error: unknown) => {
       // Re-enqueue so the message isn't silently lost on send failure
       useMessageQueueStore.getState().enqueue(conversationId, item.payload)
+      reportSendFailure?.(item.payload, error)
     })
   }, [status, conversationId, paused])
 

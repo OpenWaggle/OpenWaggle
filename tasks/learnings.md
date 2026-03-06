@@ -2,7 +2,7 @@
 name: project-learnings
 description: Technical learnings log for OpenWaggle. Stores warnings, pattern preferences, and historical engineering learnings; workflow policy lives in AGENTS.md and CLAUDE.md.
 owner: openwaggle-core
-last_updated: 2026-03-05
+last_updated: 2026-03-06
 ---
 
 # LEARNINGS.md
@@ -19,6 +19,11 @@ This document stores project-specific technical learnings only.
 - Do not add routine project-management notes unless they materially affect implementation behavior.
 
 ## 3) Recent Learnings
+
+### Task: Audit Remediation (2026-03-06)
+- Shared IPC channel maps are expressive enough to generate preload `invoke`/`send`/event-subscription helpers directly; exporting channel arg/payload utility types lets the preload surface stay DRY without weakening the `OpenWaggleApi` contract.
+- File logger failures should degrade to a stderr fallback, not silent no-ops; otherwise the exact moments when disk/log directory issues happen become the moments with the weakest diagnostics.
+- Async failure handlers in renderer queue hooks should capture the render-time callback when the send starts; reading a mutable ref at rejection time can misattribute feedback after conversation switches.
 
 ### Task: TanStack Known Issues Regression Matrix (2026-03-05)
 - `@tanstack/ai` root runtime export surface does not include `BaseTextAdapter` even though typings suggest it; tests that need lightweight adapters should use structural `TextAdapter` objects instead of subclassing the base class. [SKILL?]

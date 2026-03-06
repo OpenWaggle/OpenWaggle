@@ -11,6 +11,7 @@ import type { Logger } from '@shared/types/logger'
 const SLICE_ARG_1 = 11
 const SLICE_ARG_2 = 23
 const SLICE_ARG_2_VALUE_10 = 10
+const FILE_LOGGER_FALLBACK_PREFIX = '[file-logger]'
 
 export type { Logger }
 
@@ -20,6 +21,15 @@ function formatLine(namespace: string, message: string, data?: object): string {
     return `${ts} [${namespace}] ${message} ${JSON.stringify(data)}`
   }
   return `${ts} [${namespace}] ${message}`
+}
+
+function reportFileLoggerFailure(message: string, error: unknown): void {
+  const errorMessage = error instanceof Error ? error.message : String(error)
+  try {
+    process.stderr.write(`${FILE_LOGGER_FALLBACK_PREFIX} ${message}: ${errorMessage}\n`)
+  } catch {
+    // Ignore stderr failures to keep logging side effects non-fatal.
+  }
 }
 
 // --- File writer (injected logsDir, async buffered writes) ---
@@ -33,13 +43,17 @@ class FileWriter {
   private buffer: string[] = []
   private flushScheduled = false
 
-  init(logsDir: string): Promise<void> {
-    this.logsDir = logsDir
-    this.ensureDatePath()
-    // Directory creation + old log pruning runs async — best-effort, non-blocking
-    return mkdir(logsDir, { recursive: true })
-      .then(() => this.pruneOldLogs())
-      .catch(() => {})
+  async init(logsDir: string): Promise<void> {
+    try {
+      await mkdir(logsDir, { recursive: true })
+      this.logsDir = logsDir
+      this.currentDate = null
+      this.currentPath = null
+      this.ensureDatePath()
+      await this.pruneOldLogs()
+    } catch (error) {
+      reportFileLoggerFailure('failed to initialize log directory', error)
+    }
   }
 
   write(line: string): void {
@@ -68,8 +82,10 @@ class FileWriter {
     if (!this.currentPath || this.buffer.length === 0) return
     const batch = `${this.buffer.join('\n')}\n`
     this.buffer.length = 0
-    fs.appendFile(this.currentPath, batch, () => {
-      // Fire-and-forget — errors are swallowed to prevent logging from crashing the app
+    fs.appendFile(this.currentPath, batch, (error) => {
+      if (error) {
+        reportFileLoggerFailure('failed to append log batch', error)
+      }
     })
   }
 
@@ -95,8 +111,8 @@ class FileWriter {
           }
         })
       await Promise.allSettled(deletions)
-    } catch {
-      // Pruning is best-effort
+    } catch (error) {
+      reportFileLoggerFailure('failed to prune old log files', error)
     }
   }
 }

@@ -13,7 +13,7 @@ describe('file logger', () => {
   beforeEach(async () => {
     // Clean log dir
     for (const f of fs.readdirSync(mockLogsDir)) {
-      fs.unlinkSync(path.join(mockLogsDir, f))
+      fs.rmSync(path.join(mockLogsDir, f), { recursive: true, force: true })
     }
     // Reset module to get a fresh FileWriter instance
     vi.resetModules()
@@ -28,7 +28,7 @@ describe('file logger', () => {
   })
 
   it('writes log lines to file after flush', async () => {
-    initFileLogger(mockLogsDir)
+    await initFileLogger(mockLogsDir)
 
     const logger = createLogger('test')
     logger.info('hello world')
@@ -56,8 +56,8 @@ describe('file logger', () => {
     expect(files.filter((f) => f.startsWith('openwaggle-'))).toHaveLength(0)
   })
 
-  it('getLogFilePath returns correct date-based path', () => {
-    initFileLogger(mockLogsDir)
+  it('getLogFilePath returns correct date-based path', async () => {
+    await initFileLogger(mockLogsDir)
     createLogger('init').info('init')
 
     const logPath = getLogFilePath()
@@ -80,5 +80,41 @@ describe('file logger', () => {
 
     // Old file should be pruned
     expect(fs.existsSync(oldFile)).toBe(false)
+  })
+
+  it('reports append failures to stderr fallback', async () => {
+    const stderrWriteSpy = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+    vi.spyOn(fs, 'appendFile').mockImplementation((_path, _data, callback) => {
+      callback(new Error('append failed'))
+      return undefined
+    })
+
+    await initFileLogger(mockLogsDir)
+    createLogger('test').info('trigger append failure')
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    expect(stderrWriteSpy).toHaveBeenCalledWith(
+      expect.stringContaining('[file-logger] failed to append log batch'),
+    )
+  })
+
+  it('reports init failures to stderr fallback', async () => {
+    const stderrWriteSpy = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
+    const occupiedPath = path.join(mockLogsDir, 'occupied-path')
+    fs.writeFileSync(occupiedPath, 'occupied')
+
+    await initFileLogger(occupiedPath)
+
+    expect(stderrWriteSpy).toHaveBeenCalledWith(
+      expect.stringContaining('[file-logger] failed to initialize log directory'),
+    )
+
+    stderrWriteSpy.mockClear()
+    createLogger('test').info('should not keep retrying a failed init')
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    expect(stderrWriteSpy).not.toHaveBeenCalled()
   })
 })

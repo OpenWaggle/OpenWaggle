@@ -13,16 +13,21 @@ pnpm typecheck:web    # Type check renderer + shared (tsconfig.web.json)
 pnpm lint             # Biome lint check
 pnpm lint:fix         # Biome lint + auto-fix
 pnpm format           # Biome format
+pnpm check:fast       # typecheck + lint only (faster local loop)
 pnpm check            # typecheck + lint combined
 pnpm test:e2e         # Playwright E2E in headless mode (agent/default path)
 pnpm test:e2e:headless # Explicit headless E2E alias
+pnpm test:e2e:headless:quick # Reuse the current build; skips pnpm build
 pnpm test:e2e:headed  # Manual local headed E2E debug run
+pnpm test:e2e:headed:quick # Reuse the current build in headed mode
 pnpm build:mac        # Build macOS dmg
 pnpm build:win        # Build Windows NSIS installer
 pnpm build:linux      # Build Linux AppImage
 ```
 
 Automated tests are configured with Vitest (`pnpm test`). Manual QA via `pnpm dev` is still required for renderer behavior.
+
+For fast local verification, prefer `pnpm check:fast` while iterating and use the `*:quick` E2E scripts only when you know the app is already built and up to date.
 
 E2E policy: agent workflows must use headless E2E (`pnpm test:e2e` / `pnpm test:e2e:headless`). Manual local debugging can use `pnpm test:e2e:headed`.
 

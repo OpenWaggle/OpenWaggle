@@ -34,6 +34,7 @@ import {
   type PendingApproval,
   type PendingAskUser,
 } from './pending-tool-interactions'
+import { reportAutoSendQueueFailure, reportQueuedSteerFailure } from './queue-failure-feedback'
 import type { VirtualRow } from './types-virtual'
 import { buildVirtualRows } from './useVirtualRows'
 import { waitForNotLoading } from './wait-for-not-loading'
@@ -213,6 +214,9 @@ export function useChatPanelSections(): ChatPanelSections {
     status,
     sendMessage: handleSend,
     paused: isSteering,
+    onSendFailure: (payload, sendError) => {
+      reportAutoSendQueueFailure({ logger, showToast }, activeConversationId, payload, sendError)
+    },
   })
 
   const lastUserMessage = resolveLastUserMessage(messages)
@@ -411,9 +415,10 @@ export function useChatPanelSections(): ChatPanelSections {
     try {
       await steer()
       await handleSendWithWaggle(item.payload)
-    } catch {
+    } catch (error) {
       // Re-enqueue on failure so the message isn't silently lost
       useMessageQueueStore.getState().enqueue(activeConversationId, item.payload)
+      reportQueuedSteerFailure({ logger, showToast }, activeConversationId, messageId, error)
     } finally {
       setIsSteering(false)
     }
