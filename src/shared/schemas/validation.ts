@@ -91,6 +91,7 @@ export const orchestrationRunRecordSchema = z
     status: z.enum(ORCHESTRATION_RUN_STATUSES),
     startedAt: z.string(),
     finishedAt: z.string().optional(),
+    maxParallelTasks: z.number().int().positive().optional(),
     taskOrder: z.array(z.string()),
     tasks: z.record(z.string(), orchestrationTaskRecordSchema),
     outputs: z.record(z.string(), jsonValueSchema),

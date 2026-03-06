@@ -287,6 +287,78 @@ test('resumes from persisted non-terminal checkpoint', async () => {
   expect(summary.outputs.right).toEqual({ merged: 'left-done' })
 })
 
+test('preserves maxParallelTasks when resuming a persisted checkpoint', async () => {
+  let currentConcurrency = 0
+  let maxConcurrency = 0
+
+  const worker: WorkerAdapter = {
+    async executeTask(task): Promise<{ output?: OrchestrationTaskOutputValue }> {
+      currentConcurrency += 1
+      maxConcurrency = Math.max(maxConcurrency, currentConcurrency)
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      currentConcurrency -= 1
+      return { output: { taskId: task.id } }
+    },
+  }
+
+  const store = new MemoryRunStore()
+
+  const checkpoint: OrchestrationRunRecord = {
+    runId: 'run-resume-parallelism',
+    status: 'running',
+    startedAt: new Date().toISOString(),
+    maxParallelTasks: 1,
+    tasks: {
+      queuedA: {
+        id: 'queuedA',
+        kind: 'echo',
+        dependsOn: [],
+        status: 'queued',
+        retry: { retries: 0, backoffMs: 0, jitterMs: 0 },
+        attempts: [],
+        createdOrder: 0,
+      },
+      queuedB: {
+        id: 'queuedB',
+        kind: 'echo',
+        dependsOn: [],
+        status: 'queued',
+        retry: { retries: 0, backoffMs: 0, jitterMs: 0 },
+        attempts: [],
+        createdOrder: 1,
+      },
+      queuedC: {
+        id: 'queuedC',
+        kind: 'echo',
+        dependsOn: [],
+        status: 'queued',
+        retry: { retries: 0, backoffMs: 0, jitterMs: 0 },
+        attempts: [],
+        createdOrder: 2,
+      },
+    },
+    taskOrder: ['queuedA', 'queuedB', 'queuedC'],
+    outputs: {},
+    summary: {
+      total: 3,
+      completed: 0,
+      failed: 0,
+      cancelled: 0,
+      queued: 3,
+      running: 0,
+      retrying: 0,
+    },
+  }
+
+  await store.saveRun(checkpoint)
+
+  const engine = createOrchestrationEngine({ workerAdapter: worker, runStore: store })
+  const summary = await engine.resume('run-resume-parallelism')
+
+  expect(summary.status).toBe('completed')
+  expect(maxConcurrency).toBe(1)
+})
+
 test('emits task_progress events via reportProgress callback', async () => {
   const events: OrchestrationEvent[] = []
   const worker: WorkerAdapter = {
