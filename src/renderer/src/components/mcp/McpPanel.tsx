@@ -13,7 +13,8 @@ export function McpPanel(): React.JSX.Element {
     <McpListView
       servers={mcp.servers}
       isLoading={mcp.isLoading}
-      error={mcp.error}
+      loadError={mcp.loadError}
+      actionError={mcp.actionError}
       onAddClick={() => mcp.setAddFormOpen(true)}
       onInstall={mcp.addServer}
       onToggle={mcp.toggleServer}

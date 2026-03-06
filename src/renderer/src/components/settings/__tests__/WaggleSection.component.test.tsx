@@ -2,8 +2,12 @@ import { SupportedModelId, TeamConfigId } from '@shared/types/brand'
 import type { ProviderInfo } from '@shared/types/llm'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import type { WaggleTeamPreset } from '@shared/types/waggle'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { CommandPalette } from '@/components/command-palette/CommandPalette'
+import { useUIStore } from '@/stores/ui-store'
+import { useWaggleStore } from '@/stores/waggle-store'
+import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 
 const { listTeamsMock, saveTeamMock, deleteTeamMock, usePreferencesMock, useProvidersMock } =
   vi.hoisted(() => ({
@@ -114,6 +118,8 @@ describe('WaggleSection', () => {
     deleteTeamMock.mockReset()
     usePreferencesMock.mockReset()
     useProvidersMock.mockReset()
+    useUIStore.setState(useUIStore.getInitialState())
+    useWaggleStore.setState(useWaggleStore.getInitialState())
 
     usePreferencesMock.mockReturnValue({
       settings: DEFAULT_SETTINGS,
@@ -128,7 +134,7 @@ describe('WaggleSection', () => {
     const preset = createPreset()
     listTeamsMock.mockResolvedValueOnce([preset])
 
-    render(<WaggleSection />)
+    renderWithQueryClient(<WaggleSection />)
 
     fireEvent.click((await screen.findByText('Review Pair')).closest('button') ?? document.body)
 
@@ -160,7 +166,7 @@ describe('WaggleSection', () => {
     listTeamsMock.mockResolvedValueOnce([preset]).mockResolvedValueOnce([savedPreset])
     saveTeamMock.mockResolvedValueOnce(savedPreset)
 
-    render(<WaggleSection />)
+    renderWithQueryClient(<WaggleSection />)
 
     fireEvent.click((await screen.findByText('Review Pair')).closest('button') ?? document.body)
     fireEvent.change(screen.getByDisplayValue('Reviewer'), {
@@ -222,7 +228,7 @@ describe('WaggleSection', () => {
     listTeamsMock.mockResolvedValueOnce([]).mockResolvedValueOnce([savedPreset])
     saveTeamMock.mockResolvedValueOnce(savedPreset)
 
-    render(<WaggleSection />)
+    renderWithQueryClient(<WaggleSection />)
 
     fireEvent.change(screen.getByDisplayValue('Agent A'), {
       target: { value: 'Strategist' },
@@ -252,7 +258,7 @@ describe('WaggleSection', () => {
   it('shows an inline error when presets fail to load', async () => {
     listTeamsMock.mockRejectedValueOnce(new Error('Failed to load presets'))
 
-    render(<WaggleSection />)
+    renderWithQueryClient(<WaggleSection />)
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Failed to load presets')
   })
@@ -262,7 +268,7 @@ describe('WaggleSection', () => {
     listTeamsMock.mockResolvedValueOnce([preset])
     saveTeamMock.mockRejectedValueOnce(new Error('Save exploded'))
 
-    render(<WaggleSection />)
+    renderWithQueryClient(<WaggleSection />)
 
     fireEvent.click((await screen.findByText('Review Pair')).closest('button') ?? document.body)
     fireEvent.change(screen.getByDisplayValue('Reviewer'), {
@@ -272,5 +278,34 @@ describe('WaggleSection', () => {
     fireEvent.click(await screen.findByRole('button', { name: /save changes/i }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Save exploded')
+  })
+
+  it('shares the teams query cache with the command palette', async () => {
+    const preset = createPreset()
+    listTeamsMock.mockResolvedValueOnce([preset])
+
+    renderWithQueryClient(
+      <>
+        <WaggleSection />
+        <CommandPalette slashSkills={[]} onSelectSkill={vi.fn()} onStartWaggle={vi.fn()} />
+      </>,
+    )
+
+    await waitFor(() => {
+      expect(listTeamsMock).toHaveBeenCalledTimes(1)
+    })
+
+    fireEvent.change(screen.getByPlaceholderText('Search'), { target: { value: 'review' } })
+
+    await waitFor(() => {
+      const presetButtons = screen.getAllByRole('button', { name: /review pair/i })
+      expect(presetButtons.length).toBeGreaterThan(0)
+    })
+
+    const paletteButton = screen
+      .getAllByRole('button', { name: /review pair/i })
+      .find((button) => within(button).queryByText('Sequential'))
+
+    expect(paletteButton).toBeTruthy()
   })
 })

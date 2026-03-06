@@ -17,7 +17,8 @@ interface McpRegistryEntry {
 interface McpListViewProps {
   readonly servers: readonly McpServerStatus[]
   readonly isLoading: boolean
-  readonly error: string | null
+  readonly loadError: string | null
+  readonly actionError: string | null
   readonly onAddClick: () => void
   readonly onInstall: (
     config: Omit<McpServerConfig, 'id'>,
@@ -87,7 +88,8 @@ const logger = createRendererLogger('mcp/list-view')
 export function McpListView({
   servers,
   isLoading,
-  error,
+  loadError,
+  actionError,
   onAddClick,
   onInstall,
   onToggle,
@@ -151,12 +153,21 @@ export function McpListView({
           <div className="flex items-center justify-center py-20">
             <span className="text-[13px] text-text-tertiary">Loading MCP servers...</span>
           </div>
-        ) : error ? (
+        ) : loadError ? (
           <div className="flex items-center justify-center py-20">
-            <span className="text-[13px] text-red-400">{error}</span>
+            <span className="text-[13px] text-red-400">{loadError}</span>
           </div>
         ) : (
           <div className="flex flex-col gap-6">
+            {actionError && (
+              <div
+                role="alert"
+                className="rounded-md border border-error/30 bg-error/10 px-3 py-2 text-[13px] text-error"
+              >
+                {actionError}
+              </div>
+            )}
+
             {/* Connected section */}
             {connectedServers.length > 0 && (
               <section className="flex flex-col gap-3">

@@ -27,6 +27,14 @@ This document stores project-specific technical learnings only.
 - Orchestration checkpoint fields must be added in four places together: engine snapshot state, shared persisted types, Zod validation schema, and run-repository mapping. Missing any one of those silently drops resume-time behavior back to defaults.
 - Centralized attachment-extraction diagnostics only work if low-level extractors throw and let the shared fallback wrapper log; returning `''` inside each extractor hides which parser/OCR path failed and defeats regression assertions.
 
+### Task: TanStack Query Phase 1 (2026-03-06)
+- In this Electron renderer, TanStack Query works best as a cache/invalidation layer for IPC request-response resources while Zustand keeps runtime state; trying to move live session/stream state into Query creates awkward boundaries instead of reducing complexity.
+- When a resource refetch can remove the currently selected entity, refetch the parent catalog first and only invalidate the dependent detail query if the refreshed catalog still contains that selection; invalidating the detail query too early can refetch a disappearing record and create noisy undefined-data warnings.
+- For Electron IPC resources, TanStack Query should usually run with `networkMode: 'always'`; otherwise offline-aware browser defaults can misclassify local IPC-backed queries and mutations as paused network work.
+- Mutation wrappers that return `{ ok: false }` should be normalized into thrown `Error`s before they reach TanStack Query; otherwise the library records them as successful mutations and `error` / retry / devtools behavior becomes misleading.
+- Query-backed screens should keep initial-load errors separate from mutation/action errors; collapsing them into one `error` branch often hides still-valid cached data and turns recoverable action failures into full-screen dead ends.
+- For shared renderer resources, `queryOptions(...)` should be the primary abstraction boundary and trivial `useQuery` wrappers should be avoided; consumers can compose those shared options with only their local concerns, which keeps type inference strong and matches TanStack's recommended layering.
+
 ### Task: TanStack Known Issues Regression Matrix (2026-03-05)
 - `@tanstack/ai` root runtime export surface does not include `BaseTextAdapter` even though typings suggest it; tests that need lightweight adapters should use structural `TextAdapter` objects instead of subclassing the base class. [SKILL?]
 - A deterministic continuation probe can be reproduced without external providers by seeding `chat(...)` with an unresolved tool call (`assistant` toolCall + `tool` message containing `pendingExecution: true`) and a local mock adapter; this makes upstream chunk-shape changes testable in CI.

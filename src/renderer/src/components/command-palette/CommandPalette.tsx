@@ -1,6 +1,7 @@
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import type { WaggleConfig, WaggleTeamPreset } from '@shared/types/waggle'
 import { choose } from '@shared/utils/decision'
+import { useQuery } from '@tanstack/react-query'
 import {
   GitBranch,
   GitPullRequest,
@@ -17,7 +18,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/cn'
-import { api } from '@/lib/ipc'
+import { teamPresetsQueryOptions } from '@/queries/teams'
 import { useUIStore } from '@/stores/ui-store'
 import { useWaggleStore } from '@/stores/waggle-store'
 
@@ -54,19 +55,15 @@ export function CommandPalette({
   const closeCommandPalette = useUIStore((s) => s.closeCommandPalette)
   const openSettings = useUIStore((s) => s.openSettings)
   const setConfig = useWaggleStore((s) => s.setConfig)
+  const teamPresetsQuery = useQuery(teamPresetsQueryOptions())
 
   const [query, setQuery] = useState('')
   const [highlightIndex, setHighlightIndex] = useState(0)
-  const [presets, setPresets] = useState<WaggleTeamPreset[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     inputRef.current?.focus()
-  }, [])
-
-  useEffect(() => {
-    void api.listTeams().then(setPresets)
   }, [])
 
   // Close on Escape
@@ -82,6 +79,7 @@ export function CommandPalette({
   }, [closeCommandPalette])
 
   const lowerQuery = query.toLowerCase().trim()
+  const presets = teamPresetsQuery.data ?? []
 
   // ── Waggle handlers ──
 

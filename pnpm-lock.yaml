@@ -46,6 +46,9 @@ importers:
       '@tanstack/ai-react':
         specifier: 0.6.1
         version: 0.6.1(@tanstack/ai@0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc))(@types/react@19.2.14)(react@19.2.4)
+      '@tanstack/react-query':
+        specifier: ^5.90.21
+        version: 5.90.21(react@19.2.4)
       '@xenova/transformers':
         specifier: 2.17.2
         version: 2.17.2
@@ -1290,6 +1293,9 @@ packages:
     peerDependencies:
       solid-js: '>=1.9.7'
 
+  '@tanstack/query-core@5.90.20':
+    resolution: {integrity: sha512-OMD2HLpNouXEfZJWcKeVKUgQ5n+n3A2JFmBaScpNDUqSrQSjiveC7dKMe53uJUg1nDG16ttFPz2xfilz6i2uVg==}
+
   '@tanstack/react-ai-devtools@0.2.8':
     resolution: {integrity: sha512-g1BqB0wdNz+NI3TrngoF/PlIwsy9k9V7wMk6lBqpsFAKre16lTkJO/YJ9kW8PLEmwcSwTBGNG9z3mrC99wPzKQ==}
     peerDependencies:
@@ -1304,6 +1310,11 @@ packages:
       '@types/react-dom': '>=16.8'
       react: '>=16.8'
       react-dom: '>=16.8'
+
+  '@tanstack/react-query@5.90.21':
+    resolution: {integrity: sha512-0Lu6y5t+tvlTJMTO7oh5NSpJfpg/5D41LlThfepTixPYkJ0sE2Jj0m0f6yYqujBwIXlId87e234+MxG3D3g7kg==}
+    peerDependencies:
+      react: ^18 || ^19
 
   '@testing-library/dom@10.4.1':
     resolution: {integrity: sha512-o4PXJQidqJl82ckFaXUeoAW+XysPLauYI43Abki5hABd853iMhitooc6znOnczgbTYmEP6U6/y1ZyKAIsvMKGg==}
@@ -5215,6 +5226,8 @@ snapshots:
       - csstype
       - utf-8-validate
 
+  '@tanstack/query-core@5.90.20': {}
+
   '@tanstack/react-ai-devtools@0.2.8(@types/react@19.2.14)(csstype@3.2.3)(react@19.2.4)(solid-js@1.9.11)':
     dependencies:
       '@tanstack/ai-devtools-core': 0.3.4(@types/react@19.2.14)(csstype@3.2.3)(react@19.2.4)
@@ -5239,6 +5252,11 @@ snapshots:
       - csstype
       - solid-js
       - utf-8-validate
+
+  '@tanstack/react-query@5.90.21(react@19.2.4)':
+    dependencies:
+      '@tanstack/query-core': 5.90.20
+      react: 19.2.4
 
   '@testing-library/dom@10.4.1':
     dependencies:

@@ -1,21 +1,19 @@
 import type { ConversationId } from '@shared/types/brand'
-import type { ConversationSummary } from '@shared/types/conversation'
+import { useQuery } from '@tanstack/react-query'
 import { Archive, ChevronDown, ChevronRight, RotateCcw, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { groupConversationsByProject, type ProjectGroup } from '@/components/layout/sidebar-utils'
 import { cn } from '@/lib/cn'
 import { formatRelativeTime, projectName } from '@/lib/format'
 import { api } from '@/lib/ipc'
+import {
+  archivedConversationsQueryOptions,
+  useArchivedDeleteConversationMutation,
+  useUnarchiveConversationMutation,
+} from '@/queries/archived-conversations'
 
-function fetchArchived(
-  setArchived: (list: ConversationSummary[]) => void,
-  setLoading: (v: boolean) => void,
-): void {
-  setLoading(true)
-  void api.listArchivedConversations().then((list) => {
-    setArchived(list)
-    setLoading(false)
-  })
+function describeArchivedError(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message.trim() ? error.message : fallback
 }
 
 interface ArchivedGroupProps {
@@ -87,20 +85,20 @@ function ArchivedGroup({ group, onRestore, onDelete }: ArchivedGroupProps): Reac
 }
 
 export function ArchivedSection(): React.JSX.Element {
-  const [archived, setArchived] = useState<ConversationSummary[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    fetchArchived(setArchived, setLoading)
-  }, [])
+  const archivedQuery = useQuery(archivedConversationsQueryOptions())
+  const unarchiveMutation = useUnarchiveConversationMutation()
+  const deleteMutation = useArchivedDeleteConversationMutation()
+  const [actionError, setActionError] = useState<string | null>(null)
 
   function handleRestore(id: ConversationId): void {
-    void api.unarchiveConversation(id).then(() => {
-      fetchArchived(setArchived, setLoading)
+    setActionError(null)
+    void unarchiveMutation.mutateAsync(id).catch((error: unknown) => {
+      setActionError(describeArchivedError(error, 'Failed to restore archived thread.'))
     })
   }
 
   function handleDelete(id: ConversationId): void {
+    setActionError(null)
     void api
       .showConfirm(
         'Delete permanently?',
@@ -108,16 +106,39 @@ export function ArchivedSection(): React.JSX.Element {
       )
       .then((confirmed) => {
         if (!confirmed) return
-        void api.deleteConversation(id).then(() => {
-          fetchArchived(setArchived, setLoading)
+        void deleteMutation.mutateAsync(id).catch((error: unknown) => {
+          setActionError(
+            describeArchivedError(error, 'Failed to permanently delete archived thread.'),
+          )
         })
+      })
+      .catch((error: unknown) => {
+        setActionError(describeArchivedError(error, 'Failed to open delete confirmation.'))
       })
   }
 
-  if (loading) {
+  if (archivedQuery.isPending) {
     return (
       <div className="flex items-center justify-center py-20 text-text-muted text-[13px]">
         Loading archived threads…
+      </div>
+    )
+  }
+
+  const archived = archivedQuery.data ?? []
+  const queryError = archivedQuery.error
+    ? describeArchivedError(archivedQuery.error, 'Failed to load archived threads.')
+    : null
+
+  if (queryError && archived.length === 0) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <p
+          role="alert"
+          className="rounded-md border border-error/30 bg-error/10 px-3 py-2 text-[13px] text-error"
+        >
+          {queryError}
+        </p>
       </div>
     )
   }
@@ -141,6 +162,21 @@ export function ArchivedSection(): React.JSX.Element {
           Threads removed from the sidebar. Restore them to bring them back.
         </p>
       </div>
+
+      {actionError && (
+        <p
+          role="alert"
+          className="rounded-md border border-error/30 bg-error/10 px-3 py-2 text-[13px] text-error"
+        >
+          {actionError}
+        </p>
+      )}
+
+      {queryError && (
+        <p className="rounded-md border border-error/20 bg-error/5 px-3 py-2 text-[13px] text-error">
+          {queryError}
+        </p>
+      )}
 
       <div className="space-y-2">
         {groups.map((group) => (

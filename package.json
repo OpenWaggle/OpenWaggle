@@ -62,6 +62,7 @@
     "@tanstack/ai-openai": "0.6.0",
     "@tanstack/ai-openrouter": "0.6.1",
     "@tanstack/ai-react": "0.6.1",
+    "@tanstack/react-query": "^5.90.21",
     "@xenova/transformers": "2.17.2",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
