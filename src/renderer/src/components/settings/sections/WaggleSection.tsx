@@ -12,7 +12,7 @@ import type {
 } from '@shared/types/waggle'
 import { chooseBy } from '@shared/utils/decision'
 import { Plus, Save, Trash2 } from 'lucide-react'
-import { useEffect, useReducer, useState } from 'react'
+import { useEffect, useReducer } from 'react'
 import { usePreferences, useProviders } from '@/hooks/useSettings'
 import { AGENT_BG, AGENT_BORDER } from '@/lib/agent-colors'
 import { cn } from '@/lib/cn'
@@ -24,6 +24,10 @@ const SLICE_ARG_2 = 60
 const MIN = 4
 const MAX = 20
 const ROWS = 3
+
+function describeWaggleError(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message.trim() ? error.message : fallback
+}
 
 /** Shallow structural comparison between form config and a preset's config. */
 function configMatchesPreset(config: WaggleConfig, preset: WaggleTeamPreset): boolean {
@@ -50,6 +54,12 @@ interface WaggleFormState {
   readonly maxTurns: number
 }
 
+interface WagglePresetState {
+  readonly presets: readonly WaggleTeamPreset[]
+  readonly activePresetId: string | null
+  readonly error: string | null
+}
+
 type WaggleFormAction =
   | { readonly type: 'load-preset'; readonly config: WaggleConfig }
   | { readonly type: 'set-agent-label'; readonly index: 0 | 1; readonly label: string }
@@ -59,6 +69,23 @@ type WaggleFormAction =
   | { readonly type: 'set-mode'; readonly mode: WaggleCollaborationMode }
   | { readonly type: 'set-stop-condition'; readonly stopCondition: WaggleStopCondition }
   | { readonly type: 'set-max-turns'; readonly maxTurns: number }
+
+type WagglePresetAction =
+  | { readonly type: 'load-success'; readonly presets: readonly WaggleTeamPreset[] }
+  | { readonly type: 'load-error'; readonly error: string }
+  | { readonly type: 'select-preset'; readonly activePresetId: string }
+  | {
+      readonly type: 'save-success'
+      readonly presets: readonly WaggleTeamPreset[]
+      readonly activePresetId: string
+    }
+  | {
+      readonly type: 'delete-success'
+      readonly presets: readonly WaggleTeamPreset[]
+      readonly deletedPresetId: string
+    }
+  | { readonly type: 'clear-error' }
+  | { readonly type: 'set-error'; readonly error: string }
 
 const INITIAL_WAGGLE_FORM_STATE: WaggleFormState = {
   agents: [
@@ -78,6 +105,12 @@ const INITIAL_WAGGLE_FORM_STATE: WaggleFormState = {
   mode: 'sequential',
   stopCondition: 'consensus',
   maxTurns: MAX_TURNS,
+}
+
+const INITIAL_WAGGLE_PRESET_STATE: WagglePresetState = {
+  presets: [],
+  activePresetId: null,
+  error: null,
 }
 
 function updateAgentAt(
@@ -133,19 +166,76 @@ function waggleFormReducer(state: WaggleFormState, action: WaggleFormAction): Wa
     .assertComplete()
 }
 
+function wagglePresetReducer(
+  state: WagglePresetState,
+  action: WagglePresetAction,
+): WagglePresetState {
+  return chooseBy(action, 'type')
+    .case('load-success', (value) => ({
+      ...state,
+      presets: [...value.presets],
+      error: null,
+    }))
+    .case('load-error', (value) => ({
+      ...state,
+      error: value.error,
+    }))
+    .case('select-preset', (value) => ({
+      ...state,
+      activePresetId: value.activePresetId,
+    }))
+    .case('save-success', (value) => ({
+      presets: [...value.presets],
+      activePresetId: value.activePresetId,
+      error: null,
+    }))
+    .case('delete-success', (value) => ({
+      presets: [...value.presets],
+      activePresetId: state.activePresetId === value.deletedPresetId ? null : state.activePresetId,
+      error: null,
+    }))
+    .case('clear-error', () => ({
+      ...state,
+      error: null,
+    }))
+    .case('set-error', (value) => ({
+      ...state,
+      error: value.error,
+    }))
+    .assertComplete()
+}
+
 export function WaggleSection(): React.JSX.Element {
   const { settings } = usePreferences()
   const { providerModels } = useProviders()
-  const [presets, setPresets] = useState<WaggleTeamPreset[]>([])
-  const [activePresetId, setActivePresetId] = useState<string | null>(null)
   const [formState, dispatchForm] = useReducer(waggleFormReducer, INITIAL_WAGGLE_FORM_STATE)
+  const [presetState, dispatchPreset] = useReducer(wagglePresetReducer, INITIAL_WAGGLE_PRESET_STATE)
+  const { presets, activePresetId, error } = presetState
 
   useEffect(() => {
-    void api.listTeams().then(setPresets)
+    let active = true
+
+    void api
+      .listTeams()
+      .then((nextPresets) => {
+        if (!active) return
+        dispatchPreset({ type: 'load-success', presets: nextPresets })
+      })
+      .catch((loadError) => {
+        if (!active) return
+        dispatchPreset({
+          type: 'load-error',
+          error: describeWaggleError(loadError, 'Failed to load team presets.'),
+        })
+      })
+
+    return () => {
+      active = false
+    }
   }, [])
 
   function loadPreset(preset: WaggleTeamPreset): void {
-    setActivePresetId(preset.id)
+    dispatchPreset({ type: 'select-preset', activePresetId: preset.id })
     dispatchForm({ type: 'load-preset', config: preset.config })
   }
 
@@ -168,40 +258,80 @@ export function WaggleSection(): React.JSX.Element {
     if (!activePreset) return
     const config = buildConfig()
     const [agentA, agentB] = formState.agents
-    const saved = await api.saveTeam({
+    const saveInput = {
       ...activePreset,
       name: activePreset.isBuiltIn ? activePreset.name : `${agentA.label} + ${agentB.label}`,
       description: activePreset.isBuiltIn
         ? activePreset.description
         : `Custom: ${agentA.roleDescription.slice(0, SLICE_ARG_2)}`,
       config,
-    })
-    setPresets(await api.listTeams())
-    setActivePresetId(saved.id)
+    }
+    dispatchPreset({ type: 'clear-error' })
+
+    try {
+      const saved = await api.saveTeam(saveInput)
+      const nextPresets = await api.listTeams()
+      dispatchPreset({
+        type: 'save-success',
+        presets: nextPresets,
+        activePresetId: saved.id,
+      })
+    } catch (saveError) {
+      dispatchPreset({
+        type: 'set-error',
+        error: describeWaggleError(saveError, 'Failed to save team preset.'),
+      })
+    }
   }
 
   /** Create a brand new custom preset from the current config. */
   async function handleNewCustom(): Promise<void> {
     const config = buildConfig()
     const [agentA, agentB] = formState.agents
-    const name = `${agentA.label} + ${agentB.label}`
-    const saved = await api.saveTeam({
+    const saveInput = {
       id: TeamConfigId(''),
-      name,
+      name: `${agentA.label} + ${agentB.label}`,
       description: `Custom: ${agentA.roleDescription.slice(0, SLICE_ARG_2)}`,
       config,
       isBuiltIn: false,
       createdAt: 0,
       updatedAt: 0,
-    })
-    setPresets(await api.listTeams())
-    setActivePresetId(saved.id)
+    }
+    dispatchPreset({ type: 'clear-error' })
+
+    try {
+      const saved = await api.saveTeam(saveInput)
+      const nextPresets = await api.listTeams()
+      dispatchPreset({
+        type: 'save-success',
+        presets: nextPresets,
+        activePresetId: saved.id,
+      })
+    } catch (saveError) {
+      dispatchPreset({
+        type: 'set-error',
+        error: describeWaggleError(saveError, 'Failed to create team preset.'),
+      })
+    }
   }
 
   async function handleDeletePreset(id: string): Promise<void> {
-    await api.deleteTeam(TeamConfigId(id))
-    setPresets(await api.listTeams())
-    if (activePresetId === id) setActivePresetId(null)
+    dispatchPreset({ type: 'clear-error' })
+
+    try {
+      await api.deleteTeam(TeamConfigId(id))
+      const nextPresets = await api.listTeams()
+      dispatchPreset({
+        type: 'delete-success',
+        presets: nextPresets,
+        deletedPresetId: id,
+      })
+    } catch (deleteError) {
+      dispatchPreset({
+        type: 'set-error',
+        error: describeWaggleError(deleteError, 'Failed to delete team preset.'),
+      })
+    }
   }
 
   const [agentA, agentB] = formState.agents
@@ -209,6 +339,14 @@ export function WaggleSection(): React.JSX.Element {
   return (
     <div className="space-y-6">
       <h2 className="text-[20px] font-semibold text-text-primary">Waggle Mode</h2>
+      {error && (
+        <p
+          role="alert"
+          className="rounded-lg border border-error/25 bg-error/6 px-3 py-2 text-sm text-error"
+        >
+          {error}
+        </p>
+      )}
 
       <TeamPresetsPanel
         presets={presets}
@@ -255,7 +393,7 @@ export function WaggleSection(): React.JSX.Element {
 }
 
 interface TeamPresetsPanelProps {
-  presets: WaggleTeamPreset[]
+  presets: readonly WaggleTeamPreset[]
   activePresetId: string | null
   isModified: boolean
   onLoadPreset: (preset: WaggleTeamPreset) => void
