@@ -398,6 +398,7 @@ interface IpcEventChannelMap {
 
 export type IpcInvokeChannel = keyof IpcInvokeChannelMap
 export type IpcSendChannel = keyof IpcSendChannelMap
+export type IpcEventChannel = keyof IpcEventChannelMap
 
 /** Extract args for an invoke channel */
 export type IpcInvokeArgs<C extends IpcInvokeChannel> = IpcInvokeChannelMap[C]['args']
@@ -409,7 +410,7 @@ export type IpcInvokeReturn<C extends IpcInvokeChannel> = IpcInvokeChannelMap[C]
 export type IpcSendArgs<C extends IpcSendChannel> = IpcSendChannelMap[C]['args']
 
 /** Extract payload type for an event channel. */
-type IpcEventPayload<C extends keyof IpcEventChannelMap> = IpcEventChannelMap[C]['payload']
+export type IpcEventPayload<C extends IpcEventChannel> = IpcEventChannelMap[C]['payload']
 
 // ─── Typed API Surface ───────────────────────────────────────
 // This is what the preload exposes to the renderer via contextBridge.
