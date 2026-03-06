@@ -62,6 +62,23 @@ function describeUnknownError(error: unknown): { message: string } {
   return { message: String(error) }
 }
 
+async function withExtractionFallback(
+  attachmentName: string,
+  extractor: string,
+  extractText: () => Promise<string>,
+): Promise<string> {
+  try {
+    return await extractText()
+  } catch (error) {
+    logger.warn('Attachment text extraction failed', {
+      attachment: attachmentName,
+      extractor,
+      error: describeUnknownError(error).message,
+    })
+    return ''
+  }
+}
+
 async function ensureTempAttachmentsDirectory(): Promise<string> {
   const tempAttachmentsDir = path.join(app.getPath('userData'), TEMP_ATTACHMENTS_DIRECTORY_NAME)
   await fs.mkdir(tempAttachmentsDir, { recursive: true })
@@ -261,48 +278,32 @@ function extractTextFromRtf(raw: string): string {
 
 // TODO: replace mammoth with actively maintained alternative when available
 async function extractTextFromDocx(buffer: Buffer): Promise<string> {
-  try {
-    const mammoth = await import('mammoth')
-    const result = await mammoth.extractRawText({ buffer })
-    return normalizeText(result.value ?? '')
-  } catch {
-    return ''
-  }
+  const mammoth = await import('mammoth')
+  const result = await mammoth.extractRawText({ buffer })
+  return normalizeText(result.value ?? '')
 }
 
 async function extractTextFromOdt(buffer: Buffer): Promise<string> {
-  try {
-    const JSZip = (await import('jszip')).default
-    const archive = await JSZip.loadAsync(buffer)
-    const content = await archive.file('content.xml')?.async('string')
-    if (!content) return ''
-    const withoutTags = content.replaceAll(/<[^>]+>/g, ' ')
-    const decoded = decodeXmlEntities(withoutTags)
-    const normalizedWhitespace = decoded.replaceAll(/\s+/g, ' ')
-    return normalizeText(normalizedWhitespace)
-  } catch {
-    return ''
-  }
+  const JSZip = (await import('jszip')).default
+  const archive = await JSZip.loadAsync(buffer)
+  const content = await archive.file('content.xml')?.async('string')
+  if (!content) return ''
+  const withoutTags = content.replaceAll(/<[^>]+>/g, ' ')
+  const decoded = decodeXmlEntities(withoutTags)
+  const normalizedWhitespace = decoded.replaceAll(/\s+/g, ' ')
+  return normalizeText(normalizedWhitespace)
 }
 
 async function extractTextFromPdf(buffer: Buffer): Promise<string> {
-  try {
-    const { extractText } = await import('unpdf')
-    const result = await extractText(new Uint8Array(buffer), { mergePages: true })
-    return normalizeText(result.text ?? '')
-  } catch {
-    return ''
-  }
+  const { extractText } = await import('unpdf')
+  const result = await extractText(new Uint8Array(buffer), { mergePages: true })
+  return normalizeText(result.text ?? '')
 }
 
 async function extractTextFromImage(buffer: Buffer): Promise<string> {
-  try {
-    const tesseract = await import('tesseract.js')
-    const result = await tesseract.recognize(buffer, 'eng')
-    return normalizeText(result.data.text ?? '')
-  } catch {
-    return ''
-  }
+  const tesseract = await import('tesseract.js')
+  const result = await tesseract.recognize(buffer, 'eng')
+  return normalizeText(result.data.text ?? '')
 }
 
 async function prepareAttachment(filePath: string): Promise<PreparedAttachment> {
@@ -324,14 +325,23 @@ async function prepareAttachment(filePath: string): Promise<PreparedAttachment> 
   }
   const buffer = await fs.readFile(filePath)
   const kind = resolveAttachmentKind(mimeType)
+  const attachmentName = path.basename(filePath)
 
   const extractedText = await choose(kind)
-    .case('pdf', () => extractTextFromPdf(buffer))
-    .case('image', () => extractTextFromImage(buffer))
+    .case('pdf', () =>
+      withExtractionFallback(attachmentName, 'pdf', () => extractTextFromPdf(buffer)),
+    )
+    .case('image', () =>
+      withExtractionFallback(attachmentName, 'image-ocr', () => extractTextFromImage(buffer)),
+    )
     .catchAll(() =>
       choose(mimeType)
-        .case(DOCX_MIME_TYPE, () => extractTextFromDocx(buffer))
-        .case(ODT_MIME_TYPE, () => extractTextFromOdt(buffer))
+        .case(DOCX_MIME_TYPE, () =>
+          withExtractionFallback(attachmentName, 'docx', () => extractTextFromDocx(buffer)),
+        )
+        .case(ODT_MIME_TYPE, () =>
+          withExtractionFallback(attachmentName, 'odt', () => extractTextFromOdt(buffer)),
+        )
         .case(RTF_MIME_TYPE, () => Promise.resolve(extractTextFromRtf(buffer.toString('utf8'))))
         .catchAll(() => Promise.resolve(normalizeText(buffer.toString('utf8')))),
     )

@@ -248,4 +248,29 @@ describe('WaggleSection', () => {
     })
     expect(listTeamsMock).toHaveBeenCalledTimes(2)
   })
+
+  it('shows an inline error when presets fail to load', async () => {
+    listTeamsMock.mockRejectedValueOnce(new Error('Failed to load presets'))
+
+    render(<WaggleSection />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to load presets')
+  })
+
+  it('shows an inline error when saving edits fails', async () => {
+    const preset = createPreset()
+    listTeamsMock.mockResolvedValueOnce([preset])
+    saveTeamMock.mockRejectedValueOnce(new Error('Save exploded'))
+
+    render(<WaggleSection />)
+
+    fireEvent.click((await screen.findByText('Review Pair')).closest('button') ?? document.body)
+    fireEvent.change(screen.getByDisplayValue('Reviewer'), {
+      target: { value: 'Refiner' },
+    })
+
+    fireEvent.click(await screen.findByRole('button', { name: /save changes/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Save exploded')
+  })
 })

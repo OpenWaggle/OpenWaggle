@@ -58,6 +58,7 @@ export interface OrchestrationRunRecord {
   readonly status: OrchestrationRunStatus
   readonly startedAt: string
   readonly finishedAt?: string
+  readonly maxParallelTasks?: number
   readonly taskOrder: readonly OrchestrationTaskId[]
   readonly tasks: Readonly<Record<string, OrchestrationTaskRecord>>
   readonly outputs: Readonly<{ [taskId: string]: OrchestrationOutputValue }>

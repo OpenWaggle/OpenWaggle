@@ -24,6 +24,8 @@ This document stores project-specific technical learnings only.
 - Shared IPC channel maps are expressive enough to generate preload `invoke`/`send`/event-subscription helpers directly; exporting channel arg/payload utility types lets the preload surface stay DRY without weakening the `OpenWaggleApi` contract.
 - File logger failures should degrade to a stderr fallback, not silent no-ops; otherwise the exact moments when disk/log directory issues happen become the moments with the weakest diagnostics.
 - Async failure handlers in renderer queue hooks should capture the render-time callback when the send starts; reading a mutable ref at rejection time can misattribute feedback after conversation switches.
+- Orchestration checkpoint fields must be added in four places together: engine snapshot state, shared persisted types, Zod validation schema, and run-repository mapping. Missing any one of those silently drops resume-time behavior back to defaults.
+- Centralized attachment-extraction diagnostics only work if low-level extractors throw and let the shared fallback wrapper log; returning `''` inside each extractor hides which parser/OCR path failed and defeats regression assertions.
 
 ### Task: TanStack Known Issues Regression Matrix (2026-03-05)
 - `@tanstack/ai` root runtime export surface does not include `BaseTextAdapter` even though typings suggest it; tests that need lightweight adapters should use structural `TextAdapter` objects instead of subclassing the base class. [SKILL?]

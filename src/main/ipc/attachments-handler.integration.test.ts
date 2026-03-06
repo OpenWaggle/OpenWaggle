@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   safeHandleMock,
+  createLoggerMock,
+  attachmentsLoggerMock,
   statMock,
   readFileMock,
   realpathMock,
@@ -19,6 +21,13 @@ const {
   files,
 } = vi.hoisted(() => ({
   safeHandleMock: vi.fn(),
+  createLoggerMock: vi.fn(),
+  attachmentsLoggerMock: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
   statMock: vi.fn(),
   readFileMock: vi.fn(),
   realpathMock: vi.fn(),
@@ -38,6 +47,10 @@ const {
 
 vi.mock('./typed-ipc', () => ({
   safeHandle: safeHandleMock,
+}))
+
+vi.mock('../logger', () => ({
+  createLogger: createLoggerMock.mockImplementation(() => attachmentsLoggerMock),
 }))
 
 vi.mock('node:fs/promises', () => ({
@@ -115,6 +128,11 @@ function registerFile(
 describe('registerAttachmentHandlers', () => {
   beforeEach(() => {
     safeHandleMock.mockReset()
+    createLoggerMock.mockReset()
+    attachmentsLoggerMock.debug.mockReset()
+    attachmentsLoggerMock.info.mockReset()
+    attachmentsLoggerMock.warn.mockReset()
+    attachmentsLoggerMock.error.mockReset()
     statMock.mockReset()
     readFileMock.mockReset()
     realpathMock.mockReset()
@@ -238,6 +256,32 @@ describe('registerAttachmentHandlers', () => {
     expect(result[0]).not.toHaveProperty('source')
   })
 
+  it('logs and degrades gracefully when PDF extraction fails', async () => {
+    registerFile('/tmp/repo/spec.pdf', Buffer.from('fake-pdf-data'))
+    unpdfExtractTextMock.mockRejectedValueOnce(new Error('pdf parser exploded'))
+
+    registerAttachmentHandlers()
+    const handler = registeredHandler('attachments:prepare')
+
+    const result = (await handler?.({}, '/tmp/repo', ['/tmp/repo/spec.pdf'])) as Array<{
+      kind: string
+      extractedText: string
+    }>
+
+    expect(result[0]).toMatchObject({
+      kind: 'pdf',
+      extractedText: '',
+    })
+    expect(attachmentsLoggerMock.warn).toHaveBeenCalledWith(
+      'Attachment text extraction failed',
+      expect.objectContaining({
+        attachment: 'spec.pdf',
+        extractor: 'pdf',
+        error: 'pdf parser exploded',
+      }),
+    )
+  })
+
   it('prepares image attachments with OCR fallback text', async () => {
     registerFile('/tmp/repo/screenshot.png', Buffer.from('fake-image-data'))
 
@@ -255,6 +299,32 @@ describe('registerAttachmentHandlers', () => {
       extractedText: 'OCR extracted text',
     })
     expect(result[0]).not.toHaveProperty('source')
+  })
+
+  it('logs and degrades gracefully when image OCR fails', async () => {
+    registerFile('/tmp/repo/screenshot.png', Buffer.from('fake-image-data'))
+    ocrRecognizeMock.mockRejectedValueOnce(new Error('ocr exploded'))
+
+    registerAttachmentHandlers()
+    const handler = registeredHandler('attachments:prepare')
+
+    const result = (await handler?.({}, '/tmp/repo', ['/tmp/repo/screenshot.png'])) as Array<{
+      kind: string
+      extractedText: string
+    }>
+
+    expect(result[0]).toMatchObject({
+      kind: 'image',
+      extractedText: '',
+    })
+    expect(attachmentsLoggerMock.warn).toHaveBeenCalledWith(
+      'Attachment text extraction failed',
+      expect.objectContaining({
+        attachment: 'screenshot.png',
+        extractor: 'image-ocr',
+        error: 'ocr exploded',
+      }),
+    )
   })
 
   it('extracts text from DOCX attachments', async () => {
@@ -276,6 +346,32 @@ describe('registerAttachmentHandlers', () => {
     expect(result[0]).not.toHaveProperty('source')
   })
 
+  it('logs and degrades gracefully when DOCX extraction fails', async () => {
+    registerFile('/tmp/repo/spec.docx', Buffer.from('fake-docx-bytes'))
+    mammothExtractMock.mockRejectedValueOnce(new Error('docx parser exploded'))
+
+    registerAttachmentHandlers()
+    const handler = registeredHandler('attachments:prepare')
+
+    const result = (await handler?.({}, '/tmp/repo', ['/tmp/repo/spec.docx'])) as Array<{
+      kind: string
+      extractedText: string
+    }>
+
+    expect(result[0]).toMatchObject({
+      kind: 'text',
+      extractedText: '',
+    })
+    expect(attachmentsLoggerMock.warn).toHaveBeenCalledWith(
+      'Attachment text extraction failed',
+      expect.objectContaining({
+        attachment: 'spec.docx',
+        extractor: 'docx',
+        error: 'docx parser exploded',
+      }),
+    )
+  })
+
   it('extracts text from ODT attachments', async () => {
     registerFile('/tmp/repo/spec.odt', Buffer.from('fake-odt-bytes'))
 
@@ -293,6 +389,32 @@ describe('registerAttachmentHandlers', () => {
       extractedText: 'Hello ODT',
     })
     expect(result[0]).not.toHaveProperty('source')
+  })
+
+  it('logs and degrades gracefully when ODT extraction fails', async () => {
+    registerFile('/tmp/repo/spec.odt', Buffer.from('fake-odt-bytes'))
+    jszipLoadAsyncMock.mockRejectedValueOnce(new Error('odt parser exploded'))
+
+    registerAttachmentHandlers()
+    const handler = registeredHandler('attachments:prepare')
+
+    const result = (await handler?.({}, '/tmp/repo', ['/tmp/repo/spec.odt'])) as Array<{
+      kind: string
+      extractedText: string
+    }>
+
+    expect(result[0]).toMatchObject({
+      kind: 'text',
+      extractedText: '',
+    })
+    expect(attachmentsLoggerMock.warn).toHaveBeenCalledWith(
+      'Attachment text extraction failed',
+      expect.objectContaining({
+        attachment: 'spec.odt',
+        extractor: 'odt',
+        error: 'odt parser exploded',
+      }),
+    )
   })
 
   it('extracts text from RTF attachments', async () => {
