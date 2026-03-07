@@ -1,6 +1,6 @@
 # TanStack AI Known Issues & Limitations
 
-> Version tested: `@tanstack/ai@0.6.1` (patched), `@tanstack/ai-client@0.5.1`
+> Version tested: `@tanstack/ai@0.6.1` (patched), `@tanstack/ai-client@0.5.2`
 
 This document tracks known issues, limitations, and workarounds related to our use of TanStack AI. These are inherent to the library and cannot be fixed without patching or replacing the dependency.
 
@@ -73,8 +73,13 @@ The `ChatClient` (`@tanstack/ai-client`) reconstructs UIMessages from stream chu
 **Problem:**
 When using `ChatClient.continuationPending` as a React state dependency in an effect that also triggers continuations, the effect can cancel itself. The state change from `continuationPending` flipping causes React to re-run the effect, cleaning up the previous run before the continuation completes.
 
-**Workaround (implemented):**
-Replace `continuationPending` state dependency with a ref (`pendingApprovalTrustStatusRef`) that doesn't trigger re-renders. Also added `waitForNotLoading()` to defer approval until the ChatClient is idle.
+**Upstream fix:** `@tanstack/ai-client@0.5.2` (PR #347) adds a `continuationSkipped` flag so that `checkForContinuation()` calls during an active stream are deferred and re-evaluated after the stream finishes. This eliminates the deadlock where approvals sent mid-stream were silently dropped.
+
+**Previous workaround (removed):**
+`waitForNotLoading()` polled the ChatClient's loading state before sending approval responses. This is no longer needed with the upstream fix and has been deleted.
+
+**Remaining workaround:**
+The ref-based approval tracking (`pendingApprovalTrustStatusRef`) is still needed — it prevents the React effect from self-cancelling when trust status transitions cause re-renders. This is a React concern, not a ChatClient concern.
 
 ---
 
@@ -91,7 +96,7 @@ pnpm test:tanstack-known-issues
 | #1 duplicate continuation tool cards | OpenWaggle workaround regression | `src/renderer/src/components/chat/useVirtualRows.unit.test.ts` |
 | #2 end-only continuation tool chunks | Upstream behavior sentinel + OpenWaggle normalization/collector regressions | `src/main/agent/tanstack-known-issues.unit.test.ts`, `src/main/agent/continuation-normalizer.unit.test.ts`, `src/main/agent/stream-part-collector.unit.test.ts` |
 | #3 continuation UIMessage/tool-arg corruption | OpenWaggle normalization regression | `src/main/agent/continuation-normalizer.unit.test.ts` |
-| #4 continuation self-cancellation risk | OpenWaggle idle-wait workaround regression | `src/renderer/src/components/chat/wait-for-not-loading.unit.test.ts` |
+| #4 continuation self-cancellation risk | Fixed upstream in `@tanstack/ai-client@0.5.2`; `waitForNotLoading` workaround removed | — |
 
 ### Upstream Fix Detection
 

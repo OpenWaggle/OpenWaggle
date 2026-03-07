@@ -44,8 +44,8 @@ importers:
         specifier: 0.6.1
         version: 0.6.1(@tanstack/ai@0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc))
       '@tanstack/ai-react':
-        specifier: 0.6.1
-        version: 0.6.1(@tanstack/ai@0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc))(@types/react@19.2.14)(react@19.2.4)
+        specifier: 0.6.2
+        version: 0.6.2(@tanstack/ai@0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc))(@types/react@19.2.14)(react@19.2.4)
       '@tanstack/react-query':
         specifier: ^5.90.21
         version: 5.90.21(react@19.2.4)
@@ -94,6 +94,9 @@ importers:
       react-virtuoso:
         specifier: ^4.18.1
         version: 4.18.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      react-voice-visualizer:
+        specifier: 2.0.8
+        version: 2.0.8(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       rehype-highlight:
         specifier: ^7.0.2
         version: 7.0.2
@@ -1194,8 +1197,8 @@ packages:
       '@tanstack/ai': ^0.6.1
       zod: ^4.0.0
 
-  '@tanstack/ai-client@0.5.1':
-    resolution: {integrity: sha512-96Qm8sQYBgfLIUR3f09aaLERsNtg+lpZ1J2jiqFTc8YiL+21Ya2Q1JDU3Opd8nNDIhvjwv1tdNxXAsZnwGKKKQ==}
+  '@tanstack/ai-client@0.5.2':
+    resolution: {integrity: sha512-owyJg/6qrUDZGQ7ginAFhaBT/S8DOOGGEOOSsjOGJgaGSJJGyOkxnMGBLw2kkMYbdPRK+/rKSqiiGO04bRlMcw==}
 
   '@tanstack/ai-devtools-core@0.3.4':
     resolution: {integrity: sha512-sosfvyJTIyXtbEiDu9JBATMjIX9kzOaxNTFYOhE02BB6ZfCt0EMt6PZujClMpXyoL2Hn7KZ80Al048lEragj4g==}
@@ -1227,8 +1230,8 @@ packages:
     peerDependencies:
       '@tanstack/ai': 0.6.1
 
-  '@tanstack/ai-react@0.6.1':
-    resolution: {integrity: sha512-9cGHe1z5NSV5QpFRV5CX2CBXco393JfVxEl4DbGkO9bHsc4cHOUm3sglYZ01Ebcq/pDVoUFDrkHaBxn511GrxA==}
+  '@tanstack/ai-react@0.6.2':
+    resolution: {integrity: sha512-ifWg3MXRPTQz8qd4HNGCzQO8WGkT4cvEXucJWNih8LWHXe3mAy1eo6p07alMr2SYn/AnKx9YSHzpnNVSQKESxA==}
     peerDependencies:
       '@tanstack/ai': ^0.6.1
       '@types/react': '>=18.0.0'
@@ -3461,6 +3464,12 @@ packages:
       react: '>=16 || >=17 || >= 18 || >= 19'
       react-dom: '>=16 || >=17 || >= 18 || >=19'
 
+  react-voice-visualizer@2.0.8:
+    resolution: {integrity: sha512-oA/IyNeh15+mERgm2n33IAqQaMGBEFN1n3gs2V/0LbLyscqsbhNo8JOFXh2I9neIqYJ4q27TEzXzbO00Xq/aXg==}
+    peerDependencies:
+      react: ^18.2.0
+      react-dom: ^18.2.0
+
   react@19.2.4:
     resolution: {integrity: sha512-9nfp2hYpCwOjAN+8TZFGhtWEwgvWHXqESH8qT89AT/lWklpLON22Lc8pEtnpsZz7VmawabSU0gCjnj8aC0euHQ==}
     engines: {node: '>=0.10.0'}
@@ -5090,7 +5099,7 @@ snapshots:
       '@tanstack/ai': 0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc)
       zod: 4.3.6
 
-  '@tanstack/ai-client@0.5.1':
+  '@tanstack/ai-client@0.5.2':
     dependencies:
       '@tanstack/ai': 0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc)
 
@@ -5144,10 +5153,10 @@ snapshots:
       '@openrouter/sdk': 0.3.15
       '@tanstack/ai': 0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc)
 
-  '@tanstack/ai-react@0.6.1(@tanstack/ai@0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc))(@types/react@19.2.14)(react@19.2.4)':
+  '@tanstack/ai-react@0.6.2(@tanstack/ai@0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc))(@types/react@19.2.14)(react@19.2.4)':
     dependencies:
       '@tanstack/ai': 0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc)
-      '@tanstack/ai-client': 0.5.1
+      '@tanstack/ai-client': 0.5.2
       '@types/react': 19.2.14
       react: 19.2.4
 
@@ -7877,6 +7886,11 @@ snapshots:
   react-refresh@0.18.0: {}
 
   react-virtuoso@4.18.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
+    dependencies:
+      react: 19.2.4
+      react-dom: 19.2.4(react@19.2.4)
+
+  react-voice-visualizer@2.0.8(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
     dependencies:
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)

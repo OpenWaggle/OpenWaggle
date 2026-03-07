@@ -37,7 +37,6 @@ import {
 import { reportAutoSendQueueFailure, reportQueuedSteerFailure } from './queue-failure-feedback'
 import type { VirtualRow } from './types-virtual'
 import { buildVirtualRows } from './useVirtualRows'
-import { waitForNotLoading } from './wait-for-not-loading'
 
 const logger = createRendererLogger('chat-panel')
 
@@ -162,10 +161,6 @@ export function useChatPanelSections(): ChatPanelSections {
     answerQuestion,
     respondToPlan,
   } = useAgentChat(activeConversationId, activeConversation, model, qualityPreset)
-
-  // Keep a ref to isLoading so async callbacks can poll it without a dep.
-  const isLoadingRef = useRef(isLoading)
-  isLoadingRef.current = isLoading
 
   const { handleSend, handleSendText, handleSendWaggle } = useSendMessage({
     activeConversationId,
@@ -333,10 +328,9 @@ export function useChatPanelSections(): ChatPanelSections {
       setApprovalTrustStatus(pendingApprovalKey, 'trusted')
       void (async () => {
         try {
-          await waitForNotLoading(isLoadingRef)
-          if (!active) return
           await respondToolApproval(pendingApprovalId, true)
         } catch (err) {
+          if (!active) return
           logger.error('[AUTO-APPROVE] Error auto-approving duplicate', {
             error: err instanceof Error ? err.message : String(err),
           })
@@ -359,8 +353,6 @@ export function useChatPanelSections(): ChatPanelSections {
         if (!active) return
         setApprovalTrustStatus(pendingApprovalKey, trusted ? 'trusted' : 'untrusted')
         if (trusted) {
-          await waitForNotLoading(isLoadingRef)
-          if (!active) return
           await respondToolApproval(pendingApprovalId, true)
         }
       } catch (err) {
