@@ -1,6 +1,6 @@
 # 45 — Archived Threads
 
-**Status:** Planned
+**Status:** In Progress
 **Priority:** P4
 **Category:** Feature
 **Depends on:** None (benefits from Spec 39 context window awareness for auto-archive suggestions)
@@ -144,3 +144,8 @@ When a conversation is archived:
 - Component: sidebar hides archived conversations
 - Component: archived section renders list with restore/delete actions
 - Component: archive action in context menu calls correct IPC
+
+## Review Notes (2026-03-06, spec/code audit)
+
+- The core archive mechanism is implemented with an `archived` flag in persisted conversations, dedicated archive/unarchive/list IPC handlers, an `ArchivedSection` settings screen, query hooks, and store/integration coverage.
+- The spec should stay open because the UX scope is only partially complete: the sidebar does not yet expose a per-thread archive action or an "Archived (N)" entry point, and the implementation chose `archived: boolean` instead of the proposed `archivedAt` timestamp metadata.

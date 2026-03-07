@@ -125,8 +125,9 @@ function extractTranscriptionText(result: unknown): string {
   return result.text.trim()
 }
 
-function mapLoadError(error: unknown): string {
+function mapLoadError(error: unknown, model: VoiceModel): string {
   const message = error instanceof Error ? error.message : 'Unknown model load error.'
+  const label = model === VOICE_MODEL_BASE ? 'base' : 'tiny'
   if (
     /sharp/i.test(message) &&
     /(cannot find module|went wrong installing|sharp-darwin|sharp-linux|sharp-win32)/i.test(message)
@@ -134,9 +135,9 @@ function mapLoadError(error: unknown): string {
     return 'Local voice dependency is missing (sharp). Run `pnpm install` or `pnpm rebuild sharp`, then restart OpenWaggle.'
   }
   if (/(network|fetch|download|ENOTFOUND|ECONN|timed out)/i.test(message)) {
-    return 'Local Whisper base model is not available yet. Connect once to download it, then retry.'
+    return `Local Whisper ${label} model is not available yet. Connect once to download it, then retry.`
   }
-  return 'Unable to load local Whisper base model. Verify local dependencies and retry.'
+  return `Unable to load local Whisper ${label} model. Verify local dependencies and retry.`
 }
 
 function mapTranscriptionError(error: unknown): string {
@@ -213,7 +214,7 @@ export function resetVoiceHandlerForTests(): void {
 export function registerVoiceHandlers(): void {
   safeHandle('voice:transcribe-local', async (_event, rawPayload: unknown) => {
     const payload = transcribePayloadSchema.parse(rawPayload)
-    const model = payload.model ?? VOICE_MODEL_TINY
+    const model = payload.model ?? VOICE_MODEL_BASE
     const sampleCount = Math.floor(payload.pcm16.byteLength / DOUBLE_FACTOR)
     if (sampleCount <= 0) {
       throw new Error('Audio payload is empty.')
@@ -228,7 +229,7 @@ export function registerVoiceHandlers(): void {
     try {
       transcriber = await loadTranscriber(model)
     } catch (error) {
-      throw new Error(mapLoadError(error))
+      throw new Error(mapLoadError(error, model))
     }
 
     try {

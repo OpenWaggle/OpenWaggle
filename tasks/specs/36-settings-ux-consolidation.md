@@ -1,6 +1,6 @@
 # 36 — Settings UX Consolidation
 
-**Status:** Planned
+**Status:** In Progress
 **Priority:** P3
 **Category:** Fix (UI debt)
 **Depends on:** None
@@ -82,3 +82,9 @@ than a focused one.
 have a backing spec in active development. A settings nav with 2 working tabs is a better
 UX than 8 tabs where 6 are disabled. Tabs can be added back when their backing features
 land. The `ui-store.ts` `SettingsTab` type should shrink to match only implemented tabs.
+
+## Review Notes (2026-03-06, spec/code audit)
+
+- The old `SettingsDialog` no longer exists in `src/renderer/src/components/settings/`, so the duplicate-surface problem described in Phase 1 has already been resolved.
+- `SettingsPage` now serves real `general`, `waggle`, `connections`, and `archived` sections, which is a meaningful step forward from the original "mostly coming soon" state.
+- The cleanup is still incomplete because `SettingsNav.tsx` continues to expose disabled placeholder tabs (`configuration`, `personalization`, `git`, `environments`, `worktrees`) and `SettingsPage.tsx` still falls back to `GeneralSection` for unknown tabs.

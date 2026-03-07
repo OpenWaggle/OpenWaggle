@@ -1,98 +1,117 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import type { RefObject } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useComposerStore } from '@/stores/composer-store'
+import type { VoiceCaptureController, VoiceVisualizerControls } from '../useVoiceCapture'
 import { VoiceRecorder } from '../VoiceRecorder'
 
-describe('VoiceRecorder', () => {
-  const onSendVoice = vi.fn()
-  const mediaRecorderRef = { current: null } as React.RefObject<MediaRecorder | null>
+vi.mock('@/hooks/useProject', () => ({
+  useProject: () => ({ projectPath: '/tmp/project' }),
+}))
 
-  function renderRecorder() {
-    return render(<VoiceRecorder onSendVoice={onSendVoice} mediaRecorderRef={mediaRecorderRef} />)
+vi.mock('react-voice-visualizer', () => ({
+  VoiceVisualizer: () => <div data-testid="voice-visualizer" />,
+}))
+
+function createVisualizerControls(): VoiceVisualizerControls {
+  return {
+    _setIsProcessingAudioOnComplete: vi.fn(),
+    _setIsProcessingOnResize: vi.fn(),
+    audioData: new Uint8Array(),
+    audioRef: { current: null },
+    audioSrc: '',
+    bufferFromRecordedBlob: null,
+    clearCanvas: vi.fn(),
+    currentAudioTime: 0,
+    duration: 0,
+    error: null,
+    formattedDuration: '00:00',
+    formattedRecordedAudioCurrentTime: '00:00',
+    formattedRecordingTime: '00:09',
+    isAvailableRecordedAudio: false,
+    isCleared: false,
+    isPausedRecordedAudio: false,
+    isPausedRecording: false,
+    isPreloadedBlob: false,
+    isProcessingOnResize: false,
+    isProcessingRecordedAudio: false,
+    isProcessingStartRecording: false,
+    isRecordingInProgress: true,
+    mediaRecorder: null,
+    recordedBlob: null,
+    recordingTime: 9000,
+    saveAudioFile: vi.fn(),
+    setCurrentAudioTime: vi.fn(),
+    setPreloadedAudioBlob: vi.fn(),
+    startAudioPlayback: vi.fn(),
+    startRecording: vi.fn(),
+    stopAudioPlayback: vi.fn(),
+    stopRecording: vi.fn(),
+    togglePauseResume: vi.fn(),
   }
+}
 
+function createVoiceController(
+  overrides: Partial<VoiceCaptureController> = {},
+): VoiceCaptureController {
+  return {
+    canStart: false,
+    clearError: vi.fn(),
+    elapsedSeconds: 9,
+    error: null,
+    isActive: true,
+    mode: 'recording',
+    stopAndSend: vi.fn(),
+    stopCapture: vi.fn(),
+    toggleVoice: vi.fn(),
+    visualizerControls: createVisualizerControls(),
+    ...overrides,
+  }
+}
+
+function createFileInputRef(): RefObject<HTMLInputElement | null> {
+  return { current: null }
+}
+
+describe('VoiceRecorder', () => {
   beforeEach(() => {
-    useComposerStore.setState(useComposerStore.getInitialState())
-    onSendVoice.mockClear()
+    vi.clearAllMocks()
   })
 
-  it('shows transcribing state when not listening', () => {
-    useComposerStore.setState({ isListening: false, isTranscribingVoice: true })
-    renderRecorder()
-    expect(screen.getByText('Transcribing locally...')).toBeInTheDocument()
-  })
+  it('renders the compact recording row with timer and actions', () => {
+    render(
+      <VoiceRecorder
+        fileInputRef={createFileInputRef()}
+        voice={createVoiceController({ elapsedSeconds: 9 })}
+      />,
+    )
 
-  it('shows waveform bars when listening', () => {
-    useComposerStore.setState({
-      isListening: true,
-      voiceWaveform: [0.5, 0.8, 0.3],
-      voiceElapsedSeconds: 5,
-    })
-    renderRecorder()
-    // Should not show transcribing text when listening
-    expect(screen.queryByText('Transcribing locally...')).toBeNull()
-  })
-
-  it('formats elapsed time correctly', () => {
-    useComposerStore.setState({
-      isListening: true,
-      voiceElapsedSeconds: 65,
-      voiceWaveform: [],
-    })
-    renderRecorder()
-    expect(screen.getByText('1:05')).toBeInTheDocument()
-  })
-
-  it('shows 0:00 for zero seconds', () => {
-    useComposerStore.setState({
-      isListening: true,
-      voiceElapsedSeconds: 0,
-      voiceWaveform: [],
-    })
-    renderRecorder()
-    expect(screen.getByText('0:00')).toBeInTheDocument()
-  })
-
-  it('shows stop button when listening', () => {
-    useComposerStore.setState({ isListening: true, voiceWaveform: [] })
-    renderRecorder()
+    expect(screen.getByTitle('Attach files')).toBeEnabled()
     expect(screen.getByTitle('Stop recording')).toBeInTheDocument()
-  })
-
-  it('does not show stop button when transcribing', () => {
-    useComposerStore.setState({ isListening: false, isTranscribingVoice: true })
-    renderRecorder()
-    expect(screen.queryByTitle('Stop recording')).toBeNull()
-  })
-
-  it('shows send button', () => {
-    useComposerStore.setState({ isListening: true, voiceWaveform: [] })
-    renderRecorder()
     expect(screen.getByTitle('Send recording')).toBeInTheDocument()
+    expect(screen.getByText('0:09')).toBeInTheDocument()
+    expect(screen.getByTestId('voice-visualizer')).toBeInTheDocument()
   })
 
-  it('disables send button when transcribing', () => {
-    useComposerStore.setState({ isListening: false, isTranscribingVoice: true })
-    renderRecorder()
-    expect(screen.getByTitle('Send recording')).toBeDisabled()
-  })
+  it('calls stop and send actions from the inline controls', () => {
+    const voice = createVoiceController()
+    render(<VoiceRecorder fileInputRef={createFileInputRef()} voice={voice} />)
 
-  it('calls onSendVoice when send button is clicked', () => {
-    useComposerStore.setState({ isListening: true, voiceWaveform: [] })
-    renderRecorder()
+    fireEvent.click(screen.getByTitle('Stop recording'))
     fireEvent.click(screen.getByTitle('Send recording'))
-    expect(onSendVoice).toHaveBeenCalledOnce()
+
+    expect(voice.stopCapture).toHaveBeenCalledOnce()
+    expect(voice.stopAndSend).toHaveBeenCalledOnce()
   })
 
-  it('shows attach button disabled', () => {
-    useComposerStore.setState({ isListening: true, voiceWaveform: [] })
-    renderRecorder()
-    expect(screen.getByTitle('Attach files')).toBeDisabled()
-  })
+  it('shows the transcribing spinner state and disables send', () => {
+    render(
+      <VoiceRecorder
+        fileInputRef={createFileInputRef()}
+        voice={createVoiceController({ mode: 'transcribing' })}
+      />,
+    )
 
-  it('shows ellipsis for timer when transcribing', () => {
-    useComposerStore.setState({ isListening: false, isTranscribingVoice: true })
-    renderRecorder()
-    expect(screen.getByText('...')).toBeInTheDocument()
+    expect(screen.queryByTitle('Stop recording')).toBeNull()
+    expect(screen.getByTitle('Send recording')).toBeDisabled()
   })
 })

@@ -1,105 +1,91 @@
-import { SECONDS_PER_MINUTE } from '@shared/constants/constants'
-import { ArrowUp, Loader2, Plus, Square } from 'lucide-react'
-import type { RefObject } from 'react'
+import { ArrowUp, Loader2, Square } from 'lucide-react'
+import { VoiceVisualizer } from 'react-voice-visualizer'
 import { cn } from '@/lib/cn'
-import { useComposerStore } from '@/stores/composer-store'
+import { ComposerAttachButton } from './ComposerAttachButton'
+import type { VoiceCaptureController } from './useVoiceCapture'
+import { formatVoiceDuration } from './useVoiceCapture'
 
-const PAD_START_ARG_1 = 2
-const MAX_ARG_1 = 4
-const FUNCTION_VALUE_28 = 28
-const MAX_ARG_1_VALUE_0_35 = 0.35
-
-function formatVoiceDuration(totalSeconds: number): string {
-  const seconds = Math.max(0, Math.floor(totalSeconds))
-  const minutesPart = Math.floor(seconds / SECONDS_PER_MINUTE)
-  const secondsPart = seconds % SECONDS_PER_MINUTE
-  return `${String(minutesPart)}:${String(secondsPart).padStart(PAD_START_ARG_1, '0')}`
-}
+const INLINE_WAVEFORM_BAR_GAP_PX = 1
+const INLINE_WAVEFORM_BAR_WIDTH_PX = 2
+const INLINE_WAVEFORM_HEIGHT_PX = 40
+const INLINE_WAVEFORM_BAR_RADIUS_PX = 5
+const VISUALIZER_SPEED = 3
 
 interface VoiceRecorderProps {
-  onSendVoice: () => void
-  mediaRecorderRef: RefObject<MediaRecorder | null>
+  fileInputRef: React.RefObject<HTMLInputElement | null>
+  voice: VoiceCaptureController
 }
 
-export function VoiceRecorder({
-  onSendVoice,
-  mediaRecorderRef,
-}: VoiceRecorderProps): React.JSX.Element {
-  const isListening = useComposerStore((s) => s.isListening)
-  const isTranscribingVoice = useComposerStore((s) => s.isTranscribingVoice)
-  const voiceElapsedSeconds = useComposerStore((s) => s.voiceElapsedSeconds)
-  const voiceWaveform = useComposerStore((s) => s.voiceWaveform)
-
+export function VoiceRecorder({ fileInputRef, voice }: VoiceRecorderProps): React.JSX.Element {
   return (
-    <div className="h-[60px] px-4 py-[12px]">
-      <div className="flex h-full items-center gap-3 rounded-lg border border-border bg-bg px-2.5">
-        <button
-          type="button"
-          className="flex items-center justify-center h-6 w-6 text-text-tertiary/90 transition-colors hover:text-text-primary"
-          title="Attach files"
-          disabled
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </button>
+    <div className="flex h-11 items-center justify-between px-4">
+      <div className="flex h-full w-full items-center gap-3">
+        <ComposerAttachButton fileInputRef={fileInputRef} />
 
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          <div className="relative flex h-8 flex-1 items-center gap-[2px] overflow-hidden">
-            <div className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 border-t border-dashed border-text-tertiary/55" />
-            {isListening ? (
-              voiceWaveform.map((level, index) => (
-                <span
-                  key={`voice-wave-${String(index)}`}
-                  className="relative z-10 inline-flex h-full items-center"
-                >
-                  <span
-                    className="w-[3px] rounded-[2px] bg-text-primary/95"
-                    style={{
-                      height: `${String(Math.max(MAX_ARG_1, Math.round(level * FUNCTION_VALUE_28)))}px`,
-                      opacity: Math.max(MAX_ARG_1_VALUE_0_35, level),
-                      transition: 'height 800ms ease, opacity 800ms ease',
-                    }}
-                  />
-                </span>
-              ))
-            ) : (
-              <div className="relative z-10 flex items-center gap-2 text-[12px] text-text-secondary">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                <span>Transcribing locally...</span>
-              </div>
-            )}
+        <div className="flex min-w-0 flex-1 items-center gap-2.5 overflow-hidden">
+          <div className="relative flex h-9 flex-1 items-center overflow-hidden">
+            <VoiceVisualizer
+              animateCurrentPick
+              backgroundColor="transparent"
+              barWidth={INLINE_WAVEFORM_BAR_WIDTH_PX}
+              canvasContainerClassName="!m-0 !h-full !w-full !overflow-visible !bg-transparent !border-0 !rounded-none !p-0"
+              controls={voice.visualizerControls}
+              fullscreen
+              gap={INLINE_WAVEFORM_BAR_GAP_PX}
+              height={INLINE_WAVEFORM_HEIGHT_PX}
+              isAudioProcessingTextShown={false}
+              isControlPanelShown={false}
+              isDefaultUIShown={false}
+              isDownloadAudioButtonShown={false}
+              isProgressIndicatorOnHoverShown={false}
+              isProgressIndicatorShown={false}
+              isProgressIndicatorTimeOnHoverShown={false}
+              isProgressIndicatorTimeShown={false}
+              mainBarColor="#FFFFFF"
+              mainContainerClassName="!m-0 !h-full !w-full !bg-transparent !border-0 !p-0 !shadow-none"
+              onlyRecording={false}
+              rounded={INLINE_WAVEFORM_BAR_RADIUS_PX}
+              secondaryBarColor="#5e5e5e"
+              speed={VISUALIZER_SPEED}
+              width="100%"
+            />
           </div>
+
           <span className="w-10 text-right text-[12px] tabular-nums text-text-tertiary">
-            {isListening ? formatVoiceDuration(voiceElapsedSeconds) : '...'}
+            {formatVoiceDuration(voice.elapsedSeconds)}
           </span>
         </div>
 
-        {isListening ? (
+        {voice.mode === 'recording' ? (
           <button
             type="button"
-            onClick={() => mediaRecorderRef.current?.stop()}
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-bg-tertiary text-text-primary transition-colors hover:bg-bg-hover"
+            onClick={voice.stopCapture}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-bg-tertiary text-text-primary transition-colors hover:bg-bg-hover"
             title="Stop recording"
           >
             <Square className="h-3.5 w-3.5" />
           </button>
         ) : (
-          <div className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-bg-tertiary text-text-tertiary">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-bg-tertiary text-text-tertiary">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
           </div>
         )}
+
         <button
           type="button"
-          onClick={onSendVoice}
-          disabled={isTranscribingVoice}
+          onClick={voice.stopAndSend}
+          disabled={voice.mode === 'transcribing'}
           className={cn(
-            'flex h-8 w-8 items-center justify-center rounded-full transition-colors',
-            isTranscribingVoice
-              ? 'border border-border bg-bg-tertiary cursor-not-allowed'
+            'flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors',
+            voice.mode === 'transcribing'
+              ? 'cursor-not-allowed border border-border bg-bg-tertiary'
               : 'bg-text-primary text-bg hover:bg-text-primary/90',
           )}
           title="Send recording"
         >
-          <ArrowUp className={cn('h-4 w-4', isTranscribingVoice ? 'text-text-muted' : 'text-bg')} />
+          <ArrowUp
+            className={cn('h-4 w-4', voice.mode === 'transcribing' ? 'text-text-muted' : 'text-bg')}
+          />
         </button>
       </div>
     </div>

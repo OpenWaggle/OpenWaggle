@@ -20,6 +20,9 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Task: Voice Recorder Visualizer + Transcription Quality (2026-03-07)
+- Local Whisper transcription quality dropped sharply when the renderer hard-coded the smallest English-only model (`tiny.en`) and forced `language: 'en'`; switching the default request path to `base` plus language auto-detection materially improves multilingual/accent robustness without changing the privacy model.
+
 ### Task: Audit Remediation (2026-03-06)
 - Shared IPC channel maps are expressive enough to generate preload `invoke`/`send`/event-subscription helpers directly; exporting channel arg/payload utility types lets the preload surface stay DRY without weakening the `OpenWaggleApi` contract.
 - File logger failures should degrade to a stderr fallback, not silent no-ops; otherwise the exact moments when disk/log directory issues happen become the moments with the weakest diagnostics.

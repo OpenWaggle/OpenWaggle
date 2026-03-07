@@ -11,12 +11,14 @@ Open Settings via the gear icon in the sidebar or `Cmd+,` / `Ctrl+,`.
 | **General** | Active | General application settings |
 | **Waggle Mode** | Active | Multi-agent collaboration configuration (see [Waggle Mode](./waggle-mode.md)) |
 | **Connections** | Active | API keys, OAuth subscriptions, provider management |
-| Configuration | Planned | Advanced configuration options |
-| Personalization | Planned | UI themes and customization |
-| Git | Planned | Git-specific settings |
-| Environments | Planned | Environment management |
-| Worktrees | Planned | Git worktree management |
-| Archived threads | Planned | View and restore archived conversations |
+| **Archived threads** | Active | View, restore, or permanently delete archived conversations |
+| Configuration | Disabled placeholder | Not yet available in the current build |
+| Personalization | Disabled placeholder | Not yet available in the current build |
+| Git | Disabled placeholder | Not yet available in the current build |
+| Environments | Disabled placeholder | Not yet available in the current build |
+| Worktrees | Disabled placeholder | Not yet available in the current build |
+
+Disabled placeholder sections may still appear in the navigation, but they are not interactive yet.
 
 ### Connections
 
@@ -26,6 +28,16 @@ The Connections section manages your AI provider credentials:
 - **Provider status** — See which providers are connected and active.
 - **OAuth subscriptions** — Connect or disconnect OAuth-based provider subscriptions.
 - **Encryption status** — API keys are encrypted using your OS keychain. If encryption is unavailable, a warning appears.
+
+### Archived Threads
+
+The Archived threads section lets you:
+
+- **Review archived conversations** grouped by project
+- **Restore a thread** back into the active sidebar
+- **Delete permanently** when you no longer need the history
+
+In the current UI, archiving happens when you remove a project group from the sidebar. That action archives the group's threads instead of deleting them immediately.
 
 ## Execution Modes
 
@@ -90,25 +102,13 @@ Only specify the values you want to override — unspecified values use the buil
 
 Tool trust approvals are stored in `.openwaggle/config.local.toml`. OpenWaggle also attempts to add this file to `.git/info/exclude` automatically so local trust state does not pollute git status.
 
-## Orchestration Modes
+## Plan Mode
 
-OpenWaggle supports different execution strategies for processing your requests:
+The composer includes a **Plan** toggle that asks the agent to propose a plan before it starts making changes.
 
-| Mode | Behavior |
-|------|----------|
-| **Auto-fallback** | Starts with orchestrated multi-step planning. Falls back to classic single-agent if planning fails. This is the default. |
-| **Orchestrated** | Always uses the multi-step orchestration pipeline (planner + executor). |
-| **Classic** | Always uses direct single-agent execution (no planning step). |
-
-### How Orchestration Works
-
-In orchestrated mode:
-
-1. **Planning** — An LLM generates a task graph with dependencies.
-2. **Execution** — Tasks run in dependency order. Independent tasks can run in parallel.
-3. **Fallback** — If orchestration setup fails, falls back to classic mode automatically (in auto-fallback mode).
-
-Orchestration runs are persisted separately from conversation history and can be viewed inline in the chat.
+- Turn it on from the composer toolbar before sending a message.
+- The agent will present a plan card and wait for **Implement Plan** or revision feedback.
+- The toggle applies to the current draft flow and resets after the message is sent.
 
 ## Data Storage
 
@@ -153,6 +153,8 @@ Local Whisper models are cached in:
 | macOS | `~/Library/Application Support/OpenWaggle/models/transformers/` |
 | Windows | `%APPDATA%\OpenWaggle\models\transformers\` |
 | Linux | `~/.config/OpenWaggle/models\transformers\` |
+
+Models are loaded on demand and idle models are evicted automatically after several minutes of inactivity to keep memory usage under control.
 
 ### Logs
 

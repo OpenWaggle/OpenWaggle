@@ -23,11 +23,6 @@ describe('composer-store', () => {
       actionDialogInput: '',
       actionDialogError: null,
       actionDialogBusy: false,
-      isListening: false,
-      isTranscribingVoice: false,
-      voiceError: null,
-      voiceElapsedSeconds: 0,
-      voiceWaveform: [],
     })
   })
 
@@ -117,15 +112,6 @@ describe('composer-store', () => {
       useComposerStore.getState().setActionDialogBusy(true)
       useComposerStore.getState().closeActionDialog()
       expect(useComposerStore.getState().actionDialog).toBe('rename-branch')
-    })
-  })
-
-  describe('voice state', () => {
-    it('setVoiceState applies partial patches', () => {
-      useComposerStore.getState().setVoiceState({ isListening: true, voiceElapsedSeconds: 3 })
-      expect(useComposerStore.getState().isListening).toBe(true)
-      expect(useComposerStore.getState().voiceElapsedSeconds).toBe(3)
-      expect(useComposerStore.getState().isTranscribingVoice).toBe(false)
     })
   })
 

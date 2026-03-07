@@ -22,6 +22,7 @@ function renderToolbar(overrides: Partial<Parameters<typeof ComposerToolbar>[0]>
     isLoading: false,
     canSend: true,
     onToggleVoice: vi.fn(),
+    voiceMode: 'idle' as const,
     fileInputRef,
   }
   return render(<ComposerToolbar {...defaults} {...overrides} />)
@@ -98,8 +99,7 @@ describe('ComposerToolbar', () => {
   })
 
   it('shows transcribing state for mic button', () => {
-    useComposerStore.setState({ isTranscribingVoice: true })
-    renderToolbar()
+    renderToolbar({ voiceMode: 'transcribing' })
     expect(screen.getByTitle('Transcribing audio')).toBeInTheDocument()
   })
 })

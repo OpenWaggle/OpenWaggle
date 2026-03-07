@@ -82,6 +82,7 @@ These rules are **non-negotiable**. Violating them invalidates your work.
 5. Docs updated if behavior, workflow, or developer expectations changed.
 6. Significant learnings appended to `tasks/learnings.md` (**if there is any significant learning to add**).
 7. Changes are grouped into logical commits.
+8. If you encounter a new TanStack AI bug, unexpected behavior, or workaround requirement (in `@tanstack/ai`, `@tanstack/ai-client`, or `@tanstack/ai-react`), explicitly report it to the user with a clear description. Reference `docs/tanstack-ai-known-issues.md` for existing issues and add new findings there. The maintainers are actively responsive — new bugs may be reportable upstream.
 
 ## Architecture
 

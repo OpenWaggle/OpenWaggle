@@ -1,6 +1,6 @@
 # 42 — Git Worktrees
 
-**Status:** Planned
+**Status:** In Progress
 **Priority:** P4
 **Category:** Feature
 **Depends on:** None (benefits from Spec 44 Git Settings for configuration surface)
@@ -132,3 +132,8 @@ Not persisted separately — always derived from `git worktree list --porcelain`
 - Component: worktree dialog validates branch name
 - Component: worktrees settings tab renders active worktree list
 - Integration: create → list → remove lifecycle works end-to-end
+
+## Review Notes (2026-03-06, spec/code audit)
+
+- OpenWaggle now has internal worktree infrastructure in `src/main/sub-agents/worktree-manager.ts` plus integration in the sub-agent runner, so isolated worktree execution already exists for agent internals.
+- The user-facing scope described here remains open: there are still no worktree IPC channels, no command-palette workflow, and the settings tab stays disabled.

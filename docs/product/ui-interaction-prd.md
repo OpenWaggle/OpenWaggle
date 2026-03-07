@@ -299,7 +299,7 @@ Status legend: `implemented`, `deferred`, `future`
 - Technical requirements:
   - IPC channels for orchestration run listing/get/cancel and main-to-renderer orchestration events.
   - Main process persistence of orchestration runs in a dedicated store (`orchestration-runs`), separate from conversation history.
-  - Agent send-message path defaults to orchestration mode with auto-fallback to classic execution when planning/orchestration setup fails.
+  - Orchestration runs are surfaced when explicit orchestration flows execute; the current primary `agent:send-message` path remains the classic agent run path.
 
 ### HC-UI-008 Composer attachment control
 
@@ -327,10 +327,12 @@ Status legend: `implemented`, `deferred`, `future`
 
 - Status: `implemented`
 - Location: `src/renderer/src/components/composer/VoiceRecorder.tsx` (UI) + `src/renderer/src/components/composer/useVoiceCapture.ts` (hook)
-- Current: mic button enters recording mode (waveform + timer + stop), then transcribes locally in-app with Whisper tiny by default (no external STT endpoint).
+- Current: mic button replaces the model / quality / plan controls in the composer toolbar with a compact inline recorder row while keeping the textarea footprint stable. The recorder uses local Whisper base by default for higher-accuracy transcription, with no external STT endpoint.
 - Target behavior:
-- While in recording mode, `Enter` or the existing composer send arrow finalizes recording and auto-sends the transcribed message.
-  - If recording is stopped without send, insert transcript into composer input (no auto-send) and provide typed fallback messaging when unavailable.
+- While in recording mode, `Enter` or the stop control finalizes recording and inserts the transcript into the composer input.
+- The send control stops recording, transcribes locally, and immediately sends the composed text in one flow.
+- The visualizer remains inline inside the composer rather than opening a separate review surface.
+- Provide typed fallback messaging when voice capture or local transcription is unavailable, and allow inline dismissal of transient voice errors.
 
 ### HC-UI-011 Execution mode controls (Local / Full access)
 
