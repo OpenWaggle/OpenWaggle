@@ -1,6 +1,6 @@
 # 40 — Plan Mode
 
-**Status:** Planned
+**Status:** In Progress
 **Priority:** P3
 **Category:** Feature
 **Depends on:** None
@@ -110,3 +110,8 @@ When plan mode is active:
 - Component: toggle button shows correct state
 - Component: plan approval UI renders for plan-formatted responses
 - Integration: agent produces plan instead of immediately writing code when plan mode active
+
+## Review Notes (2026-03-06, spec/code audit)
+
+- Plan mode is no longer just a concept in repo docs: the composer has a real toggle, payloads carry `planModeRequested`, the prompt pipeline injects plan-mode instructions, and the `proposePlan` tool plus approval UI (`PlanCard`) are implemented end to end.
+- The main remaining gaps are product-polish and persistence: the command-palette entry is still a no-op, the toggle is composer-scoped rather than conversation-persisted, and the spec's per-conversation storage/indicator requirements are not yet met.

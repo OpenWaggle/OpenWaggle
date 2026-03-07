@@ -26,6 +26,7 @@ The sidebar shows all conversations grouped by project:
 - **Delete threads** — Hover over a thread and click the delete button.
 - **Switch threads** — Click any thread to make it active.
 - **Project groups** — Threads are grouped by their associated project folder. Unassigned threads appear in their own group.
+- **Archive project groups** — Removing a project group archives its threads instead of deleting them. Restore them later from **Settings > Archived threads**.
 
 ### Messages
 
@@ -126,23 +127,34 @@ OpenWaggle includes local speech-to-text powered by Whisper, running entirely on
 
 1. Click the **microphone** button in the composer toolbar.
 2. Speak your message. You'll see a live audio waveform and duration timer.
-3. Press the **stop** button (square icon) to end recording.
-4. The transcript appears in the composer input for review before sending.
-5. Press **Enter** to send, or edit the transcribed text first.
-
-If you press Enter or the send button while recording, it automatically stops recording, transcribes, and sends in one step.
+3. Press the **stop** button (square icon) or press **Enter** to end recording and transcribe into the composer input.
+4. Press the **send** button while recording to stop, transcribe, and send immediately in one step.
+5. If you stop instead of sending, you can edit the transcribed text before sending it normally.
 
 ### Privacy
 
-All audio processing happens locally using the Whisper Tiny model. No audio data is sent to any external service. Models are cached in your app data directory.
+All audio processing happens locally using Whisper. The composer now prefers the higher-accuracy local base model with automatic language detection. No audio data is sent to any external service. Models are cached in your app data directory and idle models are unloaded automatically after several minutes.
+
+### Errors
+
+If local transcription fails or no speech is detected, the composer shows an inline message above the input. You can dismiss that message with the close button or start a new recording to clear it.
+
+## Plan Mode
+
+Use the **Plan** button in the composer toolbar when you want the agent to outline its approach before taking action.
+
+- The next message is sent with a plan-first hint.
+- The agent can respond with an interactive plan card.
+- You can approve the plan or request revisions before implementation continues.
 
 ## Command Palette
 
 Press `Cmd+K` / `Ctrl+K` or type `/` at the beginning of the composer input to open the command palette. It provides quick access to:
 
 - **Skills** — Activate project skills inline.
-- **Waggle presets** — Start a multi-agent session.
-- **Settings** — Jump to specific settings sections.
+- **Waggle presets** — Start a multi-agent session or load a saved team preset.
+
+For settings, use the sidebar gear button or `Cmd+,` / `Ctrl+,`.
 
 Use arrow keys to navigate and Enter to select.
 

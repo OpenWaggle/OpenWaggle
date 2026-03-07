@@ -1,6 +1,6 @@
 # 28 — Build Actual Skills
 
-**Status:** Planned
+**Status:** In Progress
 **Priority:** P3
 **Category:** Feature
 **Depends on:** None (skill infrastructure already exists)
@@ -60,3 +60,8 @@ The skill system machinery is sophisticated but there are barely any skills to u
 ## No Code Changes Needed
 
 Skills are pure markdown instruction files that the existing infrastructure loads at runtime.
+
+## Review Notes (2026-03-06, spec/code audit)
+
+- The product no longer has an "empty factory" skills story: the runtime catalog, settings UI, slash references, and several project skills under `.openwaggle/skills/` are all implemented.
+- The remaining gap is narrower than the original spec: the specific high-value authoring set proposed here (`code-review`, `test-gen`, `dep-audit`, `pr-writer`, `migrate`) still has not been built in the project skills directory.

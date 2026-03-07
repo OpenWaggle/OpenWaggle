@@ -1,6 +1,6 @@
 # 08 — Pin Dependency Versions
 
-**Status:** Planned
+**Status:** In Progress
 **Priority:** P2
 **Severity:** High
 **Depends on:** None
@@ -31,3 +31,8 @@
 ## Risk if Skipped
 
 A `pnpm update` or fresh install pulls a breaking TanStack minor version, causing silent adapter failures.
+
+## Review Notes (2026-03-06, spec/code audit)
+
+- `package.json` now pins all `@tanstack/ai*` packages and `@xenova/transformers` to exact versions, so the highest-risk part of this spec is already implemented.
+- The remaining gap is process/documentation: there is still no Renovate/Dependabot policy or documented manual cadence explaining how pinned versions should be advanced safely.

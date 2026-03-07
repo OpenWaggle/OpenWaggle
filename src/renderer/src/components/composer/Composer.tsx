@@ -1,7 +1,7 @@
 import { DOUBLE_FACTOR } from '@shared/constants/constants'
 import { electronFileSchema } from '@shared/schemas/validation'
 import type { AgentSendPayload } from '@shared/types/agent'
-import { useEffect, useRef } from 'react'
+import { useEffect, useEffectEvent, useRef } from 'react'
 import { useProject } from '@/hooks/useProject'
 import { cn } from '@/lib/cn'
 import { api } from '@/lib/ipc'
@@ -10,8 +10,10 @@ import { usePreferencesStore } from '@/stores/preferences-store'
 import { useUIStore } from '@/stores/ui-store'
 import { ActionDialog } from './ActionDialog'
 import { AutoTextAttachmentChips } from './AutoTextAttachmentChips'
+import { ComposerAlerts } from './ComposerAlerts'
 import { ComposerStatusBar } from './ComposerStatusBar'
 import { ComposerToolbar } from './ComposerToolbar'
+import { resetComposerTextareaHeight, resizeComposerTextarea } from './composer-textarea'
 import { useAutoTextAttachment } from './useAutoTextAttachment'
 import { useVoiceCapture } from './useVoiceCapture'
 import { VoiceRecorder } from './VoiceRecorder'
@@ -36,9 +38,6 @@ async function prepareAndAttach(
     onToast?.(message)
   }
 }
-
-/** Max textarea auto-grow height in pixels (scrolls beyond this). */
-const TEXTAREA_MAX_HEIGHT = 300
 
 // ── Component ──
 
@@ -68,10 +67,8 @@ export function Composer({
   const addAttachments = useComposerStore((s) => s.addAttachments)
   const removeAttachment = useComposerStore((s) => s.removeAttachment)
   const planModeActive = useComposerStore((s) => s.planModeActive)
-  const voiceError = useComposerStore((s) => s.voiceError)
   const branchMessage = useComposerStore((s) => s.branchMessage)
-  const isListening = useComposerStore((s) => s.isListening)
-  const isTranscribingVoice = useComposerStore((s) => s.isTranscribingVoice)
+  const setBranchMessage = useComposerStore((s) => s.setBranchMessage)
   const reset = useComposerStore((s) => s.reset)
   const pushHistory = useComposerStore((s) => s.pushHistory)
   const historyUp = useComposerStore((s) => s.historyUp)
@@ -89,7 +86,7 @@ export function Composer({
 
   function clearComposerInput(): void {
     reset()
-    if (textareaRef.current) textareaRef.current.style.height = 'auto'
+    resetComposerTextareaHeight(textareaRef.current)
   }
 
   function dispatchPayload(payload: AgentSendPayload): boolean {
@@ -151,7 +148,7 @@ export function Composer({
   })
   const canSend =
     (!!input.trim() || attachments.length > 0) && !disabled && !hasPreparingTextAttachment
-  const isVoiceModeActive = isListening || isTranscribingVoice
+  const isVoiceModeActive = voice.isActive
 
   // ── Effects ──
 
@@ -159,42 +156,36 @@ export function Composer({
     if (!isLoading && textareaRef.current) textareaRef.current.focus()
   }, [isLoading])
 
-  // Voice mode Enter key handler
-  const voiceSendRef = useRef(voice.sendVoice)
-  const submitPayloadRef = useRef(submitPayload)
-  useEffect(() => {
-    voiceSendRef.current = voice.sendVoice
-    submitPayloadRef.current = submitPayload
+  const handleVoiceEnter = useEffectEvent(() => {
+    if (voice.mode === 'transcribing') return
+    if (voice.mode === 'recording') {
+      voice.stopCapture()
+      return
+    }
+    const state = useComposerStore.getState()
+    submitPayload({
+      text: state.input.trim(),
+      qualityPreset,
+      attachments: state.attachments,
+      planModeRequested: state.planModeActive || undefined,
+    })
   })
+
   useEffect(() => {
     if (!isVoiceModeActive) return
     function onKeyDown(event: KeyboardEvent): void {
       if (event.key !== 'Enter' || event.shiftKey) return
       event.preventDefault()
-      if (isTranscribingVoice) return
-      if (isListening) {
-        voiceSendRef.current()
-        return
-      }
-      const state = useComposerStore.getState()
-      submitPayloadRef.current({
-        text: state.input.trim(),
-        qualityPreset,
-        attachments: state.attachments,
-        planModeRequested: state.planModeActive || undefined,
-      })
+      handleVoiceEnter()
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [isVoiceModeActive, isListening, isTranscribingVoice, qualityPreset])
+  }, [isVoiceModeActive])
 
   // ── Input handlers ──
 
   function resizeTextarea(): void {
-    const el = textareaRef.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = `${Math.min(el.scrollHeight, TEXTAREA_MAX_HEIGHT)}px`
+    resizeComposerTextarea(textareaRef.current)
   }
 
   function applyHistoryEntry(text: string): void {
@@ -322,51 +313,67 @@ export function Composer({
             onRemoveAttachment={removeAttachment}
             onRemovePendingAttachment={removePendingTextAttachment}
           />
-          {(() => {
-            const errors = [attachmentError, voiceError, branchMessage].filter(
-              (msg): msg is string => Boolean(msg),
-            )
-            if (errors.length === 0) return null
-            return (
-              <div className="mb-2 rounded-md border border-border bg-bg px-2.5 py-1.5 text-[12px] text-text-secondary">
-                {errors.map((message) => (
-                  <div key={message}>{message}</div>
-                ))}
-              </div>
-            )
-          })()}
+          <ComposerAlerts
+            alerts={[
+              ...(attachmentError
+                ? [
+                    {
+                      id: 'attachment-error',
+                      message: attachmentError,
+                      onDismiss: () => setAttachmentError(null),
+                    },
+                  ]
+                : []),
+              ...(voice.error
+                ? [
+                    {
+                      id: 'voice-error',
+                      message: voice.error,
+                      onDismiss: voice.clearError,
+                    },
+                  ]
+                : []),
+              ...(branchMessage
+                ? [
+                    {
+                      id: 'branch-message',
+                      message: branchMessage,
+                      onDismiss: () => setBranchMessage(null),
+                    },
+                  ]
+                : []),
+            ]}
+          />
+        </div>
+
+        <div className="min-h-[60px] px-4 py-[14px]">
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={handleInput}
+            onPaste={handlePaste}
+            onKeyDown={handleKeyDown}
+            onClick={syncCursorPosition}
+            onKeyUp={syncCursorPosition}
+            onSelect={syncCursorPosition}
+            aria-label="Message input"
+            placeholder={
+              isLoading ? 'Add a message to the conversation...' : 'Ask for follow-up changes'
+            }
+            disabled={disabled}
+            rows={1}
+            className={cn(
+              'w-full resize-none bg-transparent text-[15px] text-text-primary',
+              'placeholder:text-text-tertiary',
+              'focus:outline-none focus-visible:shadow-none',
+              'disabled:opacity-50',
+            )}
+          />
         </div>
 
         {isVoiceModeActive ? (
-          <VoiceRecorder onSendVoice={voice.sendVoice} mediaRecorderRef={voice.mediaRecorderRef} />
+          <VoiceRecorder fileInputRef={fileInputRef} voice={voice} />
         ) : (
-          <div className="min-h-[60px] px-4 py-[14px]">
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={handleInput}
-              onPaste={handlePaste}
-              onKeyDown={handleKeyDown}
-              onClick={syncCursorPosition}
-              onKeyUp={syncCursorPosition}
-              onSelect={syncCursorPosition}
-              aria-label="Message input"
-              placeholder={
-                isLoading ? 'Add a message to the conversation...' : 'Ask for follow-up changes'
-              }
-              disabled={disabled}
-              rows={1}
-              className={cn(
-                'w-full resize-none bg-transparent text-[15px] text-text-primary',
-                'placeholder:text-text-tertiary',
-                'focus:outline-none focus-visible:shadow-none',
-                'disabled:opacity-50',
-              )}
-            />
-          </div>
-        )}
-
-        {!isVoiceModeActive && (
           <ComposerToolbar
             onSend={() => {
               void handleSubmit()
@@ -375,6 +382,7 @@ export function Composer({
             isLoading={isLoading}
             canSend={canSend}
             onToggleVoice={voice.toggleVoice}
+            voiceMode={voice.mode}
             fileInputRef={fileInputRef}
           />
         )}

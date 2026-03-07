@@ -168,7 +168,7 @@ Default features: core prompt, core tools, execution mode, standards/skills, MCP
 
 - **Planner** — LLM generates a task graph (JSON) with dependencies.
 - **Executor** — Runs tasks in dependency order.
-- **Auto-fallback** — Falls back to single-agent mode on planning failure.
+- **Fallback handling** — Orchestration flows can degrade gracefully when planning/execution fails.
 - **Run store** — Persists run state separately from conversations.
 
 ## Tech Stack
@@ -177,7 +177,7 @@ Default features: core prompt, core tools, execution mode, standards/skills, MCP
 |-------|-----------|
 | Framework | Electron 40 + electron-vite |
 | Renderer | React 19, Zustand 5, Tailwind CSS 4 |
-| AI Integration | TanStack AI 0.5 |
+| AI Integration | TanStack AI 0.6.x |
 | Language | TypeScript (strict, no `any`) |
 | Validation | Zod v4 |
 | Bundler | Vite + Rollup |

@@ -1,6 +1,6 @@
 # 07 — Settings Store Error Recovery
 
-**Status:** Planned
+**Status:** In Progress
 **Priority:** P2
 **Severity:** High
 **Depends on:** None
@@ -40,3 +40,9 @@
 ## Risk if Skipped
 
 Any IPC failure on startup permanently freezes the settings UI with no recovery path.
+
+## Review Notes (2026-03-06, spec/code audit)
+
+- `src/renderer/src/stores/preferences-store.ts` now catches settings-load failures, stores `loadError`, and exposes `retryLoad()`, so the original "silent rejection with `isLoaded` stuck false" failure mode is no longer accurate for preferences.
+- `src/renderer/src/stores/provider-store.ts` still treats provider-model load failures as best-effort and swallows initial errors, which means the broader startup recovery story is only partially implemented.
+- No mounted settings surface currently renders `loadError` or a retry banner, so the recovery state exists in the store but is not yet surfaced to users.

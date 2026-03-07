@@ -1,6 +1,6 @@
 # 10 — Whisper Model Memory Leak
 
-**Status:** Planned
+**Status:** In Progress
 **Priority:** P2
 **Severity:** High
 **Depends on:** None
@@ -37,3 +37,9 @@
 ## Risk if Skipped
 
 Long-running sessions waste 80–200MB of RAM on an idle model.
+
+## Review Notes (2026-03-06, spec/code audit)
+
+- `src/main/ipc/voice-handler.ts` now tracks `lastUsedAt`, schedules idle eviction with a five-minute timeout, and clears cached transcribers in `resetVoiceHandlerForTests()`.
+- The core memory-retention problem is therefore addressed, but the implementation does not yet log evictions or expose the optional manual unload IPC from the original spec.
+- Recorder UX and waveform redesign now live in `tasks/specs/voice-recorder-visualizer-redesign.md` so Whisper runtime/memory scope stays separate from renderer voice-surface work.

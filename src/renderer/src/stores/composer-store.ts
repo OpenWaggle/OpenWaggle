@@ -10,14 +10,6 @@ export type ComposerActionDialogKind =
 
 type MenuKind = 'quality' | 'execution' | 'branch' | null
 
-interface VoicePatch {
-  isListening?: boolean
-  isTranscribingVoice?: boolean
-  voiceError?: string | null
-  voiceElapsedSeconds?: number
-  voiceWaveform?: number[]
-}
-
 const PROMPT_HISTORY_KEY = 'openwaggle:prompt-history'
 const PROMPT_HISTORY_MAX = 100
 
@@ -98,14 +90,6 @@ interface ComposerState {
   setBranchQuery: (query: string) => void
   setBranchMessage: (message: string | null) => void
 
-  // Voice
-  isListening: boolean
-  isTranscribingVoice: boolean
-  voiceError: string | null
-  voiceElapsedSeconds: number
-  voiceWaveform: number[]
-  setVoiceState: (patch: VoicePatch) => void
-
   // Plan mode
   planModeActive: boolean
   togglePlanMode: () => void
@@ -138,11 +122,6 @@ interface InitialComposerState {
   branchQuery: string
   branchMessage: string | null
   planModeActive: boolean
-  isListening: boolean
-  isTranscribingVoice: boolean
-  voiceError: string | null
-  voiceElapsedSeconds: number
-  voiceWaveform: number[]
   slashHighlightIndex: number
   dismissedSlashToken: string | null
 }
@@ -167,11 +146,6 @@ function buildInitialState(): InitialComposerState {
     branchQuery: '',
     branchMessage: null,
     planModeActive: false,
-    isListening: false,
-    isTranscribingVoice: false,
-    voiceError: null,
-    voiceElapsedSeconds: 0,
-    voiceWaveform: [],
     slashHighlightIndex: 0,
     dismissedSlashToken: null,
   }
@@ -286,16 +260,6 @@ export const useComposerStore = create<ComposerState>((set, get) => ({
     set({ branchMessage: message })
   },
 
-  setVoiceState(patch: VoicePatch) {
-    set((s) => ({
-      isListening: patch.isListening ?? s.isListening,
-      isTranscribingVoice: patch.isTranscribingVoice ?? s.isTranscribingVoice,
-      voiceError: patch.voiceError !== undefined ? patch.voiceError : s.voiceError,
-      voiceElapsedSeconds: patch.voiceElapsedSeconds ?? s.voiceElapsedSeconds,
-      voiceWaveform: patch.voiceWaveform ?? s.voiceWaveform,
-    }))
-  },
-
   togglePlanMode() {
     set((s) => ({ planModeActive: !s.planModeActive }))
   },
@@ -317,7 +281,6 @@ export const useComposerStore = create<ComposerState>((set, get) => ({
       draftInput: '',
       attachments: [],
       attachmentError: null,
-      voiceError: null,
       branchMessage: null,
       dismissedSlashToken: null,
       slashHighlightIndex: 0,

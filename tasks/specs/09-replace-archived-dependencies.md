@@ -1,6 +1,6 @@
 # 09 — Replace Archived Dependencies
 
-**Status:** Planned
+**Status:** In Progress
 **Priority:** P2
 **Severity:** High
 **Depends on:** None
@@ -36,3 +36,8 @@ Both process untrusted user-uploaded files, making them security-sensitive.
 ## Risk if Skipped
 
 Known vulnerabilities in PDF/DOCX parsing with no upstream fixes. Processing untrusted files with archived libraries is a security liability.
+
+## Review Notes (2026-03-06, spec/code audit)
+
+- PDF extraction has already moved to `unpdf` (`src/main/ipc/attachments-handler.ts` and `package.json`), so that half of the dependency risk has been addressed.
+- DOCX extraction still relies on `mammoth`, and the handler carries an explicit TODO to replace it with a maintained alternative, so the spec should stay open until the DOCX path is migrated.

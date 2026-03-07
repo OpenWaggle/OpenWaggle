@@ -77,7 +77,7 @@ describe('registerVoiceHandlers', () => {
     resetVoiceHandlerForTests()
   })
 
-  it('registers local voice transcription and returns Whisper tiny text by default', async () => {
+  it('registers local voice transcription and returns Whisper base text by default', async () => {
     const transcriber = vi.fn(async (_audio: Float32Array, _options?: object) => ({
       text: 'hello from local whisper',
     }))
@@ -100,8 +100,8 @@ describe('registerVoiceHandlers', () => {
     })
     expect(pipelineMock).toHaveBeenCalledWith(
       'automatic-speech-recognition',
-      'Xenova/whisper-tiny.en',
-      { quantized: true },
+      'Xenova/whisper-base',
+      { quantized: false },
     )
     expect(transcriber).toHaveBeenCalledOnce()
 
@@ -118,7 +118,7 @@ describe('registerVoiceHandlers', () => {
     expect(normalized[2]).toBeCloseTo(0.9, 3)
     expect(result).toEqual({
       text: 'hello from local whisper',
-      model: 'tiny',
+      model: 'base',
     })
     expect(transformersEnv.allowLocalModels).toBe(true)
     expect(transformersEnv.allowRemoteModels).toBe(true)
@@ -151,6 +151,17 @@ describe('registerVoiceHandlers', () => {
     await expect(handler?.({}, { pcm16: toPcm16([0.1]), sampleRate: 16_000 })).rejects.toThrow(
       'Connect once to download it',
     )
+  })
+
+  it('mentions the requested tiny model in load failures', async () => {
+    pipelineMock.mockRejectedValue(new Error('network timeout'))
+
+    registerVoiceHandlers()
+    const handler = registeredHandler('voice:transcribe-local')
+
+    await expect(
+      handler?.({}, { pcm16: toPcm16([0.1]), sampleRate: 16_000, model: 'tiny' }),
+    ).rejects.toThrow('Local Whisper tiny model is not available yet')
   })
 
   it('maps missing sharp binary failures to actionable local setup guidance', async () => {

@@ -1,6 +1,6 @@
 # 13 — Conversation Backup & Recovery
 
-**Status:** Planned
+**Status:** In Progress
 **Priority:** P2
 **Severity:** High
 **Depends on:** None
@@ -30,3 +30,8 @@ Conversations are stored as individual JSON files. If a file is corrupted (parti
 - Unit: backup file created on each save
 - Unit: corrupted primary loads from backup
 - Unit: both corrupt surfaces clear error
+
+## Review Notes (2026-03-06, spec/code audit)
+
+- Conversation saves already go through `atomicWriteJSON()` in `src/main/store/conversations.ts`, so the repository has the atomic-write foundation this spec asked for.
+- Backup rotation, backup restore on load failure, and user-facing recovery messaging are still missing, so the data-loss mitigation is only partially complete.

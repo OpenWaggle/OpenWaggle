@@ -1,12 +1,12 @@
 import type { QualityPreset } from '@shared/types/settings'
-import { ArrowUp, ClipboardList, Loader2, Mic, Plus, Square } from 'lucide-react'
+import { ArrowUp, ClipboardList, Loader2, Mic, Square } from 'lucide-react'
 import { ModelSelector } from '@/components/shared/ModelSelector'
 import { Popover } from '@/components/shared/Popover'
-import { useProject } from '@/hooks/useProject'
 import { cn } from '@/lib/cn'
 import { useComposerStore } from '@/stores/composer-store'
 import { usePreferencesStore } from '@/stores/preferences-store'
 import { useProviderStore } from '@/stores/provider-store'
+import { ComposerAttachButton } from './ComposerAttachButton'
 
 const QUALITY_PRESET_LABEL: Record<QualityPreset, string> = {
   low: 'Low',
@@ -20,6 +20,7 @@ interface ComposerToolbarProps {
   isLoading: boolean
   canSend: boolean
   onToggleVoice: () => void
+  voiceMode: 'idle' | 'recording' | 'transcribing'
   fileInputRef: React.RefObject<HTMLInputElement | null>
 }
 
@@ -29,9 +30,9 @@ export function ComposerToolbar({
   isLoading,
   canSend,
   onToggleVoice,
+  voiceMode,
   fileInputRef,
 }: ComposerToolbarProps): React.JSX.Element {
-  const { projectPath } = useProject()
   const settings = usePreferencesStore((s) => s.settings)
   const providerModels = useProviderStore((s) => s.providerModels)
   const setDefaultModel = usePreferencesStore((s) => s.setDefaultModel)
@@ -41,8 +42,8 @@ export function ComposerToolbar({
   const openMenu = useComposerStore((s) => s.openMenu)
   const planModeActive = useComposerStore((s) => s.planModeActive)
   const togglePlanMode = useComposerStore((s) => s.togglePlanMode)
-  const isListening = useComposerStore((s) => s.isListening)
-  const isTranscribingVoice = useComposerStore((s) => s.isTranscribingVoice)
+  const isListening = voiceMode === 'recording'
+  const isTranscribingVoice = voiceMode === 'transcribing'
 
   async function handleQualityChange(preset: QualityPreset): Promise<void> {
     openMenu(null)
@@ -53,20 +54,7 @@ export function ComposerToolbar({
   return (
     <div className="flex items-center justify-between h-11 px-4">
       <div className="flex items-center gap-1.5">
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={!projectPath}
-          className={cn(
-            'flex items-center justify-center h-6 w-6 rounded-md border border-button-border text-text-tertiary transition-colors',
-            projectPath
-              ? 'hover:bg-bg-hover hover:text-text-secondary'
-              : 'cursor-not-allowed opacity-60',
-          )}
-          title={projectPath ? 'Attach files' : 'Select a project first'}
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </button>
+        <ComposerAttachButton fileInputRef={fileInputRef} />
 
         <ModelSelector
           value={settings.defaultModel}
