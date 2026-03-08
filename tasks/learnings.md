@@ -20,6 +20,11 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Task: T3Code Competitive Analysis — Spec Design (2026-03-07)
+- Shiki syntax highlighting uses WASM grammars that need explicit asset handling in electron-vite config (`assetsInclude: ['**/*.wasm']`); unlike highlight.js CSS classes, Shiki outputs inline `style` attributes with `color` properties, which affects CSP and sanitization schema configuration.
+- Lexical editor integration in a Composer that has many existing behaviors (history, voice, paste, command palette trigger) requires preserving all of them through Lexical plugins rather than raw `onKeyDown` handlers — Lexical intercepts keyboard events before they reach the component, so handlers must be registered as Lexical command listeners.
+- SQLite in Electron requires careful library selection: `better-sqlite3` needs native addon compilation (electron-rebuild) while `node:sqlite` (Node 22+) may not be available in Electron's bundled Node version — the Electron-bundled Node version is the constraint, not the system Node. [SKILL?]
+
 ### Task: Voice Recorder Visualizer + Transcription Quality (2026-03-07)
 - Local Whisper transcription quality dropped sharply when the renderer hard-coded the smallest English-only model (`tiny.en`) and forced `language: 'en'`; switching the default request path to `base` plus language auto-detection materially improves multilingual/accent robustness without changing the privacy model.
 
