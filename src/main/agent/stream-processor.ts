@@ -134,6 +134,7 @@ export async function processAgentStream(
   params: ProcessAgentStreamParams,
 ): Promise<ProcessAgentStreamResult> {
   const { stream, collector, onChunk, signal, hooks, runContext } = params
+  const conversationId = runContext.conversation?.id
   const forwardChunkParams: ForwardChunkParams = { collector, onChunk, hooks, runContext }
   const timeout = params.stallTimeoutMs ?? STREAM_STALL_TIMEOUT_MS
   let aborted = false
@@ -171,7 +172,7 @@ export async function processAgentStream(
         if (approvalTraceActive) {
           approvalTraceLogger.info('stream-chunk', {
             runId: runContext.runId,
-            conversationId: runContext.conversation.id,
+            conversationId,
             chunkType: chunk.type,
             toolCallId: chunk.type === 'TOOL_CALL_END' ? chunk.toolCallId : undefined,
             hasResult: chunk.type === 'TOOL_CALL_END' ? chunk.result !== undefined : undefined,
@@ -219,7 +220,7 @@ export async function processAgentStream(
       if (approvalTraceActive) {
         approvalTraceLogger.info('stream-chunk', {
           runId: runContext.runId,
-          conversationId: runContext.conversation.id,
+          conversationId,
           chunkType: chunk.type,
           toolCallId: chunk.type === 'TOOL_CALL_END' ? chunk.toolCallId : undefined,
           hasResult: chunk.type === 'TOOL_CALL_END' ? chunk.result !== undefined : undefined,
@@ -238,7 +239,7 @@ export async function processAgentStream(
     if (approvalTraceActive) {
       approvalTraceLogger.info('stream-finished', {
         runId: runContext.runId,
-        conversationId: runContext.conversation.id,
+        conversationId,
         aborted,
         timedOut,
         stallReason,
