@@ -100,22 +100,93 @@ function toolCallKey(name: string, args: string): string {
   return `${name}:${args}`
 }
 
+const TOOL_CALL_PENDING_RANK = 1
+const TOOL_CALL_ADVANCED_STATE_RANK = 2
+const TOOL_CALL_TERMINAL_RESULT_RANK = 3
+
+interface PreferredToolCallOccurrence {
+  messageId: string
+  messageIndex: number
+  rank: number
+}
+
+function turnScopedToolCallKey(turnIndex: number, name: string, args: string): string {
+  return `${String(turnIndex)}:${toolCallKey(name, args)}`
+}
+
+function toolCallRank(msg: UIMessage, toolCallId: string, state: string): number {
+  const hasTerminalResult = msg.parts.some(
+    (part) => part.type === 'tool-result' && part.toolCallId === toolCallId,
+  )
+  if (hasTerminalResult) return TOOL_CALL_TERMINAL_RESULT_RANK
+  if (
+    state === 'input-complete' ||
+    state === 'approval-responded' ||
+    state === 'output-available'
+  ) {
+    return TOOL_CALL_ADVANCED_STATE_RANK
+  }
+  return TOOL_CALL_PENDING_RANK
+}
+
+function shouldPreferToolCallOccurrence(
+  current: PreferredToolCallOccurrence | undefined,
+  next: PreferredToolCallOccurrence,
+): boolean {
+  if (!current) return true
+  if (next.rank !== current.rank) return next.rank > current.rank
+  return next.messageIndex > current.messageIndex
+}
+
+function buildPreferredToolCallMessages(messages: UIMessage[]): ReadonlyMap<string, string> {
+  let turnIndex = 0
+  const preferred = new Map<string, PreferredToolCallOccurrence>()
+
+  for (let messageIndex = 0; messageIndex < messages.length; messageIndex++) {
+    const msg = messages[messageIndex]
+    if (msg.role === 'user' && messageIndex > 0) {
+      turnIndex++
+    }
+
+    if (msg.role !== 'assistant') continue
+
+    for (const part of msg.parts) {
+      if (part.type !== 'tool-call' || part.name === '_turnBoundary') continue
+
+      const key = turnScopedToolCallKey(turnIndex, part.name, part.arguments)
+      const candidate: PreferredToolCallOccurrence = {
+        messageId: msg.id,
+        messageIndex,
+        rank: toolCallRank(msg, part.id, part.state),
+      }
+
+      if (shouldPreferToolCallOccurrence(preferred.get(key), candidate)) {
+        preferred.set(key, candidate)
+      }
+    }
+  }
+
+  return new Map(Array.from(preferred.entries(), ([key, value]) => [key, value.messageId] as const))
+}
+
 /**
  * Given a message and a set of already-seen tool-call keys,
  * returns a filtered copy of the message with duplicate tool-call
  * (and their matching tool-result) parts removed.
  * Returns `null` when the message has no visible content left.
  */
-function deduplicateToolCalls(msg: UIMessage, seenKeys: Set<string>): UIMessage | null {
+function deduplicateToolCalls(
+  msg: UIMessage,
+  turnIndex: number,
+  preferredMessageIds: ReadonlyMap<string, string>,
+): UIMessage | null {
   const duplicateIds = new Set<string>()
 
   for (const p of msg.parts) {
     if (p.type === 'tool-call' && p.name !== '_turnBoundary') {
-      const key = toolCallKey(p.name, p.arguments)
-      if (seenKeys.has(key)) {
+      const key = turnScopedToolCallKey(turnIndex, p.name, p.arguments)
+      if (preferredMessageIds.get(key) !== msg.id) {
         duplicateIds.add(p.id)
-      } else {
-        seenKeys.add(key)
       }
     }
   }
@@ -166,7 +237,8 @@ export function buildVirtualRows({
   phase,
 }: BuildVirtualRowsParams): VirtualRow[] {
   const rows: VirtualRow[] = []
-  const seenToolCallKeys = new Set<string>()
+  const preferredToolCallMessages = buildPreferredToolCallMessages(messages)
+  let turnIndex = 0
 
   const lastMsg = messages[messages.length - 1]
   const lastIsStreaming = isLoading && lastMsg?.role === 'assistant'
@@ -175,16 +247,18 @@ export function buildVirtualRows({
     let msg = messages[i]
     const meta = waggleMetadataLookup[msg.id]
 
-    // Reset dedup scope at each new user turn. Identical tool calls in later
+    // Deduplication is scoped per user turn. Identical tool calls in later
     // user turns are legitimate and should remain visible.
-    if (msg.role === 'user') {
-      seenToolCallKeys.clear()
+    if (msg.role === 'user' && i > 0) {
+      turnIndex++
     }
 
     // Deduplicate tool-call parts that were re-proposed by the model
-    // across continuation runs (TanStack AI TextEngine limitation).
+    // across continuation runs (TanStack AI TextEngine limitation). Prefer
+    // the richest/latest occurrence so terminal denied/completed rows replace
+    // stale earlier approval-needed placeholders.
     if (msg.role === 'assistant') {
-      const deduped = deduplicateToolCalls(msg, seenToolCallKeys)
+      const deduped = deduplicateToolCalls(msg, turnIndex, preferredToolCallMessages)
       if (!deduped) continue
       msg = deduped
     }

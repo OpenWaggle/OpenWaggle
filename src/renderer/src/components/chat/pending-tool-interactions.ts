@@ -1,8 +1,20 @@
+import type { Conversation } from '@shared/types/conversation'
 import type { UserQuestion } from '@shared/types/question'
 import { askUserArgsSchema } from '@shared/types/question'
 import { isTrustableToolName } from '@shared/types/tool-approval'
-import { isRecord } from '@shared/utils/validation'
+import {
+  hasConcreteToolOutput,
+  isDeniedApprovalPayload,
+  isIncompleteToolPayload,
+} from '@shared/utils/tool-result-state'
 import type { UIMessage } from '@tanstack/ai-react'
+import { createRendererLogger } from '@/lib/logger'
+import {
+  buildPersistedToolCallLookup,
+  restorePersistedToolCallPart,
+} from '@/lib/persisted-tool-call-reconciliation'
+
+const logger = createRendererLogger('pending-tool-interactions')
 
 export interface PendingApproval {
   readonly toolName: string
@@ -27,40 +39,38 @@ function parseAskUserQuestions(args: string): UserQuestion[] {
     if (result.success) {
       return result.data.questions
     }
-  } catch {}
+    logger.warn('Failed to validate askUser questions', {
+      issues: result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`),
+    })
+  } catch (error) {
+    logger.warn('Failed to parse askUser tool arguments', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
 
   return []
 }
 
 function hasCompleteToolArguments(args: string): boolean {
+  const trimmed = args.trim()
+  if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) {
+    return false
+  }
+
   try {
     const parsed: unknown = JSON.parse(args)
     return typeof parsed === 'object' && parsed !== null
-  } catch {
+  } catch (error) {
+    logger.warn('Failed to parse tool arguments while checking approval completeness', {
+      error: error instanceof Error ? error.message : String(error),
+    })
     return false
   }
 }
 
-function parseMaybeJson(value: unknown): unknown {
-  if (typeof value !== 'string') {
-    return value
-  }
-
-  try {
-    return JSON.parse(value)
-  } catch {
-    return value
-  }
-}
-
-function unwrapNormalizedJsonPayload(value: unknown): unknown {
-  if (!isRecord(value)) {
-    return value
-  }
-  if (value.kind === 'json' && 'data' in value) {
-    return value.data
-  }
-  return value
+function getStringProperty(value: object, propertyName: string): string | null {
+  const descriptor = Object.getOwnPropertyDescriptor(value, propertyName)
+  return typeof descriptor?.value === 'string' ? descriptor.value : null
 }
 
 function getToolResultPayload(
@@ -75,40 +85,71 @@ function getToolResultPayload(
   return undefined
 }
 
-function isPendingExecutionPayload(payload: unknown): boolean {
-  const normalizedPayload = unwrapNormalizedJsonPayload(parseMaybeJson(payload))
-  if (!isRecord(normalizedPayload)) {
-    return false
-  }
-  return normalizedPayload.pendingExecution === true
-}
-
-function isApprovalStatusPayload(payload: unknown): boolean {
-  const normalizedPayload = unwrapNormalizedJsonPayload(parseMaybeJson(payload))
-  if (!isRecord(normalizedPayload)) {
-    return false
-  }
-
-  return (
-    typeof normalizedPayload.approved === 'boolean' && typeof normalizedPayload.message === 'string'
-  )
-}
-
-function isIncompleteToolPayload(payload: unknown): boolean {
-  return isPendingExecutionPayload(payload) || isApprovalStatusPayload(payload)
-}
-
-function hasConcreteToolOutput(payload: unknown): boolean {
-  return payload !== undefined && !isIncompleteToolPayload(payload)
-}
-
 function isCompletedToolResult(
   part: Extract<UIMessage['parts'][number], { type: 'tool-result' }>,
 ): boolean {
   return !isIncompleteToolPayload(getToolResultPayload(part))
 }
 
-export function findPendingApproval(messages: UIMessage[]): PendingApproval | null {
+function findPendingApprovalFromPersistedConversation(
+  conversation: Conversation | null | undefined,
+): PendingApproval | null {
+  if (!conversation) {
+    return null
+  }
+
+  const completedToolCallIds = new Set<string>()
+  for (const message of conversation.messages) {
+    for (const part of message.parts) {
+      if (part.type === 'tool-result' && !isIncompleteToolPayload(part.toolResult.result)) {
+        completedToolCallIds.add(String(part.toolResult.id))
+      }
+    }
+  }
+
+  for (let messageIndex = conversation.messages.length - 1; messageIndex >= 0; messageIndex -= 1) {
+    const message = conversation.messages[messageIndex]
+    if (!message) {
+      continue
+    }
+
+    for (let partIndex = message.parts.length - 1; partIndex >= 0; partIndex -= 1) {
+      const part = message.parts[partIndex]
+      if (!part || part.type !== 'tool-call') {
+        continue
+      }
+
+      const hasApprovalMetadata = part.toolCall.approval?.needsApproval === true
+      if (!hasApprovalMetadata || completedToolCallIds.has(String(part.toolCall.id))) {
+        continue
+      }
+
+      if (part.toolCall.approval?.approved === false) {
+        continue
+      }
+
+      if (part.toolCall.state === 'approval-responded') {
+        continue
+      }
+
+      return {
+        toolName: part.toolCall.name,
+        toolArgs: JSON.stringify(part.toolCall.args),
+        approvalId: part.toolCall.approval?.id ?? `approval_${String(part.toolCall.id)}`,
+        toolCallId: String(part.toolCall.id),
+        hasApprovalMetadata: true,
+      }
+    }
+  }
+
+  return null
+}
+
+export function findPendingApproval(
+  messages: UIMessage[],
+  persistedConversation?: Conversation | null,
+): PendingApproval | null {
+  const persistedToolCalls = buildPersistedToolCallLookup(persistedConversation)
   const completedToolCallIds = new Set<string>()
   for (const message of messages) {
     for (const part of message.parts) {
@@ -130,17 +171,24 @@ export function findPendingApproval(messages: UIMessage[]): PendingApproval | nu
         continue
       }
       if (part.type === 'tool-call') {
-        const hasApprovalMetadata = part.approval?.needsApproval === true
+        const restoredPart = restorePersistedToolCallPart(part, persistedToolCalls)
+        const approval = restoredPart.approval
+        const state = restoredPart.state
+        const hasApprovalMetadata = approval?.needsApproval === true
         const hasCompletedResult = completedToolCallIds.has(part.id)
+        const deniedApproval = approval?.approved === false || isDeniedApprovalPayload(part.output)
         const unresolvedApprovalState =
-          hasApprovalMetadata && part.state !== 'approval-responded' && !hasCompletedResult
+          hasApprovalMetadata &&
+          !deniedApproval &&
+          (state !== 'approval-responded' || !hasConcreteToolOutput(part.output)) &&
+          !hasCompletedResult
         const trustableCallWithoutApprovalMetadata =
           !hasApprovalMetadata && isTrustableToolName(part.name)
         const unresolvedTrustableFallback =
           trustableCallWithoutApprovalMetadata &&
           !hasCompletedResult &&
           !hasConcreteToolOutput(part.output) &&
-          part.state !== 'input-streaming' &&
+          state !== 'input-streaming' &&
           hasCompleteToolArguments(part.arguments)
 
         if (!unresolvedApprovalState && !unresolvedTrustableFallback) {
@@ -150,7 +198,7 @@ export function findPendingApproval(messages: UIMessage[]): PendingApproval | nu
         return {
           toolName: part.name,
           toolArgs: part.arguments,
-          approvalId: part.approval?.id ?? `approval_${part.id}`,
+          approvalId: approval?.id ?? `approval_${part.id}`,
           toolCallId: part.id,
           hasApprovalMetadata,
         }
@@ -158,17 +206,23 @@ export function findPendingApproval(messages: UIMessage[]): PendingApproval | nu
     }
   }
 
-  return null
+  return findPendingApprovalFromPersistedConversation(persistedConversation)
 }
 
 function parsePlanText(args: string): string {
   try {
     const parsed: unknown = JSON.parse(args)
-    if (typeof parsed === 'object' && parsed !== null && 'planText' in parsed) {
-      const planText = (parsed as { planText: unknown }).planText
-      if (typeof planText === 'string') return planText
+    if (typeof parsed === 'object' && parsed !== null) {
+      const planText = getStringProperty(parsed, 'planText')
+      if (planText !== null) {
+        return planText
+      }
     }
-  } catch {}
+  } catch (error) {
+    logger.warn('Failed to parse proposePlan tool arguments', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
   return ''
 }
 

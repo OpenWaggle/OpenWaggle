@@ -1,27 +1,13 @@
-import fs from 'node:fs/promises'
-import os from 'node:os'
-import path from 'node:path'
-import { _electron as electron, expect, test } from '@playwright/test'
+import { expect, test } from '@playwright/test'
+import { OpenWaggleApp } from './support/openwaggle-app'
 
 const INLINE_SCRIPT_FLAG = '__OPENWAGGLE_INLINE_SCRIPT_EXECUTED__'
 
-async function launchWithUserData(userDataDir: string) {
-  return electron.launch({
-    args: ['.'],
-    env: {
-      ...process.env,
-      OPENWAGGLE_USER_DATA_DIR: userDataDir,
-    },
-  })
-}
-
 test('CSP blocks inline script execution in renderer', async () => {
-  const userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-e2e-csp-'))
-  const app = await launchWithUserData(userDataDir)
+  const app = await OpenWaggleApp.launch('openwaggle-e2e-csp-')
 
   try {
-    const window = await app.firstWindow()
-    await expect(window.getByText("Let's build")).toBeVisible()
+    const window = app.window()
 
     const inlineScriptExecuted = await window.evaluate((scriptFlag) => {
       Reflect.set(window, scriptFlag, false)
@@ -33,7 +19,6 @@ test('CSP blocks inline script execution in renderer', async () => {
 
     expect(inlineScriptExecuted).toBe(false)
   } finally {
-    await app.close()
-    await fs.rm(userDataDir, { recursive: true, force: true })
+    await app.cleanup()
   }
 })

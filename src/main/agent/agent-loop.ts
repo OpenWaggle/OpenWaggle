@@ -1,10 +1,18 @@
 import { randomUUID } from 'node:crypto'
+import { jsonObjectSchema } from '@shared/schemas/validation'
 import type { HydratedAgentSendPayload, Message } from '@shared/types/agent'
-import type { SkipApprovalToken } from '@shared/types/brand'
+import { type SkipApprovalToken, ToolCallId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
+import type { JsonObject } from '@shared/types/json'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { Settings } from '@shared/types/settings'
 import { choose } from '@shared/utils/decision'
+import { parseJsonSafe } from '@shared/utils/parse-json'
+import {
+  isDeniedApprovalPayload,
+  normalizeToolResultPayload,
+} from '@shared/utils/tool-result-state'
+import { isRecord } from '@shared/utils/validation'
 import { chat, type ModelMessage, maxIterations, type StreamChunk } from '@tanstack/ai'
 import { loadProjectConfig } from '../config/project-config'
 import { createLogger } from '../logger'
@@ -33,6 +41,7 @@ import { processAgentStream } from './stream-processor'
 import { resolveToolContextAttachments } from './tool-context-attachments'
 
 const logger = createLogger('agent')
+const approvalTraceLogger = createLogger('approval-trace')
 
 const MAX_ITERATIONS = 25
 const MAX_STALL_RETRIES = 2
@@ -61,6 +70,113 @@ export interface AgentRunParams {
 export interface AgentRunResult {
   readonly newMessages: readonly Message[]
   readonly finalMessage: Message
+}
+
+interface DeniedApprovalSnapshot {
+  readonly toolCallId: string
+  readonly toolName: string
+  readonly args: string
+  readonly message: string
+}
+
+function parseToolArgumentsObject(args: string): {
+  readonly parsed: JsonObject
+  readonly valid: boolean
+} {
+  const result = parseJsonSafe(args, jsonObjectSchema)
+  if (result.success) {
+    return { parsed: result.data, valid: true }
+  }
+
+  return { parsed: {}, valid: false }
+}
+
+function describeContinuationMessageFormat(
+  continuationMessages: readonly ContinuationMessage[],
+): 'ui' | 'model' | 'mixed' | 'none' {
+  if (continuationMessages.length === 0) {
+    return 'none'
+  }
+
+  let sawUiMessage = false
+  let sawModelMessage = false
+
+  for (const message of continuationMessages) {
+    if ('parts' in message) {
+      sawUiMessage = true
+    } else {
+      sawModelMessage = true
+    }
+  }
+
+  if (sawUiMessage && sawModelMessage) {
+    return 'mixed'
+  }
+
+  return sawUiMessage ? 'ui' : 'model'
+}
+
+function extractDeniedApprovalSnapshot(
+  continuationMessages: readonly ContinuationMessage[],
+): DeniedApprovalSnapshot | null {
+  const completedToolCallIds = new Set<string>()
+
+  for (const message of continuationMessages) {
+    if (!('parts' in message)) {
+      continue
+    }
+
+    for (const part of message.parts) {
+      if (part.type === 'tool-result') {
+        completedToolCallIds.add(part.toolCallId)
+      }
+    }
+  }
+
+  for (let messageIndex = continuationMessages.length - 1; messageIndex >= 0; messageIndex -= 1) {
+    const message = continuationMessages[messageIndex]
+    if (!message || !('parts' in message) || message.role !== 'assistant') {
+      continue
+    }
+
+    for (let partIndex = message.parts.length - 1; partIndex >= 0; partIndex -= 1) {
+      const part = message.parts[partIndex]
+      if (!part || part.type !== 'tool-call') {
+        continue
+      }
+
+      if (completedToolCallIds.has(part.id)) {
+        continue
+      }
+
+      const deniedPayload = normalizeToolResultPayload(part.output)
+      const deniedByOutput = isDeniedApprovalPayload(deniedPayload)
+      const deniedByApproval = part.approval?.approved === false
+
+      if (!deniedByOutput && !deniedByApproval) {
+        continue
+      }
+
+      const messageText =
+        deniedByOutput && isRecord(deniedPayload)
+          ? (() => {
+              const candidateMessage = deniedPayload.message
+              return typeof candidateMessage === 'string'
+                ? candidateMessage
+                : 'User declined tool execution'
+            })()
+          : 'User declined tool execution'
+
+      return {
+        toolCallId: part.id,
+        toolName: part.name,
+        args: part.arguments,
+        message: messageText,
+      }
+    }
+  }
+
+  return null
 }
 
 async function withStageTiming<T>(
@@ -217,6 +333,9 @@ function buildUserChatContent(
 export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> {
   const { conversation, payload, model, settings, onChunk, signal, skipApproval } = params
   const hasContinuationMessages = (payload.continuationMessages?.length ?? 0) > 0
+  const continuationMessageFormat = describeContinuationMessageFormat(
+    payload.continuationMessages ?? [],
+  )
   const projectPath = resolveAgentProjectPath(conversation.projectPath)
   const toolContextAttachments = resolveToolContextAttachments(conversation, payload)
   const dynamicLoadedSkillIds = new Set<string>()
@@ -262,6 +381,15 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
 
       try {
         const runId = randomUUID()
+
+        if (hasContinuationMessages) {
+          approvalTraceLogger.info('continuation-run-start', {
+            runId,
+            conversationId: conversation.id,
+            continuationMessageCount: payload.continuationMessages?.length ?? 0,
+            continuationMessageFormat,
+          })
+        }
 
         // ── Stage 1: Project config ──
         const projectConfig = await withStageTiming(stageDurationsMs, 'project-config', () =>
@@ -381,6 +509,7 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
             signal,
             hooks,
             runContext,
+            approvalTraceEnabled: hasContinuationMessages,
           }),
         )
         runErrorNotified = streamResult.runErrorNotified
@@ -411,6 +540,7 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
             signal,
             hooks,
             runContext,
+            approvalTraceEnabled: hasContinuationMessages,
           })
           runErrorNotified = streamResult.runErrorNotified
         }
@@ -427,6 +557,77 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
 
         // ── Stage 7: Finalize ──
         const finalParts = collector.finalizeParts({ timedOut: streamResult.timedOut })
+        const deniedApprovalSnapshot = hasContinuationMessages
+          ? extractDeniedApprovalSnapshot(payload.continuationMessages ?? [])
+          : null
+        if (
+          deniedApprovalSnapshot &&
+          !finalParts.some(
+            (part) =>
+              part.type === 'tool-result' &&
+              String(part.toolResult.id) === deniedApprovalSnapshot.toolCallId,
+          )
+        ) {
+          const deniedArgs = parseToolArgumentsObject(deniedApprovalSnapshot.args)
+          const hasToolCallPart = finalParts.some(
+            (part) =>
+              part.type === 'tool-call' &&
+              String(part.toolCall.id) === deniedApprovalSnapshot.toolCallId,
+          )
+          if (!deniedArgs.valid) {
+            approvalTraceLogger.warn('continuation-denial-invalid-args', {
+              runId,
+              conversationId: conversation.id,
+              toolCallId: deniedApprovalSnapshot.toolCallId,
+            })
+          }
+          if (!hasToolCallPart) {
+            finalParts.unshift({
+              type: 'tool-call',
+              toolCall: {
+                id: ToolCallId(deniedApprovalSnapshot.toolCallId),
+                name: deniedApprovalSnapshot.toolName,
+                args: deniedArgs.parsed,
+                state: 'approval-responded',
+                approval: {
+                  id: `approval_${deniedApprovalSnapshot.toolCallId}`,
+                  needsApproval: true,
+                  approved: false,
+                },
+              },
+            })
+          }
+          finalParts.unshift({
+            type: 'tool-result',
+            toolResult: {
+              id: ToolCallId(deniedApprovalSnapshot.toolCallId),
+              name: deniedApprovalSnapshot.toolName,
+              args: deniedArgs.parsed,
+              result: JSON.stringify({
+                approved: false,
+                message: deniedApprovalSnapshot.message,
+              }),
+              isError: true,
+              duration: 0,
+            },
+          })
+          approvalTraceLogger.info('continuation-denial-synthesized', {
+            runId,
+            conversationId: conversation.id,
+            toolCallId: deniedApprovalSnapshot.toolCallId,
+            synthesizedToolCall: !hasToolCallPart,
+          })
+        }
+        if (hasContinuationMessages) {
+          approvalTraceLogger.info('continuation-run-finished', {
+            runId,
+            conversationId: conversation.id,
+            timedOut: streamResult.timedOut,
+            stallReason: streamResult.stallReason,
+            finalPartTypes: finalParts.map((part) => part.type),
+            toolResultCount: finalParts.filter((part) => part.type === 'tool-result').length,
+          })
+        }
 
         const stats = collector.getStats()
 

@@ -24,6 +24,14 @@ const toolCallRequestSchema = z.object({
   id: z.string(),
   name: z.string(),
   args: jsonObjectSchema,
+  state: z.enum(['input-complete', 'approval-requested', 'approval-responded']).optional(),
+  approval: z
+    .object({
+      id: z.string(),
+      needsApproval: z.boolean(),
+      approved: z.boolean().optional(),
+    })
+    .optional(),
 })
 
 const toolCallResultSchema = z.object({
@@ -138,6 +146,8 @@ function transformPart(part: ParsedPart): MessagePart {
           id: ToolCallId(value.toolCall.id),
           name: value.toolCall.name,
           args: value.toolCall.args,
+          state: value.toolCall.state,
+          approval: value.toolCall.approval,
         },
       }),
     )

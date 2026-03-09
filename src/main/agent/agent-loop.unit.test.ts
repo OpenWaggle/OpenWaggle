@@ -7,6 +7,7 @@ import {
 } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
+import type { UIMessage } from '@tanstack/ai-react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -270,6 +271,123 @@ describe('runAgent', () => {
 
     expect(normalizeContinuationAsUIMessagesMock).toHaveBeenCalledOnce()
     expect(result.newMessages.map((message) => message.role)).toEqual(['assistant'])
+  })
+
+  it('synthesizes a terminal denied tool-result for denied approval continuations', async () => {
+    const deniedContinuationMessages: UIMessage[] = [
+      {
+        id: 'assistant-denied',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'tool-denied',
+            name: 'writeFile',
+            arguments: '{"path":"denied.txt"}',
+            state: 'approval-responded',
+            approval: {
+              id: 'approval_tool-denied',
+              needsApproval: true,
+              approved: false,
+            },
+          },
+        ],
+      },
+    ]
+    normalizeContinuationAsUIMessagesMock.mockReturnValueOnce(deniedContinuationMessages)
+
+    const result = await runAgent({
+      conversation: createConversation(),
+      payload: {
+        ...createPayload(),
+        continuationMessages: deniedContinuationMessages,
+      },
+      model: MODEL,
+      settings: DEFAULT_SETTINGS,
+      onChunk: vi.fn(),
+      signal: new AbortController().signal,
+    })
+
+    expect(result.finalMessage.parts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'tool-call',
+          toolCall: expect.objectContaining({
+            id: 'tool-denied',
+            name: 'writeFile',
+            args: { path: 'denied.txt' },
+          }),
+        }),
+        expect.objectContaining({
+          type: 'tool-result',
+          toolResult: expect.objectContaining({
+            id: 'tool-denied',
+            name: 'writeFile',
+            args: { path: 'denied.txt' },
+            isError: true,
+            result: JSON.stringify({
+              approved: false,
+              message: 'User declined tool execution',
+            }),
+          }),
+        }),
+      ]),
+    )
+  })
+
+  it('does not re-synthesize a denied approval when the continuation already includes a denied tool-result', async () => {
+    const deniedContinuationMessages: UIMessage[] = [
+      {
+        id: 'assistant-denied',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'tool-denied',
+            name: 'writeFile',
+            arguments: '{"path":"denied.txt"}',
+            state: 'approval-responded',
+            approval: {
+              id: 'approval_tool-denied',
+              needsApproval: true,
+              approved: false,
+            },
+          },
+          {
+            type: 'tool-result',
+            toolCallId: 'tool-denied',
+            content: JSON.stringify({
+              approved: false,
+              message: 'User declined tool execution',
+            }),
+            state: 'complete',
+          },
+        ],
+      },
+    ]
+    normalizeContinuationAsUIMessagesMock.mockReturnValueOnce(deniedContinuationMessages)
+
+    const result = await runAgent({
+      conversation: createConversation(),
+      payload: {
+        ...createPayload(),
+        continuationMessages: deniedContinuationMessages,
+      },
+      model: MODEL,
+      settings: DEFAULT_SETTINGS,
+      onChunk: vi.fn(),
+      signal: new AbortController().signal,
+    })
+
+    expect(
+      result.finalMessage.parts.some(
+        (part) =>
+          (part.type === 'tool-result' || part.type === 'tool-call') &&
+          (part.type === 'tool-result'
+            ? String(part.toolResult.id) === 'tool-denied'
+            : String(part.toolCall.id) === 'tool-denied'),
+      ),
+    ).toBe(false)
   })
 
   it('notifies lifecycle hooks when a non-abort stream failure escapes', async () => {

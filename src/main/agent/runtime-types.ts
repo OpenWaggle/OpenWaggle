@@ -49,6 +49,7 @@ export interface AgentToolCallEndEvent {
   readonly result?: string
   readonly durationMs: number
   readonly isError: boolean
+  readonly completionState: 'input-complete' | 'execution-complete'
 }
 
 export interface AgentRunSummary {

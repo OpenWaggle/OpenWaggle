@@ -174,6 +174,10 @@ export function useChatPanelSections(): ChatPanelSections {
   const messageModelLookup = useMessageModelLookup(activeConversation)
   const waggleMetadataLookup = useWaggleMetadataLookup(activeConversation, messages)
   useWaggleChat(activeConversationId)
+  const messagesRef = useRef(messages)
+  messagesRef.current = messages
+  const activeConversationRef = useRef(activeConversation)
+  activeConversationRef.current = activeConversation
 
   const phase = useStreamingPhase(activeConversationId)
 
@@ -187,6 +191,8 @@ export function useChatPanelSections(): ChatPanelSections {
 
   const [dismissedError, setDismissedError] = useState<string | null>(null)
   const [isSteering, setIsSteering] = useState(false)
+  // Cache trust outcomes per approval/tool-call so thread switches do not
+  // temporarily hide an already-untrusted approval while trust is re-checked.
   const approvalTrustStatusRef = useRef<Record<string, ApprovalTrustStatus>>({})
   const [approvalTrustStatusById, setApprovalTrustStatusById] = useState<
     Record<string, ApprovalTrustStatus>
@@ -229,7 +235,7 @@ export function useChatPanelSections(): ChatPanelSections {
     phase,
   })
 
-  const pendingApproval = findPendingApproval(messages)
+  const pendingApproval = findPendingApproval(messages, activeConversation)
   const pendingAskUser = findPendingAskUser(messages)
   const pendingApprovalTrustableToolName =
     pendingApproval && isTrustableToolName(pendingApproval.toolName)
@@ -257,13 +263,6 @@ export function useChatPanelSections(): ChatPanelSections {
     canCheckPendingApprovalTrust,
     pendingApprovalTrustStatus,
   })
-
-  useEffect(() => {
-    if (!pendingApprovalTrustKey && Object.keys(approvalTrustStatusRef.current).length > 0) {
-      approvalTrustStatusRef.current = {}
-      setApprovalTrustStatusById({})
-    }
-  }, [pendingApprovalTrustKey])
 
   // Use stable primitive key to avoid re-firing the effect when
   // findPendingApproval returns a new object reference for the same
@@ -303,6 +302,17 @@ export function useChatPanelSections(): ChatPanelSections {
     return false
   })()
 
+  const isPendingApprovalStillCurrent = useCallback((approvalTrustKey: string): boolean => {
+    const currentPendingApproval = findPendingApproval(
+      messagesRef.current,
+      activeConversationRef.current,
+    )
+    if (!currentPendingApproval) {
+      return false
+    }
+    return getApprovalTrustStatusKey(currentPendingApproval) === approvalTrustKey
+  }, [])
+
   useEffect(() => {
     if (
       !pendingApprovalKey ||
@@ -325,8 +335,11 @@ export function useChatPanelSections(): ChatPanelSections {
     // The user already approved the identical tool+args earlier in this
     // conversation, so it's safe to auto-approve without a trust check.
     if (pendingApprovalIsDuplicateRef.current) {
-      setApprovalTrustStatus(pendingApprovalKey, 'trusted')
       void (async () => {
+        if (!isPendingApprovalStillCurrent(pendingApprovalKey)) {
+          return
+        }
+        setApprovalTrustStatus(pendingApprovalKey, 'trusted')
         try {
           await respondToolApproval(pendingApprovalId, true)
         } catch (err) {
@@ -350,7 +363,7 @@ export function useChatPanelSections(): ChatPanelSections {
           pendingApprovalTrustableToolName,
           pendingApprovalArgs ?? '',
         )
-        if (!active) return
+        if (!active || !isPendingApprovalStillCurrent(pendingApprovalKey)) return
         setApprovalTrustStatus(pendingApprovalKey, trusted ? 'trusted' : 'untrusted')
         if (trusted) {
           await respondToolApproval(pendingApprovalId, true)
@@ -359,7 +372,7 @@ export function useChatPanelSections(): ChatPanelSections {
         logger.error('[AUTO-APPROVE] Error in trust check or approval', {
           error: err instanceof Error ? err.message : String(err),
         })
-        if (!active) return
+        if (!active || !isPendingApprovalStillCurrent(pendingApprovalKey)) return
         setApprovalTrustStatus(pendingApprovalKey, 'untrusted')
       }
     })()
@@ -376,6 +389,7 @@ export function useChatPanelSections(): ChatPanelSections {
     trustProjectPath,
     respondToolApproval,
     setApprovalTrustStatus,
+    isPendingApprovalStillCurrent,
   ])
 
   function handleSelectSkill(skillId: string): void {

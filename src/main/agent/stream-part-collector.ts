@@ -11,6 +11,7 @@ import type { AgentToolCallEndEvent, AgentToolCallStartEvent } from './runtime-t
 const SLICE_ARG_PREVIEW_CHARS = 200
 const UNRESOLVED_TOOL_CALL_ERROR = 'Tool call did not complete before the stream ended.'
 const UNKNOWN_TOOL_NAME = 'unknownTool'
+const DEFAULT_APPROVAL_REQUIRED = true
 
 const logger = createLogger('stream')
 
@@ -19,6 +20,18 @@ const errorResultSchema = z.union([
   z.object({ ok: z.literal(false), message: z.string().min(1) }),
   z.object({ error: z.string().min(1) }),
 ])
+
+const approvalRequestedPayloadSchema = z
+  .object({
+    toolCallId: z.string(),
+    toolName: z.string().optional(),
+    approval: z.object({
+      id: z.string(),
+      needsApproval: z.boolean().optional(),
+      approved: z.boolean().optional(),
+    }),
+  })
+  .loose()
 
 export interface StreamPartCollectorChunkResult {
   readonly toolCallStart?: AgentToolCallStartEvent
@@ -56,6 +69,15 @@ export class StreamPartCollector {
   private readonly toolCallArgs = new Map<string, string>()
   private readonly toolCallNames = new Map<string, string>()
   private readonly toolCallStartTimes = new Map<string, number>()
+  private readonly toolCallPartIndexes = new Map<string, number>()
+  private readonly toolCallApprovalStates = new Map<
+    string,
+    { readonly id: string; readonly needsApproval: boolean; readonly approved?: boolean }
+  >()
+  private readonly toolCallStates = new Map<
+    string,
+    'input-complete' | 'approval-requested' | 'approval-responded'
+  >()
   private readonly pendingToolCallIds = new Set<string>()
   private readonly awaitingToolResultIds = new Set<string>()
   private readonly emittedToolCallIds = new Set<string>()
@@ -87,6 +109,7 @@ export class StreamPartCollector {
         this.toolCallNames.set(value.toolCallId, value.toolName)
         this.toolCallArgs.set(value.toolCallId, '')
         this.toolCallStartTimes.set(value.toolCallId, startedAt)
+        this.toolCallStates.set(value.toolCallId, 'input-complete')
         this.pendingToolCallIds.add(value.toolCallId)
 
         return {
@@ -111,6 +134,7 @@ export class StreamPartCollector {
         const durationMs = this.getDurationMs(value.toolCallId)
 
         if (value.result === undefined) {
+          const completionState = 'input-complete' as const
           this.awaitingToolResultIds.add(value.toolCallId)
           return {
             toolCallEnd: {
@@ -119,6 +143,7 @@ export class StreamPartCollector {
               args,
               durationMs,
               isError: false,
+              completionState,
             },
           }
         }
@@ -155,6 +180,7 @@ export class StreamPartCollector {
             result: resultString,
             durationMs,
             isError,
+            completionState: 'execution-complete' as const,
           },
         }
       })
@@ -170,7 +196,29 @@ export class StreamPartCollector {
           runError: new Error(value.error.message),
         }
       })
-      .case('CUSTOM', () => ({}))
+      .case('CUSTOM', (value) => {
+        if (value.name !== 'approval-requested') {
+          return {}
+        }
+
+        const approvalEvent = approvalRequestedPayloadSchema.safeParse(value.value)
+        if (!approvalEvent.success) {
+          return {}
+        }
+
+        const toolCallId = approvalEvent.data.toolCallId
+        const toolName =
+          approvalEvent.data.toolName ?? this.toolCallNames.get(toolCallId) ?? UNKNOWN_TOOL_NAME
+        this.toolCallNames.set(toolCallId, toolName)
+        this.toolCallStates.set(toolCallId, 'approval-requested')
+        this.toolCallApprovalStates.set(toolCallId, {
+          id: approvalEvent.data.approval.id,
+          needsApproval: approvalEvent.data.approval.needsApproval ?? DEFAULT_APPROVAL_REQUIRED,
+          approved: approvalEvent.data.approval.approved,
+        })
+        this.ensureToolCallPart(toolCallId, toolName)
+        return {}
+      })
       .case('RUN_FINISHED', () => ({}))
       .catchAll(() => ({}))
   }
@@ -244,13 +292,32 @@ export class StreamPartCollector {
     if (!this.emittedToolCallIds.has(toolCallId)) {
       this.collectedParts.push({
         type: 'tool-call',
-        toolCall: { id: ToolCallId(toolCallId), name: resolvedName, args },
+        toolCall: this.buildToolCallPayload(toolCallId, resolvedName, args),
       })
+      this.toolCallPartIndexes.set(toolCallId, this.collectedParts.length - 1)
       this.emittedToolCallIds.add(toolCallId)
       this.toolCalls += 1
+    } else {
+      const existingIndex = this.toolCallPartIndexes.get(toolCallId)
+      if (existingIndex !== undefined) {
+        this.collectedParts[existingIndex] = {
+          type: 'tool-call',
+          toolCall: this.buildToolCallPayload(toolCallId, resolvedName, args),
+        }
+      }
     }
 
     return args
+  }
+
+  private buildToolCallPayload(toolCallId: string, toolName: string, args: JsonObject) {
+    return {
+      id: ToolCallId(toolCallId),
+      name: toolName,
+      args,
+      state: this.toolCallStates.get(toolCallId),
+      approval: this.toolCallApprovalStates.get(toolCallId),
+    }
   }
 
   private getDurationMs(toolCallId: string): number {

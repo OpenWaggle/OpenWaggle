@@ -69,6 +69,7 @@ describe('StreamPartCollector', () => {
 
     expect(start.toolCallStart?.toolName).toBe('readFile')
     expect(end.toolCallEnd?.result).toBe('{"kind":"text","text":"contents"}')
+    expect(end.toolCallEnd?.completionState).toBe('execution-complete')
     expect(stats.toolCalls).toBe(1)
     expect(stats.toolErrors).toBe(0)
 
@@ -80,6 +81,8 @@ describe('StreamPartCollector', () => {
           id: 'tool-1',
           name: 'readFile',
           args: { path: 'README.md' },
+          state: 'input-complete',
+          approval: undefined,
         },
       },
       {
@@ -130,12 +133,13 @@ describe('StreamPartCollector', () => {
 
     collector.handleChunk(toolCallStart('tool-3', 'writeFile', 1))
     collector.handleChunk(toolCallArgs('tool-3', '{"path":"SUMMARY.md"}', 1.5))
-    collector.handleChunk(toolCallEnd('tool-3', 'writeFile', undefined, 2))
+    const inputComplete = collector.handleChunk(toolCallEnd('tool-3', 'writeFile', undefined, 2))
     collector.handleChunk(toolCallEnd('tool-3', 'writeFile', '{"kind":"text","text":"ok"}', 3))
 
     const parts = collector.finalizeParts()
     const stats = collector.getStats()
 
+    expect(inputComplete.toolCallEnd?.completionState).toBe('input-complete')
     expect(stats.toolCalls).toBe(1)
     expect(parts.filter((part) => part.type === 'tool-call')).toHaveLength(1)
     expect(parts.filter((part) => part.type === 'tool-result')).toHaveLength(1)
@@ -163,6 +167,8 @@ describe('StreamPartCollector', () => {
         id: 'tool-4',
         name: 'writeFile',
         args: { path: 'out.txt' },
+        state: 'input-complete',
+        approval: undefined,
       },
     })
     expect(stats.toolCalls).toBe(1)
@@ -200,6 +206,11 @@ describe('StreamPartCollector', () => {
         id: 'tool-4a',
         name: 'writeFile',
         args: { path: 'out.txt' },
+        state: 'approval-requested',
+        approval: {
+          id: 'approval_tool-4a',
+          needsApproval: true,
+        },
       },
     })
     expect(stats.toolCalls).toBe(1)
@@ -295,6 +306,8 @@ describe('StreamPartCollector', () => {
           id: 'tool-5',
           name: 'editFile',
           args: { path: 'src/a.ts' },
+          state: 'input-complete',
+          approval: undefined,
         },
       },
       {

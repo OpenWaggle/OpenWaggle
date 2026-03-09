@@ -1,4 +1,5 @@
 import type { StreamChunk } from '@tanstack/ai'
+import { createLogger } from '../logger'
 import {
   notifyRunError,
   notifyStreamChunk,
@@ -7,6 +8,8 @@ import {
 } from './lifecycle-hooks'
 import type { AgentLifecycleHook, AgentRunContext } from './runtime-types'
 import type { StreamPartCollector } from './stream-part-collector'
+
+const approvalTraceLogger = createLogger('approval-trace')
 
 /**
  * Maximum time (ms) to wait for a new stream chunk before declaring the stream stalled.
@@ -24,6 +27,7 @@ export interface ProcessAgentStreamParams {
   readonly signal: AbortSignal
   readonly hooks: readonly AgentLifecycleHook[]
   readonly runContext: AgentRunContext
+  readonly approvalTraceEnabled?: boolean
   /** Override stall timeout for testing. Defaults to STREAM_STALL_TIMEOUT_MS. */
   readonly stallTimeoutMs?: number
 }
@@ -63,6 +67,18 @@ async function forwardChunk(params: ForwardChunkParams, chunk: StreamChunk): Pro
   }
 
   return false
+}
+
+function isApprovalTraceChunk(chunk: StreamChunk): boolean {
+  if (chunk.type === 'TOOL_CALL_END') {
+    return chunk.result === undefined
+  }
+
+  if (chunk.type === 'CUSTOM') {
+    return chunk.name === 'approval-requested'
+  }
+
+  return chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR'
 }
 
 function waitForNextChunkOrAbort(
@@ -124,6 +140,7 @@ export async function processAgentStream(
   let runErrorNotified = false
   let timedOut = false
   let stallReason: StreamStallReason | null = null
+  let approvalTraceActive = params.approvalTraceEnabled ?? false
 
   const iterator = stream[Symbol.asyncIterator]()
   let stallTimer: ReturnType<typeof setTimeout> | null = null
@@ -148,6 +165,19 @@ export async function processAgentStream(
         }
 
         const chunk = nextChunkResult.iterResult.value
+        if (isApprovalTraceChunk(chunk)) {
+          approvalTraceActive = true
+        }
+        if (approvalTraceActive) {
+          approvalTraceLogger.info('stream-chunk', {
+            runId: runContext.runId,
+            conversationId: runContext.conversation.id,
+            chunkType: chunk.type,
+            toolCallId: chunk.type === 'TOOL_CALL_END' ? chunk.toolCallId : undefined,
+            hasResult: chunk.type === 'TOOL_CALL_END' ? chunk.result !== undefined : undefined,
+            customName: chunk.type === 'CUSTOM' ? chunk.name : undefined,
+          })
+        }
         const notifiedRunError = await forwardChunk(forwardChunkParams, chunk)
         if (notifiedRunError) {
           runErrorNotified = true
@@ -183,6 +213,19 @@ export async function processAgentStream(
       if (result.iterResult.done) break
 
       const chunk = result.iterResult.value
+      if (isApprovalTraceChunk(chunk)) {
+        approvalTraceActive = true
+      }
+      if (approvalTraceActive) {
+        approvalTraceLogger.info('stream-chunk', {
+          runId: runContext.runId,
+          conversationId: runContext.conversation.id,
+          chunkType: chunk.type,
+          toolCallId: chunk.type === 'TOOL_CALL_END' ? chunk.toolCallId : undefined,
+          hasResult: chunk.type === 'TOOL_CALL_END' ? chunk.result !== undefined : undefined,
+          customName: chunk.type === 'CUSTOM' ? chunk.name : undefined,
+        })
+      }
       const notifiedRunError = await forwardChunk(forwardChunkParams, chunk)
       if (notifiedRunError) {
         runErrorNotified = true
@@ -191,6 +234,16 @@ export async function processAgentStream(
   } finally {
     if (stallTimer !== null) {
       clearTimeout(stallTimer)
+    }
+    if (approvalTraceActive) {
+      approvalTraceLogger.info('stream-finished', {
+        runId: runContext.runId,
+        conversationId: runContext.conversation.id,
+        aborted,
+        timedOut,
+        stallReason,
+        runErrorNotified,
+      })
     }
   }
 

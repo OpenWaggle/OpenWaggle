@@ -3,6 +3,10 @@ import type { Conversation } from '@shared/types/conversation'
 import { chooseBy } from '@shared/utils/decision'
 import type { StreamChunk } from '@tanstack/ai'
 import type { UIMessage } from '@tanstack/ai-react'
+import {
+  buildPersistedToolCallLookup,
+  restorePersistedToolCallPart,
+} from '@/lib/persisted-tool-call-reconciliation'
 
 // ─── MessagePart → UIMessage Parts Conversion ────────────────
 
@@ -39,7 +43,8 @@ export function messagePartToUIParts(part: MessagePart): UIMessage['parts'] {
         id: String(value.toolCall.id),
         name: value.toolCall.name,
         arguments: JSON.stringify(value.toolCall.args),
-        state: 'input-complete',
+        state: value.toolCall.state ?? 'input-complete',
+        approval: value.toolCall.approval,
       },
     ])
     .case('tool-result', (value): UIMessage['parts'] => [
@@ -69,6 +74,36 @@ export function conversationToUIMessages(conv: Conversation): UIMessage[] {
     parts: msg.parts.flatMap(messagePartToUIParts),
     createdAt: new Date(msg.createdAt),
   }))
+}
+
+export function restorePersistedToolCallMetadata(
+  messages: UIMessage[],
+  conversation: Conversation | null,
+): UIMessage[] {
+  const persistedToolCalls = buildPersistedToolCallLookup(conversation)
+  let didChange = false
+
+  const restoredMessages = messages.map((message) => {
+    let messageChanged = false
+    const restoredParts = message.parts.map((part) => {
+      if (part.type !== 'tool-call') {
+        return part
+      }
+
+      const restoredPart = restorePersistedToolCallPart(part, persistedToolCalls)
+      if (restoredPart === part) {
+        return part
+      }
+
+      didChange = true
+      messageChanged = true
+      return restoredPart
+    })
+
+    return messageChanged ? { ...message, parts: restoredParts } : message
+  })
+
+  return didChange ? restoredMessages : messages
 }
 
 // ─── Background Run Reconnection Helpers ─────────────────────

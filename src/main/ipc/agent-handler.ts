@@ -35,6 +35,7 @@ import { typedHandle, typedOn } from './typed-ipc'
 const TITLE_PREVIEW_LENGTH = 60
 
 const logger = createLogger('agent-handler')
+const approvalTraceLogger = createLogger('approval-trace')
 
 interface ActiveRun {
   readonly controller: AbortController
@@ -168,12 +169,34 @@ export function registerAgentHandlers(): void {
             }
 
             await saveConversation({ ...latestConversation, title, messages: updatedMessages })
+
+            if ((hydratedPayload.continuationMessages?.length ?? 0) > 0) {
+              const persistedAssistantMessage = newMessages.find(
+                (message) => message.role === 'assistant',
+              )
+              approvalTraceLogger.info('continuation-persisted', {
+                conversationId,
+                messageCount: updatedMessages.length,
+                persistedToolResultCount:
+                  persistedAssistantMessage?.parts.filter((part) => part.type === 'tool-result')
+                    .length ?? 0,
+                persistedToolCallCount:
+                  persistedAssistantMessage?.parts.filter((part) => part.type === 'tool-call')
+                    .length ?? 0,
+              })
+            }
           })
         } catch (persistError) {
           logger.error('Failed to persist conversation', {
             conversationId,
             error: formatErrorMessage(persistError),
           })
+          if ((hydratedPayload.continuationMessages?.length ?? 0) > 0) {
+            approvalTraceLogger.error('continuation-persist-failed', {
+              conversationId,
+              error: formatErrorMessage(persistError),
+            })
+          }
           const persistInfo = makeErrorInfo(
             'persist-failed',
             'Failed to save conversation data to disk.',
