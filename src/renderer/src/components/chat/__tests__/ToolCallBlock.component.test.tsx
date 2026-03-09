@@ -79,7 +79,7 @@ describe('ToolCallBlock', () => {
         result={{ content: '', state: 'error', error: 'File not found' }}
       />,
     )
-    expect(screen.getByText('Read missing.ts')).toBeInTheDocument()
+    expect(screen.getByText('Failed readFile missing.ts')).toBeInTheDocument()
   })
 
   it('shows approval needed text', () => {
