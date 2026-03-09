@@ -1,31 +1,17 @@
-import fs from 'node:fs/promises'
 import path from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 
-const CONVERSATION_DIRECTORY = 'conversations'
-const INDEX_FILE_NAME = 'index.json'
-const UTF_8_ENCODING: BufferEncoding = 'utf-8'
+const DATABASE_FILE_NAME = 'openwaggle.db'
 const FILE_WAIT_RETRY_DELAY_MS = 100
 const FILE_WAIT_TIMEOUT_MS = 5_000
-const CONVERSATION_INDEX_VERSION = 1
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord(value: unknown): value is { readonly [key: string]: unknown } {
   return typeof value === 'object' && value !== null
 }
 
-interface ConversationSummaryFixture {
+interface ConversationRowFixture {
   readonly id: string
-  readonly title: string
-  readonly projectPath: string | null
-  readonly messageCount: number
-  readonly archived?: boolean
   readonly createdAt: number
-  readonly updatedAt: number
-}
-
-function sortConversationSummaries(
-  summaries: readonly ConversationSummaryFixture[],
-): ConversationSummaryFixture[] {
-  return [...summaries].sort((left, right) => right.updatedAt - left.updatedAt)
 }
 
 export interface SeedConversationInput {
@@ -36,196 +22,280 @@ export interface SeedConversationInput {
   readonly archived?: boolean
 }
 
-export async function readConversationFiles(userDataDir: string): Promise<string[]> {
-  const conversationsDir = path.join(userDataDir, CONVERSATION_DIRECTORY)
-  const entries = await fs.readdir(conversationsDir)
-  const files = entries.filter((entry) => entry.endsWith('.json') && entry !== INDEX_FILE_NAME)
-  return files.sort().map((entry) => path.join(conversationsDir, entry))
+function getDatabasePath(userDataDir: string): string {
+  return path.join(userDataDir, DATABASE_FILE_NAME)
 }
 
-export async function waitForConversationFiles(
+function openDatabase(userDataDir: string): DatabaseSync {
+  const database = new DatabaseSync(getDatabasePath(userDataDir))
+  database.exec('PRAGMA foreign_keys = ON')
+  return database
+}
+
+function normalizeConversationRow(value: unknown): ConversationRowFixture | null {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  const id = typeof value.id === 'string' ? value.id : null
+  const createdAt =
+    typeof value.created_at === 'number' && Number.isFinite(value.created_at)
+      ? value.created_at
+      : null
+
+  if (id === null || createdAt === null) {
+    return null
+  }
+
+  return { id, createdAt }
+}
+
+function listConversationRows(userDataDir: string): ConversationRowFixture[] {
+  const database = openDatabase(userDataDir)
+  try {
+    const rows: unknown = database
+      .prepare(
+        `
+          SELECT id, created_at
+          FROM conversations
+          ORDER BY created_at ASC, id ASC
+        `,
+      )
+      .all()
+
+    if (!Array.isArray(rows)) {
+      return []
+    }
+
+    return rows
+      .map(normalizeConversationRow)
+      .filter((row): row is ConversationRowFixture => row !== null)
+  } catch {
+    return []
+  } finally {
+    database.close()
+  }
+}
+
+async function waitForConversationRows(
   userDataDir: string,
   expectedCount: number,
-): Promise<string[]> {
+): Promise<ConversationRowFixture[]> {
   const startedAt = Date.now()
 
   while (Date.now() - startedAt < FILE_WAIT_TIMEOUT_MS) {
-    const files = await readConversationFiles(userDataDir)
-    if (files.length >= expectedCount) {
-      return files
+    const rows = listConversationRows(userDataDir)
+    if (rows.length >= expectedCount) {
+      return rows
     }
+
     await new Promise((resolve) => setTimeout(resolve, FILE_WAIT_RETRY_DELAY_MS))
   }
 
-  throw new Error(`Expected at least ${String(expectedCount)} conversation file(s)`)
+  throw new Error(`Expected at least ${String(expectedCount)} conversation row(s)`)
 }
 
-export async function readSingleConversationFile(userDataDir: string): Promise<string> {
-  const files = await waitForConversationFiles(userDataDir, 1)
-  const firstFile = files[0]
-  if (!firstFile) {
-    throw new Error('Expected at least one conversation file')
+function readStringField(record: { readonly [key: string]: unknown }, key: string): string {
+  const value = record[key]
+  if (typeof value !== 'string') {
+    throw new Error(`Expected string field "${key}" in conversation fixture`)
   }
-  return firstFile
+  return value
 }
 
-export async function readConversationJson(userDataDir: string, filePath: string): Promise<unknown> {
-  const rawConversation = await fs.readFile(filePath, UTF_8_ENCODING)
-  const conversation: unknown = JSON.parse(rawConversation)
-  if (!isRecord(conversation)) {
-    throw new Error(`Conversation payload must be an object: ${filePath}`)
-  }
-  return conversation
+function readOptionalStringField(
+  record: { readonly [key: string]: unknown },
+  key: string,
+): string | undefined {
+  const value = record[key]
+  return typeof value === 'string' ? value : undefined
 }
 
-export async function writeConversationJson(filePath: string, conversation: unknown): Promise<void> {
-  await fs.writeFile(filePath, JSON.stringify(conversation, null, 2), UTF_8_ENCODING)
+function readOptionalNumberField(
+  record: { readonly [key: string]: unknown },
+  key: string,
+): number | undefined {
+  const value = record[key]
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
 }
 
-export async function updateConversationIndex(
-  userDataDir: string,
-  conversationId: string,
-  title: string,
-  createdAt: number,
-  updatedAt: number,
-  messageCount: number,
-  projectPath: string | null = null,
-  archived?: boolean,
-): Promise<void> {
-  const indexPath = path.join(userDataDir, CONVERSATION_DIRECTORY, INDEX_FILE_NAME)
-  const nextSummary: ConversationSummaryFixture = {
-    id: conversationId,
-    title,
-    projectPath,
-    messageCount,
-    archived,
-    createdAt,
-    updatedAt,
+function readOptionalRecordField(
+  record: { readonly [key: string]: unknown },
+  key: string,
+): { readonly [key: string]: unknown } | undefined {
+  const value = record[key]
+  return isRecord(value) ? value : undefined
+}
+
+function serializePart(part: unknown): { partType: string; contentJson: string } {
+  if (!isRecord(part) || typeof part.type !== 'string') {
+    throw new Error('Conversation part fixture must be an object with a string "type" field')
   }
 
-  let existingSummaries: ConversationSummaryFixture[] = []
+  if (part.type === 'text' || part.type === 'reasoning' || part.type === 'thinking') {
+    return {
+      partType: part.type,
+      contentJson: JSON.stringify({ text: readStringField(part, 'text') }),
+    }
+  }
+
+  if (part.type === 'attachment') {
+    return {
+      partType: part.type,
+      contentJson: JSON.stringify({ attachment: readOptionalRecordField(part, 'attachment') }),
+    }
+  }
+
+  if (part.type === 'tool-call') {
+    return {
+      partType: part.type,
+      contentJson: JSON.stringify({ toolCall: readOptionalRecordField(part, 'toolCall') }),
+    }
+  }
+
+  if (part.type === 'tool-result') {
+    return {
+      partType: part.type,
+      contentJson: JSON.stringify({ toolResult: readOptionalRecordField(part, 'toolResult') }),
+    }
+  }
+
+  throw new Error(`Unsupported conversation part fixture type: ${part.type}`)
+}
+
+function seedConversationRow(
+  database: DatabaseSync,
+  row: ConversationRowFixture,
+  conversationInput: SeedConversationInput,
+): void {
+  database.exec('BEGIN')
 
   try {
-    const raw = await fs.readFile(indexPath, UTF_8_ENCODING)
-    const parsed: unknown = JSON.parse(raw)
-    if (isRecord(parsed) && Array.isArray(parsed.conversations)) {
-      existingSummaries = parsed.conversations.filter(isRecord).map((entry) => ({
-        id: String(entry.id ?? ''),
-        title: String(entry.title ?? ''),
-        projectPath:
-          typeof entry.projectPath === 'string' || entry.projectPath === null
-            ? entry.projectPath
-            : null,
-        messageCount:
-          typeof entry.messageCount === 'number' && Number.isFinite(entry.messageCount)
-            ? entry.messageCount
-            : 0,
-        archived: typeof entry.archived === 'boolean' ? entry.archived : undefined,
-        createdAt:
-          typeof entry.createdAt === 'number' && Number.isFinite(entry.createdAt)
-            ? entry.createdAt
-            : createdAt,
-        updatedAt:
-          typeof entry.updatedAt === 'number' && Number.isFinite(entry.updatedAt)
-            ? entry.updatedAt
-            : updatedAt,
-      }))
+    const projectPath =
+      conversationInput.projectPath === undefined ? null : conversationInput.projectPath
+
+    database
+      .prepare(
+        `
+          UPDATE conversations
+          SET title = ?, project_path = ?, archived = ?, updated_at = ?
+          WHERE id = ?
+        `,
+      )
+      .run(
+        conversationInput.title,
+        projectPath,
+        conversationInput.archived ? 1 : 0,
+        conversationInput.updatedAt,
+        row.id,
+      )
+
+    database.prepare('DELETE FROM conversation_messages WHERE conversation_id = ?').run(row.id)
+
+    for (const [messageIndex, messageValue] of conversationInput.messages.entries()) {
+      if (!isRecord(messageValue)) {
+        throw new Error('Conversation message fixture must be an object')
+      }
+
+      const messageId = readStringField(messageValue, 'id')
+      const role = readStringField(messageValue, 'role')
+      const model = readOptionalStringField(messageValue, 'model')
+      const createdAt = readOptionalNumberField(messageValue, 'createdAt') ?? conversationInput.updatedAt
+      const metadata = readOptionalRecordField(messageValue, 'metadata')
+      const parts = Array.isArray(messageValue.parts) ? messageValue.parts : []
+
+      database
+        .prepare(
+          `
+            INSERT INTO conversation_messages (
+              id,
+              conversation_id,
+              role,
+              model,
+              metadata_json,
+              created_at,
+              position
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+          `,
+        )
+        .run(
+          messageId,
+          row.id,
+          role,
+          model ?? null,
+          metadata ? JSON.stringify(metadata) : null,
+          createdAt,
+          messageIndex,
+        )
+
+      for (const [partIndex, part] of parts.entries()) {
+        const serialized = serializePart(part)
+        database
+          .prepare(
+            `
+              INSERT INTO conversation_message_parts (
+                id,
+                message_id,
+                part_type,
+                content_json,
+                position
+              )
+              VALUES (?, ?, ?, ?, ?)
+            `,
+          )
+          .run(
+            `${messageId}:part:${String(partIndex)}`,
+            messageId,
+            serialized.partType,
+            serialized.contentJson,
+            partIndex,
+          )
+      }
     }
-  } catch {
-    existingSummaries = []
+
+    database.exec('COMMIT')
+  } catch (error) {
+    database.exec('ROLLBACK')
+    throw error
   }
-
-  const nextSummaries = sortConversationSummaries(
-    [...existingSummaries.filter((entry) => entry.id !== conversationId), nextSummary],
-  )
-
-  await fs.writeFile(
-    indexPath,
-    JSON.stringify(
-      {
-        version: CONVERSATION_INDEX_VERSION,
-        conversations: nextSummaries,
-      },
-      null,
-      2,
-    ),
-    UTF_8_ENCODING,
-  )
-}
-
-function getConversationCreatedAt(conversation: Record<string, unknown>, fallback: number): number {
-  return typeof conversation.createdAt === 'number' ? conversation.createdAt : fallback
-}
-
-function getConversationProjectPath(
-  conversation: Record<string, unknown>,
-  nextProjectPath: string | null | undefined,
-): string | null {
-  if (nextProjectPath !== undefined) {
-    return nextProjectPath
-  }
-  return typeof conversation.projectPath === 'string' || conversation.projectPath === null
-    ? conversation.projectPath
-    : null
-}
-
-export async function seedConversationFile(
-  userDataDir: string,
-  filePath: string,
-  conversationInput: SeedConversationInput,
-): Promise<void> {
-  const existingConversation = await readConversationJson(userDataDir, filePath)
-  if (!isRecord(existingConversation)) {
-    throw new Error(`Conversation payload must be an object: ${filePath}`)
-  }
-
-  const createdAt = getConversationCreatedAt(existingConversation, conversationInput.updatedAt)
-  const projectPath = getConversationProjectPath(
-    existingConversation,
-    conversationInput.projectPath,
-  )
-  const conversationId = path.basename(filePath, '.json')
-  const nextConversation = {
-    ...existingConversation,
-    title: conversationInput.title,
-    projectPath,
-    archived: conversationInput.archived,
-    updatedAt: conversationInput.updatedAt,
-    messages: [...conversationInput.messages],
-  }
-
-  await writeConversationJson(filePath, nextConversation)
-  await updateConversationIndex(
-    userDataDir,
-    conversationId,
-    conversationInput.title,
-    createdAt,
-    conversationInput.updatedAt,
-    conversationInput.messages.length,
-    projectPath,
-    conversationInput.archived,
-  )
 }
 
 export async function seedSingleConversation(
   userDataDir: string,
   conversationInput: SeedConversationInput,
 ): Promise<void> {
-  const filePath = await readSingleConversationFile(userDataDir)
-  await seedConversationFile(userDataDir, filePath, conversationInput)
+  const rows = await waitForConversationRows(userDataDir, 1)
+  const firstRow = rows[0]
+  if (!firstRow) {
+    throw new Error('Expected at least one conversation row')
+  }
+
+  const database = openDatabase(userDataDir)
+  try {
+    seedConversationRow(database, firstRow, conversationInput)
+  } finally {
+    database.close()
+  }
 }
 
 export async function seedConversations(
   userDataDir: string,
   conversationInputs: readonly SeedConversationInput[],
 ): Promise<void> {
-  const filePaths = await waitForConversationFiles(userDataDir, conversationInputs.length)
+  const rows = await waitForConversationRows(userDataDir, conversationInputs.length)
+  const database = openDatabase(userDataDir)
 
-  for (const [index, conversationInput] of conversationInputs.entries()) {
-    const filePath = filePaths[index]
-    if (!filePath) {
-      throw new Error(`Expected conversation file at index ${String(index)}`)
+  try {
+    for (const [index, conversationInput] of conversationInputs.entries()) {
+      const row = rows[index]
+      if (!row) {
+        throw new Error(`Expected conversation row at index ${String(index)}`)
+      }
+
+      seedConversationRow(database, row, conversationInput)
     }
-    await seedConversationFile(userDataDir, filePath, conversationInput)
+  } finally {
+    database.close()
   }
 }

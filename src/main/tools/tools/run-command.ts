@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import { BYTES_PER_KIBIBYTE } from '@shared/constants/constants'
-import { z } from 'zod'
+import { Schema } from '@shared/schema'
 import { getSafeChildEnv } from '../../env'
 import { createLogger } from '../../logger'
 import { defineOpenWaggleTool } from '../define-tool'
@@ -19,12 +19,13 @@ export const runCommandTool = defineOpenWaggleTool({
   description:
     'Run a shell command in the project directory. Use this for tasks like running tests, installing dependencies, git operations, grep, etc. The command runs in a shell.',
   needsApproval: true,
-  inputSchema: z.object({
-    command: z.string().describe('The shell command to run'),
-    timeout: z
-      .number()
-      .optional()
-      .describe('Timeout in milliseconds. Defaults to 30000 (30 seconds).'),
+  inputSchema: Schema.Struct({
+    command: Schema.String.annotations({ description: 'The shell command to run' }),
+    timeout: Schema.optional(
+      Schema.Number.annotations({
+        description: 'Timeout in milliseconds. Defaults to 30000 (30 seconds).',
+      }),
+    ),
   }),
   async execute(args, context) {
     const timeout = args.timeout ?? EXECUTE_VALUE_30000

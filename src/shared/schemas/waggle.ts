@@ -1,40 +1,49 @@
-import { z } from 'zod'
+import { Schema } from '@shared/schema'
+import {
+  WAGGLE_AGENT_COLORS,
+  WAGGLE_COLLABORATION_MODES,
+  WAGGLE_STOP_CONDITIONS,
+} from '@shared/types/waggle'
 
 const MAX_ARG_1 = 100
 
-export const waggleAgentColorSchema = z.enum(['blue', 'amber', 'emerald', 'violet'])
+export const waggleAgentColorSchema = Schema.Literal(...WAGGLE_AGENT_COLORS)
 
-export const waggleMetadataSchema = z.object({
-  agentIndex: z.number(),
-  agentLabel: z.string(),
+export const waggleMetadataSchema = Schema.Struct({
+  agentIndex: Schema.Number,
+  agentLabel: Schema.String,
   agentColor: waggleAgentColorSchema,
-  agentModel: z.string().optional(),
-  turnNumber: z.number(),
-  isSynthesis: z.boolean().optional(),
+  agentModel: Schema.optional(Schema.String),
+  turnNumber: Schema.Number,
+  isSynthesis: Schema.optional(Schema.Boolean),
 })
 
-export const waggleAgentSlotSchema = z.object({
-  label: z.string(),
-  model: z.string(),
-  roleDescription: z.string(),
+export const waggleAgentSlotSchema = Schema.Struct({
+  label: Schema.String,
+  model: Schema.String,
+  roleDescription: Schema.String,
   color: waggleAgentColorSchema,
 })
 
-export const waggleConfigSchema = z.object({
-  mode: z.enum(['sequential', 'parallel']),
-  agents: z.tuple([waggleAgentSlotSchema, waggleAgentSlotSchema]),
-  stop: z.object({
-    primary: z.enum(['consensus', 'user-stop']),
-    maxTurnsSafety: z.number().int().min(1).max(MAX_ARG_1),
+export const waggleConfigSchema = Schema.Struct({
+  mode: Schema.Literal(...WAGGLE_COLLABORATION_MODES),
+  agents: Schema.Tuple(waggleAgentSlotSchema, waggleAgentSlotSchema),
+  stop: Schema.Struct({
+    primary: Schema.Literal(...WAGGLE_STOP_CONDITIONS),
+    maxTurnsSafety: Schema.Number.pipe(
+      Schema.int(),
+      Schema.greaterThanOrEqualTo(1),
+      Schema.lessThanOrEqualTo(MAX_ARG_1),
+    ),
   }),
 })
 
-export const waggleTeamPresetSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  description: z.string(),
+export const waggleTeamPresetSchema = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  description: Schema.String,
   config: waggleConfigSchema,
-  isBuiltIn: z.boolean(),
-  createdAt: z.number(),
-  updatedAt: z.number(),
+  isBuiltIn: Schema.Boolean,
+  createdAt: Schema.Number,
+  updatedAt: Schema.Number,
 })

@@ -1,4 +1,5 @@
 import { DOUBLE_FACTOR } from '@shared/constants/constants'
+import { safeDecodeUnknown } from '@shared/schema'
 import { electronFileSchema } from '@shared/schemas/validation'
 import type { AgentSendPayload } from '@shared/types/agent'
 import { useEffect, useEffectEvent, useRef } from 'react'
@@ -253,7 +254,7 @@ export function Composer({
     const files = Array.from(event.target.files ?? [])
     const paths = files
       .map((file) => {
-        const parsed = electronFileSchema.safeParse(file)
+        const parsed = safeDecodeUnknown(electronFileSchema, file)
         return parsed.success ? parsed.data.path : undefined
       })
       .filter((filePath): filePath is string => typeof filePath === 'string' && filePath.length > 0)

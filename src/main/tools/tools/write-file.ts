@@ -1,22 +1,25 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { z } from 'zod'
+import { Schema } from '@shared/schema'
 import { defineOpenWaggleTool, resolveProjectPath } from '../define-tool'
+import { buildFileMutationResult } from './file-mutation-result'
 
 const MAX_ATTACHMENT_LIST_PREVIEW = 5
 
-const writeFileArgsSchema = z.object({
-  path: z.string().describe('File path relative to the project root'),
-  content: z
-    .string()
-    .optional()
-    .describe('Content to write to the file. Prefer attachmentName for large attachment content.'),
-  attachmentName: z
-    .string()
-    .optional()
-    .describe(
-      'Optional attachment name to write from the current user message (for example "Pasted Text 1.md").',
-    ),
+const writeFileArgsSchema = Schema.Struct({
+  path: Schema.String.annotations({ description: 'File path relative to the project root' }),
+  content: Schema.optional(
+    Schema.String.annotations({
+      description:
+        'Content to write to the file. Prefer attachmentName for large attachment content.',
+    }),
+  ),
+  attachmentName: Schema.optional(
+    Schema.String.annotations({
+      description:
+        'Optional attachment name to write from the current user message (for example "Pasted Text 1.md").',
+    }),
+  ),
 })
 
 function resolveContentFromAttachment(
@@ -72,10 +75,11 @@ export const writeFileTool = defineOpenWaggleTool({
 
     await fs.writeFile(filePath, content, 'utf-8')
 
-    return JSON.stringify({
-      message: `File written: ${args.path}`,
+    return buildFileMutationResult({
+      path: args.path,
       beforeContent,
       afterContent: content,
+      verb: 'written',
     })
   },
 })

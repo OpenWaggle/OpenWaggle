@@ -1,3 +1,4 @@
+import { getParseIssues } from '@shared/schema'
 import type {
   IpcInvokeArgs,
   IpcInvokeChannel,
@@ -5,9 +6,15 @@ import type {
   IpcSendArgs,
   IpcSendChannel,
 } from '@shared/types/ipc'
+import * as Cause from 'effect/Cause'
+import type { Effect as EffectType } from 'effect/Effect'
+import * as Exit from 'effect/Exit'
+import * as Option from 'effect/Option'
 import { type IpcMainEvent, type IpcMainInvokeEvent, ipcMain } from 'electron'
-import { ZodError } from 'zod'
+import { DatabaseBootstrapError, DatabaseQueryError, type ValidationIssuesError } from '../errors'
 import { createLogger } from '../logger'
+import type { AppServices } from '../runtime'
+import { runAppEffectExit } from '../runtime'
 
 const logger = createLogger('ipc')
 
@@ -27,15 +34,127 @@ type IpcHandler<C extends IpcInvokeChannel> = (
   ...args: IpcInvokeArgs<C>
 ) => MaybeVoid<IpcInvokeReturn<C>> | Promise<MaybeVoid<IpcInvokeReturn<C>>>
 
+type EffectIpcHandler<C extends IpcInvokeChannel> = (
+  event: IpcMainInvokeEvent,
+  ...args: IpcInvokeArgs<C>
+) => EffectType<MaybeVoid<IpcInvokeReturn<C>>, unknown, AppServices>
+
+function isObjectWithUnknownValues(value: unknown): value is { readonly [key: string]: unknown } {
+  return typeof value === 'object' && value !== null
+}
+
+function isValidationIssuesError(error: unknown): error is ValidationIssuesError {
+  if (!isObjectWithUnknownValues(error) || error._tag !== 'ValidationIssuesError') {
+    return false
+  }
+
+  return Array.isArray(error.issues) && error.issues.every((issue) => typeof issue === 'string')
+}
+
+function isDatabaseBootstrapTaggedError(error: unknown): error is DatabaseBootstrapError {
+  return (
+    isObjectWithUnknownValues(error) &&
+    error._tag === 'DatabaseBootstrapError' &&
+    typeof error.stage === 'string' &&
+    typeof error.message === 'string'
+  )
+}
+
+function isDatabaseQueryTaggedError(error: unknown): error is DatabaseQueryError {
+  return (
+    isObjectWithUnknownValues(error) &&
+    error._tag === 'DatabaseQueryError' &&
+    typeof error.operation === 'string'
+  )
+}
+
+function toReadableIssues(issues: readonly string[]): string {
+  return issues.join('; ')
+}
+
+function toIpcError(channel: IpcInvokeChannel, error: unknown): Error {
+  if (isValidationIssuesError(error)) {
+    const readable = toReadableIssues(error.issues)
+    logger.warn(`Validation failed on "${channel}"`, { issues: readable })
+    return new Error(`Invalid arguments for "${channel}": ${readable}`)
+  }
+
+  const parseIssues = getParseIssues(error)
+  if (parseIssues) {
+    const readable = parseIssues.join('; ')
+    logger.warn(`Validation failed on "${channel}"`, { issues: readable })
+    return new Error(`Invalid arguments for "${channel}": ${readable}`)
+  }
+
+  if (error instanceof DatabaseBootstrapError) {
+    logger.error(`Database bootstrap failed on "${channel}"`, {
+      stage: error.stage,
+      message: error.message,
+    })
+    return new Error('OpenWaggle failed to initialize its application database.')
+  }
+
+  if (isDatabaseBootstrapTaggedError(error)) {
+    const databaseError = error
+    logger.error(`Database bootstrap failed on "${channel}"`, {
+      stage: databaseError.stage,
+      message: databaseError.message,
+    })
+    return new Error('OpenWaggle failed to initialize its application database.')
+  }
+
+  if (error instanceof DatabaseQueryError) {
+    logger.error(`Database query failed on "${channel}"`, {
+      operation: error.operation,
+    })
+    return new Error(`Failed to complete "${channel}" because a database query failed.`)
+  }
+
+  if (isDatabaseQueryTaggedError(error)) {
+    const databaseError = error
+    logger.error(`Database query failed on "${channel}"`, {
+      operation: databaseError.operation,
+    })
+    return new Error(`Failed to complete "${channel}" because a database query failed.`)
+  }
+
+  return error instanceof Error ? error : new Error(String(error))
+}
+
 /**
  * Type-safe wrapper around `ipcMain.handle()`.
  * Constrains the channel name, handler args, and return type to `IpcInvokeChannelMap`.
  *
- * The cast bridges our typed handler to Electron's untyped `(...args: any[]) => any`
- * signature — this is an inherent IPC boundary where Electron delivers untyped args.
  */
 export function typedHandle<C extends IpcInvokeChannel>(channel: C, handler: IpcHandler<C>): void {
-  ipcMain.handle(channel, handler as Parameters<typeof ipcMain.handle>[1])
+  ipcMain.handle(channel, (event: IpcMainInvokeEvent, ...args: IpcInvokeArgs<C>) =>
+    handler(event, ...args),
+  )
+}
+
+export function typedHandleEffect<C extends IpcInvokeChannel>(
+  channel: C,
+  handler: EffectIpcHandler<C>,
+): void {
+  typedHandle(channel, async (event, ...args) => {
+    const exit = await runAppEffectExit(handler(event, ...args))
+
+    if (Exit.isSuccess(exit)) {
+      return exit.value
+    }
+
+    const failure = Cause.failureOption(exit.cause)
+    if (Option.isSome(failure)) {
+      throw toIpcError(channel, failure.value)
+    }
+
+    const defect = Cause.dieOption(exit.cause)
+    if (Option.isSome(defect)) {
+      throw toIpcError(channel, defect.value)
+    }
+
+    throw new Error('An unexpected Effect failure occurred.')
+  })
 }
 
 /**
@@ -46,28 +165,19 @@ export function typedOn<C extends IpcSendChannel>(
   channel: C,
   listener: (event: IpcMainEvent, ...args: IpcSendArgs<C>) => void,
 ): void {
-  ipcMain.on(channel, listener as Parameters<typeof ipcMain.on>[1])
+  ipcMain.on(channel, (event: IpcMainEvent, ...args: IpcSendArgs<C>) => listener(event, ...args))
 }
 
 /**
- * Like `typedHandle` but catches `ZodError` throws, logs a structured warning,
+ * Like `typedHandle` but catches validation failures, logs a structured warning,
  * and re-throws with a human-readable message.
- * Use this for handlers that validate args via Zod `.parse()`.
  */
 export function safeHandle<C extends IpcInvokeChannel>(channel: C, handler: IpcHandler<C>): void {
-  ipcMain.handle(channel, async (event, ...rawArgs) => {
+  typedHandle(channel, async (event, ...args) => {
     try {
-      return await (handler as (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<unknown>)(
-        event,
-        ...rawArgs,
-      )
+      return await handler(event, ...args)
     } catch (error) {
-      if (error instanceof ZodError) {
-        const readable = error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')
-        logger.warn(`Validation failed on "${channel}"`, { issues: readable })
-        throw new Error(`Invalid arguments for "${channel}": ${readable}`)
-      }
-      throw error
+      throw toIpcError(channel, error)
     }
   })
 }

@@ -1,203 +1,168 @@
 /**
- * Centralized Zod schemas for runtime boundary validation.
+ * Centralized Effect schemas for runtime boundary validation.
  *
- * Schemas here replace `as T` casts at JSON.parse, IPC, and external API
- * boundaries. Consumers import from this module instead of defining
- * inline schemas.
- *
- * Uses Zod v4 API — `.loose()` instead of deprecated `.passthrough()`.
+ * Schemas here replace cast-heavy JSON.parse / IPC / external API boundaries.
+ * Consumers should decode through `safeDecodeUnknown` / `decodeUnknownOrThrow`
+ * from `src/shared/schema.ts`.
  */
 
-import type { JsonValue } from '@shared/types/json'
-import {
-  ORCHESTRATION_RUN_STATUSES,
-  ORCHESTRATION_TASK_STATUSES,
-} from '@shared/types/orchestration'
-import { z } from 'zod'
+import { Schema } from '@shared/schema'
+import type { JsonArray, JsonObject, JsonValue } from '@shared/types/json'
 
-// ─── Generic JSON ────────────────────────────────────────────────────
-/** Validates any JSON object returned from dynamic runtime boundaries. */
-export const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
-  z.union([
-    z.string(),
-    z.number(),
-    z.boolean(),
-    z.null(),
-    z.array(jsonValueSchema),
-    z.record(z.string(), jsonValueSchema),
-  ]),
+const jsonArraySchema: Schema.Schema<JsonArray> = Schema.suspend(() =>
+  Schema.mutable(Schema.Array(jsonValueSchema)),
 )
 
-export const jsonObjectSchema = z.record(z.string(), jsonValueSchema)
+export const jsonObjectSchema: Schema.Schema<JsonObject> = Schema.suspend(() =>
+  Schema.mutable(
+    Schema.Record({
+      key: Schema.String,
+      value: jsonValueSchema,
+    }),
+  ),
+)
 
-// ─── Orchestration ──────────────────────────────────────────────────
-/** Task tool progress event from orchestration executors. */
-export const taskToolProgressSchema = z.object({
-  type: z.enum(['tool_start', 'tool_end']),
-  toolName: z.string(),
-  toolCallId: z.string(),
-  toolInput: jsonObjectSchema.optional(),
+export const jsonValueSchema: Schema.Schema<JsonValue> = Schema.suspend(() =>
+  Schema.Union(
+    Schema.String,
+    Schema.Number,
+    Schema.Boolean,
+    Schema.Null,
+    jsonArraySchema,
+    jsonObjectSchema,
+  ),
+)
+
+const jsonLooseRecordSchema = Schema.Record({
+  key: Schema.String,
+  value: jsonValueSchema,
 })
 
-/** Persisted run index shape. */
-export const persistedRunIndexSchema = z.object({
-  ids: z.array(z.string()),
+export const orchestrationTaskAttemptSchema = Schema.Struct({
+  attempt: Schema.Number,
+  status: Schema.Literal('ok', 'error', 'cancelled'),
+  errorCode: Schema.optional(Schema.String),
+  error: Schema.optional(Schema.String),
+  startedAt: Schema.String,
+  finishedAt: Schema.String,
+  durationMs: Schema.Number,
 })
 
-/** Validates a persisted OrchestrationTaskAttempt. */
-export const orchestrationTaskAttemptSchema = z.object({
-  attempt: z.number(),
-  status: z.enum(['ok', 'error', 'cancelled']),
-  errorCode: z.string().optional(),
-  error: z.string().optional(),
-  startedAt: z.string(),
-  finishedAt: z.string(),
-  durationMs: z.number(),
+export const orchestrationTaskRetryPolicySchema = Schema.Struct({
+  retries: Schema.Number,
+  backoffMs: Schema.Number,
+  jitterMs: Schema.Number,
 })
 
-/** Validates a persisted OrchestrationTaskRetryPolicy. */
-export const orchestrationTaskRetryPolicySchema = z.object({
-  retries: z.number(),
-  backoffMs: z.number(),
-  jitterMs: z.number(),
+export const taskToolProgressSchema = Schema.Struct({
+  type: Schema.Literal('tool_start', 'tool_end'),
+  toolName: Schema.String,
+  toolCallId: Schema.String,
+  toolInput: Schema.optional(jsonObjectSchema),
 })
 
-/** Validates a persisted OrchestrationTaskRecord (strings, not branded types). */
-export const orchestrationTaskRecordSchema = z
-  .object({
-    id: z.string(),
-    kind: z.string(),
-    status: z.enum(ORCHESTRATION_TASK_STATUSES),
-    dependsOn: z.array(z.string()),
-    title: z.string().optional(),
-    startedAt: z.string().optional(),
-    finishedAt: z.string().optional(),
-    errorCode: z.string().optional(),
-    error: z.string().optional(),
-    retry: orchestrationTaskRetryPolicySchema.optional(),
-    attempts: z.array(orchestrationTaskAttemptSchema).optional(),
-    createdOrder: z.number().optional(),
-  })
-  .loose()
+export const plannedTaskSchema = Schema.Struct(
+  {
+    id: Schema.String,
+    kind: Schema.optional(Schema.String),
+    title: Schema.optional(Schema.String),
+    narration: Schema.optional(Schema.String),
+    description: Schema.optional(Schema.String),
+    dependsOn: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
+  },
+  jsonLooseRecordSchema,
+)
 
-/**
- * Structural shape of a persisted OrchestrationRunRecord.
- * Validates JSON structure; branded types are applied by the repository layer.
- */
-export const orchestrationRunRecordSchema = z
-  .object({
-    runId: z.string(),
-    conversationId: z.string(),
-    status: z.enum(ORCHESTRATION_RUN_STATUSES),
-    startedAt: z.string(),
-    finishedAt: z.string().optional(),
-    maxParallelTasks: z.number().int().positive().optional(),
-    taskOrder: z.array(z.string()),
-    tasks: z.record(z.string(), orchestrationTaskRecordSchema),
-    outputs: z.record(z.string(), jsonValueSchema),
-    fallbackUsed: z.boolean(),
-    fallbackReason: z.string().optional(),
-    updatedAt: z.number(),
-  })
-  .loose()
+export const packageJsonSchema = Schema.Struct(
+  {
+    name: Schema.optional(Schema.String),
+    description: Schema.optional(Schema.String),
+    dependencies: Schema.optional(
+      Schema.mutable(
+        Schema.Record({
+          key: Schema.String,
+          value: Schema.String,
+        }),
+      ),
+    ),
+    devDependencies: Schema.optional(
+      Schema.mutable(
+        Schema.Record({
+          key: Schema.String,
+          value: Schema.String,
+        }),
+      ),
+    ),
+    scripts: Schema.optional(
+      Schema.mutable(
+        Schema.Record({
+          key: Schema.String,
+          value: Schema.String,
+        }),
+      ),
+    ),
+  },
+  jsonLooseRecordSchema,
+)
 
-// ─── Planner ────────────────────────────────────────────────────────
-export const plannedTaskSchema = z
-  .object({
-    id: z.string(),
-    kind: z.string().optional(),
-    title: z.string().optional(),
-    narration: z.string().optional(),
-    description: z.string().optional(),
-    dependsOn: z.array(z.string()).optional(),
-  })
-  .loose()
+const optionalUnknownFieldSchema = Schema.optional(Schema.Unknown)
 
-// ─── Package.json ───────────────────────────────────────────────────
-export const packageJsonSchema = z
-  .object({
-    name: z.string().optional(),
-    description: z.string().optional(),
-    dependencies: z.record(z.string(), z.string()).optional(),
-    devDependencies: z.record(z.string(), z.string()).optional(),
-    scripts: z.record(z.string(), z.string()).optional(),
-  })
-  .loose()
-
-// ─── Project config (TOML) ─────────────────────────────────────────
-/**
- * Quality tier fields use `.catch(undefined)` so that non-numeric TOML
- * values (e.g. `temperature = "not a number"`) gracefully degrade to
- * `undefined` instead of failing the entire config parse.
- */
-export const qualityTierSchema = z
-  .object({
-    temperature: z.number().optional().catch(undefined),
-    top_p: z.number().optional().catch(undefined),
-    max_tokens: z.number().optional().catch(undefined),
-  })
-  .loose()
-
-export const projectSharedConfigSchema = z
-  .object({
-    quality: z
-      .object({
-        low: qualityTierSchema.optional(),
-        medium: qualityTierSchema.optional(),
-        high: qualityTierSchema.optional(),
-      })
-      .optional(),
-  })
-  .loose()
-
-const toolApprovalPatternSchema = z
-  .object({
-    pattern: z.string(),
-    timestamp: z.string().optional().catch(undefined),
-    source: z.string().optional().catch(undefined),
-  })
-  .loose()
-
-const toolApprovalEntrySchema = z
-  .object({
-    trusted: z.boolean().optional().catch(undefined),
-    timestamp: z.string().optional().catch(undefined),
-    source: z.string().optional().catch(undefined),
-    allowPatterns: z.array(toolApprovalPatternSchema).optional(),
-  })
-  .loose()
-
-const toolsApprovalSchema = z
-  .object({
-    writeFile: toolApprovalEntrySchema.optional(),
-    editFile: toolApprovalEntrySchema.optional(),
-    runCommand: toolApprovalEntrySchema.optional(),
-    webFetch: toolApprovalEntrySchema.optional(),
-  })
-  .loose()
-
-export const projectLocalConfigSchema = z
-  .object({
-    approvals: z
-      .object({
-        tools: toolsApprovalSchema.optional(),
-      })
-      .optional(),
-  })
-  .loose()
-
-export const projectConfigSchema = z
-  .object({
-    quality: projectSharedConfigSchema.shape.quality,
-    approvals: projectLocalConfigSchema.shape.approvals,
-  })
-  .loose()
-
-// ─── Ollama API ─────────────────────────────────────────────────────
-export const ollamaTagsResponseSchema = z.object({
-  models: z.array(z.object({ name: z.string() })).optional(),
+export const qualityTierSchema = Schema.Struct({
+  temperature: optionalUnknownFieldSchema,
+  top_p: optionalUnknownFieldSchema,
+  max_tokens: optionalUnknownFieldSchema,
 })
 
-// ─── Electron File ──────────────────────────────────────────────────
-/** Electron adds `.path` to File objects — validates that field exists. */
-export const electronFileSchema = z.object({ path: z.string() }).loose()
+export const projectSharedConfigSchema = Schema.Struct({
+  quality: Schema.optional(
+    Schema.Struct({
+      low: Schema.optional(qualityTierSchema),
+      medium: Schema.optional(qualityTierSchema),
+      high: Schema.optional(qualityTierSchema),
+    }),
+  ),
+})
+
+const toolApprovalPatternSchema = Schema.Struct({
+  pattern: Schema.String,
+  timestamp: optionalUnknownFieldSchema,
+  source: optionalUnknownFieldSchema,
+})
+
+const toolApprovalEntrySchema = Schema.Struct({
+  trusted: optionalUnknownFieldSchema,
+  timestamp: optionalUnknownFieldSchema,
+  source: optionalUnknownFieldSchema,
+  allowPatterns: Schema.optional(Schema.mutable(Schema.Array(toolApprovalPatternSchema))),
+})
+
+const toolsApprovalSchema = Schema.Struct({
+  writeFile: Schema.optional(toolApprovalEntrySchema),
+  editFile: Schema.optional(toolApprovalEntrySchema),
+  runCommand: Schema.optional(toolApprovalEntrySchema),
+  webFetch: Schema.optional(toolApprovalEntrySchema),
+})
+
+export const projectLocalConfigSchema = Schema.Struct({
+  approvals: Schema.optional(
+    Schema.Struct({
+      tools: Schema.optional(toolsApprovalSchema),
+    }),
+  ),
+})
+
+export const ollamaTagsResponseSchema = Schema.Struct({
+  models: Schema.optional(
+    Schema.mutable(
+      Schema.Array(
+        Schema.Struct({
+          name: Schema.String,
+        }),
+      ),
+    ),
+  ),
+})
+
+export const electronFileSchema = Schema.Struct({
+  path: Schema.String,
+})

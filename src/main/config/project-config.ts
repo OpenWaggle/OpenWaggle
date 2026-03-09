@@ -2,18 +2,24 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import {
+  decodeUnknownOrThrow,
+  type Schema,
+  type SchemaType,
+  safeDecodeUnknown,
+} from '@shared/schema'
+import {
   projectLocalConfigSchema,
   projectSharedConfigSchema,
   type qualityTierSchema,
 } from '@shared/schemas/validation'
 import type {
   ToolApprovalConfig,
+  ToolApprovalPatternRule,
   ToolApprovalTrustEntry,
   TrustableToolName,
 } from '@shared/types/tool-approval'
 import { TRUSTABLE_TOOL_NAMES } from '@shared/types/tool-approval'
 import { formatErrorMessage, isEnoent } from '@shared/utils/node-error'
-import type { z } from 'zod'
 import { createLogger } from '../logger'
 import type { BaseSamplingConfig } from '../providers/provider-definition'
 import {
@@ -53,8 +59,8 @@ export interface ProjectConfig {
 }
 
 const EMPTY_CONFIG: ProjectConfig = {}
-type ParsedProjectSharedConfig = z.infer<typeof projectSharedConfigSchema>
-type ParsedProjectLocalConfig = z.infer<typeof projectLocalConfigSchema>
+type ParsedProjectSharedConfig = SchemaType<typeof projectSharedConfigSchema>
+type ParsedProjectLocalConfig = SchemaType<typeof projectLocalConfigSchema>
 
 interface ConfigCacheEntry {
   readonly config: ProjectConfig
@@ -85,27 +91,21 @@ function getConfigTempPath(configPath: string): string {
   return `${configPath}.${randomUUID()}.tmp`
 }
 
-function parseValidationIssues(error: z.ZodError): string {
-  return error.issues
-    .map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`)
-    .join('; ')
-}
-
-async function readValidatedConfig<TSchema extends z.ZodTypeAny>(
+async function readValidatedConfig<TSchema extends Schema.Schema.AnyNoContext>(
   filePath: string,
   schema: TSchema,
   options: {
     strict: boolean
     logLabel: string
   },
-): Promise<z.infer<TSchema> | null> {
+): Promise<SchemaType<TSchema> | null> {
   try {
     const raw = await readFile(filePath, 'utf-8')
     const { parse } = await import('smol-toml')
     const parsedToml: unknown = raw.trim().length > 0 ? parse(raw) : {}
-    const validated = schema.safeParse(parsedToml)
+    const validated = safeDecodeUnknown(schema, parsedToml)
     if (!validated.success) {
-      const message = `Invalid project config schema: ${parseValidationIssues(validated.error)}`
+      const message = `Invalid project config schema: ${validated.issues.join('; ')}`
       if (options.strict) {
         throw new Error(message)
       }
@@ -302,18 +302,18 @@ export async function ensureLocalProjectConfigFile(projectPath: string): Promise
   )
 }
 
-async function updateConfigFile<TSchema extends z.ZodTypeAny>(
+async function updateConfigFile<TSchema extends Schema.Schema.AnyNoContext>(
   configPath: string,
   schema: TSchema,
   logLabel: string,
-  updater: (current: z.infer<TSchema>) => z.infer<TSchema>,
-): Promise<z.infer<TSchema>> {
+  updater: (current: SchemaType<TSchema>) => SchemaType<TSchema>,
+): Promise<SchemaType<TSchema>> {
   const current =
     (await readValidatedConfig(configPath, schema, {
       strict: true,
       logLabel,
-    })) ?? schema.parse({})
-  const next = schema.parse(updater(current))
+    })) ?? decodeUnknownOrThrow(schema, {})
+  const next = decodeUnknownOrThrow(schema, updater(current))
 
   const { stringify } = await import('smol-toml')
   const serialized = stringify(next)
@@ -506,7 +506,7 @@ export async function recordToolCallApproval(
         [toolName]: {
           ...current.approvals?.tools?.[toolName],
           allowPatterns: appendAllowPattern(
-            current.approvals?.tools?.[toolName]?.allowPatterns,
+            normalizeToolApprovalPatterns(current.approvals?.tools?.[toolName]?.allowPatterns),
             normalizedPattern,
             timestamp,
             source,
@@ -542,16 +542,7 @@ function parseProjectConfig(
   let hasToolApprovals = false
   for (const toolName of TRUSTABLE_TOOL_NAMES) {
     const entry = local?.approvals?.tools?.[toolName]
-    const normalizedEntry: ToolApprovalTrustEntry = {
-      trusted: entry?.trusted,
-      timestamp: entry?.timestamp,
-      source: entry?.source,
-      allowPatterns: entry?.allowPatterns?.map((rule) => ({
-        pattern: rule.pattern,
-        timestamp: rule.timestamp,
-        source: rule.source,
-      })),
-    }
+    const normalizedEntry = parseToolApprovalEntry(entry)
     if (hasTrustData(normalizedEntry)) {
       toolApprovals[toolName] = normalizedEntry
       hasToolApprovals = true
@@ -583,7 +574,7 @@ function clampOptional(value: number, min: number, max: number, name: string): n
 }
 
 function parseTierOverride(
-  tier: z.infer<typeof qualityTierSchema> | undefined,
+  tier: SchemaType<typeof qualityTierSchema> | undefined,
 ): Partial<BaseSamplingConfig> | undefined {
   if (!tier) return undefined
 
@@ -603,4 +594,58 @@ function parseTierOverride(
   }
 
   return Object.keys(out).length > 0 ? out : undefined
+}
+
+function parseOptionalString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined
+}
+
+function parseOptionalBoolean(value: unknown): boolean | undefined {
+  return typeof value === 'boolean' ? value : undefined
+}
+
+function parseToolApprovalPattern(rule: {
+  readonly pattern: string
+  readonly timestamp?: unknown
+  readonly source?: unknown
+}): ToolApprovalPatternRule {
+  return {
+    pattern: rule.pattern,
+    timestamp: parseOptionalString(rule.timestamp),
+    source: parseOptionalString(rule.source),
+  }
+}
+
+function normalizeToolApprovalPatterns(
+  patterns:
+    | readonly {
+        readonly pattern: string
+        readonly timestamp?: unknown
+        readonly source?: unknown
+      }[]
+    | undefined,
+): readonly ToolApprovalPatternRule[] | undefined {
+  return patterns?.map(parseToolApprovalPattern)
+}
+
+function parseToolApprovalEntry(
+  entry:
+    | {
+        readonly trusted?: unknown
+        readonly timestamp?: unknown
+        readonly source?: unknown
+        readonly allowPatterns?: readonly {
+          readonly pattern: string
+          readonly timestamp?: unknown
+          readonly source?: unknown
+        }[]
+      }
+    | undefined,
+): ToolApprovalTrustEntry {
+  return {
+    trusted: parseOptionalBoolean(entry?.trusted),
+    timestamp: parseOptionalString(entry?.timestamp),
+    source: parseOptionalString(entry?.source),
+    allowPatterns: entry?.allowPatterns?.map(parseToolApprovalPattern),
+  }
 }

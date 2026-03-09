@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { Schema, safeDecodeUnknown } from '@shared/schema'
 
 /**
  * Structured error types for the agent error pipeline.
@@ -224,19 +224,15 @@ interface ExtractedError {
  *   OpenRouter: `{"error":{"code":402,"message":"..."}}`
  * Returns the extracted messages if found, or `null` to use the original.
  */
-const innerErrorSchema = z
-  .object({
-    error: z
-      .object({
-        message: z.string().optional(),
-        status: z.string().optional(),
-      })
-      .optional(),
-    message: z.string().optional(),
-  })
-  .refine((d) => d.error?.message !== undefined || d.message !== undefined, {
-    message: 'At least one message field required',
-  })
+const innerErrorSchema = Schema.Struct({
+  error: Schema.optional(
+    Schema.Struct({
+      message: Schema.optional(Schema.String),
+      status: Schema.optional(Schema.String),
+    }),
+  ),
+  message: Schema.optional(Schema.String),
+})
 
 function extractInnerErrorMessage(raw: string): ExtractedError | null {
   // Match pattern: optional status code, then JSON body
@@ -245,8 +241,9 @@ function extractInnerErrorMessage(raw: string): ExtractedError | null {
 
   try {
     const parsed: unknown = JSON.parse(raw.slice(jsonStart))
-    const result = innerErrorSchema.safeParse(parsed)
+    const result = safeDecodeUnknown(innerErrorSchema, parsed)
     if (!result.success) return null
+    if (!result.data.error?.message && !result.data.message) return null
 
     // Anthropic / OpenAI / Gemini / OpenRouter: { error: { message: "..." } }
     if (result.data.error?.message) {

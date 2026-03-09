@@ -6,17 +6,19 @@
     "src/preload/index.ts",
     "src/renderer/src/main.tsx",
     "src/renderer/src/**/*.d.ts",
+    "src/shared/types/**/*.d.ts",
     "src/shared/utils/decision.typecheck.ts",
-    "scripts/**/*.mjs",
+    "scripts/**/*.ts",
     "vitest.*.config.ts",
     "playwright.config.ts"
   ],
   "project": [
     "src/**/*.{ts,tsx}",
-    "scripts/**/*.mjs",
+    "scripts/**/*.ts",
     "*.config.{js,cjs,mjs,ts}",
     "electron.vite.config.ts"
   ],
   "ignore": ["out/**", "dist/**", "release/**", "node_modules/**"],
+  "ignoreDependencies": ["better-sqlite3", "tailwindcss"],
   "ignoreExportsUsedInFile": true
 }

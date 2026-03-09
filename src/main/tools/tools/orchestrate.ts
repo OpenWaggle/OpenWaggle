@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
+import { Schema } from '@shared/schema'
 import { OrchestrationRunId, OrchestrationTaskId } from '@shared/types/brand'
 import type { JsonValue } from '@shared/types/json'
 import type { OrchestrationEventPayload } from '@shared/types/orchestration'
-import { z } from 'zod'
 import { createLogger } from '../../logger'
 import type { OpenWaggleTaskExecutionInput } from '../../orchestration/engine/types'
 import { buildExecutorTools } from '../../orchestration/executor-tools'
@@ -15,14 +15,24 @@ const MAX_PARALLEL_TASKS = 4
 
 const logger = createLogger('tool:orchestrate')
 
-const taskSchema = z.object({
-  id: z.string().min(1).describe('Unique identifier for the task'),
-  title: z.string().min(1).describe('Short descriptive title'),
-  prompt: z.string().min(1).describe('Detailed instructions for the sub-agent'),
-  dependsOn: z
-    .array(z.string())
-    .optional()
-    .describe('IDs of tasks that must complete before this one starts'),
+const taskSchema = Schema.Struct({
+  id: Schema.String.pipe(
+    Schema.minLength(1),
+    Schema.annotations({ description: 'Unique identifier for the task' }),
+  ),
+  title: Schema.String.pipe(
+    Schema.minLength(1),
+    Schema.annotations({ description: 'Short descriptive title' }),
+  ),
+  prompt: Schema.String.pipe(
+    Schema.minLength(1),
+    Schema.annotations({ description: 'Detailed instructions for the sub-agent' }),
+  ),
+  dependsOn: Schema.optional(
+    Schema.Array(Schema.String).annotations({
+      description: 'IDs of tasks that must complete before this one starts',
+    }),
+  ),
 })
 
 export const orchestrateTool = defineOpenWaggleTool({
@@ -30,28 +40,27 @@ export const orchestrateTool = defineOpenWaggleTool({
   description:
     'Spawn parallel sub-agents to execute 2-5 independent tasks simultaneously. Each task is executed by a sub-agent with access to project files (readFile, glob, webFetch). Results are synthesized into a combined response. Use this when you have multiple independent sub-tasks that benefit from parallel execution. Do not use for sequential tasks where each step depends on the previous one.',
   needsApproval: false,
-  inputSchema: z.object({
-    tasks: z
-      .array(taskSchema)
-      .min(MIN_ARG_1)
-      .max(MAX_ARG_1)
-      .describe('The tasks to execute in parallel. 2-5 tasks.'),
+  inputSchema: Schema.Struct({
+    tasks: Schema.Array(taskSchema).pipe(
+      Schema.minItems(MIN_ARG_1),
+      Schema.maxItems(MAX_ARG_1),
+      Schema.annotations({ description: 'The tasks to execute in parallel. 2-5 tasks.' }),
+    ),
   }),
   async execute(args, context) {
     const { projectPath, signal, conversationId } = context
     const runId = randomUUID()
 
     // ── Lazy imports ──
-    // All orchestration modules are imported dynamically to avoid triggering
-    // electron-store initialization at module load time. This module is imported
-    // transitively by built-in-tools which is loaded in test environments where
-    // electron-store is not available.
+    // Keep orchestration dependencies out of the initial built-in tool load so
+    // tests and startup only pay this cost when orchestration is actually used.
     const [
       { getSettings },
       { loadProjectConfig },
       { isResolutionError, resolveProviderAndQuality },
       { runOpenWaggleOrchestration },
       { gatherProjectContext },
+      { orchestrationRunRepository },
       { defaultOrchestrationServiceDeps },
       { createModelRunner },
       { buildExecutionPrompt, buildSynthesisPrompt },
@@ -61,6 +70,7 @@ export const orchestrateTool = defineOpenWaggleTool({
       import('../../agent/shared'),
       import('../../orchestration/engine'),
       import('../../orchestration/project-context'),
+      import('../../orchestration/run-repository'),
       import('../../orchestration/service/deps'),
       import('../../orchestration/service/model-runner'),
       import('../../orchestration/service/prompts'),
@@ -114,7 +124,7 @@ export const orchestrateTool = defineOpenWaggleTool({
         }
         taskKindLookup.set(task.id, 'general')
         if (task.dependsOn && task.dependsOn.length > 0) {
-          base.dependsOn = task.dependsOn
+          base.dependsOn = [...task.dependsOn]
         }
         return base
       }),
@@ -173,6 +183,25 @@ export const orchestrateTool = defineOpenWaggleTool({
           taskKind: taskId ? taskKindLookup.get(taskId) : undefined,
           detail: event,
         }
+
+        orchestrationRunRepository
+          .appendEvent({
+            conversationId,
+            event,
+            metadata: taskId
+              ? {
+                  taskKind: taskKindLookup.get(taskId) ?? null,
+                }
+              : undefined,
+          })
+          .catch((error) => {
+            logger.warn('Failed to persist orchestration event', {
+              runId: event.runId,
+              type: event.type,
+              error: error instanceof Error ? error.message : String(error),
+            })
+          })
+
         emitOrchestrationEvent(payload)
       },
     })

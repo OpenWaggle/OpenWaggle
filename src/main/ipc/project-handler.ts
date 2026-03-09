@@ -1,13 +1,21 @@
-import { dialog } from 'electron'
+import { BrowserWindow, dialog, type OpenDialogOptions } from 'electron'
 import { isProjectToolCallTrusted, recordToolCallApproval } from '../config/project-config'
 import { typedHandle } from './typed-ipc'
 
+function createProjectFolderDialogOptions(): OpenDialogOptions {
+  return {
+    properties: ['openDirectory'],
+    title: 'Select Project Folder',
+  }
+}
+
 export function registerProjectHandlers(): void {
-  typedHandle('project:select-folder', async () => {
-    const result = await dialog.showOpenDialog({
-      properties: ['openDirectory'],
-      title: 'Select Project Folder',
-    })
+  typedHandle('project:select-folder', async (event) => {
+    const ownerWindow = BrowserWindow.fromWebContents(event.sender)
+    const dialogOptions = createProjectFolderDialogOptions()
+    const result = ownerWindow
+      ? await dialog.showOpenDialog(ownerWindow, dialogOptions)
+      : await dialog.showOpenDialog(dialogOptions)
 
     if (result.canceled || result.filePaths.length === 0) {
       return null

@@ -1,17 +1,20 @@
-import { z } from 'zod'
+import { Schema } from '@shared/schema'
 import type { ConversationId } from './brand'
 
-export const planResponseSchema = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('approve') }),
-  z.object({ action: z.literal('revise'), feedback: z.string().min(1) }),
-])
+export type PlanResponse =
+  | { readonly action: 'approve' }
+  | {
+      readonly action: 'revise'
+      readonly feedback: string
+    }
 
-export type PlanResponse = z.infer<typeof planResponseSchema>
-
-export interface PlanProposal {
-  readonly conversationId: ConversationId
-  readonly planText: string
-}
+export const planResponseSchema = Schema.Union(
+  Schema.Struct({ action: Schema.Literal('approve') }),
+  Schema.Struct({
+    action: Schema.Literal('revise'),
+    feedback: Schema.String.pipe(Schema.minLength(1)),
+  }),
+)
 
 export interface PlanPayload {
   readonly conversationId: ConversationId

@@ -114,35 +114,39 @@ The composer includes a **Plan** toggle that asks the agent to propose a plan be
 
 ### Settings
 
-Settings are stored via `electron-store` in your OS configuration directory:
+App-owned settings are stored in the SQLite app database:
 
 | Platform | Location |
 |----------|----------|
-| macOS | `~/Library/Application Support/OpenWaggle/settings.json` |
-| Windows | `%APPDATA%\OpenWaggle\settings.json` |
-| Linux | `~/.config/OpenWaggle/settings.json` |
+| macOS | `~/Library/Application Support/OpenWaggle/openwaggle.db` |
+| Windows | `%APPDATA%\OpenWaggle\openwaggle.db` |
+| Linux | `~/.config/OpenWaggle/openwaggle.db` |
 
 ### Conversations
 
-Conversations are stored as individual JSON files:
+Conversations are stored in the same SQLite app database:
 
 | Platform | Location |
 |----------|----------|
-| macOS | `~/Library/Application Support/OpenWaggle/conversations/` |
-| Windows | `%APPDATA%\OpenWaggle\conversations\` |
-| Linux | `~/.config/OpenWaggle/conversations/` |
+| macOS | `~/Library/Application Support/OpenWaggle/openwaggle.db` |
+| Windows | `%APPDATA%\OpenWaggle\openwaggle.db` |
+| Linux | `~/.config/OpenWaggle/openwaggle.db` |
 
-Each conversation is a separate `{id}.json` file. A lightweight `index.json` provides fast loading of conversation summaries without reading every file.
+Conversation summaries, messages, and message parts are stored relationally in SQLite for indexed reads and simpler recovery.
 
 ### Orchestration Runs
 
-Orchestration run data is stored separately:
+Orchestration run data also lives in SQLite:
 
 | Platform | Location |
 |----------|----------|
-| macOS | `~/Library/Application Support/OpenWaggle/orchestration-runs/` |
-| Windows | `%APPDATA%\OpenWaggle\orchestration-runs\` |
-| Linux | `~/.config/OpenWaggle/orchestration-runs/` |
+| macOS | `~/Library/Application Support/OpenWaggle/openwaggle.db` |
+| Windows | `%APPDATA%\OpenWaggle\openwaggle.db` |
+| Linux | `~/.config/OpenWaggle/openwaggle.db` |
+
+OpenWaggle stores orchestration events in an append-only event table and keeps query-friendly run/task read models alongside them.
+
+If you need to inspect the raw database as a maintainer, see the SQLite access guide in [Developer Guide](./developer-guide.md#inspecting-the-sqlite-database).
 
 ### Voice Models
 

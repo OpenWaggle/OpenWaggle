@@ -2,6 +2,8 @@
 
 This guide covers building, developing, and understanding OpenWaggle's architecture.
 
+OpenWaggle's main process is now Effect-native. For the up-to-date runtime map, see [Architecture](../architecture.md).
+
 ## Prerequisites
 
 - **Node.js** 24.x — [nodejs.org](https://nodejs.org/)
@@ -24,6 +26,7 @@ pnpm dev
 This launches the Electron app with:
 - **Hot-reload** for the renderer (React UI updates live).
 - **No hot-reload** for the main process — restart the app for backend changes.
+- **Electron-native rebuild prep** for native dependencies such as `better-sqlite3`.
 
 ### Production Build
 
@@ -45,12 +48,15 @@ pnpm build:linux  # Linux AppImage (x64)
 |--------|-------------|
 | `pnpm dev` | Start in development mode |
 | `pnpm build` | Production build |
+| `pnpm prepare:native:node` | Rebuild native dependencies for Node-based test runs |
+| `pnpm prepare:native:electron` | Rebuild native dependencies for Electron dev/build/e2e runs |
 | `pnpm typecheck` | Full type check (main + renderer) |
 | `pnpm typecheck:node` | Type check main + preload + shared |
 | `pnpm typecheck:web` | Type check renderer + shared |
 | `pnpm lint` | Biome lint check |
 | `pnpm lint:fix` | Biome lint + auto-fix |
 | `pnpm format` | Biome format |
+| `pnpm check:fast` | Typecheck + lint only |
 | `pnpm check` | typecheck + lint combined |
 | `pnpm test` | All tests (unit + integration + component) |
 | `pnpm test:all` | All tests including headless e2e |
@@ -90,10 +96,12 @@ src/
 The Node.js backend. Handles:
 - **Agent loop** — AI model interaction via TanStack AI adapters.
 - **Tool execution** — File operations, shell commands, web fetch.
-- **Persistence** — Conversation files, settings, orchestration runs.
+- **Persistence** — SQLite-backed app state plus project-local TOML config/trust files.
 - **IPC handlers** — All renderer requests pass through here.
 - **MCP management** — External tool server connections.
 - **Auth** — OAuth flows and token management.
+
+The main process is composed through Effect layers and runs through a shared managed runtime.
 
 Built as CJS with ESM interop (electron-vite bundles ESM-only packages).
 
@@ -130,20 +138,21 @@ The React 19 UI. Key technologies:
 
 ### Agent Loop
 
-`src/main/agent/agent-loop.ts` uses TanStack AI's `chat()`:
+`src/main/agent/agent-loop.ts` uses TanStack AI's `chat()` with Effect-owned control flow:
 
 1. Converts `Message[]` to `SimpleChatMessage[]`.
 2. Resolves provider via the registry.
-3. Iterates the async stream, translating events to `AgentStreamEvent`.
-4. Emits events over IPC to all renderer windows.
-5. Tools execute inline — results arrive via `TOOL_CALL_END`.
+3. Binds run-scoped `ToolContext` into the selected tools.
+4. Processes the stream with Effect-based stall detection, retry scheduling, and cancellation.
+5. Emits events over IPC to all renderer windows.
+6. Tools execute inline — results arrive via `TOOL_CALL_END`.
 
 ### Tool System
 
 Tools are defined in `src/main/tools/tools/` using `defineOpenWaggleTool()`:
 
-- Each tool has a Zod schema for argument validation.
-- `ToolContext` (project path, abort signal, dynamic skills) is available via async local storage.
+- Each tool has an Effect Schema input contract for argument validation.
+- `ToolContext` (project path, abort signal, dynamic skills) is bound explicitly per run.
 - Path resolution prevents escaping the project root.
 - Results are structured as `{ kind: 'text' | 'json' }`.
 
@@ -169,7 +178,7 @@ Default features: core prompt, core tools, execution mode, standards/skills, MCP
 - **Planner** — LLM generates a task graph (JSON) with dependencies.
 - **Executor** — Runs tasks in dependency order.
 - **Fallback handling** — Orchestration flows can degrade gracefully when planning/execution fails.
-- **Run store** — Persists run state separately from conversations.
+- **Persistence** — Uses an append-only event store plus read-model tables in SQLite.
 
 ## Tech Stack
 
@@ -179,18 +188,19 @@ Default features: core prompt, core tools, execution mode, standards/skills, MCP
 | Renderer | React 19, Zustand 5, Tailwind CSS 4 |
 | AI Integration | TanStack AI 0.6.x |
 | Language | TypeScript (strict, no `any`) |
-| Validation | Zod v4 |
+| Main Runtime | Effect |
+| Validation | Effect Schema |
 | Bundler | Vite + Rollup |
 | Linter/Formatter | Biome |
 | Testing | Vitest + Testing Library + Playwright |
 | Terminal | xterm.js + node-pty |
-| Storage | electron-store |
+| Storage | SQLite + project-local TOML |
 | MCP | @modelcontextprotocol/sdk |
 
 ## Key Conventions
 
 - **Always use `pnpm`** — Never `npm` or `yarn`.
-- **No `any`** — Use `unknown` plus narrowing or Zod schemas.
+- **No `any`** — Use `unknown` plus narrowing or Effect Schema.
 - **No `React.FC`** — Plain functions with explicit props interfaces.
 - **No `forwardRef`** — React 19 supports direct ref props.
 - **No `React.memo()` / `useMemo()` / `useCallback()`** for render optimization — React Compiler handles it.
@@ -236,6 +246,133 @@ pnpm test:e2e
 ```
 
 The `OPENWAGGLE_USER_DATA_DIR` env var can override the data directory for test isolation.
+
+## Inspecting the SQLite Database
+
+OpenWaggle stores app-owned runtime state in a single SQLite database named `openwaggle.db`.
+
+The database path is computed from Electron's `app.getPath('userData')` in [`src/main/services/database-service.ts`](../../src/main/services/database-service.ts). If `OPENWAGGLE_USER_DATA_DIR` is set before launch, the database is created inside that override directory instead.
+
+### Default Database Locations
+
+| Platform | Location |
+|------|---------|
+| macOS | `~/Library/Application Support/OpenWaggle/openwaggle.db` |
+| Windows | `%APPDATA%\OpenWaggle\openwaggle.db` |
+| Linux | `~/.config/OpenWaggle/openwaggle.db` |
+
+Because OpenWaggle runs SQLite in WAL mode, you may also see companion files next to the main database:
+
+- `openwaggle.db-wal`
+- `openwaggle.db-shm`
+
+Those are expected.
+
+### Recommended Access Pattern
+
+For manual inspection, prefer opening the database read-only:
+
+```bash
+sqlite3 "~/Library/Application Support/OpenWaggle/openwaggle.db" -readonly
+```
+
+Inside the SQLite shell:
+
+```sql
+.tables
+.schema conversations
+SELECT id, title, updated_at FROM conversations ORDER BY updated_at DESC LIMIT 20;
+SELECT key, value_json FROM settings_store ORDER BY key;
+SELECT provider, updated_at FROM auth_tokens ORDER BY provider;
+SELECT run_id, status, updated_at FROM orchestration_runs ORDER BY updated_at DESC LIMIT 20;
+```
+
+If you prefer a GUI, DB Browser for SQLite or TablePlus work fine against the same file.
+
+### Working With a Custom Data Directory
+
+If you launch OpenWaggle with a custom data directory:
+
+```bash
+OPENWAGGLE_USER_DATA_DIR=/tmp/openwaggle-dev pnpm dev
+```
+
+the database will be created at:
+
+```bash
+/tmp/openwaggle-dev/openwaggle.db
+```
+
+That is the easiest way to inspect or reset a clean development dataset without touching your normal local app state.
+
+### Common Queries
+
+Recent conversations:
+
+```sql
+SELECT id, title, model, project_path, archived, updated_at
+FROM conversations
+ORDER BY updated_at DESC
+LIMIT 20;
+```
+
+Messages for one conversation:
+
+```sql
+SELECT id, role, model, created_at, position
+FROM conversation_messages
+WHERE conversation_id = 'your-conversation-id'
+ORDER BY position ASC;
+```
+
+Message parts for one message:
+
+```sql
+SELECT message_id, part_type, content_json, position
+FROM conversation_message_parts
+WHERE message_id = 'your-message-id'
+ORDER BY position ASC;
+```
+
+Recent orchestration events:
+
+```sql
+SELECT sequence, stream_id, event_type, occurred_at
+FROM orchestration_events
+ORDER BY sequence DESC
+LIMIT 50;
+```
+
+Team runtime state:
+
+```sql
+SELECT project_path, team_name, updated_at
+FROM team_runtime_state
+ORDER BY updated_at DESC;
+```
+
+### Table Map
+
+The main tables created by the current migration set are:
+
+- `_migrations` — applied schema migrations
+- `settings_store` — app settings
+- `auth_tokens` — encrypted provider and OAuth token payloads
+- `team_presets` — saved Waggle team presets
+- `conversations` — conversation summaries
+- `conversation_messages` — message rows per conversation
+- `conversation_message_parts` — normalized message parts
+- `orchestration_events` — append-only orchestration event store
+- `orchestration_runs` — orchestration read model
+- `orchestration_run_tasks` — task read model for orchestration runs
+- `provider_session_runtime` — provider runtime session state
+- `team_runtime_state` — team runtime/project state
+
+### Safety Notes
+
+- Read-only inspection is safest while the app is running.
+- If you want to modify or delete data manually, close OpenWaggle first.
+- `auth_tokens.encrypted_value` is intentionally encrypted at rest, so raw token rows are not meant to be human-readable.
 
 ## Configuration Files
 

@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import {
   loadSkillCatalog,
   loadSkillInstructions,
@@ -9,12 +9,12 @@ import { resolveAgentsChainForPath, resolveAgentsForRun } from '../standards/age
 import { getSettings, updateSettings } from '../store/settings'
 import { safeHandle } from './typed-ipc'
 
-const projectPathSchema = z.string().min(1)
-const skillIdSchema = z.string().min(1)
+const projectPathSchema = Schema.String.pipe(Schema.minLength(1))
+const skillIdSchema = Schema.String.pipe(Schema.minLength(1))
 
 export function registerSkillsHandlers(): void {
   safeHandle('standards:get-status', async (_event, rawProjectPath: string) => {
-    const projectPath = projectPathSchema.parse(rawProjectPath)
+    const projectPath = decodeUnknownOrThrow(projectPathSchema, rawProjectPath)
     const agents = await loadAgentsInstruction(projectPath)
     return {
       agents: agents.status,
@@ -26,7 +26,7 @@ export function registerSkillsHandlers(): void {
   safeHandle(
     'standards:get-effective-agents',
     async (_event, rawProjectPath: string, rawTargetPath?: string) => {
-      const projectPath = projectPathSchema.parse(rawProjectPath)
+      const projectPath = decodeUnknownOrThrow(projectPathSchema, rawProjectPath)
       if (typeof rawTargetPath === 'string' && rawTargetPath.trim().length > 0) {
         return resolveAgentsChainForPath(projectPath, rawTargetPath)
       }
@@ -35,7 +35,7 @@ export function registerSkillsHandlers(): void {
   )
 
   safeHandle('skills:list', async (_event, rawProjectPath: string) => {
-    const projectPath = projectPathSchema.parse(rawProjectPath)
+    const projectPath = decodeUnknownOrThrow(projectPathSchema, rawProjectPath)
     const settings = getSettings()
     const toggles = settings.skillTogglesByProject[projectPath] ?? {}
     const catalog = await loadSkillCatalog(projectPath, toggles)
@@ -45,8 +45,8 @@ export function registerSkillsHandlers(): void {
   safeHandle(
     'skills:set-enabled',
     (_event, rawProjectPath: string, rawSkillId: string, enabled: boolean) => {
-      const projectPath = projectPathSchema.parse(rawProjectPath)
-      const skillId = skillIdSchema.parse(rawSkillId)
+      const projectPath = decodeUnknownOrThrow(projectPathSchema, rawProjectPath)
+      const skillId = decodeUnknownOrThrow(skillIdSchema, rawSkillId)
 
       const settings = getSettings()
       const nextSkillTogglesByProject = { ...settings.skillTogglesByProject }
@@ -61,8 +61,8 @@ export function registerSkillsHandlers(): void {
   )
 
   safeHandle('skills:get-preview', async (_event, rawProjectPath: string, rawSkillId: string) => {
-    const projectPath = projectPathSchema.parse(rawProjectPath)
-    const skillId = skillIdSchema.parse(rawSkillId)
+    const projectPath = decodeUnknownOrThrow(projectPathSchema, rawProjectPath)
+    const skillId = decodeUnknownOrThrow(skillIdSchema, rawSkillId)
 
     const settings = getSettings()
     const toggles = settings.skillTogglesByProject[projectPath] ?? {}

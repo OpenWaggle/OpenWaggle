@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { Schema } from '@shared/schema'
 import type { McpServerId } from './brand'
 
 export const MCP_TRANSPORTS = ['stdio', 'http'] as const
@@ -39,14 +39,14 @@ export interface McpServerStatus {
   readonly tools: readonly McpToolInfo[]
 }
 
-/** Zod schema for validating McpServerConfig at IPC boundaries */
-export const mcpServerConfigSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  transport: z.enum(MCP_TRANSPORTS),
-  enabled: z.boolean(),
-  command: z.string().optional(),
-  args: z.array(z.string()).optional(),
-  env: z.record(z.string(), z.string()).optional(),
-  url: z.string().optional(),
+/** Effect schema for validating McpServerConfig at IPC boundaries */
+export const mcpServerConfigSchema = Schema.Struct({
+  id: Schema.String.pipe(Schema.minLength(1)),
+  name: Schema.String.pipe(Schema.minLength(1)),
+  transport: Schema.Literal(...MCP_TRANSPORTS),
+  enabled: Schema.Boolean,
+  command: Schema.optional(Schema.String),
+  args: Schema.optional(Schema.Array(Schema.String)),
+  env: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.String })),
+  url: Schema.optional(Schema.String),
 })

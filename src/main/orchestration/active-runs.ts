@@ -8,18 +8,6 @@ interface ActiveOrchestrationRun {
 
 const activeRunsByRunId = new Map<string, ActiveOrchestrationRun>()
 
-export function registerActiveOrchestrationRun(
-  runId: string,
-  conversationId: ConversationId,
-  controller: AbortController,
-): void {
-  activeRunsByRunId.set(runId, { runId, conversationId, controller })
-}
-
-export function unregisterActiveOrchestrationRun(runId: string): void {
-  activeRunsByRunId.delete(runId)
-}
-
 export function cancelActiveOrchestrationRun(runId: string): boolean {
   const active = activeRunsByRunId.get(runId)
   if (!active) return false

@@ -1,7 +1,12 @@
 import type { Conversation } from '@shared/types/conversation'
 import type { WaggleConfig, WaggleMessageMetadata } from '@shared/types/waggle'
 import type { UIMessage } from '@tanstack/ai-react'
+import { useRef } from 'react'
 import { useWaggleStore } from '@/stores/waggle-store'
+
+const EMPTY_WAGGLE_METADATA_LOOKUP: Readonly<Record<string, WaggleMessageMetadata>> = Object.freeze(
+  {},
+)
 
 /**
  * Derives a UIMessage-id -> Waggle metadata lookup.
@@ -21,17 +26,51 @@ import { useWaggleStore } from '@/stores/waggle-store'
 export function useWaggleMetadataLookup(
   conversation: Conversation | null,
   messages: UIMessage[],
-): Record<string, WaggleMessageMetadata> {
+): Readonly<Record<string, WaggleMessageMetadata>> {
   const activeConfig = useWaggleStore((s) => s.activeConfig)
   const completedTurnMeta = useWaggleStore((s) => s.completedTurnMeta)
   const status = useWaggleStore((s) => s.status)
   const currentAgentIndex = useWaggleStore((s) => s.currentAgentIndex)
   const currentAgentLabel = useWaggleStore((s) => s.currentAgentLabel)
+  const cacheRef = useRef<{
+    conversation: Conversation | null
+    messages: UIMessage[]
+    config: WaggleConfig | null | undefined
+    completedTurnMeta: readonly WaggleMessageMetadata[]
+    status: string
+    currentAgentIndex: number
+    currentAgentLabel: string
+    lookup: Readonly<Record<string, WaggleMessageMetadata>>
+  } | null>(null)
 
   // Use the active config (live run) or the conversation's stored config (historical)
   const config: WaggleConfig | null | undefined = activeConfig ?? conversation?.waggleConfig
 
-  if (!config) return {}
+  if (!config) {
+    cacheRef.current = {
+      conversation,
+      messages,
+      config,
+      completedTurnMeta,
+      status,
+      currentAgentIndex,
+      currentAgentLabel,
+      lookup: EMPTY_WAGGLE_METADATA_LOOKUP,
+    }
+    return EMPTY_WAGGLE_METADATA_LOOKUP
+  }
+
+  if (
+    cacheRef.current?.conversation === conversation &&
+    cacheRef.current.messages === messages &&
+    cacheRef.current.config === config &&
+    cacheRef.current.completedTurnMeta === completedTurnMeta &&
+    cacheRef.current.status === status &&
+    cacheRef.current.currentAgentIndex === currentAgentIndex &&
+    cacheRef.current.currentAgentLabel === currentAgentLabel
+  ) {
+    return cacheRef.current.lookup
+  }
 
   const lookup: Record<string, WaggleMessageMetadata> = {}
   const isLive = status === 'running'
@@ -100,7 +139,18 @@ export function useWaggleMetadataLookup(
     assistantIndex++
   }
 
-  return lookup
+  const stableLookup = Object.freeze(lookup)
+  cacheRef.current = {
+    conversation,
+    messages,
+    config,
+    completedTurnMeta,
+    status,
+    currentAgentIndex,
+    currentAgentLabel,
+    lookup: stableLookup,
+  }
+  return stableLookup
 }
 
 /**

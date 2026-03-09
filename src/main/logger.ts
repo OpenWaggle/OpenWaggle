@@ -6,21 +6,65 @@ import {
   MILLISECONDS_PER_SECOND,
   SECONDS_PER_MINUTE,
 } from '@shared/constants/constants'
-import type { Logger } from '@shared/types/logger'
+import type { Logger, LogLevel } from '@shared/types/logger'
+import { logLevel as configuredLogLevel } from './env'
 
 const SLICE_ARG_1 = 11
 const SLICE_ARG_2 = 23
 const SLICE_ARG_2_VALUE_10 = 10
 const FILE_LOGGER_FALLBACK_PREFIX = '[file-logger]'
 
-export type { Logger }
+const LOG_LEVEL_PRIORITIES: Record<LogLevel, number> = {
+  debug: 10,
+  info: 20,
+  warn: 30,
+  error: 40,
+}
 
-function formatLine(namespace: string, message: string, data?: object): string {
-  const ts = new Date().toISOString().slice(SLICE_ARG_1, SLICE_ARG_2) // HH:mm:ss.mmm
-  if (data && Object.keys(data).length > 0) {
-    return `${ts} [${namespace}] ${message} ${JSON.stringify(data)}`
+interface LogEntry {
+  readonly namespace: string
+  readonly level: LogLevel
+  readonly message: string
+  readonly data?: object
+}
+
+export type { Logger, LogLevel }
+
+function safeSerialize(data: object): string {
+  try {
+    return JSON.stringify(data)
+  } catch {
+    return '[unserializable data]'
   }
-  return `${ts} [${namespace}] ${message}`
+}
+
+function formatLine(entry: LogEntry): string {
+  const ts = new Date().toISOString().slice(SLICE_ARG_1, SLICE_ARG_2) // HH:mm:ss.mmm
+  if (entry.data && Object.keys(entry.data).length > 0) {
+    return `${ts} [${entry.namespace}] ${entry.message} ${safeSerialize(entry.data)}`
+  }
+  return `${ts} [${entry.namespace}] ${entry.message}`
+}
+
+function isLevelEnabled(level: LogLevel): boolean {
+  return LOG_LEVEL_PRIORITIES[level] >= LOG_LEVEL_PRIORITIES[configuredLogLevel]
+}
+
+function writeToConsole(entry: LogEntry): void {
+  const prefix = `[${entry.namespace}] ${entry.message}`
+  const consoleMethod = {
+    debug: console.debug,
+    info: console.info,
+    warn: console.warn,
+    error: console.error,
+  }[entry.level]
+
+  if (entry.data && Object.keys(entry.data).length > 0) {
+    consoleMethod(prefix, entry.data)
+    return
+  }
+
+  consoleMethod(prefix)
 }
 
 function reportFileLoggerFailure(message: string, error: unknown): void {
@@ -40,7 +84,7 @@ class FileWriter {
   private logsDir: string | null = null
   private currentDate: string | null = null
   private currentPath: string | null = null
-  private buffer: string[] = []
+  private buffer: LogEntry[] = []
   private flushScheduled = false
 
   async init(logsDir: string): Promise<void> {
@@ -56,10 +100,9 @@ class FileWriter {
     }
   }
 
-  write(line: string): void {
+  write(entry: LogEntry): void {
     if (!this.logsDir) return
-    this.ensureDatePath()
-    this.buffer.push(line)
+    this.buffer.push(entry)
     if (!this.flushScheduled) {
       this.flushScheduled = true
       process.nextTick(() => this.flush())
@@ -79,9 +122,11 @@ class FileWriter {
 
   private flush(): void {
     this.flushScheduled = false
-    if (!this.currentPath || this.buffer.length === 0) return
-    const batch = `${this.buffer.join('\n')}\n`
-    this.buffer.length = 0
+    if (this.buffer.length === 0) return
+    this.ensureDatePath()
+    if (!this.currentPath) return
+    const batchEntries = this.buffer.splice(0)
+    const batch = `${batchEntries.map((entry) => formatLine(entry)).join('\n')}\n`
     fs.appendFile(this.currentPath, batch, (error) => {
       if (error) {
         reportFileLoggerFailure('failed to append log batch', error)
@@ -133,26 +178,32 @@ export function getLogFilePath(): string {
 }
 
 export function createLogger(namespace: string): Logger {
+  const log = (level: LogLevel, message: string, data?: object): void => {
+    if (!isLevelEnabled(level)) {
+      return
+    }
+
+    const entry: LogEntry = { namespace, level, message, data }
+    writeToConsole(entry)
+    fileWriter.write(entry)
+  }
+
   return {
+    isLevelEnabled,
+    isDebugEnabled() {
+      return isLevelEnabled('debug')
+    },
     debug(message, data) {
-      const line = formatLine(namespace, message, data)
-      console.debug(line)
-      fileWriter.write(line)
+      log('debug', message, data)
     },
     info(message, data) {
-      const line = formatLine(namespace, message, data)
-      console.info(line)
-      fileWriter.write(line)
+      log('info', message, data)
     },
     warn(message, data) {
-      const line = formatLine(namespace, message, data)
-      console.warn(line)
-      fileWriter.write(line)
+      log('warn', message, data)
     },
     error(message, data) {
-      const line = formatLine(namespace, message, data)
-      console.error(line)
-      fileWriter.write(line)
+      log('error', message, data)
     },
   }
 }

@@ -1,6 +1,6 @@
 import { FIVE_MINUTES_IN_MILLISECONDS, MILLISECONDS_PER_SECOND } from '@shared/constants/constants'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { clipboard, shell } from 'electron'
-import { z } from 'zod'
 import { createLogger } from '../../logger'
 import { generateCodeChallenge, generateCodeVerifier } from '../pkce'
 
@@ -16,10 +16,10 @@ const CLIPBOARD_POLL_INTERVAL_MS = 500
 const CLIPBOARD_POLL_TIMEOUT_MS = FIVE_MINUTES_IN_MILLISECONDS
 const TOKEN_EXPIRY_BUFFER_MS = FIVE_MINUTES_IN_MILLISECONDS
 
-const tokenResponseSchema = z.object({
-  access_token: z.string(),
-  refresh_token: z.string(),
-  expires_in: z.number(),
+const tokenResponseSchema = Schema.Struct({
+  access_token: Schema.String,
+  refresh_token: Schema.String,
+  expires_in: Schema.Number,
 })
 
 interface AnthropicOAuthResult {
@@ -156,7 +156,7 @@ export async function startAnthropicOAuth(
   }
 
   const raw: unknown = await response.json()
-  const parsed = tokenResponseSchema.parse(raw)
+  const parsed = decodeUnknownOrThrow(tokenResponseSchema, raw)
 
   // 5-minute buffer on expiry (matching pi-ai)
   const expiresAt =
@@ -191,7 +191,7 @@ export async function refreshAnthropicToken(
   }
 
   const raw: unknown = await response.json()
-  const parsed = tokenResponseSchema.parse(raw)
+  const parsed = decodeUnknownOrThrow(tokenResponseSchema, raw)
 
   return {
     accessToken: parsed.access_token,

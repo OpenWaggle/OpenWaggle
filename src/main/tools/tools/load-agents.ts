@@ -1,5 +1,5 @@
+import { Schema } from '@shared/schema'
 import type { AgentsLoadToolResult } from '@shared/types/standards'
-import { z } from 'zod'
 import {
   buildEffectiveAgentsInstruction,
   resolveAgentsChainForPath,
@@ -7,8 +7,11 @@ import {
 import type { ToolContext } from '../define-tool'
 import { defineOpenWaggleTool } from '../define-tool'
 
-const loadAgentsInputSchema = z.object({
-  path: z.string().min(1).describe('File or directory path inside the project root.'),
+const loadAgentsInputSchema = Schema.Struct({
+  path: Schema.String.pipe(
+    Schema.minLength(1),
+    Schema.annotations({ description: 'File or directory path inside the project root.' }),
+  ),
 })
 
 export async function loadAgentsForRun(

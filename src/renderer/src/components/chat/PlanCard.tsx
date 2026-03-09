@@ -1,5 +1,7 @@
+import { safeDecodeUnknown } from '@shared/schema'
 import type { ConversationId } from '@shared/types/brand'
 import type { PlanResponse } from '@shared/types/plan'
+import { planResponseSchema } from '@shared/types/plan'
 import { Check, ClipboardList, Pencil } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/cn'
@@ -16,13 +18,9 @@ interface PlanCardProps {
 function parseHistoricalResponse(content: unknown): PlanResponse | null {
   try {
     const raw: unknown = typeof content === 'string' ? JSON.parse(content) : content
-    if (typeof raw === 'object' && raw !== null && 'action' in raw) {
-      const action = (raw as { action: unknown }).action
-      if (action === 'approve') return { action: 'approve' }
-      if (action === 'revise' && 'feedback' in raw) {
-        const feedback = (raw as { feedback: unknown }).feedback
-        if (typeof feedback === 'string') return { action: 'revise', feedback }
-      }
+    const parsed = safeDecodeUnknown(planResponseSchema, raw)
+    if (parsed.success) {
+      return parsed.data
     }
   } catch {}
   return null

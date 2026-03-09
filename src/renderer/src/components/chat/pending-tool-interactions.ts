@@ -1,3 +1,4 @@
+import { safeDecodeUnknown } from '@shared/schema'
 import type { Conversation } from '@shared/types/conversation'
 import type { UserQuestion } from '@shared/types/question'
 import { askUserArgsSchema } from '@shared/types/question'
@@ -28,19 +29,15 @@ export interface PendingAskUser {
   readonly questions: UserQuestion[]
 }
 
-export interface PendingPlanProposal {
-  readonly planText: string
-}
-
 function parseAskUserQuestions(args: string): UserQuestion[] {
   try {
     const parsed: unknown = JSON.parse(args)
-    const result = askUserArgsSchema.safeParse(parsed)
+    const result = safeDecodeUnknown(askUserArgsSchema, parsed)
     if (result.success) {
-      return result.data.questions
+      return [...result.data.questions]
     }
     logger.warn('Failed to validate askUser questions', {
-      issues: result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`),
+      issues: result.issues,
     })
   } catch (error) {
     logger.warn('Failed to parse askUser tool arguments', {
@@ -66,11 +63,6 @@ function hasCompleteToolArguments(args: string): boolean {
     })
     return false
   }
-}
-
-function getStringProperty(value: object, propertyName: string): string | null {
-  const descriptor = Object.getOwnPropertyDescriptor(value, propertyName)
-  return typeof descriptor?.value === 'string' ? descriptor.value : null
 }
 
 function getToolResultPayload(
@@ -197,7 +189,7 @@ export function findPendingApproval(
 
         return {
           toolName: part.name,
-          toolArgs: part.arguments,
+          toolArgs: restoredPart.arguments,
           approvalId: approval?.id ?? `approval_${part.id}`,
           toolCallId: part.id,
           hasApprovalMetadata,
@@ -207,43 +199,6 @@ export function findPendingApproval(
   }
 
   return findPendingApprovalFromPersistedConversation(persistedConversation)
-}
-
-function parsePlanText(args: string): string {
-  try {
-    const parsed: unknown = JSON.parse(args)
-    if (typeof parsed === 'object' && parsed !== null) {
-      const planText = getStringProperty(parsed, 'planText')
-      if (planText !== null) {
-        return planText
-      }
-    }
-  } catch (error) {
-    logger.warn('Failed to parse proposePlan tool arguments', {
-      error: error instanceof Error ? error.message : String(error),
-    })
-  }
-  return ''
-}
-
-export function findPendingPlanProposal(messages: UIMessage[]): PendingPlanProposal | null {
-  for (const message of messages) {
-    for (const part of message.parts) {
-      if (part.type !== 'tool-call' || part.name !== 'proposePlan') {
-        continue
-      }
-
-      const hasResult = message.parts.some(
-        (candidate) => candidate.type === 'tool-result' && candidate.toolCallId === part.id,
-      )
-
-      if (!hasResult) {
-        return { planText: parsePlanText(part.arguments) }
-      }
-    }
-  }
-
-  return null
 }
 
 export function findPendingAskUser(messages: UIMessage[]): PendingAskUser | null {

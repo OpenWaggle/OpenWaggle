@@ -1,18 +1,18 @@
+import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { plannedTaskSchema } from '@shared/schemas/validation'
 import type { JsonValue } from '@shared/types/json'
-import { z } from 'zod'
 
-const directPlanResultSchema = z.object({
-  direct: z.literal(true),
-  response: z.string(),
+const directPlanResultSchema = Schema.Struct({
+  direct: Schema.Literal(true),
+  response: Schema.String,
 })
 
-const taskPlanResultSchema = z.object({
-  ackText: z.string().optional(),
-  tasks: z.array(plannedTaskSchema),
+const taskPlanResultSchema = Schema.Struct({
+  ackText: Schema.optional(Schema.String),
+  tasks: Schema.mutable(Schema.Array(plannedTaskSchema)),
 })
 
-export type PlannedTask = z.infer<typeof plannedTaskSchema>
+export type PlannedTask = Schema.Schema.Type<typeof plannedTaskSchema>
 
 export type PlannerDecision =
   | {
@@ -26,12 +26,12 @@ export type PlannerDecision =
     }
 
 export function parsePlannerDecision(value: JsonValue): PlannerDecision {
-  const direct = directPlanResultSchema.safeParse(value)
+  const direct = safeDecodeUnknown(directPlanResultSchema, value)
   if (direct.success) {
     return { kind: 'direct', response: direct.data.response }
   }
 
-  const taskPlan = taskPlanResultSchema.safeParse(value)
+  const taskPlan = safeDecodeUnknown(taskPlanResultSchema, value)
   if (taskPlan.success) {
     return {
       kind: 'tasks',
@@ -45,9 +45,4 @@ export function parsePlannerDecision(value: JsonValue): PlannerDecision {
     ackText: null,
     tasks: [],
   }
-}
-
-export function getPlanTaskCount(value: JsonValue): number {
-  const result = taskPlanResultSchema.safeParse(value)
-  return result.success ? result.data.tasks.length : 0
 }

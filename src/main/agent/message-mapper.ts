@@ -1,5 +1,5 @@
+import { Schema, type SchemaType, safeDecodeUnknown } from '@shared/schema'
 import type { Message, MessagePart } from '@shared/types/agent'
-import { z } from 'zod'
 
 /**
  * Simple message shape for TanStack AI — content is always string | null.
@@ -19,6 +19,8 @@ export interface SimpleChatMessage {
   toolCalls?: Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }>
   toolCallId?: string
 }
+
+type SimpleToolCall = NonNullable<SimpleChatMessage['toolCalls']>[number]
 
 /**
  * Convert our Message[] to simple ChatMessage[].
@@ -57,14 +59,16 @@ export function conversationToMessages(messages: readonly Message[]): SimpleChat
       const toolCalls = msg.parts
         .filter((p): p is Extract<MessagePart, { type: 'tool-call' }> => p.type === 'tool-call')
         .filter((p) => toolResultIds.has(String(p.toolCall.id)))
-        .map((p) => ({
-          id: String(p.toolCall.id),
-          type: 'function' as const,
-          function: {
-            name: p.toolCall.name,
-            arguments: JSON.stringify(p.toolCall.args),
-          },
-        }))
+        .map(
+          (p): SimpleToolCall => ({
+            id: String(p.toolCall.id),
+            type: 'function',
+            function: {
+              name: p.toolCall.name,
+              arguments: JSON.stringify(p.toolCall.args),
+            },
+          }),
+        )
 
       const textParts = msg.parts.filter(
         (p): p is Extract<MessagePart, { type: 'text' }> => p.type === 'text',
@@ -121,27 +125,27 @@ export function conversationToMessages(messages: readonly Message[]): SimpleChat
   return result
 }
 
-const screenshotDataSchema = z.object({
-  base64Image: z.string(),
-  mimeType: z.string(),
-  pageTitle: z.string(),
-  url: z.string(),
+const screenshotDataSchema = Schema.Struct({
+  base64Image: Schema.String,
+  mimeType: Schema.String,
+  pageTitle: Schema.String,
+  url: Schema.String,
 })
 
-type ScreenshotData = z.infer<typeof screenshotDataSchema>
+type ScreenshotData = SchemaType<typeof screenshotDataSchema>
 
-const normalizedJsonWrapperSchema = z.object({
-  kind: z.literal('json'),
-  data: z.unknown(),
+const normalizedJsonWrapperSchema = Schema.Struct({
+  kind: Schema.Literal('json'),
+  data: Schema.Unknown,
 })
 
 function tryParseScreenshotData(result: string): ScreenshotData | null {
   try {
     const outer: unknown = JSON.parse(result)
     // Handle NormalizedToolResult wrapper: { kind: 'json', data: { ... } }
-    const wrapper = normalizedJsonWrapperSchema.safeParse(outer)
+    const wrapper = safeDecodeUnknown(normalizedJsonWrapperSchema, outer)
     const payload = wrapper.success ? wrapper.data.data : outer
-    const parsed = screenshotDataSchema.safeParse(payload)
+    const parsed = safeDecodeUnknown(screenshotDataSchema, payload)
     return parsed.success ? parsed.data : null
   } catch {
     // Not JSON — fall through

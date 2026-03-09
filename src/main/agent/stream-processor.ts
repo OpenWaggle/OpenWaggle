@@ -1,4 +1,7 @@
 import type { StreamChunk } from '@tanstack/ai'
+import * as Duration from 'effect/Duration'
+import * as Effect from 'effect/Effect'
+import { approvalTraceEnabled as runtimeApprovalTraceEnabled } from '../env'
 import { createLogger } from '../logger'
 import {
   notifyRunError,
@@ -42,6 +45,7 @@ export interface ProcessAgentStreamResult {
 type NextChunkResult =
   | { readonly kind: 'aborted' }
   | { readonly kind: 'chunk'; readonly iterResult: IteratorResult<StreamChunk> }
+  | { readonly kind: 'stall' }
 
 interface ForwardChunkParams {
   readonly collector: StreamPartCollector
@@ -69,6 +73,13 @@ async function forwardChunk(params: ForwardChunkParams, chunk: StreamChunk): Pro
   return false
 }
 
+function forwardChunkEffect(
+  params: ForwardChunkParams,
+  chunk: StreamChunk,
+): Effect.Effect<boolean, unknown> {
+  return Effect.tryPromise(() => forwardChunk(params, chunk))
+}
+
 function isApprovalTraceChunk(chunk: StreamChunk): boolean {
   if (chunk.type === 'TOOL_CALL_END') {
     return chunk.result === undefined
@@ -84,12 +95,13 @@ function isApprovalTraceChunk(chunk: StreamChunk): boolean {
 function waitForNextChunkOrAbort(
   iterator: AsyncIterator<StreamChunk>,
   signal: AbortSignal,
-): Promise<NextChunkResult> {
-  if (signal.aborted) {
-    return Promise.resolve({ kind: 'aborted' })
-  }
+): Effect.Effect<NextChunkResult, unknown> {
+  return Effect.async<NextChunkResult, unknown>((resume) => {
+    if (signal.aborted) {
+      resume(Effect.succeed({ kind: 'aborted' }))
+      return
+    }
 
-  return new Promise<NextChunkResult>((resolve, reject) => {
     let settled = false
 
     const finish = (result: NextChunkResult): void => {
@@ -98,7 +110,7 @@ function waitForNextChunkOrAbort(
       }
       settled = true
       signal.removeEventListener('abort', onAbort)
-      resolve(result)
+      resume(Effect.succeed(result))
     }
 
     const fail = (error: unknown): void => {
@@ -107,7 +119,7 @@ function waitForNextChunkOrAbort(
       }
       settled = true
       signal.removeEventListener('abort', onAbort)
-      reject(error)
+      resume(Effect.fail(error))
     }
 
     const onAbort = (): void => {
@@ -115,13 +127,35 @@ function waitForNextChunkOrAbort(
     }
 
     signal.addEventListener('abort', onAbort, { once: true })
-    iterator
+    void iterator
       .next()
       .then((iterResult) => {
         finish({ kind: 'chunk', iterResult })
       })
       .catch(fail)
+
+    return Effect.sync(() => {
+      signal.removeEventListener('abort', onAbort)
+    })
   })
+}
+
+function waitForNextChunkWithOptionalTimeout(
+  iterator: AsyncIterator<StreamChunk>,
+  signal: AbortSignal,
+  timeoutMs: number,
+  shouldWaitIndefinitely: boolean,
+): Effect.Effect<NextChunkResult, unknown> {
+  const nextChunkEffect = waitForNextChunkOrAbort(iterator, signal)
+
+  if (shouldWaitIndefinitely) {
+    return nextChunkEffect
+  }
+
+  return Effect.raceFirst(
+    nextChunkEffect,
+    Effect.sleep(Duration.millis(timeoutMs)).pipe(Effect.as({ kind: 'stall' } as const)),
+  )
 }
 
 /**
@@ -133,6 +167,12 @@ function waitForNextChunkOrAbort(
 export async function processAgentStream(
   params: ProcessAgentStreamParams,
 ): Promise<ProcessAgentStreamResult> {
+  return Effect.runPromise(processAgentStreamEffect(params))
+}
+
+export function processAgentStreamEffect(
+  params: ProcessAgentStreamParams,
+): Effect.Effect<ProcessAgentStreamResult, unknown> {
   const { stream, collector, onChunk, signal, hooks, runContext } = params
   const conversationId = runContext.conversation?.id
   const forwardChunkParams: ForwardChunkParams = { collector, onChunk, hooks, runContext }
@@ -141,112 +181,73 @@ export async function processAgentStream(
   let runErrorNotified = false
   let timedOut = false
   let stallReason: StreamStallReason | null = null
-  let approvalTraceActive = params.approvalTraceEnabled ?? false
-
+  let approvalTraceActive = runtimeApprovalTraceEnabled && (params.approvalTraceEnabled ?? false)
   const iterator = stream[Symbol.asyncIterator]()
-  let stallTimer: ReturnType<typeof setTimeout> | null = null
 
-  try {
+  const trackApprovalTraceState = (chunk: StreamChunk): void => {
+    if (!runtimeApprovalTraceEnabled) {
+      return
+    }
+    if (isApprovalTraceChunk(chunk)) {
+      approvalTraceActive = true
+    }
+  }
+
+  const loop = Effect.gen(function* () {
     while (true) {
       if (signal.aborted) {
         aborted = true
         break
       }
 
-      if (collector.hasUnresolvedToolResults()) {
-        const nextChunkResult = await waitForNextChunkOrAbort(iterator, signal)
+      const nextChunkResult = yield* waitForNextChunkWithOptionalTimeout(
+        iterator,
+        signal,
+        timeout,
+        collector.hasUnresolvedToolResults(),
+      )
 
-        if (nextChunkResult.kind === 'aborted') {
-          aborted = true
-          break
-        }
-
-        if (nextChunkResult.iterResult.done) {
-          break
-        }
-
-        const chunk = nextChunkResult.iterResult.value
-        if (isApprovalTraceChunk(chunk)) {
-          approvalTraceActive = true
-        }
-        if (approvalTraceActive) {
-          approvalTraceLogger.info('stream-chunk', {
-            runId: runContext.runId,
-            conversationId,
-            chunkType: chunk.type,
-            toolCallId: chunk.type === 'TOOL_CALL_END' ? chunk.toolCallId : undefined,
-            hasResult: chunk.type === 'TOOL_CALL_END' ? chunk.result !== undefined : undefined,
-            customName: chunk.type === 'CUSTOM' ? chunk.name : undefined,
-          })
-        }
-        const notifiedRunError = await forwardChunk(forwardChunkParams, chunk)
-        if (notifiedRunError) {
-          runErrorNotified = true
-        }
-        continue
+      if (nextChunkResult.kind === 'aborted') {
+        aborted = true
+        break
       }
 
-      // Race the next chunk against a stall timeout
-      const stallPromise = new Promise<{ kind: 'stall' }>((resolve) => {
-        stallTimer = setTimeout(() => resolve({ kind: 'stall' }), timeout)
-      })
-
-      const result = await Promise.race([
-        iterator.next().then((r): { kind: 'chunk'; iterResult: IteratorResult<StreamChunk> } => ({
-          kind: 'chunk',
-          iterResult: r,
-        })),
-        stallPromise,
-      ])
-
-      // Clear the timer regardless of outcome
-      if (stallTimer !== null) {
-        clearTimeout(stallTimer)
-        stallTimer = null
-      }
-
-      if (result.kind === 'stall') {
+      if (nextChunkResult.kind === 'stall') {
         timedOut = true
         stallReason = collector.hasIncompleteToolCalls() ? 'incomplete-tool-call' : 'stream-stall'
         break
       }
 
-      if (result.iterResult.done) break
+      if (nextChunkResult.iterResult.done) {
+        break
+      }
 
-      const chunk = result.iterResult.value
-      if (isApprovalTraceChunk(chunk)) {
-        approvalTraceActive = true
-      }
-      if (approvalTraceActive) {
-        approvalTraceLogger.info('stream-chunk', {
-          runId: runContext.runId,
-          conversationId,
-          chunkType: chunk.type,
-          toolCallId: chunk.type === 'TOOL_CALL_END' ? chunk.toolCallId : undefined,
-          hasResult: chunk.type === 'TOOL_CALL_END' ? chunk.result !== undefined : undefined,
-          customName: chunk.type === 'CUSTOM' ? chunk.name : undefined,
-        })
-      }
-      const notifiedRunError = await forwardChunk(forwardChunkParams, chunk)
+      const chunk = nextChunkResult.iterResult.value
+      trackApprovalTraceState(chunk)
+      const notifiedRunError = yield* forwardChunkEffect(forwardChunkParams, chunk)
       if (notifiedRunError) {
         runErrorNotified = true
       }
     }
-  } finally {
-    if (stallTimer !== null) {
-      clearTimeout(stallTimer)
-    }
-    if (approvalTraceActive) {
-      approvalTraceLogger.info('stream-finished', {
-        runId: runContext.runId,
-        conversationId,
-        aborted,
-        timedOut,
-        stallReason,
-        runErrorNotified,
-      })
-    }
-  }
 
-  return { aborted, runErrorNotified, timedOut, stallReason }
+    return { aborted, runErrorNotified, timedOut, stallReason }
+  })
+
+  return loop.pipe(
+    Effect.ensuring(
+      Effect.sync(() => {
+        if (!approvalTraceActive) {
+          return
+        }
+        approvalTraceLogger.info('stream-finished', {
+          runId: runContext.runId,
+          conversationId,
+          aborted,
+          timedOut,
+          stallReason,
+          runErrorNotified,
+        })
+      }),
+    ),
+  )
 }

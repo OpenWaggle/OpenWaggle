@@ -1,46 +1,128 @@
+import * as SqlClient from '@effect/sql/SqlClient'
 import { FIVE_MINUTES_IN_MILLISECONDS } from '@shared/constants/constants'
+import { Schema, safeDecodeUnknown } from '@shared/schema'
 import type { SubscriptionProvider } from '@shared/types/auth'
-import Store from 'electron-store'
-import { z } from 'zod'
+import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
+import { runAppEffect } from '../runtime'
 import { decryptString, encryptString, isEncryptionAvailable } from '../store/encryption'
 
 const logger = createLogger('token-manager')
 
+const PREVIOUS_KEY_PREFIX = 'prev-key:'
+
+interface AuthTokenRow {
+  readonly provider: string
+  readonly encrypted_value: string
+}
+
 // ─── Token Schemas ──────────────────────────────────────────────────
 
-const openRouterTokenSchema = z.object({
-  apiKey: z.string(),
+interface OpenRouterTokens {
+  readonly apiKey: string
+}
+
+interface OAuthTokens {
+  readonly accessToken: string
+  readonly refreshToken: string
+  readonly expiresAt: number
+}
+
+const openRouterTokenSchema = Schema.Struct({
+  apiKey: Schema.String,
 })
 
-const oauthTokenSchema = z.object({
-  accessToken: z.string(),
-  refreshToken: z.string(),
-  expiresAt: z.number(),
+const oauthTokenSchema = Schema.Struct({
+  accessToken: Schema.String,
+  refreshToken: Schema.String,
+  expiresAt: Schema.Number,
 })
-
-type OpenRouterTokens = z.infer<typeof openRouterTokenSchema>
-type OAuthTokens = z.infer<typeof oauthTokenSchema>
 
 // Providers that use OAuth token refresh (not OpenRouter — permanent key)
 type OAuthProvider = 'openai' | 'anthropic'
 
-// ─── Storage ────────────────────────────────────────────────────────
+const tokenCache = new Map<string, string>()
+let initializationPromise: Promise<void> | null = null
+let writeQueue: Promise<void> = Promise.resolve()
 
-interface TokenStoreSchema {
-  openrouter?: string // encrypted JSON
-  openai?: string
-  anthropic?: string
-  // Previous API keys (preserved before subscription switch)
-  'prev-key:openrouter'?: string
-  'prev-key:openai'?: string
-  'prev-key:anthropic'?: string
+// ─── SQLite helpers ────────────────────────────────────────────────
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
-const store = new Store<TokenStoreSchema>({
-  name: 'auth-tokens',
-  defaults: {},
-})
+async function loadTokenCache(): Promise<void> {
+  const rows = await runAppEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      return yield* sql<AuthTokenRow>`
+        SELECT provider, encrypted_value
+        FROM auth_tokens
+      `
+    }),
+  )
+
+  tokenCache.clear()
+  for (const row of rows) {
+    tokenCache.set(row.provider, row.encrypted_value)
+  }
+}
+
+async function writeTokenValueToDb(key: string, value: string): Promise<void> {
+  await runAppEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`
+        INSERT INTO auth_tokens (provider, encrypted_value, updated_at)
+        VALUES (${key}, ${value}, ${Date.now()})
+        ON CONFLICT(provider) DO UPDATE SET
+          encrypted_value = excluded.encrypted_value,
+          updated_at = excluded.updated_at
+      `
+    }),
+  )
+}
+
+async function deleteTokenValueFromDb(key: string): Promise<void> {
+  await runAppEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`
+        DELETE FROM auth_tokens
+        WHERE provider = ${key}
+      `
+    }),
+  )
+}
+
+function queuePersist(effect: () => Promise<void>): void {
+  writeQueue = writeQueue.then(effect).catch((error) => {
+    logger.warn('Failed to persist auth token state', { error: describeError(error) })
+  })
+}
+
+function previousKeyKey(provider: SubscriptionProvider): string {
+  return `${PREVIOUS_KEY_PREFIX}${provider}`
+}
+
+export async function initializeTokenStore(): Promise<void> {
+  if (initializationPromise) {
+    return initializationPromise
+  }
+
+  initializationPromise = loadTokenCache().catch((error) => {
+    logger.warn('Failed to initialize token cache from SQLite', {
+      error: describeError(error),
+    })
+    tokenCache.clear()
+  })
+
+  await initializationPromise
+}
+
+export async function flushTokenStoreForTests(): Promise<void> {
+  await writeQueue
+}
 
 // ─── Refresh Mutex ──────────────────────────────────────────────────
 
@@ -61,20 +143,22 @@ export function registerRefreshFn(provider: OAuthProvider, fn: RefreshFn): void 
 
 export function storePreviousApiKey(provider: SubscriptionProvider, apiKey: string): void {
   if (!apiKey) return
-  const key = `prev-key:${provider}` as keyof TokenStoreSchema
-  store.set(key, encryptString(apiKey))
+  const encrypted = encryptString(apiKey)
+  const key = previousKeyKey(provider)
+  tokenCache.set(key, encrypted)
+  queuePersist(() => writeTokenValueToDb(key, encrypted))
 }
 
 export function getPreviousApiKey(provider: SubscriptionProvider): string {
-  const key = `prev-key:${provider}` as keyof TokenStoreSchema
-  const encrypted = store.get(key)
+  const encrypted = tokenCache.get(previousKeyKey(provider))
   if (!encrypted) return ''
   return decryptString(encrypted)
 }
 
 export function clearPreviousApiKey(provider: SubscriptionProvider): void {
-  const key = `prev-key:${provider}` as keyof TokenStoreSchema
-  store.delete(key)
+  const key = previousKeyKey(provider)
+  tokenCache.delete(key)
+  queuePersist(() => deleteTokenValueFromDb(key))
 }
 
 // ─── Public API ─────────────────────────────────────────────────────
@@ -92,14 +176,14 @@ export function storeTokens(
       provider,
     })
   }
-  const json = JSON.stringify(tokens)
-  const encrypted = encryptString(json)
-  store.set(provider, encrypted)
+  const encrypted = encryptString(JSON.stringify(tokens))
+  tokenCache.set(provider, encrypted)
+  queuePersist(() => writeTokenValueToDb(provider, encrypted))
   logger.info('Stored tokens', { provider })
 }
 
 export function getTokens(provider: SubscriptionProvider): OpenRouterTokens | OAuthTokens | null {
-  const encrypted = store.get(provider)
+  const encrypted = tokenCache.get(provider)
   if (!encrypted) return null
 
   const decrypted = decryptString(encrypted)
@@ -108,10 +192,10 @@ export function getTokens(provider: SubscriptionProvider): OpenRouterTokens | OA
   try {
     const parsed: unknown = JSON.parse(decrypted)
     if (provider === 'openrouter') {
-      const result = openRouterTokenSchema.safeParse(parsed)
+      const result = safeDecodeUnknown(openRouterTokenSchema, parsed)
       return result.success ? result.data : null
     }
-    const result = oauthTokenSchema.safeParse(parsed)
+    const result = safeDecodeUnknown(oauthTokenSchema, parsed)
     return result.success ? result.data : null
   } catch {
     logger.warn('Failed to parse stored tokens', { provider })
@@ -119,12 +203,9 @@ export function getTokens(provider: SubscriptionProvider): OpenRouterTokens | OA
   }
 }
 
-export function hasTokens(provider: SubscriptionProvider): boolean {
-  return getTokens(provider) !== null
-}
-
 export function clearTokens(provider: SubscriptionProvider): void {
-  store.delete(provider)
+  tokenCache.delete(provider)
+  queuePersist(() => deleteTokenValueFromDb(provider))
   logger.info('Cleared tokens', { provider })
 }
 
@@ -137,22 +218,18 @@ export async function getActiveAccessToken(provider: SubscriptionProvider): Prom
   const tokens = getTokens(provider)
   if (!tokens) return null
 
-  // OpenRouter has a permanent key — no refresh needed
   if (provider === 'openrouter') {
     return 'apiKey' in tokens ? tokens.apiKey : null
   }
 
-  // After the openrouter check, provider is narrowed to OAuthProvider
   const oauthProvider: OAuthProvider = provider
 
-  // OAuth tokens — check expiry
   if (!('accessToken' in tokens)) return null
   const oauthTokens = tokens
 
   const needsRefresh = oauthTokens.expiresAt - Date.now() < REFRESH_MARGIN_MS
   if (!needsRefresh) return oauthTokens.accessToken
 
-  // Serialize refresh to prevent concurrent races
   const existing = refreshLocks.get(oauthProvider)
   if (existing) return existing
 
@@ -185,10 +262,10 @@ async function refreshAccessToken(
     })
     logger.info('Token refreshed successfully', { provider })
     return refreshed.accessToken
-  } catch (err) {
+  } catch (error) {
     logger.warn('Token refresh failed', {
       provider,
-      error: err instanceof Error ? err.message : String(err),
+      error: describeError(error),
     })
     return null
   }

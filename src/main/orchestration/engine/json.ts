@@ -1,3 +1,4 @@
+import { safeDecodeUnknown } from '@shared/schema'
 import { jsonValueSchema } from '@shared/schemas/validation'
 import type { JsonValue } from '@shared/types/json'
 
@@ -49,7 +50,7 @@ export function extractJson(text: string): JsonValue {
 
 function parseJsonValue(raw: string): JsonValue {
   const parsed = JSON.parse(raw)
-  const result = jsonValueSchema.safeParse(parsed)
+  const result = safeDecodeUnknown(jsonValueSchema, parsed)
   if (!result.success) {
     throw new Error('Parsed value is not valid JSON')
   }

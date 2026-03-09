@@ -11,6 +11,10 @@ import { useChat } from '@tanstack/ai-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '@/lib/ipc'
 import { createIpcConnectionAdapter } from '@/lib/ipc-connection-adapter'
+import {
+  buildPersistedToolCallLookup,
+  type PersistedToolCallLookup,
+} from '@/lib/persisted-tool-call-reconciliation'
 import { useBackgroundRunStore } from '@/stores/background-run-store'
 import { useChatStore } from '@/stores/chat-store'
 import {
@@ -18,7 +22,7 @@ import {
   buildPartialAssistantMessage,
   conversationToUIMessages,
   formatAttachmentPreview,
-  restorePersistedToolCallMetadata,
+  restorePersistedToolCallMetadataWithLookup,
 } from './useAgentChat.utils'
 
 interface AgentChatReturn {
@@ -35,6 +39,17 @@ interface AgentChatReturn {
   respondToPlan: (conversationId: ConversationId, response: PlanResponse) => Promise<void>
   /** True when we're showing a reconnected background stream (not via TanStack) */
   backgroundStreaming: boolean
+}
+
+interface PersistedToolCallLookupCacheEntry {
+  readonly conversation: Conversation | null
+  readonly lookup: PersistedToolCallLookup
+}
+
+interface HydratedMessagesCacheEntry {
+  readonly messages: UIMessage[]
+  readonly lookup: PersistedToolCallLookup
+  readonly result: UIMessage[]
 }
 
 const EMPTY_CONNECTION = {
@@ -113,8 +128,33 @@ export function useAgentChat(
     // useChat does not live-update the connection object after construction.
     id: conversationId ? `${conversationId}:${model}:${qualityPreset}` : undefined,
   })
+  const persistedToolCallLookupCacheRef = useRef<PersistedToolCallLookupCacheEntry | null>(null)
+  const persistedToolCalls =
+    persistedToolCallLookupCacheRef.current?.conversation === conversation
+      ? persistedToolCallLookupCacheRef.current.lookup
+      : (() => {
+          const lookup = buildPersistedToolCallLookup(conversation)
+          persistedToolCallLookupCacheRef.current = {
+            conversation,
+            lookup,
+          }
+          return lookup
+        })()
 
-  const hydratedMessages = restorePersistedToolCallMetadata(messages, conversation)
+  const hydratedMessagesCacheRef = useRef<HydratedMessagesCacheEntry | null>(null)
+  const hydratedMessages =
+    hydratedMessagesCacheRef.current?.messages === messages &&
+    hydratedMessagesCacheRef.current.lookup === persistedToolCalls
+      ? hydratedMessagesCacheRef.current.result
+      : (() => {
+          const result = restorePersistedToolCallMetadataWithLookup(messages, persistedToolCalls)
+          hydratedMessagesCacheRef.current = {
+            messages,
+            lookup: persistedToolCalls,
+            result,
+          }
+          return result
+        })()
   const currentConversationIdRef = useRef(conversationId)
   currentConversationIdRef.current = conversationId
 

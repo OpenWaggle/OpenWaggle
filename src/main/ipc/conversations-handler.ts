@@ -1,4 +1,5 @@
 import type { ConversationId } from '@shared/types/brand'
+import * as Effect from 'effect/Effect'
 import { cleanupConversationRun } from '../agent/conversation-cleanup'
 import {
   archiveConversation,
@@ -11,47 +12,48 @@ import {
   updateConversationProjectPath,
   updateConversationTitle,
 } from '../store/conversations'
-import { typedHandle } from './typed-ipc'
+import { typedHandleEffect } from './typed-ipc'
 
 export function registerConversationsHandlers(): void {
-  typedHandle('conversations:list', async (_event, limit?: number) => {
-    return listConversations(limit)
-  })
+  typedHandleEffect('conversations:list', (_event, limit?: number) =>
+    Effect.promise(() => listConversations(limit)),
+  )
 
-  typedHandle('conversations:get', async (_event, id: ConversationId) => {
-    return getConversation(id)
-  })
+  typedHandleEffect('conversations:get', (_event, id: ConversationId) =>
+    Effect.promise(() => getConversation(id)),
+  )
 
-  typedHandle('conversations:create', async (_event, projectPath: string | null) => {
-    return createConversation(projectPath)
-  })
+  typedHandleEffect('conversations:create', (_event, projectPath: string | null) =>
+    Effect.promise(() => createConversation(projectPath)),
+  )
 
-  typedHandle('conversations:delete', async (_event, id: ConversationId) => {
-    cleanupConversationRun(id)
-    await deleteConversation(id)
-  })
+  typedHandleEffect('conversations:delete', (_event, id: ConversationId) =>
+    Effect.sync(() => cleanupConversationRun(id)).pipe(
+      Effect.zipRight(Effect.promise(() => deleteConversation(id))),
+    ),
+  )
 
-  typedHandle('conversations:archive', async (_event, id: ConversationId) => {
-    cleanupConversationRun(id)
-    await archiveConversation(id)
-  })
+  typedHandleEffect('conversations:archive', (_event, id: ConversationId) =>
+    Effect.sync(() => cleanupConversationRun(id)).pipe(
+      Effect.zipRight(Effect.promise(() => archiveConversation(id))),
+    ),
+  )
 
-  typedHandle('conversations:unarchive', async (_event, id: ConversationId) => {
-    await unarchiveConversation(id)
-  })
+  typedHandleEffect('conversations:unarchive', (_event, id: ConversationId) =>
+    Effect.promise(() => unarchiveConversation(id)),
+  )
 
-  typedHandle('conversations:list-archived', async () => {
-    return listArchivedConversations()
-  })
+  typedHandleEffect('conversations:list-archived', () =>
+    Effect.promise(() => listArchivedConversations()),
+  )
 
-  typedHandle('conversations:update-title', async (_event, id: ConversationId, title: string) => {
-    await updateConversationTitle(id, title)
-  })
+  typedHandleEffect('conversations:update-title', (_event, id: ConversationId, title: string) =>
+    Effect.promise(() => updateConversationTitle(id, title)),
+  )
 
-  typedHandle(
+  typedHandleEffect(
     'conversations:update-project-path',
-    async (_event, id: ConversationId, projectPath: string | null) => {
-      return updateConversationProjectPath(id, projectPath)
-    },
+    (_event, id: ConversationId, projectPath: string | null) =>
+      Effect.promise(() => updateConversationProjectPath(id, projectPath)),
   )
 }

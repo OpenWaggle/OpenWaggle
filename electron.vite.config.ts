@@ -10,6 +10,11 @@ export default defineConfig({
     build: {
       externalizeDeps: {
         exclude: [
+          'effect',
+          '@effect/platform',
+          '@effect/platform-node',
+          '@effect/sql',
+          '@effect/sql-sqlite-node',
           '@tanstack/ai',
           '@tanstack/ai-anthropic',
           '@tanstack/ai-openai',
@@ -17,7 +22,6 @@ export default defineConfig({
           '@tanstack/ai-grok',
           '@tanstack/ai-openrouter',
           '@tanstack/ai-ollama',
-          '@t3-oss/env-core',
           '@modelcontextprotocol/sdk',
         ],
       },

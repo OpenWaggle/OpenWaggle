@@ -120,8 +120,11 @@ describe('createConversationNavHandlers', () => {
 
       await handleOpenProject()
 
+      expect(deps.setProjectPath).toHaveBeenCalledWith('/new/project')
       expect(deps.createConversation).toHaveBeenCalledWith('/new/project')
       expect(deps.updateConversationProjectPath).not.toHaveBeenCalled()
+      expect(deps.refreshGitStatus).toHaveBeenCalledWith('/new/project')
+      expect(deps.refreshGitBranches).toHaveBeenCalledWith('/new/project')
     })
 
     it('when dialog cancelled: no further calls', async () => {

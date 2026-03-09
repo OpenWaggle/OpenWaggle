@@ -4,6 +4,41 @@ import path from 'node:path'
 import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
 import { MainWindowPage } from '../page-models/main-window.page'
 
+const E2E_ENV_KEYS: readonly string[] = [
+  'CI',
+  'COLORTERM',
+  'DISPLAY',
+  'HOME',
+  'LANG',
+  'LC_ALL',
+  'LOGNAME',
+  'PATH',
+  'SHELL',
+  'SYSTEMROOT',
+  'TERM',
+  'TMP',
+  'TMPDIR',
+  'USER',
+  'USERPROFILE',
+  'WAYLAND_DISPLAY',
+  'XDG_RUNTIME_DIR',
+]
+
+function buildElectronEnv(userDataDir: string): Record<string, string> {
+  const env: Record<string, string> = {
+    OPENWAGGLE_USER_DATA_DIR: userDataDir,
+  }
+
+  for (const key of E2E_ENV_KEYS) {
+    const value = process.env[key]
+    if (typeof value === 'string' && value.length > 0) {
+      env[key] = value
+    }
+  }
+
+  return env
+}
+
 export class OpenWaggleApp {
   private constructor(
     readonly userDataDir: string,
@@ -15,10 +50,7 @@ export class OpenWaggleApp {
     const userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), prefix))
     const app = await electron.launch({
       args: ['.'],
-      env: {
-        ...process.env,
-        OPENWAGGLE_USER_DATA_DIR: userDataDir,
-      },
+      env: buildElectronEnv(userDataDir),
     })
     const window = await app.firstWindow()
     const instance = new OpenWaggleApp(userDataDir, app, window)
@@ -30,10 +62,7 @@ export class OpenWaggleApp {
     await this.app.close()
     this.app = await electron.launch({
       args: ['.'],
-      env: {
-        ...process.env,
-        OPENWAGGLE_USER_DATA_DIR: this.userDataDir,
-      },
+      env: buildElectronEnv(this.userDataDir),
     })
     this.currentWindow = await this.app.firstWindow()
     await this.mainWindow().waitUntilReady()

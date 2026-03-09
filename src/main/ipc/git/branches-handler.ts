@@ -1,3 +1,4 @@
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type {
   GitBranchCheckoutPayload,
   GitBranchCreatePayload,
@@ -9,7 +10,6 @@ import type {
   GitBranchRenamePayload,
   GitBranchSetUpstreamPayload,
 } from '@shared/types/git'
-import { z } from 'zod'
 import { safeHandle } from '../typed-ipc'
 import { isGitRepository, projectPathSchema, runGit } from './shared'
 
@@ -311,64 +311,64 @@ async function setGitBranchUpstream(
   return { ok: true, message: `Set upstream for ${name} to ${upstream}.` }
 }
 
-const branchCheckoutPayloadSchema = z.object({
-  name: z.string(),
+const branchCheckoutPayloadSchema = Schema.Struct({
+  name: Schema.String,
 })
 
-const branchCreatePayloadSchema = z.object({
-  name: z.string(),
-  startPoint: z.string().optional(),
-  checkout: z.boolean().optional(),
+const branchCreatePayloadSchema = Schema.Struct({
+  name: Schema.String,
+  startPoint: Schema.optional(Schema.String),
+  checkout: Schema.optional(Schema.Boolean),
 })
 
-const branchRenamePayloadSchema = z.object({
-  from: z.string(),
-  to: z.string(),
+const branchRenamePayloadSchema = Schema.Struct({
+  from: Schema.String,
+  to: Schema.String,
 })
 
-const branchDeletePayloadSchema = z.object({
-  name: z.string(),
-  force: z.boolean().optional(),
+const branchDeletePayloadSchema = Schema.Struct({
+  name: Schema.String,
+  force: Schema.optional(Schema.Boolean),
 })
 
-const branchSetUpstreamPayloadSchema = z.object({
-  name: z.string(),
-  upstream: z.string(),
+const branchSetUpstreamPayloadSchema = Schema.Struct({
+  name: Schema.String,
+  upstream: Schema.String,
 })
 
 export function registerGitBranchHandlers(): void {
   safeHandle('git:branches:list', async (_event, rawPath: unknown) => {
-    const projectPath = projectPathSchema.parse(rawPath)
+    const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
     return listGitBranches(projectPath)
   })
 
   safeHandle('git:branches:checkout', async (_event, rawPath: unknown, rawPayload: unknown) => {
-    const projectPath = projectPathSchema.parse(rawPath)
-    const payload = branchCheckoutPayloadSchema.parse(rawPayload)
+    const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
+    const payload = decodeUnknownOrThrow(branchCheckoutPayloadSchema, rawPayload)
     return checkoutGitBranch(projectPath, payload)
   })
 
   safeHandle('git:branches:create', async (_event, rawPath: unknown, rawPayload: unknown) => {
-    const projectPath = projectPathSchema.parse(rawPath)
-    const payload = branchCreatePayloadSchema.parse(rawPayload)
+    const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
+    const payload = decodeUnknownOrThrow(branchCreatePayloadSchema, rawPayload)
     return createGitBranch(projectPath, payload)
   })
 
   safeHandle('git:branches:rename', async (_event, rawPath: unknown, rawPayload: unknown) => {
-    const projectPath = projectPathSchema.parse(rawPath)
-    const payload = branchRenamePayloadSchema.parse(rawPayload)
+    const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
+    const payload = decodeUnknownOrThrow(branchRenamePayloadSchema, rawPayload)
     return renameGitBranch(projectPath, payload)
   })
 
   safeHandle('git:branches:delete', async (_event, rawPath: unknown, rawPayload: unknown) => {
-    const projectPath = projectPathSchema.parse(rawPath)
-    const payload = branchDeletePayloadSchema.parse(rawPayload)
+    const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
+    const payload = decodeUnknownOrThrow(branchDeletePayloadSchema, rawPayload)
     return deleteGitBranch(projectPath, payload)
   })
 
   safeHandle('git:branches:set-upstream', async (_event, rawPath: unknown, rawPayload: unknown) => {
-    const projectPath = projectPathSchema.parse(rawPath)
-    const payload = branchSetUpstreamPayloadSchema.parse(rawPayload)
+    const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
+    const payload = decodeUnknownOrThrow(branchSetUpstreamPayloadSchema, rawPayload)
     return setGitBranchUpstream(projectPath, payload)
   })
 }

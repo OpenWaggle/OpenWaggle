@@ -1,26 +1,41 @@
-import type { z } from 'zod'
+import {
+  decodeUnknownOrThrow,
+  type Schema,
+  type SchemaType,
+  safeDecodeUnknown,
+} from '@shared/schema'
 
 /**
- * Parse a JSON string and validate against a Zod schema.
+ * Parse a JSON string and validate against an Effect schema.
  * Throws on invalid JSON or schema mismatch.
  */
-export function parseJson<T>(raw: string, schema: z.ZodType<T>): T {
+export function parseJson<TSchema extends Schema.Schema.AnyNoContext>(
+  raw: string,
+  schema: TSchema,
+): SchemaType<TSchema>
+export function parseJson<TSchema extends Schema.Schema.AnyNoContext>(
+  raw: string,
+  schema: TSchema,
+): SchemaType<TSchema> {
   const data: unknown = JSON.parse(raw)
-  return schema.parse(data)
+  return decodeUnknownOrThrow(schema, data)
 }
 
 /**
- * Parse a JSON string and safely validate against a Zod schema.
- * Returns the same shape as `schema.safeParse()` — never throws.
+ * Parse a JSON string and safely validate against an Effect schema.
  * On JSON syntax errors, returns `{ success: false, data: undefined }`.
  */
-export function parseJsonSafe<T>(
+export function parseJsonSafe<TSchema extends Schema.Schema.AnyNoContext>(
   raw: string,
-  schema: z.ZodType<T>,
-): { success: true; data: T } | { success: false; data: undefined } {
+  schema: TSchema,
+): { success: true; data: SchemaType<TSchema> } | { success: false; data: undefined }
+export function parseJsonSafe<TSchema extends Schema.Schema.AnyNoContext>(
+  raw: string,
+  schema: TSchema,
+): { success: true; data: SchemaType<TSchema> } | { success: false; data: undefined } {
   try {
     const data: unknown = JSON.parse(raw)
-    const result = schema.safeParse(data)
+    const result = safeDecodeUnknown(schema, data)
     if (result.success) {
       return { success: true, data: result.data }
     }

@@ -1,11 +1,14 @@
+import { Schema } from '@shared/schema'
 import type { SkillLoadToolResult } from '@shared/types/standards'
-import { z } from 'zod'
 import { loadSkillInstructions, normalizeRequestedSkillId } from '../../skills/skill-catalog'
 import type { ToolContext } from '../define-tool'
 import { defineOpenWaggleTool } from '../define-tool'
 
-const loadSkillInputSchema = z.object({
-  skillId: z.string().min(1).describe('Skill id from .openwaggle/skills/<skill-id>'),
+const loadSkillInputSchema = Schema.Struct({
+  skillId: Schema.String.pipe(
+    Schema.minLength(1),
+    Schema.annotations({ description: 'Skill id from .openwaggle/skills/<skill-id>' }),
+  ),
 })
 
 export async function loadSkillForRun(

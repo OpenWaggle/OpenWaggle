@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { Schema } from '@shared/schema'
 import { handleShutdownResponse, sendAgentMessage } from '../../sub-agents/facade'
 import { defineOpenWaggleTool } from '../define-tool'
 
@@ -7,35 +7,39 @@ export const sendMessageTool = defineOpenWaggleTool({
   description:
     'Send a message to another agent in the team. Supports direct messages, broadcasts, shutdown requests/responses, and plan approval responses.',
   needsApproval: false,
-  inputSchema: z.object({
-    type: z
-      .enum([
-        'message',
-        'broadcast',
-        'shutdown_request',
-        'shutdown_response',
-        'plan_approval_response',
-      ])
-      .describe('Message type'),
-    recipient: z
-      .string()
-      .optional()
-      .describe(
-        'Agent name to send to (required for message, shutdown_request, plan_approval_response)',
-      ),
-    content: z.string().optional().describe('Message text or feedback'),
-    summary: z
-      .string()
-      .optional()
-      .describe('5-10 word summary for UI preview (required for message, broadcast)'),
-    requestId: z
-      .string()
-      .optional()
-      .describe('Request ID to respond to (for shutdown_response, plan_approval_response)'),
-    approve: z
-      .boolean()
-      .optional()
-      .describe('Whether to approve the request (for shutdown_response, plan_approval_response)'),
+  inputSchema: Schema.Struct({
+    type: Schema.Literal(
+      'message',
+      'broadcast',
+      'shutdown_request',
+      'shutdown_response',
+      'plan_approval_response',
+    ).annotations({ description: 'Message type' }),
+    recipient: Schema.optional(
+      Schema.String.annotations({
+        description:
+          'Agent name to send to (required for message, shutdown_request, plan_approval_response)',
+      }),
+    ),
+    content: Schema.optional(
+      Schema.String.annotations({ description: 'Message text or feedback' }),
+    ),
+    summary: Schema.optional(
+      Schema.String.annotations({
+        description: '5-10 word summary for UI preview (required for message, broadcast)',
+      }),
+    ),
+    requestId: Schema.optional(
+      Schema.String.annotations({
+        description: 'Request ID to respond to (for shutdown_response, plan_approval_response)',
+      }),
+    ),
+    approve: Schema.optional(
+      Schema.Boolean.annotations({
+        description:
+          'Whether to approve the request (for shutdown_response, plan_approval_response)',
+      }),
+    ),
   }),
   async execute(args, context) {
     const senderName = context.subAgentContext?.agentName ?? 'main-agent'

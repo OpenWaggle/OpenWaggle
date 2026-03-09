@@ -123,6 +123,23 @@ describe('ToolCallBlock', () => {
     expect(screen.queryByText('Wrote out.ts')).toBeNull()
   })
 
+  it('does not keep approval-needed status once a concrete result exists', () => {
+    render(
+      <ToolCallBlock
+        name="writeFile"
+        args='{"path":"docs/SUMMARY.md"}'
+        state="approval-requested"
+        result={{
+          content: '{"kind":"json","data":{"message":"File written: docs/SUMMARY.md"}}',
+          state: 'output-available',
+        }}
+      />,
+    )
+
+    expect(screen.getByText('Wrote docs/SUMMARY.md')).toBeInTheDocument()
+    expect(screen.queryByText('(approval needed)')).toBeNull()
+  })
+
   it('shows runCommand with backtick-wrapped verb', () => {
     render(
       <ToolCallBlock

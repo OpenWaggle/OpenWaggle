@@ -1,3 +1,4 @@
+import { safeDecodeUnknown } from '@shared/schema'
 import type { ConversationId } from '@shared/types/brand'
 import type { QuestionAnswer, QuestionOption, UserQuestion } from '@shared/types/question'
 import { askUserResultContentSchema } from '@shared/types/question'
@@ -15,12 +16,12 @@ interface AskUserBlockProps {
 function parseHistoricalAnswers(content: unknown): QuestionAnswer[] {
   try {
     const raw: unknown = typeof content === 'string' ? JSON.parse(content) : content
-    const validated = askUserResultContentSchema.safeParse(raw)
+    const validated = safeDecodeUnknown(askUserResultContentSchema, raw)
     if (validated.success) {
       if ('data' in validated.data) {
-        return validated.data.data.answers
+        return [...validated.data.data.answers]
       }
-      return validated.data.answers
+      return [...validated.data.answers]
     }
   } catch {}
   return []

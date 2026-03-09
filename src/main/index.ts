@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { app, BrowserWindow, Menu, shell } from 'electron'
+import { initializeTokenStore } from './auth/token-manager'
 import { startDevtoolsEventBus, stopDevtoolsEventBus } from './devtools/event-bus'
 import { env } from './env'
 import { registerAgentHandlers } from './ipc/agent-handler'
@@ -23,12 +24,15 @@ import { registerWaggleHandlers } from './ipc/waggle-handler'
 import { createLogger, initFileLogger } from './logger'
 import { mcpManager } from './mcp'
 import { registerAllProviders } from './providers'
+import { disposeAppRuntime, initializeAppRuntime } from './runtime'
 import {
   assertSecureWebPreferences,
   installCspHeaders,
   SECURE_WEB_PREFERENCES,
 } from './security/electron-security'
-import { getSettings } from './store/settings'
+import { configureAppStoragePaths } from './session-data'
+import { getSettings, initializeSettingsStore } from './store/settings'
+import { initializeTeamStore } from './store/teams'
 import { registerRunSubAgent } from './sub-agents/facade'
 import { runSubAgent } from './sub-agents/sub-agent-runner'
 
@@ -39,10 +43,7 @@ const MIN_HEIGHT = 600
 const X = 16
 const Y = 16
 const FAILURE_EXIT_CODE = 1
-
-if (env.OPENWAGGLE_USER_DATA_DIR) {
-  app.setPath('userData', env.OPENWAGGLE_USER_DATA_DIR)
-}
+configureAppStoragePaths(app, env.OPENWAGGLE_USER_DATA_DIR)
 
 const appIconPath = is.dev
   ? join(__dirname, '../../build/icon.png')
@@ -125,6 +126,9 @@ function registerIpcHandlersOnce(): void {
 }
 
 async function bootstrapServicesAndWindow(): Promise<void> {
+  await initializeAppRuntime()
+  await Promise.all([initializeSettingsStore(), initializeTokenStore(), initializeTeamStore()])
+
   try {
     await Promise.all([registerAllProviders(), startDevtoolsEventBus()])
   } catch (error) {
@@ -134,6 +138,7 @@ async function bootstrapServicesAndWindow(): Promise<void> {
     )
   }
 
+  registerIpcHandlersOnce()
   createWindow()
 
   // MCP connects in background — not needed for initial render
@@ -241,10 +246,6 @@ app
 
     buildApplicationMenu()
 
-    // Register IPC handlers (these don't need the registry to be populated yet,
-    // they just reference it at call-time)
-    registerIpcHandlersOnce()
-
     // Initialize file logger now that app paths are available
     void initFileLogger(app.getPath('logs'))
 
@@ -258,6 +259,10 @@ app
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    })
+
+    app.on('will-quit', () => {
+      void disposeAppRuntime()
     })
   })
   .catch((error: unknown) => {

@@ -2,8 +2,8 @@ import { execFile } from 'node:child_process'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { BYTES_PER_KIBIBYTE, DOUBLE_FACTOR } from '@shared/constants/constants'
+import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { jsonObjectSchema } from '@shared/schemas/validation'
-import { z } from 'zod'
 
 const MODULE_VALUE_5 = 5
 
@@ -40,7 +40,7 @@ export async function runGit(
       code: 0,
     }
   } catch (err) {
-    const result = jsonObjectSchema.safeParse(err)
+    const result = safeDecodeUnknown(jsonObjectSchema, err)
     if (result.success) {
       const e = result.data
       return {
@@ -74,7 +74,7 @@ export function stripSurroundingQuotes(value: string): string {
   return value
 }
 
-export const projectPathSchema = z
-  .string()
-  .min(1)
-  .refine((p) => path.isAbsolute(p), { message: 'Project path must be absolute' })
+export const projectPathSchema = Schema.String.pipe(
+  Schema.minLength(1),
+  Schema.filter((projectPath) => path.isAbsolute(projectPath) || 'Project path must be absolute'),
+)

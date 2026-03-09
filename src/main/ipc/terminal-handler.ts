@@ -3,8 +3,8 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { BYTES_PER_KIBIBYTE, HEX_RADIX } from '@shared/constants/constants'
+import { decodeUnknownOrThrow, Schema, safeDecodeUnknown } from '@shared/schema'
 import type { IPty } from 'node-pty'
-import { z } from 'zod'
 import { getSafeChildEnv } from '../env'
 import { broadcastToWindows } from '../utils/broadcast'
 import { typedHandle, typedOn } from './typed-ipc'
@@ -35,15 +35,23 @@ interface PtyProcess {
 
 const terminals = new Map<string, PtyProcess>()
 
-const terminalPathSchema = z.string().min(1)
-const terminalResizeSchema = z.object({
-  cols: z.number().int().min(MIN_ARG_1).max(MAX_TERMINAL_COLS),
-  rows: z.number().int().min(MIN_ARG_1_VALUE_5).max(MAX_TERMINAL_ROWS),
+const terminalPathSchema = Schema.String.pipe(Schema.minLength(1))
+const terminalResizeSchema = Schema.Struct({
+  cols: Schema.Number.pipe(
+    Schema.int(),
+    Schema.greaterThanOrEqualTo(MIN_ARG_1),
+    Schema.lessThanOrEqualTo(MAX_TERMINAL_COLS),
+  ),
+  rows: Schema.Number.pipe(
+    Schema.int(),
+    Schema.greaterThanOrEqualTo(MIN_ARG_1_VALUE_5),
+    Schema.lessThanOrEqualTo(MAX_TERMINAL_ROWS),
+  ),
 })
-const terminalWriteSchema = z.string().max(MAX_TERMINAL_INPUT_BYTES)
+const terminalWriteSchema = Schema.String.pipe(Schema.maxLength(MAX_TERMINAL_INPUT_BYTES))
 
 function resolveTerminalCwd(projectPath: string): string {
-  const candidate = terminalPathSchema.parse(projectPath).trim()
+  const candidate = decodeUnknownOrThrow(terminalPathSchema, projectPath).trim()
   if (!path.isAbsolute(candidate)) {
     throw new Error('Project path must be absolute.')
   }
@@ -98,7 +106,7 @@ export function registerTerminalHandlers(): void {
   })
 
   typedHandle('terminal:resize', (_event, terminalId: string, cols: number, rows: number) => {
-    const parsed = terminalResizeSchema.parse({ cols, rows })
+    const parsed = decodeUnknownOrThrow(terminalResizeSchema, { cols, rows })
     const terminal = terminals.get(terminalId)
     if (terminal) {
       terminal.process.resize(parsed.cols, parsed.rows)
@@ -106,16 +114,14 @@ export function registerTerminalHandlers(): void {
   })
 
   typedOn('terminal:write', (_event, terminalId: string, data: string) => {
-    let parsedData: string
-    try {
-      parsedData = terminalWriteSchema.parse(data)
-    } catch {
+    const parsedData = safeDecodeUnknown(terminalWriteSchema, data)
+    if (!parsedData.success) {
       return
     }
-    if (!parsedData) return
+    if (!parsedData.data) return
     const terminal = terminals.get(terminalId)
     if (terminal) {
-      terminal.process.write(parsedData)
+      terminal.process.write(parsedData.data)
     }
   })
 }

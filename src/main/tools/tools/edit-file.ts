@@ -1,7 +1,8 @@
 import fs from 'node:fs/promises'
 import { PERCENT_BASE } from '@shared/constants/constants'
-import { z } from 'zod'
+import { Schema } from '@shared/schema'
 import { defineOpenWaggleTool, resolveProjectPath } from '../define-tool'
+import { buildFileMutationResult } from './file-mutation-result'
 
 const SLICE_ARG_2 = 100
 
@@ -10,12 +11,12 @@ export const editFileTool = defineOpenWaggleTool({
   description:
     'Edit a file by replacing an exact string match with new content. The oldString must appear exactly once in the file. Read the file first to get the exact content to match.',
   needsApproval: true,
-  inputSchema: z.object({
-    path: z.string().describe('File path relative to the project root'),
-    oldString: z
-      .string()
-      .describe('The exact string to find and replace (must be unique in the file)'),
-    newString: z.string().describe('The replacement string'),
+  inputSchema: Schema.Struct({
+    path: Schema.String.annotations({ description: 'File path relative to the project root' }),
+    oldString: Schema.String.annotations({
+      description: 'The exact string to find and replace (must be unique in the file)',
+    }),
+    newString: Schema.String.annotations({ description: 'The replacement string' }),
   }),
   async execute(args, context) {
     const filePath = resolveProjectPath(context.projectPath, args.path)
@@ -44,10 +45,11 @@ export const editFileTool = defineOpenWaggleTool({
     const newContent = content.replace(args.oldString, args.newString)
     await fs.writeFile(filePath, newContent, 'utf-8')
 
-    return JSON.stringify({
-      message: `File edited: ${args.path}`,
+    return buildFileMutationResult({
+      path: args.path,
       beforeContent: content,
       afterContent: newContent,
+      verb: 'edited',
     })
   },
 })

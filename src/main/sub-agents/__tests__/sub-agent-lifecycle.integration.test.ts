@@ -5,6 +5,13 @@ import { ConversationId } from '@shared/types/brand'
 import type { TaskRecord } from '@shared/types/team'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { state, getPathMock } = vi.hoisted(() => ({
+  state: { userDataDir: '' },
+  getPathMock: vi.fn(() => ''),
+}))
+
+getPathMock.mockImplementation(() => state.userDataDir)
+
 // ---------------------------------------------------------------------------
 // Mocks — IPC bridge + context injection
 // ---------------------------------------------------------------------------
@@ -27,10 +34,17 @@ vi.mock('../../tools/context-injection-buffer', () => ({
   pushContext: (...args: unknown[]) => mockPushContext(...args),
 }))
 
+vi.mock('electron', () => ({
+  app: {
+    getPath: getPathMock,
+  },
+}))
+
 // ---------------------------------------------------------------------------
 // Module imports — after mocks
 // ---------------------------------------------------------------------------
 
+import { resetAppRuntimeForTests } from '../../runtime'
 import {
   clearAllMessages,
   deliverPendingMessages,
@@ -55,9 +69,13 @@ import {
 // ---------------------------------------------------------------------------
 
 function assertTaskRecord(result: unknown): asserts result is TaskRecord {
-  const r = result as Record<string, unknown>
-  if ('kind' in r) {
-    throw new Error(`Expected TaskRecord but got discriminated union kind: ${String(r.kind)}`)
+  if (typeof result !== 'object' || result === null || Array.isArray(result)) {
+    throw new Error('Expected TaskRecord but got a non-object result')
+  }
+  if (Object.hasOwn(result, 'kind')) {
+    throw new Error(
+      `Expected TaskRecord but got discriminated union kind: ${String(Reflect.get(result, 'kind'))}`,
+    )
   }
 }
 
@@ -68,14 +86,18 @@ function assertTaskRecord(result: unknown): asserts result is TaskRecord {
 let tmpDir: string
 
 beforeEach(async () => {
+  await resetAppRuntimeForTests()
   clearAllBoards()
   clearAllMessages()
   mockPushContext.mockClear()
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'lifecycle-test-'))
+  state.userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'lifecycle-db-'))
 })
 
 afterEach(async () => {
+  await resetAppRuntimeForTests()
   await fs.rm(tmpDir, { recursive: true, force: true })
+  await fs.rm(state.userDataDir, { recursive: true, force: true })
 })
 
 // ---------------------------------------------------------------------------
