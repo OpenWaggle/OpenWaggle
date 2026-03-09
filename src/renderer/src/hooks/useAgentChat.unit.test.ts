@@ -2,38 +2,55 @@
 
 import { ConversationId, MessageId, SupportedModelId, ToolCallId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
+import type { UIMessage } from '@tanstack/ai-react'
 import { renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAgentChat } from './useAgentChat'
 
-const { apiMock, createIpcConnectionAdapterMock, useBackgroundRunStoreMock, runCompletedHandlers } =
-  vi.hoisted(() => ({
-    apiMock: {
-      onStreamChunk: vi.fn(() => () => {}),
-      onRunCompleted: vi.fn((handler: (payload: { conversationId: string }) => void) => {
-        runCompletedHandlers.push(handler)
-        return () => {}
-      }),
-      getBackgroundRun: vi.fn(async () => null),
-      getConversation: vi.fn(async () => null),
-      cancelAgent: vi.fn(),
-      steerAgent: vi.fn(),
-      answerQuestion: vi.fn(),
-      respondToPlan: vi.fn(),
+const {
+  apiMock,
+  createIpcConnectionAdapterMock,
+  hasActiveRunMock,
+  useBackgroundRunStoreMock,
+  runCompletedHandlers,
+  useChatMockImplementation,
+} = vi.hoisted(() => ({
+  apiMock: {
+    onStreamChunk: vi.fn(() => () => {}),
+    onRunCompleted: vi.fn((handler: (payload: { conversationId: string }) => void) => {
+      runCompletedHandlers.push(handler)
+      return () => {}
+    }),
+    getBackgroundRun: vi.fn(async () => null),
+    getConversation: vi.fn(async () => null),
+    cancelAgent: vi.fn(),
+    steerAgent: vi.fn(),
+    answerQuestion: vi.fn(),
+    respondToPlan: vi.fn(),
+  },
+  createIpcConnectionAdapterMock: vi.fn(() => ({
+    connect: async function* emptyAsyncIterable() {
+      yield* []
     },
-    createIpcConnectionAdapterMock: vi.fn(() => ({
-      connect: async function* emptyAsyncIterable() {
-        yield* []
-      },
-    })),
-    useBackgroundRunStoreMock: vi.fn(
-      (selector: (state: { hasActiveRun: (conversationId: string) => boolean }) => unknown) =>
-        selector({
-          hasActiveRun: () => false,
-        }),
-    ),
-    runCompletedHandlers: [] as Array<(payload: { conversationId: string }) => void>,
-  }))
+  })),
+  hasActiveRunMock: vi.fn(() => false),
+  useBackgroundRunStoreMock: vi.fn(
+    (selector: (state: { hasActiveRun: (conversationId: string) => boolean }) => unknown) =>
+      selector({
+        hasActiveRun: hasActiveRunMock,
+      }),
+  ),
+  runCompletedHandlers: [] as Array<(payload: { conversationId: string }) => void>,
+  useChatMockImplementation: vi.fn(),
+}))
+
+vi.mock('@tanstack/ai-react', async () => {
+  const React = await import('react')
+
+  return {
+    useChat: (options: unknown) => useChatMockImplementation(options, React),
+  }
+})
 
 vi.mock('@/lib/ipc', () => ({
   api: apiMock,
@@ -53,7 +70,32 @@ describe('useAgentChat', () => {
     apiMock.onRunCompleted.mockClear()
     apiMock.getBackgroundRun.mockReset()
     apiMock.getConversation.mockReset()
+    createIpcConnectionAdapterMock.mockClear()
+    hasActiveRunMock.mockReset()
+    hasActiveRunMock.mockReturnValue(false)
     runCompletedHandlers.length = 0
+    useChatMockImplementation.mockReset()
+    useChatMockImplementation.mockImplementation(
+      (_options: unknown, React: typeof import('react')) => {
+        const [messages, setMessages] = React.useState<UIMessage[]>([])
+        const sendMessage = vi.fn(async (_message: string) => {})
+        const stop = vi.fn()
+        const addToolApprovalResponse = vi.fn(
+          async (_response: { id: string; approved: boolean }) => {},
+        )
+
+        return {
+          messages,
+          sendMessage,
+          isLoading: false,
+          status: 'ready' as const,
+          stop,
+          setMessages,
+          error: undefined,
+          addToolApprovalResponse,
+        }
+      },
+    )
   })
 
   it('restores persisted approval metadata after hydrating historical messages', async () => {
@@ -258,6 +300,63 @@ describe('useAgentChat', () => {
           ),
         ),
       ).toBe(true)
+    })
+  })
+
+  it('keeps the IPC connection stable across rerenders for the same conversation config', async () => {
+    const conversation: Conversation = {
+      id: ConversationId('conv-stable'),
+      title: 'Stable connection',
+      projectPath: null,
+      createdAt: 1,
+      updatedAt: 1,
+      messages: [
+        {
+          id: MessageId('msg-stable'),
+          role: 'assistant',
+          createdAt: 1,
+          parts: [
+            {
+              type: 'tool-call',
+              toolCall: {
+                id: ToolCallId('tool-stable'),
+                name: 'writeFile',
+                args: { path: 'stable.txt' },
+                state: 'approval-requested',
+                approval: {
+                  id: 'approval_tool-stable',
+                  needsApproval: true,
+                },
+              },
+            },
+          ],
+        },
+      ],
+    }
+
+    const { rerender } = renderHook(
+      ({ activeConversation }: { activeConversation: Conversation | null }) =>
+        useAgentChat(
+          ConversationId('conv-stable'),
+          activeConversation,
+          SupportedModelId('claude-sonnet-4-5'),
+          'medium',
+        ),
+      {
+        initialProps: {
+          activeConversation: conversation,
+        },
+      },
+    )
+
+    await waitFor(() => {
+      expect(createIpcConnectionAdapterMock).toHaveBeenCalledTimes(1)
+    })
+
+    rerender({ activeConversation: conversation })
+
+    await waitFor(() => {
+      expect(createIpcConnectionAdapterMock).toHaveBeenCalledTimes(1)
     })
   })
 })

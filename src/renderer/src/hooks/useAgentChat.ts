@@ -8,7 +8,7 @@ import type { QualityPreset } from '@shared/types/settings'
 import type { WaggleConfig } from '@shared/types/waggle'
 import type { UIMessage } from '@tanstack/ai-react'
 import { useChat } from '@tanstack/ai-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '@/lib/ipc'
 import { createIpcConnectionAdapter } from '@/lib/ipc-connection-adapter'
 import { useBackgroundRunStore } from '@/stores/background-run-store'
@@ -35,6 +35,10 @@ interface AgentChatReturn {
   respondToPlan: (conversationId: ConversationId, response: PlanResponse) => Promise<void>
   /** True when we're showing a reconnected background stream (not via TanStack) */
   backgroundStreaming: boolean
+}
+
+const EMPTY_CONNECTION = {
+  connect: () => emptyAsyncIterable(),
 }
 
 /**
@@ -64,24 +68,35 @@ export function useAgentChat(
   const [backgroundStreaming, setBackgroundStreaming] = useState(false)
   const hasActiveRun = useBackgroundRunStore((s) => s.hasActiveRun)
 
-  // React Compiler handles memoization — no manual useMemo needed.
-  const connection = conversationId
-    ? createIpcConnectionAdapter(
-        conversationId,
-        model,
-        () => {
-          const payload = pendingPayloadRef.current
-          pendingPayloadRef.current = null
-          return payload
-        },
-        qualityPreset,
-        () => {
-          const config = pendingWaggleConfigRef.current
-          pendingWaggleConfigRef.current = null
-          return config
-        },
-      )
-    : { connect: () => emptyAsyncIterable() }
+  const consumePendingPayload = useCallback(() => {
+    const payload = pendingPayloadRef.current
+    pendingPayloadRef.current = null
+    return payload
+  }, [])
+
+  const consumePendingWaggleConfig = useCallback(() => {
+    const config = pendingWaggleConfigRef.current
+    pendingWaggleConfigRef.current = null
+    return config
+  }, [])
+
+  // TanStack's useChat keeps internal stream/client state keyed by the
+  // connection object identity, so we must keep the adapter stable across
+  // ordinary rerenders and only recreate it when the conversation/model
+  // configuration actually changes.
+  const connection = useMemo(
+    () =>
+      conversationId
+        ? createIpcConnectionAdapter(
+            conversationId,
+            model,
+            consumePendingPayload,
+            qualityPreset,
+            consumePendingWaggleConfig,
+          )
+        : EMPTY_CONNECTION,
+    [conversationId, consumePendingPayload, consumePendingWaggleConfig, model, qualityPreset],
+  )
 
   const {
     messages,

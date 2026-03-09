@@ -20,6 +20,9 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Task: Push-Gate Test Stabilization (2026-03-09)
+- Renderer hook tests that mock Zustand selectors must return stable function identities for function-valued slices (for example `hasActiveRun`). Returning a new function on every render can retrigger effects that depend on that selector result and create misleading infinite rerender/OOM failures that never happen with the real store.
+
 ### Task: T3Code Competitive Analysis — Spec Design (2026-03-07)
 - Shiki syntax highlighting uses WASM grammars that need explicit asset handling in electron-vite config (`assetsInclude: ['**/*.wasm']`); unlike highlight.js CSS classes, Shiki outputs inline `style` attributes with `color` properties, which affects CSP and sanitization schema configuration.
 - Lexical editor integration in a Composer that has many existing behaviors (history, voice, paste, command palette trigger) requires preserving all of them through Lexical plugins rather than raw `onKeyDown` handlers — Lexical intercepts keyboard events before they reach the component, so handlers must be registered as Lexical command listeners.
