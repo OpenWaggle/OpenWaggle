@@ -4,7 +4,7 @@ This guide covers building, developing, and understanding OpenWaggle's architect
 
 ## Prerequisites
 
-- **Node.js** 20+ — [nodejs.org](https://nodejs.org/)
+- **Node.js** 24.x — [nodejs.org](https://nodejs.org/)
 - **pnpm** 9+ — [pnpm.io](https://pnpm.io/)
 
 ## Building from Source

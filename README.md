@@ -88,7 +88,7 @@ Full PTY terminal emulation powered by xterm.js. Toggle with `Ctrl+J` / `Cmd+J`.
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) 20+
+- [Node.js](https://nodejs.org/) 24.x
 - [pnpm](https://pnpm.io/) 9+
 
 ### Install and run
