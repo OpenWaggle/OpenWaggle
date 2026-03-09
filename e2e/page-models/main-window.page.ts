@@ -1,17 +1,17 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 
-const READY_COPY = "Let's build"
 const THREAD_VISIBILITY_TIMEOUT_MS = 12_000
+const NEW_THREAD_LABEL = 'New thread'
 
 export class MainWindowPage {
   constructor(readonly page: Page) {}
 
   async waitUntilReady(): Promise<void> {
-    await expect(this.page.getByText(READY_COPY)).toBeVisible()
+    await expect(this.page.getByRole('button', { name: NEW_THREAD_LABEL }).first()).toBeVisible()
   }
 
   newThreadButton(): Locator {
-    return this.page.getByRole('button', { name: 'New thread' }).first()
+    return this.page.getByRole('button', { name: NEW_THREAD_LABEL }).first()
   }
 
   messageInput(): Locator {

@@ -1,11 +1,10 @@
-import { AsyncLocalStorage } from 'node:async_hooks'
 import fs from 'node:fs'
 import path from 'node:path'
 import { BYTES_PER_KIBIBYTE, PERCENT_BASE } from '@shared/constants/constants'
+import { decodeUnknownOrThrow, type Schema, type SchemaType } from '@shared/schema'
 import type { ConversationId } from '@shared/types/brand'
 import { isPathInside } from '@shared/utils/paths'
-import { type ServerTool, toolDefinition } from '@tanstack/ai'
-import type { z } from 'zod'
+import { type ServerTool, type ToolExecutionContext, toolDefinition } from '@tanstack/ai'
 import { createLogger } from '../logger'
 import { emitContextInjected } from '../utils/stream-bridge'
 import { applyContextInjection } from './context-injection-buffer'
@@ -54,33 +53,119 @@ export interface ToolJsonResult {
  */
 export type NormalizedToolResult = ToolTextResult | ToolJsonResult
 
-const toolContextStorage = new AsyncLocalStorage<ToolContext>()
+const OPEN_WAGGLE_TOOL_BINDER = Symbol('openwaggle.tool-binder')
 
-export function runWithToolContext<T>(ctx: ToolContext, fn: () => T): T {
-  return toolContextStorage.run(ctx, fn)
+export interface ContextBoundServerTool extends ServerTool {
+  readonly [OPEN_WAGGLE_TOOL_BINDER]: (context: ToolContext) => ServerTool
 }
 
-export function getToolContext(): ToolContext {
-  const ctx = toolContextStorage.getStore()
-  if (!ctx) {
-    throw new Error('Tool context not set — agent run not active')
+interface ExecutableServerTool extends ServerTool {
+  readonly execute: (args: unknown, context?: ToolExecutionContext) => Promise<unknown> | unknown
+}
+
+function isContextBoundServerTool(tool: ServerTool): tool is ContextBoundServerTool {
+  return OPEN_WAGGLE_TOOL_BINDER in tool && typeof tool[OPEN_WAGGLE_TOOL_BINDER] === 'function'
+}
+
+function executeOpenWaggleTool<TSchema extends Schema.Schema.AnyNoContext>(
+  config: {
+    readonly name: string
+    readonly execute: (
+      args: SchemaType<TSchema>,
+      context: ToolContext,
+    ) => Promise<string | NormalizedToolResult>
+    readonly inputSchema: TSchema
+  },
+  toolContext: ToolContext,
+  args: unknown,
+): Promise<NormalizedToolResult> {
+  const parsed = decodeUnknownOrThrow(config.inputSchema, args)
+  const debugEnabled = logger.isDebugEnabled?.() === true
+  const argKeys =
+    debugEnabled && typeof parsed === 'object' && parsed !== null ? Object.keys(parsed) : []
+  if (debugEnabled) {
+    logger.debug('tool:start', { tool: config.name, argKeys })
   }
-  return ctx
+  const startTime = Date.now()
+
+  return config
+    .execute(parsed, toolContext)
+    .then((rawToolResult) => {
+      const durationMs = Date.now() - startTime
+      const injection = applyContextInjection(toolContext.conversationId, rawToolResult)
+      let resultWithContext = injection.result
+
+      if (injection.injectedItems.length > 0) {
+        for (const item of injection.injectedItems) {
+          emitContextInjected(toolContext.conversationId, item.text, item.timestamp)
+        }
+        if (debugEnabled) {
+          logger.debug('tool:context-injected', {
+            tool: config.name,
+            conversationId: toolContext.conversationId,
+            count: injection.injectedItems.length,
+          })
+        }
+      }
+
+      if (
+        typeof resultWithContext === 'object' &&
+        resultWithContext !== null &&
+        'kind' in resultWithContext
+      ) {
+        if (debugEnabled) {
+          logger.debug('tool:end', {
+            tool: config.name,
+            resultKind: resultWithContext.kind,
+            durationMs,
+          })
+        }
+        return resultWithContext
+      }
+
+      const rawText = resultWithContext
+      const truncated = rawText.length > MAX_TOOL_OUTPUT_BYTES
+      if (truncated) {
+        resultWithContext = `${rawText.slice(0, MAX_TOOL_OUTPUT_BYTES)}\n\n... [output truncated — ${rawText.length} bytes total, showing first ${MAX_TOOL_OUTPUT_BYTES}]`
+      }
+
+      if (debugEnabled) {
+        logger.debug('tool:end', {
+          tool: config.name,
+          resultKind: 'string',
+          durationMs,
+          truncated,
+        })
+      }
+      return normalizeToolResult(resultWithContext)
+    })
+    .catch((error) => {
+      const durationMs = Date.now() - startTime
+      logger.error('tool:error', {
+        tool: config.name,
+        error: error instanceof Error ? error.message : String(error),
+        durationMs,
+      })
+      throw error
+    })
 }
 
-/**
- * Define a OpenWaggle tool using TanStack AI's toolDefinition().
- * Uses Zod's own z.infer for type-safe args in execute().
- * Args are validated through Zod's .parse() at runtime,
- * and the schema is passed to TanStack AI for JSON Schema conversion.
- */
-export function defineOpenWaggleTool<T extends z.ZodType, TName extends string>(config: {
-  name: TName
-  description: string
-  needsApproval?: boolean
-  inputSchema: T
-  execute: (args: z.infer<T>, context: ToolContext) => Promise<string | NormalizedToolResult>
-}): ServerTool {
+function makeServerToolWithContext<
+  TSchema extends Schema.Schema.AnyNoContext,
+  TName extends string,
+>(
+  config: {
+    readonly name: TName
+    readonly description: string
+    readonly needsApproval?: boolean
+    readonly inputSchema: TSchema
+    readonly execute: (
+      args: SchemaType<TSchema>,
+      context: ToolContext,
+    ) => Promise<string | NormalizedToolResult>
+  },
+  toolContext: ToolContext,
+): ServerTool {
   const def = toolDefinition({
     name: config.name,
     description: config.description,
@@ -88,58 +173,73 @@ export function defineOpenWaggleTool<T extends z.ZodType, TName extends string>(
     inputSchema: config.inputSchema,
   })
 
-  return def.server(async (args: unknown) => {
-    const parsed: z.infer<T> = config.inputSchema.parse(args)
-    const ctx = getToolContext()
-    const argKeys = typeof parsed === 'object' && parsed !== null ? Object.keys(parsed) : []
-    logger.info('tool:start', { tool: config.name, argKeys })
-    const startTime = Date.now()
+  return def.server((args: unknown, _executionContext?: ToolExecutionContext) =>
+    executeOpenWaggleTool(config, toolContext, args),
+  )
+}
 
-    let rawResult: string | NormalizedToolResult
-    try {
-      rawResult = await config.execute(parsed, ctx)
-    } catch (err) {
-      const durationMs = Date.now() - startTime
-      logger.error('tool:error', {
-        tool: config.name,
-        error: err instanceof Error ? err.message : String(err),
-        durationMs,
-      })
-      throw err
-    }
+export function bindToolContextToTool(tool: ServerTool, context: ToolContext): ServerTool {
+  return isContextBoundServerTool(tool) ? tool[OPEN_WAGGLE_TOOL_BINDER](context) : tool
+}
 
-    const durationMs = Date.now() - startTime
+export function bindToolContextToTools(
+  tools: readonly ServerTool[],
+  context: ToolContext,
+): ServerTool[] {
+  return tools.map((tool) => bindToolContextToTool(tool, context))
+}
 
-    // Inject any user context that arrived while the tool was executing
-    const injection = applyContextInjection(ctx.conversationId, rawResult)
-    if (injection.injectedItems.length > 0) {
-      rawResult = injection.result
-      for (const item of injection.injectedItems) {
-        emitContextInjected(ctx.conversationId, item.text, item.timestamp)
-      }
-      logger.info('tool:context-injected', {
-        tool: config.name,
-        conversationId: ctx.conversationId,
-        count: injection.injectedItems.length,
-      })
-    }
+function hasExecutableServerFunction(tool: ServerTool): tool is ExecutableServerTool {
+  return 'execute' in tool && typeof tool.execute === 'function'
+}
 
-    // If execute already returned a NormalizedToolResult, pass through directly
-    if (typeof rawResult === 'object' && rawResult !== null && 'kind' in rawResult) {
-      logger.info('tool:end', { tool: config.name, resultKind: rawResult.kind, durationMs })
-      return rawResult
-    }
+export async function executeToolWithContext(
+  tool: ServerTool,
+  context: ToolContext,
+  args: unknown,
+): Promise<unknown> {
+  const boundTool = bindToolContextToTool(tool, context)
+  if (!hasExecutableServerFunction(boundTool)) {
+    throw new Error(`Tool "${boundTool.name ?? 'unknown'}" is missing execute()`)
+  }
+  return boundTool.execute(args)
+}
 
-    // Backward compat: string results go through truncation + normalization
-    let result = rawResult
-    const truncated = result.length > MAX_TOOL_OUTPUT_BYTES
-    if (truncated) {
-      result = `${result.slice(0, MAX_TOOL_OUTPUT_BYTES)}\n\n... [output truncated — ${result.length} bytes total, showing first ${MAX_TOOL_OUTPUT_BYTES}]`
-    }
-
-    logger.info('tool:end', { tool: config.name, resultKind: 'string', durationMs, truncated })
-    return normalizeToolResult(result)
+/**
+ * Define a OpenWaggle tool using TanStack AI's toolDefinition().
+ * Uses Effect Schema for type-safe args in execute().
+ * Args are validated through Effect Schema decoding at runtime,
+ * and the schema is passed to TanStack AI for JSON Schema conversion.
+ */
+export function defineOpenWaggleTool<
+  TSchema extends Schema.Schema.AnyNoContext,
+  TName extends string,
+>(config: {
+  name: TName
+  description: string
+  needsApproval?: boolean
+  inputSchema: TSchema
+  execute: (
+    args: SchemaType<TSchema>,
+    context: ToolContext,
+  ) => Promise<string | NormalizedToolResult>
+}): ContextBoundServerTool {
+  const def = toolDefinition({
+    name: config.name,
+    description: config.description,
+    needsApproval: config.needsApproval,
+    inputSchema: config.inputSchema,
   })
+
+  return {
+    ...def.server((_args: unknown) => {
+      throw new Error(`Tool "${config.name}" executed without a bound ToolContext`)
+    }),
+    execute: (_args: unknown) => {
+      throw new Error(`Tool "${config.name}" executed without a bound ToolContext`)
+    },
+    [OPEN_WAGGLE_TOOL_BINDER]: (context: ToolContext) => makeServerToolWithContext(config, context),
+  }
 }
 
 function normalizeToolResult(result: string): NormalizedToolResult {

@@ -1,3 +1,4 @@
+import { Schema, type SchemaType, safeDecodeUnknown } from '@shared/schema'
 import type { JsonObject } from '@shared/types/json'
 import {
   hasConcreteToolOutput,
@@ -7,7 +8,6 @@ import {
 import { isRecord } from '@shared/utils/validation'
 import { AlertCircle, Check, ChevronRight, Clock, Loader2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { z } from 'zod'
 import { DiffView } from '@/components/thread/DiffView'
 import { cn } from '@/lib/cn'
 import { computeDiff } from '@/lib/diff'
@@ -26,19 +26,19 @@ interface ToolCallBlockProps {
   isStreaming?: boolean
 }
 
-const screenshotResultSchema = z.object({
-  base64Image: z.string(),
-  pageTitle: z.string(),
-  url: z.string(),
+const screenshotResultSchema = Schema.Struct({
+  base64Image: Schema.String,
+  pageTitle: Schema.String,
+  url: Schema.String,
 })
 
 function tryParseScreenshotResult(
   content: unknown,
   name: string,
-): z.infer<typeof screenshotResultSchema> | null {
+): SchemaType<typeof screenshotResultSchema> | null {
   if (name !== 'browserScreenshot') return null
   const payload = parseResultPayload(content)
-  const parsed = screenshotResultSchema.safeParse(payload)
+  const parsed = safeDecodeUnknown(screenshotResultSchema, payload)
   return parsed.success ? parsed.data : null
 }
 
@@ -114,11 +114,11 @@ export function ToolCallBlock({
   isStreaming = false,
 }: ToolCallBlockProps): React.JSX.Element {
   const [expanded, setExpanded] = useState(false)
-  const awaitingApproval = state === 'approval-requested'
   const hasConcreteResult = result ? hasConcreteToolOutput(result.content) : false
-  const isRunning = !awaitingApproval && isStreaming && (state !== 'input-complete' || !result)
   const resultError = getResultError(result)
   const isError = resultError !== null
+  const awaitingApproval = state === 'approval-requested' && !hasConcreteResult && !isError
+  const isRunning = !awaitingApproval && isStreaming && (state !== 'input-complete' || !result)
   const awaitingResult = (!result || !hasConcreteResult) && !isRunning && !awaitingApproval
 
   const parsedArgs = parseToolArgs(args)

@@ -1,12 +1,10 @@
 import { randomUUID } from 'node:crypto'
-import fs from 'node:fs/promises'
-import path from 'node:path'
+import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { TaskId, TeamId } from '@shared/types/brand'
 import type { TaskRecord, TaskStatus } from '@shared/types/team'
-import { formatErrorMessage, isEnoent } from '@shared/utils/node-error'
-import { z } from 'zod'
+import { formatErrorMessage } from '@shared/utils/node-error'
 import { createLogger } from '../logger'
-import { atomicWriteJSON } from '../utils/atomic-write'
+import { readTeamRuntimeState, writeTeamRuntimeState } from '../services/team-runtime-state'
 import { emitTeamEvent } from './sub-agent-bridge'
 
 const logger = createLogger('task-board')
@@ -189,22 +187,22 @@ export function clearAllBoards(): void {
 
 // ── Persistence ──────────────────────────────────────────────
 
-const persistedTaskSchema = z.object({
-  id: z.string(),
-  subject: z.string(),
-  description: z.string(),
-  activeForm: z.string().optional(),
-  status: z.enum(['pending', 'in_progress', 'completed', 'deleted']),
-  owner: z.string().optional(),
-  blocks: z.array(z.string()),
-  blockedBy: z.array(z.string()),
-  metadata: z.record(z.string(), z.unknown()),
-  createdAt: z.number(),
-  updatedAt: z.number(),
+const persistedTaskSchema = Schema.Struct({
+  id: Schema.String,
+  subject: Schema.String,
+  description: Schema.String,
+  activeForm: Schema.optional(Schema.String),
+  status: Schema.Literal('pending', 'in_progress', 'completed', 'deleted'),
+  owner: Schema.optional(Schema.String),
+  blocks: Schema.mutable(Schema.Array(Schema.String)),
+  blockedBy: Schema.mutable(Schema.Array(Schema.String)),
+  metadata: Schema.mutable(Schema.Record({ key: Schema.String, value: Schema.Unknown })),
+  createdAt: Schema.Number,
+  updatedAt: Schema.Number,
 })
 
-const persistedBoardSchema = z.object({
-  tasks: z.array(persistedTaskSchema),
+const persistedBoardSchema = Schema.Struct({
+  tasks: Schema.mutable(Schema.Array(persistedTaskSchema)),
 })
 
 export function isBoardLoaded(teamId: string): boolean {
@@ -229,25 +227,31 @@ export async function persistTaskBoard(projectPath: string, teamName: string): P
     updatedAt: t.updatedAt,
   }))
 
-  const dir = path.join(projectPath, '.openwaggle', 'teams', teamName)
-  await fs.mkdir(dir, { recursive: true })
-
-  const filePath = path.join(dir, 'tasks.json')
-  await atomicWriteJSON(filePath, { tasks })
+  await writeTeamRuntimeState({
+    projectPath,
+    teamName,
+    tasksJson: JSON.stringify({ tasks }),
+  })
   logger.info('Task board persisted', { teamName, taskCount: tasks.length })
 }
 
 export async function loadTaskBoard(projectPath: string, teamName: string): Promise<boolean> {
-  const filePath = path.join(projectPath, '.openwaggle', 'teams', teamName, 'tasks.json')
   try {
-    const raw = await fs.readFile(filePath, 'utf8')
-    const parsed: unknown = JSON.parse(raw)
-    const data = persistedBoardSchema.parse(parsed)
+    const row = await readTeamRuntimeState(projectPath, teamName)
+    if (!row?.tasks_json) {
+      return false
+    }
+
+    const parsed: unknown = JSON.parse(row.tasks_json)
+    const data = safeDecodeUnknown(persistedBoardSchema, parsed)
+    if (!data.success) {
+      throw new Error(data.issues.join('; '))
+    }
 
     const board = getBoard(teamName)
     board.clear()
 
-    for (const t of data.tasks) {
+    for (const t of data.data.tasks) {
       const record: TaskRecord = {
         id: TaskId(t.id),
         subject: t.subject,
@@ -265,15 +269,13 @@ export async function loadTaskBoard(projectPath: string, teamName: string): Prom
     }
 
     loadedBoards.add(teamName)
-    logger.info('Task board loaded', { teamName, taskCount: data.tasks.length })
+    logger.info('Task board loaded', { teamName, taskCount: data.data.tasks.length })
     return true
   } catch (error) {
-    if (!isEnoent(error)) {
-      logger.warn('Failed to load task board', {
-        teamName,
-        error: formatErrorMessage(error),
-      })
-    }
+    logger.warn('Failed to load task board', {
+      teamName,
+      error: formatErrorMessage(error),
+    })
     return false
   }
 }

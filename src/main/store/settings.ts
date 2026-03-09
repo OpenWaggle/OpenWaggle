@@ -1,5 +1,6 @@
-import { existsSync, readFileSync } from 'node:fs'
+import * as SqlClient from '@effect/sql/SqlClient'
 import { BASE_TEN, PERCENT_BASE } from '@shared/constants/constants'
+import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { AUTH_METHODS } from '@shared/types/auth'
 import { McpServerId, SupportedModelId } from '@shared/types/brand'
 import type { McpServerConfig } from '@shared/types/mcp'
@@ -16,52 +17,168 @@ import {
   type Settings,
 } from '@shared/types/settings'
 import { includes, isValidBaseUrl } from '@shared/utils/validation'
+import * as Effect from 'effect/Effect'
 import { safeStorage } from 'electron'
-import Store from 'electron-store'
-import { z } from 'zod'
 import { createLogger } from '../logger'
 import { providerRegistry } from '../providers'
+import { runAppEffect } from '../runtime'
 import { decryptString, encryptString, isEncryptedString } from './encryption'
 
 const logger = createLogger('settings')
 
-const store = new Store<Settings>({
-  name: 'settings',
-  defaults: DEFAULT_SETTINGS,
-})
+const SETTINGS_KEY_PROVIDERS = 'providers'
+const SETTINGS_KEY_DEFAULT_MODEL = 'defaultModel'
+const SETTINGS_KEY_FAVORITE_MODELS = 'favoriteModels'
+const SETTINGS_KEY_PROJECT_PATH = 'projectPath'
+const SETTINGS_KEY_EXECUTION_MODE = 'executionMode'
+const SETTINGS_KEY_QUALITY_PRESET = 'qualityPreset'
+const SETTINGS_KEY_RECENT_PROJECTS = 'recentProjects'
+const SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT = 'skillTogglesByProject'
+const SETTINGS_KEY_MCP_SERVERS = 'mcpServers'
+const SETTINGS_KEY_PROJECT_DISPLAY_NAMES = 'projectDisplayNames'
+
+interface SettingsStoreRow {
+  readonly key: string
+  readonly value_json: string
+}
+
+type SettingsValue =
+  | undefined
+  | string
+  | number
+  | boolean
+  | null
+  | SettingsValue[]
+  | { [key: string]: SettingsValue }
 
 /**
- * Schema for validating raw provider config from disk.
- * `enabled` is optional on disk (old configs may omit it); `getSettings()`
- * applies `defaults.enabled` to produce a `boolean` matching `ProviderConfig`.
+ * Schema for validating raw provider config from SQLite.
+ * `enabled` is optional on disk so `getSettings()` can still apply defaults.
  */
-const providerConfigSchema = z.object({
-  apiKey: z.string().default(''),
-  baseUrl: z
-    .string()
-    .refine((v) => isValidBaseUrl(v), { message: 'Must be a valid http/https URL' })
-    .optional(),
-  enabled: z.boolean().optional(),
-  authMethod: z.enum(AUTH_METHODS).default('api-key'),
+const providerConfigSchema = Schema.Struct({
+  apiKey: Schema.optional(Schema.String),
+  baseUrl: Schema.optional(
+    Schema.String.pipe(
+      Schema.filter((value) => isValidBaseUrl(value) || 'Must be a valid http/https URL'),
+    ),
+  ),
+  enabled: Schema.optional(Schema.Boolean),
+  authMethod: Schema.optional(Schema.Literal(...AUTH_METHODS)),
 })
 
-const settingsValueSchema: z.ZodType<unknown> = z.lazy(() =>
-  z.union([
-    z.undefined(),
-    z.string(),
-    z.number(),
-    z.boolean(),
-    z.null(),
-    z.array(settingsValueSchema),
-    z.record(z.string(), settingsValueSchema),
-  ]),
+const settingsValueSchema: Schema.Schema<SettingsValue> = Schema.suspend(() =>
+  Schema.Union(
+    Schema.Undefined,
+    Schema.String,
+    Schema.Number,
+    Schema.Boolean,
+    Schema.Null,
+    Schema.mutable(Schema.Array(settingsValueSchema)),
+    Schema.mutable(Schema.Record({ key: Schema.String, value: settingsValueSchema })),
+  ),
 )
 
-const settingsObjectSchema = z.record(z.string(), settingsValueSchema)
+const settingsObjectSchema = Schema.mutable(
+  Schema.Record({ key: Schema.String, value: settingsValueSchema }),
+)
 
-export function getSettings(): Settings {
-  const rawProviders: unknown = store.get('providers', {})
-  const storedProviders = settingsObjectSchema.safeParse(rawProviders)
+let settingsCache = createDefaultSettingsSnapshot()
+let initializationPromise: Promise<void> | null = null
+let writeQueue: Promise<void> = Promise.resolve()
+
+function createDefaultSettingsSnapshot(): Settings {
+  return {
+    ...DEFAULT_SETTINGS,
+    providers: Object.fromEntries(
+      PROVIDERS.map((provider) => [provider, { ...DEFAULT_SETTINGS.providers[provider] }]),
+    ),
+    encryptionAvailable: safeStorage.isEncryptionAvailable(),
+    apiKeysRequireManualResave: false,
+  }
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function parseJsonUnknown(raw: string): unknown {
+  return JSON.parse(raw)
+}
+
+function isStringOrNull(value: unknown): value is string | null {
+  return typeof value === 'string' || value === null
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+async function listStoredSettings(): Promise<Record<string, unknown>> {
+  const rows = await runAppEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      return yield* sql<SettingsStoreRow>`
+        SELECT key, value_json
+        FROM settings_store
+      `
+    }),
+  )
+
+  const stored: Record<string, unknown> = {}
+  for (const row of rows) {
+    try {
+      stored[row.key] = parseJsonUnknown(row.value_json)
+    } catch (error) {
+      logger.warn('Failed to parse stored setting JSON', {
+        key: row.key,
+        error: describeError(error),
+      })
+    }
+  }
+  return stored
+}
+
+async function writeStoredSettingToDb(key: string, value: unknown): Promise<void> {
+  await runAppEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`
+        INSERT INTO settings_store (key, value_json, updated_at)
+        VALUES (${key}, ${JSON.stringify(value)}, ${Date.now()})
+        ON CONFLICT(key) DO UPDATE SET
+          value_json = excluded.value_json,
+          updated_at = excluded.updated_at
+      `
+    }),
+  )
+}
+
+function queueStoredSettingWrite(key: string, value: unknown): void {
+  writeQueue = writeQueue
+    .then(() => writeStoredSettingToDb(key, value))
+    .catch((error) => {
+      logger.warn('Failed to write setting to SQLite', { key, error: describeError(error) })
+    })
+}
+
+function getStoredValue(
+  storedSettings: Readonly<Record<string, unknown>>,
+  key: string,
+): unknown | undefined {
+  return Object.hasOwn(storedSettings, key) ? storedSettings[key] : undefined
+}
+
+function resolveProjectPath(raw: unknown): string | null {
+  return isStringOrNull(raw) ? raw : DEFAULT_SETTINGS.projectPath
+}
+
+function buildSettingsSnapshot(storedSettings: Readonly<Record<string, unknown>>): {
+  readonly settings: Settings
+  readonly rawProviders: Record<string, unknown>
+  readonly migratedProviders: Partial<Record<Provider, ProviderConfig>>
+} {
+  const rawProvidersValue = getStoredValue(storedSettings, SETTINGS_KEY_PROVIDERS) ?? {}
+  const storedProviders = safeDecodeUnknown(settingsObjectSchema, rawProvidersValue)
   const validProviders = storedProviders.success ? storedProviders.data : {}
   const providers: Partial<Record<Provider, ProviderConfig>> = {}
   const encryptionAvailable = safeStorage.isEncryptionAvailable()
@@ -73,17 +190,17 @@ export function getSettings(): Settings {
     if (!defaults) continue
 
     const raw = validProviders[id]
-    const parsed = providerConfigSchema.safeParse(raw)
+    const parsed = safeDecodeUnknown(providerConfigSchema, raw)
 
     if (parsed.success) {
-      const storedApiKey = parsed.data.apiKey
+      const storedApiKey = parsed.data.apiKey ?? ''
       const decryptedApiKey = decryptString(storedApiKey)
       providers[id] = {
         apiKey: decryptedApiKey,
         baseUrl: parsed.data.baseUrl ?? defaults.baseUrl,
         enabled: parsed.data.enabled ?? defaults.enabled,
-        authMethod: parsed.data.authMethod,
-      } satisfies ProviderConfig
+        authMethod: parsed.data.authMethod ?? 'api-key',
+      }
 
       const shouldMigrate =
         encryptionAvailable && decryptedApiKey.trim().length > 0 && !isEncryptedString(storedApiKey)
@@ -95,8 +212,8 @@ export function getSettings(): Settings {
             apiKey: migratedApiKey,
             baseUrl: parsed.data.baseUrl ?? defaults.baseUrl,
             enabled: parsed.data.enabled ?? defaults.enabled,
-            authMethod: parsed.data.authMethod,
-          } satisfies ProviderConfig
+            authMethod: parsed.data.authMethod ?? 'api-key',
+          }
         } else {
           apiKeysRequireManualResave = true
           logger.warn('Failed to auto-migrate plaintext API key; manual re-save required', {
@@ -109,48 +226,117 @@ export function getSettings(): Settings {
     }
   }
 
-  if (Object.keys(migratedProviders).length > 0) {
-    store.set('providers', { ...validProviders, ...migratedProviders })
-  }
-
-  const rawDefaultModel = String(store.get('defaultModel', DEFAULT_SETTINGS.defaultModel))
+  const rawDefaultModel = String(
+    getStoredValue(storedSettings, SETTINGS_KEY_DEFAULT_MODEL) ?? DEFAULT_SETTINGS.defaultModel,
+  )
   const defaultModel = providerRegistry.isKnownModel(rawDefaultModel)
     ? SupportedModelId(rawDefaultModel)
     : DEFAULT_SETTINGS.defaultModel
-  if (defaultModel !== rawDefaultModel) {
-    store.set('defaultModel', defaultModel)
-  }
 
-  const executionMode = resolveExecutionMode()
-  const qualityPreset = resolveQualityPreset()
-  const favoriteModels = resolveFavoriteModels()
-  const recentProjects = resolveRecentProjects()
-  const skillTogglesByProject = resolveSkillTogglesByProject()
-  const mcpServers = resolveMcpServers()
+  const executionMode = resolveExecutionMode(
+    getStoredValue(storedSettings, SETTINGS_KEY_EXECUTION_MODE),
+  )
+  const qualityPreset = resolveQualityPreset(
+    getStoredValue(storedSettings, SETTINGS_KEY_QUALITY_PRESET),
+  )
+  const favoriteModels = resolveFavoriteModels(
+    getStoredValue(storedSettings, SETTINGS_KEY_FAVORITE_MODELS),
+  )
+  const recentProjects = resolveRecentProjects(
+    getStoredValue(storedSettings, SETTINGS_KEY_RECENT_PROJECTS),
+  )
+  const skillTogglesByProject = resolveSkillTogglesByProject(
+    getStoredValue(storedSettings, SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT),
+  )
+  const mcpServers = resolveMcpServers(getStoredValue(storedSettings, SETTINGS_KEY_MCP_SERVERS))
+  const projectDisplayNames = sanitizeProjectDisplayNames(
+    getStoredValue(storedSettings, SETTINGS_KEY_PROJECT_DISPLAY_NAMES) ??
+      DEFAULT_SETTINGS.projectDisplayNames,
+  )
 
   return {
-    providers,
-    defaultModel,
-    favoriteModels,
-    projectPath: store.get('projectPath', DEFAULT_SETTINGS.projectPath),
-    executionMode,
-    qualityPreset,
-    recentProjects,
-    skillTogglesByProject,
-    mcpServers,
-    projectDisplayNames: resolveProjectDisplayNames(),
-    encryptionAvailable,
-    apiKeysRequireManualResave,
+    settings: {
+      providers,
+      defaultModel,
+      favoriteModels,
+      projectPath: resolveProjectPath(getStoredValue(storedSettings, SETTINGS_KEY_PROJECT_PATH)),
+      executionMode,
+      qualityPreset,
+      recentProjects,
+      skillTogglesByProject,
+      mcpServers,
+      projectDisplayNames,
+      encryptionAvailable,
+      apiKeysRequireManualResave,
+    },
+    rawProviders: validProviders,
+    migratedProviders,
   }
 }
 
-export function updateSettings(partial: Partial<Settings>): void {
-  if (partial.providers !== undefined) {
-    const rawExisting: unknown = store.get('providers', {})
-    const parsedExisting = settingsObjectSchema.safeParse(rawExisting)
-    const existingProviders = parsedExisting.success ? parsedExisting.data : {}
+function serializeProviders(
+  providers: Readonly<Partial<Record<Provider, ProviderConfig>>>,
+): Partial<Record<Provider, ProviderConfig>> {
+  const serialized: Partial<Record<Provider, ProviderConfig>> = {}
+  for (const id of PROVIDERS) {
+    const config = providers[id]
+    if (!config) continue
+    serialized[id] = {
+      apiKey: encryptString(config.apiKey),
+      enabled: config.enabled,
+      baseUrl: config.baseUrl,
+      authMethod: config.authMethod,
+    }
+  }
+  return serialized
+}
 
-    const encryptedProviders: Partial<Record<Provider, ProviderConfig>> = {}
+export async function initializeSettingsStore(): Promise<void> {
+  if (initializationPromise) {
+    return initializationPromise
+  }
+
+  initializationPromise = (async () => {
+    try {
+      const storedSettings = await listStoredSettings()
+      const built = buildSettingsSnapshot(storedSettings)
+      settingsCache = built.settings
+
+      if (Object.keys(built.migratedProviders).length > 0) {
+        queueStoredSettingWrite(SETTINGS_KEY_PROVIDERS, {
+          ...built.rawProviders,
+          ...built.migratedProviders,
+        })
+      }
+
+      if (built.settings.defaultModel !== storedSettings[SETTINGS_KEY_DEFAULT_MODEL]) {
+        queueStoredSettingWrite(SETTINGS_KEY_DEFAULT_MODEL, built.settings.defaultModel)
+      }
+    } catch (error) {
+      logger.warn('Failed to initialize settings cache from SQLite', {
+        error: describeError(error),
+      })
+      settingsCache = createDefaultSettingsSnapshot()
+    }
+  })()
+
+  await initializationPromise
+}
+
+export async function flushSettingsStoreForTests(): Promise<void> {
+  await writeQueue
+}
+
+export function getSettings(): Settings {
+  return settingsCache
+}
+
+export function updateSettings(partial: Partial<Settings>): void {
+  const nextProviders: Partial<Record<Provider, ProviderConfig>> = {
+    ...settingsCache.providers,
+  }
+
+  if (partial.providers !== undefined) {
     for (const id of PROVIDERS) {
       const config = partial.providers[id]
       if (!config) continue
@@ -160,97 +346,132 @@ export function updateSettings(partial: Partial<Settings>): void {
         continue
       }
 
-      const existingConfig = providerConfigSchema.safeParse(existingProviders[id])
-      const defaults = DEFAULT_SETTINGS.providers[id]
-      if (!defaults) continue
-
-      encryptedProviders[id] = {
-        apiKey: encryptString(config.apiKey),
+      const existing = nextProviders[id] ?? DEFAULT_SETTINGS.providers[id]
+      nextProviders[id] = {
+        apiKey: config.apiKey,
         enabled: config.enabled,
-        baseUrl:
-          config.baseUrl ??
-          (existingConfig.success ? existingConfig.data.baseUrl : defaults.baseUrl),
+        baseUrl: config.baseUrl ?? existing?.baseUrl,
         authMethod:
-          config.authMethod ??
-          (existingConfig.success ? existingConfig.data.authMethod : defaults.authMethod),
+          config.authMethod ?? existing?.authMethod ?? DEFAULT_SETTINGS.providers[id]?.authMethod,
       }
     }
 
-    store.set('providers', { ...existingProviders, ...encryptedProviders })
+    queueStoredSettingWrite(SETTINGS_KEY_PROVIDERS, serializeProviders(nextProviders))
   }
+
+  const defaultModel = partial.defaultModel ?? settingsCache.defaultModel
+  const favoriteModels =
+    partial.favoriteModels !== undefined
+      ? sanitizeFavoriteModels(partial.favoriteModels)
+      : settingsCache.favoriteModels
+  const projectPath =
+    partial.projectPath !== undefined ? partial.projectPath : settingsCache.projectPath
+  const executionMode =
+    partial.executionMode !== undefined && includes(EXECUTION_MODES, partial.executionMode)
+      ? partial.executionMode
+      : settingsCache.executionMode
+  const qualityPreset =
+    partial.qualityPreset !== undefined && includes(QUALITY_PRESETS, partial.qualityPreset)
+      ? partial.qualityPreset
+      : settingsCache.qualityPreset
+  const recentProjects =
+    partial.recentProjects !== undefined
+      ? sanitizeRecentProjects(partial.recentProjects)
+      : settingsCache.recentProjects
+  const skillTogglesByProject =
+    partial.skillTogglesByProject !== undefined
+      ? sanitizeSkillTogglesByProject(partial.skillTogglesByProject)
+      : settingsCache.skillTogglesByProject
+  const mcpServers =
+    partial.mcpServers !== undefined
+      ? sanitizeMcpServers(partial.mcpServers)
+      : settingsCache.mcpServers
+  const projectDisplayNames =
+    partial.projectDisplayNames !== undefined
+      ? sanitizeProjectDisplayNames(partial.projectDisplayNames)
+      : settingsCache.projectDisplayNames
+
+  settingsCache = {
+    ...settingsCache,
+    providers: nextProviders,
+    defaultModel,
+    favoriteModels,
+    projectPath,
+    executionMode,
+    qualityPreset,
+    recentProjects,
+    skillTogglesByProject,
+    mcpServers,
+    projectDisplayNames,
+    encryptionAvailable: safeStorage.isEncryptionAvailable(),
+    apiKeysRequireManualResave: false,
+  }
+
   if (partial.defaultModel !== undefined) {
-    store.set('defaultModel', partial.defaultModel)
+    queueStoredSettingWrite(SETTINGS_KEY_DEFAULT_MODEL, partial.defaultModel)
   }
   if (partial.favoriteModels !== undefined) {
-    store.set('favoriteModels', sanitizeFavoriteModels(partial.favoriteModels))
+    queueStoredSettingWrite(SETTINGS_KEY_FAVORITE_MODELS, favoriteModels)
   }
   if (partial.projectPath !== undefined) {
-    store.set('projectPath', partial.projectPath)
+    queueStoredSettingWrite(SETTINGS_KEY_PROJECT_PATH, partial.projectPath)
   }
   if (partial.executionMode !== undefined) {
     if (includes(EXECUTION_MODES, partial.executionMode)) {
-      store.set('executionMode', partial.executionMode)
+      queueStoredSettingWrite(SETTINGS_KEY_EXECUTION_MODE, partial.executionMode)
     } else {
       logger.warn('Skipping invalid executionMode', { value: partial.executionMode })
     }
   }
   if (partial.qualityPreset !== undefined) {
     if (includes(QUALITY_PRESETS, partial.qualityPreset)) {
-      store.set('qualityPreset', partial.qualityPreset)
+      queueStoredSettingWrite(SETTINGS_KEY_QUALITY_PRESET, partial.qualityPreset)
     } else {
       logger.warn('Skipping invalid qualityPreset', { value: partial.qualityPreset })
     }
   }
   if (partial.recentProjects !== undefined) {
-    store.set('recentProjects', sanitizeRecentProjects(partial.recentProjects))
+    queueStoredSettingWrite(SETTINGS_KEY_RECENT_PROJECTS, recentProjects)
   }
   if (partial.skillTogglesByProject !== undefined) {
-    store.set('skillTogglesByProject', sanitizeSkillTogglesByProject(partial.skillTogglesByProject))
+    queueStoredSettingWrite(SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT, skillTogglesByProject)
   }
   if (partial.mcpServers !== undefined) {
-    store.set('mcpServers', sanitizeMcpServers(partial.mcpServers))
+    queueStoredSettingWrite(SETTINGS_KEY_MCP_SERVERS, mcpServers)
   }
   if (partial.projectDisplayNames !== undefined) {
-    store.set('projectDisplayNames', sanitizeProjectDisplayNames(partial.projectDisplayNames))
+    queueStoredSettingWrite(SETTINGS_KEY_PROJECT_DISPLAY_NAMES, projectDisplayNames)
   }
 }
 
-function resolveExecutionMode(): ExecutionMode {
-  const persisted = readPersistedSettings()?.executionMode
-  if (typeof persisted === 'string' && includes(EXECUTION_MODES, persisted)) {
-    return persisted
-  }
-
-  const storedMode = store.get('executionMode', DEFAULT_SETTINGS.executionMode)
-  if (includes(EXECUTION_MODES, storedMode)) {
-    return storedMode
-  }
-
-  return DEFAULT_SETTINGS.executionMode
+function resolveExecutionMode(raw: unknown): ExecutionMode {
+  return typeof raw === 'string' && includes(EXECUTION_MODES, raw)
+    ? raw
+    : DEFAULT_SETTINGS.executionMode
 }
 
-function resolveQualityPreset(): QualityPreset {
-  const raw = store.get('qualityPreset', DEFAULT_SETTINGS.qualityPreset)
-  return QUALITY_PRESETS.includes(raw) ? raw : DEFAULT_SETTINGS.qualityPreset
+function resolveQualityPreset(raw: unknown): QualityPreset {
+  return typeof raw === 'string' && includes(QUALITY_PRESETS, raw)
+    ? raw
+    : DEFAULT_SETTINGS.qualityPreset
 }
 
-function resolveFavoriteModels(): SupportedModelId[] {
-  return sanitizeFavoriteModels(store.get('favoriteModels', DEFAULT_SETTINGS.favoriteModels))
+function resolveFavoriteModels(raw: unknown): SupportedModelId[] {
+  return Array.isArray(raw) && raw.every((value) => typeof value === 'string')
+    ? sanitizeFavoriteModels(raw)
+    : [...DEFAULT_SETTINGS.favoriteModels]
 }
 
-function resolveRecentProjects(): string[] {
-  return sanitizeRecentProjects(store.get('recentProjects', DEFAULT_SETTINGS.recentProjects))
+function resolveRecentProjects(raw: unknown): string[] {
+  return Array.isArray(raw) && raw.every((value) => typeof value === 'string')
+    ? sanitizeRecentProjects(raw)
+    : [...DEFAULT_SETTINGS.recentProjects]
 }
 
-function resolveSkillTogglesByProject(): Record<string, Record<string, boolean>> {
-  const stored = store.get('skillTogglesByProject', DEFAULT_SETTINGS.skillTogglesByProject)
-  return sanitizeSkillTogglesByProject(stored)
-}
-
-function resolveProjectDisplayNames(): Record<string, string> {
-  return sanitizeProjectDisplayNames(
-    store.get('projectDisplayNames', DEFAULT_SETTINGS.projectDisplayNames),
-  )
+function resolveSkillTogglesByProject(raw: unknown): Record<string, Record<string, boolean>> {
+  return isObjectRecord(raw)
+    ? sanitizeSkillTogglesByProject(raw)
+    : DEFAULT_SETTINGS.skillTogglesByProject
 }
 
 function sanitizeProjectDisplayNames(raw: unknown): Record<string, string> {
@@ -264,8 +485,7 @@ function sanitizeProjectDisplayNames(raw: unknown): Record<string, string> {
   return result
 }
 
-function resolveMcpServers(): McpServerConfig[] {
-  const raw: unknown = store.get('mcpServers', DEFAULT_SETTINGS.mcpServers)
+function resolveMcpServers(raw: unknown): McpServerConfig[] {
   if (!Array.isArray(raw)) return []
   return sanitizeMcpServers(raw)
 }
@@ -273,7 +493,7 @@ function resolveMcpServers(): McpServerConfig[] {
 function sanitizeMcpServers(servers: readonly unknown[]): McpServerConfig[] {
   const result: McpServerConfig[] = []
   for (const entry of servers) {
-    const parsed = mcpServerConfigSchema.safeParse(entry)
+    const parsed = safeDecodeUnknown(mcpServerConfigSchema, entry)
     if (parsed.success) {
       result.push({
         ...parsed.data,
@@ -305,8 +525,8 @@ function sanitizeRecentProjects(paths: readonly string[]): string[] {
   const seen = new Set<string>()
   const result: string[] = []
 
-  for (const path of paths) {
-    const trimmed = path.trim()
+  for (const projectPath of paths) {
+    const trimmed = projectPath.trim()
     if (!trimmed || seen.has(trimmed)) continue
     seen.add(trimmed)
     result.push(trimmed)
@@ -317,13 +537,13 @@ function sanitizeRecentProjects(paths: readonly string[]): string[] {
 }
 
 function sanitizeSkillTogglesByProject(
-  value: Readonly<Record<string, Readonly<Record<string, boolean>>>>,
+  value: Readonly<Record<string, unknown>>,
 ): Record<string, Record<string, boolean>> {
   const sanitized: Record<string, Record<string, boolean>> = {}
 
   for (const [rawProjectPath, toggles] of Object.entries(value)) {
     const projectPath = rawProjectPath.trim()
-    if (!projectPath || !toggles) continue
+    if (!projectPath || !isObjectRecord(toggles)) continue
 
     const nextToggles: Record<string, boolean> = {}
     for (const [rawSkillId, enabled] of Object.entries(toggles)) {
@@ -338,20 +558,4 @@ function sanitizeSkillTogglesByProject(
   }
 
   return sanitized
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function readPersistedSettings(): Record<string, unknown> | null {
-  try {
-    if (!existsSync(store.path)) return null
-    const raw = readFileSync(store.path, 'utf-8').trim()
-    if (!raw) return null
-    const parsed: unknown = JSON.parse(raw)
-    return isPlainObject(parsed) ? parsed : null
-  } catch {
-    return null
-  }
 }

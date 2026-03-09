@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { BYTES_PER_KIBIBYTE, DOUBLE_FACTOR, PERCENT_BASE } from '@shared/constants/constants'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { packageJsonSchema } from '@shared/schemas/validation'
 import type { JsonObject } from '@shared/types/json'
 import { parseJsonSafe } from '@shared/utils/parse-json'
@@ -8,7 +9,6 @@ import { isPathInside } from '@shared/utils/paths'
 import type { ServerTool } from '@tanstack/ai'
 import { toolDefinition } from '@tanstack/ai'
 import fg from 'fast-glob'
-import { z } from 'zod'
 import { createLogger } from '../logger'
 import { readBodyWithLimit, stripHtml } from '../utils/http'
 
@@ -37,6 +37,15 @@ const PER_FILE_CAP = 1500
 interface DetectionSignal {
   readonly label: string
   readonly patterns: readonly string[]
+}
+
+interface TextToolResult {
+  readonly kind: 'text'
+  readonly text: string
+}
+
+function textToolResult(text: string): TextToolResult {
+  return { kind: 'text', text }
 }
 
 const ECOSYSTEM_SIGNALS: readonly DetectionSignal[] = [
@@ -364,18 +373,35 @@ export async function createExecutorTools(
   if (!projectPath) return []
 
   const ignore = await buildIgnorePatterns(projectPath)
+  const readFileArgsSchema = Schema.Struct({
+    path: Schema.String.annotations({ description: 'File path relative to the project root' }),
+  })
+  const globArgsSchema = Schema.Struct({
+    pattern: Schema.String.annotations({
+      description: 'Glob pattern (e.g., "**/*.ts", "src/**/*.tsx")',
+    }),
+  })
+  const webFetchArgsSchema = Schema.Struct({
+    url: Schema.String.annotations({
+      description: 'The URL to fetch (must be a valid http/https URL)',
+    }),
+    maxLength: Schema.optional(
+      Schema.Number.annotations({
+        description: 'Maximum character length of the returned text (default 50000)',
+      }),
+    ),
+  })
 
   const readFile = toolDefinition({
     name: 'readFile',
     description:
       'Read a file from the project. Use this to gather additional context about the codebase when the provided project context is insufficient.',
-    inputSchema: z.object({
-      path: z.string().describe('File path relative to the project root'),
-    }),
-  }).server(async (args: { path: string }) => {
+    inputSchema: readFileArgsSchema,
+  }).server(async (rawArgs: unknown) => {
+    const args = decodeUnknownOrThrow(readFileArgsSchema, rawArgs)
     const resolved = path.resolve(projectPath, args.path)
     if (!isPathInside(projectPath, resolved)) {
-      return { kind: 'text' as const, text: 'Error: path is outside the project directory' }
+      return textToolResult('Error: path is outside the project directory')
     }
 
     // Block reads of files excluded by .gitignore (secrets, build artifacts, deps)
@@ -388,12 +414,9 @@ export async function createExecutorTools(
     if (!allowed) {
       try {
         await fs.stat(resolved)
-        return {
-          kind: 'text' as const,
-          text: 'Error: file is excluded by project ignore patterns (.gitignore)',
-        }
+        return textToolResult('Error: file is excluded by project ignore patterns (.gitignore)')
       } catch {
-        return { kind: 'text' as const, text: 'Error reading file: file not found' }
+        return textToolResult('Error reading file: file not found')
       }
     }
 
@@ -401,7 +424,7 @@ export async function createExecutorTools(
       const stat = await fs.stat(resolved)
       if (stat.size > MAX_READ_SIZE) {
         return {
-          kind: 'text' as const,
+          kind: 'text',
           text: `File too large (${(stat.size / BYTES_PER_KIBIBYTE).toFixed(0)} KB). Try a more specific file.`,
         }
       }
@@ -410,14 +433,14 @@ export async function createExecutorTools(
       const lines = content.split('\n')
       if (lines.length > MAX_READ_LINES) {
         return {
-          kind: 'text' as const,
+          kind: 'text',
           text: `${lines.slice(0, MAX_READ_LINES).join('\n')}\n\n... (${String(lines.length - MAX_READ_LINES)} more lines)`,
         }
       }
-      return { kind: 'text' as const, text: content }
+      return textToolResult(content)
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error)
-      return { kind: 'text' as const, text: `Error reading file: ${msg}` }
+      return textToolResult(`Error reading file: ${msg}`)
     }
   })
 
@@ -425,13 +448,12 @@ export async function createExecutorTools(
     name: 'glob',
     description:
       'Find files matching a glob pattern in the project. Use this to discover project structure and locate relevant files.',
-    inputSchema: z.object({
-      pattern: z.string().describe('Glob pattern (e.g., "**/*.ts", "src/**/*.tsx")'),
-    }),
-  }).server(async (args: { pattern: string }) => {
+    inputSchema: globArgsSchema,
+  }).server(async (rawArgs: unknown) => {
+    const args = decodeUnknownOrThrow(globArgsSchema, rawArgs)
     const normalized = args.pattern.replaceAll('\\', '/')
     if (path.isAbsolute(args.pattern) || normalized.split('/').includes('..')) {
-      return { kind: 'text' as const, text: 'Error: pattern must be relative to the project root' }
+      return textToolResult('Error: pattern must be relative to the project root')
     }
 
     try {
@@ -443,20 +465,20 @@ export async function createExecutorTools(
       })
 
       if (files.length === 0) {
-        return { kind: 'text' as const, text: 'No files found matching the pattern.' }
+        return textToolResult('No files found matching the pattern.')
       }
 
       const sorted = files.sort()
       if (sorted.length > PERCENT_BASE) {
         return {
-          kind: 'text' as const,
+          kind: 'text',
           text: `${sorted.slice(0, SLICE_ARG_2).join('\n')}\n\n... and ${String(sorted.length - PERCENT_BASE)} more files`,
         }
       }
-      return { kind: 'text' as const, text: sorted.join('\n') }
+      return textToolResult(sorted.join('\n'))
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error)
-      return { kind: 'text' as const, text: `Error running glob: ${msg}` }
+      return textToolResult(`Error running glob: ${msg}`)
     }
   })
 
@@ -464,14 +486,9 @@ export async function createExecutorTools(
     name: 'webFetch',
     description:
       'Fetch the content of a URL and return it as text. HTML is stripped to plain text. Use this to look up documentation, APIs, or any web content.',
-    inputSchema: z.object({
-      url: z.string().describe('The URL to fetch (must be a valid http/https URL)'),
-      maxLength: z
-        .number()
-        .optional()
-        .describe('Maximum character length of the returned text (default 50000)'),
-    }),
-  }).server(async (args: { url: string; maxLength?: number }) => {
+    inputSchema: webFetchArgsSchema,
+  }).server(async (rawArgs: unknown) => {
+    const args = decodeUnknownOrThrow(webFetchArgsSchema, rawArgs)
     const maxLength = args.maxLength ?? FUNCTION_VALUE_50_000
     const maxBodyBytes = FUNCTION_VALUE_5 * BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE // 5 MB
 
@@ -485,10 +502,9 @@ export async function createExecutorTools(
       })
 
       if (!response.ok) {
-        return {
-          kind: 'text' as const,
-          text: `HTTP ${String(response.status)} ${response.statusText} for ${args.url}`,
-        }
+        return textToolResult(
+          `HTTP ${String(response.status)} ${response.statusText} for ${args.url}`,
+        )
       }
 
       const contentType = response.headers.get('content-type') ?? ''
@@ -500,10 +516,10 @@ export async function createExecutorTools(
         text = `${text.slice(0, maxLength)}\n\n... [truncated — ${String(text.length)} chars total, showing first ${String(maxLength)}]`
       }
 
-      return { kind: 'text' as const, text }
+      return textToolResult(text)
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error)
-      return { kind: 'text' as const, text: `Error fetching URL: ${msg}` }
+      return textToolResult(`Error fetching URL: ${msg}`)
     }
   })
 

@@ -1,7 +1,9 @@
+import { safeDecodeUnknown } from '@shared/schema'
 import type { ConversationId } from '@shared/types/brand'
 import { generateDisplayName, type SupportedModelId } from '@shared/types/llm'
 import type { OrchestrationTaskStatus } from '@shared/types/orchestration'
 import type { PlanResponse } from '@shared/types/plan'
+import { planResponseSchema } from '@shared/types/plan'
 import type { QuestionAnswer } from '@shared/types/question'
 import { askUserArgsSchema } from '@shared/types/question'
 import type { WaggleAgentColor } from '@shared/types/waggle'
@@ -209,20 +211,25 @@ export function MessageBubble({
 function countQuestions(argsJson: string): number {
   try {
     const parsed: unknown = JSON.parse(argsJson)
-    const result = askUserArgsSchema.safeParse(parsed)
+    const result = safeDecodeUnknown(askUserArgsSchema, parsed)
     return result.success ? result.data.questions.length : 1
   } catch {
     return 1
   }
 }
 
+function getStringProperty(value: unknown, propertyName: string): string | null {
+  if (typeof value !== 'object' || value === null) {
+    return null
+  }
+  const descriptor = Object.getOwnPropertyDescriptor(value, propertyName)
+  return typeof descriptor?.value === 'string' ? descriptor.value : null
+}
+
 function parsePlanText(argsJson: string): string {
   try {
     const parsed: unknown = JSON.parse(argsJson)
-    if (typeof parsed === 'object' && parsed !== null && 'planText' in parsed) {
-      const planText = (parsed as { planText: unknown }).planText
-      if (typeof planText === 'string') return planText
-    }
+    return getStringProperty(parsed, 'planText') ?? ''
   } catch {}
   return ''
 }
@@ -230,8 +237,9 @@ function parsePlanText(argsJson: string): string {
 function parsePlanAction(content: unknown): 'approve' | 'revise' {
   try {
     const raw: unknown = typeof content === 'string' ? JSON.parse(content) : content
-    if (typeof raw === 'object' && raw !== null && 'action' in raw) {
-      return (raw as { action: string }).action === 'approve' ? 'approve' : 'revise'
+    const parsed = safeDecodeUnknown(planResponseSchema, raw)
+    if (parsed.success) {
+      return parsed.data.action
     }
   } catch {}
   return 'approve'
@@ -245,22 +253,28 @@ interface OrchestrateTaskArg {
 function parseOrchestrateTasks(argsJson: string): OrchestrateTaskArg[] {
   try {
     const parsed: unknown = JSON.parse(argsJson)
-    if (typeof parsed === 'object' && parsed !== null && 'tasks' in parsed) {
-      const tasks = (parsed as { tasks: unknown }).tasks
-      if (Array.isArray(tasks)) {
-        return tasks
-          .filter(
-            (t): t is { id: string; title: string } =>
-              typeof t === 'object' &&
-              t !== null &&
-              'id' in t &&
-              typeof t.id === 'string' &&
-              'title' in t &&
-              typeof t.title === 'string',
-          )
-          .map((t) => ({ id: t.id, title: t.title }))
-      }
+    const taskList = getTasksProperty(parsed)
+    if (taskList) {
+      return taskList
     }
   } catch {}
   return []
+}
+
+function isOrchestrateTaskArg(value: unknown): value is OrchestrateTaskArg {
+  return getStringProperty(value, 'id') !== null && getStringProperty(value, 'title') !== null
+}
+
+function getTasksProperty(value: unknown): OrchestrateTaskArg[] | null {
+  if (typeof value !== 'object' || value === null) {
+    return null
+  }
+  const descriptor = Object.getOwnPropertyDescriptor(value, 'tasks')
+  if (!Array.isArray(descriptor?.value)) {
+    return null
+  }
+  return descriptor.value.filter(isOrchestrateTaskArg).map((task) => ({
+    id: task.id,
+    title: task.title,
+  }))
 }

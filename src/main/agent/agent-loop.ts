@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { jsonObjectSchema } from '@shared/schemas/validation'
-import type { HydratedAgentSendPayload, Message } from '@shared/types/agent'
+import type { HydratedAgentSendPayload, Message, MessagePart } from '@shared/types/agent'
 import { type SkipApprovalToken, ToolCallId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import type { JsonObject } from '@shared/types/json'
@@ -13,11 +13,22 @@ import {
   normalizeToolResultPayload,
 } from '@shared/utils/tool-result-state'
 import { isRecord } from '@shared/utils/validation'
-import { chat, type ModelMessage, maxIterations, type StreamChunk } from '@tanstack/ai'
+import {
+  chat,
+  type ModelMessage,
+  maxIterations,
+  type StreamChunk,
+  type UIMessage,
+} from '@tanstack/ai'
+import * as Duration from 'effect/Duration'
+import * as Effect from 'effect/Effect'
+import * as Schedule from 'effect/Schedule'
 import { loadProjectConfig } from '../config/project-config'
+import { approvalTraceEnabled } from '../env'
+import { AgentCancelledError } from '../errors'
 import { createLogger } from '../logger'
 import type { ProviderDefinition } from '../providers/provider-definition'
-import { runWithToolContext } from '../tools/define-tool'
+import { bindToolContextToTools } from '../tools/define-tool'
 import {
   type ContinuationMessage,
   normalizeContinuationAsUIMessages,
@@ -37,7 +48,7 @@ import {
 } from './shared'
 import { loadAgentStandardsContext } from './standards-context'
 import { StreamPartCollector } from './stream-part-collector'
-import { processAgentStream } from './stream-processor'
+import { processAgentStreamEffect } from './stream-processor'
 import { resolveToolContextAttachments } from './tool-context-attachments'
 
 const logger = createLogger('agent')
@@ -79,6 +90,12 @@ interface DeniedApprovalSnapshot {
   readonly message: string
 }
 
+type UiToolCallPart = Extract<UIMessage['parts'][number], { type: 'tool-call' }>
+
+function isUiContinuationMessage(message: ContinuationMessage): message is UIMessage {
+  return 'parts' in message
+}
+
 function parseToolArgumentsObject(args: string): {
   readonly parsed: JsonObject
   readonly valid: boolean
@@ -89,6 +106,89 @@ function parseToolArgumentsObject(args: string): {
   }
 
   return { parsed: {}, valid: false }
+}
+
+function hasNonEmptyToolArgs(args: Readonly<JsonObject>): boolean {
+  return Object.keys(args).length > 0
+}
+
+function buildPersistedToolArgsMap(
+  serverMessages: readonly Message[],
+): Map<string, Readonly<JsonObject>> {
+  const persistedToolArgs = new Map<string, Readonly<JsonObject>>()
+
+  for (const message of serverMessages) {
+    if (message.role !== 'assistant') {
+      continue
+    }
+
+    for (const part of message.parts) {
+      if (part.type === 'tool-call' && hasNonEmptyToolArgs(part.toolCall.args)) {
+        persistedToolArgs.set(String(part.toolCall.id), part.toolCall.args)
+        continue
+      }
+
+      if (part.type === 'tool-result' && hasNonEmptyToolArgs(part.toolResult.args)) {
+        persistedToolArgs.set(String(part.toolResult.id), part.toolResult.args)
+      }
+    }
+  }
+
+  return persistedToolArgs
+}
+
+function restoreContinuationToolArgs(
+  finalParts: readonly MessagePart[],
+  serverMessages: readonly Message[],
+): MessagePart[] {
+  const persistedToolArgs = buildPersistedToolArgsMap(serverMessages)
+  let didChange = false
+
+  const restoredParts = finalParts.map((part) => {
+    if (part.type === 'tool-call') {
+      if (hasNonEmptyToolArgs(part.toolCall.args)) {
+        return part
+      }
+
+      const restoredArgs = persistedToolArgs.get(String(part.toolCall.id))
+      if (!restoredArgs) {
+        return part
+      }
+
+      didChange = true
+      return {
+        ...part,
+        toolCall: {
+          ...part.toolCall,
+          args: restoredArgs,
+        },
+      }
+    }
+
+    if (part.type === 'tool-result') {
+      if (hasNonEmptyToolArgs(part.toolResult.args)) {
+        return part
+      }
+
+      const restoredArgs = persistedToolArgs.get(String(part.toolResult.id))
+      if (!restoredArgs) {
+        return part
+      }
+
+      didChange = true
+      return {
+        ...part,
+        toolResult: {
+          ...part.toolResult,
+          args: restoredArgs,
+        },
+      }
+    }
+
+    return part
+  })
+
+  return didChange ? restoredParts : [...finalParts]
 }
 
 function describeContinuationMessageFormat(
@@ -122,7 +222,7 @@ function extractDeniedApprovalSnapshot(
   const completedToolCallIds = new Set<string>()
 
   for (const message of continuationMessages) {
-    if (!('parts' in message)) {
+    if (!isUiContinuationMessage(message)) {
       continue
     }
 
@@ -135,7 +235,7 @@ function extractDeniedApprovalSnapshot(
 
   for (let messageIndex = continuationMessages.length - 1; messageIndex >= 0; messageIndex -= 1) {
     const message = continuationMessages[messageIndex]
-    if (!message || !('parts' in message) || message.role !== 'assistant') {
+    if (!message || !isUiContinuationMessage(message) || message.role !== 'assistant') {
       continue
     }
 
@@ -179,17 +279,44 @@ function extractDeniedApprovalSnapshot(
   return null
 }
 
-async function withStageTiming<T>(
+function parseToolOutput(result: string): unknown {
+  try {
+    return JSON.parse(result)
+  } catch {
+    return result
+  }
+}
+
+function patchUiToolCallPart(
+  part: UiToolCallPart,
+  updates: {
+    readonly arguments?: string
+    readonly output?: unknown
+  },
+): UiToolCallPart {
+  const nextArguments = updates.arguments ?? part.arguments
+  const hasOutput = Object.hasOwn(updates, 'output')
+
+  return {
+    ...part,
+    arguments: nextArguments,
+    ...(hasOutput ? { output: updates.output } : {}),
+  }
+}
+
+function withStageTimingEffect<T, E, R>(
   stageDurationsMs: Record<string, number>,
   stageName: string,
-  fn: () => Promise<T> | T,
-): Promise<T> {
+  effect: Effect.Effect<T, E, R>,
+): Effect.Effect<T, E, R> {
   const start = Date.now()
-  try {
-    return await fn()
-  } finally {
-    stageDurationsMs[stageName] = Date.now() - start
-  }
+  return effect.pipe(
+    Effect.ensuring(
+      Effect.sync(() => {
+        stageDurationsMs[stageName] = Date.now() - start
+      }),
+    ),
+  )
 }
 
 /**
@@ -198,7 +325,7 @@ async function withStageTiming<T>(
  * never-executed tools in non-last assistant messages.
  */
 function enrichContinuationMessages(
-  normalized: ContinuationMessage[],
+  normalized: readonly ContinuationMessage[],
   serverMessages: readonly Message[],
 ): ContinuationMessage[] {
   // Build lookup maps from server-side persisted messages
@@ -230,55 +357,50 @@ function enrichContinuationMessages(
     if (!m) {
       continue
     }
-    if ('parts' in m && m.role === 'assistant') {
+    if (m.role === 'assistant') {
       lastAssistantIdx = mi
       break
     }
   }
 
-  // Enrich tool-call parts and inject synthetic output in a single pass
-  for (let mi = 0; mi < normalized.length; mi++) {
-    const msg = normalized[mi]
-    if (!msg) {
-      continue
+  return normalized.map((message, messageIndex) => {
+    if (!isUiContinuationMessage(message) || message.role !== 'assistant') {
+      return message
     }
-    if (!('parts' in msg) || msg.role !== 'assistant') continue
 
-    for (const part of msg.parts) {
-      if (part.type !== 'tool-call') continue
-
-      // Patch args from server history
-      const patchedArgs = toolArgsMap.get(part.id)
-      if (patchedArgs !== undefined) {
-        ;(part as { arguments: string }).arguments = patchedArgs
+    const parts = message.parts.map((part) => {
+      if (part.type !== 'tool-call') {
+        return part
       }
 
-      // Patch output from server history
-      const resultStr = toolResultMap.get(part.id)
-      if (part.output === undefined && resultStr !== undefined) {
-        try {
-          ;(part as { output: unknown }).output = JSON.parse(resultStr)
-        } catch {
-          ;(part as { output: unknown }).output = resultStr
-        }
-      }
+      const patchedArguments = toolArgsMap.get(part.id)
+      const persistedResult = toolResultMap.get(part.id)
+      const restoredOutput =
+        part.output !== undefined
+          ? part.output
+          : persistedResult !== undefined
+            ? parseToolOutput(persistedResult)
+            : undefined
+      const shouldSynthesizeSkippedOutput =
+        messageIndex !== lastAssistantIdx &&
+        restoredOutput === undefined &&
+        part.approval?.approved === true
 
-      // Synthetic output for approved-but-never-executed tools in
-      // non-last assistant messages. Without output, the TextEngine
-      // re-executes the tool and places its tool_result after the wrong
-      // assistant message, violating Anthropic's tool_use/tool_result pairing.
-      if (
-        mi !== lastAssistantIdx &&
-        part.output === undefined &&
-        (part as { approval?: { approved?: boolean } }).approval?.approved === true
-      ) {
-        ;(part as { output: unknown }).output =
-          'Tool execution was skipped because a new message was sent.'
-      }
+      return patchUiToolCallPart(part, {
+        ...(patchedArguments !== undefined ? { arguments: patchedArguments } : {}),
+        ...(restoredOutput !== undefined
+          ? { output: restoredOutput }
+          : shouldSynthesizeSkippedOutput
+            ? { output: 'Tool execution was skipped because a new message was sent.' }
+            : {}),
+      })
+    })
+
+    return {
+      ...message,
+      parts,
     }
-  }
-
-  return normalized
+  })
 }
 
 function isAbortError(error: unknown): boolean {
@@ -330,7 +452,52 @@ function buildUserChatContent(
   return parts
 }
 
-export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> {
+function buildFreshChatMessages(
+  conversation: Conversation,
+  provider: ProviderDefinition,
+  payload: HydratedAgentSendPayload,
+): ModelMessage[] {
+  return [
+    ...conversationToMessages(conversation.messages),
+    {
+      role: 'user',
+      content: buildUserChatContent(provider, payload),
+    },
+  ]
+}
+
+function isAgentCancelledCause(error: unknown): boolean {
+  return error instanceof AgentCancelledError || isAbortError(error)
+}
+
+function toEffectError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error))
+}
+
+function withAbortBridge<A, E, R>(
+  signal: AbortSignal,
+  use: (abortController: AbortController) => Effect.Effect<A, E, R>,
+): Effect.Effect<A, E, R> {
+  return Effect.acquireUseRelease(
+    Effect.sync(() => {
+      const abortController = new AbortController()
+      const onAbort = (): void => {
+        abortController.abort()
+      }
+
+      signal.addEventListener('abort', onAbort, { once: true })
+      return { abortController, onAbort }
+    }),
+    (state) => use(state.abortController),
+    ({ abortController, onAbort }) =>
+      Effect.sync(() => {
+        signal.removeEventListener('abort', onAbort)
+        abortController.abort()
+      }),
+  )
+}
+
+export function runAgentEffect(params: AgentRunParams): Effect.Effect<AgentRunResult, Error> {
   const { conversation, payload, model, settings, onChunk, signal, skipApproval } = params
   const hasContinuationMessages = (payload.continuationMessages?.length ?? 0) > 0
   const continuationMessageFormat = describeContinuationMessageFormat(
@@ -344,294 +511,319 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
   const skillToggles = conversation.projectPath
     ? (settings.skillTogglesByProject[conversation.projectPath] ?? {})
     : {}
-
-  return runWithToolContext(
-    {
-      conversationId: conversation.id,
-      projectPath,
-      attachments: toolContextAttachments,
-      signal,
-      dynamicSkills: {
-        loadedSkillIds: dynamicLoadedSkillIds,
-        toggles: skillToggles,
-      },
-      dynamicAgents: {
-        loadedScopeFiles: dynamicLoadedAgentsScopeFiles,
-        loadedRequestedPaths: dynamicLoadedAgentsRequestedPaths,
-      },
-      subAgentContext: params.subAgentContext
-        ? {
+  const toolContext = {
+    conversationId: conversation.id,
+    projectPath,
+    attachments: toolContextAttachments,
+    signal,
+    dynamicSkills: {
+      loadedSkillIds: dynamicLoadedSkillIds,
+      toggles: skillToggles,
+    },
+    dynamicAgents: {
+      loadedScopeFiles: dynamicLoadedAgentsScopeFiles,
+      loadedRequestedPaths: dynamicLoadedAgentsRequestedPaths,
+    },
+    ...(params.subAgentContext
+      ? {
+          subAgentContext: {
             agentId: params.subAgentContext.agentId,
             agentName: params.subAgentContext.agentName,
             teamId: params.subAgentContext.teamId,
             permissionMode: params.subAgentContext.permissionMode,
             depth: params.subAgentContext.depth,
-          }
-        : undefined,
-    },
-    async () => {
-      const stageDurationsMs: Record<string, number> = {}
-      let collector = new StreamPartCollector()
+          },
+        }
+      : {}),
+  }
+
+  const stageDurationsMs: Record<string, number> = {}
+  let context: AgentRunContext | null = null
+  let hooks: readonly AgentLifecycleHook[] = []
+  let promptFragmentIds: readonly string[] = []
+  let runErrorNotified = false
+
+  const program = Effect.gen(function* () {
+    const runId = randomUUID()
+
+    if (approvalTraceEnabled && hasContinuationMessages) {
+      approvalTraceLogger.info('continuation-run-start', {
+        runId,
+        conversationId: conversation.id,
+        continuationMessageCount: payload.continuationMessages?.length ?? 0,
+        continuationMessageFormat,
+      })
+    }
+
+    const projectConfig = yield* withStageTimingEffect(
+      stageDurationsMs,
+      'project-config',
+      Effect.tryPromise(() => loadProjectConfig(projectPath)),
+    )
+
+    const resolution = yield* withStageTimingEffect(
+      stageDurationsMs,
+      'provider-resolution',
+      Effect.tryPromise(() =>
+        resolveProviderAndQuality(
+          model,
+          payload.qualityPreset,
+          settings.providers,
+          projectConfig.quality,
+        ),
+      ),
+    )
+
+    if (isResolutionError(resolution)) {
+      return yield* Effect.fail(new Error(resolution.reason))
+    }
+
+    const standards = yield* withStageTimingEffect(
+      stageDurationsMs,
+      'standards-resolution',
+      Effect.tryPromise(() =>
+        loadAgentStandardsContext(
+          conversation.projectPath,
+          payload.text,
+          settings,
+          payload.attachments,
+        ),
+      ),
+    )
+
+    context = {
+      runId,
+      conversation,
+      model: resolution.resolvedModel,
+      settings,
+      signal,
+      projectPath,
+      hasProject: !!conversation.projectPath,
+      provider: resolution.provider,
+      providerConfig: resolution.providerConfig,
+      toolApprovals: projectConfig.approvals,
+      planModeRequested: payload.planModeRequested,
+      subAgentContext: params.subAgentContext,
+      standards,
+    }
+
+    const runContext = context
+
+    for (const warning of runContext.standards?.warnings ?? []) {
+      logger.warn(warning)
+    }
+
+    const built = yield* withStageTimingEffect(
+      stageDurationsMs,
+      'prompt-composition',
+      Effect.tryPromise(() => Promise.resolve(buildAgentPrompt(runContext, !!skipApproval))),
+    )
+    hooks = built.hooks
+    promptFragmentIds = built.promptFragmentIds
+
+    yield* Effect.tryPromise(() => Promise.resolve(notifyRunStart(hooks, runContext)))
+
+    const adapter = resolution.provider.createAdapter(
+      resolution.resolvedModel,
+      resolution.providerConfig.apiKey,
+      resolution.providerConfig.baseUrl,
+      resolution.providerConfig.authMethod,
+    )
+    const allMessages = hasContinuationMessages
+      ? enrichContinuationMessages(
+          normalizeContinuationAsUIMessages(payload.continuationMessages ?? []),
+          conversation.messages,
+        )
+      : buildFreshChatMessages(conversation, resolution.provider, payload)
+    const tools = bindToolContextToTools(built.tools, toolContext)
+    const samplingOptions = buildSamplingOptions(resolution.qualityConfig)
+    const retryDriver = yield* Schedule.driver(
+      Schedule.spaced(Duration.millis(STALL_RETRY_DELAY_MS)),
+    )
+
+    let collector = new StreamPartCollector()
+    params.onCollectorCreated?.(collector)
+    let streamResult: {
+      readonly aborted: boolean
+      readonly runErrorNotified: boolean
+      readonly timedOut: boolean
+      readonly stallReason: 'stream-stall' | 'incomplete-tool-call' | null
+    } | null = null
+    let stallAttempt = 0
+
+    while (true) {
+      collector = new StreamPartCollector()
       params.onCollectorCreated?.(collector)
 
-      let context: AgentRunContext | null = null
-      let hooks: readonly AgentLifecycleHook[] = []
-      let promptFragmentIds: readonly string[] = []
-      let runErrorNotified = false
-
-      try {
-        const runId = randomUUID()
-
-        if (hasContinuationMessages) {
-          approvalTraceLogger.info('continuation-run-start', {
-            runId,
-            conversationId: conversation.id,
-            continuationMessageCount: payload.continuationMessages?.length ?? 0,
-            continuationMessageFormat,
-          })
-        }
-
-        // ── Stage 1: Project config ──
-        const projectConfig = await withStageTiming(stageDurationsMs, 'project-config', () =>
-          loadProjectConfig(projectPath),
-        )
-
-        // ── Stage 2: Provider + quality resolution ──
-        const { provider, providerConfig, resolvedModel, qualityConfig } = await withStageTiming(
-          stageDurationsMs,
-          'provider-resolution',
-          async () => {
-            const resolution = await resolveProviderAndQuality(
-              model,
-              payload.qualityPreset,
-              settings.providers,
-              projectConfig.quality,
-            )
-            if (isResolutionError(resolution)) {
-              throw new Error(resolution.reason)
-            }
-            return resolution
-          },
-        )
-
-        // ── Stage 3: Build run context ──
-        context = {
-          runId,
-          conversation,
-          model: resolvedModel,
-          settings,
-          signal,
-          projectPath,
-          hasProject: !!conversation.projectPath,
-          provider,
-          providerConfig,
-          toolApprovals: projectConfig.approvals,
-          planModeRequested: payload.planModeRequested,
-          subAgentContext: params.subAgentContext,
-          standards: await withStageTiming(stageDurationsMs, 'standards-resolution', () =>
-            loadAgentStandardsContext(
-              conversation.projectPath,
-              payload.text,
-              settings,
-              payload.attachments,
-            ),
-          ),
-        }
-        const runContext = context
-
-        for (const warning of runContext.standards?.warnings ?? []) {
-          logger.warn(warning)
-        }
-
-        // ── Stage 4: Prompt + tools ──
-        const built = await withStageTiming(stageDurationsMs, 'prompt-composition', () =>
-          buildAgentPrompt(runContext, !!skipApproval),
-        )
-        hooks = built.hooks
-        promptFragmentIds = built.promptFragmentIds
-
-        await notifyRunStart(hooks, runContext)
-
-        // ── Stage 5: Create adapter + stream ──
-        const adapter = provider.createAdapter(
-          resolvedModel,
-          providerConfig.apiKey,
-          providerConfig.baseUrl,
-          providerConfig.authMethod,
-        )
-
-        const abortController = new AbortController()
-        signal.addEventListener('abort', () => abortController.abort(), { once: true })
-
-        // For continuation (e.g. after tool approval), normalize but preserve
-        // UIMessage format so the TextEngine can extract approval state from
-        // parts via extractClientStateFromOriginalMessages(). The old path
-        // (normalizeContinuationInput) converted to ModelMessages which strips
-        // parts, causing the engine to re-request approval endlessly.
-        const allMessages = hasContinuationMessages
-          ? enrichContinuationMessages(
-              normalizeContinuationAsUIMessages(payload.continuationMessages ?? []),
-              conversation.messages,
-            )
-          : [
-              ...conversationToMessages(conversation.messages),
-              { role: 'user' as const, content: buildUserChatContent(provider, payload) },
-            ]
-
-        const samplingOptions = buildSamplingOptions(qualityConfig)
-
-        function createStream(): ReturnType<typeof chat> {
-          return chat({
-            adapter,
-            // Type assertion: continuation messages are UIMessages with parts
-            // that the TextEngine handles via convertMessagesToModelMessages().
-            messages: allMessages as ModelMessage[],
-            systemPrompts: [built.systemPrompt],
-            conversationId: String(conversation.id),
-            tools: [...built.tools],
-            ...samplingOptions,
-            maxTokens: qualityConfig.maxTokens,
-            modelOptions: qualityConfig.modelOptions,
-            agentLoopStrategy: maxIterations(params.maxTurns ?? MAX_ITERATIONS),
-            abortController,
-          })
-        }
-
-        let stream = await withStageTiming(stageDurationsMs, 'stream-setup', createStream)
-
-        // ── Stage 6: Process stream (with stall retry) ──
-        let stallAttempt = 0
-        let streamResult = await withStageTiming(stageDurationsMs, 'stream-processing', () =>
-          processAgentStream({
-            stream,
-            collector,
-            onChunk,
-            signal,
-            hooks,
-            runContext,
-            approvalTraceEnabled: hasContinuationMessages,
-          }),
-        )
-        runErrorNotified = streamResult.runErrorNotified
-
-        while (
-          streamResult.timedOut &&
-          streamResult.stallReason === 'stream-stall' &&
-          !signal.aborted &&
-          stallAttempt < MAX_STALL_RETRIES
-        ) {
-          stallAttempt++
-          logger.warn(`Stream stalled, retry ${stallAttempt}/${MAX_STALL_RETRIES}`, {
-            conversationId: conversation.id,
-          })
-
-          await new Promise((resolve) => setTimeout(resolve, STALL_RETRY_DELAY_MS))
-          if (signal.aborted) break
-
-          // Fresh stream and collector for the retry attempt
-          stream = await createStream()
-          collector = new StreamPartCollector()
-          params.onCollectorCreated?.(collector)
-
-          streamResult = await processAgentStream({
-            stream,
-            collector,
-            onChunk,
-            signal,
-            hooks,
-            runContext,
-            approvalTraceEnabled: hasContinuationMessages,
-          })
-          runErrorNotified = streamResult.runErrorNotified
-        }
-
-        if (streamResult.timedOut && streamResult.stallReason === 'incomplete-tool-call') {
-          logger.warn('Stream stalled with incomplete tool call; skipping retry', {
-            conversationId: conversation.id,
-          })
-        }
-
-        if (streamResult.aborted || signal.aborted) {
-          throw new Error('aborted')
-        }
-
-        // ── Stage 7: Finalize ──
-        const finalParts = collector.finalizeParts({ timedOut: streamResult.timedOut })
-        const deniedApprovalSnapshot = hasContinuationMessages
-          ? extractDeniedApprovalSnapshot(payload.continuationMessages ?? [])
-          : null
-        if (
-          deniedApprovalSnapshot &&
-          !finalParts.some(
-            (part) =>
-              part.type === 'tool-result' &&
-              String(part.toolResult.id) === deniedApprovalSnapshot.toolCallId,
-          )
-        ) {
-          const deniedArgs = parseToolArgumentsObject(deniedApprovalSnapshot.args)
-          const hasToolCallPart = finalParts.some(
-            (part) =>
-              part.type === 'tool-call' &&
-              String(part.toolCall.id) === deniedApprovalSnapshot.toolCallId,
-          )
-          if (!deniedArgs.valid) {
-            approvalTraceLogger.warn('continuation-denial-invalid-args', {
-              runId,
-              conversationId: conversation.id,
-              toolCallId: deniedApprovalSnapshot.toolCallId,
-            })
-          }
-          if (!hasToolCallPart) {
-            finalParts.unshift({
-              type: 'tool-call',
-              toolCall: {
-                id: ToolCallId(deniedApprovalSnapshot.toolCallId),
-                name: deniedApprovalSnapshot.toolName,
-                args: deniedArgs.parsed,
-                state: 'approval-responded',
-                approval: {
-                  id: `approval_${deniedApprovalSnapshot.toolCallId}`,
-                  needsApproval: true,
-                  approved: false,
-                },
-              },
-            })
-          }
-          finalParts.unshift({
-            type: 'tool-result',
-            toolResult: {
-              id: ToolCallId(deniedApprovalSnapshot.toolCallId),
-              name: deniedApprovalSnapshot.toolName,
-              args: deniedArgs.parsed,
-              result: JSON.stringify({
-                approved: false,
-                message: deniedApprovalSnapshot.message,
+      streamResult = yield* withAbortBridge(signal, (abortController) =>
+        Effect.gen(function* () {
+          const stream = yield* withStageTimingEffect(
+            stageDurationsMs,
+            'stream-setup',
+            Effect.sync(() =>
+              chat({
+                adapter,
+                messages: allMessages,
+                systemPrompts: [built.systemPrompt],
+                conversationId: String(conversation.id),
+                tools,
+                ...samplingOptions,
+                maxTokens: resolution.qualityConfig.maxTokens,
+                modelOptions: resolution.qualityConfig.modelOptions,
+                agentLoopStrategy: maxIterations(params.maxTurns ?? MAX_ITERATIONS),
+                abortController,
               }),
-              isError: true,
-              duration: 0,
-            },
+            ),
+          )
+
+          return yield* withStageTimingEffect(
+            stageDurationsMs,
+            'stream-processing',
+            processAgentStreamEffect({
+              stream,
+              collector,
+              onChunk,
+              signal,
+              hooks,
+              runContext,
+              approvalTraceEnabled,
+            }),
+          )
+        }),
+      )
+      runErrorNotified = streamResult.runErrorNotified
+
+      if (streamResult.aborted || signal.aborted) {
+        return yield* Effect.fail(new AgentCancelledError({}))
+      }
+
+      if (streamResult.timedOut && streamResult.stallReason === 'stream-stall') {
+        if (stallAttempt >= MAX_STALL_RETRIES) {
+          logger.warn('Stream stalled after retry budget exhausted', {
+            conversationId: conversation.id,
+            retries: stallAttempt,
           })
-          approvalTraceLogger.info('continuation-denial-synthesized', {
+          break
+        }
+
+        if (stallAttempt === 0) {
+          logger.warn('Stream stalled, retrying with a fresh stream', {
+            conversationId: conversation.id,
+            maxRetries: MAX_STALL_RETRIES,
+          })
+        }
+
+        stallAttempt += 1
+        yield* retryDriver.next(stallAttempt)
+
+        if (signal.aborted) {
+          return yield* Effect.fail(new AgentCancelledError({}))
+        }
+        continue
+      }
+
+      if (streamResult.timedOut && streamResult.stallReason === 'incomplete-tool-call') {
+        logger.warn('Stream stalled with incomplete tool call; skipping retry', {
+          conversationId: conversation.id,
+        })
+      }
+
+      break
+    }
+
+    if (!streamResult) {
+      return yield* Effect.fail(new Error('Agent stream did not start'))
+    }
+
+    let finalParts = collector.finalizeParts({ timedOut: streamResult.timedOut })
+    if (hasContinuationMessages) {
+      finalParts = restoreContinuationToolArgs(finalParts, conversation.messages)
+    }
+    const deniedApprovalSnapshot = hasContinuationMessages
+      ? extractDeniedApprovalSnapshot(payload.continuationMessages ?? [])
+      : null
+
+    if (
+      deniedApprovalSnapshot &&
+      !finalParts.some(
+        (part) =>
+          part.type === 'tool-result' &&
+          String(part.toolResult.id) === deniedApprovalSnapshot.toolCallId,
+      )
+    ) {
+      const deniedArgs = parseToolArgumentsObject(deniedApprovalSnapshot.args)
+      const hasToolCallPart = finalParts.some(
+        (part) =>
+          part.type === 'tool-call' &&
+          String(part.toolCall.id) === deniedApprovalSnapshot.toolCallId,
+      )
+
+      if (!deniedArgs.valid) {
+        if (approvalTraceEnabled) {
+          approvalTraceLogger.warn('continuation-denial-invalid-args', {
             runId,
             conversationId: conversation.id,
             toolCallId: deniedApprovalSnapshot.toolCallId,
-            synthesizedToolCall: !hasToolCallPart,
           })
         }
-        if (hasContinuationMessages) {
-          approvalTraceLogger.info('continuation-run-finished', {
-            runId,
-            conversationId: conversation.id,
-            timedOut: streamResult.timedOut,
-            stallReason: streamResult.stallReason,
-            finalPartTypes: finalParts.map((part) => part.type),
-            toolResultCount: finalParts.filter((part) => part.type === 'tool-result').length,
-          })
-        }
+      }
 
-        const stats = collector.getStats()
+      if (!hasToolCallPart) {
+        finalParts.unshift({
+          type: 'tool-call',
+          toolCall: {
+            id: ToolCallId(deniedApprovalSnapshot.toolCallId),
+            name: deniedApprovalSnapshot.toolName,
+            args: deniedArgs.parsed,
+            state: 'approval-responded',
+            approval: {
+              id: `approval_${deniedApprovalSnapshot.toolCallId}`,
+              needsApproval: true,
+              approved: false,
+            },
+          },
+        })
+      }
 
-        await notifyRunComplete(hooks, runContext, {
+      finalParts.unshift({
+        type: 'tool-result',
+        toolResult: {
+          id: ToolCallId(deniedApprovalSnapshot.toolCallId),
+          name: deniedApprovalSnapshot.toolName,
+          args: deniedArgs.parsed,
+          result: JSON.stringify({
+            approved: false,
+            message: deniedApprovalSnapshot.message,
+          }),
+          isError: true,
+          duration: 0,
+        },
+      })
+      if (approvalTraceEnabled) {
+        approvalTraceLogger.info('continuation-denial-synthesized', {
+          runId,
+          conversationId: conversation.id,
+          toolCallId: deniedApprovalSnapshot.toolCallId,
+          synthesizedToolCall: !hasToolCallPart,
+        })
+      }
+    }
+
+    if (approvalTraceEnabled && hasContinuationMessages) {
+      approvalTraceLogger.info('continuation-run-finished', {
+        runId,
+        conversationId: conversation.id,
+        timedOut: streamResult.timedOut,
+        stallReason: streamResult.stallReason,
+        finalPartTypes: finalParts.map((part) => part.type),
+        toolResultCount: finalParts.filter((part) => part.type === 'tool-result').length,
+      })
+    }
+
+    const stats = collector.getStats()
+    yield* Effect.tryPromise(() =>
+      Promise.resolve(
+        notifyRunComplete(hooks, runContext, {
           promptFragmentIds,
           stageDurationsMs,
           toolCalls: stats.toolCalls,
@@ -641,26 +833,36 @@ export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> 
           resolvedAgentsFiles: runContext.standards?.agentsResolvedFiles ?? [],
           dynamicallyLoadedAgentsScopes: [...dynamicLoadedAgentsScopeFiles],
           standardsWarnings: runContext.standards?.warnings ?? [],
-        })
+        }),
+      ),
+    )
 
-        const assistantMsg = makeMessage('assistant', finalParts, resolvedModel)
-        const userMsg = hasContinuationMessages
-          ? null
-          : makeMessage('user', buildPersistedUserMessageParts(payload))
-        const newMessages = userMsg ? [userMsg, assistantMsg] : [assistantMsg]
+    const assistantMsg = makeMessage('assistant', finalParts, resolution.resolvedModel)
+    const userMsg = hasContinuationMessages
+      ? null
+      : makeMessage('user', buildPersistedUserMessageParts(payload))
+    const newMessages = userMsg ? [userMsg, assistantMsg] : [assistantMsg]
 
-        return { newMessages, finalMessage: assistantMsg }
-      } catch (error) {
-        const aborted = signal.aborted || isAbortError(error)
-        if (context && !runErrorNotified && !aborted) {
-          const runError = error instanceof Error ? error : new Error(String(error))
-          await notifyRunError(hooks, context, runError)
+    return { newMessages, finalMessage: assistantMsg }
+  })
+
+  return program.pipe(
+    Effect.catchAll((error) =>
+      Effect.gen(function* () {
+        const aborted = signal.aborted || isAgentCancelledCause(error)
+        const activeContext = context
+        if (activeContext && !runErrorNotified && !aborted) {
+          yield* Effect.tryPromise(() =>
+            Promise.resolve(notifyRunError(hooks, activeContext, toEffectError(error))),
+          )
         }
-        if (aborted) {
-          throw new Error('aborted')
-        }
-        throw error
-      }
-    },
+
+        return yield* Effect.fail(aborted ? new Error('aborted') : toEffectError(error))
+      }),
+    ),
   )
+}
+
+export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> {
+  return Effect.runPromise(runAgentEffect(params))
 }

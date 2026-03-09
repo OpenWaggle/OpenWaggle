@@ -41,17 +41,6 @@ export function isPendingExecutionPayload(value: unknown): boolean {
   return normalizedValue.pendingExecution === true
 }
 
-export function isApprovalStatusPayload(value: unknown): boolean {
-  const normalizedValue = normalizeToolResultPayload(value)
-  if (!isRecord(normalizedValue)) {
-    return false
-  }
-
-  return (
-    typeof normalizedValue.approved === 'boolean' && typeof normalizedValue.message === 'string'
-  )
-}
-
 export function isIncompleteToolPayload(value: unknown): boolean {
   return isPendingExecutionPayload(value)
 }

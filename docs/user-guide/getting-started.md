@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- **Node.js** 20 or later — [nodejs.org](https://nodejs.org/)
+- **Node.js** 24.x — [nodejs.org](https://nodejs.org/)
 - **pnpm** 9 or later — [pnpm.io](https://pnpm.io/)
 - **macOS**, **Windows**, or **Linux**
 

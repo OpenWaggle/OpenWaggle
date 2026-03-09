@@ -112,10 +112,10 @@ OpenWaggle ships with several built-in skills in the `.openwaggle/skills/` direc
 
 | Skill | Purpose |
 |-------|---------|
+| `electron-native-rebuild` | Native module rebuild workflow for Node vs Electron runtimes |
 | `react-doctor` | React Compiler compatibility and code quality audits |
 | `orchestration-fallback-streaming` | Debug orchestration handoff issues |
 | `openai-codex-subscription-transport` | Handle OpenAI billing edge cases |
 | `memory-safe-attachment-hydration` | Attachment processing patterns |
-| `zod-v4` | Zod v4 validation patterns and migration from v3 |
 
 These can be enabled/disabled per project like any other skill.

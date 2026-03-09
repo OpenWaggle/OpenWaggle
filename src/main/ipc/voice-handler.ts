@@ -1,6 +1,7 @@
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import { DOUBLE_FACTOR, FIVE_MINUTES_IN_MILLISECONDS } from '@shared/constants/constants'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import {
   VOICE_MODEL_BASE,
   VOICE_MODEL_TINY,
@@ -8,7 +9,6 @@ import {
   type VoiceTranscriptionResult,
 } from '@shared/types/voice'
 import { app } from 'electron'
-import { z } from 'zod'
 import { safeHandle } from './typed-ipc'
 
 const MIN_LANGUAGE_CODE_LENGTH = 2
@@ -37,20 +37,28 @@ const VOICE_MODEL_CONFIG: Record<
   },
 }
 
-const modernTranscribePayloadSchema = z.object({
-  pcm16: z.custom<Uint8Array>(
-    (value) =>
-      value instanceof Uint8Array && value.byteLength > 0 && value.byteLength <= MAX_PCM16_BYTES,
-    'pcm16 payload is invalid.',
+const modernTranscribePayloadSchema = Schema.Struct({
+  pcm16: Schema.Uint8ArrayFromSelf.pipe(
+    Schema.filter((value) => {
+      if (value.byteLength <= 0) {
+        return 'pcm16 payload is invalid.'
+      }
+      return value.byteLength <= MAX_PCM16_BYTES || 'pcm16 payload is invalid.'
+    }),
   ),
-  sampleRate: z.number().int().min(SAMPLE_RATE_MIN).max(SAMPLE_RATE_MAX),
-  language: z
-    .string()
-    .trim()
-    .min(MIN_LANGUAGE_CODE_LENGTH)
-    .max(MAX_LANGUAGE_CODE_LENGTH)
-    .optional(),
-  model: z.enum([VOICE_MODEL_TINY, VOICE_MODEL_BASE]).optional(),
+  sampleRate: Schema.Number.pipe(
+    Schema.int(),
+    Schema.greaterThanOrEqualTo(SAMPLE_RATE_MIN),
+    Schema.lessThanOrEqualTo(SAMPLE_RATE_MAX),
+  ),
+  language: Schema.optional(
+    Schema.String.pipe(
+      Schema.trimmed(),
+      Schema.minLength(MIN_LANGUAGE_CODE_LENGTH),
+      Schema.maxLength(MAX_LANGUAGE_CODE_LENGTH),
+    ),
+  ),
+  model: Schema.optional(Schema.Literal(VOICE_MODEL_TINY, VOICE_MODEL_BASE)),
 })
 const transcribePayloadSchema = modernTranscribePayloadSchema
 
@@ -89,6 +97,7 @@ interface TransformersModule {
 }
 
 const MODEL_IDLE_TIMEOUT = FIVE_MINUTES_IN_MILLISECONDS
+const VOICE_MODELS: readonly VoiceModel[] = [VOICE_MODEL_TINY, VOICE_MODEL_BASE]
 
 const transcriberPromises: Partial<Record<VoiceModel, Promise<WhisperTranscriber>>> = {}
 const lastUsedAt: Partial<Record<VoiceModel, number>> = {}
@@ -202,7 +211,7 @@ function markModelUsed(model: VoiceModel): void {
 }
 
 export function resetVoiceHandlerForTests(): void {
-  for (const model of [VOICE_MODEL_TINY, VOICE_MODEL_BASE] as const) {
+  for (const model of VOICE_MODELS) {
     delete transcriberPromises[model]
     delete lastUsedAt[model]
     const timer = evictionTimers[model]
@@ -213,7 +222,7 @@ export function resetVoiceHandlerForTests(): void {
 
 export function registerVoiceHandlers(): void {
   safeHandle('voice:transcribe-local', async (_event, rawPayload: unknown) => {
-    const payload = transcribePayloadSchema.parse(rawPayload)
+    const payload = decodeUnknownOrThrow(transcribePayloadSchema, rawPayload)
     const model = payload.model ?? VOICE_MODEL_BASE
     const sampleCount = Math.floor(payload.pcm16.byteLength / DOUBLE_FACTOR)
     if (sampleCount <= 0) {

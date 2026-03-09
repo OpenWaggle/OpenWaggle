@@ -125,16 +125,16 @@ Tools are executed by TanStack AI internally during the stream — results arriv
 ### Tool System
 
 `src/main/tools/define-tool.ts` wraps TanStack AI's `toolDefinition().server()`. Each tool:
-- Declares a Zod schema for args (validated at runtime via `.parse()`)
-- Uses `z.infer<T>` for type-safe execute function (not TanStack's `InferSchemaType` which returns `unknown` for Zod)
-- Accesses `ToolContext` (projectPath, AbortSignal) via module-level getter — safe because agent runs are sequential
+- Declares an Effect Schema input schema for runtime validation and JSON Schema generation
+- Uses `Schema.Type<T>` for type-safe execute functions
+- Receives `ToolContext` through explicit per-run binding, not ambient async local state
 
 Built-in tools in `src/main/tools/tools/`: `readFile`, `writeFile`, `editFile`, `runCommand`, `glob`, `listFiles`, `loadSkill`, `askUser`. Write/edit/command require approval (`needsApproval: true`).
 
 ### Persistence
 
-- **Settings**: `electron-store` (key-value in OS config dir)
-- **Conversations**: JSON files in `{userData}/conversations/{id}.json` with Zod schema validation on load. Includes model ID migration for backward compatibility (`LEGACY_MODEL_MAP`).
+- **App-owned state**: SQLite database at `{userData}/openwaggle.db` (settings, auth tokens, conversations, orchestration state, team runtime state)
+- **Project-owned state**: `.openwaggle/config.toml` and `.openwaggle/config.local.toml`
 
 ### Model System
 
@@ -150,8 +150,8 @@ Built-in tools in `src/main/tools/tools/`: `readFile`, `writeFile`, `editFile`, 
 ## Electron-Vite Config
 
 `electron.vite.config.ts` has two important settings:
-- `externalizeDeps.exclude` includes all `@tanstack/ai-*` packages (anthropic, openai, gemini, grok, openrouter, ollama) — ESM-only, must be bundled into main process output
-- `build.rollupOptions.output.interop: 'auto'` — Required for CJS interop with ESM-only externals like `electron-store`
+- `externalizeDeps.exclude` includes ESM-only runtime packages that must be bundled into the main process output, including the TanStack AI adapters and Effect packages
+- `build.rollupOptions.output.interop: 'auto'` keeps CJS/ESM interop stable for the Electron main bundle
 
 ## Security
 
@@ -192,7 +192,7 @@ Always use granular selectors with `useChatStore((s) => s.field)` — never call
 ## Coding Conventions
 
 - **Always use `pnpm`** to run scripts, tests, or manage dependencies. Never use `npm` or `yarn`.
-- **Never use `any`** — prefer `unknown` plus narrowing, or Zod schemas for runtime validation.
+- **Never use `any`** — prefer `unknown` plus narrowing, or Effect Schema for runtime validation.
 - **Never use `React.FC`** — define components as plain functions with explicit props interfaces.
 - **Never use `forwardRef`** — React 19 supports direct ref props.
 - **Never mutate Zustand state directly** — always use store actions.

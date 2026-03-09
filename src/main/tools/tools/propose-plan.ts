@@ -1,5 +1,5 @@
+import { Schema } from '@shared/schema'
 import { BrowserWindow } from 'electron'
-import { z } from 'zod'
 import { sendAgentMessage } from '../../sub-agents/message-bus'
 import { defineOpenWaggleTool } from '../define-tool'
 import { waitForPlanResponse } from '../plan-manager'
@@ -9,11 +9,13 @@ export const proposePlanTool = defineOpenWaggleTool({
   description:
     'Present a plan to the user for approval before executing it. Use this when the task is complex enough to benefit from upfront planning, when the user explicitly requests a plan, or when the composer plan mode toggle is active. The plan should describe the approach, key steps, and expected changes. The tool blocks until the user approves or requests revisions. If the user revises, incorporate their feedback and call proposePlan again with the updated plan.',
   needsApproval: false,
-  inputSchema: z.object({
-    planText: z
-      .string()
-      .min(1)
-      .describe('The plan text in markdown format describing the approach and steps'),
+  inputSchema: Schema.Struct({
+    planText: Schema.String.pipe(
+      Schema.minLength(1),
+      Schema.annotations({
+        description: 'The plan text in markdown format describing the approach and steps',
+      }),
+    ),
   }),
   async execute(args, context) {
     const { conversationId, signal, subAgentContext } = context

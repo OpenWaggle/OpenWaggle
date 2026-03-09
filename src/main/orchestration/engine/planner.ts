@@ -1,21 +1,23 @@
+import { Schema, safeDecodeUnknown } from '@shared/schema'
 import type { JsonValue } from '@shared/types/json'
-import { z } from 'zod'
 
 import type { OpenWaggleOrchestrationPlan, OpenWagglePlannedTask } from './types'
 
 export const MAX_PLAN_TASKS = 10
 
-const planTaskSchema = z.object({
-  id: z.string().min(1),
-  kind: z.enum(['analysis', 'synthesis', 'repo-edit', 'general']),
-  title: z.string().min(1),
-  prompt: z.string().min(1),
-  dependsOn: z.array(z.string().min(1)).optional(),
-  needsConversationContext: z.boolean().optional(),
+const nonEmptyStringSchema = Schema.String.pipe(Schema.minLength(1))
+
+const planTaskSchema = Schema.Struct({
+  id: nonEmptyStringSchema,
+  kind: Schema.Literal('analysis', 'synthesis', 'repo-edit', 'general'),
+  title: nonEmptyStringSchema,
+  prompt: nonEmptyStringSchema,
+  dependsOn: Schema.optional(Schema.Array(nonEmptyStringSchema)),
+  needsConversationContext: Schema.optional(Schema.Boolean),
 })
 
-const planSchema = z.object({
-  tasks: z.array(planTaskSchema).min(1).max(MAX_PLAN_TASKS),
+const planSchema = Schema.Struct({
+  tasks: Schema.Array(planTaskSchema).pipe(Schema.minItems(1), Schema.maxItems(MAX_PLAN_TASKS)),
 })
 
 export class OpenWagglePlanValidationError extends Error {
@@ -45,7 +47,7 @@ function isValidTaskKind(value: string): value is OpenWagglePlannedTask['kind'] 
  * Only throws OpenWagglePlanValidationError when no valid tasks can be salvaged.
  */
 export function parseOpenWagglePlan(raw: JsonValue): OpenWaggleOrchestrationPlan {
-  const parsed = planSchema.safeParse(raw)
+  const parsed = safeDecodeUnknown(planSchema, raw)
   if (parsed.success) {
     return repairDependencies(parsed.data.tasks)
   }

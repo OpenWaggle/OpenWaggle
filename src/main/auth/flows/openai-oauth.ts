@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { MILLISECONDS_PER_SECOND } from '@shared/constants/constants'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { shell } from 'electron'
-import { z } from 'zod'
 import { createLogger } from '../../logger'
 import { createCallbackServer } from '../oauth-callback-server'
 import { generateCodeChallenge, generateCodeVerifier } from '../pkce'
@@ -18,10 +18,10 @@ const OPENAI_AUTH_URL = 'https://auth.openai.com/oauth/authorize'
 const OPENAI_TOKEN_URL = 'https://auth.openai.com/oauth/token'
 const OPENAI_REDIRECT_URI = `http://localhost:${OPENAI_CALLBACK_PORT}/auth/callback`
 
-const tokenResponseSchema = z.object({
-  access_token: z.string(),
-  refresh_token: z.string(),
-  expires_in: z.number(),
+const tokenResponseSchema = Schema.Struct({
+  access_token: Schema.String,
+  refresh_token: Schema.String,
+  expires_in: Schema.Number,
 })
 
 interface OpenAIOAuthResult {
@@ -155,7 +155,7 @@ export async function startOpenAIOAuth(
     }
 
     const raw: unknown = await response.json()
-    const parsed = tokenResponseSchema.parse(raw)
+    const parsed = decodeUnknownOrThrow(tokenResponseSchema, raw)
 
     logger.info('OpenAI OAuth completed successfully')
     return {
@@ -188,7 +188,7 @@ export async function refreshOpenAIToken(
   }
 
   const raw: unknown = await response.json()
-  const parsed = tokenResponseSchema.parse(raw)
+  const parsed = decodeUnknownOrThrow(tokenResponseSchema, raw)
 
   return {
     accessToken: parsed.access_token,

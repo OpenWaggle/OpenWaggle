@@ -1,21 +1,26 @@
 import { execFile } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { formatErrorMessage, isEnoent } from '@shared/utils/node-error'
-import { z } from 'zod'
 import { createLogger } from '../logger'
 import { atomicWriteJSON } from '../utils/atomic-write'
 
 const logger = createLogger('worktree')
 
-const WorktreeEntrySchema = z.object({
-  name: z.string(),
-  path: z.string(),
-  branch: z.string(),
-  createdAt: z.number(),
+const WorktreeEntrySchema = Schema.Struct({
+  name: Schema.String,
+  path: Schema.String,
+  branch: Schema.String,
+  createdAt: Schema.Number,
 })
 
-type WorktreeEntry = z.infer<typeof WorktreeEntrySchema>
+interface WorktreeEntry {
+  readonly name: string
+  readonly path: string
+  readonly branch: string
+  readonly createdAt: number
+}
 
 const WORKTREES_DIR = '.openwaggle/worktrees'
 const REGISTRY_FILE = '.registry.json'
@@ -26,7 +31,8 @@ async function loadRegistry(projectPath: string): Promise<WorktreeEntry[]> {
     const raw = await fs.readFile(registryPath, 'utf8')
     const parsed: unknown = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
-    return z.array(WorktreeEntrySchema).parse(parsed)
+    const entries = safeDecodeUnknown(Schema.mutable(Schema.Array(WorktreeEntrySchema)), parsed)
+    return entries.success ? entries.data : []
   } catch {
     return []
   }

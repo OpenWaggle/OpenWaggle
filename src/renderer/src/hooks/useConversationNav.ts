@@ -67,6 +67,7 @@ export function createConversationNavHandlers(deps: ConversationNavDeps): Conver
       await setProjectPath(path)
       await setActiveConversation(activeConversationId)
     } else {
+      await setProjectPath(path)
       await createConversation(path)
     }
     refreshGit(path)

@@ -1,5 +1,5 @@
+import { Schema } from '@shared/schema'
 import { TaskId } from '@shared/types/brand'
-import { z } from 'zod'
 import { getTask, isBoardLoaded, loadTaskBoard } from '../../sub-agents/facade'
 import { defineOpenWaggleTool } from '../define-tool'
 
@@ -8,9 +8,15 @@ export const taskGetTool = defineOpenWaggleTool({
   description:
     'Get full details of a specific task including description, dependencies, and metadata.',
   needsApproval: false,
-  inputSchema: z.object({
-    teamName: z.string().min(1).describe('Team that owns this task board'),
-    taskId: z.string().min(1).describe('The ID of the task to retrieve'),
+  inputSchema: Schema.Struct({
+    teamName: Schema.String.pipe(
+      Schema.minLength(1),
+      Schema.annotations({ description: 'Team that owns this task board' }),
+    ),
+    taskId: Schema.String.pipe(
+      Schema.minLength(1),
+      Schema.annotations({ description: 'The ID of the task to retrieve' }),
+    ),
   }),
   async execute(args, context) {
     if (!isBoardLoaded(args.teamName)) {

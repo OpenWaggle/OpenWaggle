@@ -1,3 +1,4 @@
+import { safeDecodeUnknown } from '@shared/schema'
 import { waggleMetadataSchema } from '@shared/schemas/waggle'
 import { SupportedModelId } from '@shared/types/brand'
 import type { WaggleMessageMetadata } from '@shared/types/waggle'
@@ -21,7 +22,7 @@ function parseBoundaryMeta(output: unknown): WaggleMessageMetadata | undefined {
       return undefined
     }
   }
-  const result = waggleMetadataSchema.safeParse(obj)
+  const result = safeDecodeUnknown(waggleMetadataSchema, obj)
   if (!result.success) return undefined
   const data = result.data
   return {

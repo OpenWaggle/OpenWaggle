@@ -1,11 +1,13 @@
-import fs from 'node:fs/promises'
-import path from 'node:path'
+import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { SubAgentId, TeamId } from '@shared/types/brand'
 import type { TeamMember, TeamMemberStatus, TeamRecord } from '@shared/types/team'
-import { formatErrorMessage, isEnoent } from '@shared/utils/node-error'
-import { z } from 'zod'
+import { formatErrorMessage } from '@shared/utils/node-error'
 import { createLogger } from '../logger'
-import { atomicWriteJSON } from '../utils/atomic-write'
+import {
+  deleteTeamRuntimeState,
+  readTeamRuntimeState,
+  writeTeamRuntimeState,
+} from '../services/team-runtime-state'
 import { emitTeamEvent } from './sub-agent-bridge'
 import { deleteBoard } from './task-board'
 
@@ -129,10 +131,6 @@ export async function persistTeamConfig(projectPath: string, teamName: string): 
   const team = teams.get(teamName)
   if (!team) return
 
-  const configDir = path.join(projectPath, '.openwaggle', 'teams', teamName)
-  await fs.mkdir(configDir, { recursive: true })
-
-  const configPath = path.join(configDir, 'config.json')
   const config = {
     id: team.id,
     name: team.name,
@@ -145,53 +143,60 @@ export async function persistTeamConfig(projectPath: string, teamName: string): 
     createdAt: team.createdAt,
   }
 
-  await atomicWriteJSON(configPath, config)
-  logger.info('Team config persisted', { teamName, configPath })
+  await writeTeamRuntimeState({
+    projectPath,
+    teamName,
+    teamConfigJson: JSON.stringify(config),
+  })
+  logger.info('Team config persisted', { teamName })
 }
 
 export async function cleanupTeamConfig(projectPath: string, teamName: string): Promise<void> {
-  const configDir = path.join(projectPath, '.openwaggle', 'teams', teamName)
   try {
-    await fs.rm(configDir, { recursive: true })
+    await deleteTeamRuntimeState(projectPath, teamName)
     logger.info('Team config cleaned up', { teamName })
   } catch (error) {
-    if (!isEnoent(error)) {
-      logger.warn('Failed to cleanup team config', {
-        teamName,
-        error: formatErrorMessage(error),
-      })
-    }
+    logger.warn('Failed to cleanup team config', {
+      teamName,
+      error: formatErrorMessage(error),
+    })
   }
 }
 
 // ── Persisted Team Loading ──────────────────────────────────
 
-const persistedMemberSchema = z.object({
-  name: z.string(),
-  agentId: z.string(),
-  agentType: z.string(),
+const persistedMemberSchema = Schema.Struct({
+  name: Schema.String,
+  agentId: Schema.String,
+  agentType: Schema.String,
 })
 
-const persistedTeamConfigSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  description: z.string().optional(),
-  members: z.array(persistedMemberSchema),
-  createdAt: z.number(),
+const persistedTeamConfigSchema = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  description: Schema.optional(Schema.String),
+  members: Schema.mutable(Schema.Array(persistedMemberSchema)),
+  createdAt: Schema.Number,
 })
 
 export async function loadPersistedTeam(projectPath: string, teamName: string): Promise<boolean> {
-  const configPath = path.join(projectPath, '.openwaggle', 'teams', teamName, 'config.json')
   try {
-    const raw = await fs.readFile(configPath, 'utf8')
-    const parsed: unknown = JSON.parse(raw)
-    const config = persistedTeamConfigSchema.parse(parsed)
+    const row = await readTeamRuntimeState(projectPath, teamName)
+    if (!row?.team_config_json) {
+      return false
+    }
+
+    const parsed: unknown = JSON.parse(row.team_config_json)
+    const config = safeDecodeUnknown(persistedTeamConfigSchema, parsed)
+    if (!config.success) {
+      throw new Error(config.issues.join('; '))
+    }
 
     const team: TeamRecord = {
-      id: TeamId(config.id),
-      name: config.name,
-      description: config.description,
-      members: config.members.map(
+      id: TeamId(config.data.id),
+      name: config.data.name,
+      description: config.data.description,
+      members: config.data.members.map(
         (m): TeamMember => ({
           name: m.name,
           agentId: SubAgentId(m.agentId),
@@ -199,19 +204,17 @@ export async function loadPersistedTeam(projectPath: string, teamName: string): 
           status: 'shutdown',
         }),
       ),
-      createdAt: config.createdAt,
+      createdAt: config.data.createdAt,
     }
 
     teams.set(teamName, team)
     logger.info('Loaded persisted team', { teamName, memberCount: team.members.length })
     return true
   } catch (error) {
-    if (!isEnoent(error)) {
-      logger.warn('Failed to load persisted team config', {
-        teamName,
-        error: formatErrorMessage(error),
-      })
-    }
+    logger.warn('Failed to load persisted team config', {
+      teamName,
+      error: formatErrorMessage(error),
+    })
     return false
   }
 }

@@ -1,5 +1,5 @@
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type { GitCommitFailure, GitCommitPayload, GitCommitResult } from '@shared/types/git'
-import { z } from 'zod'
 import { safeHandle } from '../typed-ipc'
 import { isGitRepository, projectPathSchema, runGit } from './shared'
 import { invalidateGitStatusCache } from './status-handler'
@@ -75,16 +75,16 @@ async function commitGit(projectPath: string, payload: GitCommitPayload): Promis
   }
 }
 
-const commitPayloadSchema = z.object({
-  message: z.string(),
-  amend: z.boolean(),
-  paths: z.array(z.string()),
+const commitPayloadSchema = Schema.Struct({
+  message: Schema.String,
+  amend: Schema.Boolean,
+  paths: Schema.Array(Schema.String),
 })
 
 export function registerGitCommitHandlers(): void {
   safeHandle('git:commit', async (_event, rawPath: unknown, rawPayload: unknown) => {
-    const projectPath = projectPathSchema.parse(rawPath)
-    const payload = commitPayloadSchema.parse(rawPayload)
+    const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
+    const payload = decodeUnknownOrThrow(commitPayloadSchema, rawPayload)
     const result = await commitGit(projectPath, payload)
     if (result.ok) {
       invalidateGitStatusCache(projectPath)

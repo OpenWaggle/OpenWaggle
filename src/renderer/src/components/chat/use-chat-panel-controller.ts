@@ -1,8 +1,13 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
+import type { SupportedModelId } from '@shared/types/llm'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import { isTrustableToolName } from '@shared/types/tool-approval'
-import type { WaggleCollaborationStatus, WaggleConfig } from '@shared/types/waggle'
+import type {
+  WaggleCollaborationStatus,
+  WaggleConfig,
+  WaggleMessageMetadata,
+} from '@shared/types/waggle'
 import type { UIMessage } from '@tanstack/ai-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAgentChat } from '@/hooks/useAgentChat'
@@ -110,6 +115,20 @@ function resolveLastUserMessage(messages: UIMessage[]): string | null {
     .join('\n')
 
   return content || null
+}
+
+function getCurrentTurnMessages(messages: UIMessage[]): UIMessage[] {
+  let lastUserIndex = -1
+
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index]
+    if (message?.role === 'user') {
+      lastUserIndex = index
+      break
+    }
+  }
+
+  return messages.slice(lastUserIndex + 1)
 }
 
 export function useChatPanelSections(): ChatPanelSections {
@@ -221,19 +240,61 @@ export function useChatPanelSections(): ChatPanelSections {
   })
 
   const lastUserMessage = resolveLastUserMessage(messages)
+  const transcriptLoading = isLoading || isSteering
+  const virtualRowsCacheRef = useRef<{
+    messages: UIMessage[]
+    isLoading: boolean
+    error: Error | undefined
+    lastUserMessage: string | null
+    dismissedError: string | null
+    conversationId: ConversationId | null
+    model: SupportedModelId
+    messageModelLookup: Readonly<Record<string, SupportedModelId>>
+    waggleMetadataLookup: Readonly<Record<string, WaggleMessageMetadata>>
+    phase: ReturnType<typeof useStreamingPhase>
+    rows: VirtualRow[]
+  } | null>(null)
 
-  const virtualRows = buildVirtualRows({
-    messages,
-    isLoading: isLoading || isSteering,
-    error,
-    lastUserMessage,
-    dismissedError,
-    conversationId: activeConversationId,
-    model,
-    messageModelLookup,
-    waggleMetadataLookup,
-    phase,
-  })
+  const virtualRows =
+    virtualRowsCacheRef.current?.messages === messages &&
+    virtualRowsCacheRef.current.isLoading === transcriptLoading &&
+    virtualRowsCacheRef.current.error === error &&
+    virtualRowsCacheRef.current.lastUserMessage === lastUserMessage &&
+    virtualRowsCacheRef.current.dismissedError === dismissedError &&
+    virtualRowsCacheRef.current.conversationId === activeConversationId &&
+    virtualRowsCacheRef.current.model === model &&
+    virtualRowsCacheRef.current.messageModelLookup === messageModelLookup &&
+    virtualRowsCacheRef.current.waggleMetadataLookup === waggleMetadataLookup &&
+    virtualRowsCacheRef.current.phase === phase
+      ? virtualRowsCacheRef.current.rows
+      : (() => {
+          const rows = buildVirtualRows({
+            messages,
+            isLoading: transcriptLoading,
+            error,
+            lastUserMessage,
+            dismissedError,
+            conversationId: activeConversationId,
+            model,
+            messageModelLookup,
+            waggleMetadataLookup,
+            phase,
+          })
+          virtualRowsCacheRef.current = {
+            messages,
+            isLoading: transcriptLoading,
+            error,
+            lastUserMessage,
+            dismissedError,
+            conversationId: activeConversationId,
+            model,
+            messageModelLookup,
+            waggleMetadataLookup,
+            phase,
+            rows,
+          }
+          return rows
+        })()
 
   const pendingApproval = findPendingApproval(messages, activeConversation)
   const pendingAskUser = findPendingAskUser(messages)
@@ -284,7 +345,9 @@ export function useChatPanelSections(): ChatPanelSections {
   const pendingApprovalIsDuplicateRef = useRef(false)
   pendingApprovalIsDuplicateRef.current = (() => {
     if (!pendingApproval) return false
-    for (const msg of messages) {
+    const currentTurnMessages = getCurrentTurnMessages(messages)
+
+    for (const msg of currentTurnMessages) {
       for (const part of msg.parts) {
         if (
           part.type === 'tool-call' &&
@@ -292,7 +355,7 @@ export function useChatPanelSections(): ChatPanelSections {
           part.arguments === pendingApproval.toolArgs &&
           part.id !== pendingApproval.toolCallId
         ) {
-          const hasResult = messages.some((m) =>
+          const hasResult = currentTurnMessages.some((m) =>
             m.parts.some((p) => p.type === 'tool-result' && p.toolCallId === part.id),
           )
           if (hasResult) return true
@@ -332,19 +395,19 @@ export function useChatPanelSections(): ChatPanelSections {
 
     // Auto-approve duplicate tool calls that were re-proposed by the model
     // after a continuation re-execution (TanStack AI known issue #1).
-    // The user already approved the identical tool+args earlier in this
-    // conversation, so it's safe to auto-approve without a trust check.
+    // Skip the duplicate instead of executing the same side-effect again.
     if (pendingApprovalIsDuplicateRef.current) {
       void (async () => {
         if (!isPendingApprovalStillCurrent(pendingApprovalKey)) {
           return
         }
-        setApprovalTrustStatus(pendingApprovalKey, 'trusted')
+        setApprovalTrustStatus(pendingApprovalKey, 'checking')
         try {
-          await respondToolApproval(pendingApprovalId, true)
+          await respondToolApproval(pendingApprovalId, false)
         } catch (err) {
           if (!active) return
-          logger.error('[AUTO-APPROVE] Error auto-approving duplicate', {
+          setApprovalTrustStatus(pendingApprovalKey, 'untrusted')
+          logger.error('[AUTO-APPROVE] Error auto-skipping duplicate tool call', {
             error: err instanceof Error ? err.message : String(err),
           })
         }

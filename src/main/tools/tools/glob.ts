@@ -1,6 +1,6 @@
 import path from 'node:path'
+import { Schema } from '@shared/schema'
 import fg from 'fast-glob'
-import { z } from 'zod'
 import { defineOpenWaggleTool } from '../define-tool'
 
 const EXECUTE_VALUE_200 = 200
@@ -10,19 +10,22 @@ export const globTool = defineOpenWaggleTool({
   name: 'glob',
   description:
     'Find files matching a glob pattern within the project directory. Returns matching file paths. Useful for discovering project structure and finding files.',
-  inputSchema: z.object({
-    pattern: z.string().describe('Glob pattern (e.g., "**/*.ts", "src/**/*.tsx", "*.json")'),
-    ignore: z
-      .array(z.string())
-      .optional()
-      .describe('Patterns to ignore (e.g., ["node_modules/**", "dist/**"])'),
+  inputSchema: Schema.Struct({
+    pattern: Schema.String.annotations({
+      description: 'Glob pattern (e.g., "**/*.ts", "src/**/*.tsx", "*.json")',
+    }),
+    ignore: Schema.optional(
+      Schema.Array(Schema.String).annotations({
+        description: 'Patterns to ignore (e.g., ["node_modules/**", "dist/**"])',
+      }),
+    ),
   }),
   async execute(args, context) {
     assertPatternInsideProject(args.pattern)
 
     const files = await fg(args.pattern, {
       cwd: context.projectPath,
-      ignore: args.ignore ?? ['node_modules/**', '.git/**', 'dist/**', 'out/**'],
+      ignore: [...(args.ignore ?? ['node_modules/**', '.git/**', 'dist/**', 'out/**'])],
       dot: false,
       onlyFiles: true,
     })

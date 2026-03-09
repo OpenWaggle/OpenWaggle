@@ -5,6 +5,7 @@ import type { StreamChunk } from '@tanstack/ai'
 import type { UIMessage } from '@tanstack/ai-react'
 import {
   buildPersistedToolCallLookup,
+  type PersistedToolCallLookup,
   restorePersistedToolCallPart,
 } from '@/lib/persisted-tool-call-reconciliation'
 
@@ -81,6 +82,13 @@ export function restorePersistedToolCallMetadata(
   conversation: Conversation | null,
 ): UIMessage[] {
   const persistedToolCalls = buildPersistedToolCallLookup(conversation)
+  return restorePersistedToolCallMetadataWithLookup(messages, persistedToolCalls)
+}
+
+export function restorePersistedToolCallMetadataWithLookup(
+  messages: UIMessage[],
+  persistedToolCalls: PersistedToolCallLookup,
+): UIMessage[] {
   let didChange = false
 
   const restoredMessages = messages.map((message) => {

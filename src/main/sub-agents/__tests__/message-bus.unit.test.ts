@@ -5,6 +5,13 @@ import { ConversationId } from '@shared/types/brand'
 import type { AgentMessage } from '@shared/types/team'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { state, getPathMock } = vi.hoisted(() => ({
+  state: { userDataDir: '' },
+  getPathMock: vi.fn(() => ''),
+}))
+
+getPathMock.mockImplementation(() => state.userDataDir)
+
 // ---------------------------------------------------------------------------
 // Mocks — must precede module-under-test import
 // ---------------------------------------------------------------------------
@@ -22,7 +29,15 @@ vi.mock('../../tools/context-injection-buffer', () => ({
   pushContext: vi.fn(),
 }))
 
+vi.mock('electron', () => ({
+  app: {
+    getPath: getPathMock,
+  },
+}))
+
 // Import after mocks are in place
+import { resetAppRuntimeForTests } from '../../runtime'
+import { readTeamRuntimeState, writeTeamRuntimeState } from '../../services/team-runtime-state'
 import { pushContext } from '../../tools/context-injection-buffer'
 import {
   clearAgentMessages,
@@ -527,10 +542,14 @@ describe('message-bus', () => {
 
     beforeEach(async () => {
       tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'message-bus-test-'))
+      state.userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'message-bus-db-'))
+      await resetAppRuntimeForTests()
     })
 
     afterEach(async () => {
+      await resetAppRuntimeForTests()
       await fs.rm(tmpDir, { recursive: true, force: true })
+      await fs.rm(state.userDataDir, { recursive: true, force: true })
     })
 
     it('persist/load round-trip restores pending messages', async () => {
@@ -567,9 +586,11 @@ describe('message-bus', () => {
     })
 
     it('corrupt file returns false', async () => {
-      const dir = path.join(tmpDir, '.openwaggle', 'teams', 'corrupt')
-      await fs.mkdir(dir, { recursive: true })
-      await fs.writeFile(path.join(dir, 'pending-messages.json'), '{{bad json', 'utf8')
+      await writeTeamRuntimeState({
+        projectPath: tmpDir,
+        teamName: 'corrupt',
+        pendingMessagesJson: '{{bad json',
+      })
 
       const result = await loadPendingMessages(tmpDir, 'corrupt')
       expect(result).toBe(false)
@@ -589,21 +610,26 @@ describe('message-bus', () => {
 
       await persistPendingMessages(tmpDir, 'test-team')
 
-      const filePath = path.join(
-        tmpDir,
-        '.openwaggle',
-        'teams',
-        'test-team',
-        'pending-messages.json',
-      )
-      const raw = await fs.readFile(filePath, 'utf8')
-      const data = JSON.parse(raw) as { pending: Record<string, unknown[]> }
+      const row = await readTeamRuntimeState(tmpDir, 'test-team')
+      const raw = row?.pending_messages_json ?? '{}'
+      const parsed: unknown = JSON.parse(raw)
+      const data =
+        typeof parsed === 'object' && parsed !== null && 'pending' in parsed ? parsed : null
 
       // Only the pending queue should be present
-      expect(data.pending).toBeDefined()
-      expect(data.pending['offline-agent']).toHaveLength(1)
+      expect(data).not.toBeNull()
+      expect(data).toHaveProperty('pending')
+      expect(data).toMatchObject({
+        pending: {
+          'offline-agent': [expect.objectContaining({ content: 'queued msg' })],
+        },
+      })
       // agent-a has a subscription, not pending messages
-      expect(data.pending['agent-a']).toBeUndefined()
+      expect(data).not.toMatchObject({
+        pending: {
+          'agent-a': expect.anything(),
+        },
+      })
     })
   })
 })

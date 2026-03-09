@@ -1,3 +1,4 @@
+import { safeDecodeUnknown } from '@shared/schema'
 import { jsonObjectSchema } from '@shared/schemas/validation'
 import type { JsonObject } from '@shared/types/json'
 
@@ -8,7 +9,7 @@ import type { JsonObject } from '@shared/types/json'
 export function parseToolArgs(args: string): JsonObject {
   try {
     const data: unknown = JSON.parse(args)
-    const result = jsonObjectSchema.safeParse(data)
+    const result = safeDecodeUnknown(jsonObjectSchema, data)
     return result.success ? result.data : {}
   } catch {
     return {}

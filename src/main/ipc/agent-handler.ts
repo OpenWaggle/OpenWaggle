@@ -12,6 +12,7 @@ import { classifyAgentError, makeErrorInfo } from '../agent/error-classifier'
 import { getPhaseForConversation } from '../agent/phase-tracker'
 import { buildPersistedUserMessageParts, makeMessage } from '../agent/shared'
 import type { StreamPartCollector } from '../agent/stream-part-collector'
+import { approvalTraceEnabled } from '../env'
 import { createLogger } from '../logger'
 import { providerRegistry } from '../providers/registry'
 import { withConversationLock } from '../store/conversation-lock'
@@ -62,6 +63,33 @@ function emitErrorAndFinish(conversationId: ConversationId, message: string, cod
   })
 }
 
+function hasPersistableUserInput(payload: AgentSendPayload): boolean {
+  return payload.text.trim().length > 0 || payload.attachments.length > 0
+}
+
+async function persistUserMessageOnFailure(
+  conversationId: ConversationId,
+  payload: AgentSendPayload,
+): Promise<void> {
+  if (!hasPersistableUserInput(payload)) {
+    return
+  }
+
+  const userMessage = makeMessage('user', buildPersistedUserMessageParts(payload))
+
+  await withConversationLock(conversationId, async () => {
+    const latestConversation = await getConversation(conversationId)
+    if (!latestConversation) {
+      return
+    }
+
+    await saveConversation({
+      ...latestConversation,
+      messages: [...latestConversation.messages, userMessage],
+    })
+  })
+}
+
 export function registerAgentHandlers(): void {
   typedHandle(
     'agent:send-message',
@@ -87,6 +115,7 @@ export function registerAgentHandlers(): void {
       const settings = getSettings()
 
       if (!providerRegistry.isKnownModel(model)) {
+        await persistUserMessageOnFailure(conversationId, payload)
         emitErrorAndFinish(conversationId, `Unknown model: ${model}`, 'invalid-model')
         activeRuns.delete(conversationId)
         return
@@ -170,7 +199,7 @@ export function registerAgentHandlers(): void {
 
             await saveConversation({ ...latestConversation, title, messages: updatedMessages })
 
-            if ((hydratedPayload.continuationMessages?.length ?? 0) > 0) {
+            if (approvalTraceEnabled && (hydratedPayload.continuationMessages?.length ?? 0) > 0) {
               const persistedAssistantMessage = newMessages.find(
                 (message) => message.role === 'assistant',
               )
@@ -191,7 +220,7 @@ export function registerAgentHandlers(): void {
             conversationId,
             error: formatErrorMessage(persistError),
           })
-          if ((hydratedPayload.continuationMessages?.length ?? 0) > 0) {
+          if (approvalTraceEnabled && (hydratedPayload.continuationMessages?.length ?? 0) > 0) {
             approvalTraceLogger.error('continuation-persist-failed', {
               conversationId,
               error: formatErrorMessage(persistError),
@@ -209,6 +238,14 @@ export function registerAgentHandlers(): void {
         }
       } catch (err) {
         if (!(err instanceof Error && err.message === 'aborted')) {
+          try {
+            await persistUserMessageOnFailure(conversationId, payload)
+          } catch (persistError) {
+            logger.error('Failed to persist user message after run error', {
+              conversationId,
+              error: formatErrorMessage(persistError),
+            })
+          }
           const classified = classifyAgentError(err)
           emitErrorAndFinish(conversationId, classified.userMessage, classified.code)
         }

@@ -4,9 +4,9 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js'
 import { DOUBLE_FACTOR } from '@shared/constants/constants'
+import { Schema, safeDecodeUnknown } from '@shared/schema'
 import type { McpConnectionStatus, McpServerConfig, McpToolInfo } from '@shared/types/mcp'
-import { z } from 'zod'
-import { getFullProcessEnv } from '../env'
+import { getSafeChildEnvEntries } from '../env'
 import { createLogger } from '../logger'
 
 const logger = createLogger('mcp-client')
@@ -249,7 +249,7 @@ export class McpClient {
 
 /** Merge parent process env with user env overrides */
 function buildStdioEnv(userEnv: Readonly<Record<string, string>>): Record<string, string> {
-  const base = getFullProcessEnv()
+  const base = getSafeChildEnvEntries()
   for (const [key, value] of Object.entries(userEnv)) {
     base[key] = value
   }
@@ -260,16 +260,16 @@ function sanitizeServerName(name: string): string {
   return name.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase()
 }
 
-const inputSchemaValidator = z.record(z.string(), z.unknown())
+const inputSchemaValidator = Schema.Record({ key: Schema.String, value: Schema.Unknown })
 
 function parseInputSchema(schema: unknown): Record<string, unknown> {
-  const result = inputSchemaValidator.safeParse(schema)
+  const result = safeDecodeUnknown(inputSchemaValidator, schema)
   return result.success ? result.data : {}
 }
 
-const mcpContentPartSchema = z.object({
-  type: z.string(),
-  text: z.string().optional(),
+const mcpContentPartSchema = Schema.Struct({
+  type: Schema.String,
+  text: Schema.optional(Schema.String),
 })
 
 function extractTextContent(content: unknown): string {
@@ -277,7 +277,7 @@ function extractTextContent(content: unknown): string {
 
   const parts: string[] = []
   for (const part of content) {
-    const parsed = mcpContentPartSchema.safeParse(part)
+    const parsed = safeDecodeUnknown(mcpContentPartSchema, part)
     if (parsed.success && parsed.data.type === 'text' && parsed.data.text !== undefined) {
       parts.push(parsed.data.text)
     }

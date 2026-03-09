@@ -1,13 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import fs from 'node:fs/promises'
-import path from 'node:path'
+import { Schema, safeDecodeUnknown } from '@shared/schema'
 import type { ConversationId } from '@shared/types/brand'
 import type { AgentMessage, AgentMessageType } from '@shared/types/team'
-import { formatErrorMessage, isEnoent } from '@shared/utils/node-error'
-import { z } from 'zod'
+import { formatErrorMessage } from '@shared/utils/node-error'
 import { createLogger } from '../logger'
+import { readTeamRuntimeState, writeTeamRuntimeState } from '../services/team-runtime-state'
 import { pushContext } from '../tools/context-injection-buffer'
-import { atomicWriteJSON } from '../utils/atomic-write'
 
 const logger = createLogger('message-bus')
 
@@ -180,19 +178,24 @@ const AGENT_MESSAGE_TYPES = [
   'plan_approval_response',
 ] as const
 
-const persistedMessageSchema = z.object({
-  type: z.enum(AGENT_MESSAGE_TYPES),
-  sender: z.string(),
-  recipient: z.string().optional(),
-  content: z.string(),
-  summary: z.string().optional(),
-  requestId: z.string().optional(),
-  approve: z.boolean().optional(),
-  timestamp: z.number(),
+const persistedMessageSchema = Schema.Struct({
+  type: Schema.Literal(...AGENT_MESSAGE_TYPES),
+  sender: Schema.String,
+  recipient: Schema.optional(Schema.String),
+  content: Schema.String,
+  summary: Schema.optional(Schema.String),
+  requestId: Schema.optional(Schema.String),
+  approve: Schema.optional(Schema.Boolean),
+  timestamp: Schema.Number,
 })
 
-const persistedPendingSchema = z.object({
-  pending: z.record(z.string(), z.array(persistedMessageSchema)),
+const persistedPendingSchema = Schema.Struct({
+  pending: Schema.mutable(
+    Schema.Record({
+      key: Schema.String,
+      value: Schema.mutable(Schema.Array(persistedMessageSchema)),
+    }),
+  ),
 })
 
 export async function persistPendingMessages(projectPath: string, teamName: string): Promise<void> {
@@ -203,25 +206,37 @@ export async function persistPendingMessages(projectPath: string, teamName: stri
     }
   }
 
-  // Skip write if nothing to persist
-  if (Object.keys(pending).length === 0) return
+  if (Object.keys(pending).length === 0) {
+    await writeTeamRuntimeState({
+      projectPath,
+      teamName,
+      pendingMessagesJson: null,
+    })
+    return
+  }
 
-  const dir = path.join(projectPath, '.openwaggle', 'teams', teamName)
-  await fs.mkdir(dir, { recursive: true })
-
-  const filePath = path.join(dir, 'pending-messages.json')
-  await atomicWriteJSON(filePath, { pending })
+  await writeTeamRuntimeState({
+    projectPath,
+    teamName,
+    pendingMessagesJson: JSON.stringify({ pending }),
+  })
   logger.info('Pending messages persisted', { teamName })
 }
 
 export async function loadPendingMessages(projectPath: string, teamName: string): Promise<boolean> {
-  const filePath = path.join(projectPath, '.openwaggle', 'teams', teamName, 'pending-messages.json')
   try {
-    const raw = await fs.readFile(filePath, 'utf8')
-    const parsed: unknown = JSON.parse(raw)
-    const data = persistedPendingSchema.parse(parsed)
+    const row = await readTeamRuntimeState(projectPath, teamName)
+    if (!row?.pending_messages_json) {
+      return false
+    }
 
-    for (const [name, messages] of Object.entries(data.pending)) {
+    const parsed: unknown = JSON.parse(row.pending_messages_json)
+    const data = safeDecodeUnknown(persistedPendingSchema, parsed)
+    if (!data.success) {
+      throw new Error(data.issues.join('; '))
+    }
+
+    for (const [name, messages] of Object.entries(data.data.pending)) {
       const existing = pendingMessages.get(name) ?? []
       for (const m of messages) {
         existing.push({
@@ -241,12 +256,10 @@ export async function loadPendingMessages(projectPath: string, teamName: string)
     logger.info('Pending messages loaded', { teamName })
     return true
   } catch (error) {
-    if (!isEnoent(error)) {
-      logger.warn('Failed to load pending messages', {
-        teamName,
-        error: formatErrorMessage(error),
-      })
-    }
+    logger.warn('Failed to load pending messages', {
+      teamName,
+      error: formatErrorMessage(error),
+    })
     return false
   }
 }

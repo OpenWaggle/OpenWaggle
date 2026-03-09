@@ -1,5 +1,5 @@
+import { Schema } from '@shared/schema'
 import { TaskId } from '@shared/types/brand'
-import { z } from 'zod'
 import { isBoardLoaded, loadTaskBoard, persistTaskBoard, updateTask } from '../../sub-agents/facade'
 import { defineOpenWaggleTool } from '../define-tool'
 
@@ -8,23 +8,45 @@ export const taskUpdateTool = defineOpenWaggleTool({
   description:
     'Update a task on the team task board. Use to mark tasks in_progress, completed, or deleted, assign owners, set dependencies, and modify details.',
   needsApproval: false,
-  inputSchema: z.object({
-    teamName: z.string().min(1).describe('Team that owns this task board'),
-    taskId: z.string().min(1).describe('The ID of the task to update'),
-    status: z
-      .enum(['pending', 'in_progress', 'completed', 'deleted'])
-      .optional()
-      .describe('New status for the task'),
-    subject: z.string().optional().describe('New task title'),
-    description: z.string().optional().describe('New task description'),
-    activeForm: z.string().optional().describe('Present continuous form for spinner'),
-    owner: z.string().optional().describe('Agent name to assign as owner'),
-    addBlocks: z.array(z.string()).optional().describe('Task IDs that this task blocks'),
-    addBlockedBy: z.array(z.string()).optional().describe('Task IDs that block this task'),
-    metadata: z
-      .record(z.string(), z.unknown())
-      .optional()
-      .describe('Metadata keys to merge (set to null to delete)'),
+  inputSchema: Schema.Struct({
+    teamName: Schema.String.pipe(
+      Schema.minLength(1),
+      Schema.annotations({ description: 'Team that owns this task board' }),
+    ),
+    taskId: Schema.String.pipe(
+      Schema.minLength(1),
+      Schema.annotations({ description: 'The ID of the task to update' }),
+    ),
+    status: Schema.optional(
+      Schema.Literal('pending', 'in_progress', 'completed', 'deleted').annotations({
+        description: 'New status for the task',
+      }),
+    ),
+    subject: Schema.optional(Schema.String.annotations({ description: 'New task title' })),
+    description: Schema.optional(
+      Schema.String.annotations({ description: 'New task description' }),
+    ),
+    activeForm: Schema.optional(
+      Schema.String.annotations({ description: 'Present continuous form for spinner' }),
+    ),
+    owner: Schema.optional(
+      Schema.String.annotations({ description: 'Agent name to assign as owner' }),
+    ),
+    addBlocks: Schema.optional(
+      Schema.Array(Schema.String).annotations({
+        description: 'Task IDs that this task blocks',
+      }),
+    ),
+    addBlockedBy: Schema.optional(
+      Schema.Array(Schema.String).annotations({
+        description: 'Task IDs that block this task',
+      }),
+    ),
+    metadata: Schema.optional(
+      Schema.Record({ key: Schema.String, value: Schema.Unknown }).annotations({
+        description: 'Metadata keys to merge (set to null to delete)',
+      }),
+    ),
   }),
   async execute(args, context) {
     if (!isBoardLoaded(args.teamName)) {

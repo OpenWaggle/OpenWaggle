@@ -1,10 +1,10 @@
+import { decodeUnknownOrThrow, Schema, type SchemaType, safeDecodeUnknown } from '@shared/schema'
 import { jsonObjectSchema } from '@shared/schemas/validation'
 import type { MessagePart } from '@shared/types/agent'
 import { ToolCallId } from '@shared/types/brand'
 import type { JsonObject } from '@shared/types/json'
 import { chooseBy } from '@shared/utils/decision'
 import type { StreamChunk } from '@tanstack/ai'
-import { z } from 'zod'
 import { createLogger } from '../logger'
 import type { AgentToolCallEndEvent, AgentToolCallStartEvent } from './runtime-types'
 
@@ -15,23 +15,25 @@ const DEFAULT_APPROVAL_REQUIRED = true
 
 const logger = createLogger('stream')
 
-const errorResultSchema = z.union([
-  z.object({ ok: z.literal(false), error: z.string().min(1) }),
-  z.object({ ok: z.literal(false), message: z.string().min(1) }),
-  z.object({ error: z.string().min(1) }),
-])
+const nonEmptyStringSchema = Schema.String.pipe(Schema.minLength(1))
 
-const approvalRequestedPayloadSchema = z
-  .object({
-    toolCallId: z.string(),
-    toolName: z.string().optional(),
-    approval: z.object({
-      id: z.string(),
-      needsApproval: z.boolean().optional(),
-      approved: z.boolean().optional(),
-    }),
-  })
-  .loose()
+const errorResultSchema = Schema.Union(
+  Schema.Struct({ ok: Schema.Literal(false), error: nonEmptyStringSchema }),
+  Schema.Struct({ ok: Schema.Literal(false), message: nonEmptyStringSchema }),
+  Schema.Struct({ error: nonEmptyStringSchema }),
+)
+
+const approvalRequestedPayloadSchema = Schema.Struct({
+  toolCallId: Schema.String,
+  toolName: Schema.optional(Schema.String),
+  approval: Schema.Struct({
+    id: Schema.String,
+    needsApproval: Schema.optional(Schema.Boolean),
+    approved: Schema.optional(Schema.Boolean),
+  }),
+})
+
+type ApprovalRequestedPayload = SchemaType<typeof approvalRequestedPayloadSchema>
 
 export interface StreamPartCollectorChunkResult {
   readonly toolCallStart?: AgentToolCallStartEvent
@@ -59,7 +61,7 @@ export function detectToolResultError(result: unknown): boolean {
     }
   }
 
-  return errorResultSchema.safeParse(result).success
+  return safeDecodeUnknown(errorResultSchema, result).success
 }
 
 export class StreamPartCollector {
@@ -134,7 +136,7 @@ export class StreamPartCollector {
         const durationMs = this.getDurationMs(value.toolCallId)
 
         if (value.result === undefined) {
-          const completionState = 'input-complete' as const
+          const completionState: AgentToolCallEndEvent['completionState'] = 'input-complete'
           this.awaitingToolResultIds.add(value.toolCallId)
           return {
             toolCallEnd: {
@@ -156,6 +158,7 @@ export class StreamPartCollector {
 
         const resultString =
           typeof value.result === 'string' ? value.result : JSON.stringify(value.result)
+        const completionState: AgentToolCallEndEvent['completionState'] = 'execution-complete'
 
         if (!this.emittedToolResultIds.has(value.toolCallId)) {
           this.collectedParts.push({
@@ -180,7 +183,7 @@ export class StreamPartCollector {
             result: resultString,
             durationMs,
             isError,
-            completionState: 'execution-complete' as const,
+            completionState,
           },
         }
       })
@@ -201,20 +204,21 @@ export class StreamPartCollector {
           return {}
         }
 
-        const approvalEvent = approvalRequestedPayloadSchema.safeParse(value.value)
+        const approvalEvent = safeDecodeUnknown(approvalRequestedPayloadSchema, value.value)
         if (!approvalEvent.success) {
           return {}
         }
 
-        const toolCallId = approvalEvent.data.toolCallId
+        const approvalEventData: ApprovalRequestedPayload = approvalEvent.data
+        const toolCallId = approvalEventData.toolCallId
         const toolName =
-          approvalEvent.data.toolName ?? this.toolCallNames.get(toolCallId) ?? UNKNOWN_TOOL_NAME
+          approvalEventData.toolName ?? this.toolCallNames.get(toolCallId) ?? UNKNOWN_TOOL_NAME
         this.toolCallNames.set(toolCallId, toolName)
         this.toolCallStates.set(toolCallId, 'approval-requested')
         this.toolCallApprovalStates.set(toolCallId, {
-          id: approvalEvent.data.approval.id,
-          needsApproval: approvalEvent.data.approval.needsApproval ?? DEFAULT_APPROVAL_REQUIRED,
-          approved: approvalEvent.data.approval.approved,
+          id: approvalEventData.approval.id,
+          needsApproval: approvalEventData.approval.needsApproval ?? DEFAULT_APPROVAL_REQUIRED,
+          approved: approvalEventData.approval.approved,
         })
         this.ensureToolCallPart(toolCallId, toolName)
         return {}
@@ -379,8 +383,7 @@ export class StreamPartCollector {
     const rawArgs = this.toolCallArgs.get(toolCallId) ?? '{}'
 
     try {
-      const parsed = jsonObjectSchema.parse(JSON.parse(rawArgs))
-      return parsed
+      return decodeUnknownOrThrow(jsonObjectSchema, JSON.parse(rawArgs))
     } catch (parseError) {
       logger.warn(`Failed to parse tool call args for "${toolName}"`, {
         error: parseError instanceof Error ? parseError.message : String(parseError),

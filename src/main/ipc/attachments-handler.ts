@@ -8,11 +8,11 @@ import {
   PERCENT_BASE,
   SECONDS_PER_MINUTE,
 } from '@shared/constants/constants'
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type { HydratedAttachment, PreparedAttachment } from '@shared/types/agent'
 import { choose } from '@shared/utils/decision'
 import { isPathInside } from '@shared/utils/paths'
 import { app, dialog } from 'electron'
-import { z } from 'zod'
 import { createLogger } from '../logger'
 import { broadcastToWindows } from '../utils/broadcast'
 import { safeHandle } from './typed-ipc'
@@ -41,13 +41,13 @@ const RTF_MIME_TYPE = 'application/rtf'
 const ODT_MIME_TYPE = 'application/vnd.oasis.opendocument.text'
 const TEMP_PROMPT_FILENAME_PATTERN = /^prompt-\d+\.md$/
 
-const prepareArgsSchema = z.object({
-  projectPath: z.string().min(1),
-  paths: z.array(z.string()).max(MAX_ATTACHMENTS),
+const prepareArgsSchema = Schema.Struct({
+  projectPath: Schema.String.pipe(Schema.minLength(1)),
+  paths: Schema.Array(Schema.String).pipe(Schema.maxItems(MAX_ATTACHMENTS)),
 })
-const prepareFromTextArgsSchema = z.object({
-  text: z.string().min(1),
-  operationId: z.string().min(1),
+const prepareFromTextArgsSchema = Schema.Struct({
+  text: Schema.String.pipe(Schema.minLength(1)),
+  operationId: Schema.String.pipe(Schema.minLength(1)),
 })
 
 function buildTempPromptFilename(timestamp: number): string {
@@ -402,7 +402,7 @@ export function registerAttachmentHandlers(): void {
   })
 
   safeHandle('attachments:prepare', async (_event, rawProjectPath: unknown, rawPaths: unknown) => {
-    const { projectPath, paths } = prepareArgsSchema.parse({
+    const { projectPath, paths } = decodeUnknownOrThrow(prepareArgsSchema, {
       projectPath: rawProjectPath,
       paths: rawPaths,
     })
@@ -456,7 +456,7 @@ export function registerAttachmentHandlers(): void {
   safeHandle(
     'attachments:prepare-from-text',
     async (_event, rawText: unknown, rawOperationId: unknown) => {
-      const { text, operationId } = prepareFromTextArgsSchema.parse({
+      const { text, operationId } = decodeUnknownOrThrow(prepareFromTextArgsSchema, {
         text: rawText,
         operationId: rawOperationId,
       })

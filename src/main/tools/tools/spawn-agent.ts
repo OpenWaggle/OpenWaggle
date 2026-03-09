@@ -1,5 +1,5 @@
+import { Schema } from '@shared/schema'
 import { SubAgentId, SupportedModelId } from '@shared/types/brand'
-import { z } from 'zod'
 import { createLogger } from '../../logger'
 import { getRunSubAgent } from '../../sub-agents/facade'
 import { defineOpenWaggleTool } from '../define-tool'
@@ -11,43 +11,58 @@ export const spawnAgentTool = defineOpenWaggleTool({
   description:
     'Launch a sub-agent to handle a task autonomously. Sub-agents can be specialized by type (explorer, planner, test-engineer, general-purpose, etc.), run in the background, work in isolated git worktrees, and collaborate via teams. Returns the agent result or an agent ID for background agents.',
   needsApproval: false,
-  inputSchema: z.object({
-    description: z
-      .string()
-      .min(1)
-      .describe('Short (3-5 word) description of what the agent will do'),
-    prompt: z.string().min(1).describe('Detailed task instructions for the sub-agent'),
-    agentType: z
-      .string()
-      .optional()
-      .describe(
-        'Agent type: general-purpose (default), explorer, planner, test-engineer, ui-engineer, or a custom agent ID',
+  inputSchema: Schema.Struct({
+    description: Schema.String.pipe(
+      Schema.minLength(1),
+      Schema.annotations({ description: 'Short (3-5 word) description of what the agent will do' }),
+    ),
+    prompt: Schema.String.pipe(
+      Schema.minLength(1),
+      Schema.annotations({ description: 'Detailed task instructions for the sub-agent' }),
+    ),
+    agentType: Schema.optional(
+      Schema.String.annotations({
+        description:
+          'Agent type: general-purpose (default), explorer, planner, test-engineer, ui-engineer, or a custom agent ID',
+      }),
+    ),
+    name: Schema.optional(
+      Schema.String.annotations({ description: 'Name for the agent (used in team communication)' }),
+    ),
+    model: Schema.optional(
+      Schema.String.annotations({ description: 'Model to use. Inherits from parent if not set.' }),
+    ),
+    mode: Schema.optional(
+      Schema.Literal('default', 'acceptEdits', 'dontAsk', 'bypassPermissions', 'plan').annotations({
+        description: 'Permission mode for the agent',
+      }),
+    ),
+    isolation: Schema.optional(
+      Schema.Literal('worktree').annotations({
+        description: 'Set to "worktree" to run in an isolated git worktree',
+      }),
+    ),
+    runInBackground: Schema.optional(
+      Schema.Boolean.annotations({
+        description: 'Run the agent in the background. Returns immediately with an agent ID.',
+      }),
+    ),
+    teamName: Schema.optional(
+      Schema.String.annotations({ description: 'Team to register the agent with' }),
+    ),
+    resume: Schema.optional(
+      Schema.String.annotations({ description: 'Agent ID to resume from a previous invocation' }),
+    ),
+    maxTurns: Schema.optional(
+      Schema.Number.pipe(
+        Schema.int(),
+        Schema.positive(),
+        Schema.annotations({ description: 'Maximum number of agent turns (default: 25)' }),
       ),
-    name: z.string().optional().describe('Name for the agent (used in team communication)'),
-    model: z.string().optional().describe('Model to use. Inherits from parent if not set.'),
-    mode: z
-      .enum(['default', 'acceptEdits', 'dontAsk', 'bypassPermissions', 'plan'])
-      .optional()
-      .describe('Permission mode for the agent'),
-    isolation: z
-      .enum(['worktree'])
-      .optional()
-      .describe('Set to "worktree" to run in an isolated git worktree'),
-    runInBackground: z
-      .boolean()
-      .optional()
-      .describe('Run the agent in the background. Returns immediately with an agent ID.'),
-    teamName: z.string().optional().describe('Team to register the agent with'),
-    resume: z.string().optional().describe('Agent ID to resume from a previous invocation'),
-    maxTurns: z
-      .number()
-      .int()
-      .positive()
-      .optional()
-      .describe('Maximum number of agent turns (default: 25)'),
+    ),
   }),
   async execute(args, context) {
-    // Lazy import: settings store creates electron-store at module level
+    // Lazy import keeps startup wiring light and avoids unnecessary module cycles.
     const { getSettings } = await import('../../store/settings')
     const runSubAgent = getRunSubAgent()
     const parentMode = context.subAgentContext?.permissionMode ?? 'default'

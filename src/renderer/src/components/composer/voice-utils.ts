@@ -9,14 +9,6 @@ const MIN_PEAK_LEVEL = 0.04
 const LIVE_LEVEL_GAIN = 1.85
 const ENVELOPE_LEVEL_GAIN = 1.3
 
-export const DEFAULT_WAVEFORM_BAR_WIDTH = 4
-export const DEFAULT_WAVEFORM_BAR_GAP = 3
-export const DEFAULT_WAVEFORM_MIN_BARS = 24
-export const DEFAULT_WAVEFORM_MAX_BARS = 140
-export const DEFAULT_WAVEFORM_REVIEW_BARS = 88
-export const DEFAULT_WAVEFORM_LIVE_BARS = 72
-export const DEFAULT_WAVEFORM_HEIGHT_PX = 72
-export const DEFAULT_WAVEFORM_MIN_BAR_HEIGHT_PX = 6
 export const WHISPER_TARGET_SAMPLE_RATE = 16_000
 
 interface DecodedAudioBuffer {
@@ -125,31 +117,8 @@ export function extractLivePeak(data: Uint8Array<ArrayBufferLike>): number {
   return clampPeak(blended)
 }
 
-export function appendPeak(
-  peaks: readonly number[],
-  value: number,
-  capacity: number,
-): readonly number[] {
-  if (capacity <= 0) return []
-  const normalized = clampPeak(value)
-  if (peaks.length >= capacity) {
-    return [...peaks.slice(peaks.length - capacity + 1), normalized]
-  }
-  return [...peaks, normalized]
-}
-
 export function seedPeaks(capacity: number): readonly number[] {
   return Array.from({ length: Math.max(0, capacity) }, () => MIN_PEAK_LEVEL)
-}
-
-export function getWaveformBarCapacity(width: number, barWidth: number, gap: number): number {
-  const safeWidth = Math.max(0, Math.floor(width))
-  if (safeWidth === 0) return DEFAULT_WAVEFORM_LIVE_BARS
-  const slotWidth = Math.max(1, barWidth + gap)
-  return Math.max(
-    DEFAULT_WAVEFORM_MIN_BARS,
-    Math.min(DEFAULT_WAVEFORM_MAX_BARS, Math.floor((safeWidth + gap) / slotWidth)),
-  )
 }
 
 export function buildPeakEnvelope(

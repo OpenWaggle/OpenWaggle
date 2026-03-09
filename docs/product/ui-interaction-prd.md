@@ -213,11 +213,14 @@ Status legend: `implemented`, `deferred`, `future`
 - Location: `src/renderer/src/components/chat/ChatPanel.tsx:129`
 - Current: project name with chevron appears as button but no click handler.
 - Target behavior:
-  - Click opens project picker/recent project menu.
+  - Empty-state CTA opens the native folder picker directly in one click.
+  - When a project is already open, clicking the project name opens the project picker/recent project menu.
   - Selection updates active conversation project path.
 - Technical requirements:
   - Reuse `project:select-folder` IPC plus optional recent-path persistence.
 - Acceptance criteria:
+  - The welcome-state CTA never requires an intermediate `Select folder…` click.
+  - The active-project button still exposes recent-project switching.
   - Button always does something when shown.
 
 ### HC-UI-006 MCP management surface

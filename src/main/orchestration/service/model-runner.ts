@@ -1,3 +1,4 @@
+import { safeDecodeUnknown } from '@shared/schema'
 import { jsonObjectSchema, jsonValueSchema } from '@shared/schemas/validation'
 import type { JsonObject, JsonValue } from '@shared/types/json'
 import { chooseBy } from '@shared/utils/decision'
@@ -109,14 +110,14 @@ export function createModelRunner(deps: OrchestrationServiceDeps): ModelRunner {
         })
         .case('TOOL_CALL_END', (value) => {
           let toolInput: Readonly<JsonObject> | undefined
-          const inputResult = jsonObjectSchema.safeParse(value.input)
+          const inputResult = safeDecodeUnknown(jsonObjectSchema, value.input)
           if (inputResult.success) {
             toolInput = inputResult.data
           } else {
             const argsStr = pendingArgs.get(value.toolCallId)
             if (argsStr) {
               try {
-                const argsResult = jsonObjectSchema.safeParse(JSON.parse(argsStr))
+                const argsResult = safeDecodeUnknown(jsonObjectSchema, JSON.parse(argsStr))
                 if (argsResult.success) {
                   toolInput = argsResult.data
                 }
@@ -169,7 +170,7 @@ export function createModelRunner(deps: OrchestrationServiceDeps): ModelRunner {
 
     try {
       const parsed = JSON.parse(trimmed)
-      const parseResult = jsonValueSchema.safeParse(parsed)
+      const parseResult = safeDecodeUnknown(jsonValueSchema, parsed)
       if (parseResult.success) {
         return parseResult.data
       }

@@ -1,7 +1,7 @@
+import { Schema, safeDecodeUnknown } from '@shared/schema'
 import type { McpToolInfo } from '@shared/types/mcp'
 import type { ServerTool } from '@tanstack/ai'
 import { toolDefinition } from '@tanstack/ai'
-import { z } from 'zod'
 import { createLogger } from '../logger'
 import type { McpClient } from './mcp-client'
 
@@ -12,6 +12,7 @@ const logger = createLogger('mcp-tool-bridge')
  * All MCP tools require approval since they execute external code.
  */
 export function bridgeMcpTool(tool: McpToolInfo, client: McpClient): ServerTool {
+  const toolArgsSchema = Schema.Record({ key: Schema.String, value: Schema.Unknown })
   const def = toolDefinition({
     name: tool.namespacedName,
     description: `[${tool.serverName}] ${tool.description}`,
@@ -20,7 +21,7 @@ export function bridgeMcpTool(tool: McpToolInfo, client: McpClient): ServerTool 
   })
 
   return def.server(async (args: unknown) => {
-    const parseResult = z.record(z.string(), z.unknown()).safeParse(args)
+    const parseResult = safeDecodeUnknown(toolArgsSchema, args)
     const parsedArgs = parseResult.success ? parseResult.data : {}
 
     logger.info('mcp-tool:call', {

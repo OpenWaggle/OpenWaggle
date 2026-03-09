@@ -1,15 +1,27 @@
 import { randomUUID } from 'node:crypto'
+import * as SqlClient from '@effect/sql/SqlClient'
+import { safeDecodeUnknown } from '@shared/schema'
 import { waggleTeamPresetSchema } from '@shared/schemas/waggle'
 import { SupportedModelId, TeamConfigId } from '@shared/types/brand'
 import type { WaggleTeamPreset } from '@shared/types/waggle'
-import Store from 'electron-store'
-import { z } from 'zod'
+import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
+import { runAppEffect } from '../runtime'
 
 const MAX_TURNS_SAFETY = 8
 const MAX_TURNS_SAFETY_VALUE_10 = 10
 
 const logger = createLogger('teams')
+
+interface TeamPresetRow {
+  readonly id: string
+  readonly name: string
+  readonly description: string
+  readonly config_json: string
+  readonly is_built_in: number
+  readonly created_at: number
+  readonly updated_at: number
+}
 
 // ── Built-in presets ─────────────────────────────────────────
 
@@ -100,75 +112,169 @@ const BUILT_IN_PRESETS: WaggleTeamPreset[] = [
   },
 ]
 
-// ── Store ────────────────────────────────────────────────────
+let userPresetsCache: WaggleTeamPreset[] = []
+let initializationPromise: Promise<void> | null = null
+let writeQueue: Promise<void> = Promise.resolve()
 
-interface TeamsStoreData {
-  presets: WaggleTeamPreset[]
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
-const store = new Store<TeamsStoreData>({
-  name: 'teams',
-  defaults: { presets: [] },
-})
+function parseJsonUnknown(raw: string): unknown {
+  return JSON.parse(raw)
+}
 
-function loadUserPresets(): WaggleTeamPreset[] {
-  const raw: unknown = store.get('presets', [])
-  const result = z.array(waggleTeamPresetSchema).safeParse(raw)
+function hydratePreset(raw: unknown): WaggleTeamPreset | null {
+  const result = safeDecodeUnknown(waggleTeamPresetSchema, raw)
   if (!result.success) {
-    logger.warn('Failed to parse team presets, using empty list')
-    return []
+    logger.warn('Failed to parse team preset row, skipping invalid entry')
+    return null
   }
-  return result.data.map((p) => {
-    const brandAgent = (
-      a: (typeof p.config.agents)[number],
-    ): WaggleTeamPreset['config']['agents'][number] => ({
-      ...a,
-      model: SupportedModelId(a.model),
+
+  const preset = result.data
+  return {
+    ...preset,
+    id: TeamConfigId(preset.id),
+    config: {
+      ...preset.config,
+      agents: [
+        {
+          ...preset.config.agents[0],
+          model: SupportedModelId(preset.config.agents[0].model),
+        },
+        {
+          ...preset.config.agents[1],
+          model: SupportedModelId(preset.config.agents[1].model),
+        },
+      ],
+    },
+  }
+}
+
+async function loadUserPresetsFromDb(): Promise<void> {
+  const rows = await runAppEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      return yield* sql<TeamPresetRow>`
+        SELECT id, name, description, config_json, is_built_in, created_at, updated_at
+        FROM team_presets
+        ORDER BY updated_at ASC, id ASC
+      `
+    }),
+  )
+
+  const nextPresets: WaggleTeamPreset[] = []
+  for (const row of rows) {
+    const preset = hydratePreset({
+      id: row.id,
+      name: row.name,
+      description: row.description,
+      config: parseJsonUnknown(row.config_json),
+      isBuiltIn: row.is_built_in === 1,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
     })
-    return {
-      ...p,
-      id: TeamConfigId(p.id),
-      config: {
-        ...p.config,
-        agents: [brandAgent(p.config.agents[0]), brandAgent(p.config.agents[1])],
-      },
+    if (preset !== null) {
+      nextPresets.push(preset)
     }
+  }
+  userPresetsCache = nextPresets
+}
+
+async function writePresetToDb(preset: WaggleTeamPreset): Promise<void> {
+  await runAppEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`
+        INSERT INTO team_presets (
+          id,
+          name,
+          description,
+          config_json,
+          is_built_in,
+          created_at,
+          updated_at
+        )
+        VALUES (
+          ${preset.id},
+          ${preset.name},
+          ${preset.description},
+          ${JSON.stringify(preset.config)},
+          ${0},
+          ${preset.createdAt},
+          ${preset.updatedAt}
+        )
+        ON CONFLICT(id) DO UPDATE SET
+          name = excluded.name,
+          description = excluded.description,
+          config_json = excluded.config_json,
+          is_built_in = excluded.is_built_in,
+          created_at = excluded.created_at,
+          updated_at = excluded.updated_at
+      `
+    }),
+  )
+}
+
+async function deletePresetFromDb(id: string): Promise<void> {
+  await runAppEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`
+        DELETE FROM team_presets
+        WHERE id = ${id}
+      `
+    }),
+  )
+}
+
+function queuePersist(operation: () => Promise<void>): void {
+  writeQueue = writeQueue.then(operation).catch((error) => {
+    logger.warn('Failed to persist team preset state', {
+      error: describeError(error),
+    })
   })
 }
 
-export function listTeamPresets(): WaggleTeamPreset[] {
-  const userPresets = loadUserPresets()
-  const userIds = new Set(userPresets.map((p) => p.id))
+export async function initializeTeamStore(): Promise<void> {
+  if (initializationPromise) {
+    return initializationPromise
+  }
 
-  // User overrides replace built-ins with the same ID
-  const builtIns = BUILT_IN_PRESETS.filter((p) => !userIds.has(p.id))
-  return [...builtIns, ...userPresets]
+  initializationPromise = loadUserPresetsFromDb().catch((error) => {
+    logger.warn('Failed to initialize team preset cache from SQLite', {
+      error: describeError(error),
+    })
+    userPresetsCache = []
+  })
+
+  await initializationPromise
+}
+
+export function listTeamPresets(): WaggleTeamPreset[] {
+  const userIds = new Set(userPresetsCache.map((preset) => preset.id))
+  const builtIns = BUILT_IN_PRESETS.filter((preset) => !userIds.has(preset.id))
+  return [...builtIns, ...userPresetsCache]
 }
 
 export function saveTeamPreset(preset: WaggleTeamPreset): WaggleTeamPreset {
-  const userPresets = loadUserPresets()
-
+  const now = Date.now()
   const saved: WaggleTeamPreset = {
     ...preset,
     id: preset.id === '' ? TeamConfigId(randomUUID()) : preset.id,
     isBuiltIn: false,
-    updatedAt: Date.now(),
-    createdAt: preset.createdAt > 0 ? preset.createdAt : Date.now(),
+    updatedAt: now,
+    createdAt: preset.createdAt > 0 ? preset.createdAt : now,
   }
 
-  const existingIndex = userPresets.findIndex((p) => p.id === saved.id)
-  if (existingIndex >= 0) {
-    userPresets[existingIndex] = saved
-  } else {
-    userPresets.push(saved)
-  }
-
-  store.set('presets', userPresets)
+  const nextPresets = userPresetsCache.filter((existing) => existing.id !== saved.id)
+  nextPresets.push(saved)
+  userPresetsCache = nextPresets
+  queuePersist(() => writePresetToDb(saved))
   return saved
 }
 
 export function deleteTeamPreset(id: string): void {
-  const userPresets = loadUserPresets()
-  const filtered = userPresets.filter((p) => p.id !== id)
-  store.set('presets', filtered)
+  userPresetsCache = userPresetsCache.filter((preset) => preset.id !== id)
+  queuePersist(() => deletePresetFromDb(id))
 }

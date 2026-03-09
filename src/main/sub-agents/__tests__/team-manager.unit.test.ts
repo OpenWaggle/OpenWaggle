@@ -1,24 +1,20 @@
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import { SubAgentId } from '@shared/types/brand'
 import type { TeamMember } from '@shared/types/team'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // ---------------------------------------------------------------------------
 // Mocks — must be set up before importing the module under test.
 // ---------------------------------------------------------------------------
 
-const mockReadFile = vi.fn()
-const mockMkdir = vi.fn()
-const mockWriteFile = vi.fn()
-const mockRm = vi.fn()
-
-vi.mock('node:fs/promises', () => ({
-  default: {
-    readFile: (...args: unknown[]) => mockReadFile(...args),
-    mkdir: (...args: unknown[]) => mockMkdir(...args),
-    writeFile: (...args: unknown[]) => mockWriteFile(...args),
-    rm: (...args: unknown[]) => mockRm(...args),
-  },
+const { state, getPathMock } = vi.hoisted(() => ({
+  state: { userDataDir: '' },
+  getPathMock: vi.fn(() => ''),
 }))
+
+getPathMock.mockImplementation(() => state.userDataDir)
 
 vi.mock('../../logger', () => ({
   createLogger: () => ({
@@ -38,10 +34,18 @@ vi.mock('../sub-agent-bridge', () => ({
   emitTeamEvent: (...args: unknown[]) => mockEmitTeamEvent(...args),
 }))
 
+vi.mock('electron', () => ({
+  app: {
+    getPath: getPathMock,
+  },
+}))
+
 // ---------------------------------------------------------------------------
 // Import the module under test after mocks are in place.
 // ---------------------------------------------------------------------------
 
+import { resetAppRuntimeForTests } from '../../runtime'
+import { writeTeamRuntimeState } from '../../services/team-runtime-state'
 import {
   addTeamMember,
   clearAllTeams,
@@ -50,6 +54,7 @@ import {
   getTeam,
   listTeams,
   loadPersistedTeam,
+  persistTeamConfig,
   updateMemberStatus,
 } from '../team-manager'
 
@@ -72,9 +77,18 @@ function makeMember(overrides: Partial<TeamMember> = {}): TeamMember {
 // ---------------------------------------------------------------------------
 
 describe('team-manager', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await resetAppRuntimeForTests()
+    state.userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'team-manager-db-'))
     clearAllTeams()
     mockEmitTeamEvent.mockClear()
+  })
+
+  afterEach(async () => {
+    await resetAppRuntimeForTests()
+    if (state.userDataDir) {
+      await fs.rm(state.userDataDir, { recursive: true, force: true })
+    }
   })
 
   // ── createTeam ──────────────────────────────────────────────────────────
@@ -378,19 +392,15 @@ describe('team-manager', () => {
   // ── loadPersistedTeam ─────────────────────────────────────────────────
 
   describe('loadPersistedTeam', () => {
-    const validConfig = JSON.stringify({
-      id: 'my-team',
-      name: 'my-team',
-      description: 'A persisted team',
-      members: [
-        { name: 'worker-1', agentId: 'agent-001', agentType: 'executor' },
-        { name: 'worker-2', agentId: 'agent-002', agentType: 'researcher' },
-      ],
-      createdAt: 1000,
-    })
-
     it('loads a valid config from disk and populates the teams map', async () => {
-      mockReadFile.mockResolvedValueOnce(validConfig)
+      createTeam('my-team', 'A persisted team')
+      addTeamMember('my-team', makeMember({ name: 'worker-1', agentId: SubAgentId('agent-001') }))
+      addTeamMember(
+        'my-team',
+        makeMember({ name: 'worker-2', agentId: SubAgentId('agent-002'), agentType: 'researcher' }),
+      )
+      await persistTeamConfig('/project', 'my-team')
+      clearAllTeams()
 
       const result = await loadPersistedTeam('/project', 'my-team')
 
@@ -403,7 +413,10 @@ describe('team-manager', () => {
     })
 
     it('sets all loaded members to shutdown status', async () => {
-      mockReadFile.mockResolvedValueOnce(validConfig)
+      createTeam('my-team', 'A persisted team')
+      addTeamMember('my-team', makeMember({ name: 'worker-1', agentId: SubAgentId('agent-001') }))
+      await persistTeamConfig('/project', 'my-team')
+      clearAllTeams()
 
       await loadPersistedTeam('/project', 'my-team')
 
@@ -414,10 +427,6 @@ describe('team-manager', () => {
     })
 
     it('returns false for ENOENT without throwing', async () => {
-      const enoent = new Error('File not found')
-      ;(enoent as NodeJS.ErrnoException).code = 'ENOENT'
-      mockReadFile.mockRejectedValueOnce(enoent)
-
       const result = await loadPersistedTeam('/project', 'missing-team')
 
       expect(result).toBe(false)
@@ -425,7 +434,11 @@ describe('team-manager', () => {
     })
 
     it('returns false for invalid JSON config without throwing', async () => {
-      mockReadFile.mockResolvedValueOnce('not valid json {{{')
+      await writeTeamRuntimeState({
+        projectPath: '/project',
+        teamName: 'bad-team',
+        teamConfigJson: 'not valid json {{{',
+      })
 
       const result = await loadPersistedTeam('/project', 'bad-team')
 

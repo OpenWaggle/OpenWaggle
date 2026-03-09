@@ -12,6 +12,7 @@ import type { WaggleConfig } from '@shared/types/waggle'
 import { hasConcreteToolOutput, isDeniedApprovalPayload } from '@shared/utils/tool-result-state'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { ConnectionAdapter, UIMessage } from '@tanstack/ai-react'
+import { env } from '@/env'
 import { api } from './ipc'
 import { createRendererLogger } from './logger'
 
@@ -198,6 +199,7 @@ export function createIpcConnectionAdapter(
           let done = false
           let runCompletedEventSeen = false
           let approvalTraceActive = false
+          const approvalTraceEnabled = env.approvalTraceEnabled
           let fallbackCloseTimer: ReturnType<typeof setTimeout> | null = null
           let runCompletedCloseTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -218,7 +220,7 @@ export function createIpcConnectionAdapter(
             }
           }
           const traceApproval = (event: string, data?: object): void => {
-            if (!approvalTraceActive) {
+            if (!approvalTraceEnabled || !approvalTraceActive) {
               return
             }
             ipcLogger.info(`[approval-trace] ${event}`, {
@@ -274,11 +276,16 @@ export function createIpcConnectionAdapter(
           const rawUnsub = api.onStreamChunk((payload) => {
             if (payload.conversationId !== conversationId) return
 
-            if (payload.chunk.type === 'CUSTOM' && payload.chunk.name === 'approval-requested') {
+            if (
+              approvalTraceEnabled &&
+              payload.chunk.type === 'CUSTOM' &&
+              payload.chunk.name === 'approval-requested'
+            ) {
               approvalTraceActive = true
             }
             if (payload.chunk.type === 'TOOL_CALL_END') {
-              approvalTraceActive = approvalTraceActive || payload.chunk.result === undefined
+              approvalTraceActive =
+                approvalTraceEnabled && (approvalTraceActive || payload.chunk.result === undefined)
               if (payload.chunk.result === undefined) {
                 pendingToolResultIds.add(payload.chunk.toolCallId)
               } else {
@@ -302,17 +309,6 @@ export function createIpcConnectionAdapter(
                   : classifyErrorMessage(error.message)
               lastErrorInfoMap.set(conversationId, info)
             }
-
-            traceApproval('chunk', {
-              chunkType: payload.chunk.type,
-              toolCallId:
-                payload.chunk.type === 'TOOL_CALL_END' ? payload.chunk.toolCallId : undefined,
-              hasResult:
-                payload.chunk.type === 'TOOL_CALL_END'
-                  ? payload.chunk.result !== undefined
-                  : undefined,
-              customName: payload.chunk.type === 'CUSTOM' ? payload.chunk.name : undefined,
-            })
 
             queue.push(payload.chunk)
 
@@ -380,7 +376,7 @@ export function createIpcConnectionAdapter(
           }
           const pendingPayload = consumePendingPayload()
           const useContinuationPayload = shouldUseContinuationPayload(_messages)
-          approvalTraceActive = useContinuationPayload
+          approvalTraceActive = approvalTraceEnabled && useContinuationPayload
           const lastMessage = _messages[_messages.length - 1]
           const lastMessageIsUser = Boolean(lastMessage && lastMessage.role === 'user')
 

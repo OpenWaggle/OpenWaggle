@@ -1,37 +1,44 @@
-import { z } from 'zod'
+import { Schema } from '@shared/schema'
 import type { ConversationId } from './brand'
 
-export const questionOptionSchema = z.object({
-  label: z.string(),
-  description: z.string().optional(),
-})
+export interface QuestionOption {
+  readonly label: string
+  readonly description?: string
+}
 
-export const userQuestionSchema = z.object({
-  question: z.string(),
-  options: z.array(questionOptionSchema),
-})
-
-/** Schema for parsing askUser tool-call arguments from JSON. */
-export const askUserArgsSchema = z.object({
-  questions: z.array(userQuestionSchema),
-})
-
-export type QuestionOption = z.infer<typeof questionOptionSchema>
-export type UserQuestion = z.infer<typeof userQuestionSchema>
-
-export interface QuestionPayload {
-  conversationId: ConversationId
-  questions: UserQuestion[]
+export interface UserQuestion {
+  readonly question: string
+  readonly options: readonly QuestionOption[]
 }
 
 export interface QuestionAnswer {
-  question: string
-  selectedOption: string
+  readonly question: string
+  readonly selectedOption: string
 }
 
-const questionAnswerSchema = z.object({
-  question: z.string(),
-  selectedOption: z.string(),
+export const questionOptionSchema = Schema.Struct({
+  label: Schema.String,
+  description: Schema.optional(Schema.String),
+})
+
+export const userQuestionSchema = Schema.Struct({
+  question: Schema.String,
+  options: Schema.Array(questionOptionSchema),
+})
+
+/** Schema for parsing askUser tool-call arguments from JSON. */
+export const askUserArgsSchema = Schema.Struct({
+  questions: Schema.Array(userQuestionSchema),
+})
+
+export interface QuestionPayload {
+  conversationId: ConversationId
+  questions: readonly UserQuestion[]
+}
+
+const questionAnswerSchema = Schema.Struct({
+  question: Schema.String,
+  selectedOption: Schema.String,
 })
 
 /**
@@ -39,10 +46,10 @@ const questionAnswerSchema = z.object({
  * Handles both the `{ kind: 'json', data: { answers } }` envelope
  * and the direct `{ answers }` shape.
  */
-export const askUserResultContentSchema = z.union([
-  z.object({
-    kind: z.literal('json'),
-    data: z.object({ answers: z.array(questionAnswerSchema) }),
+export const askUserResultContentSchema = Schema.Union(
+  Schema.Struct({
+    kind: Schema.Literal('json'),
+    data: Schema.Struct({ answers: Schema.Array(questionAnswerSchema) }),
   }),
-  z.object({ answers: z.array(questionAnswerSchema) }),
-])
+  Schema.Struct({ answers: Schema.Array(questionAnswerSchema) }),
+)

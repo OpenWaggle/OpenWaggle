@@ -1,13 +1,32 @@
-import { createEnv } from '@t3-oss/env-core'
-import { z } from 'zod'
+import { decodeUnknownOrThrow, Schema, type SchemaType } from '@shared/schema'
 
-export const env = createEnv({
-  server: {
-    ELECTRON_RENDERER_URL: z.string().url().optional(),
-    OPENWAGGLE_USER_DATA_DIR: z.string().optional(),
-  },
-  runtimeEnv: process.env,
+const optionalUrlSchema = Schema.optional(
+  Schema.String.pipe(
+    Schema.filter((value) => {
+      try {
+        // URL constructor normalizes and validates the shape for us.
+        new URL(value)
+        return true
+      } catch {
+        return 'Must be a valid URL.'
+      }
+    }),
+  ),
+)
+
+const envSchema = Schema.Struct({
+  ELECTRON_RENDERER_URL: optionalUrlSchema,
+  OPENWAGGLE_USER_DATA_DIR: Schema.optional(Schema.String),
+  OPENWAGGLE_ENABLE_APPROVAL_TRACE: Schema.optional(Schema.String),
+  OPENWAGGLE_LOG_LEVEL: Schema.optional(Schema.Literal('debug', 'info', 'warn', 'error')),
 })
+
+export type Env = SchemaType<typeof envSchema>
+
+export const env: Env = decodeUnknownOrThrow(envSchema, process.env)
+
+export const approvalTraceEnabled = env.OPENWAGGLE_ENABLE_APPROVAL_TRACE === '1'
+export const logLevel = env.OPENWAGGLE_LOG_LEVEL ?? 'info'
 
 /**
  * Safe environment for child processes (e.g. runCommand tool).
@@ -26,16 +45,18 @@ export function getSafeChildEnv(): Record<string, string | undefined> {
   }
 }
 
-/**
- * Full process environment with undefined values filtered out.
- * Used by MCP stdio transports that need to inherit the parent environment.
- */
-export function getFullProcessEnv(): Record<string, string> {
+export function getDefinedEnv(
+  entries: Readonly<Record<string, string | undefined>>,
+): Record<string, string> {
   const result: Record<string, string> = {}
-  for (const [key, value] of Object.entries(process.env)) {
+  for (const [key, value] of Object.entries(entries)) {
     if (typeof value === 'string') {
       result[key] = value
     }
   }
   return result
+}
+
+export function getSafeChildEnvEntries(): Record<string, string> {
+  return getDefinedEnv(getSafeChildEnv())
 }

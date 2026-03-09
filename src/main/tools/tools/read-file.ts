@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import { BYTES_PER_KIBIBYTE } from '@shared/constants/constants'
-import { z } from 'zod'
+import { Schema } from '@shared/schema'
 import { defineOpenWaggleTool, resolveProjectPath } from '../define-tool'
 
 const MAX_FILE_SIZE = BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE // 1 MB
@@ -13,12 +13,13 @@ export const readFileTool = defineOpenWaggleTool({
   name: 'readFile',
   description:
     'Read the contents of a file at the given path relative to the project root. Returns the file content as text. Use this to understand existing code before making changes.',
-  inputSchema: z.object({
-    path: z.string().describe('File path relative to the project root'),
-    maxLines: z
-      .number()
-      .optional()
-      .describe('Maximum number of lines to read. If omitted, reads the entire file.'),
+  inputSchema: Schema.Struct({
+    path: Schema.String.annotations({ description: 'File path relative to the project root' }),
+    maxLines: Schema.optional(
+      Schema.Number.annotations({
+        description: 'Maximum number of lines to read. If omitted, reads the entire file.',
+      }),
+    ),
   }),
   async execute(args, context) {
     const filePath = resolveProjectPath(context.projectPath, args.path)

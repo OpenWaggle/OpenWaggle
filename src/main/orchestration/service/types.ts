@@ -1,10 +1,4 @@
-import type { AgentSendPayload, Message } from '@shared/types/agent'
-import type { ConversationId } from '@shared/types/brand'
-import type { Conversation } from '@shared/types/conversation'
 import type { JsonObject, JsonValue } from '@shared/types/json'
-import type { SupportedModelId } from '@shared/types/llm'
-import type { OrchestrationEventPayload } from '@shared/types/orchestration'
-import type { Settings } from '@shared/types/settings'
 import type { AnyTextAdapter, maxIterations, ServerTool, StreamChunk } from '@tanstack/ai'
 import type { isReasoningModel } from '../../agent/quality-config'
 import type {
@@ -19,27 +13,6 @@ import type { Logger } from '../../logger'
 import type { extractJson, OpenWaggleProgressPayload, runOpenWaggleOrchestration } from '../engine'
 import type { createExecutorTools, gatherProjectContext } from '../project-context'
 import type { OrchestrationRunRepository } from '../run-repository'
-
-export interface OrchestratedAgentRunParams {
-  readonly runId: string
-  readonly conversationId: ConversationId
-  readonly conversation: Conversation
-  readonly payload: AgentSendPayload
-  readonly model: SupportedModelId
-  readonly settings: Settings
-  readonly signal: AbortSignal
-  readonly emitEvent: (payload: OrchestrationEventPayload) => void
-  readonly emitChunk: (chunk: StreamChunk) => void
-  /** Pre-computed plan JSON (from the orchestrate tool). Defaults to empty tasks. */
-  readonly planJson?: JsonValue
-}
-
-export interface OrchestratedAgentRunResult {
-  readonly status: 'completed' | 'failed' | 'cancelled' | 'fallback'
-  readonly runId: string
-  readonly newMessages?: readonly Message[]
-  readonly reason?: string
-}
 
 export interface SamplingConfig {
   readonly temperature?: number

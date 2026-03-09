@@ -5,6 +5,13 @@ import { TaskId } from '@shared/types/brand'
 import type { TaskRecord } from '@shared/types/team'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { state, getPathMock } = vi.hoisted(() => ({
+  state: { userDataDir: '' },
+  getPathMock: vi.fn(() => ''),
+}))
+
+getPathMock.mockImplementation(() => state.userDataDir)
+
 // ---------------------------------------------------------------------------
 // Mock the logger to suppress output during tests
 // ---------------------------------------------------------------------------
@@ -23,10 +30,18 @@ vi.mock('../sub-agent-bridge', () => ({
   emitTeamEvent: (...args: unknown[]) => mockEmitTeamEvent(...args),
 }))
 
+vi.mock('electron', () => ({
+  app: {
+    getPath: getPathMock,
+  },
+}))
+
 // ---------------------------------------------------------------------------
 // Import module under test after mocks are in place
 // ---------------------------------------------------------------------------
 
+import { resetAppRuntimeForTests } from '../../runtime'
+import { readTeamRuntimeState, writeTeamRuntimeState } from '../../services/team-runtime-state'
 import {
   clearAllBoards,
   createTask,
@@ -46,9 +61,13 @@ import {
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 function assertTaskRecord(result: unknown): asserts result is TaskRecord {
-  const r = result as Record<string, unknown>
-  if ('kind' in r) {
-    throw new Error(`Expected TaskRecord but got discriminated union kind: ${String(r.kind)}`)
+  if (typeof result !== 'object' || result === null || Array.isArray(result)) {
+    throw new Error('Expected TaskRecord but got a non-object result')
+  }
+  if (Object.hasOwn(result, 'kind')) {
+    throw new Error(
+      `Expected TaskRecord but got discriminated union kind: ${String(Reflect.get(result, 'kind'))}`,
+    )
   }
 }
 
@@ -56,9 +75,18 @@ function assertTaskRecord(result: unknown): asserts result is TaskRecord {
 // Reset all state between tests
 // ---------------------------------------------------------------------------
 
-beforeEach(() => {
+beforeEach(async () => {
+  await resetAppRuntimeForTests()
+  state.userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'task-board-db-'))
   clearAllBoards()
   mockEmitTeamEvent.mockClear()
+})
+
+afterEach(async () => {
+  await resetAppRuntimeForTests()
+  if (state.userDataDir) {
+    await fs.rm(state.userDataDir, { recursive: true, force: true })
+  }
 })
 
 // ---------------------------------------------------------------------------
@@ -701,8 +729,8 @@ describe('persistence', () => {
 
     await persistTaskBoard(tmpDir, 'my-team')
 
-    const filePath = path.join(tmpDir, '.openwaggle', 'teams', 'my-team', 'tasks.json')
-    const raw = await fs.readFile(filePath, 'utf8')
+    const row = await readTeamRuntimeState(tmpDir, 'my-team')
+    const raw = row?.tasks_json ?? '{}'
     const data: unknown = JSON.parse(raw)
 
     expect(data).toEqual(
@@ -769,9 +797,11 @@ describe('persistence', () => {
   })
 
   it('corrupt JSON returns false', async () => {
-    const dir = path.join(tmpDir, '.openwaggle', 'teams', 'corrupt')
-    await fs.mkdir(dir, { recursive: true })
-    await fs.writeFile(path.join(dir, 'tasks.json'), '{{invalid json!!', 'utf8')
+    await writeTeamRuntimeState({
+      projectPath: tmpDir,
+      teamName: 'corrupt',
+      tasksJson: '{{invalid json!!',
+    })
 
     const result = await loadTaskBoard(tmpDir, 'corrupt')
     expect(result).toBe(false)

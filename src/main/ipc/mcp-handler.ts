@@ -1,13 +1,16 @@
+import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { McpServerId } from '@shared/types/brand'
 import type { McpServerConfig } from '@shared/types/mcp'
 import { mcpServerConfigSchema } from '@shared/types/mcp'
-import { z } from 'zod'
 import { createLogger } from '../logger'
 import { mcpManager } from '../mcp'
 import { getSettings, updateSettings } from '../store/settings'
 import { safeHandle } from './typed-ipc'
 
 const logger = createLogger('mcp-handler')
+const mcpServerConfigDraftSchema = mcpServerConfigSchema.omit('id')
+const mcpServerConfigUpdatesSchema = Schema.partial(mcpServerConfigDraftSchema)
+const nonEmptyStringSchema = Schema.String.pipe(Schema.minLength(1))
 
 export function registerMcpHandlers(): void {
   safeHandle('mcp:list-servers', () => {
@@ -31,7 +34,7 @@ export function registerMcpHandlers(): void {
 
   safeHandle('mcp:add-server', async (_event, rawConfig) => {
     try {
-      const parsed = mcpServerConfigSchema.omit({ id: true }).parse(rawConfig)
+      const parsed = decodeUnknownOrThrow(mcpServerConfigDraftSchema, rawConfig)
       const config: Omit<McpServerConfig, 'id'> = {
         name: parsed.name,
         transport: parsed.transport,
@@ -62,7 +65,7 @@ export function registerMcpHandlers(): void {
 
   safeHandle('mcp:remove-server', async (_event, rawId) => {
     try {
-      const id = z.string().min(1).parse(rawId)
+      const id = decodeUnknownOrThrow(nonEmptyStringSchema, rawId)
       const mcpId = McpServerId(id)
 
       await mcpManager.removeServer(mcpId)
@@ -84,9 +87,9 @@ export function registerMcpHandlers(): void {
 
   safeHandle('mcp:toggle-server', async (_event, rawId, enabled) => {
     try {
-      const id = z.string().min(1).parse(rawId)
+      const id = decodeUnknownOrThrow(nonEmptyStringSchema, rawId)
       const mcpId = McpServerId(id)
-      const parsedEnabled = z.boolean().parse(enabled)
+      const parsedEnabled = decodeUnknownOrThrow(Schema.Boolean, enabled)
 
       const settings = getSettings()
       const config = settings.mcpServers.find((s) => s.id === mcpId)
@@ -113,9 +116,9 @@ export function registerMcpHandlers(): void {
 
   safeHandle('mcp:update-server', async (_event, rawId, rawUpdates) => {
     try {
-      const id = z.string().min(1).parse(rawId)
+      const id = decodeUnknownOrThrow(nonEmptyStringSchema, rawId)
       const mcpId = McpServerId(id)
-      const updates = mcpServerConfigSchema.omit({ id: true }).partial().parse(rawUpdates)
+      const updates = decodeUnknownOrThrow(mcpServerConfigUpdatesSchema, rawUpdates)
 
       const settings = getSettings()
       const existing = settings.mcpServers.find((s) => s.id === mcpId)

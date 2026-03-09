@@ -1,7 +1,7 @@
 import type { ConversationId } from '@shared/types/brand'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import type { UIMessage } from '@tanstack/ai-react'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useComposerStore } from '@/stores/composer-store'
@@ -125,6 +125,31 @@ describe('ChatPanel', () => {
   it('shows welcome screen when no messages', () => {
     renderPanel()
     expect(screen.getByText("Let's build")).toBeInTheDocument()
+  })
+
+  it('opens the folder picker directly from the empty-state CTA', () => {
+    const onOpenProject = vi.fn().mockResolvedValue(undefined)
+    renderPanel({
+      projectPath: null,
+      recentProjects: ['/test/other-project'],
+      onOpenProject,
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /select a project folder to get started/i }))
+
+    expect(onOpenProject).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText('Select folder…')).toBeNull()
+  })
+
+  it('keeps the active-project menu available when a project is already selected', () => {
+    renderPanel({
+      recentProjects: ['/test/other-project'],
+    })
+
+    fireEvent.click(screen.getByTitle('Open project picker'))
+
+    expect(screen.getByText('Select folder…')).toBeInTheDocument()
+    expect(screen.getByText('Recent projects')).toBeInTheDocument()
   })
 
   it('shows thinking phase indicator when loading with no assistant message', () => {

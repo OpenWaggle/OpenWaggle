@@ -1,3 +1,4 @@
+import { safeDecodeUnknown } from '@shared/schema'
 import { jsonObjectSchema } from '@shared/schemas/validation'
 import type { Conversation } from '@shared/types/conversation'
 import type { JsonObject } from '@shared/types/json'
@@ -15,8 +16,51 @@ export interface PersistedToolCallLookup {
   readonly all: readonly ToolCallRequest[]
 }
 
+const TOOL_CALL_SCORE_HAS_STATE = 1
+const TOOL_CALL_SCORE_APPROVAL_REQUESTED = 2
+const TOOL_CALL_SCORE_HAS_ARGS = 4
+const TOOL_CALL_SCORE_HAS_APPROVAL = 8
+const TOOL_CALL_SCORE_HAS_APPROVAL_DECISION = 16
+
 function getToolCallSignature(name: string, argumentsJson: string): string {
   return `${name}::${argumentsJson}`
+}
+
+function hasNonEmptyArgs(args: Readonly<JsonObject>): boolean {
+  return Object.keys(args).length > 0
+}
+
+function getToolCallScore(toolCall: ToolCallRequest): number {
+  let score = 0
+
+  if (toolCall.state !== undefined) {
+    score += TOOL_CALL_SCORE_HAS_STATE
+  }
+  if (toolCall.state === 'approval-requested' || toolCall.state === 'approval-responded') {
+    score += TOOL_CALL_SCORE_APPROVAL_REQUESTED
+  }
+  if (hasNonEmptyArgs(toolCall.args)) {
+    score += TOOL_CALL_SCORE_HAS_ARGS
+  }
+  if (toolCall.approval?.needsApproval === true) {
+    score += TOOL_CALL_SCORE_HAS_APPROVAL
+  }
+  if (toolCall.approval?.approved !== undefined) {
+    score += TOOL_CALL_SCORE_HAS_APPROVAL_DECISION
+  }
+
+  return score
+}
+
+function shouldPreferToolCall(
+  current: ToolCallRequest | undefined,
+  next: ToolCallRequest,
+): boolean {
+  if (!current) {
+    return true
+  }
+
+  return getToolCallScore(next) > getToolCallScore(current)
 }
 
 function looksLikeCompleteJsonObject(argumentsJson: string): boolean {
@@ -31,12 +75,12 @@ function parseArgumentsString(argumentsJson: string): JsonObject | null {
 
   try {
     const parsed: unknown = JSON.parse(argumentsJson)
-    const result = jsonObjectSchema.safeParse(parsed)
+    const result = safeDecodeUnknown(jsonObjectSchema, parsed)
     if (result.success) {
       return result.data
     }
     logger.warn('Failed to validate persisted tool-call arguments', {
-      issues: result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`),
+      issues: result.issues,
     })
   } catch (error) {
     logger.warn('Failed to parse persisted tool-call arguments', {
@@ -120,6 +164,19 @@ function chooseToolCallApproval(
   }
 }
 
+function chooseToolCallArguments(uiArguments: string, persistedArgs: Readonly<JsonObject>): string {
+  if (!hasNonEmptyArgs(persistedArgs) || hasNonEmptyParsedArguments(uiArguments)) {
+    return uiArguments
+  }
+
+  return JSON.stringify(persistedArgs)
+}
+
+function hasNonEmptyParsedArguments(argumentsJson: string): boolean {
+  const parsed = parseArgumentsString(argumentsJson)
+  return parsed !== null && Object.keys(parsed).length > 0
+}
+
 export function buildPersistedToolCallLookup(
   conversation: Conversation | null | undefined,
 ): PersistedToolCallLookup {
@@ -136,11 +193,18 @@ export function buildPersistedToolCallLookup(
         continue
       }
 
-      toolCallsById.set(String(part.toolCall.id), part.toolCall)
-      toolCallsBySignature.set(
-        getToolCallSignature(part.toolCall.name, JSON.stringify(part.toolCall.args)),
-        part.toolCall,
+      const toolCallId = String(part.toolCall.id)
+      const toolCallSignature = getToolCallSignature(
+        part.toolCall.name,
+        JSON.stringify(part.toolCall.args),
       )
+
+      if (shouldPreferToolCall(toolCallsById.get(toolCallId), part.toolCall)) {
+        toolCallsById.set(toolCallId, part.toolCall)
+      }
+      if (shouldPreferToolCall(toolCallsBySignature.get(toolCallSignature), part.toolCall)) {
+        toolCallsBySignature.set(toolCallSignature, part.toolCall)
+      }
       allToolCalls.push(part.toolCall)
     }
   }
@@ -188,12 +252,18 @@ export function restorePersistedToolCallPart(
 
   const nextState = chooseToolCallState(part.state, persistedToolCall.state)
   const nextApproval = chooseToolCallApproval(part.approval, persistedToolCall.approval)
-  if (nextState === part.state && nextApproval === part.approval) {
+  const nextArguments = chooseToolCallArguments(part.arguments, persistedToolCall.args)
+  if (
+    nextState === part.state &&
+    nextApproval === part.approval &&
+    nextArguments === part.arguments
+  ) {
     return part
   }
 
   return {
     ...part,
+    arguments: nextArguments,
     state: nextState,
     approval: nextApproval,
   }

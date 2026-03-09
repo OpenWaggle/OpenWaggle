@@ -1,4 +1,5 @@
 import { SECONDS_PER_MINUTE, TRIPLE_FACTOR } from '@shared/constants/constants'
+import { safeDecodeUnknown } from '@shared/schema'
 import { waggleConfigSchema } from '@shared/schemas/waggle'
 import type { AgentSendPayload } from '@shared/types/agent'
 import { isTextPart } from '@shared/types/agent'
@@ -38,7 +39,7 @@ export function registerWaggleHandlers(): void {
       config: WaggleConfig,
     ) => {
       // Validate config at IPC boundary
-      const parseResult = waggleConfigSchema.safeParse(config)
+      const parseResult = safeDecodeUnknown(waggleConfigSchema, config)
       if (!parseResult.success) {
         emitStreamChunk(conversationId, {
           type: 'RUN_ERROR',

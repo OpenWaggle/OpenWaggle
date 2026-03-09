@@ -1,4 +1,5 @@
 import { BYTES_PER_KIBIBYTE, TRIPLE_FACTOR } from '@shared/constants/constants'
+import { decodeUnknownOrThrow } from '@shared/schema'
 import type {
   GitChangedFile,
   GitFileDiff,
@@ -300,7 +301,7 @@ async function getGitDiff(projectPath: string): Promise<GitFileDiff[]> {
 
 export function registerGitStatusHandlers(): void {
   safeHandle('git:status', async (_event, rawPath: unknown) => {
-    const projectPath = projectPathSchema.parse(rawPath)
+    const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
     const cached = statusCache.get(projectPath)
     if (cached && Date.now() - cached.timestamp < GIT_STATUS_CACHE_TTL) {
       return cached.result
@@ -311,7 +312,7 @@ export function registerGitStatusHandlers(): void {
   })
 
   safeHandle('git:diff', async (_event, rawPath: unknown) => {
-    const projectPath = projectPathSchema.parse(rawPath)
+    const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
     return getGitDiff(projectPath)
   })
 }

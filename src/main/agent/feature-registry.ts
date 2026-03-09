@@ -1,3 +1,4 @@
+import { safeDecodeUnknown } from '@shared/schema'
 import { jsonObjectSchema } from '@shared/schemas/validation'
 import type { AgentToolFilter } from '@shared/types/sub-agent'
 import type { ServerTool } from '@tanstack/ai'
@@ -133,10 +134,11 @@ function summarizeToolError(result: string | undefined): string | undefined {
       return parsed.slice(0, SLICE_ARG_2)
     }
     if (typeof parsed === 'object' && parsed !== null) {
-      const result = jsonObjectSchema.safeParse(parsed)
+      const result = safeDecodeUnknown(jsonObjectSchema, parsed)
       if (!result.success) {
         logger.debug('tool-error-parse-mismatch', {
           preview: String(parsed).slice(0, SLICE_ARG_2_VALUE_200),
+          issues: result.issues,
         })
         return undefined
       }

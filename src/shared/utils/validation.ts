@@ -10,7 +10,13 @@
  * type predicate return, which narrows `value` from `string` to `T`.
  */
 export function includes<T extends string>(arr: readonly T[], value: string): value is T {
-  return (arr as readonly string[]).includes(value)
+  for (const item of arr) {
+    if (item === value) {
+      return true
+    }
+  }
+
+  return false
 }
 
 /**

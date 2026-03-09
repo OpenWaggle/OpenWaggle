@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
+import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { shell } from 'electron'
-import { z } from 'zod'
 import { createLogger } from '../../logger'
 import { createCallbackServer } from '../oauth-callback-server'
 import { generateCodeChallenge, generateCodeVerifier } from '../pkce'
@@ -9,8 +9,8 @@ const RANDOM_BYTES_ARG_1 = 16
 
 const logger = createLogger('openrouter-oauth')
 
-const keyResponseSchema = z.object({
-  key: z.string(),
+const keyResponseSchema = Schema.Struct({
+  key: Schema.String,
 })
 
 interface OpenRouterOAuthResult {
@@ -59,7 +59,7 @@ export async function startOpenRouterOAuth(): Promise<OpenRouterOAuthResult> {
     }
 
     const raw: unknown = await response.json()
-    const parsed = keyResponseSchema.safeParse(raw)
+    const parsed = safeDecodeUnknown(keyResponseSchema, raw)
     if (!parsed.success) {
       throw new Error('Unexpected response from OpenRouter token exchange')
     }

@@ -2,7 +2,7 @@
 name: project-learnings
 description: Technical learnings log for OpenWaggle. Stores warnings, pattern preferences, and historical engineering learnings; workflow policy lives in AGENTS.md and CLAUDE.md.
 owner: openwaggle-core
-last_updated: 2026-03-06
+last_updated: 2026-03-09
 ---
 
 # LEARNINGS.md
@@ -19,6 +19,28 @@ This document stores project-specific technical learnings only.
 - Do not add routine project-management notes unless they materially affect implementation behavior.
 
 ## 3) Recent Learnings
+
+### Task: Post-Migration Approval Flow Latency + Log Spam Hardening (2026-03-09)
+- Approval-trace diagnostics must stay fully opt-in and outside chunk hot paths. Logging every `TOOL_CALL_ARGS` / streamed text chunk in either the main process or renderer IPC adapter materially slows approval continuations and floods Electron console output.
+- Large `writeFile` / `editFile` tool results should not inline full before/after file bodies once the payload gets beyond a small threshold. Compact JSON summaries preserve the useful metadata for the UI while avoiding multi-kilobyte tool results that can degrade continuation latency and leak raw function-result payloads back into model responses. [SKILL?]
+- Duplicate pending approvals must be scoped to the current user turn. When TanStack continuation replay re-proposes a side-effecting tool call with the same args in the same turn, the safe behavior is to auto-skip it rather than auto-approve it again; matching tool calls from earlier user turns are legitimate new work and must not be collapsed. [SKILL?]
+- `react-virtuoso` `followOutput=\"smooth\"` during token streaming makes chat feel visibly clanky because every incremental height change becomes an animated scroll step. For streaming transcripts, use immediate follow while loading and reserve smooth scrolling for non-streaming append cases. [SKILL?]
+- Renderer cache layers only help when upstream lookup hooks preserve referential identity. A manual ref-based cache on transcript rows was effectively inert until `useMessageModelLookup` and `useWaggleMetadataLookup` stopped returning fresh objects on unchanged inputs.
+- MCP stdio transports must use the same safe child-environment allowlist as command execution. Forwarding the full parent `process.env` leaks provider API keys and OAuth tokens to arbitrary configured MCP subprocesses. [SKILL?]
+
+### Task: Post-Migration E2E Harness Stabilization (2026-03-09)
+- Electron E2E readiness checks should anchor on stable shell controls such as the sidebar `New thread` button, not empty-state marketing copy like `Let's build`. Once persisted SQLite data exists, the app can legitimately open straight into an existing thread, and copy-based readiness probes become false negatives even when the shell is fully loaded.
+
+### Task: Post-Migration First-Send Regression Hardening (2026-03-09)
+- First-send UX in OpenWaggle depends on main-process persistence of the user turn even when the run fails before assistant output (for example missing project path, unknown model, or early provider/setup failure). Forcing project selection in the renderer regressed existing flows like starter prompts and long-paste auto-attachments; the correct fix is to keep the renderer send path simple and persist the user message in the main `agent:send-message` failure path.
+
+### Task: Electron Session Data Startup Fix (2026-03-09)
+- Chromium session services in Electron 40 can still emit `Failed to initialize the DIPS SQLite database` even when `userData` and `sessionData` are prepared early. In this app, a stale `session-data/DIPS*` database was the real trigger; the clean fix is a versioned one-time profile repair before the first `BrowserWindow`, not deleting Chromium DIPS files on every launch. [SKILL?]
+
+### Task: Effect-TS Adoption with SQLite Runtime (2026-03-09)
+- With pnpm + Electron 40, `electron-builder install-app-deps` can still leave `better-sqlite3` loading a Node-ABI binary at runtime. The reliable fix was an explicit Electron-target rebuild of `better-sqlite3` using `npm_config_runtime=electron`, `npm_config_target=<installed electron version>`, and `npm_config_disturl=https://electronjs.org/headers`, while keeping a separate plain `pnpm rebuild better-sqlite3` path for Node-based Vitest runs. [SKILL?]
+- Playwright Electron E2E helpers should not forward the entire parent `process.env` into the app. Passing through runner-specific Node/Playwright environment can make Electron exit before the first window is available; a small allowlist of stable shell/user env vars plus explicit test overrides is much safer.
+- At the TanStack server-tool boundary, explicit per-run `ToolContext` binding is cleaner than an ambient context service. It keeps Effect in control of the agent runtime while matching TanStack's tool execution model without hidden global state or casts.
 
 ### Task: Push-Gate Test Stabilization (2026-03-09)
 - Renderer hook tests that mock Zustand selectors must return stable function identities for function-valued slices (for example `hasActiveRun`). Returning a new function on every render can retrigger effects that depend on that selector result and create misleading infinite rerender/OOM failures that never happen with the real store.

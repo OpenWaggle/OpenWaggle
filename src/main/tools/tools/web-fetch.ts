@@ -1,5 +1,5 @@
 import { BYTES_PER_KIBIBYTE } from '@shared/constants/constants'
-import { z } from 'zod'
+import { Schema } from '@shared/schema'
 import { readBodyWithLimit, stripHtml } from '../../utils/http'
 import { defineOpenWaggleTool } from '../define-tool'
 
@@ -14,12 +14,15 @@ export const webFetchTool = defineOpenWaggleTool({
   description:
     'Fetch the content of a URL and return it as text. HTML is stripped to plain text. Useful for quick web lookups without starting a full browser.',
   needsApproval: true,
-  inputSchema: z.object({
-    url: z.string().describe('The URL to fetch (must be a valid http/https URL)'),
-    maxLength: z
-      .number()
-      .optional()
-      .describe('Maximum character length of the returned text (default 50000)'),
+  inputSchema: Schema.Struct({
+    url: Schema.String.annotations({
+      description: 'The URL to fetch (must be a valid http/https URL)',
+    }),
+    maxLength: Schema.optional(
+      Schema.Number.annotations({
+        description: 'Maximum character length of the returned text (default 50000)',
+      }),
+    ),
   }),
   async execute(args, context) {
     const maxLength = args.maxLength ?? DEFAULT_MAX_LENGTH

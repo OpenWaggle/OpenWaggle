@@ -28,11 +28,10 @@ Apply a memory-safe contract across Electron process boundaries:
 - Re-validate file size and existence during hydration.
 - Fail fast with a user-visible error if attachments are no longer readable.
 
-4. Optimize conversation listing with summary indexing.
-- Store conversation summaries in an index file (for example `conversations/index.json`).
-- Read index first for list views.
-- Fall back to full scan only when missing or corrupt, then rebuild index.
-- Keep index synced on create/save/delete updates.
+4. Optimize conversation listing with lightweight summaries.
+- Read conversation summaries from the SQLite-backed summary/query path instead of hydrating full message history.
+- Keep message parts and attachment payload metadata normalized so list views do not need transcript reconstruction.
+- Rebuild any derived summary state from the canonical SQLite tables, not from ad hoc JSON sidecars.
 
 5. Verify and guard.
 - Run `pnpm typecheck` and `pnpm lint`.
@@ -41,6 +40,6 @@ Apply a memory-safe contract across Electron process boundaries:
 
 ## Guardrails
 
-- Do not persist binary attachment data in conversation JSON.
+- Do not persist binary attachment data in long-lived conversation storage.
 - Do not widen IPC payload types with `any`; use shared discriminated types.
-- Do not parse full conversation histories for list-only views unless index recovery is required.
+- Do not parse full conversation histories for list-only views unless summary recovery is explicitly required.

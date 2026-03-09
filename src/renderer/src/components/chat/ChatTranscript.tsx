@@ -17,6 +17,13 @@ interface ChatTranscriptProps {
   readonly section: ChatTranscriptSectionState
 }
 
+function resolveFollowOutput(isAtBottom: boolean, isLoading: boolean): 'auto' | 'smooth' | false {
+  if (!isAtBottom) {
+    return false
+  }
+  return isLoading ? 'auto' : 'smooth'
+}
+
 function ChatScroller(props: React.ComponentPropsWithRef<'div'>): React.JSX.Element {
   const scrollTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
 
@@ -111,7 +118,7 @@ export function ChatTranscript({ section }: ChatTranscriptProps): React.JSX.Elem
       <Virtuoso
         key={activeConversationId ?? 'empty'}
         data={virtualRows}
-        followOutput="smooth"
+        followOutput={(isAtBottom) => resolveFollowOutput(isAtBottom, isLoading)}
         initialTopMostItemIndex={Math.max(0, virtualRows.length - 1)}
         overscan={OVERSCAN}
         className="flex-1"

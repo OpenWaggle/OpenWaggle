@@ -181,7 +181,7 @@ export async function runSubAgent(params: RunSubAgentParams): Promise<SubAgentRe
       // Prepare the payload
       const augmentedPrompt = [systemPromptSnippet, '', '---', '', input.prompt].join('\n')
 
-      // Lazy import to avoid circular dependency and electron-store init
+      // Lazy import to avoid circular dependency during sub-agent startup.
       const { getSettings } = await import('../store/settings')
       const settings = getSettings()
 

@@ -88,7 +88,7 @@ Full PTY terminal emulation powered by xterm.js. Toggle with `Ctrl+J` / `Cmd+J`.
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) 20+
+- [Node.js](https://nodejs.org/) 24.x
 - [pnpm](https://pnpm.io/) 9+
 
 ### Install and run
@@ -118,7 +118,7 @@ pnpm dev
 | OpenRouter | API key | No | No |
 | Ollama | None | Yes (default: localhost:11434) | No |
 
-API keys are stored locally via `electron-store` in your OS config directory. They never leave your machine.
+API keys and app settings are stored locally in OpenWaggle's SQLite app database in your OS config directory. They never leave your machine.
 
 ## Using OpenWaggle
 
@@ -173,7 +173,7 @@ temperature = 0.7
 max_tokens = 8000
 ```
 
-See [docs/configuration.md](docs/configuration.md) for the full reference, default values, and parameter ranges.
+See [docs/user-guide/configuration.md](docs/user-guide/configuration.md) for the full reference, default values, and parameter ranges.
 
 ## Development
 
@@ -197,7 +197,9 @@ src/
 | Renderer | React 19, Zustand, Tailwind CSS v4 |
 | AI Integration | TanStack AI (chat adapter per provider) |
 | Language | TypeScript (strict, no `any`) |
-| Validation | Zod v4 |
+| Validation | Effect Schema |
+| Main Runtime | Effect |
+| Persistence | SQLite + project-local TOML |
 | Bundler | Vite + Rollup |
 | Linter | Biome |
 | Testing | Vitest + Testing Library + Playwright |
@@ -207,6 +209,8 @@ src/
 ```bash
 pnpm dev              # Start in dev mode (hot-reloads renderer)
 pnpm build            # Production build
+pnpm prepare:native:node      # Rebuild native modules for Node-based tests
+pnpm prepare:native:electron  # Rebuild native modules for Electron runs
 pnpm typecheck        # Full type check (main + renderer)
 pnpm lint             # Biome lint check
 pnpm lint:fix         # Lint + auto-fix
@@ -255,18 +259,21 @@ pnpm build:linux      # Linux AppImage
 
 ### Provider Registry
 
-A singleton `ProviderRegistry` manages 6 providers. Each implements `ProviderDefinition` with a model list, adapter factory, and capability flags. The registry resolves any model ID to its provider at runtime and creates the appropriate chat adapter.
+The provider registry is exposed through an Effect service layer in main. Provider definitions remain dynamic and each provider still owns its TanStack adapter factory.
 
 ### Agent Loop
 
-The agent loop in `src/main/agent/agent-loop.ts` uses TanStack AI's `chat()` with dynamic provider resolution:
+The agent loop in `src/main/agent/agent-loop.ts` keeps TanStack AI as the chat/tool engine, but now runs inside Effect-owned control flow:
 
-1. Converts messages to the provider-neutral format
-2. Resolves the provider via the registry
-3. Streams the response, translating AG-UI events into the app's `AgentStreamEvent` union
-4. Emits events over IPC to all renderer windows
+1. Resolves provider and quality settings
+2. Binds built-in tools to an explicit per-run `ToolContext`
+3. Starts the TanStack stream
+4. Handles stall waiting, retry delay scheduling, and cancellation through Effect
+5. Emits AG-UI-derived events over IPC to all renderer windows
 
-Tools execute inline during the stream — results arrive via `TOOL_CALL_END` events.
+Tools still execute inline during the stream, and results still arrive via `TOOL_CALL_END` events.
+
+See [docs/architecture.md](docs/architecture.md) for the full runtime layout and T3Code alignment notes.
 
 ---
 

@@ -1,4 +1,5 @@
 import { MILLISECONDS_PER_SECOND } from '@shared/constants/constants'
+import { safeDecodeUnknown } from '@shared/schema'
 import { taskToolProgressSchema } from '@shared/schemas/validation'
 import type { OrchestrationProgressPayload } from '../engine'
 import type { PlannedTask } from './planner'
@@ -34,7 +35,7 @@ export class TaskProgressTracker {
   }
 
   onTaskProgress(taskId: string, payload: OrchestrationProgressPayload): string | null {
-    const progressResult = taskToolProgressSchema.safeParse(payload)
+    const progressResult = safeDecodeUnknown(taskToolProgressSchema, payload)
     if (!progressResult.success || progressResult.data.type !== 'tool_end') {
       return null
     }

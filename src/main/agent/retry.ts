@@ -20,9 +20,13 @@ const DEFAULT_OPTIONS: RetryOptions = { maxAttempts: MAX_ATTEMPTS, delayMs: DELA
  * Extract a numeric HTTP status from an error, if available.
  * Provider SDKs typically expose `status` on their error objects.
  */
+function hasNumericStatus(error: Error): error is Error & { readonly status: number } {
+  return 'status' in error && typeof Reflect.get(error, 'status') === 'number'
+}
+
 function getErrorStatus(error: Error): number | undefined {
-  if ('status' in error && typeof (error as { status: unknown }).status === 'number') {
-    return (error as { status: number }).status
+  if (hasNumericStatus(error)) {
+    return error.status
   }
   return undefined
 }

@@ -1,115 +1,132 @@
 import { randomUUID } from 'node:crypto'
-import fs from 'node:fs'
-import fsPromises from 'node:fs/promises'
-import path from 'node:path'
-import { jsonObjectSchema } from '@shared/schemas/validation'
+import * as SqlClient from '@effect/sql/SqlClient'
+import { Schema, type SchemaType, safeDecodeUnknown } from '@shared/schema'
+import { waggleConfigSchema, waggleMetadataSchema } from '@shared/schemas/waggle'
 import type { MessagePart } from '@shared/types/agent'
 import { ConversationId, MessageId, SupportedModelId, ToolCallId } from '@shared/types/brand'
 import type { Conversation, ConversationSummary } from '@shared/types/conversation'
+import type { JsonValue } from '@shared/types/json'
 import { DEFAULT_ANTHROPIC_MODEL, DEFAULT_OPENAI_MODEL } from '@shared/types/settings'
+import type { WaggleConfig } from '@shared/types/waggle'
 import { chooseBy } from '@shared/utils/decision'
-import { isEnoent } from '@shared/utils/node-error'
-import { app } from 'electron'
-import { z } from 'zod'
+import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
 import { providerRegistry } from '../providers'
-import { AsyncMutex } from '../utils/async-mutex'
-import { atomicWriteJSON } from '../utils/atomic-write'
+import { runAppEffect } from '../runtime'
 
 const logger = createLogger('conversations')
 
-// ── Zod schemas for validating persisted conversations ──────────────────────
+const INITIAL_POSITION = 0
 
-const toolCallRequestSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  args: jsonObjectSchema,
-  state: z.enum(['input-complete', 'approval-requested', 'approval-responded']).optional(),
-  approval: z
-    .object({
-      id: z.string(),
-      needsApproval: z.boolean(),
-      approved: z.boolean().optional(),
-    })
-    .optional(),
+interface ConversationRow {
+  readonly id: string
+  readonly title: string
+  readonly model: string | null
+  readonly project_path: string | null
+  readonly archived: number
+  readonly waggle_config_json: string | null
+  readonly created_at: number
+  readonly updated_at: number
+}
+
+interface ConversationSummaryRow {
+  readonly id: string
+  readonly title: string
+  readonly project_path: string | null
+  readonly archived: number
+  readonly created_at: number
+  readonly updated_at: number
+  readonly message_count: number
+}
+
+interface ConversationMessageRow {
+  readonly id: string
+  readonly role: 'user' | 'assistant'
+  readonly model: string | null
+  readonly metadata_json: string | null
+  readonly created_at: number
+  readonly position: number
+}
+
+interface ConversationMessagePartRow {
+  readonly message_id: string
+  readonly part_type: string
+  readonly content_json: string
+  readonly position: number
+}
+
+// ── Validation schemas ─────────────────────────────────────────────
+
+const conversationJsonValueSchema: Schema.Schema<JsonValue> = Schema.suspend(() =>
+  Schema.Union(
+    Schema.String,
+    Schema.Number,
+    Schema.Boolean,
+    Schema.Null,
+    Schema.mutable(Schema.Array(conversationJsonValueSchema)),
+    Schema.mutable(Schema.Record({ key: Schema.String, value: conversationJsonValueSchema })),
+  ),
+)
+
+const conversationJsonObjectSchema = Schema.mutable(
+  Schema.Record({ key: Schema.String, value: conversationJsonValueSchema }),
+)
+
+const toolCallRequestSchema = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  args: conversationJsonObjectSchema,
+  state: Schema.optional(
+    Schema.Literal('input-complete', 'approval-requested', 'approval-responded'),
+  ),
+  approval: Schema.optional(
+    Schema.Struct({
+      id: Schema.String,
+      needsApproval: Schema.Boolean,
+      approved: Schema.optional(Schema.Boolean),
+    }),
+  ),
 })
 
-const toolCallResultSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  args: jsonObjectSchema,
-  result: z.string(),
-  isError: z.boolean(),
-  duration: z.number(),
+const toolCallResultSchema = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  args: conversationJsonObjectSchema,
+  result: Schema.String,
+  isError: Schema.Boolean,
+  duration: Schema.Number,
 })
 
-const messagePartSchema = z.union([
-  z.object({ type: z.literal('text'), text: z.string() }),
-  z.object({ type: z.literal('reasoning'), text: z.string() }),
-  // Backward compatibility: legacy persisted conversations stored reasoning as `thinking`.
-  z.object({ type: z.literal('thinking'), text: z.string() }),
-  z.object({
-    type: z.literal('attachment'),
-    attachment: z.object({
-      id: z.string(),
-      kind: z.enum(['text', 'image', 'pdf']),
-      origin: z.enum(['user-file', 'auto-paste-text']).optional(),
-      name: z.string(),
-      path: z.string(),
-      mimeType: z.string(),
-      sizeBytes: z.number(),
-      extractedText: z.string(),
+const messagePartSchema = Schema.Union(
+  Schema.Struct({ type: Schema.Literal('text'), text: Schema.String }),
+  Schema.Struct({ type: Schema.Literal('reasoning'), text: Schema.String }),
+  Schema.Struct({ type: Schema.Literal('thinking'), text: Schema.String }),
+  Schema.Struct({
+    type: Schema.Literal('attachment'),
+    attachment: Schema.Struct({
+      id: Schema.String,
+      kind: Schema.Literal('text', 'image', 'pdf'),
+      origin: Schema.optional(Schema.Literal('user-file', 'auto-paste-text')),
+      name: Schema.String,
+      path: Schema.String,
+      mimeType: Schema.String,
+      sizeBytes: Schema.Number,
+      extractedText: Schema.String,
     }),
   }),
-  z.object({ type: z.literal('tool-call'), toolCall: toolCallRequestSchema }),
-  z.object({ type: z.literal('tool-result'), toolResult: toolCallResultSchema }),
-])
+  Schema.Struct({ type: Schema.Literal('tool-call'), toolCall: toolCallRequestSchema }),
+  Schema.Struct({ type: Schema.Literal('tool-result'), toolResult: toolCallResultSchema }),
+)
 
-import { waggleConfigSchema, waggleMetadataSchema } from '@shared/schemas/waggle'
-
-const messageSchema = z.object({
-  id: z.string(),
-  role: z.enum(['user', 'assistant']),
-  parts: z.array(messagePartSchema),
-  model: z.string().optional(),
-  metadata: z
-    .object({
-      orchestrationRunId: z.string().optional(),
-      usedFallback: z.boolean().optional(),
-      waggle: waggleMetadataSchema.optional(),
-    })
-    .optional(),
-  createdAt: z.number(),
+const messageMetadataSchema = Schema.Struct({
+  orchestrationRunId: Schema.optional(Schema.String),
+  usedFallback: Schema.optional(Schema.Boolean),
+  waggle: Schema.optional(waggleMetadataSchema),
 })
 
-const conversationSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  model: z.string().optional(),
-  projectPath: z.string().nullable(),
-  messages: z.array(messageSchema),
-  waggleConfig: waggleConfigSchema.optional(),
-  archived: z.boolean().optional(),
-  createdAt: z.number(),
-  updatedAt: z.number(),
-})
+type ParsedPart = SchemaType<typeof messagePartSchema>
 
-const conversationSummarySchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  projectPath: z.string().nullable(),
-  messageCount: z.number().int().nonnegative(),
-  archived: z.boolean().optional(),
-  createdAt: z.number(),
-  updatedAt: z.number(),
-})
-
-const conversationIndexSchema = z.object({
-  version: z.literal(1),
-  conversations: z.array(conversationSummarySchema),
-})
-
-// ── Backward-compatible model ID migration ─────────────────────────────────
+// ── Backward-compatible model ID migration ────────────────────────
 
 /** Maps old model IDs to their current equivalents. Only includes actual renames. */
 const LEGACY_MODEL_MAP: Record<string, SupportedModelId> = {
@@ -122,16 +139,51 @@ function migrateModelId(raw: string): SupportedModelId {
   if (providerRegistry.isKnownModel(raw)) return SupportedModelId(raw)
   const mapped = LEGACY_MODEL_MAP[raw]
   if (mapped) return mapped
-  // Preserve provider when falling back
   if (/^(gpt-|o1-|o3-|o4-)/.test(raw)) return DEFAULT_OPENAI_MODEL
   return DEFAULT_ANTHROPIC_MODEL
 }
 
-// ── Transform validated data into branded types ─────────────────────────────
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
 
-type ParsedPart = z.infer<typeof messagePartSchema>
-type ParsedMessage = z.infer<typeof messageSchema>
-type ParsedConversationSummary = z.infer<typeof conversationSummarySchema>
+function parseJsonValue(raw: string | null): unknown {
+  if (raw === null) return undefined
+  return JSON.parse(raw)
+}
+
+function isObjectRecord(value: unknown): value is { [key: string]: unknown } {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function hydrateWaggleConfig(raw: unknown): WaggleConfig | undefined {
+  if (raw === undefined) {
+    return undefined
+  }
+
+  const parsed = safeDecodeUnknown(waggleConfigSchema, raw)
+  if (!parsed.success) {
+    return undefined
+  }
+
+  return {
+    ...parsed.data,
+    agents: [
+      {
+        ...parsed.data.agents[0],
+        model: SupportedModelId(parsed.data.agents[0].model),
+      },
+      {
+        ...parsed.data.agents[1],
+        model: SupportedModelId(parsed.data.agents[1].model),
+      },
+    ],
+  }
+}
+
+function partRowId(messageId: string, position: number): string {
+  return `${messageId}:part:${String(position)}`
+}
 
 function transformPart(part: ParsedPart): MessagePart {
   return chooseBy(part, 'type')
@@ -175,324 +227,275 @@ function transformPart(part: ParsedPart): MessagePart {
     .assertComplete()
 }
 
-/**
- * Parse raw JSON into a Conversation, validating structure at the boundary.
- * Returns null if the data is malformed.
- */
-function parseConversation(raw: string): Conversation | null {
-  const json: unknown = JSON.parse(raw)
-  const result = conversationSchema.safeParse(json)
-  if (!result.success) {
-    logger.warn('Conversation validation failed', {
-      issues: result.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`),
+function serializePart(part: MessagePart): { partType: string; contentJson: string } {
+  return chooseBy(part, 'type')
+    .case('text', (value) => ({
+      partType: value.type,
+      contentJson: JSON.stringify({ text: value.text }),
+    }))
+    .case('reasoning', (value) => ({
+      partType: value.type,
+      contentJson: JSON.stringify({ text: value.text }),
+    }))
+    .case('attachment', (value) => ({
+      partType: value.type,
+      contentJson: JSON.stringify({ attachment: value.attachment }),
+    }))
+    .case('tool-call', (value) => ({
+      partType: value.type,
+      contentJson: JSON.stringify({
+        toolCall: {
+          ...value.toolCall,
+          id: String(value.toolCall.id),
+        },
+      }),
+    }))
+    .case('tool-result', (value) => ({
+      partType: value.type,
+      contentJson: JSON.stringify({
+        toolResult: {
+          ...value.toolResult,
+          id: String(value.toolResult.id),
+        },
+      }),
+    }))
+    .assertComplete()
+}
+
+function hydrateConversationSummary(row: ConversationSummaryRow): ConversationSummary {
+  return {
+    id: ConversationId(row.id),
+    title: row.title,
+    projectPath: row.project_path,
+    messageCount: row.message_count,
+    archived: row.archived === 1 ? true : undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+function groupPartsByMessage(
+  rows: readonly ConversationMessagePartRow[],
+): Map<string, ConversationMessagePartRow[]> {
+  const grouped = new Map<string, ConversationMessagePartRow[]>()
+  for (const row of rows) {
+    const existing = grouped.get(row.message_id)
+    if (existing) {
+      existing.push(row)
+    } else {
+      grouped.set(row.message_id, [row])
+    }
+  }
+  return grouped
+}
+
+function hydrateConversation(
+  row: ConversationRow,
+  messageRows: readonly ConversationMessageRow[],
+  partRows: readonly ConversationMessagePartRow[],
+): Conversation | null {
+  try {
+    const groupedParts = groupPartsByMessage(partRows)
+    const legacyConversationModel = row.model ? migrateModelId(row.model) : undefined
+    const waggleConfig = hydrateWaggleConfig(parseJsonValue(row.waggle_config_json))
+
+    const messages = messageRows.map((messageRow) => {
+      const parsedMetadata = safeDecodeUnknown(
+        messageMetadataSchema,
+        parseJsonValue(messageRow.metadata_json),
+      )
+      const partsForMessage = (groupedParts.get(messageRow.id) ?? [])
+        .slice()
+        .sort((left, right) => left.position - right.position)
+        .map((partRow) => {
+          const content = parseJsonValue(partRow.content_json)
+          const parsed = safeDecodeUnknown(messagePartSchema, {
+            type: partRow.part_type,
+            ...(isObjectRecord(content) ? content : {}),
+          })
+          if (!parsed.success) {
+            throw new Error(
+              `Invalid part payload for message ${messageRow.id}: ${parsed.issues.join('; ')}`,
+            )
+          }
+          return transformPart(parsed.data)
+        })
+
+      return {
+        id: MessageId(messageRow.id),
+        role: messageRow.role,
+        parts: partsForMessage,
+        model: messageRow.model
+          ? migrateModelId(messageRow.model)
+          : messageRow.role === 'assistant'
+            ? legacyConversationModel
+            : undefined,
+        metadata: parsedMetadata.success
+          ? parsedMetadata.data
+            ? {
+                ...parsedMetadata.data,
+                waggle: parsedMetadata.data.waggle
+                  ? {
+                      ...parsedMetadata.data.waggle,
+                      agentModel: parsedMetadata.data.waggle.agentModel
+                        ? SupportedModelId(parsedMetadata.data.waggle.agentModel)
+                        : undefined,
+                    }
+                  : undefined,
+              }
+            : undefined
+          : undefined,
+        createdAt: messageRow.created_at,
+      }
+    })
+
+    return {
+      id: ConversationId(row.id),
+      title: row.title,
+      projectPath: row.project_path,
+      messages,
+      waggleConfig,
+      archived: row.archived === 1 ? true : undefined,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }
+  } catch (error) {
+    logger.warn('Failed to hydrate conversation from SQLite', {
+      conversationId: row.id,
+      error: describeError(error),
     })
     return null
   }
-
-  const data = result.data
-  const legacyConversationModel =
-    typeof data.model === 'string' ? migrateModelId(data.model) : undefined
-  return {
-    id: ConversationId(data.id),
-    title: data.title,
-    projectPath: data.projectPath,
-    archived: data.archived ?? undefined,
-    messages: data.messages.map((m: ParsedMessage) => ({
-      id: MessageId(m.id),
-      role: m.role,
-      parts: m.parts.map(transformPart),
-      model: m.model
-        ? migrateModelId(m.model)
-        : m.role === 'assistant'
-          ? legacyConversationModel
-          : undefined,
-      metadata: m.metadata
-        ? {
-            ...m.metadata,
-            waggle: m.metadata.waggle
-              ? {
-                  ...m.metadata.waggle,
-                  agentModel: m.metadata.waggle.agentModel
-                    ? SupportedModelId(m.metadata.waggle.agentModel)
-                    : undefined,
-                }
-              : undefined,
-          }
-        : undefined,
-      createdAt: m.createdAt,
-    })),
-    waggleConfig: data.waggleConfig
-      ? {
-          ...data.waggleConfig,
-          agents: [
-            {
-              ...data.waggleConfig.agents[0],
-              model: SupportedModelId(data.waggleConfig.agents[0].model),
-            },
-            {
-              ...data.waggleConfig.agents[1],
-              model: SupportedModelId(data.waggleConfig.agents[1].model),
-            },
-          ],
-        }
-      : undefined,
-    createdAt: data.createdAt,
-    updatedAt: data.updatedAt,
-  }
-}
-
-// ── File system operations ──────────────────────────────────────────────────
-
-let cachedConversationsDir: string | null = null
-
-function getConversationsDir(): string {
-  if (cachedConversationsDir !== null) {
-    if (fs.existsSync(cachedConversationsDir)) {
-      return cachedConversationsDir
-    }
-    cachedConversationsDir = null
-  }
-  const dir = path.join(app.getPath('userData'), 'conversations')
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true })
-  }
-  cachedConversationsDir = dir
-  return dir
-}
-
-function conversationPath(id: ConversationId): string {
-  return path.join(getConversationsDir(), `${id}.json`)
-}
-
-const CONVERSATIONS_INDEX_FILE = 'index.json'
-
-function conversationsIndexPath(): string {
-  return path.join(getConversationsDir(), CONVERSATIONS_INDEX_FILE)
-}
-
-function toSummary(conv: Conversation): ConversationSummary {
-  return {
-    id: conv.id,
-    title: conv.title,
-    projectPath: conv.projectPath,
-    messageCount: conv.messages.length,
-    archived: conv.archived ?? undefined,
-    createdAt: conv.createdAt,
-    updatedAt: conv.updatedAt,
-  }
-}
-
-function fromParsedSummary(summary: ParsedConversationSummary): ConversationSummary {
-  return {
-    id: ConversationId(summary.id),
-    title: summary.title,
-    projectPath: summary.projectPath,
-    messageCount: summary.messageCount,
-    archived: summary.archived ?? undefined,
-    createdAt: summary.createdAt,
-    updatedAt: summary.updatedAt,
-  }
-}
-
-function sortSummaries(summaries: readonly ConversationSummary[]): ConversationSummary[] {
-  return [...summaries].sort((a, b) => b.updatedAt - a.updatedAt)
-}
-
-const CONVERSATION_LOAD_CONCURRENCY = 10
-
-async function pMap<T, R>(
-  items: readonly T[],
-  mapper: (item: T) => Promise<R>,
-  concurrency: number,
-): Promise<R[]> {
-  const results: R[] = new Array(items.length)
-  // nextIndex is safe to share across workers because the read + increment
-  // is synchronous (no await between check and ++) in Node's single-threaded model.
-  let nextIndex = 0
-
-  async function worker(): Promise<void> {
-    while (nextIndex < items.length) {
-      const idx = nextIndex++
-      const item = items[idx]
-      if (item !== undefined) {
-        results[idx] = await mapper(item)
-      }
-    }
-  }
-
-  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()))
-  return results
-}
-
-async function readConversationIndex(): Promise<ConversationSummary[] | null> {
-  try {
-    const raw = await fsPromises.readFile(conversationsIndexPath(), 'utf-8')
-    const parsed: unknown = JSON.parse(raw)
-    const result = conversationIndexSchema.safeParse(parsed)
-    if (!result.success) {
-      logger.warn('Conversation index validation failed', {
-        issues: result.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`),
-      })
-      return null
-    }
-    return sortSummaries(result.data.conversations.map(fromParsedSummary))
-  } catch (err) {
-    if (!isEnoent(err)) {
-      logger.warn('Failed to load conversation index', {
-        error: err instanceof Error ? err.message : String(err),
-      })
-    }
-    return null
-  }
-}
-
-async function writeConversationIndex(summaries: readonly ConversationSummary[]): Promise<void> {
-  const sorted = sortSummaries(summaries)
-  await atomicWriteJSON(conversationsIndexPath(), {
-    version: 1 as const,
-    conversations: sorted.map((summary) => ({
-      id: String(summary.id),
-      title: summary.title,
-      projectPath: summary.projectPath,
-      messageCount: summary.messageCount,
-      ...(summary.archived ? { archived: true } : {}),
-      createdAt: summary.createdAt,
-      updatedAt: summary.updatedAt,
-    })),
-  })
-}
-
-async function scanConversationSummaries(): Promise<ConversationSummary[]> {
-  const dir = getConversationsDir()
-  const entries = await fsPromises.readdir(dir)
-  const files = entries.filter((f) => f.endsWith('.json') && f !== CONVERSATIONS_INDEX_FILE)
-
-  const results = await pMap(
-    files,
-    async (file): Promise<ConversationSummary | null> => {
-      try {
-        const raw = await fsPromises.readFile(path.join(dir, file), 'utf-8')
-        const conv = parseConversation(raw)
-        if (!conv) {
-          logger.warn(`Skipping invalid conversation file: ${file}`)
-          return null
-        }
-        return toSummary(conv)
-      } catch (err) {
-        logger.warn(`Failed to read conversation file "${file}"`, {
-          error: err instanceof Error ? err.message : String(err),
-        })
-        return null
-      }
-    },
-    CONVERSATION_LOAD_CONCURRENCY,
-  )
-
-  return sortSummaries(
-    results.filter((summary): summary is ConversationSummary => summary !== null),
-  )
-}
-
-/** Serializes all index mutations to prevent concurrent read-modify-write races. */
-const indexMutex = new AsyncMutex()
-
-async function loadIndexForMutation(): Promise<ConversationSummary[]> {
-  const indexed = await readConversationIndex()
-  if (indexed) return indexed
-  return scanConversationSummaries()
-}
-
-async function upsertConversationSummary(summary: ConversationSummary): Promise<void> {
-  await indexMutex.run(async () => {
-    const summaries = await loadIndexForMutation()
-    const next = summaries.filter((item) => item.id !== summary.id)
-    next.push(summary)
-    await writeConversationIndex(next)
-  })
-}
-
-async function removeConversationSummary(id: ConversationId): Promise<void> {
-  await indexMutex.run(async () => {
-    const summaries = await readConversationIndex()
-    if (!summaries) return
-    const next = summaries.filter((item) => item.id !== id)
-    if (next.length === summaries.length) return
-    await writeConversationIndex(next)
-  })
 }
 
 export async function listConversations(limit?: number): Promise<ConversationSummary[]> {
-  return indexMutex.run(async () => {
-    const indexed = await readConversationIndex()
-    if (indexed) {
-      const active = indexed.filter((s) => !s.archived)
-      return limit !== undefined ? active.slice(0, limit) : active
-    }
+  return runAppEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const rows = yield* sql<ConversationSummaryRow>`
+        SELECT
+          c.id,
+          c.title,
+          c.project_path,
+          c.archived,
+          c.created_at,
+          c.updated_at,
+          COUNT(m.id) AS message_count
+        FROM conversations c
+        LEFT JOIN conversation_messages m ON m.conversation_id = c.id
+        WHERE c.archived = 0
+        GROUP BY c.id
+        ORDER BY c.updated_at DESC
+      `
 
-    const scanned = await scanConversationSummaries()
-    try {
-      await writeConversationIndex(scanned)
-    } catch (err) {
-      logger.warn('Failed to write rebuilt conversation index', {
-        error: err instanceof Error ? err.message : String(err),
-      })
-    }
-    const active = scanned.filter((s) => !s.archived)
-    return limit !== undefined ? active.slice(0, limit) : active
-  })
+      const summaries = rows.map(hydrateConversationSummary)
+      return limit === undefined ? summaries : summaries.slice(INITIAL_POSITION, limit)
+    }),
+  )
 }
 
 export async function listArchivedConversations(): Promise<ConversationSummary[]> {
-  return indexMutex.run(async () => {
-    const indexed = await readConversationIndex()
-    if (indexed) {
-      return indexed.filter((s) => s.archived === true)
-    }
+  return runAppEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const rows = yield* sql<ConversationSummaryRow>`
+        SELECT
+          c.id,
+          c.title,
+          c.project_path,
+          c.archived,
+          c.created_at,
+          c.updated_at,
+          COUNT(m.id) AS message_count
+        FROM conversations c
+        LEFT JOIN conversation_messages m ON m.conversation_id = c.id
+        WHERE c.archived = 1
+        GROUP BY c.id
+        ORDER BY c.updated_at DESC
+      `
 
-    const scanned = await scanConversationSummaries()
-    try {
-      await writeConversationIndex(scanned)
-    } catch (err) {
-      logger.warn('Failed to write rebuilt conversation index', {
-        error: err instanceof Error ? err.message : String(err),
-      })
-    }
-    return scanned.filter((s) => s.archived === true)
-  })
+      return rows.map(hydrateConversationSummary)
+    }),
+  )
 }
 
 export async function archiveConversation(id: ConversationId): Promise<void> {
-  const conv = await getConversation(id)
-  if (conv) {
-    await saveConversation({ ...conv, archived: true })
-  }
+  await updateArchivedState(id, true)
 }
 
 export async function unarchiveConversation(id: ConversationId): Promise<void> {
-  const conv = await getConversation(id)
-  if (conv) {
-    await saveConversation({ ...conv, archived: undefined })
-  }
+  await updateArchivedState(id, false)
+}
+
+async function updateArchivedState(id: ConversationId, archived: boolean): Promise<void> {
+  await runAppEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`
+        UPDATE conversations
+        SET archived = ${archived ? 1 : 0},
+            updated_at = ${Date.now()}
+        WHERE id = ${id}
+      `
+    }),
+  )
 }
 
 export async function getConversation(id: ConversationId): Promise<Conversation | null> {
-  const filePath = conversationPath(id)
-  try {
-    const raw = await fsPromises.readFile(filePath, 'utf-8')
-    return parseConversation(raw)
-  } catch (err) {
-    if (!isEnoent(err)) {
-      logger.warn(`Failed to load conversation "${id}"`, {
-        error: err instanceof Error ? err.message : String(err),
-      })
-    }
-    return null
-  }
+  return runAppEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const conversations = yield* sql<ConversationRow>`
+        SELECT
+          id,
+          title,
+          model,
+          project_path,
+          archived,
+          waggle_config_json,
+          created_at,
+          updated_at
+        FROM conversations
+        WHERE id = ${id}
+        LIMIT 1
+      `
+
+      const row = conversations[INITIAL_POSITION]
+      if (!row) return null
+
+      const messageRows = yield* sql<ConversationMessageRow>`
+        SELECT
+          id,
+          role,
+          model,
+          metadata_json,
+          created_at,
+          position
+        FROM conversation_messages
+        WHERE conversation_id = ${id}
+        ORDER BY position ASC
+      `
+
+      const partRows = yield* sql<ConversationMessagePartRow>`
+        SELECT
+          cmp.message_id,
+          cmp.part_type,
+          cmp.content_json,
+          cmp.position
+        FROM conversation_message_parts cmp
+        INNER JOIN conversation_messages cm ON cm.id = cmp.message_id
+        WHERE cm.conversation_id = ${id}
+        ORDER BY cm.position ASC, cmp.position ASC
+      `
+
+      return hydrateConversation(row, messageRows, partRows)
+    }),
+  )
 }
 
 export async function createConversation(projectPath: string | null): Promise<Conversation> {
   const now = Date.now()
-  const conv: Conversation = {
+  const conversation: Conversation = {
     id: ConversationId(randomUUID()),
     title: 'New thread',
     projectPath,
@@ -500,57 +503,149 @@ export async function createConversation(projectPath: string | null): Promise<Co
     createdAt: now,
     updatedAt: now,
   }
-  await saveConversation(conv)
-  return conv
+  await saveConversation(conversation)
+  return conversation
 }
 
-export async function saveConversation(conv: Conversation): Promise<void> {
-  const updated = { ...conv, updatedAt: Date.now() }
-  await atomicWriteJSON(conversationPath(conv.id), updated)
-  try {
-    await upsertConversationSummary(toSummary(updated))
-  } catch (err) {
-    logger.warn(`Failed to update conversation index for "${updated.id}"`, {
-      error: err instanceof Error ? err.message : String(err),
-    })
-  }
+export async function saveConversation(conversation: Conversation): Promise<void> {
+  const updatedAt = Date.now()
+  const persistedConversation: Conversation = { ...conversation, updatedAt }
+
+  await runAppEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+
+      yield* sql.withTransaction(
+        Effect.gen(function* () {
+          yield* sql`
+            INSERT INTO conversations (
+              id,
+              title,
+              model,
+              project_path,
+              archived,
+              waggle_config_json,
+              created_at,
+              updated_at
+            )
+            VALUES (
+              ${persistedConversation.id},
+              ${persistedConversation.title},
+              ${null},
+              ${persistedConversation.projectPath},
+              ${persistedConversation.archived ? 1 : 0},
+              ${
+                persistedConversation.waggleConfig
+                  ? JSON.stringify(persistedConversation.waggleConfig)
+                  : null
+              },
+              ${persistedConversation.createdAt},
+              ${persistedConversation.updatedAt}
+            )
+            ON CONFLICT(id) DO UPDATE SET
+              title = excluded.title,
+              model = excluded.model,
+              project_path = excluded.project_path,
+              archived = excluded.archived,
+              waggle_config_json = excluded.waggle_config_json,
+              created_at = excluded.created_at,
+              updated_at = excluded.updated_at
+          `
+
+          yield* sql`
+            DELETE FROM conversation_messages
+            WHERE conversation_id = ${persistedConversation.id}
+          `
+
+          for (const [messageIndex, message] of persistedConversation.messages.entries()) {
+            yield* sql`
+              INSERT INTO conversation_messages (
+                id,
+                conversation_id,
+                role,
+                model,
+                metadata_json,
+                created_at,
+                position
+              )
+              VALUES (
+                ${message.id},
+                ${persistedConversation.id},
+                ${message.role},
+                ${message.model ?? null},
+                ${message.metadata ? JSON.stringify(message.metadata) : null},
+                ${message.createdAt},
+                ${messageIndex}
+              )
+            `
+
+            for (const [partIndex, part] of message.parts.entries()) {
+              const serialized = serializePart(part)
+              yield* sql`
+                INSERT INTO conversation_message_parts (
+                  id,
+                  message_id,
+                  part_type,
+                  content_json,
+                  position
+                )
+                VALUES (
+                  ${partRowId(String(message.id), partIndex)},
+                  ${message.id},
+                  ${serialized.partType},
+                  ${serialized.contentJson},
+                  ${partIndex}
+                )
+              `
+            }
+          }
+        }),
+      )
+    }),
+  )
 }
 
 export async function deleteConversation(id: ConversationId): Promise<void> {
-  const filePath = conversationPath(id)
-  try {
-    await fsPromises.unlink(filePath)
-  } catch (err) {
-    if (!isEnoent(err)) {
-      logger.warn(`Failed to delete conversation "${id}"`, {
-        error: err instanceof Error ? err.message : String(err),
-      })
-    }
-  }
-
-  try {
-    await removeConversationSummary(id)
-  } catch (err) {
-    logger.warn(`Failed to update conversation index after delete for "${id}"`, {
-      error: err instanceof Error ? err.message : String(err),
-    })
-  }
+  await runAppEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`
+        DELETE FROM conversations
+        WHERE id = ${id}
+      `
+    }),
+  )
 }
 
 export async function updateConversationTitle(id: ConversationId, title: string): Promise<void> {
-  const conv = await getConversation(id)
-  if (conv) {
-    await saveConversation({ ...conv, title })
-  }
+  await runAppEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`
+        UPDATE conversations
+        SET title = ${title},
+            updated_at = ${Date.now()}
+        WHERE id = ${id}
+      `
+    }),
+  )
 }
 
 export async function updateConversationProjectPath(
   id: ConversationId,
   projectPath: string | null,
 ): Promise<Conversation | null> {
-  const conv = await getConversation(id)
-  if (!conv) return null
-  const updated = { ...conv, projectPath }
-  await saveConversation(updated)
-  return updated
+  await runAppEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`
+        UPDATE conversations
+        SET project_path = ${projectPath},
+            updated_at = ${Date.now()}
+        WHERE id = ${id}
+      `
+    }),
+  )
+
+  return getConversation(id)
 }
