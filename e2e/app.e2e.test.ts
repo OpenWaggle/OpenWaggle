@@ -1,36 +1,19 @@
-import fs from 'node:fs/promises'
-import os from 'node:os'
-import path from 'node:path'
-import { _electron as electron, expect, test } from '@playwright/test'
-
-async function launchWithUserData(userDataDir: string) {
-  return electron.launch({
-    args: ['.'],
-    env: {
-      ...process.env,
-      OPENWAGGLE_USER_DATA_DIR: userDataDir,
-    },
-  })
-}
+import { expect, test } from '@playwright/test'
+import { OpenWaggleApp } from './support/openwaggle-app'
 
 test('app launches and persists a created thread', async () => {
-  const userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-e2e-'))
-  let app = await launchWithUserData(userDataDir)
+  const app = await OpenWaggleApp.launch('openwaggle-e2e-')
 
   try {
-    const window = await app.firstWindow()
-    await expect(window.getByText("Let's build")).toBeVisible()
-    await expect(window.getByText('No threads yet')).toBeVisible()
+    const mainWindow = app.mainWindow()
+    await expect(mainWindow.page.getByText('No threads yet')).toBeVisible()
 
-    await window.getByRole('button', { name: 'New thread' }).first().click()
-    await expect(window.getByText('No threads yet')).toBeHidden()
-    await app.close()
+    await mainWindow.createNewThread()
+    await expect(mainWindow.page.getByText('No threads yet')).toBeHidden()
+    await app.restart()
 
-    app = await launchWithUserData(userDataDir)
-    const reopenedWindow = await app.firstWindow()
-    await expect(reopenedWindow.getByText('No threads yet')).toBeHidden()
+    await expect(app.mainWindow().page.getByText('No threads yet')).toBeHidden()
   } finally {
-    await app.close()
-    await fs.rm(userDataDir, { recursive: true, force: true })
+    await app.cleanup()
   }
 })
