@@ -20,6 +20,16 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Task: Approval Execution Hardening After TanStack React Fix (2026-03-07)
+- After the upstream `@tanstack/ai-react` continuation deadlock fix, the remaining false-success risk was not loading-state related: TanStack approval placeholder payloads such as `{"approved":true,"pendingExecution":true}` can still flow through as ordinary tool-result content, so both renderer UI and lifecycle logging must explicitly distinguish placeholder approval markers from concrete execution results.
+- Pending approval visibility across thread switches depends on preserving renderer-side trust-resolution state per approval/tool-call. Clearing that cache on "no active pending approval" causes a thread switch to hide an already-untrusted approval banner until trust is re-checked, even though the persisted tool state is still pending.
+- Approval denial synthesis must treat any already-persisted `tool-result` for that `tool_use` as terminal, including denied results. Otherwise later unrelated continuation runs can keep re-synthesizing an old denial and pollute the active transcript with stale pending/denied tool state.
+- Renderer reconciliation for tool-call arguments should ignore obviously partial JSON while tool args are still streaming. Logging every failed parse of `{"pa`, `{"path":"fi`, etc. turns normal incremental argument streaming into noisy false alarms.
+- Transcript-level duplicate tool-call reconciliation inside a single user turn must prefer the richest/latest occurrence, not the first one. Otherwise a stale early `approval needed` row can survive while a later continuation message already contains the terminal denied/completed tool result and matching assistant text.
+- Renderer auto-trust checks for pending approvals must re-verify that the same approval is still current right before dispatching `respondToolApproval`. Trusted tools can execute inline fast enough that a stale trust-check resolution otherwise fires a bogus approval continuation after the concrete tool result is already present.
+- Seeded Electron approval E2E fixtures should avoid trustable tool names (`writeFile`, `editFile`, `runCommand`, `webFetch`) when the goal is to assert pending approval visibility. Otherwise project-level trust config can auto-resolve the fixture and make thread-switch/pending-state regressions flaky.
+- Persisted tool-call lookup and approval/state restoration should live in one shared renderer helper. Duplicating signature matching and metadata merge rules across hydration and pending-approval detection makes the two paths drift and reintroduces approval-state inconsistencies after reloads or follow-up turns.
+
 ### Task: Voice Recorder Visualizer + Transcription Quality (2026-03-07)
 - Local Whisper transcription quality dropped sharply when the renderer hard-coded the smallest English-only model (`tiny.en`) and forced `language: 'en'`; switching the default request path to `base` plus language auto-detection materially improves multilingual/accent robustness without changing the privacy model.
 

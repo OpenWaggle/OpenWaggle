@@ -142,6 +142,7 @@ describe('lifecycle hook dispatch', () => {
         args: {},
         durationMs: 3,
         isError: false,
+        completionState: 'execution-complete',
       }),
     ).toBeUndefined()
   })

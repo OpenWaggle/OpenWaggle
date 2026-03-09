@@ -66,6 +66,17 @@ const observabilityHook: AgentLifecycleHook = {
   },
   onToolCallEnd: (context, event) => {
     const errorSummary = event.isError ? summarizeToolError(event.result) : undefined
+    if (event.completionState === 'input-complete') {
+      logger.info('tool-call-input-complete', {
+        runId: context.runId,
+        conversationId: context.conversation.id,
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+        durationMs: event.durationMs,
+      })
+      return
+    }
+
     logger.info('tool-call-end', {
       runId: context.runId,
       conversationId: context.conversation.id,

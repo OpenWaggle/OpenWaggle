@@ -619,6 +619,109 @@ describe('createIpcConnectionAdapter', () => {
     })
   })
 
+  it('sends continuation messages for denied approvals that do not yet have a terminal result', async () => {
+    apiMock.sendMessage.mockImplementationOnce(async () => {
+      emitStreamChunk(conversationId, {
+        type: 'RUN_FINISHED',
+        timestamp: 22,
+        runId: 'run-22',
+        finishReason: 'stop',
+      } as StreamChunk)
+    })
+
+    const connection = createIpcConnectionAdapter(conversationId, model, () => null, 'medium')
+    const conversationMessages = [
+      {
+        id: 'msg-user',
+        role: 'user',
+        parts: [{ type: 'text', content: 'write a file' }],
+        createdAt: new Date(),
+      },
+      {
+        id: 'msg-assistant',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'tool-denied-pending',
+            name: 'writeFile',
+            arguments: '{"path":"denied.txt"}',
+            state: 'approval-responded',
+            approval: {
+              id: 'approval_tool-denied-pending',
+              needsApproval: true,
+              approved: false,
+            },
+          },
+        ],
+        createdAt: new Date(),
+      },
+    ] as UIMessage[]
+
+    const stream = connection.connect(conversationMessages, undefined, undefined)
+
+    for await (const _chunk of stream) {
+      // consume
+    }
+
+    expect(apiMock.sendMessage).toHaveBeenCalledTimes(1)
+    expect(apiMock.sendMessage).toHaveBeenCalledWith(
+      conversationId,
+      expect.objectContaining({
+        continuationMessages: expect.any(Array),
+      }),
+      model,
+    )
+  })
+
+  it('does not send continuation messages for denied approval snapshots that already have a terminal result', async () => {
+    const connection = createIpcConnectionAdapter(conversationId, model, () => null, 'medium')
+    const conversationMessages = [
+      {
+        id: 'msg-user',
+        role: 'user',
+        parts: [{ type: 'text', content: 'write a file' }],
+        createdAt: new Date(),
+      },
+      {
+        id: 'msg-assistant',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'tool-denied',
+            name: 'writeFile',
+            arguments: '{"path":"denied.txt"}',
+            state: 'approval-responded',
+            approval: {
+              id: 'approval_tool-denied',
+              needsApproval: true,
+              approved: false,
+            },
+          },
+          {
+            type: 'tool-result',
+            toolCallId: 'tool-denied',
+            output: { approved: false, message: 'User declined tool execution' },
+            state: 'output-available',
+          },
+        ],
+        createdAt: new Date(),
+      },
+    ] as UIMessage[]
+
+    const stream = connection.connect(conversationMessages, undefined, undefined)
+    const chunks: StreamChunk[] = []
+
+    for await (const chunk of stream) {
+      chunks.push(chunk)
+    }
+
+    expect(apiMock.sendMessage).not.toHaveBeenCalled()
+    expect(chunks).toHaveLength(1)
+    expect(chunks[0]?.type).toBe('RUN_ERROR')
+  })
+
   it('emits RUN_ERROR instead of sending empty continuation when approval context is missing', async () => {
     const connection = createIpcConnectionAdapter(conversationId, model, () => null, 'medium')
     const messagesWithoutApproval = [

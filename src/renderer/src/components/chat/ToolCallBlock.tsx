@@ -1,4 +1,10 @@
 import type { JsonObject } from '@shared/types/json'
+import {
+  hasConcreteToolOutput,
+  isDeniedApprovalPayload,
+  normalizeToolResultPayload,
+} from '@shared/utils/tool-result-state'
+import { isRecord } from '@shared/utils/validation'
 import { AlertCircle, Check, ChevronRight, Clock, Loader2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { z } from 'zod'
@@ -62,26 +68,7 @@ function tryParseDiffResult(
 }
 
 function parseResultPayload(content: unknown): unknown {
-  const parsed = parseUnknownJson(content)
-  if (typeof parsed === 'object' && parsed !== null && 'kind' in parsed) {
-    if (parsed.kind === 'json' && 'data' in parsed) {
-      return parsed.data
-    }
-    if (parsed.kind === 'text' && 'text' in parsed) {
-      return typeof parsed.text === 'string' ? parsed.text : ''
-    }
-  }
-  return parsed
-}
-
-function parseUnknownJson(content: unknown): unknown {
-  if (typeof content !== 'string') return content
-  try {
-    const data: unknown = JSON.parse(content)
-    return data
-  } catch {
-    return content
-  }
+  return normalizeToolResultPayload(content)
 }
 
 function getResultError(result: ToolCallBlockProps['result']): string | null {
@@ -90,12 +77,10 @@ function getResultError(result: ToolCallBlockProps['result']): string | null {
   if (result.state === 'error') return 'Tool execution failed.'
 
   const parsed = parseResultPayload(result.content)
-  if (
-    typeof parsed === 'object' &&
-    parsed !== null &&
-    'error' in parsed &&
-    typeof parsed.error === 'string'
-  ) {
+  if (isDeniedApprovalPayload(parsed) && isRecord(parsed) && typeof parsed.message === 'string') {
+    return parsed.message
+  }
+  if (isRecord(parsed) && typeof parsed.error === 'string') {
     return parsed.error
   }
   return null
@@ -111,6 +96,16 @@ function getPendingToolActionText(name: string, args: JsonObject): string {
   return `Requested ${name}`
 }
 
+function getErrorToolActionText(name: string, args: JsonObject): string {
+  if (typeof args.path === 'string') {
+    return `Failed ${name} ${args.path}`
+  }
+  if (name === 'runCommand' && typeof args.command === 'string') {
+    return `Failed ${name} \`${args.command}\``
+  }
+  return `Failed ${name}`
+}
+
 export function ToolCallBlock({
   name,
   args,
@@ -120,10 +115,11 @@ export function ToolCallBlock({
 }: ToolCallBlockProps): React.JSX.Element {
   const [expanded, setExpanded] = useState(false)
   const awaitingApproval = state === 'approval-requested'
+  const hasConcreteResult = result ? hasConcreteToolOutput(result.content) : false
   const isRunning = !awaitingApproval && isStreaming && (state !== 'input-complete' || !result)
   const resultError = getResultError(result)
   const isError = resultError !== null
-  const awaitingResult = !result && !isRunning && !awaitingApproval
+  const awaitingResult = (!result || !hasConcreteResult) && !isRunning && !awaitingApproval
 
   const parsedArgs = parseToolArgs(args)
 
@@ -152,7 +148,9 @@ export function ToolCallBlock({
 
   const actionText = awaitingResult
     ? getPendingToolActionText(name, parsedArgs)
-    : getToolActionText(name, parsedArgs, isRunning)
+    : isError
+      ? getErrorToolActionText(name, parsedArgs)
+      : getToolActionText(name, parsedArgs, isRunning)
 
   return (
     <div className="group/tool">
@@ -173,7 +171,7 @@ export function ToolCallBlock({
           />
         )}
         {awaitingApproval && <Clock className="h-3.5 w-3.5 text-warning shrink-0" />}
-        {result && !isError && !isRunning && (
+        {hasConcreteResult && result && !isError && !isRunning && (
           <Check className="h-3.5 w-3.5 text-text-muted shrink-0" />
         )}
         {result && isError && <X className="h-3.5 w-3.5 text-error/80 shrink-0" />}
@@ -184,7 +182,7 @@ export function ToolCallBlock({
             'truncate',
             isRunning && !awaitingApproval && 'text-text-tertiary',
             awaitingApproval && 'text-warning',
-            result && !isError && !isRunning && 'text-text-muted',
+            hasConcreteResult && result && !isError && !isRunning && 'text-text-muted',
             result && isError && 'text-error/80',
           )}
         >
@@ -249,7 +247,7 @@ export function ToolCallBlock({
           </div>
 
           {/* Result */}
-          {result && !diff && !screenshotData && !isError && (
+          {hasConcreteResult && result && !diff && !screenshotData && !isError && (
             <div className="border-t border-border px-3 py-2">
               <div className="text-[13px] text-text-tertiary mb-1">Result</div>
               <ToolResult content={result.content} isError={isError} />

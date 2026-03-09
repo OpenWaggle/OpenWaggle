@@ -12,11 +12,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '@/lib/ipc'
 import { createIpcConnectionAdapter } from '@/lib/ipc-connection-adapter'
 import { useBackgroundRunStore } from '@/stores/background-run-store'
+import { useChatStore } from '@/stores/chat-store'
 import {
   applyStreamDelta,
   buildPartialAssistantMessage,
   conversationToUIMessages,
   formatAttachmentPreview,
+  restorePersistedToolCallMetadata,
 } from './useAgentChat.utils'
 
 interface AgentChatReturn {
@@ -97,44 +99,78 @@ export function useAgentChat(
     id: conversationId ? `${conversationId}:${model}:${qualityPreset}` : undefined,
   })
 
-  // Sync historical messages when switching conversations.
-  // If the conversation has a background run, reconnect to it.
-  const prevConvId = useRef<ConversationId | null>(null)
+  const hydratedMessages = restorePersistedToolCallMetadata(messages, conversation)
+  const currentConversationIdRef = useRef(conversationId)
+  currentConversationIdRef.current = conversationId
+
+  const refreshConversationSnapshot = useCallback(
+    async (targetConversationId: ConversationId) => {
+      const conv = await api.getConversation(targetConversationId)
+      if (!conv || currentConversationIdRef.current !== targetConversationId) {
+        return
+      }
+
+      useChatStore.setState((state) => {
+        if (state.activeConversationId !== targetConversationId) {
+          return state
+        }
+
+        return {
+          activeConversation: conv,
+          conversations: state.conversations.map((item) =>
+            item.id === targetConversationId
+              ? {
+                  ...item,
+                  title: conv.title,
+                  projectPath: conv.projectPath,
+                  messageCount: conv.messages.length,
+                  updatedAt: conv.updatedAt,
+                }
+              : item,
+          ),
+        }
+      })
+
+      setMessages(conversationToUIMessages(conv))
+    },
+    [setMessages],
+  )
+
+  // Sync historical messages whenever the active conversation snapshot changes.
+  // This covers normal thread switches and any late store hydration after the
+  // TanStack client recreates itself for a new `id`.
   useEffect(() => {
-    if (conversationId !== prevConvId.current) {
-      prevConvId.current = conversationId
-      setBackgroundStreaming(false)
+    setBackgroundStreaming(false)
 
-      if (!conversationId) {
-        setMessages([])
-        return
-      }
-
-      if (!conversation) {
-        setMessages([])
-        return
-      }
-
-      if (hasActiveRun(conversationId)) {
-        // Reconnect to background run
-        const capturedId = conversationId
-        void reconnectToBackgroundRun(capturedId, conversation, setMessages).then((reconnected) => {
-          // Only apply if we're still on the same conversation
-          if (reconnected && prevConvId.current === capturedId) {
-            setBackgroundStreaming(true)
-          }
-        })
-        return
-      }
-
-      setMessages(conversationToUIMessages(conversation))
+    if (!conversationId) {
+      setMessages([])
+      return
     }
+
+    if (!conversation) {
+      setMessages([])
+      return
+    }
+
+    if (hasActiveRun(conversationId)) {
+      // Reconnect to background run
+      const capturedId = conversationId
+      void reconnectToBackgroundRun(capturedId, conversation, setMessages).then((reconnected) => {
+        // Only apply if we're still on the same conversation
+        if (reconnected && currentConversationIdRef.current === capturedId) {
+          setBackgroundStreaming(true)
+        }
+      })
+      return
+    }
+
+    setMessages(conversationToUIMessages(conversation))
   }, [conversationId, conversation, setMessages, hasActiveRun])
 
   // Keep a ref to the latest messages so stream chunk listeners can
   // read current state without needing a functional updater.
-  const messagesRef = useRef(messages)
-  messagesRef.current = messages
+  const messagesRef = useRef(hydratedMessages)
+  messagesRef.current = hydratedMessages
 
   // While background-streaming, subscribe to live chunk updates
   // and update messages on each text/tool chunk.
@@ -154,22 +190,24 @@ export function useAgentChat(
       }
     })
 
+    return () => {
+      unsubChunk()
+    }
+  }, [backgroundStreaming, conversationId, setMessages])
+
+  useEffect(() => {
+    if (!conversationId) return
+
     const unsubCompleted = api.onRunCompleted((payload) => {
       if (payload.conversationId !== conversationId) return
       setBackgroundStreaming(false)
-      // Reload canonical state from disk
-      void api.getConversation(conversationId).then((conv) => {
-        if (conv) {
-          setMessages(conversationToUIMessages(conv))
-        }
-      })
+      void refreshConversationSnapshot(conversationId)
     })
 
     return () => {
-      unsubChunk()
       unsubCompleted()
     }
-  }, [backgroundStreaming, conversationId, setMessages])
+  }, [conversationId, refreshConversationSnapshot])
 
   const respondToolApprovalStable = useCallback(
     async (approvalId: string, approved: boolean) => {
@@ -179,7 +217,7 @@ export function useAgentChat(
   )
 
   return {
-    messages,
+    messages: hydratedMessages,
     sendMessage: async (payload: AgentSendPayload) => {
       setBackgroundStreaming(false)
       pendingPayloadRef.current = payload

@@ -9,6 +9,7 @@ import {
 import type { SupportedModelId } from '@shared/types/llm'
 import type { QualityPreset } from '@shared/types/settings'
 import type { WaggleConfig } from '@shared/types/waggle'
+import { hasConcreteToolOutput, isDeniedApprovalPayload } from '@shared/utils/tool-result-state'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { ConnectionAdapter, UIMessage } from '@tanstack/ai-react'
 import { api } from './ipc'
@@ -77,6 +78,22 @@ function shouldUseContinuationPayload(messages: Array<UIMessage> | Array<ModelMe
 function hasApprovalContinuationSnapshot(
   messages: Array<UIMessage> | Array<ModelMessage>,
 ): boolean {
+  const completedToolCallIds = new Set<string>()
+
+  for (const message of messages) {
+    if (!('parts' in message)) {
+      continue
+    }
+    for (const part of message.parts) {
+      if (part.type === 'tool-result') {
+        const payload = 'output' in part ? part.output : part.content
+        if (hasConcreteToolOutput(payload)) {
+          completedToolCallIds.add(part.toolCallId)
+        }
+      }
+    }
+  }
+
   for (const message of messages) {
     if (!('parts' in message)) {
       continue
@@ -85,14 +102,20 @@ function hasApprovalContinuationSnapshot(
       if (part.type !== 'tool-call') {
         continue
       }
-      if (part.state === 'approval-responded') {
-        return true
+      if (completedToolCallIds.has(part.id)) {
+        continue
       }
-      if (part.approval?.approved === true) {
+      if (isDeniedApprovalPayload(part.output)) {
+        continue
+      }
+      const approvalResolved =
+        part.state === 'approval-responded' || typeof part.approval?.approved === 'boolean'
+      if (approvalResolved && !hasConcreteToolOutput(part.output)) {
         return true
       }
     }
   }
+
   return false
 }
 
@@ -100,6 +123,31 @@ function toContinuationMessages(
   messages: Array<UIMessage> | Array<ModelMessage>,
 ): readonly (ModelMessage | UIMessage)[] {
   return [...messages]
+}
+
+function describeContinuationMessageFormat(
+  messages: Array<UIMessage> | Array<ModelMessage>,
+): 'ui' | 'model' | 'mixed' | 'none' {
+  if (messages.length === 0) {
+    return 'none'
+  }
+
+  let sawUiMessage = false
+  let sawModelMessage = false
+
+  for (const message of messages) {
+    if ('parts' in message) {
+      sawUiMessage = true
+    } else {
+      sawModelMessage = true
+    }
+  }
+
+  if (sawUiMessage && sawModelMessage) {
+    return 'mixed'
+  }
+
+  return sawUiMessage ? 'ui' : 'model'
 }
 
 /**
@@ -149,6 +197,7 @@ export function createIpcConnectionAdapter(
           let resolve: (() => void) | null = null
           let done = false
           let runCompletedEventSeen = false
+          let approvalTraceActive = false
           let fallbackCloseTimer: ReturnType<typeof setTimeout> | null = null
           let runCompletedCloseTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -168,13 +217,25 @@ export function createIpcConnectionAdapter(
               runCompletedCloseTimer = null
             }
           }
-          const closeStream = (): void => {
+          const traceApproval = (event: string, data?: object): void => {
+            if (!approvalTraceActive) {
+              return
+            }
+            ipcLogger.info(`[approval-trace] ${event}`, {
+              conversationId,
+              pendingToolResults: pendingToolResultIds.size,
+              runCompletedEventSeen,
+              ...data,
+            })
+          }
+          const closeStream = (reason: string): void => {
             if (done) {
               return
             }
             done = true
             clearFallbackCloseTimer()
             clearRunCompletedCloseTimer()
+            traceApproval('close', { reason })
             resolve?.()
           }
           const scheduleFallbackClose = (): void => {
@@ -184,7 +245,7 @@ export function createIpcConnectionAdapter(
             fallbackCloseTimer = setTimeout(() => {
               fallbackCloseTimer = null
               if (!done && !runCompletedEventSeen) {
-                closeStream()
+                closeStream('send-resolved-fallback')
               }
             }, SEND_RESOLVE_FALLBACK_MS)
           }
@@ -200,7 +261,7 @@ export function createIpcConnectionAdapter(
             runCompletedCloseTimer = setTimeout(() => {
               runCompletedCloseTimer = null
               if (!done) {
-                closeStream()
+                closeStream('run-completed-grace')
               }
             }, closeDelayMs)
           }
@@ -213,7 +274,11 @@ export function createIpcConnectionAdapter(
           const rawUnsub = api.onStreamChunk((payload) => {
             if (payload.conversationId !== conversationId) return
 
+            if (payload.chunk.type === 'CUSTOM' && payload.chunk.name === 'approval-requested') {
+              approvalTraceActive = true
+            }
             if (payload.chunk.type === 'TOOL_CALL_END') {
+              approvalTraceActive = approvalTraceActive || payload.chunk.result === undefined
               if (payload.chunk.result === undefined) {
                 pendingToolResultIds.add(payload.chunk.toolCallId)
               } else {
@@ -238,6 +303,17 @@ export function createIpcConnectionAdapter(
               lastErrorInfoMap.set(conversationId, info)
             }
 
+            traceApproval('chunk', {
+              chunkType: payload.chunk.type,
+              toolCallId:
+                payload.chunk.type === 'TOOL_CALL_END' ? payload.chunk.toolCallId : undefined,
+              hasResult:
+                payload.chunk.type === 'TOOL_CALL_END'
+                  ? payload.chunk.result !== undefined
+                  : undefined,
+              customName: payload.chunk.type === 'CUSTOM' ? payload.chunk.name : undefined,
+            })
+
             queue.push(payload.chunk)
 
             // Determine if this chunk closes the stream.
@@ -252,7 +328,7 @@ export function createIpcConnectionAdapter(
               } else {
                 clearFallbackCloseTimer()
                 clearRunCompletedCloseTimer()
-                closeStream()
+                closeStream('terminal-chunk')
               }
             }
             if (!isTerminalChunk(payload.chunk) && runCompletedEventSeen) {
@@ -270,6 +346,7 @@ export function createIpcConnectionAdapter(
             }
             runCompletedEventSeen = true
             clearFallbackCloseTimer()
+            traceApproval('run-completed-event')
             // Do not close immediately: in practice, run-completed can race
             // slightly ahead of final stream chunks (text deltas / RUN_FINISHED).
             // Keep the stream open briefly to drain late chunks.
@@ -288,7 +365,7 @@ export function createIpcConnectionAdapter(
               // can reload the conversation later to see the full result.
               clearFallbackCloseTimer()
               unsub()
-              closeStream()
+              closeStream('abort')
             },
             { once: true },
           )
@@ -303,8 +380,18 @@ export function createIpcConnectionAdapter(
           }
           const pendingPayload = consumePendingPayload()
           const useContinuationPayload = shouldUseContinuationPayload(_messages)
+          approvalTraceActive = useContinuationPayload
           const lastMessage = _messages[_messages.length - 1]
           const lastMessageIsUser = Boolean(lastMessage && lastMessage.role === 'user')
+
+          if (approvalTraceActive) {
+            traceApproval('send', {
+              continuationMessageFormat: describeContinuationMessageFormat(_messages),
+              lastMessageRole: lastMessage?.role ?? null,
+              hasPendingPayload: pendingPayload !== null,
+              useContinuationPayload,
+            })
+          }
 
           if (!pendingPayload && !useContinuationPayload && !lastMessageIsUser) {
             const errMsg =
@@ -345,6 +432,7 @@ export function createIpcConnectionAdapter(
                 //
                 // The fallback timer is defensive in case a run-completed event
                 // is ever missed; it avoids infinite hanging streams.
+                traceApproval('send-resolved')
                 scheduleFallbackClose()
               })
               .catch((err) => {
@@ -361,7 +449,7 @@ export function createIpcConnectionAdapter(
                 }
                 queue.push(errorChunk)
                 clearFallbackCloseTimer()
-                closeStream()
+                closeStream('send-error')
               })
           }
 

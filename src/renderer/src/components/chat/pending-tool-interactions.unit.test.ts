@@ -1,3 +1,5 @@
+import { ConversationId, MessageId, ToolCallId } from '@shared/types/brand'
+import type { Conversation } from '@shared/types/conversation'
 import type { UIMessage } from '@tanstack/ai-react'
 import { describe, expect, it } from 'vitest'
 import { findPendingApproval } from './pending-tool-interactions'
@@ -68,6 +70,21 @@ function makeApprovalToolCallWithConcreteOutput(id: string, approvalId: string) 
   }
 }
 
+function makeDeniedApprovalToolCall(id: string, approvalId: string) {
+  return {
+    type: 'tool-call' as const,
+    id,
+    name: 'runCommand',
+    arguments: '{"command":"echo test"}',
+    state: 'approval-responded' as const,
+    approval: {
+      id: approvalId,
+      needsApproval: true,
+      approved: false,
+    },
+  }
+}
+
 describe('findPendingApproval', () => {
   it('returns the newest unresolved approval-requested tool call', () => {
     const messages: UIMessage[] = [
@@ -127,6 +144,31 @@ describe('findPendingApproval', () => {
     })
   })
 
+  it('keeps approval pending after approval-responded until a concrete execution result exists', () => {
+    const messages: UIMessage[] = [
+      {
+        id: 'm1',
+        role: 'assistant',
+        parts: [
+          makeApprovalToolCall(
+            'tool-responded-pending',
+            'approval-responded-pending',
+            'approval-responded',
+          ),
+          makePendingExecutionToolResult('tool-responded-pending'),
+        ],
+      } as UIMessage,
+    ]
+
+    expect(findPendingApproval(messages)).toEqual({
+      toolName: 'runCommand',
+      toolArgs: '{"command":"echo test"}',
+      approvalId: 'approval-responded-pending',
+      toolCallId: 'tool-responded-pending',
+      hasApprovalMetadata: true,
+    })
+  })
+
   it('keeps approval pending when tool-call output is a stringified pendingExecution marker', () => {
     const messages: UIMessage[] = [
       {
@@ -147,7 +189,7 @@ describe('findPendingApproval', () => {
     })
   })
 
-  it('keeps approval pending when call is approval-requested with non-empty output placeholder', () => {
+  it('does not keep approval pending when call output records a denied approval', () => {
     const messages: UIMessage[] = [
       {
         id: 'm1',
@@ -158,16 +200,10 @@ describe('findPendingApproval', () => {
       } as UIMessage,
     ]
 
-    expect(findPendingApproval(messages)).toEqual({
-      toolName: 'runCommand',
-      toolArgs: '{"command":"echo test"}',
-      approvalId: 'approval-output',
-      toolCallId: 'tool-output-placeholder',
-      hasApprovalMetadata: true,
-    })
+    expect(findPendingApproval(messages)).toBeNull()
   })
 
-  it('keeps approval pending when approval-requested call also has a non-pending tool-result', () => {
+  it('does not keep approval pending when a denied approval tool-result exists', () => {
     const messages: UIMessage[] = [
       {
         id: 'm1',
@@ -184,13 +220,19 @@ describe('findPendingApproval', () => {
       } as UIMessage,
     ]
 
-    expect(findPendingApproval(messages)).toEqual({
-      toolName: 'runCommand',
-      toolArgs: '{"command":"echo test"}',
-      approvalId: 'approval-with-result',
-      toolCallId: 'tool-with-result-placeholder',
-      hasApprovalMetadata: true,
-    })
+    expect(findPendingApproval(messages)).toBeNull()
+  })
+
+  it('does not keep approval pending when approval metadata records an explicit denial', () => {
+    const messages: UIMessage[] = [
+      {
+        id: 'm1',
+        role: 'assistant',
+        parts: [makeDeniedApprovalToolCall('tool-denied', 'approval-denied')],
+      } as UIMessage,
+    ]
+
+    expect(findPendingApproval(messages)).toBeNull()
   })
 
   it('detects unresolved approval when tool state regresses to input-complete', () => {
@@ -234,6 +276,61 @@ describe('findPendingApproval', () => {
       approvalId: 'approval_tool-4',
       toolCallId: 'tool-4',
       hasApprovalMetadata: false,
+    })
+  })
+
+  it('recovers persisted approval metadata when hydrated UI parts drop approval fields', () => {
+    const messages: UIMessage[] = [
+      {
+        id: 'm1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'tool-persisted-shadow',
+            name: 'writeFile',
+            arguments: '{"path":"pending.txt"}',
+            state: 'input-complete',
+          },
+        ],
+      } as UIMessage,
+    ]
+    const persistedConversation: Conversation = {
+      id: ConversationId('conv-1'),
+      title: 'Pending approval',
+      projectPath: null,
+      createdAt: 1,
+      updatedAt: 1,
+      messages: [
+        {
+          id: MessageId('msg-1'),
+          role: 'assistant',
+          createdAt: 1,
+          parts: [
+            {
+              type: 'tool-call',
+              toolCall: {
+                id: ToolCallId('tool-persisted'),
+                name: 'writeFile',
+                args: { path: 'pending.txt' },
+                state: 'approval-requested',
+                approval: {
+                  id: 'approval_tool-persisted',
+                  needsApproval: true,
+                },
+              },
+            },
+          ],
+        },
+      ],
+    }
+
+    expect(findPendingApproval(messages, persistedConversation)).toEqual({
+      toolName: 'writeFile',
+      toolArgs: '{"path":"pending.txt"}',
+      approvalId: 'approval_tool-persisted',
+      toolCallId: 'tool-persisted-shadow',
+      hasApprovalMetadata: true,
     })
   })
 

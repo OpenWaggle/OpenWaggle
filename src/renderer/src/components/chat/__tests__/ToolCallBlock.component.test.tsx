@@ -87,6 +87,42 @@ describe('ToolCallBlock', () => {
     expect(screen.getByText('(approval needed)')).toBeInTheDocument()
   })
 
+  it('keeps approval pendingExecution placeholder out of completed state', () => {
+    const { container } = render(
+      <ToolCallBlock
+        name="writeFile"
+        args='{"path":"out.ts"}'
+        state="approval-responded"
+        result={{
+          content: '{"kind":"json","data":{"approved":true,"pendingExecution":true}}',
+          state: 'output-available',
+        }}
+      />,
+    )
+
+    expect(screen.getByText('Requested writeFile out.ts')).toBeInTheDocument()
+    expect(screen.queryByText('Wrote out.ts')).toBeNull()
+    expect(container.querySelector('.animate-spin')).toBeNull()
+  })
+
+  it('renders denied approval placeholders as terminal errors instead of completed state', () => {
+    render(
+      <ToolCallBlock
+        name="writeFile"
+        args='{"path":"out.ts"}'
+        state="approval-requested"
+        result={{
+          content:
+            '{"kind":"json","data":{"approved":false,"message":"Approval required before execution"}}',
+          state: 'output-available',
+        }}
+      />,
+    )
+
+    expect(screen.getByText('Failed writeFile out.ts')).toBeInTheDocument()
+    expect(screen.queryByText('Wrote out.ts')).toBeNull()
+  })
+
   it('shows runCommand with backtick-wrapped verb', () => {
     render(
       <ToolCallBlock

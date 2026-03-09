@@ -675,6 +675,43 @@ describe('useChatPanelSections', () => {
     })
   })
 
+  it('does not auto-approve when the pending approval resolves before trust check returns', async () => {
+    const respondToolApproval = vi.fn().mockResolvedValue(undefined)
+    let currentMessages = [createPendingApprovalMessage('tool-1', 'approval-1')]
+    let resolveTrustCheck: ((trusted: boolean) => void) | null = null
+    const trustCheckPromise = new Promise<boolean>((resolve) => {
+      resolveTrustCheck = resolve
+    })
+
+    useAgentChatMock.mockImplementation(() =>
+      buildBaseAgentChatReturn({
+        messages: currentMessages,
+        respondToolApproval,
+      }),
+    )
+    isProjectToolCallTrustedMock.mockReturnValueOnce(trustCheckPromise)
+
+    const { rerender } = renderHook(() => useChatPanelSections())
+
+    await waitFor(() => {
+      expect(isProjectToolCallTrustedMock).toHaveBeenCalledWith(
+        '/repo',
+        'runCommand',
+        DEFAULT_TOOL_ARGS,
+      )
+    })
+
+    currentMessages = [createResolvedApprovalMessage('tool-1', 'approval-1')]
+    rerender()
+
+    await act(async () => {
+      resolveTrustCheck?.(true)
+      await trustCheckPromise
+    })
+
+    expect(respondToolApproval).not.toHaveBeenCalled()
+  })
+
   it('keeps pending approval visible when trust resolution returns untrusted', async () => {
     useAgentChatMock.mockReturnValue(
       buildBaseAgentChatReturn({
@@ -693,6 +730,70 @@ describe('useChatPanelSections', () => {
         }),
       )
     })
+  })
+
+  it('preserves pending approval visibility after switching away and back', async () => {
+    const secondaryConversationId = ConversationId('conv-2')
+    const primaryConversation = createConversation()
+    const secondaryConversation: Conversation = {
+      ...primaryConversation,
+      id: secondaryConversationId,
+      title: 'Other thread',
+      messages: [],
+    }
+    let activeConversationId: ConversationId = ACTIVE_CONVERSATION_ID
+    const createConversationMock = vi.fn()
+    const setActiveConversationMock = vi.fn()
+    const updateConversationProjectPathMock = vi.fn()
+    const agentChatReturn = buildBaseAgentChatReturn()
+
+    useChatMock.mockImplementation(() => ({
+      conversations: [primaryConversation, secondaryConversation],
+      activeConversation:
+        activeConversationId === ACTIVE_CONVERSATION_ID
+          ? primaryConversation
+          : secondaryConversation,
+      activeConversationId,
+      createConversation: createConversationMock,
+      setActiveConversation: setActiveConversationMock,
+      updateConversationProjectPath: updateConversationProjectPathMock,
+    }))
+    useAgentChatMock.mockImplementation(() => ({
+      ...agentChatReturn,
+      messages:
+        activeConversationId === ACTIVE_CONVERSATION_ID
+          ? [createPendingApprovalMessage('tool-1', 'approval-1')]
+          : [],
+    }))
+    isProjectToolCallTrustedMock.mockResolvedValue(false)
+
+    const { result, rerender } = renderHook(() => useChatPanelSections())
+
+    await waitFor(() => {
+      expect(result.current.composer.pendingApproval).toEqual(
+        expect.objectContaining({
+          approvalId: 'approval-1',
+          toolCallId: 'tool-1',
+        }),
+      )
+    })
+    expect(isProjectToolCallTrustedMock).toHaveBeenCalledTimes(1)
+
+    activeConversationId = secondaryConversationId
+    rerender()
+
+    expect(result.current.composer.pendingApproval).toBeNull()
+
+    activeConversationId = ACTIVE_CONVERSATION_ID
+    rerender()
+
+    expect(result.current.composer.pendingApproval).toEqual(
+      expect.objectContaining({
+        approvalId: 'approval-1',
+        toolCallId: 'tool-1',
+      }),
+    )
+    expect(isProjectToolCallTrustedMock).toHaveBeenCalledTimes(1)
   })
 
   it('falls back to visible approval and logs when trust resolution fails', async () => {
