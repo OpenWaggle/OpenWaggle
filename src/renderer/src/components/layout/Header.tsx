@@ -1,4 +1,4 @@
-import { Hash, PanelLeft, SquareTerminal } from 'lucide-react'
+import { Bug, Hash, PanelLeft, SquareTerminal } from 'lucide-react'
 import { useState } from 'react'
 import { CommitDialog } from '@/components/layout/CommitDialog'
 import { useChat } from '@/hooks/useChat'
@@ -20,6 +20,7 @@ export function Header(): React.JSX.Element {
   const toggleDiffPanel = useUIStore((s) => s.toggleDiffPanel)
   const bumpDiffRefreshKey = useUIStore((s) => s.bumpDiffRefreshKey)
   const showToast = useUIStore((s) => s.showToast)
+  const openFeedbackModal = useUIStore((s) => s.openFeedbackModal)
 
   const {
     status: gitStatus,
@@ -133,6 +134,16 @@ export function Header(): React.JSX.Element {
           >
             <span className="text-[13px] font-semibold text-bg">Commit</span>
             <span className="text-[9px] text-bg/50">&#x2228;</span>
+          </button>
+
+          <button
+            type="button"
+            aria-label="Report a bug"
+            onClick={() => openFeedbackModal()}
+            className="no-drag flex items-center gap-1 h-7 px-2 rounded-[5px] border border-button-border transition-colors hover:bg-bg-hover"
+            title="Report a bug"
+          >
+            <Bug className="h-3.5 w-3.5 text-text-secondary" />
           </button>
 
           {/* Divider */}

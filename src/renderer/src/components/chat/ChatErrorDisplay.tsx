@@ -1,6 +1,7 @@
 import { type AgentErrorInfo, classifyErrorMessage } from '@shared/types/errors'
 import {
   AlertCircle,
+  Bug,
   Check,
   ChevronDown,
   ChevronRight,
@@ -13,6 +14,7 @@ import {
 import { useState } from 'react'
 import { api } from '@/lib/ipc'
 import { clearLastAgentErrorInfo, getLastAgentErrorInfo } from '@/lib/ipc-connection-adapter'
+import { useUIStore } from '@/stores/ui-store'
 
 const DELAY_MS = 2000
 
@@ -43,13 +45,14 @@ export function ChatErrorDisplay({
   onOpenSettings,
   onRetry,
 }: ChatErrorDisplayProps): React.JSX.Element | null {
+  const openFeedbackModal = useUIStore((s) => s.openFeedbackModal)
   const [copied, setCopied] = useState(false)
   const [showDetails, setShowDetails] = useState(false)
 
   if (dismissedError === error.message) return null
 
   const info = resolveErrorInfo(error, conversationId)
-  const isAuthError = info.code === 'api-key-invalid'
+  const isAuthError = info.code === 'api-key-invalid' || info.code === 'session-expired'
 
   function handleCopy(): void {
     const text = `${info.userMessage}${info.suggestion ? `\n${info.suggestion}` : ''}\n\nRaw: ${info.message}`
@@ -125,6 +128,16 @@ export function ChatErrorDisplay({
               {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
               {copied ? 'Copied' : 'Copy'}
             </button>
+            {!isAuthError && (
+              <button
+                type="button"
+                onClick={() => openFeedbackModal(info)}
+                className="flex items-center gap-1.5 rounded-md bg-bg-hover px-2.5 py-1 text-[13px] font-medium text-text-tertiary hover:text-text-secondary transition-colors"
+              >
+                <Bug className="h-3 w-3" />
+                Report
+              </button>
+            )}
             {!isAuthError && (
               <button
                 type="button"
