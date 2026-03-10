@@ -57,6 +57,10 @@ const approvalTraceLogger = createLogger('approval-trace')
 const MAX_ITERATIONS = 25
 const MAX_STALL_RETRIES = 2
 const STALL_RETRY_DELAY_MS = 2000
+const INCOMPLETE_TOOL_ARGS_STALL_ERROR =
+  'Agent stream stalled while generating tool arguments. Please try again.'
+const INCOMPLETE_TOOL_CALL_STALL_ERROR =
+  'Agent stream stalled before tool execution completed. Please try again.'
 
 export interface AgentRunParams {
   readonly conversation: Conversation
@@ -88,6 +92,12 @@ interface DeniedApprovalSnapshot {
   readonly toolName: string
   readonly args: string
   readonly message: string
+}
+
+function isRetryableStallReason(
+  stallReason: 'stream-stall' | 'incomplete-tool-args' | 'awaiting-tool-result' | null,
+): stallReason is 'stream-stall' | 'incomplete-tool-args' {
+  return stallReason === 'stream-stall' || stallReason === 'incomplete-tool-args'
 }
 
 type UiToolCallPart = Extract<UIMessage['parts'][number], { type: 'tool-call' }>
@@ -647,9 +657,22 @@ export function runAgentEffect(params: AgentRunParams): Effect.Effect<AgentRunRe
       readonly aborted: boolean
       readonly runErrorNotified: boolean
       readonly timedOut: boolean
-      readonly stallReason: 'stream-stall' | 'incomplete-tool-call' | null
+      readonly stallReason: 'stream-stall' | 'incomplete-tool-args' | 'awaiting-tool-result' | null
     } | null = null
     let stallAttempt = 0
+
+    // Suppress duplicate RUN_STARTED chunks from stall retries.
+    // Each fresh chat() emits RUN_STARTED, but the renderer treats
+    // it as a run reset — causing accumulated streaming content to
+    // be wiped and reloaded from disk at once when the run finishes.
+    let runStartedForwarded = false
+    const deduplicatedOnChunk = (chunk: StreamChunk): void => {
+      if (chunk.type === 'RUN_STARTED') {
+        if (runStartedForwarded) return
+        runStartedForwarded = true
+      }
+      onChunk(chunk)
+    }
 
     while (true) {
       collector = new StreamPartCollector()
@@ -682,7 +705,7 @@ export function runAgentEffect(params: AgentRunParams): Effect.Effect<AgentRunRe
             processAgentStreamEffect({
               stream,
               collector,
-              onChunk,
+              onChunk: deduplicatedOnChunk,
               signal,
               hooks,
               runContext,
@@ -697,12 +720,16 @@ export function runAgentEffect(params: AgentRunParams): Effect.Effect<AgentRunRe
         return yield* Effect.fail(new AgentCancelledError({}))
       }
 
-      if (streamResult.timedOut && streamResult.stallReason === 'stream-stall') {
+      if (streamResult.timedOut && isRetryableStallReason(streamResult.stallReason)) {
         if (stallAttempt >= MAX_STALL_RETRIES) {
           logger.warn('Stream stalled after retry budget exhausted', {
             conversationId: conversation.id,
             retries: stallAttempt,
+            stallReason: streamResult.stallReason,
           })
+          if (streamResult.stallReason === 'incomplete-tool-args') {
+            return yield* Effect.fail(new Error(INCOMPLETE_TOOL_ARGS_STALL_ERROR))
+          }
           break
         }
 
@@ -710,6 +737,7 @@ export function runAgentEffect(params: AgentRunParams): Effect.Effect<AgentRunRe
           logger.warn('Stream stalled, retrying with a fresh stream', {
             conversationId: conversation.id,
             maxRetries: MAX_STALL_RETRIES,
+            stallReason: streamResult.stallReason,
           })
         }
 
@@ -722,10 +750,11 @@ export function runAgentEffect(params: AgentRunParams): Effect.Effect<AgentRunRe
         continue
       }
 
-      if (streamResult.timedOut && streamResult.stallReason === 'incomplete-tool-call') {
+      if (streamResult.timedOut && streamResult.stallReason === 'awaiting-tool-result') {
         logger.warn('Stream stalled with incomplete tool call; skipping retry', {
           conversationId: conversation.id,
         })
+        return yield* Effect.fail(new Error(INCOMPLETE_TOOL_CALL_STALL_ERROR))
       }
 
       break

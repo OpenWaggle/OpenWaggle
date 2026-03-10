@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   clearPreviousApiKey: vi.fn(),
   clearTokens: vi.fn(),
   getActiveAccessToken: vi.fn(),
+  hasStoredUsableAccessToken: vi.fn(),
   getPreviousApiKey: vi.fn(),
   registerRefreshFn: vi.fn(),
   storePreviousApiKey: vi.fn(),
@@ -44,6 +45,7 @@ vi.mock('../token-manager', () => ({
   clearPreviousApiKey: mocks.clearPreviousApiKey,
   clearTokens: mocks.clearTokens,
   getActiveAccessToken: mocks.getActiveAccessToken,
+  hasStoredUsableAccessToken: mocks.hasStoredUsableAccessToken,
   getPreviousApiKey: mocks.getPreviousApiKey,
   registerRefreshFn: mocks.registerRefreshFn,
   storePreviousApiKey: mocks.storePreviousApiKey,
@@ -87,6 +89,7 @@ describe('auth index', () => {
       expiresAt: Date.now(),
     })
     mocks.getActiveAccessToken.mockResolvedValue('active-token')
+    mocks.hasStoredUsableAccessToken.mockReturnValue(true)
   })
 
   afterEach(() => {
@@ -187,7 +190,7 @@ describe('auth index', () => {
         openrouter: { apiKey: '', enabled: false, authMethod: 'api-key' as const },
       },
     })
-    mocks.getActiveAccessToken.mockResolvedValueOnce(null).mockResolvedValueOnce('new-openai-at')
+    mocks.hasStoredUsableAccessToken.mockReturnValueOnce(false).mockReturnValueOnce(true)
 
     const { startAuthLifecycle } = await import('../index')
     const emitStatus = vi.fn()

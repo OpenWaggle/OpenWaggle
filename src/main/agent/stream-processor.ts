@@ -20,8 +20,9 @@ const approvalTraceLogger = createLogger('approval-trace')
  * can retry with a fresh stream.
  */
 export const STREAM_STALL_TIMEOUT_MS = 120_000
+export const INCOMPLETE_TOOL_CALL_STALL_TIMEOUT_MS = 30_000
 
-export type StreamStallReason = 'stream-stall' | 'incomplete-tool-call'
+export type StreamStallReason = 'stream-stall' | 'incomplete-tool-args' | 'awaiting-tool-result'
 
 export interface ProcessAgentStreamParams {
   readonly stream: AsyncIterable<StreamChunk>
@@ -40,6 +41,12 @@ export interface ProcessAgentStreamResult {
   readonly runErrorNotified: boolean
   readonly timedOut: boolean
   readonly stallReason: StreamStallReason | null
+}
+
+function resolveChunkTimeoutMs(collector: StreamPartCollector, defaultTimeoutMs: number): number {
+  return collector.hasIncompleteToolCalls()
+    ? Math.min(defaultTimeoutMs, INCOMPLETE_TOOL_CALL_STALL_TIMEOUT_MS)
+    : defaultTimeoutMs
 }
 
 type NextChunkResult =
@@ -203,8 +210,8 @@ export function processAgentStreamEffect(
       const nextChunkResult = yield* waitForNextChunkWithOptionalTimeout(
         iterator,
         signal,
-        timeout,
-        collector.hasUnresolvedToolResults(),
+        resolveChunkTimeoutMs(collector, timeout),
+        collector.hasPendingApprovalWaits(),
       )
 
       if (nextChunkResult.kind === 'aborted') {
@@ -214,7 +221,11 @@ export function processAgentStreamEffect(
 
       if (nextChunkResult.kind === 'stall') {
         timedOut = true
-        stallReason = collector.hasIncompleteToolCalls() ? 'incomplete-tool-call' : 'stream-stall'
+        stallReason = collector.hasPendingToolCallInputs()
+          ? 'incomplete-tool-args'
+          : collector.hasUnresolvedToolResults()
+            ? 'awaiting-tool-result'
+            : 'stream-stall'
         break
       }
 

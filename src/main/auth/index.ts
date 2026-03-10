@@ -20,6 +20,7 @@ import {
   clearTokens,
   getActiveAccessToken,
   getPreviousApiKey,
+  hasStoredUsableAccessToken,
   registerRefreshFn,
   storePreviousApiKey,
   storeTokens,
@@ -201,7 +202,7 @@ async function runAuthLifecycleTick(emitStatus: StatusEmitter): Promise<void> {
         continue
       }
 
-      const connected = (await getActiveAccessToken(provider)) !== null
+      const connected = hasStoredUsableAccessToken(provider)
       const previous = lifecycleConnectivity.get(provider)
 
       if (!connected && previous !== false) {
@@ -253,8 +254,7 @@ export async function getAccountInfo(
 ): Promise<SubscriptionAccountInfo> {
   const settings = getSettings()
   const config = settings.providers[provider]
-  const connected =
-    config?.authMethod === 'subscription' && (await getActiveAccessToken(provider)) !== null
+  const connected = config?.authMethod === 'subscription' && hasStoredUsableAccessToken(provider)
 
   return {
     provider,

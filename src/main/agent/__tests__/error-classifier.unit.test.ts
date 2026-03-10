@@ -17,6 +17,14 @@ describe('makeErrorInfo', () => {
     expect(info.code).toBe('unknown')
     expect(info.retryable).toBe(true)
   })
+
+  it('builds session-expired info with auth guidance', () => {
+    const info = makeErrorInfo('session-expired', 'Session expired. Please sign in again.')
+    expect(info.code).toBe('session-expired')
+    expect(info.userMessage).toBe('Session expired')
+    expect(info.suggestion).toBe('Sign in again to refresh your provider session.')
+    expect(info.retryable).toBe(false)
+  })
 })
 
 describe('classifyErrorMessage', () => {
@@ -28,6 +36,15 @@ describe('classifyErrorMessage', () => {
     ['Error: unauthorized access', 'api-key-invalid'],
     ['403 Forbidden', 'api-key-invalid'],
   ])('classifies "%s" as %s', (message, expectedCode) => {
+    const info = classifyErrorMessage(message)
+    expect(info.code).toBe(expectedCode)
+  })
+
+  it.each([
+    ['Session expired. Please sign in again.', 'session-expired'],
+    ['Session expired for Anthropic. Please sign in again.', 'session-expired'],
+    ['Anthropic token refresh failed. Please sign in again.', 'session-expired'],
+  ])('classifies session expiry "%s" as %s', (message, expectedCode) => {
     const info = classifyErrorMessage(message)
     expect(info.code).toBe(expectedCode)
   })

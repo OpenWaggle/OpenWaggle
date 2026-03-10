@@ -2,7 +2,11 @@ import type { StreamChunk } from '@tanstack/ai'
 import { describe, expect, it, vi } from 'vitest'
 import type { AgentLifecycleHook, AgentRunContext } from '../runtime-types'
 import { StreamPartCollector } from '../stream-part-collector'
-import { processAgentStream, STREAM_STALL_TIMEOUT_MS } from '../stream-processor'
+import {
+  INCOMPLETE_TOOL_CALL_STALL_TIMEOUT_MS,
+  processAgentStream,
+  STREAM_STALL_TIMEOUT_MS,
+} from '../stream-processor'
 
 vi.mock('../../logger', () => ({
   createLogger: () => ({
@@ -59,6 +63,11 @@ describe('processAgentStream', () => {
   it('exports STREAM_STALL_TIMEOUT_MS as 120 seconds', () => {
     const TWO_MINUTES_MS = 120_000
     expect(STREAM_STALL_TIMEOUT_MS).toBe(TWO_MINUTES_MS)
+  })
+
+  it('exports INCOMPLETE_TOOL_CALL_STALL_TIMEOUT_MS as 30 seconds', () => {
+    const THIRTY_SECONDS_MS = 30_000
+    expect(INCOMPLETE_TOOL_CALL_STALL_TIMEOUT_MS).toBe(THIRTY_SECONDS_MS)
   })
 
   it('processes all chunks and returns timedOut: false on normal completion', async () => {
@@ -151,7 +160,7 @@ describe('processAgentStream', () => {
     expect(params.onChunk).toHaveBeenCalledTimes(3)
   })
 
-  it('flags incomplete tool calls as a non-retryable stall reason', async () => {
+  it('flags incomplete tool args as a retryable stall reason before execution starts', async () => {
     async function* toolCallThenStall(): AsyncIterable<StreamChunk> {
       yield {
         type: 'TOOL_CALL_START',
@@ -168,22 +177,64 @@ describe('processAgentStream', () => {
     const result = await processAgentStream(params)
 
     expect(result.timedOut).toBe(true)
-    expect(result.stallReason).toBe('incomplete-tool-call')
+    expect(result.stallReason).toBe('incomplete-tool-args')
     expect(params.onChunk).toHaveBeenCalledTimes(1)
   })
 
-  it('waits for approval response indefinitely until aborted', async () => {
-    async function* endedWithoutResultThenStall(): AsyncIterable<StreamChunk> {
+  it('times out unresolved tool results when no approval-requested event arrives', async () => {
+    async function* endedWithoutApprovalThenStall(): AsyncIterable<StreamChunk> {
       yield {
         type: 'TOOL_CALL_START',
         timestamp: Date.now(),
-        toolCallId: 'tc-2',
+        toolCallId: 'tc-timeout',
         toolName: 'writeFile',
       } as StreamChunk
       yield {
         type: 'TOOL_CALL_END',
         timestamp: Date.now(),
-        toolCallId: 'tc-2',
+        toolCallId: 'tc-timeout',
+        toolName: 'writeFile',
+      } as StreamChunk
+      await new Promise(() => {})
+    }
+
+    const FAST_TIMEOUT_MS = 20
+    const params = baseParams(endedWithoutApprovalThenStall(), {
+      stallTimeoutMs: FAST_TIMEOUT_MS,
+    })
+
+    const result = await processAgentStream(params)
+
+    expect(result.aborted).toBe(false)
+    expect(result.timedOut).toBe(true)
+    expect(result.stallReason).toBe('awaiting-tool-result')
+  })
+
+  it('waits for approval response indefinitely once approval-requested arrives', async () => {
+    async function* approvalRequestedThenStall(): AsyncIterable<StreamChunk> {
+      yield {
+        type: 'TOOL_CALL_START',
+        timestamp: Date.now(),
+        toolCallId: 'tc-approval',
+        toolName: 'writeFile',
+      } as StreamChunk
+      yield {
+        type: 'CUSTOM',
+        timestamp: Date.now(),
+        name: 'approval-requested',
+        value: {
+          toolCallId: 'tc-approval',
+          toolName: 'writeFile',
+          approval: {
+            id: 'approval_tc-approval',
+            needsApproval: true,
+          },
+        },
+      } as StreamChunk
+      yield {
+        type: 'TOOL_CALL_END',
+        timestamp: Date.now(),
+        toolCallId: 'tc-approval',
         toolName: 'writeFile',
       } as StreamChunk
       await new Promise(() => {})
@@ -192,7 +243,7 @@ describe('processAgentStream', () => {
     const FAST_ABORT_MS = 20
     const controller = new AbortController()
     setTimeout(() => controller.abort(), FAST_ABORT_MS)
-    const params = baseParams(endedWithoutResultThenStall(), {
+    const params = baseParams(approvalRequestedThenStall(), {
       signal: controller.signal,
       stallTimeoutMs: FAST_ABORT_MS,
     })

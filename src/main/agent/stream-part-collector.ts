@@ -247,8 +247,22 @@ export class StreamPartCollector {
     return this.pendingToolCallIds.size > 0 || this.awaitingToolResultIds.size > 0
   }
 
+  hasPendingToolCallInputs(): boolean {
+    return this.pendingToolCallIds.size > 0
+  }
+
   hasUnresolvedToolResults(): boolean {
     return this.awaitingToolResultIds.size > 0
+  }
+
+  hasPendingApprovalWaits(): boolean {
+    for (const toolCallId of this.awaitingToolResultIds) {
+      if (this.toolCallStates.get(toolCallId) === 'approval-requested') {
+        return true
+      }
+    }
+
+    return false
   }
 
   finalizeParts(options: StreamPartCollectorFinalizeOptions = {}): MessagePart[] {
