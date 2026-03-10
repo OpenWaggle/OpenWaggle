@@ -17,6 +17,7 @@
     "build:mac": "pnpm build && electron-builder --mac",
     "build:win": "pnpm build && electron-builder --win",
     "build:linux": "pnpm build && electron-builder --linux",
+    "build:website": "cd website && pnpm install && pnpm build",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
     "typecheck": "pnpm typecheck:node && pnpm typecheck:web",
