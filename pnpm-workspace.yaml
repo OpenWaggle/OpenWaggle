@@ -1,4 +1,5 @@
+packages:
+  - "website"
+
 ignoredBuiltDependencies:
-  - electron
-  - electron-winstaller
   - esbuild
