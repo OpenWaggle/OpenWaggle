@@ -83,6 +83,72 @@ The ref-based approval tracking (`pendingApprovalTrustStatusRef`) is still neede
 
 ---
 
+## 5. Provider Streams Can Stall Mid-Tool-Args Before Any Tool Executes
+
+**Severity:** High — prematurely terminates runs that were still safe to recover
+
+**Problem:**
+Anthropic/TanStack tool streams can stall while a tool call is still emitting its JSON arguments. The common production symptom is a `writeFile` call that starts with a valid `path` prefix, never finishes streaming `content`, and then times out with a partial payload such as:
+
+```json
+{"path":"docs/openwaggle-summary.md"
+```
+
+If this state is treated the same as a tool call that already reached `TOOL_CALL_END` and is awaiting approval or execution, the run fails too early and the user experiences an artificial stop instead of a safe recovery attempt.
+
+**Root Cause:**
+The raw `StreamChunk` flow distinguishes two materially different incomplete-tool states:
+
+1. `TOOL_CALL_START` / `TOOL_CALL_ARGS` only
+   - the model is still serializing JSON arguments
+   - no tool execution has started yet
+2. `TOOL_CALL_END` without `result`
+   - the input is complete
+   - the tool is awaiting approval, client execution, or result emission
+
+Collapsing both into one generic "incomplete tool call" stall reason is too coarse. Only the second state is side-effect-sensitive.
+
+**Workaround (implemented):**
+OpenWaggle now classifies stalled streams into:
+
+- `incomplete-tool-args`
+- `awaiting-tool-result`
+- `stream-stall`
+
+Recovery policy:
+
+- retry `incomplete-tool-args` stalls within the normal stall retry budget, because no tool has executed yet
+- do **not** retry `awaiting-tool-result`, because re-running there can duplicate side effects
+
+This workaround lives in:
+
+- `/Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle/src/main/agent/stream-processor.ts`
+- `/Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle/src/main/agent/agent-loop.ts`
+
+---
+
+## 6. `useChat` Foreground Runs Can Lose the Transcript After Client Recreation
+
+**Severity:** High — can blank or stale the active transcript until a later refresh
+
+**Problem:**
+After a normal foreground run finishes, the TanStack `UIMessage[]` in the renderer can still be cleared later when the `useChat` client is recreated or its internal message state resets. If OpenWaggle keeps treating that run as "foreground-stream active" forever, the conversation hydration effect keeps bailing out and never restores either the persisted snapshot or the just-finished foreground transcript.
+
+**Root Cause:**
+OpenWaggle intentionally avoids replacing foreground-streaming `UIMessage[]` with persisted conversation snapshots, because persisted disk state can lag behind the live stream. But TanStack `useChat` also recreates internal client state when the hook `id` changes, and that can transiently reset `messages` to `[]`. If the foreground-stream guard is never cleared on the success path, later hydration attempts are suppressed indefinitely.
+
+**Workaround (implemented):**
+1. Keep the foreground guard active while the run is still authoritative.
+2. Once the conversation is idle, cache the final foreground `UIMessage[]`.
+3. If TanStack later resets `messages` to empty for the same conversation, restore that cached foreground snapshot exactly once.
+4. Clear the foreground guard after the one-shot restore so normal persisted hydration can resume.
+
+This workaround lives in:
+
+- `/Users/diego.garciabrisa/Desktop/Projects/personal/OpenWaggle/src/renderer/src/hooks/useAgentChat.ts`
+
+---
+
 ## Regression Coverage Matrix
 
 Run all known-issue regression coverage with:
@@ -97,6 +163,7 @@ pnpm test:tanstack-known-issues
 | #2 end-only continuation tool chunks | Upstream behavior sentinel + OpenWaggle normalization/collector regressions | `src/main/agent/tanstack-known-issues.unit.test.ts`, `src/main/agent/continuation-normalizer.unit.test.ts`, `src/main/agent/stream-part-collector.unit.test.ts` |
 | #3 continuation UIMessage/tool-arg corruption | OpenWaggle normalization regression | `src/main/agent/continuation-normalizer.unit.test.ts` |
 | #4 continuation self-cancellation risk | Fixed upstream in `@tanstack/ai-client@0.5.2`; `waitForNotLoading` workaround removed | — |
+| #6 foreground transcript loss after `useChat` reset | OpenWaggle renderer hydration regression | `src/renderer/src/hooks/__tests__/useAgentChat.unit.test.ts` |
 
 ### Upstream Fix Detection
 

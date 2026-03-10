@@ -38,6 +38,12 @@ pnpm build:win    # Windows NSIS installer (x64)
 pnpm build:linux  # Linux AppImage (x64)
 ```
 
+These commands currently produce local build artifacts for developer testing. They are not yet documented as signed public releases. Shipping them directly to end users still requires release automation plus platform trust work:
+
+- macOS: code signing, notarization, and stapling
+- Windows: installer signing
+- Linux: release publishing plus clean-machine validation
+
 ## First Run
 
 When you launch OpenWaggle for the first time, you'll see the main workspace with an empty chat. To start using the agent:
