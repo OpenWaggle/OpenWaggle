@@ -1,9 +1,11 @@
+import crypto from 'node:crypto'
+import fs from 'node:fs'
 import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 
 const DATABASE_FILE_NAME = 'openwaggle.db'
-const FILE_WAIT_RETRY_DELAY_MS = 100
-const FILE_WAIT_TIMEOUT_MS = 5_000
+const DB_WAIT_RETRY_DELAY_MS = 100
+const DB_WAIT_TIMEOUT_MS = 10_000
 
 function isRecord(value: unknown): value is { readonly [key: string]: unknown } {
   return typeof value === 'object' && value !== null
@@ -32,67 +34,48 @@ function openDatabase(userDataDir: string): DatabaseSync {
   return database
 }
 
-function normalizeConversationRow(value: unknown): ConversationRowFixture | null {
-  if (!isRecord(value)) {
-    return null
-  }
-
-  const id = typeof value.id === 'string' ? value.id : null
-  const createdAt =
-    typeof value.created_at === 'number' && Number.isFinite(value.created_at)
-      ? value.created_at
-      : null
-
-  if (id === null || createdAt === null) {
-    return null
-  }
-
-  return { id, createdAt }
-}
-
-function listConversationRows(userDataDir: string): ConversationRowFixture[] {
-  const database = openDatabase(userDataDir)
-  try {
-    const rows: unknown = database
-      .prepare(
-        `
-          SELECT id, created_at
-          FROM conversations
-          ORDER BY created_at ASC, id ASC
-        `,
-      )
-      .all()
-
-    if (!Array.isArray(rows)) {
-      return []
-    }
-
-    return rows
-      .map(normalizeConversationRow)
-      .filter((row): row is ConversationRowFixture => row !== null)
-  } catch {
-    return []
-  } finally {
-    database.close()
-  }
-}
-
-async function waitForConversationRows(
-  userDataDir: string,
-  expectedCount: number,
-): Promise<ConversationRowFixture[]> {
+/**
+ * Wait for the database file to exist and be writable.
+ * With lazy thread creation the app no longer eagerly creates conversation rows,
+ * so we wait only for the DB file itself (schema is created on first open).
+ */
+async function waitForDatabase(userDataDir: string): Promise<void> {
+  const dbPath = getDatabasePath(userDataDir)
   const startedAt = Date.now()
 
-  while (Date.now() - startedAt < FILE_WAIT_TIMEOUT_MS) {
-    const rows = listConversationRows(userDataDir)
-    if (rows.length >= expectedCount) {
-      return rows
+  while (Date.now() - startedAt < DB_WAIT_TIMEOUT_MS) {
+    if (fs.existsSync(dbPath)) {
+      // Verify the conversations table exists
+      try {
+        const db = new DatabaseSync(dbPath)
+        try {
+          db.prepare('SELECT 1 FROM conversations LIMIT 1').all()
+          return
+        } finally {
+          db.close()
+        }
+      } catch {
+        // Table not ready yet — retry
+      }
     }
-
-    await new Promise((resolve) => setTimeout(resolve, FILE_WAIT_RETRY_DELAY_MS))
+    await new Promise((resolve) => setTimeout(resolve, DB_WAIT_RETRY_DELAY_MS))
   }
 
-  throw new Error(`Expected at least ${String(expectedCount)} conversation row(s)`)
+  throw new Error('Database file did not become ready within timeout')
+}
+
+function insertConversationRow(database: DatabaseSync): ConversationRowFixture {
+  const id = crypto.randomUUID()
+  const now = Date.now()
+  database
+    .prepare(
+      `
+        INSERT INTO conversations (id, title, created_at, updated_at)
+        VALUES (?, ?, ?, ?)
+      `,
+    )
+    .run(id, 'E2E Seed', now, now)
+  return { id, createdAt: now }
 }
 
 function readStringField(record: { readonly [key: string]: unknown }, key: string): string {
@@ -265,15 +248,11 @@ export async function seedSingleConversation(
   userDataDir: string,
   conversationInput: SeedConversationInput,
 ): Promise<void> {
-  const rows = await waitForConversationRows(userDataDir, 1)
-  const firstRow = rows[0]
-  if (!firstRow) {
-    throw new Error('Expected at least one conversation row')
-  }
-
+  await waitForDatabase(userDataDir)
   const database = openDatabase(userDataDir)
   try {
-    seedConversationRow(database, firstRow, conversationInput)
+    const row = insertConversationRow(database)
+    seedConversationRow(database, row, conversationInput)
   } finally {
     database.close()
   }
@@ -283,16 +262,12 @@ export async function seedConversations(
   userDataDir: string,
   conversationInputs: readonly SeedConversationInput[],
 ): Promise<void> {
-  const rows = await waitForConversationRows(userDataDir, conversationInputs.length)
+  await waitForDatabase(userDataDir)
   const database = openDatabase(userDataDir)
 
   try {
-    for (const [index, conversationInput] of conversationInputs.entries()) {
-      const row = rows[index]
-      if (!row) {
-        throw new Error(`Expected conversation row at index ${String(index)}`)
-      }
-
+    for (const conversationInput of conversationInputs) {
+      const row = insertConversationRow(database)
       seedConversationRow(database, row, conversationInput)
     }
   } finally {

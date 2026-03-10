@@ -89,7 +89,6 @@ export async function seedRegressionConversation(
   const updatedAt = options?.updatedAt ?? Date.now()
   const title = options?.title ?? REGRESSION_THREAD_TITLE
 
-  await app.mainWindow().createNewThread()
   await seedSingleConversation(app.userDataDir, {
     title,
     updatedAt,

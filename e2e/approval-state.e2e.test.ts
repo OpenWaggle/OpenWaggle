@@ -113,10 +113,6 @@ test('pending approval stays visible after switching conversations and back', as
     const pendingPath = 'pending-switch-check.txt'
     const pendingToolName = 'dangerousAction'
 
-    const mainWindow = app.mainWindow()
-    await mainWindow.createNewThread()
-    await mainWindow.createNewThread()
-
     const seededConversations: readonly SeedConversationInput[] = [
       {
         title: primaryTitle,
