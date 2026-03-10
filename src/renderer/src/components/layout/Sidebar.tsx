@@ -23,6 +23,7 @@ import { useProject } from '@/hooks/useProject'
 import { cn } from '@/lib/cn'
 import { api } from '@/lib/ipc'
 import { usePreferencesStore } from '@/stores/preferences-store'
+import { useThreadStatusStore } from '@/stores/thread-status-store'
 import { useUIStore } from '@/stores/ui-store'
 import { ConversationGroup } from './ConversationGroup'
 import { groupConversationsByProject, type SortMode, sortConversationGroups } from './sidebar-utils'
@@ -69,6 +70,7 @@ export function Sidebar(): React.JSX.Element {
     conversations,
     activeConversationId,
     createConversation,
+    startDraftThread,
     setActiveConversation,
     deleteConversation,
     updateConversationProjectPath,
@@ -84,6 +86,7 @@ export function Sidebar(): React.JSX.Element {
       setProjectPath,
       selectFolder,
       createConversation,
+      startDraftThread,
       setActiveConversation,
       updateConversationProjectPath,
       refreshGitStatus,
@@ -282,6 +285,9 @@ export function Sidebar(): React.JSX.Element {
                     }}
                     onDelete={(id: ConversationId) => {
                       void deleteConversation(id)
+                    }}
+                    onMarkUnread={(id: ConversationId) => {
+                      useThreadStatusStore.getState().markUnread(id)
                     }}
                     onNewThread={() => {
                       void createConversation(group.path)

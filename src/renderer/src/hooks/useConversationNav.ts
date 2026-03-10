@@ -1,5 +1,6 @@
 import type { ConversationId } from '@shared/types/brand'
 import type { ConversationSummary } from '@shared/types/conversation'
+import { useThreadStatusStore } from '@/stores/thread-status-store'
 
 interface ConversationNavDeps {
   readonly conversations: readonly ConversationSummary[]
@@ -9,6 +10,7 @@ interface ConversationNavDeps {
   readonly setProjectPath: (path: string | null) => Promise<void>
   readonly selectFolder: () => Promise<string | null>
   readonly createConversation: (projectPath: string | null) => Promise<ConversationId>
+  readonly startDraftThread: () => void
   readonly setActiveConversation: (id: ConversationId | null) => Promise<void>
   readonly updateConversationProjectPath: (id: ConversationId, path: string | null) => Promise<void>
   readonly refreshGitStatus: (projectPath: string | null) => Promise<void>
@@ -17,7 +19,7 @@ interface ConversationNavDeps {
 
 interface ConversationNavHandlers {
   readonly handleSelectConversation: (id: ConversationId) => Promise<void>
-  readonly handleNewConversation: () => Promise<void>
+  readonly handleNewConversation: () => void
   readonly handleOpenProject: () => Promise<void>
   readonly handleSelectProjectPath: (path: string) => Promise<void>
 }
@@ -32,6 +34,7 @@ export function createConversationNavHandlers(deps: ConversationNavDeps): Conver
     setProjectPath,
     selectFolder,
     createConversation,
+    startDraftThread,
     setActiveConversation,
     updateConversationProjectPath,
     refreshGitStatus,
@@ -50,12 +53,13 @@ export function createConversationNavHandlers(deps: ConversationNavDeps): Conver
       await setProjectPath(conv.projectPath)
     }
     await setActiveConversation(id)
+    useThreadStatusStore.getState().markVisited(id)
     refreshGit(nextProjectPath)
   }
 
-  async function handleNewConversation(): Promise<void> {
+  function handleNewConversation(): void {
     setActiveView('chat')
-    await createConversation(projectPath)
+    startDraftThread()
   }
 
   async function handleOpenProject(): Promise<void> {

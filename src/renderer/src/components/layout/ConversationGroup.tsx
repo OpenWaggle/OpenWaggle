@@ -13,6 +13,7 @@ interface ConversationGroupProps {
   readonly onToggle: () => void
   readonly onSelect: (id: ConversationId) => void
   readonly onDelete: (id: ConversationId) => void
+  readonly onMarkUnread: (id: ConversationId) => void
   readonly onNewThread: () => void
   readonly onRename: (name: string) => void
   readonly onRemove: () => void
@@ -25,6 +26,7 @@ export function ConversationGroup({
   onToggle,
   onSelect,
   onDelete,
+  onMarkUnread,
   onNewThread,
   onRename,
   onRemove,
@@ -170,6 +172,7 @@ export function ConversationGroup({
               isActive={conv.id === activeId}
               onSelect={onSelect}
               onDelete={onDelete}
+              onMarkUnread={onMarkUnread}
             />
           ))}
         </div>
