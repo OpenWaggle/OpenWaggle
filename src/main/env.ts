@@ -60,3 +60,17 @@ export function getDefinedEnv(
 export function getSafeChildEnvEntries(): Record<string, string> {
   return getDefinedEnv(getSafeChildEnv())
 }
+
+/**
+ * Environment for `gh` CLI calls.
+ * Strips GITHUB_TOKEN / GH_TOKEN so `gh` uses its keyring-stored OAuth
+ * credentials from `gh auth login` — the standard setup for end users.
+ * Inherited env tokens (e.g. from CI or dev tooling) can cause permission
+ * mismatches with the target org's token policies.
+ */
+export function getGhCliEnv(): Record<string, string | undefined> {
+  const env = { ...process.env }
+  delete env.GITHUB_TOKEN
+  delete env.GH_TOKEN
+  return env
+}
