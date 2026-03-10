@@ -11,9 +11,9 @@ Attach files to your messages for the agent to analyze.
 
 ### Supported Formats
 
-- **Text files** — Content extracted directly.
+- **Text files** — Content extracted directly (including `.txt`, `.csv`, `.json`, `.xml`, `.html`, `.docx`, `.rtf`, `.odt`).
 - **PDFs** — Text extracted with page structure preserved.
-- **Images** — Sent natively to providers that support vision (Anthropic, OpenAI, Gemini). OCR text extraction used as fallback for other providers.
+- **Images** — Sent natively to providers that support vision (Anthropic, OpenAI). Text extraction used as fallback for other providers.
 
 ### How to Attach
 
@@ -26,18 +26,14 @@ Attachments are stored as metadata only — binary content is not persisted in c
 
 ### Attachment Support by Provider
 
-Different providers support different types of native attachments:
+Attachment support has been verified for the following providers:
 
 | Provider | Images | PDFs | Text Files |
 |----------|--------|------|------------|
 | Anthropic | Native | Native | Text extraction |
 | OpenAI | Native | Native | Text extraction |
-| Gemini | Native | Native | Text extraction |
-| Grok | Text fallback | Text fallback | Text extraction |
-| OpenRouter | Text fallback | Text fallback | Text extraction |
-| Ollama | Text fallback | Text fallback | Text extraction |
 
-Providers without native support receive extracted text instead, so attachments work everywhere — just with different fidelity.
+Other providers (Gemini, Grok, OpenRouter, Ollama) are not yet fully tested. Attachment behavior with those providers may vary.
 
 ## Voice Input
 

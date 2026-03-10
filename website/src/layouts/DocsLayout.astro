@@ -2,7 +2,6 @@
 import BaseLayout from './BaseLayout.astro';
 import Sidebar from '@/components/docs/Sidebar.astro';
 import PrevNext from '@/components/docs/PrevNext.astro';
-import Search from '@/components/docs/Search.astro';
 
 interface Props {
   title: string;
@@ -30,10 +29,6 @@ const { title, description, slug } = Astro.props;
             <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
-      </div>
-
-      <div class="mb-8">
-        <Search />
       </div>
 
       <article class="prose-docs">

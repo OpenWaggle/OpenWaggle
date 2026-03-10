@@ -1,44 +1,24 @@
 ---
 title: "Installation"
-description: "System requirements and how to install OpenWaggle on macOS, Windows, or Linux."
+description: "How to install OpenWaggle on macOS, Windows, or Linux."
 order: 1
 section: "Getting Started"
 ---
 
-## Prerequisites
+## Supported Platforms
 
-- **Node.js** 24.x — [nodejs.org](https://nodejs.org/)
-- **pnpm** 9 or later — [pnpm.io](https://pnpm.io/)
-- **macOS**, **Windows**, or **Linux**
+- **macOS** (x64 + Apple Silicon)
+- **Windows** (x64)
+- **Linux** (x64)
 
-## Installation
+## Pre-Built Installers
 
-```bash
-git clone https://github.com/OpenWaggle/OpenWaggle.git
-cd openwaggle
-pnpm install
-```
+> **Coming soon** — Pre-built installers (.dmg, .exe, AppImage) are not yet available. We're working on publishing official releases.
 
-## Running the App
+For now, you can build OpenWaggle from source. See [Building from Source](/docs/developer-guide/building-from-source) for instructions.
 
-Start OpenWaggle in development mode:
+## System Requirements
 
-```bash
-pnpm dev
-```
-
-This launches the Electron app with hot-reload for the renderer (UI). Changes to the main process (backend) require a full app restart.
-
-To create a production build:
-
-```bash
-pnpm build
-```
-
-Platform-specific installers:
-
-```bash
-pnpm build:mac    # macOS .dmg (x64 + arm64)
-pnpm build:win    # Windows NSIS installer (x64)
-pnpm build:linux  # Linux AppImage (x64)
-```
+- A modern operating system (macOS, Windows 10+, or a recent Linux distribution)
+- An API key for at least one supported AI provider (see [Providers](/docs/providers/overview))
+- Internet connection for AI provider communication (except when using local models via Ollama)

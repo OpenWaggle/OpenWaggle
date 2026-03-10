@@ -5,21 +5,11 @@ order: 5
 section: "Providers"
 ---
 
+> **Coming soon** — Grok support is implemented but not yet fully tested. It may not work reliably in the current release.
+
 Disabled by default. Enable it in **Settings > Connections** after adding your API key.
-
-## Available Models
-
-- Grok 3 Mini Fast
-- Grok 3
 
 ## Authentication
 
 - **API key** — Get yours at [console.x.ai/team/default/api-keys](https://console.x.ai/team/default/api-keys)
 
-## Attachment Support
-
-| Type | Support |
-|------|---------|
-| Images | Text fallback |
-| PDFs | Text fallback |
-| Text Files | Text extraction |

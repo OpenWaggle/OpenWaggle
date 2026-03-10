@@ -7,7 +7,7 @@ section: "Getting Started"
 
 When you launch OpenWaggle for the first time, you'll see the main workspace with an empty chat. To start using the agent:
 
-1. **Set up a provider** — Click the gear icon in the sidebar (or press `Cmd+,` / `Ctrl+,`) to open Settings. Go to **Connections** and add an API key for at least one provider. See [Providers & Models](/docs/providers/overview) for detailed setup instructions.
+1. **Set up a provider** — Click the gear icon in the sidebar to open Settings. Go to **Connections** and add an API key for at least one provider. See [Providers & Models](/docs/providers/overview) for detailed setup instructions.
 
 2. **Select a project** — Click "Select a project folder to get started" in the welcome screen, or use the folder button in the sidebar. This gives the agent access to your codebase.
 

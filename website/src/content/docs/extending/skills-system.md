@@ -11,7 +11,7 @@ Skills extend the agent's capabilities with specialized knowledge and workflows.
 
 A skill is a folder inside `.openwaggle/skills/` containing a `SKILL.md` file. The markdown file provides specialized instructions, patterns, and workflows that the agent can load during a conversation.
 
-For example, a "react-doctor" skill might include React Compiler compatibility rules and code quality audit workflows that the agent follows when working on your React components.
+For example, a skill might include code quality audit rules, framework-specific patterns, or step-by-step workflows that the agent follows when working on certain parts of your codebase.
 
 ## Discovering Skills
 
@@ -19,17 +19,12 @@ For example, a "react-doctor" skill might include React Compiler compatibility r
 
 Click **Skills** in the sidebar to open the Skills panel. It shows:
 
-- **AGENTS.md status** — Whether a root `AGENTS.md` file exists in your project (found/missing/error).
-- **Skill catalog** — All skills discovered in `.openwaggle/skills/`. Each skill shows:
-  - Name and description (from SKILL.md frontmatter).
-  - Skill ID (the folder name).
-  - Enable/disable toggle.
-  - "Invalid" badge if the SKILL.md is malformed.
-- **Preview pane** — Select a skill to see its full SKILL.md content rendered as markdown.
+- **Skill catalog** — All skills discovered in `.openwaggle/skills/`. Each skill shows its name, description, and an enable/disable toggle.
+- **Preview pane** — Select a skill to see its full content rendered as markdown.
 
 ### Slash References
 
-Type `/` in the composer to open the command palette, then select a skill to reference it. This inserts `/skill-id` into your message, which activates that skill for the current agent run.
+Type `/` in the composer to open the command palette, then select a skill to reference it. This activates that skill for the current agent response.
 
 Multiple skill references can be included in the same message.
 
@@ -37,20 +32,7 @@ Multiple skill references can be included in the same message.
 
 Toggle each skill on or off using the switch in the Skills panel. Toggles are **per-project** — enabling a skill in one project doesn't affect other projects.
 
-Disabled skills:
-- Don't appear in slash-reference suggestions.
-- Cannot be loaded by the agent mid-run via `loadSkill`.
-- Still appear in the catalog for reference.
-
-## How Skills Are Loaded
-
-Skills use a **metadata-first** approach:
-
-1. **At run start** — The agent receives only skill metadata (ID, name, description) in its system prompt. This keeps the initial context small.
-2. **On demand** — When the agent determines a skill is relevant, it calls `loadSkill` to fetch the full SKILL.md instructions.
-3. **Via slash reference** — When you include `/skill-id` in your message, the skill's full instructions are loaded at the start of that run.
-
-Loaded skills are **run-scoped** — they persist for the duration of one agent response but don't automatically carry over to the next message.
+Disabled skills don't appear in slash-reference suggestions and can't be loaded by the agent automatically.
 
 ## Creating Custom Skills
 
@@ -101,26 +83,5 @@ The frontmatter (`name` and `description`) is required for the skill to appear i
 
 In addition to skills, OpenWaggle supports `AGENTS.md` files for project-wide agent instructions.
 
-### How It Works
-
-- A root `AGENTS.md` in your project provides baseline instructions for every agent run.
-- Nested `AGENTS.md` files in subdirectories provide scoped instructions that apply when the agent works in those areas.
-- The resolution order is: root baseline, then ancestor directories, then the nearest `AGENTS.md` to the target path.
-
-### Scoped Loading
-
-The agent can call `loadAgents` mid-run to load scoped instructions for a specific path without restarting the conversation. Missing or malformed `AGENTS.md` files produce a warning but never block execution.
-
-## Bundled Skills
-
-OpenWaggle ships with several built-in skills in the `.openwaggle/skills/` directory:
-
-| Skill | Purpose |
-|-------|---------|
-| `electron-native-rebuild` | Native module rebuild workflow for Node vs Electron runtimes |
-| `react-doctor` | React Compiler compatibility and code quality audits |
-| `orchestration-fallback-streaming` | Debug orchestration handoff issues |
-| `openai-codex-subscription-transport` | Handle OpenAI billing edge cases |
-| `memory-safe-attachment-hydration` | Attachment processing patterns |
-
-These can be enabled/disabled per project like any other skill.
+- Place an `AGENTS.md` in your project root to provide baseline instructions for every agent run.
+- Place additional `AGENTS.md` files in subdirectories to provide scoped instructions that apply when the agent works in those areas.

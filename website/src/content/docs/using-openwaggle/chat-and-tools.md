@@ -1,6 +1,6 @@
 ---
 title: "Chat & Tools"
-description: "How conversations work, the built-in agent tools, the approval system, and command output safety."
+description: "How conversations work, the built-in agent tools, the approval system, and execution modes."
 order: 1
 section: "Using OpenWaggle"
 ---
@@ -44,7 +44,7 @@ Assistant messages can contain:
 
 ## Built-in Tools
 
-The agent has access to tools for working with your project files and system. Tools are organized by their safety level.
+The agent has access to tools for working with your project files and system.
 
 ### Read-Only Tools (No Approval Needed)
 
@@ -52,28 +52,26 @@ These tools execute immediately without asking for permission:
 
 | Tool | Description |
 |------|-------------|
-| **readFile** | Read file contents (up to 1 MB). Supports partial reads via `maxLines`. |
-| **glob** | Find files matching glob patterns. Returns up to 200 matches. Automatically ignores `node_modules`, `.git`, `dist`, and `out`. |
-| **listFiles** | List directory contents with file sizes, up to 3 levels deep. |
-| **askUser** | Ask you multiple-choice questions when the agent needs clarification (1-4 questions per call). |
+| **Read file** | Read file contents from your project. |
+| **Find files** | Find files matching glob patterns (e.g., `**/*.ts`). |
+| **List files** | List directory contents. |
+| **Search the web** | Search the web and return results. |
+| **Ask user** | Ask you clarifying questions when the agent needs more context. |
 
-### Write Tools (Approval Required)
+### Tools That Require Approval
 
-These tools modify files and require your explicit approval before executing:
-
-| Tool | Description |
-|------|-------------|
-| **writeFile** | Create or overwrite a file. Auto-creates parent directories. Shows a diff of before/after content. |
-| **editFile** | Find-and-replace exact string matches within a file. The match must appear exactly once. Shows a diff. |
-| **runCommand** | Execute a shell command in your project directory. 30-second timeout, 1 MB output buffer. |
-| **webFetch** | Fetch content from a URL (HTTP/HTTPS only). HTML is converted to plain text. 5 MB response limit. |
-
-### Skill & Standards Tools
+These tools modify files or run commands and require your explicit approval:
 
 | Tool | Description |
 |------|-------------|
-| **loadSkill** | Load full instructions from a project skill mid-conversation. |
-| **loadAgents** | Load scoped AGENTS.md instructions for a specific path. |
+| **Write file** | Create or overwrite a file. Shows a diff of before/after content. |
+| **Edit file** | Find-and-replace within a file. Shows a diff. |
+| **Run command** | Execute a shell command in your project directory. |
+| **Fetch URL** | Fetch content from a URL. |
+
+### Skills & Standards
+
+The agent can also load project-specific skills and instructions during a conversation. See [Skills System](/docs/extending/skills-system) for details.
 
 ## Tool Call Display
 
@@ -84,7 +82,7 @@ When the agent uses a tool, it appears as a collapsible block in the conversatio
 - **Execution time** — Shown after completion.
 - **Expandable details** — Click to see arguments, full output, and diffs.
 
-For file write/edit operations, the expanded view shows a side-by-side diff of the changes.
+For file write/edit operations, the expanded view shows an inline diff of the changes.
 
 ## Approval System
 
@@ -94,13 +92,13 @@ When the agent wants to execute a potentially destructive operation (write file,
 - **Approve** (green checkmark) — Allow the operation.
 - **Deny** (red X) — Block the operation.
 
-The agent pauses until you respond. If denied, it receives a structured rejection and can try an alternative approach.
+The agent pauses until you respond. If denied, it receives a rejection and can try an alternative approach.
 
 ### Execution Modes
 
 OpenWaggle has two execution modes that control how approvals work:
 
-- **Default permissions** — Write operations, commands, and web fetches require approval unless already trusted by policy.
+- **Default permissions** — Write operations, commands, and web fetches require approval.
 - **Full access** — All tools execute immediately without approval prompts. A confirmation dialog appears when switching to this mode.
 
 Toggle the execution mode via the status bar at the bottom of the composer.
@@ -112,7 +110,7 @@ Press `Cmd+K` / `Ctrl+K` or type `/` at the beginning of the composer input to o
 - **Skills** — Activate project skills inline.
 - **Waggle presets** — Start a multi-agent session or load a saved team preset.
 
-For settings, use the sidebar gear button or `Cmd+,` / `Ctrl+,`.
+For settings, use the gear icon in the sidebar.
 
 Use arrow keys to navigate and Enter to select.
 
@@ -130,12 +128,6 @@ When something goes wrong, an error display appears in the conversation with:
   - **Open Logs** — Open the app logs directory for debugging.
   - **Dismiss** — Remove the error display.
 
-## Run Summary
+## Command Safety
 
-After the agent finishes responding, a **run summary** line shows the total response time. If the response included multiple phases (thinking, tool calls, synthesis), each phase's duration is listed.
-
-## Command Output Safety
-
-Sensitive output from shell commands (API keys, tokens, private keys, GitHub tokens) is automatically redacted before being shown in the conversation and in logs. This prevents accidental exposure of credentials in tool output.
-
-The child process environment is also filtered — only safe variables (`PATH`, `HOME`, `SHELL`, `TERM`, `LANG`, `USER`, `TMPDIR`) are passed to subprocesses, so your API keys and other sensitive environment variables are never exposed to commands the agent runs.
+When the agent runs shell commands, the child process receives a filtered environment — your API keys and other sensitive environment variables are never exposed to commands the agent runs.

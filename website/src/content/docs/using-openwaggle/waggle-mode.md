@@ -28,7 +28,7 @@ Each agent can use all available tools (file operations, shell commands, etc.) d
    - **Agent A**: Select a model, assign a role description, and pick a color.
    - **Agent B**: Same configuration with a different model.
    - **Max turns**: How many back-and-forth rounds before forced synthesis (default varies by preset).
-   - **Collaboration style**: Sequential turns.
+   - **Collaboration style**: Sequential turns (the only mode currently supported).
 
 ### From the Command Palette
 
@@ -63,7 +63,7 @@ The confidence threshold is 0.7 (70% similarity) for triggering consensus.
 
 ## Synthesis Step
 
-After reaching consensus or the turn limit, a neutral agent (not assigned to either "side") generates a structured synthesis:
+After reaching consensus or the turn limit, Agent A's model generates a structured synthesis:
 
 - **Agreed points** — What both agents converged on.
 - **Disagreements** — Where they diverged and why.
@@ -80,7 +80,19 @@ When both agents modify the same files, Waggle Mode tracks these conflicts:
 
 ## Approval in Waggle Mode
 
-In Waggle Mode, tool execution is automatic (no per-tool approval prompts). This is by design — the multi-turn collaboration would be impractical if every tool call required manual approval. The auto-approval is scoped only to the active Waggle session and uses a branded security token internally.
+In Waggle Mode, tool execution is automatic — no per-tool approval prompts. This is by design: the multi-turn collaboration would be impractical if every tool call required manual approval.
+
+### How Auto-Approval Stays Safe
+
+Even though tools run without asking, several safeguards remain active:
+
+- **Scoped to the session** — Auto-approval only applies during the active Waggle session. Once the session ends, normal approval rules resume immediately.
+- **Environment filtering** — Shell commands still receive a filtered environment. Your API keys and sensitive environment variables are never exposed to commands the agents run, even in auto-approval mode.
+- **Project sandboxing** — File operations are still restricted to your project directory. Agents cannot read or write files outside your project root.
+- **Unforgeable token** — Internally, auto-approval is gated by a branded security token (a JavaScript `Symbol` that cannot be created or faked outside the orchestration layer). This prevents auto-approval from being accidentally activated by other parts of the application.
+- **Not persisted** — The auto-approval token only exists in memory during the session. It's never saved to disk or included in conversation history.
+
+> **Note** — Auto-approval is currently always enabled in Waggle Mode and cannot be turned off. Your global execution mode setting does not apply during Waggle sessions. The ability to opt out of auto-approval in Waggle Mode is planned for a future release.
 
 ## When to Use Waggle Mode
 

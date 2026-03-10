@@ -5,6 +5,8 @@ order: 7
 section: "Providers"
 ---
 
+> **Coming soon** — Ollama support is implemented but not yet fully tested. It may not work reliably in the current release.
+
 Disabled by default. Ollama runs models locally on your machine — no API key or internet connection required.
 
 ## Setup
@@ -22,12 +24,3 @@ OpenWaggle automatically detects all models installed in your Ollama instance. T
 
 Point OpenWaggle to a remote Ollama instance by changing the base URL in settings (e.g., `http://192.168.1.100:11434`).
 
-## Attachment Support
-
-| Type | Support |
-|------|---------|
-| Images | Text fallback |
-| PDFs | Text fallback |
-| Text Files | Text extraction |
-
-Providers without native support receive extracted text instead, so attachments work everywhere — just with different fidelity.

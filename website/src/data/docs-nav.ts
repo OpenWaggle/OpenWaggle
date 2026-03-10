@@ -14,7 +14,6 @@ export const docsNav: NavSection[] = [
     items: [
       { title: 'Installation', slug: 'getting-started/installation' },
       { title: 'First Run', slug: 'getting-started/first-run' },
-      { title: 'Interface Overview', slug: 'getting-started/interface-overview' },
       { title: 'Keyboard Shortcuts', slug: 'getting-started/keyboard-shortcuts' },
     ],
   },
@@ -53,7 +52,7 @@ export const docsNav: NavSection[] = [
       { title: 'Skills System', slug: 'extending/skills-system' },
       { title: 'MCP Servers', slug: 'extending/mcp-servers' },
       { title: 'AGENTS.md', slug: 'extending/agents-md' },
-      { title: 'Creating Custom Skills', slug: 'extending/creating-custom-skills' },
+      { title: 'Plugins', slug: 'extending/plugins' },
     ],
   },
   {

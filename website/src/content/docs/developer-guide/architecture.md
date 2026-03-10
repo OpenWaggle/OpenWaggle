@@ -1,124 +1,65 @@
 ---
 title: "Architecture"
-description: "OpenWaggle's Electron architecture — process boundaries, IPC type system, provider registry, agent loop, and tool system."
+description: "A high-level overview of how OpenWaggle is built — Electron, React, and the AI agent system."
 order: 1
 section: "Developer Guide"
 ---
 
-OpenWaggle is an Electron desktop app with three process targets sharing types through `src/shared/`.
+OpenWaggle is an Electron desktop app built with TypeScript. It uses a standard Electron architecture with strict process isolation between the backend and the UI.
+
+## High-Level Overview
 
 ```
-src/
-  main/              # Node.js process
-  preload/           # Context bridge
-  renderer/src/      # React 19 SPA
-  shared/            # Shared types, schemas, utilities
+┌─────────────────────────────────────┐
+│           Electron App              │
+│                                     │
+│  ┌──────────┐    ┌───────────────┐  │
+│  │  Backend  │◄──►│   React UI    │  │
+│  │  (Node)   │    │  (Renderer)   │  │
+│  └──────────┘    └───────────────┘  │
+│       │                             │
+│  ┌──────────┐                       │
+│  │  SQLite   │                      │
+│  │  Storage  │                      │
+│  └──────────┘                       │
+└─────────────────────────────────────┘
 ```
 
-## Process Boundaries
+- **Backend** — The Node.js process runs the AI agent loop, executes tools, manages provider connections, handles persistence, and coordinates MCP servers.
+- **UI** — A React 19 single-page application styled with Tailwind CSS v4. Includes the chat interface, settings, file diffs, and a built-in terminal.
+- **Bridge** — A typed API layer ensures the UI can only communicate with the backend through well-defined channels. No direct Node.js access from the UI.
 
-### Main Process (`src/main/`)
+## AI Agent System
 
-The Node.js backend. Handles:
-- **Agent loop** — AI model interaction via TanStack AI adapters.
-- **Tool execution** — File operations, shell commands, web fetch.
-- **Persistence** — SQLite-backed app state plus project-local TOML config/trust files.
-- **IPC handlers** — All renderer requests pass through here.
-- **MCP management** — External tool server connections.
-- **Auth** — OAuth flows and token management.
+When you send a message, the backend:
 
-The main process is composed through Effect layers and runs through a shared managed runtime.
+1. Routes your request to the selected AI provider (Anthropic, OpenAI, etc.).
+2. Streams the model's response back to the UI in real time.
+3. Executes any tool calls the model makes (file reads, writes, shell commands, etc.).
+4. Returns tool results to the model so it can continue its response.
 
-Built as CJS with ESM interop (electron-vite bundles ESM-only packages).
+The agent supports multiple providers through a registry system — each provider implements a standard interface, so switching models is seamless.
 
-### Preload (`src/preload/`)
+## Multi-Agent Collaboration (Waggle Mode)
 
-The bridge between main and renderer. Exposes a typed `window.api` object via Electron's `contextBridge`. Every renderer-to-main interaction goes through this API. The preload script maps friendly method names to IPC channels.
-
-### Renderer (`src/renderer/src/`)
-
-The React 19 UI. Key technologies:
-- **React 19** with React Compiler (auto-memoization, no manual `React.memo()`).
-- **Zustand** for state management (multiple focused stores).
-- **Tailwind CSS v4** for styling.
-- **xterm.js** for the terminal emulator.
-
-## IPC Type System
-
-`src/shared/types/ipc.ts` is the single source of truth for all inter-process communication:
-
-| Channel Map | Direction | Pattern |
-|------------|-----------|---------|
-| `IpcInvokeChannelMap` | Renderer to Main | Request/response |
-| `IpcSendChannelMap` | Renderer to Main | Fire-and-forget |
-| `IpcEventChannelMap` | Main to Renderer | Push events |
-
-## Provider Registry
-
-`src/main/providers/` implements a dynamic multi-provider system:
-
-- `ProviderDefinition` interface defines each provider's capabilities.
-- `ProviderRegistry` singleton manages registration and model-to-provider resolution.
-- `registerAllProviders()` runs at startup.
-- Each provider exports a model list, adapter factory, and capability flags.
-
-## Agent Loop
-
-`src/main/agent/agent-loop.ts` uses TanStack AI's `chat()` with Effect-owned control flow:
-
-1. Converts `Message[]` to `SimpleChatMessage[]`.
-2. Resolves provider via the registry.
-3. Binds run-scoped `ToolContext` into the selected tools.
-4. Processes the stream with Effect-based stall detection, retry scheduling, and cancellation.
-5. Emits events over IPC to all renderer windows.
-6. Tools execute inline — results arrive via `TOOL_CALL_END`.
+In Waggle Mode, two agents take alternating turns on the same task. The orchestration engine manages turn-taking, tracks which files each agent modifies, detects consensus, and produces a synthesis when the agents converge.
 
 ## Tool System
 
-Tools are defined in `src/main/tools/tools/` using `defineOpenWaggleTool()`:
+Tools are the agent's interface to your project. Each tool has a defined input contract, and tools that modify files or run commands require your approval before executing. Tools are sandboxed to your project directory — the agent cannot access files outside your project root.
 
-- Each tool has an Effect Schema input contract for argument validation.
-- `ToolContext` (project path, abort signal, dynamic skills) is bound explicitly per run.
-- Path resolution prevents escaping the project root.
-- Results are structured as `{ kind: 'text' | 'json' }`.
+## Extensibility
 
-## Feature System
-
-Agent capabilities are composed via `AgentFeature` interface:
-
-```
-Feature -> {
-  getPromptFragments()   // System prompt additions
-  getTools()             // Tool contributions
-  filterTools()          // Tool filtering (e.g., default-permissions/full-access policy)
-  getLifecycleHooks()    // Run lifecycle callbacks
-}
-```
-
-Default features: core prompt, core tools, execution mode, standards/skills, MCP tools, observability.
-
-## Orchestration Engine
-
-`src/main/orchestration/` implements multi-step task execution:
-
-- **Planner** — LLM generates a task graph (JSON) with dependencies.
-- **Executor** — Runs tasks in dependency order.
-- **Fallback handling** — Orchestration flows can degrade gracefully when planning/execution fails.
-- **Persistence** — Uses an append-only event store plus read-model tables in SQLite.
+- **Skills** — Project-local markdown instructions that teach the agent specialized workflows.
+- **MCP Servers** — External tool servers connected via the Model Context Protocol, extending the agent's capabilities with browser automation, database access, and more.
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Framework | Electron 40 + electron-vite |
-| Renderer | React 19, Zustand 5, Tailwind CSS 4 |
-| AI Integration | TanStack AI 0.6.x |
-| Language | TypeScript (strict, no `any`) |
-| Main Runtime | Effect |
-| Validation | Effect Schema |
-| Bundler | Vite + Rollup |
-| Linter/Formatter | Biome |
-| Testing | Vitest + Testing Library + Playwright |
-| Terminal | xterm.js + node-pty |
-| Storage | SQLite + project-local TOML |
-| MCP | @modelcontextprotocol/sdk |
+| Framework | Electron |
+| UI | React 19, Tailwind CSS v4 |
+| AI Integration | TanStack AI |
+| Language | TypeScript |
+| Storage | SQLite |
+| Terminal | xterm.js |

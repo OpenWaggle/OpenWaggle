@@ -11,8 +11,8 @@ section: "Getting Started"
 |--------|-------|---------------|
 | Send message | `Enter` | `Enter` |
 | New line | `Shift+Enter` | `Shift+Enter` |
+| New thread | `Cmd+N` | `Ctrl+N` |
+| Toggle sidebar | `Cmd+B` | `Ctrl+B` |
 | Toggle terminal | `Cmd+J` | `Ctrl+J` |
 | Toggle diff panel | `Cmd+D` | `Ctrl+D` |
-| Open settings | `Cmd+,` | `Ctrl+,` |
 | Command palette | `Cmd+K` | `Ctrl+K` |
-| New thread | Sidebar button | Sidebar button |

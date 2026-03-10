@@ -79,7 +79,7 @@ The diff panel appears on the right side of the chat area and shows all working 
 
 Toggle the terminal with `Cmd+J` / `Ctrl+J` or the terminal button in the header.
 
-The terminal is a full PTY emulator powered by xterm.js:
+The terminal is a full terminal emulator:
 - Runs in your project directory.
 - Supports all standard terminal features (colors, cursor positioning, etc.).
 - Persists across terminal toggles within the same session.

@@ -9,23 +9,23 @@ OpenWaggle supports 6 AI providers out of the box. You can use multiple provider
 
 ## Supported Providers
 
-| Provider | Models | Auth Methods | Local | Dynamic Models |
-|----------|--------|-------------|-------|---------------|
-| [Anthropic](/docs/providers/anthropic) | Claude Sonnet 4.5, Claude Opus 4, Claude Haiku 4.5 | API key, OAuth | No | No |
-| [OpenAI](/docs/providers/openai) | GPT-4.1 series, GPT-5, GPT-5.1 Codex | API key, OAuth | No | No |
-| [Google Gemini](/docs/providers/google-gemini) | Gemini 2.0 Flash Lite, Gemini 2.5 Pro | API key | No | No |
-| [Grok (xAI)](/docs/providers/grok) | Grok 3 Mini Fast, Grok 3 | API key | No | No |
-| [OpenRouter](/docs/providers/openrouter) | 300+ models from multiple providers | API key, OAuth | No | No |
-| [Ollama](/docs/providers/ollama) | Any locally installed model | None required | Yes | Yes |
+| Provider | Auth Methods | Local | Status |
+|----------|-------------|-------|--------|
+| [Anthropic](/docs/providers/anthropic) | API key, OAuth | No | Stable |
+| [OpenAI](/docs/providers/openai) | API key, OAuth | No | Stable |
+| [Google Gemini](/docs/providers/google-gemini) | API key | No | Coming soon |
+| [Grok (xAI)](/docs/providers/grok) | API key | No | Coming soon |
+| [OpenRouter](/docs/providers/openrouter) | API key, OAuth | No | Coming soon |
+| [Ollama](/docs/providers/ollama) | None required | Yes | Coming soon |
 
 ## Setting Up API Keys
 
-1. Open **Settings** via the gear icon in the sidebar or `Cmd+,` / `Ctrl+,`.
+1. Open **Settings** via the gear icon in the sidebar.
 2. Navigate to **Connections**.
 3. Click **Add API key** next to the provider you want to configure.
 4. Paste your API key and click **Save**.
 
-API keys are encrypted using your operating system's secure keychain (macOS Keychain, Windows Credential Store, or Linux Secret Service) and never leave your machine.
+API keys are encrypted using Electron's safeStorage API and stored locally. They never leave your machine.
 
 ### Where to Get API Keys
 
