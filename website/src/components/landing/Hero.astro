@@ -1,0 +1,68 @@
+---
+import Button from '@/components/Button.astro';
+import HoneycombBackground from '@/components/HoneycombBackground.astro';
+---
+
+<section class="relative w-full overflow-hidden">
+  <!-- Background: base + radial glow + mesh gradient (Pencil spec) -->
+  <div class="absolute inset-0 bg-bg" aria-hidden="true">
+    <!-- Radial amber glow — tighter, centered at 15% from top -->
+    <div class="absolute inset-0" style="background: radial-gradient(ellipse 60% 45% at 50% 12%, rgba(245, 166, 35, 0.27) 0%, rgba(184, 116, 16, 0.15) 40%, transparent 70%)"></div>
+    <!-- Mesh gradient: warm amber spots at center-top and center, dark edges -->
+    <div class="absolute inset-0 opacity-35" style="background:
+      radial-gradient(ellipse 35% 25% at 50% 0%, #f5a62330 0%, transparent 100%),
+      radial-gradient(ellipse 30% 25% at 50% 35%, #f5a62320 0%, transparent 100%),
+      radial-gradient(ellipse 25% 20% at 0% 0%, #1a1408 0%, transparent 100%),
+      radial-gradient(ellipse 25% 20% at 100% 0%, #1a1408 0%, transparent 100%)
+    "></div>
+  </div>
+  <HoneycombBackground />
+
+  <div class="relative z-10 mx-auto flex max-w-[1440px] flex-col items-center gap-6 px-6 pt-8 pb-15 md:px-20">
+    <!-- Logo mark + wordmark -->
+    <div class="flex flex-col items-center gap-2">
+      <img src="/logo-mark.svg" alt="" aria-hidden="true" class="h-[140px] w-[140px]" loading="eager" />
+      <img src="/logo-wordmark.svg" alt="OpenWaggle" class="h-12 md:h-[72px]" />
+    </div>
+
+    <!-- Badge -->
+    <div class="flex items-center gap-2 rounded-full bg-bg-secondary px-4 py-1.5 border border-border-light">
+      <span class="h-2 w-2 rounded-full bg-success"></span>
+      <span class="text-xs font-medium text-text-secondary">Open Source Desktop Coding Agent</span>
+      <span class="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-semibold text-accent">ALPHA</span>
+    </div>
+
+    <!-- Headline -->
+    <div class="flex max-w-[900px] flex-col items-center">
+      <h1 class="text-center font-display text-4xl font-bold text-text-primary md:text-[48px] md:leading-tight">
+        The coding harness that
+      </h1>
+      <span class="text-center font-display text-4xl font-bold text-accent md:text-[48px] md:leading-tight">
+        lets your agents waggle.
+      </span>
+    </div>
+
+    <!-- Subheadline -->
+    <p class="max-w-[620px] text-center text-lg leading-[1.6] text-text-tertiary">
+      In nature, bees don't solve problems alone — they perform a waggle dance to share what they've found. OpenWaggle works the same way: two AI agents collaborate in structured turns until they converge on solutions no single model would reach.
+    </p>
+
+    <!-- CTAs -->
+    <div class="flex flex-wrap items-center justify-center gap-4 pt-2">
+      <Button href="https://github.com/OpenWaggle/OpenWaggle/releases" variant="primary">
+        Download for macOS
+      </Button>
+      <Button href="/docs/getting-started/installation" variant="secondary">
+        View Documentation
+      </Button>
+    </div>
+
+    <!-- Screenshot placeholder -->
+    <div class="mt-4 flex h-[320px] w-full max-w-[1100px] items-center justify-center rounded-xl bg-bg-secondary border border-border-light sm:h-[400px] md:h-[500px] lg:h-[660px]">
+      <div class="flex flex-col items-center gap-2">
+        <span class="text-base font-medium text-text-tertiary">Product Screenshot</span>
+        <span class="text-[13px] text-text-tertiary">App UI with Waggle Mode active</span>
+      </div>
+    </div>
+  </div>
+</section>

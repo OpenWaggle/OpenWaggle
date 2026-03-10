@@ -1,0 +1,139 @@
+@layer components {
+  .prose-docs {
+    color: var(--color-text-primary);
+    line-height: 1.7;
+    font-size: 15px;
+  }
+
+  .prose-docs p {
+    margin-bottom: 1em;
+  }
+
+  .prose-docs a {
+    color: var(--color-accent);
+    text-decoration: none;
+  }
+  .prose-docs a:hover {
+    text-decoration: underline;
+  }
+  .prose-docs a[href^="http"]::after {
+    content: " ↗";
+    font-size: 0.75em;
+  }
+
+  .prose-docs code {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+    background: color-mix(in srgb, var(--color-bg-tertiary) 84%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
+    padding: 0.15em 0.4em;
+    border-radius: 6px;
+    color: var(--color-text-secondary);
+  }
+
+  .prose-docs pre {
+    background: var(--color-bg-secondary);
+    border: 1px solid color-mix(in srgb, var(--color-border) 85%, transparent);
+    border-radius: 12px;
+    padding: 1em;
+    overflow-x: auto;
+    margin: 1em 0;
+  }
+  .prose-docs pre code {
+    background: none;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    color: inherit;
+    font-size: 13.5px;
+    line-height: 1.55;
+  }
+
+  .prose-docs ul,
+  .prose-docs ol {
+    padding-left: 1.5em;
+    margin-bottom: 1em;
+  }
+  .prose-docs li {
+    margin-bottom: 0.35em;
+  }
+
+  .prose-docs h2 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.5em;
+    margin: 2em 0 0.75em;
+    color: var(--color-text-primary);
+    letter-spacing: -0.01em;
+  }
+  .prose-docs h3 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.2em;
+    margin: 1.5em 0 0.5em;
+    color: var(--color-text-primary);
+  }
+  .prose-docs h4 {
+    font-weight: 600;
+    font-size: 1em;
+    margin: 1.25em 0 0.5em;
+    color: var(--color-text-secondary);
+  }
+
+  .prose-docs blockquote {
+    border-left: 3px solid var(--color-accent);
+    padding-left: 1em;
+    color: var(--color-text-secondary);
+    margin: 1em 0;
+  }
+
+  .prose-docs table {
+    border-collapse: collapse;
+    margin: 1em 0;
+    width: 100%;
+    font-size: 14px;
+  }
+  .prose-docs th,
+  .prose-docs td {
+    border: 1px solid var(--color-border);
+    padding: 0.5em 0.75em;
+    text-align: left;
+  }
+  .prose-docs th {
+    background: var(--color-bg-tertiary);
+    font-weight: 600;
+    font-size: 0.875em;
+    color: var(--color-text-secondary);
+  }
+
+  .prose-docs hr {
+    border: none;
+    border-top: 1px solid var(--color-border);
+    margin: 2em 0;
+  }
+
+  .prose-docs img {
+    max-width: 100%;
+    border-radius: 8px;
+  }
+
+  /* Callout blocks */
+  .prose-docs .callout {
+    padding: 1em;
+    border-radius: 8px;
+    margin: 1em 0;
+    border-left: 3px solid;
+  }
+  .prose-docs .callout-tip {
+    background: color-mix(in srgb, var(--color-success) 8%, transparent);
+    border-color: var(--color-success);
+  }
+  .prose-docs .callout-warning {
+    background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+    border-color: var(--color-accent);
+  }
+  .prose-docs .callout-note {
+    background: color-mix(in srgb, var(--color-info) 8%, transparent);
+    border-color: var(--color-info);
+  }
+}

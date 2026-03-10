@@ -1,0 +1,31 @@
+---
+import HoneycombBackground from '@/components/HoneycombBackground.astro';
+---
+
+<section class="relative w-full overflow-hidden">
+  <HoneycombBackground />
+  <div class="relative z-10 mx-auto flex max-w-[1440px] flex-col items-center gap-5 px-6 py-12 md:px-20">
+    <span class="text-[13px] font-medium text-text-secondary">Works with 6 providers</span>
+
+    <div class="flex w-full flex-wrap items-center justify-center gap-6 md:gap-12">
+      {['Anthropic', 'OpenAI'].map((name) => (
+        <span class="text-[15px] font-medium text-text-secondary">{name}</span>
+      ))}
+      {['Gemini', 'Grok', 'OpenRouter', 'Ollama'].map((name) => (
+        <span class="text-[15px] font-medium text-text-tertiary">{name} <span class="text-[10px] text-text-tertiary">Coming soon</span></span>
+      ))}
+    </div>
+
+    <a
+      href="https://tanstack.com/ai/latest"
+      class="flex items-center gap-2 transition-colors hover:text-text-primary"
+      target="_blank"
+      rel="noopener noreferrer"
+      title="Opens TanStack AI SDK documentation (external)"
+    >
+      <span class="text-[13px] text-text-secondary">Powered by</span>
+      <img src="/tanstack-logo.svg" alt="TanStack" class="h-5 opacity-80" />
+      <span class="text-[13px] text-text-secondary">AI SDK ↗</span>
+    </a>
+  </div>
+</section>

@@ -43,7 +43,10 @@
     "check:magic-numbers": "tsx scripts/check-magic-numbers.ts",
     "check": "pnpm typecheck && pnpm lint && pnpm check:pattern-style && pnpm check:decision-size && pnpm check:magic-numbers",
     "prepush:main": "pnpm check && pnpm format && pnpm test:all",
-    "prepare": "husky"
+    "prepare": "husky",
+    "website:dev": "pnpm --filter @openwaggle/website dev",
+    "website:build": "pnpm --filter @openwaggle/website build",
+    "website:preview": "pnpm --filter @openwaggle/website preview"
   },
   "packageManager": "pnpm@10.28.1",
   "pnpm": {

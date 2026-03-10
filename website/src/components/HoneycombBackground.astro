@@ -1,0 +1,81 @@
+---
+interface Props {
+  fadeBottom?: boolean;
+}
+const { fadeBottom = false } = Astro.props;
+---
+
+<div class:list={["honeycomb-bg absolute inset-0 z-0 pointer-events-none", { "honeycomb-fade": fadeBottom }]} aria-hidden="true">
+  <canvas class="honeycomb-canvas w-full h-full"></canvas>
+</div>
+
+<script>
+  function initHoneycomb(container: HTMLElement) {
+    const canvas = container.querySelector('.honeycomb-canvas') as HTMLCanvasElement;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const shouldFade = container.classList.contains('honeycomb-fade');
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    const HEX_RADIUS = 40;
+    const HEX_WIDTH = HEX_RADIUS * 2;
+    const HEX_HEIGHT = HEX_RADIUS * Math.sqrt(3);
+    const COL_SPACING = HEX_WIDTH * 0.75;
+    const ROW_SPACING = HEX_HEIGHT;
+
+    function draw() {
+      const rect = canvas.getBoundingClientRect();
+      const width = rect.width;
+      const height = rect.height;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      ctx!.strokeStyle = 'rgba(245, 166, 35, 0.06)';
+      ctx!.lineWidth = 0.8;
+
+      const cols = Math.ceil(width / COL_SPACING) + 2;
+      const rows = Math.ceil(height / ROW_SPACING) + 2;
+
+      for (let col = -1; col < cols; col++) {
+        for (let row = -1; row < rows; row++) {
+          const cx = col * COL_SPACING;
+          const cy = row * ROW_SPACING + (col % 2 === 1 ? ROW_SPACING / 2 : 0);
+
+          ctx!.beginPath();
+          for (let i = 0; i < 6; i++) {
+            const angle = (Math.PI / 3) * i;
+            const hx = cx + HEX_RADIUS * Math.cos(angle);
+            const hy = cy + HEX_RADIUS * Math.sin(angle);
+            if (i === 0) ctx!.moveTo(hx, hy);
+            else ctx!.lineTo(hx, hy);
+          }
+          ctx!.closePath();
+          ctx!.stroke();
+        }
+      }
+
+      // Optional: fade out toward bottom
+      if (shouldFade) {
+        ctx!.globalCompositeOperation = 'destination-in';
+        const fade = ctx!.createLinearGradient(0, 0, 0, height);
+        fade.addColorStop(0, 'rgba(0,0,0,1)');
+        fade.addColorStop(0.5, 'rgba(0,0,0,1)');
+        fade.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx!.fillStyle = fade;
+        ctx!.fillRect(0, 0, width, height);
+        ctx!.globalCompositeOperation = 'source-over';
+      }
+    }
+
+    draw();
+
+    const resizeObserver = new ResizeObserver(draw);
+    resizeObserver.observe(container);
+  }
+
+  document.querySelectorAll<HTMLElement>('.honeycomb-bg').forEach(initHoneycomb);
+</script>

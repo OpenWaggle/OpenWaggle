@@ -1,0 +1,54 @@
+---
+import SectionHeader from '@/components/SectionHeader.astro';
+
+interface Feature {
+  title: string;
+  desc: string;
+  screenshotAlt: string;
+  imageRight: boolean;
+}
+
+const features: Feature[] = [
+  {
+    title: 'Full coding agent',
+    desc: "Read, write, and edit files. Run shell commands. Browse the web. Ask clarifying questions. All with approval-based execution — you stay in control of every destructive operation.",
+    screenshotAlt: 'Chat and tool calls view',
+    imageRight: true,
+  },
+  {
+    title: 'Git-native workflow',
+    desc: "Live diff stats in the header. Branch management from the picker. Stage, commit, and review changes in a side-by-side diff panel — all without leaving the conversation.",
+    screenshotAlt: 'Git integration and diff panel',
+    imageRight: false,
+  },
+  {
+    title: 'Infinitely extensible',
+    desc: "Custom skills add specialized knowledge to the agent. MCP servers connect external tools — from Playwright browser automation to Chrome DevTools. Per-project AGENTS.md files scope instructions to specific paths.",
+    screenshotAlt: 'Skills and MCP servers panel',
+    imageRight: true,
+  },
+];
+---
+
+<section class="w-full">
+  <div class="mx-auto max-w-[1440px] px-6 py-20 md:px-20">
+    <div class="flex flex-col items-center gap-16">
+      <SectionHeader
+        label="CORE FEATURES"
+        title="Everything a coding agent needs"
+      />
+
+      {features.map((feat) => (
+        <div class={`flex w-full flex-col items-center gap-8 md:gap-12 ${feat.imageRight ? 'md:flex-row' : 'md:flex-row-reverse'}`}>
+          <div class="flex w-full flex-col gap-4 md:w-1/2">
+            <h3 class="font-display text-2xl font-semibold text-text-primary md:text-[28px]">{feat.title}</h3>
+            <p class="text-base leading-[1.6] text-text-tertiary">{feat.desc}</p>
+          </div>
+          <div class="flex min-h-[240px] w-full items-center justify-center rounded-xl bg-bg-secondary border border-border sm:min-h-[280px] md:min-h-[340px] md:w-1/2" role="img" aria-label={feat.screenshotAlt}>
+            <span class="text-sm text-text-tertiary">{feat.screenshotAlt}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

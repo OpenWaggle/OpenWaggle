@@ -1,0 +1,37 @@
+---
+import '@/styles/global.css';
+import Header from '@/components/Header.astro';
+import Footer from '@/components/Footer.astro';
+import SEO from '@/components/SEO.astro';
+
+interface Props {
+  title?: string;
+  description?: string;
+  ogImage?: string;
+  noIndex?: boolean;
+}
+
+const {
+  title = 'OpenWaggle — The coding harness that lets your agents waggle.',
+  description = 'Open source desktop coding agent with multi-model waggle mode. Two AI agents collaborate in structured turns until they converge on solutions.',
+  ogImage = '/og-image.png',
+  noIndex = false,
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <SEO title={title} description={description} ogImage={ogImage} noIndex={noIndex} />
+  </head>
+  <body class="min-h-screen bg-bg text-text-primary">
+    <a href="#main-content" class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:rounded-lg focus:bg-accent focus:px-4 focus:py-2 focus:text-bg focus:font-semibold">
+      Skip to content
+    </a>
+    <Header />
+    <main id="main-content">
+      <slot />
+    </main>
+    <Footer />
+  </body>
+</html>
