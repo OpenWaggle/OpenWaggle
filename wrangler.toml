@@ -1,6 +1,3 @@
 name = "openwaggle-website"
 pages_build_output_dir = "./website/dist"
 compatibility_date = "2025-01-01"
-
-[build]
-command = "pnpm build:website"
