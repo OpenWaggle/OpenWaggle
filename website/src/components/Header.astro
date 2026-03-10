@@ -1,0 +1,64 @@
+---
+const currentPath = Astro.url.pathname;
+const isDocsPage = currentPath.startsWith('/docs');
+---
+
+<header class="sticky top-0 z-50 w-full border-b border-border bg-bg/95 backdrop-blur-sm">
+  <div class="mx-auto flex h-16 max-w-[1440px] items-center justify-between px-6 md:px-20">
+    <a href="/" class="flex items-center">
+      <img src="/logo-lockup.svg" alt="OpenWaggle" class="h-10" />
+    </a>
+    <nav class="hidden items-center gap-4 md:flex md:gap-8">
+      <a
+        href="/docs/getting-started/installation"
+        class:list={[
+          'text-sm font-medium transition-colors hover:text-text-primary',
+          isDocsPage ? 'text-text-primary' : 'text-text-tertiary',
+        ]}
+      >Docs</a>
+      <a href="https://github.com/OpenWaggle/OpenWaggle/releases" target="_blank" rel="noopener noreferrer" class="text-sm font-medium text-text-tertiary transition-colors hover:text-text-primary">Download</a>
+      <a href="https://github.com/OpenWaggle/OpenWaggle" target="_blank" rel="noopener noreferrer" class="text-sm font-medium text-text-tertiary transition-colors hover:text-text-primary">GitHub</a>
+    </nav>
+    <!-- Mobile hamburger -->
+    <button
+      id="mobile-menu-toggle"
+      class="flex h-8 w-8 items-center justify-center rounded-md text-text-tertiary md:hidden"
+      aria-label="Toggle menu"
+      aria-expanded="false"
+    >
+      <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+      </svg>
+    </button>
+  </div>
+  <!-- Mobile nav -->
+  <div id="mobile-menu" class="hidden border-t border-border bg-bg px-6 py-4 md:hidden">
+    <nav class="flex flex-col gap-4">
+      <a href="/docs/getting-started/installation" class="text-sm font-medium text-text-tertiary">Docs</a>
+      <a href="https://github.com/OpenWaggle/OpenWaggle/releases" target="_blank" rel="noopener noreferrer" class="text-sm font-medium text-text-tertiary">Download</a>
+      <a href="https://github.com/OpenWaggle/OpenWaggle" target="_blank" rel="noopener noreferrer" class="text-sm font-medium text-text-tertiary">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<script>
+  const toggle = document.getElementById('mobile-menu-toggle');
+  const menu = document.getElementById('mobile-menu');
+
+  function setMenuOpen(open: boolean) {
+    if (!menu || !toggle) return;
+    menu.classList.toggle('hidden', !open);
+    toggle.setAttribute('aria-expanded', String(open));
+  }
+
+  toggle?.addEventListener('click', () => {
+    const isOpen = !menu?.classList.contains('hidden');
+    setMenuOpen(!isOpen);
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !menu?.classList.contains('hidden')) {
+      setMenuOpen(false);
+    }
+  });
+</script>

@@ -1,0 +1,117 @@
+---
+import { docsNav } from '@/data/docs-nav';
+
+const currentPath = Astro.url.pathname.replace(/\/$/, '');
+---
+
+{/* Shared nav fragment rendered once, used in both desktop and mobile */}
+<Fragment>
+  {/* Desktop sidebar */}
+  <aside class="docs-sidebar w-64 shrink-0 overflow-y-auto border-r border-border py-8 pr-6 hidden lg:block">
+    <nav aria-label="Documentation">
+      {docsNav.map((section) => (
+        <div class="mb-6">
+          <h3 class="mb-2 text-xs font-semibold uppercase tracking-wider text-text-tertiary">
+            {section.title}
+          </h3>
+          <ul class="flex flex-col gap-0.5">
+            {section.items.map((item) => {
+              const href = `/docs/${item.slug}`;
+              const isActive = currentPath === href;
+              return (
+                <li>
+                  <a
+                    href={href}
+                    class:list={[
+                      'block rounded-md px-3 py-1.5 text-[13px] transition-colors',
+                      isActive
+                        ? 'bg-bg-tertiary text-accent font-medium'
+                        : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover',
+                    ]}
+                    aria-current={isActive ? 'page' : undefined}
+                  >
+                    {item.title}
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </nav>
+  </aside>
+
+  {/* Mobile sidebar */}
+  <div id="mobile-sidebar-overlay" class="fixed inset-0 z-40 hidden bg-black/50 lg:hidden"></div>
+  <aside id="mobile-sidebar" class="fixed left-0 top-16 z-50 hidden h-[calc(100vh-4rem)] w-72 overflow-y-auto border-r border-border bg-bg p-6 lg:hidden" role="dialog" aria-label="Documentation navigation">
+    <nav aria-label="Documentation">
+      {docsNav.map((section) => (
+        <div class="mb-6">
+          <h3 class="mb-2 text-xs font-semibold uppercase tracking-wider text-text-tertiary">
+            {section.title}
+          </h3>
+          <ul class="flex flex-col gap-0.5">
+            {section.items.map((item) => {
+              const href = `/docs/${item.slug}`;
+              const isActive = currentPath === href;
+              return (
+                <li>
+                  <a
+                    href={href}
+                    class:list={[
+                      'mobile-sidebar-link block rounded-md px-3 py-1.5 text-[13px] transition-colors',
+                      isActive
+                        ? 'bg-bg-tertiary text-accent font-medium'
+                        : 'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover',
+                    ]}
+                    aria-current={isActive ? 'page' : undefined}
+                  >
+                    {item.title}
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </nav>
+  </aside>
+</Fragment>
+
+<script>
+  const overlay = document.getElementById('mobile-sidebar-overlay');
+  const sidebar = document.getElementById('mobile-sidebar');
+  const toggle = document.getElementById('docs-sidebar-toggle');
+
+  function closeSidebar() {
+    overlay?.classList.add('hidden');
+    sidebar?.classList.add('hidden');
+    toggle?.setAttribute('aria-expanded', 'false');
+  }
+
+  function openSidebar() {
+    overlay?.classList.remove('hidden');
+    sidebar?.classList.remove('hidden');
+    toggle?.setAttribute('aria-expanded', 'true');
+  }
+
+  toggle?.addEventListener('click', () => {
+    const isOpen = !sidebar?.classList.contains('hidden');
+    if (isOpen) closeSidebar();
+    else openSidebar();
+  });
+
+  overlay?.addEventListener('click', closeSidebar);
+
+  // Close on Escape
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !sidebar?.classList.contains('hidden')) {
+      closeSidebar();
+    }
+  });
+
+  // Close on nav link click (mobile)
+  document.querySelectorAll('.mobile-sidebar-link').forEach((link) => {
+    link.addEventListener('click', closeSidebar);
+  });
+</script>

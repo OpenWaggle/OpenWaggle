@@ -1,0 +1,29 @@
+---
+import { getPrevNext } from '@/data/docs-nav';
+
+interface Props {
+  currentSlug: string;
+}
+
+const { currentSlug } = Astro.props;
+const { prev, next } = getPrevNext(currentSlug);
+---
+
+<nav class="mt-16 flex items-center justify-between border-t border-border pt-6">
+  {prev ? (
+    <a href={`/docs/${prev.slug}`} class="group flex flex-col gap-1">
+      <span class="text-xs text-text-tertiary">Previous</span>
+      <span class="text-sm font-medium text-text-secondary transition-colors group-hover:text-accent">
+        ← {prev.title}
+      </span>
+    </a>
+  ) : <div />}
+  {next ? (
+    <a href={`/docs/${next.slug}`} class="group flex flex-col items-end gap-1">
+      <span class="text-xs text-text-tertiary">Next</span>
+      <span class="text-sm font-medium text-text-secondary transition-colors group-hover:text-accent">
+        {next.title} →
+      </span>
+    </a>
+  ) : <div />}
+</nav>

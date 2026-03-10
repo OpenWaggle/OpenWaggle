@@ -1,0 +1,35 @@
+---
+interface Props {
+  variant?: 'primary' | 'secondary';
+  href?: string;
+  class?: string;
+  size?: 'default' | 'large';
+}
+
+const { variant = 'primary', href, class: className, size = 'default' } = Astro.props;
+
+const baseClasses = 'inline-flex items-center justify-center gap-2 rounded-lg font-sans transition-all';
+
+const sizeClasses = size === 'large'
+  ? 'px-8 py-4 text-base'
+  : 'px-7 py-3.5 text-[15px]';
+
+const variantClasses = variant === 'primary'
+  ? 'bg-gradient-to-b from-accent to-accent-dim text-bg font-semibold hover:brightness-110'
+  : 'border border-border-light text-text-secondary font-medium hover:bg-bg-hover';
+
+const classes = `${baseClasses} ${sizeClasses} ${variantClasses} ${className ?? ''}`;
+
+const isExternal = href?.startsWith('https://');
+const Tag = href ? 'a' : 'button';
+---
+
+{href ? (
+  <a href={href} class={classes} {...isExternal ? { target: '_blank', rel: 'noopener noreferrer' } : {}}>
+    <slot />
+  </a>
+) : (
+  <button class={classes}>
+    <slot />
+  </button>
+)}
