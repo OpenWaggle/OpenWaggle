@@ -34,6 +34,7 @@ const {
   makeErrorInfoMock,
   cleanupConversationRunMock,
   providerRegistryMock,
+  generateTitleMock,
 } = vi.hoisted(() => ({
   typedHandleMock: vi.fn(),
   typedOnMock: vi.fn(),
@@ -75,6 +76,7 @@ const {
   })),
   cleanupConversationRunMock: vi.fn(),
   providerRegistryMock: { isKnownModel: vi.fn(() => true) },
+  generateTitleMock: vi.fn(),
 }))
 
 vi.mock('../typed-ipc', () => ({
@@ -148,6 +150,10 @@ vi.mock('../../agent/error-classifier', () => ({
 
 vi.mock('../../agent/conversation-cleanup', () => ({
   cleanupConversationRun: cleanupConversationRunMock,
+}))
+
+vi.mock('../../agent/title-generator', () => ({
+  generateTitle: generateTitleMock,
 }))
 
 vi.mock('../../providers/registry', () => ({
@@ -250,6 +256,7 @@ describe('registerAgentHandlers', () => {
     getPhaseForConversationMock.mockReset()
     classifyAgentErrorMock.mockReset()
     makeErrorInfoMock.mockReset()
+    generateTitleMock.mockReset()
 
     hydrateAttachmentSourcesMock.mockImplementation(async (attachments: unknown) => attachments)
     withConversationLockMock.mockImplementation(async (_id: unknown, fn: () => Promise<void>) =>
@@ -365,7 +372,7 @@ describe('registerAgentHandlers', () => {
       expect(runAgentMock).not.toHaveBeenCalled()
     })
 
-    it('sets provisional title for new thread with non-empty text', async () => {
+    it('fires LLM title generation for new thread with non-empty text', async () => {
       const conv = newThreadConversation()
       getConversationMock.mockResolvedValue(conv)
       runAgentMock.mockResolvedValueOnce({
@@ -382,12 +389,14 @@ describe('registerAgentHandlers', () => {
         'claude-sonnet-4-5',
       )
 
-      expect(saveConversationMock).toHaveBeenCalledWith(
-        expect.objectContaining({ title: 'Fix the login bug' }),
+      expect(generateTitleMock).toHaveBeenCalledWith(
+        ConversationId('conv-new'),
+        'Fix the login bug',
+        expect.anything(),
       )
     })
 
-    it('does not set provisional title when text is empty/whitespace', async () => {
+    it('does not fire title generation when text is empty/whitespace', async () => {
       const conv = newThreadConversation()
       getConversationMock.mockResolvedValue(conv)
       runAgentMock.mockResolvedValueOnce({
@@ -399,30 +408,7 @@ describe('registerAgentHandlers', () => {
 
       await handler?.({}, ConversationId('conv-new'), basePayload('   '), 'claude-sonnet-4-5')
 
-      // First call should be the lock-based persist, not the provisional title
-      const firstSave = saveConversationMock.mock.calls[0]?.[0]
-      // Title should still be auto-generated from message, not from whitespace
-      expect(firstSave?.title).not.toBe('   ')
-    })
-
-    it('truncates provisional title to 60 characters', async () => {
-      const conv = newThreadConversation()
-      getConversationMock.mockResolvedValue(conv)
-      runAgentMock.mockResolvedValueOnce({
-        newMessages: [assistantMessage()],
-      })
-
-      const longText = 'A'.repeat(100)
-      registerAgentHandlers()
-      const handler = getInvokeHandler('agent:send-message')
-
-      await handler?.({}, ConversationId('conv-new'), basePayload(longText), 'claude-sonnet-4-5')
-
-      expect(saveConversationMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: `${'A'.repeat(60)}...`,
-        }),
-      )
+      expect(generateTitleMock).not.toHaveBeenCalled()
     })
 
     it('persists new messages via conversation lock on classic mode', async () => {
@@ -560,7 +546,7 @@ describe('registerAgentHandlers', () => {
       await Promise.all([run1, run2])
     })
 
-    it('auto-titles conversation from first user message text', async () => {
+    it('fires LLM title generation on first user message', async () => {
       const conv: Conversation = {
         id: ConversationId('conv-1'),
         title: 'New thread',
@@ -570,15 +556,7 @@ describe('registerAgentHandlers', () => {
         updatedAt: 1,
       }
       getConversationMock.mockResolvedValue(conv)
-
-      const userMsg: Message = {
-        id: MessageId('user-1'),
-        role: 'user',
-        parts: [{ type: 'text', text: 'How do I deploy?' }],
-        createdAt: Date.now(),
-      }
-      const assistantMsg = assistantMessage('Deploy using...')
-      runAgentMock.mockResolvedValueOnce({ newMessages: [userMsg, assistantMsg] })
+      runAgentMock.mockResolvedValueOnce({ newMessages: [assistantMessage()] })
 
       registerAgentHandlers()
       const handler = getInvokeHandler('agent:send-message')
@@ -590,15 +568,11 @@ describe('registerAgentHandlers', () => {
         'claude-sonnet-4-5',
       )
 
-      // The lock callback should save with auto-title
-      const savedConv = saveConversationMock.mock.calls.find(
-        (call: unknown[]) =>
-          (call[0] as { messages?: unknown[] })?.messages &&
-          (call[0] as { messages: unknown[] }).messages.length > 0,
+      expect(generateTitleMock).toHaveBeenCalledWith(
+        ConversationId('conv-1'),
+        'How do I deploy?',
+        expect.anything(),
       )
-      if (savedConv) {
-        expect(savedConv[0].title).toBe('How do I deploy?')
-      }
     })
 
     it('cleans up activeRuns entry after successful completion', async () => {

@@ -11,7 +11,6 @@ interface UseGitRefreshOptions {
   readonly activeConversationId: ConversationId | null
   readonly refreshGitStatus: (projectPath: string | null) => Promise<void>
   readonly refreshGitBranches: (projectPath: string | null) => Promise<void>
-  readonly loadConversations: () => Promise<void>
   readonly setActiveConversation: (id: ConversationId | null) => Promise<void>
 }
 
@@ -24,7 +23,6 @@ export function useGitRefresh({
   activeConversationId,
   refreshGitStatus,
   refreshGitBranches,
-  loadConversations,
   setActiveConversation,
 }: UseGitRefreshOptions): void {
   const bumpDiffRefreshKey = useUIStore((s) => s.bumpDiffRefreshKey)
@@ -36,7 +34,6 @@ export function useGitRefresh({
     const unsubscribe = api.onStreamChunk(({ conversationId, chunk }) => {
       if (!isTerminalChunk(chunk)) return
 
-      void loadConversations()
       if (activeConversationId === conversationId) {
         void setActiveConversation(activeConversationId)
       }
@@ -57,7 +54,6 @@ export function useGitRefresh({
   }, [
     activeConversationId,
     bumpDiffRefreshKey,
-    loadConversations,
     projectPath,
     refreshGitBranches,
     refreshGitStatus,

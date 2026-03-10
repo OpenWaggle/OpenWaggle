@@ -16,6 +16,7 @@ function makeDeps(overrides: Partial<ConversationNavDeps> = {}): ConversationNav
     createConversation: vi
       .fn<(p: string | null) => Promise<ConversationId>>()
       .mockResolvedValue('new-conv' as ConversationId),
+    startDraftThread: vi.fn(),
     setActiveConversation: vi
       .fn<(id: ConversationId | null) => Promise<void>>()
       .mockResolvedValue(undefined),
@@ -82,14 +83,15 @@ describe('createConversationNavHandlers', () => {
   })
 
   describe('handleNewConversation', () => {
-    it('sets view to chat and creates conversation', async () => {
+    it('sets view to chat and starts draft thread', () => {
       const deps = makeDeps()
       const { handleNewConversation } = createConversationNavHandlers(deps)
 
-      await handleNewConversation()
+      handleNewConversation()
 
       expect(deps.setActiveView).toHaveBeenCalledWith('chat')
-      expect(deps.createConversation).toHaveBeenCalledWith('/test/project')
+      expect(deps.startDraftThread).toHaveBeenCalled()
+      expect(deps.createConversation).not.toHaveBeenCalled()
     })
   })
 

@@ -148,6 +148,7 @@ export function useChatPanelSections(): ChatPanelSections {
     activeConversation,
     activeConversationId,
     createConversation,
+    startDraftThread,
     setActiveConversation,
     updateConversationProjectPath,
   } = useChat()
@@ -161,6 +162,7 @@ export function useChatPanelSections(): ChatPanelSections {
     setProjectPath,
     selectFolder,
     createConversation,
+    startDraftThread,
     setActiveConversation,
     updateConversationProjectPath,
     refreshGitStatus,

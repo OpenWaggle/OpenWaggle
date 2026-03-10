@@ -423,6 +423,9 @@ interface IpcEventChannelMap {
   'team:event': {
     payload: TeamEventPayload
   }
+  'conversations:title-updated': {
+    payload: { conversationId: ConversationId; title: string }
+  }
 }
 
 // ─── Derived Types ───────────────────────────────────────────
@@ -522,6 +525,9 @@ export interface OpenWaggleApi {
     id: ConversationId,
     projectPath: string | null,
   ): Promise<Conversation | null>
+  onConversationTitleUpdated(
+    callback: (payload: IpcEventPayload<'conversations:title-updated'>) => void,
+  ): () => void
   getDevtoolsEventBusConfig(): Promise<DevtoolsEventBusConfig>
 
   // Terminal

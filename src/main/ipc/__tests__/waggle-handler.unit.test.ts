@@ -22,6 +22,7 @@ const {
   classifyAgentErrorMock,
   makeErrorInfoMock,
   hydrateAttachmentSourcesMock,
+  generateTitleMock,
 } = vi.hoisted(() => ({
   typedHandleMock: vi.fn(),
   typedOnMock: vi.fn(),
@@ -40,6 +41,7 @@ const {
   classifyAgentErrorMock: vi.fn(),
   makeErrorInfoMock: vi.fn(),
   hydrateAttachmentSourcesMock: vi.fn(async (attachments: unknown) => attachments),
+  generateTitleMock: vi.fn(),
 }))
 
 vi.mock('../typed-ipc', () => ({
@@ -81,6 +83,10 @@ vi.mock('../../utils/stream-bridge', () => ({
 
 vi.mock('../attachments-handler', () => ({
   hydrateAttachmentSources: hydrateAttachmentSourcesMock,
+}))
+
+vi.mock('../../agent/title-generator', () => ({
+  generateTitle: generateTitleMock,
 }))
 
 vi.mock('../../logger', () => ({
@@ -174,6 +180,7 @@ describe('registerWaggleHandlers', () => {
     makeErrorInfoMock.mockReset()
     hydrateAttachmentSourcesMock.mockReset()
     hydrateAttachmentSourcesMock.mockImplementation(async (attachments: unknown) => attachments)
+    generateTitleMock.mockReset()
 
     withConversationLockMock.mockImplementation(async (_id: unknown, fn: () => Promise<void>) =>
       fn(),
@@ -282,7 +289,7 @@ describe('registerWaggleHandlers', () => {
       )
     })
 
-    it('auto-titles conversation on first message', async () => {
+    it('fires LLM title generation on first message', async () => {
       getConversationMock.mockResolvedValue(newConversation())
       runWaggleSequentialMock.mockResolvedValue({
         newMessages: [],
@@ -299,39 +306,14 @@ describe('registerWaggleHandlers', () => {
         validWaggleConfig(),
       )
 
-      expect(saveConversationMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'Review my code',
-        }),
-      )
-    })
-
-    it('truncates auto-title to 60 characters', async () => {
-      getConversationMock.mockResolvedValue(newConversation())
-      runWaggleSequentialMock.mockResolvedValue({
-        newMessages: [],
-        lastError: undefined,
-      })
-
-      registerWaggleHandlers()
-      const handler = getInvokeHandler('agent:send-waggle-message')
-
-      const longText = 'a'.repeat(100)
-      await handler?.(
-        {},
+      expect(generateTitleMock).toHaveBeenCalledWith(
         ConversationId('conv-new'),
-        { text: longText, qualityPreset: 'medium', attachments: [] },
-        validWaggleConfig(),
-      )
-
-      expect(saveConversationMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: `${'a'.repeat(60)}...`,
-        }),
+        'Review my code',
+        expect.anything(),
       )
     })
 
-    it('does not auto-title when text is empty/whitespace', async () => {
+    it('does not generate title when text is empty/whitespace', async () => {
       getConversationMock.mockResolvedValue(newConversation())
       runWaggleSequentialMock.mockResolvedValue({
         newMessages: [],
@@ -348,12 +330,7 @@ describe('registerWaggleHandlers', () => {
         validWaggleConfig(),
       )
 
-      // saveConversation should NOT be called for the title
-      // (it may be called during persistence but not for title)
-      const titleSaveCalls = saveConversationMock.mock.calls.filter(
-        (c: unknown[]) => (c[0] as Conversation).title !== 'New thread',
-      )
-      expect(titleSaveCalls).toHaveLength(0)
+      expect(generateTitleMock).not.toHaveBeenCalled()
     })
 
     it('emits RUN_STARTED and RUN_FINISHED for a successful waggle run', async () => {

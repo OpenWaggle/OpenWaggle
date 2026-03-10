@@ -9,14 +9,13 @@ import { useChatStore } from '@/stores/chat-store'
  * active background runs by listening to stream chunk start/end events
  * and the run-completed event. Does NOT track chunk content — only presence.
  *
- * Also refreshes the conversation list when background runs complete so
- * sidebar timestamps and titles stay current.
+ * When a background run completes, updates only the affected conversation's
+ * metadata in the sidebar (timestamp) instead of reloading the full list.
  */
 export function useBackgroundRunMonitor(): void {
   const addActiveRun = useBackgroundRunStore((s) => s.addActiveRun)
   const removeActiveRun = useBackgroundRunStore((s) => s.removeActiveRun)
   const initialize = useBackgroundRunStore((s) => s.initialize)
-  const loadConversations = useChatStore((s) => s.loadConversations)
 
   useEffect(() => {
     void initialize()
@@ -36,13 +35,22 @@ export function useBackgroundRunMonitor(): void {
 
     const unsubCompleted = api.onRunCompleted((payload) => {
       removeActiveRun(payload.conversationId)
-      // Refresh conversation list so sidebar titles/timestamps update
-      void loadConversations()
+      // Update only the completed conversation's timestamp in the sidebar
+      // instead of reloading the entire conversation list (which would
+      // surface untitled "New thread" entries from the DB).
+      useChatStore.setState((state) => {
+        const idx = state.conversations.findIndex((c) => c.id === payload.conversationId)
+        if (idx === -1) return state
+        const updated = state.conversations.map((c) =>
+          c.id === payload.conversationId ? { ...c, updatedAt: Date.now() } : c,
+        )
+        return { conversations: updated }
+      })
     })
 
     return () => {
       unsubChunk()
       unsubCompleted()
     }
-  }, [addActiveRun, removeActiveRun, loadConversations])
+  }, [addActiveRun, removeActiveRun])
 }

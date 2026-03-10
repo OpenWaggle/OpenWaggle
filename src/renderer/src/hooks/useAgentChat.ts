@@ -198,6 +198,16 @@ export function useAgentChat(
   // new collector, losing earlier retry content).
   const foregroundStreamActiveRef = useRef(false)
 
+  // Reset foreground stream flag synchronously during render when the
+  // conversation changes. This MUST happen before the sync effect runs,
+  // otherwise the foregroundStreamActive guard prevents loading the new
+  // conversation's persisted messages.
+  const prevConversationForStreamRef = useRef(conversationId)
+  if (prevConversationForStreamRef.current !== conversationId) {
+    prevConversationForStreamRef.current = conversationId
+    foregroundStreamActiveRef.current = false
+  }
+
   const refreshConversationSnapshot = useCallback(
     async (targetConversationId: ConversationId) => {
       const conv = await api.getConversation(targetConversationId)

@@ -26,8 +26,10 @@ interface ChatState {
   // Actions
   loadConversations: () => Promise<void>
   createConversation: (projectPath: string | null) => Promise<ConversationId>
+  startDraftThread: () => void
   setActiveConversation: (id: ConversationId | null) => Promise<void>
   deleteConversation: (id: ConversationId) => Promise<void>
+  updateConversationTitle: (id: ConversationId, title: string) => void
   updateConversationProjectPath: (id: ConversationId, projectPath: string | null) => Promise<void>
   clearError: () => void
 }
@@ -40,26 +42,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   async loadConversations() {
     try {
-      const conversations = await api.listConversations()
+      const all = await api.listConversations()
+      // Filter out untitled draft threads that have no messages yet —
+      // these are freshly created conversations awaiting their first send.
+      // They appear in the sidebar only once the LLM title is generated.
+      const conversations = all.filter((c) => c.title !== 'New thread' || c.messageCount > 0)
       set({ conversations })
     } catch (err) {
       handleStoreError(err, 'load conversations', set)
     }
   },
 
+  startDraftThread() {
+    set({ activeConversationId: null, activeConversation: null })
+  },
+
   async createConversation(projectPath: string | null) {
     try {
       const conv = await api.createConversation(projectPath)
-      const summary: ConversationSummary = {
-        id: conv.id,
-        title: conv.title,
-        projectPath: conv.projectPath,
-        messageCount: 0,
-        createdAt: conv.createdAt,
-        updatedAt: conv.updatedAt,
-      }
+      // Don't add to sidebar list yet — it appears once the LLM title
+      // is generated and broadcast via conversations:title-updated.
       set({
-        conversations: [summary, ...get().conversations],
         activeConversationId: conv.id,
         activeConversation: conv,
       })
@@ -99,6 +102,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // Rollback on failure
       set({ conversations: snapshot })
       handleStoreError(err, 'delete conversation', set)
+    }
+  },
+
+  updateConversationTitle(id: ConversationId, title: string) {
+    const existing = get().conversations.find((c) => c.id === id)
+    if (existing) {
+      set({
+        conversations: get().conversations.map((c) => (c.id === id ? { ...c, title } : c)),
+      })
+    } else {
+      // Conversation was just created (not yet in sidebar). Add it now.
+      const { activeConversation } = get()
+      const now = Date.now()
+      const summary: ConversationSummary = {
+        id,
+        title,
+        projectPath: activeConversation?.id === id ? activeConversation.projectPath : null,
+        messageCount: 1,
+        createdAt: activeConversation?.id === id ? activeConversation.createdAt : now,
+        updatedAt: now,
+      }
+      set({ conversations: [summary, ...get().conversations] })
+    }
+    const { activeConversation } = get()
+    if (activeConversation && activeConversation.id === id) {
+      set({ activeConversation: { ...activeConversation, title } })
     }
   },
 

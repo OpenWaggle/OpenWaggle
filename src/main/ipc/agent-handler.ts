@@ -1,6 +1,4 @@
-import { DOUBLE_FACTOR } from '@shared/constants/constants'
 import type { AgentSendPayload, HydratedAgentSendPayload } from '@shared/types/agent'
-import { isTextPart } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { PlanResponse } from '@shared/types/plan'
@@ -12,6 +10,7 @@ import { classifyAgentError, makeErrorInfo } from '../agent/error-classifier'
 import { getPhaseForConversation } from '../agent/phase-tracker'
 import { buildPersistedUserMessageParts, makeMessage } from '../agent/shared'
 import type { StreamPartCollector } from '../agent/stream-part-collector'
+import { generateTitle } from '../agent/title-generator'
 import { approvalTraceEnabled } from '../env'
 import { createLogger } from '../logger'
 import { providerRegistry } from '../providers/registry'
@@ -32,8 +31,6 @@ import {
 } from '../utils/stream-bridge'
 import { hydrateAttachmentSources } from './attachments-handler'
 import { typedHandle, typedOn } from './typed-ipc'
-
-const TITLE_PREVIEW_LENGTH = 60
 
 const logger = createLogger('agent-handler')
 const approvalTraceLogger = createLogger('approval-trace')
@@ -130,13 +127,11 @@ export function registerAgentHandlers(): void {
         return
       }
 
+      // Fire-and-forget LLM title generation on first message
       if (conversation.title === 'New thread' && conversation.messages.length === 0) {
         const trimmed = payload.text.trim()
         if (trimmed) {
-          const provisionalTitle =
-            trimmed.slice(0, TITLE_PREVIEW_LENGTH) +
-            (trimmed.length > TITLE_PREVIEW_LENGTH ? '...' : '')
-          await saveConversation({ ...conversation, title: provisionalTitle })
+          void generateTitle(conversationId, trimmed, settings)
         }
       }
 
@@ -182,22 +177,7 @@ export function registerAgentHandlers(): void {
             // Append new messages to the latest conversation snapshot.
             const updatedMessages = [...latestConversation.messages, ...newMessages]
 
-            // Auto-title on first user message
-            let title = latestConversation.title
-            if (updatedMessages.length <= DOUBLE_FACTOR && title === 'New thread') {
-              const firstUserMsg = updatedMessages.find((m) => m.role === 'user')
-              if (firstUserMsg) {
-                const text = firstUserMsg.parts
-                  .filter(isTextPart)
-                  .map((p) => p.text)
-                  .join(' ')
-                title =
-                  text.slice(0, TITLE_PREVIEW_LENGTH) +
-                  (text.length > TITLE_PREVIEW_LENGTH ? '...' : '')
-              }
-            }
-
-            await saveConversation({ ...latestConversation, title, messages: updatedMessages })
+            await saveConversation({ ...latestConversation, messages: updatedMessages })
 
             if (approvalTraceEnabled && (hydratedPayload.continuationMessages?.length ?? 0) > 0) {
               const persistedAssistantMessage = newMessages.find(

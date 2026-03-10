@@ -55,6 +55,7 @@ describe('preload api surface contract', () => {
     'listArchivedConversations',
     'updateConversationTitle',
     'updateConversationProjectPath',
+    'onConversationTitleUpdated',
     // Devtools
     'getDevtoolsEventBusConfig',
     // Terminal
@@ -168,6 +169,7 @@ describe('preload api surface contract', () => {
       'onMcpStatusChanged',
       'onSubAgentEvent',
       'onTeamEvent',
+      'onConversationTitleUpdated',
     ] as const
 
     for (const method of EVENT_METHODS) {

@@ -9,8 +9,10 @@ export function useChat() {
   const activeConversation = useChatStore((s) => s.activeConversation)
   const activeConversationId = useChatStore((s) => s.activeConversationId)
   const createConversation = useChatStore((s) => s.createConversation)
+  const startDraftThread = useChatStore((s) => s.startDraftThread)
   const setActiveConversation = useChatStore((s) => s.setActiveConversation)
   const deleteConversation = useChatStore((s) => s.deleteConversation)
+  const updateConversationTitle = useChatStore((s) => s.updateConversationTitle)
   const updateConversationProjectPath = useChatStore((s) => s.updateConversationProjectPath)
   const loadConversations = useChatStore((s) => s.loadConversations)
 
@@ -19,8 +21,10 @@ export function useChat() {
     activeConversation,
     activeConversationId,
     createConversation,
+    startDraftThread,
     setActiveConversation,
     deleteConversation,
+    updateConversationTitle,
     updateConversationProjectPath,
     loadConversations,
   }

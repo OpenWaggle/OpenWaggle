@@ -62,12 +62,48 @@ describe('useChatStore unit', () => {
 
       expect(useChatStore.getState().error).toBe('Failed to load conversations: 404')
     })
+
+    it('filters out untitled draft threads with zero messages', async () => {
+      apiMock.listConversations.mockResolvedValue([
+        {
+          id: ConversationId('titled'),
+          title: 'My Chat',
+          projectPath: null,
+          messageCount: 3,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+        {
+          id: ConversationId('draft'),
+          title: 'New thread',
+          projectPath: null,
+          messageCount: 0,
+          createdAt: 2,
+          updatedAt: 2,
+        },
+        {
+          id: ConversationId('used-new'),
+          title: 'New thread',
+          projectPath: null,
+          messageCount: 1,
+          createdAt: 3,
+          updatedAt: 3,
+        },
+      ])
+
+      await useChatStore.getState().loadConversations()
+
+      const convs = useChatStore.getState().conversations
+      expect(convs).toHaveLength(2)
+      expect(convs[0].id).toBe('titled')
+      expect(convs[1].id).toBe('used-new')
+    })
   })
 
   // ── createConversation ──
 
   describe('createConversation', () => {
-    it('prepends new summary locally without calling listConversations', async () => {
+    it('sets active conversation without adding to sidebar list (lazy creation)', async () => {
       const conv = {
         id: ConversationId('new-1'),
         title: 'New thread',
@@ -91,14 +127,13 @@ describe('useChatStore unit', () => {
         ],
       })
 
-      await useChatStore.getState().createConversation('/repo')
+      const id = await useChatStore.getState().createConversation('/repo')
 
       expect(apiMock.listConversations).not.toHaveBeenCalled()
-      const convs = useChatStore.getState().conversations
-      expect(convs).toHaveLength(2)
-      expect(convs[0].id).toBe('new-1')
-      expect(convs[0].messageCount).toBe(0)
-      expect(convs[1].id).toBe('old-1')
+      // Conversation is NOT added to sidebar list — it appears only after LLM title
+      expect(useChatStore.getState().conversations).toHaveLength(1)
+      expect(useChatStore.getState().activeConversationId).toBe(id)
+      expect(useChatStore.getState().activeConversation).toBe(conv)
     })
 
     it('sets error and re-throws when createConversation fails', async () => {

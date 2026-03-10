@@ -1,11 +1,10 @@
-import { SECONDS_PER_MINUTE, TRIPLE_FACTOR } from '@shared/constants/constants'
 import { safeDecodeUnknown } from '@shared/schema'
 import { waggleConfigSchema } from '@shared/schemas/waggle'
 import type { AgentSendPayload } from '@shared/types/agent'
-import { isTextPart } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import type { WaggleConfig } from '@shared/types/waggle'
 import { classifyAgentError, makeErrorInfo } from '../agent/error-classifier'
+import { generateTitle } from '../agent/title-generator'
 import { runWaggleSequential } from '../agent/waggle-coordinator'
 import { createLogger } from '../logger'
 import { withConversationLock } from '../store/conversation-lock'
@@ -22,8 +21,6 @@ import {
 } from '../utils/stream-bridge'
 import { hydrateAttachmentSources } from './attachments-handler'
 import { typedHandle, typedOn } from './typed-ipc'
-
-const SLICE_ARG_2 = 60
 
 const logger = createLogger('waggle-handler')
 
@@ -88,13 +85,11 @@ export function registerWaggleHandlers(): void {
         return
       }
 
-      // Auto-title on first message
+      // Fire-and-forget LLM title generation on first message
       if (conversation.title === 'New thread' && conversation.messages.length === 0) {
         const trimmed = payload.text.trim()
         if (trimmed) {
-          const provisionalTitle =
-            trimmed.slice(0, SLICE_ARG_2) + (trimmed.length > SECONDS_PER_MINUTE ? '...' : '')
-          await saveConversation({ ...conversation, title: provisionalTitle })
+          void generateTitle(conversationId, trimmed, settings)
         }
       }
 
@@ -219,21 +214,8 @@ export function registerWaggleHandlers(): void {
 
             const updatedMessages = [...latestConversation.messages, ...result.newMessages]
 
-            let title = latestConversation.title
-            if (updatedMessages.length <= TRIPLE_FACTOR && title === 'New thread') {
-              const firstUserMsg = updatedMessages.find((m) => m.role === 'user')
-              if (firstUserMsg) {
-                const text = firstUserMsg.parts
-                  .filter(isTextPart)
-                  .map((p) => p.text)
-                  .join(' ')
-                title = text.slice(0, SLICE_ARG_2) + (text.length > SECONDS_PER_MINUTE ? '...' : '')
-              }
-            }
-
             await saveConversation({
               ...latestConversation,
-              title,
               messages: updatedMessages,
               waggleConfig: config,
             })

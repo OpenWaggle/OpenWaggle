@@ -4,12 +4,19 @@ import { useGit } from '@/hooks/useGit'
 import { useGitRefresh } from '@/hooks/useGitRefresh'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { useProject } from '@/hooks/useProject'
+import { useThreadStatusMonitor } from '@/hooks/useThreadStatusMonitor'
+import { api } from '@/lib/ipc'
 import { useUIStore } from '@/stores/ui-store'
 
 export function useWorkspaceLifecycle(): void {
   const { projectPath } = useProject()
-  const { activeConversationId, createConversation, loadConversations, setActiveConversation } =
-    useChat()
+  const {
+    activeConversationId,
+    startDraftThread,
+    loadConversations,
+    setActiveConversation,
+    updateConversationTitle,
+  } = useChat()
   const { refreshStatus: refreshGitStatus, refreshBranches: refreshGitBranches } = useGit()
 
   const toggleTerminal = useUIStore((s) => s.toggleTerminal)
@@ -26,18 +33,26 @@ export function useWorkspaceLifecycle(): void {
     void refreshGitBranches(projectPath)
   }, [projectPath, refreshGitStatus, refreshGitBranches])
 
+  // Subscribe to LLM-generated title updates from main process
+  useEffect(() => {
+    return api.onConversationTitleUpdated(({ conversationId, title }) => {
+      updateConversationTitle(conversationId, title)
+    })
+  }, [updateConversationTitle])
+
   useGitRefresh({
     projectPath,
     activeConversationId,
     refreshGitStatus,
     refreshGitBranches,
-    loadConversations,
     setActiveConversation,
   })
 
+  useThreadStatusMonitor()
+
   useKeyboardShortcuts([
     { key: 'j', ctrl: true, action: toggleTerminal },
-    { key: 'n', ctrl: true, action: () => void createConversation(projectPath) },
+    { key: 'n', ctrl: true, action: startDraftThread },
     { key: 'b', ctrl: true, action: toggleSidebar },
     { key: 'd', ctrl: true, action: toggleDiffPanel },
     { key: 'k', ctrl: true, action: toggleCommandPalette },
