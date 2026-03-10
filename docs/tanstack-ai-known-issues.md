@@ -1,8 +1,8 @@
 # TanStack AI Known Issues & Limitations
 
-> Version tested: `@tanstack/ai@0.6.1` (patched), `@tanstack/ai-client@0.5.2`
+> Version tested: `@tanstack/ai@0.6.2`, `@tanstack/ai-react@0.6.3`, `@tanstack/ai-client@0.5.3`
 
-This document tracks known issues, limitations, and workarounds related to our use of TanStack AI. These are inherent to the library and cannot be fixed without patching or replacing the dependency.
+This document tracks currently observed TanStack AI issues, limitations, and OpenWaggle workarounds. Historical references to a local `patch-package` TanStack patch have been removed because the repository no longer carries that patch.
 
 ---
 
@@ -24,7 +24,7 @@ This is an inherent behavior of TanStack AI's `TextEngine` continuation handling
 
 **Observed in:** Sequential tool calls (test A1), continuation checks, any flow involving tool approval.
 
-**Workaround:** None available without patching the TextEngine. Could potentially be mitigated by post-processing duplicate tool calls in the UI layer, but this risks hiding legitimate repeated calls.
+**Workaround:** No general fix is currently implemented. We keep regression coverage around the behavior and tolerate the duplicate-card cosmetic failure mode rather than hiding potentially legitimate repeated tool calls.
 
 ---
 
@@ -179,8 +179,7 @@ If that sentinel starts failing after a TanStack upgrade, treat it as a likely u
 
 ## Evaluation
 
-TanStack AI (`@tanstack/ai` + `@tanstack/ai-client`) is still early-stage and has significant gaps in its continuation/tool-approval flow. The issues above required:
-- A patched version of `@tanstack/ai`
+TanStack AI (`@tanstack/ai` + `@tanstack/ai-client`) still has significant gaps in its continuation/tool-approval flow. The issues above currently require:
 - Multiple server-side workarounds (args enrichment, output enrichment, message normalization)
 - Client-side workarounds (ref-based state tracking, idle waiting)
 - Acceptance of cosmetic issues (duplicate tool cards)
