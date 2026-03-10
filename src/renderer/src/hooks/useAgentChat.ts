@@ -187,6 +187,9 @@ export function useAgentChat(
   const foregroundMessageSnapshotRef = useRef<ForegroundMessageSnapshot | null>(null)
   const restoredForegroundSnapshotRef = useRef(false)
   const isConversationIdle = !isLoading && !backgroundStreaming
+  // Derived boolean avoids putting the full `messages` array in the sync
+  // effect's deps (which would cause an infinite setMessages→re-fire loop).
+  const messagesEmpty = messages.length === 0
 
   // When a foreground stream just completed, the TanStack UIMessages are
   // already the most up-to-date representation. Calling setMessages() with
@@ -319,7 +322,7 @@ export function useAgentChat(
     if (foregroundStreamActiveRef.current) {
       const cachedForegroundMessages = foregroundMessageSnapshotRef.current
       if (
-        messages.length === 0 &&
+        messagesEmpty &&
         cachedForegroundMessages?.conversationId === conversationId &&
         cachedForegroundMessages.messages.length > 0
       ) {
@@ -336,7 +339,7 @@ export function useAgentChat(
     }
 
     setMessages(conversationToUIMessages(conversation))
-  }, [conversationId, conversation, hasActiveRun, messages, setMessages])
+  }, [conversationId, conversation, hasActiveRun, messagesEmpty, setMessages])
 
   // Keep a ref to the latest messages so stream chunk listeners can
   // read current state without needing a functional updater.

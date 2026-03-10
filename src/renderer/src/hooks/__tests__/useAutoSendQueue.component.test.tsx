@@ -147,6 +147,21 @@ describe('useAutoSendQueue', () => {
     expect(send).toHaveBeenCalledOnce()
   })
 
+  it('does not auto-send newly queued messages while the agent is still streaming', () => {
+    const send = vi.fn().mockResolvedValue(undefined)
+
+    renderHook(() =>
+      useAutoSendQueue({ conversationId: CONV_A, status: 'streaming', sendMessage: send }),
+    )
+
+    useMessageQueueStore.getState().enqueue(CONV_A, makePayload('wait until ready'))
+
+    expect(send).not.toHaveBeenCalled()
+    const queue = useMessageQueueStore.getState().queues.get(CONV_A) ?? []
+    expect(queue).toHaveLength(1)
+    expect(queue[0]?.payload.text).toBe('wait until ready')
+  })
+
   it('re-enqueues and reports send failures', async () => {
     const sendError = new Error('send failed')
     const send = vi.fn().mockRejectedValue(sendError)

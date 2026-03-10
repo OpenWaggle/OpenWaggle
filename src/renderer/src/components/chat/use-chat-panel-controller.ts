@@ -179,6 +179,8 @@ export function useChatPanelSections(): ChatPanelSections {
     respondToolApproval,
     answerQuestion,
     respondToPlan,
+    withDeferredSnapshotRefresh,
+    previewSteeredUserTurn,
   } = useAgentChat(activeConversationId, activeConversation, model, qualityPreset)
 
   const { handleSend, handleSendText, handleSendWaggle } = useSendMessage({
@@ -481,10 +483,14 @@ export function useChatPanelSections(): ChatPanelSections {
     if (!item) return
     setIsSteering(true)
     useMessageQueueStore.getState().dismiss(activeConversationId, messageId)
+    const clearOptimisticSteeredTurn = previewSteeredUserTurn(item.payload)
     try {
-      await steer()
-      await handleSendWithWaggle(item.payload)
+      await withDeferredSnapshotRefresh(async () => {
+        await steer()
+        await handleSendWithWaggle(item.payload)
+      })
     } catch (error) {
+      clearOptimisticSteeredTurn()
       // Re-enqueue on failure so the message isn't silently lost
       useMessageQueueStore.getState().enqueue(activeConversationId, item.payload)
       reportQueuedSteerFailure({ logger, showToast }, activeConversationId, messageId, error)

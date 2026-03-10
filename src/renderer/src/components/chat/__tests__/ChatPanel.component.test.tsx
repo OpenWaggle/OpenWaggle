@@ -16,14 +16,18 @@ const useChatPanelSectionsMock = vi.hoisted(() => vi.fn<() => ChatPanelSections>
 vi.mock('react-virtuoso', () => ({
   Virtuoso: ({
     data,
+    computeItemKey,
     itemContent,
   }: {
     data: unknown[]
+    computeItemKey?: (index: number, item: unknown) => string | number
     itemContent: (index: number, item: unknown) => ReactNode
   }) => (
     <div data-testid="virtuoso-list">
       {data.map((item, index) => (
-        <div key={`vr-${String(index)}`}>{itemContent(index, item)}</div>
+        <div key={String(computeItemKey?.(index, item) ?? `vr-${String(index)}`)}>
+          {itemContent(index, item)}
+        </div>
       ))}
     </div>
   ),
