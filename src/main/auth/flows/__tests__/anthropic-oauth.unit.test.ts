@@ -100,7 +100,6 @@ describe('Anthropic OAuth', () => {
 
     expect(result.accessToken).toBe('sk-ant-oat01-access')
     expect(result.refreshToken).toBe('anthropic-refresh')
-    // expiresAt includes 5-minute buffer subtraction
     expect(result.expiresAt).toBeGreaterThan(Date.now())
 
     // Verify JSON body (not form-encoded)
@@ -227,6 +226,23 @@ describe('Anthropic OAuth', () => {
       await expect(refreshAnthropicToken('bad-token')).rejects.toThrow(
         'Anthropic token refresh failed. Please sign in again.',
       )
+    })
+
+    it('marks invalid grant refresh failures as fatal', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: false,
+          status: 400,
+          text: () =>
+            Promise.resolve(
+              '{"error":"invalid_grant","error_description":"Refresh token not found or invalid"}',
+            ),
+        }),
+      )
+
+      const { OAuthRefreshError, refreshAnthropicToken } = await import('../anthropic-oauth')
+      await expect(refreshAnthropicToken('bad-token')).rejects.toBeInstanceOf(OAuthRefreshError)
     })
   })
 })

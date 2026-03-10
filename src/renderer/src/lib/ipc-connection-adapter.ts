@@ -198,6 +198,7 @@ export function createIpcConnectionAdapter(
           let resolve: (() => void) | null = null
           let done = false
           let runCompletedEventSeen = false
+          let runStartedSeen = false
           let approvalTraceActive = false
           const approvalTraceEnabled = env.approvalTraceEnabled
           let fallbackCloseTimer: ReturnType<typeof setTimeout> | null = null
@@ -293,8 +294,15 @@ export function createIpcConnectionAdapter(
               }
             }
 
-            // Clear stale error info when a new run begins.
+            // Clear stale state when a new run begins. This is critical for
+            // the steer flow: the old run's `run-completed` event may arrive at
+            // this adapter before the new run's first chunk, so we reset the
+            // completion signal and cancel any pending close timer to avoid
+            // prematurely closing the stream.
             if (payload.chunk.type === 'RUN_STARTED') {
+              runStartedSeen = true
+              runCompletedEventSeen = false
+              clearRunCompletedCloseTimer()
               lastErrorInfoMap.delete(conversationId)
               pendingToolResultIds.clear()
             }
@@ -338,6 +346,13 @@ export function createIpcConnectionAdapter(
           })
           const runCompletedUnsub = api.onRunCompleted((payload) => {
             if (payload.conversationId !== conversationId) {
+              return
+            }
+            // Ignore run-completed events from a previous (aborted) run that
+            // arrive before this adapter has seen its own RUN_STARTED chunk.
+            // Without this guard, a steer flow's old run completion can
+            // prematurely close the new run's stream.
+            if (!runStartedSeen) {
               return
             }
             runCompletedEventSeen = true

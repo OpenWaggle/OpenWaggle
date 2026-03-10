@@ -288,6 +288,8 @@ function buildBaseAgentChatReturn(overrides?: Record<string, unknown>) {
     respondToolApproval: vi.fn().mockResolvedValue(undefined),
     answerQuestion: vi.fn().mockResolvedValue(undefined),
     respondToPlan: vi.fn().mockResolvedValue(undefined),
+    withDeferredSnapshotRefresh: vi.fn(async (operation: () => Promise<unknown>) => operation()),
+    previewSteeredUserTurn: vi.fn(() => vi.fn()),
     backgroundStreaming: false,
     ...overrides,
   }
@@ -452,6 +454,120 @@ describe('useChatPanelSections', () => {
     expect(useUIStore.getState().toastMessage).toBe(
       'Could not steer the queued message. It was returned to the queue.',
     )
+  })
+
+  it('defers snapshot refresh across the full steer-and-send sequence', async () => {
+    const steer = vi.fn().mockResolvedValue(undefined)
+    const withDeferredSnapshotRefresh = vi.fn(async (operation: () => Promise<unknown>) =>
+      operation(),
+    )
+    const clearOptimisticSteeredTurn = vi.fn()
+    const previewSteeredUserTurn = vi.fn(() => clearOptimisticSteeredTurn)
+    useAgentChatMock.mockReturnValue(
+      buildBaseAgentChatReturn({
+        steer,
+        withDeferredSnapshotRefresh,
+        previewSteeredUserTurn,
+      }),
+    )
+
+    const handleSend = vi.fn().mockResolvedValue(undefined)
+    const handleSendWaggle = vi.fn().mockResolvedValue(undefined)
+    useSendMessageMock.mockReturnValue({
+      handleSend,
+      handleSendText: vi.fn().mockResolvedValue(undefined),
+      handleSendWaggle,
+    })
+
+    useMessageQueueStore.getState().enqueue(ACTIVE_CONVERSATION_ID, createPayload('Steer me'))
+    const queuedItem = useMessageQueueStore.getState().queues.get(ACTIVE_CONVERSATION_ID)?.[0]
+
+    const { result } = renderHook(() => useChatPanelSections())
+
+    await act(async () => {
+      await result.current.composer.onSteer(queuedItem?.id ?? '')
+    })
+
+    expect(withDeferredSnapshotRefresh).toHaveBeenCalledOnce()
+    expect(steer).toHaveBeenCalledOnce()
+    expect(previewSteeredUserTurn).toHaveBeenCalledWith(createPayload('Steer me'))
+    expect(clearOptimisticSteeredTurn).not.toHaveBeenCalled()
+    expect(handleSend).toHaveBeenCalledWith(createPayload('Steer me'))
+    expect(handleSendWaggle).not.toHaveBeenCalled()
+  })
+
+  it('renders the optimistic steered turn before the steer IPC completes', async () => {
+    let resolveSteer: (() => void) | null = null
+    const steer = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSteer = resolve
+        }),
+    )
+    const previewSteeredUserTurn = vi.fn(() => vi.fn())
+    useAgentChatMock.mockReturnValue(
+      buildBaseAgentChatReturn({
+        steer,
+        previewSteeredUserTurn,
+      }),
+    )
+
+    const handleSend = vi.fn().mockResolvedValue(undefined)
+    useSendMessageMock.mockReturnValue({
+      handleSend,
+      handleSendText: vi.fn().mockResolvedValue(undefined),
+      handleSendWaggle: vi.fn().mockResolvedValue(undefined),
+    })
+
+    useMessageQueueStore.getState().enqueue(ACTIVE_CONVERSATION_ID, createPayload('Steer me'))
+    const queuedItem = useMessageQueueStore.getState().queues.get(ACTIVE_CONVERSATION_ID)?.[0]
+
+    const { result } = renderHook(() => useChatPanelSections())
+
+    act(() => {
+      void result.current.composer.onSteer(queuedItem?.id ?? '')
+    })
+
+    expect(previewSteeredUserTurn).toHaveBeenCalledWith(createPayload('Steer me'))
+    expect(handleSend).not.toHaveBeenCalled()
+
+    await act(async () => {
+      resolveSteer?.()
+      await Promise.resolve()
+    })
+
+    await waitFor(() => {
+      expect(handleSend).toHaveBeenCalledWith(createPayload('Steer me'))
+    })
+  })
+
+  it('clears the optimistic steered turn preview when the follow-up send fails', async () => {
+    const steer = vi.fn().mockResolvedValue(undefined)
+    const clearOptimisticSteeredTurn = vi.fn()
+    const previewSteeredUserTurn = vi.fn(() => clearOptimisticSteeredTurn)
+    useAgentChatMock.mockReturnValue(buildBaseAgentChatReturn({ steer, previewSteeredUserTurn }))
+
+    const sendError = new Error('send failed')
+    const handleSend = vi.fn().mockRejectedValue(sendError)
+    useSendMessageMock.mockReturnValue({
+      handleSend,
+      handleSendText: vi.fn().mockResolvedValue(undefined),
+      handleSendWaggle: vi.fn().mockResolvedValue(undefined),
+    })
+
+    useMessageQueueStore.getState().enqueue(ACTIVE_CONVERSATION_ID, createPayload('Steer me'))
+    const queuedItem = useMessageQueueStore.getState().queues.get(ACTIVE_CONVERSATION_ID)?.[0]
+
+    const { result } = renderHook(() => useChatPanelSections())
+
+    await act(async () => {
+      await result.current.composer.onSteer(queuedItem?.id ?? '')
+    })
+
+    expect(previewSteeredUserTurn).toHaveBeenCalledWith(createPayload('Steer me'))
+    expect(clearOptimisticSteeredTurn).toHaveBeenCalledOnce()
+    const queue = useMessageQueueStore.getState().queues.get(ACTIVE_CONVERSATION_ID) ?? []
+    expect(queue).toHaveLength(1)
   })
 
   it('starts waggle collaboration and sends with waggle when a config is ready', async () => {

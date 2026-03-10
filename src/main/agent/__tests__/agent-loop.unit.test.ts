@@ -507,4 +507,63 @@ describe('runAgent', () => {
 
     expect(notifyRunErrorMock).not.toHaveBeenCalled()
   })
+
+  it('retries the run when tool args stall before execution begins', async () => {
+    processAgentStreamEffectMock
+      .mockReturnValueOnce(
+        Effect.succeed({
+          aborted: false,
+          runErrorNotified: false,
+          timedOut: true,
+          stallReason: 'incomplete-tool-args',
+        }),
+      )
+      .mockReturnValueOnce(
+        Effect.succeed({
+          aborted: false,
+          runErrorNotified: false,
+          timedOut: false,
+          stallReason: null,
+        }),
+      )
+
+    const result = await runAgent({
+      conversation: createConversation(),
+      payload: createPayload(),
+      model: MODEL,
+      settings: DEFAULT_SETTINGS,
+      onChunk: vi.fn(),
+      signal: new AbortController().signal,
+    })
+
+    expect(result.finalMessage.role).toBe('assistant')
+    expect(processAgentStreamEffectMock).toHaveBeenCalledTimes(2)
+    expect(notifyRunErrorMock).not.toHaveBeenCalled()
+    expect(notifyRunCompleteMock).toHaveBeenCalledOnce()
+  })
+
+  it('fails the run when a tool call stalls after execution has started', async () => {
+    processAgentStreamEffectMock.mockReturnValueOnce(
+      Effect.succeed({
+        aborted: false,
+        runErrorNotified: false,
+        timedOut: true,
+        stallReason: 'awaiting-tool-result',
+      }),
+    )
+
+    await expect(
+      runAgent({
+        conversation: createConversation(),
+        payload: createPayload(),
+        model: MODEL,
+        settings: DEFAULT_SETTINGS,
+        onChunk: vi.fn(),
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toThrow('Agent stream stalled before tool execution completed. Please try again.')
+
+    expect(notifyRunErrorMock).toHaveBeenCalledOnce()
+    expect(notifyRunCompleteMock).not.toHaveBeenCalled()
+  })
 })

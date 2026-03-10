@@ -9,6 +9,7 @@ import { registerAttachmentHandlers } from './ipc/attachments-handler'
 import { registerAuthHandlers } from './ipc/auth-handler'
 import { registerConversationsHandlers } from './ipc/conversations-handler'
 import { registerDevtoolsHandlers } from './ipc/devtools-handler'
+import { registerFeedbackHandlers } from './ipc/feedback-handler'
 import { registerGitHandlers } from './ipc/git'
 import { registerMcpHandlers } from './ipc/mcp-handler'
 import { registerOrchestrationHandlers } from './ipc/orchestration-handler'
@@ -123,6 +124,7 @@ function registerIpcHandlersOnce(): void {
   registerWaggleHandlers()
   registerTeamsHandlers()
   registerMcpHandlers()
+  registerFeedbackHandlers()
 }
 
 async function bootstrapServicesAndWindow(): Promise<void> {

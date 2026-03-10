@@ -169,4 +169,12 @@ export const api: OpenWaggleApi = {
   // Sub-Agents
   onSubAgentEvent: on('sub-agent:event'),
   onTeamEvent: on('team:event'),
+
+  // Feedback
+  checkGhCli: invoke('feedback:check-gh'),
+  collectDiagnostics: invoke('feedback:collect-diagnostics'),
+  getRecentLogs: invoke('feedback:get-recent-logs'),
+  submitFeedback: invoke('feedback:submit'),
+  generateFeedbackMarkdown: invoke('feedback:generate-markdown'),
+  openExternal: invoke('shell:open-external'),
 }

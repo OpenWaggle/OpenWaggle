@@ -14,8 +14,6 @@ const ANTHROPIC_SCOPES = 'org:create_api_key user:profile user:inference'
 
 const CLIPBOARD_POLL_INTERVAL_MS = 500
 const CLIPBOARD_POLL_TIMEOUT_MS = FIVE_MINUTES_IN_MILLISECONDS
-const TOKEN_EXPIRY_BUFFER_MS = FIVE_MINUTES_IN_MILLISECONDS
-
 const tokenResponseSchema = Schema.Struct({
   access_token: Schema.String,
   refresh_token: Schema.String,
@@ -26,6 +24,22 @@ interface AnthropicOAuthResult {
   readonly accessToken: string
   readonly refreshToken: string
   readonly expiresAt: number
+}
+
+export class OAuthRefreshError extends Error {
+  readonly provider: 'anthropic'
+  readonly status: number
+  readonly body: string
+  readonly fatal: boolean
+
+  constructor(status: number, body: string) {
+    super('Anthropic token refresh failed. Please sign in again.')
+    this.name = 'OAuthRefreshError'
+    this.provider = 'anthropic'
+    this.status = status
+    this.body = body
+    this.fatal = status === 400 || status === 401
+  }
 }
 
 /**
@@ -158,15 +172,11 @@ export async function startAnthropicOAuth(
   const raw: unknown = await response.json()
   const parsed = decodeUnknownOrThrow(tokenResponseSchema, raw)
 
-  // 5-minute buffer on expiry (matching pi-ai)
-  const expiresAt =
-    Date.now() + parsed.expires_in * MILLISECONDS_PER_SECOND - TOKEN_EXPIRY_BUFFER_MS
-
   logger.info('Anthropic OAuth completed successfully')
   return {
     accessToken: parsed.access_token,
     refreshToken: parsed.refresh_token,
-    expiresAt,
+    expiresAt: Date.now() + parsed.expires_in * MILLISECONDS_PER_SECOND,
   }
 }
 
@@ -187,7 +197,7 @@ export async function refreshAnthropicToken(
   if (!response.ok) {
     const text = await response.text()
     logger.warn('Anthropic token refresh failed', { status: response.status, body: text })
-    throw new Error('Anthropic token refresh failed. Please sign in again.')
+    throw new OAuthRefreshError(response.status, text)
   }
 
   const raw: unknown = await response.json()
@@ -196,6 +206,6 @@ export async function refreshAnthropicToken(
   return {
     accessToken: parsed.access_token,
     refreshToken: parsed.refresh_token,
-    expiresAt: Date.now() + parsed.expires_in * MILLISECONDS_PER_SECOND - TOKEN_EXPIRY_BUFFER_MS,
+    expiresAt: Date.now() + parsed.expires_in * MILLISECONDS_PER_SECOND,
   }
 }

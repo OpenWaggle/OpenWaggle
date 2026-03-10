@@ -30,6 +30,22 @@ interface OpenAIOAuthResult {
   readonly expiresAt: number
 }
 
+export class OAuthRefreshError extends Error {
+  readonly provider: 'openai'
+  readonly status: number
+  readonly body: string
+  readonly fatal: boolean
+
+  constructor(status: number, body: string) {
+    super('OpenAI token refresh failed. Please sign in again.')
+    this.name = 'OAuthRefreshError'
+    this.provider = 'openai'
+    this.status = status
+    this.body = body
+    this.fatal = status === 400 || status === 401
+  }
+}
+
 interface OpenAIOAuthCode {
   readonly code: string
   readonly state?: string
@@ -184,7 +200,7 @@ export async function refreshOpenAIToken(
   if (!response.ok) {
     const text = await response.text()
     logger.warn('OpenAI token refresh failed', { status: response.status, body: text })
-    throw new Error('OpenAI token refresh failed. Please sign in again.')
+    throw new OAuthRefreshError(response.status, text)
   }
 
   const raw: unknown = await response.json()

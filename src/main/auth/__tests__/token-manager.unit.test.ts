@@ -193,5 +193,51 @@ describe('token-manager', () => {
 
       await expect(getActiveAccessToken('openai')).resolves.toBe('fresh-token')
     })
+
+    it('clears tokens after a fatal refresh failure', async () => {
+      const { getActiveAccessToken, registerRefreshFn, storeTokens } =
+        await loadTokenManagerModule()
+      const { OAuthRefreshError } = await import('../flows/anthropic-oauth')
+
+      registerRefreshFn('anthropic', async () => {
+        throw new OAuthRefreshError(
+          400,
+          '{"error":"invalid_grant","error_description":"Refresh token not found or invalid"}',
+        )
+      })
+
+      storeTokens('anthropic', {
+        accessToken: 'stale-token',
+        refreshToken: 'dead-refresh-token',
+        expiresAt: Date.now() + 60_000,
+      })
+
+      await expect(getActiveAccessToken('anthropic')).resolves.toBeNull()
+      expect(await readStoredToken('anthropic')).toBeUndefined()
+    })
+  })
+
+  describe('hasStoredUsableAccessToken', () => {
+    it('does not force a refresh for unexpired OAuth tokens', async () => {
+      const { hasStoredUsableAccessToken, storeTokens } = await loadTokenManagerModule()
+      storeTokens('anthropic', {
+        accessToken: 'fresh-token',
+        refreshToken: 'rt',
+        expiresAt: Date.now() + 60 * 60 * 1000,
+      })
+
+      expect(hasStoredUsableAccessToken('anthropic')).toBe(true)
+    })
+
+    it('returns false for expired OAuth tokens', async () => {
+      const { hasStoredUsableAccessToken, storeTokens } = await loadTokenManagerModule()
+      storeTokens('anthropic', {
+        accessToken: 'expired-token',
+        refreshToken: 'rt',
+        expiresAt: Date.now() - 1_000,
+      })
+
+      expect(hasStoredUsableAccessToken('anthropic')).toBe(false)
+    })
   })
 })

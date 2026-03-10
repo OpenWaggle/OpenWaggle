@@ -6,6 +6,8 @@ import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
 import { runAppEffect } from '../runtime'
 import { decryptString, encryptString, isEncryptionAvailable } from '../store/encryption'
+import { OAuthRefreshError as AnthropicOAuthRefreshError } from './flows/anthropic-oauth'
+import { OAuthRefreshError as OpenAIOAuthRefreshError } from './flows/openai-oauth'
 
 const logger = createLogger('token-manager')
 
@@ -41,6 +43,8 @@ const oauthTokenSchema = Schema.Struct({
 // Providers that use OAuth token refresh (not OpenRouter — permanent key)
 type OAuthProvider = 'openai' | 'anthropic'
 
+type FatalOAuthRefreshError = AnthropicOAuthRefreshError | OpenAIOAuthRefreshError
+
 const tokenCache = new Map<string, string>()
 let initializationPromise: Promise<void> | null = null
 let writeQueue: Promise<void> = Promise.resolve()
@@ -49,6 +53,10 @@ let writeQueue: Promise<void> = Promise.resolve()
 
 function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function isFatalOAuthRefreshError(error: unknown): error is FatalOAuthRefreshError {
+  return error instanceof AnthropicOAuthRefreshError || error instanceof OpenAIOAuthRefreshError
 }
 
 async function loadTokenCache(): Promise<void> {
@@ -203,6 +211,19 @@ export function getTokens(provider: SubscriptionProvider): OpenRouterTokens | OA
   }
 }
 
+export function hasStoredUsableAccessToken(provider: SubscriptionProvider): boolean {
+  const tokens = getTokens(provider)
+  if (!tokens) {
+    return false
+  }
+
+  if (provider === 'openrouter') {
+    return 'apiKey' in tokens && tokens.apiKey.length > 0
+  }
+
+  return 'accessToken' in tokens && tokens.accessToken.length > 0 && tokens.expiresAt > Date.now()
+}
+
 export function clearTokens(provider: SubscriptionProvider): void {
   tokenCache.delete(provider)
   queuePersist(() => deleteTokenValueFromDb(provider))
@@ -263,6 +284,9 @@ async function refreshAccessToken(
     logger.info('Token refreshed successfully', { provider })
     return refreshed.accessToken
   } catch (error) {
+    if (isFatalOAuthRefreshError(error) && error.fatal) {
+      clearTokens(provider)
+    }
     logger.warn('Token refresh failed', {
       provider,
       error: describeError(error),

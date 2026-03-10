@@ -129,7 +129,10 @@ export function CommandPalette({
       id: 'feedback',
       label: 'Feedback',
       icon: <MessageSquare className="h-3.5 w-3.5" />,
-      action: () => closeCommandPalette(),
+      action: () => {
+        closeCommandPalette()
+        useUIStore.getState().openFeedbackModal()
+      },
     },
     {
       id: 'new-worktree',

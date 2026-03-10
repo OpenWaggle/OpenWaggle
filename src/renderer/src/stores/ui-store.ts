@@ -1,11 +1,23 @@
+import type { AgentErrorInfo } from '@shared/types/errors'
 import { create } from 'zustand'
 
 const DIFF_PANEL_WIDTH = 600
 const DELAY_MS = 3500
+const FEEDBACK_COOLDOWN_MS = 60_000
 
 export const DIFF_PANEL_MIN = 360
 export const DIFF_PANEL_MAX = 900
 export const CHAT_MIN_WIDTH = 420
+
+export interface ToastData {
+  message: string
+  /** Visual variant — defaults to 'neutral'. */
+  variant?: 'neutral' | 'success'
+  /** When set, the toast persists until manually dismissed. */
+  persistent?: boolean
+  /** Optional action link shown as a clickable label. */
+  action?: { label: string; url: string }
+}
 
 export type SettingsTab =
   | 'general'
@@ -28,7 +40,11 @@ interface UIState {
   diffPanelWidth: number
   diffRefreshKey: number
   toastMessage: string | null
+  toastData: ToastData | null
   commandPaletteOpen: boolean
+  feedbackModalOpen: boolean
+  feedbackErrorContext: AgentErrorInfo | null
+  feedbackCooldownActive: boolean
 
   toggleSidebar: () => void
   toggleTerminal: () => void
@@ -43,13 +59,18 @@ interface UIState {
   bumpDiffRefreshKey: () => void
   closeTerminal: () => void
   showToast: (message: string) => void
+  showPersistentToast: (data: ToastData) => void
   clearToast: () => void
   openCommandPalette: () => void
   closeCommandPalette: () => void
   toggleCommandPalette: () => void
+  openFeedbackModal: (errorContext?: AgentErrorInfo) => void
+  closeFeedbackModal: () => void
+  startFeedbackCooldown: () => void
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null
+let feedbackCooldownTimer: ReturnType<typeof setTimeout> | null = null
 
 export const useUIStore = create<UIState>((set, get) => ({
   settingsOpen: false,
@@ -61,7 +82,11 @@ export const useUIStore = create<UIState>((set, get) => ({
   diffPanelWidth: DIFF_PANEL_WIDTH,
   diffRefreshKey: 0,
   toastMessage: null,
+  toastData: null,
   commandPaletteOpen: false,
+  feedbackModalOpen: false,
+  feedbackErrorContext: null,
+  feedbackCooldownActive: false,
 
   toggleSidebar() {
     set({ sidebarOpen: !get().sidebarOpen })
@@ -119,11 +144,19 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   showToast(message) {
     if (toastTimer) clearTimeout(toastTimer)
-    set({ toastMessage: message })
+    set({ toastMessage: message, toastData: { message } })
     toastTimer = setTimeout(() => {
       toastTimer = null
-      set({ toastMessage: null })
+      set({ toastMessage: null, toastData: null })
     }, DELAY_MS)
+  },
+
+  showPersistentToast(data) {
+    if (toastTimer) {
+      clearTimeout(toastTimer)
+      toastTimer = null
+    }
+    set({ toastMessage: data.message, toastData: data })
   },
 
   clearToast() {
@@ -131,7 +164,7 @@ export const useUIStore = create<UIState>((set, get) => ({
       clearTimeout(toastTimer)
       toastTimer = null
     }
-    set({ toastMessage: null })
+    set({ toastMessage: null, toastData: null })
   },
 
   openCommandPalette() {
@@ -144,6 +177,23 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   toggleCommandPalette() {
     set({ commandPaletteOpen: !get().commandPaletteOpen })
+  },
+
+  openFeedbackModal(errorContext) {
+    set({ feedbackModalOpen: true, feedbackErrorContext: errorContext ?? null })
+  },
+
+  closeFeedbackModal() {
+    set({ feedbackModalOpen: false, feedbackErrorContext: null })
+  },
+
+  startFeedbackCooldown() {
+    if (feedbackCooldownTimer) clearTimeout(feedbackCooldownTimer)
+    set({ feedbackCooldownActive: true })
+    feedbackCooldownTimer = setTimeout(() => {
+      feedbackCooldownTimer = null
+      set({ feedbackCooldownActive: false })
+    }, FEEDBACK_COOLDOWN_MS)
   },
 }))
 

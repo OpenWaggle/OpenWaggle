@@ -10,6 +10,7 @@ import { Schema, safeDecodeUnknown } from '@shared/schema'
 
 export type AgentErrorCode =
   | 'api-key-invalid'
+  | 'session-expired'
   | 'insufficient-credits'
   | 'rate-limited'
   | 'provider-down'
@@ -38,6 +39,11 @@ export const ERROR_CODE_META: Record<AgentErrorCode, ErrorCodeMeta> = {
   'api-key-invalid': {
     userMessage: 'Invalid API key',
     suggestion: 'Check your API key in Settings.',
+    retryable: false,
+  },
+  'session-expired': {
+    userMessage: 'Session expired',
+    suggestion: 'Sign in again to refresh your provider session.',
     retryable: false,
   },
   'insufficient-credits': {
@@ -159,6 +165,10 @@ export function classifyErrorMessage(message: string): AgentErrorInfo {
     lower.includes('incorrect api key')
   ) {
     return makeErrorInfo('api-key-invalid', displayMessage)
+  }
+
+  if (lower.includes('session expired') || lower.includes('sign in again')) {
+    return makeErrorInfo('session-expired', displayMessage)
   }
 
   // Rate limiting

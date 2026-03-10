@@ -123,6 +123,13 @@ describe('preload api surface contract', () => {
     // Sub-Agents
     'onSubAgentEvent',
     'onTeamEvent',
+    // Feedback
+    'checkGhCli',
+    'collectDiagnostics',
+    'getRecentLogs',
+    'submitFeedback',
+    'generateFeedbackMarkdown',
+    'openExternal',
   ] as const
 
   it('has every expected method as a function', () => {
