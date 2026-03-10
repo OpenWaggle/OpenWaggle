@@ -6,6 +6,12 @@ import type { ConversationId, McpServerId, TeamConfigId } from './brand'
 import type { Conversation, ConversationSummary } from './conversation'
 import type { DevtoolsEventBusConfig } from './devtools'
 import type {
+  DiagnosticsInfo,
+  FeedbackPayload,
+  FeedbackSubmitResult,
+  GhCliStatus,
+} from './feedback'
+import type {
   GitBranchCheckoutPayload,
   GitBranchCreatePayload,
   GitBranchDeletePayload,
@@ -310,6 +316,31 @@ export interface IpcInvokeChannelMap {
     args: [id: TeamConfigId]
     return: undefined
   }
+  // Feedback
+  'feedback:check-gh': {
+    args: []
+    return: GhCliStatus
+  }
+  'feedback:collect-diagnostics': {
+    args: []
+    return: DiagnosticsInfo
+  }
+  'feedback:get-recent-logs': {
+    args: [lineCount: number]
+    return: string
+  }
+  'feedback:submit': {
+    args: [payload: FeedbackPayload]
+    return: FeedbackSubmitResult
+  }
+  'feedback:generate-markdown': {
+    args: [payload: FeedbackPayload]
+    return: string
+  }
+  'shell:open-external': {
+    args: [url: string]
+    return: undefined
+  }
 }
 
 /**
@@ -607,4 +638,12 @@ export interface OpenWaggleApi {
   // Sub-agents
   onSubAgentEvent(callback: (payload: SubAgentEventPayload) => void): () => void
   onTeamEvent(callback: (payload: TeamEventPayload) => void): () => void
+
+  // Feedback
+  checkGhCli(): Promise<GhCliStatus>
+  collectDiagnostics(): Promise<DiagnosticsInfo>
+  getRecentLogs(lineCount: number): Promise<string>
+  submitFeedback(payload: FeedbackPayload): Promise<FeedbackSubmitResult>
+  generateFeedbackMarkdown(payload: FeedbackPayload): Promise<string>
+  openExternal(url: string): Promise<void>
 }
