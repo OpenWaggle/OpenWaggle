@@ -8,6 +8,25 @@ files:
   - '!electron.vite.config.*'
   - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  # Exclude non-runtime files from node_modules to reduce asar size
+  - '!node_modules/**/@types'
+  - '!node_modules/**/*.d.ts'
+  - '!node_modules/**/*.d.mts'
+  - '!node_modules/**/*.map'
+  - '!node_modules/**/README*'
+  - '!node_modules/**/CHANGELOG*'
+  - '!node_modules/**/LICENSE*'
+  - '!node_modules/**/.github'
+  - '!node_modules/**/docs'
+  - '!node_modules/**/test'
+  - '!node_modules/**/tests'
+  - '!node_modules/**/__tests__'
+  - '!node_modules/**/examples'
+  - '!node_modules/**/.eslintrc*'
+  - '!node_modules/**/.prettierrc*'
+  - '!node_modules/**/tsconfig.json'
+  # Exclude unused ONNX training WASM files (only inference is needed)
+  - '!node_modules/onnxruntime-web/dist/ort-training*'
 extraResources:
   - from: build/icon.png
     to: icon.png

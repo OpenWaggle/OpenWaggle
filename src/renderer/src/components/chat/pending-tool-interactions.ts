@@ -169,10 +169,16 @@ export function findPendingApproval(
         const hasApprovalMetadata = approval?.needsApproval === true
         const hasCompletedResult = completedToolCallIds.has(part.id)
         const deniedApproval = approval?.approved === false || isDeniedApprovalPayload(part.output)
+        // A tool has been responded to (approved) but is waiting for the
+        // continuation to execute it. Don't show the approval banner for it —
+        // the user already made their decision. The continuation will trigger
+        // once ALL approval-needed tools in the batch are responded to.
+        const approvedAndPendingExecution =
+          state === 'approval-responded' && approval?.approved === true
         const unresolvedApprovalState =
           hasApprovalMetadata &&
           !deniedApproval &&
-          (state !== 'approval-responded' || !hasConcreteToolOutput(part.output)) &&
+          !approvedAndPendingExecution &&
           !hasCompletedResult
         const trustableCallWithoutApprovalMetadata =
           !hasApprovalMetadata && isTrustableToolName(part.name)
@@ -196,6 +202,18 @@ export function findPendingApproval(
         }
       }
     }
+  }
+
+  // Only fall back to the persisted conversation when UIMessages don't contain
+  // any tool-call parts. When UIMessages have tool-call data, they reflect the
+  // most current approval state (including user decisions that haven't been
+  // persisted yet). Falling back would override resolved approvals with stale
+  // persisted state, causing the approval banner to linger during continuations.
+  const uiMessagesHaveToolCalls = messages.some((message) =>
+    message.parts.some((part) => part.type === 'tool-call'),
+  )
+  if (uiMessagesHaveToolCalls) {
+    return null
   }
 
   return findPendingApprovalFromPersistedConversation(persistedConversation)

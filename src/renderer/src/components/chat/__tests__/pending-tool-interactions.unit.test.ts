@@ -359,6 +359,73 @@ describe('findPendingApproval', () => {
     })
   })
 
+  it('skips approved tool and shows next unapproved tool in multi-approval batch', () => {
+    const messages: UIMessage[] = [
+      {
+        id: 'm1',
+        role: 'assistant',
+        parts: [
+          // writeFile: still waiting for approval decision
+          makeApprovalToolCall('tool-write', 'approval-write', 'approval-requested'),
+          // editFile: user already approved, waiting for execution
+          {
+            type: 'tool-call' as const,
+            id: 'tool-edit',
+            name: 'editFile',
+            arguments: '{"path":"README.md"}',
+            state: 'approval-responded' as const,
+            approval: {
+              id: 'approval-edit',
+              needsApproval: true,
+              approved: true,
+            },
+          },
+        ],
+      } as UIMessage,
+    ]
+
+    const pending = findPendingApproval(messages)
+
+    // Should return writeFile (still needs decision), NOT editFile (already approved)
+    expect(pending).toEqual({
+      toolName: 'runCommand',
+      toolArgs: '{"command":"echo test"}',
+      approvalId: 'approval-write',
+      toolCallId: 'tool-write',
+      hasApprovalMetadata: true,
+    })
+  })
+
+  it('returns null when all tools in batch are approved and awaiting execution', () => {
+    const messages: UIMessage[] = [
+      {
+        id: 'm1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call' as const,
+            id: 'tool-write',
+            name: 'writeFile',
+            arguments: '{"path":"test.txt"}',
+            state: 'approval-responded' as const,
+            approval: { id: 'approval-write', needsApproval: true, approved: true },
+          },
+          {
+            type: 'tool-call' as const,
+            id: 'tool-edit',
+            name: 'editFile',
+            arguments: '{"path":"README.md"}',
+            state: 'approval-responded' as const,
+            approval: { id: 'approval-edit', needsApproval: true, approved: true },
+          },
+        ],
+      } as UIMessage,
+    ]
+
+    // Both approved — no pending approval banner needed
+    expect(findPendingApproval(messages)).toBeNull()
+  })
+
   it('ignores trustable unresolved calls with incomplete arguments', () => {
     const messages: UIMessage[] = [
       {

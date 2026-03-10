@@ -8,6 +8,7 @@ import reactCompiler from 'babel-plugin-react-compiler'
 export default defineConfig({
   main: {
     build: {
+      minify: true,
       externalizeDeps: {
         exclude: [
           'effect',
@@ -23,6 +24,13 @@ export default defineConfig({
           '@tanstack/ai-openrouter',
           '@tanstack/ai-ollama',
           '@modelcontextprotocol/sdk',
+          '@electron-toolkit/utils',
+          'fast-glob',
+          'diff',
+          'smol-toml',
+          'jszip',
+          'mammoth',
+          'unpdf',
         ],
       },
       rollupOptions: {

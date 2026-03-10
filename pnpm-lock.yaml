@@ -4,15 +4,32 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-patchedDependencies:
-  '@tanstack/ai@0.6.1':
-    hash: 5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc
-    path: patches/@tanstack__ai@0.6.1.patch
-
 importers:
 
   .:
     dependencies:
+      '@xenova/transformers':
+        specifier: 2.17.2
+        version: 2.17.2
+      ajv:
+        specifier: ^8.18.0
+        version: 8.18.0
+      ajv-formats:
+        specifier: ^3.0.1
+        version: 3.0.1(ajv@8.18.0)
+      better-sqlite3:
+        specifier: ^12.6.2
+        version: 12.6.2
+      node-pty:
+        specifier: ^1.1.0
+        version: 1.1.0
+      tesseract.js:
+        specifier: ^6.0.1
+        version: 6.0.1(encoding@0.1.13)
+    devDependencies:
+      '@biomejs/biome':
+        specifier: ^2.4.2
+        version: 2.4.2
       '@effect/platform':
         specifier: ^0.94.5
         version: 0.94.5(effect@3.19.19)
@@ -31,57 +48,111 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ~1.27.1
         version: 1.27.1(zod@4.3.6)
+      '@playwright/test':
+        specifier: ^1.58.2
+        version: 1.58.2
+      '@tailwindcss/vite':
+        specifier: ^4.1.18
+        version: 4.1.18(vite@7.3.1(@types/node@25.2.3)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2))
       '@tanstack/ai':
-        specifier: 0.6.1
-        version: 0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc)
+        specifier: 0.6.2
+        version: 0.6.2
       '@tanstack/ai-anthropic':
         specifier: 0.6.0
-        version: 0.6.0(@tanstack/ai@0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc))(zod@4.3.6)
+        version: 0.6.0(@tanstack/ai@0.6.2)(zod@4.3.6)
       '@tanstack/ai-gemini':
-        specifier: 0.7.0
-        version: 0.7.0(@modelcontextprotocol/sdk@1.27.1(zod@4.3.6))(@tanstack/ai@0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc))
+        specifier: 0.8.0
+        version: 0.8.0(@modelcontextprotocol/sdk@1.27.1(zod@4.3.6))(@tanstack/ai@0.6.2)
       '@tanstack/ai-grok':
         specifier: 0.6.0
-        version: 0.6.0(@tanstack/ai@0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc))(ws@8.19.0)(zod@4.3.6)
+        version: 0.6.0(@tanstack/ai@0.6.2)(ws@8.19.0)(zod@4.3.6)
       '@tanstack/ai-ollama':
         specifier: 0.6.0
-        version: 0.6.0(@tanstack/ai@0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc))
+        version: 0.6.0(@tanstack/ai@0.6.2)
       '@tanstack/ai-openai':
         specifier: 0.6.0
-        version: 0.6.0(@tanstack/ai@0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc))(ws@8.19.0)(zod@4.3.6)
+        version: 0.6.0(@tanstack/ai@0.6.2)(ws@8.19.0)(zod@4.3.6)
       '@tanstack/ai-openrouter':
-        specifier: 0.6.1
-        version: 0.6.1(@tanstack/ai@0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc))
-      '@tanstack/ai-react':
         specifier: 0.6.2
-        version: 0.6.2(@tanstack/ai@0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc))(@types/react@19.2.14)(react@19.2.4)
+        version: 0.6.2(@tanstack/ai@0.6.2)
+      '@tanstack/ai-react':
+        specifier: 0.6.3
+        version: 0.6.3(@tanstack/ai@0.6.2)(@types/react@19.2.14)(react@19.2.4)
+      '@tanstack/devtools-event-bus':
+        specifier: ^0.4.1
+        version: 0.4.1
+      '@tanstack/devtools-vite':
+        specifier: ^0.5.1
+        version: 0.5.1(vite@7.3.1(@types/node@25.2.3)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2))
+      '@tanstack/react-ai-devtools':
+        specifier: ^0.2.8
+        version: 0.2.8(@types/react@19.2.14)(csstype@3.2.3)(react@19.2.4)(solid-js@1.9.11)
+      '@tanstack/react-devtools':
+        specifier: ^0.9.6
+        version: 0.9.6(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(csstype@3.2.3)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.11)
       '@tanstack/react-query':
         specifier: ^5.90.21
         version: 5.90.21(react@19.2.4)
-      '@xenova/transformers':
-        specifier: 2.17.2
-        version: 2.17.2
+      '@testing-library/dom':
+        specifier: ^10.4.1
+        version: 10.4.1
+      '@testing-library/jest-dom':
+        specifier: ^6.9.1
+        version: 6.9.1
+      '@testing-library/react':
+        specifier: ^16.3.2
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@types/node':
+        specifier: ^25.2.3
+        version: 25.2.3
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.14)
+      '@vitejs/plugin-react':
+        specifier: ^5.1.4
+        version: 5.1.4(vite@7.3.1(@types/node@25.2.3)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2))
+      '@vitest/coverage-v8':
+        specifier: ^4.0.18
+        version: 4.0.18(vitest@4.0.18(@types/node@25.2.3)(jiti@2.6.1)(jsdom@28.1.0)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2))
       '@xterm/addon-fit':
         specifier: ^0.11.0
         version: 0.11.0
       '@xterm/xterm':
         specifier: ^6.0.0
         version: 6.0.0
-      better-sqlite3:
-        specifier: ^12.6.2
-        version: 12.6.2
+      babel-plugin-react-compiler:
+        specifier: ^1.0.0
+        version: 1.0.0
       diff:
         specifier: ^8.0.3
         version: 8.0.3
       effect:
         specifier: ^3.19.19
         version: 3.19.19
+      electron:
+        specifier: ^40.4.1
+        version: 40.4.1
+      electron-builder:
+        specifier: ^26.7.0
+        version: 26.7.0(electron-builder-squirrel-windows@26.7.0)
+      electron-vite:
+        specifier: ^5.0.0
+        version: 5.0.0(vite@7.3.1(@types/node@25.2.3)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2))
       fast-glob:
         specifier: ^3.3.3
         version: 3.3.3
       highlight.js:
         specifier: ^11.11.1
         version: 11.11.1
+      husky:
+        specifier: ^9.1.7
+        version: 9.1.7
+      jsdom:
+        specifier: ^28.1.0
+        version: 28.1.0
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
@@ -91,9 +162,9 @@ importers:
       mammoth:
         specifier: 1.11.0
         version: 1.11.0
-      node-pty:
-        specifier: ^1.1.0
-        version: 1.1.0
+      playwright:
+        specifier: ^1.58.2
+        version: 1.58.2
       react:
         specifier: ^19.2.4
         version: 19.2.4
@@ -121,82 +192,6 @@ importers:
       smol-toml:
         specifier: ^1.6.0
         version: 1.6.0
-      tesseract.js:
-        specifier: ^6.0.1
-        version: 6.0.1(encoding@0.1.13)
-      unpdf:
-        specifier: 1.4.0
-        version: 1.4.0
-      zustand:
-        specifier: ^5.0.11
-        version: 5.0.11(@types/react@19.2.14)(react@19.2.4)
-    devDependencies:
-      '@biomejs/biome':
-        specifier: ^2.4.2
-        version: 2.4.2
-      '@playwright/test':
-        specifier: ^1.58.2
-        version: 1.58.2
-      '@tailwindcss/vite':
-        specifier: ^4.1.18
-        version: 4.1.18(vite@7.3.1(@types/node@25.2.3)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2))
-      '@tanstack/devtools-event-bus':
-        specifier: ^0.4.1
-        version: 0.4.1
-      '@tanstack/devtools-vite':
-        specifier: ^0.5.1
-        version: 0.5.1(vite@7.3.1(@types/node@25.2.3)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2))
-      '@tanstack/react-ai-devtools':
-        specifier: ^0.2.8
-        version: 0.2.8(@types/react@19.2.14)(csstype@3.2.3)(react@19.2.4)(solid-js@1.9.11)
-      '@tanstack/react-devtools':
-        specifier: ^0.9.6
-        version: 0.9.6(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(csstype@3.2.3)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.11)
-      '@testing-library/dom':
-        specifier: ^10.4.1
-        version: 10.4.1
-      '@testing-library/jest-dom':
-        specifier: ^6.9.1
-        version: 6.9.1
-      '@testing-library/react':
-        specifier: ^16.3.2
-        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      '@types/node':
-        specifier: ^25.2.3
-        version: 25.2.3
-      '@types/react':
-        specifier: ^19.2.14
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: ^19.2.3
-        version: 19.2.3(@types/react@19.2.14)
-      '@vitejs/plugin-react':
-        specifier: ^5.1.4
-        version: 5.1.4(vite@7.3.1(@types/node@25.2.3)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2))
-      '@vitest/coverage-v8':
-        specifier: ^4.0.18
-        version: 4.0.18(vitest@4.0.18(@types/node@25.2.3)(jiti@2.6.1)(jsdom@28.1.0)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2))
-      babel-plugin-react-compiler:
-        specifier: ^1.0.0
-        version: 1.0.0
-      electron:
-        specifier: ^40.4.1
-        version: 40.4.1
-      electron-builder:
-        specifier: ^26.7.0
-        version: 26.7.0(electron-builder-squirrel-windows@26.7.0)
-      electron-vite:
-        specifier: ^5.0.0
-        version: 5.0.0(vite@7.3.1(@types/node@25.2.3)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2))
-      husky:
-        specifier: ^9.1.7
-        version: 9.1.7
-      jsdom:
-        specifier: ^28.1.0
-        version: 28.1.0
-      playwright:
-        specifier: ^1.58.2
-        version: 1.58.2
       tailwindcss:
         specifier: ^4.1.18
         version: 4.1.18
@@ -206,12 +201,18 @@ importers:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
+      unpdf:
+        specifier: 1.4.0
+        version: 1.4.0
       vite:
         specifier: 7.3.1
         version: 7.3.1(@types/node@25.2.3)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2)
       vitest:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@25.2.3)(jiti@2.6.1)(jsdom@28.1.0)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2)
+      zustand:
+        specifier: ^5.0.11
+        version: 5.0.11(@types/react@19.2.14)(react@19.2.4)
 
   website:
     dependencies:
@@ -941,8 +942,8 @@ packages:
   '@fontsource/space-grotesk@5.2.10':
     resolution: {integrity: sha512-XNXEbT74OIITPqw2H6HXwPDp85fy43uxfBwFR5PU+9sLnjuLj12KlhVM9nZVN6q6dlKjkuN8JisW/OBxwxgUew==}
 
-  '@google/genai@1.43.0':
-    resolution: {integrity: sha512-hklCsJNdMlDM1IwcCVcGQFBg2izY0+t5BIGbRsxi2UnKi6AGKL7pqJqmBDNRbw0bYCs4y3NA7TB+fkKfP/Nrdw==}
+  '@google/genai@1.44.0':
+    resolution: {integrity: sha512-kRt9ZtuXmz+tLlcNntN/VV4LRdpl6ZOu5B1KbfNgfR65db15O6sUQcwnwLka8sT/V6qysD93fWrgJHF2L7dA9A==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       '@modelcontextprotocol/sdk': ^1.25.2
@@ -1618,16 +1619,16 @@ packages:
       '@tanstack/ai': ^0.6.1
       zod: ^4.0.0
 
-  '@tanstack/ai-client@0.5.2':
-    resolution: {integrity: sha512-owyJg/6qrUDZGQ7ginAFhaBT/S8DOOGGEOOSsjOGJgaGSJJGyOkxnMGBLw2kkMYbdPRK+/rKSqiiGO04bRlMcw==}
+  '@tanstack/ai-client@0.5.3':
+    resolution: {integrity: sha512-Q7Ta9B0kUWP4tLmYeBLE33efwyeBvXx8l+z1wQWsHn4wiZRnkkOtRhBnrI33uFWKSV+TqIOoxtOw7/+r/iFMeQ==}
 
   '@tanstack/ai-devtools-core@0.3.4':
     resolution: {integrity: sha512-sosfvyJTIyXtbEiDu9JBATMjIX9kzOaxNTFYOhE02BB6ZfCt0EMt6PZujClMpXyoL2Hn7KZ80Al048lEragj4g==}
 
-  '@tanstack/ai-gemini@0.7.0':
-    resolution: {integrity: sha512-A2ahYPbQ15bOfn0byE6g6dzCL/pSxhmBBCDjj+Mrwu5xLnhfwkSTkb+GnXCs6QTQOrg3lww1vZjRt251tr6u9A==}
+  '@tanstack/ai-gemini@0.8.0':
+    resolution: {integrity: sha512-SjVoue+hWBmo1JlkfWQPSgdLplAmino9gmv6KmZSfE8UFmMaE2AGDGGIXd4W2W1m/WjaK8fr/AHfC7Z0pBJ2Dw==}
     peerDependencies:
-      '@tanstack/ai': ^0.6.1
+      '@tanstack/ai': ^0.6.2
 
   '@tanstack/ai-grok@0.6.0':
     resolution: {integrity: sha512-XeCkY/ch+UPQuKcGWdwHusQkTUjwdTWEVhndMhsCKGmzYN+cA+U3DGwtx97kydDVho01UVQqpkrIzRpOoS8VsQ==}
@@ -1646,15 +1647,15 @@ packages:
       '@tanstack/ai': ^0.6.1
       zod: ^4.0.0
 
-  '@tanstack/ai-openrouter@0.6.1':
-    resolution: {integrity: sha512-ZkTtg3eKdndg3GTufzRNr7DPShAlyEW0rfWtBn1gYAQeayT+EQq5wuQ4zBe5sjOw/2LcbWTejjV4S97/0JLARQ==}
+  '@tanstack/ai-openrouter@0.6.2':
+    resolution: {integrity: sha512-iFmJj1+VUObZD5VH7kHuzCf0NwLOUcb13UkjmuADDG0oo+3yoBcA3Vr5BtF4LvQOoHFmQkeW8t8l1L7Trlqx1Q==}
     peerDependencies:
-      '@tanstack/ai': 0.6.1
+      '@tanstack/ai': 0.6.2
 
-  '@tanstack/ai-react@0.6.2':
-    resolution: {integrity: sha512-ifWg3MXRPTQz8qd4HNGCzQO8WGkT4cvEXucJWNih8LWHXe3mAy1eo6p07alMr2SYn/AnKx9YSHzpnNVSQKESxA==}
+  '@tanstack/ai-react@0.6.3':
+    resolution: {integrity: sha512-AHvl36+N3J1di4jseh8sB0tW16eCA+5aL/C1mIs7ARyvVkZR3XzxUSr4DdcfoHt9eDar0EWXnYDhJrB8fIO9Ig==}
     peerDependencies:
-      '@tanstack/ai': ^0.6.1
+      '@tanstack/ai': ^0.6.2
       '@types/react': '>=18.0.0'
       react: '>=18.0.0'
 
@@ -1662,8 +1663,8 @@ packages:
     resolution: {integrity: sha512-kHZb8Q/aI/z20d4CB7U49Pbk8IoypbFA1saDYlPBFPbdSzikeutJ2oRyN4hY2qtrxnfyC1oHOhiWkDH0i+5kwg==}
     engines: {node: '>=18'}
 
-  '@tanstack/ai@0.6.1':
-    resolution: {integrity: sha512-k+4JrjBm5O1j5ccxErlUVC2IC2rJIqQCK45loLckeLow0cJ5rWdKtG03UwR+9VjppDdL6oO27jyk5CzU6ym+HQ==}
+  '@tanstack/ai@0.6.2':
+    resolution: {integrity: sha512-CEldlHRvTzSTZ98bWvVg4TLqLCsSIudqummJ5BEzmdr9igzIiDyAmM9GoohR89iRkeCFsWnlGGiSnN1uIWcbfg==}
     engines: {node: '>=18'}
 
   '@tanstack/devtools-client@0.0.5':
@@ -1676,6 +1677,10 @@ packages:
 
   '@tanstack/devtools-event-client@0.4.0':
     resolution: {integrity: sha512-RPfGuk2bDZgcu9bAJodvO2lnZeHuz4/71HjZ0bGb/SPg8+lyTA+RLSKQvo7fSmPSi8/vcH3aKQ8EM9ywf1olaw==}
+    engines: {node: '>=18'}
+
+  '@tanstack/devtools-event-client@0.4.1':
+    resolution: {integrity: sha512-GRxmPw4OHZ2oZeIEUkEwt/NDvuEqzEYRAjzUVMs+I0pd4C7k1ySOiuJK2CqF+K/yEAR3YZNkW3ExrpDarh9Vwg==}
     engines: {node: '>=18'}
 
   '@tanstack/devtools-ui@0.4.4':
@@ -6000,7 +6005,7 @@ snapshots:
 
   '@fontsource/space-grotesk@5.2.10': {}
 
-  '@google/genai@1.43.0(@modelcontextprotocol/sdk@1.27.1(zod@4.3.6))':
+  '@google/genai@1.44.0(@modelcontextprotocol/sdk@1.27.1(zod@4.3.6))':
     dependencies:
       google-auth-library: 10.6.1
       p-retry: 4.6.2
@@ -6583,15 +6588,15 @@ snapshots:
       tailwindcss: 4.1.18
       vite: 7.3.1(@types/node@25.2.3)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2)
 
-  '@tanstack/ai-anthropic@0.6.0(@tanstack/ai@0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc))(zod@4.3.6)':
+  '@tanstack/ai-anthropic@0.6.0(@tanstack/ai@0.6.2)(zod@4.3.6)':
     dependencies:
       '@anthropic-ai/sdk': 0.71.2(zod@4.3.6)
-      '@tanstack/ai': 0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc)
+      '@tanstack/ai': 0.6.2
       zod: 4.3.6
 
-  '@tanstack/ai-client@0.5.2':
+  '@tanstack/ai-client@0.5.3':
     dependencies:
-      '@tanstack/ai': 0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc)
+      '@tanstack/ai': 0.6.2
 
   '@tanstack/ai-devtools-core@0.3.4(@types/react@19.2.14)(csstype@3.2.3)(react@19.2.4)':
     dependencies:
@@ -6607,46 +6612,46 @@ snapshots:
       - react
       - vue
 
-  '@tanstack/ai-gemini@0.7.0(@modelcontextprotocol/sdk@1.27.1(zod@4.3.6))(@tanstack/ai@0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc))':
+  '@tanstack/ai-gemini@0.8.0(@modelcontextprotocol/sdk@1.27.1(zod@4.3.6))(@tanstack/ai@0.6.2)':
     dependencies:
-      '@google/genai': 1.43.0(@modelcontextprotocol/sdk@1.27.1(zod@4.3.6))
-      '@tanstack/ai': 0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc)
+      '@google/genai': 1.44.0(@modelcontextprotocol/sdk@1.27.1(zod@4.3.6))
+      '@tanstack/ai': 0.6.2
     transitivePeerDependencies:
       - '@modelcontextprotocol/sdk'
       - bufferutil
       - supports-color
       - utf-8-validate
 
-  '@tanstack/ai-grok@0.6.0(@tanstack/ai@0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc))(ws@8.19.0)(zod@4.3.6)':
+  '@tanstack/ai-grok@0.6.0(@tanstack/ai@0.6.2)(ws@8.19.0)(zod@4.3.6)':
     dependencies:
-      '@tanstack/ai': 0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc)
+      '@tanstack/ai': 0.6.2
       openai: 6.25.0(ws@8.19.0)(zod@4.3.6)
       zod: 4.3.6
     transitivePeerDependencies:
       - ws
 
-  '@tanstack/ai-ollama@0.6.0(@tanstack/ai@0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc))':
+  '@tanstack/ai-ollama@0.6.0(@tanstack/ai@0.6.2)':
     dependencies:
-      '@tanstack/ai': 0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc)
+      '@tanstack/ai': 0.6.2
       ollama: 0.6.3
 
-  '@tanstack/ai-openai@0.6.0(@tanstack/ai@0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc))(ws@8.19.0)(zod@4.3.6)':
+  '@tanstack/ai-openai@0.6.0(@tanstack/ai@0.6.2)(ws@8.19.0)(zod@4.3.6)':
     dependencies:
-      '@tanstack/ai': 0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc)
+      '@tanstack/ai': 0.6.2
       openai: 6.25.0(ws@8.19.0)(zod@4.3.6)
       zod: 4.3.6
     transitivePeerDependencies:
       - ws
 
-  '@tanstack/ai-openrouter@0.6.1(@tanstack/ai@0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc))':
+  '@tanstack/ai-openrouter@0.6.2(@tanstack/ai@0.6.2)':
     dependencies:
       '@openrouter/sdk': 0.3.15
-      '@tanstack/ai': 0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc)
+      '@tanstack/ai': 0.6.2
 
-  '@tanstack/ai-react@0.6.2(@tanstack/ai@0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc))(@types/react@19.2.14)(react@19.2.4)':
+  '@tanstack/ai-react@0.6.3(@tanstack/ai@0.6.2)(@types/react@19.2.14)(react@19.2.4)':
     dependencies:
-      '@tanstack/ai': 0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc)
-      '@tanstack/ai-client': 0.5.2
+      '@tanstack/ai': 0.6.2
+      '@tanstack/ai-client': 0.5.3
       '@types/react': 19.2.14
       react: 19.2.4
 
@@ -6655,9 +6660,9 @@ snapshots:
       '@tanstack/devtools-event-client': 0.4.0
       partial-json: 0.1.7
 
-  '@tanstack/ai@0.6.1(patch_hash=5674a7ef3033c685a9d8bf631b037d3a36aaedba52e93af2722e78b2f4e8c1bc)':
+  '@tanstack/ai@0.6.2':
     dependencies:
-      '@tanstack/devtools-event-client': 0.4.0
+      '@tanstack/devtools-event-client': 0.4.1
       partial-json: 0.1.7
 
   '@tanstack/devtools-client@0.0.5':
@@ -6672,6 +6677,8 @@ snapshots:
       - utf-8-validate
 
   '@tanstack/devtools-event-client@0.4.0': {}
+
+  '@tanstack/devtools-event-client@0.4.1': {}
 
   '@tanstack/devtools-ui@0.4.4(csstype@3.2.3)(solid-js@1.9.11)':
     dependencies:
