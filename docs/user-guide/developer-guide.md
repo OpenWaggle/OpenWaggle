@@ -42,6 +42,13 @@ pnpm build:win    # Windows NSIS installer (x64)
 pnpm build:linux  # Linux AppImage (x64)
 ```
 
+These scripts prove the packaging pipeline locally, but they are not a full end-user release workflow yet:
+
+- `build:mac` currently produces unsigned local DMGs because `electron-builder.yml` sets `mac.identity: null`
+- `build:win` and `build:linux` produce local artifacts, but there is no release workflow, checksum publication, or installer smoke coverage yet
+
+If you are preparing public downloads, use [`tasks/specs/35-ship-to-users.md`](../../tasks/specs/35-ship-to-users.md) as the release-readiness checklist rather than treating `pnpm build:*` as sufficient.
+
 ## Scripts Reference
 
 | Script | Description |
@@ -66,6 +73,31 @@ pnpm build:linux  # Linux AppImage (x64)
 | `pnpm test:e2e` | Playwright E2E tests (headless, requires `pnpm build` first) |
 | `pnpm test:coverage` | Coverage report (v8 provider) |
 | `pnpm prepush:main` | Quality gate used by the pre-push hook when pushing `main` |
+
+## Shipping To Users
+
+OpenWaggle already has the initial desktop artifact matrix:
+
+- macOS `dmg` for `x64` and `arm64`
+- Windows `nsis` for `x64`
+- Linux `AppImage` for `x64`
+
+That is enough to verify packaging during development, but not enough to claim supported public installers. Before publishing end-user downloads we still need:
+
+- macOS Developer ID signing, notarization, and stapling
+- Windows code signing
+- GitHub Actions release automation for all supported platforms
+- Published checksums and release notes
+- Clean-machine installer validation on each platform
+
+OpenClaw is a useful reference for release discipline here:
+
+- it has explicit install entrypoints
+- it runs installer smoke tests in CI
+- it has a documented release checklist
+- it has a dedicated macOS packaging/signing/notarization flow
+
+OpenClaw is not a full desktop-platform template for OpenWaggle, though. Its native desktop release path is strongest on macOS; OpenWaggle still has to own native Windows and Linux desktop distribution itself.
 
 ## Git Hooks
 

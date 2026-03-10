@@ -2,7 +2,7 @@
 name: project-learnings
 description: Technical learnings log for OpenWaggle. Stores warnings, pattern preferences, and historical engineering learnings; workflow policy lives in AGENTS.md and CLAUDE.md.
 owner: openwaggle-core
-last_updated: 2026-03-09
+last_updated: 2026-03-10
 ---
 
 # LEARNINGS.md
@@ -19,6 +19,32 @@ This document stores project-specific technical learnings only.
 - Do not add routine project-management notes unless they materially affect implementation behavior.
 
 ## 3) Recent Learnings
+
+### Task: Foreground Transcript Rehydration After `useChat` Reset (2026-03-10)
+- In TanStack `useChat` foreground flows, a successful run can still leave the renderer vulnerable to a later client/message reset (for example after `useChat` identity recreation). Keeping the foreground-stream guard permanently enabled suppresses all later snapshot hydration, so the safe pattern is to cache the final foreground `UIMessage[]`, restore it once if the client goes empty, and then clear the guard so persisted hydration can resume normally. [SKILL?]
+
+### Task: Steered Transcript Virtualization Stability (2026-03-10)
+- `react-virtuoso` chat transcripts must provide a stable `computeItemKey` when a user turn can be inserted into the middle of a live stream. Relying on index-based virtualization while assistant rows keep mutating after the insertion can recycle the wrong DOM row and make the newly inserted user bubble disappear until a later refresh. [SKILL?]
+
+### Task: Steered User-Turn Visibility Ordering (2026-03-10)
+- In OpenWaggle’s queued-message steer flow, the steered user bubble must be inserted into the local transcript before awaiting `agent:steer`. The main-process `agent:steer` IPC handler persists partial assistant output and aborts the active run before it returns, so waiting on that invoke first delays the steered user turn and makes the follow-up feel like it is running “in the background” without user-visible input. [SKILL?]
+
+### Task: Queued Follow-Up Background Injection Regression (2026-03-10)
+- Queueing a follow-up during `useChat` streaming must not also inject that text into the active run. In OpenWaggle, the combination of `enqueue` plus automatic `injectContext` caused the same user intent to disappear from the visible transcript, influence the current run in the background, and then send again later as a new turn when the run became ready. [SKILL?]
+- Snapshot-refresh barriers are needed for normal sends as well as steer flows. A stale `onRunCompleted` event can arrive before React has propagated the next send's loading state and overwrite the optimistic user turn unless the send path increments an explicit deferral barrier synchronously before calling TanStack `sendMessage()`. [SKILL?]
+
+### Task: Incomplete Tool-Arg Stream Recovery (2026-03-10)
+- TanStack provider streams can stall while still emitting a tool call's JSON argument object, especially on large `writeFile` calls that start with a short `{"path": ...}` prefix and never finish streaming `content`. That case is materially different from a tool call that already reached `TOOL_CALL_END` and is waiting on approval or execution. [SKILL?]
+- Stream-stall recovery should split "pending tool args" from "awaiting tool result". Retrying a run is safe while a tool call is still in `TOOL_CALL_START`/`TOOL_CALL_ARGS` state because no side effect has executed yet; once the run has reached `TOOL_CALL_END` without a result, retries risk duplicate side effects and should stay disabled. [SKILL?]
+
+### Task: Subscription Session Expiry Regression Hardening (2026-03-10)
+- OAuth expiry should be stored as the provider’s real `expiresAt` and buffered in exactly one place. Subtracting a safety buffer when persisting the token and then applying another refresh margin in the token manager silently shortens the effective session window and makes “session expired too fast” regressions hard to diagnose. [SKILL?]
+- Background auth lifecycle polling must not call the proactive refresh path. In this app, polling `getActiveAccessToken()` every two minutes caused stale refresh tokens to fail in the middle of unrelated work; lifecycle status should derive from stored token state, while actual refresh should happen only on an explicit provider use path. [SKILL?]
+- Fatal OAuth refresh failures such as HTTP `400 invalid_grant` / `401` should clear the stored subscription token immediately. Otherwise every later auth-state read or run start retries the same dead refresh token, spams logs, and makes the app look unstable even though re-authentication is the only valid next step. [SKILL?]
+
+### Task: Steer Snapshot Refresh Race Hardening (2026-03-10)
+- In TanStack `useChat` steer/follow-up flows, an older run’s disk snapshot refresh can land in the narrow gap between `steer()` and the next follow-up send and overwrite the optimistic steered user turn. The fix is an explicit local snapshot-deferral barrier that spans the full steer-plus-follow-up sequence, not just periods where `isLoading` is already true. [SKILL?]
+- TanStack `ChatClient.sendMessage()` resolves only after the full stream completes, not right after optimistic user-message insertion. That makes it safe to keep a steer barrier open for the whole follow-up run and flush the deferred disk snapshot only once the run is idle again. [SKILL?]
 
 ### Task: Post-Migration Approval Flow Latency + Log Spam Hardening (2026-03-09)
 - Approval-trace diagnostics must stay fully opt-in and outside chunk hot paths. Logging every `TOOL_CALL_ARGS` / streamed text chunk in either the main process or renderer IPC adapter materially slows approval continuations and floods Electron console output.

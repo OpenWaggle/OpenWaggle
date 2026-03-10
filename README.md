@@ -241,6 +241,12 @@ pnpm build:win        # Windows NSIS installer
 pnpm build:linux      # Linux AppImage
 ```
 
+These commands currently produce local packaging artifacts for development. Public user releases still require release automation plus platform trust work:
+
+- macOS signing, notarization, and stapling
+- Windows installer signing
+- Linux release publishing and clean-machine validation
+
 ## Architecture Overview
 
 ### Process Boundaries

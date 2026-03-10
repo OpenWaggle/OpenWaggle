@@ -1,6 +1,7 @@
 import type { ConversationId } from '@shared/types/brand'
 import type { PlanResponse } from '@shared/types/plan'
 import type { QuestionAnswer } from '@shared/types/question'
+import { chooseBy } from '@shared/utils/decision'
 import { useRef } from 'react'
 import { Virtuoso } from 'react-virtuoso'
 import { cn } from '@/lib/cn'
@@ -72,6 +73,16 @@ function renderTranscriptRow(
   )
 }
 
+function getVirtualRowKey(row: VirtualRow): string {
+  return chooseBy(row, 'type')
+    .case('message', (value) => `message:${value.message.id}`)
+    .case('segment', (value) => `segment:${value.segment.id}`)
+    .case('phase-indicator', (value) => `phase:${value.label}`)
+    .case('run-summary', (value) => `run-summary:${String(value.totalMs)}`)
+    .case('error', (value) => `error:${value.conversationId ?? 'none'}:${value.error.message}`)
+    .assertComplete()
+}
+
 export function ChatTranscript({ section }: ChatTranscriptProps): React.JSX.Element {
   const {
     messages,
@@ -118,6 +129,7 @@ export function ChatTranscript({ section }: ChatTranscriptProps): React.JSX.Elem
       <Virtuoso
         key={activeConversationId ?? 'empty'}
         data={virtualRows}
+        computeItemKey={(_index, row) => getVirtualRowKey(row)}
         followOutput={(isAtBottom) => resolveFollowOutput(isAtBottom, isLoading)}
         initialTopMostItemIndex={Math.max(0, virtualRows.length - 1)}
         overscan={OVERSCAN}
