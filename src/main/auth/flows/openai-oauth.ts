@@ -1,5 +1,9 @@
 import { randomBytes } from 'node:crypto'
-import { MILLISECONDS_PER_SECOND } from '@shared/constants/constants'
+import {
+  HTTP_BAD_REQUEST,
+  HTTP_UNAUTHORIZED,
+  MILLISECONDS_PER_SECOND,
+} from '@shared/constants/constants'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { shell } from 'electron'
 import { createLogger } from '../../logger'
@@ -42,7 +46,7 @@ export class OAuthRefreshError extends Error {
     this.provider = 'openai'
     this.status = status
     this.body = body
-    this.fatal = status === 400 || status === 401
+    this.fatal = status === HTTP_BAD_REQUEST || status === HTTP_UNAUTHORIZED
   }
 }
 
