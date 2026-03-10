@@ -103,13 +103,6 @@ def build_markdown(analyzer: dict[str, Any], checker: dict[str, Any]) -> str:
         for note in notes:
             lines.append(f'- {note}')
 
-    lines.append('')
-    lines.append('## Codex Response Template')
-    lines.append('1. Findings first, ordered by severity.')
-    lines.append('2. Include absolute file references with line numbers.')
-    lines.append('3. Add test gaps and residual risks after findings.')
-    lines.append('4. If requested, emit one `::code-comment{...}` per finding.')
-
     return '\n'.join(lines)
 
 

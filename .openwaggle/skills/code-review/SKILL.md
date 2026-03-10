@@ -32,12 +32,12 @@ Principle-based review workflow for evaluating code changes against engineering 
 
 2. **Map the diff and risk profile.**
    ```bash
-   python3 .claude/skills/code-review/scripts/pr_analyzer.py --base origin/main
+   python3 .openwaggle/skills/code-review/scripts/pr_analyzer.py --base origin/main
    ```
 
 3. **Run automated guardrail checks.**
    ```bash
-   python3 .claude/skills/code-review/scripts/code_quality_checker.py --base origin/main
+   python3 .openwaggle/skills/code-review/scripts/code_quality_checker.py --base origin/main
    ```
 
 4. **Apply the principle-based review** using the references below. Evaluate every changed file against:
