@@ -1,0 +1,13 @@
+{
+  "name": "OpenWaggle",
+  "short_name": "OpenWaggle",
+  "description": "Open source desktop coding agent with multi-model waggle mode",
+  "start_url": "/",
+  "display": "browser",
+  "background_color": "#141619",
+  "theme_color": "#141619",
+  "icons": [
+    { "src": "/apple-touch-icon.png", "sizes": "256x256", "type": "image/png" },
+    { "src": "/logo-mark.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
