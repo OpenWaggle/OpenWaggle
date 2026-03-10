@@ -1,0 +1,43 @@
+---
+import SectionHeader from '@/components/SectionHeader.astro';
+import { Shield, Mic, ListChecks, Paperclip, Terminal, Lock } from 'lucide-astro';
+
+interface FeatureCard {
+  Icon: typeof Shield;
+  color: string;
+  title: string;
+  desc: string;
+}
+
+const cards: FeatureCard[] = [
+  { Icon: Shield, color: 'var(--color-accent)', title: 'Local-first privacy', desc: 'Conversations, API keys, and voice data stay on your machine. No telemetry. No cloud sync.' },
+  { Icon: Mic, color: 'var(--color-info)', title: 'Voice input', desc: 'Local Whisper transcription. Speak your instructions — no audio leaves your machine.' },
+  { Icon: ListChecks, color: 'var(--color-success)', title: 'Plan mode', desc: 'The agent outlines its approach before executing. Review, revise, and approve the plan interactively.' },
+  { Icon: Paperclip, color: 'var(--color-agent-violet)', title: 'Rich attachments', desc: 'Drop text files, PDFs, and images into the conversation. Content is extracted automatically with OCR for images.' },
+  { Icon: Terminal, color: 'var(--color-agent-emerald)', title: 'Built-in terminal', desc: 'Full PTY terminal emulation with xterm.js. Toggle with a shortcut — run commands without leaving the app.' },
+  { Icon: Lock, color: 'var(--color-accent)', title: 'Execution modes', desc: 'Default mode requires approval for writes and shell commands. Full access mode executes immediately. You choose the trust level.' },
+];
+---
+
+<section class="w-full">
+  <div class="mx-auto max-w-[1440px] px-6 py-20 md:px-20">
+    <div class="flex flex-col items-center gap-12">
+      <SectionHeader
+        label="BUILT FOR DEVELOPERS"
+        title="Every detail considered"
+      />
+
+      <div class="grid w-full grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {cards.map(({ Icon, color, title, desc }) => (
+          <div class="flex flex-col gap-4 rounded-xl bg-bg-secondary p-7 border border-border">
+            <div aria-hidden="true">
+              <Icon size={24} color={color} />
+            </div>
+            <h3 class="font-display text-lg font-semibold text-text-primary">{title}</h3>
+            <p class="text-sm leading-[1.6] text-text-tertiary">{desc}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,32 @@
+---
+import Button from '@/components/Button.astro';
+---
+
+<section class="relative w-full overflow-hidden">
+  <div class="absolute inset-0" aria-hidden="true">
+    <div class="absolute inset-0" style="background: radial-gradient(ellipse 60% 50% at 50% 45%, rgba(245, 166, 35, 0.08) 0%, transparent 70%)"></div>
+    <div class="absolute inset-0 opacity-25" style="background:
+      radial-gradient(ellipse 45% 40% at 50% 45%, #f5a62320 0%, transparent 100%)
+    "></div>
+  </div>
+
+  <div class="relative z-10 mx-auto flex max-w-[1440px] flex-col items-center gap-8 px-6 py-24 md:px-20">
+    <h2 class="text-center font-display text-4xl font-bold text-text-primary md:text-[48px]">
+      Ready to waggle?
+    </h2>
+    <p class="max-w-[560px] text-center text-lg leading-[1.6] text-text-tertiary">
+      Download OpenWaggle and let two AI models solve your next problem together.
+    </p>
+    <div class="flex flex-wrap items-center justify-center gap-4">
+      <Button href="https://github.com/OpenWaggle/OpenWaggle/releases" variant="primary" size="large">
+        Download for macOS
+      </Button>
+      <Button href="/docs/getting-started/installation" variant="secondary" size="large">
+        Read the Docs
+      </Button>
+    </div>
+    <span class="text-[13px] text-text-tertiary">
+      Free and open source &middot; macOS, Windows, Linux
+    </span>
+  </div>
+</section>

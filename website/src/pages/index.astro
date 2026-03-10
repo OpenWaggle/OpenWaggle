@@ -1,0 +1,31 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import Hero from '@/components/landing/Hero.astro';
+import TrustBar from '@/components/landing/TrustBar.astro';
+import HowWaggleWorks from '@/components/landing/HowWaggleWorks.astro';
+import CoreFeatures from '@/components/landing/CoreFeatures.astro';
+import SecondaryFeatures from '@/components/landing/SecondaryFeatures.astro';
+import FinalCTA from '@/components/landing/FinalCTA.astro';
+---
+
+<BaseLayout>
+  <Hero />
+  <TrustBar />
+  <HowWaggleWorks />
+  <CoreFeatures />
+  <SecondaryFeatures />
+  <FinalCTA />
+
+  <!-- JSON-LD -->
+  <script type="application/ld+json" set:html={JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "OpenWaggle",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "macOS, Windows, Linux",
+    "description": "Open source desktop coding agent with multi-model waggle mode. Two AI agents collaborate in structured turns until they converge on solutions.",
+    "url": "https://openwaggle.ai",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "license": "https://github.com/OpenWaggle/OpenWaggle/blob/main/LICENSE",
+  })} />
+</BaseLayout>
