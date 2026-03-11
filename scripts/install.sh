@@ -5,9 +5,39 @@ set -euo pipefail
 
 REPO="OpenWaggle/OpenWaggle"
 API_URL="https://api.github.com/repos/${REPO}/releases/latest"
+READY_MESSAGE="Ready to waggle"
+READY_TYPE_DELAY_SECONDS="0.045"
+READY_CURSOR_BLINK_DELAY_SECONDS="0.12"
+READY_CURSOR_BLINK_CYCLES=2
 
 info()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 error() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
+
+animate_ready() {
+  if [ ! -t 1 ]; then
+    info "${READY_MESSAGE}"
+    return
+  fi
+
+  local message_length
+  message_length="${#READY_MESSAGE}"
+  local index
+
+  printf '\033[1;34m==>\033[0m '
+  for ((index = 1; index <= message_length; index++)); do
+    printf '\r\033[1;34m==>\033[0m \033[1;33m%s▌\033[0m' "${READY_MESSAGE:0:index}"
+    sleep "${READY_TYPE_DELAY_SECONDS}"
+  done
+
+  for ((index = 0; index < READY_CURSOR_BLINK_CYCLES; index++)); do
+    printf '\r\033[1;34m==>\033[0m \033[1;33m%s \033[0m' "${READY_MESSAGE}"
+    sleep "${READY_CURSOR_BLINK_DELAY_SECONDS}"
+    printf '\r\033[1;34m==>\033[0m \033[1;33m%s▌\033[0m' "${READY_MESSAGE}"
+    sleep "${READY_CURSOR_BLINK_DELAY_SECONDS}"
+  done
+
+  printf '\r\033[1;34m==>\033[0m \033[1;33m%s ✨\033[0m\n' "${READY_MESSAGE}"
+}
 
 # --- Detect OS and architecture ---
 OS="$(uname -s)"
@@ -83,7 +113,6 @@ if [ "${PLATFORM}" = "mac" ]; then
   # Remove quarantine for unsigned app
   xattr -rd com.apple.quarantine "/Applications/$(basename "${APP_PATH}")" 2>/dev/null || true
   info "Installed to /Applications/$(basename "${APP_PATH}")"
-  info "First launch: right-click → Open to bypass Gatekeeper"
 
 elif [ "${PLATFORM}" = "linux" ]; then
   INSTALL_DIR="${HOME}/.local/bin"
@@ -112,4 +141,4 @@ DESKTOP
 fi
 
 rm -f "${DOWNLOAD_PATH}"
-info "Done! 🎉"
+animate_ready
