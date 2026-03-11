@@ -24,6 +24,7 @@ function runCommand(
     const child = spawn(command, args, {
       cwd: PROJECT_ROOT,
       stdio: 'inherit',
+      shell: process.platform === 'win32',
       env: {
         ...process.env,
         ...extraEnvironment,
