@@ -25,13 +25,18 @@ export function ToastOverlay(): React.JSX.Element | null {
         <button
           type="button"
           onClick={() => {
-            if (toastData.action) api.openExternal(toastData.action.url).catch(() => {})
+            if (toastData.action?.onClick) {
+              toastData.action.onClick()
+            }
+            if (!toastData.action?.onClick && toastData.action?.url) {
+              api.openExternal(toastData.action.url).catch(() => {})
+            }
             clearToast()
           }}
           className="inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-[12px] font-medium text-accent transition-colors hover:bg-accent/10"
         >
           {toastData.action.label}
-          <ExternalLink className="h-3 w-3" />
+          {toastData.action.url && <ExternalLink className="h-3 w-3" />}
         </button>
       )}
       {toastData.persistent && (

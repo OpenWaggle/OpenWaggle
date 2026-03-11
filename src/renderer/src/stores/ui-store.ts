@@ -15,8 +15,8 @@ export interface ToastData {
   variant?: 'neutral' | 'success'
   /** When set, the toast persists until manually dismissed. */
   persistent?: boolean
-  /** Optional action link shown as a clickable label. */
-  action?: { label: string; url: string }
+  /** Optional action shown as a clickable label. Supports a URL or an onClick callback. */
+  action?: { label: string; url?: string; onClick?: () => void }
 }
 
 export type SettingsTab =
