@@ -56,7 +56,9 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
       const settings = await api.getSettings()
       set({ settings, isLoaded: true, loadError: null })
       if (settings.projectPath) {
-        get().loadProjectPreferences(settings.projectPath).catch(() => {})
+        get()
+          .loadProjectPreferences(settings.projectPath)
+          .catch(() => {})
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load settings'

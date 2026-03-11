@@ -32,7 +32,9 @@ export function registerProvidersHandlers(): void {
         const provider = providerRegistry.get(providerId)
         if (!provider?.supportsDynamicModelFetch || !provider.fetchModels) return []
 
-        const models = yield* Effect.promise(() => provider.fetchModels!(baseUrl, apiKey))
+        const models = yield* Effect.promise(
+          () => provider.fetchModels?.(baseUrl, apiKey) ?? Promise.resolve([]),
+        )
         return models.map((m) => ({
           id: SupportedModelId(m),
           name: generateDisplayName(m),
