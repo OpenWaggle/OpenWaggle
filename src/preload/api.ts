@@ -75,6 +75,8 @@ export const api: OpenWaggleApi = {
   selectProjectFolder: invoke('project:select-folder'),
   isProjectToolCallTrusted: invoke('project-config:is-tool-call-trusted'),
   recordProjectToolApproval: invoke('project-config:record-tool-approval'),
+  getProjectPreferences: invoke('project-config:get-preferences'),
+  setProjectPreferences: invoke('project-config:set-preferences'),
 
   // Conversations
   listConversations: invoke('conversations:list'),

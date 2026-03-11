@@ -9,6 +9,8 @@ const { apiMock } = vi.hoisted(() => ({
     updateSettings: vi.fn(),
     testApiKey: vi.fn(),
     showConfirm: vi.fn(),
+    getProjectPreferences: vi.fn(),
+    setProjectPreferences: vi.fn(),
     startOAuth: vi.fn(),
     onOAuthStatus: vi.fn(),
     getAuthAccountInfo: vi.fn(),

@@ -88,6 +88,14 @@ export interface IpcInvokeChannelMap {
     args: [projectPath: string, toolName: TrustableToolName, rawArgs: string]
     return: undefined
   }
+  'project-config:get-preferences': {
+    args: [projectPath: string]
+    return: { model?: string; qualityPreset?: string } | null
+  }
+  'project-config:set-preferences': {
+    args: [projectPath: string, preferences: { model?: string; qualityPreset?: string }]
+    return: undefined
+  }
   'conversations:list': {
     args: [limit?: number]
     return: ConversationSummary[]
@@ -510,6 +518,13 @@ export interface OpenWaggleApi {
     projectPath: string,
     toolName: TrustableToolName,
     rawArgs: string,
+  ): Promise<void>
+  getProjectPreferences(
+    projectPath: string,
+  ): Promise<{ model?: string; qualityPreset?: string } | null>
+  setProjectPreferences(
+    projectPath: string,
+    preferences: { model?: string; qualityPreset?: string },
   ): Promise<void>
 
   // Conversations

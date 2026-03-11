@@ -53,9 +53,15 @@ export interface ProjectQualityOverrides {
   readonly high?: Partial<BaseSamplingConfig>
 }
 
+export interface ProjectPreferences {
+  readonly model?: string
+  readonly qualityPreset?: string
+}
+
 export interface ProjectConfig {
   readonly quality?: ProjectQualityOverrides
   readonly approvals?: ToolApprovalConfig
+  readonly preferences?: ProjectPreferences
 }
 
 const EMPTY_CONFIG: ProjectConfig = {}
@@ -521,6 +527,29 @@ export async function recordToolCallApproval(
   return config
 }
 
+export async function getProjectPreferences(
+  projectPath: string,
+): Promise<ProjectPreferences | undefined> {
+  const config = await loadProjectConfig(projectPath)
+  return config.preferences
+}
+
+export async function setProjectPreferences(
+  projectPath: string,
+  preferences: ProjectPreferences,
+): Promise<void> {
+  await updateLocalProjectConfig(projectPath, (current) => ({
+    ...current,
+    preferences: {
+      ...current.preferences,
+      ...(preferences.model !== undefined ? { model: preferences.model } : {}),
+      ...(preferences.qualityPreset !== undefined
+        ? { quality_preset: preferences.qualityPreset }
+        : {}),
+    },
+  }))
+}
+
 function parseProjectConfig(
   shared: ParsedProjectSharedConfig | null,
   local: ParsedProjectLocalConfig | null,
@@ -549,7 +578,17 @@ function parseProjectConfig(
     }
   }
 
-  if (!hasQuality && !hasToolApprovals) {
+  const preferences: ProjectPreferences | undefined =
+    local?.preferences?.model || local?.preferences?.quality_preset
+      ? {
+          ...(local.preferences.model ? { model: local.preferences.model } : {}),
+          ...(local.preferences.quality_preset
+            ? { qualityPreset: local.preferences.quality_preset }
+            : {}),
+        }
+      : undefined
+
+  if (!hasQuality && !hasToolApprovals && !preferences) {
     return EMPTY_CONFIG
   }
 
@@ -562,6 +601,7 @@ function parseProjectConfig(
           },
         }
       : {}),
+    ...(preferences ? { preferences } : {}),
   }
 }
 

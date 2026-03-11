@@ -1,3 +1,4 @@
+import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -34,15 +35,17 @@ vi.mock('../../config/project-config', () => ({
 
 import { registerProjectHandlers } from '../project-handler'
 
-function getRegisteredHandler(name: string): ((...args: unknown[]) => unknown) | undefined {
+function getRegisteredHandler(
+  name: string,
+): ((...args: unknown[]) => Promise<unknown>) | undefined {
   const call = typedHandleMock.mock.calls.find(
-    (candidate) => candidate[0] === name && typeof candidate[1] === 'function',
+    (candidate: readonly unknown[]) => candidate[0] === name && typeof candidate[1] === 'function',
   )
   const handler = call?.[1]
   if (typeof handler !== 'function') {
     return undefined
   }
-  return (...args: unknown[]) => handler(...args)
+  return (...args: unknown[]) => Effect.runPromise(handler(...args))
 }
 
 describe('registerProjectHandlers', () => {

@@ -45,6 +45,8 @@ describe('preload api surface contract', () => {
     'selectProjectFolder',
     'isProjectToolCallTrusted',
     'recordProjectToolApproval',
+    'getProjectPreferences',
+    'setProjectPreferences',
     // Conversations
     'listConversations',
     'getConversation',

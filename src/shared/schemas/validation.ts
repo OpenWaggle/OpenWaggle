@@ -144,6 +144,12 @@ const toolsApprovalSchema = Schema.Struct({
 })
 
 export const projectLocalConfigSchema = Schema.Struct({
+  preferences: Schema.optional(
+    Schema.Struct({
+      model: Schema.optional(Schema.String),
+      quality_preset: Schema.optional(Schema.String),
+    }),
+  ),
   approvals: Schema.optional(
     Schema.Struct({
       tools: Schema.optional(toolsApprovalSchema),
