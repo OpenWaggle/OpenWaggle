@@ -5,6 +5,7 @@ import { decodeUnknownOrThrow, type Schema, type SchemaType } from '@shared/sche
 import type { ConversationId } from '@shared/types/brand'
 import { isPathInside } from '@shared/utils/paths'
 import { type ServerTool, type ToolExecutionContext, toolDefinition } from '@tanstack/ai'
+import { JSONSchema } from 'effect'
 import { createLogger } from '../logger'
 import { emitContextInjected } from '../utils/stream-bridge'
 import { applyContextInjection } from './context-injection-buffer'
@@ -12,6 +13,16 @@ import { applyContextInjection } from './context-injection-buffer'
 const logger = createLogger('tools')
 const MAX_TOOL_OUTPUT_BYTES = PERCENT_BASE * BYTES_PER_KIBIBYTE // 100 KB
 const projectRootCache = new Map<string, string>()
+
+/**
+ * Convert an Effect Schema to a plain JSON Schema object that LLM providers accept.
+ * Effect Schema is not Standard Schema compliant, so TanStack's `convertSchemaToJsonSchema`
+ * passes it through as-is — which fails on OpenAI (expects `type: "object"`).
+ */
+function effectSchemaToJsonSchema(schema: Schema.Schema.AnyNoContext): Record<string, unknown> {
+  const { $schema, ...rest } = JSONSchema.make(schema)
+  return rest
+}
 
 import type { SubAgentContext } from '@shared/types/sub-agent'
 
@@ -170,7 +181,7 @@ function makeServerToolWithContext<
     name: config.name,
     description: config.description,
     needsApproval: config.needsApproval,
-    inputSchema: config.inputSchema,
+    inputSchema: effectSchemaToJsonSchema(config.inputSchema),
   })
 
   return def.server((args: unknown, _executionContext?: ToolExecutionContext) =>
@@ -228,7 +239,7 @@ export function defineOpenWaggleTool<
     name: config.name,
     description: config.description,
     needsApproval: config.needsApproval,
-    inputSchema: config.inputSchema,
+    inputSchema: effectSchemaToJsonSchema(config.inputSchema),
   })
 
   return {
