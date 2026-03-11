@@ -12,10 +12,11 @@ import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type { HydratedAttachment, PreparedAttachment } from '@shared/types/agent'
 import { choose } from '@shared/utils/decision'
 import { isPathInside } from '@shared/utils/paths'
+import * as Effect from 'effect/Effect'
 import { app, dialog } from 'electron'
 import { createLogger } from '../logger'
 import { broadcastToWindows } from '../utils/broadcast'
-import { safeHandle } from './typed-ipc'
+import { typedHandle } from './typed-ipc'
 
 const MODULE_VALUE_8 = 8
 const MODULE_VALUE_20 = 20
@@ -401,85 +402,100 @@ export function registerAttachmentHandlers(): void {
     logger.warn('Temp prompt attachment cleanup failed during startup', describeUnknownError(error))
   })
 
-  safeHandle('attachments:prepare', async (_event, rawProjectPath: unknown, rawPaths: unknown) => {
-    const { projectPath, paths } = decodeUnknownOrThrow(prepareArgsSchema, {
-      projectPath: rawProjectPath,
-      paths: rawPaths,
-    })
+  typedHandle('attachments:prepare', (_event, rawProjectPath: unknown, rawPaths: unknown) =>
+    Effect.gen(function* () {
+      const { projectPath: pp, paths } = decodeUnknownOrThrow(prepareArgsSchema, {
+        projectPath: rawProjectPath,
+        paths: rawPaths,
+      })
 
-    if (!path.isAbsolute(projectPath)) {
-      throw new Error('Project path must be absolute.')
-    }
+      if (!path.isAbsolute(pp)) {
+        return yield* Effect.fail(new Error('Project path must be absolute.'))
+      }
 
-    const normalized = paths
-      .map((entry) => (path.isAbsolute(entry) ? entry : path.resolve(projectPath, entry)))
-      .map((entry) => path.normalize(entry))
+      const normalized = paths
+        .map((entry) => (path.isAbsolute(entry) ? entry : path.resolve(pp, entry)))
+        .map((entry) => path.normalize(entry))
 
-    const uniquePaths = [...new Set(normalized)]
-    if (uniquePaths.length === 0) return []
-    if (uniquePaths.length > MAX_ATTACHMENTS) {
-      throw new Error(
-        `A maximum of ${String(MAX_ATTACHMENTS)} attachments is supported per message.`,
+      const uniquePaths = [...new Set(normalized)]
+      if (uniquePaths.length === 0) return []
+      if (uniquePaths.length > MAX_ATTACHMENTS) {
+        return yield* Effect.fail(
+          new Error(
+            `A maximum of ${String(MAX_ATTACHMENTS)} attachments is supported per message.`,
+          ),
+        )
+      }
+
+      const projectRoot = yield* Effect.promise(() => fs.realpath(pp))
+      const approvedPaths: string[] = []
+      for (const filePath of uniquePaths) {
+        const resolvedPath = yield* Effect.promise(() => fs.realpath(filePath))
+        if (!isPathInside(projectRoot, resolvedPath)) {
+          const approved = yield* Effect.promise(() =>
+            requestExternalAttachmentAccess(projectRoot, resolvedPath),
+          )
+          if (!approved) {
+            return yield* Effect.fail(
+              new Error(
+                `Attachment access denied for file outside project root: ${path.basename(resolvedPath)}`,
+              ),
+            )
+          }
+        }
+        approvedPaths.push(resolvedPath)
+      }
+
+      const stats = yield* Effect.promise(() =>
+        Promise.all(approvedPaths.map((filePath) => fs.stat(filePath))),
       )
-    }
+      const totalSize = stats.reduce((sum, stat) => sum + stat.size, 0)
+      if (totalSize > MAX_TOTAL_SIZE_BYTES) {
+        return yield* Effect.fail(
+          new Error(
+            `Total attachment size exceeds ${String(MAX_TOTAL_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB.`,
+          ),
+        )
+      }
 
-    const projectRoot = await fs.realpath(projectPath)
-    const approvedPaths: string[] = []
-    for (const filePath of uniquePaths) {
-      const resolvedPath = await fs.realpath(filePath)
-      if (!isPathInside(projectRoot, resolvedPath)) {
-        const approved = await requestExternalAttachmentAccess(projectRoot, resolvedPath)
-        if (!approved) {
-          throw new Error(
-            `Attachment access denied for file outside project root: ${path.basename(resolvedPath)}`,
+      const prepared: PreparedAttachment[] = []
+      for (const filePath of approvedPaths) {
+        prepared.push(yield* Effect.promise(() => prepareAttachment(filePath)))
+      }
+      return prepared
+    }),
+  )
+
+  typedHandle(
+    'attachments:prepare-from-text',
+    (_event, rawText: unknown, rawOperationId: unknown) =>
+      Effect.gen(function* () {
+        const { text, operationId } = decodeUnknownOrThrow(prepareFromTextArgsSchema, {
+          text: rawText,
+          operationId: rawOperationId,
+        })
+        const tempAttachmentsDir = yield* Effect.promise(() => ensureTempAttachmentsDirectory())
+        const fileName = buildTempPromptFilename(Date.now())
+        const filePath = path.join(tempAttachmentsDir, fileName)
+
+        yield* Effect.promise(() => writePromptTextFileWithProgress(filePath, text, operationId))
+        const stats = yield* Effect.promise(() => fs.stat(filePath))
+        if (!stats.isFile()) {
+          return yield* Effect.fail(
+            new Error(`Temporary prompt attachment is not a file: ${fileName}`),
           )
         }
-      }
-      approvedPaths.push(resolvedPath)
-    }
 
-    const stats = await Promise.all(approvedPaths.map((filePath) => fs.stat(filePath)))
-    const totalSize = stats.reduce((sum, stat) => sum + stat.size, 0)
-    if (totalSize > MAX_TOTAL_SIZE_BYTES) {
-      throw new Error(
-        `Total attachment size exceeds ${String(MAX_TOTAL_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB.`,
-      )
-    }
-
-    const prepared: PreparedAttachment[] = []
-    for (const filePath of approvedPaths) {
-      prepared.push(await prepareAttachment(filePath))
-    }
-    return prepared
-  })
-
-  safeHandle(
-    'attachments:prepare-from-text',
-    async (_event, rawText: unknown, rawOperationId: unknown) => {
-      const { text, operationId } = decodeUnknownOrThrow(prepareFromTextArgsSchema, {
-        text: rawText,
-        operationId: rawOperationId,
-      })
-      const tempAttachmentsDir = await ensureTempAttachmentsDirectory()
-      const fileName = buildTempPromptFilename(Date.now())
-      const filePath = path.join(tempAttachmentsDir, fileName)
-
-      await writePromptTextFileWithProgress(filePath, text, operationId)
-      const stats = await fs.stat(filePath)
-      if (!stats.isFile()) {
-        throw new Error(`Temporary prompt attachment is not a file: ${fileName}`)
-      }
-
-      return {
-        id: randomUUID(),
-        kind: 'text',
-        origin: 'auto-paste-text',
-        name: fileName,
-        path: filePath,
-        mimeType: TEMP_PROMPT_MIME_TYPE,
-        sizeBytes: stats.size,
-        extractedText: text,
-      }
-    },
+        return {
+          id: randomUUID(),
+          kind: 'text' as const,
+          origin: 'auto-paste-text' as const,
+          name: fileName,
+          path: filePath,
+          mimeType: TEMP_PROMPT_MIME_TYPE,
+          sizeBytes: stats.size,
+          extractedText: text,
+        }
+      }),
   )
 }

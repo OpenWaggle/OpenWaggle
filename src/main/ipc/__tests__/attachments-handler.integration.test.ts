@@ -1,7 +1,8 @@
+import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  safeHandleMock,
+  typedHandleMock,
   createLoggerMock,
   attachmentsLoggerMock,
   statMock,
@@ -20,7 +21,7 @@ const {
   showMessageBoxMock,
   files,
 } = vi.hoisted(() => ({
-  safeHandleMock: vi.fn(),
+  typedHandleMock: vi.fn(),
   createLoggerMock: vi.fn(),
   attachmentsLoggerMock: {
     debug: vi.fn(),
@@ -46,7 +47,7 @@ const {
 }))
 
 vi.mock('../typed-ipc', () => ({
-  safeHandle: safeHandleMock,
+  typedHandle: typedHandleMock,
 }))
 
 vi.mock('../../logger', () => ({
@@ -106,8 +107,12 @@ vi.mock('jszip', () => ({
 import { hydrateAttachmentSources, registerAttachmentHandlers } from '../attachments-handler'
 
 function registeredHandler(name: string): ((...args: unknown[]) => Promise<unknown>) | undefined {
-  const call = safeHandleMock.mock.calls.find((c: unknown[]) => c[0] === name)
-  return call?.[1] as ((...args: unknown[]) => Promise<unknown>) | undefined
+  const call = typedHandleMock.mock.calls.find((c: unknown[]) => c[0] === name)
+  const handler = call?.[1]
+  if (typeof handler !== 'function') {
+    return undefined
+  }
+  return (...args: unknown[]) => Effect.runPromise(handler(...args))
 }
 
 function registerFile(
@@ -127,7 +132,7 @@ function registerFile(
 
 describe('registerAttachmentHandlers', () => {
   beforeEach(() => {
-    safeHandleMock.mockReset()
+    typedHandleMock.mockReset()
     createLoggerMock.mockReset()
     attachmentsLoggerMock.debug.mockReset()
     attachmentsLoggerMock.info.mockReset()

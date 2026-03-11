@@ -8,8 +8,9 @@ import {
   type VoiceModel,
   type VoiceTranscriptionResult,
 } from '@shared/types/voice'
+import * as Effect from 'effect/Effect'
 import { app } from 'electron'
-import { safeHandle } from './typed-ipc'
+import { typedHandle } from './typed-ipc'
 
 const MIN_LANGUAGE_CODE_LENGTH = 2
 const MAX_LANGUAGE_CODE_LENGTH = 16
@@ -221,41 +222,43 @@ export function resetVoiceHandlerForTests(): void {
 }
 
 export function registerVoiceHandlers(): void {
-  safeHandle('voice:transcribe-local', async (_event, rawPayload: unknown) => {
-    const payload = decodeUnknownOrThrow(transcribePayloadSchema, rawPayload)
-    const model = payload.model ?? VOICE_MODEL_BASE
-    const sampleCount = Math.floor(payload.pcm16.byteLength / DOUBLE_FACTOR)
-    if (sampleCount <= 0) {
-      throw new Error('Audio payload is empty.')
-    }
-    const maxSampleCount = payload.sampleRate * MAX_AUDIO_SECONDS
-    if (sampleCount > maxSampleCount) {
-      throw new Error(`Audio exceeds ${String(MAX_AUDIO_SECONDS)} seconds; record a shorter clip.`)
-    }
-    const audio = pcm16BytesToFloat32(payload.pcm16)
+  typedHandle('voice:transcribe-local', (_event, rawPayload: unknown) =>
+    Effect.gen(function* () {
+      const payload = decodeUnknownOrThrow(transcribePayloadSchema, rawPayload)
+      const model = payload.model ?? VOICE_MODEL_BASE
+      const sampleCount = Math.floor(payload.pcm16.byteLength / DOUBLE_FACTOR)
+      if (sampleCount <= 0) {
+        return yield* Effect.fail(new Error('Audio payload is empty.'))
+      }
+      const maxSampleCount = payload.sampleRate * MAX_AUDIO_SECONDS
+      if (sampleCount > maxSampleCount) {
+        return yield* Effect.fail(
+          new Error(`Audio exceeds ${String(MAX_AUDIO_SECONDS)} seconds; record a shorter clip.`),
+        )
+      }
+      const audio = pcm16BytesToFloat32(payload.pcm16)
 
-    let transcriber: WhisperTranscriber
-    try {
-      transcriber = await loadTranscriber(model)
-    } catch (error) {
-      throw new Error(mapLoadError(error, model))
-    }
+      const transcriber = yield* Effect.tryPromise({
+        try: () => loadTranscriber(model),
+        catch: (error) => new Error(mapLoadError(error, model)),
+      })
 
-    try {
       const modelConfig = VOICE_MODEL_CONFIG[model]
-      const rawResult = await transcriber(audio, {
-        task: 'transcribe',
-        return_timestamps: false,
-        chunk_length_s: CHUNK_LENGTH_S,
-        stride_length_s: STRIDE_LENGTH_S,
-        language: payload.language ?? modelConfig.language,
+      const rawResult = yield* Effect.tryPromise({
+        try: () =>
+          transcriber(audio, {
+            task: 'transcribe',
+            return_timestamps: false,
+            chunk_length_s: CHUNK_LENGTH_S,
+            stride_length_s: STRIDE_LENGTH_S,
+            language: payload.language ?? modelConfig.language,
+          }),
+        catch: (error) => new Error(mapTranscriptionError(error)),
       })
       markModelUsed(model)
       const text = extractTranscriptionText(rawResult)
       const response: VoiceTranscriptionResult = { text, model }
       return response
-    } catch (error) {
-      throw new Error(mapTranscriptionError(error))
-    }
-  })
+    }),
+  )
 }

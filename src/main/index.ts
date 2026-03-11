@@ -4,24 +4,7 @@ import { app, BrowserWindow, Menu, shell } from 'electron'
 import { initializeTokenStore } from './auth/token-manager'
 import { startDevtoolsEventBus, stopDevtoolsEventBus } from './devtools/event-bus'
 import { env } from './env'
-import { registerAgentHandlers } from './ipc/agent-handler'
-import { registerAttachmentHandlers } from './ipc/attachments-handler'
-import { registerAuthHandlers } from './ipc/auth-handler'
-import { registerConversationsHandlers } from './ipc/conversations-handler'
-import { registerDevtoolsHandlers } from './ipc/devtools-handler'
-import { registerFeedbackHandlers } from './ipc/feedback-handler'
-import { registerGitHandlers } from './ipc/git'
-import { registerMcpHandlers } from './ipc/mcp-handler'
-import { registerOrchestrationHandlers } from './ipc/orchestration-handler'
-import { registerProjectHandlers } from './ipc/project-handler'
-import { registerProvidersHandlers } from './ipc/providers-handler'
-import { registerSettingsHandlers } from './ipc/settings-handler'
-import { registerShellHandlers } from './ipc/shell-handler'
-import { registerSkillsHandlers } from './ipc/skills-handler'
-import { registerTeamsHandlers } from './ipc/teams-handler'
-import { cleanupTerminals, registerTerminalHandlers } from './ipc/terminal-handler'
-import { registerVoiceHandlers } from './ipc/voice-handler'
-import { registerWaggleHandlers } from './ipc/waggle-handler'
+import { cleanupTerminals, registerAllIpcHandlers } from './ipc/handlers'
 import { createLogger, initFileLogger } from './logger'
 import { mcpManager } from './mcp'
 import { registerAllProviders } from './providers'
@@ -107,24 +90,7 @@ function registerIpcHandlersOnce(): void {
 
   ipcHandlersRegistered = true
 
-  registerAuthHandlers()
-  registerAgentHandlers()
-  registerSettingsHandlers()
-  registerConversationsHandlers()
-  registerAttachmentHandlers()
-  registerDevtoolsHandlers()
-  registerGitHandlers()
-  registerProjectHandlers()
-  registerProvidersHandlers()
-  registerOrchestrationHandlers()
-  registerTerminalHandlers()
-  registerVoiceHandlers()
-  registerSkillsHandlers()
-  registerShellHandlers()
-  registerWaggleHandlers()
-  registerTeamsHandlers()
-  registerMcpHandlers()
-  registerFeedbackHandlers()
+  registerAllIpcHandlers()
 }
 
 async function bootstrapServicesAndWindow(): Promise<void> {

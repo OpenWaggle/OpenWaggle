@@ -7,7 +7,8 @@ import type {
   GitStatusSummary,
 } from '@shared/types/git'
 import { choose } from '@shared/utils/decision'
-import { safeHandle } from '../typed-ipc'
+import * as Effect from 'effect/Effect'
+import { typedHandle } from '../typed-ipc'
 import { isGitRepository, projectPathSchema, runGit, stripSurroundingQuotes } from './shared'
 
 const MODULE_VALUE_8 = 8
@@ -300,19 +301,23 @@ async function getGitDiff(projectPath: string): Promise<GitFileDiff[]> {
 }
 
 export function registerGitStatusHandlers(): void {
-  safeHandle('git:status', async (_event, rawPath: unknown) => {
-    const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
-    const cached = statusCache.get(projectPath)
-    if (cached && Date.now() - cached.timestamp < GIT_STATUS_CACHE_TTL) {
-      return cached.result
-    }
-    const result = await getGitStatus(projectPath)
-    statusCache.set(projectPath, { result, timestamp: Date.now() })
-    return result
-  })
+  typedHandle('git:status', (_event, rawPath: unknown) =>
+    Effect.gen(function* () {
+      const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
+      const cached = statusCache.get(projectPath)
+      if (cached && Date.now() - cached.timestamp < GIT_STATUS_CACHE_TTL) {
+        return cached.result
+      }
+      const result = yield* Effect.promise(() => getGitStatus(projectPath))
+      statusCache.set(projectPath, { result, timestamp: Date.now() })
+      return result
+    }),
+  )
 
-  safeHandle('git:diff', async (_event, rawPath: unknown) => {
-    const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
-    return getGitDiff(projectPath)
-  })
+  typedHandle('git:diff', (_event, rawPath: unknown) =>
+    Effect.gen(function* () {
+      const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
+      return yield* Effect.promise(() => getGitDiff(projectPath))
+    }),
+  )
 }

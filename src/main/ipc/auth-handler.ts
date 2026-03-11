@@ -1,5 +1,6 @@
-import type { OAuthFlowStatus } from '@shared/types/auth'
+import type { OAuthFlowStatus, SubscriptionProvider } from '@shared/types/auth'
 import { isSubscriptionProvider } from '@shared/types/auth'
+import * as Effect from 'effect/Effect'
 import { BrowserWindow } from 'electron'
 import { disconnect, getAccountInfo, startAuthLifecycle, startOAuth, submitCode } from '../auth'
 import { typedHandle } from './typed-ipc'
@@ -10,42 +11,47 @@ function broadcastOAuthStatus(status: OAuthFlowStatus): void {
   }
 }
 
+function validateSubscriptionProvider(
+  provider: string,
+): Effect.Effect<SubscriptionProvider, Error> {
+  if (!isSubscriptionProvider(provider)) {
+    return Effect.fail(new Error(`Invalid subscription provider: ${provider}`))
+  }
+  return Effect.succeed(provider)
+}
+
 let stopAuthLifecycle: (() => void) | null = null
 
 export function registerAuthHandlers(): void {
   if (stopAuthLifecycle) stopAuthLifecycle()
   stopAuthLifecycle = startAuthLifecycle(broadcastOAuthStatus)
 
-  typedHandle('auth:start-oauth', async (_event, provider: string) => {
-    if (!isSubscriptionProvider(provider)) {
-      throw new Error(`Invalid subscription provider: ${provider}`)
-    }
+  typedHandle('auth:start-oauth', (_event, provider: string) =>
+    Effect.gen(function* () {
+      const validated = yield* validateSubscriptionProvider(provider)
+      yield* Effect.promise(() => startOAuth(validated, broadcastOAuthStatus))
+    }),
+  )
 
-    await startOAuth(provider, broadcastOAuthStatus)
-  })
+  typedHandle('auth:submit-code', (_event, provider: string, code: string) =>
+    Effect.gen(function* () {
+      const validated = yield* validateSubscriptionProvider(provider)
+      submitCode(validated, code)
+    }),
+  )
 
-  typedHandle('auth:submit-code', (_event, provider: string, code: string) => {
-    if (!isSubscriptionProvider(provider)) {
-      throw new Error(`Invalid subscription provider: ${provider}`)
-    }
+  typedHandle('auth:disconnect', (_event, provider: string) =>
+    Effect.gen(function* () {
+      const validated = yield* validateSubscriptionProvider(provider)
+      disconnect(validated)
+      broadcastOAuthStatus({ type: 'idle' })
+    }),
+  )
 
-    submitCode(provider, code)
-  })
-
-  typedHandle('auth:disconnect', (_event, provider: string) => {
-    if (!isSubscriptionProvider(provider)) {
-      throw new Error(`Invalid subscription provider: ${provider}`)
-    }
-
-    disconnect(provider)
-    broadcastOAuthStatus({ type: 'idle' })
-  })
-
-  typedHandle('auth:get-account-info', async (_event, provider: string) => {
-    if (!isSubscriptionProvider(provider)) {
-      throw new Error(`Invalid subscription provider: ${provider}`)
-    }
-
-    return await getAccountInfo(provider)
-  })
+  typedHandle('auth:get-account-info', (_event, provider: string) =>
+    Effect.gen(function* () {
+      const validated = yield* validateSubscriptionProvider(provider)
+      return yield* Effect.promise(() => getAccountInfo(validated))
+    }),
+  )
 }

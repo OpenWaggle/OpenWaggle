@@ -3,13 +3,13 @@ import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  typedHandleEffectMock,
+  typedHandleMock,
   cancelActiveOrchestrationRunMock,
   getRunMock,
   listRunsMock,
   markCancelledMock,
 } = vi.hoisted(() => ({
-  typedHandleEffectMock: vi.fn(),
+  typedHandleMock: vi.fn(),
   cancelActiveOrchestrationRunMock: vi.fn(),
   getRunMock: vi.fn(),
   listRunsMock: vi.fn(),
@@ -17,7 +17,7 @@ const {
 }))
 
 vi.mock('../typed-ipc', () => ({
-  typedHandleEffect: typedHandleEffectMock,
+  typedHandle: typedHandleMock,
 }))
 
 vi.mock('../../orchestration/active-runs', () => ({
@@ -35,7 +35,7 @@ vi.mock('../../orchestration/run-repository', () => ({
 import { registerOrchestrationHandlers } from '../orchestration-handler'
 
 function getInvokeHandler(name: string): ((...args: unknown[]) => Promise<unknown>) | undefined {
-  const call = typedHandleEffectMock.mock.calls.find(
+  const call = typedHandleMock.mock.calls.find(
     (candidate: readonly unknown[]) => candidate[0] === name && typeof candidate[1] === 'function',
   )
   const handler = call?.[1]
@@ -48,7 +48,7 @@ function getInvokeHandler(name: string): ((...args: unknown[]) => Promise<unknow
 
 describe('registerOrchestrationHandlers', () => {
   beforeEach(() => {
-    typedHandleEffectMock.mockReset()
+    typedHandleMock.mockReset()
     cancelActiveOrchestrationRunMock.mockReset()
     getRunMock.mockReset()
     listRunsMock.mockReset()
@@ -58,7 +58,7 @@ describe('registerOrchestrationHandlers', () => {
   it('registers all expected IPC channels', () => {
     registerOrchestrationHandlers()
 
-    const channels = typedHandleEffectMock.mock.calls.map((args: unknown[]) => args[0])
+    const channels = typedHandleMock.mock.calls.map((args: unknown[]) => args[0])
     expect(channels).toContain('orchestration:get-run')
     expect(channels).toContain('orchestration:list-runs')
     expect(channels).toContain('orchestration:cancel-run')

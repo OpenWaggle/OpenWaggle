@@ -2,148 +2,156 @@ import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { McpServerId } from '@shared/types/brand'
 import type { McpServerConfig } from '@shared/types/mcp'
 import { mcpServerConfigSchema } from '@shared/types/mcp'
+import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
 import { mcpManager } from '../mcp'
 import { getSettings, updateSettings } from '../store/settings'
-import { safeHandle } from './typed-ipc'
+import { typedHandle } from './typed-ipc'
 
 const logger = createLogger('mcp-handler')
 const mcpServerConfigDraftSchema = mcpServerConfigSchema.omit('id')
 const mcpServerConfigUpdatesSchema = Schema.partial(mcpServerConfigDraftSchema)
 const nonEmptyStringSchema = Schema.String.pipe(Schema.minLength(1))
 
+function catchMcpError<A>(
+  operation: string,
+  effect: Effect.Effect<A, unknown>,
+): Effect.Effect<A | { readonly ok: false; readonly error: string }, never> {
+  const errorHandler = (err: unknown) =>
+    Effect.sync((): { readonly ok: false; readonly error: string } => {
+      const message = err instanceof Error ? err.message : String(err)
+      logger.error(`${operation} failed`, { error: message })
+      return { ok: false, error: message }
+    })
+
+  return Effect.catchAllDefect(Effect.catchAll(effect, errorHandler), errorHandler)
+}
+
 export function registerMcpHandlers(): void {
-  safeHandle('mcp:list-servers', () => {
-    const settings = getSettings()
-    const liveStatuses = mcpManager.getServerStatuses()
-    const liveIds = new Set(liveStatuses.map((s) => s.id))
-
-    // Include servers from config that aren't yet connected
-    const configOnlyStatuses = settings.mcpServers
-      .filter((c) => !liveIds.has(c.id))
-      .map((c) => ({
-        id: c.id,
-        name: c.name,
-        status: 'disconnected' as const,
-        toolCount: 0,
-        tools: [],
-      }))
-
-    return [...liveStatuses, ...configOnlyStatuses]
-  })
-
-  safeHandle('mcp:add-server', async (_event, rawConfig) => {
-    try {
-      const parsed = decodeUnknownOrThrow(mcpServerConfigDraftSchema, rawConfig)
-      const config: Omit<McpServerConfig, 'id'> = {
-        name: parsed.name,
-        transport: parsed.transport,
-        enabled: parsed.enabled,
-        command: parsed.command,
-        args: parsed.args,
-        env: parsed.env,
-        url: parsed.url,
-      }
-
-      const id = await mcpManager.addServer(config)
-      const fullConfig: McpServerConfig = { ...config, id }
-
-      // Persist to settings
+  typedHandle('mcp:list-servers', () =>
+    Effect.sync(() => {
       const settings = getSettings()
-      updateSettings({
-        mcpServers: [...settings.mcpServers, fullConfig],
-      })
+      const liveStatuses = mcpManager.getServerStatuses()
+      const liveIds = new Set(liveStatuses.map((s) => s.id))
 
-      logger.info('server added', { id, name: config.name })
-      return { ok: true, id }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      logger.error('add server failed', { error: message })
-      return { ok: false, error: message }
-    }
-  })
+      const configOnlyStatuses = settings.mcpServers
+        .filter((c) => !liveIds.has(c.id))
+        .map((c) => ({
+          id: c.id,
+          name: c.name,
+          status: 'disconnected' as const,
+          toolCount: 0,
+          tools: [],
+        }))
 
-  safeHandle('mcp:remove-server', async (_event, rawId) => {
-    try {
-      const id = decodeUnknownOrThrow(nonEmptyStringSchema, rawId)
-      const mcpId = McpServerId(id)
+      return [...liveStatuses, ...configOnlyStatuses]
+    }),
+  )
 
-      await mcpManager.removeServer(mcpId)
+  typedHandle('mcp:add-server', (_event, rawConfig) =>
+    catchMcpError(
+      'add server',
+      Effect.gen(function* () {
+        const parsed = decodeUnknownOrThrow(mcpServerConfigDraftSchema, rawConfig)
+        const config: Omit<McpServerConfig, 'id'> = {
+          name: parsed.name,
+          transport: parsed.transport,
+          enabled: parsed.enabled,
+          command: parsed.command,
+          args: parsed.args,
+          env: parsed.env,
+          url: parsed.url,
+        }
 
-      // Remove from settings
-      const settings = getSettings()
-      updateSettings({
-        mcpServers: settings.mcpServers.filter((s) => s.id !== mcpId),
-      })
+        const id = yield* Effect.promise(() => mcpManager.addServer(config))
+        const fullConfig: McpServerConfig = { ...config, id }
 
-      logger.info('server removed', { id })
-      return { ok: true }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      logger.error('remove server failed', { error: message })
-      return { ok: false, error: message }
-    }
-  })
+        const settings = getSettings()
+        updateSettings({
+          mcpServers: [...settings.mcpServers, fullConfig],
+        })
 
-  safeHandle('mcp:toggle-server', async (_event, rawId, enabled) => {
-    try {
-      const id = decodeUnknownOrThrow(nonEmptyStringSchema, rawId)
-      const mcpId = McpServerId(id)
-      const parsedEnabled = decodeUnknownOrThrow(Schema.Boolean, enabled)
+        logger.info('server added', { id, name: config.name })
+        return { ok: true as const, id }
+      }),
+    ),
+  )
 
-      const settings = getSettings()
-      const config = settings.mcpServers.find((s) => s.id === mcpId)
-      if (!config) {
-        return { ok: false, error: `Server ${id} not found in configuration` }
-      }
+  typedHandle('mcp:remove-server', (_event, rawId) =>
+    catchMcpError(
+      'remove server',
+      Effect.gen(function* () {
+        const id = decodeUnknownOrThrow(nonEmptyStringSchema, rawId)
+        const mcpId = McpServerId(id)
 
-      const updatedConfig: McpServerConfig = { ...config, enabled: parsedEnabled }
-      await mcpManager.toggleServer(mcpId, parsedEnabled, updatedConfig)
+        yield* Effect.promise(() => mcpManager.removeServer(mcpId))
 
-      // Persist toggle state
-      updateSettings({
-        mcpServers: settings.mcpServers.map((s) => (s.id === mcpId ? updatedConfig : s)),
-      })
+        const settings = getSettings()
+        updateSettings({
+          mcpServers: settings.mcpServers.filter((s) => s.id !== mcpId),
+        })
 
-      logger.info('server toggled', { id, enabled: parsedEnabled })
-      return { ok: true }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      logger.error('toggle server failed', { error: message })
-      return { ok: false, error: message }
-    }
-  })
+        logger.info('server removed', { id })
+        return { ok: true as const }
+      }),
+    ),
+  )
 
-  safeHandle('mcp:update-server', async (_event, rawId, rawUpdates) => {
-    try {
-      const id = decodeUnknownOrThrow(nonEmptyStringSchema, rawId)
-      const mcpId = McpServerId(id)
-      const updates = decodeUnknownOrThrow(mcpServerConfigUpdatesSchema, rawUpdates)
+  typedHandle('mcp:toggle-server', (_event, rawId, enabled) =>
+    catchMcpError(
+      'toggle server',
+      Effect.gen(function* () {
+        const id = decodeUnknownOrThrow(nonEmptyStringSchema, rawId)
+        const mcpId = McpServerId(id)
+        const parsedEnabled = decodeUnknownOrThrow(Schema.Boolean, enabled)
 
-      const settings = getSettings()
-      const existing = settings.mcpServers.find((s) => s.id === mcpId)
-      if (!existing) {
-        return { ok: false, error: `Server ${id} not found in configuration` }
-      }
+        const settings = getSettings()
+        const config = settings.mcpServers.find((s) => s.id === mcpId)
+        if (!config) {
+          return { ok: false as const, error: `Server ${id} not found in configuration` }
+        }
 
-      const updatedConfig: McpServerConfig = { ...existing, ...updates }
+        const updatedConfig: McpServerConfig = { ...config, enabled: parsedEnabled }
+        yield* Effect.promise(() => mcpManager.toggleServer(mcpId, parsedEnabled, updatedConfig))
 
-      // If server is enabled, reconnect with new config
-      if (updatedConfig.enabled) {
-        await mcpManager.toggleServer(mcpId, false, existing)
-        await mcpManager.toggleServer(mcpId, true, updatedConfig)
-      }
+        updateSettings({
+          mcpServers: settings.mcpServers.map((s) => (s.id === mcpId ? updatedConfig : s)),
+        })
 
-      updateSettings({
-        mcpServers: settings.mcpServers.map((s) => (s.id === mcpId ? updatedConfig : s)),
-      })
+        logger.info('server toggled', { id, enabled: parsedEnabled })
+        return { ok: true as const }
+      }),
+    ),
+  )
 
-      logger.info('server updated', { id, updates: Object.keys(updates) })
-      return { ok: true }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      logger.error('update server failed', { error: message })
-      return { ok: false, error: message }
-    }
-  })
+  typedHandle('mcp:update-server', (_event, rawId, rawUpdates) =>
+    catchMcpError(
+      'update server',
+      Effect.gen(function* () {
+        const id = decodeUnknownOrThrow(nonEmptyStringSchema, rawId)
+        const mcpId = McpServerId(id)
+        const updates = decodeUnknownOrThrow(mcpServerConfigUpdatesSchema, rawUpdates)
+
+        const settings = getSettings()
+        const existing = settings.mcpServers.find((s) => s.id === mcpId)
+        if (!existing) {
+          return { ok: false as const, error: `Server ${id} not found in configuration` }
+        }
+
+        const updatedConfig: McpServerConfig = { ...existing, ...updates }
+
+        if (updatedConfig.enabled) {
+          yield* Effect.promise(() => mcpManager.toggleServer(mcpId, false, existing))
+          yield* Effect.promise(() => mcpManager.toggleServer(mcpId, true, updatedConfig))
+        }
+
+        updateSettings({
+          mcpServers: settings.mcpServers.map((s) => (s.id === mcpId ? updatedConfig : s)),
+        })
+
+        logger.info('server updated', { id, updates: Object.keys(updates) })
+        return { ok: true as const }
+      }),
+    ),
+  )
 }

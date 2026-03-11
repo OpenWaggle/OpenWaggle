@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('../typed-ipc', () => ({
-  safeHandle: vi.fn(),
+  typedHandle: vi.fn(),
 }))
 
 vi.mock('node:child_process', () => ({

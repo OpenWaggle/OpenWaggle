@@ -2,6 +2,7 @@ import type { Message } from '@shared/types/agent'
 import { ConversationId, MessageId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
+import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -172,13 +173,22 @@ vi.mock('../../logger', () => ({
 import { registerAgentHandlers } from '../agent-handler'
 
 function getInvokeHandler(name: string): ((...args: unknown[]) => Promise<unknown>) | undefined {
-  const call = typedHandleMock.mock.calls.find((args: unknown[]) => args[0] === name)
-  return call?.[1] as ((...args: unknown[]) => Promise<unknown>) | undefined
+  const call = typedHandleMock.mock.calls.find(
+    (candidate: readonly unknown[]) => candidate[0] === name && typeof candidate[1] === 'function',
+  )
+  const handler = call?.[1]
+  if (typeof handler !== 'function') {
+    return undefined
+  }
+
+  return (...args: unknown[]) => Effect.runPromise(handler(...args))
 }
 
-function getOnHandler(name: string): ((...args: unknown[]) => void) | undefined {
+function getOnHandler(name: string): ((...args: unknown[]) => Promise<void>) | undefined {
   const call = typedOnMock.mock.calls.find((args: unknown[]) => args[0] === name)
-  return call?.[1] as ((...args: unknown[]) => void) | undefined
+  const handler = call?.[1]
+  if (typeof handler !== 'function') return undefined
+  return (...args: unknown[]) => Effect.runPromise(handler(...args))
 }
 
 function baseConversation(): Conversation {
@@ -661,7 +671,7 @@ describe('registerAgentHandlers', () => {
       sendHandler?.({}, ConversationId('conv-1'), basePayload(), 'claude-sonnet-4-5')
 
       // Cancel it
-      cancelHandler?.({}, ConversationId('conv-1'))
+      await cancelHandler?.({}, ConversationId('conv-1'))
 
       expect(clearAgentPhaseMock).toHaveBeenCalledWith(ConversationId('conv-1'))
       expect(cleanupConversationRunMock).toHaveBeenCalledWith(ConversationId('conv-1'))
@@ -678,18 +688,18 @@ describe('registerAgentHandlers', () => {
       sendHandler?.({}, ConversationId('conv-b'), basePayload(), 'claude-sonnet-4-5')
 
       // Cancel all
-      cancelHandler?.({})
+      await cancelHandler?.({})
 
       expect(clearAgentPhaseMock).toHaveBeenCalled()
       expect(cleanupConversationRunMock).toHaveBeenCalled()
     })
 
-    it('is a no-op when cancelling a non-existent conversation', () => {
+    it('is a no-op when cancelling a non-existent conversation', async () => {
       registerAgentHandlers()
       const cancelHandler = getOnHandler('agent:cancel')
 
       // Should not throw
-      cancelHandler?.({}, ConversationId('nonexistent'))
+      await cancelHandler?.({}, ConversationId('nonexistent'))
 
       expect(clearAgentPhaseMock).toHaveBeenCalledWith(ConversationId('nonexistent'))
       expect(cleanupConversationRunMock).toHaveBeenCalledWith(ConversationId('nonexistent'))
@@ -699,25 +709,25 @@ describe('registerAgentHandlers', () => {
   // ─── agent:get-phase ───────────────────────────────────────
 
   describe('agent:get-phase', () => {
-    it('returns the phase for a given conversation', () => {
+    it('returns the phase for a given conversation', async () => {
       const phase = { label: 'Thinking' as const, startedAt: 123 }
       getPhaseForConversationMock.mockReturnValue(phase)
 
       registerAgentHandlers()
       const handler = getInvokeHandler('agent:get-phase')
 
-      const result = handler?.({}, ConversationId('conv-1'))
+      const result = await handler?.({}, ConversationId('conv-1'))
       expect(result).toEqual(phase)
       expect(getPhaseForConversationMock).toHaveBeenCalledWith(ConversationId('conv-1'))
     })
 
-    it('returns null when no phase exists', () => {
+    it('returns null when no phase exists', async () => {
       getPhaseForConversationMock.mockReturnValue(null)
 
       registerAgentHandlers()
       const handler = getInvokeHandler('agent:get-phase')
 
-      const result = handler?.({}, ConversationId('conv-1'))
+      const result = await handler?.({}, ConversationId('conv-1'))
       expect(result).toBeNull()
     })
   })
@@ -725,12 +735,12 @@ describe('registerAgentHandlers', () => {
   // ─── agent:answer-question ─────────────────────────────────
 
   describe('agent:answer-question', () => {
-    it('forwards answers to the question manager', () => {
+    it('forwards answers to the question manager', async () => {
       registerAgentHandlers()
       const handler = getInvokeHandler('agent:answer-question')
 
       const answers = [{ question: 'Which framework?', selectedOption: 'React' }]
-      handler?.({}, ConversationId('conv-1'), answers)
+      await handler?.({}, ConversationId('conv-1'), answers)
 
       expect(answerQuestionMock).toHaveBeenCalledWith(ConversationId('conv-1'), answers)
     })
@@ -750,11 +760,11 @@ describe('registerAgentHandlers', () => {
       expect(cleanupConversationRunMock).toHaveBeenCalledWith(ConversationId('conv-1'))
     })
 
-    it('calls cleanupConversationRun on cancel', () => {
+    it('calls cleanupConversationRun on cancel', async () => {
       registerAgentHandlers()
       const cancelHandler = getOnHandler('agent:cancel')
 
-      cancelHandler?.({}, ConversationId('conv-1'))
+      await cancelHandler?.({}, ConversationId('conv-1'))
 
       expect(cleanupConversationRunMock).toHaveBeenCalledWith(ConversationId('conv-1'))
     })
@@ -767,17 +777,17 @@ describe('registerAgentHandlers', () => {
       runAgentMock.mockReturnValue(new Promise(() => {}))
       sendHandler?.({}, ConversationId('conv-a'), basePayload(), 'claude-sonnet-4-5')
 
-      cancelHandler?.({})
+      await cancelHandler?.({})
 
       expect(cleanupConversationRunMock).toHaveBeenCalledWith(ConversationId('conv-a'))
     })
 
-    it('agent:inject-context handler calls pushContext', () => {
+    it('agent:inject-context handler calls pushContext', async () => {
       registerAgentHandlers()
       const handler = getOnHandler('agent:inject-context')
       expect(handler).toBeDefined()
 
-      handler?.({}, ConversationId('conv-1'), 'user hint')
+      await handler?.({}, ConversationId('conv-1'), 'user hint')
 
       expect(pushContextMock).toHaveBeenCalledWith(ConversationId('conv-1'), 'user hint')
     })

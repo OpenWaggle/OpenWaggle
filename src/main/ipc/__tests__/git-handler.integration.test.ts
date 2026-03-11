@@ -1,13 +1,14 @@
 import { choose } from '@shared/utils/decision'
+import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { execFileMock, safeHandleMock } = vi.hoisted(() => ({
+const { execFileMock, typedHandleMock } = vi.hoisted(() => ({
   execFileMock: vi.fn(),
-  safeHandleMock: vi.fn(),
+  typedHandleMock: vi.fn(),
 }))
 
 vi.mock('../typed-ipc', () => ({
-  safeHandle: safeHandleMock,
+  typedHandle: typedHandleMock,
 }))
 
 vi.mock('node:child_process', () => ({
@@ -17,13 +18,17 @@ vi.mock('node:child_process', () => ({
 import { invalidateGitStatusCache, registerGitHandlers } from '../git'
 
 function registeredHandler(name: string): ((...args: unknown[]) => Promise<unknown>) | undefined {
-  const call = safeHandleMock.mock.calls.find((c: unknown[]) => c[0] === name)
-  return call?.[1] as ((...args: unknown[]) => Promise<unknown>) | undefined
+  const call = typedHandleMock.mock.calls.find((c: unknown[]) => c[0] === name)
+  const handler = call?.[1]
+  if (typeof handler !== 'function') {
+    return undefined
+  }
+  return (...args: unknown[]) => Effect.runPromise(handler(...args))
 }
 
 describe('registerGitHandlers', () => {
   beforeEach(() => {
-    safeHandleMock.mockReset()
+    typedHandleMock.mockReset()
     execFileMock.mockReset()
     invalidateGitStatusCache()
   })

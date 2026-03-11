@@ -14,7 +14,7 @@ import { type IpcMainEvent, type IpcMainInvokeEvent, ipcMain } from 'electron'
 import { DatabaseBootstrapError, DatabaseQueryError, type ValidationIssuesError } from '../errors'
 import { createLogger } from '../logger'
 import type { AppServices } from '../runtime'
-import { runAppEffectExit } from '../runtime'
+import { runAppEffect, runAppEffectExit } from '../runtime'
 
 const logger = createLogger('ipc')
 
@@ -123,20 +123,19 @@ function toIpcError(channel: IpcInvokeChannel, error: unknown): Error {
 
 /**
  * Type-safe wrapper around `ipcMain.handle()`.
- * Constrains the channel name, handler args, and return type to `IpcInvokeChannelMap`.
- *
+ * Internal — all public handlers should use the Effect-based `typedHandle`.
  */
-export function typedHandle<C extends IpcInvokeChannel>(channel: C, handler: IpcHandler<C>): void {
+function rawHandle<C extends IpcInvokeChannel>(channel: C, handler: IpcHandler<C>): void {
   ipcMain.handle(channel, (event: IpcMainInvokeEvent, ...args: IpcInvokeArgs<C>) =>
     handler(event, ...args),
   )
 }
 
-export function typedHandleEffect<C extends IpcInvokeChannel>(
+export function typedHandle<C extends IpcInvokeChannel>(
   channel: C,
   handler: EffectIpcHandler<C>,
 ): void {
-  typedHandle(channel, async (event, ...args) => {
+  rawHandle(channel, async (event, ...args) => {
     const exit = await runAppEffectExit(handler(event, ...args))
 
     if (Exit.isSuccess(exit)) {
@@ -159,25 +158,29 @@ export function typedHandleEffect<C extends IpcInvokeChannel>(
 
 /**
  * Type-safe wrapper around `ipcMain.on()`.
- * Constrains the channel name and listener args to `IpcSendChannelMap`.
+ * Internal — all public listeners should use the Effect-based `typedOn`.
  */
-export function typedOn<C extends IpcSendChannel>(
+function rawOn<C extends IpcSendChannel>(
   channel: C,
   listener: (event: IpcMainEvent, ...args: IpcSendArgs<C>) => void,
 ): void {
   ipcMain.on(channel, (event: IpcMainEvent, ...args: IpcSendArgs<C>) => listener(event, ...args))
 }
 
-/**
- * Like `typedHandle` but catches validation failures, logs a structured warning,
- * and re-throws with a human-readable message.
- */
-export function safeHandle<C extends IpcInvokeChannel>(channel: C, handler: IpcHandler<C>): void {
-  typedHandle(channel, async (event, ...args) => {
-    try {
-      return await handler(event, ...args)
-    } catch (error) {
-      throw toIpcError(channel, error)
-    }
+type EffectIpcOnHandler<C extends IpcSendChannel> = (
+  event: IpcMainEvent,
+  ...args: IpcSendArgs<C>
+) => EffectType<void, unknown, AppServices>
+
+export function typedOn<C extends IpcSendChannel>(
+  channel: C,
+  handler: EffectIpcOnHandler<C>,
+): void {
+  rawOn(channel, (event, ...args) => {
+    runAppEffect(handler(event, ...args)).catch((err) => {
+      logger.error(`Unhandled error in "${channel}" listener`, {
+        error: err instanceof Error ? err.message : String(err),
+      })
+    })
   })
 }

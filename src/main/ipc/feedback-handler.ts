@@ -3,11 +3,12 @@ import { readFile } from 'node:fs/promises'
 import os from 'node:os'
 import { BASE_TEN, BYTES_PER_KIBIBYTE } from '@shared/constants/constants'
 import type { DiagnosticsInfo, FeedbackPayload } from '@shared/types/feedback'
+import * as Effect from 'effect/Effect'
 import { app } from 'electron'
 import { getGhCliEnv } from '../env'
 import { createLogger, getLogFilePath } from '../logger'
 import { redactSensitiveText } from '../utils/redact'
-import { safeHandle } from './typed-ipc'
+import { typedHandle } from './typed-ipc'
 
 const logger = createLogger('ipc:feedback')
 
@@ -160,69 +161,79 @@ async function buildMarkdownBody(payload: FeedbackPayload): Promise<string> {
 }
 
 export function registerFeedbackHandlers(): void {
-  safeHandle('feedback:check-gh', async () => {
-    try {
-      await execFilePromise('which', ['gh'])
-    } catch {
-      return { available: false, authenticated: false }
-    }
-
-    try {
-      await execFilePromise('gh', ['auth', 'status'], { env: getGhCliEnv() })
-      return { available: true, authenticated: true }
-    } catch {
-      return { available: true, authenticated: false }
-    }
-  })
-
-  safeHandle('feedback:collect-diagnostics', () => {
-    return collectDiagnostics()
-  })
-
-  safeHandle('feedback:get-recent-logs', async (_event, lineCount) => {
-    return readRecentLogs(lineCount)
-  })
-
-  safeHandle('feedback:generate-markdown', async (_event, payload) => {
-    return buildMarkdownBody(payload)
-  })
-
-  safeHandle('feedback:submit', async (_event, payload) => {
-    const markdown = await buildMarkdownBody(payload)
-    const baseArgs = [
-      'issue',
-      'create',
-      '--repo',
-      FEEDBACK_REPO,
-      '--title',
-      payload.title,
-      '--body',
-      markdown,
-    ]
-
-    try {
-      // Try with label first, fall back without if label doesn't exist in repo
-      const env = getGhCliEnv()
-      let stdout: string
-      try {
-        const result = await execFilePromise('gh', [...baseArgs, '--label', payload.category], {
-          env,
-        })
-        stdout = result.stdout
-      } catch {
-        const result = await execFilePromise('gh', baseArgs, { env })
-        stdout = result.stdout
+  typedHandle('feedback:check-gh', () =>
+    Effect.gen(function* () {
+      const ghAvailable = yield* Effect.tryPromise({
+        try: () => execFilePromise('which', ['gh']).then(() => true),
+        catch: () => false,
+      })
+      if (!ghAvailable) {
+        return { available: false, authenticated: false }
       }
 
-      const urlMatch = stdout.match(/https:\/\/github\.com\/\S+/)
+      const authenticated = yield* Effect.tryPromise({
+        try: () =>
+          execFilePromise('gh', ['auth', 'status'], { env: getGhCliEnv() }).then(() => true),
+        catch: () => false,
+      })
+      return { available: true, authenticated }
+    }),
+  )
+
+  typedHandle('feedback:collect-diagnostics', () => Effect.sync(() => collectDiagnostics()))
+
+  typedHandle('feedback:get-recent-logs', (_event, lineCount) =>
+    Effect.promise(() => readRecentLogs(lineCount)),
+  )
+
+  typedHandle('feedback:generate-markdown', (_event, payload) =>
+    Effect.promise(() => buildMarkdownBody(payload)),
+  )
+
+  typedHandle('feedback:submit', (_event, payload) =>
+    Effect.gen(function* () {
+      const markdown = yield* Effect.promise(() => buildMarkdownBody(payload))
+      const baseArgs = [
+        'issue',
+        'create',
+        '--repo',
+        FEEDBACK_REPO,
+        '--title',
+        payload.title,
+        '--body',
+        markdown,
+      ]
+
+      const env = getGhCliEnv()
+
+      // Try with label first, fall back without if label doesn't exist in repo
+      const stdoutResult = yield* Effect.tryPromise({
+        try: async () => {
+          try {
+            const result = await execFilePromise('gh', [...baseArgs, '--label', payload.category], {
+              env,
+            })
+            return result.stdout
+          } catch {
+            const result = await execFilePromise('gh', baseArgs, { env })
+            return result.stdout
+          }
+        },
+        catch: (error) => (error instanceof Error ? error.message : String(error)),
+      })
+
+      const urlMatch = stdoutResult.match(/https:\/\/github\.com\/\S+/)
       const issueUrl = urlMatch ? urlMatch[0].trim() : undefined
 
       logger.info('feedback issue created', { issueUrl })
       return { success: true, issueUrl }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      logger.error('failed to create feedback issue', { error: message })
-      return { success: false, error: message }
-    }
-  })
+    }).pipe(
+      Effect.catchAll((errorMessage) =>
+        Effect.sync(() => {
+          logger.error('failed to create feedback issue', { error: errorMessage })
+          return { success: false, error: errorMessage }
+        }),
+      ),
+    ),
+  )
 }

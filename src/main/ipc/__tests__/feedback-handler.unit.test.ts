@@ -1,6 +1,12 @@
+import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const handlers = new Map<string, (...args: unknown[]) => unknown>()
+
+vi.mock('../../runtime', () => ({
+  runAppEffectExit: (effect: Effect.Effect<unknown, unknown, never>) =>
+    Effect.runPromiseExit(effect),
+}))
 
 vi.mock('electron', () => ({
   app: { getVersion: () => '0.1.0-test' },

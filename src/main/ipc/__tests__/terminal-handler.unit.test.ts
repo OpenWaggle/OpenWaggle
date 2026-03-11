@@ -1,3 +1,4 @@
+import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { typedHandleMock, typedOnMock, spawnMock, resizeMock, writeMock, killMock, broadcastMock } =
@@ -42,14 +43,22 @@ vi.mock('node-pty', () => ({
 
 import { cleanupTerminals, registerTerminalHandlers } from '../terminal-handler'
 
-function getInvokeHandler(name: string): ((...args: unknown[]) => unknown) | undefined {
-  const call = typedHandleMock.mock.calls.find((c: unknown[]) => c[0] === name)
-  return call?.[1] as ((...args: unknown[]) => unknown) | undefined
+function getInvokeHandler(name: string): ((...args: unknown[]) => Promise<unknown>) | undefined {
+  const call = typedHandleMock.mock.calls.find(
+    (candidate: readonly unknown[]) => candidate[0] === name && typeof candidate[1] === 'function',
+  )
+  const handler = call?.[1]
+  if (typeof handler !== 'function') {
+    return undefined
+  }
+  return (...args: unknown[]) => Effect.runPromise(handler(...args))
 }
 
-function getSendHandler(name: string): ((...args: unknown[]) => unknown) | undefined {
+function getSendHandler(name: string): ((...args: unknown[]) => Promise<void>) | undefined {
   const call = typedOnMock.mock.calls.find((c: unknown[]) => c[0] === name)
-  return call?.[1] as ((...args: unknown[]) => unknown) | undefined
+  const handler = call?.[1]
+  if (typeof handler !== 'function') return undefined
+  return (...args: unknown[]) => Effect.runPromise(handler(...args))
 }
 
 describe('registerTerminalHandlers', () => {
@@ -163,17 +172,17 @@ describe('registerTerminalHandlers', () => {
       const closeHandler = getInvokeHandler('terminal:close')
 
       const id = await createHandler?.({}, '/tmp')
-      closeHandler?.({}, id)
+      await closeHandler?.({}, id)
 
       expect(killMock).toHaveBeenCalledOnce()
     })
 
-    it('silently ignores close for unknown terminal ID', () => {
+    it('silently ignores close for unknown terminal ID', async () => {
       registerTerminalHandlers()
       const closeHandler = getInvokeHandler('terminal:close')
 
       // Should not throw
-      expect(() => closeHandler?.({}, 'nonexistent-id')).not.toThrow()
+      await expect(closeHandler?.({}, 'nonexistent-id')).resolves.not.toThrow()
       expect(killMock).not.toHaveBeenCalled()
     })
   })
@@ -185,45 +194,45 @@ describe('registerTerminalHandlers', () => {
       const resizeHandler = getInvokeHandler('terminal:resize')
 
       const id = await createHandler?.({}, '/tmp')
-      resizeHandler?.({}, id, 120, 40)
+      await resizeHandler?.({}, id, 120, 40)
 
       expect(resizeMock).toHaveBeenCalledWith(120, 40)
     })
 
-    it('rejects cols exceeding maximum (500)', () => {
+    it('rejects cols exceeding maximum (500)', async () => {
       registerTerminalHandlers()
       const resizeHandler = getInvokeHandler('terminal:resize')
 
-      expect(() => resizeHandler?.({}, 'missing', 501, 40)).toThrow()
+      await expect(resizeHandler?.({}, 'missing', 501, 40)).rejects.toThrow()
     })
 
-    it('rejects rows exceeding maximum (200)', () => {
+    it('rejects rows exceeding maximum (200)', async () => {
       registerTerminalHandlers()
       const resizeHandler = getInvokeHandler('terminal:resize')
 
-      expect(() => resizeHandler?.({}, 'missing', 80, 201)).toThrow()
+      await expect(resizeHandler?.({}, 'missing', 80, 201)).rejects.toThrow()
     })
 
-    it('rejects cols below minimum (10)', () => {
+    it('rejects cols below minimum (10)', async () => {
       registerTerminalHandlers()
       const resizeHandler = getInvokeHandler('terminal:resize')
 
-      expect(() => resizeHandler?.({}, 'missing', 5, 40)).toThrow()
+      await expect(resizeHandler?.({}, 'missing', 5, 40)).rejects.toThrow()
     })
 
-    it('rejects rows below minimum (5)', () => {
+    it('rejects rows below minimum (5)', async () => {
       registerTerminalHandlers()
       const resizeHandler = getInvokeHandler('terminal:resize')
 
-      expect(() => resizeHandler?.({}, 'missing', 80, 3)).toThrow()
+      await expect(resizeHandler?.({}, 'missing', 80, 3)).rejects.toThrow()
     })
 
-    it('accepts boundary values', () => {
+    it('accepts boundary values', async () => {
       registerTerminalHandlers()
       const resizeHandler = getInvokeHandler('terminal:resize')
 
-      expect(() => resizeHandler?.({}, 'missing', 10, 5)).not.toThrow()
-      expect(() => resizeHandler?.({}, 'missing', 500, 200)).not.toThrow()
+      await expect(resizeHandler?.({}, 'missing', 10, 5)).resolves.not.toThrow()
+      await expect(resizeHandler?.({}, 'missing', 500, 200)).resolves.not.toThrow()
     })
 
     it('silently ignores resize for unknown terminal ID', async () => {
@@ -231,7 +240,7 @@ describe('registerTerminalHandlers', () => {
       const resizeHandler = getInvokeHandler('terminal:resize')
 
       // Valid dimensions but nonexistent terminal
-      resizeHandler?.({}, 'nonexistent-id', 80, 24)
+      await resizeHandler?.({}, 'nonexistent-id', 80, 24)
       expect(resizeMock).not.toHaveBeenCalled()
     })
   })
@@ -243,28 +252,28 @@ describe('registerTerminalHandlers', () => {
       const writeHandler = getSendHandler('terminal:write')
 
       const id = await createHandler?.({}, '/tmp')
-      writeHandler?.({}, id, 'echo hello')
+      await writeHandler?.({}, id, 'echo hello')
 
       expect(writeMock).toHaveBeenCalledWith('echo hello')
     })
 
-    it('silently ignores write for unknown terminal ID', () => {
+    it('silently ignores write for unknown terminal ID', async () => {
       registerTerminalHandlers()
       const writeHandler = getSendHandler('terminal:write')
 
       // Should not throw
-      expect(() => writeHandler?.({}, 'nonexistent', 'data')).not.toThrow()
+      await expect(writeHandler?.({}, 'nonexistent', 'data')).resolves.not.toThrow()
       expect(writeMock).not.toHaveBeenCalled()
     })
 
-    it('silently ignores write with data exceeding max bytes (16KB)', () => {
+    it('silently ignores write with data exceeding max bytes (16KB)', async () => {
       registerTerminalHandlers()
       const writeHandler = getSendHandler('terminal:write')
 
       // 16 * 1024 = 16384 bytes max
       const oversizedData = 'x'.repeat(16 * 1024 + 1)
       // Should not throw or write
-      expect(() => writeHandler?.({}, 'some-id', oversizedData)).not.toThrow()
+      await expect(writeHandler?.({}, 'some-id', oversizedData)).resolves.not.toThrow()
       expect(writeMock).not.toHaveBeenCalled()
     })
 
@@ -275,17 +284,17 @@ describe('registerTerminalHandlers', () => {
 
       const id = await createHandler?.({}, '/tmp')
       const maxData = 'x'.repeat(16 * 1024)
-      writeHandler?.({}, id, maxData)
+      await writeHandler?.({}, id, maxData)
 
       expect(writeMock).toHaveBeenCalledWith(maxData)
     })
 
-    it('silently ignores empty write data', () => {
+    it('silently ignores empty write data', async () => {
       registerTerminalHandlers()
       const writeHandler = getSendHandler('terminal:write')
 
       // Empty string parses OK but is falsy; handler returns early
-      writeHandler?.({}, 'any-id', '')
+      await writeHandler?.({}, 'any-id', '')
       expect(writeMock).not.toHaveBeenCalled()
     })
   })

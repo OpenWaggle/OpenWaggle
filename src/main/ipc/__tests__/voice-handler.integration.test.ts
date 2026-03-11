@@ -1,8 +1,9 @@
+import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { safeHandleMock, getPathMock, mkdirMock, pipelineMock, transformersEnv } = vi.hoisted(
+const { typedHandleMock, getPathMock, mkdirMock, pipelineMock, transformersEnv } = vi.hoisted(
   () => ({
-    safeHandleMock: vi.fn(),
+    typedHandleMock: vi.fn(),
     getPathMock: vi.fn(() => '/tmp/openwaggle-user-data'),
     mkdirMock: vi.fn(async () => undefined),
     pipelineMock: vi.fn(),
@@ -26,7 +27,7 @@ const { safeHandleMock, getPathMock, mkdirMock, pipelineMock, transformersEnv } 
 )
 
 vi.mock('../typed-ipc', () => ({
-  safeHandle: safeHandleMock,
+  typedHandle: typedHandleMock,
 }))
 
 vi.mock('electron', () => ({
@@ -47,8 +48,12 @@ vi.mock('@xenova/transformers', () => ({
 import { registerVoiceHandlers, resetVoiceHandlerForTests } from '../voice-handler'
 
 function registeredHandler(name: string): ((...args: unknown[]) => Promise<unknown>) | undefined {
-  const call = safeHandleMock.mock.calls.find((c: unknown[]) => c[0] === name)
-  return call?.[1] as ((...args: unknown[]) => Promise<unknown>) | undefined
+  const call = typedHandleMock.mock.calls.find((c: unknown[]) => c[0] === name)
+  const handler = call?.[1]
+  if (typeof handler !== 'function') {
+    return undefined
+  }
+  return (...args: unknown[]) => Effect.runPromise(handler(...args))
 }
 
 function toPcm16(values: number[]): Uint8Array {
@@ -64,7 +69,7 @@ function toPcm16(values: number[]): Uint8Array {
 
 describe('registerVoiceHandlers', () => {
   beforeEach(() => {
-    safeHandleMock.mockReset()
+    typedHandleMock.mockReset()
     getPathMock.mockClear()
     mkdirMock.mockClear()
     pipelineMock.mockReset()

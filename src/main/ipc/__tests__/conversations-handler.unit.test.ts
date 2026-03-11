@@ -3,7 +3,7 @@ import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  typedHandleEffectMock,
+  typedHandleMock,
   cleanupConversationRunMock,
   listConversationsMock,
   getConversationMock,
@@ -15,7 +15,7 @@ const {
   updateConversationTitleMock,
   updateConversationProjectPathMock,
 } = vi.hoisted(() => ({
-  typedHandleEffectMock: vi.fn(),
+  typedHandleMock: vi.fn(),
   cleanupConversationRunMock: vi.fn(),
   listConversationsMock: vi.fn(),
   getConversationMock: vi.fn(),
@@ -29,7 +29,7 @@ const {
 }))
 
 vi.mock('../typed-ipc', () => ({
-  typedHandleEffect: typedHandleEffectMock,
+  typedHandle: typedHandleMock,
 }))
 
 vi.mock('../../agent/conversation-cleanup', () => ({
@@ -51,7 +51,7 @@ vi.mock('../../store/conversations', () => ({
 import { registerConversationsHandlers } from '../conversations-handler'
 
 function getInvokeHandler(name: string): ((...args: unknown[]) => Promise<unknown>) | undefined {
-  const call = typedHandleEffectMock.mock.calls.find(
+  const call = typedHandleMock.mock.calls.find(
     (candidate: readonly unknown[]) => candidate[0] === name && typeof candidate[1] === 'function',
   )
   const handler = call?.[1]
@@ -64,7 +64,7 @@ function getInvokeHandler(name: string): ((...args: unknown[]) => Promise<unknow
 
 describe('registerConversationsHandlers', () => {
   beforeEach(() => {
-    typedHandleEffectMock.mockReset()
+    typedHandleMock.mockReset()
     cleanupConversationRunMock.mockReset()
     listConversationsMock.mockReset()
     getConversationMock.mockReset()
@@ -80,7 +80,7 @@ describe('registerConversationsHandlers', () => {
   it('registers all expected IPC channels', () => {
     registerConversationsHandlers()
 
-    const channels = typedHandleEffectMock.mock.calls.map((args: unknown[]) => args[0])
+    const channels = typedHandleMock.mock.calls.map((args: unknown[]) => args[0])
     expect(channels).toContain('conversations:list')
     expect(channels).toContain('conversations:get')
     expect(channels).toContain('conversations:create')

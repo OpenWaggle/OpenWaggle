@@ -3,16 +3,16 @@ import type { WaggleTeamPreset } from '@shared/types/waggle'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { typedHandleEffectMock, listTeamPresetsMock, saveTeamPresetMock, deleteTeamPresetMock } =
+const { typedHandleMock, listTeamPresetsMock, saveTeamPresetMock, deleteTeamPresetMock } =
   vi.hoisted(() => ({
-    typedHandleEffectMock: vi.fn(),
+    typedHandleMock: vi.fn(),
     listTeamPresetsMock: vi.fn(),
     saveTeamPresetMock: vi.fn(),
     deleteTeamPresetMock: vi.fn(),
   }))
 
 vi.mock('../typed-ipc', () => ({
-  typedHandleEffect: typedHandleEffectMock,
+  typedHandle: typedHandleMock,
 }))
 
 vi.mock('../../store/teams', () => ({
@@ -24,7 +24,7 @@ vi.mock('../../store/teams', () => ({
 import { registerTeamsHandlers } from '../teams-handler'
 
 function getInvokeHandler(name: string): ((...args: unknown[]) => Promise<unknown>) | undefined {
-  const call = typedHandleEffectMock.mock.calls.find(
+  const call = typedHandleMock.mock.calls.find(
     (args: readonly unknown[]) => args[0] === name && typeof args[1] === 'function',
   )
   const handler = call?.[1]
@@ -66,7 +66,7 @@ function samplePreset(): WaggleTeamPreset {
 
 describe('registerTeamsHandlers', () => {
   beforeEach(() => {
-    typedHandleEffectMock.mockReset()
+    typedHandleMock.mockReset()
     listTeamPresetsMock.mockReset()
     saveTeamPresetMock.mockReset()
     deleteTeamPresetMock.mockReset()
@@ -75,7 +75,7 @@ describe('registerTeamsHandlers', () => {
   it('registers all expected IPC channels', () => {
     registerTeamsHandlers()
 
-    const channels = typedHandleEffectMock.mock.calls.map((args: unknown[]) => args[0])
+    const channels = typedHandleMock.mock.calls.map((args: unknown[]) => args[0])
     expect(channels).toContain('teams:list')
     expect(channels).toContain('teams:save')
     expect(channels).toContain('teams:delete')

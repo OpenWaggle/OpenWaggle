@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { BYTES_PER_KIBIBYTE, HEX_RADIX } from '@shared/constants/constants'
 import { decodeUnknownOrThrow, Schema, safeDecodeUnknown } from '@shared/schema'
+import * as Effect from 'effect/Effect'
 import type { IPty } from 'node-pty'
 import { getSafeChildEnv } from '../env'
 import { broadcastToWindows } from '../utils/broadcast'
@@ -66,64 +67,72 @@ function resolveTerminalCwd(projectPath: string): string {
 }
 
 export function registerTerminalHandlers(): void {
-  typedHandle('terminal:create', async (_event, projectPath: string) => {
-    const cwd = resolveTerminalCwd(projectPath)
-    const childEnv = getSafeChildEnv()
-    const shell = os.platform() === 'win32' ? 'powershell.exe' : (childEnv.SHELL ?? '/bin/zsh')
-    const id = randomUUID()
-    const pty = await getPty()
+  typedHandle('terminal:create', (_event, projectPath: string) =>
+    Effect.gen(function* () {
+      const cwd = resolveTerminalCwd(projectPath)
+      const childEnv = getSafeChildEnv()
+      const shell = os.platform() === 'win32' ? 'powershell.exe' : (childEnv.SHELL ?? '/bin/zsh')
+      const id = randomUUID()
+      const pty = yield* Effect.promise(() => getPty())
 
-    const proc = pty.spawn(shell, [], {
-      name: 'xterm-256color',
-      cols: COLS,
-      rows: ROWS,
-      cwd,
-      env: Object.fromEntries(
-        Object.entries(childEnv).filter(
-          (entry): entry is [string, string] => entry[1] !== undefined,
+      const proc = pty.spawn(shell, [], {
+        name: 'xterm-256color',
+        cols: COLS,
+        rows: ROWS,
+        cwd,
+        env: Object.fromEntries(
+          Object.entries(childEnv).filter(
+            (entry): entry is [string, string] => entry[1] !== undefined,
+          ),
         ),
-      ),
-    })
+      })
 
-    proc.onData((data: string) => {
-      broadcastToWindows('terminal:data', { terminalId: id, data })
-    })
+      proc.onData((data: string) => {
+        broadcastToWindows('terminal:data', { terminalId: id, data })
+      })
 
-    proc.onExit(() => {
-      terminals.delete(id)
-    })
+      proc.onExit(() => {
+        terminals.delete(id)
+      })
 
-    terminals.set(id, { id, process: proc })
-    return id
-  })
+      terminals.set(id, { id, process: proc })
+      return id
+    }),
+  )
 
-  typedHandle('terminal:close', (_event, terminalId: string) => {
-    const terminal = terminals.get(terminalId)
-    if (terminal) {
-      terminal.process.kill()
-      terminals.delete(terminalId)
-    }
-  })
+  typedHandle('terminal:close', (_event, terminalId: string) =>
+    Effect.sync(() => {
+      const terminal = terminals.get(terminalId)
+      if (terminal) {
+        terminal.process.kill()
+        terminals.delete(terminalId)
+      }
+    }),
+  )
 
-  typedHandle('terminal:resize', (_event, terminalId: string, cols: number, rows: number) => {
-    const parsed = decodeUnknownOrThrow(terminalResizeSchema, { cols, rows })
-    const terminal = terminals.get(terminalId)
-    if (terminal) {
-      terminal.process.resize(parsed.cols, parsed.rows)
-    }
-  })
+  typedHandle('terminal:resize', (_event, terminalId: string, cols: number, rows: number) =>
+    Effect.try(() => {
+      const parsed = decodeUnknownOrThrow(terminalResizeSchema, { cols, rows })
+      const terminal = terminals.get(terminalId)
+      if (terminal) {
+        terminal.process.resize(parsed.cols, parsed.rows)
+      }
+    }),
+  )
 
-  typedOn('terminal:write', (_event, terminalId: string, data: string) => {
-    const parsedData = safeDecodeUnknown(terminalWriteSchema, data)
-    if (!parsedData.success) {
-      return
-    }
-    if (!parsedData.data) return
-    const terminal = terminals.get(terminalId)
-    if (terminal) {
-      terminal.process.write(parsedData.data)
-    }
-  })
+  typedOn('terminal:write', (_event, terminalId: string, data: string) =>
+    Effect.sync(() => {
+      const parsedData = safeDecodeUnknown(terminalWriteSchema, data)
+      if (!parsedData.success) {
+        return
+      }
+      if (!parsedData.data) return
+      const terminal = terminals.get(terminalId)
+      if (terminal) {
+        terminal.process.write(parsedData.data)
+      }
+    }),
+  )
 }
 
 export function cleanupTerminals(): void {

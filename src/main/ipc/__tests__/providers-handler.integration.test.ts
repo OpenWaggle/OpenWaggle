@@ -1,3 +1,4 @@
+import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { typedHandleMock, getAllMock, getMock } = vi.hoisted(() => ({
@@ -19,9 +20,15 @@ vi.mock('../../providers', () => ({
 
 import { registerProvidersHandlers } from '../providers-handler'
 
-function registeredHandler(name: string): ((...args: unknown[]) => unknown) | undefined {
-  const call = typedHandleMock.mock.calls.find((c: unknown[]) => c[0] === name)
-  return call?.[1] as ((...args: unknown[]) => unknown) | undefined
+function registeredHandler(name: string): ((...args: unknown[]) => Promise<unknown>) | undefined {
+  const call = typedHandleMock.mock.calls.find(
+    (candidate: readonly unknown[]) => candidate[0] === name && typeof candidate[1] === 'function',
+  )
+  const handler = call?.[1]
+  if (typeof handler !== 'function') {
+    return undefined
+  }
+  return (...args: unknown[]) => Effect.runPromise(handler(...args))
 }
 
 describe('registerProvidersHandlers', () => {
@@ -31,7 +38,7 @@ describe('registerProvidersHandlers', () => {
     getMock.mockReset()
   })
 
-  it('registers providers:get-models and returns mapped display info', () => {
+  it('registers providers:get-models and returns mapped display info', async () => {
     getAllMock.mockReturnValue([
       {
         id: 'openai',
@@ -48,7 +55,7 @@ describe('registerProvidersHandlers', () => {
     const handler = registeredHandler('providers:get-models')
 
     expect(handler).toBeDefined()
-    const result = handler?.()
+    const result = await handler?.()
     expect(result).toEqual([
       {
         provider: 'openai',

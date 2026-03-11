@@ -10,7 +10,8 @@ import type {
   GitBranchRenamePayload,
   GitBranchSetUpstreamPayload,
 } from '@shared/types/git'
-import { safeHandle } from '../typed-ipc'
+import * as Effect from 'effect/Effect'
+import { typedHandle } from '../typed-ipc'
 import { isGitRepository, projectPathSchema, runGit } from './shared'
 
 const PARSE_INT_ARG_2 = 10
@@ -337,38 +338,50 @@ const branchSetUpstreamPayloadSchema = Schema.Struct({
 })
 
 export function registerGitBranchHandlers(): void {
-  safeHandle('git:branches:list', async (_event, rawPath: unknown) => {
-    const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
-    return listGitBranches(projectPath)
-  })
+  typedHandle('git:branches:list', (_event, rawPath: unknown) =>
+    Effect.gen(function* () {
+      const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
+      return yield* Effect.promise(() => listGitBranches(projectPath))
+    }),
+  )
 
-  safeHandle('git:branches:checkout', async (_event, rawPath: unknown, rawPayload: unknown) => {
-    const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
-    const payload = decodeUnknownOrThrow(branchCheckoutPayloadSchema, rawPayload)
-    return checkoutGitBranch(projectPath, payload)
-  })
+  typedHandle('git:branches:checkout', (_event, rawPath: unknown, rawPayload: unknown) =>
+    Effect.gen(function* () {
+      const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
+      const payload = decodeUnknownOrThrow(branchCheckoutPayloadSchema, rawPayload)
+      return yield* Effect.promise(() => checkoutGitBranch(projectPath, payload))
+    }),
+  )
 
-  safeHandle('git:branches:create', async (_event, rawPath: unknown, rawPayload: unknown) => {
-    const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
-    const payload = decodeUnknownOrThrow(branchCreatePayloadSchema, rawPayload)
-    return createGitBranch(projectPath, payload)
-  })
+  typedHandle('git:branches:create', (_event, rawPath: unknown, rawPayload: unknown) =>
+    Effect.gen(function* () {
+      const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
+      const payload = decodeUnknownOrThrow(branchCreatePayloadSchema, rawPayload)
+      return yield* Effect.promise(() => createGitBranch(projectPath, payload))
+    }),
+  )
 
-  safeHandle('git:branches:rename', async (_event, rawPath: unknown, rawPayload: unknown) => {
-    const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
-    const payload = decodeUnknownOrThrow(branchRenamePayloadSchema, rawPayload)
-    return renameGitBranch(projectPath, payload)
-  })
+  typedHandle('git:branches:rename', (_event, rawPath: unknown, rawPayload: unknown) =>
+    Effect.gen(function* () {
+      const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
+      const payload = decodeUnknownOrThrow(branchRenamePayloadSchema, rawPayload)
+      return yield* Effect.promise(() => renameGitBranch(projectPath, payload))
+    }),
+  )
 
-  safeHandle('git:branches:delete', async (_event, rawPath: unknown, rawPayload: unknown) => {
-    const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
-    const payload = decodeUnknownOrThrow(branchDeletePayloadSchema, rawPayload)
-    return deleteGitBranch(projectPath, payload)
-  })
+  typedHandle('git:branches:delete', (_event, rawPath: unknown, rawPayload: unknown) =>
+    Effect.gen(function* () {
+      const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
+      const payload = decodeUnknownOrThrow(branchDeletePayloadSchema, rawPayload)
+      return yield* Effect.promise(() => deleteGitBranch(projectPath, payload))
+    }),
+  )
 
-  safeHandle('git:branches:set-upstream', async (_event, rawPath: unknown, rawPayload: unknown) => {
-    const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
-    const payload = decodeUnknownOrThrow(branchSetUpstreamPayloadSchema, rawPayload)
-    return setGitBranchUpstream(projectPath, payload)
-  })
+  typedHandle('git:branches:set-upstream', (_event, rawPath: unknown, rawPayload: unknown) =>
+    Effect.gen(function* () {
+      const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
+      const payload = decodeUnknownOrThrow(branchSetUpstreamPayloadSchema, rawPayload)
+      return yield* Effect.promise(() => setGitBranchUpstream(projectPath, payload))
+    }),
+  )
 }

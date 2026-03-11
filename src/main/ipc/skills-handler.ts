@@ -1,4 +1,5 @@
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
+import * as Effect from 'effect/Effect'
 import {
   loadSkillCatalog,
   loadSkillInstructions,
@@ -7,66 +8,76 @@ import {
 import { loadAgentsInstruction } from '../standards/agents-loader'
 import { resolveAgentsChainForPath, resolveAgentsForRun } from '../standards/agents-resolver'
 import { getSettings, updateSettings } from '../store/settings'
-import { safeHandle } from './typed-ipc'
+import { typedHandle } from './typed-ipc'
 
 const projectPathSchema = Schema.String.pipe(Schema.minLength(1))
 const skillIdSchema = Schema.String.pipe(Schema.minLength(1))
 
 export function registerSkillsHandlers(): void {
-  safeHandle('standards:get-status', async (_event, rawProjectPath: string) => {
-    const projectPath = decodeUnknownOrThrow(projectPathSchema, rawProjectPath)
-    const agents = await loadAgentsInstruction(projectPath)
-    return {
-      agents: agents.status,
-      agentsPath: agents.filePath,
-      error: agents.error,
-    }
-  })
-
-  safeHandle(
-    'standards:get-effective-agents',
-    async (_event, rawProjectPath: string, rawTargetPath?: string) => {
+  typedHandle('standards:get-status', (_event, rawProjectPath: string) =>
+    Effect.gen(function* () {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawProjectPath)
-      if (typeof rawTargetPath === 'string' && rawTargetPath.trim().length > 0) {
-        return resolveAgentsChainForPath(projectPath, rawTargetPath)
+      const agents = yield* Effect.promise(() => loadAgentsInstruction(projectPath))
+      return {
+        agents: agents.status,
+        agentsPath: agents.filePath,
+        error: agents.error,
       }
-      return resolveAgentsForRun(projectPath, [])
-    },
+    }),
   )
 
-  safeHandle('skills:list', async (_event, rawProjectPath: string) => {
-    const projectPath = decodeUnknownOrThrow(projectPathSchema, rawProjectPath)
-    const settings = getSettings()
-    const toggles = settings.skillTogglesByProject[projectPath] ?? {}
-    const catalog = await loadSkillCatalog(projectPath, toggles)
-    return toSkillCatalogResult(catalog)
-  })
+  typedHandle(
+    'standards:get-effective-agents',
+    (_event, rawProjectPath: string, rawTargetPath?: string) =>
+      Effect.gen(function* () {
+        const projectPath = decodeUnknownOrThrow(projectPathSchema, rawProjectPath)
+        if (typeof rawTargetPath === 'string' && rawTargetPath.trim().length > 0) {
+          return yield* Effect.promise(() => resolveAgentsChainForPath(projectPath, rawTargetPath))
+        }
+        return yield* Effect.promise(() => resolveAgentsForRun(projectPath, []))
+      }),
+  )
 
-  safeHandle(
+  typedHandle('skills:list', (_event, rawProjectPath: string) =>
+    Effect.gen(function* () {
+      const projectPath = decodeUnknownOrThrow(projectPathSchema, rawProjectPath)
+      const settings = getSettings()
+      const toggles = settings.skillTogglesByProject[projectPath] ?? {}
+      const catalog = yield* Effect.promise(() => loadSkillCatalog(projectPath, toggles))
+      return toSkillCatalogResult(catalog)
+    }),
+  )
+
+  typedHandle(
     'skills:set-enabled',
-    (_event, rawProjectPath: string, rawSkillId: string, enabled: boolean) => {
+    (_event, rawProjectPath: string, rawSkillId: string, enabled: boolean) =>
+      Effect.sync(() => {
+        const projectPath = decodeUnknownOrThrow(projectPathSchema, rawProjectPath)
+        const skillId = decodeUnknownOrThrow(skillIdSchema, rawSkillId)
+
+        const settings = getSettings()
+        const nextSkillTogglesByProject = { ...settings.skillTogglesByProject }
+        const projectToggles = { ...(nextSkillTogglesByProject[projectPath] ?? {}) }
+        projectToggles[skillId] = enabled
+        nextSkillTogglesByProject[projectPath] = projectToggles
+
+        updateSettings({
+          skillTogglesByProject: nextSkillTogglesByProject,
+        })
+      }),
+  )
+
+  typedHandle('skills:get-preview', (_event, rawProjectPath: string, rawSkillId: string) =>
+    Effect.gen(function* () {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawProjectPath)
       const skillId = decodeUnknownOrThrow(skillIdSchema, rawSkillId)
 
       const settings = getSettings()
-      const nextSkillTogglesByProject = { ...settings.skillTogglesByProject }
-      const projectToggles = { ...(nextSkillTogglesByProject[projectPath] ?? {}) }
-      projectToggles[skillId] = enabled
-      nextSkillTogglesByProject[projectPath] = projectToggles
-
-      updateSettings({
-        skillTogglesByProject: nextSkillTogglesByProject,
-      })
-    },
+      const toggles = settings.skillTogglesByProject[projectPath] ?? {}
+      const skill = yield* Effect.promise(() =>
+        loadSkillInstructions(projectPath, skillId, toggles),
+      )
+      return { markdown: skill.instructions }
+    }),
   )
-
-  safeHandle('skills:get-preview', async (_event, rawProjectPath: string, rawSkillId: string) => {
-    const projectPath = decodeUnknownOrThrow(projectPathSchema, rawProjectPath)
-    const skillId = decodeUnknownOrThrow(skillIdSchema, rawSkillId)
-
-    const settings = getSettings()
-    const toggles = settings.skillTogglesByProject[projectPath] ?? {}
-    const skill = await loadSkillInstructions(projectPath, skillId, toggles)
-    return { markdown: skill.instructions }
-  })
 }

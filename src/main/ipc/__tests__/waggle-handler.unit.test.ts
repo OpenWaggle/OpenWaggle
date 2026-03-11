@@ -2,6 +2,7 @@ import { ConversationId, MessageId, SupportedModelId } from '@shared/types/brand
 import type { Conversation } from '@shared/types/conversation'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import type { WaggleConfig } from '@shared/types/waggle'
+import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -101,13 +102,21 @@ vi.mock('../../logger', () => ({
 import { registerWaggleHandlers } from '../waggle-handler'
 
 function getInvokeHandler(name: string): ((...args: unknown[]) => Promise<unknown>) | undefined {
-  const call = typedHandleMock.mock.calls.find((c: unknown[]) => c[0] === name)
-  return call?.[1] as ((...args: unknown[]) => Promise<unknown>) | undefined
+  const call = typedHandleMock.mock.calls.find(
+    (candidate: readonly unknown[]) => candidate[0] === name && typeof candidate[1] === 'function',
+  )
+  const handler = call?.[1]
+  if (typeof handler !== 'function') {
+    return undefined
+  }
+  return (...args: unknown[]) => Effect.runPromise(handler(...args))
 }
 
-function getSendHandler(name: string): ((...args: unknown[]) => void) | undefined {
+function getSendHandler(name: string): ((...args: unknown[]) => Promise<void>) | undefined {
   const call = typedOnMock.mock.calls.find((c: unknown[]) => c[0] === name)
-  return call?.[1] as ((...args: unknown[]) => void) | undefined
+  const handler = call?.[1]
+  if (typeof handler !== 'function') return undefined
+  return (...args: unknown[]) => Effect.runPromise(handler(...args))
 }
 
 function validWaggleConfig(): WaggleConfig {
@@ -661,7 +670,7 @@ describe('registerWaggleHandlers', () => {
       await new Promise((resolve) => setTimeout(resolve, 10))
 
       // Cancel it
-      cancelHandler?.({}, ConversationId('conv-1'))
+      await cancelHandler?.({}, ConversationId('conv-1'))
       expect(clearAgentPhaseMock).toHaveBeenCalledWith(ConversationId('conv-1'))
 
       // The signal should be aborted
@@ -671,12 +680,12 @@ describe('registerWaggleHandlers', () => {
       await runPromise
     })
 
-    it('silently ignores cancel for non-existent conversation', () => {
+    it('silently ignores cancel for non-existent conversation', async () => {
       registerWaggleHandlers()
       const cancelHandler = getSendHandler('agent:cancel-waggle')
 
       // Should not throw
-      expect(() => cancelHandler?.({}, ConversationId('nonexistent'))).not.toThrow()
+      await expect(cancelHandler?.({}, ConversationId('nonexistent'))).resolves.not.toThrow()
       expect(clearAgentPhaseMock).toHaveBeenCalledWith(ConversationId('nonexistent'))
     })
   })

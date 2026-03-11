@@ -1,28 +1,17 @@
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  typedHandleMock,
-  typedHandleEffectMock,
-  safeHandleMock,
-  getSettingsMock,
-  updateSettingsMock,
-  providerRegistryGetMock,
-  chatMock,
-} = vi.hoisted(() => ({
-  typedHandleMock: vi.fn(),
-  typedHandleEffectMock: vi.fn(),
-  safeHandleMock: vi.fn(),
-  getSettingsMock: vi.fn(),
-  updateSettingsMock: vi.fn(),
-  providerRegistryGetMock: vi.fn(),
-  chatMock: vi.fn(),
-}))
+const { typedHandleMock, getSettingsMock, updateSettingsMock, providerRegistryGetMock, chatMock } =
+  vi.hoisted(() => ({
+    typedHandleMock: vi.fn(),
+    getSettingsMock: vi.fn(),
+    updateSettingsMock: vi.fn(),
+    providerRegistryGetMock: vi.fn(),
+    chatMock: vi.fn(),
+  }))
 
 vi.mock('../typed-ipc', () => ({
   typedHandle: typedHandleMock,
-  typedHandleEffect: typedHandleEffectMock,
-  safeHandle: safeHandleMock,
 }))
 
 vi.mock('../../store/settings', () => ({
@@ -52,32 +41,11 @@ vi.mock('../../logger', () => ({
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { registerSettingsHandlers } from '../settings-handler'
 
-function isNamedHandlerCall(call: readonly unknown[], name: string): boolean {
-  return call[0] === name && typeof call[1] === 'function'
-}
-
-function getRegisteredHandler(
-  calls: readonly (readonly unknown[])[],
-  name: string,
-): ((...args: unknown[]) => unknown) | undefined {
-  const call = calls.find((candidate) => isNamedHandlerCall(candidate, name))
-  const handler = call?.[1]
-  if (typeof handler !== 'function') {
-    return undefined
-  }
-
-  return (...args: unknown[]) => handler(...args)
-}
-
-function getTypedInvokeHandler(name: string): ((...args: unknown[]) => unknown) | undefined {
-  return getRegisteredHandler(typedHandleMock.mock.calls, name)
-}
-
 function getTypedEffectInvokeHandler(
   name: string,
 ): ((...args: unknown[]) => Promise<unknown>) | undefined {
-  const call = typedHandleEffectMock.mock.calls.find((candidate) =>
-    isNamedHandlerCall(candidate, name),
+  const call = typedHandleMock.mock.calls.find(
+    (candidate: readonly unknown[]) => candidate[0] === name && typeof candidate[1] === 'function',
   )
   const handler = call?.[1]
   if (typeof handler !== 'function') {
@@ -87,15 +55,9 @@ function getTypedEffectInvokeHandler(
   return (...args: unknown[]) => Effect.runPromise(handler(...args))
 }
 
-function getSafeInvokeHandler(name: string): ((...args: unknown[]) => unknown) | undefined {
-  return getRegisteredHandler(safeHandleMock.mock.calls, name)
-}
-
 describe('registerSettingsHandlers', () => {
   beforeEach(() => {
     typedHandleMock.mockReset()
-    typedHandleEffectMock.mockReset()
-    safeHandleMock.mockReset()
     getSettingsMock.mockReset()
     updateSettingsMock.mockReset()
     providerRegistryGetMock.mockReset()
@@ -105,19 +67,13 @@ describe('registerSettingsHandlers', () => {
   it('registers all expected IPC channels', () => {
     registerSettingsHandlers()
 
-    const typedChannels = typedHandleMock.mock.calls
-      .map((call) => (typeof call[0] === 'string' ? call[0] : ''))
-      .filter(Boolean)
-    const typedEffectChannels = typedHandleEffectMock.mock.calls
-      .map((call) => (typeof call[0] === 'string' ? call[0] : ''))
-      .filter(Boolean)
-    const safeChannels = safeHandleMock.mock.calls
+    const typedEffectChannels = typedHandleMock.mock.calls
       .map((call) => (typeof call[0] === 'string' ? call[0] : ''))
       .filter(Boolean)
 
     expect(typedEffectChannels).toContain('settings:get')
-    expect(typedChannels).toContain('settings:test-api-key')
-    expect(safeChannels).toContain('settings:update')
+    expect(typedEffectChannels).toContain('settings:update')
+    expect(typedEffectChannels).toContain('settings:test-api-key')
   })
 
   describe('settings:get', () => {
@@ -135,17 +91,17 @@ describe('registerSettingsHandlers', () => {
   })
 
   describe('settings:update', () => {
-    it('validates and applies a valid settings update', () => {
+    it('validates and applies a valid settings update', async () => {
       registerSettingsHandlers()
 
-      const handler = getSafeInvokeHandler('settings:update')
+      const handler = getTypedEffectInvokeHandler('settings:update')
       expect(handler).toBeDefined()
 
       const payload = {
         executionMode: 'full-access',
         qualityPreset: 'high',
       }
-      const result = handler?.({}, payload)
+      const result = await handler?.({}, payload)
       expect(result).toEqual({ ok: true })
       expect(updateSettingsMock).toHaveBeenCalledOnce()
       expect(updateSettingsMock).toHaveBeenCalledWith(
@@ -156,16 +112,16 @@ describe('registerSettingsHandlers', () => {
       )
     })
 
-    it('rejects an invalid settings payload and returns error', () => {
+    it('rejects an invalid settings payload and returns error', async () => {
       registerSettingsHandlers()
 
-      const handler = getSafeInvokeHandler('settings:update')
+      const handler = getTypedEffectInvokeHandler('settings:update')
       expect(handler).toBeDefined()
 
       const payload = {
         executionMode: 'invalid-mode',
       }
-      const result = handler?.({}, payload)
+      const result = await handler?.({}, payload)
       expect(result).toEqual({
         ok: false,
         error: expect.any(String),
@@ -173,14 +129,14 @@ describe('registerSettingsHandlers', () => {
       expect(updateSettingsMock).not.toHaveBeenCalled()
     })
 
-    it('converts defaultModel string to SupportedModelId', () => {
+    it('converts defaultModel string to SupportedModelId', async () => {
       registerSettingsHandlers()
 
-      const handler = getSafeInvokeHandler('settings:update')
+      const handler = getTypedEffectInvokeHandler('settings:update')
       expect(handler).toBeDefined()
 
       const payload = { defaultModel: 'gpt-4.1-mini' }
-      handler?.({}, payload)
+      await handler?.({}, payload)
 
       expect(updateSettingsMock).toHaveBeenCalledOnce()
       const call = updateSettingsMock.mock.calls[0][0]
@@ -188,26 +144,26 @@ describe('registerSettingsHandlers', () => {
       expect(call.defaultModel).toBe('gpt-4.1-mini')
     })
 
-    it('converts favoriteModels strings to SupportedModelId array', () => {
+    it('converts favoriteModels strings to SupportedModelId array', async () => {
       registerSettingsHandlers()
 
-      const handler = getSafeInvokeHandler('settings:update')
+      const handler = getTypedEffectInvokeHandler('settings:update')
       expect(handler).toBeDefined()
 
       const payload = {
         favoriteModels: ['claude-sonnet-4-5', 'gpt-4.1-mini'],
       }
-      handler?.({}, payload)
+      await handler?.({}, payload)
 
       expect(updateSettingsMock).toHaveBeenCalledOnce()
       const call = updateSettingsMock.mock.calls[0][0]
       expect(call.favoriteModels).toEqual(['claude-sonnet-4-5', 'gpt-4.1-mini'])
     })
 
-    it('validates provider configs within the update', () => {
+    it('validates provider configs within the update', async () => {
       registerSettingsHandlers()
 
-      const handler = getSafeInvokeHandler('settings:update')
+      const handler = getTypedEffectInvokeHandler('settings:update')
       expect(handler).toBeDefined()
 
       const payload = {
@@ -215,15 +171,15 @@ describe('registerSettingsHandlers', () => {
           anthropic: { apiKey: 'sk-test-key', enabled: true },
         },
       }
-      const result = handler?.({}, payload)
+      const result = await handler?.({}, payload)
       expect(result).toEqual({ ok: true })
       expect(updateSettingsMock).toHaveBeenCalledOnce()
     })
 
-    it('rejects invalid provider baseUrl', () => {
+    it('rejects invalid provider baseUrl', async () => {
       registerSettingsHandlers()
 
-      const handler = getSafeInvokeHandler('settings:update')
+      const handler = getTypedEffectInvokeHandler('settings:update')
       expect(handler).toBeDefined()
 
       const payload = {
@@ -235,7 +191,7 @@ describe('registerSettingsHandlers', () => {
           },
         },
       }
-      const result = handler?.({}, payload)
+      const result = await handler?.({}, payload)
       expect(result).toEqual({
         ok: false,
         error: expect.any(String),
@@ -243,10 +199,10 @@ describe('registerSettingsHandlers', () => {
       expect(updateSettingsMock).not.toHaveBeenCalled()
     })
 
-    it('allows empty string baseUrl (coerced to undefined)', () => {
+    it('allows empty string baseUrl (coerced to undefined)', async () => {
       registerSettingsHandlers()
 
-      const handler = getSafeInvokeHandler('settings:update')
+      const handler = getTypedEffectInvokeHandler('settings:update')
       expect(handler).toBeDefined()
 
       const payload = {
@@ -254,29 +210,29 @@ describe('registerSettingsHandlers', () => {
           anthropic: { apiKey: 'sk-test', baseUrl: '', enabled: true },
         },
       }
-      const result = handler?.({}, payload)
+      const result = await handler?.({}, payload)
       expect(result).toEqual({ ok: true })
       expect(updateSettingsMock).toHaveBeenCalledOnce()
     })
 
-    it('accepts projectPath as null', () => {
+    it('accepts projectPath as null', async () => {
       registerSettingsHandlers()
 
-      const handler = getSafeInvokeHandler('settings:update')
+      const handler = getTypedEffectInvokeHandler('settings:update')
       expect(handler).toBeDefined()
 
       const payload = { projectPath: null }
-      const result = handler?.({}, payload)
+      const result = await handler?.({}, payload)
       expect(result).toEqual({ ok: true })
       expect(updateSettingsMock).toHaveBeenCalledWith(
         expect.objectContaining({ projectPath: null }),
       )
     })
 
-    it('accepts skillTogglesByProject update', () => {
+    it('accepts skillTogglesByProject update', async () => {
       registerSettingsHandlers()
 
-      const handler = getSafeInvokeHandler('settings:update')
+      const handler = getTypedEffectInvokeHandler('settings:update')
       expect(handler).toBeDefined()
 
       const payload = {
@@ -284,7 +240,7 @@ describe('registerSettingsHandlers', () => {
           '/tmp/repo': { 'skill-a': true, 'skill-b': false },
         },
       }
-      const result = handler?.({}, payload)
+      const result = await handler?.({}, payload)
       expect(result).toEqual({ ok: true })
       expect(updateSettingsMock).toHaveBeenCalledOnce()
     })
@@ -295,7 +251,7 @@ describe('registerSettingsHandlers', () => {
       providerRegistryGetMock.mockReturnValue(undefined)
       registerSettingsHandlers()
 
-      const handler = getTypedInvokeHandler('settings:test-api-key')
+      const handler = getTypedEffectInvokeHandler('settings:test-api-key')
       expect(handler).toBeDefined()
 
       const result = await handler?.({}, 'nonexistent', 'some-key')
@@ -312,7 +268,7 @@ describe('registerSettingsHandlers', () => {
       })
       registerSettingsHandlers()
 
-      const handler = getTypedInvokeHandler('settings:test-api-key')
+      const handler = getTypedEffectInvokeHandler('settings:test-api-key')
       const result = await handler?.({}, 'ollama', '')
       expect(result).toEqual({ success: true })
     })
@@ -325,7 +281,7 @@ describe('registerSettingsHandlers', () => {
       })
       registerSettingsHandlers()
 
-      const handler = getTypedInvokeHandler('settings:test-api-key')
+      const handler = getTypedEffectInvokeHandler('settings:test-api-key')
       const result = await handler?.({}, 'ollama', '', 'http://localhost:11434')
       expect(result).toEqual({ success: true })
     })
@@ -338,7 +294,7 @@ describe('registerSettingsHandlers', () => {
       })
       registerSettingsHandlers()
 
-      const handler = getTypedInvokeHandler('settings:test-api-key')
+      const handler = getTypedEffectInvokeHandler('settings:test-api-key')
       const result = await handler?.({}, 'ollama', '')
       expect(result).toEqual({
         success: false,
@@ -354,7 +310,7 @@ describe('registerSettingsHandlers', () => {
       })
       registerSettingsHandlers()
 
-      const handler = getTypedInvokeHandler('settings:test-api-key')
+      const handler = getTypedEffectInvokeHandler('settings:test-api-key')
       const result = await handler?.({}, 'ollama', '')
       expect(result).toEqual({
         success: false,
@@ -389,7 +345,7 @@ describe('registerSettingsHandlers', () => {
 
       registerSettingsHandlers()
 
-      const handler = getTypedInvokeHandler('settings:test-api-key')
+      const handler = getTypedEffectInvokeHandler('settings:test-api-key')
       const result = await handler?.({}, 'anthropic', 'sk-ant-test-key')
       expect(result).toEqual({ success: true })
       expect(chatMock).toHaveBeenCalledWith(
@@ -430,7 +386,7 @@ describe('registerSettingsHandlers', () => {
 
       registerSettingsHandlers()
 
-      const handler = getTypedInvokeHandler('settings:test-api-key')
+      const handler = getTypedEffectInvokeHandler('settings:test-api-key')
       const result = await handler?.({}, 'anthropic', 'bad-key')
       expect(result).toEqual({
         success: false,
@@ -464,7 +420,7 @@ describe('registerSettingsHandlers', () => {
 
       registerSettingsHandlers()
 
-      const handler = getTypedInvokeHandler('settings:test-api-key')
+      const handler = getTypedEffectInvokeHandler('settings:test-api-key')
       const result = await handler?.({}, 'anthropic', 'sk-key')
       expect(result).toEqual({
         success: false,
@@ -484,7 +440,7 @@ describe('registerSettingsHandlers', () => {
 
       registerSettingsHandlers()
 
-      const handler = getTypedInvokeHandler('settings:test-api-key')
+      const handler = getTypedEffectInvokeHandler('settings:test-api-key')
       const result = await handler?.({}, 'anthropic', 'sk-key')
       expect(result).toEqual({
         success: false,
@@ -512,7 +468,7 @@ describe('registerSettingsHandlers', () => {
 
       registerSettingsHandlers()
 
-      const handler = getTypedInvokeHandler('settings:test-api-key')
+      const handler = getTypedEffectInvokeHandler('settings:test-api-key')
       await handler?.({}, 'openai', 'sk-key', 'https://custom.api.com')
 
       expect(createAdapterMock).toHaveBeenCalledWith(

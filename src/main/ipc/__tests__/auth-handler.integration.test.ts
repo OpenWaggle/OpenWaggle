@@ -1,3 +1,4 @@
+import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockHandle = vi.hoisted(() => vi.fn())
@@ -5,6 +6,11 @@ const mockHandle = vi.hoisted(() => vi.fn())
 vi.mock('electron', () => ({
   ipcMain: { handle: mockHandle, on: vi.fn() },
   BrowserWindow: { getAllWindows: () => [] },
+}))
+
+vi.mock('../../runtime', () => ({
+  runAppEffectExit: (effect: Effect.Effect<unknown, unknown, never>) =>
+    Effect.runPromiseExit(effect),
 }))
 
 vi.mock('../../logger', () => ({
@@ -16,7 +22,7 @@ vi.mock('../../auth', () => ({
   startAuthLifecycle: vi.fn(() => vi.fn()),
   disconnect: vi.fn(),
   submitCode: vi.fn(),
-  getAccountInfo: vi.fn().mockReturnValue({
+  getAccountInfo: vi.fn().mockResolvedValue({
     provider: 'openrouter',
     connected: false,
     label: 'Not connected',
@@ -79,7 +85,7 @@ describe('auth-handler', () => {
       (call: unknown[]) => call[0] === 'auth:disconnect',
     )?.[1] as (event: unknown, provider: string) => unknown
 
-    disconnectHandler({}, 'openai')
+    await disconnectHandler({}, 'openai')
     expect(disconnect).toHaveBeenCalledWith('openai')
   })
 })

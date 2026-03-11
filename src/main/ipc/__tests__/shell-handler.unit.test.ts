@@ -1,3 +1,4 @@
+import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockShellOpenPath = vi.fn()
@@ -18,6 +19,12 @@ vi.mock('electron', () => ({
     },
     on: vi.fn(),
   },
+}))
+
+vi.mock('../../runtime', () => ({
+  runAppEffect: (effect: Effect.Effect<unknown, unknown, never>) => Effect.runPromise(effect),
+  runAppEffectExit: (effect: Effect.Effect<unknown, unknown, never>) =>
+    Effect.runPromiseExit(effect),
 }))
 
 vi.mock('../../logger', () => ({
@@ -50,43 +57,43 @@ describe('shell-handler', () => {
   })
 
   describe('app:open-logs-dir', () => {
-    it('calls shell.openPath with the logs directory', () => {
+    it('calls shell.openPath with the logs directory', async () => {
       registerShellHandlers()
 
       const handler = handlers.get('app:open-logs-dir')
       expect(handler).toBeDefined()
-      handler?.({})
+      await handler?.({})
       expect(mockShellOpenPath).toHaveBeenCalledWith('/tmp/logs')
       expect(mockAppGetPath).toHaveBeenCalledWith('logs')
     })
 
-    it('uses the path returned by app.getPath', () => {
+    it('uses the path returned by app.getPath', async () => {
       mockAppGetPath.mockReturnValue('/custom/log/dir')
       registerShellHandlers()
 
       const handler = handlers.get('app:open-logs-dir')
-      handler?.({})
+      await handler?.({})
       expect(mockShellOpenPath).toHaveBeenCalledWith('/custom/log/dir')
     })
   })
 
   describe('app:get-logs-path', () => {
-    it('returns app.getPath("logs")', () => {
+    it('returns app.getPath("logs")', async () => {
       registerShellHandlers()
 
       const handler = handlers.get('app:get-logs-path')
       expect(handler).toBeDefined()
-      const result = handler?.()
+      const result = await handler?.()
       expect(mockAppGetPath).toHaveBeenCalledWith('logs')
       expect(result).toBe('/tmp/logs')
     })
 
-    it('reflects the current logs path dynamically', () => {
+    it('reflects the current logs path dynamically', async () => {
       mockAppGetPath.mockReturnValue('/another/path')
       registerShellHandlers()
 
       const handler = handlers.get('app:get-logs-path')
-      const result = handler?.()
+      const result = await handler?.()
       expect(result).toBe('/another/path')
     })
   })

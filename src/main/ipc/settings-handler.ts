@@ -8,7 +8,7 @@ import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
 import { providerRegistry } from '../providers'
 import { getSettings, updateSettings } from '../store/settings'
-import { safeHandle, typedHandle, typedHandleEffect } from './typed-ipc'
+import { typedHandle } from './typed-ipc'
 
 const logger = createLogger('ipc-settings')
 
@@ -198,37 +198,38 @@ function hasProviderValidationError(
 }
 
 export function registerSettingsHandlers(): void {
-  typedHandleEffect('settings:get', () => Effect.sync(() => getSettings()))
+  typedHandle('settings:get', () => Effect.sync(() => getSettings()))
 
-  safeHandle('settings:update', (_event, raw: unknown) => {
-    const result = safeDecodeUnknown(settingsUpdateSchema, raw)
-    if (!result.success) {
-      const error = result.issues.join('; ')
-      logger.warn('Invalid settings update payload', { error })
-      return { ok: false, error }
-    }
+  typedHandle('settings:update', (_event, raw: unknown) =>
+    Effect.sync(() => {
+      const result = safeDecodeUnknown(settingsUpdateSchema, raw)
+      if (!result.success) {
+        const error = result.issues.join('; ')
+        logger.warn('Invalid settings update payload', { error })
+        return { ok: false, error } satisfies { ok: false; error: string }
+      }
 
-    const providers = normalizeProviderUpdates(result.data.providers)
-    if (providers && 'error' in providers) {
-      logger.warn('Invalid settings update payload', { error: providers.error })
-      return { ok: false, error: providers.error }
-    }
+      const providers = normalizeProviderUpdates(result.data.providers)
+      if (providers && 'error' in providers) {
+        logger.warn('Invalid settings update payload', { error: providers.error })
+        return { ok: false, error: providers.error } satisfies { ok: false; error: string }
+      }
 
-    updateSettings({
-      ...result.data,
-      providers,
-      defaultModel: result.data.defaultModel
-        ? SupportedModelId(result.data.defaultModel)
-        : undefined,
-      favoriteModels: result.data.favoriteModels?.map(SupportedModelId),
-    })
-    return { ok: true }
-  })
+      updateSettings({
+        ...result.data,
+        providers,
+        defaultModel: result.data.defaultModel
+          ? SupportedModelId(result.data.defaultModel)
+          : undefined,
+        favoriteModels: result.data.favoriteModels?.map(SupportedModelId),
+      })
+      return { ok: true } satisfies { ok: true }
+    }),
+  )
 
   typedHandle(
     'settings:test-api-key',
-    async (_event, provider: string, apiKey: string, baseUrl?: string) => {
-      return testProviderApiKey(provider, apiKey, baseUrl)
-    },
+    (_event, provider: string, apiKey: string, baseUrl?: string) =>
+      Effect.promise(() => testProviderApiKey(provider, apiKey, baseUrl)),
   )
 }

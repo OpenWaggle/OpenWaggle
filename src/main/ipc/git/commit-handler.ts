@@ -1,6 +1,7 @@
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type { GitCommitFailure, GitCommitPayload, GitCommitResult } from '@shared/types/git'
-import { safeHandle } from '../typed-ipc'
+import * as Effect from 'effect/Effect'
+import { typedHandle } from '../typed-ipc'
 import { isGitRepository, projectPathSchema, runGit } from './shared'
 import { invalidateGitStatusCache } from './status-handler'
 
@@ -82,13 +83,15 @@ const commitPayloadSchema = Schema.Struct({
 })
 
 export function registerGitCommitHandlers(): void {
-  safeHandle('git:commit', async (_event, rawPath: unknown, rawPayload: unknown) => {
-    const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
-    const payload = decodeUnknownOrThrow(commitPayloadSchema, rawPayload)
-    const result = await commitGit(projectPath, payload)
-    if (result.ok) {
-      invalidateGitStatusCache(projectPath)
-    }
-    return result
-  })
+  typedHandle('git:commit', (_event, rawPath: unknown, rawPayload: unknown) =>
+    Effect.gen(function* () {
+      const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
+      const payload = decodeUnknownOrThrow(commitPayloadSchema, rawPayload)
+      const result = yield* Effect.promise(() => commitGit(projectPath, payload))
+      if (result.ok) {
+        invalidateGitStatusCache(projectPath)
+      }
+      return result
+    }),
+  )
 }
