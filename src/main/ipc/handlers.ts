@@ -14,6 +14,7 @@ import { registerShellHandlers } from './shell-handler'
 import { registerSkillsHandlers } from './skills-handler'
 import { registerTeamsHandlers } from './teams-handler'
 import { registerTerminalHandlers } from './terminal-handler'
+import { registerUpdaterHandlers } from './updater-handler'
 import { registerVoiceHandlers } from './voice-handler'
 import { registerWaggleHandlers } from './waggle-handler'
 
@@ -38,4 +39,5 @@ export function registerAllIpcHandlers(): void {
   registerTeamsHandlers()
   registerMcpHandlers()
   registerFeedbackHandlers()
+  registerUpdaterHandlers()
 }

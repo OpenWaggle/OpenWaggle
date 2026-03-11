@@ -180,4 +180,11 @@ export const api: OpenWaggleApi = {
   submitFeedback: invoke('feedback:submit'),
   generateFeedbackMarkdown: invoke('feedback:generate-markdown'),
   openExternal: invoke('shell:open-external'),
+
+  // Auto-updater
+  checkForUpdates: invoke('updater:check'),
+  installUpdate: invoke('updater:install'),
+  getUpdateStatus: invoke('updater:get-status'),
+  getAppVersion: invoke('app:get-version'),
+  onUpdateStatus: on('updater:status-changed'),
 }

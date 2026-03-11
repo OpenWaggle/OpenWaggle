@@ -133,6 +133,12 @@ describe('preload api surface contract', () => {
     'submitFeedback',
     'generateFeedbackMarkdown',
     'openExternal',
+    // Auto-updater
+    'checkForUpdates',
+    'installUpdate',
+    'getUpdateStatus',
+    'getAppVersion',
+    'onUpdateStatus',
   ] as const
 
   it('has every expected method as a function', () => {
@@ -172,6 +178,7 @@ describe('preload api surface contract', () => {
       'onSubAgentEvent',
       'onTeamEvent',
       'onConversationTitleUpdated',
+      'onUpdateStatus',
     ] as const
 
     for (const method of EVENT_METHODS) {

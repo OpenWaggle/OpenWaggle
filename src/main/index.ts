@@ -19,6 +19,7 @@ import { getSettings, initializeSettingsStore } from './store/settings'
 import { initializeTeamStore } from './store/teams'
 import { registerRunSubAgent } from './sub-agents/facade'
 import { runSubAgent } from './sub-agents/sub-agent-runner'
+import { disposeAutoUpdater, initAutoUpdater } from './updater'
 
 const WIDTH = 1200
 const HEIGHT = 800
@@ -108,6 +109,7 @@ async function bootstrapServicesAndWindow(): Promise<void> {
 
   registerIpcHandlersOnce()
   createWindow()
+  initAutoUpdater()
 
   // MCP connects in background — not needed for initial render
   const settings = getSettings()
@@ -248,6 +250,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', (e) => {
   stopDevtoolsEventBus()
+  disposeAutoUpdater()
   if (!mcpCleanupDone) {
     e.preventDefault()
     mcpManager.disconnectAll().finally(() => {

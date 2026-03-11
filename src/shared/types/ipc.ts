@@ -38,6 +38,7 @@ import type {
 } from './standards'
 import type { SubAgentEventPayload, TeamEventPayload } from './sub-agent'
 import type { TrustableToolName } from './tool-approval'
+import type { UpdateStatus } from './updater'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 import type {
   WaggleConfig,
@@ -349,6 +350,23 @@ export interface IpcInvokeChannelMap {
     args: [url: string]
     return: undefined
   }
+  // Auto-updater
+  'updater:check': {
+    args: []
+    return: undefined
+  }
+  'updater:install': {
+    args: []
+    return: undefined
+  }
+  'updater:get-status': {
+    args: []
+    return: UpdateStatus
+  }
+  'app:get-version': {
+    args: []
+    return: string
+  }
 }
 
 /**
@@ -433,6 +451,9 @@ interface IpcEventChannelMap {
   }
   'conversations:title-updated': {
     payload: { conversationId: ConversationId; title: string }
+  }
+  'updater:status-changed': {
+    payload: UpdateStatus
   }
 }
 
@@ -667,4 +688,11 @@ export interface OpenWaggleApi {
   submitFeedback(payload: FeedbackPayload): Promise<FeedbackSubmitResult>
   generateFeedbackMarkdown(payload: FeedbackPayload): Promise<string>
   openExternal(url: string): Promise<void>
+
+  // Auto-updater
+  checkForUpdates(): Promise<void>
+  installUpdate(): Promise<void>
+  getUpdateStatus(): Promise<UpdateStatus>
+  getAppVersion(): Promise<string>
+  onUpdateStatus(callback: (payload: UpdateStatus) => void): () => void
 }
