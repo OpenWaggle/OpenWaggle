@@ -1,6 +1,6 @@
 # 15 — Preserve Error Stack Traces Across IPC
 
-**Status:** Planned
+**Status:** Done
 **Priority:** P3
 **Severity:** Medium
 **Depends on:** None

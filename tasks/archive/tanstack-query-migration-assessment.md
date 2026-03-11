@@ -1,6 +1,6 @@
 # TanStack Query Migration Assessment
 
-**Status:** Completed
+**Status:** Done
 **Priority:** P2
 **Severity:** DX
 **Origin:** User request on 2026-03-06

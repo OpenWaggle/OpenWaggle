@@ -84,21 +84,41 @@ Write, edit, and shell commands require explicit approval before execution (conf
 
 Full PTY terminal emulation powered by xterm.js. Toggle with `Ctrl+J` / `Cmd+J`.
 
-## Quick Start
+## Install
 
-### Prerequisites
+### macOS
 
-- [Node.js](https://nodejs.org/) 24.x
-- [pnpm](https://pnpm.io/) 9+
+```bash
+# One-liner
+curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh | bash
+```
 
-### Install and run
+Or download the `.dmg` from the [latest release](https://github.com/OpenWaggle/OpenWaggle/releases/latest). Since the app is unsigned, right-click → **Open** on first launch to bypass Gatekeeper.
+
+### Linux
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh | bash
+```
+
+Or download the `.AppImage` from [releases](https://github.com/OpenWaggle/OpenWaggle/releases/latest), `chmod +x`, and run.
+
+### Windows
+
+Download the `.exe` installer from the [latest release](https://github.com/OpenWaggle/OpenWaggle/releases/latest) and run it. Windows SmartScreen may warn about an unsigned app — click **More info** → **Run anyway**.
+
+### From Source
 
 ```bash
 git clone https://github.com/OpenWaggle/OpenWaggle.git
-cd openwaggle
+cd OpenWaggle
 pnpm install
 pnpm dev
 ```
+
+Requires [Node.js](https://nodejs.org/) 24.x and [pnpm](https://pnpm.io/) 10+.
+
+## Quick Start
 
 ### Configure providers
 
@@ -236,16 +256,33 @@ Husky is configured with a `pre-push` hook that runs only when pushing to `main`
 ### Platform Builds
 
 ```bash
-pnpm build:mac        # macOS .dmg
+pnpm build:mac        # macOS .dmg (arm64 + x64)
 pnpm build:win        # Windows NSIS installer
 pnpm build:linux      # Linux AppImage
 ```
 
-These commands currently produce local packaging artifacts for development. Public user releases still require release automation plus platform trust work:
+### CI/CD
 
-- macOS signing, notarization, and stapling
-- Windows installer signing
-- Linux release publishing and clean-machine validation
+Every push to `main` and every PR runs CI (typecheck, lint, tests). Releases are fully automated — push a `feat:` or `fix:` commit to `main` and CI will:
+
+1. Determine the version bump from Conventional Commits
+2. Bump `package.json`, commit, and tag
+3. Build for macOS (arm64 + x64), Windows, and Linux in parallel
+4. Create a draft GitHub Release with all artifacts + SHA256 checksums
+
+No manual tag creation or version editing needed. The app includes auto-update via `electron-updater` — running instances check for updates and notify users when a new version is available.
+
+### Versioning
+
+OpenWaggle uses semver with prerelease stages. During alpha/beta, every `feat:` or `fix:` push increments the counter (`alpha.1` → `alpha.2`). After going stable, standard semver bumps apply.
+
+| Stage | Version | What happens on each push |
+|-------|---------|--------------------------|
+| Alpha | `0.2.0-alpha.N` | Increments `alpha.N+1` |
+| Beta | `0.2.0-beta.N` | Increments `beta.N+1` |
+| Stable | `0.2.0` | `fix:` → `0.2.1`, `feat:` → `0.3.0`, breaking → `1.0.0` |
+
+To transition stages, manually set the version in `package.json` and commit as `chore(release): <message>`.
 
 ## Architecture Overview
 

@@ -1,6 +1,6 @@
 # 17 — Tool Execution Audit Logging
 
-**Status:** Planned
+**Status:** Done
 **Priority:** P3
 **Severity:** Medium
 **Depends on:** None

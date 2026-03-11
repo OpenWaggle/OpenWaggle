@@ -1,6 +1,6 @@
 # Spec: OpenWaggle Website (openwaggle.ai)
 
-**Status:** Planning
+**Status:** Done
 **Branch:** `feat/openwaggle-website`
 **Domain:** openwaggle.ai
 **Framework:** Astro 5 + Tailwind v4

@@ -1,6 +1,6 @@
 # Fix Audit Findings Regressions
 
-**Status:** Completed
+**Status:** Done
 **Priority:** P1
 **Severity:** Reliability
 **Depends on:** `tasks/specs/parallel-audit-report.md`

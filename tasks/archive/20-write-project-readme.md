@@ -1,6 +1,6 @@
 # 20 — Write Project README
 
-**Status:** Planned
+**Status:** Done
 **Priority:** P4
 **Severity:** Strategic
 **Depends on:** None

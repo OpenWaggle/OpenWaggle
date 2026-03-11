@@ -1,6 +1,6 @@
 # 10 — Whisper Model Memory Leak
 
-**Status:** In Progress
+**Status:** Done
 **Priority:** P2
 **Severity:** High
 **Depends on:** None

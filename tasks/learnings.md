@@ -2,7 +2,7 @@
 name: project-learnings
 description: Technical learnings log for OpenWaggle. Stores warnings, pattern preferences, and historical engineering learnings; workflow policy lives in AGENTS.md and CLAUDE.md.
 owner: openwaggle-core
-last_updated: 2026-03-10
+last_updated: 2026-03-11
 ---
 
 # LEARNINGS.md
@@ -89,6 +89,12 @@ This document stores project-specific technical learnings only.
 - `react-doctor` defaults to changed-files-only on feature branches. Use `GIT_DIR=/nonexistent` for full-repo scans.
 - Vitest `vi.mock()` factories are hoisted before top-level variables. Use `vi.hoisted(...)` for shared mock handles.
 - Vite/Electron dev mode: patch changes under `node_modules` can be masked by stale `.vite/deps` prebundles. Use `optimizeDeps.force = true`.
+
+### Auto-Update & Release Pipeline
+- `electron-updater` is a runtime dependency (not devDep) because it ships in the main process bundle. It has CJS exports so it works when externalized by electron-vite (no need to add to `externalizeDeps.exclude`).
+- `GITHUB_TOKEN` pushes from workflows do NOT trigger other workflows. To chain version-bump → build → release, combine them in a single workflow with job dependencies rather than separate tag-triggered workflows.
+- CalVer `YYYY.M.D` is valid semver (e.g. `2026.3.11`) but limits releases to one per day. Leading zeros (`2026.03.11`) are invalid semver.
+- Conventional Commits can fully automate version bumps: `feat:` → minor, `fix:` → patch, `BREAKING CHANGE` → major. Skip version-bump commits via `if: "!startsWith(github.event.head_commit.message, 'chore(release):')"` to avoid infinite loops.
 
 ### Feedback & gh CLI Integration
 - `gh` CLI uses keyring-stored OAuth credentials. Inherited `GITHUB_TOKEN`/`GH_TOKEN` env vars override keyring auth. Strip them for child process calls via `getGhCliEnv()`.

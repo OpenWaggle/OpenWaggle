@@ -1,6 +1,6 @@
 # 19 — Remove Dead IPC Channel
 
-**Status:** Planned
+**Status:** Invalid
 **Priority:** P4
 **Severity:** Low
 **Depends on:** None
@@ -11,6 +11,10 @@
 ## Problem
 
 `src/shared/types/ipc.ts:188-191` defines a `'dialog:confirm'` invoke channel. A handler exists in `src/main/ipc/project-handler.ts`. The `OpenWaggleApi` exposes `showConfirm()`. But no renderer code ever calls `api.showConfirm()` — the channel is dead code.
+
+## Resolution
+
+**False premise** — `dialog:confirm` / `showConfirm()` has 12+ active call sites in renderer code (auth-store, ArchivedSection, tests). The channel is actively used for native Electron confirm dialogs. No action needed.
 
 ## Implementation
 

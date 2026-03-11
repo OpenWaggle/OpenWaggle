@@ -1,6 +1,6 @@
 # 16 — Extract Duplicated Utilities
 
-**Status:** Planned
+**Status:** Done
 **Priority:** P3
 **Severity:** Medium
 **Depends on:** None

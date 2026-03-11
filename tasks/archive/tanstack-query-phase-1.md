@@ -1,6 +1,6 @@
 # TanStack Query Phase 1
 
-**Status:** Completed
+**Status:** Done
 **Priority:** P1
 **Severity:** DX / Reliability
 **Origin:** User request on 2026-03-06
