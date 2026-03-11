@@ -168,7 +168,7 @@ describe('TanStack known issues probes', () => {
     expect(toolEndChunks[0]?.result).toContain('hello')
   })
 
-  it('currently emits end-only chunks for continuation re-executions (upstream sentinel)', async () => {
+  it('emits full TOOL_CALL_START + TOOL_CALL_ARGS + TOOL_CALL_END for continuation re-executions (patched)', async () => {
     const chunks = await collectContinuationProbeChunks()
 
     const probeToolChunks = chunks.filter(isToolChunkForProbeCall)
@@ -176,8 +176,11 @@ describe('TanStack known issues probes', () => {
     const argsCount = probeToolChunks.filter((chunk) => chunk.type === 'TOOL_CALL_ARGS').length
     const endCount = probeToolChunks.filter((chunk) => chunk.type === 'TOOL_CALL_END').length
 
-    expect(startCount).toBe(0)
-    expect(argsCount).toBe(0)
+    // After our patch to @tanstack/ai, continuation re-executions now emit
+    // the full chunk sequence. If this regresses (e.g. patch is lost on upgrade),
+    // these assertions will fail — re-evaluate the patch and workarounds.
+    expect(startCount).toBe(1)
+    expect(argsCount).toBe(1)
     expect(endCount).toBe(1)
   })
 })

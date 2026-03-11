@@ -1,0 +1,146 @@
+diff --git a/dist/esm/activities/chat/index.js b/dist/esm/activities/chat/index.js
+index 7db6d2021d81ad09591d3ca9c3cb347ea5cb8a66..f8b20190db994f78ee69c79e5eb5735ad6702f46 100644
+--- a/dist/esm/activities/chat/index.js
++++ b/dist/esm/activities/chat/index.js
+@@ -307,6 +307,10 @@ class TextEngine {
+     if (pendingToolCalls.length === 0) {
+       return "continue";
+     }
++    const argsMap = new Map();
++    for (const tc of pendingToolCalls) {
++      argsMap.set(tc.id, tc.function.arguments);
++    }
+     const finishEvent = this.createSyntheticFinishedEvent();
+     const { approvals, clientToolResults } = this.collectClientState();
+     const generator = executeToolCalls(
+@@ -321,7 +325,8 @@ class TextEngine {
+       if (executionResult.results.length > 0) {
+         for (const chunk of this.emitToolResults(
+           executionResult.results,
+-          finishEvent
++          finishEvent,
++          argsMap
+         )) {
+           yield chunk;
+         }
+@@ -343,7 +348,8 @@ class TextEngine {
+     }
+     const toolResultChunks = this.emitToolResults(
+       executionResult.results,
+-      finishEvent
++      finishEvent,
++      argsMap
+     );
+     for (const chunk of toolResultChunks) {
+       yield chunk;
+@@ -525,7 +531,7 @@ class TextEngine {
+     }
+     return chunks;
+   }
+-  emitToolResults(results, finishEvent) {
++  emitToolResults(results, finishEvent, argsMap) {
+     const chunks = [];
+     for (const result of results) {
+       aiEventClient.emit("tools:call:completed", {
+@@ -538,6 +544,26 @@ class TextEngine {
+         timestamp: Date.now()
+       });
+       const content = JSON.stringify(result.result);
++      if (argsMap) {
++        chunks.push({
++          type: "TOOL_CALL_START",
++          timestamp: Date.now(),
++          model: finishEvent.model,
++          toolCallId: result.toolCallId,
++          toolName: result.toolName
++        });
++        const args = argsMap.get(result.toolCallId) ?? "{}";
++        if (args !== "{}") {
++          chunks.push({
++            type: "TOOL_CALL_ARGS",
++            timestamp: Date.now(),
++            model: finishEvent.model,
++            toolCallId: result.toolCallId,
++            delta: args,
++            args
++          });
++        }
++      }
+       chunks.push({
+         type: "TOOL_CALL_END",
+         timestamp: Date.now(),
+diff --git a/src/activities/chat/index.ts b/src/activities/chat/index.ts
+index 30a192249c679829a1a4f7a3699717b0dbbe21f4..471290bd4f578f411f40a0c417bf682814ca78a1 100644
+--- a/src/activities/chat/index.ts
++++ b/src/activities/chat/index.ts
+@@ -598,6 +598,13 @@ class TextEngine<
+       return 'continue'
+     }
+ 
++    // Build args lookup so emitToolResults can emit TOOL_CALL_START + TOOL_CALL_ARGS
++    // before TOOL_CALL_END during continuation re-executions.
++    const argsMap = new Map<string, string>()
++    for (const tc of pendingToolCalls) {
++      argsMap.set(tc.id, tc.function.arguments)
++    }
++
+     const finishEvent = this.createSyntheticFinishedEvent()
+ 
+     const { approvals, clientToolResults } = this.collectClientState()
+@@ -621,6 +628,7 @@ class TextEngine<
+         for (const chunk of this.emitToolResults(
+           executionResult.results,
+           finishEvent,
++          argsMap,
+         )) {
+           yield chunk
+         }
+@@ -647,6 +655,7 @@ class TextEngine<
+     const toolResultChunks = this.emitToolResults(
+       executionResult.results,
+       finishEvent,
++      argsMap,
+     )
+ 
+     for (const chunk of toolResultChunks) {
+@@ -911,6 +920,7 @@ class TextEngine<
+   private emitToolResults(
+     results: Array<ToolResult>,
+     finishEvent: RunFinishedEvent,
++    argsMap?: Map<string, string>,
+   ): Array<StreamChunk> {
+     const chunks: Array<StreamChunk> = []
+ 
+@@ -927,6 +937,32 @@ class TextEngine<
+ 
+       const content = JSON.stringify(result.result)
+ 
++      // Emit TOOL_CALL_START + TOOL_CALL_ARGS before TOOL_CALL_END so that
++      // client-side StreamProcessor can reconstruct the full tool call.
++      // Without these, continuation re-executions only emit TOOL_CALL_END
++      // and the client stores empty arguments.
++      if (argsMap) {
++        chunks.push({
++          type: 'TOOL_CALL_START',
++          timestamp: Date.now(),
++          model: finishEvent.model,
++          toolCallId: result.toolCallId,
++          toolName: result.toolName,
++        })
++
++        const args = argsMap.get(result.toolCallId) ?? '{}'
++        if (args !== '{}') {
++          chunks.push({
++            type: 'TOOL_CALL_ARGS',
++            timestamp: Date.now(),
++            model: finishEvent.model,
++            toolCallId: result.toolCallId,
++            delta: args,
++            args,
++          })
++        }
++      }
++
+       // Emit TOOL_CALL_END event
+       chunks.push({
+         type: 'TOOL_CALL_END',
