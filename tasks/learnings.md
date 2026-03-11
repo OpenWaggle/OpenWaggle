@@ -65,6 +65,8 @@ This document stores project-specific technical learnings only.
 - Shared IPC channel maps can generate preload helpers directly. Export channel arg/payload utility types for DRY preload.
 - IPC channels should be scoped to specific actions, not generic path openers — renderer is untrusted.
 - First-send UX depends on main-process persistence of the user turn even when the run fails before assistant output.
+- `typedHandle` + `runAppEffectExit` is the pattern for invoke (request/response) IPC handlers. `typedOn` + `runAppEffect` is the pattern for send (fire-and-forget) IPC listeners. Both are Effect-based; raw Electron wrappers are internal (`rawHandle`/`rawOn`). Tests that mock `../../runtime` must include both `runAppEffectExit` and `runAppEffect`.
+- `Effect.catchAll` only catches typed failures, not sync throws (defects). `decodeUnknownOrThrow` throws synchronously. Use `Effect.catchAllDefect` in addition to `Effect.catchAll` when wrapping code that may throw.
 
 ### Provider & Model System
 - OpenAI subscription OAuth tokens and API keys need different transport endpoints. Mixing produces 403 or 401 errors.
