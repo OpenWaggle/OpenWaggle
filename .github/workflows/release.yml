@@ -1,0 +1,256 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    name: Determine Version
+    # Skip version-bump commits to avoid infinite loop
+    if: "!startsWith(github.event.head_commit.message, 'chore(release):')"
+    runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.bump.outputs.new_version }}
+      new_tag: ${{ steps.bump.outputs.new_tag }}
+      should_release: ${{ steps.bump.outputs.should_release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine bump from conventional commits
+        id: bump
+        run: |
+          # Find the last version tag (or use initial commit if none)
+          LAST_TAG=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            RANGE="HEAD"
+          else
+            RANGE="${LAST_TAG}..HEAD"
+          fi
+
+          echo "Last tag: ${LAST_TAG:-none}"
+          echo "Commit range: ${RANGE}"
+
+          # Read commit subjects since last tag
+          COMMITS=$(git log --format='%s' ${RANGE} 2>/dev/null || git log --format='%s')
+
+          # Determine bump type from conventional commit prefixes
+          HAS_BREAKING=false
+          HAS_FEAT=false
+          HAS_FIX=false
+
+          while IFS= read -r msg; do
+            # Skip empty lines
+            [ -z "$msg" ] && continue
+            # Check for breaking change marker
+            if echo "$msg" | grep -qiE '^[a-z]+(\(.+\))?!:'; then
+              HAS_BREAKING=true
+            fi
+            if echo "$msg" | grep -qE '^feat(\(.+\))?:'; then
+              HAS_FEAT=true
+            fi
+            if echo "$msg" | grep -qE '^fix(\(.+\))?:'; then
+              HAS_FIX=true
+            fi
+          done <<< "$COMMITS"
+
+          # Also check commit bodies for BREAKING CHANGE
+          BODIES=$(git log --format='%b' ${RANGE} 2>/dev/null || git log --format='%b')
+          if echo "$BODIES" | grep -q 'BREAKING CHANGE'; then
+            HAS_BREAKING=true
+          fi
+
+          # Determine bump type
+          if [ "$HAS_BREAKING" = true ]; then
+            BUMP="major"
+          elif [ "$HAS_FEAT" = true ]; then
+            BUMP="minor"
+          elif [ "$HAS_FIX" = true ]; then
+            BUMP="patch"
+          else
+            echo "No feat: or fix: commits since last release — skipping"
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Get current version from package.json
+          CURRENT=$(node -e "console.log(require('./package.json').version)")
+          echo "Current version: ${CURRENT}"
+
+          # Extract base version and prerelease counter
+          # Format: X.Y.Z-alpha.N or X.Y.Z-beta.N → bump N+1
+          # Format: X.Y.Z (no prerelease) → use standard semver bumps
+          if echo "$CURRENT" | grep -qE 'alpha|beta'; then
+            BASE_VERSION="${CURRENT%%-*}"
+            PRERELEASE_TAG=$(echo "$CURRENT" | sed 's/.*-\(alpha\|beta\)\..*/\1/')
+            PRERELEASE_NUM=$(echo "$CURRENT" | sed 's/.*\(alpha\|beta\)\.\([0-9]*\).*/\2/')
+            NEW_VERSION="${BASE_VERSION}-${PRERELEASE_TAG}.$((PRERELEASE_NUM + 1))"
+          else
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+            case "$BUMP" in
+              major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+              minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+              patch) PATCH=$((PATCH + 1)) ;;
+            esac
+            NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          fi
+          echo "New version: ${NEW_VERSION}"
+
+          echo "new_version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "new_tag=v${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
+
+      - name: Bump package.json and push tag
+        if: steps.bump.outputs.should_release == 'true'
+        run: |
+          VERSION="${{ steps.bump.outputs.new_version }}"
+          TAG="${{ steps.bump.outputs.new_tag }}"
+
+          # Bump version in package.json (no npm dependencies needed)
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = '${VERSION}';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json
+          git commit -m "chore(release): v${VERSION}"
+          git tag -a "${TAG}" -m "Release ${TAG}"
+          git push origin main --follow-tags
+
+  build-macos:
+    name: Build macOS
+    needs: version
+    if: needs.version.outputs.should_release == 'true'
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.new_tag }}
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm build
+
+      - name: Build macOS DMGs (arm64 + x64)
+        run: pnpm exec electron-builder --mac --arm64 --x64 --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-artifacts
+          path: |
+            dist/*.dmg
+            dist/*.yml
+          if-no-files-found: error
+
+  build-linux:
+    name: Build Linux
+    needs: version
+    if: needs.version.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.new_tag }}
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm build
+
+      - name: Build Linux AppImage
+        run: pnpm exec electron-builder --linux --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-artifacts
+          path: |
+            dist/*.AppImage
+            dist/*.yml
+          if-no-files-found: error
+
+  build-windows:
+    name: Build Windows
+    needs: version
+    if: needs.version.outputs.should_release == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.new_tag }}
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm build
+
+      - name: Build Windows NSIS installer
+        run: pnpm exec electron-builder --win --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          path: |
+            dist/*.exe
+            dist/*.yml
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    needs: [version, build-macos, build-linux, build-windows]
+    if: needs.version.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect release assets
+        run: |
+          mkdir -p release
+          find artifacts -type f \( -name '*.dmg' -o -name '*.AppImage' -o -name '*.exe' -o -name '*.yml' \) -exec cp {} release/ \;
+          cd release && sha256sum * > SHA256SUMS.txt
+
+      - name: Create draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.version.outputs.new_tag }}
+          name: ${{ needs.version.outputs.new_tag }}
+          draft: false
+          generate_release_notes: true
+          files: release/*
