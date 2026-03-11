@@ -11,9 +11,9 @@ interface QueuedMessagesProps {
 /**
  * Queued messages panel that docks above the Composer.
  *
- * Width ratio: 620/680 = 91.18% of the parent container, centered.
- * The Composer fills 100% of the same parent, so the queue appears as a
- * narrower "tab" sitting flush on top of the wider composer.
+ * The Composer fills 100% of the parent container. The queue stays inset just
+ * inside the composer's rounded shoulders so it reads like a docked tab rather
+ * than a separate full-width panel.
  */
 export function QueuedMessages({
   conversationId,
@@ -26,7 +26,7 @@ export function QueuedMessages({
   if (queue.length === 0 || !conversationId) return null
 
   return (
-    <div className="mx-auto flex w-[91.18%] flex-col gap-1.5 rounded-t-[10px] border-x border-t border-border-light bg-bg-secondary p-[8px_10px_6px_10px] opacity-60">
+    <div className="mx-auto flex w-[calc(100%-28px)] flex-col gap-1.5 rounded-t-[var(--radius-panel)] border-x border-t border-border-light bg-bg-secondary p-[8px_10px_6px_10px] opacity-60">
       {/* Header */}
       <div className="flex items-center gap-1.5 px-1">
         <Timer className="h-3 w-3 text-text-tertiary" />
