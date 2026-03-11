@@ -129,6 +129,18 @@ describe('ChatPanel', () => {
   it('shows welcome screen when no messages', () => {
     renderPanel()
     expect(screen.getByText("Let's build")).toBeInTheDocument()
+    expect(screen.queryByText('Explore more')).toBeNull()
+  })
+
+  it('renders the welcome heading smaller and lighter than the project name', () => {
+    renderPanel()
+
+    const heading = screen.getByRole('heading', { name: "Let's build" })
+    const projectPickerButton = screen.getByTitle('Open project picker')
+
+    expect(heading).toHaveClass('font-normal')
+    expect(heading).not.toHaveClass('font-semibold')
+    expect(projectPickerButton).toHaveClass('text-[clamp(28px,3.8vw,40px)]', 'font-light')
   })
 
   it('opens the folder picker directly from the empty-state CTA', () => {
