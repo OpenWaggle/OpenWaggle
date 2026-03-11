@@ -11,10 +11,6 @@ import { useChat } from '@tanstack/ai-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '@/lib/ipc'
 import { createIpcConnectionAdapter } from '@/lib/ipc-connection-adapter'
-import {
-  buildPersistedToolCallLookup,
-  type PersistedToolCallLookup,
-} from '@/lib/persisted-tool-call-reconciliation'
 import { useBackgroundRunStore } from '@/stores/background-run-store'
 import { useChatStore } from '@/stores/chat-store'
 import {
@@ -22,8 +18,9 @@ import {
   buildPartialAssistantMessage,
   conversationToUIMessages,
   formatAttachmentPreview,
-  restorePersistedToolCallMetadataWithLookup,
 } from './useAgentChat.utils'
+import { useHydratedConversationMessages } from './useHydratedConversationMessages'
+import { useOptimisticSteeredTurn } from './useOptimisticSteeredTurn'
 
 interface AgentChatReturn {
   messages: UIMessage[]
@@ -41,29 +38,6 @@ interface AgentChatReturn {
   previewSteeredUserTurn: (payload: AgentSendPayload) => () => void
   /** True when we're showing a reconnected background stream (not via TanStack) */
   backgroundStreaming: boolean
-}
-
-interface PersistedToolCallLookupCacheEntry {
-  readonly conversation: Conversation | null
-  readonly lookup: PersistedToolCallLookup
-}
-
-interface HydratedMessagesCacheEntry {
-  readonly messages: UIMessage[]
-  readonly lookup: PersistedToolCallLookup
-  readonly result: UIMessage[]
-}
-
-interface OptimisticSteeredUserTurn {
-  readonly id: string
-  readonly content: string
-  readonly baselineLength: number
-  readonly message: UIMessage
-}
-
-interface ForegroundMessageSnapshot {
-  readonly conversationId: ConversationId
-  readonly messages: UIMessage[]
 }
 
 const EMPTY_CONNECTION = {
@@ -95,8 +69,6 @@ export function useAgentChat(
   const pendingPayloadRef = useRef<AgentSendPayload | null>(null)
   const pendingWaggleConfigRef = useRef<WaggleConfig | null>(null)
   const [backgroundStreaming, setBackgroundStreaming] = useState(false)
-  const [optimisticSteeredUserTurn, setOptimisticSteeredUserTurn] =
-    useState<OptimisticSteeredUserTurn | null>(null)
   const hasActiveRun = useBackgroundRunStore((s) => s.hasActiveRun)
 
   const consumePendingPayload = useCallback(() => {
@@ -111,10 +83,6 @@ export function useAgentChat(
     return config
   }, [])
 
-  // TanStack's useChat keeps internal stream/client state keyed by the
-  // connection object identity, so we must keep the adapter stable across
-  // ordinary rerenders and only recreate it when the conversation/model
-  // configuration actually changes.
   const connection = useMemo(
     () =>
       conversationId
@@ -140,73 +108,37 @@ export function useAgentChat(
     addToolApprovalResponse,
   } = useChat({
     connection,
-    // Recreate the ChatClient when conversation/model/preset changes.
-    // useChat does not live-update the connection object after construction.
     id: conversationId ? `${conversationId}:${model}:${qualityPreset}` : undefined,
   })
-  const persistedToolCallLookupCacheRef = useRef<PersistedToolCallLookupCacheEntry | null>(null)
-  const persistedToolCalls =
-    persistedToolCallLookupCacheRef.current?.conversation === conversation
-      ? persistedToolCallLookupCacheRef.current.lookup
-      : (() => {
-          const lookup = buildPersistedToolCallLookup(conversation)
-          persistedToolCallLookupCacheRef.current = {
-            conversation,
-            lookup,
-          }
-          return lookup
-        })()
 
-  const hydratedMessagesCacheRef = useRef<HydratedMessagesCacheEntry | null>(null)
-  const hydratedMessages =
-    hydratedMessagesCacheRef.current?.messages === messages &&
-    hydratedMessagesCacheRef.current.lookup === persistedToolCalls
-      ? hydratedMessagesCacheRef.current.result
-      : (() => {
-          const result = restorePersistedToolCallMetadataWithLookup(messages, persistedToolCalls)
-          hydratedMessagesCacheRef.current = {
-            messages,
-            lookup: persistedToolCalls,
-            result,
-          }
-          return result
-        })()
-  const visibleMessages = insertOptimisticSteeredUserTurn(
-    hydratedMessages,
-    optimisticSteeredUserTurn,
-  )
+  const hydratedMessages = useHydratedConversationMessages(messages, conversation)
+
   const currentConversationIdRef = useRef(conversationId)
   currentConversationIdRef.current = conversationId
-  const previousConversationIdRef = useRef(conversationId)
   const isLoadingRef = useRef(isLoading)
   isLoadingRef.current = isLoading
   const backgroundStreamingRef = useRef(backgroundStreaming)
   backgroundStreamingRef.current = backgroundStreaming
   const deferredRefreshConversationIdRef = useRef<ConversationId | null>(null)
   const deferredSnapshotRefreshCountRef = useRef(0)
-  const foregroundMessageSnapshotRef = useRef<ForegroundMessageSnapshot | null>(null)
-  const restoredForegroundSnapshotRef = useRef(false)
   const isConversationIdle = !isLoading && !backgroundStreaming
-  // Derived boolean avoids putting the full `messages` array in the sync
-  // effect's deps (which would cause an infinite setMessages→re-fire loop).
-  const messagesEmpty = messages.length === 0
 
-  // When a foreground stream just completed, the TanStack UIMessages are
-  // already the most up-to-date representation. Calling setMessages() with
-  // the persisted conversation would wipe streaming content that wasn't
-  // fully persisted (e.g. after stall retries where each retry creates a
-  // new collector, losing earlier retry content).
+  // While a foreground stream is active (sendMessage in progress), TanStack owns
+  // the UIMessages. Persisted-snapshot refreshes must not overwrite them — the
+  // persisted state lags behind the live stream, especially during continuations
+  // where multiple runs complete before the overall sendMessage resolves.
   const foregroundStreamActiveRef = useRef(false)
 
-  // Reset foreground stream flag synchronously during render when the
-  // conversation changes. This MUST happen before the sync effect runs,
-  // otherwise the foregroundStreamActive guard prevents loading the new
-  // conversation's persisted messages.
-  const prevConversationForStreamRef = useRef(conversationId)
-  if (prevConversationForStreamRef.current !== conversationId) {
-    prevConversationForStreamRef.current = conversationId
-    foregroundStreamActiveRef.current = false
-  }
+  const messagesRef = useRef(hydratedMessages)
+  messagesRef.current = hydratedMessages
+
+  const { visibleMessages, previewSteeredUserTurn } = useOptimisticSteeredTurn(
+    hydratedMessages,
+    conversationId,
+    isConversationIdle,
+    buildClientUserMessage,
+    messagesRef,
+  )
 
   const refreshConversationSnapshot = useCallback(
     async (targetConversationId: ConversationId) => {
@@ -236,12 +168,6 @@ export function useAgentChat(
         }
       })
 
-      // Skip message replacement while a foreground stream is active — the
-      // streaming UIMessages are already correct and more complete than the
-      // persisted snapshot (stall retries only persist the last collector's
-      // content). The flag stays true until conversation switch or background
-      // reconnection to handle multiple run completions (e.g. steer flow
-      // where both the aborted and new run emit onRunCompleted).
       if (!foregroundStreamActiveRef.current) {
         setMessages(conversationToUIMessages(conv))
       }
@@ -287,35 +213,19 @@ export function useAgentChat(
   )
 
   // Sync historical messages whenever the active conversation snapshot changes.
-  // This covers normal thread switches and any late store hydration after the
-  // TanStack client recreates itself for a new `id`.
   useEffect(() => {
     setBackgroundStreaming(false)
 
-    if (!conversationId) {
+    if (!conversationId || !conversation) {
       foregroundStreamActiveRef.current = false
-      foregroundMessageSnapshotRef.current = null
-      restoredForegroundSnapshotRef.current = false
-      setMessages([])
-      return
-    }
-
-    if (!conversation) {
-      foregroundStreamActiveRef.current = false
-      foregroundMessageSnapshotRef.current = null
-      restoredForegroundSnapshotRef.current = false
       setMessages([])
       return
     }
 
     if (hasActiveRun(conversationId)) {
       foregroundStreamActiveRef.current = false
-      foregroundMessageSnapshotRef.current = null
-      restoredForegroundSnapshotRef.current = false
-      // Reconnect to background run
       const capturedId = conversationId
       void reconnectToBackgroundRun(capturedId, conversation, setMessages).then((reconnected) => {
-        // Only apply if we're still on the same conversation
         if (reconnected && currentConversationIdRef.current === capturedId) {
           setBackgroundStreaming(true)
         }
@@ -323,41 +233,16 @@ export function useAgentChat(
       return
     }
 
-    // When a foreground stream is active, the TanStack UIMessages are the
-    // source of truth. Skip replacing them with persisted state — the
-    // persisted conversation may be missing stall-retry content. This
-    // effect also fires when refreshConversationSnapshot updates the store
-    // metadata (activeConversation), which would otherwise wipe streaming
-    // content via setMessages.
+    // While TanStack owns the stream (sendMessage in progress), skip overwriting
+    // with the persisted snapshot — it lags behind the live UIMessages.
     if (foregroundStreamActiveRef.current) {
-      const cachedForegroundMessages = foregroundMessageSnapshotRef.current
-      if (
-        messagesEmpty &&
-        cachedForegroundMessages?.conversationId === conversationId &&
-        cachedForegroundMessages.messages.length > 0
-      ) {
-        restoredForegroundSnapshotRef.current = true
-        foregroundStreamActiveRef.current = false
-        setMessages(cachedForegroundMessages.messages)
-      }
-      return
-    }
-
-    if (restoredForegroundSnapshotRef.current) {
-      restoredForegroundSnapshotRef.current = false
       return
     }
 
     setMessages(conversationToUIMessages(conversation))
-  }, [conversationId, conversation, hasActiveRun, messagesEmpty, setMessages])
+  }, [conversationId, conversation, hasActiveRun, setMessages])
 
-  // Keep a ref to the latest messages so stream chunk listeners can
-  // read current state without needing a functional updater.
-  const messagesRef = useRef(hydratedMessages)
-  messagesRef.current = hydratedMessages
-
-  // While background-streaming, subscribe to live chunk updates
-  // and update messages on each text/tool chunk.
+  // While background-streaming, subscribe to live chunk updates.
   useEffect(() => {
     if (!backgroundStreaming || !conversationId) return
 
@@ -408,42 +293,6 @@ export function useAgentChat(
     flushDeferredConversationSnapshot()
   }, [conversationId, flushDeferredConversationSnapshot, isConversationIdle])
 
-  useEffect(() => {
-    if (!conversationId || !foregroundStreamActiveRef.current || !isConversationIdle) {
-      return
-    }
-    if (hydratedMessages.length === 0) {
-      return
-    }
-
-    foregroundMessageSnapshotRef.current = {
-      conversationId,
-      messages: hydratedMessages,
-    }
-  }, [conversationId, hydratedMessages, isConversationIdle])
-
-  useEffect(() => {
-    if (previousConversationIdRef.current === conversationId) {
-      return
-    }
-    previousConversationIdRef.current = conversationId
-    foregroundMessageSnapshotRef.current = null
-    restoredForegroundSnapshotRef.current = false
-    setOptimisticSteeredUserTurn(null)
-  }, [conversationId])
-
-  useEffect(() => {
-    if (!optimisticSteeredUserTurn) {
-      return
-    }
-    if (!isConversationIdle) {
-      return
-    }
-    if (hasMatchingSteeredUserTurn(hydratedMessages, optimisticSteeredUserTurn)) {
-      setOptimisticSteeredUserTurn(null)
-    }
-  }, [hydratedMessages, isConversationIdle, optimisticSteeredUserTurn])
-
   const respondToolApprovalStable = useCallback(
     async (approvalId: string, approved: boolean) => {
       await addToolApprovalResponse({ id: approvalId, approved })
@@ -459,6 +308,7 @@ export function useAgentChat(
         foregroundStreamActiveRef.current = true
         pendingPayloadRef.current = payload
         await sendMessage(buildClientUserMessage(payload))
+        foregroundStreamActiveRef.current = false
       }),
     sendWaggleMessage: async (payload: AgentSendPayload, config: WaggleConfig) =>
       withDeferredSnapshotRefresh(async () => {
@@ -467,6 +317,7 @@ export function useAgentChat(
         pendingPayloadRef.current = payload
         pendingWaggleConfigRef.current = config
         await sendMessage(buildClientUserMessage(payload))
+        foregroundStreamActiveRef.current = false
       }),
     isLoading: isLoading || backgroundStreaming,
     status: backgroundStreaming ? 'streaming' : status,
@@ -493,21 +344,7 @@ export function useAgentChat(
       await api.respondToPlan(cid, response)
     },
     withDeferredSnapshotRefresh,
-    previewSteeredUserTurn: (payload: AgentSendPayload) => {
-      const content = buildClientUserMessage(payload)
-      const optimisticTurnId = createOptimisticTurnId()
-      setOptimisticSteeredUserTurn({
-        id: optimisticTurnId,
-        content,
-        baselineLength: messagesRef.current.length,
-        message: createOptimisticUserMessage(content, optimisticTurnId),
-      })
-      return () => {
-        setOptimisticSteeredUserTurn((current) =>
-          current?.id === optimisticTurnId ? null : current,
-        )
-      }
-    },
+    previewSteeredUserTurn,
     backgroundStreaming,
   }
 }
@@ -521,7 +358,6 @@ async function reconnectToBackgroundRun(
 ): Promise<boolean> {
   const snapshot = await api.getBackgroundRun(conversationId)
   if (!snapshot) {
-    // No active run — just load historical messages
     setMessages(conversationToUIMessages(conversation))
     return false
   }
@@ -544,60 +380,6 @@ function buildClientUserMessage(payload: AgentSendPayload): string {
     chunks.push(formatAttachmentPreview(attachment))
   }
   return chunks.join('\n\n')
-}
-
-function createOptimisticTurnId(): string {
-  const randomUUID = globalThis.crypto?.randomUUID
-  if (typeof randomUUID === 'function') {
-    return randomUUID.call(globalThis.crypto)
-  }
-  return `optimistic-steer-${Date.now()}`
-}
-
-function createOptimisticUserMessage(content: string, id: string): UIMessage {
-  return {
-    id: `optimistic-steer-${id}`,
-    role: 'user',
-    parts: [{ type: 'text', content }],
-    createdAt: new Date(),
-  }
-}
-
-function getUIMessageText(message: UIMessage): string {
-  return message.parts
-    .filter(
-      (part): part is Extract<(typeof message.parts)[number], { type: 'text' }> =>
-        part.type === 'text',
-    )
-    .map((part) => part.content)
-    .join('\n\n')
-}
-
-function hasMatchingSteeredUserTurn(
-  messages: UIMessage[],
-  optimisticSteeredUserTurn: OptimisticSteeredUserTurn,
-): boolean {
-  const suffix = messages.slice(optimisticSteeredUserTurn.baselineLength)
-  return suffix.some(
-    (message) =>
-      message.role === 'user' && getUIMessageText(message) === optimisticSteeredUserTurn.content,
-  )
-}
-
-function insertOptimisticSteeredUserTurn(
-  messages: UIMessage[],
-  optimisticSteeredUserTurn: OptimisticSteeredUserTurn | null,
-): UIMessage[] {
-  if (!optimisticSteeredUserTurn) {
-    return messages
-  }
-  if (hasMatchingSteeredUserTurn(messages, optimisticSteeredUserTurn)) {
-    return messages
-  }
-
-  const prefix = messages.slice(0, optimisticSteeredUserTurn.baselineLength)
-  const suffix = messages.slice(optimisticSteeredUserTurn.baselineLength)
-  return [...prefix, optimisticSteeredUserTurn.message, ...suffix]
 }
 
 async function* emptyAsyncIterable() {

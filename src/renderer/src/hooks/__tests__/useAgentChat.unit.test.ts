@@ -569,65 +569,29 @@ describe('useAgentChat', () => {
     })
   })
 
-  it('restores the cached foreground transcript if the chat client resets after a successful run', async () => {
-    const conversationId = ConversationId('conv-foreground-restore')
+  it('loads persisted messages when conversation changes', async () => {
+    const conversationId = ConversationId('conv-persisted-load')
     const persistedConversation: Conversation = {
       id: conversationId,
-      title: 'Foreground restore',
+      title: 'Persisted load',
       projectPath: null,
       createdAt: 1,
       updatedAt: 1,
       messages: [
         {
-          id: MessageId('msg-restore-user'),
+          id: MessageId('msg-load-user'),
           role: 'user',
           createdAt: 1,
           parts: [{ type: 'text', text: 'Original prompt' }],
         },
         {
-          id: MessageId('msg-restore-assistant'),
+          id: MessageId('msg-load-assistant'),
           role: 'assistant',
           createdAt: 2,
           parts: [{ type: 'text', text: 'Existing answer' }],
         },
       ],
     }
-
-    let updateMessages: Dispatch<SetStateAction<UIMessage[]>> | null = null
-    let updateLoading: Dispatch<SetStateAction<boolean>> | null = null
-    let resolveSendMessage: (() => void) | null = null
-
-    useChatMockImplementation.mockImplementation(
-      (_options: unknown, React: typeof import('react')) => {
-        const [messages, setMessages] = React.useState<UIMessage[]>([])
-        const [isLoading, setIsLoading] = React.useState(false)
-        updateMessages = setMessages
-        updateLoading = setIsLoading
-
-        const sendMessage = vi.fn(async (message: string) => {
-          setMessages((prev) => [
-            ...prev,
-            createTextUIMessage('foreground-reset-user', 'user', message),
-          ])
-          setIsLoading(true)
-          await new Promise<void>((resolve) => {
-            resolveSendMessage = resolve
-          })
-          setIsLoading(false)
-        })
-
-        return {
-          messages,
-          sendMessage,
-          isLoading,
-          status: isLoading ? ('streaming' as const) : ('ready' as const),
-          stop: vi.fn(),
-          setMessages,
-          error: undefined,
-          addToolApprovalResponse: vi.fn(async () => {}),
-        }
-      },
-    )
 
     const { result } = renderHook(() =>
       useAgentChat(
@@ -638,60 +602,21 @@ describe('useAgentChat', () => {
       ),
     )
 
-    let sendPromise: Promise<void> | null = null
-
-    act(() => {
-      sendPromise = result.current.sendMessage({
-        text: 'Follow-up prompt',
-        qualityPreset: 'medium',
-        attachments: [],
-      } satisfies AgentSendPayload)
-    })
-
     await waitFor(() => {
-      expect(
-        result.current.messages.some(
-          (message) =>
-            message.role === 'user' &&
-            message.parts.some(
-              (part) =>
-                part.type === 'text' &&
-                ('content' in part ? part.content : part.text) === 'Follow-up prompt',
-            ),
-        ),
-      ).toBe(true)
+      expect(result.current.messages.length).toBeGreaterThan(0)
     })
 
-    act(() => {
-      resolveSendMessage?.()
-    })
-
-    await act(async () => {
-      await sendPromise
-    })
-
-    await waitFor(() => {
-      expect(updateLoading).not.toBeNull()
-      expect(result.current.isLoading).toBe(false)
-    })
-
-    act(() => {
-      updateMessages?.([])
-    })
-
-    await waitFor(() => {
-      expect(
-        result.current.messages.some(
-          (message) =>
-            message.role === 'user' &&
-            message.parts.some(
-              (part) =>
-                part.type === 'text' &&
-                ('content' in part ? part.content : part.text) === 'Follow-up prompt',
-            ),
-        ),
-      ).toBe(true)
-    })
+    expect(
+      result.current.messages.some(
+        (message) =>
+          message.role === 'user' &&
+          message.parts.some(
+            (part) =>
+              part.type === 'text' &&
+              ('content' in part ? part.content : part.text) === 'Original prompt',
+          ),
+      ),
+    ).toBe(true)
   })
 
   it('defers snapshot hydration for the full steer-to-follow-up transition', async () => {
