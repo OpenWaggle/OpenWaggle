@@ -302,7 +302,7 @@ export function Composer({
 
       <div
         className={cn(
-          'rounded-xl bg-bg-secondary border transition-shadow',
+          'rounded-[var(--radius-panel)] bg-bg-secondary border transition-shadow',
           'border-input-card-border',
           'has-[:focus]:border-accent/50 has-[:focus]:shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]',
         )}

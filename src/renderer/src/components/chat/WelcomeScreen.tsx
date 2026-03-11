@@ -16,8 +16,13 @@ interface WelcomeScreenProps {
 const STARTER_PROMPTS = [
   { label: 'Build a coding game in this repo', icon: Gamepad2 },
   { label: 'Draft a one-page summary of this app', icon: FileText },
-  { label: 'Create a refactor plan for this feature', icon: PencilLine },
+  { label: 'Create a refactor plan for this codebase', icon: PencilLine },
 ]
+
+const WELCOME_KICKER_CLASS =
+  'text-[clamp(22px,2.6vw,28px)] leading-[1.12] font-normal tracking-[-0.02em] text-text-secondary'
+const WELCOME_PROJECT_CLASS =
+  'text-[clamp(28px,3.8vw,40px)] leading-[1.18] font-light tracking-tight text-text-primary transition-colors hover:text-text-primary'
 
 export function WelcomeScreen({
   projectPath,
@@ -35,15 +40,13 @@ export function WelcomeScreen({
   }
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-[720px] px-12 py-5">
+    <div className="mx-auto flex min-h-full w-full max-w-[720px] px-5 py-5">
       <div className="flex w-full flex-col pt-8">
         <div className="flex flex-1 items-center justify-center pb-20">
           <div className="flex flex-col items-center text-center">
             <img src={openwaggleMark} alt="OpenWaggle logo" className="h-20 w-20 object-contain" />
-            <div className="mt-5 space-y-1.5">
-              <h2 className="text-[clamp(40px,5vw,54px)] leading-none font-semibold tracking-tight text-text-primary">
-                Let&apos;s build
-              </h2>
+            <div className="mt-5 space-y-2">
+              <h2 className={WELCOME_KICKER_CLASS}>Let&apos;s build</h2>
               {hasProject ? (
                 <Popover
                   open={projectMenuOpen}
@@ -54,11 +57,11 @@ export function WelcomeScreen({
                     <button
                       type="button"
                       onClick={() => setProjectMenuOpen((prev) => !prev)}
-                      className="inline-flex max-w-full items-center gap-1 text-[clamp(28px,3.8vw,40px)] leading-none text-text-secondary transition-colors hover:text-text-primary"
+                      className={`relative inline-flex max-w-full items-center justify-center px-[0.45em] pb-[0.08em] ${WELCOME_PROJECT_CLASS}`}
                       title="Open project picker"
                     >
                       <span className="truncate">{projectName(projectPath)}</span>
-                      <ChevronDown className="mt-1 h-5 w-5" />
+                      <ChevronDown className="pointer-events-none absolute right-0 top-1/2 h-5 w-5 -translate-y-1/2" />
                     </button>
                   }
                 >
@@ -114,7 +117,6 @@ export function WelcomeScreen({
         </div>
 
         <div className="pb-6">
-          <div className="mb-3 pr-2 text-right text-[13px] text-text-tertiary">Explore more</div>
           <div className="grid grid-cols-3 gap-4">
             {STARTER_PROMPTS.map((prompt) => (
               <button
