@@ -1,0 +1,17 @@
+{
+  "version": "0.2.0-alpha.1",
+  "description": "Desktop coding agent with multi-model waggle mode",
+  "homepage": "https://github.com/OpenWaggle/OpenWaggle",
+  "license": "MIT",
+  "url": "https://github.com/OpenWaggle/OpenWaggle/releases/download/v0.2.0-alpha.1/openwaggle-0.2.0-alpha.1-x64.exe",
+  "hash": "",
+  "installer": {
+    "script": [
+      "Start-Process \"$dir\\$fname\" -ArgumentList '/S' -Wait"
+    ]
+  },
+  "checkver": "github",
+  "autoupdate": {
+    "url": "https://github.com/OpenWaggle/OpenWaggle/releases/download/v$version/openwaggle-$version-x64.exe"
+  }
+}
