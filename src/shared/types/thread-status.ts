@@ -5,6 +5,7 @@ export type ThreadStatus =
   | 'pending-approval'
   | 'awaiting-input'
   | 'plan-ready'
+  | 'waggle-running'
   | 'error'
   | 'idle'
 
@@ -48,6 +49,11 @@ const STATUS_PILL_MAP: Record<Exclude<ThreadStatus, 'idle'>, ThreadStatusPill> =
     icon: 'ClipboardList',
     colorClass: 'text-violet-500',
     animateClass: null,
+  },
+  'waggle-running': {
+    icon: 'WaggleBee',
+    colorClass: 'text-amber-500',
+    animateClass: 'animate-pulse',
   },
   error: {
     icon: 'XCircle',

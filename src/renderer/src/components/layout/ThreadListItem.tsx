@@ -13,6 +13,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import { useState } from 'react'
+import { WaggleBeeIcon } from '@/components/icons/waggle-bee-icon'
 import { ContextMenu } from '@/components/shared/ContextMenu'
 import { cn } from '@/lib/cn'
 import { formatRelativeTime, truncate } from '@/lib/format'
@@ -21,7 +22,7 @@ import { useThreadStatusStore } from '@/stores/thread-status-store'
 
 const TRUNCATE_ARG_2 = 29
 
-const ICON_MAP: Record<string, typeof Loader2> = {
+const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   GitCompareArrows,
   Loader2,
   CircleCheck,
@@ -29,6 +30,7 @@ const ICON_MAP: Record<string, typeof Loader2> = {
   MessageCircle,
   ClipboardList,
   XCircle,
+  WaggleBee: WaggleBeeIcon,
 }
 
 interface ThreadListItemProps {

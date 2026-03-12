@@ -751,8 +751,9 @@ export function runAgentEffect(params: AgentRunParams): Effect.Effect<AgentRunRe
       }
 
       if (streamResult.timedOut && streamResult.stallReason === 'awaiting-tool-result') {
-        logger.warn('Stream stalled with incomplete tool call; skipping retry', {
+        logger.warn('Stream stalled waiting for tool execution result', {
           conversationId: conversation.id,
+          pendingToolCalls: collector.getUnresolvedToolNames(),
         })
         return yield* Effect.fail(new Error(INCOMPLETE_TOOL_CALL_STALL_ERROR))
       }

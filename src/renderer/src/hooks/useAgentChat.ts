@@ -307,8 +307,15 @@ export function useAgentChat(
         setBackgroundStreaming(false)
         foregroundStreamActiveRef.current = true
         pendingPayloadRef.current = payload
-        await sendMessage(buildClientUserMessage(payload))
-        foregroundStreamActiveRef.current = false
+        return sendMessage(buildClientUserMessage(payload)).then(
+          () => {
+            foregroundStreamActiveRef.current = false
+          },
+          (error: unknown) => {
+            foregroundStreamActiveRef.current = false
+            throw error
+          },
+        )
       }),
     sendWaggleMessage: async (payload: AgentSendPayload, config: WaggleConfig) =>
       withDeferredSnapshotRefresh(async () => {
@@ -316,8 +323,15 @@ export function useAgentChat(
         foregroundStreamActiveRef.current = true
         pendingPayloadRef.current = payload
         pendingWaggleConfigRef.current = config
-        await sendMessage(buildClientUserMessage(payload))
-        foregroundStreamActiveRef.current = false
+        return sendMessage(buildClientUserMessage(payload)).then(
+          () => {
+            foregroundStreamActiveRef.current = false
+          },
+          (error: unknown) => {
+            foregroundStreamActiveRef.current = false
+            throw error
+          },
+        )
       }),
     isLoading: isLoading || backgroundStreaming,
     status: backgroundStreaming ? 'streaming' : status,

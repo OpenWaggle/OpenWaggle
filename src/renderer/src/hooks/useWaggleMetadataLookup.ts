@@ -28,6 +28,8 @@ export function useWaggleMetadataLookup(
   messages: UIMessage[],
 ): Readonly<Record<string, WaggleMessageMetadata>> {
   const activeConfig = useWaggleStore((s) => s.activeConfig)
+  const activeCollaborationId = useWaggleStore((s) => s.activeCollaborationId)
+  const configConversationId = useWaggleStore((s) => s.configConversationId)
   const completedTurnMeta = useWaggleStore((s) => s.completedTurnMeta)
   const status = useWaggleStore((s) => s.status)
   const currentAgentIndex = useWaggleStore((s) => s.currentAgentIndex)
@@ -43,8 +45,11 @@ export function useWaggleMetadataLookup(
     lookup: Readonly<Record<string, WaggleMessageMetadata>>
   } | null>(null)
 
-  // Use the active config (live run) or the conversation's stored config (historical)
-  const config: WaggleConfig | null | undefined = activeConfig ?? conversation?.waggleConfig
+  // Use the active config only for the owning conversation; others use persisted waggleConfig.
+  // When owningId is null (config set before conversation exists), apply to current view.
+  const owningId = activeCollaborationId ?? configConversationId
+  const liveConfig = !owningId || owningId === conversation?.id ? activeConfig : null
+  const config: WaggleConfig | null | undefined = liveConfig ?? conversation?.waggleConfig
 
   if (!config) {
     cacheRef.current = {

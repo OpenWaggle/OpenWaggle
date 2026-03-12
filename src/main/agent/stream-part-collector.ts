@@ -255,6 +255,10 @@ export class StreamPartCollector {
     return this.awaitingToolResultIds.size > 0
   }
 
+  getUnresolvedToolNames(): string[] {
+    return [...this.awaitingToolResultIds].map((id) => this.toolCallNames.get(id) ?? id)
+  }
+
   hasPendingApprovalWaits(): boolean {
     for (const toolCallId of this.awaitingToolResultIds) {
       if (this.toolCallStates.get(toolCallId) === 'approval-requested') {

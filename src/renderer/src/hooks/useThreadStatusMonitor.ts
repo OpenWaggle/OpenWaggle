@@ -6,6 +6,9 @@ import { isTerminalChunk } from '@/lib/ipc-connection-adapter'
 import { useChatStore } from '@/stores/chat-store'
 import { useThreadStatusStore } from '@/stores/thread-status-store'
 
+/** Set of conversation IDs that are currently in a waggle run. */
+const activeWaggleConversations = new Set<ConversationId>()
+
 /**
  * Subscribes to agent lifecycle events and maintains per-thread status
  * in the thread-status store. Mounted once at workspace level.
@@ -31,10 +34,13 @@ export function useThreadStatusMonitor(): void {
 
     const unsubPhase = api.onAgentPhase(({ conversationId, phase }) => {
       if (!phase) return
+      // Don't downgrade waggle-running to working
+      if (activeWaggleConversations.has(conversationId)) return
       setStatusWithVisitCheck(conversationId, 'working')
     })
 
     const unsubCompleted = api.onRunCompleted(({ conversationId }) => {
+      activeWaggleConversations.delete(conversationId)
       setStatusWithVisitCheck(conversationId, 'completed')
     })
 
@@ -46,8 +52,18 @@ export function useThreadStatusMonitor(): void {
       setStatusWithVisitCheck(conversationId, 'plan-ready')
     })
 
+    const unsubWaggleTurn = api.onWaggleTurnEvent(({ conversationId, event }) => {
+      if (event.type === 'turn-start' || event.type === 'synthesis-start') {
+        activeWaggleConversations.add(conversationId)
+        setStatusWithVisitCheck(conversationId, 'waggle-running')
+      }
+      // Terminal waggle events: RUN_FINISHED from the envelope handler will
+      // transition to 'completed' via onRunCompleted above.
+    })
+
     const unsubChunk = api.onStreamChunk(({ conversationId, chunk }) => {
       if (chunk.type === 'RUN_STARTED') {
+        if (activeWaggleConversations.has(conversationId)) return
         setStatusWithVisitCheck(conversationId, 'connecting')
         return
       }
@@ -60,6 +76,8 @@ export function useThreadStatusMonitor(): void {
         return
       }
       if (chunk.type === 'TEXT_MESSAGE_CONTENT' || chunk.type === 'TOOL_CALL_START') {
+        // Don't downgrade waggle-running to working from regular stream chunks
+        if (activeWaggleConversations.has(conversationId)) return
         setStatusWithVisitCheck(conversationId, 'working')
         return
       }
@@ -73,6 +91,7 @@ export function useThreadStatusMonitor(): void {
       unsubCompleted()
       unsubQuestion()
       unsubPlan()
+      unsubWaggleTurn()
       unsubChunk()
     }
   }, [setStatus, markVisited])

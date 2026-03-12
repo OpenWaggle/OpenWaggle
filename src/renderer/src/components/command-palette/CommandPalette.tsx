@@ -54,7 +54,6 @@ export function CommandPalette({
 }: CommandPaletteProps): React.JSX.Element {
   const closeCommandPalette = useUIStore((s) => s.closeCommandPalette)
   const openSettings = useUIStore((s) => s.openSettings)
-  const setConfig = useWaggleStore((s) => s.setConfig)
   const teamPresetsQuery = useQuery(teamPresetsQueryOptions())
 
   const [query, setQuery] = useState('')
@@ -84,7 +83,6 @@ export function CommandPalette({
   // ── Waggle handlers ──
 
   function handleSelectPreset(preset: WaggleTeamPreset): void {
-    setConfig(preset.config)
     onStartWaggle(preset.config)
     closeCommandPalette()
   }

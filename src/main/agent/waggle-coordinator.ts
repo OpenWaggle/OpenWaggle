@@ -33,6 +33,7 @@ export interface WaggleRunParams {
   readonly signal: AbortSignal
   readonly onStreamChunk: (chunk: StreamChunk, meta: WaggleStreamMetadata) => void
   readonly onTurnEvent: (event: WaggleTurnEvent) => void
+  readonly onTurnComplete?: (accumulatedMessages: readonly Message[]) => Promise<void>
 }
 
 export interface WaggleRunResult {
@@ -57,6 +58,7 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
     signal,
     onStreamChunk,
     onTurnEvent,
+    onTurnComplete,
   } = params
   const { agents, stop } = config
   const maxTurns = stop.maxTurnsSafety
@@ -241,6 +243,9 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
         agentModel: agent.model,
       })
 
+      // Persist accumulated messages after each successful turn
+      await onTurnComplete?.(accumulatedMessages)
+
       // Track text for consensus
       lastAssistantTexts = [lastAssistantTexts[1], responseText]
 
@@ -309,6 +314,7 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
       successfulAssistantMsgs,
       onStreamChunk,
       onTurnEvent,
+      onTurnComplete,
     })
   }
 
@@ -385,6 +391,7 @@ interface SynthesisParams {
   readonly successfulAssistantMsgs: Message[]
   readonly onStreamChunk: (chunk: StreamChunk, meta: WaggleStreamMetadata) => void
   readonly onTurnEvent: (event: WaggleTurnEvent) => void
+  readonly onTurnComplete?: (accumulatedMessages: readonly Message[]) => Promise<void>
 }
 
 async function runSynthesisStep(params: SynthesisParams): Promise<void> {
@@ -399,6 +406,7 @@ async function runSynthesisStep(params: SynthesisParams): Promise<void> {
     successfulAssistantMsgs,
     onStreamChunk,
     onTurnEvent,
+    onTurnComplete,
   } = params
 
   // Use Agent A's model for synthesis
@@ -482,6 +490,9 @@ async function runSynthesisStep(params: SynthesisParams): Promise<void> {
         agentColor: 'emerald',
         agentModel: synthesisModel,
       })
+
+      // Persist after synthesis
+      await onTurnComplete?.(accumulatedMessages)
 
       logger.info('Synthesis step completed', { conversationId })
     } else {

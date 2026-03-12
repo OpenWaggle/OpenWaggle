@@ -171,11 +171,18 @@ export function useChatPanelSections(): ChatPanelSections {
   const phase = useStreamingPhase(activeConversationId)
   const { catalog } = useSkills(projectPath)
 
-  const waggleStatus = useWaggleStore((s) => s.status)
+  const waggleStoreStatus = useWaggleStore((s) => s.status)
   const waggleConfig = useWaggleStore((s) => s.activeConfig)
+  const waggleActiveCollaborationId = useWaggleStore((s) => s.activeCollaborationId)
+  const waggleConfigConversationId = useWaggleStore((s) => s.configConversationId)
   const setWaggleConfig = useWaggleStore((s) => s.setConfig)
   const startWaggleCollaboration = useWaggleStore((s) => s.startCollaboration)
   const stopWaggleCollaboration = useWaggleStore((s) => s.stopCollaboration)
+
+  // Scope waggle status to the active conversation — other conversations see 'idle'
+  const waggleOwningId = waggleActiveCollaborationId ?? waggleConfigConversationId
+  const waggleStatus: WaggleCollaborationStatus =
+    waggleOwningId && waggleOwningId !== activeConversationId ? 'idle' : waggleStoreStatus
 
   const [dismissedError, setDismissedError] = useState<string | null>(null)
 
@@ -192,7 +199,12 @@ export function useChatPanelSections(): ChatPanelSections {
   async function handleSendWithWaggle(payload: AgentSendPayload): Promise<void> {
     phase.reset()
 
-    if (waggleConfig && waggleStatus === 'idle') {
+    const waggleReadyForThisConversation =
+      waggleConfig &&
+      waggleStatus === 'idle' &&
+      (!waggleOwningId || waggleOwningId === activeConversationId)
+
+    if (waggleReadyForThisConversation) {
       if (activeConversationId) {
         startWaggleCollaboration(activeConversationId, waggleConfig)
       }
@@ -247,7 +259,7 @@ export function useChatPanelSections(): ChatPanelSections {
   }
 
   function handleStartWaggle(config: WaggleConfig): void {
-    setWaggleConfig(config)
+    setWaggleConfig(config, activeConversationId)
   }
 
   function handleStopCollaboration(): void {

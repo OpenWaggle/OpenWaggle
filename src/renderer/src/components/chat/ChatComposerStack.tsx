@@ -65,6 +65,7 @@ export function ChatComposerStack({ section }: ChatComposerStackProps): React.JS
       )}
 
       <WaggleCollaborationStatusBanner
+        currentConversationId={activeConversationId}
         onStop={waggleStatus !== 'idle' ? onStopCollaboration : noOp}
       />
 

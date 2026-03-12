@@ -10,10 +10,16 @@ import { useWaggleStore } from '@/stores/waggle-store'
 export function useWaggleChat(conversationId: ConversationId | null): void {
   const handleTurnEvent = useWaggleStore((s) => s.handleTurnEvent)
   const trackMessageMetadata = useWaggleStore((s) => s.trackMessageMetadata)
+  const activeCollaborationId = useWaggleStore((s) => s.activeCollaborationId)
+
+  // Match events against the active collaboration, not just the viewed conversation.
+  // This prevents dropping events (including collaboration-complete) when the user
+  // switches to a different conversation while waggle is running.
+  const targetConversationId = activeCollaborationId ?? conversationId
 
   useEffect(() => {
     const unsubTurn = api.onWaggleTurnEvent((payload) => {
-      if (conversationId && payload.conversationId === conversationId) {
+      if (targetConversationId && payload.conversationId === targetConversationId) {
         handleTurnEvent(payload.event)
       }
     })
@@ -22,7 +28,7 @@ export function useWaggleChat(conversationId: ConversationId | null): void {
     // When a TEXT_MESSAGE_START arrives, we map the messageId to the agent metadata
     // so ChatPanel can show agent labels during streaming (before persistence).
     const unsubChunk = api.onWaggleStreamChunk((payload) => {
-      if (conversationId && payload.conversationId === conversationId) {
+      if (targetConversationId && payload.conversationId === targetConversationId) {
         if (payload.chunk.type === 'TEXT_MESSAGE_START' && payload.chunk.messageId) {
           trackMessageMetadata(payload.chunk.messageId, {
             agentIndex: payload.meta.agentIndex,
@@ -35,9 +41,23 @@ export function useWaggleChat(conversationId: ConversationId | null): void {
       }
     })
 
+    // Safety net: if the collaboration-complete turn event was missed,
+    // onRunCompleted still transitions the store to 'completed'.
+    const unsubRunCompleted = api.onRunCompleted((payload) => {
+      const state = useWaggleStore.getState()
+      if (state.activeCollaborationId === payload.conversationId && state.status === 'running') {
+        state.handleTurnEvent({
+          type: 'collaboration-complete',
+          reason: state.completionReason ?? 'Run completed',
+          totalTurns: 0,
+        })
+      }
+    })
+
     return () => {
       unsubTurn()
       unsubChunk()
+      unsubRunCompleted()
     }
-  }, [conversationId, handleTurnEvent, trackMessageMetadata])
+  }, [targetConversationId, handleTurnEvent, trackMessageMetadata])
 }

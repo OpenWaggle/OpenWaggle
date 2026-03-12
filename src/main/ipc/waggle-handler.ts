@@ -5,6 +5,7 @@ import type { ConversationId } from '@shared/types/brand'
 import type { WaggleConfig } from '@shared/types/waggle'
 import * as Effect from 'effect/Effect'
 import { classifyAgentError, makeErrorInfo } from '../agent/error-classifier'
+import { buildPersistedUserMessageParts, makeMessage } from '../agent/shared'
 import { generateTitle } from '../agent/title-generator'
 import { runWaggleSequential } from '../agent/waggle-coordinator'
 import { createLogger } from '../logger'
@@ -90,6 +91,9 @@ export function registerWaggleHandlers(): void {
           }
         }
 
+        // Capture base messages before run for incremental persistence
+        const baseMessages = [...conversation.messages]
+
         startStreamBuffer(conversationId, config.agents[0].model, 'waggle')
 
         yield* Effect.ensuring(
@@ -118,6 +122,17 @@ export function registerWaggleHandlers(): void {
                   config,
                   settings,
                   signal: abortController.signal,
+                  onTurnComplete: async (accumulatedMessages) => {
+                    await withConversationLock(conversationId, async () => {
+                      const latest = await getConversation(conversationId)
+                      if (!latest) return
+                      await saveConversation({
+                        ...latest,
+                        messages: [...baseMessages, ...accumulatedMessages],
+                        waggleConfig: config,
+                      })
+                    })
+                  },
                   onStreamChunk: (chunk, meta) => {
                     emitWaggleStreamChunk(conversationId, chunk, meta)
 
@@ -169,6 +184,35 @@ export function registerWaggleHandlers(): void {
               catch: (err) => err,
             })
 
+            // Persist whatever we have BEFORE emitting finish/error events.
+            // This ensures refreshConversationSnapshot won't load empty state.
+            if (result.newMessages.length > 0) {
+              yield* Effect.tryPromise({
+                try: () =>
+                  withConversationLock(conversationId, async () => {
+                    const latestConversation = await getConversation(conversationId)
+                    if (!latestConversation) return
+                    const updatedMessages = [...baseMessages, ...result.newMessages]
+                    await saveConversation({
+                      ...latestConversation,
+                      messages: updatedMessages,
+                      waggleConfig: config,
+                    })
+                  }),
+                catch: (persistError) => persistError,
+              }).pipe(
+                Effect.catchAll((persistError) =>
+                  Effect.sync(() =>
+                    logger.error('Failed to persist Waggle conversation', {
+                      conversationId,
+                      error:
+                        persistError instanceof Error ? persistError.message : String(persistError),
+                    }),
+                  ),
+                ),
+              )
+            }
+
             if (abortController.signal.aborted || result.newMessages.length === 0) {
               emitStreamChunk(conversationId, {
                 type: 'RUN_FINISHED',
@@ -196,32 +240,6 @@ export function registerWaggleHandlers(): void {
               return
             }
 
-            yield* Effect.tryPromise({
-              try: () =>
-                withConversationLock(conversationId, async () => {
-                  const latestConversation = await getConversation(conversationId)
-                  if (!latestConversation) return
-
-                  const updatedMessages = [...latestConversation.messages, ...result.newMessages]
-                  await saveConversation({
-                    ...latestConversation,
-                    messages: updatedMessages,
-                    waggleConfig: config,
-                  })
-                }),
-              catch: (persistError) => persistError,
-            }).pipe(
-              Effect.catchAll((persistError) =>
-                Effect.sync(() =>
-                  logger.error('Failed to persist Waggle conversation', {
-                    conversationId,
-                    error:
-                      persistError instanceof Error ? persistError.message : String(persistError),
-                  }),
-                ),
-              ),
-            )
-
             emitStreamChunk(conversationId, {
               type: 'RUN_FINISHED',
               timestamp: Date.now(),
@@ -233,7 +251,29 @@ export function registerWaggleHandlers(): void {
               if (err instanceof Error && err.message === 'aborted') {
                 return Effect.void
               }
-              return Effect.sync(() => {
+              return Effect.gen(function* () {
+                // Persist user message so snapshot refresh doesn't show empty state.
+                // Only add if onTurnComplete hasn't already saved progress.
+                yield* Effect.tryPromise({
+                  try: () =>
+                    withConversationLock(conversationId, async () => {
+                      const conv = await getConversation(conversationId)
+                      if (!conv) return
+                      if (conv.messages.length <= baseMessages.length) {
+                        const userMessage = makeMessage(
+                          'user',
+                          buildPersistedUserMessageParts(payload),
+                        )
+                        await saveConversation({
+                          ...conv,
+                          messages: [...conv.messages, userMessage],
+                          waggleConfig: config,
+                        })
+                      }
+                    }),
+                  catch: (e) => e,
+                }).pipe(Effect.catchAll(() => Effect.void))
+
                 const classified = classifyAgentError(err)
                 emitStreamChunk(conversationId, {
                   type: 'RUN_ERROR',
