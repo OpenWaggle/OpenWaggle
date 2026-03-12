@@ -84,6 +84,7 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
   let consensusReason: string | undefined
   let consecutiveErrorTurns = 0
   let lastTurnError: string | undefined
+  let successfulTurnCount = 0
 
   logger.info('Starting Waggle mode sequential collaboration', {
     conversationId,
@@ -106,7 +107,7 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
 
     onTurnEvent({
       type: 'turn-start',
-      turnNumber,
+      turnNumber: successfulTurnCount,
       agentIndex,
       agentLabel: agent.label,
     })
@@ -116,7 +117,7 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
       agentLabel: agent.label,
       agentColor: agent.color,
       agentModel: agent.model,
-      turnNumber,
+      turnNumber: successfulTurnCount,
       collaborationMode: 'sequential',
     }
 
@@ -206,6 +207,11 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
 
       consecutiveErrorTurns = 0
 
+      // Use sequential successful-turn count for display metadata
+      // so the UI shows "Turn 1, 2, 3..." without gaps from failed turns.
+      const displayTurnNumber = successfulTurnCount
+      successfulTurnCount++
+
       // Tag assistant message with Waggle metadata.
       const taggedMessage = makeMessage('assistant', [...assistantMsg.parts], assistantMsg.model, {
         ...assistantMsg.metadata,
@@ -214,7 +220,7 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
           agentLabel: agent.label,
           agentColor: agent.color,
           agentModel: agent.model,
-          turnNumber,
+          turnNumber: displayTurnNumber,
         },
       })
 
@@ -236,7 +242,7 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
 
       onTurnEvent({
         type: 'turn-end',
-        turnNumber,
+        turnNumber: displayTurnNumber,
         agentIndex,
         agentLabel: agent.label,
         agentColor: agent.color,
@@ -266,11 +272,11 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
           onTurnEvent({
             type: 'collaboration-complete',
             reason: `Consensus reached: ${consensusResult.reason}`,
-            totalTurns: turnNumber + 1,
+            totalTurns: successfulTurnCount,
           })
           logger.info('Consensus reached', {
             conversationId,
-            turnNumber: turnNumber + 1,
+            turnNumber: successfulTurnCount,
             confidence: consensusResult.confidence,
             reason: consensusResult.reason,
           })
