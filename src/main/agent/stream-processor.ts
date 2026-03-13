@@ -44,9 +44,13 @@ export interface ProcessAgentStreamResult {
 }
 
 function resolveChunkTimeoutMs(collector: StreamPartCollector, defaultTimeoutMs: number): number {
-  return collector.hasIncompleteToolCalls()
-    ? Math.min(defaultTimeoutMs, INCOMPLETE_TOOL_CALL_STALL_TIMEOUT_MS)
-    : defaultTimeoutMs
+  // Only apply the aggressive 30s timeout when the LLM is still generating tool
+  // call arguments (genuinely stalled). When a tool is executing and we're awaiting
+  // its result, use the default timeout — tools may legitimately run for minutes.
+  if (collector.hasPendingToolCallInputs()) {
+    return Math.min(defaultTimeoutMs, INCOMPLETE_TOOL_CALL_STALL_TIMEOUT_MS)
+  }
+  return defaultTimeoutMs
 }
 
 type NextChunkResult =

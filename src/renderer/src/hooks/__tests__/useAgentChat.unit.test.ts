@@ -8,6 +8,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import type { Dispatch, SetStateAction } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAgentChat } from '../useAgentChat'
+import { reconcileSnapshotUserMessages } from '../useAgentChat.utils'
 
 const {
   apiMock,
@@ -1072,5 +1073,56 @@ describe('useAgentChat', () => {
     await waitFor(() => {
       expect(createIpcConnectionAdapterMock).toHaveBeenCalledTimes(1)
     })
+  })
+
+  it('deduplicates persisted user message against optimistic user message on snapshot refresh', () => {
+    // This tests reconcileSnapshotUserMessages directly — the function
+    // that prevents duplicate user messages when a persisted snapshot
+    // is loaded after a stream completes.
+    //
+    // TanStack creates optimistic user messages with IDs like `msg-{timestamp}-{random}`.
+    // Persisted messages use UUIDs from crypto.randomUUID().
+    // Same text, different IDs → would appear as duplicates without reconciliation.
+    const userText = 'Please deduplicate this user turn'
+    const optimisticUserId = 'msg-1710340000000-abc123'
+    const persistedUserId = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
+
+    const existingMessages: UIMessage[] = [
+      createTextUIMessage(optimisticUserId, 'user', userText),
+      createTextUIMessage('msg-assistant-1', 'assistant', 'Working on it...'),
+    ]
+
+    const snapshotMessages: UIMessage[] = [
+      createTextUIMessage(persistedUserId, 'user', userText),
+      createTextUIMessage('msg-assistant-final', 'assistant', 'Final answer'),
+    ]
+
+    const reconciled = reconcileSnapshotUserMessages(snapshotMessages, existingMessages)
+
+    // The persisted user message should be replaced by the optimistic one
+    const userMessages = reconciled.filter((m: UIMessage) => m.role === 'user')
+    expect(userMessages).toHaveLength(1)
+    expect(userMessages[0].id).toBe(optimisticUserId)
+
+    // Assistant messages are untouched
+    const assistantMessages = reconciled.filter((m: UIMessage) => m.role === 'assistant')
+    expect(assistantMessages).toHaveLength(1)
+    expect(assistantMessages[0].id).toBe('msg-assistant-final')
+  })
+
+  it('does not deduplicate when user message texts differ', () => {
+    const existingMessages: UIMessage[] = [
+      createTextUIMessage('msg-optimistic', 'user', 'First question'),
+    ]
+
+    const snapshotMessages: UIMessage[] = [
+      createTextUIMessage('persisted-uuid', 'user', 'Different question'),
+      createTextUIMessage('msg-assistant', 'assistant', 'Answer'),
+    ]
+
+    const reconciled = reconcileSnapshotUserMessages(snapshotMessages, existingMessages)
+
+    // No match → snapshot returned as-is
+    expect(reconciled).toBe(snapshotMessages)
   })
 })

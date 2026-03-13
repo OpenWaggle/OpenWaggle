@@ -9,6 +9,16 @@ function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && 'code' in error
 }
 
+function formatReadContent(content: string, maxLines?: number): string {
+  if (!maxLines) return content
+  const lines = content.split('\n')
+  const truncated = lines.slice(0, maxLines).join('\n')
+  if (lines.length > maxLines) {
+    return `${truncated}\n\n... (${lines.length - maxLines} more lines)`
+  }
+  return truncated
+}
+
 export const readFileTool = defineOpenWaggleTool({
   name: 'readFile',
   description:
@@ -24,6 +34,13 @@ export const readFileTool = defineOpenWaggleTool({
   async execute(args, context) {
     const filePath = resolveProjectPath(context.projectPath, args.path)
 
+    // During waggle runs, return cached content if another agent already read this file
+    const cachedEntry = context.waggle?.fileCache.get(filePath)
+    if (cachedEntry) {
+      const formatted = formatReadContent(cachedEntry.content, args.maxLines)
+      return `[Previously read by ${cachedEntry.readBy}]\n\n${formatted}`
+    }
+
     try {
       const stat = await fs.stat(filePath)
       if (stat.size > MAX_FILE_SIZE) {
@@ -33,15 +50,13 @@ export const readFileTool = defineOpenWaggleTool({
       }
 
       const content = await fs.readFile(filePath, 'utf-8')
-      if (args.maxLines) {
-        const lines = content.split('\n')
-        const truncated = lines.slice(0, args.maxLines).join('\n')
-        if (lines.length > args.maxLines) {
-          return `${truncated}\n\n... (${lines.length - args.maxLines} more lines)`
-        }
-        return truncated
+
+      // During waggle runs, cache the file content for subsequent agents
+      if (context.waggle) {
+        context.waggle.fileCache.set(filePath, content, context.waggle.agentLabel)
       }
-      return content
+
+      return formatReadContent(content, args.maxLines)
     } catch (error) {
       if (isErrnoException(error) && error.code === 'ENOENT') {
         throw new Error(

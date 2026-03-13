@@ -166,3 +166,73 @@ function findLastTextPartIndex(parts: UIMessage['parts']): number {
   }
   return -1
 }
+
+// ─── Snapshot ↔ Optimistic User Message Reconciliation ───────
+
+/**
+ * Extract the concatenated text content from a UIMessage's text parts.
+ */
+function getUIMessageText(message: UIMessage): string {
+  return message.parts
+    .filter(
+      (part): part is Extract<(typeof message.parts)[number], { type: 'text' }> =>
+        part.type === 'text',
+    )
+    .map((part) => part.content)
+    .join('\n\n')
+}
+
+/**
+ * When the persisted conversation snapshot is loaded after a stream completes,
+ * user messages may appear duplicated: TanStack's optimistic user message
+ * (ID like `msg-{timestamp}-{random}`) and the persisted copy (UUID from disk)
+ * have different IDs but identical content.
+ *
+ * This function reconciles by replacing each persisted user message with an
+ * existing in-memory user message that has the same text, preserving the
+ * original ID so React doesn't remount the element and TanStack's internal
+ * bookkeeping stays consistent.
+ *
+ * Matching is done by normalized text content (role=user + same text).
+ * Each existing message is consumed at most once (queue per text key) to
+ * handle the edge case of multiple identical user messages.
+ */
+export function reconcileSnapshotUserMessages(
+  snapshotMessages: UIMessage[],
+  existingMessages: UIMessage[],
+): UIMessage[] {
+  // Build a map of existing user messages keyed by their text content.
+  // Each key maps to a queue so that if the user sent the same text twice,
+  // each persisted copy matches a distinct existing copy.
+  const existingUserQueuesByText = new Map<string, UIMessage[]>()
+  for (const msg of existingMessages) {
+    if (msg.role !== 'user') continue
+    const text = getUIMessageText(msg)
+    if (!text) continue
+    const queue = existingUserQueuesByText.get(text)
+    if (queue) {
+      queue.push(msg)
+    } else {
+      existingUserQueuesByText.set(text, [msg])
+    }
+  }
+
+  if (existingUserQueuesByText.size === 0) return snapshotMessages
+
+  let didReplace = false
+  const reconciled = snapshotMessages.map((msg) => {
+    if (msg.role !== 'user') return msg
+    const text = getUIMessageText(msg)
+    if (!text) return msg
+
+    const queue = existingUserQueuesByText.get(text)
+    if (!queue || queue.length === 0) return msg
+
+    const replacement = queue.shift()
+    if (!replacement) return msg
+    didReplace = true
+    return replacement
+  })
+
+  return didReplace ? reconciled : snapshotMessages
+}

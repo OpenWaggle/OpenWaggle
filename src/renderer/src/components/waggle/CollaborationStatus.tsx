@@ -1,3 +1,4 @@
+import type { ConversationId } from '@shared/types/brand'
 import { AlertTriangle, Loader2, X } from 'lucide-react'
 import { AGENT_BG } from '@/lib/agent-colors'
 import { cn } from '@/lib/cn'
@@ -6,14 +7,18 @@ import { useWaggleStore } from '@/stores/waggle-store'
 const SLICE_ARG_1 = -3
 
 interface CollaborationStatusProps {
+  currentConversationId: ConversationId | null
   onStop: () => void
 }
 
 export function WaggleCollaborationStatus({
+  currentConversationId,
   onStop,
 }: CollaborationStatusProps): React.JSX.Element | null {
   const status = useWaggleStore((s) => s.status)
   const config = useWaggleStore((s) => s.activeConfig)
+  const activeCollaborationId = useWaggleStore((s) => s.activeCollaborationId)
+  const configConversationId = useWaggleStore((s) => s.configConversationId)
   const currentTurn = useWaggleStore((s) => s.currentTurn)
   const currentAgentLabel = useWaggleStore((s) => s.currentAgentLabel)
   const fileConflicts = useWaggleStore((s) => s.fileConflicts)
@@ -22,6 +27,10 @@ export function WaggleCollaborationStatus({
   const reset = useWaggleStore((s) => s.reset)
 
   if (!config) return null
+
+  // Scope: only show for the conversation that owns the waggle state
+  const owningConversationId = activeCollaborationId ?? configConversationId
+  if (owningConversationId && owningConversationId !== currentConversationId) return null
 
   function handleDismiss(): void {
     if (status === 'running') {

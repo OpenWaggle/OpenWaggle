@@ -18,6 +18,7 @@ import {
   buildPartialAssistantMessage,
   conversationToUIMessages,
   formatAttachmentPreview,
+  reconcileSnapshotUserMessages,
 } from './useAgentChat.utils'
 import { useHydratedConversationMessages } from './useHydratedConversationMessages'
 import { useOptimisticSteeredTurn } from './useOptimisticSteeredTurn'
@@ -169,7 +170,8 @@ export function useAgentChat(
       })
 
       if (!foregroundStreamActiveRef.current) {
-        setMessages(conversationToUIMessages(conv))
+        const snapshotMessages = conversationToUIMessages(conv)
+        setMessages(reconcileSnapshotUserMessages(snapshotMessages, messagesRef.current))
       }
     },
     [setMessages],
@@ -239,7 +241,8 @@ export function useAgentChat(
       return
     }
 
-    setMessages(conversationToUIMessages(conversation))
+    const snapshotMessages = conversationToUIMessages(conversation)
+    setMessages(reconcileSnapshotUserMessages(snapshotMessages, messagesRef.current))
   }, [conversationId, conversation, hasActiveRun, setMessages])
 
   // While background-streaming, subscribe to live chunk updates.
@@ -307,8 +310,15 @@ export function useAgentChat(
         setBackgroundStreaming(false)
         foregroundStreamActiveRef.current = true
         pendingPayloadRef.current = payload
-        await sendMessage(buildClientUserMessage(payload))
-        foregroundStreamActiveRef.current = false
+        return sendMessage(buildClientUserMessage(payload)).then(
+          () => {
+            foregroundStreamActiveRef.current = false
+          },
+          (error: unknown) => {
+            foregroundStreamActiveRef.current = false
+            throw error
+          },
+        )
       }),
     sendWaggleMessage: async (payload: AgentSendPayload, config: WaggleConfig) =>
       withDeferredSnapshotRefresh(async () => {
@@ -316,8 +326,15 @@ export function useAgentChat(
         foregroundStreamActiveRef.current = true
         pendingPayloadRef.current = payload
         pendingWaggleConfigRef.current = config
-        await sendMessage(buildClientUserMessage(payload))
-        foregroundStreamActiveRef.current = false
+        return sendMessage(buildClientUserMessage(payload)).then(
+          () => {
+            foregroundStreamActiveRef.current = false
+          },
+          (error: unknown) => {
+            foregroundStreamActiveRef.current = false
+            throw error
+          },
+        )
       }),
     isLoading: isLoading || backgroundStreaming,
     status: backgroundStreaming ? 'streaming' : status,

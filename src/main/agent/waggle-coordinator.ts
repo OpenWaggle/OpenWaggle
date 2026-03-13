@@ -16,6 +16,7 @@ import { runAgent } from './agent-loop'
 import { checkConsensus } from './consensus-detector'
 import { FileConflictTracker } from './file-conflict-tracker'
 import { makeMessage } from './shared'
+import { WaggleFileCache } from './waggle-file-cache'
 
 const SLICE_ARG_2 = 200
 const RUN_WAGGLE_SEQUENTIAL_VALUE_20 = 20
@@ -33,6 +34,7 @@ export interface WaggleRunParams {
   readonly signal: AbortSignal
   readonly onStreamChunk: (chunk: StreamChunk, meta: WaggleStreamMetadata) => void
   readonly onTurnEvent: (event: WaggleTurnEvent) => void
+  readonly onTurnComplete?: (accumulatedMessages: readonly Message[]) => Promise<void>
 }
 
 export interface WaggleRunResult {
@@ -57,9 +59,11 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
     signal,
     onStreamChunk,
     onTurnEvent,
+    onTurnComplete,
   } = params
   const { agents, stop } = config
   const maxTurns = stop.maxTurnsSafety
+  const waggleFileCache = new WaggleFileCache()
 
   const conflictTracker = new FileConflictTracker()
   const accumulatedMessages: Message[] = []
@@ -82,6 +86,7 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
   let consensusReason: string | undefined
   let consecutiveErrorTurns = 0
   let lastTurnError: string | undefined
+  let successfulTurnCount = 0
 
   logger.info('Starting Waggle mode sequential collaboration', {
     conversationId,
@@ -104,7 +109,7 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
 
     onTurnEvent({
       type: 'turn-start',
-      turnNumber,
+      turnNumber: successfulTurnCount,
       agentIndex,
       agentLabel: agent.label,
     })
@@ -114,7 +119,7 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
       agentLabel: agent.label,
       agentColor: agent.color,
       agentModel: agent.model,
-      turnNumber,
+      turnNumber: successfulTurnCount,
       collaborationMode: 'sequential',
     }
 
@@ -140,6 +145,10 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
         model: agent.model,
         settings,
         skipApproval: createSkipApprovalToken(),
+        waggleContext: {
+          agentLabel: agent.label,
+          fileCache: waggleFileCache,
+        },
         onChunk: (chunk) => {
           onStreamChunk(chunk, meta)
 
@@ -204,6 +213,11 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
 
       consecutiveErrorTurns = 0
 
+      // Use sequential successful-turn count for display metadata
+      // so the UI shows "Turn 1, 2, 3..." without gaps from failed turns.
+      const displayTurnNumber = successfulTurnCount
+      successfulTurnCount++
+
       // Tag assistant message with Waggle metadata.
       const taggedMessage = makeMessage('assistant', [...assistantMsg.parts], assistantMsg.model, {
         ...assistantMsg.metadata,
@@ -212,7 +226,7 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
           agentLabel: agent.label,
           agentColor: agent.color,
           agentModel: agent.model,
-          turnNumber,
+          turnNumber: displayTurnNumber,
         },
       })
 
@@ -234,12 +248,15 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
 
       onTurnEvent({
         type: 'turn-end',
-        turnNumber,
+        turnNumber: displayTurnNumber,
         agentIndex,
         agentLabel: agent.label,
         agentColor: agent.color,
         agentModel: agent.model,
       })
+
+      // Persist accumulated messages after each successful turn
+      await onTurnComplete?.(accumulatedMessages)
 
       // Track text for consensus
       lastAssistantTexts = [lastAssistantTexts[1], responseText]
@@ -261,11 +278,11 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
           onTurnEvent({
             type: 'collaboration-complete',
             reason: `Consensus reached: ${consensusResult.reason}`,
-            totalTurns: turnNumber + 1,
+            totalTurns: successfulTurnCount,
           })
           logger.info('Consensus reached', {
             conversationId,
-            turnNumber: turnNumber + 1,
+            turnNumber: successfulTurnCount,
             confidence: consensusResult.confidence,
             reason: consensusResult.reason,
           })
@@ -309,6 +326,8 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
       successfulAssistantMsgs,
       onStreamChunk,
       onTurnEvent,
+      onTurnComplete,
+      waggleFileCache,
     })
   }
 
@@ -321,6 +340,8 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
     totalTurns,
     consensusReason,
   })
+
+  waggleFileCache.clear()
 
   return {
     newMessages: accumulatedMessages,
@@ -385,6 +406,8 @@ interface SynthesisParams {
   readonly successfulAssistantMsgs: Message[]
   readonly onStreamChunk: (chunk: StreamChunk, meta: WaggleStreamMetadata) => void
   readonly onTurnEvent: (event: WaggleTurnEvent) => void
+  readonly onTurnComplete?: (accumulatedMessages: readonly Message[]) => Promise<void>
+  readonly waggleFileCache: WaggleFileCache
 }
 
 async function runSynthesisStep(params: SynthesisParams): Promise<void> {
@@ -399,6 +422,8 @@ async function runSynthesisStep(params: SynthesisParams): Promise<void> {
     successfulAssistantMsgs,
     onStreamChunk,
     onTurnEvent,
+    onTurnComplete,
+    waggleFileCache,
   } = params
 
   // Use Agent A's model for synthesis
@@ -438,6 +463,10 @@ async function runSynthesisStep(params: SynthesisParams): Promise<void> {
       model: synthesisModel,
       settings,
       skipApproval: createSkipApprovalToken(),
+      waggleContext: {
+        agentLabel: 'Synthesis',
+        fileCache: waggleFileCache,
+      },
       onChunk: (chunk) => {
         // Filter terminal events — the envelope handles those
         if (
@@ -482,6 +511,9 @@ async function runSynthesisStep(params: SynthesisParams): Promise<void> {
         agentColor: 'emerald',
         agentModel: synthesisModel,
       })
+
+      // Persist after synthesis
+      await onTurnComplete?.(accumulatedMessages)
 
       logger.info('Synthesis step completed', { conversationId })
     } else {

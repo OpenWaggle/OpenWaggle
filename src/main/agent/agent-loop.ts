@@ -78,6 +78,11 @@ export interface AgentRunParams {
   readonly skipApproval?: SkipApprovalToken
   readonly onCollectorCreated?: (collector: StreamPartCollector) => void
   readonly subAgentContext?: SubAgentRunContext
+  /** Waggle file cache context — shared across agents in a waggle session. */
+  readonly waggleContext?: {
+    readonly agentLabel: string
+    readonly fileCache: import('./waggle-file-cache').WaggleFileCache
+  }
   /** Maximum agent loop iterations. Defaults to MAX_ITERATIONS (25). */
   readonly maxTurns?: number
 }
@@ -534,6 +539,14 @@ export function runAgentEffect(params: AgentRunParams): Effect.Effect<AgentRunRe
       loadedScopeFiles: dynamicLoadedAgentsScopeFiles,
       loadedRequestedPaths: dynamicLoadedAgentsRequestedPaths,
     },
+    ...(params.waggleContext
+      ? {
+          waggle: {
+            agentLabel: params.waggleContext.agentLabel,
+            fileCache: params.waggleContext.fileCache,
+          },
+        }
+      : {}),
     ...(params.subAgentContext
       ? {
           subAgentContext: {
@@ -751,8 +764,9 @@ export function runAgentEffect(params: AgentRunParams): Effect.Effect<AgentRunRe
       }
 
       if (streamResult.timedOut && streamResult.stallReason === 'awaiting-tool-result') {
-        logger.warn('Stream stalled with incomplete tool call; skipping retry', {
+        logger.warn('Stream stalled waiting for tool execution result', {
           conversationId: conversation.id,
+          pendingToolCalls: collector.getUnresolvedToolNames(),
         })
         return yield* Effect.fail(new Error(INCOMPLETE_TOOL_CALL_STALL_ERROR))
       }

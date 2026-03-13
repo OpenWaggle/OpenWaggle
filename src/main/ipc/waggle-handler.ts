@@ -5,6 +5,7 @@ import type { ConversationId } from '@shared/types/brand'
 import type { WaggleConfig } from '@shared/types/waggle'
 import * as Effect from 'effect/Effect'
 import { classifyAgentError, makeErrorInfo } from '../agent/error-classifier'
+import { buildPersistedUserMessageParts, makeMessage } from '../agent/shared'
 import { generateTitle } from '../agent/title-generator'
 import { runWaggleSequential } from '../agent/waggle-coordinator'
 import { createLogger } from '../logger'
@@ -90,6 +91,9 @@ export function registerWaggleHandlers(): void {
           }
         }
 
+        // Capture base messages before run for incremental persistence
+        const baseMessages = [...conversation.messages]
+
         startStreamBuffer(conversationId, config.agents[0].model, 'waggle')
 
         yield* Effect.ensuring(
@@ -108,6 +112,14 @@ export function registerWaggleHandlers(): void {
             })
 
             let lastEmittedTurn = -1
+            let pendingBoundary: {
+              agentIndex: number
+              agentLabel: string
+              agentColor: string
+              agentModel: string | undefined
+              turnNumber: number
+              isSynthesis?: boolean
+            } | null = null
 
             const result = yield* Effect.tryPromise({
               try: () =>
@@ -118,6 +130,17 @@ export function registerWaggleHandlers(): void {
                   config,
                   settings,
                   signal: abortController.signal,
+                  onTurnComplete: async (accumulatedMessages) => {
+                    await withConversationLock(conversationId, async () => {
+                      const latest = await getConversation(conversationId)
+                      if (!latest) return
+                      await saveConversation({
+                        ...latest,
+                        messages: [...baseMessages, ...accumulatedMessages],
+                        waggleConfig: config,
+                      })
+                    })
+                  },
                   onStreamChunk: (chunk, meta) => {
                     emitWaggleStreamChunk(conversationId, chunk, meta)
 
@@ -129,35 +152,58 @@ export function registerWaggleHandlers(): void {
                       return
                     }
 
+                    // When a new turn starts, defer the boundary injection
+                    // until we see the first text-bearing chunk. This ensures
+                    // the boundary always appears immediately before text,
+                    // preventing TanStack from appending new-turn text to the
+                    // previous turn's open TextPart.
                     if (meta.turnNumber > lastEmittedTurn) {
                       if (meta.turnNumber > 0) {
-                        const boundaryId = meta.isSynthesis
-                          ? 'turn-boundary-synthesis'
-                          : `turn-boundary-${String(meta.turnNumber)}`
-                        const boundaryMeta = JSON.stringify({
+                        pendingBoundary = {
                           agentIndex: meta.agentIndex,
                           agentLabel: meta.agentLabel,
                           agentColor: meta.agentColor,
                           agentModel: meta.agentModel,
                           turnNumber: meta.turnNumber,
                           ...(meta.isSynthesis ? { isSynthesis: true } : {}),
-                        })
-                        emitStreamChunk(conversationId, {
-                          type: 'TOOL_CALL_START',
-                          timestamp: Date.now(),
-                          toolCallId: boundaryId,
-                          toolName: '_turnBoundary',
-                        })
-                        emitStreamChunk(conversationId, {
-                          type: 'TOOL_CALL_END',
-                          timestamp: Date.now(),
-                          toolCallId: boundaryId,
-                          toolName: '_turnBoundary',
-                          result: boundaryMeta,
-                          input: {},
-                        })
+                        }
                       }
                       lastEmittedTurn = meta.turnNumber
+                    }
+
+                    // Flush the pending boundary right before the first
+                    // TEXT_DELTA or TEXT_MESSAGE_START of the new turn.
+                    if (
+                      pendingBoundary &&
+                      (chunk.type === 'TEXT_MESSAGE_CONTENT' || chunk.type === 'TEXT_MESSAGE_START')
+                    ) {
+                      const b = pendingBoundary
+                      const boundaryId = b.isSynthesis
+                        ? 'turn-boundary-synthesis'
+                        : `turn-boundary-${String(b.turnNumber)}`
+                      const boundaryMeta = JSON.stringify({
+                        agentIndex: b.agentIndex,
+                        agentLabel: b.agentLabel,
+                        agentColor: b.agentColor,
+                        agentModel: b.agentModel,
+                        turnNumber: b.turnNumber,
+                        ...(b.isSynthesis ? { isSynthesis: true } : {}),
+                      })
+                      emitStreamChunk(conversationId, {
+                        type: 'TOOL_CALL_START',
+                        timestamp: Date.now(),
+                        toolCallId: boundaryId,
+                        toolName: '_turnBoundary',
+                      })
+                      emitStreamChunk(conversationId, {
+                        type: 'TOOL_CALL_END',
+                        timestamp: Date.now(),
+                        toolCallId: boundaryId,
+                        toolName: '_turnBoundary',
+                        result: boundaryMeta,
+                        input: {},
+                      })
+                      pendingBoundary = null
                     }
 
                     emitStreamChunk(conversationId, chunk)
@@ -168,6 +214,35 @@ export function registerWaggleHandlers(): void {
                 }),
               catch: (err) => err,
             })
+
+            // Persist whatever we have BEFORE emitting finish/error events.
+            // This ensures refreshConversationSnapshot won't load empty state.
+            if (result.newMessages.length > 0) {
+              yield* Effect.tryPromise({
+                try: () =>
+                  withConversationLock(conversationId, async () => {
+                    const latestConversation = await getConversation(conversationId)
+                    if (!latestConversation) return
+                    const updatedMessages = [...baseMessages, ...result.newMessages]
+                    await saveConversation({
+                      ...latestConversation,
+                      messages: updatedMessages,
+                      waggleConfig: config,
+                    })
+                  }),
+                catch: (persistError) => persistError,
+              }).pipe(
+                Effect.catchAll((persistError) =>
+                  Effect.sync(() =>
+                    logger.error('Failed to persist Waggle conversation', {
+                      conversationId,
+                      error:
+                        persistError instanceof Error ? persistError.message : String(persistError),
+                    }),
+                  ),
+                ),
+              )
+            }
 
             if (abortController.signal.aborted || result.newMessages.length === 0) {
               emitStreamChunk(conversationId, {
@@ -196,32 +271,6 @@ export function registerWaggleHandlers(): void {
               return
             }
 
-            yield* Effect.tryPromise({
-              try: () =>
-                withConversationLock(conversationId, async () => {
-                  const latestConversation = await getConversation(conversationId)
-                  if (!latestConversation) return
-
-                  const updatedMessages = [...latestConversation.messages, ...result.newMessages]
-                  await saveConversation({
-                    ...latestConversation,
-                    messages: updatedMessages,
-                    waggleConfig: config,
-                  })
-                }),
-              catch: (persistError) => persistError,
-            }).pipe(
-              Effect.catchAll((persistError) =>
-                Effect.sync(() =>
-                  logger.error('Failed to persist Waggle conversation', {
-                    conversationId,
-                    error:
-                      persistError instanceof Error ? persistError.message : String(persistError),
-                  }),
-                ),
-              ),
-            )
-
             emitStreamChunk(conversationId, {
               type: 'RUN_FINISHED',
               timestamp: Date.now(),
@@ -233,7 +282,29 @@ export function registerWaggleHandlers(): void {
               if (err instanceof Error && err.message === 'aborted') {
                 return Effect.void
               }
-              return Effect.sync(() => {
+              return Effect.gen(function* () {
+                // Persist user message so snapshot refresh doesn't show empty state.
+                // Only add if onTurnComplete hasn't already saved progress.
+                yield* Effect.tryPromise({
+                  try: () =>
+                    withConversationLock(conversationId, async () => {
+                      const conv = await getConversation(conversationId)
+                      if (!conv) return
+                      if (conv.messages.length <= baseMessages.length) {
+                        const userMessage = makeMessage(
+                          'user',
+                          buildPersistedUserMessageParts(payload),
+                        )
+                        await saveConversation({
+                          ...conv,
+                          messages: [...conv.messages, userMessage],
+                          waggleConfig: config,
+                        })
+                      }
+                    }),
+                  catch: (e) => e,
+                }).pipe(Effect.catchAll(() => Effect.void))
+
                 const classified = classifyAgentError(err)
                 emitStreamChunk(conversationId, {
                   type: 'RUN_ERROR',
