@@ -18,6 +18,7 @@ import {
   buildPartialAssistantMessage,
   conversationToUIMessages,
   formatAttachmentPreview,
+  reconcileSnapshotUserMessages,
 } from './useAgentChat.utils'
 import { useHydratedConversationMessages } from './useHydratedConversationMessages'
 import { useOptimisticSteeredTurn } from './useOptimisticSteeredTurn'
@@ -169,7 +170,8 @@ export function useAgentChat(
       })
 
       if (!foregroundStreamActiveRef.current) {
-        setMessages(conversationToUIMessages(conv))
+        const snapshotMessages = conversationToUIMessages(conv)
+        setMessages(reconcileSnapshotUserMessages(snapshotMessages, messagesRef.current))
       }
     },
     [setMessages],
@@ -239,7 +241,8 @@ export function useAgentChat(
       return
     }
 
-    setMessages(conversationToUIMessages(conversation))
+    const snapshotMessages = conversationToUIMessages(conversation)
+    setMessages(reconcileSnapshotUserMessages(snapshotMessages, messagesRef.current))
   }, [conversationId, conversation, hasActiveRun, setMessages])
 
   // While background-streaming, subscribe to live chunk updates.
