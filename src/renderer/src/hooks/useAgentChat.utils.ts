@@ -174,7 +174,10 @@ function findLastTextPartIndex(parts: UIMessage['parts']): number {
  */
 function getUIMessageText(message: UIMessage): string {
   return message.parts
-    .filter((part): part is Extract<(typeof message.parts)[number], { type: 'text' }> => part.type === 'text')
+    .filter(
+      (part): part is Extract<(typeof message.parts)[number], { type: 'text' }> =>
+        part.type === 'text',
+    )
     .map((part) => part.content)
     .join('\n\n')
 }
@@ -225,7 +228,8 @@ export function reconcileSnapshotUserMessages(
     const queue = existingUserQueuesByText.get(text)
     if (!queue || queue.length === 0) return msg
 
-    const replacement = queue.shift()!
+    const replacement = queue.shift()
+    if (!replacement) return msg
     didReplace = true
     return replacement
   })

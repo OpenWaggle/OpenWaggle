@@ -175,7 +175,7 @@ export function registerWaggleHandlers(): void {
                     // TEXT_DELTA or TEXT_MESSAGE_START of the new turn.
                     if (
                       pendingBoundary &&
-                      (chunk.type === 'TEXT_DELTA' || chunk.type === 'TEXT_MESSAGE_START')
+                      (chunk.type === 'TEXT_MESSAGE_CONTENT' || chunk.type === 'TEXT_MESSAGE_START')
                     ) {
                       const b = pendingBoundary
                       const boundaryId = b.isSynthesis
