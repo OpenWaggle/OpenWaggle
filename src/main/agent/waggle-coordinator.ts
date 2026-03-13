@@ -16,6 +16,7 @@ import { runAgent } from './agent-loop'
 import { checkConsensus } from './consensus-detector'
 import { FileConflictTracker } from './file-conflict-tracker'
 import { makeMessage } from './shared'
+import { WaggleFileCache } from './waggle-file-cache'
 
 const SLICE_ARG_2 = 200
 const RUN_WAGGLE_SEQUENTIAL_VALUE_20 = 20
@@ -62,6 +63,7 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
   } = params
   const { agents, stop } = config
   const maxTurns = stop.maxTurnsSafety
+  const waggleFileCache = new WaggleFileCache()
 
   const conflictTracker = new FileConflictTracker()
   const accumulatedMessages: Message[] = []
@@ -143,6 +145,10 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
         model: agent.model,
         settings,
         skipApproval: createSkipApprovalToken(),
+        waggleContext: {
+          agentLabel: agent.label,
+          fileCache: waggleFileCache,
+        },
         onChunk: (chunk) => {
           onStreamChunk(chunk, meta)
 
@@ -321,6 +327,7 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
       onStreamChunk,
       onTurnEvent,
       onTurnComplete,
+      waggleFileCache,
     })
   }
 
@@ -333,6 +340,8 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
     totalTurns,
     consensusReason,
   })
+
+  waggleFileCache.clear()
 
   return {
     newMessages: accumulatedMessages,
@@ -398,6 +407,7 @@ interface SynthesisParams {
   readonly onStreamChunk: (chunk: StreamChunk, meta: WaggleStreamMetadata) => void
   readonly onTurnEvent: (event: WaggleTurnEvent) => void
   readonly onTurnComplete?: (accumulatedMessages: readonly Message[]) => Promise<void>
+  readonly waggleFileCache: WaggleFileCache
 }
 
 async function runSynthesisStep(params: SynthesisParams): Promise<void> {
@@ -413,6 +423,7 @@ async function runSynthesisStep(params: SynthesisParams): Promise<void> {
     onStreamChunk,
     onTurnEvent,
     onTurnComplete,
+    waggleFileCache,
   } = params
 
   // Use Agent A's model for synthesis
@@ -452,6 +463,10 @@ async function runSynthesisStep(params: SynthesisParams): Promise<void> {
       model: synthesisModel,
       settings,
       skipApproval: createSkipApprovalToken(),
+      waggleContext: {
+        agentLabel: 'Synthesis',
+        fileCache: waggleFileCache,
+      },
       onChunk: (chunk) => {
         // Filter terminal events — the envelope handles those
         if (

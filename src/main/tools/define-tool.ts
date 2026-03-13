@@ -45,6 +45,10 @@ export interface ToolContext {
     readonly loadedScopeFiles: Set<string>
     readonly loadedRequestedPaths: Set<string>
   }
+  waggle?: {
+    readonly agentLabel: string
+    readonly fileCache: import('../agent/waggle-file-cache').WaggleFileCache
+  }
   subAgentContext?: SubAgentToolContext
 }
 
