@@ -1,15 +1,25 @@
-# 53 — Shiki Syntax Highlighting with LRU Cache
+# 53 — Streaming Rendering Performance & Shiki Syntax Highlighting
 
 **Status:** Not Started
-**Priority:** P1
-**Category:** Enhancement
+**Priority:** P0 — Ship-blocking
+**Category:** Performance / Enhancement
 **Depends on:** None
 **Enables:** Spec 58 (Enhanced Diff Rendering — uses Shiki for syntax-highlighted diffs)
-**Origin:** T3Code competitive analysis — t3code uses Shiki with LRU cache (500 entries, 50MB limit), streaming-aware cache invalidation. Reference: [t3code](https://github.com/pingdotgg/t3code) ChatMarkdown Shiki implementation.
+**Origin:** T3Code competitive analysis + streaming jank during waggle and normal mode.
 
 ---
 
 ## Problem
+
+### A. Streaming Rendering is O(n²) — The App Feels Slow
+
+`StreamingText` runs the **full ReactMarkdown pipeline on every single chunk**: remark parse → rehype transform → rehype-highlight → React reconcile. For a 2000-word response streamed in 200 chunks, that's 200 full parses of increasingly large text. This is O(n²) over the lifetime of a response.
+
+React Compiler is enabled (`babel-plugin-react-compiler`) and auto-memoizes components — but memoization **cannot help** when the primary prop (`text`) changes on every chunk. The component must re-render because its input genuinely changed.
+
+The result: the app feels sluggish during streaming, especially for long responses with code blocks. This is the single biggest UX issue for first impressions.
+
+### B. Code Highlighting is Expensive and Uncached
 
 OpenWaggle uses highlight.js via `rehype-highlight` (in `src/renderer/src/lib/markdown-safety.tsx`, line 64) for code syntax highlighting. This has several limitations:
 
@@ -29,6 +39,45 @@ t3code solves this with Shiki (same highlighting engine as VS Code) plus an LRU 
 - `StreamingText` always renders through ReactMarkdown (no plain-text fallback per CLAUDE.md)
 
 ## Implementation
+
+### Phase 0A: Streaming Render Throttling (Highest Priority)
+
+The single biggest performance win. Reduce the number of ReactMarkdown re-renders during streaming from ~200 per response to ~30.
+
+- [ ] Create `src/renderer/src/hooks/useThrottledStreamText.ts`:
+  - Accepts the raw streaming `text` prop
+  - Batches updates to ~60fps (one update per `requestAnimationFrame` or 16ms interval)
+  - Returns a throttled text value that updates at most 60 times/second
+  - On stream end (status changes from `streaming` to `ready`), immediately flush to final value
+- [ ] Update `StreamingText.tsx` to use throttled text during streaming:
+  - While streaming: use throttled value → ReactMarkdown renders ~60 times/second max
+  - After streaming: use final value → one clean render with all content
+- [ ] Measure before/after:
+  - Target: <16ms per render frame during streaming
+  - Target: no visible jank or stutter when scrolling during streaming
+
+**Why this works:** ReactMarkdown's parse cost per render is roughly proportional to text length. Reducing renders from 200 to 30 means the total parse work drops ~6x, AND each parse runs on a slightly larger text (less overhead per-character). The user sees smooth text appearing at 60fps instead of janky bursts.
+
+### Phase 0B: Collapsible Tool Traces (All Modes)
+
+Reduce visual noise and improve readability across all modes — normal chat, waggle, and synthesis.
+
+- [ ] Tool call blocks are **collapsed by default** after completion:
+  - Show: tool name + brief status (success/error) + duration
+  - Hidden by default: full arguments, full result content
+  - Click to expand
+- [ ] During streaming / active execution: tool calls are **expanded** (user watches progress)
+- [ ] After the tool call completes: auto-collapse with animation
+- [ ] In waggle mode, per-turn summary header:
+  - Agent identity (label + model)
+  - Tool call count badge (e.g., "12 tools")
+  - Turn text/prose remains fully visible — only tool traces collapse
+- [ ] Apply consistently across all modes — this is a chat rendering standard, not waggle-specific
+
+**Files to modify:**
+- `src/renderer/src/components/chat/useVirtualRows.ts` — tool call row collapse state
+- Tool call rendering components — add expand/collapse toggle
+- Waggle turn header components — add summary badges
 
 ### Phase 1: Shiki Core Integration
 
