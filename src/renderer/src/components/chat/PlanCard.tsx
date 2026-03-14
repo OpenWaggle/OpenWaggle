@@ -82,7 +82,7 @@ export function PlanCard({
           </span>
         </div>
         <div className="px-3.5 py-2.5 max-h-[200px] overflow-y-auto">
-          <StreamingText text={planText} />
+          <StreamingText text={planText} isStreaming={false} />
         </div>
         {displayAction === 'revise' && historicalResponse?.action === 'revise' && (
           <div className="border-t border-border px-3.5 py-2">
@@ -109,7 +109,7 @@ export function PlanCard({
 
       {/* Plan content */}
       <div className="px-3.5 py-3 max-h-[400px] overflow-y-auto">
-        <StreamingText text={planText} />
+        <StreamingText text={planText} isStreaming={!!isStreaming} />
       </div>
 
       {/* Controls — only show when not streaming */}

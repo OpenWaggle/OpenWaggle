@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { useThrottledStreamText } from '@/hooks/useThrottledStreamText'
 import {
   safeMarkdownComponents,
   safeMarkdownRehypePlugins,
@@ -11,6 +12,7 @@ import { CodeBlock } from './CodeBlock'
 
 interface StreamingTextProps {
   text: string
+  isStreaming?: boolean
 }
 
 /**
@@ -27,8 +29,13 @@ function extractLanguage(children: ReactNode): string | undefined {
   return undefined
 }
 
-export function StreamingText({ text }: StreamingTextProps): React.JSX.Element | null {
-  if (!text) return null
+export function StreamingText({
+  text,
+  isStreaming = false,
+}: StreamingTextProps): React.JSX.Element | null {
+  const displayText = useThrottledStreamText(text, isStreaming)
+
+  if (!displayText) return null
 
   return (
     <div className="prose">
@@ -51,7 +58,7 @@ export function StreamingText({ text }: StreamingTextProps): React.JSX.Element |
           },
         }}
       >
-        {text}
+        {displayText}
       </ReactMarkdown>
     </div>
   )

@@ -1,8 +1,25 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { act, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { StreamingText } from '../StreamingText'
 
+const REQUEST_ANIMATION_FRAME_DELAY_MS = 16
+
 describe('StreamingText', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) =>
+      window.setTimeout(() => callback(performance.now()), REQUEST_ANIMATION_FRAME_DELAY_MS),
+    )
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((handle) => {
+      window.clearTimeout(handle)
+    })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+  })
+
   it('renders allowed markdown links with safe attributes', () => {
     render(
       <StreamingText
@@ -47,5 +64,48 @@ describe('StreamingText', () => {
     expect(code).toBeTruthy()
     expect(code?.className).toContain('language-ts')
     expect(highlightedToken).toBeTruthy()
+  })
+
+  it('renders text immediately when streaming is false', () => {
+    const { rerender } = render(<StreamingText text="first" isStreaming={false} />)
+
+    expect(screen.getByText('first')).toBeInTheDocument()
+
+    rerender(<StreamingText text="second" isStreaming={false} />)
+
+    expect(screen.getByText('second')).toBeInTheDocument()
+  })
+
+  it('batches rapid text updates until the next animation frame while streaming', async () => {
+    const { rerender } = render(<StreamingText text="alpha" isStreaming />)
+
+    expect(screen.getByText('alpha')).toBeInTheDocument()
+
+    rerender(<StreamingText text="beta" isStreaming />)
+    rerender(<StreamingText text="gamma" isStreaming />)
+    rerender(<StreamingText text="omega" isStreaming />)
+
+    expect(screen.queryByText('omega')).toBeNull()
+    expect(screen.getByText('alpha')).toBeInTheDocument()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(REQUEST_ANIMATION_FRAME_DELAY_MS)
+    })
+
+    expect(screen.getByText('omega')).toBeInTheDocument()
+    expect(screen.queryByText('beta')).toBeNull()
+    expect(screen.queryByText('gamma')).toBeNull()
+  })
+
+  it('flushes the latest text immediately when streaming ends', () => {
+    const { rerender } = render(<StreamingText text="draft" isStreaming />)
+
+    rerender(<StreamingText text="final" isStreaming />)
+
+    expect(screen.queryByText('final')).toBeNull()
+
+    rerender(<StreamingText text="final" isStreaming={false} />)
+
+    expect(screen.getByText('final')).toBeInTheDocument()
   })
 })
