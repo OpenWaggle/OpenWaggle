@@ -58,26 +58,63 @@ The single biggest performance win. Reduce the number of ReactMarkdown re-render
 
 **Why this works:** ReactMarkdown's parse cost per render is roughly proportional to text length. Reducing renders from 200 to 30 means the total parse work drops ~6x, AND each parse runs on a slightly larger text (less overhead per-character). The user sees smooth text appearing at 60fps instead of janky bursts.
 
-### Phase 0B: Collapsible Tool Traces (All Modes)
+### Phase 0B: Synthesis-First UI + Collapsible Traces
 
-Reduce visual noise and improve readability across all modes — normal chat, waggle, and synthesis.
+**Core principle:** Users see concise, direct answers by default. Everything else (tool calls, intermediate work) collapses after the run completes.
 
-- [ ] Tool call blocks are **collapsed by default** after completion:
-  - Show: tool name + brief status (success/error) + duration
-  - Hidden by default: full arguments, full result content
-  - Click to expand
-- [ ] During streaming / active execution: tool calls are **expanded** (user watches progress)
-- [ ] After the tool call completes: auto-collapse with animation
-- [ ] In waggle mode, per-turn summary header:
-  - Agent identity (label + model)
-  - Tool call count badge (e.g., "12 tools")
-  - Turn text/prose remains fully visible — only tool traces collapse
-- [ ] Apply consistently across all modes — this is a chat rendering standard, not waggle-specific
+#### What the user sees by default (after run completes)
+
+**Normal mode:**
+- Tool calls → collapsed (tool name + status + duration, click to expand)
+- Any intermediate text → collapsed
+- **Last text block = synthesis → always visible, always expanded**
+
+**Waggle mode (per turn after turn completes):**
+- That turn's tool calls → collapsed
+- That turn's last text block = turn synthesis → visible
+- So user sees: Turn 1 synthesis → Turn 2 synthesis → Turn 3 synthesis → ...
+- **Final waggle synthesis → always visible, always expanded**
+
+**During streaming / active execution (all modes):**
+- Everything expanded — user watches live progress
+- Collapse happens when the run/turn completes
+
+#### Synthesis prompt injection (conditional)
+
+To ensure there is always a synthesis to show, inject a system prompt fragment when the agent has tools available (i.e. conversation has a `projectPath` set):
+
+```
+Always end your response with a clear, concise synthesis of what you found or did.
+This is the primary content the user sees — make it self-contained and actionable.
+Keep tool call traces and intermediate reasoning in the tool calls themselves.
+```
+
+This fragment is injected into `buildAgentPrompt()` in `src/main/agent/prompt-builder.ts` **only when** `projectPath` is set. Pure chat without a project is unaffected.
+
+For waggle, the same instruction applies to each agent turn via `buildCollaborationSystemPrompt()` in `waggle-coordinator.ts`.
+
+#### Implementation checklist
+
+- [ ] Add synthesis prompt fragment to `prompt-builder.ts` (conditional on projectPath)
+- [ ] Add synthesis prompt fragment to `buildCollaborationSystemPrompt()` in `waggle-coordinator.ts`
+- [ ] Tool call rows: collapsed by default after completion, expand on click
+  - During streaming: expanded (live progress)
+  - After tool-call-end: auto-collapse with animation
+  - User can expand individually — state persists until conversation scroll resets
+- [ ] Normal mode: after `RUN_FINISHED`, collapse all non-final text parts
+  - Last text part of the last assistant message = synthesis, stays expanded
+  - All earlier text parts collapse
+- [ ] Waggle mode: after each turn boundary, collapse that turn's tool calls
+  - Last text block of each turn stays expanded
+  - After final `RUN_FINISHED`, collapse all non-synthesis waggle turns
+  - Final synthesis always expanded
 
 **Files to modify:**
-- `src/renderer/src/components/chat/useVirtualRows.ts` — tool call row collapse state
-- Tool call rendering components — add expand/collapse toggle
-- Waggle turn header components — add summary badges
+- `src/main/agent/prompt-builder.ts` — inject synthesis instruction when projectPath set
+- `src/main/agent/waggle-coordinator.ts` — inject synthesis instruction per turn
+- `src/renderer/src/components/chat/useVirtualRows.ts` — collapse logic post-run
+- Tool call rendering components — expand/collapse toggle
+- Waggle segment rendering — turn-level collapse
 
 ### Phase 1: Shiki Core Integration
 
