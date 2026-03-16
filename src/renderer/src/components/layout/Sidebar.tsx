@@ -32,7 +32,7 @@ const BITS_PER_UINT32 = 32
 const SIDEBAR_VALUE_104 = 104
 const SIDEBAR_VALUE_80 = 80
 
-function McpIcon({ className }: { className?: string }): React.JSX.Element {
+function McpIcon({ className }: { className?: string }) {
   return (
     <svg
       viewBox="0 0 195 195"
@@ -57,7 +57,7 @@ const SORT_OPTIONS: { value: SortMode; label: string; icon: typeof Clock }[] = [
   { value: 'threads', label: 'Most threads', icon: Hash },
 ]
 
-export function Sidebar(): React.JSX.Element {
+export function Sidebar() {
   const sidebarOpen = useUIStore((s) => s.sidebarOpen)
   const activeView = useUIStore((s) => s.activeView)
   const setActiveView = useUIStore((s) => s.setActiveView)

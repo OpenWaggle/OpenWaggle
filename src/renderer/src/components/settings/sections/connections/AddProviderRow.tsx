@@ -10,10 +10,7 @@ interface AddProviderRowProps {
   onAdd: (provider: Provider) => void
 }
 
-export function AddProviderRow({
-  availableProviders,
-  onAdd,
-}: AddProviderRowProps): React.JSX.Element | null {
+export function AddProviderRow({ availableProviders, onAdd }: AddProviderRowProps) {
   const [showDropdown, setShowDropdown] = useState(false)
 
   if (availableProviders.length === 0) return null

@@ -44,7 +44,7 @@ export function ChatErrorDisplay({
   onDismiss,
   onOpenSettings,
   onRetry,
-}: ChatErrorDisplayProps): React.JSX.Element | null {
+}: ChatErrorDisplayProps) {
   const openFeedbackModal = useUIStore((s) => s.openFeedbackModal)
   const [copied, setCopied] = useState(false)
   const [showDetails, setShowDetails] = useState(false)

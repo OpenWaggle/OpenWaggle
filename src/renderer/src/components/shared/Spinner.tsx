@@ -11,7 +11,7 @@ const sizes = {
   lg: 'h-6 w-6 border-2',
 } as const
 
-export function Spinner({ size = 'md', className }: SpinnerProps): React.JSX.Element {
+export function Spinner({ size = 'md', className }: SpinnerProps) {
   return (
     <output
       aria-label="Loading"

@@ -11,7 +11,7 @@ interface BranchPickerProps {
   onToast?: (message: string) => void
 }
 
-export function BranchPicker({ onToast }: BranchPickerProps): React.JSX.Element | null {
+export function BranchPicker({ onToast }: BranchPickerProps) {
   const { projectPath } = useProject()
   const {
     status: gitStatus,

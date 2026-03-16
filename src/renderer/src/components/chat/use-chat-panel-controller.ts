@@ -23,13 +23,13 @@ import { useComposerStore } from '@/stores/composer-store'
 import { usePreferencesStore } from '@/stores/preferences-store'
 import { useUIStore } from '@/stores/ui-store'
 import { useWaggleStore } from '@/stores/waggle-store'
-import { useMemoizedVirtualRows } from './hooks/useMemoizedVirtualRows'
+import { useChatRows } from './hooks/useChatRows'
 import { usePendingApprovalTrustCheck } from './hooks/usePendingApprovalTrustCheck'
 import { useSteerWorkflow } from './hooks/useSteerWorkflow'
 import type { PendingApproval, PendingAskUser } from './pending-tool-interactions'
 import { findPendingAskUser } from './pending-tool-interactions'
 import { reportAutoSendQueueFailure } from './queue-failure-feedback'
-import type { VirtualRow } from './types-virtual'
+import type { ChatRow } from './types-chat-row'
 
 const logger = createRendererLogger('chat-panel')
 
@@ -39,7 +39,10 @@ export interface ChatTranscriptSectionState {
   readonly projectPath: string | null
   readonly recentProjects: readonly string[]
   readonly activeConversationId: ConversationId | null
-  readonly virtualRows: VirtualRow[]
+  readonly chatRows: ChatRow[]
+  /** The ID of the last user message. ChatTranscript watches this reactively
+   *  (Voyager pattern) and scrolls when it changes to a new unseen ID. */
+  readonly lastUserMessageId: string | null
   onOpenProject: () => Promise<void>
   onSelectProjectPath: (path: string) => void
   onRetryText: (content: string) => Promise<void>
@@ -209,10 +212,9 @@ export function useChatPanelSections(): ChatPanelSections {
         startWaggleCollaboration(activeConversationId, waggleConfig)
       }
       await handleSendWaggle(payload, waggleConfig)
-      return
+    } else {
+      await handleSend(payload)
     }
-
-    await handleSend(payload)
   }
 
   const { isSteering, handleSteer } = useSteerWorkflow({
@@ -237,7 +239,7 @@ export function useChatPanelSections(): ChatPanelSections {
   const lastUserMessage = resolveLastUserMessage(messages)
   const transcriptLoading = isLoading || isSteering
 
-  const virtualRows = useMemoizedVirtualRows({
+  const chatRows = useChatRows({
     messages,
     isLoading: transcriptLoading,
     error,
@@ -314,7 +316,7 @@ export function useChatPanelSections(): ChatPanelSections {
       projectPath,
       recentProjects,
       activeConversationId,
-      virtualRows,
+      chatRows,
       onOpenProject: handleOpenProject,
       onSelectProjectPath: handleSelectProjectPath,
       onRetryText: handleSendText,
@@ -322,6 +324,12 @@ export function useChatPanelSections(): ChatPanelSections {
       onRespondToPlan: respondToPlan,
       onOpenSettings: openSettings,
       onDismissError: setDismissedError,
+      lastUserMessageId: (() => {
+        for (let i = messages.length - 1; i >= 0; i -= 1) {
+          if (messages[i]?.role === 'user') return messages[i]?.id ?? null
+        }
+        return null
+      })(),
     },
     composer: {
       pendingApproval: pendingApprovalForUI,

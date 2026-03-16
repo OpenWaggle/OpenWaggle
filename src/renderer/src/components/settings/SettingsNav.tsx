@@ -32,7 +32,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'connections', label: 'Connections', icon: Cable, enabled: true },
 ]
 
-export function SettingsNav(): React.JSX.Element {
+export function SettingsNav() {
   const activeTab = useUIStore((s) => s.activeSettingsTab)
   const setActiveSettingsTab = useUIStore((s) => s.setActiveSettingsTab)
 

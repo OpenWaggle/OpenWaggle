@@ -4,14 +4,14 @@ import type { WaggleMessageMetadata } from '@shared/types/waggle'
 import type { UIMessage } from '@tanstack/ai-react'
 import { useRef } from 'react'
 import type { useStreamingPhase } from '@/hooks/useStreamingPhase'
-import type { VirtualRow } from '../types-virtual'
-import { buildVirtualRows } from '../useVirtualRows'
+import type { ChatRow } from '../types-chat-row'
+import { buildChatRows } from '../useBuildChatRows'
 
 /**
  * Ref-based memoization for virtual rows. Recomputes only when
  * any of the 10 input values change by reference.
  */
-export function useMemoizedVirtualRows(inputs: {
+export function useChatRows(inputs: {
   messages: UIMessage[]
   isLoading: boolean
   error: Error | undefined
@@ -22,7 +22,7 @@ export function useMemoizedVirtualRows(inputs: {
   messageModelLookup: Readonly<Record<string, SupportedModelId>>
   waggleMetadataLookup: Readonly<Record<string, WaggleMessageMetadata>>
   phase: ReturnType<typeof useStreamingPhase>
-}): VirtualRow[] {
+}): ChatRow[] {
   const cacheRef = useRef<{
     messages: UIMessage[]
     isLoading: boolean
@@ -34,7 +34,7 @@ export function useMemoizedVirtualRows(inputs: {
     messageModelLookup: Readonly<Record<string, SupportedModelId>>
     waggleMetadataLookup: Readonly<Record<string, WaggleMessageMetadata>>
     phase: ReturnType<typeof useStreamingPhase>
-    rows: VirtualRow[]
+    rows: ChatRow[]
   } | null>(null)
 
   const {
@@ -65,7 +65,7 @@ export function useMemoizedVirtualRows(inputs: {
     return cacheRef.current.rows
   }
 
-  const rows = buildVirtualRows({
+  const rows = buildChatRows({
     messages,
     isLoading,
     error,

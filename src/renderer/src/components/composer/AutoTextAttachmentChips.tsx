@@ -15,7 +15,7 @@ export function AutoTextAttachmentChips({
   attachments,
   onRemoveAttachment,
   onRemovePendingAttachment,
-}: AutoTextAttachmentChipsProps): React.JSX.Element | null {
+}: AutoTextAttachmentChipsProps) {
   if (pendingTextAttachmentChips.length === 0 && attachments.length === 0) return null
 
   const attachmentIdsWithInlineProgress = new Set(

@@ -24,7 +24,7 @@ export function McpRegistryCard({
   popular,
   isInstalling,
   onInstall,
-}: McpRegistryCardProps): React.JSX.Element {
+}: McpRegistryCardProps) {
   const Icon = ICON_MAP[icon]
 
   return (

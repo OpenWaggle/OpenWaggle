@@ -22,7 +22,7 @@ export function ProviderRow({
   autoEdit,
   onEditingChange,
   fetchError,
-}: ProviderRowProps): React.JSX.Element {
+}: ProviderRowProps) {
   const { settings } = usePreferences()
   const { testingProviders, testResults, updateApiKey, testApiKey } = useProviders()
 

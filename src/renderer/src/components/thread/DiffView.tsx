@@ -6,7 +6,7 @@ interface DiffViewProps {
   filePath: string
 }
 
-export function DiffView({ diff, filePath }: DiffViewProps): React.JSX.Element {
+export function DiffView({ diff, filePath }: DiffViewProps) {
   return (
     <div className="rounded-md border border-border overflow-hidden text-[14px] font-mono">
       {/* File header */}

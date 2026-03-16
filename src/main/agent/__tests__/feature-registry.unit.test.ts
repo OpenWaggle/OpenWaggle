@@ -53,11 +53,12 @@ describe('getActiveAgentFeatures', () => {
     expect(ids).toContain('standards.prompt')
     expect(ids).toContain('core.prompt')
     expect(ids).toContain('core.tools')
+    expect(ids).toContain('core.synthesis')
     expect(ids).toContain('core.execution-mode')
     expect(ids).toContain('core.observability')
     // mcp.tools is conditionally enabled (only when MCP servers are connected)
     expect(ids).not.toContain('mcp.tools')
-    expect(features.length).toBe(5)
+    expect(features.length).toBe(6)
   })
 
   it('excludes core.tools when context.hasProject is false', () => {
@@ -66,6 +67,7 @@ describe('getActiveAgentFeatures', () => {
 
     const ids = features.map((f) => f.id)
     expect(ids).not.toContain('core.tools')
+    expect(ids).not.toContain('core.synthesis')
     expect(ids).toContain('standards.prompt')
     expect(ids).toContain('core.prompt')
     expect(ids).toContain('core.execution-mode')
@@ -145,6 +147,7 @@ describe('getFeaturePromptFragments', () => {
     expect(ids).toContain('core.behavior')
     expect(ids).toContain('core.runtime-model')
     expect(ids).toContain('core.project-context')
+    expect(ids).toContain('core.synthesis')
     // core.execution-mode contributes: core.execution-mode
     expect(ids).toContain('core.execution-mode')
     // mcp.tools is excluded (no connected servers), so no mcp.capabilities fragment

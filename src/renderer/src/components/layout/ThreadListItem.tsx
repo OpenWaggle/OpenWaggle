@@ -47,7 +47,7 @@ export function ThreadListItem({
   onSelect,
   onDelete,
   onMarkUnread,
-}: ThreadListItemProps): React.JSX.Element {
+}: ThreadListItemProps) {
   const status = useThreadStatusStore((s) => s.statuses.get(conversation.id) ?? 'idle')
   const completedAt = useThreadStatusStore((s) => s.completedAt.get(conversation.id))
   const lastVisited = useThreadStatusStore((s) => s.lastVisitedAt.get(conversation.id))

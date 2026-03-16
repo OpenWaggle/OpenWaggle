@@ -22,7 +22,7 @@ function mergePhasesByLabel(phases: readonly CompletedPhase[]): CompletedPhase[]
   return order.map((label) => ({ label, durationMs: merged.get(label) ?? 0 }))
 }
 
-export function RunSummary({ phases, totalMs }: RunSummaryProps): React.JSX.Element {
+export function RunSummary({ phases, totalMs }: RunSummaryProps) {
   const visiblePhases = mergePhasesByLabel(phases).filter(
     (p) => p.durationMs >= MILLISECONDS_PER_SECOND,
   )

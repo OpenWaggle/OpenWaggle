@@ -51,7 +51,8 @@ function isLevelEnabled(level: LogLevel): boolean {
 }
 
 function writeToConsole(entry: LogEntry): void {
-  const prefix = `[${entry.namespace}] ${entry.message}`
+  const ts = new Date().toISOString().slice(SLICE_ARG_1, SLICE_ARG_2) // HH:mm:ss.mmm
+  const prefix = `${ts} [${entry.namespace}] ${entry.message}`
   const consoleMethod = {
     debug: console.debug,
     info: console.info,

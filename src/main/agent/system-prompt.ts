@@ -8,6 +8,7 @@ const ORDER_VALUE_36 = 36
 const ORDER_VALUE_37 = 37
 const ORDER_VALUE_38 = 38
 const ORDER_VALUE_40 = 40
+const ORDER_VALUE_95 = 95
 
 const CORE_BEHAVIOR_PROMPT = `You are OpenWaggle, an expert coding assistant. You help developers understand, write, debug, and refactor code.
 
@@ -113,4 +114,11 @@ export const executionModePromptFragment: AgentPromptFragment = {
 
     return 'Execution mode is Full access. Use file-write and command tools when needed, but keep operations precise and avoid unnecessary destructive actions.'
   },
+}
+
+export const synthesisPromptFragment: AgentPromptFragment = {
+  id: 'core.synthesis',
+  order: ORDER_VALUE_95,
+  build: () =>
+    'Always end your response with a clear, concise summary of what you found or did — written naturally, as if explaining directly to the user. Do not label it or prefix it with words like "Summary:", "Synthesis:", or "In conclusion:". This final paragraph is the primary content the user sees; make it self-contained and actionable.',
 }

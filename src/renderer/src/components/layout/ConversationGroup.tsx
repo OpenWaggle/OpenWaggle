@@ -30,7 +30,7 @@ export function ConversationGroup({
   onNewThread,
   onRename,
   onRemove,
-}: ConversationGroupProps): React.JSX.Element {
+}: ConversationGroupProps) {
   const FolderIcon = isCollapsed ? Folder : FolderOpen
   const hasPath = group.path !== null
   const [menuOpen, setMenuOpen] = useState(false)

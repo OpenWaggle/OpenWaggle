@@ -11,7 +11,7 @@ import {
   safeMarkdownUrlTransform,
 } from '@/lib/markdown-safety'
 
-export function SkillsPanel(): React.JSX.Element {
+export function SkillsPanel() {
   const { projectPath } = useProject()
   const {
     standardsStatus,
@@ -191,7 +191,7 @@ export function SkillsPanel(): React.JSX.Element {
   )
 }
 
-function StatusBadge({ status }: { status: 'found' | 'missing' | 'error' }): React.JSX.Element {
+function StatusBadge({ status }: { status: 'found' | 'missing' | 'error' }) {
   if (status === 'found') {
     return (
       <span className="inline-flex items-center gap-1 rounded-full border border-success/30 bg-success/10 px-2 py-0.5 text-[10px] text-success">

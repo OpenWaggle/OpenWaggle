@@ -14,7 +14,7 @@ import { useWaggleStore } from '@/stores/waggle-store'
 import type { PendingApproval } from '../pending-tool-interactions'
 
 const {
-  buildVirtualRowsMock,
+  buildChatRowsMock,
   useAgentChatMock,
   useAutoSendQueueMock,
   useChatMock,
@@ -33,7 +33,7 @@ const {
   loggerErrorMock,
   loggerWarnMock,
 } = vi.hoisted(() => ({
-  buildVirtualRowsMock: vi.fn(() => []),
+  buildChatRowsMock: vi.fn(() => []),
   useAgentChatMock: vi.fn(),
   useAutoSendQueueMock: vi.fn(),
   useChatMock: vi.fn(),
@@ -118,8 +118,8 @@ vi.mock('@/lib/logger', () => ({
   }),
 }))
 
-vi.mock('../useVirtualRows', () => ({
-  buildVirtualRows: buildVirtualRowsMock,
+vi.mock('../useChatRows', () => ({
+  buildChatRows: buildChatRowsMock,
 }))
 
 import { useChatPanelSections } from '../use-chat-panel-controller'
@@ -297,8 +297,8 @@ function buildBaseAgentChatReturn(overrides?: Record<string, unknown>) {
 
 describe('useChatPanelSections', () => {
   beforeEach(() => {
-    buildVirtualRowsMock.mockReset()
-    buildVirtualRowsMock.mockReturnValue([])
+    buildChatRowsMock.mockReset()
+    buildChatRowsMock.mockReturnValue([])
     useAgentChatMock.mockReset()
     useAutoSendQueueMock.mockReset()
     useChatMock.mockReset()
@@ -412,7 +412,7 @@ describe('useChatPanelSections', () => {
 
     renderHook(() => useChatPanelSections())
 
-    expect(buildVirtualRowsMock).toHaveBeenCalledWith(
+    expect(buildChatRowsMock).toHaveBeenCalledWith(
       expect.objectContaining({
         lastUserMessage: 'final line one\nfinal line two',
       }),
@@ -971,5 +971,49 @@ describe('useChatPanelSections', () => {
     const { result } = renderHook(() => useChatPanelSections())
 
     expect(result.current.composer.isLoading).toBe(true)
+  })
+
+  describe('lastUserMessageId in transcript state', () => {
+    it('is null when there are no messages', () => {
+      useAgentChatMock.mockReturnValue(buildBaseAgentChatReturn({ messages: [] }))
+      const { result } = renderHook(() => useChatPanelSections())
+      expect(result.current.transcript.lastUserMessageId).toBeNull()
+    })
+
+    it('returns the id of the last user message', () => {
+      useAgentChatMock.mockReturnValue(
+        buildBaseAgentChatReturn({
+          messages: [
+            createUserMessage('user-1', ['first']),
+            createUserMessage('user-2', ['second']),
+          ],
+        }),
+      )
+      const { result } = renderHook(() => useChatPanelSections())
+      expect(result.current.transcript.lastUserMessageId).toBe('user-2')
+    })
+
+    it('ignores assistant messages and returns last user id', () => {
+      useAgentChatMock.mockReturnValue(
+        buildBaseAgentChatReturn({
+          messages: [
+            createUserMessage('user-1', ['first']),
+            {
+              id: 'assistant-1',
+              role: 'assistant',
+              parts: [],
+            } as UIMessage,
+          ],
+        }),
+      )
+      const { result } = renderHook(() => useChatPanelSections())
+      expect(result.current.transcript.lastUserMessageId).toBe('user-1')
+    })
+
+    it('resets to null when conversation switches to one with no messages', () => {
+      useAgentChatMock.mockReturnValue(buildBaseAgentChatReturn({ messages: [] }))
+      const { result } = renderHook(() => useChatPanelSections())
+      expect(result.current.transcript.lastUserMessageId).toBeNull()
+    })
   })
 })

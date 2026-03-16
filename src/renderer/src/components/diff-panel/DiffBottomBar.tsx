@@ -4,11 +4,7 @@ interface DiffBottomBarProps {
   hasChanges: boolean
 }
 
-export function DiffBottomBar({
-  onRevertAll,
-  onStageAll,
-  hasChanges,
-}: DiffBottomBarProps): React.JSX.Element {
+export function DiffBottomBar({ onRevertAll, onStageAll, hasChanges }: DiffBottomBarProps) {
   return (
     <div className="flex items-center justify-end gap-2 h-10 px-4 bg-diff-header-bg border-t border-border shrink-0">
       <button

@@ -65,7 +65,7 @@ interface ActionDialogProps {
   onToast?: (message: string) => void
 }
 
-export function ActionDialog({ onToast }: ActionDialogProps): React.JSX.Element | null {
+export function ActionDialog({ onToast }: ActionDialogProps) {
   const actionDialog = useComposerStore((s) => s.actionDialog)
   const actionDialogInput = useComposerStore((s) => s.actionDialogInput)
   const actionDialogError = useComposerStore((s) => s.actionDialogError)

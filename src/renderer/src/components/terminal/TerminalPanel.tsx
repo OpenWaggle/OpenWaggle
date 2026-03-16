@@ -12,7 +12,7 @@ interface TerminalPanelProps {
   onClose: () => void
 }
 
-export function TerminalPanel({ projectPath, onClose }: TerminalPanelProps): React.JSX.Element {
+export function TerminalPanel({ projectPath, onClose }: TerminalPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)

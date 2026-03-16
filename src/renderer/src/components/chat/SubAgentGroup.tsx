@@ -16,7 +16,7 @@ interface SubAgentGroupProps {
   isComplete: boolean
 }
 
-export function SubAgentGroup({ tasks, isComplete }: SubAgentGroupProps): React.JSX.Element {
+export function SubAgentGroup({ tasks, isComplete }: SubAgentGroupProps) {
   const completedCount = tasks.filter(
     (t) => t.status === 'completed' || t.status === 'failed' || t.status === 'cancelled',
   ).length

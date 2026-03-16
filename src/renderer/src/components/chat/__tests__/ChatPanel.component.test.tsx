@@ -2,7 +2,6 @@ import type { ConversationId } from '@shared/types/brand'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import type { UIMessage } from '@tanstack/ai-react'
 import { fireEvent, render, screen } from '@testing-library/react'
-import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useComposerStore } from '@/stores/composer-store'
 import { usePreferencesStore } from '@/stores/preferences-store'
@@ -11,27 +10,6 @@ import { ChatPanel } from '../ChatPanel'
 import type { ChatPanelSections } from '../use-chat-panel-controller'
 
 const useChatPanelSectionsMock = vi.hoisted(() => vi.fn<() => ChatPanelSections>())
-
-// Mock react-virtuoso so all items render without actual virtualization in JSDOM
-vi.mock('react-virtuoso', () => ({
-  Virtuoso: ({
-    data,
-    computeItemKey,
-    itemContent,
-  }: {
-    data: unknown[]
-    computeItemKey?: (index: number, item: unknown) => string | number
-    itemContent: (index: number, item: unknown) => ReactNode
-  }) => (
-    <div data-testid="virtuoso-list">
-      {data.map((item, index) => (
-        <div key={String(computeItemKey?.(index, item) ?? `vr-${String(index)}`)}>
-          {itemContent(index, item)}
-        </div>
-      ))}
-    </div>
-  ),
-}))
 
 vi.mock('../use-chat-panel-controller', () => ({
   useChatPanelSections: useChatPanelSectionsMock,
@@ -71,7 +49,7 @@ function createSections(
     projectPath: '/test/project',
     recentProjects: [],
     activeConversationId: 'conv-1' as ConversationId,
-    virtualRows: [],
+    chatRows: [],
     onOpenProject: vi.fn().mockResolvedValue(undefined),
     onSelectProjectPath: vi.fn(),
     onRetryText: vi.fn().mockResolvedValue(undefined),
@@ -171,7 +149,7 @@ describe('ChatPanel', () => {
   it('shows thinking phase indicator when loading with no assistant message', () => {
     renderPanel({
       isLoading: true,
-      virtualRows: [{ type: 'phase-indicator', label: 'Thinking', elapsedMs: 123 }],
+      chatRows: [{ type: 'phase-indicator', label: 'Thinking', elapsedMs: 123 }],
     })
     const spinner = document.querySelector('[class*="animate-spin"]')
     expect(spinner).toBeInTheDocument()
@@ -186,7 +164,7 @@ describe('ChatPanel', () => {
     })
     renderPanel({
       messages: [message],
-      virtualRows: [{ type: 'message', message, isStreaming: false, showTurnDivider: false }],
+      chatRows: [{ type: 'message', message, isStreaming: false, showTurnDivider: false }],
     })
     expect(screen.queryByText(/open a project/i)).toBeNull()
   })
@@ -210,7 +188,7 @@ describe('ChatPanel', () => {
     renderPanel({
       messages: [userMessage, assistantMessage],
       isLoading: true,
-      virtualRows: [
+      chatRows: [
         { type: 'message', message: userMessage, isStreaming: false, showTurnDivider: false },
         { type: 'message', message: assistantMessage, isStreaming: true, showTurnDivider: false },
         { type: 'phase-indicator', label: 'Writing', elapsedMs: 456 },
@@ -235,7 +213,7 @@ describe('ChatPanel', () => {
     renderPanel({
       messages: [userMessage, assistantMessage],
       isLoading: false,
-      virtualRows: [
+      chatRows: [
         { type: 'message', message: userMessage, isStreaming: false, showTurnDivider: false },
         { type: 'message', message: assistantMessage, isStreaming: false, showTurnDivider: false },
       ],

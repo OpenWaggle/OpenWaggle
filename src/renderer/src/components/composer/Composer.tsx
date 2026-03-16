@@ -58,7 +58,7 @@ export function Composer({
   isLoading,
   disabled,
   onToast,
-}: ComposerProps): React.JSX.Element {
+}: ComposerProps) {
   const input = useComposerStore((s) => s.input)
   const setInput = useComposerStore((s) => s.setInput)
   const setCursorIndex = useComposerStore((s) => s.setCursorIndex)

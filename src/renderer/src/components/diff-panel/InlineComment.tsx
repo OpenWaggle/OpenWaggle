@@ -15,7 +15,7 @@ export function InlineComment({
   onAddSingleComment,
   onAddToReview,
   onCancel,
-}: InlineCommentProps): React.JSX.Element {
+}: InlineCommentProps) {
   const [content, setContent] = useState('')
 
   const lineLabel = startLine === endLine ? `line ${startLine}` : `lines ${startLine}-${endLine}`

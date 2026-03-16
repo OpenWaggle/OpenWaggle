@@ -10,12 +10,7 @@ interface ContextMenuProps {
   readonly children: React.ReactNode
 }
 
-export function ContextMenu({
-  open,
-  onClose,
-  position,
-  children,
-}: ContextMenuProps): React.JSX.Element | null {
+export function ContextMenu({ open, onClose, position, children }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
   useClickOutside(menuRef, onClose, open)
 

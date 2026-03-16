@@ -8,10 +8,10 @@ import { formatElapsed } from '@/hooks/useStreamingPhase'
 import { ChatErrorDisplay } from './ChatErrorDisplay'
 import { MessageBubble } from './MessageBubble'
 import { RunSummary } from './RunSummary'
-import type { VirtualRow } from './types-virtual'
+import type { ChatRow } from './types-chat-row'
 
-interface VirtualRowRendererProps {
-  row: VirtualRow
+interface ChatRowRendererProps {
+  row: ChatRow
   conversationId: ConversationId | null
   onAnswerQuestion: (conversationId: ConversationId, answers: QuestionAnswer[]) => Promise<void>
   onRespondToPlan?: (conversationId: ConversationId, response: PlanResponse) => Promise<void>
@@ -20,7 +20,7 @@ interface VirtualRowRendererProps {
   onDismissError: (message: string) => void
 }
 
-export function VirtualRowRenderer({
+export function ChatRowRenderer({
   row,
   conversationId,
   onAnswerQuestion,
@@ -28,7 +28,7 @@ export function VirtualRowRenderer({
   onOpenSettings,
   onRetry,
   onDismissError,
-}: VirtualRowRendererProps): React.JSX.Element {
+}: ChatRowRendererProps) {
   return chooseBy(row, 'type')
     .case('message', (value) => (
       <div className="flex flex-col gap-6">
@@ -80,9 +80,11 @@ export function VirtualRowRenderer({
       <div className="flex items-center gap-2 py-3">
         <Spinner size="sm" className="text-accent" />
         <span className="text-sm text-text-tertiary">{value.label}...</span>
-        <span className="text-sm text-text-muted tabular-nums">
-          {formatElapsed(value.elapsedMs)}
-        </span>
+        {value.elapsedMs > 0 ? (
+          <span className="text-sm text-text-muted tabular-nums">
+            {formatElapsed(value.elapsedMs)}
+          </span>
+        ) : null}
       </div>
     ))
     .case('run-summary', (value) => <RunSummary phases={value.phases} totalMs={value.totalMs} />)

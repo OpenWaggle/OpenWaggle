@@ -16,7 +16,7 @@ interface VoiceRecorderProps {
   voice: VoiceCaptureController
 }
 
-export function VoiceRecorder({ fileInputRef, voice }: VoiceRecorderProps): React.JSX.Element {
+export function VoiceRecorder({ fileInputRef, voice }: VoiceRecorderProps) {
   return (
     <div className="flex h-11 items-center justify-between px-4">
       <div className="flex h-full w-full items-center gap-3">

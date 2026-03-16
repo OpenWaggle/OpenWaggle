@@ -148,7 +148,7 @@ export function DiffFileSection({
   onSetActiveComment,
   onAddSingleComment,
   onAddToReview,
-}: DiffFileSectionProps): React.JSX.Element {
+}: DiffFileSectionProps) {
   const [expanded, setExpanded] = useState(true)
   const [expandedCollapsed, setExpandedCollapsed] = useState<Record<string, boolean>>({})
 

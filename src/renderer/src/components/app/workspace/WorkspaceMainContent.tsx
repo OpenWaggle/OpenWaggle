@@ -4,7 +4,7 @@ import { PanelErrorBoundary } from '@/components/shared/PanelErrorBoundary'
 import { SkillsPanel } from '@/components/skills/SkillsPanel'
 import { useUIStore } from '@/stores/ui-store'
 
-export function WorkspaceMainContent(): React.JSX.Element {
+export function WorkspaceMainContent() {
   const activeView = useUIStore((s) => s.activeView)
 
   if (activeView === 'skills') {

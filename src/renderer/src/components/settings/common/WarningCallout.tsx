@@ -14,7 +14,7 @@ export function WarningCallout({
   className,
   contentClassName,
   iconClassName,
-}: WarningCalloutProps): React.JSX.Element {
+}: WarningCalloutProps) {
   return (
     <div
       className={cn(

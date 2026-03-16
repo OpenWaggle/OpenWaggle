@@ -4,7 +4,7 @@ import { useProject } from '@/hooks/useProject'
 import { cn } from '@/lib/cn'
 import { useUIStore } from '@/stores/ui-store'
 
-export function WorkspaceTerminal(): React.JSX.Element {
+export function WorkspaceTerminal() {
   const terminalOpen = useUIStore((s) => s.terminalOpen)
   const closeTerminal = useUIStore((s) => s.closeTerminal)
   const { projectPath } = useProject()

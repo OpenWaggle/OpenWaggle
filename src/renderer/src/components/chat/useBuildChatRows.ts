@@ -4,7 +4,7 @@ import { SupportedModelId } from '@shared/types/brand'
 import type { WaggleMessageMetadata } from '@shared/types/waggle'
 import type { UIMessage } from '@tanstack/ai-react'
 import type { StreamingPhaseState } from '@/hooks/useStreamingPhase'
-import type { TurnSegment, VirtualRow } from './types-virtual'
+import type { ChatRow, TurnSegment } from './types-chat-row'
 
 // ─── Waggle streaming helpers ──────────────────────────────
 
@@ -212,7 +212,7 @@ function deduplicateToolCalls(
 
 // ─── Row builder ────────────────────────────────────────────────
 
-interface BuildVirtualRowsParams {
+interface BuildChatRowsParams {
   messages: UIMessage[]
   isLoading: boolean
   error: Error | undefined
@@ -225,7 +225,7 @@ interface BuildVirtualRowsParams {
   phase: StreamingPhaseState
 }
 
-export function buildVirtualRows({
+export function buildChatRows({
   messages,
   isLoading,
   error,
@@ -236,8 +236,8 @@ export function buildVirtualRows({
   messageModelLookup,
   waggleMetadataLookup,
   phase,
-}: BuildVirtualRowsParams): VirtualRow[] {
-  const rows: VirtualRow[] = []
+}: BuildChatRowsParams): ChatRow[] {
+  const rows: ChatRow[] = []
   const preferredToolCallMessages = buildPreferredToolCallMessages(messages)
   let turnIndex = 0
 

@@ -27,12 +27,7 @@ function parseHistoricalAnswers(content: unknown): QuestionAnswer[] {
   return []
 }
 
-export function AskUserBlock({
-  questions,
-  result,
-  conversationId,
-  onAnswer,
-}: AskUserBlockProps): React.JSX.Element {
+export function AskUserBlock({ questions, result, conversationId, onAnswer }: AskUserBlockProps) {
   const [currentStep, setCurrentStep] = useState(0)
   const [answers, setAnswers] = useState<Map<number, string>>(new Map())
   const [submitted, setSubmitted] = useState(false)
@@ -202,7 +197,7 @@ function OptionButton({
   option: QuestionOption
   isSelected: boolean
   onClick: () => void
-}): React.JSX.Element {
+}) {
   return (
     <button
       type="button"

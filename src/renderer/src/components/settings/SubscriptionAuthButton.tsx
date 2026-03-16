@@ -29,7 +29,7 @@ export function SubscriptionAuthButton({
   oauthStatus,
   onSignIn,
   onDisconnect,
-}: SubscriptionAuthButtonProps): React.JSX.Element {
+}: SubscriptionAuthButtonProps) {
   const isInProgress = oauthStatus.type === 'in-progress'
   const isError = oauthStatus.type === 'error'
   const connected = accountInfo?.connected ?? false

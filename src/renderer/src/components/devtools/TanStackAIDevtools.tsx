@@ -20,7 +20,7 @@ function getRuntimeApi(): OpenWaggleApi | null {
   return 'api' in window ? window.api : null
 }
 
-export function TanStackAIDevtools(): React.JSX.Element | null {
+export function TanStackAIDevtools() {
   const [eventBusConfig, setEventBusConfig] =
     useState<DevtoolsEventBusConfig>(DEFAULT_EVENT_BUS_CONFIG)
 

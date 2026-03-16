@@ -27,9 +27,9 @@ export interface TurnSegment {
   meta: WaggleMessageMetadata | undefined
 }
 
-// ─── VirtualRow Discriminated Union ──────────────────────────
+// ─── ChatRow Discriminated Union ──────────────────────────
 
-export type VirtualRow =
+export type ChatRow =
   | {
       type: 'message'
       message: UIMessage

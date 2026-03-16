@@ -8,7 +8,7 @@ interface ChatDiffPaneProps {
   readonly section: ChatDiffSectionState
 }
 
-export function ChatDiffPane({ section }: ChatDiffPaneProps): React.JSX.Element {
+export function ChatDiffPane({ section }: ChatDiffPaneProps) {
   const diffPanelWidth = useUIStore((s) => s.diffPanelWidth)
   const diffRefreshKey = useUIStore((s) => s.diffRefreshKey)
   const resizeDiffPanel = useUIStore((s) => s.resizeDiffPanel)

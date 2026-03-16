@@ -14,7 +14,7 @@ interface ComposerStatusBarProps {
   onToast?: (message: string) => void
 }
 
-export function ComposerStatusBar({ onToast }: ComposerStatusBarProps): React.JSX.Element {
+export function ComposerStatusBar({ onToast }: ComposerStatusBarProps) {
   const settings = usePreferencesStore((s) => s.settings)
   const setExecutionMode = usePreferencesStore((s) => s.setExecutionMode)
 

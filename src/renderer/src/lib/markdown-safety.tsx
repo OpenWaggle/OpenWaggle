@@ -1,22 +1,26 @@
 import type { ComponentPropsWithoutRef } from 'react'
 import type { Components, Options as ReactMarkdownOptions, UrlTransform } from 'react-markdown'
-import rehypeHighlight from 'rehype-highlight'
 import rehypeSanitize, { defaultSchema, type Options as SanitizeSchema } from 'rehype-sanitize'
 
-type RehypePlugins = NonNullable<ReactMarkdownOptions['rehypePlugins']>
+export type RehypePlugins = NonNullable<ReactMarkdownOptions['rehypePlugins']>
 type AttributeDefinition = NonNullable<NonNullable<SanitizeSchema['attributes']>[string]>[number]
 
 const ALLOWED_LINK_PROTOCOLS = new Set(['http:', 'https:', 'mailto:', 'tel:'])
 const PROTOCOL_PATTERN = /^[a-zA-Z][a-zA-Z\d+.-]*:/
 
-const highlightClassDefinition: AttributeDefinition = [
+/** Shiki uses language-* classes on code elements and line/shiki classes on spans/pre. */
+const shikiClassDefinition: AttributeDefinition = [
   'className',
   /^language-[\w-]+$/,
-  /^hljs(?:-[\w-]+)?$/,
+  'line',
+  /^shiki(?:-[\w-]+)?$/,
 ]
 const anchorTargetDefinition: AttributeDefinition = ['target', '_blank']
 const anchorRelDefinition: AttributeDefinition = ['rel', 'noopener', 'noreferrer', 'nofollow']
 const ALLOWED_HREF_PROTOCOLS = ['http', 'https', 'mailto', 'tel']
+
+/** Shiki uses inline `style` attributes for syntax token colors. */
+const styleAttributeDefinition: AttributeDefinition = 'style'
 
 function schemaAttributesForTag(tagName: string): AttributeDefinition[] {
   const tagAttributes = defaultSchema.attributes?.[tagName]
@@ -54,18 +58,21 @@ export const safeMarkdownSanitizeSchema: SanitizeSchema = {
   attributes: {
     ...(defaultSchema.attributes ?? {}),
     a: [...schemaAttributesForTag('a'), anchorTargetDefinition, anchorRelDefinition],
-    code: [...schemaAttributesForTag('code'), highlightClassDefinition],
-    pre: [...schemaAttributesForTag('pre'), highlightClassDefinition],
-    span: [...schemaAttributesForTag('span'), highlightClassDefinition],
+    code: [...schemaAttributesForTag('code'), shikiClassDefinition, styleAttributeDefinition],
+    pre: [...schemaAttributesForTag('pre'), shikiClassDefinition, styleAttributeDefinition],
+    span: [...schemaAttributesForTag('span'), shikiClassDefinition, styleAttributeDefinition],
   },
 }
 
+/**
+ * Default rehype plugins for non-streaming markdown (e.g. SkillsPanel).
+ * Sanitize-only — Shiki highlighting is wired separately in StreamingText.
+ */
 export const safeMarkdownRehypePlugins: RehypePlugins = [
-  rehypeHighlight,
   [rehypeSanitize, safeMarkdownSanitizeSchema],
 ]
 
-function SafeMarkdownLink({ href, children }: ComponentPropsWithoutRef<'a'>): React.JSX.Element {
+function SafeMarkdownLink({ href, children }: ComponentPropsWithoutRef<'a'>) {
   if (!href || !isAllowedMarkdownUrl(href)) {
     return <span>{children}</span>
   }

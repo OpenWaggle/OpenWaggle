@@ -94,7 +94,7 @@ export function McpListView({
   onInstall,
   onToggle,
   onRemove,
-}: McpListViewProps): React.JSX.Element {
+}: McpListViewProps) {
   const [installingName, setInstallingName] = useState<string | null>(null)
 
   const connectedServers = servers.filter(

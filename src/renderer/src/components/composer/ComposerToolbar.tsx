@@ -32,7 +32,7 @@ export function ComposerToolbar({
   onToggleVoice,
   voiceMode,
   fileInputRef,
-}: ComposerToolbarProps): React.JSX.Element {
+}: ComposerToolbarProps) {
   const settings = usePreferencesStore((s) => s.settings)
   const providerModels = useProviderStore((s) => s.providerModels)
   const setDefaultModel = usePreferencesStore((s) => s.setDefaultModel)

@@ -9,12 +9,7 @@ interface TurnDividerProps {
   isSynthesis?: boolean
 }
 
-export function TurnDivider({
-  turnNumber,
-  agentLabel,
-  agentColor,
-  isSynthesis,
-}: TurnDividerProps): React.JSX.Element {
+export function TurnDivider({ turnNumber, agentLabel, agentColor, isSynthesis }: TurnDividerProps) {
   if (isSynthesis) {
     return (
       <div className="flex items-center gap-3 py-3">

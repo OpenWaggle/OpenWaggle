@@ -47,7 +47,7 @@ export function CommitDialog({
   onRefresh,
   onCommit,
   onClose,
-}: CommitDialogProps): React.JSX.Element | null {
+}: CommitDialogProps) {
   const [message, setMessage] = useState('')
   const [amend, setAmend] = useState(false)
   const [error, setError] = useState<string | null>(null)

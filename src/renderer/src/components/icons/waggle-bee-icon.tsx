@@ -6,7 +6,7 @@ interface WaggleBeeIconProps {
  * Minimal bee icon for sidebar thread status.
  * Stroke-based design (Lucide-compatible) readable at 14×14px.
  */
-export function WaggleBeeIcon({ className }: WaggleBeeIconProps): React.JSX.Element {
+export function WaggleBeeIcon({ className }: WaggleBeeIconProps) {
   return (
     <svg
       aria-hidden="true"

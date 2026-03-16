@@ -8,7 +8,7 @@ interface QueryWrapperProps extends PropsWithChildren {
   readonly client?: QueryClient
 }
 
-function QueryWrapper({ children, client }: QueryWrapperProps): React.JSX.Element {
+function QueryWrapper({ children, client }: QueryWrapperProps) {
   const queryClient = client ?? createRendererQueryClient()
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
 }

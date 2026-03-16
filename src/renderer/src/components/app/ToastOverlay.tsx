@@ -3,7 +3,7 @@ import { cn } from '@/lib/cn'
 import { api } from '@/lib/ipc'
 import { useUIStore } from '@/stores/ui-store'
 
-export function ToastOverlay(): React.JSX.Element | null {
+export function ToastOverlay() {
   const toastData = useUIStore((s) => s.toastData)
   const clearToast = useUIStore((s) => s.clearToast)
 
