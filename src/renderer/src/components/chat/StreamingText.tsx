@@ -56,7 +56,10 @@ export function StreamingText({ text, isStreaming = false }: StreamingTextProps)
 
   return (
     <div className="prose">
+      {/* key changes when highlighter first loads — forces IncrementalMarkdown to
+          remount and re-render with Shiki highlighting instead of staying stale. */}
       <IncrementalMarkdown
+        key={highlighter === undefined ? 'no-hl' : 'hl'}
         text={displayText}
         isStreaming={isStreaming}
         highlighter={highlighter}
