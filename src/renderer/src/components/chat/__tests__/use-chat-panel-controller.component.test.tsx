@@ -118,8 +118,8 @@ vi.mock('@/lib/logger', () => ({
   }),
 }))
 
-vi.mock('../useChatRows', () => ({
-  buildChatRows: buildChatRowsMock,
+vi.mock('../hooks/useChatRows', () => ({
+  useChatRows: buildChatRowsMock,
 }))
 
 import { useChatPanelSections } from '../use-chat-panel-controller'
@@ -360,6 +360,8 @@ describe('useChatPanelSections', () => {
     useWaggleChatMock.mockReturnValue(undefined)
     useStreamingPhaseMock.mockReturnValue({
       current: null,
+      completed: [],
+      totalElapsedMs: 0,
       reset: vi.fn(),
     })
     useSkillsMock.mockReturnValue({
@@ -577,6 +579,8 @@ describe('useChatPanelSections', () => {
     const waggleConfig = createWaggleConfig()
     useStreamingPhaseMock.mockReturnValue({
       current: null,
+      completed: [],
+      totalElapsedMs: 0,
       reset,
     })
     useSendMessageMock.mockReturnValue({
@@ -607,6 +611,8 @@ describe('useChatPanelSections', () => {
     const waggleConfig = createWaggleConfig()
     useStreamingPhaseMock.mockReturnValue({
       current: null,
+      completed: [],
+      totalElapsedMs: 0,
       reset,
     })
     useSendMessageMock.mockReturnValue({
@@ -965,6 +971,8 @@ describe('useChatPanelSections', () => {
         label: 'Thinking',
         elapsedMs: 1200,
       },
+      completed: [],
+      totalElapsedMs: 1200,
       reset: vi.fn(),
     })
 

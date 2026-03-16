@@ -7,7 +7,7 @@
  */
 import type { Element, ElementContent, Properties, Root, RootContent } from 'hast'
 import type { Highlighter } from 'shiki'
-import { DEFAULT_THEME, PRELOADED_LANGUAGE_SET, resolveLanguage } from './highlighter'
+import { DEFAULT_THEME, resolveLanguage } from './highlighter'
 import type { ShikiCache } from './shiki-cache'
 
 // ---------------------------------------------------------------------------

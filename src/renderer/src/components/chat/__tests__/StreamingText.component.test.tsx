@@ -60,10 +60,11 @@ describe('StreamingText', () => {
     const { container } = render(<StreamingText text={'```ts\nconst value = 1\n```'} />)
 
     const code = container.querySelector('code')
-    const highlightedToken = container.querySelector('span[class*="hljs-"]')
     expect(code).toBeTruthy()
     expect(code?.className).toContain('language-ts')
-    expect(highlightedToken).toBeTruthy()
+    // Shiki highlights using inline styles on spans, not hljs class names
+    const highlightedSpan = container.querySelector('code span[style]')
+    expect(highlightedSpan).toBeTruthy()
   })
 
   it('renders text immediately when streaming is false', () => {
