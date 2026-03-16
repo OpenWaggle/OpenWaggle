@@ -120,5 +120,5 @@ export const synthesisPromptFragment: AgentPromptFragment = {
   id: 'core.synthesis',
   order: ORDER_VALUE_95,
   build: () =>
-    'Always end your response with a clear, concise synthesis of what you found or did. This is the primary content the user sees by default — make it self-contained and actionable. Keep tool call details and intermediate reasoning inside tool calls, not in your final text.',
+    'Always end your response with a clear, concise summary of what you found or did — written naturally, as if explaining directly to the user. Do not label it or prefix it with words like "Summary:", "Synthesis:", or "In conclusion:". This final paragraph is the primary content the user sees; make it self-contained and actionable.',
 }

@@ -218,7 +218,7 @@ describe('runWaggleSequential', () => {
   it('injects the synthesis guideline into waggle turn prompts', async () => {
     runAgentMock.mockImplementationOnce(async ({ payload }: { payload: { text: string } }) => {
       expect(payload.text).toContain(
-        '- End your turn with a concise synthesis of your findings and position. Be direct and actionable.',
+        '- End your turn with a concise, direct summary of your findings and position. Write naturally — do not label it with "Synthesis:", "Summary:", or similar prefixes.',
       )
 
       return {

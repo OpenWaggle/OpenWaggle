@@ -379,7 +379,7 @@ function buildCollaborationSystemPrompt(
     '- If you agree with the other agent, say so explicitly and briefly.',
     '- If you disagree, explain your reasoning clearly with references to actual code.',
     '- Focus on adding new value each turn.',
-    '- End your turn with a concise synthesis of your findings and position. Be direct and actionable.',
+    '- End your turn with a concise, direct summary of your findings and position. Write naturally — do not label it with "Synthesis:", "Summary:", or similar prefixes.',
   ]
 
   if (turnNumber > 0) {
