@@ -8,7 +8,7 @@ interface AgentLabelProps {
   waggle?: WaggleInfo
 }
 
-export function AgentLabel({ assistantModel, waggle }: AgentLabelProps): React.JSX.Element | null {
+export function AgentLabel({ assistantModel, waggle }: AgentLabelProps) {
   if (waggle) {
     return (
       <div>

@@ -112,7 +112,7 @@ export function ToolCallBlock({
   state,
   result,
   isStreaming = false,
-}: ToolCallBlockProps): React.JSX.Element {
+}: ToolCallBlockProps) {
   const [expanded, setExpanded] = useState(false)
   const hasConcreteResult = result ? hasConcreteToolOutput(result.content) : false
   const resultError = getResultError(result)
@@ -269,15 +269,7 @@ export function ToolCallBlock({
 
 // ─── Args display ────────────────────────────────────────────
 
-function ToolArgs({
-  name,
-  args,
-  rawArgs,
-}: {
-  name: string
-  args: JsonObject
-  rawArgs: string
-}): React.JSX.Element {
+function ToolArgs({ name, args, rawArgs }: { name: string; args: JsonObject; rawArgs: string }) {
   if (name === 'runCommand' && typeof args.command === 'string') {
     return (
       <div className="rounded-md bg-bg px-3 py-2 font-mono text-[13px] text-text-secondary">
@@ -321,13 +313,7 @@ function ToolArgs({
 
 // ─── Result display ──────────────────────────────────────────
 
-function ToolResult({
-  content,
-  isError,
-}: {
-  content: unknown
-  isError: boolean
-}): React.JSX.Element {
+function ToolResult({ content, isError }: { content: unknown; isError: boolean }) {
   if (isError) {
     const parsed = parseResultPayload(content)
     let errorMessage = formatUnknownContent(parsed)

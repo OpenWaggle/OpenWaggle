@@ -9,7 +9,7 @@ interface IconProps {
   style?: React.CSSProperties
 }
 
-export function OpenAIIcon({ className, style }: IconProps): React.JSX.Element {
+export function OpenAIIcon({ className, style }: IconProps) {
   return (
     <svg
       aria-hidden="true"
@@ -24,7 +24,7 @@ export function OpenAIIcon({ className, style }: IconProps): React.JSX.Element {
   )
 }
 
-export function AnthropicIcon({ className, style }: IconProps): React.JSX.Element {
+export function AnthropicIcon({ className, style }: IconProps) {
   return (
     <svg
       aria-hidden="true"
@@ -39,7 +39,7 @@ export function AnthropicIcon({ className, style }: IconProps): React.JSX.Elemen
   )
 }
 
-export function GeminiIcon({ className, style }: IconProps): React.JSX.Element {
+export function GeminiIcon({ className, style }: IconProps) {
   return (
     <svg
       aria-hidden="true"
@@ -54,7 +54,7 @@ export function GeminiIcon({ className, style }: IconProps): React.JSX.Element {
   )
 }
 
-export function GrokIcon({ className, style }: IconProps): React.JSX.Element {
+export function GrokIcon({ className, style }: IconProps) {
   return (
     <svg
       aria-hidden="true"
@@ -69,7 +69,7 @@ export function GrokIcon({ className, style }: IconProps): React.JSX.Element {
   )
 }
 
-export function OpenRouterIcon({ className, style }: IconProps): React.JSX.Element {
+export function OpenRouterIcon({ className, style }: IconProps) {
   return (
     <svg
       aria-hidden="true"
@@ -84,7 +84,7 @@ export function OpenRouterIcon({ className, style }: IconProps): React.JSX.Eleme
   )
 }
 
-export function OllamaIcon({ className, style }: IconProps): React.JSX.Element {
+export function OllamaIcon({ className, style }: IconProps) {
   return (
     <svg
       aria-hidden="true"

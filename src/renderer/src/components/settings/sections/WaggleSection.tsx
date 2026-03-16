@@ -188,7 +188,7 @@ function wagglePresetReducer(
     .assertComplete()
 }
 
-export function WaggleSection(): React.JSX.Element {
+export function WaggleSection() {
   const { settings } = usePreferences()
   const { providerModels } = useProviders()
   const teamPresetsQuery = useQuery(teamPresetsQueryOptions())
@@ -378,7 +378,7 @@ function TeamPresetsPanel({
   onDeletePreset,
   onSaveEdits,
   onNewCustom,
-}: TeamPresetsPanelProps): React.JSX.Element {
+}: TeamPresetsPanelProps) {
   return (
     <div className="rounded-lg border border-border bg-[#111418] p-5">
       <h3 className="text-sm font-medium text-text-secondary mb-4">Team Presets</h3>
@@ -435,7 +435,7 @@ function TeamPresetCard({
   isActiveModified,
   onSelect,
   onDelete,
-}: TeamPresetCardProps): React.JSX.Element {
+}: TeamPresetCardProps) {
   return (
     <button
       type="button"
@@ -519,7 +519,7 @@ function CollaborationSettingsCard({
   onModeChange,
   onStopConditionChange,
   onMaxTurnsChange,
-}: CollaborationSettingsCardProps): React.JSX.Element {
+}: CollaborationSettingsCardProps) {
   return (
     <div className="rounded-lg border border-border bg-[#111418] p-5 space-y-4">
       <h3 className="text-sm font-medium text-text-secondary">Collaboration</h3>
@@ -550,7 +550,7 @@ interface ModeToggleProps {
   onModeChange: (mode: WaggleCollaborationMode) => void
 }
 
-function ModeToggle({ mode, onModeChange }: ModeToggleProps): React.JSX.Element {
+function ModeToggle({ mode, onModeChange }: ModeToggleProps) {
   return (
     <div className="flex rounded-md border border-border overflow-hidden">
       <button
@@ -586,10 +586,7 @@ interface StopConditionToggleProps {
   onStopConditionChange: (stopCondition: WaggleStopCondition) => void
 }
 
-function StopConditionToggle({
-  stopCondition,
-  onStopConditionChange,
-}: StopConditionToggleProps): React.JSX.Element {
+function StopConditionToggle({ stopCondition, onStopConditionChange }: StopConditionToggleProps) {
   return (
     <div className="flex rounded-md border border-border overflow-hidden">
       <button
@@ -625,7 +622,7 @@ interface MaxTurnsSliderProps {
   onMaxTurnsChange: (maxTurns: number) => void
 }
 
-function MaxTurnsSlider({ maxTurns, onMaxTurnsChange }: MaxTurnsSliderProps): React.JSX.Element {
+function MaxTurnsSlider({ maxTurns, onMaxTurnsChange }: MaxTurnsSliderProps) {
   return (
     <div className="flex items-center gap-3">
       <input
@@ -659,7 +656,7 @@ function AgentSlotCard({
   dotLabel,
   settings,
   providerModels,
-}: AgentSlotCardProps): React.JSX.Element {
+}: AgentSlotCardProps) {
   return (
     <div className={cn('rounded-lg border bg-[#111418] p-5 space-y-4', AGENT_BORDER[agent.color])}>
       <div className="flex items-center gap-2">

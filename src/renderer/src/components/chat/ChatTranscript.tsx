@@ -22,7 +22,7 @@ function renderTranscriptRow(
   onOpenSettings: () => void,
   onRetryText: (content: string) => Promise<void>,
   onDismissError: (errorId: string | null) => void,
-): React.JSX.Element {
+) {
   return (
     <ChatRowRenderer
       row={row}
@@ -48,7 +48,7 @@ function getChatRowKey(row: ChatRow): string {
     .assertComplete()
 }
 
-export function ChatTranscript({ section }: ChatTranscriptProps): React.JSX.Element {
+export function ChatTranscript({ section }: ChatTranscriptProps) {
   const {
     messages,
     isLoading,

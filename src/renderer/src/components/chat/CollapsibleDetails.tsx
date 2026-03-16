@@ -10,7 +10,7 @@ export function CollapsibleDetails({
   showDetails,
   collapseLabel,
   onToggle,
-}: CollapsibleDetailsProps): React.JSX.Element {
+}: CollapsibleDetailsProps) {
   return (
     <button
       type="button"

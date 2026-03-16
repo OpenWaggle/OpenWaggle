@@ -8,7 +8,7 @@ import { cn } from '@/lib/cn'
 import { projectName } from '@/lib/format'
 import { useUIStore } from '@/stores/ui-store'
 
-export function Header(): React.JSX.Element {
+export function Header() {
   const { activeConversation } = useChat()
   const { projectPath } = useProject()
 

@@ -5,7 +5,7 @@ interface CollapsedLinesProps {
   onClick: () => void
 }
 
-export function CollapsedLines({ count, onClick }: CollapsedLinesProps): React.JSX.Element {
+export function CollapsedLines({ count, onClick }: CollapsedLinesProps) {
   return (
     <button
       type="button"

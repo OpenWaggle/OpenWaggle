@@ -14,16 +14,12 @@ const ICON_MAP: Record<string, typeof HardDrive> = {
   postgres: Database,
 }
 
-function ServerIcon({ name }: { name: string }): React.JSX.Element {
+function ServerIcon({ name }: { name: string }) {
   const Icon = ICON_MAP[name.toLowerCase()] ?? Plug
   return <Icon className="h-[15px] w-[15px] text-accent" />
 }
 
-export function McpServerCard({
-  server,
-  onToggle,
-  onRemove,
-}: McpServerCardProps): React.JSX.Element {
+export function McpServerCard({ server, onToggle, onRemove }: McpServerCardProps) {
   const isConnected = server.status === 'connected'
   const isConnecting = server.status === 'connecting'
 

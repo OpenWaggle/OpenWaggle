@@ -4,7 +4,7 @@ interface UserMessageBubbleProps {
   message: UIMessage
 }
 
-export function UserMessageBubble({ message }: UserMessageBubbleProps): React.JSX.Element {
+export function UserMessageBubble({ message }: UserMessageBubbleProps) {
   return (
     /* User msg container — justifyContent: end, width: fill_container */
     <div className="flex justify-end w-full">

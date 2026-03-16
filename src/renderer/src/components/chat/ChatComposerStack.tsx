@@ -15,7 +15,7 @@ interface ChatComposerStackProps {
 
 function noOp(): void {}
 
-export function ChatComposerStack({ section }: ChatComposerStackProps): React.JSX.Element {
+export function ChatComposerStack({ section }: ChatComposerStackProps) {
   const planModeActive = useComposerStore((s) => s.planModeActive)
 
   const {

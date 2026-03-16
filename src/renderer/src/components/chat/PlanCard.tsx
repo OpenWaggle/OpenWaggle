@@ -32,7 +32,7 @@ export function PlanCard({
   result,
   isStreaming,
   onRespond,
-}: PlanCardProps): React.JSX.Element {
+}: PlanCardProps) {
   const [feedback, setFeedback] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [submittedAction, setSubmittedAction] = useState<'approve' | 'revise' | null>(null)

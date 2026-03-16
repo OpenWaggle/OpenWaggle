@@ -15,11 +15,7 @@ interface QueuedMessagesProps {
  * inside the composer's rounded shoulders so it reads like a docked tab rather
  * than a separate full-width panel.
  */
-export function QueuedMessages({
-  conversationId,
-  onSteer,
-  isStreaming,
-}: QueuedMessagesProps): React.JSX.Element | null {
+export function QueuedMessages({ conversationId, onSteer, isStreaming }: QueuedMessagesProps) {
   const queue = useMessageQueueStore(selectQueue(conversationId))
   const dismiss = useMessageQueueStore((s) => s.dismiss)
 

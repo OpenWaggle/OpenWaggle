@@ -72,7 +72,7 @@ export const safeMarkdownRehypePlugins: RehypePlugins = [
   [rehypeSanitize, safeMarkdownSanitizeSchema],
 ]
 
-function SafeMarkdownLink({ href, children }: ComponentPropsWithoutRef<'a'>): React.JSX.Element {
+function SafeMarkdownLink({ href, children }: ComponentPropsWithoutRef<'a'>) {
   if (!href || !isAllowedMarkdownUrl(href)) {
     return <span>{children}</span>
   }

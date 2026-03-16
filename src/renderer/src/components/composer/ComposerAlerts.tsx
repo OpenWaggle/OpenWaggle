@@ -10,7 +10,7 @@ interface ComposerAlertsProps {
   alerts: readonly ComposerAlert[]
 }
 
-export function ComposerAlerts({ alerts }: ComposerAlertsProps): React.JSX.Element | null {
+export function ComposerAlerts({ alerts }: ComposerAlertsProps) {
   if (alerts.length === 0) return null
 
   return (

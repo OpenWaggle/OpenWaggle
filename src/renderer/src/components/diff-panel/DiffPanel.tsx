@@ -38,7 +38,7 @@ function diffPanelReducer(state: DiffPanelState, action: DiffPanelAction): DiffP
     .assertComplete()
 }
 
-export function DiffPanel({ projectPath, onSendMessage }: DiffPanelProps): React.JSX.Element {
+export function DiffPanel({ projectPath, onSendMessage }: DiffPanelProps) {
   const [state, dispatch] = useReducer(diffPanelReducer, {
     fileDiffs: [],
     isLoading: false,

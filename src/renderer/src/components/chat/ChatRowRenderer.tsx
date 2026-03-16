@@ -28,7 +28,7 @@ export function ChatRowRenderer({
   onOpenSettings,
   onRetry,
   onDismissError,
-}: ChatRowRendererProps): React.JSX.Element {
+}: ChatRowRendererProps) {
   return chooseBy(row, 'type')
     .case('message', (value) => (
       <div className="flex flex-col gap-6">

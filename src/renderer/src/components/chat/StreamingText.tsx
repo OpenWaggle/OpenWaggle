@@ -43,10 +43,7 @@ function useShikiHighlighter(): Highlighter | undefined {
   return hl
 }
 
-export function StreamingText({
-  text,
-  isStreaming = false,
-}: StreamingTextProps): React.JSX.Element | null {
+export function StreamingText({ text, isStreaming = false }: StreamingTextProps) {
   const displayText = useThrottledStreamText(text, isStreaming)
   const highlighter = useShikiHighlighter()
 

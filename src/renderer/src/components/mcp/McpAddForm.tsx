@@ -20,7 +20,7 @@ interface EnvVar {
   readonly value: string
 }
 
-export function McpAddForm({ onBack, onSubmit }: McpAddFormProps): React.JSX.Element {
+export function McpAddForm({ onBack, onSubmit }: McpAddFormProps) {
   const [name, setName] = useState('')
   const [transport, setTransport] = useState<McpTransport>('stdio')
   const [command, setCommand] = useState('')

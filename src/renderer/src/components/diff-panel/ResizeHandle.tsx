@@ -6,7 +6,7 @@ interface ResizeHandleProps {
   onResizeEnd: () => void
 }
 
-export function ResizeHandle({ onResize, onResizeEnd }: ResizeHandleProps): React.JSX.Element {
+export function ResizeHandle({ onResize, onResizeEnd }: ResizeHandleProps) {
   const isDragging = useRef(false)
   const lastX = useRef(0)
   const onResizeRef = useRef(onResize)

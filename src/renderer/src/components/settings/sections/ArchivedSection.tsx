@@ -22,7 +22,7 @@ interface ArchivedGroupProps {
   readonly onDelete: (id: ConversationId) => void
 }
 
-function ArchivedGroup({ group, onRestore, onDelete }: ArchivedGroupProps): React.JSX.Element {
+function ArchivedGroup({ group, onRestore, onDelete }: ArchivedGroupProps) {
   const [collapsed, setCollapsed] = useState(false)
   const Chevron = collapsed ? ChevronRight : ChevronDown
 
@@ -84,7 +84,7 @@ function ArchivedGroup({ group, onRestore, onDelete }: ArchivedGroupProps): Reac
   )
 }
 
-export function ArchivedSection(): React.JSX.Element {
+export function ArchivedSection() {
   const archivedQuery = useQuery(archivedConversationsQueryOptions())
   const unarchiveMutation = useUnarchiveConversationMutation()
   const deleteMutation = useArchivedDeleteConversationMutation()

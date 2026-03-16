@@ -25,7 +25,7 @@ export function KeyEditor({
   isTesting,
   testResult,
   onClose,
-}: KeyEditorProps): React.JSX.Element {
+}: KeyEditorProps) {
   const [value, setValue] = useState('')
   const [isDirty, setIsDirty] = useState(false)
   const [showKey, setShowKey] = useState(!currentKey)
@@ -157,7 +157,7 @@ export function KeyEditor({
   )
 }
 
-function BaseUrlField({ provider }: { provider: Provider }): React.JSX.Element {
+function BaseUrlField({ provider }: { provider: Provider }) {
   const { settings } = usePreferences()
   const { updateBaseUrl } = useProviders()
   const config = settings.providers[provider]

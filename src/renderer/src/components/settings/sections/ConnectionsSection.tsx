@@ -8,7 +8,7 @@ import { SUBSCRIPTION_PROVIDER_ORDER } from './connections/meta'
 import { ProviderRow } from './connections/ProviderRow'
 import { SubscriptionRow } from './connections/SubscriptionRow'
 
-export function ConnectionsSection(): React.JSX.Element {
+export function ConnectionsSection() {
   const { settings } = usePreferences()
   const { providerModels, modelFetchErrors, toggleProvider } = useProviders()
 

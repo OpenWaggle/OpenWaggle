@@ -104,7 +104,7 @@ interface ModelSelectorDropdownOptions {
   readonly actions: ModelSelectorDropdownActions
 }
 
-function renderModelSelectorDropdown(options: ModelSelectorDropdownOptions): React.JSX.Element {
+function renderModelSelectorDropdown(options: ModelSelectorDropdownOptions) {
   const { refs, state, actions } = options
   const {
     overlayPosition,
@@ -291,7 +291,7 @@ export function ModelSelector({
   settings,
   providerModels,
   className,
-}: ModelSelectorProps): React.JSX.Element {
+}: ModelSelectorProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [activeTab, setActiveTab] = useState<RailTab>('favorites')

@@ -52,7 +52,7 @@ interface FileTreeNodeProps {
   onFileClick: (path: string) => void
 }
 
-function FileTreeNode({ node, depth, onFileClick }: FileTreeNodeProps): React.JSX.Element {
+function FileTreeNode({ node, depth, onFileClick }: FileTreeNodeProps) {
   const [expanded, setExpanded] = useState(true)
 
   // Indentation: 12px root, increases by 8px per level
@@ -110,12 +110,7 @@ interface FileTreeProps {
   reviewCount: number
 }
 
-export function FileTree({
-  files,
-  onFileClick,
-  onSendReview,
-  reviewCount,
-}: FileTreeProps): React.JSX.Element {
+export function FileTree({ files, onFileClick, onSendReview, reviewCount }: FileTreeProps) {
   const [tree, setTree] = useState<TreeNode[]>(() => buildTree(files))
 
   useEffect(() => {

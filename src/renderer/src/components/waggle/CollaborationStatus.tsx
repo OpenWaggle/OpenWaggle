@@ -14,7 +14,7 @@ interface CollaborationStatusProps {
 export function WaggleCollaborationStatus({
   currentConversationId,
   onStop,
-}: CollaborationStatusProps): React.JSX.Element | null {
+}: CollaborationStatusProps) {
   const status = useWaggleStore((s) => s.status)
   const config = useWaggleStore((s) => s.activeConfig)
   const activeCollaborationId = useWaggleStore((s) => s.activeCollaborationId)

@@ -12,7 +12,7 @@ interface SubAgentCardProps {
   error?: string
 }
 
-function getStatusIcon(status: OrchestrationTaskStatus): React.JSX.Element {
+function getStatusIcon(status: OrchestrationTaskStatus) {
   return choose(status)
     .case('queued', () => (
       <div className="h-3.5 w-3.5 rounded-full border-2 border-border-light shrink-0" />
@@ -37,12 +37,7 @@ function getStatusLabel(status: OrchestrationTaskStatus): string {
     .assertComplete()
 }
 
-export function SubAgentCard({
-  title,
-  status,
-  output,
-  error,
-}: SubAgentCardProps): React.JSX.Element {
+export function SubAgentCard({ title, status, output, error }: SubAgentCardProps) {
   const [expanded, setExpanded] = useState(false)
   const hasContent = !!output || !!error
   const isTerminal = status === 'completed' || status === 'failed' || status === 'cancelled'

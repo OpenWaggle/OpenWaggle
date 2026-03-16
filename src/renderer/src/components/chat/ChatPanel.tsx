@@ -5,7 +5,7 @@ import { ChatDiffPane } from './ChatDiffPane'
 import { ChatTranscript } from './ChatTranscript'
 import { useChatPanelSections } from './use-chat-panel-controller'
 
-export function ChatPanel(): React.JSX.Element {
+export function ChatPanel() {
   const diffPanelOpen = useUIStore((s) => s.diffPanelOpen)
 
   const sections = useChatPanelSections()

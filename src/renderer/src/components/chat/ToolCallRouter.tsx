@@ -27,7 +27,7 @@ export function ToolCallRouter({
   conversationId,
   onRespondToPlan,
   isStreaming,
-}: ToolCallRouterProps): React.JSX.Element | null {
+}: ToolCallRouterProps) {
   // Synthetic turn-boundary markers are only structural separators
   // for Waggle streaming — never render them as tool calls.
   if (part.name === '_turnBoundary') return null

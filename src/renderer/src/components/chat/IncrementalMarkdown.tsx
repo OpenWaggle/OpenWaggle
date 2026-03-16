@@ -53,7 +53,7 @@ const markdownComponents = {
   },
 }
 
-function PrefixView({ prefixHast }: { prefixHast: Root }): React.JSX.Element {
+function PrefixView({ prefixHast }: { prefixHast: Root }) {
   const element = toJsxRuntime(prefixHast, {
     Fragment,
     jsx,
@@ -70,7 +70,7 @@ export function IncrementalMarkdown({
   highlighter,
   cache,
   rehypePlugins,
-}: IncrementalMarkdownProps): React.JSX.Element {
+}: IncrementalMarkdownProps) {
   const { prefixHast, tail } = useIncrementalMarkdown(text, isStreaming, {
     highlighter,
     cache,

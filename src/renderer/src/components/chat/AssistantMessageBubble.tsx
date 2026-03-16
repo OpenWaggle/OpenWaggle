@@ -34,7 +34,7 @@ export function AssistantMessageBubble({
   conversationId,
   onRespondToPlan,
   waggle,
-}: AssistantMessageBubbleProps): React.JSX.Element {
+}: AssistantMessageBubbleProps) {
   const collapse = useMessageCollapse(message, isStreaming)
 
   const toolResults = new Map<string, { content: unknown; state: string; error?: string }>()

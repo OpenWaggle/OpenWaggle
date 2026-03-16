@@ -33,7 +33,7 @@ export function Popover({
   onOpenChange,
   placement = 'bottom-start',
   className,
-}: PopoverProps): React.JSX.Element {
+}: PopoverProps) {
   const isControlled = controlledOpen !== undefined
   const {
     isOpen: popoverIsOpen,

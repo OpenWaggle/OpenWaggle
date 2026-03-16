@@ -9,7 +9,7 @@ import { useWorkspaceLifecycle } from './useWorkspaceLifecycle'
 import { WorkspaceMainContent } from './WorkspaceMainContent'
 import { WorkspaceTerminal } from './WorkspaceTerminal'
 
-export function WorkspaceShell(): React.JSX.Element {
+export function WorkspaceShell() {
   useWorkspaceLifecycle()
   useBackgroundRunMonitor()
   useAutoUpdater()

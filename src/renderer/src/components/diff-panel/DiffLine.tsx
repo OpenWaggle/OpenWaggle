@@ -10,13 +10,7 @@ interface DiffLineProps {
   isSelected: boolean
 }
 
-export function DiffLine({
-  type,
-  lineNumber,
-  content,
-  onClick,
-  isSelected,
-}: DiffLineProps): React.JSX.Element {
+export function DiffLine({ type, lineNumber, content, onClick, isSelected }: DiffLineProps) {
   const mark = type === 'add' ? ' +' : type === 'remove' ? ' -' : '  '
 
   return (

@@ -2,7 +2,7 @@ import { useMcp } from '@/hooks/useMcp'
 import { McpAddForm } from './McpAddForm'
 import { McpListView } from './McpListView'
 
-export function McpPanel(): React.JSX.Element {
+export function McpPanel() {
   const mcp = useMcp()
 
   if (mcp.isAddFormOpen) {

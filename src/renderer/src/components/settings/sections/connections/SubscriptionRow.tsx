@@ -25,7 +25,7 @@ function resolveAccountInfo(
   return accountInfo ?? null
 }
 
-export function SubscriptionRow({ provider, isLast }: SubscriptionRowProps): React.JSX.Element {
+export function SubscriptionRow({ provider, isLast }: SubscriptionRowProps) {
   const { oauthStatuses, authAccounts, startOAuth, submitAuthCode, disconnectAuth } = useAuth()
   const oauthStatus = resolveOauthStatus(oauthStatuses[provider])
   const accountInfo = resolveAccountInfo(authAccounts[provider])

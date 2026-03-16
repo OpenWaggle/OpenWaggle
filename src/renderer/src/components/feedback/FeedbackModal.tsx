@@ -31,7 +31,7 @@ const CATEGORIES: CategoryOption[] = [
   { value: 'question', label: 'Question', icon: <HelpCircle className="h-3.5 w-3.5" /> },
 ]
 
-export function FeedbackModal(): React.JSX.Element {
+export function FeedbackModal() {
   const closeFeedbackModal = useUIStore((s) => s.closeFeedbackModal)
   const errorContext = useUIStore((s) => s.feedbackErrorContext)
 
@@ -251,7 +251,7 @@ interface ToggleRowProps {
   disabled?: boolean
 }
 
-function ToggleRow({ label, checked, onChange, disabled }: ToggleRowProps): React.JSX.Element {
+function ToggleRow({ label, checked, onChange, disabled }: ToggleRowProps) {
   return (
     <label
       className={cn(

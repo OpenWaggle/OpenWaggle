@@ -31,7 +31,7 @@ export function WelcomeScreen({
   onOpenProject,
   onSelectProjectPath,
   onRetry,
-}: WelcomeScreenProps): React.JSX.Element {
+}: WelcomeScreenProps) {
   const [projectMenuOpen, setProjectMenuOpen] = useState(false)
 
   function handleChooseProject(path: string): void {

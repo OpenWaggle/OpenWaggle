@@ -43,7 +43,7 @@ export function ApprovalBanner({
   toolArgs,
   approvalId,
   onApprovalResponse,
-}: ApprovalBannerProps): React.JSX.Element {
+}: ApprovalBannerProps) {
   const [loading, setLoading] = useState(false)
 
   const config = getToolConfig(toolName)

@@ -6,9 +6,7 @@ interface ComposerAttachButtonProps {
   fileInputRef: React.RefObject<HTMLInputElement | null>
 }
 
-export function ComposerAttachButton({
-  fileInputRef,
-}: ComposerAttachButtonProps): React.JSX.Element {
+export function ComposerAttachButton({ fileInputRef }: ComposerAttachButtonProps) {
   const { projectPath } = useProject()
 
   return (

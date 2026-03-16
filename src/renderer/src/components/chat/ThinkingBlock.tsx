@@ -9,7 +9,7 @@ interface ThinkingBlockProps {
   isStreaming?: boolean
 }
 
-export function ThinkingBlock({ content, isStreaming }: ThinkingBlockProps): React.JSX.Element {
+export function ThinkingBlock({ content, isStreaming }: ThinkingBlockProps) {
   const [expanded, setExpanded] = useState(false)
 
   const tokenEstimate = Math.ceil(content.length / THINKING_BLOCK_VALUE_4)

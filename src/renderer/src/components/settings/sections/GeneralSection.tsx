@@ -79,7 +79,7 @@ function getStatusRow(status: UpdateStatus): StatusRow {
     .assertComplete()
 }
 
-export function GeneralSection(): React.JSX.Element {
+export function GeneralSection() {
   const version = useAppVersion()
   const status = useUpdateStatus()
   const statusRow = getStatusRow(status)

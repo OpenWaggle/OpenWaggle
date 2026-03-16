@@ -23,7 +23,7 @@ export function MessageBubble({
   conversationId,
   onRespondToPlan,
   waggle,
-}: MessageBubbleProps): React.JSX.Element {
+}: MessageBubbleProps) {
   if (message.role === 'user') {
     return <UserMessageBubble message={message} />
   }

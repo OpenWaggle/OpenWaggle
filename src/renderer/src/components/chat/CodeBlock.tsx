@@ -27,7 +27,7 @@ function getTextContent(node: ReactNode): string {
   return ''
 }
 
-export function CodeBlock({ children, language, className }: CodeBlockProps): React.JSX.Element {
+export function CodeBlock({ children, language, className }: CodeBlockProps) {
   const [copied, setCopied] = useState(false)
 
   function handleCopy(): void {

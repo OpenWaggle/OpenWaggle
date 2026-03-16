@@ -10,7 +10,7 @@ import { ConnectionsSection } from './sections/ConnectionsSection'
 import { GeneralSection } from './sections/GeneralSection'
 import { WaggleSection } from './sections/WaggleSection'
 
-export function SettingsPage(): React.JSX.Element {
+export function SettingsPage() {
   const activeTab = useUIStore((s) => s.activeSettingsTab)
   const closeSettings = useUIStore((s) => s.closeSettings)
   const isFullscreen = useFullscreen()
@@ -48,7 +48,7 @@ export function SettingsPage(): React.JSX.Element {
   )
 }
 
-function SettingsTabContent({ tab }: { tab: SettingsTab }): React.JSX.Element {
+function SettingsTabContent({ tab }: { tab: SettingsTab }) {
   return choose(tab)
     .case('general', () => <GeneralSection />)
     .case('waggle', () => <WaggleSection />)

@@ -47,11 +47,7 @@ interface CommandPaletteProps {
   onStartWaggle: (config: WaggleConfig) => void
 }
 
-export function CommandPalette({
-  slashSkills,
-  onSelectSkill,
-  onStartWaggle,
-}: CommandPaletteProps): React.JSX.Element {
+export function CommandPalette({ slashSkills, onSelectSkill, onStartWaggle }: CommandPaletteProps) {
   const closeCommandPalette = useUIStore((s) => s.closeCommandPalette)
   const openSettings = useUIStore((s) => s.openSettings)
   const teamPresetsQuery = useQuery(teamPresetsQueryOptions())
