@@ -7,7 +7,7 @@
  */
 import type { Element, ElementContent, Properties, Root, RootContent } from 'hast'
 import type { Highlighter } from 'shiki'
-import { DEFAULT_THEME, PRELOADED_LANGUAGE_SET } from './highlighter'
+import { DEFAULT_THEME, PRELOADED_LANGUAGE_SET, resolveLanguage } from './highlighter'
 import type { ShikiCache } from './shiki-cache'
 
 // ---------------------------------------------------------------------------
@@ -69,7 +69,6 @@ export function createRehypeShikiPlugin(options: RehypeShikiOptions) {
     return function rehypeShikiTransformer(tree: Root): void {
       if (highlighter === undefined) return
       if (!tree || !Array.isArray(tree.children)) return
-
       visitPreElements(tree.children, highlighter, isStreaming, cache)
     }
   }
@@ -101,11 +100,9 @@ function processPreElement(
   const codeNode = pre.children.find((c): c is Element => isElement(c) && c.tagName === 'code')
   if (!codeNode) return
 
-  const language = extractLanguageFromClass(codeNode.properties)
+  const rawLang = extractLanguageFromClass(codeNode.properties)
+  const language = rawLang ? resolveLanguage(rawLang) : undefined
   if (!language) return
-
-  // Only highlight languages that are preloaded
-  if (!PRELOADED_LANGUAGE_SET.has(language)) return
 
   const code = textContent(codeNode)
   if (!code) return
