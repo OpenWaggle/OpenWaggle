@@ -1,7 +1,7 @@
 import { SupportedModelId } from '@shared/types/brand'
 import type { UIMessage } from '@tanstack/ai-react'
 import { describe, expect, it } from 'vitest'
-import { buildVirtualRows } from '../useVirtualRows'
+import { buildChatRows } from '../useBuildChatRows'
 
 function createUserMessage(id: string, text: string): UIMessage {
   return {
@@ -82,7 +82,7 @@ function createAssistantTerminalToolMessage(
 }
 
 function getAssistantMessageRows(messages: UIMessage[]) {
-  const rows = buildVirtualRows({
+  const rows = buildChatRows({
     messages,
     isLoading: false,
     error: undefined,
@@ -101,7 +101,7 @@ function getAssistantMessageRows(messages: UIMessage[]) {
   )
 }
 
-describe('buildVirtualRows tool-call dedup', () => {
+describe('buildChatRows tool-call dedup', () => {
   it('deduplicates repeated tool calls within the same user turn', () => {
     const messages = [
       createUserMessage('user-1', 'run command'),

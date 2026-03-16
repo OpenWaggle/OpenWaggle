@@ -49,7 +49,7 @@
     "website:build": "pnpm --filter @openwaggle/website build",
     "website:preview": "pnpm --filter @openwaggle/website preview"
   },
-  "packageManager": "pnpm@10.28.1",
+  "packageManager": "pnpm@10.32.1",
   "pnpm": {
     "onlyBuiltDependencies": [
       "better-sqlite3",
@@ -73,8 +73,13 @@
     "ajv-formats": "^3.0.1",
     "better-sqlite3": "^12.6.2",
     "electron-updater": "^6.6.2",
+    "hast-util-to-jsx-runtime": "^2.3.6",
     "node-pty": "^1.1.0",
-    "tesseract.js": "^6.0.1"
+    "remark-parse": "^11.0.0",
+    "remark-rehype": "^11.1.2",
+    "shiki": "^4.0.2",
+    "tesseract.js": "^6.0.1",
+    "unified": "^11.0.5"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.2",
@@ -102,6 +107,7 @@
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
+    "@types/hast": "^3.0.4",
     "@types/node": "^25.2.3",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
@@ -116,7 +122,6 @@
     "electron-builder": "^26.7.0",
     "electron-vite": "^5.0.0",
     "fast-glob": "^3.3.3",
-    "highlight.js": "^11.11.1",
     "husky": "^9.1.7",
     "jsdom": "^28.1.0",
     "jszip": "^3.10.1",
@@ -128,7 +133,6 @@
     "react-markdown": "^10.1.0",
     "react-virtuoso": "^4.18.1",
     "react-voice-visualizer": "2.0.8",
-    "rehype-highlight": "^7.0.2",
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
     "smol-toml": "^1.6.0",

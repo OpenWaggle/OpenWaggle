@@ -2,50 +2,20 @@ import type { ConversationId } from '@shared/types/brand'
 import type { PlanResponse } from '@shared/types/plan'
 import type { QuestionAnswer } from '@shared/types/question'
 import { chooseBy } from '@shared/utils/decision'
-import { useRef } from 'react'
-import { Virtuoso } from 'react-virtuoso'
-import { cn } from '@/lib/cn'
-import type { VirtualRow } from './types-virtual'
+import { ChatRowRenderer } from './ChatRowRenderer'
+import { useChatScrollBehaviour } from './hooks/useChatScrollBehaviour'
+import type { ChatRow } from './types-chat-row'
 import type { ChatTranscriptSectionState } from './use-chat-panel-controller'
-import { VirtualRowRenderer } from './VirtualRowRenderer'
 import { WelcomeScreen } from './WelcomeScreen'
 
-const DELAY_MS = 1200
 const PADDING_TOP = 20
-const OVERSCAN = 800
 
 interface ChatTranscriptProps {
   readonly section: ChatTranscriptSectionState
 }
 
-function resolveFollowOutput(isAtBottom: boolean, isLoading: boolean): 'auto' | 'smooth' | false {
-  if (!isAtBottom) {
-    return false
-  }
-  return isLoading ? 'auto' : 'smooth'
-}
-
-function ChatScroller(props: React.ComponentPropsWithRef<'div'>): React.JSX.Element {
-  const scrollTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
-
-  function handleScroll(event: React.UIEvent<HTMLDivElement>): void {
-    const element = event.currentTarget
-    element.classList.add('is-scrolling')
-    if (scrollTimerRef.current) {
-      clearTimeout(scrollTimerRef.current)
-    }
-    scrollTimerRef.current = setTimeout(() => {
-      element.classList.remove('is-scrolling')
-    }, DELAY_MS)
-    props.onScroll?.(event)
-  }
-
-  return <div {...props} onScroll={handleScroll} className={cn(props.className, 'chat-scroll')} />
-}
-
 function renderTranscriptRow(
-  row: VirtualRow,
-  index: number,
+  row: ChatRow,
   conversationId: ConversationId | null,
   onAnswerQuestion: (conversationId: ConversationId, answers: QuestionAnswer[]) => Promise<void>,
   onRespondToPlan: (conversationId: ConversationId, response: PlanResponse) => Promise<void>,
@@ -54,26 +24,21 @@ function renderTranscriptRow(
   onDismissError: (errorId: string | null) => void,
 ): React.JSX.Element {
   return (
-    <div
-      className="mx-auto w-full max-w-[720px] px-12 pb-6"
-      style={index === 0 ? { paddingTop: PADDING_TOP } : undefined}
-    >
-      <VirtualRowRenderer
-        row={row}
-        conversationId={conversationId}
-        onAnswerQuestion={onAnswerQuestion}
-        onRespondToPlan={onRespondToPlan}
-        onOpenSettings={onOpenSettings}
-        onRetry={(content) => {
-          void onRetryText(content)
-        }}
-        onDismissError={onDismissError}
-      />
-    </div>
+    <ChatRowRenderer
+      row={row}
+      conversationId={conversationId}
+      onAnswerQuestion={onAnswerQuestion}
+      onRespondToPlan={onRespondToPlan}
+      onOpenSettings={onOpenSettings}
+      onRetry={(content) => {
+        void onRetryText(content)
+      }}
+      onDismissError={onDismissError}
+    />
   )
 }
 
-function getVirtualRowKey(row: VirtualRow): string {
+function getChatRowKey(row: ChatRow): string {
   return chooseBy(row, 'type')
     .case('message', (value) => `message:${value.message.id}`)
     .case('segment', (value) => `segment:${value.segment.id}`)
@@ -90,7 +55,7 @@ export function ChatTranscript({ section }: ChatTranscriptProps): React.JSX.Elem
     projectPath,
     recentProjects,
     activeConversationId,
-    virtualRows,
+    chatRows: rows,
     onOpenProject,
     onSelectProjectPath,
     onRetryText,
@@ -98,7 +63,16 @@ export function ChatTranscript({ section }: ChatTranscriptProps): React.JSX.Elem
     onRespondToPlan,
     onOpenSettings,
     onDismissError,
+    lastUserMessageId,
   } = section
+
+  const { scrollerRef, spacerRef, userMessageRef, handleScroll } = useChatScrollBehaviour({
+    lastUserMessageId,
+    messagesLength: messages.length,
+    rowsLength: rows.length,
+    isLoading,
+    activeConversationId,
+  })
 
   if (messages.length === 0 && !isLoading) {
     return (
@@ -121,33 +95,39 @@ export function ChatTranscript({ section }: ChatTranscriptProps): React.JSX.Elem
 
   return (
     <div
+      ref={scrollerRef}
       role="log"
       aria-label="Chat messages"
       aria-busy={isLoading}
-      className="flex flex-1 flex-col overflow-hidden"
+      className="relative flex flex-1 flex-col overflow-y-auto chat-scroll [overflow-anchor:none]"
+      onScroll={handleScroll}
     >
-      <Virtuoso
-        key={activeConversationId ?? 'empty'}
-        data={virtualRows}
-        computeItemKey={(_index, row) => getVirtualRowKey(row)}
-        followOutput={(isAtBottom) => resolveFollowOutput(isAtBottom, isLoading)}
-        initialTopMostItemIndex={Math.max(0, virtualRows.length - 1)}
-        overscan={OVERSCAN}
-        className="flex-1"
-        components={{ Scroller: ChatScroller }}
-        itemContent={(index, row) =>
-          renderTranscriptRow(
-            row,
-            index,
-            activeConversationId,
-            onAnswerQuestion,
-            onRespondToPlan,
-            onOpenSettings,
-            onRetryText,
-            onDismissError,
-          )
-        }
-      />
+      {rows.map((row, index) => {
+        const isUserMessage = row.type === 'message' && row.message.role === 'user'
+        const isScrollTarget = isUserMessage && row.message.id === lastUserMessageId
+        return (
+          <div
+            key={getChatRowKey(row)}
+            ref={isScrollTarget ? userMessageRef : undefined}
+            className="mx-auto w-full max-w-[720px] px-12 pb-6"
+            {...(isUserMessage ? { 'data-user-message-id': row.message.id } : {})}
+            style={index === 0 ? { paddingTop: PADDING_TOP } : undefined}
+          >
+            {renderTranscriptRow(
+              row,
+              activeConversationId,
+              onAnswerQuestion,
+              onRespondToPlan,
+              onOpenSettings,
+              onRetryText,
+              onDismissError,
+            )}
+          </div>
+        )
+      })}
+      {messages.length > 1 && (
+        <div ref={spacerRef} aria-hidden="true" style={{ flexShrink: 0, pointerEvents: 'none' }} />
+      )}
     </div>
   )
 }

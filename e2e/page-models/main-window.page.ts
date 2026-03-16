@@ -97,4 +97,74 @@ export class MainWindowPage {
   async expectApproveButtonHidden(): Promise<void> {
     await expect(this.approveButton()).toBeHidden()
   }
+
+  lastUserMessage(): Locator {
+    return this.page.locator('[data-user-message-id]').last()
+  }
+
+  async expectUserMessageAttributeCount(count: number): Promise<void> {
+    await expect(this.page.locator('[data-user-message-id]')).toHaveCount(count)
+  }
+
+  async expectLastUserMessageVisible(): Promise<void> {
+    await expect(this.lastUserMessage()).toBeVisible()
+  }
+
+  async expectChatScrollerScrolled(): Promise<void> {
+    await expect(async () => {
+      const scrollTop = await this.page.evaluate(() => {
+        const scroller = document.querySelector('[role="log"]') as HTMLElement | null
+        return scroller?.scrollTop ?? 0
+      })
+      expect(scrollTop).toBeGreaterThan(0)
+    }).toPass({ timeout: 3000 })
+  }
+
+  /**
+   * After sending a message, verify the new user message is near the top of
+   * the scroll container. With a plain DOM scroll container (no Virtuoso),
+   * the scroll is synchronous — the element should be positioned within
+   * ~40px of the container top (PADDING_TOP=20 + small layout gap).
+   *
+   * scrollTopBefore: the scrollTop before the send, used to confirm scroll changed.
+   */
+  async expectNewUserMessageScrolledToTop(scrollTopBefore: number): Promise<void> {
+    await expect(async () => {
+      const result = await this.page.evaluate(
+        ({ before }) => {
+          const PADDING_TOP = 20
+          const TOLERANCE = 40 // allow up to 40px from top (padding + rounding)
+
+          const scroller = document.querySelector('[role="log"]') as HTMLElement | null
+          if (!scroller) return { error: 'no scroller' }
+
+          const messages = scroller.querySelectorAll('[data-user-message-id]')
+          const el = messages[messages.length - 1] as HTMLElement | null
+          if (!el) return { error: 'no user message element' }
+
+          const scrollTop = scroller.scrollTop
+          const elTop = el.getBoundingClientRect().top
+          const scrollerTop = scroller.getBoundingClientRect().top
+          // position of element relative to the scroller's visible top
+          const relativeTop = elTop - scrollerTop
+
+          return {
+            scrollTop,
+            scrollTopBefore: before,
+            relativeTop,
+            scrollChanged: scrollTop !== before,
+            isNearTop: relativeTop >= -4 && relativeTop <= PADDING_TOP + TOLERANCE,
+          }
+        },
+        { before: scrollTopBefore },
+      )
+
+      // Must not be an error
+      expect('error' in (result ?? {})).toBe(false)
+      // scrollTop must have changed (scroll happened)
+      expect(result?.scrollChanged).toBe(true)
+      // User message must be within ~40px of the scroller top edge
+      expect(result?.isNearTop).toBe(true)
+    }).toPass({ timeout: 4000 })
+  }
 }

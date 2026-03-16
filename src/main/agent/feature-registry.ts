@@ -28,6 +28,7 @@ import {
   planToolPromptFragment,
   projectContextPromptFragment,
   runtimeModelPromptFragment,
+  synthesisPromptFragment,
 } from './system-prompt'
 
 const SLICE_ARG_2 = 300
@@ -43,6 +44,7 @@ const defaultFeatureFlags: AgentFeatureFlags = {
   'standards.prompt': true,
   'core.prompt': true,
   'core.tools': true,
+  'core.synthesis': true,
   'core.execution-mode': true,
   'core.observability': true,
   'mcp.tools': true,
@@ -197,6 +199,12 @@ const builtInToolsFeature: AgentFeature = {
   getTools: () => builtInTools,
 }
 
+const synthesisFeature: AgentFeature = {
+  id: 'core.synthesis',
+  isEnabled: (context) => context.hasProject,
+  getPromptFragments: () => [synthesisPromptFragment],
+}
+
 const trustedToolFeature: AgentFeature = {
   id: 'core.tool-trust',
   isEnabled: (context) => !!context.toolApprovals?.tools,
@@ -310,6 +318,7 @@ const defaultFeatures: readonly AgentFeature[] = [
   corePromptFeature,
   planModeFeature,
   builtInToolsFeature,
+  synthesisFeature,
   trustedToolFeature,
   fullAccessApprovalBypassFeature,
   mcpToolsFeature,

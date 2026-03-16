@@ -8,6 +8,7 @@ import {
   executionModePromptFragment,
   projectContextPromptFragment,
   runtimeModelPromptFragment,
+  synthesisPromptFragment,
 } from '../system-prompt'
 
 function makeContext(overrides: Partial<AgentRunContext> = {}): AgentRunContext {
@@ -98,5 +99,16 @@ describe('executionModePromptFragment', () => {
     const result = executionModePromptFragment.build(context)
 
     expect(result).toContain('Full access')
+  })
+})
+
+describe('synthesisPromptFragment', () => {
+  it('build returns the expected synthesis instruction', () => {
+    const context = makeContext()
+    const result = synthesisPromptFragment.build(context)
+
+    expect(result).toBe(
+      'Always end your response with a clear, concise synthesis of what you found or did. This is the primary content the user sees by default — make it self-contained and actionable. Keep tool call details and intermediate reasoning inside tool calls, not in your final text.',
+    )
   })
 })

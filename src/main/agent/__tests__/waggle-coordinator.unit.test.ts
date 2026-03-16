@@ -214,4 +214,38 @@ describe('runWaggleSequential', () => {
       }),
     )
   })
+
+  it('injects the synthesis guideline into waggle turn prompts', async () => {
+    runAgentMock.mockImplementationOnce(async ({ payload }: { payload: { text: string } }) => {
+      expect(payload.text).toContain(
+        '- End your turn with a concise synthesis of your findings and position. Be direct and actionable.',
+      )
+
+      return {
+        newMessages: [createMessage('user', [{ type: 'text', text: 'turn 1 context' }])],
+        finalMessage: createAssistantMessage(
+          'Here is the verified implementation status.',
+          AGENT_A_MODEL,
+        ),
+      }
+    })
+
+    const result = await runWaggleSequential({
+      conversationId: ConversationId('conv-1'),
+      conversation: createConversation(),
+      payload: {
+        text: 'Inspect the current prompt wiring',
+        qualityPreset: 'medium',
+        attachments: [],
+      },
+      config: createConfig({ primary: 'user-stop', maxTurnsSafety: 1 }),
+      settings: DEFAULT_SETTINGS,
+      signal: new AbortController().signal,
+      onStreamChunk: vi.fn(),
+      onTurnEvent: vi.fn(),
+    })
+
+    expect(result.status).toBe('completed')
+    expect(result.totalTurns).toBe(1)
+  })
 })

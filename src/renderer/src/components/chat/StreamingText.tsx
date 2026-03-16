@@ -1,14 +1,27 @@
-import type { ReactNode } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import { useEffect, useState } from 'react'
+import rehypeSanitize from 'rehype-sanitize'
+import type { Highlighter } from 'shiki'
 import { useThrottledStreamText } from '@/hooks/useThrottledStreamText'
-import {
-  safeMarkdownComponents,
-  safeMarkdownRehypePlugins,
-  safeMarkdownUrlTransform,
-} from '@/lib/markdown-safety'
-import { isReactElementWithProps } from '@/lib/react-element-guard'
-import { CodeBlock } from './CodeBlock'
+import { type RehypePlugins, safeMarkdownSanitizeSchema } from '@/lib/markdown-safety'
+import { getHighlighter } from '@/lib/shiki/highlighter'
+import { createRehypeShikiPlugin } from '@/lib/shiki/rehype-shiki-plugin'
+import { ShikiCache } from '@/lib/shiki/shiki-cache'
+import { IncrementalMarkdown } from './IncrementalMarkdown'
+
+/** Module-level cache shared by all StreamingText instances. */
+const shikiCache = new ShikiCache()
+
+/**
+ * Module-level resolved highlighter.
+ * Set once the singleton promise resolves; read synchronously on each render.
+ */
+let resolvedHighlighter: Highlighter | undefined
+
+/** Start loading eagerly at module evaluation time. */
+const highlighterReady = getHighlighter().then((hl) => {
+  resolvedHighlighter = hl
+  return hl
+})
 
 interface StreamingTextProps {
   text: string
@@ -16,17 +29,18 @@ interface StreamingTextProps {
 }
 
 /**
- * Extract language from a <code className="language-xxx"> child inside a <pre>.
+ * Hook that returns the Shiki highlighter once loaded.
+ * Triggers a single re-render when the highlighter becomes available.
  */
-function extractLanguage(children: ReactNode): string | undefined {
-  if (isReactElementWithProps<{ className?: string }>(children)) {
-    const className = children.props?.className
-    if (typeof className === 'string') {
-      const match = /language-(\w+)/.exec(className)
-      if (match) return match[1]
-    }
-  }
-  return undefined
+function useShikiHighlighter(): Highlighter | undefined {
+  const [hl, setHl] = useState<Highlighter | undefined>(() => resolvedHighlighter)
+
+  useEffect(() => {
+    if (hl !== undefined) return
+    highlighterReady.then(setHl)
+  }, [hl])
+
+  return hl
 }
 
 export function StreamingText({
@@ -34,32 +48,24 @@ export function StreamingText({
   isStreaming = false,
 }: StreamingTextProps): React.JSX.Element | null {
   const displayText = useThrottledStreamText(text, isStreaming)
+  const highlighter = useShikiHighlighter()
 
   if (!displayText) return null
 
+  const rehypePlugins: RehypePlugins = [
+    createRehypeShikiPlugin({ highlighter, isStreaming, cache: shikiCache }),
+    [rehypeSanitize, safeMarkdownSanitizeSchema],
+  ]
+
   return (
     <div className="prose">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={safeMarkdownRehypePlugins}
-        urlTransform={safeMarkdownUrlTransform}
-        components={{
-          ...safeMarkdownComponents,
-          pre({ children }) {
-            const language = extractLanguage(children)
-            return <CodeBlock language={language}>{children}</CodeBlock>
-          },
-          code({ className, children, ...props }) {
-            return (
-              <code className={className} {...props}>
-                {children}
-              </code>
-            )
-          },
-        }}
-      >
-        {displayText}
-      </ReactMarkdown>
+      <IncrementalMarkdown
+        text={displayText}
+        isStreaming={isStreaming}
+        highlighter={highlighter}
+        cache={shikiCache}
+        rehypePlugins={rehypePlugins}
+      />
     </div>
   )
 }
