@@ -125,7 +125,7 @@ export function ChatTranscript({ section }: ChatTranscriptProps) {
           </div>
         )
       })}
-      {messages.length > 1 && (
+      {messages.length > 0 && (
         <div ref={spacerRef} aria-hidden="true" style={{ flexShrink: 0, pointerEvents: 'none' }} />
       )}
     </div>

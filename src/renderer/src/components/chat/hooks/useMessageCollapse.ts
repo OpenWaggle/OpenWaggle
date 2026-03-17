@@ -18,6 +18,7 @@ export interface UseMessageCollapseResult {
 export function useMessageCollapse(
   message: UIMessage,
   isStreaming: boolean | undefined,
+  isWaggle?: boolean,
 ): UseMessageCollapseResult {
   const collapseStateKey = `${message.id}:${isStreaming ? 'streaming' : 'completed'}`
   const [expandedStateKey, setExpandedStateKey] = useState<string | null>(null)
@@ -28,7 +29,10 @@ export function useMessageCollapse(
     message.parts,
     lastRenderableTextPartIndex,
   )
+  // Waggle segments represent individual agent turns — never collapse them to synthesis.
+  // Each agent's full response (including tool calls) should always be visible.
   const canCollapseToSynthesis =
+    !isWaggle &&
     !isStreaming &&
     lastRenderableTextPartIndex >= 0 &&
     (toolCallCount > 0 || hasEarlierRenderableTextParts)

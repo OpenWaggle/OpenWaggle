@@ -35,7 +35,7 @@ export function AssistantMessageBubble({
   onRespondToPlan,
   waggle,
 }: AssistantMessageBubbleProps) {
-  const collapse = useMessageCollapse(message, isStreaming)
+  const collapse = useMessageCollapse(message, isStreaming, !!waggle)
 
   const toolResults = new Map<string, { content: unknown; state: string; error?: string }>()
   for (const part of message.parts) {

@@ -45,7 +45,7 @@ export function useChatScrollBehaviour({
     const isNewUserMessage =
       lastUserMessageId !== null && lastUserMessageId !== lastScrolledIdRef.current
 
-    if (isNewUserMessage && messagesLength > 1) {
+    if (isNewUserMessage && messagesLength > 0) {
       lastScrolledIdRef.current = lastUserMessageId
 
       requestAnimationFrame(() => {
