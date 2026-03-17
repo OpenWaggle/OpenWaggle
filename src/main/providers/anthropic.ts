@@ -21,18 +21,29 @@ const HIGH_VALUE_16384 = 16384
 const MAX_ARG_2 = 8192
 
 /**
- * Thinking token budgets per quality tier.
- * Opus gets larger budgets to leverage its deeper reasoning capabilities.
- *
- * Note: TanStack's Anthropic adapter has a bug where `effort` (adaptive thinking)
- * is included in validKeys but spread raw into the API request, causing a 400.
- * We use budget_tokens for all models until this is fixed upstream.
+ * Thinking token budgets for older Anthropic models (pre-4.5).
+ * claude-*-4-5 and claude-*-4-6 use adaptive thinking + effort instead.
  */
 const THINKING_BUDGET: Record<QualityPreset, number> = { low: LOW, medium: MEDIUM, high: HIGH }
 const OPUS_THINKING_BUDGET: Record<QualityPreset, number> = {
   low: LOW_VALUE_2048,
   medium: MEDIUM_VALUE_8192,
   high: HIGH_VALUE_16384,
+}
+
+/**
+ * Claude 4.5+ models use adaptive thinking with the effort parameter.
+ * budget_tokens is deprecated on these models.
+ * @see https://platform.claude.com/docs/en/about-claude/models/whats-new-claude-4-6
+ */
+function isAdaptiveThinkingModel(model: string): boolean {
+  return /4[-.]5|4[-.]6/.test(model)
+}
+
+const EFFORT_MAP: Record<QualityPreset, 'low' | 'medium' | 'high' | 'max'> = {
+  low: 'low',
+  medium: 'medium',
+  high: 'max',
 }
 
 export const anthropicProvider: ProviderDefinition = {
@@ -64,6 +75,16 @@ export const anthropicProvider: ProviderDefinition = {
     preset: QualityPreset,
     base: BaseSamplingConfig,
   ): ResolvedSamplingConfig {
+    if (isAdaptiveThinkingModel(model)) {
+      // claude-*-4-5 and claude-*-4-6: use adaptive thinking + effort (budget_tokens deprecated)
+      return {
+        temperature: undefined,
+        topP: undefined,
+        maxTokens: Math.max(base.maxTokens, MAX_ARG_2),
+        modelOptions: { thinking: { type: 'adaptive' }, effort: EFFORT_MAP[preset] },
+      }
+    }
+    // Older models: use explicit budget_tokens
     const budget = model.includes('opus') ? OPUS_THINKING_BUDGET[preset] : THINKING_BUDGET[preset]
     return {
       temperature: undefined,
