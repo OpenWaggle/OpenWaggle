@@ -185,6 +185,8 @@ export function createIpcConnectionAdapter(
   defaultQualityPreset: QualityPreset,
   consumeWaggleConfig?: () => WaggleConfig | null,
 ): ConnectionAdapter {
+  let suppressNextAutoConnect = false
+
   return {
     connect(_messages, _data, abortSignal) {
       // For first user sends, main process loads conversation history from disk.
@@ -192,6 +194,25 @@ export function createIpcConnectionAdapter(
       // messages so approval state is preserved across the next run.
       return {
         async *[Symbol.asyncIterator]() {
+          // Block TanStack's unwanted auto-continuation after waggle completes.
+          // The sentinel is one-shot: it fires once, then resets so subsequent
+          // legitimate sends on this memoized adapter still work.
+          if (suppressNextAutoConnect) {
+            suppressNextAutoConnect = false
+            yield {
+              type: 'RUN_STARTED',
+              timestamp: Date.now(),
+              runId: 'waggle-auto-connect-suppressed',
+            }
+            yield {
+              type: 'RUN_FINISHED',
+              timestamp: Date.now(),
+              runId: 'waggle-auto-connect-suppressed',
+              finishReason: 'stop',
+            }
+            return
+          }
+
           // Queue + signal pattern for bridging push-based IPC → pull-based AsyncIterable
           const queue: StreamChunk[] = []
           const pendingToolResultIds = new Set<string>()
@@ -324,6 +345,10 @@ export function createIpcConnectionAdapter(
             // For Waggle mode, per-turn terminal events are filtered in the
             // handler — only the envelope RUN_STARTED/RUN_FINISHED reach here.
             if (isTerminalChunk(payload.chunk)) {
+              // Guard against TanStack's unwanted auto-continuation.
+              // After any successful run, TanStack may see completed tool-result
+              // parts and call connect() again — suppress that ghost reconnect.
+              suppressNextAutoConnect = true
               if (pendingToolResultIds.size > 0) {
                 // Tool calls are awaiting approval — don't close immediately.
                 // Use the grace timer so the CUSTOM approval metadata chunk

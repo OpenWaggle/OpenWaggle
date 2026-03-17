@@ -24,6 +24,7 @@ const { streamListeners, runCompletedListeners, apiMock } = vi.hoisted(() => {
         return () => runCompletedListeners.delete(callback)
       }),
       sendMessage: vi.fn(),
+      sendWaggleMessage: vi.fn(),
       cancelAgent: vi.fn(),
     },
     runCompletedListeners,
@@ -46,6 +47,41 @@ function emitRunCompleted(conversationId: ConversationId): void {
   for (const callback of runCompletedListeners) {
     callback({ conversationId })
   }
+}
+
+function createUserMessage(id: string, content: string): UIMessage {
+  return {
+    id,
+    role: 'user',
+    parts: [{ type: 'text', content }],
+    createdAt: new Date(),
+  }
+}
+
+function createAssistantMessage(id: string, content: string): UIMessage {
+  return {
+    id,
+    role: 'assistant',
+    parts: [{ type: 'text', content }],
+    createdAt: new Date(),
+  }
+}
+
+function createStopChunk(timestamp: number, runId: string): StreamChunk {
+  return {
+    type: 'RUN_FINISHED',
+    timestamp,
+    runId,
+    finishReason: 'stop',
+  }
+}
+
+async function collectChunks(stream: AsyncIterable<StreamChunk>): Promise<StreamChunk[]> {
+  const chunks: StreamChunk[] = []
+  for await (const chunk of stream) {
+    chunks.push(chunk)
+  }
+  return chunks
 }
 
 describe('createIpcConnectionAdapter', () => {
@@ -131,6 +167,158 @@ describe('createIpcConnectionAdapter', () => {
       'TOOL_CALL_END',
       'RUN_FINISHED',
     ])
+  })
+
+  it('suppresses auto-continuation after waggle envelope completes', async () => {
+    const waggleConfig = {
+      mode: 'sequential',
+      agents: [
+        {
+          label: 'Agent A',
+          model: SupportedModelId('claude-sonnet-4-5'),
+          roleDescription: 'Reviewer',
+          color: 'blue',
+        },
+        {
+          label: 'Agent B',
+          model: SupportedModelId('gpt-5-mini'),
+          roleDescription: 'Implementer',
+          color: 'amber',
+        },
+      ],
+      stop: {
+        primary: 'consensus',
+        maxTurnsSafety: 6,
+      },
+    }
+    let nextWaggleConfig: typeof waggleConfig | null = waggleConfig
+    const consumeWaggleConfig = () => {
+      const currentConfig = nextWaggleConfig
+      nextWaggleConfig = null
+      return currentConfig
+    }
+
+    apiMock.sendWaggleMessage.mockImplementationOnce(async () => {
+      emitStreamChunk(conversationId, createStopChunk(11, 'waggle-run-1'))
+    })
+
+    const connection = createIpcConnectionAdapter(
+      conversationId,
+      model,
+      () => null,
+      'medium',
+      consumeWaggleConfig,
+    )
+
+    const firstChunks = await collectChunks(
+      connection.connect([createUserMessage('msg-user-1', 'run waggle')], undefined, undefined),
+    )
+    const suppressedChunks = await collectChunks(
+      connection.connect(
+        [
+          createUserMessage('msg-user-1', 'run waggle'),
+          createAssistantMessage('msg-assistant-1', 'waggle finished'),
+        ],
+        undefined,
+        undefined,
+      ),
+    )
+
+    expect(firstChunks.map((chunk) => chunk.type)).toEqual(['RUN_FINISHED'])
+    expect(apiMock.sendWaggleMessage).toHaveBeenCalledTimes(1)
+    expect(apiMock.sendMessage).not.toHaveBeenCalled()
+    expect(suppressedChunks).toEqual([
+      {
+        type: 'RUN_STARTED',
+        timestamp: expect.any(Number),
+        runId: 'waggle-auto-connect-suppressed',
+      },
+      {
+        type: 'RUN_FINISHED',
+        timestamp: expect.any(Number),
+        runId: 'waggle-auto-connect-suppressed',
+        finishReason: 'stop',
+      },
+    ])
+  })
+
+  it('allows normal send after waggle suppression fires', async () => {
+    const waggleConfig = {
+      mode: 'sequential',
+      agents: [
+        {
+          label: 'Agent A',
+          model: SupportedModelId('claude-sonnet-4-5'),
+          roleDescription: 'Reviewer',
+          color: 'blue',
+        },
+        {
+          label: 'Agent B',
+          model: SupportedModelId('gpt-5-mini'),
+          roleDescription: 'Implementer',
+          color: 'amber',
+        },
+      ],
+      stop: {
+        primary: 'consensus',
+        maxTurnsSafety: 6,
+      },
+    }
+    let nextWaggleConfig: typeof waggleConfig | null = waggleConfig
+    const consumeWaggleConfig = () => {
+      const currentConfig = nextWaggleConfig
+      nextWaggleConfig = null
+      return currentConfig
+    }
+
+    apiMock.sendWaggleMessage.mockImplementationOnce(async () => {
+      emitStreamChunk(conversationId, createStopChunk(21, 'waggle-run-2'))
+    })
+    apiMock.sendMessage.mockImplementationOnce(async () => {
+      emitStreamChunk(conversationId, createStopChunk(22, 'normal-run-1'))
+    })
+
+    const connection = createIpcConnectionAdapter(
+      conversationId,
+      model,
+      () => null,
+      'medium',
+      consumeWaggleConfig,
+    )
+
+    await collectChunks(
+      connection.connect([createUserMessage('msg-user-2', 'run waggle')], undefined, undefined),
+    )
+    await collectChunks(
+      connection.connect(
+        [
+          createUserMessage('msg-user-2', 'run waggle'),
+          createAssistantMessage('msg-assistant-2', 'waggle finished'),
+        ],
+        undefined,
+        undefined,
+      ),
+    )
+    const normalChunks = await collectChunks(
+      connection.connect(
+        [createUserMessage('msg-user-3', 'send a normal follow-up')],
+        undefined,
+        undefined,
+      ),
+    )
+
+    expect(apiMock.sendWaggleMessage).toHaveBeenCalledTimes(1)
+    expect(apiMock.sendMessage).toHaveBeenCalledTimes(1)
+    expect(apiMock.sendMessage).toHaveBeenCalledWith(
+      conversationId,
+      {
+        text: 'send a normal follow-up',
+        qualityPreset: 'medium',
+        attachments: [],
+      },
+      model,
+    )
+    expect(normalChunks.map((chunk) => chunk.type)).toEqual(['RUN_FINISHED'])
   })
 
   it('does not cancel the main-process run on adapter abort', async () => {

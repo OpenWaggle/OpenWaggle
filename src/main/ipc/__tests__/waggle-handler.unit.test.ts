@@ -1,7 +1,8 @@
 import { ConversationId, MessageId, SupportedModelId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
-import type { WaggleConfig } from '@shared/types/waggle'
+import type { WaggleConfig, WaggleStreamMetadata } from '@shared/types/waggle'
+import type { StreamChunk } from '@tanstack/ai'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -379,6 +380,119 @@ describe('registerWaggleHandlers', () => {
         (c: unknown[]) => (c[1] as { type: string }).type === 'RUN_FINISHED',
       )
       expect(finishCalls.length).toBeGreaterThanOrEqual(1)
+    })
+
+    it('emits _turnBoundary with TOOL_CALL_ARGS on turn transition', async () => {
+      const turnZeroMeta: WaggleStreamMetadata = {
+        agentIndex: 0,
+        agentLabel: 'Agent A',
+        agentColor: 'blue',
+        agentModel: SupportedModelId('claude-sonnet-4-5'),
+        turnNumber: 0,
+        collaborationMode: 'sequential',
+      }
+      const turnOneMeta: WaggleStreamMetadata = {
+        agentIndex: 1,
+        agentLabel: 'Agent B',
+        agentColor: 'amber',
+        agentModel: SupportedModelId('gpt-4.1-mini'),
+        turnNumber: 1,
+        collaborationMode: 'sequential',
+      }
+
+      runWaggleSequentialMock.mockImplementationOnce(
+        async ({
+          onStreamChunk,
+        }: {
+          onStreamChunk: (chunk: StreamChunk, meta: WaggleStreamMetadata) => void
+        }) => {
+          onStreamChunk(
+            {
+              type: 'TEXT_MESSAGE_CONTENT',
+              timestamp: 1,
+              messageId: 'msg-turn-0',
+              delta: 'turn zero',
+            },
+            turnZeroMeta,
+          )
+          onStreamChunk(
+            {
+              type: 'TOOL_CALL_START',
+              timestamp: 2,
+              toolCallId: 'tool-turn-1',
+              toolName: 'readFile',
+            },
+            turnOneMeta,
+          )
+
+          return {
+            newMessages: [
+              {
+                id: MessageId('assistant-turn-1'),
+                role: 'assistant',
+                parts: [{ type: 'text', text: 'done' }],
+                createdAt: Date.now(),
+              },
+            ],
+            lastError: undefined,
+          }
+        },
+      )
+
+      registerWaggleHandlers()
+      const handler = getInvokeHandler('agent:send-waggle-message')
+
+      await handler?.(
+        {},
+        ConversationId('conv-1'),
+        { text: 'Do something', qualityPreset: 'medium', attachments: [] },
+        validWaggleConfig(),
+      )
+
+      expect(emitStreamChunkMock).toHaveBeenNthCalledWith(
+        3,
+        ConversationId('conv-1'),
+        expect.objectContaining({
+          type: 'TOOL_CALL_START',
+          toolCallId: 'turn-boundary-1',
+          toolName: '_turnBoundary',
+        }),
+      )
+      expect(emitStreamChunkMock).toHaveBeenNthCalledWith(
+        4,
+        ConversationId('conv-1'),
+        expect.objectContaining({
+          type: 'TOOL_CALL_ARGS',
+          toolCallId: 'turn-boundary-1',
+          delta: '{}',
+        }),
+      )
+      expect(emitStreamChunkMock).toHaveBeenNthCalledWith(
+        5,
+        ConversationId('conv-1'),
+        expect.objectContaining({
+          type: 'TOOL_CALL_END',
+          toolCallId: 'turn-boundary-1',
+          toolName: '_turnBoundary',
+          result: JSON.stringify({
+            agentIndex: 1,
+            agentLabel: 'Agent B',
+            agentColor: 'amber',
+            agentModel: 'gpt-4.1-mini',
+            turnNumber: 1,
+          }),
+          input: {},
+        }),
+      )
+      expect(emitStreamChunkMock).toHaveBeenNthCalledWith(
+        6,
+        ConversationId('conv-1'),
+        expect.objectContaining({
+          type: 'TOOL_CALL_START',
+          toolCallId: 'tool-turn-1',
+          toolName: 'readFile',
+        }),
+      )
     })
 
     it('persists conversation with new messages after successful run', async () => {

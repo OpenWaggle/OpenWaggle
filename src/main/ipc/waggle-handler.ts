@@ -112,14 +112,6 @@ export function registerWaggleHandlers(): void {
             })
 
             let lastEmittedTurn = -1
-            let pendingBoundary: {
-              agentIndex: number
-              agentLabel: string
-              agentColor: string
-              agentModel: string | undefined
-              turnNumber: number
-              isSynthesis?: boolean
-            } | null = null
 
             const result = yield* Effect.tryPromise({
               try: () =>
@@ -152,58 +144,44 @@ export function registerWaggleHandlers(): void {
                       return
                     }
 
-                    // When a new turn starts, defer the boundary injection
-                    // until we see the first text-bearing chunk. This ensures
-                    // the boundary always appears immediately before text,
-                    // preventing TanStack from appending new-turn text to the
-                    // previous turn's open TextPart.
+                    // Emit turn boundary IMMEDIATELY on first chunk of a new turn.
+                    // This ensures tool calls from the new turn don't land in the
+                    // previous turn's segment.
                     if (meta.turnNumber > lastEmittedTurn) {
                       if (meta.turnNumber > 0) {
-                        pendingBoundary = {
+                        const boundaryId = meta.isSynthesis
+                          ? 'turn-boundary-synthesis'
+                          : `turn-boundary-${String(meta.turnNumber)}`
+                        const boundaryMeta = JSON.stringify({
                           agentIndex: meta.agentIndex,
                           agentLabel: meta.agentLabel,
                           agentColor: meta.agentColor,
                           agentModel: meta.agentModel,
                           turnNumber: meta.turnNumber,
                           ...(meta.isSynthesis ? { isSynthesis: true } : {}),
-                        }
+                        })
+                        emitStreamChunk(conversationId, {
+                          type: 'TOOL_CALL_START',
+                          timestamp: Date.now(),
+                          toolCallId: boundaryId,
+                          toolName: '_turnBoundary',
+                        })
+                        emitStreamChunk(conversationId, {
+                          type: 'TOOL_CALL_ARGS',
+                          timestamp: Date.now(),
+                          toolCallId: boundaryId,
+                          delta: '{}',
+                        })
+                        emitStreamChunk(conversationId, {
+                          type: 'TOOL_CALL_END',
+                          timestamp: Date.now(),
+                          toolCallId: boundaryId,
+                          toolName: '_turnBoundary',
+                          result: boundaryMeta,
+                          input: {},
+                        })
                       }
                       lastEmittedTurn = meta.turnNumber
-                    }
-
-                    // Flush the pending boundary right before the first
-                    // TEXT_DELTA or TEXT_MESSAGE_START of the new turn.
-                    if (
-                      pendingBoundary &&
-                      (chunk.type === 'TEXT_MESSAGE_CONTENT' || chunk.type === 'TEXT_MESSAGE_START')
-                    ) {
-                      const b = pendingBoundary
-                      const boundaryId = b.isSynthesis
-                        ? 'turn-boundary-synthesis'
-                        : `turn-boundary-${String(b.turnNumber)}`
-                      const boundaryMeta = JSON.stringify({
-                        agentIndex: b.agentIndex,
-                        agentLabel: b.agentLabel,
-                        agentColor: b.agentColor,
-                        agentModel: b.agentModel,
-                        turnNumber: b.turnNumber,
-                        ...(b.isSynthesis ? { isSynthesis: true } : {}),
-                      })
-                      emitStreamChunk(conversationId, {
-                        type: 'TOOL_CALL_START',
-                        timestamp: Date.now(),
-                        toolCallId: boundaryId,
-                        toolName: '_turnBoundary',
-                      })
-                      emitStreamChunk(conversationId, {
-                        type: 'TOOL_CALL_END',
-                        timestamp: Date.now(),
-                        toolCallId: boundaryId,
-                        toolName: '_turnBoundary',
-                        result: boundaryMeta,
-                        input: {},
-                      })
-                      pendingBoundary = null
                     }
 
                     emitStreamChunk(conversationId, chunk)
