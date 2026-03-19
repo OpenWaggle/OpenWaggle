@@ -19,6 +19,8 @@ const prefixProcessor = unified()
 
 const CODE_FENCE_RE = /^`{3,}/gm
 const MAX_CACHE_ENTRIES = 20
+const DOUBLE_NEWLINE_LENGTH = '\n\n'.length
+const FENCE_PARITY_DIVISOR = 2
 
 interface IncrementalMarkdownResult {
   prefixHast: Root | null
@@ -53,8 +55,8 @@ export function findSplitIndex(text: string): number {
     if (idx === -1) return -1
 
     const before = text.slice(0, idx)
-    if (countCodeFences(before) % 2 === 0) {
-      return idx + 2
+    if (countCodeFences(before) % FENCE_PARITY_DIVISOR === 0) {
+      return idx + DOUBLE_NEWLINE_LENGTH
     }
 
     pos = idx

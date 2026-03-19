@@ -27,6 +27,8 @@ export interface Settings {
   readonly providers: Readonly<Partial<Record<Provider, ProviderConfig>>>
   readonly defaultModel: SupportedModelId
   readonly favoriteModels: readonly SupportedModelId[]
+  /** User-curated list of enabled model keys (format: "provider:authMethod:modelId"). Empty array = no models shown (user must configure). */
+  readonly enabledModels: readonly string[]
   readonly projectPath: string | null
   readonly executionMode: ExecutionMode
   readonly qualityPreset: QualityPreset
@@ -51,6 +53,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   defaultModel: DEFAULT_ANTHROPIC_MODEL,
   favoriteModels: [],
+  enabledModels: [],
   projectPath: null,
   executionMode: 'default-permissions',
   qualityPreset: 'medium',

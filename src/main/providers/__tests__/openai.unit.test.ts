@@ -42,13 +42,12 @@ describe('openaiProvider model ids', () => {
     }
   })
 
-  it('rejects adapter creation for invalid model IDs', async () => {
+  it('accepts dynamically fetched model IDs without throwing', async () => {
     const { openaiProvider } = await import('../openai')
     for (const model of INVALID_OPENAI_MODELS) {
-      expect(() => openaiProvider.createAdapter(model, 'sk-test')).toThrow(
-        `Unknown OpenAI model: ${model}`,
-      )
+      expect(() => openaiProvider.createAdapter(model, 'sk-test')).not.toThrow()
     }
+    expect(mocks.createOpenaiChat).toHaveBeenCalledTimes(INVALID_OPENAI_MODELS.length)
   })
 
   it('uses OpenAI API defaults for API-key auth mode', async () => {
@@ -123,9 +122,9 @@ describe('openaiProvider model ids', () => {
       expect.arrayContaining(['reasoning.encrypted_content']),
     )
     expect(rewrittenHeaders.get('OpenAI-Beta')).toBe('responses=experimental')
-    expect(rewrittenHeaders.get('originator')).toBe('pi')
+    expect(rewrittenHeaders.get('originator')).toBe('openwaggle')
     expect(rewrittenHeaders.get('chatgpt-account-id')).toBe('acct_test_123')
-    expect(rewrittenHeaders.get('User-Agent')).toContain('pi (')
+    expect(rewrittenHeaders.get('User-Agent')).toContain('openwaggle (')
   })
 
   it('normalizes backend-api base URL requests to codex responses', async () => {

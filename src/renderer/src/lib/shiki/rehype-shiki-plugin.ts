@@ -82,11 +82,14 @@ function visitPreElements(
   cache: ShikiCache,
 ): void {
   for (const child of children) {
-    if (isElement(child) && child.tagName === 'pre') {
+    if (!isElement(child)) continue
+
+    if (child.tagName === 'pre') {
       processPreElement(child, highlighter, isStreaming, cache)
-    } else if (isElement(child)) {
-      visitPreElements(child.children, highlighter, isStreaming, cache)
+      continue
     }
+
+    visitPreElements(child.children, highlighter, isStreaming, cache)
   }
 }
 

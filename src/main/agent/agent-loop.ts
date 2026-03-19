@@ -696,8 +696,8 @@ export function runAgentEffect(params: AgentRunParams): Effect.Effect<AgentRunRe
           const stream = yield* withStageTimingEffect(
             stageDurationsMs,
             'stream-setup',
-            Effect.sync(() =>
-              chat({
+            Effect.sync(() => {
+              return chat({
                 adapter,
                 messages: allMessages,
                 systemPrompts: [built.systemPrompt],
@@ -708,8 +708,8 @@ export function runAgentEffect(params: AgentRunParams): Effect.Effect<AgentRunRe
                 modelOptions: resolution.qualityConfig.modelOptions,
                 agentLoopStrategy: maxIterations(params.maxTurns ?? MAX_ITERATIONS),
                 abortController,
-              }),
-            ),
+              })
+            }),
           )
 
           return yield* withStageTimingEffect(

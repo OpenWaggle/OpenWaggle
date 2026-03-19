@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { WarningCallout } from '@/components/settings/common/WarningCallout'
 import { usePreferences, useProviders } from '@/hooks/useSettings'
 import { AddProviderRow } from './connections/AddProviderRow'
+import { AvailableModelsSection } from './connections/AvailableModelsSection'
 import { hasAnyApiKey } from './connections/helpers'
 import { SUBSCRIPTION_PROVIDER_ORDER } from './connections/meta'
 import { ProviderRow } from './connections/ProviderRow'
@@ -103,6 +104,8 @@ export function ConnectionsSection() {
           ))}
         </div>
       </div>
+
+      <AvailableModelsSection />
 
       <p className="text-[13px] text-text-tertiary">
         API keys are stored locally on your machine and never sent anywhere except to the respective

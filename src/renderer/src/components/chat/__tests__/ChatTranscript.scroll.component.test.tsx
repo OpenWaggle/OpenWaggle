@@ -72,6 +72,11 @@ describe('ChatTranscript scroll-to-user-message effect (Voyager pattern)', () =>
       },
     )
 
+    // jsdom does not implement scrollTo — stub it so the scroll hook doesn't crash
+    if (!Element.prototype.scrollTo) {
+      Element.prototype.scrollTo = vi.fn()
+    }
+
     vi.useFakeTimers()
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) =>
       window.setTimeout(() => callback(performance.now()), REQUEST_ANIMATION_FRAME_DELAY_MS),

@@ -35,7 +35,9 @@ const SETTINGS_KEY_QUALITY_PRESET = 'qualityPreset'
 const SETTINGS_KEY_RECENT_PROJECTS = 'recentProjects'
 const SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT = 'skillTogglesByProject'
 const SETTINGS_KEY_MCP_SERVERS = 'mcpServers'
+const SETTINGS_KEY_ENABLED_MODELS = 'enabledModels'
 const SETTINGS_KEY_PROJECT_DISPLAY_NAMES = 'projectDisplayNames'
+const ENABLED_MODEL_ID_PARTS_START_INDEX = 2
 
 interface SettingsStoreRow {
   readonly key: string
@@ -172,6 +174,69 @@ function resolveProjectPath(raw: unknown): string | null {
   return isStringOrNull(raw) ? raw : DEFAULT_SETTINGS.projectPath
 }
 
+function parseEnabledModelKey(
+  rawKey: string,
+): { readonly provider: Provider; readonly modelId: string } | null {
+  const parts = rawKey.split(':')
+  const rawProvider = parts[0]
+  const rawAuthMethod = parts[1]
+  const modelId = parts.slice(ENABLED_MODEL_ID_PARTS_START_INDEX).join(':').trim()
+
+  if (
+    rawProvider === undefined ||
+    rawAuthMethod === undefined ||
+    !includes(PROVIDERS, rawProvider) ||
+    (rawAuthMethod !== 'api-key' && rawAuthMethod !== 'subscription') ||
+    modelId.length === 0
+  ) {
+    return null
+  }
+
+  return { provider: rawProvider, modelId }
+}
+
+function inferProviderForModel(
+  modelId: string,
+  enabledModels: readonly string[],
+): Provider | undefined {
+  for (const key of enabledModels) {
+    const parsed = parseEnabledModelKey(key)
+    if (parsed?.modelId === modelId) {
+      return parsed.provider
+    }
+  }
+
+  return undefined
+}
+
+function resolveDefaultModel(raw: unknown, enabledModels: readonly string[]): SupportedModelId {
+  if (typeof raw !== 'string') {
+    return DEFAULT_SETTINGS.defaultModel
+  }
+
+  const normalizedModel = raw.trim()
+  if (!normalizedModel) {
+    return DEFAULT_SETTINGS.defaultModel
+  }
+
+  if (providerRegistry.isKnownModel(normalizedModel)) {
+    return SupportedModelId(normalizedModel)
+  }
+
+  const inferredProvider = inferProviderForModel(normalizedModel, enabledModels)
+  if (!inferredProvider) {
+    return DEFAULT_SETTINGS.defaultModel
+  }
+
+  const provider = providerRegistry.get(inferredProvider)
+  if (!provider) {
+    return DEFAULT_SETTINGS.defaultModel
+  }
+
+  providerRegistry.indexModels([normalizedModel], provider)
+  return SupportedModelId(normalizedModel)
+}
+
 function buildSettingsSnapshot(storedSettings: Readonly<Record<string, unknown>>): {
   readonly settings: Settings
   readonly rawProviders: Record<string, unknown>
@@ -226,13 +291,6 @@ function buildSettingsSnapshot(storedSettings: Readonly<Record<string, unknown>>
     }
   }
 
-  const rawDefaultModel = String(
-    getStoredValue(storedSettings, SETTINGS_KEY_DEFAULT_MODEL) ?? DEFAULT_SETTINGS.defaultModel,
-  )
-  const defaultModel = providerRegistry.isKnownModel(rawDefaultModel)
-    ? SupportedModelId(rawDefaultModel)
-    : DEFAULT_SETTINGS.defaultModel
-
   const executionMode = resolveExecutionMode(
     getStoredValue(storedSettings, SETTINGS_KEY_EXECUTION_MODE),
   )
@@ -248,6 +306,13 @@ function buildSettingsSnapshot(storedSettings: Readonly<Record<string, unknown>>
   const skillTogglesByProject = resolveSkillTogglesByProject(
     getStoredValue(storedSettings, SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT),
   )
+  const enabledModels = resolveEnabledModels(
+    getStoredValue(storedSettings, SETTINGS_KEY_ENABLED_MODELS),
+  )
+  const defaultModel = resolveDefaultModel(
+    getStoredValue(storedSettings, SETTINGS_KEY_DEFAULT_MODEL),
+    enabledModels,
+  )
   const mcpServers = resolveMcpServers(getStoredValue(storedSettings, SETTINGS_KEY_MCP_SERVERS))
   const projectDisplayNames = sanitizeProjectDisplayNames(
     getStoredValue(storedSettings, SETTINGS_KEY_PROJECT_DISPLAY_NAMES) ??
@@ -259,6 +324,7 @@ function buildSettingsSnapshot(storedSettings: Readonly<Record<string, unknown>>
       providers,
       defaultModel,
       favoriteModels,
+      enabledModels,
       projectPath: resolveProjectPath(getStoredValue(storedSettings, SETTINGS_KEY_PROJECT_PATH)),
       executionMode,
       qualityPreset,
@@ -382,6 +448,10 @@ export function updateSettings(partial: Partial<Settings>): void {
     partial.skillTogglesByProject !== undefined
       ? sanitizeSkillTogglesByProject(partial.skillTogglesByProject)
       : settingsCache.skillTogglesByProject
+  const enabledModels =
+    partial.enabledModels !== undefined
+      ? sanitizeEnabledModels(partial.enabledModels)
+      : settingsCache.enabledModels
   const mcpServers =
     partial.mcpServers !== undefined
       ? sanitizeMcpServers(partial.mcpServers)
@@ -396,6 +466,7 @@ export function updateSettings(partial: Partial<Settings>): void {
     providers: nextProviders,
     defaultModel,
     favoriteModels,
+    enabledModels,
     projectPath,
     executionMode,
     qualityPreset,
@@ -436,6 +507,9 @@ export function updateSettings(partial: Partial<Settings>): void {
   if (partial.skillTogglesByProject !== undefined) {
     queueStoredSettingWrite(SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT, skillTogglesByProject)
   }
+  if (partial.enabledModels !== undefined) {
+    queueStoredSettingWrite(SETTINGS_KEY_ENABLED_MODELS, enabledModels)
+  }
   if (partial.mcpServers !== undefined) {
     queueStoredSettingWrite(SETTINGS_KEY_MCP_SERVERS, mcpServers)
   }
@@ -454,6 +528,24 @@ function resolveQualityPreset(raw: unknown): QualityPreset {
   return typeof raw === 'string' && includes(QUALITY_PRESETS, raw)
     ? raw
     : DEFAULT_SETTINGS.qualityPreset
+}
+
+function resolveEnabledModels(raw: unknown): string[] {
+  return Array.isArray(raw) && raw.every((value) => typeof value === 'string')
+    ? sanitizeEnabledModels(raw)
+    : [...DEFAULT_SETTINGS.enabledModels]
+}
+
+function sanitizeEnabledModels(models: readonly string[]): string[] {
+  const seen = new Set<string>()
+  const result: string[] = []
+  for (const model of models) {
+    const trimmed = model.trim()
+    if (!trimmed || seen.has(trimmed)) continue
+    seen.add(trimmed)
+    result.push(trimmed)
+  }
+  return result
 }
 
 function resolveFavoriteModels(raw: unknown): SupportedModelId[] {

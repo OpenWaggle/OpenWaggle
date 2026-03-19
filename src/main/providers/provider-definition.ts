@@ -38,7 +38,11 @@ export interface ProviderDefinition {
     baseUrl?: string,
     authMethod?: 'api-key' | 'subscription',
   ): AnyTextAdapter
-  fetchModels?(baseUrl?: string, apiKey?: string): Promise<string[]>
+  fetchModels?(
+    baseUrl?: string,
+    apiKey?: string,
+    authMethod?: 'api-key' | 'subscription',
+  ): Promise<string[]>
   resolveSampling?(
     model: string,
     preset: QualityPreset,

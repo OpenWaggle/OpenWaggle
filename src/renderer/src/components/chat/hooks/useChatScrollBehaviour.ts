@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 
 const DELAY_MS = 1200
 const PADDING_TOP = 20
+const AUTO_SCROLL_THRESHOLD_PX = 50
 
 interface UseChatScrollBehaviourParams {
   lastUserMessageId: string | null
@@ -98,7 +99,7 @@ export function useChatScrollBehaviour({
     if (!scrollerRef.current) return
     const el = scrollerRef.current
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-    if (distanceFromBottom < 50) {
+    if (distanceFromBottom < AUTO_SCROLL_THRESHOLD_PX) {
       el.scrollTop = el.scrollHeight
     }
   }, [isLoading, rowsLength])

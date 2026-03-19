@@ -37,6 +37,7 @@ describe('preload api surface contract', () => {
     // Settings
     'getSettings',
     'updateSettings',
+    'setEnabledModels',
     'testApiKey',
     // Providers
     'getProviderModels',
