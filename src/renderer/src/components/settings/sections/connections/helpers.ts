@@ -1,4 +1,4 @@
-import type { Settings } from '@shared/types/settings'
+import type { Provider, Settings } from '@shared/types/settings'
 
 const MASK_API_KEY_VALUE_8 = 8
 const MASK_API_KEY_VALUE_4 = 4
@@ -14,6 +14,15 @@ export function maskApiKey(key: string): string {
   const suffix = key.slice(SLICE_ARG_1)
   const visiblePrefix = prefix.length > MASK_API_KEY_VALUE_8 ? prefix.slice(0, SLICE_ARG_2) : prefix
   return `${visiblePrefix}${'••••••'}${suffix}`
+}
+
+/** Composite key for enabledModels: "provider:authMethod:modelId" */
+export function enabledKey(
+  provider: Provider,
+  authMethod: 'api-key' | 'subscription',
+  modelId: string,
+): string {
+  return `${provider}:${authMethod}:${modelId}`
 }
 
 export function hasAnyApiKey(providers: Settings['providers']): boolean {

@@ -27,14 +27,23 @@ export function registerProvidersHandlers(): void {
 
   typedHandle(
     'providers:fetch-models',
-    (_event, providerId: Provider, baseUrl?: string, apiKey?: string) =>
+    (
+      _event,
+      providerId: Provider,
+      baseUrl?: string,
+      apiKey?: string,
+      authMethod?: 'api-key' | 'subscription',
+    ) =>
       Effect.gen(function* () {
         const provider = providerRegistry.get(providerId)
         if (!provider?.supportsDynamicModelFetch || !provider.fetchModels) return []
 
         const models = yield* Effect.promise(
-          () => provider.fetchModels?.(baseUrl, apiKey) ?? Promise.resolve([]),
+          () => provider.fetchModels?.(baseUrl, apiKey, authMethod) ?? Promise.resolve([]),
         )
+        if (models.length > 0) {
+          providerRegistry.indexModels(models, provider)
+        }
         return models.map((m) => ({
           id: SupportedModelId(m),
           name: generateDisplayName(m),

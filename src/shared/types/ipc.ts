@@ -73,8 +73,17 @@ export interface IpcInvokeChannelMap {
     args: [settings: Partial<Settings>]
     return: { ok: true } | { ok: false; error: string }
   }
+  'settings:set-enabled-models': {
+    args: [models: string[]]
+    return: undefined
+  }
   'settings:test-api-key': {
-    args: [provider: string, apiKey: string, baseUrl?: string]
+    args: [
+      provider: string,
+      apiKey: string,
+      baseUrl?: string,
+      authMethod?: 'api-key' | 'subscription',
+    ]
     return: { success: boolean; error?: string }
   }
   'project:select-folder': {
@@ -142,7 +151,12 @@ export interface IpcInvokeChannelMap {
     return: ProviderInfo[]
   }
   'providers:fetch-models': {
-    args: [provider: Provider, baseUrl?: string, apiKey?: string]
+    args: [
+      provider: Provider,
+      baseUrl?: string,
+      apiKey?: string,
+      authMethod?: 'api-key' | 'subscription',
+    ]
     return: ModelDisplayInfo[]
   }
   'terminal:create': {
@@ -514,10 +528,12 @@ export interface OpenWaggleApi {
   // Settings
   getSettings(): Promise<Settings>
   updateSettings(settings: Partial<Settings>): Promise<{ ok: true } | { ok: false; error: string }>
+  setEnabledModels(models: string[]): Promise<void>
   testApiKey(
     provider: string,
     apiKey: string,
     baseUrl?: string,
+    authMethod?: 'api-key' | 'subscription',
   ): Promise<{ success: boolean; error?: string }>
 
   // Providers
@@ -526,6 +542,7 @@ export interface OpenWaggleApi {
     provider: Provider,
     baseUrl?: string,
     apiKey?: string,
+    authMethod?: 'api-key' | 'subscription',
   ): Promise<ModelDisplayInfo[]>
 
   // Project

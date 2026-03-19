@@ -21,13 +21,17 @@ interface PreferencesState {
 
   loadSettings: () => Promise<void>
   retryLoad: () => Promise<void>
-  setDefaultModel: (model: SupportedModelId) => Promise<void>
+  setDefaultModel: (
+    model: SupportedModelId,
+    authMethod?: 'api-key' | 'subscription',
+  ) => Promise<void>
   toggleFavoriteModel: (model: SupportedModelId) => Promise<void>
   setProjectPath: (path: string | null) => Promise<void>
   pushRecentProject: (path: string) => Promise<void>
   removeRecentProject: (path: string) => Promise<void>
   setExecutionMode: (mode: ExecutionMode) => Promise<void>
   setQualityPreset: (preset: QualityPreset) => Promise<void>
+  setEnabledModels: (models: string[]) => Promise<void>
   setProjectDisplayName: (path: string, name: string) => Promise<void>
   clearProjectDisplayName: (path: string) => Promise<void>
   loadProjectPreferences: (projectPath: string) => Promise<void>
@@ -74,7 +78,7 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     await useProviderStore.getState().loadProviderModels()
   },
 
-  async setDefaultModel(model: SupportedModelId) {
+  async setDefaultModel(model: SupportedModelId, authMethod?: 'api-key' | 'subscription') {
     const { useProviderStore } = await import('./provider-store')
     const { settings } = get()
     const { providerModels } = useProviderStore.getState()
@@ -95,7 +99,10 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     const canEnable = !providerInfo.requiresApiKey || hasApiKey
     const shouldEnableProvider = canEnable && !(existingConfig?.enabled ?? false)
 
-    if (!shouldEnableProvider) {
+    // Switch authMethod if the user selected a model from a different connection
+    const needsAuthSwitch = authMethod !== undefined && existingConfig?.authMethod !== authMethod
+
+    if (!shouldEnableProvider && !needsAuthSwitch) {
       await api.updateSettings({ defaultModel: model })
       set({ settings: { ...settings, defaultModel: model } })
       persistProjectPreference(settings.projectPath, { model })
@@ -108,7 +115,7 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
         apiKey: existingConfig?.apiKey ?? '',
         baseUrl: existingConfig?.baseUrl,
         enabled: true,
-        authMethod: existingConfig?.authMethod,
+        authMethod: needsAuthSwitch ? authMethod : existingConfig?.authMethod,
       } satisfies ProviderConfig,
     }
 
@@ -180,6 +187,12 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     const recentProjects = settings.recentProjects.filter((p) => p !== path)
     await api.updateSettings({ recentProjects })
     set({ settings: { ...settings, recentProjects } })
+  },
+
+  async setEnabledModels(models: string[]) {
+    const { settings } = get()
+    await api.setEnabledModels(models)
+    set({ settings: { ...settings, enabledModels: models } })
   },
 
   async setProjectDisplayName(path: string, name: string) {

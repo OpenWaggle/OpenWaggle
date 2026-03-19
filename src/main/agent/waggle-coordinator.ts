@@ -65,290 +65,301 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
   const maxTurns = stop.maxTurnsSafety
   const waggleFileCache = new WaggleFileCache()
 
-  const conflictTracker = new FileConflictTracker()
-  const accumulatedMessages: Message[] = []
+  try {
+    const conflictTracker = new FileConflictTracker()
+    const accumulatedMessages: Message[] = []
 
-  // Build the initial user message (saved to persistence, not to working conversation)
-  const userParts: Message['parts'] = payload.text.trim()
-    ? [{ type: 'text', text: payload.text.trim() }]
-    : [{ type: 'text', text: '' }]
-  const userMessage = makeMessage('user', [...userParts])
-  accumulatedMessages.push(userMessage)
+    // Build the initial user message (saved to persistence, not to working conversation)
+    const userParts: Message['parts'] = payload.text.trim()
+      ? [{ type: 'text', text: payload.text.trim() }]
+      : [{ type: 'text', text: '' }]
+    const userMessage = makeMessage('user', [...userParts])
+    accumulatedMessages.push(userMessage)
 
-  // Working conversation — does NOT include the initial user message here because
-  // runAgent() adds its own user message from the payload. After each turn we
-  // append both the per-turn user message and the assistant response to maintain
-  // proper user/assistant alternation for subsequent turns.
-  let workingConversation: Conversation = { ...conversation }
+    // Working conversation — does NOT include the initial user message here because
+    // runAgent() adds its own user message from the payload. After each turn we
+    // append both the per-turn user message and the assistant response to maintain
+    // proper user/assistant alternation for subsequent turns.
+    let workingConversation: Conversation = { ...conversation }
 
-  let lastAssistantTexts: [string, string] = ['', '']
-  let status: WaggleCollaborationStatus = 'running'
-  let consensusReason: string | undefined
-  let consecutiveErrorTurns = 0
-  let lastTurnError: string | undefined
-  let successfulTurnCount = 0
+    let lastAssistantTexts: [string, string] = ['', '']
+    let status: WaggleCollaborationStatus = 'running'
+    let consensusReason: string | undefined
+    let consecutiveErrorTurns = 0
+    let lastTurnError: string | undefined
+    let successfulTurnCount = 0
 
-  logger.info('Starting Waggle mode sequential collaboration', {
-    conversationId,
-    userMessage: payload.text.slice(0, SLICE_ARG_2),
-    agents: agents.map((a) => a.label),
-    maxTurns,
-    stopCondition: stop.primary,
-  })
-
-  for (let turnNumber = 0; turnNumber < maxTurns; turnNumber++) {
-    if (signal.aborted) {
-      status = 'stopped'
-      onTurnEvent({ type: 'collaboration-stopped', reason: 'User cancelled' })
-      break
-    }
-
-    const agentIndex = turnNumber % DOUBLE_FACTOR
-    const agent = agents[agentIndex]
-    if (!agent) break
-
-    onTurnEvent({
-      type: 'turn-start',
-      turnNumber: successfulTurnCount,
-      agentIndex,
-      agentLabel: agent.label,
+    logger.info('Starting Waggle mode sequential collaboration', {
+      conversationId,
+      userMessage: payload.text.slice(0, SLICE_ARG_2),
+      agents: agents.map((a) => a.label),
+      maxTurns,
+      stopCondition: stop.primary,
     })
 
-    const meta: WaggleStreamMetadata = {
-      agentIndex,
-      agentLabel: agent.label,
-      agentColor: agent.color,
-      agentModel: agent.model,
-      turnNumber: successfulTurnCount,
-      collaborationMode: 'sequential',
-    }
-
-    // Build augmented payload with collaboration context.
-    // Always include the original user question so every agent sees the request clearly.
-    const collaborationContext = buildCollaborationSystemPrompt(
-      agent,
-      agentIndex,
-      agents,
-      turnNumber,
-    )
-    const augmentedPayload: HydratedAgentSendPayload = {
-      ...payload,
-      text: `${collaborationContext}\n\n---\n\nUser request:\n${payload.text}`,
-      attachments: turnNumber === 0 ? payload.attachments : [],
-    }
-
-    try {
-      let turnHadError = false
-      const result = await runAgent({
-        conversation: workingConversation,
-        payload: augmentedPayload,
-        model: agent.model,
-        settings,
-        skipApproval: createSkipApprovalToken(),
-        waggleContext: {
-          agentLabel: agent.label,
-          fileCache: waggleFileCache,
-        },
-        onChunk: (chunk) => {
-          onStreamChunk(chunk, meta)
-
-          // Track per-turn API errors (e.g. insufficient credits)
-          if (chunk.type === 'RUN_ERROR') {
-            turnHadError = true
-            lastTurnError = chunk.error.message
-          }
-
-          // Track file conflicts from tool calls
-          if (chunk.type === 'TOOL_CALL_END') {
-            if (chunk.toolName === 'writeFile' || chunk.toolName === 'editFile') {
-              const filePath = extractFilePath(chunk.input)
-              if (filePath) {
-                const warning = conflictTracker.recordModification(
-                  filePath,
-                  agentIndex,
-                  agents,
-                  turnNumber,
-                )
-                if (warning) {
-                  onTurnEvent({ type: 'file-conflict', warning })
-                }
-              }
-            }
-          }
-        },
-        signal,
-      })
-
-      // Check if the agent produced meaningful output.
-      // API errors (e.g. insufficient credits) come as stream events, not exceptions,
-      // so runAgent "succeeds" but the StreamPartCollector bakes the error text into
-      // the message as "**Error:** ...". Detect this and bail early on repeated failures.
-      // Tool-call-only responses (no text) are still useful — the agent did work.
-      const assistantMsg = result.finalMessage
-      const responseText = getMessageText(assistantMsg)
-      const hasToolCalls = assistantMsg.parts.some(isToolCallPart)
-
-      if (turnHadError || (responseText.trim().length === 0 && !hasToolCalls)) {
-        consecutiveErrorTurns++
-        logger.warn('Agent turn produced no useful output', {
-          conversationId,
-          turnNumber,
-          agentLabel: agent.label,
-          model: agent.model,
-          hadStreamError: turnHadError,
-          consecutiveErrors: consecutiveErrorTurns,
-          error: lastTurnError,
-        })
-
-        if (consecutiveErrorTurns >= DOUBLE_FACTOR) {
-          status = 'stopped'
-          onTurnEvent({
-            type: 'collaboration-stopped',
-            reason: lastTurnError ?? 'Multiple consecutive agent failures',
-          })
-          break
-        }
-        continue
-      }
-
-      consecutiveErrorTurns = 0
-
-      // Use sequential successful-turn count for display metadata
-      // so the UI shows "Turn 1, 2, 3..." without gaps from failed turns.
-      const displayTurnNumber = successfulTurnCount
-      successfulTurnCount++
-
-      // Tag assistant message with Waggle metadata.
-      const taggedMessage = makeMessage('assistant', [...assistantMsg.parts], assistantMsg.model, {
-        ...assistantMsg.metadata,
-        waggle: {
-          agentIndex,
-          agentLabel: agent.label,
-          agentColor: agent.color,
-          agentModel: agent.model,
-          turnNumber: displayTurnNumber,
-        },
-      })
-
-      // Only persist the tagged assistant messages (+ the initial user message added above)
-      accumulatedMessages.push(taggedMessage)
-
-      // Update working conversation with BOTH the per-turn user message and
-      // the assistant response to maintain proper user/assistant alternation.
-      // runAgent() creates a user message from the payload — grab it from the result.
-      const turnUserMsg = result.newMessages.find((m) => m.role === 'user')
-      workingConversation = {
-        ...workingConversation,
-        messages: [
-          ...workingConversation.messages,
-          ...(turnUserMsg ? [turnUserMsg] : []),
-          taggedMessage,
-        ],
-      }
-
-      onTurnEvent({
-        type: 'turn-end',
-        turnNumber: displayTurnNumber,
-        agentIndex,
-        agentLabel: agent.label,
-        agentColor: agent.color,
-        agentModel: agent.model,
-      })
-
-      // Persist accumulated messages after each successful turn
-      await onTurnComplete?.(accumulatedMessages)
-
-      // Track text for consensus
-      lastAssistantTexts = [lastAssistantTexts[1], responseText]
-
-      // Check consensus after at least 2 successful turns.
-      // Both messages must have substantive content to avoid false positives.
-      const successfulTurns = accumulatedMessages.filter((m) => m.role === 'assistant').length
-      if (
-        stop.primary === 'consensus' &&
-        successfulTurns >= DOUBLE_FACTOR &&
-        lastAssistantTexts[0].trim().length > RUN_WAGGLE_SEQUENTIAL_VALUE_20 &&
-        lastAssistantTexts[1].trim().length > RUN_WAGGLE_SEQUENTIAL_VALUE_20
-      ) {
-        const consensusResult = checkConsensus(lastAssistantTexts, turnNumber + 1, maxTurns)
-        if (consensusResult.reached) {
-          status = 'completed'
-          consensusReason = consensusResult.reason
-          onTurnEvent({ type: 'consensus-reached', result: consensusResult })
-          onTurnEvent({
-            type: 'collaboration-complete',
-            reason: `Consensus reached: ${consensusResult.reason}`,
-            totalTurns: successfulTurnCount,
-          })
-          logger.info('Consensus reached', {
-            conversationId,
-            turnNumber: successfulTurnCount,
-            confidence: consensusResult.confidence,
-            reason: consensusResult.reason,
-          })
-          break
-        }
-      }
-    } catch (err) {
-      if (signal.aborted || (err instanceof Error && err.message === 'aborted')) {
+    for (let turnNumber = 0; turnNumber < maxTurns; turnNumber++) {
+      if (signal.aborted) {
         status = 'stopped'
         onTurnEvent({ type: 'collaboration-stopped', reason: 'User cancelled' })
         break
       }
-      throw err
+
+      const agentIndex = turnNumber % DOUBLE_FACTOR
+      const agent = agents[agentIndex]
+      if (!agent) break
+
+      onTurnEvent({
+        type: 'turn-start',
+        turnNumber: successfulTurnCount,
+        agentIndex,
+        agentLabel: agent.label,
+      })
+
+      const meta: WaggleStreamMetadata = {
+        agentIndex,
+        agentLabel: agent.label,
+        agentColor: agent.color,
+        agentModel: agent.model,
+        turnNumber: successfulTurnCount,
+        collaborationMode: 'sequential',
+      }
+
+      // Build augmented payload with collaboration context.
+      // Always include the original user question so every agent sees the request clearly.
+      const collaborationContext = buildCollaborationSystemPrompt(
+        agent,
+        agentIndex,
+        agents,
+        turnNumber,
+      )
+      const augmentedPayload: HydratedAgentSendPayload = {
+        ...payload,
+        text: `${collaborationContext}\n\n---\n\nUser request:\n${payload.text}`,
+        attachments: turnNumber === 0 ? payload.attachments : [],
+      }
+
+      try {
+        let turnHadError = false
+        const result = await runAgent({
+          conversation: workingConversation,
+          payload: augmentedPayload,
+          model: agent.model,
+          settings,
+          skipApproval: createSkipApprovalToken(),
+          waggleContext: {
+            agentLabel: agent.label,
+            fileCache: waggleFileCache,
+          },
+          onChunk: (chunk) => {
+            onStreamChunk(chunk, meta)
+
+            // Track per-turn API errors (e.g. insufficient credits)
+            if (chunk.type === 'RUN_ERROR') {
+              turnHadError = true
+              lastTurnError = chunk.error.message
+            }
+
+            // Track file conflicts from tool calls
+            if (chunk.type === 'TOOL_CALL_END') {
+              if (chunk.toolName === 'writeFile' || chunk.toolName === 'editFile') {
+                const filePath = extractFilePath(chunk.input)
+                if (filePath) {
+                  const warning = conflictTracker.recordModification(
+                    filePath,
+                    agentIndex,
+                    agents,
+                    turnNumber,
+                  )
+                  if (warning) {
+                    onTurnEvent({ type: 'file-conflict', warning })
+                  }
+                }
+              }
+            }
+          },
+          signal,
+        })
+
+        // Check if the agent produced meaningful output.
+        // API errors (e.g. insufficient credits) come as stream events, not exceptions,
+        // so runAgent "succeeds" but the StreamPartCollector bakes the error text into
+        // the message as "**Error:** ...". Detect this and bail early on repeated failures.
+        // Tool-call-only responses (no text) are still useful — the agent did work.
+        const assistantMsg = result.finalMessage
+        const responseText = getMessageText(assistantMsg)
+        const hasToolCalls = assistantMsg.parts.some(isToolCallPart)
+
+        if (turnHadError || (responseText.trim().length === 0 && !hasToolCalls)) {
+          consecutiveErrorTurns++
+          logger.warn('Agent turn produced no useful output', {
+            conversationId,
+            turnNumber,
+            agentLabel: agent.label,
+            model: agent.model,
+            hadStreamError: turnHadError,
+            consecutiveErrors: consecutiveErrorTurns,
+            error: lastTurnError,
+          })
+
+          if (consecutiveErrorTurns >= DOUBLE_FACTOR) {
+            status = 'stopped'
+            onTurnEvent({
+              type: 'collaboration-stopped',
+              reason: lastTurnError ?? 'Multiple consecutive agent failures',
+            })
+            break
+          }
+          continue
+        }
+
+        consecutiveErrorTurns = 0
+
+        // Use sequential successful-turn count for display metadata
+        // so the UI shows "Turn 1, 2, 3..." without gaps from failed turns.
+        const displayTurnNumber = successfulTurnCount
+        successfulTurnCount++
+
+        // Tag assistant message with Waggle metadata.
+        const taggedMessage = makeMessage(
+          'assistant',
+          [...assistantMsg.parts],
+          assistantMsg.model,
+          {
+            ...assistantMsg.metadata,
+            waggle: {
+              agentIndex,
+              agentLabel: agent.label,
+              agentColor: agent.color,
+              agentModel: agent.model,
+              turnNumber: displayTurnNumber,
+            },
+          },
+        )
+
+        // Only persist the tagged assistant messages (+ the initial user message added above)
+        accumulatedMessages.push(taggedMessage)
+
+        // Update working conversation with BOTH the per-turn user message and
+        // the assistant response to maintain proper user/assistant alternation.
+        // runAgent() creates a user message from the payload — grab it from the result.
+        const turnUserMsg = result.newMessages.find((m) => m.role === 'user')
+        workingConversation = {
+          ...workingConversation,
+          messages: [
+            ...workingConversation.messages,
+            ...(turnUserMsg ? [turnUserMsg] : []),
+            taggedMessage,
+          ],
+        }
+
+        onTurnEvent({
+          type: 'turn-end',
+          turnNumber: displayTurnNumber,
+          agentIndex,
+          agentLabel: agent.label,
+          agentColor: agent.color,
+          agentModel: agent.model,
+        })
+
+        // Persist accumulated messages after each successful turn
+        await onTurnComplete?.(accumulatedMessages)
+
+        // Track text for consensus
+        lastAssistantTexts = [lastAssistantTexts[1], responseText]
+
+        // Check consensus after at least 2 successful turns.
+        // Both messages must have substantive content to avoid false positives.
+        const successfulTurns = accumulatedMessages.filter((m) => m.role === 'assistant').length
+        if (
+          stop.primary === 'consensus' &&
+          successfulTurns >= DOUBLE_FACTOR &&
+          lastAssistantTexts[0].trim().length > RUN_WAGGLE_SEQUENTIAL_VALUE_20 &&
+          lastAssistantTexts[1].trim().length > RUN_WAGGLE_SEQUENTIAL_VALUE_20
+        ) {
+          const consensusResult = checkConsensus(lastAssistantTexts, turnNumber + 1, maxTurns)
+          if (consensusResult.reached) {
+            status = 'completed'
+            consensusReason = consensusResult.reason
+            onTurnEvent({ type: 'consensus-reached', result: consensusResult })
+            onTurnEvent({
+              type: 'collaboration-complete',
+              reason: `Consensus reached: ${consensusResult.reason}`,
+              totalTurns: successfulTurnCount,
+            })
+            logger.info('Consensus reached', {
+              conversationId,
+              turnNumber: successfulTurnCount,
+              confidence: consensusResult.confidence,
+              reason: consensusResult.reason,
+            })
+            break
+          }
+        }
+      } catch (err) {
+        if (signal.aborted || (err instanceof Error && err.message === 'aborted')) {
+          status = 'stopped'
+          onTurnEvent({ type: 'collaboration-stopped', reason: 'User cancelled' })
+          break
+        }
+        throw err
+      }
     }
-  }
 
-  if (status === 'running') {
-    // Reached max turns without consensus
-    status = 'completed'
-    const totalTurns = accumulatedMessages.filter((m) => m.role === 'assistant').length
-    onTurnEvent({
-      type: 'collaboration-complete',
-      reason: `Reached maximum turns (${String(totalTurns)})`,
-      totalTurns,
-    })
-  }
+    if (status === 'running') {
+      // Reached max turns without consensus
+      status = 'completed'
+      const totalTurns = accumulatedMessages.filter((m) => m.role === 'assistant').length
+      onTurnEvent({
+        type: 'collaboration-complete',
+        reason: `Reached maximum turns (${String(totalTurns)})`,
+        totalTurns,
+      })
+    }
 
-  // ─── Synthesis step ──────────────────────────────────────────
-  // After the collaboration loop, produce a final synthesis if we had
-  // at least 2 successful assistant turns and the run wasn't aborted.
-  const successfulAssistantMsgs = accumulatedMessages.filter((m) => m.role === 'assistant')
-  if (successfulAssistantMsgs.length >= DOUBLE_FACTOR && status !== 'stopped' && !signal.aborted) {
-    await runSynthesisStep({
+    // ─── Synthesis step ──────────────────────────────────────────
+    // After the collaboration loop, produce a final synthesis if we had
+    // at least 2 successful assistant turns and the run wasn't aborted.
+    const successfulAssistantMsgs = accumulatedMessages.filter((m) => m.role === 'assistant')
+    if (
+      successfulAssistantMsgs.length >= DOUBLE_FACTOR &&
+      status !== 'stopped' &&
+      !signal.aborted
+    ) {
+      await runSynthesisStep({
+        conversationId,
+        workingConversation,
+        payload,
+        agents,
+        settings,
+        signal,
+        accumulatedMessages,
+        successfulAssistantMsgs,
+        onStreamChunk,
+        onTurnEvent,
+        onTurnComplete,
+        waggleFileCache,
+      })
+    }
+
+    const totalTurns = accumulatedMessages.filter(
+      (m) => m.role === 'assistant' && !m.metadata?.waggle?.isSynthesis,
+    ).length
+    logger.info('Waggle collaboration finished', {
       conversationId,
-      workingConversation,
-      payload,
-      agents,
-      settings,
-      signal,
-      accumulatedMessages,
-      successfulAssistantMsgs,
-      onStreamChunk,
-      onTurnEvent,
-      onTurnComplete,
-      waggleFileCache,
+      status,
+      totalTurns,
+      consensusReason,
     })
-  }
 
-  const totalTurns = accumulatedMessages.filter(
-    (m) => m.role === 'assistant' && !m.metadata?.waggle?.isSynthesis,
-  ).length
-  logger.info('Waggle collaboration finished', {
-    conversationId,
-    status,
-    totalTurns,
-    consensusReason,
-  })
-
-  waggleFileCache.clear()
-
-  return {
-    newMessages: accumulatedMessages,
-    status,
-    totalTurns,
-    consensusReason,
-    lastError: lastTurnError,
+    return {
+      newMessages: accumulatedMessages,
+      status,
+      totalTurns,
+      consensusReason,
+      lastError: lastTurnError,
+    }
+  } finally {
+    waggleFileCache.clear()
   }
 }
 

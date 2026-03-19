@@ -475,6 +475,7 @@ describe('registerSettingsHandlers', () => {
         'gpt-4.1-mini',
         'sk-key',
         'https://custom.api.com',
+        undefined,
       )
     })
   })

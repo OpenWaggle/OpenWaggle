@@ -1,6 +1,6 @@
 import { TRIPLE_FACTOR } from '@shared/constants/constants'
 import type { QualityPreset } from '@shared/types/settings'
-import { includes, isRecord } from '@shared/utils/validation'
+import { isRecord } from '@shared/utils/validation'
 import { createOpenaiChat, OPENAI_CHAT_MODELS } from '@tanstack/ai-openai'
 import { isReasoningModel } from '../agent/quality-config'
 import { createLogger } from '../logger'
@@ -16,9 +16,29 @@ const RESOLVE_SAMPLING_VALUE_4 = 4
 
 const logger = createLogger('openai-provider')
 const OPENAI_CODEX_BASE_URL = 'https://chatgpt.com/backend-api'
+
+/**
+ * Models available via OpenAI Codex (ChatGPT Plus/Pro) subscription.
+ * Cannot be fetched dynamically — chatgpt.com requires a browser session.
+ * Sourced from pi-ai openai-codex provider in models.generated.js.
+ */
+const OPENAI_CODEX_SUBSCRIPTION_MODELS = [
+  'gpt-5.4', // 272k ctx, 128k max
+  'gpt-5.3-codex', // 272k ctx, 128k max
+  'gpt-5.3-codex-spark', // 128k ctx, 128k max
+  'gpt-5.2', // 272k ctx, 128k max
+  'gpt-5.2-codex', // 272k ctx, 128k max
+  'gpt-5.1-codex-max', // 272k ctx, 128k max
+  'gpt-5.1-codex-mini', // 272k ctx, 128k max
+  'gpt-5.1', // 272k ctx, 128k max
+] as const
 const OPENAI_CODEX_JWT_CLAIM_PATH = 'https://api.openai.com/auth'
 const OPENAI_CODEX_REASONING_INCLUDE = 'reasoning.encrypted_content'
-const OPENAI_CODEX_USER_AGENT = `pi (${process.platform} ${process.release?.name ?? 'node'}; ${process.arch})`
+// NOTE: originator and user-agent are set to 'openwaggle' for honest identification.
+// If Codex backend rejects non-'pi' originators, revert to the OpenClaw values:
+//   originator: 'pi'
+//   user-agent: `pi (${process.platform} ...)`
+const OPENAI_CODEX_USER_AGENT = `openwaggle (${process.platform} ${process.release?.name ?? 'node'}; ${process.arch})`
 
 function getRequestUrl(input: RequestInfo | URL): string {
   if (typeof input === 'string') return input
@@ -146,7 +166,7 @@ function createCodexResponsesFetch(accountId: string): typeof fetch {
     const body = init?.body
     const headers = new Headers(init?.headers)
     headers.set('OpenAI-Beta', 'responses=experimental')
-    headers.set('originator', 'pi')
+    headers.set('originator', 'openwaggle')
     headers.set('accept', 'text/event-stream')
     headers.set('content-type', 'application/json')
     headers.set('chatgpt-account-id', accountId)
@@ -193,12 +213,11 @@ export const openaiProvider: ProviderDefinition = {
   apiKeyManagementUrl: 'https://platform.openai.com/api-keys',
   supportsBaseUrl: false,
   supportsSubscription: true,
-  supportsDynamicModelFetch: false,
+  supportsDynamicModelFetch: true,
   models: OPENAI_CHAT_MODELS,
   testModel: 'gpt-4.1-nano',
   supportsAttachment: (kind) => kind === 'image' || kind === 'pdf',
   createAdapter(model, apiKey, _baseUrl, authMethod) {
-    if (!includes(OPENAI_CHAT_MODELS, model)) throw new Error(`Unknown OpenAI model: ${model}`)
     if (!apiKey) throw new Error('OpenAI API key is required')
     if (authMethod === 'subscription') {
       const accountId = extractChatgptAccountId(apiKey)
@@ -213,6 +232,46 @@ export const openaiProvider: ProviderDefinition = {
       })
     }
     return createOpenaiChat(model, apiKey)
+  },
+  async fetchModels(_baseUrl, apiKey, authMethod) {
+    // Codex subscription: no dynamic fetch possible from chatgpt.com — use curated list
+    if (authMethod === 'subscription') return [...OPENAI_CODEX_SUBSCRIPTION_MODELS]
+    if (!apiKey || !apiKey.startsWith('sk-')) return [...OPENAI_CHAT_MODELS]
+    try {
+      const response = await fetch('https://api.openai.com/v1/models', {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      })
+      if (!response.ok) return [...OPENAI_CHAT_MODELS]
+      const body: unknown = await response.json()
+      if (!isRecord(body) || !Array.isArray(body.data)) return [...OPENAI_CHAT_MODELS]
+      const chatPrefixes = ['gpt-', 'o1', 'o2', 'o3', 'o4', 'chatgpt-']
+      const excludePrefixes = [
+        'dall-e',
+        'tts',
+        'whisper',
+        'embedding',
+        'babbage',
+        'davinci',
+        'curie',
+        'ada',
+      ]
+      const models: string[] = []
+      for (const entry of body.data) {
+        if (!isRecord(entry) || typeof entry.id !== 'string') continue
+        const id = entry.id
+        if (excludePrefixes.some((p) => id.startsWith(p))) continue
+        if (chatPrefixes.some((p) => id.startsWith(p))) {
+          models.push(id)
+        }
+      }
+      models.sort((a, b) => b.localeCompare(a))
+      return models.length > 0 ? models : [...OPENAI_CHAT_MODELS]
+    } catch (err) {
+      logger.warn('Failed to fetch OpenAI models dynamically', {
+        error: err instanceof Error ? err.message : 'unknown',
+      })
+      return [...OPENAI_CHAT_MODELS]
+    }
   },
   resolveSampling(
     model: string,

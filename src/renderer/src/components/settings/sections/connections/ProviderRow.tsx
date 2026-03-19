@@ -78,7 +78,7 @@ export function ProviderRow({
           providerInfo={providerInfo}
           currentKey={currentKey}
           onSave={(key) => updateApiKey(providerId, key)}
-          onTest={(key) => testApiKey(providerId, key, config?.baseUrl)}
+          onTest={(key) => testApiKey(providerId, key, config?.baseUrl, 'api-key')}
           isTesting={isTesting}
           testResult={testResults[providerId] ?? null}
           onClose={() => {

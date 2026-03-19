@@ -212,6 +212,7 @@ describe('provider-store integration', () => {
       'ollama',
       'http://localhost:11434',
       undefined,
+      undefined,
     )
   })
 
@@ -411,6 +412,7 @@ describe('provider-store integration', () => {
         'ollama',
         'http://localhost:11435',
         undefined,
+        undefined,
       )
     })
   })
@@ -456,7 +458,12 @@ describe('provider-store integration', () => {
     await useProviderStore.getState().updateApiKey('openai', 'sk-live')
 
     await vi.waitFor(() => {
-      expect(apiMock.fetchProviderModels).toHaveBeenCalledWith('openai', undefined, 'sk-live')
+      expect(apiMock.fetchProviderModels).toHaveBeenCalledWith(
+        'openai',
+        undefined,
+        'sk-live',
+        undefined,
+      )
     })
   })
 
@@ -505,6 +512,7 @@ describe('provider-store integration', () => {
       expect(apiMock.fetchProviderModels).toHaveBeenCalledWith(
         'ollama',
         'http://localhost:11434',
+        undefined,
         undefined,
       )
     })
@@ -592,7 +600,12 @@ describe('provider-store integration', () => {
 
     const openAiRefresh = useProviderStore.getState().refreshProviderModels('openai')
     await vi.waitFor(() => {
-      expect(apiMock.fetchProviderModels).toHaveBeenCalledWith('openai', undefined, 'sk-openai')
+      expect(apiMock.fetchProviderModels).toHaveBeenCalledWith(
+        'openai',
+        undefined,
+        'sk-openai',
+        undefined,
+      )
     })
 
     await useProviderStore.getState().refreshProviderModels('ollama')
@@ -689,18 +702,30 @@ describe('provider-store integration', () => {
 
   it('tracks testApiKey success and failure state', async () => {
     apiMock.testApiKey.mockResolvedValueOnce({ success: true })
-    const success = await useProviderStore.getState().testApiKey('openai', 'sk-test')
+    const success = await useProviderStore
+      .getState()
+      .testApiKey('openai', 'sk-test', undefined, 'subscription')
     expect(success).toBe(true)
     expect(useProviderStore.getState().testResults.openai).toEqual({ success: true })
+    expect(apiMock.testApiKey).toHaveBeenNthCalledWith(
+      1,
+      'openai',
+      'sk-test',
+      undefined,
+      'subscription',
+    )
 
     apiMock.testApiKey.mockRejectedValueOnce(new Error('network'))
-    const failure = await useProviderStore.getState().testApiKey('openai', 'sk-test')
+    const failure = await useProviderStore
+      .getState()
+      .testApiKey('openai', 'sk-test', undefined, 'api-key')
     expect(failure).toBe(false)
     expect(useProviderStore.getState().testResults.openai).toEqual({
       success: false,
       error: 'Unexpected error — check the console',
     })
     expect(useProviderStore.getState().testingProviders.openai).toBe(false)
+    expect(apiMock.testApiKey).toHaveBeenNthCalledWith(2, 'openai', 'sk-test', undefined, 'api-key')
   })
 
   it('clears provider test results', () => {

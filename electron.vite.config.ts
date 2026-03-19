@@ -3,6 +3,7 @@ import { defineConfig } from 'electron-vite'
 import { devtools } from '@tanstack/devtools-vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import svgr from 'vite-plugin-svgr'
 import reactCompiler from 'babel-plugin-react-compiler'
 
 export default defineConfig({
@@ -72,6 +73,7 @@ export default defineConfig({
           enabled: false,
         },
       }),
+      svgr(),
       react({
         babel: {
           plugins: [reactCompiler],

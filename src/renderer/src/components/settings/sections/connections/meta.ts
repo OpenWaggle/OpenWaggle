@@ -2,6 +2,8 @@ import type { SubscriptionProvider } from '@shared/types/auth'
 import type { Provider } from '@shared/types/settings'
 import {
   AnthropicIcon,
+  ClaudeCodeIcon,
+  CodexIcon,
   GeminiIcon,
   GrokIcon,
   OllamaIcon,
@@ -66,26 +68,26 @@ export const SUBSCRIPTION_META: Record<
   }
 > = {
   anthropic: {
-    icon: AnthropicIcon,
-    iconColor: '#d4a27f',
+    icon: ClaudeCodeIcon,
+    iconColor: '#D97757',
     connectedLogoBg: '#1a1520',
     connectedLogoBorder: '#2a2040',
     disconnectedLogoBg: '#111418',
     disconnectedLogoBorder: '#1e2229',
-    name: 'Anthropic Subscription',
-    description: 'Sign in with your Claude Pro/Max subscription',
+    name: 'Claude Code',
+    description: 'Sign in with your Anthropic Claude Pro/Max subscription',
     tosWarning:
       "Anthropic's Terms of Service prohibit using subscription OAuth tokens in third-party applications. After signing in, copy the authorization code from the browser — it will be picked up from your clipboard automatically.",
   },
   openai: {
-    icon: OpenAIIcon,
-    iconColor: '#10a37f',
-    connectedLogoBg: '#0f1a14',
-    connectedLogoBorder: '#1a3025',
+    icon: CodexIcon,
+    iconColor: '#7A9DFF',
+    connectedLogoBg: '#0f1020',
+    connectedLogoBorder: '#1a1a40',
     disconnectedLogoBg: '#111418',
     disconnectedLogoBorder: '#1e2229',
-    name: 'OpenAI Subscription',
-    description: 'Sign in with your ChatGPT Plus/Pro subscription',
+    name: 'OpenAI Codex',
+    description: 'Sign in with your ChatGPT Plus/Pro subscription (Codex)',
     tosWarning:
       "Uses OpenAI's Codex authentication flow. This is not officially supported for third-party applications.",
   },

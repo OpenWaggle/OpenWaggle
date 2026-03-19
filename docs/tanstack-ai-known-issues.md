@@ -1,6 +1,6 @@
 # TanStack AI Known Issues & Limitations
 
-> Version tested: `@tanstack/ai@0.6.2`, `@tanstack/ai-react@0.6.3`, `@tanstack/ai-client@0.5.3`
+> Version tested: `@tanstack/ai@0.8.1`, `@tanstack/ai-anthropic@0.7.0`, `@tanstack/ai-react@0.7.2`
 
 This document tracks **open** TanStack AI issues, limitations, and OpenWaggle workarounds. Solved issues are removed — see git history for past entries.
 
@@ -16,10 +16,10 @@ This document tracks **open** TanStack AI issues, limitations, and OpenWaggle wo
 When `emitToolResults()` re-executes a tool during a continuation, it only emits a `TOOL_CALL_END` chunk. No `TOOL_CALL_START` or `TOOL_CALL_ARGS` chunks are emitted, causing client-side `StreamProcessor` to store tool calls with empty arguments `{}`.
 
 **Root Cause:**
-`emitToolResults()` in `activities/chat/index.ts` iterates pending tool calls and yields only `TOOL_CALL_END` after execution. The `TOOL_CALL_START` and `TOOL_CALL_ARGS` chunk types are only emitted during the initial LLM streaming response.
+`buildToolResultChunks()` in `activities/chat/index.ts` iterates pending tool calls and yields only `TOOL_CALL_END` after execution. The `TOOL_CALL_START` and `TOOL_CALL_ARGS` chunk types are only emitted during the initial LLM streaming response.
 
 **Patch (applied locally):**
-In `checkForPendingToolCalls()`, build an `argsMap` from the pending `ToolCall` objects and pass it to `emitToolResults()`. Before each `TOOL_CALL_END`, emit `TOOL_CALL_START` and `TOOL_CALL_ARGS` with the original arguments. Patch applied via `pnpm patch @tanstack/ai` — see `patches/@tanstack__ai@0.6.2.patch`.
+In `checkForPendingToolCalls()`, build an `argsMap` from the pending `ToolCall` objects and pass it to `buildToolResultChunks()`. Before each `TOOL_CALL_END`, emit `TOOL_CALL_START` and `TOOL_CALL_ARGS` with the original arguments. Patch applied via `pnpm patch @tanstack/ai` — see `patches/@tanstack__ai@0.8.1.patch`.
 
 **Status:** Patched locally. Ready to PR upstream.
 
@@ -46,25 +46,6 @@ The `ChatClient` (`@tanstack/ai-client`) reconstructs UIMessages from stream chu
 1. `normalizeContinuationAsUIMessages()` preserves UIMessage format with parts instead of converting to ModelMessages, allowing the TextEngine to extract approval state
 2. Server-side args + output enrichment from `conversation.messages` (safety net)
 3. `mergeConsecutiveAssistantUIMessages()` prevents Anthropic API alternating-role violations
-
----
-
-## 3. `useChat` Loses Transcript After Client Recreation
-
-**Package:** `@tanstack/ai-react`
-
-**Severity:** High — blanks the active transcript until a later refresh
-
-**Problem:**
-When the `useChat` `ChatClient` is recreated (e.g. model or quality-preset change), `messagesRef.current` is used as `initialMessages` for the new client. But the ref is updated in a `useEffect`, which may not have flushed yet — so the new client gets stale or empty messages.
-
-**Root Cause:**
-In `@tanstack/ai-react/src/use-chat.ts`, `messagesRef.current` was updated in `useEffect(() => { messagesRef.current = messages }, [messages])`. The `useMemo([clientId])` that recreates the `ChatClient` can run before this effect flushes.
-
-**Patch (applied locally):**
-Replace the async `useEffect` ref update with a synchronous render-time assignment: `messagesRef.current = messages`. Patch applied via `pnpm patch @tanstack/ai-react` — see `patches/@tanstack__ai-react.patch`.
-
-**Status:** Patched locally. Ready to PR upstream.
 
 ---
 

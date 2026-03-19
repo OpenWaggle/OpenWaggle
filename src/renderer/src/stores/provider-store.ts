@@ -98,7 +98,12 @@ interface ProviderState {
   updateApiKey: (provider: Provider, apiKey: string) => Promise<void>
   toggleProvider: (provider: Provider, enabled: boolean) => Promise<void>
   updateBaseUrl: (provider: Provider, baseUrl: string) => Promise<void>
-  testApiKey: (provider: Provider, apiKey: string, baseUrl?: string) => Promise<boolean>
+  testApiKey: (
+    provider: Provider,
+    apiKey: string,
+    baseUrl?: string,
+    authMethod?: 'api-key' | 'subscription',
+  ) => Promise<boolean>
   clearTestResult: (provider: Provider) => void
 }
 
@@ -142,8 +147,14 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
         }
 
         const baseUrl = config?.baseUrl?.trim() || undefined
+        const authMethod = config?.authMethod
         try {
-          const fetchedModels = await api.fetchProviderModels(group.provider, baseUrl, apiKey)
+          const fetchedModels = await api.fetchProviderModels(
+            group.provider,
+            baseUrl,
+            apiKey,
+            authMethod,
+          )
           if (fetchedModels.length === 0) {
             return { provider: group.provider, models: null }
           }
@@ -262,12 +273,17 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
     void get().refreshProviderModels(provider)
   },
 
-  async testApiKey(provider: Provider, apiKey: string, baseUrl?: string) {
+  async testApiKey(
+    provider: Provider,
+    apiKey: string,
+    baseUrl?: string,
+    authMethod?: 'api-key' | 'subscription',
+  ) {
     set((state) => ({
       testingProviders: { ...state.testingProviders, [provider]: true },
     }))
     try {
-      const result = await api.testApiKey(provider, apiKey, baseUrl)
+      const result = await api.testApiKey(provider, apiKey, baseUrl, authMethod)
       set((state) => ({
         testResults: { ...state.testResults, [provider]: result },
         testingProviders: { ...state.testingProviders, [provider]: false },

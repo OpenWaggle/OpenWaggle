@@ -13,9 +13,20 @@ export function useSettingsSetup(): void {
   const loadAllAuthAccounts = useAuthStore((s) => s.loadAllAuthAccounts)
 
   useEffect(() => {
-    loadSettings()
-    loadProviderModels()
-    loadAllAuthAccounts()
+    let active = true
+
+    async function initialize(): Promise<void> {
+      await loadSettings()
+      if (!active) return
+
+      await Promise.all([loadProviderModels(), loadAllAuthAccounts()])
+    }
+
+    void initialize()
+
+    return () => {
+      active = false
+    }
   }, [loadSettings, loadProviderModels, loadAllAuthAccounts])
 
   // Subscribe to OAuth status events from main process (per-provider)
@@ -41,6 +52,7 @@ export function usePreferences() {
   const loadError = usePreferencesStore((s) => s.loadError)
   const setDefaultModel = usePreferencesStore((s) => s.setDefaultModel)
   const toggleFavoriteModel = usePreferencesStore((s) => s.toggleFavoriteModel)
+  const setEnabledModels = usePreferencesStore((s) => s.setEnabledModels)
   const setProjectPath = usePreferencesStore((s) => s.setProjectPath)
   const setExecutionMode = usePreferencesStore((s) => s.setExecutionMode)
   const setQualityPreset = usePreferencesStore((s) => s.setQualityPreset)
@@ -53,6 +65,7 @@ export function usePreferences() {
     loadError,
     setDefaultModel,
     toggleFavoriteModel,
+    setEnabledModels,
     setProjectPath,
     setExecutionMode,
     setQualityPreset,

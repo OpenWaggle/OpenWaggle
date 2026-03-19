@@ -18,6 +18,7 @@ async function testProviderApiKey(
   providerId: string,
   apiKey: string,
   baseUrl?: string,
+  authMethod?: 'api-key' | 'subscription',
 ): Promise<{ success: boolean; error?: string }> {
   const provider = providerRegistry.get(providerId)
   if (!provider) return { success: false, error: `Unknown provider: ${providerId}` }
@@ -46,7 +47,7 @@ async function testProviderApiKey(
   const timeout = setTimeout(() => abortController.abort(), TEST_TIMEOUT_MS)
 
   try {
-    const adapter = provider.createAdapter(provider.testModel, apiKey, baseUrl)
+    const adapter = provider.createAdapter(provider.testModel, apiKey, baseUrl, authMethod)
     const stream = chat({
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
@@ -104,6 +105,7 @@ const settingsUpdateSchema = Schema.Struct({
   providers: Schema.optional(settingsProvidersUpdateSchema),
   defaultModel: Schema.optional(Schema.String),
   favoriteModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
+  enabledModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
   projectPath: Schema.optional(Schema.NullOr(Schema.String)),
   executionMode: Schema.optional(Schema.Literal(...EXECUTION_MODES)),
   qualityPreset: Schema.optional(Schema.Literal(...QUALITY_PRESETS)),
@@ -227,9 +229,25 @@ export function registerSettingsHandlers(): void {
     }),
   )
 
+  typedHandle('settings:set-enabled-models', (_event, models: unknown) =>
+    Effect.sync(() => {
+      if (!Array.isArray(models) || !models.every((m) => typeof m === 'string')) {
+        logger.warn('Invalid enabled models payload', { models })
+        return undefined
+      }
+      updateSettings({ enabledModels: models })
+      return undefined
+    }),
+  )
+
   typedHandle(
     'settings:test-api-key',
-    (_event, provider: string, apiKey: string, baseUrl?: string) =>
-      Effect.promise(() => testProviderApiKey(provider, apiKey, baseUrl)),
+    (
+      _event,
+      provider: string,
+      apiKey: string,
+      baseUrl?: string,
+      authMethod?: 'api-key' | 'subscription',
+    ) => Effect.promise(() => testProviderApiKey(provider, apiKey, baseUrl, authMethod)),
   )
 }

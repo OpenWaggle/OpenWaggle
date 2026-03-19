@@ -65,6 +65,7 @@ export const api: OpenWaggleApi = {
   // Settings
   getSettings: invoke('settings:get'),
   updateSettings: invoke('settings:update'),
+  setEnabledModels: invoke('settings:set-enabled-models'),
   testApiKey: invoke('settings:test-api-key'),
 
   // Providers

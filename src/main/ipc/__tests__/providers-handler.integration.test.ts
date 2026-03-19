@@ -15,6 +15,7 @@ vi.mock('../../providers', () => ({
   providerRegistry: {
     getAll: getAllMock,
     get: getMock,
+    indexModels: vi.fn(),
   },
 }))
 

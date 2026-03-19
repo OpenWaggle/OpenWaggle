@@ -19,11 +19,11 @@ describe('openrouterProvider', () => {
     expect(createOpenRouterText).toHaveBeenCalledWith('openrouter/auto', 'test-key')
   })
 
-  it('throws for unknown model', async () => {
+  it('accepts dynamically fetched model IDs without throwing', async () => {
     const { openrouterProvider } = await import('../openrouter')
-    expect(() => openrouterProvider.createAdapter('unknown/model', 'key')).toThrow(
-      'Unknown OpenRouter model',
-    )
+    const { createOpenRouterText } = await import('@tanstack/ai-openrouter')
+    expect(() => openrouterProvider.createAdapter('unknown/model', 'key')).not.toThrow()
+    expect(createOpenRouterText).toHaveBeenCalledWith('unknown/model', 'key')
   })
 
   it('throws when API key is missing', async () => {

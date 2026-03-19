@@ -11,11 +11,14 @@ const { apiMock } = vi.hoisted(() => ({
     getSettings: vi.fn(),
     getProviderModels: vi.fn(),
     updateSettings: vi.fn().mockResolvedValue({ ok: true }),
+    setEnabledModels: vi.fn().mockResolvedValue(undefined),
     testApiKey: vi.fn(),
     showConfirm: vi.fn(),
     startOAuth: vi.fn(),
     onOAuthStatus: vi.fn().mockReturnValue(() => {}),
     getAuthAccountInfo: vi.fn(),
+    submitAuthCode: vi.fn(),
+    disconnectAuth: vi.fn(),
   },
 }))
 
@@ -104,6 +107,11 @@ describe('ModelSelector', () => {
     seedStore({
       settings: {
         defaultModel: 'claude-sonnet-4-5',
+        enabledModels: [
+          'anthropic:api-key:claude-sonnet-4-5',
+          'anthropic:api-key:claude-opus-4-5',
+          'gemini:api-key:gemini-2.5-flash',
+        ],
         providers: {
           ...DEFAULT_SETTINGS.providers,
           anthropic: { apiKey: 'anthropic-key', enabled: true },
@@ -114,76 +122,36 @@ describe('ModelSelector', () => {
     })
   })
 
-  it('renders provider rail tabs and filters by provider', async () => {
+  it('shows flat list of models from enabledModels', () => {
     const onChange = vi.fn()
     render(<TestHarness onChange={onChange} />)
 
     fireEvent.click(screen.getByRole('button', { name: /claude sonnet 4\.5/i }))
 
-    expect(screen.getByLabelText('Show favorite models')).toBeInTheDocument()
-    expect(screen.getByLabelText('Show Anthropic models')).toBeInTheDocument()
-    expect(screen.getByLabelText('Show OpenAI models')).toBeInTheDocument()
-    expect(screen.getByLabelText('Search models')).toBeInTheDocument()
+    // Anthropic models visible (in enabledModels)
+    expect(screen.getByRole('option', { name: 'Claude Sonnet 4.5' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Claude Opus 4.5' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByLabelText('Show Gemini models'))
-    expect(screen.getByText('Gemini 2.5 Flash')).toBeInTheDocument()
-    expect(screen.queryByText('Claude Opus 4.5')).not.toBeInTheDocument()
+    // Gemini models visible (in enabledModels)
+    expect(screen.getByRole('option', { name: 'Gemini 2.5 Flash' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByText('Gemini 2.5 Flash'))
-    await waitFor(() => {
-      expect(onChange).toHaveBeenCalledWith('gemini-2.5-flash')
-    })
+    // OpenAI not visible (not in enabledModels)
+    expect(screen.queryByRole('option', { name: 'GPT 4.1 Mini' })).not.toBeInTheDocument()
   })
 
-  it('keeps provider tab filtering scoped to provider groups when model metadata is mismatched', () => {
-    seedStore({
-      providerModels: [
-        {
-          provider: 'ollama',
-          displayName: 'Ollama',
-          requiresApiKey: false,
-          supportsBaseUrl: false,
-          supportsSubscription: false,
-          supportsDynamicModelFetch: true,
-          models: [
-            {
-              id: 'llama3.2:latest',
-              name: 'Llama3.2:latest',
-              provider: 'gemini',
-            },
-          ],
-        },
-        {
-          provider: 'gemini',
-          displayName: 'Gemini',
-          requiresApiKey: true,
-          supportsBaseUrl: false,
-          supportsSubscription: false,
-          supportsDynamicModelFetch: false,
-          models: [{ id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'gemini' }],
-        },
-      ],
-      settings: {
-        defaultModel: 'gemini-2.5-flash',
-        providers: {
-          ...DEFAULT_SETTINGS.providers,
-          gemini: { apiKey: 'gemini-key', enabled: true },
-          ollama: { apiKey: '', enabled: true },
-        },
-      },
-    })
-
+  it('selects a model and closes dropdown', async () => {
     const onChange = vi.fn()
     render(<TestHarness onChange={onChange} />)
 
-    fireEvent.click(screen.getByRole('button', { name: /gemini 2\.5 flash/i }))
-    fireEvent.click(screen.getByLabelText('Show Gemini models'))
+    fireEvent.click(screen.getByRole('button', { name: /claude sonnet 4\.5/i }))
+    fireEvent.click(screen.getByRole('option', { name: 'Gemini 2.5 Flash' }))
 
-    expect(screen.getByRole('option', { name: 'Gemini 2.5 Flash' })).toBeInTheDocument()
-    expect(screen.queryByRole('option', { name: 'Llama3.2:latest' })).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(onChange).toHaveBeenCalledWith('gemini-2.5-flash', 'api-key')
+    })
   })
 
-  it('deduplicates repeated provider model entries', () => {
+  it('deduplicates repeated model entries', () => {
     seedStore({
       providerModels: [
         {
@@ -201,6 +169,7 @@ describe('ModelSelector', () => {
       ],
       settings: {
         defaultModel: 'llama3.2:latest',
+        enabledModels: ['ollama:api-key:llama3.2:latest', 'ollama:api-key:llama3.2:latest'],
         providers: {
           ...DEFAULT_SETTINGS.providers,
           ollama: { apiKey: '', enabled: true },
@@ -212,65 +181,18 @@ describe('ModelSelector', () => {
     render(<TestHarness onChange={onChange} />)
 
     fireEvent.click(screen.getByRole('button', { name: /llama3\.2:latest/i }))
-    fireEvent.click(screen.getByLabelText('Show Ollama models'))
-
     expect(screen.getAllByRole('option', { name: 'Llama3.2:latest' })).toHaveLength(1)
   })
 
-  it('filters models by search query', () => {
-    const onChange = vi.fn()
-    render(<TestHarness onChange={onChange} />)
-
-    fireEvent.click(screen.getByRole('button', { name: /claude sonnet 4\.5/i }))
-    fireEvent.change(screen.getByLabelText('Search models'), { target: { value: 'opus' } })
-
-    expect(screen.getByText('Claude Opus 4.5')).toBeInTheDocument()
-    expect(screen.getAllByText('Claude Sonnet 4.5')).toHaveLength(1)
-  })
-
-  it('favorites and unfavorites models from the row star button', async () => {
-    const onChange = vi.fn()
-    render(<TestHarness onChange={onChange} />)
-
-    fireEvent.click(screen.getByRole('button', { name: /claude sonnet 4\.5/i }))
-
-    fireEvent.click(screen.getByRole('button', { name: 'Add Claude Opus 4.5 to favorites' }))
-
-    await waitFor(() => {
-      expect(apiMock.updateSettings).toHaveBeenCalledWith({
-        favoriteModels: ['claude-opus-4-5'],
-      })
-    })
-    expect(usePreferencesStore.getState().settings.favoriteModels).toEqual(['claude-opus-4-5'])
-
-    fireEvent.click(screen.getByRole('button', { name: 'Remove Claude Opus 4.5 from favorites' }))
-    await waitFor(() => {
-      expect(apiMock.updateSettings).toHaveBeenCalledWith({ favoriteModels: [] })
-    })
-    expect(usePreferencesStore.getState().settings.favoriteModels).toEqual([])
-  })
-
-  it('blocks selection for models missing required API keys', () => {
-    const onChange = vi.fn()
-    render(<TestHarness onChange={onChange} />)
-
-    fireEvent.click(screen.getByRole('button', { name: /claude sonnet 4\.5/i }))
-    fireEvent.click(screen.getByLabelText('Show OpenAI models'))
-
-    expect(screen.getByText('Set API key in Connections')).toBeInTheDocument()
-    fireEvent.click(screen.getByText('GPT 4.1 Mini'))
-
-    expect(onChange).not.toHaveBeenCalled()
-  })
-
-  it('auto-enables a provider before selecting its model', async () => {
+  it('filters to only enabledModels when set', () => {
     seedStore({
       settings: {
         defaultModel: 'claude-sonnet-4-5',
+        enabledModels: ['anthropic:api-key:claude-sonnet-4-5', 'gemini:api-key:gemini-2.5-flash'],
         providers: {
           ...DEFAULT_SETTINGS.providers,
           anthropic: { apiKey: 'anthropic-key', enabled: true },
-          gemini: { apiKey: 'gemini-key', enabled: false },
+          gemini: { apiKey: 'gemini-key', enabled: true },
         },
       },
     })
@@ -279,18 +201,42 @@ describe('ModelSelector', () => {
     render(<TestHarness onChange={onChange} />)
 
     fireEvent.click(screen.getByRole('button', { name: /claude sonnet 4\.5/i }))
-    fireEvent.click(screen.getByLabelText('Show Gemini models'))
-    fireEvent.click(screen.getByText('Gemini 2.5 Flash'))
 
-    await waitFor(() => {
-      expect(apiMock.updateSettings).toHaveBeenCalledWith(
-        expect.objectContaining({
-          providers: expect.objectContaining({
-            gemini: expect.objectContaining({ enabled: true }),
-          }),
-        }),
-      )
+    expect(screen.getByRole('option', { name: 'Claude Sonnet 4.5' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Gemini 2.5 Flash' })).toBeInTheDocument()
+    // Claude Opus excluded by enabledModels filter
+    expect(screen.queryByRole('option', { name: 'Claude Opus 4.5' })).not.toBeInTheDocument()
+  })
+
+  it('shows no models when enabledModels is empty', () => {
+    seedStore({
+      settings: {
+        defaultModel: 'claude-sonnet-4-5',
+        enabledModels: [],
+        providers: {
+          ...DEFAULT_SETTINGS.providers,
+          anthropic: { apiKey: 'anthropic-key', enabled: true },
+          gemini: { apiKey: 'gemini-key', enabled: true },
+        },
+      },
     })
-    expect(onChange).toHaveBeenCalledWith('gemini-2.5-flash')
+
+    const onChange = vi.fn()
+    render(<TestHarness onChange={onChange} />)
+
+    // Button shows "Select model" since no models are in the flat list
+    fireEvent.click(screen.getByRole('button', { name: /select model/i }))
+
+    expect(screen.queryByRole('option')).not.toBeInTheDocument()
+  })
+
+  it('omits models not in enabledModels', () => {
+    const onChange = vi.fn()
+    render(<TestHarness onChange={onChange} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /claude sonnet 4\.5/i }))
+
+    // OpenAI not in enabledModels → no models shown
+    expect(screen.queryByRole('option', { name: 'GPT 4.1 Mini' })).not.toBeInTheDocument()
   })
 })

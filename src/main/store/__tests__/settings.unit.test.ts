@@ -11,6 +11,8 @@ const state = vi.hoisted(() => ({
   encryptionAvailable: false,
   encryptThrows: false,
   isKnownModel: vi.fn((modelId: string) => modelId === 'claude-sonnet-4-5'),
+  getProvider: vi.fn(),
+  indexModels: vi.fn(),
 }))
 
 vi.mock('electron', () => ({
@@ -32,6 +34,8 @@ vi.mock('electron', () => ({
 vi.mock('../../providers', () => ({
   providerRegistry: {
     isKnownModel: state.isKnownModel,
+    get: state.getProvider,
+    indexModels: state.indexModels,
   },
 }))
 
@@ -87,6 +91,8 @@ describe('settings store', () => {
     state.encryptThrows = false
     state.isKnownModel.mockReset()
     state.isKnownModel.mockImplementation((modelId: string) => modelId === 'claude-sonnet-4-5')
+    state.getProvider.mockReset()
+    state.indexModels.mockReset()
   })
 
   afterEach(async () => {
@@ -226,6 +232,23 @@ describe('settings store', () => {
       ],
     })
     expect(getSettings().favoriteModels).toEqual(['gpt-4.1-mini', 'claude-sonnet-4-5'])
+  })
+
+  it('preserves and indexes a persisted dynamic default model when enabledModels identify the provider', async () => {
+    state.isKnownModel.mockImplementation(() => false)
+    state.getProvider.mockReturnValue({ id: 'openai' })
+
+    await writeRawSetting('defaultModel', 'gpt-5.4')
+    await writeRawSetting('enabledModels', ['openai:subscription:gpt-5.4'])
+
+    const { getSettings } = await loadSettingsModule()
+
+    expect(getSettings().defaultModel).toBe('gpt-5.4')
+    expect(state.getProvider).toHaveBeenCalledWith('openai')
+    expect(state.indexModels).toHaveBeenCalledWith(
+      ['gpt-5.4'],
+      expect.objectContaining({ id: 'openai' }),
+    )
   })
 
   it('preserves provider authMethod when provider updates omit it', async () => {

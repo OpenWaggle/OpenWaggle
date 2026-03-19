@@ -18,6 +18,15 @@ class ProviderRegistry {
     }
   }
 
+  /** Index dynamically fetched model IDs so getProviderForModel resolves them. */
+  indexModels(modelIds: readonly string[], provider: ProviderDefinition): void {
+    for (const modelId of modelIds) {
+      if (!this.modelIndex.has(modelId)) {
+        this.modelIndex.set(modelId, provider)
+      }
+    }
+  }
+
   get(id: string): ProviderDefinition | undefined {
     return this.providers.get(id)
   }

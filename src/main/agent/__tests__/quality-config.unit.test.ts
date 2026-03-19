@@ -93,35 +93,49 @@ describe('resolveQualityConfig', () => {
       expect(high.modelOptions).toEqual({ thinking: { type: 'enabled', budget_tokens: 10240 } })
     })
 
-    it('sets larger thinking budgets for Opus per preset tier', () => {
-      const opusLow = resolveQualityConfig(provider, SupportedModelId('claude-opus-4-6'), 'low')
+    it('sets larger thinking budgets for pre-4.6 Opus per preset tier', () => {
+      const opusLow = resolveQualityConfig(provider, SupportedModelId('claude-opus-4-5'), 'low')
       expect(opusLow.modelOptions).toEqual({ thinking: { type: 'enabled', budget_tokens: 2048 } })
 
       const opusMedium = resolveQualityConfig(
         provider,
-        SupportedModelId('claude-opus-4-6'),
+        SupportedModelId('claude-opus-4-5'),
         'medium',
       )
       expect(opusMedium.modelOptions).toEqual({
         thinking: { type: 'enabled', budget_tokens: 8192 },
       })
 
-      const opusHigh = resolveQualityConfig(provider, SupportedModelId('claude-opus-4-6'), 'high')
+      const opusHigh = resolveQualityConfig(provider, SupportedModelId('claude-opus-4-5'), 'high')
       expect(opusHigh.modelOptions).toEqual({
         thinking: { type: 'enabled', budget_tokens: 16384 },
       })
     })
 
-    it('floors maxTokens at 8192 for thinking budget', () => {
+    it('returns no modelOptions for 4.6 models (adapter handles adaptive thinking)', () => {
+      const opus46 = resolveQualityConfig(provider, SupportedModelId('claude-opus-4-6'), 'medium')
+      expect(opus46.modelOptions).toBeUndefined()
+      expect(opus46.maxTokens).toBe(16000) // ADAPTIVE_MAX_TOKENS.medium
+      expect(opus46.temperature).toBeUndefined()
+
+      const sonnet46 = resolveQualityConfig(provider, SupportedModelId('claude-sonnet-4-6'), 'high')
+      expect(sonnet46.modelOptions).toBeUndefined()
+      expect(sonnet46.maxTokens).toBe(32000) // ADAPTIVE_MAX_TOKENS.high
+    })
+
+    it('floors maxTokens at budget + 1024 for thinking headroom (pre-4.6)', () => {
+      // low: budget=1024, max(1200, 1024+1024) = 2048
       expect(
         resolveQualityConfig(provider, SupportedModelId('claude-sonnet-4-5'), 'low').maxTokens,
-      ).toBe(8192)
+      ).toBe(2048)
+      // medium: budget=4096, max(2200, 4096+1024) = 5120
       expect(
         resolveQualityConfig(provider, SupportedModelId('claude-sonnet-4-5'), 'medium').maxTokens,
-      ).toBe(8192)
+      ).toBe(5120)
+      // high: budget=10240, max(4200, 10240+1024) = 11264
       expect(
         resolveQualityConfig(provider, SupportedModelId('claude-sonnet-4-5'), 'high').maxTokens,
-      ).toBe(8192)
+      ).toBe(11264)
     })
   })
 

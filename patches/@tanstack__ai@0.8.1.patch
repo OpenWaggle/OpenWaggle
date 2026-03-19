@@ -1,8 +1,8 @@
 diff --git a/dist/esm/activities/chat/index.js b/dist/esm/activities/chat/index.js
-index 7db6d2021d81ad09591d3ca9c3cb347ea5cb8a66..f8b20190db994f78ee69c79e5eb5735ad6702f46 100644
+index 5eb60feb7b968cd9a803702aace1892cd3954837..34bb49ea27333e7acd46f7322209cbd944cbe635 100644
 --- a/dist/esm/activities/chat/index.js
 +++ b/dist/esm/activities/chat/index.js
-@@ -307,6 +307,10 @@ class TextEngine {
+@@ -305,6 +305,10 @@ class TextEngine {
      if (pendingToolCalls.length === 0) {
        return "continue";
      }
@@ -13,9 +13,9 @@ index 7db6d2021d81ad09591d3ca9c3cb347ea5cb8a66..f8b20190db994f78ee69c79e5eb5735a
      const finishEvent = this.createSyntheticFinishedEvent();
      const { approvals, clientToolResults } = this.collectClientState();
      const generator = executeToolCalls(
-@@ -321,7 +325,8 @@ class TextEngine {
+@@ -350,7 +354,8 @@ class TextEngine {
        if (executionResult.results.length > 0) {
-         for (const chunk of this.emitToolResults(
+         for (const chunk of this.buildToolResultChunks(
            executionResult.results,
 -          finishEvent
 +          finishEvent,
@@ -23,9 +23,9 @@ index 7db6d2021d81ad09591d3ca9c3cb347ea5cb8a66..f8b20190db994f78ee69c79e5eb5735a
          )) {
            yield chunk;
          }
-@@ -343,7 +348,8 @@ class TextEngine {
+@@ -372,7 +377,8 @@ class TextEngine {
      }
-     const toolResultChunks = this.emitToolResults(
+     const toolResultChunks = this.buildToolResultChunks(
        executionResult.results,
 -      finishEvent
 +      finishEvent,
@@ -33,18 +33,14 @@ index 7db6d2021d81ad09591d3ca9c3cb347ea5cb8a66..f8b20190db994f78ee69c79e5eb5735a
      );
      for (const chunk of toolResultChunks) {
        yield chunk;
-@@ -525,7 +531,7 @@ class TextEngine {
+@@ -561,10 +567,30 @@ class TextEngine {
      }
      return chunks;
    }
--  emitToolResults(results, finishEvent) {
-+  emitToolResults(results, finishEvent, argsMap) {
+-  buildToolResultChunks(results, finishEvent) {
++  buildToolResultChunks(results, finishEvent, argsMap) {
      const chunks = [];
      for (const result of results) {
-       aiEventClient.emit("tools:call:completed", {
-@@ -538,6 +544,26 @@ class TextEngine {
-         timestamp: Date.now()
-       });
        const content = JSON.stringify(result.result);
 +      if (argsMap) {
 +        chunks.push({
@@ -70,14 +66,14 @@ index 7db6d2021d81ad09591d3ca9c3cb347ea5cb8a66..f8b20190db994f78ee69c79e5eb5735a
          type: "TOOL_CALL_END",
          timestamp: Date.now(),
 diff --git a/src/activities/chat/index.ts b/src/activities/chat/index.ts
-index 30a192249c679829a1a4f7a3699717b0dbbe21f4..471290bd4f578f411f40a0c417bf682814ca78a1 100644
+index 74c5d5ce5734279d2ddfb7f3dacc76193534705e..2a79410912f01c43ba39dace2260e8ebec4620ad 100644
 --- a/src/activities/chat/index.ts
 +++ b/src/activities/chat/index.ts
-@@ -598,6 +598,13 @@ class TextEngine<
+@@ -641,6 +641,13 @@ class TextEngine<
        return 'continue'
      }
  
-+    // Build args lookup so emitToolResults can emit TOOL_CALL_START + TOOL_CALL_ARGS
++    // Build args lookup so buildToolResultChunks can emit TOOL_CALL_START + TOOL_CALL_ARGS
 +    // before TOOL_CALL_END during continuation re-executions.
 +    const argsMap = new Map<string, string>()
 +    for (const tc of pendingToolCalls) {
@@ -87,32 +83,31 @@ index 30a192249c679829a1a4f7a3699717b0dbbe21f4..471290bd4f578f411f40a0c417bf6828
      const finishEvent = this.createSyntheticFinishedEvent()
  
      const { approvals, clientToolResults } = this.collectClientState()
-@@ -621,6 +628,7 @@ class TextEngine<
-         for (const chunk of this.emitToolResults(
+@@ -699,6 +706,7 @@ class TextEngine<
+         for (const chunk of this.buildToolResultChunks(
            executionResult.results,
            finishEvent,
 +          argsMap,
          )) {
            yield chunk
          }
-@@ -647,6 +655,7 @@ class TextEngine<
-     const toolResultChunks = this.emitToolResults(
+@@ -725,6 +733,7 @@ class TextEngine<
+     const toolResultChunks = this.buildToolResultChunks(
        executionResult.results,
        finishEvent,
 +      argsMap,
      )
  
      for (const chunk of toolResultChunks) {
-@@ -911,6 +920,7 @@ class TextEngine<
-   private emitToolResults(
+@@ -997,12 +1006,39 @@ class TextEngine<
+   private buildToolResultChunks(
      results: Array<ToolResult>,
      finishEvent: RunFinishedEvent,
 +    argsMap?: Map<string, string>,
    ): Array<StreamChunk> {
      const chunks: Array<StreamChunk> = []
  
-@@ -927,6 +937,32 @@ class TextEngine<
- 
+     for (const result of results) {
        const content = JSON.stringify(result.result)
  
 +      // Emit TOOL_CALL_START + TOOL_CALL_ARGS before TOOL_CALL_END so that
@@ -141,6 +136,6 @@ index 30a192249c679829a1a4f7a3699717b0dbbe21f4..471290bd4f578f411f40a0c417bf6828
 +        }
 +      }
 +
-       // Emit TOOL_CALL_END event
        chunks.push({
          type: 'TOOL_CALL_END',
+         timestamp: Date.now(),
