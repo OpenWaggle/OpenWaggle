@@ -14,6 +14,9 @@ interface ModelSelectorProps {
   className?: string
 }
 
+const MODEL_KEY_MIN_PARTS = 3
+const MODEL_KEY_MODEL_ID_START_INDEX = 2
+
 /**
  * enabledModels uses namespaced keys: "provider:authMethod:modelId"
  * Each key produces one FlatModel entry — preserving the correct connection (authMethod + provider).
@@ -45,12 +48,12 @@ function buildFlatModels(providerModels: readonly ProviderInfo[], settings: Sett
     let authMethod: 'api-key' | 'subscription'
     let modelId: string
 
-    if (parts.length >= 3) {
+    if (parts.length >= MODEL_KEY_MIN_PARTS) {
       provider = parts[0]
       const rawMethod = parts[1]
       if (rawMethod !== 'api-key' && rawMethod !== 'subscription') continue
       authMethod = rawMethod
-      modelId = parts.slice(2).join(':')
+      modelId = parts.slice(MODEL_KEY_MODEL_ID_START_INDEX).join(':')
     } else {
       // Legacy bare model ID — skip (no connection context)
       continue

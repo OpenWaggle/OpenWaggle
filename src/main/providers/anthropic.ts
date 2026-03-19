@@ -12,6 +12,11 @@ import type {
 const logger = createLogger('anthropic-provider')
 const ANTHROPIC_API_BASE = 'https://api.anthropic.com'
 const ANTHROPIC_API_VERSION = '2023-06-01'
+const SSE_DATA_PREFIX = 'data: '
+const SSE_DATA_PREFIX_LENGTH = SSE_DATA_PREFIX.length
+const SSE_LOG_SNIPPET_LENGTH = 200
+const RANDOM_ID_RADIX = 36
+const RANDOM_ID_SLICE_START = 7
 
 /** Claude Code identity string required for OAuth model access beyond haiku. */
 const CLAUDE_CODE_IDENTITY = "You are Claude Code, Anthropic's official CLI for Claude."
@@ -114,8 +119,8 @@ async function* parseAnthropicSSE(body: ReadableStream<Uint8Array>): AsyncIterab
         // Extract data field(s) from the SSE event (per spec, multi-line data fields are joined with \n)
         let data = ''
         for (const line of part.split('\n')) {
-          if (line.startsWith('data: ')) {
-            data += (data ? '\n' : '') + line.slice(6)
+          if (line.startsWith(SSE_DATA_PREFIX)) {
+            data += (data ? '\n' : '') + line.slice(SSE_DATA_PREFIX_LENGTH)
           }
         }
 
@@ -124,7 +129,7 @@ async function* parseAnthropicSSE(body: ReadableStream<Uint8Array>): AsyncIterab
         try {
           yield JSON.parse(data)
         } catch {
-          logger.warn('Unparseable SSE event data', { data: data.slice(0, 200) })
+          logger.warn('Unparseable SSE event data', { data: data.slice(0, SSE_LOG_SNIPPET_LENGTH) })
         }
       }
     }
@@ -133,15 +138,17 @@ async function* parseAnthropicSSE(body: ReadableStream<Uint8Array>): AsyncIterab
     if (buffer.trim()) {
       let data = ''
       for (const line of buffer.split('\n')) {
-        if (line.startsWith('data: ')) {
-          data += (data ? '\n' : '') + line.slice(6)
+        if (line.startsWith(SSE_DATA_PREFIX)) {
+          data += (data ? '\n' : '') + line.slice(SSE_DATA_PREFIX_LENGTH)
         }
       }
       if (data && data !== '[DONE]') {
         try {
           yield JSON.parse(data)
         } catch {
-          logger.warn('Unparseable trailing SSE data', { data: data.slice(0, 200) })
+          logger.warn('Unparseable trailing SSE data', {
+            data: data.slice(0, SSE_LOG_SNIPPET_LENGTH),
+          })
         }
       }
     }
@@ -271,10 +278,10 @@ function createOAuthAdapter(token: string, model: string): AnyTextAdapter {
         const blocks = [{ type: 'text', text: CLAUDE_CODE_IDENTITY }]
         if (body.system.length > 0) blocks.push({ type: 'text', text: body.system })
         body.system = blocks
-      } else if (Array.isArray(body.system)) {
-        body.system = [{ type: 'text', text: CLAUDE_CODE_IDENTITY }, ...body.system]
       } else {
-        body.system = [{ type: 'text', text: CLAUDE_CODE_IDENTITY }]
+        body.system = Array.isArray(body.system)
+          ? [{ type: 'text', text: CLAUDE_CODE_IDENTITY }, ...body.system]
+          : [{ type: 'text', text: CLAUDE_CODE_IDENTITY }]
       }
 
       // Prefix tool names with mcp_ (required for OAuth identity validation).
@@ -355,7 +362,7 @@ function createOAuthAdapter(token: string, model: string): AnyTextAdapter {
       // Parse the raw SSE stream into typed event objects, then feed them
       // through the adapter's stream processor (SSE event → StreamChunk).
       const idGen = (): string =>
-        `anthropic-${Date.now()}-${Math.random().toString(36).substring(7)}`
+        `anthropic-${Date.now()}-${Math.random().toString(RANDOM_ID_RADIX).substring(RANDOM_ID_SLICE_START)}`
       yield* processStream(stripMcpToolPrefix(parseAnthropicSSE(response.body)), model, idGen)
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown error occurred'

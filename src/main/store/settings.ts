@@ -37,6 +37,7 @@ const SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT = 'skillTogglesByProject'
 const SETTINGS_KEY_MCP_SERVERS = 'mcpServers'
 const SETTINGS_KEY_ENABLED_MODELS = 'enabledModels'
 const SETTINGS_KEY_PROJECT_DISPLAY_NAMES = 'projectDisplayNames'
+const ENABLED_MODEL_ID_PARTS_START_INDEX = 2
 
 interface SettingsStoreRow {
   readonly key: string
@@ -179,7 +180,7 @@ function parseEnabledModelKey(
   const parts = rawKey.split(':')
   const rawProvider = parts[0]
   const rawAuthMethod = parts[1]
-  const modelId = parts.slice(2).join(':').trim()
+  const modelId = parts.slice(ENABLED_MODEL_ID_PARTS_START_INDEX).join(':').trim()
 
   if (
     rawProvider === undefined ||
