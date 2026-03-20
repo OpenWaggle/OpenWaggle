@@ -1,4 +1,4 @@
-import { seedSingleConversation } from './conversation-fixtures'
+import { seedConversations, seedSingleConversation } from './conversation-fixtures'
 
 /**
  * 600+ word assistant response that generates enough vertical height
@@ -53,6 +53,10 @@ The React Compiler handles automatic memoization, eliminating the need for manua
 This comprehensive architecture supports a responsive, multi-model coding agent experience while maintaining type safety and clear process boundaries throughout the entire application stack.`
 
 export const SCROLL_THREAD_TITLE = 'Scroll Regression'
+export const NAV_SCROLL_THREAD_TITLE_A = 'Scroll Navigation A'
+export const NAV_SCROLL_THREAD_TITLE_B = 'Scroll Navigation B'
+export const NAV_THREAD_B_USER_MARKER = 'B marker: user content for scroll navigation regression'
+const NAV_LONG_ASSISTANT_TEXT = `${LONG_ASSISTANT_TEXT}\n\n${LONG_ASSISTANT_TEXT}\n\n${LONG_ASSISTANT_TEXT}`
 
 /**
  * Seeds a conversation with 3 messages: user → long assistant → user.
@@ -87,4 +91,55 @@ export async function makeScrollRegressionConversation(userDataDir: string): Pro
       },
     ],
   })
+}
+
+/**
+ * Seeds two conversations used to verify per-thread scroll restoration.
+ * Thread A is intentionally long enough to be scrollable.
+ */
+export async function makeThreadNavigationScrollConversations(userDataDir: string): Promise<void> {
+  const now = Date.now()
+  const earlierTimestamp = now - 10
+  const laterTimestamp = now - 5
+
+  await seedConversations(userDataDir, [
+    {
+      title: NAV_SCROLL_THREAD_TITLE_A,
+      updatedAt: now,
+      messages: [
+        {
+          id: 'user-msg-nav-a-1',
+          role: 'user',
+          parts: [{ type: 'text', text: 'Please explain OpenWaggle in detail.' }],
+          createdAt: earlierTimestamp,
+        },
+        {
+          id: 'assistant-msg-nav-a-1',
+          role: 'assistant',
+          model: 'claude-opus-4-6',
+          parts: [{ type: 'text', text: NAV_LONG_ASSISTANT_TEXT }],
+          createdAt: laterTimestamp,
+        },
+      ],
+    },
+    {
+      title: NAV_SCROLL_THREAD_TITLE_B,
+      updatedAt: now - 1,
+      messages: [
+        {
+          id: 'user-msg-nav-b-1',
+          role: 'user',
+          parts: [{ type: 'text', text: NAV_THREAD_B_USER_MARKER }],
+          createdAt: earlierTimestamp,
+        },
+        {
+          id: 'assistant-msg-nav-b-1',
+          role: 'assistant',
+          model: 'claude-sonnet-4-6',
+          parts: [{ type: 'text', text: 'Acknowledged. This is thread B.' }],
+          createdAt: laterTimestamp,
+        },
+      ],
+    },
+  ])
 }

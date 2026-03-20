@@ -2,7 +2,7 @@
 name: project-learnings
 description: Technical learnings log for OpenWaggle. Stores warnings, pattern preferences, and historical engineering learnings; workflow policy lives in AGENTS.md and CLAUDE.md.
 owner: openwaggle-core
-last_updated: 2026-03-11
+last_updated: 2026-03-20
 ---
 
 # LEARNINGS.md
@@ -61,6 +61,9 @@ This document stores project-specific technical learnings only.
 - React Compiler checks fail on `try`/`finally` without `catch`. Rewrite to promise-chain cleanup.
 - `@testing-library/react` auto-cleanup needs `globals: true` or explicit `afterEach(() => cleanup())`.
 - Component test Vitest configs need `@vitejs/plugin-react` in plugins for JSX runtime.
+- Thread-switch scroll persistence must not capture `scroller.scrollTop` from a conversation-change effect as the source of truth; by effect time, the DOM may already represent the incoming thread. Cache per-thread scroll position from scroll events and persist/flush that cache on switches.
+- Chat thread navigation can deliver `activeConversationId` and `lastUserMessageId` on different renders. Treat the first non-null `lastUserMessageId` after a conversation switch as baseline (seen), or send-anchor logic will misfire and jump scroll on navigation.
+- In real navigation hydration, `lastUserMessageId` can change multiple times (stale previous-thread ID, then interim, then final). Suppress user-anchor scroll until the conversation snapshot stabilizes for a short settle window; one-shot baseline suppression is insufficient.
 
 ### IPC & Shared Types
 - Shared IPC channel maps can generate preload helpers directly. Export channel arg/payload utility types for DRY preload.
@@ -110,6 +113,7 @@ This document stores project-specific technical learnings only.
 - `react-doctor` defaults to changed-files-only on feature branches. Use `GIT_DIR=/nonexistent` for full-repo scans.
 - Vitest `vi.mock()` factories are hoisted before top-level variables. Use `vi.hoisted(...)` for shared mock handles.
 - Vite/Electron dev mode: patch changes under `node_modules` can be masked by stale `.vite/deps` prebundles. Use `optimizeDeps.force = true`.
+- Playwright quick runs (`pnpm exec playwright test` / `test:e2e:headless:quick`) execute against the current built Electron artifacts. Rebuild first (`pnpm build`) when validating renderer behavior changes, or E2E can report stale results.
 
 ### Auto-Update & Release Pipeline
 - `electron-updater` is a runtime dependency (not devDep) because it ships in the main process bundle. It has CJS exports so it works when externalized by electron-vite (no need to add to `externalizeDeps.exclude`).

@@ -67,11 +67,14 @@ function createSection(
 }
 
 describe('ChatTranscript wiring', () => {
-  it('passes waggle auto-follow policy flag into useChatScrollBehaviour', () => {
+  it('passes waggle auto-follow policy and conversation identity into useChatScrollBehaviour', () => {
     render(
       <ChatTranscript
         section={createSection({
           disableAutoFollowDuringWaggleStreaming: true,
+          activeConversationId:
+            'conv-wiring-test' as ChatTranscriptSectionState['activeConversationId'],
+          lastUserMessageId: 'user-1',
         })}
       />,
     )
@@ -79,6 +82,8 @@ describe('ChatTranscript wiring', () => {
     expect(useChatScrollBehaviourMock).toHaveBeenCalledWith(
       expect.objectContaining({
         disableAutoFollowDuringWaggleStreaming: true,
+        activeConversationId: 'conv-wiring-test',
+        lastUserMessageId: 'user-1',
       }),
     )
   })
