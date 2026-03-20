@@ -101,62 +101,79 @@ export function useWaggleMetadataLookup(
       if (liveMeta) {
         // Live streaming: prefer per-message metadata from stream chunks.
         lookup[msg.id] = liveMeta
-      } else if (assistantIndex < completedTurnMeta.length) {
-        // Fallback for messages that already completed and have turn-end metadata.
-        const meta = completedTurnMeta[assistantIndex]
-        if (meta) {
-          lookup[msg.id] = meta
-        }
-      } else if (completedTurnMeta.length === 0 && initialTurnMeta) {
-        // Very first turn is still streaming — use the stable initial metadata
-        // instead of currentAgentIndex which may have already advanced.
+        assistantIndex++
+        continue
+      }
+
+      // Fallback for messages that already completed and have turn-end metadata.
+      const completedMeta =
+        assistantIndex < completedTurnMeta.length ? completedTurnMeta[assistantIndex] : undefined
+      if (completedMeta) {
+        lookup[msg.id] = completedMeta
+        assistantIndex++
+        continue
+      }
+
+      // Very first turn is still streaming — use the stable initial metadata
+      // instead of currentAgentIndex which may have already advanced.
+      if (completedTurnMeta.length === 0 && initialTurnMeta) {
         lookup[msg.id] = initialTurnMeta
-      } else {
-        // In-progress turn (last assistant message) — use current agent from store
-        const isSynthesis = currentAgentIndex === -1
-        if (isSynthesis) {
-          lookup[msg.id] = {
-            agentIndex: -1,
-            agentLabel: 'Synthesis',
-            agentColor: 'emerald',
-            agentModel: config.agents[0].model,
-            turnNumber: completedTurnMeta.length,
-            isSynthesis: true,
-          }
-        } else {
-          const agent = config.agents[currentAgentIndex]
-          if (agent) {
-            lookup[msg.id] = {
-              agentIndex: currentAgentIndex,
-              agentLabel: currentAgentLabel,
-              agentColor: agent.color,
-              agentModel: agent.model,
-              turnNumber: completedTurnMeta.length,
-            }
-          }
+        assistantIndex++
+        continue
+      }
+
+      // In-progress turn (last assistant message) — use current agent from store
+      const isSynthesis = currentAgentIndex === -1
+      if (isSynthesis) {
+        lookup[msg.id] = {
+          agentIndex: -1,
+          agentLabel: 'Synthesis',
+          agentColor: 'emerald',
+          agentModel: config.agents[0].model,
+          turnNumber: completedTurnMeta.length,
+          isSynthesis: true,
+        }
+        assistantIndex++
+        continue
+      }
+
+      const agent = config.agents[currentAgentIndex]
+      if (agent) {
+        lookup[msg.id] = {
+          agentIndex: currentAgentIndex,
+          agentLabel: currentAgentLabel,
+          agentColor: agent.color,
+          agentModel: agent.model,
+          turnNumber: completedTurnMeta.length,
         }
       }
-    } else {
-      // Historical or early streaming (no completed turns yet):
-      // Prefer persisted metadata (handles synthesis).
-      // Position-based fallback only applies to legacy conversations that have
-      // zero persisted waggle metadata. When at least one message has persisted
-      // waggle metadata, messages without it are post-waggle standard messages
-      // and should not receive waggle styling.
-      const persisted = persistedMeta.get(assistantIndex)
-      if (persisted) {
-        lookup[msg.id] = persisted
-      } else if (persistedMeta.size === 0) {
-        const agentIdx = assistantIndex % config.agents.length
-        const agent = config.agents[agentIdx]
-        if (agent) {
-          lookup[msg.id] = {
-            agentIndex: agentIdx,
-            agentLabel: agent.label,
-            agentColor: agent.color,
-            agentModel: agent.model,
-            turnNumber: assistantIndex,
-          }
+      assistantIndex++
+      continue
+    }
+
+    // Historical or early streaming (no completed turns yet):
+    // Prefer persisted metadata (handles synthesis).
+    // Position-based fallback only applies to legacy conversations that have
+    // zero persisted waggle metadata. When at least one message has persisted
+    // waggle metadata, messages without it are post-waggle standard messages
+    // and should not receive waggle styling.
+    const persisted = persistedMeta.get(assistantIndex)
+    if (persisted) {
+      lookup[msg.id] = persisted
+      assistantIndex++
+      continue
+    }
+
+    if (persistedMeta.size === 0) {
+      const agentIdx = assistantIndex % config.agents.length
+      const agent = config.agents[agentIdx]
+      if (agent) {
+        lookup[msg.id] = {
+          agentIndex: agentIdx,
+          agentLabel: agent.label,
+          agentColor: agent.color,
+          agentModel: agent.model,
+          turnNumber: assistantIndex,
         }
       }
     }
