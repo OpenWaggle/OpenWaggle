@@ -39,6 +39,16 @@ const HERO_SCREENSHOT_PATH = path.join(SCREENSHOT_OUTPUT_DIR, 'hero-screenshot.p
 const CODING_SCREENSHOT_PATH = path.join(SCREENSHOT_OUTPUT_DIR, 'feature-coding-agent.png')
 const GIT_SCREENSHOT_PATH = path.join(SCREENSHOT_OUTPUT_DIR, 'feature-git-workflow.png')
 const EXTENSIBLE_SCREENSHOT_PATH = path.join(SCREENSHOT_OUTPUT_DIR, 'feature-extensible.png')
+const WAGGLE_MAX_TURNS_SAFETY = 5
+const USER_MESSAGE_OFFSET_MS = 7_000
+const OPENING_ADVOCATE_OFFSET_MS = 6_000
+const FIRST_CRITIC_OFFSET_MS = 5_000
+const SECOND_ADVOCATE_OFFSET_MS = 4_000
+const SECOND_CRITIC_OFFSET_MS = 3_000
+const FINAL_ADVOCATE_OFFSET_MS = 2_000
+const SECOND_ADVOCATE_TURN_NUMBER = 2
+const SECOND_CRITIC_TURN_NUMBER = 3
+const FINAL_ADVOCATE_TURN_NUMBER = 4
 
 function buildElectronEnv(userDataDir: string): Record<string, string> {
   const env: Record<string, string> = {
@@ -148,21 +158,21 @@ async function seedMarketingConversation(userDataDir: string, projectPath: strin
       ],
       stop: {
         primary: 'consensus',
-        maxTurnsSafety: 5,
+        maxTurnsSafety: WAGGLE_MAX_TURNS_SAFETY,
       },
     },
     messages: [
       {
         id: 'website-user-1',
         role: 'user',
-        createdAt: now - 7_000,
+        createdAt: now - USER_MESSAGE_OFFSET_MS,
         parts: [{ type: 'text', text: THREAD_PROMPT }],
       },
       {
         id: 'website-assistant-1',
         role: 'assistant',
         model: 'claude-opus-4-6',
-        createdAt: now - 6_000,
+        createdAt: now - OPENING_ADVOCATE_OFFSET_MS,
         metadata: { waggle: makeWaggleMetadata('Advocate', 0) },
         parts: [
           {
@@ -191,7 +201,7 @@ async function seedMarketingConversation(userDataDir: string, projectPath: strin
         id: 'website-assistant-2',
         role: 'assistant',
         model: 'claude-sonnet-4-6',
-        createdAt: now - 5_000,
+        createdAt: now - FIRST_CRITIC_OFFSET_MS,
         metadata: { waggle: makeWaggleMetadata('Critic', 1) },
         parts: [
           {
@@ -214,8 +224,8 @@ async function seedMarketingConversation(userDataDir: string, projectPath: strin
         id: 'website-assistant-3',
         role: 'assistant',
         model: 'claude-opus-4-6',
-        createdAt: now - 4_000,
-        metadata: { waggle: makeWaggleMetadata('Advocate', 2) },
+        createdAt: now - SECOND_ADVOCATE_OFFSET_MS,
+        metadata: { waggle: makeWaggleMetadata('Advocate', SECOND_ADVOCATE_TURN_NUMBER) },
         parts: [
           {
             type: 'text',
@@ -237,8 +247,8 @@ async function seedMarketingConversation(userDataDir: string, projectPath: strin
         id: 'website-assistant-4',
         role: 'assistant',
         model: 'claude-sonnet-4-6',
-        createdAt: now - 3_000,
-        metadata: { waggle: makeWaggleMetadata('Critic', 3) },
+        createdAt: now - SECOND_CRITIC_OFFSET_MS,
+        metadata: { waggle: makeWaggleMetadata('Critic', SECOND_CRITIC_TURN_NUMBER) },
         parts: [
           {
             type: 'text',
@@ -260,8 +270,8 @@ async function seedMarketingConversation(userDataDir: string, projectPath: strin
         id: 'website-assistant-5',
         role: 'assistant',
         model: 'claude-opus-4-6',
-        createdAt: now - 2_000,
-        metadata: { waggle: makeWaggleMetadata('Advocate', 4) },
+        createdAt: now - FINAL_ADVOCATE_OFFSET_MS,
+        metadata: { waggle: makeWaggleMetadata('Advocate', FINAL_ADVOCATE_TURN_NUMBER) },
         parts: [
           {
             type: 'text',
