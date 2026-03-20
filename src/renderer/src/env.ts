@@ -8,6 +8,7 @@ declare global {
 
 const isDevelopment = typeof window !== 'undefined' && window.location.protocol !== 'file:'
 const APPROVAL_TRACE_STORAGE_KEY = 'openwaggle.approvalTrace'
+const TANSTACK_DEVTOOLS_STORAGE_KEY = 'openwaggle.tanstackDevtools'
 const logLevel = 'info'
 
 function getApprovalTraceEnabled(): boolean {
@@ -22,8 +23,21 @@ function getApprovalTraceEnabled(): boolean {
   }
 }
 
+function getTanStackDevtoolsEnabled(): boolean {
+  if (!isDevelopment || typeof window === 'undefined') {
+    return false
+  }
+
+  try {
+    return window.localStorage.getItem(TANSTACK_DEVTOOLS_STORAGE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
 export const env = {
   isDevelopment,
   approvalTraceEnabled: getApprovalTraceEnabled(),
+  tanstackDevtoolsEnabled: getTanStackDevtoolsEnabled(),
   logLevel,
 } as const

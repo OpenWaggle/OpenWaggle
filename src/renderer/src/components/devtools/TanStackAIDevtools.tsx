@@ -13,7 +13,6 @@ const DEFAULT_EVENT_BUS_CONFIG: DevtoolsEventBusConfig = {
   port: PORT,
   protocol: 'http',
 }
-const DEVTOOLS_PLUGINS = [aiDevtoolsPlugin()]
 
 function getRuntimeApi(): OpenWaggleApi | null {
   if (typeof window === 'undefined') return null
@@ -25,7 +24,7 @@ export function TanStackAIDevtools() {
     useState<DevtoolsEventBusConfig>(DEFAULT_EVENT_BUS_CONFIG)
 
   useEffect(() => {
-    if (!env.isDevelopment) return
+    if (!env.isDevelopment || !env.tanstackDevtoolsEnabled) return
     const runtimeApi = getRuntimeApi()
     if (typeof runtimeApi?.getDevtoolsEventBusConfig !== 'function') return
 
@@ -48,11 +47,11 @@ export function TanStackAIDevtools() {
     }
   }, [])
 
-  if (!env.isDevelopment) return null
+  if (!env.isDevelopment || !env.tanstackDevtoolsEnabled) return null
 
   return (
     <TanStackDevtools
-      plugins={DEVTOOLS_PLUGINS}
+      plugins={[aiDevtoolsPlugin()]}
       eventBusConfig={{
         connectToServerBus: eventBusConfig.enabled,
         host: eventBusConfig.host,
