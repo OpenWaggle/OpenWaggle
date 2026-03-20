@@ -464,7 +464,7 @@ describe('registerWaggleHandlers', () => {
         expect.objectContaining({
           type: 'TOOL_CALL_ARGS',
           toolCallId: 'turn-boundary-1',
-          delta: '{}',
+          delta: expect.stringContaining('"agentLabel":"Agent B"'),
         }),
       )
       expect(emitStreamChunkMock).toHaveBeenNthCalledWith(
@@ -493,6 +493,162 @@ describe('registerWaggleHandlers', () => {
           toolName: 'readFile',
         }),
       )
+    })
+
+    it('rewrites text message chunk ids to one stable id per waggle turn', async () => {
+      const turnZeroMeta: WaggleStreamMetadata = {
+        agentIndex: 0,
+        agentLabel: 'Agent A',
+        agentColor: 'blue',
+        agentModel: SupportedModelId('claude-sonnet-4-5'),
+        turnNumber: 0,
+        collaborationMode: 'sequential',
+      }
+      const turnOneMeta: WaggleStreamMetadata = {
+        agentIndex: 1,
+        agentLabel: 'Agent B',
+        agentColor: 'amber',
+        agentModel: SupportedModelId('gpt-4.1-mini'),
+        turnNumber: 1,
+        collaborationMode: 'sequential',
+      }
+
+      runWaggleSequentialMock.mockImplementationOnce(
+        async ({
+          onStreamChunk,
+        }: {
+          onStreamChunk: (chunk: StreamChunk, meta: WaggleStreamMetadata) => void
+        }) => {
+          onStreamChunk(
+            {
+              type: 'TEXT_MESSAGE_START',
+              timestamp: 1,
+              messageId: 'turn-0-first-start',
+              role: 'assistant',
+            },
+            turnZeroMeta,
+          )
+          onStreamChunk(
+            {
+              type: 'TEXT_MESSAGE_CONTENT',
+              timestamp: 2,
+              messageId: 'turn-0-first-start',
+              delta: 'hello',
+            },
+            turnZeroMeta,
+          )
+          onStreamChunk(
+            {
+              type: 'TEXT_MESSAGE_START',
+              timestamp: 3,
+              messageId: 'turn-0-continuation-start',
+              role: 'assistant',
+            },
+            turnZeroMeta,
+          )
+          onStreamChunk(
+            {
+              type: 'TEXT_MESSAGE_CONTENT',
+              timestamp: 4,
+              messageId: 'turn-0-continuation-start',
+              delta: 'again',
+            },
+            turnZeroMeta,
+          )
+          onStreamChunk(
+            {
+              type: 'TEXT_MESSAGE_END',
+              timestamp: 5,
+              messageId: 'turn-0-continuation-start',
+            },
+            turnZeroMeta,
+          )
+          onStreamChunk(
+            {
+              type: 'TEXT_MESSAGE_START',
+              timestamp: 6,
+              messageId: 'turn-1-start',
+              role: 'assistant',
+            },
+            turnOneMeta,
+          )
+          onStreamChunk(
+            {
+              type: 'TEXT_MESSAGE_CONTENT',
+              timestamp: 7,
+              messageId: 'turn-1-start',
+              delta: 'critic',
+            },
+            turnOneMeta,
+          )
+          onStreamChunk(
+            {
+              type: 'TEXT_MESSAGE_END',
+              timestamp: 8,
+              messageId: 'turn-1-start',
+            },
+            turnOneMeta,
+          )
+
+          return {
+            newMessages: [
+              {
+                id: MessageId('assistant-1'),
+                role: 'assistant',
+                parts: [{ type: 'text', text: 'done' }],
+                createdAt: Date.now(),
+              },
+            ],
+            lastError: undefined,
+          }
+        },
+      )
+
+      registerWaggleHandlers()
+      const handler = getInvokeHandler('agent:send-waggle-message')
+
+      await handler?.(
+        {},
+        ConversationId('conv-1'),
+        { text: 'Do something', qualityPreset: 'medium', attachments: [] },
+        validWaggleConfig(),
+      )
+
+      const waggleTextCalls = emitWaggleStreamChunkMock.mock.calls.filter((call) => {
+        const chunk = call[1] as StreamChunk
+        return (
+          chunk.type === 'TEXT_MESSAGE_START' ||
+          chunk.type === 'TEXT_MESSAGE_CONTENT' ||
+          chunk.type === 'TEXT_MESSAGE_END'
+        )
+      })
+      const turnZeroIds = new Set(
+        waggleTextCalls
+          .filter((call) => (call[2] as WaggleStreamMetadata).turnNumber === 0)
+          .map((call) => (call[1] as StreamChunk & { messageId: string }).messageId),
+      )
+      const turnOneIds = new Set(
+        waggleTextCalls
+          .filter((call) => (call[2] as WaggleStreamMetadata).turnNumber === 1)
+          .map((call) => (call[1] as StreamChunk & { messageId: string }).messageId),
+      )
+
+      expect(turnZeroIds.size).toBe(1)
+      expect(turnOneIds.size).toBe(1)
+      expect(Array.from(turnZeroIds)[0]).not.toBe(Array.from(turnOneIds)[0])
+      expect(Array.from(turnZeroIds)[0]).not.toBe('turn-0-continuation-start')
+
+      const mainTextIds = emitStreamChunkMock.mock.calls
+        .filter((call) => {
+          const chunk = call[1] as StreamChunk
+          return (
+            chunk.type === 'TEXT_MESSAGE_START' ||
+            chunk.type === 'TEXT_MESSAGE_CONTENT' ||
+            chunk.type === 'TEXT_MESSAGE_END'
+          )
+        })
+        .map((call) => (call[1] as StreamChunk & { messageId: string }).messageId)
+      expect(new Set(mainTextIds)).toEqual(new Set([...turnZeroIds, ...turnOneIds]))
     })
 
     it('persists conversation with new messages after successful run', async () => {

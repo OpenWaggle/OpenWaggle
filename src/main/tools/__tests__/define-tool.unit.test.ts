@@ -1,8 +1,16 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { Schema } from '@shared/schema'
+import { ConversationId } from '@shared/types/brand'
 import { afterEach, describe, expect, it } from 'vitest'
-import { type NormalizedToolResult, resolveProjectPath } from '../define-tool'
+import {
+  bindToolContextToTool,
+  defineOpenWaggleTool,
+  type NormalizedToolResult,
+  resolveProjectPath,
+} from '../define-tool'
+import { withoutApproval } from '../without-approval'
 
 const tempDirs: string[] = []
 
@@ -75,5 +83,28 @@ describe('NormalizedToolResult types', () => {
       expect(typeof result.text).toBe('string')
       expect(result.text).toBe('42')
     }
+  })
+})
+
+describe('bindToolContextToTool', () => {
+  it('preserves approval overrides after binding context-bound tools', () => {
+    const approvalTool = defineOpenWaggleTool({
+      name: 'approvalTool',
+      description: 'requires approval by default',
+      needsApproval: true,
+      inputSchema: Schema.Struct({}),
+      async execute() {
+        return 'ok'
+      },
+    })
+
+    const [approvalStrippedTool] = withoutApproval([approvalTool])
+
+    const bound = bindToolContextToTool(approvalStrippedTool, {
+      conversationId: ConversationId('conv-1'),
+      projectPath: '/repo',
+    })
+
+    expect(bound.needsApproval).toBe(false)
   })
 })
