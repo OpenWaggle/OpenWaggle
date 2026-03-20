@@ -49,6 +49,27 @@ The `ChatClient` (`@tanstack/ai-client`) reconstructs UIMessages from stream chu
 
 ---
 
+## 4. Repeated `TEXT_MESSAGE_START` Events Create Extra Assistant UIMessages in Multi-Turn Wrappers
+
+**Package:** `@tanstack/ai-react`
+
+**Severity:** High for wrapper orchestration flows (Waggle turns mis-render live)
+
+**Problem:**
+`useChat`/TextEngine creates one assistant `UIMessage` per unique `TEXT_MESSAGE_START.messageId`. In wrappers that represent one logical turn across multiple continuation phases, repeated `TEXT_MESSAGE_START` events with new IDs generate extra assistant messages mid-turn. This breaks turn-level metadata mapping and live rendering order.
+
+**Root Cause:**
+`handleTextMessageStartEvent()` in `@tanstack/ai-react` routes by `messageId` and calls `ensureAssistantMessage()`. A new `messageId` means a new assistant message, even if the higher-level orchestration still considers it the same turn.
+
+**OpenWaggle workaround:**
+Normalize `TEXT_MESSAGE_START` / `TEXT_MESSAGE_CONTENT` / `TEXT_MESSAGE_END` chunk IDs to a stable per-turn ID before emitting stream chunks. Apply this normalization consistently to both:
+1. `agent:stream-chunk` (UI message assembly)
+2. `waggle:stream-chunk` (live messageId → turn metadata lookup)
+
+**Status:** Mitigated in OpenWaggle stream adapter layer. Upstream behavior is still ID-driven by design.
+
+---
+
 ## Regression Coverage Matrix
 
 Run all known-issue regression coverage with:
@@ -62,6 +83,7 @@ pnpm test:tanstack-known-issues
 | #1 continuation chunk emission | Patch sentinel (asserts full START+ARGS+END sequence) | `src/main/agent/__tests__/tanstack-known-issues.unit.test.ts` |
 | #1 + #2 continuation normalization | OpenWaggle normalization/collector regressions | `src/main/agent/continuation-normalizer.unit.test.ts`, `src/main/agent/stream-part-collector.unit.test.ts` |
 | #3 transcript loss after client recreation | Local patch + regression | `src/renderer/src/hooks/__tests__/useAgentChat.unit.test.ts` |
+| #4 repeated TEXT_MESSAGE_START IDs in wrappers | Stream normalization + renderer/e2e guardrails | `src/main/ipc/__tests__/waggle-handler.unit.test.ts`, `src/renderer/src/components/chat/__tests__/useBuildChatRows.unit.test.ts`, `e2e/waggle-streaming-rendering.e2e.test.ts` |
 
 ### Patch Regression Detection
 
