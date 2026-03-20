@@ -1,6 +1,7 @@
 ---
 import Button from '@/components/Button.astro';
 import HoneycombBackground from '@/components/HoneycombBackground.astro';
+import ProductScreenshot from '@/components/landing/ProductScreenshot.astro';
 ---
 
 <section class="relative w-full overflow-hidden">
@@ -57,12 +58,12 @@ import HoneycombBackground from '@/components/HoneycombBackground.astro';
       </Button>
     </div>
 
-    <!-- Screenshot placeholder -->
-    <div class="mt-4 flex h-[320px] w-full max-w-[1100px] items-center justify-center rounded-xl bg-bg-secondary border border-border-light sm:h-[400px] md:h-[500px] lg:h-[660px]">
-      <div class="flex flex-col items-center gap-2">
-        <span class="text-base font-medium text-text-tertiary">Product Screenshot</span>
-        <span class="text-[13px] text-text-tertiary">App UI with Waggle Mode active</span>
-      </div>
+    <div class="mt-4 w-full max-w-[1100px]">
+      <ProductScreenshot
+        src="/screenshots/hero-screenshot.png"
+        alt="OpenWaggle home screen with the sidebar, composer, and project workspace selected"
+        eager
+      />
     </div>
   </div>
 </section>

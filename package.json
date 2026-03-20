@@ -44,6 +44,7 @@
     "check:magic-numbers": "tsx scripts/check-magic-numbers.ts",
     "check": "pnpm typecheck && pnpm lint && pnpm check:pattern-style && pnpm check:decision-size && pnpm check:magic-numbers",
     "prepush:main": "pnpm check && pnpm format && pnpm test:all",
+    "website:capture-screenshots": "pnpm prepare:native:electron && tsx scripts/capture-website-screenshots.ts",
     "prepare": "husky",
     "website:dev": "pnpm --filter @openwaggle/website dev",
     "website:build": "pnpm --filter @openwaggle/website build",

@@ -1,0 +1,35 @@
+---
+interface Props {
+  readonly src: string;
+  readonly alt: string;
+  readonly aspectClass?: string;
+  readonly eager?: boolean;
+  readonly objectPositionClass?: string;
+  readonly fit?: 'cover' | 'contain';
+}
+
+const {
+  src,
+  alt,
+  aspectClass = 'aspect-[5/3]',
+  eager = false,
+  objectPositionClass = 'object-center',
+  fit = 'contain',
+} = Astro.props;
+
+const objectFitClass = fit === 'contain' ? 'object-contain' : 'object-cover';
+const hoverClass = fit === 'contain' ? '' : 'group-hover:scale-[1.01]';
+---
+
+<div class={`group relative w-full overflow-hidden rounded-[16px] border border-border-light bg-bg-secondary/80 shadow-[0_24px_60px_rgba(0,0,0,0.32)] ${aspectClass}`}>
+  <div
+    aria-hidden="true"
+    class="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0)_18%)]"
+  />
+  <img
+    src={src}
+    alt={alt}
+    loading={eager ? 'eager' : 'lazy'}
+    class={`h-full w-full ${objectFitClass} transition-transform duration-500 ease-out ${hoverClass} ${objectPositionClass}`}
+  />
+</div>

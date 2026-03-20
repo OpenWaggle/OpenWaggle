@@ -1,9 +1,11 @@
 ---
 import SectionHeader from '@/components/SectionHeader.astro';
+import ProductScreenshot from '@/components/landing/ProductScreenshot.astro';
 
 interface Feature {
   title: string;
   desc: string;
+  screenshotSrc: string;
   screenshotAlt: string;
   imageRight: boolean;
 }
@@ -12,19 +14,22 @@ const features: Feature[] = [
   {
     title: 'Full coding agent',
     desc: "Read, write, and edit files. Run shell commands. Browse the web. Ask clarifying questions. All with approval-based execution — you stay in control of every destructive operation.",
+    screenshotSrc: '/screenshots/feature-coding-agent.png',
     screenshotAlt: 'Chat and tool calls view',
     imageRight: true,
   },
   {
     title: 'Git-native workflow',
     desc: "Live diff stats in the header. Branch management from the picker. Stage, commit, and review changes in a side-by-side diff panel — all without leaving the conversation.",
+    screenshotSrc: '/screenshots/feature-git-workflow.png',
     screenshotAlt: 'Git integration and diff panel',
     imageRight: false,
   },
   {
     title: 'Infinitely extensible',
     desc: "Custom skills add specialized knowledge to the agent. MCP servers connect external tools — from Playwright browser automation to Chrome DevTools. Per-project AGENTS.md files scope instructions to specific paths.",
-    screenshotAlt: 'Skills and MCP servers panel',
+    screenshotSrc: '/screenshots/feature-extensible.png',
+    screenshotAlt: 'MCP server registry and extensibility view',
     imageRight: true,
   },
 ];
@@ -44,8 +49,11 @@ const features: Feature[] = [
             <h3 class="font-display text-2xl font-semibold text-text-primary md:text-[28px]">{feat.title}</h3>
             <p class="text-base leading-[1.6] text-text-tertiary">{feat.desc}</p>
           </div>
-          <div class="flex min-h-[240px] w-full items-center justify-center rounded-xl bg-bg-secondary border border-border sm:min-h-[280px] md:min-h-[340px] md:w-1/2" role="img" aria-label={feat.screenshotAlt}>
-            <span class="text-sm text-text-tertiary">{feat.screenshotAlt}</span>
+          <div class="w-full md:w-1/2">
+            <ProductScreenshot
+              src={feat.screenshotSrc}
+              alt={feat.screenshotAlt}
+            />
           </div>
         </div>
       ))}
