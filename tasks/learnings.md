@@ -64,6 +64,7 @@ This document stores project-specific technical learnings only.
 - Thread-switch scroll persistence must not capture `scroller.scrollTop` from a conversation-change effect as the source of truth; by effect time, the DOM may already represent the incoming thread. Cache per-thread scroll position from scroll events and persist/flush that cache on switches.
 - Chat thread navigation can deliver `activeConversationId` and `lastUserMessageId` on different renders. Treat the first non-null `lastUserMessageId` after a conversation switch as baseline (seen), or send-anchor logic will misfire and jump scroll on navigation.
 - In real navigation hydration, `lastUserMessageId` can change multiple times (stale previous-thread ID, then interim, then final). Suppress user-anchor scroll until the conversation snapshot stabilizes for a short settle window; one-shot baseline suppression is insufficient.
+- Navigation-time user-anchor suppression must still allow a genuine immediate send in the active thread. The safe discriminator is a stable per-thread baseline plus a fresh `isLoading` transition and a single-message append; a raw settle timeout alone will suppress legitimate send-anchor scrolls and fail E2E.
 
 ### IPC & Shared Types
 - Shared IPC channel maps can generate preload helpers directly. Export channel arg/payload utility types for DRY preload.

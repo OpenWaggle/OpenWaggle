@@ -250,6 +250,8 @@ export function useChatScrollBehaviour({
     rowsLength: number
   } | null>(null)
   const navigationAnchorSettleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const previousMessagesLengthRef = useRef(messagesLength)
+  const previousIsLoadingRef = useRef(isLoading)
   activeConversationIdRef.current = activeConversationId
   if (activeConversationId) {
     lastKnownConversationIdRef.current = activeConversationId
@@ -399,10 +401,34 @@ export function useChatScrollBehaviour({
     const isHydratingAfterNavigation = suppressUserAnchorDuringNavigationRef.current
     const hasUnreadUserMessage =
       lastUserMessageId !== null && lastUserMessageId !== lastScrolledIdRef.current
+    const previousNavigationSnapshot = navigationAnchorSettleSnapshotRef.current
+    const hadSettledNavigationBaseline =
+      previousNavigationSnapshot?.conversationId === activeConversationId &&
+      previousNavigationSnapshot.rowsLength > 0 &&
+      previousNavigationSnapshot.lastUserMessageId === lastScrolledIdRef.current
+    const didOptimisticUserMessageAppend =
+      previousMessagesLengthRef.current > 0 &&
+      messagesLength === previousMessagesLengthRef.current + 1
+    const didUserStartLoadingInActiveThread = isLoading && !previousIsLoadingRef.current
+    const shouldAllowImmediateUserAnchor =
+      isHydratingAfterNavigation &&
+      hasUnreadUserMessage &&
+      hadSettledNavigationBaseline &&
+      didOptimisticUserMessageAppend &&
+      didUserStartLoadingInActiveThread
+
+    if (shouldAllowImmediateUserAnchor) {
+      suppressUserAnchorDuringNavigationRef.current = false
+      navigationAnchorSettleSnapshotRef.current = null
+      if (navigationAnchorSettleTimerRef.current) {
+        clearTimeout(navigationAnchorSettleTimerRef.current)
+        navigationAnchorSettleTimerRef.current = null
+      }
+    }
 
     // During thread hydration, user message IDs can flip multiple times as state settles.
     // Treat all interim IDs as baseline and only re-enable send-anchor after values stabilize.
-    if (isHydratingAfterNavigation) {
+    if (suppressUserAnchorDuringNavigationRef.current) {
       if (hasUnreadUserMessage) {
         lastScrolledIdRef.current = lastUserMessageId
         upsertScrollPosition(scrollPositionsRef, persistTimerRef, activeConversationId, {
@@ -469,7 +495,12 @@ export function useChatScrollBehaviour({
         )
       })
     }
-  }, [activeConversationId, lastUserMessageId, rowsLength, messagesLength])
+  }, [activeConversationId, isLoading, lastUserMessageId, rowsLength, messagesLength])
+
+  useEffect(() => {
+    previousMessagesLengthRef.current = messagesLength
+    previousIsLoadingRef.current = isLoading
+  }, [isLoading, messagesLength])
 
   // Auto-scroll to bottom during streaming when near the bottom.
   const prevRowCountRef = useRef(rowsLength)

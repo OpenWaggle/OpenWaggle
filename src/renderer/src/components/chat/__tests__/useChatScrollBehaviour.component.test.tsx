@@ -407,6 +407,73 @@ describe('useChatScrollBehaviour', () => {
     expect(scroller.scrollTo).not.toHaveBeenCalled()
   })
 
+  it('still anchors when a real user send happens during navigation suppression', async () => {
+    const scroller = createScroller({ scrollHeight: 2000, clientHeight: 500, scrollTop: 220 })
+    const userMessage = createUserMessageElement(360)
+
+    localStorage.setItem(
+      SCROLL_POSITIONS_STORAGE_KEY,
+      JSON.stringify({
+        'conv-b': {
+          scrollTop: 220,
+          lastSeenUserMessageId: 'user-b-1',
+          updatedAt: Date.now(),
+        },
+      }),
+    )
+
+    const { result, rerender } = renderHook(
+      (props) => {
+        const hookResult = useChatScrollBehaviour(props)
+        attachRefs(hookResult, {
+          scroller,
+          userMessage,
+        })
+        return hookResult
+      },
+      {
+        initialProps: createDefaultParams({
+          activeConversationId: 'conv-a',
+          lastUserMessageId: 'user-a-1',
+          messagesLength: 2,
+          rowsLength: 2,
+          isLoading: false,
+        }),
+      },
+    )
+
+    attachRefs(result.current, { scroller, userMessage })
+
+    rerender(
+      createDefaultParams({
+        activeConversationId: 'conv-b',
+        lastUserMessageId: 'user-b-1',
+        messagesLength: 2,
+        rowsLength: 2,
+        isLoading: false,
+      }),
+    )
+
+    rerender(
+      createDefaultParams({
+        activeConversationId: 'conv-b',
+        lastUserMessageId: 'user-b-2',
+        messagesLength: 3,
+        rowsLength: 3,
+        isLoading: true,
+      }),
+    )
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(REQUEST_ANIMATION_FRAME_DELAY_MS)
+    })
+
+    expect(scroller.scrollTo).toHaveBeenCalledWith({
+      top: 340,
+      behavior: 'smooth',
+    })
+  })
+
   it('saves outgoing thread scroll and restores it when returning', async () => {
     const scroller = createScroller({ scrollHeight: 2000, clientHeight: 500, scrollTop: 0 })
 
