@@ -9,6 +9,7 @@ interface UseChatScrollBehaviourParams {
   messagesLength: number
   rowsLength: number
   isLoading: boolean
+  disableAutoFollowDuringWaggleStreaming: boolean
   activeConversationId: string | null
 }
 
@@ -32,6 +33,7 @@ export function useChatScrollBehaviour({
   messagesLength,
   rowsLength,
   isLoading,
+  disableAutoFollowDuringWaggleStreaming,
   activeConversationId,
 }: UseChatScrollBehaviourParams): UseChatScrollBehaviourResult {
   const scrollerRef = useRef<HTMLDivElement>(null)
@@ -82,18 +84,20 @@ export function useChatScrollBehaviour({
       conversationIdRef.current = activeConversationId
       hasScrolledToBottomRef.current = false
     }
+    if (disableAutoFollowDuringWaggleStreaming) return
     if (hasScrolledToBottomRef.current) return
     if (rowsLength === 0) return
     hasScrolledToBottomRef.current = true
     if (scrollerRef.current) {
       scrollerRef.current.scrollTop = scrollerRef.current.scrollHeight
     }
-  }, [activeConversationId, rowsLength])
+  }, [activeConversationId, disableAutoFollowDuringWaggleStreaming, rowsLength])
 
   // Auto-scroll to bottom during streaming when near the bottom.
   const prevRowCountRef = useRef(rowsLength)
   useEffect(() => {
     if (!isLoading) return
+    if (disableAutoFollowDuringWaggleStreaming) return
     if (rowsLength === prevRowCountRef.current) return
     prevRowCountRef.current = rowsLength
     if (!scrollerRef.current) return
@@ -102,7 +106,7 @@ export function useChatScrollBehaviour({
     if (distanceFromBottom < AUTO_SCROLL_THRESHOLD_PX) {
       el.scrollTop = el.scrollHeight
     }
-  }, [isLoading, rowsLength])
+  }, [isLoading, disableAutoFollowDuringWaggleStreaming, rowsLength])
 
   // Scrollbar hide animation — adds/removes is-scrolling class on scroll.
   const scrollTimerRef = useRef<ReturnType<typeof setTimeout>>(null)

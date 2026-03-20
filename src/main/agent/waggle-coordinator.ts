@@ -1,7 +1,11 @@
 import { DOUBLE_FACTOR } from '@shared/constants/constants'
 import type { HydratedAgentSendPayload, Message } from '@shared/types/agent'
 import { getMessageText, isToolCallPart } from '@shared/types/agent'
-import { type ConversationId, createSkipApprovalToken } from '@shared/types/brand'
+import {
+  type ConversationId,
+  createSkipApprovalToken,
+  type SupportedModelId,
+} from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import type { Settings } from '@shared/types/settings'
 import type {
@@ -22,6 +26,9 @@ const SLICE_ARG_2 = 200
 const RUN_WAGGLE_SEQUENTIAL_VALUE_20 = 20
 const FUNCTION_VALUE_3000 = 3000
 const SLICE_ARG_2_VALUE_3000 = 3000
+const UNRESOLVED_TOOL_NAME_PREVIEW_COUNT = 3
+/** Waggle turns may run orchestrate tools that take minutes. Use 10 min stall timeout. */
+const WAGGLE_STALL_TIMEOUT_MS = 600_000
 
 const logger = createLogger('waggle')
 
@@ -43,6 +50,57 @@ export interface WaggleRunResult {
   readonly totalTurns: number
   readonly consensusReason?: string
   readonly lastError?: string
+}
+
+interface UnresolvedToolCall {
+  readonly id: string
+  readonly name: string
+  readonly state?: 'input-complete' | 'approval-requested' | 'approval-responded'
+  readonly needsApproval: boolean
+}
+
+interface SynthesisStepResult {
+  readonly success: boolean
+  readonly failureReason?: string
+}
+
+function getUnresolvedToolCalls(message: Message): UnresolvedToolCall[] {
+  const unresolvedById = new Map<string, Omit<UnresolvedToolCall, 'id'>>()
+
+  for (const part of message.parts) {
+    if (part.type !== 'tool-call') {
+      continue
+    }
+
+    const toolCallId = String(part.toolCall.id)
+    unresolvedById.set(toolCallId, {
+      name: part.toolCall.name,
+      state: part.toolCall.state,
+      needsApproval: part.toolCall.approval?.needsApproval === true,
+    })
+  }
+
+  for (const part of message.parts) {
+    if (part.type !== 'tool-result') {
+      continue
+    }
+
+    unresolvedById.delete(String(part.toolResult.id))
+  }
+
+  return [...unresolvedById.entries()].map(([id, data]) => ({ id, ...data }))
+}
+
+function buildSynthesisModelCandidates(
+  settings: Settings,
+  agents: WaggleConfig['agents'],
+): readonly SupportedModelId[] {
+  const primaryModel = settings.defaultModel
+  const fallbackModel = agents[0]?.model
+  if (!fallbackModel || fallbackModel === primaryModel) {
+    return [primaryModel]
+  }
+  return [primaryModel, fallbackModel]
 }
 
 /**
@@ -146,6 +204,7 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
           model: agent.model,
           settings,
           skipApproval: createSkipApprovalToken(),
+          stallTimeoutMs: WAGGLE_STALL_TIMEOUT_MS,
           waggleContext: {
             agentLabel: agent.label,
             fileCache: waggleFileCache,
@@ -188,6 +247,34 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
         const assistantMsg = result.finalMessage
         const responseText = getMessageText(assistantMsg)
         const hasToolCalls = assistantMsg.parts.some(isToolCallPart)
+        const unresolvedToolCalls = getUnresolvedToolCalls(assistantMsg)
+
+        if (unresolvedToolCalls.length > 0) {
+          const unresolvedToolNames = unresolvedToolCalls
+            .slice(0, UNRESOLVED_TOOL_NAME_PREVIEW_COUNT)
+            .map((toolCall) => toolCall.name)
+            .join(', ')
+          const moreToolsCount = unresolvedToolCalls.length - UNRESOLVED_TOOL_NAME_PREVIEW_COUNT
+          const unresolvedToolsSummary =
+            moreToolsCount > 0
+              ? `${unresolvedToolNames} (+${String(moreToolsCount)} more)`
+              : unresolvedToolNames
+          const stopReason = `Waggle stopped because ${agent.label} has unresolved tool calls (${unresolvedToolsSummary}).`
+
+          status = 'stopped'
+          lastTurnError = stopReason
+          onTurnEvent({
+            type: 'collaboration-stopped',
+            reason: stopReason,
+          })
+          logger.warn('Stopping waggle due unresolved tool calls', {
+            conversationId,
+            turnNumber,
+            agentLabel: agent.label,
+            unresolvedToolCalls,
+          })
+          break
+        }
 
         if (turnHadError || (responseText.trim().length === 0 && !hasToolCalls)) {
           consecutiveErrorTurns++
@@ -325,7 +412,7 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
       status !== 'stopped' &&
       !signal.aborted
     ) {
-      await runSynthesisStep({
+      const synthesisResult = await runSynthesisStep({
         conversationId,
         workingConversation,
         payload,
@@ -339,11 +426,14 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
         onTurnComplete,
         waggleFileCache,
       })
+      if (!synthesisResult.success && synthesisResult.failureReason) {
+        lastTurnError = synthesisResult.failureReason
+      }
     }
 
-    const totalTurns = accumulatedMessages.filter(
-      (m) => m.role === 'assistant' && !m.metadata?.waggle?.isSynthesis,
-    ).length
+    // Use the debate turn counter — synthesis is no longer tagged with waggle
+    // metadata so we can't rely on filtering by isSynthesis.
+    const totalTurns = successfulTurnCount
     logger.info('Waggle collaboration finished', {
       conversationId,
       status,
@@ -422,7 +512,7 @@ interface SynthesisParams {
   readonly waggleFileCache: WaggleFileCache
 }
 
-async function runSynthesisStep(params: SynthesisParams): Promise<void> {
+async function runSynthesisStep(params: SynthesisParams): Promise<SynthesisStepResult> {
   const {
     conversationId,
     workingConversation,
@@ -438,109 +528,137 @@ async function runSynthesisStep(params: SynthesisParams): Promise<void> {
     waggleFileCache,
   } = params
 
-  // Use Agent A's model for synthesis
-  const synthesisModel = agents[0].model
+  // Prefer the user's standard model for synthesis, then fall back to Agent A's
+  // model if synthesis fails. This avoids silent missing synthesis output when
+  // the default model is temporarily unavailable.
+  const synthesisModels = buildSynthesisModelCandidates(settings, agents)
   const synthesisTurnNumber = successfulAssistantMsgs.length
 
   logger.info('Starting synthesis step', {
     conversationId,
-    model: synthesisModel,
+    model: synthesisModels[0],
+    fallbackModel: synthesisModels[1],
     debateTurns: successfulAssistantMsgs.length,
   })
 
   onTurnEvent({ type: 'synthesis-start' })
 
-  const synthesisMeta: WaggleStreamMetadata = {
-    agentIndex: -1,
-    agentLabel: 'Synthesis',
-    agentColor: 'emerald',
-    agentModel: synthesisModel,
-    turnNumber: synthesisTurnNumber,
-    collaborationMode: 'sequential',
-    isSynthesis: true,
-  }
-
   const synthesisPrompt = buildSynthesisPrompt(payload.text, successfulAssistantMsgs, agents)
-
   const synthesisPayload: HydratedAgentSendPayload = {
     ...payload,
     text: synthesisPrompt,
     attachments: [],
   }
+  let lastFailureReason: string | undefined
 
-  try {
-    const result = await runAgent({
-      conversation: workingConversation,
-      payload: synthesisPayload,
-      model: synthesisModel,
-      settings,
-      skipApproval: createSkipApprovalToken(),
-      waggleContext: {
-        agentLabel: 'Synthesis',
-        fileCache: waggleFileCache,
-      },
-      onChunk: (chunk) => {
-        // Filter terminal events — the envelope handles those
-        if (
-          chunk.type === 'RUN_STARTED' ||
-          chunk.type === 'RUN_FINISHED' ||
-          chunk.type === 'RUN_ERROR'
-        ) {
-          return
-        }
-        onStreamChunk(chunk, synthesisMeta)
-      },
-      signal,
-    })
+  for (let attemptIndex = 0; attemptIndex < synthesisModels.length; attemptIndex++) {
+    const synthesisModel = synthesisModels[attemptIndex]
+    const nextFallbackModel = synthesisModels[attemptIndex + 1]
+    const synthesisMeta: WaggleStreamMetadata = {
+      agentIndex: -1,
+      agentLabel: 'Synthesis',
+      agentColor: 'emerald',
+      agentModel: synthesisModel,
+      turnNumber: synthesisTurnNumber,
+      collaborationMode: 'sequential',
+      isSynthesis: true,
+    }
 
-    const assistantMsg = result.finalMessage
-    const responseText = getMessageText(assistantMsg)
-
-    if (responseText.trim().length > 0) {
-      const taggedSynthesis = makeMessage(
-        'assistant',
-        [...assistantMsg.parts],
-        assistantMsg.model,
-        {
-          ...assistantMsg.metadata,
-          waggle: {
-            agentIndex: -1,
-            agentLabel: 'Synthesis',
-            agentColor: 'emerald',
-            agentModel: synthesisModel,
-            turnNumber: synthesisTurnNumber,
-            isSynthesis: true,
-          },
+    try {
+      const result = await runAgent({
+        conversation: workingConversation,
+        payload: synthesisPayload,
+        model: synthesisModel,
+        settings,
+        skipApproval: createSkipApprovalToken(),
+        stallTimeoutMs: WAGGLE_STALL_TIMEOUT_MS,
+        waggleContext: {
+          agentLabel: 'Synthesis',
+          fileCache: waggleFileCache,
         },
-      )
-      accumulatedMessages.push(taggedSynthesis)
-
-      onTurnEvent({
-        type: 'turn-end',
-        turnNumber: synthesisTurnNumber,
-        agentIndex: -1,
-        agentLabel: 'Synthesis',
-        agentColor: 'emerald',
-        agentModel: synthesisModel,
+        onChunk: (chunk) => {
+          // Filter terminal events — the envelope handles those
+          if (
+            chunk.type === 'RUN_STARTED' ||
+            chunk.type === 'RUN_FINISHED' ||
+            chunk.type === 'RUN_ERROR'
+          ) {
+            return
+          }
+          onStreamChunk(chunk, synthesisMeta)
+        },
+        signal,
       })
 
-      // Persist after synthesis
-      await onTurnComplete?.(accumulatedMessages)
+      const assistantMsg = result.finalMessage
+      const responseText = getMessageText(assistantMsg)
 
-      logger.info('Synthesis step completed', { conversationId })
-    } else {
-      logger.warn('Synthesis step produced no output', { conversationId })
+      if (responseText.trim().length > 0) {
+        // Synthesis is persisted WITHOUT waggle metadata so it renders as
+        // a plain assistant message — no agent colors, no turn divider.
+        const taggedSynthesis = makeMessage(
+          'assistant',
+          [...assistantMsg.parts],
+          assistantMsg.model,
+          assistantMsg.metadata,
+        )
+        accumulatedMessages.push(taggedSynthesis)
+
+        onTurnEvent({
+          type: 'turn-end',
+          turnNumber: synthesisTurnNumber,
+          agentIndex: -1,
+          agentLabel: 'Synthesis',
+          agentColor: 'emerald',
+          agentModel: synthesisModel,
+        })
+
+        // Persist after synthesis
+        await onTurnComplete?.(accumulatedMessages)
+
+        logger.info('Synthesis step completed', {
+          conversationId,
+          model: synthesisModel,
+          usedFallbackModel: attemptIndex > 0,
+        })
+        return { success: true }
+      }
+
+      lastFailureReason = `Synthesis produced no output on model ${String(synthesisModel)}.`
+      logger.warn('Synthesis step produced no output', {
+        conversationId,
+        model: synthesisModel,
+      })
+    } catch (err) {
+      // Don't fail the whole collaboration if synthesis is aborted
+      if (signal.aborted || (err instanceof Error && err.message === 'aborted')) {
+        return { success: false, failureReason: 'Synthesis cancelled.' }
+      }
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      lastFailureReason = `Synthesis failed on model ${String(synthesisModel)}: ${errorMessage}`
+      logger.error('Synthesis step failed', {
+        conversationId,
+        model: synthesisModel,
+        error: errorMessage,
+      })
     }
-  } catch (err) {
-    // Don't fail the whole collaboration if synthesis fails
-    if (signal.aborted || (err instanceof Error && err.message === 'aborted')) {
-      return
+
+    if (nextFallbackModel) {
+      logger.warn('Retrying synthesis with fallback model', {
+        conversationId,
+        failedModel: synthesisModel,
+        fallbackModel: nextFallbackModel,
+      })
     }
-    logger.error('Synthesis step failed', {
-      conversationId,
-      error: err instanceof Error ? err.message : String(err),
-    })
   }
+
+  const failureReason = lastFailureReason ?? 'Synthesis failed.'
+  logger.error('Synthesis step failed for all models', {
+    conversationId,
+    models: synthesisModels,
+    failureReason,
+  })
+  return { success: false, failureReason }
 }
 
 function buildSynthesisPrompt(
@@ -587,6 +705,7 @@ function buildSynthesisPrompt(
     '### Recommendation',
     'Your recommended path forward based on the collaboration.',
     '',
+    'Each agent ended their turn with a summary of their position. Build on those per-turn summaries.',
     'Be concise. Focus on substance over meta-commentary. Do not use tools — synthesize from the transcript above.',
   ].join('\n')
 }

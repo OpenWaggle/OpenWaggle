@@ -70,7 +70,7 @@ const observabilityHook: AgentLifecycleHook = {
   onToolCallEnd: (context, event) => {
     const errorSummary = event.isError ? summarizeToolError(event.result) : undefined
     if (event.completionState === 'input-complete') {
-      logger.info('tool-call-input-complete', {
+      logger.debug('tool-call-input-complete', {
         runId: context.runId,
         conversationId: context.conversation.id,
         toolCallId: event.toolCallId,
@@ -80,7 +80,7 @@ const observabilityHook: AgentLifecycleHook = {
       return
     }
 
-    logger.info('tool-call-end', {
+    logger.debug('tool-call-end', {
       runId: context.runId,
       conversationId: context.conversation.id,
       toolCallId: event.toolCallId,
@@ -103,7 +103,7 @@ const observabilityHook: AgentLifecycleHook = {
 }
 
 function logToolStart(context: AgentRunContext, event: AgentToolCallStartEvent): void {
-  logger.info('tool-call-start', {
+  logger.debug('tool-call-start', {
     runId: context.runId,
     conversationId: context.conversation.id,
     toolCallId: event.toolCallId,

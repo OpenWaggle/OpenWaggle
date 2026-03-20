@@ -21,6 +21,23 @@ const ipcLogger = createRendererLogger('ipc-adapter')
 const SEND_RESOLVE_FALLBACK_MS = 2000
 const RUN_COMPLETED_CLOSE_GRACE_MS = 300
 const RUN_COMPLETED_PENDING_TOOL_GRACE_MS = 2000
+const SUPPRESSED_AUTO_CONNECT_CLOSE_REASONS = new Set([
+  'run-completed-grace',
+  'send-resolved-fallback',
+])
+
+function hasExplicitUserIntentForConnect(
+  messages: Array<UIMessage> | Array<ModelMessage>,
+  pendingPayload: AgentSendPayload | null,
+  waggleConfig: WaggleConfig | null,
+  useContinuationPayload: boolean,
+): boolean {
+  const lastMessage = messages[messages.length - 1]
+  const lastMessageIsUser = Boolean(lastMessage && lastMessage.role === 'user')
+  return (
+    pendingPayload !== null || waggleConfig !== null || lastMessageIsUser || useContinuationPayload
+  )
+}
 
 /**
  * Side-channel for structured error info.
@@ -194,23 +211,37 @@ export function createIpcConnectionAdapter(
       // messages so approval state is preserved across the next run.
       return {
         async *[Symbol.asyncIterator]() {
+          // Consume pending payload/config up front so suppression can distinguish
+          // ghost reconnects from explicit user-triggered sends.
+          const waggleConfig = consumeWaggleConfig?.() ?? null
+          const pendingPayload = consumePendingPayload()
+          const useContinuationPayload = shouldUseContinuationPayload(_messages)
+          const hasUserIntent = hasExplicitUserIntentForConnect(
+            _messages,
+            pendingPayload,
+            waggleConfig,
+            useContinuationPayload,
+          )
+
           // Block TanStack's unwanted auto-continuation after waggle completes.
-          // The sentinel is one-shot: it fires once, then resets so subsequent
-          // legitimate sends on this memoized adapter still work.
+          // Suppression is one-shot and only applies when this connect attempt
+          // has no explicit user intent.
           if (suppressNextAutoConnect) {
             suppressNextAutoConnect = false
-            yield {
-              type: 'RUN_STARTED',
-              timestamp: Date.now(),
-              runId: 'waggle-auto-connect-suppressed',
+            if (!hasUserIntent) {
+              yield {
+                type: 'RUN_STARTED',
+                timestamp: Date.now(),
+                runId: 'waggle-auto-connect-suppressed',
+              }
+              yield {
+                type: 'RUN_FINISHED',
+                timestamp: Date.now(),
+                runId: 'waggle-auto-connect-suppressed',
+                finishReason: 'stop',
+              }
+              return
             }
-            yield {
-              type: 'RUN_FINISHED',
-              timestamp: Date.now(),
-              runId: 'waggle-auto-connect-suppressed',
-              finishReason: 'stop',
-            }
-            return
           }
 
           // Queue + signal pattern for bridging push-based IPC → pull-based AsyncIterable
@@ -224,9 +255,6 @@ export function createIpcConnectionAdapter(
           const approvalTraceEnabled = env.approvalTraceEnabled
           let fallbackCloseTimer: ReturnType<typeof setTimeout> | null = null
           let runCompletedCloseTimer: ReturnType<typeof setTimeout> | null = null
-
-          // Consume the Waggle config (if any) so sendPromise uses it.
-          const waggleConfig = consumeWaggleConfig?.()
 
           let unsubscribed = false
           const clearFallbackCloseTimer = (): void => {
@@ -255,6 +283,9 @@ export function createIpcConnectionAdapter(
           const closeStream = (reason: string): void => {
             if (done) {
               return
+            }
+            if (SUPPRESSED_AUTO_CONNECT_CLOSE_REASONS.has(reason)) {
+              suppressNextAutoConnect = true
             }
             done = true
             clearFallbackCloseTimer()
@@ -348,7 +379,9 @@ export function createIpcConnectionAdapter(
               // Guard against TanStack's unwanted auto-continuation.
               // After any successful run, TanStack may see completed tool-result
               // parts and call connect() again — suppress that ghost reconnect.
-              suppressNextAutoConnect = true
+              if (payload.chunk.type === 'RUN_FINISHED') {
+                suppressNextAutoConnect = true
+              }
               if (pendingToolResultIds.size > 0) {
                 // Tool calls are awaiting approval — don't close immediately.
                 // Use the grace timer so the CUSTOM approval metadata chunk
@@ -414,8 +447,6 @@ export function createIpcConnectionAdapter(
             qualityPreset: defaultQualityPreset,
             attachments: [],
           }
-          const pendingPayload = consumePendingPayload()
-          const useContinuationPayload = shouldUseContinuationPayload(_messages)
           approvalTraceActive = approvalTraceEnabled && useContinuationPayload
           const lastMessage = _messages[_messages.length - 1]
           const lastMessageIsUser = Boolean(lastMessage && lastMessage.role === 'user')

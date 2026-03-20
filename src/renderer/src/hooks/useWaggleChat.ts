@@ -36,6 +36,7 @@ export function useWaggleChat(conversationId: ConversationId | null): void {
             agentColor: payload.meta.agentColor,
             agentModel: payload.meta.agentModel,
             turnNumber: payload.meta.turnNumber,
+            ...(payload.meta.isSynthesis ? { isSynthesis: true } : {}),
           })
         }
       }

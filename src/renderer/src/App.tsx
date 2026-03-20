@@ -22,9 +22,10 @@ export function App() {
     return <AppLoadingView />
   }
 
-  if (activeView === 'settings') {
-    return <AppSettingsView />
-  }
-
-  return <WorkspaceShell />
+  return (
+    <div className="relative h-full w-full">
+      <WorkspaceShell />
+      {activeView === 'settings' ? <AppSettingsView /> : null}
+    </div>
+  )
 }

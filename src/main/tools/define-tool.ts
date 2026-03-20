@@ -194,7 +194,20 @@ function makeServerToolWithContext<
 }
 
 export function bindToolContextToTool(tool: ServerTool, context: ToolContext): ServerTool {
-  return isContextBoundServerTool(tool) ? tool[OPEN_WAGGLE_TOOL_BINDER](context) : tool
+  if (!isContextBoundServerTool(tool)) {
+    return tool
+  }
+
+  const boundTool = tool[OPEN_WAGGLE_TOOL_BINDER](context)
+
+  // Tool approval can be stripped at the feature/prompt layer (for example
+  // waggle skipApproval or full-access execution mode). Preserve that override
+  // when materializing context-bound tools.
+  if (tool.needsApproval === false && boundTool.needsApproval !== false) {
+    return { ...boundTool, needsApproval: false }
+  }
+
+  return boundTool
 }
 
 export function bindToolContextToTools(

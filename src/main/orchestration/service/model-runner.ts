@@ -128,7 +128,7 @@ export function createModelRunner(deps: OrchestrationServiceDeps): ModelRunner {
           }
 
           pendingArgs.delete(value.toolCallId)
-          deps.logger.info('executor tool_end', { toolName: value.toolName, toolInput })
+          deps.logger.debug('executor tool_end', { toolName: value.toolName, toolInput })
           reportProgress?.({
             type: 'tool_end',
             toolName: value.toolName,

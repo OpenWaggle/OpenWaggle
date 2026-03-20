@@ -27,6 +27,30 @@ import { typedHandle, typedOn } from './typed-ipc'
 const logger = createLogger('waggle-handler')
 
 const activeWaggleRuns = new Map<ConversationId, AbortController>()
+const BASE36_RADIX = 36
+const RANDOM_TOKEN_START = 2
+
+function createRunScopedMessageToken(): string {
+  return `${Date.now().toString(BASE36_RADIX)}-${Math.random()
+    .toString(BASE36_RADIX)
+    .slice(RANDOM_TOKEN_START)}`
+}
+
+function getStableTurnMessageId(
+  conversationId: ConversationId,
+  runToken: string,
+  turnNumber: number,
+  turnMessageIds: Map<number, string>,
+): string {
+  const existing = turnMessageIds.get(turnNumber)
+  if (existing) {
+    return existing
+  }
+
+  const stableMessageId = `waggle-${String(conversationId)}-${runToken}-turn-${String(turnNumber)}`
+  turnMessageIds.set(turnNumber, stableMessageId)
+  return stableMessageId
+}
 
 export function registerWaggleHandlers(): void {
   typedHandle(
@@ -112,6 +136,8 @@ export function registerWaggleHandlers(): void {
             })
 
             let lastEmittedTurn = -1
+            const runScopedMessageToken = createRunScopedMessageToken()
+            const turnMessageIds = new Map<number, string>()
 
             const result = yield* Effect.tryPromise({
               try: () =>
@@ -134,21 +160,43 @@ export function registerWaggleHandlers(): void {
                     })
                   },
                   onStreamChunk: (chunk, meta) => {
-                    emitWaggleStreamChunk(conversationId, chunk, meta)
-
                     if (
                       chunk.type === 'RUN_STARTED' ||
                       chunk.type === 'RUN_FINISHED' ||
                       chunk.type === 'RUN_ERROR'
                     ) {
+                      emitWaggleStreamChunk(conversationId, chunk, meta)
                       return
                     }
+
+                    // Normalize all text message chunk IDs to one stable ID per turn.
+                    // TanStack AI creates/looks up assistant UIMessages by messageId,
+                    // so this guarantees exactly one assistant UIMessage per waggle turn.
+                    if (
+                      chunk.type === 'TEXT_MESSAGE_START' ||
+                      chunk.type === 'TEXT_MESSAGE_CONTENT' ||
+                      chunk.type === 'TEXT_MESSAGE_END'
+                    ) {
+                      const stableMessageId = getStableTurnMessageId(
+                        conversationId,
+                        runScopedMessageToken,
+                        meta.turnNumber,
+                        turnMessageIds,
+                      )
+                      if (chunk.messageId !== stableMessageId) {
+                        chunk = { ...chunk, messageId: stableMessageId }
+                      }
+                    }
+
+                    emitWaggleStreamChunk(conversationId, chunk, meta)
 
                     // Emit turn boundary IMMEDIATELY on first chunk of a new turn.
                     // This ensures tool calls from the new turn don't land in the
                     // previous turn's segment.
+                    // Synthesis chunks are excluded — the final synthesis renders as
+                    // a plain assistant message without waggle styling or boundaries.
                     if (meta.turnNumber > lastEmittedTurn) {
-                      if (meta.turnNumber > 0) {
+                      if (meta.turnNumber > 0 && !meta.isSynthesis) {
                         const boundaryId = meta.isSynthesis
                           ? 'turn-boundary-synthesis'
                           : `turn-boundary-${String(meta.turnNumber)}`
@@ -170,7 +218,7 @@ export function registerWaggleHandlers(): void {
                           type: 'TOOL_CALL_ARGS',
                           timestamp: Date.now(),
                           toolCallId: boundaryId,
-                          delta: '{}',
+                          delta: boundaryMeta,
                         })
                         emitStreamChunk(conversationId, {
                           type: 'TOOL_CALL_END',
