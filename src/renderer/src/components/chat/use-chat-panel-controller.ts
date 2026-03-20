@@ -36,6 +36,8 @@ const logger = createRendererLogger('chat-panel')
 export interface ChatTranscriptSectionState {
   readonly messages: UIMessage[]
   readonly isLoading: boolean
+  /** When true, keep the user-send anchor stable and disable bottom-follow autoscroll. */
+  readonly disableAutoFollowDuringWaggleStreaming: boolean
   readonly projectPath: string | null
   readonly recentProjects: readonly string[]
   readonly activeConversationId: ConversationId | null
@@ -313,6 +315,7 @@ export function useChatPanelSections(): ChatPanelSections {
     transcript: {
       messages,
       isLoading: isLoading || isSteering,
+      disableAutoFollowDuringWaggleStreaming: waggleStatus === 'running',
       projectPath,
       recentProjects,
       activeConversationId,

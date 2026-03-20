@@ -14,15 +14,25 @@ interface ChatTranscriptProps {
   readonly section: ChatTranscriptSectionState
 }
 
-function renderTranscriptRow(
-  row: ChatRow,
-  conversationId: ConversationId | null,
-  onAnswerQuestion: (conversationId: ConversationId, answers: QuestionAnswer[]) => Promise<void>,
-  onRespondToPlan: (conversationId: ConversationId, response: PlanResponse) => Promise<void>,
-  onOpenSettings: () => void,
-  onRetryText: (content: string) => Promise<void>,
-  onDismissError: (errorId: string | null) => void,
-) {
+interface TranscriptRowProps {
+  row: ChatRow
+  conversationId: ConversationId | null
+  onAnswerQuestion: (conversationId: ConversationId, answers: QuestionAnswer[]) => Promise<void>
+  onRespondToPlan: (conversationId: ConversationId, response: PlanResponse) => Promise<void>
+  onOpenSettings: () => void
+  onRetryText: (content: string) => Promise<void>
+  onDismissError: (errorId: string | null) => void
+}
+
+function TranscriptRow({
+  row,
+  conversationId,
+  onAnswerQuestion,
+  onRespondToPlan,
+  onOpenSettings,
+  onRetryText,
+  onDismissError,
+}: TranscriptRowProps) {
   return (
     <ChatRowRenderer
       row={row}
@@ -52,6 +62,7 @@ export function ChatTranscript({ section }: ChatTranscriptProps) {
   const {
     messages,
     isLoading,
+    disableAutoFollowDuringWaggleStreaming,
     projectPath,
     recentProjects,
     activeConversationId,
@@ -71,6 +82,7 @@ export function ChatTranscript({ section }: ChatTranscriptProps) {
     messagesLength: messages.length,
     rowsLength: rows.length,
     isLoading,
+    disableAutoFollowDuringWaggleStreaming,
     activeConversationId,
   })
 
@@ -113,15 +125,15 @@ export function ChatTranscript({ section }: ChatTranscriptProps) {
             {...(isUserMessage ? { 'data-user-message-id': row.message.id } : {})}
             style={index === 0 ? { paddingTop: PADDING_TOP } : undefined}
           >
-            {renderTranscriptRow(
-              row,
-              activeConversationId,
-              onAnswerQuestion,
-              onRespondToPlan,
-              onOpenSettings,
-              onRetryText,
-              onDismissError,
-            )}
+            <TranscriptRow
+              row={row}
+              conversationId={activeConversationId}
+              onAnswerQuestion={onAnswerQuestion}
+              onRespondToPlan={onRespondToPlan}
+              onOpenSettings={onOpenSettings}
+              onRetryText={onRetryText}
+              onDismissError={onDismissError}
+            />
           </div>
         )
       })}

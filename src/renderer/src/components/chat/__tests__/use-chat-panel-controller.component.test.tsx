@@ -1024,4 +1024,18 @@ describe('useChatPanelSections', () => {
       expect(result.current.transcript.lastUserMessageId).toBeNull()
     })
   })
+
+  describe('transcript auto-follow policy', () => {
+    it('disables bottom-follow auto-scroll while waggle collaboration is running', () => {
+      useWaggleStore.getState().startCollaboration(ACTIVE_CONVERSATION_ID, createWaggleConfig())
+
+      const { result } = renderHook(() => useChatPanelSections())
+      expect(result.current.transcript.disableAutoFollowDuringWaggleStreaming).toBe(true)
+    })
+
+    it('keeps bottom-follow enabled when waggle is idle', () => {
+      const { result } = renderHook(() => useChatPanelSections())
+      expect(result.current.transcript.disableAutoFollowDuringWaggleStreaming).toBe(false)
+    })
+  })
 })

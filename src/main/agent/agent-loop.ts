@@ -85,6 +85,9 @@ export interface AgentRunParams {
   }
   /** Maximum agent loop iterations. Defaults to MAX_ITERATIONS (25). */
   readonly maxTurns?: number
+  /** Override stream stall timeout (ms). Waggle turns use a longer timeout
+   *  because orchestrate tools may run for several minutes. */
+  readonly stallTimeoutMs?: number
 }
 
 export interface AgentRunResult {
@@ -723,6 +726,7 @@ export function runAgentEffect(params: AgentRunParams): Effect.Effect<AgentRunRe
               hooks,
               runContext,
               approvalTraceEnabled,
+              stallTimeoutMs: params.stallTimeoutMs,
             }),
           )
         }),

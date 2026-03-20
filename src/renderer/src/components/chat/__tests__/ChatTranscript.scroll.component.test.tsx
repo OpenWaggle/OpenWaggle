@@ -45,6 +45,7 @@ function createSection(
       } as UIMessage,
     ],
     isLoading: false,
+    disableAutoFollowDuringWaggleStreaming: false,
     projectPath: '/repo',
     recentProjects: [],
     activeConversationId: null,

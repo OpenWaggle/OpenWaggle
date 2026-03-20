@@ -1,5 +1,5 @@
 import type { Message, MessagePart } from '@shared/types/agent'
-import { ConversationId, MessageId, SupportedModelId } from '@shared/types/brand'
+import { ConversationId, MessageId, SupportedModelId, ToolCallId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import type { WaggleConfig, WaggleTurnEvent } from '@shared/types/waggle'
@@ -201,11 +201,13 @@ describe('runWaggleSequential', () => {
     expect(runAgentMock).toHaveBeenCalledTimes(3)
     expect(events).toContainEqual({ type: 'synthesis-start' })
     expect(result.status).toBe('completed')
+    // totalTurns counts only debate turns (from successfulTurnCount), not synthesis
     expect(result.totalTurns).toBe(2)
     expect(result.newMessages).toHaveLength(4)
 
+    // Synthesis message has no waggle metadata — renders as plain assistant message
     const synthesisMessage = result.newMessages.at(-1)
-    expect(synthesisMessage?.metadata?.waggle?.isSynthesis).toBe(true)
+    expect(synthesisMessage?.metadata?.waggle).toBeUndefined()
     expect(events).toContainEqual(
       expect.objectContaining({
         type: 'turn-end',
@@ -213,6 +215,89 @@ describe('runWaggleSequential', () => {
         agentIndex: -1,
       }),
     )
+  })
+
+  it('retries synthesis with Agent A model when default model synthesis fails', async () => {
+    const settingsWithFallback = {
+      ...DEFAULT_SETTINGS,
+      defaultModel: SupportedModelId('gpt-5.4'),
+    }
+
+    runAgentMock
+      .mockResolvedValueOnce({
+        newMessages: [createMessage('user', [{ type: 'text', text: 'turn 1 context' }])],
+        finalMessage: createAssistantMessage('Agent A proposes a plan.', AGENT_A_MODEL),
+      })
+      .mockResolvedValueOnce({
+        newMessages: [createMessage('user', [{ type: 'text', text: 'turn 2 context' }])],
+        finalMessage: createAssistantMessage('Agent B refines the plan.', AGENT_B_MODEL),
+      })
+      .mockRejectedValueOnce(new Error('Default synthesis model unavailable'))
+      .mockResolvedValueOnce({
+        newMessages: [],
+        finalMessage: createAssistantMessage('Recovered synthesis summary.', AGENT_A_MODEL),
+      })
+
+    const result = await runWaggleSequential({
+      conversationId: ConversationId('conv-1'),
+      conversation: createConversation(),
+      payload: {
+        text: 'Produce a concise remediation plan',
+        qualityPreset: 'medium',
+        attachments: [],
+      },
+      config: createConfig({ primary: 'user-stop', maxTurnsSafety: 2 }),
+      settings: settingsWithFallback,
+      signal: new AbortController().signal,
+      onStreamChunk: vi.fn(),
+      onTurnEvent: vi.fn(),
+    })
+
+    expect(runAgentMock).toHaveBeenCalledTimes(4)
+    expect(runAgentMock.mock.calls[2]?.[0]?.model).toBe(SupportedModelId('gpt-5.4'))
+    expect(runAgentMock.mock.calls[3]?.[0]?.model).toBe(AGENT_A_MODEL)
+    expect(result.status).toBe('completed')
+    expect(result.newMessages).toHaveLength(4)
+    expect(result.lastError).toBeUndefined()
+  })
+
+  it('propagates synthesis failure reason when all synthesis model attempts fail', async () => {
+    const settingsWithFallback = {
+      ...DEFAULT_SETTINGS,
+      defaultModel: SupportedModelId('gpt-5.4'),
+    }
+
+    runAgentMock
+      .mockResolvedValueOnce({
+        newMessages: [createMessage('user', [{ type: 'text', text: 'turn 1 context' }])],
+        finalMessage: createAssistantMessage('Agent A proposes a plan.', AGENT_A_MODEL),
+      })
+      .mockResolvedValueOnce({
+        newMessages: [createMessage('user', [{ type: 'text', text: 'turn 2 context' }])],
+        finalMessage: createAssistantMessage('Agent B refines the plan.', AGENT_B_MODEL),
+      })
+      .mockRejectedValueOnce(new Error('Default synthesis model unavailable'))
+      .mockRejectedValueOnce(new Error('Fallback synthesis model unavailable'))
+
+    const result = await runWaggleSequential({
+      conversationId: ConversationId('conv-1'),
+      conversation: createConversation(),
+      payload: {
+        text: 'Produce a concise remediation plan',
+        qualityPreset: 'medium',
+        attachments: [],
+      },
+      config: createConfig({ primary: 'user-stop', maxTurnsSafety: 2 }),
+      settings: settingsWithFallback,
+      signal: new AbortController().signal,
+      onStreamChunk: vi.fn(),
+      onTurnEvent: vi.fn(),
+    })
+
+    expect(runAgentMock).toHaveBeenCalledTimes(4)
+    expect(result.status).toBe('completed')
+    expect(result.newMessages).toHaveLength(3)
+    expect(result.lastError).toContain('Fallback synthesis model unavailable')
   })
 
   it('injects the synthesis guideline into waggle turn prompts', async () => {
@@ -247,5 +332,58 @@ describe('runWaggleSequential', () => {
 
     expect(result.status).toBe('completed')
     expect(result.totalTurns).toBe(1)
+  })
+
+  it('stops collaboration when a turn finishes with unresolved tool calls', async () => {
+    runAgentMock.mockResolvedValueOnce({
+      newMessages: [createMessage('user', [{ type: 'text', text: 'turn 1 context' }])],
+      finalMessage: createMessage(
+        'assistant',
+        [
+          { type: 'text', text: 'I need to inspect one more thing first.' },
+          {
+            type: 'tool-call',
+            toolCall: {
+              id: ToolCallId('tool-approval'),
+              name: 'runCommand',
+              args: { command: 'pwd' },
+              state: 'approval-requested',
+              approval: {
+                id: 'approval_tool-approval',
+                needsApproval: true,
+              },
+            },
+          },
+        ],
+        AGENT_A_MODEL,
+      ),
+    })
+
+    const events: WaggleTurnEvent[] = []
+    const result = await runWaggleSequential({
+      conversationId: ConversationId('conv-1'),
+      conversation: createConversation(),
+      payload: {
+        text: 'Inspect the repository and summarize findings',
+        qualityPreset: 'medium',
+        attachments: [],
+      },
+      config: createConfig(),
+      settings: DEFAULT_SETTINGS,
+      signal: new AbortController().signal,
+      onStreamChunk: vi.fn(),
+      onTurnEvent: (event) => {
+        events.push(event)
+      },
+    })
+
+    expect(runAgentMock).toHaveBeenCalledTimes(1)
+    expect(result.status).toBe('stopped')
+    expect(result.lastError).toContain('unresolved tool calls')
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: 'collaboration-stopped',
+      }),
+    )
   })
 })

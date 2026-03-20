@@ -9,9 +9,10 @@ import type { ChatRow, TurnSegment } from './types-chat-row'
 // ─── Waggle streaming helpers ──────────────────────────────
 
 /**
- * Parse agent metadata from a _turnBoundary tool call's output.
- * The StreamProcessor parses the JSON result string into an object,
- * so `output` is typically already an object. Handle both cases.
+ * Parse agent metadata from a _turnBoundary tool call's arguments or output.
+ * During live streaming, metadata is in `arguments` (available immediately from
+ * TOOL_CALL_ARGS). After persistence, it may be in `output` (from TOOL_CALL_END).
+ * The value can be a JSON string or an already-parsed object.
  */
 function parseBoundaryMeta(output: unknown): WaggleMessageMetadata | undefined {
   let obj: unknown = output
@@ -35,6 +36,20 @@ function parseBoundaryMeta(output: unknown): WaggleMessageMetadata | undefined {
   }
 }
 
+const TURN_BOUNDARY_PREFIX = '_turnBoundary'
+
+/** Check if a tool-call part is a waggle turn boundary. */
+function isTurnBoundary(name: string): boolean {
+  return name === TURN_BOUNDARY_PREFIX || name.startsWith(`${TURN_BOUNDARY_PREFIX}:`)
+}
+
+/** Extract metadata encoded in the tool name after the colon prefix. */
+function extractMetaFromToolName(name: string): WaggleMessageMetadata | undefined {
+  const colonIndex = name.indexOf(':')
+  if (colonIndex === -1) return undefined
+  return parseBoundaryMeta(name.slice(colonIndex + 1))
+}
+
 /**
  * Split a single streaming UIMessage at _turnBoundary tool-call parts.
  * Returns one segment per turn, each with its own parts and agent metadata.
@@ -49,7 +64,7 @@ function splitAtTurnBoundaries(
   let turnIndex = 0
 
   for (const part of msg.parts) {
-    if (part.type === 'tool-call' && part.name === '_turnBoundary') {
+    if (part.type === 'tool-call' && isTurnBoundary(part.name)) {
       // Flush current segment
       segments.push({
         id: `${msg.id}-turn-${String(turnIndex)}`,
@@ -57,8 +72,15 @@ function splitAtTurnBoundaries(
         meta: currentMeta,
       })
 
-      // Extract metadata for the next turn from the boundary's output
-      currentMeta = parseBoundaryMeta(part.output) ?? currentMeta
+      // Extract metadata for the next turn. Try sources in order of availability:
+      // 1. Tool name suffix (available from TOOL_CALL_START — first render)
+      // 2. Arguments (available from TOOL_CALL_ARGS — second render)
+      // 3. Output (available from TOOL_CALL_END — final render)
+      currentMeta =
+        extractMetaFromToolName(part.name) ??
+        parseBoundaryMeta(part.arguments) ??
+        parseBoundaryMeta(part.output) ??
+        currentMeta
       turnIndex++
       currentParts = []
       continue
@@ -68,7 +90,7 @@ function splitAtTurnBoundaries(
     if (
       part.type === 'tool-result' &&
       msg.parts.some(
-        (p) => p.type === 'tool-call' && p.name === '_turnBoundary' && p.id === part.toolCallId,
+        (p) => p.type === 'tool-call' && isTurnBoundary(p.name) && p.id === part.toolCallId,
       )
     ) {
       continue
@@ -111,8 +133,38 @@ interface PreferredToolCallOccurrence {
   rank: number
 }
 
-function turnScopedToolCallKey(turnIndex: number, name: string, args: string): string {
-  return `${String(turnIndex)}:${toolCallKey(name, args)}`
+const USER_TURN_SCOPE_PREFIX = 'user'
+const WAGGLE_TURN_SCOPE_PREFIX = 'waggle'
+
+function turnScopedToolCallKey(turnScope: string, name: string, args: string): string {
+  return `${turnScope}:${toolCallKey(name, args)}`
+}
+
+function buildUserTurnScope(userTurnIndex: number): string {
+  return `${USER_TURN_SCOPE_PREFIX}:${String(userTurnIndex)}`
+}
+
+function resolveToolCallTurnScope(
+  msg: UIMessage,
+  userTurnIndex: number,
+  waggleMetadataLookup: Readonly<Record<string, WaggleMessageMetadata>>,
+): string {
+  if (msg.role === 'assistant') {
+    const waggleMeta = waggleMetadataLookup[msg.id]
+    if (waggleMeta) {
+      return `${WAGGLE_TURN_SCOPE_PREFIX}:${String(waggleMeta.turnNumber)}`
+    }
+  }
+  return buildUserTurnScope(userTurnIndex)
+}
+
+function hasVisibleParts(parts: UIMessage['parts']): boolean {
+  return parts.some((part) => {
+    if (part.type === 'thinking') return false
+    if (part.type === 'tool-call' && isTurnBoundary(part.name)) return false
+    if (part.type === 'text') return part.content.trim().length > 0
+    return true
+  })
 }
 
 function toolCallRank(msg: UIMessage, toolCallId: string, state: string): number {
@@ -139,22 +191,26 @@ function shouldPreferToolCallOccurrence(
   return next.messageIndex > current.messageIndex
 }
 
-function buildPreferredToolCallMessages(messages: UIMessage[]): ReadonlyMap<string, string> {
-  let turnIndex = 0
+function buildPreferredToolCallMessages(
+  messages: UIMessage[],
+  waggleMetadataLookup: Readonly<Record<string, WaggleMessageMetadata>>,
+): ReadonlyMap<string, string> {
+  let userTurnIndex = 0
   const preferred = new Map<string, PreferredToolCallOccurrence>()
 
   for (let messageIndex = 0; messageIndex < messages.length; messageIndex++) {
     const msg = messages[messageIndex]
     if (msg.role === 'user' && messageIndex > 0) {
-      turnIndex++
+      userTurnIndex++
     }
 
     if (msg.role !== 'assistant') continue
+    const turnScope = resolveToolCallTurnScope(msg, userTurnIndex, waggleMetadataLookup)
 
     for (const part of msg.parts) {
-      if (part.type !== 'tool-call' || part.name === '_turnBoundary') continue
+      if (part.type !== 'tool-call' || isTurnBoundary(part.name)) continue
 
-      const key = turnScopedToolCallKey(turnIndex, part.name, part.arguments)
+      const key = turnScopedToolCallKey(turnScope, part.name, part.arguments)
       const candidate: PreferredToolCallOccurrence = {
         messageId: msg.id,
         messageIndex,
@@ -178,14 +234,14 @@ function buildPreferredToolCallMessages(messages: UIMessage[]): ReadonlyMap<stri
  */
 function deduplicateToolCalls(
   msg: UIMessage,
-  turnIndex: number,
+  turnScope: string,
   preferredMessageIds: ReadonlyMap<string, string>,
 ): UIMessage | null {
   const duplicateIds = new Set<string>()
 
   for (const p of msg.parts) {
-    if (p.type === 'tool-call' && p.name !== '_turnBoundary') {
-      const key = turnScopedToolCallKey(turnIndex, p.name, p.arguments)
+    if (p.type === 'tool-call' && !isTurnBoundary(p.name)) {
+      const key = turnScopedToolCallKey(turnScope, p.name, p.arguments)
       if (preferredMessageIds.get(key) !== msg.id) {
         duplicateIds.add(p.id)
       }
@@ -200,13 +256,7 @@ function deduplicateToolCalls(
     return true
   })
 
-  const hasVisible = filtered.some((p) => {
-    if (p.type === 'thinking') return false
-    if (p.type === 'text') return p.content.trim().length > 0
-    return true
-  })
-
-  if (!hasVisible) return null
+  if (!hasVisibleParts(filtered)) return null
   return { ...msg, parts: filtered }
 }
 
@@ -238,8 +288,9 @@ export function buildChatRows({
   phase,
 }: BuildChatRowsParams): ChatRow[] {
   const rows: ChatRow[] = []
-  const preferredToolCallMessages = buildPreferredToolCallMessages(messages)
-  let turnIndex = 0
+  const preferredToolCallMessages = buildPreferredToolCallMessages(messages, waggleMetadataLookup)
+  let userTurnIndex = 0
+  const assistantMessageCount = messages.filter((m) => m.role === 'assistant').length
 
   const lastMsg = messages[messages.length - 1]
   const lastIsStreaming = isLoading && lastMsg?.role === 'assistant'
@@ -251,7 +302,7 @@ export function buildChatRows({
     // Deduplication is scoped per user turn. Identical tool calls in later
     // user turns are legitimate and should remain visible.
     if (msg.role === 'user' && i > 0) {
-      turnIndex++
+      userTurnIndex++
     }
 
     // Deduplicate tool-call parts that were re-proposed by the model
@@ -259,31 +310,62 @@ export function buildChatRows({
     // the richest/latest occurrence so terminal denied/completed rows replace
     // stale earlier approval-needed placeholders.
     if (msg.role === 'assistant') {
-      const deduped = deduplicateToolCalls(msg, turnIndex, preferredToolCallMessages)
+      const turnScope = resolveToolCallTurnScope(msg, userTurnIndex, waggleMetadataLookup)
+      const deduped = deduplicateToolCalls(msg, turnScope, preferredToolCallMessages)
       if (!deduped) continue
       msg = deduped
+
+      // Strip _turnBoundary tool-call parts when there are multiple assistant
+      // messages. In that case, each message is a complete turn and boundaries
+      // are artifacts — the regular showTurnDivider path handles labels.
+      if (assistantMessageCount > 1) {
+        const boundaryIds = new Set<string>()
+        for (const p of msg.parts) {
+          if (p.type === 'tool-call' && isTurnBoundary(p.name)) {
+            boundaryIds.add(p.id)
+          }
+        }
+        if (boundaryIds.size > 0) {
+          const cleaned = msg.parts.filter((p) => {
+            if (p.type === 'tool-call' && boundaryIds.has(p.id)) return false
+            if (p.type === 'tool-result' && boundaryIds.has(p.toolCallId)) return false
+            return true
+          })
+          if (!hasVisibleParts(cleaned)) continue
+          msg = { ...msg, parts: cleaned }
+        }
+      }
     }
 
-    // Check for turn boundaries (Waggle streaming)
+    // Check for turn boundaries (Waggle streaming).
+    // Only use segment splitting when ALL waggle turns are in a single UIMessage
+    // (true during live streaming when TanStack AI accumulates everything into one
+    // message). When there are multiple assistant messages, each message represents
+    // a complete turn — boundaries within them are artifacts, not real turn transitions.
     const hasTurnBoundaries =
       msg.role === 'assistant' &&
-      msg.parts.some((p) => p.type === 'tool-call' && p.name === '_turnBoundary')
+      assistantMessageCount <= 1 &&
+      msg.parts.some((p) => p.type === 'tool-call' && isTurnBoundary(p.name))
 
     if (hasTurnBoundaries) {
       const segments = splitAtTurnBoundaries(msg, meta)
-      for (let segIdx = 0; segIdx < segments.length; segIdx++) {
-        const seg = segments[segIdx]
+      const visibleSegments = segments.filter((segment) => hasVisibleParts(segment.parts))
+      if (visibleSegments.length === 0) {
+        continue
+      }
+      for (let segIdx = 0; segIdx < visibleSegments.length; segIdx++) {
+        const seg = visibleSegments[segIdx]
         const segMeta = seg.meta
-        const prevSegMeta = segIdx > 0 ? segments[segIdx - 1].meta : undefined
+        const prevSegMeta = segIdx > 0 ? visibleSegments[segIdx - 1].meta : undefined
         const showDivider =
-          !!segMeta && segIdx > 0 && prevSegMeta?.agentIndex !== segMeta.agentIndex
+          !!segMeta && (segIdx === 0 || prevSegMeta?.agentIndex !== segMeta.agentIndex)
 
         rows.push({
           type: 'segment',
           segment: seg,
           parentMessage: msg,
           isStreaming:
-            lastIsStreaming && i === messages.length - 1 && segIdx === segments.length - 1,
+            lastIsStreaming && i === messages.length - 1 && segIdx === visibleSegments.length - 1,
           showDivider,
           dividerProps:
             showDivider && segMeta

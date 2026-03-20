@@ -10,6 +10,7 @@ function createDefaultParams(
     messagesLength: 0,
     rowsLength: 0,
     isLoading: false,
+    disableAutoFollowDuringWaggleStreaming: false,
     activeConversationId: 'conv-1',
     ...overrides,
   }
@@ -84,6 +85,45 @@ describe('useChatScrollBehaviour', () => {
     expect(div.scrollTop).toBe(500)
   })
 
+  it('does not scroll to bottom on initial load when waggle anchor mode is active', () => {
+    const div = document.createElement('div')
+    Object.defineProperty(div, 'scrollHeight', { value: 500, configurable: true })
+    div.scrollTop = 0
+
+    const { result, rerender } = renderHook(
+      (props) => {
+        const hookResult = useChatScrollBehaviour(props)
+        Object.defineProperty(hookResult.scrollerRef, 'current', {
+          value: div,
+          writable: true,
+          configurable: true,
+        })
+        return hookResult
+      },
+      {
+        initialProps: createDefaultParams({
+          rowsLength: 0,
+          disableAutoFollowDuringWaggleStreaming: true,
+        }),
+      },
+    )
+
+    Object.defineProperty(result.current.scrollerRef, 'current', {
+      value: div,
+      writable: true,
+      configurable: true,
+    })
+
+    rerender(
+      createDefaultParams({
+        rowsLength: 5,
+        disableAutoFollowDuringWaggleStreaming: true,
+      }),
+    )
+
+    expect(div.scrollTop).toBe(0)
+  })
+
   it('auto-scrolls when isLoading and rows grow and near bottom', () => {
     const div = document.createElement('div')
     Object.defineProperty(div, 'scrollHeight', { value: 1000, configurable: true })
@@ -145,6 +185,50 @@ describe('useChatScrollBehaviour', () => {
     rerender(createDefaultParams({ isLoading: true, rowsLength: 6 }))
 
     expect(div.scrollTop).toBe(100)
+  })
+
+  it('does not auto-scroll when waggle anchor mode is active', () => {
+    const div = document.createElement('div')
+    Object.defineProperty(div, 'scrollHeight', { value: 1000, configurable: true })
+    Object.defineProperty(div, 'clientHeight', { value: 500, configurable: true })
+    div.scrollTop = 480 // distanceFromBottom = 20 < 50
+
+    const { result, rerender } = renderHook(
+      (props) => {
+        const hookResult = useChatScrollBehaviour(props)
+        Object.defineProperty(hookResult.scrollerRef, 'current', {
+          value: div,
+          writable: true,
+          configurable: true,
+        })
+        return hookResult
+      },
+      {
+        initialProps: createDefaultParams({
+          isLoading: true,
+          rowsLength: 5,
+          disableAutoFollowDuringWaggleStreaming: true,
+        }),
+      },
+    )
+
+    Object.defineProperty(result.current.scrollerRef, 'current', {
+      value: div,
+      writable: true,
+      configurable: true,
+    })
+    // Simulate user position after the initial load effect scrolls to bottom.
+    div.scrollTop = 480
+
+    rerender(
+      createDefaultParams({
+        isLoading: true,
+        rowsLength: 6,
+        disableAutoFollowDuringWaggleStreaming: true,
+      }),
+    )
+
+    expect(div.scrollTop).toBe(480)
   })
 
   it('resets spacer height when activeConversationId changes', () => {

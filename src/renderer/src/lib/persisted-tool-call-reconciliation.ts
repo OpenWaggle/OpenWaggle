@@ -4,9 +4,6 @@ import type { Conversation } from '@shared/types/conversation'
 import type { JsonObject } from '@shared/types/json'
 import type { ToolCallRequest } from '@shared/types/tools'
 import type { UIMessage } from '@tanstack/ai-react'
-import { createRendererLogger } from '@/lib/logger'
-
-const logger = createRendererLogger('persisted-tool-call-reconciliation')
 
 export type UIToolCallPart = Extract<UIMessage['parts'][number], { type: 'tool-call' }>
 
@@ -79,13 +76,8 @@ function parseArgumentsString(argumentsJson: string): JsonObject | null {
     if (result.success) {
       return result.data
     }
-    logger.warn('Failed to validate persisted tool-call arguments', {
-      issues: result.issues,
-    })
   } catch (error) {
-    logger.warn('Failed to parse persisted tool-call arguments', {
-      error: error instanceof Error ? error.message : String(error),
-    })
+    void error
   }
 
   return null

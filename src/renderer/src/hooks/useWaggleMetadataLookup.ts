@@ -11,17 +11,17 @@ const EMPTY_WAGGLE_METADATA_LOOKUP: Readonly<Record<string, WaggleMessageMetadat
 /**
  * Derives a UIMessage-id -> Waggle metadata lookup.
  *
- * During live streaming, uses `completedTurnMeta` from the store — an ordered
- * list built from `turn-end` events which only fire for successful turns.
- * This correctly handles failed turns (e.g. API credit errors) because they
- * never emit `turn-end` and don't create UIMessages with text content.
+ * During live streaming, prefers `liveMessageMetadata` (built from
+ * `waggle:stream-chunk` TEXT_MESSAGE_START events). This keeps agent
+ * attribution accurate even if multiple assistant UIMessages are emitted
+ * within the same turn.
  *
- * For the in-progress turn (last assistant message, no `turn-end` yet), falls
- * back to the store's `currentAgentIndex` / `currentAgentLabel`.
+ * Falls back to `completedTurnMeta` (ordered turn-end metadata) and then
+ * to `initialTurnMeta` / current-agent hints when a live mapping is missing.
  *
- * For historical (reloaded) conversations, uses persisted `metadata.waggle`
- * when available (handles synthesis messages correctly), with position-based
- * derivation as fallback for older conversations.
+ * For historical (reloaded) conversations, uses persisted metadata when
+ * available (including synthesis), with position-based derivation only as
+ * a legacy fallback for older conversations.
  */
 export function useWaggleMetadataLookup(
   conversation: Conversation | null,
@@ -31,6 +31,8 @@ export function useWaggleMetadataLookup(
   const activeCollaborationId = useWaggleStore((s) => s.activeCollaborationId)
   const configConversationId = useWaggleStore((s) => s.configConversationId)
   const completedTurnMeta = useWaggleStore((s) => s.completedTurnMeta)
+  const initialTurnMeta = useWaggleStore((s) => s.initialTurnMeta)
+  const liveMessageMetadata = useWaggleStore((s) => s.liveMessageMetadata)
   const status = useWaggleStore((s) => s.status)
   const currentAgentIndex = useWaggleStore((s) => s.currentAgentIndex)
   const currentAgentLabel = useWaggleStore((s) => s.currentAgentLabel)
@@ -38,7 +40,9 @@ export function useWaggleMetadataLookup(
     conversation: Conversation | null
     messages: UIMessage[]
     config: WaggleConfig | null | undefined
+    liveMessageMetadata: Readonly<Record<string, WaggleMessageMetadata>>
     completedTurnMeta: readonly WaggleMessageMetadata[]
+    initialTurnMeta: WaggleMessageMetadata | null
     status: string
     currentAgentIndex: number
     currentAgentLabel: string
@@ -56,7 +60,9 @@ export function useWaggleMetadataLookup(
       conversation,
       messages,
       config,
+      liveMessageMetadata,
       completedTurnMeta,
+      initialTurnMeta,
       status,
       currentAgentIndex,
       currentAgentLabel,
@@ -69,7 +75,9 @@ export function useWaggleMetadataLookup(
     cacheRef.current?.conversation === conversation &&
     cacheRef.current.messages === messages &&
     cacheRef.current.config === config &&
+    cacheRef.current.liveMessageMetadata === liveMessageMetadata &&
     cacheRef.current.completedTurnMeta === completedTurnMeta &&
+    cacheRef.current.initialTurnMeta === initialTurnMeta &&
     cacheRef.current.status === status &&
     cacheRef.current.currentAgentIndex === currentAgentIndex &&
     cacheRef.current.currentAgentLabel === currentAgentLabel
@@ -88,15 +96,23 @@ export function useWaggleMetadataLookup(
   for (const msg of messages) {
     if (msg.role !== 'assistant') continue
 
-    if (isLive && completedTurnMeta.length > 0) {
-      // Live streaming: use tracked metadata for completed turns
-      if (assistantIndex < completedTurnMeta.length) {
+    if (isLive) {
+      const liveMeta = liveMessageMetadata[msg.id]
+      if (liveMeta) {
+        // Live streaming: prefer per-message metadata from stream chunks.
+        lookup[msg.id] = liveMeta
+      } else if (assistantIndex < completedTurnMeta.length) {
+        // Fallback for messages that already completed and have turn-end metadata.
         const meta = completedTurnMeta[assistantIndex]
         if (meta) {
           lookup[msg.id] = meta
         }
+      } else if (completedTurnMeta.length === 0 && initialTurnMeta) {
+        // Very first turn is still streaming — use the stable initial metadata
+        // instead of currentAgentIndex which may have already advanced.
+        lookup[msg.id] = initialTurnMeta
       } else {
-        // In-progress turn — no turn-end yet, use current agent from store
+        // In-progress turn (last assistant message) — use current agent from store
         const isSynthesis = currentAgentIndex === -1
         if (isSynthesis) {
           lookup[msg.id] = {
@@ -122,11 +138,15 @@ export function useWaggleMetadataLookup(
       }
     } else {
       // Historical or early streaming (no completed turns yet):
-      // Prefer persisted metadata (handles synthesis), fall back to position-based
+      // Prefer persisted metadata (handles synthesis).
+      // Position-based fallback only applies to legacy conversations that have
+      // zero persisted waggle metadata. When at least one message has persisted
+      // waggle metadata, messages without it are post-waggle standard messages
+      // and should not receive waggle styling.
       const persisted = persistedMeta.get(assistantIndex)
       if (persisted) {
         lookup[msg.id] = persisted
-      } else {
+      } else if (persistedMeta.size === 0) {
         const agentIdx = assistantIndex % config.agents.length
         const agent = config.agents[agentIdx]
         if (agent) {
@@ -149,7 +169,9 @@ export function useWaggleMetadataLookup(
     conversation,
     messages,
     config,
+    liveMessageMetadata,
     completedTurnMeta,
+    initialTurnMeta,
     status,
     currentAgentIndex,
     currentAgentLabel,

@@ -21,6 +21,7 @@ export interface SeedConversationInput {
   readonly updatedAt: number
   readonly messages: readonly unknown[]
   readonly projectPath?: string | null
+  readonly waggleConfig?: unknown
   readonly archived?: boolean
 }
 
@@ -156,18 +157,23 @@ function seedConversationRow(
   try {
     const projectPath =
       conversationInput.projectPath === undefined ? null : conversationInput.projectPath
+    const waggleConfigJson =
+      conversationInput.waggleConfig === undefined || conversationInput.waggleConfig === null
+        ? null
+        : JSON.stringify(conversationInput.waggleConfig)
 
     database
       .prepare(
         `
           UPDATE conversations
-          SET title = ?, project_path = ?, archived = ?, updated_at = ?
+          SET title = ?, project_path = ?, waggle_config_json = ?, archived = ?, updated_at = ?
           WHERE id = ?
         `,
       )
       .run(
         conversationInput.title,
         projectPath,
+        waggleConfigJson,
         conversationInput.archived ? 1 : 0,
         conversationInput.updatedAt,
         row.id,

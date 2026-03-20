@@ -620,6 +620,83 @@ describe('useAgentChat', () => {
     ).toBe(true)
   })
 
+  it('does not reconnect to background snapshots while a foreground send is active', async () => {
+    const conversationId = ConversationId('conv-foreground-priority')
+    const baseConversation: Conversation = {
+      id: conversationId,
+      title: 'Foreground priority',
+      projectPath: null,
+      createdAt: 1,
+      updatedAt: 1,
+      messages: [],
+    }
+
+    let hasActiveRun = false
+    hasActiveRunMock.mockImplementation(() => hasActiveRun)
+    let resolveSendMessage: (() => void) | null = null
+
+    useChatMockImplementation.mockImplementation(
+      (_options: unknown, React: typeof import('react')) => {
+        const [messages, setMessages] = React.useState<UIMessage[]>([])
+        const sendMessage = vi.fn(async (message: string) => {
+          setMessages((prev) => [...prev, createTextUIMessage('optimistic-user', 'user', message)])
+          await new Promise<void>((resolve) => {
+            resolveSendMessage = resolve
+          })
+        })
+
+        return {
+          messages,
+          sendMessage,
+          isLoading: true,
+          status: 'streaming' as const,
+          stop: vi.fn(),
+          setMessages,
+          error: undefined,
+          addToolApprovalResponse: vi.fn(async () => {}),
+        }
+      },
+    )
+
+    const { result, rerender } = renderHook(
+      ({ activeConversation }: { activeConversation: Conversation | null }) =>
+        useAgentChat(
+          conversationId,
+          activeConversation,
+          SupportedModelId('claude-sonnet-4-5'),
+          'medium',
+        ),
+      { initialProps: { activeConversation: baseConversation } },
+    )
+
+    let pendingSend: Promise<void> | null = null
+    await act(async () => {
+      pendingSend = result.current.sendMessage({
+        text: 'keep my user turn visible',
+        qualityPreset: 'medium',
+        attachments: [],
+      } satisfies AgentSendPayload)
+    })
+
+    hasActiveRun = true
+    rerender({
+      activeConversation: {
+        ...baseConversation,
+        updatedAt: 2,
+      },
+    })
+
+    expect(apiMock.getBackgroundRun).not.toHaveBeenCalled()
+
+    act(() => {
+      resolveSendMessage?.()
+    })
+
+    await act(async () => {
+      await pendingSend
+    })
+  })
+
   it('defers snapshot hydration for the full steer-to-follow-up transition', async () => {
     const conversationId = ConversationId('conv-steer-gap')
     const persistedConversation: Conversation = {

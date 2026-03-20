@@ -41,6 +41,7 @@ This document stores project-specific technical learnings only.
 - Auto-trust checks must re-verify the approval is still current right before dispatching `respondToolApproval`.
 - Duplicate pending approvals must be scoped to the current user turn — matching calls from earlier turns are legitimate new work.
 - Trusted `runCommand` wildcard matching should reject shell-chain operators (`;`, `&&`, `||`, pipes) even when prefix patterns match.
+- Approval overrides applied before context binding (e.g. `withoutApproval`) are lost unless `bindToolContextToTool()` explicitly preserves `needsApproval: false` on the bound server tool. Otherwise waggle/full-access runs can unexpectedly re-enter approval-required tool continuations. `[SKILL?]`
 
 ### Electron & Process Boundaries
 - MCP stdio transports must use the same safe child-environment allowlist as command execution. Full `process.env` leaks API keys to MCP subprocesses.
@@ -96,6 +97,14 @@ This document stores project-specific technical learnings only.
 - `AgentFeature.filterTools` hook exists in `runtime-types.ts` — ready-made extension point for per-agent-type tool restriction.
 - Tool result strings are treated as JSON-encoded payloads by TanStack AI. Use structured result contract (`kind: 'text' | 'json'`).
 - `fast-glob` can match parent-directory patterns like `../*`. Validate glob inputs to confine file-discovery tools.
+
+### Waggle Mode Patterns
+- Waggle turns using `orchestrate` tools can exceed the 120s `STREAM_STALL_TIMEOUT_MS`. Waggle `runAgent` calls need a dedicated `stallTimeoutMs` override (e.g. 600s) passed through `AgentRunParams` → `processAgentStreamEffect`.
+- During live waggle streaming, all turns flow into a single TanStack AI `UIMessage`. The metadata lookup must use `completedTurnMeta[0]` (not `currentAgentIndex`) for the first segment's metadata, since `currentAgentIndex` advances before the first `turn-end` event fires.
+- Post-waggle standard messages inherit waggle styling when the conversation retains `waggleConfig` and the metadata lookup falls back to position-based derivation. Guard with `persistedMeta.size === 0` so only legacy conversations use position-based fallback.
+- TanStack AI creates assistant `UIMessage`s from each unique `TEXT_MESSAGE_START.messageId`. For waggle turns with tool continuations, normalize `TEXT_MESSAGE_START/TEXT_MESSAGE_CONTENT/TEXT_MESSAGE_END` to one stable per-turn ID **before** emitting to both `waggle:stream-chunk` and `agent:stream-chunk`, or live metadata mapping drifts from rendered message IDs and causes turn mislabeling. `[SKILL?]`
+- E2E waggle transcript fixtures should persist one assistant message per turn with message-level `metadata.waggle` for deterministic divider assertions. A single persisted assistant message with `_turnBoundary` parts is not a stable E2E proxy for live stream segmentation behavior (keep that coverage in unit tests around `splitAtTurnBoundaries`). `[SKILL?]`
+- Persisted tool-call reconciliation executes repeatedly during live streaming; partial/malformed `tool-call.arguments` strings are expected transient states. Treat parse failures as non-errors in that hot path (no warning logs) to avoid console spam and renderer slowdown.
 
 ### Build & Tooling
 - `react-doctor` defaults to changed-files-only on feature branches. Use `GIT_DIR=/nonexistent` for full-repo scans.

@@ -21,6 +21,11 @@ interface WaggleState {
   currentAgentIndex: number
   currentAgentLabel: string
 
+  // Stable metadata for the very first turn — set once at startCollaboration and
+  // never updated. Used by the metadata lookup to avoid depending on currentAgentIndex
+  // during the window between turn-start(0) and turn-end(0).
+  initialTurnMeta: WaggleMessageMetadata | null
+
   // Ordered metadata for completed (successful) turns — built from turn-end events.
   // The Nth entry corresponds to the Nth assistant UIMessage during live streaming.
   completedTurnMeta: WaggleMessageMetadata[]
@@ -51,6 +56,7 @@ export const useWaggleStore = create<WaggleState>((set) => ({
   currentTurn: 0,
   currentAgentIndex: 0,
   currentAgentLabel: '',
+  initialTurnMeta: null,
   completedTurnMeta: [],
   liveMessageMetadata: {},
   fileConflicts: [],
@@ -66,6 +72,7 @@ export const useWaggleStore = create<WaggleState>((set) => ({
   },
 
   startCollaboration(conversationId, config) {
+    const firstAgent = config.agents[0]
     set({
       activeCollaborationId: conversationId,
       configConversationId: conversationId,
@@ -73,7 +80,14 @@ export const useWaggleStore = create<WaggleState>((set) => ({
       status: 'running',
       currentTurn: 0,
       currentAgentIndex: 0,
-      currentAgentLabel: config.agents[0].label,
+      currentAgentLabel: firstAgent.label,
+      initialTurnMeta: {
+        agentIndex: 0,
+        agentLabel: firstAgent.label,
+        agentColor: firstAgent.color,
+        agentModel: firstAgent.model,
+        turnNumber: 0,
+      },
       completedTurnMeta: [],
       liveMessageMetadata: {},
       fileConflicts: [],
@@ -152,6 +166,7 @@ export const useWaggleStore = create<WaggleState>((set) => ({
       currentTurn: 0,
       currentAgentIndex: 0,
       currentAgentLabel: '',
+      initialTurnMeta: null,
       completedTurnMeta: [],
       liveMessageMetadata: {},
       fileConflicts: [],

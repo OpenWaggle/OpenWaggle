@@ -321,6 +321,60 @@ describe('createIpcConnectionAdapter', () => {
     expect(normalChunks.map((chunk) => chunk.type)).toEqual(['RUN_FINISHED'])
   })
 
+  it('does not suppress the first real user send when no ghost reconnect occurs first', async () => {
+    vi.useFakeTimers()
+    try {
+      apiMock.sendMessage.mockImplementationOnce(async () => {
+        emitStreamChunk(conversationId, {
+          type: 'RUN_STARTED',
+          timestamp: 1,
+          runId: 'run-no-terminal',
+        } as StreamChunk)
+        emitRunCompleted(conversationId)
+      })
+      apiMock.sendMessage.mockImplementationOnce(async () => {
+        emitStreamChunk(conversationId, {
+          type: 'RUN_FINISHED',
+          timestamp: 2,
+          runId: 'run-real-user-send',
+          finishReason: 'stop',
+        } as StreamChunk)
+      })
+
+      const connection = createIpcConnectionAdapter(conversationId, model, () => null, 'medium')
+
+      const firstStream = connection.connect(
+        [createUserMessage('msg-user-initial', 'start flow')],
+        undefined,
+        undefined,
+      )
+      const firstChunksPromise = collectChunks(firstStream)
+      await vi.advanceTimersByTimeAsync(500)
+      const firstChunks = await firstChunksPromise
+      expect(firstChunks.map((chunk) => chunk.type)).toEqual(['RUN_STARTED'])
+
+      const realSendChunks = await collectChunks(
+        connection.connect(
+          [createUserMessage('msg-user-real', 'this is the first real follow-up')],
+          undefined,
+          undefined,
+        ),
+      )
+
+      expect(realSendChunks).toEqual([
+        {
+          type: 'RUN_FINISHED',
+          timestamp: 2,
+          runId: 'run-real-user-send',
+          finishReason: 'stop',
+        },
+      ])
+      expect(apiMock.sendMessage).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('does not cancel the main-process run on adapter abort', async () => {
     apiMock.sendMessage.mockResolvedValueOnce(undefined)
 
@@ -373,6 +427,73 @@ describe('createIpcConnectionAdapter', () => {
 
     expect(chunks).toHaveLength(1)
     expect(chunks[0]?.type).toBe('TOOL_CALL_START')
+  })
+
+  it('suppresses ghost reconnect after run-completed-grace close and still allows a real next user send', async () => {
+    vi.useFakeTimers()
+    try {
+      apiMock.sendMessage.mockImplementationOnce(async () => {
+        emitStreamChunk(conversationId, {
+          type: 'RUN_STARTED',
+          timestamp: 1,
+          runId: 'run-no-terminal',
+        } as StreamChunk)
+        emitRunCompleted(conversationId)
+      })
+      apiMock.sendMessage.mockImplementationOnce(async () => {
+        emitStreamChunk(conversationId, {
+          type: 'RUN_FINISHED',
+          timestamp: 2,
+          runId: 'run-follow-up',
+          finishReason: 'stop',
+        } as StreamChunk)
+      })
+
+      const connection = createIpcConnectionAdapter(conversationId, model, () => null, 'medium')
+      const firstUserMessage = createUserMessage('msg-user-a', 'start waggle-like flow')
+
+      const firstStream = connection.connect([firstUserMessage], undefined, undefined)
+      const firstChunksPromise = collectChunks(firstStream)
+      await vi.advanceTimersByTimeAsync(500)
+      const firstChunks = await firstChunksPromise
+      expect(firstChunks.map((chunk) => chunk.type)).toEqual(['RUN_STARTED'])
+
+      const suppressedChunks = await collectChunks(
+        connection.connect(
+          [
+            firstUserMessage,
+            createAssistantMessage('msg-assistant-a', 'stream closed without terminal'),
+          ],
+          undefined,
+          undefined,
+        ),
+      )
+      expect(suppressedChunks).toEqual([
+        {
+          type: 'RUN_STARTED',
+          timestamp: expect.any(Number),
+          runId: 'waggle-auto-connect-suppressed',
+        },
+        {
+          type: 'RUN_FINISHED',
+          timestamp: expect.any(Number),
+          runId: 'waggle-auto-connect-suppressed',
+          finishReason: 'stop',
+        },
+      ])
+
+      const normalChunks = await collectChunks(
+        connection.connect(
+          [createUserMessage('msg-user-b', 'real follow-up')],
+          undefined,
+          undefined,
+        ),
+      )
+      expect(normalChunks.map((chunk) => chunk.type)).toEqual(['RUN_FINISHED'])
+      expect(apiMock.sendMessage).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('keeps stream open briefly when run-completed arrives before final terminal chunk', async () => {

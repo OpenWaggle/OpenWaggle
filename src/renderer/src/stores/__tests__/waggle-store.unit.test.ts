@@ -105,6 +105,21 @@ describe('waggle-store', () => {
       expect(state.currentAgentLabel).toBe('Architect')
     })
 
+    it('sets initialTurnMeta from the first agent config', () => {
+      const conversationId = ConversationId('conv-initial-meta')
+      const config = makeConfig()
+      useWaggleStore.getState().startCollaboration(conversationId, config)
+
+      const state = useWaggleStore.getState()
+      expect(state.initialTurnMeta).toEqual({
+        agentIndex: 0,
+        agentLabel: 'Architect',
+        agentColor: 'blue',
+        agentModel: 'claude-sonnet-4-20250514',
+        turnNumber: 0,
+      })
+    })
+
     it('resets all transient state on start', () => {
       // Pollute state first
       useWaggleStore.setState({
@@ -405,6 +420,7 @@ describe('waggle-store', () => {
       expect(state.currentTurn).toBe(0)
       expect(state.currentAgentIndex).toBe(0)
       expect(state.currentAgentLabel).toBe('')
+      expect(state.initialTurnMeta).toBeNull()
       expect(state.completedTurnMeta).toEqual([])
       expect(state.liveMessageMetadata).toEqual({})
       expect(state.fileConflicts).toEqual([])

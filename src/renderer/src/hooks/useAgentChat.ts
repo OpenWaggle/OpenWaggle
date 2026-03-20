@@ -224,20 +224,20 @@ export function useAgentChat(
       return
     }
 
+    // While this hook owns an in-flight foreground send, never swap in the
+    // background reconnection snapshot. Doing so can overwrite optimistic
+    // user messages and make the initiating prompt disappear mid-stream.
+    if (foregroundStreamActiveRef.current) {
+      return
+    }
+
     if (hasActiveRun(conversationId)) {
-      foregroundStreamActiveRef.current = false
       const capturedId = conversationId
       void reconnectToBackgroundRun(capturedId, conversation, setMessages).then((reconnected) => {
         if (reconnected && currentConversationIdRef.current === capturedId) {
           setBackgroundStreaming(true)
         }
       })
-      return
-    }
-
-    // While TanStack owns the stream (sendMessage in progress), skip overwriting
-    // with the persisted snapshot — it lags behind the live UIMessages.
-    if (foregroundStreamActiveRef.current) {
       return
     }
 
