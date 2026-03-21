@@ -4,6 +4,8 @@
 
 <p align="center">
   <strong>A desktop coding agent that pairs AI models to solve problems together.</strong>
+  <br />
+  <a href="https://openwaggle.ai">Website</a> &middot; <a href="https://openwaggle.ai/docs/getting-started/installation">Docs</a> &middot; <a href="https://github.com/OpenWaggle/OpenWaggle/releases/latest">Download</a>
 </p>
 
 <p align="center">
@@ -25,7 +27,7 @@ OpenWaggle works the same way. It's a desktop coding agent that connects to mult
 
 - **Multi-model, multi-provider** — Switch between 6 providers and dozens of models without leaving the app
 - **Waggle Mode** — Pair two AI agents with different strengths and let them collaborate in structured turns
-- **Full coding agent** — File operations, shell commands, browser automation, and git integration built in
+- **Full coding agent** — File operations, shell commands, and git integration built in
 - **Local-first** — Your conversations, settings, and API keys stay on your machine
 
 ## Features
@@ -72,7 +74,7 @@ Write, edit, and shell commands require explicit approval before execution (conf
 - **Live diff stats** — see changed files and line counts in real time
 - **Branch management** — switch, create, and manage branches from the header
 - **Commit dialog** — stage files, write messages, and commit without leaving the app
-- **Diff panel** — side-by-side view of all working tree changes
+- **Diff panel** — inline view of all working tree changes
 
 ### Rich Input
 
@@ -122,7 +124,7 @@ Requires [Node.js](https://nodejs.org/) 24.x and [pnpm](https://pnpm.io/) 10+.
 
 ### Configure providers
 
-1. Open **Settings** (gear icon or `Cmd+,`)
+1. Open **Settings** (gear icon in the sidebar)
 2. Go to **Connections**
 3. Add API keys for your providers (or use OAuth for Anthropic/OpenAI subscriptions)
 4. Select your default model from the model picker in the header
@@ -131,10 +133,10 @@ Requires [Node.js](https://nodejs.org/) 24.x and [pnpm](https://pnpm.io/) 10+.
 
 | Provider | Auth Method | Custom Base URL | Subscription OAuth |
 |----------|------------|-----------------|-------------------|
-| Anthropic | API key | Yes | Yes |
-| OpenAI | API key | Yes | Yes |
-| Google Gemini | API key | Yes | No |
-| Grok (xAI) | API key | Yes | No |
+| Anthropic | API key | No | Yes |
+| OpenAI | API key | No | Yes |
+| Google Gemini | API key | No | No |
+| Grok (xAI) | API key | No | No |
 | OpenRouter | API key | No | No |
 | Ollama | None | Yes (default: localhost:11434) | No |
 
@@ -220,7 +222,7 @@ src/
 | Validation | Effect Schema |
 | Main Runtime | Effect |
 | Persistence | SQLite + project-local TOML |
-| Bundler | Vite + Rollup |
+| Bundler | Vite 8 (Rolldown) |
 | Linter | Biome |
 | Testing | Vitest + Testing Library + Playwright |
 
@@ -245,14 +247,6 @@ pnpm test:e2e         # Playwright E2E (headless, requires build)
 pnpm prepush:main     # Pre-push quality gate for main
 ```
 
-### Git Hooks
-
-Husky is configured with a `pre-push` hook that runs only when pushing to `main`:
-
-- `pnpm check`
-- `pnpm format`
-- `pnpm test:all` (includes headless Playwright e2e)
-
 ### Platform Builds
 
 ```bash
@@ -261,62 +255,9 @@ pnpm build:win        # Windows NSIS installer
 pnpm build:linux      # Linux AppImage
 ```
 
-### CI/CD
+See [docs/release-and-versioning.md](docs/release-and-versioning.md) for CI/CD, versioning, and git hooks details.
 
-Every push to `main` and every PR runs CI (typecheck, lint, tests). Releases are fully automated — push a `feat:` or `fix:` commit to `main` and CI will:
-
-1. Determine the version bump from Conventional Commits
-2. Bump `package.json`, commit, and tag
-3. Build for macOS (arm64 + x64), Windows, and Linux in parallel
-4. Create a draft GitHub Release with all artifacts + SHA256 checksums
-
-No manual tag creation or version editing needed. The app includes auto-update via `electron-updater` — running instances check for updates and notify users when a new version is available.
-
-### Versioning
-
-OpenWaggle uses semver with prerelease stages. During alpha/beta, every `feat:` or `fix:` push increments the counter (`alpha.1` → `alpha.2`). After going stable, standard semver bumps apply.
-
-| Stage | Version | What happens on each push |
-|-------|---------|--------------------------|
-| Alpha | `0.2.0-alpha.N` | Increments `alpha.N+1` |
-| Beta | `0.2.0-beta.N` | Increments `beta.N+1` |
-| Stable | `0.2.0` | `fix:` → `0.2.1`, `feat:` → `0.3.0`, breaking → `1.0.0` |
-
-To transition stages, manually set the version in `package.json` and commit as `chore(release): <message>`.
-
-## Architecture Overview
-
-### Process Boundaries
-
-- **Main** — Node.js process. Runs the agent loop, executes tools, manages persistence and IPC handlers. Built as CJS with ESM interop.
-- **Preload** — Bridge layer. Exposes a typed `api` object via `contextBridge` mapping friendly method names to IPC channels.
-- **Renderer** — React 19 SPA. State managed by two Zustand stores (`chat-store` for conversations/streaming, `settings-store` for configuration). Tailwind v4 for styling.
-
-### IPC Type System
-
-`src/shared/types/ipc.ts` is the single source of truth. Three channel maps define all communication:
-
-- `IpcInvokeChannelMap` — request/response (renderer invokes, main responds)
-- `IpcSendChannelMap` — fire-and-forget (renderer to main)
-- `IpcEventChannelMap` — push events (main to renderer)
-
-### Provider Registry
-
-The provider registry is exposed through an Effect service layer in main. Provider definitions remain dynamic and each provider still owns its TanStack adapter factory.
-
-### Agent Loop
-
-The agent loop in `src/main/agent/agent-loop.ts` keeps TanStack AI as the chat/tool engine, but now runs inside Effect-owned control flow:
-
-1. Resolves provider and quality settings
-2. Binds built-in tools to an explicit per-run `ToolContext`
-3. Starts the TanStack stream
-4. Handles stall waiting, retry delay scheduling, and cancellation through Effect
-5. Emits AG-UI-derived events over IPC to all renderer windows
-
-Tools still execute inline during the stream, and results still arrive via `TOOL_CALL_END` events.
-
-See [docs/architecture.md](docs/architecture.md) for the full runtime layout and T3Code alignment notes.
+See [docs/architecture.md](docs/architecture.md) for the full architecture overview, process boundaries, IPC type system, and agent loop internals.
 
 ---
 
