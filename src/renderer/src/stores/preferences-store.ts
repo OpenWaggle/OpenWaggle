@@ -10,6 +10,9 @@ import {
 import { includes } from '@shared/utils/validation'
 import { create } from 'zustand'
 import { api } from '@/lib/ipc'
+import { createRendererLogger } from '@/lib/logger'
+
+const logger = createRendererLogger('preferences')
 
 const SLICE_ARG_2 = 100
 const SLICE_ARG_2_VALUE_10 = 10
@@ -46,7 +49,9 @@ function persistProjectPreference(
   prefs: { model?: string; qualityPreset?: string },
 ): void {
   if (projectPath) {
-    api.setProjectPreferences(projectPath, prefs).catch(() => {})
+    api.setProjectPreferences(projectPath, prefs).catch((err: unknown) => {
+      logger.warn('Failed to persist project preferences', { error: String(err) })
+    })
   }
 }
 
@@ -62,7 +67,9 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
       if (settings.projectPath) {
         get()
           .loadProjectPreferences(settings.projectPath)
-          .catch(() => {})
+          .catch((err: unknown) => {
+            logger.warn('Failed to load project preferences', { error: String(err) })
+          })
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load settings'

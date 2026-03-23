@@ -3,6 +3,9 @@ import { chooseBy } from '@shared/utils/decision'
 import { Loader2, RefreshCw, RotateCcw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/ipc'
+import { createRendererLogger } from '@/lib/logger'
+
+const logger = createRendererLogger('settings')
 
 function useAppVersion(): string {
   const [version, setVersion] = useState('…')
@@ -11,7 +14,9 @@ function useAppVersion(): string {
     api
       .getAppVersion()
       .then(setVersion)
-      .catch(() => {})
+      .catch((err: unknown) => {
+        logger.warn('Failed to load app version', { error: String(err) })
+      })
   }, [])
   return version
 }
@@ -24,7 +29,9 @@ function useUpdateStatus(): UpdateStatus {
     api
       .getUpdateStatus()
       .then(setStatus)
-      .catch(() => {})
+      .catch((err: unknown) => {
+        logger.warn('Failed to load update status', { error: String(err) })
+      })
   }, [])
 
   useEffect(() => {
@@ -125,7 +132,9 @@ export function GeneralSection() {
                   type="button"
                   onClick={() => {
                     if (typeof api.checkForUpdates === 'function') {
-                      api.checkForUpdates().catch(() => {})
+                      api.checkForUpdates().catch((err: unknown) => {
+                        logger.warn('Failed to check for updates', { error: String(err) })
+                      })
                     }
                   }}
                   className="inline-flex h-7 items-center gap-1.5 rounded-[5px] border border-[#2a2f3a] bg-[#1a1f28] px-3 text-[12px] font-medium text-[#c9cdd6] transition-colors hover:bg-[#222830]"
@@ -139,7 +148,9 @@ export function GeneralSection() {
                   type="button"
                   onClick={() => {
                     if (typeof api.installUpdate === 'function') {
-                      api.installUpdate().catch(() => {})
+                      api.installUpdate().catch((err: unknown) => {
+                        logger.warn('Failed to install update', { error: String(err) })
+                      })
                     }
                   }}
                   className="inline-flex h-7 items-center gap-1.5 rounded-[5px] bg-[#f5a623] px-3 text-[12px] font-semibold text-white transition-colors hover:bg-[#e09520]"

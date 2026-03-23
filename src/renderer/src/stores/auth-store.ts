@@ -6,6 +6,9 @@ import type {
 import { SUBSCRIPTION_PROVIDERS } from '@shared/types/auth'
 import { create } from 'zustand'
 import { api } from '@/lib/ipc'
+import { createRendererLogger } from '@/lib/logger'
+
+const logger = createRendererLogger('auth')
 
 interface AuthState {
   oauthStatuses: Partial<Record<SubscriptionProvider, OAuthFlowStatus>>
@@ -81,8 +84,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set((state) => ({
         authAccounts: { ...state.authAccounts, [provider]: info },
       }))
-    } catch {
-      // Non-critical — leave existing state
+    } catch (err) {
+      logger.warn('Failed to load auth account info', { error: String(err) })
     }
   },
 

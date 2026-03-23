@@ -1,7 +1,10 @@
 import { ExternalLink, X } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { api } from '@/lib/ipc'
+import { createRendererLogger } from '@/lib/logger'
 import { useUIStore } from '@/stores/ui-store'
+
+const logger = createRendererLogger('toast')
 
 export function ToastOverlay() {
   const toastData = useUIStore((s) => s.toastData)
@@ -29,7 +32,9 @@ export function ToastOverlay() {
               toastData.action.onClick()
             }
             if (!toastData.action?.onClick && toastData.action?.url) {
-              api.openExternal(toastData.action.url).catch(() => {})
+              api.openExternal(toastData.action.url).catch((err: unknown) => {
+                logger.warn('Failed to open external URL', { error: String(err) })
+              })
             }
             clearToast()
           }}

@@ -14,7 +14,7 @@ const TITLE_INPUT_MAX_CHARS = 500
 const TITLE_MAX_TOKENS = 60
 
 const TITLE_SYSTEM_PROMPT =
-  'You are a conversation title generator. Given the first user message of a conversation, generate a short, descriptive title (max 50 characters). Reply with ONLY the title text, no quotes, no punctuation at the end, no explanation.'
+  'You are a conversation title generator. Given the first user message of a conversation, generate a short, descriptive title (max 50 characters). Do NOT repeat or duplicate words in the title. Reply with ONLY the title text, no quotes, no punctuation at the end, no explanation.'
 
 /**
  * Find the first available provider with a configured API key and return
@@ -41,6 +41,20 @@ function findTitleProvider(settings: Settings): {
     }
   }
   return null
+}
+
+/**
+ * Remove consecutive duplicate words/fragments from a title.
+ * "HelloHello World" → "Hello World", "the the cat" → "the cat"
+ */
+export function deduplicateConsecutiveWords(title: string): string {
+  // Remove space-separated duplicate words: "the the" → "the"
+  let result = title.replace(/\b(\w+)\s+\1\b/gi, '$1')
+  // Remove concatenated duplicate words where the full token is two identical
+  // halves: "HelloHello" → "Hello". Only applies to even-length tokens of 4+
+  // chars to avoid false positives on words like "Papa", "CoCo", "mama".
+  result = result.replace(/\b(\w{4,})\1\b/gi, '$1')
+  return result
 }
 
 function makeFallbackTitle(text: string): string {
@@ -101,7 +115,7 @@ export async function generateTitle(
       }
     }
 
-    title = title.trim()
+    title = deduplicateConsecutiveWords(title.trim())
     if (!title) {
       title = fallback
     }

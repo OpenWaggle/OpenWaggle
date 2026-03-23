@@ -14,7 +14,10 @@ import {
 import { useState } from 'react'
 import { api } from '@/lib/ipc'
 import { clearLastAgentErrorInfo, getLastAgentErrorInfo } from '@/lib/ipc-connection-adapter'
+import { createRendererLogger } from '@/lib/logger'
 import { useUIStore } from '@/stores/ui-store'
+
+const logger = createRendererLogger('chat')
 
 const DELAY_MS = 2000
 
@@ -142,7 +145,9 @@ export function ChatErrorDisplay({
               <button
                 type="button"
                 onClick={() => {
-                  api.openLogsDir().catch(() => {})
+                  api.openLogsDir().catch((err: unknown) => {
+                    logger.warn('Failed to open logs directory', { error: String(err) })
+                  })
                 }}
                 className="flex items-center gap-1.5 rounded-md bg-bg-hover px-2.5 py-1 text-[13px] font-medium text-text-tertiary hover:text-text-secondary transition-colors"
               >

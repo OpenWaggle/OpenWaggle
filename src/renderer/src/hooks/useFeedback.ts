@@ -2,7 +2,10 @@ import type { AgentErrorInfo } from '@shared/types/errors'
 import type { FeedbackCategory, FeedbackPayload, GhCliStatus } from '@shared/types/feedback'
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/ipc'
+import { createRendererLogger } from '@/lib/logger'
 import { useUIStore } from '@/stores/ui-store'
+
+const logger = createRendererLogger('feedback')
 
 const GH_NEW_ISSUE_URL = 'https://github.com/OpenWaggle/OpenWaggle/issues/new'
 
@@ -72,7 +75,9 @@ export function useFeedback(
       const gh = await api.checkGhCli()
       setGhStatus(gh)
     }
-    loadStatus().catch(() => {})
+    loadStatus().catch((err: unknown) => {
+      logger.warn('Failed to load gh CLI status', { error: String(err) })
+    })
   }, [])
 
   function buildPayload(): FeedbackPayload {

@@ -14,8 +14,11 @@ import { useEffect } from 'react'
 import { useFeedback } from '@/hooks/useFeedback'
 import { cn } from '@/lib/cn'
 import { api } from '@/lib/ipc'
+import { createRendererLogger } from '@/lib/logger'
 import { usePreferencesStore } from '@/stores/preferences-store'
 import { useUIStore } from '@/stores/ui-store'
+
+const logger = createRendererLogger('feedback')
 
 const DESCRIPTION_ROWS = 4
 
@@ -188,7 +191,9 @@ export function FeedbackModal() {
                         href="https://cli.github.com"
                         onClick={(e) => {
                           e.preventDefault()
-                          api.openExternal('https://cli.github.com').catch(() => {})
+                          api.openExternal('https://cli.github.com').catch((err: unknown) => {
+                            logger.warn('Failed to open external URL', { error: String(err) })
+                          })
                         }}
                         className="underline hover:no-underline"
                       >
