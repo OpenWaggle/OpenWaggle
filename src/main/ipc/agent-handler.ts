@@ -11,7 +11,6 @@ import { classifyAgentError, makeErrorInfo } from '../agent/error-classifier'
 import { getPhaseForConversation } from '../agent/phase-tracker'
 import { buildPersistedUserMessageParts, makeMessage } from '../agent/shared'
 import type { StreamPartCollector } from '../agent/stream-part-collector'
-import { generateTitle } from '../agent/title-generator'
 import { approvalTraceEnabled } from '../env'
 import { createLogger } from '../logger'
 import { providerRegistry } from '../providers/registry'
@@ -30,7 +29,12 @@ import {
   listStreamBuffers,
   startStreamBuffer,
 } from '../utils/stream-bridge'
-import { hydrateAttachmentSources } from './attachments-handler'
+import {
+  emitErrorAndFinish,
+  hydratePayloadAttachments,
+  maybeTriggerTitleGeneration,
+  persistUserMessageOnFailure,
+} from './run-handler-utils'
 import { typedHandle, typedOn } from './typed-ipc'
 
 const logger = createLogger('agent-handler')
@@ -45,48 +49,6 @@ interface ActiveRun {
 
 /** Per-conversation active runs — allows concurrent runs on different conversations */
 const activeRuns = new Map<ConversationId, ActiveRun>()
-
-/** Emit RUN_ERROR + RUN_FINISHED pair for early-exit error paths. */
-function emitErrorAndFinish(conversationId: ConversationId, message: string, code: string): void {
-  emitStreamChunk(conversationId, {
-    type: 'RUN_ERROR',
-    timestamp: Date.now(),
-    error: { message, code },
-  })
-  emitStreamChunk(conversationId, {
-    type: 'RUN_FINISHED',
-    timestamp: Date.now(),
-    runId: '',
-    finishReason: 'stop',
-  })
-}
-
-function hasPersistableUserInput(payload: AgentSendPayload): boolean {
-  return payload.text.trim().length > 0 || payload.attachments.length > 0
-}
-
-async function persistUserMessageOnFailure(
-  conversationId: ConversationId,
-  payload: AgentSendPayload,
-): Promise<void> {
-  if (!hasPersistableUserInput(payload)) {
-    return
-  }
-
-  const userMessage = makeMessage('user', buildPersistedUserMessageParts(payload))
-
-  await withConversationLock(conversationId, async () => {
-    const latestConversation = await getConversation(conversationId)
-    if (!latestConversation) {
-      return
-    }
-
-    await saveConversation({
-      ...latestConversation,
-      messages: [...latestConversation.messages, userMessage],
-    })
-  })
-}
 
 export function registerAgentHandlers(): void {
   typedHandle(
@@ -129,13 +91,7 @@ export function registerAgentHandlers(): void {
           return
         }
 
-        // Fire-and-forget LLM title generation on first message
-        if (conversation.title === 'New thread' && conversation.messages.length === 0) {
-          const trimmed = payload.text.trim()
-          if (trimmed) {
-            void generateTitle(conversationId, trimmed, settings)
-          }
-        }
+        maybeTriggerTitleGeneration(conversationId, conversation, payload.text, settings)
 
         startStreamBuffer(conversationId, model, 'classic')
 
@@ -144,7 +100,7 @@ export function registerAgentHandlers(): void {
             const hydratedPayload = {
               ...payload,
               attachments: yield* Effect.promise(() =>
-                hydrateAttachmentSources(payload.attachments),
+                hydratePayloadAttachments(payload.attachments),
               ),
             }
 

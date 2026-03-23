@@ -6,7 +6,6 @@ import type { WaggleConfig } from '@shared/types/waggle'
 import * as Effect from 'effect/Effect'
 import { classifyAgentError, makeErrorInfo } from '../agent/error-classifier'
 import { buildPersistedUserMessageParts, makeMessage } from '../agent/shared'
-import { generateTitle } from '../agent/title-generator'
 import { runWaggleSequential } from '../agent/waggle-coordinator'
 import { createLogger } from '../logger'
 import { withConversationLock } from '../store/conversation-lock'
@@ -21,7 +20,11 @@ import {
   emitWaggleTurnEvent,
   startStreamBuffer,
 } from '../utils/stream-bridge'
-import { hydrateAttachmentSources } from './attachments-handler'
+import {
+  emitErrorAndFinish,
+  hydratePayloadAttachments,
+  maybeTriggerTitleGeneration,
+} from './run-handler-utils'
 import { typedHandle, typedOn } from './typed-ipc'
 
 const logger = createLogger('waggle-handler')
@@ -60,11 +63,11 @@ export function registerWaggleHandlers(): void {
         // Validate config at IPC boundary
         const parseResult = safeDecodeUnknown(waggleConfigSchema, config)
         if (!parseResult.success) {
-          emitStreamChunk(conversationId, {
-            type: 'RUN_ERROR',
-            timestamp: Date.now(),
-            error: { message: 'Invalid Waggle mode configuration', code: 'validation-error' },
-          })
+          emitErrorAndFinish(
+            conversationId,
+            'Invalid Waggle mode configuration',
+            'validation-error',
+          )
           return
         }
 
@@ -84,36 +87,23 @@ export function registerWaggleHandlers(): void {
 
         if (!conversation) {
           const errorInfo = makeErrorInfo('conversation-not-found', 'Conversation not found')
-          emitStreamChunk(conversationId, {
-            type: 'RUN_ERROR',
-            timestamp: Date.now(),
-            error: { message: errorInfo.userMessage, code: errorInfo.code },
-          })
+          emitErrorAndFinish(conversationId, errorInfo.userMessage, errorInfo.code)
           activeWaggleRuns.delete(conversationId)
           return
         }
 
         // Waggle mode requires a project because agents need tool access.
         if (!conversation.projectPath) {
-          emitStreamChunk(conversationId, {
-            type: 'RUN_ERROR',
-            timestamp: Date.now(),
-            error: {
-              message: 'Please select a project folder before starting Waggle mode.',
-              code: 'no-project',
-            },
-          })
+          emitErrorAndFinish(
+            conversationId,
+            'Please select a project folder before starting Waggle mode.',
+            'no-project',
+          )
           activeWaggleRuns.delete(conversationId)
           return
         }
 
-        // Fire-and-forget LLM title generation on first message
-        if (conversation.title === 'New thread' && conversation.messages.length === 0) {
-          const trimmed = payload.text.trim()
-          if (trimmed) {
-            void generateTitle(conversationId, trimmed, settings)
-          }
-        }
+        maybeTriggerTitleGeneration(conversationId, conversation, payload.text, settings)
 
         // Capture base messages before run for incremental persistence
         const baseMessages = [...conversation.messages]
@@ -125,7 +115,7 @@ export function registerWaggleHandlers(): void {
             const hydratedPayload = {
               ...payload,
               attachments: yield* Effect.promise(() =>
-                hydrateAttachmentSources(payload.attachments),
+                hydratePayloadAttachments(payload.attachments),
               ),
             }
 
@@ -283,17 +273,12 @@ export function registerWaggleHandlers(): void {
             const assistantCount = result.newMessages.filter((m) => m.role === 'assistant').length
             if (assistantCount === 0 && result.lastError) {
               const classified = classifyAgentError(new Error(result.lastError))
-              emitStreamChunk(conversationId, {
-                type: 'RUN_ERROR',
-                timestamp: Date.now(),
-                error: { message: classified.userMessage, code: classified.code },
-              })
-              emitStreamChunk(conversationId, {
-                type: 'RUN_FINISHED',
-                timestamp: Date.now(),
-                runId: `waggle-${conversationId}`,
-                finishReason: 'stop',
-              })
+              emitErrorAndFinish(
+                conversationId,
+                classified.userMessage,
+                classified.code,
+                `waggle-${conversationId}`,
+              )
               return
             }
 
@@ -332,17 +317,12 @@ export function registerWaggleHandlers(): void {
                 }).pipe(Effect.catchAll(() => Effect.void))
 
                 const classified = classifyAgentError(err)
-                emitStreamChunk(conversationId, {
-                  type: 'RUN_ERROR',
-                  timestamp: Date.now(),
-                  error: { message: classified.userMessage, code: classified.code },
-                })
-                emitStreamChunk(conversationId, {
-                  type: 'RUN_FINISHED',
-                  timestamp: Date.now(),
-                  runId: `waggle-${conversationId}`,
-                  finishReason: 'stop',
-                })
+                emitErrorAndFinish(
+                  conversationId,
+                  classified.userMessage,
+                  classified.code,
+                  `waggle-${conversationId}`,
+                )
               })
             }),
           ),
