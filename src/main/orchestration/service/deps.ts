@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto'
 import { chat, maxIterations } from '@tanstack/ai'
+import { loadProjectConfig } from '../../config/project-config'
+import { createLogger } from '../../logger'
 import {
   buildSamplingOptions,
   isResolutionError,
   resolveProviderAndQuality,
-} from '../../agent/shared'
-import { loadProjectConfig } from '../../config/project-config'
-import { createLogger } from '../../logger'
+} from '../../providers/provider-resolver'
 import { extractJson, runOpenWaggleOrchestration } from '../engine'
 import { createExecutorTools, gatherProjectContext } from '../project-context'
 import { orchestrationRunRepository } from '../run-repository'

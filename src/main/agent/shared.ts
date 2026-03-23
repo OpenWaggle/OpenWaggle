@@ -5,15 +5,8 @@ import type {
   MessagePart,
   PreparedAttachment,
 } from '@shared/types/agent'
-import { isSubscriptionProvider } from '@shared/types/auth'
 import { MessageId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
-import type { Provider, ProviderConfig, QualityPreset } from '@shared/types/settings'
-import { getActiveApiKey } from '../auth'
-import type { ProjectQualityOverrides } from '../config/project-config'
-import { providerRegistry } from '../providers'
-import type { ProviderDefinition } from '../providers/provider-definition'
-import { type ResolvedQualityConfig, resolveQualityConfig } from './quality-config'
 
 // ---------------------------------------------------------------------------
 // ChatContentPart — inline type previously duplicated in agent-loop.ts
@@ -71,18 +64,19 @@ export function buildPersistedUserMessageParts(payload: AgentSendPayload): Messa
 }
 
 // ---------------------------------------------------------------------------
-// buildSamplingOptions — extract the topP conditional
+// Re-exports from providers layer (canonical location for provider resolution)
 // ---------------------------------------------------------------------------
 
-export function buildSamplingOptions(qualityConfig: { temperature?: number; topP?: number }): {
-  temperature?: number
-  topP?: number
-} {
-  const opts: { temperature?: number; topP?: number } = {}
-  if (qualityConfig.temperature !== undefined) opts.temperature = qualityConfig.temperature
-  if (qualityConfig.topP !== undefined) opts.topP = qualityConfig.topP
-  return opts
-}
+export type {
+  ProviderResolution,
+  ProviderResolutionError,
+  ResolvedProviderResult,
+} from '../providers/provider-resolver'
+export {
+  buildSamplingOptions,
+  isResolutionError,
+  resolveProviderAndQuality,
+} from '../providers/provider-resolver'
 
 // ---------------------------------------------------------------------------
 // resolveAgentProjectPath — throw instead of process.cwd() fallback
@@ -93,71 +87,4 @@ export function resolveAgentProjectPath(
 ): string {
   if (conversationProjectPath) return conversationProjectPath
   throw new Error('No project path set on the conversation — cannot run agent without a project')
-}
-
-// ---------------------------------------------------------------------------
-// resolveProviderAndQuality — centralized provider resolution + validation
-// ---------------------------------------------------------------------------
-
-export interface ResolvedProviderResult {
-  readonly ok: true
-  readonly provider: ProviderDefinition
-  readonly providerConfig: ProviderConfig
-  readonly resolvedModel: SupportedModelId
-  readonly qualityConfig: ResolvedQualityConfig
-}
-
-export interface ProviderResolutionError {
-  readonly ok: false
-  readonly reason: string
-}
-
-export type ProviderResolution = ResolvedProviderResult | ProviderResolutionError
-
-export function isResolutionError(result: ProviderResolution): result is ProviderResolutionError {
-  return !result.ok
-}
-
-export async function resolveProviderAndQuality(
-  model: SupportedModelId,
-  qualityPreset: QualityPreset,
-  providers: Readonly<Partial<Record<Provider, ProviderConfig>>>,
-  projectOverrides?: ProjectQualityOverrides,
-): Promise<ProviderResolution> {
-  const provider = providerRegistry.getProviderForModel(model)
-  if (!provider) {
-    return { ok: false, reason: `No provider registered for model: ${model}` }
-  }
-
-  const providerConfig = providers[provider.id]
-  if (!providerConfig?.enabled) {
-    return { ok: false, reason: `${provider.displayName} is disabled in settings` }
-  }
-
-  // For subscription auth, refresh the token before proceeding
-  let effectiveConfig = providerConfig
-  if (providerConfig.authMethod === 'subscription' && isSubscriptionProvider(provider.id)) {
-    const freshToken = await getActiveApiKey(provider.id)
-    if (!freshToken) {
-      return {
-        ok: false,
-        reason: `Session expired for ${provider.displayName}. Please sign in again.`,
-      }
-    }
-    effectiveConfig = { ...providerConfig, apiKey: freshToken }
-  }
-
-  if (provider.requiresApiKey && !effectiveConfig.apiKey) {
-    return { ok: false, reason: `No API key configured for ${provider.displayName}` }
-  }
-
-  const qualityConfig = resolveQualityConfig(provider, model, qualityPreset, projectOverrides)
-
-  return {
-    ok: true,
-    provider,
-    providerConfig: effectiveConfig,
-    resolvedModel: model,
-    qualityConfig,
-  }
 }

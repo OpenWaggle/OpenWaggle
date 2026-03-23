@@ -13,6 +13,14 @@ vi.mock('../../providers', () => ({
   },
 }))
 
+// provider-resolver.ts imports registry directly
+vi.mock('../../providers/registry', () => ({
+  providerRegistry: {
+    getProviderForModel: mockGetProviderForModel,
+    isKnownModel: mockIsKnownModel,
+  },
+}))
+
 vi.mock('../../auth', () => ({
   getActiveApiKey: vi.fn(),
 }))

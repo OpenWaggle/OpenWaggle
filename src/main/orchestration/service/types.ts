@@ -1,12 +1,12 @@
 import type { JsonObject, JsonValue } from '@shared/types/json'
 import type { AnyTextAdapter, maxIterations, ServerTool, StreamChunk } from '@tanstack/ai'
+import type { loadProjectConfig } from '../../config/project-config'
+import type { Logger } from '../../logger'
 import type {
   buildSamplingOptions,
   isResolutionError,
   resolveProviderAndQuality,
-} from '../../agent/shared'
-import type { loadProjectConfig } from '../../config/project-config'
-import type { Logger } from '../../logger'
+} from '../../providers/provider-resolver'
 import type { extractJson, OpenWaggleProgressPayload, runOpenWaggleOrchestration } from '../engine'
 import type { createExecutorTools, gatherProjectContext } from '../project-context'
 import type { OrchestrationRunRepository } from '../run-repository'
