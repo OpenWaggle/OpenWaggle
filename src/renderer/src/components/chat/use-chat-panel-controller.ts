@@ -1,33 +1,27 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
-import { isTrustableToolName } from '@shared/types/tool-approval'
 import type { WaggleCollaborationStatus, WaggleConfig } from '@shared/types/waggle'
 import type { UIMessage } from '@tanstack/ai-react'
-import { useState } from 'react'
 import { useAgentChat } from '@/hooks/useAgentChat'
 import { useAutoSendQueue } from '@/hooks/useAutoSendQueue'
 import { useChat } from '@/hooks/useChat'
 import { useConversationNav } from '@/hooks/useConversationNav'
 import { useGit } from '@/hooks/useGit'
-import { useMessageModelLookup } from '@/hooks/useMessageModelLookup'
 import { useProject } from '@/hooks/useProject'
 import { useSendMessage } from '@/hooks/useSendMessage'
 import { useSkills } from '@/hooks/useSkills'
 import { useStreamingPhase } from '@/hooks/useStreamingPhase'
 import { useWaggleChat } from '@/hooks/useWaggleChat'
-import { useWaggleMetadataLookup } from '@/hooks/useWaggleMetadataLookup'
 import { api } from '@/lib/ipc'
 import { createRendererLogger } from '@/lib/logger'
-import { useComposerStore } from '@/stores/composer-store'
 import { usePreferencesStore } from '@/stores/preferences-store'
 import { useUIStore } from '@/stores/ui-store'
 import { useWaggleStore } from '@/stores/waggle-store'
-import { useChatRows } from './hooks/useChatRows'
-import { usePendingApprovalTrustCheck } from './hooks/usePendingApprovalTrustCheck'
+import { useComposerSection } from './hooks/useComposerSection'
 import { useSteerWorkflow } from './hooks/useSteerWorkflow'
+import { useTranscriptSection } from './hooks/useTranscriptSection'
 import type { PendingApproval, PendingAskUser } from './pending-tool-interactions'
-import { findPendingAskUser } from './pending-tool-interactions'
 import { reportAutoSendQueueFailure } from './queue-failure-feedback'
 import type { ChatRow } from './types-chat-row'
 
@@ -83,27 +77,6 @@ export interface ChatPanelSections {
   readonly transcript: ChatTranscriptSectionState
   readonly composer: ChatComposerSectionState
   readonly diff: ChatDiffSectionState
-}
-
-function resolveLastUserMessage(messages: UIMessage[]): string | null {
-  let lastUserMessage: UIMessage | undefined
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i]
-    if (message && message.role === 'user') {
-      lastUserMessage = message
-      break
-    }
-  }
-  if (!lastUserMessage) {
-    return null
-  }
-
-  const content = lastUserMessage.parts
-    .filter((part): part is Extract<typeof part, { type: 'text' }> => part.type === 'text')
-    .map((part) => part.content)
-    .join('\n')
-
-  return content || null
 }
 
 export function useChatPanelSections(): ChatPanelSections {
@@ -169,10 +142,7 @@ export function useChatPanelSections(): ChatPanelSections {
     sendWaggleMessage,
   })
 
-  const messageModelLookup = useMessageModelLookup(activeConversation)
-  const waggleMetadataLookup = useWaggleMetadataLookup(activeConversation, messages)
   useWaggleChat(activeConversationId)
-
   const phase = useStreamingPhase(activeConversationId)
   const { catalog } = useSkills(projectPath)
 
@@ -189,17 +159,7 @@ export function useChatPanelSections(): ChatPanelSections {
   const waggleStatus: WaggleCollaborationStatus =
     waggleOwningId && waggleOwningId !== activeConversationId ? 'idle' : waggleStoreStatus
 
-  const [dismissedError, setDismissedError] = useState<string | null>(null)
-
   const trustProjectPath = activeConversation?.projectPath ?? projectPath
-  const { pendingApprovalForUI } = usePendingApprovalTrustCheck(
-    messages,
-    activeConversation,
-    executionMode,
-    trustProjectPath,
-    respondToolApproval,
-  )
-  const pendingAskUser = findPendingAskUser(messages)
 
   async function handleSendWithWaggle(payload: AgentSendPayload): Promise<void> {
     phase.reset()
@@ -217,6 +177,17 @@ export function useChatPanelSections(): ChatPanelSections {
     } else {
       await handleSend(payload)
     }
+  }
+
+  function handleStartWaggle(config: WaggleConfig): void {
+    setWaggleConfig(config, activeConversationId)
+  }
+
+  function handleStopCollaboration(): void {
+    if (activeConversationId) {
+      api.cancelWaggle(activeConversationId)
+    }
+    stopWaggleCollaboration()
   }
 
   const { isSteering, handleSteer } = useSteerWorkflow({
@@ -238,121 +209,52 @@ export function useChatPanelSections(): ChatPanelSections {
     },
   })
 
-  const lastUserMessage = resolveLastUserMessage(messages)
-  const transcriptLoading = isLoading || isSteering
-
-  const chatRows = useChatRows({
+  const transcript = useTranscriptSection({
     messages,
-    isLoading: transcriptLoading,
+    isLoading,
+    isSteering,
     error,
-    lastUserMessage,
-    dismissedError,
-    conversationId: activeConversationId,
+    projectPath,
+    recentProjects,
+    activeConversationId,
+    activeConversation,
     model,
-    messageModelLookup,
-    waggleMetadataLookup,
+    waggleStatus,
     phase,
+    handleOpenProject,
+    handleSelectProjectPath,
+    handleSendText,
+    answerQuestion,
+    respondToPlan,
+    openSettings,
   })
 
-  function handleSelectSkill(skillId: string): void {
-    const composerStore = useComposerStore.getState()
-    const currentInput = composerStore.input
-    const nextInput = currentInput === '/' ? `/${skillId} ` : `/${skillId} ${currentInput}`
-    composerStore.setInput(nextInput)
-    composerStore.setCursorIndex(nextInput.length)
-  }
-
-  function handleStartWaggle(config: WaggleConfig): void {
-    setWaggleConfig(config, activeConversationId)
-  }
-
-  function handleStopCollaboration(): void {
-    if (activeConversationId) {
-      api.cancelWaggle(activeConversationId)
-    }
-    stopWaggleCollaboration()
-  }
-
-  async function handleToolApprovalResponse(
-    currentPendingApproval: PendingApproval,
-    approved: boolean,
-  ): Promise<void> {
-    await respondToolApproval(currentPendingApproval.approvalId, approved)
-
-    if (!approved) {
-      return
-    }
-    if (executionMode !== 'default-permissions') {
-      return
-    }
-    if (!trustProjectPath) {
-      return
-    }
-    if (!isTrustableToolName(currentPendingApproval.toolName)) {
-      return
-    }
-    if (typeof api.recordProjectToolApproval !== 'function') {
-      return
-    }
-
-    try {
-      await api.recordProjectToolApproval(
-        trustProjectPath,
-        currentPendingApproval.toolName,
-        currentPendingApproval.toolArgs,
-      )
-    } catch (error) {
-      logger.warn('Failed to persist tool approval trust', {
-        toolName: currentPendingApproval.toolName,
-        toolCallId: currentPendingApproval.toolCallId,
-        error: error instanceof Error ? error.message : String(error),
-      })
-      showToast('Approved. Could not save trust rule; approval may be requested again.')
-    }
-  }
+  const composer = useComposerSection({
+    messages,
+    isLoading,
+    isSteering,
+    status,
+    activeConversationId,
+    trustProjectPath,
+    executionMode,
+    waggleStatus,
+    commandPaletteOpen,
+    slashSkills: catalog?.skills ?? [],
+    phase,
+    activeConversation,
+    respondToolApproval,
+    answerQuestion,
+    stop,
+    showToast,
+    handleSteer,
+    handleSendWithWaggle,
+    handleStartWaggle,
+    handleStopCollaboration,
+  })
 
   return {
-    transcript: {
-      messages,
-      isLoading: isLoading || isSteering,
-      disableAutoFollowDuringWaggleStreaming: waggleStatus === 'running',
-      projectPath,
-      recentProjects,
-      activeConversationId,
-      chatRows,
-      onOpenProject: handleOpenProject,
-      onSelectProjectPath: handleSelectProjectPath,
-      onRetryText: handleSendText,
-      onAnswerQuestion: answerQuestion,
-      onRespondToPlan: respondToPlan,
-      onOpenSettings: openSettings,
-      onDismissError: setDismissedError,
-      lastUserMessageId: (() => {
-        for (let i = messages.length - 1; i >= 0; i -= 1) {
-          if (messages[i]?.role === 'user') return messages[i]?.id ?? null
-        }
-        return null
-      })(),
-    },
-    composer: {
-      pendingApproval: pendingApprovalForUI,
-      pendingAskUser,
-      activeConversationId,
-      waggleStatus,
-      commandPaletteOpen,
-      slashSkills: catalog?.skills ?? [],
-      isLoading: isLoading || isSteering || phase.current !== null,
-      status,
-      onToolApprovalResponse: handleToolApprovalResponse,
-      onAnswerQuestion: answerQuestion,
-      onStopCollaboration: handleStopCollaboration,
-      onSelectSkill: handleSelectSkill,
-      onStartWaggle: handleStartWaggle,
-      onSendWithWaggle: handleSendWithWaggle,
-      onSteer: handleSteer,
-      onCancel: stop,
-      onToast: showToast,
-    },
+    transcript,
+    composer,
     diff: {
       projectPath,
       onSendMessage: handleSendText,
