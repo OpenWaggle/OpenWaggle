@@ -1,6 +1,14 @@
-import { randomUUID } from 'node:crypto'
-import { DOUBLE_FACTOR } from '@shared/constants/constants'
-import type { JsonObject, JsonValue } from '@shared/types/json'
+import type { MutableRunState, MutableTask } from './engine-state'
+import { buildInitialState, restoreState, snapshotState, toRunSummary } from './engine-state'
+import {
+  asErrorMessage,
+  defaultSleep,
+  normalizeRetryPolicy,
+  normalizeTimeout,
+  retryDelayMs,
+  shouldRetry,
+  taskToDefinition,
+} from './engine-utils'
 import { MemoryRunStore } from './memory-run-store'
 import {
   ORCHESTRATION_ERROR_TASK_CANCELLED,
@@ -8,48 +16,12 @@ import {
   ORCHESTRATION_ERROR_TASK_TIMEOUT,
   type OrchestrationEngine,
   type OrchestrationEvent,
-  type OrchestrationRunDefinition,
   type OrchestrationRunRecord,
-  type OrchestrationRunStatus,
-  type OrchestrationTaskAttempt,
   type OrchestrationTaskDefinition,
-  type OrchestrationTaskOutputValue,
-  type OrchestrationTaskRecord,
-  type OrchestrationTaskRetryPolicy,
-  type OrchestrationTaskStatus,
   type RunStore,
   type RunSummary,
   type WorkerAdapter,
 } from './types'
-
-interface MutableRunState {
-  runId: string
-  status: OrchestrationRunStatus
-  startedAt: string
-  finishedAt?: string
-  maxParallelTasks: number
-  tasks: Map<string, MutableTask>
-  taskOrder: string[]
-  outputs: { [taskId: string]: OrchestrationTaskOutputValue }
-}
-
-interface MutableTask {
-  id: string
-  kind: string
-  dependsOn: string[]
-  input?: JsonValue
-  output?: OrchestrationTaskOutputValue
-  status: OrchestrationTaskStatus
-  retry: Required<OrchestrationTaskRetryPolicy>
-  timeoutMs?: number
-  attempts: OrchestrationTaskAttempt[]
-  startedAt?: string
-  finishedAt?: string
-  errorCode?: string
-  error?: string
-  metadata?: Readonly<JsonObject>
-  createdOrder: number
-}
 
 interface OrchestrationEngineOptions {
   readonly workerAdapter: WorkerAdapter
@@ -65,8 +37,6 @@ interface ActiveRun {
   readonly controller: AbortController
   readonly reasonRef: { reason?: string }
 }
-
-const DEFAULT_MAX_PARALLEL_TASKS = 4
 
 export function createOrchestrationEngine(
   options: OrchestrationEngineOptions,
@@ -124,93 +94,6 @@ export function createOrchestrationEngine(
     state.taskOrder.push(task.id)
     await emit({ type: 'task_queued', runId: state.runId, taskId: task.id, at: nowIso() })
     await saveState(state)
-  }
-
-  function buildInitialState(definition: OrchestrationRunDefinition): MutableRunState {
-    const runId = definition.runId ?? randomUUID()
-    const tasks = new Map<string, MutableTask>()
-    const taskOrder: string[] = []
-
-    definition.tasks.forEach((task, index) => {
-      if (tasks.has(task.id)) {
-        throw new Error(`duplicate task id '${task.id}' in run '${runId}'`)
-      }
-
-      const nextTask: MutableTask = {
-        id: task.id,
-        kind: task.kind,
-        dependsOn: [...(task.dependsOn ?? [])],
-        input: task.input,
-        status: 'queued',
-        retry: normalizeRetryPolicy(task.retry),
-        timeoutMs: normalizeTimeout(task.timeoutMs),
-        attempts: [],
-        metadata: task.metadata,
-        createdOrder: index,
-      }
-
-      tasks.set(task.id, nextTask)
-      taskOrder.push(task.id)
-    })
-
-    for (const task of tasks.values()) {
-      for (const dependency of task.dependsOn) {
-        if (!tasks.has(dependency)) {
-          throw new Error(`task '${task.id}' depends on unknown task '${dependency}'`)
-        }
-      }
-    }
-
-    return {
-      runId,
-      status: 'running',
-      startedAt: nowIso(),
-      maxParallelTasks: Math.max(
-        1,
-        Math.floor(definition.maxParallelTasks ?? DEFAULT_MAX_PARALLEL_TASKS),
-      ),
-      tasks,
-      taskOrder,
-      outputs: {},
-    }
-  }
-
-  function restoreState(snapshot: OrchestrationRunRecord): MutableRunState {
-    const tasks = new Map<string, MutableTask>()
-
-    for (const taskId of snapshot.taskOrder) {
-      const task = snapshot.tasks[taskId]
-      if (!task) {
-        continue
-      }
-      tasks.set(taskId, {
-        id: task.id,
-        kind: task.kind,
-        dependsOn: [...task.dependsOn],
-        input: task.input,
-        output: task.output,
-        status: task.status === 'running' || task.status === 'retrying' ? 'queued' : task.status,
-        retry: task.retry,
-        timeoutMs: task.timeoutMs,
-        attempts: [...task.attempts],
-        startedAt: task.startedAt,
-        finishedAt: task.finishedAt,
-        errorCode: task.errorCode,
-        error: task.error,
-        metadata: task.metadata,
-        createdOrder: task.createdOrder,
-      })
-    }
-
-    return {
-      runId: snapshot.runId,
-      status: 'running',
-      startedAt: snapshot.startedAt,
-      maxParallelTasks: snapshot.maxParallelTasks ?? DEFAULT_MAX_PARALLEL_TASKS,
-      tasks,
-      taskOrder: [...snapshot.taskOrder],
-      outputs: { ...snapshot.outputs },
-    }
   }
 
   async function runInternal(
@@ -565,7 +448,7 @@ export function createOrchestrationEngine(
 
   return {
     async run(definition): Promise<RunSummary> {
-      const state = buildInitialState(definition)
+      const state = buildInitialState(definition, nowIso)
       return runInternal(state, definition.signal)
     },
 
@@ -633,133 +516,4 @@ export function createOrchestrationEngine(
       return runStore.listRuns()
     },
   }
-}
-
-function normalizeRetryPolicy(
-  retry: OrchestrationTaskRetryPolicy | undefined,
-): Required<OrchestrationTaskRetryPolicy> {
-  return {
-    retries: Math.max(0, Math.floor(retry?.retries ?? 0)),
-    backoffMs: Math.max(0, Math.floor(retry?.backoffMs ?? 0)),
-    jitterMs: Math.max(0, Math.floor(retry?.jitterMs ?? 0)),
-  }
-}
-
-function normalizeTimeout(timeoutMs: number | undefined): number | undefined {
-  if (typeof timeoutMs !== 'number') {
-    return undefined
-  }
-  const normalized = Math.max(1, Math.floor(timeoutMs))
-  return normalized
-}
-
-function shouldRetry(
-  policy: Required<OrchestrationTaskRetryPolicy>,
-  attemptNumber: number,
-): boolean {
-  return attemptNumber <= policy.retries
-}
-
-function retryDelayMs(
-  policy: Required<OrchestrationTaskRetryPolicy>,
-  attemptNumber: number,
-  random: () => number,
-): number {
-  const backoff =
-    policy.backoffMs > 0 ? policy.backoffMs * DOUBLE_FACTOR ** Math.max(0, attemptNumber - 1) : 0
-  const jitter = policy.jitterMs > 0 ? random() * policy.jitterMs : 0
-  return Math.max(0, Math.floor(backoff + jitter))
-}
-
-function snapshotState(state: MutableRunState): OrchestrationRunRecord {
-  const tasks: Record<string, OrchestrationTaskRecord> = {}
-  for (const taskId of state.taskOrder) {
-    const task = state.tasks.get(taskId)
-    if (!task) {
-      continue
-    }
-
-    tasks[taskId] = {
-      id: task.id,
-      kind: task.kind,
-      dependsOn: [...task.dependsOn],
-      input: task.input,
-      output: task.output,
-      status: task.status,
-      retry: task.retry,
-      timeoutMs: task.timeoutMs,
-      attempts: [...task.attempts],
-      startedAt: task.startedAt,
-      finishedAt: task.finishedAt,
-      errorCode: task.errorCode,
-      error: task.error,
-      metadata: task.metadata,
-      createdOrder: task.createdOrder,
-    }
-  }
-
-  const allTasks = Object.values(tasks)
-  const summary = {
-    total: allTasks.length,
-    completed: allTasks.filter((task) => task.status === 'completed').length,
-    failed: allTasks.filter((task) => task.status === 'failed').length,
-    cancelled: allTasks.filter((task) => task.status === 'cancelled').length,
-    queued: allTasks.filter((task) => task.status === 'queued').length,
-    running: allTasks.filter((task) => task.status === 'running').length,
-    retrying: allTasks.filter((task) => task.status === 'retrying').length,
-  }
-
-  return {
-    runId: state.runId,
-    status: state.status,
-    startedAt: state.startedAt,
-    finishedAt: state.finishedAt,
-    maxParallelTasks: state.maxParallelTasks,
-    tasks,
-    taskOrder: [...state.taskOrder],
-    outputs: { ...state.outputs },
-    summary,
-  }
-}
-
-function toRunSummary(snapshot: OrchestrationRunRecord): RunSummary {
-  const failedTaskIds = snapshot.taskOrder.filter(
-    (taskId) => snapshot.tasks[taskId]?.status === 'failed',
-  )
-  const cancelledTaskIds = snapshot.taskOrder.filter(
-    (taskId) => snapshot.tasks[taskId]?.status === 'cancelled',
-  )
-
-  return {
-    runId: snapshot.runId,
-    status: snapshot.status,
-    outputs: snapshot.outputs,
-    failedTaskIds,
-    cancelledTaskIds,
-  }
-}
-
-function taskToDefinition(task: MutableTask): OrchestrationTaskDefinition {
-  return {
-    id: task.id,
-    kind: task.kind,
-    input: task.input,
-    dependsOn: task.dependsOn,
-    retry: task.retry,
-    timeoutMs: task.timeoutMs,
-    metadata: task.metadata,
-  }
-}
-
-function asErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message
-  }
-  return String(error)
-}
-
-async function defaultSleep(delayMs: number): Promise<void> {
-  await new Promise<void>((resolve) => {
-    setTimeout(resolve, delayMs)
-  })
 }
