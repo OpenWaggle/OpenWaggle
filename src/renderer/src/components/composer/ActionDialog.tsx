@@ -5,8 +5,10 @@ import { useGit } from '@/hooks/useGit'
 import { useProject } from '@/hooks/useProject'
 import { cn } from '@/lib/cn'
 import { runBranchMutation } from '@/lib/git-branch-mutation'
-import type { ComposerActionDialogKind } from '@/stores/composer-store'
-import { useComposerStore } from '@/stores/composer-store'
+import {
+  type ComposerActionDialogKind,
+  useComposerActionStore,
+} from '@/stores/composer-action-store'
 import { usePreferencesStore } from '@/stores/preferences-store'
 
 interface ActionDialogConfig {
@@ -66,14 +68,14 @@ interface ActionDialogProps {
 }
 
 export function ActionDialog({ onToast }: ActionDialogProps) {
-  const actionDialog = useComposerStore((s) => s.actionDialog)
-  const actionDialogInput = useComposerStore((s) => s.actionDialogInput)
-  const actionDialogError = useComposerStore((s) => s.actionDialogError)
-  const actionDialogBusy = useComposerStore((s) => s.actionDialogBusy)
-  const closeActionDialog = useComposerStore((s) => s.closeActionDialog)
-  const setActionDialogInput = useComposerStore((s) => s.setActionDialogInput)
-  const setActionDialogError = useComposerStore((s) => s.setActionDialogError)
-  const setActionDialogBusy = useComposerStore((s) => s.setActionDialogBusy)
+  const actionDialog = useComposerActionStore((s) => s.actionDialog)
+  const actionDialogInput = useComposerActionStore((s) => s.actionDialogInput)
+  const actionDialogError = useComposerActionStore((s) => s.actionDialogError)
+  const actionDialogBusy = useComposerActionStore((s) => s.actionDialogBusy)
+  const closeActionDialog = useComposerActionStore((s) => s.closeActionDialog)
+  const setActionDialogInput = useComposerActionStore((s) => s.setActionDialogInput)
+  const setActionDialogError = useComposerActionStore((s) => s.setActionDialogError)
+  const setActionDialogBusy = useComposerActionStore((s) => s.setActionDialogBusy)
 
   const { projectPath } = useProject()
   const { status: gitStatus, createBranch, renameBranch, deleteBranch, setUpstream } = useGit()
@@ -95,7 +97,7 @@ export function ActionDialog({ onToast }: ActionDialogProps) {
     if (!actionDialog) return
     function onKeyDown(event: KeyboardEvent): void {
       if (event.key !== 'Escape') return
-      if (useComposerStore.getState().actionDialogBusy) return
+      if (useComposerActionStore.getState().actionDialogBusy) return
       event.preventDefault()
       closeActionDialog()
     }

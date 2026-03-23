@@ -1,6 +1,7 @@
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useComposerActionStore } from '@/stores/composer-action-store'
 import { useComposerStore } from '@/stores/composer-store'
 import { useGitStore } from '@/stores/git-store'
 import { usePreferencesStore } from '@/stores/preferences-store'
@@ -23,6 +24,7 @@ vi.mock('@/lib/ipc', () => ({
 describe('BranchPicker', () => {
   beforeEach(() => {
     useComposerStore.setState(useComposerStore.getInitialState())
+    useComposerActionStore.setState(useComposerActionStore.getInitialState())
     usePreferencesStore.setState({
       ...usePreferencesStore.getInitialState(),
       settings: { ...DEFAULT_SETTINGS, projectPath: '/test/project' },
@@ -80,14 +82,16 @@ describe('BranchPicker', () => {
   })
 
   it('filters branches by search query', () => {
-    useComposerStore.setState({ branchMenuOpen: true, branchQuery: 'dev' })
+    useComposerStore.setState({ branchMenuOpen: true })
+    useComposerActionStore.setState({ branchQuery: 'dev' })
     render(<BranchPicker />)
     expect(screen.getByText('develop')).toBeInTheDocument()
     expect(screen.queryByText('origin/main')).toBeNull()
   })
 
   it('shows no branches message when filter yields nothing', () => {
-    useComposerStore.setState({ branchMenuOpen: true, branchQuery: 'nonexistent' })
+    useComposerStore.setState({ branchMenuOpen: true })
+    useComposerActionStore.setState({ branchQuery: 'nonexistent' })
     render(<BranchPicker />)
     expect(screen.getByText('No branches found.')).toBeInTheDocument()
   })
@@ -105,15 +109,15 @@ describe('BranchPicker', () => {
     useComposerStore.setState({ branchMenuOpen: true })
     render(<BranchPicker />)
     fireEvent.click(screen.getByText('Create'))
-    expect(useComposerStore.getState().actionDialog).toBe('create-branch')
+    expect(useComposerActionStore.getState().actionDialog).toBe('create-branch')
   })
 
   it('opens delete dialog for the selected local branch row action', () => {
     useComposerStore.setState({ branchMenuOpen: true })
     render(<BranchPicker />)
     fireEvent.click(screen.getByTitle('Delete "develop"'))
-    expect(useComposerStore.getState().actionDialog).toBe('delete-branch')
-    expect(useComposerStore.getState().actionDialogInput).toBe('develop')
+    expect(useComposerActionStore.getState().actionDialog).toBe('delete-branch')
+    expect(useComposerActionStore.getState().actionDialogInput).toBe('develop')
   })
 
   it('renders refresh button', () => {

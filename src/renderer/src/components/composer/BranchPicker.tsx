@@ -5,6 +5,7 @@ import { useGit } from '@/hooks/useGit'
 import { useProject } from '@/hooks/useProject'
 import { cn } from '@/lib/cn'
 import { runBranchMutation } from '@/lib/git-branch-mutation'
+import { useComposerActionStore } from '@/stores/composer-action-store'
 import { useComposerStore } from '@/stores/composer-store'
 
 interface BranchPickerProps {
@@ -24,10 +25,10 @@ export function BranchPicker({ onToast }: BranchPickerProps) {
   } = useGit()
 
   const branchMenuOpen = useComposerStore((s) => s.branchMenuOpen)
-  const branchQuery = useComposerStore((s) => s.branchQuery)
+  const branchQuery = useComposerActionStore((s) => s.branchQuery)
   const openMenu = useComposerStore((s) => s.openMenu)
-  const setBranchQuery = useComposerStore((s) => s.setBranchQuery)
-  const openActionDialog = useComposerStore((s) => s.openActionDialog)
+  const setBranchQuery = useComposerActionStore((s) => s.setBranchQuery)
+  const openActionDialog = useComposerActionStore((s) => s.openActionDialog)
 
   if (!projectPath) return null
 

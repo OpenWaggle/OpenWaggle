@@ -92,29 +92,6 @@ describe('composer-store', () => {
     })
   })
 
-  describe('action dialog', () => {
-    it('openActionDialog sets kind and closes menus', () => {
-      useComposerStore.getState().openMenu('quality')
-      useComposerStore.getState().openActionDialog('create-branch', 'feat/new')
-      expect(useComposerStore.getState().actionDialog).toBe('create-branch')
-      expect(useComposerStore.getState().actionDialogInput).toBe('feat/new')
-      expect(useComposerStore.getState().qualityMenuOpen).toBe(false)
-    })
-
-    it('closeActionDialog resets dialog state when not busy', () => {
-      useComposerStore.getState().openActionDialog('delete-branch')
-      useComposerStore.getState().closeActionDialog()
-      expect(useComposerStore.getState().actionDialog).toBeNull()
-    })
-
-    it('closeActionDialog does nothing when busy', () => {
-      useComposerStore.getState().openActionDialog('rename-branch')
-      useComposerStore.getState().setActionDialogBusy(true)
-      useComposerStore.getState().closeActionDialog()
-      expect(useComposerStore.getState().actionDialog).toBe('rename-branch')
-    })
-  })
-
   describe('prompt history', () => {
     beforeEach(() => {
       useComposerStore.setState({ promptHistory: [], historyIndex: 0, draftInput: '' })
@@ -206,13 +183,11 @@ describe('composer-store', () => {
       useComposerStore.getState().setInput('draft')
       useComposerStore.getState().addAttachments([makeAttachment('a1')])
       useComposerStore.getState().openMenu('branch')
-      useComposerStore.getState().setBranchMessage('done')
 
       useComposerStore.getState().reset()
       expect(useComposerStore.getState().input).toBe('')
       expect(useComposerStore.getState().attachments).toEqual([])
       expect(useComposerStore.getState().branchMenuOpen).toBe(false)
-      expect(useComposerStore.getState().branchMessage).toBeNull()
     })
   })
 })

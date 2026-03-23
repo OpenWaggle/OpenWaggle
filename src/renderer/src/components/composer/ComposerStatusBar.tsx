@@ -1,6 +1,7 @@
 import type { ExecutionMode } from '@shared/types/settings'
 import { Popover } from '@/components/shared/Popover'
 import { cn } from '@/lib/cn'
+import { useComposerActionStore } from '@/stores/composer-action-store'
 import { useComposerStore } from '@/stores/composer-store'
 import { usePreferencesStore } from '@/stores/preferences-store'
 import { BranchPicker } from './BranchPicker'
@@ -20,7 +21,7 @@ export function ComposerStatusBar({ onToast }: ComposerStatusBarProps) {
 
   const executionMenuOpen = useComposerStore((s) => s.executionMenuOpen)
   const openMenu = useComposerStore((s) => s.openMenu)
-  const openActionDialog = useComposerStore((s) => s.openActionDialog)
+  const openActionDialog = useComposerActionStore((s) => s.openActionDialog)
 
   async function handleExecutionModeChange(mode: ExecutionMode): Promise<void> {
     openMenu(null)

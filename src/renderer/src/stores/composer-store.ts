@@ -1,12 +1,7 @@
 import type { PreparedAttachment } from '@shared/types/agent'
 import { create } from 'zustand'
 
-export type ComposerActionDialogKind =
-  | 'create-branch'
-  | 'rename-branch'
-  | 'delete-branch'
-  | 'set-upstream'
-  | 'confirm-full-access'
+export type { ComposerActionDialogKind } from './composer-action-store'
 
 type MenuKind = 'quality' | 'execution' | 'branch' | null
 
@@ -73,23 +68,6 @@ interface ComposerState {
   branchMenuOpen: boolean
   openMenu: (menu: MenuKind) => void
 
-  // Action dialog
-  actionDialog: ComposerActionDialogKind | null
-  actionDialogInput: string
-  actionDialogError: string | null
-  actionDialogBusy: boolean
-  openActionDialog: (kind: ComposerActionDialogKind, initialValue?: string) => void
-  closeActionDialog: () => void
-  setActionDialogInput: (value: string) => void
-  setActionDialogError: (error: string | null) => void
-  setActionDialogBusy: (busy: boolean) => void
-
-  // Branch picker
-  branchQuery: string
-  branchMessage: string | null
-  setBranchQuery: (query: string) => void
-  setBranchMessage: (message: string | null) => void
-
   // Plan mode
   planModeActive: boolean
   togglePlanMode: () => void
@@ -115,12 +93,6 @@ interface InitialComposerState {
   qualityMenuOpen: boolean
   executionMenuOpen: boolean
   branchMenuOpen: boolean
-  actionDialog: ComposerActionDialogKind | null
-  actionDialogInput: string
-  actionDialogError: string | null
-  actionDialogBusy: boolean
-  branchQuery: string
-  branchMessage: string | null
   planModeActive: boolean
   slashHighlightIndex: number
   dismissedSlashToken: string | null
@@ -139,12 +111,6 @@ function buildInitialState(): InitialComposerState {
     qualityMenuOpen: false,
     executionMenuOpen: false,
     branchMenuOpen: false,
-    actionDialog: null,
-    actionDialogInput: '',
-    actionDialogError: null,
-    actionDialogBusy: false,
-    branchQuery: '',
-    branchMessage: null,
     planModeActive: false,
     slashHighlightIndex: 0,
     dismissedSlashToken: null,
@@ -220,46 +186,6 @@ export const useComposerStore = create<ComposerState>((set, get) => ({
     })
   },
 
-  openActionDialog(kind: ComposerActionDialogKind, initialValue = '') {
-    set({
-      qualityMenuOpen: false,
-      executionMenuOpen: false,
-      branchMenuOpen: false,
-      actionDialog: kind,
-      actionDialogInput: initialValue,
-      actionDialogError: null,
-    })
-  },
-
-  closeActionDialog() {
-    if (get().actionDialogBusy) return
-    set({
-      actionDialog: null,
-      actionDialogInput: '',
-      actionDialogError: null,
-    })
-  },
-
-  setActionDialogInput(value: string) {
-    set({ actionDialogInput: value })
-  },
-
-  setActionDialogError(error: string | null) {
-    set({ actionDialogError: error })
-  },
-
-  setActionDialogBusy(busy: boolean) {
-    set({ actionDialogBusy: busy })
-  },
-
-  setBranchQuery(query: string) {
-    set({ branchQuery: query })
-  },
-
-  setBranchMessage(message: string | null) {
-    set({ branchMessage: message })
-  },
-
   togglePlanMode() {
     set((s) => ({ planModeActive: !s.planModeActive }))
   },
@@ -281,7 +207,6 @@ export const useComposerStore = create<ComposerState>((set, get) => ({
       draftInput: '',
       attachments: [],
       attachmentError: null,
-      branchMessage: null,
       dismissedSlashToken: null,
       slashHighlightIndex: 0,
       qualityMenuOpen: false,

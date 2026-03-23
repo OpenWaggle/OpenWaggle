@@ -6,6 +6,7 @@ import { useEffect, useEffectEvent, useRef } from 'react'
 import { useProject } from '@/hooks/useProject'
 import { cn } from '@/lib/cn'
 import { api } from '@/lib/ipc'
+import { useComposerActionStore } from '@/stores/composer-action-store'
 import { useComposerStore } from '@/stores/composer-store'
 import { usePreferencesStore } from '@/stores/preferences-store'
 import { useUIStore } from '@/stores/ui-store'
@@ -68,8 +69,8 @@ export function Composer({
   const addAttachments = useComposerStore((s) => s.addAttachments)
   const removeAttachment = useComposerStore((s) => s.removeAttachment)
   const planModeActive = useComposerStore((s) => s.planModeActive)
-  const branchMessage = useComposerStore((s) => s.branchMessage)
-  const setBranchMessage = useComposerStore((s) => s.setBranchMessage)
+  const branchMessage = useComposerActionStore((s) => s.branchMessage)
+  const setBranchMessage = useComposerActionStore((s) => s.setBranchMessage)
   const reset = useComposerStore((s) => s.reset)
   const pushHistory = useComposerStore((s) => s.pushHistory)
   const historyUp = useComposerStore((s) => s.historyUp)
