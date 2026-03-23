@@ -1,25 +1,16 @@
 import type { ConversationId } from '@shared/types/brand'
+import { ActiveRunManager } from '../ipc/active-run-manager'
 
-interface ActiveOrchestrationRun {
-  readonly runId: string
+interface OrchestrationRunMetadata {
   readonly conversationId: ConversationId
-  readonly controller: AbortController
 }
 
-const activeRunsByRunId = new Map<string, ActiveOrchestrationRun>()
+const activeRuns = new ActiveRunManager<string, OrchestrationRunMetadata>()
 
 export function cancelActiveOrchestrationRun(runId: string): boolean {
-  const active = activeRunsByRunId.get(runId)
-  if (!active) return false
-  active.controller.abort()
-  activeRunsByRunId.delete(runId)
-  return true
+  return activeRuns.cancel(runId)
 }
 
 export function cancelAllForConversation(conversationId: ConversationId): void {
-  for (const [runId, active] of activeRunsByRunId) {
-    if (active.conversationId !== conversationId) continue
-    active.controller.abort()
-    activeRunsByRunId.delete(runId)
-  }
+  activeRuns.cancelAll((entry) => entry.metadata.conversationId === conversationId)
 }
