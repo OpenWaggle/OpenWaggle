@@ -20,17 +20,19 @@ import type {
 } from '@shared/types/tool-approval'
 import { TRUSTABLE_TOOL_NAMES } from '@shared/types/tool-approval'
 import { formatErrorMessage, isEnoent } from '@shared/utils/node-error'
+import {
+  deriveCommandPattern,
+  deriveWebFetchPattern,
+  normalizeCommand,
+  normalizeWebUrl,
+} from '@shared/utils/tool-trust-patterns'
 import { createLogger } from '../logger'
 import type { BaseSamplingConfig } from '../providers/provider-definition'
 import {
   appendAllowPattern,
   commandPatternMatch,
-  deriveCommandPattern,
-  deriveWebFetchPattern,
   getStringProperty,
   hasTrustData,
-  normalizeCommand,
-  normalizeWebUrl,
   parseRawArgsObject,
   wildcardMatch,
 } from './project-config-trust'
