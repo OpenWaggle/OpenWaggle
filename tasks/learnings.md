@@ -20,6 +20,11 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Refactoring Patterns
+- Regex `\b(\w{2,})\1\b` for deduplicating concatenated word fragments is too aggressive — it breaks legitimate short-repeat words like "CoCo", "Papa", "MaMa". Use `{4,}` minimum fragment length to avoid false positives while still catching "HelloHello", "FunctionFunction", etc.
+- When extracting shared handler utilities, do NOT mock the extracted module in existing handler tests — let calls pass through to the real utilities since all downstream dependencies are already mocked. This preserves integration coverage without test changes.
+- Renderer error logging must use `createRendererLogger` from `@/lib/logger`, never raw `console.warn` — the structured logger respects log levels and provides consistent namespace prefixes.
+
 ### TanStack useChat & Streaming Patterns
 - `useChat` foreground flows can leave the renderer vulnerable to client/message resets. Cache final foreground `UIMessage[]`, restore once if empty, then clear the guard so persisted hydration resumes.
 - `react-virtuoso` chat transcripts need stable `computeItemKey` when inserting user turns mid-stream. Index-based keys cause DOM recycling bugs.
