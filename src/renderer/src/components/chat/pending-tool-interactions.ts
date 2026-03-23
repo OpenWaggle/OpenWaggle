@@ -25,6 +25,11 @@ export interface PendingApproval {
   readonly hasApprovalMetadata: boolean
 }
 
+export type ApprovalResponseAction =
+  | { readonly kind: 'approve-once' }
+  | { readonly kind: 'approve-and-trust' }
+  | { readonly kind: 'deny' }
+
 export interface PendingAskUser {
   readonly questions: UserQuestion[]
 }

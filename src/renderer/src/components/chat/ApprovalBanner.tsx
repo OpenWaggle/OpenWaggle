@@ -1,19 +1,24 @@
 import type { JsonObject } from '@shared/types/json'
+import { isTrustableToolName } from '@shared/types/tool-approval'
 import { choose } from '@shared/utils/decision'
-import { Check, ShieldAlert, X } from 'lucide-react'
+import { deriveCommandPattern, deriveWebFetchPattern } from '@shared/utils/tool-trust-patterns'
+import { Check, CheckCheck, ShieldAlert, X } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/cn'
 import { parseToolArgs } from '@/lib/tool-args'
 import { getToolConfig } from '@/lib/tool-display'
 
-import type { PendingApproval } from './pending-tool-interactions'
+import type { ApprovalResponseAction, PendingApproval } from './pending-tool-interactions'
 
 interface ApprovalBannerProps {
   toolCallId: string
   toolName: string
   toolArgs: string
   approvalId: string
-  onApprovalResponse: (pendingApproval: PendingApproval, approved: boolean) => Promise<void>
+  onApprovalResponse: (
+    pendingApproval: PendingApproval,
+    response: ApprovalResponseAction,
+  ) => Promise<void>
 }
 
 /**
@@ -37,6 +42,19 @@ function formatToolDetail(toolName: string, args: JsonObject): string | null {
     })
 }
 
+function deriveTrustPatternLabel(toolName: string, detail: string | null): string | null {
+  if (toolName === 'runCommand' && detail) {
+    return deriveCommandPattern(detail)
+  }
+
+  if (toolName === 'webFetch' && detail) {
+    return deriveWebFetchPattern(detail)
+  }
+
+  const config = getToolConfig(toolName)
+  return `All ${config.displayName} operations`
+}
+
 export function ApprovalBanner({
   toolCallId,
   toolName,
@@ -51,12 +69,14 @@ export function ApprovalBanner({
 
   const parsedArgs = parseToolArgs(toolArgs)
   const detail = formatToolDetail(toolName, parsedArgs)
+  const canTrust = isTrustableToolName(toolName)
+  const trustPatternLabel = canTrust ? deriveTrustPatternLabel(toolName, detail) : null
 
-  function handleResponse(approved: boolean): void {
+  function handleResponse(response: ApprovalResponseAction): void {
     setLoading(true)
     void onApprovalResponse(
       { approvalId, toolCallId, toolName, toolArgs, hasApprovalMetadata: true },
-      approved,
+      response,
     ).finally(() => {
       setLoading(false)
     })
@@ -75,7 +95,7 @@ export function ApprovalBanner({
           <button
             type="button"
             disabled={loading}
-            onClick={() => handleResponse(false)}
+            onClick={() => handleResponse({ kind: 'deny' })}
             className={cn(
               'flex items-center gap-1 rounded-md px-2.5 py-1 text-[13px] font-medium transition-colors',
               'bg-error/15 text-error hover:bg-error/25 disabled:opacity-50',
@@ -87,7 +107,7 @@ export function ApprovalBanner({
           <button
             type="button"
             disabled={loading}
-            onClick={() => handleResponse(true)}
+            onClick={() => handleResponse({ kind: 'approve-once' })}
             className={cn(
               'flex items-center gap-1 rounded-md px-2.5 py-1 text-[13px] font-medium transition-colors',
               'bg-success/15 text-success hover:bg-success/25 disabled:opacity-50',
@@ -96,6 +116,20 @@ export function ApprovalBanner({
             <Check className="h-3 w-3" />
             Approve
           </button>
+          {canTrust && (
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => handleResponse({ kind: 'approve-and-trust' })}
+              className={cn(
+                'flex items-center gap-1 rounded-md px-2.5 py-1 text-[13px] font-medium transition-colors',
+                'border border-success/30 text-success hover:bg-success/10 disabled:opacity-50',
+              )}
+            >
+              <CheckCheck className="h-3 w-3" />
+              Always approve
+            </button>
+          )}
         </div>
       </div>
 
@@ -106,6 +140,14 @@ export function ApprovalBanner({
             {detail}
           </code>
         </div>
+      )}
+
+      {/* Trust pattern hint for "Always approve" */}
+      {trustPatternLabel && (
+        <p className="text-[11.5px] text-text-tertiary">
+          &ldquo;Always approve&rdquo; will remember the pattern{' '}
+          <code className="text-text-secondary font-mono">{trustPatternLabel}</code>
+        </p>
       )}
     </div>
   )
