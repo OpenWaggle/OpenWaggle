@@ -38,39 +38,43 @@ These rules are **non-negotiable**. Violating them invalidates your work.
 
 **Before starting ANY task:**
 
-1. Read `tasks/learnings.md` sections 1-3 (skip Archive) and review `tasks/lessons.md` for user corrections
+1. Read `docs/learnings.md` sections 1-3 (skip Archive) and review `docs/lessons.md` for user corrections
 2. Note any warnings relevant to your task
-3. Read `docs/product/ui-interaction-prd.md` and check whether the task maps to any planned/future UI feature (`HC-UI-*` items)
-4. If task is related, explicitly align implementation decisions with that PRD/spec and update the same document when scope/behavior changes
+3. If the task is linked to a GitHub Issue, read the issue for scope and acceptance criteria
 
 **After completing ANY task:**
 
-1. Add learnings to `tasks/learnings.md` "Recent Learnings" when they are high-signal technical findings (implementation, integration, architecture, debugging patterns, or non-obvious framework/tool constraints)
+1. Add learnings to `docs/learnings.md` "Recent Learnings" when they are high-signal technical findings (implementation, integration, architecture, debugging patterns, or non-obvious framework/tool constraints)
 2. Do NOT add routine project-management notes (e.g. missing docs/backlog file, branch names, generic process updates) unless they materially affect implementation behavior
-3. If there is no significant technical learning, add nothing to `tasks/learnings.md` for that task
+3. If there is no significant technical learning, add nothing to `docs/learnings.md` for that task
 4. If a learning is significant, mark it with `[SKILL?]`
 5. If any section exceeds its cap, consolidate or archive oldest items
 6. If YOUR task's learning is marked `[SKILL?]`, ask user: *"This seems significant — should I create a skill for [X]?"*
 
 **Two knowledge files — different purposes:**
 
-- **`tasks/learnings.md`** — Technical findings discovered during implementation (architecture patterns, framework quirks, integration gotchas). Written by the agent autonomously.
-- **`tasks/lessons.md`** — User corrections and behavioral rules. Updated whenever the user corrects you. These are patterns to never repeat.
+- **`docs/learnings.md`** — Technical findings discovered during implementation (architecture patterns, framework quirks, integration gotchas). Written by the agent autonomously.
+- **`docs/lessons.md`** — User corrections and behavioral rules. Updated whenever the user corrects you. These are patterns to never repeat.
 
 ### Git Workflow (MUST FOLLOW)
 
 **During implementation:**
 
-- Before starting implementation, create a branch using `<type>/<task-slug>`.
+- Before starting implementation, create a branch:
+  - For issue-linked work: `<type>/<issue-number>-<slug>` (e.g., `feat/42-token-tracking`)
+  - For non-issue work: `<type>/<slug>` (e.g., `refactor/cleanup-imports`)
 - Allowed branch/commit types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
 - Fix bugs, implement features, and resolve issues autonomously — don't ask the user for guidance during implementation.
 - Do not commit any changes until the maintainer explicitly approves. Code freely, commit only with permission.
-- Before the first commit, explicitly tell the user: `Changes are ready for review on <type>/<task-slug>.`
+- Before the first commit, explicitly tell the user: `Changes are ready for review on <branch-name>.`
 - Pause and wait for explicit approval before creating any commit.
 - After approval to commit, create atomic commits per logical unit of work.
 - Format: `<type>(<scope>): <description>`
-- After approved commits are complete, merge the working branch into local `main`.
-- Push the updated `main` branch to `origin`.
+- After approved commits are complete, push the working branch to `origin`.
+- Create a PR linked to the issue:
+  - If fully solving the issue: use `Closes #<issue-number>` in the PR body
+  - If partial progress: use `Part of #<issue-number>` in the PR body and update the issue with progress notes
+- After PR merge: update the issue status and GitHub Project roadmap if applicable.
 
 ## Definition of Done
 
@@ -79,9 +83,11 @@ These rules are **non-negotiable**. Violating them invalidates your work.
 3. Verified: tests pass, logs are clean, behavior matches intent. Ask yourself: "Would a staff engineer approve this?"
 4. If renderer code (`src/renderer/`) was touched: run React Doctor diagnostics (`npx -y react-doctor@latest . --verbose --diff main`), fix all errors, verify score did not drop. Load the `react-doctor` skill for fix patterns.
 5. Docs updated if behavior, workflow, or developer expectations changed.
-6. Significant learnings appended to `tasks/learnings.md` (**if there is any significant learning to add**).
+6. Significant learnings appended to `docs/learnings.md` (**if there is any significant learning to add**).
 7. Changes are grouped into logical commits.
-8. If you encounter a new TanStack AI bug, unexpected behavior, or workaround requirement (in `@tanstack/ai`, `@tanstack/ai-client`, or `@tanstack/ai-react`), explicitly report it to the user with a clear description. Reference `docs/tanstack-ai-known-issues.md` for existing issues and add new findings there. The maintainers are actively responsive — new bugs may be reportable upstream.
+8. PR linked to issue with `Closes #X` or `Part of #X`.
+9. Issue and roadmap project updated after merge.
+10. If you encounter a new TanStack AI bug, unexpected behavior, or workaround requirement (in `@tanstack/ai`, `@tanstack/ai-client`, or `@tanstack/ai-react`), explicitly report it to the user with a clear description. Reference `docs/tanstack-ai-known-issues.md` for existing issues and add new findings there. The maintainers are actively responsive — new bugs may be reportable upstream.
 
 ## Architecture
 
@@ -214,7 +220,7 @@ Always use granular selectors with `useChatStore((s) => s.field)` — never call
 - Enter plan mode for ANY non-trivial task (3+ steps or architectural decisions)
 - If something goes sideways, STOP and re-plan immediately — don't keep pushing
 - Use plan mode for verification steps, not just building
-- Write detailed specs upfront to reduce ambiguity
+- Write detailed plans upfront to reduce ambiguity
 
 ### 2. Subagent Strategy
 - Use subagents liberally to keep main context window clean
@@ -223,7 +229,7 @@ Always use granular selectors with `useChatStore((s) => s.field)` — never call
 - One task per subagent for focused execution
 
 ### 3. Self-Improvement Loop
-- After ANY correction from the user: update `tasks/lessons.md` with the pattern
+- After ANY correction from the user: update `docs/lessons.md` with the pattern
 - Write rules for yourself that prevent the same mistake
 - Ruthlessly iterate on these lessons until mistake rate drops
 - Review lessons at session start for relevant project
@@ -242,12 +248,12 @@ Always use granular selectors with `useChatStore((s) => s.field)` — never call
 
 ## Task Management
 
-1. **Plan First**: Write plan to `tasks/specs/<task-name>.md` with checkable items
-2. **Verify Plan**: Check in before starting implementation
-3. **Track Progress**: Mark items complete as you go
-4. **Explain Changes**: High-level summary at each step
-5. **Document Results**: Add review section to `tasks/specs/<task-name>.md`
-6. **Capture Lessons**: Update `tasks/lessons.md` after user corrections; update `tasks/learnings.md` for technical findings
+1. **Check Issue**: Read the linked GitHub Issue for scope and acceptance criteria
+2. **Plan First**: Enter plan mode for non-trivial tasks; create a plan in the conversation or a temporary plan file
+3. **Verify Plan**: Check in with the user before starting implementation
+4. **Track Progress**: Mark items complete as you go; update the GitHub Issue with progress notes for long-running work
+5. **Explain Changes**: High-level summary at each step
+6. **Capture Lessons**: Update `docs/lessons.md` after user corrections; update `docs/learnings.md` for technical findings
 
 ## Core Principles
 
