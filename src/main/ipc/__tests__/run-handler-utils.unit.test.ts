@@ -29,6 +29,19 @@ const {
 
 vi.mock('../../utils/stream-bridge', () => ({
   emitStreamChunk: emitStreamChunkMock,
+  emitErrorAndFinish(conversationId: unknown, message: string, code: string, runId = '') {
+    emitStreamChunkMock(conversationId, {
+      type: 'RUN_ERROR',
+      timestamp: Date.now(),
+      error: { message, code },
+    })
+    emitStreamChunkMock(conversationId, {
+      type: 'RUN_FINISHED',
+      timestamp: Date.now(),
+      runId,
+      finishReason: 'stop',
+    })
+  },
 }))
 
 vi.mock('../../store/conversations', () => ({

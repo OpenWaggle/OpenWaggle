@@ -100,6 +100,26 @@ export function emitStreamChunk(conversationId: ConversationId, chunk: StreamChu
   broadcastToWindows('agent:stream-chunk', { conversationId, chunk: serializable })
 }
 
+/** Emit RUN_ERROR + RUN_FINISHED pair for early-exit error paths. */
+export function emitErrorAndFinish(
+  conversationId: ConversationId,
+  message: string,
+  code: string,
+  runId = '',
+): void {
+  emitStreamChunk(conversationId, {
+    type: 'RUN_ERROR',
+    timestamp: Date.now(),
+    error: { message, code },
+  })
+  emitStreamChunk(conversationId, {
+    type: 'RUN_FINISHED',
+    timestamp: Date.now(),
+    runId,
+    finishReason: 'stop',
+  })
+}
+
 /**
  * Normalize a RUN_ERROR chunk for IPC serialization.
  * Preserves our custom `code` field for structured error classification,

@@ -10,28 +10,10 @@ import { buildPersistedUserMessageParts, makeMessage } from '../agent/shared'
 import { generateTitle } from '../agent/title-generator'
 import { withConversationLock } from '../store/conversation-lock'
 import { getConversation, saveConversation } from '../store/conversations'
-import { emitStreamChunk } from '../utils/stream-bridge'
 import { hydrateAttachmentSources } from './attachments-handler'
 
-/** Emit RUN_ERROR + RUN_FINISHED pair for early-exit error paths. */
-export function emitErrorAndFinish(
-  conversationId: ConversationId,
-  message: string,
-  code: string,
-  runId = '',
-): void {
-  emitStreamChunk(conversationId, {
-    type: 'RUN_ERROR',
-    timestamp: Date.now(),
-    error: { message, code },
-  })
-  emitStreamChunk(conversationId, {
-    type: 'RUN_FINISHED',
-    timestamp: Date.now(),
-    runId,
-    finishReason: 'stop',
-  })
-}
+// Re-export from canonical location for handler imports
+export { emitErrorAndFinish } from '../utils/stream-bridge'
 
 /** Check whether a user payload contains text or attachments worth persisting. */
 export function hasPersistableUserInput(payload: AgentSendPayload): boolean {
