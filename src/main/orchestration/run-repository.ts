@@ -1,19 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import * as SqlClient from '@effect/sql/SqlClient'
-import { Schema, safeDecodeUnknown } from '@shared/schema'
-import {
-  jsonObjectSchema,
-  jsonValueSchema,
-  orchestrationTaskAttemptSchema,
-  orchestrationTaskRetryPolicySchema,
-} from '@shared/schemas/validation'
-import { ConversationId, OrchestrationRunId, OrchestrationTaskId } from '@shared/types/brand'
-import type { JsonObject, JsonValue } from '@shared/types/json'
-import type {
-  OrchestrationOutputValue,
-  OrchestrationRunRecord,
-  OrchestrationTaskRecord,
-} from '@shared/types/orchestration'
+import type { ConversationId } from '@shared/types/brand'
+import type { JsonValue } from '@shared/types/json'
+import type { OrchestrationRunRecord, OrchestrationTaskRecord } from '@shared/types/orchestration'
 import * as Effect from 'effect/Effect'
 import { runAppEffect } from '../runtime'
 import type {
@@ -21,48 +10,20 @@ import type {
   OrchestrationEvent,
   RunStore,
 } from './engine'
-
-interface OrchestrationRunRow {
-  readonly run_id: string
-  readonly conversation_id: string
-  readonly status: OrchestrationRunRecord['status']
-  readonly started_at: string
-  readonly finished_at: string | null
-  readonly max_parallel_tasks: number | null
-  readonly task_order_json: string
-  readonly outputs_json: string
-  readonly fallback_used: number
-  readonly fallback_reason: string | null
-  readonly updated_at: number
-}
-
-interface OrchestrationRunTaskRow {
-  readonly run_id: string
-  readonly task_id: string
-  readonly kind: string
-  readonly status: OrchestrationTaskRecord['status']
-  readonly depends_on_json: string
-  readonly title: string | null
-  readonly input_json: string | null
-  readonly output_json: string | null
-  readonly started_at: string | null
-  readonly finished_at: string | null
-  readonly error_code: string | null
-  readonly error: string | null
-  readonly retry_json: string | null
-  readonly attempts_json: string | null
-  readonly timeout_ms: number | null
-  readonly metadata_json: string | null
-  readonly created_order: number
-}
-
-interface PersistedOrchestrationEventRow {
-  readonly sequence: number
-  readonly event_type: string
-  readonly occurred_at: string
-  readonly payload_json: string
-  readonly metadata_json: string
-}
+import {
+  CANCELLED_ERROR_CODE,
+  extractTaskTitle,
+  normalizeRunId,
+  summarizeCoreRun,
+  toSharedRunRecord,
+} from './run-record-transforms'
+import {
+  buildCoreRunFromRows,
+  buildSharedRunFromRows,
+  type OrchestrationRunRow,
+  type OrchestrationRunTaskRow,
+  type PersistedOrchestrationEventRow,
+} from './run-repository-mapper'
 
 interface AppendEventInput {
   readonly conversationId: ConversationId
@@ -80,237 +41,6 @@ interface SaveRunOptions {
 
 const ORCHESTRATION_AGGREGATE_KIND = 'orchestration_run'
 const DEFAULT_ACTOR_KIND = 'system'
-const CANCELLED_ERROR_CODE = 'TASK_CANCELLED'
-const RUN_ID_PATTERN = /^[a-zA-Z0-9_-]{1,128}$/
-
-const taskAttemptsSchema = Schema.mutable(Schema.Array(orchestrationTaskAttemptSchema))
-const taskOrderSchema = Schema.mutable(Schema.Array(Schema.String))
-
-function extractTaskTitle(task: CoreRunRecord['tasks'][string]): string | undefined {
-  const input = task.input
-  if (!input || typeof input !== 'object' || Array.isArray(input)) {
-    return undefined
-  }
-  const title = input.title
-  return typeof title === 'string' && title.trim().length > 0 ? title : undefined
-}
-
-function parseJsonString(raw: string | null): unknown | null {
-  if (raw === null) {
-    return null
-  }
-
-  try {
-    return JSON.parse(raw)
-  } catch {
-    return null
-  }
-}
-
-function parseTaskOrder(raw: string): readonly string[] {
-  const parsed = parseJsonString(raw)
-  const result = safeDecodeUnknown(taskOrderSchema, parsed)
-  return result.success ? result.data : []
-}
-
-function parseOutputMap(raw: string): Readonly<Record<string, OrchestrationOutputValue>> {
-  const parsed = parseJsonString(raw)
-  const result = safeDecodeUnknown(jsonObjectSchema, parsed)
-  return result.success ? result.data : {}
-}
-
-function parseJsonValue(raw: string | null): JsonValue | undefined {
-  const parsed = parseJsonString(raw)
-  const result = safeDecodeUnknown(jsonValueSchema, parsed)
-  return result.success ? result.data : undefined
-}
-
-function parseJsonObject(raw: string | null): Readonly<JsonObject> | undefined {
-  const parsed = parseJsonString(raw)
-  const result = safeDecodeUnknown(jsonObjectSchema, parsed)
-  return result.success ? result.data : undefined
-}
-
-function parseRetryPolicy(raw: string | null): CoreRunRecord['tasks'][string]['retry'] {
-  const parsed = parseJsonString(raw)
-  const result = safeDecodeUnknown(orchestrationTaskRetryPolicySchema, parsed)
-  return result.success
-    ? {
-        retries: result.data.retries,
-        backoffMs: result.data.backoffMs,
-        jitterMs: result.data.jitterMs,
-      }
-    : { retries: 0, backoffMs: 0, jitterMs: 0 }
-}
-
-function parseAttempts(
-  raw: string | null,
-): readonly CoreRunRecord['tasks'][string]['attempts'][number][] {
-  const parsed = parseJsonString(raw)
-  const result = safeDecodeUnknown(taskAttemptsSchema, parsed)
-  return result.success ? result.data : []
-}
-
-function toSharedTaskRecord(
-  task: CoreRunRecord['tasks'][string],
-  createdOrder: number,
-): OrchestrationTaskRecord {
-  return {
-    id: OrchestrationTaskId(task.id),
-    kind: task.kind,
-    status: task.status,
-    dependsOn: task.dependsOn.map((dependencyId) => OrchestrationTaskId(dependencyId)),
-    title: extractTaskTitle(task),
-    startedAt: task.startedAt,
-    finishedAt: task.finishedAt,
-    errorCode: task.errorCode,
-    error: task.error,
-    retry: task.retry,
-    attempts: task.attempts,
-    createdOrder,
-  }
-}
-
-function toSharedRunRecord(
-  core: CoreRunRecord,
-  conversationId: ConversationId,
-  fallbackUsed: boolean,
-  fallbackReason?: string,
-): OrchestrationRunRecord {
-  const tasks: Record<string, OrchestrationTaskRecord> = {}
-  for (let index = 0; index < core.taskOrder.length; index += 1) {
-    const taskId = core.taskOrder[index]
-    const task = core.tasks[taskId]
-    if (!task) {
-      continue
-    }
-    tasks[taskId] = toSharedTaskRecord(task, task.createdOrder ?? index)
-  }
-
-  return {
-    runId: OrchestrationRunId(core.runId),
-    conversationId,
-    status: core.status,
-    startedAt: core.startedAt,
-    finishedAt: core.finishedAt,
-    maxParallelTasks: core.maxParallelTasks,
-    taskOrder: core.taskOrder.map((taskId) => OrchestrationTaskId(taskId)),
-    tasks,
-    outputs: core.outputs,
-    fallbackUsed,
-    fallbackReason,
-    updatedAt: Date.now(),
-  }
-}
-
-function summarizeCoreRun(tasks: Readonly<Record<string, CoreRunRecord['tasks'][string]>>) {
-  const values = Object.values(tasks)
-  return {
-    total: values.length,
-    completed: values.filter((task) => task.status === 'completed').length,
-    failed: values.filter((task) => task.status === 'failed').length,
-    cancelled: values.filter((task) => task.status === 'cancelled').length,
-    queued: values.filter((task) => task.status === 'queued').length,
-    running: values.filter((task) => task.status === 'running').length,
-    retrying: values.filter((task) => task.status === 'retrying').length,
-  }
-}
-
-function normalizeRunId(runId: string): string | null {
-  const trimmed = runId.trim()
-  if (!trimmed) {
-    return null
-  }
-
-  return RUN_ID_PATTERN.test(trimmed) ? trimmed : null
-}
-
-function buildCoreTaskFromRow(row: OrchestrationRunTaskRow): CoreRunRecord['tasks'][string] {
-  return {
-    id: row.task_id,
-    kind: row.kind,
-    dependsOn: parseTaskOrder(row.depends_on_json),
-    input: parseJsonValue(row.input_json),
-    output: parseJsonValue(row.output_json),
-    status: row.status,
-    retry: parseRetryPolicy(row.retry_json),
-    timeoutMs: row.timeout_ms ?? undefined,
-    attempts: parseAttempts(row.attempts_json),
-    startedAt: row.started_at ?? undefined,
-    finishedAt: row.finished_at ?? undefined,
-    errorCode: row.error_code ?? undefined,
-    error: row.error ?? undefined,
-    metadata: parseJsonObject(row.metadata_json),
-    createdOrder: row.created_order,
-  }
-}
-
-function buildSharedRunFromRows(
-  runRow: OrchestrationRunRow,
-  taskRows: readonly OrchestrationRunTaskRow[],
-): OrchestrationRunRecord {
-  const taskOrder = parseTaskOrder(runRow.task_order_json)
-  const tasks: Record<string, OrchestrationTaskRecord> = {}
-
-  for (const taskRow of taskRows) {
-    const taskId = taskRow.task_id
-    tasks[taskId] = {
-      id: OrchestrationTaskId(taskId),
-      kind: taskRow.kind,
-      status: taskRow.status,
-      dependsOn: parseTaskOrder(taskRow.depends_on_json).map((dependencyId) =>
-        OrchestrationTaskId(dependencyId),
-      ),
-      title: taskRow.title ?? undefined,
-      startedAt: taskRow.started_at ?? undefined,
-      finishedAt: taskRow.finished_at ?? undefined,
-      errorCode: taskRow.error_code ?? undefined,
-      error: taskRow.error ?? undefined,
-      retry: parseRetryPolicy(taskRow.retry_json),
-      attempts: parseAttempts(taskRow.attempts_json),
-      createdOrder: taskRow.created_order,
-    }
-  }
-
-  return {
-    runId: OrchestrationRunId(runRow.run_id),
-    conversationId: ConversationId(runRow.conversation_id),
-    status: runRow.status,
-    startedAt: runRow.started_at,
-    finishedAt: runRow.finished_at ?? undefined,
-    maxParallelTasks: runRow.max_parallel_tasks ?? undefined,
-    taskOrder: taskOrder.map((taskId) => OrchestrationTaskId(taskId)),
-    tasks,
-    outputs: parseOutputMap(runRow.outputs_json),
-    fallbackUsed: runRow.fallback_used === 1,
-    fallbackReason: runRow.fallback_reason ?? undefined,
-    updatedAt: runRow.updated_at,
-  }
-}
-
-function buildCoreRunFromRows(
-  runRow: OrchestrationRunRow,
-  taskRows: readonly OrchestrationRunTaskRow[],
-): CoreRunRecord {
-  const taskOrder = parseTaskOrder(runRow.task_order_json)
-  const tasks: Record<string, CoreRunRecord['tasks'][string]> = {}
-
-  for (const taskRow of taskRows) {
-    tasks[taskRow.task_id] = buildCoreTaskFromRow(taskRow)
-  }
-
-  return {
-    runId: runRow.run_id,
-    status: runRow.status,
-    startedAt: runRow.started_at,
-    finishedAt: runRow.finished_at ?? undefined,
-    maxParallelTasks: runRow.max_parallel_tasks ?? undefined,
-    tasks,
-    taskOrder,
-    outputs: parseOutputMap(runRow.outputs_json),
-    summary: summarizeCoreRun(tasks),
-  }
-}
 
 async function listRunRows(
   conversationId?: ConversationId,
