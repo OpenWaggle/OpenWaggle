@@ -64,6 +64,7 @@ export const orchestrateTool = defineOpenWaggleTool({
       { defaultOrchestrationServiceDeps },
       { createModelRunner },
       { buildExecutionPrompt, buildSynthesisPrompt },
+      { registerActiveOrchestrationRun, unregisterActiveOrchestrationRun },
     ] = await Promise.all([
       import('../../store/settings'),
       import('../../config/project-config'),
@@ -74,6 +75,7 @@ export const orchestrateTool = defineOpenWaggleTool({
       import('../../orchestration/service/deps'),
       import('../../orchestration/service/model-runner'),
       import('../../orchestration/service/prompts'),
+      import('../../orchestration/active-runs'),
     ])
 
     // ── Resolve provider + quality ──
@@ -130,81 +132,101 @@ export const orchestrateTool = defineOpenWaggleTool({
       }),
     }
 
+    // ── Register for IPC cancellation ──
+    const orchestrationController = new AbortController()
+    const onParentAbort = (): void => {
+      orchestrationController.abort()
+    }
+    if (signal) {
+      if (signal.aborted) {
+        orchestrationController.abort()
+      } else {
+        signal.addEventListener('abort', onParentAbort, { once: true })
+      }
+    }
+    registerActiveOrchestrationRun(runId, conversationId, orchestrationController)
+
     // ── Run orchestration with pre-planned tasks ──
-    const result = await runOpenWaggleOrchestration({
-      runId,
-      userPrompt: args.tasks.map((t) => `[${t.id}] ${t.title}: ${t.prompt}`).join('\n'),
-      signal,
-      maxParallelTasks: MAX_PARALLEL_TASKS,
-      planner: {
-        async plan() {
-          return planJson
+    let result: Awaited<ReturnType<typeof runOpenWaggleOrchestration>>
+    try {
+      result = await runOpenWaggleOrchestration({
+        runId,
+        userPrompt: args.tasks.map((t) => `[${t.id}] ${t.title}: ${t.prompt}`).join('\n'),
+        signal: orchestrationController.signal,
+        maxParallelTasks: MAX_PARALLEL_TASKS,
+        planner: {
+          async plan() {
+            return planJson
+          },
         },
-      },
-      executor: {
-        async execute(input: OpenWaggleTaskExecutionInput) {
-          const executionPrompt = buildExecutionPrompt({
-            task: input.task,
-            projectContextText: projectContext.text,
-            dependencyOutputs: input.dependencyOutputs,
-            includeConversationSummary: false,
-            conversationSummaryText: '',
-          })
-
-          const tools = input.task.kind === 'synthesis' ? [] : executorTools
-          const text = await modelRunner.modelTextWithTools(
-            adapter,
-            executionPrompt,
-            qualityConfig,
-            tools,
-            input.reportProgress,
-          )
-          return { text }
-        },
-      },
-      synthesizer: {
-        async synthesize(input) {
-          const synthesisPrompt = buildSynthesisPrompt({
-            userPrompt: input.userPrompt,
-            projectContextText: projectContext.text,
-            outputs: input.run.outputs,
-          })
-          return modelRunner.modelText(adapter, synthesisPrompt, qualityConfig)
-        },
-      },
-      onEvent: (event) => {
-        const taskId = 'taskId' in event && event.taskId ? String(event.taskId) : undefined
-        const payload: OrchestrationEventPayload = {
-          conversationId,
-          runId: OrchestrationRunId(event.runId),
-          type: event.type,
-          at: event.at,
-          taskId: taskId ? OrchestrationTaskId(taskId) : undefined,
-          taskKind: taskId ? taskKindLookup.get(taskId) : undefined,
-          detail: event,
-        }
-
-        orchestrationRunRepository
-          .appendEvent({
-            conversationId,
-            event,
-            metadata: taskId
-              ? {
-                  taskKind: taskKindLookup.get(taskId) ?? null,
-                }
-              : undefined,
-          })
-          .catch((error) => {
-            logger.warn('Failed to persist orchestration event', {
-              runId: event.runId,
-              type: event.type,
-              error: error instanceof Error ? error.message : String(error),
+        executor: {
+          async execute(input: OpenWaggleTaskExecutionInput) {
+            const executionPrompt = buildExecutionPrompt({
+              task: input.task,
+              projectContextText: projectContext.text,
+              dependencyOutputs: input.dependencyOutputs,
+              includeConversationSummary: false,
+              conversationSummaryText: '',
             })
-          })
 
-        emitOrchestrationEvent(payload)
-      },
-    })
+            const tools = input.task.kind === 'synthesis' ? [] : executorTools
+            const text = await modelRunner.modelTextWithTools(
+              adapter,
+              executionPrompt,
+              qualityConfig,
+              tools,
+              input.reportProgress,
+            )
+            return { text }
+          },
+        },
+        synthesizer: {
+          async synthesize(input) {
+            const synthesisPrompt = buildSynthesisPrompt({
+              userPrompt: input.userPrompt,
+              projectContextText: projectContext.text,
+              outputs: input.run.outputs,
+            })
+            return modelRunner.modelText(adapter, synthesisPrompt, qualityConfig)
+          },
+        },
+        onEvent: (event) => {
+          const taskId = 'taskId' in event && event.taskId ? String(event.taskId) : undefined
+          const payload: OrchestrationEventPayload = {
+            conversationId,
+            runId: OrchestrationRunId(event.runId),
+            type: event.type,
+            at: event.at,
+            taskId: taskId ? OrchestrationTaskId(taskId) : undefined,
+            taskKind: taskId ? taskKindLookup.get(taskId) : undefined,
+            detail: event,
+          }
+
+          orchestrationRunRepository
+            .appendEvent({
+              conversationId,
+              event,
+              metadata: taskId
+                ? {
+                    taskKind: taskKindLookup.get(taskId) ?? null,
+                  }
+                : undefined,
+            })
+            .catch((error) => {
+              logger.warn('Failed to persist orchestration event', {
+                runId: event.runId,
+                type: event.type,
+                error: error instanceof Error ? error.message : String(error),
+              })
+            })
+
+          emitOrchestrationEvent(payload)
+        },
+      })
+    } finally {
+      unregisterActiveOrchestrationRun(runId)
+      signal?.removeEventListener('abort', onParentAbort)
+    }
 
     logger.info('orchestrate tool completed', {
       runId: result.runId,

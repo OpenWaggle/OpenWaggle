@@ -7,6 +7,18 @@ interface OrchestrationRunMetadata {
 
 const activeRuns = new ActiveRunManager<string, OrchestrationRunMetadata>()
 
+export function registerActiveOrchestrationRun(
+  runId: string,
+  conversationId: ConversationId,
+  controller: AbortController,
+): void {
+  activeRuns.register(runId, controller, { conversationId })
+}
+
+export function unregisterActiveOrchestrationRun(runId: string): void {
+  activeRuns.delete(runId)
+}
+
 export function cancelActiveOrchestrationRun(runId: string): boolean {
   return activeRuns.cancel(runId)
 }
