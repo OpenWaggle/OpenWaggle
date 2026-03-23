@@ -47,7 +47,7 @@ These scripts prove the packaging pipeline locally, but they are not a full end-
 - `build:mac` currently produces unsigned local DMGs because `electron-builder.yml` sets `mac.identity: null`
 - `build:win` and `build:linux` produce local artifacts, but there is no release workflow, checksum publication, or installer smoke coverage yet
 
-If you are preparing public downloads, use [`tasks/specs/35-ship-to-users.md`](../../tasks/specs/35-ship-to-users.md) as the release-readiness checklist rather than treating `pnpm build:*` as sufficient.
+If you are preparing public downloads, use [GitHub Issue #49](https://github.com/OpenWaggle/OpenWaggle/issues/49) as the release-readiness checklist rather than treating `pnpm build:*` as sufficient.
 
 ## Scripts Reference
 
