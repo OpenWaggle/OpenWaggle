@@ -2,8 +2,8 @@ import { TRIPLE_FACTOR } from '@shared/constants/constants'
 import type { QualityPreset } from '@shared/types/settings'
 import { isRecord } from '@shared/utils/validation'
 import { createOpenaiChat, OPENAI_CHAT_MODELS } from '@tanstack/ai-openai'
-import { isReasoningModel } from '../agent/quality-config'
 import { createLogger } from '../logger'
+import { isReasoningModel } from './model-classification'
 import type {
   BaseSamplingConfig,
   ProviderDefinition,

@@ -43,12 +43,8 @@ const QUALITY_TIER_CONFIG: Record<QualityPreset, BaseSamplingConfig> = {
   },
 }
 
-/**
- * Reasoning models (GPT-5 family, o-series) reject temperature/topP parameters.
- */
-export function isReasoningModel(model: string): boolean {
-  return /^(gpt-5|o[1-4])/.test(model)
-}
+// Re-export from canonical location in providers layer
+export { isReasoningModel } from '../providers/model-classification'
 
 export function resolveQualityConfig(
   provider: ProviderDefinition,
