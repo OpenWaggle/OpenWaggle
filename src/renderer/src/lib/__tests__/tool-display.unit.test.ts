@@ -1,20 +1,29 @@
 import { describe, expect, it } from 'vitest'
-import { getToolActionText, getToolVerbs } from '../tool-display'
+import {
+  getToolActionText,
+  getToolApprovalText,
+  getToolVerbs,
+  resolveActionText,
+} from '../tool-display'
 
 describe('getToolVerbs', () => {
   it('returns known verbs for readFile', () => {
     const verbs = getToolVerbs('readFile')
-    expect(verbs).toEqual({ running: 'Reading', completed: 'Read' })
+    expect(verbs).toEqual({ running: 'Reading', completed: 'Read', approval: 'Read' })
   })
 
   it('returns known verbs for runCommand', () => {
     const verbs = getToolVerbs('runCommand')
-    expect(verbs).toEqual({ running: 'Running', completed: 'Ran' })
+    expect(verbs).toEqual({ running: 'Running', completed: 'Ran', approval: 'Run' })
   })
 
   it('returns tool name for unknown tool', () => {
     const verbs = getToolVerbs('unknownTool')
-    expect(verbs).toEqual({ running: 'unknownTool', completed: 'unknownTool' })
+    expect(verbs).toEqual({
+      running: 'unknownTool',
+      completed: 'unknownTool',
+      approval: 'unknownTool',
+    })
   })
 })
 
@@ -72,5 +81,115 @@ describe('getToolActionText', () => {
   it('returns completed verb text for loadSkill', () => {
     const text = getToolActionText('loadSkill', { skillId: 'my-skill' }, false)
     expect(text).toBe('Loaded skill my-skill')
+  })
+})
+
+describe('getToolApprovalText', () => {
+  it('returns imperative verb for writeFile', () => {
+    const text = getToolApprovalText('writeFile', { path: 'test-race.txt' })
+    expect(text).toBe('Write test-race.txt')
+  })
+
+  it('returns imperative verb for editFile', () => {
+    const text = getToolApprovalText('editFile', { path: 'src/app.tsx' })
+    expect(text).toBe('Edit src/app.tsx')
+  })
+
+  it('wraps command in backticks for runCommand', () => {
+    const text = getToolApprovalText('runCommand', { command: 'pnpm test' })
+    expect(text).toBe('Run `pnpm test`')
+  })
+
+  it('returns verb only when no primary arg', () => {
+    const text = getToolApprovalText('writeFile', {})
+    expect(text).toBe('Write')
+  })
+
+  it('returns tool name for unknown tool', () => {
+    const text = getToolApprovalText('customTool', {})
+    expect(text).toBe('customTool')
+  })
+})
+
+describe('resolveActionText', () => {
+  const writeFileArgs = { path: 'test.txt' }
+  const runCommandArgs = { command: 'pnpm test' }
+
+  it('returns approval text when awaitingApproval', () => {
+    expect(
+      resolveActionText({
+        name: 'writeFile',
+        args: writeFileArgs,
+        awaitingApproval: true,
+        awaitingResult: false,
+        isError: false,
+        isRunning: false,
+      }),
+    ).toBe('Write test.txt')
+  })
+
+  it('returns pending text when awaitingResult', () => {
+    expect(
+      resolveActionText({
+        name: 'writeFile',
+        args: writeFileArgs,
+        awaitingApproval: false,
+        awaitingResult: true,
+        isError: false,
+        isRunning: false,
+      }),
+    ).toBe('Requested writeFile test.txt')
+  })
+
+  it('returns error text when isError', () => {
+    expect(
+      resolveActionText({
+        name: 'runCommand',
+        args: runCommandArgs,
+        awaitingApproval: false,
+        awaitingResult: false,
+        isError: true,
+        isRunning: false,
+      }),
+    ).toBe('Failed runCommand `pnpm test`')
+  })
+
+  it('returns running text when isRunning', () => {
+    expect(
+      resolveActionText({
+        name: 'writeFile',
+        args: writeFileArgs,
+        awaitingApproval: false,
+        awaitingResult: false,
+        isError: false,
+        isRunning: true,
+      }),
+    ).toBe('Writing test.txt...')
+  })
+
+  it('returns completed text when nothing is active', () => {
+    expect(
+      resolveActionText({
+        name: 'writeFile',
+        args: writeFileArgs,
+        awaitingApproval: false,
+        awaitingResult: false,
+        isError: false,
+        isRunning: false,
+      }),
+    ).toBe('Wrote test.txt')
+  })
+
+  it('prioritizes awaitingApproval over other states', () => {
+    expect(
+      resolveActionText({
+        name: 'runCommand',
+        args: runCommandArgs,
+        awaitingApproval: true,
+        awaitingResult: true,
+        isError: true,
+        isRunning: true,
+      }),
+    ).toBe('Run `pnpm test`')
   })
 })

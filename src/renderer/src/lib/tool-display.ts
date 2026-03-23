@@ -54,25 +54,38 @@ const DEFAULT_CONFIG: ToolConfig = {
 interface ToolVerbs {
   running: string
   completed: string
+  approval: string
 }
 
 const TOOL_VERBS: Record<string, ToolVerbs> = {
-  readFile: { running: 'Reading', completed: 'Read' },
-  writeFile: { running: 'Writing', completed: 'Wrote' },
-  editFile: { running: 'Editing', completed: 'Edited' },
-  runCommand: { running: 'Running', completed: 'Ran' },
-  glob: { running: 'Searching', completed: 'Searched' },
-  listFiles: { running: 'Listing', completed: 'Listed' },
-  loadSkill: { running: 'Loading skill', completed: 'Loaded skill' },
-  loadAgents: { running: 'Loading agents', completed: 'Loaded agents' },
-  webFetch: { running: 'Fetching', completed: 'Fetched' },
-  browserNavigate: { running: 'Navigating to', completed: 'Navigated to' },
-  browserClick: { running: 'Clicking', completed: 'Clicked' },
-  browserType: { running: 'Typing into', completed: 'Typed into' },
-  browserScreenshot: { running: 'Taking screenshot', completed: 'Took screenshot' },
-  browserExtractText: { running: 'Extracting text', completed: 'Extracted text' },
-  browserFillForm: { running: 'Filling form', completed: 'Filled form' },
-  browserClose: { running: 'Closing browser', completed: 'Closed browser' },
+  readFile: { running: 'Reading', completed: 'Read', approval: 'Read' },
+  writeFile: { running: 'Writing', completed: 'Wrote', approval: 'Write' },
+  editFile: { running: 'Editing', completed: 'Edited', approval: 'Edit' },
+  runCommand: { running: 'Running', completed: 'Ran', approval: 'Run' },
+  glob: { running: 'Searching', completed: 'Searched', approval: 'Search' },
+  listFiles: { running: 'Listing', completed: 'Listed', approval: 'List' },
+  loadSkill: { running: 'Loading skill', completed: 'Loaded skill', approval: 'Load skill' },
+  loadAgents: { running: 'Loading agents', completed: 'Loaded agents', approval: 'Load agents' },
+  webFetch: { running: 'Fetching', completed: 'Fetched', approval: 'Fetch' },
+  browserNavigate: { running: 'Navigating to', completed: 'Navigated to', approval: 'Navigate to' },
+  browserClick: { running: 'Clicking', completed: 'Clicked', approval: 'Click' },
+  browserType: { running: 'Typing into', completed: 'Typed into', approval: 'Type into' },
+  browserScreenshot: {
+    running: 'Taking screenshot',
+    completed: 'Took screenshot',
+    approval: 'Take screenshot',
+  },
+  browserExtractText: {
+    running: 'Extracting text',
+    completed: 'Extracted text',
+    approval: 'Extract text',
+  },
+  browserFillForm: { running: 'Filling form', completed: 'Filled form', approval: 'Fill form' },
+  browserClose: {
+    running: 'Closing browser',
+    completed: 'Closed browser',
+    approval: 'Close browser',
+  },
 }
 
 export function getToolConfig(name: string): ToolConfig {
@@ -80,7 +93,24 @@ export function getToolConfig(name: string): ToolConfig {
 }
 
 export function getToolVerbs(name: string): ToolVerbs {
-  return TOOL_VERBS[name] ?? { running: name, completed: name }
+  return TOOL_VERBS[name] ?? { running: name, completed: name, approval: name }
+}
+
+export function getToolApprovalText(name: string, args: JsonObject): string {
+  const verbs = getToolVerbs(name)
+  const verb = verbs.approval
+  const config = TOOL_CONFIG[name]
+
+  if (!config) return verb
+
+  const value = args[config.primaryArg]
+  if (typeof value !== 'string') return verb
+
+  if (name === 'runCommand') {
+    return `${verb} \`${value}\``
+  }
+
+  return `${verb} ${value}`
 }
 
 export function getToolActionText(name: string, args: JsonObject, isRunning: boolean): string {
@@ -98,4 +128,36 @@ export function getToolActionText(name: string, args: JsonObject, isRunning: boo
   }
 
   return isRunning ? `${verb} ${value}...` : `${verb} ${value}`
+}
+
+export interface ActionTextParams {
+  readonly name: string
+  readonly args: JsonObject
+  readonly awaitingApproval: boolean
+  readonly awaitingResult: boolean
+  readonly isError: boolean
+  readonly isRunning: boolean
+}
+
+export function resolveActionText(params: ActionTextParams): string {
+  if (params.awaitingApproval) {
+    return getToolApprovalText(params.name, params.args)
+  }
+  if (params.awaitingResult) {
+    return formatStatusActionText('Requested', params.name, params.args)
+  }
+  if (params.isError) {
+    return formatStatusActionText('Failed', params.name, params.args)
+  }
+  return getToolActionText(params.name, params.args, params.isRunning)
+}
+
+function formatStatusActionText(prefix: string, name: string, args: JsonObject): string {
+  if (typeof args.path === 'string') {
+    return `${prefix} ${name} ${args.path}`
+  }
+  if (name === 'runCommand' && typeof args.command === 'string') {
+    return `${prefix} ${name} \`${args.command}\``
+  }
+  return `${prefix} ${name}`
 }
