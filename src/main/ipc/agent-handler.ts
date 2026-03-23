@@ -29,6 +29,7 @@ import {
   listStreamBuffers,
   startStreamBuffer,
 } from '../utils/stream-bridge'
+import { ActiveRunManager } from './active-run-manager'
 import {
   emitErrorAndFinish,
   hydratePayloadAttachments,
@@ -40,15 +41,14 @@ import { typedHandle, typedOn } from './typed-ipc'
 const logger = createLogger('agent-handler')
 const approvalTraceLogger = createLogger('approval-trace')
 
-interface ActiveRun {
-  readonly controller: AbortController
+interface AgentRunMetadata {
   collector: StreamPartCollector | null
   model: SupportedModelId
   payload: HydratedAgentSendPayload | null
 }
 
 /** Per-conversation active runs — allows concurrent runs on different conversations */
-const activeRuns = new Map<ConversationId, ActiveRun>()
+const activeRuns = new ActiveRunManager<ConversationId, AgentRunMetadata>()
 
 export function registerAgentHandlers(): void {
   typedHandle(
@@ -56,22 +56,18 @@ export function registerAgentHandlers(): void {
     (_event, conversationId: ConversationId, payload: AgentSendPayload, model: SupportedModelId) =>
       Effect.gen(function* () {
         // Cancel any existing run for this conversation
-        const existing = activeRuns.get(conversationId)
-        if (existing) {
-          existing.controller.abort()
-          activeRuns.delete(conversationId)
+        if (activeRuns.has(conversationId)) {
+          activeRuns.cancel(conversationId)
           clearAgentPhase(conversationId)
         }
         cleanupConversationRun(conversationId)
 
         const abortController = new AbortController()
-        const run: ActiveRun = {
-          controller: abortController,
+        activeRuns.register(conversationId, abortController, {
           collector: null,
           model,
           payload: null,
-        }
-        activeRuns.set(conversationId, run)
+        })
 
         const settings = getSettings()
 
@@ -114,11 +110,11 @@ export function registerAgentHandlers(): void {
                   onChunk: (chunk) => emitStreamChunk(conversationId, chunk),
                   signal: abortController.signal,
                   onCollectorCreated: (c) => {
-                    const r = activeRuns.get(conversationId)
-                    if (r) {
-                      r.collector = c
-                      r.model = model
-                      r.payload = hydratedPayload
+                    const entry = activeRuns.get(conversationId)
+                    if (entry) {
+                      entry.metadata.collector = c
+                      entry.metadata.model = model
+                      entry.metadata.payload = hydratedPayload
                     }
                   },
                 }),
@@ -223,18 +219,14 @@ export function registerAgentHandlers(): void {
   typedOn('agent:cancel', (_event, conversationId?: ConversationId) =>
     Effect.sync(() => {
       if (conversationId) {
-        const run = activeRuns.get(conversationId)
-        if (run) {
-          run.controller.abort()
-          activeRuns.delete(conversationId)
-        }
+        activeRuns.cancel(conversationId)
         clearAgentPhase(conversationId)
         cleanupConversationRun(conversationId)
       } else {
         // Cancel all active runs (backward compat)
-        for (const [id, run] of activeRuns) {
-          run.controller.abort()
-          activeRuns.delete(id)
+        const allKeys = [...activeRuns.keys()]
+        activeRuns.cancelAll()
+        for (const id of allKeys) {
           clearAgentPhase(id)
           cleanupConversationRun(id)
         }
@@ -264,22 +256,21 @@ export function registerAgentHandlers(): void {
 
   typedHandle('agent:steer', (_event, conversationId: ConversationId) =>
     Effect.gen(function* () {
-      const run = activeRuns.get(conversationId)
-      if (!run) return { preserved: false }
+      const entry = activeRuns.get(conversationId)
+      if (!entry) return { preserved: false }
 
       // Orchestration or early stage: no collector yet
-      if (!run.collector || !run.payload) {
-        run.controller.abort()
-        activeRuns.delete(conversationId)
+      if (!entry.metadata.collector || !entry.metadata.payload) {
+        activeRuns.cancel(conversationId)
         clearAgentPhase(conversationId)
         cleanupConversationRun(conversationId)
         return { preserved: false }
       }
 
       // Snapshot partial response synchronously before any async work.
-      const partialParts = run.collector.finalizeParts()
-      const resolvedModel = run.model
-      const originalPayload = run.payload
+      const partialParts = entry.metadata.collector.finalizeParts()
+      const resolvedModel = entry.metadata.model
+      const originalPayload = entry.metadata.payload
 
       yield* Effect.tryPromise({
         try: () =>
@@ -306,8 +297,7 @@ export function registerAgentHandlers(): void {
       )
 
       // Abort the run
-      run.controller.abort()
-      activeRuns.delete(conversationId)
+      activeRuns.cancel(conversationId)
       clearAgentPhase(conversationId)
       cleanupConversationRun(conversationId)
 

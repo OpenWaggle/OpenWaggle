@@ -20,6 +20,7 @@ import {
   emitWaggleTurnEvent,
   startStreamBuffer,
 } from '../utils/stream-bridge'
+import { ActiveRunManager } from './active-run-manager'
 import {
   emitErrorAndFinish,
   hydratePayloadAttachments,
@@ -29,7 +30,7 @@ import { typedHandle, typedOn } from './typed-ipc'
 
 const logger = createLogger('waggle-handler')
 
-const activeWaggleRuns = new Map<ConversationId, AbortController>()
+const activeWaggleRuns = new ActiveRunManager<ConversationId, Record<string, never>>()
 const BASE36_RADIX = 36
 const RANDOM_TOKEN_START = 2
 
@@ -72,15 +73,13 @@ export function registerWaggleHandlers(): void {
         }
 
         // Cancel any existing Waggle run for this conversation.
-        const existing = activeWaggleRuns.get(conversationId)
-        if (existing) {
-          existing.abort()
-          activeWaggleRuns.delete(conversationId)
+        if (activeWaggleRuns.has(conversationId)) {
+          activeWaggleRuns.cancel(conversationId)
           clearAgentPhase(conversationId)
         }
 
         const abortController = new AbortController()
-        activeWaggleRuns.set(conversationId, abortController)
+        activeWaggleRuns.register(conversationId, abortController, {})
 
         const settings = getSettings()
         const conversation = yield* Effect.promise(() => getConversation(conversationId))
@@ -337,11 +336,7 @@ export function registerWaggleHandlers(): void {
 
   typedOn('agent:cancel-waggle', (_event, conversationId: ConversationId) =>
     Effect.sync(() => {
-      const controller = activeWaggleRuns.get(conversationId)
-      if (controller) {
-        controller.abort()
-        activeWaggleRuns.delete(conversationId)
-      }
+      activeWaggleRuns.cancel(conversationId)
       clearAgentPhase(conversationId)
     }),
   )
