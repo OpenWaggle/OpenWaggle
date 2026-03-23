@@ -79,9 +79,6 @@ function createTestDeps(
   const unusedAsync = async (): Promise<never> => {
     throw new Error('unused in model-runner unit test')
   }
-  const unusedSync = (): never => {
-    throw new Error('unused in model-runner unit test')
-  }
   const unusedCreateRunStore: OrchestrationServiceDeps['runRepository']['createRunStore'] = () => {
     throw new Error('unused in model-runner unit test')
   }
@@ -108,10 +105,7 @@ function createTestDeps(
     loadProjectConfig: unusedAsync,
     resolveProviderAndQuality: unusedAsync,
     isResolutionError: isResolutionErrorStub,
-    isReasoningModel: () => false,
-    buildPersistedUserMessageParts: unusedSync,
     buildSamplingOptions: vi.fn(() => ({})),
-    makeMessage: unusedSync,
     gatherProjectContext: unusedAsync,
     createExecutorTools: unusedAsync,
     runOpenWaggleOrchestration: unusedAsync,

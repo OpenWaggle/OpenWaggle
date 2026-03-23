@@ -1,11 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { chat, maxIterations } from '@tanstack/ai'
-import { isReasoningModel } from '../../agent/quality-config'
 import {
-  buildPersistedUserMessageParts,
   buildSamplingOptions,
   isResolutionError,
-  makeMessage,
   resolveProviderAndQuality,
 } from '../../agent/shared'
 import { loadProjectConfig } from '../../config/project-config'
@@ -32,10 +29,7 @@ export const defaultOrchestrationServiceDeps: OrchestrationServiceDeps = {
   loadProjectConfig,
   resolveProviderAndQuality,
   isResolutionError,
-  isReasoningModel,
-  buildPersistedUserMessageParts,
   buildSamplingOptions,
-  makeMessage,
   gatherProjectContext,
   createExecutorTools,
   runOpenWaggleOrchestration,

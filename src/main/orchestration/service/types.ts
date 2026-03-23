@@ -1,11 +1,8 @@
 import type { JsonObject, JsonValue } from '@shared/types/json'
 import type { AnyTextAdapter, maxIterations, ServerTool, StreamChunk } from '@tanstack/ai'
-import type { isReasoningModel } from '../../agent/quality-config'
 import type {
-  buildPersistedUserMessageParts,
   buildSamplingOptions,
   isResolutionError,
-  makeMessage,
   resolveProviderAndQuality,
 } from '../../agent/shared'
 import type { loadProjectConfig } from '../../config/project-config'
@@ -68,10 +65,7 @@ export interface OrchestrationServiceDeps {
   readonly loadProjectConfig: typeof loadProjectConfig
   readonly resolveProviderAndQuality: typeof resolveProviderAndQuality
   readonly isResolutionError: typeof isResolutionError
-  readonly isReasoningModel: typeof isReasoningModel
-  readonly buildPersistedUserMessageParts: typeof buildPersistedUserMessageParts
   readonly buildSamplingOptions: typeof buildSamplingOptions
-  readonly makeMessage: typeof makeMessage
   readonly gatherProjectContext: typeof gatherProjectContext
   readonly createExecutorTools: typeof createExecutorTools
   readonly runOpenWaggleOrchestration: typeof runOpenWaggleOrchestration
