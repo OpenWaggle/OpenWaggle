@@ -98,7 +98,12 @@ export function ToolCallBlock({
   const resultError = getResultError(result)
   const isError = resultError !== null
   const awaitingApproval = state === 'approval-requested' && !hasConcreteResult && !isError
-  const isRunning = !awaitingApproval && isStreaming && (state !== 'input-complete' || !result)
+  const approvalRespondedWithoutResult = state === 'approval-responded' && !result
+  const isRunning =
+    !awaitingApproval &&
+    !approvalRespondedWithoutResult &&
+    isStreaming &&
+    (state !== 'input-complete' || !result)
   const awaitingResult = (!result || !hasConcreteResult) && !isRunning && !awaitingApproval
 
   const parsedArgs = parseToolArgs(args)
