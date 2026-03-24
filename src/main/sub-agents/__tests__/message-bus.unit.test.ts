@@ -33,6 +33,9 @@ vi.mock('electron', () => ({
   app: {
     getPath: getPathMock,
   },
+  safeStorage: {
+    isEncryptionAvailable: () => false,
+  },
 }))
 
 // Import after mocks are in place

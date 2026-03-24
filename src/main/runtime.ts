@@ -7,12 +7,14 @@ import * as ManagedRuntime from 'effect/ManagedRuntime'
 import { AppDatabaseLive } from './services/database-service'
 import { AppLogger } from './services/logger-service'
 import { ProviderRegistryService } from './services/provider-registry-service'
+import { SettingsService } from './services/settings-service'
 
 const AppLayer = Layer.mergeAll(
   NodeContext.layer,
   AppLogger.Live,
   ProviderRegistryService.Live,
   AppDatabaseLive,
+  SettingsService.Live,
 )
 
 function makeAppRuntime() {

@@ -34,6 +34,9 @@ vi.mock('electron', () => ({
   app: {
     getPath: getPathMock,
   },
+  safeStorage: {
+    isEncryptionAvailable: () => false,
+  },
 }))
 
 // ---------------------------------------------------------------------------
