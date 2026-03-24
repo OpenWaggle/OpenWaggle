@@ -115,6 +115,10 @@ This document stores project-specific technical learnings only.
 - E2E waggle transcript fixtures should persist one assistant message per turn with message-level `metadata.waggle` for deterministic divider assertions. A single persisted assistant message with `_turnBoundary` parts is not a stable E2E proxy for live stream segmentation behavior (keep that coverage in unit tests around `splitAtTurnBoundaries`). `[SKILL?]`
 - Persisted tool-call reconciliation executes repeatedly during live streaming; partial/malformed `tool-call.arguments` strings are expected transient states. Treat parse failures as non-errors in that hot path (no warning logs) to avoid console spam and renderer slowdown.
 
+### Effect Service Layer
+- Adding a new Effect service to `AppLayer` (runtime.ts) extends the import chain for every test that imports `runtime.ts`. If the wrapped module has module-level side effects (e.g. `settings.ts` calling `electron.safeStorage` at load time), use `Layer.unwrapEffect` with a dynamic `import()` inside `Effect.promise` to defer the side effect until runtime initialization. This prevents test breakage in unrelated suites whose electron mocks don't cover the new dependency.
+- `@effect/platform`'s `FileSystem` service is already provided by `NodeContext.layer` in `AppLayer` — no custom `AppFileSystem` Context.Tag needed. Any `Effect.gen` block running via `runAppEffect` can `yield* FileSystem.FileSystem` directly.
+
 ### Build & Tooling
 - `react-doctor` defaults to changed-files-only on feature branches. Use `GIT_DIR=/nonexistent` for full-repo scans.
 - Vitest `vi.mock()` factories are hoisted before top-level variables. Use `vi.hoisted(...)` for shared mock handles.
