@@ -1,5 +1,5 @@
 import type { Conversation } from '@shared/types/conversation'
-import { isTrustableToolName } from '@shared/types/tool-approval'
+import { isApprovalRequiredToolName } from '@shared/types/tool-approval'
 import type { UIMessage } from '@tanstack/ai-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '@/lib/ipc'
@@ -66,7 +66,7 @@ export function usePendingApprovalTrustCheck(
 
   const pendingApproval = findPendingApproval(messages, activeConversation)
   const pendingApprovalTrustableToolName =
-    pendingApproval && isTrustableToolName(pendingApproval.toolName)
+    pendingApproval && isApprovalRequiredToolName(pendingApproval.toolName)
       ? pendingApproval.toolName
       : null
   const pendingApprovalHasApprovalMetadata = pendingApproval?.hasApprovalMetadata === true

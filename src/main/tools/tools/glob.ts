@@ -15,9 +15,11 @@ export const globTool = defineOpenWaggleTool({
       description: 'Glob pattern (e.g., "**/*.ts", "src/**/*.tsx", "*.json")',
     }),
     ignore: Schema.optional(
-      Schema.Array(Schema.String).annotations({
-        description: 'Patterns to ignore (e.g., ["node_modules/**", "dist/**"])',
-      }),
+      Schema.NullOr(
+        Schema.Array(Schema.String).annotations({
+          description: 'Patterns to ignore (e.g., ["node_modules/**", "dist/**"])',
+        }),
+      ),
     ),
   }),
   async execute(args, context) {

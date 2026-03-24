@@ -21,7 +21,11 @@ import { useWaggleStore } from '@/stores/waggle-store'
 import { useComposerSection } from './hooks/useComposerSection'
 import { useSteerWorkflow } from './hooks/useSteerWorkflow'
 import { useTranscriptSection } from './hooks/useTranscriptSection'
-import type { PendingApproval, PendingAskUser } from './pending-tool-interactions'
+import type {
+  ApprovalResponseAction,
+  PendingApproval,
+  PendingAskUser,
+} from './pending-tool-interactions'
 import { reportAutoSendQueueFailure } from './queue-failure-feedback'
 import type { ChatRow } from './types-chat-row'
 
@@ -57,7 +61,10 @@ export interface ChatComposerSectionState {
   readonly slashSkills: readonly SkillDiscoveryItem[]
   readonly isLoading: boolean
   readonly status: 'ready' | 'submitted' | 'streaming' | 'error'
-  onToolApprovalResponse: (pendingApproval: PendingApproval, approved: boolean) => Promise<void>
+  onToolApprovalResponse: (
+    pendingApproval: PendingApproval,
+    response: ApprovalResponseAction,
+  ) => Promise<void>
   onAnswerQuestion: ReturnType<typeof useAgentChat>['answerQuestion']
   onStopCollaboration: () => void
   onSelectSkill: (skillId: string) => void

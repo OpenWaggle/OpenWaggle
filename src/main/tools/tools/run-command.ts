@@ -23,9 +23,11 @@ export const runCommandTool = defineOpenWaggleTool({
   inputSchema: Schema.Struct({
     command: Schema.String.annotations({ description: 'The shell command to run' }),
     timeout: Schema.optional(
-      Schema.Number.annotations({
-        description: 'Timeout in milliseconds. Defaults to 30000 (30 seconds).',
-      }),
+      Schema.NullOr(
+        Schema.Number.annotations({
+          description: 'Timeout in milliseconds. Defaults to 30000 (30 seconds).',
+        }),
+      ),
     ),
   }),
   async execute(args, context) {

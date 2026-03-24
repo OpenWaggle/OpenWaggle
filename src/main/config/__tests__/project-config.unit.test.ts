@@ -196,7 +196,7 @@ max_tokens = 9000
     const config = await loadProjectConfig(tmpDir)
     const patterns = config.approvals?.tools?.runCommand?.allowPatterns ?? []
     expect(patterns).toHaveLength(1)
-    expect(patterns[0]?.pattern).toBe('pnpm test*')
+    expect(patterns[0]?.pattern).toBe('pnpm *')
 
     await expect(
       isProjectToolCallTrusted(
@@ -208,7 +208,7 @@ max_tokens = 9000
 
     await expect(
       isProjectToolCallTrusted(tmpDir, 'runCommand', JSON.stringify({ command: 'pnpm lint' })),
-    ).resolves.toBe(false)
+    ).resolves.toBe(true)
   })
 
   it('does not trust shell-chain suffixes for runCommand patterns', async () => {

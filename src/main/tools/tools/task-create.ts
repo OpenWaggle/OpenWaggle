@@ -21,14 +21,18 @@ export const taskCreateTool = defineOpenWaggleTool({
       Schema.annotations({ description: 'Detailed description of what needs to be done' }),
     ),
     activeForm: Schema.optional(
-      Schema.String.annotations({
-        description: 'Present continuous form shown when in_progress (e.g., "Running tests")',
-      }),
+      Schema.NullOr(
+        Schema.String.annotations({
+          description: 'Present continuous form shown when in_progress (e.g., "Running tests")',
+        }),
+      ),
     ),
     metadata: Schema.optional(
-      Schema.Record({ key: Schema.String, value: Schema.Unknown }).annotations({
-        description: 'Arbitrary metadata to attach',
-      }),
+      Schema.NullOr(
+        Schema.Record({ key: Schema.String, value: Schema.Unknown }).annotations({
+          description: 'Arbitrary metadata to attach',
+        }),
+      ),
     ),
   }),
   async execute(args, context) {
@@ -40,8 +44,8 @@ export const taskCreateTool = defineOpenWaggleTool({
       teamId: args.teamName,
       subject: args.subject,
       description: args.description,
-      activeForm: args.activeForm,
-      metadata: args.metadata,
+      activeForm: args.activeForm ?? undefined,
+      metadata: args.metadata ?? undefined,
     })
 
     await persistTaskBoard(context.projectPath, args.teamName)

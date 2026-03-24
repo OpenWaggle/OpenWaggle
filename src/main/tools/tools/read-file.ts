@@ -9,7 +9,7 @@ function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && 'code' in error
 }
 
-function formatReadContent(content: string, maxLines?: number): string {
+function formatReadContent(content: string, maxLines?: number | null): string {
   if (!maxLines) return content
   const lines = content.split('\n')
   const truncated = lines.slice(0, maxLines).join('\n')
@@ -26,9 +26,11 @@ export const readFileTool = defineOpenWaggleTool({
   inputSchema: Schema.Struct({
     path: Schema.String.annotations({ description: 'File path relative to the project root' }),
     maxLines: Schema.optional(
-      Schema.Number.annotations({
-        description: 'Maximum number of lines to read. If omitted, reads the entire file.',
-      }),
+      Schema.NullOr(
+        Schema.Number.annotations({
+          description: 'Maximum number of lines to read. If omitted, reads the entire file.',
+        }),
+      ),
     ),
   }),
   async execute(args, context) {

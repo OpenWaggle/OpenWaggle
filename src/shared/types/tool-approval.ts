@@ -1,9 +1,23 @@
-export const TRUSTABLE_TOOL_NAMES = ['writeFile', 'editFile', 'runCommand', 'webFetch'] as const
+import type { ApprovalRequiredToolName } from '../../main/tools/built-in-tools'
 
-export type TrustableToolName = (typeof TRUSTABLE_TOOL_NAMES)[number]
+export type { ApprovalRequiredToolName }
 
-export function isTrustableToolName(value: string): value is TrustableToolName {
-  for (const toolName of TRUSTABLE_TOOL_NAMES) {
+/**
+ * Runtime list of tool names that require approval. Used by the renderer
+ * for trust checks and the approval banner.
+ *
+ * Must match the tools in `approvalRequiredTools` from `built-in-tools.ts`.
+ * The main process validates this at startup via `assertApprovalToolNamesMatch`.
+ */
+export const APPROVAL_REQUIRED_TOOL_NAMES: readonly ApprovalRequiredToolName[] = [
+  'writeFile',
+  'editFile',
+  'runCommand',
+  'webFetch',
+]
+
+export function isApprovalRequiredToolName(value: string): value is ApprovalRequiredToolName {
+  for (const toolName of APPROVAL_REQUIRED_TOOL_NAMES) {
     if (toolName === value) {
       return true
     }
@@ -25,5 +39,5 @@ export interface ToolApprovalTrustEntry {
 }
 
 export interface ToolApprovalConfig {
-  readonly tools?: Readonly<Partial<Record<TrustableToolName, ToolApprovalTrustEntry>>>
+  readonly tools?: Readonly<Partial<Record<ApprovalRequiredToolName, ToolApprovalTrustEntry>>>
 }

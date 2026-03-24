@@ -13,7 +13,7 @@ import { cn } from '@/lib/cn'
 import { computeDiff } from '@/lib/diff'
 import { formatDuration } from '@/lib/format'
 import { parseToolArgs } from '@/lib/tool-args'
-import { getToolActionText } from '@/lib/tool-display'
+import { resolveActionText } from '@/lib/tool-display'
 
 const STRINGIFY_ARG_3 = 2
 const FUNCTION_VALUE_120 = 120
@@ -86,26 +86,6 @@ function getResultError(result: ToolCallBlockProps['result']): string | null {
   return null
 }
 
-function getPendingToolActionText(name: string, args: JsonObject): string {
-  if (typeof args.path === 'string') {
-    return `Requested ${name} ${args.path}`
-  }
-  if (name === 'runCommand' && typeof args.command === 'string') {
-    return `Requested ${name} \`${args.command}\``
-  }
-  return `Requested ${name}`
-}
-
-function getErrorToolActionText(name: string, args: JsonObject): string {
-  if (typeof args.path === 'string') {
-    return `Failed ${name} ${args.path}`
-  }
-  if (name === 'runCommand' && typeof args.command === 'string') {
-    return `Failed ${name} \`${args.command}\``
-  }
-  return `Failed ${name}`
-}
-
 export function ToolCallBlock({
   name,
   args,
@@ -118,7 +98,12 @@ export function ToolCallBlock({
   const resultError = getResultError(result)
   const isError = resultError !== null
   const awaitingApproval = state === 'approval-requested' && !hasConcreteResult && !isError
-  const isRunning = !awaitingApproval && isStreaming && (state !== 'input-complete' || !result)
+  const approvalRespondedWithoutResult = state === 'approval-responded' && !result
+  const isRunning =
+    !awaitingApproval &&
+    !approvalRespondedWithoutResult &&
+    isStreaming &&
+    (state !== 'input-complete' || !result)
   const awaitingResult = (!result || !hasConcreteResult) && !isRunning && !awaitingApproval
 
   const parsedArgs = parseToolArgs(args)
@@ -146,11 +131,14 @@ export function ToolCallBlock({
     }
   }, [isRunning])
 
-  const actionText = awaitingResult
-    ? getPendingToolActionText(name, parsedArgs)
-    : isError
-      ? getErrorToolActionText(name, parsedArgs)
-      : getToolActionText(name, parsedArgs, isRunning)
+  const actionText = resolveActionText({
+    name,
+    args: parsedArgs,
+    awaitingApproval,
+    awaitingResult,
+    isError,
+    isRunning,
+  })
 
   return (
     <div className="group/tool">

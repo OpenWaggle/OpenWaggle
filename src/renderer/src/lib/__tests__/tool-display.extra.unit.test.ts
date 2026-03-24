@@ -40,20 +40,31 @@ describe('getToolVerbs — additional tools', () => {
     expect(getToolVerbs('browserNavigate')).toEqual({
       running: 'Navigating to',
       completed: 'Navigated to',
+      approval: 'Navigate to',
     })
-    expect(getToolVerbs('browserClick')).toEqual({ running: 'Clicking', completed: 'Clicked' })
+    expect(getToolVerbs('browserClick')).toEqual({
+      running: 'Clicking',
+      completed: 'Clicked',
+      approval: 'Click',
+    })
     expect(getToolVerbs('browserScreenshot')).toEqual({
       running: 'Taking screenshot',
       completed: 'Took screenshot',
+      approval: 'Take screenshot',
     })
     expect(getToolVerbs('browserClose')).toEqual({
       running: 'Closing browser',
       completed: 'Closed browser',
+      approval: 'Close browser',
     })
   })
 
   it('returns verbs for webFetch', () => {
-    expect(getToolVerbs('webFetch')).toEqual({ running: 'Fetching', completed: 'Fetched' })
+    expect(getToolVerbs('webFetch')).toEqual({
+      running: 'Fetching',
+      completed: 'Fetched',
+      approval: 'Fetch',
+    })
   })
 })
 
@@ -97,8 +108,7 @@ describe('getToolActionText — additional branches', () => {
   })
 
   it('returns verb for askUser with questions arg', () => {
-    // askUser has no entry in TOOL_VERBS, so getToolVerbs falls back to tool name
     const text = getToolActionText('askUser', { questions: 'Should I proceed?' }, false)
-    expect(text).toBe('askUser Should I proceed?')
+    expect(text).toBe('Asked Should I proceed?')
   })
 })

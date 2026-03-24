@@ -37,7 +37,7 @@ import type {
   SkillCatalogResult,
 } from './standards'
 import type { SubAgentEventPayload, TeamEventPayload } from './sub-agent'
-import type { TrustableToolName } from './tool-approval'
+import type { ApprovalRequiredToolName } from './tool-approval'
 import type { UpdateStatus } from './updater'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 import type {
@@ -91,11 +91,11 @@ export interface IpcInvokeChannelMap {
     return: string | null
   }
   'project-config:is-tool-call-trusted': {
-    args: [projectPath: string, toolName: TrustableToolName, rawArgs: string]
+    args: [projectPath: string, toolName: ApprovalRequiredToolName, rawArgs: string]
     return: boolean
   }
   'project-config:record-tool-approval': {
-    args: [projectPath: string, toolName: TrustableToolName, rawArgs: string]
+    args: [projectPath: string, toolName: ApprovalRequiredToolName, rawArgs: string]
     return: undefined
   }
   'project-config:get-preferences': {
@@ -549,12 +549,12 @@ export interface OpenWaggleApi {
   selectProjectFolder(): Promise<string | null>
   isProjectToolCallTrusted(
     projectPath: string,
-    toolName: TrustableToolName,
+    toolName: ApprovalRequiredToolName,
     rawArgs: string,
   ): Promise<boolean>
   recordProjectToolApproval(
     projectPath: string,
-    toolName: TrustableToolName,
+    toolName: ApprovalRequiredToolName,
     rawArgs: string,
   ): Promise<void>
   getProjectPreferences(

@@ -74,6 +74,11 @@ export interface ContextBoundServerTool extends ServerTool {
   readonly [OPEN_WAGGLE_TOOL_BINDER]: (context: ToolContext) => ServerTool
 }
 
+/** ContextBoundServerTool with the literal tool name preserved for type-level extraction. */
+export interface NamedContextBoundServerTool<TName extends string> extends ContextBoundServerTool {
+  readonly name: TName
+}
+
 interface ExecutableServerTool extends ServerTool {
   readonly execute: (args: unknown, context?: ToolExecutionContext) => Promise<unknown> | unknown
 }
@@ -234,10 +239,16 @@ export async function executeToolWithContext(
 }
 
 /**
- * Define a OpenWaggle tool using TanStack AI's toolDefinition().
- * Uses Effect Schema for type-safe args in execute().
- * Args are validated through Effect Schema decoding at runtime,
- * and the schema is passed to TanStack AI for JSON Schema conversion.
+ * Define an OpenWaggle tool using TanStack AI's toolDefinition().
+ *
+ * Uses Effect Schema for type-safe args in execute(). The return type
+ * preserves the literal `name` via `NamedContextBoundServerTool<TName>`,
+ * which lets `builtInTools` derive a `BuiltInToolName` union automatically.
+ *
+ * When adding a new tool: create a file in `src/main/tools/tools/`, call
+ * `defineOpenWaggleTool({ name: 'myTool', ... })`, and add the export to
+ * the `builtInTools` array in `built-in-tools.ts`. The `BuiltInToolName`
+ * type updates automatically — no manual name lists to maintain.
  */
 export function defineOpenWaggleTool<
   TSchema extends Schema.Schema.AnyNoContext,
@@ -251,7 +262,7 @@ export function defineOpenWaggleTool<
     args: SchemaType<TSchema>,
     context: ToolContext,
   ) => Promise<string | NormalizedToolResult>
-}): ContextBoundServerTool {
+}): NamedContextBoundServerTool<TName> {
   const def = toolDefinition({
     name: config.name,
     description: config.description,
@@ -263,6 +274,7 @@ export function defineOpenWaggleTool<
     ...def.server((_args: unknown) => {
       throw new Error(`Tool "${config.name}" executed without a bound ToolContext`)
     }),
+    name: config.name,
     execute: (_args: unknown) => {
       throw new Error(`Tool "${config.name}" executed without a bound ToolContext`)
     },

@@ -683,7 +683,9 @@ describe('useChatPanelSections', () => {
     const pendingApproval = createPendingApproval()
 
     await act(async () => {
-      await result.current.composer.onToolApprovalResponse(pendingApproval, true)
+      await result.current.composer.onToolApprovalResponse(pendingApproval, {
+        kind: 'approve-and-trust',
+      })
     })
 
     expect(respondToolApproval).toHaveBeenCalledWith('approval-1', true)
@@ -694,6 +696,22 @@ describe('useChatPanelSections', () => {
     )
   })
 
+  it('does not persist trust rules for approve-once', async () => {
+    const respondToolApproval = vi.fn().mockResolvedValue(undefined)
+    useAgentChatMock.mockReturnValue(buildBaseAgentChatReturn({ respondToolApproval }))
+
+    const { result } = renderHook(() => useChatPanelSections())
+
+    await act(async () => {
+      await result.current.composer.onToolApprovalResponse(createPendingApproval(), {
+        kind: 'approve-once',
+      })
+    })
+
+    expect(respondToolApproval).toHaveBeenCalledWith('approval-1', true)
+    expect(recordProjectToolApprovalMock).not.toHaveBeenCalled()
+  })
+
   it('does not persist trust rules when the approval is rejected', async () => {
     const respondToolApproval = vi.fn().mockResolvedValue(undefined)
     useAgentChatMock.mockReturnValue(buildBaseAgentChatReturn({ respondToolApproval }))
@@ -701,7 +719,9 @@ describe('useChatPanelSections', () => {
     const { result } = renderHook(() => useChatPanelSections())
 
     await act(async () => {
-      await result.current.composer.onToolApprovalResponse(createPendingApproval(), false)
+      await result.current.composer.onToolApprovalResponse(createPendingApproval(), {
+        kind: 'deny',
+      })
     })
 
     expect(respondToolApproval).toHaveBeenCalledWith('approval-1', false)
@@ -722,7 +742,9 @@ describe('useChatPanelSections', () => {
     const { result } = renderHook(() => useChatPanelSections())
 
     await act(async () => {
-      await result.current.composer.onToolApprovalResponse(createPendingApproval(), true)
+      await result.current.composer.onToolApprovalResponse(createPendingApproval(), {
+        kind: 'approve-and-trust',
+      })
     })
 
     expect(respondToolApproval).toHaveBeenCalledWith('approval-1', true)
@@ -737,7 +759,9 @@ describe('useChatPanelSections', () => {
     const { result } = renderHook(() => useChatPanelSections())
 
     await act(async () => {
-      await result.current.composer.onToolApprovalResponse(createPendingApproval(), true)
+      await result.current.composer.onToolApprovalResponse(createPendingApproval(), {
+        kind: 'approve-and-trust',
+      })
     })
 
     expect(loggerWarnMock).toHaveBeenCalledWith(

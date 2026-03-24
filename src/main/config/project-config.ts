@@ -13,24 +13,26 @@ import {
   type qualityTierSchema,
 } from '@shared/schemas/validation'
 import type {
+  ApprovalRequiredToolName,
   ToolApprovalConfig,
   ToolApprovalPatternRule,
   ToolApprovalTrustEntry,
-  TrustableToolName,
 } from '@shared/types/tool-approval'
-import { TRUSTABLE_TOOL_NAMES } from '@shared/types/tool-approval'
+import { APPROVAL_REQUIRED_TOOL_NAMES } from '@shared/types/tool-approval'
 import { formatErrorMessage, isEnoent } from '@shared/utils/node-error'
+import {
+  deriveCommandPattern,
+  deriveWebFetchPattern,
+  normalizeCommand,
+  normalizeWebUrl,
+} from '@shared/utils/tool-trust-patterns'
 import { createLogger } from '../logger'
 import type { BaseSamplingConfig } from '../providers/provider-definition'
 import {
   appendAllowPattern,
   commandPatternMatch,
-  deriveCommandPattern,
-  deriveWebFetchPattern,
   getStringProperty,
   hasTrustData,
-  normalizeCommand,
-  normalizeWebUrl,
   parseRawArgsObject,
   wildcardMatch,
 } from './project-config-trust'
@@ -366,7 +368,10 @@ async function updateLocalProjectConfig(
   return parseProjectConfig(null, next)
 }
 
-function getToolTrust(config: ProjectConfig, toolName: TrustableToolName): ToolApprovalTrustEntry {
+function getToolTrust(
+  config: ProjectConfig,
+  toolName: ApprovalRequiredToolName,
+): ToolApprovalTrustEntry {
   return config.approvals?.tools?.[toolName] ?? {}
 }
 
@@ -415,7 +420,7 @@ function isTrustedWebFetch(config: ProjectConfig, rawArgs: string): boolean {
 
 export function isToolCallTrusted(
   config: ProjectConfig,
-  toolName: TrustableToolName,
+  toolName: ApprovalRequiredToolName,
   rawArgs: string,
 ): boolean {
   if (toolName === 'writeFile') {
@@ -432,7 +437,7 @@ export function isToolCallTrusted(
 
 export async function isProjectToolCallTrusted(
   projectPath: string,
-  toolName: TrustableToolName,
+  toolName: ApprovalRequiredToolName,
   rawArgs: string,
 ): Promise<boolean> {
   const config = await loadProjectConfig(projectPath)
@@ -477,7 +482,7 @@ export async function setWriteFileTrust(
 
 export async function recordToolCallApproval(
   projectPath: string,
-  toolName: TrustableToolName,
+  toolName: ApprovalRequiredToolName,
   rawArgs: string,
   source: string,
 ): Promise<ProjectConfig> {
@@ -567,9 +572,9 @@ function parseProjectConfig(
     qualityOverrides.medium !== undefined ||
     qualityOverrides.high !== undefined
 
-  const toolApprovals: Partial<Record<TrustableToolName, ToolApprovalTrustEntry>> = {}
+  const toolApprovals: Partial<Record<ApprovalRequiredToolName, ToolApprovalTrustEntry>> = {}
   let hasToolApprovals = false
-  for (const toolName of TRUSTABLE_TOOL_NAMES) {
+  for (const toolName of APPROVAL_REQUIRED_TOOL_NAMES) {
     const entry = local?.approvals?.tools?.[toolName]
     const normalizedEntry = parseToolApprovalEntry(entry)
     if (hasTrustData(normalizedEntry)) {

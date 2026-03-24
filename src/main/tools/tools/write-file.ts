@@ -9,21 +9,25 @@ const MAX_ATTACHMENT_LIST_PREVIEW = 5
 const writeFileArgsSchema = Schema.Struct({
   path: Schema.String.annotations({ description: 'File path relative to the project root' }),
   content: Schema.optional(
-    Schema.String.annotations({
-      description:
-        'Content to write to the file. Prefer attachmentName for large attachment content.',
-    }),
+    Schema.NullOr(
+      Schema.String.annotations({
+        description:
+          'Content to write to the file. Prefer attachmentName for large attachment content.',
+      }),
+    ),
   ),
   attachmentName: Schema.optional(
-    Schema.String.annotations({
-      description:
-        'Optional attachment name to write from the current user message (for example "Pasted Text 1.md").',
-    }),
+    Schema.NullOr(
+      Schema.String.annotations({
+        description:
+          'Optional attachment name to write from the current user message (for example "Pasted Text 1.md").',
+      }),
+    ),
   ),
 })
 
 function resolveContentFromAttachment(
-  attachmentName: string | undefined,
+  attachmentName: string | null | undefined,
   attachments: readonly { name: string; extractedText: string }[],
 ): string {
   if (attachments.length === 0) {

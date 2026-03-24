@@ -19,7 +19,7 @@
     "build:linux": "pnpm build && electron-builder --linux",
     "build:website": "cd website && pnpm install && pnpm build",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
-    "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
+    "typecheck:web": "tsc -b tsconfig.web.json --emitDeclarationOnly",
     "typecheck": "pnpm typecheck:node && pnpm typecheck:web",
     "test": "pnpm prepare:native:node && pnpm test:unit:raw && pnpm test:integration:raw && pnpm test:component",
     "test:all": "pnpm test && pnpm test:e2e:headless",

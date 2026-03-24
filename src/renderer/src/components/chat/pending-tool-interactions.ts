@@ -2,7 +2,7 @@ import { safeDecodeUnknown } from '@shared/schema'
 import type { Conversation } from '@shared/types/conversation'
 import type { UserQuestion } from '@shared/types/question'
 import { askUserArgsSchema } from '@shared/types/question'
-import { isTrustableToolName } from '@shared/types/tool-approval'
+import { isApprovalRequiredToolName } from '@shared/types/tool-approval'
 import {
   hasConcreteToolOutput,
   isDeniedApprovalPayload,
@@ -24,6 +24,11 @@ export interface PendingApproval {
   readonly toolCallId: string
   readonly hasApprovalMetadata: boolean
 }
+
+export type ApprovalResponseAction =
+  | { readonly kind: 'approve-once' }
+  | { readonly kind: 'approve-and-trust' }
+  | { readonly kind: 'deny' }
 
 export interface PendingAskUser {
   readonly questions: UserQuestion[]
@@ -181,7 +186,7 @@ export function findPendingApproval(
           !approvedAndPendingExecution &&
           !hasCompletedResult
         const trustableCallWithoutApprovalMetadata =
-          !hasApprovalMetadata && isTrustableToolName(part.name)
+          !hasApprovalMetadata && isApprovalRequiredToolName(part.name)
         const unresolvedTrustableFallback =
           trustableCallWithoutApprovalMetadata &&
           !hasCompletedResult &&
