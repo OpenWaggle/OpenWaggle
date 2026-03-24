@@ -19,6 +19,9 @@ vi.mock('electron', () => ({
   app: {
     getPath: getPathMock,
   },
+  safeStorage: {
+    isEncryptionAvailable: () => false,
+  },
 }))
 
 vi.mock('../../providers', () => ({

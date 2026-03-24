@@ -17,6 +17,9 @@ vi.mock('electron', () => ({
   app: {
     getPath: getPathMock,
   },
+  safeStorage: {
+    isEncryptionAvailable: () => false,
+  },
 }))
 
 import { OrchestrationRunRepository } from '../run-repository'
