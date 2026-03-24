@@ -10,14 +10,18 @@ export const listFilesTool = defineOpenWaggleTool({
     'List files and directories in a given path relative to the project root. Shows file types and sizes. Useful for exploring project structure.',
   inputSchema: Schema.Struct({
     path: Schema.optional(
-      Schema.String.annotations({
-        description: 'Directory path relative to the project root. Defaults to the project root.',
-      }),
+      Schema.NullOr(
+        Schema.String.annotations({
+          description: 'Directory path relative to the project root. Defaults to the project root.',
+        }),
+      ),
     ),
     recursive: Schema.optional(
-      Schema.Boolean.annotations({
-        description: 'If true, list files recursively (max depth 3). Defaults to false.',
-      }),
+      Schema.NullOr(
+        Schema.Boolean.annotations({
+          description: 'If true, list files recursively (max depth 3). Defaults to false.',
+        }),
+      ),
     ),
   }),
   async execute(args, context) {

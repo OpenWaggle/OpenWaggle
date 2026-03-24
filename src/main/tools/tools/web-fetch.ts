@@ -19,9 +19,11 @@ export const webFetchTool = defineOpenWaggleTool({
       description: 'The URL to fetch (must be a valid http/https URL)',
     }),
     maxLength: Schema.optional(
-      Schema.Number.annotations({
-        description: 'Maximum character length of the returned text (default 50000)',
-      }),
+      Schema.NullOr(
+        Schema.Number.annotations({
+          description: 'Maximum character length of the returned text (default 50000)',
+        }),
+      ),
     ),
   }),
   async execute(args, context) {

@@ -108,8 +108,7 @@ describe('getToolActionText — additional branches', () => {
   })
 
   it('returns verb for askUser with questions arg', () => {
-    // askUser has no entry in TOOL_VERBS, so getToolVerbs falls back to tool name
     const text = getToolActionText('askUser', { questions: 'Should I proceed?' }, false)
-    expect(text).toBe('askUser Should I proceed?')
+    expect(text).toBe('Asked Should I proceed?')
   })
 })

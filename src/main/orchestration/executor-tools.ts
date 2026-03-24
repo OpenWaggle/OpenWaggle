@@ -1,5 +1,8 @@
 import type { ExecutionMode } from '@shared/types/settings'
-import { TRUSTABLE_TOOL_NAMES, type TrustableToolName } from '@shared/types/tool-approval'
+import {
+  APPROVAL_REQUIRED_TOOL_NAMES,
+  type ApprovalRequiredToolName,
+} from '@shared/types/tool-approval'
 import type { ServerTool } from '@tanstack/ai'
 import type { ProjectConfig } from '../config/project-config'
 import { isToolCallTrusted } from '../config/project-config'
@@ -22,7 +25,7 @@ const EXECUTOR_TOOLSET: readonly ServerTool[] = [
   webFetchTool,
 ]
 
-const DEFAULT_PERMISSIONS_BLOCK_MESSAGE: Readonly<Record<TrustableToolName, string>> = {
+const DEFAULT_PERMISSIONS_BLOCK_MESSAGE: Readonly<Record<ApprovalRequiredToolName, string>> = {
   writeFile:
     'Default permissions blocked writeFile in orchestration. Approve a writeFile call in chat first to trust this tool.',
   editFile:
@@ -41,8 +44,8 @@ function toJsonArgs(args: unknown): string {
   }
 }
 
-function isTrustableExecutorToolName(name: string): name is TrustableToolName {
-  for (const toolName of TRUSTABLE_TOOL_NAMES) {
+function isApprovalRequiredExecutorToolName(name: string): name is ApprovalRequiredToolName {
+  for (const toolName of APPROVAL_REQUIRED_TOOL_NAMES) {
     if (toolName === name) {
       return true
     }
@@ -68,7 +71,7 @@ function maybeGetExecutorFunction(tool: ServerTool): ((args: unknown) => Promise
 
 function withDefaultPermissionsTrust(
   tool: ServerTool,
-  toolName: TrustableToolName,
+  toolName: ApprovalRequiredToolName,
   projectConfig: ProjectConfig,
 ): ServerTool {
   const execute = maybeGetExecutorFunction(tool)
@@ -106,7 +109,7 @@ export function buildExecutorTools(
 
   return EXECUTOR_TOOLSET.map((tool) => {
     const name = tool.name ?? ''
-    if (!isTrustableExecutorToolName(name)) {
+    if (!isApprovalRequiredExecutorToolName(name)) {
       return tool
     }
     return withDefaultPermissionsTrust(tool, name, projectConfig)

@@ -1,7 +1,7 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
-import { isTrustableToolName } from '@shared/types/tool-approval'
+import { isApprovalRequiredToolName } from '@shared/types/tool-approval'
 import type { WaggleCollaborationStatus, WaggleConfig } from '@shared/types/waggle'
 import type { UIMessage } from '@tanstack/ai-react'
 import type { useAgentChat } from '@/hooks/useAgentChat'
@@ -96,7 +96,7 @@ export function useComposerSection(params: ComposerSectionParams): ChatComposerS
     if (!trustProjectPath) {
       return
     }
-    if (!isTrustableToolName(currentPendingApproval.toolName)) {
+    if (!isApprovalRequiredToolName(currentPendingApproval.toolName)) {
       return
     }
     if (typeof api.recordProjectToolApproval !== 'function') {

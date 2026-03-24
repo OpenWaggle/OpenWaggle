@@ -58,9 +58,9 @@ describe('getToolActionText', () => {
     expect(text).toBe('Read')
   })
 
-  it('returns tool name for unknown tool', () => {
+  it('returns tool name with ellipsis for unknown running tool', () => {
     const text = getToolActionText('customTool', {}, true)
-    expect(text).toBe('customTool')
+    expect(text).toBe('customTool...')
   })
 
   it('returns completed verb text for editFile', () => {

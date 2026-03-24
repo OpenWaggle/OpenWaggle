@@ -2,37 +2,28 @@ const COMMAND_WHITESPACE_REGEX = /\s+/gu
 const HTTP_PROTOCOL = 'http:'
 const HTTPS_PROTOCOL = 'https:'
 
-export const COMMAND_PREFIX_TOKEN_COUNT: Readonly<Record<string, number>> = {
-  bun: 2,
-  git: 2,
-  npm: 2,
-  npx: 2,
-  pnpm: 2,
-  python: 1,
-  python3: 1,
-  yarn: 2,
-}
-
 export function normalizeCommand(command: string): string {
   return command.trim().replace(COMMAND_WHITESPACE_REGEX, ' ')
 }
 
+/**
+ * Derive a trust wildcard pattern from a command string.
+ * Uses the first token (binary name) as the prefix — e.g. `pnpm test:unit`
+ * produces `pnpm *`. This keeps pattern derivation fully automated without
+ * needing a hardcoded map of known package managers.
+ */
 export function deriveCommandPattern(command: string): string | null {
   const normalized = normalizeCommand(command)
   if (normalized.length === 0) {
     return null
   }
 
-  const tokens = normalized.split(' ')
-  const commandName = tokens[0]?.toLowerCase()
-  if (!commandName) {
+  const firstToken = normalized.split(' ')[0]
+  if (!firstToken) {
     return null
   }
 
-  const requestedTokenCount = COMMAND_PREFIX_TOKEN_COUNT[commandName] ?? 1
-  const tokenCount = Math.min(tokens.length, requestedTokenCount)
-  const prefix = tokens.slice(0, tokenCount).join(' ')
-  return `${prefix}*`
+  return `${firstToken} *`
 }
 
 export function normalizeWebUrl(url: string): string | null {

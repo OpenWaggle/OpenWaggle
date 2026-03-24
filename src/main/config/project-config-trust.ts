@@ -2,7 +2,7 @@ import type { ToolApprovalPatternRule, ToolApprovalTrustEntry } from '@shared/ty
 import { normalizeCommand } from '@shared/utils/tool-trust-patterns'
 import { isRecord } from '@shared/utils/validation'
 
-const COMMAND_CHAIN_OPERATOR_REGEX = /(^|\s)(?:&&|\|\||[;|<>])(?=\s|$)/u
+const COMMAND_CHAIN_OPERATOR_REGEX = /(?:&&|\|\||[;|<>])/u
 
 export function parseRawArgsObject(rawArgs: string): Record<string, unknown> | null {
   try {
@@ -49,7 +49,10 @@ export function commandPatternMatch(command: string, pattern: string): boolean {
     return true
   }
 
-  if (!suffix.startsWith(' ')) {
+  // If the prefix already ends with a space (e.g. "git "), the suffix
+  // starts directly at the next token. Otherwise require a space separator
+  // to prevent "gitx" matching "git*".
+  if (!prefix.endsWith(' ') && !suffix.startsWith(' ')) {
     return false
   }
 

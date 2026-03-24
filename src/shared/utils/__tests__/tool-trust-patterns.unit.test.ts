@@ -20,28 +20,28 @@ describe('deriveCommandPattern', () => {
     expect(deriveCommandPattern('')).toBeNull()
   })
 
-  it('uses 2-token prefix for pnpm', () => {
-    expect(deriveCommandPattern('pnpm test:unit')).toBe('pnpm test:unit*')
+  it('uses binary name as pattern prefix for pnpm', () => {
+    expect(deriveCommandPattern('pnpm test:unit')).toBe('pnpm *')
   })
 
-  it('uses 2-token prefix for git', () => {
-    expect(deriveCommandPattern('git commit -m "msg"')).toBe('git commit*')
+  it('uses binary name as pattern prefix for git', () => {
+    expect(deriveCommandPattern('git commit -m "msg"')).toBe('git *')
   })
 
-  it('uses 1-token prefix for unknown commands', () => {
-    expect(deriveCommandPattern('cargo build --release')).toBe('cargo*')
+  it('uses binary name as pattern prefix for any command', () => {
+    expect(deriveCommandPattern('cargo build --release')).toBe('cargo *')
   })
 
-  it('uses 1-token prefix for python', () => {
-    expect(deriveCommandPattern('python script.py')).toBe('python*')
+  it('uses binary name as pattern prefix for python', () => {
+    expect(deriveCommandPattern('python script.py')).toBe('python *')
   })
 
   it('handles single-token command', () => {
-    expect(deriveCommandPattern('ls')).toBe('ls*')
+    expect(deriveCommandPattern('ls')).toBe('ls *')
   })
 
   it('handles pnpm with only one token', () => {
-    expect(deriveCommandPattern('pnpm')).toBe('pnpm*')
+    expect(deriveCommandPattern('pnpm')).toBe('pnpm *')
   })
 })
 

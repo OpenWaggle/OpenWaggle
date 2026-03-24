@@ -16,29 +16,37 @@ export const sendMessageTool = defineOpenWaggleTool({
       'plan_approval_response',
     ).annotations({ description: 'Message type' }),
     recipient: Schema.optional(
-      Schema.String.annotations({
-        description:
-          'Agent name to send to (required for message, shutdown_request, plan_approval_response)',
-      }),
+      Schema.NullOr(
+        Schema.String.annotations({
+          description:
+            'Agent name to send to (required for message, shutdown_request, plan_approval_response)',
+        }),
+      ),
     ),
     content: Schema.optional(
-      Schema.String.annotations({ description: 'Message text or feedback' }),
+      Schema.NullOr(Schema.String.annotations({ description: 'Message text or feedback' })),
     ),
     summary: Schema.optional(
-      Schema.String.annotations({
-        description: '5-10 word summary for UI preview (required for message, broadcast)',
-      }),
+      Schema.NullOr(
+        Schema.String.annotations({
+          description: '5-10 word summary for UI preview (required for message, broadcast)',
+        }),
+      ),
     ),
     requestId: Schema.optional(
-      Schema.String.annotations({
-        description: 'Request ID to respond to (for shutdown_response, plan_approval_response)',
-      }),
+      Schema.NullOr(
+        Schema.String.annotations({
+          description: 'Request ID to respond to (for shutdown_response, plan_approval_response)',
+        }),
+      ),
     ),
     approve: Schema.optional(
-      Schema.Boolean.annotations({
-        description:
-          'Whether to approve the request (for shutdown_response, plan_approval_response)',
-      }),
+      Schema.NullOr(
+        Schema.Boolean.annotations({
+          description:
+            'Whether to approve the request (for shutdown_response, plan_approval_response)',
+        }),
+      ),
     ),
   }),
   async execute(args, context) {
@@ -46,7 +54,7 @@ export const sendMessageTool = defineOpenWaggleTool({
 
     // Handle shutdown response separately
     if (args.type === 'shutdown_response' && args.requestId) {
-      handleShutdownResponse(args.requestId, args.approve ?? false, args.content)
+      handleShutdownResponse(args.requestId, args.approve ?? false, args.content ?? undefined)
       return {
         kind: 'json',
         data: {
@@ -73,11 +81,11 @@ export const sendMessageTool = defineOpenWaggleTool({
     const messageId = sendAgentMessage({
       type: args.type,
       sender: senderName,
-      recipient: args.recipient,
+      recipient: args.recipient ?? undefined,
       content: args.content ?? '',
-      summary: args.summary,
-      requestId: args.requestId,
-      approve: args.approve,
+      summary: args.summary ?? undefined,
+      requestId: args.requestId ?? undefined,
+      approve: args.approve ?? undefined,
     })
 
     return {

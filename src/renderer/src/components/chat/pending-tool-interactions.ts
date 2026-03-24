@@ -2,7 +2,7 @@ import { safeDecodeUnknown } from '@shared/schema'
 import type { Conversation } from '@shared/types/conversation'
 import type { UserQuestion } from '@shared/types/question'
 import { askUserArgsSchema } from '@shared/types/question'
-import { isTrustableToolName } from '@shared/types/tool-approval'
+import { isApprovalRequiredToolName } from '@shared/types/tool-approval'
 import {
   hasConcreteToolOutput,
   isDeniedApprovalPayload,
@@ -186,7 +186,7 @@ export function findPendingApproval(
           !approvedAndPendingExecution &&
           !hasCompletedResult
         const trustableCallWithoutApprovalMetadata =
-          !hasApprovalMetadata && isTrustableToolName(part.name)
+          !hasApprovalMetadata && isApprovalRequiredToolName(part.name)
         const unresolvedTrustableFallback =
           trustableCallWithoutApprovalMetadata &&
           !hasCompletedResult &&

@@ -1,13 +1,13 @@
 import type { JsonObject } from '@shared/types/json'
-import { isTrustableToolName } from '@shared/types/tool-approval'
+import { isApprovalRequiredToolName } from '@shared/types/tool-approval'
 import { choose } from '@shared/utils/decision'
 import { deriveCommandPattern, deriveWebFetchPattern } from '@shared/utils/tool-trust-patterns'
 import { Check, CheckCheck, ShieldAlert, X } from 'lucide-react'
 import { useState } from 'react'
-import { cn } from '@/lib/cn'
 import { parseToolArgs } from '@/lib/tool-args'
 import { getToolConfig } from '@/lib/tool-display'
 
+import { ApprovalButton } from './ApprovalButton'
 import type { ApprovalResponseAction, PendingApproval } from './pending-tool-interactions'
 
 interface ApprovalBannerProps {
@@ -69,7 +69,7 @@ export function ApprovalBanner({
 
   const parsedArgs = parseToolArgs(toolArgs)
   const detail = formatToolDetail(toolName, parsedArgs)
-  const canTrust = isTrustableToolName(toolName)
+  const canTrust = isApprovalRequiredToolName(toolName)
   const trustPatternLabel = canTrust ? deriveTrustPatternLabel(toolName, detail) : null
 
   function handleResponse(response: ApprovalResponseAction): void {
@@ -92,43 +92,28 @@ export function ApprovalBanner({
           <span className="text-sm font-medium text-text-primary">{config.displayName}</span>
         </div>
         <div className="flex items-center gap-2 shrink-0 ml-auto">
-          <button
-            type="button"
+          <ApprovalButton
+            icon={X}
+            label="Deny"
+            variant="deny"
             disabled={loading}
             onClick={() => handleResponse({ kind: 'deny' })}
-            className={cn(
-              'flex items-center gap-1 rounded-md px-2.5 py-1 text-[13px] font-medium transition-colors',
-              'bg-error/15 text-error hover:bg-error/25 disabled:opacity-50',
-            )}
-          >
-            <X className="h-3 w-3" />
-            Deny
-          </button>
-          <button
-            type="button"
+          />
+          <ApprovalButton
+            icon={Check}
+            label="Approve"
+            variant="approve"
             disabled={loading}
             onClick={() => handleResponse({ kind: 'approve-once' })}
-            className={cn(
-              'flex items-center gap-1 rounded-md px-2.5 py-1 text-[13px] font-medium transition-colors',
-              'bg-success/15 text-success hover:bg-success/25 disabled:opacity-50',
-            )}
-          >
-            <Check className="h-3 w-3" />
-            Approve
-          </button>
+          />
           {canTrust && (
-            <button
-              type="button"
+            <ApprovalButton
+              icon={CheckCheck}
+              label="Always approve"
+              variant="approve-outline"
               disabled={loading}
               onClick={() => handleResponse({ kind: 'approve-and-trust' })}
-              className={cn(
-                'flex items-center gap-1 rounded-md px-2.5 py-1 text-[13px] font-medium transition-colors',
-                'border border-success/30 text-success hover:bg-success/10 disabled:opacity-50',
-              )}
-            >
-              <CheckCheck className="h-3 w-3" />
-              Always approve
-            </button>
+            />
           )}
         </div>
       </div>

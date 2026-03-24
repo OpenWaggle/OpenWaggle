@@ -21,43 +21,69 @@ export const spawnAgentTool = defineOpenWaggleTool({
       Schema.annotations({ description: 'Detailed task instructions for the sub-agent' }),
     ),
     agentType: Schema.optional(
-      Schema.String.annotations({
-        description:
-          'Agent type: general-purpose (default), explorer, planner, test-engineer, ui-engineer, or a custom agent ID',
-      }),
+      Schema.NullOr(
+        Schema.String.annotations({
+          description:
+            'Agent type: general-purpose (default), explorer, planner, test-engineer, ui-engineer, or a custom agent ID',
+        }),
+      ),
     ),
     name: Schema.optional(
-      Schema.String.annotations({ description: 'Name for the agent (used in team communication)' }),
+      Schema.NullOr(
+        Schema.String.annotations({
+          description: 'Name for the agent (used in team communication)',
+        }),
+      ),
     ),
     model: Schema.optional(
-      Schema.String.annotations({ description: 'Model to use. Inherits from parent if not set.' }),
+      Schema.NullOr(
+        Schema.String.annotations({
+          description: 'Model to use. Inherits from parent if not set.',
+        }),
+      ),
     ),
     mode: Schema.optional(
-      Schema.Literal('default', 'acceptEdits', 'dontAsk', 'bypassPermissions', 'plan').annotations({
-        description: 'Permission mode for the agent',
-      }),
+      Schema.NullOr(
+        Schema.Literal(
+          'default',
+          'acceptEdits',
+          'dontAsk',
+          'bypassPermissions',
+          'plan',
+        ).annotations({
+          description: 'Permission mode for the agent',
+        }),
+      ),
     ),
     isolation: Schema.optional(
-      Schema.Literal('worktree').annotations({
-        description: 'Set to "worktree" to run in an isolated git worktree',
-      }),
+      Schema.NullOr(
+        Schema.Literal('worktree').annotations({
+          description: 'Set to "worktree" to run in an isolated git worktree',
+        }),
+      ),
     ),
     runInBackground: Schema.optional(
-      Schema.Boolean.annotations({
-        description: 'Run the agent in the background. Returns immediately with an agent ID.',
-      }),
+      Schema.NullOr(
+        Schema.Boolean.annotations({
+          description: 'Run the agent in the background. Returns immediately with an agent ID.',
+        }),
+      ),
     ),
     teamName: Schema.optional(
-      Schema.String.annotations({ description: 'Team to register the agent with' }),
+      Schema.NullOr(Schema.String.annotations({ description: 'Team to register the agent with' })),
     ),
     resume: Schema.optional(
-      Schema.String.annotations({ description: 'Agent ID to resume from a previous invocation' }),
+      Schema.NullOr(
+        Schema.String.annotations({ description: 'Agent ID to resume from a previous invocation' }),
+      ),
     ),
     maxTurns: Schema.optional(
-      Schema.Number.pipe(
-        Schema.int(),
-        Schema.positive(),
-        Schema.annotations({ description: 'Maximum number of agent turns (default: 25)' }),
+      Schema.NullOr(
+        Schema.Number.pipe(
+          Schema.int(),
+          Schema.positive(),
+          Schema.annotations({ description: 'Maximum number of agent turns (default: 25)' }),
+        ),
       ),
     ),
   }),
@@ -73,15 +99,15 @@ export const spawnAgentTool = defineOpenWaggleTool({
       input: {
         description: args.description,
         prompt: args.prompt,
-        agentType: args.agentType,
-        name: args.name,
+        agentType: args.agentType ?? undefined,
+        name: args.name ?? undefined,
         model: args.model ? SupportedModelId(args.model) : undefined,
-        mode: args.mode,
-        isolation: args.isolation,
-        runInBackground: args.runInBackground,
-        teamName: args.teamName,
+        mode: args.mode ?? undefined,
+        isolation: args.isolation ?? undefined,
+        runInBackground: args.runInBackground ?? undefined,
+        teamName: args.teamName ?? undefined,
         resume: args.resume ? SubAgentId(args.resume) : undefined,
-        maxTurns: args.maxTurns,
+        maxTurns: args.maxTurns ?? undefined,
       },
       parentConversationId: context.conversationId,
       parentProjectPath: context.projectPath,

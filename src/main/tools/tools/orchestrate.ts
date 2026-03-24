@@ -29,9 +29,11 @@ const taskSchema = Schema.Struct({
     Schema.annotations({ description: 'Detailed instructions for the sub-agent' }),
   ),
   dependsOn: Schema.optional(
-    Schema.Array(Schema.String).annotations({
-      description: 'IDs of tasks that must complete before this one starts',
-    }),
+    Schema.NullOr(
+      Schema.Array(Schema.String).annotations({
+        description: 'IDs of tasks that must complete before this one starts',
+      }),
+    ),
   ),
 })
 

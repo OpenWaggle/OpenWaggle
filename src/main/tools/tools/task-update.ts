@@ -18,34 +18,46 @@ export const taskUpdateTool = defineOpenWaggleTool({
       Schema.annotations({ description: 'The ID of the task to update' }),
     ),
     status: Schema.optional(
-      Schema.Literal('pending', 'in_progress', 'completed', 'deleted').annotations({
-        description: 'New status for the task',
-      }),
+      Schema.NullOr(
+        Schema.Literal('pending', 'in_progress', 'completed', 'deleted').annotations({
+          description: 'New status for the task',
+        }),
+      ),
     ),
-    subject: Schema.optional(Schema.String.annotations({ description: 'New task title' })),
+    subject: Schema.optional(
+      Schema.NullOr(Schema.String.annotations({ description: 'New task title' })),
+    ),
     description: Schema.optional(
-      Schema.String.annotations({ description: 'New task description' }),
+      Schema.NullOr(Schema.String.annotations({ description: 'New task description' })),
     ),
     activeForm: Schema.optional(
-      Schema.String.annotations({ description: 'Present continuous form for spinner' }),
+      Schema.NullOr(
+        Schema.String.annotations({ description: 'Present continuous form for spinner' }),
+      ),
     ),
     owner: Schema.optional(
-      Schema.String.annotations({ description: 'Agent name to assign as owner' }),
+      Schema.NullOr(Schema.String.annotations({ description: 'Agent name to assign as owner' })),
     ),
     addBlocks: Schema.optional(
-      Schema.Array(Schema.String).annotations({
-        description: 'Task IDs that this task blocks',
-      }),
+      Schema.NullOr(
+        Schema.Array(Schema.String).annotations({
+          description: 'Task IDs that this task blocks',
+        }),
+      ),
     ),
     addBlockedBy: Schema.optional(
-      Schema.Array(Schema.String).annotations({
-        description: 'Task IDs that block this task',
-      }),
+      Schema.NullOr(
+        Schema.Array(Schema.String).annotations({
+          description: 'Task IDs that block this task',
+        }),
+      ),
     ),
     metadata: Schema.optional(
-      Schema.Record({ key: Schema.String, value: Schema.Unknown }).annotations({
-        description: 'Metadata keys to merge (set to null to delete)',
-      }),
+      Schema.NullOr(
+        Schema.Record({ key: Schema.String, value: Schema.Unknown }).annotations({
+          description: 'Metadata keys to merge (set to null to delete)',
+        }),
+      ),
     ),
   }),
   async execute(args, context) {
@@ -56,14 +68,14 @@ export const taskUpdateTool = defineOpenWaggleTool({
     const result = updateTask({
       teamId: args.teamName,
       taskId: TaskId(args.taskId),
-      status: args.status,
-      subject: args.subject,
-      description: args.description,
-      activeForm: args.activeForm,
-      owner: args.owner,
+      status: args.status ?? undefined,
+      subject: args.subject ?? undefined,
+      description: args.description ?? undefined,
+      activeForm: args.activeForm ?? undefined,
+      owner: args.owner ?? undefined,
       addBlocks: args.addBlocks?.map((id) => TaskId(id)),
       addBlockedBy: args.addBlockedBy?.map((id) => TaskId(id)),
-      metadata: args.metadata,
+      metadata: args.metadata ?? undefined,
     })
 
     if ('kind' in result) {

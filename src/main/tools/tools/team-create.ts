@@ -13,11 +13,11 @@ export const teamCreateTool = defineOpenWaggleTool({
       Schema.annotations({ description: 'Name for the new team' }),
     ),
     description: Schema.optional(
-      Schema.String.annotations({ description: 'Team description/purpose' }),
+      Schema.NullOr(Schema.String.annotations({ description: 'Team description/purpose' })),
     ),
   }),
   async execute(args, context) {
-    const team = createTeam(args.teamName, args.description)
+    const team = createTeam(args.teamName, args.description ?? undefined)
     await persistTeamConfig(context.projectPath, args.teamName)
 
     return {

@@ -90,7 +90,7 @@ describe('ApprovalBanner', () => {
   describe('trust pattern display', () => {
     it('shows derived command pattern for runCommand', () => {
       renderBanner({ toolName: 'runCommand', toolArgs: '{"command":"pnpm test:unit"}' })
-      expect(screen.getByText('pnpm test:unit*')).toBeInTheDocument()
+      expect(screen.getByText('pnpm *')).toBeInTheDocument()
     })
 
     it('shows derived URL pattern for webFetch', () => {

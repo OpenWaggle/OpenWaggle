@@ -25,5 +25,6 @@
     "src/**/*.test.tsx",
     "src/renderer/src/test-setup.ts",
     "src/renderer/src/test-utils.tsx"
-  ]
+  ],
+  "references": [{ "path": "./tsconfig.node.json" }]
 }
