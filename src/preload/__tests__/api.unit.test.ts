@@ -58,6 +58,7 @@ describe('preload api surface contract', () => {
     'listArchivedConversations',
     'updateConversationTitle',
     'updateConversationProjectPath',
+    'updateConversationPlanMode',
     'onConversationTitleUpdated',
     // Devtools
     'getDevtoolsEventBusConfig',

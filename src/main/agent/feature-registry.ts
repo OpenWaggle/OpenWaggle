@@ -273,6 +273,8 @@ const subAgentToolsFeature: AgentFeature = {
         'webFetch',
         'loadSkill',
         'loadAgents',
+        'askUser',
+        'proposePlan',
       ])
       filtered = tools.filter((t) => readOnlyNames.has(t.name ?? ''))
     } else {

@@ -9,6 +9,7 @@ export interface Conversation {
   readonly messages: Message[]
   readonly waggleConfig?: WaggleConfig
   readonly archived?: boolean
+  readonly planModeActive?: boolean
   readonly createdAt: number
   readonly updatedAt: number
 }
@@ -19,6 +20,7 @@ export interface ConversationSummary {
   readonly projectPath: string | null
   readonly messageCount: number
   readonly archived?: boolean
+  readonly planModeActive?: boolean
   readonly createdAt: number
   readonly updatedAt: number
 }

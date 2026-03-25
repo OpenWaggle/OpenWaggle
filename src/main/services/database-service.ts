@@ -186,6 +186,13 @@ const APP_MIGRATIONS: readonly AppMigration[] = [
       `,
     ],
   },
+  {
+    id: 3,
+    name: 'plan-mode-per-conversation',
+    statements: [
+      `ALTER TABLE conversations ADD COLUMN plan_mode_active INTEGER NOT NULL DEFAULT 0`,
+    ],
+  },
 ]
 
 export interface AppDatabaseService {

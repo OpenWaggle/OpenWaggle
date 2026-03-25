@@ -9,6 +9,7 @@ import {
   listArchivedConversations,
   listConversations,
   unarchiveConversation,
+  updateConversationPlanMode,
   updateConversationProjectPath,
   updateConversationTitle,
 } from '../store/conversations'
@@ -55,5 +56,11 @@ export function registerConversationsHandlers(): void {
     'conversations:update-project-path',
     (_event, id: ConversationId, projectPath: string | null) =>
       Effect.promise(() => updateConversationProjectPath(id, projectPath)),
+  )
+
+  typedHandle(
+    'conversations:update-plan-mode',
+    (_event, id: ConversationId, planModeActive: boolean) =>
+      Effect.promise(() => updateConversationPlanMode(id, planModeActive)),
   )
 }
