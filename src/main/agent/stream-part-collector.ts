@@ -264,6 +264,13 @@ export class StreamPartCollector {
       if (this.toolCallStates.get(toolCallId) === 'approval-requested') {
         return true
       }
+      // proposePlan and askUser block indefinitely waiting for user input.
+      // orchestrate spawns sub-agents that can legitimately run for minutes.
+      // None of these should be subject to the stream stall timeout.
+      const toolName = this.toolCallNames.get(toolCallId)
+      if (toolName === 'proposePlan' || toolName === 'askUser' || toolName === 'orchestrate') {
+        return true
+      }
     }
 
     return false
