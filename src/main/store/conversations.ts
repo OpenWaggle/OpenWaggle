@@ -622,20 +622,36 @@ export async function saveConversation(conversation: Conversation): Promise<void
 
           // Remove messages and parts that are no longer present.
           // Parts are cascade-deleted when their parent message is deleted,
-          // so we only need explicit part deletion for messages that still exist
-          // but had parts removed.
+          // so we only need explicit part cleanup for messages that still
+          // exist but had parts removed.
           if (messageIds.length > 0) {
-            const messageIdList = messageIds.map((id) => `'${id.replace(/'/g, "''")}'`).join(',')
-            yield* sql.unsafe(
-              `DELETE FROM conversation_message_parts
-               WHERE message_id IN (${messageIdList})
-                 AND id NOT IN (${allPartIds.length > 0 ? allPartIds.map((id) => `'${id.replace(/'/g, "''")}'`).join(',') : "''"})`,
-            )
-            yield* sql.unsafe(
-              `DELETE FROM conversation_messages
-               WHERE conversation_id = '${String(persistedConversation.id).replace(/'/g, "''")}'
-                 AND id NOT IN (${messageIdList})`,
-            )
+            const messageIdSet = new Set(messageIds)
+            const partIdSet = new Set(allPartIds)
+
+            // Delete messages no longer in the conversation
+            const existingMessageRows = yield* sql<{ readonly id: string }>`
+              SELECT id FROM conversation_messages
+              WHERE conversation_id = ${persistedConversation.id}
+            `
+            for (const row of existingMessageRows) {
+              if (!messageIdSet.has(row.id)) {
+                yield* sql`DELETE FROM conversation_messages WHERE id = ${row.id}`
+              }
+            }
+
+            // Delete parts that belong to remaining messages but are no longer present
+            const existingPartRows = yield* sql<{
+              readonly id: string
+              readonly message_id: string
+            }>`
+              SELECT id, message_id FROM conversation_message_parts
+              WHERE message_id IN ${sql.in(messageIds)}
+            `
+            for (const row of existingPartRows) {
+              if (!partIdSet.has(row.id)) {
+                yield* sql`DELETE FROM conversation_message_parts WHERE id = ${row.id}`
+              }
+            }
           } else {
             yield* sql`
               DELETE FROM conversation_messages

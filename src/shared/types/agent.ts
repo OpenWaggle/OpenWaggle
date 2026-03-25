@@ -109,6 +109,19 @@ export function isToolCallPart(part: MessagePart): part is ToolCallPart {
   return part.type === 'tool-call'
 }
 
+/** Check whether finalized parts include a tool call with the given name. */
+export function hasToolCallNamed(parts: readonly MessagePart[], name: string): boolean {
+  return parts.some((part) => isToolCallPart(part) && part.toolCall.name === name)
+}
+
+/** Extract concatenated text from message parts. */
+export function extractTextFromParts(parts: readonly MessagePart[]): string {
+  return parts
+    .filter(isTextPart)
+    .map((p) => p.text)
+    .join('\n')
+}
+
 export function getMessageText(message: Message): string {
   return message.parts
     .filter(isTextPart)

@@ -259,7 +259,7 @@ export class StreamPartCollector {
     return [...this.awaitingToolResultIds].map((id) => this.toolCallNames.get(id) ?? id)
   }
 
-  hasPendingApprovalWaits(): boolean {
+  shouldBypassStallTimeout(): boolean {
     for (const toolCallId of this.awaitingToolResultIds) {
       if (this.toolCallStates.get(toolCallId) === 'approval-requested') {
         return true

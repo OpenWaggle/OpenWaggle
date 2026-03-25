@@ -1,5 +1,10 @@
 import { randomUUID } from 'node:crypto'
-import type { HydratedAgentSendPayload, Message } from '@shared/types/agent'
+import {
+  extractTextFromParts,
+  type HydratedAgentSendPayload,
+  hasToolCallNamed,
+  type Message,
+} from '@shared/types/agent'
 import { type SkipApprovalToken, ToolCallId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
@@ -360,18 +365,14 @@ export function runAgentEffect(params: AgentRunParams): Effect.Effect<AgentRunRe
     // proposePlan, extract its research output and re-run with a forced
     // proposePlan instruction. This handles models that ignore the system
     // prompt and answer directly despite plan mode being active.
+    // Uses snapshotParts() (non-destructive) to check without consuming the
+    // collector — finalizeParts() is only called once, after this block.
     const planModeActive = payload.planModeRequested ?? conversation.planModeActive
     if (planModeActive && !signal.aborted) {
-      const preCheckParts = collector.finalizeParts({ timedOut: streamResult.timedOut })
-      const calledProposePlan = preCheckParts.some(
-        (part) => part.type === 'tool-call' && part.toolCall.name === 'proposePlan',
-      )
+      const snapshotParts = collector.snapshotParts()
 
-      if (!calledProposePlan) {
-        const researchText = preCheckParts
-          .filter((part): part is Extract<typeof part, { type: 'text' }> => part.type === 'text')
-          .map((part) => part.text)
-          .join('\n')
+      if (!hasToolCallNamed(snapshotParts, 'proposePlan')) {
+        const researchText = extractTextFromParts(snapshotParts)
 
         if (researchText.trim()) {
           logger.info('Plan mode enforcement: model skipped proposePlan, injecting re-run', {
@@ -427,6 +428,14 @@ export function runAgentEffect(params: AgentRunParams): Effect.Effect<AgentRunRe
 
           if (nudgeResult.aborted || signal.aborted) {
             return yield* Effect.fail(new AgentCancelledError({}))
+          }
+
+          // Check if the nudge re-run produced proposePlan
+          const nudgeParts = collector.snapshotParts()
+          if (!hasToolCallNamed(nudgeParts, 'proposePlan')) {
+            logger.warn('Plan mode enforcement: nudge re-run also skipped proposePlan', {
+              conversationId: conversation.id,
+            })
           }
 
           streamResult = nudgeResult
