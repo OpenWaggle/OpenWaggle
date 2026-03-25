@@ -38,3 +38,16 @@ export function cancelQuestion(conversationId: ConversationId): void {
     entry.reject(new Error('Question cancelled'))
   }
 }
+
+/** Reject and remove all pending questions. Used for clean shutdown. */
+export function clearAllQuestions(): void {
+  for (const [conversationId, entry] of pending) {
+    pending.delete(conversationId)
+    entry.reject(new Error('All questions cleared'))
+  }
+}
+
+/** Number of pending questions. Exposed for testing/observability. */
+export function pendingQuestionCount(): number {
+  return pending.size
+}
