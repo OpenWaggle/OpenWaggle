@@ -2,7 +2,9 @@ import type { QualityPreset } from '@shared/types/settings'
 import { ArrowUp, ClipboardList, Loader2, Mic, Square } from 'lucide-react'
 import { ModelSelector } from '@/components/shared/ModelSelector'
 import { Popover } from '@/components/shared/Popover'
+import { useProject } from '@/hooks/useProject'
 import { cn } from '@/lib/cn'
+import { useChatStore } from '@/stores/chat-store'
 import { useComposerStore } from '@/stores/composer-store'
 import { usePreferencesStore } from '@/stores/preferences-store'
 import { useProviderStore } from '@/stores/provider-store'
@@ -40,8 +42,10 @@ export function ComposerToolbar({
 
   const qualityMenuOpen = useComposerStore((s) => s.qualityMenuOpen)
   const openMenu = useComposerStore((s) => s.openMenu)
-  const planModeActive = useComposerStore((s) => s.planModeActive)
-  const togglePlanMode = useComposerStore((s) => s.togglePlanMode)
+  const { projectPath } = useProject()
+  const activeConversationId = useChatStore((s) => s.activeConversationId)
+  const planModeActive = useChatStore((s) => s.activeConversation?.planModeActive) ?? false
+  const togglePlanMode = useChatStore((s) => s.togglePlanMode)
   const isListening = voiceMode === 'recording'
   const isTranscribingVoice = voiceMode === 'transcribing'
 
@@ -102,7 +106,9 @@ export function ComposerToolbar({
 
         <button
           type="button"
-          onClick={togglePlanMode}
+          onClick={() => {
+            void togglePlanMode(activeConversationId, projectPath)
+          }}
           className={cn(
             'flex items-center gap-[5px] h-[26px] px-2.5 rounded-md border transition-colors',
             planModeActive

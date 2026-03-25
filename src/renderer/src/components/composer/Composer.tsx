@@ -6,6 +6,7 @@ import { useEffect, useEffectEvent, useRef } from 'react'
 import { useProject } from '@/hooks/useProject'
 import { cn } from '@/lib/cn'
 import { api } from '@/lib/ipc'
+import { useChatStore } from '@/stores/chat-store'
 import { useComposerActionStore } from '@/stores/composer-action-store'
 import { useComposerStore } from '@/stores/composer-store'
 import { usePreferencesStore } from '@/stores/preferences-store'
@@ -68,7 +69,7 @@ export function Composer({
   const setAttachmentError = useComposerStore((s) => s.setAttachmentError)
   const addAttachments = useComposerStore((s) => s.addAttachments)
   const removeAttachment = useComposerStore((s) => s.removeAttachment)
-  const planModeActive = useComposerStore((s) => s.planModeActive)
+  const planModeActive = useChatStore((s) => s.activeConversation?.planModeActive) ?? false
   const branchMessage = useComposerActionStore((s) => s.branchMessage)
   const setBranchMessage = useComposerActionStore((s) => s.setBranchMessage)
   const reset = useComposerStore((s) => s.reset)
@@ -124,7 +125,7 @@ export function Composer({
       text,
       qualityPreset,
       attachments: useComposerStore.getState().attachments,
-      planModeRequested: useComposerStore.getState().planModeActive || undefined,
+      planModeRequested: useChatStore.getState().activeConversation?.planModeActive || undefined,
     })
   }
 
@@ -169,7 +170,7 @@ export function Composer({
       text: state.input.trim(),
       qualityPreset,
       attachments: state.attachments,
-      planModeRequested: state.planModeActive || undefined,
+      planModeRequested: useChatStore.getState().activeConversation?.planModeActive || undefined,
     })
   })
 

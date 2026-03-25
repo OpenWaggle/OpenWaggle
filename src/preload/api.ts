@@ -89,6 +89,7 @@ export const api: OpenWaggleApi = {
   listArchivedConversations: invoke('conversations:list-archived'),
   updateConversationTitle: invoke('conversations:update-title'),
   updateConversationProjectPath: invoke('conversations:update-project-path'),
+  updateConversationPlanMode: invoke('conversations:update-plan-mode'),
   onConversationTitleUpdated: on('conversations:title-updated'),
 
   // Devtools

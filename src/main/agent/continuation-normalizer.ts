@@ -175,6 +175,11 @@ function recoverUiToolCallPart(part: UiToolCallPart, hints: ToolCallRecoveryHint
   }
 }
 
+const SYNTHETIC_TOOL_RESULT_CONTENT = JSON.stringify({
+  ok: false,
+  error: 'Tool execution was interrupted.',
+})
+
 function enforceToolResultPairing(messages: readonly ModelMessage[]): ModelMessage[] {
   const pairedMessages: ModelMessage[] = []
   let pendingAssistantToolCallIds: Set<string> | null = null
@@ -199,12 +204,45 @@ function enforceToolResultPairing(messages: readonly ModelMessage[]): ModelMessa
         continue
       }
 
+      pendingAssistantToolCallIds.delete(message.toolCallId)
       pairedMessages.push(message)
       continue
     }
 
+    // Non-tool message after assistant — inject synthetic results for any
+    // tool calls that were never followed by a tool result message.
+    if (pendingAssistantToolCallIds && pendingAssistantToolCallIds.size > 0) {
+      for (const orphanId of pendingAssistantToolCallIds) {
+        logger.warn('Injecting synthetic tool result for orphan tool call in ModelMessage path', {
+          toolCallId: orphanId,
+        })
+        pairedMessages.push({
+          role: 'tool',
+          content: SYNTHETIC_TOOL_RESULT_CONTENT,
+          toolCallId: orphanId,
+        })
+      }
+    }
+
     pendingAssistantToolCallIds = null
     pairedMessages.push(message)
+  }
+
+  // Handle orphan tool calls at the end of the message list
+  if (pendingAssistantToolCallIds && pendingAssistantToolCallIds.size > 0) {
+    for (const orphanId of pendingAssistantToolCallIds) {
+      logger.warn(
+        'Injecting synthetic tool result for orphan tool call at end of ModelMessage history',
+        {
+          toolCallId: orphanId,
+        },
+      )
+      pairedMessages.push({
+        role: 'tool',
+        content: SYNTHETIC_TOOL_RESULT_CONTENT,
+        toolCallId: orphanId,
+      })
+    }
   }
 
   return pairedMessages
@@ -403,7 +441,89 @@ export function normalizeContinuationAsUIMessages(
   continuationMessages: readonly ContinuationMessage[],
 ): ContinuationMessage[] {
   const deduped = deduplicateContinuationMessages(continuationMessages)
-  return mergeConsecutiveAssistantUIMessages(deduped)
+  const merged = mergeConsecutiveAssistantUIMessages(deduped)
+  return enforceToolResultPairingOnUIMessages(merged)
+}
+
+/**
+ * Matches TanStack AI's isToolCallIncluded predicate — a tool-call part
+ * is "included" (emitted as a tool_use block) when its state signals
+ * that the call has been dispatched or it carries concrete output.
+ */
+function isToolCallIncluded(
+  part: Extract<UIMessage['parts'][number], { type: 'tool-call' }>,
+): boolean {
+  return (
+    part.state === 'input-complete' ||
+    part.state === 'approval-responded' ||
+    part.output !== undefined
+  )
+}
+
+/**
+ * For UIMessage continuations, ensure every included tool-call part has a
+ * matching tool-result part in the same assistant message. If not (and the
+ * tool-call has no `output`), inject a synthetic tool-result so that
+ * TanStack AI's buildAssistantMessages produces a paired tool_use → tool
+ * result sequence that the Anthropic API accepts.
+ */
+function enforceToolResultPairingOnUIMessages(
+  messages: ContinuationMessage[],
+): ContinuationMessage[] {
+  return messages.map((message) => {
+    if (!isUiSnapshotMessage(message) || message.role !== 'assistant') {
+      return message
+    }
+
+    const toolResultIds = new Set<string>()
+    for (const part of message.parts) {
+      if (part.type === 'tool-result') {
+        toolResultIds.add(part.toolCallId)
+      }
+    }
+
+    const orphanToolCallIds: Array<{ id: string; name: string }> = []
+    for (const part of message.parts) {
+      if (part.type !== 'tool-call') {
+        continue
+      }
+      if (!isToolCallIncluded(part)) {
+        continue
+      }
+      // Tool calls with output are handled by TanStack AI's post-segment
+      // emission — they don't need an explicit tool-result part.
+      if (part.output !== undefined) {
+        continue
+      }
+      if (!toolResultIds.has(part.id)) {
+        orphanToolCallIds.push({ id: part.id, name: part.name })
+      }
+    }
+
+    if (orphanToolCallIds.length === 0) {
+      return message
+    }
+
+    const syntheticParts: Array<UIMessage['parts'][number]> = orphanToolCallIds.map(
+      ({ id, name }) => {
+        logger.warn('Injecting synthetic tool-result for orphan tool-call in UIMessage', {
+          toolCallId: id,
+          toolName: name,
+        })
+        return {
+          type: 'tool-result' as const,
+          toolCallId: id,
+          content: SYNTHETIC_TOOL_RESULT_CONTENT,
+          state: 'error' as const,
+        }
+      },
+    )
+
+    return {
+      ...message,
+      parts: [...message.parts, ...syntheticParts],
+    }
+  })
 }
 
 /**

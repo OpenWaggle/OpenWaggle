@@ -74,7 +74,17 @@ export const planModeActivePromptFragment: AgentPromptFragment = {
   id: 'core.plan-mode-active',
   order: ORDER_VALUE_36,
   build: () =>
-    'IMPORTANT: Plan mode is active for this message. You MUST call the proposePlan tool with your plan BEFORE executing any file modifications or commands. Present your approach and wait for user approval.',
+    `CRITICAL: Plan mode is active. Your FIRST tool call MUST be proposePlan — no exceptions.
+
+Before calling ANY other tool (including readFile, glob, listFiles), you must:
+1. Call proposePlan with a structured plan describing what you will do, which tools you will use, and why.
+2. If the request is unclear, use askUser to clarify — but ONLY before or inside the proposePlan call.
+3. WAIT for the user to approve or revise your plan.
+4. Only after explicit approval: execute the approved plan.
+
+Even for simple read-only tasks, propose the plan first. The user enabled plan mode because they want to review and approve your approach before you act.
+
+Do NOT call readFile, glob, listFiles, writeFile, editFile, runCommand, or any other tool before proposePlan. Do NOT produce a final answer without going through the plan workflow.`,
 }
 
 export const orchestrateToolPromptFragment: AgentPromptFragment = {

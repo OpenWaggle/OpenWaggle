@@ -68,10 +68,6 @@ interface ComposerState {
   branchMenuOpen: boolean
   openMenu: (menu: MenuKind) => void
 
-  // Plan mode
-  planModeActive: boolean
-  togglePlanMode: () => void
-
   // Slash skills
   slashHighlightIndex: number
   dismissedSlashToken: string | null
@@ -93,7 +89,6 @@ interface InitialComposerState {
   qualityMenuOpen: boolean
   executionMenuOpen: boolean
   branchMenuOpen: boolean
-  planModeActive: boolean
   slashHighlightIndex: number
   dismissedSlashToken: string | null
 }
@@ -111,7 +106,6 @@ function buildInitialState(): InitialComposerState {
     qualityMenuOpen: false,
     executionMenuOpen: false,
     branchMenuOpen: false,
-    planModeActive: false,
     slashHighlightIndex: 0,
     dismissedSlashToken: null,
   }
@@ -186,10 +180,6 @@ export const useComposerStore = create<ComposerState>((set, get) => ({
     })
   },
 
-  togglePlanMode() {
-    set((s) => ({ planModeActive: !s.planModeActive }))
-  },
-
   setSlashHighlightIndex(index: number) {
     set({ slashHighlightIndex: index })
   },
@@ -212,7 +202,6 @@ export const useComposerStore = create<ComposerState>((set, get) => ({
       qualityMenuOpen: false,
       executionMenuOpen: false,
       branchMenuOpen: false,
-      planModeActive: false,
     })
   },
 }))

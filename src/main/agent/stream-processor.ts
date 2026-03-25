@@ -215,7 +215,7 @@ export function processAgentStreamEffect(
         iterator,
         signal,
         resolveChunkTimeoutMs(collector, timeout),
-        collector.hasPendingApprovalWaits(),
+        collector.shouldBypassStallTimeout(),
       )
 
       if (nextChunkResult.kind === 'aborted') {

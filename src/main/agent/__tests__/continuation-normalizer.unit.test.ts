@@ -1,6 +1,9 @@
 import type { ModelMessage, UIMessage } from '@tanstack/ai'
 import { describe, expect, it } from 'vitest'
-import { normalizeContinuationInput } from '../continuation-normalizer'
+import {
+  normalizeContinuationAsUIMessages,
+  normalizeContinuationInput,
+} from '../continuation-normalizer'
 
 function makeUiTextMessage(id: string, role: UIMessage['role'], content: string): UIMessage {
   return {
@@ -50,11 +53,17 @@ describe('normalizeContinuationInput', () => {
 
     const normalized = normalizeContinuationInput(input)
 
-    expect(normalized).toHaveLength(1)
+    // After dedup: one assistant message + one synthetic tool result
+    // for the orphan tool call (enforceToolResultPairing).
+    expect(normalized).toHaveLength(2)
     expect(normalized[0]).toMatchObject({
       role: 'assistant',
       content: 'still waiting',
       toolCalls: [repeatedToolCall],
+    })
+    expect(normalized[1]).toMatchObject({
+      role: 'tool',
+      toolCallId: 'tool-1',
     })
   })
 
@@ -193,7 +202,7 @@ describe('normalizeContinuationInput', () => {
     ).toBe(true)
   })
 
-  it('drops stale model tool messages when a newer assistant tool-call with same id exists', () => {
+  it('replaces stale tool result with synthetic result when newer assistant tool-call exists', () => {
     const input: Array<ModelMessage | UIMessage> = [
       {
         role: 'assistant',
@@ -214,9 +223,18 @@ describe('normalizeContinuationInput', () => {
 
     const normalized = normalizeContinuationInput(input)
 
-    expect(
-      normalized.some((message) => message.role === 'tool' && message.toolCallId === 'tool-model'),
-    ).toBe(false)
+    // The newer tool-call wins; old tool result is dropped.
+    // enforceToolResultPairing injects a synthetic result so
+    // the API doesn't receive an orphan tool_use block.
+    const toolMessages = normalized.filter(
+      (message): message is ModelMessage<string> =>
+        message.role === 'tool' && message.toolCallId === 'tool-model',
+    )
+    expect(toolMessages).toHaveLength(1)
+    expect(JSON.parse(toolMessages[0]?.content ?? '{}')).toMatchObject({
+      ok: false,
+      error: 'Tool execution was interrupted.',
+    })
     expect(
       normalized.some(
         (message) =>
@@ -395,5 +413,141 @@ describe('normalizeContinuationInput', () => {
       text: 'done',
     })
     expect(parsed).not.toHaveProperty('pendingExecution')
+  })
+})
+
+describe('normalizeContinuationAsUIMessages', () => {
+  it('injects synthetic tool-result for orphan tool-call with state input-complete', () => {
+    const input: UIMessage[] = [
+      makeUiTextMessage('user-1', 'user', 'do it'),
+      {
+        id: 'assistant-1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'orphan-tc',
+            name: 'readFile',
+            arguments: '{"path":"a.txt"}',
+            state: 'input-complete',
+          },
+        ],
+      },
+    ]
+
+    const normalized = normalizeContinuationAsUIMessages(input)
+    const assistantMsg = normalized.find((m) => 'parts' in m && m.role === 'assistant') as
+      | UIMessage
+      | undefined
+
+    expect(assistantMsg).toBeTruthy()
+    const toolResultPart = assistantMsg?.parts.find(
+      (p) => p.type === 'tool-result' && p.toolCallId === 'orphan-tc',
+    )
+    expect(toolResultPart).toBeTruthy()
+    expect(toolResultPart).toMatchObject({
+      type: 'tool-result',
+      toolCallId: 'orphan-tc',
+      state: 'error',
+    })
+  })
+
+  it('does not inject synthetic result when tool-call has output', () => {
+    const input: UIMessage[] = [
+      makeUiTextMessage('user-1', 'user', 'do it'),
+      {
+        id: 'assistant-1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'has-output-tc',
+            name: 'readFile',
+            arguments: '{"path":"a.txt"}',
+            state: 'input-complete',
+            output: { kind: 'text', text: 'file contents' },
+          },
+        ],
+      },
+    ]
+
+    const normalized = normalizeContinuationAsUIMessages(input)
+    const assistantMsg = normalized.find((m) => 'parts' in m && m.role === 'assistant') as
+      | UIMessage
+      | undefined
+
+    const syntheticParts =
+      assistantMsg?.parts.filter(
+        (p) => p.type === 'tool-result' && p.toolCallId === 'has-output-tc',
+      ) ?? []
+    expect(syntheticParts).toHaveLength(0)
+  })
+
+  it('does not inject synthetic result when matching tool-result part exists', () => {
+    const input: UIMessage[] = [
+      makeUiTextMessage('user-1', 'user', 'do it'),
+      {
+        id: 'assistant-1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'paired-tc',
+            name: 'readFile',
+            arguments: '{"path":"a.txt"}',
+            state: 'input-complete',
+          },
+          {
+            type: 'tool-result',
+            toolCallId: 'paired-tc',
+            content: '{"kind":"text","text":"done"}',
+            state: 'complete',
+          },
+        ],
+      },
+    ]
+
+    const normalized = normalizeContinuationAsUIMessages(input)
+    const assistantMsg = normalized.find((m) => 'parts' in m && m.role === 'assistant') as
+      | UIMessage
+      | undefined
+
+    const toolResultParts =
+      assistantMsg?.parts.filter((p) => p.type === 'tool-result' && p.toolCallId === 'paired-tc') ??
+      []
+    // Only the original tool-result — no synthetic duplicate
+    expect(toolResultParts).toHaveLength(1)
+    expect(toolResultParts[0]).toMatchObject({ state: 'complete' })
+  })
+
+  it('injects synthetic tool-result for approval-responded tool-call without result', () => {
+    const input: UIMessage[] = [
+      makeUiTextMessage('user-1', 'user', 'do it'),
+      {
+        id: 'assistant-1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'approved-tc',
+            name: 'writeFile',
+            arguments: '{"path":"b.txt"}',
+            state: 'approval-responded',
+            approval: { id: 'appr-1', needsApproval: true, approved: true },
+          },
+        ],
+      },
+    ]
+
+    const normalized = normalizeContinuationAsUIMessages(input)
+    const assistantMsg = normalized.find((m) => 'parts' in m && m.role === 'assistant') as
+      | UIMessage
+      | undefined
+
+    const syntheticPart = assistantMsg?.parts.find(
+      (p) => p.type === 'tool-result' && p.toolCallId === 'approved-tc',
+    )
+    expect(syntheticPart).toBeTruthy()
+    expect(syntheticPart).toMatchObject({ state: 'error' })
   })
 })

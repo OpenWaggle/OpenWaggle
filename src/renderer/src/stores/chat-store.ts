@@ -31,6 +31,7 @@ interface ChatState {
   deleteConversation: (id: ConversationId) => Promise<void>
   updateConversationTitle: (id: ConversationId, title: string) => void
   updateConversationProjectPath: (id: ConversationId, projectPath: string | null) => Promise<void>
+  togglePlanMode: (id: ConversationId | null, projectPath: string | null) => Promise<void>
   clearError: () => void
 }
 
@@ -106,11 +107,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   updateConversationTitle(id: ConversationId, title: string) {
-    const existing = get().conversations.find((c) => c.id === id)
-    if (existing) {
-      set({
-        conversations: get().conversations.map((c) => (c.id === id ? { ...c, title } : c)),
-      })
+    const conversations = get().conversations
+    const idx = conversations.findIndex((c) => c.id === id)
+    if (idx !== -1) {
+      const updated = [...conversations]
+      updated[idx] = { ...conversations[idx], title }
+      set({ conversations: updated })
     } else {
       // Conversation was just created (not yet in sidebar). Add it now.
       const { activeConversation } = get()
@@ -138,11 +140,36 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (updated && activeConversationId === id) {
         set({ activeConversation: updated })
       }
-      set({
-        conversations: get().conversations.map((c) => (c.id === id ? { ...c, projectPath } : c)),
-      })
+      const conversations = get().conversations
+      const idx = conversations.findIndex((c) => c.id === id)
+      if (idx !== -1) {
+        const updatedList = [...conversations]
+        updatedList[idx] = { ...conversations[idx], projectPath }
+        set({ conversations: updatedList })
+      }
     } catch (err) {
       handleStoreError(err, 'update project path', set)
+    }
+  },
+
+  async togglePlanMode(id: ConversationId | null, projectPath: string | null) {
+    let conversationId = id
+    if (!conversationId) {
+      // Draft thread — create the conversation first so plan mode has a place to persist.
+      conversationId = await get().createConversation(projectPath)
+    }
+    const { activeConversation } = get()
+    const current =
+      activeConversation?.id === conversationId
+        ? (activeConversation.planModeActive ?? false)
+        : false
+    try {
+      const updated = await api.updateConversationPlanMode(conversationId, !current)
+      if (updated && get().activeConversationId === conversationId) {
+        set({ activeConversation: updated })
+      }
+    } catch (err) {
+      handleStoreError(err, 'toggle plan mode', set)
     }
   },
 

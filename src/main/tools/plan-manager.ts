@@ -43,6 +43,19 @@ export function cancelPlanProposal(conversationId: ConversationId): void {
   }
 }
 
+/** Reject and remove all pending plan proposals. Used for clean shutdown. */
+export function clearAllPlanProposals(): void {
+  for (const [conversationId, entry] of pending) {
+    pending.delete(conversationId)
+    entry.reject(new Error('All plan proposals cleared'))
+  }
+}
+
+/** Number of pending plan proposals. Exposed for testing/observability. */
+export function pendingPlanCount(): number {
+  return pending.size
+}
+
 /**
  * Register a plan proposal and wire abort signal + TTL cleanup.
  * Shared by both team-routed and renderer-routed plan flows.
@@ -56,13 +69,20 @@ export function waitForPlanResponse(
       cancelPlanProposal(conversationId)
     }, PLAN_PROPOSAL_TTL_MS)
 
+    const onAbort = (): void => {
+      clearTimeout(ttlTimer)
+      cancelPlanProposal(conversationId)
+    }
+
     const wrappedResolve = (response: PlanResponse): void => {
       clearTimeout(ttlTimer)
+      signal?.removeEventListener('abort', onAbort)
       resolve(response)
     }
 
     const wrappedReject = (reason: Error): void => {
       clearTimeout(ttlTimer)
+      signal?.removeEventListener('abort', onAbort)
       reject(reason)
     }
 
@@ -75,14 +95,7 @@ export function waitForPlanResponse(
       return
     }
 
-    signal?.addEventListener(
-      'abort',
-      () => {
-        clearTimeout(ttlTimer)
-        cancelPlanProposal(conversationId)
-      },
-      { once: true },
-    )
+    signal?.addEventListener('abort', onAbort, { once: true })
   })
 }
 

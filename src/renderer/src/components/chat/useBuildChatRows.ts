@@ -415,14 +415,30 @@ export function buildChatRows({
   // During gaps between continuation runs (clearAgentPhase fired but next
   // run hasn't started yet), show "Thinking" with the total elapsed time
   // so the spinner stays visible throughout the entire interaction.
-  if (phase.current) {
+  //
+  // Exception: when proposePlan or askUser is waiting for user input, the
+  // stream is still active (isLoading=true) but the spinner should be hidden
+  // because the agent is blocked on the user, not "thinking".
+  // Only check the last assistant message — the only one that can have a
+  // pending tool call during the current stream.
+  const lastAssistantMsg = [...messages].reverse().find((m) => m.role === 'assistant')
+  const waitingForUserInput =
+    lastAssistantMsg !== undefined &&
+    lastAssistantMsg.parts.some(
+      (p) =>
+        p.type === 'tool-call' &&
+        (p.name === 'proposePlan' || p.name === 'askUser') &&
+        !lastAssistantMsg.parts.some((r) => r.type === 'tool-result' && r.toolCallId === p.id),
+    )
+
+  if (phase.current && !waitingForUserInput) {
     rows.push({
       type: 'phase-indicator',
       label: phase.current.label,
       elapsedMs: phase.current.elapsedMs,
     })
   }
-  if (!phase.current && isLoading) {
+  if (!phase.current && isLoading && !waitingForUserInput) {
     rows.push({
       type: 'phase-indicator',
       label: 'Thinking',

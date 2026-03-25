@@ -24,6 +24,7 @@ interface ConversationRow {
   readonly model: string | null
   readonly project_path: string | null
   readonly archived: number
+  readonly plan_mode_active: number
   readonly waggle_config_json: string | null
   readonly created_at: number
   readonly updated_at: number
@@ -34,6 +35,7 @@ interface ConversationSummaryRow {
   readonly title: string
   readonly project_path: string | null
   readonly archived: number
+  readonly plan_mode_active: number
   readonly created_at: number
   readonly updated_at: number
   readonly message_count: number
@@ -269,6 +271,7 @@ function hydrateConversationSummary(row: ConversationSummaryRow): ConversationSu
     projectPath: row.project_path,
     messageCount: row.message_count,
     archived: row.archived === 1 ? true : undefined,
+    planModeActive: row.plan_mode_active === 1 ? true : undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -356,6 +359,7 @@ function hydrateConversation(
       messages,
       waggleConfig,
       archived: row.archived === 1 ? true : undefined,
+      planModeActive: row.plan_mode_active === 1 ? true : undefined,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }
@@ -372,24 +376,24 @@ export async function listConversations(limit?: number): Promise<ConversationSum
   return runAppEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
+      const effectiveLimit = limit ?? -1
       const rows = yield* sql<ConversationSummaryRow>`
         SELECT
           c.id,
           c.title,
           c.project_path,
           c.archived,
+          c.plan_mode_active,
           c.created_at,
           c.updated_at,
-          COUNT(m.id) AS message_count
+          (SELECT COUNT(*) FROM conversation_messages WHERE conversation_id = c.id) AS message_count
         FROM conversations c
-        LEFT JOIN conversation_messages m ON m.conversation_id = c.id
         WHERE c.archived = 0
-        GROUP BY c.id
         ORDER BY c.updated_at DESC
+        LIMIT ${effectiveLimit}
       `
 
-      const summaries = rows.map(hydrateConversationSummary)
-      return limit === undefined ? summaries : summaries.slice(INITIAL_POSITION, limit)
+      return rows.map(hydrateConversationSummary)
     }),
   )
 }
@@ -404,13 +408,12 @@ export async function listArchivedConversations(): Promise<ConversationSummary[]
           c.title,
           c.project_path,
           c.archived,
+          c.plan_mode_active,
           c.created_at,
           c.updated_at,
-          COUNT(m.id) AS message_count
+          (SELECT COUNT(*) FROM conversation_messages WHERE conversation_id = c.id) AS message_count
         FROM conversations c
-        LEFT JOIN conversation_messages m ON m.conversation_id = c.id
         WHERE c.archived = 1
-        GROUP BY c.id
         ORDER BY c.updated_at DESC
       `
 
@@ -452,6 +455,7 @@ export async function getConversation(id: ConversationId): Promise<Conversation 
           model,
           project_path,
           archived,
+          plan_mode_active,
           waggle_config_json,
           created_at,
           updated_at
@@ -524,6 +528,7 @@ export async function saveConversation(conversation: Conversation): Promise<void
               model,
               project_path,
               archived,
+              plan_mode_active,
               waggle_config_json,
               created_at,
               updated_at
@@ -534,6 +539,7 @@ export async function saveConversation(conversation: Conversation): Promise<void
               ${null},
               ${persistedConversation.projectPath},
               ${persistedConversation.archived ? 1 : 0},
+              ${persistedConversation.planModeActive ? 1 : 0},
               ${
                 persistedConversation.waggleConfig
                   ? JSON.stringify(persistedConversation.waggleConfig)
@@ -547,17 +553,21 @@ export async function saveConversation(conversation: Conversation): Promise<void
               model = excluded.model,
               project_path = excluded.project_path,
               archived = excluded.archived,
+              plan_mode_active = excluded.plan_mode_active,
               waggle_config_json = excluded.waggle_config_json,
               created_at = excluded.created_at,
               updated_at = excluded.updated_at
           `
 
-          yield* sql`
-            DELETE FROM conversation_messages
-            WHERE conversation_id = ${persistedConversation.id}
-          `
+          // Collect IDs for selective deletion instead of delete-all + re-insert.
+          const messageIds = persistedConversation.messages.map((m) => String(m.id))
+          const allPartIds: string[] = []
 
           for (const [messageIndex, message] of persistedConversation.messages.entries()) {
+            for (let partIndex = 0; partIndex < message.parts.length; partIndex++) {
+              allPartIds.push(partRowId(String(message.id), partIndex))
+            }
+
             yield* sql`
               INSERT INTO conversation_messages (
                 id,
@@ -577,6 +587,12 @@ export async function saveConversation(conversation: Conversation): Promise<void
                 ${message.createdAt},
                 ${messageIndex}
               )
+              ON CONFLICT(id) DO UPDATE SET
+                role = excluded.role,
+                model = excluded.model,
+                metadata_json = excluded.metadata_json,
+                created_at = excluded.created_at,
+                position = excluded.position
             `
 
             for (const [partIndex, part] of message.parts.entries()) {
@@ -596,8 +612,51 @@ export async function saveConversation(conversation: Conversation): Promise<void
                   ${serialized.contentJson},
                   ${partIndex}
                 )
+                ON CONFLICT(id) DO UPDATE SET
+                  part_type = excluded.part_type,
+                  content_json = excluded.content_json,
+                  position = excluded.position
               `
             }
+          }
+
+          // Remove messages and parts that are no longer present.
+          // Parts are cascade-deleted when their parent message is deleted,
+          // so we only need explicit part cleanup for messages that still
+          // exist but had parts removed.
+          if (messageIds.length > 0) {
+            const messageIdSet = new Set(messageIds)
+            const partIdSet = new Set(allPartIds)
+
+            // Delete messages no longer in the conversation
+            const existingMessageRows = yield* sql<{ readonly id: string }>`
+              SELECT id FROM conversation_messages
+              WHERE conversation_id = ${persistedConversation.id}
+            `
+            for (const row of existingMessageRows) {
+              if (!messageIdSet.has(row.id)) {
+                yield* sql`DELETE FROM conversation_messages WHERE id = ${row.id}`
+              }
+            }
+
+            // Delete parts that belong to remaining messages but are no longer present
+            const existingPartRows = yield* sql<{
+              readonly id: string
+              readonly message_id: string
+            }>`
+              SELECT id, message_id FROM conversation_message_parts
+              WHERE message_id IN ${sql.in(messageIds)}
+            `
+            for (const row of existingPartRows) {
+              if (!partIdSet.has(row.id)) {
+                yield* sql`DELETE FROM conversation_message_parts WHERE id = ${row.id}`
+              }
+            }
+          } else {
+            yield* sql`
+              DELETE FROM conversation_messages
+              WHERE conversation_id = ${persistedConversation.id}
+            `
           }
         }),
       )
@@ -641,6 +700,25 @@ export async function updateConversationProjectPath(
       yield* sql`
         UPDATE conversations
         SET project_path = ${projectPath},
+            updated_at = ${Date.now()}
+        WHERE id = ${id}
+      `
+    }),
+  )
+
+  return getConversation(id)
+}
+
+export async function updateConversationPlanMode(
+  id: ConversationId,
+  planModeActive: boolean,
+): Promise<Conversation | null> {
+  await runAppEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`
+        UPDATE conversations
+        SET plan_mode_active = ${planModeActive ? 1 : 0},
             updated_at = ${Date.now()}
         WHERE id = ${id}
       `

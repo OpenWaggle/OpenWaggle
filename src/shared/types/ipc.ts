@@ -142,6 +142,10 @@ export interface IpcInvokeChannelMap {
     args: [id: ConversationId, projectPath: string | null]
     return: Conversation | null
   }
+  'conversations:update-plan-mode': {
+    args: [id: ConversationId, planModeActive: boolean]
+    return: Conversation | null
+  }
   'devtools:get-event-bus-config': {
     args: []
     return: DevtoolsEventBusConfig
@@ -577,6 +581,10 @@ export interface OpenWaggleApi {
   updateConversationProjectPath(
     id: ConversationId,
     projectPath: string | null,
+  ): Promise<Conversation | null>
+  updateConversationPlanMode(
+    id: ConversationId,
+    planModeActive: boolean,
   ): Promise<Conversation | null>
   onConversationTitleUpdated(
     callback: (payload: IpcEventPayload<'conversations:title-updated'>) => void,
