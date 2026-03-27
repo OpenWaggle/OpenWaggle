@@ -51,16 +51,20 @@ export class MainWindowPage {
   async pasteIntoComposer(text: string): Promise<void> {
     await this.messageInput().click()
     await this.page.evaluate((pastedText) => {
-      const candidate = document.querySelector('textarea[aria-label="Message input"]')
-      if (!(candidate instanceof HTMLTextAreaElement)) {
+      const candidate =
+        document.querySelector('[aria-label="Message input"][contenteditable]') ??
+        document.querySelector('textarea[aria-label="Message input"]')
+      if (!candidate) {
         throw new Error('Message input not found')
       }
 
-      const pasteEvent = new Event('paste', { bubbles: true, cancelable: true })
-      Object.defineProperty(pasteEvent, 'clipboardData', {
-        value: {
-          getData: (kind: string) => (kind === 'text' ? pastedText : ''),
-        },
+      const dataTransfer = new DataTransfer()
+      dataTransfer.setData('text/plain', pastedText)
+
+      const pasteEvent = new ClipboardEvent('paste', {
+        bubbles: true,
+        cancelable: true,
+        clipboardData: dataTransfer,
       })
       candidate.dispatchEvent(pasteEvent)
     }, text)
@@ -87,7 +91,7 @@ export class MainWindowPage {
   }
 
   async expectComposerValue(value: string): Promise<void> {
-    await expect(this.messageInput()).toHaveValue(value)
+    await expect(this.messageInput()).toHaveText(value)
   }
 
   async expectApproveButtonVisible(): Promise<void> {

@@ -1,6 +1,7 @@
 import { registerAgentHandlers } from './agent-handler'
 import { registerAttachmentHandlers } from './attachments-handler'
 import { registerAuthHandlers } from './auth-handler'
+import { registerComposerHandlers } from './composer-handler'
 import { registerConversationsHandlers } from './conversations-handler'
 import { registerDevtoolsHandlers } from './devtools-handler'
 import { registerFeedbackHandlers } from './feedback-handler'
@@ -40,4 +41,5 @@ export function registerAllIpcHandlers(): void {
   registerMcpHandlers()
   registerFeedbackHandlers()
   registerUpdaterHandlers()
+  registerComposerHandlers()
 }

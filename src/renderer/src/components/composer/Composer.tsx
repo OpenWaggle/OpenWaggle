@@ -1,7 +1,8 @@
-import { DOUBLE_FACTOR } from '@shared/constants/constants'
 import { safeDecodeUnknown } from '@shared/schema'
 import { electronFileSchema } from '@shared/schemas/validation'
 import type { AgentSendPayload } from '@shared/types/agent'
+import type { LexicalEditor } from 'lexical'
+import { $createParagraphNode, $createTextNode, $getRoot, $isElementNode } from 'lexical'
 import { useEffect, useEffectEvent, useRef } from 'react'
 import { useProject } from '@/hooks/useProject'
 import { cn } from '@/lib/cn'
@@ -10,13 +11,13 @@ import { useChatStore } from '@/stores/chat-store'
 import { useComposerActionStore } from '@/stores/composer-action-store'
 import { useComposerStore } from '@/stores/composer-store'
 import { usePreferencesStore } from '@/stores/preferences-store'
-import { useUIStore } from '@/stores/ui-store'
 import { ActionDialog } from './ActionDialog'
 import { AutoTextAttachmentChips } from './AutoTextAttachmentChips'
 import { ComposerAlerts } from './ComposerAlerts'
 import { ComposerStatusBar } from './ComposerStatusBar'
 import { ComposerToolbar } from './ComposerToolbar'
-import { resetComposerTextareaHeight, resizeComposerTextarea } from './composer-textarea'
+import { LexicalComposerEditor } from './LexicalComposerEditor'
+import { clearEditor } from './lexical-utils'
 import { useAutoTextAttachment } from './useAutoTextAttachment'
 import { useVoiceCapture } from './useVoiceCapture'
 import { VoiceRecorder } from './VoiceRecorder'
@@ -63,7 +64,6 @@ export function Composer({
 }: ComposerProps) {
   const input = useComposerStore((s) => s.input)
   const setInput = useComposerStore((s) => s.setInput)
-  const setCursorIndex = useComposerStore((s) => s.setCursorIndex)
   const attachments = useComposerStore((s) => s.attachments)
   const attachmentError = useComposerStore((s) => s.attachmentError)
   const setAttachmentError = useComposerStore((s) => s.setAttachmentError)
@@ -74,22 +74,20 @@ export function Composer({
   const setBranchMessage = useComposerActionStore((s) => s.setBranchMessage)
   const reset = useComposerStore((s) => s.reset)
   const pushHistory = useComposerStore((s) => s.pushHistory)
-  const historyUp = useComposerStore((s) => s.historyUp)
-  const historyDown = useComposerStore((s) => s.historyDown)
-
-  const openCommandPalette = useUIStore((s) => s.openCommandPalette)
 
   const { projectPath } = useProject()
   const qualityPreset = usePreferencesStore((s) => s.settings.qualityPreset)
 
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const editorRef = useRef<LexicalEditor | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // ── Submission ──
 
   function clearComposerInput(): void {
     reset()
-    resetComposerTextareaHeight(textareaRef.current)
+    if (editorRef.current) {
+      clearEditor(editorRef.current)
+    }
   }
 
   function dispatchPayload(payload: AgentSendPayload): boolean {
@@ -110,8 +108,8 @@ export function Composer({
     return true
   }
 
-  function handleSubmit(): void {
-    const trimmedInput = input.trim()
+  function handleSubmit(text?: string): void {
+    const trimmedInput = (text ?? input).trim()
     submitPayload({
       text: trimmedInput,
       qualityPreset,
@@ -131,12 +129,33 @@ export function Composer({
 
   // ── Voice ──
 
-  const voice = useVoiceCapture({ textareaRef, sendComposed })
+  function insertTextAtCursor(text: string): void {
+    const editor = editorRef.current
+    if (!editor) {
+      // Fallback: append to store input
+      const store = useComposerStore.getState()
+      store.setInput(store.input + text)
+      return
+    }
+    editor.update(() => {
+      const root = $getRoot()
+      root.selectEnd()
+      const lastChild = root.getLastChild()
+      const paragraph = lastChild && $isElementNode(lastChild) ? lastChild : $createParagraphNode()
+      if (!lastChild || !$isElementNode(lastChild)) {
+        root.append(paragraph)
+      }
+      paragraph.append($createTextNode(text))
+      root.selectEnd()
+    })
+  }
+
+  const voice = useVoiceCapture({ insertText: insertTextAtCursor, sendComposed })
   const {
     pendingTextAttachmentChips,
     hasPreparingTextAttachment,
     preparingPendingCount,
-    handlePaste,
+    checkAndConvertPaste,
     removePendingTextAttachment,
   } = useAutoTextAttachment({
     attachments,
@@ -144,9 +163,6 @@ export function Composer({
     removeAttachment,
     setAttachmentError,
     setInput,
-    setCursorIndex,
-    textareaRef,
-    resizeTextarea,
     onToast,
   })
   const canSend =
@@ -156,7 +172,9 @@ export function Composer({
   // ── Effects ──
 
   useEffect(() => {
-    if (!isLoading && textareaRef.current) textareaRef.current.focus()
+    if (!isLoading && editorRef.current) {
+      editorRef.current.focus()
+    }
   }, [isLoading])
 
   const handleVoiceEnter = useEffectEvent(() => {
@@ -184,71 +202,6 @@ export function Composer({
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [isVoiceModeActive])
-
-  // ── Input handlers ──
-
-  function resizeTextarea(): void {
-    resizeComposerTextarea(textareaRef.current)
-  }
-
-  function applyHistoryEntry(text: string): void {
-    setInput(text)
-    // Defer cursor + resize until React flushes the new value to the DOM
-    requestAnimationFrame(() => {
-      const el = textareaRef.current
-      if (!el) return
-      el.selectionStart = text.length
-      el.selectionEnd = text.length
-      resizeTextarea()
-    })
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>): void {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      void handleSubmit()
-      return
-    }
-
-    const textarea = e.currentTarget
-    const hasSelection = textarea.selectionStart !== textarea.selectionEnd
-
-    // ArrowUp at the very start of input → recall previous prompt
-    if (e.key === 'ArrowUp' && !hasSelection && textarea.selectionStart === 0) {
-      const prev = historyUp(input)
-      if (prev !== null) {
-        e.preventDefault()
-        applyHistoryEntry(prev)
-      }
-      return
-    }
-
-    // ArrowDown at the very end of input → recall next prompt (or draft)
-    if (e.key === 'ArrowDown' && !hasSelection && textarea.selectionStart === input.length) {
-      const next = historyDown()
-      if (next !== null) {
-        e.preventDefault()
-        applyHistoryEntry(next)
-      }
-    }
-  }
-
-  function handleInput(e: React.ChangeEvent<HTMLTextAreaElement>): void {
-    const value = e.target.value
-    setInput(value)
-    setCursorIndex(e.target.selectionStart ?? value.length)
-
-    // Open command palette when user types "/" at start or after whitespace
-    if (value === '/' || (value.endsWith('/') && value[value.length - DOUBLE_FACTOR] === ' ')) {
-      openCommandPalette()
-    }
-
-    resizeTextarea()
-  }
-
-  function syncCursorPosition(event: React.SyntheticEvent<HTMLTextAreaElement>): void {
-    setCursorIndex(event.currentTarget.selectionStart ?? event.currentTarget.value.length)
-  }
 
   // ── Attachments ──
 
@@ -349,28 +302,15 @@ export function Composer({
           />
         </div>
 
-        <div className="min-h-[60px] px-4 py-[14px]">
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={handleInput}
-            onPaste={handlePaste}
-            onKeyDown={handleKeyDown}
-            onClick={syncCursorPosition}
-            onKeyUp={syncCursorPosition}
-            onSelect={syncCursorPosition}
-            aria-label="Message input"
+        <div className="relative min-h-[60px] px-4 py-[14px]">
+          <LexicalComposerEditor
+            onSubmit={handleSubmit}
+            disabled={disabled}
             placeholder={
               isLoading ? 'Add a message to the conversation...' : 'Ask for follow-up changes'
             }
-            disabled={disabled}
-            rows={1}
-            className={cn(
-              'w-full resize-none bg-transparent text-[15px] text-text-primary',
-              'placeholder:text-text-tertiary',
-              'focus:outline-none focus-visible:shadow-none',
-              'disabled:opacity-50',
-            )}
+            editorRef={editorRef}
+            checkAndConvertPaste={checkAndConvertPaste}
           />
         </div>
 

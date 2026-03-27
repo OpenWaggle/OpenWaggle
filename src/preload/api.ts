@@ -183,6 +183,9 @@ export const api: OpenWaggleApi = {
   generateFeedbackMarkdown: invoke('feedback:generate-markdown'),
   openExternal: invoke('shell:open-external'),
 
+  // Composer
+  suggestFiles: invoke('composer:file-suggest'),
+
   // Auto-updater
   checkForUpdates: invoke('updater:check'),
   installUpdate: invoke('updater:install'),

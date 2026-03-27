@@ -1,4 +1,5 @@
 import type { PreparedAttachment } from '@shared/types/agent'
+import type { LexicalEditor } from 'lexical'
 import { create } from 'zustand'
 
 export type { ComposerActionDialogKind } from './composer-action-store'
@@ -73,6 +74,10 @@ interface ComposerState {
   dismissedSlashToken: string | null
   setSlashHighlightIndex: (index: number) => void
   setDismissedSlashToken: (token: string | null) => void
+
+  // Lexical editor ref (set by EditorRefPlugin, consumed by skill selection)
+  lexicalEditor: LexicalEditor | null
+  setLexicalEditor: (editor: LexicalEditor | null) => void
 
   // Reset (on conversation switch or after send)
   reset: () => void
@@ -186,6 +191,11 @@ export const useComposerStore = create<ComposerState>((set, get) => ({
 
   setDismissedSlashToken(token: string | null) {
     set({ dismissedSlashToken: token })
+  },
+
+  lexicalEditor: null,
+  setLexicalEditor(editor: LexicalEditor | null) {
+    set({ lexicalEditor: editor })
   },
 
   reset() {

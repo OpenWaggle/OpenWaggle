@@ -10,6 +10,7 @@
     "prepare:native:node": "tsx scripts/rebuild-native-deps.ts node",
     "prepare:native:electron": "tsx scripts/rebuild-native-deps.ts electron",
     "dev": "pnpm prepare:native:electron && ELECTRON_ENABLE_LOGGING=1 electron-vite dev",
+    "dev:debug": "pnpm prepare:native:electron && ELECTRON_ENABLE_LOGGING=1 electron-vite dev -- --remote-debugging-port=9222",
     "build": "pnpm prepare:native:electron && electron-vite build",
     "preview": "pnpm prepare:native:electron && electron-vite preview",
     "postinstall": "electron-builder install-app-deps",
@@ -71,12 +72,17 @@
     "url": "https://github.com/OpenWaggle/OpenWaggle.git"
   },
   "dependencies": {
+    "@lexical/history": "^0.42.0",
+    "@lexical/plain-text": "^0.42.0",
+    "@lexical/react": "^0.42.0",
+    "@lexical/utils": "^0.42.0",
     "@xenova/transformers": "2.17.2",
     "ajv": "^8.18.0",
     "ajv-formats": "^3.0.1",
     "better-sqlite3": "^12.6.2",
     "electron-updater": "^6.6.2",
     "hast-util-to-jsx-runtime": "^2.3.6",
+    "lexical": "^0.42.0",
     "node-pty": "^1.1.0",
     "remark-parse": "^11.0.0",
     "remark-rehype": "^11.1.2",
@@ -85,6 +91,7 @@
     "unified": "^11.0.5"
   },
   "devDependencies": {
+    "@babel/core": "^7.29.0",
     "@biomejs/biome": "^2.4.2",
     "@effect/platform": "^0.94.5",
     "@effect/platform-node": "^0.104.1",
@@ -93,7 +100,6 @@
     "@electron-toolkit/utils": "^4.0.0",
     "@modelcontextprotocol/sdk": "~1.27.1",
     "@playwright/test": "^1.58.2",
-    "@babel/core": "^7.29.0",
     "@rolldown/plugin-babel": "^0.2.2",
     "@tailwindcss/vite": "^4.2.2",
     "@tanstack/ai": "0.8.1",

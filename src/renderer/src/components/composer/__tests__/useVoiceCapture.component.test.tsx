@@ -93,15 +93,16 @@ describe('useVoiceCapture', () => {
   })
 
   function renderVoiceHook(sendComposed = vi.fn(() => true)) {
-    const textarea = document.createElement('textarea')
-    textarea.value = ''
-    textarea.selectionStart = 0
-    textarea.selectionEnd = 0
+    const insertText = vi.fn((text: string) => {
+      const store = useComposerStore.getState()
+      store.setInput(store.input + text)
+    })
     return {
       sendComposed,
+      insertText,
       ...renderHook(() =>
         useVoiceCapture({
-          textareaRef: { current: textarea },
+          insertText,
           sendComposed,
         }),
       ),

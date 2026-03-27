@@ -43,7 +43,7 @@ interface CommandItem {
 
 interface CommandPaletteProps {
   slashSkills: readonly SkillDiscoveryItem[]
-  onSelectSkill: (skillId: string) => void
+  onSelectSkill: (skillId: string, skillName?: string) => void
   onStartWaggle: (config: WaggleConfig) => void
 }
 
@@ -98,8 +98,8 @@ export function CommandPalette({ slashSkills, onSelectSkill, onStartWaggle }: Co
     }
   }
 
-  function handleSkillSelect(skillId: string): void {
-    onSelectSkill(skillId)
+  function handleSkillSelect(skillId: string, skillName?: string): void {
+    onSelectSkill(skillId, skillName)
     closeCommandPalette()
   }
 
@@ -166,7 +166,7 @@ export function CommandPalette({ slashSkills, onSelectSkill, onStartWaggle }: Co
       icon: <Shield className="h-3.5 w-3.5" />,
       section: 'Skills',
       trailing: undefined,
-      action: () => handleSkillSelect(s.id),
+      action: () => handleSkillSelect(s.id, s.name),
     }))
 
   // Waggle presets

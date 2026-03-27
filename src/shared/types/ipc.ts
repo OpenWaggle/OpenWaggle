@@ -3,6 +3,7 @@ import type { AgentSendPayload, PreparedAttachment } from './agent'
 import type { OAuthFlowStatus, SubscriptionAccountInfo, SubscriptionProvider } from './auth'
 import type { ActiveRunInfo, BackgroundRunSnapshot } from './background-run'
 import type { ConversationId, McpServerId, TeamConfigId } from './brand'
+import type { FileSuggestion } from './composer'
 import type { Conversation, ConversationSummary } from './conversation'
 import type { DevtoolsEventBusConfig } from './devtools'
 import type {
@@ -368,6 +369,11 @@ export interface IpcInvokeChannelMap {
     args: [url: string]
     return: undefined
   }
+  // Composer
+  'composer:file-suggest': {
+    args: [projectPath: string, query: string]
+    return: FileSuggestion[]
+  }
   // Auto-updater
   'updater:check': {
     args: []
@@ -713,6 +719,9 @@ export interface OpenWaggleApi {
   submitFeedback(payload: FeedbackPayload): Promise<FeedbackSubmitResult>
   generateFeedbackMarkdown(payload: FeedbackPayload): Promise<string>
   openExternal(url: string): Promise<void>
+
+  // Composer
+  suggestFiles(projectPath: string, query: string): Promise<FileSuggestion[]>
 
   // Auto-updater
   checkForUpdates(): Promise<void>

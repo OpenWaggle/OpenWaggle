@@ -4,6 +4,8 @@ import type { SkillDiscoveryItem } from '@shared/types/standards'
 import { isApprovalRequiredToolName } from '@shared/types/tool-approval'
 import type { WaggleCollaborationStatus, WaggleConfig } from '@shared/types/waggle'
 import type { UIMessage } from '@tanstack/ai-react'
+import { $createParagraphNode, $createTextNode, $getRoot } from 'lexical'
+import { $createSkillMentionNode } from '@/components/composer/nodes/SkillMentionNode'
 import type { useAgentChat } from '@/hooks/useAgentChat'
 import type { useStreamingPhase } from '@/hooks/useStreamingPhase'
 import { api } from '@/lib/ipc'
@@ -72,12 +74,29 @@ export function useComposerSection(params: ComposerSectionParams): ChatComposerS
   )
   const pendingAskUser = findPendingAskUser(messages)
 
-  function handleSelectSkill(skillId: string): void {
+  function handleSelectSkill(skillId: string, skillName?: string): void {
     const composerStore = useComposerStore.getState()
-    const currentInput = composerStore.input
-    const nextInput = currentInput === '/' ? `/${skillId} ` : `/${skillId} ${currentInput}`
-    composerStore.setInput(nextInput)
-    composerStore.setCursorIndex(nextInput.length)
+    const editor = composerStore.lexicalEditor
+
+    if (editor) {
+      editor.update(() => {
+        const root = $getRoot()
+        root.clear()
+        const paragraph = $createParagraphNode()
+        const mentionNode = $createSkillMentionNode(skillId, skillName ?? skillId)
+        paragraph.append(mentionNode)
+        paragraph.append($createTextNode(' '))
+        root.append(paragraph)
+        root.selectEnd()
+      })
+      editor.focus()
+    } else {
+      // Fallback: plain text (no Lexical editor available)
+      const currentInput = composerStore.input
+      const nextInput = currentInput === '/' ? `/${skillId} ` : `/${skillId} ${currentInput}`
+      composerStore.setInput(nextInput)
+      composerStore.setCursorIndex(nextInput.length)
+    }
   }
 
   async function handleToolApprovalResponse(

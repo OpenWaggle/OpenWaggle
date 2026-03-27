@@ -13,23 +13,23 @@ pnpm typecheck:web    # Type check renderer + shared (tsconfig.web.json)
 pnpm lint             # Biome lint check
 pnpm lint:fix         # Biome lint + auto-fix
 pnpm format           # Biome format
-pnpm check:fast       # typecheck + lint only (faster local loop)
 pnpm check            # typecheck + lint combined
-pnpm test:e2e         # Playwright E2E in headless mode (agent/default path)
-pnpm test:e2e:headless # Explicit headless E2E alias
-pnpm test:e2e:headless:quick # Reuse the current build; skips pnpm build
-pnpm test:e2e:headed  # Manual local headed E2E debug run
-pnpm test:e2e:headed:quick # Reuse the current build in headed mode
+pnpm dev:debug        # Start Electron with CDP on port 9222 (for MCP QA testing)
 pnpm build:mac        # Build macOS dmg
 pnpm build:win        # Build Windows NSIS installer
 pnpm build:linux      # Build Linux AppImage
 ```
 
-Automated tests are configured with Vitest (`pnpm test`). Manual QA via `pnpm dev` is still required for renderer behavior.
+### Testing
 
-For fast local verification, prefer `pnpm check:fast` while iterating and use the `*:quick` E2E scripts only when you know the app is already built and up to date.
-
-E2E policy: agent workflows must use headless E2E (`pnpm test:e2e` / `pnpm test:e2e:headless`). Manual local debugging can use `pnpm test:e2e:headed`.
+```bash
+pnpm test               # All tests (unit + integration + component)
+pnpm test:unit           # Unit tests only (*.unit.test.ts)
+pnpm test:integration    # Integration tests only (*.integration.test.ts)
+pnpm test:component      # Component tests (*.component.test.tsx)
+pnpm test:e2e            # Playwright E2E (requires build)
+pnpm test:coverage       # Coverage report (v8)
+```
 
 ## ⛔ MANDATORY RULES — READ BEFORE DOING ANYTHING
 
@@ -70,7 +70,7 @@ These rules are **non-negotiable**. Violating them invalidates your work.
 - Before the first commit, explicitly tell the user: `Changes are ready for review on <branch-name>.`
 - Pause and wait for explicit approval before creating any commit.
 - After approval to commit, create atomic commits per logical unit of work.
-- Commit message format: `<type>(<scope>): <description>`
+- Format: `<type>(<scope>): <description>`
 - After approved commits are complete, push the working branch to `origin`.
 - Create a PR linked to the issue:
   - If fully solving the issue: use `Closes #<issue-number>` in the PR body
@@ -82,14 +82,30 @@ These rules are **non-negotiable**. Violating them invalidates your work.
 1. Scope is met with no unapproved side-effects.
 2. Tests added/updated for behavior changes.
 3. Verified: tests pass, logs are clean, behavior matches intent. Ask yourself: "Would a staff engineer approve this?"
-4. If renderer code (`src/renderer/`) was touched: run React Doctor diagnostics (`npx -y react-doctor@latest . --verbose --diff main`), fix all errors, verify score did not drop. Consult the `react-doctor` skill in `.openwaggle/skills/react-doctor/` for fix patterns.
-5. Docs updated if behavior, workflow, or developer expectations changed.
-6. Significant learnings appended to `docs/learnings.md` (**if there is any significant learning to add**).
-7. Changes are grouped into logical commits.
-8. PR linked to issue with `Closes #X` or `Part of #X`.
-9. Issue and roadmap project updated after merge.
-10. If you encounter a new TanStack AI bug, unexpected behavior, or workaround requirement (in `@tanstack/ai`, `@tanstack/ai-client`, or `@tanstack/ai-react`), explicitly report it to the user with a clear description. Reference `docs/tanstack-ai-known-issues.md` for existing issues and add new findings there. The maintainers are actively responsive — new bugs may be reportable upstream.
+4. Verified: the implementation is aligned with the relevant first principles in `docs/principles/`.
+5. If renderer code (`src/renderer/`) was touched: run React Doctor diagnostics (`npx -y react-doctor@latest . --verbose --diff main`), fix all errors, verify score did not drop. Load the `react-doctor` skill for fix patterns.
+6. If renderer, preload, or IPC code was touched: run Electron QA testing via MCP. Start the app with `pnpm dev:debug`, connect via the `electron-devtools` or `electron-test` MCP servers, and verify the feature works in the real Electron app. Consult the `electron-qa` skill in `.openwaggle/skills/electron-qa/` for procedures and tool reference.
+7. Docs updated if behavior, workflow, or developer expectations changed.
+8. Significant learnings appended to `docs/learnings.md` (**if there is any significant learning to add**).
+9. Changes are grouped into logical commits.
+10. PR linked to issue with `Closes #X` or `Part of #X`.
+11. Issue and roadmap project updated after merge.
+12. If you encounter a new TanStack AI bug, unexpected behavior, or workaround requirement (in `@tanstack/ai`, `@tanstack/ai-client`, or `@tanstack/ai-react`), explicitly report it to the user with a clear description. Reference `docs/tanstack-ai-known-issues.md` for existing issues and add new findings there. The maintainers are actively responsive — new bugs may be reportable upstream.
 
+## Documentation Reference
+
+Read these before making architectural or behavioral decisions:
+
+- `docs/first-principles.m` — First principles. These are the primary foundation for future features, fixes, and product decisions.
+- `docs/system-architecture.md` — Current architecture as it exists today.
+- `docs/learnings.md` — Technical findings.
+- `docs/lessons.md` — User corrections and behavioral rules.
+
+Interpretation rule:
+
+- First principles define what future work must remain faithful to.
+- Architecture defines how the system currently exists.
+- If current implementation and first principles are in tension, do not blindly copy the current implementation. Resolve the work in a way that stays aligned with the first principles while respecting existing architecture constraints.
 ## Architecture
 
 OpenWaggle is an Electron desktop coding agent with multi-model LLM support. Three process targets share types through `src/shared/`.
@@ -146,6 +162,106 @@ Built-in tools in `src/main/tools/tools/`: `readFile`, `writeFile`, `editFile`, 
 
 `SupportedModelId` is a `string` type alias — runtime validation is done via the provider registry's `isKnownModel()`. Each provider package exports its own model tuple (e.g. `ANTHROPIC_MODELS`, `OPENAI_CHAT_MODELS`, `GeminiTextModels`). The model selector in the renderer fetches grouped model lists dynamically via `providers:get-models` IPC. `generateDisplayName()` converts model IDs to human-readable names.
 
+## Engineering Principles
+
+These rules define how code must be written, structured, and evolved.
+
+### Core Engineering Standards
+
+Always apply:
+
+- **SRP (Single Responsibility Principle)** — each module has one responsibility.
+- **DRY (Don’t Repeat Yourself)** — eliminate duplication where it provides value.
+- **Separation of concerns** — keep domain, infrastructure, and UI clearly separated.
+- **Clear boundaries** — no leaking responsibilities across layers.
+- **Explicitness over magic** — avoid hidden behavior.
+
+### Architecture Discipline
+
+- Respect the existing architecture of the project.
+- Do not introduce new patterns without strong justification.
+- Do not mix concerns such as business logic inside UI, transport, or infrastructure-heavy layers.
+- Prefer composition over implicit coupling.
+- Keep dependencies directional and predictable.
+
+### Type Safety (CRITICAL)
+
+Type safety is non-negotiable.
+
+#### Strictly forbidden
+
+- `any`
+- type casting
+- `as Type`
+- angle-bracket casts
+- double casting
+- unsafe narrowing
+- implicit uncertainty hidden behind casting
+- "fixing" type errors through assertions instead of proper typing
+
+#### Required
+
+- Prefer type inference
+- Explicit validation at boundaries
+- Strong typing for all inputs/outputs
+- Correct modeling instead of forced assertions
+
+If something cannot be typed correctly, the design must be reconsidered.
+If a cast seems necessary, that is a design smell and must be solved at the source.
+
+### Implementation Rules
+
+- Do not implement partial solutions.
+- Do not leave unfinished work.
+- Do not introduce temporary fixes or hacks.
+- Always fix root causes, not symptoms.
+- Prefer the simplest correct solution, not the quickest one.
+
+### Boy Scout Rule
+
+Always leave the codebase better than you found it:
+
+- remove obvious dead code
+- improve naming clarity
+- reduce local duplication
+- tighten weak boundaries where safe
+
+Do not perform unrelated large refactors.
+
+### Decision Standard
+
+At every step, validate:
+
+- is this aligned with the first principles?
+- does this respect the architecture?
+- is this scalable and maintainable?
+- is this the simplest correct solution?
+- am I solving the problem properly or avoiding it?
+
+### When Facing Complexity
+
+If something feels wrong or overly complex:
+
+- stop and reassess the design
+- break the problem down further
+- explore alternative approaches
+- refine the solution within current architectural constraints
+
+Do not introduce hacks or bypass constraints.
+
+## Principle-Grounded Development
+
+The system is guided by first principles defined in:
+
+- `docs/principles/`
+
+Rules:
+
+- Every feature or fix must be justifiable through one or more principles.
+- Do not build features that are not grounded in principles.
+- Do not copy patterns blindly from the existing codebase.
+- Treat the codebase as an implementation, not the source of truth.
+
 ## Key Patterns
 
 - **Branded types** (`src/shared/types/brand.ts`): `ConversationId`, `MessageId`, `ToolCallId` prevent accidental ID mixing. Use constructors at boundaries: `ConversationId(uuid())`.
@@ -161,7 +277,6 @@ Built-in tools in `src/main/tools/tools/`: `readFile`, `writeFile`, `editFile`, 
 
 ## Security
 
-- Canonical security posture is documented in both this file and `CLAUDE.md`; keep them synchronized.
 - Renderer `BrowserWindow` defaults are fail-closed and asserted at runtime via `src/main/security/electron-security.ts`.
 - Required `webPreferences` posture:
   - `nodeIntegration: false`
@@ -198,14 +313,13 @@ Always use granular selectors with `useChatStore((s) => s.field)` — never call
 ## Coding Conventions
 
 - **Always use `pnpm`** to run scripts, tests, or manage dependencies. Never use `npm` or `yarn`.
-- **Never use `any`** — prefer `unknown` plus narrowing, or Effect Schema for runtime validation.
+- **Prefer** `unknown` plus narrowing, or Effect Schema for runtime validation when runtime validation is needed.
 - **Never use `React.FC`** — define components as plain functions with explicit props interfaces.
 - **Never use `forwardRef`** — React 19 supports direct ref props.
 - **Never mutate Zustand state directly** — always use store actions.
 - **Never use `process.env` or `import.meta.env`** — import from `./env` in main process (`src/main/env.ts`) or `@/env` in renderer (`src/renderer/src/env.ts`). Biome enforces `noProcessEnv`; only `src/main/env.ts` has an override.
 - **Always use `cn()`** from `src/lib/utils` for conditional Tailwind classes.
 - **Never use raw `console.*` in main process code** — use the structured logger from `src/main/logger.ts`. Create a module-level instance with `const logger = createLogger('<namespace>')` and call `logger.info(message, data?)`. The logger auto-formats output as `[namespace] message {data}`. Pass structured data as the second argument instead of `JSON.stringify()` wrappers.
-- **Never introduce inline numeric literals (magic numbers)** — extract them into descriptive `SCREAMING_SNAKE_CASE` constants (module-local by default, shared constants only when reused across modules). Validate with `pnpm check:magic-numbers` before handoff.
 
 ## Skills Standard
 
@@ -224,6 +338,7 @@ Always use granular selectors with `useChatStore((s) => s.field)` — never call
 - If something goes sideways, STOP and re-plan immediately — don't keep pushing
 - Use plan mode for verification steps, not just building
 - Write detailed plans upfront to reduce ambiguity
+- Every non-trivial plan must explicitly consider the relevant first principles before implementation starts
 
 ### 2. Subagent Strategy
 - Use subagents liberally to keep main context window clean
@@ -242,6 +357,7 @@ Always use granular selectors with `useChatStore((s) => s.field)` — never call
 - If a fix feels hacky: "Knowing everything I know now, implement the clean solution"
 - Skip this for simple, obvious fixes — don't over-engineer
 - Challenge your own work before presenting it
+- Simple does not mean shallow; the solution must still remain faithful to the first principles
 
 ### 5. Autonomous Bug Fixing
 - When given a bug report: fix it autonomously. Don't ask for guidance during the fix.
@@ -251,15 +367,92 @@ Always use granular selectors with `useChatStore((s) => s.field)` — never call
 
 ## Task Management
 
-1. **Check Issue**: Read the linked GitHub Issue for scope and acceptance criteria
-2. **Plan First**: Enter plan mode for non-trivial tasks; create a plan in the conversation or a temporary plan file
-3. **Verify Plan**: Check in with the user before starting implementation
-4. **Track Progress**: Mark items complete as you go; update the GitHub Issue with progress notes for long-running work
-5. **Explain Changes**: High-level summary at each step
-6. **Capture Lessons**: Update `docs/lessons.md` after user corrections; update `docs/learnings.md` for technical findings
+1. **Read the relevant first principles** in `docs/principles/`
+2. **Plan first** for non-trivial tasks; create a plan in the conversation or a temporary plan file
+3. **Verify the plan** against both first principles and current architecture
+4. **Track progress** and keep the implementation aligned with the principles
+5. **Explain changes** at a high level
+6. **Capture lessons**: update `docs/lessons.md` after user corrections; update `docs/learnings.md` for technical findings
+
+
+## Electron QA via MCP (MUST FOLLOW for UI/IPC changes)
+
+Two MCP servers are configured in `.mcp.json` for testing the real Electron app via Chrome DevTools Protocol.
+
+### Setup
+
+```bash
+pnpm dev:debug    # Starts Electron with --remote-debugging-port=9222
+```
+
+### Available MCP Servers
+
+- **`electron-devtools`** (primary) — Chrome DevTools MCP pointed at Electron. Provides screenshots, a11y snapshots, JS evaluation, click/type/fill, console/network inspection, and performance analysis. Tools prefixed with `mcp__electron-devtools__`.
+- **`electron-test`** (supplementary) — Playwright-based Electron testing. Provides CSS/text selectors (`text=Submit`), wait conditions, element queries. Requires `connect({ port: 9222 })` before use. Tools prefixed with `mcp__electron-test__`.
+
+### When to Test
+
+After implementing changes to:
+
+- `src/renderer/` — any UI component, store, or hook
+- `src/preload/` — API bridge methods
+- `src/main/ipc/` — IPC handlers
+- Any feature involving user interaction (composer, chat, settings, command palette)
+
+### Minimum QA Checklist
+
+1. `list_pages` — verify app is running and connected
+2. `evaluate_script` — confirm `window.api` is available and `navigator.userAgent` includes "Electron"
+3. `take_screenshot` — visual verification of the implemented feature
+4. Test interactions via `click`/`type_text`/`press_key` on the specific feature
+5. `list_console_messages` with `types=["error"]` — verify no console errors
+6. Report results in a summary table
+
+Load the `electron-qa` skill from `.openwaggle/skills/electron-qa/` for detailed tool reference and feature-specific test recipes.
+
+
+## Principle vs Implementation Rule
+
+Do not confuse the current implementation with the deeper intent of the system.
+
+- The codebase shows how the system currently works.
+- The first principles explain what future work must stay faithful to.
+
+When making changes:
+
+- respect the current architecture
+- use the first principles as the base for future-facing decisions
+
+Do not preserve weak patterns just because they already exist.
+Do not introduce new patterns that conflict with the principles.
 
 ## Core Principles
 
 - **Simplicity First**: Make every change as simple as possible. Impact minimal code.
 - **No Laziness**: Find root causes. No temporary fixes. Senior developer standards.
 - **Minimal Impact**: Changes should only touch what's necessary. Avoid introducing bugs.
+
+## Final Rule
+
+If a solution appears to violate any of these constraints:
+
+- do not take shortcuts
+- do not bypass the rules
+- do not simplify the problem incorrectly
+
+Instead:
+
+- re-evaluate the design
+- break the problem down further
+- explore alternative approaches
+- refine the implementation within the current architecture
+
+If you are genuinely blocked:
+
+- clearly explain the constraint conflict
+- propose possible approaches
+- ask for clarification before proceeding
+
+A valid solution must always be found within these constraints.
+
+Stopping, skipping, or degrading the solution is not allowed.

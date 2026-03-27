@@ -1,6 +1,5 @@
 import { PERCENT_BASE } from '@shared/constants/constants'
 import type { PreparedAttachment } from '@shared/types/agent'
-import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { api } from '@/lib/ipc'
 
@@ -24,9 +23,6 @@ interface UseAutoTextAttachmentOptions {
   removeAttachment: (attachmentId: string) => void
   setAttachmentError: (error: string | null) => void
   setInput: (input: string) => void
-  setCursorIndex: (index: number) => void
-  textareaRef: React.RefObject<HTMLTextAreaElement | null>
-  resizeTextarea: () => void
   onToast?: (message: string) => void
 }
 
@@ -34,7 +30,8 @@ interface UseAutoTextAttachmentResult {
   pendingTextAttachmentChips: PendingTextAttachmentChip[]
   hasPreparingTextAttachment: boolean
   preparingPendingCount: number
-  handlePaste: (event: React.ClipboardEvent<HTMLTextAreaElement>) => void
+  /** Called by PastePlugin. Returns true if the paste was auto-converted to an attachment. */
+  checkAndConvertPaste: (pastedText: string, currentEditorText: string) => boolean
   removePendingTextAttachment: (operationId: string, attachmentId: string) => void
 }
 
@@ -44,9 +41,6 @@ export function useAutoTextAttachment({
   removeAttachment,
   setAttachmentError,
   setInput,
-  setCursorIndex,
-  textareaRef,
-  resizeTextarea,
   onToast,
 }: UseAutoTextAttachmentOptions): UseAutoTextAttachmentResult {
   const nextAutoPasteAttachmentIndexRef = useRef(1)
@@ -59,18 +53,6 @@ export function useAutoTextAttachment({
     (chip) => chip.status === 'preparing',
   ).length
   const hasPreparingTextAttachment = preparingPendingCount > 0
-
-  function restoreComposerInput(text: string): void {
-    setInput(text)
-    setCursorIndex(text.length)
-    requestAnimationFrame(() => {
-      const el = textareaRef.current
-      if (!el) return
-      el.selectionStart = text.length
-      el.selectionEnd = text.length
-      resizeTextarea()
-    })
-  }
 
   function clearPendingChip(operationId: string): void {
     const timer = pendingAttachmentTimersRef.current.get(operationId)
@@ -86,7 +68,6 @@ export function useAutoTextAttachment({
   async function handleAutoConvertLongPaste(
     pastedText: string,
     fallbackInput: string,
-    fallbackCursorIndex: number,
     operationId: string,
     chipName: string,
   ): Promise<void> {
@@ -97,8 +78,7 @@ export function useAutoTextAttachment({
     if (typeof prepareAttachmentFromText !== 'function') {
       clearPendingChip(operationId)
       setAttachmentError('Attachment conversion is unavailable. Please restart the app.')
-      restoreComposerInput(fallbackInput)
-      setCursorIndex(fallbackCursorIndex)
+      setInput(fallbackInput)
       return
     }
 
@@ -107,15 +87,7 @@ export function useAutoTextAttachment({
     )
     if (!autoAttachment) {
       clearPendingChip(operationId)
-      restoreComposerInput(fallbackInput)
-      setCursorIndex(fallbackCursorIndex)
-      requestAnimationFrame(() => {
-        const textarea = textareaRef.current
-        if (!textarea) return
-        textarea.selectionStart = fallbackCursorIndex
-        textarea.selectionEnd = fallbackCursorIndex
-        resizeTextarea()
-      })
+      setInput(fallbackInput)
       return
     }
 
@@ -144,21 +116,15 @@ export function useAutoTextAttachment({
     onToast?.('Long prompt auto-converted to file attachment.')
   }
 
-  function handlePaste(event: React.ClipboardEvent<HTMLTextAreaElement>): void {
-    const pastedText = event.clipboardData.getData('text')
-    if (!pastedText) return
+  function checkAndConvertPaste(pastedText: string, currentEditorText: string): boolean {
+    if (!pastedText) return false
 
-    const textarea = event.currentTarget
-    const selectionStart = textarea.selectionStart ?? textarea.value.length
-    const selectionEnd = textarea.selectionEnd ?? selectionStart
-    const nextValue = `${textarea.value.slice(0, selectionStart)}${pastedText}${textarea.value.slice(selectionEnd)}`
+    const nextValue = `${currentEditorText}${pastedText}`
     const usedAttachmentSlots = attachments.length + preparingPendingCount
     const shouldAutoConvert =
       nextValue.trim().length > LONG_PROMPT_THRESHOLD && usedAttachmentSlots < MAX_ATTACHMENTS
-    if (!shouldAutoConvert) return
+    if (!shouldAutoConvert) return false
 
-    event.preventDefault()
-    const nextCursorIndex = selectionStart + pastedText.length
     const operationId = globalThis.crypto.randomUUID()
     const chipName = `${AUTO_PASTE_ATTACHMENT_NAME_PREFIX}${String(nextAutoPasteAttachmentIndexRef.current)}${AUTO_PASTE_ATTACHMENT_FILE_EXTENSION}`
     nextAutoPasteAttachmentIndexRef.current += 1
@@ -174,7 +140,8 @@ export function useAutoTextAttachment({
       },
     ])
 
-    void handleAutoConvertLongPaste(pastedText, nextValue, nextCursorIndex, operationId, chipName)
+    void handleAutoConvertLongPaste(pastedText, currentEditorText, operationId, chipName)
+    return true
   }
 
   function removePendingTextAttachment(operationId: string, attachmentId: string): void {
@@ -217,7 +184,7 @@ export function useAutoTextAttachment({
     pendingTextAttachmentChips,
     hasPreparingTextAttachment,
     preparingPendingCount,
-    handlePaste,
+    checkAndConvertPaste,
     removePendingTextAttachment,
   }
 }

@@ -67,7 +67,7 @@ export interface ChatComposerSectionState {
   ) => Promise<void>
   onAnswerQuestion: ReturnType<typeof useAgentChat>['answerQuestion']
   onStopCollaboration: () => void
-  onSelectSkill: (skillId: string) => void
+  onSelectSkill: (skillId: string, skillName?: string) => void
   onStartWaggle: (config: WaggleConfig) => void
   onSendWithWaggle: (payload: AgentSendPayload) => Promise<void>
   onSteer: (messageId: string) => Promise<void>

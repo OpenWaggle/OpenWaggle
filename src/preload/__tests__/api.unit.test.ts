@@ -135,6 +135,8 @@ describe('preload api surface contract', () => {
     'submitFeedback',
     'generateFeedbackMarkdown',
     'openExternal',
+    // Composer
+    'suggestFiles',
     // Auto-updater
     'checkForUpdates',
     'installUpdate',

@@ -1,11 +1,9 @@
 import { MILLISECONDS_PER_SECOND, SECONDS_PER_MINUTE } from '@shared/constants/constants'
 import { VOICE_MODEL_BASE } from '@shared/types/voice'
-import type { RefObject } from 'react'
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useVoiceVisualizer } from 'react-voice-visualizer'
 import { api } from '@/lib/ipc'
 import { useComposerStore } from '@/stores/composer-store'
-import { resizeComposerTextarea } from './composer-textarea'
 import {
   decodeAudioBlob,
   downsampleAudio,
@@ -21,7 +19,7 @@ export type VoiceRecorderMode = 'idle' | 'recording' | 'transcribing'
 export type VoiceVisualizerControls = ReturnType<typeof useVoiceVisualizer>
 
 interface UseVoiceCaptureOptions {
-  textareaRef: RefObject<HTMLTextAreaElement | null>
+  insertText: (text: string) => void
   sendComposed: (text: string) => boolean
 }
 
@@ -45,7 +43,7 @@ function formatVoiceError(error: unknown): string {
 }
 
 export function useVoiceCapture({
-  textareaRef,
+  insertText,
   sendComposed,
 }: UseVoiceCaptureOptions): VoiceCaptureController {
   const [error, setError] = useState<string | null>(null)
@@ -54,6 +52,9 @@ export function useVoiceCapture({
 
   const sendComposedRef = useRef(sendComposed)
   sendComposedRef.current = sendComposed
+
+  const insertTextRef = useRef(insertText)
+  insertTextRef.current = insertText
 
   const pendingSubmitActionRef = useRef<VoiceSubmitAction>('insert')
   const handledBlobRef = useRef<Blob | null>(null)
@@ -89,30 +90,11 @@ export function useVoiceCapture({
     if (!transcript) return
 
     const store = useComposerStore.getState()
-    const textarea = textareaRef.current
-    if (!textarea) {
-      store.setInput([store.input.trim(), transcript].filter(Boolean).join(' '))
-      return
-    }
+    const currentInput = store.input.trim()
+    const needsLeadingSpace = currentInput.length > 0 && !/\s$/.test(currentInput)
+    const inserted = `${needsLeadingSpace ? ' ' : ''}${transcript}`
 
-    const selectionStart = textarea.selectionStart ?? textarea.value.length
-    const selectionEnd = textarea.selectionEnd ?? textarea.value.length
-    const previous = store.input
-    const before = previous.slice(0, selectionStart)
-    const after = previous.slice(selectionEnd)
-    const needsLeadingSpace = before.length > 0 && !/\s$/.test(before)
-    const needsTrailingSpace = after.length > 0 && !/^\s/.test(after)
-    const inserted = `${needsLeadingSpace ? ' ' : ''}${transcript}${needsTrailingSpace ? ' ' : ''}`
-
-    store.setInput(`${before}${inserted}${after}`)
-
-    requestAnimationFrame(() => {
-      const caret = selectionStart + inserted.length
-      textarea.focus()
-      textarea.setSelectionRange(caret, caret)
-      store.setCursorIndex(caret)
-      resizeComposerTextarea(textarea)
-    })
+    insertTextRef.current(inserted)
   }
 
   const handleRecordedBlob = useEffectEvent(async (blob: Blob, action: VoiceSubmitAction) => {

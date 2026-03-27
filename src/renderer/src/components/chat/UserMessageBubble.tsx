@@ -1,4 +1,5 @@
 import type { UIMessage } from '@tanstack/ai-react'
+import { MentionText } from './MentionText'
 
 interface UserMessageBubbleProps {
   message: UIMessage
@@ -17,7 +18,9 @@ export function UserMessageBubble({ message }: UserMessageBubbleProps) {
                 p.type === 'text',
             )
             .map((p, i) => (
-              <span key={`${message.id}-text-${String(i)}`}>{p.content}</span>
+              <span key={`${message.id}-text-${String(i)}`}>
+                <MentionText text={p.content} />
+              </span>
             ))}
         </div>
       </div>
