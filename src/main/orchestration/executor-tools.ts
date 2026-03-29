@@ -3,9 +3,9 @@ import {
   APPROVAL_REQUIRED_TOOL_NAMES,
   type ApprovalRequiredToolName,
 } from '@shared/types/tool-approval'
-import type { ServerTool } from '@tanstack/ai'
 import type { ProjectConfig } from '../config/project-config'
 import { isToolCallTrusted } from '../config/project-config'
+import type { DomainServerTool } from '../ports/tool-types'
 import { editFileTool } from '../tools/tools/edit-file'
 import { globTool } from '../tools/tools/glob'
 import { listFilesTool } from '../tools/tools/list-files'
@@ -15,7 +15,7 @@ import { webFetchTool } from '../tools/tools/web-fetch'
 import { writeFileTool } from '../tools/tools/write-file'
 import { withoutApproval } from '../tools/without-approval'
 
-const EXECUTOR_TOOLSET: readonly ServerTool[] = [
+const EXECUTOR_TOOLSET: readonly DomainServerTool[] = [
   readFileTool,
   globTool,
   listFilesTool,
@@ -53,15 +53,17 @@ function isApprovalRequiredExecutorToolName(name: string): name is ApprovalRequi
   return false
 }
 
-interface ExecutableServerTool extends ServerTool {
+interface ExecutableDomainServerTool extends DomainServerTool {
   execute: (args: unknown) => Promise<unknown> | unknown
 }
 
-function hasExecutableFunction(tool: ServerTool): tool is ExecutableServerTool {
+function hasExecutableFunction(tool: DomainServerTool): tool is ExecutableDomainServerTool {
   return 'execute' in tool && typeof tool.execute === 'function'
 }
 
-function maybeGetExecutorFunction(tool: ServerTool): ((args: unknown) => Promise<unknown>) | null {
+function maybeGetExecutorFunction(
+  tool: DomainServerTool,
+): ((args: unknown) => Promise<unknown>) | null {
   if (!hasExecutableFunction(tool)) {
     return null
   }
@@ -70,10 +72,10 @@ function maybeGetExecutorFunction(tool: ServerTool): ((args: unknown) => Promise
 }
 
 function withDefaultPermissionsTrust(
-  tool: ServerTool,
+  tool: DomainServerTool,
   toolName: ApprovalRequiredToolName,
   projectConfig: ProjectConfig,
-): ServerTool {
+): DomainServerTool {
   const execute = maybeGetExecutorFunction(tool)
   if (!execute) {
     return { ...tool, needsApproval: false }
@@ -102,7 +104,7 @@ function withDefaultPermissionsTrust(
 export function buildExecutorTools(
   executionMode: ExecutionMode,
   projectConfig: ProjectConfig,
-): ServerTool[] {
+): DomainServerTool[] {
   if (executionMode === 'full-access') {
     return withoutApproval(EXECUTOR_TOOLSET)
   }

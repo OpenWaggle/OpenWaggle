@@ -1,7 +1,7 @@
 import type { ConversationId } from '@shared/types/brand'
 import type { OrchestrationEventPayload } from '@shared/types/orchestration'
 import type { AgentPhaseLabel, AgentPhaseState } from '@shared/types/phase'
-import type { StreamChunk } from '@tanstack/ai'
+import type { AgentStreamChunk } from '@shared/types/stream'
 
 interface TaskPhaseState {
   status: 'queued' | 'running' | 'retrying' | 'completed' | 'failed' | 'cancelled'
@@ -120,7 +120,7 @@ function recomputeOrchestrationLabel(state: ConversationPhaseState): AgentPhaseL
 
 export function updatePhaseFromStreamChunk(
   conversationId: ConversationId,
-  chunk: StreamChunk,
+  chunk: AgentStreamChunk,
   now: number,
 ): PhaseChangeResult {
   const state = getState(conversationId)

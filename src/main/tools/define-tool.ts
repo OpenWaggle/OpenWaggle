@@ -7,6 +7,7 @@ import { isPathInside } from '@shared/utils/paths'
 import { type ServerTool, type ToolExecutionContext, toolDefinition } from '@tanstack/ai'
 import { JSONSchema } from 'effect'
 import { createLogger } from '../logger'
+import type { DomainServerTool } from '../ports/tool-types'
 import { emitContextInjected } from '../utils/stream-bridge'
 import { applyContextInjection } from './context-injection-buffer'
 
@@ -37,6 +38,10 @@ export interface ToolContext {
     readonly extractedText: string
   }[]
   signal?: AbortSignal
+  /** Domain-owned chat stream factory — forwarded to sub-agents for LLM calls. */
+  chatStream?: (
+    options: import('../ports/chat-service').ChatStreamOptions,
+  ) => AsyncIterable<import('@shared/types/stream').AgentStreamChunk>
   dynamicSkills?: {
     readonly loadedSkillIds: Set<string>
     readonly toggles: Readonly<Record<string, boolean>>
@@ -83,7 +88,7 @@ interface ExecutableServerTool extends ServerTool {
   readonly execute: (args: unknown, context?: ToolExecutionContext) => Promise<unknown> | unknown
 }
 
-function isContextBoundServerTool(tool: ServerTool): tool is ContextBoundServerTool {
+function isContextBoundServerTool(tool: DomainServerTool): tool is ContextBoundServerTool {
   return OPEN_WAGGLE_TOOL_BINDER in tool && typeof tool[OPEN_WAGGLE_TOOL_BINDER] === 'function'
 }
 
@@ -198,7 +203,10 @@ function makeServerToolWithContext<
   )
 }
 
-export function bindToolContextToTool(tool: ServerTool, context: ToolContext): ServerTool {
+export function bindToolContextToTool(
+  tool: DomainServerTool,
+  context: ToolContext,
+): DomainServerTool {
   if (!isContextBoundServerTool(tool)) {
     return tool
   }
@@ -216,18 +224,18 @@ export function bindToolContextToTool(tool: ServerTool, context: ToolContext): S
 }
 
 export function bindToolContextToTools(
-  tools: readonly ServerTool[],
+  tools: readonly DomainServerTool[],
   context: ToolContext,
-): ServerTool[] {
+): DomainServerTool[] {
   return tools.map((tool) => bindToolContextToTool(tool, context))
 }
 
-function hasExecutableServerFunction(tool: ServerTool): tool is ExecutableServerTool {
+function hasExecutableServerFunction(tool: DomainServerTool): tool is ExecutableServerTool {
   return 'execute' in tool && typeof tool.execute === 'function'
 }
 
 export async function executeToolWithContext(
-  tool: ServerTool,
+  tool: DomainServerTool,
   context: ToolContext,
   args: unknown,
 ): Promise<unknown> {

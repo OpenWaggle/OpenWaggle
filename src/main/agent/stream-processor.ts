@@ -1,4 +1,4 @@
-import type { StreamChunk } from '@tanstack/ai'
+import type { AgentStreamChunk } from '@shared/types/stream'
 import * as Duration from 'effect/Duration'
 import * as Effect from 'effect/Effect'
 import { approvalTraceEnabled as runtimeApprovalTraceEnabled } from '../env'
@@ -25,9 +25,9 @@ export const INCOMPLETE_TOOL_CALL_STALL_TIMEOUT_MS = 30_000
 export type StreamStallReason = 'stream-stall' | 'incomplete-tool-args' | 'awaiting-tool-result'
 
 export interface ProcessAgentStreamParams {
-  readonly stream: AsyncIterable<StreamChunk>
+  readonly stream: AsyncIterable<AgentStreamChunk>
   readonly collector: StreamPartCollector
-  readonly onChunk: (chunk: StreamChunk) => void
+  readonly onChunk: (chunk: AgentStreamChunk) => void
   readonly signal: AbortSignal
   readonly hooks: readonly AgentLifecycleHook[]
   readonly runContext: AgentRunContext
@@ -55,17 +55,17 @@ function resolveChunkTimeoutMs(collector: StreamPartCollector, defaultTimeoutMs:
 
 type NextChunkResult =
   | { readonly kind: 'aborted' }
-  | { readonly kind: 'chunk'; readonly iterResult: IteratorResult<StreamChunk> }
+  | { readonly kind: 'chunk'; readonly iterResult: IteratorResult<AgentStreamChunk> }
   | { readonly kind: 'stall' }
 
 interface ForwardChunkParams {
   readonly collector: StreamPartCollector
-  readonly onChunk: (chunk: StreamChunk) => void
+  readonly onChunk: (chunk: AgentStreamChunk) => void
   readonly hooks: readonly AgentLifecycleHook[]
   readonly runContext: AgentRunContext
 }
 
-async function forwardChunk(params: ForwardChunkParams, chunk: StreamChunk): Promise<boolean> {
+async function forwardChunk(params: ForwardChunkParams, chunk: AgentStreamChunk): Promise<boolean> {
   params.onChunk(chunk)
   notifyStreamChunk(params.hooks, params.runContext, chunk)
 
@@ -86,12 +86,12 @@ async function forwardChunk(params: ForwardChunkParams, chunk: StreamChunk): Pro
 
 function forwardChunkEffect(
   params: ForwardChunkParams,
-  chunk: StreamChunk,
+  chunk: AgentStreamChunk,
 ): Effect.Effect<boolean, unknown> {
   return Effect.tryPromise(() => forwardChunk(params, chunk))
 }
 
-function isApprovalTraceChunk(chunk: StreamChunk): boolean {
+function isApprovalTraceChunk(chunk: AgentStreamChunk): boolean {
   if (chunk.type === 'TOOL_CALL_END') {
     return chunk.result === undefined
   }
@@ -104,7 +104,7 @@ function isApprovalTraceChunk(chunk: StreamChunk): boolean {
 }
 
 function waitForNextChunkOrAbort(
-  iterator: AsyncIterator<StreamChunk>,
+  iterator: AsyncIterator<AgentStreamChunk>,
   signal: AbortSignal,
 ): Effect.Effect<NextChunkResult, unknown> {
   return Effect.async<NextChunkResult, unknown>((resume) => {
@@ -152,7 +152,7 @@ function waitForNextChunkOrAbort(
 }
 
 function waitForNextChunkWithOptionalTimeout(
-  iterator: AsyncIterator<StreamChunk>,
+  iterator: AsyncIterator<AgentStreamChunk>,
   signal: AbortSignal,
   timeoutMs: number,
   shouldWaitIndefinitely: boolean,
@@ -195,7 +195,7 @@ export function processAgentStreamEffect(
   let approvalTraceActive = runtimeApprovalTraceEnabled && (params.approvalTraceEnabled ?? false)
   const iterator = stream[Symbol.asyncIterator]()
 
-  const trackApprovalTraceState = (chunk: StreamChunk): void => {
+  const trackApprovalTraceState = (chunk: AgentStreamChunk): void => {
     if (!runtimeApprovalTraceEnabled) {
       return
     }

@@ -1,8 +1,14 @@
-import { convertMessagesToModelMessages, type ModelMessage, type UIMessage } from '@tanstack/ai'
+import type {
+  DomainContinuationMessage,
+  DomainModelContinuationMessage,
+  DomainUiContinuationMessage,
+  DomainUiToolCallPart,
+} from '@shared/types/continuation'
+import { convertDomainToModelMessages } from '../adapters/continuation-mapper'
 import { createLogger } from '../logger'
 
-export type ContinuationMessage = ModelMessage | UIMessage
-type UiToolCallPart = Extract<UIMessage['parts'][number], { type: 'tool-call' }>
+export type ContinuationMessage = DomainContinuationMessage
+type UiToolCallPart = DomainUiToolCallPart
 
 const logger = createLogger('continuation-normalizer')
 const EMPTY_TOOL_ARGS_JSON = '{}'
@@ -14,11 +20,11 @@ const TOOL_CALL_SCORE_HAS_APPROVAL_DECISION = 8
 const TOOL_CALL_SCORE_APPROVAL_RESPONDED = 16
 const TOOL_CALL_SCORE_HAS_OUTPUT = 32
 
-function isUiSnapshotMessage(message: ContinuationMessage): message is UIMessage {
+function isUiSnapshotMessage(message: ContinuationMessage): message is DomainUiContinuationMessage {
   return 'parts' in message
 }
 
-function hasModelMessageContent(message: ModelMessage): boolean {
+function hasModelMessageContent(message: DomainModelContinuationMessage): boolean {
   if (message.content === null) {
     return false
   }
@@ -67,9 +73,7 @@ function hasNonEmptyObjectArguments(rawArgs: string): boolean {
   }
 }
 
-function getUiToolCallScore(
-  part: Extract<UIMessage['parts'][number], { type: 'tool-call' }>,
-): number {
+function getUiToolCallScore(part: UiToolCallPart): number {
   let score = 0
   if (part.state !== undefined) {
     score += TOOL_CALL_SCORE_HAS_STATE
@@ -92,13 +96,13 @@ function getUiToolCallScore(
   return score
 }
 
-function getModelToolCallScore(toolCall: NonNullable<ModelMessage['toolCalls']>[number]): number {
+function getModelToolCallScore(
+  toolCall: NonNullable<DomainModelContinuationMessage['toolCalls']>[number],
+): number {
   return hasNonEmptyObjectArguments(toolCall.function.arguments) ? 1 : 0
 }
 
-function sanitizeUiToolCallPart(
-  part: Extract<UIMessage['parts'][number], { type: 'tool-call' }>,
-): Extract<UIMessage['parts'][number], { type: 'tool-call' }> {
+function sanitizeUiToolCallPart(part: UiToolCallPart): UiToolCallPart {
   return {
     ...part,
     arguments: normalizeToolArgumentsJson(part.arguments, part.id),
@@ -180,8 +184,10 @@ const SYNTHETIC_TOOL_RESULT_CONTENT = JSON.stringify({
   error: 'Tool execution was interrupted.',
 })
 
-function enforceToolResultPairing(messages: readonly ModelMessage[]): ModelMessage[] {
-  const pairedMessages: ModelMessage[] = []
+function enforceToolResultPairing(
+  messages: readonly DomainModelContinuationMessage[],
+): DomainModelContinuationMessage[] {
+  const pairedMessages: DomainModelContinuationMessage[] = []
   let pendingAssistantToolCallIds: Set<string> | null = null
 
   for (const message of messages) {
@@ -250,9 +256,9 @@ function enforceToolResultPairing(messages: readonly ModelMessage[]): ModelMessa
 
 export function normalizeContinuationInput(
   continuationMessages: readonly ContinuationMessage[],
-): ModelMessage[] {
+): DomainModelContinuationMessage[] {
   const normalized = deduplicateContinuationMessages(continuationMessages)
-  const convertedMessages = convertMessagesToModelMessages(normalized)
+  const convertedMessages = convertDomainToModelMessages(normalized)
   return enforceToolResultPairing(convertedMessages)
 }
 
@@ -289,7 +295,7 @@ function deduplicateContinuationMessages(
         continue
       }
 
-      const dedupedPartsReversed: Array<UIMessage['parts'][number]> = []
+      const dedupedPartsReversed: Array<DomainUiContinuationMessage['parts'][number]> = []
       const dedupedToolCallIndexById = new Map<string, number>()
       const dedupedToolCallScoreById = new Map<string, number>()
 
@@ -362,7 +368,9 @@ function deduplicateContinuationMessages(
       continue
     }
 
-    const dedupedToolCallsReversed: Array<NonNullable<ModelMessage['toolCalls']>[number]> = []
+    const dedupedToolCallsReversed: Array<
+      NonNullable<DomainModelContinuationMessage['toolCalls']>[number]
+    > = []
     const dedupedToolCallIndexById = new Map<string, number>()
     const dedupedToolCallScoreById = new Map<string, number>()
 
@@ -450,9 +458,7 @@ export function normalizeContinuationAsUIMessages(
  * is "included" (emitted as a tool_use block) when its state signals
  * that the call has been dispatched or it carries concrete output.
  */
-function isToolCallIncluded(
-  part: Extract<UIMessage['parts'][number], { type: 'tool-call' }>,
-): boolean {
+function isToolCallIncluded(part: UiToolCallPart): boolean {
   return (
     part.state === 'input-complete' ||
     part.state === 'approval-responded' ||
@@ -504,8 +510,8 @@ function enforceToolResultPairingOnUIMessages(
       return message
     }
 
-    const syntheticParts: Array<UIMessage['parts'][number]> = orphanToolCallIds.map(
-      ({ id, name }) => {
+    const syntheticParts: Array<DomainUiContinuationMessage['parts'][number]> =
+      orphanToolCallIds.map(({ id, name }) => {
         logger.warn('Injecting synthetic tool-result for orphan tool-call in UIMessage', {
           toolCallId: id,
           toolName: name,
@@ -516,8 +522,7 @@ function enforceToolResultPairingOnUIMessages(
           content: SYNTHETIC_TOOL_RESULT_CONTENT,
           state: 'error' as const,
         }
-      },
-    )
+      })
 
     return {
       ...message,

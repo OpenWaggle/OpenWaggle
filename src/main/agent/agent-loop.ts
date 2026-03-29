@@ -9,7 +9,7 @@ import { type SkipApprovalToken, ToolCallId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { Settings } from '@shared/types/settings'
-import { chat, maxIterations, type StreamChunk } from '@tanstack/ai'
+import type { AgentStreamChunk } from '@shared/types/stream'
 import * as Duration from 'effect/Duration'
 import * as Effect from 'effect/Effect'
 import * as Schedule from 'effect/Schedule'
@@ -17,6 +17,9 @@ import { loadProjectConfig } from '../config/project-config'
 import { approvalTraceEnabled } from '../env'
 import { AgentCancelledError } from '../errors'
 import { createLogger } from '../logger'
+import { wrapChatAdapter } from '../ports/chat-adapter-type'
+import type { ChatStreamOptions } from '../ports/chat-service'
+import { StandardsService } from '../ports/standards-service'
 import { bindToolContextToTools } from '../tools/define-tool'
 import {
   describeContinuationMessageFormat,
@@ -45,7 +48,6 @@ import {
   resolveAgentProjectPath,
   resolveProviderAndQuality,
 } from './shared'
-import { loadAgentStandardsContext } from './standards-context'
 import { StreamPartCollector } from './stream-part-collector'
 import { processAgentStreamEffect } from './stream-processor'
 import { resolveToolContextAttachments } from './tool-context-attachments'
@@ -66,9 +68,11 @@ export interface AgentRunParams {
   readonly payload: HydratedAgentSendPayload
   readonly model: SupportedModelId
   readonly settings: Settings
-  /** Forward raw StreamChunks to the renderer via IPC for the useChat adapter */
-  readonly onChunk: (chunk: StreamChunk) => void
+  /** Forward raw AgentStreamChunks to the renderer via IPC for the useChat adapter */
+  readonly onChunk: (chunk: AgentStreamChunk) => void
   readonly signal: AbortSignal
+  /** Domain-owned chat stream factory — replaces direct `chat()` from `@tanstack/ai`. */
+  readonly chatStream: (options: ChatStreamOptions) => AsyncIterable<AgentStreamChunk>
   /**
    * When set with a branded token, tools that normally require approval
    * are auto-executed. Only the waggle coordinator should create this token.
@@ -94,7 +98,9 @@ export interface AgentRunResult {
   readonly finalMessage: Message
 }
 
-export function runAgentEffect(params: AgentRunParams): Effect.Effect<AgentRunResult, Error> {
+export function runAgentEffect(
+  params: AgentRunParams,
+): Effect.Effect<AgentRunResult, Error, StandardsService> {
   const { conversation, payload, model, settings, onChunk, signal, skipApproval } = params
   const hasContinuationMessages = (payload.continuationMessages?.length ?? 0) > 0
   const continuationMessageFormat = describeContinuationMessageFormat(
@@ -113,6 +119,7 @@ export function runAgentEffect(params: AgentRunParams): Effect.Effect<AgentRunRe
     projectPath,
     attachments: toolContextAttachments,
     signal,
+    chatStream: params.chatStream,
     dynamicSkills: {
       loadedSkillIds: dynamicLoadedSkillIds,
       toggles: skillToggles,
@@ -183,17 +190,16 @@ export function runAgentEffect(params: AgentRunParams): Effect.Effect<AgentRunRe
       return yield* Effect.fail(new Error(resolution.reason))
     }
 
+    const standardsService = yield* StandardsService
     const standards = yield* withStageTimingEffect(
       stageDurationsMs,
       'standards-resolution',
-      Effect.tryPromise(() =>
-        loadAgentStandardsContext(
-          conversation.projectPath,
-          payload.text,
-          settings,
-          payload.attachments,
-        ),
-      ),
+      standardsService.loadContext({
+        projectPath,
+        userText: payload.text,
+        settings,
+        attachments: payload.attachments,
+      }),
     )
 
     context = {
@@ -228,13 +234,15 @@ export function runAgentEffect(params: AgentRunParams): Effect.Effect<AgentRunRe
 
     yield* Effect.tryPromise(() => Promise.resolve(notifyRunStart(hooks, runContext)))
 
-    const adapter = resolution.provider.createAdapter(
-      resolution.resolvedModel,
-      resolution.providerConfig.apiKey,
-      resolution.providerConfig.baseUrl,
-      resolution.providerConfig.authMethod,
+    const adapter = wrapChatAdapter(
+      resolution.provider.createAdapter(
+        resolution.resolvedModel,
+        resolution.providerConfig.apiKey,
+        resolution.providerConfig.baseUrl,
+        resolution.providerConfig.authMethod,
+      ),
     )
-    const allMessages = hasContinuationMessages
+    const allMessages: readonly unknown[] = hasContinuationMessages
       ? enrichContinuationMessages(
           normalizeContinuationAsUIMessages(payload.continuationMessages ?? []),
           conversation.messages,
@@ -257,11 +265,11 @@ export function runAgentEffect(params: AgentRunParams): Effect.Effect<AgentRunRe
     let stallAttempt = 0
 
     // Suppress duplicate RUN_STARTED chunks from stall retries.
-    // Each fresh chat() emits RUN_STARTED, but the renderer treats
+    // Each fresh chatStream() emits RUN_STARTED, but the renderer treats
     // it as a run reset — causing accumulated streaming content to
     // be wiped and reloaded from disk at once when the run finishes.
     let runStartedForwarded = false
-    const deduplicatedOnChunk = (chunk: StreamChunk): void => {
+    const deduplicatedOnChunk = (chunk: AgentStreamChunk): void => {
       if (chunk.type === 'RUN_STARTED') {
         if (runStartedForwarded) return
         runStartedForwarded = true
@@ -279,17 +287,18 @@ export function runAgentEffect(params: AgentRunParams): Effect.Effect<AgentRunRe
             stageDurationsMs,
             'stream-setup',
             Effect.sync(() => {
-              return chat({
+              return params.chatStream({
                 adapter,
                 messages: allMessages,
                 systemPrompts: [built.systemPrompt],
-                conversationId: String(conversation.id),
                 tools,
-                ...samplingOptions,
-                maxTokens: resolution.qualityConfig.maxTokens,
-                modelOptions: resolution.qualityConfig.modelOptions,
-                agentLoopStrategy: maxIterations(params.maxTurns ?? MAX_ITERATIONS),
+                maxIterations: params.maxTurns ?? MAX_ITERATIONS,
                 abortController,
+                samplingOptions: {
+                  ...samplingOptions,
+                  maxTokens: resolution.qualityConfig.maxTokens,
+                  modelOptions: resolution.qualityConfig.modelOptions,
+                },
               })
             }),
           )
@@ -399,17 +408,18 @@ export function runAgentEffect(params: AgentRunParams): Effect.Effect<AgentRunRe
           const nudgeResult = yield* withAbortBridge(signal, (abortController) =>
             Effect.gen(function* () {
               const nudgeStream = yield* Effect.sync(() =>
-                chat({
+                params.chatStream({
                   adapter,
                   messages: planNudgeMessages,
                   systemPrompts: [built.systemPrompt],
-                  conversationId: String(conversation.id),
                   tools,
-                  ...samplingOptions,
-                  maxTokens: resolution.qualityConfig.maxTokens,
-                  modelOptions: resolution.qualityConfig.modelOptions,
-                  agentLoopStrategy: maxIterations(params.maxTurns ?? MAX_ITERATIONS),
+                  maxIterations: params.maxTurns ?? MAX_ITERATIONS,
                   abortController,
+                  samplingOptions: {
+                    ...samplingOptions,
+                    maxTokens: resolution.qualityConfig.maxTokens,
+                    modelOptions: resolution.qualityConfig.modelOptions,
+                  },
                 }),
               )
 
@@ -572,5 +582,6 @@ export function runAgentEffect(params: AgentRunParams): Effect.Effect<AgentRunRe
 }
 
 export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> {
-  return Effect.runPromise(runAgentEffect(params))
+  const { runAppEffect } = await import('../runtime')
+  return runAppEffect(runAgentEffect(params))
 }

@@ -8,14 +8,15 @@ import {
 } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import type { Settings } from '@shared/types/settings'
+import type { AgentStreamChunk } from '@shared/types/stream'
 import type {
   WaggleCollaborationStatus,
   WaggleConfig,
   WaggleStreamMetadata,
   WaggleTurnEvent,
 } from '@shared/types/waggle'
-import type { StreamChunk } from '@tanstack/ai'
 import { createLogger } from '../logger'
+import type { ChatStreamOptions } from '../ports/chat-service'
 import { runAgent } from './agent-loop'
 import { checkConsensus } from './consensus-detector'
 import { FileConflictTracker } from './file-conflict-tracker'
@@ -39,7 +40,8 @@ export interface WaggleRunParams {
   readonly config: WaggleConfig
   readonly settings: Settings
   readonly signal: AbortSignal
-  readonly onStreamChunk: (chunk: StreamChunk, meta: WaggleStreamMetadata) => void
+  readonly chatStream: (options: ChatStreamOptions) => AsyncIterable<AgentStreamChunk>
+  readonly onStreamChunk: (chunk: AgentStreamChunk, meta: WaggleStreamMetadata) => void
   readonly onTurnEvent: (event: WaggleTurnEvent) => void
   readonly onTurnComplete?: (accumulatedMessages: readonly Message[]) => Promise<void>
 }
@@ -203,6 +205,7 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
           payload: augmentedPayload,
           model: agent.model,
           settings,
+          chatStream: params.chatStream,
           skipApproval: createSkipApprovalToken(),
           stallTimeoutMs: WAGGLE_STALL_TIMEOUT_MS,
           waggleContext: {
@@ -419,6 +422,7 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
         agents,
         settings,
         signal,
+        chatStream: params.chatStream,
         accumulatedMessages,
         successfulAssistantMsgs,
         onStreamChunk,
@@ -504,9 +508,10 @@ interface SynthesisParams {
   readonly agents: WaggleConfig['agents']
   readonly settings: Settings
   readonly signal: AbortSignal
+  readonly chatStream: (options: ChatStreamOptions) => AsyncIterable<AgentStreamChunk>
   readonly accumulatedMessages: Message[]
   readonly successfulAssistantMsgs: Message[]
-  readonly onStreamChunk: (chunk: StreamChunk, meta: WaggleStreamMetadata) => void
+  readonly onStreamChunk: (chunk: AgentStreamChunk, meta: WaggleStreamMetadata) => void
   readonly onTurnEvent: (event: WaggleTurnEvent) => void
   readonly onTurnComplete?: (accumulatedMessages: readonly Message[]) => Promise<void>
   readonly waggleFileCache: WaggleFileCache
@@ -570,6 +575,7 @@ async function runSynthesisStep(params: SynthesisParams): Promise<SynthesisStepR
         payload: synthesisPayload,
         model: synthesisModel,
         settings,
+        chatStream: params.chatStream,
         skipApproval: createSkipApprovalToken(),
         stallTimeoutMs: WAGGLE_STALL_TIMEOUT_MS,
         waggleContext: {
