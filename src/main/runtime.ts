@@ -4,6 +4,11 @@ import * as Effect from 'effect/Effect'
 import type { Exit as ExitType } from 'effect/Exit'
 import * as Layer from 'effect/Layer'
 import * as ManagedRuntime from 'effect/ManagedRuntime'
+import { ProviderServiceLive } from './adapters/provider-service-live'
+import { SqliteConversationRepositoryLive } from './adapters/sqlite-conversation-repository'
+import { SqliteTeamsRepositoryLive } from './adapters/sqlite-teams-repository'
+import { FilesystemStandardsLive } from './adapters/standards-adapter'
+import { TanStackChatLive } from './adapters/tanstack-chat-adapter'
 import { AppDatabaseLive } from './services/database-service'
 import { AppLogger } from './services/logger-service'
 import { ProviderRegistryService } from './services/provider-registry-service'
@@ -15,6 +20,11 @@ const AppLayer = Layer.mergeAll(
   ProviderRegistryService.Live,
   AppDatabaseLive,
   SettingsService.Live,
+  SqliteConversationRepositoryLive,
+  FilesystemStandardsLive,
+  TanStackChatLive,
+  ProviderServiceLive,
+  SqliteTeamsRepositoryLive,
 )
 
 function makeAppRuntime() {

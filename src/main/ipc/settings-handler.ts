@@ -1,88 +1,14 @@
-import { MILLISECONDS_PER_SECOND } from '@shared/constants/constants'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { AUTH_METHODS } from '@shared/types/auth'
 import { SupportedModelId } from '@shared/types/brand'
 import { EXECUTION_MODES, type PROVIDERS, QUALITY_PRESETS } from '@shared/types/settings'
-import { chat } from '@tanstack/ai'
 import * as Effect from 'effect/Effect'
+import { testCredentials } from '../application/provider-test-service'
 import { createLogger } from '../logger'
-import { providerRegistry } from '../providers'
-import { getSettings, updateSettings } from '../store/settings'
+import { SettingsService } from '../services/settings-service'
 import { typedHandle } from './typed-ipc'
 
 const logger = createLogger('ipc-settings')
-
-const TEST_TIMEOUT_MS = 15_000
-
-async function testProviderApiKey(
-  providerId: string,
-  apiKey: string,
-  baseUrl?: string,
-  authMethod?: 'api-key' | 'subscription',
-): Promise<{ success: boolean; error?: string }> {
-  const provider = providerRegistry.get(providerId)
-  if (!provider) return { success: false, error: `Unknown provider: ${providerId}` }
-
-  if (!provider.requiresApiKey) {
-    // For Ollama: test connectivity by fetching model list
-    if (provider.fetchModels) {
-      try {
-        const models = await Promise.race([
-          provider.fetchModels(baseUrl),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('Connection timed out')), TEST_TIMEOUT_MS),
-          ),
-        ])
-        return models.length > 0
-          ? { success: true }
-          : { success: false, error: 'No models found — is the service running?' }
-      } catch (err) {
-        return { success: false, error: err instanceof Error ? err.message : String(err) }
-      }
-    }
-    return { success: true }
-  }
-
-  const abortController = new AbortController()
-  const timeout = setTimeout(() => abortController.abort(), TEST_TIMEOUT_MS)
-
-  try {
-    const adapter = provider.createAdapter(provider.testModel, apiKey, baseUrl, authMethod)
-    const stream = chat({
-      adapter,
-      messages: [{ role: 'user', content: 'Hi' }],
-      abortController,
-    })
-
-    const result = await Promise.race([
-      (async () => {
-        for await (const chunk of stream) {
-          if (chunk.type === 'RUN_ERROR') {
-            return {
-              success: false,
-              error: chunk.error.message || 'Provider returned an error while testing credentials',
-            }
-          }
-          if (chunk.type === 'RUN_FINISHED') {
-            return { success: true }
-          }
-        }
-        return { success: false, error: 'Connection closed before completion' }
-      })(),
-      new Promise<{ success: false; error: string }>((resolve) =>
-        setTimeout(() => {
-          abortController.abort()
-          resolve({ success: false, error: 'Connection timed out' })
-        }, TEST_TIMEOUT_MS + MILLISECONDS_PER_SECOND),
-      ),
-    ])
-    return result
-  } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : String(err) }
-  } finally {
-    clearTimeout(timeout)
-  }
-}
 
 /** Schema for validating settings update payloads from the renderer */
 const providerUpdateSchema = Schema.Struct({
@@ -200,10 +126,15 @@ function hasProviderValidationError(
 }
 
 export function registerSettingsHandlers(): void {
-  typedHandle('settings:get', () => Effect.sync(() => getSettings()))
+  typedHandle('settings:get', () =>
+    Effect.gen(function* () {
+      const settings = yield* SettingsService
+      return yield* settings.get()
+    }),
+  )
 
   typedHandle('settings:update', (_event, raw: unknown) =>
-    Effect.sync(() => {
+    Effect.gen(function* () {
       const result = safeDecodeUnknown(settingsUpdateSchema, raw)
       if (!result.success) {
         const error = result.issues.join('; ')
@@ -217,7 +148,8 @@ export function registerSettingsHandlers(): void {
         return { ok: false, error: providers.error } satisfies { ok: false; error: string }
       }
 
-      updateSettings({
+      const settings = yield* SettingsService
+      yield* settings.update({
         ...result.data,
         providers,
         defaultModel: result.data.defaultModel
@@ -230,12 +162,13 @@ export function registerSettingsHandlers(): void {
   )
 
   typedHandle('settings:set-enabled-models', (_event, models: unknown) =>
-    Effect.sync(() => {
+    Effect.gen(function* () {
       if (!Array.isArray(models) || !models.every((m) => typeof m === 'string')) {
         logger.warn('Invalid enabled models payload', { models })
         return undefined
       }
-      updateSettings({ enabledModels: models })
+      const settings = yield* SettingsService
+      yield* settings.update({ enabledModels: models })
       return undefined
     }),
   )
@@ -248,6 +181,6 @@ export function registerSettingsHandlers(): void {
       apiKey: string,
       baseUrl?: string,
       authMethod?: 'api-key' | 'subscription',
-    ) => Effect.promise(() => testProviderApiKey(provider, apiKey, baseUrl, authMethod)),
+    ) => testCredentials(provider, apiKey, baseUrl, authMethod),
   )
 }

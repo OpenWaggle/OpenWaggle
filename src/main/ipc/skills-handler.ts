@@ -1,5 +1,6 @@
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import * as Effect from 'effect/Effect'
+import { SettingsService } from '../services/settings-service'
 import {
   loadSkillCatalog,
   loadSkillInstructions,
@@ -7,7 +8,6 @@ import {
 } from '../skills/skill-catalog'
 import { loadAgentsInstruction } from '../standards/agents-loader'
 import { resolveAgentsChainForPath, resolveAgentsForRun } from '../standards/agents-resolver'
-import { getSettings, updateSettings } from '../store/settings'
 import { typedHandle } from './typed-ipc'
 
 const projectPathSchema = Schema.String.pipe(Schema.minLength(1))
@@ -41,7 +41,8 @@ export function registerSkillsHandlers(): void {
   typedHandle('skills:list', (_event, rawProjectPath: string) =>
     Effect.gen(function* () {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawProjectPath)
-      const settings = getSettings()
+      const settingsService = yield* SettingsService
+      const settings = yield* settingsService.get()
       const toggles = settings.skillTogglesByProject[projectPath] ?? {}
       const catalog = yield* Effect.promise(() => loadSkillCatalog(projectPath, toggles))
       return toSkillCatalogResult(catalog)
@@ -51,17 +52,18 @@ export function registerSkillsHandlers(): void {
   typedHandle(
     'skills:set-enabled',
     (_event, rawProjectPath: string, rawSkillId: string, enabled: boolean) =>
-      Effect.sync(() => {
+      Effect.gen(function* () {
         const projectPath = decodeUnknownOrThrow(projectPathSchema, rawProjectPath)
         const skillId = decodeUnknownOrThrow(skillIdSchema, rawSkillId)
 
-        const settings = getSettings()
+        const settingsService = yield* SettingsService
+        const settings = yield* settingsService.get()
         const nextSkillTogglesByProject = { ...settings.skillTogglesByProject }
         const projectToggles = { ...(nextSkillTogglesByProject[projectPath] ?? {}) }
         projectToggles[skillId] = enabled
         nextSkillTogglesByProject[projectPath] = projectToggles
 
-        updateSettings({
+        yield* settingsService.update({
           skillTogglesByProject: nextSkillTogglesByProject,
         })
       }),
@@ -72,7 +74,8 @@ export function registerSkillsHandlers(): void {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawProjectPath)
       const skillId = decodeUnknownOrThrow(skillIdSchema, rawSkillId)
 
-      const settings = getSettings()
+      const settingsService = yield* SettingsService
+      const settings = yield* settingsService.get()
       const toggles = settings.skillTogglesByProject[projectPath] ?? {}
       const skill = yield* Effect.promise(() =>
         loadSkillInstructions(projectPath, skillId, toggles),

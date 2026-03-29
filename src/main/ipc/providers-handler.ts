@@ -2,13 +2,15 @@ import { SupportedModelId } from '@shared/types/brand'
 import { generateDisplayName } from '@shared/types/llm'
 import type { Provider } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
-import { providerRegistry } from '../providers'
+import { ProviderService } from '../ports/provider-service'
 import { typedHandle } from './typed-ipc'
 
 export function registerProvidersHandlers(): void {
   typedHandle('providers:get-models', () =>
-    Effect.sync(() =>
-      providerRegistry.getAll().map((p) => ({
+    Effect.gen(function* () {
+      const providerSvc = yield* ProviderService
+      const providers = yield* providerSvc.getAll()
+      return [...providers].map((p) => ({
         provider: p.id,
         displayName: p.displayName,
         requiresApiKey: p.requiresApiKey,
@@ -21,8 +23,8 @@ export function registerProvidersHandlers(): void {
           name: generateDisplayName(m),
           provider: p.id,
         })),
-      })),
-    ),
+      }))
+    }),
   )
 
   typedHandle(
@@ -35,16 +37,12 @@ export function registerProvidersHandlers(): void {
       authMethod?: 'api-key' | 'subscription',
     ) =>
       Effect.gen(function* () {
-        const provider = providerRegistry.get(providerId)
-        if (!provider?.supportsDynamicModelFetch || !provider.fetchModels) return []
-
-        const models = yield* Effect.promise(
-          () => provider.fetchModels?.(baseUrl, apiKey, authMethod) ?? Promise.resolve([]),
-        )
+        const providerSvc = yield* ProviderService
+        const models = yield* providerSvc.fetchModels(providerId, baseUrl, apiKey, authMethod)
         if (models.length > 0) {
-          providerRegistry.indexModels(models, provider)
+          yield* providerSvc.indexModels(models, providerId)
         }
-        return models.map((m) => ({
+        return [...models].map((m) => ({
           id: SupportedModelId(m),
           name: generateDisplayName(m),
           provider: providerId,
