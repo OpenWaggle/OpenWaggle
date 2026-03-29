@@ -108,59 +108,51 @@ Interpretation rule:
 - If current implementation and first principles are in tension, do not blindly copy the current implementation. Resolve the work in a way that stays aligned with the first principles while respecting existing architecture constraints.
 ## Architecture
 
-OpenWaggle is an Electron desktop coding agent with multi-model LLM support. Three process targets share types through `src/shared/`.
+OpenWaggle follows **hexagonal architecture** with Effect.ts as the DI backbone. Full specification: `docs/hexagonal-architecture.md`.
 
 ### Process Boundaries
 
-- **Main** (`src/main/`) — Node.js. Agent loop, tool execution, persistence, IPC handlers. Built by `electron-vite` as CJS with ESM interop.
-- **Preload** (`src/preload/`) — Bridge. Exposes typed `api` object via `contextBridge`. Every method maps to a specific IPC channel.
-- **Renderer** (`src/renderer/src/`) — React 19 + Zustand + Tailwind v4. State in two Zustand stores: `chat-store.ts` (conversations, streaming) and `settings-store.ts` (API keys, model selection).
+- **Main** (`src/main/`) — Node.js. Hexagonal layers: Domain → Ports → Adapters → Application Services → Transport (IPC).
+- **Preload** (`src/preload/`) — Typed IPC bridge via `contextBridge`. Zero business logic.
+- **Renderer** (`src/renderer/src/`) — React 19 + Zustand + TanStack AI React. Own adapter layer for vendor types.
+
+### Hexagonal Layers (Main Process)
+
+| Layer | Directory | Purpose |
+|---|---|---|
+| **Domain** | `src/main/domain/`, `src/shared/domain/` | Pure business logic. Zero infrastructure imports. |
+| **Ports** | `src/main/ports/` | Effect `Context.Tag` service interfaces. |
+| **Adapters** | `src/main/adapters/` | `Layer` implementations wrapping vendor SDKs and infrastructure. |
+| **Application** | `src/main/application/` | Effect.gen programs orchestrating business logic via `yield*` ports. |
+| **Transport** | `src/main/ipc/` | IPC handlers. Thin dispatch + transport coordination. |
+| **Infrastructure** | `src/main/store/`, `src/main/providers/`, `src/main/mcp/`, `src/main/orchestration/` | Persistence, vendor SDK wrappers, protocol bridges. |
+
+### ⛔ Hexagonal Rules (MUST FOLLOW)
+
+1. **Domain imports nothing from infrastructure.** No `@tanstack/ai`, `electron`, `node:fs`, `@effect/sql` in `src/main/domain/` or `src/shared/domain/`.
+2. **Agent core (`src/main/agent/`) has zero vendor imports.** No `@tanstack/ai`. Uses domain types (`AgentStreamChunk`, `DomainServerTool`, `DomainContinuationMessage`).
+3. **IPC handlers MUST NOT import from `src/main/store/`.** Use `yield* ConversationRepository`, `yield* SettingsService`, etc.
+4. **IPC handlers MUST NOT import `@tanstack/ai`.** Vendor SDK is confined to adapters.
+5. **Application services use `yield*` for DI.** No direct store or registry access.
+6. **`@tanstack/ai` is ONLY allowed in:** `src/main/adapters/`, `src/main/providers/`, `src/main/tools/define-tool.ts`, `src/main/mcp/`, `src/main/orchestration/`, `src/renderer/src/`.
+7. **No type casts (`as Foo`).** Use type guards, Effect Schema validation, or type augmentation declarations at adapter boundaries.
+8. **Every port MUST have consumers.** No dead abstractions. `pnpm check:architecture` enforces this.
 
 ### IPC Type System
 
-`src/shared/types/ipc.ts` is the single source of truth. Three channel maps define all IPC:
-- `IpcInvokeChannelMap` — request/response (renderer invokes, main responds)
-- `IpcSendChannelMap` — fire-and-forget (renderer → main)
-- `IpcEventChannelMap` — events (main → renderer)
+`src/shared/types/ipc.ts` is the single source of truth. Uses domain-owned `AgentStreamChunk` (not vendor `StreamChunk`). Three channel maps:
+- `IpcInvokeChannelMap` — request/response
+- `IpcSendChannelMap` — fire-and-forget
+- `IpcEventChannelMap` — events (streaming via `AgentStreamChunk`)
 
-The preload `api` object (`src/preload/api.ts`) implements `OpenWaggleApi` — a convenience wrapper that maps friendly method names to IPC channels. The renderer imports this as `window.api` via `src/renderer/src/lib/ipc.ts`.
+### Effect Runtime
 
-### Provider Registry
-
-`src/main/providers/` implements a dynamic multi-provider system. `ProviderDefinition` (interface) defines each provider's capabilities. `ProviderRegistry` (singleton) manages registration and lookup:
-- 6 providers: Anthropic, OpenAI, Gemini, Grok, OpenRouter, Ollama
-- Each provider file exports a `ProviderDefinition` with model list, adapter factory, and capabilities
-- `registerAllProviders()` called at app startup before IPC handlers
-- Registry provides `getProviderForModel(id)` for model→provider resolution and `createAdapter()` for chat adapter creation
-- `providers:get-models` IPC channel exposes grouped model lists to the renderer
-
-### Agent Loop
-
-`src/main/agent/agent-loop.ts` uses TanStack AI's `chat()` function with the provider registry to dynamically create adapters. The loop:
-1. Converts our `Message[]` to `SimpleChatMessage[]` (structural typing to avoid `ConstrainedModelMessage` generics)
-2. Resolves the provider via `providerRegistry.getProviderForModel()` and creates an adapter with the provider's `createAdapter()` method
-3. Iterates the `AsyncIterable<StreamChunk>` stream, translating AG-UI events (`TEXT_MESSAGE_CONTENT`, `TOOL_CALL_*`, `RUN_ERROR`) into our `AgentStreamEvent` discriminated union
-4. Emits events over IPC via `emitAgentEvent()` (broadcasts to all renderer windows)
-
-Tools are executed by TanStack AI internally during the stream — results arrive via `TOOL_CALL_END.result`.
-
-### Tool System
-
-`src/main/tools/define-tool.ts` wraps TanStack AI's `toolDefinition().server()`. Each tool:
-- Declares an Effect Schema input schema for runtime validation and JSON Schema generation
-- Uses `Schema.Type<T>` for type-safe execute functions
-- Receives `ToolContext` through explicit per-run binding, not ambient async local state
-
-Built-in tools in `src/main/tools/tools/`: `readFile`, `writeFile`, `editFile`, `runCommand`, `glob`, `listFiles`, `loadSkill`, `askUser`. Write/edit/command require approval (`needsApproval: true`).
+All DI flows through `src/main/runtime.ts` `AppLayer`. Ports are `Context.Tag` services. Adapters are `Layer` implementations. `typedHandle` runs handlers against `AppLayer` via `runAppEffectExit`.
 
 ### Persistence
 
-- **App-owned state**: SQLite database at `{userData}/openwaggle.db` (settings, auth tokens, conversations, orchestration state, team runtime state)
+- **App-owned state**: SQLite database at `{userData}/openwaggle.db` — accessed ONLY through `ConversationRepository`, `SettingsService`, `TeamsRepository` ports.
 - **Project-owned state**: `.openwaggle/config.toml` and `.openwaggle/config.local.toml`
-
-### Model System
-
-`SupportedModelId` is a `string` type alias — runtime validation is done via the provider registry's `isKnownModel()`. Each provider package exports its own model tuple (e.g. `ANTHROPIC_MODELS`, `OPENAI_CHAT_MODELS`, `GeminiTextModels`). The model selector in the renderer fetches grouped model lists dynamically via `providers:get-models` IPC. `generateDisplayName()` converts model IDs to human-readable names.
 
 ## Engineering Principles
 

@@ -122,6 +122,12 @@ This document stores project-specific technical learnings only.
 - Adding a new Effect service to `AppLayer` (runtime.ts) extends the import chain for every test that imports `runtime.ts`. If the wrapped module has module-level side effects (e.g. `settings.ts` calling `electron.safeStorage` at load time), use `Layer.unwrapEffect` with a dynamic `import()` inside `Effect.promise` to defer the side effect until runtime initialization. This prevents test breakage in unrelated suites whose electron mocks don't cover the new dependency.
 - `@effect/platform`'s `FileSystem` service is already provided by `NodeContext.layer` in `AppLayer` — no custom `AppFileSystem` Context.Tag needed. Any `Effect.gen` block running via `runAppEffect` can `yield* FileSystem.FileSystem` directly.
 
+### Hexagonal Architecture / Domain Boundaries
+- When removing vendor types from `src/shared/`, the renderer still imports vendor types directly — only the IPC contract changes. The renderer needs a mapper function (e.g. `fromAgentStreamChunk`) to convert domain types back to vendor types at the IPC boundary before feeding them to vendor hooks like TanStack's `useChat`.
+- `replace_all` on type names in IPC contracts can silently mutate method names in API interfaces (e.g. `onStreamChunk` → `onAgentStreamChunk`). Review the diff after bulk renames to catch method name mutations.
+- Converting TanStack `UIMessage` parts to domain continuation types across type hierarchies requires JSON roundtrip + type guard (not cross-hierarchy `filter` + type guard) because TypeScript cannot narrow array elements from one discriminated union to a structurally equivalent one in a different type hierarchy.
+- `readonly` arrays in domain types vs mutable arrays in vendor types (`readonly DomainContentPart[]` vs `ContentPart[]`) cause assignment errors. Domain types should use `readonly` for immutability guarantees, and adapter layers handle the mutable-to-readonly boundary.
+
 ### Build & Tooling
 - `react-doctor` defaults to changed-files-only on feature branches. Use `GIT_DIR=/nonexistent` for full-repo scans.
 - Vitest `vi.mock()` factories are hoisted before top-level variables. Use `vi.hoisted(...)` for shared mock handles.
