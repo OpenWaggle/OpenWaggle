@@ -19,7 +19,7 @@
     "src/main/**/*",
     "src/preload/**/*",
     "src/shared/**/*",
-    "scripts/**/*",
+    "scripts/check-architecture.ts",
     "electron.vite.config.ts"
   ]
 }
