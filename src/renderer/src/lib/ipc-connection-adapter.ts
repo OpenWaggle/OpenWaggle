@@ -8,6 +8,7 @@ import {
 } from '@shared/types/errors'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { QualityPreset } from '@shared/types/settings'
+import type { AgentStreamChunk } from '@shared/types/stream'
 import type { WaggleConfig } from '@shared/types/waggle'
 import { hasConcreteToolOutput, isDeniedApprovalPayload } from '@shared/utils/tool-result-state'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
@@ -15,6 +16,7 @@ import type { ConnectionAdapter, UIMessage } from '@tanstack/ai-react'
 import { env } from '@/env'
 import { api } from './ipc'
 import { createRendererLogger } from './logger'
+import { fromAgentStreamChunk } from './stream-chunk-mapper'
 
 const ipcLogger = createRendererLogger('ipc-adapter')
 
@@ -139,8 +141,56 @@ function hasApprovalContinuationSnapshot(
 
 function toContinuationMessages(
   messages: Array<UIMessage> | Array<ModelMessage>,
-): readonly (ModelMessage | UIMessage)[] {
-  return [...messages]
+): readonly import('@shared/types/continuation').DomainContinuationMessage[] {
+  // Map vendor messages to domain types at the renderer boundary.
+  // UIMessage (has 'parts') → DomainUiContinuationMessage
+  // ModelMessage (has 'content') → DomainModelContinuationMessage
+  return [...messages].map(
+    (msg): import('@shared/types/continuation').DomainContinuationMessage => {
+      if ('parts' in msg) {
+        return {
+          id: msg.id,
+          role: msg.role,
+          // Map vendor MessagePart[] → domain DomainUiMessagePart[] by extracting shared fields
+          parts: msg.parts.map((p) => {
+            if (p.type === 'text') return { type: 'text' as const, content: p.content }
+            if (p.type === 'tool-call')
+              return {
+                type: 'tool-call' as const,
+                id: p.id,
+                name: p.name,
+                arguments: p.arguments,
+                state: p.state,
+                approval: p.approval,
+                output: p.output,
+              }
+            if (p.type === 'tool-result')
+              return {
+                type: 'tool-result' as const,
+                toolCallId: p.toolCallId,
+                content: p.content,
+                state: p.state,
+                error: p.error,
+              }
+            if (p.type === 'thinking') return { type: 'thinking' as const, content: p.content }
+            return { type: p.type as 'text', content: '' }
+          }),
+          createdAt: msg.createdAt,
+        }
+      }
+      return {
+        role: msg.role,
+        content: typeof msg.content === 'string' || msg.content === null ? msg.content : null,
+        name: msg.name,
+        toolCalls: msg.toolCalls?.map((tc) => ({
+          id: tc.id,
+          type: tc.type,
+          function: { name: tc.function.name, arguments: tc.function.arguments },
+        })),
+        toolCallId: msg.toolCallId,
+      }
+    },
+  )
 }
 
 function describeContinuationMessageFormat(
@@ -174,7 +224,7 @@ function describeContinuationMessageFormat(
  * before server tool execution completes — only treat non-tool-call finishes
  * and errors as terminal.
  */
-export function isTerminalChunk(chunk: StreamChunk): boolean {
+export function isTerminalChunk(chunk: StreamChunk | AgentStreamChunk): boolean {
   if (chunk.type === 'RUN_ERROR') return true
   if (chunk.type === 'RUN_FINISHED') {
     return chunk.finishReason !== 'tool_calls'
@@ -370,16 +420,17 @@ export function createIpcConnectionAdapter(
               lastErrorInfoMap.set(conversationId, info)
             }
 
-            queue.push(payload.chunk)
+            const vendorChunk = fromAgentStreamChunk(payload.chunk)
+            queue.push(vendorChunk)
 
             // Determine if this chunk closes the stream.
             // For Waggle mode, per-turn terminal events are filtered in the
             // handler — only the envelope RUN_STARTED/RUN_FINISHED reach here.
-            if (isTerminalChunk(payload.chunk)) {
+            if (isTerminalChunk(vendorChunk)) {
               // Guard against TanStack's unwanted auto-continuation.
               // After any successful run, TanStack may see completed tool-result
               // parts and call connect() again — suppress that ghost reconnect.
-              if (payload.chunk.type === 'RUN_FINISHED') {
+              if (vendorChunk.type === 'RUN_FINISHED') {
                 suppressNextAutoConnect = true
               }
               if (pendingToolResultIds.size > 0) {

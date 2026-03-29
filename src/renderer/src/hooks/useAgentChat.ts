@@ -8,9 +8,10 @@ import type { QualityPreset } from '@shared/types/settings'
 import type { WaggleConfig } from '@shared/types/waggle'
 import type { UIMessage } from '@tanstack/ai-react'
 import { useChat } from '@tanstack/ai-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '@/lib/ipc'
 import { createIpcConnectionAdapter } from '@/lib/ipc-connection-adapter'
+import { fromAgentStreamChunk } from '@/lib/stream-chunk-mapper'
 import { useBackgroundRunStore } from '@/stores/background-run-store'
 import { useChatStore } from '@/stores/chat-store'
 import {
@@ -72,31 +73,27 @@ export function useAgentChat(
   const [backgroundStreaming, setBackgroundStreaming] = useState(false)
   const hasActiveRun = useBackgroundRunStore((s) => s.hasActiveRun)
 
-  const consumePendingPayload = useCallback(() => {
+  const consumePendingPayload = () => {
     const payload = pendingPayloadRef.current
     pendingPayloadRef.current = null
     return payload
-  }, [])
+  }
 
-  const consumePendingWaggleConfig = useCallback(() => {
+  const consumePendingWaggleConfig = () => {
     const config = pendingWaggleConfigRef.current
     pendingWaggleConfigRef.current = null
     return config
-  }, [])
+  }
 
-  const connection = useMemo(
-    () =>
-      conversationId
-        ? createIpcConnectionAdapter(
-            conversationId,
-            model,
-            consumePendingPayload,
-            qualityPreset,
-            consumePendingWaggleConfig,
-          )
-        : EMPTY_CONNECTION,
-    [conversationId, consumePendingPayload, consumePendingWaggleConfig, model, qualityPreset],
-  )
+  const connection = conversationId
+    ? createIpcConnectionAdapter(
+        conversationId,
+        model,
+        consumePendingPayload,
+        qualityPreset,
+        consumePendingWaggleConfig,
+      )
+    : EMPTY_CONNECTION
 
   const {
     messages,
@@ -141,43 +138,40 @@ export function useAgentChat(
     messagesRef,
   )
 
-  const refreshConversationSnapshot = useCallback(
-    async (targetConversationId: ConversationId) => {
-      const conv = await api.getConversation(targetConversationId)
-      if (!conv || currentConversationIdRef.current !== targetConversationId) {
-        return
+  const refreshConversationSnapshot = async (targetConversationId: ConversationId) => {
+    const conv = await api.getConversation(targetConversationId)
+    if (!conv || currentConversationIdRef.current !== targetConversationId) {
+      return
+    }
+
+    useChatStore.setState((state) => {
+      if (state.activeConversationId !== targetConversationId) {
+        return state
       }
 
-      useChatStore.setState((state) => {
-        if (state.activeConversationId !== targetConversationId) {
-          return state
-        }
-
-        return {
-          activeConversation: conv,
-          conversations: state.conversations.map((item) =>
-            item.id === targetConversationId
-              ? {
-                  ...item,
-                  title: conv.title,
-                  projectPath: conv.projectPath,
-                  messageCount: conv.messages.length,
-                  updatedAt: conv.updatedAt,
-                }
-              : item,
-          ),
-        }
-      })
-
-      if (!foregroundStreamActiveRef.current) {
-        const snapshotMessages = conversationToUIMessages(conv)
-        setMessages(reconcileSnapshotUserMessages(snapshotMessages, messagesRef.current))
+      return {
+        activeConversation: conv,
+        conversations: state.conversations.map((item) =>
+          item.id === targetConversationId
+            ? {
+                ...item,
+                title: conv.title,
+                projectPath: conv.projectPath,
+                messageCount: conv.messages.length,
+                updatedAt: conv.updatedAt,
+              }
+            : item,
+        ),
       }
-    },
-    [setMessages],
-  )
+    })
 
-  const flushDeferredConversationSnapshot = useCallback(() => {
+    if (!foregroundStreamActiveRef.current) {
+      const snapshotMessages = conversationToUIMessages(conv)
+      setMessages(reconcileSnapshotUserMessages(snapshotMessages, messagesRef.current))
+    }
+  }
+
+  const flushDeferredConversationSnapshot = () => {
     if (deferredSnapshotRefreshCountRef.current > 0) {
       return
     }
@@ -196,23 +190,20 @@ export function useAgentChat(
 
     deferredRefreshConversationIdRef.current = null
     void refreshConversationSnapshot(targetConversationId)
-  }, [refreshConversationSnapshot])
+  }
 
-  const withDeferredSnapshotRefresh = useCallback(
-    async <T>(operation: () => Promise<T>): Promise<T> => {
-      deferredSnapshotRefreshCountRef.current += 1
-      try {
-        return await operation()
-      } finally {
-        deferredSnapshotRefreshCountRef.current = Math.max(
-          0,
-          deferredSnapshotRefreshCountRef.current - 1,
-        )
-        flushDeferredConversationSnapshot()
-      }
-    },
-    [flushDeferredConversationSnapshot],
-  )
+  const withDeferredSnapshotRefresh = async <T>(operation: () => Promise<T>): Promise<T> => {
+    deferredSnapshotRefreshCountRef.current += 1
+    try {
+      return await operation()
+    } finally {
+      deferredSnapshotRefreshCountRef.current = Math.max(
+        0,
+        deferredSnapshotRefreshCountRef.current - 1,
+      )
+      flushDeferredConversationSnapshot()
+    }
+  }
 
   // Sync historical messages whenever the active conversation snapshot changes.
   useEffect(() => {
@@ -256,7 +247,7 @@ export function useAgentChat(
         return
       }
       const prev = messagesRef.current
-      const next = applyStreamDelta(payload.chunk, prev)
+      const next = applyStreamDelta(fromAgentStreamChunk(payload.chunk), prev)
       if (next !== prev) {
         setMessages(next)
       }
@@ -296,12 +287,9 @@ export function useAgentChat(
     flushDeferredConversationSnapshot()
   }, [conversationId, flushDeferredConversationSnapshot, isConversationIdle])
 
-  const respondToolApprovalStable = useCallback(
-    async (approvalId: string, approved: boolean) => {
-      await addToolApprovalResponse({ id: approvalId, approved })
-    },
-    [addToolApprovalResponse],
-  )
+  const respondToolApprovalStable = async (approvalId: string, approved: boolean) => {
+    await addToolApprovalResponse({ id: approvalId, approved })
+  }
 
   return {
     messages: visibleMessages,
