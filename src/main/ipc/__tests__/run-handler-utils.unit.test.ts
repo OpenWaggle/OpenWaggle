@@ -2,7 +2,12 @@ import type { AgentSendPayload, PreparedAttachment } from '@shared/types/agent'
 import { ConversationId, MessageId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
+import { Layer } from 'effect'
+import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ConversationRepositoryError } from '../../errors'
+import { ConversationRepository } from '../../ports/conversation-repository'
+import { ProviderService } from '../../ports/provider-service'
 
 const {
   emitStreamChunkMock,
@@ -44,15 +49,47 @@ vi.mock('../../utils/stream-bridge', () => ({
   },
 }))
 
-vi.mock('../../store/conversations', () => ({
-  getConversation: getConversationMock,
-  saveConversation: saveConversationMock,
-}))
+// Mock the Effect runtime to use a test ConversationRepository layer
+const makeTestConversationLayer = () =>
+  Layer.succeed(ConversationRepository, {
+    get: (id) =>
+      Effect.tryPromise({
+        try: async () => getConversationMock(id),
+        catch: (cause) => new ConversationRepositoryError({ operation: 'get', cause }),
+      }),
+    save: (conv) =>
+      Effect.tryPromise({
+        try: async () => {
+          await saveConversationMock(conv)
+        },
+        catch: (cause) => new ConversationRepositoryError({ operation: 'save', cause }),
+      }),
+    list: () => Effect.succeed([]),
+    create: () => Effect.succeed({} as never),
+    delete: () => Effect.void,
+    archive: () => Effect.void,
+    unarchive: () => Effect.void,
+    listArchived: () => Effect.succeed([]),
+    updateTitle: () => Effect.void,
+    updateProjectPath: () => Effect.void,
+    updatePlanMode: () => Effect.void,
+  })
 
-vi.mock('../../store/conversation-lock', () => ({
-  withConversationLock: withConversationLockMock.mockImplementation(
-    async (_id: unknown, fn: () => Promise<void>) => fn(),
-  ),
+const TestProviderLayer = Layer.succeed(ProviderService, {
+  get: () => Effect.succeed(undefined),
+  getAll: () => Effect.succeed([]),
+  getProviderForModel: () => Effect.succeed({} as never),
+  isKnownModel: () => Effect.succeed(true),
+  createChatAdapter: () => Effect.succeed({} as never),
+  indexModels: () => Effect.void,
+  fetchModels: () => Effect.succeed([]),
+})
+
+const TestRuntimeLayer = Layer.mergeAll(makeTestConversationLayer(), TestProviderLayer)
+
+vi.mock('../../runtime', () => ({
+  runAppEffect: (effect: Effect.Effect<unknown>) =>
+    Effect.runPromise(Effect.provide(effect, TestRuntimeLayer)),
 }))
 
 vi.mock('../../agent/shared', () => ({
@@ -224,30 +261,41 @@ describe('hydratePayloadAttachments', () => {
 })
 
 describe('maybeTriggerTitleGeneration', () => {
-  it('calls generateTitle for new thread with no messages and non-empty text', () => {
-    const conv = makeConversation()
-    maybeTriggerTitleGeneration(CONV_ID, conv, 'Hello world', DEFAULT_SETTINGS)
+  const mockChatStream = vi.fn()
 
-    expect(generateTitleMock).toHaveBeenCalledWith(CONV_ID, 'Hello world', DEFAULT_SETTINGS)
+  it('calls generateTitle for new thread with no messages and non-empty text', async () => {
+    const conv = makeConversation()
+    maybeTriggerTitleGeneration(CONV_ID, conv, 'Hello world', DEFAULT_SETTINGS, mockChatStream)
+
+    // maybeTriggerTitleGeneration is fire-and-forget (void runAppEffect) —
+    // await microtasks so the async Effect resolves before assertions.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(generateTitleMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: CONV_ID,
+        userText: 'Hello world',
+      }),
+    )
   })
 
   it('skips when title is already set', () => {
     const conv = makeConversation({ title: 'Existing title' })
-    maybeTriggerTitleGeneration(CONV_ID, conv, 'Hello world', DEFAULT_SETTINGS)
+    maybeTriggerTitleGeneration(CONV_ID, conv, 'Hello world', DEFAULT_SETTINGS, mockChatStream)
 
     expect(generateTitleMock).not.toHaveBeenCalled()
   })
 
   it('skips when messages already exist', () => {
     const conv = makeConversation({ messages: [{ id: MessageId('m1') } as never] })
-    maybeTriggerTitleGeneration(CONV_ID, conv, 'Hello world', DEFAULT_SETTINGS)
+    maybeTriggerTitleGeneration(CONV_ID, conv, 'Hello world', DEFAULT_SETTINGS, mockChatStream)
 
     expect(generateTitleMock).not.toHaveBeenCalled()
   })
 
   it('skips when text is empty or whitespace', () => {
     const conv = makeConversation()
-    maybeTriggerTitleGeneration(CONV_ID, conv, '   ', DEFAULT_SETTINGS)
+    maybeTriggerTitleGeneration(CONV_ID, conv, '   ', DEFAULT_SETTINGS, mockChatStream)
 
     expect(generateTitleMock).not.toHaveBeenCalled()
   })

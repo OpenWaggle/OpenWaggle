@@ -1,11 +1,18 @@
-import type { ModelMessage, UIMessage } from '@tanstack/ai'
+import type {
+  DomainModelContinuationMessage,
+  DomainUiContinuationMessage,
+} from '@shared/types/continuation'
 import { describe, expect, it } from 'vitest'
 import {
   normalizeContinuationAsUIMessages,
   normalizeContinuationInput,
 } from '../continuation-normalizer'
 
-function makeUiTextMessage(id: string, role: UIMessage['role'], content: string): UIMessage {
+function makeUiTextMessage(
+  id: string,
+  role: DomainUiContinuationMessage['role'],
+  content: string,
+): DomainUiContinuationMessage {
   return {
     id,
     role,
@@ -13,7 +20,9 @@ function makeUiTextMessage(id: string, role: UIMessage['role'], content: string)
   }
 }
 
-function makeToolCall(id: string): NonNullable<ModelMessage['toolCalls']>[number] {
+function makeToolCall(
+  id: string,
+): NonNullable<DomainModelContinuationMessage['toolCalls']>[number] {
   return {
     id,
     type: 'function',
@@ -26,7 +35,7 @@ function makeToolCall(id: string): NonNullable<ModelMessage['toolCalls']>[number
 
 describe('normalizeContinuationInput', () => {
   it('drops system UI snapshot messages instead of remapping them to user role', () => {
-    const input: Array<ModelMessage | UIMessage> = [
+    const input: Array<DomainModelContinuationMessage | DomainUiContinuationMessage> = [
       makeUiTextMessage('sys-1', 'system', 'internal instruction'),
       makeUiTextMessage('user-1', 'user', 'hello'),
     ]
@@ -42,7 +51,7 @@ describe('normalizeContinuationInput', () => {
 
   it('dedupes repeated assistant tool calls but preserves assistant text content', () => {
     const repeatedToolCall = makeToolCall('tool-1')
-    const input: Array<ModelMessage | UIMessage> = [
+    const input: Array<DomainModelContinuationMessage | DomainUiContinuationMessage> = [
       { role: 'assistant', content: null, toolCalls: [repeatedToolCall] },
       {
         role: 'assistant',
@@ -68,7 +77,7 @@ describe('normalizeContinuationInput', () => {
   })
 
   it('sanitizes malformed JSON arguments in model tool calls', () => {
-    const input: Array<ModelMessage | UIMessage> = [
+    const input: Array<DomainModelContinuationMessage | DomainUiContinuationMessage> = [
       {
         role: 'assistant',
         content: null,
@@ -100,7 +109,7 @@ describe('normalizeContinuationInput', () => {
   })
 
   it('sanitizes malformed JSON arguments in UI snapshot tool-call parts', () => {
-    const input: Array<ModelMessage | UIMessage> = [
+    const input: Array<DomainModelContinuationMessage | DomainUiContinuationMessage> = [
       makeUiTextMessage('user-2', 'user', 'please continue'),
       {
         id: 'assistant-2',
@@ -138,7 +147,7 @@ describe('normalizeContinuationInput', () => {
   })
 
   it('drops stale tool-result parts when a newer message already carries the same tool-call id', () => {
-    const input: Array<ModelMessage | UIMessage> = [
+    const input: Array<DomainModelContinuationMessage | DomainUiContinuationMessage> = [
       makeUiTextMessage('user-1', 'user', 'run this command'),
       {
         id: 'assistant-older',
@@ -182,14 +191,14 @@ describe('normalizeContinuationInput', () => {
     const normalized = normalizeContinuationInput(input)
 
     const toolMessages = normalized.filter(
-      (message): message is ModelMessage<string> =>
+      (message): message is DomainModelContinuationMessage =>
         message.role === 'tool' &&
         message.toolCallId === 'tool-stale' &&
         typeof message.content === 'string',
     )
 
     expect(toolMessages).toHaveLength(1)
-    expect(JSON.parse(toolMessages[0]?.content ?? '{}')).toMatchObject({
+    expect(JSON.parse(String(toolMessages[0]?.content ?? '{}'))).toMatchObject({
       approved: true,
       pendingExecution: true,
     })
@@ -203,7 +212,7 @@ describe('normalizeContinuationInput', () => {
   })
 
   it('replaces stale tool result with synthetic result when newer assistant tool-call exists', () => {
-    const input: Array<ModelMessage | UIMessage> = [
+    const input: Array<DomainModelContinuationMessage | DomainUiContinuationMessage> = [
       {
         role: 'assistant',
         content: null,
@@ -227,11 +236,11 @@ describe('normalizeContinuationInput', () => {
     // enforceToolResultPairing injects a synthetic result so
     // the API doesn't receive an orphan tool_use block.
     const toolMessages = normalized.filter(
-      (message): message is ModelMessage<string> =>
+      (message): message is DomainModelContinuationMessage =>
         message.role === 'tool' && message.toolCallId === 'tool-model',
     )
     expect(toolMessages).toHaveLength(1)
-    expect(JSON.parse(toolMessages[0]?.content ?? '{}')).toMatchObject({
+    expect(JSON.parse(String(toolMessages[0]?.content ?? '{}'))).toMatchObject({
       ok: false,
       error: 'Tool execution was interrupted.',
     })
@@ -245,7 +254,7 @@ describe('normalizeContinuationInput', () => {
   })
 
   it('drops tool messages that do not directly follow an assistant message with matching tool call id', () => {
-    const input: Array<ModelMessage | UIMessage> = [
+    const input: Array<DomainModelContinuationMessage | DomainUiContinuationMessage> = [
       {
         role: 'assistant',
         content: null,
@@ -269,7 +278,7 @@ describe('normalizeContinuationInput', () => {
 
     const normalized = normalizeContinuationInput(input)
     const toolMessages = normalized.filter(
-      (message): message is ModelMessage<string> => message.role === 'tool',
+      (message): message is DomainModelContinuationMessage => message.role === 'tool',
     )
 
     expect(toolMessages).toHaveLength(1)
@@ -281,7 +290,7 @@ describe('normalizeContinuationInput', () => {
   })
 
   it('keeps consecutive tool messages that match tool calls from the same assistant turn', () => {
-    const input: Array<ModelMessage | UIMessage> = [
+    const input: Array<DomainModelContinuationMessage | DomainUiContinuationMessage> = [
       {
         role: 'assistant',
         content: null,
@@ -301,7 +310,7 @@ describe('normalizeContinuationInput', () => {
 
     const normalized = normalizeContinuationInput(input)
     const toolMessages = normalized.filter(
-      (message): message is ModelMessage<string> => message.role === 'tool',
+      (message): message is DomainModelContinuationMessage => message.role === 'tool',
     )
 
     expect(toolMessages).toHaveLength(2)
@@ -320,8 +329,8 @@ describe('normalizeContinuationInput', () => {
   it('defaults missing UI tool-call state to input-complete so tool pairing survives conversion', () => {
     const malformedAssistant = JSON.parse(
       '{"id":"assistant-missing-state","role":"assistant","parts":[{"type":"tool-call","id":"tool-missing-state","name":"runCommand","arguments":"{\\"command\\":\\"echo hi\\"}"},{"type":"tool-result","toolCallId":"tool-missing-state","content":"{\\"kind\\":\\"text\\",\\"text\\":\\"hi\\"}","state":"complete"}]}',
-    ) as UIMessage
-    const input: Array<ModelMessage | UIMessage> = [
+    ) as DomainUiContinuationMessage
+    const input: Array<DomainModelContinuationMessage | DomainUiContinuationMessage> = [
       makeUiTextMessage('user-3', 'user', 'continue'),
       malformedAssistant,
     ]
@@ -343,8 +352,8 @@ describe('normalizeContinuationInput', () => {
   it('recovers non-empty args from richer duplicate tool-call entries', () => {
     const malformedNewerAssistant = JSON.parse(
       '{"id":"assistant-newer-poor","role":"assistant","parts":[{"type":"tool-call","id":"tool-rich","name":"runCommand","arguments":"{}"},{"type":"tool-result","toolCallId":"tool-rich","content":"{\\"kind\\":\\"text\\",\\"text\\":\\"done\\"}","state":"complete"}]}',
-    ) as UIMessage
-    const input: Array<ModelMessage | UIMessage> = [
+    ) as DomainUiContinuationMessage
+    const input: Array<DomainModelContinuationMessage | DomainUiContinuationMessage> = [
       makeUiTextMessage('user-4', 'user', 'run command'),
       {
         id: 'assistant-older-rich',
@@ -364,7 +373,7 @@ describe('normalizeContinuationInput', () => {
 
     const normalized = normalizeContinuationInput(input)
     const recoveredToolCall = normalized
-      .filter((message): message is ModelMessage => message.role === 'assistant')
+      .filter((message): message is DomainModelContinuationMessage => message.role === 'assistant')
       .flatMap((message) => message.toolCalls ?? [])
       .find((toolCall) => toolCall.id === 'tool-rich')
 
@@ -372,7 +381,7 @@ describe('normalizeContinuationInput', () => {
   })
 
   it('prefers concrete tool output over approval pendingExecution replay when both exist', () => {
-    const input: Array<ModelMessage | UIMessage> = [
+    const input: Array<DomainModelContinuationMessage | DomainUiContinuationMessage> = [
       makeUiTextMessage('user-5', 'user', 'continue'),
       {
         id: 'assistant-output-vs-approval',
@@ -400,14 +409,14 @@ describe('normalizeContinuationInput', () => {
 
     const normalized = normalizeContinuationInput(input)
     const toolMessage = normalized.find(
-      (message): message is ModelMessage<string> =>
+      (message): message is DomainModelContinuationMessage =>
         message.role === 'tool' &&
         message.toolCallId === 'tool-output' &&
         typeof message.content === 'string',
     )
 
     expect(toolMessage).toBeTruthy()
-    const parsed = JSON.parse(toolMessage?.content ?? '{}') as Record<string, unknown>
+    const parsed = JSON.parse(String(toolMessage?.content ?? '{}')) as Record<string, unknown>
     expect(parsed).toMatchObject({
       kind: 'text',
       text: 'done',
@@ -418,7 +427,7 @@ describe('normalizeContinuationInput', () => {
 
 describe('normalizeContinuationAsUIMessages', () => {
   it('injects synthetic tool-result for orphan tool-call with state input-complete', () => {
-    const input: UIMessage[] = [
+    const input: DomainUiContinuationMessage[] = [
       makeUiTextMessage('user-1', 'user', 'do it'),
       {
         id: 'assistant-1',
@@ -437,7 +446,7 @@ describe('normalizeContinuationAsUIMessages', () => {
 
     const normalized = normalizeContinuationAsUIMessages(input)
     const assistantMsg = normalized.find((m) => 'parts' in m && m.role === 'assistant') as
-      | UIMessage
+      | DomainUiContinuationMessage
       | undefined
 
     expect(assistantMsg).toBeTruthy()
@@ -453,7 +462,7 @@ describe('normalizeContinuationAsUIMessages', () => {
   })
 
   it('does not inject synthetic result when tool-call has output', () => {
-    const input: UIMessage[] = [
+    const input: DomainUiContinuationMessage[] = [
       makeUiTextMessage('user-1', 'user', 'do it'),
       {
         id: 'assistant-1',
@@ -473,7 +482,7 @@ describe('normalizeContinuationAsUIMessages', () => {
 
     const normalized = normalizeContinuationAsUIMessages(input)
     const assistantMsg = normalized.find((m) => 'parts' in m && m.role === 'assistant') as
-      | UIMessage
+      | DomainUiContinuationMessage
       | undefined
 
     const syntheticParts =
@@ -484,7 +493,7 @@ describe('normalizeContinuationAsUIMessages', () => {
   })
 
   it('does not inject synthetic result when matching tool-result part exists', () => {
-    const input: UIMessage[] = [
+    const input: DomainUiContinuationMessage[] = [
       makeUiTextMessage('user-1', 'user', 'do it'),
       {
         id: 'assistant-1',
@@ -509,7 +518,7 @@ describe('normalizeContinuationAsUIMessages', () => {
 
     const normalized = normalizeContinuationAsUIMessages(input)
     const assistantMsg = normalized.find((m) => 'parts' in m && m.role === 'assistant') as
-      | UIMessage
+      | DomainUiContinuationMessage
       | undefined
 
     const toolResultParts =
@@ -521,7 +530,7 @@ describe('normalizeContinuationAsUIMessages', () => {
   })
 
   it('injects synthetic tool-result for approval-responded tool-call without result', () => {
-    const input: UIMessage[] = [
+    const input: DomainUiContinuationMessage[] = [
       makeUiTextMessage('user-1', 'user', 'do it'),
       {
         id: 'assistant-1',
@@ -541,7 +550,7 @@ describe('normalizeContinuationAsUIMessages', () => {
 
     const normalized = normalizeContinuationAsUIMessages(input)
     const assistantMsg = normalized.find((m) => 'parts' in m && m.role === 'assistant') as
-      | UIMessage
+      | DomainUiContinuationMessage
       | undefined
 
     const syntheticPart = assistantMsg?.parts.find(

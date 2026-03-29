@@ -1,14 +1,21 @@
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { typedHandleMock, getSettingsMock, updateSettingsMock, providerRegistryGetMock, chatMock } =
-  vi.hoisted(() => ({
-    typedHandleMock: vi.fn(),
-    getSettingsMock: vi.fn(),
-    updateSettingsMock: vi.fn(),
-    providerRegistryGetMock: vi.fn(),
-    chatMock: vi.fn(),
-  }))
+const {
+  typedHandleMock,
+  getSettingsMock,
+  updateSettingsMock,
+  providerRegistryGetMock,
+  startChatStreamMock,
+  createChatAdapterMock,
+} = vi.hoisted(() => ({
+  typedHandleMock: vi.fn(),
+  getSettingsMock: vi.fn(),
+  updateSettingsMock: vi.fn(),
+  providerRegistryGetMock: vi.fn(),
+  startChatStreamMock: vi.fn(),
+  createChatAdapterMock: vi.fn(),
+}))
 
 vi.mock('../typed-ipc', () => ({
   typedHandle: typedHandleMock,
@@ -25,8 +32,12 @@ vi.mock('../../providers', () => ({
   },
 }))
 
-vi.mock('@tanstack/ai', () => ({
-  chat: chatMock,
+vi.mock('../../adapters/tanstack-chat-adapter', () => ({
+  startChatStream: startChatStreamMock,
+}))
+
+vi.mock('../../ports/chat-adapter-type', () => ({
+  wrapChatAdapter: vi.fn((inner: unknown) => ({ _inner: inner })),
 }))
 
 vi.mock('../../logger', () => ({
@@ -39,7 +50,63 @@ vi.mock('../../logger', () => ({
 }))
 
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
+import { Layer } from 'effect'
+import { ChatStreamError, ProviderLookupError } from '../../errors'
+import { ChatService } from '../../ports/chat-service'
+import { ProviderService } from '../../ports/provider-service'
+import { SettingsService } from '../../services/settings-service'
 import { registerSettingsHandlers } from '../settings-handler'
+
+const TestSettingsLayer = Layer.succeed(SettingsService, {
+  get: () => Effect.sync(() => getSettingsMock()),
+  update: (partial) => Effect.sync(() => updateSettingsMock(partial)),
+  initialize: () => Effect.void,
+  flushForTests: () => Effect.void,
+})
+
+const TestProviderServiceLayer = Layer.succeed(ProviderService, {
+  get: (providerId) => Effect.sync(() => providerRegistryGetMock(providerId)),
+  getAll: () => Effect.succeed([]),
+  getProviderForModel: () => Effect.succeed({} as never),
+  isKnownModel: () => Effect.succeed(true),
+  createChatAdapter: (model, apiKey, baseUrl, authMethod) =>
+    Effect.try({
+      try: () => createChatAdapterMock(model, apiKey, baseUrl, authMethod),
+      catch: () => new ProviderLookupError({ modelId: model }),
+    }),
+  indexModels: () => Effect.void,
+  fetchModels: () => Effect.succeed([]),
+})
+
+const TestChatServiceLayer = Layer.succeed(ChatService, {
+  stream: () =>
+    Effect.succeed(
+      (async function* emptyStream() {
+        /* empty */
+      })(),
+    ),
+  testConnection: (options) =>
+    Effect.tryPromise({
+      try: async () => {
+        const stream = startChatStreamMock({
+          adapter: options.adapter,
+          messages: [{ role: 'user', content: 'Hi' }],
+        })
+        for await (const chunk of stream) {
+          if (chunk.type === 'RUN_ERROR') throw new Error(chunk.error.message)
+          if (chunk.type === 'RUN_FINISHED') return
+        }
+        throw new Error('Connection closed before completion')
+      },
+      catch: (cause) =>
+        new ChatStreamError({
+          message: cause instanceof Error ? cause.message : String(cause),
+          cause,
+        }),
+    }),
+})
+
+const TestLayer = Layer.mergeAll(TestSettingsLayer, TestProviderServiceLayer, TestChatServiceLayer)
 
 function getTypedEffectInvokeHandler(
   name: string,
@@ -52,7 +119,7 @@ function getTypedEffectInvokeHandler(
     return undefined
   }
 
-  return (...args: unknown[]) => Effect.runPromise(handler(...args))
+  return (...args: unknown[]) => Effect.runPromise(Effect.provide(handler(...args), TestLayer))
 }
 
 describe('registerSettingsHandlers', () => {
@@ -61,7 +128,8 @@ describe('registerSettingsHandlers', () => {
     getSettingsMock.mockReset()
     updateSettingsMock.mockReset()
     providerRegistryGetMock.mockReset()
-    chatMock.mockReset()
+    startChatStreamMock.mockReset()
+    createChatAdapterMock.mockReset()
   })
 
   it('registers all expected IPC channels', () => {
@@ -286,7 +354,7 @@ describe('registerSettingsHandlers', () => {
       expect(result).toEqual({ success: true })
     })
 
-    it('returns error when fetchModels returns empty list', async () => {
+    it('returns success for keyless provider even when fetchModels returns empty list', async () => {
       providerRegistryGetMock.mockReturnValue({
         id: 'ollama',
         requiresApiKey: false,
@@ -296,13 +364,10 @@ describe('registerSettingsHandlers', () => {
 
       const handler = getTypedEffectInvokeHandler('settings:test-api-key')
       const result = await handler?.({}, 'ollama', '')
-      expect(result).toEqual({
-        success: false,
-        error: 'No models found — is the service running?',
-      })
+      expect(result).toEqual({ success: true })
     })
 
-    it('returns error when fetchModels throws', async () => {
+    it('returns success for keyless provider even when fetchModels throws', async () => {
       providerRegistryGetMock.mockReturnValue({
         id: 'ollama',
         requiresApiKey: false,
@@ -312,14 +377,12 @@ describe('registerSettingsHandlers', () => {
 
       const handler = getTypedEffectInvokeHandler('settings:test-api-key')
       const result = await handler?.({}, 'ollama', '')
-      expect(result).toEqual({
-        success: false,
-        error: 'ECONNREFUSED',
-      })
+      expect(result).toEqual({ success: true })
     })
 
     it('tests API key by streaming a chat message (success path)', async () => {
       const mockAdapter = { id: 'mock-adapter' }
+      createChatAdapterMock.mockReturnValue(mockAdapter)
       providerRegistryGetMock.mockReturnValue({
         id: 'anthropic',
         requiresApiKey: true,
@@ -329,7 +392,7 @@ describe('registerSettingsHandlers', () => {
 
       // Simulate an async iterable stream that yields RUN_FINISHED
       const streamChunks = [{ type: 'RUN_FINISHED', finishReason: 'stop' }]
-      chatMock.mockReturnValue({
+      startChatStreamMock.mockReturnValue({
         [Symbol.asyncIterator]: () => {
           let index = 0
           return {
@@ -348,20 +411,19 @@ describe('registerSettingsHandlers', () => {
       const handler = getTypedEffectInvokeHandler('settings:test-api-key')
       const result = await handler?.({}, 'anthropic', 'sk-ant-test-key')
       expect(result).toEqual({ success: true })
-      expect(chatMock).toHaveBeenCalledWith(
+      expect(startChatStreamMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          adapter: mockAdapter,
           messages: [{ role: 'user', content: 'Hi' }],
         }),
       )
     })
 
     it('tests API key and returns error when stream yields RUN_ERROR', async () => {
+      createChatAdapterMock.mockReturnValue({})
       providerRegistryGetMock.mockReturnValue({
         id: 'anthropic',
         requiresApiKey: true,
         testModel: 'claude-haiku-3.5',
-        createAdapter: vi.fn().mockReturnValue({}),
       })
 
       const streamChunks = [
@@ -370,7 +432,7 @@ describe('registerSettingsHandlers', () => {
           error: { message: 'Invalid API key' },
         },
       ]
-      chatMock.mockReturnValue({
+      startChatStreamMock.mockReturnValue({
         [Symbol.asyncIterator]: () => {
           let index = 0
           return {
@@ -395,16 +457,16 @@ describe('registerSettingsHandlers', () => {
     })
 
     it('returns error when stream closes without RUN_FINISHED or RUN_ERROR', async () => {
+      createChatAdapterMock.mockReturnValue({})
       providerRegistryGetMock.mockReturnValue({
         id: 'anthropic',
         requiresApiKey: true,
         testModel: 'claude-haiku-3.5',
-        createAdapter: vi.fn().mockReturnValue({}),
       })
 
       // Stream that yields TEXT_MESSAGE_CONTENT but never finishes
       const streamChunks = [{ type: 'TEXT_MESSAGE_CONTENT', content: 'Hello' }]
-      chatMock.mockReturnValue({
+      startChatStreamMock.mockReturnValue({
         [Symbol.asyncIterator]: () => {
           let index = 0
           return {
@@ -428,36 +490,31 @@ describe('registerSettingsHandlers', () => {
       })
     })
 
-    it('catches errors thrown during chat and returns them', async () => {
+    it('propagates adapter creation failures as ChatStreamError', async () => {
+      createChatAdapterMock.mockImplementation(() => {
+        throw new Error('Adapter creation failed')
+      })
       providerRegistryGetMock.mockReturnValue({
         id: 'anthropic',
         requiresApiKey: true,
         testModel: 'claude-haiku-3.5',
-        createAdapter: vi.fn().mockImplementation(() => {
-          throw new Error('Adapter creation failed')
-        }),
       })
 
       registerSettingsHandlers()
 
       const handler = getTypedEffectInvokeHandler('settings:test-api-key')
-      const result = await handler?.({}, 'anthropic', 'sk-key')
-      expect(result).toEqual({
-        success: false,
-        error: 'Adapter creation failed',
-      })
+      await expect(handler?.({}, 'anthropic', 'sk-key')).rejects.toThrow(/Failed to create adapter/)
     })
 
-    it('passes baseUrl to createAdapter when provided', async () => {
-      const createAdapterMock = vi.fn().mockReturnValue({})
+    it('passes baseUrl to createChatAdapter when provided', async () => {
+      createChatAdapterMock.mockReturnValue({})
       providerRegistryGetMock.mockReturnValue({
         id: 'openai',
         requiresApiKey: true,
         testModel: 'gpt-4.1-mini',
-        createAdapter: createAdapterMock,
       })
 
-      chatMock.mockReturnValue({
+      startChatStreamMock.mockReturnValue({
         [Symbol.asyncIterator]: () => ({
           next: async () => ({
             value: { type: 'RUN_FINISHED' },
@@ -471,7 +528,7 @@ describe('registerSettingsHandlers', () => {
       const handler = getTypedEffectInvokeHandler('settings:test-api-key')
       await handler?.({}, 'openai', 'sk-key', 'https://custom.api.com')
 
-      expect(createAdapterMock).toHaveBeenCalledWith(
+      expect(createChatAdapterMock).toHaveBeenCalledWith(
         'gpt-4.1-mini',
         'sk-key',
         'https://custom.api.com',
