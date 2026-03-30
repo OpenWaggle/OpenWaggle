@@ -18,6 +18,7 @@ export interface ChatStreamOptions {
   readonly maxIterations?: number
   readonly abortController?: AbortController
   readonly samplingOptions?: Readonly<Record<string, unknown>>
+  readonly conversationId?: string
 }
 
 export interface TestConnectionOptions {

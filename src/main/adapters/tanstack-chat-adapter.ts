@@ -72,6 +72,7 @@ export function startChatStream(options: ChatStreamOptions): AsyncIterable<Agent
     ...(options.tools ? { tools: [...options.tools] } : {}),
     ...(options.maxIterations ? { agentLoopStrategy: maxIterations(options.maxIterations) } : {}),
     ...(options.abortController ? { abortController: options.abortController } : {}),
+    ...(options.conversationId ? { conversationId: options.conversationId } : {}),
     ...options.samplingOptions,
   })
   return mapStreamToDomain(vendorStream)
