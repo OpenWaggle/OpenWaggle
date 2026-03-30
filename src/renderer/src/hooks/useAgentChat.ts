@@ -8,7 +8,7 @@ import type { QualityPreset } from '@shared/types/settings'
 import type { WaggleConfig } from '@shared/types/waggle'
 import type { UIMessage } from '@tanstack/ai-react'
 import { useChat } from '@tanstack/ai-react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '@/lib/ipc'
 import { createIpcConnectionAdapter } from '@/lib/ipc-connection-adapter'
 import { fromAgentStreamChunk } from '@/lib/stream-chunk-mapper'
@@ -287,9 +287,15 @@ export function useAgentChat(
     flushDeferredConversationSnapshot()
   }, [conversationId, flushDeferredConversationSnapshot, isConversationIdle])
 
-  const respondToolApprovalStable = async (approvalId: string, approved: boolean) => {
-    await addToolApprovalResponse({ id: approvalId, approved })
-  }
+  // useCallback required: this function is used as an effect dependency in
+  // usePendingApprovalTrustCheck. Without stable identity, the trust-check
+  // effect restarts on every render, cancelling in-flight auto-approvals.
+  const respondToolApprovalStable = useCallback(
+    async (approvalId: string, approved: boolean) => {
+      await addToolApprovalResponse({ id: approvalId, approved })
+    },
+    [addToolApprovalResponse],
+  )
 
   return {
     messages: visibleMessages,
