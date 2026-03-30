@@ -149,6 +149,7 @@ describe('runWaggleSequential', () => {
       config: createConfig(),
       settings: DEFAULT_SETTINGS,
       signal: new AbortController().signal,
+      chatStream: vi.fn(),
       onStreamChunk: vi.fn(),
       onTurnEvent: (event) => {
         events.push(event)
@@ -192,6 +193,7 @@ describe('runWaggleSequential', () => {
       config: createConfig({ primary: 'user-stop', maxTurnsSafety: 2 }),
       settings: DEFAULT_SETTINGS,
       signal: new AbortController().signal,
+      chatStream: vi.fn(),
       onStreamChunk: vi.fn(),
       onTurnEvent: (event) => {
         events.push(event)
@@ -249,6 +251,7 @@ describe('runWaggleSequential', () => {
       config: createConfig({ primary: 'user-stop', maxTurnsSafety: 2 }),
       settings: settingsWithFallback,
       signal: new AbortController().signal,
+      chatStream: vi.fn(),
       onStreamChunk: vi.fn(),
       onTurnEvent: vi.fn(),
     })
@@ -290,6 +293,7 @@ describe('runWaggleSequential', () => {
       config: createConfig({ primary: 'user-stop', maxTurnsSafety: 2 }),
       settings: settingsWithFallback,
       signal: new AbortController().signal,
+      chatStream: vi.fn(),
       onStreamChunk: vi.fn(),
       onTurnEvent: vi.fn(),
     })
@@ -326,6 +330,7 @@ describe('runWaggleSequential', () => {
       config: createConfig({ primary: 'user-stop', maxTurnsSafety: 1 }),
       settings: DEFAULT_SETTINGS,
       signal: new AbortController().signal,
+      chatStream: vi.fn(),
       onStreamChunk: vi.fn(),
       onTurnEvent: vi.fn(),
     })
@@ -371,6 +376,7 @@ describe('runWaggleSequential', () => {
       config: createConfig(),
       settings: DEFAULT_SETTINGS,
       signal: new AbortController().signal,
+      chatStream: vi.fn(),
       onStreamChunk: vi.fn(),
       onTurnEvent: (event) => {
         events.push(event)

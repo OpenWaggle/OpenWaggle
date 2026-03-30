@@ -11,6 +11,7 @@ import { useChat } from '@tanstack/ai-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '@/lib/ipc'
 import { createIpcConnectionAdapter } from '@/lib/ipc-connection-adapter'
+import { fromAgentStreamChunk } from '@/lib/stream-chunk-mapper'
 import { useBackgroundRunStore } from '@/stores/background-run-store'
 import { useChatStore } from '@/stores/chat-store'
 import {
@@ -72,6 +73,7 @@ export function useAgentChat(
   const [backgroundStreaming, setBackgroundStreaming] = useState(false)
   const hasActiveRun = useBackgroundRunStore((s) => s.hasActiveRun)
 
+  // useCallback required: used as useMemo dependencies for the connection adapter.
   const consumePendingPayload = useCallback(() => {
     const payload = pendingPayloadRef.current
     pendingPayloadRef.current = null
@@ -84,6 +86,9 @@ export function useAgentChat(
     return config
   }, [])
 
+  // useMemo required: the ChatClient captures the connection at creation time.
+  // Recreating it on every render wastes resources and the test suite verifies
+  // connection stability across rerenders for the same conversation config.
   const connection = useMemo(
     () =>
       conversationId
@@ -141,6 +146,8 @@ export function useAgentChat(
     messagesRef,
   )
 
+  // useCallback required: used as effect dependency in useEffect blocks below.
+  // Without stable identity, effects restart on every render.
   const refreshConversationSnapshot = useCallback(
     async (targetConversationId: ConversationId) => {
       const conv = await api.getConversation(targetConversationId)
@@ -177,6 +184,7 @@ export function useAgentChat(
     [setMessages],
   )
 
+  // useCallback required: used as effect dependency below and calls refreshConversationSnapshot.
   const flushDeferredConversationSnapshot = useCallback(() => {
     if (deferredSnapshotRefreshCountRef.current > 0) {
       return
@@ -198,6 +206,7 @@ export function useAgentChat(
     void refreshConversationSnapshot(targetConversationId)
   }, [refreshConversationSnapshot])
 
+  // useCallback required: used as effect dependency and calls flushDeferredConversationSnapshot.
   const withDeferredSnapshotRefresh = useCallback(
     async <T>(operation: () => Promise<T>): Promise<T> => {
       deferredSnapshotRefreshCountRef.current += 1
@@ -256,7 +265,7 @@ export function useAgentChat(
         return
       }
       const prev = messagesRef.current
-      const next = applyStreamDelta(payload.chunk, prev)
+      const next = applyStreamDelta(fromAgentStreamChunk(payload.chunk), prev)
       if (next !== prev) {
         setMessages(next)
       }
@@ -296,6 +305,9 @@ export function useAgentChat(
     flushDeferredConversationSnapshot()
   }, [conversationId, flushDeferredConversationSnapshot, isConversationIdle])
 
+  // useCallback required: this function is used as an effect dependency in
+  // usePendingApprovalTrustCheck. Without stable identity, the trust-check
+  // effect restarts on every render, cancelling in-flight auto-approvals.
   const respondToolApprovalStable = useCallback(
     async (approvalId: string, approved: boolean) => {
       await addToolApprovalResponse({ id: approvalId, approved })

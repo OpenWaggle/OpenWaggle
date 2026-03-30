@@ -1,4 +1,4 @@
-import type { ServerTool } from '@tanstack/ai'
+import type { DomainServerTool } from '../ports/tool-types'
 import { getServerTools } from '../tools/registry'
 import { withoutApproval } from '../tools/without-approval'
 import {
@@ -11,7 +11,7 @@ import type { AgentFeature, AgentLifecycleHook, AgentRunContext } from './runtim
 
 export interface BuiltAgentPrompt {
   readonly systemPrompt: string
-  readonly tools: readonly ServerTool[]
+  readonly tools: readonly DomainServerTool[]
   readonly promptFragmentIds: readonly string[]
   readonly features: readonly AgentFeature[]
   readonly hooks: readonly AgentLifecycleHook[]

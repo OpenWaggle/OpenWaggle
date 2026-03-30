@@ -176,13 +176,32 @@ Always apply:
 - **Clear boundaries** — no leaking responsibilities across layers.
 - **Explicitness over magic** — avoid hidden behavior.
 
-### Architecture Discipline
+### Architecture Discipline — Hexagonal Architecture (MANDATORY)
 
-- Respect the existing architecture of the project.
+This project follows **hexagonal architecture**. Full specification: `docs/hexagonal-architecture.md`.
+
+**Before writing ANY main-process code, you MUST know which layer it belongs to:**
+
+| If you're writing... | It belongs in... | It MUST NOT import... |
+|---|---|---|
+| Pure business logic | `src/main/domain/` | `@tanstack/ai`, `electron`, `node:fs`, `@effect/sql`, `src/main/store/` |
+| A service interface | `src/main/ports/` | `@tanstack/ai`, `src/main/store/` |
+| Vendor SDK wrapper | `src/main/adapters/` | (adapters MAY import vendor — this is their job) |
+| Business orchestration | `src/main/application/` | `@tanstack/ai`, `src/main/store/` — use `yield*` ports |
+| IPC handler | `src/main/ipc/` | `@tanstack/ai`, `src/main/store/` — use `yield*` ports |
+| Agent core logic | `src/main/agent/` | `@tanstack/ai` — use domain types only |
+
+**Adding new features:**
+1. New persistence → create Port + Adapter + register in `runtime.ts`
+2. New business logic → create Application Service using `yield*` ports
+3. New IPC channel → handler dispatches to Application Service
+4. New vendor integration → create Adapter implementing a Port
+
+**Run `pnpm check:architecture` before committing.** Zero violations tolerated.
+
 - Do not introduce new patterns without strong justification.
-- Do not mix concerns such as business logic inside UI, transport, or infrastructure-heavy layers.
 - Prefer composition over implicit coupling.
-- Keep dependencies directional and predictable.
+- Keep dependencies directional (inward) and predictable.
 
 ### Type Safety (CRITICAL)
 

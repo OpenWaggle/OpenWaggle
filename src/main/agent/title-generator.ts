@@ -1,11 +1,8 @@
 import type { ConversationId } from '@shared/types/brand'
-import type { Settings } from '@shared/types/settings'
-import { chat, type ModelMessage } from '@tanstack/ai'
+import type { AgentStreamChunk } from '@shared/types/stream'
 import { createLogger } from '../logger'
-import type { ProviderDefinition } from '../providers/provider-definition'
-import { providerRegistry } from '../providers/registry'
-import { updateConversationTitle } from '../store/conversations'
-import { broadcastToWindows } from '../utils/broadcast'
+import type { ChatAdapter } from '../ports/chat-adapter-type'
+import type { ChatStreamOptions } from '../ports/chat-service'
 
 const logger = createLogger('title-generator')
 
@@ -17,42 +14,10 @@ const TITLE_SYSTEM_PROMPT =
   'You are a conversation title generator. Given the first user message of a conversation, generate a short, descriptive title (max 50 characters). Do NOT repeat or duplicate words in the title. Reply with ONLY the title text, no quotes, no punctuation at the end, no explanation.'
 
 /**
- * Find the first available provider with a configured API key and return
- * its test model (cheapest/fastest) along with the provider config.
- */
-function findTitleProvider(settings: Settings): {
-  model: string
-  apiKey: string
-  provider: ProviderDefinition
-  baseUrl?: string
-  authMethod?: 'api-key' | 'subscription'
-} | null {
-  for (const provider of providerRegistry.getAll()) {
-    const config = settings.providers[provider.id]
-    if (!config?.enabled || !config.apiKey) {
-      continue
-    }
-    return {
-      model: provider.testModel,
-      apiKey: config.apiKey,
-      provider,
-      baseUrl: config.baseUrl,
-      authMethod: config.authMethod,
-    }
-  }
-  return null
-}
-
-/**
  * Remove consecutive duplicate words/fragments from a title.
- * "HelloHello World" → "Hello World", "the the cat" → "the cat"
  */
 export function deduplicateConsecutiveWords(title: string): string {
-  // Remove space-separated duplicate words: "the the" → "the"
   let result = title.replace(/\b(\w+)\s+\1\b/gi, '$1')
-  // Remove concatenated duplicate words where the full token is two identical
-  // halves: "HelloHello" → "Hello". Only applies to even-length tokens of 4+
-  // chars to avoid false positives on words like "Papa", "CoCo", "mama".
   result = result.replace(/\b(\w{4,})\1\b/gi, '$1')
   return result
 }
@@ -67,46 +32,41 @@ function makeFallbackTitle(text: string): string {
   )
 }
 
+export interface GenerateTitleOptions {
+  readonly conversationId: ConversationId
+  readonly userText: string
+  readonly chatStream: (options: ChatStreamOptions) => AsyncIterable<AgentStreamChunk>
+  /** Pre-resolved chat adapter, or null if no provider available */
+  readonly adapter: ChatAdapter | null
+  /** Persist and broadcast the title — injected by the caller */
+  readonly persistTitle: (conversationId: ConversationId, title: string) => Promise<void>
+}
+
 /**
  * Generate a conversation title using a fast/cheap LLM model.
- * Falls back to a truncated user message if no provider is available
- * or the LLM call fails.
- *
- * This runs fire-and-forget after the first message is sent —
- * it does NOT block the agent run.
+ * Pure function — all dependencies injected via options.
  */
-export async function generateTitle(
-  conversationId: ConversationId,
-  userText: string,
-  settings: Settings,
-): Promise<void> {
+export async function generateTitle(options: GenerateTitleOptions): Promise<void> {
+  const { conversationId, userText, chatStream, adapter, persistTitle } = options
   const fallback = makeFallbackTitle(userText)
 
-  const resolved = findTitleProvider(settings)
-  if (!resolved) {
+  if (!adapter) {
     logger.info('No provider available for title generation, using fallback')
-    await persistAndBroadcastTitle(conversationId, fallback)
+    await persistTitle(conversationId, fallback)
     return
   }
 
   try {
-    const adapter = resolved.provider.createAdapter(
-      resolved.model,
-      resolved.apiKey,
-      resolved.baseUrl,
-      resolved.authMethod,
-    )
-
-    const messages: ModelMessage[] = [
+    const messages: ReadonlyArray<{ role: string; content: string }> = [
       { role: 'user', content: userText.slice(0, TITLE_INPUT_MAX_CHARS) },
     ]
 
     let title = ''
-    const stream = chat({
+    const stream = chatStream({
       adapter,
       messages,
       systemPrompts: [TITLE_SYSTEM_PROMPT],
-      maxTokens: TITLE_MAX_TOKENS,
+      samplingOptions: { maxTokens: TITLE_MAX_TOKENS },
     })
 
     for await (const chunk of stream) {
@@ -120,26 +80,11 @@ export async function generateTitle(
       title = fallback
     }
 
-    await persistAndBroadcastTitle(conversationId, title)
+    await persistTitle(conversationId, title)
   } catch (err) {
     logger.warn('LLM title generation failed, using fallback', {
       error: err instanceof Error ? err.message : String(err),
     })
-    await persistAndBroadcastTitle(conversationId, fallback)
-  }
-}
-
-async function persistAndBroadcastTitle(
-  conversationId: ConversationId,
-  title: string,
-): Promise<void> {
-  try {
-    await updateConversationTitle(conversationId, title)
-    broadcastToWindows('conversations:title-updated', { conversationId, title })
-  } catch (err) {
-    logger.error('Failed to persist title', {
-      conversationId,
-      error: err instanceof Error ? err.message : String(err),
-    })
+    await persistTitle(conversationId, fallback)
   }
 }

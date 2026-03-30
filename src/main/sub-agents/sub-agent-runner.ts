@@ -3,10 +3,12 @@ import { getMessageText } from '@shared/types/agent'
 import { ConversationId, createSkipApprovalToken, SubAgentId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
+import type { AgentStreamChunk } from '@shared/types/stream'
 import type { AgentPermissionMode, SpawnAgentInput, SubAgentResult } from '@shared/types/sub-agent'
 import { formatErrorMessage } from '@shared/utils/node-error'
 import { runAgent } from '../agent/agent-loop'
 import { createLogger } from '../logger'
+import type { ChatStreamOptions } from '../ports/chat-service'
 import { pushContext } from '../tools/context-injection-buffer'
 import { respondToPlan } from '../tools/plan-manager'
 import { getAgentType, refreshCustomAgentTypes } from './agent-type-registry'
@@ -49,6 +51,7 @@ export interface RunSubAgentParams {
   readonly parentModel: SupportedModelId
   readonly parentPermissionMode: AgentPermissionMode
   readonly parentDepth: number
+  readonly chatStream: (options: ChatStreamOptions) => AsyncIterable<AgentStreamChunk>
 }
 
 export async function runSubAgent(params: RunSubAgentParams): Promise<SubAgentResult> {
@@ -202,6 +205,7 @@ export async function runSubAgent(params: RunSubAgentParams): Promise<SubAgentRe
         },
         model,
         settings,
+        chatStream: params.chatStream,
         skipApproval,
         maxTurns: input.maxTurns,
         onChunk: (chunk) => {

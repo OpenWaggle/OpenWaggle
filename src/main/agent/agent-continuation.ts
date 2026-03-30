@@ -1,5 +1,6 @@
 import { jsonObjectSchema } from '@shared/schemas/validation'
 import type { Message, MessagePart } from '@shared/types/agent'
+import type { DomainUiContinuationMessage, DomainUiToolCallPart } from '@shared/types/continuation'
 import type { JsonObject } from '@shared/types/json'
 import { parseJsonSafe } from '@shared/utils/parse-json'
 import {
@@ -7,7 +8,6 @@ import {
   normalizeToolResultPayload,
 } from '@shared/utils/tool-result-state'
 import { isRecord } from '@shared/utils/validation'
-import type { UIMessage } from '@tanstack/ai'
 import type { ContinuationMessage } from './continuation-normalizer'
 
 export interface DeniedApprovalSnapshot {
@@ -17,9 +17,11 @@ export interface DeniedApprovalSnapshot {
   readonly message: string
 }
 
-export type UiToolCallPart = Extract<UIMessage['parts'][number], { type: 'tool-call' }>
+export type UiToolCallPart = DomainUiToolCallPart
 
-export function isUiContinuationMessage(message: ContinuationMessage): message is UIMessage {
+export function isUiContinuationMessage(
+  message: ContinuationMessage,
+): message is DomainUiContinuationMessage {
   return 'parts' in message
 }
 

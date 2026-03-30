@@ -1,9 +1,9 @@
 import { ConversationId, SupportedModelId } from '@shared/types/brand'
 import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
-import type { ServerTool } from '@tanstack/ai'
 import { describe, expect, it } from 'vitest'
 import { getActiveAgentFeatures } from '../../agent/feature-registry'
 import type { AgentFeature, AgentRunContext } from '../../agent/runtime-types'
+import type { DomainServerTool } from '../../ports/tool-types'
 import { openaiProvider } from '../../providers/openai'
 import { getServerTools } from '../registry'
 
@@ -47,15 +47,15 @@ function makeContext(overrides?: {
   }
 }
 
-function getToolNames(tools: readonly ServerTool[]): string[] {
+function getToolNames(tools: readonly DomainServerTool[]): string[] {
   return tools.map((tool) => {
-    const maybeName = (tool as ServerTool & { readonly name?: string }).name
+    const maybeName = (tool as DomainServerTool & { readonly name?: string }).name
     return maybeName ?? 'unknown'
   })
 }
 
-function makeNamedTool(name: string): ServerTool {
-  return { name } as unknown as ServerTool
+function makeNamedTool(name: string): DomainServerTool {
+  return { name } as unknown as DomainServerTool
 }
 
 describe('getServerTools', () => {

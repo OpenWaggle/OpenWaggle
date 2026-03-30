@@ -1,4 +1,4 @@
-import type { StreamChunk } from '@tanstack/ai'
+import type { AgentStreamChunk } from '@shared/types/stream'
 import { createLogger } from '../logger'
 import type {
   AgentLifecycleHook,
@@ -57,7 +57,7 @@ export async function notifyRunStart(
 export function notifyStreamChunk(
   hooks: readonly AgentLifecycleHook[],
   context: AgentRunContext,
-  chunk: StreamChunk,
+  chunk: AgentStreamChunk,
 ): void {
   runHookEventDetached(hooks, context, 'onStreamChunk', (hook) =>
     hook.onStreamChunk?.(context, chunk),

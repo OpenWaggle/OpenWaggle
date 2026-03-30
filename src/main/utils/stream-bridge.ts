@@ -3,8 +3,8 @@ import type { ConversationId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { OrchestrationEventPayload } from '@shared/types/orchestration'
 import type { AgentPhaseEventPayload } from '@shared/types/phase'
+import type { AgentStreamChunk } from '@shared/types/stream'
 import type { WaggleStreamMetadata, WaggleTurnEvent } from '@shared/types/waggle'
-import type { StreamChunk } from '@tanstack/ai'
 import {
   resetPhaseForConversation,
   updatePhaseFromOrchestrationEvent,
@@ -82,8 +82,8 @@ export function emitRunCompleted(conversationId: ConversationId): void {
  * Used by the useChat IPC connection adapter in the renderer.
  * Also pushes chunks to the per-conversation buffer for background run support.
  */
-export function emitStreamChunk(conversationId: ConversationId, chunk: StreamChunk): void {
-  // StreamChunk may contain Error objects (RUN_ERROR) which don't serialize
+export function emitStreamChunk(conversationId: ConversationId, chunk: AgentStreamChunk): void {
+  // AgentStreamChunk RUN_ERROR may contain Error objects which don't serialize
   // well over IPC structured clone. Normalize before sending.
   const serializable = chunk.type === 'RUN_ERROR' ? serializeRunError(chunk) : chunk
 
@@ -125,7 +125,7 @@ export function emitErrorAndFinish(
  * Preserves our custom `code` field for structured error classification,
  * plus `name`/`stack` when present on the runtime error object.
  */
-function serializeRunError(chunk: StreamChunk & { type: 'RUN_ERROR' }): StreamChunk {
+function serializeRunError(chunk: AgentStreamChunk & { type: 'RUN_ERROR' }): AgentStreamChunk {
   const { error } = chunk
   return {
     ...chunk,
@@ -148,7 +148,7 @@ export function emitOrchestrationEvent(payload: OrchestrationEventPayload): void
 
 export function emitWaggleStreamChunk(
   conversationId: ConversationId,
-  chunk: StreamChunk,
+  chunk: AgentStreamChunk,
   meta: WaggleStreamMetadata,
 ): void {
   const serializable = chunk.type === 'RUN_ERROR' ? serializeRunError(chunk) : chunk

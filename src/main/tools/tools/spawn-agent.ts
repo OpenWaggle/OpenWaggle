@@ -1,5 +1,6 @@
 import { Schema } from '@shared/schema'
 import { SubAgentId, SupportedModelId } from '@shared/types/brand'
+import { startChatStream } from '../../adapters/tanstack-chat-adapter'
 import { createLogger } from '../../logger'
 import { getRunSubAgent } from '../../sub-agents/facade'
 import { defineOpenWaggleTool } from '../define-tool'
@@ -114,6 +115,7 @@ export const spawnAgentTool = defineOpenWaggleTool({
       parentModel: SupportedModelId(getSettings().defaultModel),
       parentPermissionMode: parentMode,
       parentDepth,
+      chatStream: context.chatStream ?? startChatStream,
     })
 
     logger.info('spawnAgent completed', {

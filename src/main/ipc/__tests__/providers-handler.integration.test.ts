@@ -1,23 +1,39 @@
+import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ProviderService } from '../../ports/provider-service'
 
-const { typedHandleMock, getAllMock, getMock } = vi.hoisted(() => ({
-  typedHandleMock: vi.fn(),
-  getAllMock: vi.fn(),
-  getMock: vi.fn(),
-}))
+const { typedHandleMock, getAllMock, getMock, indexModelsMock, fetchModelsMock } = vi.hoisted(
+  () => ({
+    typedHandleMock: vi.fn(),
+    getAllMock: vi.fn(),
+    getMock: vi.fn(),
+    indexModelsMock: vi.fn(),
+    fetchModelsMock: vi.fn(),
+  }),
+)
 
 vi.mock('../typed-ipc', () => ({
   typedHandle: typedHandleMock,
 }))
 
-vi.mock('../../providers', () => ({
-  providerRegistry: {
-    getAll: getAllMock,
-    get: getMock,
-    indexModels: vi.fn(),
-  },
-}))
+const TestProviderServiceLayer = Layer.succeed(ProviderService, {
+  get: (providerId) => Effect.sync(() => getMock(providerId)),
+  getAll: () => Effect.sync(() => getAllMock()),
+  getProviderForModel: () => Effect.succeed({} as never),
+  isKnownModel: () => Effect.succeed(true),
+  createChatAdapter: () => Effect.succeed({} as never),
+  indexModels: (modelIds, providerId) => Effect.sync(() => indexModelsMock(modelIds, providerId)),
+  fetchModels: (providerId, baseUrl, apiKey, authMethod) =>
+    Effect.tryPromise({
+      try: async () => {
+        const provider = getMock(providerId)
+        if (!provider?.supportsDynamicModelFetch || !provider.fetchModels) return []
+        return provider.fetchModels(baseUrl, apiKey, authMethod)
+      },
+      catch: () => [] as readonly string[],
+    }).pipe(Effect.catchAll((models) => Effect.succeed(models))),
+})
 
 import { registerProvidersHandlers } from '../providers-handler'
 
@@ -29,7 +45,8 @@ function registeredHandler(name: string): ((...args: unknown[]) => Promise<unkno
   if (typeof handler !== 'function') {
     return undefined
   }
-  return (...args: unknown[]) => Effect.runPromise(handler(...args))
+  return (...args: unknown[]) =>
+    Effect.runPromise(Effect.provide(handler(...args), TestProviderServiceLayer))
 }
 
 describe('registerProvidersHandlers', () => {
@@ -37,6 +54,8 @@ describe('registerProvidersHandlers', () => {
     typedHandleMock.mockReset()
     getAllMock.mockReset()
     getMock.mockReset()
+    indexModelsMock.mockReset()
+    fetchModelsMock.mockReset()
   })
 
   it('registers providers:get-models and returns mapped display info', async () => {

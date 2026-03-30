@@ -423,13 +423,12 @@ export function buildChatRows({
   // pending tool call during the current stream.
   const lastAssistantMsg = [...messages].reverse().find((m) => m.role === 'assistant')
   const waitingForUserInput =
-    lastAssistantMsg !== undefined &&
-    lastAssistantMsg.parts.some(
+    lastAssistantMsg?.parts.some(
       (p) =>
         p.type === 'tool-call' &&
         (p.name === 'proposePlan' || p.name === 'askUser') &&
         !lastAssistantMsg.parts.some((r) => r.type === 'tool-result' && r.toolCallId === p.id),
-    )
+    ) ?? false
 
   if (phase.current && !waitingForUserInput) {
     rows.push({

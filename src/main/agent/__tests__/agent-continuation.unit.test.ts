@@ -1,6 +1,6 @@
 import type { Message, MessagePart } from '@shared/types/agent'
 import type { ToolCallId } from '@shared/types/brand'
-import type { UIMessage } from '@tanstack/ai'
+import type { DomainUiContinuationMessage } from '@shared/types/continuation'
 import { describe, expect, it } from 'vitest'
 import {
   buildPersistedToolArgsMap,
@@ -33,7 +33,10 @@ function makeServerMessage(role: 'user' | 'assistant', parts: MessagePart[]): Me
   }
 }
 
-function makeUiMessage(role: 'user' | 'assistant', parts: UIMessage['parts']): UIMessage {
+function makeUiMessage(
+  role: 'user' | 'assistant',
+  parts: DomainUiContinuationMessage['parts'],
+): DomainUiContinuationMessage {
   return {
     id: 'ui-msg-1',
     role,
@@ -42,7 +45,10 @@ function makeUiMessage(role: 'user' | 'assistant', parts: UIMessage['parts']): U
   }
 }
 
-function makeModelMessage(role: 'user' | 'assistant', content: string): ContinuationMessage {
+function makeDomainModelContinuationMessage(
+  role: 'user' | 'assistant',
+  content: string,
+): ContinuationMessage {
   return { role, content }
 }
 
@@ -293,22 +299,22 @@ describe('describeContinuationMessageFormat', () => {
     expect(describeContinuationMessageFormat([])).toBe('none')
   })
 
-  it('returns "ui" when all messages are UIMessages (have parts)', () => {
+  it('returns "ui" when all messages are DomainUiContinuationMessages (have parts)', () => {
     const messages: ContinuationMessage[] = [
       makeUiMessage('user', [{ type: 'text', content: 'hi' }]),
     ]
     expect(describeContinuationMessageFormat(messages)).toBe('ui')
   })
 
-  it('returns "model" when all messages are ModelMessages (no parts)', () => {
-    const messages: ContinuationMessage[] = [makeModelMessage('user', 'hello')]
+  it('returns "model" when all messages are DomainModelContinuationMessages (no parts)', () => {
+    const messages: ContinuationMessage[] = [makeDomainModelContinuationMessage('user', 'hello')]
     expect(describeContinuationMessageFormat(messages)).toBe('model')
   })
 
   it('returns "mixed" when both UI and model messages present', () => {
     const messages: ContinuationMessage[] = [
       makeUiMessage('assistant', [{ type: 'text', content: 'response' }]),
-      makeModelMessage('user', 'followup'),
+      makeDomainModelContinuationMessage('user', 'followup'),
     ]
     expect(describeContinuationMessageFormat(messages)).toBe('mixed')
   })
@@ -588,7 +594,7 @@ describe('enrichContinuationMessages', () => {
   })
 
   it('passes through model messages unchanged', () => {
-    const modelMsg = makeModelMessage('assistant', 'hello')
+    const modelMsg = makeDomainModelContinuationMessage('assistant', 'hello')
     const normalized: ContinuationMessage[] = [modelMsg]
 
     const enriched = enrichContinuationMessages(normalized, [])

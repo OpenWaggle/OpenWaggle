@@ -6,10 +6,15 @@ import type {
 import type { ConversationId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import type { Settings } from '@shared/types/settings'
+import type { AgentStreamChunk } from '@shared/types/stream'
+import * as Effect from 'effect/Effect'
 import { buildPersistedUserMessageParts, makeMessage } from '../agent/shared'
 import { generateTitle } from '../agent/title-generator'
-import { withConversationLock } from '../store/conversation-lock'
-import { getConversation, saveConversation } from '../store/conversations'
+import type { ChatStreamOptions } from '../ports/chat-service'
+import { ConversationRepository } from '../ports/conversation-repository'
+import { ProviderService } from '../ports/provider-service'
+import { runAppEffect } from '../runtime'
+import { broadcastToWindows } from '../utils/broadcast'
 import { hydrateAttachmentSources } from './attachments-handler'
 
 // Re-export from canonical location for handler imports
@@ -39,24 +44,29 @@ export async function persistUserMessageOnFailure(
 
   const userMessage = makeMessage('user', buildPersistedUserMessageParts(payload))
 
-  await withConversationLock(conversationId, async () => {
-    const latestConversation = await getConversation(conversationId)
-    if (!latestConversation) {
-      return
-    }
+  await runAppEffect(
+    Effect.gen(function* () {
+      const repo = yield* ConversationRepository
+      const latestConversation = yield* repo
+        .get(conversationId)
+        .pipe(Effect.catchAll(() => Effect.succeed(null)))
+      if (!latestConversation) {
+        return
+      }
 
-    if (
-      options?.messageCountGuard !== undefined &&
-      latestConversation.messages.length > options.messageCountGuard
-    ) {
-      return
-    }
+      if (
+        options?.messageCountGuard !== undefined &&
+        latestConversation.messages.length > options.messageCountGuard
+      ) {
+        return
+      }
 
-    await saveConversation({
-      ...latestConversation,
-      messages: [...latestConversation.messages, userMessage],
-    })
-  })
+      yield* repo.save({
+        ...latestConversation,
+        messages: [...latestConversation.messages, userMessage],
+      })
+    }),
+  )
 }
 
 /** Hydrate attachment binary sources from prepared attachment records. */
@@ -72,11 +82,57 @@ export function maybeTriggerTitleGeneration(
   conversation: Conversation,
   text: string,
   settings: Settings,
+  chatStream: (options: ChatStreamOptions) => AsyncIterable<AgentStreamChunk>,
 ): void {
   if (conversation.title === 'New thread' && conversation.messages.length === 0) {
     const trimmed = text.trim()
     if (trimmed) {
-      void generateTitle(conversationId, trimmed, settings)
+      void runAppEffect(
+        Effect.gen(function* () {
+          const providerSvc = yield* ProviderService
+          const allProviders = yield* providerSvc.getAll()
+
+          // Find the first enabled provider with an API key for title gen
+          let titleAdapter: import('../ports/chat-adapter-type').ChatAdapter | null = null
+          for (const provider of allProviders) {
+            const config = settings.providers[provider.id]
+            if (config?.enabled && config.apiKey) {
+              const adapterResult = yield* providerSvc
+                .createChatAdapter(
+                  provider.testModel,
+                  config.apiKey,
+                  config.baseUrl,
+                  config.authMethod,
+                )
+                .pipe(Effect.catchAll(() => Effect.succeed(null)))
+              if (adapterResult) {
+                titleAdapter = adapterResult
+                break
+              }
+            }
+          }
+
+          yield* Effect.promise(() =>
+            generateTitle({
+              conversationId,
+              userText: trimmed,
+              chatStream,
+              adapter: titleAdapter,
+              persistTitle: async (id, title) => {
+                await runAppEffect(
+                  Effect.gen(function* () {
+                    const repo = yield* ConversationRepository
+                    yield* repo.updateTitle(id, title)
+                  }),
+                )
+                broadcastToWindows('conversations:title-updated', { conversationId: id, title })
+              },
+            }),
+          )
+        }),
+      ).catch(() => {
+        // Fire-and-forget — title generation failure is non-critical
+      })
     }
   }
 }

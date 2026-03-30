@@ -46,6 +46,10 @@ export class URLMentionNode extends DecoratorNode<ReactNode> {
     return { element }
   }
 
+  static importDOM(): null {
+    return null
+  }
+
   static importJSON(serializedNode: SerializedURLMentionNode): URLMentionNode {
     return $createURLMentionNode(serializedNode.url)
   }

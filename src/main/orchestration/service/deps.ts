@@ -1,5 +1,7 @@
+/// <reference path="../../adapters/tanstack-chat-overload.d.ts" />
 import { randomUUID } from 'node:crypto'
-import { chat, maxIterations } from '@tanstack/ai'
+import { maxIterations, chat as vendorChat } from '@tanstack/ai'
+import { toAgentStreamChunk } from '../../adapters/stream-chunk-mapper'
 import { loadProjectConfig } from '../../config/project-config'
 import { createLogger } from '../../logger'
 import {
@@ -10,7 +12,7 @@ import {
 import { extractJson, runOpenWaggleOrchestration } from '../engine'
 import { createExecutorTools, gatherProjectContext } from '../project-context'
 import { orchestrationRunRepository } from '../run-repository'
-import type { OrchestrationServiceDeps } from './types'
+import type { ChatRunOptions, OrchestrationServiceDeps } from './types'
 
 export const DEFAULT_STREAM_CHUNK_SIZE = 50
 export const DEFAULT_STREAM_CHUNK_DELAY_MS = 12
@@ -34,7 +36,18 @@ export const defaultOrchestrationServiceDeps: OrchestrationServiceDeps = {
   createExecutorTools,
   runOpenWaggleOrchestration,
   extractJson,
-  chat,
+  chat: (options: ChatRunOptions) => {
+    const vendorStream = vendorChat({
+      ...options,
+      messages: [...options.messages],
+      tools: options.tools ? [...options.tools] : undefined,
+    })
+    return (async function* mapToDomain() {
+      for await (const chunk of vendorStream) {
+        yield toAgentStreamChunk(chunk)
+      }
+    })()
+  },
   maxIterations,
   runRepository: orchestrationRunRepository,
 }

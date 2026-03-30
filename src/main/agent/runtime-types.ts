@@ -2,9 +2,10 @@ import type { Conversation } from '@shared/types/conversation'
 import type { JsonObject } from '@shared/types/json'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { ProviderConfig, Settings } from '@shared/types/settings'
+import type { AgentStreamChunk } from '@shared/types/stream'
 import type { AgentToolFilter, SubAgentContext } from '@shared/types/sub-agent'
 import type { ToolApprovalConfig } from '@shared/types/tool-approval'
-import type { ServerTool, StreamChunk } from '@tanstack/ai'
+import type { DomainServerTool } from '../ports/tool-types'
 import type { ProviderDefinition } from '../providers/provider-definition'
 import type { AgentStandardsContext } from './standards-context'
 
@@ -67,7 +68,7 @@ export interface AgentRunSummary {
 export interface AgentLifecycleHook {
   readonly id: string
   onRunStart?: (context: AgentRunContext) => void | Promise<void>
-  onStreamChunk?: (context: AgentRunContext, chunk: StreamChunk) => void | Promise<void>
+  onStreamChunk?: (context: AgentRunContext, chunk: AgentStreamChunk) => void | Promise<void>
   onToolCallStart?: (
     context: AgentRunContext,
     event: AgentToolCallStartEvent,
@@ -81,7 +82,10 @@ export interface AgentFeature {
   readonly id: string
   isEnabled?: (context: AgentRunContext) => boolean
   getPromptFragments?: (context: AgentRunContext) => readonly AgentPromptFragment[]
-  getTools?: (context: AgentRunContext) => readonly ServerTool[]
-  filterTools?: (tools: readonly ServerTool[], context: AgentRunContext) => readonly ServerTool[]
+  getTools?: (context: AgentRunContext) => readonly DomainServerTool[]
+  filterTools?: (
+    tools: readonly DomainServerTool[],
+    context: AgentRunContext,
+  ) => readonly DomainServerTool[]
   getLifecycleHooks?: (context: AgentRunContext) => readonly AgentLifecycleHook[]
 }
