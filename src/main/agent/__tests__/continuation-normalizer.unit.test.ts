@@ -529,7 +529,7 @@ describe('normalizeContinuationAsUIMessages', () => {
     expect(toolResultParts[0]).toMatchObject({ state: 'complete' })
   })
 
-  it('injects synthetic tool-result for approval-responded tool-call without result', () => {
+  it('skips synthetic injection for approval-responded tool-call (continuation will execute it)', () => {
     const input: DomainUiContinuationMessage[] = [
       makeUiTextMessage('user-1', 'user', 'do it'),
       {
@@ -553,10 +553,106 @@ describe('normalizeContinuationAsUIMessages', () => {
       | DomainUiContinuationMessage
       | undefined
 
+    // Approval-responded tools must NOT get synthetic error results.
+    // The continuation run will execute them and produce real results.
     const syntheticPart = assistantMsg?.parts.find(
       (p) => p.type === 'tool-result' && p.toolCallId === 'approved-tc',
     )
-    expect(syntheticPart).toBeTruthy()
-    expect(syntheticPart).toMatchObject({ state: 'error' })
+    expect(syntheticPart).toBeUndefined()
+  })
+
+  it('does NOT inject synthetic result for approval-responded tool calls (user approved)', () => {
+    const messages: DomainUiContinuationMessage[] = [
+      makeUiTextMessage('u1', 'user', 'run a command'),
+      {
+        id: 'a1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'tc-approved',
+            name: 'runCommand',
+            arguments: '{"command":"git status"}',
+            state: 'approval-responded',
+            approval: { id: 'apr-1', needsApproval: true, approved: true },
+          },
+        ],
+      },
+    ]
+
+    const result = normalizeContinuationAsUIMessages(messages)
+    const assistantMsg = result.find((m) => 'parts' in m && m.role === 'assistant')
+    expect(assistantMsg).toBeTruthy()
+
+    if (!assistantMsg || !('parts' in assistantMsg)) return
+
+    // The approval-responded tool call must NOT have a synthetic tool-result injected
+    const syntheticResult = assistantMsg.parts.find(
+      (p) => p.type === 'tool-result' && p.toolCallId === 'tc-approved',
+    )
+    expect(syntheticResult).toBeUndefined()
+  })
+
+  it('does NOT inject synthetic result for tool calls with approval.approved defined', () => {
+    const messages: DomainUiContinuationMessage[] = [
+      makeUiTextMessage('u1', 'user', 'run a command'),
+      {
+        id: 'a1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'tc-with-approval',
+            name: 'runCommand',
+            arguments: '{"command":"gh issue list"}',
+            state: 'input-complete',
+            approval: { id: 'apr-2', needsApproval: true, approved: true },
+          },
+        ],
+      },
+    ]
+
+    const result = normalizeContinuationAsUIMessages(messages)
+    const assistantMsg = result.find((m) => 'parts' in m && m.role === 'assistant')
+    expect(assistantMsg).toBeTruthy()
+
+    if (!assistantMsg || !('parts' in assistantMsg)) return
+
+    const syntheticResult = assistantMsg.parts.find(
+      (p) => p.type === 'tool-result' && p.toolCallId === 'tc-with-approval',
+    )
+    expect(syntheticResult).toBeUndefined()
+  })
+
+  it('still injects synthetic result for orphan tool calls WITHOUT approval', () => {
+    const messages: DomainUiContinuationMessage[] = [
+      makeUiTextMessage('u1', 'user', 'run a command'),
+      {
+        id: 'a1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'tc-no-approval',
+            name: 'runCommand',
+            arguments: '{"command":"ls"}',
+            state: 'input-complete',
+          },
+        ],
+      },
+    ]
+
+    const result = normalizeContinuationAsUIMessages(messages)
+    const assistantMsg = result.find((m) => 'parts' in m && m.role === 'assistant')
+    expect(assistantMsg).toBeTruthy()
+
+    if (!assistantMsg || !('parts' in assistantMsg)) return
+
+    // Orphan tool call without approval SHOULD get synthetic result
+    const syntheticResult = assistantMsg.parts.find(
+      (p) => p.type === 'tool-result' && p.toolCallId === 'tc-no-approval',
+    )
+    expect(syntheticResult).toBeTruthy()
+    expect(syntheticResult).toMatchObject({ state: 'error' })
   })
 })

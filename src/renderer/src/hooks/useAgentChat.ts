@@ -138,40 +138,46 @@ export function useAgentChat(
     messagesRef,
   )
 
-  const refreshConversationSnapshot = async (targetConversationId: ConversationId) => {
-    const conv = await api.getConversation(targetConversationId)
-    if (!conv || currentConversationIdRef.current !== targetConversationId) {
-      return
-    }
-
-    useChatStore.setState((state) => {
-      if (state.activeConversationId !== targetConversationId) {
-        return state
+  // useCallback required: used as effect dependency in useEffect blocks below.
+  // Without stable identity, effects restart on every render.
+  const refreshConversationSnapshot = useCallback(
+    async (targetConversationId: ConversationId) => {
+      const conv = await api.getConversation(targetConversationId)
+      if (!conv || currentConversationIdRef.current !== targetConversationId) {
+        return
       }
 
-      return {
-        activeConversation: conv,
-        conversations: state.conversations.map((item) =>
-          item.id === targetConversationId
-            ? {
-                ...item,
-                title: conv.title,
-                projectPath: conv.projectPath,
-                messageCount: conv.messages.length,
-                updatedAt: conv.updatedAt,
-              }
-            : item,
-        ),
+      useChatStore.setState((state) => {
+        if (state.activeConversationId !== targetConversationId) {
+          return state
+        }
+
+        return {
+          activeConversation: conv,
+          conversations: state.conversations.map((item) =>
+            item.id === targetConversationId
+              ? {
+                  ...item,
+                  title: conv.title,
+                  projectPath: conv.projectPath,
+                  messageCount: conv.messages.length,
+                  updatedAt: conv.updatedAt,
+                }
+              : item,
+          ),
+        }
+      })
+
+      if (!foregroundStreamActiveRef.current) {
+        const snapshotMessages = conversationToUIMessages(conv)
+        setMessages(reconcileSnapshotUserMessages(snapshotMessages, messagesRef.current))
       }
-    })
+    },
+    [setMessages],
+  )
 
-    if (!foregroundStreamActiveRef.current) {
-      const snapshotMessages = conversationToUIMessages(conv)
-      setMessages(reconcileSnapshotUserMessages(snapshotMessages, messagesRef.current))
-    }
-  }
-
-  const flushDeferredConversationSnapshot = () => {
+  // useCallback required: used as effect dependency below and calls refreshConversationSnapshot.
+  const flushDeferredConversationSnapshot = useCallback(() => {
     if (deferredSnapshotRefreshCountRef.current > 0) {
       return
     }
@@ -190,20 +196,24 @@ export function useAgentChat(
 
     deferredRefreshConversationIdRef.current = null
     void refreshConversationSnapshot(targetConversationId)
-  }
+  }, [refreshConversationSnapshot])
 
-  const withDeferredSnapshotRefresh = async <T>(operation: () => Promise<T>): Promise<T> => {
-    deferredSnapshotRefreshCountRef.current += 1
-    try {
-      return await operation()
-    } finally {
-      deferredSnapshotRefreshCountRef.current = Math.max(
-        0,
-        deferredSnapshotRefreshCountRef.current - 1,
-      )
-      flushDeferredConversationSnapshot()
-    }
-  }
+  // useCallback required: used as effect dependency and calls flushDeferredConversationSnapshot.
+  const withDeferredSnapshotRefresh = useCallback(
+    async <T>(operation: () => Promise<T>): Promise<T> => {
+      deferredSnapshotRefreshCountRef.current += 1
+      try {
+        return await operation()
+      } finally {
+        deferredSnapshotRefreshCountRef.current = Math.max(
+          0,
+          deferredSnapshotRefreshCountRef.current - 1,
+        )
+        flushDeferredConversationSnapshot()
+      }
+    },
+    [flushDeferredConversationSnapshot],
+  )
 
   // Sync historical messages whenever the active conversation snapshot changes.
   useEffect(() => {
