@@ -8,7 +8,7 @@ import type { QualityPreset } from '@shared/types/settings'
 import type { WaggleConfig } from '@shared/types/waggle'
 import type { UIMessage } from '@tanstack/ai-react'
 import { useChat } from '@tanstack/ai-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '@/lib/ipc'
 import { createIpcConnectionAdapter } from '@/lib/ipc-connection-adapter'
 import { fromAgentStreamChunk } from '@/lib/stream-chunk-mapper'
@@ -73,27 +73,35 @@ export function useAgentChat(
   const [backgroundStreaming, setBackgroundStreaming] = useState(false)
   const hasActiveRun = useBackgroundRunStore((s) => s.hasActiveRun)
 
-  const consumePendingPayload = () => {
+  // useCallback required: used as useMemo dependencies for the connection adapter.
+  const consumePendingPayload = useCallback(() => {
     const payload = pendingPayloadRef.current
     pendingPayloadRef.current = null
     return payload
-  }
+  }, [])
 
-  const consumePendingWaggleConfig = () => {
+  const consumePendingWaggleConfig = useCallback(() => {
     const config = pendingWaggleConfigRef.current
     pendingWaggleConfigRef.current = null
     return config
-  }
+  }, [])
 
-  const connection = conversationId
-    ? createIpcConnectionAdapter(
-        conversationId,
-        model,
-        consumePendingPayload,
-        qualityPreset,
-        consumePendingWaggleConfig,
-      )
-    : EMPTY_CONNECTION
+  // useMemo required: the ChatClient captures the connection at creation time.
+  // Recreating it on every render wastes resources and the test suite verifies
+  // connection stability across rerenders for the same conversation config.
+  const connection = useMemo(
+    () =>
+      conversationId
+        ? createIpcConnectionAdapter(
+            conversationId,
+            model,
+            consumePendingPayload,
+            qualityPreset,
+            consumePendingWaggleConfig,
+          )
+        : EMPTY_CONNECTION,
+    [conversationId, consumePendingPayload, consumePendingWaggleConfig, model, qualityPreset],
+  )
 
   const {
     messages,
