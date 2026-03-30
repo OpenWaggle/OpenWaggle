@@ -60,7 +60,7 @@ describe('createRehypeShikiPlugin', () => {
     const tree = makeTree('typescript', 'const x = 1')
     const original = JSON.stringify(tree)
 
-    runPlugin({ highlighter: undefined, isStreaming: false, cache }, tree)
+    runPlugin({ highlighter: undefined, cache }, tree)
 
     expect(JSON.stringify(tree)).toBe(original)
   })
@@ -70,7 +70,7 @@ describe('createRehypeShikiPlugin', () => {
     const cache = new ShikiCache()
     const tree = makeTree('typescript', 'const x = 1')
 
-    runPlugin({ highlighter, isStreaming: false, cache }, tree)
+    runPlugin({ highlighter, cache }, tree)
 
     const code = getCodeElement(tree)
     // Shiki wraps tokens in span.line > span[style]
@@ -87,7 +87,7 @@ describe('createRehypeShikiPlugin', () => {
     const tree = makeTree('cobol', 'DISPLAY "HELLO"')
     const originalCode = 'DISPLAY "HELLO"'
 
-    runPlugin({ highlighter, isStreaming: false, cache }, tree)
+    runPlugin({ highlighter, cache }, tree)
 
     // Code should remain unchanged (cobol is not preloaded)
     const code = getCodeElement(tree)
@@ -101,7 +101,7 @@ describe('createRehypeShikiPlugin', () => {
 
     expect(cache.size).toBe(0)
 
-    runPlugin({ highlighter, isStreaming: false, cache }, tree)
+    runPlugin({ highlighter, cache }, tree)
 
     expect(cache.size).toBe(1)
   })
@@ -112,31 +112,31 @@ describe('createRehypeShikiPlugin', () => {
 
     // First render: populate cache
     const tree1 = makeTree('typescript', 'const x = 1')
-    runPlugin({ highlighter, isStreaming: false, cache }, tree1)
+    runPlugin({ highlighter, cache }, tree1)
     const firstResult = JSON.stringify(getCodeElement(tree1))
 
     // Second render: should hit cache and produce identical output
     const tree2 = makeTree('typescript', 'const x = 1')
-    runPlugin({ highlighter, isStreaming: false, cache }, tree2)
+    runPlugin({ highlighter, cache }, tree2)
     const secondResult = JSON.stringify(getCodeElement(tree2))
 
     expect(firstResult).toBe(secondResult)
     expect(cache.size).toBe(1)
   })
 
-  it('does not read or write cache when streaming', async () => {
+  it('caches highlights during streaming (content-addressed keys prevent staleness)', async () => {
     const highlighter = await loadHighlighter()
     const cache = new ShikiCache()
 
     const tree = makeTree('typescript', 'const x = 1')
-    runPlugin({ highlighter, isStreaming: true, cache }, tree)
+    runPlugin({ highlighter, cache }, tree)
 
-    // Highlighting should still happen
+    // Highlighting should happen
     const code = getCodeElement(tree)
     expect(code.children[0]).toMatchObject({ type: 'element', tagName: 'span' })
 
-    // But cache should remain empty
-    expect(cache.size).toBe(0)
+    // Cache should now contain the highlight (content-addressed key)
+    expect(cache.size).toBe(1)
   })
 
   it('preserves language class after highlighting', async () => {
@@ -144,7 +144,7 @@ describe('createRehypeShikiPlugin', () => {
     const cache = new ShikiCache()
     const tree = makeTree('typescript', 'const x = 1')
 
-    runPlugin({ highlighter, isStreaming: false, cache }, tree)
+    runPlugin({ highlighter, cache }, tree)
 
     const code = getCodeElement(tree)
     const className = code.properties.className

@@ -18,7 +18,6 @@ const prefixProcessor = unified()
   .use(rehypeSanitize, safeMarkdownSanitizeSchema)
 
 const CODE_FENCE_RE = /^`{3,}/gm
-const MAX_CACHE_ENTRIES = 20
 const DOUBLE_NEWLINE_LENGTH = '\n\n'.length
 const FENCE_PARITY_DIVISOR = 2
 
@@ -71,10 +70,73 @@ function parseToHast(markdown: string): Root {
   return prefixProcessor.runSync(mdast)
 }
 
+// ---------------------------------------------------------------------------
+// Incremental split state — tracks scan progress to avoid O(n²) rescanning
+// ---------------------------------------------------------------------------
+
+interface SplitScanState {
+  /** The text we have scanned up to. */
+  scannedText: string
+  /** Cumulative fence count across all scanned text. */
+  fenceCount: number
+  /** Last valid split index found (or -1). */
+  lastSplitIdx: number
+}
+
+/**
+ * Incrementally find the split index by only scanning new text.
+ * If text doesn't extend the previous scan, falls back to a full scan.
+ */
+function findSplitIndexIncremental(text: string, state: SplitScanState): number {
+  // If text is an extension of what we already scanned, only scan the delta
+  if (text.startsWith(state.scannedText) && text.length > state.scannedText.length) {
+    const delta = text.slice(state.scannedText.length)
+    const deltaFences = countCodeFences(delta)
+    state.fenceCount += deltaFences
+    state.scannedText = text
+
+    // Search backward from end for a valid split in the new region
+    // but also check any split found against total fence parity
+    let pos = text.length
+    while (pos > 0) {
+      const idx = text.lastIndexOf('\n\n', pos - 1)
+      if (idx === -1) break
+
+      const fencesBefore = countCodeFences(text.slice(0, idx))
+      if (fencesBefore % FENCE_PARITY_DIVISOR === 0) {
+        state.lastSplitIdx = idx + DOUBLE_NEWLINE_LENGTH
+        return state.lastSplitIdx
+      }
+      pos = idx
+    }
+
+    // No valid split found — preserve previous result if still valid
+    if (state.lastSplitIdx > 0 && state.lastSplitIdx <= text.length) {
+      return state.lastSplitIdx
+    }
+    return -1
+  }
+
+  // Non-monotonic change or first call — full scan
+  state.scannedText = text
+  state.fenceCount = countCodeFences(text)
+  state.lastSplitIdx = findSplitIndex(text)
+  return state.lastSplitIdx
+}
+
+// ---------------------------------------------------------------------------
+// Incremental prefix state — avoids re-parsing entire prefix on growth
+// ---------------------------------------------------------------------------
+
+interface PrefixState {
+  text: string
+  hast: Root
+}
+
 /**
  * Split streaming text into a stable parsed prefix (all complete paragraphs)
  * and a live tail (current in-progress paragraph). The prefix is parsed to HAST
- * once and cached; only the tail is re-parsed on each render.
+ * once and incrementally extended; only the tail is re-parsed on each render.
  *
  * When `isStreaming` is false, no splitting occurs — returns the full text
  * as the tail for the standard ReactMarkdown path.
@@ -84,13 +146,25 @@ export function useIncrementalMarkdown(
   isStreaming: boolean,
   shikiOptions: ShikiOptions,
 ): IncrementalMarkdownResult {
-  const hastCacheRef = useRef(new Map<string, Root>())
+  const prefixStateRef = useRef<PrefixState | null>(null)
+  const splitStateRef = useRef<SplitScanState>({
+    scannedText: '',
+    fenceCount: 0,
+    lastSplitIdx: -1,
+  })
+
+  // Invalidate prefix cache when highlighter changes (e.g., from undefined to loaded)
+  const prevHighlighterRef = useRef(shikiOptions.highlighter)
+  if (prevHighlighterRef.current !== shikiOptions.highlighter) {
+    prevHighlighterRef.current = shikiOptions.highlighter
+    prefixStateRef.current = null
+  }
 
   if (!isStreaming) {
     return { prefixHast: null, tail: text, prefixKey: '' }
   }
 
-  const splitIdx = findSplitIndex(text)
+  const splitIdx = findSplitIndexIncremental(text, splitStateRef.current)
 
   if (splitIdx === -1) {
     return { prefixHast: null, tail: text, prefixKey: '' }
@@ -98,36 +172,38 @@ export function useIncrementalMarkdown(
 
   const prefixText = text.slice(0, splitIdx)
   const tail = text.slice(splitIdx)
-  const prefixKey = prefixText
+  const prev = prefixStateRef.current
 
-  const cache = hastCacheRef.current
-  const cached = cache.get(prefixKey)
-
-  if (cached) {
-    return { prefixHast: cached, tail, prefixKey }
+  // Same prefix as before — return cached
+  if (prev && prefixText === prev.text) {
+    return { prefixHast: prev.hast, tail, prefixKey: prefixText }
   }
 
-  // Parse to sanitized HAST, then apply Shiki highlighting in-place.
-  // INVARIANT: `applyShikiToHast` mutates the tree. We store the mutated tree
-  // in the cache and never pass it back through `applyShikiToHast` again —
-  // cache hits return early above, before reaching this block.
+  // Incremental growth: prefix extends the previous prefix
+  if (prev && prefixText.startsWith(prev.text)) {
+    const newMarkdown = prefixText.slice(prev.text.length)
+    const newHast = parseToHast(newMarkdown)
+    applyShikiToHast(newHast, {
+      highlighter: shikiOptions.highlighter,
+      cache: shikiOptions.cache,
+    })
+    prev.hast.children.push(...newHast.children)
+    prev.text = prefixText
+    return { prefixHast: prev.hast, tail, prefixKey: prefixText }
+  }
+
+  // Full re-parse (first time or non-monotonic change)
   const hast = parseToHast(prefixText)
 
+  // INVARIANT: `applyShikiToHast` mutates the tree. We store the mutated tree
+  // in the prefix state and never pass it back through `applyShikiToHast` again —
+  // same-prefix checks return early above, before reaching this block.
   applyShikiToHast(hast, {
     highlighter: shikiOptions.highlighter,
-    isStreaming: false,
     cache: shikiOptions.cache,
   })
 
-  // Evict oldest entries if cache is too large
-  if (cache.size >= MAX_CACHE_ENTRIES) {
-    const oldest = cache.keys().next()
-    if (!oldest.done) {
-      cache.delete(oldest.value)
-    }
-  }
+  prefixStateRef.current = { text: prefixText, hast }
 
-  cache.set(prefixKey, hast)
-
-  return { prefixHast: hast, tail, prefixKey }
+  return { prefixHast: hast, tail, prefixKey: prefixText }
 }

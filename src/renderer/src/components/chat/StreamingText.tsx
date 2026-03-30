@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import rehypeSanitize from 'rehype-sanitize'
 import type { Highlighter } from 'shiki'
 import { useThrottledStreamText } from '@/hooks/useThrottledStreamText'
@@ -10,6 +10,9 @@ import { IncrementalMarkdown } from './IncrementalMarkdown'
 
 /** Module-level cache shared by all StreamingText instances. */
 const shikiCache = new ShikiCache()
+
+/** Sanitize plugin tuple — never changes, hoisted to module scope. */
+const SANITIZE_PLUGIN_TUPLE: RehypePlugins[number] = [rehypeSanitize, safeMarkdownSanitizeSchema]
 
 /**
  * Module-level resolved highlighter.
@@ -43,23 +46,34 @@ function useShikiHighlighter(): Highlighter | undefined {
   return hl
 }
 
+interface PluginsCacheState {
+  hl: Highlighter | undefined
+  plugins: RehypePlugins
+}
+
 export function StreamingText({ text, isStreaming = false }: StreamingTextProps) {
   const displayText = useThrottledStreamText(text, isStreaming)
   const highlighter = useShikiHighlighter()
+  const pluginsRef = useRef<PluginsCacheState | null>(null)
 
   if (!displayText) return null
 
-  const rehypePlugins: RehypePlugins = [
-    createRehypeShikiPlugin({ highlighter, isStreaming, cache: shikiCache }),
-    [rehypeSanitize, safeMarkdownSanitizeSchema],
-  ]
+  // Stabilize the rehypePlugins array — only recreate when highlighter changes.
+  let rehypePlugins: RehypePlugins
+  const cached = pluginsRef.current
+  if (cached !== null && cached.hl === highlighter) {
+    rehypePlugins = cached.plugins
+  } else {
+    rehypePlugins = [
+      createRehypeShikiPlugin({ highlighter, cache: shikiCache }),
+      SANITIZE_PLUGIN_TUPLE,
+    ]
+    pluginsRef.current = { hl: highlighter, plugins: rehypePlugins }
+  }
 
   return (
     <div className="prose">
-      {/* key changes when highlighter first loads — forces IncrementalMarkdown to
-          remount and re-render with Shiki highlighting instead of staying stale. */}
       <IncrementalMarkdown
-        key={highlighter === undefined ? 'no-hl' : 'hl'}
         text={displayText}
         isStreaming={isStreaming}
         highlighter={highlighter}
