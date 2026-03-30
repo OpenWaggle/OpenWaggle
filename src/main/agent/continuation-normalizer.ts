@@ -450,7 +450,8 @@ export function normalizeContinuationAsUIMessages(
 ): ContinuationMessage[] {
   const deduped = deduplicateContinuationMessages(continuationMessages)
   const merged = mergeConsecutiveAssistantUIMessages(deduped)
-  return enforceToolResultPairingOnUIMessages(merged)
+  const enforced = enforceToolResultPairingOnUIMessages(merged)
+  return ensureToolResultAdjacency(enforced)
 }
 
 /**
@@ -579,4 +580,92 @@ function mergeConsecutiveAssistantUIMessages(
   }
 
   return result
+}
+
+/**
+ * Ensure every included tool-call part has an adjacent tool-result part
+ * immediately after it. This prevents TanStack AI's `buildAssistantMessages`
+ * from producing unpaired `tool_use` blocks.
+ *
+ * `buildAssistantMessages` has two phases:
+ * - Phase 1: walks parts in order, flushes segments on tool-result parts
+ * - Phase 2: appends tool results from tool-call output at the END
+ *
+ * Phase 2 appending breaks multi-segment conversations because tool results
+ * end up after LATER assistant segments, not immediately after their tool_use.
+ *
+ * This function:
+ * 1. Moves existing tool-result parts to be adjacent to their tool-call
+ * 2. Injects synthetic tool-result parts for tool-calls that have output
+ *    but no matching tool-result (so Phase 1 handles them, not Phase 2)
+ */
+function ensureToolResultAdjacency(messages: ContinuationMessage[]): ContinuationMessage[] {
+  return messages.map((message) => {
+    if (!isUiSnapshotMessage(message) || message.role !== 'assistant') {
+      return message
+    }
+
+    // Collect existing tool-result parts indexed by toolCallId
+    const toolResultsByCallId = new Map<string, DomainUiContinuationMessage['parts'][number]>()
+    for (const part of message.parts) {
+      if (part.type === 'tool-result') {
+        toolResultsByCallId.set(part.toolCallId, part)
+      }
+    }
+
+    // Rebuild parts: place or inject a tool-result immediately after each
+    // included tool-call
+    const reordered: Array<DomainUiContinuationMessage['parts'][number]> = []
+    const emittedResultIds = new Set<string>()
+
+    for (const part of message.parts) {
+      if (part.type === 'tool-result') {
+        // Skip — will be placed (or was already placed) after its tool-call
+        if (emittedResultIds.has(part.toolCallId)) {
+          continue
+        }
+        // Orphan tool-result with no matching tool-call — keep in place
+        reordered.push(part)
+        emittedResultIds.add(part.toolCallId)
+        continue
+      }
+
+      reordered.push(part)
+
+      if (part.type === 'tool-call' && isToolCallIncluded(part) && !emittedResultIds.has(part.id)) {
+        const existingResult = toolResultsByCallId.get(part.id)
+        if (existingResult) {
+          // Move existing tool-result to be adjacent
+          reordered.push(existingResult)
+        } else if (part.output !== undefined) {
+          // Inject synthetic tool-result from the tool-call's output so that
+          // Phase 1 handles the pairing instead of Phase 2 (which appends
+          // at the end and breaks multi-segment conversations).
+          reordered.push({
+            type: 'tool-result' as const,
+            toolCallId: part.id,
+            content: typeof part.output === 'string' ? part.output : JSON.stringify(part.output),
+            state: 'complete' as const,
+          })
+        } else if (part.state === 'approval-responded') {
+          // Approval-responded tool calls without output need a synthetic
+          // result with approval metadata. TanStack Phase 2 would emit this
+          // at the END, breaking multi-segment conversations.
+          const approvalContent = JSON.stringify({
+            approved: part.approval?.approved ?? true,
+            pendingExecution: true,
+          })
+          reordered.push({
+            type: 'tool-result' as const,
+            toolCallId: part.id,
+            content: approvalContent,
+            state: 'complete' as const,
+          })
+        }
+        emittedResultIds.add(part.id)
+      }
+    }
+
+    return { ...message, parts: reordered }
+  })
 }

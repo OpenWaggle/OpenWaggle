@@ -248,6 +248,7 @@ export function runAgentEffect(
           conversation.messages,
         )
       : buildFreshChatMessages(conversation, resolution.provider, payload)
+
     const tools = bindToolContextToTools(built.tools, toolContext)
     const samplingOptions = buildSamplingOptions(resolution.qualityConfig)
     const retryDriver = yield* Schedule.driver(
@@ -584,6 +585,10 @@ export function runAgentEffect(
 }
 
 export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> {
-  const { runAppEffect } = await import('../runtime')
-  return runAppEffect(runAgentEffect(params))
+  // runAgentEffect requires StandardsService in its context.
+  // Use Effect.runPromise with a local layer instead of the managed runtime
+  // to avoid nested runtime calls — callers (executeAgentRun, waggle-coordinator,
+  // sub-agent-runner) already run inside the managed runtime.
+  const { FilesystemStandardsLive } = await import('../adapters/standards-adapter')
+  return Effect.runPromise(runAgentEffect(params).pipe(Effect.provide(FilesystemStandardsLive)))
 }
