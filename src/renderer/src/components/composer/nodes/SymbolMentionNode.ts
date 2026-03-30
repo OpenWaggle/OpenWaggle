@@ -55,6 +55,10 @@ export class SymbolMentionNode extends DecoratorNode<ReactNode> {
     return { element }
   }
 
+  static importDOM(): null {
+    return null
+  }
+
   static importJSON(serializedNode: SerializedSymbolMentionNode): SymbolMentionNode {
     return $createSymbolMentionNode(
       serializedNode.symbolName,
