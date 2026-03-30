@@ -501,11 +501,19 @@ function enforceToolResultPairingOnUIMessages(
       if (part.output !== undefined) {
         continue
       }
-      // Tools approved by the user but not yet executed must not get synthetic
-      // error results — the continuation run will execute them and produce the
-      // real result. Without this guard, approved tools receive a fake
-      // "Tool execution was interrupted" error that breaks the agent's flow.
-      if (part.approval?.approved === true) {
+      // Tool calls with approval-responded state have already been handled by
+      // the user (approved or denied). They must not get synthetic error results
+      // because:
+      // - If approved: the continuation run will execute them
+      // - If denied: the denial is already recorded
+      // Without this guard, these tool calls get a fake "Tool execution was
+      // interrupted" error that causes Anthropic API 400 errors (unpaired
+      // tool_use blocks).
+      if (part.state === 'approval-responded') {
+        continue
+      }
+      // Also skip if approval metadata indicates user has responded
+      if (part.approval?.approved !== undefined) {
         continue
       }
       if (!toolResultIds.has(part.id)) {
