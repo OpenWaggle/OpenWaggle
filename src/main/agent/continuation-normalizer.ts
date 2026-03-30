@@ -501,6 +501,13 @@ function enforceToolResultPairingOnUIMessages(
       if (part.output !== undefined) {
         continue
       }
+      // Tools approved by the user but not yet executed must not get synthetic
+      // error results — the continuation run will execute them and produce the
+      // real result. Without this guard, approved tools receive a fake
+      // "Tool execution was interrupted" error that breaks the agent's flow.
+      if (part.approval?.approved === true) {
+        continue
+      }
       if (!toolResultIds.has(part.id)) {
         orphanToolCallIds.push({ id: part.id, name: part.name })
       }
