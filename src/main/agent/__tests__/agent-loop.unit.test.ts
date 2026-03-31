@@ -6,14 +6,15 @@ import {
   SupportedModelId,
   ToolCallId,
 } from '@shared/types/brand'
+import type { DomainUiContinuationMessage } from '@shared/types/continuation'
 import type { Conversation } from '@shared/types/conversation'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
-import type { UIMessage } from '@tanstack/ai-react'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   chatMock,
+  chatStreamMock,
   maxIterationsMock,
   loadProjectConfigMock,
   bindToolContextToToolsMock,
@@ -32,27 +33,31 @@ const {
   loadAgentStandardsContextMock,
   processAgentStreamEffectMock,
   resolveToolContextAttachmentsMock,
-} = vi.hoisted(() => ({
-  chatMock: vi.fn(),
-  maxIterationsMock: vi.fn(() => 'max-iterations-strategy'),
-  loadProjectConfigMock: vi.fn(),
-  bindToolContextToToolsMock: vi.fn(),
-  normalizeContinuationAsUIMessagesMock: vi.fn(),
-  notifyRunCompleteMock: vi.fn(),
-  notifyRunErrorMock: vi.fn(),
-  notifyRunStartMock: vi.fn(),
-  conversationToMessagesMock: vi.fn(),
-  buildAgentPromptMock: vi.fn(),
-  buildPersistedUserMessagePartsMock: vi.fn(),
-  buildSamplingOptionsMock: vi.fn(),
-  isResolutionErrorMock: vi.fn(),
-  makeMessageMock: vi.fn(),
-  resolveAgentProjectPathMock: vi.fn(),
-  resolveProviderAndQualityMock: vi.fn(),
-  loadAgentStandardsContextMock: vi.fn(),
-  processAgentStreamEffectMock: vi.fn(),
-  resolveToolContextAttachmentsMock: vi.fn(),
-}))
+} = vi.hoisted(() => {
+  const _chatStreamMock = vi.fn()
+  return {
+    chatMock: vi.fn(),
+    chatStreamMock: _chatStreamMock,
+    maxIterationsMock: vi.fn(() => 'max-iterations-strategy'),
+    loadProjectConfigMock: vi.fn(),
+    bindToolContextToToolsMock: vi.fn(),
+    normalizeContinuationAsUIMessagesMock: vi.fn(),
+    notifyRunCompleteMock: vi.fn(),
+    notifyRunErrorMock: vi.fn(),
+    notifyRunStartMock: vi.fn(),
+    conversationToMessagesMock: vi.fn(),
+    buildAgentPromptMock: vi.fn(),
+    buildPersistedUserMessagePartsMock: vi.fn(),
+    buildSamplingOptionsMock: vi.fn(),
+    isResolutionErrorMock: vi.fn(),
+    makeMessageMock: vi.fn(),
+    resolveAgentProjectPathMock: vi.fn(),
+    resolveProviderAndQualityMock: vi.fn(),
+    loadAgentStandardsContextMock: vi.fn(),
+    processAgentStreamEffectMock: vi.fn(),
+    resolveToolContextAttachmentsMock: vi.fn(),
+  }
+})
 
 vi.mock('@tanstack/ai', () => ({
   chat: chatMock,
@@ -97,6 +102,24 @@ vi.mock('../shared', () => ({
 vi.mock('../standards-context', () => ({
   loadAgentStandardsContext: loadAgentStandardsContextMock,
 }))
+
+// Mock the runtime so runAgent's dynamic import resolves with a test layer
+vi.mock('../../runtime', async () => {
+  const { Effect, Layer } = await import('effect')
+  const { StandardsService } = await import('../../ports/standards-service')
+  const { StandardsLoadError } = await import('../../errors')
+  const TestStandardsLayer = Layer.succeed(StandardsService, {
+    loadContext: () =>
+      Effect.tryPromise({
+        try: () => loadAgentStandardsContextMock('', '', {}, []),
+        catch: (cause) => new StandardsLoadError({ message: String(cause), cause }),
+      }),
+  })
+  return {
+    runAppEffect: (effect: Effect.Effect<unknown>) =>
+      Effect.runPromise(Effect.provide(effect, TestStandardsLayer)),
+  }
+})
 
 vi.mock('../stream-processor', () => ({
   processAgentStreamEffect: processAgentStreamEffectMock,
@@ -157,6 +180,8 @@ function createPersistedMessage(
 describe('runAgent', () => {
   beforeEach(() => {
     chatMock.mockReset()
+    chatStreamMock.mockReset()
+    chatStreamMock.mockReturnValue(STREAM)
     maxIterationsMock.mockClear()
     loadProjectConfigMock.mockReset()
     bindToolContextToToolsMock.mockReset()
@@ -243,6 +268,7 @@ describe('runAgent', () => {
       payload: createPayload(),
       model: MODEL,
       settings: DEFAULT_SETTINGS,
+      chatStream: chatStreamMock,
       onChunk: vi.fn(),
       signal: new AbortController().signal,
       skipApproval: createSkipApprovalToken(),
@@ -267,6 +293,7 @@ describe('runAgent', () => {
       },
       model: MODEL,
       settings: DEFAULT_SETTINGS,
+      chatStream: chatStreamMock,
       onChunk: vi.fn(),
       signal: new AbortController().signal,
     })
@@ -276,7 +303,7 @@ describe('runAgent', () => {
   })
 
   it('synthesizes a terminal denied tool-result for denied approval continuations', async () => {
-    const deniedContinuationMessages: UIMessage[] = [
+    const deniedContinuationMessages: DomainUiContinuationMessage[] = [
       {
         id: 'assistant-denied',
         role: 'assistant',
@@ -306,6 +333,7 @@ describe('runAgent', () => {
       },
       model: MODEL,
       settings: DEFAULT_SETTINGS,
+      chatStream: chatStreamMock,
       onChunk: vi.fn(),
       signal: new AbortController().signal,
     })
@@ -338,7 +366,7 @@ describe('runAgent', () => {
   })
 
   it('does not re-synthesize a denied approval when the continuation already includes a denied tool-result', async () => {
-    const deniedContinuationMessages: UIMessage[] = [
+    const deniedContinuationMessages: DomainUiContinuationMessage[] = [
       {
         id: 'assistant-denied',
         role: 'assistant',
@@ -377,6 +405,7 @@ describe('runAgent', () => {
       },
       model: MODEL,
       settings: DEFAULT_SETTINGS,
+      chatStream: chatStreamMock,
       onChunk: vi.fn(),
       signal: new AbortController().signal,
     })
@@ -441,6 +470,7 @@ describe('runAgent', () => {
       },
       model: MODEL,
       settings: DEFAULT_SETTINGS,
+      chatStream: chatStreamMock,
       onChunk: vi.fn(),
       signal: new AbortController().signal,
     })
@@ -475,6 +505,7 @@ describe('runAgent', () => {
         payload: createPayload(),
         model: MODEL,
         settings: DEFAULT_SETTINGS,
+        chatStream: chatStreamMock,
         onChunk: vi.fn(),
         signal: new AbortController().signal,
       }),
@@ -500,6 +531,7 @@ describe('runAgent', () => {
         payload: createPayload(),
         model: MODEL,
         settings: DEFAULT_SETTINGS,
+        chatStream: chatStreamMock,
         onChunk: vi.fn(),
         signal: new AbortController().signal,
       }),
@@ -532,6 +564,7 @@ describe('runAgent', () => {
       payload: createPayload(),
       model: MODEL,
       settings: DEFAULT_SETTINGS,
+      chatStream: chatStreamMock,
       onChunk: vi.fn(),
       signal: new AbortController().signal,
     })
@@ -558,6 +591,7 @@ describe('runAgent', () => {
         payload: createPayload(),
         model: MODEL,
         settings: DEFAULT_SETTINGS,
+        chatStream: chatStreamMock,
         onChunk: vi.fn(),
         signal: new AbortController().signal,
       }),

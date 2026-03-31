@@ -51,6 +51,10 @@ export class FileMentionNode extends DecoratorNode<ReactNode> {
     return { element }
   }
 
+  static importDOM(): null {
+    return null
+  }
+
   static importJSON(serializedNode: SerializedFileMentionNode): FileMentionNode {
     return $createFileMentionNode(serializedNode.mentionPath, serializedNode.mentionBasename)
   }

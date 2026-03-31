@@ -1,11 +1,11 @@
-import type { ServerTool } from '@tanstack/ai'
 import type { AgentFeature, AgentRunContext } from '../agent/runtime-types'
+import type { DomainServerTool } from '../ports/tool-types'
 
-function toolName(tool: ServerTool): string {
+function toolName(tool: DomainServerTool): string {
   return tool.name ?? 'unknown'
 }
 
-function assertUniqueToolNames(tools: readonly ServerTool[]): void {
+function assertUniqueToolNames(tools: readonly DomainServerTool[]): void {
   const seenNames = new Set<string>()
 
   for (const tool of tools) {
@@ -24,10 +24,10 @@ function assertUniqueToolNames(tools: readonly ServerTool[]): void {
 export function getServerTools(
   context: AgentRunContext,
   features: readonly AgentFeature[],
-): ServerTool[] {
+): DomainServerTool[] {
   const providedTools = features.flatMap((feature) => feature.getTools?.(context) ?? [])
 
-  const resolvedTools = features.reduce<ServerTool[]>(
+  const resolvedTools = features.reduce<DomainServerTool[]>(
     (currentTools, feature) => {
       if (!feature.filterTools) {
         return currentTools

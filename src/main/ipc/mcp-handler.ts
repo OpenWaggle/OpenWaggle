@@ -5,7 +5,7 @@ import { mcpServerConfigSchema } from '@shared/types/mcp'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
 import { mcpManager } from '../mcp'
-import { getSettings, updateSettings } from '../store/settings'
+import { SettingsService } from '../services/settings-service'
 import { typedHandle } from './typed-ipc'
 
 const logger = createLogger('mcp-handler')
@@ -13,10 +13,10 @@ const mcpServerConfigDraftSchema = mcpServerConfigSchema.omit('id')
 const mcpServerConfigUpdatesSchema = Schema.partial(mcpServerConfigDraftSchema)
 const nonEmptyStringSchema = Schema.String.pipe(Schema.minLength(1))
 
-function catchMcpError<A>(
+function catchMcpError<A, R>(
   operation: string,
-  effect: Effect.Effect<A, unknown>,
-): Effect.Effect<A | { readonly ok: false; readonly error: string }, never> {
+  effect: Effect.Effect<A, unknown, R>,
+): Effect.Effect<A | { readonly ok: false; readonly error: string }, never, R> {
   const errorHandler = (err: unknown) =>
     Effect.sync((): { readonly ok: false; readonly error: string } => {
       const message = err instanceof Error ? err.message : String(err)
@@ -29,8 +29,9 @@ function catchMcpError<A>(
 
 export function registerMcpHandlers(): void {
   typedHandle('mcp:list-servers', () =>
-    Effect.sync(() => {
-      const settings = getSettings()
+    Effect.gen(function* () {
+      const settingsService = yield* SettingsService
+      const settings = yield* settingsService.get()
       const liveStatuses = mcpManager.getServerStatuses()
       const liveIds = new Set(liveStatuses.map((s) => s.id))
 
@@ -66,8 +67,9 @@ export function registerMcpHandlers(): void {
         const id = yield* Effect.promise(() => mcpManager.addServer(config))
         const fullConfig: McpServerConfig = { ...config, id }
 
-        const settings = getSettings()
-        updateSettings({
+        const settingsService = yield* SettingsService
+        const settings = yield* settingsService.get()
+        yield* settingsService.update({
           mcpServers: [...settings.mcpServers, fullConfig],
         })
 
@@ -86,8 +88,9 @@ export function registerMcpHandlers(): void {
 
         yield* Effect.promise(() => mcpManager.removeServer(mcpId))
 
-        const settings = getSettings()
-        updateSettings({
+        const settingsService = yield* SettingsService
+        const settings = yield* settingsService.get()
+        yield* settingsService.update({
           mcpServers: settings.mcpServers.filter((s) => s.id !== mcpId),
         })
 
@@ -105,7 +108,8 @@ export function registerMcpHandlers(): void {
         const mcpId = McpServerId(id)
         const parsedEnabled = decodeUnknownOrThrow(Schema.Boolean, enabled)
 
-        const settings = getSettings()
+        const settingsService = yield* SettingsService
+        const settings = yield* settingsService.get()
         const config = settings.mcpServers.find((s) => s.id === mcpId)
         if (!config) {
           return { ok: false as const, error: `Server ${id} not found in configuration` }
@@ -114,7 +118,7 @@ export function registerMcpHandlers(): void {
         const updatedConfig: McpServerConfig = { ...config, enabled: parsedEnabled }
         yield* Effect.promise(() => mcpManager.toggleServer(mcpId, parsedEnabled, updatedConfig))
 
-        updateSettings({
+        yield* settingsService.update({
           mcpServers: settings.mcpServers.map((s) => (s.id === mcpId ? updatedConfig : s)),
         })
 
@@ -132,7 +136,8 @@ export function registerMcpHandlers(): void {
         const mcpId = McpServerId(id)
         const updates = decodeUnknownOrThrow(mcpServerConfigUpdatesSchema, rawUpdates)
 
-        const settings = getSettings()
+        const settingsService = yield* SettingsService
+        const settings = yield* settingsService.get()
         const existing = settings.mcpServers.find((s) => s.id === mcpId)
         if (!existing) {
           return { ok: false as const, error: `Server ${id} not found in configuration` }
@@ -145,7 +150,7 @@ export function registerMcpHandlers(): void {
           yield* Effect.promise(() => mcpManager.toggleServer(mcpId, true, updatedConfig))
         }
 
-        updateSettings({
+        yield* settingsService.update({
           mcpServers: settings.mcpServers.map((s) => (s.id === mcpId ? updatedConfig : s)),
         })
 

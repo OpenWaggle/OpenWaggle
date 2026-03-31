@@ -51,6 +51,10 @@ export class SkillMentionNode extends DecoratorNode<ReactNode> {
     return { element }
   }
 
+  static importDOM(): null {
+    return null
+  }
+
   static importJSON(serializedNode: SerializedSkillMentionNode): SkillMentionNode {
     return $createSkillMentionNode(serializedNode.skillId, serializedNode.skillName)
   }

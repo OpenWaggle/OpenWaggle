@@ -1,8 +1,14 @@
-import { convertMessagesToModelMessages, type ModelMessage, type UIMessage } from '@tanstack/ai'
+import type {
+  DomainContinuationMessage,
+  DomainModelContinuationMessage,
+  DomainUiContinuationMessage,
+  DomainUiToolCallPart,
+} from '@shared/types/continuation'
+import { convertDomainToModelMessages } from '../adapters/continuation-mapper'
 import { createLogger } from '../logger'
 
-export type ContinuationMessage = ModelMessage | UIMessage
-type UiToolCallPart = Extract<UIMessage['parts'][number], { type: 'tool-call' }>
+export type ContinuationMessage = DomainContinuationMessage
+type UiToolCallPart = DomainUiToolCallPart
 
 const logger = createLogger('continuation-normalizer')
 const EMPTY_TOOL_ARGS_JSON = '{}'
@@ -14,11 +20,11 @@ const TOOL_CALL_SCORE_HAS_APPROVAL_DECISION = 8
 const TOOL_CALL_SCORE_APPROVAL_RESPONDED = 16
 const TOOL_CALL_SCORE_HAS_OUTPUT = 32
 
-function isUiSnapshotMessage(message: ContinuationMessage): message is UIMessage {
+function isUiSnapshotMessage(message: ContinuationMessage): message is DomainUiContinuationMessage {
   return 'parts' in message
 }
 
-function hasModelMessageContent(message: ModelMessage): boolean {
+function hasModelMessageContent(message: DomainModelContinuationMessage): boolean {
   if (message.content === null) {
     return false
   }
@@ -67,9 +73,7 @@ function hasNonEmptyObjectArguments(rawArgs: string): boolean {
   }
 }
 
-function getUiToolCallScore(
-  part: Extract<UIMessage['parts'][number], { type: 'tool-call' }>,
-): number {
+function getUiToolCallScore(part: UiToolCallPart): number {
   let score = 0
   if (part.state !== undefined) {
     score += TOOL_CALL_SCORE_HAS_STATE
@@ -92,13 +96,13 @@ function getUiToolCallScore(
   return score
 }
 
-function getModelToolCallScore(toolCall: NonNullable<ModelMessage['toolCalls']>[number]): number {
+function getModelToolCallScore(
+  toolCall: NonNullable<DomainModelContinuationMessage['toolCalls']>[number],
+): number {
   return hasNonEmptyObjectArguments(toolCall.function.arguments) ? 1 : 0
 }
 
-function sanitizeUiToolCallPart(
-  part: Extract<UIMessage['parts'][number], { type: 'tool-call' }>,
-): Extract<UIMessage['parts'][number], { type: 'tool-call' }> {
+function sanitizeUiToolCallPart(part: UiToolCallPart): UiToolCallPart {
   return {
     ...part,
     arguments: normalizeToolArgumentsJson(part.arguments, part.id),
@@ -180,8 +184,10 @@ const SYNTHETIC_TOOL_RESULT_CONTENT = JSON.stringify({
   error: 'Tool execution was interrupted.',
 })
 
-function enforceToolResultPairing(messages: readonly ModelMessage[]): ModelMessage[] {
-  const pairedMessages: ModelMessage[] = []
+function enforceToolResultPairing(
+  messages: readonly DomainModelContinuationMessage[],
+): DomainModelContinuationMessage[] {
+  const pairedMessages: DomainModelContinuationMessage[] = []
   let pendingAssistantToolCallIds: Set<string> | null = null
 
   for (const message of messages) {
@@ -250,9 +256,9 @@ function enforceToolResultPairing(messages: readonly ModelMessage[]): ModelMessa
 
 export function normalizeContinuationInput(
   continuationMessages: readonly ContinuationMessage[],
-): ModelMessage[] {
+): DomainModelContinuationMessage[] {
   const normalized = deduplicateContinuationMessages(continuationMessages)
-  const convertedMessages = convertMessagesToModelMessages(normalized)
+  const convertedMessages = convertDomainToModelMessages(normalized)
   return enforceToolResultPairing(convertedMessages)
 }
 
@@ -289,7 +295,7 @@ function deduplicateContinuationMessages(
         continue
       }
 
-      const dedupedPartsReversed: Array<UIMessage['parts'][number]> = []
+      const dedupedPartsReversed: Array<DomainUiContinuationMessage['parts'][number]> = []
       const dedupedToolCallIndexById = new Map<string, number>()
       const dedupedToolCallScoreById = new Map<string, number>()
 
@@ -362,7 +368,9 @@ function deduplicateContinuationMessages(
       continue
     }
 
-    const dedupedToolCallsReversed: Array<NonNullable<ModelMessage['toolCalls']>[number]> = []
+    const dedupedToolCallsReversed: Array<
+      NonNullable<DomainModelContinuationMessage['toolCalls']>[number]
+    > = []
     const dedupedToolCallIndexById = new Map<string, number>()
     const dedupedToolCallScoreById = new Map<string, number>()
 
@@ -442,7 +450,8 @@ export function normalizeContinuationAsUIMessages(
 ): ContinuationMessage[] {
   const deduped = deduplicateContinuationMessages(continuationMessages)
   const merged = mergeConsecutiveAssistantUIMessages(deduped)
-  return enforceToolResultPairingOnUIMessages(merged)
+  const enforced = enforceToolResultPairingOnUIMessages(merged)
+  return ensureToolResultAdjacency(enforced)
 }
 
 /**
@@ -450,9 +459,7 @@ export function normalizeContinuationAsUIMessages(
  * is "included" (emitted as a tool_use block) when its state signals
  * that the call has been dispatched or it carries concrete output.
  */
-function isToolCallIncluded(
-  part: Extract<UIMessage['parts'][number], { type: 'tool-call' }>,
-): boolean {
+function isToolCallIncluded(part: UiToolCallPart): boolean {
   return (
     part.state === 'input-complete' ||
     part.state === 'approval-responded' ||
@@ -495,6 +502,21 @@ function enforceToolResultPairingOnUIMessages(
       if (part.output !== undefined) {
         continue
       }
+      // Tool calls with approval-responded state have already been handled by
+      // the user (approved or denied). They must not get synthetic error results
+      // because:
+      // - If approved: the continuation run will execute them
+      // - If denied: the denial is already recorded
+      // Without this guard, these tool calls get a fake "Tool execution was
+      // interrupted" error that causes Anthropic API 400 errors (unpaired
+      // tool_use blocks).
+      if (part.state === 'approval-responded') {
+        continue
+      }
+      // Also skip if approval metadata indicates user has responded
+      if (part.approval?.approved !== undefined) {
+        continue
+      }
       if (!toolResultIds.has(part.id)) {
         orphanToolCallIds.push({ id: part.id, name: part.name })
       }
@@ -504,8 +526,8 @@ function enforceToolResultPairingOnUIMessages(
       return message
     }
 
-    const syntheticParts: Array<UIMessage['parts'][number]> = orphanToolCallIds.map(
-      ({ id, name }) => {
+    const syntheticParts: Array<DomainUiContinuationMessage['parts'][number]> =
+      orphanToolCallIds.map(({ id, name }) => {
         logger.warn('Injecting synthetic tool-result for orphan tool-call in UIMessage', {
           toolCallId: id,
           toolName: name,
@@ -516,8 +538,7 @@ function enforceToolResultPairingOnUIMessages(
           content: SYNTHETIC_TOOL_RESULT_CONTENT,
           state: 'error' as const,
         }
-      },
-    )
+      })
 
     return {
       ...message,
@@ -559,4 +580,92 @@ function mergeConsecutiveAssistantUIMessages(
   }
 
   return result
+}
+
+/**
+ * Ensure every included tool-call part has an adjacent tool-result part
+ * immediately after it. This prevents TanStack AI's `buildAssistantMessages`
+ * from producing unpaired `tool_use` blocks.
+ *
+ * `buildAssistantMessages` has two phases:
+ * - Phase 1: walks parts in order, flushes segments on tool-result parts
+ * - Phase 2: appends tool results from tool-call output at the END
+ *
+ * Phase 2 appending breaks multi-segment conversations because tool results
+ * end up after LATER assistant segments, not immediately after their tool_use.
+ *
+ * This function:
+ * 1. Moves existing tool-result parts to be adjacent to their tool-call
+ * 2. Injects synthetic tool-result parts for tool-calls that have output
+ *    but no matching tool-result (so Phase 1 handles them, not Phase 2)
+ */
+function ensureToolResultAdjacency(messages: ContinuationMessage[]): ContinuationMessage[] {
+  return messages.map((message) => {
+    if (!isUiSnapshotMessage(message) || message.role !== 'assistant') {
+      return message
+    }
+
+    // Collect existing tool-result parts indexed by toolCallId
+    const toolResultsByCallId = new Map<string, DomainUiContinuationMessage['parts'][number]>()
+    for (const part of message.parts) {
+      if (part.type === 'tool-result') {
+        toolResultsByCallId.set(part.toolCallId, part)
+      }
+    }
+
+    // Rebuild parts: place or inject a tool-result immediately after each
+    // included tool-call
+    const reordered: Array<DomainUiContinuationMessage['parts'][number]> = []
+    const emittedResultIds = new Set<string>()
+
+    for (const part of message.parts) {
+      if (part.type === 'tool-result') {
+        // Skip — will be placed (or was already placed) after its tool-call
+        if (emittedResultIds.has(part.toolCallId)) {
+          continue
+        }
+        // Orphan tool-result with no matching tool-call — keep in place
+        reordered.push(part)
+        emittedResultIds.add(part.toolCallId)
+        continue
+      }
+
+      reordered.push(part)
+
+      if (part.type === 'tool-call' && isToolCallIncluded(part) && !emittedResultIds.has(part.id)) {
+        const existingResult = toolResultsByCallId.get(part.id)
+        if (existingResult) {
+          // Move existing tool-result to be adjacent
+          reordered.push(existingResult)
+        } else if (part.output !== undefined) {
+          // Inject synthetic tool-result from the tool-call's output so that
+          // Phase 1 handles the pairing instead of Phase 2 (which appends
+          // at the end and breaks multi-segment conversations).
+          reordered.push({
+            type: 'tool-result' as const,
+            toolCallId: part.id,
+            content: typeof part.output === 'string' ? part.output : JSON.stringify(part.output),
+            state: 'complete' as const,
+          })
+        } else if (part.state === 'approval-responded') {
+          // Approval-responded tool calls without output need a synthetic
+          // result with approval metadata. TanStack Phase 2 would emit this
+          // at the END, breaking multi-segment conversations.
+          const approvalContent = JSON.stringify({
+            approved: part.approval?.approved ?? true,
+            pendingExecution: true,
+          })
+          reordered.push({
+            type: 'tool-result' as const,
+            toolCallId: part.id,
+            content: approvalContent,
+            state: 'complete' as const,
+          })
+        }
+        emittedResultIds.add(part.id)
+      }
+    }
+
+    return { ...message, parts: reordered }
+  })
 }

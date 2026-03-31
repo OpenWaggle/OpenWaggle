@@ -1,9 +1,9 @@
 import { safeDecodeUnknown } from '@shared/schema'
 import { jsonObjectSchema } from '@shared/schemas/validation'
 import type { AgentToolFilter } from '@shared/types/sub-agent'
-import type { ServerTool } from '@tanstack/ai'
 import { createLogger } from '../logger'
 import { mcpToolsFeature } from '../mcp'
+import type { DomainServerTool } from '../ports/tool-types'
 import { builtInTools } from '../tools/built-in-tools'
 import { withoutApproval } from '../tools/without-approval'
 import type {
@@ -263,7 +263,7 @@ const subAgentToolsFeature: AgentFeature = {
     const { toolFilter, permissionMode } = context.subAgentContext
 
     // Apply permission mode first
-    let filtered: ServerTool[]
+    let filtered: DomainServerTool[]
     if (permissionMode === 'plan') {
       // Plan mode forces read-only tool set regardless of agent type
       const readOnlyNames = new Set([
@@ -302,7 +302,10 @@ const subAgentToolsFeature: AgentFeature = {
   },
 }
 
-function applyToolFilter(tools: readonly ServerTool[], filter: AgentToolFilter): ServerTool[] {
+function applyToolFilter(
+  tools: readonly DomainServerTool[],
+  filter: AgentToolFilter,
+): DomainServerTool[] {
   if (filter.kind === 'all') return [...tools]
   if (filter.kind === 'allow') {
     const allowed = new Set(filter.names)

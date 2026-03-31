@@ -1,10 +1,15 @@
 import { ConversationId, MessageId, SupportedModelId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
+import type { AgentStreamChunk } from '@shared/types/stream'
 import type { WaggleConfig, WaggleStreamMetadata } from '@shared/types/waggle'
-import type { StreamChunk } from '@tanstack/ai'
+import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ConversationRepositoryError } from '../../errors'
+import { ConversationRepository } from '../../ports/conversation-repository'
+import { ProviderService } from '../../ports/provider-service'
+import { SettingsService } from '../../services/settings-service'
 
 const {
   typedHandleMock,
@@ -13,7 +18,6 @@ const {
   getSettingsMock,
   getConversationMock,
   saveConversationMock,
-  withConversationLockMock,
   emitStreamChunkMock,
   emitWaggleStreamChunkMock,
   emitWaggleTurnEventMock,
@@ -25,6 +29,8 @@ const {
   makeErrorInfoMock,
   hydrateAttachmentSourcesMock,
   generateTitleMock,
+  buildPersistedUserMessagePartsMock,
+  makeMessageMock,
 } = vi.hoisted(() => ({
   typedHandleMock: vi.fn(),
   typedOnMock: vi.fn(),
@@ -32,7 +38,6 @@ const {
   getSettingsMock: vi.fn(),
   getConversationMock: vi.fn(),
   saveConversationMock: vi.fn(),
-  withConversationLockMock: vi.fn(),
   emitStreamChunkMock: vi.fn(),
   emitWaggleStreamChunkMock: vi.fn(),
   emitWaggleTurnEventMock: vi.fn(),
@@ -44,6 +49,11 @@ const {
   makeErrorInfoMock: vi.fn(),
   hydrateAttachmentSourcesMock: vi.fn(async (attachments: unknown) => attachments),
   generateTitleMock: vi.fn(),
+  buildPersistedUserMessagePartsMock: vi.fn(() => [{ type: 'text', text: 'test' }]),
+  makeMessageMock: vi.fn(
+    (role: string, parts: unknown[]) =>
+      ({ id: 'msg-mock', role, parts, createdAt: Date.now() }) as unknown,
+  ),
 }))
 
 vi.mock('../typed-ipc', () => ({
@@ -60,17 +70,58 @@ vi.mock('../../agent/error-classifier', () => ({
   makeErrorInfo: makeErrorInfoMock,
 }))
 
-vi.mock('../../store/settings', () => ({
-  getSettings: getSettingsMock,
-}))
+const TestSettingsLayer = Layer.succeed(SettingsService, {
+  get: () => Effect.sync(() => getSettingsMock()),
+  update: () => Effect.void,
+  initialize: () => Effect.void,
+  flushForTests: () => Effect.void,
+})
 
-vi.mock('../../store/conversations', () => ({
-  getConversation: getConversationMock,
-  saveConversation: saveConversationMock,
-}))
+const TestConversationRepoLayer = Layer.succeed(ConversationRepository, {
+  get: (id) =>
+    Effect.tryPromise({
+      try: async () => getConversationMock(id),
+      catch: (cause) => new ConversationRepositoryError({ operation: 'get', cause }),
+    }),
+  save: (conv) =>
+    Effect.tryPromise({
+      try: async () => {
+        await saveConversationMock(conv)
+      },
+      catch: (cause) => new ConversationRepositoryError({ operation: 'save', cause }),
+    }),
+  list: () => Effect.succeed([]),
+  create: () => Effect.succeed({} as never),
+  delete: () => Effect.void,
+  archive: () => Effect.void,
+  unarchive: () => Effect.void,
+  listArchived: () => Effect.succeed([]),
+  updateTitle: () => Effect.void,
+  updateProjectPath: () => Effect.void,
+  updatePlanMode: () => Effect.void,
+})
 
-vi.mock('../../store/conversation-lock', () => ({
-  withConversationLock: withConversationLockMock,
+const TestProviderServiceLayer = Layer.succeed(ProviderService, {
+  get: () => Effect.succeed(undefined),
+  getAll: () => Effect.succeed([]),
+  getProviderForModel: () => Effect.succeed({} as never),
+  isKnownModel: () => Effect.succeed(true),
+  createChatAdapter: () => Effect.succeed({} as never),
+  indexModels: () => Effect.void,
+  fetchModels: () => Effect.succeed([]),
+})
+
+const TestLayer = Layer.mergeAll(
+  TestSettingsLayer,
+  TestConversationRepoLayer,
+  TestProviderServiceLayer,
+)
+
+vi.mock('../../runtime', () => ({
+  runAppEffect: (effect: Effect.Effect<unknown>) =>
+    Effect.runPromise(Effect.provide(effect, TestLayer)),
+  runAppEffectExit: (effect: Effect.Effect<unknown>) =>
+    Effect.runPromise(Effect.provide(effect, TestLayer)),
 }))
 
 vi.mock('../../utils/stream-bridge', () => ({
@@ -100,6 +151,11 @@ vi.mock('../attachments-handler', () => ({
   hydrateAttachmentSources: hydrateAttachmentSourcesMock,
 }))
 
+vi.mock('../../agent/shared', () => ({
+  buildPersistedUserMessageParts: buildPersistedUserMessagePartsMock,
+  makeMessage: makeMessageMock,
+}))
+
 vi.mock('../../agent/title-generator', () => ({
   generateTitle: generateTitleMock,
 }))
@@ -123,14 +179,14 @@ function getInvokeHandler(name: string): ((...args: unknown[]) => Promise<unknow
   if (typeof handler !== 'function') {
     return undefined
   }
-  return (...args: unknown[]) => Effect.runPromise(handler(...args))
+  return (...args: unknown[]) => Effect.runPromise(Effect.provide(handler(...args), TestLayer))
 }
 
 function getSendHandler(name: string): ((...args: unknown[]) => Promise<void>) | undefined {
   const call = typedOnMock.mock.calls.find((c: unknown[]) => c[0] === name)
   const handler = call?.[1]
   if (typeof handler !== 'function') return undefined
-  return (...args: unknown[]) => Effect.runPromise(handler(...args))
+  return (...args: unknown[]) => Effect.runPromise(Effect.provide(handler(...args), TestLayer))
 }
 
 function validWaggleConfig(): WaggleConfig {
@@ -194,7 +250,6 @@ describe('registerWaggleHandlers', () => {
     getSettingsMock.mockReset()
     getConversationMock.mockReset()
     saveConversationMock.mockReset()
-    withConversationLockMock.mockReset()
     emitStreamChunkMock.mockReset()
     emitWaggleStreamChunkMock.mockReset()
     emitWaggleTurnEventMock.mockReset()
@@ -205,9 +260,6 @@ describe('registerWaggleHandlers', () => {
     hydrateAttachmentSourcesMock.mockImplementation(async (attachments: unknown) => attachments)
     generateTitleMock.mockReset()
 
-    withConversationLockMock.mockImplementation(async (_id: unknown, fn: () => Promise<void>) =>
-      fn(),
-    )
     getSettingsMock.mockReturnValue({ ...DEFAULT_SETTINGS })
     getConversationMock.mockResolvedValue(baseConversation())
     makeErrorInfoMock.mockImplementation((code: string, msg: string) => ({
@@ -330,9 +382,10 @@ describe('registerWaggleHandlers', () => {
       )
 
       expect(generateTitleMock).toHaveBeenCalledWith(
-        ConversationId('conv-new'),
-        'Review my code',
-        expect.anything(),
+        expect.objectContaining({
+          conversationId: ConversationId('conv-new'),
+          userText: 'Review my code',
+        }),
       )
     })
 
@@ -417,7 +470,7 @@ describe('registerWaggleHandlers', () => {
         async ({
           onStreamChunk,
         }: {
-          onStreamChunk: (chunk: StreamChunk, meta: WaggleStreamMetadata) => void
+          onStreamChunk: (chunk: AgentStreamChunk, meta: WaggleStreamMetadata) => void
         }) => {
           onStreamChunk(
             {
@@ -530,7 +583,7 @@ describe('registerWaggleHandlers', () => {
         async ({
           onStreamChunk,
         }: {
-          onStreamChunk: (chunk: StreamChunk, meta: WaggleStreamMetadata) => void
+          onStreamChunk: (chunk: AgentStreamChunk, meta: WaggleStreamMetadata) => void
         }) => {
           onStreamChunk(
             {
@@ -628,7 +681,7 @@ describe('registerWaggleHandlers', () => {
       )
 
       const waggleTextCalls = emitWaggleStreamChunkMock.mock.calls.filter((call) => {
-        const chunk = call[1] as StreamChunk
+        const chunk = call[1] as AgentStreamChunk
         return (
           chunk.type === 'TEXT_MESSAGE_START' ||
           chunk.type === 'TEXT_MESSAGE_CONTENT' ||
@@ -638,12 +691,12 @@ describe('registerWaggleHandlers', () => {
       const turnZeroIds = new Set(
         waggleTextCalls
           .filter((call) => (call[2] as WaggleStreamMetadata).turnNumber === 0)
-          .map((call) => (call[1] as StreamChunk & { messageId: string }).messageId),
+          .map((call) => (call[1] as AgentStreamChunk & { messageId: string }).messageId),
       )
       const turnOneIds = new Set(
         waggleTextCalls
           .filter((call) => (call[2] as WaggleStreamMetadata).turnNumber === 1)
-          .map((call) => (call[1] as StreamChunk & { messageId: string }).messageId),
+          .map((call) => (call[1] as AgentStreamChunk & { messageId: string }).messageId),
       )
 
       expect(turnZeroIds.size).toBe(1)
@@ -653,14 +706,14 @@ describe('registerWaggleHandlers', () => {
 
       const mainTextIds = emitStreamChunkMock.mock.calls
         .filter((call) => {
-          const chunk = call[1] as StreamChunk
+          const chunk = call[1] as AgentStreamChunk
           return (
             chunk.type === 'TEXT_MESSAGE_START' ||
             chunk.type === 'TEXT_MESSAGE_CONTENT' ||
             chunk.type === 'TEXT_MESSAGE_END'
           )
         })
-        .map((call) => (call[1] as StreamChunk & { messageId: string }).messageId)
+        .map((call) => (call[1] as AgentStreamChunk & { messageId: string }).messageId)
       expect(new Set(mainTextIds)).toEqual(new Set([...turnZeroIds, ...turnOneIds]))
     })
 
@@ -686,7 +739,6 @@ describe('registerWaggleHandlers', () => {
         validWaggleConfig(),
       )
 
-      expect(withConversationLockMock).toHaveBeenCalledOnce()
       expect(saveConversationMock).toHaveBeenCalledWith(
         expect.objectContaining({
           waggleConfig: validWaggleConfig(),
@@ -719,7 +771,7 @@ describe('registerWaggleHandlers', () => {
         }),
       )
       // Should not have tried to persist
-      expect(withConversationLockMock).not.toHaveBeenCalled()
+      expect(saveConversationMock).not.toHaveBeenCalled()
     })
 
     it('emits RUN_ERROR when all turns fail (zero assistants with lastError)', async () => {
@@ -900,7 +952,7 @@ describe('registerWaggleHandlers', () => {
         ],
         lastError: undefined,
       })
-      withConversationLockMock.mockRejectedValue(new Error('Disk full'))
+      saveConversationMock.mockRejectedValue(new Error('Disk full'))
 
       registerWaggleHandlers()
       const handler = getInvokeHandler('agent:send-waggle-message')

@@ -1,7 +1,9 @@
 import { SupportedModelId, TeamConfigId } from '@shared/types/brand'
 import type { WaggleTeamPreset } from '@shared/types/waggle'
+import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { TeamsRepository } from '../../ports/teams-repository'
 
 const { typedHandleMock, listTeamPresetsMock, saveTeamPresetMock, deleteTeamPresetMock } =
   vi.hoisted(() => ({
@@ -32,7 +34,13 @@ function getInvokeHandler(name: string): ((...args: unknown[]) => Promise<unknow
     return undefined
   }
 
-  return (...args: unknown[]) => Effect.runPromise(handler(...args))
+  const TestTeamsLayer = Layer.succeed(TeamsRepository, {
+    list: () => Effect.sync(() => listTeamPresetsMock()),
+    save: (preset) => Effect.sync(() => saveTeamPresetMock(preset)),
+    delete: (id) => Effect.sync(() => deleteTeamPresetMock(id)),
+  })
+
+  return (...args: unknown[]) => Effect.runPromise(Effect.provide(handler(...args), TestTeamsLayer))
 }
 
 function samplePreset(): WaggleTeamPreset {
@@ -115,7 +123,8 @@ describe('registerTeamsHandlers', () => {
       const handler = getInvokeHandler('teams:save')
 
       const result = await handler?.({}, preset)
-      expect(result).toEqual(savedPreset)
+      // Handler returns the preset that was passed in (save is void in the port)
+      expect(result).toEqual(preset)
       expect(saveTeamPresetMock).toHaveBeenCalledWith(preset)
     })
   })

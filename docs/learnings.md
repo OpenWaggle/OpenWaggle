@@ -21,9 +21,17 @@ This document stores project-specific technical learnings only.
 ## 3) Recent Learnings
 
 ### Refactoring Patterns
+- React Compiler auto-memoizes for RENDER optimization, but does NOT guarantee stable function identity for functions used as effect dependencies in external hooks. If a function is passed to a custom hook that uses it in `useEffect` deps, that function MUST use `useCallback` — otherwise the effect restarts every render, cancelling in-flight async operations (e.g. auto-trust approval checks). `[SKILL?]`
+- When mapping vendor types to domain types at adapter boundaries, creating NEW objects (field-by-field copy) instead of passing references changes mutation semantics. TanStack AI mutates UIMessage parts in-place (e.g., setting `output` on a tool-call part after execution). If the continuation snapshot is a shallow copy of live objects, these mutations propagate. If the snapshot is an explicit field extraction (domain mapping), mutations are lost. Always guard against the "approved but not yet executed" state in tool-call continuations — do not inject synthetic error results for tools the user has explicitly approved.
 - Regex `\b(\w{2,})\1\b` for deduplicating concatenated word fragments is too aggressive — it breaks legitimate short-repeat words like "CoCo", "Papa", "MaMa". Use `{4,}` minimum fragment length to avoid false positives while still catching "HelloHello", "FunctionFunction", etc.
 - When extracting shared handler utilities, do NOT mock the extracted module in existing handler tests — let calls pass through to the real utilities since all downstream dependencies are already mocked. This preserves integration coverage without test changes.
 - Renderer error logging must use `createRendererLogger` from `@/lib/logger`, never raw `console.warn` — the structured logger respects log levels and provides consistent namespace prefixes.
+
+### Streaming Performance Patterns
+- ShikiCache is content-addressed (`cyrb53(language + '\0' + code)`). Growing code blocks produce new keys, so cache reads/writes are safe during streaming — no need for `isStreaming` guards. Disabling cache during streaming was the primary perf bottleneck for code-block rendering.
+- Prefix HAST caching should be incremental: when the prefix grows monotonically (append-only during streaming), only parse the NEW paragraph and push its HAST children onto the existing tree. Re-parsing the entire prefix on every paragraph completion is O(n) wasted work.
+- ReactMarkdown checks plugin array references. Stabilize `rehypePlugins` across renders using a ref so the internal unified processor chain isn't re-created every frame. `[SKILL?]`
+- Avoid key-based remounts (`key={condition ? 'a' : 'b'}`) for caching components during streaming — they destroy all accumulated state. Prefer cache invalidation with React diff.
 
 ### TanStack useChat & Streaming Patterns
 - `normalizeContinuationAsUIMessages` bypassed `enforceToolResultPairing`, leaving orphan tool-call parts (state `input-complete` / `approval-responded` with no tool-result and no output) in UIMessages. TanStack AI's `buildAssistantMessages` emits these as `tool_use` blocks without matching `tool` messages, crashing the Anthropic API with `tool_use ids were found without tool_result blocks`. Fix: inject synthetic `tool-result` parts for orphan tool calls before continuation messages reach `chat()`. `[SKILL?]`
@@ -121,6 +129,12 @@ This document stores project-specific technical learnings only.
 ### Effect Service Layer
 - Adding a new Effect service to `AppLayer` (runtime.ts) extends the import chain for every test that imports `runtime.ts`. If the wrapped module has module-level side effects (e.g. `settings.ts` calling `electron.safeStorage` at load time), use `Layer.unwrapEffect` with a dynamic `import()` inside `Effect.promise` to defer the side effect until runtime initialization. This prevents test breakage in unrelated suites whose electron mocks don't cover the new dependency.
 - `@effect/platform`'s `FileSystem` service is already provided by `NodeContext.layer` in `AppLayer` — no custom `AppFileSystem` Context.Tag needed. Any `Effect.gen` block running via `runAppEffect` can `yield* FileSystem.FileSystem` directly.
+
+### Hexagonal Architecture / Domain Boundaries
+- When removing vendor types from `src/shared/`, the renderer still imports vendor types directly — only the IPC contract changes. The renderer needs a mapper function (e.g. `fromAgentStreamChunk`) to convert domain types back to vendor types at the IPC boundary before feeding them to vendor hooks like TanStack's `useChat`.
+- `replace_all` on type names in IPC contracts can silently mutate method names in API interfaces (e.g. `onStreamChunk` → `onAgentStreamChunk`). Review the diff after bulk renames to catch method name mutations.
+- Converting TanStack `UIMessage` parts to domain continuation types across type hierarchies requires JSON roundtrip + type guard (not cross-hierarchy `filter` + type guard) because TypeScript cannot narrow array elements from one discriminated union to a structurally equivalent one in a different type hierarchy.
+- `readonly` arrays in domain types vs mutable arrays in vendor types (`readonly DomainContentPart[]` vs `ContentPart[]`) cause assignment errors. Domain types should use `readonly` for immutability guarantees, and adapter layers handle the mutable-to-readonly boundary.
 
 ### Build & Tooling
 - `react-doctor` defaults to changed-files-only on feature branches. Use `GIT_DIR=/nonexistent` for full-repo scans.

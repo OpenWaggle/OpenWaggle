@@ -1,6 +1,6 @@
 {
   "name": "openwaggle",
-  "version": "0.3.0-alpha.7",
+  "version": "0.3.0-alpha.10",
   "description": "Desktop coding agent with multi-model waggle mode",
   "main": "./out/main/index.js",
   "engines": {
@@ -43,7 +43,8 @@
     "check:pattern-style": "tsx scripts/check-pattern-style.ts",
     "check:decision-size": "tsx scripts/check-decision-size.ts",
     "check:magic-numbers": "tsx scripts/check-magic-numbers.ts",
-    "check": "pnpm typecheck && pnpm lint && pnpm check:pattern-style && pnpm check:decision-size && pnpm check:magic-numbers",
+    "check:architecture": "tsx scripts/check-architecture.ts",
+    "check": "pnpm typecheck && pnpm lint && pnpm check:pattern-style && pnpm check:decision-size && pnpm check:magic-numbers && pnpm check:architecture",
     "prepush:main": "pnpm check && pnpm format && pnpm test:all",
     "website:capture-screenshots": "pnpm prepare:native:electron && tsx scripts/capture-website-screenshots.ts",
     "prepare": "husky",

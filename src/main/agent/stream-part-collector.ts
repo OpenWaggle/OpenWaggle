@@ -3,8 +3,8 @@ import { jsonObjectSchema } from '@shared/schemas/validation'
 import type { MessagePart } from '@shared/types/agent'
 import { ToolCallId } from '@shared/types/brand'
 import type { JsonObject } from '@shared/types/json'
+import type { AgentStreamChunk } from '@shared/types/stream'
 import { chooseBy } from '@shared/utils/decision'
-import type { StreamChunk } from '@tanstack/ai'
 import { createLogger } from '../logger'
 import type { AgentToolCallEndEvent, AgentToolCallStartEvent } from './runtime-types'
 
@@ -88,7 +88,7 @@ export class StreamPartCollector {
   private toolCalls = 0
   private toolErrors = 0
 
-  handleChunk(chunk: StreamChunk): StreamPartCollectorChunkResult {
+  handleChunk(chunk: AgentStreamChunk): StreamPartCollectorChunkResult {
     return chooseBy(chunk, 'type')
       .case('TEXT_MESSAGE_CONTENT', (value) => {
         this.flushReasoningPart()

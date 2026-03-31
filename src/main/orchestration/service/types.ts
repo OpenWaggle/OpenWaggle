@@ -1,7 +1,9 @@
 import type { JsonObject, JsonValue } from '@shared/types/json'
-import type { AnyTextAdapter, maxIterations, ServerTool, StreamChunk } from '@tanstack/ai'
+import type { AgentStreamChunk } from '@shared/types/stream'
+import type { AnyTextAdapter, maxIterations } from '@tanstack/ai'
 import type { loadProjectConfig } from '../../config/project-config'
 import type { Logger } from '../../logger'
+import type { DomainServerTool } from '../../ports/tool-types'
 import type {
   buildSamplingOptions,
   isResolutionError,
@@ -23,21 +25,21 @@ export interface ModelRunner {
     adapter: AnyTextAdapter,
     prompt: string,
     quality: SamplingConfig,
-    onChunk?: (chunk: StreamChunk) => void,
+    onChunk?: (chunk: AgentStreamChunk) => void,
   ): Promise<string>
   modelTextWithTools(
     adapter: AnyTextAdapter,
     prompt: string,
     quality: SamplingConfig,
-    tools: ServerTool[],
+    tools: DomainServerTool[],
     reportProgress?: (payload: OpenWaggleProgressPayload) => void,
-    onChunk?: (chunk: StreamChunk) => void,
+    onChunk?: (chunk: AgentStreamChunk) => void,
   ): Promise<string>
   modelJson(
     adapter: AnyTextAdapter,
     prompt: string,
     quality: SamplingConfig,
-    onChunk?: (chunk: StreamChunk) => void,
+    onChunk?: (chunk: AgentStreamChunk) => void,
   ): Promise<JsonValue>
 }
 
@@ -45,7 +47,7 @@ export interface ChatRunOptions {
   readonly adapter: AnyTextAdapter
   readonly stream: true
   readonly messages: Array<{ readonly role: 'user'; readonly content: string }>
-  readonly tools?: ServerTool[]
+  readonly tools?: DomainServerTool[]
   readonly temperature?: number
   readonly topP?: number
   readonly maxTokens?: number
@@ -53,7 +55,7 @@ export interface ChatRunOptions {
   readonly agentLoopStrategy?: ReturnType<typeof maxIterations>
 }
 
-export type ChatRunner = (options: ChatRunOptions) => AsyncIterable<StreamChunk>
+export type ChatRunner = (options: ChatRunOptions) => AsyncIterable<AgentStreamChunk>
 
 export interface OrchestrationServiceDeps {
   readonly now: () => number

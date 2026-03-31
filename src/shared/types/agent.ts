@@ -1,5 +1,5 @@
-import type { ModelMessage, UIMessage } from '@tanstack/ai'
 import type { MessageId } from './brand'
+import type { DomainContinuationMessage } from './continuation'
 import type { SupportedModelId } from './llm'
 import type { QualityPreset } from './settings'
 import type { ToolCallRequest, ToolCallResult } from './tools'
@@ -78,7 +78,7 @@ export interface AgentSendPayload {
    * Optional in-memory chat snapshot used for continuation flows
    * (e.g. tool approvals) where the client must preserve UI tool state.
    */
-  readonly continuationMessages?: readonly (ModelMessage | UIMessage)[]
+  readonly continuationMessages?: readonly DomainContinuationMessage[]
   /**
    * When true, the agent should use proposePlan before executing anything.
    * Set by the composer plan mode toggle.

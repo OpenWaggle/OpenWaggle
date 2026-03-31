@@ -1,4 +1,3 @@
-import type { StreamChunk } from '@tanstack/ai'
 import type { AgentSendPayload, PreparedAttachment } from './agent'
 import type { OAuthFlowStatus, SubscriptionAccountInfo, SubscriptionProvider } from './auth'
 import type { ActiveRunInfo, BackgroundRunSnapshot } from './background-run'
@@ -37,6 +36,7 @@ import type {
   AgentsResolutionResult,
   SkillCatalogResult,
 } from './standards'
+import type { AgentStreamChunk } from './stream'
 import type { SubAgentEventPayload, TeamEventPayload } from './sub-agent'
 import type { ApprovalRequiredToolName } from './tool-approval'
 import type { UpdateStatus } from './updater'
@@ -418,9 +418,9 @@ export interface IpcSendChannelMap {
  * Event channels — one-way, main → renderer
  */
 interface IpcEventChannelMap {
-  /** Raw StreamChunk from TanStack AI — consumed by the useChat IPC adapter */
+  /** Raw AgentStreamChunk — consumed by the useChat IPC adapter */
   'agent:stream-chunk': {
-    payload: { conversationId: ConversationId; chunk: StreamChunk }
+    payload: { conversationId: ConversationId; chunk: AgentStreamChunk }
   }
   'terminal:data': {
     payload: { terminalId: string; data: string }
@@ -447,7 +447,7 @@ interface IpcEventChannelMap {
     payload: OAuthFlowStatus
   }
   'waggle:stream-chunk': {
-    payload: { conversationId: ConversationId; chunk: StreamChunk; meta: WaggleStreamMetadata }
+    payload: { conversationId: ConversationId; chunk: AgentStreamChunk; meta: WaggleStreamMetadata }
   }
   'waggle:turn-event': {
     payload: { conversationId: ConversationId; event: WaggleTurnEvent }
@@ -513,7 +513,7 @@ export interface OpenWaggleApi {
   ): Promise<void>
   cancelAgent(conversationId?: ConversationId): void
   steerAgent(conversationId: ConversationId): Promise<{ preserved: boolean }>
-  /** Subscribe to raw StreamChunks from TanStack AI — used by the IPC connection adapter */
+  /** Subscribe to raw AgentStreamChunks — used by the IPC connection adapter */
   onStreamChunk(callback: (payload: IpcEventPayload<'agent:stream-chunk'>) => void): () => void
 
   // Context injection

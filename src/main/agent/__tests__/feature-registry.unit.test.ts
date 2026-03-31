@@ -1,7 +1,7 @@
 import { ConversationId, SupportedModelId } from '@shared/types/brand'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
-import type { ServerTool } from '@tanstack/ai'
 import { describe, expect, it } from 'vitest'
+import type { DomainServerTool } from '../../ports/tool-types'
 import { openaiProvider } from '../../providers/openai'
 import { builtInTools } from '../../tools/built-in-tools'
 import {
@@ -105,7 +105,7 @@ describe('trusted tool filtering', () => {
     })
     const features = getActiveAgentFeatures(context)
 
-    let filteredTools: ServerTool[] = [...builtInTools]
+    let filteredTools: DomainServerTool[] = [...builtInTools]
     for (const feature of features) {
       if (feature.filterTools) {
         filteredTools = [...feature.filterTools(filteredTools, context)]
@@ -124,7 +124,7 @@ describe('trusted tool filtering', () => {
     })
     const features = getActiveAgentFeatures(context)
 
-    let filteredTools: ServerTool[] = [...builtInTools]
+    let filteredTools: DomainServerTool[] = [...builtInTools]
     for (const feature of features) {
       if (feature.filterTools) {
         filteredTools = [...feature.filterTools(filteredTools, context)]

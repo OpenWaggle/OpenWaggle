@@ -1,5 +1,5 @@
 import { ConversationId, SupportedModelId } from '@shared/types/brand'
-import type { StreamChunk } from '@tanstack/ai'
+import type { AgentStreamChunk } from '@shared/types/stream'
 import { describe, expect, it, vi } from 'vitest'
 import type { AgentRunContext } from '../runtime-types'
 import { StreamPartCollector } from '../stream-part-collector'
@@ -30,7 +30,7 @@ function makeRunContext(): AgentRunContext {
   } as unknown as AgentRunContext
 }
 
-async function* chunksFrom(items: StreamChunk[]): AsyncIterable<StreamChunk> {
+async function* chunksFrom(items: AgentStreamChunk[]): AsyncIterable<AgentStreamChunk> {
   for (const item of items) {
     yield item
   }
@@ -42,14 +42,14 @@ async function* chunksFrom(items: StreamChunk[]): AsyncIterable<StreamChunk> {
 
 describe('processAgentStream', () => {
   it('forwards text chunks to collector and onChunk', async () => {
-    const chunks: StreamChunk[] = [
-      { type: 'TEXT_MESSAGE_CONTENT', delta: 'Hello ' } as StreamChunk,
-      { type: 'TEXT_MESSAGE_CONTENT', delta: 'world' } as StreamChunk,
-      { type: 'RUN_FINISHED' } as StreamChunk,
+    const chunks: AgentStreamChunk[] = [
+      { type: 'TEXT_MESSAGE_CONTENT', delta: 'Hello ' } as AgentStreamChunk,
+      { type: 'TEXT_MESSAGE_CONTENT', delta: 'world' } as AgentStreamChunk,
+      { type: 'RUN_FINISHED' } as AgentStreamChunk,
     ]
 
     const collector = new StreamPartCollector()
-    const received: StreamChunk[] = []
+    const received: AgentStreamChunk[] = []
 
     const result = await processAgentStream({
       stream: chunksFrom(chunks),
@@ -71,14 +71,14 @@ describe('processAgentStream', () => {
   it('detects abort signal and stops processing', async () => {
     const controller = new AbortController()
 
-    async function* abortingStream(): AsyncIterable<StreamChunk> {
-      yield { type: 'TEXT_MESSAGE_CONTENT', delta: 'Hi' } as StreamChunk
+    async function* abortingStream(): AsyncIterable<AgentStreamChunk> {
+      yield { type: 'TEXT_MESSAGE_CONTENT', delta: 'Hi' } as AgentStreamChunk
       controller.abort()
-      yield { type: 'TEXT_MESSAGE_CONTENT', delta: ' there' } as StreamChunk
+      yield { type: 'TEXT_MESSAGE_CONTENT', delta: ' there' } as AgentStreamChunk
     }
 
     const collector = new StreamPartCollector()
-    const received: StreamChunk[] = []
+    const received: AgentStreamChunk[] = []
 
     const result = await processAgentStream({
       stream: abortingStream(),
@@ -95,9 +95,9 @@ describe('processAgentStream', () => {
   })
 
   it('sets runErrorNotified when stream contains RUN_ERROR', async () => {
-    const chunks: StreamChunk[] = [
-      { type: 'TEXT_MESSAGE_CONTENT', delta: 'partial' } as StreamChunk,
-      { type: 'RUN_ERROR', error: { message: 'Provider error' } } as StreamChunk,
+    const chunks: AgentStreamChunk[] = [
+      { type: 'TEXT_MESSAGE_CONTENT', delta: 'partial' } as AgentStreamChunk,
+      { type: 'RUN_ERROR', error: { message: 'Provider error' } } as AgentStreamChunk,
     ]
 
     const collector = new StreamPartCollector()
@@ -115,24 +115,24 @@ describe('processAgentStream', () => {
   })
 
   it('notifies lifecycle hooks on tool call events', async () => {
-    const chunks: StreamChunk[] = [
+    const chunks: AgentStreamChunk[] = [
       {
         type: 'TOOL_CALL_START',
         toolCallId: 'tc-1',
         toolName: 'readFile',
-      } as StreamChunk,
+      } as AgentStreamChunk,
       {
         type: 'TOOL_CALL_ARGS',
         toolCallId: 'tc-1',
         delta: '{"path":"/a.ts"}',
-      } as StreamChunk,
+      } as AgentStreamChunk,
       {
         type: 'TOOL_CALL_END',
         toolCallId: 'tc-1',
         toolName: 'readFile',
         result: 'file contents',
-      } as StreamChunk,
-      { type: 'RUN_FINISHED' } as StreamChunk,
+      } as AgentStreamChunk,
+      { type: 'RUN_FINISHED' } as AgentStreamChunk,
     ]
 
     const onStreamChunk = vi.fn()

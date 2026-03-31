@@ -1,14 +1,13 @@
-import type { ServerTool } from '@tanstack/ai'
 import { describe, expect, it } from 'vitest'
+import type { DomainServerTool } from '../../ports/tool-types'
 import { withoutApproval } from '../without-approval'
 
-function makeTool(overrides: Partial<ServerTool> & { name: string }): ServerTool {
+function makeTool(overrides: Partial<DomainServerTool> & { name: string }): DomainServerTool {
   return {
     description: `${overrides.name} tool`,
     inputSchema: {},
     execute: async () => ({ kind: 'text' as const, text: 'ok' }),
     ...overrides,
-    __toolSide: 'server',
   }
 }
 
