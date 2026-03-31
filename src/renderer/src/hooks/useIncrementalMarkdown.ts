@@ -179,7 +179,10 @@ export function useIncrementalMarkdown(
     return { prefixHast: prev.hast, tail, prefixKey: prefixText }
   }
 
-  // Incremental growth: prefix extends the previous prefix
+  // Incremental growth: prefix extends the previous prefix.
+  // Create a NEW Root so React detects the prop change and re-renders PrefixView.
+  // (Mutating prev.hast in-place returns the same reference, which React Compiler
+  // auto-memoization treats as "unchanged" and skips re-rendering.)
   if (prev && prefixText.startsWith(prev.text)) {
     const newMarkdown = prefixText.slice(prev.text.length)
     const newHast = parseToHast(newMarkdown)
@@ -187,9 +190,12 @@ export function useIncrementalMarkdown(
       highlighter: shikiOptions.highlighter,
       cache: shikiOptions.cache,
     })
-    prev.hast.children.push(...newHast.children)
-    prev.text = prefixText
-    return { prefixHast: prev.hast, tail, prefixKey: prefixText }
+    const combined: Root = {
+      type: 'root',
+      children: [...prev.hast.children, ...newHast.children],
+    }
+    prefixStateRef.current = { text: prefixText, hast: combined }
+    return { prefixHast: combined, tail, prefixKey: prefixText }
   }
 
   // Full re-parse (first time or non-monotonic change)

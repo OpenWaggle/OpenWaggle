@@ -102,9 +102,9 @@ describe('useIncrementalMarkdown', () => {
     text = 'paragraph one\n\nparagraph two\n\nparagraph three'
     rerender({ t: text })
 
-    // Same HAST object reference (mutated in-place, not recreated)
-    expect(result.current.prefixHast).toBe(firstHast)
-    // More children appended
+    // New HAST reference (not mutated in-place) so React detects prop change
+    expect(result.current.prefixHast).not.toBe(firstHast)
+    // More children in the new tree
     expect(result.current.prefixHast?.children.length).toBeGreaterThan(initialChildCount)
     expect(result.current.tail).toBe('paragraph three')
   })
