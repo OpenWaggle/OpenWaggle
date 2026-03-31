@@ -75,53 +75,82 @@ function parseToHast(markdown: string): Root {
 // ---------------------------------------------------------------------------
 
 interface SplitScanState {
-  /** The text we have scanned up to. */
-  scannedText: string
-  /** Cumulative fence count across all scanned text. */
+  /** The text length we have scanned up to. */
+  scannedLength: number
+  /** Cumulative fence count across all scanned text (up to scannedLength). */
   fenceCount: number
   /** Last valid split index found (or -1). */
   lastSplitIdx: number
 }
 
+const INITIAL_SPLIT_STATE: SplitScanState = { scannedLength: 0, fenceCount: 0, lastSplitIdx: -1 }
+
+function resetSplitState(state: SplitScanState): void {
+  state.scannedLength = INITIAL_SPLIT_STATE.scannedLength
+  state.fenceCount = INITIAL_SPLIT_STATE.fenceCount
+  state.lastSplitIdx = INITIAL_SPLIT_STATE.lastSplitIdx
+}
+
 /**
  * Incrementally find the split index by only scanning new text.
- * If text doesn't extend the previous scan, falls back to a full scan.
+ * Uses cumulative fence count to determine parity without re-scanning the
+ * entire prefix. Falls back to a full scan on non-monotonic text changes.
+ *
+ * Amortized O(delta) per call where delta = new tokens since last call.
  */
 function findSplitIndexIncremental(text: string, state: SplitScanState): number {
-  // If text is an extension of what we already scanned, only scan the delta
-  if (text.startsWith(state.scannedText) && text.length > state.scannedText.length) {
-    const delta = text.slice(state.scannedText.length)
-    const deltaFences = countCodeFences(delta)
-    state.fenceCount += deltaFences
-    state.scannedText = text
+  if (text.length <= state.scannedLength) {
+    // Text shrunk or unchanged — full reset
+    resetSplitState(state)
+    state.scannedLength = text.length
+    state.fenceCount = countCodeFences(text)
+    state.lastSplitIdx = findSplitIndex(text)
+    return state.lastSplitIdx
+  }
 
-    // Search backward from end for a valid split in the new region
-    // but also check any split found against total fence parity
-    let pos = text.length
-    while (pos > 0) {
-      const idx = text.lastIndexOf('\n\n', pos - 1)
-      if (idx === -1) break
+  // Text grew — only scan the delta for fences
+  const delta = text.slice(state.scannedLength)
+  const deltaFences = countCodeFences(delta)
+  state.fenceCount += deltaFences
+  state.scannedLength = text.length
 
-      const fencesBefore = countCodeFences(text.slice(0, idx))
-      if (fencesBefore % FENCE_PARITY_DIVISOR === 0) {
-        state.lastSplitIdx = idx + DOUBLE_NEWLINE_LENGTH
-        return state.lastSplitIdx
-      }
-      pos = idx
-    }
-
-    // No valid split found — preserve previous result if still valid
+  // If total fence count is odd, we're inside an open code block —
+  // no valid split can exist beyond the last known one.
+  if (state.fenceCount % FENCE_PARITY_DIVISOR !== 0) {
+    // Preserve previous split if still in bounds
     if (state.lastSplitIdx > 0 && state.lastSplitIdx <= text.length) {
       return state.lastSplitIdx
     }
     return -1
   }
 
-  // Non-monotonic change or first call — full scan
-  state.scannedText = text
-  state.fenceCount = countCodeFences(text)
-  state.lastSplitIdx = findSplitIndex(text)
-  return state.lastSplitIdx
+  // Total fence count is even — search backward from end of NEW text only
+  // for `\n\n` boundaries. We only need to search within the delta region
+  // plus a small overlap (to catch \n\n that straddles the boundary).
+  const searchStart = Math.max(0, state.scannedLength - delta.length - DOUBLE_NEWLINE_LENGTH)
+  let pos = text.length
+  while (pos > searchStart) {
+    const idx = text.lastIndexOf('\n\n', pos - 1)
+    if (idx === -1 || idx < searchStart) break
+
+    // Fence count up to this candidate = total fences minus fences after candidate.
+    // Since total is even AND we're searching backward, the last \n\n where
+    // fences-before is even is our split point. Use cumulative count minus
+    // fences in the suffix after the candidate.
+    const fencesAfter = countCodeFences(text.slice(idx))
+    const fencesBefore = state.fenceCount - fencesAfter
+    if (fencesBefore % FENCE_PARITY_DIVISOR === 0) {
+      state.lastSplitIdx = idx + DOUBLE_NEWLINE_LENGTH
+      return state.lastSplitIdx
+    }
+    pos = idx
+  }
+
+  // No new valid split in the delta — preserve previous result
+  if (state.lastSplitIdx > 0 && state.lastSplitIdx <= text.length) {
+    return state.lastSplitIdx
+  }
+  return -1
 }
 
 // ---------------------------------------------------------------------------
@@ -147,11 +176,7 @@ export function useIncrementalMarkdown(
   shikiOptions: ShikiOptions,
 ): IncrementalMarkdownResult {
   const prefixStateRef = useRef<PrefixState | null>(null)
-  const splitStateRef = useRef<SplitScanState>({
-    scannedText: '',
-    fenceCount: 0,
-    lastSplitIdx: -1,
-  })
+  const splitStateRef = useRef<SplitScanState>({ ...INITIAL_SPLIT_STATE })
 
   // Invalidate prefix cache when highlighter changes (e.g., from undefined to loaded)
   const prevHighlighterRef = useRef(shikiOptions.highlighter)
@@ -161,6 +186,11 @@ export function useIncrementalMarkdown(
   }
 
   if (!isStreaming) {
+    // Clear incremental state so it doesn't hold stale data between messages
+    if (splitStateRef.current.scannedLength > 0) {
+      resetSplitState(splitStateRef.current)
+      prefixStateRef.current = null
+    }
     return { prefixHast: null, tail: text, prefixKey: '' }
   }
 
