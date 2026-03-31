@@ -181,6 +181,8 @@
   .prose p:last-child {
     margin-bottom: 0;
   }
+
+  /* Inline code */
   .prose code {
     font-family: var(--font-mono);
     font-size: 0.875em;
@@ -190,6 +192,8 @@
     border-radius: 6px;
     color: var(--color-text-secondary);
   }
+
+  /* Code blocks */
   .prose pre {
     background: var(--color-bg-secondary);
     border: 1px solid color-mix(in srgb, var(--color-border) 85%, transparent);
@@ -202,17 +206,74 @@
   .prose pre code {
     background: none;
     padding: 0;
+    border: none;
     border-radius: 0;
     color: inherit;
   }
-  .prose ul,
-  .prose ol {
+
+  /* Lists */
+  .prose ul {
+    list-style-type: disc;
     padding-left: 1.5em;
     margin-bottom: 0.75em;
+  }
+  .prose ol {
+    list-style-type: decimal;
+    padding-left: 1.5em;
+    margin-bottom: 0.75em;
+  }
+  .prose ul ul {
+    list-style-type: circle;
+  }
+  .prose ul ul ul {
+    list-style-type: square;
+  }
+  .prose ol ol {
+    list-style-type: lower-alpha;
   }
   .prose li {
     margin-bottom: 0.25em;
   }
+  .prose li > ul,
+  .prose li > ol {
+    margin-top: 0.25em;
+    margin-bottom: 0.25em;
+  }
+
+  /* Task list checkboxes (GFM) */
+  .prose ul:has(> li > input[type="checkbox"]) {
+    list-style-type: none;
+    padding-left: 0.5em;
+  }
+  .prose li > input[type="checkbox"] {
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border: 1.5px solid var(--color-text-muted);
+    border-radius: 3px;
+    vertical-align: middle;
+    margin-right: 0.5em;
+    position: relative;
+    top: -1px;
+    cursor: default;
+  }
+  .prose li > input[type="checkbox"]:checked {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+  }
+  .prose li > input[type="checkbox"]:checked::after {
+    content: "";
+    position: absolute;
+    left: 3px;
+    top: 0px;
+    width: 5px;
+    height: 9px;
+    border: solid var(--color-bg);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+
+  /* Links */
   .prose a {
     color: var(--color-accent);
     text-decoration: none;
@@ -220,28 +281,62 @@
   .prose a:hover {
     text-decoration: underline;
   }
+
+  /* Headings */
   .prose h1,
   .prose h2,
-  .prose h3 {
+  .prose h3,
+  .prose h4 {
     font-weight: 600;
     margin: 1.15em 0 0.48em;
     letter-spacing: -0.008em;
   }
   .prose h1 {
-    font-size: 1.25em;
+    font-size: 1.4em;
+    padding-bottom: 0.3em;
+    border-bottom: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
   }
   .prose h2 {
-    font-size: 1.125em;
+    font-size: 1.2em;
   }
   .prose h3 {
-    font-size: 1em;
+    font-size: 1.05em;
+    color: var(--color-text-secondary);
   }
+  .prose h4 {
+    font-size: 1em;
+    color: var(--color-text-secondary);
+  }
+
+  /* Emphasis */
+  .prose strong {
+    font-weight: 650;
+    color: var(--color-text-primary);
+  }
+  .prose em {
+    font-style: italic;
+    color: var(--color-text-secondary);
+  }
+
+  /* Horizontal rule */
+  .prose hr {
+    border: none;
+    height: 1px;
+    background: color-mix(in srgb, var(--color-border-light) 70%, transparent);
+    margin: 1.5em 0;
+  }
+
+  /* Blockquote */
   .prose blockquote {
-    border-left: 2px solid color-mix(in srgb, var(--color-accent) 55%, var(--color-border-light));
-    padding-left: 1em;
+    border-left: 3px solid color-mix(in srgb, var(--color-accent) 55%, var(--color-border-light));
+    padding: 0.5em 1em;
+    background: color-mix(in srgb, var(--color-bg-secondary) 50%, transparent);
+    border-radius: 0 6px 6px 0;
     color: var(--color-text-secondary);
     margin: 0.75em 0;
   }
+
+  /* Tables */
   .prose table {
     border-collapse: collapse;
     margin: 0.75em 0;
@@ -258,5 +353,60 @@
     font-weight: 600;
     font-size: 0.875em;
     color: var(--color-text-secondary);
+  }
+  .prose tbody tr:nth-child(even) {
+    background: color-mix(in srgb, var(--color-bg-tertiary) 40%, transparent);
+  }
+
+  /* Spacing refinement between element types */
+  .prose > * + h1,
+  .prose > * + h2,
+  .prose > * + h3 {
+    margin-top: 1.5em;
+  }
+  .prose pre + p,
+  .prose p + pre {
+    margin-top: 0.85em;
+  }
+
+  /* User bubble compact modifier — must appear after .prose rules (overrides via source order) */
+  .prose-user {
+    font-size: 14px;
+    line-height: 1.55;
+  }
+  .prose-user p {
+    margin-bottom: 0.5em;
+  }
+  .prose-user p:last-child {
+    margin-bottom: 0;
+  }
+  .prose-user pre {
+    margin: 0.5em 0;
+    padding: 0.75em;
+    border-radius: 8px;
+  }
+  .prose-user h1,
+  .prose-user h2,
+  .prose-user h3,
+  .prose-user h4 {
+    margin: 0.75em 0 0.35em;
+  }
+  .prose-user h1 {
+    font-size: 1.15em;
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+  .prose-user h2 {
+    font-size: 1.075em;
+  }
+  .prose-user h3 {
+    font-size: 1em;
+  }
+  .prose-user ul,
+  .prose-user ol {
+    margin-bottom: 0.5em;
+  }
+  .prose-user blockquote {
+    margin: 0.5em 0;
   }
 }

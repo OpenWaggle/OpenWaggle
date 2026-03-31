@@ -11,14 +11,11 @@ const ICON_SIZE = 12
  */
 const MENTION_REGEX = /(?:^|\s)(@\S+)/g
 
-interface MentionTextProps {
-  text: string
-}
-
 /**
- * Renders message text with inline file mention chips for @path patterns.
+ * Splits text into an array of ReactNode items, replacing @path patterns
+ * with inline file mention chips. Plain text segments are returned as strings.
  */
-export function MentionText({ text }: MentionTextProps) {
+export function renderTextWithMentions(text: string): ReactNode[] {
   const parts: ReactNode[] = []
   let lastIndex = 0
   let key = 0
@@ -28,13 +25,11 @@ export function MentionText({ text }: MentionTextProps) {
     const mention = match[1]
     const matchStart = match.index + (fullMatch.length - mention.length)
 
-    // Text before the mention
     if (matchStart > lastIndex) {
       parts.push(text.slice(lastIndex, matchStart))
     }
 
-    // The mention chip
-    const filePath = mention.slice(1) // remove @
+    const filePath = mention.slice(1)
     const slashIndex = filePath.lastIndexOf('/')
     const basename = slashIndex >= 0 ? filePath.slice(slashIndex + 1) : filePath
     key += 1
@@ -56,12 +51,23 @@ export function MentionText({ text }: MentionTextProps) {
     lastIndex = matchStart + mention.length
   }
 
-  // Remaining text after last mention
   if (lastIndex < text.length) {
     parts.push(text.slice(lastIndex))
   }
 
-  // No mentions found — return plain text
+  return parts
+}
+
+interface MentionTextProps {
+  text: string
+}
+
+/**
+ * Renders message text with inline file mention chips for @path patterns.
+ */
+export function MentionText({ text }: MentionTextProps) {
+  const parts = renderTextWithMentions(text)
+
   if (parts.length === 0) {
     return <>{text}</>
   }
