@@ -35,6 +35,7 @@ export interface AgentRunInput {
   readonly signal: AbortSignal
   readonly onChunk: (chunk: AgentStreamChunk) => void
   readonly onCollectorCreated?: (c: StreamPartCollector) => void
+  readonly onPayloadHydrated?: (payload: HydratedAgentSendPayload) => void
 }
 
 export type AgentRunResult =
@@ -96,6 +97,7 @@ export function executeAgentRun(input: AgentRunInput) {
       ...payload,
       attachments: yield* Effect.promise(() => hydratePayloadAttachments(payload.attachments)),
     }
+    input.onPayloadHydrated?.(hydratedPayload)
 
     // ─── Execute agent run ───────────────────────────────
     const agentResult = yield* Effect.tryPromise({
@@ -140,9 +142,10 @@ export function executeAgentRun(input: AgentRunInput) {
 }
 
 /**
- * Persist partial response during steer (interrupt).
+ * Persist partial response during cancel or steer (interrupt).
+ * Saves both the user message and whatever assistant content was streamed.
  */
-export function persistPartialSteerResponse(
+export function persistPartialResponse(
   conversationId: ConversationId,
   originalPayload: HydratedAgentSendPayload,
   partialParts: readonly import('@shared/types/agent').MessagePart[],
@@ -153,16 +156,19 @@ export function persistPartialSteerResponse(
     const conv = yield* repo.get(conversationId).pipe(Effect.catchAll(() => Effect.succeed(null)))
     if (!conv) return false
     const userMsg = makeMessage('user', buildPersistedUserMessageParts(originalPayload))
-    const assistantMsg = makeMessage('assistant', [...partialParts], resolvedModel)
+    const newMessages: Message[] = [userMsg]
+    if (partialParts.length > 0) {
+      newMessages.push(makeMessage('assistant', [...partialParts], resolvedModel))
+    }
     yield* repo.save({
       ...conv,
-      messages: [...conv.messages, userMsg, assistantMsg],
+      messages: [...conv.messages, ...newMessages],
     })
     return true
   }).pipe(
     Effect.catchAll((err) =>
       Effect.sync(() => {
-        logger.error('Failed to persist partial response during steer', {
+        logger.error('Failed to persist partial response', {
           conversationId,
           error: formatErrorMessage(err),
         })

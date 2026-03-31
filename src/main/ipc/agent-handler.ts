@@ -19,7 +19,7 @@ import type { StreamPartCollector } from '../agent/stream-part-collector'
 import {
   type AgentRunResult,
   executeAgentRun,
-  persistPartialSteerResponse,
+  persistPartialResponse,
 } from '../application/agent-run-service'
 import { pushContext } from '../tools/context-injection-buffer'
 import { respondToPlan } from '../tools/plan-manager'
@@ -53,6 +53,23 @@ function handleRunResult(conversationId: ConversationId, result: AgentRunResult)
   ) {
     emitErrorAndFinish(conversationId, result.message, result.code)
   }
+}
+
+/**
+ * Snapshot and persist whatever progress an active run has accumulated.
+ * Called before cancelling a run so user/assistant messages are not lost.
+ */
+function persistRunSnapshot(conversationId: ConversationId) {
+  const entry = activeRuns.get(conversationId)
+  if (!entry?.metadata.payload) return Effect.void
+
+  const partialParts = entry.metadata.collector?.snapshotParts() ?? []
+  return persistPartialResponse(
+    conversationId,
+    entry.metadata.payload,
+    partialParts,
+    entry.metadata.model,
+  )
 }
 
 export function registerAgentHandlers(): void {
@@ -90,6 +107,10 @@ export function registerAgentHandlers(): void {
               entry.metadata.model = model
             }
           },
+          onPayloadHydrated: (hydrated) => {
+            const entry = activeRuns.get(conversationId)
+            if (entry) entry.metadata.payload = hydrated
+          },
         })
 
         // ─── Transport: respond based on outcome ─────────
@@ -104,12 +125,16 @@ export function registerAgentHandlers(): void {
   )
 
   typedOn('agent:cancel', (_event, conversationId?: ConversationId) =>
-    Effect.sync(() => {
+    Effect.gen(function* () {
       if (conversationId) {
+        yield* persistRunSnapshot(conversationId)
         activeRuns.cancel(conversationId)
         clearAgentPhase(conversationId)
         cleanupConversationRun(conversationId)
       } else {
+        for (const id of activeRuns.keys()) {
+          yield* persistRunSnapshot(id)
+        }
         const allKeys = [...activeRuns.keys()]
         activeRuns.cancelAll()
         for (const id of allKeys) {
@@ -157,12 +182,7 @@ export function registerAgentHandlers(): void {
       const originalPayload = entry.metadata.payload
 
       // Application: persist partial response
-      yield* persistPartialSteerResponse(
-        conversationId,
-        originalPayload,
-        partialParts,
-        resolvedModel,
-      )
+      yield* persistPartialResponse(conversationId, originalPayload, partialParts, resolvedModel)
 
       // Transport: cancel and cleanup
       activeRuns.cancel(conversationId)

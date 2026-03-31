@@ -256,7 +256,7 @@ function getOnHandler(name: string): ((...args: unknown[]) => Promise<void>) | u
   const call = typedOnMock.mock.calls.find((args: unknown[]) => args[0] === name)
   const handler = call?.[1]
   if (typeof handler !== 'function') return undefined
-  return (...args: unknown[]) => Effect.runPromise(handler(...args))
+  return (...args: unknown[]) => Effect.runPromise(Effect.provide(handler(...args), TestLayer))
 }
 
 function baseConversation(): Conversation {
@@ -757,6 +757,92 @@ describe('registerAgentHandlers', () => {
 
       expect(clearAgentPhaseMock).toHaveBeenCalledWith(ConversationId('nonexistent'))
       expect(cleanupConversationRunMock).toHaveBeenCalledWith(ConversationId('nonexistent'))
+    })
+
+    it('persists user message and partial assistant content on cancel', async () => {
+      const snapshotParts = [{ type: 'text' as const, text: 'Partial assistant response...' }]
+      const mockCollector = { snapshotParts: vi.fn(() => snapshotParts) }
+
+      // Start a run that will populate metadata via onCollectorCreated + onPayloadHydrated
+      runAgentMock.mockImplementation((opts: { onCollectorCreated?: (c: unknown) => void }) => {
+        opts.onCollectorCreated?.(mockCollector)
+        return new Promise(() => {}) // never resolves
+      })
+
+      registerAgentHandlers()
+      const sendHandler = getInvokeHandler('agent:send-message')
+      const cancelHandler = getOnHandler('agent:cancel')
+
+      // Start a run (don't await — it hangs)
+      sendHandler?.({}, ConversationId('conv-1'), basePayload('hello'), 'claude-sonnet-4-5')
+
+      // Allow microtasks (hydration) to complete
+      await new Promise((r) => setTimeout(r, 10))
+
+      // Cancel it
+      saveConversationMock.mockReset()
+      await cancelHandler?.({}, ConversationId('conv-1'))
+
+      expect(mockCollector.snapshotParts).toHaveBeenCalled()
+      expect(saveConversationMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          messages: expect.arrayContaining([
+            expect.objectContaining({ role: 'user' }),
+            expect.objectContaining({ role: 'assistant' }),
+          ]),
+        }),
+      )
+    })
+
+    it('persists only user message when cancel arrives before streaming starts', async () => {
+      // Start a run — onCollectorCreated NOT called (cancel before streaming)
+      // but onPayloadHydrated IS called (hydration completed)
+      runAgentMock.mockImplementation(() => new Promise(() => {}))
+
+      registerAgentHandlers()
+      const sendHandler = getInvokeHandler('agent:send-message')
+      const cancelHandler = getOnHandler('agent:cancel')
+
+      sendHandler?.({}, ConversationId('conv-1'), basePayload('hello'), 'claude-sonnet-4-5')
+      await new Promise((r) => setTimeout(r, 10))
+
+      saveConversationMock.mockReset()
+      await cancelHandler?.({}, ConversationId('conv-1'))
+
+      // User message should be persisted (via persistPartialResponse with empty parts)
+      expect(saveConversationMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          messages: expect.arrayContaining([expect.objectContaining({ role: 'user' })]),
+        }),
+      )
+      // No assistant message since collector was never created
+      const savedConv = saveConversationMock.mock.calls[0]?.[0]
+      const savedMessages = savedConv?.messages ?? []
+      const assistantMessages = savedMessages.filter(
+        (m: { role: string }) => m.role === 'assistant',
+      )
+      expect(assistantMessages).toHaveLength(0)
+    })
+
+    it('does not persist when cancel arrives before payload hydration', async () => {
+      // Hydration takes time — cancel arrives before it completes
+      hydrateAttachmentSourcesMock.mockImplementation(
+        () => new Promise(() => {}), // never resolves
+      )
+      runAgentMock.mockImplementation(() => new Promise(() => {}))
+
+      registerAgentHandlers()
+      const sendHandler = getInvokeHandler('agent:send-message')
+      const cancelHandler = getOnHandler('agent:cancel')
+
+      sendHandler?.({}, ConversationId('conv-1'), basePayload('hello'), 'claude-sonnet-4-5')
+      // Don't wait for hydration
+
+      saveConversationMock.mockReset()
+      await cancelHandler?.({}, ConversationId('conv-1'))
+
+      // No persistence — payload was never hydrated so metadata.payload is null
+      expect(saveConversationMock).not.toHaveBeenCalled()
     })
   })
 
