@@ -760,8 +760,8 @@ describe('registerAgentHandlers', () => {
     })
 
     it('persists user message and partial assistant content on cancel', async () => {
-      const snapshotParts = [{ type: 'text' as const, text: 'Partial assistant response...' }]
-      const mockCollector = { snapshotParts: vi.fn(() => snapshotParts) }
+      const finalizedParts = [{ type: 'text' as const, text: 'Partial assistant response...' }]
+      const mockCollector = { finalizeParts: vi.fn(() => finalizedParts) }
 
       // Start a run that will populate metadata via onCollectorCreated + onPayloadHydrated
       runAgentMock.mockImplementation((opts: { onCollectorCreated?: (c: unknown) => void }) => {
@@ -783,7 +783,7 @@ describe('registerAgentHandlers', () => {
       saveConversationMock.mockReset()
       await cancelHandler?.({}, ConversationId('conv-1'))
 
-      expect(mockCollector.snapshotParts).toHaveBeenCalled()
+      expect(mockCollector.finalizeParts).toHaveBeenCalledWith({ timedOut: true })
       expect(saveConversationMock).toHaveBeenCalledWith(
         expect.objectContaining({
           messages: expect.arrayContaining([

@@ -22,7 +22,8 @@ This document stores project-specific technical learnings only.
 
 ### Persistence & Run Lifecycle Patterns
 - The hexagonal refactor moved payload hydration into `executeAgentRun` (application layer) but lost the callback that propagated `hydratedPayload` back to the IPC handler's `activeRuns` metadata. This silently broke both steer and cancel persistence since both depend on `metadata.payload` being non-null. When moving state-producing logic into inner layers, ensure all metadata callbacks are preserved or replaced with new ones (e.g. `onPayloadHydrated`).
-- Cancel handlers that use `ActiveRunManager.cancel()` must read `entry.metadata` BEFORE calling cancel — `cancel()` deletes the entry. Use `snapshotParts()` (non-destructive) instead of `finalizeParts()` to avoid race conditions with the concurrent `executeAgentRun` fiber that is still unwinding after abort.
+- Cancel handlers that use `ActiveRunManager.cancel()` must read `entry.metadata` BEFORE calling cancel — `cancel()` deletes the entry.
+- When persisting partial responses on cancel, use `finalizeParts({ timedOut: true })` NOT `snapshotParts()`. `snapshotParts()` captures tool-call parts without matching tool-result parts. When these orphan tool calls are persisted and the conversation is reloaded, the continuation normalizer sees incomplete tool calls and triggers a new agent run to complete them — creating an infinite restart loop. `finalizeParts({ timedOut: true })` forces synthetic error results for ALL incomplete tool calls, breaking the cycle. The `timedOut` flag is critical: without it, `finalizeParts()` deliberately preserves `awaitingResult` tool calls (for approval flows), which are exactly the ones that cause the loop on cancel.
 - `typedOn` (send-channel handlers) wraps in `runAppEffect()` and supports `Effect.gen` with full service access — not limited to `Effect.sync`. Safe to use `ConversationRepository` and other ports.
 
 ### Refactoring Patterns

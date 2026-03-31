@@ -56,14 +56,18 @@ function handleRunResult(conversationId: ConversationId, result: AgentRunResult)
 }
 
 /**
- * Snapshot and persist whatever progress an active run has accumulated.
+ * Finalize and persist whatever progress an active run has accumulated.
  * Called before cancelling a run so user/assistant messages are not lost.
+ *
+ * Uses finalizeParts({ timedOut: true }) to force synthetic error results
+ * for all incomplete tool calls. Without this, orphan tool-call parts
+ * (no matching tool-result) would trigger continuation loops on reload.
  */
 function persistRunSnapshot(conversationId: ConversationId) {
   const entry = activeRuns.get(conversationId)
   if (!entry?.metadata.payload) return Effect.void
 
-  const partialParts = entry.metadata.collector?.snapshotParts() ?? []
+  const partialParts = entry.metadata.collector?.finalizeParts({ timedOut: true }) ?? []
   return persistPartialResponse(
     conversationId,
     entry.metadata.payload,
