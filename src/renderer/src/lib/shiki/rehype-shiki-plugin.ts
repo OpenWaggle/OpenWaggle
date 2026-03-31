@@ -2,8 +2,8 @@
  * Rehype plugin that highlights fenced code blocks using Shiki.
  *
  * Replaces the children of `<code class="language-*">` elements inside
- * `<pre>` with Shiki-highlighted HAST nodes. Streaming-aware: skips cache
- * reads/writes while content is still streaming.
+ * `<pre>` with Shiki-highlighted HAST nodes. The ShikiCache is content-addressed
+ * (keyed on language + code text), so it is safe to read/write during streaming.
  */
 import type { Element, ElementContent, Properties, Root, RootContent } from 'hast'
 import type { Highlighter } from 'shiki'
@@ -16,9 +16,7 @@ import type { ShikiCache } from './shiki-cache'
 export interface RehypeShikiOptions {
   /** Resolved highlighter instance. `undefined` → plugin is a no-op. */
   highlighter: Highlighter | undefined
-  /** True while the message is still streaming. */
-  isStreaming: boolean
-  /** LRU cache for finalized highlights. */
+  /** LRU cache for highlights (content-addressed, safe during streaming). */
   cache: ShikiCache
 }
 
@@ -62,14 +60,14 @@ function isElement(node: RootContent | ElementContent): node is Element {
  * attacher; the returned inner function is the transformer.
  */
 export function createRehypeShikiPlugin(options: RehypeShikiOptions) {
-  const { highlighter, isStreaming, cache } = options
+  const { highlighter, cache } = options
 
   // Return a unified attacher — unified calls this, it returns the transformer
   return function rehypeShikiAttacher() {
     return function rehypeShikiTransformer(tree: Root): void {
       if (highlighter === undefined) return
       if (!tree || !Array.isArray(tree.children)) return
-      visitPreElements(tree.children, highlighter, isStreaming, cache)
+      visitPreElements(tree.children, highlighter, cache)
     }
   }
 }
@@ -78,28 +76,22 @@ export function createRehypeShikiPlugin(options: RehypeShikiOptions) {
 function visitPreElements(
   children: Array<RootContent | ElementContent>,
   highlighter: Highlighter,
-  isStreaming: boolean,
   cache: ShikiCache,
 ): void {
   for (const child of children) {
     if (!isElement(child)) continue
 
     if (child.tagName === 'pre') {
-      processPreElement(child, highlighter, isStreaming, cache)
+      processPreElement(child, highlighter, cache)
       continue
     }
 
-    visitPreElements(child.children, highlighter, isStreaming, cache)
+    visitPreElements(child.children, highlighter, cache)
   }
 }
 
 /** Process a single `<pre>` element: find its `<code>` child and highlight. */
-function processPreElement(
-  pre: Element,
-  highlighter: Highlighter,
-  isStreaming: boolean,
-  cache: ShikiCache,
-): void {
+function processPreElement(pre: Element, highlighter: Highlighter, cache: ShikiCache): void {
   const codeNode = pre.children.find((c): c is Element => isElement(c) && c.tagName === 'code')
   if (!codeNode) return
 
@@ -110,14 +102,14 @@ function processPreElement(
   const code = textContent(codeNode)
   if (!code) return
 
-  // --- Cache path (finalized content only) ---
-  if (!isStreaming) {
-    const cached = cache.get(language, code)
-    if (cached) {
-      codeNode.children = [...cached.children]
-      codeNode.properties = { ...cached.properties, ...preserveLanguageClass(codeNode) }
-      return
-    }
+  // --- Cache path (content-addressed, safe during streaming) ---
+  // ShikiCache keys on cyrb53(language + '\0' + code). Growing code produces
+  // new keys automatically, so there is no risk of returning stale highlights.
+  const cached = cache.get(language, code)
+  if (cached) {
+    codeNode.children = [...cached.children]
+    codeNode.properties = { ...cached.properties, ...preserveLanguageClass(codeNode) }
+    return
   }
 
   // --- Highlight ---
@@ -128,10 +120,7 @@ function processPreElement(
   codeNode.children = [...highlighted.children]
   codeNode.properties = { ...highlighted.properties, ...preserveLanguageClass(codeNode) }
 
-  // Cache only finalized (non-streaming) content
-  if (!isStreaming) {
-    cache.set(language, code, highlighted)
-  }
+  cache.set(language, code, highlighted)
 }
 
 /** Preserve the language-* class on the code element for downstream use. */
@@ -149,9 +138,9 @@ function preserveLanguageClass(codeNode: Element): Properties {
  * but callable outside the unified pipeline (e.g. on a pre-parsed prefix tree).
  */
 export function applyShikiToHast(tree: Root, options: RehypeShikiOptions): void {
-  const { highlighter, isStreaming, cache } = options
+  const { highlighter, cache } = options
   if (highlighter === undefined) return
-  visitPreElements(tree.children, highlighter, isStreaming, cache)
+  visitPreElements(tree.children, highlighter, cache)
 }
 
 /**

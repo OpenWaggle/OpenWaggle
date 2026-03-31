@@ -27,6 +27,12 @@ This document stores project-specific technical learnings only.
 - When extracting shared handler utilities, do NOT mock the extracted module in existing handler tests — let calls pass through to the real utilities since all downstream dependencies are already mocked. This preserves integration coverage without test changes.
 - Renderer error logging must use `createRendererLogger` from `@/lib/logger`, never raw `console.warn` — the structured logger respects log levels and provides consistent namespace prefixes.
 
+### Streaming Performance Patterns
+- ShikiCache is content-addressed (`cyrb53(language + '\0' + code)`). Growing code blocks produce new keys, so cache reads/writes are safe during streaming — no need for `isStreaming` guards. Disabling cache during streaming was the primary perf bottleneck for code-block rendering.
+- Prefix HAST caching should be incremental: when the prefix grows monotonically (append-only during streaming), only parse the NEW paragraph and push its HAST children onto the existing tree. Re-parsing the entire prefix on every paragraph completion is O(n) wasted work.
+- ReactMarkdown checks plugin array references. Stabilize `rehypePlugins` across renders using a ref so the internal unified processor chain isn't re-created every frame. `[SKILL?]`
+- Avoid key-based remounts (`key={condition ? 'a' : 'b'}`) for caching components during streaming — they destroy all accumulated state. Prefer cache invalidation with React diff.
+
 ### TanStack useChat & Streaming Patterns
 - `normalizeContinuationAsUIMessages` bypassed `enforceToolResultPairing`, leaving orphan tool-call parts (state `input-complete` / `approval-responded` with no tool-result and no output) in UIMessages. TanStack AI's `buildAssistantMessages` emits these as `tool_use` blocks without matching `tool` messages, crashing the Anthropic API with `tool_use ids were found without tool_result blocks`. Fix: inject synthetic `tool-result` parts for orphan tool calls before continuation messages reach `chat()`. `[SKILL?]`
 - `enforceToolResultPairing` (ModelMessage path) only dropped orphan tool *results* — never orphan tool *calls* at the end of the history. Both directions must be checked to prevent API errors.

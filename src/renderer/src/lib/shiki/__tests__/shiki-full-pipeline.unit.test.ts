@@ -40,7 +40,7 @@ describe('full pipeline: Shiki + rehypeSanitize preserves style attributes', () 
       .use(remarkParse)
       .use(remarkGfm)
       .use(remarkRehype)
-      .use(createRehypeShikiPlugin({ highlighter, isStreaming: false, cache }))
+      .use(createRehypeShikiPlugin({ highlighter, cache }))
       .use(rehypeSanitize, safeMarkdownSanitizeSchema)
 
     const mdast = processor.parse(markdown)

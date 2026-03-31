@@ -86,4 +86,46 @@ describe('useIncrementalMarkdown', () => {
     expect(result.current.tail).toBe(text)
     expect(result.current.prefixKey).toBe('')
   })
+
+  it('incrementally extends prefix HAST when new paragraphs arrive', () => {
+    let text = 'paragraph one\n\nparagraph two'
+    const { result, rerender } = renderHook(
+      ({ t }) => useIncrementalMarkdown(t, true, SHIKI_OPTIONS),
+      { initialProps: { t: text } },
+    )
+
+    const firstHast = result.current.prefixHast
+    expect(firstHast).not.toBeNull()
+    const initialChildCount = firstHast?.children.length ?? 0
+
+    // Add a third paragraph — prefix should grow incrementally
+    text = 'paragraph one\n\nparagraph two\n\nparagraph three'
+    rerender({ t: text })
+
+    // New HAST reference (not mutated in-place) so React detects prop change
+    expect(result.current.prefixHast).not.toBe(firstHast)
+    // More children in the new tree
+    expect(result.current.prefixHast?.children.length).toBeGreaterThan(initialChildCount)
+    expect(result.current.tail).toBe('paragraph three')
+  })
+
+  it('invalidates prefix cache when highlighter changes', () => {
+    const text = 'paragraph one\n\nparagraph two'
+    const options1 = { highlighter: undefined, cache: new ShikiCache() }
+
+    const { result, rerender } = renderHook(
+      ({ opts }) => useIncrementalMarkdown(text, true, opts),
+      { initialProps: { opts: options1 } },
+    )
+
+    const firstHast = result.current.prefixHast
+
+    // Simulate highlighter becoming available
+    const fakeHighlighter = {} as import('shiki').Highlighter
+    const options2 = { highlighter: fakeHighlighter, cache: options1.cache }
+    rerender({ opts: options2 })
+
+    // Should produce a new HAST (cache was invalidated)
+    expect(result.current.prefixHast).not.toBe(firstHast)
+  })
 })
