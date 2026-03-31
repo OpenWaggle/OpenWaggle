@@ -20,6 +20,11 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Persistence & Run Lifecycle Patterns
+- The hexagonal refactor moved payload hydration into `executeAgentRun` (application layer) but lost the callback that propagated `hydratedPayload` back to the IPC handler's `activeRuns` metadata. This silently broke both steer and cancel persistence since both depend on `metadata.payload` being non-null. When moving state-producing logic into inner layers, ensure all metadata callbacks are preserved or replaced with new ones (e.g. `onPayloadHydrated`).
+- Cancel handlers that use `ActiveRunManager.cancel()` must read `entry.metadata` BEFORE calling cancel — `cancel()` deletes the entry. Use `snapshotParts()` (non-destructive) instead of `finalizeParts()` to avoid race conditions with the concurrent `executeAgentRun` fiber that is still unwinding after abort.
+- `typedOn` (send-channel handlers) wraps in `runAppEffect()` and supports `Effect.gen` with full service access — not limited to `Effect.sync`. Safe to use `ConversationRepository` and other ports.
+
 ### Refactoring Patterns
 - React Compiler auto-memoizes for RENDER optimization, but does NOT guarantee stable function identity for functions used as effect dependencies in external hooks. If a function is passed to a custom hook that uses it in `useEffect` deps, that function MUST use `useCallback` — otherwise the effect restarts every render, cancelling in-flight async operations (e.g. auto-trust approval checks). `[SKILL?]`
 - When mapping vendor types to domain types at adapter boundaries, creating NEW objects (field-by-field copy) instead of passing references changes mutation semantics. TanStack AI mutates UIMessage parts in-place (e.g., setting `output` on a tool-call part after execution). If the continuation snapshot is a shallow copy of live objects, these mutations propagate. If the snapshot is an explicit field extraction (domain mapping), mutations are lost. Always guard against the "approved but not yet executed" state in tool-call continuations — do not inject synthetic error results for tools the user has explicitly approved.
