@@ -4,6 +4,7 @@ import type { MessagePart } from '@shared/types/agent'
 import { ToolCallId } from '@shared/types/brand'
 import type { JsonObject } from '@shared/types/json'
 import type { AgentStreamChunk } from '@shared/types/stream'
+import { isUserBlockingToolName } from '@shared/types/tool-blocking'
 import { chooseBy } from '@shared/utils/decision'
 import { createLogger } from '../logger'
 import type { AgentToolCallEndEvent, AgentToolCallStartEvent } from './runtime-types'
@@ -264,11 +265,11 @@ export class StreamPartCollector {
       if (this.toolCallStates.get(toolCallId) === 'approval-requested') {
         return true
       }
-      // proposePlan and askUser block indefinitely waiting for user input.
+      // User-blocking tools (proposePlan, askUser) wait for user input.
       // orchestrate spawns sub-agents that can legitimately run for minutes.
       // None of these should be subject to the stream stall timeout.
       const toolName = this.toolCallNames.get(toolCallId)
-      if (toolName === 'proposePlan' || toolName === 'askUser' || toolName === 'orchestrate') {
+      if ((toolName && isUserBlockingToolName(toolName)) || toolName === 'orchestrate') {
         return true
       }
     }

@@ -62,6 +62,19 @@ async function main() {
           reason: 'else-if chains are disallowed; use choose/chooseBy or guard clauses',
         })
       }
+
+      if (
+        ts.isImportTypeNode(node) &&
+        !filePath.endsWith('.d.ts') &&
+        !filePath.includes('.test.')
+      ) {
+        const pos = sourceFile.getLineAndCharacterOfPosition(node.getStart())
+        violations.push({
+          file: toRelative(filePath),
+          line: pos.line + 1,
+          reason: 'inline import() types are disallowed; import at the top of the file',
+        })
+      }
     })
   }
 

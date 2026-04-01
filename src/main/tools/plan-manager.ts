@@ -25,14 +25,17 @@ export function registerPlanProposal(
   pending.set(conversationId, { resolve, reject })
 }
 
-export function respondToPlan(conversationId: ConversationId, response: PlanResponse): void {
+/**
+ * Resolve a pending plan proposal. Returns `true` if an active run was
+ * waiting for the response, `false` if no pending plan exists (e.g. the
+ * plan was persisted by a checkpoint and the app restarted).
+ */
+export function respondToPlan(conversationId: ConversationId, response: PlanResponse): boolean {
   const entry = pending.get(conversationId)
-  if (!entry) {
-    // Plan was cancelled (e.g. via steer or abort) — silently ignore
-    return
-  }
+  if (!entry) return false
   pending.delete(conversationId)
   entry.resolve(response)
+  return true
 }
 
 export function cancelPlanProposal(conversationId: ConversationId): void {

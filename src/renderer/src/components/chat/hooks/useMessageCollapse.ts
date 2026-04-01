@@ -4,6 +4,7 @@ import {
   countToolCallParts,
   getLastRenderableTextPartIndex,
   hasRenderableTextPartBeforeIndex,
+  hasUnansweredBlockingToolCall,
 } from '../message-bubble-utils'
 
 export interface UseMessageCollapseResult {
@@ -31,9 +32,14 @@ export function useMessageCollapse(
   )
   // Waggle segments represent individual agent turns — never collapse them to synthesis.
   // Each agent's full response (including tool calls) should always be visible.
+  // Never collapse messages with unanswered blocking tool calls (proposePlan /
+  // askUser). These require user interaction (Approve/Revise, answer questions)
+  // and must remain visible — especially after app restart when isStreaming is
+  // false but the user still needs to respond.
   const canCollapseToSynthesis =
     !isWaggle &&
     !isStreaming &&
+    !hasUnansweredBlockingToolCall(message.parts) &&
     lastRenderableTextPartIndex >= 0 &&
     (toolCallCount > 0 || hasEarlierRenderableTextParts)
   const showDetails = expandedStateKey === collapseStateKey

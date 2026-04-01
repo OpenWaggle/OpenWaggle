@@ -22,13 +22,17 @@ export function registerQuestion(
   pending.set(conversationId, { resolve, reject })
 }
 
-export function answerQuestion(conversationId: ConversationId, answers: QuestionAnswer[]): void {
+/**
+ * Resolve a pending question. Returns `true` if an active run was
+ * waiting for the answer, `false` if no pending question exists (e.g.
+ * the question was persisted by a checkpoint and the app restarted).
+ */
+export function answerQuestion(conversationId: ConversationId, answers: QuestionAnswer[]): boolean {
   const entry = pending.get(conversationId)
-  if (!entry) {
-    throw new Error(`No pending question for conversation ${conversationId}`)
-  }
+  if (!entry) return false
   pending.delete(conversationId)
   entry.resolve(answers)
+  return true
 }
 
 export function cancelQuestion(conversationId: ConversationId): void {

@@ -1,6 +1,7 @@
 import { safeDecodeUnknown } from '@shared/schema'
 import { planResponseSchema } from '@shared/types/plan'
 import { askUserArgsSchema } from '@shared/types/question'
+import { isUserBlockingToolName } from '@shared/types/tool-blocking'
 import type { UIMessage } from '@tanstack/ai-react'
 
 type MessagePart = UIMessage['parts'][number]
@@ -23,6 +24,34 @@ export function getLastRenderableTextPartIndex(parts: UIMessage['parts']): numbe
     }
   }
   return -1
+}
+
+/**
+ * Returns true when the message has a proposePlan or askUser tool-call
+ * without a matching tool-result. These tool calls require user interaction
+ * (Approve/Revise or answer questions) and must never be collapsed behind
+ * a "Show N tool calls" toggle — the user needs to see and interact with them.
+ *
+ * O(n) — collects answered tool-call IDs in a single pass, then checks
+ * blocking tool-calls against the set.
+ */
+export function hasUnansweredBlockingToolCall(parts: UIMessage['parts']): boolean {
+  const answeredToolCallIds = new Set<string>()
+  for (const p of parts) {
+    if (p.type === 'tool-result') {
+      answeredToolCallIds.add(p.toolCallId)
+    }
+  }
+  for (const p of parts) {
+    if (
+      p.type === 'tool-call' &&
+      isUserBlockingToolName(p.name) &&
+      !answeredToolCallIds.has(p.id)
+    ) {
+      return true
+    }
+  }
+  return false
 }
 
 export function countToolCallParts(parts: UIMessage['parts']): number {

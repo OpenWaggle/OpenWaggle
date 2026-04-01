@@ -4,11 +4,12 @@ import { app, BrowserWindow, Menu, shell } from 'electron'
 import { initializeTokenStore } from './auth/token-manager'
 import { startDevtoolsEventBus, stopDevtoolsEventBus } from './devtools/event-bus'
 import { env } from './env'
+import { persistAllActiveRuns } from './ipc/agent-handler'
 import { cleanupTerminals, registerAllIpcHandlers } from './ipc/handlers'
 import { createLogger, initFileLogger } from './logger'
 import { mcpManager } from './mcp'
 import { registerAllProviders } from './providers'
-import { disposeAppRuntime, initializeAppRuntime } from './runtime'
+import { disposeAppRuntime, initializeAppRuntime, runAppEffect } from './runtime'
 import {
   assertSecureWebPreferences,
   installCspHeaders,
@@ -253,9 +254,15 @@ app.on('before-quit', (e) => {
   disposeAutoUpdater()
   if (!mcpCleanupDone) {
     e.preventDefault()
-    mcpManager.disconnectAll().finally(() => {
-      mcpCleanupDone = true
-      app.quit()
-    })
+    runAppEffect(persistAllActiveRuns())
+      .then(() => mcpManager.disconnectAll())
+      .then(() => {
+        mcpCleanupDone = true
+        app.quit()
+      })
+      .catch(() => {
+        mcpCleanupDone = true
+        app.quit()
+      })
   }
 })

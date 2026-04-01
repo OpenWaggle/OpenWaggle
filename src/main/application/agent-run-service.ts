@@ -5,7 +5,13 @@
  * that depend on hexagonal ports. The handler retains transport concerns
  * (abort controllers, active run tracking, stream buffers, IPC emission).
  */
-import type { AgentSendPayload, HydratedAgentSendPayload, Message } from '@shared/types/agent'
+import type {
+  AgentSendPayload,
+  HydratedAgentSendPayload,
+  Message,
+  MessagePart,
+  ToolResultPart,
+} from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { AgentStreamChunk } from '@shared/types/stream'
@@ -36,6 +42,15 @@ export interface AgentRunInput {
   readonly onChunk: (chunk: AgentStreamChunk) => void
   readonly onCollectorCreated?: (c: StreamPartCollector) => void
   readonly onPayloadHydrated?: (payload: HydratedAgentSendPayload) => void
+  /** Called once the conversation's pre-run message count is known. */
+  readonly onMessageCountResolved?: (count: number) => void
+  /**
+   * Called when a user-blocking tool (proposePlan / askUser) is about to
+   * block for user input. Receives the collector's current snapshot of
+   * message parts. Must persist conversation state so an app crash during
+   * the wait does not lose messages.
+   */
+  readonly onCheckpointNeeded?: (parts: readonly MessagePart[]) => Promise<void>
 }
 
 export type AgentRunResult =
@@ -86,6 +101,7 @@ export function executeAgentRun(input: AgentRunInput) {
       Effect.runSync(chatService.stream(options))
 
     const messageCountBeforeRun = conversation.messages.length
+    input.onMessageCountResolved?.(messageCountBeforeRun)
 
     // ─── Settings + title generation ─────────────────────
     const settingsService = yield* SettingsService
@@ -112,6 +128,7 @@ export function executeAgentRun(input: AgentRunInput) {
           onChunk,
           signal,
           onCollectorCreated,
+          onCheckpointNeeded: input.onCheckpointNeeded,
         }),
       catch: (err) => err,
     })
@@ -154,8 +171,9 @@ export function executeAgentRun(input: AgentRunInput) {
 export function persistPartialResponse(
   conversationId: ConversationId,
   originalPayload: HydratedAgentSendPayload,
-  partialParts: readonly import('@shared/types/agent').MessagePart[],
+  partialParts: readonly MessagePart[],
   resolvedModel: SupportedModelId,
+  messageCountBeforeRun?: number,
 ) {
   return Effect.gen(function* () {
     const repo = yield* ConversationRepository
@@ -166,9 +184,18 @@ export function persistPartialResponse(
     if (partialParts.length > 0) {
       newMessages.push(makeMessage('assistant', [...partialParts], resolvedModel))
     }
+
+    // When messageCountBeforeRun is provided and the conversation has
+    // already grown (e.g. a previous checkpoint saved partial messages),
+    // replace from that point instead of appending duplicates.
+    const baseMessages =
+      messageCountBeforeRun !== undefined && conv.messages.length > messageCountBeforeRun
+        ? conv.messages.slice(0, messageCountBeforeRun)
+        : conv.messages
+
     yield* repo.save({
       ...conv,
-      messages: [...conv.messages, ...newMessages],
+      messages: [...baseMessages, ...newMessages],
     })
     return true
   }).pipe(
@@ -199,16 +226,22 @@ function persistNewMessages(
       .pipe(Effect.catchAll(() => Effect.succeed(null)))
     if (!latestConversation) return
 
-    if (messageCountGuard !== undefined && latestConversation.messages.length > messageCountGuard) {
-      logger.info('Skipping persistNewMessages — cancel handler already persisted', {
-        conversationId,
-        expected: messageCountGuard,
-        actual: latestConversation.messages.length,
-      })
-      return
-    }
+    // When the conversation has grown since the run started (checkpoint or
+    // cancel already persisted partial messages), replace from the pre-run
+    // point so the final complete messages overwrite the partial ones.
+    const baseMessages =
+      messageCountGuard !== undefined && latestConversation.messages.length > messageCountGuard
+        ? (() => {
+            logger.info('Replacing checkpointed messages with final run result', {
+              conversationId,
+              expected: messageCountGuard,
+              actual: latestConversation.messages.length,
+            })
+            return latestConversation.messages.slice(0, messageCountGuard)
+          })()
+        : latestConversation.messages
 
-    const updatedMessages = [...latestConversation.messages, ...newMessages]
+    const updatedMessages = [...baseMessages, ...newMessages]
     yield* repo.save({ ...latestConversation, messages: updatedMessages })
 
     if (approvalTraceEnabled && (hydratedPayload.continuationMessages?.length ?? 0) > 0) {
@@ -235,6 +268,74 @@ function persistNewMessages(
             error: formatErrorMessage(persistError),
           })
         }
+      }),
+    ),
+  )
+}
+
+/**
+ * Persist a tool-result for an orphaned blocking tool-call after app restart.
+ *
+ * When the app dies while proposePlan/askUser blocks, the checkpoint saves
+ * the tool-call without a result. On reload, the renderer re-renders the
+ * approval UI. When the user responds, this function injects the tool-result
+ * into the persisted conversation so the UI reflects the resolved state.
+ */
+export function persistRehydratedToolResult(
+  conversationId: ConversationId,
+  toolName: string,
+  resultContent: string,
+) {
+  return Effect.gen(function* () {
+    const repo = yield* ConversationRepository
+    const conv = yield* repo.get(conversationId).pipe(Effect.catchAll(() => Effect.succeed(null)))
+    if (!conv) return false
+
+    // Find the last assistant message with an orphaned tool-call for toolName
+    const messages = [...conv.messages]
+    let updated = false
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i]
+      if (msg.role !== 'assistant') continue
+
+      const orphanedToolCall = msg.parts.find(
+        (p) =>
+          p.type === 'tool-call' &&
+          p.toolCall.name === toolName &&
+          !msg.parts.some((r) => r.type === 'tool-result' && r.toolResult.id === p.toolCall.id),
+      )
+
+      if (!orphanedToolCall || orphanedToolCall.type !== 'tool-call') continue
+
+      // Append the tool-result part to the message
+      const toolResultPart: ToolResultPart = {
+        type: 'tool-result',
+        toolResult: {
+          id: orphanedToolCall.toolCall.id,
+          name: toolName,
+          args: orphanedToolCall.toolCall.args,
+          result: resultContent,
+          isError: false,
+          duration: 0,
+        },
+      }
+      messages[i] = { ...msg, parts: [...msg.parts, toolResultPart] }
+      updated = true
+      break
+    }
+
+    if (!updated) return false
+    yield* repo.save({ ...conv, messages })
+    return true
+  }).pipe(
+    Effect.catchAll((err) =>
+      Effect.sync(() => {
+        logger.error('Failed to persist rehydrated tool result', {
+          conversationId,
+          toolName,
+          error: formatErrorMessage(err),
+        })
+        return false
       }),
     ),
   )

@@ -20,7 +20,9 @@ import {
   type AgentRunResult,
   executeAgentRun,
   persistPartialResponse,
+  persistRehydratedToolResult,
 } from '../application/agent-run-service'
+import { runAppEffect } from '../runtime'
 import { pushContext } from '../tools/context-injection-buffer'
 import { respondToPlan } from '../tools/plan-manager'
 import { answerQuestion } from '../tools/question-manager'
@@ -41,6 +43,10 @@ interface AgentRunMetadata {
   collector: StreamPartCollector | null
   model: SupportedModelId
   payload: HydratedAgentSendPayload | null
+  /** True after a checkpoint persisted conversation state before a blocking tool. */
+  checkpointed: boolean
+  /** Message count before this run started — used to replace checkpointed messages. */
+  messageCountBeforeRun: number | null
 }
 
 const activeRuns = new ActiveRunManager<ConversationId, AgentRunMetadata>()
@@ -62,10 +68,25 @@ function handleRunResult(conversationId: ConversationId, result: AgentRunResult)
  * Uses finalizeParts({ timedOut: true }) to force synthetic error results
  * for all incomplete tool calls. Without this, orphan tool-call parts
  * (no matching tool-result) would trigger continuation loops on reload.
+ *
+ * When `skipCheckpointed` is true (default for before-quit), runs that
+ * were already checkpointed during a blocking tool wait are skipped —
+ * the checkpoint preserves clean blocking state for rehydration, which
+ * is preferable to synthetic error results.
+ *
+ * When `skipCheckpointed` is false (used by explicit cancel), the run
+ * is always persisted — the user cancelled after the blocking tool
+ * resolved and the run progressed past the checkpoint.
  */
-function persistRunSnapshot(conversationId: ConversationId) {
+function persistRunSnapshot(
+  conversationId: ConversationId,
+  options?: { skipCheckpointed?: boolean },
+) {
   const entry = activeRuns.get(conversationId)
   if (!entry?.metadata.payload) return Effect.void
+
+  const skipCheckpointed = options?.skipCheckpointed ?? true
+  if (skipCheckpointed && entry.metadata.checkpointed) return Effect.void
 
   const partialParts = entry.metadata.collector?.finalizeParts({ timedOut: true }) ?? []
   return persistPartialResponse(
@@ -73,7 +94,21 @@ function persistRunSnapshot(conversationId: ConversationId) {
     entry.metadata.payload,
     partialParts,
     entry.metadata.model,
+    entry.metadata.messageCountBeforeRun ?? undefined,
   )
+}
+
+/**
+ * Persist all active runs that haven't been checkpointed yet.
+ * Called from `before-quit` to save progress on graceful shutdown.
+ * Checkpointed runs are skipped to preserve clean blocking state.
+ */
+export function persistAllActiveRuns() {
+  return Effect.gen(function* () {
+    for (const id of activeRuns.keys()) {
+      yield* persistRunSnapshot(id)
+    }
+  })
 }
 
 export function registerAgentHandlers(): void {
@@ -93,6 +128,8 @@ export function registerAgentHandlers(): void {
           collector: null,
           model,
           payload: null,
+          checkpointed: false,
+          messageCountBeforeRun: null,
         })
 
         startStreamBuffer(conversationId, model, 'classic')
@@ -115,6 +152,24 @@ export function registerAgentHandlers(): void {
             const entry = activeRuns.get(conversationId)
             if (entry) entry.metadata.payload = hydrated
           },
+          onMessageCountResolved: (count) => {
+            const entry = activeRuns.get(conversationId)
+            if (entry) entry.metadata.messageCountBeforeRun = count
+          },
+          onCheckpointNeeded: async (parts) => {
+            const entry = activeRuns.get(conversationId)
+            if (!entry?.metadata.payload || entry.metadata.messageCountBeforeRun === null) return
+            entry.metadata.checkpointed = true
+            await runAppEffect(
+              persistPartialResponse(
+                conversationId,
+                entry.metadata.payload,
+                parts,
+                entry.metadata.model,
+                entry.metadata.messageCountBeforeRun,
+              ),
+            )
+          },
         })
 
         // ─── Transport: respond based on outcome ─────────
@@ -130,14 +185,18 @@ export function registerAgentHandlers(): void {
 
   typedOn('agent:cancel', (_event, conversationId?: ConversationId) =>
     Effect.gen(function* () {
+      // Explicit cancel always persists — even if checkpointed, the run
+      // may have progressed past the blocking tool (user approved the plan
+      // and the agent continued working before the cancel).
+      const cancelOptions = { skipCheckpointed: false }
       if (conversationId) {
-        yield* persistRunSnapshot(conversationId)
+        yield* persistRunSnapshot(conversationId, cancelOptions)
         activeRuns.cancel(conversationId)
         clearAgentPhase(conversationId)
         cleanupConversationRun(conversationId)
       } else {
         for (const id of activeRuns.keys()) {
-          yield* persistRunSnapshot(id)
+          yield* persistRunSnapshot(id, cancelOptions)
         }
         const allKeys = [...activeRuns.keys()]
         activeRuns.cancelAll()
@@ -166,7 +225,11 @@ export function registerAgentHandlers(): void {
   typedHandle(
     'agent:answer-question',
     (_event, conversationId: ConversationId, answers: QuestionAnswer[]) =>
-      Effect.sync(() => answerQuestion(conversationId, answers)),
+      Effect.gen(function* () {
+        if (answerQuestion(conversationId, answers)) return
+        // Rehydrated case: no active run — persist the tool-result
+        yield* persistRehydratedToolResult(conversationId, 'askUser', JSON.stringify({ answers }))
+      }),
   )
 
   typedHandle('agent:steer', (_event, conversationId: ConversationId) =>
@@ -185,8 +248,15 @@ export function registerAgentHandlers(): void {
       const resolvedModel = entry.metadata.model
       const originalPayload = entry.metadata.payload
 
-      // Application: persist partial response
-      yield* persistPartialResponse(conversationId, originalPayload, partialParts, resolvedModel)
+      // Application: persist partial response (pass messageCountBeforeRun so
+      // checkpointed messages are replaced rather than duplicated)
+      yield* persistPartialResponse(
+        conversationId,
+        originalPayload,
+        partialParts,
+        resolvedModel,
+        entry.metadata.messageCountBeforeRun ?? undefined,
+      )
 
       // Transport: cancel and cleanup
       activeRuns.cancel(conversationId)
@@ -200,6 +270,10 @@ export function registerAgentHandlers(): void {
   typedHandle(
     'agent:respond-to-plan',
     (_event, conversationId: ConversationId, response: PlanResponse) =>
-      Effect.sync(() => respondToPlan(conversationId, response)),
+      Effect.gen(function* () {
+        if (respondToPlan(conversationId, response)) return
+        // Rehydrated case: no active run — persist the tool-result
+        yield* persistRehydratedToolResult(conversationId, 'proposePlan', JSON.stringify(response))
+      }),
   )
 }

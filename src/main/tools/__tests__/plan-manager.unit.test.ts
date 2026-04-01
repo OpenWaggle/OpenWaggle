@@ -117,3 +117,19 @@ describe('plan-manager TTL', () => {
     expect(pendingPlanCount()).toBe(0)
   })
 })
+
+describe('respondToPlan return value', () => {
+  const convId = ConversationId('test-conv-return')
+
+  it('returns true when a pending plan exists', async () => {
+    const promise = waitForPlanResponse(convId)
+    const result = respondToPlan(convId, { action: 'approve' })
+    expect(result).toBe(true)
+    await promise
+  })
+
+  it('returns false when no pending plan exists (rehydrated case)', () => {
+    const result = respondToPlan(ConversationId('no-pending'), { action: 'approve' })
+    expect(result).toBe(false)
+  })
+})
