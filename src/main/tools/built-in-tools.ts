@@ -34,6 +34,16 @@ export const approvalRequiredTools = [
 ] as const
 
 /**
+ * Tools that block indefinitely waiting for user input (plan approval,
+ * question answers). Used for checkpoint triggers (main) and collapse
+ * prevention (renderer).
+ *
+ * `UserBlockingToolName` is derived from this array — adding or
+ * removing a tool here automatically updates the type.
+ */
+export const userBlockingTools = [askUserTool, proposePlanTool] as const
+
+/**
  * Tools that execute without approval. Includes read-only tools,
  * user interaction, orchestration, and internal coordination.
  */
@@ -70,3 +80,6 @@ export type BuiltInToolName = (typeof builtInTools)[number]['name']
 
 /** Union of tool names that require user approval. */
 export type ApprovalRequiredToolName = (typeof approvalRequiredTools)[number]['name']
+
+/** Union of tool names that block for user input (plan approval, question answers). */
+export type UserBlockingToolName = (typeof userBlockingTools)[number]['name']

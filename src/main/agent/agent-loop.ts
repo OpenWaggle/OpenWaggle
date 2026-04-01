@@ -4,6 +4,7 @@ import {
   type HydratedAgentSendPayload,
   hasToolCallNamed,
   type Message,
+  type MessagePart,
 } from '@shared/types/agent'
 import { type SkipApprovalToken, ToolCallId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
@@ -91,6 +92,13 @@ export interface AgentRunParams {
   /** Override stream stall timeout (ms). Waggle turns use a longer timeout
    *  because orchestrate tools may run for several minutes. */
   readonly stallTimeoutMs?: number
+  /**
+   * Called when a user-blocking tool (proposePlan / askUser) is about to
+   * block for user input. Receives the collector's current snapshot of
+   * message parts. The callback must persist the conversation state so
+   * that an app crash during the wait does not lose messages.
+   */
+  readonly onCheckpointNeeded?: (parts: readonly MessagePart[]) => Promise<void>
 }
 
 export interface AgentRunResult {
@@ -317,6 +325,12 @@ export function runAgentEffect(
               runContext,
               approvalTraceEnabled,
               stallTimeoutMs: params.stallTimeoutMs,
+              onCheckpointNeeded: params.onCheckpointNeeded
+                ? (() => {
+                    const checkpoint = params.onCheckpointNeeded
+                    return () => checkpoint(collector.snapshotParts())
+                  })()
+                : undefined,
             }),
           )
         }),

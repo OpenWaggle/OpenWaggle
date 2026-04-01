@@ -1,4 +1,5 @@
 import type { AgentStreamChunk } from '@shared/types/stream'
+import { isUserBlockingToolName } from '@shared/types/tool-blocking'
 import * as Duration from 'effect/Duration'
 import * as Effect from 'effect/Effect'
 import { approvalTraceEnabled as runtimeApprovalTraceEnabled } from '../env'
@@ -24,6 +25,21 @@ export const INCOMPLETE_TOOL_CALL_STALL_TIMEOUT_MS = 30_000
 
 export type StreamStallReason = 'stream-stall' | 'incomplete-tool-args' | 'awaiting-tool-result'
 
+/**
+ * Returns true when a chunk represents a tool call that has finished
+ * receiving arguments but has not yet executed — AND the tool is one
+ * that blocks for user input (proposePlan / askUser). This is the
+ * last synchronous opportunity to checkpoint conversation state before
+ * the stream blocks on the tool's user-response promise.
+ */
+export function isUserBlockingToolCallEnd(chunk: AgentStreamChunk): boolean {
+  return (
+    chunk.type === 'TOOL_CALL_END' &&
+    chunk.result === undefined &&
+    isUserBlockingToolName(chunk.toolName)
+  )
+}
+
 export interface ProcessAgentStreamParams {
   readonly stream: AsyncIterable<AgentStreamChunk>
   readonly collector: StreamPartCollector
@@ -34,6 +50,12 @@ export interface ProcessAgentStreamParams {
   readonly approvalTraceEnabled?: boolean
   /** Override stall timeout for testing. Defaults to STREAM_STALL_TIMEOUT_MS. */
   readonly stallTimeoutMs?: number
+  /**
+   * Called when a user-blocking tool (proposePlan / askUser) is about to
+   * block for user input. The callback must persist the current conversation
+   * state so that an app crash during the wait does not lose messages.
+   */
+  readonly onCheckpointNeeded?: () => Promise<void>
 }
 
 export interface ProcessAgentStreamResult {
@@ -242,6 +264,14 @@ export function processAgentStreamEffect(
       const notifiedRunError = yield* forwardChunkEffect(forwardChunkParams, chunk)
       if (notifiedRunError) {
         runErrorNotified = true
+      }
+
+      // Checkpoint conversation state before the stream blocks on a
+      // user-input tool (proposePlan / askUser). This is the last
+      // opportunity to persist before the tool's promise blocks.
+      if (isUserBlockingToolCallEnd(chunk) && params.onCheckpointNeeded) {
+        const checkpoint = params.onCheckpointNeeded
+        yield* Effect.promise(() => checkpoint())
       }
     }
 

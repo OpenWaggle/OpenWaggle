@@ -22,30 +22,50 @@ export interface LoadedSkillInstructions extends SkillDiscoveryItem {
   readonly instructions: string
 }
 
+/**
+ * Skill directories scanned in order. Both `.openwaggle/skills` and
+ * `.agents/skills` are supported. When a skill ID exists in both,
+ * the first directory wins (`.openwaggle` takes precedence).
+ */
+const SKILL_DIRS = [
+  ['.openwaggle', 'skills'],
+  ['.agents', 'skills'],
+] as const
+
+function resolveSkillRoots(projectPath: string): string[] {
+  return SKILL_DIRS.map((segments) => path.join(projectPath, ...segments))
+}
+
 export async function loadSkillCatalog(
   projectPath: string,
   toggles: Readonly<Record<string, boolean>> = {},
 ): Promise<LoadedSkillCatalog> {
-  const skillsRoot = path.join(projectPath, '.openwaggle', 'skills')
-  const folderEntries = await readDirectoryEntries(skillsRoot)
-  if (folderEntries === null) {
-    return {
-      projectPath,
-      skills: [],
+  const seenSkillIds = new Set<string>()
+  const allSkills: LoadedSkillDefinition[] = []
+
+  for (const skillsRoot of resolveSkillRoots(projectPath)) {
+    const folderEntries = await readDirectoryEntries(skillsRoot)
+    if (folderEntries === null) continue
+
+    const rootSkills = await Promise.all(
+      folderEntries
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => loadSkillMetadata(projectPath, skillsRoot, entry.name, toggles)),
+    )
+
+    for (const skill of rootSkills) {
+      if (!seenSkillIds.has(skill.id)) {
+        seenSkillIds.add(skill.id)
+        allSkills.push(skill)
+      }
     }
   }
 
-  const skills = await Promise.all(
-    folderEntries
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => loadSkillMetadata(projectPath, skillsRoot, entry.name, toggles)),
-  )
-
-  skills.sort((a, b) => a.id.localeCompare(b.id))
+  allSkills.sort((a, b) => a.id.localeCompare(b.id))
 
   return {
     projectPath,
-    skills,
+    skills: allSkills,
   }
 }
 
@@ -59,55 +79,54 @@ export async function loadSkillInstructions(
   toggles: Readonly<Record<string, boolean>> = {},
 ): Promise<LoadedSkillInstructions> {
   const canonicalSkillId = normalizeRequestedSkillId(skillId)
-  const skillsRoot = path.join(projectPath, '.openwaggle', 'skills')
-  const folderEntries = await readDirectoryEntries(skillsRoot)
-  if (folderEntries === null) {
-    throw new Error(`Skill "${canonicalSkillId}" was not found.`)
-  }
 
-  const matchingFolders = folderEntries
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .filter((folderName) => normalizeSkillId(folderName) === canonicalSkillId)
+  // Search all skill roots for the requested skill
+  for (const skillsRoot of resolveSkillRoots(projectPath)) {
+    const folderEntries = await readDirectoryEntries(skillsRoot)
+    if (folderEntries === null) continue
 
-  if (matchingFolders.length === 0) {
-    throw new Error(`Skill "${canonicalSkillId}" was not found.`)
-  }
+    const matchingFolders = folderEntries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .filter((folderName) => normalizeSkillId(folderName) === canonicalSkillId)
 
-  if (matchingFolders.length > 1) {
-    throw new Error(
-      `Skill "${canonicalSkillId}" is ambiguous (${matchingFolders.join(', ')}). Use a unique folder id.`,
-    )
-  }
+    if (matchingFolders.length === 0) continue
 
-  const folderName = matchingFolders[0]
-  if (!folderName) {
-    throw new Error(`Skill "${canonicalSkillId}" was not found.`)
-  }
-
-  const folderPath = path.join(skillsRoot, folderName)
-  const skillPath = path.join(folderPath, 'SKILL.md')
-  const enabled = toggles[canonicalSkillId] ?? true
-  const hasScripts = await hasScriptsFolder(folderPath)
-
-  try {
-    const raw = await readSkillFileWithinProject(projectPath, skillPath)
-    const parsed = parseSkillDocument(raw)
-
-    return {
-      id: canonicalSkillId,
-      name: parsed.name,
-      description: parsed.description,
-      folderPath,
-      skillPath,
-      hasScripts,
-      enabled,
-      loadStatus: 'ok',
-      instructions: parsed.body,
+    if (matchingFolders.length > 1) {
+      throw new Error(
+        `Skill "${canonicalSkillId}" is ambiguous (${matchingFolders.join(', ')}). Use a unique folder id.`,
+      )
     }
-  } catch (error) {
-    throw new Error(formatSkillError(projectPath, folderName, error))
+
+    const folderName = matchingFolders[0]
+    if (!folderName) continue
+
+    const folderPath = path.join(skillsRoot, folderName)
+    const skillPath = path.join(folderPath, 'SKILL.md')
+    const enabled = toggles[canonicalSkillId] ?? true
+    const hasScripts = await hasScriptsFolder(folderPath)
+
+    try {
+      const raw = await readSkillFileWithinProject(projectPath, skillPath)
+      const parsed = parseSkillDocument(raw)
+
+      return {
+        id: canonicalSkillId,
+        name: parsed.name,
+        description: parsed.description,
+        folderPath,
+        skillPath,
+        hasScripts,
+        enabled,
+        loadStatus: 'ok',
+        instructions: parsed.body,
+      }
+    } catch (error) {
+      throw new Error(formatSkillError(projectPath, folderName, error))
+    }
   }
+
+  throw new Error(`Skill "${canonicalSkillId}" was not found.`)
 }
 
 function createDefaultSkillDefinition(
@@ -182,10 +201,9 @@ async function resolveRealPath(targetPath: string): Promise<string> {
   }
 }
 
-function formatSkillError(projectPath: string, folderName: string, error: unknown): string {
+function formatSkillError(_projectPath: string, folderName: string, error: unknown): string {
   const message = error instanceof Error ? error.message : String(error)
-  const relativePath = path.join(projectPath, '.openwaggle', 'skills', folderName, 'SKILL.md')
-  return `${relativePath}: ${message}`
+  return `${folderName}/SKILL.md: ${message}`
 }
 
 async function hasScriptsFolder(folderPath: string): Promise<boolean> {

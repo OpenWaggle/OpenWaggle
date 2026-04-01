@@ -7,7 +7,9 @@ import { defineOpenWaggleTool } from '../define-tool'
 const loadSkillInputSchema = Schema.Struct({
   skillId: Schema.String.pipe(
     Schema.minLength(1),
-    Schema.annotations({ description: 'Skill id from .openwaggle/skills/<skill-id>' }),
+    Schema.annotations({
+      description: 'Skill id (folder name under .openwaggle/skills/ or .agents/skills/)',
+    }),
   ),
 })
 
@@ -71,7 +73,7 @@ export async function loadSkillForRun(
 export const loadSkillTool = defineOpenWaggleTool({
   name: 'loadSkill',
   description:
-    'Load full instructions for a project skill from .openwaggle/skills/<skill-id>/SKILL.md. Use this when you need detailed skill workflow guidance during the current run.',
+    'Load full instructions for a project skill from .openwaggle/skills/ or .agents/skills/. Use this when you need detailed skill workflow guidance during the current run.',
   inputSchema: loadSkillInputSchema,
   async execute(args, context) {
     const result = await loadSkillForRun(context, args.skillId)

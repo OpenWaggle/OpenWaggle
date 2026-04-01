@@ -25,12 +25,24 @@ describe('registerQuestion + answerQuestion', () => {
 })
 
 describe('answerQuestion', () => {
-  it('throws when no pending question exists', () => {
+  it('returns false when no pending question exists', () => {
     const conversationId = makeConversationId('no-pending')
 
-    expect(() => answerQuestion(conversationId, [])).toThrow(
-      `No pending question for conversation ${conversationId}`,
-    )
+    expect(answerQuestion(conversationId, [])).toBe(false)
+  })
+
+  it('returns true when a pending question is resolved', () => {
+    const conversationId = makeConversationId('return-true')
+    const resolve = vi.fn()
+    const reject = vi.fn()
+
+    registerQuestion(conversationId, resolve, reject)
+
+    const answers: QuestionAnswer[] = [{ question: 'Pick a shape', selectedOption: 'circle' }]
+    const result = answerQuestion(conversationId, answers)
+
+    expect(result).toBe(true)
+    expect(resolve).toHaveBeenCalledOnce()
   })
 })
 

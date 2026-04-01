@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Quality gates hook — runs format, lint, typecheck, and tests after implementation.
+# Quality gates hook — runs all checks and tests after implementation.
 # Only runs when source files have uncommitted changes.
 set -euo pipefail
 
@@ -34,6 +34,38 @@ else
   DETAILS="${DETAILS}typecheck: passed\n"
 fi
 
+# Pattern style (inline imports, switch/else-if)
+if ! PATTERN_OUT=$(pnpm check:pattern-style 2>&1); then
+  ERRORS="${ERRORS}pattern-style failed; "
+  DETAILS="${DETAILS}pattern-style: FAILED\n"
+else
+  DETAILS="${DETAILS}pattern-style: passed\n"
+fi
+
+# Decision size
+if ! DS_OUT=$(pnpm check:decision-size 2>&1); then
+  ERRORS="${ERRORS}decision-size failed; "
+  DETAILS="${DETAILS}decision-size: FAILED\n"
+else
+  DETAILS="${DETAILS}decision-size: passed\n"
+fi
+
+# Magic numbers
+if ! MN_OUT=$(pnpm check:magic-numbers 2>&1); then
+  ERRORS="${ERRORS}magic-numbers failed; "
+  DETAILS="${DETAILS}magic-numbers: FAILED\n"
+else
+  DETAILS="${DETAILS}magic-numbers: passed\n"
+fi
+
+# Architecture
+if ! ARCH_OUT=$(pnpm check:architecture 2>&1); then
+  ERRORS="${ERRORS}architecture failed; "
+  DETAILS="${DETAILS}architecture: FAILED\n"
+else
+  DETAILS="${DETAILS}architecture: passed\n"
+fi
+
 # Unit tests
 if ! TEST_OUT=$(pnpm test:unit 2>&1); then
   ERRORS="${ERRORS}tests failed; "
@@ -47,5 +79,5 @@ fi
 if [ -n "$ERRORS" ]; then
   printf '{"hookSpecificOutput": {"hookEventName": "Stop", "additionalContext": "Quality gates FAILED: %s\\n%b"}}' "$ERRORS" "$DETAILS"
 else
-  printf '{"hookSpecificOutput": {"hookEventName": "Stop", "additionalContext": "Quality gates passed: format, lint, typecheck, tests all green.\\n%b"}}' "$DETAILS"
+  printf '{"hookSpecificOutput": {"hookEventName": "Stop", "additionalContext": "Quality gates passed: format, lint, typecheck, pattern-style, decision-size, magic-numbers, architecture, tests — all green.\\n%b"}}' "$DETAILS"
 fi
