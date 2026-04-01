@@ -84,7 +84,7 @@ These rules are **non-negotiable**. Violating them invalidates your work.
 3. Verified: tests pass, logs are clean, behavior matches intent. Ask yourself: "Would a staff engineer approve this?"
 4. Verified: the implementation is aligned with the relevant first principles in `docs/principles/`.
 5. If renderer code (`src/renderer/`) was touched: run React Doctor diagnostics (`npx -y react-doctor@latest . --verbose --diff main`), fix all errors, verify score did not drop. Load the `react-doctor` skill for fix patterns.
-6. If renderer, preload, or IPC code was touched: run Electron QA testing via MCP. Start the app with `pnpm dev:debug`, connect via the `electron-devtools` or `electron-test` MCP servers, and verify the feature works in the real Electron app. Consult the `electron-qa` skill in `.openwaggle/skills/electron-qa/` for procedures and tool reference.
+6. If renderer, preload, or IPC code was touched: run Electron QA testing via MCP. Start the app with `pnpm dev:debug`, connect via the `electron-devtools` or `electron-test` MCP servers, and verify the feature works in the real Electron app. Consult the `electron-qa` skill in `.claude/skills/electron-qa/` for procedures and tool reference.
 7. Docs updated if behavior, workflow, or developer expectations changed.
 8. Significant learnings appended to `docs/learnings.md` (**if there is any significant learning to add**).
 9. Changes are grouped into logical commits.
@@ -315,7 +315,7 @@ Always use granular selectors with `useChatStore((s) => s.field)` — never call
 
 ## Skills Standard
 
-- Project-local skills live under `.openwaggle/skills/<skill-id>/`.
+- Project-local skills live under `.claude/skills/<skill-id>/`.
 - Each skill folder must contain a `SKILL.md` file.
 - Optional bundled resources (for example `scripts/`) should remain inside the same skill folder.
 - Runtime skill discovery is folder-based only (no `SKILLS.md` catalog file).
@@ -400,7 +400,7 @@ After implementing changes to:
 5. `list_console_messages` with `types=["error"]` — verify no console errors
 6. Report results in a summary table
 
-Load the `electron-qa` skill from `.openwaggle/skills/electron-qa/` for detailed tool reference and feature-specific test recipes.
+Load the `electron-qa` skill from `.claude/skills/electron-qa/` for detailed tool reference and feature-specific test recipes.
 
 
 ## Principle vs Implementation Rule
