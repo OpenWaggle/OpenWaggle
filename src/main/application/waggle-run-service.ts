@@ -14,12 +14,12 @@ import type { AgentStreamChunk } from '@shared/types/stream'
 import type { WaggleConfig, WaggleStreamMetadata, WaggleTurnEvent } from '@shared/types/waggle'
 import { formatErrorMessage } from '@shared/utils/node-error'
 import * as Effect from 'effect/Effect'
-import { startChatStream } from '../adapters/tanstack-chat-adapter'
 import { classifyAgentError, makeErrorInfo } from '../agent/error-classifier'
 import { buildPersistedUserMessageParts, makeMessage } from '../agent/shared'
 import { runWaggleSequential } from '../agent/waggle-coordinator'
 import { hydratePayloadAttachments, maybeTriggerTitleGeneration } from '../ipc/run-handler-utils'
 import { createLogger } from '../logger'
+import { ChatService, type ChatStreamOptions } from '../ports/chat-service'
 import { ConversationRepository } from '../ports/conversation-repository'
 import { runAppEffect } from '../runtime'
 import { SettingsService } from '../services/settings-service'
@@ -73,6 +73,11 @@ export function executeWaggleRun(input: WaggleRunInput) {
       }
     }
 
+    // ─── Chat stream via port ─────────────────────────────
+    const chatService = yield* ChatService
+    const chatStream = (options: ChatStreamOptions): AsyncIterable<AgentStreamChunk> =>
+      Effect.runSync(chatService.stream(options))
+
     // ─── Fetch settings + conversation ────────────────────
     const settingsService = yield* SettingsService
     const settings = yield* settingsService.get()
@@ -100,13 +105,7 @@ export function executeWaggleRun(input: WaggleRunInput) {
     }
 
     // ─── Title generation ─────────────────────────────────
-    maybeTriggerTitleGeneration(
-      conversationId,
-      conversation,
-      payload.text,
-      settings,
-      startChatStream,
-    )
+    maybeTriggerTitleGeneration(conversationId, conversation, payload.text, settings, chatStream)
 
     // ─── Hydrate attachments ──────────────────────────────
     const hydratedPayload: HydratedAgentSendPayload = {
@@ -126,7 +125,7 @@ export function executeWaggleRun(input: WaggleRunInput) {
           config,
           settings,
           signal,
-          chatStream: startChatStream,
+          chatStream,
           onStreamChunk,
           onTurnEvent,
           onTurnComplete: async (accumulatedMessages) => {

@@ -11,7 +11,6 @@ import type { SupportedModelId } from '@shared/types/llm'
 import type { AgentStreamChunk } from '@shared/types/stream'
 import { formatErrorMessage } from '@shared/utils/node-error'
 import * as Effect from 'effect/Effect'
-import { startChatStream } from '../adapters/tanstack-chat-adapter'
 import { runAgent } from '../agent/agent-loop'
 import { classifyAgentError, makeErrorInfo } from '../agent/error-classifier'
 import { buildPersistedUserMessageParts, makeMessage } from '../agent/shared'
@@ -19,6 +18,7 @@ import type { StreamPartCollector } from '../agent/stream-part-collector'
 import { approvalTraceEnabled } from '../env'
 import { hydratePayloadAttachments, maybeTriggerTitleGeneration } from '../ipc/run-handler-utils'
 import { createLogger } from '../logger'
+import { ChatService, type ChatStreamOptions } from '../ports/chat-service'
 import { ConversationRepository } from '../ports/conversation-repository'
 import { ProviderService } from '../ports/provider-service'
 import { SettingsService } from '../services/settings-service'
@@ -35,6 +35,7 @@ export interface AgentRunInput {
   readonly signal: AbortSignal
   readonly onChunk: (chunk: AgentStreamChunk) => void
   readonly onCollectorCreated?: (c: StreamPartCollector) => void
+  readonly onPayloadHydrated?: (payload: HydratedAgentSendPayload) => void
 }
 
 export type AgentRunResult =
@@ -79,23 +80,25 @@ export function executeAgentRun(input: AgentRunInput) {
       return { outcome: 'not-found' as const, message: errorInfo.userMessage, code: errorInfo.code }
     }
 
+    // ─── Chat stream via port ─────────────────────────────
+    const chatService = yield* ChatService
+    const chatStream = (options: ChatStreamOptions): AsyncIterable<AgentStreamChunk> =>
+      Effect.runSync(chatService.stream(options))
+
+    const messageCountBeforeRun = conversation.messages.length
+
     // ─── Settings + title generation ─────────────────────
     const settingsService = yield* SettingsService
     const settings = yield* settingsService.get()
 
-    maybeTriggerTitleGeneration(
-      conversationId,
-      conversation,
-      payload.text,
-      settings,
-      startChatStream,
-    )
+    maybeTriggerTitleGeneration(conversationId, conversation, payload.text, settings, chatStream)
 
     // ─── Hydrate attachments ─────────────────────────────
     const hydratedPayload: HydratedAgentSendPayload = {
       ...payload,
       attachments: yield* Effect.promise(() => hydratePayloadAttachments(payload.attachments)),
     }
+    input.onPayloadHydrated?.(hydratedPayload)
 
     // ─── Execute agent run ───────────────────────────────
     const agentResult = yield* Effect.tryPromise({
@@ -105,7 +108,7 @@ export function executeAgentRun(input: AgentRunInput) {
           payload: hydratedPayload,
           model,
           settings,
-          chatStream: startChatStream,
+          chatStream,
           onChunk,
           signal,
           onCollectorCreated,
@@ -118,7 +121,12 @@ export function executeAgentRun(input: AgentRunInput) {
     }
 
     // ─── Persist messages ────────────────────────────────
-    yield* persistNewMessages(conversationId, agentResult.newMessages, hydratedPayload)
+    yield* persistNewMessages(
+      conversationId,
+      agentResult.newMessages,
+      hydratedPayload,
+      messageCountBeforeRun,
+    )
 
     return { outcome: 'success' as const, newMessages: agentResult.newMessages }
   }).pipe(
@@ -140,9 +148,10 @@ export function executeAgentRun(input: AgentRunInput) {
 }
 
 /**
- * Persist partial response during steer (interrupt).
+ * Persist partial response during cancel or steer (interrupt).
+ * Saves both the user message and whatever assistant content was streamed.
  */
-export function persistPartialSteerResponse(
+export function persistPartialResponse(
   conversationId: ConversationId,
   originalPayload: HydratedAgentSendPayload,
   partialParts: readonly import('@shared/types/agent').MessagePart[],
@@ -153,16 +162,19 @@ export function persistPartialSteerResponse(
     const conv = yield* repo.get(conversationId).pipe(Effect.catchAll(() => Effect.succeed(null)))
     if (!conv) return false
     const userMsg = makeMessage('user', buildPersistedUserMessageParts(originalPayload))
-    const assistantMsg = makeMessage('assistant', [...partialParts], resolvedModel)
+    const newMessages: Message[] = [userMsg]
+    if (partialParts.length > 0) {
+      newMessages.push(makeMessage('assistant', [...partialParts], resolvedModel))
+    }
     yield* repo.save({
       ...conv,
-      messages: [...conv.messages, userMsg, assistantMsg],
+      messages: [...conv.messages, ...newMessages],
     })
     return true
   }).pipe(
     Effect.catchAll((err) =>
       Effect.sync(() => {
-        logger.error('Failed to persist partial response during steer', {
+        logger.error('Failed to persist partial response', {
           conversationId,
           error: formatErrorMessage(err),
         })
@@ -178,6 +190,7 @@ function persistNewMessages(
   conversationId: ConversationId,
   newMessages: readonly Message[],
   hydratedPayload: HydratedAgentSendPayload,
+  messageCountGuard?: number,
 ) {
   return Effect.gen(function* () {
     const repo = yield* ConversationRepository
@@ -185,6 +198,15 @@ function persistNewMessages(
       .get(conversationId)
       .pipe(Effect.catchAll(() => Effect.succeed(null)))
     if (!latestConversation) return
+
+    if (messageCountGuard !== undefined && latestConversation.messages.length > messageCountGuard) {
+      logger.info('Skipping persistNewMessages — cancel handler already persisted', {
+        conversationId,
+        expected: messageCountGuard,
+        actual: latestConversation.messages.length,
+      })
+      return
+    }
 
     const updatedMessages = [...latestConversation.messages, ...newMessages]
     yield* repo.save({ ...latestConversation, messages: updatedMessages })

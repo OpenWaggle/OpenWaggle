@@ -1,6 +1,5 @@
 import { Schema } from '@shared/schema'
 import { SubAgentId, SupportedModelId } from '@shared/types/brand'
-import { startChatStream } from '../../adapters/tanstack-chat-adapter'
 import { createLogger } from '../../logger'
 import { getRunSubAgent } from '../../sub-agents/facade'
 import { defineOpenWaggleTool } from '../define-tool'
@@ -115,7 +114,14 @@ export const spawnAgentTool = defineOpenWaggleTool({
       parentModel: SupportedModelId(getSettings().defaultModel),
       parentPermissionMode: parentMode,
       parentDepth,
-      chatStream: context.chatStream ?? startChatStream,
+      // context.chatStream is always set by agent-loop (toolContext.chatStream = params.chatStream).
+      // The fallback exists only because ToolContext.chatStream is typed as optional to avoid
+      // requiring it in file-tool tests that never spawn sub-agents.
+      chatStream:
+        context.chatStream ??
+        (() => {
+          throw new Error('chatStream not available in tool context')
+        }),
     })
 
     logger.info('spawnAgent completed', {
