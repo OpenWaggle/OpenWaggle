@@ -7,6 +7,7 @@ import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ConversationRepositoryError } from '../../errors'
+import { ChatService } from '../../ports/chat-service'
 import { ConversationRepository } from '../../ports/conversation-repository'
 import { ProviderService } from '../../ports/provider-service'
 import { SettingsService } from '../../services/settings-service'
@@ -111,10 +112,21 @@ const TestProviderServiceLayer = Layer.succeed(ProviderService, {
   fetchModels: () => Effect.succeed([]),
 })
 
+const TestChatServiceLayer = Layer.succeed(ChatService, {
+  stream: () =>
+    Effect.succeed(
+      (async function* () {
+        /* noop — waggle coordinator is mocked */
+      })(),
+    ),
+  testConnection: () => Effect.void,
+})
+
 const TestLayer = Layer.mergeAll(
   TestSettingsLayer,
   TestConversationRepoLayer,
   TestProviderServiceLayer,
+  TestChatServiceLayer,
 )
 
 vi.mock('../../runtime', () => ({
