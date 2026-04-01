@@ -932,6 +932,37 @@ describe('registerAgentHandlers', () => {
       expect(pushContextMock).toHaveBeenCalledWith(ConversationId('conv-1'), 'user hint')
     })
 
+    it('steer persists partial response with timedOut finalization', async () => {
+      const finalizedParts = [{ type: 'text' as const, text: 'Partial...' }]
+      const mockCollector = { finalizeParts: vi.fn(() => finalizedParts) }
+
+      runAgentMock.mockImplementation((opts: { onCollectorCreated?: (c: unknown) => void }) => {
+        opts.onCollectorCreated?.(mockCollector)
+        return new Promise(() => {})
+      })
+
+      registerAgentHandlers()
+      const sendHandler = getInvokeHandler('agent:send-message')
+      const steerHandler = getInvokeHandler('agent:steer')
+
+      sendHandler?.({}, ConversationId('conv-1'), basePayload('hello'), 'claude-sonnet-4-5')
+      await new Promise((r) => setTimeout(r, 10))
+
+      saveConversationMock.mockReset()
+      const result = await steerHandler?.({}, ConversationId('conv-1'))
+
+      expect(result).toEqual({ preserved: true })
+      expect(mockCollector.finalizeParts).toHaveBeenCalledWith({ timedOut: true })
+      expect(saveConversationMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          messages: expect.arrayContaining([
+            expect.objectContaining({ role: 'user' }),
+            expect.objectContaining({ role: 'assistant' }),
+          ]),
+        }),
+      )
+    })
+
     it('calls cleanupConversationRun on steer early-return (no collector)', async () => {
       // Start a run to populate activeRuns
       runAgentMock.mockReturnValueOnce(new Promise(() => {})) // never resolves

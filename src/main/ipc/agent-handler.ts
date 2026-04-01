@@ -181,7 +181,7 @@ export function registerAgentHandlers(): void {
         return { preserved: false }
       }
 
-      const partialParts = entry.metadata.collector.finalizeParts()
+      const partialParts = entry.metadata.collector.finalizeParts({ timedOut: true })
       const resolvedModel = entry.metadata.model
       const originalPayload = entry.metadata.payload
 
