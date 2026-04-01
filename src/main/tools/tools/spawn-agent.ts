@@ -114,6 +114,9 @@ export const spawnAgentTool = defineOpenWaggleTool({
       parentModel: SupportedModelId(getSettings().defaultModel),
       parentPermissionMode: parentMode,
       parentDepth,
+      // context.chatStream is always set by agent-loop (toolContext.chatStream = params.chatStream).
+      // The fallback exists only because ToolContext.chatStream is typed as optional to avoid
+      // requiring it in file-tool tests that never spawn sub-agents.
       chatStream:
         context.chatStream ??
         (() => {

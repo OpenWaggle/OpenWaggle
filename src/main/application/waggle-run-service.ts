@@ -125,7 +125,7 @@ export function executeWaggleRun(input: WaggleRunInput) {
           config,
           settings,
           signal,
-          chatStream: chatStream,
+          chatStream,
           onStreamChunk,
           onTurnEvent,
           onTurnComplete: async (accumulatedMessages) => {
