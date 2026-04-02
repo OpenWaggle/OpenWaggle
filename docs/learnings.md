@@ -36,6 +36,13 @@ This document stores project-specific technical learnings only.
 - When extracting shared handler utilities, do NOT mock the extracted module in existing handler tests — let calls pass through to the real utilities since all downstream dependencies are already mocked. This preserves integration coverage without test changes.
 - Renderer error logging must use `createRendererLogger` from `@/lib/logger`, never raw `console.warn` — the structured logger respects log levels and provides consistent namespace prefixes.
 
+### Provider Error & Retry Patterns
+- TanStack AI providers have two distinct error paths: (1) Anthropic OAuth adapter catches errors and yields `RUN_ERROR` stream chunks, (2) standard SDK adapters (OpenAI, Gemini) throw exceptions that propagate through the TanStack engine's `run()` catch block. Provider retry logic must handle both paths — intercept retryable `RUN_ERROR` chunks in the stream processor AND catch retryable thrown exceptions via `Effect.catchAll` in the agent loop.
+- TanStack AI's `TextEngine.handleRunErrorEvent()` sets `earlyTermination = true`, which causes the stream to end naturally after yielding `RUN_ERROR` — there is no subsequent `RUN_FINISHED` chunk. The stream iterator's `.next()` resolves with `done: true`.
+- In-stream `RUN_ERROR` chunks (Anthropic OAuth path) and thrown exceptions (standard adapter path) produce different UX: in-stream errors embed as text in a "successful" run; thrown errors produce a classified `AgentRunResult` with `outcome: 'error'` and show `ChatErrorDisplay` with Retry button. The retry feature unifies both by intercepting before they diverge.
+- Retryable `RUN_ERROR` chunks must be intercepted BEFORE reaching `StreamPartCollector.handleChunk()` — otherwise the error text `**Error:** ...` gets persisted in the collector's parts and appears in the final message on retry.
+- `classifyErrorMessage()` from `@shared/domain/error-classifier` classifies `'unknown'` errors as `retryable: true`. Tests for non-retryable behavior must use error messages that match specific non-retryable patterns (e.g. `'401 Unauthorized'`), not generic messages.
+
 ### Streaming Performance Patterns
 - ShikiCache is content-addressed (`cyrb53(language + '\0' + code)`). Growing code blocks produce new keys, so cache reads/writes are safe during streaming — no need for `isStreaming` guards. Disabling cache during streaming was the primary perf bottleneck for code-block rendering.
 - Prefix HAST caching should be incremental: when the prefix grows monotonically (append-only during streaming), only parse the NEW paragraph and push its HAST children onto the existing tree. Re-parsing the entire prefix on every paragraph completion is O(n) wasted work.

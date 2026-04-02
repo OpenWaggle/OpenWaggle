@@ -58,11 +58,21 @@ export interface ProcessAgentStreamParams {
   readonly onCheckpointNeeded?: () => Promise<void>
 }
 
+export interface ProviderErrorInfo {
+  readonly message: string
+  readonly code?: string
+}
+
 export interface ProcessAgentStreamResult {
   readonly aborted: boolean
   readonly runErrorNotified: boolean
   readonly timedOut: boolean
   readonly stallReason: StreamStallReason | null
+  /**
+   * Set when a RUN_ERROR chunk arrived and no tools were mid-execution.
+   * The caller decides whether the error is retryable.
+   */
+  readonly providerError?: ProviderErrorInfo
 }
 
 function resolveChunkTimeoutMs(collector: StreamPartCollector, defaultTimeoutMs: number): number {
@@ -214,6 +224,7 @@ export function processAgentStreamEffect(
   let runErrorNotified = false
   let timedOut = false
   let stallReason: StreamStallReason | null = null
+  let providerError: ProviderErrorInfo | undefined
   let approvalTraceActive = runtimeApprovalTraceEnabled && (params.approvalTraceEnabled ?? false)
   const iterator = stream[Symbol.asyncIterator]()
 
@@ -261,6 +272,18 @@ export function processAgentStreamEffect(
 
       const chunk = nextChunkResult.iterResult.value
       trackApprovalTraceState(chunk)
+
+      // Intercept provider errors before they reach the collector.
+      // When no tools are mid-execution, capture the error info and break
+      // so the caller can decide whether to retry or surface the error.
+      if (chunk.type === 'RUN_ERROR' && !collector.hasUnresolvedToolResults()) {
+        providerError = {
+          message: chunk.error.message,
+          code: chunk.error.code,
+        }
+        break
+      }
+
       const notifiedRunError = yield* forwardChunkEffect(forwardChunkParams, chunk)
       if (notifiedRunError) {
         runErrorNotified = true
@@ -275,7 +298,7 @@ export function processAgentStreamEffect(
       }
     }
 
-    return { aborted, runErrorNotified, timedOut, stallReason }
+    return { aborted, runErrorNotified, timedOut, stallReason, providerError }
   })
 
   return loop.pipe(

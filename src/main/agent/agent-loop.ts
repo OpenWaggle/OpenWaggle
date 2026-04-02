@@ -8,6 +8,7 @@ import {
 } from '@shared/types/agent'
 import { type SkipApprovalToken, ToolCallId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
+import { classifyErrorMessage } from '@shared/types/errors'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { Settings } from '@shared/types/settings'
 import type { AgentStreamChunk } from '@shared/types/stream'
@@ -50,7 +51,7 @@ import {
   resolveProviderAndQuality,
 } from './shared'
 import { StreamPartCollector } from './stream-part-collector'
-import { processAgentStreamEffect } from './stream-processor'
+import { type ProviderErrorInfo, processAgentStreamEffect } from './stream-processor'
 import { resolveToolContextAttachments } from './tool-context-attachments'
 
 const logger = createLogger('agent')
@@ -59,6 +60,8 @@ const approvalTraceLogger = createLogger('approval-trace')
 const MAX_ITERATIONS = 25
 const MAX_STALL_RETRIES = 2
 const STALL_RETRY_DELAY_MS = 2000
+const MAX_PROVIDER_RETRIES = 2
+const PROVIDER_RETRY_BASE_DELAY_MS = 1000
 const INCOMPLETE_TOOL_ARGS_STALL_ERROR =
   'Agent stream stalled while generating tool arguments. Please try again.'
 const INCOMPLETE_TOOL_CALL_STALL_ERROR =
@@ -270,8 +273,10 @@ export function runAgentEffect(
       readonly runErrorNotified: boolean
       readonly timedOut: boolean
       readonly stallReason: 'stream-stall' | 'incomplete-tool-args' | 'awaiting-tool-result' | null
+      readonly providerError?: ProviderErrorInfo
     } | null = null
     let stallAttempt = 0
+    let providerRetryAttempt = 0
 
     // Suppress duplicate RUN_STARTED chunks from stall retries.
     // Each fresh chatStream() emits RUN_STARTED, but the renderer treats
@@ -313,25 +318,53 @@ export function runAgentEffect(
             }),
           )
 
+          const streamProcessingEffect = processAgentStreamEffect({
+            stream,
+            collector,
+            onChunk: deduplicatedOnChunk,
+            signal,
+            hooks,
+            runContext,
+            approvalTraceEnabled,
+            stallTimeoutMs: params.stallTimeoutMs,
+            onCheckpointNeeded: params.onCheckpointNeeded
+              ? (() => {
+                  const checkpoint = params.onCheckpointNeeded
+                  return () => checkpoint(collector.snapshotParts())
+                })()
+              : undefined,
+          })
+
+          // Catch thrown provider errors (non-OAuth adapters throw instead of
+          // yielding RUN_ERROR chunks) and surface them as providerError so
+          // the retry branch can classify and decide.
+          // Only intercept errors that classify as a recognized provider error
+          // code — truly unknown errors (programming bugs, type errors) must
+          // propagate immediately to avoid masking them behind silent retries.
+          const withProviderErrorCatch = streamProcessingEffect.pipe(
+            Effect.catchAll((thrown) => {
+              if (collector.hasUnresolvedToolResults()) {
+                return Effect.fail(thrown)
+              }
+              const message = thrown instanceof Error ? thrown.message : String(thrown)
+              const classified = classifyErrorMessage(message)
+              if (classified.code === 'unknown') {
+                return Effect.fail(thrown)
+              }
+              return Effect.succeed({
+                aborted: false,
+                runErrorNotified: false,
+                timedOut: false,
+                stallReason: null,
+                providerError: { message },
+              })
+            }),
+          )
+
           return yield* withStageTimingEffect(
             stageDurationsMs,
             'stream-processing',
-            processAgentStreamEffect({
-              stream,
-              collector,
-              onChunk: deduplicatedOnChunk,
-              signal,
-              hooks,
-              runContext,
-              approvalTraceEnabled,
-              stallTimeoutMs: params.stallTimeoutMs,
-              onCheckpointNeeded: params.onCheckpointNeeded
-                ? (() => {
-                    const checkpoint = params.onCheckpointNeeded
-                    return () => checkpoint(collector.snapshotParts())
-                  })()
-                : undefined,
-            }),
+            withProviderErrorCatch,
           )
         }),
       )
@@ -377,6 +410,40 @@ export function runAgentEffect(
           pendingToolCalls: collector.getUnresolvedToolNames(),
         })
         return yield* Effect.fail(new Error(INCOMPLETE_TOOL_CALL_STALL_ERROR))
+      }
+
+      // Provider error — classify and decide whether to retry or surface.
+      if (streamResult.providerError) {
+        const classified = classifyErrorMessage(streamResult.providerError.message)
+
+        if (!classified.retryable || providerRetryAttempt >= MAX_PROVIDER_RETRIES) {
+          if (providerRetryAttempt >= MAX_PROVIDER_RETRIES) {
+            logger.warn('Provider error retry budget exhausted', {
+              conversationId: conversation.id,
+              retries: providerRetryAttempt,
+              error: streamResult.providerError.message,
+            })
+          }
+          return yield* Effect.fail(new Error(streamResult.providerError.message))
+        }
+
+        if (providerRetryAttempt === 0) {
+          logger.warn('Transient provider error, retrying with backoff', {
+            conversationId: conversation.id,
+            maxRetries: MAX_PROVIDER_RETRIES,
+            errorCode: classified.code,
+            error: streamResult.providerError.message,
+          })
+        }
+
+        providerRetryAttempt += 1
+        const backoffMs = PROVIDER_RETRY_BASE_DELAY_MS * 2 ** (providerRetryAttempt - 1)
+        yield* Effect.sleep(Duration.millis(backoffMs))
+
+        if (signal.aborted) {
+          return yield* Effect.fail(new AgentCancelledError({}))
+        }
+        continue
       }
 
       break

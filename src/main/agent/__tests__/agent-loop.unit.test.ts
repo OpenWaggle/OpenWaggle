@@ -496,7 +496,8 @@ describe('runAgent', () => {
   })
 
   it('notifies lifecycle hooks when a non-abort stream failure escapes', async () => {
-    const boom = new Error('stream exploded')
+    // Use a non-retryable error (auth) so it is not caught by provider retry logic
+    const boom = new Error('401 Unauthorized: Invalid API key')
     processAgentStreamEffectMock.mockReturnValueOnce(Effect.fail(boom))
 
     await expect(
@@ -509,7 +510,7 @@ describe('runAgent', () => {
         onChunk: vi.fn(),
         signal: new AbortController().signal,
       }),
-    ).rejects.toThrow('stream exploded')
+    ).rejects.toThrow('401 Unauthorized: Invalid API key')
 
     expect(notifyRunErrorMock).toHaveBeenCalledOnce()
     expect(notifyRunErrorMock).toHaveBeenCalledWith([], expect.any(Object), boom)
@@ -599,5 +600,193 @@ describe('runAgent', () => {
 
     expect(notifyRunErrorMock).toHaveBeenCalledOnce()
     expect(notifyRunCompleteMock).not.toHaveBeenCalled()
+  })
+
+  it('retries on retryable provider error and succeeds on second attempt', async () => {
+    processAgentStreamEffectMock
+      .mockReturnValueOnce(
+        Effect.succeed({
+          aborted: false,
+          runErrorNotified: false,
+          timedOut: false,
+          stallReason: null,
+          providerError: { message: '429 Rate limit exceeded', code: '429' },
+        }),
+      )
+      .mockReturnValueOnce(
+        Effect.succeed({
+          aborted: false,
+          runErrorNotified: false,
+          timedOut: false,
+          stallReason: null,
+        }),
+      )
+
+    const result = await runAgent({
+      conversation: createConversation(),
+      payload: createPayload(),
+      model: MODEL,
+      settings: DEFAULT_SETTINGS,
+      chatStream: chatStreamMock,
+      onChunk: vi.fn(),
+      signal: new AbortController().signal,
+    })
+
+    expect(result.finalMessage.role).toBe('assistant')
+    expect(processAgentStreamEffectMock).toHaveBeenCalledTimes(2)
+    expect(notifyRunErrorMock).not.toHaveBeenCalled()
+    expect(notifyRunCompleteMock).toHaveBeenCalledOnce()
+  })
+
+  it('fails after exhausting provider retry budget', async () => {
+    const retryableResult = {
+      aborted: false,
+      runErrorNotified: false,
+      timedOut: false,
+      stallReason: null,
+      providerError: { message: '502 Bad Gateway' },
+    }
+
+    processAgentStreamEffectMock
+      .mockReturnValueOnce(Effect.succeed(retryableResult))
+      .mockReturnValueOnce(Effect.succeed(retryableResult))
+      .mockReturnValueOnce(Effect.succeed(retryableResult))
+
+    await expect(
+      runAgent({
+        conversation: createConversation(),
+        payload: createPayload(),
+        model: MODEL,
+        settings: DEFAULT_SETTINGS,
+        chatStream: chatStreamMock,
+        onChunk: vi.fn(),
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toThrow('502 Bad Gateway')
+
+    // First attempt + 2 retries = 3 calls
+    expect(processAgentStreamEffectMock).toHaveBeenCalledTimes(3)
+    expect(notifyRunErrorMock).toHaveBeenCalledOnce()
+  })
+
+  it('retries on thrown retryable error from non-OAuth adapters', async () => {
+    processAgentStreamEffectMock
+      .mockReturnValueOnce(Effect.fail(new Error('429 Too Many Requests')))
+      .mockReturnValueOnce(
+        Effect.succeed({
+          aborted: false,
+          runErrorNotified: false,
+          timedOut: false,
+          stallReason: null,
+        }),
+      )
+
+    const result = await runAgent({
+      conversation: createConversation(),
+      payload: createPayload(),
+      model: MODEL,
+      settings: DEFAULT_SETTINGS,
+      chatStream: chatStreamMock,
+      onChunk: vi.fn(),
+      signal: new AbortController().signal,
+    })
+
+    expect(result.finalMessage.role).toBe('assistant')
+    expect(processAgentStreamEffectMock).toHaveBeenCalledTimes(2)
+    expect(notifyRunErrorMock).not.toHaveBeenCalled()
+  })
+
+  it('does not retry non-retryable thrown errors', async () => {
+    processAgentStreamEffectMock.mockReturnValueOnce(
+      Effect.fail(new Error('401 Unauthorized: Invalid API key')),
+    )
+
+    await expect(
+      runAgent({
+        conversation: createConversation(),
+        payload: createPayload(),
+        model: MODEL,
+        settings: DEFAULT_SETTINGS,
+        chatStream: chatStreamMock,
+        onChunk: vi.fn(),
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toThrow('401 Unauthorized: Invalid API key')
+
+    expect(processAgentStreamEffectMock).toHaveBeenCalledTimes(1)
+    expect(notifyRunErrorMock).toHaveBeenCalledOnce()
+  })
+
+  it('does not retry non-retryable in-stream provider errors', async () => {
+    processAgentStreamEffectMock.mockReturnValueOnce(
+      Effect.succeed({
+        aborted: false,
+        runErrorNotified: false,
+        timedOut: false,
+        stallReason: null,
+        providerError: { message: '401 Unauthorized: Invalid API key' },
+      }),
+    )
+
+    await expect(
+      runAgent({
+        conversation: createConversation(),
+        payload: createPayload(),
+        model: MODEL,
+        settings: DEFAULT_SETTINGS,
+        chatStream: chatStreamMock,
+        onChunk: vi.fn(),
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toThrow('401 Unauthorized: Invalid API key')
+
+    expect(processAgentStreamEffectMock).toHaveBeenCalledTimes(1)
+    expect(notifyRunErrorMock).toHaveBeenCalledOnce()
+  })
+
+  it('provider retry counter is independent from stall retry counter', async () => {
+    processAgentStreamEffectMock
+      // First: stall retry
+      .mockReturnValueOnce(
+        Effect.succeed({
+          aborted: false,
+          runErrorNotified: false,
+          timedOut: true,
+          stallReason: 'stream-stall',
+        }),
+      )
+      // Second: provider error after stall retry
+      .mockReturnValueOnce(
+        Effect.succeed({
+          aborted: false,
+          runErrorNotified: false,
+          timedOut: false,
+          stallReason: null,
+          providerError: { message: '429 Rate limit exceeded' },
+        }),
+      )
+      // Third: success after provider retry
+      .mockReturnValueOnce(
+        Effect.succeed({
+          aborted: false,
+          runErrorNotified: false,
+          timedOut: false,
+          stallReason: null,
+        }),
+      )
+
+    const result = await runAgent({
+      conversation: createConversation(),
+      payload: createPayload(),
+      model: MODEL,
+      settings: DEFAULT_SETTINGS,
+      chatStream: chatStreamMock,
+      onChunk: vi.fn(),
+      signal: new AbortController().signal,
+    })
+
+    expect(result.finalMessage.role).toBe('assistant')
+    expect(processAgentStreamEffectMock).toHaveBeenCalledTimes(3)
+    expect(notifyRunErrorMock).not.toHaveBeenCalled()
   })
 })
