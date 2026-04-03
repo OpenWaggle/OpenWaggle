@@ -75,6 +75,12 @@ This document stores project-specific technical learnings only.
 - Trusted `runCommand` wildcard matching should reject shell-chain operators (`;`, `&&`, `||`, pipes) even when prefix patterns match.
 - Approval overrides applied before context binding (e.g. `withoutApproval`) are lost unless `bindToolContextToTool()` explicitly preserves `needsApproval: false` on the bound server tool. Otherwise waggle/full-access runs can unexpectedly re-enter approval-required tool continuations. `[SKILL?]`
 
+### Context Compaction Patterns
+- Two-tier compaction: Tier 1 microcompaction (deterministic, no LLM — strip old tool results) runs on every API call via `buildFreshChatMessages`. Tier 2 full LLM compaction only triggers at ~80% of model context window. Microcompaction alone eliminates ~40% of context bloat (tool results are ~38% of typical context).
+- `runAgentEffect` now requires `ContextCompactionService` in its Effect context (`StandardsService | ContextCompactionService`). `runAgent()` provides both layers via `Layer.merge(FilesystemStandardsLive, ContextCompactionLive)`. Tests that mock `../message-mapper` must include `microcompactMessages` in the mock factory.
+- Shared types used by both main process and renderer must live in `src/shared/types/`, not `src/main/domain/`. The renderer has no `@main/` path alias — only `@shared/*` and `@/*`. Domain types can re-export from shared: `import type { X } from '@shared/types/foo'; export type { X }`.
+- Compaction events flow via existing `CUSTOM` stream chunks (`name: 'compaction'`) through `agent:stream-chunk` IPC channel — no new IPC channels needed. The renderer's `useThreadStatusMonitor` hook already listens to all stream chunks and filters by `chunk.name`.
+
 ### Electron & Process Boundaries
 - MCP stdio transports must use the same safe child-environment allowlist as command execution. Full `process.env` leaks API keys to MCP subprocesses.
 - `StdioClientTransport.env` expects `Record<string, string>` but `process.env` values are `string | undefined`. Filter undefined entries.
