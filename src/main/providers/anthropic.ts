@@ -2,6 +2,7 @@ import type { QualityPreset } from '@shared/types/settings'
 import { isRecord } from '@shared/utils/validation'
 import type { AnyTextAdapter, StreamChunk, TextOptions } from '@tanstack/ai'
 import { ANTHROPIC_MODELS, AnthropicTextAdapter, createAnthropicChat } from '@tanstack/ai-anthropic'
+import type { ModelContextWindow } from '../domain/compaction/compaction-types'
 import { createLogger } from '../logger'
 import type {
   BaseSamplingConfig,
@@ -63,6 +64,30 @@ const ADAPTIVE_MAX_TOKENS: Record<QualityPreset, number> = {
 /** Whether a model supports adaptive thinking (4.6+). */
 function supportsAdaptiveThinking(modelId: string): boolean {
   return modelId.includes('4-6')
+}
+
+// ─── Context window metadata ──────────────────────────────────
+
+const ANTHROPIC_CONTEXT_200K = 200_000
+const ANTHROPIC_MAX_OUTPUT_128K = 128_000
+const ANTHROPIC_MAX_OUTPUT_64K = 64_000
+
+/** Context windows for known Anthropic models. */
+function getAnthropicContextWindow(model: string): ModelContextWindow | undefined {
+  if (model.includes('opus-4-6')) {
+    return { contextTokens: ANTHROPIC_CONTEXT_200K, maxOutputTokens: ANTHROPIC_MAX_OUTPUT_128K }
+  }
+  if (model.includes('opus-4-5')) {
+    return { contextTokens: ANTHROPIC_CONTEXT_200K, maxOutputTokens: ANTHROPIC_MAX_OUTPUT_64K }
+  }
+  if (model.includes('sonnet-4-6') || model.includes('sonnet-4-5')) {
+    return { contextTokens: ANTHROPIC_CONTEXT_200K, maxOutputTokens: ANTHROPIC_MAX_OUTPUT_64K }
+  }
+  if (model.includes('haiku-4-5') || model.includes('haiku')) {
+    return { contextTokens: ANTHROPIC_CONTEXT_200K, maxOutputTokens: ANTHROPIC_MAX_OUTPUT_64K }
+  }
+  // Conservative default for unrecognized Anthropic models
+  return { contextTokens: ANTHROPIC_CONTEXT_200K, maxOutputTokens: ANTHROPIC_MAX_OUTPUT_64K }
 }
 
 /**
@@ -467,4 +492,5 @@ export const anthropicProvider: ProviderDefinition = {
       modelOptions: { thinking: { type: 'enabled', budget_tokens: budget } },
     }
   },
+  getContextWindow: getAnthropicContextWindow,
 }
