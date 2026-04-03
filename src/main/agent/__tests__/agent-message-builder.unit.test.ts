@@ -7,6 +7,7 @@ const mockConversationToMessages = vi.hoisted(() => vi.fn().mockReturnValue([]))
 
 vi.mock('../message-mapper', () => ({
   conversationToMessages: mockConversationToMessages,
+  microcompactMessages: vi.fn((msgs: unknown[]) => ({ messages: msgs, strippedCount: 0 })),
 }))
 
 import type { ProviderDefinition } from '../../providers/provider-definition'

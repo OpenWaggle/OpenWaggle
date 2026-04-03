@@ -15,11 +15,13 @@ import type {
   WaggleStreamMetadata,
   WaggleTurnEvent,
 } from '@shared/types/waggle'
+import { WAGGLE_MICRO_RECENT_TOOL_RESULTS } from '../domain/compaction/compaction-types'
 import { createLogger } from '../logger'
 import type { ChatStreamOptions } from '../ports/chat-service'
 import { runAgent } from './agent-loop'
 import { checkConsensus } from './consensus-detector'
 import { FileConflictTracker } from './file-conflict-tracker'
+import { microcompactConversationMessages } from './message-mapper'
 import { makeMessage } from './shared'
 import { WaggleFileCache } from './waggle-file-cache'
 
@@ -333,13 +335,20 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
         // the assistant response to maintain proper user/assistant alternation.
         // runAgent() creates a user message from the payload — grab it from the result.
         const turnUserMsg = result.newMessages.find((m) => m.role === 'user')
+        // Microcompact between waggle turns: strip old tool results to keep context bounded.
+        // Agents can re-read files via WaggleFileCache — the compacted placeholders inform the
+        // model that a file was previously read without consuming context tokens.
+        const updatedMessages = [
+          ...workingConversation.messages,
+          ...(turnUserMsg ? [turnUserMsg] : []),
+          taggedMessage,
+        ]
+        const compacted = microcompactConversationMessages(updatedMessages, {
+          recentToolResultCount: WAGGLE_MICRO_RECENT_TOOL_RESULTS,
+        })
         workingConversation = {
           ...workingConversation,
-          messages: [
-            ...workingConversation.messages,
-            ...(turnUserMsg ? [turnUserMsg] : []),
-            taggedMessage,
-          ],
+          messages: compacted.messages,
         }
 
         onTurnEvent({
