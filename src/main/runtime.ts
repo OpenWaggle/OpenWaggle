@@ -4,6 +4,7 @@ import * as Effect from 'effect/Effect'
 import type { Exit as ExitType } from 'effect/Exit'
 import * as Layer from 'effect/Layer'
 import * as ManagedRuntime from 'effect/ManagedRuntime'
+import { ContextCompactionLive } from './adapters/context-compaction-adapter'
 import { ProviderServiceLive } from './adapters/provider-service-live'
 import { SqliteConversationRepositoryLive } from './adapters/sqlite-conversation-repository'
 import { SqliteTeamsRepositoryLive } from './adapters/sqlite-teams-repository'
@@ -25,6 +26,7 @@ const AppLayer = Layer.mergeAll(
   TanStackChatLive,
   ProviderServiceLive,
   SqliteTeamsRepositoryLive,
+  ContextCompactionLive,
 )
 
 function makeAppRuntime() {

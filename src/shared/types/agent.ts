@@ -84,6 +84,8 @@ export interface AgentSendPayload {
    * Set by the composer plan mode toggle.
    */
   readonly planModeRequested?: boolean
+  /** Optional user instructions for what to preserve during context compaction. */
+  readonly compactInstructions?: string
 }
 
 export interface Message {

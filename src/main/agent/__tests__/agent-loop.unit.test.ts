@@ -84,6 +84,7 @@ vi.mock('../lifecycle-hooks', () => ({
 
 vi.mock('../message-mapper', () => ({
   conversationToMessages: conversationToMessagesMock,
+  microcompactMessages: vi.fn((msgs: unknown[]) => ({ messages: msgs, strippedCount: 0 })),
 }))
 
 vi.mock('../prompt-builder', () => ({
