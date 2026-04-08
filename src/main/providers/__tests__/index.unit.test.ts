@@ -3,9 +3,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mockRegister = vi.fn()
 const PROVIDER_REGISTRATION_TEST_TIMEOUT_MS = 15_000
 
+const mockGetAll = vi.fn<() => unknown[]>().mockReturnValue([])
+const mockIndexModels = vi.fn()
+
 vi.mock('../registry', () => ({
   providerRegistry: {
     register: (...args: unknown[]) => mockRegister(...args),
+    getAll: () => mockGetAll(),
+    indexModels: (...args: unknown[]) => mockIndexModels(...args),
   },
 }))
 

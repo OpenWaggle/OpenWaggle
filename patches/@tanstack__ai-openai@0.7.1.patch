@@ -1,0 +1,300 @@
+diff --git a/dist/esm/model-meta.d.ts b/dist/esm/model-meta.d.ts
+index adbfc9ddeeabee46ffb2bcd5dcca802cc23ca1ce..bab67cfcf89ebac505a81d633a9a2b46624666b2 100644
+--- a/dist/esm/model-meta.d.ts
++++ b/dist/esm/model-meta.d.ts
+@@ -792,7 +792,7 @@ declare const GPT_5_CHAT: {
+         readonly tools: ["web_search", "file_search", "image_generation", "code_interpreter", "mcp"];
+     };
+ };
+-export declare const OPENAI_CHAT_MODELS: readonly ["gpt-5.2", "gpt-5.2-pro", "gpt-5.2-chat-latest", "gpt-5.1", "gpt-5.1-codex", "gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-5-pro", "gpt-5-codex", "o3", "o3-pro", "o3-mini", "o4-mini", "o3-deep-research", "o4-mini-deep-research", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4", "gpt-4-turbo", "gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo", "gpt-audio", "gpt-audio-mini", "gpt-4o-audio", "gpt-4o-mini-audio", "gpt-5.1-chat-latest", "gpt-5-chat-latest", "chatgpt-4o-latest", "gpt-5.1-codex-mini", "codex-mini-latest", "gpt-4o-search-preview", "gpt-4o-mini-search-preview", "computer-use-preview", "o1", "o1-pro"];
++export declare const OPENAI_CHAT_MODELS: readonly ["gpt-5.4", "gpt-5.3-codex", "gpt-5.3-codex-spark", "gpt-5.2-codex", "gpt-5.1-codex-max", "gpt-5.2", "gpt-5.2-pro", "gpt-5.2-chat-latest", "gpt-5.1", "gpt-5.1-codex", "gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-5-pro", "gpt-5-codex", "o3", "o3-pro", "o3-mini", "o4-mini", "o3-deep-research", "o4-mini-deep-research", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4", "gpt-4-turbo", "gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo", "gpt-audio", "gpt-audio-mini", "gpt-4o-audio", "gpt-4o-mini-audio", "gpt-5.1-chat-latest", "gpt-5-chat-latest", "chatgpt-4o-latest", "gpt-5.1-codex-mini", "codex-mini-latest", "gpt-4o-search-preview", "gpt-4o-mini-search-preview", "computer-use-preview", "o1", "o1-pro"];
+ export type OpenAIChatModel = (typeof OPENAI_CHAT_MODELS)[number];
+ export declare const OPENAI_IMAGE_MODELS: readonly ["gpt-image-1", "gpt-image-1-mini", "dall-e-3", "dall-e-2"];
+ export type OpenAIImageModel = (typeof OPENAI_IMAGE_MODELS)[number];
+diff --git a/dist/esm/model-meta.js b/dist/esm/model-meta.js
+index 8503cd1c60ec145ad8322b64dbdb7fd7227aac38..59c5cefbf79568600520aa4edb1781e204fa582d 100644
+--- a/dist/esm/model-meta.js
++++ b/dist/esm/model-meta.js
+@@ -1,3 +1,18 @@
++const GPT5_4 = {
++  name: "gpt-5.4"
++};
++const GPT5_3_CODEX = {
++  name: "gpt-5.3-codex"
++};
++const GPT5_3_CODEX_SPARK = {
++  name: "gpt-5.3-codex-spark"
++};
++const GPT5_2_CODEX = {
++  name: "gpt-5.2-codex"
++};
++const GPT5_1_CODEX_MAX = {
++  name: "gpt-5.1-codex-max"
++};
+ const GPT5_2 = {
+   name: "gpt-5.2"
+ };
+@@ -132,6 +147,11 @@ const GPT_5_CHAT = {
+ };
+ const OPENAI_CHAT_MODELS = [
+   // Frontier models
++  GPT5_4.name,
++  GPT5_3_CODEX.name,
++  GPT5_3_CODEX_SPARK.name,
++  GPT5_2_CODEX.name,
++  GPT5_1_CODEX_MAX.name,
+   GPT5_2.name,
+   GPT5_2_PRO.name,
+   GPT5_2_CHAT.name,
+diff --git a/src/model-meta.ts b/src/model-meta.ts
+index 3557a9b41436aad175c2467e87b7dde91cae9ba1..fd543faedd000a0779efdc247e070d43bad34eef 100644
+--- a/src/model-meta.ts
++++ b/src/model-meta.ts
+@@ -64,6 +64,186 @@ interface ModelMeta<TProviderOptions = unknown> {
+   providerOptions?: TProviderOptions
+ }
+ 
++const GPT5_4 = {
++  name: 'gpt-5.4',
++  context_window: 1_050_000,
++  max_output_tokens: 128_000,
++  knowledge_cutoff: '2025-08-31',
++  supports: {
++    input: ['text', 'image'],
++    output: ['text'],
++    endpoints: ['chat', 'chat-completions'],
++    features: [
++      'streaming',
++      'function_calling',
++      'structured_outputs',
++      'distillation',
++    ],
++    tools: [
++      'web_search',
++      'file_search',
++      'image_generation',
++      'code_interpreter',
++      'mcp',
++    ],
++  },
++  pricing: {
++    input: {
++      normal: 2.5,
++      cached: 0.25,
++    },
++    output: {
++      normal: 15,
++    },
++  },
++} as const satisfies ModelMeta<
++  OpenAIBaseOptions &
++    OpenAIReasoningOptions &
++    OpenAIStructuredOutputOptions &
++    OpenAIToolsOptions &
++    OpenAIStreamingOptions &
++    OpenAIMetadataOptions
++>
++
++const GPT5_3_CODEX = {
++  name: 'gpt-5.3-codex',
++  context_window: 400_000,
++  max_output_tokens: 128_000,
++  knowledge_cutoff: '2025-08-31',
++  supports: {
++    input: ['text', 'image'],
++    output: ['text'],
++    endpoints: ['chat'],
++    features: [
++      'streaming',
++      'function_calling',
++      'structured_outputs',
++    ],
++    tools: [
++      'web_search',
++      'file_search',
++      'image_generation',
++      'code_interpreter',
++      'mcp',
++    ],
++  },
++  pricing: {
++    input: {
++      normal: 1.75,
++      cached: 0.175,
++    },
++    output: {
++      normal: 14,
++    },
++  },
++} as const satisfies ModelMeta<
++  OpenAIBaseOptions &
++    OpenAIReasoningOptions &
++    OpenAIStructuredOutputOptions &
++    OpenAIToolsOptions &
++    OpenAIStreamingOptions &
++    OpenAIMetadataOptions
++>
++
++const GPT5_3_CODEX_SPARK = {
++  name: 'gpt-5.3-codex-spark',
++  context_window: 128_000,
++  max_output_tokens: 128_000,
++  knowledge_cutoff: '2025-08-31',
++  supports: {
++    input: ['text', 'image'],
++    output: ['text'],
++    endpoints: ['chat'],
++    features: [
++      'streaming',
++      'function_calling',
++      'structured_outputs',
++    ],
++  },
++  pricing: {
++    input: {
++      normal: 0.5,
++      cached: 0.05,
++    },
++    output: {
++      normal: 2,
++    },
++  },
++} as const satisfies ModelMeta<
++  OpenAIBaseOptions &
++    OpenAIReasoningOptions &
++    OpenAIStructuredOutputOptions &
++    OpenAIToolsOptions &
++    OpenAIStreamingOptions &
++    OpenAIMetadataOptions
++>
++
++const GPT5_2_CODEX = {
++  name: 'gpt-5.2-codex',
++  context_window: 400_000,
++  max_output_tokens: 128_000,
++  knowledge_cutoff: '2025-08-31',
++  supports: {
++    input: ['text', 'image'],
++    output: ['text'],
++    endpoints: ['chat'],
++    features: [
++      'streaming',
++      'function_calling',
++      'structured_outputs',
++    ],
++  },
++  pricing: {
++    input: {
++      normal: 1.75,
++      cached: 0.175,
++    },
++    output: {
++      normal: 14,
++    },
++  },
++} as const satisfies ModelMeta<
++  OpenAIBaseOptions &
++    OpenAIReasoningOptions &
++    OpenAIStructuredOutputOptions &
++    OpenAIToolsOptions &
++    OpenAIStreamingOptions &
++    OpenAIMetadataOptions
++>
++
++const GPT5_1_CODEX_MAX = {
++  name: 'gpt-5.1-codex-max',
++  context_window: 400_000,
++  max_output_tokens: 128_000,
++  knowledge_cutoff: '2024-09-30',
++  supports: {
++    input: ['text', 'image'],
++    output: ['text'],
++    endpoints: ['chat'],
++    features: [
++      'streaming',
++      'function_calling',
++      'structured_outputs',
++    ],
++  },
++  pricing: {
++    input: {
++      normal: 1.25,
++      cached: 0.125,
++    },
++    output: {
++      normal: 10,
++    },
++  },
++} as const satisfies ModelMeta<
++  OpenAIBaseOptions &
++    OpenAIReasoningOptions &
++    OpenAIStructuredOutputOptions &
++    OpenAIToolsOptions &
++    OpenAIStreamingOptions &
++    OpenAIMetadataOptions
++>
++
+ const GPT5_2 = {
+   name: 'gpt-5.2',
+   context_window: 400_000,
+@@ -1648,6 +1828,11 @@ const TTS_1_HD = {
+ // Chat/text completion models (based on endpoints: "chat" or "chat-completions")
+ export const OPENAI_CHAT_MODELS = [
+   // Frontier models
++  GPT5_4.name,
++  GPT5_3_CODEX.name,
++  GPT5_3_CODEX_SPARK.name,
++  GPT5_2_CODEX.name,
++  GPT5_1_CODEX_MAX.name,
+   GPT5_2.name,
+   GPT5_2_PRO.name,
+   GPT5_2_CHAT.name,
+@@ -1772,6 +1957,36 @@ export type OpenAITranscriptionModel =
+  * Manually defined to ensure accurate type narrowing per model.
+  */
+ export type OpenAIChatModelProviderOptionsByName = {
++  [GPT5_4.name]: OpenAIBaseOptions &
++    OpenAIReasoningOptions &
++    OpenAIStructuredOutputOptions &
++    OpenAIToolsOptions &
++    OpenAIStreamingOptions &
++    OpenAIMetadataOptions
++  [GPT5_3_CODEX.name]: OpenAIBaseOptions &
++    OpenAIReasoningOptions &
++    OpenAIStructuredOutputOptions &
++    OpenAIToolsOptions &
++    OpenAIStreamingOptions &
++    OpenAIMetadataOptions
++  [GPT5_3_CODEX_SPARK.name]: OpenAIBaseOptions &
++    OpenAIReasoningOptions &
++    OpenAIStructuredOutputOptions &
++    OpenAIToolsOptions &
++    OpenAIStreamingOptions &
++    OpenAIMetadataOptions
++  [GPT5_2_CODEX.name]: OpenAIBaseOptions &
++    OpenAIReasoningOptions &
++    OpenAIStructuredOutputOptions &
++    OpenAIToolsOptions &
++    OpenAIStreamingOptions &
++    OpenAIMetadataOptions
++  [GPT5_1_CODEX_MAX.name]: OpenAIBaseOptions &
++    OpenAIReasoningOptions &
++    OpenAIStructuredOutputOptions &
++    OpenAIToolsOptions &
++    OpenAIStreamingOptions &
++    OpenAIMetadataOptions
+   [GPT5_2.name]: OpenAIBaseOptions &
+     OpenAIReasoningOptions &
+     OpenAIStructuredOutputOptions &
+@@ -1958,6 +2173,11 @@ export type OpenAIChatModelProviderOptionsByName = {
+  * when consumed by external packages.
+  */
+ export type OpenAIModelInputModalitiesByName = {
++  [GPT5_4.name]: typeof GPT5_4.supports.input
++  [GPT5_3_CODEX.name]: typeof GPT5_3_CODEX.supports.input
++  [GPT5_3_CODEX_SPARK.name]: typeof GPT5_3_CODEX_SPARK.supports.input
++  [GPT5_2_CODEX.name]: typeof GPT5_2_CODEX.supports.input
++  [GPT5_1_CODEX_MAX.name]: typeof GPT5_1_CODEX_MAX.supports.input
+   [GPT5_2.name]: typeof GPT5_2.supports.input
+   [GPT5_2_PRO.name]: typeof GPT5_2_PRO.supports.input
+   [GPT5_2_CHAT.name]: typeof GPT5_2_CHAT.supports.input

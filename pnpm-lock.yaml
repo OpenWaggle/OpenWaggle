@@ -8,6 +8,9 @@ overrides:
   electron-vite>vite: ^8.0.1
 
 patchedDependencies:
+  '@tanstack/ai-openai@0.7.1':
+    hash: 0ba07f1a8679bd018ab8e7b2bf89cce21d55266c0d1223386bfcf743109a3458
+    path: patches/@tanstack__ai-openai@0.7.1.patch
   '@tanstack/ai@0.8.1':
     hash: 2c098678ce88823ca65918cf389bff09547bfc5b858b1304f50712811c9dd8f8
     path: patches/@tanstack__ai@0.8.1.patch
@@ -118,7 +121,7 @@ importers:
         version: 0.6.2(@tanstack/ai@0.8.1(patch_hash=2c098678ce88823ca65918cf389bff09547bfc5b858b1304f50712811c9dd8f8))
       '@tanstack/ai-openai':
         specifier: 0.7.1
-        version: 0.7.1(@tanstack/ai-client@0.7.2)(@tanstack/ai@0.8.1(patch_hash=2c098678ce88823ca65918cf389bff09547bfc5b858b1304f50712811c9dd8f8))(ws@8.19.0)(zod@4.3.6)
+        version: 0.7.1(patch_hash=0ba07f1a8679bd018ab8e7b2bf89cce21d55266c0d1223386bfcf743109a3458)(@tanstack/ai-client@0.7.2)(@tanstack/ai@0.8.1(patch_hash=2c098678ce88823ca65918cf389bff09547bfc5b858b1304f50712811c9dd8f8))(ws@8.19.0)(zod@4.3.6)
       '@tanstack/ai-openrouter':
         specifier: 0.6.6
         version: 0.6.6(@tanstack/ai@0.8.1(patch_hash=2c098678ce88823ca65918cf389bff09547bfc5b858b1304f50712811c9dd8f8))
@@ -7763,7 +7766,7 @@ snapshots:
       '@tanstack/ai': 0.8.1(patch_hash=2c098678ce88823ca65918cf389bff09547bfc5b858b1304f50712811c9dd8f8)
       ollama: 0.6.3
 
-  '@tanstack/ai-openai@0.7.1(@tanstack/ai-client@0.7.2)(@tanstack/ai@0.8.1(patch_hash=2c098678ce88823ca65918cf389bff09547bfc5b858b1304f50712811c9dd8f8))(ws@8.19.0)(zod@4.3.6)':
+  '@tanstack/ai-openai@0.7.1(patch_hash=0ba07f1a8679bd018ab8e7b2bf89cce21d55266c0d1223386bfcf743109a3458)(@tanstack/ai-client@0.7.2)(@tanstack/ai@0.8.1(patch_hash=2c098678ce88823ca65918cf389bff09547bfc5b858b1304f50712811c9dd8f8))(ws@8.19.0)(zod@4.3.6)':
     dependencies:
       '@tanstack/ai': 0.8.1(patch_hash=2c098678ce88823ca65918cf389bff09547bfc5b858b1304f50712811c9dd8f8)
       '@tanstack/ai-client': 0.7.2

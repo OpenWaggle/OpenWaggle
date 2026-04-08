@@ -125,37 +125,67 @@ function isChatgptBackendPostRequest(method: string, url: string): boolean {
   }
 }
 
-function withCodexPayloadDefaults(rawBody: string): string {
+interface CodexPayloadDiagnostics {
+  readonly model: unknown
+  readonly hasReasoning: boolean
+  readonly reasoningEffort: unknown
+  readonly maxOutputTokens: unknown
+  readonly toolCount: number
+  readonly toolChoice: unknown
+}
+
+function withCodexPayloadDefaults(rawBody: string): {
+  body: string
+  diagnostics: CodexPayloadDiagnostics | null
+} {
   const parsedBody: unknown = JSON.parse(rawBody)
   if (!isRecord(parsedBody)) {
-    return rawBody
+    return { body: rawBody, diagnostics: null }
   }
-  const { max_output_tokens: _ignoredMaxOutputTokens, ...parsedBodyWithoutMaxOutputTokens } =
-    parsedBody
 
-  const nextText = isRecord(parsedBodyWithoutMaxOutputTokens.text)
-    ? { ...parsedBodyWithoutMaxOutputTokens.text }
-    : {}
+  // Preserve max_output_tokens for reasoning models — the Codex endpoint accepts it
+  // and stripping it causes the model to use a low server-side default, producing
+  // truncated responses with minimal tool iteration.
+  const modelId = typeof parsedBody.model === 'string' ? parsedBody.model : ''
+  let baseFields: Record<string, unknown>
+  if (isReasoningModel(modelId)) {
+    baseFields = { ...parsedBody }
+  } else {
+    const { max_output_tokens: _stripped, ...rest } = parsedBody
+    baseFields = rest
+  }
+
+  const nextText = isRecord(baseFields.text) ? { ...baseFields.text } : {}
   if (typeof nextText.verbosity !== 'string') {
     nextText.verbosity = 'medium'
   }
 
   const payload: Record<string, unknown> = {
-    ...parsedBodyWithoutMaxOutputTokens,
+    ...baseFields,
     store: false,
     stream: true,
     text: nextText,
     include: [OPENAI_CODEX_REASONING_INCLUDE],
-    tool_choice: parsedBodyWithoutMaxOutputTokens.tool_choice ?? 'auto',
+    tool_choice: baseFields.tool_choice ?? 'auto',
     parallel_tool_calls:
-      typeof parsedBodyWithoutMaxOutputTokens.parallel_tool_calls === 'boolean'
-        ? parsedBodyWithoutMaxOutputTokens.parallel_tool_calls
-        : true,
+      typeof baseFields.parallel_tool_calls === 'boolean' ? baseFields.parallel_tool_calls : true,
   }
-  return JSON.stringify(payload)
+
+  const diagnostics: CodexPayloadDiagnostics = {
+    model: payload.model,
+    hasReasoning: isRecord(payload.reasoning),
+    reasoningEffort: isRecord(payload.reasoning) ? payload.reasoning.effort : undefined,
+    maxOutputTokens: payload.max_output_tokens,
+    toolCount: Array.isArray(payload.tools) ? payload.tools.length : 0,
+    toolChoice: payload.tool_choice,
+  }
+
+  return { body: JSON.stringify(payload), diagnostics }
 }
 
 function createCodexResponsesFetch(accountId: string): typeof fetch {
+  let firstRequestLogged = false
+
   return async (input, init) => {
     const method = getRequestMethod(input, init)
     const originalUrl = getRequestUrl(input)
@@ -172,18 +202,26 @@ function createCodexResponsesFetch(accountId: string): typeof fetch {
     headers.set('chatgpt-account-id', accountId)
     headers.set('User-Agent', OPENAI_CODEX_USER_AGENT)
 
-    const rewrittenBody =
-      typeof body === 'string'
-        ? (() => {
-            try {
-              return withCodexPayloadDefaults(body)
-            } catch {
-              return body
-            }
-          })()
-        : body
+    let rewrittenBody: BodyInit | null | undefined = body
+    if (typeof body === 'string') {
+      try {
+        const result = withCodexPayloadDefaults(body)
+        rewrittenBody = result.body
+
+        // Log the first Codex request per fetch instance for diagnostics.
+        // Subsequent requests (retries, continuations) are not logged to
+        // avoid hot-path noise per the project logging policy.
+        if (!firstRequestLogged && result.diagnostics) {
+          firstRequestLogged = true
+          logger.info('Codex subscription request', result.diagnostics)
+        }
+      } catch {
+        rewrittenBody = body
+      }
+    }
 
     const rewrittenUrl = resolveCodexResponsesUrl(originalUrl)
+
     const response = await fetch(rewrittenUrl, {
       ...init,
       headers,

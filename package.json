@@ -65,7 +65,8 @@
       "electron-vite>vite": "$vite"
     },
     "patchedDependencies": {
-      "@tanstack/ai@0.8.1": "patches/@tanstack__ai@0.8.1.patch"
+      "@tanstack/ai@0.8.1": "patches/@tanstack__ai@0.8.1.patch",
+      "@tanstack/ai-openai@0.7.1": "patches/@tanstack__ai-openai@0.7.1.patch"
     }
   },
   "repository": {

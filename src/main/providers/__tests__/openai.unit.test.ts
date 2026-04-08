@@ -89,7 +89,7 @@ describe('openaiProvider model ids', () => {
     try {
       await subscriptionConfig.fetch('https://chatgpt.com/backend-api/responses', {
         method: 'POST',
-        body: JSON.stringify({ model: 'gpt-5.1-codex', max_output_tokens: 1024 }),
+        body: JSON.stringify({ model: 'gpt-4.1-mini', max_output_tokens: 1024 }),
       })
       ;[rewrittenUrl, rewrittenInit] = fetchSpy.mock.calls[0] ?? []
     } finally {
@@ -114,6 +114,7 @@ describe('openaiProvider model ids', () => {
 
     expect(rewrittenPayload.store).toBe(false)
     expect(rewrittenPayload.stream).toBe(true)
+    // Non-reasoning models have max_output_tokens stripped
     expect(rewrittenPayload.max_output_tokens).toBeUndefined()
     expect(rewrittenPayload.tool_choice).toBe('auto')
     expect(rewrittenPayload.parallel_tool_calls).toBe(true)
@@ -125,6 +126,97 @@ describe('openaiProvider model ids', () => {
     expect(rewrittenHeaders.get('originator')).toBe('openwaggle')
     expect(rewrittenHeaders.get('chatgpt-account-id')).toBe('acct_test_123')
     expect(rewrittenHeaders.get('User-Agent')).toContain('openwaggle (')
+  })
+
+  it('preserves max_output_tokens for reasoning models in Codex subscription', async () => {
+    const { openaiProvider } = await import('../openai')
+    const token = createAccessTokenWithAccountId('acct_reasoning_test')
+
+    openaiProvider.createAdapter('gpt-5.4', token, undefined, 'subscription')
+
+    const firstCall = mocks.createOpenaiChat.mock.calls[0]
+    expect(firstCall).toBeDefined()
+    const [, , adapterConfig] = firstCall ?? []
+    if (!hasFetchConfig(adapterConfig)) {
+      throw new Error('Expected OpenAI subscription adapter config to include custom fetch')
+    }
+
+    let rewrittenInit: RequestInit | undefined
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('{}', { status: 200 }))
+    try {
+      await adapterConfig.fetch('https://chatgpt.com/backend-api/responses', {
+        method: 'POST',
+        body: JSON.stringify({
+          model: 'gpt-5.4',
+          max_output_tokens: 16800,
+          reasoning: { effort: 'medium', summary: 'auto' },
+        }),
+      })
+      ;[, rewrittenInit] = fetchSpy.mock.calls[0] ?? []
+    } finally {
+      fetchSpy.mockRestore()
+    }
+
+    expect(rewrittenInit).toBeDefined()
+    if (!rewrittenInit || typeof rewrittenInit.body !== 'string') {
+      throw new Error('Expected rewritten request body')
+    }
+    const payload: unknown = JSON.parse(rewrittenInit.body)
+    if (!isRecord(payload)) {
+      throw new Error('Expected rewritten payload to be an object')
+    }
+
+    // Reasoning models must keep max_output_tokens
+    expect(payload.max_output_tokens).toBe(16800)
+    // Reasoning options must survive the transport
+    expect(payload.reasoning).toEqual({ effort: 'medium', summary: 'auto' })
+    expect(payload.store).toBe(false)
+    expect(payload.stream).toBe(true)
+  })
+
+  it('strips max_output_tokens for non-reasoning models in Codex subscription', async () => {
+    const { openaiProvider } = await import('../openai')
+    const token = createAccessTokenWithAccountId('acct_nonreasoning_test')
+
+    openaiProvider.createAdapter('gpt-4.1-mini', token, undefined, 'subscription')
+
+    const firstCall = mocks.createOpenaiChat.mock.calls[0]
+    expect(firstCall).toBeDefined()
+    const [, , adapterConfig] = firstCall ?? []
+    if (!hasFetchConfig(adapterConfig)) {
+      throw new Error('Expected OpenAI subscription adapter config to include custom fetch')
+    }
+
+    let rewrittenInit: RequestInit | undefined
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('{}', { status: 200 }))
+    try {
+      await adapterConfig.fetch('https://chatgpt.com/backend-api/responses', {
+        method: 'POST',
+        body: JSON.stringify({
+          model: 'gpt-4.1-mini',
+          max_output_tokens: 4096,
+        }),
+      })
+      ;[, rewrittenInit] = fetchSpy.mock.calls[0] ?? []
+    } finally {
+      fetchSpy.mockRestore()
+    }
+
+    expect(rewrittenInit).toBeDefined()
+    if (!rewrittenInit || typeof rewrittenInit.body !== 'string') {
+      throw new Error('Expected rewritten request body')
+    }
+    const payload: unknown = JSON.parse(rewrittenInit.body)
+    if (!isRecord(payload)) {
+      throw new Error('Expected rewritten payload to be an object')
+    }
+
+    // Non-reasoning models should have max_output_tokens stripped
+    expect(payload.max_output_tokens).toBeUndefined()
   })
 
   it('normalizes backend-api base URL requests to codex responses', async () => {
