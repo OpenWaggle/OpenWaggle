@@ -1,300 +1,455 @@
-diff --git a/dist/esm/model-meta.d.ts b/dist/esm/model-meta.d.ts
-index adbfc9ddeeabee46ffb2bcd5dcca802cc23ca1ce..bab67cfcf89ebac505a81d633a9a2b46624666b2 100644
---- a/dist/esm/model-meta.d.ts
-+++ b/dist/esm/model-meta.d.ts
-@@ -792,7 +792,7 @@ declare const GPT_5_CHAT: {
-         readonly tools: ["web_search", "file_search", "image_generation", "code_interpreter", "mcp"];
-     };
- };
--export declare const OPENAI_CHAT_MODELS: readonly ["gpt-5.2", "gpt-5.2-pro", "gpt-5.2-chat-latest", "gpt-5.1", "gpt-5.1-codex", "gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-5-pro", "gpt-5-codex", "o3", "o3-pro", "o3-mini", "o4-mini", "o3-deep-research", "o4-mini-deep-research", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4", "gpt-4-turbo", "gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo", "gpt-audio", "gpt-audio-mini", "gpt-4o-audio", "gpt-4o-mini-audio", "gpt-5.1-chat-latest", "gpt-5-chat-latest", "chatgpt-4o-latest", "gpt-5.1-codex-mini", "codex-mini-latest", "gpt-4o-search-preview", "gpt-4o-mini-search-preview", "computer-use-preview", "o1", "o1-pro"];
-+export declare const OPENAI_CHAT_MODELS: readonly ["gpt-5.4", "gpt-5.3-codex", "gpt-5.3-codex-spark", "gpt-5.2-codex", "gpt-5.1-codex-max", "gpt-5.2", "gpt-5.2-pro", "gpt-5.2-chat-latest", "gpt-5.1", "gpt-5.1-codex", "gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-5-pro", "gpt-5-codex", "o3", "o3-pro", "o3-mini", "o4-mini", "o3-deep-research", "o4-mini-deep-research", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4", "gpt-4-turbo", "gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo", "gpt-audio", "gpt-audio-mini", "gpt-4o-audio", "gpt-4o-mini-audio", "gpt-5.1-chat-latest", "gpt-5-chat-latest", "chatgpt-4o-latest", "gpt-5.1-codex-mini", "codex-mini-latest", "gpt-4o-search-preview", "gpt-4o-mini-search-preview", "computer-use-preview", "o1", "o1-pro"];
- export type OpenAIChatModel = (typeof OPENAI_CHAT_MODELS)[number];
- export declare const OPENAI_IMAGE_MODELS: readonly ["gpt-image-1", "gpt-image-1-mini", "dall-e-3", "dall-e-2"];
- export type OpenAIImageModel = (typeof OPENAI_IMAGE_MODELS)[number];
-diff --git a/dist/esm/model-meta.js b/dist/esm/model-meta.js
-index 8503cd1c60ec145ad8322b64dbdb7fd7227aac38..59c5cefbf79568600520aa4edb1781e204fa582d 100644
---- a/dist/esm/model-meta.js
-+++ b/dist/esm/model-meta.js
-@@ -1,3 +1,18 @@
-+const GPT5_4 = {
-+  name: "gpt-5.4"
-+};
-+const GPT5_3_CODEX = {
-+  name: "gpt-5.3-codex"
-+};
-+const GPT5_3_CODEX_SPARK = {
-+  name: "gpt-5.3-codex-spark"
-+};
-+const GPT5_2_CODEX = {
-+  name: "gpt-5.2-codex"
-+};
-+const GPT5_1_CODEX_MAX = {
-+  name: "gpt-5.1-codex-max"
-+};
- const GPT5_2 = {
-   name: "gpt-5.2"
- };
-@@ -132,6 +147,11 @@ const GPT_5_CHAT = {
- };
- const OPENAI_CHAT_MODELS = [
-   // Frontier models
-+  GPT5_4.name,
-+  GPT5_3_CODEX.name,
-+  GPT5_3_CODEX_SPARK.name,
-+  GPT5_2_CODEX.name,
-+  GPT5_1_CODEX_MAX.name,
-   GPT5_2.name,
-   GPT5_2_PRO.name,
-   GPT5_2_CHAT.name,
-diff --git a/src/model-meta.ts b/src/model-meta.ts
-index 3557a9b41436aad175c2467e87b7dde91cae9ba1..fd543faedd000a0779efdc247e070d43bad34eef 100644
---- a/src/model-meta.ts
-+++ b/src/model-meta.ts
-@@ -64,6 +64,186 @@ interface ModelMeta<TProviderOptions = unknown> {
-   providerOptions?: TProviderOptions
- }
+--- a/dist/esm/adapters/text.js
++++ b/dist/esm/adapters/text.js
+@@ -129,6 +129,42 @@
+     let hasEmittedRunStarted = false;
+     let hasEmittedTextMessageStart = false;
+     let hasEmittedStepStarted = false;
++    let hasEmittedRunFinished = false;
++    const codexSseTraceEnabled = typeof process !== "undefined" && process.env.OPENWAGGLE_ENABLE_CODEX_SSE_TRACE === "1";
++    let hasObservedToolCalls = false;
++    let terminalDecision = "none";
++    const traceChunkType = (chunkType) => {
++      if (!codexSseTraceEnabled) {
++        return;
++      }
++      console.log("[OpenAI Adapter SSE Trace]", { chunkType });
++    };
++    const traceTerminalResponse = (chunkType, response, decision) => {
++      if (!codexSseTraceEnabled) {
++        return;
++      }
++      console.log("[OpenAI Adapter SSE Trace]", {
++        chunkType,
++        responseStatus: response.status,
++        incompleteReason: response.incomplete_details?.reason ?? null,
++        outputItems: response.output.map((item) => {
++          const status = "status" in item && typeof item.status === "string" ? item.status : null;
++          return status ? `${item.type}:${status}` : item.type;
++        }),
++        toolCallMetadataSize: toolCallMetadata.size,
++        terminalDecision: decision
++      });
++    };
++    const traceErrorChunk = (decision) => {
++      if (!codexSseTraceEnabled) {
++        return;
++      }
++      console.log("[OpenAI Adapter SSE Trace]", {
++        chunkType: "error",
++        toolCallMetadataSize: toolCallMetadata.size,
++        terminalDecision: decision
++      });
++    };
+     try {
+       for await (const chunk of stream) {
+         chunkCount++;
+@@ -174,7 +210,44 @@
+             }
+           };
+         };
+-        if (chunk.type === "response.created" || chunk.type === "response.incomplete" || chunk.type === "response.failed") {
++        const hasToolCallSignal = hasObservedToolCalls || toolCallMetadata.size > 0;
++        if (chunk.type === "response.incomplete" || chunk.type === "response.completed" || chunk.type === "response.failed") {
++          const completedHasFunctionCalls = chunk.type === "response.completed" && (hasToolCallSignal || chunk.response.output.some((item) => item.type === "function_call"));
++          const decision = terminalDecision !== "none" ? "ignored_after_terminal" : chunk.type === "response.completed" ? completedHasFunctionCalls ? "run_finished_tool_calls" : "run_finished_stop" : chunk.type === "response.incomplete" ? hasToolCallSignal ? "run_finished_tool_calls" : "run_error" : "run_error";
++          traceTerminalResponse(chunk.type, chunk.response, decision);
++          if (terminalDecision !== "none") {
++            continue;
++          }
++        } else if (chunk.type !== "response.output_text.delta" && chunk.type !== "response.reasoning_text.delta" && chunk.type !== "response.reasoning_summary_text.delta") {
++          traceChunkType(chunk.type);
++        }
++        if (chunk.type === "response.incomplete" && hasToolCallSignal) {
++          model = chunk.response.model;
++          if (hasEmittedTextMessageStart) {
++            yield {
++              type: "TEXT_MESSAGE_END",
++              messageId,
++              model: chunk.response.model || model || options.model,
++              timestamp
++            };
++          }
++          yield {
++            type: "RUN_FINISHED",
++            runId,
++            model: chunk.response.model || model || options.model,
++            timestamp,
++            usage: {
++              promptTokens: chunk.response.usage?.input_tokens || 0,
++              completionTokens: chunk.response.usage?.output_tokens || 0,
++              totalTokens: chunk.response.usage?.total_tokens || 0
++            },
++            finishReason: "tool_calls"
++          };
++          terminalDecision = "tool_calls";
++          hasEmittedRunFinished = true;
++          continue;
++        }
++        if (chunk.type === "response.created" || chunk.type === "response.failed" || chunk.type === "response.incomplete") {
+           model = chunk.response.model;
+           hasStreamedContentDeltas = false;
+           hasStreamedReasoningDeltas = false;
+@@ -182,7 +255,11 @@
+           hasEmittedStepStarted = false;
+           accumulatedContent = "";
+           accumulatedReasoning = "";
++          if (chunk.type === "response.incomplete" && hasToolCallSignal) {
++            continue;
++          }
+           if (chunk.response.error) {
++            terminalDecision = "error";
+             yield {
+               type: "RUN_ERROR",
+               runId,
+@@ -190,8 +267,10 @@
+               timestamp,
+               error: chunk.response.error
+             };
++            continue;
+           }
+           if (chunk.response.incomplete_details) {
++            terminalDecision = "error";
+             yield {
+               type: "RUN_ERROR",
+               runId,
+@@ -201,6 +280,7 @@
+                 message: chunk.response.incomplete_details.reason ?? ""
+               }
+             };
++            continue;
+           }
+         }
+         if (chunk.type === "response.output_text.delta" && chunk.delta) {
+@@ -318,6 +398,7 @@
+         if (chunk.type === "response.output_item.added") {
+           const item = chunk.item;
+           if (item.type === "function_call" && item.id) {
++            hasObservedToolCalls = true;
+             if (!toolCallMetadata.has(item.id)) {
+               toolCallMetadata.set(item.id, {
+                 index: chunk.output_index,
+@@ -368,6 +449,9 @@
+           };
+         }
+         if (chunk.type === "response.completed") {
++          const hasFunctionCalls = hasObservedToolCalls || toolCallMetadata.size > 0 || chunk.response.output.some(
++            (item) => item.type === "function_call"
++          );
+           if (hasEmittedTextMessageStart) {
+             yield {
+               type: "TEXT_MESSAGE_END",
+@@ -376,9 +460,6 @@
+               timestamp
+             };
+           }
+-          const hasFunctionCalls = chunk.response.output.some(
+-            (item) => item.type === "function_call"
+-          );
+           yield {
+             type: "RUN_FINISHED",
+             runId,
+@@ -391,8 +472,16 @@
+             },
+             finishReason: hasFunctionCalls ? "tool_calls" : "stop"
+           };
++          terminalDecision = hasFunctionCalls ? "tool_calls" : "stop";
++          hasEmittedRunFinished = true;
+         }
+         if (chunk.type === "error") {
++          if (terminalDecision !== "none") {
++            traceErrorChunk("ignored_after_terminal");
++            continue;
++          }
++          traceErrorChunk("run_error");
++          terminalDecision = "error";
+           yield {
+             type: "RUN_ERROR",
+             runId,
+@@ -403,8 +492,29 @@
+               code: chunk.code ?? void 0
+             }
+           };
++          continue;
+         }
+       }
++      if (terminalDecision === "none" && toolCallMetadata.size > 0) {
++        traceChunkType("stream.end");
++        if (hasEmittedTextMessageStart) {
++          yield {
++            type: "TEXT_MESSAGE_END",
++            messageId,
++            model: model || options.model,
++            timestamp
++          };
++        }
++        yield {
++          type: "RUN_FINISHED",
++          runId,
++          model: model || options.model,
++          timestamp,
++          finishReason: "tool_calls"
++        };
++        terminalDecision = "tool_calls";
++        hasEmittedRunFinished = true;
++      }
+     } catch (error) {
+       const err = error;
+       console.log(
+--- a/src/adapters/text.ts
++++ b/src/adapters/text.ts
+@@ -263,7 +263,61 @@
+     let hasEmittedRunStarted = false
+     let hasEmittedTextMessageStart = false
+     let hasEmittedStepStarted = false
++    let hasEmittedRunFinished = false
++    const codexSseTraceEnabled =
++      typeof process !== 'undefined' &&
++      process.env.OPENWAGGLE_ENABLE_CODEX_SSE_TRACE === '1'
++    let hasObservedToolCalls = false
++    let terminalDecision: 'none' | 'tool_calls' | 'stop' | 'error' = 'none'
  
-+const GPT5_4 = {
-+  name: 'gpt-5.4',
-+  context_window: 1_050_000,
-+  max_output_tokens: 128_000,
-+  knowledge_cutoff: '2025-08-31',
-+  supports: {
-+    input: ['text', 'image'],
-+    output: ['text'],
-+    endpoints: ['chat', 'chat-completions'],
-+    features: [
-+      'streaming',
-+      'function_calling',
-+      'structured_outputs',
-+      'distillation',
-+    ],
-+    tools: [
-+      'web_search',
-+      'file_search',
-+      'image_generation',
-+      'code_interpreter',
-+      'mcp',
-+    ],
-+  },
-+  pricing: {
-+    input: {
-+      normal: 2.5,
-+      cached: 0.25,
-+    },
-+    output: {
-+      normal: 15,
-+    },
-+  },
-+} as const satisfies ModelMeta<
-+  OpenAIBaseOptions &
-+    OpenAIReasoningOptions &
-+    OpenAIStructuredOutputOptions &
-+    OpenAIToolsOptions &
-+    OpenAIStreamingOptions &
-+    OpenAIMetadataOptions
-+>
++    const traceChunkType = (chunkType: string): void => {
++      if (!codexSseTraceEnabled) {
++        return
++      }
++      console.log('[OpenAI Adapter SSE Trace]', { chunkType })
++    }
 +
-+const GPT5_3_CODEX = {
-+  name: 'gpt-5.3-codex',
-+  context_window: 400_000,
-+  max_output_tokens: 128_000,
-+  knowledge_cutoff: '2025-08-31',
-+  supports: {
-+    input: ['text', 'image'],
-+    output: ['text'],
-+    endpoints: ['chat'],
-+    features: [
-+      'streaming',
-+      'function_calling',
-+      'structured_outputs',
-+    ],
-+    tools: [
-+      'web_search',
-+      'file_search',
-+      'image_generation',
-+      'code_interpreter',
-+      'mcp',
-+    ],
-+  },
-+  pricing: {
-+    input: {
-+      normal: 1.75,
-+      cached: 0.175,
-+    },
-+    output: {
-+      normal: 14,
-+    },
-+  },
-+} as const satisfies ModelMeta<
-+  OpenAIBaseOptions &
-+    OpenAIReasoningOptions &
-+    OpenAIStructuredOutputOptions &
-+    OpenAIToolsOptions &
-+    OpenAIStreamingOptions &
-+    OpenAIMetadataOptions
-+>
++    const traceTerminalResponse = (
++      chunkType: 'response.incomplete' | 'response.completed' | 'response.failed',
++      response: OpenAI_SDK.Responses.Response,
++      decision:
++        | 'run_error'
++        | 'run_finished_tool_calls'
++        | 'run_finished_stop'
++        | 'ignored_after_terminal',
++    ): void => {
++      if (!codexSseTraceEnabled) {
++        return
++      }
++      console.log('[OpenAI Adapter SSE Trace]', {
++        chunkType,
++        responseStatus: response.status,
++        incompleteReason: response.incomplete_details?.reason ?? null,
++        outputItems: response.output.map((item) => {
++          const status =
++            'status' in item && typeof item.status === 'string'
++              ? item.status
++              : null
++          return status ? `${item.type}:${status}` : item.type
++        }),
++        toolCallMetadataSize: toolCallMetadata.size,
++        terminalDecision: decision,
++      })
++    }
 +
-+const GPT5_3_CODEX_SPARK = {
-+  name: 'gpt-5.3-codex-spark',
-+  context_window: 128_000,
-+  max_output_tokens: 128_000,
-+  knowledge_cutoff: '2025-08-31',
-+  supports: {
-+    input: ['text', 'image'],
-+    output: ['text'],
-+    endpoints: ['chat'],
-+    features: [
-+      'streaming',
-+      'function_calling',
-+      'structured_outputs',
-+    ],
-+  },
-+  pricing: {
-+    input: {
-+      normal: 0.5,
-+      cached: 0.05,
-+    },
-+    output: {
-+      normal: 2,
-+    },
-+  },
-+} as const satisfies ModelMeta<
-+  OpenAIBaseOptions &
-+    OpenAIReasoningOptions &
-+    OpenAIStructuredOutputOptions &
-+    OpenAIToolsOptions &
-+    OpenAIStreamingOptions &
-+    OpenAIMetadataOptions
-+>
++    const traceErrorChunk = (
++      decision: 'run_error' | 'ignored_after_terminal',
++    ): void => {
++      if (!codexSseTraceEnabled) {
++        return
++      }
++      console.log('[OpenAI Adapter SSE Trace]', {
++        chunkType: 'error',
++        toolCallMetadataSize: toolCallMetadata.size,
++        terminalDecision: decision,
++      })
++    }
 +
-+const GPT5_2_CODEX = {
-+  name: 'gpt-5.2-codex',
-+  context_window: 400_000,
-+  max_output_tokens: 128_000,
-+  knowledge_cutoff: '2025-08-31',
-+  supports: {
-+    input: ['text', 'image'],
-+    output: ['text'],
-+    endpoints: ['chat'],
-+    features: [
-+      'streaming',
-+      'function_calling',
-+      'structured_outputs',
-+    ],
-+  },
-+  pricing: {
-+    input: {
-+      normal: 1.75,
-+      cached: 0.175,
-+    },
-+    output: {
-+      normal: 14,
-+    },
-+  },
-+} as const satisfies ModelMeta<
-+  OpenAIBaseOptions &
-+    OpenAIReasoningOptions &
-+    OpenAIStructuredOutputOptions &
-+    OpenAIToolsOptions &
-+    OpenAIStreamingOptions &
-+    OpenAIMetadataOptions
-+>
+     try {
+       for await (const chunk of stream) {
+         chunkCount++
+@@ -318,11 +372,76 @@
+             },
+           }
+         }
+-        // handle general response events
++        const hasToolCallSignal =
++          hasObservedToolCalls || toolCallMetadata.size > 0
 +
-+const GPT5_1_CODEX_MAX = {
-+  name: 'gpt-5.1-codex-max',
-+  context_window: 400_000,
-+  max_output_tokens: 128_000,
-+  knowledge_cutoff: '2024-09-30',
-+  supports: {
-+    input: ['text', 'image'],
-+    output: ['text'],
-+    endpoints: ['chat'],
-+    features: [
-+      'streaming',
-+      'function_calling',
-+      'structured_outputs',
-+    ],
-+  },
-+  pricing: {
-+    input: {
-+      normal: 1.25,
-+      cached: 0.125,
-+    },
-+    output: {
-+      normal: 10,
-+    },
-+  },
-+} as const satisfies ModelMeta<
-+  OpenAIBaseOptions &
-+    OpenAIReasoningOptions &
-+    OpenAIStructuredOutputOptions &
-+    OpenAIToolsOptions &
-+    OpenAIStreamingOptions &
-+    OpenAIMetadataOptions
-+>
+         if (
+-          chunk.type === 'response.created' ||
+           chunk.type === 'response.incomplete' ||
++          chunk.type === 'response.completed' ||
+           chunk.type === 'response.failed'
++        ) {
++          const completedHasFunctionCalls =
++            chunk.type === 'response.completed' &&
++            (hasToolCallSignal ||
++              chunk.response.output.some((item) => item.type === 'function_call'))
++          const decision =
++            terminalDecision !== 'none'
++              ? 'ignored_after_terminal'
++              : chunk.type === 'response.completed'
++                ? completedHasFunctionCalls
++                  ? 'run_finished_tool_calls'
++                  : 'run_finished_stop'
++                : chunk.type === 'response.incomplete'
++                  ? hasToolCallSignal
++                    ? 'run_finished_tool_calls'
++                    : 'run_error'
++                  : 'run_error'
++          traceTerminalResponse(chunk.type, chunk.response, decision)
++          if (terminalDecision !== 'none') {
++            continue
++          }
++        } else if (
++          chunk.type !== 'response.output_text.delta' &&
++          chunk.type !== 'response.reasoning_text.delta' &&
++          chunk.type !== 'response.reasoning_summary_text.delta'
++        ) {
++          traceChunkType(chunk.type)
++        }
 +
- const GPT5_2 = {
-   name: 'gpt-5.2',
-   context_window: 400_000,
-@@ -1648,6 +1828,11 @@ const TTS_1_HD = {
- // Chat/text completion models (based on endpoints: "chat" or "chat-completions")
- export const OPENAI_CHAT_MODELS = [
-   // Frontier models
-+  GPT5_4.name,
-+  GPT5_3_CODEX.name,
-+  GPT5_3_CODEX_SPARK.name,
-+  GPT5_2_CODEX.name,
-+  GPT5_1_CODEX_MAX.name,
-   GPT5_2.name,
-   GPT5_2_PRO.name,
-   GPT5_2_CHAT.name,
-@@ -1772,6 +1957,36 @@ export type OpenAITranscriptionModel =
-  * Manually defined to ensure accurate type narrowing per model.
-  */
- export type OpenAIChatModelProviderOptionsByName = {
-+  [GPT5_4.name]: OpenAIBaseOptions &
-+    OpenAIReasoningOptions &
-+    OpenAIStructuredOutputOptions &
-+    OpenAIToolsOptions &
-+    OpenAIStreamingOptions &
-+    OpenAIMetadataOptions
-+  [GPT5_3_CODEX.name]: OpenAIBaseOptions &
-+    OpenAIReasoningOptions &
-+    OpenAIStructuredOutputOptions &
-+    OpenAIToolsOptions &
-+    OpenAIStreamingOptions &
-+    OpenAIMetadataOptions
-+  [GPT5_3_CODEX_SPARK.name]: OpenAIBaseOptions &
-+    OpenAIReasoningOptions &
-+    OpenAIStructuredOutputOptions &
-+    OpenAIToolsOptions &
-+    OpenAIStreamingOptions &
-+    OpenAIMetadataOptions
-+  [GPT5_2_CODEX.name]: OpenAIBaseOptions &
-+    OpenAIReasoningOptions &
-+    OpenAIStructuredOutputOptions &
-+    OpenAIToolsOptions &
-+    OpenAIStreamingOptions &
-+    OpenAIMetadataOptions
-+  [GPT5_1_CODEX_MAX.name]: OpenAIBaseOptions &
-+    OpenAIReasoningOptions &
-+    OpenAIStructuredOutputOptions &
-+    OpenAIToolsOptions &
-+    OpenAIStreamingOptions &
-+    OpenAIMetadataOptions
-   [GPT5_2.name]: OpenAIBaseOptions &
-     OpenAIReasoningOptions &
-     OpenAIStructuredOutputOptions &
-@@ -1958,6 +2173,11 @@ export type OpenAIChatModelProviderOptionsByName = {
-  * when consumed by external packages.
-  */
- export type OpenAIModelInputModalitiesByName = {
-+  [GPT5_4.name]: typeof GPT5_4.supports.input
-+  [GPT5_3_CODEX.name]: typeof GPT5_3_CODEX.supports.input
-+  [GPT5_3_CODEX_SPARK.name]: typeof GPT5_3_CODEX_SPARK.supports.input
-+  [GPT5_2_CODEX.name]: typeof GPT5_2_CODEX.supports.input
-+  [GPT5_1_CODEX_MAX.name]: typeof GPT5_1_CODEX_MAX.supports.input
-   [GPT5_2.name]: typeof GPT5_2.supports.input
-   [GPT5_2_PRO.name]: typeof GPT5_2_PRO.supports.input
-   [GPT5_2_CHAT.name]: typeof GPT5_2_CHAT.supports.input
++        // When the Codex endpoint exhausts its server-side output budget but has
++        // already streamed tool calls, signal the engine to execute them and
++        // continue. The continuation gets a fresh output budget.
++        if (chunk.type === 'response.incomplete' && hasToolCallSignal) {
++          model = chunk.response.model
++          if (hasEmittedTextMessageStart) {
++            yield {
++              type: 'TEXT_MESSAGE_END',
++              messageId,
++              model: chunk.response.model || model || options.model,
++              timestamp,
++            }
++          }
++          yield {
++            type: 'RUN_FINISHED',
++            runId,
++            model: chunk.response.model || model || options.model,
++            timestamp,
++            usage: {
++              promptTokens: chunk.response.usage?.input_tokens || 0,
++              completionTokens: chunk.response.usage?.output_tokens || 0,
++              totalTokens: chunk.response.usage?.total_tokens || 0,
++            },
++            finishReason: 'tool_calls',
++          }
++          terminalDecision = 'tool_calls'
++          hasEmittedRunFinished = true
++          continue
++        }
++        // handle general response events
++        if (
++          chunk.type === 'response.created' ||
++          chunk.type === 'response.failed' ||
++          chunk.type === 'response.incomplete'
+         ) {
+           model = chunk.response.model
+           // Reset streaming flags for new response
+@@ -332,7 +451,11 @@
+           hasEmittedStepStarted = false
+           accumulatedContent = ''
+           accumulatedReasoning = ''
++          if (chunk.type === 'response.incomplete' && hasToolCallSignal) {
++            continue
++          }
+           if (chunk.response.error) {
++            terminalDecision = 'error'
+             yield {
+               type: 'RUN_ERROR',
+               runId,
+@@ -340,8 +463,10 @@
+               timestamp,
+               error: chunk.response.error,
+             }
++            continue
+           }
+           if (chunk.response.incomplete_details) {
++            terminalDecision = 'error'
+             yield {
+               type: 'RUN_ERROR',
+               runId,
+@@ -351,6 +476,7 @@
+                 message: chunk.response.incomplete_details.reason ?? '',
+               },
+             }
++            continue
+           }
+         }
+         // Handle output text deltas (token-by-token streaming)
+@@ -519,6 +645,7 @@
+         if (chunk.type === 'response.output_item.added') {
+           const item = chunk.item
+           if (item.type === 'function_call' && item.id) {
++            hasObservedToolCalls = true
+             // Store the function name for later use
+             if (!toolCallMetadata.has(item.id)) {
+               toolCallMetadata.set(item.id, {
+@@ -582,6 +709,11 @@
+         }
+ 
+         if (chunk.type === 'response.completed') {
++          const hasFunctionCalls =
++            hasObservedToolCalls ||
++            toolCallMetadata.size > 0 ||
++            chunk.response.output.some((item) => item.type === 'function_call')
++
+           // Emit TEXT_MESSAGE_END if we had text content
+           if (hasEmittedTextMessageStart) {
+             yield {
+@@ -592,13 +724,6 @@
+             }
+           }
+ 
+-          // Determine finish reason based on output
+-          // If there are function_call items in the output, it's a tool_calls finish
+-          const hasFunctionCalls = chunk.response.output.some(
+-            (item: unknown) =>
+-              (item as { type: string }).type === 'function_call',
+-          )
+-
+           yield {
+             type: 'RUN_FINISHED',
+             runId,
+@@ -611,9 +736,17 @@
+             },
+             finishReason: hasFunctionCalls ? 'tool_calls' : 'stop',
+           }
++          terminalDecision = hasFunctionCalls ? 'tool_calls' : 'stop'
++          hasEmittedRunFinished = true
+         }
+ 
+         if (chunk.type === 'error') {
++          if (terminalDecision !== 'none') {
++            traceErrorChunk('ignored_after_terminal')
++            continue
++          }
++          traceErrorChunk('run_error')
++          terminalDecision = 'error'
+           yield {
+             type: 'RUN_ERROR',
+             runId,
+@@ -624,8 +757,31 @@
+               code: chunk.code ?? undefined,
+             },
+           }
++          continue
+         }
+       }
++      // Fallback: if the stream ended without a terminal event but tool calls
++      // were generated, signal continuation so they get executed.
++      if (terminalDecision === 'none' && toolCallMetadata.size > 0) {
++        traceChunkType('stream.end')
++        if (hasEmittedTextMessageStart) {
++          yield {
++            type: 'TEXT_MESSAGE_END',
++            messageId,
++            model: model || options.model,
++            timestamp,
++          }
++        }
++        yield {
++          type: 'RUN_FINISHED',
++          runId,
++          model: model || options.model,
++          timestamp,
++          finishReason: 'tool_calls',
++        }
++        terminalDecision = 'tool_calls'
++        hasEmittedRunFinished = true
++      }
+     } catch (error: unknown) {
+       const err = error as Error & { code?: string }
+       console.log(
