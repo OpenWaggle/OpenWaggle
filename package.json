@@ -26,7 +26,7 @@
     "test:all": "pnpm test && pnpm test:e2e:headless",
     "test:unit": "pnpm prepare:native:node && pnpm test:unit:raw",
     "test:unit:raw": "vitest run -c vitest.unit.config.ts",
-    "test:tanstack-known-issues": "pnpm prepare:native:node && pnpm test:unit:raw -- src/main/agent/tanstack-known-issues.unit.test.ts src/main/agent/continuation-normalizer.unit.test.ts src/main/agent/stream-part-collector.unit.test.ts src/renderer/src/components/chat/useVirtualRows.unit.test.ts",
+    "test:tanstack-known-issues": "pnpm prepare:native:node && pnpm test:unit:raw -- src/main/agent/__tests__/tanstack-known-issues.unit.test.ts src/main/agent/continuation-normalizer.unit.test.ts src/main/agent/stream-part-collector.unit.test.ts src/main/providers/__tests__/openai-codex-stream.unit.test.ts src/renderer/src/components/chat/useVirtualRows.unit.test.ts",
     "test:component": "vitest run -c vitest.component.config.ts",
     "test:integration": "pnpm prepare:native:node && pnpm test:integration:raw",
     "test:integration:raw": "vitest run -c vitest.integration.config.ts",
