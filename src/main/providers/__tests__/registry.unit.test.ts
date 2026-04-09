@@ -1,5 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AnyTextAdapter } from '@tanstack/ai'
 import type { ProviderDefinition } from '../provider-definition'
+
+function stubTextAdapter(): AnyTextAdapter {
+  return {
+    kind: 'text',
+    name: 'stub',
+    model: 'stub-model',
+    '~types': {
+      providerOptions: {},
+      inputModalities: [],
+      messageMetadataByModality: {},
+    },
+    chatStream: () => (async function* () {})(),
+    structuredOutput: () => Promise.resolve({ data: null, rawText: '' }),
+  }
+}
 
 function createProvider(
   id: ProviderDefinition['id'],
@@ -15,7 +31,7 @@ function createProvider(
     models,
     testModel: models[0] ?? 'fallback-model',
     supportsAttachment: () => false,
-    createAdapter: () => ({}) as never,
+    createAdapter: () => stubTextAdapter(),
   }
 }
 
