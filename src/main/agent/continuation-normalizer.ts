@@ -637,7 +637,9 @@ function ensureToolResultAdjacency(messages: ContinuationMessage[]): Continuatio
         if (existingResult) {
           // Move existing tool-result to be adjacent
           reordered.push(existingResult)
-        } else if (part.output !== undefined) {
+        }
+
+        if (!existingResult && part.output !== undefined) {
           // Inject synthetic tool-result from the tool-call's output so that
           // Phase 1 handles the pairing instead of Phase 2 (which appends
           // at the end and breaks multi-segment conversations).
@@ -647,7 +649,9 @@ function ensureToolResultAdjacency(messages: ContinuationMessage[]): Continuatio
             content: typeof part.output === 'string' ? part.output : JSON.stringify(part.output),
             state: 'complete' as const,
           })
-        } else if (part.state === 'approval-responded') {
+        }
+
+        if (!existingResult && part.output === undefined && part.state === 'approval-responded') {
           // Approval-responded tool calls without output need a synthetic
           // result with approval metadata. TanStack Phase 2 would emit this
           // at the END, breaking multi-segment conversations.

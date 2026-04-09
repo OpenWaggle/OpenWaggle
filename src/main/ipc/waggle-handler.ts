@@ -2,6 +2,7 @@ import type { AgentSendPayload } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import type { AgentStreamChunk } from '@shared/types/stream'
 import type { WaggleConfig, WaggleStreamMetadata } from '@shared/types/waggle'
+import { chooseBy } from '@shared/utils/decision'
 import * as Effect from 'effect/Effect'
 import { classifyAgentError } from '../agent/error-classifier'
 import { executeWaggleRun } from '../application/waggle-run-service'
@@ -157,42 +158,31 @@ export function registerWaggleHandlers(): void {
             })
 
             // ─── Handle outcome ───────────────────────────────
-            switch (result.outcome) {
-              case 'validation-error':
-              case 'not-found':
-              case 'no-project':
-                emitErrorAndFinish(
-                  conversationId,
-                  result.message,
-                  result.code,
-                  `waggle-${conversationId}`,
-                )
-                return
-
-              case 'aborted':
+            chooseBy(result, 'outcome')
+              .case('validation-error', (r) => {
+                emitErrorAndFinish(conversationId, r.message, r.code, `waggle-${conversationId}`)
+              })
+              .case('not-found', (r) => {
+                emitErrorAndFinish(conversationId, r.message, r.code, `waggle-${conversationId}`)
+              })
+              .case('no-project', (r) => {
+                emitErrorAndFinish(conversationId, r.message, r.code, `waggle-${conversationId}`)
+              })
+              .case('aborted', () => {
                 emitStreamChunk(conversationId, {
                   type: 'RUN_FINISHED',
                   timestamp: Date.now(),
                   runId: `waggle-${conversationId}`,
                   finishReason: 'stop',
                 })
-                return
-
-              case 'error':
-                emitErrorAndFinish(
-                  conversationId,
-                  result.message,
-                  result.code,
-                  `waggle-${conversationId}`,
-                )
-                return
-
-              case 'success': {
-                const assistantCount = result.newMessages.filter(
-                  (m) => m.role === 'assistant',
-                ).length
-                if (assistantCount === 0 && result.lastError) {
-                  const classified = classifyAgentError(new Error(result.lastError))
+              })
+              .case('error', (r) => {
+                emitErrorAndFinish(conversationId, r.message, r.code, `waggle-${conversationId}`)
+              })
+              .case('success', (r) => {
+                const assistantCount = r.newMessages.filter((m) => m.role === 'assistant').length
+                if (assistantCount === 0 && r.lastError) {
+                  const classified = classifyAgentError(new Error(r.lastError))
                   emitErrorAndFinish(
                     conversationId,
                     classified.userMessage,
@@ -208,8 +198,8 @@ export function registerWaggleHandlers(): void {
                   runId: `waggle-${conversationId}`,
                   finishReason: 'stop',
                 })
-              }
-            }
+              })
+              .assertComplete()
           }),
           Effect.sync(() => {
             activeWaggleRuns.delete(conversationId)

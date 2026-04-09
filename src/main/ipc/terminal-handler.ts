@@ -5,6 +5,7 @@ import path from 'node:path'
 import { BYTES_PER_KIBIBYTE, HEX_RADIX } from '@shared/constants/constants'
 import { decodeUnknownOrThrow, Schema, safeDecodeUnknown } from '@shared/schema'
 import * as Effect from 'effect/Effect'
+import type * as NodePtyModule from 'node-pty'
 import type { IPty } from 'node-pty'
 import { getSafeChildEnv } from '../env'
 import { broadcastToWindows } from '../utils/broadcast'
@@ -16,9 +17,9 @@ const COLS = 80
 const ROWS = 24
 
 // node-pty is a native module loaded via dynamic import at first use
-let ptyModule: typeof import('node-pty') | undefined
+let ptyModule: typeof NodePtyModule | undefined
 
-async function getPty(): Promise<typeof import('node-pty')> {
+async function getPty(): Promise<typeof NodePtyModule> {
   if (!ptyModule) {
     ptyModule = await import('node-pty')
   }
