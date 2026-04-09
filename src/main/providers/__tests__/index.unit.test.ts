@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AnyTextAdapter } from '@tanstack/ai'
-import type { ProviderDefinition } from '../provider-definition'
 import type { Provider } from '@shared/types/settings'
+import type { AnyTextAdapter } from '@tanstack/ai'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ProviderDefinition } from '../provider-definition'
 
 const mockRegister = vi.fn()
 const PROVIDER_REGISTRATION_TEST_TIMEOUT_MS = 15_000

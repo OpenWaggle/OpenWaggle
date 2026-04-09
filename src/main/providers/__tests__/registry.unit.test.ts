@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AnyTextAdapter } from '@tanstack/ai'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ProviderDefinition } from '../provider-definition'
 
 function stubTextAdapter(): AnyTextAdapter {
