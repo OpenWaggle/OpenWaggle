@@ -60,6 +60,7 @@ import { registerSettingsHandlers } from '../settings-handler'
 const TestSettingsLayer = Layer.succeed(SettingsService, {
   get: () => Effect.sync(() => getSettingsMock()),
   update: (partial) => Effect.sync(() => updateSettingsMock(partial)),
+  transformMcpServers: () => Effect.void,
   initialize: () => Effect.void,
   flushForTests: () => Effect.void,
 })

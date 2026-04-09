@@ -474,22 +474,8 @@ describe('registerAttachmentHandlers', () => {
     ).rejects.toThrow('Total attachment size exceeds 20 MB')
   })
 
-  it('rejects files outside project root when user denies access', async () => {
+  it('accepts files outside project root without prompting', async () => {
     registerFile('/tmp/outside.txt', 'outside')
-    showMessageBoxMock.mockResolvedValueOnce({ response: 1 })
-
-    registerAttachmentHandlers()
-    const handler = registeredHandler('attachments:prepare')
-
-    await expect(handler?.({}, '/tmp/repo', ['/tmp/outside.txt'])).rejects.toThrow(
-      'Attachment access denied for file outside project root',
-    )
-    expect(showMessageBoxMock).toHaveBeenCalledOnce()
-  })
-
-  it('allows files outside project root when user approves one-time access', async () => {
-    registerFile('/tmp/outside.txt', 'outside')
-    showMessageBoxMock.mockResolvedValueOnce({ response: 0 })
 
     registerAttachmentHandlers()
     const handler = registeredHandler('attachments:prepare')
@@ -502,7 +488,7 @@ describe('registerAttachmentHandlers', () => {
       path: '/tmp/outside.txt',
       extractedText: 'outside',
     })
-    expect(showMessageBoxMock).toHaveBeenCalledOnce()
+    expect(showMessageBoxMock).not.toHaveBeenCalled()
   })
 
   it('hydrates binary source for image/pdf attachments in main process', async () => {

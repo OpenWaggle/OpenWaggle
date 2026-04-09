@@ -62,7 +62,9 @@ export function useMcp(): UseMcpResult {
         const previous = current ?? []
         const index = previous.findIndex((server) => server.id === status.id)
         if (index < 0) {
-          return [...previous, status]
+          // Unknown server — ignore broadcast, let query refetch handle new entries.
+          // Appending here would create phantom entries before the add mutation completes.
+          return previous
         }
         return previous.map((server, currentIndex) => (currentIndex === index ? status : server))
       })

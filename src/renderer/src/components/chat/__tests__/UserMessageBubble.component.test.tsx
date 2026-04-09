@@ -127,4 +127,47 @@ describe('UserMessageBubble', () => {
     const proseDiv = container.querySelector('.prose-user')
     expect(proseDiv).toBeInTheDocument()
   })
+
+  it('renders attachment text parts as chips instead of markdown', () => {
+    const message = createUserMessage('u1', [
+      { type: 'text', content: 'Check this file' },
+      { type: 'text', content: '[Attachment] report.pdf' },
+    ])
+    render(<UserMessageBubble message={message} />)
+    expect(screen.getByText('Check this file')).toBeInTheDocument()
+    expect(screen.getByText('report.pdf')).toBeInTheDocument()
+    // The attachment name should be in a chip, not rendered as markdown
+    expect(screen.queryByText('[Attachment] report.pdf')).not.toBeInTheDocument()
+  })
+
+  it('renders multiple attachment chips', () => {
+    const message = createUserMessage('u1', [
+      { type: 'text', content: '[Attachment] image.png' },
+      { type: 'text', content: '[Attachment] document.pdf' },
+    ])
+    render(<UserMessageBubble message={message} />)
+    expect(screen.getByText('image.png')).toBeInTheDocument()
+    expect(screen.getByText('document.pdf')).toBeInTheDocument()
+  })
+
+  it('extracts attachment name from first line when preview text is present', () => {
+    const message = createUserMessage('u1', [
+      { type: 'text', content: '[Attachment] data.csv\nid,name,value\n1,foo,42' },
+    ])
+    render(<UserMessageBubble message={message} />)
+    expect(screen.getByText('data.csv')).toBeInTheDocument()
+    // The extracted preview text should not appear in the chip
+    expect(screen.queryByText(/id,name,value/)).not.toBeInTheDocument()
+  })
+
+  it('excludes attachment text parts from copy content', () => {
+    const message = createUserMessage('u1', [
+      { type: 'text', content: 'Main message' },
+      { type: 'text', content: '[Attachment] file.txt' },
+    ])
+    render(<UserMessageBubble message={message} />)
+    const copyButton = screen.getByRole('button')
+    fireEvent.click(copyButton)
+    expect(mockCopyToClipboard).toHaveBeenCalledWith('Main message')
+  })
 })

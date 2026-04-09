@@ -1,7 +1,73 @@
 import { PERCENT_BASE } from '@shared/constants/constants'
-import type { PreparedAttachment } from '@shared/types/agent'
-import { Check, Loader2, X } from 'lucide-react'
+import type { AttachmentKind, PreparedAttachment } from '@shared/types/agent'
+import { Check, FileDown, FileText, ImageIcon, Loader2, X } from 'lucide-react'
+import { cn } from '@/lib/cn'
 import type { PendingTextAttachmentChip } from './useAutoTextAttachment'
+
+const KIND_ICON: Record<AttachmentKind, typeof FileText> = {
+  image: ImageIcon,
+  pdf: FileDown,
+  text: FileText,
+}
+
+const SIZE_UNITS = ['B', 'KB', 'MB'] as const
+const SIZE_DIVISOR = 1024
+
+function formatSize(bytes: number): string {
+  let value = bytes
+  let unitIndex = 0
+  while (value >= SIZE_DIVISOR && unitIndex < SIZE_UNITS.length - 1) {
+    value /= SIZE_DIVISOR
+    unitIndex++
+  }
+  return `${unitIndex === 0 ? String(value) : value.toFixed(1)} ${SIZE_UNITS[unitIndex]}`
+}
+
+function getExtension(name: string): string {
+  const dot = name.lastIndexOf('.')
+  return dot >= 0 ? name.slice(dot + 1).toUpperCase() : ''
+}
+
+function AttachmentFileChip({
+  attachment,
+  onRemove,
+}: {
+  readonly attachment: PreparedAttachment
+  readonly onRemove: () => void
+}) {
+  const Icon = KIND_ICON[attachment.kind]
+  const ext = getExtension(attachment.name)
+
+  return (
+    <div
+      className={cn(
+        'group/chip relative inline-flex items-center gap-2 rounded-lg border border-border',
+        'bg-bg px-2.5 py-1.5 text-[12px] text-text-secondary',
+      )}
+    >
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-bg-tertiary">
+        <Icon className="h-4 w-4 text-text-tertiary" />
+      </div>
+      <div className="flex flex-col gap-0 overflow-hidden">
+        <span className="max-w-[180px] truncate text-[12px] font-medium leading-tight text-text-primary">
+          {attachment.name}
+        </span>
+        <span className="text-[10px] leading-tight text-text-tertiary">
+          {ext && `${ext} \u00B7 `}
+          {formatSize(attachment.sizeBytes)}
+        </span>
+      </div>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="ml-0.5 rounded p-0.5 text-text-muted transition-colors hover:text-text-primary"
+        title={`Remove ${attachment.name}`}
+      >
+        <X className="h-3 w-3" />
+      </button>
+    </div>
+  )
+}
 
 interface AutoTextAttachmentChipsProps {
   pendingTextAttachmentChips: PendingTextAttachmentChip[]
@@ -29,7 +95,7 @@ export function AutoTextAttachmentChips({
       {pendingTextAttachmentChips.map((chip) => (
         <span
           key={chip.operationId}
-          className="inline-flex min-w-[210px] flex-col rounded-md border border-border bg-bg px-2 py-1 text-[12px] text-text-secondary"
+          className="inline-flex min-w-[210px] flex-col rounded-lg border border-border bg-bg px-2.5 py-1.5 text-[12px] text-text-secondary"
         >
           <span className="inline-flex items-center gap-1.5">
             {chip.status === 'ready' ? (
@@ -70,20 +136,11 @@ export function AutoTextAttachmentChips({
       {attachments
         .filter((attachment) => !attachmentIdsWithInlineProgress.has(attachment.id))
         .map((attachment) => (
-          <span
+          <AttachmentFileChip
             key={attachment.id}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-bg px-2 py-1 text-[12px] text-text-secondary"
-          >
-            <span className="max-w-[190px] truncate">{attachment.name}</span>
-            <button
-              type="button"
-              onClick={() => onRemoveAttachment(attachment.id)}
-              className="text-text-tertiary transition-colors hover:text-text-primary"
-              title={`Remove ${attachment.name}`}
-            >
-              <X className="h-3 w-3" />
-            </button>
-          </span>
+            attachment={attachment}
+            onRemove={() => onRemoveAttachment(attachment.id)}
+          />
         ))}
     </div>
   )

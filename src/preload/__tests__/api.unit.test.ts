@@ -8,6 +8,9 @@ vi.mock('electron', () => ({
     on: vi.fn(),
     removeListener: vi.fn(),
   },
+  webUtils: {
+    getPathForFile: vi.fn(() => '/mock/path'),
+  },
 }))
 
 import { ipcRenderer } from 'electron'
@@ -80,6 +83,8 @@ describe('preload api surface contract', () => {
     'renameGitBranch',
     'deleteGitBranch',
     'setGitBranchUpstream',
+    // File paths
+    'getFilePath',
     // Attachments
     'prepareAttachments',
     'prepareAttachmentFromText',
