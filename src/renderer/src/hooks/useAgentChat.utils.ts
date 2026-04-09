@@ -13,21 +13,24 @@ import {
 
 const MAX_ATTACHMENT_PREVIEW_CHARS = 320
 
+/** Prefix used to identify attachment text parts in UIMessage rendering. */
+export const ATTACHMENT_TEXT_PREFIX = '[Attachment] '
+
 export function formatAttachmentPreview(
   attachment: Pick<AttachmentRecord, 'name' | 'extractedText' | 'origin'>,
 ): string {
   if (attachment.origin === 'auto-paste-text') {
-    return `[Attachment] ${attachment.name}`
+    return `${ATTACHMENT_TEXT_PREFIX}${attachment.name}`
   }
   const preview = attachment.extractedText.trim()
   if (!preview) {
-    return `[Attachment] ${attachment.name}`
+    return `${ATTACHMENT_TEXT_PREFIX}${attachment.name}`
   }
   const clipped =
     preview.length > MAX_ATTACHMENT_PREVIEW_CHARS
       ? `${preview.slice(0, MAX_ATTACHMENT_PREVIEW_CHARS)}...`
       : preview
-  return `[Attachment] ${attachment.name}\n${clipped}`
+  return `${ATTACHMENT_TEXT_PREFIX}${attachment.name}\n${clipped}`
 }
 
 /**
