@@ -12,6 +12,8 @@ export interface McpServerConfig {
   readonly name: string
   readonly transport: McpTransport
   readonly enabled: boolean
+  /** Epoch ms when this server was added — used for stable UI ordering */
+  readonly createdAt?: number
   /** stdio: command to spawn */
   readonly command?: string
   /** stdio: command arguments */
@@ -45,6 +47,7 @@ export const mcpServerConfigSchema = Schema.Struct({
   name: Schema.String.pipe(Schema.minLength(1)),
   transport: Schema.Literal(...MCP_TRANSPORTS),
   enabled: Schema.Boolean,
+  createdAt: Schema.optional(Schema.Number),
   command: Schema.optional(Schema.String),
   args: Schema.optional(Schema.Array(Schema.String)),
   env: Schema.optional(Schema.Record({ key: Schema.String, value: Schema.String })),

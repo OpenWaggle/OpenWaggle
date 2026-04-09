@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { McpServerId } from '@shared/types/brand'
 import type { McpServerConfig } from '@shared/types/mcp'
@@ -33,19 +34,21 @@ export function registerMcpHandlers(): void {
       const settingsService = yield* SettingsService
       const settings = yield* settingsService.get()
       const liveStatuses = mcpManager.getServerStatuses()
-      const liveIds = new Set(liveStatuses.map((s) => s.id))
+      const liveStatusById = new Map(liveStatuses.map((s) => [s.id, s]))
 
-      const configOnlyStatuses = settings.mcpServers
-        .filter((c) => !liveIds.has(c.id))
-        .map((c) => ({
-          id: c.id,
-          name: c.name,
+      // Build status list in settings order — preserves stable insertion order
+      // so servers don't jump between groups on connect/disconnect
+      return settings.mcpServers.map((config) => {
+        const live = liveStatusById.get(config.id)
+        if (live) return live
+        return {
+          id: config.id,
+          name: config.name,
           status: 'disconnected' as const,
           toolCount: 0,
           tools: [],
-        }))
-
-      return [...liveStatuses, ...configOnlyStatuses]
+        }
+      })
     }),
   )
 
@@ -54,26 +57,29 @@ export function registerMcpHandlers(): void {
       'add server',
       Effect.gen(function* () {
         const parsed = decodeUnknownOrThrow(mcpServerConfigDraftSchema, rawConfig)
-        const config: Omit<McpServerConfig, 'id'> = {
+        const id = McpServerId(randomUUID())
+        const fullConfig: McpServerConfig = {
+          id,
           name: parsed.name,
           transport: parsed.transport,
           enabled: parsed.enabled,
+          createdAt: Date.now(),
           command: parsed.command,
           args: parsed.args,
           env: parsed.env,
           url: parsed.url,
         }
 
-        const id = yield* Effect.promise(() => mcpManager.addServer(config))
-        const fullConfig: McpServerConfig = { ...config, id }
-
+        // Persist to settings BEFORE connecting — eliminates ghost servers
+        // where status broadcasts make the server visible in UI before settings exist
         const settingsService = yield* SettingsService
-        const settings = yield* settingsService.get()
-        yield* settingsService.update({
-          mcpServers: [...settings.mcpServers, fullConfig],
-        })
+        yield* settingsService.transformMcpServers((servers) => [...servers, fullConfig])
 
-        logger.info('server added', { id, name: config.name })
+        // Connect asynchronously — failures are non-fatal (server stays in settings,
+        // user can retry via toggle)
+        yield* Effect.promise(() => mcpManager.addServer(fullConfig))
+
+        logger.info('server added', { id, name: fullConfig.name })
         return { ok: true as const, id }
       }),
     ),
@@ -89,10 +95,9 @@ export function registerMcpHandlers(): void {
         yield* Effect.promise(() => mcpManager.removeServer(mcpId))
 
         const settingsService = yield* SettingsService
-        const settings = yield* settingsService.get()
-        yield* settingsService.update({
-          mcpServers: settings.mcpServers.filter((s) => s.id !== mcpId),
-        })
+        yield* settingsService.transformMcpServers((servers) =>
+          servers.filter((s) => s.id !== mcpId),
+        )
 
         logger.info('server removed', { id })
         return { ok: true as const }
@@ -116,11 +121,12 @@ export function registerMcpHandlers(): void {
         }
 
         const updatedConfig: McpServerConfig = { ...config, enabled: parsedEnabled }
-        yield* Effect.promise(() => mcpManager.toggleServer(mcpId, parsedEnabled, updatedConfig))
 
-        yield* settingsService.update({
-          mcpServers: settings.mcpServers.map((s) => (s.id === mcpId ? updatedConfig : s)),
-        })
+        // Update settings atomically, then connect/disconnect
+        yield* settingsService.transformMcpServers((servers) =>
+          servers.map((s) => (s.id === mcpId ? updatedConfig : s)),
+        )
+        yield* Effect.promise(() => mcpManager.toggleServer(mcpId, parsedEnabled, updatedConfig))
 
         logger.info('server toggled', { id, enabled: parsedEnabled })
         return { ok: true as const }
@@ -145,14 +151,15 @@ export function registerMcpHandlers(): void {
 
         const updatedConfig: McpServerConfig = { ...existing, ...updates }
 
+        // Update settings atomically first
+        yield* settingsService.transformMcpServers((servers) =>
+          servers.map((s) => (s.id === mcpId ? updatedConfig : s)),
+        )
+
         if (updatedConfig.enabled) {
           yield* Effect.promise(() => mcpManager.toggleServer(mcpId, false, existing))
           yield* Effect.promise(() => mcpManager.toggleServer(mcpId, true, updatedConfig))
         }
-
-        yield* settingsService.update({
-          mcpServers: settings.mcpServers.map((s) => (s.id === mcpId ? updatedConfig : s)),
-        })
 
         logger.info('server updated', { id, updates: Object.keys(updates) })
         return { ok: true as const }
