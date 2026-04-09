@@ -96,7 +96,7 @@ These rules are **non-negotiable**. Violating them invalidates your work.
 
 Read these before making architectural or behavioral decisions:
 
-- `docs/first-principles.m` — First principles. These are the primary foundation for future features, fixes, and product decisions.
+- `docs/first-principles.md` — First principles. These are the primary foundation for future features, fixes, and product decisions.
 - `docs/system-architecture.md` — Current architecture as it exists today.
 - `docs/learnings.md` — Technical findings.
 - `docs/lessons.md` — User corrections and behavioral rules.

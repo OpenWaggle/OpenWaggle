@@ -18,6 +18,7 @@ const envSchema = Schema.Struct({
   ELECTRON_RENDERER_URL: optionalUrlSchema,
   OPENWAGGLE_USER_DATA_DIR: Schema.optional(Schema.String),
   OPENWAGGLE_ENABLE_APPROVAL_TRACE: Schema.optional(Schema.String),
+  OPENWAGGLE_ENABLE_CODEX_SSE_TRACE: Schema.optional(Schema.String),
   OPENWAGGLE_LOG_LEVEL: Schema.optional(Schema.Literal('debug', 'info', 'warn', 'error')),
 })
 
@@ -26,6 +27,7 @@ export type Env = SchemaType<typeof envSchema>
 export const env: Env = decodeUnknownOrThrow(envSchema, process.env)
 
 export const approvalTraceEnabled = env.OPENWAGGLE_ENABLE_APPROVAL_TRACE === '1'
+export const codexSseTraceEnabled = env.OPENWAGGLE_ENABLE_CODEX_SSE_TRACE === '1'
 export const logLevel = env.OPENWAGGLE_LOG_LEVEL ?? 'info'
 
 /**
