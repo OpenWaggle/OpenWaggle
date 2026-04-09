@@ -38,6 +38,14 @@ export interface ProviderDefinition {
     baseUrl?: string,
     authMethod?: 'api-key' | 'subscription',
   ): AnyTextAdapter
+  /**
+   * Synchronous, no-network model list for subscription-only IDs that must
+   * be indexed at startup before user settings or credentials are available.
+   * Used by `indexStaticSubscriptionModels()` — providers without this method are
+   * skipped during startup indexing.
+   */
+  getStaticSubscriptionModels?(): readonly string[]
+  /** Fetch available model IDs for this provider (may make network calls). */
   fetchModels?(
     baseUrl?: string,
     apiKey?: string,

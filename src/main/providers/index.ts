@@ -47,38 +47,25 @@ export async function registerAllProviders(): Promise<void> {
   // subscription and are newer than the current @tanstack/ai-openai version.
   // Without this, getProviderForModel('gpt-5.4') returns undefined until the user
   // manually fetches models from the settings UI.
-  await indexSubscriptionModels()
+  indexStaticSubscriptionModels()
 }
 
 /**
- * Eagerly index subscription-only model IDs for each provider that supports
- * dynamic model fetch. Pulls the curated subscription model list without
- * making any network calls (providers with hardcoded lists resolve immediately).
+ * Synchronously index subscription-only model IDs from providers that declare
+ * a static (no-network, no-auth) subscription model list via
+ * `getStaticSubscriptionModels()`. This runs at startup before user settings
+ * are loaded, so it must never make network calls.
  */
-async function indexSubscriptionModels(): Promise<void> {
-  const tasks: Promise<void>[] = []
-
+function indexStaticSubscriptionModels(): void {
   for (const provider of providerRegistry.getAll()) {
-    if (!provider.supportsSubscription || !provider.fetchModels) {
+    if (!provider.getStaticSubscriptionModels) {
       continue
     }
-    tasks.push(
-      provider
-        .fetchModels(undefined, undefined, 'subscription')
-        .then((models) => {
-          if (models.length > 0) {
-            providerRegistry.indexModels(models, provider)
-          }
-        })
-        .catch((err) => {
-          logger.warn(`Failed to index subscription models for "${provider.id}"`, {
-            error: err instanceof Error ? err.message : String(err),
-          })
-        }),
-    )
+    const models = provider.getStaticSubscriptionModels()
+    if (models.length > 0) {
+      providerRegistry.indexModels(models, provider)
+    }
   }
-
-  await Promise.all(tasks)
 }
 
 export { providerRegistry }
