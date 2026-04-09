@@ -2,6 +2,7 @@ import { TRIPLE_FACTOR } from '@shared/constants/constants'
 import type { QualityPreset } from '@shared/types/settings'
 import { isRecord } from '@shared/utils/validation'
 import { createOpenaiChat, OPENAI_CHAT_MODELS } from '@tanstack/ai-openai'
+import { codexSseTraceEnabled } from '../env'
 import { createLogger } from '../logger'
 import { isReasoningModel } from './model-classification'
 import type {
@@ -125,37 +126,102 @@ function isChatgptBackendPostRequest(method: string, url: string): boolean {
   }
 }
 
-function withCodexPayloadDefaults(rawBody: string): string {
+interface CodexPayloadDiagnostics {
+  readonly model: unknown
+  readonly hasReasoning: boolean
+  readonly reasoningEffort: unknown
+  readonly isContinuation: boolean
+  readonly toolResultCount: number
+  readonly toolCount: number
+  readonly toolChoice: unknown
+}
+
+/**
+ * Parameters the Codex `/backend-api/codex/responses` endpoint rejects with
+ * `{"detail":"Unsupported parameter: <name>"}`. The endpoint controls output
+ * budgets and sampling server-side.
+ *
+ * @see https://github.com/BerriAI/litellm/issues/21193
+ * @see https://github.com/openai/codex/issues/4138
+ */
+const CODEX_UNSUPPORTED_PARAMS = [
+  'max_output_tokens',
+  'max_tokens',
+  'max_completion_tokens',
+  'metadata',
+  'user',
+  'context_management',
+] as const
+
+function stripUnsupportedCodexParams(body: Record<string, unknown>): Record<string, unknown> {
+  const cleaned = { ...body }
+  for (const key of CODEX_UNSUPPORTED_PARAMS) {
+    delete cleaned[key]
+  }
+  return cleaned
+}
+
+function countToolResults(input: unknown): number {
+  if (!Array.isArray(input)) return 0
+  let count = 0
+  for (const item of input) {
+    if (isRecord(item) && item.type === 'function_call_output') count++
+  }
+  return count
+}
+
+function withCodexPayloadDefaults(rawBody: string): {
+  body: string
+  diagnostics: CodexPayloadDiagnostics | null
+} {
   const parsedBody: unknown = JSON.parse(rawBody)
   if (!isRecord(parsedBody)) {
-    return rawBody
+    return { body: rawBody, diagnostics: null }
   }
-  const { max_output_tokens: _ignoredMaxOutputTokens, ...parsedBodyWithoutMaxOutputTokens } =
-    parsedBody
 
-  const nextText = isRecord(parsedBodyWithoutMaxOutputTokens.text)
-    ? { ...parsedBodyWithoutMaxOutputTokens.text }
-    : {}
+  const baseFields = stripUnsupportedCodexParams(parsedBody)
+
+  const nextText = isRecord(baseFields.text) ? { ...baseFields.text } : {}
   if (typeof nextText.verbosity !== 'string') {
     nextText.verbosity = 'medium'
   }
 
+  // Preserve any upstream include entries and ensure the Codex-required
+  // reasoning.encrypted_content entry is always present.
+  const existingInclude = Array.isArray(baseFields.include) ? baseFields.include : []
+  const mergedInclude: unknown[] = [...existingInclude]
+  if (!mergedInclude.includes(OPENAI_CODEX_REASONING_INCLUDE)) {
+    mergedInclude.push(OPENAI_CODEX_REASONING_INCLUDE)
+  }
+
   const payload: Record<string, unknown> = {
-    ...parsedBodyWithoutMaxOutputTokens,
+    ...baseFields,
     store: false,
     stream: true,
     text: nextText,
-    include: [OPENAI_CODEX_REASONING_INCLUDE],
-    tool_choice: parsedBodyWithoutMaxOutputTokens.tool_choice ?? 'auto',
+    include: mergedInclude,
+    tool_choice: baseFields.tool_choice ?? 'auto',
     parallel_tool_calls:
-      typeof parsedBodyWithoutMaxOutputTokens.parallel_tool_calls === 'boolean'
-        ? parsedBodyWithoutMaxOutputTokens.parallel_tool_calls
-        : true,
+      typeof baseFields.parallel_tool_calls === 'boolean' ? baseFields.parallel_tool_calls : true,
   }
-  return JSON.stringify(payload)
+
+  const toolResultCount = countToolResults(payload.input)
+  const diagnostics: CodexPayloadDiagnostics = {
+    model: payload.model,
+    hasReasoning: isRecord(payload.reasoning),
+    reasoningEffort: isRecord(payload.reasoning) ? payload.reasoning.effort : undefined,
+    isContinuation: toolResultCount > 0,
+    toolResultCount,
+    toolCount: Array.isArray(payload.tools) ? payload.tools.length : 0,
+    toolChoice: payload.tool_choice,
+  }
+
+  return { body: JSON.stringify(payload), diagnostics }
 }
 
 function createCodexResponsesFetch(accountId: string): typeof fetch {
+  let requestSequence = 0
+
   return async (input, init) => {
     const method = getRequestMethod(input, init)
     const originalUrl = getRequestUrl(input)
@@ -172,18 +238,29 @@ function createCodexResponsesFetch(accountId: string): typeof fetch {
     headers.set('chatgpt-account-id', accountId)
     headers.set('User-Agent', OPENAI_CODEX_USER_AGENT)
 
-    const rewrittenBody =
-      typeof body === 'string'
-        ? (() => {
-            try {
-              return withCodexPayloadDefaults(body)
-            } catch {
-              return body
-            }
-          })()
-        : body
+    let rewrittenBody: BodyInit | null | undefined = body
+    if (typeof body === 'string') {
+      try {
+        const result = withCodexPayloadDefaults(body)
+        rewrittenBody = result.body
+
+        // Log each Codex request only when SSE tracing is enabled — these
+        // fire on every model turn and continuation, which is noisy for
+        // normal operation.
+        if (result.diagnostics && codexSseTraceEnabled) {
+          requestSequence++
+          logger.debug('Codex subscription request', {
+            seq: requestSequence,
+            ...result.diagnostics,
+          })
+        }
+      } catch {
+        rewrittenBody = body
+      }
+    }
 
     const rewrittenUrl = resolveCodexResponsesUrl(originalUrl)
+
     const response = await fetch(rewrittenUrl, {
       ...init,
       headers,
@@ -217,6 +294,7 @@ export const openaiProvider: ProviderDefinition = {
   models: OPENAI_CHAT_MODELS,
   testModel: 'gpt-4.1-nano',
   supportsAttachment: (kind) => kind === 'image' || kind === 'pdf',
+  getStaticSubscriptionModels: () => [...OPENAI_CODEX_SUBSCRIPTION_MODELS],
   createAdapter(model, apiKey, _baseUrl, authMethod) {
     if (!apiKey) throw new Error('OpenAI API key is required')
     if (authMethod === 'subscription') {

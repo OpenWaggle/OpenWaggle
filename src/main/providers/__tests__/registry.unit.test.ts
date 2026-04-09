@@ -1,5 +1,21 @@
+import type { AnyTextAdapter } from '@tanstack/ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ProviderDefinition } from '../provider-definition'
+
+function stubTextAdapter(): AnyTextAdapter {
+  return {
+    kind: 'text',
+    name: 'stub',
+    model: 'stub-model',
+    '~types': {
+      providerOptions: {},
+      inputModalities: [],
+      messageMetadataByModality: {},
+    },
+    chatStream: () => (async function* () {})(),
+    structuredOutput: () => Promise.resolve({ data: null, rawText: '' }),
+  }
+}
 
 function createProvider(
   id: ProviderDefinition['id'],
@@ -15,7 +31,7 @@ function createProvider(
     models,
     testModel: models[0] ?? 'fallback-model',
     supportsAttachment: () => false,
-    createAdapter: () => ({}) as never,
+    createAdapter: () => stubTextAdapter(),
   }
 }
 
@@ -73,5 +89,36 @@ describe('providerRegistry', () => {
     // isKnownModel uses the same index
     expect(providerRegistry.isKnownModel('gpt-5')).toBe(true)
     expect(providerRegistry.isKnownModel('nonexistent')).toBe(false)
+  })
+
+  it('indexes dynamically discovered models for an existing provider', async () => {
+    const { providerRegistry } = await import('../registry')
+    const openai = createProvider('openai', ['gpt-4.1-mini'])
+
+    providerRegistry.register(openai)
+
+    // gpt-5.4 is a subscription-only model not in the static list
+    expect(providerRegistry.isKnownModel('gpt-5.4')).toBe(false)
+
+    providerRegistry.indexModels(['gpt-5.4', 'gpt-5.3-codex'], openai)
+
+    expect(providerRegistry.isKnownModel('gpt-5.4')).toBe(true)
+    expect(providerRegistry.getProviderForModel('gpt-5.4')?.id).toBe('openai')
+    expect(providerRegistry.isKnownModel('gpt-5.3-codex')).toBe(true)
+    expect(providerRegistry.getProviderForModel('gpt-5.3-codex')?.id).toBe('openai')
+  })
+
+  it('does not overwrite existing model ownership when indexing', async () => {
+    const { providerRegistry } = await import('../registry')
+    const openai = createProvider('openai', ['gpt-4.1-mini'])
+    const openrouter = createProvider('openrouter', [])
+
+    providerRegistry.register(openai)
+    providerRegistry.register(openrouter)
+
+    // Index the same model for a different provider — should not overwrite
+    providerRegistry.indexModels(['gpt-4.1-mini'], openrouter)
+
+    expect(providerRegistry.getProviderForModel('gpt-4.1-mini')?.id).toBe('openai')
   })
 })
