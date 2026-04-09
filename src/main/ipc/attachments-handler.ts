@@ -11,9 +11,8 @@ import {
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type { HydratedAttachment, PreparedAttachment } from '@shared/types/agent'
 import { choose } from '@shared/utils/decision'
-import { isPathInside } from '@shared/utils/paths'
 import * as Effect from 'effect/Effect'
-import { app, dialog } from 'electron'
+import { app } from 'electron'
 import { createLogger } from '../logger'
 import { broadcastToWindows } from '../utils/broadcast'
 import { typedHandle } from './typed-ipc'
@@ -225,28 +224,6 @@ function normalizeText(value: string): string {
   return `${trimmed.slice(0, MAX_EXTRACTED_TEXT_CHARS)}\n...[truncated]`
 }
 
-async function requestExternalAttachmentAccess(
-  projectRootPath: string,
-  attachmentPath: string,
-): Promise<boolean> {
-  const result = await dialog.showMessageBox({
-    type: 'warning',
-    buttons: ['Allow once', 'Deny'],
-    defaultId: 1,
-    cancelId: 1,
-    noLink: true,
-    title: 'Attachment outside project',
-    message: 'This file is outside the active project folder.',
-    detail: [
-      `Project: ${projectRootPath}`,
-      `Attachment: ${attachmentPath}`,
-      '',
-      'Allow this file once?',
-    ].join('\n'),
-  })
-  return result.response === 0
-}
-
 function decodeXmlEntities(value: string): string {
   return value.replaceAll(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (_raw, entity: string): string => {
     if (entity.startsWith('#x') || entity.startsWith('#X')) {
@@ -427,27 +404,12 @@ export function registerAttachmentHandlers(): void {
         )
       }
 
-      const projectRoot = yield* Effect.promise(() => fs.realpath(pp))
-      const approvedPaths: string[] = []
-      for (const filePath of uniquePaths) {
-        const resolvedPath = yield* Effect.promise(() => fs.realpath(filePath))
-        if (!isPathInside(projectRoot, resolvedPath)) {
-          const approved = yield* Effect.promise(() =>
-            requestExternalAttachmentAccess(projectRoot, resolvedPath),
-          )
-          if (!approved) {
-            return yield* Effect.fail(
-              new Error(
-                `Attachment access denied for file outside project root: ${path.basename(resolvedPath)}`,
-              ),
-            )
-          }
-        }
-        approvedPaths.push(resolvedPath)
-      }
+      const resolvedPaths = yield* Effect.promise(() =>
+        Promise.all(uniquePaths.map((filePath) => fs.realpath(filePath))),
+      )
 
       const stats = yield* Effect.promise(() =>
-        Promise.all(approvedPaths.map((filePath) => fs.stat(filePath))),
+        Promise.all(resolvedPaths.map((filePath) => fs.stat(filePath))),
       )
       const totalSize = stats.reduce((sum, stat) => sum + stat.size, 0)
       if (totalSize > MAX_TOTAL_SIZE_BYTES) {
@@ -459,7 +421,7 @@ export function registerAttachmentHandlers(): void {
       }
 
       const prepared: PreparedAttachment[] = []
-      for (const filePath of approvedPaths) {
+      for (const filePath of resolvedPaths) {
         prepared.push(yield* Effect.promise(() => prepareAttachment(filePath)))
       }
       return prepared

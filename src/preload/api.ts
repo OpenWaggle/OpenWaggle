@@ -8,7 +8,7 @@ import type {
   IpcSendChannel,
   OpenWaggleApi,
 } from '@shared/types/ipc'
-import { ipcRenderer } from 'electron'
+import { ipcRenderer, webUtils } from 'electron'
 
 function invoke<C extends IpcInvokeChannel>(
   channel: C,
@@ -115,6 +115,9 @@ export const api: OpenWaggleApi = {
   renameGitBranch: invoke('git:branches:rename'),
   deleteGitBranch: invoke('git:branches:delete'),
   setGitBranchUpstream: invoke('git:branches:set-upstream'),
+
+  // File paths (preload-only, no IPC round-trip)
+  getFilePath: (file: File) => webUtils.getPathForFile(file),
 
   // Attachments
   prepareAttachments: invoke('attachments:prepare'),
