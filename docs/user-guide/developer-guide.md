@@ -185,7 +185,7 @@ Tools are defined in `src/main/tools/tools/` using `defineOpenWaggleTool()`:
 
 - Each tool has an Effect Schema input contract for argument validation.
 - `ToolContext` (project path, abort signal, dynamic skills) is bound explicitly per run.
-- Path resolution prevents escaping the project root.
+- Path resolution supports both relative (project-rooted) and absolute paths.
 - Results are structured as `{ kind: 'text' | 'json' }`.
 
 ### Feature System

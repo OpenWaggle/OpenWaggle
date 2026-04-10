@@ -282,18 +282,19 @@ describe('createExecutorTools', () => {
     expect(result).toEqual({ kind: 'text', text: 'hello world' })
   })
 
-  it('readFile tool rejects paths outside project', async () => {
+  it('readFile tool allows paths outside project', async () => {
     const tools = await createExecutorTools(tmpDir)
     const readFileTool = tools[0]
 
+    // Paths outside the project should not be rejected — they attempt a real read
     const result = await (readFileTool as { execute: (args: unknown) => Promise<unknown> }).execute(
       {
-        path: '../../../../etc/passwd',
+        path: '../../../../etc/nonexistent-file-for-test',
       },
     )
     expect(result).toEqual({
       kind: 'text',
-      text: 'Error: path is outside the project directory',
+      text: expect.stringContaining('Error reading file:'),
     })
   })
 

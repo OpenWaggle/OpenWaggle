@@ -374,12 +374,20 @@ export async function createExecutorTools(
 
   const ignore = await buildIgnorePatterns(projectPath)
   const readFileArgsSchema = Schema.Struct({
-    path: Schema.String.annotations({ description: 'File path relative to the project root' }),
+    path: Schema.String.annotations({
+      description: 'File path relative to the project root, or an absolute path',
+    }),
   })
   const globArgsSchema = Schema.Struct({
     pattern: Schema.String.annotations({
       description: 'Glob pattern (e.g., "**/*.ts", "src/**/*.tsx")',
     }),
+    path: Schema.optional(
+      Schema.String.annotations({
+        description:
+          'Base directory to search in. Defaults to the project root. Use an absolute path to search outside the project.',
+      }),
+    ),
   })
   const webFetchArgsSchema = Schema.Struct({
     url: Schema.String.annotations({
@@ -395,28 +403,28 @@ export async function createExecutorTools(
   const readFile = toolDefinition({
     name: 'readFile',
     description:
-      'Read a file from the project. Use this to gather additional context about the codebase when the provided project context is insufficient.',
+      'Read a file. Use this to gather additional context about the codebase when the provided project context is insufficient.',
     inputSchema: readFileArgsSchema,
   }).server(async (rawArgs: unknown) => {
     const args = decodeUnknownOrThrow(readFileArgsSchema, rawArgs)
     const resolved = path.resolve(projectPath, args.path)
-    if (!isPathInside(projectPath, resolved)) {
-      return textToolResult('Error: path is outside the project directory')
-    }
 
-    // Block reads of files excluded by .gitignore (secrets, build artifacts, deps)
-    const relPath = path.relative(projectPath, resolved)
-    const [allowed] = await fg(relPath, {
-      cwd: projectPath,
-      ignore,
-      onlyFiles: true,
-    })
-    if (!allowed) {
-      try {
-        await fs.stat(resolved)
-        return textToolResult('Error: file is excluded by project ignore patterns (.gitignore)')
-      } catch {
-        return textToolResult('Error reading file: file not found')
+    // Block reads of files excluded by .gitignore when inside the project
+    const isInsideProject = isPathInside(projectPath, resolved)
+    if (isInsideProject) {
+      const relPath = path.relative(projectPath, resolved)
+      const [allowed] = await fg(relPath, {
+        cwd: projectPath,
+        ignore,
+        onlyFiles: true,
+      })
+      if (!allowed) {
+        try {
+          await fs.stat(resolved)
+          return textToolResult('Error: file is excluded by project ignore patterns (.gitignore)')
+        } catch {
+          return textToolResult('Error reading file: file not found')
+        }
       }
     }
 
@@ -447,19 +455,16 @@ export async function createExecutorTools(
   const glob = toolDefinition({
     name: 'glob',
     description:
-      'Find files matching a glob pattern in the project. Use this to discover project structure and locate relevant files.',
+      'Find files matching a glob pattern. Use this to discover project structure and locate relevant files.',
     inputSchema: globArgsSchema,
   }).server(async (rawArgs: unknown) => {
     const args = decodeUnknownOrThrow(globArgsSchema, rawArgs)
-    const normalized = args.pattern.replaceAll('\\', '/')
-    if (path.isAbsolute(args.pattern) || normalized.split('/').includes('..')) {
-      return textToolResult('Error: pattern must be relative to the project root')
-    }
+    const cwd = args.path ?? projectPath
 
     try {
       const files = await fg(args.pattern, {
-        cwd: projectPath,
-        ignore,
+        cwd,
+        ignore: cwd === projectPath ? ignore : ['node_modules/**', '.git/**', 'dist/**', 'out/**'],
         onlyFiles: true,
         dot: false,
       })

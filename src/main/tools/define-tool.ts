@@ -1,10 +1,8 @@
-import fs from 'node:fs'
 import path from 'node:path'
 import { BYTES_PER_KIBIBYTE, PERCENT_BASE } from '@shared/constants/constants'
 import { decodeUnknownOrThrow, type Schema, type SchemaType } from '@shared/schema'
 import type { ConversationId } from '@shared/types/brand'
 import type { AgentStreamChunk } from '@shared/types/stream'
-import { isPathInside } from '@shared/utils/paths'
 import { type ServerTool, type ToolExecutionContext, toolDefinition } from '@tanstack/ai'
 import { JSONSchema } from 'effect'
 import type { WaggleFileCache } from '../agent/waggle-file-cache'
@@ -15,7 +13,6 @@ import { applyContextInjection } from './context-injection-buffer'
 
 const logger = createLogger('tools')
 const MAX_TOOL_OUTPUT_BYTES = PERCENT_BASE * BYTES_PER_KIBIBYTE // 100 KB
-const projectRootCache = new Map<string, string>()
 
 /**
  * Convert an Effect Schema to a plain JSON Schema object that LLM providers accept.
@@ -300,38 +297,10 @@ function normalizeToolResult(result: string): NormalizedToolResult {
   }
 }
 
-/** Validate and resolve a file path within the project directory */
-export function resolveProjectPath(projectPath: string, filePath: string): string {
-  const resolved = path.resolve(projectPath, filePath)
-  const projectRoot = path.resolve(projectPath)
-  let projectRootReal = projectRootCache.get(projectPath)
-  if (projectRootReal === undefined) {
-    projectRootReal = fs.existsSync(projectRoot) ? fs.realpathSync(projectRoot) : projectRoot
-    projectRootCache.set(projectPath, projectRootReal)
-  }
-
-  // For existing files, resolve symlinks before checking
-  if (fs.existsSync(resolved)) {
-    const real = fs.realpathSync(resolved)
-    if (!isPathInside(projectRootReal, real)) {
-      throw new Error(`Path "${filePath}" resolves outside the project directory (symlink)`)
-    }
-    return resolved
-  }
-
-  // For new files (write operations), validate the parent directory
-  const parentDir = path.dirname(resolved)
-  if (fs.existsSync(parentDir)) {
-    const realParent = fs.realpathSync(parentDir)
-    if (!isPathInside(projectRootReal, realParent)) {
-      throw new Error(`Path "${filePath}" resolves outside the project directory (symlink)`)
-    }
-    return resolved
-  }
-
-  if (!isPathInside(projectRoot, resolved)) {
-    throw new Error(`Path "${filePath}" is outside the project directory`)
-  }
-
-  return resolved
+/**
+ * Resolve a file path for tool operations.
+ * Absolute paths are returned as-is. Relative paths are resolved against the project root.
+ */
+export function resolvePath(projectPath: string, filePath: string): string {
+  return path.resolve(projectPath, filePath)
 }

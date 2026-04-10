@@ -52,7 +52,7 @@ export const projectContextPromptFragment: AgentPromptFragment = {
   order: ORDER_VALUE_30,
   build: (context) => {
     if (context.hasProject) {
-      return `The user's project is located at: ${context.projectPath}\nAll file paths in tool calls should be relative to this project root.`
+      return `The user's project is located at: ${context.projectPath}\nFile paths in tool calls can be relative to this project root, or absolute paths to access files anywhere on the machine.`
     }
 
     return 'No project folder is currently selected. Ask the user to select a project folder if they want you to work with files.'

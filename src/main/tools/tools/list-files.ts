@@ -2,17 +2,18 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { BYTES_PER_KIBIBYTE, TRIPLE_FACTOR } from '@shared/constants/constants'
 import { Schema } from '@shared/schema'
-import { defineOpenWaggleTool, resolveProjectPath } from '../define-tool'
+import { defineOpenWaggleTool, resolvePath } from '../define-tool'
 
 export const listFilesTool = defineOpenWaggleTool({
   name: 'listFiles',
   description:
-    'List files and directories in a given path relative to the project root. Shows file types and sizes. Useful for exploring project structure.',
+    'List files and directories in a given path. Shows file types and sizes. Useful for exploring project structure and files outside the project.',
   inputSchema: Schema.Struct({
     path: Schema.optional(
       Schema.NullOr(
         Schema.String.annotations({
-          description: 'Directory path relative to the project root. Defaults to the project root.',
+          description:
+            'Directory path relative to the project root, or an absolute path. Defaults to the project root.',
         }),
       ),
     ),
@@ -25,7 +26,7 @@ export const listFilesTool = defineOpenWaggleTool({
     ),
   }),
   async execute(args, context) {
-    const dirPath = resolveProjectPath(context.projectPath, args.path ?? '.')
+    const dirPath = resolvePath(context.projectPath, args.path ?? '.')
 
     async function listDir(dir: string, depth: number): Promise<string[]> {
       const entries = await fs.readdir(dir, { withFileTypes: true })
