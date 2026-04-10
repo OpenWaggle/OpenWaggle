@@ -4,6 +4,7 @@ import { isProvider, type Settings } from '@shared/types/settings'
 import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/cn'
 import { ModelSelectorDropdown } from './ModelSelectorDropdown'
+import { resolveIcon, resolveIconColor } from './provider-icon'
 import type { FlatModel } from './types'
 
 interface ModelSelectorProps {
@@ -61,8 +62,9 @@ function buildFlatModels(providerModels: readonly ProviderInfo[], settings: Sett
 
     if (!isProvider(provider)) continue
 
-    // Look up display name from providerModels; fall back to modelId
-    const name = modelNameLookup.get(`${provider}:${modelId}`) ?? modelId
+    // Only include models that exist in the current provider model catalog
+    const name = modelNameLookup.get(`${provider}:${modelId}`)
+    if (name === undefined) continue
 
     models.push({
       id: SupportedModelId(modelId),
@@ -79,6 +81,17 @@ function buildFlatModels(providerModels: readonly ProviderInfo[], settings: Sett
   })
 
   return models
+}
+
+interface SelectedModelIconProps {
+  readonly provider: FlatModel['provider']
+  readonly authMethod: FlatModel['authMethod']
+}
+
+function SelectedModelIcon({ provider, authMethod }: SelectedModelIconProps) {
+  const Icon = resolveIcon(provider, authMethod)
+  const color = resolveIconColor(provider, authMethod)
+  return <Icon className="h-3.5 w-3.5 shrink-0" style={{ color }} />
 }
 
 export function ModelSelector({
@@ -155,6 +168,12 @@ export function ModelSelector({
           selectedModel ? 'text-text-secondary' : 'text-text-muted',
         )}
       >
+        {selectedModel && (
+          <SelectedModelIcon
+            provider={selectedModel.provider}
+            authMethod={selectedModel.authMethod}
+          />
+        )}
         <span className="max-w-[180px] truncate text-[12px]">
           {selectedModel?.name ?? 'Select model'}
         </span>

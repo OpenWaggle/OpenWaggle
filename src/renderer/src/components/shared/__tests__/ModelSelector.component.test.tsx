@@ -239,4 +239,56 @@ describe('ModelSelector', () => {
     // OpenAI not in enabledModels → no models shown
     expect(screen.queryByRole('option', { name: 'GPT 4.1 Mini' })).not.toBeInTheDocument()
   })
+
+  it('excludes stale enabledModels entries not in current provider catalog', () => {
+    seedStore({
+      settings: {
+        defaultModel: 'claude-sonnet-4-5',
+        enabledModels: [
+          'anthropic:api-key:claude-sonnet-4-5', // valid — exists in providerModels
+          'anthropic:api-key:claude-opus-4-5-20251101', // stale — version suffix doesn't match
+          'openai:subscription:gpt-5.4', // stale — no openai model with this ID in catalog
+        ],
+        providers: {
+          ...DEFAULT_SETTINGS.providers,
+          anthropic: { apiKey: 'anthropic-key', enabled: true },
+          openai: { apiKey: '', enabled: false },
+        },
+      },
+    })
+
+    const onChange = vi.fn()
+    render(<TestHarness onChange={onChange} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /claude sonnet 4\.5/i }))
+
+    // Valid model appears
+    expect(screen.getByRole('option', { name: 'Claude Sonnet 4.5' })).toBeInTheDocument()
+    // Stale entries do not appear (no raw IDs like 'claude-opus-4-5-20251101')
+    expect(screen.getAllByRole('option')).toHaveLength(1)
+  })
+
+  it('excludes legacy bare model IDs from dropdown', () => {
+    seedStore({
+      settings: {
+        defaultModel: 'claude-sonnet-4-5',
+        enabledModels: [
+          'gpt-5.4', // legacy bare ID — no provider:authMethod prefix
+          'anthropic:api-key:claude-sonnet-4-5',
+        ],
+        providers: {
+          ...DEFAULT_SETTINGS.providers,
+          anthropic: { apiKey: 'anthropic-key', enabled: true },
+        },
+      },
+    })
+
+    const onChange = vi.fn()
+    render(<TestHarness onChange={onChange} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /claude sonnet 4\.5/i }))
+
+    expect(screen.getAllByRole('option')).toHaveLength(1)
+    expect(screen.getByRole('option', { name: 'Claude Sonnet 4.5' })).toBeInTheDocument()
+  })
 })

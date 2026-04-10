@@ -5,6 +5,61 @@ import { isValidBaseUrl } from '@shared/utils/validation'
 import { create } from 'zustand'
 import { api } from '@/lib/ipc'
 
+const ENABLED_KEY_MIN_PARTS = 3
+const ENABLED_KEY_MODEL_ID_START = 2
+
+/**
+ * Build a set of "provider:modelId" keys from the current provider model catalog.
+ * Used to validate enabledModels entries against what actually exists.
+ */
+/** @internal Exported for testing */
+export function buildModelCatalogSet(providerModels: readonly ProviderInfo[]): Set<string> {
+  const catalog = new Set<string>()
+  for (const group of providerModels) {
+    for (const model of group.models) {
+      const trimmedId = model.id.trim()
+      if (trimmedId) {
+        catalog.add(`${group.provider}:${trimmedId}`)
+      }
+    }
+  }
+  return catalog
+}
+
+/**
+ * Remove enabledModels entries that reference models no longer in the provider
+ * catalog (stale version suffixes, removed models, legacy bare IDs).
+ */
+/** @internal Exported for testing */
+export function pruneStaleEnabledModels(
+  enabledModels: readonly string[],
+  catalog: ReadonlySet<string>,
+): string[] | null {
+  const pruned: string[] = []
+  let changed = false
+
+  for (const key of enabledModels) {
+    const parts = key.split(':')
+    if (parts.length < ENABLED_KEY_MIN_PARTS) {
+      // Legacy bare model ID — prune
+      changed = true
+      continue
+    }
+
+    const provider = parts[0]
+    const modelId = parts.slice(ENABLED_KEY_MODEL_ID_START).join(':')
+
+    if (!catalog.has(`${provider}:${modelId}`)) {
+      changed = true
+      continue
+    }
+
+    pruned.push(key)
+  }
+
+  return changed ? pruned : null
+}
+
 interface ProviderModelRefreshResult {
   readonly provider: Provider
   readonly models: ModelDisplayInfo[] | null
@@ -204,6 +259,14 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
     }
 
     set({ providerModels: nextProviderModels, modelFetchErrors: nextErrors })
+
+    // Prune enabledModels entries that reference models no longer in the catalog
+    const catalog = buildModelCatalogSet(nextProviderModels)
+    const currentSettings = usePreferencesStore.getState().settings
+    const pruned = pruneStaleEnabledModels(currentSettings.enabledModels, catalog)
+    if (pruned !== null) {
+      void usePreferencesStore.getState().setEnabledModels(pruned)
+    }
   },
 
   async updateApiKey(provider: Provider, apiKey: string) {
