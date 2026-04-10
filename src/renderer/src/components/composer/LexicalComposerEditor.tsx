@@ -11,14 +11,12 @@ import { createRendererLogger } from '@/lib/logger'
 import { FileMentionNode } from './nodes/FileMentionNode'
 import { SkillMentionNode } from './nodes/SkillMentionNode'
 import { SymbolMentionNode } from './nodes/SymbolMentionNode'
-import { URLMentionNode } from './nodes/URLMentionNode'
 import { AutoResizePlugin } from './plugins/AutoResizePlugin'
 import { EditorRefPlugin } from './plugins/EditorRefPlugin'
 import { KeyboardPlugin } from './plugins/KeyboardPlugin'
 import { MentionTypeaheadPlugin } from './plugins/MentionTypeaheadPlugin'
 import { PastePlugin } from './plugins/PastePlugin'
 import { SyncPlugin } from './plugins/SyncPlugin'
-import { URLDetectPlugin } from './plugins/URLDetectPlugin'
 
 interface LexicalComposerEditorProps {
   onSubmit: (text: string) => void
@@ -45,7 +43,7 @@ export function LexicalComposerEditor({
   const initialConfig = {
     namespace: 'composer',
     theme: EDITOR_THEME,
-    nodes: [FileMentionNode, SkillMentionNode, URLMentionNode, SymbolMentionNode],
+    nodes: [FileMentionNode, SkillMentionNode, SymbolMentionNode],
     editable: !disabled,
     onError: (error: Error) => {
       logger.error('Lexical editor error', { message: error.message })
@@ -79,7 +77,6 @@ export function LexicalComposerEditor({
       <AutoResizePlugin />
       <PastePlugin checkAndConvertPaste={checkAndConvertPaste} />
       <MentionTypeaheadPlugin />
-      <URLDetectPlugin />
       <EditorRefPlugin editorRef={editorRef} />
     </LexicalComposer>
   )
