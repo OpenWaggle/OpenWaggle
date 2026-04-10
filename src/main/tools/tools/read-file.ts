@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import { BYTES_PER_KIBIBYTE } from '@shared/constants/constants'
 import { Schema } from '@shared/schema'
-import { defineOpenWaggleTool, resolveProjectPath } from '../define-tool'
+import { defineOpenWaggleTool, resolvePath } from '../define-tool'
 
 const MAX_FILE_SIZE = BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE // 1 MB
 
@@ -22,9 +22,11 @@ function formatReadContent(content: string, maxLines?: number | null): string {
 export const readFileTool = defineOpenWaggleTool({
   name: 'readFile',
   description:
-    'Read the contents of a file at the given path relative to the project root. Returns the file content as text. Use this to understand existing code before making changes.',
+    'Read the contents of a file at the given path. Returns the file content as text. Use this to understand existing code before making changes.',
   inputSchema: Schema.Struct({
-    path: Schema.String.annotations({ description: 'File path relative to the project root' }),
+    path: Schema.String.annotations({
+      description: 'File path relative to the project root, or an absolute path',
+    }),
     maxLines: Schema.optional(
       Schema.NullOr(
         Schema.Number.annotations({
@@ -34,7 +36,7 @@ export const readFileTool = defineOpenWaggleTool({
     ),
   }),
   async execute(args, context) {
-    const filePath = resolveProjectPath(context.projectPath, args.path)
+    const filePath = resolvePath(context.projectPath, args.path)
 
     // During waggle runs, return cached content if another agent already read this file
     const cachedEntry = context.waggle?.fileCache.get(filePath)

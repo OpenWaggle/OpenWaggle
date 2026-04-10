@@ -1,13 +1,15 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { Schema } from '@shared/schema'
-import { defineOpenWaggleTool, resolveProjectPath } from '../define-tool'
+import { defineOpenWaggleTool, resolvePath } from '../define-tool'
 import { buildFileMutationResult } from './file-mutation-result'
 
 const MAX_ATTACHMENT_LIST_PREVIEW = 5
 
 const writeFileArgsSchema = Schema.Struct({
-  path: Schema.String.annotations({ description: 'File path relative to the project root' }),
+  path: Schema.String.annotations({
+    description: 'File path relative to the project root, or an absolute path',
+  }),
   content: Schema.optional(
     Schema.NullOr(
       Schema.String.annotations({
@@ -60,11 +62,11 @@ function resolveContentFromAttachment(
 export const writeFileTool = defineOpenWaggleTool({
   name: 'writeFile',
   description:
-    'Write content to a file at the given path relative to the project root. Creates the file and any parent directories if they do not exist, and overwrites the file if it already exists. For large user attachments, prefer passing attachmentName (or only path when exactly one attachment is present) instead of embedding full text in content.',
+    'Write content to a file at the given path. Creates the file and any parent directories if they do not exist, and overwrites the file if it already exists. For large user attachments, prefer passing attachmentName (or only path when exactly one attachment is present) instead of embedding full text in content.',
   needsApproval: true,
   inputSchema: writeFileArgsSchema,
   async execute(args, context) {
-    const filePath = resolveProjectPath(context.projectPath, args.path)
+    const filePath = resolvePath(context.projectPath, args.path)
     await fs.mkdir(path.dirname(filePath), { recursive: true })
 
     let beforeContent = ''

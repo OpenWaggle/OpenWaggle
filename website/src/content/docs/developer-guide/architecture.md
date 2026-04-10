@@ -46,7 +46,7 @@ In Waggle Mode, two agents take alternating turns on the same task. The orchestr
 
 ## Tool System
 
-Tools are the agent's interface to your project. Each tool has a defined input contract, and tools that modify files or run commands require your approval before executing. Tools are sandboxed to your project directory — the agent cannot access files outside your project root.
+Tools are the agent's interface to your project. Each tool has a defined input contract, and tools that modify files or run commands require your approval before executing. Tools default to the project directory but can access files anywhere on the machine using absolute paths.
 
 ## Extensibility
 
