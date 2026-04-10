@@ -5,6 +5,7 @@ import type { WaggleAgentColor } from '@shared/types/waggle'
 import { chooseBy } from '@shared/utils/decision'
 import type { UIMessage } from '@tanstack/ai-react'
 import React from 'react'
+import { useOrchestrationTaskStatus } from '@/hooks/useOrchestrationTaskStatus'
 import { AGENT_BORDER_LEFT } from '@/lib/agent-colors'
 import { cn } from '@/lib/cn'
 import { AgentLabel } from './AgentLabel'
@@ -21,6 +22,7 @@ export interface WaggleInfo {
 interface AssistantMessageBubbleProps {
   message: UIMessage
   isStreaming?: boolean
+  isRunActive?: boolean
   assistantModel?: SupportedModelId
   conversationId: ConversationId | null
   onRespondToPlan?: (conversationId: ConversationId, response: PlanResponse) => Promise<void>
@@ -30,12 +32,14 @@ interface AssistantMessageBubbleProps {
 export function AssistantMessageBubble({
   message,
   isStreaming,
+  isRunActive,
   assistantModel,
   conversationId,
   onRespondToPlan,
   waggle,
 }: AssistantMessageBubbleProps) {
-  const collapse = useMessageCollapse(message, isStreaming, !!waggle)
+  const collapse = useMessageCollapse(message, isStreaming, isRunActive, !!waggle)
+  const taskStatusLookup = useOrchestrationTaskStatus(conversationId)
 
   const toolResults = new Map<string, { content: unknown; state: string; error?: string }>()
   for (const part of message.parts) {
@@ -87,6 +91,7 @@ export function AssistantMessageBubble({
                       conversationId={conversationId}
                       onRespondToPlan={onRespondToPlan}
                       isStreaming={!!isStreaming}
+                      taskStatusLookup={taskStatusLookup}
                     />
                   ))
                   .case('thinking', () => null)

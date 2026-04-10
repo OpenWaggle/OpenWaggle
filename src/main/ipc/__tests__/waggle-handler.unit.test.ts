@@ -74,6 +74,7 @@ vi.mock('../../agent/error-classifier', () => ({
 const TestSettingsLayer = Layer.succeed(SettingsService, {
   get: () => Effect.sync(() => getSettingsMock()),
   update: () => Effect.void,
+  transformMcpServers: () => Effect.void,
   initialize: () => Effect.void,
   flushForTests: () => Effect.void,
 })

@@ -56,6 +56,8 @@ import {
 import { StreamPartCollector } from './stream-part-collector'
 import { type ProviderErrorInfo, processAgentStreamEffect } from './stream-processor'
 import { resolveToolContextAttachments } from './tool-context-attachments'
+import { smoothStream } from './transforms/smooth-stream'
+import type { WaggleFileCache } from './waggle-file-cache'
 
 const logger = createLogger('agent')
 const approvalTraceLogger = createLogger('approval-trace')
@@ -65,6 +67,7 @@ const MAX_STALL_RETRIES = 2
 const STALL_RETRY_DELAY_MS = 2000
 const MAX_PROVIDER_RETRIES = 2
 const PROVIDER_RETRY_BASE_DELAY_MS = 1000
+const EXPONENTIAL_BACKOFF_BASE = 2
 const INCOMPLETE_TOOL_ARGS_STALL_ERROR =
   'Agent stream stalled while generating tool arguments. Please try again.'
 const INCOMPLETE_TOOL_CALL_STALL_ERROR =
@@ -91,7 +94,7 @@ export interface AgentRunParams {
   /** Waggle file cache context — shared across agents in a waggle session. */
   readonly waggleContext?: {
     readonly agentLabel: string
-    readonly fileCache: import('./waggle-file-cache').WaggleFileCache
+    readonly fileCache: WaggleFileCache
   }
   /** Maximum agent loop iterations. Defaults to MAX_ITERATIONS (25). */
   readonly maxTurns?: number
@@ -372,7 +375,7 @@ export function runAgentEffect(
           )
 
           const streamProcessingEffect = processAgentStreamEffect({
-            stream,
+            stream: smoothStream(stream),
             collector,
             onChunk: deduplicatedOnChunk,
             signal,
@@ -490,7 +493,8 @@ export function runAgentEffect(
         }
 
         providerRetryAttempt += 1
-        const backoffMs = PROVIDER_RETRY_BASE_DELAY_MS * 2 ** (providerRetryAttempt - 1)
+        const backoffMs =
+          PROVIDER_RETRY_BASE_DELAY_MS * EXPONENTIAL_BACKOFF_BASE ** (providerRetryAttempt - 1)
         yield* Effect.sleep(Duration.millis(backoffMs))
 
         if (signal.aborted) {
@@ -561,7 +565,7 @@ export function runAgentEffect(
               )
 
               return yield* processAgentStreamEffect({
-                stream: nudgeStream,
+                stream: smoothStream(nudgeStream),
                 collector,
                 onChunk: deduplicatedOnChunk,
                 signal,

@@ -3,6 +3,7 @@ import type { OrchestrationTaskStatus } from '@shared/types/orchestration'
 import type { PlanResponse } from '@shared/types/plan'
 import type { UIMessage } from '@tanstack/ai-react'
 import { Check, ClipboardList } from 'lucide-react'
+import type { TaskLiveStatus } from '@/hooks/useOrchestrationTaskStatus'
 import {
   countQuestions,
   parseOrchestrateTasks,
@@ -19,6 +20,7 @@ interface ToolCallRouterProps {
   conversationId: ConversationId | null
   onRespondToPlan?: (conversationId: ConversationId, response: PlanResponse) => Promise<void>
   isStreaming: boolean
+  taskStatusLookup?: (taskId: string) => TaskLiveStatus | undefined
 }
 
 export function ToolCallRouter({
@@ -27,6 +29,7 @@ export function ToolCallRouter({
   conversationId,
   onRespondToPlan,
   isStreaming,
+  taskStatusLookup,
 }: ToolCallRouterProps) {
   // Synthetic turn-boundary markers are only structural separators
   // for Waggle streaming — never render them as tool calls.
@@ -80,7 +83,7 @@ export function ToolCallRouter({
     const result = toolResults.get(part.id)
     const tasks = parseOrchestrateTasks(part.arguments)
     const hasToolError = result?.state === 'error' || !!result?.error
-    const taskStatus: OrchestrationTaskStatus = result
+    const fallbackStatus: OrchestrationTaskStatus = result
       ? hasToolError
         ? 'failed'
         : 'completed'
@@ -90,10 +93,13 @@ export function ToolCallRouter({
     const isComplete = !!result || !isStreaming
     return (
       <SubAgentGroup
-        tasks={tasks.map((t) => ({
-          ...t,
-          status: taskStatus,
-        }))}
+        tasks={tasks.map((t) => {
+          const live = taskStatusLookup?.(t.id)
+          if (live) {
+            return { ...t, status: live.status, output: live.output, error: live.error }
+          }
+          return { ...t, status: fallbackStatus }
+        })}
         isComplete={isComplete}
       />
     )

@@ -6,6 +6,7 @@
  * mapper enforces the type boundary at compile time.
  */
 import type { AgentStreamChunk } from '@shared/types/stream'
+import { chooseBy } from '@shared/utils/decision'
 import type { StreamChunk, UIMessage } from '@tanstack/ai'
 
 /**
@@ -25,324 +26,290 @@ function isUIMessageShape(value: unknown): value is UIMessage {
  * Convert a TanStack AI StreamChunk to a domain-owned AgentStreamChunk.
  */
 export function toAgentStreamChunk(chunk: StreamChunk): AgentStreamChunk {
-  switch (chunk.type) {
-    case 'RUN_STARTED':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        runId: chunk.runId,
-        threadId: chunk.threadId,
-      }
-    case 'RUN_FINISHED':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        runId: chunk.runId,
-        finishReason: chunk.finishReason,
-        usage: chunk.usage
-          ? {
-              promptTokens: chunk.usage.promptTokens,
-              completionTokens: chunk.usage.completionTokens,
-              totalTokens: chunk.usage.totalTokens,
-            }
-          : undefined,
-      }
-    case 'RUN_ERROR':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        runId: chunk.runId,
-        error: {
-          message: chunk.error.message,
-          code: chunk.error.code,
-          ...('name' in chunk.error && typeof chunk.error.name === 'string'
-            ? { name: chunk.error.name }
-            : {}),
-          ...('stack' in chunk.error && typeof chunk.error.stack === 'string'
-            ? { stack: chunk.error.stack }
-            : {}),
-        },
-      }
-    case 'TEXT_MESSAGE_START':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        messageId: chunk.messageId,
-        role: chunk.role,
-      }
-    case 'TEXT_MESSAGE_CONTENT':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        messageId: chunk.messageId,
-        delta: chunk.delta,
-        content: chunk.content,
-      }
-    case 'TEXT_MESSAGE_END':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        messageId: chunk.messageId,
-      }
-    case 'TOOL_CALL_START':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        toolCallId: chunk.toolCallId,
-        toolName: chunk.toolName,
-        parentMessageId: chunk.parentMessageId,
-        index: chunk.index,
-      }
-    case 'TOOL_CALL_ARGS':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        toolCallId: chunk.toolCallId,
-        delta: chunk.delta,
-        args: chunk.args,
-      }
-    case 'TOOL_CALL_END':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        toolCallId: chunk.toolCallId,
-        toolName: chunk.toolName,
-        input: chunk.input,
-        result: chunk.result,
-      }
-    case 'STEP_STARTED':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        stepId: chunk.stepId,
-        stepType: chunk.stepType,
-      }
-    case 'STEP_FINISHED':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        stepId: chunk.stepId,
-        delta: chunk.delta,
-        content: chunk.content,
-      }
-    case 'MESSAGES_SNAPSHOT':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        messages: chunk.messages,
-      }
-    case 'STATE_SNAPSHOT':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        state: chunk.state,
-      }
-    case 'STATE_DELTA':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        delta: chunk.delta,
-      }
-    case 'CUSTOM':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        name: chunk.name,
-        value: chunk.value,
-      }
-  }
+  return chooseBy(chunk, 'type')
+    .case('RUN_STARTED', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      runId: c.runId,
+      threadId: c.threadId,
+    }))
+    .case('RUN_FINISHED', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      runId: c.runId,
+      finishReason: c.finishReason,
+      usage: c.usage
+        ? {
+            promptTokens: c.usage.promptTokens,
+            completionTokens: c.usage.completionTokens,
+            totalTokens: c.usage.totalTokens,
+          }
+        : undefined,
+    }))
+    .case('RUN_ERROR', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      runId: c.runId,
+      error: {
+        message: c.error.message,
+        code: c.error.code,
+        ...('name' in c.error && typeof c.error.name === 'string' ? { name: c.error.name } : {}),
+        ...('stack' in c.error && typeof c.error.stack === 'string'
+          ? { stack: c.error.stack }
+          : {}),
+      },
+    }))
+    .case('TEXT_MESSAGE_START', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      messageId: c.messageId,
+      role: c.role,
+    }))
+    .case('TEXT_MESSAGE_CONTENT', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      messageId: c.messageId,
+      delta: c.delta,
+      content: c.content,
+    }))
+    .case('TEXT_MESSAGE_END', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      messageId: c.messageId,
+    }))
+    .case('TOOL_CALL_START', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      toolCallId: c.toolCallId,
+      toolName: c.toolName,
+      parentMessageId: c.parentMessageId,
+      index: c.index,
+    }))
+    .case('TOOL_CALL_ARGS', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      toolCallId: c.toolCallId,
+      delta: c.delta,
+      args: c.args,
+    }))
+    .case('TOOL_CALL_END', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      toolCallId: c.toolCallId,
+      toolName: c.toolName,
+      input: c.input,
+      result: c.result,
+    }))
+    .case('STEP_STARTED', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      stepId: c.stepId,
+      stepType: c.stepType,
+    }))
+    .case('STEP_FINISHED', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      stepId: c.stepId,
+      delta: c.delta,
+      content: c.content,
+    }))
+    .case('MESSAGES_SNAPSHOT', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      messages: c.messages,
+    }))
+    .case('STATE_SNAPSHOT', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      state: c.state,
+    }))
+    .case('STATE_DELTA', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      delta: c.delta,
+    }))
+    .case('CUSTOM', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      name: c.name,
+      value: c.value,
+    }))
+    .assertComplete()
 }
 
 /**
  * Convert a domain-owned AgentStreamChunk back to a TanStack AI StreamChunk.
  */
 export function fromAgentStreamChunk(chunk: AgentStreamChunk): StreamChunk {
-  switch (chunk.type) {
-    case 'RUN_STARTED':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        runId: chunk.runId,
-        threadId: chunk.threadId,
-      }
-    case 'RUN_FINISHED':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        runId: chunk.runId,
-        finishReason: chunk.finishReason,
-        usage: chunk.usage
-          ? {
-              promptTokens: chunk.usage.promptTokens,
-              completionTokens: chunk.usage.completionTokens,
-              totalTokens: chunk.usage.totalTokens,
-            }
-          : undefined,
-      }
-    case 'RUN_ERROR':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        runId: chunk.runId,
-        error: {
-          message: chunk.error.message,
-          code: chunk.error.code,
-          ...('name' in chunk.error && typeof chunk.error.name === 'string'
-            ? { name: chunk.error.name }
-            : {}),
-          ...('stack' in chunk.error && typeof chunk.error.stack === 'string'
-            ? { stack: chunk.error.stack }
-            : {}),
-        },
-      }
-    case 'TEXT_MESSAGE_START':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        messageId: chunk.messageId,
-        role: chunk.role,
-      }
-    case 'TEXT_MESSAGE_CONTENT':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        messageId: chunk.messageId,
-        delta: chunk.delta,
-        content: chunk.content,
-      }
-    case 'TEXT_MESSAGE_END':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        messageId: chunk.messageId,
-      }
-    case 'TOOL_CALL_START':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        toolCallId: chunk.toolCallId,
-        toolName: chunk.toolName,
-        parentMessageId: chunk.parentMessageId,
-        index: chunk.index,
-      }
-    case 'TOOL_CALL_ARGS':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        toolCallId: chunk.toolCallId,
-        delta: chunk.delta,
-        args: chunk.args,
-      }
-    case 'TOOL_CALL_END':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        toolCallId: chunk.toolCallId,
-        toolName: chunk.toolName,
-        input: chunk.input,
-        result: chunk.result,
-      }
-    case 'STEP_STARTED':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        stepId: chunk.stepId,
-        stepType: chunk.stepType,
-      }
-    case 'STEP_FINISHED':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        stepId: chunk.stepId,
-        delta: chunk.delta,
-        content: chunk.content,
-      }
-    case 'MESSAGES_SNAPSHOT':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        // MESSAGES_SNAPSHOT messages are UIMessages at runtime, stored as unknown[] in domain.
-        // Validated at runtime via structural check — no compile-time cast needed.
-        messages: chunk.messages.filter(isUIMessageShape),
-      }
-    case 'STATE_SNAPSHOT':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        state: chunk.state,
-      }
-    case 'STATE_DELTA':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        delta: chunk.delta,
-      }
-    case 'CUSTOM':
-      return {
-        type: chunk.type,
-        timestamp: chunk.timestamp,
-        model: chunk.model,
-        rawEvent: chunk.rawEvent,
-        name: chunk.name,
-        value: chunk.value,
-      }
-  }
+  return chooseBy(chunk, 'type')
+    .case('RUN_STARTED', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      runId: c.runId,
+      threadId: c.threadId,
+    }))
+    .case('RUN_FINISHED', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      runId: c.runId,
+      finishReason: c.finishReason,
+      usage: c.usage
+        ? {
+            promptTokens: c.usage.promptTokens,
+            completionTokens: c.usage.completionTokens,
+            totalTokens: c.usage.totalTokens,
+          }
+        : undefined,
+    }))
+    .case('RUN_ERROR', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      runId: c.runId,
+      error: {
+        message: c.error.message,
+        code: c.error.code,
+        ...('name' in c.error && typeof c.error.name === 'string' ? { name: c.error.name } : {}),
+        ...('stack' in c.error && typeof c.error.stack === 'string'
+          ? { stack: c.error.stack }
+          : {}),
+      },
+    }))
+    .case('TEXT_MESSAGE_START', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      messageId: c.messageId,
+      role: c.role,
+    }))
+    .case('TEXT_MESSAGE_CONTENT', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      messageId: c.messageId,
+      delta: c.delta,
+      content: c.content,
+    }))
+    .case('TEXT_MESSAGE_END', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      messageId: c.messageId,
+    }))
+    .case('TOOL_CALL_START', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      toolCallId: c.toolCallId,
+      toolName: c.toolName,
+      parentMessageId: c.parentMessageId,
+      index: c.index,
+    }))
+    .case('TOOL_CALL_ARGS', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      toolCallId: c.toolCallId,
+      delta: c.delta,
+      args: c.args,
+    }))
+    .case('TOOL_CALL_END', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      toolCallId: c.toolCallId,
+      toolName: c.toolName,
+      input: c.input,
+      result: c.result,
+    }))
+    .case('STEP_STARTED', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      stepId: c.stepId,
+      stepType: c.stepType,
+    }))
+    .case('STEP_FINISHED', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      stepId: c.stepId,
+      delta: c.delta,
+      content: c.content,
+    }))
+    .case('MESSAGES_SNAPSHOT', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      // MESSAGES_SNAPSHOT messages are UIMessages at runtime, stored as unknown[] in domain.
+      // Validated at runtime via structural check — no compile-time cast needed.
+      messages: c.messages.filter(isUIMessageShape),
+    }))
+    .case('STATE_SNAPSHOT', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      state: c.state,
+    }))
+    .case('STATE_DELTA', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      delta: c.delta,
+    }))
+    .case('CUSTOM', (c) => ({
+      type: c.type,
+      timestamp: c.timestamp,
+      model: c.model,
+      rawEvent: c.rawEvent,
+      name: c.name,
+      value: c.value,
+    }))
+    .assertComplete()
 }

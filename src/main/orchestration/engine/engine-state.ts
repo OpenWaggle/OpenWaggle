@@ -7,6 +7,7 @@ import type {
   OrchestrationRunStatus,
   OrchestrationTaskAttempt,
   OrchestrationTaskOutputValue,
+  OrchestrationTaskRecord,
   OrchestrationTaskRetryPolicy,
   OrchestrationTaskStatus,
   RunSummary,
@@ -134,7 +135,7 @@ export function restoreState(snapshot: OrchestrationRunRecord): MutableRunState 
 }
 
 export function snapshotState(state: MutableRunState): OrchestrationRunRecord {
-  const tasks: Record<string, import('./types').OrchestrationTaskRecord> = {}
+  const tasks: Record<string, OrchestrationTaskRecord> = {}
   for (const taskId of state.taskOrder) {
     const task = state.tasks.get(taskId)
     if (!task) {

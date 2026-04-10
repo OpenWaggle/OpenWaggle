@@ -1,5 +1,6 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
+import type { DomainContinuationMessage } from '@shared/types/continuation'
 import {
   type AgentErrorInfo,
   classifyErrorMessage,
@@ -141,56 +142,54 @@ function hasApprovalContinuationSnapshot(
 
 function toContinuationMessages(
   messages: Array<UIMessage> | Array<ModelMessage>,
-): readonly import('@shared/types/continuation').DomainContinuationMessage[] {
+): readonly DomainContinuationMessage[] {
   // Map vendor messages to domain types at the renderer boundary.
   // UIMessage (has 'parts') → DomainUiContinuationMessage
   // ModelMessage (has 'content') → DomainModelContinuationMessage
-  return [...messages].map(
-    (msg): import('@shared/types/continuation').DomainContinuationMessage => {
-      if ('parts' in msg) {
-        return {
-          id: msg.id,
-          role: msg.role,
-          // Map vendor MessagePart[] → domain DomainUiMessagePart[] by extracting shared fields
-          parts: msg.parts.map((p) => {
-            if (p.type === 'text') return { type: 'text' as const, content: p.content }
-            if (p.type === 'tool-call')
-              return {
-                type: 'tool-call' as const,
-                id: p.id,
-                name: p.name,
-                arguments: p.arguments,
-                state: p.state,
-                approval: p.approval,
-                output: p.output,
-              }
-            if (p.type === 'tool-result')
-              return {
-                type: 'tool-result' as const,
-                toolCallId: p.toolCallId,
-                content: p.content,
-                state: p.state,
-                error: p.error,
-              }
-            if (p.type === 'thinking') return { type: 'thinking' as const, content: p.content }
-            return { type: p.type as 'text', content: '' }
-          }),
-          createdAt: msg.createdAt,
-        }
-      }
+  return [...messages].map((msg): DomainContinuationMessage => {
+    if ('parts' in msg) {
       return {
+        id: msg.id,
         role: msg.role,
-        content: typeof msg.content === 'string' || msg.content === null ? msg.content : null,
-        name: msg.name,
-        toolCalls: msg.toolCalls?.map((tc) => ({
-          id: tc.id,
-          type: tc.type,
-          function: { name: tc.function.name, arguments: tc.function.arguments },
-        })),
-        toolCallId: msg.toolCallId,
+        // Map vendor MessagePart[] → domain DomainUiMessagePart[] by extracting shared fields
+        parts: msg.parts.map((p) => {
+          if (p.type === 'text') return { type: 'text' as const, content: p.content }
+          if (p.type === 'tool-call')
+            return {
+              type: 'tool-call' as const,
+              id: p.id,
+              name: p.name,
+              arguments: p.arguments,
+              state: p.state,
+              approval: p.approval,
+              output: p.output,
+            }
+          if (p.type === 'tool-result')
+            return {
+              type: 'tool-result' as const,
+              toolCallId: p.toolCallId,
+              content: p.content,
+              state: p.state,
+              error: p.error,
+            }
+          if (p.type === 'thinking') return { type: 'thinking' as const, content: p.content }
+          return { type: p.type as 'text', content: '' }
+        }),
+        createdAt: msg.createdAt,
       }
-    },
-  )
+    }
+    return {
+      role: msg.role,
+      content: typeof msg.content === 'string' || msg.content === null ? msg.content : null,
+      name: msg.name,
+      toolCalls: msg.toolCalls?.map((tc) => ({
+        id: tc.id,
+        type: tc.type,
+        function: { name: tc.function.name, arguments: tc.function.arguments },
+      })),
+      toolCallId: msg.toolCallId,
+    }
+  })
 }
 
 function describeContinuationMessageFormat(

@@ -1,10 +1,12 @@
 import type { UIMessage } from '@tanstack/ai-react'
-import { Check, Copy } from 'lucide-react'
+import { Check, Copy, FileDown, FileText, Image } from 'lucide-react'
 import { Children, cloneElement, isValidElement, type ReactNode } from 'react'
 import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { ATTACHMENT_TEXT_PREFIX } from '@/hooks/useAgentChat.utils'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
+import { cn } from '@/lib/cn'
 import {
   safeMarkdownComponents,
   safeMarkdownRehypePlugins,
@@ -52,6 +54,50 @@ const userMarkdownComponents: Components = {
   },
 }
 
+function isAttachmentText(content: string): boolean {
+  return content.startsWith(ATTACHMENT_TEXT_PREFIX)
+}
+
+function parseAttachmentName(content: string): string {
+  const afterPrefix = content.slice(ATTACHMENT_TEXT_PREFIX.length)
+  // Name is the first line after the prefix
+  const newlineIndex = afterPrefix.indexOf('\n')
+  return newlineIndex >= 0 ? afterPrefix.slice(0, newlineIndex) : afterPrefix
+}
+
+function getAttachmentIcon(name: string): typeof FileText {
+  const lower = name.toLowerCase()
+  if (
+    lower.endsWith('.png') ||
+    lower.endsWith('.jpg') ||
+    lower.endsWith('.jpeg') ||
+    lower.endsWith('.gif') ||
+    lower.endsWith('.webp') ||
+    lower.endsWith('.svg')
+  ) {
+    return Image
+  }
+  if (lower.endsWith('.pdf')) {
+    return FileDown
+  }
+  return FileText
+}
+
+function AttachmentChip({ name }: { readonly name: string }) {
+  const Icon = getAttachmentIcon(name)
+  return (
+    <div
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-md border border-border',
+        'bg-bg-tertiary px-2 py-1 text-[12px] text-text-secondary',
+      )}
+    >
+      <Icon className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
+      <span className="truncate max-w-[200px]">{name}</span>
+    </div>
+  )
+}
+
 interface UserMessageBubbleProps {
   message: UIMessage
 }
@@ -62,27 +108,41 @@ export function UserMessageBubble({ message }: UserMessageBubbleProps) {
   const textParts = message.parts.filter(
     (p): p is Extract<(typeof message.parts)[number], { type: 'text' }> => p.type === 'text',
   )
+  const contentParts = textParts.filter((p) => !isAttachmentText(p.content))
+  const attachmentParts = textParts.filter((p) => isAttachmentText(p.content))
 
   function handleCopy(): void {
-    copy(textParts.map((p) => p.content).join('\n'))
+    copy(contentParts.map((p) => p.content).join('\n'))
   }
 
   return (
     <div className="group/user-msg flex justify-end w-full">
       <div className="relative rounded-[16px_16px_2px_16px] bg-bg-hover border border-border-light py-2.5 px-3.5">
-        <div className="prose prose-user max-w-none">
-          {textParts.map((p, i) => (
-            <ReactMarkdown
-              key={`${message.id}-text-${String(i)}`}
-              remarkPlugins={USER_REMARK_PLUGINS}
-              rehypePlugins={safeMarkdownRehypePlugins}
-              urlTransform={safeMarkdownUrlTransform}
-              components={userMarkdownComponents}
-            >
-              {p.content}
-            </ReactMarkdown>
-          ))}
-        </div>
+        {attachmentParts.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {attachmentParts.map((p, i) => (
+              <AttachmentChip
+                key={`${message.id}-attachment-${String(i)}`}
+                name={parseAttachmentName(p.content)}
+              />
+            ))}
+          </div>
+        )}
+        {contentParts.length > 0 && (
+          <div className="prose prose-user max-w-none">
+            {contentParts.map((p, i) => (
+              <ReactMarkdown
+                key={`${message.id}-text-${String(i)}`}
+                remarkPlugins={USER_REMARK_PLUGINS}
+                rehypePlugins={safeMarkdownRehypePlugins}
+                urlTransform={safeMarkdownUrlTransform}
+                components={userMarkdownComponents}
+              >
+                {p.content}
+              </ReactMarkdown>
+            ))}
+          </div>
+        )}
         <button
           type="button"
           onClick={handleCopy}

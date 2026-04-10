@@ -1,5 +1,4 @@
-import { randomUUID } from 'node:crypto'
-import { McpServerId } from '@shared/types/brand'
+import type { McpServerId } from '@shared/types/brand'
 import type { McpServerConfig, McpServerStatus } from '@shared/types/mcp'
 import type { ServerTool } from '@tanstack/ai'
 import { BrowserWindow } from 'electron'
@@ -26,22 +25,18 @@ class McpManager {
     })
   }
 
-  async addServer(configWithoutId: Omit<McpServerConfig, 'id'>): Promise<McpServerId> {
-    const id = McpServerId(randomUUID())
-    const config: McpServerConfig = { ...configWithoutId, id }
-
-    if (this.pendingOps.has(id)) {
-      throw new Error(`Operation already in progress for server ${id}`)
+  async addServer(config: McpServerConfig): Promise<void> {
+    if (this.pendingOps.has(config.id)) {
+      throw new Error(`Operation already in progress for server ${config.id}`)
     }
 
-    this.pendingOps.add(id)
+    this.pendingOps.add(config.id)
     try {
       if (config.enabled) {
         await this.connectServer(config)
       }
-      return id
     } finally {
-      this.pendingOps.delete(id)
+      this.pendingOps.delete(config.id)
     }
   }
 

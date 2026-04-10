@@ -3,9 +3,11 @@ import path from 'node:path'
 import { BYTES_PER_KIBIBYTE, PERCENT_BASE } from '@shared/constants/constants'
 import { decodeUnknownOrThrow, type Schema, type SchemaType } from '@shared/schema'
 import type { ConversationId } from '@shared/types/brand'
+import type { AgentStreamChunk } from '@shared/types/stream'
 import { isPathInside } from '@shared/utils/paths'
 import { type ServerTool, type ToolExecutionContext, toolDefinition } from '@tanstack/ai'
 import { JSONSchema } from 'effect'
+import type { WaggleFileCache } from '../agent/waggle-file-cache'
 import { createLogger } from '../logger'
 import type { DomainServerTool } from '../ports/tool-types'
 import { emitContextInjected } from '../utils/stream-bridge'
@@ -26,6 +28,7 @@ function effectSchemaToJsonSchema(schema: Schema.Schema.AnyNoContext): Record<st
 }
 
 import type { SubAgentContext } from '@shared/types/sub-agent'
+import type { ChatStreamOptions } from '../ports/chat-service'
 
 /** Re-export shared SubAgentContext for tool-layer consumption */
 export type SubAgentToolContext = SubAgentContext
@@ -39,9 +42,7 @@ export interface ToolContext {
   }[]
   signal?: AbortSignal
   /** Domain-owned chat stream factory — forwarded to sub-agents for LLM calls. */
-  chatStream?: (
-    options: import('../ports/chat-service').ChatStreamOptions,
-  ) => AsyncIterable<import('@shared/types/stream').AgentStreamChunk>
+  chatStream?: (options: ChatStreamOptions) => AsyncIterable<AgentStreamChunk>
   dynamicSkills?: {
     readonly loadedSkillIds: Set<string>
     readonly toggles: Readonly<Record<string, boolean>>
@@ -52,7 +53,7 @@ export interface ToolContext {
   }
   waggle?: {
     readonly agentLabel: string
-    readonly fileCache: import('../agent/waggle-file-cache').WaggleFileCache
+    readonly fileCache: WaggleFileCache
   }
   subAgentContext?: SubAgentToolContext
 }

@@ -5,10 +5,10 @@
  * All other code uses the domain-owned `AgentStreamChunk` type.
  */
 import type { AgentStreamChunk } from '@shared/types/stream'
-import { type AnyTextAdapter, chat, maxIterations } from '@tanstack/ai'
+import { type AnyTextAdapter, chat, maxIterations, type StreamChunk } from '@tanstack/ai'
 import { Effect, Layer } from 'effect'
 import { ChatStreamError } from '../errors'
-import { unwrapChatAdapter } from '../ports/chat-adapter-type'
+import { type ChatAdapter, unwrapChatAdapter } from '../ports/chat-adapter-type'
 import {
   ChatService,
   type ChatStreamOptions,
@@ -32,9 +32,7 @@ function isVendorTextAdapter(value: unknown): value is AnyTextAdapter {
  * Unwrap the branded ChatAdapter to the vendor AnyTextAdapter.
  * This is the ONLY place where the opaque adapter is resolved to the vendor type.
  */
-function unwrapToVendorAdapter(
-  adapter: import('../ports/chat-adapter-type').ChatAdapter,
-): AnyTextAdapter {
+function unwrapToVendorAdapter(adapter: ChatAdapter): AnyTextAdapter {
   const inner = unwrapChatAdapter(adapter)
   if (!isVendorTextAdapter(inner)) {
     throw new Error('ChatAdapter does not contain a valid vendor text adapter')
@@ -48,7 +46,7 @@ const TEST_CONNECTION_TIMEOUT_MS = 15_000
  * Create an async iterable that maps vendor StreamChunks to domain AgentStreamChunks.
  */
 async function* mapStreamToDomain(
-  vendorStream: AsyncIterable<import('@tanstack/ai').StreamChunk>,
+  vendorStream: AsyncIterable<StreamChunk>,
 ): AsyncIterable<AgentStreamChunk> {
   for await (const chunk of vendorStream) {
     yield toAgentStreamChunk(chunk)

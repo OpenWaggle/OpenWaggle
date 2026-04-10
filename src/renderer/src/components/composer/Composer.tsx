@@ -1,12 +1,10 @@
-import { safeDecodeUnknown } from '@shared/schema'
-import { electronFileSchema } from '@shared/schemas/validation'
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { LexicalEditor } from 'lexical'
 import { $createParagraphNode, $createTextNode, $getRoot, $isElementNode } from 'lexical'
+import { ArrowDownToLine, Ban } from 'lucide-react'
 import { useEffect, useEffectEvent, useRef } from 'react'
 import { useProject } from '@/hooks/useProject'
 import { cn } from '@/lib/cn'
-import { api } from '@/lib/ipc'
 import { useChatStore } from '@/stores/chat-store'
 import { useComposerActionStore } from '@/stores/composer-action-store'
 import { useComposerStore } from '@/stores/composer-store'
@@ -19,29 +17,9 @@ import { ComposerToolbar } from './ComposerToolbar'
 import { LexicalComposerEditor } from './LexicalComposerEditor'
 import { clearEditor } from './lexical-utils'
 import { useAutoTextAttachment } from './useAutoTextAttachment'
+import { useFileAttachment } from './useFileAttachment'
 import { useVoiceCapture } from './useVoiceCapture'
 import { VoiceRecorder } from './VoiceRecorder'
-
-const MAX_ATTACHMENTS = 5
-
-async function prepareAndAttach(
-  projectPath: string,
-  paths: string[],
-  addAttachments: (attachments: Awaited<ReturnType<typeof api.prepareAttachments>>) => void,
-  setAttachmentError: (error: string | null) => void,
-  onToast: ((message: string) => void) | undefined,
-): Promise<void> {
-  try {
-    setAttachmentError(null)
-    const prepared = await api.prepareAttachments(projectPath, paths)
-    addAttachments(prepared)
-    onToast?.(`Attached ${String(prepared.length)} file${prepared.length === 1 ? '' : 's'}.`)
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to prepare attachments.'
-    setAttachmentError(message)
-    onToast?.(message)
-  }
-}
 
 // ── Component ──
 
@@ -203,39 +181,24 @@ export function Composer({
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [isVoiceModeActive])
 
-  // ── Attachments ──
+  // ── File attachments (file picker + drag-and-drop) ──
 
-  async function handleAttachFiles(event: React.ChangeEvent<HTMLInputElement>): Promise<void> {
-    const files = Array.from(event.target.files ?? [])
-    const paths = files
-      .map((file) => {
-        const parsed = safeDecodeUnknown(electronFileSchema, file)
-        return parsed.success ? parsed.data.path : undefined
-      })
-      .filter((filePath): filePath is string => typeof filePath === 'string' && filePath.length > 0)
-    event.target.value = ''
-
-    if (!projectPath) {
-      setAttachmentError('Select a project before attaching files.')
-      return
-    }
-    if (paths.length === 0) return
-
-    const usedAttachmentSlots = attachments.length + preparingPendingCount
-    const remainingSlots = Math.max(0, MAX_ATTACHMENTS - usedAttachmentSlots)
-    if (remainingSlots === 0) {
-      setAttachmentError('You can attach up to 5 files per message.')
-      return
-    }
-    if (paths.length > remainingSlots) {
-      setAttachmentError(
-        `You can add ${String(remainingSlots)} more file${remainingSlots === 1 ? '' : 's'} in this message.`,
-      )
-      return
-    }
-
-    await prepareAndAttach(projectPath, paths, addAttachments, setAttachmentError, onToast)
-  }
+  const {
+    isDragOver,
+    isAtCapacity,
+    handleDragEnter,
+    handleDragLeave,
+    handleDragOver,
+    handleDrop,
+    handleAttachFiles,
+  } = useFileAttachment({
+    projectPath,
+    attachments,
+    preparingPendingCount,
+    addAttachments,
+    setAttachmentError,
+    onToast,
+  })
 
   // ── Render ──
 
@@ -255,13 +218,52 @@ export function Composer({
         }}
       />
 
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: drag-and-drop target for file attachments */}
       <div
         className={cn(
-          'rounded-[var(--radius-panel)] bg-bg-secondary border transition-shadow',
+          'relative rounded-[var(--radius-panel)] bg-bg-secondary border transition-all',
           'border-input-card-border',
           'has-[:focus]:border-accent/50 has-[:focus]:shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]',
+          isDragOver && !isAtCapacity && 'border-accent ring-2 ring-accent/30',
+          isDragOver && isAtCapacity && 'border-red-400/60 ring-2 ring-red-400/20',
         )}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={(event) => {
+          void handleDrop(event)
+        }}
       >
+        {/* Drop zone overlay */}
+        {isDragOver && (
+          <div
+            className={cn(
+              'pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[var(--radius-panel)] backdrop-blur-[1px]',
+              isAtCapacity ? 'bg-red-400/5' : 'bg-accent/8',
+            )}
+          >
+            <div
+              className={cn(
+                'flex items-center gap-2 rounded-lg bg-bg-secondary/90 px-4 py-2 shadow-sm border',
+                isAtCapacity ? 'border-red-400/30' : 'border-accent/30',
+              )}
+            >
+              {isAtCapacity ? (
+                <>
+                  <Ban className="h-4 w-4 text-red-400" />
+                  <span className="text-[13px] font-medium text-red-400">
+                    Maximum files attached
+                  </span>
+                </>
+              ) : (
+                <>
+                  <ArrowDownToLine className="h-4 w-4 text-accent" />
+                  <span className="text-[13px] font-medium text-accent">Drop files to attach</span>
+                </>
+              )}
+            </div>
+          </div>
+        )}
         <div className="px-4 pt-3">
           <AutoTextAttachmentChips
             pendingTextAttachmentChips={pendingTextAttachmentChips}

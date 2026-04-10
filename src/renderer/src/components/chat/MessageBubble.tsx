@@ -9,6 +9,7 @@ import { UserMessageBubble } from './UserMessageBubble'
 interface MessageBubbleProps {
   message: UIMessage
   isStreaming?: boolean
+  isRunActive?: boolean
   assistantModel?: SupportedModelId
   conversationId: ConversationId | null
   onAnswerQuestion: (conversationId: ConversationId, answers: QuestionAnswer[]) => Promise<void>
@@ -19,6 +20,7 @@ interface MessageBubbleProps {
 export function MessageBubble({
   message,
   isStreaming,
+  isRunActive,
   assistantModel,
   conversationId,
   onRespondToPlan,
@@ -32,6 +34,7 @@ export function MessageBubble({
     <AssistantMessageBubble
       message={message}
       isStreaming={isStreaming}
+      isRunActive={isRunActive}
       assistantModel={assistantModel}
       conversationId={conversationId}
       onRespondToPlan={onRespondToPlan}

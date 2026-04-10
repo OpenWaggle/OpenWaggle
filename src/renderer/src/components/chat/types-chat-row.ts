@@ -34,6 +34,7 @@ export type ChatRow =
       type: 'message'
       message: UIMessage
       isStreaming: boolean
+      isRunActive: boolean
       showTurnDivider: boolean
       turnDividerProps?: TurnDividerProps
       assistantModel?: SupportedModelId
@@ -44,6 +45,7 @@ export type ChatRow =
       segment: TurnSegment
       parentMessage: UIMessage
       isStreaming: boolean
+      isRunActive: boolean
       showDivider: boolean
       dividerProps?: TurnDividerProps
       assistantModel?: SupportedModelId

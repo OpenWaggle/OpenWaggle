@@ -5,7 +5,6 @@ import type { WaggleCollaborationStatus } from '@shared/types/waggle'
 import type { UIMessage } from '@tanstack/ai-react'
 import { useState } from 'react'
 import type { useAgentChat } from '@/hooks/useAgentChat'
-import { useMessageModelLookup } from '@/hooks/useMessageModelLookup'
 import type { useStreamingPhase } from '@/hooks/useStreamingPhase'
 import { useWaggleMetadataLookup } from '@/hooks/useWaggleMetadataLookup'
 import type { ChatTranscriptSectionState } from '../use-chat-panel-controller'
@@ -75,7 +74,6 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
 
   const [dismissedError, setDismissedError] = useState<string | null>(null)
 
-  const messageModelLookup = useMessageModelLookup(activeConversation)
   const waggleMetadataLookup = useWaggleMetadataLookup(activeConversation, messages)
 
   const lastUserMessage = resolveLastUserMessage(messages)
@@ -89,7 +87,6 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     dismissedError,
     conversationId: activeConversationId,
     model,
-    messageModelLookup,
     waggleMetadataLookup,
     phase,
   })

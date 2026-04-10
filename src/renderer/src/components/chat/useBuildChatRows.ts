@@ -270,7 +270,6 @@ interface BuildChatRowsParams {
   dismissedError: string | null
   conversationId: string | null
   model: SupportedModelId
-  messageModelLookup: Readonly<Record<string, SupportedModelId>>
   waggleMetadataLookup: Readonly<Record<string, WaggleMessageMetadata>>
   phase: StreamingPhaseState
 }
@@ -283,7 +282,6 @@ export function buildChatRows({
   dismissedError,
   conversationId,
   model,
-  messageModelLookup,
   waggleMetadataLookup,
   phase,
 }: BuildChatRowsParams): ChatRow[] {
@@ -366,6 +364,7 @@ export function buildChatRows({
           parentMessage: msg,
           isStreaming:
             lastIsStreaming && i === messages.length - 1 && segIdx === visibleSegments.length - 1,
+          isRunActive: isLoading,
           showDivider,
           dividerProps:
             showDivider && segMeta
@@ -394,6 +393,7 @@ export function buildChatRows({
       type: 'message',
       message: msg,
       isStreaming: lastIsStreaming && i === messages.length - 1,
+      isRunActive: isLoading,
       showTurnDivider,
       turnDividerProps: showTurnDivider
         ? {
@@ -403,10 +403,7 @@ export function buildChatRows({
             isSynthesis: meta.isSynthesis,
           }
         : undefined,
-      assistantModel:
-        msg.role === 'assistant'
-          ? (meta?.agentModel ?? messageModelLookup[msg.id] ?? model)
-          : undefined,
+      assistantModel: msg.role === 'assistant' ? meta?.agentModel : undefined,
       waggle: meta ? { agentLabel: meta.agentLabel, agentColor: meta.agentColor } : undefined,
     })
   }

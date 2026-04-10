@@ -43,6 +43,7 @@ export function ChatRowRenderer({
         <MessageBubble
           message={value.message}
           isStreaming={value.isStreaming}
+          isRunActive={value.isRunActive}
           assistantModel={value.assistantModel}
           conversationId={conversationId}
           onAnswerQuestion={onAnswerQuestion}
@@ -68,6 +69,7 @@ export function ChatRowRenderer({
             parts: value.segment.parts,
           }}
           isStreaming={value.isStreaming}
+          isRunActive={value.isRunActive}
           assistantModel={value.assistantModel}
           conversationId={conversationId}
           onAnswerQuestion={onAnswerQuestion}

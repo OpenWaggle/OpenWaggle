@@ -94,7 +94,7 @@ function getAssistantMessageRows(
     dismissedError: null,
     conversationId: 'conv-rows',
     model: SupportedModelId('gpt-5-mini'),
-    messageModelLookup: {},
+
     waggleMetadataLookup,
     phase: { current: null, completed: [], totalElapsedMs: 0 },
   })
@@ -194,6 +194,80 @@ describe('buildChatRows tool-call dedup', () => {
   })
 })
 
+// ─── isRunActive propagation ────────────────────────────────────────
+
+describe('buildChatRows isRunActive', () => {
+  it('sets isRunActive on the last assistant row when isLoading is true', () => {
+    const messages = [
+      createUserMessage('user-1', 'hello'),
+      {
+        id: 'assistant-1',
+        role: 'assistant' as const,
+        parts: [{ type: 'text' as const, content: 'first reply' }],
+      },
+      {
+        id: 'assistant-2',
+        role: 'assistant' as const,
+        parts: [{ type: 'text' as const, content: 'second reply' }],
+      },
+    ]
+
+    const rows = buildChatRows({
+      messages,
+      isLoading: true,
+      error: undefined,
+      lastUserMessage: null,
+      dismissedError: null,
+      conversationId: 'conv-active',
+      model: SupportedModelId('gpt-5-mini'),
+      waggleMetadataLookup: {},
+      phase: { current: null, completed: [], totalElapsedMs: 0 },
+    })
+
+    const assistantRows = rows.filter(
+      (row): row is Extract<(typeof rows)[number], { type: 'message' }> =>
+        row.type === 'message' && row.message.role === 'assistant',
+    )
+
+    // All assistant rows in an active run should have isRunActive true
+    for (const row of assistantRows) {
+      expect(row.isRunActive).toBe(true)
+    }
+  })
+
+  it('sets isRunActive to false when isLoading is false', () => {
+    const messages = [
+      createUserMessage('user-1', 'hello'),
+      {
+        id: 'assistant-1',
+        role: 'assistant' as const,
+        parts: [{ type: 'text' as const, content: 'reply' }],
+      },
+    ]
+
+    const rows = buildChatRows({
+      messages,
+      isLoading: false,
+      error: undefined,
+      lastUserMessage: null,
+      dismissedError: null,
+      conversationId: 'conv-inactive',
+      model: SupportedModelId('gpt-5-mini'),
+      waggleMetadataLookup: {},
+      phase: { current: null, completed: [], totalElapsedMs: 0 },
+    })
+
+    const assistantRows = rows.filter(
+      (row): row is Extract<(typeof rows)[number], { type: 'message' }> =>
+        row.type === 'message' && row.message.role === 'assistant',
+    )
+
+    for (const row of assistantRows) {
+      expect(row.isRunActive).toBe(false)
+    }
+  })
+})
+
 // ─── Waggle segment tests ────────────────────────────────────────
 
 function createBoundaryPart(meta: {
@@ -262,7 +336,7 @@ describe('buildChatRows waggle segments', () => {
       dismissedError: null,
       conversationId: 'conv-waggle',
       model: SupportedModelId('claude-sonnet-4-6'),
-      messageModelLookup: {},
+
       waggleMetadataLookup: { 'waggle-msg': ADVOCATE_META },
       phase: DEFAULT_PHASE,
     })
@@ -302,7 +376,7 @@ describe('buildChatRows waggle segments', () => {
       dismissedError: null,
       conversationId: 'conv-waggle',
       model: SupportedModelId('claude-sonnet-4-6'),
-      messageModelLookup: {},
+
       waggleMetadataLookup: { 'waggle-msg': ADVOCATE_META },
       phase: DEFAULT_PHASE,
     })
@@ -349,7 +423,7 @@ describe('buildChatRows waggle segments', () => {
       dismissedError: null,
       conversationId: 'conv-waggle',
       model: SupportedModelId('claude-sonnet-4-6'),
-      messageModelLookup: {},
+
       waggleMetadataLookup: { 'waggle-streaming': ADVOCATE_META },
       phase: DEFAULT_PHASE,
     })
@@ -384,7 +458,7 @@ describe('buildChatRows waggle segments', () => {
       dismissedError: null,
       conversationId: 'conv-waggle',
       model: SupportedModelId('claude-sonnet-4-6'),
-      messageModelLookup: {},
+
       // Only the waggle message has metadata, not the post-waggle one
       waggleMetadataLookup: { 'waggle-msg': ADVOCATE_META },
       phase: DEFAULT_PHASE,
@@ -438,7 +512,7 @@ describe('buildChatRows waggle segments', () => {
       dismissedError: null,
       conversationId: 'conv-waggle',
       model: SupportedModelId('claude-sonnet-4-6'),
-      messageModelLookup: {},
+
       waggleMetadataLookup: {
         'assistant-empty-boundary': {
           agentIndex: 0,

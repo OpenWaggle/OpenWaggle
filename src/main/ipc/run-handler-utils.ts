@@ -10,6 +10,7 @@ import type { AgentStreamChunk } from '@shared/types/stream'
 import * as Effect from 'effect/Effect'
 import { buildPersistedUserMessageParts, makeMessage } from '../agent/shared'
 import { generateTitle } from '../agent/title-generator'
+import type { ChatAdapter } from '../ports/chat-adapter-type'
 import type { ChatStreamOptions } from '../ports/chat-service'
 import { ConversationRepository } from '../ports/conversation-repository'
 import { ProviderService } from '../ports/provider-service'
@@ -93,7 +94,7 @@ export function maybeTriggerTitleGeneration(
           const allProviders = yield* providerSvc.getAll()
 
           // Find the first enabled provider with an API key for title gen
-          let titleAdapter: import('../ports/chat-adapter-type').ChatAdapter | null = null
+          let titleAdapter: ChatAdapter | null = null
           for (const provider of allProviders) {
             const config = settings.providers[provider.id]
             if (config?.enabled && config.apiKey) {

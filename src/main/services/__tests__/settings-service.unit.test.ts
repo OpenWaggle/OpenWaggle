@@ -1,18 +1,26 @@
 import { SupportedModelId } from '@shared/types/brand'
+import type { McpServerConfig } from '@shared/types/mcp'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getSettingsMock, updateSettingsMock, initializeSettingsStoreMock, flushSettingsStoreMock } =
-  vi.hoisted(() => ({
-    getSettingsMock: vi.fn(),
-    updateSettingsMock: vi.fn(),
-    initializeSettingsStoreMock: vi.fn(),
-    flushSettingsStoreMock: vi.fn(),
-  }))
+const {
+  getSettingsMock,
+  updateSettingsMock,
+  transformMcpServersMock,
+  initializeSettingsStoreMock,
+  flushSettingsStoreMock,
+} = vi.hoisted(() => ({
+  getSettingsMock: vi.fn(),
+  updateSettingsMock: vi.fn(),
+  transformMcpServersMock: vi.fn(),
+  initializeSettingsStoreMock: vi.fn(),
+  flushSettingsStoreMock: vi.fn(),
+}))
 
 vi.mock('../../store/settings', () => ({
   getSettings: getSettingsMock,
   updateSettings: updateSettingsMock,
+  transformMcpServers: transformMcpServersMock,
   initializeSettingsStore: initializeSettingsStoreMock,
   flushSettingsStoreForTests: flushSettingsStoreMock,
 }))
@@ -23,6 +31,7 @@ describe('SettingsService.Live', () => {
   beforeEach(() => {
     getSettingsMock.mockReset()
     updateSettingsMock.mockReset()
+    transformMcpServersMock.mockReset()
     initializeSettingsStoreMock.mockReset()
     flushSettingsStoreMock.mockReset()
   })
@@ -79,5 +88,18 @@ describe('SettingsService.Live', () => {
     )
 
     expect(flushSettingsStoreMock).toHaveBeenCalledOnce()
+  })
+
+  it('delegates transformMcpServers to transformMcpServers()', async () => {
+    const transformer = (servers: readonly McpServerConfig[]) => [...servers]
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* SettingsService
+        yield* service.transformMcpServers(transformer)
+      }).pipe(Effect.provide(SettingsService.Live)),
+    )
+
+    expect(transformMcpServersMock).toHaveBeenCalledWith(transformer)
   })
 })

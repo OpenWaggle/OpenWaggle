@@ -163,6 +163,12 @@ This document stores project-specific technical learnings only.
 - Converting TanStack `UIMessage` parts to domain continuation types across type hierarchies requires JSON roundtrip + type guard (not cross-hierarchy `filter` + type guard) because TypeScript cannot narrow array elements from one discriminated union to a structurally equivalent one in a different type hierarchy.
 - `readonly` arrays in domain types vs mutable arrays in vendor types (`readonly DomainContentPart[]` vs `ContentPart[]`) cause assignment errors. Domain types should use `readonly` for immutability guarantees, and adapter layers handle the mutable-to-readonly boundary.
 
+### MCP State Management
+- IPC handlers that execute side effects (connect/disconnect) before persisting settings create ghost state: status broadcasts make entities visible in the renderer UI before the corresponding config is persisted. Always persist settings BEFORE executing side effects so that toggle/remove handlers can find the config immediately.
+- Merging live statuses and stored-only statuses with `[...live, ...configOnly]` produces unstable ordering because servers jump between groups when their connection status changes. Use settings array order as the single source of truth for ordering, annotating with live status from the manager.
+- Renderer status broadcast handlers (`onMcpStatusChanged`) must NOT append unknown server IDs to the query cache — this creates phantom entries before the add mutation completes. Only update existing entries; let query invalidation handle new entries.
+- Read-modify-write patterns on settings arrays are unsafe across `yield*` boundaries in Effect.gen handlers. Use atomic transform functions (`transformMcpServers`) that read and write in a single synchronous step.
+
 ### Build & Tooling
 - `react-doctor` defaults to changed-files-only on feature branches. Use `GIT_DIR=/nonexistent` for full-repo scans.
 - Vitest `vi.mock()` factories are hoisted before top-level variables. Use `vi.hoisted(...)` for shared mock handles.

@@ -397,6 +397,18 @@ export function getSettings(): Settings {
   return settingsCache
 }
 
+/**
+ * Atomically read-transform-write the mcpServers array.
+ * Eliminates read-modify-write races between concurrent IPC handlers
+ * that each call get() + update() with interleaving yield points.
+ */
+export function transformMcpServers(
+  fn: (servers: readonly McpServerConfig[]) => readonly McpServerConfig[],
+): void {
+  const updated = fn(settingsCache.mcpServers)
+  updateSettings({ mcpServers: [...updated] })
+}
+
 export function updateSettings(partial: Partial<Settings>): void {
   const nextProviders: Partial<Record<Provider, ProviderConfig>> = {
     ...settingsCache.providers,
