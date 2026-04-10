@@ -485,21 +485,19 @@ No router. View-based navigation via `useUIStore`:
 - `Composer` — Container component, keyboard submission, file attach
 - `LexicalComposerEditor` — Lexical rich text editor setup
 
-  8 Lexical plugins:
+  7 Lexical plugins:
   - `KeyboardPlugin` — Enter to submit, Shift+Enter for newline, arrow keys for history, `/` for command palette
   - `SyncPlugin` — Sync editor text content to Zustand store
   - `AutoResizePlugin` — Dynamic textarea height
   - `MentionTypeaheadPlugin` — @mention typeahead dropdown
-  - `URLDetectPlugin` — Auto-detect and linkify URLs
   - `PastePlugin` — Handle paste with conversion
   - `EditorRefPlugin` — Expose Lexical editor ref to store
   - `HistoryPlugin` — Undo/redo (from Lexical)
 
-  4 custom mention node types:
+  3 custom mention node types:
   - `FileMentionNode` — File path mentions
   - `SkillMentionNode` — Skill references
   - `SymbolMentionNode` — Code symbol mentions
-  - `URLMentionNode` — URL mentions
 
 - `ComposerToolbar` — Action buttons (quality, execution, branch, voice, attach)
 - `ComposerStatusBar` — Model, preset, project display
