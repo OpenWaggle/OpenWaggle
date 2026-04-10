@@ -30,6 +30,13 @@ describe('resolvePath', () => {
     const resolved = resolvePath(projectRoot, '../../outside.txt')
     expect(resolved).toBe(path.resolve(projectRoot, '../../outside.txt'))
   })
+
+  it('resolves symlink paths lexically without following them', () => {
+    const projectRoot = '/tmp/test-project'
+    const resolved = resolvePath(projectRoot, 'linked/secret.txt')
+    // path.resolve is purely lexical — symlinks are not followed at resolution time
+    expect(resolved).toBe(path.join(projectRoot, 'linked/secret.txt'))
+  })
 })
 
 describe('NormalizedToolResult types', () => {
