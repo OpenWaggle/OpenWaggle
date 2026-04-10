@@ -88,7 +88,7 @@ Even though tools run without asking, several safeguards remain active:
 
 - **Scoped to the session** — Auto-approval only applies during the active Waggle session. Once the session ends, normal approval rules resume immediately.
 - **Environment filtering** — Shell commands still receive a filtered environment. Your API keys and sensitive environment variables are never exposed to commands the agents run, even in auto-approval mode.
-- **Project sandboxing** — File operations are still restricted to your project directory. Agents cannot read or write files outside your project root.
+- **Project-rooted by default** — File operations default to your project directory, but agents can access files outside your project root using absolute paths when needed.
 - **Unforgeable token** — Internally, auto-approval is gated by a branded security token (a JavaScript `Symbol` that cannot be created or faked outside the orchestration layer). This prevents auto-approval from being accidentally activated by other parts of the application.
 - **Not persisted** — The auto-approval token only exists in memory during the session. It's never saved to disk or included in conversation history.
 

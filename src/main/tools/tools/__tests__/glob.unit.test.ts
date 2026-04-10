@@ -37,7 +37,7 @@ function extractText(result: unknown): string {
 }
 
 async function executeGlob(
-  args: { pattern: string; ignore?: string[] },
+  args: { pattern: string; path?: string; ignore?: string[] },
   ctx: ToolContext,
 ): Promise<string> {
   const result = await executeToolWithContext(globTool, ctx, args)
@@ -69,18 +69,24 @@ describe('globTool', () => {
     expect(result).toBe('No files found matching the pattern.')
   })
 
-  it('rejects absolute paths', async () => {
+  it('allows absolute path as base directory', async () => {
     const dir = makeTempDir()
-    await expect(executeGlob({ pattern: '/etc/passwd' }, makeContext(dir))).rejects.toThrow(
-      'relative to the project root',
-    )
+    const otherDir = makeTempDir()
+    await fsp.writeFile(path.join(otherDir, 'external.ts'), 'x')
+
+    const result = await executeGlob({ pattern: '*.ts', path: otherDir }, makeContext(dir))
+    expect(result).toContain('external.ts')
   })
 
-  it('rejects parent directory traversal', async () => {
-    const dir = makeTempDir()
-    await expect(executeGlob({ pattern: '../../**/*.ts' }, makeContext(dir))).rejects.toThrow(
-      'cannot traverse outside',
-    )
+  it('allows parent directory traversal in patterns', async () => {
+    const workspace = makeTempDir()
+    const nested = path.join(workspace, 'a', 'b')
+    await fsp.mkdir(nested, { recursive: true })
+    await fsp.writeFile(path.join(workspace, 'root.ts'), 'x')
+
+    // Pattern traverses up from nested dir to workspace — should find root.ts
+    const result = await executeGlob({ pattern: '../../*.ts' }, makeContext(nested))
+    expect(result).toContain('root.ts')
   })
 
   it('respects custom ignore patterns', async () => {
