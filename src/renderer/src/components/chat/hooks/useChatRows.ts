@@ -9,7 +9,7 @@ import { buildChatRows } from '../useBuildChatRows'
 
 /**
  * Ref-based memoization for virtual rows. Recomputes only when
- * any of the 10 input values change by reference.
+ * any of the 9 input values change by reference.
  */
 export function useChatRows(inputs: {
   messages: UIMessage[]
@@ -19,7 +19,6 @@ export function useChatRows(inputs: {
   dismissedError: string | null
   conversationId: ConversationId | null
   model: SupportedModelId
-  messageModelLookup: Readonly<Record<string, SupportedModelId>>
   waggleMetadataLookup: Readonly<Record<string, WaggleMessageMetadata>>
   phase: ReturnType<typeof useStreamingPhase>
 }): ChatRow[] {
@@ -31,7 +30,6 @@ export function useChatRows(inputs: {
     dismissedError: string | null
     conversationId: ConversationId | null
     model: SupportedModelId
-    messageModelLookup: Readonly<Record<string, SupportedModelId>>
     waggleMetadataLookup: Readonly<Record<string, WaggleMessageMetadata>>
     phase: ReturnType<typeof useStreamingPhase>
     rows: ChatRow[]
@@ -45,7 +43,6 @@ export function useChatRows(inputs: {
     dismissedError,
     conversationId,
     model,
-    messageModelLookup,
     waggleMetadataLookup,
     phase,
   } = inputs
@@ -58,7 +55,6 @@ export function useChatRows(inputs: {
     cacheRef.current.dismissedError === dismissedError &&
     cacheRef.current.conversationId === conversationId &&
     cacheRef.current.model === model &&
-    cacheRef.current.messageModelLookup === messageModelLookup &&
     cacheRef.current.waggleMetadataLookup === waggleMetadataLookup &&
     cacheRef.current.phase === phase
   ) {
@@ -73,7 +69,6 @@ export function useChatRows(inputs: {
     dismissedError,
     conversationId,
     model,
-    messageModelLookup,
     waggleMetadataLookup,
     phase,
   })
@@ -85,7 +80,6 @@ export function useChatRows(inputs: {
     dismissedError,
     conversationId,
     model,
-    messageModelLookup,
     waggleMetadataLookup,
     phase,
     rows,

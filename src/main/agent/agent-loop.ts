@@ -53,6 +53,7 @@ import {
 import { StreamPartCollector } from './stream-part-collector'
 import { type ProviderErrorInfo, processAgentStreamEffect } from './stream-processor'
 import { resolveToolContextAttachments } from './tool-context-attachments'
+import { smoothStream } from './transforms/smooth-stream'
 import type { WaggleFileCache } from './waggle-file-cache'
 
 const logger = createLogger('agent')
@@ -321,7 +322,7 @@ export function runAgentEffect(
           )
 
           const streamProcessingEffect = processAgentStreamEffect({
-            stream,
+            stream: smoothStream(stream),
             collector,
             onChunk: deduplicatedOnChunk,
             signal,
@@ -511,7 +512,7 @@ export function runAgentEffect(
               )
 
               return yield* processAgentStreamEffect({
-                stream: nudgeStream,
+                stream: smoothStream(nudgeStream),
                 collector,
                 onChunk: deduplicatedOnChunk,
                 signal,

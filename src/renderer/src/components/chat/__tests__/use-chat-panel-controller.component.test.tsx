@@ -20,7 +20,6 @@ const {
   useChatMock,
   useConversationNavMock,
   useGitMock,
-  useMessageModelLookupMock,
   useProjectMock,
   useSendMessageMock,
   useSkillsMock,
@@ -39,7 +38,6 @@ const {
   useChatMock: vi.fn(),
   useConversationNavMock: vi.fn(),
   useGitMock: vi.fn(),
-  useMessageModelLookupMock: vi.fn(),
   useProjectMock: vi.fn(),
   useSendMessageMock: vi.fn(),
   useSkillsMock: vi.fn(),
@@ -71,10 +69,6 @@ vi.mock('@/hooks/useConversationNav', () => ({
 
 vi.mock('@/hooks/useGit', () => ({
   useGit: useGitMock,
-}))
-
-vi.mock('@/hooks/useMessageModelLookup', () => ({
-  useMessageModelLookup: useMessageModelLookupMock,
 }))
 
 vi.mock('@/hooks/useProject', () => ({
@@ -304,7 +298,6 @@ describe('useChatPanelSections', () => {
     useChatMock.mockReset()
     useConversationNavMock.mockReset()
     useGitMock.mockReset()
-    useMessageModelLookupMock.mockReset()
     useProjectMock.mockReset()
     useSendMessageMock.mockReset()
     useSkillsMock.mockReset()
@@ -355,7 +348,6 @@ describe('useChatPanelSections', () => {
       handleSendText: vi.fn().mockResolvedValue(undefined),
       handleSendWaggle: vi.fn().mockResolvedValue(undefined),
     })
-    useMessageModelLookupMock.mockReturnValue({})
     useWaggleMetadataLookupMock.mockReturnValue({})
     useWaggleChatMock.mockReturnValue(undefined)
     useStreamingPhaseMock.mockReturnValue({
