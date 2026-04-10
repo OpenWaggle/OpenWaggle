@@ -163,7 +163,7 @@ test('concatenates task outputs when synthesizer fails', async () => {
 
   expect(result.usedFallback).toBe(false)
   expect(result.runStatus).toBe('completed')
-  expect(result.text).toBe('result-a\n\nresult-b')
+  expect(result.text).toBe('## Task: a\n\nresult-a\n\n## Task: b\n\nresult-b')
 })
 
 test('applies default retry policy to tasks', async () => {
@@ -260,7 +260,7 @@ test('emits synthesis fallback concatenation when synthesizer fails', async () =
   })
 
   // Should have concatenated outputs instead of empty string
-  expect(result.text).toBe('output-x')
+  expect(result.text).toBe('## Task: x\n\noutput-x')
   expect(result.runStatus).toBe('completed')
 })
 
@@ -293,7 +293,7 @@ test('concatenates task outputs when synthesizer returns empty string', async ()
   expect(result.usedFallback).toBe(false)
   expect(result.runStatus).toBe('completed')
   // Empty synthesis should fall back to concatenated task outputs
-  expect(result.text).toBe('result-a\n\nresult-b')
+  expect(result.text).toBe('## Task: a\n\nresult-a\n\n## Task: b\n\nresult-b')
 })
 
 test('rejects plans exceeding max task count', async () => {

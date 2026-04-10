@@ -28,6 +28,7 @@ vi.mock('@/lib/ipc', () => ({
     deleteGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
     setGitBranchUpstream: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
     prepareAttachments: vi.fn().mockResolvedValue([]),
+    onOrchestrationEvent: vi.fn().mockReturnValue(() => {}),
   },
 }))
 

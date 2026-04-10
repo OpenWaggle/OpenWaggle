@@ -21,6 +21,8 @@ interface IncrementalMarkdownProps {
   highlighter: Highlighter | undefined
   cache: ShikiCache
   rehypePlugins: RehypePlugins
+  /** Lightweight plugins for the streaming tail (e.g. sanitize-only, no Shiki). */
+  tailRehypePlugins?: RehypePlugins
 }
 
 /**
@@ -70,6 +72,7 @@ export function IncrementalMarkdown({
   highlighter,
   cache,
   rehypePlugins,
+  tailRehypePlugins,
 }: IncrementalMarkdownProps) {
   const { prefixHast, tail } = useIncrementalMarkdown(text, isStreaming, {
     highlighter,
@@ -82,7 +85,7 @@ export function IncrementalMarkdown({
         <PrefixView prefixHast={prefixHast} />
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
-          rehypePlugins={rehypePlugins}
+          rehypePlugins={tailRehypePlugins ?? rehypePlugins}
           urlTransform={safeMarkdownUrlTransform}
           components={markdownComponents}
         >

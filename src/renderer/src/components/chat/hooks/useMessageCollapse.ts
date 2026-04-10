@@ -19,9 +19,10 @@ export interface UseMessageCollapseResult {
 export function useMessageCollapse(
   message: UIMessage,
   isStreaming: boolean | undefined,
+  isRunActive: boolean | undefined,
   isWaggle?: boolean,
 ): UseMessageCollapseResult {
-  const collapseStateKey = `${message.id}:${isStreaming ? 'streaming' : 'completed'}`
+  const collapseStateKey = message.id
   const [expandedStateKey, setExpandedStateKey] = useState<string | null>(null)
 
   const lastRenderableTextPartIndex = getLastRenderableTextPartIndex(message.parts)
@@ -36,14 +37,17 @@ export function useMessageCollapse(
   // askUser). These require user interaction (Approve/Revise, answer questions)
   // and must remain visible — especially after app restart when isStreaming is
   // false but the user still needs to respond.
+  // Collapse is deferred until the entire agent run finishes (isRunActive = false),
+  // not just when the individual message stream ends, to prevent tools from
+  // collapsing mid-run during continuation messages.
   const canCollapseToSynthesis =
     !isWaggle &&
-    !isStreaming &&
+    !isRunActive &&
     !hasUnansweredBlockingToolCall(message.parts) &&
     lastRenderableTextPartIndex >= 0 &&
     (toolCallCount > 0 || hasEarlierRenderableTextParts)
   const showDetails = expandedStateKey === collapseStateKey
-  const renderAllParts = !!isStreaming || showDetails || !canCollapseToSynthesis
+  const renderAllParts = !!isStreaming || !!isRunActive || showDetails || !canCollapseToSynthesis
   const collapseLabel =
     toolCallCount > 0
       ? `Show ${String(toolCallCount)} tool ${toolCallCount === 1 ? 'call' : 'calls'}`

@@ -236,7 +236,8 @@ function concatenateOutputs(run: OrchestrationRunRecord): string {
   const parts: string[] = []
   for (const taskId of run.taskOrder) {
     const text = extractTaskOutputText(run, taskId)
-    if (text) parts.push(text)
+    if (!text) continue
+    parts.push(`## Task: ${taskId}\n\n${text}`)
   }
   return parts.join('\n\n')
 }
