@@ -1,4 +1,5 @@
-import type { SupportedModelId } from '@shared/types/brand'
+import type { MessageId, SupportedModelId } from '@shared/types/brand'
+import type { CompactionEventData } from '@shared/types/context'
 import type { WaggleAgentColor, WaggleMessageMetadata } from '@shared/types/waggle'
 import type { UIMessage } from '@tanstack/ai-react'
 import type { CompletedPhase } from '@/hooks/useStreamingPhase'
@@ -53,6 +54,11 @@ export type ChatRow =
     }
   | { type: 'phase-indicator'; label: string; elapsedMs: number }
   | { type: 'run-summary'; phases: readonly CompletedPhase[]; totalMs: number }
+  | {
+      type: 'compaction-event'
+      data: CompactionEventData
+      messageId: MessageId
+    }
   | {
       type: 'error'
       error: Error

@@ -1,13 +1,16 @@
 import type { AgentSendPayload } from '@shared/types/agent'
+import type { ConversationId } from '@shared/types/brand'
 import type { LexicalEditor } from 'lexical'
 import { $createParagraphNode, $createTextNode, $getRoot, $isElementNode } from 'lexical'
 import { ArrowDownToLine, Ban } from 'lucide-react'
 import { useEffect, useEffectEvent, useRef } from 'react'
 import { useProject } from '@/hooks/useProject'
 import { cn } from '@/lib/cn'
+import { api } from '@/lib/ipc'
 import { useChatStore } from '@/stores/chat-store'
 import { useComposerActionStore } from '@/stores/composer-action-store'
 import { useComposerStore } from '@/stores/composer-store'
+import { useContextStore } from '@/stores/context-store'
 import { usePreferencesStore } from '@/stores/preferences-store'
 import { ActionDialog } from './ActionDialog'
 import { AutoTextAttachmentChips } from './AutoTextAttachmentChips'
@@ -48,6 +51,7 @@ export function Composer({
   const addAttachments = useComposerStore((s) => s.addAttachments)
   const removeAttachment = useComposerStore((s) => s.removeAttachment)
   const planModeActive = useChatStore((s) => s.activeConversation?.planModeActive) ?? false
+  const activeConversationId = useChatStore((s) => s.activeConversationId)
   const branchMessage = useComposerActionStore((s) => s.branchMessage)
   const setBranchMessage = useComposerActionStore((s) => s.setBranchMessage)
   const reset = useComposerStore((s) => s.reset)
@@ -70,7 +74,9 @@ export function Composer({
 
   function dispatchPayload(payload: AgentSendPayload): boolean {
     if ((!payload.text && payload.attachments.length === 0) || disabled) return false
-    if (isLoading) {
+    // Read compacting state at dispatch time — no reactive subscription needed
+    const isCompacting = useContextStore.getState().isCompacting
+    if (isLoading || isCompacting) {
       onEnqueue(payload)
     } else {
       onSend(payload)
@@ -88,12 +94,42 @@ export function Composer({
 
   function handleSubmit(text?: string): void {
     const trimmedInput = (text ?? input).trim()
+
+    // Intercept /compact command — execute as control action, not chat message.
+    // Regex ensures "/compacting..." doesn't accidentally trigger compaction.
+    if (/^\/compact(\s|$)/.test(trimmedInput) && activeConversationId) {
+      const guidance = trimmedInput.replace(/^\/compact\s*/, '').trim() || undefined
+      const shouldSave = useComposerStore.getState().compactSaveForThread && guidance
+      clearComposerInput()
+      useComposerStore.getState().setCompactSaveForThread(false)
+      if (shouldSave) {
+        api
+          .updateCompactionGuidance(activeConversationId, guidance)
+          .catch(() => onToast?.('Failed to save compaction guidance'))
+      }
+      void executeCompaction(activeConversationId, guidance)
+      return
+    }
+
     submitPayload({
       text: trimmedInput,
       qualityPreset,
       attachments,
       planModeRequested: planModeActive || undefined,
     })
+  }
+
+  async function executeCompaction(
+    conversationId: ConversationId,
+    guidance: string | undefined,
+  ): Promise<void> {
+    const { setCompacting } = useContextStore.getState()
+    setCompacting(true)
+    try {
+      await api.requestCompaction(conversationId, guidance)
+    } finally {
+      setCompacting(false)
+    }
   }
 
   function sendComposed(text: string): boolean {

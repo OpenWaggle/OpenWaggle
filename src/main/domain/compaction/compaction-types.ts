@@ -1,8 +1,9 @@
 // Domain types for context compaction — zero infrastructure imports.
 
 import type { CompactionStage, CompactionTier } from '@shared/types/compaction'
+import type { ModelContextWindow } from '@shared/types/context'
 
-export type { CompactionStage, CompactionTier }
+export type { CompactionStage, CompactionTier, ModelContextWindow }
 
 /** Result of a Tier 1 microcompaction pass (deterministic, no LLM). */
 export interface MicrocompactionResult {
@@ -19,6 +20,8 @@ export interface FullCompactionResult {
   readonly compactedTokenEstimate: number
   readonly summaryTokens: number
   readonly recentMessagesPreserved: number
+  /** True when pinned content was included in summarization due to extreme pressure. */
+  readonly pinnedContentSummarized?: boolean
 }
 
 /** Discriminated union of compaction outcomes. */
@@ -37,12 +40,6 @@ export interface CompactionEvent {
   }
 }
 
-/** Context window metadata for a specific model. */
-export interface ModelContextWindow {
-  readonly contextTokens: number
-  readonly maxOutputTokens: number
-}
-
 /**
  * Default context window assumed when a provider does not report one.
  * 128K tokens is a safe conservative value — most modern models support at least this.
@@ -52,8 +49,10 @@ export const DEFAULT_CONTEXT_WINDOW_TOKENS = 128_000
 /**
  * Compaction threshold as a fraction of the context window.
  * Full compaction triggers when estimated tokens exceed this ratio.
+ * Set at 90% to preserve as much context as possible while leaving
+ * headroom for replies and tool output.
  */
-export const COMPACTION_THRESHOLD_RATIO = 0.8
+export const COMPACTION_THRESHOLD_RATIO = 0.9
 
 /**
  * Number of most recent tool results to preserve during microcompaction.

@@ -140,6 +140,17 @@ describe('preload api surface contract', () => {
     'submitFeedback',
     'generateFeedbackMarkdown',
     'openExternal',
+    // Context
+    'getContextSnapshot',
+    'getBaselineSnapshot',
+    'requestCompaction',
+    'addPin',
+    'removePin',
+    'removePinByMessage',
+    'listPins',
+    'getModelCompatibility',
+    'updateCompactionGuidance',
+    'onContextSnapshot',
     // Composer
     'suggestFiles',
     // Auto-updater
@@ -188,6 +199,7 @@ describe('preload api surface contract', () => {
       'onTeamEvent',
       'onConversationTitleUpdated',
       'onUpdateStatus',
+      'onContextSnapshot',
     ] as const
 
     for (const method of EVENT_METHODS) {

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import {
+  type CompactionEventPart,
   extractTextFromParts,
   type HydratedAgentSendPayload,
   hasToolCallNamed,
@@ -108,11 +109,16 @@ export interface AgentRunParams {
    * that an app crash during the wait does not lose messages.
    */
   readonly onCheckpointNeeded?: (parts: readonly MessagePart[]) => Promise<void>
+  /** Pinned content strings to preserve during compaction (highest priority). */
+  readonly pinnedContent?: readonly string[]
+  /** Override context window for compaction (e.g., waggle uses smallest participant window). */
+  readonly effectiveContextWindowOverride?: number
 }
 
 export interface AgentRunResult {
   readonly newMessages: readonly Message[]
   readonly finalMessage: Message
+  readonly microcompactedToolResults: number
 }
 
 export function runAgentEffect(
@@ -262,17 +268,24 @@ export function runAgentEffect(
     // Build the message array — either from continuation or fresh conversation.
     // Fresh messages go through Tier 2 full compaction if near context limit.
     let allMessages: readonly unknown[]
+    let compactionSystemMessage: Message | null = null
+    let microcompactedToolResults = 0
     if (hasContinuationMessages) {
       allMessages = enrichContinuationMessages(
         normalizeContinuationAsUIMessages(payload.continuationMessages ?? []),
         conversation.messages,
       )
     } else {
-      const freshMessages = buildFreshChatMessages(conversation, resolution.provider, payload)
+      const freshResult = buildFreshChatMessages(conversation, resolution.provider, payload)
+      const freshMessages = freshResult.messages
+      microcompactedToolResults = freshResult.microcompactedCount
 
       // ─── Tier 2: Full LLM compaction (pre-stream) ──────────
       const contextWindow = resolution.provider.getContextWindow?.(resolution.resolvedModel)
-      const contextTokens = contextWindow?.contextTokens ?? DEFAULT_CONTEXT_WINDOW_TOKENS
+      const contextTokens =
+        params.effectiveContextWindowOverride ??
+        contextWindow?.contextTokens ??
+        DEFAULT_CONTEXT_WINDOW_TOKENS
       const compactionService = yield* ContextCompactionService
       const needsCompaction = yield* compactionService.needsFullCompaction(
         freshMessages,
@@ -291,11 +304,14 @@ export function runAgentEffect(
           systemPrompt: built.systemPrompt,
           contextWindowTokens: contextTokens,
           customInstructions: payload.compactInstructions,
+          pinnedContent: params.pinnedContent,
           chatStream: params.chatStream,
           adapter,
         })
 
         allMessages = compacted.messages
+
+        const compactionTimestamp = Date.now()
         onChunk({
           type: 'CUSTOM',
           name: 'compaction',
@@ -309,8 +325,26 @@ export function runAgentEffect(
               messagesSummarized: compacted.result.recentMessagesPreserved,
             },
           },
-          timestamp: Date.now(),
+          timestamp: compactionTimestamp,
         })
+
+        // Create a system message to persist the compaction event in the timeline
+        const compactionEventPart: CompactionEventPart = {
+          type: 'compaction-event',
+          data: {
+            tier: 'full',
+            trigger: payload.compactInstructions !== undefined ? 'manual' : 'automatic',
+            description: `Compacted ${compacted.result.originalTokenEstimate} → ${compacted.result.compactedTokenEstimate} tokens`,
+            metrics: {
+              tokensBefore: compacted.result.originalTokenEstimate,
+              tokensAfter: compacted.result.compactedTokenEstimate,
+              messagesSummarized: compacted.result.recentMessagesPreserved,
+            },
+            timestamp: compactionTimestamp,
+            pinnedContentSummarized: compacted.result.pinnedContentSummarized,
+          },
+        }
+        compactionSystemMessage = makeMessage('system', [compactionEventPart])
       } else {
         allMessages = freshMessages
       }
@@ -700,9 +734,12 @@ export function runAgentEffect(
     const userMsg = hasContinuationMessages
       ? null
       : makeMessage('user', buildPersistedUserMessageParts(payload))
-    const newMessages = userMsg ? [userMsg, assistantMsg] : [assistantMsg]
+    const newMessages: Message[] = []
+    if (userMsg) newMessages.push(userMsg)
+    if (compactionSystemMessage) newMessages.push(compactionSystemMessage)
+    newMessages.push(assistantMsg)
 
-    return { newMessages, finalMessage: assistantMsg }
+    return { newMessages, finalMessage: assistantMsg, microcompactedToolResults }
   })
 
   return program.pipe(

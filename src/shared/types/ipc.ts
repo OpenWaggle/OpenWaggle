@@ -3,6 +3,12 @@ import type { OAuthFlowStatus, SubscriptionAccountInfo, SubscriptionProvider } f
 import type { ActiveRunInfo, BackgroundRunSnapshot } from './background-run'
 import type { ConversationId, McpServerId, TeamConfigId } from './brand'
 import type { FileSuggestion } from './composer'
+import type {
+  ContextSnapshot,
+  ModelCompatibilityInfo,
+  PinnedItem,
+  PinnedItemInput,
+} from './context'
 import type { Conversation, ConversationSummary } from './conversation'
 import type { DevtoolsEventBusConfig } from './devtools'
 import type {
@@ -369,6 +375,43 @@ export interface IpcInvokeChannelMap {
     args: [url: string]
     return: undefined
   }
+  // Context
+  'context:get-snapshot': {
+    args: [conversationId: ConversationId]
+    return: ContextSnapshot | null
+  }
+  'context:get-baseline': {
+    args: []
+    return: ContextSnapshot
+  }
+  'context:compact': {
+    args: [conversationId: ConversationId, guidance?: string]
+    return: undefined
+  }
+  'context:pin-add': {
+    args: [conversationId: ConversationId, item: PinnedItemInput]
+    return: PinnedItem
+  }
+  'context:pin-remove': {
+    args: [conversationId: ConversationId, pinId: string]
+    return: undefined
+  }
+  'context:pin-remove-by-message': {
+    args: [conversationId: ConversationId, messageId: string]
+    return: undefined
+  }
+  'context:pin-list': {
+    args: [conversationId: ConversationId]
+    return: PinnedItem[]
+  }
+  'context:model-compatibility': {
+    args: [conversationId: ConversationId]
+    return: ModelCompatibilityInfo[]
+  }
+  'context:update-compaction-guidance': {
+    args: [conversationId: ConversationId, guidance: string | null]
+    return: undefined
+  }
   // Composer
   'composer:file-suggest': {
     args: [projectPath: string, query: string]
@@ -478,6 +521,9 @@ interface IpcEventChannelMap {
   }
   'updater:status-changed': {
     payload: UpdateStatus
+  }
+  'context:snapshot-changed': {
+    payload: { conversationId: ConversationId; snapshot: ContextSnapshot }
   }
 }
 
@@ -722,6 +768,20 @@ export interface OpenWaggleApi {
   submitFeedback(payload: FeedbackPayload): Promise<FeedbackSubmitResult>
   generateFeedbackMarkdown(payload: FeedbackPayload): Promise<string>
   openExternal(url: string): Promise<void>
+
+  // Context
+  getContextSnapshot(conversationId: ConversationId): Promise<ContextSnapshot | null>
+  getBaselineSnapshot(): Promise<ContextSnapshot>
+  requestCompaction(conversationId: ConversationId, guidance?: string): Promise<void>
+  addPin(conversationId: ConversationId, item: PinnedItemInput): Promise<PinnedItem>
+  removePin(conversationId: ConversationId, pinId: string): Promise<void>
+  removePinByMessage(conversationId: ConversationId, messageId: string): Promise<void>
+  listPins(conversationId: ConversationId): Promise<PinnedItem[]>
+  getModelCompatibility(conversationId: ConversationId): Promise<ModelCompatibilityInfo[]>
+  updateCompactionGuidance(conversationId: ConversationId, guidance: string | null): Promise<void>
+  onContextSnapshot(
+    callback: (payload: IpcEventPayload<'context:snapshot-changed'>) => void,
+  ): () => void
 
   // Composer
   suggestFiles(projectPath: string, query: string): Promise<FileSuggestion[]>

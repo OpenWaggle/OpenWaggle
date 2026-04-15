@@ -59,6 +59,11 @@ export const ERROR_CODE_META: Record<AgentErrorCode, ErrorCodeMeta> = {
     suggestion: 'Check disk space and file permissions.',
     retryable: false,
   },
+  'context-overflow': {
+    userMessage: 'Context window exceeded',
+    suggestion: 'The conversation will be compacted automatically.',
+    retryable: true,
+  },
   unknown: {
     userMessage: 'Something went wrong',
     retryable: true,
@@ -164,6 +169,24 @@ export function classifyErrorMessage(message: string): AgentErrorInfo {
     lower.includes('bad gateway')
   ) {
     return makeErrorInfo('provider-down', displayMessage)
+  }
+
+  // Context overflow — prompt too long for the model's context window.
+  // Patterns are specific to known provider error messages to avoid false positives
+  // on unrelated 400 errors that happen to mention "tokens".
+  //   Anthropic: "prompt is too long" / "exceeds the maximum number of tokens"
+  //   OpenAI:    "maximum context length exceeded" / "context_length_exceeded"
+  //   Gemini:    "exceeds the maximum token limit"
+  if (
+    lower.includes('prompt is too long') ||
+    lower.includes('prompt_too_long') ||
+    lower.includes('maximum context length') ||
+    lower.includes('context_length_exceeded') ||
+    lower.includes('exceeds the maximum number of tokens') ||
+    lower.includes('exceeds the maximum token limit') ||
+    (lower.includes('too many tokens') && lower.includes('context') && !lower.includes('rate'))
+  ) {
+    return makeErrorInfo('context-overflow', displayMessage)
   }
 
   // Model not found

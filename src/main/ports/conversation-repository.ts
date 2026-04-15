@@ -37,6 +37,14 @@ export interface ConversationRepositoryShape {
     id: ConversationId,
     active: boolean,
   ) => Effect.Effect<void, ConversationRepositoryError>
+  readonly updateCompactionGuidance: (
+    id: ConversationId,
+    guidance: string | null,
+  ) => Effect.Effect<void, ConversationRepositoryError>
+  readonly markMessagesAsCompacted: (
+    id: ConversationId,
+    messageIds: readonly string[],
+  ) => Effect.Effect<void, ConversationRepositoryError>
 }
 
 export class ConversationRepository extends Context.Tag('@openwaggle/ConversationRepository')<

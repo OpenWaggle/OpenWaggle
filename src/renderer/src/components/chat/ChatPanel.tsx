@@ -3,10 +3,11 @@ import { useUIStore } from '@/stores/ui-store'
 import { ChatComposerStack } from './ChatComposerStack'
 import { ChatDiffPane } from './ChatDiffPane'
 import { ChatTranscript } from './ChatTranscript'
+import { ContextInspectorPane } from './ContextInspectorPane'
 import { useChatPanelSections } from './use-chat-panel-controller'
 
 export function ChatPanel() {
-  const diffPanelOpen = useUIStore((s) => s.diffPanelOpen)
+  const activeInspector = useUIStore((s) => s.activeInspector)
 
   const sections = useChatPanelSections()
 
@@ -22,7 +23,8 @@ export function ChatPanel() {
         </PanelErrorBoundary>
       </div>
 
-      {diffPanelOpen && <ChatDiffPane section={sections.diff} />}
+      {activeInspector === 'diff' && <ChatDiffPane section={sections.diff} />}
+      {activeInspector === 'context' && <ContextInspectorPane />}
     </div>
   )
 }

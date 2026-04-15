@@ -22,8 +22,8 @@ vi.mock('@/lib/ipc', () => ({
 }))
 
 vi.mock('@/stores/preferences-store', () => ({
-  usePreferencesStore: (selector: (state: { settings: { defaultModel: string } }) => unknown) =>
-    selector({ settings: { defaultModel: 'claude-sonnet-4-20250514' } }),
+  usePreferencesStore: (selector: (state: { settings: { selectedModel: string } }) => unknown) =>
+    selector({ settings: { selectedModel: 'claude-sonnet-4-20250514' } }),
 }))
 
 import { FeedbackModal } from '../FeedbackModal'

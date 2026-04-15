@@ -22,6 +22,7 @@ export function registerProvidersHandlers(): void {
           id: SupportedModelId(m),
           name: generateDisplayName(m),
           provider: p.id,
+          contextWindow: p.getContextWindow?.(m)?.contextTokens,
         })),
       }))
     }),
@@ -42,10 +43,12 @@ export function registerProvidersHandlers(): void {
         if (models.length > 0) {
           yield* providerSvc.indexModels(models, providerId)
         }
+        const providerInfo = yield* providerSvc.get(providerId)
         return [...models].map((m) => ({
           id: SupportedModelId(m),
           name: generateDisplayName(m),
           provider: providerId,
+          contextWindow: providerInfo?.getContextWindow?.(m)?.contextTokens,
         }))
       }),
   )

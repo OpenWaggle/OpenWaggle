@@ -84,7 +84,7 @@ export const orchestrateTool = defineOpenWaggleTool({
     const settings = getSettings()
     const projectConfig = await loadProjectConfig(projectPath)
     const resolution = await resolveProviderAndQuality(
-      settings.defaultModel,
+      settings.selectedModel,
       settings.qualityPreset,
       settings.providers,
       projectConfig.quality,

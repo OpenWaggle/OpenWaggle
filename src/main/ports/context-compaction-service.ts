@@ -34,6 +34,8 @@ export interface CompactOptions {
   readonly contextWindowTokens: number
   /** Optional user-provided instructions for what to preserve. */
   readonly customInstructions?: string
+  /** Pinned content to exclude from summarization (highest preservation priority). */
+  readonly pinnedContent?: readonly string[]
   /** Chat stream function for the compaction LLM call. */
   readonly chatStream: (options: {
     readonly adapter: ChatAdapter

@@ -201,7 +201,7 @@ describe('buildFreshChatMessages', () => {
     const provider = makeProvider()
     const payload = makePayload('new question')
 
-    const messages = buildFreshChatMessages(conversation, provider, payload)
+    const { messages } = buildFreshChatMessages(conversation, provider, payload)
 
     expect(messages).toHaveLength(3)
     expect(messages[0]).toEqual({ role: 'user', content: 'prior question' })
@@ -226,7 +226,7 @@ describe('buildFreshChatMessages', () => {
     const provider = makeProvider()
     const payload = makePayload('first message')
 
-    const messages = buildFreshChatMessages(conversation, provider, payload)
+    const { messages } = buildFreshChatMessages(conversation, provider, payload)
     expect(messages).toHaveLength(1)
     expect(messages[0]).toEqual({ role: 'user', content: 'first message' })
   })

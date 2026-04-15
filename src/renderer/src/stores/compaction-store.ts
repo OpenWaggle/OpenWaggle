@@ -74,6 +74,14 @@ export const useCompactionStore = create<CompactionState>((set) => ({
   },
 }))
 
+/** Clear all pending auto-dismiss timers. Call on app cleanup. */
+export function clearAllCompactionTimers(): void {
+  for (const timer of autoDismissTimers.values()) {
+    clearTimeout(timer)
+  }
+  autoDismissTimers.clear()
+}
+
 /** Stable selector factory — returns undefined when no active compaction. */
 export function selectCompaction(conversationId: ConversationId | null) {
   return (state: CompactionState): CompactionStatus | undefined => {

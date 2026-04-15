@@ -50,7 +50,7 @@ export function usePreferences() {
   const settings = usePreferencesStore((s) => s.settings)
   const isLoaded = usePreferencesStore((s) => s.isLoaded)
   const loadError = usePreferencesStore((s) => s.loadError)
-  const setDefaultModel = usePreferencesStore((s) => s.setDefaultModel)
+  const setSelectedModel = usePreferencesStore((s) => s.setSelectedModel)
   const toggleFavoriteModel = usePreferencesStore((s) => s.toggleFavoriteModel)
   const setEnabledModels = usePreferencesStore((s) => s.setEnabledModels)
   const setProjectPath = usePreferencesStore((s) => s.setProjectPath)
@@ -63,7 +63,7 @@ export function usePreferences() {
     settings,
     isLoaded,
     loadError,
-    setDefaultModel,
+    setSelectedModel,
     toggleFavoriteModel,
     setEnabledModels,
     setProjectPath,

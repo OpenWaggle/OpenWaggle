@@ -9,9 +9,14 @@ import { openrouterProvider } from '../openrouter'
 
 describe('getContextWindow', () => {
   describe('anthropic', () => {
-    it('returns 200K context for Claude Opus 4.6', () => {
+    it('returns 1M context for Claude Opus 4.6', () => {
       const result = anthropicProvider.getContextWindow?.('claude-opus-4-6')
-      expect(result).toEqual({ contextTokens: 200_000, maxOutputTokens: 128_000 })
+      expect(result).toEqual({ contextTokens: 1_000_000, maxOutputTokens: 128_000 })
+    })
+
+    it('returns 1M context for Claude Sonnet 4.6', () => {
+      const result = anthropicProvider.getContextWindow?.('claude-sonnet-4-6')
+      expect(result).toEqual({ contextTokens: 1_000_000, maxOutputTokens: 64_000 })
     })
 
     it('returns 200K context for Claude Sonnet 4.5', () => {

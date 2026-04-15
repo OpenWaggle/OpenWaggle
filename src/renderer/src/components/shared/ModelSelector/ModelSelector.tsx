@@ -1,8 +1,10 @@
 import { SupportedModelId } from '@shared/types/brand'
+import type { ModelCompatibilityInfo } from '@shared/types/context'
 import type { ProviderInfo } from '@shared/types/llm'
 import { isProvider, type Settings } from '@shared/types/settings'
 import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/cn'
+import { formatContextWindow } from '@/lib/format-tokens'
 import { ModelSelectorDropdown } from './ModelSelectorDropdown'
 import { resolveIcon, resolveIconColor } from './provider-icon'
 import type { FlatModel } from './types'
@@ -12,6 +14,7 @@ interface ModelSelectorProps {
   onChange: (model: SupportedModelId, authMethod?: 'api-key' | 'subscription') => void
   settings: Settings
   providerModels: ProviderInfo[]
+  modelCompatibility?: ModelCompatibilityInfo[]
   className?: string
 }
 
@@ -26,13 +29,18 @@ const MODEL_KEY_MODEL_ID_START_INDEX = 2
 function buildFlatModels(providerModels: readonly ProviderInfo[], settings: Settings): FlatModel[] {
   if (settings.enabledModels.length === 0) return []
 
-  // Build a fast lookup: "provider:modelId" -> display name
+  // Build fast lookups: "provider:modelId" -> display name + context window
   const modelNameLookup = new Map<string, string>()
+  const modelContextWindowLookup = new Map<string, number>()
   for (const group of providerModels) {
     for (const model of group.models) {
       const trimmedId = model.id.trim()
       if (trimmedId) {
-        modelNameLookup.set(`${group.provider}:${trimmedId}`, model.name.trim() || trimmedId)
+        const lookupKey = `${group.provider}:${trimmedId}`
+        modelNameLookup.set(lookupKey, model.name.trim() || trimmedId)
+        if (model.contextWindow) {
+          modelContextWindowLookup.set(lookupKey, model.contextWindow)
+        }
       }
     }
   }
@@ -66,11 +74,13 @@ function buildFlatModels(providerModels: readonly ProviderInfo[], settings: Sett
     const name = modelNameLookup.get(`${provider}:${modelId}`)
     if (name === undefined) continue
 
+    const cw = modelContextWindowLookup.get(`${provider}:${modelId}`)
     models.push({
       id: SupportedModelId(modelId),
       name,
       provider,
       authMethod,
+      contextWindowLabel: cw ? formatContextWindow(cw) : undefined,
     })
   }
 
@@ -99,6 +109,7 @@ export function ModelSelector({
   onChange,
   settings,
   providerModels,
+  modelCompatibility,
   className,
 }: ModelSelectorProps) {
   const [isOpen, setIsOpen] = useState(false)
@@ -110,7 +121,20 @@ export function ModelSelector({
   const ref = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  const flatModels = buildFlatModels(providerModels, settings)
+  const baseFlatModels = buildFlatModels(providerModels, settings)
+
+  // Merge compatibility info into flat models when available
+  const flatModels = modelCompatibility
+    ? baseFlatModels.map((model) => {
+        const compat = modelCompatibility.find((c) => c.modelId === model.id)
+        if (!compat) return model
+        return {
+          ...model,
+          compatibility: compat.compatibility,
+          contextWindowLabel: formatContextWindow(compat.contextWindow),
+        }
+      })
+    : baseFlatModels
   // Find the selected model — match authMethod when available for disambiguation
   const selectedModel =
     flatModels.find(

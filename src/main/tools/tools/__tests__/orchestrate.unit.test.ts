@@ -35,7 +35,7 @@ const runOpenWaggleOrchestrationMock = vi.fn()
 vi.mock('../../../store/settings', () => ({
   getSettings: () => ({
     ...DEFAULT_SETTINGS,
-    defaultModel: SupportedModelId('claude-sonnet-4-5'),
+    selectedModel: SupportedModelId('claude-sonnet-4-5'),
     providers: {
       anthropic: { enabled: true, apiKey: 'sk-test' },
     },

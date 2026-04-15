@@ -1,9 +1,12 @@
+import type { ModelCompatibilityInfo } from '@shared/types/context'
 import type { QualityPreset } from '@shared/types/settings'
-import { ArrowUp, ClipboardList, Loader2, Mic, Square } from 'lucide-react'
+import { ArrowUp, Bookmark, ClipboardList, Loader2, Mic, Square } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { ModelSelector } from '@/components/shared/ModelSelector'
 import { Popover } from '@/components/shared/Popover'
 import { useProject } from '@/hooks/useProject'
 import { cn } from '@/lib/cn'
+import { api } from '@/lib/ipc'
 import { useChatStore } from '@/stores/chat-store'
 import { useComposerStore } from '@/stores/composer-store'
 import { usePreferencesStore } from '@/stores/preferences-store'
@@ -37,17 +40,31 @@ export function ComposerToolbar({
 }: ComposerToolbarProps) {
   const settings = usePreferencesStore((s) => s.settings)
   const providerModels = useProviderStore((s) => s.providerModels)
-  const setDefaultModel = usePreferencesStore((s) => s.setDefaultModel)
+  const setSelectedModel = usePreferencesStore((s) => s.setSelectedModel)
   const setQualityPreset = usePreferencesStore((s) => s.setQualityPreset)
 
   const qualityMenuOpen = useComposerStore((s) => s.qualityMenuOpen)
   const openMenu = useComposerStore((s) => s.openMenu)
+
+  // Compact command detection — isolated here to avoid re-rendering the entire Composer tree
+  const input = useComposerStore((s) => s.input)
+  const isCompactCommand = /^\/compact(\s|$)/.test(input.trimStart())
+  const saveCompactForThread = useComposerStore((s) => s.compactSaveForThread)
+  const setCompactSaveForThread = useComposerStore((s) => s.setCompactSaveForThread)
   const { projectPath } = useProject()
   const activeConversationId = useChatStore((s) => s.activeConversationId)
   const planModeActive = useChatStore((s) => s.activeConversation?.planModeActive) ?? false
   const togglePlanMode = useChatStore((s) => s.togglePlanMode)
   const isListening = voiceMode === 'recording'
   const isTranscribingVoice = voiceMode === 'transcribing'
+
+  // Fetch model compatibility when conversation changes
+  const [modelCompatibility, setModelCompatibility] = useState<ModelCompatibilityInfo[]>([])
+  useEffect(() => {
+    if (activeConversationId) {
+      void api.getModelCompatibility(activeConversationId).then(setModelCompatibility)
+    }
+  }, [activeConversationId])
 
   async function handleQualityChange(preset: QualityPreset): Promise<void> {
     openMenu(null)
@@ -61,10 +78,11 @@ export function ComposerToolbar({
         <ComposerAttachButton fileInputRef={fileInputRef} />
 
         <ModelSelector
-          value={settings.defaultModel}
-          onChange={setDefaultModel}
+          value={settings.selectedModel}
+          onChange={setSelectedModel}
           settings={settings}
           providerModels={providerModels}
+          modelCompatibility={modelCompatibility.length > 0 ? modelCompatibility : undefined}
         />
 
         <Popover
@@ -120,6 +138,27 @@ export function ComposerToolbar({
           <ClipboardList className="h-3 w-3" />
           <span className="text-[12px]">Plan</span>
         </button>
+
+        {isCompactCommand && (
+          <button
+            type="button"
+            onClick={() => setCompactSaveForThread(!saveCompactForThread)}
+            className={cn(
+              'flex items-center gap-[5px] h-[26px] px-2.5 rounded-md border transition-colors',
+              saveCompactForThread
+                ? 'border-accent/50 bg-accent/10 text-accent'
+                : 'border-button-border text-text-secondary hover:bg-bg-hover',
+            )}
+            title={
+              saveCompactForThread
+                ? 'Guidance will be saved for this thread'
+                : 'Save compaction guidance for this thread'
+            }
+          >
+            <Bookmark className="h-3 w-3" />
+            <span className="text-[12px]">Save for thread</span>
+          </button>
+        )}
       </div>
 
       <div className="flex items-center gap-2">

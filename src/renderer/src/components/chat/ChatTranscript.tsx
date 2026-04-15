@@ -3,6 +3,7 @@ import type { PlanResponse } from '@shared/types/plan'
 import type { QuestionAnswer } from '@shared/types/question'
 import { chooseBy } from '@shared/utils/decision'
 import { ChatRowRenderer } from './ChatRowRenderer'
+import { CompactedMessageGroup } from './CompactedMessageGroup'
 import { useChatScrollBehaviour } from './hooks/useChatScrollBehaviour'
 import type { ChatRow } from './types-chat-row'
 import type { ChatTranscriptSectionState } from './use-chat-panel-controller'
@@ -54,9 +55,114 @@ function getChatRowKey(row: ChatRow): string {
     .case('segment', (value) => `segment:${value.segment.id}`)
     .case('phase-indicator', (value) => `phase:${value.label}`)
     .case('run-summary', (value) => `run-summary:${String(value.totalMs)}`)
+    .case('compaction-event', (value) => `compaction:${value.messageId}`)
     .case('error', (value) => `error:${value.conversationId ?? 'none'}:${value.error.message}`)
     .assertComplete()
 }
+
+// ─── Row Rendering with Compacted Message Grouping ──────────
+
+interface RenderTranscriptRowsParams {
+  rows: ChatRow[]
+  compactedMessageIds: ReadonlySet<string>
+  lastUserMessageId: string | null
+  userMessageRef: React.RefObject<HTMLDivElement | null>
+  activeConversationId: ConversationId | null
+  onAnswerQuestion: (conversationId: ConversationId, answers: QuestionAnswer[]) => Promise<void>
+  onRespondToPlan: (conversationId: ConversationId, response: PlanResponse) => Promise<void>
+  onOpenSettings: () => void
+  onRetryText: (content: string) => Promise<void>
+  onDismissError: (errorId: string | null) => void
+}
+
+function renderTranscriptRows(params: RenderTranscriptRowsParams): React.ReactNode[] {
+  const {
+    rows,
+    compactedMessageIds,
+    lastUserMessageId,
+    userMessageRef,
+    activeConversationId,
+    onAnswerQuestion,
+    onRespondToPlan,
+    onOpenSettings,
+    onRetryText,
+    onDismissError,
+  } = params
+
+  const elements: React.ReactNode[] = []
+  let compactedGroup: React.ReactNode[] = []
+  let compactedGroupKey = ''
+
+  function flushCompactedGroup() {
+    if (compactedGroup.length === 0) return
+    elements.push(
+      <div
+        key={`compacted-${compactedGroupKey}`}
+        className="mx-auto w-full max-w-[720px] px-12 pb-2"
+      >
+        <CompactedMessageGroup count={compactedGroup.length}>
+          {compactedGroup}
+        </CompactedMessageGroup>
+      </div>,
+    )
+    compactedGroup = []
+    compactedGroupKey = ''
+  }
+
+  for (let index = 0; index < rows.length; index++) {
+    const row = rows[index]
+    const isUserMessage = row.type === 'message' && row.message.role === 'user'
+    const isScrollTarget = isUserMessage && row.message.id === lastUserMessageId
+    const isCompacted =
+      (row.type === 'message' || row.type === 'segment') &&
+      compactedMessageIds.has(row.type === 'message' ? row.message.id : row.parentMessage.id)
+
+    if (isCompacted) {
+      if (compactedGroupKey === '') compactedGroupKey = getChatRowKey(row)
+      compactedGroup.push(
+        <div key={getChatRowKey(row)} className="mx-auto w-full max-w-[720px] px-12 pb-6">
+          <TranscriptRow
+            row={row}
+            conversationId={activeConversationId}
+            onAnswerQuestion={onAnswerQuestion}
+            onRespondToPlan={onRespondToPlan}
+            onOpenSettings={onOpenSettings}
+            onRetryText={onRetryText}
+            onDismissError={onDismissError}
+          />
+        </div>,
+      )
+      continue
+    }
+
+    flushCompactedGroup()
+
+    elements.push(
+      <div
+        key={getChatRowKey(row)}
+        ref={isScrollTarget ? userMessageRef : undefined}
+        className="mx-auto w-full max-w-[720px] px-12 pb-6"
+        {...(isUserMessage ? { 'data-user-message-id': row.message.id } : {})}
+        style={index === 0 ? { paddingTop: PADDING_TOP } : undefined}
+      >
+        <TranscriptRow
+          row={row}
+          conversationId={activeConversationId}
+          onAnswerQuestion={onAnswerQuestion}
+          onRespondToPlan={onRespondToPlan}
+          onOpenSettings={onOpenSettings}
+          onRetryText={onRetryText}
+          onDismissError={onDismissError}
+        />
+      </div>,
+    )
+  }
+
+  flushCompactedGroup()
+  return elements
+}
+
+// ─── Component ──────────────────────────────────────────────
 
 export function ChatTranscript({ section }: ChatTranscriptProps) {
   const {
@@ -67,6 +173,7 @@ export function ChatTranscript({ section }: ChatTranscriptProps) {
     recentProjects,
     activeConversationId,
     chatRows: rows,
+    compactedMessageIds,
     onOpenProject,
     onSelectProjectPath,
     onRetryText,
@@ -114,28 +221,17 @@ export function ChatTranscript({ section }: ChatTranscriptProps) {
       className="relative flex flex-1 flex-col overflow-y-auto chat-scroll [overflow-anchor:none]"
       onScroll={handleScroll}
     >
-      {rows.map((row, index) => {
-        const isUserMessage = row.type === 'message' && row.message.role === 'user'
-        const isScrollTarget = isUserMessage && row.message.id === lastUserMessageId
-        return (
-          <div
-            key={getChatRowKey(row)}
-            ref={isScrollTarget ? userMessageRef : undefined}
-            className="mx-auto w-full max-w-[720px] px-12 pb-6"
-            {...(isUserMessage ? { 'data-user-message-id': row.message.id } : {})}
-            style={index === 0 ? { paddingTop: PADDING_TOP } : undefined}
-          >
-            <TranscriptRow
-              row={row}
-              conversationId={activeConversationId}
-              onAnswerQuestion={onAnswerQuestion}
-              onRespondToPlan={onRespondToPlan}
-              onOpenSettings={onOpenSettings}
-              onRetryText={onRetryText}
-              onDismissError={onDismissError}
-            />
-          </div>
-        )
+      {renderTranscriptRows({
+        rows,
+        compactedMessageIds,
+        lastUserMessageId,
+        userMessageRef,
+        activeConversationId,
+        onAnswerQuestion,
+        onRespondToPlan,
+        onOpenSettings,
+        onRetryText,
+        onDismissError,
       })}
       {messages.length > 0 && (
         <div ref={spacerRef} aria-hidden="true" style={{ flexShrink: 0, pointerEvents: 'none' }} />

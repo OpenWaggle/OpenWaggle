@@ -297,10 +297,10 @@ describe('provider-store integration', () => {
   })
 
   it('sets default model through preferences store', async () => {
-    await usePreferencesStore.getState().setDefaultModel('gpt-4.1-mini')
+    await usePreferencesStore.getState().setSelectedModel('gpt-4.1-mini')
 
-    expect(apiMock.updateSettings).toHaveBeenCalledWith({ defaultModel: 'gpt-4.1-mini' })
-    expect(usePreferencesStore.getState().settings.defaultModel).toBe('gpt-4.1-mini')
+    expect(apiMock.updateSettings).toHaveBeenCalledWith({ selectedModel: 'gpt-4.1-mini' })
+    expect(usePreferencesStore.getState().settings.selectedModel).toBe('gpt-4.1-mini')
   })
 
   it('preserves provider authMethod when toggling provider enabled state', async () => {
@@ -675,10 +675,10 @@ describe('provider-store integration', () => {
       ],
     })
 
-    await usePreferencesStore.getState().setDefaultModel('gemini-2.5-flash')
+    await usePreferencesStore.getState().setSelectedModel('gemini-2.5-flash')
 
     expect(apiMock.updateSettings).toHaveBeenCalledWith({
-      defaultModel: 'gemini-2.5-flash',
+      selectedModel: 'gemini-2.5-flash',
       providers: expect.objectContaining({
         gemini: expect.objectContaining({
           apiKey: 'gemini-key',

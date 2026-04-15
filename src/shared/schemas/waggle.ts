@@ -16,6 +16,7 @@ export const waggleMetadataSchema = Schema.Struct({
   agentModel: Schema.optional(Schema.String),
   turnNumber: Schema.Number,
   isSynthesis: Schema.optional(Schema.Boolean),
+  sessionId: Schema.optional(Schema.String),
 })
 
 export const waggleAgentSlotSchema = Schema.Struct({

@@ -111,7 +111,7 @@ export const spawnAgentTool = defineOpenWaggleTool({
       },
       parentConversationId: context.conversationId,
       parentProjectPath: context.projectPath,
-      parentModel: SupportedModelId(getSettings().defaultModel),
+      parentModel: SupportedModelId(getSettings().selectedModel),
       parentPermissionMode: parentMode,
       parentDepth,
       // context.chatStream is always set by agent-loop (toolContext.chatStream = params.chatStream).

@@ -222,7 +222,7 @@ describe('runWaggleSequential', () => {
   it('retries synthesis with Agent A model when default model synthesis fails', async () => {
     const settingsWithFallback = {
       ...DEFAULT_SETTINGS,
-      defaultModel: SupportedModelId('gpt-5.4'),
+      selectedModel: SupportedModelId('gpt-5.4'),
     }
 
     runAgentMock
@@ -267,7 +267,7 @@ describe('runWaggleSequential', () => {
   it('propagates synthesis failure reason when all synthesis model attempts fail', async () => {
     const settingsWithFallback = {
       ...DEFAULT_SETTINGS,
-      defaultModel: SupportedModelId('gpt-5.4'),
+      selectedModel: SupportedModelId('gpt-5.4'),
     }
 
     runAgentMock

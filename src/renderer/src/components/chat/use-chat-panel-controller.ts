@@ -40,6 +40,7 @@ export interface ChatTranscriptSectionState {
   readonly recentProjects: readonly string[]
   readonly activeConversationId: ConversationId | null
   readonly chatRows: ChatRow[]
+  readonly compactedMessageIds: ReadonlySet<string>
   /** The ID of the last user message. ChatTranscript watches this reactively
    *  (Voyager pattern) and scrolls when it changes to a new unseen ID. */
   readonly lastUserMessageId: string | null
@@ -92,7 +93,7 @@ export function useChatPanelSections(): ChatPanelSections {
   const openSettings = useUIStore((s) => s.openSettings)
   const showToast = useUIStore((s) => s.showToast)
 
-  const model = usePreferencesStore((s) => s.settings.defaultModel)
+  const model = usePreferencesStore((s) => s.settings.selectedModel)
   const qualityPreset = usePreferencesStore((s) => s.settings.qualityPreset)
   const recentProjects = usePreferencesStore((s) => s.settings.recentProjects)
   const executionMode = usePreferencesStore((s) => s.settings.executionMode)

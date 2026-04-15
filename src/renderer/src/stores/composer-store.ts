@@ -75,6 +75,10 @@ interface ComposerState {
   setSlashHighlightIndex: (index: number) => void
   setDismissedSlashToken: (token: string | null) => void
 
+  // Compact command
+  compactSaveForThread: boolean
+  setCompactSaveForThread: (value: boolean) => void
+
   // Lexical editor ref (set by EditorRefPlugin, consumed by skill selection)
   lexicalEditor: LexicalEditor | null
   setLexicalEditor: (editor: LexicalEditor | null) => void
@@ -96,6 +100,7 @@ interface InitialComposerState {
   branchMenuOpen: boolean
   slashHighlightIndex: number
   dismissedSlashToken: string | null
+  compactSaveForThread: boolean
 }
 
 function buildInitialState(): InitialComposerState {
@@ -113,6 +118,7 @@ function buildInitialState(): InitialComposerState {
     branchMenuOpen: false,
     slashHighlightIndex: 0,
     dismissedSlashToken: null,
+    compactSaveForThread: false,
   }
 }
 
@@ -191,6 +197,10 @@ export const useComposerStore = create<ComposerState>((set, get) => ({
 
   setDismissedSlashToken(token: string | null) {
     set({ dismissedSlashToken: token })
+  },
+
+  setCompactSaveForThread(value: boolean) {
+    set({ compactSaveForThread: value })
   },
 
   lexicalEditor: null,

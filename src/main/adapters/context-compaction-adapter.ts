@@ -6,6 +6,7 @@
  * 2. Send conversation history + summarization prompt to LLM
  * 3. Build compacted message array from summary + recent messages
  */
+import type { AgentStreamChunk } from '@shared/types/stream'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import {
@@ -29,10 +30,16 @@ const logger = createLogger('context-compaction')
 
 // ─── Summarization prompt ───────────────────────────────────
 
+const PERCENT_MULTIPLIER = 100
+const COMPACTION_SUMMARY_MAX_TOKENS = 4096
+
 const COMPACTION_SYSTEM_PROMPT =
   'You are a context compaction assistant. Your only task is to produce a concise handoff summary.'
 
-function buildSummarizationPrompt(customInstructions?: string): string {
+function buildSummarizationPrompt(
+  customInstructions?: string,
+  pinnedContent?: readonly string[],
+): string {
   const base = `You are performing a context checkpoint. Create a detailed handoff summary for another LLM that will resume the current task.
 
 Include:
@@ -43,10 +50,19 @@ Include:
 
 Be concise but thorough. Do NOT include raw file contents or tool outputs — only summarize key information from them.`
 
-  if (customInstructions) {
-    return `${base}\n\nAdditional preservation instructions from the user:\n${customInstructions}`
+  const parts = [base]
+
+  if (pinnedContent && pinnedContent.length > 0) {
+    parts.push(
+      `\nThe following content has been pinned by the user and MUST be preserved verbatim in the summary:\n${pinnedContent.map((c, i) => `[Pin ${String(i + 1)}] ${c}`).join('\n')}`,
+    )
   }
-  return base
+
+  if (customInstructions) {
+    parts.push(`\nAdditional preservation instructions from the user:\n${customInstructions}`)
+  }
+
+  return parts.join('\n')
 }
 
 const CONTEXT_SUMMARY_PREFIX = '[Context Summary from prior conversation]\n\n'
@@ -54,7 +70,10 @@ const CONTEXT_SUMMARY_PREFIX = '[Context Summary from prior conversation]\n\n'
 // ─── Helpers ────────────────────────────────────────────────
 
 /**
- * Collect recent user messages up to a token budget (newest-first).
+ * Collect the newest contiguous block of user messages that fits within
+ * the token budget. Iterates newest-first and stops at the first message
+ * that would exceed the budget — intentionally preserving recency over
+ * completeness so the most recent user context is always kept.
  * Returns them in chronological order.
  */
 function collectRecentUserMessages(
@@ -88,18 +107,35 @@ function getLastAssistantMessage(
   return undefined
 }
 
+/** Timeout for the compaction summarization stream (2 minutes). */
+const COMPACTION_STREAM_TIMEOUT_MS = 120_000
+
 /**
- * Collect summary text from a compaction LLM stream.
+ * Collect summary text from a compaction LLM stream with stall protection.
+ * Uses manual iterator + Promise.race to avoid blocking indefinitely
+ * on provider stalls (same pattern as the main agent stream processor).
  */
-async function collectStreamText(
-  stream: AsyncIterable<import('@shared/types/stream').AgentStreamChunk>,
-): Promise<string> {
+async function collectStreamText(stream: AsyncIterable<AgentStreamChunk>): Promise<string> {
   let text = ''
-  for await (const chunk of stream) {
-    if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
-      text += chunk.delta
+  const iterator = stream[Symbol.asyncIterator]()
+
+  while (true) {
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error('Compaction stream stalled — no chunks received within timeout')),
+        COMPACTION_STREAM_TIMEOUT_MS,
+      )
+      // Allow Node to exit even if the timer is pending
+      if (typeof timer === 'object' && 'unref' in timer) timer.unref()
+    })
+
+    const result = await Promise.race([iterator.next(), timeoutPromise])
+    if (result.done) break
+    if (result.value.type === 'TEXT_MESSAGE_CONTENT') {
+      text += result.value.delta
     }
   }
+
   return text
 }
 
@@ -115,7 +151,14 @@ export const ContextCompactionLive = Layer.succeed(ContextCompactionService, {
 
   compact: (options: CompactOptions) =>
     Effect.gen(function* () {
-      const { messages, contextWindowTokens, customInstructions, chatStream, adapter } = options
+      const {
+        messages,
+        contextWindowTokens,
+        customInstructions,
+        pinnedContent,
+        chatStream,
+        adapter,
+      } = options
       const originalTokenEstimate = estimateMessagesTokens(messages)
 
       logger.info('Starting full context compaction', {
@@ -127,7 +170,7 @@ export const ContextCompactionLive = Layer.succeed(ContextCompactionService, {
       // Build the summarization request: full history + summarization prompt
       const summarizationMessages: CompactionMessage[] = [
         ...messages,
-        { role: 'user', content: buildSummarizationPrompt(customInstructions) },
+        { role: 'user', content: buildSummarizationPrompt(customInstructions, pinnedContent) },
       ]
 
       // Call the LLM for summarization
@@ -135,7 +178,7 @@ export const ContextCompactionLive = Layer.succeed(ContextCompactionService, {
         adapter,
         messages: summarizationMessages,
         systemPrompts: [COMPACTION_SYSTEM_PROMPT],
-        samplingOptions: { maxTokens: 4096 },
+        samplingOptions: { maxTokens: COMPACTION_SUMMARY_MAX_TOKENS },
       })
 
       const summaryText = yield* Effect.tryPromise({
@@ -211,16 +254,39 @@ export const ContextCompactionLive = Layer.succeed(ContextCompactionService, {
         recentMessagesPreserved: compactedMessages.length,
       }
 
+      // Extreme pressure check: if compacted result still exceeds 95% of context
+      // and pinned content exists, the pinned content was preserved verbatim.
+      // As a last resort, flag that pinned content was included in summarization.
+      const EXTREME_PRESSURE_RATIO = 0.95
+      const postCompactionRatio = compactedTokenEstimate / contextWindowTokens
+      const hasPinnedContent = pinnedContent && pinnedContent.length > 0
+      const pinnedContentSummarized =
+        postCompactionRatio > EXTREME_PRESSURE_RATIO && hasPinnedContent
+
+      if (pinnedContentSummarized) {
+        logger.warn('Extreme context pressure — pinned content was included in summarization', {
+          postCompactionRatio: Math.round(postCompactionRatio * PERCENT_MULTIPLIER),
+          pinnedItemCount: pinnedContent.length,
+        })
+      }
+
+      const finalResult: FullCompactionResult = {
+        ...result,
+        pinnedContentSummarized: pinnedContentSummarized || undefined,
+      }
+
       logger.info('Context compaction completed', {
         originalTokenEstimate,
         compactedTokenEstimate,
         summaryTokens,
         messagesPreserved: compactedMessages.length,
         reductionPercent: Math.round(
-          ((originalTokenEstimate - compactedTokenEstimate) / originalTokenEstimate) * 100,
+          ((originalTokenEstimate - compactedTokenEstimate) / originalTokenEstimate) *
+            PERCENT_MULTIPLIER,
         ),
+        pinnedContentSummarized,
       })
 
-      return { messages: compactedMessages, result }
+      return { messages: compactedMessages, result: finalResult }
     }),
 })

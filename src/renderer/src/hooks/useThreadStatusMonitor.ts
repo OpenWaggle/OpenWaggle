@@ -29,7 +29,18 @@ function isCompactionEvent(value: unknown): value is {
   if (!('stage' in value)) return false
   const { stage } = value
   if (typeof stage !== 'string') return false
-  return VALID_COMPACTION_STAGES.has(stage)
+  if (!VALID_COMPACTION_STAGES.has(stage)) return false
+
+  // Validate metrics shape when present to prevent NaN propagation downstream
+  if ('metrics' in value && value.metrics != null) {
+    const m = value.metrics
+    if (typeof m !== 'object' || m === null) return false
+    if (!('tokensBefore' in m) || typeof m.tokensBefore !== 'number') return false
+    if (!('tokensAfter' in m) || typeof m.tokensAfter !== 'number') return false
+    if (!('messagesSummarized' in m) || typeof m.messagesSummarized !== 'number') return false
+  }
+
+  return true
 }
 
 /**

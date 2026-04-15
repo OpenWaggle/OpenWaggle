@@ -24,7 +24,7 @@ interface PreferencesState {
 
   loadSettings: () => Promise<void>
   retryLoad: () => Promise<void>
-  setDefaultModel: (
+  setSelectedModel: (
     model: SupportedModelId,
     authMethod?: 'api-key' | 'subscription',
   ) => Promise<void>
@@ -85,7 +85,7 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     await useProviderStore.getState().loadProviderModels()
   },
 
-  async setDefaultModel(model: SupportedModelId, authMethod?: 'api-key' | 'subscription') {
+  async setSelectedModel(model: SupportedModelId, authMethod?: 'api-key' | 'subscription') {
     const { useProviderStore } = await import('./provider-store')
     const { settings } = get()
     const { providerModels } = useProviderStore.getState()
@@ -94,8 +94,8 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     )
 
     if (!providerInfo) {
-      await api.updateSettings({ defaultModel: model })
-      set({ settings: { ...settings, defaultModel: model } })
+      await api.updateSettings({ selectedModel: model })
+      set({ settings: { ...settings, selectedModel: model } })
       persistProjectPreference(settings.projectPath, { model })
       return
     }
@@ -110,8 +110,8 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     const needsAuthSwitch = authMethod !== undefined && existingConfig?.authMethod !== authMethod
 
     if (!shouldEnableProvider && !needsAuthSwitch) {
-      await api.updateSettings({ defaultModel: model })
-      set({ settings: { ...settings, defaultModel: model } })
+      await api.updateSettings({ selectedModel: model })
+      set({ settings: { ...settings, selectedModel: model } })
       persistProjectPreference(settings.projectPath, { model })
       return
     }
@@ -126,8 +126,8 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
       } satisfies ProviderConfig,
     }
 
-    await api.updateSettings({ defaultModel: model, providers: nextProviders })
-    set({ settings: { ...settings, defaultModel: model, providers: nextProviders } })
+    await api.updateSettings({ selectedModel: model, providers: nextProviders })
+    set({ settings: { ...settings, selectedModel: model, providers: nextProviders } })
     persistProjectPreference(settings.projectPath, { model })
   },
 
@@ -231,11 +231,11 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
 
     const merged = {
       ...settings,
-      ...(model ? { defaultModel: model } : {}),
+      ...(model ? { selectedModel: model } : {}),
       ...(qualityPreset ? { qualityPreset } : {}),
     }
     await api.updateSettings({
-      ...(model ? { defaultModel: model } : {}),
+      ...(model ? { selectedModel: model } : {}),
       ...(qualityPreset ? { qualityPreset } : {}),
     })
     set({ settings: merged })

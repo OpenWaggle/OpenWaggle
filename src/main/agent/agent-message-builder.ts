@@ -49,11 +49,16 @@ export function buildUserChatContent(
   return parts
 }
 
+export interface FreshChatMessagesResult {
+  readonly messages: SimpleChatMessage[]
+  readonly microcompactedCount: number
+}
+
 export function buildFreshChatMessages(
   conversation: Conversation,
   provider: ProviderDefinition,
   payload: HydratedAgentSendPayload,
-): SimpleChatMessage[] {
+): FreshChatMessagesResult {
   const raw: SimpleChatMessage[] = [
     ...conversationToMessages(conversation.messages),
     {
@@ -63,5 +68,6 @@ export function buildFreshChatMessages(
   ]
   // Tier 1 microcompaction: strip old tool results to keep context bounded.
   // Keeps the 5 most recent tool results intact; replaces older ones with placeholders.
-  return microcompactMessages(raw).messages
+  const result = microcompactMessages(raw)
+  return { messages: result.messages, microcompactedCount: result.strippedCount }
 }

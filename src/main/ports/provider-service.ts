@@ -19,6 +19,9 @@ export interface ProviderCapabilities {
   readonly models: readonly string[]
   readonly testModel: string
   readonly apiKeyManagementUrl?: string
+  readonly getContextWindow?: (
+    model: string,
+  ) => { contextTokens: number; maxOutputTokens: number } | undefined
 }
 
 export interface ProviderServiceShape {

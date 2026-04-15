@@ -25,7 +25,9 @@ export function estimateMessageTokens(msg: {
 
   if (typeof msg.content === 'string') {
     tokens += estimateTokens(msg.content)
-  } else if (Array.isArray(msg.content)) {
+  }
+
+  if (Array.isArray(msg.content)) {
     for (const part of msg.content) {
       if (isTextContent(part)) {
         tokens += estimateTokens(part.content)

@@ -68,19 +68,25 @@ function supportsAdaptiveThinking(modelId: string): boolean {
 
 // ─── Context window metadata ──────────────────────────────────
 
+const ANTHROPIC_CONTEXT_1M = 1_000_000
 const ANTHROPIC_CONTEXT_200K = 200_000
 const ANTHROPIC_MAX_OUTPUT_128K = 128_000
 const ANTHROPIC_MAX_OUTPUT_64K = 64_000
 
 /** Context windows for known Anthropic models. */
 function getAnthropicContextWindow(model: string): ModelContextWindow | undefined {
+  // Claude 4.6 models support 1M context
   if (model.includes('opus-4-6')) {
-    return { contextTokens: ANTHROPIC_CONTEXT_200K, maxOutputTokens: ANTHROPIC_MAX_OUTPUT_128K }
+    return { contextTokens: ANTHROPIC_CONTEXT_1M, maxOutputTokens: ANTHROPIC_MAX_OUTPUT_128K }
   }
+  if (model.includes('sonnet-4-6')) {
+    return { contextTokens: ANTHROPIC_CONTEXT_1M, maxOutputTokens: ANTHROPIC_MAX_OUTPUT_64K }
+  }
+  // Claude 4.5 models use 200K context
   if (model.includes('opus-4-5')) {
     return { contextTokens: ANTHROPIC_CONTEXT_200K, maxOutputTokens: ANTHROPIC_MAX_OUTPUT_64K }
   }
-  if (model.includes('sonnet-4-6') || model.includes('sonnet-4-5')) {
+  if (model.includes('sonnet-4-5')) {
     return { contextTokens: ANTHROPIC_CONTEXT_200K, maxOutputTokens: ANTHROPIC_MAX_OUTPUT_64K }
   }
   if (model.includes('haiku-4-5') || model.includes('haiku')) {

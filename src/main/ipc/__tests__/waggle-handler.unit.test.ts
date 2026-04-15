@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ConversationRepositoryError } from '../../errors'
 import { ChatService } from '../../ports/chat-service'
 import { ConversationRepository } from '../../ports/conversation-repository'
+import { PinnedContextRepository } from '../../ports/pinned-context-repository'
 import { ProviderService } from '../../ports/provider-service'
 import { SettingsService } from '../../services/settings-service'
 
@@ -101,6 +102,8 @@ const TestConversationRepoLayer = Layer.succeed(ConversationRepository, {
   updateTitle: () => Effect.void,
   updateProjectPath: () => Effect.void,
   updatePlanMode: () => Effect.void,
+  updateCompactionGuidance: () => Effect.void,
+  markMessagesAsCompacted: () => Effect.void,
 })
 
 const TestProviderServiceLayer = Layer.succeed(ProviderService, {
@@ -123,11 +126,20 @@ const TestChatServiceLayer = Layer.succeed(ChatService, {
   testConnection: () => Effect.void,
 })
 
+const TestPinnedContextRepoLayer = Layer.succeed(PinnedContextRepository, {
+  list: () => Effect.succeed([]),
+  add: () => Effect.succeed({} as never),
+  remove: () => Effect.void,
+  removeByMessageId: () => Effect.void,
+  getTokenEstimate: () => Effect.succeed(0),
+})
+
 const TestLayer = Layer.mergeAll(
   TestSettingsLayer,
   TestConversationRepoLayer,
   TestProviderServiceLayer,
   TestChatServiceLayer,
+  TestPinnedContextRepoLayer,
 )
 
 vi.mock('../../runtime', () => ({
@@ -754,7 +766,7 @@ describe('registerWaggleHandlers', () => {
 
       expect(saveConversationMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          waggleConfig: validWaggleConfig(),
+          waggleConfig: undefined, // Cleared after run — per-message metadata preserves history
         }),
       )
     })
