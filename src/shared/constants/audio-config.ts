@@ -1,6 +1,6 @@
 // Audio and voice processing configuration.
 
-import { DOUBLE_FACTOR } from './constants'
+import { DOUBLE_FACTOR } from './math'
 
 /** Audio sample rate constraints */
 export const AUDIO_SAMPLE_RATE = {
