@@ -5,6 +5,7 @@ import { useComposerActionStore } from '@/stores/composer-action-store'
 import { useComposerStore } from '@/stores/composer-store'
 import { usePreferencesStore } from '@/stores/preferences-store'
 import { BranchPicker } from './BranchPicker'
+import { ContextMeter } from './ContextMeter'
 
 const EXECUTION_MODE_LABEL: Record<ExecutionMode, string> = {
   'default-permissions': 'Default permissions',
@@ -74,6 +75,7 @@ export function ComposerStatusBar({ onToast }: ComposerStatusBarProps) {
 
       <div className="flex items-center gap-2">
         <BranchPicker onToast={onToast} />
+        <ContextMeter />
       </div>
     </div>
   )

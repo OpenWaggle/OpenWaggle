@@ -1,4 +1,4 @@
-import { Bug, Hash, PanelLeft, SquareTerminal } from 'lucide-react'
+import { Bug, Gauge, Hash, PanelLeft, SquareTerminal } from 'lucide-react'
 import { useState } from 'react'
 import { CommitDialog } from '@/components/layout/CommitDialog'
 import { useChat } from '@/hooks/useChat'
@@ -17,7 +17,8 @@ export function Header() {
 
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
   const toggleTerminal = useUIStore((s) => s.toggleTerminal)
-  const toggleDiffPanel = useUIStore((s) => s.toggleDiffPanel)
+  const toggleInspector = useUIStore((s) => s.toggleInspector)
+  const activeInspector = useUIStore((s) => s.activeInspector)
   const bumpDiffRefreshKey = useUIStore((s) => s.bumpDiffRefreshKey)
   const showToast = useUIStore((s) => s.showToast)
   const openFeedbackModal = useUIStore((s) => s.openFeedbackModal)
@@ -149,15 +150,30 @@ export function Header() {
           {/* Divider */}
           <div className="w-px h-5 bg-border" />
 
+          {/* Context inspector toggle */}
+          <button
+            type="button"
+            aria-label="Toggle context inspector"
+            onClick={() => toggleInspector('context')}
+            className={cn(
+              'no-drag flex items-center gap-1 h-7 px-2 rounded-[5px] border border-button-border transition-colors hover:bg-bg-hover',
+              activeInspector === 'context' && 'bg-bg-hover border-accent/40',
+            )}
+            title="Toggle context inspector"
+          >
+            <Gauge className="h-3.5 w-3.5 text-text-secondary" />
+          </button>
+
           {/* Diff stats — clickable to toggle diff panel */}
           <button
             type="button"
             aria-label="Toggle diff panel"
-            onClick={toggleDiffPanel}
+            onClick={() => toggleInspector('diff')}
             disabled={!projectPath}
             className={cn(
               'no-drag flex items-center gap-1 transition-opacity hover:opacity-80',
               !projectPath && 'pointer-events-none opacity-30',
+              activeInspector === 'diff' && 'opacity-100',
             )}
             title="Toggle diff panel"
           >

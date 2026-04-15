@@ -1,13 +1,47 @@
 import type { ConversationId } from '@shared/types/brand'
+import type { CompactionStage } from '@shared/types/compaction'
 import { TERMINAL_STATUSES, type ThreadStatus } from '@shared/types/thread-status'
 import { useEffect } from 'react'
 import { api } from '@/lib/ipc'
 import { isTerminalChunk } from '@/lib/ipc-connection-adapter'
 import { useChatStore } from '@/stores/chat-store'
+import { useCompactionStore } from '@/stores/compaction-store'
 import { useThreadStatusStore } from '@/stores/thread-status-store'
 
 /** Set of conversation IDs that are currently in a waggle run. */
 const activeWaggleConversations = new Set<ConversationId>()
+
+const VALID_COMPACTION_STAGES: ReadonlySet<string> = new Set([
+  'starting',
+  'summarizing',
+  'completed',
+  'failed',
+] as const satisfies readonly CompactionStage[])
+
+/** Type guard for compaction event values received via CUSTOM stream chunks. */
+function isCompactionEvent(value: unknown): value is {
+  stage: CompactionStage
+  description?: string
+  errorMessage?: string
+  metrics?: { tokensBefore: number; tokensAfter: number; messagesSummarized: number }
+} {
+  if (typeof value !== 'object' || value === null) return false
+  if (!('stage' in value)) return false
+  const { stage } = value
+  if (typeof stage !== 'string') return false
+  if (!VALID_COMPACTION_STAGES.has(stage)) return false
+
+  // Validate metrics shape when present to prevent NaN propagation downstream
+  if ('metrics' in value && value.metrics != null) {
+    const m = value.metrics
+    if (typeof m !== 'object' || m === null) return false
+    if (!('tokensBefore' in m) || typeof m.tokensBefore !== 'number') return false
+    if (!('tokensAfter' in m) || typeof m.tokensAfter !== 'number') return false
+    if (!('messagesSummarized' in m) || typeof m.messagesSummarized !== 'number') return false
+  }
+
+  return true
+}
 
 /**
  * Subscribes to agent lifecycle events and maintains per-thread status
@@ -19,6 +53,7 @@ const activeWaggleConversations = new Set<ConversationId>()
 export function useThreadStatusMonitor(): void {
   const setStatus = useThreadStatusStore((s) => s.setStatus)
   const markVisited = useThreadStatusStore((s) => s.markVisited)
+  const setCompactionStatus = useCompactionStore((s) => s.setStatus)
 
   useEffect(() => {
     function setStatusWithVisitCheck(conversationId: ConversationId, status: ThreadStatus): void {
@@ -75,6 +110,19 @@ export function useThreadStatusMonitor(): void {
         setStatusWithVisitCheck(conversationId, 'pending-approval')
         return
       }
+      if (chunk.type === 'CUSTOM' && chunk.name === 'compaction') {
+        const event = chunk.value
+        if (isCompactionEvent(event)) {
+          setCompactionStatus(conversationId, {
+            stage: event.stage,
+            description: event.description ?? '',
+            errorMessage: event.errorMessage,
+            metrics: event.metrics,
+            updatedAt: Date.now(),
+          })
+        }
+        return
+      }
       if (chunk.type === 'TEXT_MESSAGE_CONTENT' || chunk.type === 'TOOL_CALL_START') {
         // Don't downgrade waggle-running to working from regular stream chunks
         if (activeWaggleConversations.has(conversationId)) return
@@ -94,5 +142,5 @@ export function useThreadStatusMonitor(): void {
       unsubWaggleTurn()
       unsubChunk()
     }
-  }, [setStatus, markVisited])
+  }, [setStatus, markVisited, setCompactionStatus])
 }

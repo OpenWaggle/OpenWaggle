@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { AGENT_LOOP } from '@shared/constants/agent-config'
 import { PROVIDER_RETRY, STALL_RETRY } from '@shared/constants/retry-policy'
 import {
+  type CompactionEventPart,
   extractTextFromParts,
   type HydratedAgentSendPayload,
   hasToolCallNamed,
@@ -16,13 +17,16 @@ import type { Settings } from '@shared/types/settings'
 import type { AgentStreamChunk } from '@shared/types/stream'
 import * as Duration from 'effect/Duration'
 import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
 import * as Schedule from 'effect/Schedule'
 import { loadProjectConfig } from '../config/project-config'
+import { DEFAULT_CONTEXT_WINDOW_TOKENS } from '../domain/compaction/compaction-types'
 import { approvalTraceEnabled } from '../env'
 import { AgentCancelledError } from '../errors'
 import { createLogger } from '../logger'
 import { wrapChatAdapter } from '../ports/chat-adapter-type'
 import type { ChatStreamOptions } from '../ports/chat-service'
+import { ContextCompactionService } from '../ports/context-compaction-service'
 import { StandardsService } from '../ports/standards-service'
 import { bindToolContextToTools } from '../tools/define-tool'
 import {
@@ -101,16 +105,21 @@ export interface AgentRunParams {
    * that an app crash during the wait does not lose messages.
    */
   readonly onCheckpointNeeded?: (parts: readonly MessagePart[]) => Promise<void>
+  /** Pinned content strings to preserve during compaction (highest priority). */
+  readonly pinnedContent?: readonly string[]
+  /** Override context window for compaction (e.g., waggle uses smallest participant window). */
+  readonly effectiveContextWindowOverride?: number
 }
 
 export interface AgentRunResult {
   readonly newMessages: readonly Message[]
   readonly finalMessage: Message
+  readonly microcompactedToolResults: number
 }
 
 export function runAgentEffect(
   params: AgentRunParams,
-): Effect.Effect<AgentRunResult, Error, StandardsService> {
+): Effect.Effect<AgentRunResult, Error, StandardsService | ContextCompactionService> {
   const { conversation, payload, model, settings, onChunk, signal, skipApproval } = params
   const hasContinuationMessages = (payload.continuationMessages?.length ?? 0) > 0
   const continuationMessageFormat = describeContinuationMessageFormat(
@@ -252,12 +261,90 @@ export function runAgentEffect(
         resolution.providerConfig.authMethod,
       ),
     )
-    const allMessages: readonly unknown[] = hasContinuationMessages
-      ? enrichContinuationMessages(
-          normalizeContinuationAsUIMessages(payload.continuationMessages ?? []),
-          conversation.messages,
-        )
-      : buildFreshChatMessages(conversation, resolution.provider, payload)
+    // Build the message array — either from continuation or fresh conversation.
+    // Fresh messages go through Tier 2 full compaction if near context limit.
+    let allMessages: readonly unknown[]
+    let compactionSystemMessage: Message | null = null
+    let microcompactedToolResults = 0
+    if (hasContinuationMessages) {
+      allMessages = enrichContinuationMessages(
+        normalizeContinuationAsUIMessages(payload.continuationMessages ?? []),
+        conversation.messages,
+      )
+    } else {
+      const freshResult = buildFreshChatMessages(conversation, resolution.provider, payload)
+      const freshMessages = freshResult.messages
+      microcompactedToolResults = freshResult.microcompactedCount
+
+      // ─── Tier 2: Full LLM compaction (pre-stream) ──────────
+      const contextWindow = resolution.provider.getContextWindow?.(resolution.resolvedModel)
+      const contextTokens =
+        params.effectiveContextWindowOverride ??
+        contextWindow?.contextTokens ??
+        DEFAULT_CONTEXT_WINDOW_TOKENS
+      const compactionService = yield* ContextCompactionService
+      const needsCompaction = yield* compactionService.needsFullCompaction(
+        freshMessages,
+        contextTokens,
+      )
+      if (needsCompaction) {
+        onChunk({
+          type: 'CUSTOM',
+          name: 'compaction',
+          value: { stage: 'starting', tier: 'full' },
+          timestamp: Date.now(),
+        })
+
+        const compacted = yield* compactionService.compact({
+          messages: freshMessages,
+          systemPrompt: built.systemPrompt,
+          contextWindowTokens: contextTokens,
+          customInstructions: payload.compactInstructions,
+          pinnedContent: params.pinnedContent,
+          chatStream: params.chatStream,
+          adapter,
+        })
+
+        allMessages = compacted.messages
+
+        const compactionTimestamp = Date.now()
+        onChunk({
+          type: 'CUSTOM',
+          name: 'compaction',
+          value: {
+            stage: 'completed',
+            tier: 'full',
+            description: `Compacted ${compacted.result.originalTokenEstimate} → ${compacted.result.compactedTokenEstimate} tokens`,
+            metrics: {
+              tokensBefore: compacted.result.originalTokenEstimate,
+              tokensAfter: compacted.result.compactedTokenEstimate,
+              messagesSummarized: compacted.result.recentMessagesPreserved,
+            },
+          },
+          timestamp: compactionTimestamp,
+        })
+
+        // Create a system message to persist the compaction event in the timeline
+        const compactionEventPart: CompactionEventPart = {
+          type: 'compaction-event',
+          data: {
+            tier: 'full',
+            trigger: payload.compactInstructions !== undefined ? 'manual' : 'automatic',
+            description: `Compacted ${compacted.result.originalTokenEstimate} → ${compacted.result.compactedTokenEstimate} tokens`,
+            metrics: {
+              tokensBefore: compacted.result.originalTokenEstimate,
+              tokensAfter: compacted.result.compactedTokenEstimate,
+              messagesSummarized: compacted.result.recentMessagesPreserved,
+            },
+            timestamp: compactionTimestamp,
+            pinnedContentSummarized: compacted.result.pinnedContentSummarized,
+          },
+        }
+        compactionSystemMessage = makeMessage('system', [compactionEventPart])
+      } else {
+        allMessages = freshMessages
+      }
+    }
 
     const tools = bindToolContextToTools(built.tools, toolContext)
     const samplingOptions = buildSamplingOptions(resolution.qualityConfig)
@@ -643,9 +730,12 @@ export function runAgentEffect(
     const userMsg = hasContinuationMessages
       ? null
       : makeMessage('user', buildPersistedUserMessageParts(payload))
-    const newMessages = userMsg ? [userMsg, assistantMsg] : [assistantMsg]
+    const newMessages: Message[] = []
+    if (userMsg) newMessages.push(userMsg)
+    if (compactionSystemMessage) newMessages.push(compactionSystemMessage)
+    newMessages.push(assistantMsg)
 
-    return { newMessages, finalMessage: assistantMsg }
+    return { newMessages, finalMessage: assistantMsg, microcompactedToolResults }
   })
 
   return program.pipe(
@@ -666,10 +756,14 @@ export function runAgentEffect(
 }
 
 export async function runAgent(params: AgentRunParams): Promise<AgentRunResult> {
-  // runAgentEffect requires StandardsService in its context.
-  // Use Effect.runPromise with a local layer instead of the managed runtime
+  // runAgentEffect requires StandardsService and ContextCompactionService in its context.
+  // Use Effect.runPromise with local layers instead of the managed runtime
   // to avoid nested runtime calls — callers (executeAgentRun, waggle-coordinator,
   // sub-agent-runner) already run inside the managed runtime.
-  const { FilesystemStandardsLive } = await import('../adapters/standards-adapter')
-  return Effect.runPromise(runAgentEffect(params).pipe(Effect.provide(FilesystemStandardsLive)))
+  const [{ FilesystemStandardsLive }, { ContextCompactionLive }] = await Promise.all([
+    import('../adapters/standards-adapter'),
+    import('../adapters/context-compaction-adapter'),
+  ])
+  const layer = Layer.merge(FilesystemStandardsLive, ContextCompactionLive)
+  return Effect.runPromise(runAgentEffect(params).pipe(Effect.provide(layer)))
 }

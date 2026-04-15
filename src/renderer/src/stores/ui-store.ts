@@ -30,12 +30,15 @@ export type SettingsTab =
   | 'archived'
   | 'connections'
 
+export type InspectorPanel = 'none' | 'diff' | 'context'
+
 interface UIState {
   settingsOpen: boolean
   sidebarOpen: boolean
   terminalOpen: boolean
   activeView: 'chat' | 'skills' | 'mcps' | 'settings'
   activeSettingsTab: SettingsTab
+  activeInspector: InspectorPanel
   diffPanelOpen: boolean
   diffPanelWidth: number
   diffRefreshKey: number
@@ -49,6 +52,8 @@ interface UIState {
   toggleSidebar: () => void
   toggleTerminal: () => void
   toggleDiffPanel: () => void
+  toggleInspector: (panel: 'diff' | 'context') => void
+  setActiveInspector: (panel: InspectorPanel) => void
   openSettings: (tab?: SettingsTab) => void
   closeSettings: () => void
   setActiveView: (view: 'chat' | 'skills' | 'mcps' | 'settings') => void
@@ -78,6 +83,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   terminalOpen: false,
   activeView: 'chat',
   activeSettingsTab: 'general',
+  activeInspector: 'none',
   diffPanelOpen: false,
   diffPanelWidth: DIFF_PANEL_WIDTH,
   diffRefreshKey: 0,
@@ -97,7 +103,17 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
 
   toggleDiffPanel() {
-    set({ diffPanelOpen: !get().diffPanelOpen })
+    const next = get().activeInspector === 'diff' ? 'none' : 'diff'
+    set({ activeInspector: next, diffPanelOpen: next === 'diff' })
+  },
+
+  toggleInspector(panel) {
+    const next = get().activeInspector === panel ? 'none' : panel
+    set({ activeInspector: next, diffPanelOpen: next === 'diff' })
+  },
+
+  setActiveInspector(panel) {
+    set({ activeInspector: panel, diffPanelOpen: panel === 'diff' })
   },
 
   openSettings(tab) {
@@ -105,6 +121,7 @@ export const useUIStore = create<UIState>((set, get) => ({
       activeView: 'settings',
       activeSettingsTab: tab ?? 'general',
       settingsOpen: true,
+      activeInspector: 'none',
       diffPanelOpen: false,
     })
   },
@@ -122,11 +139,11 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
 
   openSkillsView() {
-    set({ activeView: 'skills', diffPanelOpen: false })
+    set({ activeView: 'skills', activeInspector: 'none', diffPanelOpen: false })
   },
 
   openMcpsView() {
-    set({ activeView: 'mcps', diffPanelOpen: false })
+    set({ activeView: 'mcps', activeInspector: 'none', diffPanelOpen: false })
   },
 
   resizeDiffPanel(delta) {

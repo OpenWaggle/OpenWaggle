@@ -25,6 +25,7 @@ function toCapabilities(def: ProviderDefinition): ProviderCapabilities {
     models: def.models,
     testModel: def.testModel,
     apiKeyManagementUrl: def.apiKeyManagementUrl,
+    getContextWindow: def.getContextWindow?.bind(def),
   }
 }
 

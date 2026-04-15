@@ -152,30 +152,12 @@ export function useWaggleMetadataLookup(
     }
 
     // Historical or early streaming (no completed turns yet):
-    // Prefer persisted metadata (handles synthesis).
-    // Position-based fallback only applies to legacy conversations that have
-    // zero persisted waggle metadata. When at least one message has persisted
-    // waggle metadata, messages without it are post-waggle standard messages
-    // and should not receive waggle styling.
+    // Only use persisted per-message metadata. No position-based fallback —
+    // messages without metadata.waggle are standard messages and should not
+    // receive waggle styling, even if the conversation has a waggleConfig.
     const persisted = persistedMeta.get(assistantIndex)
     if (persisted) {
       lookup[msg.id] = persisted
-      assistantIndex++
-      continue
-    }
-
-    if (persistedMeta.size === 0) {
-      const agentIdx = assistantIndex % config.agents.length
-      const agent = config.agents[agentIdx]
-      if (agent) {
-        lookup[msg.id] = {
-          agentIndex: agentIdx,
-          agentLabel: agent.label,
-          agentColor: agent.color,
-          agentModel: agent.model,
-          turnNumber: assistantIndex,
-        }
-      }
     }
 
     assistantIndex++

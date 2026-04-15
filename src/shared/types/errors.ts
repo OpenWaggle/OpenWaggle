@@ -17,6 +17,7 @@ export type AgentErrorCode =
   | 'conversation-not-found'
   | 'no-project'
   | 'persist-failed'
+  | 'context-overflow'
   | 'unknown'
 
 export interface AgentErrorInfo {

@@ -3,7 +3,7 @@ import type { Conversation } from '@shared/types/conversation'
 import { choose } from '@shared/utils/decision'
 import type { ProviderDefinition } from '../providers/provider-definition'
 import type { SimpleChatMessage } from './message-mapper'
-import { conversationToMessages } from './message-mapper'
+import { conversationToMessages, microcompactMessages } from './message-mapper'
 import type { ChatContentPart } from './shared'
 
 export function buildUserChatContent(
@@ -49,16 +49,25 @@ export function buildUserChatContent(
   return parts
 }
 
+export interface FreshChatMessagesResult {
+  readonly messages: SimpleChatMessage[]
+  readonly microcompactedCount: number
+}
+
 export function buildFreshChatMessages(
   conversation: Conversation,
   provider: ProviderDefinition,
   payload: HydratedAgentSendPayload,
-): SimpleChatMessage[] {
-  return [
+): FreshChatMessagesResult {
+  const raw: SimpleChatMessage[] = [
     ...conversationToMessages(conversation.messages),
     {
       role: 'user',
       content: buildUserChatContent(provider, payload),
     },
   ]
+  // Tier 1 microcompaction: strip old tool results to keep context bounded.
+  // Keeps the 5 most recent tool results intact; replaces older ones with placeholders.
+  const result = microcompactMessages(raw)
+  return { messages: result.messages, microcompactedCount: result.strippedCount }
 }

@@ -1,5 +1,6 @@
 import { Schema, type SchemaType, safeDecodeUnknown } from '@shared/schema'
-import type { Message, MessagePart } from '@shared/types/agent'
+import type { Message, MessagePart, ToolResultPart } from '@shared/types/agent'
+import { MICRO_RECENT_TOOL_RESULTS } from '../domain/compaction/compaction-types'
 
 /**
  * Simple message shape for TanStack AI — content is always string | null.
@@ -124,6 +125,151 @@ export function conversationToMessages(messages: readonly Message[]): SimpleChat
 
   return result
 }
+
+// ─── Microcompaction ─────────────────────────────────────────
+//
+// Tier 1 compaction: deterministic, no LLM call.
+// Strips tool result content from older messages, keeping only the N most recent.
+// Tool call metadata (name, arguments) is always preserved.
+
+export interface MicrocompactOptions {
+  readonly recentToolResultCount: number
+}
+
+const DEFAULT_MICROCOMPACT_OPTIONS: MicrocompactOptions = {
+  recentToolResultCount: MICRO_RECENT_TOOL_RESULTS,
+}
+
+/**
+ * Build a compact placeholder for a stripped tool result.
+ * Derives the tool name from the matching toolCall in the preceding assistant message.
+ */
+function buildToolResultPlaceholder(
+  toolCallId: string,
+  messages: readonly SimpleChatMessage[],
+  messageIndex: number,
+): string {
+  // Walk backward to find the assistant message with the matching toolCall
+  for (let i = messageIndex - 1; i >= 0; i--) {
+    const msg = messages[i]
+    if (msg?.role === 'assistant' && msg.toolCalls) {
+      const tc = msg.toolCalls.find((t) => t.id === toolCallId)
+      if (tc) {
+        return `[Tool result cleared — ${tc.function.name}]`
+      }
+    }
+  }
+  return '[Tool result cleared]'
+}
+
+/**
+ * Microcompact a SimpleChatMessage[] array (used in the agent message builder).
+ * Keeps the `recentToolResultCount` most recent tool-role messages intact.
+ * Older tool messages get their content replaced with a compact placeholder.
+ */
+export function microcompactMessages(
+  messages: readonly SimpleChatMessage[],
+  options?: MicrocompactOptions,
+): { messages: SimpleChatMessage[]; strippedCount: number } {
+  const { recentToolResultCount } = options ?? DEFAULT_MICROCOMPACT_OPTIONS
+
+  // Count tool messages from the end to identify which ones to keep
+  const toolMessageIndices: number[] = []
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === 'tool') {
+      toolMessageIndices.push(i)
+    }
+  }
+
+  // If we have fewer tool messages than the threshold, no compaction needed
+  if (toolMessageIndices.length <= recentToolResultCount) {
+    return { messages: [...messages], strippedCount: 0 }
+  }
+
+  // Indices to strip are those beyond the first `recentToolResultCount` (which are the most recent)
+  const indicesToStrip = new Set(toolMessageIndices.slice(recentToolResultCount))
+
+  let strippedCount = 0
+  const compacted = messages.map((msg, idx): SimpleChatMessage => {
+    if (!indicesToStrip.has(idx)) return msg
+    strippedCount++
+    return {
+      ...msg,
+      content: buildToolResultPlaceholder(msg.toolCallId ?? '', messages, idx),
+    }
+  })
+
+  return { messages: compacted, strippedCount }
+}
+
+/**
+ * Build a compact placeholder for a stripped domain ToolResultPart.
+ */
+function buildDomainToolResultPlaceholder(toolResult: ToolResultPart['toolResult']): string {
+  return `[Tool result cleared — ${toolResult.name}]`
+}
+
+/**
+ * Microcompact domain Message[] (used by the Waggle coordinator).
+ * Same logic as microcompactMessages but operates on Message/MessagePart arrays.
+ */
+export function microcompactConversationMessages(
+  messages: readonly Message[],
+  options?: MicrocompactOptions,
+): { messages: Message[]; strippedCount: number } {
+  const { recentToolResultCount } = options ?? DEFAULT_MICROCOMPACT_OPTIONS
+
+  // Collect all tool-result parts with their location: [messageIndex, partIndex]
+  const toolResultLocations: Array<{ msgIdx: number; partIdx: number }> = []
+  for (let msgIdx = messages.length - 1; msgIdx >= 0; msgIdx--) {
+    const msg = messages[msgIdx]
+    if (!msg || msg.role !== 'assistant') continue
+    // Scan parts in reverse within each message too
+    for (let partIdx = msg.parts.length - 1; partIdx >= 0; partIdx--) {
+      if (msg.parts[partIdx]?.type === 'tool-result') {
+        toolResultLocations.push({ msgIdx, partIdx })
+      }
+    }
+  }
+
+  if (toolResultLocations.length <= recentToolResultCount) {
+    return { messages: [...messages], strippedCount: 0 }
+  }
+
+  const locationsToStrip = new Set(
+    toolResultLocations.slice(recentToolResultCount).map((loc) => `${loc.msgIdx}:${loc.partIdx}`),
+  )
+
+  let strippedCount = 0
+  const compacted = messages.map((msg, msgIdx): Message => {
+    if (msg.role !== 'assistant') return msg
+
+    const hasPartsToStrip = msg.parts.some((_, partIdx) =>
+      locationsToStrip.has(`${msgIdx}:${partIdx}`),
+    )
+    if (!hasPartsToStrip) return msg
+
+    const newParts = msg.parts.map((part, partIdx): MessagePart => {
+      if (!locationsToStrip.has(`${msgIdx}:${partIdx}`)) return part
+      if (part.type !== 'tool-result') return part
+
+      strippedCount++
+      return {
+        type: 'tool-result',
+        toolResult: {
+          ...part.toolResult,
+          result: buildDomainToolResultPlaceholder(part.toolResult),
+        },
+      }
+    })
+
+    return { ...msg, parts: newParts }
+  })
+
+  return { messages: compacted, strippedCount }
+}
+
+// ─── Screenshot parsing ──────────────────────────────────────
 
 const screenshotDataSchema = Schema.Struct({
   base64Image: Schema.String,

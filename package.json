@@ -1,6 +1,6 @@
 {
   "name": "openwaggle",
-  "version": "0.3.0-alpha.20",
+  "version": "0.3.0-alpha.23",
   "description": "Desktop coding agent with multi-model waggle mode",
   "main": "./out/main/index.js",
   "engines": {
@@ -150,6 +150,7 @@
     "remark-gfm": "^4.0.1",
     "smol-toml": "^1.6.0",
     "tailwindcss": "^4.1.18",
+    "tailwindcss-animate": "^1.0.7",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "unpdf": "1.4.0",

@@ -12,6 +12,7 @@ import type { ConversationId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { PlanResponse } from '@shared/types/plan'
 import type { QuestionAnswer } from '@shared/types/question'
+import type { AgentStreamChunk } from '@shared/types/stream'
 import * as Effect from 'effect/Effect'
 import { cleanupConversationRun } from '../agent/conversation-cleanup'
 import { getPhaseForConversation } from '../agent/phase-tracker'
@@ -22,7 +23,10 @@ import {
   persistPartialResponse,
   persistRehydratedToolResult,
 } from '../application/agent-run-service'
+import { ConversationRepository } from '../ports/conversation-repository'
+import { PinnedContextRepository } from '../ports/pinned-context-repository'
 import { runAppEffect } from '../runtime'
+import * as contextSnapshotService from '../services/context-snapshot-service'
 import { pushContext } from '../tools/context-injection-buffer'
 import { respondToPlan } from '../tools/plan-manager'
 import { answerQuestion } from '../tools/question-manager'
@@ -134,13 +138,22 @@ export function registerAgentHandlers(): void {
 
         startStreamBuffer(conversationId, model, 'classic')
 
+        // Track usage from RUN_FINISHED for context snapshot
+        let lastPromptTokens: number | undefined
+        function onChunkWithUsageCapture(chunk: AgentStreamChunk) {
+          if (chunk.type === 'RUN_FINISHED' && chunk.usage) {
+            lastPromptTokens = chunk.usage.promptTokens
+          }
+          emitStreamChunk(conversationId, chunk)
+        }
+
         // ─── Application: delegate to service ────────────
         const result = yield* executeAgentRun({
           conversationId,
           payload,
           model,
           signal: abortController.signal,
-          onChunk: (chunk) => emitStreamChunk(conversationId, chunk),
+          onChunk: onChunkWithUsageCapture,
           onCollectorCreated: (c) => {
             const entry = activeRuns.get(conversationId)
             if (entry) {
@@ -174,6 +187,32 @@ export function registerAgentHandlers(): void {
 
         // ─── Transport: respond based on outcome ─────────
         handleRunResult(conversationId, result)
+
+        // ─── Context snapshot: push after run ────────────
+        if (result.outcome === 'success' && lastPromptTokens !== undefined) {
+          const repo = yield* ConversationRepository
+          const conv = yield* repo
+            .get(conversationId)
+            .pipe(Effect.catchAll(() => Effect.succeed(null)))
+          if (conv) {
+            const pinRepo = yield* PinnedContextRepository
+            const pinnedTokens = yield* pinRepo.getTokenEstimate(conversationId)
+            const pinnedItems = yield* pinRepo.list(conversationId)
+            contextSnapshotService.onRunFinished(conversationId, {
+              promptTokens: lastPromptTokens,
+              messages: conv.messages,
+              modelId: model,
+              pinnedTokens,
+              pinnedItemCount: pinnedItems.length,
+              pinnedMessageIds: pinnedItems
+                .filter((p) => p.messageId)
+                .map((p) => String(p.messageId)),
+              waggleConfig: conv.waggleConfig,
+              microcompactedToolResults:
+                result.outcome === 'success' ? result.microcompactedToolResults : undefined,
+            })
+          }
+        }
 
         // ─── Transport: cleanup ──────────────────────────
         activeRuns.delete(conversationId)

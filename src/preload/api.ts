@@ -186,6 +186,18 @@ export const api: OpenWaggleApi = {
   generateFeedbackMarkdown: invoke('feedback:generate-markdown'),
   openExternal: invoke('shell:open-external'),
 
+  // Context
+  getContextSnapshot: invoke('context:get-snapshot'),
+  getBaselineSnapshot: invoke('context:get-baseline'),
+  requestCompaction: invoke('context:compact'),
+  addPin: invoke('context:pin-add'),
+  removePin: invoke('context:pin-remove'),
+  removePinByMessage: invoke('context:pin-remove-by-message'),
+  listPins: invoke('context:pin-list'),
+  getModelCompatibility: invoke('context:model-compatibility'),
+  updateCompactionGuidance: invoke('context:update-compaction-guidance'),
+  onContextSnapshot: on('context:snapshot-changed'),
+
   // Composer
   suggestFiles: invoke('composer:file-suggest'),
 

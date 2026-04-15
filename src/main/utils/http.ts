@@ -10,7 +10,7 @@ export async function readBodyWithLimit(response: Response, maxBytes: number): P
   const chunks: string[] = []
   let totalBytes = 0
 
-  for (;;) {
+  while (true) {
     const { done, value } = await reader.read()
     if (done) break
 

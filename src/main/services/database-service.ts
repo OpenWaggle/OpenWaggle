@@ -193,6 +193,24 @@ const APP_MIGRATIONS: readonly AppMigration[] = [
       `ALTER TABLE conversations ADD COLUMN plan_mode_active INTEGER NOT NULL DEFAULT 0`,
     ],
   },
+  {
+    id: 4,
+    name: 'context-ux-pinned-context-and-compaction-guidance',
+    statements: [
+      `ALTER TABLE conversations ADD COLUMN compaction_guidance TEXT`,
+      `
+      CREATE TABLE IF NOT EXISTS pinned_context (
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+        type TEXT NOT NULL,
+        content TEXT NOT NULL,
+        message_id TEXT,
+        created_at INTEGER NOT NULL
+      )
+      `,
+      `CREATE INDEX IF NOT EXISTS idx_pinned_context_conversation ON pinned_context(conversation_id)`,
+    ],
+  },
 ]
 
 export interface AppDatabaseService {

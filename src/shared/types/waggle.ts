@@ -82,6 +82,7 @@ export interface WaggleStreamMetadata {
   readonly turnNumber: number
   readonly collaborationMode: WaggleCollaborationMode
   readonly isSynthesis?: boolean
+  readonly sessionId?: string
 }
 
 export interface WaggleMessageMetadata {
@@ -91,6 +92,8 @@ export interface WaggleMessageMetadata {
   readonly agentModel?: SupportedModelId
   readonly turnNumber: number
   readonly isSynthesis?: boolean
+  /** Unique ID for this waggle session. Groups turns that belong to the same waggle run. */
+  readonly sessionId?: string
 }
 
 export type WaggleTurnEvent =

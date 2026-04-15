@@ -39,6 +39,8 @@ export interface SynthesisParams {
   readonly onTurnEvent: (event: WaggleTurnEvent) => void
   readonly onTurnComplete?: (accumulatedMessages: readonly Message[]) => Promise<void>
   readonly waggleFileCache: WaggleFileCache
+  readonly effectiveContextWindowOverride?: number
+  readonly waggleSessionId: string
 }
 
 export function buildSynthesisModelCandidates(
@@ -67,6 +69,7 @@ export async function runSynthesisStep(params: SynthesisParams): Promise<Synthes
     onTurnEvent,
     onTurnComplete,
     waggleFileCache,
+    effectiveContextWindowOverride,
   } = params
 
   // Prefer the user's standard model for synthesis, then fall back to Agent A's
@@ -103,6 +106,7 @@ export async function runSynthesisStep(params: SynthesisParams): Promise<Synthes
       turnNumber: synthesisTurnNumber,
       collaborationMode: 'sequential',
       isSynthesis: true,
+      sessionId: params.waggleSessionId,
     }
 
     try {
@@ -114,6 +118,7 @@ export async function runSynthesisStep(params: SynthesisParams): Promise<Synthes
         chatStream: params.chatStream,
         skipApproval: createSkipApprovalToken(),
         stallTimeoutMs: WAGGLE_TIMEOUT.STALL_MS,
+        effectiveContextWindowOverride,
         waggleContext: {
           agentLabel: 'Synthesis',
           fileCache: waggleFileCache,

@@ -66,6 +66,7 @@ export function messagePartToUIParts(part: MessagePart): UIMessage['parts'] {
       },
     ])
     .case('reasoning', (): UIMessage['parts'] => [])
+    .case('compaction-event', (): UIMessage['parts'] => [])
     .assertComplete()
 }
 

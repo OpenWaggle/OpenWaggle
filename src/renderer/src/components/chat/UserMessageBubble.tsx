@@ -1,5 +1,6 @@
+import { MessageId } from '@shared/types/brand'
 import type { UIMessage } from '@tanstack/ai-react'
-import { Check, Copy, FileDown, FileText, Image } from 'lucide-react'
+import { Check, Copy, FileDown, FileText, Image, Pin } from 'lucide-react'
 import { Children, cloneElement, isValidElement, type ReactNode } from 'react'
 import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
@@ -7,11 +8,14 @@ import remarkGfm from 'remark-gfm'
 import { ATTACHMENT_TEXT_PREFIX } from '@/hooks/useAgentChat.utils'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { cn } from '@/lib/cn'
+import { api } from '@/lib/ipc'
 import {
   safeMarkdownComponents,
   safeMarkdownRehypePlugins,
   safeMarkdownUrlTransform,
 } from '@/lib/markdown-safety'
+import { useChatStore } from '@/stores/chat-store'
+import { useContextStore } from '@/stores/context-store'
 import { renderTextWithMentions } from './MentionText'
 
 const USER_REMARK_PLUGINS = [remarkGfm]
@@ -104,6 +108,29 @@ interface UserMessageBubbleProps {
 
 export function UserMessageBubble({ message }: UserMessageBubbleProps) {
   const { copied, copy } = useCopyToClipboard()
+  const conversationId = useChatStore((s) => s.activeConversationId)
+  const isPinned = useContextStore(
+    (s) => s.snapshot?.pinnedMessageIds?.includes(message.id) ?? false,
+  )
+
+  function handleTogglePin() {
+    if (!conversationId) return
+    if (isPinned) {
+      void api.removePinByMessage(conversationId, message.id)
+    } else {
+      const text = message.parts
+        .filter(
+          (p): p is Extract<(typeof message.parts)[number], { type: 'text' }> => p.type === 'text',
+        )
+        .map((p) => p.content)
+        .join('\n')
+      void api.addPin(conversationId, {
+        type: 'message',
+        content: text,
+        messageId: MessageId(message.id),
+      })
+    }
+  }
 
   const textParts = message.parts.filter(
     (p): p is Extract<(typeof message.parts)[number], { type: 'text' }> => p.type === 'text',
@@ -143,13 +170,27 @@ export function UserMessageBubble({ message }: UserMessageBubbleProps) {
             ))}
           </div>
         )}
-        <button
-          type="button"
-          onClick={handleCopy}
-          className="absolute -bottom-7 right-0 flex items-center gap-1 text-[12px] text-text-muted hover:text-text-secondary transition-all opacity-0 group-hover/user-msg:opacity-100 cursor-pointer"
-        >
-          {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-        </button>
+        <div className="absolute -bottom-7 right-0 flex items-center gap-2 opacity-0 group-hover/user-msg:opacity-100 transition-all">
+          <button
+            type="button"
+            onClick={handleTogglePin}
+            className={cn(
+              'flex items-center gap-1 text-[12px] cursor-pointer transition-colors',
+              isPinned ? 'text-accent' : 'text-text-muted hover:text-text-secondary',
+            )}
+            title={isPinned ? 'Unpin message' : 'Pin message'}
+          >
+            <Pin className="h-3 w-3" />
+          </button>
+          <button
+            type="button"
+            title="Copy message"
+            onClick={handleCopy}
+            className="flex items-center gap-1 text-[12px] text-text-muted hover:text-text-secondary cursor-pointer"
+          >
+            {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+          </button>
+        </div>
       </div>
     </div>
   )

@@ -1,13 +1,16 @@
-import type { ConversationId } from '@shared/types/brand'
+import { type ConversationId, MessageId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { PlanResponse } from '@shared/types/plan'
 import type { WaggleAgentColor } from '@shared/types/waggle'
 import { chooseBy } from '@shared/utils/decision'
 import type { UIMessage } from '@tanstack/ai-react'
+import { Pin } from 'lucide-react'
 import React from 'react'
 import { useOrchestrationTaskStatus } from '@/hooks/useOrchestrationTaskStatus'
 import { AGENT_BORDER_LEFT } from '@/lib/agent-colors'
 import { cn } from '@/lib/cn'
+import { api } from '@/lib/ipc'
+import { useContextStore } from '@/stores/context-store'
 import { AgentLabel } from './AgentLabel'
 import { CollapsibleDetails } from './CollapsibleDetails'
 import { useMessageCollapse } from './hooks/useMessageCollapse'
@@ -52,9 +55,35 @@ export function AssistantMessageBubble({
     }
   }
 
+  const isPinned = useContextStore(
+    (s) => s.snapshot?.pinnedMessageIds?.includes(message.id) ?? false,
+  )
+
+  function handleTogglePin() {
+    if (!conversationId) return
+    if (isPinned) {
+      void api.removePinByMessage(conversationId, message.id)
+    } else {
+      const text = message.parts
+        .filter(
+          (p): p is Extract<(typeof message.parts)[number], { type: 'text' }> => p.type === 'text',
+        )
+        .map((p) => p.content)
+        .join('\n')
+      void api.addPin(conversationId, {
+        type: 'message',
+        content: text,
+        messageId: MessageId(message.id),
+      })
+    }
+  }
+
   return (
     <div
-      className={cn('w-full', waggle && `border-l-2 pl-3 ${AGENT_BORDER_LEFT[waggle.agentColor]}`)}
+      className={cn(
+        'group/assistant-msg relative w-full',
+        waggle && `border-l-2 pl-3 ${AGENT_BORDER_LEFT[waggle.agentColor]}`,
+      )}
     >
       <div className="flex flex-col gap-2">
         <AgentLabel assistantModel={assistantModel} waggle={waggle} />
@@ -109,6 +138,23 @@ export function AssistantMessageBubble({
           return null
         })}
       </div>
+
+      {/* Pin action on hover */}
+      {!isStreaming && (
+        <button
+          type="button"
+          onClick={handleTogglePin}
+          className={cn(
+            'absolute -bottom-5 left-0 flex items-center gap-1 text-[12px] transition-all cursor-pointer',
+            isPinned
+              ? 'text-accent opacity-100'
+              : 'text-text-muted hover:text-text-secondary opacity-0 group-hover/assistant-msg:opacity-100',
+          )}
+          title={isPinned ? 'Unpin message' : 'Pin message'}
+        >
+          <Pin className="h-3 w-3" />
+        </button>
+      )}
     </div>
   )
 }

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { DOUBLE_FACTOR } from '@shared/constants/constants'
 import { CONSENSUS } from '@shared/constants/text-processing'
 import { WAGGLE_TIMEOUT } from '@shared/constants/timeouts'
@@ -13,11 +14,13 @@ import type {
   WaggleStreamMetadata,
   WaggleTurnEvent,
 } from '@shared/types/waggle'
+import { WAGGLE_MICRO_RECENT_TOOL_RESULTS } from '../domain/compaction/compaction-types'
 import { createLogger } from '../logger'
 import type { ChatStreamOptions } from '../ports/chat-service'
 import { runAgent } from './agent-loop'
 import { checkConsensus } from './consensus-detector'
 import { FileConflictTracker } from './file-conflict-tracker'
+import { microcompactConversationMessages } from './message-mapper'
 import { makeMessage } from './shared'
 import { WaggleFileCache } from './waggle-file-cache'
 import { runSynthesisStep } from './waggle-synthesis'
@@ -37,6 +40,8 @@ export interface WaggleRunParams {
   readonly onStreamChunk: (chunk: AgentStreamChunk, meta: WaggleStreamMetadata) => void
   readonly onTurnEvent: (event: WaggleTurnEvent) => void
   readonly onTurnComplete?: (accumulatedMessages: readonly Message[]) => Promise<void>
+  /** Override context window for compaction — smallest participating model governs. */
+  readonly effectiveContextWindowOverride?: number
 }
 
 export interface WaggleRunResult {
@@ -117,6 +122,7 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
     // append both the per-turn user message and the assistant response to maintain
     // proper user/assistant alternation for subsequent turns.
     let workingConversation: Conversation = { ...conversation }
+    const waggleSessionId = randomUUID()
 
     let lastAssistantTexts: [string, string] = ['', '']
     let status: WaggleCollaborationStatus = 'running'
@@ -125,12 +131,17 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
     let lastTurnError: string | undefined
     let successfulTurnCount = 0
 
+    // Effective context window is computed by the caller (waggle-run-service)
+    // using the ProviderService port — this layer has no provider access.
+    const effectiveContextWindowOverride = params.effectiveContextWindowOverride
+
     logger.info('Starting Waggle mode sequential collaboration', {
       conversationId,
       userMessage: payload.text.slice(0, SLICE_ARG_2),
       agents: agents.map((a) => a.label),
       maxTurns,
       stopCondition: stop.primary,
+      effectiveContextWindow: effectiveContextWindowOverride,
     })
 
     for (let turnNumber = 0; turnNumber < maxTurns; turnNumber++) {
@@ -158,6 +169,7 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
         agentModel: agent.model,
         turnNumber: successfulTurnCount,
         collaborationMode: 'sequential',
+        sessionId: waggleSessionId,
       }
 
       // Build augmented payload with collaboration context.
@@ -184,6 +196,7 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
           chatStream: params.chatStream,
           skipApproval: createSkipApprovalToken(),
           stallTimeoutMs: WAGGLE_TIMEOUT.STALL_MS,
+          effectiveContextWindowOverride,
           waggleContext: {
             agentLabel: agent.label,
             fileCache: waggleFileCache,
@@ -298,6 +311,7 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
               agentColor: agent.color,
               agentModel: agent.model,
               turnNumber: displayTurnNumber,
+              sessionId: waggleSessionId,
             },
           },
         )
@@ -309,13 +323,20 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
         // the assistant response to maintain proper user/assistant alternation.
         // runAgent() creates a user message from the payload — grab it from the result.
         const turnUserMsg = result.newMessages.find((m) => m.role === 'user')
+        // Microcompact between waggle turns: strip old tool results to keep context bounded.
+        // Agents can re-read files via WaggleFileCache — the compacted placeholders inform the
+        // model that a file was previously read without consuming context tokens.
+        const updatedMessages = [
+          ...workingConversation.messages,
+          ...(turnUserMsg ? [turnUserMsg] : []),
+          taggedMessage,
+        ]
+        const compacted = microcompactConversationMessages(updatedMessages, {
+          recentToolResultCount: WAGGLE_MICRO_RECENT_TOOL_RESULTS,
+        })
         workingConversation = {
           ...workingConversation,
-          messages: [
-            ...workingConversation.messages,
-            ...(turnUserMsg ? [turnUserMsg] : []),
-            taggedMessage,
-          ],
+          messages: compacted.messages,
         }
 
         onTurnEvent({
@@ -405,6 +426,8 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
         onTurnEvent,
         onTurnComplete,
         waggleFileCache,
+        effectiveContextWindowOverride,
+        waggleSessionId,
       })
       if (!synthesisResult.success && synthesisResult.failureReason) {
         lastTurnError = synthesisResult.failureReason

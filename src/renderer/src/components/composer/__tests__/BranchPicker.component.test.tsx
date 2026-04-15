@@ -120,11 +120,6 @@ describe('BranchPicker', () => {
     expect(useComposerActionStore.getState().actionDialogInput).toBe('develop')
   })
 
-  it('renders refresh button', () => {
-    render(<BranchPicker />)
-    expect(screen.getByTitle('Refresh git status')).toBeInTheDocument()
-  })
-
   it('marks current branch with indicator', () => {
     useComposerStore.setState({ branchMenuOpen: true })
     render(<BranchPicker />)

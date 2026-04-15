@@ -40,6 +40,7 @@ export interface ChatTranscriptSectionState {
   readonly recentProjects: readonly string[]
   readonly activeConversationId: ConversationId | null
   readonly chatRows: ChatRow[]
+  readonly compactedMessageIds: ReadonlySet<string>
   /** The ID of the last user message. ChatTranscript watches this reactively
    *  (Voyager pattern) and scrolls when it changes to a new unseen ID. */
   readonly lastUserMessageId: string | null

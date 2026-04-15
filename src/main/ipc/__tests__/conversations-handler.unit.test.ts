@@ -108,6 +108,8 @@ const TestConversationRepoLayer = Layer.succeed(
         },
         catch: (cause) => new ConversationRepositoryError({ operation: 'updatePlanMode', cause }),
       }),
+    updateCompactionGuidance: () => Effect.void,
+    markMessagesAsCompacted: () => Effect.void,
   }),
 )
 

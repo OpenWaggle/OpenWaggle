@@ -11,6 +11,7 @@ import {
   Settings,
   Shield,
   ShieldAlert,
+  Shrink,
   Smile,
   Swords,
   User,
@@ -18,7 +19,11 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/cn'
+import { api } from '@/lib/ipc'
 import { teamPresetsQueryOptions } from '@/queries/teams'
+import { useChatStore } from '@/stores/chat-store'
+import { useComposerStore } from '@/stores/composer-store'
+import { useContextStore } from '@/stores/context-store'
 import { useUIStore } from '@/stores/ui-store'
 import { useWaggleStore } from '@/stores/waggle-store'
 
@@ -146,6 +151,33 @@ export function CommandPalette({ slashSkills, onSelectSkill, onStartWaggle }: Co
       description: 'Turn plan mode on',
       icon: <Layers className="h-3.5 w-3.5" />,
       action: () => closeCommandPalette(),
+    },
+    {
+      id: 'compact',
+      label: 'Compact',
+      description: 'Compact context now using default policy',
+      icon: <Shrink className="h-3.5 w-3.5" />,
+      section: 'Context',
+      action: () => {
+        closeCommandPalette()
+        const conversationId = useChatStore.getState().activeConversationId
+        if (conversationId) {
+          const { setCompacting } = useContextStore.getState()
+          setCompacting(true)
+          void api.requestCompaction(conversationId).finally(() => setCompacting(false))
+        }
+      },
+    },
+    {
+      id: 'compact-with-instructions',
+      label: 'Compact with instructions',
+      description: 'Compact with custom preservation guidance',
+      icon: <Shrink className="h-3.5 w-3.5" />,
+      section: 'Context',
+      action: () => {
+        closeCommandPalette()
+        useComposerStore.getState().setInput('/compact ')
+      },
     },
   ]
 

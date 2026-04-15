@@ -6,6 +6,12 @@ import { chooseBy } from '@shared/utils/decision'
 import * as Effect from 'effect/Effect'
 import { classifyAgentError } from '../agent/error-classifier'
 import { executeWaggleRun } from '../application/waggle-run-service'
+import { createLogger } from '../logger'
+import { ConversationRepository } from '../ports/conversation-repository'
+import { PinnedContextRepository } from '../ports/pinned-context-repository'
+import { runAppEffect } from '../runtime'
+import * as contextSnapshotService from '../services/context-snapshot-service'
+import { SettingsService } from '../services/settings-service'
 import {
   clearAgentPhase,
   clearStreamBuffer,
@@ -18,6 +24,8 @@ import {
 import { ActiveRunManager } from './active-run-manager'
 import { emitErrorAndFinish } from './run-handler-utils'
 import { typedHandle, typedOn } from './typed-ipc'
+
+const logger = createLogger('waggle-handler')
 
 const activeWaggleRuns = new ActiveRunManager<ConversationId, Record<string, never>>()
 const BASE36_RADIX = 36
@@ -76,6 +84,44 @@ export function registerWaggleHandlers(): void {
               timestamp: Date.now(),
               runId: `waggle-${conversationId}`,
             })
+
+            // Push snapshot with waggle config so inspector shows waggle section immediately.
+            // Non-blocking: snapshot push failure must not block the waggle run.
+            yield* Effect.gen(function* () {
+              const repo = yield* ConversationRepository
+              const conv = yield* repo
+                .get(conversationId)
+                .pipe(Effect.catchAll(() => Effect.succeed(null)))
+              if (conv) {
+                const settings = yield* SettingsService
+                const currentSettings = yield* settings.get()
+                const pinRepo = yield* PinnedContextRepository
+                const pinnedTokens = yield* pinRepo.getTokenEstimate(conversationId)
+                const pinnedItems = yield* pinRepo.list(conversationId)
+                contextSnapshotService.onWaggleStateChange(conversationId, {
+                  messages: conv.messages,
+                  modelId: currentSettings.selectedModel,
+                  pinnedTokens,
+                  pinnedItemCount: pinnedItems.length,
+                  pinnedMessageIds: pinnedItems
+                    .filter((p) => p.messageId)
+                    .map((p) => String(p.messageId)),
+                  waggleConfig: config,
+                })
+              }
+            }).pipe(
+              Effect.catchAll((err) => {
+                logger.warn('Waggle initial snapshot push failed', {
+                  conversationId,
+                  error: err instanceof Error ? err.message : String(err),
+                })
+                return Effect.void
+              }),
+              Effect.catchAllDefect((defect) => {
+                logger.warn('Defect in waggle initial snapshot push', { conversationId, defect })
+                return Effect.void
+              }),
+            )
 
             const result = yield* executeWaggleRun({
               conversationId,
@@ -198,6 +244,33 @@ export function registerWaggleHandlers(): void {
                   runId: `waggle-${conversationId}`,
                   finishReason: 'stop',
                 })
+
+                // Push updated context snapshot after waggle run
+                void runAppEffect(
+                  Effect.gen(function* () {
+                    const repo = yield* ConversationRepository
+                    const updatedConv = yield* repo
+                      .get(conversationId)
+                      .pipe(Effect.catchAll(() => Effect.succeed(null)))
+                    if (updatedConv) {
+                      const settings = yield* SettingsService
+                      const currentSettings = yield* settings.get()
+                      const pinRepo = yield* PinnedContextRepository
+                      const pinnedTokens = yield* pinRepo.getTokenEstimate(conversationId)
+                      const pinnedItems = yield* pinRepo.list(conversationId)
+                      contextSnapshotService.onWaggleStateChange(conversationId, {
+                        messages: updatedConv.messages,
+                        modelId: currentSettings.selectedModel,
+                        pinnedTokens,
+                        pinnedItemCount: pinnedItems.length,
+                        pinnedMessageIds: pinnedItems
+                          .filter((p) => p.messageId)
+                          .map((p) => String(p.messageId)),
+                        waggleConfig: undefined, // Cleared after run — snapshot reverts to standard mode
+                      })
+                    }
+                  }),
+                )
               })
               .assertComplete()
           }),
