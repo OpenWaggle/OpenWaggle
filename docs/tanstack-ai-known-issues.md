@@ -21,10 +21,10 @@ When `emitToolResults()` re-executes a tool during a continuation, it only emits
 **Patch (applied locally):**
 In `checkForPendingToolCalls()`, build an `argsMap` from the pending `ToolCall` objects and pass it to `buildToolResultChunks()`. Before each `TOOL_CALL_END`, emit `TOOL_CALL_START` and `TOOL_CALL_ARGS` with the original arguments. Patch applied via `pnpm patch @tanstack/ai` — see `patches/@tanstack__ai@0.8.1.patch`.
 
-**Status:** Patched locally. Ready to PR upstream.
+**Status:** Fix merged upstream via [TanStack/ai#372](https://github.com/TanStack/ai/pull/372). Local patch (`patches/@tanstack__ai@0.8.1.patch`) still applied because the fix is not yet published to npm (latest is `0.10.1`). Once a new version is released that includes the fix, bump `@tanstack/ai`, remove the patch, and evaluate removing safety-net workarounds in `agent-continuation.ts` and `continuation-normalizer.ts`.
 
 **Remaining workaround:**
-Server-side args enrichment in `agent-loop.ts` is still in place as a safety net. Can be removed once the patch is confirmed stable or merged upstream.
+Server-side args enrichment in `agent-continuation.ts` is still in place as a safety net. Can be removed once the upstream fix is published and confirmed stable.
 
 ---
 
