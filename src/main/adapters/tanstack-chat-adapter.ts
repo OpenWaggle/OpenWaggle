@@ -4,6 +4,7 @@
  * This is the ONLY module that calls `chat()` from `@tanstack/ai`.
  * All other code uses the domain-owned `AgentStreamChunk` type.
  */
+import { HTTP_TIMEOUT } from '@shared/constants/timeouts'
 import type { AgentStreamChunk } from '@shared/types/stream'
 import { type AnyTextAdapter, chat, maxIterations, type StreamChunk } from '@tanstack/ai'
 import { Effect, Layer } from 'effect'
@@ -39,8 +40,6 @@ function unwrapToVendorAdapter(adapter: ChatAdapter): AnyTextAdapter {
   }
   return inner
 }
-
-const TEST_CONNECTION_TIMEOUT_MS = 15_000
 
 /**
  * Create an async iterable that maps vendor StreamChunks to domain AgentStreamChunks.
@@ -82,7 +81,7 @@ export function startChatStream(options: ChatStreamOptions): AsyncIterable<Agent
 async function testProviderConnection(options: TestConnectionOptions): Promise<void> {
   const vendorAdapter = unwrapToVendorAdapter(options.adapter)
   const abortController = options.abortController ?? new AbortController()
-  const timeout = setTimeout(() => abortController.abort(), TEST_CONNECTION_TIMEOUT_MS)
+  const timeout = setTimeout(() => abortController.abort(), HTTP_TIMEOUT.TEST_CONNECTION_MS)
 
   try {
     const stream = chat({

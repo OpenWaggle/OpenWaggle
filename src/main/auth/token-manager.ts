@@ -1,5 +1,5 @@
 import * as SqlClient from '@effect/sql/SqlClient'
-import { FIVE_MINUTES_IN_MILLISECONDS } from '@shared/constants/constants'
+import { AUTH_TIMEOUT } from '@shared/constants/timeouts'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
 import type { SubscriptionProvider } from '@shared/types/auth'
 import * as Effect from 'effect/Effect'
@@ -171,8 +171,6 @@ export function clearPreviousApiKey(provider: SubscriptionProvider): void {
 
 // ─── Public API ─────────────────────────────────────────────────────
 
-const REFRESH_MARGIN_MS = FIVE_MINUTES_IN_MILLISECONDS
-
 export function storeTokens(provider: 'openrouter', tokens: OpenRouterTokens): void
 export function storeTokens(provider: OAuthProvider, tokens: OAuthTokens): void
 export function storeTokens(
@@ -248,7 +246,7 @@ export async function getActiveAccessToken(provider: SubscriptionProvider): Prom
   if (!('accessToken' in tokens)) return null
   const oauthTokens = tokens
 
-  const needsRefresh = oauthTokens.expiresAt - Date.now() < REFRESH_MARGIN_MS
+  const needsRefresh = oauthTokens.expiresAt - Date.now() < AUTH_TIMEOUT.REFRESH_MARGIN_MS
   if (!needsRefresh) return oauthTokens.accessToken
 
   const existing = refreshLocks.get(oauthProvider)

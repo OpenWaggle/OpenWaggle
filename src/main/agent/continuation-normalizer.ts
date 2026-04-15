@@ -1,3 +1,4 @@
+import { CONTINUATION } from '@shared/constants/text-processing'
 import type {
   DomainContinuationMessage,
   DomainModelContinuationMessage,
@@ -12,7 +13,6 @@ type UiToolCallPart = DomainUiToolCallPart
 
 const logger = createLogger('continuation-normalizer')
 const EMPTY_TOOL_ARGS_JSON = '{}'
-const PARSE_PREVIEW_CHAR_LIMIT = 200
 const TOOL_CALL_SCORE_HAS_STATE = 1
 const TOOL_CALL_SCORE_HAS_NON_EMPTY_ARGS = 2
 const TOOL_CALL_SCORE_NEEDS_APPROVAL = 4
@@ -48,13 +48,13 @@ function normalizeToolArgumentsJson(raw: string, toolCallId: string): string {
 
     logger.warn('Tool arguments were not a JSON object; defaulting to {}', {
       toolCallId,
-      raw: trimmed.slice(0, PARSE_PREVIEW_CHAR_LIMIT),
+      raw: trimmed.slice(0, CONTINUATION.PARSE_PREVIEW_CHAR_LIMIT),
     })
     return EMPTY_TOOL_ARGS_JSON
   } catch (error) {
     logger.warn('Failed to parse tool arguments JSON; defaulting to {}', {
       toolCallId,
-      raw: trimmed.slice(0, PARSE_PREVIEW_CHAR_LIMIT),
+      raw: trimmed.slice(0, CONTINUATION.PARSE_PREVIEW_CHAR_LIMIT),
       error: error instanceof Error ? error.message : String(error),
     })
     return EMPTY_TOOL_ARGS_JSON

@@ -4,18 +4,14 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js'
 import { DOUBLE_FACTOR } from '@shared/constants/constants'
+import { MCP_RECONNECT } from '@shared/constants/retry-policy'
+import { MCP_TIMEOUT } from '@shared/constants/timeouts'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
 import type { McpConnectionStatus, McpServerConfig, McpToolInfo } from '@shared/types/mcp'
 import { getSafeChildEnvEntries } from '../env'
 import { createLogger } from '../logger'
 
 const logger = createLogger('mcp-client')
-
-const CONNECT_TIMEOUT_MS = 30_000
-const TOOL_CALL_TIMEOUT_MS = 60_000
-const MAX_RECONNECT_RETRIES = 5
-const RECONNECT_BASE_MS = 1_000
-const RECONNECT_MAX_MS = 30_000
 
 interface McpClientEvents {
   onStatusChange: (status: McpConnectionStatus, error?: string) => void
@@ -79,7 +75,7 @@ export class McpClient {
       const timeoutPromise = new Promise<never>((_resolve, reject) => {
         connectTimer = setTimeout(
           () => reject(new Error('Connection timed out')),
-          CONNECT_TIMEOUT_MS,
+          MCP_TIMEOUT.CONNECT_MS,
         )
       })
       try {
@@ -135,8 +131,9 @@ export class McpClient {
     let callTimer: ReturnType<typeof setTimeout> | null = null
     const timeoutPromise = new Promise<never>((_resolve, reject) => {
       callTimer = setTimeout(
-        () => reject(new Error(`Tool call "${name}" timed out after ${TOOL_CALL_TIMEOUT_MS}ms`)),
-        TOOL_CALL_TIMEOUT_MS,
+        () =>
+          reject(new Error(`Tool call "${name}" timed out after ${MCP_TIMEOUT.TOOL_CALL_MS}ms`)),
+        MCP_TIMEOUT.TOOL_CALL_MS,
       )
     })
 
@@ -196,8 +193,8 @@ export class McpClient {
   }
 
   private async attemptReconnect(): Promise<void> {
-    if (this.intentionalDisconnect || this.reconnectAttempts >= MAX_RECONNECT_RETRIES) {
-      if (this.reconnectAttempts >= MAX_RECONNECT_RETRIES) {
+    if (this.intentionalDisconnect || this.reconnectAttempts >= MCP_RECONNECT.MAX_RETRIES) {
+      if (this.reconnectAttempts >= MCP_RECONNECT.MAX_RETRIES) {
         logger.warn('max reconnect attempts reached', { server: this.config.name })
       }
       return
@@ -205,8 +202,8 @@ export class McpClient {
 
     this.reconnectAttempts++
     const delay = Math.min(
-      RECONNECT_BASE_MS * DOUBLE_FACTOR ** (this.reconnectAttempts - 1),
-      RECONNECT_MAX_MS,
+      MCP_RECONNECT.BASE_MS * DOUBLE_FACTOR ** (this.reconnectAttempts - 1),
+      MCP_RECONNECT.MAX_MS,
     )
 
     logger.info('scheduling reconnect', {

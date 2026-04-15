@@ -238,12 +238,12 @@ describe('settings store', () => {
     state.isKnownModel.mockImplementation(() => false)
     state.getProvider.mockReturnValue({ id: 'openai' })
 
-    await writeRawSetting('defaultModel', 'gpt-5.4')
+    await writeRawSetting('selectedModel', 'gpt-5.4')
     await writeRawSetting('enabledModels', ['openai:subscription:gpt-5.4'])
 
     const { getSettings } = await loadSettingsModule()
 
-    expect(getSettings().defaultModel).toBe('gpt-5.4')
+    expect(getSettings().selectedModel).toBe('gpt-5.4')
     expect(state.getProvider).toHaveBeenCalledWith('openai')
     expect(state.indexModels).toHaveBeenCalledWith(
       ['gpt-5.4'],

@@ -92,7 +92,7 @@ export function useChatPanelSections(): ChatPanelSections {
   const openSettings = useUIStore((s) => s.openSettings)
   const showToast = useUIStore((s) => s.showToast)
 
-  const model = usePreferencesStore((s) => s.settings.defaultModel)
+  const model = usePreferencesStore((s) => s.settings.selectedModel)
   const qualityPreset = usePreferencesStore((s) => s.settings.qualityPreset)
   const recentProjects = usePreferencesStore((s) => s.settings.recentProjects)
   const executionMode = usePreferencesStore((s) => s.settings.executionMode)

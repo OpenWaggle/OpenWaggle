@@ -1,13 +1,10 @@
+import { PROMPT_LIMITS } from '@shared/constants/text-processing'
 import type { AgentPromptFragment } from './runtime-types'
 
 const ORDER = 5
 const ORDER_VALUE_6 = 6
 const ORDER_VALUE_45 = 45
 const ORDER_VALUE_44 = 44
-
-const MAX_SKILLS_IN_CATALOG_PROMPT = 20
-const MAX_SKILL_DESCRIPTION_CHARS = 140
-const MAX_AGENTS_SCOPES_IN_PROMPT = 5
 
 export const agentsEntryPromptFragment: AgentPromptFragment = {
   id: 'standards.agents-entry',
@@ -27,7 +24,7 @@ export const scopedAgentsPromptFragment: AgentPromptFragment = {
       return 'No additional nested AGENTS.md scopes were preloaded for this request. If you start working in a package/subdirectory, call the `loadAgents` tool for that path first.'
     }
 
-    const listedScopes = scoped.slice(0, MAX_AGENTS_SCOPES_IN_PROMPT)
+    const listedScopes = scoped.slice(0, PROMPT_LIMITS.MAX_AGENTS_SCOPES)
     const overflowCount = scoped.length - listedScopes.length
 
     const sections = listedScopes.map((scope) =>
@@ -94,12 +91,12 @@ export const skillCatalogPromptFragment: AgentPromptFragment = {
       return null
     }
 
-    const listedSkills = availableSkills.slice(0, MAX_SKILLS_IN_CATALOG_PROMPT)
+    const listedSkills = availableSkills.slice(0, PROMPT_LIMITS.MAX_SKILLS_IN_CATALOG)
     const remainingCount = availableSkills.length - listedSkills.length
     const lines = listedSkills.map((skill) => {
       const description =
-        skill.description.length > MAX_SKILL_DESCRIPTION_CHARS
-          ? `${skill.description.slice(0, MAX_SKILL_DESCRIPTION_CHARS)}...`
+        skill.description.length > PROMPT_LIMITS.MAX_SKILL_DESCRIPTION_CHARS
+          ? `${skill.description.slice(0, PROMPT_LIMITS.MAX_SKILL_DESCRIPTION_CHARS)}...`
           : skill.description
       return `- ${skill.id}: ${description}`
     })

@@ -1,3 +1,4 @@
+import { STREAM_TIMEOUT } from '@shared/constants/timeouts'
 import type { AgentStreamChunk, AgentTextMessageContentChunk } from '@shared/types/stream'
 
 /**
@@ -10,8 +11,6 @@ import type { AgentStreamChunk, AgentTextMessageContentChunk } from '@shared/typ
  * to produce natural word boundaries.
  */
 const WORD_BOUNDARY_REGEX = /\S+\s+/m
-
-const SMOOTH_DELAY_MS = 10
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -55,7 +54,7 @@ export async function* smoothStream(
       const word = buffer.slice(0, match.index) + match[0]
       yield makeTextChunk(activeMessageId, word)
       buffer = buffer.slice(word.length)
-      await delay(SMOOTH_DELAY_MS)
+      await delay(STREAM_TIMEOUT.SMOOTH_DELAY_MS)
       match = WORD_BOUNDARY_REGEX.exec(buffer)
     }
   }

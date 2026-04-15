@@ -1,13 +1,11 @@
 import { is } from '@electron-toolkit/utils'
+import { UPDATER_TIMING } from '@shared/constants/timeouts'
 import type { UpdateStatus } from '@shared/types/updater'
 import { autoUpdater } from 'electron-updater'
 import { createLogger } from './logger'
 import { broadcastToWindows } from './utils/broadcast'
 
 const logger = createLogger('updater')
-
-const INITIAL_CHECK_DELAY_MS = 5_000
-const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1_000 // 4 hours
 
 let currentStatus: UpdateStatus = { type: 'idle' }
 let checkInterval: ReturnType<typeof setInterval> | null = null
@@ -83,8 +81,8 @@ export function initAutoUpdater(): void {
   // Initial check after a short delay, then periodic checks
   setTimeout(() => {
     checkForUpdates()
-    checkInterval = setInterval(checkForUpdates, CHECK_INTERVAL_MS)
-  }, INITIAL_CHECK_DELAY_MS)
+    checkInterval = setInterval(checkForUpdates, UPDATER_TIMING.CHECK_INTERVAL_MS)
+  }, UPDATER_TIMING.INITIAL_CHECK_DELAY_MS)
 
   logger.info('Auto-updater initialized')
 }

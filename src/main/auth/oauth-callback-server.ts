@@ -1,14 +1,12 @@
 import { createServer, type Server } from 'node:http'
 import { URL } from 'node:url'
-import { FIVE_MINUTES_IN_MILLISECONDS } from '@shared/constants/constants'
+import { AUTH_TIMEOUT } from '@shared/constants/timeouts'
 import { createLogger } from '../logger'
 
 const HTTP_STATUS_OK = 200
 const HTTP_STATUS_BAD_REQUEST = 400
 
 const logger = createLogger('oauth-callback')
-
-const OAUTH_CALLBACK_TIMEOUT_MS = FIVE_MINUTES_IN_MILLISECONDS
 
 const SUCCESS_HTML = `<!DOCTYPE html>
 <html><head><title>Authentication Successful</title>
@@ -116,7 +114,7 @@ export async function createCallbackServer(options?: { port?: number }): Promise
         timeoutId = setTimeout(() => {
           reject(new Error('OAuth callback timed out after 5 minutes'))
           server.close()
-        }, OAUTH_CALLBACK_TIMEOUT_MS)
+        }, AUTH_TIMEOUT.OAUTH_CALLBACK_MS)
       })
     },
     close() {

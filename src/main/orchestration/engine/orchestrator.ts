@@ -1,3 +1,4 @@
+import { ORCHESTRATION_RETRY } from '@shared/constants/retry-policy'
 import type { JsonValue } from '@shared/types/json'
 import { createLogger } from '../../logger'
 import { createOrchestrationEngine } from './engine'
@@ -14,15 +15,12 @@ import type {
 } from './types'
 import { createOpenWaggleAgentWorkerAdapter } from './worker-adapter'
 
-const BACKOFF_MS = 500
-const JITTER_MS = 200
-
 const logger = createLogger('orchestration')
 
 const DEFAULT_TASK_RETRY: OrchestrationTaskRetryPolicy = {
   retries: 1,
-  backoffMs: BACKOFF_MS,
-  jitterMs: JITTER_MS,
+  backoffMs: ORCHESTRATION_RETRY.BACKOFF_MS,
+  jitterMs: ORCHESTRATION_RETRY.JITTER_MS,
 }
 
 export async function runOpenWaggleOrchestration(

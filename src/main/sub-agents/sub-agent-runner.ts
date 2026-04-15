@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { SUB_AGENT } from '@shared/constants/agent-config'
 import { getMessageText } from '@shared/types/agent'
 import { ConversationId, createSkipApprovalToken, SubAgentId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
@@ -41,9 +42,6 @@ const PERMISSION_LEVEL_BYPASS_PERMISSIONS = 4
 
 const logger = createLogger('sub-agent-runner')
 
-/** Max sub-agent nesting depth. Bounds resource consumption — each level adds a full agent loop with LLM calls. */
-const MAX_DEPTH = 3
-
 export interface RunSubAgentParams {
   readonly input: SpawnAgentInput
   readonly parentConversationId: ConversationId
@@ -66,9 +64,9 @@ export async function runSubAgent(params: RunSubAgentParams): Promise<SubAgentRe
 
   // ── Validation ──
   const depth = parentDepth + 1
-  if (depth > MAX_DEPTH) {
+  if (depth > SUB_AGENT.MAX_DEPTH) {
     throw new Error(
-      `Sub-agent spawn depth exceeded (max ${String(MAX_DEPTH)}). Cannot spawn deeper.`,
+      `Sub-agent spawn depth exceeded (max ${String(SUB_AGENT.MAX_DEPTH)}). Cannot spawn deeper.`,
     )
   }
 

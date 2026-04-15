@@ -1,13 +1,8 @@
-import { BYTES_PER_KIBIBYTE } from '@shared/constants/constants'
+import { WEB_FETCH } from '@shared/constants/resource-limits'
+import { HTTP_TIMEOUT } from '@shared/constants/timeouts'
 import { Schema } from '@shared/schema'
 import { readBodyWithLimit, stripHtml } from '../../utils/http'
 import { defineOpenWaggleTool } from '../define-tool'
-
-const MODULE_VALUE_5 = 5
-const TIMEOUT_ARG_1 = 30_000
-
-const DEFAULT_MAX_LENGTH = 50_000
-const MAX_BODY_BYTES = MODULE_VALUE_5 * BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE // 5 MB hard cap on response body
 
 export const webFetchTool = defineOpenWaggleTool({
   name: 'webFetch',
@@ -27,12 +22,12 @@ export const webFetchTool = defineOpenWaggleTool({
     ),
   }),
   async execute(args, context) {
-    const maxLength = args.maxLength ?? DEFAULT_MAX_LENGTH
+    const maxLength = args.maxLength ?? WEB_FETCH.DEFAULT_MAX_LENGTH
     const response = await fetch(args.url, {
       headers: { 'User-Agent': 'OpenWaggle/1.0' },
       signal: context.signal
-        ? AbortSignal.any([context.signal, AbortSignal.timeout(TIMEOUT_ARG_1)])
-        : AbortSignal.timeout(TIMEOUT_ARG_1),
+        ? AbortSignal.any([context.signal, AbortSignal.timeout(HTTP_TIMEOUT.FETCH_MS)])
+        : AbortSignal.timeout(HTTP_TIMEOUT.FETCH_MS),
     })
 
     if (!response.ok) {
@@ -40,7 +35,7 @@ export const webFetchTool = defineOpenWaggleTool({
     }
 
     const contentType = response.headers.get('content-type') ?? ''
-    const raw = await readBodyWithLimit(response, MAX_BODY_BYTES)
+    const raw = await readBodyWithLimit(response, WEB_FETCH.MAX_BODY_BYTES)
 
     let text: string
     if (contentType.includes('text/html')) {

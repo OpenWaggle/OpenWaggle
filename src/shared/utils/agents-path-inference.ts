@@ -1,4 +1,5 @@
 import { DOUBLE_FACTOR } from '@shared/constants/constants'
+import { PROMPT_LIMITS } from '@shared/constants/text-processing'
 
 interface InferAgentsCandidatePathsInput {
   readonly text: string
@@ -6,7 +7,6 @@ interface InferAgentsCandidatePathsInput {
   readonly maxCandidates?: number
 }
 
-const DEFAULT_MAX_CANDIDATES = 5
 const EXPLICIT_PATH_REGEX = /(?:^|\s)path:([^\s]+)/gi
 const SLASH_PATH_TOKEN_REGEX = /(?:^|\s)([./~]?[A-Za-z0-9._-]+(?:[\\/][A-Za-z0-9._-]+)+)/g
 const WINDOWS_PATH_TOKEN_REGEX = /(?:^|\s)([a-zA-Z]:\\[^\s`"'<>]+)/g
@@ -38,7 +38,7 @@ const BARE_PATH_ROOT_HINTS = new Set([
 ])
 
 export function inferAgentsCandidatePaths(input: InferAgentsCandidatePathsInput): string[] {
-  const maxCandidates = input.maxCandidates ?? DEFAULT_MAX_CANDIDATES
+  const maxCandidates = input.maxCandidates ?? PROMPT_LIMITS.MAX_AGENT_CANDIDATES
   if (maxCandidates <= 0) return []
 
   const ordered: string[] = []

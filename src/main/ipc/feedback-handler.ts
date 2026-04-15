@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import os from 'node:os'
 import { BASE_TEN, BYTES_PER_KIBIBYTE } from '@shared/constants/constants'
+import { FEEDBACK } from '@shared/constants/resource-limits'
 import type { DiagnosticsInfo, FeedbackPayload } from '@shared/types/feedback'
 import * as Effect from 'effect/Effect'
 import { app } from 'electron'
@@ -13,7 +14,6 @@ import { typedHandle } from './typed-ipc'
 const logger = createLogger('ipc:feedback')
 
 const FEEDBACK_REPO = 'OpenWaggle/OpenWaggle'
-const DEFAULT_LOG_LINE_COUNT = 100
 
 function execFilePromise(
   command: string,
@@ -139,7 +139,7 @@ async function buildMarkdownBody(payload: FeedbackPayload): Promise<string> {
   }
 
   if (payload.includeLogs) {
-    const logs = await readRecentLogs(DEFAULT_LOG_LINE_COUNT)
+    const logs = await readRecentLogs(FEEDBACK.DEFAULT_LOG_LINE_COUNT)
     if (logs) {
       sections.push(
         [

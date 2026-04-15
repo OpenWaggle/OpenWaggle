@@ -37,7 +37,7 @@ export function ComposerToolbar({
 }: ComposerToolbarProps) {
   const settings = usePreferencesStore((s) => s.settings)
   const providerModels = useProviderStore((s) => s.providerModels)
-  const setDefaultModel = usePreferencesStore((s) => s.setDefaultModel)
+  const setSelectedModel = usePreferencesStore((s) => s.setSelectedModel)
   const setQualityPreset = usePreferencesStore((s) => s.setQualityPreset)
 
   const qualityMenuOpen = useComposerStore((s) => s.qualityMenuOpen)
@@ -61,8 +61,8 @@ export function ComposerToolbar({
         <ComposerAttachButton fileInputRef={fileInputRef} />
 
         <ModelSelector
-          value={settings.defaultModel}
-          onChange={setDefaultModel}
+          value={settings.selectedModel}
+          onChange={setSelectedModel}
           settings={settings}
           providerModels={providerModels}
         />

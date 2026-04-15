@@ -198,19 +198,19 @@ describe('registerSettingsHandlers', () => {
       expect(updateSettingsMock).not.toHaveBeenCalled()
     })
 
-    it('converts defaultModel string to SupportedModelId', async () => {
+    it('converts selectedModel string to SupportedModelId', async () => {
       registerSettingsHandlers()
 
       const handler = getTypedEffectInvokeHandler('settings:update')
       expect(handler).toBeDefined()
 
-      const payload = { defaultModel: 'gpt-4.1-mini' }
+      const payload = { selectedModel: 'gpt-4.1-mini' }
       await handler?.({}, payload)
 
       expect(updateSettingsMock).toHaveBeenCalledOnce()
       const call = updateSettingsMock.mock.calls[0][0]
       // The branded type is still a string at runtime
-      expect(call.defaultModel).toBe('gpt-4.1-mini')
+      expect(call.selectedModel).toBe('gpt-4.1-mini')
     })
 
     it('converts favoriteModels strings to SupportedModelId array', async () => {

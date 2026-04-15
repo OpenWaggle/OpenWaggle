@@ -37,7 +37,7 @@ describe('SettingsService.Live', () => {
   })
 
   it('delegates get to getSettings()', async () => {
-    const settings = { defaultModel: 'claude-sonnet-4-5', providers: {} }
+    const settings = { selectedModel: 'claude-sonnet-4-5', providers: {} }
     getSettingsMock.mockReturnValue(settings)
 
     const result = await Effect.runPromise(
@@ -52,7 +52,7 @@ describe('SettingsService.Live', () => {
   })
 
   it('delegates update to updateSettings()', async () => {
-    const partial = { defaultModel: SupportedModelId('gpt-4o') }
+    const partial = { selectedModel: SupportedModelId('gpt-4o') }
 
     await Effect.runPromise(
       Effect.gen(function* () {

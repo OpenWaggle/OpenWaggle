@@ -1,11 +1,9 @@
+import { CONVERSATION_SUMMARY } from '@shared/constants/text-processing'
 import type { Conversation } from '@shared/types/conversation'
 import { chooseBy } from '@shared/utils/decision'
 
-const MAX_SUMMARY_LENGTH = 3000
-const RECENT_MESSAGE_COUNT = 8
-
 export function summarizeConversation(conversation: Conversation): string {
-  const recentMessages = conversation.messages.slice(-RECENT_MESSAGE_COUNT)
+  const recentMessages = conversation.messages.slice(-CONVERSATION_SUMMARY.RECENT_MESSAGE_COUNT)
   const rendered = recentMessages
     .map((message) => {
       const segments: string[] = []
@@ -29,7 +27,7 @@ export function summarizeConversation(conversation: Conversation): string {
     })
     .join('\n')
 
-  return rendered.length > MAX_SUMMARY_LENGTH
-    ? `${rendered.slice(0, MAX_SUMMARY_LENGTH)}...`
+  return rendered.length > CONVERSATION_SUMMARY.MAX_LENGTH
+    ? `${rendered.slice(0, CONVERSATION_SUMMARY.MAX_LENGTH)}...`
     : rendered
 }

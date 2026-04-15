@@ -1,3 +1,4 @@
+import { STREAM_TIMEOUT } from '@shared/constants/timeouts'
 import type { AgentStreamChunk } from '@shared/types/stream'
 import { isUserBlockingToolName } from '@shared/types/tool-blocking'
 import * as Duration from 'effect/Duration'
@@ -20,8 +21,8 @@ const approvalTraceLogger = createLogger('approval-trace')
  * When exceeded, `processAgentStream` returns with `timedOut: true` so the caller
  * can retry with a fresh stream.
  */
-export const STREAM_STALL_TIMEOUT_MS = 120_000
-export const INCOMPLETE_TOOL_CALL_STALL_TIMEOUT_MS = 30_000
+export const STREAM_STALL_TIMEOUT_MS = STREAM_TIMEOUT.STALL_MS
+export const INCOMPLETE_TOOL_CALL_STALL_TIMEOUT_MS = STREAM_TIMEOUT.INCOMPLETE_TOOL_CALL_MS
 
 export type StreamStallReason = 'stream-stall' | 'incomplete-tool-args' | 'awaiting-tool-result'
 

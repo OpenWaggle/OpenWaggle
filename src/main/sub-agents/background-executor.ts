@@ -1,11 +1,10 @@
+import { SUB_AGENT } from '@shared/constants/agent-config'
 import type { SubAgentId } from '@shared/types/brand'
 import type { SubAgentResult } from '@shared/types/sub-agent'
 import { formatErrorMessage } from '@shared/utils/node-error'
 import { createLogger } from '../logger'
 
 const logger = createLogger('background-executor')
-
-const MAX_CONCURRENT_BACKGROUND = 4
 
 type CompletionCallback = (result: SubAgentResult) => void
 
@@ -23,7 +22,7 @@ export function getBackgroundCount(): number {
 }
 
 export function canStartBackground(): boolean {
-  return activeTasks.size < MAX_CONCURRENT_BACKGROUND
+  return activeTasks.size < SUB_AGENT.MAX_CONCURRENT_BACKGROUND
 }
 
 export function startBackground(
@@ -33,7 +32,7 @@ export function startBackground(
 ): AbortController {
   if (!canStartBackground()) {
     throw new Error(
-      `Cannot start background agent: ${String(activeTasks.size)}/${String(MAX_CONCURRENT_BACKGROUND)} slots in use`,
+      `Cannot start background agent: ${String(activeTasks.size)}/${String(SUB_AGENT.MAX_CONCURRENT_BACKGROUND)} slots in use`,
     )
   }
 

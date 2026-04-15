@@ -1,3 +1,4 @@
+import { TITLE } from '@shared/constants/text-processing'
 import type { ConversationId } from '@shared/types/brand'
 import type { AgentStreamChunk } from '@shared/types/stream'
 import { createLogger } from '../logger'
@@ -5,10 +6,6 @@ import type { ChatAdapter } from '../ports/chat-adapter-type'
 import type { ChatStreamOptions } from '../ports/chat-service'
 
 const logger = createLogger('title-generator')
-
-const TITLE_FALLBACK_LENGTH = 60
-const TITLE_INPUT_MAX_CHARS = 500
-const TITLE_MAX_TOKENS = 60
 
 const TITLE_SYSTEM_PROMPT =
   'You are a conversation title generator. Given the first user message of a conversation, generate a short, descriptive title (max 50 characters). Do NOT repeat or duplicate words in the title. Reply with ONLY the title text, no quotes, no punctuation at the end, no explanation.'
@@ -28,7 +25,7 @@ function makeFallbackTitle(text: string): string {
     return 'New thread'
   }
   return (
-    trimmed.slice(0, TITLE_FALLBACK_LENGTH) + (trimmed.length > TITLE_FALLBACK_LENGTH ? '...' : '')
+    trimmed.slice(0, TITLE.FALLBACK_LENGTH) + (trimmed.length > TITLE.FALLBACK_LENGTH ? '...' : '')
   )
 }
 
@@ -58,7 +55,7 @@ export async function generateTitle(options: GenerateTitleOptions): Promise<void
 
   try {
     const messages: ReadonlyArray<{ role: string; content: string }> = [
-      { role: 'user', content: userText.slice(0, TITLE_INPUT_MAX_CHARS) },
+      { role: 'user', content: userText.slice(0, TITLE.INPUT_MAX_CHARS) },
     ]
 
     let title = ''
@@ -66,7 +63,7 @@ export async function generateTitle(options: GenerateTitleOptions): Promise<void
       adapter,
       messages,
       systemPrompts: [TITLE_SYSTEM_PROMPT],
-      samplingOptions: { maxTokens: TITLE_MAX_TOKENS },
+      samplingOptions: { maxTokens: TITLE.MAX_TOKENS },
     })
 
     for await (const chunk of stream) {

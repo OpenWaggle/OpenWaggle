@@ -1,3 +1,4 @@
+import { EXECUTOR } from '@shared/constants/agent-config'
 import { safeDecodeUnknown } from '@shared/schema'
 import { jsonObjectSchema, jsonValueSchema } from '@shared/schemas/validation'
 import type { JsonObject, JsonValue } from '@shared/types/json'
@@ -6,8 +7,6 @@ import type { StreamChunk } from '@tanstack/ai'
 import type { ModelRunner, OrchestrationServiceDeps, SamplingConfig } from './types'
 
 const SLICE_ARG_2 = 300
-
-const EXECUTOR_MAX_ITERATIONS = 20
 
 export function createModelRunner(deps: OrchestrationServiceDeps): ModelRunner {
   async function modelText(
@@ -77,7 +76,7 @@ export function createModelRunner(deps: OrchestrationServiceDeps): ModelRunner {
       ...samplingOptions,
       maxTokens: quality.maxTokens,
       modelOptions: quality.modelOptions,
-      agentLoopStrategy: deps.maxIterations(EXECUTOR_MAX_ITERATIONS),
+      agentLoopStrategy: deps.maxIterations(EXECUTOR.MAX_ITERATIONS),
     })
 
     let result = ''

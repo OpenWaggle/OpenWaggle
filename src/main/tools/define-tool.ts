@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { BYTES_PER_KIBIBYTE, PERCENT_BASE } from '@shared/constants/constants'
+import { TOOL_OUTPUT } from '@shared/constants/resource-limits'
 import { decodeUnknownOrThrow, type Schema, type SchemaType } from '@shared/schema'
 import type { ConversationId } from '@shared/types/brand'
 import type { AgentStreamChunk } from '@shared/types/stream'
@@ -12,7 +12,6 @@ import { emitContextInjected } from '../utils/stream-bridge'
 import { applyContextInjection } from './context-injection-buffer'
 
 const logger = createLogger('tools')
-const MAX_TOOL_OUTPUT_BYTES = PERCENT_BASE * BYTES_PER_KIBIBYTE // 100 KB
 
 /**
  * Convert an Effect Schema to a plain JSON Schema object that LLM providers accept.
@@ -147,9 +146,9 @@ function executeOpenWaggleTool<TSchema extends Schema.Schema.AnyNoContext>(
       }
 
       const rawText = resultWithContext
-      const truncated = rawText.length > MAX_TOOL_OUTPUT_BYTES
+      const truncated = rawText.length > TOOL_OUTPUT.MAX_BYTES
       if (truncated) {
-        resultWithContext = `${rawText.slice(0, MAX_TOOL_OUTPUT_BYTES)}\n\n... [output truncated — ${rawText.length} bytes total, showing first ${MAX_TOOL_OUTPUT_BYTES}]`
+        resultWithContext = `${rawText.slice(0, TOOL_OUTPUT.MAX_BYTES)}\n\n... [output truncated — ${rawText.length} bytes total, showing first ${TOOL_OUTPUT.MAX_BYTES}]`
       }
 
       if (debugEnabled) {

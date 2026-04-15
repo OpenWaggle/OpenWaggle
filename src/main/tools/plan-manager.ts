@@ -1,9 +1,6 @@
-import { BASE_TEN, MILLISECONDS_PER_SECOND, SECONDS_PER_MINUTE } from '@shared/constants/constants'
+import { PLAN_TIMEOUT } from '@shared/constants/timeouts'
 import type { ConversationId } from '@shared/types/brand'
 import type { PlanResponse } from '@shared/types/plan'
-
-/** Maximum time a plan proposal can remain pending before auto-rejection (10 minutes) */
-const PLAN_PROPOSAL_TTL_MS = BASE_TEN * SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND
 
 interface PendingPlanProposal {
   resolve: (response: PlanResponse) => void
@@ -70,7 +67,7 @@ export function waitForPlanResponse(
   return new Promise<PlanResponse>((resolve, reject) => {
     const ttlTimer = setTimeout(() => {
       cancelPlanProposal(conversationId)
-    }, PLAN_PROPOSAL_TTL_MS)
+    }, PLAN_TIMEOUT.PROPOSAL_TTL_MS)
 
     const onAbort = (): void => {
       clearTimeout(ttlTimer)
@@ -101,6 +98,3 @@ export function waitForPlanResponse(
     signal?.addEventListener('abort', onAbort, { once: true })
   })
 }
-
-/** Exposed for testing */
-export { PLAN_PROPOSAL_TTL_MS }

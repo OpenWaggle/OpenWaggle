@@ -1,9 +1,9 @@
+import { PLAN_TIMEOUT } from '@shared/constants/timeouts'
 import { ConversationId } from '@shared/types/brand'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   cancelPlanProposal,
   clearAllPlanProposals,
-  PLAN_PROPOSAL_TTL_MS,
   pendingPlanCount,
   respondToPlan,
   waitForPlanResponse,
@@ -23,7 +23,7 @@ describe('plan-manager TTL', () => {
   it('auto-rejects after TTL expires', async () => {
     const promise = waitForPlanResponse(convId)
 
-    vi.advanceTimersByTime(PLAN_PROPOSAL_TTL_MS)
+    vi.advanceTimersByTime(PLAN_TIMEOUT.PROPOSAL_TTL_MS)
 
     await expect(promise).rejects.toThrow('Plan proposal cancelled')
   })
@@ -37,7 +37,7 @@ describe('plan-manager TTL', () => {
     expect(result).toEqual({ action: 'approve' })
 
     // Advance past TTL — should NOT reject (timer was cleared)
-    vi.advanceTimersByTime(PLAN_PROPOSAL_TTL_MS + 1000)
+    vi.advanceTimersByTime(PLAN_TIMEOUT.PROPOSAL_TTL_MS + 1000)
   })
 
   it('clears timer on cancelPlanProposal', async () => {
@@ -48,7 +48,7 @@ describe('plan-manager TTL', () => {
     await expect(promise).rejects.toThrow('Plan proposal cancelled')
 
     // Advance past TTL — no double rejection
-    vi.advanceTimersByTime(PLAN_PROPOSAL_TTL_MS + 1000)
+    vi.advanceTimersByTime(PLAN_TIMEOUT.PROPOSAL_TTL_MS + 1000)
   })
 
   it('clears timer on abort signal', async () => {
@@ -60,7 +60,7 @@ describe('plan-manager TTL', () => {
     await expect(promise).rejects.toThrow('Plan proposal cancelled')
 
     // Advance past TTL — no double rejection
-    vi.advanceTimersByTime(PLAN_PROPOSAL_TTL_MS + 1000)
+    vi.advanceTimersByTime(PLAN_TIMEOUT.PROPOSAL_TTL_MS + 1000)
   })
 
   it('rejects immediately when signal is already aborted', async () => {
@@ -109,7 +109,7 @@ describe('plan-manager TTL', () => {
     await expect(promise1).rejects.toThrow('Superseded by a new plan proposal')
 
     // Advance past old TTL — should not affect the new proposal
-    vi.advanceTimersByTime(PLAN_PROPOSAL_TTL_MS - 1000)
+    vi.advanceTimersByTime(PLAN_TIMEOUT.PROPOSAL_TTL_MS - 1000)
     expect(pendingPlanCount()).toBe(1)
 
     respondToPlan(convId, { action: 'revise', feedback: 'no' })
