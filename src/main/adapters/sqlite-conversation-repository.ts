@@ -98,6 +98,20 @@ export const SqliteConversationRepositoryLive = Effect.promise(async () => {
           try: () => store.updateConversationPlanMode(id, active),
           catch: (cause) => new ConversationRepositoryError({ operation: 'updatePlanMode', cause }),
         }).pipe(Effect.map(() => undefined)),
+
+      updateCompactionGuidance: (id, guidance) =>
+        Effect.tryPromise({
+          try: () => store.updateCompactionGuidance(id, guidance),
+          catch: (cause) =>
+            new ConversationRepositoryError({ operation: 'updateCompactionGuidance', cause }),
+        }),
+
+      markMessagesAsCompacted: (id, messageIds) =>
+        Effect.tryPromise({
+          try: () => store.markMessagesAsCompacted(id, messageIds),
+          catch: (cause) =>
+            new ConversationRepositoryError({ operation: 'markMessagesAsCompacted', cause }),
+        }),
     } satisfies ConversationRepositoryShape),
   )
 }).pipe(Layer.unwrapEffect)

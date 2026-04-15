@@ -17,10 +17,12 @@ import * as Effect from 'effect/Effect'
 import { classifyAgentError, makeErrorInfo } from '../agent/error-classifier'
 import { buildPersistedUserMessageParts, makeMessage } from '../agent/shared'
 import { runWaggleSequential } from '../agent/waggle-coordinator'
+import { DEFAULT_CONTEXT_WINDOW_TOKENS } from '../domain/compaction/compaction-types'
 import { hydratePayloadAttachments, maybeTriggerTitleGeneration } from '../ipc/run-handler-utils'
 import { createLogger } from '../logger'
 import { ChatService, type ChatStreamOptions } from '../ports/chat-service'
 import { ConversationRepository } from '../ports/conversation-repository'
+import { ProviderService } from '../ports/provider-service'
 import { runAppEffect } from '../runtime'
 import { SettingsService } from '../services/settings-service'
 
@@ -113,6 +115,21 @@ export function executeWaggleRun(input: WaggleRunInput) {
       attachments: yield* Effect.promise(() => hydratePayloadAttachments(payload.attachments)),
     }
 
+    // ─── Compute effective context window ──────────────────
+    // Smallest participating model governs compaction threshold.
+    const providerService = yield* ProviderService
+    let effectiveContextWindow = DEFAULT_CONTEXT_WINDOW_TOKENS
+    for (const agent of config.agents) {
+      const provider = yield* providerService
+        .getProviderForModel(String(agent.model))
+        .pipe(Effect.catchAll(() => Effect.succeed(undefined)))
+      const cw = provider?.getContextWindow?.(String(agent.model))
+      const tokens = cw?.contextTokens ?? DEFAULT_CONTEXT_WINDOW_TOKENS
+      if (tokens < effectiveContextWindow) {
+        effectiveContextWindow = tokens
+      }
+    }
+
     // ─── Execute waggle run ───────────────────────────────
     const baseMessages = [...conversation.messages]
 
@@ -128,6 +145,7 @@ export function executeWaggleRun(input: WaggleRunInput) {
           chatStream,
           onStreamChunk,
           onTurnEvent,
+          effectiveContextWindowOverride: effectiveContextWindow,
           onTurnComplete: async (accumulatedMessages) => {
             await runAppEffect(
               Effect.gen(function* () {
@@ -150,7 +168,7 @@ export function executeWaggleRun(input: WaggleRunInput) {
 
     // ─── Persist final messages ───────────────────────────
     if (result.newMessages.length > 0) {
-      yield* persistWaggleMessages(conversationId, baseMessages, result.newMessages, config)
+      yield* persistWaggleMessages(conversationId, baseMessages, result.newMessages)
     }
 
     if (signal.aborted || result.newMessages.length === 0) {
@@ -168,7 +186,7 @@ export function executeWaggleRun(input: WaggleRunInput) {
         return Effect.succeed({ outcome: 'aborted' })
       }
       return Effect.gen(function* () {
-        yield* persistUserMessageOnFailure(input.conversationId, input.payload, input.config)
+        yield* persistUserMessageOnFailure(input.conversationId, input.payload)
         const classified = classifyAgentError(err)
         return {
           outcome: 'error' as const,
@@ -186,7 +204,6 @@ function persistWaggleMessages(
   conversationId: ConversationId,
   baseMessages: readonly Message[],
   newMessages: readonly Message[],
-  config: WaggleConfig,
 ) {
   return Effect.gen(function* () {
     const repo = yield* ConversationRepository
@@ -198,7 +215,7 @@ function persistWaggleMessages(
     yield* repo.save({
       ...latestConversation,
       messages: updatedMessages,
-      waggleConfig: config,
+      waggleConfig: undefined, // Clear after run — per-message metadata preserves history
     })
   }).pipe(
     Effect.catchAll((persistError) =>
@@ -212,11 +229,7 @@ function persistWaggleMessages(
   )
 }
 
-function persistUserMessageOnFailure(
-  conversationId: ConversationId,
-  payload: AgentSendPayload,
-  config: WaggleConfig,
-) {
+function persistUserMessageOnFailure(conversationId: ConversationId, payload: AgentSendPayload) {
   return Effect.promise(() =>
     runAppEffect(
       Effect.gen(function* () {
@@ -230,7 +243,7 @@ function persistUserMessageOnFailure(
         yield* repo.save({
           ...conv,
           messages: [...conv.messages, userMessage],
-          waggleConfig: config,
+          waggleConfig: undefined, // Clear after run — per-message metadata preserves history
         })
       }),
     ),

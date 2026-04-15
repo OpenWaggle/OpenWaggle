@@ -25,7 +25,7 @@ export interface ProviderConfig {
 
 export interface Settings {
   readonly providers: Readonly<Partial<Record<Provider, ProviderConfig>>>
-  readonly defaultModel: SupportedModelId
+  readonly selectedModel: SupportedModelId
   readonly favoriteModels: readonly SupportedModelId[]
   /** User-curated list of enabled model keys (format: "provider:authMethod:modelId"). Empty array = no models shown (user must configure). */
   readonly enabledModels: readonly string[]
@@ -51,7 +51,7 @@ export const DEFAULT_SETTINGS: Settings = {
     openrouter: { apiKey: '', enabled: false },
     ollama: { apiKey: '', baseUrl: OLLAMA_DEFAULT_BASE_URL, enabled: false },
   },
-  defaultModel: DEFAULT_ANTHROPIC_MODEL,
+  selectedModel: DEFAULT_ANTHROPIC_MODEL,
   favoriteModels: [],
   enabledModels: [],
   projectPath: null,

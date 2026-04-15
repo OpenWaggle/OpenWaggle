@@ -9,6 +9,8 @@ export interface ModelDisplayInfo {
   readonly id: SupportedModelId
   readonly name: string
   readonly provider: Provider
+  /** Context window size in tokens (e.g., 200000, 1000000). Populated from provider metadata. */
+  readonly contextWindow?: number
 }
 
 /** Provider metadata exposed to the renderer via IPC */

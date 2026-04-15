@@ -6,6 +6,7 @@ import { useChatStore } from '@/stores/chat-store'
 import { useMessageQueueStore } from '@/stores/message-queue-store'
 import { ApprovalBanner } from './ApprovalBanner'
 import { AskUserBlock } from './AskUserBlock'
+
 import { PlanModeBanner } from './PlanModeBanner'
 import type { ChatComposerSectionState } from './use-chat-panel-controller'
 

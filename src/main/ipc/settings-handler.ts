@@ -29,7 +29,7 @@ const settingsProvidersUpdateSchema = Schema.Struct({
 
 const settingsUpdateSchema = Schema.Struct({
   providers: Schema.optional(settingsProvidersUpdateSchema),
-  defaultModel: Schema.optional(Schema.String),
+  selectedModel: Schema.optional(Schema.String),
   favoriteModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
   enabledModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
   projectPath: Schema.optional(Schema.NullOr(Schema.String)),
@@ -152,8 +152,8 @@ export function registerSettingsHandlers(): void {
       yield* settings.update({
         ...result.data,
         providers,
-        defaultModel: result.data.defaultModel
-          ? SupportedModelId(result.data.defaultModel)
+        selectedModel: result.data.selectedModel
+          ? SupportedModelId(result.data.selectedModel)
           : undefined,
         favoriteModels: result.data.favoriteModels?.map(SupportedModelId),
       })

@@ -73,6 +73,8 @@ const makeTestConversationLayer = () =>
     updateTitle: () => Effect.void,
     updateProjectPath: () => Effect.void,
     updatePlanMode: () => Effect.void,
+    updateCompactionGuidance: () => Effect.void,
+    markMessagesAsCompacted: () => Effect.void,
   })
 
 const TestProviderLayer = Layer.succeed(ProviderService, {

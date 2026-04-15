@@ -1,6 +1,6 @@
 ---
 import SectionHeader from '@/components/SectionHeader.astro';
-import { Shield, Mic, ListChecks, Paperclip, Terminal, Lock } from 'lucide-astro';
+import { Shield, Mic, ListChecks, Paperclip, Terminal, Lock, Gauge } from 'lucide-astro';
 
 interface FeatureCard {
   Icon: typeof Shield;
@@ -16,6 +16,7 @@ const cards: FeatureCard[] = [
   { Icon: Paperclip, color: 'var(--color-agent-violet)', title: 'Rich attachments', desc: 'Drop text files, PDFs, and images into the conversation. Content is extracted automatically with OCR for images.' },
   { Icon: Terminal, color: 'var(--color-agent-emerald)', title: 'Built-in terminal', desc: 'Full PTY terminal emulation with xterm.js. Toggle with a shortcut — run commands without leaving the app.' },
   { Icon: Lock, color: 'var(--color-accent)', title: 'Execution modes', desc: 'Default mode requires approval for writes and shell commands. Full access mode executes immediately. You choose the trust level.' },
+  { Icon: Gauge, color: 'var(--color-info)', title: 'Context transparency', desc: 'See context usage in real time, manually compact when needed, pin important messages, and switch models safely with compatibility checks.' },
 ];
 ---
 

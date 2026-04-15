@@ -25,6 +25,7 @@ interface ConversationRow {
   readonly project_path: string | null
   readonly archived: number
   readonly plan_mode_active: number
+  readonly compaction_guidance: string | null
   readonly waggle_config_json: string | null
   readonly created_at: number
   readonly updated_at: number
@@ -43,7 +44,7 @@ interface ConversationSummaryRow {
 
 interface ConversationMessageRow {
   readonly id: string
-  readonly role: 'user' | 'assistant'
+  readonly role: 'user' | 'assistant' | 'system'
   readonly model: string | null
   readonly metadata_json: string | null
   readonly created_at: number
@@ -118,12 +119,30 @@ const messagePartSchema = Schema.Union(
   }),
   Schema.Struct({ type: Schema.Literal('tool-call'), toolCall: toolCallRequestSchema }),
   Schema.Struct({ type: Schema.Literal('tool-result'), toolResult: toolCallResultSchema }),
+  Schema.Struct({
+    type: Schema.Literal('compaction-event'),
+    data: Schema.Struct({
+      tier: Schema.Literal('micro', 'full'),
+      trigger: Schema.Literal('automatic', 'manual'),
+      description: Schema.String,
+      metrics: Schema.optional(
+        Schema.Struct({
+          tokensBefore: Schema.Number,
+          tokensAfter: Schema.Number,
+          messagesSummarized: Schema.Number,
+        }),
+      ),
+      timestamp: Schema.Number,
+      pinnedContentSummarized: Schema.optional(Schema.Boolean),
+    }),
+  }),
 )
 
 const messageMetadataSchema = Schema.Struct({
   orchestrationRunId: Schema.optional(Schema.String),
   usedFallback: Schema.optional(Schema.Boolean),
   waggle: Schema.optional(waggleMetadataSchema),
+  compacted: Schema.optional(Schema.Boolean),
 })
 
 type ParsedPart = SchemaType<typeof messagePartSchema>
@@ -226,6 +245,13 @@ function transformPart(part: ParsedPart): MessagePart {
         },
       }),
     )
+    .case(
+      'compaction-event',
+      (value): MessagePart => ({
+        type: 'compaction-event',
+        data: value.data,
+      }),
+    )
     .assertComplete()
 }
 
@@ -260,6 +286,10 @@ function serializePart(part: MessagePart): { partType: string; contentJson: stri
           id: String(value.toolResult.id),
         },
       }),
+    }))
+    .case('compaction-event', (value) => ({
+      partType: value.type,
+      contentJson: JSON.stringify({ data: value.data }),
     }))
     .assertComplete()
 }
@@ -360,6 +390,7 @@ function hydrateConversation(
       waggleConfig,
       archived: row.archived === 1 ? true : undefined,
       planModeActive: row.plan_mode_active === 1 ? true : undefined,
+      compactionGuidance: row.compaction_guidance ?? undefined,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }
@@ -456,6 +487,7 @@ export async function getConversation(id: ConversationId): Promise<Conversation 
           project_path,
           archived,
           plan_mode_active,
+          compaction_guidance,
           waggle_config_json,
           created_at,
           updated_at
@@ -529,6 +561,7 @@ export async function saveConversation(conversation: Conversation): Promise<void
               project_path,
               archived,
               plan_mode_active,
+              compaction_guidance,
               waggle_config_json,
               created_at,
               updated_at
@@ -540,6 +573,7 @@ export async function saveConversation(conversation: Conversation): Promise<void
               ${persistedConversation.projectPath},
               ${persistedConversation.archived ? 1 : 0},
               ${persistedConversation.planModeActive ? 1 : 0},
+              ${persistedConversation.compactionGuidance ?? null},
               ${
                 persistedConversation.waggleConfig
                   ? JSON.stringify(persistedConversation.waggleConfig)
@@ -554,6 +588,7 @@ export async function saveConversation(conversation: Conversation): Promise<void
               project_path = excluded.project_path,
               archived = excluded.archived,
               plan_mode_active = excluded.plan_mode_active,
+              compaction_guidance = excluded.compaction_guidance,
               waggle_config_json = excluded.waggle_config_json,
               created_at = excluded.created_at,
               updated_at = excluded.updated_at
@@ -726,4 +761,48 @@ export async function updateConversationPlanMode(
   )
 
   return getConversation(id)
+}
+
+export async function updateCompactionGuidance(
+  id: ConversationId,
+  guidance: string | null,
+): Promise<void> {
+  await runAppEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`
+        UPDATE conversations
+        SET compaction_guidance = ${guidance},
+            updated_at = ${Date.now()}
+        WHERE id = ${id}
+      `
+    }),
+  )
+}
+
+/**
+ * Mark a set of messages as compacted by merging `{"compacted": true}` into their metadata_json.
+ */
+export async function markMessagesAsCompacted(
+  conversationId: ConversationId,
+  messageIds: readonly string[],
+): Promise<void> {
+  if (messageIds.length === 0) return
+  await runAppEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      for (const msgId of messageIds) {
+        yield* sql`
+          UPDATE conversation_messages
+          SET metadata_json = json_set(
+            COALESCE(metadata_json, '{}'),
+            '$.compacted',
+            json('true')
+          )
+          WHERE id = ${msgId}
+            AND conversation_id = ${conversationId}
+        `
+      }
+    }),
+  )
 }

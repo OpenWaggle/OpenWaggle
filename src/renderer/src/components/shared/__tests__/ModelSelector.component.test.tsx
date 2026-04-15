@@ -69,7 +69,7 @@ function TestHarness({ onChange }: TestHarnessProps): React.JSX.Element {
 
   return (
     <ModelSelector
-      value={settings.defaultModel}
+      value={settings.selectedModel}
       onChange={onChange}
       settings={settings}
       providerModels={providerModels}
@@ -106,7 +106,7 @@ describe('ModelSelector', () => {
     vi.clearAllMocks()
     seedStore({
       settings: {
-        defaultModel: 'claude-sonnet-4-5',
+        selectedModel: 'claude-sonnet-4-5',
         enabledModels: [
           'anthropic:api-key:claude-sonnet-4-5',
           'anthropic:api-key:claude-opus-4-5',
@@ -168,7 +168,7 @@ describe('ModelSelector', () => {
         },
       ],
       settings: {
-        defaultModel: 'llama3.2:latest',
+        selectedModel: 'llama3.2:latest',
         enabledModels: ['ollama:api-key:llama3.2:latest', 'ollama:api-key:llama3.2:latest'],
         providers: {
           ...DEFAULT_SETTINGS.providers,
@@ -187,7 +187,7 @@ describe('ModelSelector', () => {
   it('filters to only enabledModels when set', () => {
     seedStore({
       settings: {
-        defaultModel: 'claude-sonnet-4-5',
+        selectedModel: 'claude-sonnet-4-5',
         enabledModels: ['anthropic:api-key:claude-sonnet-4-5', 'gemini:api-key:gemini-2.5-flash'],
         providers: {
           ...DEFAULT_SETTINGS.providers,
@@ -211,7 +211,7 @@ describe('ModelSelector', () => {
   it('shows no models when enabledModels is empty', () => {
     seedStore({
       settings: {
-        defaultModel: 'claude-sonnet-4-5',
+        selectedModel: 'claude-sonnet-4-5',
         enabledModels: [],
         providers: {
           ...DEFAULT_SETTINGS.providers,
@@ -243,7 +243,7 @@ describe('ModelSelector', () => {
   it('excludes stale enabledModels entries not in current provider catalog', () => {
     seedStore({
       settings: {
-        defaultModel: 'claude-sonnet-4-5',
+        selectedModel: 'claude-sonnet-4-5',
         enabledModels: [
           'anthropic:api-key:claude-sonnet-4-5', // valid — exists in providerModels
           'anthropic:api-key:claude-opus-4-5-20251101', // stale — version suffix doesn't match
@@ -271,7 +271,7 @@ describe('ModelSelector', () => {
   it('excludes legacy bare model IDs from dropdown', () => {
     seedStore({
       settings: {
-        defaultModel: 'claude-sonnet-4-5',
+        selectedModel: 'claude-sonnet-4-5',
         enabledModels: [
           'gpt-5.4', // legacy bare ID — no provider:authMethod prefix
           'anthropic:api-key:claude-sonnet-4-5',

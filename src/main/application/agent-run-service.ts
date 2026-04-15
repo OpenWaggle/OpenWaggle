@@ -5,6 +5,8 @@
  * that depend on hexagonal ports. The handler retains transport concerns
  * (abort controllers, active run tracking, stream buffers, IPC emission).
  */
+
+import { classifyErrorMessage } from '@shared/domain/error-classifier'
 import type {
   AgentSendPayload,
   HydratedAgentSendPayload,
@@ -17,6 +19,7 @@ import type { SupportedModelId } from '@shared/types/llm'
 import type { AgentStreamChunk } from '@shared/types/stream'
 import { formatErrorMessage } from '@shared/utils/node-error'
 import * as Effect from 'effect/Effect'
+import type { AgentRunParams } from '../agent/agent-loop'
 import { runAgent } from '../agent/agent-loop'
 import { classifyAgentError, makeErrorInfo } from '../agent/error-classifier'
 import { buildPersistedUserMessageParts, makeMessage } from '../agent/shared'
@@ -26,6 +29,7 @@ import { hydratePayloadAttachments, maybeTriggerTitleGeneration } from '../ipc/r
 import { createLogger } from '../logger'
 import { ChatService, type ChatStreamOptions } from '../ports/chat-service'
 import { ConversationRepository } from '../ports/conversation-repository'
+import { PinnedContextRepository } from '../ports/pinned-context-repository'
 import { ProviderService } from '../ports/provider-service'
 import { SettingsService } from '../services/settings-service'
 
@@ -54,7 +58,11 @@ export interface AgentRunInput {
 }
 
 export type AgentRunResult =
-  | { readonly outcome: 'success'; readonly newMessages: readonly Message[] }
+  | {
+      readonly outcome: 'success'
+      readonly newMessages: readonly Message[]
+      readonly microcompactedToolResults: number
+    }
   | { readonly outcome: 'aborted' }
   | { readonly outcome: 'invalid-model'; readonly message: string; readonly code: string }
   | { readonly outcome: 'not-found'; readonly message: string; readonly code: string }
@@ -116,22 +124,70 @@ export function executeAgentRun(input: AgentRunInput) {
     }
     input.onPayloadHydrated?.(hydratedPayload)
 
-    // ─── Execute agent run ───────────────────────────────
-    const agentResult = yield* Effect.tryPromise({
-      try: () =>
-        runAgent({
-          conversation,
-          payload: hydratedPayload,
-          model,
-          settings,
-          chatStream,
-          onChunk,
-          signal,
-          onCollectorCreated,
-          onCheckpointNeeded: input.onCheckpointNeeded,
-        }),
+    // ─── Read pinned content for compaction preservation ──
+    const pinnedRepo = yield* PinnedContextRepository
+    const pinnedItems = yield* pinnedRepo
+      .list(conversationId)
+      .pipe(Effect.catchAll(() => Effect.succeed([])))
+    const pinnedContent = pinnedItems.map((item) => item.content)
+
+    // ─── Execute agent run (with Layer 2 reactive retry) ──
+    const runParams: AgentRunParams = {
+      conversation,
+      payload: hydratedPayload,
+      model,
+      settings,
+      chatStream,
+      onChunk,
+      signal,
+      onCollectorCreated,
+      onCheckpointNeeded: input.onCheckpointNeeded,
+      pinnedContent: pinnedContent.length > 0 ? pinnedContent : undefined,
+    }
+
+    let agentResult = yield* Effect.tryPromise({
+      try: () => runAgent(runParams),
       catch: (err) => err,
     })
+
+    // Layer 2: Reactive compaction — if the API rejects with context-overflow,
+    // compact the conversation and retry once automatically.
+    if (agentResult instanceof Error) {
+      const classified = classifyErrorMessage(agentResult.message)
+      if (classified.code === 'context-overflow' && !signal.aborted) {
+        logger.info('Layer 2 reactive: context-overflow detected, compacting and retrying', {
+          conversationId,
+        })
+
+        onChunk({
+          type: 'CUSTOM',
+          name: 'compaction',
+          value: { stage: 'starting', tier: 'full' },
+          timestamp: Date.now(),
+        })
+
+        // Re-fetch conversation (may have been modified during the failed attempt)
+        const freshConv = yield* conversationRepo
+          .get(conversationId)
+          .pipe(Effect.catchAll(() => Effect.succeed(conversation)))
+
+        // Retry with the fresh conversation — the agent-loop's pre-run
+        // compaction will now trigger since we're closer to the limit
+        agentResult = yield* Effect.tryPromise({
+          try: () =>
+            runAgent({
+              ...runParams,
+              conversation: freshConv,
+            }),
+          catch: (err) => err,
+        })
+      }
+    }
+
+    // Propagate non-retried errors
+    if (agentResult instanceof Error) {
+      return yield* Effect.fail(agentResult)
+    }
 
     if (signal.aborted || agentResult.newMessages.length === 0) {
       return { outcome: 'aborted' as const }
@@ -145,7 +201,11 @@ export function executeAgentRun(input: AgentRunInput) {
       messageCountBeforeRun,
     )
 
-    return { outcome: 'success' as const, newMessages: agentResult.newMessages }
+    return {
+      outcome: 'success' as const,
+      newMessages: agentResult.newMessages,
+      microcompactedToolResults: agentResult.microcompactedToolResults,
+    }
   }).pipe(
     Effect.catchAll((err): Effect.Effect<AgentRunResult> => {
       if (err instanceof Error && err.message === 'aborted') {

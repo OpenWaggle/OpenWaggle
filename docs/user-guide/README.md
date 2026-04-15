@@ -16,6 +16,7 @@ Welcome to the OpenWaggle documentation. OpenWaggle is a desktop coding agent th
 - **[Waggle Mode](./waggle-mode.md)** — Multi-agent collaboration: team configuration, presets, consensus, and conflict tracking.
 - **[Skills](./skills.md)** — Extending the agent with custom skills, discovery, activation, and creating your own.
 - **[MCP Servers](./mcp-servers.md)** — Connecting external tool servers via the Model Context Protocol.
+- **[Context Management](./context-management.md)** — Context visibility, manual compaction, pinned context, model-switch safety, and waggle context.
 
 ### Configuration
 

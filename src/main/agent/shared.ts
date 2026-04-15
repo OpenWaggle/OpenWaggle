@@ -23,7 +23,7 @@ export type ChatContentPart =
 // ---------------------------------------------------------------------------
 
 export function makeMessage(
-  role: 'user' | 'assistant',
+  role: 'user' | 'assistant' | 'system',
   parts: MessagePart[],
   model?: SupportedModelId,
   metadata?: Message['metadata'],

@@ -2,6 +2,7 @@ import { TRIPLE_FACTOR } from '@shared/constants/constants'
 import type { QualityPreset } from '@shared/types/settings'
 import { isRecord } from '@shared/utils/validation'
 import { createOpenaiChat, OPENAI_CHAT_MODELS } from '@tanstack/ai-openai'
+import type { ModelContextWindow } from '../domain/compaction/compaction-types'
 import { codexSseTraceEnabled } from '../env'
 import { createLogger } from '../logger'
 import { isReasoningModel } from './model-classification'
@@ -283,6 +284,33 @@ function createCodexResponsesFetch(accountId: string): typeof fetch {
   }
 }
 
+// ─── Context window metadata ──────────────────────────────────
+
+const OPENAI_CONTEXT_272K = 272_000
+const OPENAI_CONTEXT_128K = 128_000
+const OPENAI_CONTEXT_200K = 200_000
+const OPENAI_MAX_OUTPUT_128K = 128_000
+const OPENAI_MAX_OUTPUT_100K = 100_000
+
+function getOpenaiContextWindow(model: string): ModelContextWindow | undefined {
+  // GPT-5.x family: 272k context (except spark at 128k)
+  if (model.includes('gpt-5')) {
+    if (model.includes('spark')) {
+      return { contextTokens: OPENAI_CONTEXT_128K, maxOutputTokens: OPENAI_MAX_OUTPUT_128K }
+    }
+    return { contextTokens: OPENAI_CONTEXT_272K, maxOutputTokens: OPENAI_MAX_OUTPUT_128K }
+  }
+  // o-series reasoning models
+  if (/^o[1-4]/.test(model)) {
+    return { contextTokens: OPENAI_CONTEXT_200K, maxOutputTokens: OPENAI_MAX_OUTPUT_100K }
+  }
+  // GPT-4.x family
+  if (model.includes('gpt-4')) {
+    return { contextTokens: OPENAI_CONTEXT_128K, maxOutputTokens: OPENAI_MAX_OUTPUT_128K }
+  }
+  return undefined
+}
+
 export const openaiProvider: ProviderDefinition = {
   id: 'openai',
   displayName: 'OpenAI',
@@ -366,4 +394,5 @@ export const openaiProvider: ProviderDefinition = {
     }
     return { temperature: base.temperature, topP: base.topP, maxTokens: base.maxTokens }
   },
+  getContextWindow: getOpenaiContextWindow,
 }

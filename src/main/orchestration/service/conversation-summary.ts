@@ -20,6 +20,7 @@ export function summarizeConversation(conversation: Conversation): string {
               ? `[tool-error:${value.toolResult.name}]`
               : `[tool-done:${value.toolResult.name}]`,
           )
+          .case('compaction-event', (value) => `[compacted:${value.data.description}]`)
           .assertComplete()
         if (segment) {
           segments.push(segment)

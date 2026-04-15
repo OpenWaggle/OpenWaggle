@@ -17,7 +17,7 @@ export function ChatDiffPane({ section }: ChatDiffPaneProps) {
     <>
       <ResizeHandle onResize={resizeDiffPanel} onResizeEnd={() => {}} />
       <div
-        className="shrink-0 overflow-hidden"
+        className="shrink-0 overflow-hidden animate-in fade-in slide-in-from-right-2 duration-200"
         style={{
           width: `min(${String(diffPanelWidth)}px, max(0px, calc(100% - ${String(CHAT_MIN_WIDTH)}px)))`,
         }}

@@ -548,6 +548,56 @@ Tailwind v4 with CSS custom properties in `styles/globals.css`. Dark theme (back
 
 ---
 
+## Context Management
+
+OpenWaggle actively manages the LLM context window to prevent silent degradation during long conversations.
+
+### Context Snapshot Service
+
+The main process owns a singleton `ContextSnapshotService` (`src/main/services/context-snapshot-service.ts`) that computes and caches a `ContextSnapshot` for each conversation. The snapshot includes:
+
+- **Used tokens** — from API-reported usage (after a run) or estimated from conversation messages + system overhead (before a run)
+- **Context window** — from the selected model's provider metadata
+- **Health status** — derived from the usage ratio (comfortable <60%, tight <80%, critical <95%, blocked >=95%)
+- **Pinned context** — token contribution from pinned items
+- **Waggle state** — governing model and effective budget when waggle is active
+
+Snapshots are pushed to the renderer via `context:snapshot-changed` IPC events whenever they change (after runs, compaction, model switch, pin changes, waggle state changes).
+
+### Baseline Token Estimation
+
+The baseline overhead (system prompt + tool definitions + MCP tools) is computed from real serialized content, not hardcoded estimates. `computeBaselineOverhead()` serializes each tool's JSON schema and counts tokens from actual prompt fragment text. This baseline is included in pre-run estimates so the context meter shows truthful usage even before the first message.
+
+### Two-Tier Compaction
+
+**Tier 1 — Microcompaction** (deterministic, no LLM): Runs on every API call via `buildFreshChatMessages`. Strips old tool results (keeps 5 most recent), replacing them with compact placeholders. Tool results typically consume 60-80% of context in agentic coding sessions; microcompaction of stale results yields roughly 20-60% context reduction depending on tool usage intensity.
+
+**Tier 2 — Full LLM Compaction**: Triggers at 90% of the model's context window (`COMPACTION_THRESHOLD_RATIO = 0.9`). An LLM summarizes older messages into a handoff summary. Recent messages, the last assistant response, and pinned content are preserved verbatim. Pinned content is summarized only under extreme pressure (>95% after compaction).
+
+### Reactive Compaction (Layer 2)
+
+If the pre-run estimate is wrong and the API rejects the request with a context-overflow error (`prompt_too_long`, `context_length_exceeded`), the application service catches the classified error, compacts the conversation, and retries automatically. This is a safety net — not the primary compaction path.
+
+### Persistence
+
+Context-related data is persisted in SQLite:
+
+- **Compaction events** — stored as system messages (`role: 'system'`) with `CompactionEventPart` in the conversation timeline
+- **Pinned context** — stored in the `pinned_context` table (migration 4), scoped by conversation ID
+- **Compaction guidance** — stored as `compaction_guidance` on the conversation record
+- **Context window metadata** — per-model, served from provider definitions at runtime (not persisted)
+
+### Renderer Integration
+
+The renderer consumes context data through:
+
+- **Context store** (`src/renderer/src/stores/context-store.ts`) — holds the current snapshot, subscribes to IPC push events, fetches baseline on init
+- **Compaction store** (`src/renderer/src/stores/compaction-store.ts`) — tracks live compaction status from CUSTOM stream chunks during runs
+- **Context meter** (`src/renderer/src/components/composer/ContextMeter.tsx`) — radial SVG gauge in the composer status bar
+- **Context inspector** (`src/renderer/src/components/context-inspector/`) — right-side panel with overview, pinned context, model compatibility, compaction history, waggle context sections
+
+---
+
 ## Data Flow
 
 ### Agent Execution (primary path)
@@ -752,6 +802,7 @@ electron-builder produces: macOS DMG (universal), Windows NSIS (x64), Linux AppI
 | Provider registry | `src/main/providers/registry.ts`, `src/main/providers/provider-definition.ts` |
 | Tool factory | `src/main/tools/define-tool.ts` |
 | Tool list | `src/main/tools/built-in-tools.ts` |
+| Context snapshot | `src/main/services/context-snapshot-service.ts` |
 | Database | `src/main/services/database-service.ts` |
 | Security | `src/main/security/electron-security.ts` |
 | Preload bridge | `src/preload/api.ts` |

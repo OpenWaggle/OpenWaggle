@@ -27,7 +27,7 @@ import { decryptString, encryptString, isEncryptedString } from './encryption'
 const logger = createLogger('settings')
 
 const SETTINGS_KEY_PROVIDERS = 'providers'
-const SETTINGS_KEY_DEFAULT_MODEL = 'defaultModel'
+const SETTINGS_KEY_DEFAULT_MODEL = 'selectedModel'
 const SETTINGS_KEY_FAVORITE_MODELS = 'favoriteModels'
 const SETTINGS_KEY_PROJECT_PATH = 'projectPath'
 const SETTINGS_KEY_EXECUTION_MODE = 'executionMode'
@@ -209,14 +209,14 @@ function inferProviderForModel(
   return undefined
 }
 
-function resolveDefaultModel(raw: unknown, enabledModels: readonly string[]): SupportedModelId {
+function resolveSelectedModel(raw: unknown, enabledModels: readonly string[]): SupportedModelId {
   if (typeof raw !== 'string') {
-    return DEFAULT_SETTINGS.defaultModel
+    return DEFAULT_SETTINGS.selectedModel
   }
 
   const normalizedModel = raw.trim()
   if (!normalizedModel) {
-    return DEFAULT_SETTINGS.defaultModel
+    return DEFAULT_SETTINGS.selectedModel
   }
 
   if (providerRegistry.isKnownModel(normalizedModel)) {
@@ -225,12 +225,12 @@ function resolveDefaultModel(raw: unknown, enabledModels: readonly string[]): Su
 
   const inferredProvider = inferProviderForModel(normalizedModel, enabledModels)
   if (!inferredProvider) {
-    return DEFAULT_SETTINGS.defaultModel
+    return DEFAULT_SETTINGS.selectedModel
   }
 
   const provider = providerRegistry.get(inferredProvider)
   if (!provider) {
-    return DEFAULT_SETTINGS.defaultModel
+    return DEFAULT_SETTINGS.selectedModel
   }
 
   providerRegistry.indexModels([normalizedModel], provider)
@@ -309,7 +309,7 @@ function buildSettingsSnapshot(storedSettings: Readonly<Record<string, unknown>>
   const enabledModels = resolveEnabledModels(
     getStoredValue(storedSettings, SETTINGS_KEY_ENABLED_MODELS),
   )
-  const defaultModel = resolveDefaultModel(
+  const selectedModel = resolveSelectedModel(
     getStoredValue(storedSettings, SETTINGS_KEY_DEFAULT_MODEL),
     enabledModels,
   )
@@ -322,7 +322,7 @@ function buildSettingsSnapshot(storedSettings: Readonly<Record<string, unknown>>
   return {
     settings: {
       providers,
-      defaultModel,
+      selectedModel: selectedModel,
       favoriteModels,
       enabledModels,
       projectPath: resolveProjectPath(getStoredValue(storedSettings, SETTINGS_KEY_PROJECT_PATH)),
@@ -375,8 +375,8 @@ export async function initializeSettingsStore(): Promise<void> {
         })
       }
 
-      if (built.settings.defaultModel !== storedSettings[SETTINGS_KEY_DEFAULT_MODEL]) {
-        queueStoredSettingWrite(SETTINGS_KEY_DEFAULT_MODEL, built.settings.defaultModel)
+      if (built.settings.selectedModel !== storedSettings[SETTINGS_KEY_DEFAULT_MODEL]) {
+        queueStoredSettingWrite(SETTINGS_KEY_DEFAULT_MODEL, built.settings.selectedModel)
       }
     } catch (error) {
       logger.warn('Failed to initialize settings cache from SQLite', {
@@ -437,7 +437,7 @@ export function updateSettings(partial: Partial<Settings>): void {
     queueStoredSettingWrite(SETTINGS_KEY_PROVIDERS, serializeProviders(nextProviders))
   }
 
-  const defaultModel = partial.defaultModel ?? settingsCache.defaultModel
+  const selectedModel = partial.selectedModel ?? settingsCache.selectedModel
   const favoriteModels =
     partial.favoriteModels !== undefined
       ? sanitizeFavoriteModels(partial.favoriteModels)
@@ -476,7 +476,7 @@ export function updateSettings(partial: Partial<Settings>): void {
   settingsCache = {
     ...settingsCache,
     providers: nextProviders,
-    defaultModel,
+    selectedModel: selectedModel,
     favoriteModels,
     enabledModels,
     projectPath,
@@ -490,8 +490,8 @@ export function updateSettings(partial: Partial<Settings>): void {
     apiKeysRequireManualResave: false,
   }
 
-  if (partial.defaultModel !== undefined) {
-    queueStoredSettingWrite(SETTINGS_KEY_DEFAULT_MODEL, partial.defaultModel)
+  if (partial.selectedModel !== undefined) {
+    queueStoredSettingWrite(SETTINGS_KEY_DEFAULT_MODEL, partial.selectedModel)
   }
   if (partial.favoriteModels !== undefined) {
     queueStoredSettingWrite(SETTINGS_KEY_FAVORITE_MODELS, favoriteModels)

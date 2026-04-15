@@ -1,11 +1,12 @@
 import type { MessageId } from './brand'
+import type { CompactionEventData } from './context'
 import type { DomainContinuationMessage } from './continuation'
 import type { SupportedModelId } from './llm'
 import type { QualityPreset } from './settings'
 import type { ToolCallRequest, ToolCallResult } from './tools'
 import type { WaggleMessageMetadata } from './waggle'
 
-export type MessageRole = 'user' | 'assistant'
+export type MessageRole = 'user' | 'assistant' | 'system'
 
 /**
  * Message parts — discriminated union.
@@ -50,7 +51,18 @@ export interface ReasoningPart {
   readonly text: string
 }
 
-export type MessagePart = TextPart | AttachmentPart | ToolCallPart | ToolResultPart | ReasoningPart
+export interface CompactionEventPart {
+  readonly type: 'compaction-event'
+  readonly data: CompactionEventData
+}
+
+export type MessagePart =
+  | TextPart
+  | AttachmentPart
+  | ToolCallPart
+  | ToolResultPart
+  | ReasoningPart
+  | CompactionEventPart
 
 export interface AttachmentSource {
   readonly source: {
@@ -84,6 +96,8 @@ export interface AgentSendPayload {
    * Set by the composer plan mode toggle.
    */
   readonly planModeRequested?: boolean
+  /** Optional user instructions for what to preserve during context compaction. */
+  readonly compactInstructions?: string
 }
 
 export interface Message {
@@ -95,6 +109,8 @@ export interface Message {
     readonly orchestrationRunId?: string
     readonly usedFallback?: boolean
     readonly waggle?: WaggleMessageMetadata
+    /** True when this message has been summarized by compaction. */
+    readonly compacted?: boolean
   }
   readonly createdAt: number
 }
@@ -107,6 +123,11 @@ export function isTextPart(part: MessagePart): part is TextPart {
 /** Used by waggle coordination to detect tool-only assistant turns. */
 export function isToolCallPart(part: MessagePart): part is ToolCallPart {
   return part.type === 'tool-call'
+}
+
+/** Check whether a part is a compaction event. */
+export function isCompactionEventPart(part: MessagePart): part is CompactionEventPart {
+  return part.type === 'compaction-event'
 }
 
 /** Check whether finalized parts include a tool call with the given name. */

@@ -6,6 +6,7 @@ import { Spinner } from '@/components/shared/Spinner'
 import { TurnDivider } from '@/components/waggle/TurnDivider'
 import { formatElapsed } from '@/hooks/useStreamingPhase'
 import { ChatErrorDisplay } from './ChatErrorDisplay'
+import { CompactionEventRow } from './CompactionEventRow'
 import { MessageBubble } from './MessageBubble'
 import { RunSummary } from './RunSummary'
 import type { ChatRow } from './types-chat-row'
@@ -90,6 +91,7 @@ export function ChatRowRenderer({
       </div>
     ))
     .case('run-summary', (value) => <RunSummary phases={value.phases} totalMs={value.totalMs} />)
+    .case('compaction-event', (value) => <CompactionEventRow data={value.data} />)
     .case('error', (value) => (
       <ChatErrorDisplay
         error={value.error}

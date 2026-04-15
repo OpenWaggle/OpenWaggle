@@ -2,6 +2,7 @@ import type { AttachmentKind } from '@shared/types/agent'
 import type { JsonObject } from '@shared/types/json'
 import type { Provider, QualityPreset } from '@shared/types/settings'
 import type { AnyTextAdapter } from '@tanstack/ai'
+import type { ModelContextWindow } from '../domain/compaction/compaction-types'
 
 export type { AttachmentKind }
 
@@ -56,6 +57,8 @@ export interface ProviderDefinition {
     preset: QualityPreset,
     base: BaseSamplingConfig,
   ): ResolvedSamplingConfig
+  /** Return context window metadata for a model, or undefined if unknown. */
+  getContextWindow?(model: string): ModelContextWindow | undefined
 }
 
 export function defaultResolveSampling(

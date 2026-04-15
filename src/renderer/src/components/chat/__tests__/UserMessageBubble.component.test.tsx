@@ -116,7 +116,7 @@ describe('UserMessageBubble', () => {
   it('copy button calls api.copyToClipboard with raw text', () => {
     const message = createUserMessage('u1', [{ type: 'text', content: '**bold** and `code`' }])
     render(<UserMessageBubble message={message} />)
-    const copyButton = screen.getByRole('button')
+    const copyButton = screen.getByTitle('Copy message')
     fireEvent.click(copyButton)
     expect(mockCopyToClipboard).toHaveBeenCalledWith('**bold** and `code`')
   })
@@ -166,7 +166,7 @@ describe('UserMessageBubble', () => {
       { type: 'text', content: '[Attachment] file.txt' },
     ])
     render(<UserMessageBubble message={message} />)
-    const copyButton = screen.getByRole('button')
+    const copyButton = screen.getByTitle('Copy message')
     fireEvent.click(copyButton)
     expect(mockCopyToClipboard).toHaveBeenCalledWith('Main message')
   })

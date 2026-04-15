@@ -10,6 +10,7 @@ export interface Conversation {
   readonly waggleConfig?: WaggleConfig
   readonly archived?: boolean
   readonly planModeActive?: boolean
+  readonly compactionGuidance?: string | null
   readonly createdAt: number
   readonly updatedAt: number
 }
