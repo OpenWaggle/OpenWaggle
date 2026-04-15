@@ -1,21 +1,26 @@
 // Time unit constants and timeout/timing configuration.
 
+// Base units — used to derive all values in TIME_UNIT without repetition.
+const MS_PER_SECOND = 1000
+const SECONDS_PER_MINUTE = 60
+const HOURS_PER_DAY = 24
+
 /** Fundamental time unit constants — building blocks for derived values. */
 export const TIME_UNIT = {
-  MILLISECONDS_PER_SECOND: 1000,
-  SECONDS_PER_MINUTE: 60,
-  HOURS_PER_DAY: 24,
+  MILLISECONDS_PER_SECOND: MS_PER_SECOND,
+  SECONDS_PER_MINUTE: SECONDS_PER_MINUTE,
+  HOURS_PER_DAY: HOURS_PER_DAY,
   /** Common durations in milliseconds — use these instead of raw numbers. */
-  TWO_SECONDS_MS: 2 * 1000,
-  FIVE_SECONDS_MS: 5 * 1000,
-  TEN_SECONDS_MS: 10 * 1000,
-  FIFTEEN_SECONDS_MS: 15 * 1000,
-  THIRTY_SECONDS_MS: 30 * 1000,
-  ONE_MINUTE_MS: 60 * 1000,
-  TWO_MINUTES_MS: 2 * 60 * 1000,
-  FIVE_MINUTES_MS: 5 * 60 * 1000,
-  TEN_MINUTES_MS: 10 * 60 * 1000,
-  FOUR_HOURS_MS: 4 * 60 * 60 * 1000,
+  TWO_SECONDS_MS: 2 * MS_PER_SECOND,
+  FIVE_SECONDS_MS: 5 * MS_PER_SECOND,
+  TEN_SECONDS_MS: 10 * MS_PER_SECOND,
+  FIFTEEN_SECONDS_MS: 15 * MS_PER_SECOND,
+  THIRTY_SECONDS_MS: 30 * MS_PER_SECOND,
+  ONE_MINUTE_MS: SECONDS_PER_MINUTE * MS_PER_SECOND,
+  TWO_MINUTES_MS: 2 * SECONDS_PER_MINUTE * MS_PER_SECOND,
+  FIVE_MINUTES_MS: 5 * SECONDS_PER_MINUTE * MS_PER_SECOND,
+  TEN_MINUTES_MS: 10 * SECONDS_PER_MINUTE * MS_PER_SECOND,
+  FOUR_HOURS_MS: 4 * SECONDS_PER_MINUTE * SECONDS_PER_MINUTE * MS_PER_SECOND,
 } as const
 
 /** Stream processing timeouts */
