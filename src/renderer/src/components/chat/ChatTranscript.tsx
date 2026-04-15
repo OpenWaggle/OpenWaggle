@@ -10,6 +10,7 @@ import type { ChatTranscriptSectionState } from './use-chat-panel-controller'
 import { WelcomeScreen } from './WelcomeScreen'
 
 const PADDING_TOP = 20
+const EMPTY_SET: ReadonlySet<string> = new Set()
 
 interface ChatTranscriptProps {
   readonly section: ChatTranscriptSectionState
@@ -173,7 +174,7 @@ export function ChatTranscript({ section }: ChatTranscriptProps) {
     recentProjects,
     activeConversationId,
     chatRows: rows,
-    compactedMessageIds,
+    compactedMessageIds = EMPTY_SET,
     onOpenProject,
     onSelectProjectPath,
     onRetryText,

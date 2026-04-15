@@ -184,6 +184,7 @@ export function UserMessageBubble({ message }: UserMessageBubbleProps) {
           </button>
           <button
             type="button"
+            title="Copy message"
             onClick={handleCopy}
             className="flex items-center gap-1 text-[12px] text-text-muted hover:text-text-secondary cursor-pointer"
           >
