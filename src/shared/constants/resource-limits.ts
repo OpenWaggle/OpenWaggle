@@ -1,6 +1,9 @@
 // File size, attachment, and output limits.
 
-import { BYTES_PER_KIBIBYTE, PERCENT_BASE } from './constants'
+/** Bytes in one kibibyte (1024). Canonical home for byte-unit constants. */
+export const BYTES_PER_KIBIBYTE = 1024
+
+const PERCENT_BASE = 100
 
 /** Tool output limits */
 export const TOOL_OUTPUT = {

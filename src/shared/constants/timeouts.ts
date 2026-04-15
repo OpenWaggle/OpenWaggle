@@ -1,6 +1,11 @@
 // Timeout durations for stream processing, connections, and external calls.
 
-import { FIVE_MINUTES_IN_MILLISECONDS } from './constants'
+/** Canonical home for time-unit constants. */
+export const MILLISECONDS_PER_SECOND = 1000
+export const SECONDS_PER_MINUTE = 60
+export const HOURS_PER_DAY = 24
+
+const FIVE_MINUTES_IN_MILLISECONDS = 5 * SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND
 
 /** Stream processing timeouts */
 export const STREAM_TIMEOUT = {
