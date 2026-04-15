@@ -1,4 +1,5 @@
 import { BYTES_PER_KIBIBYTE, TRIPLE_FACTOR } from '@shared/constants/constants'
+import { GIT_CACHE } from '@shared/constants/timeouts'
 import { decodeUnknownOrThrow } from '@shared/schema'
 import type {
   GitChangedFile,
@@ -16,7 +17,6 @@ const SLICE_ARG_1 = 3
 const PARSE_INT_ARG_2 = 10
 const SLICE_ARG_1_VALUE_2 = 2
 
-const GIT_STATUS_CACHE_TTL = 2000 // 2 seconds
 const DIFF_GIT_MAX_BUFFER = MODULE_VALUE_8 * BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE // 8 MB (reduced from shared.ts 32 MB)
 
 const statusCache = new Map<string, { result: GitStatusSummary; timestamp: number }>()
@@ -305,7 +305,7 @@ export function registerGitStatusHandlers(): void {
     Effect.gen(function* () {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawPath)
       const cached = statusCache.get(projectPath)
-      if (cached && Date.now() - cached.timestamp < GIT_STATUS_CACHE_TTL) {
+      if (cached && Date.now() - cached.timestamp < GIT_CACHE.STATUS_TTL_MS) {
         return cached.result
       }
       const result = yield* Effect.promise(() => getGitStatus(projectPath))

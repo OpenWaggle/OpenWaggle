@@ -79,7 +79,7 @@ function reportFileLoggerFailure(message: string, error: unknown): void {
 
 // --- File writer (injected logsDir, async buffered writes) ---
 
-const LOG_RETENTION_DAYS = 3
+import { LOG_RETENTION } from '@shared/constants/timeouts'
 
 class FileWriter {
   private logsDir: string | null = null
@@ -141,7 +141,7 @@ class FileWriter {
     try {
       const cutoff =
         Date.now() -
-        LOG_RETENTION_DAYS *
+        LOG_RETENTION.DAYS *
           HOURS_PER_DAY *
           SECONDS_PER_MINUTE *
           SECONDS_PER_MINUTE *

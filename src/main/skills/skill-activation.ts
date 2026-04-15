@@ -1,9 +1,7 @@
+import { SKILL_ACTIVATION } from '@shared/constants/agent-config'
 import type { SkillActivationResult } from '@shared/types/standards'
 import { extractExplicitSkillReferences } from '@shared/utils/skill-references'
 import type { LoadedSkillDefinition } from './skill-catalog'
-
-const HEURISTIC_THRESHOLD = 0.2
-const MAX_HEURISTIC_MATCHES = 2
 
 export interface SkillActivationDetails extends SkillActivationResult {
   readonly unresolvedExplicitIds: readonly string[]
@@ -61,10 +59,10 @@ function findHeuristicSkillIds(
       const score = skillTokens.size > 0 ? overlap / skillTokens.size : 0
       return { skillId: skill.id, score }
     })
-    .filter((entry) => entry.score >= HEURISTIC_THRESHOLD)
+    .filter((entry) => entry.score >= SKILL_ACTIVATION.THRESHOLD)
     .sort((a, b) => b.score - a.score || a.skillId.localeCompare(b.skillId))
 
-  return scored.slice(0, MAX_HEURISTIC_MATCHES).map((entry) => entry.skillId)
+  return scored.slice(0, SKILL_ACTIVATION.MAX_MATCHES).map((entry) => entry.skillId)
 }
 
 function tokenize(value: string): Set<string> {

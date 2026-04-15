@@ -60,6 +60,18 @@ export const PLAN_TIMEOUT = {
   PROPOSAL_TTL_MS: 10 * 60 * 1000,
 } as const
 
+/** Log file retention */
+export const LOG_RETENTION = {
+  /** Days to keep log files before cleanup */
+  DAYS: 3,
+} as const
+
+/** Git status caching */
+export const GIT_CACHE = {
+  /** Git status cache TTL (2 seconds) */
+  STATUS_TTL_MS: 2000,
+} as const
+
 /** Auto-updater timing */
 export const UPDATER_TIMING = {
   /** Delay before first update check after app start */

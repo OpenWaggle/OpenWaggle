@@ -32,6 +32,8 @@ export const ATTACHMENT = {
   MAX_TOTAL_SIZE_BYTES: 20 * BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE,
   /** Max attachments in preview list */
   MAX_LIST_PREVIEW: 5,
+  /** Max extracted text characters from attachment content */
+  MAX_EXTRACTED_TEXT_CHARS: 12_000,
 } as const
 
 /** Project context read limits */
@@ -46,6 +48,24 @@ export const PROJECT_CONTEXT = {
 export const COMMAND_EXECUTION = {
   /** Max command output preview in logs (1024 bytes) */
   MAX_LOG_PREVIEW_BYTES: 1024,
+} as const
+
+/** Composer limits */
+export const COMPOSER = {
+  /** Max file suggestions in autocomplete */
+  FILE_SUGGEST_LIMIT: 50,
+} as const
+
+/** Terminal limits */
+export const TERMINAL = {
+  /** Default terminal columns */
+  DEFAULT_COLS: 80,
+  /** Default terminal rows */
+  DEFAULT_ROWS: 24,
+  /** Max terminal columns */
+  MAX_COLS: 500,
+  /** Max terminal rows */
+  MAX_ROWS: 200,
 } as const
 
 /** Feedback limits */

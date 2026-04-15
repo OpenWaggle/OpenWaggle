@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { COMPOSER } from '@shared/constants/resource-limits'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type { FileSuggestion } from '@shared/types/composer'
 import * as Effect from 'effect/Effect'
@@ -7,7 +8,6 @@ import { typedHandle } from './typed-ipc'
 
 const projectPathSchema = Schema.String.pipe(Schema.minLength(1))
 
-const FILE_SUGGEST_LIMIT = 50
 const DEFAULT_IGNORES = ['node_modules/**', '.git/**', 'dist/**', 'out/**']
 
 export function registerComposerHandlers(): void {
@@ -32,11 +32,13 @@ export function registerComposerHandlers(): void {
         }),
       )
 
-      const results: FileSuggestion[] = entries.slice(0, FILE_SUGGEST_LIMIT).map((entry) => ({
-        path: entry.endsWith('/') ? entry.slice(0, -1) : entry,
-        basename: path.basename(entry.endsWith('/') ? entry.slice(0, -1) : entry),
-        isDirectory: entry.endsWith('/'),
-      }))
+      const results: FileSuggestion[] = entries
+        .slice(0, COMPOSER.FILE_SUGGEST_LIMIT)
+        .map((entry) => ({
+          path: entry.endsWith('/') ? entry.slice(0, -1) : entry,
+          basename: path.basename(entry.endsWith('/') ? entry.slice(0, -1) : entry),
+          isDirectory: entry.endsWith('/'),
+        }))
 
       return results
     }),

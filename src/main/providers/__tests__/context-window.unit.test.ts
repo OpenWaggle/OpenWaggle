@@ -1,5 +1,5 @@
+import { CONTEXT_WINDOW } from '@shared/constants/context-config'
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_CONTEXT_WINDOW_TOKENS } from '../../domain/compaction/compaction-types'
 import { anthropicProvider } from '../anthropic'
 import { geminiProvider } from '../gemini'
 import { grokProvider } from '../grok'
@@ -97,9 +97,9 @@ describe('getContextWindow', () => {
     })
   })
 
-  describe('DEFAULT_CONTEXT_WINDOW_TOKENS', () => {
+  describe('CONTEXT_WINDOW.DEFAULT_TOKENS', () => {
     it('is 128K as a safe fallback', () => {
-      expect(DEFAULT_CONTEXT_WINDOW_TOKENS).toBe(128_000)
+      expect(CONTEXT_WINDOW.DEFAULT_TOKENS).toBe(128_000)
     })
   })
 })

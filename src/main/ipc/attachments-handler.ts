@@ -24,7 +24,6 @@ const PARSE_INT_ARG_2_VALUE_10 = 10
 
 const logger = createLogger('ipc/attachments')
 
-const MAX_EXTRACTED_TEXT_CHARS = 12_000
 const MILLISECONDS_PER_HOUR = SECONDS_PER_MINUTE * SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND
 const TEMP_ATTACHMENT_RETENTION_MS = HOURS_PER_DAY * MILLISECONDS_PER_HOUR
 const TEMP_ATTACHMENTS_DIRECTORY_NAME = 'temp-attachments'
@@ -216,8 +215,8 @@ function guessMimeType(filePath: string): string | null {
 
 function normalizeText(value: string): string {
   const trimmed = value.trim()
-  if (trimmed.length <= MAX_EXTRACTED_TEXT_CHARS) return trimmed
-  return `${trimmed.slice(0, MAX_EXTRACTED_TEXT_CHARS)}\n...[truncated]`
+  if (trimmed.length <= ATTACHMENT.MAX_EXTRACTED_TEXT_CHARS) return trimmed
+  return `${trimmed.slice(0, ATTACHMENT.MAX_EXTRACTED_TEXT_CHARS)}\n...[truncated]`
 }
 
 function decodeXmlEntities(value: string): string {

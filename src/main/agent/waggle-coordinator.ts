@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { DOUBLE_FACTOR } from '@shared/constants/constants'
+import { COMPACTION } from '@shared/constants/context-config'
 import { CONSENSUS } from '@shared/constants/text-processing'
 import { WAGGLE_TIMEOUT } from '@shared/constants/timeouts'
 import type { HydratedAgentSendPayload, Message } from '@shared/types/agent'
@@ -14,7 +15,6 @@ import type {
   WaggleStreamMetadata,
   WaggleTurnEvent,
 } from '@shared/types/waggle'
-import { WAGGLE_MICRO_RECENT_TOOL_RESULTS } from '../domain/compaction/compaction-types'
 import { createLogger } from '../logger'
 import type { ChatStreamOptions } from '../ports/chat-service'
 import { runAgent } from './agent-loop'
@@ -332,7 +332,7 @@ export async function runWaggleSequential(params: WaggleRunParams): Promise<Wagg
           taggedMessage,
         ]
         const compacted = microcompactConversationMessages(updatedMessages, {
-          recentToolResultCount: WAGGLE_MICRO_RECENT_TOOL_RESULTS,
+          recentToolResultCount: COMPACTION.WAGGLE_MICRO_RECENT_TOOL_RESULTS,
         })
         workingConversation = {
           ...workingConversation,

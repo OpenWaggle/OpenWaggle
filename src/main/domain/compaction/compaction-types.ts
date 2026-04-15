@@ -1,4 +1,5 @@
 // Domain types for context compaction — zero infrastructure imports.
+// Configuration constants live in @shared/constants/context-config.ts.
 
 import type { CompactionStage, CompactionTier } from '@shared/types/compaction'
 import type { ModelContextWindow } from '@shared/types/context'
@@ -39,35 +40,3 @@ export interface CompactionEvent {
     readonly messagesSummarized: number
   }
 }
-
-/**
- * Default context window assumed when a provider does not report one.
- * 128K tokens is a safe conservative value — most modern models support at least this.
- */
-export const DEFAULT_CONTEXT_WINDOW_TOKENS = 128_000
-
-/**
- * Compaction threshold as a fraction of the context window.
- * Full compaction triggers when estimated tokens exceed this ratio.
- * Set at 90% to preserve as much context as possible while leaving
- * headroom for replies and tool output.
- */
-export const COMPACTION_THRESHOLD_RATIO = 0.9
-
-/**
- * Number of most recent tool results to preserve during microcompaction.
- * Older tool results are replaced with compact placeholders.
- */
-export const MICRO_RECENT_TOOL_RESULTS = 5
-
-/**
- * Tighter tool result preservation count for Waggle mode between-turn compaction.
- * Waggle turns are shorter and agents can re-read files via WaggleFileCache.
- */
-export const WAGGLE_MICRO_RECENT_TOOL_RESULTS = 3
-
-/**
- * Maximum token budget for recent user messages preserved after full compaction.
- * Newest user messages are kept up to this budget; older ones are dropped.
- */
-export const FULL_COMPACTION_USER_MESSAGE_BUDGET_TOKENS = 20_000

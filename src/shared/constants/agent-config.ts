@@ -20,6 +20,14 @@ export const EXECUTOR = {
   MAX_ITERATIONS: 20,
 } as const
 
+/** Skill activation heuristics */
+export const SKILL_ACTIVATION = {
+  /** Minimum similarity score to consider a heuristic match */
+  THRESHOLD: 0.2,
+  /** Max heuristic-based skill matches per activation */
+  MAX_MATCHES: 2,
+} as const
+
 /** Orchestration parallelism */
 export const ORCHESTRATION = {
   /** Max concurrent tasks */

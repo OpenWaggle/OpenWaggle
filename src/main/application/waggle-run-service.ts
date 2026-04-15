@@ -6,6 +6,8 @@
  * (abort controllers, active run tracking, stream buffers, IPC emission,
  * message ID stabilization, turn boundary injection).
  */
+
+import { CONTEXT_WINDOW } from '@shared/constants/context-config'
 import { safeDecodeUnknown } from '@shared/schema'
 import { waggleConfigSchema } from '@shared/schemas/waggle'
 import type { AgentSendPayload, HydratedAgentSendPayload, Message } from '@shared/types/agent'
@@ -17,7 +19,6 @@ import * as Effect from 'effect/Effect'
 import { classifyAgentError, makeErrorInfo } from '../agent/error-classifier'
 import { buildPersistedUserMessageParts, makeMessage } from '../agent/shared'
 import { runWaggleSequential } from '../agent/waggle-coordinator'
-import { DEFAULT_CONTEXT_WINDOW_TOKENS } from '../domain/compaction/compaction-types'
 import { hydratePayloadAttachments, maybeTriggerTitleGeneration } from '../ipc/run-handler-utils'
 import { createLogger } from '../logger'
 import { ChatService, type ChatStreamOptions } from '../ports/chat-service'
@@ -118,13 +119,13 @@ export function executeWaggleRun(input: WaggleRunInput) {
     // ─── Compute effective context window ──────────────────
     // Smallest participating model governs compaction threshold.
     const providerService = yield* ProviderService
-    let effectiveContextWindow = DEFAULT_CONTEXT_WINDOW_TOKENS
+    let effectiveContextWindow: number = CONTEXT_WINDOW.DEFAULT_TOKENS
     for (const agent of config.agents) {
       const provider = yield* providerService
         .getProviderForModel(String(agent.model))
         .pipe(Effect.catchAll(() => Effect.succeed(undefined)))
       const cw = provider?.getContextWindow?.(String(agent.model))
-      const tokens = cw?.contextTokens ?? DEFAULT_CONTEXT_WINDOW_TOKENS
+      const tokens = cw?.contextTokens ?? CONTEXT_WINDOW.DEFAULT_TOKENS
       if (tokens < effectiveContextWindow) {
         effectiveContextWindow = tokens
       }

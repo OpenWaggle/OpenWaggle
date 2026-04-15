@@ -7,6 +7,8 @@ import { app } from 'electron'
 import { DatabaseBootstrapError } from '../errors'
 
 const DATABASE_FILE_NAME = 'openwaggle.db'
+// Not centralized in @shared/constants/ — this is a low-level SQLite driver
+// tuning knob (prepared statement LRU cache), not application-level configuration.
 const SQLITE_PREPARE_CACHE_SIZE = 128
 
 interface AppMigration {

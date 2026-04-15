@@ -2,6 +2,7 @@
 // These types define the canonical context snapshot, pinned context,
 // model compatibility, and compaction event data.
 
+import { CONTEXT_HEALTH } from '@shared/constants/context-config'
 import type { ConversationId, MessageId, SupportedModelId } from './brand'
 import type { CompactionTier } from './compaction'
 
@@ -86,11 +87,6 @@ export interface ContextSnapshot {
 
 // ─── Health Status Computation ──────────────────────────────
 
-/** Thresholds for context health status derivation. */
-export const HEALTH_COMFORTABLE_THRESHOLD = 0.6
-export const HEALTH_TIGHT_THRESHOLD = 0.8
-export const HEALTH_CRITICAL_THRESHOLD = 0.95
-
 /** Compute health status from usage ratio. */
 export function computeHealthStatus(
   usedTokens: number,
@@ -100,9 +96,9 @@ export function computeHealthStatus(
   const effectiveBudget = contextWindow - maxOutputTokens
   if (effectiveBudget <= 0) return 'blocked'
   const ratio = usedTokens / effectiveBudget
-  if (ratio < HEALTH_COMFORTABLE_THRESHOLD) return 'comfortable'
-  if (ratio < HEALTH_TIGHT_THRESHOLD) return 'tight'
-  if (ratio < HEALTH_CRITICAL_THRESHOLD) return 'critical'
+  if (ratio < CONTEXT_HEALTH.COMFORTABLE_THRESHOLD) return 'comfortable'
+  if (ratio < CONTEXT_HEALTH.TIGHT_THRESHOLD) return 'tight'
+  if (ratio < CONTEXT_HEALTH.CRITICAL_THRESHOLD) return 'critical'
   return 'blocked'
 }
 

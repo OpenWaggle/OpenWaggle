@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { AGENT_LOOP } from '@shared/constants/agent-config'
+import { CONTEXT_WINDOW } from '@shared/constants/context-config'
 import { PROVIDER_RETRY, STALL_RETRY } from '@shared/constants/retry-policy'
 import {
   type CompactionEventPart,
@@ -20,7 +21,6 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Schedule from 'effect/Schedule'
 import { loadProjectConfig } from '../config/project-config'
-import { DEFAULT_CONTEXT_WINDOW_TOKENS } from '../domain/compaction/compaction-types'
 import { approvalTraceEnabled } from '../env'
 import { AgentCancelledError } from '../errors'
 import { createLogger } from '../logger'
@@ -281,7 +281,7 @@ export function runAgentEffect(
       const contextTokens =
         params.effectiveContextWindowOverride ??
         contextWindow?.contextTokens ??
-        DEFAULT_CONTEXT_WINDOW_TOKENS
+        CONTEXT_WINDOW.DEFAULT_TOKENS
       const compactionService = yield* ContextCompactionService
       const needsCompaction = yield* compactionService.needsFullCompaction(
         freshMessages,
