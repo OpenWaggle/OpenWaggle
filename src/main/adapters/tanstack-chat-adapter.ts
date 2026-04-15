@@ -4,7 +4,7 @@
  * This is the ONLY module that calls `chat()` from `@tanstack/ai`.
  * All other code uses the domain-owned `AgentStreamChunk` type.
  */
-import { HTTP_TIMEOUT } from '@shared/constants/timeouts'
+import { HTTP_TIMEOUT } from '@shared/constants/time'
 import type { AgentStreamChunk } from '@shared/types/stream'
 import { type AnyTextAdapter, chat, maxIterations, type StreamChunk } from '@tanstack/ai'
 import { Effect, Layer } from 'effect'

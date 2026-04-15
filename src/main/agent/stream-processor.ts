@@ -1,4 +1,4 @@
-import { STREAM_TIMEOUT } from '@shared/constants/timeouts'
+import { STREAM_TIMEOUT } from '@shared/constants/time'
 import type { AgentStreamChunk } from '@shared/types/stream'
 import { isUserBlockingToolName } from '@shared/types/tool-blocking'
 import * as Duration from 'effect/Duration'

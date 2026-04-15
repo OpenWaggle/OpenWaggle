@@ -1,4 +1,4 @@
-import { WAGGLE_TIMEOUT } from '@shared/constants/timeouts'
+import { WAGGLE_TIMEOUT } from '@shared/constants/time'
 import type { HydratedAgentSendPayload, Message } from '@shared/types/agent'
 import { getMessageText } from '@shared/types/agent'
 import {

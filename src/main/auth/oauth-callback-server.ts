@@ -1,6 +1,6 @@
 import { createServer, type Server } from 'node:http'
 import { URL } from 'node:url'
-import { AUTH_TIMEOUT } from '@shared/constants/timeouts'
+import { AUTH_TIMEOUT } from '@shared/constants/time'
 import { createLogger } from '../logger'
 
 const HTTP_STATUS_OK = 200

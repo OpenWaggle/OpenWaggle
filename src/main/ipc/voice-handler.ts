@@ -1,8 +1,8 @@
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import { AUDIO_RECORDING, AUDIO_SAMPLE_RATE, LANGUAGE_CODE } from '@shared/constants/audio-config'
-import { DOUBLE_FACTOR } from '@shared/constants/constants'
-import { VOICE_TIMEOUT } from '@shared/constants/timeouts'
+import { DOUBLE_FACTOR } from '@shared/constants/math'
+import { VOICE_TIMEOUT } from '@shared/constants/time'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import {
   VOICE_MODEL_BASE,

@@ -1,4 +1,4 @@
-import { DOUBLE_FACTOR } from '@shared/constants/constants'
+import { DOUBLE_FACTOR } from '@shared/constants/math'
 import { createPatch } from 'diff'
 
 const CONTEXT = 3

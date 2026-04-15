@@ -1,7 +1,8 @@
 import { execFile } from 'node:child_process'
 import path from 'node:path'
 import { promisify } from 'node:util'
-import { BYTES_PER_KIBIBYTE, DOUBLE_FACTOR } from '@shared/constants/constants'
+import { DOUBLE_FACTOR } from '@shared/constants/math'
+import { BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { jsonObjectSchema } from '@shared/schemas/validation'
 

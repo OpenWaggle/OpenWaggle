@@ -1,4 +1,4 @@
-import { PLAN_TIMEOUT } from '@shared/constants/timeouts'
+import { PLAN_TIMEOUT } from '@shared/constants/time'
 import { ConversationId } from '@shared/types/brand'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {

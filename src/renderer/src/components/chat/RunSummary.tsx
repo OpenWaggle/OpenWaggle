@@ -1,4 +1,4 @@
-import { MILLISECONDS_PER_SECOND } from '@shared/constants/constants'
+import { TIME_UNIT } from '@shared/constants/time'
 import type { CompletedPhase } from '@/hooks/useStreamingPhase'
 import { formatElapsed } from '@/hooks/useStreamingPhase'
 import { cn } from '@/lib/cn'
@@ -24,7 +24,7 @@ function mergePhasesByLabel(phases: readonly CompletedPhase[]): CompletedPhase[]
 
 export function RunSummary({ phases, totalMs }: RunSummaryProps) {
   const visiblePhases = mergePhasesByLabel(phases).filter(
-    (p) => p.durationMs >= MILLISECONDS_PER_SECOND,
+    (p) => p.durationMs >= TIME_UNIT.MILLISECONDS_PER_SECOND,
   )
 
   return (

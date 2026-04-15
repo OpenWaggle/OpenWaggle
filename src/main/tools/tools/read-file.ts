@@ -1,6 +1,5 @@
 import fs from 'node:fs/promises'
-import { BYTES_PER_KIBIBYTE } from '@shared/constants/constants'
-import { FILE_READ } from '@shared/constants/resource-limits'
+import { BYTES_PER_KIBIBYTE, FILE_READ } from '@shared/constants/resource-limits'
 import { Schema } from '@shared/schema'
 import { defineOpenWaggleTool, resolvePath } from '../define-tool'
 

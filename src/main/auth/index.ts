@@ -1,4 +1,4 @@
-import { AUTH_TIMEOUT } from '@shared/constants/timeouts'
+import { AUTH_TIMEOUT } from '@shared/constants/time'
 import type {
   OAuthFlowStatus,
   SubscriptionAccountInfo,

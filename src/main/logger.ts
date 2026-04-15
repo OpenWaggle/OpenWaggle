@@ -1,11 +1,7 @@
 import fs from 'node:fs'
 import { mkdir, readdir, stat, unlink } from 'node:fs/promises'
 import path from 'node:path'
-import {
-  HOURS_PER_DAY,
-  MILLISECONDS_PER_SECOND,
-  SECONDS_PER_MINUTE,
-} from '@shared/constants/constants'
+import { TIME_UNIT } from '@shared/constants/time'
 import type { Logger, LogLevel } from '@shared/types/logger'
 import { logLevel as configuredLogLevel } from './env'
 
@@ -79,7 +75,7 @@ function reportFileLoggerFailure(message: string, error: unknown): void {
 
 // --- File writer (injected logsDir, async buffered writes) ---
 
-import { LOG_RETENTION } from '@shared/constants/timeouts'
+import { LOG_RETENTION } from '@shared/constants/time'
 
 class FileWriter {
   private logsDir: string | null = null
@@ -142,10 +138,10 @@ class FileWriter {
       const cutoff =
         Date.now() -
         LOG_RETENTION.DAYS *
-          HOURS_PER_DAY *
-          SECONDS_PER_MINUTE *
-          SECONDS_PER_MINUTE *
-          MILLISECONDS_PER_SECOND
+          TIME_UNIT.HOURS_PER_DAY *
+          TIME_UNIT.SECONDS_PER_MINUTE *
+          TIME_UNIT.SECONDS_PER_MINUTE *
+          TIME_UNIT.MILLISECONDS_PER_SECOND
       const entries = await readdir(logsDir)
       const deletions = entries
         .filter((entry) => entry.startsWith('openwaggle-') && entry.endsWith('.log'))

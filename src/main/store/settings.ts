@@ -1,5 +1,5 @@
 import * as SqlClient from '@effect/sql/SqlClient'
-import { BASE_TEN, PERCENT_BASE } from '@shared/constants/constants'
+import { BASE_TEN, PERCENT_BASE } from '@shared/constants/math'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { AUTH_METHODS } from '@shared/types/auth'
 import { McpServerId, SupportedModelId } from '@shared/types/brand'

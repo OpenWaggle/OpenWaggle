@@ -1,5 +1,6 @@
-import { BYTES_PER_KIBIBYTE, TRIPLE_FACTOR } from '@shared/constants/constants'
-import { GIT_CACHE } from '@shared/constants/timeouts'
+import { TRIPLE_FACTOR } from '@shared/constants/math'
+import { BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
+import { GIT_CACHE } from '@shared/constants/time'
 import { decodeUnknownOrThrow } from '@shared/schema'
 import type {
   GitChangedFile,

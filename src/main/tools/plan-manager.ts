@@ -1,4 +1,4 @@
-import { PLAN_TIMEOUT } from '@shared/constants/timeouts'
+import { PLAN_TIMEOUT } from '@shared/constants/time'
 import type { ConversationId } from '@shared/types/brand'
 import type { PlanResponse } from '@shared/types/plan'
 

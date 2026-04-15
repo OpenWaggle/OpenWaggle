@@ -1,4 +1,4 @@
-import { MILLISECONDS_PER_SECOND } from '@shared/constants/constants'
+import { TIME_UNIT } from '@shared/constants/time'
 import { safeDecodeUnknown } from '@shared/schema'
 import { taskToolProgressSchema } from '@shared/schemas/validation'
 import type { OrchestrationProgressPayload } from '../engine'
@@ -57,7 +57,7 @@ export class TaskProgressTracker {
     const files = this.taskFileCount.get(taskId) ?? 0
     const tokens = this.taskTokens.get(taskId) ?? 0
     const startedAt = this.taskStartTimes.get(taskId) ?? this.now()
-    const elapsed = ((this.now() - startedAt) / MILLISECONDS_PER_SECOND).toFixed(1)
+    const elapsed = ((this.now() - startedAt) / TIME_UNIT.MILLISECONDS_PER_SECOND).toFixed(1)
 
     const parts: string[] = []
     if (files > 0) parts.push(`${String(files)} files`)

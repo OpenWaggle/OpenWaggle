@@ -1,5 +1,5 @@
 import { is } from '@electron-toolkit/utils'
-import { UPDATER_TIMING } from '@shared/constants/timeouts'
+import { UPDATER_TIMING } from '@shared/constants/time'
 import type { UpdateStatus } from '@shared/types/updater'
 import { autoUpdater } from 'electron-updater'
 import { createLogger } from './logger'

@@ -1,4 +1,4 @@
-import { DOUBLE_FACTOR } from '@shared/constants/constants'
+import { DOUBLE_FACTOR } from '@shared/constants/math'
 import { PROMPT_LIMITS } from '@shared/constants/text-processing'
 
 interface InferAgentsCandidatePathsInput {

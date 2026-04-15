@@ -1,7 +1,7 @@
 import type { Dirent } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { DOUBLE_FACTOR } from '@shared/constants/constants'
+import { DOUBLE_FACTOR } from '@shared/constants/math'
 import type { AgentToolFilter, AgentTypeDefinition } from '@shared/types/sub-agent'
 import { formatErrorMessage, isEnoent } from '@shared/utils/node-error'
 import { isPathInside } from '@shared/utils/paths'

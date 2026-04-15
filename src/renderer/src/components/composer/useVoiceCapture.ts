@@ -1,4 +1,4 @@
-import { MILLISECONDS_PER_SECOND, SECONDS_PER_MINUTE } from '@shared/constants/constants'
+import { TIME_UNIT } from '@shared/constants/time'
 import { VOICE_MODEL_BASE } from '@shared/types/voice'
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useVoiceVisualizer } from 'react-voice-visualizer'
@@ -71,12 +71,14 @@ export function useVoiceCapture({
       ? 'recording'
       : 'idle'
   const elapsedSeconds = isRecording
-    ? Math.floor(visualizerControls.recordingTime / MILLISECONDS_PER_SECOND)
+    ? Math.floor(visualizerControls.recordingTime / TIME_UNIT.MILLISECONDS_PER_SECOND)
     : lastElapsedSeconds
 
   useEffect(() => {
     if (!isRecording) return
-    setLastElapsedSeconds(Math.floor(visualizerControls.recordingTime / MILLISECONDS_PER_SECOND))
+    setLastElapsedSeconds(
+      Math.floor(visualizerControls.recordingTime / TIME_UNIT.MILLISECONDS_PER_SECOND),
+    )
   }, [isRecording, visualizerControls.recordingTime])
 
   useEffect(() => {
@@ -203,7 +205,7 @@ export function useVoiceCapture({
 
 export function formatVoiceDuration(totalSeconds: number): string {
   const seconds = Math.max(0, Math.floor(totalSeconds))
-  const minutesPart = Math.floor(seconds / SECONDS_PER_MINUTE)
-  const secondsPart = seconds % SECONDS_PER_MINUTE
+  const minutesPart = Math.floor(seconds / TIME_UNIT.SECONDS_PER_MINUTE)
+  const secondsPart = seconds % TIME_UNIT.SECONDS_PER_MINUTE
   return `${String(minutesPart)}:${String(secondsPart).padStart(VOICE_DURATION_PAD_LENGTH, '0')}`
 }

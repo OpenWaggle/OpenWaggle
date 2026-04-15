@@ -1,4 +1,4 @@
-import { STREAM_TIMEOUT } from '@shared/constants/timeouts'
+import { STREAM_TIMEOUT } from '@shared/constants/time'
 import type { AgentStreamChunk, AgentTextMessageContentChunk } from '@shared/types/stream'
 
 /**

@@ -1,14 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import {
-  BYTES_PER_KIBIBYTE,
-  HOURS_PER_DAY,
-  MILLISECONDS_PER_SECOND,
-  PERCENT_BASE,
-  SECONDS_PER_MINUTE,
-} from '@shared/constants/constants'
-import { ATTACHMENT } from '@shared/constants/resource-limits'
+import { PERCENT_BASE } from '@shared/constants/math'
+import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
+import { TIME_UNIT } from '@shared/constants/time'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type { HydratedAttachment, PreparedAttachment } from '@shared/types/agent'
 import { choose } from '@shared/utils/decision'
@@ -24,8 +19,9 @@ const PARSE_INT_ARG_2_VALUE_10 = 10
 
 const logger = createLogger('ipc/attachments')
 
-const MILLISECONDS_PER_HOUR = SECONDS_PER_MINUTE * SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND
-const TEMP_ATTACHMENT_RETENTION_MS = HOURS_PER_DAY * MILLISECONDS_PER_HOUR
+const MILLISECONDS_PER_HOUR =
+  TIME_UNIT.SECONDS_PER_MINUTE * TIME_UNIT.SECONDS_PER_MINUTE * TIME_UNIT.MILLISECONDS_PER_SECOND
+const TEMP_ATTACHMENT_RETENTION_MS = TIME_UNIT.HOURS_PER_DAY * MILLISECONDS_PER_HOUR
 const TEMP_ATTACHMENTS_DIRECTORY_NAME = 'temp-attachments'
 const TEMP_PROMPT_FILENAME_PREFIX = 'prompt-'
 const TEMP_PROMPT_FILENAME_EXTENSION = '.md'

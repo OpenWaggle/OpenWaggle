@@ -1,4 +1,4 @@
-import { PERCENT_BASE } from '@shared/constants/constants'
+import { PERCENT_BASE } from '@shared/constants/math'
 import { CONSENSUS } from '@shared/constants/text-processing'
 import type { WaggleConsensusCheckResult, WaggleConsensusSignal } from '@shared/types/waggle'
 

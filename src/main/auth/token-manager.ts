@@ -1,5 +1,5 @@
 import * as SqlClient from '@effect/sql/SqlClient'
-import { AUTH_TIMEOUT } from '@shared/constants/timeouts'
+import { AUTH_TIMEOUT } from '@shared/constants/time'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
 import type { SubscriptionProvider } from '@shared/types/auth'
 import * as Effect from 'effect/Effect'

@@ -1,5 +1,5 @@
 import { WEB_FETCH } from '@shared/constants/resource-limits'
-import { HTTP_TIMEOUT } from '@shared/constants/timeouts'
+import { HTTP_TIMEOUT } from '@shared/constants/time'
 import { Schema } from '@shared/schema'
 import { readBodyWithLimit, stripHtml } from '../../utils/http'
 import { defineOpenWaggleTool } from '../define-tool'

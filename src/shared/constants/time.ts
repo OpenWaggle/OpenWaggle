@@ -1,11 +1,12 @@
-// Timeout durations for stream processing, connections, and external calls.
+// Time unit constants and timeout/timing configuration.
 
-/** Canonical home for time-unit constants. */
-export const MILLISECONDS_PER_SECOND = 1000
-export const SECONDS_PER_MINUTE = 60
-export const HOURS_PER_DAY = 24
-
-const FIVE_MINUTES_IN_MILLISECONDS = 5 * SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND
+/** Fundamental time unit constants — building blocks for derived values. */
+export const TIME_UNIT = {
+  MILLISECONDS_PER_SECOND: 1000,
+  SECONDS_PER_MINUTE: 60,
+  HOURS_PER_DAY: 24,
+  FIVE_MINUTES_MS: 5 * 60 * 1000,
+} as const
 
 /** Stream processing timeouts */
 export const STREAM_TIMEOUT = {
@@ -36,15 +37,15 @@ export const HTTP_TIMEOUT = {
 /** Authentication timeouts */
 export const AUTH_TIMEOUT = {
   /** Token refresh margin before expiry (5 minutes) */
-  REFRESH_MARGIN_MS: FIVE_MINUTES_IN_MILLISECONDS,
+  REFRESH_MARGIN_MS: TIME_UNIT.FIVE_MINUTES_MS,
   /** OAuth callback wait timeout (5 minutes) */
-  OAUTH_CALLBACK_MS: FIVE_MINUTES_IN_MILLISECONDS,
+  OAUTH_CALLBACK_MS: TIME_UNIT.FIVE_MINUTES_MS,
   /** Polling frequency for clipboard auth codes */
   CLIPBOARD_POLL_INTERVAL_MS: 500,
   /** Total clipboard polling timeout (5 minutes) */
-  CLIPBOARD_POLL_TIMEOUT_MS: FIVE_MINUTES_IN_MILLISECONDS,
+  CLIPBOARD_POLL_TIMEOUT_MS: TIME_UNIT.FIVE_MINUTES_MS,
   /** Auth lifecycle check interval (2 minutes) */
-  LIFECYCLE_INTERVAL_MS: 2 * 60 * 1000,
+  LIFECYCLE_INTERVAL_MS: 2 * TIME_UNIT.SECONDS_PER_MINUTE * TIME_UNIT.MILLISECONDS_PER_SECOND,
 } as const
 
 /** Waggle collaboration timeouts */
@@ -62,7 +63,7 @@ export const VOICE_TIMEOUT = {
 /** Plan and tool management timeouts */
 export const PLAN_TIMEOUT = {
   /** Plan proposal TTL before auto-rejection (10 minutes) */
-  PROPOSAL_TTL_MS: 10 * 60 * 1000,
+  PROPOSAL_TTL_MS: 10 * TIME_UNIT.SECONDS_PER_MINUTE * TIME_UNIT.MILLISECONDS_PER_SECOND,
 } as const
 
 /** Log file retention */
@@ -82,5 +83,9 @@ export const UPDATER_TIMING = {
   /** Delay before first update check after app start */
   INITIAL_CHECK_DELAY_MS: 5_000,
   /** Interval between update checks (4 hours) */
-  CHECK_INTERVAL_MS: 4 * 60 * 60 * 1_000,
+  CHECK_INTERVAL_MS:
+    4 *
+    TIME_UNIT.SECONDS_PER_MINUTE *
+    TIME_UNIT.SECONDS_PER_MINUTE *
+    TIME_UNIT.MILLISECONDS_PER_SECOND,
 } as const
