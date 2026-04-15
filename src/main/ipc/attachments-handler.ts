@@ -1,13 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import {
-  BYTES_PER_KIBIBYTE,
-  HOURS_PER_DAY,
-  MILLISECONDS_PER_SECOND,
-  PERCENT_BASE,
-  SECONDS_PER_MINUTE,
-} from '@shared/constants/constants'
+import { PERCENT_BASE } from '@shared/constants/math'
+import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
+import { TIME_UNIT } from '@shared/constants/time'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type { HydratedAttachment, PreparedAttachment } from '@shared/types/agent'
 import { choose } from '@shared/utils/decision'
@@ -17,20 +13,15 @@ import { createLogger } from '../logger'
 import { broadcastToWindows } from '../utils/broadcast'
 import { typedHandle } from './typed-ipc'
 
-const MODULE_VALUE_8 = 8
-const MODULE_VALUE_20 = 20
 const SLICE_ARG_1 = 2
 const PARSE_INT_ARG_2 = 16
 const PARSE_INT_ARG_2_VALUE_10 = 10
 
 const logger = createLogger('ipc/attachments')
 
-const MAX_ATTACHMENTS = 5
-const MAX_ATTACHMENT_SIZE_BYTES = MODULE_VALUE_8 * BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE
-const MAX_TOTAL_SIZE_BYTES = MODULE_VALUE_20 * BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE
-const MAX_EXTRACTED_TEXT_CHARS = 12_000
-const MILLISECONDS_PER_HOUR = SECONDS_PER_MINUTE * SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND
-const TEMP_ATTACHMENT_RETENTION_MS = HOURS_PER_DAY * MILLISECONDS_PER_HOUR
+const MILLISECONDS_PER_HOUR =
+  TIME_UNIT.SECONDS_PER_MINUTE * TIME_UNIT.SECONDS_PER_MINUTE * TIME_UNIT.MILLISECONDS_PER_SECOND
+const TEMP_ATTACHMENT_RETENTION_MS = TIME_UNIT.HOURS_PER_DAY * MILLISECONDS_PER_HOUR
 const TEMP_ATTACHMENTS_DIRECTORY_NAME = 'temp-attachments'
 const TEMP_PROMPT_FILENAME_PREFIX = 'prompt-'
 const TEMP_PROMPT_FILENAME_EXTENSION = '.md'
@@ -43,7 +34,7 @@ const TEMP_PROMPT_FILENAME_PATTERN = /^prompt-\d+\.md$/
 
 const prepareArgsSchema = Schema.Struct({
   projectPath: Schema.String.pipe(Schema.minLength(1)),
-  paths: Schema.Array(Schema.String).pipe(Schema.maxItems(MAX_ATTACHMENTS)),
+  paths: Schema.Array(Schema.String).pipe(Schema.maxItems(ATTACHMENT.MAX_COUNT)),
 })
 const prepareFromTextArgsSchema = Schema.Struct({
   text: Schema.String.pipe(Schema.minLength(1)),
@@ -220,8 +211,8 @@ function guessMimeType(filePath: string): string | null {
 
 function normalizeText(value: string): string {
   const trimmed = value.trim()
-  if (trimmed.length <= MAX_EXTRACTED_TEXT_CHARS) return trimmed
-  return `${trimmed.slice(0, MAX_EXTRACTED_TEXT_CHARS)}\n...[truncated]`
+  if (trimmed.length <= ATTACHMENT.MAX_EXTRACTED_TEXT_CHARS) return trimmed
+  return `${trimmed.slice(0, ATTACHMENT.MAX_EXTRACTED_TEXT_CHARS)}\n...[truncated]`
 }
 
 function decodeXmlEntities(value: string): string {
@@ -289,9 +280,9 @@ async function prepareAttachment(filePath: string): Promise<PreparedAttachment> 
   if (!stats.isFile()) {
     throw new Error(`Not a file: ${filePath}`)
   }
-  if (stats.size > MAX_ATTACHMENT_SIZE_BYTES) {
+  if (stats.size > ATTACHMENT.MAX_SIZE_BYTES) {
     throw new Error(
-      `Attachment exceeds ${String(MAX_ATTACHMENT_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB: ${path.basename(filePath)}`,
+      `Attachment exceeds ${String(ATTACHMENT.MAX_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB: ${path.basename(filePath)}`,
     )
   }
 
@@ -347,9 +338,9 @@ async function hydrateAttachmentSource(
   if (!stats.isFile()) {
     throw new Error(`Attachment is no longer a file: ${attachment.name}`)
   }
-  if (stats.size > MAX_ATTACHMENT_SIZE_BYTES) {
+  if (stats.size > ATTACHMENT.MAX_SIZE_BYTES) {
     throw new Error(
-      `Attachment exceeds ${String(MAX_ATTACHMENT_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB: ${attachment.name}`,
+      `Attachment exceeds ${String(ATTACHMENT.MAX_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB: ${attachment.name}`,
     )
   }
 
@@ -396,10 +387,10 @@ export function registerAttachmentHandlers(): void {
 
       const uniquePaths = [...new Set(normalized)]
       if (uniquePaths.length === 0) return []
-      if (uniquePaths.length > MAX_ATTACHMENTS) {
+      if (uniquePaths.length > ATTACHMENT.MAX_COUNT) {
         return yield* Effect.fail(
           new Error(
-            `A maximum of ${String(MAX_ATTACHMENTS)} attachments is supported per message.`,
+            `A maximum of ${String(ATTACHMENT.MAX_COUNT)} attachments is supported per message.`,
           ),
         )
       }
@@ -412,10 +403,10 @@ export function registerAttachmentHandlers(): void {
         Promise.all(resolvedPaths.map((filePath) => fs.stat(filePath))),
       )
       const totalSize = stats.reduce((sum, stat) => sum + stat.size, 0)
-      if (totalSize > MAX_TOTAL_SIZE_BYTES) {
+      if (totalSize > ATTACHMENT.MAX_TOTAL_SIZE_BYTES) {
         return yield* Effect.fail(
           new Error(
-            `Total attachment size exceeds ${String(MAX_TOTAL_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB.`,
+            `Total attachment size exceeds ${String(ATTACHMENT.MAX_TOTAL_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB.`,
           ),
         )
       }

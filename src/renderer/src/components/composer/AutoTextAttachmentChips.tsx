@@ -1,4 +1,4 @@
-import { PERCENT_BASE } from '@shared/constants/constants'
+import { PERCENT_BASE } from '@shared/constants/math'
 import type { AttachmentKind, PreparedAttachment } from '@shared/types/agent'
 import { Check, FileDown, FileText, ImageIcon, Loader2, X } from 'lucide-react'
 import { cn } from '@/lib/cn'

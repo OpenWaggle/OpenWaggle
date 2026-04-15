@@ -1,4 +1,4 @@
-import { DOUBLE_FACTOR } from '@shared/constants/constants'
+import { DOUBLE_FACTOR } from '@shared/constants/math'
 import type { MutableTask } from './engine-state'
 import type { OrchestrationTaskDefinition, OrchestrationTaskRetryPolicy } from './types'
 

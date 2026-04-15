@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { BYTES_PER_KIBIBYTE, HEX_RADIX } from '@shared/constants/constants'
+import { HEX_RADIX } from '@shared/constants/math'
+import { BYTES_PER_KIBIBYTE, TERMINAL } from '@shared/constants/resource-limits'
 import { decodeUnknownOrThrow, Schema, safeDecodeUnknown } from '@shared/schema'
 import * as Effect from 'effect/Effect'
 import type * as NodePtyModule from 'node-pty'
@@ -13,9 +14,6 @@ import { typedHandle, typedOn } from './typed-ipc'
 
 const MIN_ARG_1 = 10
 const MIN_ARG_1_VALUE_5 = 5
-const COLS = 80
-const ROWS = 24
-
 // node-pty is a native module loaded via dynamic import at first use
 let ptyModule: typeof NodePtyModule | undefined
 
@@ -25,9 +23,6 @@ async function getPty(): Promise<typeof NodePtyModule> {
   }
   return ptyModule
 }
-
-const MAX_TERMINAL_COLS = 500
-const MAX_TERMINAL_ROWS = 200
 const MAX_TERMINAL_INPUT_BYTES = HEX_RADIX * BYTES_PER_KIBIBYTE
 
 interface PtyProcess {
@@ -42,12 +37,12 @@ const terminalResizeSchema = Schema.Struct({
   cols: Schema.Number.pipe(
     Schema.int(),
     Schema.greaterThanOrEqualTo(MIN_ARG_1),
-    Schema.lessThanOrEqualTo(MAX_TERMINAL_COLS),
+    Schema.lessThanOrEqualTo(TERMINAL.MAX_COLS),
   ),
   rows: Schema.Number.pipe(
     Schema.int(),
     Schema.greaterThanOrEqualTo(MIN_ARG_1_VALUE_5),
-    Schema.lessThanOrEqualTo(MAX_TERMINAL_ROWS),
+    Schema.lessThanOrEqualTo(TERMINAL.MAX_ROWS),
   ),
 })
 const terminalWriteSchema = Schema.String.pipe(Schema.maxLength(MAX_TERMINAL_INPUT_BYTES))
@@ -78,8 +73,8 @@ export function registerTerminalHandlers(): void {
 
       const proc = pty.spawn(shell, [], {
         name: 'xterm-256color',
-        cols: COLS,
-        rows: ROWS,
+        cols: TERMINAL.DEFAULT_COLS,
+        rows: TERMINAL.DEFAULT_ROWS,
         cwd,
         env: Object.fromEntries(
           Object.entries(childEnv).filter(

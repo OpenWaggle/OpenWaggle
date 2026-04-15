@@ -1,9 +1,7 @@
 import fs from 'node:fs/promises'
-import { BYTES_PER_KIBIBYTE } from '@shared/constants/constants'
+import { BYTES_PER_KIBIBYTE, FILE_READ } from '@shared/constants/resource-limits'
 import { Schema } from '@shared/schema'
 import { defineOpenWaggleTool, resolvePath } from '../define-tool'
-
-const MAX_FILE_SIZE = BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE // 1 MB
 
 function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && 'code' in error
@@ -47,7 +45,7 @@ export const readFileTool = defineOpenWaggleTool({
 
     try {
       const stat = await fs.stat(filePath)
-      if (stat.size > MAX_FILE_SIZE) {
+      if (stat.size > FILE_READ.MAX_SIZE_BYTES) {
         throw new Error(
           `File "${args.path}" is ${(stat.size / BYTES_PER_KIBIBYTE / BYTES_PER_KIBIBYTE).toFixed(1)} MB — exceeds 1 MB limit. Use maxLines or read a specific section.`,
         )

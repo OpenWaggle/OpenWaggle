@@ -1,3 +1,4 @@
+import { ANTHROPIC_OUTPUT } from '@shared/constants/orchestration-config'
 import type { QualityPreset } from '@shared/types/settings'
 import { isRecord } from '@shared/utils/validation'
 import type { AnyTextAdapter, StreamChunk, TextOptions } from '@tanstack/ai'
@@ -43,9 +44,6 @@ const HIGH = 10240
 const LOW_VALUE_2048 = 2048
 const MEDIUM_VALUE_8192 = 8192
 const HIGH_VALUE_16384 = 16384
-/** Minimum output tokens reserved beyond the thinking budget. */
-const MIN_OUTPUT_TOKENS = 1024
-
 /** Thinking token budgets per quality preset (pre-4.6 models). */
 const THINKING_BUDGET: Record<QualityPreset, number> = { low: LOW, medium: MEDIUM, high: HIGH }
 const OPUS_THINKING_BUDGET: Record<QualityPreset, number> = {
@@ -494,7 +492,7 @@ export const anthropicProvider: ProviderDefinition = {
     return {
       temperature: undefined,
       topP: undefined,
-      maxTokens: Math.max(base.maxTokens, budget + MIN_OUTPUT_TOKENS),
+      maxTokens: Math.max(base.maxTokens, budget + ANTHROPIC_OUTPUT.MIN_TOKENS),
       modelOptions: { thinking: { type: 'enabled', budget_tokens: budget } },
     }
   },

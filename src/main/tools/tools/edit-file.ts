@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises'
-import { PERCENT_BASE } from '@shared/constants/constants'
+import { PERCENT_BASE } from '@shared/constants/math'
 import { Schema } from '@shared/schema'
 import { defineOpenWaggleTool, resolvePath } from '../define-tool'
 import { buildFileMutationResult } from './file-mutation-result'

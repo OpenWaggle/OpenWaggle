@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { ORCHESTRATION } from '@shared/constants/agent-config'
 import { Schema } from '@shared/schema'
 import { OrchestrationRunId, OrchestrationTaskId } from '@shared/types/brand'
 import type { JsonValue } from '@shared/types/json'
@@ -8,10 +9,6 @@ import type { OpenWaggleTaskExecutionInput } from '../../orchestration/engine/ty
 import { buildExecutorTools } from '../../orchestration/executor-tools'
 import { emitOrchestrationEvent } from '../../utils/stream-bridge'
 import { defineOpenWaggleTool } from '../define-tool'
-
-const MIN_ARG_1 = 2
-const MAX_ARG_1 = 5
-const MAX_PARALLEL_TASKS = 4
 
 const logger = createLogger('tool:orchestrate')
 
@@ -44,8 +41,8 @@ export const orchestrateTool = defineOpenWaggleTool({
   needsApproval: false,
   inputSchema: Schema.Struct({
     tasks: Schema.Array(taskSchema).pipe(
-      Schema.minItems(MIN_ARG_1),
-      Schema.maxItems(MAX_ARG_1),
+      Schema.minItems(ORCHESTRATION.MIN_TASKS),
+      Schema.maxItems(ORCHESTRATION.MAX_TASKS),
       Schema.annotations({ description: 'The tasks to execute in parallel. 2-5 tasks.' }),
     ),
   }),
@@ -155,7 +152,7 @@ export const orchestrateTool = defineOpenWaggleTool({
         runId,
         userPrompt: args.tasks.map((t) => `[${t.id}] ${t.title}: ${t.prompt}`).join('\n'),
         signal: orchestrationController.signal,
-        maxParallelTasks: MAX_PARALLEL_TASKS,
+        maxParallelTasks: ORCHESTRATION.MAX_PARALLEL_TASKS,
         planner: {
           async plan() {
             return planJson

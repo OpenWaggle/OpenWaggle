@@ -1,9 +1,5 @@
-import {
-  FIVE_MINUTES_IN_MILLISECONDS,
-  HTTP_BAD_REQUEST,
-  HTTP_UNAUTHORIZED,
-  MILLISECONDS_PER_SECOND,
-} from '@shared/constants/constants'
+import { HTTP_BAD_REQUEST, HTTP_UNAUTHORIZED } from '@shared/constants/http-status'
+import { AUTH_TIMEOUT, TIME_UNIT } from '@shared/constants/time'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { clipboard, shell } from 'electron'
 import { createLogger } from '../../logger'
@@ -17,8 +13,6 @@ const ANTHROPIC_TOKEN_URL = 'https://console.anthropic.com/v1/oauth/token'
 const ANTHROPIC_REDIRECT_URI = 'https://console.anthropic.com/oauth/code/callback'
 const ANTHROPIC_SCOPES = 'org:create_api_key user:profile user:inference'
 
-const CLIPBOARD_POLL_INTERVAL_MS = 500
-const CLIPBOARD_POLL_TIMEOUT_MS = FIVE_MINUTES_IN_MILLISECONDS
 const tokenResponseSchema = Schema.Struct({
   access_token: Schema.String,
   refresh_token: Schema.String,
@@ -87,8 +81,8 @@ function pollClipboardForCode(signal?: AbortSignal): Promise<string> {
         return
       }
 
-      elapsed += CLIPBOARD_POLL_INTERVAL_MS
-      if (elapsed >= CLIPBOARD_POLL_TIMEOUT_MS) {
+      elapsed += AUTH_TIMEOUT.CLIPBOARD_POLL_INTERVAL_MS
+      if (elapsed >= AUTH_TIMEOUT.CLIPBOARD_POLL_TIMEOUT_MS) {
         cleanup()
         reject(new Error('Timed out waiting for authorization code. Please try again.'))
         return
@@ -99,7 +93,7 @@ function pollClipboardForCode(signal?: AbortSignal): Promise<string> {
         cleanup()
         resolve(content)
       }
-    }, CLIPBOARD_POLL_INTERVAL_MS)
+    }, AUTH_TIMEOUT.CLIPBOARD_POLL_INTERVAL_MS)
   })
 }
 
@@ -181,7 +175,7 @@ export async function startAnthropicOAuth(
   return {
     accessToken: parsed.access_token,
     refreshToken: parsed.refresh_token,
-    expiresAt: Date.now() + parsed.expires_in * MILLISECONDS_PER_SECOND,
+    expiresAt: Date.now() + parsed.expires_in * TIME_UNIT.MILLISECONDS_PER_SECOND,
   }
 }
 
@@ -211,6 +205,6 @@ export async function refreshAnthropicToken(
   return {
     accessToken: parsed.access_token,
     refreshToken: parsed.refresh_token,
-    expiresAt: Date.now() + parsed.expires_in * MILLISECONDS_PER_SECOND,
+    expiresAt: Date.now() + parsed.expires_in * TIME_UNIT.MILLISECONDS_PER_SECOND,
   }
 }

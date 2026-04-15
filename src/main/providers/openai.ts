@@ -1,4 +1,4 @@
-import { TRIPLE_FACTOR } from '@shared/constants/constants'
+import { TRIPLE_FACTOR } from '@shared/constants/math'
 import type { QualityPreset } from '@shared/types/settings'
 import { isRecord } from '@shared/utils/validation'
 import { createOpenaiChat, OPENAI_CHAT_MODELS } from '@tanstack/ai-openai'

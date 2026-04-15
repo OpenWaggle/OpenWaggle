@@ -1,4 +1,4 @@
-import { BYTES_PER_KIBIBYTE } from '@shared/constants/constants'
+import { BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import type { ToolJsonResult } from '../define-tool'
 
 const INLINE_FILE_MUTATION_RESULT_KIBIBYTES = 4

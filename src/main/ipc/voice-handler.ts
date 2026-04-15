@@ -1,6 +1,8 @@
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
-import { DOUBLE_FACTOR, FIVE_MINUTES_IN_MILLISECONDS } from '@shared/constants/constants'
+import { AUDIO_RECORDING, AUDIO_SAMPLE_RATE, LANGUAGE_CODE } from '@shared/constants/audio-config'
+import { DOUBLE_FACTOR } from '@shared/constants/math'
+import { VOICE_TIMEOUT } from '@shared/constants/time'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import {
   VOICE_MODEL_BASE,
@@ -12,16 +14,7 @@ import * as Effect from 'effect/Effect'
 import { app } from 'electron'
 import { typedHandle } from './typed-ipc'
 
-const MIN_LANGUAGE_CODE_LENGTH = 2
-const MAX_LANGUAGE_CODE_LENGTH = 16
 const PCM16_SIGNED_NORMALIZATION_FACTOR = 32768
-const CHUNK_LENGTH_S = 10
-const STRIDE_LENGTH_S = 2
-
-const SAMPLE_RATE_MIN = 8_000
-const SAMPLE_RATE_MAX = 48_000
-const MAX_AUDIO_SECONDS = 90
-const MAX_PCM16_BYTES = SAMPLE_RATE_MAX * MAX_AUDIO_SECONDS * DOUBLE_FACTOR
 
 const VOICE_MODEL_CONFIG: Record<
   VoiceModel,
@@ -44,19 +37,19 @@ const modernTranscribePayloadSchema = Schema.Struct({
       if (value.byteLength <= 0) {
         return 'pcm16 payload is invalid.'
       }
-      return value.byteLength <= MAX_PCM16_BYTES || 'pcm16 payload is invalid.'
+      return value.byteLength <= AUDIO_RECORDING.MAX_PCM16_BYTES || 'pcm16 payload is invalid.'
     }),
   ),
   sampleRate: Schema.Number.pipe(
     Schema.int(),
-    Schema.greaterThanOrEqualTo(SAMPLE_RATE_MIN),
-    Schema.lessThanOrEqualTo(SAMPLE_RATE_MAX),
+    Schema.greaterThanOrEqualTo(AUDIO_SAMPLE_RATE.MIN_HZ),
+    Schema.lessThanOrEqualTo(AUDIO_SAMPLE_RATE.MAX_HZ),
   ),
   language: Schema.optional(
     Schema.String.pipe(
       Schema.trimmed(),
-      Schema.minLength(MIN_LANGUAGE_CODE_LENGTH),
-      Schema.maxLength(MAX_LANGUAGE_CODE_LENGTH),
+      Schema.minLength(LANGUAGE_CODE.MIN_LENGTH),
+      Schema.maxLength(LANGUAGE_CODE.MAX_LENGTH),
     ),
   ),
   model: Schema.optional(Schema.Literal(VOICE_MODEL_TINY, VOICE_MODEL_BASE)),
@@ -97,7 +90,7 @@ interface TransformersModule {
   pipeline: (task: string, model: string, options?: WhisperTranscriberOptions) => Promise<unknown>
 }
 
-const MODEL_IDLE_TIMEOUT = FIVE_MINUTES_IN_MILLISECONDS
+const MODEL_IDLE_TIMEOUT = VOICE_TIMEOUT.MODEL_IDLE_MS
 const VOICE_MODELS: readonly VoiceModel[] = [VOICE_MODEL_TINY, VOICE_MODEL_BASE]
 
 const transcriberPromises: Partial<Record<VoiceModel, Promise<WhisperTranscriber>>> = {}
@@ -230,10 +223,12 @@ export function registerVoiceHandlers(): void {
       if (sampleCount <= 0) {
         return yield* Effect.fail(new Error('Audio payload is empty.'))
       }
-      const maxSampleCount = payload.sampleRate * MAX_AUDIO_SECONDS
+      const maxSampleCount = payload.sampleRate * AUDIO_RECORDING.MAX_SECONDS
       if (sampleCount > maxSampleCount) {
         return yield* Effect.fail(
-          new Error(`Audio exceeds ${String(MAX_AUDIO_SECONDS)} seconds; record a shorter clip.`),
+          new Error(
+            `Audio exceeds ${String(AUDIO_RECORDING.MAX_SECONDS)} seconds; record a shorter clip.`,
+          ),
         )
       }
       const audio = pcm16BytesToFloat32(payload.pcm16)
@@ -249,8 +244,8 @@ export function registerVoiceHandlers(): void {
           transcriber(audio, {
             task: 'transcribe',
             return_timestamps: false,
-            chunk_length_s: CHUNK_LENGTH_S,
-            stride_length_s: STRIDE_LENGTH_S,
+            chunk_length_s: AUDIO_RECORDING.CHUNK_LENGTH_S,
+            stride_length_s: AUDIO_RECORDING.STRIDE_LENGTH_S,
             language: payload.language ?? modelConfig.language,
           }),
         catch: (error) => new Error(mapTranscriptionError(error)),

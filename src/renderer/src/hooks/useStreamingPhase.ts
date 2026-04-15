@@ -1,4 +1,4 @@
-import { MILLISECONDS_PER_SECOND, SECONDS_PER_MINUTE } from '@shared/constants/constants'
+import { TIME_UNIT } from '@shared/constants/time'
 import type { ConversationId } from '@shared/types/brand'
 import type { AgentPhaseState } from '@shared/types/phase'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -23,10 +23,10 @@ export interface StreamingPhaseState {
 }
 
 export function formatElapsed(ms: number): string {
-  const totalSeconds = Math.floor(ms / MILLISECONDS_PER_SECOND)
-  if (totalSeconds < SECONDS_PER_MINUTE) return `${totalSeconds}s`
-  const minutes = Math.floor(totalSeconds / SECONDS_PER_MINUTE)
-  const seconds = totalSeconds % SECONDS_PER_MINUTE
+  const totalSeconds = Math.floor(ms / TIME_UNIT.MILLISECONDS_PER_SECOND)
+  if (totalSeconds < TIME_UNIT.SECONDS_PER_MINUTE) return `${totalSeconds}s`
+  const minutes = Math.floor(totalSeconds / TIME_UNIT.SECONDS_PER_MINUTE)
+  const seconds = totalSeconds % TIME_UNIT.SECONDS_PER_MINUTE
   return `${minutes}m ${seconds}s`
 }
 

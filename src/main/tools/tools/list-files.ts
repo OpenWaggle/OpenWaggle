@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { BYTES_PER_KIBIBYTE, TRIPLE_FACTOR } from '@shared/constants/constants'
+import { TRIPLE_FACTOR } from '@shared/constants/math'
+import { BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import { Schema } from '@shared/schema'
 import { defineOpenWaggleTool, resolvePath } from '../define-tool'
 

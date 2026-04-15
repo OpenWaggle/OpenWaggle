@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { ORCHESTRATION } from '@shared/constants/agent-config'
 import type { JsonObject, JsonValue } from '@shared/types/json'
 import { normalizeRetryPolicy, normalizeTimeout } from './engine-utils'
 import type {
@@ -41,8 +42,6 @@ export interface MutableTask {
   metadata?: Readonly<JsonObject>
   createdOrder: number
 }
-
-const DEFAULT_MAX_PARALLEL_TASKS = 4
 
 export function buildInitialState(
   definition: OrchestrationRunDefinition,
@@ -88,7 +87,7 @@ export function buildInitialState(
     startedAt: nowIso(),
     maxParallelTasks: Math.max(
       1,
-      Math.floor(definition.maxParallelTasks ?? DEFAULT_MAX_PARALLEL_TASKS),
+      Math.floor(definition.maxParallelTasks ?? ORCHESTRATION.MAX_PARALLEL_TASKS),
     ),
     tasks,
     taskOrder,
@@ -127,7 +126,7 @@ export function restoreState(snapshot: OrchestrationRunRecord): MutableRunState 
     runId: snapshot.runId,
     status: 'running',
     startedAt: snapshot.startedAt,
-    maxParallelTasks: snapshot.maxParallelTasks ?? DEFAULT_MAX_PARALLEL_TASKS,
+    maxParallelTasks: snapshot.maxParallelTasks ?? ORCHESTRATION.MAX_PARALLEL_TASKS,
     tasks,
     taskOrder: [...snapshot.taskOrder],
     outputs: { ...snapshot.outputs },

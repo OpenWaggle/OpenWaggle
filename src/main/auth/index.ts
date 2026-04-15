@@ -1,8 +1,4 @@
-import {
-  DOUBLE_FACTOR,
-  MILLISECONDS_PER_SECOND,
-  SECONDS_PER_MINUTE,
-} from '@shared/constants/constants'
+import { AUTH_TIMEOUT } from '@shared/constants/time'
 import type {
   OAuthFlowStatus,
   SubscriptionAccountInfo,
@@ -27,8 +23,6 @@ import {
 } from './token-manager'
 
 const logger = createLogger('auth')
-const AUTH_LIFECYCLE_INTERVAL_MS = DOUBLE_FACTOR * SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND
-
 // Register refresh functions for token-manager
 registerRefreshFn('openai', refreshOpenAIToken)
 registerRefreshFn('anthropic', async (rt) => {
@@ -93,7 +87,7 @@ export function startAuthLifecycle(emitStatus: StatusEmitter): () => void {
   void runAuthLifecycleTick(emitStatus)
   authLifecycleTimer = setInterval(() => {
     void runAuthLifecycleTick(emitStatus)
-  }, AUTH_LIFECYCLE_INTERVAL_MS)
+  }, AUTH_TIMEOUT.LIFECYCLE_INTERVAL_MS)
   authLifecycleTimer.unref?.()
 
   return () => {

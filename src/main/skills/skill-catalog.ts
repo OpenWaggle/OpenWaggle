@@ -1,7 +1,7 @@
 import type { Dirent } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { DOUBLE_FACTOR } from '@shared/constants/constants'
+import { DOUBLE_FACTOR } from '@shared/constants/math'
 import type { SkillCatalogResult, SkillDiscoveryItem } from '@shared/types/standards'
 import { isEnoent } from '@shared/utils/node-error'
 import { isPathInside } from '@shared/utils/paths'

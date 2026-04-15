@@ -1,4 +1,4 @@
-import { PERCENT_BASE } from '@shared/constants/constants'
+import { PERCENT_BASE } from '@shared/constants/math'
 import type { PreparedAttachment } from '@shared/types/agent'
 import { useEffect, useRef, useState } from 'react'
 import { api } from '@/lib/ipc'

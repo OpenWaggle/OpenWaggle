@@ -1,9 +1,10 @@
+import { ORCHESTRATION } from '@shared/constants/agent-config'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
 import type { JsonValue } from '@shared/types/json'
 
 import type { OpenWaggleOrchestrationPlan, OpenWagglePlannedTask } from './types'
 
-export const MAX_PLAN_TASKS = 10
+export const MAX_PLAN_TASKS = ORCHESTRATION.MAX_PLAN_TASKS
 
 const nonEmptyStringSchema = Schema.String.pipe(Schema.minLength(1))
 

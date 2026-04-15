@@ -1,4 +1,4 @@
-import { DOUBLE_FACTOR, TRIPLE_FACTOR } from '@shared/constants/constants'
+import { DOUBLE_FACTOR, TRIPLE_FACTOR } from '@shared/constants/math'
 
 export interface ExplicitSkillReferences {
   readonly slashSkillIds: readonly string[]

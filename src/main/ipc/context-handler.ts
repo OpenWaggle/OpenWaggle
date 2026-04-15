@@ -1,10 +1,10 @@
+import { CONTEXT_WINDOW } from '@shared/constants/context-config'
 import type { CompactionEventPart } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import type { PinnedItemInput } from '@shared/types/context'
 import * as Effect from 'effect/Effect'
 import { buildFreshChatMessages } from '../agent/agent-message-builder'
 import { makeMessage } from '../agent/shared'
-import { DEFAULT_CONTEXT_WINDOW_TOKENS } from '../domain/compaction/compaction-types'
 import { estimateTokens } from '../domain/compaction/token-estimation'
 import { wrapChatAdapter } from '../ports/chat-adapter-type'
 import { ChatService } from '../ports/chat-service'
@@ -82,7 +82,7 @@ export function registerContextHandlers(): void {
       }
 
       const contextWindow = credentials.provider.getContextWindow?.(String(selectedModel))
-      const contextTokens = contextWindow?.contextTokens ?? DEFAULT_CONTEXT_WINDOW_TOKENS
+      const contextTokens = contextWindow?.contextTokens ?? CONTEXT_WINDOW.DEFAULT_TOKENS
 
       // Build messages in compaction format
       const { messages: freshMessages } = buildFreshChatMessages(

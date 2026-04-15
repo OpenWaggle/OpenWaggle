@@ -1,10 +1,9 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { ATTACHMENT } from '@shared/constants/resource-limits'
 import { Schema } from '@shared/schema'
 import { defineOpenWaggleTool, resolvePath } from '../define-tool'
 import { buildFileMutationResult } from './file-mutation-result'
-
-const MAX_ATTACHMENT_LIST_PREVIEW = 5
 
 const writeFileArgsSchema = Schema.Struct({
   path: Schema.String.annotations({
@@ -41,8 +40,8 @@ function resolveContentFromAttachment(
     if (!attachment) {
       const names = attachments
         .map((candidate) => candidate.name)
-        .slice(0, MAX_ATTACHMENT_LIST_PREVIEW)
-      const suffix = attachments.length > MAX_ATTACHMENT_LIST_PREVIEW ? ', ...' : ''
+        .slice(0, ATTACHMENT.MAX_LIST_PREVIEW)
+      const suffix = attachments.length > ATTACHMENT.MAX_LIST_PREVIEW ? ', ...' : ''
       throw new Error(
         `Attachment "${attachmentName}" not found. Available attachments: ${names.join(', ')}${suffix}`,
       )

@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { BYTES_PER_KIBIBYTE, DOUBLE_FACTOR, PERCENT_BASE } from '@shared/constants/constants'
+import { DOUBLE_FACTOR, PERCENT_BASE } from '@shared/constants/math'
+import { BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { packageJsonSchema } from '@shared/schemas/validation'
 import type { JsonObject } from '@shared/types/json'

@@ -1,4 +1,4 @@
-import { DOUBLE_FACTOR } from '@shared/constants/constants'
+import { DOUBLE_FACTOR } from '@shared/constants/math'
 import { SupportedModelId, TeamConfigId } from '@shared/types/brand'
 import type {
   WaggleAgentColor,

@@ -6,14 +6,12 @@
  * 2. Send conversation history + summarization prompt to LLM
  * 3. Build compacted message array from summary + recent messages
  */
+
+import { COMPACTION } from '@shared/constants/context-config'
 import type { AgentStreamChunk } from '@shared/types/stream'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import {
-  COMPACTION_THRESHOLD_RATIO,
-  FULL_COMPACTION_USER_MESSAGE_BUDGET_TOKENS,
-  type FullCompactionResult,
-} from '../domain/compaction/compaction-types'
+import type { FullCompactionResult } from '../domain/compaction/compaction-types'
 import {
   estimateMessagesTokens,
   estimateMessageTokens,
@@ -145,7 +143,7 @@ export const ContextCompactionLive = Layer.succeed(ContextCompactionService, {
   needsFullCompaction: (messages, contextWindowTokens) =>
     Effect.sync(() => {
       const estimated = estimateMessagesTokens(messages)
-      const threshold = contextWindowTokens * COMPACTION_THRESHOLD_RATIO
+      const threshold = contextWindowTokens * COMPACTION.THRESHOLD_RATIO
       return estimated > threshold
     }),
 
@@ -211,7 +209,7 @@ export const ContextCompactionLive = Layer.succeed(ContextCompactionService, {
 
       const recentUserMessages = collectRecentUserMessages(
         messages,
-        FULL_COMPACTION_USER_MESSAGE_BUDGET_TOKENS,
+        COMPACTION.FULL_USER_MESSAGE_BUDGET_TOKENS,
       )
 
       const lastAssistant = getLastAssistantMessage(messages)

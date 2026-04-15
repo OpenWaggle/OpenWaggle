@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
-import { BYTES_PER_KIBIBYTE } from '@shared/constants/constants'
+import { BYTES_PER_KIBIBYTE, COMMAND_EXECUTION } from '@shared/constants/resource-limits'
 import { Schema } from '@shared/schema'
 import { getSafeChildEnv } from '../../env'
 import { createLogger } from '../../logger'
@@ -13,7 +13,6 @@ const EXECUTE_VALUE_200 = 200
 const SLICE_ARG_2 = 200
 
 const logger = createLogger('tools:runCommand')
-const MAX_LOG_PREVIEW_BYTES = 1024
 
 export const runCommandTool = defineOpenWaggleTool({
   name: 'runCommand',
@@ -171,14 +170,14 @@ export { redactSensitiveText }
 export function toLogPreview(value: string): LogPreview {
   const redacted = redactSensitiveText(value)
   const bytes = Buffer.from(redacted, 'utf8')
-  if (bytes.length <= MAX_LOG_PREVIEW_BYTES) {
+  if (bytes.length <= COMMAND_EXECUTION.MAX_LOG_PREVIEW_BYTES) {
     return {
       preview: redacted,
       truncated: false,
     }
   }
 
-  const preview = bytes.subarray(0, MAX_LOG_PREVIEW_BYTES).toString('utf8')
+  const preview = bytes.subarray(0, COMMAND_EXECUTION.MAX_LOG_PREVIEW_BYTES).toString('utf8')
   return {
     preview: `${preview}... [truncated in log]`,
     truncated: true,

@@ -1,4 +1,5 @@
-import { DOUBLE_FACTOR, MILLISECONDS_PER_SECOND } from '@shared/constants/constants'
+import { DOUBLE_FACTOR } from '@shared/constants/math'
+import { TIME_UNIT } from '@shared/constants/time'
 
 const DEFAULT_SILENCE_THRESHOLD = 0.012
 const DEFAULT_SILENCE_PADDING_MS = 160
@@ -79,7 +80,7 @@ export function trimSilence(
   let endIndex = samples.length - 1
   while (endIndex > startIndex && Math.abs(samples[endIndex]) < threshold) endIndex -= 1
   if (startIndex >= endIndex) return samples
-  const paddingSamples = Math.round((paddingMs / MILLISECONDS_PER_SECOND) * sampleRate)
+  const paddingSamples = Math.round((paddingMs / TIME_UNIT.MILLISECONDS_PER_SECOND) * sampleRate)
   return samples.slice(
     Math.max(0, startIndex - paddingSamples),
     Math.min(samples.length, endIndex + paddingSamples),

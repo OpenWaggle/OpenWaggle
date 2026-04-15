@@ -4,6 +4,7 @@
  * needs BrowserWindow access for IPC emission.
  */
 
+import { CONTEXT_HEALTH, CONTEXT_WINDOW } from '@shared/constants/context-config'
 import type { Message } from '@shared/types/agent'
 import { isCompactionEventPart } from '@shared/types/agent'
 import { type ConversationId, SupportedModelId } from '@shared/types/brand'
@@ -15,15 +16,9 @@ import type {
   ModelSwitchCompatibility,
   WaggleContextInfo,
 } from '@shared/types/context'
-import {
-  computeHealthStatus,
-  HEALTH_COMFORTABLE_THRESHOLD,
-  HEALTH_CRITICAL_THRESHOLD,
-  HEALTH_TIGHT_THRESHOLD,
-} from '@shared/types/context'
+import { computeHealthStatus } from '@shared/types/context'
 import type { WaggleConfig } from '@shared/types/waggle'
 import { chooseBy } from '@shared/utils/decision'
-import { DEFAULT_CONTEXT_WINDOW_TOKENS } from '../domain/compaction/compaction-types'
 import { estimateTokens } from '../domain/compaction/token-estimation'
 import { createLogger } from '../logger'
 import { providerRegistry } from '../providers'
@@ -244,7 +239,7 @@ export function computeModelCompatibility(
     if (!provider) continue
 
     const contextWindow = provider.getContextWindow?.(modelId)
-    const contextTokens = contextWindow?.contextTokens ?? DEFAULT_CONTEXT_WINDOW_TOKENS
+    const contextTokens = contextWindow?.contextTokens ?? CONTEXT_WINDOW.DEFAULT_TOKENS
     const maxOutputTokens = contextWindow?.maxOutputTokens ?? 0
 
     const compatibility = classifyCompatibility(usedTokens, contextTokens, maxOutputTokens)
@@ -269,7 +264,7 @@ export function computeModelCompatibility(
 export function computeBaselineSnapshot(modelId: SupportedModelId): ContextSnapshot {
   const provider = providerRegistry.getProviderForModel(String(modelId))
   const contextWindow = provider?.getContextWindow?.(String(modelId))
-  const contextTokens = contextWindow?.contextTokens ?? DEFAULT_CONTEXT_WINDOW_TOKENS
+  const contextTokens = contextWindow?.contextTokens ?? CONTEXT_WINDOW.DEFAULT_TOKENS
   const maxOutputTokens = contextWindow?.maxOutputTokens ?? 0
   const usedTokens = computeBaselineOverhead()
   const healthStatus = computeHealthStatus(usedTokens, contextTokens, maxOutputTokens)
@@ -327,7 +322,7 @@ function computeSnapshot(options: ComputeSnapshotOptions): ContextSnapshot {
   // Resolve context window from provider
   const provider = providerRegistry.getProviderForModel(String(modelId))
   const contextWindow = provider?.getContextWindow?.(String(modelId))
-  const contextTokens = contextWindow?.contextTokens ?? DEFAULT_CONTEXT_WINDOW_TOKENS
+  const contextTokens = contextWindow?.contextTokens ?? CONTEXT_WINDOW.DEFAULT_TOKENS
   const maxOutputTokens = contextWindow?.maxOutputTokens ?? 0
 
   // Compute used tokens.
@@ -391,7 +386,7 @@ function computeWaggleContext(waggleConfig?: WaggleConfig): WaggleContextInfo | 
     return {
       modelId: agent.model,
       displayName: String(agent.model),
-      contextWindow: cw?.contextTokens ?? DEFAULT_CONTEXT_WINDOW_TOKENS,
+      contextWindow: cw?.contextTokens ?? CONTEXT_WINDOW.DEFAULT_TOKENS,
     }
   })
 
@@ -435,8 +430,8 @@ function classifyCompatibility(
   const effectiveBudget = contextTokens - maxOutputTokens
   if (effectiveBudget <= 0) return 'blocked'
   const ratio = usedTokens / effectiveBudget
-  if (ratio < HEALTH_COMFORTABLE_THRESHOLD) return 'comfortable'
-  if (ratio < HEALTH_TIGHT_THRESHOLD) return 'tight-fit'
-  if (ratio < HEALTH_CRITICAL_THRESHOLD) return 'would-compact'
+  if (ratio < CONTEXT_HEALTH.COMFORTABLE_THRESHOLD) return 'comfortable'
+  if (ratio < CONTEXT_HEALTH.TIGHT_THRESHOLD) return 'tight-fit'
+  if (ratio < CONTEXT_HEALTH.CRITICAL_THRESHOLD) return 'would-compact'
   return 'blocked'
 }

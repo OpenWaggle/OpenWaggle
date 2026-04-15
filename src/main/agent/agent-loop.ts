@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto'
+import { AGENT_LOOP } from '@shared/constants/agent-config'
+import { CONTEXT_WINDOW } from '@shared/constants/context-config'
+import { PROVIDER_RETRY, STALL_RETRY } from '@shared/constants/retry-policy'
 import {
   type CompactionEventPart,
   extractTextFromParts,
@@ -18,7 +21,6 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Schedule from 'effect/Schedule'
 import { loadProjectConfig } from '../config/project-config'
-import { DEFAULT_CONTEXT_WINDOW_TOKENS } from '../domain/compaction/compaction-types'
 import { approvalTraceEnabled } from '../env'
 import { AgentCancelledError } from '../errors'
 import { createLogger } from '../logger'
@@ -63,12 +65,6 @@ import type { WaggleFileCache } from './waggle-file-cache'
 const logger = createLogger('agent')
 const approvalTraceLogger = createLogger('approval-trace')
 
-const MAX_ITERATIONS = 25
-const MAX_STALL_RETRIES = 2
-const STALL_RETRY_DELAY_MS = 2000
-const MAX_PROVIDER_RETRIES = 2
-const PROVIDER_RETRY_BASE_DELAY_MS = 1000
-const EXPONENTIAL_BACKOFF_BASE = 2
 const INCOMPLETE_TOOL_ARGS_STALL_ERROR =
   'Agent stream stalled while generating tool arguments. Please try again.'
 const INCOMPLETE_TOOL_CALL_STALL_ERROR =
@@ -97,7 +93,7 @@ export interface AgentRunParams {
     readonly agentLabel: string
     readonly fileCache: WaggleFileCache
   }
-  /** Maximum agent loop iterations. Defaults to MAX_ITERATIONS (25). */
+  /** Maximum agent loop iterations. Defaults to AGENT_LOOP.MAX_ITERATIONS (25). */
   readonly maxTurns?: number
   /** Override stream stall timeout (ms). Waggle turns use a longer timeout
    *  because orchestrate tools may run for several minutes. */
@@ -285,7 +281,7 @@ export function runAgentEffect(
       const contextTokens =
         params.effectiveContextWindowOverride ??
         contextWindow?.contextTokens ??
-        DEFAULT_CONTEXT_WINDOW_TOKENS
+        CONTEXT_WINDOW.DEFAULT_TOKENS
       const compactionService = yield* ContextCompactionService
       const needsCompaction = yield* compactionService.needsFullCompaction(
         freshMessages,
@@ -353,7 +349,7 @@ export function runAgentEffect(
     const tools = bindToolContextToTools(built.tools, toolContext)
     const samplingOptions = buildSamplingOptions(resolution.qualityConfig)
     const retryDriver = yield* Schedule.driver(
-      Schedule.spaced(Duration.millis(STALL_RETRY_DELAY_MS)),
+      Schedule.spaced(Duration.millis(STALL_RETRY.DELAY_MS)),
     )
 
     let collector = new StreamPartCollector()
@@ -397,7 +393,7 @@ export function runAgentEffect(
                 systemPrompts: [built.systemPrompt],
                 conversationId: String(conversation.id),
                 tools,
-                maxIterations: params.maxTurns ?? MAX_ITERATIONS,
+                maxIterations: params.maxTurns ?? AGENT_LOOP.MAX_ITERATIONS,
                 abortController,
                 samplingOptions: {
                   ...samplingOptions,
@@ -465,7 +461,7 @@ export function runAgentEffect(
       }
 
       if (streamResult.timedOut && isRetryableStallReason(streamResult.stallReason)) {
-        if (stallAttempt >= MAX_STALL_RETRIES) {
+        if (stallAttempt >= STALL_RETRY.MAX_RETRIES) {
           logger.warn('Stream stalled after retry budget exhausted', {
             conversationId: conversation.id,
             retries: stallAttempt,
@@ -480,7 +476,7 @@ export function runAgentEffect(
         if (stallAttempt === 0) {
           logger.warn('Stream stalled, retrying with a fresh stream', {
             conversationId: conversation.id,
-            maxRetries: MAX_STALL_RETRIES,
+            maxRetries: STALL_RETRY.MAX_RETRIES,
             stallReason: streamResult.stallReason,
           })
         }
@@ -506,8 +502,8 @@ export function runAgentEffect(
       if (streamResult.providerError) {
         const classified = classifyErrorMessage(streamResult.providerError.message)
 
-        if (!classified.retryable || providerRetryAttempt >= MAX_PROVIDER_RETRIES) {
-          if (providerRetryAttempt >= MAX_PROVIDER_RETRIES) {
+        if (!classified.retryable || providerRetryAttempt >= PROVIDER_RETRY.MAX_RETRIES) {
+          if (providerRetryAttempt >= PROVIDER_RETRY.MAX_RETRIES) {
             logger.warn('Provider error retry budget exhausted', {
               conversationId: conversation.id,
               retries: providerRetryAttempt,
@@ -520,7 +516,7 @@ export function runAgentEffect(
         if (providerRetryAttempt === 0) {
           logger.warn('Transient provider error, retrying with backoff', {
             conversationId: conversation.id,
-            maxRetries: MAX_PROVIDER_RETRIES,
+            maxRetries: PROVIDER_RETRY.MAX_RETRIES,
             errorCode: classified.code,
             error: streamResult.providerError.message,
           })
@@ -528,7 +524,7 @@ export function runAgentEffect(
 
         providerRetryAttempt += 1
         const backoffMs =
-          PROVIDER_RETRY_BASE_DELAY_MS * EXPONENTIAL_BACKOFF_BASE ** (providerRetryAttempt - 1)
+          PROVIDER_RETRY.BASE_DELAY_MS * PROVIDER_RETRY.BACKOFF_BASE ** (providerRetryAttempt - 1)
         yield* Effect.sleep(Duration.millis(backoffMs))
 
         if (signal.aborted) {
@@ -588,7 +584,7 @@ export function runAgentEffect(
                   systemPrompts: [built.systemPrompt],
                   conversationId: String(conversation.id),
                   tools,
-                  maxIterations: params.maxTurns ?? MAX_ITERATIONS,
+                  maxIterations: params.maxTurns ?? AGENT_LOOP.MAX_ITERATIONS,
                   abortController,
                   samplingOptions: {
                     ...samplingOptions,

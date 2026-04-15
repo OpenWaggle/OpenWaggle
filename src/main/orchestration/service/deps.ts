@@ -1,5 +1,6 @@
 /// <reference path="../../adapters/tanstack-chat-overload.d.ts" />
 import { randomUUID } from 'node:crypto'
+import { STREAM_DELIVERY } from '@shared/constants/orchestration-config'
 import { maxIterations, chat as vendorChat } from '@tanstack/ai'
 import { toAgentStreamChunk } from '../../adapters/stream-chunk-mapper'
 import { loadProjectConfig } from '../../config/project-config'
@@ -14,8 +15,8 @@ import { createExecutorTools, gatherProjectContext } from '../project-context'
 import { orchestrationRunRepository } from '../run-repository'
 import type { ChatRunOptions, OrchestrationServiceDeps } from './types'
 
-export const DEFAULT_STREAM_CHUNK_SIZE = 50
-export const DEFAULT_STREAM_CHUNK_DELAY_MS = 12
+export const DEFAULT_STREAM_CHUNK_SIZE = STREAM_DELIVERY.CHUNK_SIZE
+export const DEFAULT_STREAM_CHUNK_DELAY_MS = STREAM_DELIVERY.CHUNK_DELAY_MS
 
 export const defaultOrchestrationServiceDeps: OrchestrationServiceDeps = {
   now: () => Date.now(),

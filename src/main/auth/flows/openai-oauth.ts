@@ -1,9 +1,6 @@
 import { randomBytes } from 'node:crypto'
-import {
-  HTTP_BAD_REQUEST,
-  HTTP_UNAUTHORIZED,
-  MILLISECONDS_PER_SECOND,
-} from '@shared/constants/constants'
+import { HTTP_BAD_REQUEST, HTTP_UNAUTHORIZED } from '@shared/constants/http-status'
+import { TIME_UNIT } from '@shared/constants/time'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import { shell } from 'electron'
 import { createLogger } from '../../logger'
@@ -181,7 +178,7 @@ export async function startOpenAIOAuth(
     return {
       accessToken: parsed.access_token,
       refreshToken: parsed.refresh_token,
-      expiresAt: Date.now() + parsed.expires_in * MILLISECONDS_PER_SECOND,
+      expiresAt: Date.now() + parsed.expires_in * TIME_UNIT.MILLISECONDS_PER_SECOND,
     }
   } finally {
     server?.close()
@@ -212,6 +209,6 @@ export async function refreshOpenAIToken(
 
   return {
     accessToken: parsed.access_token,
-    expiresAt: Date.now() + parsed.expires_in * MILLISECONDS_PER_SECOND,
+    expiresAt: Date.now() + parsed.expires_in * TIME_UNIT.MILLISECONDS_PER_SECOND,
   }
 }

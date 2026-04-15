@@ -1,6 +1,6 @@
+import { COMPACTION } from '@shared/constants/context-config'
 import { Schema, type SchemaType, safeDecodeUnknown } from '@shared/schema'
 import type { Message, MessagePart, ToolResultPart } from '@shared/types/agent'
-import { MICRO_RECENT_TOOL_RESULTS } from '../domain/compaction/compaction-types'
 
 /**
  * Simple message shape for TanStack AI — content is always string | null.
@@ -137,7 +137,7 @@ export interface MicrocompactOptions {
 }
 
 const DEFAULT_MICROCOMPACT_OPTIONS: MicrocompactOptions = {
-  recentToolResultCount: MICRO_RECENT_TOOL_RESULTS,
+  recentToolResultCount: COMPACTION.MICRO_RECENT_TOOL_RESULTS,
 }
 
 /**

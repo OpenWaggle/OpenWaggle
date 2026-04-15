@@ -1,4 +1,4 @@
-import { DOUBLE_FACTOR } from '@shared/constants/constants'
+import { DOUBLE_FACTOR } from '@shared/constants/math'
 import type { ReviewComment } from '@shared/types/review'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { useState } from 'react'

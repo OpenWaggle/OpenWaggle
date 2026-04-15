@@ -1,4 +1,5 @@
-import { PERCENT_BASE } from '@shared/constants/constants'
+import { PERCENT_BASE } from '@shared/constants/math'
+import { CONSENSUS } from '@shared/constants/text-processing'
 import type { WaggleConsensusCheckResult, WaggleConsensusSignal } from '@shared/types/waggle'
 
 const AGREEMENT_PHRASES = [
@@ -24,33 +25,10 @@ const AGREEMENT_PHRASES = [
   'no issues found',
 ]
 
-const CONSENSUS_THRESHOLD = 0.7
-
-// Confidence weights per signal type
-const EXPLICIT_AGREEMENT_CONFIDENCE = 0.9
-const CONTENT_SIMILARITY_CONFIDENCE = 0.7
-const SHRINKING_RESPONSE_CONFIDENCE = 0.6
-const TURN_LIMIT_CONFIDENCE = 0.5
-
-// Thresholds
-const JACCARD_SIMILARITY_THRESHOLD = 0.6
-const SHRINKING_RATIO_THRESHOLD = 0.4
-const SHRINKING_MIN_LENGTH = 100
-const TURN_LIMIT_ACTIVATION = 0.75
-const MIN_SENTENCE_LENGTH = 10
-
-// When a message contains an agreement phrase but is long (>500 chars),
-// the agent is acknowledging a point while adding substantial new content.
-// Lower the confidence so it can't trigger consensus alone.
-const AGREEMENT_SHORT_MSG_THRESHOLD = 500
-const AGREEMENT_LONG_MSG_CONFIDENCE = 0.5
-
 /**
  * Pure heuristic consensus detector — no LLM calls.
  * Checks the last two assistant messages for signs of agreement.
  */
-/** Minimum content length to consider a message substantive. */
-const MIN_SUBSTANTIVE_LENGTH = 20
 
 export function checkConsensus(
   lastTwoMessages: readonly [string, string],
@@ -61,8 +39,8 @@ export function checkConsensus(
 
   // Guard: don't declare consensus on empty or near-empty messages
   if (
-    previousText.trim().length < MIN_SUBSTANTIVE_LENGTH ||
-    currentText.trim().length < MIN_SUBSTANTIVE_LENGTH
+    previousText.trim().length < CONSENSUS.MIN_SUBSTANTIVE_LENGTH ||
+    currentText.trim().length < CONSENSUS.MIN_SUBSTANTIVE_LENGTH
   ) {
     return {
       reached: false,
@@ -87,10 +65,10 @@ export function checkConsensus(
   if (shrinkingSignal) signals.push(shrinkingSignal)
 
   // Layer 4: Turn limit soft signal (only near end)
-  if (totalTurns > maxTurns * TURN_LIMIT_ACTIVATION) {
+  if (totalTurns > maxTurns * CONSENSUS.TURN_LIMIT_ACTIVATION) {
     signals.push({
       type: 'turn-limit',
-      confidence: TURN_LIMIT_CONFIDENCE,
+      confidence: CONSENSUS.TURN_LIMIT_CONFIDENCE,
       reason: `Approaching turn limit (${String(totalTurns)}/${String(maxTurns)})`,
     })
   }
@@ -103,7 +81,7 @@ export function checkConsensus(
   const totalWeight = signals.reduce((sum, s) => sum + s.confidence, 0)
   const avgConfidence = totalWeight / signals.length
 
-  const reached = avgConfidence >= CONSENSUS_THRESHOLD
+  const reached = avgConfidence >= CONSENSUS.THRESHOLD
   const topSignal = signals.reduce((a, b) => (a.confidence >= b.confidence ? a : b))
 
   return {
@@ -122,9 +100,9 @@ function checkExplicitAgreement(text: string): WaggleConsensusSignal | null {
       // a point while continuing to develop new arguments — not full consensus.
       // Only give high confidence to short messages that are primarily agreement.
       const confidence =
-        text.trim().length <= AGREEMENT_SHORT_MSG_THRESHOLD
-          ? EXPLICIT_AGREEMENT_CONFIDENCE
-          : AGREEMENT_LONG_MSG_CONFIDENCE
+        text.trim().length <= CONSENSUS.AGREEMENT_SHORT_MSG_THRESHOLD
+          ? CONSENSUS.EXPLICIT_AGREEMENT_CONFIDENCE
+          : CONSENSUS.AGREEMENT_LONG_MSG_CONFIDENCE
       return {
         type: 'explicit-agreement',
         confidence,
@@ -148,10 +126,10 @@ function checkContentSimilarity(text1: string, text2: string): WaggleConsensusSi
 
   const jaccard = intersection.size / union.size
 
-  if (jaccard > JACCARD_SIMILARITY_THRESHOLD) {
+  if (jaccard > CONSENSUS.JACCARD_SIMILARITY_THRESHOLD) {
     return {
       type: 'no-new-information',
-      confidence: CONTENT_SIMILARITY_CONFIDENCE,
+      confidence: CONSENSUS.CONTENT_SIMILARITY_CONFIDENCE,
       reason: `High content overlap (Jaccard: ${String(Math.round(jaccard * PERCENT_BASE))}%)`,
     }
   }
@@ -168,13 +146,13 @@ function checkShrinkingResponse(
   // If current response is significantly shorter (< 40% of previous),
   // it suggests winding down
   if (
-    prevLen > SHRINKING_MIN_LENGTH &&
+    prevLen > CONSENSUS.SHRINKING_MIN_LENGTH &&
     currLen > 0 &&
-    currLen < prevLen * SHRINKING_RATIO_THRESHOLD
+    currLen < prevLen * CONSENSUS.SHRINKING_RATIO_THRESHOLD
   ) {
     return {
       type: 'no-new-information',
-      confidence: SHRINKING_RESPONSE_CONFIDENCE,
+      confidence: CONSENSUS.SHRINKING_RESPONSE_CONFIDENCE,
       reason: 'Response significantly shorter than previous turn',
     }
   }
@@ -186,6 +164,6 @@ function extractSentences(text: string): Set<string> {
     text
       .split(/[.!?\n]+/)
       .map((s) => s.trim().toLowerCase())
-      .filter((s) => s.length > MIN_SENTENCE_LENGTH),
+      .filter((s) => s.length > CONSENSUS.MIN_SENTENCE_LENGTH),
   )
 }
