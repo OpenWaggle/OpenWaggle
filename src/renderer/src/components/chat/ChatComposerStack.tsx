@@ -2,7 +2,7 @@ import { CommandPalette } from '@/components/command-palette/CommandPalette'
 import { Composer } from '@/components/composer/Composer'
 import { QueuedMessages } from '@/components/composer/QueuedMessages'
 import { WaggleCollaborationStatus as WaggleCollaborationStatusBanner } from '@/components/waggle/CollaborationStatus'
-import { useChatStore } from '@/stores/chat-store'
+import { useChat } from '@/hooks/useChat'
 import { useMessageQueueStore } from '@/stores/message-queue-store'
 import { ApprovalBanner } from './ApprovalBanner'
 import { AskUserBlock } from './AskUserBlock'
@@ -17,7 +17,8 @@ interface ChatComposerStackProps {
 function noOp(): void {}
 
 export function ChatComposerStack({ section }: ChatComposerStackProps) {
-  const planModeActive = useChatStore((s) => s.activeConversation?.planModeActive) ?? false
+  const { activeConversation } = useChat()
+  const planModeActive = activeConversation?.planModeActive ?? false
 
   const {
     pendingApproval,

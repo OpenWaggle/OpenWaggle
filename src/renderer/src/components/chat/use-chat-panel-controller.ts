@@ -3,6 +3,7 @@ import type { ConversationId } from '@shared/types/brand'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import type { WaggleCollaborationStatus, WaggleConfig } from '@shared/types/waggle'
 import type { UIMessage } from '@tanstack/ai-react'
+import { useCallback, useState } from 'react'
 import { useAgentChat } from '@/hooks/useAgentChat'
 import { useAutoSendQueue } from '@/hooks/useAutoSendQueue'
 import { useChat } from '@/hooks/useChat'
@@ -34,16 +35,17 @@ const logger = createRendererLogger('chat-panel')
 export interface ChatTranscriptSectionState {
   readonly messages: UIMessage[]
   readonly isLoading: boolean
-  /** When true, keep the user-send anchor stable and disable bottom-follow autoscroll. */
-  readonly disableAutoFollowDuringWaggleStreaming: boolean
   readonly projectPath: string | null
   readonly recentProjects: readonly string[]
   readonly activeConversationId: ConversationId | null
   readonly chatRows: ChatRow[]
   readonly compactedMessageIds: ReadonlySet<string>
-  /** The ID of the last user message. ChatTranscript watches this reactively
-   *  (Voyager pattern) and scrolls when it changes to a new unseen ID. */
+  /** The ID of the last user message — used to identify stable thread hydration for scroll restore. */
   readonly lastUserMessageId: string | null
+  /** Intent flag — true when user pressed Send, consumed by scroll hook. */
+  readonly userDidSend: boolean
+  /** Callback to clear userDidSend after the scroll effect processes it. */
+  readonly onUserDidSendConsumed: () => void
   onOpenProject: () => Promise<void>
   onSelectProjectPath: (path: string) => void
   onRetryText: (content: string) => Promise<void>
@@ -88,6 +90,10 @@ export interface ChatPanelSections {
 }
 
 export function useChatPanelSections(): ChatPanelSections {
+  // ── Intent-driven scroll flag ──
+  const [userDidSend, setUserDidSend] = useState(false)
+  const onUserDidSendConsumed = useCallback(() => setUserDidSend(false), [])
+
   const commandPaletteOpen = useUIStore((s) => s.commandPaletteOpen)
   const setActiveView = useUIStore((s) => s.setActiveView)
   const openSettings = useUIStore((s) => s.openSettings)
@@ -170,20 +176,26 @@ export function useChatPanelSections(): ChatPanelSections {
   const trustProjectPath = activeConversation?.projectPath ?? projectPath
 
   async function handleSendWithWaggle(payload: AgentSendPayload): Promise<void> {
+    setUserDidSend(true)
     phase.reset()
 
-    const waggleReadyForThisConversation =
-      waggleConfig &&
-      waggleStatus === 'idle' &&
-      (!waggleOwningId || waggleOwningId === activeConversationId)
+    try {
+      const waggleReadyForThisConversation =
+        waggleConfig &&
+        waggleStatus === 'idle' &&
+        (!waggleOwningId || waggleOwningId === activeConversationId)
 
-    if (waggleReadyForThisConversation) {
-      if (activeConversationId) {
-        startWaggleCollaboration(activeConversationId, waggleConfig)
+      if (waggleReadyForThisConversation) {
+        if (activeConversationId) {
+          startWaggleCollaboration(activeConversationId, waggleConfig)
+        }
+        await handleSendWaggle(payload, waggleConfig)
+      } else {
+        await handleSend(payload)
       }
-      await handleSendWaggle(payload, waggleConfig)
-    } else {
-      await handleSend(payload)
+    } catch (sendError) {
+      setUserDidSend(false)
+      throw sendError
     }
   }
 
@@ -235,6 +247,8 @@ export function useChatPanelSections(): ChatPanelSections {
     answerQuestion,
     respondToPlan,
     openSettings,
+    userDidSend,
+    onUserDidSendConsumed,
   })
 
   const composer = useComposerSection({

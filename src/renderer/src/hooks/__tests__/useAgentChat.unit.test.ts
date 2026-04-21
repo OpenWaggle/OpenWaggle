@@ -67,6 +67,17 @@ vi.mock('@/stores/background-run-store', () => ({
   useBackgroundRunStore: useBackgroundRunStoreMock,
 }))
 
+vi.mock('@tanstack/react-query', () => ({
+  useQueryClient: () => ({
+    invalidateQueries: vi.fn(),
+    setQueryData: vi.fn(),
+    getQueryData: vi.fn(),
+    cancelQueries: vi.fn(),
+  }),
+  QueryClient: vi.fn(),
+  QueryClientProvider: ({ children }: { children: React.ReactNode }) => children,
+}))
+
 function createTextUIMessage(id: string, role: UIMessage['role'], content: string): UIMessage {
   return {
     id,

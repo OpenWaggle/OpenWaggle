@@ -1,8 +1,10 @@
+import type { ConversationSummary } from '@shared/types/conversation'
+import { useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { api } from '@/lib/ipc'
 import { isTerminalChunk } from '@/lib/ipc-connection-adapter'
+import { queryKeys } from '@/queries/query-keys'
 import { useBackgroundRunStore } from '@/stores/background-run-store'
-import { useChatStore } from '@/stores/chat-store'
 
 /**
  * Mounted once at the workspace level. Tracks which conversations have
@@ -16,6 +18,7 @@ export function useBackgroundRunMonitor(): void {
   const addActiveRun = useBackgroundRunStore((s) => s.addActiveRun)
   const removeActiveRun = useBackgroundRunStore((s) => s.removeActiveRun)
   const initialize = useBackgroundRunStore((s) => s.initialize)
+  const queryClient = useQueryClient()
 
   useEffect(() => {
     void initialize()
@@ -38,13 +41,13 @@ export function useBackgroundRunMonitor(): void {
       // Update only the completed conversation's timestamp in the sidebar
       // instead of reloading the entire conversation list (which would
       // surface untitled "New thread" entries from the DB).
-      useChatStore.setState((state) => {
-        const idx = state.conversations.findIndex((c) => c.id === payload.conversationId)
-        if (idx === -1) return state
-        const updated = state.conversations.map((c) =>
+      queryClient.setQueryData<ConversationSummary[]>(queryKeys.conversations, (old) => {
+        if (!old) return old
+        const idx = old.findIndex((c) => c.id === payload.conversationId)
+        if (idx === -1) return old
+        return old.map((c) =>
           c.id === payload.conversationId ? { ...c, updatedAt: Date.now() } : c,
         )
-        return { conversations: updated }
       })
     })
 
@@ -52,5 +55,5 @@ export function useBackgroundRunMonitor(): void {
       unsubChunk()
       unsubCompleted()
     }
-  }, [addActiveRun, removeActiveRun])
+  }, [addActiveRun, removeActiveRun, queryClient])
 }

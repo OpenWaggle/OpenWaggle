@@ -11,7 +11,7 @@ interface ConversationNavDeps {
   readonly selectFolder: () => Promise<string | null>
   readonly createConversation: (projectPath: string | null) => Promise<ConversationId>
   readonly startDraftThread: () => void
-  readonly setActiveConversation: (id: ConversationId | null) => Promise<void>
+  readonly setActiveConversation: (id: ConversationId | null) => void
   readonly updateConversationProjectPath: (id: ConversationId, path: string | null) => Promise<void>
   readonly refreshGitStatus: (projectPath: string | null) => Promise<void>
   readonly refreshGitBranches: (projectPath: string | null) => Promise<void>
@@ -52,7 +52,7 @@ export function createConversationNavHandlers(deps: ConversationNavDeps): Conver
     if (conv && conv.projectPath !== projectPath) {
       await setProjectPath(conv.projectPath)
     }
-    await setActiveConversation(id)
+    setActiveConversation(id)
     useThreadStatusStore.getState().markVisited(id)
     refreshGit(nextProjectPath)
   }
@@ -69,7 +69,7 @@ export function createConversationNavHandlers(deps: ConversationNavDeps): Conver
     if (activeConversationId) {
       await updateConversationProjectPath(activeConversationId, path)
       await setProjectPath(path)
-      await setActiveConversation(activeConversationId)
+      setActiveConversation(activeConversationId)
     } else {
       await setProjectPath(path)
       await createConversation(path)
@@ -82,7 +82,7 @@ export function createConversationNavHandlers(deps: ConversationNavDeps): Conver
     if (activeConversationId) {
       await updateConversationProjectPath(activeConversationId, path)
       await setProjectPath(path)
-      await setActiveConversation(activeConversationId)
+      setActiveConversation(activeConversationId)
       refreshGit(path)
       return
     }

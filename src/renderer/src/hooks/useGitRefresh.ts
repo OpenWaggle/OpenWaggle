@@ -11,7 +11,7 @@ interface UseGitRefreshOptions {
   readonly activeConversationId: ConversationId | null
   readonly refreshGitStatus: (projectPath: string | null) => Promise<void>
   readonly refreshGitBranches: (projectPath: string | null) => Promise<void>
-  readonly setActiveConversation: (id: ConversationId | null) => Promise<void>
+  readonly setActiveConversation: (id: ConversationId | null) => void
 }
 
 /**
@@ -35,7 +35,7 @@ export function useGitRefresh({
       if (!isTerminalChunk(chunk)) return
 
       if (activeConversationId === conversationId) {
-        void setActiveConversation(activeConversationId)
+        setActiveConversation(activeConversationId)
       }
       if (projectPath) {
         if (refreshTimer) clearTimeout(refreshTimer)

@@ -4,6 +4,12 @@ User corrections and behavioral rules. Updated whenever the user corrects the ag
 
 ## Active Rules
 
+- When asked to adapt an existing product pattern (for example t3code), preserve the interaction model and visual restraint; do not invent a louder or more ornamental style than the reference without explicit user approval.
+- When a scroll bug persists after incremental patches, stop layering state on top of the existing model; remove the conflicting mechanism first and rebuild the behavior from a smaller deterministic state machine.
+- For chat scroll behavior, do not combine user-message top anchoring with t3code-style stream follow. If the requested model is t3code, sending a message should stick to the bottom immediately, stream growth should follow only while the user has not opted out, and artificial spacer/anchor behavior should be removed.
+- When copying t3code chat scroll behavior, port the stream-update trigger too. T3 follows the stream through running-phase timeline updates, not only through row-count changes or `ResizeObserver`.
+- Stream-follow opt-out must happen on the first upward wheel/touch intent, not only after the later scroll event. Waiting for the scroll event lets an already queued auto-scroll frame fight the user and creates flicker.
+
 - Scope fidelity first: when the user asks for a targeted UI change (for example remove one icon), preserve all other behavior/layout unless explicitly asked to redesign more.
 - Magic-number policy is strict when requested repository-wide: replace all inline numeric literals (including UI/layout values) with named `SCREAMING_SNAKE_CASE` constants, and keep `pnpm check:magic-numbers` green before handoff.
 - DRY constant design preference: when the same numeric constant appears across files, centralize it in a shared constants module and group related constants into domain objects when that improves clarity.

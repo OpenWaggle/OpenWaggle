@@ -4,9 +4,10 @@ import { ArrowUp, Bookmark, ClipboardList, Loader2, Mic, Square } from 'lucide-r
 import { useEffect, useState } from 'react'
 import { ModelSelector } from '@/components/shared/ModelSelector'
 import { Popover } from '@/components/shared/Popover'
-import { useProject } from '@/hooks/useProject'
+import { useChat } from '@/hooks/useChat'
 import { cn } from '@/lib/cn'
 import { api } from '@/lib/ipc'
+import { useTogglePlanModeMutation } from '@/queries/conversations'
 import { useChatStore } from '@/stores/chat-store'
 import { useComposerStore } from '@/stores/composer-store'
 import { usePreferencesStore } from '@/stores/preferences-store'
@@ -51,10 +52,10 @@ export function ComposerToolbar({
   const isCompactCommand = /^\/compact(\s|$)/.test(input.trimStart())
   const saveCompactForThread = useComposerStore((s) => s.compactSaveForThread)
   const setCompactSaveForThread = useComposerStore((s) => s.setCompactSaveForThread)
-  const { projectPath } = useProject()
   const activeConversationId = useChatStore((s) => s.activeConversationId)
-  const planModeActive = useChatStore((s) => s.activeConversation?.planModeActive) ?? false
-  const togglePlanMode = useChatStore((s) => s.togglePlanMode)
+  const { activeConversation } = useChat()
+  const planModeActive = activeConversation?.planModeActive ?? false
+  const togglePlanModeMutation = useTogglePlanModeMutation()
   const isListening = voiceMode === 'recording'
   const isTranscribingVoice = voiceMode === 'transcribing'
 
@@ -125,7 +126,9 @@ export function ComposerToolbar({
         <button
           type="button"
           onClick={() => {
-            void togglePlanMode(activeConversationId, projectPath)
+            if (activeConversationId) {
+              togglePlanModeMutation.mutate({ id: activeConversationId, active: !planModeActive })
+            }
           }}
           className={cn(
             'flex items-center gap-[5px] h-[26px] px-2.5 rounded-md border transition-colors',

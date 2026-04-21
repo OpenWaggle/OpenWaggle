@@ -99,6 +99,7 @@ This document stores project-specific technical learnings only.
 - MCP stdio transports must use the same safe child-environment allowlist as command execution. Full `process.env` leaks API keys to MCP subprocesses.
 - `StdioClientTransport.env` expects `Record<string, string>` but `process.env` values are `string | undefined`. Filter undefined entries.
 - `@modelcontextprotocol/sdk` is ESM-only — add to `externalizeDeps.exclude` in electron-vite config.
+- Agent shells can inherit `ELECTRON_RUN_AS_NODE=1`, which makes `electron-vite dev` launch Electron in Node mode and causes `require('electron').app` to be undefined. Dev launch scripts should explicitly clear that env var before invoking Electron, especially for MCP/CDP QA workflows. `[SKILL?]`
 - Chromium session DIPS database errors: fix with a versioned one-time profile repair before the first `BrowserWindow`.
 - `better-sqlite3` in Electron needs explicit Electron-target rebuild. Keep a separate Node rebuild path for Vitest.
 - Playwright E2E helpers should not forward full parent `process.env`. Use a small allowlist.
@@ -118,6 +119,9 @@ This document stores project-specific technical learnings only.
 - Chat thread navigation can deliver `activeConversationId` and `lastUserMessageId` on different renders. Treat the first non-null `lastUserMessageId` after a conversation switch as baseline (seen), or send-anchor logic will misfire and jump scroll on navigation.
 - In real navigation hydration, `lastUserMessageId` can change multiple times (stale previous-thread ID, then interim, then final). Suppress user-anchor scroll until the conversation snapshot stabilizes for a short settle window; one-shot baseline suppression is insufficient.
 - Navigation-time user-anchor suppression must still allow a genuine immediate send in the active thread. The safe discriminator is a stable per-thread baseline plus a fresh `isLoading` transition and a single-message append; a raw settle timeout alone will suppress legitimate send-anchor scrolls and fail E2E.
+- Scroll restoration must also wait for an incoming thread identity signal, not just `activeConversationId` or row count. During thread navigation, React can render the new conversation ID with same-length stale rows from the previous thread; restoring immediately can save/restore the wrong scroll offset. Gate restoration on `lastUserMessageId` changing away from the previous thread baseline, then keep the target pending until the saved scrollTop is reachable. `[SKILL?]`
+- T3-style chat stream follow needs an explicit stream-content update signal in addition to `ResizeObserver`; row-count dependencies miss token growth inside an existing assistant row, and resize callbacks are not a reliable stream clock. `[SKILL?]`
+- Chat stream-follow opt-out must synchronously cancel any pending stick-to-bottom animation frame on upward wheel/touch intent. If auto-follow waits for the later scroll event to disable itself, a queued frame can snap back to the bottom once and cause visible flicker. `[SKILL?]`
 
 ### IPC & Shared Types
 - Shared IPC channel maps can generate preload helpers directly. Export channel arg/payload utility types for DRY preload.

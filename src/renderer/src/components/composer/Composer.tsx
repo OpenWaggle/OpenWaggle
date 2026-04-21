@@ -4,6 +4,7 @@ import type { LexicalEditor } from 'lexical'
 import { $createParagraphNode, $createTextNode, $getRoot, $isElementNode } from 'lexical'
 import { ArrowDownToLine, Ban } from 'lucide-react'
 import { useEffect, useEffectEvent, useRef } from 'react'
+import { useChat } from '@/hooks/useChat'
 import { useProject } from '@/hooks/useProject'
 import { cn } from '@/lib/cn'
 import { api } from '@/lib/ipc'
@@ -50,7 +51,8 @@ export function Composer({
   const setAttachmentError = useComposerStore((s) => s.setAttachmentError)
   const addAttachments = useComposerStore((s) => s.addAttachments)
   const removeAttachment = useComposerStore((s) => s.removeAttachment)
-  const planModeActive = useChatStore((s) => s.activeConversation?.planModeActive) ?? false
+  const { activeConversation } = useChat()
+  const planModeActive = activeConversation?.planModeActive ?? false
   const activeConversationId = useChatStore((s) => s.activeConversationId)
   const branchMessage = useComposerActionStore((s) => s.branchMessage)
   const setBranchMessage = useComposerActionStore((s) => s.setBranchMessage)
@@ -119,17 +121,15 @@ export function Composer({
     })
   }
 
-  async function executeCompaction(
+  function executeCompaction(
     conversationId: ConversationId,
     guidance: string | undefined,
   ): Promise<void> {
     const { setCompacting } = useContextStore.getState()
     setCompacting(true)
-    try {
-      await api.requestCompaction(conversationId, guidance)
-    } finally {
+    return api.requestCompaction(conversationId, guidance).finally(() => {
       setCompacting(false)
-    }
+    })
   }
 
   function sendComposed(text: string): boolean {
@@ -137,7 +137,7 @@ export function Composer({
       text,
       qualityPreset,
       attachments: useComposerStore.getState().attachments,
-      planModeRequested: useChatStore.getState().activeConversation?.planModeActive || undefined,
+      planModeRequested: planModeActive || undefined,
     })
   }
 
@@ -202,7 +202,7 @@ export function Composer({
       text: state.input.trim(),
       qualityPreset,
       attachments: state.attachments,
-      planModeRequested: useChatStore.getState().activeConversation?.planModeActive || undefined,
+      planModeRequested: planModeActive || undefined,
     })
   })
 

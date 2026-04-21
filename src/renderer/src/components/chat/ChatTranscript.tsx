@@ -2,9 +2,12 @@ import type { ConversationId } from '@shared/types/brand'
 import type { PlanResponse } from '@shared/types/plan'
 import type { QuestionAnswer } from '@shared/types/question'
 import { chooseBy } from '@shared/utils/decision'
+import type { UIMessage } from '@tanstack/ai-react'
+import { cn } from '@/lib/cn'
 import { ChatRowRenderer } from './ChatRowRenderer'
 import { CompactedMessageGroup } from './CompactedMessageGroup'
 import { useChatScrollBehaviour } from './hooks/useChatScrollBehaviour'
+import { ScrollToBottomButton } from './ScrollToBottomButton'
 import type { ChatRow } from './types-chat-row'
 import type { ChatTranscriptSectionState } from './use-chat-panel-controller'
 import { WelcomeScreen } from './WelcomeScreen'
@@ -61,13 +64,51 @@ function getChatRowKey(row: ChatRow): string {
     .assertComplete()
 }
 
+function getStreamPartVersion(part: UIMessage['parts'][number]): number {
+  return chooseBy(part, 'type')
+    .case('text', (value) => value.content.length)
+    .case('thinking', (value) => value.content.length)
+    .case(
+      'tool-call',
+      (value) =>
+        value.id.length +
+        value.name.length +
+        value.arguments.length +
+        value.state.length +
+        (value.approval?.approved === undefined ? 0 : 1) +
+        (value.output === undefined ? 0 : 1),
+    )
+    .case(
+      'tool-result',
+      (value) =>
+        value.toolCallId.length +
+        value.content.length +
+        value.state.length +
+        (value.error?.length ?? 0),
+    )
+    .case('image', (value) => value.source.value.length)
+    .case('audio', (value) => value.source.value.length)
+    .case('video', (value) => value.source.value.length)
+    .case('document', (value) => value.source.value.length)
+    .assertComplete()
+}
+
+function getStreamVersion(messages: readonly UIMessage[]): number {
+  let version = messages.length
+  for (const message of messages) {
+    version += message.id.length + message.role.length + message.parts.length
+    for (const part of message.parts) {
+      version += getStreamPartVersion(part)
+    }
+  }
+  return version
+}
+
 // ─── Row Rendering with Compacted Message Grouping ──────────
 
 interface RenderTranscriptRowsParams {
   rows: ChatRow[]
   compactedMessageIds: ReadonlySet<string>
-  lastUserMessageId: string | null
-  userMessageRef: React.RefObject<HTMLDivElement | null>
   activeConversationId: ConversationId | null
   onAnswerQuestion: (conversationId: ConversationId, answers: QuestionAnswer[]) => Promise<void>
   onRespondToPlan: (conversationId: ConversationId, response: PlanResponse) => Promise<void>
@@ -80,8 +121,6 @@ function renderTranscriptRows(params: RenderTranscriptRowsParams): React.ReactNo
   const {
     rows,
     compactedMessageIds,
-    lastUserMessageId,
-    userMessageRef,
     activeConversationId,
     onAnswerQuestion,
     onRespondToPlan,
@@ -113,7 +152,6 @@ function renderTranscriptRows(params: RenderTranscriptRowsParams): React.ReactNo
   for (let index = 0; index < rows.length; index++) {
     const row = rows[index]
     const isUserMessage = row.type === 'message' && row.message.role === 'user'
-    const isScrollTarget = isUserMessage && row.message.id === lastUserMessageId
     const isCompacted =
       (row.type === 'message' || row.type === 'segment') &&
       compactedMessageIds.has(row.type === 'message' ? row.message.id : row.parentMessage.id)
@@ -141,7 +179,6 @@ function renderTranscriptRows(params: RenderTranscriptRowsParams): React.ReactNo
     elements.push(
       <div
         key={getChatRowKey(row)}
-        ref={isScrollTarget ? userMessageRef : undefined}
         className="mx-auto w-full max-w-[720px] px-12 pb-6"
         {...(isUserMessage ? { 'data-user-message-id': row.message.id } : {})}
         style={index === 0 ? { paddingTop: PADDING_TOP } : undefined}
@@ -169,7 +206,6 @@ export function ChatTranscript({ section }: ChatTranscriptProps) {
   const {
     messages,
     isLoading,
-    disableAutoFollowDuringWaggleStreaming,
     projectPath,
     recentProjects,
     activeConversationId,
@@ -183,15 +219,32 @@ export function ChatTranscript({ section }: ChatTranscriptProps) {
     onOpenSettings,
     onDismissError,
     lastUserMessageId,
+    userDidSend,
+    onUserDidSendConsumed,
   } = section
 
-  const { scrollerRef, spacerRef, userMessageRef, handleScroll } = useChatScrollBehaviour({
+  const {
+    scrollerRef,
+    contentRef,
+    showScrollbar,
+    showScrollToBottom,
+    scrollToBottom,
+    handleScroll,
+    handleWheel,
+    handlePointerDown,
+    handlePointerUp,
+    handlePointerCancel,
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd,
+  } = useChatScrollBehaviour({
+    activeConversationId: activeConversationId ?? null,
     lastUserMessageId,
-    messagesLength: messages.length,
     rowsLength: rows.length,
+    streamVersion: getStreamVersion(messages),
     isLoading,
-    disableAutoFollowDuringWaggleStreaming,
-    activeConversationId,
+    userDidSend,
+    onUserDidSendConsumed,
   })
 
   if (messages.length === 0 && !isLoading) {
@@ -214,29 +267,41 @@ export function ChatTranscript({ section }: ChatTranscriptProps) {
   }
 
   return (
-    <div
-      ref={scrollerRef}
-      role="log"
-      aria-label="Chat messages"
-      aria-busy={isLoading}
-      className="relative flex flex-1 flex-col overflow-y-auto chat-scroll [overflow-anchor:none]"
-      onScroll={handleScroll}
-    >
-      {renderTranscriptRows({
-        rows,
-        compactedMessageIds,
-        lastUserMessageId,
-        userMessageRef,
-        activeConversationId,
-        onAnswerQuestion,
-        onRespondToPlan,
-        onOpenSettings,
-        onRetryText,
-        onDismissError,
-      })}
-      {messages.length > 0 && (
-        <div ref={spacerRef} aria-hidden="true" style={{ flexShrink: 0, pointerEvents: 'none' }} />
-      )}
+    <div className="relative flex flex-1 flex-col overflow-hidden">
+      <div
+        ref={scrollerRef}
+        role="log"
+        aria-label="Chat messages"
+        aria-busy={isLoading}
+        className={cn(
+          'flex flex-1 flex-col overflow-y-auto chat-scroll [overflow-anchor:none]',
+          showScrollbar && 'is-scrolling',
+        )}
+        onScroll={handleScroll}
+        onWheel={handleWheel}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+      >
+        <div ref={contentRef} className="flex min-h-full flex-col">
+          {renderTranscriptRows({
+            rows,
+            compactedMessageIds,
+            activeConversationId,
+            onAnswerQuestion,
+            onRespondToPlan,
+            onOpenSettings,
+            onRetryText,
+            onDismissError,
+          })}
+        </div>
+      </div>
+
+      <ScrollToBottomButton visible={showScrollToBottom} onClick={scrollToBottom} />
     </div>
   )
 }
