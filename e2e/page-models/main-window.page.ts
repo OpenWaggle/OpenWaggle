@@ -2,6 +2,7 @@ import { expect, type Locator, type Page } from '@playwright/test'
 
 const THREAD_VISIBILITY_TIMEOUT_MS = 12_000
 const NEW_THREAD_LABEL = 'New thread'
+const SCROLL_BOTTOM_TOLERANCE_PX = 8
 
 export class MainWindowPage {
   constructor(readonly page: Page) {}
@@ -169,6 +170,43 @@ export class MainWindowPage {
       expect(result?.scrollChanged).toBe(true)
       // User message must be within ~40px of the scroller top edge
       expect(result?.isNearTop).toBe(true)
+    }).toPass({ timeout: 4000 })
+  }
+
+  async expectChatScrollerAtBottom(): Promise<void> {
+    await expect(async () => {
+      const distanceFromBottom = await this.page.evaluate(() => {
+        const scroller = document.querySelector('[role="log"]')
+        if (!(scroller instanceof HTMLElement)) {
+          return null
+        }
+        return scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop
+      })
+
+      expect(distanceFromBottom).not.toBeNull()
+      expect(distanceFromBottom).toBeLessThanOrEqual(SCROLL_BOTTOM_TOLERANCE_PX)
+    }).toPass({ timeout: 4000 })
+  }
+
+  async expectScrollToBottomButtonHidden(): Promise<void> {
+    await expect(async () => {
+      const state = await this.page.evaluate(() => {
+        const button = document.querySelector('button[aria-label="Scroll to bottom"]')
+        const wrapper = button?.parentElement
+        if (!(wrapper instanceof HTMLElement)) {
+          return { error: 'scroll to bottom wrapper not found' }
+        }
+
+        const style = window.getComputedStyle(wrapper)
+        return {
+          opacity: style.opacity,
+          pointerEvents: style.pointerEvents,
+        }
+      })
+
+      expect('error' in state).toBe(false)
+      expect(state.opacity).toBe('0')
+      expect(state.pointerEvents).toBe('none')
     }).toPass({ timeout: 4000 })
   }
 }

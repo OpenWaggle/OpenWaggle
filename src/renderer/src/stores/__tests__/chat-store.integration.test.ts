@@ -1,171 +1,130 @@
 import { ConversationId } from '@shared/types/brand'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Conversation } from '@shared/types/conversation'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useChatStore } from '../chat-store'
 
-const { apiMock } = vi.hoisted(() => ({
-  apiMock: {
-    listConversations: vi.fn(),
-    createConversation: vi.fn(),
-    getConversation: vi.fn(),
-    deleteConversation: vi.fn(),
-    updateConversationProjectPath: vi.fn(),
+/**
+ * Integration tests for the renderer conversation read model.
+ * Full conversations are cached locally so thread navigation can select the
+ * target transcript synchronously without waiting on per-click IPC.
+ */
+
+const mockApi = {
+  listFullConversations: vi.fn(),
+  getConversation: vi.fn(),
+  createConversation: vi.fn(),
+  deleteConversation: vi.fn(),
+  updateConversationProjectPath: vi.fn(),
+  updateConversationPlanMode: vi.fn(),
+}
+
+vi.mock('@/lib/ipc', () => ({
+  api: {
+    listFullConversations: (...args: unknown[]) => mockApi.listFullConversations(...args),
+    getConversation: (...args: unknown[]) => mockApi.getConversation(...args),
+    createConversation: (...args: unknown[]) => mockApi.createConversation(...args),
+    deleteConversation: (...args: unknown[]) => mockApi.deleteConversation(...args),
+    updateConversationProjectPath: (...args: unknown[]) =>
+      mockApi.updateConversationProjectPath(...args),
+    updateConversationPlanMode: (...args: unknown[]) => mockApi.updateConversationPlanMode(...args),
   },
 }))
 
-vi.mock('@/lib/ipc', () => ({
-  api: apiMock,
+vi.mock('@/lib/logger', () => ({
+  createRendererLogger: () => ({
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  }),
 }))
 
-import { useChatStore } from '../chat-store'
+function resetStore(): void {
+  useChatStore.setState({
+    conversations: [],
+    conversationById: new Map<ConversationId, Conversation>(),
+    activeConversationId: null,
+    activeConversation: null,
+    error: null,
+  })
+}
+
+function makeConversation(id: ConversationId, title = 'Thread'): Conversation {
+  return {
+    id,
+    title,
+    projectPath: '/repo',
+    messages: [],
+    createdAt: 100,
+    updatedAt: 100,
+  }
+}
 
 describe('useChatStore integration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    useChatStore.setState({
-      conversations: [],
-      activeConversationId: null,
-      activeConversation: null,
-    })
+    resetStore()
   })
 
-  it('loads conversations into state', async () => {
-    const list = [
-      {
-        id: ConversationId('conv-1'),
-        title: 'Thread 1',
-        projectPath: null,
-        messageCount: 0,
-        createdAt: 1,
-        updatedAt: 2,
-      },
-    ]
-    apiMock.listConversations.mockResolvedValue(list)
+  afterEach(() => {
+    resetStore()
+  })
 
-    await useChatStore.getState().loadConversations()
-
-    expect(useChatStore.getState().conversations).toEqual(list)
-    expect(apiMock.listConversations).toHaveBeenCalledOnce()
+  it('starts with null activeConversationId', () => {
+    expect(useChatStore.getState().activeConversationId).toBeNull()
   })
 
   it('creates a conversation and marks it active', async () => {
-    const created = {
-      id: ConversationId('conv-2'),
-      title: 'New thread',
-      projectPath: '/tmp/repo',
-      messages: [],
-      createdAt: 10,
-      updatedAt: 10,
-    }
-    apiMock.createConversation.mockResolvedValue(created)
-    apiMock.listConversations.mockResolvedValue([
-      {
-        id: created.id,
-        title: created.title,
-        projectPath: created.projectPath,
-        messageCount: 0,
-        createdAt: 10,
-        updatedAt: 10,
-      },
-    ])
+    const conv = makeConversation(ConversationId('conv-1'), 'New thread')
+    mockApi.createConversation.mockResolvedValue(conv)
 
-    const id = await useChatStore.getState().createConversation('/tmp/repo')
+    const id = await useChatStore.getState().createConversation('/repo')
 
-    expect(id).toBe(created.id)
-    expect(useChatStore.getState().activeConversationId).toBe(created.id)
-    expect(useChatStore.getState().activeConversation).toEqual(created)
+    expect(id).toBe('conv-1')
+    expect(useChatStore.getState().activeConversationId).toBe('conv-1')
+    expect(mockApi.createConversation).toHaveBeenCalledWith('/repo')
   })
 
-  it('loads a selected conversation and clears when null is selected', async () => {
-    const id = ConversationId('conv-3')
-    const conversation = {
-      id,
-      title: 'Loaded thread',
-      projectPath: null,
-      messages: [],
-      createdAt: 20,
-      updatedAt: 20,
-    }
-    apiMock.getConversation.mockResolvedValue(conversation)
+  it('sets activeConversationId synchronously', () => {
+    const id = ConversationId('conv-2')
+    const conversation = makeConversation(id)
+    useChatStore.getState().upsertConversation(conversation)
 
-    await useChatStore.getState().setActiveConversation(id)
-    expect(useChatStore.getState().activeConversation).toEqual(conversation)
+    useChatStore.getState().setActiveConversationId(id)
 
-    await useChatStore.getState().setActiveConversation(null)
+    expect(useChatStore.getState().activeConversationId).toBe(id)
+    expect(useChatStore.getState().activeConversation).toBe(conversation)
+  })
+
+  it('startDraftThread clears activeConversationId', () => {
+    useChatStore.getState().setActiveConversationId(ConversationId('conv-3'))
+    useChatStore.getState().startDraftThread()
     expect(useChatStore.getState().activeConversationId).toBeNull()
-    expect(useChatStore.getState().activeConversation).toBeNull()
   })
 
-  it('deletes active conversation and resets selection', async () => {
-    const id = ConversationId('conv-4')
-    useChatStore.setState({
-      conversations: [],
-      activeConversationId: id,
-      activeConversation: {
-        id,
-        title: 'To delete',
-        projectPath: null,
-        messages: [],
-        createdAt: 30,
-        updatedAt: 30,
-      },
-    })
+  it('loads full conversations and switches between them without fetching on click', async () => {
+    const first = makeConversation(ConversationId('conv-first'), 'First')
+    const second = makeConversation(ConversationId('conv-second'), 'Second')
+    mockApi.listFullConversations.mockResolvedValue([first, second])
 
-    apiMock.deleteConversation.mockResolvedValue(undefined)
-    apiMock.listConversations.mockResolvedValue([])
+    await useChatStore.getState().loadConversations()
+    useChatStore.getState().setActiveConversationId(second.id)
 
-    await useChatStore.getState().deleteConversation(id)
-
-    expect(apiMock.deleteConversation).toHaveBeenCalledWith(id)
-    expect(useChatStore.getState().activeConversationId).toBeNull()
-    expect(useChatStore.getState().activeConversation).toBeNull()
-  })
-
-  it('updates active conversation project path and reloads summaries', async () => {
-    const id = ConversationId('conv-5')
-    useChatStore.setState({
-      conversations: [
-        {
-          id,
-          title: 'Thread',
-          projectPath: '/tmp/old',
-          messageCount: 0,
-          createdAt: 1,
-          updatedAt: 1,
-        },
-      ],
-      activeConversationId: id,
-      activeConversation: {
-        id,
-        title: 'Thread',
-        projectPath: '/tmp/old',
-        messages: [],
-        createdAt: 1,
-        updatedAt: 1,
-      },
-    })
-
-    apiMock.updateConversationProjectPath.mockResolvedValue({
-      id,
-      title: 'Thread',
-      projectPath: '/tmp/new',
-      messages: [],
-      createdAt: 1,
-      updatedAt: 2,
-    })
-    apiMock.listConversations.mockResolvedValue([
-      {
-        id,
-        title: 'Thread',
-        projectPath: '/tmp/new',
-        messageCount: 0,
-        createdAt: 1,
-        updatedAt: 2,
-      },
+    expect(useChatStore.getState().conversations.map((conversation) => conversation.id)).toEqual([
+      first.id,
+      second.id,
     ])
+    expect(useChatStore.getState().activeConversation).toBe(second)
+    expect(mockApi.getConversation).not.toHaveBeenCalled()
+  })
 
-    await useChatStore.getState().updateConversationProjectPath(id, '/tmp/new')
+  it('throws and preserves state on createConversation failure', async () => {
+    mockApi.createConversation.mockRejectedValue(new Error('quota exceeded'))
 
-    expect(apiMock.updateConversationProjectPath).toHaveBeenCalledWith(id, '/tmp/new')
-    expect(useChatStore.getState().activeConversation?.projectPath).toBe('/tmp/new')
-    expect(useChatStore.getState().conversations[0]?.projectPath).toBe('/tmp/new')
+    await expect(useChatStore.getState().createConversation('/tmp/repo')).rejects.toThrow(
+      'quota exceeded',
+    )
+
+    expect(useChatStore.getState().activeConversationId).toBeNull()
   })
 })

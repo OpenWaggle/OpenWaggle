@@ -51,6 +51,8 @@ export interface TranscriptSectionParams {
   readonly answerQuestion: ReturnType<typeof useAgentChat>['answerQuestion']
   readonly respondToPlan: ReturnType<typeof useAgentChat>['respondToPlan']
   readonly openSettings: () => void
+  readonly userDidSend: boolean
+  readonly onUserDidSendConsumed: () => void
 }
 
 export function useTranscriptSection(params: TranscriptSectionParams): ChatTranscriptSectionState {
@@ -64,7 +66,6 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     activeConversationId,
     activeConversation,
     model,
-    waggleStatus,
     phase,
     handleOpenProject,
     handleSelectProjectPath,
@@ -72,6 +73,8 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     answerQuestion,
     respondToPlan,
     openSettings,
+    userDidSend,
+    onUserDidSendConsumed,
   } = params
 
   const [dismissedError, setDismissedError] = useState<string | null>(null)
@@ -106,10 +109,17 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     }
   }
 
+  // Compute lastUserMessageId for thread-restore identity gating, not send anchoring.
+  const lastUserMessageId = (() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i]?.role === 'user') return messages[i]?.id ?? null
+    }
+    return null
+  })()
+
   return {
     messages,
     isLoading: transcriptLoading,
-    disableAutoFollowDuringWaggleStreaming: waggleStatus === 'running',
     projectPath,
     recentProjects,
     activeConversationId,
@@ -122,12 +132,9 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     onRespondToPlan: respondToPlan,
     onOpenSettings: openSettings,
     onDismissError: setDismissedError,
-    lastUserMessageId: (() => {
-      for (let i = messages.length - 1; i >= 0; i -= 1) {
-        if (messages[i]?.role === 'user') return messages[i]?.id ?? null
-      }
-      return null
-    })(),
+    lastUserMessageId,
+    userDidSend,
+    onUserDidSendConsumed,
   }
 }
 

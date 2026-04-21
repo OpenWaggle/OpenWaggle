@@ -1,6 +1,7 @@
 import type { ConversationId } from '@shared/types/brand'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import type { UIMessage } from '@tanstack/ai-react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useComposerStore } from '@/stores/composer-store'
@@ -51,6 +52,10 @@ function createSections(
     recentProjects: [],
     activeConversationId: 'conv-1' as ConversationId,
     chatRows: [],
+    compactedMessageIds: new Set(),
+    lastUserMessageId: null,
+    userDidSend: false,
+    onUserDidSendConsumed: vi.fn(),
     onOpenProject: vi.fn().mockResolvedValue(undefined),
     onSelectProjectPath: vi.fn(),
     onRetryText: vi.fn().mockResolvedValue(undefined),
@@ -70,12 +75,14 @@ function createSections(
       commandPaletteOpen: false,
       slashSkills: [],
       isLoading: transcript.isLoading,
+      status: transcript.isLoading ? 'streaming' : 'ready',
       onToolApprovalResponse: vi.fn().mockResolvedValue(undefined),
       onAnswerQuestion: transcript.onAnswerQuestion,
       onStopCollaboration: vi.fn(),
       onSelectSkill: vi.fn(),
       onStartWaggle: vi.fn(),
       onSendWithWaggle: vi.fn().mockResolvedValue(undefined),
+      onSteer: vi.fn().mockResolvedValue(undefined),
       onCancel: vi.fn(),
       onToast: vi.fn(),
     },
@@ -88,7 +95,17 @@ function createSections(
 
 function renderPanel(overrides: Partial<ChatPanelSections['transcript']> = {}) {
   useChatPanelSectionsMock.mockReturnValue(createSections(overrides))
-  return render(<ChatPanel />)
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  })
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <ChatPanel />
+    </QueryClientProvider>,
+  )
 }
 
 describe('ChatPanel', () => {

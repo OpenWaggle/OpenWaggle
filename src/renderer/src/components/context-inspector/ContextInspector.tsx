@@ -1,4 +1,5 @@
 import { Gauge } from 'lucide-react'
+import { useChat } from '@/hooks/useChat'
 import { useChatStore } from '@/stores/chat-store'
 import { useContextStore } from '@/stores/context-store'
 import { CompactionHistorySection } from './CompactionHistorySection'
@@ -11,7 +12,8 @@ export function ContextInspector() {
   const conversationId = useChatStore((s) => s.activeConversationId)
   const snapshot = useContextStore((s) => s.snapshot)
   const isCompacting = useContextStore((s) => s.isCompacting)
-  const messages = useChatStore((s) => s.activeConversation?.messages) ?? []
+  const { activeConversation } = useChat()
+  const messages = activeConversation?.messages ?? []
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-bg-secondary">

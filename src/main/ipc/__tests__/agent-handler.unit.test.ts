@@ -210,6 +210,7 @@ const TestConversationRepoLayer = Layer.succeed(ConversationRepository, {
       catch: (cause) => new ConversationRepositoryError({ operation: 'save', cause }),
     }),
   list: () => Effect.succeed([]),
+  listFull: () => Effect.succeed([]),
   create: () => Effect.succeed({} as never),
   delete: () => Effect.void,
   archive: () => Effect.void,

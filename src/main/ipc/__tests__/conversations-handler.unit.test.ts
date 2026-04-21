@@ -9,6 +9,7 @@ const {
   typedHandleMock,
   cleanupConversationRunMock,
   listConversationsMock,
+  listFullConversationsMock,
   getConversationMock,
   createConversationMock,
   deleteConversationMock,
@@ -22,6 +23,7 @@ const {
   typedHandleMock: vi.fn(),
   cleanupConversationRunMock: vi.fn(),
   listConversationsMock: vi.fn(),
+  listFullConversationsMock: vi.fn(),
   getConversationMock: vi.fn(),
   createConversationMock: vi.fn(),
   deleteConversationMock: vi.fn(),
@@ -54,6 +56,11 @@ const TestConversationRepoLayer = Layer.succeed(
       Effect.tryPromise({
         try: async () => listConversationsMock(limit),
         catch: (cause) => new ConversationRepositoryError({ operation: 'list', cause }),
+      }),
+    listFull: (limit) =>
+      Effect.tryPromise({
+        try: async () => listFullConversationsMock(limit),
+        catch: (cause) => new ConversationRepositoryError({ operation: 'listFull', cause }),
       }),
     create: (projectPath) =>
       Effect.tryPromise({
@@ -133,6 +140,7 @@ describe('registerConversationsHandlers', () => {
     typedHandleMock.mockReset()
     cleanupConversationRunMock.mockReset()
     listConversationsMock.mockReset()
+    listFullConversationsMock.mockReset()
     getConversationMock.mockReset()
     createConversationMock.mockReset()
     deleteConversationMock.mockReset()
@@ -149,6 +157,7 @@ describe('registerConversationsHandlers', () => {
 
     const channels = typedHandleMock.mock.calls.map((args: unknown[]) => args[0])
     expect(channels).toContain('conversations:list')
+    expect(channels).toContain('conversations:list-full')
     expect(channels).toContain('conversations:get')
     expect(channels).toContain('conversations:create')
     expect(channels).toContain('conversations:delete')
@@ -169,6 +178,18 @@ describe('registerConversationsHandlers', () => {
     const result = await handler?.({}, 10)
     expect(result).toEqual(summaries)
     expect(listConversationsMock).toHaveBeenCalledWith(10)
+  })
+
+  it('lists full conversations through the repository', async () => {
+    const conversations = [{ id: ConversationId('conv-1'), title: 'Thread', messages: [] }]
+    listFullConversationsMock.mockResolvedValue(conversations)
+
+    registerConversationsHandlers()
+    const handler = getInvokeHandler('conversations:list-full')
+
+    const result = await handler?.({}, 10)
+    expect(result).toEqual(conversations)
+    expect(listFullConversationsMock).toHaveBeenCalledWith(10)
   })
 
   it('creates a conversation with the requested project path', async () => {

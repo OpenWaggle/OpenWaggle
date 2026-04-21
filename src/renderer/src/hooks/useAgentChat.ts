@@ -68,6 +68,7 @@ export function useAgentChat(
   model: SupportedModelId,
   qualityPreset: QualityPreset,
 ): AgentChatReturn {
+  const upsertConversation = useChatStore((s) => s.upsertConversation)
   const pendingPayloadRef = useRef<AgentSendPayload | null>(null)
   const pendingWaggleConfigRef = useRef<WaggleConfig | null>(null)
   const [backgroundStreaming, setBackgroundStreaming] = useState(false)
@@ -103,6 +104,8 @@ export function useAgentChat(
     [conversationId, consumePendingPayload, consumePendingWaggleConfig, model, qualityPreset],
   )
 
+  const initialMessages = conversation ? conversationToUIMessages(conversation) : []
+
   const {
     messages,
     sendMessage,
@@ -115,6 +118,7 @@ export function useAgentChat(
   } = useChat({
     connection,
     id: conversationId ? `${conversationId}:${model}:${qualityPreset}` : undefined,
+    initialMessages,
   })
 
   const hydratedMessages = useHydratedConversationMessages(messages, conversation)
@@ -127,6 +131,7 @@ export function useAgentChat(
   backgroundStreamingRef.current = backgroundStreaming
   const deferredRefreshConversationIdRef = useRef<ConversationId | null>(null)
   const deferredSnapshotRefreshCountRef = useRef(0)
+  const lastHydratedConversationIdRef = useRef<ConversationId | null>(null)
   const isConversationIdle = !isLoading && !backgroundStreaming
 
   // While a foreground stream is active (sendMessage in progress), TanStack owns
@@ -155,33 +160,14 @@ export function useAgentChat(
         return
       }
 
-      useChatStore.setState((state) => {
-        if (state.activeConversationId !== targetConversationId) {
-          return state
-        }
+      upsertConversation(conv)
 
-        return {
-          activeConversation: conv,
-          conversations: state.conversations.map((item) =>
-            item.id === targetConversationId
-              ? {
-                  ...item,
-                  title: conv.title,
-                  projectPath: conv.projectPath,
-                  messageCount: conv.messages.length,
-                  updatedAt: conv.updatedAt,
-                }
-              : item,
-          ),
-        }
-      })
-
-      if (!foregroundStreamActiveRef.current) {
-        const snapshotMessages = conversationToUIMessages(conv)
-        setMessages(reconcileSnapshotUserMessages(snapshotMessages, messagesRef.current))
-      }
+      // Intentionally do not rewrite the active TanStack chat transcript here.
+      // Completion-time snapshot refreshes should update the Query cache only,
+      // otherwise the final phase/run-summary render competes with a full
+      // message-array replacement and causes scroll jumps.
     },
-    [setMessages],
+    [upsertConversation],
   )
 
   // useCallback required: used as effect dependency below and calls refreshConversationSnapshot.
@@ -229,6 +215,7 @@ export function useAgentChat(
 
     if (!conversationId || !conversation) {
       foregroundStreamActiveRef.current = false
+      lastHydratedConversationIdRef.current = null
       setMessages([])
       return
     }
@@ -244,14 +231,22 @@ export function useAgentChat(
       const capturedId = conversationId
       void reconnectToBackgroundRun(capturedId, conversation, setMessages).then((reconnected) => {
         if (reconnected && currentConversationIdRef.current === capturedId) {
+          lastHydratedConversationIdRef.current = capturedId
           setBackgroundStreaming(true)
         }
       })
       return
     }
 
+    const shouldHydrateTranscript =
+      lastHydratedConversationIdRef.current !== conversationId || messagesRef.current.length === 0
+    if (!shouldHydrateTranscript) {
+      return
+    }
+
     const snapshotMessages = conversationToUIMessages(conversation)
     setMessages(reconcileSnapshotUserMessages(snapshotMessages, messagesRef.current))
+    lastHydratedConversationIdRef.current = conversationId
   }, [conversationId, conversation, hasActiveRun, setMessages])
 
   // While background-streaming, subscribe to live chunk updates.
@@ -282,21 +277,21 @@ export function useAgentChat(
     const unsubCompleted = api.onRunCompleted((payload) => {
       if (payload.conversationId !== conversationId) return
       setBackgroundStreaming(false)
+      deferredRefreshConversationIdRef.current = conversationId
       if (
         deferredSnapshotRefreshCountRef.current > 0 ||
         isLoadingRef.current ||
         backgroundStreamingRef.current
       ) {
-        deferredRefreshConversationIdRef.current = conversationId
         return
       }
-      void refreshConversationSnapshot(conversationId)
+      flushDeferredConversationSnapshot()
     })
 
     return () => {
       unsubCompleted()
     }
-  }, [conversationId, refreshConversationSnapshot])
+  }, [conversationId, flushDeferredConversationSnapshot])
 
   useEffect(() => {
     if (!conversationId) return

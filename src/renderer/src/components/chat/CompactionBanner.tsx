@@ -1,5 +1,6 @@
 import type { ConversationId } from '@shared/types/brand'
 import { AlertCircle, Check, Loader2, X } from 'lucide-react'
+import { useChat } from '@/hooks/useChat'
 import { cn } from '@/lib/cn'
 import { useChatStore } from '@/stores/chat-store'
 import { selectCompaction, useCompactionStore } from '@/stores/compaction-store'
@@ -12,7 +13,8 @@ export function CompactionBanner({ conversationId }: CompactionBannerProps) {
   const status = useCompactionStore(selectCompaction(conversationId))
   const clearStatus = useCompactionStore((s) => s.clearStatus)
   const createConversation = useChatStore((s) => s.createConversation)
-  const activeProjectPath = useChatStore((s) => s.activeConversation?.projectPath) ?? null
+  const { activeConversation } = useChat()
+  const activeProjectPath = activeConversation?.projectPath ?? null
 
   if (!status || !conversationId) return null
 

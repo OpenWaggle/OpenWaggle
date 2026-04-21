@@ -6,7 +6,19 @@ import type { ChatTranscriptSectionState } from '../use-chat-panel-controller'
 const REQUEST_ANIMATION_FRAME_DELAY_MS = 16
 
 vi.mock('../ChatRowRenderer', () => ({
-  ChatRowRenderer: () => <div>row-content</div>,
+  ChatRowRenderer: ({ row }: { row: ChatRow }) => (
+    <div>
+      {row.type === 'message'
+        ? row.message.parts
+            .filter(
+              (part): part is Extract<(typeof row.message.parts)[number], { type: 'text' }> =>
+                part.type === 'text',
+            )
+            .map((part) => part.content)
+            .join('')
+        : 'row-content'}
+    </div>
+  ),
 }))
 
 vi.mock('../WelcomeScreen', () => ({
@@ -20,15 +32,20 @@ vi.mock('@/lib/cn', () => ({
 import { ChatTranscript } from '../ChatTranscript'
 import type { ChatRow } from '../types-chat-row'
 
-function createUserChatRow(messageId: string): ChatRow {
+function createTextMessage(id: string, role: UIMessage['role'], content: string): UIMessage {
+  return {
+    id,
+    role,
+    parts: [{ type: 'text', content }],
+  }
+}
+
+function createMessageChatRow(message: UIMessage): ChatRow {
   return {
     type: 'message',
-    message: {
-      id: messageId,
-      role: 'user',
-      parts: [{ type: 'text' as const, text: 'hello', content: 'hello' }],
-    } as UIMessage,
+    message,
     isStreaming: false,
+    isRunActive: false,
     showTurnDivider: false,
   }
 }
@@ -36,21 +53,19 @@ function createUserChatRow(messageId: string): ChatRow {
 function createSection(
   overrides: Partial<ChatTranscriptSectionState> = {},
 ): ChatTranscriptSectionState {
+  const defaultMessage = createTextMessage('msg-1', 'user', 'hello')
+
   return {
-    messages: [
-      {
-        id: 'msg-1',
-        role: 'user',
-        parts: [{ type: 'text' as const, text: 'hello', content: 'hello' }],
-      } as UIMessage,
-    ],
+    messages: [defaultMessage],
     isLoading: false,
-    disableAutoFollowDuringWaggleStreaming: false,
     projectPath: '/repo',
     recentProjects: [],
     activeConversationId: null,
-    chatRows: [createUserChatRow('msg-1')],
+    chatRows: [createMessageChatRow(defaultMessage)],
     lastUserMessageId: 'msg-1',
+    compactedMessageIds: new Set(),
+    userDidSend: false,
+    onUserDidSendConsumed: vi.fn(),
     onOpenProject: vi.fn().mockResolvedValue(undefined),
     onSelectProjectPath: vi.fn(),
     onRetryText: vi.fn().mockResolvedValue(undefined),
@@ -62,7 +77,55 @@ function createSection(
   }
 }
 
-describe('ChatTranscript scroll-to-user-message effect (Voyager pattern)', () => {
+function configureScrollableElement(scroller: HTMLElement): {
+  setNaturalScrollHeight: (height: number) => void
+  getScrollTop: () => number
+} {
+  const clientHeight = 500
+  let naturalScrollHeight = 1000
+  let scrollTop = 500
+
+  function getMaxScrollTop(): number {
+    return Math.max(0, naturalScrollHeight - clientHeight)
+  }
+
+  function setClampedScrollTop(value: number): void {
+    scrollTop = Math.min(Math.max(0, value), getMaxScrollTop())
+  }
+
+  Object.defineProperty(scroller, 'scrollHeight', {
+    get: () => naturalScrollHeight,
+    configurable: true,
+  })
+  Object.defineProperty(scroller, 'clientHeight', {
+    get: () => clientHeight,
+    configurable: true,
+  })
+  Object.defineProperty(scroller, 'scrollTop', {
+    get: () => scrollTop,
+    set: setClampedScrollTop,
+    configurable: true,
+  })
+  Object.defineProperty(scroller, 'scrollTo', {
+    value: (options?: ScrollToOptions | number, y?: number) => {
+      if (typeof options === 'number') {
+        setClampedScrollTop(y ?? 0)
+        return
+      }
+      setClampedScrollTop(options?.top ?? 0)
+    },
+    configurable: true,
+  })
+
+  return {
+    setNaturalScrollHeight: (height) => {
+      naturalScrollHeight = height
+    },
+    getScrollTop: () => scrollTop,
+  }
+}
+
+describe('ChatTranscript t3-style scroll behavior', () => {
   beforeEach(() => {
     vi.stubGlobal(
       'ResizeObserver',
@@ -93,13 +156,12 @@ describe('ChatTranscript scroll-to-user-message effect (Voyager pattern)', () =>
     vi.useRealTimers()
   })
 
-  it('does not scroll when there is only one row (first message, nothing to scroll past)', async () => {
-    // Single user message — chatRows.length === 1, so scroll is skipped
+  it('keeps a single non-overflowing row at the top', async () => {
     const { container } = render(
       <ChatTranscript
         section={createSection({
           lastUserMessageId: 'msg-1',
-          chatRows: [createUserChatRow('msg-1')],
+          chatRows: [createMessageChatRow(createTextMessage('msg-1', 'user', 'hello'))],
         })}
       />,
     )
@@ -119,7 +181,7 @@ describe('ChatTranscript scroll-to-user-message effect (Voyager pattern)', () =>
       <ChatTranscript
         section={createSection({
           lastUserMessageId: 'msg-1',
-          chatRows: [createUserChatRow('msg-1')],
+          chatRows: [createMessageChatRow(createTextMessage('msg-1', 'user', 'hello'))],
         })}
       />,
     )
@@ -130,6 +192,49 @@ describe('ChatTranscript scroll-to-user-message effect (Voyager pattern)', () =>
 
     const userEl = container.querySelector('[data-user-message-id="msg-1"]')
     expect(userEl).not.toBeNull()
+  })
+
+  it('follows streaming text growth when the message count stays stable', async () => {
+    const userMessage = createTextMessage('msg-1', 'user', 'hello')
+    const assistantMessage = createTextMessage('msg-2', 'assistant', 'short')
+    const { container, rerender } = render(
+      <ChatTranscript
+        section={createSection({
+          isLoading: true,
+          messages: [userMessage, assistantMessage],
+          chatRows: [createMessageChatRow(userMessage), createMessageChatRow(assistantMessage)],
+          lastUserMessageId: 'msg-1',
+        })}
+      />,
+    )
+
+    const scroller = container.querySelector('[role="log"]')
+    if (!(scroller instanceof HTMLElement)) {
+      throw new Error('Chat scroller not found')
+    }
+    const layout = configureScrollableElement(scroller)
+
+    const updatedAssistantMessage = createTextMessage('msg-2', 'assistant', 'short '.repeat(60))
+    layout.setNaturalScrollHeight(1200)
+    rerender(
+      <ChatTranscript
+        section={createSection({
+          isLoading: true,
+          messages: [userMessage, updatedAssistantMessage],
+          chatRows: [
+            createMessageChatRow(userMessage),
+            createMessageChatRow(updatedAssistantMessage),
+          ],
+          lastUserMessageId: 'msg-1',
+        })}
+      />,
+    )
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(REQUEST_ANIMATION_FRAME_DELAY_MS)
+    })
+
+    expect(layout.getScrollTop()).toBe(700)
   })
 
   it('[overflow-anchor:none] class is on the scroll container', () => {

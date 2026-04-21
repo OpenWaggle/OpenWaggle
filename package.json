@@ -9,8 +9,8 @@
   "scripts": {
     "prepare:native:node": "tsx scripts/rebuild-native-deps.ts node",
     "prepare:native:electron": "tsx scripts/rebuild-native-deps.ts electron",
-    "dev": "pnpm prepare:native:electron && ELECTRON_ENABLE_LOGGING=1 electron-vite dev",
-    "dev:debug": "pnpm prepare:native:electron && ELECTRON_ENABLE_LOGGING=1 electron-vite dev -- --remote-debugging-port=9222",
+    "dev": "pnpm prepare:native:electron && env -u ELECTRON_RUN_AS_NODE ELECTRON_ENABLE_LOGGING=1 electron-vite dev",
+    "dev:debug": "pnpm prepare:native:electron && env -u ELECTRON_RUN_AS_NODE ELECTRON_ENABLE_LOGGING=1 electron-vite dev -- --remote-debugging-port=9222",
     "build": "pnpm prepare:native:electron && electron-vite build",
     "preview": "pnpm prepare:native:electron && electron-vite preview",
     "postinstall": "electron-builder install-app-deps",

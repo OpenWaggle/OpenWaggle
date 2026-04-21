@@ -11,7 +11,27 @@ vi.mock('@/lib/ipc', () => ({
     getSettings: vi.fn().mockResolvedValue({}),
     updateSettings: vi.fn().mockResolvedValue({ ok: true }),
     getProviderModels: vi.fn().mockResolvedValue([]),
+    getModelCompatibility: vi.fn().mockResolvedValue([]),
   },
+}))
+
+vi.mock('@/hooks/useChat', () => ({
+  useChat: vi.fn(() => ({
+    activeConversation: null,
+    conversations: [],
+    activeConversationId: null,
+    setActiveConversation: vi.fn(),
+    createConversation: vi.fn(),
+    startDraftThread: vi.fn(),
+    updateConversationProjectPath: vi.fn(),
+  })),
+}))
+
+vi.mock('@/queries/conversations', () => ({
+  useTogglePlanModeMutation: vi.fn(() => ({
+    mutate: vi.fn(),
+    isPending: false,
+  })),
 }))
 
 function renderToolbar(overrides: Partial<Parameters<typeof ComposerToolbar>[0]> = {}) {

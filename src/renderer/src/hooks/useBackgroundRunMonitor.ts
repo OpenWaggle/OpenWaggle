@@ -16,6 +16,7 @@ export function useBackgroundRunMonitor(): void {
   const addActiveRun = useBackgroundRunStore((s) => s.addActiveRun)
   const removeActiveRun = useBackgroundRunStore((s) => s.removeActiveRun)
   const initialize = useBackgroundRunStore((s) => s.initialize)
+  const refreshConversation = useChatStore((s) => s.refreshConversation)
 
   useEffect(() => {
     void initialize()
@@ -35,22 +36,12 @@ export function useBackgroundRunMonitor(): void {
 
     const unsubCompleted = api.onRunCompleted((payload) => {
       removeActiveRun(payload.conversationId)
-      // Update only the completed conversation's timestamp in the sidebar
-      // instead of reloading the entire conversation list (which would
-      // surface untitled "New thread" entries from the DB).
-      useChatStore.setState((state) => {
-        const idx = state.conversations.findIndex((c) => c.id === payload.conversationId)
-        if (idx === -1) return state
-        const updated = state.conversations.map((c) =>
-          c.id === payload.conversationId ? { ...c, updatedAt: Date.now() } : c,
-        )
-        return { conversations: updated }
-      })
+      void refreshConversation(payload.conversationId)
     })
 
     return () => {
       unsubChunk()
       unsubCompleted()
     }
-  }, [addActiveRun, removeActiveRun])
+  }, [addActiveRun, refreshConversation, removeActiveRun])
 }

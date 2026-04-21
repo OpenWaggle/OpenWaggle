@@ -81,6 +81,7 @@ export const api: OpenWaggleApi = {
 
   // Conversations
   listConversations: invoke('conversations:list'),
+  listFullConversations: invoke('conversations:list-full'),
   getConversation: invoke('conversations:get'),
   createConversation: invoke('conversations:create'),
   deleteConversation: invoke('conversations:delete'),
