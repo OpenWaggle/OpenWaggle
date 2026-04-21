@@ -1,9 +1,9 @@
 ---
-name: Zod v4 API Reference
+name: zod-v4
 description: Zod v4 API changes and migration patterns from v3
 ---
 
-# Zod v4 API Reference
+# zod-v4
 
 ## Overview
 
