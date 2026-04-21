@@ -1,9 +1,9 @@
 ---
-name: Electron Native Rebuild
+name: electron-native-rebuild
 description: Diagnose and repair Electron native-module ABI mismatches in OpenWaggle, especially when `better-sqlite3`, `node-pty`, or other native addons work in Node tests but fail in the Electron app or Playwright E2E runs.
 ---
 
-# Electron Native Rebuild
+# electron-native-rebuild
 
 ## Overview
 
