@@ -1,6 +1,6 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
-import type { Conversation, ConversationSummary } from '@shared/types/conversation'
+import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { PlanResponse } from '@shared/types/plan'
 import type { QuestionAnswer } from '@shared/types/question'
@@ -8,13 +8,12 @@ import type { QualityPreset } from '@shared/types/settings'
 import type { WaggleConfig } from '@shared/types/waggle'
 import type { UIMessage } from '@tanstack/ai-react'
 import { useChat } from '@tanstack/ai-react'
-import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '@/lib/ipc'
 import { createIpcConnectionAdapter } from '@/lib/ipc-connection-adapter'
 import { fromAgentStreamChunk } from '@/lib/stream-chunk-mapper'
-import { queryKeys } from '@/queries/query-keys'
 import { useBackgroundRunStore } from '@/stores/background-run-store'
+import { useChatStore } from '@/stores/chat-store'
 import {
   applyStreamDelta,
   buildPartialAssistantMessage,
@@ -69,7 +68,7 @@ export function useAgentChat(
   model: SupportedModelId,
   qualityPreset: QualityPreset,
 ): AgentChatReturn {
-  const queryClient = useQueryClient()
+  const upsertConversation = useChatStore((s) => s.upsertConversation)
   const pendingPayloadRef = useRef<AgentSendPayload | null>(null)
   const pendingWaggleConfigRef = useRef<WaggleConfig | null>(null)
   const [backgroundStreaming, setBackgroundStreaming] = useState(false)
@@ -161,30 +160,14 @@ export function useAgentChat(
         return
       }
 
-      // Update TanStack Query cache — both the individual conversation and the list
-      queryClient.setQueryData<Conversation>(queryKeys.conversation(targetConversationId), conv)
-      queryClient.setQueryData<ConversationSummary[]>(queryKeys.conversations, (old) =>
-        old
-          ? old.map((item) =>
-              item.id === targetConversationId
-                ? {
-                    ...item,
-                    title: conv.title,
-                    projectPath: conv.projectPath,
-                    messageCount: conv.messages.length,
-                    updatedAt: conv.updatedAt,
-                  }
-                : item,
-            )
-          : old,
-      )
+      upsertConversation(conv)
 
       // Intentionally do not rewrite the active TanStack chat transcript here.
       // Completion-time snapshot refreshes should update the Query cache only,
       // otherwise the final phase/run-summary render competes with a full
       // message-array replacement and causes scroll jumps.
     },
-    [queryClient],
+    [upsertConversation],
   )
 
   // useCallback required: used as effect dependency below and calls refreshConversationSnapshot.
@@ -302,12 +285,13 @@ export function useAgentChat(
       ) {
         return
       }
+      flushDeferredConversationSnapshot()
     })
 
     return () => {
       unsubCompleted()
     }
-  }, [conversationId])
+  }, [conversationId, flushDeferredConversationSnapshot])
 
   useEffect(() => {
     if (!conversationId) return

@@ -16,7 +16,7 @@ export function useWorkspaceLifecycle(): void {
     activeConversationId,
     startDraftThread,
     loadConversations,
-    setActiveConversation,
+    refreshConversation,
     updateConversationTitle,
   } = useChat()
   const { refreshStatus: refreshGitStatus, refreshBranches: refreshGitBranches } = useGit()
@@ -47,7 +47,7 @@ export function useWorkspaceLifecycle(): void {
     activeConversationId,
     refreshGitStatus,
     refreshGitBranches,
-    setActiveConversation,
+    refreshConversation,
   })
 
   useThreadStatusMonitor()

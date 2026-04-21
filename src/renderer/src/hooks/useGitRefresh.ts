@@ -11,7 +11,7 @@ interface UseGitRefreshOptions {
   readonly activeConversationId: ConversationId | null
   readonly refreshGitStatus: (projectPath: string | null) => Promise<void>
   readonly refreshGitBranches: (projectPath: string | null) => Promise<void>
-  readonly setActiveConversation: (id: ConversationId | null) => void
+  readonly refreshConversation: (id: ConversationId) => Promise<void>
 }
 
 /**
@@ -23,7 +23,7 @@ export function useGitRefresh({
   activeConversationId,
   refreshGitStatus,
   refreshGitBranches,
-  setActiveConversation,
+  refreshConversation,
 }: UseGitRefreshOptions): void {
   const bumpDiffRefreshKey = useUIStore((s) => s.bumpDiffRefreshKey)
 
@@ -35,7 +35,7 @@ export function useGitRefresh({
       if (!isTerminalChunk(chunk)) return
 
       if (activeConversationId === conversationId) {
-        setActiveConversation(activeConversationId)
+        void refreshConversation(activeConversationId)
       }
       if (projectPath) {
         if (refreshTimer) clearTimeout(refreshTimer)
@@ -55,9 +55,9 @@ export function useGitRefresh({
     activeConversationId,
     bumpDiffRefreshKey,
     projectPath,
+    refreshConversation,
     refreshGitBranches,
     refreshGitStatus,
-    setActiveConversation,
   ])
 
   // Refresh git status + diff panel when window regains focus

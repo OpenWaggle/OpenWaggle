@@ -50,6 +50,12 @@ export const SqliteConversationRepositoryLive = Effect.promise(async () => {
           catch: (cause) => new ConversationRepositoryError({ operation: 'list', cause }),
         }),
 
+      listFull: (limit) =>
+        Effect.tryPromise({
+          try: () => store.listFullConversations(limit),
+          catch: (cause) => new ConversationRepositoryError({ operation: 'listFull', cause }),
+        }),
+
       create: (projectPath) =>
         Effect.tryPromise({
           try: () => store.createConversation(projectPath),

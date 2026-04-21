@@ -74,6 +74,7 @@ export function Sidebar() {
     setActiveConversation,
     deleteConversation,
     updateConversationProjectPath,
+    loadConversations,
   } = useChat()
   const { refreshStatus: refreshGitStatus, refreshBranches: refreshGitBranches } = useGit()
 
@@ -98,8 +99,6 @@ export function Sidebar() {
   const setProjectDisplayName = usePreferencesStore((s) => s.setProjectDisplayName)
   const clearProjectDisplayName = usePreferencesStore((s) => s.clearProjectDisplayName)
   const removeRecentProject = usePreferencesStore((s) => s.removeRecentProject)
-  const { loadConversations } = useChat()
-
   const groups = groupConversationsByProject(conversations, projectDisplayNames)
   const isFullscreen = useFullscreen()
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())

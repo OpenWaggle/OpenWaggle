@@ -429,6 +429,16 @@ export async function listConversations(limit?: number): Promise<ConversationSum
   )
 }
 
+function isConversation(conversation: Conversation | null): conversation is Conversation {
+  return conversation !== null
+}
+
+export async function listFullConversations(limit?: number): Promise<Conversation[]> {
+  const summaries = await listConversations(limit)
+  const conversations = await Promise.all(summaries.map((summary) => getConversation(summary.id)))
+  return conversations.filter(isConversation)
+}
+
 export async function listArchivedConversations(): Promise<ConversationSummary[]> {
   return runAppEffect(
     Effect.gen(function* () {

@@ -53,6 +53,7 @@ describe('preload api surface contract', () => {
     'setProjectPreferences',
     // Conversations
     'listConversations',
+    'listFullConversations',
     'getConversation',
     'createConversation',
     'deleteConversation',

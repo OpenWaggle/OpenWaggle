@@ -15,6 +15,9 @@ export interface ConversationRepositoryShape {
   readonly list: (
     limit?: number,
   ) => Effect.Effect<readonly ConversationSummary[], ConversationRepositoryError>
+  readonly listFull: (
+    limit?: number,
+  ) => Effect.Effect<readonly Conversation[], ConversationRepositoryError>
   readonly create: (
     projectPath: string | null,
   ) => Effect.Effect<Conversation, ConversationRepositoryError>

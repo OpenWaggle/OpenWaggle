@@ -15,6 +15,8 @@ const {
   createIpcConnectionAdapterMock,
   hasActiveRunMock,
   useBackgroundRunStoreMock,
+  upsertConversationMock,
+  useChatStoreMock,
   runCompletedHandlers,
   useChatMockImplementation,
 } = vi.hoisted(() => ({
@@ -43,6 +45,13 @@ const {
         hasActiveRun: hasActiveRunMock,
       }),
   ),
+  upsertConversationMock: vi.fn(),
+  useChatStoreMock: vi.fn(
+    (selector: (state: { upsertConversation: (value: unknown) => void }) => unknown) =>
+      selector({
+        upsertConversation: upsertConversationMock,
+      }),
+  ),
   runCompletedHandlers: [] as Array<(payload: { conversationId: string }) => void>,
   useChatMockImplementation: vi.fn(),
 }))
@@ -65,6 +74,10 @@ vi.mock('@/lib/ipc-connection-adapter', () => ({
 
 vi.mock('@/stores/background-run-store', () => ({
   useBackgroundRunStore: useBackgroundRunStoreMock,
+}))
+
+vi.mock('@/stores/chat-store', () => ({
+  useChatStore: useChatStoreMock,
 }))
 
 vi.mock('@tanstack/react-query', () => ({
@@ -95,6 +108,8 @@ describe('useAgentChat', () => {
     createIpcConnectionAdapterMock.mockClear()
     hasActiveRunMock.mockReset()
     hasActiveRunMock.mockReturnValue(false)
+    upsertConversationMock.mockReset()
+    useChatStoreMock.mockClear()
     runCompletedHandlers.length = 0
     useChatMockImplementation.mockReset()
     useChatMockImplementation.mockImplementation(
@@ -315,14 +330,9 @@ describe('useAgentChat', () => {
     runCompletedHandlers[0]?.({ conversationId: 'conv-complete' })
 
     await waitFor(() => {
-      expect(
-        result.current.messages.some((message) =>
-          message.parts.some(
-            (part) => part.type === 'tool-result' && part.toolCallId === 'tool-complete',
-          ),
-        ),
-      ).toBe(true)
+      expect(upsertConversationMock).toHaveBeenCalledWith(completedConversation)
     })
+    expect(result.current.messages).toBeDefined()
   })
 
   it('does not clobber an optimistic steered user turn when an older run-completed event arrives', async () => {

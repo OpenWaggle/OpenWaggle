@@ -109,6 +109,7 @@ This document stores project-specific technical learnings only.
 ### React & Renderer Patterns
 - `react-virtuoso` `followOutput="smooth"` during streaming causes visible jank. Use immediate follow while loading.
 - Renderer cache layers only help when upstream lookup hooks preserve referential identity.
+- Thread navigation needs a renderer-local full-conversation read model for instant, correct active-thread rendering. Per-click full-conversation query fetches can show empty/stale/intermediate content and degrade navigation UX; background run completion should refresh/upsert that same read model instead of driving route selection through query hydration. `[SKILL?]`
 - Zustand selector fallbacks must use stable module-level constants, not inline `?? []`.
 - Zustand mock selectors in tests must return stable function identities for function-valued slices, or effects retrigger infinitely.
 - Never use Zustand selectors that return a new object `(s) => ({ a: s.a, b: s.b })` — Zustand uses `Object.is` by default and a new object always !== the previous one, causing infinite re-render loops (React error #185). Use individual primitive selectors instead. The React Compiler handles render memoization.

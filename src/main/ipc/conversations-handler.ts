@@ -13,6 +13,14 @@ export function registerConversationsHandlers(): void {
     }),
   )
 
+  typedHandle('conversations:list-full', (_event, limit?: number) =>
+    Effect.gen(function* () {
+      const repo = yield* ConversationRepository
+      const results = yield* repo.listFull(limit)
+      return [...results]
+    }),
+  )
+
   typedHandle('conversations:get', (_event, id: ConversationId) =>
     Effect.gen(function* () {
       const repo = yield* ConversationRepository

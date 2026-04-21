@@ -49,11 +49,11 @@ export function createConversationNavHandlers(deps: ConversationNavDeps): Conver
     setActiveView('chat')
     const conv = conversations.find((c) => c.id === id)
     const nextProjectPath = conv?.projectPath ?? projectPath
+    setActiveConversation(id)
+    useThreadStatusStore.getState().markVisited(id)
     if (conv && conv.projectPath !== projectPath) {
       await setProjectPath(conv.projectPath)
     }
-    setActiveConversation(id)
-    useThreadStatusStore.getState().markVisited(id)
     refreshGit(nextProjectPath)
   }
 

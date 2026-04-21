@@ -2,6 +2,7 @@ import type { ConversationId } from '@shared/types/brand'
 import type { Conversation, ConversationSummary } from '@shared/types/conversation'
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/ipc'
+import { useChatStore } from '@/stores/chat-store'
 import { queryKeys } from './query-keys'
 
 // ─── Query Options ───────────────────────────────────────────
@@ -90,6 +91,7 @@ export function useTogglePlanModeMutation() {
     onSuccess: (updated, { id }) => {
       if (updated) {
         queryClient.setQueryData<Conversation>(queryKeys.conversation(id), updated)
+        useChatStore.getState().upsertConversation(updated)
       }
     },
   })

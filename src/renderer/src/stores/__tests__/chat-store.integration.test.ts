@@ -1,26 +1,32 @@
-import type { ConversationId } from '@shared/types/brand'
+import { ConversationId } from '@shared/types/brand'
+import type { Conversation } from '@shared/types/conversation'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useChatStore } from '../chat-store'
 
 /**
- * Integration tests for the slimmed-down chat store.
- *
- * After the TanStack Query migration, the store only manages:
- * - activeConversationId (pure client state)
- * - createConversation (calls IPC, sets active ID)
- * - startDraftThread (clears active ID)
- *
- * Conversation data fetching and caching is handled by TanStack Query
- * and tested via the query/mutation hooks in src/renderer/src/queries/.
+ * Integration tests for the renderer conversation read model.
+ * Full conversations are cached locally so thread navigation can select the
+ * target transcript synchronously without waiting on per-click IPC.
  */
 
 const mockApi = {
+  listFullConversations: vi.fn(),
+  getConversation: vi.fn(),
   createConversation: vi.fn(),
+  deleteConversation: vi.fn(),
+  updateConversationProjectPath: vi.fn(),
+  updateConversationPlanMode: vi.fn(),
 }
 
 vi.mock('@/lib/ipc', () => ({
   api: {
+    listFullConversations: (...args: unknown[]) => mockApi.listFullConversations(...args),
+    getConversation: (...args: unknown[]) => mockApi.getConversation(...args),
     createConversation: (...args: unknown[]) => mockApi.createConversation(...args),
+    deleteConversation: (...args: unknown[]) => mockApi.deleteConversation(...args),
+    updateConversationProjectPath: (...args: unknown[]) =>
+      mockApi.updateConversationProjectPath(...args),
+    updateConversationPlanMode: (...args: unknown[]) => mockApi.updateConversationPlanMode(...args),
   },
 }))
 
@@ -35,8 +41,23 @@ vi.mock('@/lib/logger', () => ({
 
 function resetStore(): void {
   useChatStore.setState({
+    conversations: [],
+    conversationById: new Map<ConversationId, Conversation>(),
     activeConversationId: null,
+    activeConversation: null,
+    error: null,
   })
+}
+
+function makeConversation(id: ConversationId, title = 'Thread'): Conversation {
+  return {
+    id,
+    title,
+    projectPath: '/repo',
+    messages: [],
+    createdAt: 100,
+    updatedAt: 100,
+  }
 }
 
 describe('useChatStore integration', () => {
@@ -54,14 +75,7 @@ describe('useChatStore integration', () => {
   })
 
   it('creates a conversation and marks it active', async () => {
-    const conv = {
-      id: 'conv-1' as ConversationId,
-      title: 'New thread',
-      projectPath: '/repo',
-      messages: [],
-      createdAt: 100,
-      updatedAt: 100,
-    }
+    const conv = makeConversation(ConversationId('conv-1'), 'New thread')
     mockApi.createConversation.mockResolvedValue(conv)
 
     const id = await useChatStore.getState().createConversation('/repo')
@@ -72,15 +86,36 @@ describe('useChatStore integration', () => {
   })
 
   it('sets activeConversationId synchronously', () => {
-    const id = 'conv-2' as ConversationId
+    const id = ConversationId('conv-2')
+    const conversation = makeConversation(id)
+    useChatStore.getState().upsertConversation(conversation)
+
     useChatStore.getState().setActiveConversationId(id)
+
     expect(useChatStore.getState().activeConversationId).toBe(id)
+    expect(useChatStore.getState().activeConversation).toBe(conversation)
   })
 
   it('startDraftThread clears activeConversationId', () => {
-    useChatStore.getState().setActiveConversationId('conv-3' as ConversationId)
+    useChatStore.getState().setActiveConversationId(ConversationId('conv-3'))
     useChatStore.getState().startDraftThread()
     expect(useChatStore.getState().activeConversationId).toBeNull()
+  })
+
+  it('loads full conversations and switches between them without fetching on click', async () => {
+    const first = makeConversation(ConversationId('conv-first'), 'First')
+    const second = makeConversation(ConversationId('conv-second'), 'Second')
+    mockApi.listFullConversations.mockResolvedValue([first, second])
+
+    await useChatStore.getState().loadConversations()
+    useChatStore.getState().setActiveConversationId(second.id)
+
+    expect(useChatStore.getState().conversations.map((conversation) => conversation.id)).toEqual([
+      first.id,
+      second.id,
+    ])
+    expect(useChatStore.getState().activeConversation).toBe(second)
+    expect(mockApi.getConversation).not.toHaveBeenCalled()
   })
 
   it('throws and preserves state on createConversation failure', async () => {
