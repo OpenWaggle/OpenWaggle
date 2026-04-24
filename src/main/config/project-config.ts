@@ -12,30 +12,8 @@ import {
   projectSharedConfigSchema,
   type qualityTierSchema,
 } from '@shared/schemas/validation'
-import type {
-  ApprovalRequiredToolName,
-  ToolApprovalConfig,
-  ToolApprovalPatternRule,
-  ToolApprovalTrustEntry,
-} from '@shared/types/tool-approval'
-import { APPROVAL_REQUIRED_TOOL_NAMES } from '@shared/types/tool-approval'
 import { formatErrorMessage, isEnoent } from '@shared/utils/node-error'
-import {
-  deriveCommandPattern,
-  deriveWebFetchPattern,
-  normalizeCommand,
-  normalizeWebUrl,
-} from '@shared/utils/tool-trust-patterns'
 import { createLogger } from '../logger'
-import type { BaseSamplingConfig } from '../providers/provider-definition'
-import {
-  appendAllowPattern,
-  commandPatternMatch,
-  getStringProperty,
-  hasTrustData,
-  parseRawArgsObject,
-  wildcardMatch,
-} from './project-config-trust'
 
 const CLAMP_OPTIONAL_ARG_3 = 2
 const CLAMP_OPTIONAL_ARG_3_VALUE_1_000_000 = 1_000_000
@@ -48,6 +26,12 @@ const GIT_DIR_NAME = '.git'
 const GIT_DIR_POINTER_PREFIX = 'gitdir:'
 
 const logger = createLogger('project-config')
+
+export interface BaseSamplingConfig {
+  readonly temperature: number
+  readonly topP: number
+  readonly maxTokens: number
+}
 
 export interface ProjectQualityOverrides {
   readonly low?: Partial<BaseSamplingConfig>
@@ -62,7 +46,6 @@ export interface ProjectPreferences {
 
 export interface ProjectConfig {
   readonly quality?: ProjectQualityOverrides
-  readonly approvals?: ToolApprovalConfig
   readonly preferences?: ProjectPreferences
 }
 
@@ -368,170 +351,6 @@ async function updateLocalProjectConfig(
   return parseProjectConfig(null, next)
 }
 
-function getToolTrust(
-  config: ProjectConfig,
-  toolName: ApprovalRequiredToolName,
-): ToolApprovalTrustEntry {
-  return config.approvals?.tools?.[toolName] ?? {}
-}
-
-function isTrustedWriteOrEditTool(
-  config: ProjectConfig,
-  toolName: 'writeFile' | 'editFile',
-): boolean {
-  return getToolTrust(config, toolName).trusted === true
-}
-
-function isTrustedRunCommand(config: ProjectConfig, rawArgs: string): boolean {
-  const parsed = parseRawArgsObject(rawArgs)
-  if (!parsed) {
-    return false
-  }
-
-  const command = getStringProperty(parsed, 'command')
-  if (!command) {
-    return false
-  }
-
-  const normalized = normalizeCommand(command)
-  const patterns = getToolTrust(config, 'runCommand').allowPatterns ?? []
-  return patterns.some((rule) => commandPatternMatch(normalized, rule.pattern))
-}
-
-function isTrustedWebFetch(config: ProjectConfig, rawArgs: string): boolean {
-  const parsed = parseRawArgsObject(rawArgs)
-  if (!parsed) {
-    return false
-  }
-
-  const url = getStringProperty(parsed, 'url')
-  if (!url) {
-    return false
-  }
-
-  const normalized = normalizeWebUrl(url)
-  if (!normalized) {
-    return false
-  }
-
-  const patterns = getToolTrust(config, 'webFetch').allowPatterns ?? []
-  return patterns.some((rule) => wildcardMatch(normalized, rule.pattern.toLowerCase()))
-}
-
-export function isToolCallTrusted(
-  config: ProjectConfig,
-  toolName: ApprovalRequiredToolName,
-  rawArgs: string,
-): boolean {
-  if (toolName === 'writeFile') {
-    return isTrustedWriteOrEditTool(config, 'writeFile')
-  }
-  if (toolName === 'editFile') {
-    return isTrustedWriteOrEditTool(config, 'editFile')
-  }
-  if (toolName === 'runCommand') {
-    return isTrustedRunCommand(config, rawArgs)
-  }
-  return isTrustedWebFetch(config, rawArgs)
-}
-
-export async function isProjectToolCallTrusted(
-  projectPath: string,
-  toolName: ApprovalRequiredToolName,
-  rawArgs: string,
-): Promise<boolean> {
-  const config = await loadProjectConfig(projectPath)
-  return isToolCallTrusted(config, toolName, rawArgs)
-}
-
-export async function setToolTrusted(
-  projectPath: string,
-  toolName: 'writeFile' | 'editFile',
-  trusted: boolean,
-  source: string,
-): Promise<ProjectConfig> {
-  const timestamp = new Date().toISOString()
-  const config = await updateLocalProjectConfig(projectPath, (current) => ({
-    ...current,
-    approvals: {
-      ...current.approvals,
-      tools: {
-        ...current.approvals?.tools,
-        [toolName]: {
-          ...current.approvals?.tools?.[toolName],
-          trusted,
-          timestamp,
-          source,
-        },
-      },
-    },
-  }))
-
-  await ensureLocalConfigGitExcludeBestEffort(projectPath)
-
-  return config
-}
-
-export async function setWriteFileTrust(
-  projectPath: string,
-  trusted: boolean,
-  source: string,
-): Promise<ProjectConfig> {
-  return setToolTrusted(projectPath, 'writeFile', trusted, source)
-}
-
-export async function recordToolCallApproval(
-  projectPath: string,
-  toolName: ApprovalRequiredToolName,
-  rawArgs: string,
-  source: string,
-): Promise<ProjectConfig> {
-  if (toolName === 'writeFile' || toolName === 'editFile') {
-    return setToolTrusted(projectPath, toolName, true, source)
-  }
-
-  const parsed = parseRawArgsObject(rawArgs)
-  if (!parsed) {
-    return loadProjectConfig(projectPath)
-  }
-
-  const timestamp = new Date().toISOString()
-  const candidatePattern =
-    toolName === 'runCommand'
-      ? deriveCommandPattern(getStringProperty(parsed, 'command') ?? '')
-      : deriveWebFetchPattern(getStringProperty(parsed, 'url') ?? '')
-
-  if (!candidatePattern) {
-    return loadProjectConfig(projectPath)
-  }
-
-  const normalizedPattern =
-    toolName === 'runCommand' ? normalizeCommand(candidatePattern) : candidatePattern.toLowerCase()
-
-  const config = await updateLocalProjectConfig(projectPath, (current) => ({
-    ...current,
-    approvals: {
-      ...current.approvals,
-      tools: {
-        ...current.approvals?.tools,
-        [toolName]: {
-          ...current.approvals?.tools?.[toolName],
-          allowPatterns: appendAllowPattern(
-            normalizeToolApprovalPatterns(current.approvals?.tools?.[toolName]?.allowPatterns),
-            normalizedPattern,
-            timestamp,
-            source,
-          ),
-        },
-      },
-    },
-  }))
-
-  await ensureLocalConfigGitExcludeBestEffort(projectPath)
-
-  return config
-}
-
 export async function getProjectPreferences(
   projectPath: string,
 ): Promise<ProjectPreferences | undefined> {
@@ -572,17 +391,6 @@ function parseProjectConfig(
     qualityOverrides.medium !== undefined ||
     qualityOverrides.high !== undefined
 
-  const toolApprovals: Partial<Record<ApprovalRequiredToolName, ToolApprovalTrustEntry>> = {}
-  let hasToolApprovals = false
-  for (const toolName of APPROVAL_REQUIRED_TOOL_NAMES) {
-    const entry = local?.approvals?.tools?.[toolName]
-    const normalizedEntry = parseToolApprovalEntry(entry)
-    if (hasTrustData(normalizedEntry)) {
-      toolApprovals[toolName] = normalizedEntry
-      hasToolApprovals = true
-    }
-  }
-
   const preferences: ProjectPreferences | undefined =
     local?.preferences?.model || local?.preferences?.quality_preset
       ? {
@@ -593,19 +401,12 @@ function parseProjectConfig(
         }
       : undefined
 
-  if (!hasQuality && !hasToolApprovals && !preferences) {
+  if (!hasQuality && !preferences) {
     return EMPTY_CONFIG
   }
 
   return {
     ...(hasQuality ? { quality: qualityOverrides } : {}),
-    ...(hasToolApprovals
-      ? {
-          approvals: {
-            tools: toolApprovals,
-          },
-        }
-      : {}),
     ...(preferences ? { preferences } : {}),
   }
 }
@@ -639,58 +440,4 @@ function parseTierOverride(
   }
 
   return Object.keys(out).length > 0 ? out : undefined
-}
-
-function parseOptionalString(value: unknown): string | undefined {
-  return typeof value === 'string' ? value : undefined
-}
-
-function parseOptionalBoolean(value: unknown): boolean | undefined {
-  return typeof value === 'boolean' ? value : undefined
-}
-
-function parseToolApprovalPattern(rule: {
-  readonly pattern: string
-  readonly timestamp?: unknown
-  readonly source?: unknown
-}): ToolApprovalPatternRule {
-  return {
-    pattern: rule.pattern,
-    timestamp: parseOptionalString(rule.timestamp),
-    source: parseOptionalString(rule.source),
-  }
-}
-
-function normalizeToolApprovalPatterns(
-  patterns:
-    | readonly {
-        readonly pattern: string
-        readonly timestamp?: unknown
-        readonly source?: unknown
-      }[]
-    | undefined,
-): readonly ToolApprovalPatternRule[] | undefined {
-  return patterns?.map(parseToolApprovalPattern)
-}
-
-function parseToolApprovalEntry(
-  entry:
-    | {
-        readonly trusted?: unknown
-        readonly timestamp?: unknown
-        readonly source?: unknown
-        readonly allowPatterns?: readonly {
-          readonly pattern: string
-          readonly timestamp?: unknown
-          readonly source?: unknown
-        }[]
-      }
-    | undefined,
-): ToolApprovalTrustEntry {
-  return {
-    trusted: parseOptionalBoolean(entry?.trusted),
-    timestamp: parseOptionalString(entry?.timestamp),
-    source: parseOptionalString(entry?.source),
-    allowPatterns: entry?.allowPatterns?.map(parseToolApprovalPattern),
-  }
 }
