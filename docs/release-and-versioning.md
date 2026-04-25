@@ -15,9 +15,9 @@ Every push to `main` and every PR runs CI (typecheck, lint, tests). Releases are
 1. Determine the version bump from Conventional Commits
 2. Bump `package.json`, commit, and tag
 3. Build for macOS (arm64 + x64), Windows, and Linux in parallel
-4. Create a draft GitHub Release with all artifacts + SHA256 checksums
+4. Create a GitHub Release with all artifacts + SHA256 checksums
 
-No manual tag creation or version editing needed. The app includes auto-update via `electron-updater` — running instances check for updates and notify users when a new version is available.
+No manual tag creation or version editing is needed for normal `feat:`/`fix:` releases. The workflow currently publishes unsigned platform artifacts; public distribution still depends on platform trust work such as macOS notarization and Windows code signing.
 
 ## Versioning
 

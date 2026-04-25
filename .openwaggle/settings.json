@@ -1,4 +1,7 @@
 {
+  "preferences": {
+    "model": "openai-codex/gpt-5.5"
+  },
   "packages": [
     "npm:pi-mcp-adapter"
   ]

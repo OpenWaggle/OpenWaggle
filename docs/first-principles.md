@@ -20,19 +20,19 @@ There is one file that defines all IPC channels, their argument types, and their
 
 ---
 
-## 3. The agent is a controlled loop, not a free executor
+## 3. Pi is the runtime kernel
 
-An LLM does not act autonomously. It proposes actions within a bounded iteration cycle, and each action is mediated by an approval gate, a tool definition, or a termination condition. The loop is the unit of control.
+OpenWaggle does not recreate a coding-agent runtime beside Pi. Pi owns the core execution loop, session continuity, native tool surface, and runtime policy. OpenWaggle owns the UI, product projection, persistence read model, and explicit adapter boundaries around Pi.
 
-The agent loop has a hard iteration ceiling. Each iteration follows the same sequence: build context, call the model, process the stream, handle tool calls, check termination. There is no path by which the model can bypass this cycle, skip approval, or extend its own iteration budget. Control flow belongs to the loop, not to the model.
+Pi enters the application only through ports and adapters. Domain, application, IPC, shared, and renderer code use OpenWaggle-owned types; they do not import Pi SDK types or reshape Pi into a legacy runtime protocol.
 
 ---
 
-## 4. Tools are the only interface between the agent and the world
+## 4. Runtime capabilities come from Pi first
 
-The agent cannot read files, execute commands, or affect state except through declared tools with explicit schemas. There is no ambient capability. Every side effect is named, typed, and gated.
+The first Pi-native baseline uses Pi's native coding-agent tools and events. OpenWaggle does not add approval managers, custom tool wrappers, compatibility bridges, or hidden orchestration to make Pi behave like the previous runtime.
 
-Each tool declares its input schema, whether it requires user approval, and what context it needs. The agent loop validates inputs before execution and captures outputs after. There is no mechanism for the model to execute code, access the filesystem, or make network calls outside of a registered tool. The tool boundary is the complete surface area of agent capability.
+New capabilities must be introduced as Pi-native extensions behind ports, with a clear product reason. The default answer to legacy tool surfaces is deletion, not adaptation.
 
 ---
 
@@ -48,31 +48,31 @@ The renderer maintains its own stores for UI state, streaming display, and user 
 
 The system is designed around continuous, incremental delivery of information from main to renderer. Streaming is not an optimization applied to a request-response model; it is the fundamental communication pattern for agent execution.
 
-The agent loop emits stream chunks as they arrive from the LLM. The renderer subscribes to these events and builds messages incrementally. Tool calls, approval requests, errors, and completion signals all flow through the same streaming channel. The UI renders partial state as it arrives rather than waiting for complete responses.
+The agent runtime emits transport events as they arrive from Pi. The renderer subscribes to these events and builds messages incrementally. Text, tool calls, errors, cancellation, and completion signals all flow through OpenWaggle-owned transport events. The UI renders partial state as it arrives rather than waiting for complete responses.
 
 ---
 
 ## 7. Every provider is equivalent in interface, not in capability
 
-The system abstracts over multiple LLM providers through a uniform adapter interface. Provider-specific behavior is encapsulated within the adapter; the agent loop does not branch on provider identity.
+The system presents multiple LLM providers through Pi-aligned model/auth/runtime metadata. Provider-specific behavior is encapsulated at adapter boundaries; the application runtime does not branch on provider identity.
 
-A provider registers its models, declares its capabilities, and supplies an adapter factory. The agent loop resolves which provider owns a given model and creates an adapter. From that point forward, the loop treats all providers identically. Differences in API format, authentication, streaming behavior, or model capabilities are absorbed by the adapter, not by the calling code.
-
----
-
-## 8. Composition over configuration
-
-Features, tools, prompts, and skills are composed at runtime from discrete, declarative units. The system's behavior for a given run is the product of what was composed into it, not a static configuration that was toggled.
-
-Agent features contribute prompt fragments, tools, tool filters, and lifecycle hooks. These are assembled per-run based on the conversation's context, active skills, project configuration, and sub-agent constraints. No single configuration file determines the agent's full behavior. The same agent loop can produce different capabilities depending on what features were composed into it.
+Provider/model/auth work should mirror Pi's capabilities where possible. OpenWaggle adds a polished settings UX over that runtime truth, not a separate provider runtime.
 
 ---
 
-## 9. The user is always the final authority
+## 8. Explicit projection over hidden orchestration
 
-No irreversible action proceeds without explicit user consent. Approval is not a UX convenience; it is a structural property. The system distinguishes between actions that are safe to execute autonomously and those that require human judgment.
+OpenWaggle's product state is a typed projection over Pi sessions, nodes, and branches. There are no hidden sub-sessions, synthetic tool calls, or compatibility streams standing in for real runtime structure.
 
-Tools declare whether they need approval. Project configuration can auto-approve specific patterns. But the default posture is to ask. The user can approve, deny, or cancel at any point. The agent loop pauses and waits. There is no timeout that auto-approves, no fallback that bypasses the gate.
+Waggle and future collaboration features must write into the same canonical session/tree model as standard mode. Branch-scoped product metadata belongs in SQLite projection tables; Pi remains the runtime/session authority.
+
+---
+
+## 9. The user remains in control through visible state
+
+The user is the final authority through explicit mode selection, visible session/branch state, truthful tool rendering, stop/cancel controls, and project-local configuration. Control is not implemented as an OpenWaggle-specific per-tool approval layer in the initial Pi-native runtime.
+
+If future Pi-native policy controls are added, they must be modeled explicitly and stay behind the Pi adapter boundary instead of reviving the legacy approval manager.
 
 ---
 

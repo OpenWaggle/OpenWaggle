@@ -2,7 +2,7 @@
 name: project-learnings
 description: Technical learnings log for OpenWaggle. Stores warnings, pattern preferences, and historical engineering learnings; workflow policy lives in AGENTS.md and CLAUDE.md.
 owner: openwaggle-core
-last_updated: 2026-03-20
+last_updated: 2026-04-25
 ---
 
 # LEARNINGS.md
@@ -20,186 +20,47 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
-### Persistence & Run Lifecycle Patterns
-- The hexagonal refactor moved payload hydration into `executeAgentRun` (application layer) but lost the callback that propagated `hydratedPayload` back to the IPC handler's `activeRuns` metadata. This silently broke both steer and cancel persistence since both depend on `metadata.payload` being non-null. When moving state-producing logic into inner layers, ensure all metadata callbacks are preserved or replaced with new ones (e.g. `onPayloadHydrated`).
-- Cancel handlers that use `ActiveRunManager.cancel()` must read `entry.metadata` BEFORE calling cancel — `cancel()` deletes the entry.
-- When persisting partial responses on cancel, use `finalizeParts({ timedOut: true })` NOT `snapshotParts()`. `snapshotParts()` captures tool-call parts without matching tool-result parts. When these orphan tool calls are persisted and the conversation is reloaded, the continuation normalizer sees incomplete tool calls and triggers a new agent run to complete them — creating an infinite restart loop. `finalizeParts({ timedOut: true })` forces synthetic error results for ALL incomplete tool calls, breaking the cycle. The `timedOut` flag is critical: without it, `finalizeParts()` deliberately preserves `awaitingResult` tool calls (for approval flows), which are exactly the ones that cause the loop on cancel.
-- `typedOn` (send-channel handlers) wraps in `runAppEffect()` and supports `Effect.gen` with full service access — not limited to `Effect.sync`. Safe to use `ConversationRepository` and other ports.
-- Blocking tools (`proposePlan`, `askUser`) must checkpoint conversation state BEFORE their blocking promise, not after. The `TOOL_CALL_END` chunk with `result === undefined` is the last synchronous opportunity — the next stream iteration blocks on tool execution. Checkpoint uses `snapshotParts()` (non-destructive) rather than `finalizeParts()` (destructive) because the run is still alive. The persisted tool-call without a tool-result signals "pending user input" and enables rehydration on reload.
-- When both checkpoint and normal completion can persist, the `messageCountGuard` pattern must REPLACE (truncate to pre-run count + append final) instead of SKIP. Skipping would leave partial checkpoint data when the run later completes successfully.
-- The `onCheckpointNeeded` callback must bridge from Promise-land to Effect-land via `runAppEffect` when called from transport-layer callbacks, or via `Effect.promise()` when called inside stream processing Effects. Nesting `runAppEffect` inside an already-running Effect program works because both resolve against the same managed runtime.
+### Pi Runtime & Session Projection
 
-### Context Compaction & Waggle Patterns
-- Waggle coordinator (`agent/waggle-coordinator.ts`) is agent-layer code and must not import `providerRegistry` directly. Compute derived values like `effectiveContextWindowOverride` in the application layer (`waggle-run-service.ts`) using `ProviderService` port, then pass as a parameter to the coordinator. Same pattern applies to any agent-layer code needing provider resolution.
-- Composer performance: passing derived state (`isCompactCommand`, `saveCompactForThread`) from Composer → ComposerToolbar as props breaks React Compiler's auto-memoization of the toolbar. Move the state read + derivation into the consuming component (ComposerToolbar reads `input` from store directly) so parent-provided props remain stable.
+- Pi SDK is an adapter detail, not an application contract. Application, IPC, shared, renderer, and domain layers should speak OpenWaggle-owned types such as `AgentKernelService`, `AgentTransportEvent`, `SessionId`, `SessionNodeId`, and `SessionBranchId`; Pi SDK imports belong under `src/main/adapters/pi/` only. [SKILL?]
+- Pi JSONL sessions are internal runtime state. SQLite session projection (`sessions`, `session_nodes`, `session_branches`, branch state, tree UI state, and run linkage) is the canonical product read model for renderer navigation, branching, and persistence.
+- During the clean-cut migration, projected SQLite node ids can temporarily outlive or diverge from the Pi JSONL entries available to `session.navigateTree(...)`. Treat missing-entry navigation as cancelled/stale navigation instead of throwing through IPC, and avoid calling Pi navigation for draft branch selection before the next send materializes the branch. [SKILL?]
+- Do not preserve legacy flat-conversation bootstrapping as active behavior during the Pi migration. Pre-user/dev data can be discarded; retaining compatibility tables or startup backfills keeps flat-thread assumptions alive.
+- Pi owns the initial runtime tool surface. Standard OpenWaggle sends should not pass an OpenWaggle-owned `tools` or `customTools` allowlist; OpenWaggle renders Pi-emitted native tool events and should add future capabilities only as explicit Pi-native extensions behind ports. [SKILL?]
+- Renderer streaming should reduce `AgentTransportEvent` into OpenWaggle-owned `UIMessage` state. The renderer must not depend on vendor stream shapes, hidden coordination markers, or artificial turn-boundary tool calls.
+- Waggle must emit explicit per-turn assistant messages and metadata. A single assistant message split by compatibility markers is not a Pi-native transcript model.
+- Waggle coordination prompts should go through Pi custom messages with hidden display metadata, while the visible user request remains a separate projected user node. Do not send internal turn instructions through the normal user-prompt path or they will persist as transcript content.
 
-### Refactoring Patterns
-- React Compiler auto-memoizes for RENDER optimization, but does NOT guarantee stable function identity for functions used as effect dependencies in external hooks. If a function is passed to a custom hook that uses it in `useEffect` deps, that function MUST use `useCallback` — otherwise the effect restarts every render, cancelling in-flight async operations (e.g. auto-trust approval checks). `[SKILL?]`
-- When mapping vendor types to domain types at adapter boundaries, creating NEW objects (field-by-field copy) instead of passing references changes mutation semantics. TanStack AI mutates UIMessage parts in-place (e.g., setting `output` on a tool-call part after execution). If the continuation snapshot is a shallow copy of live objects, these mutations propagate. If the snapshot is an explicit field extraction (domain mapping), mutations are lost. Always guard against the "approved but not yet executed" state in tool-call continuations — do not inject synthetic error results for tools the user has explicitly approved.
-- Regex `\b(\w{2,})\1\b` for deduplicating concatenated word fragments is too aggressive — it breaks legitimate short-repeat words like "CoCo", "Papa", "MaMa". Use `{4,}` minimum fragment length to avoid false positives while still catching "HelloHello", "FunctionFunction", etc.
-- When extracting shared handler utilities, do NOT mock the extracted module in existing handler tests — let calls pass through to the real utilities since all downstream dependencies are already mocked. This preserves integration coverage without test changes.
-- Renderer error logging must use `createRendererLogger` from `@/lib/logger`, never raw `console.warn` — the structured logger respects log levels and provides consistent namespace prefixes.
+### Provider & Resource Boundaries
 
-### Codex Subscription Transport
-- The Codex subscription endpoint (`chatgpt.com/backend-api/codex/responses`) rejects ALL token-limit parameters (`max_output_tokens`, `max_tokens`, `max_completion_tokens`) and several others (`metadata`, `user`, `context_management`). Output budgets are controlled server-side. Strip all unsupported params in the custom fetch transport. `[SKILL?]`
-- When the Codex endpoint exhausts its server-side output budget, it sends `response.incomplete` instead of `response.completed`. The reliable continuation signal is NOT `response.incomplete.response.output`; Codex may omit the already-streamed function calls there. The OpenAI adapter must key continuation off stream-observed tool calls (`response.output_item.added` / `toolCallMetadata.size`) and map that incomplete response to `RUN_FINISHED(finishReason: 'tool_calls')`. A secondary fallback handles streams that end without any terminal event.
-- TanStack AI's OpenAI adapter sends full conversation history for continuations (not `previous_response_id`). Each continuation request goes through the same custom fetch and gets the same parameter stripping.
+- Provider/model/auth metadata should be Pi-derived through adapter ports, not maintained as an OpenWaggle provider registry. Renderer and IPC DTOs can stay OpenWaggle-owned, but their contents must come from Pi `AuthStorage`, `ModelRegistry`, and cwd-bound session services.
+- Pi tool-call events can provide canonical input/result data at the adapter boundary. Prefer emitting authoritative OpenWaggle transport events once the tool state is known instead of renderer-side repair layers.
+- OpenWaggle bridges `.openwaggle/skills` into Pi by passing it as an additional Pi `DefaultResourceLoader` skill path. The adapter also filters `.openwaggle/skills` and root `.agents/skills` with OpenWaggle catalog toggles while leaving `.pi/skills` and Pi's native discovery unchanged. [SKILL?]
+- Pi `ModelRegistry.registerProvider()` requires enough provider metadata to be runtime-valid even in tests: custom providers with models need `baseUrl` and either `apiKey` or `oauth`. [SKILL?]
+- Pi's extension loader uses `import.meta.resolve()` on its Node alias path. Electron's CJS main-process bundle can rewrite that incorrectly, so OpenWaggle must force Pi's bundled virtual-module loader branch and fail loudly if the loader shape changes. [SKILL?]
+- Pi `SessionManager.create()` allocates a session id and file path before a run, but the JSONL file is not written until Pi flushes entries. If OpenWaggle opens that missing path later, Pi creates a different id; preserve the pre-created id by creating a fresh `SessionManager` and calling `newSession({ id })` before the first prompt. [SKILL?]
+- Pi TUI builds runtime services with `createAgentSessionServices()` before model resolution so extension/provider registrations are applied to the project-scoped `ModelRegistry`. OpenWaggle should use that same service path for project runs and project-scoped provider catalogs instead of resolving models from a bare global registry. [SKILL?]
+- Pi `ModelRegistry.getAvailable()` means a provider has configured auth through auth.json, environment, OAuth, or custom config. It does not guarantee account-level entitlement for every listed model; model/account rejection handling must remain runtime diagnostic behavior, not a hardcoded provider/model suppression list. [SKILL?]
+- Pi exposes OAuth-capable providers through `AuthStorage.getOAuthProviders()`, but does not expose an equivalent API-key-capable provider list. Until the SDK adds one, keep any API-key capability mirror confined to the Pi adapter and treat provider-level availability, API-key configuration, and OAuth connection as separate state. [SKILL?]
+- OpenWaggle project config is `.openwaggle/settings.json`, not TOML. Top-level keys are OpenWaggle-owned, and Pi settings live under `pi`; the Pi adapter bridges that nested object into Pi with `SettingsManager.fromStorage(...)` while still allowing Pi's native `.pi/settings.json` input at lower precedence. [SKILL?]
+- Current Pi SDK types tool result payloads as JSON values, not strings. Preserve structured tool results in OpenWaggle persistence/UI state and serialize to text only when rebuilding Pi history entries that require text content. [SKILL?]
+- Thinking levels are Pi-native run options, not OpenWaggle quality presets. Store/pass Pi levels (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`) directly and do not reintroduce project-level sampling/quality tier config. [SKILL?]
+- Pi `createAgentSession({ thinkingLevel })` only forces `off` for non-reasoning models; it does not clamp unsupported `xhigh` to model-specific availability the way `AgentSession.setThinkingLevel()` does. Clamp requested levels in the Pi adapter or route changes through `setThinkingLevel()` before prompting so OpenWaggle state and Pi session entries do not record unsupported `xhigh`. [SKILL?]
+- API-key provider probing currently uses the process cwd when constructing Pi runtime services. Project-scoped custom provider validation requires passing the selected project path through the provider-test flow. [SKILL?]
+- OpenWaggle's integrated terminal environment filtering does not constrain Pi's native `bash` tool environment. Any product guarantee about Pi tool shell env must be implemented in the Pi adapter, not inferred from terminal settings. [SKILL?]
 
-### Provider Error & Retry Patterns
-- TanStack AI providers have two distinct error paths: (1) Anthropic OAuth adapter catches errors and yields `RUN_ERROR` stream chunks, (2) standard SDK adapters (OpenAI, Gemini) throw exceptions that propagate through the TanStack engine's `run()` catch block. Provider retry logic must handle both paths — intercept retryable `RUN_ERROR` chunks in the stream processor AND catch retryable thrown exceptions via `Effect.catchAll` in the agent loop.
-- TanStack AI's `TextEngine.handleRunErrorEvent()` sets `earlyTermination = true`, which causes the stream to end naturally after yielding `RUN_ERROR` — there is no subsequent `RUN_FINISHED` chunk. The stream iterator's `.next()` resolves with `done: true`.
-- In-stream `RUN_ERROR` chunks (Anthropic OAuth path) and thrown exceptions (standard adapter path) produce different UX: in-stream errors embed as text in a "successful" run; thrown errors produce a classified `AgentRunResult` with `outcome: 'error'` and show `ChatErrorDisplay` with Retry button. The retry feature unifies both by intercepting before they diverge.
-- Retryable `RUN_ERROR` chunks must be intercepted BEFORE reaching `StreamPartCollector.handleChunk()` — otherwise the error text `**Error:** ...` gets persisted in the collector's parts and appears in the final message on retry.
-- `classifyErrorMessage()` from `@shared/domain/error-classifier` classifies `'unknown'` errors as `retryable: true`. Tests for non-retryable behavior must use error messages that match specific non-retryable patterns (e.g. `'401 Unauthorized'`), not generic messages.
+### Electron & Renderer Patterns
 
-### Streaming Performance Patterns
-- ShikiCache is content-addressed (`cyrb53(language + '\0' + code)`). Growing code blocks produce new keys, so cache reads/writes are safe during streaming — no need for `isStreaming` guards. Disabling cache during streaming was the primary perf bottleneck for code-block rendering.
-- Prefix HAST caching should be incremental: when the prefix grows monotonically (append-only during streaming), only parse the NEW paragraph and push its HAST children onto the existing tree. Re-parsing the entire prefix on every paragraph completion is O(n) wasted work.
-- ReactMarkdown checks plugin array references. Stabilize `rehypePlugins` across renders using a ref so the internal unified processor chain isn't re-created every frame. `[SKILL?]`
-- Avoid key-based remounts (`key={condition ? 'a' : 'b'}`) for caching components during streaming — they destroy all accumulated state. Prefer cache invalidation with React diff.
-
-### TanStack useChat & Streaming Patterns
-- `normalizeContinuationAsUIMessages` bypassed `enforceToolResultPairing`, leaving orphan tool-call parts (state `input-complete` / `approval-responded` with no tool-result and no output) in UIMessages. TanStack AI's `buildAssistantMessages` emits these as `tool_use` blocks without matching `tool` messages, crashing the Anthropic API with `tool_use ids were found without tool_result blocks`. Fix: inject synthetic `tool-result` parts for orphan tool calls before continuation messages reach `chat()`. `[SKILL?]`
-- `enforceToolResultPairing` (ModelMessage path) only dropped orphan tool *results* — never orphan tool *calls* at the end of the history. Both directions must be checked to prevent API errors.
-- Plan mode state (`planModeActive`) stored in composer Zustand state was reset by `reset()` after every send. This caused continuation runs (tool results, plan approval) to lose the `core.plan-mode-active` prompt fragment. Fix: persist plan mode per-conversation in SQLite and read from `conversation.planModeActive` instead of ephemeral composer state. The agent loop falls back to `conversation.planModeActive` when `payload.planModeRequested` is absent.
-- `useChat` foreground flows can leave the renderer vulnerable to client/message resets. Cache final foreground `UIMessage[]`, restore once if empty, then clear the guard so persisted hydration resumes.
-- `react-virtuoso` chat transcripts need stable `computeItemKey` when inserting user turns mid-stream. Index-based keys cause DOM recycling bugs.
-- Snapshot-refresh barriers are needed for sends and steer flows. A stale `onRunCompleted` can overwrite optimistic user turns unless the send path increments an explicit deferral barrier synchronously.
-- `ChatClient.sendMessage()` resolves only after the full stream completes, not after optimistic insertion. Safe to keep barriers open for the whole run.
-- `for await (const chunk of stream)` blocks indefinitely on provider stalls. Use manual `iterator.next()` + `Promise.race` with a timeout.
-- Stream-stall recovery should split "pending tool args" from "awaiting tool result". Retrying is safe during `TOOL_CALL_START`/`TOOL_CALL_ARGS`; unsafe after `TOOL_CALL_END` without result.
-- `setMessages()` only accepts `UIMessage[]`, not a functional updater. Use a `messagesRef` pattern for IPC event listeners that need current state.
-- `isLoading` can go `false` when `sendPromise` resolves even though main process still has an active run. Augment with `agentPhase !== null`.
-
-### OAuth & Auth Patterns
-- OAuth expiry should be stored as the provider's real `expiresAt` and buffered in exactly one place. Double-buffering silently shortens sessions.
-- Background auth polling must not call the proactive refresh path. Lifecycle status should derive from stored token state only.
-- Fatal refresh failures (HTTP 400/401) should clear the stored token immediately to stop retry loops.
-
-### Approval & Tool Execution
-- TanStack approval placeholder payloads (`{"approved":true,"pendingExecution":true}`) can flow as ordinary tool-result content. Both UI and logging must distinguish placeholders from concrete results.
-- Pending-approval selection must use newest-unresolved semantics (reverse traversal + filter resolved IDs).
-- Auto-trust checks must re-verify the approval is still current right before dispatching `respondToolApproval`.
-- Duplicate pending approvals must be scoped to the current user turn — matching calls from earlier turns are legitimate new work.
-- Trusted `runCommand` wildcard matching should reject shell-chain operators (`;`, `&&`, `||`, pipes) even when prefix patterns match.
-- Approval overrides applied before context binding (e.g. `withoutApproval`) are lost unless `bindToolContextToTool()` explicitly preserves `needsApproval: false` on the bound server tool. Otherwise waggle/full-access runs can unexpectedly re-enter approval-required tool continuations. `[SKILL?]`
-
-### Context Compaction Patterns
-- Context UX: the baseline token overhead (system prompt + tools + MCP) must be computed from real serialized content, not hardcoded estimates. Use `computeBaselineOverhead()` in `context-snapshot-service.ts` which serializes each tool's JSON schema and counts tokens from actual prompt fragment text. The cache is invalidated when MCP servers connect/disconnect.
-- Context snapshots must always use `settings.selectedModel` (the model selected in the composer dropdown), never `findLastModel(conversation.messages)` from old assistant responses. The snapshot must re-fetch when the selected model changes.
-- Claude 4.6 models (Opus, Sonnet) support 1M context tokens, not 200K like 4.5 models. Context window metadata is now also exposed to the renderer via `ModelDisplayInfo.contextWindow` from the `providers:get-models` IPC channel.
-- Panel animation wrapper divs break `calc(100% - Npx)` width calculations inside fragments — the `100%` resolves against the wrapper, not the grandparent flex container. Apply animation classes directly to the panel's content div instead.
-- `tailwindcss-animate` is installed and registered via `@plugin "tailwindcss-animate"` in `globals.css` for Tailwind v4.
-- Two-tier compaction: Tier 1 microcompaction (deterministic, no LLM — strip old tool results) runs on every API call via `buildFreshChatMessages`. Tier 2 full LLM compaction only triggers at ~90% of model context window. Tool results typically consume 60-80% of context in agentic sessions; microcompaction of stale results yields roughly 20-60% reduction depending on tool usage intensity.
-- `runAgentEffect` now requires `ContextCompactionService` in its Effect context (`StandardsService | ContextCompactionService`). `runAgent()` provides both layers via `Layer.merge(FilesystemStandardsLive, ContextCompactionLive)`. Tests that mock `../message-mapper` must include `microcompactMessages` in the mock factory.
-- Shared types used by both main process and renderer must live in `src/shared/types/`, not `src/main/domain/`. The renderer has no `@main/` path alias — only `@shared/*` and `@/*`. Domain types can re-export from shared: `import type { X } from '@shared/types/foo'; export type { X }`.
-- Compaction events flow via existing `CUSTOM` stream chunks (`name: 'compaction'`) through `agent:stream-chunk` IPC channel — no new IPC channels needed. The renderer's `useThreadStatusMonitor` hook already listens to all stream chunks and filters by `chunk.name`.
-
-### Electron & Process Boundaries
-- MCP stdio transports must use the same safe child-environment allowlist as command execution. Full `process.env` leaks API keys to MCP subprocesses.
-- `StdioClientTransport.env` expects `Record<string, string>` but `process.env` values are `string | undefined`. Filter undefined entries.
-- `@modelcontextprotocol/sdk` is ESM-only — add to `externalizeDeps.exclude` in electron-vite config.
-- Agent shells can inherit `ELECTRON_RUN_AS_NODE=1`, which makes `electron-vite dev` launch Electron in Node mode and causes `require('electron').app` to be undefined. Dev launch scripts should explicitly clear that env var before invoking Electron, especially for MCP/CDP QA workflows. `[SKILL?]`
-- Chromium session DIPS database errors: fix with a versioned one-time profile repair before the first `BrowserWindow`.
-- `better-sqlite3` in Electron needs explicit Electron-target rebuild. Keep a separate Node rebuild path for Vitest.
-- Playwright E2E helpers should not forward full parent `process.env`. Use a small allowlist.
-- E2E readiness checks should anchor on stable shell controls, not empty-state copy.
-- `window.prompt`/`window.confirm` can be unsupported in Electron renderer contexts. Use in-app modals.
-
-### React & Renderer Patterns
-- `react-virtuoso` `followOutput="smooth"` during streaming causes visible jank. Use immediate follow while loading.
-- Renderer cache layers only help when upstream lookup hooks preserve referential identity.
-- Thread navigation needs a renderer-local full-conversation read model for instant, correct active-thread rendering. Per-click full-conversation query fetches can show empty/stale/intermediate content and degrade navigation UX; background run completion should refresh/upsert that same read model instead of driving route selection through query hydration. `[SKILL?]`
-- Zustand selector fallbacks must use stable module-level constants, not inline `?? []`.
-- Zustand mock selectors in tests must return stable function identities for function-valued slices, or effects retrigger infinitely.
-- Never use Zustand selectors that return a new object `(s) => ({ a: s.a, b: s.b })` — Zustand uses `Object.is` by default and a new object always !== the previous one, causing infinite re-render loops (React error #185). Use individual primitive selectors instead. The React Compiler handles render memoization.
-- React Compiler checks fail on `try`/`finally` without `catch`. Rewrite to promise-chain cleanup.
-- `@testing-library/react` auto-cleanup needs `globals: true` or explicit `afterEach(() => cleanup())`.
-- Component test Vitest configs need `@vitejs/plugin-react` in plugins for JSX runtime.
-- Thread-switch scroll persistence must not capture `scroller.scrollTop` from a conversation-change effect as the source of truth; by effect time, the DOM may already represent the incoming thread. Cache per-thread scroll position from scroll events and persist/flush that cache on switches.
-- Chat thread navigation can deliver `activeConversationId` and `lastUserMessageId` on different renders. Treat the first non-null `lastUserMessageId` after a conversation switch as baseline (seen), or send-anchor logic will misfire and jump scroll on navigation.
-- In real navigation hydration, `lastUserMessageId` can change multiple times (stale previous-thread ID, then interim, then final). Suppress user-anchor scroll until the conversation snapshot stabilizes for a short settle window; one-shot baseline suppression is insufficient.
-- Navigation-time user-anchor suppression must still allow a genuine immediate send in the active thread. The safe discriminator is a stable per-thread baseline plus a fresh `isLoading` transition and a single-message append; a raw settle timeout alone will suppress legitimate send-anchor scrolls and fail E2E.
-- Scroll restoration must also wait for an incoming thread identity signal, not just `activeConversationId` or row count. During thread navigation, React can render the new conversation ID with same-length stale rows from the previous thread; restoring immediately can save/restore the wrong scroll offset. Gate restoration on `lastUserMessageId` changing away from the previous thread baseline, then keep the target pending until the saved scrollTop is reachable. `[SKILL?]`
-- T3-style chat stream follow needs an explicit stream-content update signal in addition to `ResizeObserver`; row-count dependencies miss token growth inside an existing assistant row, and resize callbacks are not a reliable stream clock. `[SKILL?]`
-- Chat stream-follow opt-out must synchronously cancel any pending stick-to-bottom animation frame on upward wheel/touch intent. If auto-follow waits for the later scroll event to disable itself, a queued frame can snap back to the bottom once and cause visible flicker. `[SKILL?]`
-
-### IPC & Shared Types
-- Shared IPC channel maps can generate preload helpers directly. Export channel arg/payload utility types for DRY preload.
-- IPC channels should be scoped to specific actions, not generic path openers — renderer is untrusted.
-- First-send UX depends on main-process persistence of the user turn even when the run fails before assistant output.
-- `typedHandle` + `runAppEffectExit` is the pattern for invoke (request/response) IPC handlers. `typedOn` + `runAppEffect` is the pattern for send (fire-and-forget) IPC listeners. Both are Effect-based; raw Electron wrappers are internal (`rawHandle`/`rawOn`). Tests that mock `../../runtime` must include both `runAppEffectExit` and `runAppEffect`.
-- `Effect.catchAll` only catches typed failures, not sync throws (defects). `decodeUnknownOrThrow` throws synchronously. Use `Effect.catchAllDefect` in addition to `Effect.catchAll` when wrapping code that may throw.
-
-### Provider & Model System
-- OpenAI subscription OAuth tokens and API keys need different transport endpoints. Mixing produces 403 or 401 errors.
-- Codex responses require `store=false` and specific headers (`chatgpt-account-id`, `OpenAI-Beta`, `originator`).
-- Anthropic rejects requests with both `temperature` and `top_p`. Provider-specific resolvers should emit only one.
-- Provider model payloads can contain duplicates (especially Ollama). De-duplicate by `provider:modelId`.
-- TanStack AI adapter factories (`createAnthropicChat`, `createOpenaiChat`) restrict model params to static literal unions. Wrap them in typed helper functions that use `as (typeof MODEL_LIST)[number]` casts internally — this keeps the suppression in one documented place and avoids scattering `@ts-expect-error` through provider code.
-- Dynamic model fetching must also call `providerRegistry.indexModels()` so the agent loop's `getProviderForModel()` resolves dynamic IDs. Without indexing, the agent loop returns "No provider registered for model".
-- Persisted dynamic `selectedModel` values should be re-associated from `enabledModels` before startup validation, and renderer boot should load settings before fetching provider models. Otherwise valid dynamic selections can be downgraded to the default model on launch before dynamic IDs are re-indexed.
-- OpenAI subscription auth uses OAuth tokens (not `sk-` prefixed API keys). `fetchModels` should detect non-`sk-` keys and return static fallback models since the `/v1/models` endpoint requires API key auth.
-- Claude 4.6 migration (per Anthropic docs): manual thinking (`{type: "enabled", budget_tokens}`) is deprecated. Use `thinking: {type: "adaptive"}` + `output_config: {effort: "..."}` on the GA endpoint (`client.messages.create`, not beta). Requires `@anthropic-ai/sdk` newer than 0.71.2 (which lacks these types). `[SKILL?]`
-- Anthropic subscription OAuth is server-restricted to Claude Code only (policy enforced Feb 2026). Third-party apps get 400 for all models except haiku. The restriction uses a two-check system: (1) `anthropic-beta: oauth-2025-04-20` header, (2) system prompt must begin with `"You are Claude Code, Anthropic's official CLI for Claude."`. Without the magic prefix → haiku only. Full OAuth compatibility requires 4 elements: identity system prompt prefix (array format with `{type:"text"}` blocks), all 4 beta headers (`claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14`), `claude-cli/2.1.75` user-agent, and `mcp_`-prefixed tool names (stripped from responses via `content_block_start` events). Per OpenClaw/OpenCode reference implementations.
-- Orchestration sub-runs (`model-runner.ts`) don't pass `systemPrompts` to `chat()` — they embed all context in the user message. When `systemPrompts` is absent, `mapCommonOptionsToAnthropic` produces `body.system` as `""`. The OAuth adapter must filter empty strings before building the system content-block array, or Anthropic rejects with `"system: text content blocks must be non-empty"`.
-- Anthropic SDK `ClientOptions.apiKey` accepts `null | undefined` (skips `x-api-key` header), but TanStack's `AnthropicClientConfig` narrows to `apiKey: string`. When overriding `chatStream` with raw fetch, use a placeholder string — the SDK client is never used for requests.
-- `processAnthropicStream` expects an `AsyncIterable` of parsed SSE event objects (e.g. `{ type: "content_block_delta", delta: {...} }`), NOT raw `ReadableStream<Uint8Array>` bytes from `fetch`. When using raw fetch instead of the SDK client, an SSE parser must bridge raw bytes → parsed JSON objects before feeding to `processAnthropicStream`.
-- TanStack adapter private members (`client`, `mapCommonOptionsToAnthropic`, `processAnthropicStream`) are inaccessible in TS subclasses but accessible at runtime. Use type guard pattern: define an interface for the internal methods, validate with `'method' in adapter`, then bind and use. Avoids `as unknown as` casts.
-- TanStack AI 0.6→0.8 upgrade: continuation chunks patch method renamed from `emitToolResults` to `buildToolResultChunks` and gained an additional `finishEvent` parameter. When porting patches across minor versions, inspect the new source structure first — function signatures and call sites may have changed even though the underlying bug remains.
-- `@tanstack/ai-react@0.7.2` merged the messagesRef staleness fix upstream (PR #373). Always check upstream changelogs before porting patches — fixes may have landed.
-
-### Persistence & Data
-- Atomic JSON writers with fixed temp filenames are unsafe under concurrent writes. Use per-write unique temp filenames.
-- Orchestration checkpoint fields must be added in four places together: engine snapshot, shared types, Zod schema, run-repository mapping.
-- Conversation schema refactors: keep persisted JSON backward-compatible by making removed fields optional in Zod.
-
-### Tool System
-- Explicit per-run `ToolContext` binding is cleaner than ambient context services for TanStack server tools.
-- `AgentFeature.filterTools` hook exists in `runtime-types.ts` — ready-made extension point for per-agent-type tool restriction.
-- Tool result strings are treated as JSON-encoded payloads by TanStack AI. Use structured result contract (`kind: 'text' | 'json'`).
-- `fast-glob` can match parent-directory patterns like `../*`. Validate glob inputs to confine file-discovery tools.
-
-### Waggle Mode Patterns
-- Waggle turns using `orchestrate` tools can exceed the 120s `STREAM_STALL_TIMEOUT_MS`. Waggle `runAgent` calls need a dedicated `stallTimeoutMs` override (e.g. 600s) passed through `AgentRunParams` → `processAgentStreamEffect`.
-- During live waggle streaming, all turns flow into a single TanStack AI `UIMessage`. The metadata lookup must use `completedTurnMeta[0]` (not `currentAgentIndex`) for the first segment's metadata, since `currentAgentIndex` advances before the first `turn-end` event fires.
-- Post-waggle standard messages inherit waggle styling when the conversation retains `waggleConfig` and the metadata lookup falls back to position-based derivation. Guard with `persistedMeta.size === 0` so only legacy conversations use position-based fallback.
-- TanStack AI creates assistant `UIMessage`s from each unique `TEXT_MESSAGE_START.messageId`. For waggle turns with tool continuations, normalize `TEXT_MESSAGE_START/TEXT_MESSAGE_CONTENT/TEXT_MESSAGE_END` to one stable per-turn ID **before** emitting to both `waggle:stream-chunk` and `agent:stream-chunk`, or live metadata mapping drifts from rendered message IDs and causes turn mislabeling. `[SKILL?]`
-- E2E waggle transcript fixtures should persist one assistant message per turn with message-level `metadata.waggle` for deterministic divider assertions. A single persisted assistant message with `_turnBoundary` parts is not a stable E2E proxy for live stream segmentation behavior (keep that coverage in unit tests around `splitAtTurnBoundaries`). `[SKILL?]`
-- Persisted tool-call reconciliation executes repeatedly during live streaming; partial/malformed `tool-call.arguments` strings are expected transient states. Treat parse failures as non-errors in that hot path (no warning logs) to avoid console spam and renderer slowdown.
-
-### Effect Service Layer
-- Adding a new Effect service to `AppLayer` (runtime.ts) extends the import chain for every test that imports `runtime.ts`. If the wrapped module has module-level side effects (e.g. `settings.ts` calling `electron.safeStorage` at load time), use `Layer.unwrapEffect` with a dynamic `import()` inside `Effect.promise` to defer the side effect until runtime initialization. This prevents test breakage in unrelated suites whose electron mocks don't cover the new dependency.
-- `@effect/platform`'s `FileSystem` service is already provided by `NodeContext.layer` in `AppLayer` — no custom `AppFileSystem` Context.Tag needed. Any `Effect.gen` block running via `runAppEffect` can `yield* FileSystem.FileSystem` directly.
-
-### Hexagonal Architecture / Domain Boundaries
-- When removing vendor types from `src/shared/`, the renderer still imports vendor types directly — only the IPC contract changes. The renderer needs a mapper function (e.g. `fromAgentStreamChunk`) to convert domain types back to vendor types at the IPC boundary before feeding them to vendor hooks like TanStack's `useChat`.
-- `replace_all` on type names in IPC contracts can silently mutate method names in API interfaces (e.g. `onStreamChunk` → `onAgentStreamChunk`). Review the diff after bulk renames to catch method name mutations.
-- Converting TanStack `UIMessage` parts to domain continuation types across type hierarchies requires JSON roundtrip + type guard (not cross-hierarchy `filter` + type guard) because TypeScript cannot narrow array elements from one discriminated union to a structurally equivalent one in a different type hierarchy.
-- `readonly` arrays in domain types vs mutable arrays in vendor types (`readonly DomainContentPart[]` vs `ContentPart[]`) cause assignment errors. Domain types should use `readonly` for immutability guarantees, and adapter layers handle the mutable-to-readonly boundary.
-
-### MCP State Management
-- IPC handlers that execute side effects (connect/disconnect) before persisting settings create ghost state: status broadcasts make entities visible in the renderer UI before the corresponding config is persisted. Always persist settings BEFORE executing side effects so that toggle/remove handlers can find the config immediately.
-- Merging live statuses and stored-only statuses with `[...live, ...configOnly]` produces unstable ordering because servers jump between groups when their connection status changes. Use settings array order as the single source of truth for ordering, annotating with live status from the manager.
-- Renderer status broadcast handlers (`onMcpStatusChanged`) must NOT append unknown server IDs to the query cache — this creates phantom entries before the add mutation completes. Only update existing entries; let query invalidation handle new entries.
-- Read-modify-write patterns on settings arrays are unsafe across `yield*` boundaries in Effect.gen handlers. Use atomic transform functions (`transformMcpServers`) that read and write in a single synchronous step.
-
-### Build & Tooling
-- `react-doctor` defaults to changed-files-only on feature branches. Use `GIT_DIR=/nonexistent` for full-repo scans.
-- Vitest `vi.mock()` factories are hoisted before top-level variables. Use `vi.hoisted(...)` for shared mock handles.
-- Vite/Electron dev mode: patch changes under `node_modules` can be masked by stale `.vite/deps` prebundles. Use `optimizeDeps.force = true`.
-- Playwright quick runs (`pnpm exec playwright test` / `test:e2e:headless:quick`) execute against the current built Electron artifacts. Rebuild first (`pnpm build`) when validating renderer behavior changes, or E2E can report stale results.
-
-### Auto-Update & Release Pipeline
-- `electron-updater` is a runtime dependency (not devDep) because it ships in the main process bundle. It has CJS exports so it works when externalized by electron-vite (no need to add to `externalizeDeps.exclude`).
-- `GITHUB_TOKEN` pushes from workflows do NOT trigger other workflows. To chain version-bump → build → release, combine them in a single workflow with job dependencies rather than separate tag-triggered workflows.
-- CalVer `YYYY.M.D` is valid semver (e.g. `2026.3.11`) but limits releases to one per day. Leading zeros (`2026.03.11`) are invalid semver.
-- Conventional Commits can fully automate version bumps: `feat:` → minor, `fix:` → patch, `BREAKING CHANGE` → major. Skip version-bump commits via `if: "!startsWith(github.event.head_commit.message, 'chore(release):')"` to avoid infinite loops.
-
-### Feedback & gh CLI Integration
-- `gh` CLI uses keyring-stored OAuth credentials. Inherited `GITHUB_TOKEN`/`GH_TOKEN` env vars override keyring auth. Strip them for child process calls via `getGhCliEnv()`.
-- `gh issue create` label flag fails silently if the label doesn't exist in the repo. Use try/retry-without-label pattern.
+- React Compiler handles render memoization, but external hook/effect identities still need stable references when those identities are semantically required.
+- Renderer state selectors must remain granular and stable; avoid selectors that allocate new objects or arrays on every render.
+- Background-run reconnection hooks must guard by conversation id and persisted snapshot key before starting async rehydration. Re-rendering from a fresh-but-equivalent conversation object can otherwise create an infinite reconnect/render loop that appears as a Vitest worker OOM. [SKILL?]
+- Electron QA for renderer, preload, and IPC changes must exercise the real app through CDP after static checks pass.
+- Chromium DIPS SQLite startup warnings in dev can be caused by multiple Electron dev instances sharing the same user data profile. Acquire Electron's single-instance lock before normal app lifecycle startup and keep `sessionData` under the configured `userData` directory.
+- Playwright Electron E2E can run while a developer OpenWaggle instance is already open only if the test app opts out of the single-instance lock and uses an isolated `OPENWAGGLE_USER_DATA_DIR`; otherwise Electron exits before `firstWindow()` even though the renderer/debug ports briefly appear. [SKILL?]
+- Electron Playwright E2E launches the built app from an unpackaged Electron runtime, so `is.dev` can be true even when no Vite dev-server URL exists. Register the production renderer protocol whenever no dev renderer URL is available; do not key protocol registration on packaged/dev mode alone. [SKILL?]
+- For T3Code-style right sidebars, keep the layout gap separate from the sidebar content container: animate the gap width and slide/transform a fixed or absolute content panel. Animating the content panel's width as a flex item makes large diff content participate in layout during open/close and can make toggles feel slow. [SKILL?]
+- TanStack Router scans files under `src/renderer/src/routes`, including nested test folders, unless filenames match the configured ignore prefix. Route-adjacent test files should be prefixed with `-` (for example `__tests__/-route-search.unit.test.ts`) or they will produce route-tree build warnings. [SKILL?]
 
 ## 4) Old Learnings Archive
 
-_(Archived items have been consolidated into the sections above. Historical task-specific details are available in git history.)_
+Historical migration notes were intentionally removed after the Pi-native cleanup because they described deleted runtime surfaces and were causing future agents to re-import the wrong mental model.

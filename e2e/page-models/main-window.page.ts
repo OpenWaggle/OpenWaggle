@@ -1,7 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 
 const THREAD_VISIBILITY_TIMEOUT_MS = 12_000
-const NEW_THREAD_LABEL = 'New thread'
+const NEW_THREAD_LABEL = 'New session'
 const SCROLL_BOTTOM_TOLERANCE_PX = 8
 
 export class MainWindowPage {
