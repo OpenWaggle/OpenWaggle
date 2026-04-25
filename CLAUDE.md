@@ -84,13 +84,13 @@ These rules are **non-negotiable**. Violating them invalidates your work.
 3. Verified: tests pass, logs are clean, behavior matches intent. Ask yourself: "Would a staff engineer approve this?"
 4. Verified: the implementation is aligned with the relevant first principles in `docs/principles/`.
 5. If renderer code (`src/renderer/`) was touched: run React Doctor diagnostics (`npx -y react-doctor@latest . --verbose --diff main`), fix all errors, verify score did not drop. Load the `react-doctor` skill for fix patterns.
-6. If renderer, preload, or IPC code was touched: run Electron QA testing via MCP. Start the app with `pnpm dev:debug`, connect via the `electron-devtools` or `electron-test` MCP servers, and verify the feature works in the real Electron app. Consult the `electron-qa` skill in `.claude/skills/electron-qa/` for procedures and tool reference.
+6. If renderer, preload, or IPC code was touched: run Electron QA testing via MCP. Start the app with `pnpm dev:debug`, connect via the `electron-devtools` MCP server, and verify the feature works in the real Electron app. Consult the `electron-qa` skill in `.claude/skills/electron-qa/` for procedures and tool reference.
 7. Docs updated if behavior, workflow, or developer expectations changed.
 8. Significant learnings appended to `docs/learnings.md` (**if there is any significant learning to add**).
 9. Changes are grouped into logical commits.
 10. PR linked to issue with `Closes #X` or `Part of #X`.
 11. Issue and roadmap project updated after merge.
-12. If you encounter a new TanStack AI bug, unexpected behavior, or workaround requirement (in `@tanstack/ai`, `@tanstack/ai-client`, or `@tanstack/ai-react`), explicitly report it to the user with a clear description. Reference `docs/tanstack-ai-known-issues.md` for existing issues and add new findings there. The maintainers are actively responsive — new bugs may be reportable upstream.
+12. If you encounter a new Pi SDK bug, unexpected behavior, or workaround requirement, explicitly report it to the user with a clear description and keep the workaround confined to the Pi adapter layer.
 
 ## Documentation Reference
 
@@ -100,6 +100,7 @@ Read these before making architectural or behavioral decisions:
 - `docs/system-architecture.md` — Current architecture as it exists today.
 - `docs/learnings.md` — Technical findings.
 - `docs/lessons.md` — User corrections and behavioral rules.
+- `website/src/content/docs/` — Canonical user-facing documentation source, published at `https://openwaggle.ai/docs`. Do not recreate a parallel `docs/user-guide` tree.
 
 Interpretation rule:
 
@@ -114,7 +115,7 @@ OpenWaggle follows **hexagonal architecture** with Effect.ts as the DI backbone.
 
 - **Main** (`src/main/`) — Node.js. Hexagonal layers: Domain → Ports → Adapters → Application Services → Transport (IPC).
 - **Preload** (`src/preload/`) — Typed IPC bridge via `contextBridge`. Zero business logic.
-- **Renderer** (`src/renderer/src/`) — React 19 + Zustand + TanStack AI React. Own adapter layer for vendor types.
+- **Renderer** (`src/renderer/src/`) — React 19 + Zustand. Consumes OpenWaggle-owned IPC transport events.
 
 ### Hexagonal Layers (Main Process)
 
@@ -125,25 +126,25 @@ OpenWaggle follows **hexagonal architecture** with Effect.ts as the DI backbone.
 | **Adapters** | `src/main/adapters/` | `Layer` implementations wrapping vendor SDKs and infrastructure. |
 | **Application** | `src/main/application/` | Effect.gen programs orchestrating business logic via `yield*` ports. |
 | **Transport** | `src/main/ipc/` | IPC handlers. Thin dispatch + transport coordination. |
-| **Infrastructure** | `src/main/store/`, `src/main/providers/`, `src/main/mcp/`, `src/main/orchestration/` | Persistence, vendor SDK wrappers, protocol bridges. |
+| **Infrastructure** | `src/main/store/`, `src/main/adapters/` | Persistence and vendor/runtime adapters behind ports. Provider/model/auth metadata comes from Pi adapter services, not a parallel OpenWaggle provider registry. |
 
 ### ⛔ Hexagonal Rules (MUST FOLLOW)
 
-1. **Domain imports nothing from infrastructure.** No `@tanstack/ai`, `electron`, `node:fs`, `@effect/sql` in `src/main/domain/` or `src/shared/domain/`.
-2. **Agent core (`src/main/agent/`) has zero vendor imports.** No `@tanstack/ai`. Uses domain types (`AgentStreamChunk`, `DomainServerTool`, `DomainContinuationMessage`).
+1. **Domain imports nothing from infrastructure.** No Pi SDK, `electron`, `node:fs`, `@effect/sql` in `src/main/domain/` or `src/shared/domain/`.
+2. **Agent core (`src/main/agent/`) has zero vendor imports.** No Pi SDK. Uses domain/shared types such as `AgentTransportEvent`.
 3. **IPC handlers MUST NOT import from `src/main/store/`.** Use `yield* ConversationRepository`, `yield* SettingsService`, etc.
-4. **IPC handlers MUST NOT import `@tanstack/ai`.** Vendor SDK is confined to adapters.
+4. **IPC handlers MUST NOT import Pi SDK.** Vendor SDK is confined to adapters.
 5. **Application services use `yield*` for DI.** No direct store or registry access.
-6. **`@tanstack/ai` is ONLY allowed in:** `src/main/adapters/`, `src/main/providers/`, `src/main/tools/define-tool.ts`, `src/main/mcp/`, `src/main/orchestration/`, `src/renderer/src/`.
+6. **Pi SDK is ONLY allowed in:** `src/main/adapters/pi/`.
 7. **No type casts (`as Foo`).** Use type guards, Effect Schema validation, or type augmentation declarations at adapter boundaries.
 8. **Every port MUST have consumers.** No dead abstractions. `pnpm check:architecture` enforces this.
 
 ### IPC Type System
 
-`src/shared/types/ipc.ts` is the single source of truth. Uses domain-owned `AgentStreamChunk` (not vendor `StreamChunk`). Three channel maps:
+`src/shared/types/ipc.ts` is the single source of truth. Uses domain-owned `AgentTransportEvent` (not vendor stream events). Three channel maps:
 - `IpcInvokeChannelMap` — request/response
 - `IpcSendChannelMap` — fire-and-forget
-- `IpcEventChannelMap` — events (streaming via `AgentStreamChunk`)
+- `IpcEventChannelMap` — events (streaming via `AgentTransportEvent`)
 
 ### Effect Runtime
 
@@ -151,8 +152,8 @@ All DI flows through `src/main/runtime.ts` `AppLayer`. Ports are `Context.Tag` s
 
 ### Persistence
 
-- **App-owned state**: SQLite database at `{userData}/openwaggle.db` — accessed ONLY through `ConversationRepository`, `SettingsService`, `TeamsRepository` ports.
-- **Project-owned state**: `.openwaggle/config.toml` and `.openwaggle/config.local.toml`
+- **App-owned state**: SQLite database at `{userData}/openwaggle.db` — accessed ONLY through repository/services ports.
+- **Project-owned state**: `.openwaggle/settings.json` with OpenWaggle keys at the top level and Pi runtime settings under `pi`
 
 ## Engineering Principles
 
@@ -259,12 +260,12 @@ Rules:
 - **Branded types** (`src/shared/types/brand.ts`): `ConversationId`, `MessageId`, `ToolCallId` prevent accidental ID mixing. Use constructors at boundaries: `ConversationId(uuid())`.
 - **Discriminated unions**: Message parts (`type: 'text' | 'tool-call' | 'tool-result'`), agent events (`type: 'text-delta' | 'tool-call-start' | ...`), stream chunks.
 - **Path aliases**: `@shared/*` → `src/shared/*` (all targets), `@/*` → `src/renderer/src/*` (renderer only).
-- **Provider registry**: `providerRegistry` singleton resolves models to providers at runtime. Each provider implements `ProviderDefinition` with `createAdapter()` for chat adapter creation.
+- **Provider/model catalog**: Pi `ModelRegistry` and `AuthStorage` are the source of truth. OpenWaggle exposes Pi-derived provider/model/auth state through ports; do not reintroduce an OpenWaggle-owned provider registry.
 
 ## Electron-Vite Config
 
 `electron.vite.config.ts` has two important settings:
-- `externalizeDeps.exclude` includes ESM-only runtime packages that must be bundled into the main process output, including the TanStack AI adapters and Effect packages
+- `externalizeDeps.exclude` includes ESM-only runtime packages that must be bundled into the main process output, including Pi SDK and Effect packages
 - `build.rollupOptions.output.interop: 'auto'` keeps CJS/ESM interop stable for the Electron main bundle
 
 ## Security
@@ -320,8 +321,8 @@ Always use granular selectors with `useChatStore((s) => s.field)` — never call
 - Optional bundled resources (for example `scripts/`) should remain inside the same skill folder.
 - Runtime skill discovery is folder-based only (no `SKILLS.md` catalog file).
 - Prompt behavior is metadata-first: skills are discovered by frontmatter (`name`, `description`) and activated by explicit refs/heuristics.
-- Full skill instructions are loaded only for selected skills or when the agent calls `loadSkill` mid-run.
-- Dynamic `loadSkill` activation is run-scoped; it does not auto-persist across turns.
+- Full skill instructions are loaded only for selected skills or when the Pi resource-loading path needs them for a run.
+- Dynamic skill activation is run-scoped; it does not auto-persist across turns.
 
 ## Workflow Orchestration
 
@@ -369,7 +370,7 @@ Always use granular selectors with `useChatStore((s) => s.field)` — never call
 
 ## Electron QA via MCP (MUST FOLLOW for UI/IPC changes)
 
-Two MCP servers are configured in `.mcp.json` for testing the real Electron app via Chrome DevTools Protocol.
+One MCP server is configured in `.mcp.json` for testing the real Electron app via Chrome DevTools Protocol.
 
 ### Setup
 
@@ -379,8 +380,7 @@ pnpm dev:debug    # Starts Electron with --remote-debugging-port=9222
 
 ### Available MCP Servers
 
-- **`electron-devtools`** (primary) — Chrome DevTools MCP pointed at Electron. Provides screenshots, a11y snapshots, JS evaluation, click/type/fill, console/network inspection, and performance analysis. Tools prefixed with `mcp__electron-devtools__`.
-- **`electron-test`** (supplementary) — Playwright-based Electron testing. Provides CSS/text selectors (`text=Submit`), wait conditions, element queries. Requires `connect({ port: 9222 })` before use. Tools prefixed with `mcp__electron-test__`.
+- **`electron-devtools`** — Chrome DevTools MCP pointed at Electron. Provides screenshots, a11y snapshots, JS evaluation, click/type/fill, console/network inspection, and performance analysis. Tools prefixed with `mcp__electron-devtools__`.
 
 ### When to Test
 

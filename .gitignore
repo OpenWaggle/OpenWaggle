@@ -9,3 +9,9 @@ test-results/
 .DS_Store
 __pycache__/
 .openwaggle/config.local.toml
+.pi/.npm-cache/
+.pi/npm/
+.pi/git/
+
+.tmp-*
+tmp/

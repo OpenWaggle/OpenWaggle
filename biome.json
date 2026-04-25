@@ -21,7 +21,7 @@
         "noNonNullAssertion": "error",
         "useConst": "error",
         "useImportType": "error",
-         "noProcessEnv": "error"
+        "noProcessEnv": "error"
       },
       "correctness": {
         "noUnusedVariables": "error",
@@ -43,9 +43,21 @@
     }
   },
   "files": {
-    "includes": ["src/**"]
+    "includes": ["src/**", "!src/renderer/src/routeTree.gen.ts"]
   },
   "overrides": [
+    {
+      "includes": ["src/renderer/src/routeTree.gen.ts"],
+      "formatter": {
+        "enabled": false
+      },
+      "linter": {
+        "enabled": false
+      },
+      "assist": {
+        "enabled": false
+      }
+    },
     {
       "includes": ["src/main/env.ts"],
       "linter": {

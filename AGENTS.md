@@ -84,13 +84,13 @@ These rules are **non-negotiable**. Violating them invalidates your work.
 3. Verified: tests pass, logs are clean, behavior matches intent. Ask yourself: "Would a staff engineer approve this?"
 4. Verified: the implementation is aligned with the relevant first principles in `docs/principles/`.
 5. If renderer code (`src/renderer/`) was touched: run React Doctor diagnostics (`npx -y react-doctor@latest . --verbose --diff main`), fix all errors, verify score did not drop. Load the `react-doctor` skill for fix patterns.
-6. If renderer, preload, or IPC code was touched: run Electron QA testing via MCP. Start the app with `pnpm dev:debug`, connect via the `electron-devtools` or `electron-test` MCP servers, and verify the feature works in the real Electron app. Consult the `electron-qa` skill in `.openwaggle/skills/electron-qa/` for procedures and tool reference.
+6. If renderer, preload, or IPC code was touched: run Electron QA testing via MCP. Start the app with `pnpm dev:debug`, connect via the `electron-devtools` MCP server, and verify the feature works in the real Electron app. Consult the `electron-qa` skill in `.openwaggle/skills/electron-qa/` for procedures and tool reference.
 7. Docs updated if behavior, workflow, or developer expectations changed.
 8. Significant learnings appended to `docs/learnings.md` (**if there is any significant learning to add**).
 9. Changes are grouped into logical commits.
 10. PR linked to issue with `Closes #X` or `Part of #X`.
 11. Issue and roadmap project updated after merge.
-12. If you encounter a new TanStack AI bug, unexpected behavior, or workaround requirement (in `@tanstack/ai`, `@tanstack/ai-client`, or `@tanstack/ai-react`), explicitly report it to the user with a clear description. Reference `docs/tanstack-ai-known-issues.md` for existing issues and add new findings there. The maintainers are actively responsive — new bugs may be reportable upstream.
+12. If you encounter a new Pi SDK bug, unexpected behavior, or workaround requirement, explicitly report it to the user with a clear description and keep the workaround confined to the Pi adapter layer.
 
 ## Documentation Reference
 
@@ -100,6 +100,7 @@ Read these before making architectural or behavioral decisions:
 - `docs/system-architecture.md` — Current architecture as it exists today.
 - `docs/learnings.md` — Technical findings.
 - `docs/lessons.md` — User corrections and behavioral rules.
+- `website/src/content/docs/` — Canonical user-facing documentation source, published at `https://openwaggle.ai/docs`. Do not recreate a parallel `docs/user-guide` tree.
 
 Interpretation rule:
 
@@ -112,7 +113,7 @@ OpenWaggle is an Electron desktop coding agent with multi-model LLM support. Thr
 
 ### Process Boundaries
 
-- **Main** (`src/main/`) — Node.js. Agent loop, tool execution, persistence, IPC handlers. Built by `electron-vite` as CJS with ESM interop.
+- **Main** (`src/main/`) — Node.js. Pi runtime adapters, persistence, IPC handlers. Built by `electron-vite` as CJS with ESM interop.
 - **Preload** (`src/preload/`) — Bridge. Exposes typed `api` object via `contextBridge`. Every method maps to a specific IPC channel.
 - **Renderer** (`src/renderer/src/`) — React 19 + Zustand + Tailwind v4. State in two Zustand stores: `chat-store.ts` (conversations, streaming) and `settings-store.ts` (API keys, model selection).
 
@@ -125,42 +126,32 @@ OpenWaggle is an Electron desktop coding agent with multi-model LLM support. Thr
 
 The preload `api` object (`src/preload/api.ts`) implements `OpenWaggleApi` — a convenience wrapper that maps friendly method names to IPC channels. The renderer imports this as `window.api` via `src/renderer/src/lib/ipc.ts`.
 
-### Provider Registry
+### Provider / Model Catalog
 
-`src/main/providers/` implements a dynamic multi-provider system. `ProviderDefinition` (interface) defines each provider's capabilities. `ProviderRegistry` (singleton) manages registration and lookup:
-- 6 providers: Anthropic, OpenAI, Gemini, Grok, OpenRouter, Ollama
-- Each provider file exports a `ProviderDefinition` with model list, adapter factory, and capabilities
-- `registerAllProviders()` called at app startup before IPC handlers
-- Registry provides `getProviderForModel(id)` for model→provider resolution and `createAdapter()` for chat adapter creation
-- `providers:get-models` IPC channel exposes grouped model lists to the renderer
+Provider, model, and auth state are sourced through Pi runtime services in `src/main/adapters/pi/`. OpenWaggle must not maintain a parallel `src/main/providers/` registry. Application and IPC layers depend on OpenWaggle-owned ports such as `ProviderService`, `ProviderAuthService`, and `ProviderOAuthService`; the Pi adapter implements those ports using Pi `AuthStorage`, `ModelRegistry`, and project-scoped runtime services. `providers:get-models` exposes grouped Pi-derived model lists to the renderer.
 
-### Agent Loop
+### Pi Runtime
 
-`src/main/agent/agent-loop.ts` uses TanStack AI's `chat()` function with the provider registry to dynamically create adapters. The loop:
-1. Converts our `Message[]` to `SimpleChatMessage[]` (structural typing to avoid `ConstrainedModelMessage` generics)
-2. Resolves the provider via `providerRegistry.getProviderForModel()` and creates an adapter with the provider's `createAdapter()` method
-3. Iterates the `AsyncIterable<StreamChunk>` stream, translating AG-UI events (`TEXT_MESSAGE_CONTENT`, `TOOL_CALL_*`, `RUN_ERROR`) into our `AgentStreamEvent` discriminated union
-4. Emits events over IPC via `emitAgentEvent()` (broadcasts to all renderer windows)
+`src/main/application/agent-run-service.ts` owns per-run orchestration through the `AgentKernelService` port. The Pi adapter in `src/main/adapters/pi/`:
+1. Resolves the OpenWaggle provider/model into Pi runtime model config.
+2. Opens or creates the Pi session for the active project.
+3. Streams Pi session events into OpenWaggle-owned `AgentTransportEvent` IPC events.
+4. Projects new Pi messages back into the SQLite session projection.
 
-Tools are executed by TanStack AI internally during the stream — results arrive via `TOOL_CALL_END.result`.
+Pi SDK imports are confined to `src/main/adapters/pi/`.
 
-### Tool System
+### Pi Native Tool Surface
 
-`src/main/tools/define-tool.ts` wraps TanStack AI's `toolDefinition().server()`. Each tool:
-- Declares an Effect Schema input schema for runtime validation and JSON Schema generation
-- Uses `Schema.Type<T>` for type-safe execute functions
-- Receives `ToolContext` through explicit per-run binding, not ambient async local state
-
-Built-in tools in `src/main/tools/tools/`: `readFile`, `writeFile`, `editFile`, `runCommand`, `glob`, `listFiles`, `loadSkill`, `askUser`. Write/edit/command require approval (`needsApproval: true`).
+OpenWaggle does not define an initial custom runtime tool layer. Standard sends call Pi through `AgentKernelService`, and the Pi adapter passes no `tools` / `customTools` unless a future feature intentionally introduces a Pi-native extension. The renderer displays Pi-emitted tool events (`read`, `write`, `edit`, `bash`, search/listing tools) without translating them into legacy OpenWaggle tools or approval gates.
 
 ### Persistence
 
-- **App-owned state**: SQLite database at `{userData}/openwaggle.db` (settings, auth tokens, conversations, orchestration state, team runtime state)
-- **Project-owned state**: `.openwaggle/config.toml` and `.openwaggle/config.local.toml`
+- **App-owned state**: SQLite database at `{userData}/openwaggle.db` (settings, sessions, session nodes/branches, team presets, UI state)
+- **Project-owned state**: `.openwaggle/settings.json` with OpenWaggle keys at the top level and Pi runtime settings under `pi`
 
 ### Model System
 
-`SupportedModelId` is a `string` type alias — runtime validation is done via the provider registry's `isKnownModel()`. Each provider package exports its own model tuple (e.g. `ANTHROPIC_MODELS`, `OPENAI_CHAT_MODELS`, `GeminiTextModels`). The model selector in the renderer fetches grouped model lists dynamically via `providers:get-models` IPC. `generateDisplayName()` converts model IDs to human-readable names.
+`SupportedModelId` is a provider-qualified string in Pi form: `provider/modelId`. Provider/model/auth metadata comes from Pi `ModelRegistry` and `AuthStorage` through the Pi adapter and `ProviderService`; OpenWaggle must not keep hardcoded provider tuples or a parallel provider registry. The renderer fetches grouped model lists dynamically via `providers:get-models` IPC, and the composer shows only the user-enabled model refs.
 
 ## Engineering Principles
 
@@ -184,12 +175,12 @@ This project follows **hexagonal architecture**. Full specification: `docs/hexag
 
 | If you're writing... | It belongs in... | It MUST NOT import... |
 |---|---|---|
-| Pure business logic | `src/main/domain/` | `@tanstack/ai`, `electron`, `node:fs`, `@effect/sql`, `src/main/store/` |
-| A service interface | `src/main/ports/` | `@tanstack/ai`, `src/main/store/` |
+| Pure business logic | `src/main/domain/` | Pi SDK, `electron`, `node:fs`, `@effect/sql`, `src/main/store/` |
+| A service interface | `src/main/ports/` | Pi SDK, `src/main/store/` |
 | Vendor SDK wrapper | `src/main/adapters/` | (adapters MAY import vendor — this is their job) |
-| Business orchestration | `src/main/application/` | `@tanstack/ai`, `src/main/store/` — use `yield*` ports |
-| IPC handler | `src/main/ipc/` | `@tanstack/ai`, `src/main/store/` — use `yield*` ports |
-| Agent core logic | `src/main/agent/` | `@tanstack/ai` — use domain types only |
+| Business orchestration | `src/main/application/` | Pi SDK, `src/main/store/` — use `yield*` ports |
+| IPC handler | `src/main/ipc/` | Pi SDK, `src/main/store/` — use `yield*` ports |
+| Agent core logic | `src/main/agent/` | Pi SDK — use domain types only |
 
 **Adding new features:**
 1. New persistence → create Port + Adapter + register in `runtime.ts`
@@ -286,12 +277,12 @@ Rules:
 - **Branded types** (`src/shared/types/brand.ts`): `ConversationId`, `MessageId`, `ToolCallId` prevent accidental ID mixing. Use constructors at boundaries: `ConversationId(uuid())`.
 - **Discriminated unions**: Message parts (`type: 'text' | 'tool-call' | 'tool-result'`), agent events (`type: 'text-delta' | 'tool-call-start' | ...`), stream chunks.
 - **Path aliases**: `@shared/*` → `src/shared/*` (all targets), `@/*` → `src/renderer/src/*` (renderer only).
-- **Provider registry**: `providerRegistry` singleton resolves models to providers at runtime. Each provider implements `ProviderDefinition` with `createAdapter()` for chat adapter creation.
+- **Provider/model catalog**: Pi `ModelRegistry` and `AuthStorage` are the source of truth. OpenWaggle exposes Pi-derived provider/model/auth state through ports; do not reintroduce an OpenWaggle-owned provider registry.
 
 ## Electron-Vite Config
 
 `electron.vite.config.ts` has two important settings:
-- `externalizeDeps.exclude` includes ESM-only runtime packages that must be bundled into the main process output, including the TanStack AI adapters and Effect packages
+- `externalizeDeps.exclude` includes ESM-only runtime packages that must be bundled into the main process output, including Pi SDK and Effect packages
 - `build.rollupOptions.output.interop: 'auto'` keeps CJS/ESM interop stable for the Electron main bundle
 
 ## Security
@@ -347,8 +338,8 @@ Always use granular selectors with `useChatStore((s) => s.field)` — never call
 - Optional bundled resources (for example `scripts/`) should remain inside the same skill folder.
 - Runtime skill discovery is folder-based only (no `SKILLS.md` catalog file).
 - Prompt behavior is metadata-first: skills are discovered by frontmatter (`name`, `description`) and activated by explicit refs/heuristics.
-- Full skill instructions are loaded only for selected skills or when the agent calls `loadSkill` mid-run.
-- Dynamic `loadSkill` activation is run-scoped; it does not auto-persist across turns.
+- Full skill instructions are loaded only for selected skills or when the Pi resource-loading path needs them for a run.
+- Dynamic skill activation is run-scoped; it does not auto-persist across turns.
 
 ## Workflow Orchestration
 
@@ -396,7 +387,7 @@ Always use granular selectors with `useChatStore((s) => s.field)` — never call
 
 ## Electron QA via MCP (MUST FOLLOW for UI/IPC changes)
 
-Two MCP servers are configured in `.mcp.json` for testing the real Electron app via Chrome DevTools Protocol.
+One MCP server is configured in `.mcp.json` for testing the real Electron app via Chrome DevTools Protocol.
 
 ### Setup
 
@@ -406,8 +397,7 @@ pnpm dev:debug    # Starts Electron with --remote-debugging-port=9222
 
 ### Available MCP Servers
 
-- **`electron-devtools`** (primary) — Chrome DevTools MCP pointed at Electron. Provides screenshots, a11y snapshots, JS evaluation, click/type/fill, console/network inspection, and performance analysis. Tools prefixed with `mcp__electron-devtools__`.
-- **`electron-test`** (supplementary) — Playwright-based Electron testing. Provides CSS/text selectors (`text=Submit`), wait conditions, element queries. Requires `connect({ port: 9222 })` before use. Tools prefixed with `mcp__electron-test__`.
+- **`electron-devtools`** — Chrome DevTools MCP pointed at Electron. Provides screenshots, a11y snapshots, JS evaluation, click/type/fill, console/network inspection, and performance analysis. Tools prefixed with `mcp__electron-devtools__`.
 
 ### When to Test
 
