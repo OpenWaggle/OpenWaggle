@@ -13,7 +13,7 @@ Attach files to your messages for the agent to analyze.
 
 - **Text files** — Content extracted directly (including `.txt`, `.csv`, `.json`, `.xml`, `.html`, `.docx`, `.rtf`, `.odt`).
 - **PDFs** — Text extracted with page structure preserved.
-- **Images** — Sent natively to providers that support vision (Anthropic, OpenAI). Text extraction used as fallback for other providers.
+- **Images** — Sent as image content when the selected Pi model reports image input support. OCR text is also included in the prompt summary.
 
 ### How to Attach
 
@@ -22,18 +22,11 @@ Attach files to your messages for the agent to analyze.
 
 Up to **5 files** can be attached per message. Attachment chips appear above the text input showing filenames. Click the X on any chip to remove it.
 
-Attachments are stored as metadata only — binary content is not persisted in conversation history.
+Attachments are persisted in the session as metadata and extracted text. Image/PDF binary data is hydrated by the main process only when needed for a run.
 
-### Attachment Support by Provider
+### Attachment Support by Model
 
-Attachment support has been verified for the following providers:
-
-| Provider | Images | PDFs | Text Files |
-|----------|--------|------|------------|
-| Anthropic | Native | Native | Text extraction |
-| OpenAI | Native | Native | Text extraction |
-
-Other providers (Gemini, Grok, OpenRouter, Ollama) are not yet fully tested. Attachment behavior with those providers may vary.
+OpenWaggle follows Pi model metadata. If a selected model supports image input, image attachments are sent as image content. Otherwise, the extracted text summary is still included. PDFs are currently text-extracted before sending rather than passed as native PDF payloads.
 
 ## Voice Input
 

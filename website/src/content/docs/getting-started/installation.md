@@ -44,5 +44,5 @@ See [Building from Source](/docs/developer-guide/building-from-source) for instr
 ## System Requirements
 
 - A modern operating system (macOS, Windows 10+, or a recent Linux distribution)
-- An API key for at least one supported AI provider (see [Providers](/docs/providers/overview))
-- Internet connection for AI provider communication (except when using local models via Ollama)
+- A Pi-supported provider authenticated through API key, OAuth, environment, or project/custom provider configuration (see [Providers](/docs/providers/overview))
+- Internet connection for hosted AI provider communication

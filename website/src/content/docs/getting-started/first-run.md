@@ -5,15 +5,17 @@ order: 2
 section: "Getting Started"
 ---
 
-When you launch OpenWaggle for the first time, you'll see the main workspace with an empty chat. To start using the agent:
+When you launch OpenWaggle for the first time, you'll see the main workspace with an empty session area. To start using the agent:
 
-1. **Set up a provider** — Click the gear icon in the sidebar to open Settings. Go to **Connections** and add an API key for at least one provider. See [Providers & Models](/docs/providers/overview) for detailed setup instructions.
+1. **Set up a provider** — Click the gear icon in the sidebar to open Settings. Go to **Connections**, expand an auth method group, and authenticate through API key or OAuth as reported by Pi. See [Providers & Models](/docs/providers/overview) for details.
 
 2. **Select a project** — Click "Select a project folder to get started" in the welcome screen, or use the folder button in the sidebar. This gives the agent access to your codebase.
 
-3. **Pick a model** — Use the model selector in the composer toolbar to choose which AI model to use. The default is Claude Sonnet 4.5 (Anthropic).
+3. **Enable models** — In Settings > Connections, choose which Pi-reported models should appear in the composer.
 
-4. **Send a message** — Type in the composer and press Enter. The agent will respond and can use tools to read, write, and modify files in your project.
+4. **Pick a model** — Use the model selector in the composer toolbar. Models are provider-qualified, so the same underlying model can appear through different providers.
+
+5. **Send a message** — Type in the composer and press Enter. The agent will respond through Pi and can use Pi's native coding-agent tools in your project.
 
 ## Next Steps
 
