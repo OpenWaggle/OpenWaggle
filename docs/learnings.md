@@ -20,6 +20,11 @@ This document stores project-specific technical learnings only.
 
 ## 3) Recent Learnings
 
+### Release & Update Versioning
+
+- Electron update safety needs explicit release-channel metadata and update-track policy in addition to semver prerelease strings. A version like `1.0.0-alpha.3` identifies the installed build kind, but once users can opt into Alpha/Beta from Settings, future update eligibility must be driven by separate selected update-track state. [SKILL: release]
+- OpenWaggle release intent should be modeled as committed change metadata consumed into changelog/GitHub Release notes, while Alpha/Beta/RC remain release-train state owned by the release workflow rather than repeated on every change entry. [SKILL: release]
+
 ### Pi Runtime & Session Projection
 
 - Pi SDK is an adapter detail, not an application contract. Application, IPC, shared, renderer, and domain layers should speak OpenWaggle-owned types such as `AgentKernelService`, `AgentTransportEvent`, `SessionId`, `SessionNodeId`, and `SessionBranchId`; Pi SDK imports belong under `src/main/adapters/pi/` only. [SKILL?]
@@ -48,12 +53,16 @@ This document stores project-specific technical learnings only.
 - Pi `createAgentSession({ thinkingLevel })` only forces `off` for non-reasoning models; it does not clamp unsupported `xhigh` to model-specific availability the way `AgentSession.setThinkingLevel()` does. Clamp requested levels in the Pi adapter or route changes through `setThinkingLevel()` before prompting so OpenWaggle state and Pi session entries do not record unsupported `xhigh`. [SKILL?]
 - API-key provider probing currently uses the process cwd when constructing Pi runtime services. Project-scoped custom provider validation requires passing the selected project path through the provider-test flow. [SKILL?]
 - OpenWaggle's integrated terminal environment filtering does not constrain Pi's native `bash` tool environment. Any product guarantee about Pi tool shell env must be implemented in the Pi adapter, not inferred from terminal settings. [SKILL?]
+- Pi compaction rewrites the active working context as `compaction summary → kept messages from firstKeptEntryId → later messages`; OpenWaggle transcript/workspace projections must mirror that ordering instead of walking the raw parent path, or summarized history remains visible and the summary appears in the wrong place. [SKILL?]
+- Pi emits `compaction_end` before OpenWaggle persists the SQLite session projection. For manual compaction IPC, delay the successful end event until after `compactAgentSession` persists the projected snapshot so renderer queue flushing cannot start the next send against stale product state. [SKILL?]
 
 ### Electron & Renderer Patterns
 
 - React Compiler handles render memoization, but external hook/effect identities still need stable references when those identities are semantically required.
 - Renderer state selectors must remain granular and stable; avoid selectors that allocate new objects or arrays on every render.
 - Background-run reconnection hooks must guard by conversation id and persisted snapshot key before starting async rehydration. Re-rendering from a fresh-but-equivalent conversation object can otherwise create an infinite reconnect/render loop that appears as a Vitest worker OOM. [SKILL?]
+- First-message sends can cross a route remount before the persisted SQLite user node is reflected in the renderer conversation snapshot. Keep optimistic user turns in renderer-owned state keyed by conversation id, merge them into hydration/background reconnect snapshots, and mark a remounted run as background streaming on `agent_start` so subsequent stream events are not dropped. [SKILL?]
+- Session-native transcript rendering must read from `SessionWorkspace.transcriptPath` for the active route/branch/node selection, not from the flat conversation tail. Preserve live tails only when the selected workspace is already at the active branch head; draft/earlier-node views should hide downstream main-branch continuation. [SKILL?]
 - Electron QA for renderer, preload, and IPC changes must exercise the real app through CDP after static checks pass.
 - Chromium DIPS SQLite startup warnings in dev can be caused by multiple Electron dev instances sharing the same user data profile. Acquire Electron's single-instance lock before normal app lifecycle startup and keep `sessionData` under the configured `userData` directory.
 - Playwright Electron E2E can run while a developer OpenWaggle instance is already open only if the test app opts out of the single-instance lock and uses an isolated `OPENWAGGLE_USER_DATA_DIR`; otherwise Electron exits before `firstWindow()` even though the renderer/debug ports briefly appear. [SKILL?]
