@@ -39,7 +39,7 @@ SQLite stores OpenWaggle's product projection:
 
 ## Provider Model
 
-Pi is the provider/model/auth source of truth. OpenWaggle does not maintain a product-owned provider registry. The Pi adapter reads `ModelRegistry` and `AuthStorage`, then exposes vendor-free DTOs through `ProviderService` and IPC so the renderer can show provider logos, auth method groups, and the user-curated model selector.
+Pi is the provider/model/auth source of truth. The Pi adapter reads `ModelRegistry` and `AuthStorage`, then exposes vendor-free DTOs through `ProviderService` and IPC so the renderer can show provider logos, auth method groups, and the user-curated model selector.
 
 Model identity is provider-qualified (`provider/modelId`). The same hosted model id can appear under several providers, and OpenWaggle treats each provider/model pair as a distinct runtime option.
 

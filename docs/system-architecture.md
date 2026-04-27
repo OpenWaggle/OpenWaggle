@@ -33,7 +33,7 @@ Pi sessions and OpenWaggle sessions are projected into:
 - `session_branch_state`
 - `session_tree_ui_state`
 
-Session trees, branches, Waggle metadata, and future-mode state are explicit projection data. The product should not rebuild flat-thread assumptions on top of this graph.
+Session trees, branches, Waggle metadata, and future-mode state are explicit projection data over the Pi session graph.
 
 ## Waggle
 
@@ -41,7 +41,7 @@ Waggle uses the same session projection as standard mode. Agent turn attribution
 
 ## Providers
 
-Pi is the source of truth for provider, model, and auth metadata. The Pi adapter exposes that metadata through OpenWaggle-owned ports and IPC DTOs so renderer code can curate the model picker without owning a parallel provider registry.
+Pi is the source of truth for provider, model, and auth metadata. The Pi adapter exposes that metadata through OpenWaggle-owned ports and IPC DTOs so renderer code can curate the model picker.
 
 ## Standards And Skills
 

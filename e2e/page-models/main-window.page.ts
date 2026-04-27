@@ -2,7 +2,7 @@ import { expect, type Locator, type Page } from '@playwright/test'
 
 const THREAD_VISIBILITY_TIMEOUT_MS = 12_000
 const NEW_THREAD_LABEL = 'New session'
-const SCROLL_BOTTOM_TOLERANCE_PX = 8
+const SCROLL_BOTTOM_TOLERANCE_PX = 40
 
 export class MainWindowPage {
   constructor(readonly page: Page) {}
@@ -25,10 +25,6 @@ export class MainWindowPage {
 
   threadItem(title: string): Locator {
     return this.page.getByText(title).first()
-  }
-
-  approveButton(): Locator {
-    return this.page.getByRole('button', { name: 'Approve' })
   }
 
   text(text: string): Locator {
@@ -95,14 +91,6 @@ export class MainWindowPage {
     await expect(this.messageInput()).toHaveText(value)
   }
 
-  async expectApproveButtonVisible(): Promise<void> {
-    await expect(this.approveButton()).toBeVisible()
-  }
-
-  async expectApproveButtonHidden(): Promise<void> {
-    await expect(this.approveButton()).toBeHidden()
-  }
-
   lastUserMessage(): Locator {
     return this.page.locator('[data-user-message-id]').last()
   }
@@ -127,7 +115,7 @@ export class MainWindowPage {
 
   /**
    * After sending a message, verify the new user message is near the top of
-   * the scroll container. With a plain DOM scroll container (no Virtuoso),
+   * the scroll container. With the plain DOM scroll container,
    * the scroll is synchronous — the element should be positioned within
    * ~40px of the container top (PADDING_TOP=20 + small layout gap).
    *

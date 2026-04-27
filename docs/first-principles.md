@@ -24,15 +24,15 @@ There is one file that defines all IPC channels, their argument types, and their
 
 OpenWaggle does not recreate a coding-agent runtime beside Pi. Pi owns the core execution loop, session continuity, native tool surface, and runtime policy. OpenWaggle owns the UI, product projection, persistence read model, and explicit adapter boundaries around Pi.
 
-Pi enters the application only through ports and adapters. Domain, application, IPC, shared, and renderer code use OpenWaggle-owned types; they do not import Pi SDK types or reshape Pi into a legacy runtime protocol.
+Pi enters the application only through ports and adapters. Domain, application, IPC, shared, and renderer code use OpenWaggle-owned types; they do not import Pi SDK types or expose Pi SDK objects across process boundaries.
 
 ---
 
 ## 4. Runtime capabilities come from Pi first
 
-The first Pi-native baseline uses Pi's native coding-agent tools and events. OpenWaggle does not add approval managers, custom tool wrappers, compatibility bridges, or hidden orchestration to make Pi behave like the previous runtime.
+The Pi-native baseline uses Pi's coding-agent tools and events. OpenWaggle presents the runtime truth Pi emits instead of duplicating tool execution or runtime policy in the product shell.
 
-New capabilities must be introduced as Pi-native extensions behind ports, with a clear product reason. The default answer to legacy tool surfaces is deletion, not adaptation.
+New capabilities must be introduced through explicit ports and Pi-native extension points, with a clear product reason.
 
 ---
 
@@ -62,7 +62,7 @@ Provider/model/auth work should mirror Pi's capabilities where possible. OpenWag
 
 ## 8. Explicit projection over hidden orchestration
 
-OpenWaggle's product state is a typed projection over Pi sessions, nodes, and branches. There are no hidden sub-sessions, synthetic tool calls, or compatibility streams standing in for real runtime structure.
+OpenWaggle's product state is a typed projection over Pi sessions, nodes, and branches. There are no hidden sub-sessions, synthetic tool calls, or synthetic streams standing in for real runtime structure.
 
 Waggle and future collaboration features must write into the same canonical session/tree model as standard mode. Branch-scoped product metadata belongs in SQLite projection tables; Pi remains the runtime/session authority.
 
@@ -70,9 +70,9 @@ Waggle and future collaboration features must write into the same canonical sess
 
 ## 9. The user remains in control through visible state
 
-The user is the final authority through explicit mode selection, visible session/branch state, truthful tool rendering, stop/cancel controls, and project-local configuration. Control is not implemented as an OpenWaggle-specific per-tool approval layer in the initial Pi-native runtime.
+The user is the final authority through explicit mode selection, visible session/branch state, truthful tool rendering, stop/cancel controls, and project-local configuration.
 
-If future Pi-native policy controls are added, they must be modeled explicitly and stay behind the Pi adapter boundary instead of reviving the legacy approval manager.
+If future runtime policy controls are added, they must be modeled explicitly and stay behind the Pi adapter boundary.
 
 ---
 

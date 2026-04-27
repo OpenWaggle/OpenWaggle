@@ -31,9 +31,6 @@ test('waggle transcript keeps clean turn order and preserves the initiating user
         .filter((text) => /^Turn \d+:/.test(text)),
     )
     expect(turnLabels).toEqual([...WAGGLE_REGRESSION_TURN_LABELS])
-
-    await mainWindow.expectTextHidden('(approval needed)')
-    await mainWindow.expectApproveButtonHidden()
   } finally {
     await app.cleanup()
   }

@@ -2,14 +2,14 @@ import type { SeedConversationInput } from './conversation-fixtures'
 import { seedConversations, seedSingleConversation } from './conversation-fixtures'
 import { OpenWaggleApp } from './openwaggle-app'
 
-export const REGRESSION_ASSISTANT_MODEL = 'claude-sonnet-4-5'
+export const REGRESSION_ASSISTANT_MODEL = 'openai-codex/gpt-5.5'
 export const REGRESSION_THREAD_TITLE = 'Toolcall Regression'
 export const REGRESSION_TOOL_PATH = 'lorem-ipsum.txt'
 export const REGRESSION_TOOL_CONTENT = 'hello'
 export const REGRESSION_USER_PROMPT = 'save it on the root of the project'
 export const REGRESSION_RUNNING_LABEL = `Writing ${REGRESSION_TOOL_PATH}...`
 export const REGRESSION_COMPLETED_LABEL = `Wrote ${REGRESSION_TOOL_PATH}`
-export const REGRESSION_PENDING_LABEL = `Requested writeFile ${REGRESSION_TOOL_PATH}`
+export const REGRESSION_PENDING_LABEL = `Requested write ${REGRESSION_TOOL_PATH}`
 
 export function makeUserMessage(text: string, createdAt: number) {
   return {
@@ -30,36 +30,23 @@ export function makeAssistantMessage(parts: readonly unknown[], createdAt: numbe
   }
 }
 
-export function makeWriteFileToolCallPart(
-  id: string,
-  path: string,
-  content: string,
-  options?: {
-    readonly state?: 'approval-requested' | 'approval-responded'
-    readonly approval?: {
-      readonly id: string
-      readonly needsApproval: boolean
-      readonly approved?: boolean
-    }
-  },
-) {
+export function makeWriteToolCallPart(id: string, path: string, content: string) {
   return {
     type: 'tool-call' as const,
     toolCall: {
       id,
-      name: 'writeFile',
+      name: 'write',
       args: { path, content },
-      state: options?.state,
-      approval: options?.approval,
+      state: 'input-complete' as const,
     },
   }
 }
 
-export function makeWriteFileToolResultPart(
+export function makeWriteToolResultPart(
   id: string,
   path: string,
   content: string,
-  result: string,
+  result: unknown,
   isError: boolean,
   duration = 0,
 ) {
@@ -67,7 +54,7 @@ export function makeWriteFileToolResultPart(
     type: 'tool-result' as const,
     toolResult: {
       id,
-      name: 'writeFile',
+      name: 'write',
       args: { path, content },
       result,
       isError,
@@ -79,25 +66,21 @@ export function makeWriteFileToolResultPart(
 export async function seedRegressionConversation(
   app: OpenWaggleApp,
   messages: readonly unknown[],
-  options?: {
-    readonly title?: string
-    readonly updatedAt?: number
-    readonly projectPath?: string | null
-    readonly archived?: boolean
-  },
 ): Promise<string> {
-  const updatedAt = options?.updatedAt ?? Date.now()
-  const title = options?.title ?? REGRESSION_THREAD_TITLE
-
+  const title = `${REGRESSION_THREAD_TITLE} ${Date.now().toString(36).slice(-6)}`
   await seedSingleConversation(app.userDataDir, {
     title,
-    updatedAt,
+    updatedAt: Date.now(),
     messages,
-    projectPath: options?.projectPath,
-    archived: options?.archived,
   })
-
   return title
+}
+
+export async function seedToolStateConversations(
+  userDataDir: string,
+  conversations: readonly SeedConversationInput[],
+): Promise<void> {
+  await seedConversations(userDataDir, conversations)
 }
 
 export async function restartAndOpenThread(app: OpenWaggleApp, title: string) {
@@ -105,11 +88,4 @@ export async function restartAndOpenThread(app: OpenWaggleApp, title: string) {
   const mainWindow = app.mainWindow()
   await mainWindow.openThread(title)
   return mainWindow
-}
-
-export async function seedPendingApprovalConversations(
-  userDataDir: string,
-  conversations: readonly SeedConversationInput[],
-): Promise<void> {
-  await seedConversations(userDataDir, conversations)
 }

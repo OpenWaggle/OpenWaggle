@@ -1,22 +1,22 @@
 # Project Configuration
 
-OpenWaggle uses a single project-local JSON file at `.openwaggle/settings.json`.
+OpenWaggle uses a project-local, per-user JSON file at `.openwaggle/settings.json`.
 
-The file is optional. When absent or unparseable, OpenWaggle falls back to built-in defaults and logs the parse or validation failure. Top-level keys are OpenWaggle-owned product settings. Pi runtime settings live under the nested `pi` object and are passed to Pi through the Pi adapter.
+The file is optional and should stay gitignored. When absent or unparseable, OpenWaggle falls back to built-in defaults and logs the parse or validation failure. Top-level keys are OpenWaggle-owned product settings. Pi runtime settings live under the nested `pi` object and are passed to Pi through the Pi adapter.
 
 ## File Location
 
 ```text
 your-project/
   .openwaggle/
-    settings.json     # Shared project configuration
+    settings.json     # Local per-user project settings; do not commit real settings
     skills/           # OpenWaggle project skills loaded by Pi
     extensions/       # OpenWaggle project extensions loaded by Pi when present
     prompts/          # OpenWaggle project prompt templates loaded by Pi when present
     themes/           # OpenWaggle project themes loaded by Pi when present
 ```
 
-Pi's project-local `.pi/settings.json` can also be read by the Pi settings loader. `.openwaggle/settings.json` is the user-facing OpenWaggle namespace and wins when both provide the same Pi setting.
+Pi's project-local `.pi/settings.json` can also be read by the Pi settings loader. Both real settings files are local runtime configuration and should remain untracked. If a team needs shared defaults, commit an explicit non-secret template/default file instead of a live settings file. `.openwaggle/settings.json` is the user-facing OpenWaggle namespace and wins when both provide the same Pi setting.
 
 ## Shape
 
@@ -41,7 +41,7 @@ Rules:
 - Top-level keys belong to OpenWaggle.
 - `pi` contains Pi-native settings using Pi's JSON setting names.
 - Do not add an extra `openwaggle` wrapper.
-- Do not use TOML for project config.
+- Use JSON for project config.
 
 ## Runtime Behavior
 
@@ -65,4 +65,4 @@ Supported values match Pi:
 - `high`
 - `xhigh`
 
-Thinking levels control the reasoning depth Pi requests for thinking-capable models. They are not OpenWaggle sampling presets and do not expose separate temperature, top-p, or max-token overrides.
+Thinking levels control the reasoning depth Pi requests for thinking-capable models.

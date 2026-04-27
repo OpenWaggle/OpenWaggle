@@ -168,12 +168,13 @@ function seedSessionRow(
   database: DatabaseSync,
   row: ConversationRowFixture,
   conversationInput: SeedConversationInput,
+  defaultProjectPath: string,
 ): void {
   database.exec('BEGIN')
 
   try {
     const projectPath =
-      conversationInput.projectPath === undefined ? null : conversationInput.projectPath
+      conversationInput.projectPath === undefined ? defaultProjectPath : conversationInput.projectPath
     const waggleConfigJson =
       conversationInput.waggleConfig === undefined || conversationInput.waggleConfig === null
         ? null
@@ -353,7 +354,7 @@ export async function seedSingleConversation(
   const database = openDatabase(userDataDir)
   try {
     const row = insertSessionRow(database)
-    seedSessionRow(database, row, conversationInput)
+    seedSessionRow(database, row, conversationInput, userDataDir)
   } finally {
     database.close()
   }
@@ -369,7 +370,7 @@ export async function seedConversations(
   try {
     for (const conversationInput of conversationInputs) {
       const row = insertSessionRow(database)
-      seedSessionRow(database, row, conversationInput)
+      seedSessionRow(database, row, conversationInput, userDataDir)
     }
   } finally {
     database.close()

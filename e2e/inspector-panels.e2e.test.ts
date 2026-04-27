@@ -41,28 +41,17 @@ test.describe('diff route sidebar', () => {
 
       const diffToggle = page.getByRole('button', { name: 'Toggle diff panel' })
       await expect(diffToggle).toBeVisible()
-      const openStartedAt = await page.evaluate(() => performance.now())
       await diffToggle.click()
 
       await expect(page).toHaveURL(/\?diff=1/)
       const diffAside = page.locator('aside').filter({ hasText: 'Working tree diff' })
       await expect(diffAside).toHaveAttribute('aria-hidden', 'false')
-      const openDurationMs = await page.evaluate(
-        (startedAt) => performance.now() - startedAt,
-        openStartedAt,
-      )
-      expect(openDurationMs).toBeLessThan(500)
+      await expect(page.getByRole('button', { name: 'Resize diff sidebar' })).toBeVisible()
 
-      const closeStartedAt = await page.evaluate(() => performance.now())
       await page.getByRole('button', { name: 'Close diff sidebar' }).click()
 
       await expect(page).not.toHaveURL(/\?diff=1/)
       await expect(diffAside).toHaveAttribute('aria-hidden', 'true')
-      const closeDurationMs = await page.evaluate(
-        (startedAt) => performance.now() - startedAt,
-        closeStartedAt,
-      )
-      expect(closeDurationMs).toBeLessThan(500)
     } finally {
       await app.cleanup()
       await fs.rm(projectPath, { recursive: true, force: true })

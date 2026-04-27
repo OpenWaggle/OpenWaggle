@@ -8,7 +8,6 @@ test-results/
 *.log
 .DS_Store
 __pycache__/
-.openwaggle/config.local.toml
 .openwaggle/settings.json
 .openwaggle/mcp.json
 .pi/settings.json
