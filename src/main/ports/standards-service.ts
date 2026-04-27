@@ -1,8 +1,7 @@
 /**
  * StandardsService port — domain-owned interface for loading agent standards and skills.
  *
- * Replaces direct file I/O in the agent loop for loading project-local
- * agents and skills. Implemented by the filesystem adapter layer.
+ * Implemented by the filesystem adapter layer.
  */
 import type { PreparedAttachment } from '@shared/types/agent'
 import type { Settings } from '@shared/types/settings'

@@ -40,14 +40,6 @@ export const TITLE = {
   FALLBACK_LENGTH: 60,
 } as const
 
-/** Conversation summary limits */
-export const CONVERSATION_SUMMARY = {
-  /** Max conversation summary length */
-  MAX_LENGTH: 3000,
-  /** Recent messages to include in summary */
-  RECENT_MESSAGE_COUNT: 8,
-} as const
-
 /** Skill and prompt limits */
 export const PROMPT_LIMITS = {
   /** Max skills in catalog prompt */
@@ -58,10 +50,4 @@ export const PROMPT_LIMITS = {
   MAX_AGENTS_SCOPES: 5,
   /** Max candidates for agent path inference */
   MAX_AGENT_CANDIDATES: 5,
-} as const
-
-/** Continuation normalizer limits */
-export const CONTINUATION = {
-  /** Preview character limit for parse debugging */
-  PARSE_PREVIEW_CHAR_LIMIT: 200,
 } as const

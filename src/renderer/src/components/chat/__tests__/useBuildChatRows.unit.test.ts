@@ -1,6 +1,6 @@
 import { SupportedModelId } from '@shared/types/brand'
+import type { UIMessage } from '@shared/types/chat-ui'
 import type { WaggleMessageMetadata } from '@shared/types/waggle'
-import type { UIMessage } from '@tanstack/ai-react'
 import { describe, expect, it } from 'vitest'
 import { buildChatRows } from '../useBuildChatRows'
 
@@ -20,7 +20,7 @@ function createAssistantToolMessage(id: string, toolCallId: string): UIMessage {
       {
         type: 'tool-call',
         id: toolCallId,
-        name: 'runCommand',
+        name: 'bash',
         arguments: '{"command":"echo hello"}',
         state: 'output-available',
       },
@@ -29,6 +29,21 @@ function createAssistantToolMessage(id: string, toolCallId: string): UIMessage {
         toolCallId,
         output: { kind: 'text', text: 'hello' },
         state: 'output-available',
+      },
+    ],
+  }
+}
+
+function createToolResultMessage(id: string, toolCallId: string): UIMessage {
+  return {
+    id,
+    role: 'assistant',
+    parts: [
+      {
+        type: 'tool-result',
+        toolCallId,
+        content: { kind: 'text', text: 'hello' },
+        state: 'complete',
       },
     ],
   }
@@ -47,9 +62,9 @@ function createAssistantPendingToolMessage(
       {
         type: 'tool-call',
         id: toolCallId,
-        name: 'writeFile',
+        name: 'write',
         arguments: '{"path":"pending-reload-check.txt","content":"reload should not fake success"}',
-        state: 'approval-requested',
+        state: 'input-complete',
       },
     ],
   }
@@ -67,7 +82,7 @@ function createAssistantTerminalToolMessage(
       {
         type: 'tool-call',
         id: toolCallId,
-        name: 'writeFile',
+        name: 'write',
         arguments: '{"path":"pending-reload-check.txt","content":"reload should not fake success"}',
         state: 'output-available',
       },
@@ -105,8 +120,8 @@ function getAssistantMessageRows(
   )
 }
 
-describe('buildChatRows tool-call dedup', () => {
-  it('deduplicates repeated tool calls within the same user turn', () => {
+describe('buildChatRows tool-call rendering', () => {
+  it('renders repeated Pi tool calls within the same user turn', () => {
     const messages = [
       createUserMessage('user-1', 'run command'),
       createAssistantToolMessage('assistant-1', 'tool-a'),
@@ -114,7 +129,35 @@ describe('buildChatRows tool-call dedup', () => {
     ]
 
     const assistantRows = getAssistantMessageRows(messages)
+    expect(assistantRows).toHaveLength(2)
+  })
+
+  it('visually nests first-class tool-result messages under their matching assistant tool call', () => {
+    const messages = [
+      createUserMessage('user-1', 'run command'),
+      {
+        id: 'assistant-1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'tool-a',
+            name: 'bash',
+            arguments: '{"command":"echo hello"}',
+            state: 'input-complete',
+          },
+        ],
+      },
+      createToolResultMessage('tool-result-1', 'tool-a'),
+    ]
+
+    const assistantRows = getAssistantMessageRows(messages)
+
     expect(assistantRows).toHaveLength(1)
+    expect(assistantRows[0]?.message.parts).toMatchObject([
+      { type: 'tool-call', id: 'tool-a' },
+      { type: 'tool-result', toolCallId: 'tool-a', state: 'complete' },
+    ])
   })
 
   it('keeps repeated tool calls when they belong to different user turns', () => {
@@ -154,14 +197,14 @@ describe('buildChatRows tool-call dedup', () => {
     expect(assistantRows).toHaveLength(2)
   })
 
-  it('prefers the later terminal tool row over an earlier pending duplicate in the same user turn', () => {
+  it('renders pending and terminal repeated tool rows independently', () => {
     const messages = [
       createUserMessage('user-1', 'create the file'),
       createAssistantPendingToolMessage('assistant-1', 'tool-a', "I'll create that file for you."),
       createAssistantTerminalToolMessage(
         'assistant-2',
         'tool-a',
-        'The file write has been approved and is pending execution.',
+        'The file write completed successfully.',
       ),
     ]
 
@@ -169,17 +212,22 @@ describe('buildChatRows tool-call dedup', () => {
     expect(assistantRows).toHaveLength(2)
 
     const firstAssistantParts = assistantRows[0].message.parts
-    expect(firstAssistantParts).toHaveLength(1)
+    expect(firstAssistantParts).toHaveLength(2)
     expect(firstAssistantParts[0]).toMatchObject({
       type: 'text',
       content: "I'll create that file for you.",
+    })
+    expect(firstAssistantParts[1]).toMatchObject({
+      type: 'tool-call',
+      name: 'write',
+      state: 'input-complete',
     })
 
     const secondAssistantParts = assistantRows[1].message.parts
     expect(secondAssistantParts).toHaveLength(3)
     expect(secondAssistantParts[0]).toMatchObject({
       type: 'tool-call',
-      name: 'writeFile',
+      name: 'write',
       state: 'output-available',
     })
     expect(secondAssistantParts[1]).toMatchObject({
@@ -189,12 +237,86 @@ describe('buildChatRows tool-call dedup', () => {
     })
     expect(secondAssistantParts[2]).toMatchObject({
       type: 'text',
-      content: 'The file write has been approved and is pending execution.',
+      content: 'The file write completed successfully.',
+    })
+  })
+})
+
+// ─── Compaction summaries ───────────────────────────────────────────
+
+describe('buildChatRows compaction summaries', () => {
+  it('turns compaction summary messages into dedicated summary rows', () => {
+    const compactionMessage: UIMessage = {
+      id: 'compaction-summary',
+      role: 'assistant',
+      parts: [{ type: 'text', content: 'Compaction summary\n\nKept the failing test context.' }],
+      metadata: {
+        compactionSummary: {
+          summary: 'Kept the failing test context.',
+          tokensBefore: 123456,
+        },
+      },
+    }
+
+    const rows = buildChatRows({
+      messages: [createUserMessage('user-1', 'compact'), compactionMessage],
+      isLoading: false,
+      error: undefined,
+      lastUserMessage: null,
+      dismissedError: null,
+      conversationId: 'conv-compaction',
+      model: SupportedModelId('gpt-5-mini'),
+      waggleMetadataLookup: {},
+      phase: { current: null, completed: [], totalElapsedMs: 0 },
+    })
+
+    expect(rows.map((row) => row.type)).toEqual(['message', 'compaction-summary'])
+    expect(rows[1]).toMatchObject({
+      type: 'compaction-summary',
+      id: 'compaction-summary',
+      summary: 'Kept the failing test context.',
+      tokensBefore: 123456,
     })
   })
 })
 
 // ─── isRunActive propagation ────────────────────────────────────────
+
+describe('buildChatRows reasoning visibility', () => {
+  it('keeps assistant rows that contain inline reasoning content', () => {
+    const rows = buildChatRows({
+      messages: [
+        createUserMessage('user-1', 'think first'),
+        {
+          id: 'assistant-reasoning',
+          role: 'assistant',
+          parts: [{ type: 'thinking', content: 'Planning the next tool call.' }],
+        },
+      ],
+      isLoading: false,
+      error: undefined,
+      lastUserMessage: null,
+      dismissedError: null,
+      conversationId: 'conv-reasoning',
+      model: SupportedModelId('gpt-5-mini'),
+      waggleMetadataLookup: {},
+      phase: { current: null, completed: [], totalElapsedMs: 0 },
+    })
+
+    const assistantRows = rows.filter(
+      (row): row is Extract<(typeof rows)[number], { type: 'message' }> =>
+        row.type === 'message' && row.message.role === 'assistant',
+    )
+
+    expect(assistantRows).toHaveLength(1)
+    expect(assistantRows[0]?.message.parts).toEqual([
+      {
+        type: 'thinking',
+        content: 'Planning the next tool call.',
+      },
+    ])
+  })
+})
 
 describe('buildChatRows isRunActive', () => {
   it('sets isRunActive on the last assistant row when isLoading is true', () => {
@@ -268,51 +390,9 @@ describe('buildChatRows isRunActive', () => {
   })
 })
 
-// ─── Waggle segment tests ────────────────────────────────────────
+// ─── Waggle message metadata tests ────────────────────────────────
 
-function createBoundaryPart(meta: {
-  agentIndex: number
-  agentLabel: string
-  agentColor: string
-  turnNumber: number
-  isSynthesis?: boolean
-}): UIMessage['parts'][number] {
-  const metaJson = JSON.stringify(meta)
-  return {
-    type: 'tool-call' as const,
-    id: `boundary-${String(meta.turnNumber)}`,
-    name: `_turnBoundary:${metaJson}`,
-    arguments: metaJson,
-    state: 'output-available' as const,
-    output: metaJson,
-  }
-}
-
-function createWaggleStreamingMessage(
-  turnMetas: {
-    agentIndex: number
-    agentLabel: string
-    agentColor: string
-    turnNumber: number
-    isSynthesis?: boolean
-  }[],
-): UIMessage {
-  const parts: UIMessage['parts'] = []
-
-  // First turn content (no boundary before it)
-  parts.push({ type: 'text', content: 'Turn 0 response' })
-
-  // Subsequent turns: boundary + content
-  for (let i = 1; i < turnMetas.length; i++) {
-    const meta = turnMetas[i]
-    parts.push(createBoundaryPart(meta))
-    parts.push({ type: 'text', content: `Turn ${String(i)} response` })
-  }
-
-  return { id: 'waggle-msg', role: 'assistant', parts }
-}
-
-describe('buildChatRows waggle segments', () => {
+describe('buildChatRows waggle message metadata', () => {
   const ADVOCATE_META: WaggleMessageMetadata = {
     agentIndex: 0,
     agentLabel: 'Advocate',
@@ -322,123 +402,55 @@ describe('buildChatRows waggle segments', () => {
 
   const DEFAULT_PHASE = { current: null, completed: [], totalElapsedMs: 0 }
 
-  it('shows a turn divider for the first segment (Turn 1)', () => {
-    const msg = createWaggleStreamingMessage([
-      { agentIndex: 0, agentLabel: 'Advocate', agentColor: 'blue', turnNumber: 0 },
-      { agentIndex: 1, agentLabel: 'Critic', agentColor: 'amber', turnNumber: 1 },
-    ])
+  it('shows turn dividers from explicit Waggle message metadata', () => {
+    const advocateMsg: UIMessage = {
+      id: 'waggle-advocate',
+      role: 'assistant',
+      parts: [{ type: 'text', content: 'Advocate analysis' }],
+    }
+    const criticMsg: UIMessage = {
+      id: 'waggle-critic',
+      role: 'assistant',
+      parts: [{ type: 'text', content: 'Critic response' }],
+    }
 
     const rows = buildChatRows({
-      messages: [createUserMessage('user-1', 'question'), msg],
+      messages: [createUserMessage('user-1', 'question'), advocateMsg, criticMsg],
       isLoading: false,
       error: undefined,
       lastUserMessage: null,
       dismissedError: null,
       conversationId: 'conv-waggle',
       model: SupportedModelId('claude-sonnet-4-6'),
-
-      waggleMetadataLookup: { 'waggle-msg': ADVOCATE_META },
+      waggleMetadataLookup: {
+        'waggle-advocate': ADVOCATE_META,
+        'waggle-critic': {
+          agentIndex: 1,
+          agentLabel: 'Critic',
+          agentColor: 'amber',
+          turnNumber: 1,
+        },
+      },
       phase: DEFAULT_PHASE,
     })
 
-    const segmentRows = rows.filter((r) => r.type === 'segment')
-    expect(segmentRows).toHaveLength(2)
-
-    // First segment should have a divider
-    expect(segmentRows[0].showDivider).toBe(true)
-    expect(segmentRows[0].dividerProps).toMatchObject({
+    const messageRows = rows.filter((r) => r.type === 'message' && r.message.role === 'assistant')
+    expect(messageRows).toHaveLength(2)
+    expect(messageRows[0].showTurnDivider).toBe(true)
+    expect(messageRows[0].turnDividerProps).toMatchObject({
       agentLabel: 'Advocate',
       agentColor: 'blue',
       turnNumber: 0,
     })
-
-    // Second segment should also have a divider (different agent)
-    expect(segmentRows[1].showDivider).toBe(true)
-    expect(segmentRows[1].dividerProps).toMatchObject({
+    expect(messageRows[1].showTurnDivider).toBe(true)
+    expect(messageRows[1].turnDividerProps).toMatchObject({
       agentLabel: 'Critic',
       agentColor: 'amber',
       turnNumber: 1,
     })
-  })
-
-  it('assigns correct agent metadata to each segment from boundaries', () => {
-    const msg = createWaggleStreamingMessage([
-      { agentIndex: 0, agentLabel: 'Advocate', agentColor: 'blue', turnNumber: 0 },
-      { agentIndex: 1, agentLabel: 'Critic', agentColor: 'amber', turnNumber: 1 },
-      { agentIndex: 0, agentLabel: 'Advocate', agentColor: 'blue', turnNumber: 2 },
-    ])
-
-    const rows = buildChatRows({
-      messages: [createUserMessage('user-1', 'question'), msg],
-      isLoading: false,
-      error: undefined,
-      lastUserMessage: null,
-      dismissedError: null,
-      conversationId: 'conv-waggle',
-      model: SupportedModelId('claude-sonnet-4-6'),
-
-      waggleMetadataLookup: { 'waggle-msg': ADVOCATE_META },
-      phase: DEFAULT_PHASE,
-    })
-
-    const segmentRows = rows.filter((r) => r.type === 'segment')
-    expect(segmentRows).toHaveLength(3)
-
-    expect(segmentRows[0].waggle).toMatchObject({ agentLabel: 'Advocate', agentColor: 'blue' })
-    expect(segmentRows[1].waggle).toMatchObject({ agentLabel: 'Critic', agentColor: 'amber' })
-    expect(segmentRows[2].waggle).toMatchObject({ agentLabel: 'Advocate', agentColor: 'blue' })
-  })
-
-  it('reads metadata from arguments when output is not yet available (live streaming)', () => {
-    const criticMeta = {
-      agentIndex: 1,
-      agentLabel: 'Critic',
-      agentColor: 'amber',
-      turnNumber: 1,
-    }
-    // Simulate live streaming: boundary has metadata in tool name but no output yet
-    const streamingBoundary: UIMessage['parts'][number] = {
-      type: 'tool-call' as const,
-      id: 'boundary-1',
-      name: `_turnBoundary:${JSON.stringify(criticMeta)}`,
-      arguments: '',
-      state: 'streaming' as const,
-      // output is undefined during streaming
-    }
-    const msg: UIMessage = {
-      id: 'waggle-streaming',
-      role: 'assistant',
-      parts: [
-        { type: 'text', content: 'Advocate analysis' },
-        streamingBoundary,
-        { type: 'text', content: 'Critic response' },
-      ],
-    }
-
-    const rows = buildChatRows({
-      messages: [createUserMessage('user-1', 'question'), msg],
-      isLoading: true,
-      error: undefined,
-      lastUserMessage: null,
-      dismissedError: null,
-      conversationId: 'conv-waggle',
-      model: SupportedModelId('claude-sonnet-4-6'),
-
-      waggleMetadataLookup: { 'waggle-streaming': ADVOCATE_META },
-      phase: DEFAULT_PHASE,
-    })
-
-    const segmentRows = rows.filter((r) => r.type === 'segment')
-    expect(segmentRows).toHaveLength(2)
-
-    // First segment: Advocate's content
-    expect(segmentRows[0].waggle).toMatchObject({ agentLabel: 'Advocate', agentColor: 'blue' })
-    // Second segment: Critic's content — metadata read from arguments, not output
-    expect(segmentRows[1].waggle).toMatchObject({ agentLabel: 'Critic', agentColor: 'amber' })
   })
 
   it('renders post-waggle messages without waggle styling', () => {
-    // A regular assistant message after waggle ends — no turn boundaries, no waggle metadata
     const waggleMsg: UIMessage = {
       id: 'waggle-msg',
       role: 'assistant',
@@ -470,71 +482,5 @@ describe('buildChatRows waggle segments', () => {
     // Post-waggle message should have no waggle styling
     expect(messageRows[1].waggle).toBeUndefined()
     expect(messageRows[1].showTurnDivider).toBe(false)
-  })
-
-  it('skips assistant rows that become empty after boundary cleanup', () => {
-    const emptyBoundaryMeta = {
-      agentIndex: 0,
-      agentLabel: 'Advocate',
-      agentColor: 'blue',
-      turnNumber: 0,
-    }
-    const boundaryJson = JSON.stringify(emptyBoundaryMeta)
-    const emptyBoundaryOnlyMessage: UIMessage = {
-      id: 'assistant-empty-boundary',
-      role: 'assistant',
-      parts: [
-        {
-          type: 'tool-call',
-          id: 'boundary-tool-id',
-          name: `_turnBoundary:${boundaryJson}`,
-          arguments: boundaryJson,
-          state: 'output-available',
-          output: boundaryJson,
-        },
-      ],
-    }
-    const realAssistantMessage: UIMessage = {
-      id: 'assistant-visible',
-      role: 'assistant',
-      parts: [{ type: 'text', content: 'Critic response' }],
-    }
-
-    const rows = buildChatRows({
-      messages: [
-        createUserMessage('user-1', 'question'),
-        emptyBoundaryOnlyMessage,
-        realAssistantMessage,
-      ],
-      isLoading: false,
-      error: undefined,
-      lastUserMessage: null,
-      dismissedError: null,
-      conversationId: 'conv-waggle',
-      model: SupportedModelId('claude-sonnet-4-6'),
-
-      waggleMetadataLookup: {
-        'assistant-empty-boundary': {
-          agentIndex: 0,
-          agentLabel: 'Advocate',
-          agentColor: 'blue',
-          turnNumber: 0,
-        },
-        'assistant-visible': {
-          agentIndex: 1,
-          agentLabel: 'Critic',
-          agentColor: 'amber',
-          turnNumber: 1,
-        },
-      },
-      phase: DEFAULT_PHASE,
-    })
-
-    const assistantRows = rows.filter(
-      (row): row is Extract<(typeof rows)[number], { type: 'message' }> =>
-        row.type === 'message' && row.message.role === 'assistant',
-    )
-    expect(assistantRows).toHaveLength(1)
-    expect(assistantRows[0].message.id).toBe('assistant-visible')
   })
 })

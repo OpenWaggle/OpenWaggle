@@ -429,7 +429,7 @@ describe('useChatScrollBehaviour', () => {
     expect(layout.scrollToMock).toHaveBeenCalledWith({ top: 1000, behavior: 'smooth' })
   })
 
-  it('restores the scroll position captured from the previous thread scroll event', () => {
+  it('restores the scroll position captured from the previous session scroll event', () => {
     const layout = createTestLayout({
       naturalScrollHeight: 2000,
       clientHeight: 500,
@@ -484,7 +484,7 @@ describe('useChatScrollBehaviour', () => {
     expect(layout.getScrollTop()).toBe(640)
   })
 
-  it('waits for the incoming thread user id before restoring same-length hydrated rows', () => {
+  it('waits for the incoming session user id before restoring same-length hydrated rows', () => {
     const layout = createTestLayout({
       naturalScrollHeight: 2000,
       clientHeight: 500,
@@ -537,7 +537,7 @@ describe('useChatScrollBehaviour', () => {
     expect(layout.getScrollTop()).toBe(640)
   })
 
-  it('does not misattribute a debounced scroll write after a fast thread switch', () => {
+  it('does not misattribute a debounced scroll write after a fast session switch', () => {
     const layout = createTestLayout({
       naturalScrollHeight: 2000,
       clientHeight: 500,

@@ -1,6 +1,6 @@
 import type { ConversationId } from '@shared/types/brand'
+import type { UIMessage } from '@shared/types/chat-ui'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
-import type { UIMessage } from '@tanstack/ai-react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -29,7 +29,6 @@ vi.mock('@/lib/ipc', () => ({
     deleteGitBranch: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
     setGitBranchUpstream: vi.fn().mockResolvedValue({ ok: true, message: 'ok' }),
     prepareAttachments: vi.fn().mockResolvedValue([]),
-    onOrchestrationEvent: vi.fn().mockReturnValue(() => {}),
   },
 }))
 
@@ -52,14 +51,13 @@ function createSections(
     recentProjects: [],
     activeConversationId: 'conv-1' as ConversationId,
     chatRows: [],
-    compactedMessageIds: new Set(),
     lastUserMessageId: null,
+    streamSignalVersion: 0,
     userDidSend: false,
     onUserDidSendConsumed: vi.fn(),
     onOpenProject: vi.fn().mockResolvedValue(undefined),
     onSelectProjectPath: vi.fn(),
     onRetryText: vi.fn().mockResolvedValue(undefined),
-    onAnswerQuestion: vi.fn().mockResolvedValue(undefined),
     onOpenSettings: vi.fn(),
     onDismissError: vi.fn(),
     ...overrides,
@@ -68,16 +66,12 @@ function createSections(
   return {
     transcript,
     composer: {
-      pendingApproval: null,
-      pendingAskUser: null,
       activeConversationId: transcript.activeConversationId,
       waggleStatus: 'idle',
       commandPaletteOpen: false,
       slashSkills: [],
       isLoading: transcript.isLoading,
       status: transcript.isLoading ? 'streaming' : 'ready',
-      onToolApprovalResponse: vi.fn().mockResolvedValue(undefined),
-      onAnswerQuestion: transcript.onAnswerQuestion,
       onStopCollaboration: vi.fn(),
       onSelectSkill: vi.fn(),
       onStartWaggle: vi.fn(),

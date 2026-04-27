@@ -1,38 +1,57 @@
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ProviderService } from '../../ports/provider-service'
+import {
+  type ProviderCapabilities,
+  type ProviderModelCapabilities,
+  ProviderService,
+} from '../../ports/provider-service'
 
-const { typedHandleMock, getAllMock, getMock, indexModelsMock, fetchModelsMock } = vi.hoisted(
-  () => ({
-    typedHandleMock: vi.fn(),
-    getAllMock: vi.fn(),
-    getMock: vi.fn(),
-    indexModelsMock: vi.fn(),
-    fetchModelsMock: vi.fn(),
-  }),
-)
+const { typedHandleMock, getAllMock, getMock } = vi.hoisted(() => ({
+  typedHandleMock: vi.fn(),
+  getAllMock: vi.fn(),
+  getMock: vi.fn(),
+}))
 
 vi.mock('../typed-ipc', () => ({
   typedHandle: typedHandleMock,
 }))
 
+function makeModel(id: string): ProviderModelCapabilities {
+  return {
+    id: `openai/${id}`,
+    modelId: id,
+    available: true,
+    reasoning: false,
+    availableThinkingLevels: ['off'],
+    input: ['text'],
+    contextWindow: 1_000_000,
+    maxTokens: 32_768,
+  }
+}
+
+const fallbackProvider: ProviderCapabilities = {
+  id: 'openai',
+  displayName: 'OpenAI',
+
+  auth: {
+    configured: true,
+    source: 'api-key',
+    apiKeyConfigured: true,
+    apiKeySource: 'api-key',
+    oauthConnected: false,
+    supportsApiKey: true,
+    supportsOAuth: true,
+  },
+  models: [makeModel('gpt-4.1-mini')],
+  testModel: 'gpt-4.1-mini',
+}
+
 const TestProviderServiceLayer = Layer.succeed(ProviderService, {
   get: (providerId) => Effect.sync(() => getMock(providerId)),
   getAll: () => Effect.sync(() => getAllMock()),
-  getProviderForModel: () => Effect.succeed({} as never),
+  getProviderForModel: () => Effect.succeed(fallbackProvider),
   isKnownModel: () => Effect.succeed(true),
-  createChatAdapter: () => Effect.succeed({} as never),
-  indexModels: (modelIds, providerId) => Effect.sync(() => indexModelsMock(modelIds, providerId)),
-  fetchModels: (providerId, baseUrl, apiKey, authMethod) =>
-    Effect.tryPromise({
-      try: async () => {
-        const provider = getMock(providerId)
-        if (!provider?.supportsDynamicModelFetch || !provider.fetchModels) return []
-        return provider.fetchModels(baseUrl, apiKey, authMethod)
-      },
-      catch: () => [] as readonly string[],
-    }).pipe(Effect.catchAll((models) => Effect.succeed(models))),
 })
 
 import { registerProvidersHandlers } from '../providers-handler'
@@ -54,8 +73,6 @@ describe('registerProvidersHandlers', () => {
     typedHandleMock.mockReset()
     getAllMock.mockReset()
     getMock.mockReset()
-    indexModelsMock.mockReset()
-    fetchModelsMock.mockReset()
   })
 
   it('registers providers:get-models and returns mapped display info', async () => {
@@ -63,11 +80,18 @@ describe('registerProvidersHandlers', () => {
       {
         id: 'openai',
         displayName: 'OpenAI',
-        requiresApiKey: true,
         apiKeyManagementUrl: 'https://platform.openai.com/api-keys',
-        supportsBaseUrl: false,
-        supportsDynamicModelFetch: false,
-        models: ['gpt-4.1-mini'],
+
+        auth: {
+          configured: true,
+          source: 'api-key',
+          apiKeyConfigured: true,
+          apiKeySource: 'api-key',
+          oauthConnected: false,
+          supportsApiKey: true,
+          supportsOAuth: true,
+        },
+        models: [makeModel('gpt-4.1-mini')],
       },
     ])
 
@@ -80,45 +104,29 @@ describe('registerProvidersHandlers', () => {
       {
         provider: 'openai',
         displayName: 'OpenAI',
-        requiresApiKey: true,
         apiKeyManagementUrl: 'https://platform.openai.com/api-keys',
-        supportsBaseUrl: false,
-        supportsDynamicModelFetch: false,
-        models: [{ id: 'gpt-4.1-mini', name: 'GPT 4.1 Mini', provider: 'openai' }],
+
+        auth: {
+          configured: true,
+          source: 'api-key',
+          apiKeyConfigured: true,
+          apiKeySource: 'api-key',
+          oauthConnected: false,
+          supportsApiKey: true,
+          supportsOAuth: true,
+        },
+        models: [
+          {
+            id: 'openai/gpt-4.1-mini',
+            modelId: 'gpt-4.1-mini',
+            name: 'GPT 4.1 Mini',
+            provider: 'openai',
+            available: true,
+            availableThinkingLevels: ['off'],
+            contextWindow: 1_000_000,
+          },
+        ],
       },
-    ])
-  })
-
-  it('registers providers:fetch-models and returns empty array when provider has no fetchModels', async () => {
-    getMock.mockReturnValue({
-      id: 'anthropic',
-      supportsDynamicModelFetch: false,
-      models: ['claude-sonnet-4-5'],
-    })
-
-    registerProvidersHandlers()
-    const handler = registeredHandler('providers:fetch-models')
-
-    expect(handler).toBeDefined()
-    const result = await handler?.({}, 'anthropic')
-    expect(result).toEqual([])
-  })
-
-  it('maps fetched models to display entries', async () => {
-    getMock.mockReturnValue({
-      id: 'ollama',
-      supportsDynamicModelFetch: true,
-      models: ['llama3.1'],
-      fetchModels: vi.fn(async () => ['llama3.1', 'qwen2.5-coder']),
-    })
-
-    registerProvidersHandlers()
-    const handler = registeredHandler('providers:fetch-models')
-
-    const result = await handler?.({}, 'ollama', 'http://localhost:11434', 'unused')
-    expect(result).toEqual([
-      { id: 'llama3.1', name: 'Llama3.1', provider: 'ollama' },
-      { id: 'qwen2.5-coder', name: 'Qwen2.5 Coder', provider: 'ollama' },
     ])
   })
 })

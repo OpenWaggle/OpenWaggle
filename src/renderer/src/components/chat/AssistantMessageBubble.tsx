@@ -1,25 +1,52 @@
-import { type ConversationId, MessageId } from '@shared/types/brand'
+import type { ConversationId } from '@shared/types/brand'
+import type { UIMessage } from '@shared/types/chat-ui'
 import type { SupportedModelId } from '@shared/types/llm'
-import type { PlanResponse } from '@shared/types/plan'
 import type { WaggleAgentColor } from '@shared/types/waggle'
 import { chooseBy } from '@shared/utils/decision'
-import type { UIMessage } from '@tanstack/ai-react'
-import { Pin } from 'lucide-react'
+import { GitBranch } from 'lucide-react'
 import React from 'react'
-import { useOrchestrationTaskStatus } from '@/hooks/useOrchestrationTaskStatus'
 import { AGENT_BORDER_LEFT } from '@/lib/agent-colors'
 import { cn } from '@/lib/cn'
-import { api } from '@/lib/ipc'
-import { useContextStore } from '@/stores/context-store'
 import { AgentLabel } from './AgentLabel'
 import { CollapsibleDetails } from './CollapsibleDetails'
 import { useMessageCollapse } from './hooks/useMessageCollapse'
 import { StreamingText } from './StreamingText'
 import { ToolCallRouter } from './ToolCallRouter'
 
+const JSON_STRINGIFY_INDENT = 2
+
 export interface WaggleInfo {
   agentLabel: string
   agentColor: WaggleAgentColor
+}
+
+function stringifyToolResultContent(content: unknown): string {
+  if (typeof content === 'string') {
+    return content
+  }
+
+  try {
+    return JSON.stringify(content, null, JSON_STRINGIFY_INDENT)
+  } catch {
+    return String(content)
+  }
+}
+
+function StandaloneToolResult({
+  content,
+  state,
+}: {
+  readonly content: unknown
+  readonly state: string
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-bg-secondary p-3 text-[13px] text-text-secondary">
+      <div className="mb-2 text-[11px] uppercase tracking-wide text-text-tertiary">
+        Tool result · {state}
+      </div>
+      <StreamingText text={stringifyToolResultContent(content)} />
+    </div>
+  )
 }
 
 interface AssistantMessageBubbleProps {
@@ -28,8 +55,8 @@ interface AssistantMessageBubbleProps {
   isRunActive?: boolean
   assistantModel?: SupportedModelId
   conversationId: ConversationId | null
-  onRespondToPlan?: (conversationId: ConversationId, response: PlanResponse) => Promise<void>
   waggle?: WaggleInfo
+  onBranchFromMessage?: (messageId: string) => void
 }
 
 export function AssistantMessageBubble({
@@ -38,42 +65,24 @@ export function AssistantMessageBubble({
   isRunActive,
   assistantModel,
   conversationId,
-  onRespondToPlan,
   waggle,
+  onBranchFromMessage,
 }: AssistantMessageBubbleProps) {
   const collapse = useMessageCollapse(message, isStreaming, isRunActive, !!waggle)
-  const taskStatusLookup = useOrchestrationTaskStatus(conversationId)
 
   const toolResults = new Map<string, { content: unknown; state: string; error?: string }>()
+  const messageToolCallIds = new Set<string>()
   for (const part of message.parts) {
+    if (part.type === 'tool-call') {
+      messageToolCallIds.add(part.id)
+      continue
+    }
+
     if (part.type === 'tool-result') {
       toolResults.set(part.toolCallId, {
         content: part.content,
         state: part.state,
         error: part.error,
-      })
-    }
-  }
-
-  const isPinned = useContextStore(
-    (s) => s.snapshot?.pinnedMessageIds?.includes(message.id) ?? false,
-  )
-
-  function handleTogglePin() {
-    if (!conversationId) return
-    if (isPinned) {
-      void api.removePinByMessage(conversationId, message.id)
-    } else {
-      const text = message.parts
-        .filter(
-          (p): p is Extract<(typeof message.parts)[number], { type: 'text' }> => p.type === 'text',
-        )
-        .map((p) => p.content)
-        .join('\n')
-      void api.addPin(conversationId, {
-        type: 'message',
-        content: text,
-        messageId: MessageId(message.id),
       })
     }
   }
@@ -86,7 +95,19 @@ export function AssistantMessageBubble({
       )}
     >
       <div className="flex flex-col gap-2">
-        <AgentLabel assistantModel={assistantModel} waggle={waggle} />
+        <div className="flex items-center justify-between gap-2">
+          <AgentLabel assistantModel={assistantModel} waggle={waggle} />
+          {onBranchFromMessage ? (
+            <button
+              type="button"
+              title="Branch from message"
+              onClick={() => onBranchFromMessage(message.id)}
+              className="opacity-0 group-hover/assistant-msg:opacity-100 transition-opacity text-text-muted hover:text-text-secondary"
+            >
+              <GitBranch className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
+        </div>
 
         {message.parts.map((part, i) => {
           const divider =
@@ -118,13 +139,24 @@ export function AssistantMessageBubble({
                       part={value}
                       toolResults={toolResults}
                       conversationId={conversationId}
-                      onRespondToPlan={onRespondToPlan}
                       isStreaming={!!isStreaming}
-                      taskStatusLookup={taskStatusLookup}
                     />
                   ))
-                  .case('thinking', () => null)
-                  .case('tool-result', () => null)
+                  .case('thinking', (value) =>
+                    value.content.trim() ? (
+                      <StreamingText
+                        key={`${message.id}-thinking-${value.stepId ?? String(i)}`}
+                        text={value.content}
+                        isStreaming={!!isStreaming}
+                        className="prose-thinking italic"
+                      />
+                    ) : null,
+                  )
+                  .case('tool-result', (value) =>
+                    messageToolCallIds.has(value.toolCallId) ? null : (
+                      <StandaloneToolResult content={value.content} state={value.state} />
+                    ),
+                  )
                   .catchAll(() => null)
 
           if (divider !== null || content !== null) {
@@ -138,23 +170,6 @@ export function AssistantMessageBubble({
           return null
         })}
       </div>
-
-      {/* Pin action on hover */}
-      {!isStreaming && (
-        <button
-          type="button"
-          onClick={handleTogglePin}
-          className={cn(
-            'absolute -bottom-5 left-0 flex items-center gap-1 text-[12px] transition-all cursor-pointer',
-            isPinned
-              ? 'text-accent opacity-100'
-              : 'text-text-muted hover:text-text-secondary opacity-0 group-hover/assistant-msg:opacity-100',
-          )}
-          title={isPinned ? 'Unpin message' : 'Pin message'}
-        >
-          <Pin className="h-3 w-3" />
-        </button>
-      )}
     </div>
   )
 }

@@ -3,7 +3,6 @@ import {
   DecoratorNode,
   type DOMExportOutput,
   type EditorConfig,
-  type LexicalNode,
   type NodeKey,
   type SerializedLexicalNode,
   type Spread,
@@ -100,10 +99,4 @@ export function $createSymbolMentionNode(
   kind: SymbolKind,
 ): SymbolMentionNode {
   return $applyNodeReplacement(new SymbolMentionNode(symbolName, filePath, kind))
-}
-
-export function $isSymbolMentionNode(
-  node: LexicalNode | null | undefined,
-): node is SymbolMentionNode {
-  return node instanceof SymbolMentionNode
 }

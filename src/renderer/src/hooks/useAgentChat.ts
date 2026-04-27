@@ -1,177 +1,178 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
+import type { UIMessage } from '@shared/types/chat-ui'
 import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
-import type { PlanResponse } from '@shared/types/plan'
-import type { QuestionAnswer } from '@shared/types/question'
-import type { QualityPreset } from '@shared/types/settings'
+import type { ThinkingLevel } from '@shared/types/settings'
 import type { WaggleConfig } from '@shared/types/waggle'
-import type { UIMessage } from '@tanstack/ai-react'
-import { useChat } from '@tanstack/ai-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { clearLastAgentErrorInfo, setLastAgentErrorInfo } from '@/lib/agent-error-store'
+import { applyAgentTransportEvent } from '@/lib/chat-stream-state'
 import { api } from '@/lib/ipc'
-import { createIpcConnectionAdapter } from '@/lib/ipc-connection-adapter'
-import { fromAgentStreamChunk } from '@/lib/stream-chunk-mapper'
 import { useBackgroundRunStore } from '@/stores/background-run-store'
 import { useChatStore } from '@/stores/chat-store'
 import {
-  applyStreamDelta,
+  selectOptimisticUserMessages,
+  useOptimisticUserMessageStore,
+} from '@/stores/optimistic-user-message-store'
+import {
+  appendMissingOptimisticUserMessages,
   buildPartialAssistantMessage,
   conversationToUIMessages,
   formatAttachmentPreview,
   reconcileSnapshotUserMessages,
 } from './useAgentChat.utils'
-import { useHydratedConversationMessages } from './useHydratedConversationMessages'
 import { useOptimisticSteeredTurn } from './useOptimisticSteeredTurn'
+
+export type AgentChatStatus =
+  | 'ready'
+  | 'submitted'
+  | 'streaming'
+  | 'compacting'
+  | 'retrying'
+  | 'error'
+
+export type AgentCompactionStatus =
+  | { readonly type: 'compacting'; readonly reason: 'manual' | 'threshold' | 'overflow' }
+  | {
+      readonly type: 'retrying'
+      readonly attempt: number
+      readonly maxAttempts: number
+      readonly delayMs: number
+      readonly errorMessage: string
+    }
 
 interface AgentChatReturn {
   messages: UIMessage[]
   sendMessage: (payload: AgentSendPayload) => Promise<void>
   sendWaggleMessage: (payload: AgentSendPayload, config: WaggleConfig) => Promise<void>
   isLoading: boolean
-  status: 'ready' | 'submitted' | 'streaming' | 'error'
+  status: AgentChatStatus
   stop: () => void
   steer: () => Promise<void>
   error: Error | undefined
-  respondToolApproval: (approvalId: string, approved: boolean) => Promise<void>
-  answerQuestion: (conversationId: ConversationId, answers: QuestionAnswer[]) => Promise<void>
-  respondToPlan: (conversationId: ConversationId, response: PlanResponse) => Promise<void>
   withDeferredSnapshotRefresh: <T>(operation: () => Promise<T>) => Promise<T>
   previewSteeredUserTurn: (payload: AgentSendPayload) => () => void
-  /** True when we're showing a reconnected background stream (not via TanStack) */
   backgroundStreaming: boolean
+  streamSignalVersion: number
+  compactionStatus: AgentCompactionStatus | null
 }
 
-const EMPTY_CONNECTION = {
-  connect: () => emptyAsyncIterable(),
+interface PendingRunWaiter {
+  readonly resolve: () => void
+  readonly reject: (error: Error) => void
 }
 
-/**
- * Wraps TanStack AI's useChat with an Electron IPC connection adapter.
- *
- * This replaces the custom Zustand streaming logic (streamingText, streamingParts,
- * handleAgentEvent) with TanStack's built-in stream processing. useChat handles:
- * - Message state (messages array with text + tool call parts)
- * - Streaming state (isLoading, status)
- * - Stream processing (StreamChunk → UIMessage)
- * - Cancellation (stop)
- *
- * What we still manage externally:
- * - Conversation list / switching (Zustand store)
- * - Persistence (main process saves to disk)
- * - Loading historical messages into useChat via setMessages()
- * - Background stream reconnection when switching back to an active run
- */
+interface AgentRunActions {
+  readonly flushDeferredConversationSnapshot: () => void
+  readonly settlePendingRun: (nextError?: Error) => void
+}
+
+function createPendingRunWaiter(): {
+  readonly promise: Promise<void>
+  readonly waiter: PendingRunWaiter
+} {
+  let resolveRun = () => {}
+  let rejectRun = (_error: Error) => {}
+  const promise = new Promise<void>((resolve, reject) => {
+    resolveRun = resolve
+    rejectRun = reject
+  })
+  return {
+    promise,
+    waiter: {
+      resolve: resolveRun,
+      reject: rejectRun,
+    },
+  }
+}
+
+function buildConversationSnapshotKey(conversation: Conversation): string {
+  const lastMessage = conversation.messages[conversation.messages.length - 1]
+  return `${String(conversation.updatedAt)}:${String(conversation.messages.length)}:${lastMessage ? String(lastMessage.id) : 'none'}`
+}
+
+function buildOptimisticMessagesKey(messages: readonly UIMessage[]): string {
+  return messages.map((message) => message.id).join(':')
+}
+
+function mergeConversationAndOptimisticMessages(
+  conversation: Conversation,
+  optimisticUserMessages: readonly UIMessage[],
+): UIMessage[] {
+  return appendMissingOptimisticUserMessages(
+    conversationToUIMessages(conversation),
+    optimisticUserMessages,
+  )
+}
+
 export function useAgentChat(
   conversationId: ConversationId | null,
   conversation: Conversation | null,
   model: SupportedModelId,
-  qualityPreset: QualityPreset,
+  _thinkingLevel: ThinkingLevel,
 ): AgentChatReturn {
-  const upsertConversation = useChatStore((s) => s.upsertConversation)
-  const pendingPayloadRef = useRef<AgentSendPayload | null>(null)
-  const pendingWaggleConfigRef = useRef<WaggleConfig | null>(null)
-  const [backgroundStreaming, setBackgroundStreaming] = useState(false)
-  const hasActiveRun = useBackgroundRunStore((s) => s.hasActiveRun)
-
-  // useCallback required: used as useMemo dependencies for the connection adapter.
-  const consumePendingPayload = useCallback(() => {
-    const payload = pendingPayloadRef.current
-    pendingPayloadRef.current = null
-    return payload
-  }, [])
-
-  const consumePendingWaggleConfig = useCallback(() => {
-    const config = pendingWaggleConfigRef.current
-    pendingWaggleConfigRef.current = null
-    return config
-  }, [])
-
-  // useMemo required: the ChatClient captures the connection at creation time.
-  // Recreating it on every render wastes resources and the test suite verifies
-  // connection stability across rerenders for the same conversation config.
-  const connection = useMemo(
-    () =>
-      conversationId
-        ? createIpcConnectionAdapter(
-            conversationId,
-            model,
-            consumePendingPayload,
-            qualityPreset,
-            consumePendingWaggleConfig,
-          )
-        : EMPTY_CONNECTION,
-    [conversationId, consumePendingPayload, consumePendingWaggleConfig, model, qualityPreset],
+  const upsertConversation = useChatStore((state) => state.upsertConversation)
+  const hasActiveRun = useBackgroundRunStore((state) => state.hasActiveRun)
+  const optimisticUserMessages = useOptimisticUserMessageStore(
+    selectOptimisticUserMessages(conversationId),
   )
+  const addOptimisticUserMessage = useOptimisticUserMessageStore((state) => state.add)
+  const removeMatchedOptimisticUserMessages = useOptimisticUserMessageStore(
+    (state) => state.removeMatched,
+  )
+  const [messages, setMessages] = useState<UIMessage[]>([])
+  const [status, setStatus] = useState<AgentChatStatus>('ready')
+  const [error, setError] = useState<Error | undefined>(undefined)
+  const [backgroundStreaming, setBackgroundStreaming] = useState(false)
+  const [compactionStatus, setCompactionStatus] = useState<AgentCompactionStatus | null>(null)
 
-  const initialMessages = conversation ? conversationToUIMessages(conversation) : []
-
-  const {
-    messages,
-    sendMessage,
-    isLoading,
-    status,
-    stop,
-    setMessages,
-    error,
-    addToolApprovalResponse,
-  } = useChat({
-    connection,
-    id: conversationId ? `${conversationId}:${model}:${qualityPreset}` : undefined,
-    initialMessages,
-  })
-
-  const hydratedMessages = useHydratedConversationMessages(messages, conversation)
+  const isLoading =
+    status === 'submitted' ||
+    status === 'streaming' ||
+    status === 'compacting' ||
+    status === 'retrying' ||
+    backgroundStreaming
+  const isConversationIdle = !isLoading
 
   const currentConversationIdRef = useRef(conversationId)
   currentConversationIdRef.current = conversationId
-  const isLoadingRef = useRef(isLoading)
-  isLoadingRef.current = isLoading
+  const statusRef = useRef(status)
+  statusRef.current = status
   const backgroundStreamingRef = useRef(backgroundStreaming)
   backgroundStreamingRef.current = backgroundStreaming
+  const messagesRef = useRef(messages)
+  messagesRef.current = messages
+  const foregroundStreamActiveRef = useRef(false)
+  const foregroundConversationIdRef = useRef<ConversationId | null>(null)
+  const terminalRunErrorRef = useRef<Error | undefined>(undefined)
+  const backgroundReconnectConversationIdRef = useRef<ConversationId | null>(null)
+  const streamSignalVersionRef = useRef(0)
   const deferredRefreshConversationIdRef = useRef<ConversationId | null>(null)
   const deferredSnapshotRefreshCountRef = useRef(0)
   const lastHydratedConversationIdRef = useRef<ConversationId | null>(null)
-  const isConversationIdle = !isLoading && !backgroundStreaming
-
-  // While a foreground stream is active (sendMessage in progress), TanStack owns
-  // the UIMessages. Persisted-snapshot refreshes must not overwrite them — the
-  // persisted state lags behind the live stream, especially during continuations
-  // where multiple runs complete before the overall sendMessage resolves.
-  const foregroundStreamActiveRef = useRef(false)
-
-  const messagesRef = useRef(hydratedMessages)
-  messagesRef.current = hydratedMessages
+  const lastHydratedSnapshotKeyRef = useRef<string | null>(null)
+  const lastHydratedOptimisticKeyRef = useRef<string | null>(null)
+  const pendingRunWaiterRef = useRef<PendingRunWaiter | null>(null)
+  const agentRunActionsRef = useRef<AgentRunActions | null>(null)
 
   const { visibleMessages, previewSteeredUserTurn } = useOptimisticSteeredTurn(
-    hydratedMessages,
+    messages,
     conversationId,
     isConversationIdle,
     buildClientUserMessage,
     messagesRef,
   )
 
-  // useCallback required: used as effect dependency in useEffect blocks below.
-  // Without stable identity, effects restart on every render.
-  const refreshConversationSnapshot = useCallback(
-    async (targetConversationId: ConversationId) => {
-      const conv = await api.getConversation(targetConversationId)
-      if (!conv || currentConversationIdRef.current !== targetConversationId) {
-        return
-      }
+  async function refreshConversationSnapshot(targetConversationId: ConversationId): Promise<void> {
+    const nextConversation = await api.getConversation(targetConversationId)
+    if (!nextConversation || currentConversationIdRef.current !== targetConversationId) {
+      return
+    }
+    upsertConversation(nextConversation)
+  }
 
-      upsertConversation(conv)
-
-      // Intentionally do not rewrite the active TanStack chat transcript here.
-      // Completion-time snapshot refreshes should update the Query cache only,
-      // otherwise the final phase/run-summary render competes with a full
-      // message-array replacement and causes scroll jumps.
-    },
-    [upsertConversation],
-  )
-
-  // useCallback required: used as effect dependency below and calls refreshConversationSnapshot.
-  const flushDeferredConversationSnapshot = useCallback(() => {
+  function flushDeferredConversationSnapshot(): void {
     if (deferredSnapshotRefreshCountRef.current > 0) {
       return
     }
@@ -184,215 +185,437 @@ export function useAgentChat(
       deferredRefreshConversationIdRef.current = null
       return
     }
-    if (isLoadingRef.current || backgroundStreamingRef.current) {
+    if (statusRef.current === 'submitted' || statusRef.current === 'streaming') {
+      return
+    }
+    if (backgroundStreamingRef.current) {
       return
     }
 
     deferredRefreshConversationIdRef.current = null
     void refreshConversationSnapshot(targetConversationId)
-  }, [refreshConversationSnapshot])
+  }
 
-  // useCallback required: used as effect dependency and calls flushDeferredConversationSnapshot.
-  const withDeferredSnapshotRefresh = useCallback(
-    async <T>(operation: () => Promise<T>): Promise<T> => {
-      deferredSnapshotRefreshCountRef.current += 1
-      try {
-        return await operation()
-      } finally {
-        deferredSnapshotRefreshCountRef.current = Math.max(
-          0,
-          deferredSnapshotRefreshCountRef.current - 1,
-        )
-        flushDeferredConversationSnapshot()
-      }
-    },
-    [flushDeferredConversationSnapshot],
-  )
+  async function withDeferredSnapshotRefresh<T>(operation: () => Promise<T>): Promise<T> {
+    deferredSnapshotRefreshCountRef.current += 1
+    try {
+      return await operation()
+    } finally {
+      deferredSnapshotRefreshCountRef.current = Math.max(
+        0,
+        deferredSnapshotRefreshCountRef.current - 1,
+      )
+      flushDeferredConversationSnapshot()
+    }
+  }
 
-  // Sync historical messages whenever the active conversation snapshot changes.
-  useEffect(() => {
+  function settlePendingRun(nextError?: Error): void {
+    const pending = pendingRunWaiterRef.current
+    pendingRunWaiterRef.current = null
+    if (!pending) {
+      return
+    }
+    if (nextError) {
+      pending.reject(nextError)
+      return
+    }
+    pending.resolve()
+  }
+
+  function startForegroundRun(targetConversationId: ConversationId): Promise<void> {
+    const { promise, waiter } = createPendingRunWaiter()
+    pendingRunWaiterRef.current = waiter
+    foregroundStreamActiveRef.current = true
+    foregroundConversationIdRef.current = targetConversationId
+    terminalRunErrorRef.current = undefined
     setBackgroundStreaming(false)
+    setError(undefined)
+    setStatus('submitted')
+    return promise
+  }
 
+  async function dispatchAgentSend(
+    payload: AgentSendPayload,
+    waggleConfig: WaggleConfig | null,
+  ): Promise<void> {
+    if (!conversationId) {
+      return
+    }
+
+    const runPromise = startForegroundRun(conversationId)
+    const sendPromise = waggleConfig
+      ? api.sendWaggleMessage(conversationId, payload, waggleConfig)
+      : api.sendMessage(conversationId, payload, model)
+
+    try {
+      await sendPromise
+      await runPromise
+    } catch (runError) {
+      const normalizedError = runError instanceof Error ? runError : new Error(String(runError))
+      setError(normalizedError)
+      setStatus('error')
+      foregroundStreamActiveRef.current = false
+      foregroundConversationIdRef.current = null
+      terminalRunErrorRef.current = normalizedError
+      throw normalizedError
+    }
+  }
+
+  async function sendUserPayload(
+    payload: AgentSendPayload,
+    waggleConfig: WaggleConfig | null,
+  ): Promise<void> {
+    const optimisticUserMessage = createOptimisticUserMessage(payload)
+    if (conversationId) {
+      addOptimisticUserMessage(conversationId, optimisticUserMessage)
+    }
+    setMessages((currentMessages) => [...currentMessages, optimisticUserMessage])
+    await dispatchAgentSend(payload, waggleConfig)
+  }
+
+  agentRunActionsRef.current = {
+    flushDeferredConversationSnapshot,
+    settlePendingRun,
+  }
+
+  useEffect(() => {
     if (!conversationId || !conversation) {
       foregroundStreamActiveRef.current = false
+      foregroundConversationIdRef.current = null
+      terminalRunErrorRef.current = undefined
+      streamSignalVersionRef.current = 0
       lastHydratedConversationIdRef.current = null
+      lastHydratedSnapshotKeyRef.current = null
+      lastHydratedOptimisticKeyRef.current = null
+      pendingRunWaiterRef.current = null
       setMessages([])
+      setStatus('ready')
+      setCompactionStatus(null)
+      setError(undefined)
       return
     }
 
-    // While this hook owns an in-flight foreground send, never swap in the
-    // background reconnection snapshot. Doing so can overwrite optimistic
-    // user messages and make the initiating prompt disappear mid-stream.
+    const snapshotKey = buildConversationSnapshotKey(conversation)
+    const optimisticKey = buildOptimisticMessagesKey(optimisticUserMessages)
+
     if (foregroundStreamActiveRef.current) {
-      return
-    }
-
-    if (hasActiveRun(conversationId)) {
-      const capturedId = conversationId
-      void reconnectToBackgroundRun(capturedId, conversation, setMessages).then((reconnected) => {
-        if (reconnected && currentConversationIdRef.current === capturedId) {
-          lastHydratedConversationIdRef.current = capturedId
-          setBackgroundStreaming(true)
-        }
-      })
-      return
-    }
-
-    const shouldHydrateTranscript =
-      lastHydratedConversationIdRef.current !== conversationId || messagesRef.current.length === 0
-    if (!shouldHydrateTranscript) {
-      return
-    }
-
-    const snapshotMessages = conversationToUIMessages(conversation)
-    setMessages(reconcileSnapshotUserMessages(snapshotMessages, messagesRef.current))
-    lastHydratedConversationIdRef.current = conversationId
-  }, [conversationId, conversation, hasActiveRun, setMessages])
-
-  // While background-streaming, subscribe to live chunk updates.
-  useEffect(() => {
-    if (!backgroundStreaming || !conversationId) return
-
-    const unsubChunk = api.onStreamChunk((payload) => {
-      if (payload.conversationId !== conversationId) return
-      if (payload.chunk.type === 'RUN_ERROR') {
-        setBackgroundStreaming(false)
+      if (foregroundConversationIdRef.current === conversationId) {
+        lastHydratedOptimisticKeyRef.current = optimisticKey
         return
       }
-      const prev = messagesRef.current
-      const next = applyStreamDelta(fromAgentStreamChunk(payload.chunk), prev)
-      if (next !== prev) {
-        setMessages(next)
+      const pending = pendingRunWaiterRef.current
+      pendingRunWaiterRef.current = null
+      pending?.reject(new Error('Conversation changed before the run completed.'))
+      foregroundStreamActiveRef.current = false
+      foregroundConversationIdRef.current = null
+      terminalRunErrorRef.current = undefined
+    }
+
+    const conversationChanged = lastHydratedConversationIdRef.current !== conversationId
+    if (conversationChanged) {
+      setBackgroundStreaming(false)
+      backgroundStreamingRef.current = false
+      backgroundReconnectConversationIdRef.current = null
+      setCompactionStatus(null)
+    }
+    const snapshotChanged = lastHydratedSnapshotKeyRef.current !== snapshotKey
+    const optimisticChanged = lastHydratedOptimisticKeyRef.current !== optimisticKey
+
+    if (hasActiveRun(conversationId)) {
+      if (
+        backgroundReconnectConversationIdRef.current === conversationId &&
+        !conversationChanged &&
+        !snapshotChanged &&
+        !optimisticChanged
+      ) {
+        return
+      }
+
+      const capturedConversationId = conversationId
+      const startingStreamVersion = streamSignalVersionRef.current
+      const snapshotMessages = mergeConversationAndOptimisticMessages(
+        conversation,
+        optimisticUserMessages,
+      )
+      setMessages(reconcileSnapshotUserMessages(snapshotMessages, messagesRef.current))
+      lastHydratedConversationIdRef.current = capturedConversationId
+      lastHydratedSnapshotKeyRef.current = snapshotKey
+      lastHydratedOptimisticKeyRef.current = optimisticKey
+      backgroundStreamingRef.current = true
+      backgroundReconnectConversationIdRef.current = capturedConversationId
+      setBackgroundStreaming(true)
+      setStatus('streaming')
+      void reconnectToBackgroundRun(capturedConversationId, conversation, optimisticUserMessages)
+        .then((nextMessages) => {
+          if (
+            !nextMessages ||
+            currentConversationIdRef.current !== capturedConversationId ||
+            backgroundReconnectConversationIdRef.current !== capturedConversationId ||
+            streamSignalVersionRef.current !== startingStreamVersion
+          ) {
+            return
+          }
+          setMessages(nextMessages)
+        })
+        .catch((reconnectError: unknown) => {
+          if (currentConversationIdRef.current !== capturedConversationId) {
+            return
+          }
+          setError(
+            reconnectError instanceof Error ? reconnectError : new Error(String(reconnectError)),
+          )
+          setStatus('error')
+          setBackgroundStreaming(false)
+          backgroundStreamingRef.current = false
+        })
+      return
+    }
+
+    setBackgroundStreaming(false)
+    backgroundStreamingRef.current = false
+    backgroundReconnectConversationIdRef.current = null
+
+    if (!conversationChanged && !snapshotChanged && !optimisticChanged) {
+      return
+    }
+
+    const persistedSnapshotMessages = conversationToUIMessages(conversation)
+    const snapshotMessages = appendMissingOptimisticUserMessages(
+      persistedSnapshotMessages,
+      optimisticUserMessages,
+    )
+    setMessages(reconcileSnapshotUserMessages(snapshotMessages, messagesRef.current))
+    lastHydratedConversationIdRef.current = conversationId
+    lastHydratedSnapshotKeyRef.current = snapshotKey
+    lastHydratedOptimisticKeyRef.current = optimisticKey
+
+    if (conversationChanged) {
+      setStatus('ready')
+      setError(undefined)
+    }
+  }, [conversationId, conversation, hasActiveRun, optimisticUserMessages])
+
+  useEffect(() => {
+    if (!conversationId || !conversation || !isConversationIdle) {
+      return
+    }
+
+    removeMatchedOptimisticUserMessages(conversationId, conversationToUIMessages(conversation))
+  }, [conversationId, conversation, isConversationIdle, removeMatchedOptimisticUserMessages])
+
+  useEffect(() => {
+    if (!conversationId) {
+      return
+    }
+
+    const unsubscribeStream = api.onAgentEvent((payload) => {
+      if (payload.conversationId !== conversationId) {
+        return
+      }
+
+      if (payload.event.type === 'agent_start') {
+        streamSignalVersionRef.current += 1
+        clearLastAgentErrorInfo(conversationId)
+        setError(undefined)
+        setStatus('streaming')
+        if (!foregroundStreamActiveRef.current) {
+          backgroundStreamingRef.current = true
+          backgroundReconnectConversationIdRef.current = conversationId
+          setBackgroundStreaming(true)
+        }
+      }
+
+      if (payload.event.type === 'compaction_start') {
+        streamSignalVersionRef.current += 1
+        setError(undefined)
+        setStatus('compacting')
+        setCompactionStatus({ type: 'compacting', reason: payload.event.reason })
+      }
+
+      if (payload.event.type === 'compaction_end') {
+        streamSignalVersionRef.current += 1
+        setCompactionStatus(null)
+        const hasCompactionError = payload.event.errorMessage && !payload.event.aborted
+        if (hasCompactionError) {
+          const nextError = new Error(payload.event.errorMessage)
+          setError(nextError)
+          setStatus('error')
+        }
+        if (
+          !hasCompactionError &&
+          !foregroundStreamActiveRef.current &&
+          !backgroundStreamingRef.current
+        ) {
+          setStatus('ready')
+        }
+      }
+
+      if (payload.event.type === 'auto_retry_start') {
+        streamSignalVersionRef.current += 1
+        setStatus('retrying')
+        setCompactionStatus({
+          type: 'retrying',
+          attempt: payload.event.attempt,
+          maxAttempts: payload.event.maxAttempts,
+          delayMs: payload.event.delayMs,
+          errorMessage: payload.event.errorMessage,
+        })
+      }
+
+      if (payload.event.type === 'auto_retry_end') {
+        streamSignalVersionRef.current += 1
+        setCompactionStatus(null)
+        const hasRetryError = !payload.event.success && payload.event.finalError
+        if (hasRetryError) {
+          const nextError = new Error(payload.event.finalError)
+          setError(nextError)
+          setStatus('error')
+        }
+        if (
+          !hasRetryError &&
+          !foregroundStreamActiveRef.current &&
+          !backgroundStreamingRef.current
+        ) {
+          setStatus('ready')
+        }
+      }
+
+      if (
+        payload.event.type === 'agent_end' &&
+        payload.event.reason === 'error' &&
+        payload.event.error
+      ) {
+        streamSignalVersionRef.current += 1
+        const nextError = new Error(payload.event.error.message)
+        terminalRunErrorRef.current = nextError
+        setLastAgentErrorInfo(conversationId, payload.event.error)
+        setError(nextError)
+        setStatus('error')
+      }
+
+      if (foregroundStreamActiveRef.current || backgroundStreamingRef.current) {
+        streamSignalVersionRef.current += 1
+        setMessages((currentMessages) => applyAgentTransportEvent(currentMessages, payload.event))
       }
     })
 
-    return () => {
-      unsubChunk()
-    }
-  }, [backgroundStreaming, conversationId, setMessages])
+    const unsubscribeCompleted = api.onRunCompleted((payload) => {
+      if (payload.conversationId !== conversationId) {
+        return
+      }
 
-  useEffect(() => {
-    if (!conversationId) return
-
-    const unsubCompleted = api.onRunCompleted((payload) => {
-      if (payload.conversationId !== conversationId) return
+      const terminalError = terminalRunErrorRef.current
+      foregroundStreamActiveRef.current = false
+      foregroundConversationIdRef.current = null
       setBackgroundStreaming(false)
+      backgroundStreamingRef.current = false
+      backgroundReconnectConversationIdRef.current = null
+      setCompactionStatus(null)
+      if (!terminalError) {
+        setStatus('ready')
+      }
+      agentRunActionsRef.current?.settlePendingRun(terminalError)
+      terminalRunErrorRef.current = undefined
       deferredRefreshConversationIdRef.current = conversationId
       if (
         deferredSnapshotRefreshCountRef.current > 0 ||
-        isLoadingRef.current ||
+        statusRef.current === 'submitted' ||
+        statusRef.current === 'streaming' ||
         backgroundStreamingRef.current
       ) {
         return
       }
-      flushDeferredConversationSnapshot()
+      agentRunActionsRef.current?.flushDeferredConversationSnapshot()
     })
 
     return () => {
-      unsubCompleted()
+      unsubscribeStream()
+      unsubscribeCompleted()
     }
-  }, [conversationId, flushDeferredConversationSnapshot])
+  }, [conversationId])
 
   useEffect(() => {
-    if (!conversationId) return
-    if (!isConversationIdle) return
-    if (deferredRefreshConversationIdRef.current !== conversationId) return
-    flushDeferredConversationSnapshot()
-  }, [conversationId, flushDeferredConversationSnapshot, isConversationIdle])
-
-  // useCallback required: this function is used as an effect dependency in
-  // usePendingApprovalTrustCheck. Without stable identity, the trust-check
-  // effect restarts on every render, cancelling in-flight auto-approvals.
-  const respondToolApprovalStable = useCallback(
-    async (approvalId: string, approved: boolean) => {
-      await addToolApprovalResponse({ id: approvalId, approved })
-    },
-    [addToolApprovalResponse],
-  )
+    if (!conversationId) {
+      return
+    }
+    if (!isConversationIdle) {
+      return
+    }
+    if (deferredRefreshConversationIdRef.current !== conversationId) {
+      return
+    }
+    agentRunActionsRef.current?.flushDeferredConversationSnapshot()
+  }, [conversationId, isConversationIdle])
 
   return {
     messages: visibleMessages,
     sendMessage: async (payload: AgentSendPayload) =>
       withDeferredSnapshotRefresh(async () => {
-        setBackgroundStreaming(false)
-        foregroundStreamActiveRef.current = true
-        pendingPayloadRef.current = payload
-        return sendMessage(buildClientUserMessage(payload)).then(
-          () => {
-            foregroundStreamActiveRef.current = false
-          },
-          (error: unknown) => {
-            foregroundStreamActiveRef.current = false
-            throw error
-          },
-        )
+        await sendUserPayload(payload, null)
       }),
     sendWaggleMessage: async (payload: AgentSendPayload, config: WaggleConfig) =>
       withDeferredSnapshotRefresh(async () => {
-        setBackgroundStreaming(false)
-        foregroundStreamActiveRef.current = true
-        pendingPayloadRef.current = payload
-        pendingWaggleConfigRef.current = config
-        return sendMessage(buildClientUserMessage(payload)).then(
-          () => {
-            foregroundStreamActiveRef.current = false
-          },
-          (error: unknown) => {
-            foregroundStreamActiveRef.current = false
-            throw error
-          },
-        )
+        await sendUserPayload(payload, config)
       }),
-    isLoading: isLoading || backgroundStreaming,
+    isLoading,
     status: backgroundStreaming ? 'streaming' : status,
     stop: () => {
       if (conversationId) {
         api.cancelAgent(conversationId)
       }
+      foregroundStreamActiveRef.current = false
+      foregroundConversationIdRef.current = null
+      terminalRunErrorRef.current = undefined
+      settlePendingRun()
       setBackgroundStreaming(false)
-      stop()
+      backgroundStreamingRef.current = false
+      backgroundReconnectConversationIdRef.current = null
+      setCompactionStatus(null)
+      setStatus('ready')
     },
     steer: async () => {
       if (conversationId) {
         await api.steerAgent(conversationId)
       }
+      foregroundStreamActiveRef.current = false
+      foregroundConversationIdRef.current = null
+      terminalRunErrorRef.current = undefined
+      settlePendingRun()
       setBackgroundStreaming(false)
-      stop()
+      backgroundStreamingRef.current = false
+      backgroundReconnectConversationIdRef.current = null
+      setCompactionStatus(null)
+      setStatus('ready')
     },
     error,
-    respondToolApproval: respondToolApprovalStable,
-    answerQuestion: async (cid: ConversationId, answers: QuestionAnswer[]) => {
-      await api.answerQuestion(cid, answers)
-    },
-    respondToPlan: async (cid: ConversationId, response: PlanResponse) => {
-      await api.respondToPlan(cid, response)
-    },
     withDeferredSnapshotRefresh,
     previewSteeredUserTurn,
     backgroundStreaming,
+    streamSignalVersion: streamSignalVersionRef.current,
+    compactionStatus,
   }
 }
-
-// ─── Background Run Reconnection ─────────────────────────────
 
 async function reconnectToBackgroundRun(
   conversationId: ConversationId,
   conversation: Conversation,
-  setMessages: (msgs: UIMessage[]) => void,
-): Promise<boolean> {
-  const snapshot = await api.getBackgroundRun(conversationId)
+  optimisticUserMessages: readonly UIMessage[],
+): Promise<UIMessage[] | null> {
+  const [snapshot, latestConversation] = await Promise.all([
+    api.getBackgroundRun(conversationId),
+    api.getConversation(conversationId),
+  ])
+  const historicalMessages = mergeConversationAndOptimisticMessages(
+    latestConversation ?? conversation,
+    optimisticUserMessages,
+  )
   if (!snapshot) {
-    setMessages(conversationToUIMessages(conversation))
-    return false
+    return historicalMessages
   }
 
-  const historicalMessages = conversationToUIMessages(conversation)
   const partialAssistant = buildPartialAssistantMessage(snapshot.parts)
-  setMessages([...historicalMessages, partialAssistant])
-  return true
+  return partialAssistant ? [...historicalMessages, partialAssistant] : historicalMessages
 }
-
-// ─── Helpers ─────────────────────────────────────────────────
 
 function buildClientUserMessage(payload: AgentSendPayload): string {
   const chunks: string[] = []
@@ -406,6 +629,16 @@ function buildClientUserMessage(payload: AgentSendPayload): string {
   return chunks.join('\n\n')
 }
 
-async function* emptyAsyncIterable() {
-  // yields nothing — used when no conversation is active
+function createOptimisticUserMessage(payload: AgentSendPayload): UIMessage {
+  return {
+    id: `optimistic-user-${Date.now()}`,
+    role: 'user',
+    parts: [
+      {
+        type: 'text',
+        content: buildClientUserMessage(payload),
+      },
+    ],
+    createdAt: new Date(),
+  }
 }

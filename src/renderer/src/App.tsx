@@ -1,7 +1,6 @@
-import { AppSettingsView } from '@/components/app/AppSettingsView'
-import { WorkspaceShell } from '@/components/app/workspace/WorkspaceShell'
+import { RouterProvider } from '@tanstack/react-router'
 import { usePreferences, useSettingsSetup } from '@/hooks/useSettings'
-import { useUIStore } from '@/stores/ui-store'
+import { router } from '@/router'
 
 function AppLoadingView() {
   return (
@@ -12,8 +11,6 @@ function AppLoadingView() {
 }
 
 export function App() {
-  const activeView = useUIStore((s) => s.activeView)
-
   useSettingsSetup()
 
   const { isLoaded } = usePreferences()
@@ -22,10 +19,5 @@ export function App() {
     return <AppLoadingView />
   }
 
-  return (
-    <div className="relative h-full w-full">
-      <WorkspaceShell />
-      {activeView === 'settings' ? <AppSettingsView /> : null}
-    </div>
-  )
+  return <RouterProvider router={router} />
 }

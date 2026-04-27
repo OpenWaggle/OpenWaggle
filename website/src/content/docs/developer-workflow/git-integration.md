@@ -15,7 +15,7 @@ The header bar shows real-time git statistics for your project:
 - **Red** `-N` — Lines deleted.
 
 Stats update automatically when:
-- You switch projects or conversations.
+- You switch projects or sessions.
 - A commit completes.
 - You click the refresh button.
 - The agent modifies files.
@@ -24,7 +24,7 @@ Click the diff stats to toggle the diff panel.
 
 ## Branch Management
 
-Click the **branch name** in the composer status bar to open the branch picker.
+Click the **branch name** in the branch row below the composer to open the branch picker.
 
 ### Branch Picker Features
 

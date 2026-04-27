@@ -1,71 +1,30 @@
-import { includes } from '@shared/utils/validation'
-import type { AuthMethod } from './auth'
 import { SupportedModelId } from './brand'
-import type { McpServerConfig } from './mcp'
 
-export const PROVIDERS = ['anthropic', 'openai', 'gemini', 'grok', 'openrouter', 'ollama'] as const
-export type Provider = (typeof PROVIDERS)[number]
-export const EXECUTION_MODES = ['default-permissions', 'full-access'] as const
-export type ExecutionMode = (typeof EXECUTION_MODES)[number]
-export const QUALITY_PRESETS = ['low', 'medium', 'high'] as const
-export type QualityPreset = (typeof QUALITY_PRESETS)[number]
+export type Provider = string
+export const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'] as const
+export type ThinkingLevel = (typeof THINKING_LEVELS)[number]
 
-export const OLLAMA_DEFAULT_BASE_URL = 'http://localhost:11434'
-
-/** Fallback model IDs for migration — single source of truth */
-export const DEFAULT_ANTHROPIC_MODEL = SupportedModelId('claude-sonnet-4-5')
-export const DEFAULT_OPENAI_MODEL = SupportedModelId('gpt-4.1-mini')
-
-export interface ProviderConfig {
-  readonly apiKey: string
-  readonly baseUrl?: string
-  readonly enabled: boolean
-  readonly authMethod?: AuthMethod
-}
+export const DEFAULT_MODEL_REF = SupportedModelId('')
 
 export interface Settings {
-  readonly providers: Readonly<Partial<Record<Provider, ProviderConfig>>>
   readonly selectedModel: SupportedModelId
   readonly favoriteModels: readonly SupportedModelId[]
-  /** User-curated list of enabled model keys (format: "provider:authMethod:modelId"). Empty array = no models shown (user must configure). */
-  readonly enabledModels: readonly string[]
+  /** User-curated canonical Pi model refs ("provider/modelId") shown in the composer picker. */
+  readonly enabledModels: readonly SupportedModelId[]
   readonly projectPath: string | null
-  readonly executionMode: ExecutionMode
-  readonly qualityPreset: QualityPreset
+  readonly thinkingLevel: ThinkingLevel
   readonly recentProjects: readonly string[]
   readonly skillTogglesByProject: Readonly<Record<string, Readonly<Record<string, boolean>>>>
-  readonly mcpServers: readonly McpServerConfig[]
   readonly projectDisplayNames: Readonly<Record<string, string>>
-  /** Whether the system keyring is available for API key encryption. Computed on load. */
-  readonly encryptionAvailable: boolean
-  /** True when auto-migrating stored plaintext API keys to encrypted storage failed. */
-  readonly apiKeysRequireManualResave: boolean
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  providers: {
-    anthropic: { apiKey: '', enabled: true },
-    openai: { apiKey: '', enabled: true },
-    gemini: { apiKey: '', enabled: false },
-    grok: { apiKey: '', enabled: false },
-    openrouter: { apiKey: '', enabled: false },
-    ollama: { apiKey: '', baseUrl: OLLAMA_DEFAULT_BASE_URL, enabled: false },
-  },
-  selectedModel: DEFAULT_ANTHROPIC_MODEL,
+  selectedModel: DEFAULT_MODEL_REF,
   favoriteModels: [],
   enabledModels: [],
   projectPath: null,
-  executionMode: 'default-permissions',
-  qualityPreset: 'medium',
+  thinkingLevel: 'medium',
   recentProjects: [],
   skillTogglesByProject: {},
-  mcpServers: [],
   projectDisplayNames: {},
-  encryptionAvailable: true,
-  apiKeysRequireManualResave: false,
-}
-
-/** Type guard for Provider — uses includes() type predicate to avoid cast */
-export function isProvider(value: string): value is Provider {
-  return includes(PROVIDERS, value)
 }

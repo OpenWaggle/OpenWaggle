@@ -13,6 +13,11 @@ vi.mock('electron', () => ({
   app: {
     getPath: () => state.userDataDir,
   },
+  safeStorage: {
+    isEncryptionAvailable: () => false,
+    encryptString: (value: string) => Buffer.from(value, 'utf8'),
+    decryptString: (value: Buffer) => value.toString('utf8'),
+  },
 }))
 
 vi.mock('../../logger', () => ({

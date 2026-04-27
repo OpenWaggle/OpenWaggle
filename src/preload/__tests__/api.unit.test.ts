@@ -22,33 +22,24 @@ describe('preload api surface contract', () => {
     'sendMessage',
     'cancelAgent',
     'steerAgent',
-    'onStreamChunk',
-    // Context Injection
-    'injectContext',
-    'onContextInjected',
-    // Agent Questions
-    'answerQuestion',
+    'onAgentEvent',
     'getAgentPhase',
     'getBackgroundRun',
     'listActiveRuns',
+    'getContextUsage',
+    'compactSession',
     'onRunCompleted',
-    'onQuestion',
     'onAgentPhase',
-    // Agent Plan
-    'respondToPlan',
-    'onPlanProposal',
     // Settings
     'getSettings',
     'updateSettings',
     'setEnabledModels',
     'testApiKey',
+    'setProviderApiKey',
     // Providers
     'getProviderModels',
-    'fetchProviderModels',
     // Project
     'selectProjectFolder',
-    'isProjectToolCallTrusted',
-    'recordProjectToolApproval',
     'getProjectPreferences',
     'setProjectPreferences',
     // Conversations
@@ -61,11 +52,11 @@ describe('preload api surface contract', () => {
     'unarchiveConversation',
     'listArchivedConversations',
     'updateConversationTitle',
-    'updateConversationProjectPath',
-    'updateConversationPlanMode',
+    'listSessions',
+    'getSessionTree',
+    'getSessionWorkspace',
+    'navigateSessionTree',
     'onConversationTitleUpdated',
-    // Devtools
-    'getDevtoolsEventBusConfig',
     // Terminal
     'createTerminal',
     'closeTerminal',
@@ -104,19 +95,15 @@ describe('preload api surface contract', () => {
     'getLogsPath',
     // Dialog
     'showConfirm',
-    // Orchestration
-    'getOrchestrationRun',
-    'listOrchestrationRuns',
-    'cancelOrchestrationRun',
-    'onOrchestrationEvent',
     // Waggle
     'sendWaggleMessage',
     'cancelWaggle',
-    'onWaggleStreamChunk',
+    'onWaggleEvent',
     'onWaggleTurnEvent',
     // Auth
     'startOAuth',
     'submitAuthCode',
+    'cancelOAuth',
     'disconnectAuth',
     'getAuthAccountInfo',
     'onOAuthStatus',
@@ -124,16 +111,6 @@ describe('preload api surface contract', () => {
     'listTeams',
     'saveTeam',
     'deleteTeam',
-    // MCP
-    'listMcpServers',
-    'addMcpServer',
-    'removeMcpServer',
-    'toggleMcpServer',
-    'updateMcpServer',
-    'onMcpStatusChanged',
-    // Sub-Agents
-    'onSubAgentEvent',
-    'onTeamEvent',
     // Feedback
     'checkGhCli',
     'collectDiagnostics',
@@ -141,17 +118,6 @@ describe('preload api surface contract', () => {
     'submitFeedback',
     'generateFeedbackMarkdown',
     'openExternal',
-    // Context
-    'getContextSnapshot',
-    'getBaselineSnapshot',
-    'requestCompaction',
-    'addPin',
-    'removePin',
-    'removePinByMessage',
-    'listPins',
-    'getModelCompatibility',
-    'updateCompactionGuidance',
-    'onContextSnapshot',
     // Composer
     'suggestFiles',
     // Auto-updater
@@ -182,25 +148,17 @@ describe('preload api surface contract', () => {
     })
 
     const EVENT_METHODS = [
-      'onStreamChunk',
-      'onContextInjected',
-      'onQuestion',
+      'onAgentEvent',
       'onAgentPhase',
       'onRunCompleted',
-      'onPlanProposal',
       'onPrepareAttachmentFromTextProgress',
       'onTerminalData',
       'onFullscreenChanged',
-      'onOrchestrationEvent',
-      'onWaggleStreamChunk',
+      'onWaggleEvent',
       'onWaggleTurnEvent',
       'onOAuthStatus',
-      'onMcpStatusChanged',
-      'onSubAgentEvent',
-      'onTeamEvent',
       'onConversationTitleUpdated',
       'onUpdateStatus',
-      'onContextSnapshot',
     ] as const
 
     for (const method of EVENT_METHODS) {

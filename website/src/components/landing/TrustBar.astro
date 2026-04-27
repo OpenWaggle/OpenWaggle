@@ -5,27 +5,28 @@ import HoneycombBackground from '@/components/HoneycombBackground.astro';
 <section class="relative w-full overflow-hidden">
   <HoneycombBackground />
   <div class="relative z-10 mx-auto flex max-w-[1440px] flex-col items-center gap-5 px-6 py-12 md:px-20">
-    <span class="text-[13px] font-medium text-text-secondary">Works with 6 providers</span>
-
-    <div class="flex w-full flex-wrap items-center justify-center gap-6 md:gap-12">
-      {['Anthropic', 'OpenAI'].map((name) => (
-        <span class="text-[15px] font-medium text-text-secondary">{name}</span>
-      ))}
-      {['Gemini', 'Grok', 'OpenRouter', 'Ollama'].map((name) => (
-        <span class="text-[15px] font-medium text-text-tertiary">{name} <span class="text-[10px] text-text-tertiary">Coming soon</span></span>
-      ))}
-    </div>
-
     <a
-      href="https://tanstack.com/ai/latest"
-      class="flex items-center gap-2 transition-colors hover:text-text-primary"
+      href="https://pi.dev"
       target="_blank"
       rel="noopener noreferrer"
-      title="Opens TanStack AI SDK documentation (external)"
+      class="group inline-flex items-center gap-3 rounded-full border border-border-light bg-bg-secondary/80 px-4 py-2 transition-colors hover:border-accent/60"
+      aria-label="Powered by Pi"
     >
-      <span class="text-[13px] text-text-secondary">Powered by</span>
-      <img src="/tanstack-logo.svg" alt="TanStack" class="h-5 opacity-80" />
-      <span class="text-[13px] text-text-secondary">AI SDK ↗</span>
+      <span class="flex h-8 w-8 items-center justify-center rounded-full bg-bg-tertiary ring-1 ring-border-light">
+        <img src="/pi-logo.svg" alt="Pi" class="h-4 w-4" loading="lazy" />
+      </span>
+      <span class="text-[13px] font-semibold text-text-secondary transition-colors group-hover:text-text-primary">
+        Powered by Pi
+      </span>
     </a>
+
+    <div class="flex max-w-[720px] flex-col items-center gap-2 text-center">
+      <p class="font-display text-2xl font-semibold leading-tight text-text-primary md:text-[32px]">
+        A focused desktop workspace for Pi's agent runtime and OpenWaggle's collaborative workflows.
+      </p>
+      <p class="max-w-[620px] text-sm leading-[1.7] text-text-tertiary md:text-base">
+        OpenWaggle stays aligned with Pi's runtime model while adding a polished local interface.
+      </p>
+    </div>
   </div>
 </section>

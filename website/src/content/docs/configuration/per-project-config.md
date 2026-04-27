@@ -1,44 +1,38 @@
 ---
 title: "Per-Project Configuration"
-description: "Project-local settings using .openwaggle/ configuration files."
+description: "Project-local OpenWaggle settings and nested Pi runtime settings."
 order: 2
 section: "Configuration"
 ---
 
-OpenWaggle supports per-project configuration through files in the `.openwaggle/` directory at your project root.
+OpenWaggle reads project-local, per-user configuration from `.openwaggle/settings.json` in the project root. Keep real settings files gitignored; if shared defaults are needed, commit an explicit non-secret template/default file instead.
 
-## Project Config
+## Settings File
 
-`.openwaggle/config.toml` stores shared project settings that are safe to commit to your repository.
+Top-level keys belong to OpenWaggle. Pi runtime settings live under `pi` and use Pi's JSON setting names.
 
-### Quality Preset Overrides
-
-Override quality preset parameters per project:
-
-```toml
-[quality.low]
-temperature = 0.2
-max_tokens = 1000
-
-[quality.medium]
-temperature = 0.5
-max_tokens = 3000
-
-[quality.high]
-temperature = 0.7
-max_tokens = 8000
+```json
+{
+  "preferences": {
+    "model": "openai-codex/gpt-5.5",
+    "thinkingLevel": "medium"
+  },
+  "pi": {
+    "compaction": {
+      "enabled": true,
+      "reserveTokens": 16384,
+      "keepRecentTokens": 20000
+    }
+  }
+}
 ```
 
-Only specify the values you want to override — unspecified values use the built-in defaults.
+The Pi adapter passes only the nested `pi` object to Pi's `SettingsManager`. Pi's project-local `.pi/settings.json` can also be read by the Pi settings loader, but both real settings files are local runtime configuration and should stay untracked. `.openwaggle/settings.json` is the primary OpenWaggle-facing configuration file.
 
-## Local Config
+## Thinking Level
 
-`.openwaggle/config.local.toml` stores machine-specific state like tool trust approvals. This file is automatically excluded from git, so your local trust decisions don't affect other team members.
+The composer thinking level uses Pi-native values: `off`, `minimal`, `low`, `medium`, `high`, and `xhigh`. OpenWaggle stores the selected level and passes it to Pi for each run.
 
-## Plan Mode
+## Runtime Settings
 
-The composer includes a **Plan** toggle that asks the agent to propose a plan before making changes.
-
-- Turn it on from the composer toolbar before sending a message.
-- The agent will present a plan and wait for your approval or revision feedback.
-- The toggle applies to the current message and resets after sending.
+Pi runtime settings belong under the nested `pi` object and follow Pi's JSON setting names.

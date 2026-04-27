@@ -2,28 +2,27 @@ import type { SkillDiscoveryItem } from '@shared/types/standards'
 import type { WaggleConfig, WaggleTeamPreset } from '@shared/types/waggle'
 import { choose } from '@shared/utils/decision'
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import {
+  Archive,
   GitBranch,
   GitPullRequest,
-  Layers,
   MessageSquare,
   Search,
   Settings,
   Shield,
   ShieldAlert,
-  Shrink,
   Smile,
   Swords,
   User,
   Waypoints,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { compactCommandText } from '@/components/composer/compact-command'
+import { setEditorText } from '@/components/composer/lexical-utils'
 import { cn } from '@/lib/cn'
-import { api } from '@/lib/ipc'
 import { teamPresetsQueryOptions } from '@/queries/teams'
-import { useChatStore } from '@/stores/chat-store'
 import { useComposerStore } from '@/stores/composer-store'
-import { useContextStore } from '@/stores/context-store'
 import { useUIStore } from '@/stores/ui-store'
 import { useWaggleStore } from '@/stores/waggle-store'
 
@@ -53,8 +52,8 @@ interface CommandPaletteProps {
 }
 
 export function CommandPalette({ slashSkills, onSelectSkill, onStartWaggle }: CommandPaletteProps) {
+  const navigate = useNavigate()
   const closeCommandPalette = useUIStore((s) => s.closeCommandPalette)
-  const openSettings = useUIStore((s) => s.openSettings)
   const teamPresetsQuery = useQuery(teamPresetsQueryOptions())
 
   const [query, setQuery] = useState('')
@@ -90,7 +89,7 @@ export function CommandPalette({ slashSkills, onSelectSkill, onStartWaggle }: Co
 
   function handleConfigureWaggle(): void {
     closeCommandPalette()
-    openSettings('waggle')
+    void navigate({ to: '/settings/$tab', params: { tab: 'waggle' } })
   }
 
   function handleStartWaggle(): void {
@@ -105,6 +104,22 @@ export function CommandPalette({ slashSkills, onSelectSkill, onStartWaggle }: Co
 
   function handleSkillSelect(skillId: string, skillName?: string): void {
     onSelectSkill(skillId, skillName)
+    closeCommandPalette()
+  }
+
+  function handleInsertCompactCommand(): void {
+    const commandText = `${compactCommandText()} `
+    const composerStore = useComposerStore.getState()
+    const editor = composerStore.lexicalEditor
+
+    if (editor) {
+      setEditorText(editor, commandText)
+      editor.focus()
+    } else {
+      composerStore.setInput(commandText)
+      composerStore.setCursorIndex(commandText.length)
+    }
+
     closeCommandPalette()
   }
 
@@ -134,6 +149,13 @@ export function CommandPalette({ slashSkills, onSelectSkill, onStartWaggle }: Co
       },
     },
     {
+      id: 'compact',
+      label: 'Compact session',
+      description: 'Run /compact with optional instructions',
+      icon: <Archive className="h-3.5 w-3.5" />,
+      action: handleInsertCompactCommand,
+    },
+    {
       id: 'new-worktree',
       label: 'New worktree',
       icon: <GitBranch className="h-3.5 w-3.5" />,
@@ -144,40 +166,6 @@ export function CommandPalette({ slashSkills, onSelectSkill, onStartWaggle }: Co
       label: 'Personality',
       icon: <Smile className="h-3.5 w-3.5" />,
       action: () => closeCommandPalette(),
-    },
-    {
-      id: 'plan-mode',
-      label: 'Plan mode',
-      description: 'Turn plan mode on',
-      icon: <Layers className="h-3.5 w-3.5" />,
-      action: () => closeCommandPalette(),
-    },
-    {
-      id: 'compact',
-      label: 'Compact',
-      description: 'Compact context now using default policy',
-      icon: <Shrink className="h-3.5 w-3.5" />,
-      section: 'Context',
-      action: () => {
-        closeCommandPalette()
-        const conversationId = useChatStore.getState().activeConversationId
-        if (conversationId) {
-          const { setCompacting } = useContextStore.getState()
-          setCompacting(true)
-          void api.requestCompaction(conversationId).finally(() => setCompacting(false))
-        }
-      },
-    },
-    {
-      id: 'compact-with-instructions',
-      label: 'Compact with instructions',
-      description: 'Compact with custom preservation guidance',
-      icon: <Shrink className="h-3.5 w-3.5" />,
-      section: 'Context',
-      action: () => {
-        closeCommandPalette()
-        useComposerStore.getState().setInput('/compact ')
-      },
     },
   ]
 
@@ -213,7 +201,7 @@ export function CommandPalette({ slashSkills, onSelectSkill, onStartWaggle }: Co
       description: truncate(preset.description, TRUNCATE_ARG_2_VALUE_40),
       icon: presetIcon(preset),
       section: 'Waggle Mode',
-      trailing: preset.config.mode === 'sequential' ? 'Sequential' : 'Parallel',
+      trailing: 'Sequential',
       trailingBadge: preset.isBuiltIn ? undefined : 'Custom',
       action: () => handleSelectPreset(preset),
     }))

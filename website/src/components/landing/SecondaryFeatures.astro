@@ -1,6 +1,6 @@
 ---
 import SectionHeader from '@/components/SectionHeader.astro';
-import { Shield, Mic, ListChecks, Paperclip, Terminal, Lock, Gauge } from 'lucide-astro';
+import { Shield, Mic, Network, Paperclip, Terminal, FolderTree, Gauge } from 'lucide-astro';
 
 interface FeatureCard {
   Icon: typeof Shield;
@@ -10,13 +10,13 @@ interface FeatureCard {
 }
 
 const cards: FeatureCard[] = [
-  { Icon: Shield, color: 'var(--color-accent)', title: 'Local-first privacy', desc: 'Conversations, API keys, and voice data stay on your machine. No telemetry. No cloud sync.' },
+  { Icon: Shield, color: 'var(--color-accent)', title: 'Local-first privacy', desc: 'Sessions, settings, and voice data stay on your machine. Provider credentials are resolved through Pi auth storage, environment, or project configuration.' },
   { Icon: Mic, color: 'var(--color-info)', title: 'Voice input', desc: 'Local Whisper transcription. Speak your instructions — no audio leaves your machine.' },
-  { Icon: ListChecks, color: 'var(--color-success)', title: 'Plan mode', desc: 'The agent outlines its approach before executing. Review, revise, and approve the plan interactively.' },
+  { Icon: Network, color: 'var(--color-success)', title: 'Pi provider catalog', desc: 'Provider and model lists come from Pi, including provider-qualified model ids so the same model can be selected through different hosts.' },
   { Icon: Paperclip, color: 'var(--color-agent-violet)', title: 'Rich attachments', desc: 'Drop text files, PDFs, and images into the conversation. Content is extracted automatically with OCR for images.' },
   { Icon: Terminal, color: 'var(--color-agent-emerald)', title: 'Built-in terminal', desc: 'Full PTY terminal emulation with xterm.js. Toggle with a shortcut — run commands without leaving the app.' },
-  { Icon: Lock, color: 'var(--color-accent)', title: 'Execution modes', desc: 'Default mode requires approval for writes and shell commands. Full access mode executes immediately. You choose the trust level.' },
-  { Icon: Gauge, color: 'var(--color-info)', title: 'Context transparency', desc: 'See context usage in real time, manually compact when needed, pin important messages, and switch models safely with compatibility checks.' },
+  { Icon: FolderTree, color: 'var(--color-accent)', title: 'Project sessions', desc: 'The sidebar groups Pi-backed sessions by project, matching the project-first model used by coding agents.' },
+  { Icon: Gauge, color: 'var(--color-info)', title: 'Context transparency', desc: 'See Pi-reported context usage in the composer and use /compact with optional instructions when you want manual compaction.' },
 ];
 ---
 

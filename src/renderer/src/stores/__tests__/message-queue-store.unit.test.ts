@@ -1,14 +1,14 @@
 import type { ConversationId } from '@shared/types/brand'
-import type { QualityPreset } from '@shared/types/settings'
+import type { ThinkingLevel } from '@shared/types/settings'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { selectQueue, useMessageQueueStore } from '../message-queue-store'
 
 const CONV_A = 'conv-a' as ConversationId
 const CONV_B = 'conv-b' as ConversationId
-const QUALITY: QualityPreset = 'medium'
+const THINKING: ThinkingLevel = 'medium'
 
 function makePayload(text: string) {
-  return { text, qualityPreset: QUALITY, attachments: [] as const }
+  return { text, thinkingLevel: THINKING, attachments: [] as const }
 }
 
 describe('message-queue-store', () => {

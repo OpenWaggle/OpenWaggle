@@ -1,5 +1,5 @@
 import type { ConversationId } from '@shared/types/brand'
-import type { QualityPreset } from '@shared/types/settings'
+import type { ThinkingLevel } from '@shared/types/settings'
 import { renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useMessageQueueStore } from '@/stores/message-queue-store'
@@ -7,10 +7,10 @@ import { useAutoSendQueue } from '../useAutoSendQueue'
 
 const CONV_A = 'conv-a' as ConversationId
 const CONV_B = 'conv-b' as ConversationId
-const QUALITY: QualityPreset = 'medium'
+const THINKING: ThinkingLevel = 'medium'
 
 function makePayload(text: string) {
-  return { text, qualityPreset: QUALITY, attachments: [] as const }
+  return { text, thinkingLevel: THINKING, attachments: [] as const }
 }
 
 function createDeferred<T>() {

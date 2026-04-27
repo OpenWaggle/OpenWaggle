@@ -1,12 +1,10 @@
 import type { ConversationId } from '@shared/types/brand'
-import type { PlanResponse } from '@shared/types/plan'
-import type { QuestionAnswer } from '@shared/types/question'
 import { chooseBy } from '@shared/utils/decision'
 import { Spinner } from '@/components/shared/Spinner'
 import { TurnDivider } from '@/components/waggle/TurnDivider'
 import { formatElapsed } from '@/hooks/useStreamingPhase'
 import { ChatErrorDisplay } from './ChatErrorDisplay'
-import { CompactionEventRow } from './CompactionEventRow'
+import { CompactionSummaryCard } from './CompactionSummaryCard'
 import { MessageBubble } from './MessageBubble'
 import { RunSummary } from './RunSummary'
 import type { ChatRow } from './types-chat-row'
@@ -14,21 +12,19 @@ import type { ChatRow } from './types-chat-row'
 interface ChatRowRendererProps {
   row: ChatRow
   conversationId: ConversationId | null
-  onAnswerQuestion: (conversationId: ConversationId, answers: QuestionAnswer[]) => Promise<void>
-  onRespondToPlan?: (conversationId: ConversationId, response: PlanResponse) => Promise<void>
   onOpenSettings?: () => void
   onRetry?: (content: string) => void
   onDismissError: (message: string) => void
+  onBranchFromMessage?: (messageId: string) => void
 }
 
 export function ChatRowRenderer({
   row,
   conversationId,
-  onAnswerQuestion,
-  onRespondToPlan,
   onOpenSettings,
   onRetry,
   onDismissError,
+  onBranchFromMessage,
 }: ChatRowRendererProps) {
   return chooseBy(row, 'type')
     .case('message', (value) => (
@@ -47,37 +43,13 @@ export function ChatRowRenderer({
           isRunActive={value.isRunActive}
           assistantModel={value.assistantModel}
           conversationId={conversationId}
-          onAnswerQuestion={onAnswerQuestion}
-          onRespondToPlan={onRespondToPlan}
           waggle={value.waggle}
+          onBranchFromMessage={onBranchFromMessage}
         />
       </div>
     ))
-    .case('segment', (value) => (
-      <div className="flex flex-col gap-6">
-        {value.showDivider && value.dividerProps && (
-          <TurnDivider
-            turnNumber={value.dividerProps.turnNumber}
-            agentLabel={value.dividerProps.agentLabel}
-            agentColor={value.dividerProps.agentColor}
-            isSynthesis={value.dividerProps.isSynthesis}
-          />
-        )}
-        <MessageBubble
-          message={{
-            ...value.parentMessage,
-            id: value.segment.id,
-            parts: value.segment.parts,
-          }}
-          isStreaming={value.isStreaming}
-          isRunActive={value.isRunActive}
-          assistantModel={value.assistantModel}
-          conversationId={conversationId}
-          onAnswerQuestion={onAnswerQuestion}
-          onRespondToPlan={onRespondToPlan}
-          waggle={value.waggle}
-        />
-      </div>
+    .case('compaction-summary', (value) => (
+      <CompactionSummaryCard summary={value.summary} tokensBefore={value.tokensBefore} />
     ))
     .case('phase-indicator', (value) => (
       <div className="flex items-center gap-2 py-3">
@@ -91,7 +63,6 @@ export function ChatRowRenderer({
       </div>
     ))
     .case('run-summary', (value) => <RunSummary phases={value.phases} totalMs={value.totalMs} />)
-    .case('compaction-event', (value) => <CompactionEventRow data={value.data} />)
     .case('error', (value) => (
       <ChatErrorDisplay
         error={value.error}

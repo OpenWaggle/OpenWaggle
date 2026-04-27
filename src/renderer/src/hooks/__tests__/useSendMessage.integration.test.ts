@@ -9,7 +9,7 @@ function makeDeps(overrides: Partial<SendDeps> = {}): SendDeps {
   return {
     activeConversationId: null,
     projectPath: '/test/project',
-    qualityPreset: 'medium',
+    thinkingLevel: 'medium',
     createConversation: vi
       .fn<(projectPath: string | null) => Promise<ConversationId>>()
       .mockResolvedValue(ConversationId('new-conv')),
@@ -33,7 +33,7 @@ describe('createSendHandlers', () => {
       const convId = ConversationId('conv-5')
       const deps = makeDeps({ activeConversationId: convId })
       const { handleSend } = createSendHandlers(deps)
-      const payload: AgentSendPayload = { text: 'hello', qualityPreset: 'medium', attachments: [] }
+      const payload: AgentSendPayload = { text: 'hello', thinkingLevel: 'medium', attachments: [] }
 
       await handleSend(payload)
 
@@ -44,7 +44,7 @@ describe('createSendHandlers', () => {
     it('without active conversation: sets pending and creates conversation', async () => {
       const deps = makeDeps({ activeConversationId: null })
       const { handleSend } = createSendHandlers(deps)
-      const payload: AgentSendPayload = { text: 'hello', qualityPreset: 'medium', attachments: [] }
+      const payload: AgentSendPayload = { text: 'hello', thinkingLevel: 'medium', attachments: [] }
 
       await handleSend(payload)
 
@@ -53,18 +53,18 @@ describe('createSendHandlers', () => {
       expect(deps.sendMessage).not.toHaveBeenCalled()
     })
 
-    it('creates the first conversation even when no project is selected', async () => {
+    it('rejects first-message sends when no project is selected', async () => {
       const deps = makeDeps({
         activeConversationId: null,
         projectPath: null,
       })
       const { handleSend } = createSendHandlers(deps)
-      const payload: AgentSendPayload = { text: 'hello', qualityPreset: 'medium', attachments: [] }
+      const payload: AgentSendPayload = { text: 'hello', thinkingLevel: 'medium', attachments: [] }
 
-      await handleSend(payload)
+      await expect(handleSend(payload)).rejects.toThrow('Select a project before sending.')
 
-      expect(deps.setPendingMessage).toHaveBeenCalledWith(payload)
-      expect(deps.createConversation).toHaveBeenCalledWith(null)
+      expect(deps.setPendingMessage).not.toHaveBeenCalled()
+      expect(deps.createConversation).not.toHaveBeenCalled()
       expect(deps.sendMessage).not.toHaveBeenCalled()
     })
   })
@@ -72,14 +72,14 @@ describe('createSendHandlers', () => {
   describe('handleSendText', () => {
     it('wraps handleSend with correct payload shape', async () => {
       const convId = ConversationId('conv-6')
-      const deps = makeDeps({ activeConversationId: convId, qualityPreset: 'high' })
+      const deps = makeDeps({ activeConversationId: convId, thinkingLevel: 'high' })
       const { handleSendText } = createSendHandlers(deps)
 
       await handleSendText('test message')
 
       expect(deps.sendMessage).toHaveBeenCalledWith({
         text: 'test message',
-        qualityPreset: 'high',
+        thinkingLevel: 'high',
         attachments: [],
       })
     })

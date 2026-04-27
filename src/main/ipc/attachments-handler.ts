@@ -5,12 +5,14 @@ import { PERCENT_BASE } from '@shared/constants/math'
 import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import { TIME_UNIT } from '@shared/constants/time'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
-import type { HydratedAttachment, PreparedAttachment } from '@shared/types/agent'
+import type { PreparedAttachment } from '@shared/types/agent'
 import { choose } from '@shared/utils/decision'
 import * as Effect from 'effect/Effect'
 import { app } from 'electron'
 import { createLogger } from '../logger'
+import { rememberPreparedAttachment } from '../utils/attachment-registry'
 import { broadcastToWindows } from '../utils/broadcast'
+import { isPathInsideDirectory, validateRequiredProjectPath } from './project-path-validation'
 import { typedHandle } from './typed-ipc'
 
 const SLICE_ARG_1 = 2
@@ -27,6 +29,8 @@ const TEMP_PROMPT_FILENAME_PREFIX = 'prompt-'
 const TEMP_PROMPT_FILENAME_EXTENSION = '.md'
 const TEMP_PROMPT_MIME_TYPE = 'text/markdown'
 const TEMP_TEXT_ATTACHMENT_WRITE_CHUNK_BYTES = 32 * BYTES_PER_KIBIBYTE
+const TEXT_ATTACHMENT_MAX_SIZE_MB =
+  ATTACHMENT.MAX_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE)
 const DOCX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 const RTF_MIME_TYPE = 'application/rtf'
 const ODT_MIME_TYPE = 'application/vnd.oasis.opendocument.text'
@@ -327,43 +331,7 @@ async function prepareAttachment(filePath: string): Promise<PreparedAttachment> 
   }
 }
 
-async function hydrateAttachmentSource(
-  attachment: PreparedAttachment,
-): Promise<HydratedAttachment> {
-  if (attachment.kind !== 'image' && attachment.kind !== 'pdf') {
-    return { ...attachment, source: null }
-  }
-
-  const stats = await fs.stat(attachment.path)
-  if (!stats.isFile()) {
-    throw new Error(`Attachment is no longer a file: ${attachment.name}`)
-  }
-  if (stats.size > ATTACHMENT.MAX_SIZE_BYTES) {
-    throw new Error(
-      `Attachment exceeds ${String(ATTACHMENT.MAX_SIZE_BYTES / (BYTES_PER_KIBIBYTE * BYTES_PER_KIBIBYTE))} MB: ${attachment.name}`,
-    )
-  }
-
-  const buffer = await fs.readFile(attachment.path)
-  return {
-    ...attachment,
-    source: {
-      type: 'data',
-      value: buffer.toString('base64'),
-      mimeType: attachment.mimeType,
-    },
-  }
-}
-
-export async function hydrateAttachmentSources(
-  attachments: readonly PreparedAttachment[],
-): Promise<HydratedAttachment[]> {
-  const hydrated: HydratedAttachment[] = []
-  for (const attachment of attachments) {
-    hydrated.push(await hydrateAttachmentSource(attachment))
-  }
-  return hydrated
-}
+export { hydrateAttachmentSources } from '../utils/attachment-hydration'
 
 export function registerAttachmentHandlers(): void {
   void cleanupTempAttachments().catch((error: unknown) => {
@@ -377,12 +345,10 @@ export function registerAttachmentHandlers(): void {
         paths: rawPaths,
       })
 
-      if (!path.isAbsolute(pp)) {
-        return yield* Effect.fail(new Error('Project path must be absolute.'))
-      }
+      const projectPath = yield* validateRequiredProjectPath(pp)
 
       const normalized = paths
-        .map((entry) => (path.isAbsolute(entry) ? entry : path.resolve(pp, entry)))
+        .map((entry) => (path.isAbsolute(entry) ? entry : path.resolve(projectPath, entry)))
         .map((entry) => path.normalize(entry))
 
       const uniquePaths = [...new Set(normalized)]
@@ -398,6 +364,12 @@ export function registerAttachmentHandlers(): void {
       const resolvedPaths = yield* Effect.promise(() =>
         Promise.all(uniquePaths.map((filePath) => fs.realpath(filePath))),
       )
+      const outsideProjectPath = resolvedPaths.find(
+        (filePath) => !isPathInsideDirectory(projectPath, filePath),
+      )
+      if (outsideProjectPath) {
+        return yield* Effect.fail(new Error('Attachments must be inside the selected project.'))
+      }
 
       const stats = yield* Effect.promise(() =>
         Promise.all(resolvedPaths.map((filePath) => fs.stat(filePath))),
@@ -413,7 +385,9 @@ export function registerAttachmentHandlers(): void {
 
       const prepared: PreparedAttachment[] = []
       for (const filePath of resolvedPaths) {
-        prepared.push(yield* Effect.promise(() => prepareAttachment(filePath)))
+        const attachment = yield* Effect.promise(() => prepareAttachment(filePath))
+        rememberPreparedAttachment(attachment, filePath)
+        prepared.push(attachment)
       }
       return prepared
     }),
@@ -427,6 +401,13 @@ export function registerAttachmentHandlers(): void {
           text: rawText,
           operationId: rawOperationId,
         })
+        const sizeBytes = Buffer.byteLength(text, 'utf8')
+        if (sizeBytes > ATTACHMENT.MAX_SIZE_BYTES) {
+          return yield* Effect.fail(
+            new Error(`Generated attachment exceeds ${String(TEXT_ATTACHMENT_MAX_SIZE_MB)} MB.`),
+          )
+        }
+
         const tempAttachmentsDir = yield* Effect.promise(() => ensureTempAttachmentsDirectory())
         const fileName = buildTempPromptFilename(Date.now())
         const filePath = path.join(tempAttachmentsDir, fileName)
@@ -439,16 +420,18 @@ export function registerAttachmentHandlers(): void {
           )
         }
 
-        return {
+        const attachment: PreparedAttachment = {
           id: randomUUID(),
-          kind: 'text' as const,
-          origin: 'auto-paste-text' as const,
+          kind: 'text',
+          origin: 'auto-paste-text',
           name: fileName,
           path: filePath,
           mimeType: TEMP_PROMPT_MIME_TYPE,
           sizeBytes: stats.size,
           extractedText: text,
         }
+        rememberPreparedAttachment(attachment, filePath)
+        return attachment
       }),
   )
 }

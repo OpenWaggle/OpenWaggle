@@ -1,7 +1,7 @@
 import type { TeamConfigId } from './brand'
 import type { SupportedModelId } from './llm'
 
-export const WAGGLE_COLLABORATION_MODES = ['sequential', 'parallel'] as const
+export const WAGGLE_COLLABORATION_MODES = ['sequential'] as const
 export type WaggleCollaborationMode = (typeof WAGGLE_COLLABORATION_MODES)[number]
 
 export const WAGGLE_AGENT_COLORS = ['blue', 'amber', 'emerald', 'violet'] as const

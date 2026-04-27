@@ -23,19 +23,16 @@ export const docsNav: NavSection[] = [
       { title: 'Chat & Tools', slug: 'using-openwaggle/chat-and-tools' },
       { title: 'Waggle Mode', slug: 'using-openwaggle/waggle-mode' },
       { title: 'Attachments & Voice', slug: 'using-openwaggle/attachments-voice' },
-      { title: 'Plan Mode', slug: 'using-openwaggle/plan-mode' },
+      { title: 'Context Management', slug: 'using-openwaggle/context-management' },
     ],
   },
   {
     title: 'Providers',
     items: [
       { title: 'Overview', slug: 'providers/overview' },
-      { title: 'Anthropic', slug: 'providers/anthropic' },
-      { title: 'OpenAI', slug: 'providers/openai' },
-      { title: 'Google Gemini', slug: 'providers/google-gemini' },
-      { title: 'Grok', slug: 'providers/grok' },
-      { title: 'OpenRouter', slug: 'providers/openrouter' },
-      { title: 'Ollama', slug: 'providers/ollama' },
+      { title: 'API Key Auth', slug: 'providers/api-key-auth' },
+      { title: 'OAuth Auth', slug: 'providers/oauth-auth' },
+      { title: 'Custom Providers', slug: 'providers/custom-providers' },
     ],
   },
   {
@@ -43,15 +40,15 @@ export const docsNav: NavSection[] = [
     items: [
       { title: 'Git Integration', slug: 'developer-workflow/git-integration' },
       { title: 'Built-in Terminal', slug: 'developer-workflow/built-in-terminal' },
-      { title: 'Execution Modes', slug: 'developer-workflow/execution-modes' },
+      { title: 'Pi Runtime', slug: 'developer-workflow/pi-runtime' },
     ],
   },
   {
     title: 'Extending',
     items: [
       { title: 'Skills System', slug: 'extending/skills-system' },
-      { title: 'MCP Servers', slug: 'extending/mcp-servers' },
       { title: 'AGENTS.md', slug: 'extending/agents-md' },
+      { title: 'Pi Extensions', slug: 'extending/pi-extensions' },
       { title: 'Plugins', slug: 'extending/plugins' },
     ],
   },
@@ -60,7 +57,7 @@ export const docsNav: NavSection[] = [
     items: [
       { title: 'App Settings', slug: 'configuration/app-settings' },
       { title: 'Per-Project Config', slug: 'configuration/per-project-config' },
-      { title: 'Quality Presets', slug: 'configuration/quality-presets' },
+      { title: 'Thinking Levels', slug: 'configuration/thinking-levels' },
       { title: 'Security & Privacy', slug: 'configuration/security-privacy' },
     ],
   },

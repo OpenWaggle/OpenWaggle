@@ -6,7 +6,6 @@ export type ComposerActionDialogKind =
   | 'rename-branch'
   | 'delete-branch'
   | 'set-upstream'
-  | 'confirm-full-access'
 
 interface ComposerActionState {
   // Action dialog

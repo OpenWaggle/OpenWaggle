@@ -5,28 +5,27 @@ import { useChatStore } from '../chat-store'
 
 /**
  * Integration tests for the renderer conversation read model.
- * Full conversations are cached locally so thread navigation can select the
+ * Full conversations are cached locally so session navigation can select the
  * target transcript synchronously without waiting on per-click IPC.
  */
 
 const mockApi = {
   listFullConversations: vi.fn(),
+  listSessions: vi.fn(async () => []),
+  getSessionTree: vi.fn(async () => null),
   getConversation: vi.fn(),
   createConversation: vi.fn(),
   deleteConversation: vi.fn(),
-  updateConversationProjectPath: vi.fn(),
-  updateConversationPlanMode: vi.fn(),
 }
 
 vi.mock('@/lib/ipc', () => ({
   api: {
     listFullConversations: (...args: unknown[]) => mockApi.listFullConversations(...args),
+    listSessions: (...args: unknown[]) => mockApi.listSessions(...args),
+    getSessionTree: (...args: unknown[]) => mockApi.getSessionTree(...args),
     getConversation: (...args: unknown[]) => mockApi.getConversation(...args),
     createConversation: (...args: unknown[]) => mockApi.createConversation(...args),
     deleteConversation: (...args: unknown[]) => mockApi.deleteConversation(...args),
-    updateConversationProjectPath: (...args: unknown[]) =>
-      mockApi.updateConversationProjectPath(...args),
-    updateConversationPlanMode: (...args: unknown[]) => mockApi.updateConversationPlanMode(...args),
   },
 }))
 
@@ -49,7 +48,7 @@ function resetStore(): void {
   })
 }
 
-function makeConversation(id: ConversationId, title = 'Thread'): Conversation {
+function makeConversation(id: ConversationId, title = 'Session'): Conversation {
   return {
     id,
     title,
@@ -75,7 +74,7 @@ describe('useChatStore integration', () => {
   })
 
   it('creates a conversation and marks it active', async () => {
-    const conv = makeConversation(ConversationId('conv-1'), 'New thread')
+    const conv = makeConversation(ConversationId('conv-1'), 'New session')
     mockApi.createConversation.mockResolvedValue(conv)
 
     const id = await useChatStore.getState().createConversation('/repo')
@@ -96,9 +95,9 @@ describe('useChatStore integration', () => {
     expect(useChatStore.getState().activeConversation).toBe(conversation)
   })
 
-  it('startDraftThread clears activeConversationId', () => {
+  it('startDraftSession clears activeConversationId', () => {
     useChatStore.getState().setActiveConversationId(ConversationId('conv-3'))
-    useChatStore.getState().startDraftThread()
+    useChatStore.getState().startDraftSession()
     expect(useChatStore.getState().activeConversationId).toBeNull()
   })
 

@@ -2,10 +2,11 @@ import type { AgentSendPayload } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import { useEffect, useRef } from 'react'
 import { useMessageQueueStore } from '@/stores/message-queue-store'
+import type { AgentChatStatus } from './useAgentChat'
 
 interface UseAutoSendQueueOptions {
   conversationId: ConversationId | null
-  status: 'ready' | 'submitted' | 'streaming' | 'error'
+  status: AgentChatStatus
   sendMessage: (payload: AgentSendPayload) => Promise<void>
   paused?: boolean
   onSendFailure?: (payload: AgentSendPayload, error: unknown) => void

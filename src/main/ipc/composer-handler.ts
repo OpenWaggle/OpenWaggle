@@ -1,9 +1,10 @@
+import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { COMPOSER } from '@shared/constants/resource-limits'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type { FileSuggestion } from '@shared/types/composer'
 import * as Effect from 'effect/Effect'
-import { buildIgnorePatterns } from '../orchestration/project-context'
+import { validateRequiredProjectPath } from './project-path-validation'
 import { typedHandle } from './typed-ipc'
 
 const projectPathSchema = Schema.String.pipe(Schema.minLength(1))
@@ -13,7 +14,9 @@ const DEFAULT_IGNORES = ['node_modules/**', '.git/**', 'dist/**', 'out/**']
 export function registerComposerHandlers(): void {
   typedHandle('composer:file-suggest', (_event, rawProjectPath: string, query: string) =>
     Effect.gen(function* () {
-      const projectPath = decodeUnknownOrThrow(projectPathSchema, rawProjectPath)
+      const projectPath = yield* validateRequiredProjectPath(
+        decodeUnknownOrThrow(projectPathSchema, rawProjectPath),
+      )
 
       const fg = yield* Effect.promise(() => import('fast-glob'))
       const gitignorePatterns = yield* Effect.promise(() => buildIgnorePatterns(projectPath))
@@ -49,4 +52,17 @@ function sanitizeQuery(input: string): string {
   // Strip path separators to prevent directory traversal, then escape glob metacharacters
   const stripped = input.replace(/[/\\]/g, '').replace(/\.\./g, '')
   return stripped.replace(/[[\]{}()*?!]/g, '\\$&')
+}
+
+async function buildIgnorePatterns(projectPath: string): Promise<string[]> {
+  try {
+    const gitignore = await readFile(path.join(projectPath, '.gitignore'), 'utf8')
+    return gitignore
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith('#') && !line.startsWith('!'))
+      .map((line) => (line.endsWith('/') ? `${line}**` : line))
+  } catch {
+    return []
+  }
 }

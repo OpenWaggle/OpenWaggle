@@ -6,6 +6,19 @@ import { DatabaseSync } from 'node:sqlite'
 const DATABASE_FILE_NAME = 'openwaggle.db'
 const DB_WAIT_RETRY_DELAY_MS = 100
 const DB_WAIT_TIMEOUT_MS = 10_000
+const MAIN_BRANCH_NAME = 'main'
+const MESSAGE_ENTRY_TYPE = 'message'
+const USER_MESSAGE_KIND = 'user_message'
+const ASSISTANT_MESSAGE_KIND = 'assistant_message'
+const SYSTEM_MESSAGE_KIND = 'system_message'
+const STANDARD_FUTURE_MODE = 'standard'
+const WAGGLE_FUTURE_MODE = 'waggle'
+const DEFAULT_BRANCH_UI_STATE_JSON = '{}'
+const EXPANDED_NODE_IDS_DEFAULT_JSON = '[]'
+const TREE_SIDEBAR_EXPANDED = 0
+const SQLITE_TRUE = 1
+const SQLITE_FALSE = 0
+const EMPTY_INDEX = 0
 
 function isRecord(value: unknown): value is { readonly [key: string]: unknown } {
   return typeof value === 'object' && value !== null
@@ -13,6 +26,7 @@ function isRecord(value: unknown): value is { readonly [key: string]: unknown } 
 
 interface ConversationRowFixture {
   readonly id: string
+  readonly branchId: string
   readonly createdAt: number
 }
 
@@ -36,9 +50,7 @@ function openDatabase(userDataDir: string): DatabaseSync {
 }
 
 /**
- * Wait for the database file to exist and be writable.
- * With lazy thread creation the app no longer eagerly creates conversation rows,
- * so we wait only for the DB file itself (schema is created on first open).
+ * Wait for the database file to exist and for the Pi session projection schema to be ready.
  */
 async function waitForDatabase(userDataDir: string): Promise<void> {
   const dbPath = getDatabasePath(userDataDir)
@@ -46,17 +58,17 @@ async function waitForDatabase(userDataDir: string): Promise<void> {
 
   while (Date.now() - startedAt < DB_WAIT_TIMEOUT_MS) {
     if (fs.existsSync(dbPath)) {
-      // Verify the conversations table exists
       try {
         const db = new DatabaseSync(dbPath)
         try {
-          db.prepare('SELECT 1 FROM conversations LIMIT 1').all()
+          db.prepare('SELECT 1 FROM sessions LIMIT 1').all()
+          db.prepare('SELECT 1 FROM session_nodes LIMIT 1').all()
           return
         } finally {
           db.close()
         }
       } catch {
-        // Table not ready yet — retry
+        // Schema not ready yet — retry.
       }
     }
     await new Promise((resolve) => setTimeout(resolve, DB_WAIT_RETRY_DELAY_MS))
@@ -65,18 +77,47 @@ async function waitForDatabase(userDataDir: string): Promise<void> {
   throw new Error('Database file did not become ready within timeout')
 }
 
-function insertConversationRow(database: DatabaseSync): ConversationRowFixture {
+function mainBranchId(sessionId: string): string {
+  return `${sessionId}:${MAIN_BRANCH_NAME}`
+}
+
+function insertSessionRow(database: DatabaseSync): ConversationRowFixture {
   const id = crypto.randomUUID()
   const now = Date.now()
+  const branchId = mainBranchId(id)
   database
     .prepare(
       `
-        INSERT INTO conversations (id, title, created_at, updated_at)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO sessions (
+          id,
+          pi_session_id,
+          pi_session_file,
+          project_path,
+          title,
+          archived,
+          waggle_config_json,
+          created_at,
+          updated_at,
+          last_active_node_id,
+          last_active_branch_id
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
     )
-    .run(id, 'E2E Seed', now, now)
-  return { id, createdAt: now }
+    .run(
+      id,
+      crypto.randomUUID(),
+      null,
+      null,
+      'E2E Seed',
+      SQLITE_FALSE,
+      null,
+      now,
+      now,
+      null,
+      branchId,
+    )
+  return { id, branchId, createdAt: now }
 }
 
 function readStringField(record: { readonly [key: string]: unknown }, key: string): string {
@@ -111,62 +152,48 @@ function readOptionalRecordField(
   return isRecord(value) ? value : undefined
 }
 
-function serializePart(part: unknown): { partType: string; contentJson: string } {
-  if (!isRecord(part) || typeof part.type !== 'string') {
-    throw new Error('Conversation part fixture must be an object with a string "type" field')
-  }
-
-  if (part.type === 'text' || part.type === 'reasoning' || part.type === 'thinking') {
-    return {
-      partType: part.type,
-      contentJson: JSON.stringify({ text: readStringField(part, 'text') }),
-    }
-  }
-
-  if (part.type === 'attachment') {
-    return {
-      partType: part.type,
-      contentJson: JSON.stringify({ attachment: readOptionalRecordField(part, 'attachment') }),
-    }
-  }
-
-  if (part.type === 'tool-call') {
-    return {
-      partType: part.type,
-      contentJson: JSON.stringify({ toolCall: readOptionalRecordField(part, 'toolCall') }),
-    }
-  }
-
-  if (part.type === 'tool-result') {
-    return {
-      partType: part.type,
-      contentJson: JSON.stringify({ toolResult: readOptionalRecordField(part, 'toolResult') }),
-    }
-  }
-
-  throw new Error(`Unsupported conversation part fixture type: ${part.type}`)
+function readParts(messageValue: { readonly [key: string]: unknown }): readonly unknown[] {
+  const parts = messageValue.parts
+  return Array.isArray(parts) ? parts : []
 }
 
-function seedConversationRow(
+function messageKind(role: string): string {
+  if (role === 'user') return USER_MESSAGE_KIND
+  if (role === 'assistant') return ASSISTANT_MESSAGE_KIND
+  if (role === 'system') return SYSTEM_MESSAGE_KIND
+  throw new Error(`Unsupported conversation role in fixture: ${role}`)
+}
+
+function seedSessionRow(
   database: DatabaseSync,
   row: ConversationRowFixture,
   conversationInput: SeedConversationInput,
+  defaultProjectPath: string,
 ): void {
   database.exec('BEGIN')
 
   try {
     const projectPath =
-      conversationInput.projectPath === undefined ? null : conversationInput.projectPath
+      conversationInput.projectPath === undefined ? defaultProjectPath : conversationInput.projectPath
     const waggleConfigJson =
       conversationInput.waggleConfig === undefined || conversationInput.waggleConfig === null
         ? null
         : JSON.stringify(conversationInput.waggleConfig)
 
+    const lastMessage = conversationInput.messages[conversationInput.messages.length - 1]
+    const lastMessageId = isRecord(lastMessage) ? readStringField(lastMessage, 'id') : null
+
     database
       .prepare(
         `
-          UPDATE conversations
-          SET title = ?, project_path = ?, waggle_config_json = ?, archived = ?, updated_at = ?
+          UPDATE sessions
+          SET title = ?,
+              project_path = ?,
+              waggle_config_json = ?,
+              archived = ?,
+              updated_at = ?,
+              last_active_node_id = ?,
+              last_active_branch_id = ?
           WHERE id = ?
         `,
       )
@@ -174,13 +201,16 @@ function seedConversationRow(
         conversationInput.title,
         projectPath,
         waggleConfigJson,
-        conversationInput.archived ? 1 : 0,
+        conversationInput.archived ? SQLITE_TRUE : SQLITE_FALSE,
         conversationInput.updatedAt,
+        lastMessageId,
+        row.branchId,
         row.id,
       )
 
-    database.prepare('DELETE FROM conversation_messages WHERE conversation_id = ?').run(row.id)
+    database.prepare('DELETE FROM session_nodes WHERE session_id = ?').run(row.id)
 
+    let parentId: string | null = null
     for (const [messageIndex, messageValue] of conversationInput.messages.entries()) {
       if (!isRecord(messageValue)) {
         throw new Error('Conversation message fixture must be an object')
@@ -191,57 +221,123 @@ function seedConversationRow(
       const model = readOptionalStringField(messageValue, 'model')
       const createdAt = readOptionalNumberField(messageValue, 'createdAt') ?? conversationInput.updatedAt
       const metadata = readOptionalRecordField(messageValue, 'metadata')
-      const parts = Array.isArray(messageValue.parts) ? messageValue.parts : []
+      const parts = readParts(messageValue)
 
       database
         .prepare(
           `
-            INSERT INTO conversation_messages (
+            INSERT INTO session_nodes (
               id,
-              conversation_id,
+              session_id,
+              parent_id,
+              pi_entry_type,
+              kind,
               role,
-              model,
+              timestamp_ms,
+              content_json,
               metadata_json,
-              created_at,
-              position
+              branch_hint_id,
+              path_depth,
+              created_order
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `,
         )
         .run(
           messageId,
           row.id,
+          parentId,
+          MESSAGE_ENTRY_TYPE,
+          messageKind(role),
           role,
-          model ?? null,
-          metadata ? JSON.stringify(metadata) : null,
           createdAt,
+          JSON.stringify({ parts, model: model ?? null }),
+          metadata ? JSON.stringify(metadata) : '{}',
+          row.branchId,
+          messageIndex,
           messageIndex,
         )
 
-      for (const [partIndex, part] of parts.entries()) {
-        const serialized = serializePart(part)
-        database
-          .prepare(
-            `
-              INSERT INTO conversation_message_parts (
-                id,
-                message_id,
-                part_type,
-                content_json,
-                position
-              )
-              VALUES (?, ?, ?, ?, ?)
-            `,
-          )
-          .run(
-            `${messageId}:part:${String(partIndex)}`,
-            messageId,
-            serialized.partType,
-            serialized.contentJson,
-            partIndex,
-          )
-      }
+      parentId = messageId
     }
+
+    database
+      .prepare(
+        `
+          INSERT INTO session_branches (
+            id,
+            session_id,
+            source_node_id,
+            head_node_id,
+            name,
+            is_main,
+            created_at,
+            updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            head_node_id = excluded.head_node_id,
+            updated_at = excluded.updated_at
+        `,
+      )
+      .run(
+        row.branchId,
+        row.id,
+        null,
+        parentId,
+        MAIN_BRANCH_NAME,
+        SQLITE_TRUE,
+        row.createdAt,
+        conversationInput.updatedAt,
+      )
+
+    database
+      .prepare(
+        `
+          INSERT INTO session_branch_state (
+            branch_id,
+            future_mode,
+            waggle_preset_id,
+            waggle_config_json,
+            last_active_at,
+            ui_state_json
+          )
+          VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT(branch_id) DO UPDATE SET
+            future_mode = excluded.future_mode,
+            waggle_config_json = excluded.waggle_config_json,
+            last_active_at = excluded.last_active_at
+        `,
+      )
+      .run(
+        row.branchId,
+        waggleConfigJson ? WAGGLE_FUTURE_MODE : STANDARD_FUTURE_MODE,
+        null,
+        waggleConfigJson,
+        conversationInput.updatedAt,
+        DEFAULT_BRANCH_UI_STATE_JSON,
+      )
+
+    database
+      .prepare(
+        `
+          INSERT INTO session_tree_ui_state (
+            session_id,
+            expanded_node_ids_json,
+            branches_sidebar_collapsed,
+            updated_at
+          )
+          VALUES (?, ?, ?, ?)
+          ON CONFLICT(session_id) DO UPDATE SET
+            updated_at = excluded.updated_at
+        `,
+      )
+      .run(
+        row.id,
+        EXPANDED_NODE_IDS_DEFAULT_JSON,
+        TREE_SIDEBAR_EXPANDED,
+        conversationInput.updatedAt,
+      )
 
     database.exec('COMMIT')
   } catch (error) {
@@ -257,8 +353,8 @@ export async function seedSingleConversation(
   await waitForDatabase(userDataDir)
   const database = openDatabase(userDataDir)
   try {
-    const row = insertConversationRow(database)
-    seedConversationRow(database, row, conversationInput)
+    const row = insertSessionRow(database)
+    seedSessionRow(database, row, conversationInput, userDataDir)
   } finally {
     database.close()
   }
@@ -273,8 +369,8 @@ export async function seedConversations(
 
   try {
     for (const conversationInput of conversationInputs) {
-      const row = insertConversationRow(database)
-      seedConversationRow(database, row, conversationInput)
+      const row = insertSessionRow(database)
+      seedSessionRow(database, row, conversationInput, userDataDir)
     }
   } finally {
     database.close()

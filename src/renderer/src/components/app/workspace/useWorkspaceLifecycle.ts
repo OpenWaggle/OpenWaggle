@@ -1,34 +1,44 @@
+import { SessionId } from '@shared/types/brand'
+import { useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { useChat } from '@/hooks/useChat'
+import { useDiffRouteNavigation } from '@/hooks/useDiffRouteNavigation'
 import { useGit } from '@/hooks/useGit'
 import { useGitRefresh } from '@/hooks/useGitRefresh'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { useProject } from '@/hooks/useProject'
-import { useThreadStatusMonitor } from '@/hooks/useThreadStatusMonitor'
+import { useSessionStatusMonitor } from '@/hooks/useSessionStatusMonitor'
+import { useSessions } from '@/hooks/useSessions'
 import { api } from '@/lib/ipc'
-import { initContextSnapshotListener, useContextStore } from '@/stores/context-store'
-import { usePreferencesStore } from '@/stores/preferences-store'
 import { useUIStore } from '@/stores/ui-store'
 
 export function useWorkspaceLifecycle(): void {
   const { projectPath } = useProject()
   const {
     activeConversationId,
-    startDraftThread,
+    startDraftSession,
     loadConversations,
     refreshConversation,
     updateConversationTitle,
   } = useChat()
+  const { loadSessions, refreshSessionTree } = useSessions()
   const { refreshStatus: refreshGitStatus, refreshBranches: refreshGitBranches } = useGit()
 
+  const navigate = useNavigate()
   const toggleTerminal = useUIStore((s) => s.toggleTerminal)
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
-  const toggleDiffPanel = useUIStore((s) => s.toggleDiffPanel)
   const toggleCommandPalette = useUIStore((s) => s.toggleCommandPalette)
+  const { toggleDiff } = useDiffRouteNavigation()
+
+  function startDraftSessionRoute(): void {
+    startDraftSession()
+    void navigate({ to: '/' })
+  }
 
   useEffect(() => {
     void loadConversations()
-  }, [loadConversations])
+    void loadSessions()
+  }, [loadConversations, loadSessions])
 
   useEffect(() => {
     void refreshGitStatus(projectPath)
@@ -50,28 +60,17 @@ export function useWorkspaceLifecycle(): void {
     refreshConversation,
   })
 
-  useThreadStatusMonitor()
-
-  // Context snapshot: subscribe to main-process pushes
   useEffect(() => {
-    return initContextSnapshotListener()
-  }, [])
+    void refreshSessionTree(activeConversationId ? SessionId(String(activeConversationId)) : null)
+  }, [activeConversationId, refreshSessionTree])
 
-  // Context snapshot: sync active conversation and re-fetch on model change
-  const setContextActiveConversation = useContextStore((s) => s.setActiveConversation)
-  const selectedModel = usePreferencesStore((s) => s.settings.selectedModel)
-  useEffect(() => {
-    // Re-fetch snapshot when conversation or model changes.
-    // selectedModel is read to trigger re-fetch on model switch.
-    void selectedModel
-    setContextActiveConversation(activeConversationId ?? null)
-  }, [activeConversationId, selectedModel, setContextActiveConversation])
+  useSessionStatusMonitor()
 
   useKeyboardShortcuts([
     { key: 'j', ctrl: true, action: toggleTerminal },
-    { key: 'n', ctrl: true, action: startDraftThread },
+    { key: 'n', ctrl: true, action: startDraftSessionRoute },
     { key: 'b', ctrl: true, action: toggleSidebar },
-    { key: 'd', ctrl: true, action: toggleDiffPanel },
+    { key: 'd', ctrl: true, action: toggleDiff },
     { key: 'k', ctrl: true, action: toggleCommandPalette },
   ])
 }

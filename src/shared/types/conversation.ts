@@ -6,11 +6,11 @@ export interface Conversation {
   readonly id: ConversationId
   readonly title: string
   readonly projectPath: string | null
+  readonly piSessionId?: string
+  readonly piSessionFile?: string
   readonly messages: Message[]
   readonly waggleConfig?: WaggleConfig
   readonly archived?: boolean
-  readonly planModeActive?: boolean
-  readonly compactionGuidance?: string | null
   readonly createdAt: number
   readonly updatedAt: number
 }
@@ -21,7 +21,6 @@ export interface ConversationSummary {
   readonly projectPath: string | null
   readonly messageCount: number
   readonly archived?: boolean
-  readonly planModeActive?: boolean
   readonly createdAt: number
   readonly updatedAt: number
 }

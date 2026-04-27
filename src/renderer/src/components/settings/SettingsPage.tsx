@@ -1,19 +1,36 @@
 import { choose } from '@shared/utils/decision'
+import { useNavigate } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
+import { useChat } from '@/hooks/useChat'
 import { useFullscreen } from '@/hooks/useFullscreen'
 import { cn } from '@/lib/cn'
 import type { SettingsTab } from '@/stores/ui-store'
-import { useUIStore } from '@/stores/ui-store'
 import { SettingsNav } from './SettingsNav'
 import { ArchivedSection } from './sections/ArchivedSection'
 import { ConnectionsSection } from './sections/ConnectionsSection'
 import { GeneralSection } from './sections/GeneralSection'
 import { WaggleSection } from './sections/WaggleSection'
 
-export function SettingsPage() {
-  const activeTab = useUIStore((s) => s.activeSettingsTab)
-  const closeSettings = useUIStore((s) => s.closeSettings)
+interface SettingsPageProps {
+  readonly activeTab: SettingsTab
+}
+
+export function SettingsPage({ activeTab }: SettingsPageProps) {
+  const navigate = useNavigate()
+  const { activeConversationId } = useChat()
   const isFullscreen = useFullscreen()
+
+  function navigateBackToApp(): void {
+    if (activeConversationId) {
+      void navigate({
+        to: '/sessions/$sessionId',
+        params: { sessionId: String(activeConversationId) },
+      })
+      return
+    }
+
+    void navigate({ to: '/' })
+  }
 
   return (
     <div className="flex h-full w-full flex-col bg-bg">
@@ -26,7 +43,7 @@ export function SettingsPage() {
       >
         <button
           type="button"
-          onClick={closeSettings}
+          onClick={navigateBackToApp}
           className="no-drag flex items-center gap-2 rounded-md px-2 py-1 text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -37,7 +54,7 @@ export function SettingsPage() {
 
       {/* Body: Nav + Content */}
       <div className="flex flex-1 overflow-hidden">
-        <SettingsNav />
+        <SettingsNav activeTab={activeTab} />
 
         {/* Content area — fills available width */}
         <div className="flex-1 overflow-y-auto px-10 py-8">

@@ -18,27 +18,9 @@ interface ArchitectureRule {
 const RULES: readonly ArchitectureRule[] = [
   // ── Vendor isolation ───────────────────────────────────────
   {
-    name: 'No @tanstack/ai in agent/ (excluding tests)',
+    name: 'No Pi SDK imports outside pi adapter',
     command:
-      "grep -rl \"from '@tanstack/ai'\" src/main/agent/ --include='*.ts' | grep -v __tests__",
-    allowEmpty: true,
-  },
-  {
-    name: 'No @tanstack/ai in shared/ (excluding .d.ts)',
-    command:
-      "grep -rl \"from '@tanstack/ai'\" src/shared/ --include='*.ts' | grep -v '.d.ts'",
-    allowEmpty: true,
-  },
-  {
-    name: 'No @tanstack/ai in application/',
-    command:
-      "grep -rl \"from '@tanstack/ai'\" src/main/application/ --include='*.ts' | grep -v __tests__",
-    allowEmpty: true,
-  },
-  {
-    name: 'No @tanstack/ai in ports/',
-    command:
-      "grep -rl \"from '@tanstack/ai'\" src/main/ports/ --include='*.ts'",
+      "grep -Rnl \"@mariozechner/pi-coding-agent\" src --include='*.ts' | grep -v '^src/main/adapters/pi/'",
     allowEmpty: true,
   },
 
@@ -50,11 +32,15 @@ const RULES: readonly ArchitectureRule[] = [
     allowEmpty: true,
   },
 
-  // ── Provider singleton isolation ───────────────────────────
+  // ── Provider catalog isolation ─────────────────────────────
   {
-    name: 'No providerRegistry outside adapters/providers/services/store',
-    command:
-      "grep -rn providerRegistry src/main/ --include='*.ts' | grep -v __tests__ | grep -v 'src/main/adapters/' | grep -v 'src/main/providers/' | grep -v 'src/main/services/' | grep -v 'src/main/store/'",
+    name: 'No src/main/providers runtime directory',
+    command: "find src/main/providers -type f -name '*.ts' 2>/dev/null",
+    allowEmpty: true,
+  },
+  {
+    name: 'No providerRegistry references in production source',
+    command: "grep -rn providerRegistry src/main/ --include='*.ts' | grep -v __tests__",
     allowEmpty: true,
   },
 
@@ -71,6 +57,12 @@ const RULES: readonly ArchitectureRule[] = [
     name: 'No direct store/ imports in application/',
     command:
       "grep -rl \"from '.*store/\" src/main/application/ --include='*.ts' | grep -v __tests__",
+    allowEmpty: true,
+  },
+  {
+    name: 'No IPC imports in application/',
+    command:
+      "grep -rl \"from '.*ipc/\" src/main/application/ --include='*.ts' | grep -v __tests__",
     allowEmpty: true,
   },
 ]

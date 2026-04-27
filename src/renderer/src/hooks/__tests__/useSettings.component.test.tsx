@@ -22,9 +22,30 @@ function selectPreferences<T>(
 }
 
 function selectProviders<T>(
-  selector: (state: { loadProviderModels: typeof loadProviderModelsMock }) => T,
+  selector: (state: {
+    loadProviderModels: typeof loadProviderModelsMock
+    providerModels: Array<{ provider: string; auth: { supportsOAuth: boolean } }>
+  }) => T,
 ): T {
-  return selector({ loadProviderModels: loadProviderModelsMock })
+  return selector({
+    loadProviderModels: loadProviderModelsMock,
+    providerModels: [
+      { provider: 'openai-codex', auth: { supportsOAuth: true } },
+      { provider: 'local-provider', auth: { supportsOAuth: false } },
+      { provider: 'github-copilot', auth: { supportsOAuth: true } },
+    ],
+  })
+}
+
+function getProviderState() {
+  return {
+    loadProviderModels: loadProviderModelsMock,
+    providerModels: [
+      { provider: 'openai-codex', auth: { supportsOAuth: true } },
+      { provider: 'local-provider', auth: { supportsOAuth: false } },
+      { provider: 'github-copilot', auth: { supportsOAuth: true } },
+    ],
+  }
 }
 
 function selectAuth<T>(
@@ -44,7 +65,9 @@ vi.mock('@/stores/preferences-store', () => ({
 }))
 
 vi.mock('@/stores/provider-store', () => ({
-  useProviderStore: selectProviders,
+  useProviderStore: Object.assign(selectProviders, {
+    getState: getProviderState,
+  }),
 }))
 
 vi.mock('@/stores/auth-store', () => ({
@@ -81,6 +104,7 @@ describe('useSettingsSetup', () => {
     await waitFor(() => {
       expect(loadProviderModelsMock).toHaveBeenCalledOnce()
       expect(loadAllAuthAccountsMock).toHaveBeenCalledOnce()
+      expect(loadAllAuthAccountsMock).toHaveBeenCalledWith(['openai-codex', 'github-copilot'])
     })
   })
 

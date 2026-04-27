@@ -2,13 +2,21 @@ import { resolve } from 'path'
 import { readFileSync } from 'fs'
 import type { Plugin } from 'vite'
 import { defineConfig } from 'electron-vite'
-import { devtools } from '@tanstack/devtools-vite'
 import react, { reactCompilerPreset } from '@vitejs/plugin-react'
 import babel from '@rolldown/plugin-babel'
+import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import tailwindcss from '@tailwindcss/vite'
 import svgr from 'vite-plugin-svgr'
 
 const ALWAYS_EXTERNAL = ['electron', 'bufferutil', 'utf-8-validate', 'node-pty']
+const PI_EXTENSION_LOADER_PATH = '@mariozechner/pi-coding-agent/dist/core/extensions/loader.js'
+const PI_EXTENSION_IMPORT_META_RESOLVE_LINE =
+  'return fileURLToPath(import.meta.resolve(specifier));'
+const PI_EXTENSION_BUNDLED_RESOLVE_LINE = 'return specifier;'
+const PI_EXTENSION_NODE_ALIAS_BRANCH =
+  '...(isBunBinary ? { virtualModules: VIRTUAL_MODULES, tryNative: false } : { alias: getAliases() }),'
+const PI_EXTENSION_VIRTUAL_MODULE_BRANCH =
+  '...{ virtualModules: VIRTUAL_MODULES, tryNative: false },'
 
 const BUNDLED_DEPS = [
   'effect',
@@ -16,13 +24,11 @@ const BUNDLED_DEPS = [
   '@effect/platform-node',
   '@effect/sql',
   '@effect/sql-sqlite-node',
-  '@tanstack/ai',
-  '@tanstack/ai-anthropic',
-  '@tanstack/ai-openai',
-  '@tanstack/ai-gemini',
-  '@tanstack/ai-grok',
-  '@tanstack/ai-openrouter',
-  '@tanstack/ai-ollama',
+  '@mariozechner/pi-coding-agent',
+  '@mariozechner/pi-agent-core',
+  '@mariozechner/pi-ai',
+  '@mariozechner/pi-tui',
+  '@mariozechner/jiti',
   '@modelcontextprotocol/sdk',
   '@electron-toolkit/utils',
   'fast-glob',
@@ -56,24 +62,54 @@ function rolldownExternalFixPlugin(): Plugin {
       const existing = Array.isArray(resolved) ? resolved.filter((e): e is string => typeof e === 'string') : []
       const merged = [...new Set([...existing, ...external])]
 
-      // configResolved receives a frozen config, but rollupOptions.external
-      // is the value Vite passes to Rolldown — mutating it here is the
-      // documented escape hatch for post-resolution fixups.
-      ;(config.build.rollupOptions as { external: string[] }).external = merged
+      config.build.rollupOptions.external = merged
+    },
+  }
+}
+
+/**
+ * OpenWaggle bundles Pi into the Electron main process. Pi's extension loader
+ * normally uses filesystem aliases in Node and virtual modules in bundled Bun
+ * binaries. In our bundled CJS output, the Node alias branch would erase
+ * `import.meta.resolve` to `{}` and crash when extensions load, so use Pi's
+ * bundled virtual-module path for this environment.
+ */
+function piExtensionLoaderBundlePlugin(): Plugin {
+  return {
+    name: 'openwaggle:pi-extension-loader-bundle',
+    enforce: 'pre',
+    transform(code, id) {
+      if (!id.includes(PI_EXTENSION_LOADER_PATH)) {
+        return null
+      }
+
+      if (
+        !code.includes(PI_EXTENSION_IMPORT_META_RESOLVE_LINE) ||
+        !code.includes(PI_EXTENSION_NODE_ALIAS_BRANCH)
+      ) {
+        throw new Error('Pi extension loader shape changed; update OpenWaggle bundler transform.')
+      }
+
+      return code
+        .replace(PI_EXTENSION_IMPORT_META_RESOLVE_LINE, PI_EXTENSION_BUNDLED_RESOLVE_LINE)
+        .replace(PI_EXTENSION_NODE_ALIAS_BRANCH, PI_EXTENSION_VIRTUAL_MODULE_BRANCH)
     },
   }
 }
 
 export default defineConfig({
   main: {
-    plugins: [rolldownExternalFixPlugin()],
+    plugins: [piExtensionLoaderBundlePlugin(), rolldownExternalFixPlugin()],
     build: {
-      minify: true,
+      minify: false,
       externalizeDeps: {
         exclude: BUNDLED_DEPS,
       },
       rollupOptions: {
         external: ALWAYS_EXTERNAL,
+        output: {
+          inlineDynamicImports: true,
+        },
       },
     },
     resolve: {
@@ -103,10 +139,9 @@ export default defineConfig({
       }
     },
     plugins: [
-      ...devtools({
-        eventBusConfig: {
-          enabled: false,
-        },
+      tanstackRouter({
+        routesDirectory: resolve('src/renderer/src/routes'),
+        generatedRouteTree: resolve('src/renderer/src/routeTree.gen.ts'),
       }),
       svgr(),
       react(),

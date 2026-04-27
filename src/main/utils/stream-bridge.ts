@@ -1,49 +1,214 @@
+import type { MessagePart } from '@shared/types/agent'
 import type { ActiveRunInfo, BackgroundRunSnapshot, RunMode } from '@shared/types/background-run'
-import type { ConversationId } from '@shared/types/brand'
+import { type ConversationId, ToolCallId } from '@shared/types/brand'
+import type { JsonObject, JsonValue } from '@shared/types/json'
 import type { SupportedModelId } from '@shared/types/llm'
-import type { OrchestrationEventPayload } from '@shared/types/orchestration'
 import type { AgentPhaseEventPayload } from '@shared/types/phase'
-import type { AgentStreamChunk } from '@shared/types/stream'
+import type { AgentTransportEvent } from '@shared/types/stream'
 import type { WaggleStreamMetadata, WaggleTurnEvent } from '@shared/types/waggle'
-import {
-  resetPhaseForConversation,
-  updatePhaseFromOrchestrationEvent,
-  updatePhaseFromStreamChunk,
-} from '../agent/phase-tracker'
-import { StreamPartCollector } from '../agent/stream-part-collector'
+import { resetPhaseForConversation, updatePhaseFromTransportEvent } from '../agent/phase-tracker'
 import { broadcastToWindows } from './broadcast'
 
-// ─── Stream Buffer (Background Run Tracking) ────────────────
+// ─── Active Run Tracking ─────────────────────────────────────
 
 interface ActiveStreamBuffer {
-  readonly collector: StreamPartCollector
   readonly model: SupportedModelId
   readonly mode: RunMode
   readonly startedAt: number
+  readonly parts: readonly MessagePart[]
 }
 
 const activeBuffers = new Map<ConversationId, ActiveStreamBuffer>()
 
-/** Called by handlers at run start to begin buffering stream parts. */
+function isJsonObject(value: JsonValue | undefined): value is JsonObject {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function jsonObjectOrEmpty(value: JsonValue | undefined): JsonObject {
+  return isJsonObject(value) ? value : {}
+}
+
+function appendTextPart(parts: readonly MessagePart[], delta: string): readonly MessagePart[] {
+  const lastPart = parts[parts.length - 1]
+  if (lastPart?.type === 'text') {
+    return [...parts.slice(0, -1), { type: 'text', text: lastPart.text + delta }]
+  }
+  return [...parts, { type: 'text', text: delta }]
+}
+
+function appendReasoningPart(parts: readonly MessagePart[], delta: string): readonly MessagePart[] {
+  const lastPart = parts[parts.length - 1]
+  if (lastPart?.type === 'reasoning') {
+    return [...parts.slice(0, -1), { type: 'reasoning', text: lastPart.text + delta }]
+  }
+  return [...parts, { type: 'reasoning', text: delta }]
+}
+
+function findToolCallPartIndex(parts: readonly MessagePart[], toolCallId: string): number {
+  return parts.findIndex(
+    (part) => part.type === 'tool-call' && String(part.toolCall.id) === toolCallId,
+  )
+}
+
+function upsertToolCallPart(input: {
+  readonly parts: readonly MessagePart[]
+  readonly toolCallId: string
+  readonly toolName?: string
+  readonly args?: JsonValue
+}): readonly MessagePart[] {
+  const index = findToolCallPartIndex(input.parts, input.toolCallId)
+  const existingPart = index === -1 ? null : input.parts[index]
+  const toolName =
+    input.toolName || (existingPart?.type === 'tool-call' ? existingPart.toolCall.name : '')
+  const toolCallPart: MessagePart = {
+    type: 'tool-call',
+    toolCall: {
+      id: ToolCallId(input.toolCallId),
+      name: toolName,
+      args: jsonObjectOrEmpty(input.args),
+      state: 'input-complete',
+    },
+  }
+  if (index === -1) {
+    return [...input.parts, toolCallPart]
+  }
+  return [...input.parts.slice(0, index), toolCallPart, ...input.parts.slice(index + 1)]
+}
+
+function appendToolResultPart(input: {
+  readonly parts: readonly MessagePart[]
+  readonly toolCallId: string
+  readonly toolName: string
+  readonly args?: JsonValue
+  readonly result: JsonValue
+  readonly isError: boolean
+}): readonly MessagePart[] {
+  const withoutPreviousResult = input.parts.filter(
+    (part) => part.type !== 'tool-result' || String(part.toolResult.id) !== input.toolCallId,
+  )
+  return [
+    ...withoutPreviousResult,
+    {
+      type: 'tool-result',
+      toolResult: {
+        id: ToolCallId(input.toolCallId),
+        name: input.toolName,
+        args: jsonObjectOrEmpty(input.args),
+        result: input.result,
+        isError: input.isError,
+        duration: 0,
+      },
+    },
+  ]
+}
+
+function updateBufferedParts(
+  conversationId: ConversationId,
+  update: (parts: readonly MessagePart[]) => readonly MessagePart[],
+): void {
+  const buffer = activeBuffers.get(conversationId)
+  if (!buffer) return
+  activeBuffers.set(conversationId, {
+    ...buffer,
+    parts: update(buffer.parts),
+  })
+}
+
+function applyEventToStreamBuffer(
+  conversationId: ConversationId,
+  event: AgentTransportEvent,
+): void {
+  if (event.type === 'message_start' && event.role === 'assistant') {
+    updateBufferedParts(conversationId, () => [])
+    return
+  }
+
+  if (event.type === 'message_update') {
+    const assistantEvent = event.assistantMessageEvent
+    if (assistantEvent.type === 'text_delta') {
+      updateBufferedParts(conversationId, (parts) => appendTextPart(parts, assistantEvent.delta))
+      return
+    }
+
+    if (assistantEvent.type === 'thinking_delta') {
+      updateBufferedParts(conversationId, (parts) =>
+        appendReasoningPart(parts, assistantEvent.delta),
+      )
+      return
+    }
+
+    if (assistantEvent.type === 'toolcall_start' || assistantEvent.type === 'toolcall_end') {
+      updateBufferedParts(conversationId, (parts) =>
+        upsertToolCallPart({
+          parts,
+          toolCallId: assistantEvent.toolCallId,
+          toolName: assistantEvent.toolName,
+          args: assistantEvent.input,
+        }),
+      )
+      return
+    }
+
+    if (assistantEvent.type === 'toolcall_delta' && assistantEvent.input !== undefined) {
+      updateBufferedParts(conversationId, (parts) =>
+        upsertToolCallPart({
+          parts,
+          toolCallId: assistantEvent.toolCallId,
+          args: assistantEvent.input,
+        }),
+      )
+    }
+    return
+  }
+
+  if (event.type === 'tool_execution_start' || event.type === 'tool_execution_update') {
+    updateBufferedParts(conversationId, (parts) =>
+      upsertToolCallPart({
+        parts,
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+        args: event.args,
+      }),
+    )
+    return
+  }
+
+  if (event.type === 'tool_execution_end') {
+    updateBufferedParts(conversationId, (parts) =>
+      appendToolResultPart({
+        parts: upsertToolCallPart({
+          parts,
+          toolCallId: event.toolCallId,
+          toolName: event.toolName,
+          args: event.args,
+        }),
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+        args: event.args,
+        result: event.result,
+        isError: event.isError,
+      }),
+    )
+  }
+}
+
 export function startStreamBuffer(
   conversationId: ConversationId,
   model: SupportedModelId,
   mode: RunMode,
 ): void {
   activeBuffers.set(conversationId, {
-    collector: new StreamPartCollector(),
     model,
     mode,
     startedAt: Date.now(),
+    parts: [],
   })
 }
 
-/** Called by handlers in finally blocks to clean up the buffer. */
 export function clearStreamBuffer(conversationId: ConversationId): void {
   activeBuffers.delete(conversationId)
 }
 
-/** Returns a full snapshot for reconnection, or null if no active run. */
 export function getStreamBuffer(conversationId: ConversationId): BackgroundRunSnapshot | null {
   const buffer = activeBuffers.get(conversationId)
   if (!buffer) return null
@@ -52,11 +217,10 @@ export function getStreamBuffer(conversationId: ConversationId): BackgroundRunSn
     model: buffer.model,
     mode: buffer.mode,
     startedAt: buffer.startedAt,
-    parts: buffer.collector.snapshotParts(),
+    parts: [...buffer.parts],
   }
 }
 
-/** Returns lightweight info for all active runs (no message content). */
 export function listStreamBuffers(): ActiveRunInfo[] {
   const result: ActiveRunInfo[] = []
   for (const [conversationId, buffer] of activeBuffers) {
@@ -70,101 +234,51 @@ export function listStreamBuffers(): ActiveRunInfo[] {
   return result
 }
 
-/** Broadcasts run-completed event to all renderer windows. */
 export function emitRunCompleted(conversationId: ConversationId): void {
   broadcastToWindows('agent:run-completed', { conversationId })
 }
 
-// ─── Stream Chunk Emission ──────────────────────────────────
+// ─── Transport Event Emission ───────────────────────────────
 
-/**
- * Forward a raw TanStack AI StreamChunk to all renderer windows.
- * Used by the useChat IPC connection adapter in the renderer.
- * Also pushes chunks to the per-conversation buffer for background run support.
- */
-export function emitStreamChunk(conversationId: ConversationId, chunk: AgentStreamChunk): void {
-  // AgentStreamChunk RUN_ERROR may contain Error objects which don't serialize
-  // well over IPC structured clone. Normalize before sending.
-  const serializable = chunk.type === 'RUN_ERROR' ? serializeRunError(chunk) : chunk
-
-  // Feed the buffer's collector so reconnecting renderers can snapshot progress.
-  const buffer = activeBuffers.get(conversationId)
-  if (buffer) {
-    buffer.collector.handleChunk(serializable)
-  }
+export function emitTransportEvent(
+  conversationId: ConversationId,
+  event: AgentTransportEvent,
+): void {
+  applyEventToStreamBuffer(conversationId, event)
 
   maybeEmitPhase({
     conversationId,
-    phase: updatePhaseFromStreamChunk(conversationId, serializable, Date.now()),
+    phase: updatePhaseFromTransportEvent(conversationId, event, Date.now()),
   })
-  broadcastToWindows('agent:stream-chunk', { conversationId, chunk: serializable })
+
+  broadcastToWindows('agent:event', { conversationId, event })
 }
 
-/** Emit RUN_ERROR + RUN_FINISHED pair for early-exit error paths. */
 export function emitErrorAndFinish(
   conversationId: ConversationId,
   message: string,
   code: string,
   runId = '',
 ): void {
-  emitStreamChunk(conversationId, {
-    type: 'RUN_ERROR',
-    timestamp: Date.now(),
-    error: { message, code },
-  })
-  emitStreamChunk(conversationId, {
-    type: 'RUN_FINISHED',
-    timestamp: Date.now(),
+  emitTransportEvent(conversationId, {
+    type: 'agent_end',
     runId,
-    finishReason: 'stop',
+    reason: 'error',
+    error: { message, code },
+    timestamp: Date.now(),
   })
 }
 
-/**
- * Normalize a RUN_ERROR chunk for IPC serialization.
- * Preserves our custom `code` field for structured error classification,
- * plus `name`/`stack` when present on the runtime error object.
- */
-function serializeRunError(chunk: AgentStreamChunk & { type: 'RUN_ERROR' }): AgentStreamChunk {
-  const { error } = chunk
-  return {
-    ...chunk,
-    error: {
-      message: error.message,
-      ...('name' in error && typeof error.name === 'string' ? { name: error.name } : {}),
-      ...('stack' in error && typeof error.stack === 'string' ? { stack: error.stack } : {}),
-      ...('code' in error && error.code ? { code: error.code } : {}),
-    },
-  }
-}
-
-export function emitOrchestrationEvent(payload: OrchestrationEventPayload): void {
-  maybeEmitPhase({
-    conversationId: payload.conversationId,
-    phase: updatePhaseFromOrchestrationEvent(payload, Date.now()),
-  })
-  broadcastToWindows('orchestration:event', payload)
-}
-
-export function emitWaggleStreamChunk(
+export function emitWaggleTransportEvent(
   conversationId: ConversationId,
-  chunk: AgentStreamChunk,
+  event: AgentTransportEvent,
   meta: WaggleStreamMetadata,
 ): void {
-  const serializable = chunk.type === 'RUN_ERROR' ? serializeRunError(chunk) : chunk
-  broadcastToWindows('waggle:stream-chunk', { conversationId, chunk: serializable, meta })
+  broadcastToWindows('waggle:event', { conversationId, event, meta })
 }
 
 export function emitWaggleTurnEvent(conversationId: ConversationId, event: WaggleTurnEvent): void {
   broadcastToWindows('waggle:turn-event', { conversationId, event })
-}
-
-export function emitContextInjected(
-  conversationId: ConversationId,
-  text: string,
-  timestamp: number,
-): void {
-  broadcastToWindows('agent:context-injected', { conversationId, text, timestamp })
 }
 
 export function clearAgentPhase(conversationId: ConversationId): void {

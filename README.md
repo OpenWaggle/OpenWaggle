@@ -23,34 +23,31 @@ In nature, honeybees don't solve problems alone — they waggle.
 
 When a forager bee discovers nectar, it doesn't keep the knowledge to itself. It returns to the hive and performs a **waggle dance**: a figure-eight that encodes direction, distance, and quality. Other bees read the dance, verify the source, and the colony converges on the best path forward. No single bee has the full picture, but through structured communication the hive finds the optimal outcome every time.
 
-OpenWaggle works the same way. It's a desktop coding agent that connects to multiple AI providers — Anthropic, OpenAI, Gemini, Grok, OpenRouter, and Ollama — and lets you **pair two models on the same problem**. Give them roles, give them a task, and watch them waggle: trading context, challenging each other's assumptions, and converging on solutions no single model would reach alone.
+OpenWaggle works the same way. It's a desktop coding workspace built on Pi's agent runtime and model ecosystem. Pair two Pi-supported models on the same problem, give them roles, and watch them waggle: trading context, challenging each other's assumptions, and converging on solutions no single model would reach alone.
 
-- **Multi-model, multi-provider** — Switch between 6 providers and dozens of models without leaving the app
+- **Pi-native model catalog** — Use the providers, authentication methods, and model metadata reported by the installed Pi SDK
 - **Waggle Mode** — Pair two AI agents with different strengths and let them collaborate in structured turns
 - **Full coding agent** — File operations, shell commands, and git integration built in
-- **Local-first** — Your conversations, settings, and API keys stay on your machine
+- **Local-first** — Your sessions, settings, and provider credentials stay on your machine
 
 ## Features
 
 ### Multi-Model Support
 
-Connect to **6 providers** out of the box. Bring your own API keys or authenticate via OAuth for supported subscriptions.
+OpenWaggle reads provider and model metadata from Pi. Use OpenWaggle's Settings UI to choose the Pi-reported providers and models you want available in the composer. For provider and model mechanics, use Pi's provider and model docs as the source of truth.
 
-| Provider | Auth | Local |
-|----------|------|-------|
-| Anthropic | API key / OAuth | |
-| OpenAI | API key / OAuth | |
-| Google Gemini | API key | |
-| Grok (xAI) | API key | |
-| OpenRouter | API key | |
-| Ollama | None (local) | Yes |
+Settings separates provider authentication by method:
+
+- **API key providers** — all Pi providers that support key-based, environment, or custom-provider credentials
+- **OAuth providers** — the OAuth providers Pi reports through its auth storage
+- **Available models** — the full Pi model catalog, with user-selected models controlling what appears in the composer dropdown
 
 ### Waggle Mode
 
 The flagship feature. Pair two AI agents, configure their roles, and let them collaborate:
 
 - **Sequential turns** — agents take turns, each building on the other's work
-- **Parallel mode** — both agents tackle the problem simultaneously, then synthesize
+- **Structured turns** — agents alternate over the same Pi-backed session projection
 - **Consensus detection** — automatically stops when agents converge on a solution
 - **Manual stop** — take back control at any time
 - **Team presets** — save your favorite agent pairings (3 built-in, unlimited custom)
@@ -58,21 +55,19 @@ The flagship feature. Pair two AI agents, configure their roles, and let them co
 
 Open Settings > Waggle Mode to configure teams, or use the command palette (`Ctrl+K` / `Cmd+K`) and search for "waggle" to start a session.
 
-### Built-in Agent Tools
+### Pi-Native Agent Runtime
 
-The agent comes equipped with tools for real development work:
+OpenWaggle is now a UI and product shell over Pi's coding-agent runtime:
 
-- **File operations** — read, write, edit, glob, list files
-- **Shell commands** — execute commands in your project directory
-- **Skills system** — extensible agent behaviors via `.openwaggle/skills/`
-- **Ask user** — the agent can ask clarifying questions mid-run
-
-Write, edit, and shell commands require explicit approval before execution (configurable per session).
+- **Native Pi tools** — file reads, writes, edits, shell commands, and search/listing tools are provided by Pi
+- **Session tree projection** — Pi sessions, nodes, and branches are projected into OpenWaggle's SQLite read model
+- **Skills/resources** — Pi loads `.pi/skills` and `.agents/skills`; OpenWaggle also adds `.openwaggle/skills` to Pi's skill loader and exposes catalog toggles in the UI
+- **Live tool timeline** — OpenWaggle renders the tool events Pi emits as part of the session stream
 
 ### Git Integration
 
 - **Live diff stats** — see changed files and line counts in real time
-- **Branch management** — switch, create, and manage branches from the header
+- **Branch management** — switch, create, and manage branches from the branch row below the composer
 - **Commit dialog** — stage files, write messages, and commit without leaving the app
 - **Diff panel** — inline view of all working tree changes
 
@@ -80,7 +75,7 @@ Write, edit, and shell commands require explicit approval before execution (conf
 
 - **Attachments** — drag and drop text files, PDFs, and images (with OCR extraction)
 - **Voice input** — local Whisper transcription (no audio leaves your machine)
-- **Slash commands** — type `/` to discover and activate skills inline
+- **Slash commands** — type `/` to reference cataloged skills, start Waggle flows, or run `/compact`
 
 ### Built-in Terminal
 
@@ -126,41 +121,43 @@ Requires [Node.js](https://nodejs.org/) 24.x and [pnpm](https://pnpm.io/) 10+.
 
 1. Open **Settings** (gear icon in the sidebar)
 2. Go to **Connections**
-3. Add API keys for your providers (or use OAuth for Anthropic/OpenAI subscriptions)
-4. Select your default model from the model picker in the header
+3. Expand **API Key Providers** or **OAuth Providers** and authenticate through the method Pi supports
+4. Select which models should appear in the composer from **Available Models**
+5. Pick a model from the composer toolbar
 
 ## Configuring Providers
 
-| Provider | Auth Method | Custom Base URL | Subscription OAuth |
-|----------|------------|-----------------|-------------------|
-| Anthropic | API key | No | Yes |
-| OpenAI | API key | No | Yes |
-| Google Gemini | API key | No | No |
-| Grok (xAI) | API key | No | No |
-| OpenRouter | API key | No | No |
-| Ollama | None | Yes (default: localhost:11434) | No |
+OpenWaggle does not hardcode a fixed provider catalog. It displays whatever Pi's project-scoped model registry reports, including built-in providers and extension/custom-provider additions.
 
-API keys and app settings are stored locally in OpenWaggle's SQLite app database in your OS config directory. They never leave your machine.
+Pi credentials are stored in Pi's auth storage (`~/.pi/agent/auth.json`) or resolved from environment/custom provider configuration according to Pi's own resolution rules. OpenWaggle app preferences and session projections are stored in SQLite in your OS app data directory.
+
+Pi references for this behavior:
+
+- [Pi providers](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/providers.md)
+- [Pi custom models](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/models.md)
+- [Pi custom providers](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/custom-provider.md)
 
 ## Using OpenWaggle
 
 ### Chat
 
-Start a conversation, send a message, and the agent responds with full tool access to your project. Use the quality preset selector (in the composer) to control temperature and response style.
+Start a session, send a message, and the agent responds with Pi's native coding-agent tool access to your project. Use the model selector in the composer to choose from the models you enabled in Settings.
 
 ### Waggle Mode
 
 1. **Configure a team** — Go to Settings > Waggle Mode, or create one on the fly
 2. **Pick two models** — Assign each agent a model, role description, and color
-3. **Set collaboration rules** — Sequential vs parallel, consensus vs manual stop, max turns
+3. **Set collaboration rules** — sequential turns, consensus/manual stop behavior, and max turns
 4. **Save as preset** — Reuse your favorite configurations
 5. **Start a session** — Open the command palette (`Ctrl+K`) and search "waggle", or select a preset directly
 
 When Waggle Mode is active, the collaboration status bar appears above the composer showing turn progress, active agent, and file conflict warnings.
 
-### Tools & Approval
+### Tools
 
-The agent can read files, write code, and run shell commands. Destructive operations (writes, edits, shell) require your approval before execution. The approval banner appears inline with the option to allow or deny.
+The agent can read files, write code, and run shell commands through Pi's native coding-agent tools. OpenWaggle displays those tool calls directly in the transcript.
+
+Pi documents the default built-in tool set and SDK integration points in the [Pi coding-agent README](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/README.md) and [Pi SDK guide](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/sdk.md).
 
 ### Attachments
 
@@ -168,34 +165,44 @@ Drag and drop files onto the composer, or use the attachment button:
 
 - **Text files** — content extracted directly
 - **PDF** — text extracted with page metadata
-- **Images** — OCR extraction for text content, visual analysis for diagrams
+- **Images** — OCR extraction for text content; image-capable Pi models also receive image payloads
 
 ### Skills
 
-Skills extend the agent's capabilities with specialized knowledge and workflows.
+Pi-native skills extend the agent's prompt context with specialized knowledge and workflows. Current runtime discovery includes `.openwaggle/skills`, Pi's native `.pi/skills`, and `.agents/skills`.
 
 - **Discover** — open the Skills panel from the sidebar
 - **Enable/disable** — toggle skills per project
-- **Slash reference** — type `/skill-name` in the composer to activate inline
-- **Create custom** — add a `SKILL.md` to `.openwaggle/skills/<skill-id>/`
+- **Slash reference** — type `/skill-name` in the composer to reference a cataloged skill
+- **Create custom** — use `.openwaggle/skills/<skill-id>/SKILL.md`, `.pi/skills/<skill-id>/SKILL.md`, or `.agents/skills/<skill-id>/SKILL.md`
+
+For runtime extensions beyond instruction skills, use Pi's extension system; see [Pi extensions](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/extensions.md).
 
 ### Git Workflow
 
-- **Branch picker** — click the branch name in the header to switch or create branches
+- **Branch picker** — click the branch name in the row below the composer to switch or create branches
 - **Diff panel** — toggle with `Ctrl+D` to see all working tree changes
 - **Commit dialog** — select files, write a message, commit — all from the header
 
 ## Project Configuration
 
-OpenWaggle supports per-project configuration via `.openwaggle/config.toml`. Currently you can override quality preset sampling parameters (temperature, top_p, max_tokens) per tier:
+OpenWaggle supports per-project configuration via `.openwaggle/settings.json`. OpenWaggle-owned settings live at the top level, while Pi runtime settings are nested under `pi`:
 
-```toml
-[quality.high]
-temperature = 0.7
-max_tokens = 8000
+```json
+{
+  "preferences": {
+    "model": "openai-codex/gpt-5.5",
+    "thinkingLevel": "medium"
+  },
+  "pi": {
+    "compaction": {
+      "enabled": true
+    }
+  }
+}
 ```
 
-See [docs/user-guide/configuration.md](docs/user-guide/configuration.md) for the full reference, default values, and parameter ranges.
+The Pi adapter passes the nested `pi` object to Pi's settings manager. Pi's project-local `.pi/settings.json` can also be read by the Pi settings loader, but `.openwaggle/settings.json` is the primary OpenWaggle-facing file. See [Per-Project Configuration](https://openwaggle.ai/docs/configuration/per-project-config) for the current reference.
 
 ## Development
 
@@ -205,7 +212,7 @@ OpenWaggle is an Electron app with three process targets sharing types through `
 
 ```
 src/
-  main/           # Node.js — agent loop, tools, persistence, IPC handlers
+  main/           # Node.js — Pi runtime adapters, persistence, IPC handlers
   preload/        # Bridge — typed contextBridge API
   renderer/src/   # React 19 + Zustand + Tailwind v4
   shared/         # Types, schemas, utilities shared across all targets
@@ -217,11 +224,11 @@ src/
 |-------|-----------|
 | Framework | Electron + electron-vite |
 | Renderer | React 19, Zustand, Tailwind CSS v4 |
-| AI Integration | TanStack AI (chat adapter per provider) |
+| AI Integration | Pi SDK runtime behind OpenWaggle ports/adapters |
 | Language | TypeScript (strict, no `any`) |
 | Validation | Effect Schema |
 | Main Runtime | Effect |
-| Persistence | SQLite + project-local TOML |
+| Persistence | SQLite + `.openwaggle/settings.json` project config |
 | Bundler | Vite 8 (Rolldown) |
 | Linter | Biome |
 | Testing | Vitest + Testing Library + Playwright |
@@ -257,7 +264,7 @@ pnpm build:linux      # Linux AppImage
 
 See [docs/release-and-versioning.md](docs/release-and-versioning.md) for CI/CD, versioning, and git hooks details.
 
-See [docs/architecture.md](docs/architecture.md) for the full architecture overview, process boundaries, IPC type system, and agent loop internals.
+See [docs/architecture.md](docs/architecture.md) for the full architecture overview, process boundaries, IPC type system, and Pi runtime internals.
 
 ---
 

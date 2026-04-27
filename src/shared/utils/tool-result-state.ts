@@ -32,28 +32,6 @@ export function normalizeToolResultPayload(value: unknown): unknown {
   return unwrapStructuredToolPayload(parseSerializedToolPayload(value))
 }
 
-export function isPendingExecutionPayload(value: unknown): boolean {
-  const normalizedValue = normalizeToolResultPayload(value)
-  if (!isRecord(normalizedValue)) {
-    return false
-  }
-
-  return normalizedValue.pendingExecution === true
-}
-
-export function isIncompleteToolPayload(value: unknown): boolean {
-  return isPendingExecutionPayload(value)
-}
-
 export function hasConcreteToolOutput(value: unknown): boolean {
-  return value !== undefined && !isIncompleteToolPayload(value)
-}
-
-export function isDeniedApprovalPayload(value: unknown): boolean {
-  const normalizedValue = normalizeToolResultPayload(value)
-  if (!isRecord(normalizedValue)) {
-    return false
-  }
-
-  return normalizedValue.approved === false && typeof normalizedValue.message === 'string'
+  return value !== undefined
 }

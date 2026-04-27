@@ -33,6 +33,7 @@
   --color-diff-card-bg: #0f1115;
   --color-diff-card-border: #252018;
   --color-link-yellow: #ffd166;
+  --color-thinking-text: #808080;
   --radius-panel: 22px;
 
   /* Diff panel */
@@ -409,5 +410,29 @@
   }
   .prose-user blockquote {
     margin: 0.5em 0;
+  }
+
+  .prose-thinking,
+  .prose-thinking p,
+  .prose-thinking li,
+  .prose-thinking ol,
+  .prose-thinking ul,
+  .prose-thinking blockquote,
+  .prose-thinking strong,
+  .prose-thinking em,
+  .prose-thinking code,
+  .prose-thinking pre,
+  .prose-thinking a,
+  .prose-thinking h1,
+  .prose-thinking h2,
+  .prose-thinking h3,
+  .prose-thinking h4,
+  .prose-thinking th,
+  .prose-thinking td {
+    color: var(--color-thinking-text);
+  }
+
+  .prose-thinking blockquote {
+    border-left-color: color-mix(in srgb, var(--color-thinking-text) 55%, transparent);
   }
 }

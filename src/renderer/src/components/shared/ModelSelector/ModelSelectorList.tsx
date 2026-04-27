@@ -23,18 +23,10 @@ export function ModelSelectorList({
   return (
     <div className="space-y-px">
       {models.map((model) => {
-        const compositeKey = model.authMethod
-          ? `${model.provider}:${model.authMethod}:${model.id}`
-          : `${model.provider}:${model.id}`
-        // Match by id + provider + authMethod so duplicate model IDs show the correct checkmark
-        const isSelected =
-          selectedModel !== undefined &&
-          model.id === selectedModel.id &&
-          model.provider === selectedModel.provider &&
-          model.authMethod === selectedModel.authMethod
+        const isSelected = selectedModel !== undefined && model.id === selectedModel.id
         return (
           <ModelSelectorRow
-            key={compositeKey}
+            key={model.id}
             model={model}
             isSelected={isSelected}
             onSelect={onSelectModel}

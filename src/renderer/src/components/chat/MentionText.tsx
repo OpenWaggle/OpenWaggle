@@ -57,20 +57,3 @@ export function renderTextWithMentions(text: string): ReactNode[] {
 
   return parts
 }
-
-interface MentionTextProps {
-  text: string
-}
-
-/**
- * Renders message text with inline file mention chips for @path patterns.
- */
-export function MentionText({ text }: MentionTextProps) {
-  const parts = renderTextWithMentions(text)
-
-  if (parts.length === 0) {
-    return <>{text}</>
-  }
-
-  return <>{parts}</>
-}

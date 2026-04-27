@@ -1,15 +1,14 @@
 import { SupportedModelId } from '@shared/types/brand'
-import type { ModelDisplayInfo, ProviderInfo } from '@shared/types/llm'
-import type { Provider, ProviderConfig, Settings } from '@shared/types/settings'
-import { isValidBaseUrl } from '@shared/utils/validation'
+import type { ProviderInfo } from '@shared/types/llm'
+import { DEFAULT_SETTINGS, type Provider } from '@shared/types/settings'
 import { create } from 'zustand'
 import { api } from '@/lib/ipc'
+import { createRendererLogger } from '@/lib/logger'
 
-const ENABLED_KEY_MIN_PARTS = 3
-const ENABLED_KEY_MODEL_ID_START = 2
+const logger = createRendererLogger('provider-store')
 
 /**
- * Build a set of "provider:modelId" keys from the current provider model catalog.
+ * Build a set of canonical "provider/modelId" refs from the current Pi model catalog.
  * Used to validate enabledModels entries against what actually exists.
  */
 /** @internal Exported for testing */
@@ -19,86 +18,72 @@ export function buildModelCatalogSet(providerModels: readonly ProviderInfo[]): S
     for (const model of group.models) {
       const trimmedId = model.id.trim()
       if (trimmedId) {
-        catalog.add(`${group.provider}:${trimmedId}`)
+        catalog.add(trimmedId)
       }
     }
   }
   return catalog
 }
 
+function buildAvailableModelSet(providerModels: readonly ProviderInfo[]): Set<string> {
+  const available = new Set<string>()
+  for (const group of providerModels) {
+    for (const model of group.models) {
+      if (model.available) {
+        available.add(model.id)
+      }
+    }
+  }
+  return available
+}
+
 /**
  * Remove enabledModels entries that reference models no longer in the provider
- * catalog (stale version suffixes, removed models, legacy bare IDs).
+ * catalog (stale version suffixes, removed models, or providerless IDs).
  */
 /** @internal Exported for testing */
 export function pruneStaleEnabledModels(
   enabledModels: readonly string[],
   catalog: ReadonlySet<string>,
-): string[] | null {
-  const pruned: string[] = []
+): SupportedModelId[] | null {
+  const pruned: SupportedModelId[] = []
   let changed = false
 
   for (const key of enabledModels) {
-    const parts = key.split(':')
-    if (parts.length < ENABLED_KEY_MIN_PARTS) {
-      // Legacy bare model ID — prune
+    const normalized = key.trim()
+    if (!catalog.has(normalized)) {
       changed = true
       continue
     }
 
-    const provider = parts[0]
-    const modelId = parts.slice(ENABLED_KEY_MODEL_ID_START).join(':')
-
-    if (!catalog.has(`${provider}:${modelId}`)) {
-      changed = true
-      continue
-    }
-
-    pruned.push(key)
+    pruned.push(SupportedModelId(normalized))
   }
 
   return changed ? pruned : null
 }
 
-interface ProviderModelRefreshResult {
-  readonly provider: Provider
-  readonly models: ModelDisplayInfo[] | null
-  readonly error?: string
-}
-
-const providerModelRefreshTokens: Partial<Record<Provider, number>> = {}
-
-function issueProviderRefreshTokens(providers: readonly Provider[]): Map<Provider, number> {
-  const expectedTokens = new Map<Provider, number>()
-
-  for (const provider of providers) {
-    const nextToken = (providerModelRefreshTokens[provider] ?? 0) + 1
-    providerModelRefreshTokens[provider] = nextToken
-    expectedTokens.set(provider, nextToken)
-  }
-
-  return expectedTokens
-}
-
 function dedupeProviderModels(
   provider: Provider,
-  models: readonly ModelDisplayInfo[],
-): ModelDisplayInfo[] {
+  models: readonly ProviderInfo['models'][number][],
+): ProviderInfo['models'] {
   const seen = new Set<string>()
-  const deduped: ModelDisplayInfo[] = []
+  const deduped: ProviderInfo['models'] = []
 
   for (const model of models) {
     const normalizedId = model.id.trim()
     if (!normalizedId) continue
 
-    const key = `${provider}:${normalizedId}`
-    if (seen.has(key)) continue
-    seen.add(key)
+    if (seen.has(normalizedId)) continue
+    seen.add(normalizedId)
 
     deduped.push({
       id: SupportedModelId(normalizedId),
+      modelId: model.modelId,
       name: model.name,
       provider,
+      available: model.available,
+      availableThinkingLevels: model.availableThinkingLevels,
+      contextWindow: model.contextWindow,
     })
   }
 
@@ -112,247 +97,84 @@ function normalizeProviderGroups(providerModels: readonly ProviderInfo[]): Provi
   }))
 }
 
-function mergeProviderGroups({
-  baseProviderModels,
-  currentProviderModels,
-  refreshedProviders,
-  refreshedDynamicModels,
-}: {
-  baseProviderModels: readonly ProviderInfo[]
-  currentProviderModels: readonly ProviderInfo[]
-  refreshedProviders: readonly Provider[]
-  refreshedDynamicModels: ReadonlyMap<Provider, readonly ModelDisplayInfo[]>
-}): ProviderInfo[] {
-  const currentByProvider = new Map(currentProviderModels.map((group) => [group.provider, group]))
-  const refreshedProviderSet = new Set(refreshedProviders)
-
-  return baseProviderModels.map((baseGroup) => {
-    const dynamicModels = refreshedDynamicModels.get(baseGroup.provider)
-    const currentModels = currentByProvider.get(baseGroup.provider)?.models
-
-    const sourceModels = refreshedProviderSet.has(baseGroup.provider)
-      ? (dynamicModels ?? baseGroup.models)
-      : (currentModels ?? baseGroup.models)
-
-    return {
-      ...baseGroup,
-      models: dedupeProviderModels(baseGroup.provider, sourceModels),
-    }
-  })
-}
-
 interface ProviderState {
   baseProviderModels: ProviderInfo[]
   providerModels: ProviderInfo[]
-  modelFetchErrors: Partial<Record<Provider, string>>
   testingProviders: Partial<Record<Provider, boolean>>
   testResults: Partial<Record<Provider, { success: boolean; error?: string } | null>>
+  loadError: string | null
 
   loadProviderModels: () => Promise<void>
-  refreshProviderModels: (provider?: Provider) => Promise<void>
   updateApiKey: (provider: Provider, apiKey: string) => Promise<void>
-  toggleProvider: (provider: Provider, enabled: boolean) => Promise<void>
-  updateBaseUrl: (provider: Provider, baseUrl: string) => Promise<void>
-  testApiKey: (
-    provider: Provider,
-    apiKey: string,
-    baseUrl?: string,
-    authMethod?: 'api-key' | 'subscription',
-  ) => Promise<boolean>
+  testApiKey: (provider: Provider, apiKey: string) => Promise<boolean>
   clearTestResult: (provider: Provider) => void
 }
 
-export const useProviderStore = create<ProviderState>((set, get) => ({
+export const useProviderStore = create<ProviderState>((set) => ({
   baseProviderModels: [],
   providerModels: [],
-  modelFetchErrors: {},
   testingProviders: {},
   testResults: {},
+  loadError: null,
 
   async loadProviderModels() {
     try {
-      const baseProviderModels = normalizeProviderGroups(await api.getProviderModels())
-      set({ baseProviderModels, providerModels: baseProviderModels })
-      await get().refreshProviderModels()
-    } catch {
-      // Models are non-critical — keep existing empty array
-    }
-  },
+      const { usePreferencesStore } = await import('./preferences-store')
+      const currentSettings = usePreferencesStore.getState().settings
+      const baseProviderModels = normalizeProviderGroups(
+        await api.getProviderModels(currentSettings.projectPath),
+      )
+      set({ baseProviderModels, providerModels: baseProviderModels, loadError: null })
+      const catalog = buildModelCatalogSet(baseProviderModels)
+      const available = buildAvailableModelSet(baseProviderModels)
+      const pruned = pruneStaleEnabledModels(currentSettings.enabledModels, catalog)
+      const enabledModels = pruned ?? currentSettings.enabledModels
+      const selectedModel =
+        currentSettings.selectedModel &&
+        enabledModels.includes(currentSettings.selectedModel) &&
+        available.has(currentSettings.selectedModel)
+          ? currentSettings.selectedModel
+          : (enabledModels.find((modelRef) => available.has(modelRef)) ??
+            DEFAULT_SETTINGS.selectedModel)
 
-  async refreshProviderModels(provider?: Provider) {
-    const { usePreferencesStore } = await import('./preferences-store')
-    const { baseProviderModels } = get()
-    const { settings } = usePreferencesStore.getState()
-    const targetProviders = provider
-      ? baseProviderModels.filter(
-          (group) => group.provider === provider && group.supportsDynamicModelFetch,
-        )
-      : baseProviderModels.filter((group) => group.supportsDynamicModelFetch)
-
-    if (targetProviders.length === 0) return
-    const targetProviderIds = targetProviders.map((group) => group.provider)
-    const expectedTokens = issueProviderRefreshTokens(targetProviderIds)
-
-    const results = await Promise.all(
-      targetProviders.map(async (group): Promise<ProviderModelRefreshResult> => {
-        const config = settings.providers[group.provider]
-        const apiKey = config?.apiKey?.trim() || undefined
-        if (group.requiresApiKey && !apiKey) {
-          return { provider: group.provider, models: null }
-        }
-
-        const baseUrl = config?.baseUrl?.trim() || undefined
-        const authMethod = config?.authMethod
-        try {
-          const fetchedModels = await api.fetchProviderModels(
-            group.provider,
-            baseUrl,
-            apiKey,
-            authMethod,
-          )
-          if (fetchedModels.length === 0) {
-            return { provider: group.provider, models: null }
-          }
-
-          return {
-            provider: group.provider,
-            models: dedupeProviderModels(group.provider, fetchedModels),
-          }
-        } catch (err) {
-          return {
-            provider: group.provider,
-            models: null,
-            error: err instanceof Error ? err.message : 'Failed to fetch models',
-          }
-        }
-      }),
-    )
-    const freshProviderIds = targetProviderIds.filter(
-      (providerId) => providerModelRefreshTokens[providerId] === expectedTokens.get(providerId),
-    )
-    if (freshProviderIds.length === 0) return
-    const freshProviderSet = new Set(freshProviderIds)
-
-    const refreshedDynamicModels = new Map<Provider, readonly ModelDisplayInfo[]>()
-    for (const result of results) {
-      if (freshProviderSet.has(result.provider) && result.models && result.models.length > 0) {
-        refreshedDynamicModels.set(result.provider, result.models)
+      if (pruned !== null || selectedModel !== currentSettings.selectedModel) {
+        await api.updateSettings({ enabledModels, selectedModel })
+        usePreferencesStore.setState({
+          settings: { ...currentSettings, enabledModels, selectedModel },
+        })
       }
-    }
-
-    const latestState = get()
-    const nextProviderModels = mergeProviderGroups({
-      baseProviderModels: latestState.baseProviderModels,
-      currentProviderModels: latestState.providerModels,
-      refreshedProviders: freshProviderIds,
-      refreshedDynamicModels,
-    })
-
-    const nextErrors: Partial<Record<Provider, string>> = { ...latestState.modelFetchErrors }
-    for (const result of results) {
-      if (!freshProviderSet.has(result.provider)) continue
-      if (result.error) {
-        nextErrors[result.provider] = result.error
-      } else {
-        delete nextErrors[result.provider]
-      }
-    }
-
-    set({ providerModels: nextProviderModels, modelFetchErrors: nextErrors })
-
-    // Prune enabledModels entries that reference models no longer in the catalog
-    const catalog = buildModelCatalogSet(nextProviderModels)
-    const currentSettings = usePreferencesStore.getState().settings
-    const pruned = pruneStaleEnabledModels(currentSettings.enabledModels, catalog)
-    if (pruned !== null) {
-      void usePreferencesStore.getState().setEnabledModels(pruned)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      logger.error('Failed to load provider models', { message })
+      set({ loadError: message })
     }
   },
 
   async updateApiKey(provider: Provider, apiKey: string) {
-    const { usePreferencesStore } = await import('./preferences-store')
     const normalizedApiKey = apiKey.trim()
-
-    const { settings } = usePreferencesStore.getState()
-    const existing = settings.providers[provider]
-    const updated: Settings = {
-      ...settings,
-      providers: {
-        ...settings.providers,
-        [provider]: {
-          ...existing,
-          apiKey: normalizedApiKey,
-          enabled: normalizedApiKey ? (existing?.enabled ?? true) : false,
-        } satisfies ProviderConfig,
-      },
-    }
-    await api.updateSettings({ providers: updated.providers })
-    usePreferencesStore.setState({ settings: updated })
-    void get().refreshProviderModels(provider)
+    await api.setProviderApiKey(provider, normalizedApiKey)
+    await useProviderStore.getState().loadProviderModels()
   },
 
-  async toggleProvider(provider: Provider, enabled: boolean) {
-    const { usePreferencesStore } = await import('./preferences-store')
-    const { settings } = usePreferencesStore.getState()
-    const existing = settings.providers[provider]
-    const updated: Settings = {
-      ...settings,
-      providers: {
-        ...settings.providers,
-        [provider]: {
-          apiKey: existing?.apiKey ?? '',
-          baseUrl: existing?.baseUrl,
-          enabled,
-          authMethod: existing?.authMethod,
-        },
-      },
-    }
-    await api.updateSettings({ providers: updated.providers })
-    usePreferencesStore.setState({ settings: updated })
-    void get().refreshProviderModels(provider)
-  },
-
-  async updateBaseUrl(provider: Provider, baseUrl: string) {
-    const { usePreferencesStore } = await import('./preferences-store')
-    const normalizedBaseUrl = baseUrl.trim()
-    if (normalizedBaseUrl && !isValidBaseUrl(normalizedBaseUrl)) return
-
-    const { settings } = usePreferencesStore.getState()
-    const existing = settings.providers[provider]
-    const updated: Settings = {
-      ...settings,
-      providers: {
-        ...settings.providers,
-        [provider]: {
-          apiKey: existing?.apiKey ?? '',
-          enabled: existing?.enabled ?? false,
-          baseUrl: normalizedBaseUrl || undefined,
-          authMethod: existing?.authMethod,
-        },
-      },
-    }
-    await api.updateSettings({ providers: updated.providers })
-    usePreferencesStore.setState({ settings: updated })
-    void get().refreshProviderModels(provider)
-  },
-
-  async testApiKey(
-    provider: Provider,
-    apiKey: string,
-    baseUrl?: string,
-    authMethod?: 'api-key' | 'subscription',
-  ) {
+  async testApiKey(provider: Provider, apiKey: string) {
     set((state) => ({
       testingProviders: { ...state.testingProviders, [provider]: true },
     }))
     try {
-      const result = await api.testApiKey(provider, apiKey, baseUrl, authMethod)
+      const { usePreferencesStore } = await import('./preferences-store')
+      const result = await api.testApiKey(
+        provider,
+        apiKey,
+        usePreferencesStore.getState().settings.projectPath,
+      )
       set((state) => ({
         testResults: { ...state.testResults, [provider]: result },
         testingProviders: { ...state.testingProviders, [provider]: false },
       }))
       return result.success
-    } catch {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      logger.error('Failed to test provider API key', { provider, message })
       set((state) => ({
         testResults: {
           ...state.testResults,

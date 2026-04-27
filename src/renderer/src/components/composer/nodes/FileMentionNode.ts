@@ -3,7 +3,6 @@ import {
   DecoratorNode,
   type DOMExportOutput,
   type EditorConfig,
-  type LexicalNode,
   type NodeKey,
   type SerializedLexicalNode,
   type Spread,
@@ -87,8 +86,4 @@ export class FileMentionNode extends DecoratorNode<ReactNode> {
 
 export function $createFileMentionNode(filePath: string, basename: string): FileMentionNode {
   return $applyNodeReplacement(new FileMentionNode(filePath, basename))
-}
-
-export function $isFileMentionNode(node: LexicalNode | null | undefined): node is FileMentionNode {
-  return node instanceof FileMentionNode
 }

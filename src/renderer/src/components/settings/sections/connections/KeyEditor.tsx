@@ -1,15 +1,12 @@
 import type { ProviderInfo } from '@shared/types/llm'
-import type { Provider } from '@shared/types/settings'
 import { Check, ExternalLink, Eye, EyeOff, Loader2, X } from 'lucide-react'
 import { useState } from 'react'
-import { usePreferences, useProviders } from '@/hooks/useSettings'
 import { cn } from '@/lib/cn'
 
 interface KeyEditorProps {
-  provider: Provider
   providerInfo: ProviderInfo
-  currentKey: string
   onSave: (key: string) => Promise<void>
+  onClear: () => Promise<void>
   onTest: (key: string) => Promise<boolean>
   isTesting: boolean
   testResult: { success: boolean; error?: string } | null
@@ -17,24 +14,27 @@ interface KeyEditorProps {
 }
 
 export function KeyEditor({
-  provider,
   providerInfo,
-  currentKey,
   onSave,
+  onClear,
   onTest,
   isTesting,
   testResult,
   onClose,
 }: KeyEditorProps) {
   const [value, setValue] = useState('')
-  const [isDirty, setIsDirty] = useState(false)
-  const [showKey, setShowKey] = useState(!currentKey)
-  const draftValue = isDirty ? value : currentKey
-  const hasChanged = draftValue !== currentKey
+  const [showKey, setShowKey] = useState(false)
+  const draftValue = value.trim()
+  const hasStoredKey = providerInfo.auth.apiKeySource === 'api-key'
 
   async function handleSave(): Promise<void> {
     await onSave(draftValue)
-    setIsDirty(false)
+    setValue('')
+    onClose()
+  }
+
+  async function handleClear(): Promise<void> {
+    await onClear()
     setValue('')
     onClose()
   }
@@ -46,7 +46,7 @@ export function KeyEditor({
   return (
     <div className="border-t border-border px-5 py-4 space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-[13px] font-medium text-text-secondary">API Key</span>
+        <span className="text-[13px] font-medium text-text-secondary">Pi Auth Key</span>
         <div className="flex items-center gap-2">
           {providerInfo.apiKeyManagementUrl && (
             <a
@@ -74,11 +74,12 @@ export function KeyEditor({
           <input
             type={showKey ? 'text' : 'password'}
             value={draftValue}
-            onChange={(e) => {
-              setValue(e.target.value)
-              setIsDirty(true)
-            }}
-            placeholder={`Enter your ${providerInfo.displayName} API key`}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder={
+              hasStoredKey
+                ? `Enter a new ${providerInfo.displayName} key to replace the stored key`
+                : `Enter your ${providerInfo.displayName} API key`
+            }
             className={cn(
               'w-full rounded-lg border border-input-card-border bg-bg px-3 py-2 pr-9 text-[13px] text-text-primary font-mono',
               'placeholder:text-text-muted placeholder:font-sans',
@@ -119,16 +120,26 @@ export function KeyEditor({
         <button
           type="button"
           onClick={handleSave}
-          disabled={!hasChanged}
+          disabled={!draftValue}
           className={cn(
             'rounded-md px-3 py-2 text-[12px] font-medium transition-colors',
-            hasChanged
+            draftValue
               ? 'bg-accent text-black hover:bg-accent/90'
               : 'bg-bg-tertiary text-text-muted cursor-not-allowed border border-input-card-border',
           )}
         >
           Save
         </button>
+
+        {hasStoredKey && (
+          <button
+            type="button"
+            onClick={handleClear}
+            className="rounded-md border border-input-card-border bg-bg-tertiary px-3 py-2 text-[12px] font-medium text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
+          >
+            Clear
+          </button>
+        )}
       </div>
 
       {testResult && (
@@ -152,45 +163,12 @@ export function KeyEditor({
         </div>
       )}
 
-      {providerInfo.supportsBaseUrl && <BaseUrlField provider={provider} />}
-    </div>
-  )
-}
-
-function BaseUrlField({ provider }: { provider: Provider }) {
-  const { settings } = usePreferences()
-  const { updateBaseUrl } = useProviders()
-  const config = settings.providers[provider]
-  const baseUrl = config?.baseUrl ?? ''
-  const [localValue, setLocalValue] = useState('')
-  const [isDirty, setIsDirty] = useState(false)
-  const draftValue = isDirty ? localValue : baseUrl
-
-  return (
-    <div className="space-y-1.5">
-      <span className="text-[12px] text-text-tertiary">Base URL</span>
-      <input
-        type="text"
-        value={draftValue}
-        onChange={(e) => {
-          setLocalValue(e.target.value)
-          setIsDirty(true)
-        }}
-        onBlur={() => {
-          if (draftValue !== (config?.baseUrl ?? '')) {
-            updateBaseUrl(provider, draftValue)
-          }
-          setIsDirty(false)
-          setLocalValue('')
-        }}
-        placeholder="http://localhost:11434"
-        className={cn(
-          'w-full rounded-lg border border-input-card-border bg-bg px-3 py-2 text-[12px] text-text-primary font-mono',
-          'placeholder:text-text-muted placeholder:font-sans',
-          'focus:border-border-light focus:outline-none',
-          'transition-colors',
-        )}
-      />
+      {providerInfo.auth.apiKeySource === 'environment-or-custom' && (
+        <p className="text-[11px] text-text-tertiary">
+          Pi currently sees this provider through environment variables, cloud credentials, or a
+          custom models.json provider.
+        </p>
+      )}
     </div>
   )
 }

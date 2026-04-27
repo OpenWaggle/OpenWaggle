@@ -1,8 +1,6 @@
 import type { MessageId } from './brand'
-import type { CompactionEventData } from './context'
-import type { DomainContinuationMessage } from './continuation'
 import type { SupportedModelId } from './llm'
-import type { QualityPreset } from './settings'
+import type { ThinkingLevel } from './settings'
 import type { ToolCallRequest, ToolCallResult } from './tools'
 import type { WaggleMessageMetadata } from './waggle'
 
@@ -51,18 +49,7 @@ export interface ReasoningPart {
   readonly text: string
 }
 
-export interface CompactionEventPart {
-  readonly type: 'compaction-event'
-  readonly data: CompactionEventData
-}
-
-export type MessagePart =
-  | TextPart
-  | AttachmentPart
-  | ToolCallPart
-  | ToolResultPart
-  | ReasoningPart
-  | CompactionEventPart
+export type MessagePart = TextPart | AttachmentPart | ToolCallPart | ToolResultPart | ReasoningPart
 
 export interface AttachmentSource {
   readonly source: {
@@ -84,20 +71,18 @@ export interface HydratedAgentSendPayload extends Omit<AgentSendPayload, 'attach
 
 export interface AgentSendPayload {
   readonly text: string
-  readonly qualityPreset: QualityPreset
+  readonly thinkingLevel: ThinkingLevel
   readonly attachments: readonly PreparedAttachment[]
-  /**
-   * Optional in-memory chat snapshot used for continuation flows
-   * (e.g. tool approvals) where the client must preserve UI tool state.
-   */
-  readonly continuationMessages?: readonly DomainContinuationMessage[]
-  /**
-   * When true, the agent should use proposePlan before executing anything.
-   * Set by the composer plan mode toggle.
-   */
-  readonly planModeRequested?: boolean
-  /** Optional user instructions for what to preserve during context compaction. */
-  readonly compactInstructions?: string
+}
+
+export interface CompactionSummaryMetadata {
+  readonly summary: string
+  readonly tokensBefore: number
+}
+
+export interface MessageMetadata {
+  readonly waggle?: WaggleMessageMetadata
+  readonly compactionSummary?: CompactionSummaryMetadata
 }
 
 export interface Message {
@@ -105,13 +90,7 @@ export interface Message {
   readonly role: MessageRole
   readonly parts: readonly MessagePart[]
   readonly model?: SupportedModelId
-  readonly metadata?: {
-    readonly orchestrationRunId?: string
-    readonly usedFallback?: boolean
-    readonly waggle?: WaggleMessageMetadata
-    /** True when this message has been summarized by compaction. */
-    readonly compacted?: boolean
-  }
+  readonly metadata?: MessageMetadata
   readonly createdAt: number
 }
 
@@ -123,24 +102,6 @@ export function isTextPart(part: MessagePart): part is TextPart {
 /** Used by waggle coordination to detect tool-only assistant turns. */
 export function isToolCallPart(part: MessagePart): part is ToolCallPart {
   return part.type === 'tool-call'
-}
-
-/** Check whether a part is a compaction event. */
-export function isCompactionEventPart(part: MessagePart): part is CompactionEventPart {
-  return part.type === 'compaction-event'
-}
-
-/** Check whether finalized parts include a tool call with the given name. */
-export function hasToolCallNamed(parts: readonly MessagePart[], name: string): boolean {
-  return parts.some((part) => isToolCallPart(part) && part.toolCall.name === name)
-}
-
-/** Extract concatenated text from message parts. */
-export function extractTextFromParts(parts: readonly MessagePart[]): string {
-  return parts
-    .filter(isTextPart)
-    .map((p) => p.text)
-    .join('\n')
 }
 
 export function getMessageText(message: Message): string {

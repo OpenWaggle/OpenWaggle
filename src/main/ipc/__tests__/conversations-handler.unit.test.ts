@@ -1,13 +1,18 @@
+import { mkdtemp, realpath, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { ConversationId } from '@shared/types/brand'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ConversationRepositoryError } from '../../errors'
-import { ConversationRepository } from '../../ports/conversation-repository'
+import { SessionProjectionRepositoryError } from '../../errors'
+import { AgentKernelService } from '../../ports/agent-kernel-service'
+import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 
 const {
   typedHandleMock,
   cleanupConversationRunMock,
+  createRuntimeSessionMock,
   listConversationsMock,
   listFullConversationsMock,
   getConversationMock,
@@ -17,11 +22,13 @@ const {
   unarchiveConversationMock,
   listArchivedConversationsMock,
   updateConversationTitleMock,
-  updateConversationProjectPathMock,
-  updateConversationPlanModeMock,
 } = vi.hoisted(() => ({
   typedHandleMock: vi.fn(),
   cleanupConversationRunMock: vi.fn(),
+  createRuntimeSessionMock: vi.fn(async (_input: { readonly projectPath: string }) => ({
+    piSessionId: 'pi-session-created',
+    piSessionFile: '/tmp/pi-session-created.jsonl',
+  })),
   listConversationsMock: vi.fn(),
   listFullConversationsMock: vi.fn(),
   getConversationMock: vi.fn(),
@@ -31,8 +38,6 @@ const {
   unarchiveConversationMock: vi.fn(),
   listArchivedConversationsMock: vi.fn(),
   updateConversationTitleMock: vi.fn(),
-  updateConversationProjectPathMock: vi.fn(),
-  updateConversationPlanModeMock: vi.fn(),
 }))
 
 vi.mock('../typed-ipc', () => ({
@@ -44,81 +49,90 @@ vi.mock('../../agent/conversation-cleanup', () => ({
 }))
 
 const TestConversationRepoLayer = Layer.succeed(
-  ConversationRepository,
-  ConversationRepository.of({
+  SessionProjectionRepository,
+  SessionProjectionRepository.of({
     get: (id) =>
       Effect.tryPromise({
         try: async () => getConversationMock(id),
-        catch: (cause) => new ConversationRepositoryError({ operation: 'get', cause }),
+        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'get', cause }),
       }),
-    save: () => Effect.void,
+    getOptional: (id) =>
+      Effect.tryPromise({
+        try: async () => getConversationMock(id),
+        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'getOptional', cause }),
+      }),
     list: (limit) =>
       Effect.tryPromise({
         try: async () => listConversationsMock(limit),
-        catch: (cause) => new ConversationRepositoryError({ operation: 'list', cause }),
+        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'list', cause }),
       }),
     listFull: (limit) =>
       Effect.tryPromise({
         try: async () => listFullConversationsMock(limit),
-        catch: (cause) => new ConversationRepositoryError({ operation: 'listFull', cause }),
+        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'listFull', cause }),
       }),
-    create: (projectPath) =>
+    create: (input) =>
       Effect.tryPromise({
-        try: async () => createConversationMock(projectPath),
-        catch: (cause) => new ConversationRepositoryError({ operation: 'create', cause }),
+        try: async () => createConversationMock(input),
+        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'create', cause }),
       }),
     delete: (id) =>
       Effect.tryPromise({
         try: async () => {
           await deleteConversationMock(id)
         },
-        catch: (cause) => new ConversationRepositoryError({ operation: 'delete', cause }),
+        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'delete', cause }),
       }),
     archive: (id) =>
       Effect.tryPromise({
         try: async () => {
           await archiveConversationMock(id)
         },
-        catch: (cause) => new ConversationRepositoryError({ operation: 'archive', cause }),
+        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'archive', cause }),
       }),
     unarchive: (id) =>
       Effect.tryPromise({
         try: async () => {
           await unarchiveConversationMock(id)
         },
-        catch: (cause) => new ConversationRepositoryError({ operation: 'unarchive', cause }),
+        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'unarchive', cause }),
       }),
     listArchived: () =>
       Effect.tryPromise({
         try: async () => listArchivedConversationsMock(),
-        catch: (cause) => new ConversationRepositoryError({ operation: 'listArchived', cause }),
+        catch: (cause) =>
+          new SessionProjectionRepositoryError({ operation: 'listArchived', cause }),
       }),
     updateTitle: (id, title) =>
       Effect.tryPromise({
         try: async () => {
           await updateConversationTitleMock(id, title)
         },
-        catch: (cause) => new ConversationRepositoryError({ operation: 'updateTitle', cause }),
+        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'updateTitle', cause }),
       }),
-    updateProjectPath: (id, projectPath) =>
-      Effect.tryPromise({
-        try: async () => {
-          await updateConversationProjectPathMock(id, projectPath)
-        },
-        catch: (cause) =>
-          new ConversationRepositoryError({ operation: 'updateProjectPath', cause }),
-      }),
-    updatePlanMode: (id, active) =>
-      Effect.tryPromise({
-        try: async () => {
-          await updateConversationPlanModeMock(id, active)
-        },
-        catch: (cause) => new ConversationRepositoryError({ operation: 'updatePlanMode', cause }),
-      }),
-    updateCompactionGuidance: () => Effect.void,
-    markMessagesAsCompacted: () => Effect.void,
   }),
 )
+
+const TestAgentKernelLayer = Layer.succeed(
+  AgentKernelService,
+  AgentKernelService.of({
+    createSession: (input) =>
+      Effect.tryPromise({
+        try: async () => createRuntimeSessionMock(input),
+        catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
+      }),
+    run: () => Effect.fail(new Error('agent run not used by conversations handler tests')),
+    runWaggleTurn: () =>
+      Effect.fail(new Error('Waggle turn not used by conversations handler tests')),
+    getContextUsage: () =>
+      Effect.fail(new Error('context usage not used by conversations handler tests')),
+    compact: () => Effect.fail(new Error('compaction not used by conversations handler tests')),
+    navigateTree: () =>
+      Effect.fail(new Error('tree navigation not used by conversations handler tests')),
+  }),
+)
+
+const TestRuntimeLayer = Layer.merge(TestConversationRepoLayer, TestAgentKernelLayer)
 
 import { registerConversationsHandlers } from '../conversations-handler'
 
@@ -132,13 +146,18 @@ function getInvokeHandler(name: string): ((...args: unknown[]) => Promise<unknow
   }
 
   return (...args: unknown[]) =>
-    Effect.runPromise(Effect.provide(handler(...args), TestConversationRepoLayer))
+    Effect.runPromise(Effect.provide(handler(...args), TestRuntimeLayer))
 }
 
 describe('registerConversationsHandlers', () => {
   beforeEach(() => {
     typedHandleMock.mockReset()
     cleanupConversationRunMock.mockReset()
+    createRuntimeSessionMock.mockReset()
+    createRuntimeSessionMock.mockResolvedValue({
+      piSessionId: 'pi-session-created',
+      piSessionFile: '/tmp/pi-session-created.jsonl',
+    })
     listConversationsMock.mockReset()
     listFullConversationsMock.mockReset()
     getConversationMock.mockReset()
@@ -148,8 +167,6 @@ describe('registerConversationsHandlers', () => {
     unarchiveConversationMock.mockReset()
     listArchivedConversationsMock.mockReset()
     updateConversationTitleMock.mockReset()
-    updateConversationProjectPathMock.mockReset()
-    updateConversationPlanModeMock.mockReset()
   })
 
   it('registers all expected IPC channels', () => {
@@ -165,11 +182,10 @@ describe('registerConversationsHandlers', () => {
     expect(channels).toContain('conversations:unarchive')
     expect(channels).toContain('conversations:list-archived')
     expect(channels).toContain('conversations:update-title')
-    expect(channels).toContain('conversations:update-project-path')
   })
 
   it('lists conversations through the repository', async () => {
-    const summaries = [{ id: ConversationId('conv-1'), title: 'Thread' }]
+    const summaries = [{ id: ConversationId('conv-1'), title: 'Session' }]
     listConversationsMock.mockResolvedValue(summaries)
 
     registerConversationsHandlers()
@@ -181,7 +197,7 @@ describe('registerConversationsHandlers', () => {
   })
 
   it('lists full conversations through the repository', async () => {
-    const conversations = [{ id: ConversationId('conv-1'), title: 'Thread', messages: [] }]
+    const conversations = [{ id: ConversationId('conv-1'), title: 'Session', messages: [] }]
     listFullConversationsMock.mockResolvedValue(conversations)
 
     registerConversationsHandlers()
@@ -193,15 +209,26 @@ describe('registerConversationsHandlers', () => {
   })
 
   it('creates a conversation with the requested project path', async () => {
-    const createdConversation = { id: ConversationId('conv-created'), title: 'New thread' }
-    createConversationMock.mockResolvedValue(createdConversation)
+    const projectPath = await mkdtemp(path.join(tmpdir(), 'openwaggle-conversation-test-'))
+    const validatedProjectPath = await realpath(projectPath)
+    try {
+      const createdConversation = { id: ConversationId('conv-created'), title: 'New session' }
+      createConversationMock.mockResolvedValue(createdConversation)
 
-    registerConversationsHandlers()
-    const handler = getInvokeHandler('conversations:create')
+      registerConversationsHandlers()
+      const handler = getInvokeHandler('conversations:create')
 
-    const result = await handler?.({}, '/tmp/project')
-    expect(result).toEqual(createdConversation)
-    expect(createConversationMock).toHaveBeenCalledWith('/tmp/project')
+      const result = await handler?.({}, projectPath)
+      expect(result).toEqual(createdConversation)
+      expect(createRuntimeSessionMock).toHaveBeenCalledWith({ projectPath: validatedProjectPath })
+      expect(createConversationMock).toHaveBeenCalledWith({
+        projectPath: validatedProjectPath,
+        piSessionId: 'pi-session-created',
+        piSessionFile: '/tmp/pi-session-created.jsonl',
+      })
+    } finally {
+      await rm(projectPath, { recursive: true, force: true })
+    }
   })
 
   it('cleans up the active run before deleting a conversation', async () => {
@@ -226,20 +253,5 @@ describe('registerConversationsHandlers', () => {
 
     expect(cleanupConversationRunMock).toHaveBeenCalledWith(ConversationId('conv-archive'))
     expect(archiveConversationMock).toHaveBeenCalledWith(ConversationId('conv-archive'))
-  })
-
-  it('updates the conversation project path through the repository', async () => {
-    const updatedConversation = { id: ConversationId('conv-update'), projectPath: '/tmp/next' }
-    getConversationMock.mockResolvedValue(updatedConversation)
-
-    registerConversationsHandlers()
-    const handler = getInvokeHandler('conversations:update-project-path')
-
-    const result = await handler?.({}, ConversationId('conv-update'), '/tmp/next')
-    expect(result).toEqual(updatedConversation)
-    expect(updateConversationProjectPathMock).toHaveBeenCalledWith(
-      ConversationId('conv-update'),
-      '/tmp/next',
-    )
   })
 })

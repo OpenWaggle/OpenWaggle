@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import rehypeSanitize from 'rehype-sanitize'
 import type { Highlighter } from 'shiki'
+import { cn } from '@/lib/cn'
 import { type RehypePlugins, safeMarkdownSanitizeSchema } from '@/lib/markdown-safety'
 import { getHighlighter } from '@/lib/shiki/highlighter'
 import { createRehypeShikiPlugin } from '@/lib/shiki/rehype-shiki-plugin'
@@ -20,6 +21,11 @@ const SANITIZE_PLUGIN_TUPLE: RehypePlugins[number] = [rehypeSanitize, safeMarkdo
  * the prefix (on paragraph completion) avoids ~5-20ms/token of wasted work.
  */
 const TAIL_STREAMING_PLUGINS: RehypePlugins = [SANITIZE_PLUGIN_TUPLE]
+const NO_HIGHLIGHTER_PLUGINS: RehypePlugins = [
+  createRehypeShikiPlugin({ highlighter: undefined, cache: shikiCache }),
+  SANITIZE_PLUGIN_TUPLE,
+]
+const HIGHLIGHTER_PLUGIN_CACHE = new WeakMap<Highlighter, RehypePlugins>()
 
 /**
  * Module-level resolved highlighter.
@@ -36,6 +42,7 @@ const highlighterReady = getHighlighter().then((hl) => {
 interface StreamingTextProps {
   text: string
   isStreaming?: boolean
+  className?: string
 }
 
 /**
@@ -53,32 +60,33 @@ function useShikiHighlighter(): Highlighter | undefined {
   return hl
 }
 
-interface PluginsCacheState {
-  hl: Highlighter | undefined
-  plugins: RehypePlugins
+function getRehypePlugins(highlighter: Highlighter | undefined): RehypePlugins {
+  if (!highlighter) {
+    return NO_HIGHLIGHTER_PLUGINS
+  }
+
+  const cachedPlugins = HIGHLIGHTER_PLUGIN_CACHE.get(highlighter)
+  if (cachedPlugins) {
+    return cachedPlugins
+  }
+
+  const plugins: RehypePlugins = [
+    createRehypeShikiPlugin({ highlighter, cache: shikiCache }),
+    SANITIZE_PLUGIN_TUPLE,
+  ]
+  HIGHLIGHTER_PLUGIN_CACHE.set(highlighter, plugins)
+  return plugins
 }
 
-export function StreamingText({ text, isStreaming = false }: StreamingTextProps) {
+export function StreamingText({ text, isStreaming = false, className }: StreamingTextProps) {
   const highlighter = useShikiHighlighter()
-  const pluginsRef = useRef<PluginsCacheState | null>(null)
 
   if (!text) return null
 
-  // Stabilize the rehypePlugins array — only recreate when highlighter changes.
-  let rehypePlugins: RehypePlugins
-  const cached = pluginsRef.current
-  if (cached !== null && cached.hl === highlighter) {
-    rehypePlugins = cached.plugins
-  } else {
-    rehypePlugins = [
-      createRehypeShikiPlugin({ highlighter, cache: shikiCache }),
-      SANITIZE_PLUGIN_TUPLE,
-    ]
-    pluginsRef.current = { hl: highlighter, plugins: rehypePlugins }
-  }
+  const rehypePlugins = getRehypePlugins(highlighter)
 
   return (
-    <div className="prose">
+    <div className={cn('prose', className)}>
       <IncrementalMarkdown
         text={text}
         isStreaming={isStreaming}

@@ -86,14 +86,6 @@ describe('ActionDialog', () => {
     expect(useComposerActionStore.getState().actionDialog).toBe('create-branch')
   })
 
-  it('renders confirm-full-access dialog with danger styling', () => {
-    useComposerActionStore.setState({ actionDialog: 'confirm-full-access' })
-    render(<ActionDialog />)
-    expect(screen.getByText('Switch to Full access')).toBeInTheDocument()
-    const switchButton = screen.getByText('Switch')
-    expect(switchButton).toBeInTheDocument()
-  })
-
   it('closes dialog on Escape key when not busy', () => {
     useComposerActionStore.setState({ actionDialog: 'create-branch' })
     render(<ActionDialog />)

@@ -1,11 +1,5 @@
-const CHARS_PER_TOKEN = 4
 const THOUSAND = 1_000
 const MILLION = 1_000_000
-
-/** Estimate token count from text (same heuristic as main process). */
-export function estimateTokens(text: string): number {
-  return Math.ceil(text.length / CHARS_PER_TOKEN)
-}
 
 /** Format a token count for compact display. */
 export function formatTokens(tokens: number): string {

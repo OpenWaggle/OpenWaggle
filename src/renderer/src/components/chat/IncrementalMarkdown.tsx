@@ -15,6 +15,8 @@ import { isReactElementWithProps } from '@/lib/react-element-guard'
 import type { ShikiCache } from '@/lib/shiki/shiki-cache'
 import { CodeBlock } from './CodeBlock'
 
+const REMARK_PLUGINS = [remarkGfm]
+
 interface IncrementalMarkdownProps {
   text: string
   isStreaming: boolean
@@ -84,7 +86,7 @@ export function IncrementalMarkdown({
       <>
         <PrefixView prefixHast={prefixHast} />
         <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
+          remarkPlugins={REMARK_PLUGINS}
           rehypePlugins={tailRehypePlugins ?? rehypePlugins}
           urlTransform={safeMarkdownUrlTransform}
           components={markdownComponents}
@@ -97,7 +99,7 @@ export function IncrementalMarkdown({
 
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
+      remarkPlugins={REMARK_PLUGINS}
       rehypePlugins={rehypePlugins}
       urlTransform={safeMarkdownUrlTransform}
       components={markdownComponents}

@@ -63,7 +63,7 @@ function ArchivedGroup({ group, onRestore, onDelete }: ArchivedGroupProps) {
                   type="button"
                   onClick={() => onRestore(conv.id)}
                   className="shrink-0 rounded-md px-2 py-1 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
-                  title="Restore thread"
+                  title="Restore session"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
                 </button>
@@ -93,7 +93,7 @@ export function ArchivedSection() {
   function handleRestore(id: ConversationId): void {
     setActionError(null)
     void unarchiveMutation.mutateAsync(id).catch((error: unknown) => {
-      setActionError(describeArchivedError(error, 'Failed to restore archived thread.'))
+      setActionError(describeArchivedError(error, 'Failed to restore archived session.'))
     })
   }
 
@@ -102,13 +102,13 @@ export function ArchivedSection() {
     void api
       .showConfirm(
         'Delete permanently?',
-        'This thread will be permanently deleted. This cannot be undone.',
+        'This session will be permanently deleted. This cannot be undone.',
       )
       .then((confirmed) => {
         if (!confirmed) return
         void deleteMutation.mutateAsync(id).catch((error: unknown) => {
           setActionError(
-            describeArchivedError(error, 'Failed to permanently delete archived thread.'),
+            describeArchivedError(error, 'Failed to permanently delete archived session.'),
           )
         })
       })
@@ -120,14 +120,14 @@ export function ArchivedSection() {
   if (archivedQuery.isPending) {
     return (
       <div className="flex items-center justify-center py-20 text-text-muted text-[13px]">
-        Loading archived threads…
+        Loading archived sessions...
       </div>
     )
   }
 
   const archived = archivedQuery.data ?? []
   const queryError = archivedQuery.error
-    ? describeArchivedError(archivedQuery.error, 'Failed to load archived threads.')
+    ? describeArchivedError(archivedQuery.error, 'Failed to load archived sessions.')
     : null
 
   if (queryError && archived.length === 0) {
@@ -147,7 +147,7 @@ export function ArchivedSection() {
     return (
       <div className="flex flex-col items-center gap-3 py-20 text-center">
         <Archive className="h-6 w-6 text-text-muted/60" />
-        <p className="text-[13px] text-text-muted">No archived threads</p>
+        <p className="text-[13px] text-text-muted">No archived sessions</p>
       </div>
     )
   }
@@ -157,9 +157,9 @@ export function ArchivedSection() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-[15px] font-medium text-text-primary">Archived threads</h2>
+        <h2 className="text-[15px] font-medium text-text-primary">Archived sessions</h2>
         <p className="mt-1 text-[13px] text-text-tertiary">
-          Threads removed from the sidebar. Restore them to bring them back.
+          Sessions removed from the sidebar. Restore them to bring them back.
         </p>
       </div>
 

@@ -5,6 +5,7 @@ import { DOUBLE_FACTOR } from '@shared/constants/math'
 import type { SkillCatalogResult, SkillDiscoveryItem } from '@shared/types/standards'
 import { isEnoent } from '@shared/utils/node-error'
 import { isPathInside } from '@shared/utils/paths'
+import { normalizeSkillId as normalizeSkillIdValue } from '@shared/utils/skill-id'
 
 interface ParsedSkillDocument {
   readonly name: string
@@ -230,13 +231,7 @@ export function normalizeRequestedSkillId(skillId: string): string {
 }
 
 export function normalizeSkillId(folderName: string): string {
-  const normalized = folderName
-    .trim()
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9-_]+/g, '-')
-    .replaceAll(/-{2,}/g, '-')
-    .replaceAll(/^-+|-+$/g, '')
-  return normalized || 'skill'
+  return normalizeSkillIdValue(folderName)
 }
 
 function parseSkillDocument(markdown: string): ParsedSkillDocument {

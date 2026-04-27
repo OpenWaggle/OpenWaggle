@@ -6,6 +6,7 @@ interface QueuedMessagesProps {
   readonly conversationId: ConversationId | null
   readonly onSteer: (messageId: string) => Promise<void>
   readonly isStreaming: boolean
+  readonly isCompacting?: boolean
 }
 
 /**
@@ -15,7 +16,12 @@ interface QueuedMessagesProps {
  * inside the composer's rounded shoulders so it reads like a docked tab rather
  * than a separate full-width panel.
  */
-export function QueuedMessages({ conversationId, onSteer, isStreaming }: QueuedMessagesProps) {
+export function QueuedMessages({
+  conversationId,
+  onSteer,
+  isStreaming,
+  isCompacting = false,
+}: QueuedMessagesProps) {
   const queue = useMessageQueueStore(selectQueue(conversationId))
   const dismiss = useMessageQueueStore((s) => s.dismiss)
 
@@ -26,7 +32,9 @@ export function QueuedMessages({ conversationId, onSteer, isStreaming }: QueuedM
       {/* Header */}
       <div className="flex items-center gap-1.5 px-1">
         <Timer className="h-3 w-3 text-text-tertiary" />
-        <span className="text-[11px] font-semibold text-text-tertiary">Queued</span>
+        <span className="text-[11px] font-semibold text-text-tertiary">
+          {isCompacting ? 'Queued until compaction finishes' : 'Queued'}
+        </span>
         <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-text-tertiary/12 text-[10px] font-semibold text-text-tertiary">
           {queue.length}
         </span>
@@ -40,7 +48,7 @@ export function QueuedMessages({ conversationId, onSteer, isStreaming }: QueuedM
               {item.payload.text || `${String(item.payload.attachments.length)} attachment(s)`}
             </div>
             <div className="flex items-center gap-1">
-              {isStreaming && (
+              {isStreaming && !isCompacting && (
                 <button
                   type="button"
                   onClick={() => void onSteer(item.id)}

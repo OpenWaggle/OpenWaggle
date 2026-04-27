@@ -1,7 +1,7 @@
 import { TIME_UNIT } from '@shared/constants/time'
 import type { ConversationId } from '@shared/types/brand'
 import type { AgentPhaseState } from '@shared/types/phase'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '@/lib/ipc'
 
 const DELAY_MS = 1000
@@ -41,11 +41,11 @@ export interface StreamingPhaseHandle extends StreamingPhaseState {
  * Tracks agent phase transitions and accumulates completed phase durations.
  *
  * Uses client-side wall-clock timestamps so that setup time, IPC overhead,
- * and gaps between continuation runs are fully captured. The server-provided
+ * and gaps between Pi runtime turns are fully captured. The server-provided
  * `startedAt` is only used to detect same-phase dedup; all duration math
  * uses `Date.now()` on the client.
  *
- * Between-run gaps (approval processing, IPC reconnect, server setup) are
+ * Between-run gaps (IPC reconnect, runtime setup, model latency) are
  * attributed to the first phase of the next run (typically "Thinking"),
  * giving an accurate picture of where time was spent from the user's
  * perspective.
@@ -66,14 +66,14 @@ export function useStreamingPhase(conversationId: ConversationId | null): Stream
   const clientPhaseStartRef = useRef(0)
   const lastPhaseEndRef = useRef(0)
 
-  const reset = useCallback(() => {
+  function reset(): void {
     pendingResetRef.current = true
     interactionStartRef.current = Date.now()
     lastPhaseEndRef.current = 0
     setCompletedSnapshot([])
     setCurrentLabel(null)
     setTotalSnapshot(0)
-  }, [])
+  }
 
   useEffect(() => {
     if (!conversationId) {
@@ -140,7 +140,7 @@ export function useStreamingPhase(conversationId: ConversationId | null): Stream
         if (interactionStartRef.current === 0) {
           interactionStartRef.current = interactionStartedAt
         }
-        // Use lastPhaseEndRef if available (continuation gap absorbed into
+        // Use lastPhaseEndRef if available (between-turn gap absorbed into
         // this phase), otherwise use interactionStartRef (first run, includes
         // IPC + server setup time from when user hit send).
         clientPhaseStartRef.current =

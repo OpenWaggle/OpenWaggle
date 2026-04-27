@@ -12,33 +12,31 @@ The application follows a layered architecture with clear separation of concerns
 
 ### Data Layer
 
-The persistence layer uses SQLite for structured storage. Conversations, messages, and message parts are stored in normalized tables with foreign key constraints. Each conversation has a unique identifier, a title, timestamps, and an optional project path. Messages belong to conversations and carry role information (user or assistant), optional model metadata, and ordered parts.
+The persistence layer uses SQLite for structured storage. Sessions, nodes, branches, branch state, and UI state are stored in normalized tables with foreign key constraints. Each session has a unique OpenWaggle identifier, Pi session metadata, a title, timestamps, and an optional project path. Nodes belong to sessions and carry Pi entry metadata, role information, ordered content, and branch hints.
 
-Message parts use a discriminated union pattern with a part type field and a JSON content column. Supported part types include text, reasoning, thinking, attachment, tool-call, and tool-result. This design allows flexible content representation while maintaining query efficiency through the relational model.
+Session node content uses discriminated message-part shapes with JSON content columns. Supported UI parts include text, thinking, attachments, tool calls, tool results, and compaction summaries. This design allows flexible transcript projection while maintaining query efficiency through the relational model.
 
 ### Agent Loop
 
 The agent loop orchestrates multi-turn conversations with language models. It receives user messages, constructs prompts with system instructions and conversation history, and streams responses from the selected provider. During streaming, the loop emits typed events that the renderer consumes to update the UI in real time.
 
-Tool execution is integrated into the streaming pipeline. When the model requests a tool call, the loop validates the input schema, checks approval requirements, executes the tool, and feeds the result back into the conversation. This creates a recursive pattern where a single user message can trigger multiple rounds of model inference and tool execution.
+Tool execution is integrated into Pi's native streaming pipeline. When Pi emits a tool-call event, the main process projects the OpenWaggle-owned transport event and the renderer updates the transcript incrementally. This creates a recursive pattern where a single user message can trigger multiple rounds of model inference and Pi-native tool execution.
 
-### Provider Registry
+### Provider Catalog
 
-The provider registry is a singleton that manages all LLM provider integrations. Each provider implements a common interface that includes model listing, adapter creation, and capability declaration. At startup, all providers are registered and their model lists are made available to the renderer through an IPC channel.
+Provider, model, and auth metadata come from Pi runtime services through adapter ports. OpenWaggle owns the settings and selection UI. At startup and project changes, Pi-derived model lists are made available to the renderer through typed IPC.
 
-Adapter creation is deferred until a conversation actually needs to communicate with a specific model. This lazy initialization pattern reduces startup time and memory usage for providers that are configured but not actively used.
+Runtime session creation is deferred until a conversation actually needs to communicate with a specific model. This lazy initialization pattern reduces startup time and keeps provider-specific behavior behind the Pi adapter boundary.
 
-### Tool System
+### Pi Tool Surface
 
-Tools are defined using a wrapper around the TanStack AI tool definition API. Each tool declares an Effect Schema for input validation, which serves double duty as both runtime validation and JSON Schema generation for the model. Tool execution receives a context object that provides access to the project path, conversation state, and approval mechanisms.
-
-The approval system implements a trust chain where tools that modify the file system or execute commands require explicit user approval. Approvals can be persisted as trust rules scoped to a project path and tool name, allowing frequently used operations to be auto-approved in subsequent conversations.
+OpenWaggle renders Pi-emitted native tool events such as file reads, writes, edits, shell commands, and search/listing tools. Tool availability and execution behavior come from Pi runtime services, while OpenWaggle owns the transcript projection and UI presentation.
 
 ### Renderer Architecture
 
 The renderer uses React 19 with Zustand for state management and Tailwind CSS for styling. State is divided into focused stores: the chat store manages conversations and streaming state, while the settings store handles user preferences and API configuration.
 
-The chat transcript uses react-virtuoso for virtualized rendering of potentially long conversations. Virtual rows are computed from messages and decorated with metadata like streaming status, turn dividers, and waggle agent information. This computation is memoized to avoid unnecessary recalculation during streaming updates.
+The chat transcript renders session workspaces as ordered rows derived from the active transcript path and live streaming tail. Rows are decorated with metadata like streaming status, turn dividers, compaction summaries, and Waggle agent information. Focused Zustand selectors keep streaming updates scoped to the transcript surface.
 
 ### IPC Type System
 
@@ -48,7 +46,7 @@ This architecture ensures that adding a new IPC channel requires updating a sing
 
 ## Performance Considerations
 
-The React Compiler handles automatic memoization, eliminating the need for manual React.memo, useMemo, or useCallback calls. Streaming text rendering uses requestAnimationFrame batching to coalesce rapid token updates into a single DOM write per frame. Zustand selectors are kept granular to minimize re-render scope during high-frequency streaming updates.
+The React Compiler handles automatic memoization, eliminating the need for manual React.memo, useMemo, or useCallback calls. Streaming text renders through the same markdown path as completed assistant text. Zustand selectors are kept granular to minimize re-render scope during high-frequency streaming updates.
 
 This comprehensive architecture supports a responsive, multi-model coding agent experience while maintaining type safety and clear process boundaries throughout the entire application stack.`
 

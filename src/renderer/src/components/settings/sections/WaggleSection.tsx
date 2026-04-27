@@ -1,11 +1,6 @@
 import { generateDisplayName, type ProviderInfo } from '@shared/types/llm'
 import type { Settings } from '@shared/types/settings'
-import type {
-  WaggleAgentSlot,
-  WaggleCollaborationMode,
-  WaggleStopCondition,
-  WaggleTeamPreset,
-} from '@shared/types/waggle'
+import type { WaggleAgentSlot, WaggleStopCondition, WaggleTeamPreset } from '@shared/types/waggle'
 import { Plus, Save, Trash2 } from 'lucide-react'
 import { usePreferences, useProviders } from '@/hooks/useSettings'
 import { AGENT_BG, AGENT_BORDER } from '@/lib/agent-colors'
@@ -78,10 +73,8 @@ export function WaggleSection() {
       />
 
       <CollaborationSettingsCard
-        mode={formState.mode}
         stopCondition={formState.stopCondition}
         maxTurns={formState.maxTurns}
-        onModeChange={(mode) => dispatchForm({ type: 'set-mode', mode })}
         onStopConditionChange={(stopCondition) =>
           dispatchForm({ type: 'set-stop-condition', stopCondition })
         }
@@ -185,7 +178,7 @@ function TeamPresetCard({
               {preset.name}
             </span>
             <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium bg-bg-tertiary text-text-muted">
-              {preset.config.mode}
+              Sequential
             </span>
             {!preset.isBuiltIn && (
               <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium bg-accent/10 text-accent">
@@ -235,30 +228,21 @@ function TeamPresetCard({
 }
 
 interface CollaborationSettingsCardProps {
-  mode: WaggleCollaborationMode
   stopCondition: WaggleStopCondition
   maxTurns: number
-  onModeChange: (mode: WaggleCollaborationMode) => void
   onStopConditionChange: (stopCondition: WaggleStopCondition) => void
   onMaxTurnsChange: (maxTurns: number) => void
 }
 
 function CollaborationSettingsCard({
-  mode,
   stopCondition,
   maxTurns,
-  onModeChange,
   onStopConditionChange,
   onMaxTurnsChange,
 }: CollaborationSettingsCardProps) {
   return (
     <div className="rounded-lg border border-border bg-[#111418] p-5 space-y-4">
       <h3 className="text-sm font-medium text-text-secondary">Collaboration</h3>
-
-      <div className="flex items-center justify-between h-[40px]">
-        <span className="text-[13px] text-text-primary">Mode</span>
-        <ModeToggle mode={mode} onModeChange={onModeChange} />
-      </div>
 
       <div className="flex items-center justify-between h-[40px]">
         <span className="text-[13px] text-text-primary">Stop when</span>
@@ -272,42 +256,6 @@ function CollaborationSettingsCard({
         <span className="text-[13px] text-text-primary">Max turns</span>
         <MaxTurnsSlider maxTurns={maxTurns} onMaxTurnsChange={onMaxTurnsChange} />
       </div>
-    </div>
-  )
-}
-
-interface ModeToggleProps {
-  mode: WaggleCollaborationMode
-  onModeChange: (mode: WaggleCollaborationMode) => void
-}
-
-function ModeToggle({ mode, onModeChange }: ModeToggleProps) {
-  return (
-    <div className="flex rounded-md border border-border overflow-hidden">
-      <button
-        type="button"
-        onClick={() => onModeChange('sequential')}
-        className={cn(
-          'px-3 py-1.5 text-[12px] font-medium transition-colors',
-          mode === 'sequential'
-            ? 'bg-accent/15 text-accent'
-            : 'bg-bg text-text-tertiary hover:text-text-secondary',
-        )}
-      >
-        Sequential
-      </button>
-      <button
-        type="button"
-        onClick={() => onModeChange('parallel')}
-        className={cn(
-          'px-3 py-1.5 text-[12px] font-medium transition-colors border-l border-border',
-          mode === 'parallel'
-            ? 'bg-accent/15 text-accent'
-            : 'bg-bg text-text-tertiary hover:text-text-secondary',
-        )}
-      >
-        Parallel
-      </button>
     </div>
   )
 }

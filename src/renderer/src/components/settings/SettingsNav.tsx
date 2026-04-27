@@ -1,3 +1,4 @@
+import { useNavigate } from '@tanstack/react-router'
 import {
   Archive,
   Blocks,
@@ -11,7 +12,6 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import type { SettingsTab } from '@/stores/ui-store'
-import { useUIStore } from '@/stores/ui-store'
 
 interface NavItem {
   id: SettingsTab
@@ -28,13 +28,25 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'git', label: 'Git', icon: GitBranch, enabled: false },
   { id: 'environments', label: 'Environments', icon: Blocks, enabled: false },
   { id: 'worktrees', label: 'Worktrees', icon: Folders, enabled: false },
-  { id: 'archived', label: 'Archived threads', icon: Archive, enabled: true },
+  { id: 'archived', label: 'Archived sessions', icon: Archive, enabled: true },
   { id: 'connections', label: 'Connections', icon: Cable, enabled: true },
 ]
 
-export function SettingsNav() {
-  const activeTab = useUIStore((s) => s.activeSettingsTab)
-  const setActiveSettingsTab = useUIStore((s) => s.setActiveSettingsTab)
+interface SettingsNavProps {
+  readonly activeTab: SettingsTab
+}
+
+export function SettingsNav({ activeTab }: SettingsNavProps) {
+  const navigate = useNavigate()
+
+  function navigateToTab(tab: SettingsTab): void {
+    if (tab === 'general') {
+      void navigate({ to: '/settings' })
+      return
+    }
+
+    void navigate({ to: '/settings/$tab', params: { tab } })
+  }
 
   return (
     <nav className="flex w-[200px] shrink-0 flex-col gap-0.5 border-r border-border py-2 px-2">
@@ -45,7 +57,7 @@ export function SettingsNav() {
             key={item.id}
             type="button"
             disabled={!item.enabled}
-            onClick={() => setActiveSettingsTab(item.id)}
+            onClick={() => navigateToTab(item.id)}
             className={cn(
               'flex items-center gap-2.5 rounded-md px-3 py-2 text-left text-[13px] transition-colors',
               isActive

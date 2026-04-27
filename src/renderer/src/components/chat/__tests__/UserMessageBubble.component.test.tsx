@@ -1,4 +1,4 @@
-import type { UIMessage } from '@tanstack/ai-react'
+import type { UIMessage } from '@shared/types/chat-ui'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -51,14 +51,14 @@ describe('UserMessageBubble', () => {
       {
         type: 'tool-call',
         id: 'tc-1',
-        name: 'readFile',
+        name: 'read',
         arguments: '{}',
         state: 'output-available',
       },
     ])
     render(<UserMessageBubble message={message} />)
     expect(screen.getByText('Visible')).toBeInTheDocument()
-    expect(screen.queryByText('readFile')).not.toBeInTheDocument()
+    expect(screen.queryByText('read')).not.toBeInTheDocument()
   })
 
   it('renders bold text via markdown', () => {
@@ -119,6 +119,16 @@ describe('UserMessageBubble', () => {
     const copyButton = screen.getByTitle('Copy message')
     fireEvent.click(copyButton)
     expect(mockCopyToClipboard).toHaveBeenCalledWith('**bold** and `code`')
+  })
+
+  it('calls the branch callback with the message id', () => {
+    const message = createUserMessage('u-branch', [{ type: 'text', content: 'branch here' }])
+    const onBranchFromMessage = vi.fn()
+
+    render(<UserMessageBubble message={message} onBranchFromMessage={onBranchFromMessage} />)
+    fireEvent.click(screen.getByTitle('Branch from message'))
+
+    expect(onBranchFromMessage).toHaveBeenCalledWith('u-branch')
   })
 
   it('renders the prose-user CSS class for compact styling', () => {

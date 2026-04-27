@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { ToastOverlay } from '@/components/app/ToastOverlay'
 import { FeedbackModal } from '@/components/feedback/FeedbackModal'
 import { Header } from '@/components/layout/Header'
@@ -6,10 +7,13 @@ import { useAutoUpdater } from '@/hooks/useAutoUpdater'
 import { useBackgroundRunMonitor } from '@/hooks/useBackgroundRunMonitor'
 import { useUIStore } from '@/stores/ui-store'
 import { useWorkspaceLifecycle } from './useWorkspaceLifecycle'
-import { WorkspaceMainContent } from './WorkspaceMainContent'
 import { WorkspaceTerminal } from './WorkspaceTerminal'
 
-export function WorkspaceShell() {
+interface WorkspaceShellProps {
+  readonly children: ReactNode
+}
+
+export function WorkspaceShell({ children }: WorkspaceShellProps) {
   useWorkspaceLifecycle()
   useBackgroundRunMonitor()
   useAutoUpdater()
@@ -19,9 +23,9 @@ export function WorkspaceShell() {
     <div className="flex h-full w-full overflow-hidden bg-bg">
       <Sidebar />
 
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Header />
-        <WorkspaceMainContent />
+        {children}
         <WorkspaceTerminal />
       </div>
 

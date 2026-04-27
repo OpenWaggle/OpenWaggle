@@ -1,4 +1,4 @@
-import type { OAuthFlowStatus, SubscriptionAccountInfo } from '@shared/types/auth'
+import type { OAuthAccountInfo, OAuthFlowStatus } from '@shared/types/auth'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // ─── IPC Mock ───────────────────────────────────────────────
@@ -13,12 +13,13 @@ const { apiMock, oauthListeners } = vi.hoisted(() => {
       showConfirm: vi.fn().mockResolvedValue(true),
       startOAuth: vi.fn().mockResolvedValue(undefined),
       submitAuthCode: vi.fn().mockResolvedValue(undefined),
+      cancelOAuth: vi.fn().mockResolvedValue(undefined),
       disconnectAuth: vi.fn().mockResolvedValue(undefined),
       getAuthAccountInfo: vi.fn().mockResolvedValue({
         provider: 'openrouter',
         connected: true,
         label: 'user@example.com',
-      } satisfies SubscriptionAccountInfo),
+      } satisfies OAuthAccountInfo),
       onOAuthStatus: vi.fn((callback: (status: OAuthFlowStatus) => void) => {
         listeners.add(callback)
         return () => listeners.delete(callback)
@@ -36,20 +37,20 @@ vi.mock('@/lib/ipc', () => ({
 // We mock it to prevent the real store from being created.
 // The loadSettings mock must be a stable reference so we can assert it was called.
 
-const { prefsMock, loadSettingsMock } = vi.hoisted(() => {
-  const loadSettingsFn = vi.fn().mockResolvedValue(undefined)
+const { providerStoreMock, loadProviderModelsMock } = vi.hoisted(() => {
+  const loadProviderModelsFn = vi.fn().mockResolvedValue(undefined)
   return {
-    loadSettingsMock: loadSettingsFn,
-    prefsMock: {
+    loadProviderModelsMock: loadProviderModelsFn,
+    providerStoreMock: {
       getState: vi.fn(() => ({
-        loadSettings: loadSettingsFn,
+        loadProviderModels: loadProviderModelsFn,
       })),
     },
   }
 })
 
-vi.mock('../preferences-store', () => ({
-  usePreferencesStore: prefsMock,
+vi.mock('../provider-store', () => ({
+  useProviderStore: providerStoreMock,
 }))
 
 import { useAuthStore } from '../auth-store'
@@ -120,26 +121,18 @@ describe('auth-store', () => {
       })
     })
 
-    it('reloads settings via preferences store after success', async () => {
+    it('reloads Pi provider models after success', async () => {
       await useAuthStore.getState().startOAuth('openrouter')
 
-      expect(prefsMock.getState).toHaveBeenCalled()
-      expect(loadSettingsMock).toHaveBeenCalled()
+      expect(providerStoreMock.getState).toHaveBeenCalled()
+      expect(loadProviderModelsMock).toHaveBeenCalled()
     })
 
-    it('shows confirmation dialog for anthropic provider', async () => {
-      await useAuthStore.getState().startOAuth('anthropic')
-      expect(apiMock.showConfirm).toHaveBeenCalledWith(
-        expect.stringContaining('Claude subscription'),
-        expect.any(String),
-      )
-    })
-
-    it('aborts anthropic OAuth when user declines confirmation', async () => {
-      apiMock.showConfirm.mockResolvedValueOnce(false)
+    it('starts anthropic OAuth directly through the Pi-backed auth flow', async () => {
       await useAuthStore.getState().startOAuth('anthropic')
 
-      expect(apiMock.startOAuth).not.toHaveBeenCalled()
+      expect(apiMock.showConfirm).not.toHaveBeenCalled()
+      expect(apiMock.startOAuth).toHaveBeenCalledWith('anthropic')
     })
 
     it('does not show confirmation dialog for non-anthropic providers', async () => {
@@ -174,7 +167,7 @@ describe('auth-store', () => {
       const promise = useAuthStore.getState().startOAuth('openai')
 
       // Emit a status event WITHOUT a provider field (handled by the local listener)
-      const statusEvent = { type: 'awaiting-code' } as OAuthFlowStatus
+      const statusEvent: OAuthFlowStatus = { type: 'awaiting-code' }
       for (const listener of oauthListeners) {
         listener(statusEvent)
       }
@@ -223,12 +216,12 @@ describe('auth-store', () => {
   })
 
   describe('disconnectAuth', () => {
-    it('calls api.disconnectAuth and reloads settings', async () => {
+    it('calls api.disconnectAuth and reloads Pi provider models', async () => {
       await useAuthStore.getState().disconnectAuth('openrouter')
 
       expect(apiMock.disconnectAuth).toHaveBeenCalledWith('openrouter')
-      expect(prefsMock.getState).toHaveBeenCalled()
-      expect(loadSettingsMock).toHaveBeenCalled()
+      expect(providerStoreMock.getState).toHaveBeenCalled()
+      expect(loadProviderModelsMock).toHaveBeenCalled()
     })
 
     it('loads account info after disconnecting', async () => {
@@ -247,9 +240,30 @@ describe('auth-store', () => {
     })
   })
 
+  describe('cancelOAuth', () => {
+    it('calls api.cancelOAuth and reloads Pi provider models', async () => {
+      await useAuthStore.getState().cancelOAuth('openrouter')
+
+      expect(apiMock.cancelOAuth).toHaveBeenCalledWith('openrouter')
+      expect(providerStoreMock.getState).toHaveBeenCalled()
+      expect(loadProviderModelsMock).toHaveBeenCalled()
+    })
+
+    it('loads account info and sets oauth status to idle after canceling', async () => {
+      useAuthStore.setState({
+        oauthStatuses: { openrouter: { type: 'awaiting-code', provider: 'openrouter' } },
+      })
+
+      await useAuthStore.getState().cancelOAuth('openrouter')
+
+      expect(apiMock.getAuthAccountInfo).toHaveBeenCalledWith('openrouter')
+      expect(useAuthStore.getState().getOAuthStatus('openrouter')).toEqual({ type: 'idle' })
+    })
+  })
+
   describe('loadAuthAccount', () => {
     it('stores account info from the IPC response', async () => {
-      const accountInfo: SubscriptionAccountInfo = {
+      const accountInfo: OAuthAccountInfo = {
         provider: 'openai',
         connected: true,
         label: 'test@openai.com',
@@ -268,14 +282,14 @@ describe('auth-store', () => {
     })
 
     it('preserves existing account info for other providers', async () => {
-      const existingInfo: SubscriptionAccountInfo = {
+      const existingInfo: OAuthAccountInfo = {
         provider: 'openrouter',
         connected: true,
         label: 'existing@or.com',
       }
       useAuthStore.setState({ authAccounts: { openrouter: existingInfo } })
 
-      const newInfo: SubscriptionAccountInfo = {
+      const newInfo: OAuthAccountInfo = {
         provider: 'openai',
         connected: false,
         label: 'new@openai.com',
@@ -289,47 +303,58 @@ describe('auth-store', () => {
   })
 
   describe('loadAllAuthAccounts', () => {
-    it('loads account info for all subscription providers', async () => {
-      await useAuthStore.getState().loadAllAuthAccounts()
+    it('loads account info for all OAuth providers', async () => {
+      await useAuthStore
+        .getState()
+        .loadAllAuthAccounts(['openai-codex', 'github-copilot', 'google-gemini-cli'])
 
-      // SUBSCRIPTION_PROVIDERS = ['openrouter', 'openai', 'anthropic']
       expect(apiMock.getAuthAccountInfo).toHaveBeenCalledTimes(3)
-      expect(apiMock.getAuthAccountInfo).toHaveBeenCalledWith('openrouter')
-      expect(apiMock.getAuthAccountInfo).toHaveBeenCalledWith('openai')
-      expect(apiMock.getAuthAccountInfo).toHaveBeenCalledWith('anthropic')
+      expect(apiMock.getAuthAccountInfo).toHaveBeenCalledWith('openai-codex')
+      expect(apiMock.getAuthAccountInfo).toHaveBeenCalledWith('github-copilot')
+      expect(apiMock.getAuthAccountInfo).toHaveBeenCalledWith('google-gemini-cli')
     })
 
     it('stores all fetched account info', async () => {
-      const makeInfo = (provider: string): SubscriptionAccountInfo => ({
-        provider: provider as never,
+      const makeInfo = (provider: string): OAuthAccountInfo => ({
+        provider,
         connected: true,
         label: `${provider}@test.com`,
       })
 
       apiMock.getAuthAccountInfo
-        .mockResolvedValueOnce(makeInfo('openrouter'))
-        .mockResolvedValueOnce(makeInfo('openai'))
-        .mockResolvedValueOnce(makeInfo('anthropic'))
+        .mockResolvedValueOnce(makeInfo('openai-codex'))
+        .mockResolvedValueOnce(makeInfo('github-copilot'))
+        .mockResolvedValueOnce(makeInfo('google-gemini-cli'))
 
-      await useAuthStore.getState().loadAllAuthAccounts()
+      await useAuthStore
+        .getState()
+        .loadAllAuthAccounts(['openai-codex', 'github-copilot', 'google-gemini-cli'])
 
       const accounts = useAuthStore.getState().authAccounts
-      expect(accounts.openrouter?.label).toBe('openrouter@test.com')
-      expect(accounts.openai?.label).toBe('openai@test.com')
-      expect(accounts.anthropic?.label).toBe('anthropic@test.com')
+      expect(accounts['openai-codex']?.label).toBe('openai-codex@test.com')
+      expect(accounts['github-copilot']?.label).toBe('github-copilot@test.com')
+      expect(accounts['google-gemini-cli']?.label).toBe('google-gemini-cli@test.com')
     })
 
     it('succeeds even when some providers fail', async () => {
       apiMock.getAuthAccountInfo
-        .mockResolvedValueOnce({ provider: 'openrouter', connected: true, label: 'ok' })
-        .mockRejectedValueOnce(new Error('openai failed'))
-        .mockResolvedValueOnce({ provider: 'anthropic', connected: false, label: 'disconnected' })
+        .mockResolvedValueOnce({ provider: 'openai-codex', connected: true, label: 'ok' })
+        .mockRejectedValueOnce(new Error('github-copilot failed'))
+        .mockResolvedValueOnce({
+          provider: 'google-gemini-cli',
+          connected: false,
+          label: 'disconnected',
+        })
 
       // Should not throw
-      await expect(useAuthStore.getState().loadAllAuthAccounts()).resolves.toBeUndefined()
+      await expect(
+        useAuthStore
+          .getState()
+          .loadAllAuthAccounts(['openai-codex', 'github-copilot', 'google-gemini-cli']),
+      ).resolves.toBeUndefined()
 
       // The successful ones should still be stored
-      expect(useAuthStore.getState().authAccounts.openrouter?.label).toBe('ok')
+      expect(useAuthStore.getState().authAccounts['openai-codex']?.label).toBe('ok')
     })
   })
 })

@@ -2,15 +2,12 @@ import { registerAgentHandlers } from './agent-handler'
 import { registerAttachmentHandlers } from './attachments-handler'
 import { registerAuthHandlers } from './auth-handler'
 import { registerComposerHandlers } from './composer-handler'
-import { registerContextHandlers } from './context-handler'
 import { registerConversationsHandlers } from './conversations-handler'
-import { registerDevtoolsHandlers } from './devtools-handler'
 import { registerFeedbackHandlers } from './feedback-handler'
 import { registerGitHandlers } from './git'
-import { registerMcpHandlers } from './mcp-handler'
-import { registerOrchestrationHandlers } from './orchestration-handler'
 import { registerProjectHandlers } from './project-handler'
 import { registerProvidersHandlers } from './providers-handler'
+import { registerSessionsHandlers } from './sessions-handler'
 import { registerSettingsHandlers } from './settings-handler'
 import { registerShellHandlers } from './shell-handler'
 import { registerSkillsHandlers } from './skills-handler'
@@ -27,20 +24,17 @@ export function registerAllIpcHandlers(): void {
   registerAgentHandlers()
   registerSettingsHandlers()
   registerConversationsHandlers()
-  registerContextHandlers()
+  registerSessionsHandlers()
   registerAttachmentHandlers()
-  registerDevtoolsHandlers()
   registerGitHandlers()
   registerProjectHandlers()
   registerProvidersHandlers()
-  registerOrchestrationHandlers()
   registerTerminalHandlers()
   registerVoiceHandlers()
   registerSkillsHandlers()
   registerShellHandlers()
   registerWaggleHandlers()
   registerTeamsHandlers()
-  registerMcpHandlers()
   registerFeedbackHandlers()
   registerUpdaterHandlers()
   registerComposerHandlers()

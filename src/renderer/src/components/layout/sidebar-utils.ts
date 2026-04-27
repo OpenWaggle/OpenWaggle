@@ -1,8 +1,5 @@
 import type { ConversationSummary } from '@shared/types/conversation'
-import { choose } from '@shared/utils/decision'
 import { projectName } from '@/lib/format'
-
-export type SortMode = 'recent' | 'oldest' | 'name' | 'threads'
 
 export interface ProjectGroup {
   path: string | null
@@ -35,35 +32,4 @@ export function groupConversationsByProject(
   }
 
   return result
-}
-
-export function sortConversationGroups(groups: ProjectGroup[], mode: SortMode): ProjectGroup[] {
-  const sorted = [...groups]
-  choose(mode)
-    .case('recent', () => {
-      const maxUpdated = new Map<ProjectGroup, number>()
-      for (const g of sorted) {
-        let max = -Infinity
-        for (const c of g.conversations) if (c.updatedAt > max) max = c.updatedAt
-        maxUpdated.set(g, max)
-      }
-      sorted.sort((a, b) => (maxUpdated.get(b) ?? 0) - (maxUpdated.get(a) ?? 0))
-    })
-    .case('oldest', () => {
-      const minCreated = new Map<ProjectGroup, number>()
-      for (const g of sorted) {
-        let min = Infinity
-        for (const c of g.conversations) if (c.createdAt < min) min = c.createdAt
-        minCreated.set(g, min)
-      }
-      sorted.sort((a, b) => (minCreated.get(a) ?? 0) - (minCreated.get(b) ?? 0))
-    })
-    .case('name', () => {
-      sorted.sort((a, b) => a.displayName.localeCompare(b.displayName))
-    })
-    .case('threads', () => {
-      sorted.sort((a, b) => b.conversations.length - a.conversations.length)
-    })
-    .assertComplete()
-  return sorted
 }

@@ -11,15 +11,12 @@ This document defines the hexagonal architecture of the OpenWaggle main process.
 Pure business logic. Zero infrastructure imports. Zero vendor imports. Zero side effects.
 
 **Current modules:**
-- `domain/quality/quality-resolver.ts` — Quality preset resolution
-- `domain/trust/trust-pattern-matcher.ts` — Tool trust pattern matching
 - `shared/domain/error-classifier.ts` — Error classification rules
 - `shared/domain/skill-references.ts` — Skill reference parsing
-- `shared/domain/trust-pattern-derivation.ts` — Trust pattern generation
 
 **Rules:**
-- MUST NOT import from `@tanstack/ai`, `electron`, `node:fs`, `node:child_process`, `@effect/sql`
-- MUST NOT import from `src/main/store/`, `src/main/providers/`, `src/main/mcp/`
+- MUST NOT import from Pi SDK, `electron`, `node:fs`, `node:child_process`, `@effect/sql`
+- MUST NOT import from `src/main/store/`
 - MAY import from `effect` (it is the language, not infrastructure)
 - MAY import from `src/shared/types/`, `src/shared/constants/`
 
@@ -28,33 +25,35 @@ Pure business logic. Zero infrastructure imports. Zero vendor imports. Zero side
 Effect `Context.Tag` service definitions. Interfaces that the domain and application layers depend on. Implemented by adapters.
 
 **Current ports:**
-- `ChatService` — LLM streaming
-- `ConversationRepository` — Conversation persistence
-- `ProviderService` — Provider resolution + adapter creation
+- `AgentKernelService` — Pi-backed agent runtime
+- `SessionRepository` — Session tree persistence
+- `SessionProjectionRepository` — Conversation-shaped UI read model over session tables
+- `ProviderService` — OpenWaggle-owned provider/model summaries backed by Pi metadata
 - `StandardsService` — Agent/skill loading
 - `TeamsRepository` — Team preset persistence
 
 **Rules:**
-- MUST NOT import from `@tanstack/ai` or any vendor SDK
+- MUST NOT import from Pi SDK or any vendor SDK
 - MUST NOT import from `src/main/store/` or any infrastructure
 - Service methods MUST return `Effect.Effect<Result, TaggedError>`
 - Every port MUST have at least one `yield*` consumer in production code
+
+Known current gap: `StandardsService` is registered in the runtime but is not consumed by the standard Pi run path. Fixing that should either wire standards into Pi-native resources or remove the unused port.
 
 ### Adapters (`src/main/adapters/`)
 
 `Layer` implementations that satisfy port contracts. The ONLY place vendor SDKs are imported.
 
 **Current adapters:**
-- `tanstack-chat-adapter.ts` — Implements ChatService via TanStack AI `chat()`
-- `stream-chunk-mapper.ts` — Bidirectional AgentStreamChunk ↔ StreamChunk
-- `continuation-mapper.ts` — DomainContinuationMessage ↔ vendor ModelMessage
-- `sqlite-conversation-repository.ts` — Implements ConversationRepository via SQLite store
+- `pi/pi-agent-kernel-adapter.ts` — Implements AgentKernelService via Pi SDK
+- `sqlite-session-projection-repository.ts` — Implements SessionProjectionRepository via SQLite store
+- `sqlite-session-repository.ts` — Implements SessionRepository via SQLite store
 - `sqlite-teams-repository.ts` — Implements TeamsRepository via SQLite store
 - `standards-adapter.ts` — Implements StandardsService via filesystem
-- `provider-service-live.ts` — Implements ProviderService via provider registry
+- `pi/pi-provider-service.ts` — Implements ProviderService via Pi provider/model metadata
 
 **Rules:**
-- MAY import from `@tanstack/ai` and vendor SDKs (this is their job)
+- MAY import vendor SDKs only in the adapter slice that owns that vendor
 - MUST implement a port from `src/main/ports/`
 - MUST NOT be imported by domain or agent core
 - MUST use runtime type guards (not casts) at type boundaries
@@ -64,13 +63,13 @@ Effect `Context.Tag` service definitions. Interfaces that the domain and applica
 Effect.gen programs that orchestrate business logic using ports via `yield*`. Called by IPC handlers.
 
 **Current services:**
-- `agent-run-service.ts` — Agent message execution orchestration
-- `waggle-run-service.ts` — Multi-agent waggle execution orchestration
+- `agent-run-service.ts` — Agent message execution coordination
+- `waggle-run-service.ts` — Multi-agent waggle execution coordination
 - `provider-test-service.ts` — Provider credential testing
 
 **Rules:**
-- MUST use `yield*` to consume ports (ConversationRepository, ProviderService, etc.)
-- MUST NOT import from `@tanstack/ai` or vendor SDKs
+- MUST use `yield*` to consume ports (SessionProjectionRepository, ProviderService, etc.)
+- MUST NOT import from Pi SDK or vendor SDKs
 - MUST NOT import from `src/main/store/` directly
 - MUST NOT contain IPC/transport concerns (event emission, stream buffers, abort controllers)
 
@@ -81,18 +80,18 @@ IPC handlers. Thin dispatch + transport coordination (abort controllers, stream 
 **Rules:**
 - MUST delegate business logic to application services
 - MUST NOT import from `src/main/store/` directly — use ports via `yield*`
-- MUST NOT import from `@tanstack/ai` or vendor SDKs
+- MUST NOT import from Pi SDK or vendor SDKs
 - MAY import from `src/main/utils/stream-bridge.ts` (IPC emission is transport)
 - Handler business logic should be minimal — most logic belongs in application services
 
-### Infrastructure (`src/main/store/`, `src/main/providers/`, `src/main/mcp/`, `src/main/orchestration/`, `src/main/tools/`)
+### Infrastructure (`src/main/store/`)
 
-Persistence, vendor SDK wrappers, protocol bridges, tool factories. These modules implement the actual I/O.
+Persistence modules that implement the actual I/O behind ports/adapters. Provider/model/auth runtime metadata comes from Pi through `src/main/adapters/pi/`.
 
 **Rules:**
 - Encapsulated behind adapter Layer implementations
 - Not imported directly by IPC handlers, agent core, or application services
-- The `store/` module is accessed only through ConversationRepository, SettingsService, TeamsRepository adapters
+- The `store/` module is accessed only through SessionProjectionRepository, SettingsService, TeamsRepository adapters
 
 ---
 
@@ -101,10 +100,9 @@ Persistence, vendor SDK wrappers, protocol bridges, tool factories. These module
 Shared types that cross the IPC boundary. Zero vendor imports.
 
 **Key domain types:**
-- `stream.ts` — `AgentStreamChunk` (replaces vendor `StreamChunk`)
-- `continuation.ts` — `DomainContinuationMessage` (replaces vendor `ModelMessage`/`UIMessage`)
+- `stream.ts` — `AgentTransportEvent` (OpenWaggle-owned Pi-aligned transport)
 - `ipc.ts` — IPC channel maps using domain types
-- `agent.ts` — `AgentSendPayload` using domain continuation types
+- `agent.ts` — `AgentSendPayload` and vendor-free message parts
 
 ---
 
@@ -116,12 +114,11 @@ All ports are `Context.Tag` services. All adapters are `Layer` implementations. 
 const AppLayer = Layer.mergeAll(
   NodeContext.layer,
   AppLogger.Live,
-  ProviderRegistryService.Live,
   AppDatabaseLive,
   SettingsService.Live,
-  SqliteConversationRepositoryLive,
+  SqliteSessionProjectionRepositoryLive,
   FilesystemStandardsLive,
-  TanStackChatLive,
+  PiAgentKernelLive,
   ProviderServiceLive,
   SqliteTeamsRepositoryLive,
 )
@@ -134,12 +131,12 @@ IPC handlers run via `typedHandle` → `runAppEffectExit` → resolves all layer
 ## CI Enforcement
 
 `scripts/check-architecture.ts` enforces 8 rules on every PR:
-1. No `@tanstack/ai` in `agent/`
-2. No `@tanstack/ai` in `shared/` (except `.d.ts`)
-3. No `@tanstack/ai` in `application/`
-4. No `@tanstack/ai` in `ports/`
+1. No Pi SDK in `agent/`
+2. No Pi SDK in `shared/`
+3. No Pi SDK in `application/`
+4. No Pi SDK in `ports/`
 5. No direct store imports in `ipc/`
-6. No `providerRegistry` outside `adapters/`, `providers/`, `services/`, `store/`
+6. No Pi SDK/provider runtime imports outside `src/main/adapters/pi/`
 7. No infrastructure imports in `domain/`
 8. No direct store imports in `application/`
 

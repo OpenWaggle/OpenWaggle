@@ -1,87 +1,57 @@
 import { SupportedModelId } from '@shared/types/brand'
-import type { ModelCompatibilityInfo } from '@shared/types/context'
 import type { ProviderInfo } from '@shared/types/llm'
-import { isProvider, type Settings } from '@shared/types/settings'
+import type { Settings } from '@shared/types/settings'
 import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/cn'
 import { formatContextWindow } from '@/lib/format-tokens'
 import { ModelSelectorDropdown } from './ModelSelectorDropdown'
-import { resolveIcon, resolveIconColor } from './provider-icon'
+import { ProviderModelIcon, resolveIconColor } from './provider-icon'
 import type { FlatModel } from './types'
 
 interface ModelSelectorProps {
   value: SupportedModelId
-  onChange: (model: SupportedModelId, authMethod?: 'api-key' | 'subscription') => void
+  onChange: (model: SupportedModelId) => void
   settings: Settings
   providerModels: ProviderInfo[]
-  modelCompatibility?: ModelCompatibilityInfo[]
   className?: string
 }
 
-const MODEL_KEY_MIN_PARTS = 3
-const MODEL_KEY_MODEL_ID_START_INDEX = 2
-
 /**
- * enabledModels uses namespaced keys: "provider:authMethod:modelId"
- * Each key produces one FlatModel entry — preserving the correct connection (authMethod + provider).
- * A model like "gpt-5.4" can appear twice: once for openai:api-key, once for openai:subscription.
+ * enabledModels contains canonical Pi refs: "provider/modelId".
+ * The composer only shows curated models that Pi currently reports as runnable.
  */
 function buildFlatModels(providerModels: readonly ProviderInfo[], settings: Settings): FlatModel[] {
   if (settings.enabledModels.length === 0) return []
 
-  // Build fast lookups: "provider:modelId" -> display name + context window
-  const modelNameLookup = new Map<string, string>()
-  const modelContextWindowLookup = new Map<string, number>()
+  const modelLookup = new Map<string, FlatModel>()
   for (const group of providerModels) {
     for (const model of group.models) {
-      const trimmedId = model.id.trim()
-      if (trimmedId) {
-        const lookupKey = `${group.provider}:${trimmedId}`
-        modelNameLookup.set(lookupKey, model.name.trim() || trimmedId)
-        if (model.contextWindow) {
-          modelContextWindowLookup.set(lookupKey, model.contextWindow)
-        }
-      }
+      const modelRef = model.id.trim()
+      if (!modelRef || !model.available) continue
+
+      modelLookup.set(modelRef, {
+        id: SupportedModelId(modelRef),
+        modelId: model.modelId,
+        name: model.name.trim() || model.modelId,
+        provider: group.provider,
+        providerName: group.displayName,
+        contextWindowLabel: model.contextWindow
+          ? formatContextWindow(model.contextWindow)
+          : undefined,
+      })
     }
   }
 
   const models: FlatModel[] = []
-  const seen = new Set<string>() // dedupe by full namespaced key
+  const seen = new Set<string>()
 
   for (const key of settings.enabledModels) {
-    if (seen.has(key)) continue
-    seen.add(key)
+    const modelRef = key.trim()
+    if (seen.has(modelRef)) continue
+    seen.add(modelRef)
 
-    const parts = key.split(':')
-    let provider: string
-    let authMethod: 'api-key' | 'subscription'
-    let modelId: string
-
-    if (parts.length >= MODEL_KEY_MIN_PARTS) {
-      provider = parts[0]
-      const rawMethod = parts[1]
-      if (rawMethod !== 'api-key' && rawMethod !== 'subscription') continue
-      authMethod = rawMethod
-      modelId = parts.slice(MODEL_KEY_MODEL_ID_START_INDEX).join(':')
-    } else {
-      // Legacy bare model ID — skip (no connection context)
-      continue
-    }
-
-    if (!isProvider(provider)) continue
-
-    // Only include models that exist in the current provider model catalog
-    const name = modelNameLookup.get(`${provider}:${modelId}`)
-    if (name === undefined) continue
-
-    const cw = modelContextWindowLookup.get(`${provider}:${modelId}`)
-    models.push({
-      id: SupportedModelId(modelId),
-      name,
-      provider,
-      authMethod,
-      contextWindowLabel: cw ? formatContextWindow(cw) : undefined,
-    })
+    const model = modelLookup.get(modelRef)
+    if (model) models.push(model)
   }
 
   // Group by provider so models from the same provider stay together
@@ -95,13 +65,13 @@ function buildFlatModels(providerModels: readonly ProviderInfo[], settings: Sett
 
 interface SelectedModelIconProps {
   readonly provider: FlatModel['provider']
-  readonly authMethod: FlatModel['authMethod']
 }
 
-function SelectedModelIcon({ provider, authMethod }: SelectedModelIconProps) {
-  const Icon = resolveIcon(provider, authMethod)
-  const color = resolveIconColor(provider, authMethod)
-  return <Icon className="h-3.5 w-3.5 shrink-0" style={{ color }} />
+function SelectedModelIcon({ provider }: SelectedModelIconProps) {
+  const color = resolveIconColor(provider)
+  return (
+    <ProviderModelIcon provider={provider} className="h-3.5 w-3.5 shrink-0" style={{ color }} />
+  )
 }
 
 export function ModelSelector({
@@ -109,38 +79,14 @@ export function ModelSelector({
   onChange,
   settings,
   providerModels,
-  modelCompatibility,
   className,
 }: ModelSelectorProps) {
   const [isOpen, setIsOpen] = useState(false)
-  // Track the auth method of the last selection so the correct entry gets the checkmark
-  // when the same model ID exists in multiple connections.
-  const [selectedAuthMethod, setSelectedAuthMethod] = useState<
-    'api-key' | 'subscription' | undefined
-  >()
   const ref = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  const baseFlatModels = buildFlatModels(providerModels, settings)
-
-  // Merge compatibility info into flat models when available
-  const flatModels = modelCompatibility
-    ? baseFlatModels.map((model) => {
-        const compat = modelCompatibility.find((c) => c.modelId === model.id)
-        if (!compat) return model
-        return {
-          ...model,
-          compatibility: compat.compatibility,
-          contextWindowLabel: formatContextWindow(compat.contextWindow),
-        }
-      })
-    : baseFlatModels
-  // Find the selected model — match authMethod when available for disambiguation
-  const selectedModel =
-    flatModels.find(
-      (m) =>
-        m.id === value && (selectedAuthMethod === undefined || m.authMethod === selectedAuthMethod),
-    ) ?? flatModels.find((m) => m.id === value)
+  const flatModels = buildFlatModels(providerModels, settings)
+  const selectedModel = flatModels.find((m) => m.id === value)
 
   // Outside-click handler
   useEffect(() => {
@@ -160,8 +106,7 @@ export function ModelSelector({
   }, [isOpen])
 
   function selectModel(model: FlatModel): void {
-    setSelectedAuthMethod(model.authMethod)
-    onChange(model.id, model.authMethod)
+    onChange(model.id)
     setIsOpen(false)
   }
 
@@ -192,12 +137,7 @@ export function ModelSelector({
           selectedModel ? 'text-text-secondary' : 'text-text-muted',
         )}
       >
-        {selectedModel && (
-          <SelectedModelIcon
-            provider={selectedModel.provider}
-            authMethod={selectedModel.authMethod}
-          />
-        )}
+        {selectedModel && <SelectedModelIcon provider={selectedModel.provider} />}
         <span className="max-w-[180px] truncate text-[12px]">
           {selectedModel?.name ?? 'Select model'}
         </span>

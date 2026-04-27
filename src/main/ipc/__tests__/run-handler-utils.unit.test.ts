@@ -1,140 +1,89 @@
-import type { AgentSendPayload, PreparedAttachment } from '@shared/types/agent'
+import type { Message, PreparedAttachment } from '@shared/types/agent'
 import { ConversationId, MessageId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
-import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ConversationRepositoryError } from '../../errors'
-import { ConversationRepository } from '../../ports/conversation-repository'
-import { ProviderService } from '../../ports/provider-service'
+import { SessionProjectionRepositoryError } from '../../errors'
+import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 
-const {
-  emitStreamChunkMock,
-  getConversationMock,
-  saveConversationMock,
-  withConversationLockMock,
-  buildPersistedUserMessagePartsMock,
-  makeMessageMock,
-  generateTitleMock,
-  hydrateAttachmentSourcesMock,
-} = vi.hoisted(() => ({
-  emitStreamChunkMock: vi.fn(),
-  getConversationMock: vi.fn(),
-  saveConversationMock: vi.fn(),
-  withConversationLockMock: vi.fn(),
-  buildPersistedUserMessagePartsMock: vi.fn(() => [{ type: 'text', text: 'test' }]),
-  makeMessageMock: vi.fn(
-    (role: string, parts: unknown[]) =>
-      ({ id: 'msg-mock', role, parts, createdAt: Date.now() }) as unknown,
-  ),
-  generateTitleMock: vi.fn(),
-  hydrateAttachmentSourcesMock: vi.fn(async () => [] as unknown[]),
-}))
+const { emitTransportEventMock, updateTitleMock, hydrateAttachmentSourcesMock } = vi.hoisted(
+  () => ({
+    emitTransportEventMock: vi.fn(),
+    updateTitleMock: vi.fn(),
+    hydrateAttachmentSourcesMock: vi.fn(async () => [] as unknown[]),
+  }),
+)
 
 vi.mock('../../utils/stream-bridge', () => ({
-  emitStreamChunk: emitStreamChunkMock,
   emitErrorAndFinish(conversationId: unknown, message: string, code: string, runId = '') {
-    emitStreamChunkMock(conversationId, {
-      type: 'RUN_ERROR',
-      timestamp: Date.now(),
-      error: { message, code },
-    })
-    emitStreamChunkMock(conversationId, {
-      type: 'RUN_FINISHED',
+    emitTransportEventMock(conversationId, {
+      type: 'agent_end',
       timestamp: Date.now(),
       runId,
-      finishReason: 'stop',
+      reason: 'error',
+      error: { message, code },
     })
   },
 }))
 
-// Mock the Effect runtime to use a test ConversationRepository layer
 const makeTestConversationLayer = () =>
-  Layer.succeed(ConversationRepository, {
+  Layer.succeed(SessionProjectionRepository, {
     get: (id) =>
       Effect.tryPromise({
-        try: async () => getConversationMock(id),
-        catch: (cause) => new ConversationRepositoryError({ operation: 'get', cause }),
+        try: async () => makeConversation({ id }),
+        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'get', cause }),
       }),
-    save: (conv) =>
+    getOptional: (id) =>
       Effect.tryPromise({
-        try: async () => {
-          await saveConversationMock(conv)
-        },
-        catch: (cause) => new ConversationRepositoryError({ operation: 'save', cause }),
+        try: async () => makeConversation({ id }),
+        catch: (cause) => new SessionProjectionRepositoryError({ operation: 'getOptional', cause }),
       }),
     list: () => Effect.succeed([]),
     listFull: () => Effect.succeed([]),
-    create: () => Effect.succeed({} as never),
+    create: () => Effect.succeed(makeConversation()),
     delete: () => Effect.void,
     archive: () => Effect.void,
     unarchive: () => Effect.void,
     listArchived: () => Effect.succeed([]),
-    updateTitle: () => Effect.void,
-    updateProjectPath: () => Effect.void,
-    updatePlanMode: () => Effect.void,
-    updateCompactionGuidance: () => Effect.void,
-    markMessagesAsCompacted: () => Effect.void,
+    updateTitle: (id, title) =>
+      Effect.sync(() => {
+        updateTitleMock(id, title)
+      }),
   })
 
-const TestProviderLayer = Layer.succeed(ProviderService, {
-  get: () => Effect.succeed(undefined),
-  getAll: () => Effect.succeed([]),
-  getProviderForModel: () => Effect.succeed({} as never),
-  isKnownModel: () => Effect.succeed(true),
-  createChatAdapter: () => Effect.succeed({} as never),
-  indexModels: () => Effect.void,
-  fetchModels: () => Effect.succeed([]),
-})
+const TestRuntimeLayer = makeTestConversationLayer()
 
-const TestRuntimeLayer = Layer.mergeAll(makeTestConversationLayer(), TestProviderLayer)
-
-vi.mock('../../runtime', () => ({
-  runAppEffect: (effect: Effect.Effect<unknown>) =>
-    Effect.runPromise(Effect.provide(effect, TestRuntimeLayer)),
-}))
-
-vi.mock('../../agent/shared', () => ({
-  buildPersistedUserMessageParts: buildPersistedUserMessagePartsMock,
-  makeMessage: makeMessageMock,
-}))
-
-vi.mock('../../agent/title-generator', () => ({
-  generateTitle: generateTitleMock,
-}))
-
-vi.mock('../attachments-handler', () => ({
+vi.mock('../../utils/attachment-hydration', () => ({
   hydrateAttachmentSources: hydrateAttachmentSourcesMock,
 }))
 
 import {
+  assignSessionTitleFromUserText,
   emitErrorAndFinish,
-  hasPersistableUserInput,
   hydratePayloadAttachments,
-  maybeTriggerTitleGeneration,
-  persistUserMessageOnFailure,
 } from '../run-handler-utils'
 
 const CONV_ID = ConversationId('test-conv-id')
 
-function makeConversation(overrides: Partial<Conversation> = {}): Conversation {
+function makeMessage(overrides: Partial<Message> = {}): Message {
   return {
-    id: CONV_ID,
-    title: 'New thread',
-    messages: [],
+    id: MessageId('m1'),
+    role: 'user',
+    parts: [{ type: 'text', text: 'Existing' }],
     createdAt: Date.now(),
-    updatedAt: Date.now(),
-    projectPath: '/test',
     ...overrides,
   }
 }
 
-function makePayload(overrides: Partial<AgentSendPayload> = {}): AgentSendPayload {
+function makeConversation(overrides: Partial<Conversation> = {}): Conversation {
   return {
-    text: '',
-    qualityPreset: 'medium',
-    attachments: [],
+    id: CONV_ID,
+    title: 'New session',
+    messages: [],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    projectPath: '/test',
     ...overrides,
   }
 }
@@ -152,108 +101,42 @@ function makeAttachment(overrides: Partial<PreparedAttachment> = {}): PreparedAt
   }
 }
 
+function runTitleAssignment(conversation: Conversation, text: string): Promise<string | null> {
+  return Effect.runPromise(
+    Effect.provide(assignSessionTitleFromUserText(CONV_ID, conversation, text), TestRuntimeLayer),
+  )
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
-  withConversationLockMock.mockImplementation(async (_id: unknown, fn: () => Promise<void>) => fn())
 })
 
 describe('emitErrorAndFinish', () => {
-  it('emits RUN_ERROR followed by RUN_FINISHED', () => {
+  it('emits an error terminal transport event', () => {
     emitErrorAndFinish(CONV_ID, 'Something broke', 'test-error')
 
-    expect(emitStreamChunkMock).toHaveBeenCalledTimes(2)
+    expect(emitTransportEventMock).toHaveBeenCalledTimes(1)
 
-    const errorChunk = emitStreamChunkMock.mock.calls[0]
-    expect(errorChunk[0]).toBe(CONV_ID)
-    expect(errorChunk[1].type).toBe('RUN_ERROR')
-    expect(errorChunk[1].error).toEqual({ message: 'Something broke', code: 'test-error' })
-
-    const finishChunk = emitStreamChunkMock.mock.calls[1]
+    const finishChunk = emitTransportEventMock.mock.calls[0]
     expect(finishChunk[0]).toBe(CONV_ID)
-    expect(finishChunk[1].type).toBe('RUN_FINISHED')
+    expect(finishChunk[1].type).toBe('agent_end')
     expect(finishChunk[1].runId).toBe('')
-    expect(finishChunk[1].finishReason).toBe('stop')
+    expect(finishChunk[1].reason).toBe('error')
+    expect(finishChunk[1].error).toEqual({ message: 'Something broke', code: 'test-error' })
   })
 
   it('propagates optional runId', () => {
     emitErrorAndFinish(CONV_ID, 'Error', 'code', 'waggle-123')
 
-    const finishChunk = emitStreamChunkMock.mock.calls[1]
+    const finishChunk = emitTransportEventMock.mock.calls[0]
     expect(finishChunk[1].runId).toBe('waggle-123')
-  })
-})
-
-describe('hasPersistableUserInput', () => {
-  it('returns false for empty text and no attachments', () => {
-    expect(hasPersistableUserInput(makePayload())).toBe(false)
-  })
-
-  it('returns false for whitespace-only text and no attachments', () => {
-    expect(hasPersistableUserInput(makePayload({ text: '   ' }))).toBe(false)
-  })
-
-  it('returns true for non-empty text', () => {
-    expect(hasPersistableUserInput(makePayload({ text: 'hello' }))).toBe(true)
-  })
-
-  it('returns true when attachments are present', () => {
-    expect(hasPersistableUserInput(makePayload({ attachments: [makeAttachment()] }))).toBe(true)
-  })
-})
-
-describe('persistUserMessageOnFailure', () => {
-  it('persists user message when input is non-empty', async () => {
-    const conv = makeConversation()
-    getConversationMock.mockResolvedValue(conv)
-
-    await persistUserMessageOnFailure(CONV_ID, makePayload({ text: 'hello' }))
-
-    expect(makeMessageMock).toHaveBeenCalledOnce()
-    expect(saveConversationMock).toHaveBeenCalledOnce()
-  })
-
-  it('skips persistence when input is empty', async () => {
-    await persistUserMessageOnFailure(CONV_ID, makePayload())
-
-    expect(saveConversationMock).not.toHaveBeenCalled()
-  })
-
-  it('skips persistence when conversation is not found', async () => {
-    getConversationMock.mockResolvedValue(null)
-
-    await persistUserMessageOnFailure(CONV_ID, makePayload({ text: 'hello' }))
-
-    expect(saveConversationMock).not.toHaveBeenCalled()
-  })
-
-  it('respects messageCountGuard option', async () => {
-    const conv = makeConversation({ messages: [{ id: MessageId('m1') } as never] })
-    getConversationMock.mockResolvedValue(conv)
-
-    // Guard is 0, but conversation already has 1 message → skip
-    await persistUserMessageOnFailure(CONV_ID, makePayload({ text: 'hello' }), {
-      messageCountGuard: 0,
-    })
-
-    expect(saveConversationMock).not.toHaveBeenCalled()
-  })
-
-  it('allows persistence when message count is within guard', async () => {
-    const conv = makeConversation({ messages: [] })
-    getConversationMock.mockResolvedValue(conv)
-
-    await persistUserMessageOnFailure(CONV_ID, makePayload({ text: 'hello' }), {
-      messageCountGuard: 5,
-    })
-
-    expect(saveConversationMock).toHaveBeenCalledOnce()
   })
 })
 
 describe('hydratePayloadAttachments', () => {
   it('delegates to hydrateAttachmentSources', async () => {
     const attachments = [makeAttachment()]
-    const hydratedResult = [{ id: 'hydrated' }] as unknown[]
+    const hydratedResult = [{ id: 'hydrated' }]
     hydrateAttachmentSourcesMock.mockResolvedValue(hydratedResult)
 
     const result = await hydratePayloadAttachments(attachments)
@@ -263,43 +146,36 @@ describe('hydratePayloadAttachments', () => {
   })
 })
 
-describe('maybeTriggerTitleGeneration', () => {
-  const mockChatStream = vi.fn()
-
-  it('calls generateTitle for new thread with no messages and non-empty text', async () => {
+describe('assignSessionTitleFromUserText', () => {
+  it('assigns a deterministic title for a new session projection', async () => {
     const conv = makeConversation()
-    maybeTriggerTitleGeneration(CONV_ID, conv, 'Hello world', DEFAULT_SETTINGS, mockChatStream)
+    const title = await runTitleAssignment(conv, 'Hello world')
 
-    // maybeTriggerTitleGeneration is fire-and-forget (void runAppEffect) —
-    // await microtasks so the async Effect resolves before assertions.
-    await new Promise((resolve) => setTimeout(resolve, 0))
-
-    expect(generateTitleMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        conversationId: CONV_ID,
-        userText: 'Hello world',
-      }),
-    )
+    expect(title).toBe('Hello world')
+    expect(updateTitleMock).toHaveBeenCalledWith(CONV_ID, 'Hello world')
   })
 
-  it('skips when title is already set', () => {
+  it('skips when title is already set', async () => {
     const conv = makeConversation({ title: 'Existing title' })
-    maybeTriggerTitleGeneration(CONV_ID, conv, 'Hello world', DEFAULT_SETTINGS, mockChatStream)
+    const title = await runTitleAssignment(conv, 'Hello world')
 
-    expect(generateTitleMock).not.toHaveBeenCalled()
+    expect(title).toBeNull()
+    expect(updateTitleMock).not.toHaveBeenCalled()
   })
 
-  it('skips when messages already exist', () => {
-    const conv = makeConversation({ messages: [{ id: MessageId('m1') } as never] })
-    maybeTriggerTitleGeneration(CONV_ID, conv, 'Hello world', DEFAULT_SETTINGS, mockChatStream)
+  it('skips when messages already exist', async () => {
+    const conv = makeConversation({ messages: [makeMessage()] })
+    const title = await runTitleAssignment(conv, 'Hello world')
 
-    expect(generateTitleMock).not.toHaveBeenCalled()
+    expect(title).toBeNull()
+    expect(updateTitleMock).not.toHaveBeenCalled()
   })
 
-  it('skips when text is empty or whitespace', () => {
+  it('skips when text is empty or whitespace', async () => {
     const conv = makeConversation()
-    maybeTriggerTitleGeneration(CONV_ID, conv, '   ', DEFAULT_SETTINGS, mockChatStream)
+    const title = await runTitleAssignment(conv, '   ')
 
-    expect(generateTitleMock).not.toHaveBeenCalled()
+    expect(title).toBeNull()
+    expect(updateTitleMock).not.toHaveBeenCalled()
   })
 })

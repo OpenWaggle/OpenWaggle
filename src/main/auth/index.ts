@@ -1,58 +1,33 @@
 import { AUTH_TIMEOUT } from '@shared/constants/time'
-import type {
-  OAuthFlowStatus,
-  SubscriptionAccountInfo,
-  SubscriptionProvider,
-} from '@shared/types/auth'
-import { SUBSCRIPTION_PROVIDERS } from '@shared/types/auth'
-import { choose } from '@shared/utils/decision'
+import type { OAuthAccountInfo, OAuthFlowStatus, OAuthProvider } from '@shared/types/auth'
+import * as Effect from 'effect/Effect'
+import { shell } from 'electron'
 import { createLogger } from '../logger'
-import { getSettings, updateSettings } from '../store/settings'
-import { refreshAnthropicToken, startAnthropicOAuth } from './flows/anthropic-oauth'
-import { refreshOpenAIToken, startOpenAIOAuth } from './flows/openai-oauth'
-import { startOpenRouterOAuth } from './flows/openrouter-oauth'
-import {
-  clearPreviousApiKey,
-  clearTokens,
-  getActiveAccessToken,
-  getPreviousApiKey,
-  hasStoredUsableAccessToken,
-  registerRefreshFn,
-  storePreviousApiKey,
-  storeTokens,
-} from './token-manager'
+import { ProviderOAuthService } from '../ports/provider-oauth-service'
+import { runAppEffect } from '../runtime'
 
 const logger = createLogger('auth')
-// Register refresh functions for token-manager
-registerRefreshFn('openai', refreshOpenAIToken)
-registerRefreshFn('anthropic', async (rt) => {
-  const result = await refreshAnthropicToken(rt)
-  return {
-    accessToken: result.accessToken,
-    refreshToken: result.refreshToken,
-    expiresAt: result.expiresAt,
-  }
-})
 
 type StatusEmitter = (status: OAuthFlowStatus) => void
-
-// ─── Pending Code Submission (for Anthropic) ──────────────────────
 
 interface PendingCodeHandler {
   readonly resolve: (code: string) => void
   readonly reject: (error: Error) => void
 }
 
-const pendingCodeHandlers = new Map<SubscriptionProvider, PendingCodeHandler>()
-const inFlightOAuthFlows = new Map<SubscriptionProvider, Promise<void>>()
-const lifecycleConnectivity = new Map<SubscriptionProvider, boolean>()
+interface InFlightOAuthFlow {
+  readonly promise: Promise<void>
+  readonly controller: AbortController
+}
+
+const pendingCodeHandlers = new Map<OAuthProvider, PendingCodeHandler>()
+const inFlightOAuthFlows = new Map<OAuthProvider, InFlightOAuthFlow>()
+const canceledOAuthFlows = new Set<OAuthProvider>()
+const lifecycleConnectivity = new Map<OAuthProvider, boolean>()
 let authLifecycleTimer: ReturnType<typeof setInterval> | null = null
 let authLifecycleTickInFlight = false
 
-/**
- * Called from the IPC handler when the user submits an auth code via the UI.
- */
-export function submitCode(provider: SubscriptionProvider, code: string): void {
+export function submitCode(provider: OAuthProvider, code: string): void {
   const handler = pendingCodeHandlers.get(provider)
   if (handler) {
     pendingCodeHandlers.delete(provider)
@@ -60,10 +35,8 @@ export function submitCode(provider: SubscriptionProvider, code: string): void {
   }
 }
 
-// ─── Public API ─────────────────────────────────────────────────────
-
 export async function startOAuth(
-  provider: SubscriptionProvider,
+  provider: OAuthProvider,
   emitStatus: StatusEmitter,
 ): Promise<void> {
   if (inFlightOAuthFlows.has(provider)) {
@@ -72,11 +45,38 @@ export async function startOAuth(
     throw new Error(message)
   }
 
-  const flowPromise = runOAuthFlow(provider, emitStatus).finally(() => {
+  const controller = new AbortController()
+  const flowPromise = runOAuthFlow(provider, emitStatus, controller.signal).finally(() => {
     inFlightOAuthFlows.delete(provider)
+    canceledOAuthFlows.delete(provider)
   })
-  inFlightOAuthFlows.set(provider, flowPromise)
+  inFlightOAuthFlows.set(provider, { promise: flowPromise, controller })
   await flowPromise
+}
+
+export async function cancelOAuth(
+  provider: OAuthProvider,
+  emitStatus: StatusEmitter,
+): Promise<void> {
+  const flow = inFlightOAuthFlows.get(provider)
+  if (!flow) {
+    emitStatus({ type: 'idle' })
+    return
+  }
+
+  canceledOAuthFlows.add(provider)
+  flow.controller.abort()
+
+  const pending = pendingCodeHandlers.get(provider)
+  if (pending) {
+    pendingCodeHandlers.delete(provider)
+    pending.reject(new Error('Login cancelled'))
+  }
+
+  await logoutOAuthProvider(provider)
+  lifecycleConnectivity.set(provider, false)
+  emitStatus({ type: 'idle' })
+  logger.info('OAuth flow cancelled', { provider })
 }
 
 export function startAuthLifecycle(emitStatus: StatusEmitter): () => void {
@@ -100,60 +100,59 @@ export function startAuthLifecycle(emitStatus: StatusEmitter): () => void {
 }
 
 async function runOAuthFlow(
-  provider: SubscriptionProvider,
+  provider: OAuthProvider,
   emitStatus: StatusEmitter,
+  signal: AbortSignal,
 ): Promise<void> {
   emitStatus({ type: 'in-progress', provider })
 
   try {
-    // Preserve the current manual API key before overwriting
-    const settings = getSettings()
-    const currentKey = settings.providers[provider]?.apiKey
-    if (currentKey) {
-      storePreviousApiKey(provider, currentKey)
+    await runAppEffect(
+      Effect.gen(function* () {
+        const authService = yield* ProviderOAuthService
+        yield* authService.login(provider, {
+          onAuthUrl: (url, usesCallbackServer) => {
+            void shell.openExternal(url).catch((error) => {
+              logger.warn('Failed to open OAuth URL', {
+                provider,
+                error: error instanceof Error ? error.message : String(error),
+              })
+            })
+            if (usesCallbackServer) {
+              emitStatus({ type: 'awaiting-code', provider })
+            }
+          },
+          onPrompt: async () => {
+            emitStatus({ type: 'awaiting-code', provider })
+            return createManualCodePromise(provider)
+          },
+          onProgress: () => {
+            emitStatus({ type: 'in-progress', provider })
+          },
+          onManualCodeInput: () => {
+            emitStatus({ type: 'awaiting-code', provider })
+            return createManualCodePromise(provider)
+          },
+          signal,
+        })
+      }),
+    )
+
+    if (signal.aborted || canceledOAuthFlows.has(provider)) {
+      await logoutOAuthProvider(provider)
+      emitStatus({ type: 'idle' })
+      return
     }
 
-    const result = await choose(provider)
-      .case('openrouter', async () => {
-        const r = await startOpenRouterOAuth()
-        storeTokens('openrouter', { apiKey: r.apiKey })
-        return { accessToken: r.apiKey }
-      })
-      .case('openai', async () => {
-        const manualCodePromise = createManualCodePromise(provider)
-        const r = await startOpenAIOAuth({
-          manualCodePromise,
-          onAwaitingCode: () => emitStatus({ type: 'awaiting-code', provider }),
-          onCodeReceived: () => emitStatus({ type: 'code-received', provider }),
-        })
-        storeTokens('openai', {
-          accessToken: r.accessToken,
-          refreshToken: r.refreshToken,
-          expiresAt: r.expiresAt,
-        })
-        return { accessToken: r.accessToken }
-      })
-      .case('anthropic', async () => {
-        const manualCodePromise = createManualCodePromise(provider)
-        // Anthropic needs a manual code handoff from clipboard/paste.
-        emitStatus({ type: 'awaiting-code', provider })
-        const r = await startAnthropicOAuth(manualCodePromise, () => {
-          emitStatus({ type: 'code-received', provider })
-        })
-        storeTokens('anthropic', {
-          accessToken: r.accessToken,
-          refreshToken: r.refreshToken,
-          expiresAt: r.expiresAt,
-        })
-        return { accessToken: r.accessToken }
-      })
-      .assertComplete()
-
-    applySubscriptionToSettings(provider, result.accessToken)
     lifecycleConnectivity.set(provider, true)
     emitStatus({ type: 'success', provider })
     logger.info('OAuth flow completed', { provider })
   } catch (err) {
+    if (signal.aborted || canceledOAuthFlows.has(provider)) {
+      emitStatus({ type: 'idle' })
+      return
+    }
+
     const message = err instanceof Error ? err.message : 'Unknown OAuth error'
     logger.warn('OAuth flow failed', { provider, error: message })
     emitStatus({ type: 'error', provider, message })
@@ -167,7 +166,7 @@ async function runOAuthFlow(
   }
 }
 
-function createManualCodePromise(provider: SubscriptionProvider): Promise<string> {
+function createManualCodePromise(provider: OAuthProvider): Promise<string> {
   const existingPending = pendingCodeHandlers.get(provider)
   if (existingPending) {
     pendingCodeHandlers.delete(provider)
@@ -175,10 +174,10 @@ function createManualCodePromise(provider: SubscriptionProvider): Promise<string
       new Error('A new sign-in attempt was started before the previous one completed.'),
     )
   }
+
   const manualCodePromise = new Promise<string>((resolve, reject) => {
     pendingCodeHandlers.set(provider, { resolve, reject })
   })
-  // Some providers may complete without consuming manual input fallback.
   void manualCodePromise.catch(() => {})
   return manualCodePromise
 }
@@ -188,18 +187,25 @@ async function runAuthLifecycleTick(emitStatus: StatusEmitter): Promise<void> {
   authLifecycleTickInFlight = true
 
   try {
-    const settings = getSettings()
-    for (const provider of SUBSCRIPTION_PROVIDERS) {
-      const config = settings.providers[provider]
-      if (config?.authMethod !== 'subscription') {
-        lifecycleConnectivity.delete(provider)
-        continue
-      }
+    const providerStates = await runAppEffect(
+      Effect.gen(function* () {
+        const authService = yield* ProviderOAuthService
+        const providers = yield* authService.listProviders()
+        const states: { readonly provider: OAuthProvider; readonly connected: boolean }[] = []
 
-      const connected = hasStoredUsableAccessToken(provider)
+        for (const provider of providers) {
+          const connected = yield* authService.isConnected(provider)
+          states.push({ provider, connected })
+        }
+
+        return states
+      }),
+    )
+
+    for (const { provider, connected } of providerStates) {
       const previous = lifecycleConnectivity.get(provider)
 
-      if (!connected && previous !== false) {
+      if (!connected && previous === true) {
         emitStatus({ type: 'error', provider, message: 'Session expired. Please sign in again.' })
       }
       if (connected && previous === false) {
@@ -217,69 +223,26 @@ async function runAuthLifecycleTick(emitStatus: StatusEmitter): Promise<void> {
   }
 }
 
-export function disconnect(provider: SubscriptionProvider): void {
-  clearTokens(provider)
-
-  const settings = getSettings()
-  const existing = settings.providers[provider]
-
-  // Restore the user's previous manually-entered API key if available
-  const previousKey = getPreviousApiKey(provider)
-  clearPreviousApiKey(provider)
-
-  if (existing) {
-    updateSettings({
-      providers: {
-        [provider]: {
-          apiKey: previousKey,
-          baseUrl: existing.baseUrl,
-          enabled: previousKey ? existing.enabled : false,
-          authMethod: 'api-key',
-        },
-      },
-    })
-  }
-
-  logger.info('Disconnected subscription', { provider })
+async function logoutOAuthProvider(provider: OAuthProvider): Promise<void> {
+  await runAppEffect(
+    Effect.gen(function* () {
+      const authService = yield* ProviderOAuthService
+      yield* authService.logout(provider)
+    }),
+  )
 }
 
-export async function getAccountInfo(
-  provider: SubscriptionProvider,
-): Promise<SubscriptionAccountInfo> {
-  const settings = getSettings()
-  const config = settings.providers[provider]
-  const connected = config?.authMethod === 'subscription' && hasStoredUsableAccessToken(provider)
+export async function disconnect(provider: OAuthProvider): Promise<void> {
+  await logoutOAuthProvider(provider)
 
-  return {
-    provider,
-    connected,
-    label: connected ? 'Connected' : 'Not connected',
-    disconnectedReason:
-      !connected && config?.authMethod === 'subscription'
-        ? 'Session expired. Please sign in again.'
-        : undefined,
-  }
+  logger.info('Disconnected OAuth provider', { provider })
 }
 
-/**
- * Get an active API key or access token for a subscription provider.
- * Used at agent resolution time to get a fresh token.
- */
-export async function getActiveApiKey(provider: SubscriptionProvider): Promise<string | null> {
-  return getActiveAccessToken(provider)
-}
-
-function applySubscriptionToSettings(provider: SubscriptionProvider, apiKey: string): void {
-  const settings = getSettings()
-  const existing = settings.providers[provider]
-  updateSettings({
-    providers: {
-      [provider]: {
-        apiKey,
-        baseUrl: existing?.baseUrl,
-        enabled: true,
-        authMethod: 'subscription',
-      },
-    },
-  })
+export async function getAccountInfo(provider: OAuthProvider): Promise<OAuthAccountInfo> {
+  return runAppEffect(
+    Effect.gen(function* () {
+      const authService = yield* ProviderOAuthService
+      return yield* authService.getAccountInfo(provider)
+    }),
+  )
 }

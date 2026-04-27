@@ -49,6 +49,18 @@ export class ActiveRunManager<K, M> {
     this.runs.delete(key)
   }
 
+  isCurrent(key: K, controller: AbortController): boolean {
+    return this.runs.get(key)?.controller === controller
+  }
+
+  deleteIfCurrent(key: K, controller: AbortController): boolean {
+    if (!this.isCurrent(key, controller)) {
+      return false
+    }
+    this.runs.delete(key)
+    return true
+  }
+
   keys(): IterableIterator<K> {
     return this.runs.keys()
   }

@@ -1,23 +1,26 @@
-import type { ModelCompatibilityInfo } from '@shared/types/context'
-import type { QualityPreset } from '@shared/types/settings'
-import { ArrowUp, Bookmark, ClipboardList, Loader2, Mic, Square } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import type { ThinkingLevel } from '@shared/types/settings'
+import { ArrowUp, Loader2, Mic, Square } from 'lucide-react'
 import { ModelSelector } from '@/components/shared/ModelSelector'
 import { Popover } from '@/components/shared/Popover'
-import { useChat } from '@/hooks/useChat'
+import { useSelectedModelThinkingLevel } from '@/hooks/useSelectedModelThinkingLevel'
 import { cn } from '@/lib/cn'
-import { api } from '@/lib/ipc'
-import { useTogglePlanModeMutation } from '@/queries/conversations'
-import { useChatStore } from '@/stores/chat-store'
 import { useComposerStore } from '@/stores/composer-store'
 import { usePreferencesStore } from '@/stores/preferences-store'
 import { useProviderStore } from '@/stores/provider-store'
 import { ComposerAttachButton } from './ComposerAttachButton'
+import { ContextMeter } from './ContextMeter'
 
-const QUALITY_PRESET_LABEL: Record<QualityPreset, string> = {
+const THINKING_LEVEL_LABEL: Record<ThinkingLevel, string> = {
+  off: 'Off',
+  minimal: 'Minimal',
   low: 'Low',
   medium: 'Medium',
   high: 'High',
+  xhigh: 'Extra High',
+}
+
+function hasOnlyOffThinkingLevel(levels: readonly ThinkingLevel[]): boolean {
+  return levels.length === 1 && levels[0] === 'off'
 }
 
 interface ComposerToolbarProps {
@@ -42,35 +45,43 @@ export function ComposerToolbar({
   const settings = usePreferencesStore((s) => s.settings)
   const providerModels = useProviderStore((s) => s.providerModels)
   const setSelectedModel = usePreferencesStore((s) => s.setSelectedModel)
-  const setQualityPreset = usePreferencesStore((s) => s.setQualityPreset)
+  const setThinkingLevel = usePreferencesStore((s) => s.setThinkingLevel)
 
-  const qualityMenuOpen = useComposerStore((s) => s.qualityMenuOpen)
+  const thinkingMenuOpen = useComposerStore((s) => s.thinkingMenuOpen)
   const openMenu = useComposerStore((s) => s.openMenu)
+  const {
+    requestedThinkingLevel,
+    effectiveThinkingLevel,
+    availableThinkingLevels,
+    capabilitiesKnown,
+    isAdjustedForModel,
+  } = useSelectedModelThinkingLevel()
 
-  // Compact command detection — isolated here to avoid re-rendering the entire Composer tree
-  const input = useComposerStore((s) => s.input)
-  const isCompactCommand = /^\/compact(\s|$)/.test(input.trimStart())
-  const saveCompactForThread = useComposerStore((s) => s.compactSaveForThread)
-  const setCompactSaveForThread = useComposerStore((s) => s.setCompactSaveForThread)
-  const activeConversationId = useChatStore((s) => s.activeConversationId)
-  const { activeConversation } = useChat()
-  const planModeActive = activeConversation?.planModeActive ?? false
-  const togglePlanModeMutation = useTogglePlanModeMutation()
   const isListening = voiceMode === 'recording'
   const isTranscribingVoice = voiceMode === 'transcribing'
 
-  // Fetch model compatibility when conversation changes
-  const [modelCompatibility, setModelCompatibility] = useState<ModelCompatibilityInfo[]>([])
-  useEffect(() => {
-    if (activeConversationId) {
-      void api.getModelCompatibility(activeConversationId).then(setModelCompatibility)
-    }
-  }, [activeConversationId])
+  const hasSelectedModel = settings.selectedModel.trim().length > 0
+  const canOpenThinkingMenu = capabilitiesKnown && availableThinkingLevels.length > 0
+  const selectedModelOnlySupportsOff =
+    capabilitiesKnown && hasOnlyOffThinkingLevel(availableThinkingLevels)
+  const thinkingButtonLabel =
+    hasSelectedModel && capabilitiesKnown
+      ? THINKING_LEVEL_LABEL[effectiveThinkingLevel]
+      : 'Thinking…'
+  const thinkingButtonTitle = !hasSelectedModel
+    ? 'Select a model before choosing thinking level'
+    : !capabilitiesKnown
+      ? 'Loading thinking capabilities for the selected model'
+      : selectedModelOnlySupportsOff
+        ? 'Selected model does not support thinking'
+        : isAdjustedForModel
+          ? `${THINKING_LEVEL_LABEL[requestedThinkingLevel]} is not available for this model; using ${THINKING_LEVEL_LABEL[effectiveThinkingLevel]}`
+          : 'Select thinking level'
 
-  async function handleQualityChange(preset: QualityPreset): Promise<void> {
+  async function handleThinkingLevelChange(level: ThinkingLevel): Promise<void> {
     openMenu(null)
-    if (preset === settings.qualityPreset) return
-    await setQualityPreset(preset)
+    if (level === settings.thinkingLevel) return
+    await setThinkingLevel(level)
   }
 
   return (
@@ -83,88 +94,51 @@ export function ComposerToolbar({
           onChange={setSelectedModel}
           settings={settings}
           providerModels={providerModels}
-          modelCompatibility={modelCompatibility.length > 0 ? modelCompatibility : undefined}
         />
 
         <Popover
-          open={qualityMenuOpen}
-          onOpenChange={(open) => openMenu(open ? 'quality' : null)}
+          open={thinkingMenuOpen && canOpenThinkingMenu}
+          onOpenChange={(open) => openMenu(open && canOpenThinkingMenu ? 'thinking' : null)}
           placement="top-start"
           className="min-w-[140px] py-1"
           trigger={
             <button
               type="button"
-              onClick={() => openMenu(qualityMenuOpen ? null : 'quality')}
-              className="flex items-center gap-[5px] h-[26px] px-2.5 rounded-md border border-button-border transition-colors hover:bg-bg-hover"
-              title="Select quality preset"
+              onClick={() => openMenu(thinkingMenuOpen || !canOpenThinkingMenu ? null : 'thinking')}
+              disabled={!canOpenThinkingMenu}
+              className={cn(
+                'flex items-center gap-[5px] h-[26px] px-2.5 rounded-md border border-button-border transition-colors',
+                canOpenThinkingMenu ? 'hover:bg-bg-hover' : 'cursor-not-allowed opacity-70',
+              )}
+              title={thinkingButtonTitle}
             >
-              <span className="text-[12px] text-text-secondary">
-                {QUALITY_PRESET_LABEL[settings.qualityPreset]}
-              </span>
+              <span className="text-[12px] text-text-secondary">{thinkingButtonLabel}</span>
               <span className="text-[9px] text-text-tertiary">&#x2228;</span>
             </button>
           }
         >
-          {(['low', 'medium', 'high'] as const).map((preset) => (
+          {availableThinkingLevels.map((level) => (
             <button
-              key={preset}
+              key={level}
               type="button"
               onClick={() => {
-                void handleQualityChange(preset)
+                void handleThinkingLevelChange(level)
               }}
               className={cn(
                 'flex w-full items-center justify-between px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-bg-hover',
-                settings.qualityPreset === preset ? 'text-accent' : 'text-text-secondary',
+                effectiveThinkingLevel === level ? 'text-accent' : 'text-text-secondary',
               )}
             >
-              <span>{QUALITY_PRESET_LABEL[preset]}</span>
-              {settings.qualityPreset === preset && <span>•</span>}
+              <span>{THINKING_LEVEL_LABEL[level]}</span>
+              {effectiveThinkingLevel === level && <span>•</span>}
             </button>
           ))}
         </Popover>
-
-        <button
-          type="button"
-          onClick={() => {
-            if (activeConversationId) {
-              togglePlanModeMutation.mutate({ id: activeConversationId, active: !planModeActive })
-            }
-          }}
-          className={cn(
-            'flex items-center gap-[5px] h-[26px] px-2.5 rounded-md border transition-colors',
-            planModeActive
-              ? 'border-accent/50 bg-accent/10 text-accent'
-              : 'border-button-border text-text-secondary hover:bg-bg-hover',
-          )}
-          title={planModeActive ? 'Disable plan mode' : 'Enable plan mode'}
-        >
-          <ClipboardList className="h-3 w-3" />
-          <span className="text-[12px]">Plan</span>
-        </button>
-
-        {isCompactCommand && (
-          <button
-            type="button"
-            onClick={() => setCompactSaveForThread(!saveCompactForThread)}
-            className={cn(
-              'flex items-center gap-[5px] h-[26px] px-2.5 rounded-md border transition-colors',
-              saveCompactForThread
-                ? 'border-accent/50 bg-accent/10 text-accent'
-                : 'border-button-border text-text-secondary hover:bg-bg-hover',
-            )}
-            title={
-              saveCompactForThread
-                ? 'Guidance will be saved for this thread'
-                : 'Save compaction guidance for this thread'
-            }
-          >
-            <Bookmark className="h-3 w-3" />
-            <span className="text-[12px]">Save for thread</span>
-          </button>
-        )}
       </div>
 
       <div className="flex items-center gap-2">
+        <ContextMeter />
+
         <button
           type="button"
           onClick={onToggleVoice}

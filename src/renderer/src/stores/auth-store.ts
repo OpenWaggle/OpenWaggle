@@ -1,9 +1,4 @@
-import type {
-  OAuthFlowStatus,
-  SubscriptionAccountInfo,
-  SubscriptionProvider,
-} from '@shared/types/auth'
-import { SUBSCRIPTION_PROVIDERS } from '@shared/types/auth'
+import type { OAuthAccountInfo, OAuthFlowStatus, OAuthProvider } from '@shared/types/auth'
 import { create } from 'zustand'
 import { api } from '@/lib/ipc'
 import { createRendererLogger } from '@/lib/logger'
@@ -11,30 +6,23 @@ import { createRendererLogger } from '@/lib/logger'
 const logger = createRendererLogger('auth')
 
 interface AuthState {
-  oauthStatuses: Partial<Record<SubscriptionProvider, OAuthFlowStatus>>
-  authAccounts: Partial<Record<SubscriptionProvider, SubscriptionAccountInfo | null>>
+  oauthStatuses: Partial<Record<OAuthProvider, OAuthFlowStatus>>
+  authAccounts: Partial<Record<OAuthProvider, OAuthAccountInfo | null>>
 
-  startOAuth: (provider: SubscriptionProvider) => Promise<void>
-  submitAuthCode: (provider: SubscriptionProvider, code: string) => Promise<void>
-  disconnectAuth: (provider: SubscriptionProvider) => Promise<void>
-  loadAuthAccount: (provider: SubscriptionProvider) => Promise<void>
-  loadAllAuthAccounts: () => Promise<void>
-  getOAuthStatus: (provider: SubscriptionProvider) => OAuthFlowStatus
+  startOAuth: (provider: OAuthProvider) => Promise<void>
+  submitAuthCode: (provider: OAuthProvider, code: string) => Promise<void>
+  cancelOAuth: (provider: OAuthProvider) => Promise<void>
+  disconnectAuth: (provider: OAuthProvider) => Promise<void>
+  loadAuthAccount: (provider: OAuthProvider) => Promise<void>
+  loadAllAuthAccounts: (providers?: readonly OAuthProvider[]) => Promise<void>
+  getOAuthStatus: (provider: OAuthProvider) => OAuthFlowStatus
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   oauthStatuses: {},
   authAccounts: {},
 
-  async startOAuth(provider: SubscriptionProvider) {
-    if (provider === 'anthropic') {
-      const confirmed = await api.showConfirm(
-        'Claude subscription sign-in has Terms of Service risk.',
-        'Anthropic may prohibit using subscription OAuth tokens in third-party applications. Continue only if you understand this risk.',
-      )
-      if (!confirmed) return
-    }
-
+  async startOAuth(provider: OAuthProvider) {
     set((state) => ({
       oauthStatuses: { ...state.oauthStatuses, [provider]: { type: 'in-progress', provider } },
     }))
@@ -51,34 +39,49 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     try {
       await api.startOAuth(provider)
-      const { usePreferencesStore } = await import('./preferences-store')
-      await usePreferencesStore.getState().loadSettings()
+      const { useProviderStore } = await import('./provider-store')
+      await useProviderStore.getState().loadProviderModels()
       await get().loadAuthAccount(provider)
       set((state) => ({
         oauthStatuses: { ...state.oauthStatuses, [provider]: { type: 'idle' } },
       }))
-    } catch {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      logger.error('Failed to start OAuth flow', { provider, message })
+      set((state) => ({
+        oauthStatuses: { ...state.oauthStatuses, [provider]: { type: 'error', provider, message } },
+      }))
       await get().loadAuthAccount(provider)
     } finally {
       cleanup()
     }
   },
 
-  async submitAuthCode(provider: SubscriptionProvider, code: string) {
+  async submitAuthCode(provider: OAuthProvider, code: string) {
     await api.submitAuthCode(provider, code)
   },
 
-  async disconnectAuth(provider: SubscriptionProvider) {
-    await api.disconnectAuth(provider)
-    const { usePreferencesStore } = await import('./preferences-store')
-    await usePreferencesStore.getState().loadSettings()
+  async cancelOAuth(provider: OAuthProvider) {
+    await api.cancelOAuth(provider)
+    const { useProviderStore } = await import('./provider-store')
+    await useProviderStore.getState().loadProviderModels()
     await get().loadAuthAccount(provider)
     set((state) => ({
       oauthStatuses: { ...state.oauthStatuses, [provider]: { type: 'idle' } },
     }))
   },
 
-  async loadAuthAccount(provider: SubscriptionProvider) {
+  async disconnectAuth(provider: OAuthProvider) {
+    await api.disconnectAuth(provider)
+    const { useProviderStore } = await import('./provider-store')
+    await useProviderStore.getState().loadProviderModels()
+    await get().loadAuthAccount(provider)
+    set((state) => ({
+      oauthStatuses: { ...state.oauthStatuses, [provider]: { type: 'idle' } },
+    }))
+  },
+
+  async loadAuthAccount(provider: OAuthProvider) {
     try {
       const info = await api.getAuthAccountInfo(provider)
       set((state) => ({
@@ -89,11 +92,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  async loadAllAuthAccounts() {
-    await Promise.all(SUBSCRIPTION_PROVIDERS.map((provider) => get().loadAuthAccount(provider)))
+  async loadAllAuthAccounts(providers?: readonly OAuthProvider[]) {
+    const providerIds = providers ?? []
+    await Promise.all(providerIds.map((provider) => get().loadAuthAccount(provider)))
   },
 
-  getOAuthStatus(provider: SubscriptionProvider): OAuthFlowStatus {
+  getOAuthStatus(provider: OAuthProvider): OAuthFlowStatus {
     return get().oauthStatuses[provider] ?? { type: 'idle' }
   },
 }))

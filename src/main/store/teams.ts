@@ -3,6 +3,7 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import { safeDecodeUnknown } from '@shared/schema'
 import { waggleTeamPresetSchema } from '@shared/schemas/waggle'
 import { SupportedModelId, TeamConfigId } from '@shared/types/brand'
+import { DEFAULT_MODEL_REF } from '@shared/types/settings'
 import type { WaggleTeamPreset } from '@shared/types/waggle'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
@@ -35,14 +36,14 @@ const BUILT_IN_PRESETS: WaggleTeamPreset[] = [
       agents: [
         {
           label: 'Architect',
-          model: SupportedModelId('claude-sonnet-4-5'),
+          model: DEFAULT_MODEL_REF,
           roleDescription:
             'You are a senior software architect. Review the code for design patterns, architecture decisions, and best practices. Suggest structural improvements.',
           color: 'blue',
         },
         {
           label: 'Reviewer',
-          model: SupportedModelId('claude-sonnet-4-5'),
+          model: DEFAULT_MODEL_REF,
           roleDescription:
             "You are a code reviewer focused on correctness. Check for bugs, edge cases, security issues, and test coverage gaps. Verify the architect's suggestions are practical.",
           color: 'amber',
@@ -63,14 +64,14 @@ const BUILT_IN_PRESETS: WaggleTeamPreset[] = [
       agents: [
         {
           label: 'Advocate',
-          model: SupportedModelId('claude-sonnet-4-5'),
+          model: DEFAULT_MODEL_REF,
           roleDescription:
             "You argue for the proposed approach. Present its strengths, defend against criticisms, and show why it's the best path forward.",
           color: 'emerald',
         },
         {
           label: 'Critic',
-          model: SupportedModelId('claude-sonnet-4-5'),
+          model: DEFAULT_MODEL_REF,
           roleDescription:
             'You challenge the proposed approach. Find weaknesses, propose alternatives, and push for the strongest possible solution.',
           color: 'violet',
@@ -91,14 +92,14 @@ const BUILT_IN_PRESETS: WaggleTeamPreset[] = [
       agents: [
         {
           label: 'Attacker',
-          model: SupportedModelId('claude-sonnet-4-5'),
+          model: DEFAULT_MODEL_REF,
           roleDescription:
             'You are a security researcher. Analyze the code for vulnerabilities: injection, auth bypass, data leaks, OWASP top 10. Explain each finding clearly.',
           color: 'amber',
         },
         {
           label: 'Defender',
-          model: SupportedModelId('claude-sonnet-4-5'),
+          model: DEFAULT_MODEL_REF,
           roleDescription:
             'You are a security engineer. For each vulnerability found, implement fixes, add validation, and explain the defense strategy.',
           color: 'blue',

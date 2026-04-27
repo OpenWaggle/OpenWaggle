@@ -8,4 +8,13 @@ test-results/
 *.log
 .DS_Store
 __pycache__/
-.openwaggle/config.local.toml
+.openwaggle/settings.json
+.openwaggle/mcp.json
+.pi/settings.json
+.pi/mcp.json
+.pi/.npm-cache/
+.pi/npm/
+.pi/git/
+
+.tmp-*
+tmp/

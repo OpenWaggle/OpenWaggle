@@ -20,23 +20,9 @@ export class ProviderLookupError extends Data.TaggedError('ProviderLookupError')
   readonly modelId: string
 }> {}
 
-export class AgentCancelledError extends Data.TaggedError('AgentCancelledError')<
-  Record<string, never>
-> {}
-
-// ─── Port-layer errors (hexagonal architecture) ──────────────
-
-export class ChatStreamError extends Data.TaggedError('ChatStreamError')<{
-  readonly message: string
-  readonly cause?: unknown
-}> {}
-
-export class ToolExecutionError extends Data.TaggedError('ToolExecutionError')<{
-  readonly message: string
-  readonly cause?: unknown
-}> {}
-
-export class ConversationRepositoryError extends Data.TaggedError('ConversationRepositoryError')<{
+export class SessionProjectionRepositoryError extends Data.TaggedError(
+  'SessionProjectionRepositoryError',
+)<{
   readonly operation: string
   readonly cause?: unknown
 }> {}

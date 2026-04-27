@@ -1,79 +1,59 @@
 ---
 title: "Providers Overview"
-description: "Overview of the 6 supported AI providers, how to set up API keys, and OAuth authentication."
+description: "How OpenWaggle surfaces Pi providers, models, API keys, and OAuth authentication."
 order: 1
 section: "Providers"
 ---
 
-OpenWaggle supports 6 AI providers out of the box. You can use multiple providers simultaneously — each conversation message uses whichever model is selected in the composer toolbar.
+OpenWaggle does not maintain a fixed provider catalog. Provider and model metadata comes from Pi.
 
-## Supported Providers
+OpenWaggle focuses on the Settings and composer workflow. Pi owns the provider/model catalog, credential resolution, and runtime routing details.
 
-| Provider | Auth Methods | Local | Status |
-|----------|-------------|-------|--------|
-| [Anthropic](/docs/providers/anthropic) | API key, OAuth | No | Stable |
-| [OpenAI](/docs/providers/openai) | API key, OAuth | No | Stable |
-| [Google Gemini](/docs/providers/google-gemini) | API key | No | Coming soon |
-| [Grok (xAI)](/docs/providers/grok) | API key | No | Coming soon |
-| [OpenRouter](/docs/providers/openrouter) | API key, OAuth | No | Coming soon |
-| [Ollama](/docs/providers/ollama) | None required | Yes | Coming soon |
+Primary Pi references:
 
-## Setting Up API Keys
+- [Pi providers](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/providers.md)
+- [Pi custom models](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/models.md)
+- [Pi custom providers](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/custom-provider.md)
 
-1. Open **Settings** via the gear icon in the sidebar.
-2. Navigate to **Connections**.
-3. Click **Add API key** next to the provider you want to configure.
-4. Paste your API key and click **Save**.
+## Provider-Qualified Models
 
-API keys are encrypted using Electron's safeStorage API and stored locally. They never leave your machine.
+Models are identified as:
 
-### Where to Get API Keys
+```text
+provider/modelId
+```
 
-| Provider | Get your key at |
-|----------|----------------|
-| Anthropic | [platform.claude.com/settings/keys](https://platform.claude.com/settings/keys) |
-| OpenAI | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
-| Google Gemini | [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) |
-| Grok (xAI) | [console.x.ai/team/default/api-keys](https://console.x.ai/team/default/api-keys) |
-| OpenRouter | [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys) |
-| Ollama | No key needed (runs locally) |
+This is intentional. The same underlying model can be hosted by multiple providers, and those are distinct runtime choices with different credentials, routing, pricing, and entitlements.
 
-## OAuth Subscriptions
+## Settings Flow
 
-Three providers support OAuth authentication as an alternative to API keys. This lets you use your existing subscription (e.g., Claude Pro, ChatGPT Plus) without a separate API key.
+1. Open **Settings > Connections**.
+2. Authenticate providers through the relevant method group:
+   - **API key providers**
+   - **OAuth providers**
+3. Enable the models you want to show in the composer.
+4. Select one of the enabled provider-qualified models from the composer dropdown.
 
-### Supported OAuth Providers
+All available Pi models are visible in Settings. The composer only shows models you pre-select, which keeps the normal chat UI quiet.
 
-- **Anthropic** — Uses Claude.ai OAuth (scopes: API key creation, profile, inference)
-- **OpenAI** — Uses OpenAI OAuth with local callback server
-- **OpenRouter** — Uses OpenRouter OAuth (returns a permanent API key)
+## API Key Auth
 
-### How to Connect via OAuth
+API-key providers are shown separately from OAuth providers. OpenWaggle saves keys through Pi auth storage and lets Pi resolve credentials during runtime model construction.
 
-1. Go to **Settings > Connections**.
-2. Find the provider's subscription row.
-3. Click **Subscribe** or **Connect**.
-4. A browser window opens for authentication.
-5. After authorizing, you're redirected back to OpenWaggle.
+See [API Key Auth](/docs/providers/api-key-auth).
 
-If the automatic redirect fails, you can manually paste the authorization code.
+## OAuth Auth
 
-### Token Management
+OAuth providers come directly from Pi `AuthStorage.getOAuthProviders()`. OpenWaggle starts the same browser-based login flow through a nicer settings UI.
 
-- OAuth tokens are stored securely in the system keychain.
-- Tokens refresh automatically before expiry.
-- Disconnecting restores your previous API key (if one existed).
-- OpenRouter subscriptions provide a permanent API key rather than expiring tokens.
+See [OAuth Auth](/docs/providers/oauth-auth).
 
-## Selecting a Model
+## Custom Providers
 
-The model picker is available in the composer toolbar. Click it to open a panel with:
+Project-scoped Pi provider configuration can add provider/model entries that are not part of the built-in registry.
 
-- **Provider tabs** (left rail) — Filter by provider using logo icons.
-- **Favorites tab** — Quick access to starred models.
-- **Search** — Type to filter models by name.
-- **Star toggle** — Click the star on any model to add it to favorites.
+See [Custom Providers](/docs/providers/custom-providers).
 
-When you select a model from a disabled provider that has valid credentials, OpenWaggle automatically enables that provider.
+## Availability
 
-Models that require a missing API key appear disabled with a note explaining why.
+The Settings page distinguishes between models Pi knows about and models Pi reports as available with your current credentials. If a provider is authenticated but a specific model still fails, the upstream account may lack entitlement or the provider may reject that model.

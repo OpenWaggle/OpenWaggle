@@ -4,31 +4,33 @@ import * as Effect from 'effect/Effect'
 import type { Exit as ExitType } from 'effect/Exit'
 import * as Layer from 'effect/Layer'
 import * as ManagedRuntime from 'effect/ManagedRuntime'
-import { ContextCompactionLive } from './adapters/context-compaction-adapter'
-import { ProviderServiceLive } from './adapters/provider-service-live'
-import { SqliteConversationRepositoryLive } from './adapters/sqlite-conversation-repository'
-import { SqlitePinnedContextRepositoryLive } from './adapters/sqlite-pinned-context-repository'
+import { PiAgentKernelLive } from './adapters/pi/pi-agent-kernel-adapter'
+import { PiProviderAuthLive } from './adapters/pi/pi-provider-auth-service'
+import { PiProviderOAuthLive } from './adapters/pi/pi-provider-oauth-service'
+import { PiProviderProbeLive } from './adapters/pi/pi-provider-probe-adapter'
+import { ProviderServiceLive } from './adapters/pi/pi-provider-service'
+import { SqliteSessionProjectionRepositoryLive } from './adapters/sqlite-session-projection-repository'
+import { SqliteSessionRepositoryLive } from './adapters/sqlite-session-repository'
 import { SqliteTeamsRepositoryLive } from './adapters/sqlite-teams-repository'
 import { FilesystemStandardsLive } from './adapters/standards-adapter'
-import { TanStackChatLive } from './adapters/tanstack-chat-adapter'
 import { AppDatabaseLive } from './services/database-service'
 import { AppLogger } from './services/logger-service'
-import { ProviderRegistryService } from './services/provider-registry-service'
 import { SettingsService } from './services/settings-service'
 
 const AppLayer = Layer.mergeAll(
   NodeContext.layer,
   AppLogger.Live,
-  ProviderRegistryService.Live,
   AppDatabaseLive,
   SettingsService.Live,
-  SqliteConversationRepositoryLive,
-  SqlitePinnedContextRepositoryLive,
+  SqliteSessionProjectionRepositoryLive,
+  SqliteSessionRepositoryLive,
   FilesystemStandardsLive,
-  TanStackChatLive,
+  PiAgentKernelLive,
+  PiProviderAuthLive,
+  PiProviderProbeLive,
+  PiProviderOAuthLive,
   ProviderServiceLive,
   SqliteTeamsRepositoryLive,
-  ContextCompactionLive,
 )
 
 function makeAppRuntime() {

@@ -1,14 +1,16 @@
-import type { ConversationId } from '@shared/types/brand'
+import { type ConversationId, SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
+import type { SessionTree } from '@shared/types/session'
+import { useNavigate, useRouterState } from '@tanstack/react-router'
 import {
   ArrowDownAZ,
   Calendar,
   Check,
   Clock,
   Edit3,
+  Folder,
   FolderPlus,
-  Hash,
+  GitBranch,
   LayoutList,
-  MessageSquare,
   Settings,
   Sparkles,
 } from 'lucide-react'
@@ -16,107 +18,291 @@ import { useState } from 'react'
 import openwaggleLockup from '@/assets/openwaggle-lockup.png'
 import { Popover } from '@/components/shared/Popover'
 import { useChat } from '@/hooks/useChat'
-import { useConversationNav } from '@/hooks/useConversationNav'
 import { useFullscreen } from '@/hooks/useFullscreen'
 import { useGit } from '@/hooks/useGit'
 import { useProject } from '@/hooks/useProject'
+import { useSessions } from '@/hooks/useSessions'
 import { cn } from '@/lib/cn'
+import { projectName } from '@/lib/format'
 import { api } from '@/lib/ipc'
 import { usePreferencesStore } from '@/stores/preferences-store'
-import { useThreadStatusStore } from '@/stores/thread-status-store'
+import { useSessionStatusStore } from '@/stores/session-status-store'
 import { useUIStore } from '@/stores/ui-store'
-import { ConversationGroup } from './ConversationGroup'
-import { groupConversationsByProject, type SortMode, sortConversationGroups } from './sidebar-utils'
+import { SessionListItem } from './SessionListItem'
+import {
+  buildSidebarProjectGroups,
+  type SidebarProjectGroup,
+  type SidebarSessionSortMode,
+} from './sidebar-project-groups'
 
 const BITS_PER_UINT32 = 32
 const SIDEBAR_VALUE_104 = 104
 const SIDEBAR_VALUE_80 = 80
 
-function McpIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 195 195"
-      fill="none"
-      className={className}
-      stroke="currentColor"
-      strokeWidth="16"
-      strokeLinecap="round"
-    >
-      <title>MCP</title>
-      <path d="M25 97.85L92.88 29.97a24 24 0 0133.94 0 24 24 0 010 33.94L75.56 115.18" />
-      <path d="M76.27 114.47l50.56-50.56a24 24 0 0133.94 0l.35.35a24 24 0 010 33.94l-61.39 61.4a6 6 0 000 8.48l12.6 12.61" />
-      <path d="M109.85 46.94L59.65 97.15a24 24 0 000 33.94 24 24 0 0033.94 0l50.2-50.21" />
-    </svg>
-  )
-}
-
-const SORT_OPTIONS: { value: SortMode; label: string; icon: typeof Clock }[] = [
+const SORT_OPTIONS: { value: SidebarSessionSortMode; label: string; icon: typeof Clock }[] = [
   { value: 'recent', label: 'Recent', icon: Clock },
   { value: 'oldest', label: 'Oldest', icon: Calendar },
   { value: 'name', label: 'Name (A→Z)', icon: ArrowDownAZ },
-  { value: 'threads', label: 'Most threads', icon: Hash },
 ]
+
+interface DraftBranchRowProps {
+  readonly sourceNodeId: string
+}
+
+function DraftBranchRow({ sourceNodeId }: DraftBranchRowProps) {
+  return (
+    <div className="mx-2 flex h-7 w-[calc(100%-16px)] items-center gap-2 rounded-md border border-dashed border-border pl-11 pr-3 text-left text-text-tertiary">
+      <GitBranch className="h-3 w-3 shrink-0" />
+      <span className="min-w-0 flex-1 truncate text-[12px]">Draft branch from {sourceNodeId}</span>
+    </div>
+  )
+}
+
+interface BranchRowsProps {
+  readonly branches: SessionTree['branches']
+  readonly activeBranchId: SessionTree['session']['lastActiveBranchId']
+  readonly draftSourceNodeId: string | null
+  readonly onSelectBranch: (branchId: string, headNodeId: string | null) => void
+}
+
+function BranchRows({
+  branches,
+  activeBranchId,
+  draftSourceNodeId,
+  onSelectBranch,
+}: BranchRowsProps) {
+  return (
+    <div className="mb-1 space-y-0.5">
+      {draftSourceNodeId ? <DraftBranchRow sourceNodeId={draftSourceNodeId} /> : null}
+      {branches.map((branch) => {
+        const isActiveBranch = branch.id === activeBranchId
+        return (
+          <button
+            key={String(branch.id)}
+            type="button"
+            onClick={() =>
+              onSelectBranch(
+                String(branch.id),
+                branch.headNodeId ? String(branch.headNodeId) : null,
+              )
+            }
+            className={cn(
+              'mx-2 flex h-7 w-[calc(100%-16px)] items-center gap-2 rounded-md pl-11 pr-3 text-left transition-colors',
+              isActiveBranch
+                ? 'bg-bg-active text-text-primary'
+                : 'text-text-tertiary hover:bg-bg-hover hover:text-text-secondary',
+            )}
+          >
+            <GitBranch className="h-3 w-3 shrink-0" />
+            <span className="min-w-0 flex-1 truncate text-[12px]">{branch.name}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+interface ProjectGroupSectionProps {
+  readonly group: SidebarProjectGroup
+  readonly isCurrentProject: boolean
+  readonly activeSessionId: SessionId | null
+  readonly activeSessionTree: SessionTree | null
+  readonly activeBranchId: SessionTree['session']['lastActiveBranchId']
+  readonly draftBranch: ReturnType<typeof useSessions>['draftBranch']
+  readonly displayProjectName: (path: string) => string
+  readonly onSelectProjectPath: (path: string) => void
+  readonly onSelectConversation: (id: ConversationId) => void
+  readonly onDeleteConversation: (id: ConversationId) => void
+  readonly onMarkUnread: (id: ConversationId) => void
+  readonly onSelectBranch: (branchId: string, headNodeId: string | null) => void
+}
+
+function ProjectGroupSection({
+  group,
+  isCurrentProject,
+  activeSessionId,
+  activeSessionTree,
+  activeBranchId,
+  draftBranch,
+  displayProjectName,
+  onSelectProjectPath,
+  onSelectConversation,
+  onDeleteConversation,
+  onMarkUnread,
+  onSelectBranch,
+}: ProjectGroupSectionProps) {
+  return (
+    <section className="mb-2">
+      <button
+        type="button"
+        onClick={() => onSelectProjectPath(group.projectPath)}
+        className={cn(
+          'flex h-7 w-full items-center gap-2 px-4 text-left transition-colors hover:bg-bg-hover',
+          isCurrentProject ? 'text-text-secondary' : 'text-text-tertiary',
+        )}
+        title={group.projectPath}
+      >
+        <Folder className="h-3.5 w-3.5 shrink-0" />
+        <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
+          {displayProjectName(group.projectPath)}
+        </span>
+      </button>
+
+      {group.sessions.length === 0 ? (
+        <div className="px-10 py-1.5 text-[12px] text-text-muted">No sessions</div>
+      ) : (
+        <div className="space-y-0.5">
+          {group.sessions.map((session) => {
+            const hasDraftBranch = draftBranch?.sessionId === session.id
+            const showBranches =
+              session.id === activeSessionId &&
+              activeSessionTree !== null &&
+              (activeSessionTree.branches.length > 1 || hasDraftBranch)
+
+            return (
+              <div key={String(session.id)}>
+                <SessionListItem
+                  session={session}
+                  isActive={session.id === activeSessionId}
+                  variant="project"
+                  onSelect={onSelectConversation}
+                  onDelete={onDeleteConversation}
+                  onMarkUnread={onMarkUnread}
+                />
+                {showBranches ? (
+                  <BranchRows
+                    branches={activeSessionTree.branches}
+                    activeBranchId={activeBranchId}
+                    draftSourceNodeId={
+                      draftBranch?.sessionId === activeSessionId
+                        ? String(draftBranch.sourceNodeId)
+                        : null
+                    }
+                    onSelectBranch={onSelectBranch}
+                  />
+                ) : null}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function activeViewFromPathname(pathname: string): 'chat' | 'skills' | 'settings' {
+  if (pathname.startsWith('/skills')) return 'skills'
+  if (pathname.startsWith('/settings')) return 'settings'
+  return 'chat'
+}
 
 export function Sidebar() {
   const sidebarOpen = useUIStore((s) => s.sidebarOpen)
-  const activeView = useUIStore((s) => s.activeView)
-  const setActiveView = useUIStore((s) => s.setActiveView)
-  const openSkillsView = useUIStore((s) => s.openSkillsView)
-  const openMcpsView = useUIStore((s) => s.openMcpsView)
-  const openSettings = useUIStore((s) => s.openSettings)
+  const showToast = useUIStore((s) => s.showToast)
+  const navigate = useNavigate()
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const activeView = activeViewFromPathname(pathname)
 
   const { projectPath, selectFolder, setProjectPath } = useProject()
-  const {
-    conversations,
-    activeConversationId,
-    createConversation,
-    startDraftThread,
-    setActiveConversation,
-    deleteConversation,
-    updateConversationProjectPath,
-    loadConversations,
-  } = useChat()
-  const { refreshStatus: refreshGitStatus, refreshBranches: refreshGitBranches } = useGit()
-
-  const { handleSelectConversation, handleNewConversation, handleOpenProject } = useConversationNav(
-    {
-      conversations,
-      activeConversationId,
-      projectPath,
-      setActiveView,
-      setProjectPath,
-      selectFolder,
-      createConversation,
-      startDraftThread,
-      setActiveConversation,
-      updateConversationProjectPath,
-      refreshGitStatus,
-      refreshGitBranches,
-    },
-  )
-
+  const recentProjects = usePreferencesStore((s) => s.settings.recentProjects)
   const projectDisplayNames = usePreferencesStore((s) => s.settings.projectDisplayNames)
-  const setProjectDisplayName = usePreferencesStore((s) => s.setProjectDisplayName)
-  const clearProjectDisplayName = usePreferencesStore((s) => s.clearProjectDisplayName)
-  const removeRecentProject = usePreferencesStore((s) => s.removeRecentProject)
-  const groups = groupConversationsByProject(conversations, projectDisplayNames)
+  const selectedModel = usePreferencesStore((s) => s.settings.selectedModel)
+  const { activeConversationId, startDraftSession, deleteConversation } = useChat()
+  const {
+    sessions,
+    activeSessionTree,
+    activeWorkspace,
+    draftBranch,
+    refreshSessionWorkspace,
+    clearDraftBranchForSession,
+  } = useSessions()
+  const { refreshStatus: refreshGitStatus, refreshBranches: refreshGitBranches } = useGit()
+  const activeSessionId = activeConversationId ? SessionId(String(activeConversationId)) : null
+  const matchingActiveSessionTree =
+    activeSessionId && activeSessionTree?.session.id === activeSessionId ? activeSessionTree : null
+  const matchingActiveWorkspace =
+    activeSessionId && activeWorkspace?.tree.session.id === activeSessionId ? activeWorkspace : null
+  const activeBranchId =
+    matchingActiveWorkspace?.activeBranchId ?? matchingActiveSessionTree?.session.lastActiveBranchId
+
   const isFullscreen = useFullscreen()
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
-  const [sortMode, setSortMode] = useState<SortMode>('recent')
+  const [sortMode, setSortMode] = useState<SidebarSessionSortMode>('recent')
   const [sortMenuOpen, setSortMenuOpen] = useState(false)
+  const sessionGroups = buildSidebarProjectGroups({
+    sessions,
+    currentProjectPath: projectPath,
+    recentProjects,
+    sortMode,
+  })
+  const hasProjectGroups = sessionGroups.projects.length > 0
 
-  const sortedGroups = sortConversationGroups(groups, sortMode)
+  function displayProjectName(path: string): string {
+    return projectDisplayNames[path]?.trim() || projectName(path)
+  }
 
-  function toggleGroup(key: string): void {
-    setCollapsedGroups((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) {
-        next.delete(key)
-      } else {
-        next.add(key)
-      }
-      return next
+  function refreshGit(path: string | null): void {
+    void Promise.all([refreshGitStatus(path), refreshGitBranches(path)])
+  }
+
+  function handleSelectConversation(id: ConversationId): void {
+    void navigate({ to: '/sessions/$sessionId', params: { sessionId: String(id) } })
+  }
+
+  function handleSelectBranch(branchId: string, headNodeId: string | null): void {
+    if (!activeSessionId) {
+      return
+    }
+
+    clearDraftBranchForSession(activeSessionId)
+
+    void navigate({
+      to: '/sessions/$sessionId',
+      params: { sessionId: String(activeSessionId) },
+      search: (previous) => ({
+        ...previous,
+        branch: branchId,
+        node: headNodeId ?? undefined,
+      }),
     })
+
+    if (!headNodeId) {
+      return
+    }
+
+    const targetNodeId = SessionNodeId(headNodeId)
+    void api
+      .navigateSessionTree(activeSessionId, selectedModel, targetNodeId, { summarize: false })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error)
+        showToast(`Failed to switch session branch: ${message}`)
+      })
+      .finally(() => {
+        void refreshSessionWorkspace(activeSessionId, {
+          branchId: SessionBranchId(branchId),
+          nodeId: targetNodeId,
+        })
+      })
+  }
+
+  function handleNewConversation(): void {
+    startDraftSession()
+    void navigate({ to: '/' })
+  }
+
+  async function handleOpenProject(): Promise<void> {
+    const path = await selectFolder()
+    if (!path) return
+    await setProjectPath(path)
+    startDraftSession()
+    refreshGit(path)
+    void navigate({ to: '/' })
+  }
+
+  async function handleSelectProjectPath(path: string): Promise<void> {
+    await setProjectPath(path)
+    startDraftSession()
+    refreshGit(path)
+    void navigate({ to: '/' })
   }
 
   return (
@@ -128,16 +314,13 @@ export function Sidebar() {
     >
       <nav
         aria-label="Sidebar"
-        className="flex h-full w-[272px] shrink-0 flex-col justify-between bg-bg-secondary border-r border-border"
+        className="flex h-full w-[272px] shrink-0 flex-col justify-between border-r border-border bg-bg-secondary"
       >
-        {/* sidebar-top */}
         <div className="flex flex-1 flex-col overflow-hidden">
-          {/* macOS traffic light clearance — collapses in fullscreen */}
           <div
             className="drag-region shrink-0 transition-[height] duration-200 ease-out"
             style={{ height: isFullscreen ? 0 : BITS_PER_UINT32 }}
           />
-          {/* Logo — drag region, padding [14,16] */}
           <div className="drag-region flex shrink-0 items-center px-4 py-1">
             <img
               src={openwaggleLockup}
@@ -151,45 +334,27 @@ export function Sidebar() {
             style={{ height: isFullscreen ? SIDEBAR_VALUE_104 : SIDEBAR_VALUE_80 }}
           />
 
-          {/* Nav items — fixed */}
           <div className="shrink-0">
-            {/* New thread — h34, padding [0,12], gap 8 */}
             <button
               type="button"
-              aria-label="New thread"
+              aria-label="New session"
               onClick={() => {
-                void handleNewConversation()
+                handleNewConversation()
               }}
-              className="no-drag flex w-full items-center gap-2 h-[34px] px-3 text-left transition-colors hover:bg-bg-hover"
+              className="no-drag flex h-[34px] w-full items-center gap-2 px-3 text-left transition-colors hover:bg-bg-hover"
             >
               <Edit3 className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
-              <span className="text-[14px] text-text-secondary">New thread</span>
+              <span className="text-[14px] text-text-secondary">New session</span>
             </button>
 
-            {/* MCPs — h32, padding [0,12], gap 8 */}
-            <button
-              type="button"
-              aria-label="MCPs"
-              onClick={openMcpsView}
-              className={cn(
-                'no-drag flex w-full items-center gap-2 h-8 px-3 transition-colors',
-                activeView === 'mcps'
-                  ? 'bg-bg-active text-text-primary'
-                  : 'text-text-secondary hover:bg-bg-hover',
-              )}
-              title="Open MCPs"
-            >
-              <McpIcon className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
-              <span className="text-[14px]">MCPs</span>
-            </button>
-
-            {/* Skills — h32, padding [0,12], gap 8 */}
             <button
               type="button"
               aria-label="Skills"
-              onClick={openSkillsView}
+              onClick={() => {
+                void navigate({ to: '/skills' })
+              }}
               className={cn(
-                'no-drag flex w-full items-center gap-2 h-8 px-3 transition-colors',
+                'no-drag flex h-8 w-full items-center gap-2 px-3 transition-colors',
                 activeView === 'skills'
                   ? 'bg-bg-active text-text-primary'
                   : 'text-text-secondary hover:bg-bg-hover',
@@ -203,9 +368,8 @@ export function Sidebar() {
 
           <div className="shrink-0 h-20" />
 
-          {/* Threads header — h30, padding [0,16], justify-between */}
-          <div className="no-drag flex shrink-0 items-center justify-between h-[30px] px-4">
-            <span className="text-[12px] font-medium text-text-tertiary">Threads</span>
+          <div className="no-drag flex h-[30px] shrink-0 items-center justify-between px-4">
+            <span className="text-[12px] font-medium text-text-tertiary">Projects</span>
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
@@ -226,15 +390,15 @@ export function Sidebar() {
                 trigger={
                   <button
                     type="button"
-                    aria-label="Sort projects"
-                    onClick={() => setSortMenuOpen((p) => !p)}
+                    aria-label="Sort sessions"
+                    onClick={() => setSortMenuOpen((open) => !open)}
                     className={cn(
                       'rounded p-0.5 transition-colors',
                       sortMenuOpen
                         ? 'text-text-primary'
                         : 'text-text-tertiary hover:text-text-secondary',
                     )}
-                    title="Sort projects"
+                    title="Sort sessions"
                   >
                     <LayoutList className="h-3 w-3" />
                   </button>
@@ -255,80 +419,57 @@ export function Sidebar() {
                   >
                     <opt.icon className="h-3 w-3 shrink-0" />
                     <span className="flex-1">{opt.label}</span>
-                    {sortMode === opt.value && <Check className="h-3 w-3 shrink-0" />}
+                    {sortMode === opt.value ? <Check className="h-3 w-3 shrink-0" /> : null}
                   </button>
                 ))}
               </Popover>
             </div>
           </div>
 
-          {/* Scrollable thread list */}
-          <div className="no-drag flex-1 overflow-y-auto">
-            {conversations.length === 0 ? (
+          <div className="no-drag flex-1 overflow-y-auto pb-3">
+            {!hasProjectGroups ? (
               <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
-                <MessageSquare className="h-5 w-5 text-text-muted/75" />
-                <p className="text-[13px] text-text-muted">No threads yet</p>
+                <Folder className="h-5 w-5 text-text-muted/75" />
+                <p className="text-[13px] text-text-muted">No projects yet</p>
               </div>
             ) : (
-              sortedGroups.map((group) => {
-                const groupKey = group.path ?? '__none__'
-                return (
-                  <ConversationGroup
-                    key={groupKey}
-                    group={group}
-                    isCollapsed={collapsedGroups.has(groupKey)}
-                    activeId={activeConversationId}
-                    onToggle={() => toggleGroup(groupKey)}
-                    onSelect={(id: ConversationId) => {
-                      void handleSelectConversation(id)
-                    }}
-                    onDelete={(id: ConversationId) => {
-                      void deleteConversation(id)
-                    }}
-                    onMarkUnread={(id: ConversationId) => {
-                      useThreadStatusStore.getState().markUnread(id)
-                    }}
-                    onNewThread={() => {
-                      void createConversation(group.path)
-                    }}
-                    onRename={(name: string) => {
-                      if (!group.path) return
-                      if (name.trim()) {
-                        void setProjectDisplayName(group.path, name.trim())
-                      } else {
-                        void clearProjectDisplayName(group.path)
-                      }
-                    }}
-                    onRemove={() => {
-                      if (!group.path) return
-                      void api
-                        .showConfirm(
-                          `Remove "${group.displayName}"?`,
-                          'All threads in this project will be archived. You can restore them from Settings → Archived threads.',
-                        )
-                        .then(async (confirmed) => {
-                          if (!confirmed || !group.path) return
-                          await Promise.all(
-                            group.conversations.map((conv) => api.archiveConversation(conv.id)),
-                          )
-                          await Promise.all([removeRecentProject(group.path), loadConversations()])
-                        })
-                    }}
-                  />
-                )
-              })
+              sessionGroups.projects.map((group) => (
+                <ProjectGroupSection
+                  key={group.projectPath}
+                  group={group}
+                  isCurrentProject={group.projectPath === projectPath}
+                  activeSessionId={activeSessionId}
+                  activeSessionTree={matchingActiveSessionTree}
+                  activeBranchId={activeBranchId}
+                  draftBranch={draftBranch}
+                  displayProjectName={displayProjectName}
+                  onSelectProjectPath={(nextProjectPath) => {
+                    void handleSelectProjectPath(nextProjectPath)
+                  }}
+                  onSelectConversation={(id) => {
+                    void handleSelectConversation(id)
+                  }}
+                  onDeleteConversation={(id) => {
+                    void deleteConversation(id)
+                  }}
+                  onMarkUnread={(id) => {
+                    useSessionStatusStore.getState().markUnread(id)
+                  }}
+                  onSelectBranch={handleSelectBranch}
+                />
+              ))
             )}
           </div>
         </div>
 
-        {/* sidebar-bottom — no border-top */}
         <div className="no-drag shrink-0">
-          {/* Settings — h36, padding [0,16], gap 10 */}
           <button
             type="button"
             aria-label="Settings"
-            onClick={() => openSettings()}
-            className="flex w-full items-center gap-2.5 h-9 px-4 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
+            onClick={() => {
+              void navigate({ to: '/settings' })
+            }}
+            className="flex h-9 w-full items-center gap-2.5 px-4 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
           >
             <Settings className="h-3.5 w-3.5" />
             <span className="text-[14px] text-text-secondary">Settings</span>

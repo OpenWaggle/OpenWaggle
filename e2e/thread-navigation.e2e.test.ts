@@ -14,6 +14,7 @@ test('switches threads immediately from the preloaded conversation read model', 
     await seedConversations(app.userDataDir, [
       {
         title: FIRST_THREAD_TITLE,
+        projectPath: app.userDataDir,
         updatedAt: Date.now() - 1,
         messages: [
           {
@@ -26,6 +27,7 @@ test('switches threads immediately from the preloaded conversation read model', 
       },
       {
         title: SECOND_THREAD_TITLE,
+        projectPath: app.userDataDir,
         updatedAt: Date.now(),
         messages: [
           {

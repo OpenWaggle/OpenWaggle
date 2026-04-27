@@ -1,53 +1,48 @@
 ---
 title: "Skills System"
-description: "Extend the agent with specialized knowledge and workflows using project-local skills."
+description: "Current skill discovery surfaces and Pi-native runtime loading."
 order: 1
 section: "Extending"
 ---
 
-Skills extend the agent's capabilities with specialized knowledge and workflows. They live in your project repository and can be enabled, disabled, or activated on demand.
+Skills are instruction packages with a `SKILL.md` file.
 
-## What Are Skills?
+Pi references: [coding-agent customization](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/README.md#customization) and [extensions](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/extensions.md).
 
-A skill is a folder inside `.openwaggle/skills/` containing a `SKILL.md` file. The markdown file provides specialized instructions, patterns, and workflows that the agent can load during a conversation.
+## Runtime Source Of Truth
 
-For example, a skill might include code quality audit rules, framework-specific patterns, or step-by-step workflows that the agent follows when working on certain parts of your codebase.
+Pi's runtime resource loader is the source of truth for skills that affect agent runs. Current Pi discovery includes project `.pi/skills/` and `.agents/skills/` locations, plus user/global Pi resource locations.
 
-## Discovering Skills
+OpenWaggle also adds `.openwaggle/skills/` to Pi's skill loader. The Skills panel scans `.openwaggle/skills/` and `.agents/skills/`, shows metadata, previews instructions, and persists per-project enable/disable toggles for the OpenWaggle catalog.
 
-### Skills Panel
+Catalog toggles are applied to `.openwaggle/skills/` and root `.agents/skills/` before Pi builds runtime context. `.pi/skills/`, ancestor `.agents/skills/`, and global/user Pi resources remain governed by Pi discovery.
 
-Click **Skills** in the sidebar to open the Skills panel. It shows:
+## Skills Panel
 
-- **Skill catalog** — All skills discovered in `.openwaggle/skills/`. Each skill shows its name, description, and an enable/disable toggle.
-- **Preview pane** — Select a skill to see its full content rendered as markdown.
+Open the Skills panel from the sidebar. It shows:
 
-### Slash References
+- Root `AGENTS.md` status.
+- Cataloged skills.
+- Enable/disable toggles.
+- A preview pane for the selected `SKILL.md`.
 
-Type `/` in the composer to open the command palette, then select a skill to reference it. This activates that skill for the current agent response.
+## Slash References
 
-Multiple skill references can be included in the same message.
+Type `/` in the composer to open the command palette and insert a skill reference into the message.
 
-## Enabling and Disabling Skills
+Slash references stay visible in the message text. Pi also registers loaded skills as `/skill:name` commands according to its own resource-loader behavior.
 
-Toggle each skill on or off using the switch in the Skills panel. Toggles are **per-project** — enabling a skill in one project doesn't affect other projects.
+## Recommended Runtime Folder
 
-Disabled skills don't appear in slash-reference suggestions and can't be loaded by the agent automatically.
+For skills that should be loaded by Pi today, use:
 
-## Creating Custom Skills
-
-### Folder Structure
-
-```
-.openwaggle/
-  skills/
-    my-skill/
-      SKILL.md          # Required: skill instructions
-      scripts/           # Optional: bundled scripts or resources
-      templates/         # Optional: templates the skill references
+```text
+.openwaggle/skills/my-skill/SKILL.md
+.pi/skills/my-skill/SKILL.md
+.agents/skills/my-skill/SKILL.md
 ```
 
-### SKILL.md Format
+## SKILL.md Format
 
 ```markdown
 ---
@@ -57,31 +52,7 @@ description: A brief description of what this skill does
 
 # My Custom Skill
 
-## When to Use
-
-Describe when the agent should activate this skill.
-
 ## Instructions
 
-Step-by-step instructions, patterns, code examples, or workflows.
-
-## Rules
-
-Any constraints or rules the agent should follow.
+Describe the workflow, constraints, or patterns the agent should use.
 ```
-
-The frontmatter (`name` and `description`) is required for the skill to appear in the catalog. The body content is what the agent receives when the skill is loaded.
-
-### Best Practices
-
-- **Keep descriptions actionable** — The agent uses the description to decide whether to load the skill.
-- **Include clear triggers** — Describe the scenarios where this skill applies.
-- **Be specific** — Concrete patterns, code examples, and command sequences work better than vague guidance.
-- **Bundle resources** — If the skill references scripts or templates, keep them in the same skill folder.
-
-## AGENTS.md
-
-In addition to skills, OpenWaggle supports `AGENTS.md` files for project-wide agent instructions.
-
-- Place an `AGENTS.md` in your project root to provide baseline instructions for every agent run.
-- Place additional `AGENTS.md` files in subdirectories to provide scoped instructions that apply when the agent works in those areas.

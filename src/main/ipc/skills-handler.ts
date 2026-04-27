@@ -6,7 +6,7 @@ import {
   loadSkillInstructions,
   toSkillCatalogResult,
 } from '../skills/skill-catalog'
-import { loadAgentsInstruction } from '../standards/agents-loader'
+import { loadProjectAgentsInstruction } from '../standards/agents-loader'
 import { resolveAgentsChainForPath, resolveAgentsForRun } from '../standards/agents-resolver'
 import { typedHandle } from './typed-ipc'
 
@@ -17,7 +17,7 @@ export function registerSkillsHandlers(): void {
   typedHandle('standards:get-status', (_event, rawProjectPath: string) =>
     Effect.gen(function* () {
       const projectPath = decodeUnknownOrThrow(projectPathSchema, rawProjectPath)
-      const agents = yield* Effect.promise(() => loadAgentsInstruction(projectPath))
+      const agents = yield* Effect.promise(() => loadProjectAgentsInstruction(projectPath))
       return {
         agents: agents.status,
         agentsPath: agents.filePath,

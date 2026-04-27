@@ -1,18 +1,10 @@
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  typedHandleMock,
-  showOpenDialogMock,
-  fromWebContentsMock,
-  isProjectToolCallTrustedMock,
-  recordToolCallApprovalMock,
-} = vi.hoisted(() => ({
+const { typedHandleMock, showOpenDialogMock, fromWebContentsMock } = vi.hoisted(() => ({
   typedHandleMock: vi.fn(),
   showOpenDialogMock: vi.fn(),
   fromWebContentsMock: vi.fn(),
-  isProjectToolCallTrustedMock: vi.fn(),
-  recordToolCallApprovalMock: vi.fn(),
 }))
 
 vi.mock('electron', () => ({
@@ -26,11 +18,6 @@ vi.mock('electron', () => ({
 
 vi.mock('../typed-ipc', () => ({
   typedHandle: typedHandleMock,
-}))
-
-vi.mock('../../config/project-config', () => ({
-  isProjectToolCallTrusted: isProjectToolCallTrustedMock,
-  recordToolCallApproval: recordToolCallApprovalMock,
 }))
 
 import { registerProjectHandlers } from '../project-handler'
@@ -53,8 +40,6 @@ describe('registerProjectHandlers', () => {
     typedHandleMock.mockReset()
     showOpenDialogMock.mockReset()
     fromWebContentsMock.mockReset()
-    isProjectToolCallTrustedMock.mockReset()
-    recordToolCallApprovalMock.mockReset()
   })
 
   it('attaches the folder dialog to the requesting window when available', async () => {

@@ -64,7 +64,7 @@ export function WaggleCollaborationStatus({
         {/* Status-specific content */}
         {status === 'idle' && (
           <span className="text-[12px] text-text-tertiary truncate">
-            {config.mode === 'sequential' ? 'Sequential' : 'Parallel'} — send a message to start
+            Sequential — send a message to start
           </span>
         )}
 

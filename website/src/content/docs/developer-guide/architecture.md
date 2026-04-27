@@ -1,65 +1,64 @@
 ---
 title: "Architecture"
-description: "A high-level overview of how OpenWaggle is built — Electron, React, and the AI agent system."
+description: "Pi-native OpenWaggle architecture: Electron shell, hexagonal main process, and SQLite session projection."
 order: 1
 section: "Developer Guide"
 ---
 
-OpenWaggle is an Electron desktop app built with TypeScript. It uses a standard Electron architecture with strict process isolation between the backend and the UI.
+OpenWaggle is an Electron desktop app with a Pi-native runtime core.
 
-## High-Level Overview
+## Process Boundaries
 
 ```
-┌─────────────────────────────────────┐
-│           Electron App              │
-│                                     │
-│  ┌──────────┐    ┌───────────────┐  │
-│  │  Backend  │◄──►│   React UI    │  │
-│  │  (Node)   │    │  (Renderer)   │  │
-│  └──────────┘    └───────────────┘  │
-│       │                             │
-│  ┌──────────┐                       │
-│  │  SQLite   │                      │
-│  │  Storage  │                      │
-│  └──────────┘                       │
-└─────────────────────────────────────┘
+src/
+  main/              # Node.js process: ports, adapters, IPC, SQLite projection
+  preload/           # Typed contextBridge API
+  renderer/src/      # React 19 UI
+  shared/            # Vendor-free types and schemas
 ```
 
-- **Backend** — The Node.js process runs the AI agent loop, executes tools, manages provider connections, handles persistence, and coordinates MCP servers.
-- **UI** — A React 19 single-page application styled with Tailwind CSS v4. Includes the chat interface, settings, file diffs, and a built-in terminal.
-- **Bridge** — A typed API layer ensures the UI can only communicate with the backend through well-defined channels. No direct Node.js access from the UI.
+The renderer has no direct Node access and no Pi SDK imports. It talks to the main process through typed IPC exposed by preload.
 
-## AI Agent System
+## Hexagonal Main Process
 
-When you send a message, the backend:
+Pi is confined to `src/main/adapters/pi/`.
 
-1. Routes your request to the selected AI provider (Anthropic, OpenAI, etc.).
-2. Streams the model's response back to the UI in real time.
-3. Executes any tool calls the model makes (file reads, writes, shell commands, etc.).
-4. Returns tool results to the model so it can continue its response.
+| Layer | Responsibility |
+|-------|----------------|
+| `domain/` | Pure business logic. No infrastructure or vendor imports. |
+| `ports/` | Effect service interfaces such as `AgentKernelService`, `ProviderService`, and session repositories. |
+| `adapters/` | Concrete implementations, including Pi and SQLite adapters. |
+| `application/` | Business orchestration through ports. |
+| `ipc/` | Transport handlers, active-run tracking, and IPC event emission. |
+| `store/` | SQLite persistence primitives behind adapters. |
 
-The agent supports multiple providers through a registry system — each provider implements a standard interface, so switching models is seamless.
+## Runtime Flow
 
-## Multi-Agent Collaboration (Waggle Mode)
+When a user sends a message:
 
-In Waggle Mode, two agents take alternating turns on the same task. The orchestration engine manages turn-taking, tracks which files each agent modifies, detects consensus, and produces a synthesis when the agents converge.
+1. The renderer invokes `agent:send-message`.
+2. The IPC handler delegates run coordination to the application layer.
+3. `AgentKernelService` resolves to the Pi adapter.
+4. The Pi adapter creates project-scoped Pi services for the selected provider-qualified model.
+5. Pi runs the session with its native tool surface.
+6. The adapter translates Pi events into OpenWaggle-owned `AgentTransportEvent` values.
+7. SQLite session projection tables persist sessions, nodes, branches, and branch UI state.
 
-## Tool System
+## Provider And Model Metadata
 
-Tools are the agent's interface to your project. Each tool has a defined input contract, and tools that modify files or run commands require your approval before executing. Tools default to the project directory but can access files anywhere on the machine using absolute paths.
+Provider/model/auth data comes from Pi `ModelRegistry` and `AuthStorage`. OpenWaggle exposes that metadata through ports and IPC DTOs so the settings UI can curate enabled models.
 
-## Extensibility
+## Tool Surface
 
-- **Skills** — Project-local markdown instructions that teach the agent specialized workflows.
-- **MCP Servers** — External tool servers connected via the Model Context Protocol, extending the agent's capabilities with browser automation, database access, and more.
+Pi owns tool execution. OpenWaggle renders Pi-emitted tool events directly in the transcript.
 
 ## Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
-| Framework | Electron |
-| UI | React 19, Tailwind CSS v4 |
-| AI Integration | TanStack AI |
-| Language | TypeScript |
-| Storage | SQLite |
-| Terminal | xterm.js |
+|-------|------------|
+| Framework | Electron 40 + electron-vite |
+| Runtime | Pi SDK behind OpenWaggle ports/adapters |
+| Main orchestration | Effect |
+| UI | React 19, Zustand, Tailwind CSS v4 |
+| Storage | SQLite + `.openwaggle/settings.json` project config |
+| Terminal | xterm.js + node-pty |

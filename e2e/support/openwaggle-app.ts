@@ -27,6 +27,7 @@ const E2E_ENV_KEYS: readonly string[] = [
 function buildElectronEnv(userDataDir: string): Record<string, string> {
   const env: Record<string, string> = {
     OPENWAGGLE_USER_DATA_DIR: userDataDir,
+    OPENWAGGLE_DISABLE_SINGLE_INSTANCE: '1',
   }
 
   for (const key of E2E_ENV_KEYS) {

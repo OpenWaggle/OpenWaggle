@@ -1,7 +1,13 @@
 import crypto from 'node:crypto'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import { expect, test } from '@playwright/test'
 import { seedSingleConversation } from './support/conversation-fixtures'
 import { OpenWaggleApp } from './support/openwaggle-app'
+
+const DIFF_ROUTE_THREAD_TITLE = 'Diff Route Test Thread'
+const DIFF_ROUTE_USER_TEXT = 'diff-route-user-message'
 
 function makeMessage(role: 'user' | 'assistant', text: string) {
   return {
@@ -11,63 +17,44 @@ function makeMessage(role: 'user' | 'assistant', text: string) {
   }
 }
 
-test.describe('inspector panels', () => {
-  test('context inspector opens with visible content when clicking the header toggle', async () => {
-    const app = await OpenWaggleApp.launch('openwaggle-e2e-inspector-')
+test.describe('diff route sidebar', () => {
+  test('opens and closes the diff sidebar through the route search state', async () => {
+    const app = await OpenWaggleApp.launch('openwaggle-e2e-diff-route-')
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-e2e-diff-project-'))
 
     try {
       await seedSingleConversation(app.userDataDir, {
-        title: 'Inspector Test Thread',
+        title: DIFF_ROUTE_THREAD_TITLE,
         updatedAt: Date.now(),
-        messages: [makeMessage('user', 'Hello'), makeMessage('assistant', 'Hi there!')],
+        projectPath,
+        messages: [
+          makeMessage('user', DIFF_ROUTE_USER_TEXT),
+          makeMessage('assistant', 'Diff route response'),
+        ],
       })
       await app.restart()
 
       const page = app.mainWindow().page
+      await page.getByText(DIFF_ROUTE_THREAD_TITLE).click()
+      await expect(page.getByText(DIFF_ROUTE_USER_TEXT)).toBeVisible()
+      await expect(page).toHaveURL(/#\/sessions\/[0-9a-f-]+/)
 
-      // Click on the seeded conversation to activate it
-      await page.getByText('Inspector Test Thread').click()
+      const diffToggle = page.getByRole('button', { name: 'Toggle diff panel' })
+      await expect(diffToggle).toBeVisible()
+      await diffToggle.click()
 
-      // Click the context inspector toggle in the header
-      const contextToggle = page.getByRole('button', { name: 'Toggle context inspector' })
-      await expect(contextToggle).toBeVisible()
-      await contextToggle.click()
+      await expect(page).toHaveURL(/\?diff=1/)
+      const diffAside = page.locator('aside').filter({ hasText: 'Working tree diff' })
+      await expect(diffAside).toHaveAttribute('aria-hidden', 'false')
+      await expect(page.getByRole('button', { name: 'Resize diff sidebar' })).toBeVisible()
 
-      // The context panel should show the overview with compact button
-      await expect(page.getByText('Compact now')).toBeVisible({ timeout: 5_000 })
+      await page.getByRole('button', { name: 'Close diff sidebar' }).click()
 
-      // The context meter in the composer should exist
-      const meter = page.getByRole('img', { name: 'Context usage meter' })
-      await expect(meter).toBeVisible()
+      await expect(page).not.toHaveURL(/\?diff=1/)
+      await expect(diffAside).toHaveAttribute('aria-hidden', 'true')
     } finally {
       await app.cleanup()
-    }
-  })
-
-  test('context inspector toggles open and closed', async () => {
-    const app = await OpenWaggleApp.launch('openwaggle-e2e-toggle-')
-
-    try {
-      await seedSingleConversation(app.userDataDir, {
-        title: 'Toggle Test',
-        updatedAt: Date.now(),
-        messages: [makeMessage('user', 'Test'), makeMessage('assistant', 'Response')],
-      })
-      await app.restart()
-
-      const page = app.mainWindow().page
-
-      await page.getByText('Toggle Test').click()
-
-      // Open context inspector
-      await page.getByRole('button', { name: 'Toggle context inspector' }).click()
-      await expect(page.getByText('Compact now')).toBeVisible({ timeout: 5_000 })
-
-      // Close by clicking again
-      await page.getByRole('button', { name: 'Toggle context inspector' }).click()
-      await expect(page.getByText('Compact now')).toBeHidden({ timeout: 3_000 })
-    } finally {
-      await app.cleanup()
+      await fs.rm(projectPath, { recursive: true, force: true })
     }
   })
 })

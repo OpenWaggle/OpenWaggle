@@ -7,13 +7,6 @@
         "chrome-devtools-mcp@latest",
         "--browserUrl=http://127.0.0.1:9222"
       ]
-    },
-    "electron-test": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "electron-test-mcp@latest"
-      ]
     }
   }
 }

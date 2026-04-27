@@ -1,8 +1,16 @@
 ---
 title: "Plugins"
-description: "Extend OpenWaggle with community plugins — coming soon."
+description: "Current plugin status in OpenWaggle."
 order: 4
 section: "Extending"
 ---
 
-> **Coming soon** — A plugin system for extending OpenWaggle with community-built capabilities is planned for a future release.
+OpenWaggle does not currently expose an end-user plugin marketplace or plugin manager.
+
+The active extension points today are:
+
+- Pi-native project skills in `.pi/skills/`, `.openwaggle/skills/`, or `.agents/skills/`
+- project instructions through `AGENTS.md`
+- Pi-native runtime extension work behind main-process adapter/port boundaries
+
+Do not document plugin installation flows until they exist in the app.

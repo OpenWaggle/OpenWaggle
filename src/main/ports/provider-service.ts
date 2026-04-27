@@ -1,52 +1,44 @@
 /**
  * ProviderService port — domain-owned interface for provider resolution.
- *
- * Extends the existing ProviderRegistryService with adapter creation
- * that returns domain-owned ChatAdapter instead of vendor AnyTextAdapter.
  */
-import type { Provider } from '@shared/types/settings'
+
+import type { ProviderAuthInfo } from '@shared/types/llm'
+import type { Provider, ThinkingLevel } from '@shared/types/settings'
 import { Context, type Effect } from 'effect'
 import type { ProviderLookupError } from '../errors'
-import type { ChatAdapter } from './chat-adapter-type'
+
+export interface ProviderModelCapabilities {
+  readonly id: string
+  readonly modelId: string
+  readonly name?: string
+  readonly available: boolean
+  readonly reasoning: boolean
+  readonly availableThinkingLevels: readonly ThinkingLevel[]
+  readonly input: readonly ('text' | 'image')[]
+  readonly contextWindow: number
+  readonly maxTokens: number
+}
 
 export interface ProviderCapabilities {
   readonly id: Provider
   readonly displayName: string
-  readonly requiresApiKey: boolean
-  readonly supportsBaseUrl: boolean
-  readonly supportsSubscription: boolean
-  readonly supportsDynamicModelFetch: boolean
-  readonly models: readonly string[]
+  readonly auth: ProviderAuthInfo
+  readonly models: readonly ProviderModelCapabilities[]
   readonly testModel: string
   readonly apiKeyManagementUrl?: string
-  readonly getContextWindow?: (
-    model: string,
-  ) => { contextTokens: number; maxOutputTokens: number } | undefined
 }
 
 export interface ProviderServiceShape {
-  readonly get: (providerId: string) => Effect.Effect<ProviderCapabilities | undefined>
-  readonly getAll: () => Effect.Effect<readonly ProviderCapabilities[]>
+  readonly get: (
+    providerId: string,
+    projectPath?: string | null,
+  ) => Effect.Effect<ProviderCapabilities | undefined>
+  readonly getAll: (projectPath?: string | null) => Effect.Effect<readonly ProviderCapabilities[]>
   readonly getProviderForModel: (
     modelId: string,
+    projectPath?: string | null,
   ) => Effect.Effect<ProviderCapabilities, ProviderLookupError>
-  readonly isKnownModel: (modelId: string) => Effect.Effect<boolean>
-  readonly createChatAdapter: (
-    model: string,
-    apiKey: string | undefined,
-    baseUrl?: string,
-    authMethod?: 'api-key' | 'subscription',
-  ) => Effect.Effect<ChatAdapter, ProviderLookupError>
-  readonly indexModels: (
-    modelIds: readonly string[],
-    providerId: string,
-  ) => Effect.Effect<void, ProviderLookupError>
-  readonly fetchModels: (
-    providerId: string,
-    baseUrl?: string,
-    apiKey?: string,
-    authMethod?: 'api-key' | 'subscription',
-  ) => Effect.Effect<readonly string[]>
+  readonly isKnownModel: (modelId: string, projectPath?: string | null) => Effect.Effect<boolean>
 }
 
 export class ProviderService extends Context.Tag('@openwaggle/ProviderService')<

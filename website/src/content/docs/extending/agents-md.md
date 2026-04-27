@@ -5,13 +5,13 @@ order: 3
 section: "Extending"
 ---
 
-`AGENTS.md` files provide project-wide instructions that the agent follows during every conversation.
+`AGENTS.md` files provide project instructions. Pi's default resource loader discovers context files, and OpenWaggle also exposes AGENTS status in the Skills panel.
 
 ## How It Works
 
 - Place an `AGENTS.md` in your project root to give the agent baseline instructions for every run.
 - Place additional `AGENTS.md` files in subdirectories to provide scoped instructions for specific areas of your codebase.
-- When the agent works in a directory, it automatically picks up the nearest `AGENTS.md` instructions.
+- Pi discovers relevant context files for the active project. OpenWaggle's own resolver can preview root and scoped instructions for the UI.
 
 ## What to Include
 
@@ -40,7 +40,7 @@ Use `AGENTS.md` for things like:
 
 ## AGENTS.md vs Skills
 
-- **AGENTS.md** — Always active, provides baseline context for every conversation. Best for project-wide rules.
-- **Skills** — Activated on demand, loaded only when needed. Best for specialized workflows (e.g., "run this audit", "follow this migration guide").
+- **AGENTS.md** — Baseline project context discovered by Pi/OpenWaggle for the active project.
+- **Skills** — Runtime-loaded through Pi-native resource locations plus OpenWaggle's `.openwaggle/skills` bridge; OpenWaggle also has a catalog UI for skill preview and toggles.
 
 See [Skills System](/docs/extending/skills-system) for more on skills.

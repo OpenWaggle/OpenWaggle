@@ -1,16 +1,10 @@
 import type { AgentSendPayload, PreparedAttachment } from './agent'
-import type { OAuthFlowStatus, SubscriptionAccountInfo, SubscriptionProvider } from './auth'
+import type { OAuthAccountInfo, OAuthFlowStatus, OAuthProvider } from './auth'
 import type { ActiveRunInfo, BackgroundRunSnapshot } from './background-run'
-import type { ConversationId, McpServerId, TeamConfigId } from './brand'
+import type { ConversationId, SessionId, SessionNodeId, TeamConfigId } from './brand'
 import type { FileSuggestion } from './composer'
-import type {
-  ContextSnapshot,
-  ModelCompatibilityInfo,
-  PinnedItem,
-  PinnedItemInput,
-} from './context'
+import type { ContextCompactionResult, ContextUsageSnapshot } from './context-usage'
 import type { Conversation, ConversationSummary } from './conversation'
-import type { DevtoolsEventBusConfig } from './devtools'
 import type {
   DiagnosticsInfo,
   FeedbackPayload,
@@ -30,21 +24,22 @@ import type {
   GitFileDiff,
   GitStatusSummary,
 } from './git'
-import type { ModelDisplayInfo, ProviderInfo, SupportedModelId } from './llm'
-import type { McpServerConfig, McpServerStatus } from './mcp'
-import type { OrchestrationEventPayload, OrchestrationRunRecord } from './orchestration'
+import type { ProviderInfo, SupportedModelId } from './llm'
 import type { AgentPhaseEventPayload, AgentPhaseState } from './phase'
-import type { PlanPayload, PlanResponse } from './plan'
-import type { QuestionAnswer, QuestionPayload } from './question'
-import type { Provider, Settings } from './settings'
+import type {
+  SessionNavigateTreeOptions,
+  SessionSummary,
+  SessionTree,
+  SessionWorkspace,
+  SessionWorkspaceSelection,
+} from './session'
+import type { Settings } from './settings'
 import type {
   AgentsInstructionStatus,
   AgentsResolutionResult,
   SkillCatalogResult,
 } from './standards'
-import type { AgentStreamChunk } from './stream'
-import type { SubAgentEventPayload, TeamEventPayload } from './sub-agent'
-import type { ApprovalRequiredToolName } from './tool-approval'
+import type { AgentTransportEvent } from './stream'
 import type { UpdateStatus } from './updater'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
 import type {
@@ -72,6 +67,14 @@ export interface IpcInvokeChannelMap {
     args: [conversationId: ConversationId]
     return: { preserved: boolean }
   }
+  'agent:get-context-usage': {
+    args: [conversationId: ConversationId, model: SupportedModelId]
+    return: ContextUsageSnapshot | null
+  }
+  'agent:compact-session': {
+    args: [conversationId: ConversationId, model: SupportedModelId, customInstructions?: string]
+    return: ContextCompactionResult
+  }
   'settings:get': {
     args: []
     return: Settings
@@ -85,32 +88,19 @@ export interface IpcInvokeChannelMap {
     return: undefined
   }
   'settings:test-api-key': {
-    args: [
-      provider: string,
-      apiKey: string,
-      baseUrl?: string,
-      authMethod?: 'api-key' | 'subscription',
-    ]
+    args: [provider: string, apiKey: string, projectPath?: string | null]
     return: { success: boolean; error?: string }
   }
   'project:select-folder': {
     args: []
     return: string | null
   }
-  'project-config:is-tool-call-trusted': {
-    args: [projectPath: string, toolName: ApprovalRequiredToolName, rawArgs: string]
-    return: boolean
-  }
-  'project-config:record-tool-approval': {
-    args: [projectPath: string, toolName: ApprovalRequiredToolName, rawArgs: string]
-    return: undefined
-  }
   'project-config:get-preferences': {
     args: [projectPath: string]
-    return: { model?: string; qualityPreset?: string } | null
+    return: { model?: string; thinkingLevel?: string } | null
   }
   'project-config:set-preferences': {
-    args: [projectPath: string, preferences: { model?: string; qualityPreset?: string }]
+    args: [projectPath: string, preferences: { model?: string; thinkingLevel?: string }]
     return: undefined
   }
   'conversations:list': {
@@ -126,7 +116,7 @@ export interface IpcInvokeChannelMap {
     return: Conversation | null
   }
   'conversations:create': {
-    args: [projectPath: string | null]
+    args: [projectPath: string]
     return: Conversation
   }
   'conversations:delete': {
@@ -149,30 +139,30 @@ export interface IpcInvokeChannelMap {
     args: [id: ConversationId, title: string]
     return: undefined
   }
-  'conversations:update-project-path': {
-    args: [id: ConversationId, projectPath: string | null]
-    return: Conversation | null
+  'sessions:list': {
+    args: [limit?: number]
+    return: SessionSummary[]
   }
-  'conversations:update-plan-mode': {
-    args: [id: ConversationId, planModeActive: boolean]
-    return: Conversation | null
+  'sessions:get-tree': {
+    args: [sessionId: SessionId]
+    return: SessionTree | null
   }
-  'devtools:get-event-bus-config': {
-    args: []
-    return: DevtoolsEventBusConfig
+  'sessions:get-workspace': {
+    args: [sessionId: SessionId, selection?: SessionWorkspaceSelection]
+    return: SessionWorkspace | null
+  }
+  'sessions:navigate-tree': {
+    args: [
+      sessionId: SessionId,
+      model: SupportedModelId,
+      targetNodeId: SessionNodeId,
+      options?: SessionNavigateTreeOptions,
+    ]
+    return: { editorText?: string; cancelled: boolean }
   }
   'providers:get-models': {
-    args: []
+    args: [projectPath?: string | null]
     return: ProviderInfo[]
-  }
-  'providers:fetch-models': {
-    args: [
-      provider: Provider,
-      baseUrl?: string,
-      apiKey?: string,
-      authMethod?: 'api-key' | 'subscription',
-    ]
-    return: ModelDisplayInfo[]
   }
   'terminal:create': {
     args: [projectPath: string]
@@ -230,14 +220,6 @@ export interface IpcInvokeChannelMap {
     args: [text: string, operationId: string]
     return: PreparedAttachment
   }
-  'agent:answer-question': {
-    args: [conversationId: ConversationId, answers: QuestionAnswer[]]
-    return: undefined
-  }
-  'agent:respond-to-plan': {
-    args: [conversationId: ConversationId, response: PlanResponse]
-    return: undefined
-  }
   'agent:get-phase': {
     args: [conversationId: ConversationId]
     return: AgentPhaseState | null
@@ -274,18 +256,6 @@ export interface IpcInvokeChannelMap {
     args: [projectPath: string, skillId: string]
     return: { markdown: string }
   }
-  'orchestration:get-run': {
-    args: [runId: string]
-    return: OrchestrationRunRecord | null
-  }
-  'orchestration:list-runs': {
-    args: [conversationId?: ConversationId]
-    return: OrchestrationRunRecord[]
-  }
-  'orchestration:cancel-run': {
-    args: [runId: string]
-    return: undefined
-  }
   'dialog:confirm': {
     args: [message: string, detail?: string]
     return: boolean
@@ -305,41 +275,28 @@ export interface IpcInvokeChannelMap {
   }
   // Auth
   'auth:start-oauth': {
-    args: [provider: SubscriptionProvider]
+    args: [provider: OAuthProvider]
     return: undefined
   }
   'auth:disconnect': {
-    args: [provider: SubscriptionProvider]
+    args: [provider: OAuthProvider]
     return: undefined
   }
   'auth:get-account-info': {
-    args: [provider: SubscriptionProvider]
-    return: SubscriptionAccountInfo
+    args: [provider: OAuthProvider]
+    return: OAuthAccountInfo
   }
   'auth:submit-code': {
-    args: [provider: SubscriptionProvider, code: string]
+    args: [provider: OAuthProvider, code: string]
     return: undefined
   }
-  // MCP
-  'mcp:list-servers': {
-    args: []
-    return: McpServerStatus[]
+  'auth:cancel-oauth': {
+    args: [provider: OAuthProvider]
+    return: undefined
   }
-  'mcp:add-server': {
-    args: [config: Omit<McpServerConfig, 'id'>]
-    return: { ok: true; id: McpServerId } | { ok: false; error: string }
-  }
-  'mcp:remove-server': {
-    args: [id: McpServerId]
-    return: { ok: true } | { ok: false; error: string }
-  }
-  'mcp:toggle-server': {
-    args: [id: McpServerId, enabled: boolean]
-    return: { ok: true } | { ok: false; error: string }
-  }
-  'mcp:update-server': {
-    args: [id: McpServerId, updates: Partial<Omit<McpServerConfig, 'id'>>]
-    return: { ok: true } | { ok: false; error: string }
+  'auth:set-api-key': {
+    args: [provider: string, apiKey: string]
+    return: undefined
   }
   // Teams
   'teams:list': {
@@ -379,43 +336,6 @@ export interface IpcInvokeChannelMap {
     args: [url: string]
     return: undefined
   }
-  // Context
-  'context:get-snapshot': {
-    args: [conversationId: ConversationId]
-    return: ContextSnapshot | null
-  }
-  'context:get-baseline': {
-    args: []
-    return: ContextSnapshot
-  }
-  'context:compact': {
-    args: [conversationId: ConversationId, guidance?: string]
-    return: undefined
-  }
-  'context:pin-add': {
-    args: [conversationId: ConversationId, item: PinnedItemInput]
-    return: PinnedItem
-  }
-  'context:pin-remove': {
-    args: [conversationId: ConversationId, pinId: string]
-    return: undefined
-  }
-  'context:pin-remove-by-message': {
-    args: [conversationId: ConversationId, messageId: string]
-    return: undefined
-  }
-  'context:pin-list': {
-    args: [conversationId: ConversationId]
-    return: PinnedItem[]
-  }
-  'context:model-compatibility': {
-    args: [conversationId: ConversationId]
-    return: ModelCompatibilityInfo[]
-  }
-  'context:update-compaction-guidance': {
-    args: [conversationId: ConversationId, guidance: string | null]
-    return: undefined
-  }
   // Composer
   'composer:file-suggest': {
     args: [projectPath: string, query: string]
@@ -453,9 +373,6 @@ export interface IpcSendChannelMap {
   'terminal:write': {
     args: [terminalId: string, data: string]
   }
-  'agent:inject-context': {
-    args: [conversationId: ConversationId, text: string]
-  }
   'clipboard:write-text': {
     args: [text: string]
   }
@@ -465,18 +382,12 @@ export interface IpcSendChannelMap {
  * Event channels — one-way, main → renderer
  */
 interface IpcEventChannelMap {
-  /** Raw AgentStreamChunk — consumed by the useChat IPC adapter */
-  'agent:stream-chunk': {
-    payload: { conversationId: ConversationId; chunk: AgentStreamChunk }
+  /** Pi-shaped runtime events for the renderer's live transcript runtime */
+  'agent:event': {
+    payload: { conversationId: ConversationId; event: AgentTransportEvent }
   }
   'terminal:data': {
     payload: { terminalId: string; data: string }
-  }
-  'agent:question': {
-    payload: QuestionPayload
-  }
-  'agent:plan-proposal': {
-    payload: PlanPayload
   }
   'agent:phase': {
     payload: AgentPhaseEventPayload
@@ -487,23 +398,18 @@ interface IpcEventChannelMap {
   'window:fullscreen-changed': {
     payload: boolean
   }
-  'orchestration:event': {
-    payload: OrchestrationEventPayload
-  }
   'auth:oauth-status': {
     payload: OAuthFlowStatus
   }
-  'waggle:stream-chunk': {
-    payload: { conversationId: ConversationId; chunk: AgentStreamChunk; meta: WaggleStreamMetadata }
+  'waggle:event': {
+    payload: {
+      conversationId: ConversationId
+      event: AgentTransportEvent
+      meta: WaggleStreamMetadata
+    }
   }
   'waggle:turn-event': {
     payload: { conversationId: ConversationId; event: WaggleTurnEvent }
-  }
-  'mcp:status-changed': {
-    payload: McpServerStatus
-  }
-  'agent:context-injected': {
-    payload: { conversationId: ConversationId; text: string; timestamp: number }
   }
   'attachments:prepare-from-text-progress': {
     payload: {
@@ -514,20 +420,11 @@ interface IpcEventChannelMap {
       stage: 'writing' | 'completed'
     }
   }
-  'sub-agent:event': {
-    payload: SubAgentEventPayload
-  }
-  'team:event': {
-    payload: TeamEventPayload
-  }
   'conversations:title-updated': {
     payload: { conversationId: ConversationId; title: string }
   }
   'updater:status-changed': {
     payload: UpdateStatus
-  }
-  'context:snapshot-changed': {
-    payload: { conversationId: ConversationId; snapshot: ContextSnapshot }
   }
 }
 
@@ -563,27 +460,23 @@ export interface OpenWaggleApi {
   ): Promise<void>
   cancelAgent(conversationId?: ConversationId): void
   steerAgent(conversationId: ConversationId): Promise<{ preserved: boolean }>
-  /** Subscribe to raw AgentStreamChunks — used by the IPC connection adapter */
-  onStreamChunk(callback: (payload: IpcEventPayload<'agent:stream-chunk'>) => void): () => void
+  /** Subscribe to live Pi-shaped runtime events from the main process */
+  onAgentEvent(callback: (payload: IpcEventPayload<'agent:event'>) => void): () => void
 
-  // Context injection
-  injectContext(conversationId: ConversationId, text: string): void
-  onContextInjected(
-    callback: (payload: IpcEventPayload<'agent:context-injected'>) => void,
-  ): () => void
-
-  // Agent questions
-  answerQuestion(conversationId: ConversationId, answers: QuestionAnswer[]): Promise<void>
   getAgentPhase(conversationId: ConversationId): Promise<AgentPhaseState | null>
   getBackgroundRun(conversationId: ConversationId): Promise<BackgroundRunSnapshot | null>
   listActiveRuns(): Promise<ActiveRunInfo[]>
+  getContextUsage(
+    conversationId: ConversationId,
+    model: SupportedModelId,
+  ): Promise<ContextUsageSnapshot | null>
+  compactSession(
+    conversationId: ConversationId,
+    model: SupportedModelId,
+    customInstructions?: string,
+  ): Promise<ContextCompactionResult>
   onRunCompleted(callback: (payload: IpcEventPayload<'agent:run-completed'>) => void): () => void
-  onQuestion(callback: (payload: IpcEventPayload<'agent:question'>) => void): () => void
   onAgentPhase(callback: (payload: IpcEventPayload<'agent:phase'>) => void): () => void
-
-  // Plan proposals
-  respondToPlan(conversationId: ConversationId, response: PlanResponse): Promise<void>
-  onPlanProposal(callback: (payload: IpcEventPayload<'agent:plan-proposal'>) => void): () => void
 
   // Settings
   getSettings(): Promise<Settings>
@@ -592,61 +485,47 @@ export interface OpenWaggleApi {
   testApiKey(
     provider: string,
     apiKey: string,
-    baseUrl?: string,
-    authMethod?: 'api-key' | 'subscription',
+    projectPath?: string | null,
   ): Promise<{ success: boolean; error?: string }>
 
   // Providers
-  getProviderModels(): Promise<ProviderInfo[]>
-  fetchProviderModels(
-    provider: Provider,
-    baseUrl?: string,
-    apiKey?: string,
-    authMethod?: 'api-key' | 'subscription',
-  ): Promise<ModelDisplayInfo[]>
+  getProviderModels(projectPath?: string | null): Promise<ProviderInfo[]>
 
   // Project
   selectProjectFolder(): Promise<string | null>
-  isProjectToolCallTrusted(
-    projectPath: string,
-    toolName: ApprovalRequiredToolName,
-    rawArgs: string,
-  ): Promise<boolean>
-  recordProjectToolApproval(
-    projectPath: string,
-    toolName: ApprovalRequiredToolName,
-    rawArgs: string,
-  ): Promise<void>
   getProjectPreferences(
     projectPath: string,
-  ): Promise<{ model?: string; qualityPreset?: string } | null>
+  ): Promise<{ model?: string; thinkingLevel?: string } | null>
   setProjectPreferences(
     projectPath: string,
-    preferences: { model?: string; qualityPreset?: string },
+    preferences: { model?: string; thinkingLevel?: string },
   ): Promise<void>
 
   // Conversations
   listConversations(limit?: number): Promise<ConversationSummary[]>
   listFullConversations(limit?: number): Promise<Conversation[]>
   getConversation(id: ConversationId): Promise<Conversation | null>
-  createConversation(projectPath: string | null): Promise<Conversation>
+  createConversation(projectPath: string): Promise<Conversation>
   deleteConversation(id: ConversationId): Promise<void>
   archiveConversation(id: ConversationId): Promise<void>
   unarchiveConversation(id: ConversationId): Promise<void>
   listArchivedConversations(): Promise<ConversationSummary[]>
   updateConversationTitle(id: ConversationId, title: string): Promise<void>
-  updateConversationProjectPath(
-    id: ConversationId,
-    projectPath: string | null,
-  ): Promise<Conversation | null>
-  updateConversationPlanMode(
-    id: ConversationId,
-    planModeActive: boolean,
-  ): Promise<Conversation | null>
+  listSessions(limit?: number): Promise<SessionSummary[]>
+  getSessionTree(sessionId: SessionId): Promise<SessionTree | null>
+  getSessionWorkspace(
+    sessionId: SessionId,
+    selection?: SessionWorkspaceSelection,
+  ): Promise<SessionWorkspace | null>
+  navigateSessionTree(
+    sessionId: SessionId,
+    model: SupportedModelId,
+    targetNodeId: SessionNodeId,
+    options?: SessionNavigateTreeOptions,
+  ): Promise<{ editorText?: string; cancelled: boolean }>
   onConversationTitleUpdated(
     callback: (payload: IpcEventPayload<'conversations:title-updated'>) => void,
   ): () => void
-  getDevtoolsEventBusConfig(): Promise<DevtoolsEventBusConfig>
 
   // Terminal
   createTerminal(projectPath: string): Promise<string>
@@ -714,14 +593,6 @@ export interface OpenWaggleApi {
   openLogsDir(): Promise<void>
   getLogsPath(): Promise<string>
 
-  // Orchestration
-  getOrchestrationRun(runId: string): Promise<OrchestrationRunRecord | null>
-  listOrchestrationRuns(conversationId?: ConversationId): Promise<OrchestrationRunRecord[]>
-  cancelOrchestrationRun(runId: string): Promise<void>
-  onOrchestrationEvent(
-    callback: (payload: IpcEventPayload<'orchestration:event'>) => void,
-  ): () => void
-
   // Waggle mode
   sendWaggleMessage(
     conversationId: ConversationId,
@@ -729,42 +600,22 @@ export interface OpenWaggleApi {
     config: WaggleConfig,
   ): Promise<void>
   cancelWaggle(conversationId: ConversationId): void
-  onWaggleStreamChunk(
-    callback: (payload: IpcEventPayload<'waggle:stream-chunk'>) => void,
-  ): () => void
+  onWaggleEvent(callback: (payload: IpcEventPayload<'waggle:event'>) => void): () => void
   onWaggleTurnEvent(callback: (payload: IpcEventPayload<'waggle:turn-event'>) => void): () => void
 
   // Auth
-  startOAuth(provider: SubscriptionProvider): Promise<void>
-  submitAuthCode(provider: SubscriptionProvider, code: string): Promise<void>
-  disconnectAuth(provider: SubscriptionProvider): Promise<void>
-  getAuthAccountInfo(provider: SubscriptionProvider): Promise<SubscriptionAccountInfo>
+  startOAuth(provider: OAuthProvider): Promise<void>
+  submitAuthCode(provider: OAuthProvider, code: string): Promise<void>
+  cancelOAuth(provider: OAuthProvider): Promise<void>
+  setProviderApiKey(provider: string, apiKey: string): Promise<void>
+  disconnectAuth(provider: OAuthProvider): Promise<void>
+  getAuthAccountInfo(provider: OAuthProvider): Promise<OAuthAccountInfo>
   onOAuthStatus(callback: (status: IpcEventPayload<'auth:oauth-status'>) => void): () => void
-
-  // MCP
-  listMcpServers(): Promise<McpServerStatus[]>
-  addMcpServer(
-    config: Omit<McpServerConfig, 'id'>,
-  ): Promise<{ ok: true; id: McpServerId } | { ok: false; error: string }>
-  removeMcpServer(id: McpServerId): Promise<{ ok: true } | { ok: false; error: string }>
-  toggleMcpServer(
-    id: McpServerId,
-    enabled: boolean,
-  ): Promise<{ ok: true } | { ok: false; error: string }>
-  updateMcpServer(
-    id: McpServerId,
-    updates: Partial<Omit<McpServerConfig, 'id'>>,
-  ): Promise<{ ok: true } | { ok: false; error: string }>
-  onMcpStatusChanged(callback: (payload: McpServerStatus) => void): () => void
 
   // Teams
   listTeams(): Promise<WaggleTeamPreset[]>
   saveTeam(preset: WaggleTeamPreset): Promise<WaggleTeamPreset>
   deleteTeam(id: TeamConfigId): Promise<void>
-
-  // Sub-agents
-  onSubAgentEvent(callback: (payload: SubAgentEventPayload) => void): () => void
-  onTeamEvent(callback: (payload: TeamEventPayload) => void): () => void
 
   // Feedback
   checkGhCli(): Promise<GhCliStatus>
@@ -773,20 +624,6 @@ export interface OpenWaggleApi {
   submitFeedback(payload: FeedbackPayload): Promise<FeedbackSubmitResult>
   generateFeedbackMarkdown(payload: FeedbackPayload): Promise<string>
   openExternal(url: string): Promise<void>
-
-  // Context
-  getContextSnapshot(conversationId: ConversationId): Promise<ContextSnapshot | null>
-  getBaselineSnapshot(): Promise<ContextSnapshot>
-  requestCompaction(conversationId: ConversationId, guidance?: string): Promise<void>
-  addPin(conversationId: ConversationId, item: PinnedItemInput): Promise<PinnedItem>
-  removePin(conversationId: ConversationId, pinId: string): Promise<void>
-  removePinByMessage(conversationId: ConversationId, messageId: string): Promise<void>
-  listPins(conversationId: ConversationId): Promise<PinnedItem[]>
-  getModelCompatibility(conversationId: ConversationId): Promise<ModelCompatibilityInfo[]>
-  updateCompactionGuidance(conversationId: ConversationId, guidance: string | null): Promise<void>
-  onContextSnapshot(
-    callback: (payload: IpcEventPayload<'context:snapshot-changed'>) => void,
-  ): () => void
 
   // Composer
   suggestFiles(projectPath: string, query: string): Promise<FileSuggestion[]>

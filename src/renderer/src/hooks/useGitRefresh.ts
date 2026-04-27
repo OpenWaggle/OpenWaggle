@@ -1,7 +1,7 @@
 import type { ConversationId } from '@shared/types/brand'
 import { useEffect } from 'react'
+import { isTerminalTransportEvent } from '@/lib/agent-stream-utils'
 import { api } from '@/lib/ipc'
-import { isTerminalChunk } from '@/lib/ipc-connection-adapter'
 import { useUIStore } from '@/stores/ui-store'
 
 const DELAY_MS = 500
@@ -15,7 +15,7 @@ interface UseGitRefreshOptions {
 }
 
 /**
- * Subscribes to agent stream-chunk events and window focus to trigger
+ * Subscribes to agent runtime events and window focus to trigger
  * debounced git status/branch refreshes and diff-panel re-fetches.
  */
 export function useGitRefresh({
@@ -27,12 +27,12 @@ export function useGitRefresh({
 }: UseGitRefreshOptions): void {
   const bumpDiffRefreshKey = useUIStore((s) => s.bumpDiffRefreshKey)
 
-  // Debounced git refresh for stream-chunk events
+  // Debounced git refresh for runtime events
   useEffect(() => {
     let refreshTimer: ReturnType<typeof setTimeout> | null = null
 
-    const unsubscribe = api.onStreamChunk(({ conversationId, chunk }) => {
-      if (!isTerminalChunk(chunk)) return
+    const unsubscribe = api.onAgentEvent(({ conversationId, event }) => {
+      if (!isTerminalTransportEvent(event)) return
 
       if (activeConversationId === conversationId) {
         void refreshConversation(activeConversationId)

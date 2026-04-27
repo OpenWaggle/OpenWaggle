@@ -1,40 +1,57 @@
 import { Schema, safeDecodeUnknown } from '@shared/schema'
-import { AUTH_METHODS } from '@shared/types/auth'
 import { SupportedModelId } from '@shared/types/brand'
-import { EXECUTION_MODES, type PROVIDERS, QUALITY_PRESETS } from '@shared/types/settings'
+import { THINKING_LEVELS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import { testCredentials } from '../application/provider-test-service'
 import { createLogger } from '../logger'
 import { SettingsService } from '../services/settings-service'
+import { validateProjectPath } from './project-path-validation'
 import { typedHandle } from './typed-ipc'
 
 const logger = createLogger('ipc-settings')
 
-/** Schema for validating settings update payloads from the renderer */
-const providerUpdateSchema = Schema.Struct({
-  apiKey: Schema.String,
-  baseUrl: Schema.optional(Schema.String),
-  enabled: Schema.Boolean,
-  authMethod: Schema.optional(Schema.Literal(...AUTH_METHODS)),
-})
+function isString(value: string | undefined): value is string {
+  return value !== undefined
+}
 
-const settingsProvidersUpdateSchema = Schema.Struct({
-  anthropic: Schema.optional(providerUpdateSchema),
-  openai: Schema.optional(providerUpdateSchema),
-  gemini: Schema.optional(providerUpdateSchema),
-  grok: Schema.optional(providerUpdateSchema),
-  openrouter: Schema.optional(providerUpdateSchema),
-  ollama: Schema.optional(providerUpdateSchema),
-})
+function validateSettingsProjectPath(projectPath: string | null | undefined) {
+  return validateProjectPath(projectPath).pipe(
+    Effect.map((validated) => ({ ok: true as const, value: validated ?? null })),
+    Effect.catchAll((error) =>
+      Effect.succeed({
+        ok: false as const,
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    ),
+  )
+}
+
+function validateRecentProjectPaths(projects: readonly string[] | undefined) {
+  if (!projects) {
+    return Effect.succeed(undefined)
+  }
+
+  return Effect.forEach(projects, (projectPath) =>
+    validateProjectPath(projectPath).pipe(
+      Effect.catchAll((error) =>
+        Effect.sync(() => {
+          logger.warn('Dropping invalid recent project path', {
+            projectPath,
+            error: error instanceof Error ? error.message : String(error),
+          })
+          return undefined
+        }),
+      ),
+    ),
+  ).pipe(Effect.map((validatedProjects) => validatedProjects.filter(isString)))
+}
 
 const settingsUpdateSchema = Schema.Struct({
-  providers: Schema.optional(settingsProvidersUpdateSchema),
   selectedModel: Schema.optional(Schema.String),
   favoriteModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
   enabledModels: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
   projectPath: Schema.optional(Schema.NullOr(Schema.String)),
-  executionMode: Schema.optional(Schema.Literal(...EXECUTION_MODES)),
-  qualityPreset: Schema.optional(Schema.Literal(...QUALITY_PRESETS)),
+  thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
   recentProjects: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
   skillTogglesByProject: Schema.optional(
     Schema.mutable(
@@ -59,72 +76,6 @@ const settingsUpdateSchema = Schema.Struct({
   ),
 })
 
-function normalizeProviderUpdates(
-  providers: Schema.Schema.Type<typeof settingsProvidersUpdateSchema> | undefined,
-):
-  | Schema.Schema.Type<typeof settingsProvidersUpdateSchema>
-  | { readonly error: string }
-  | undefined {
-  if (providers === undefined) {
-    return undefined
-  }
-
-  const normalizedAnthropic = normalizeProviderUpdate(providers.anthropic, 'anthropic')
-  if (hasProviderValidationError(normalizedAnthropic)) return normalizedAnthropic
-
-  const normalizedOpenAi = normalizeProviderUpdate(providers.openai, 'openai')
-  if (hasProviderValidationError(normalizedOpenAi)) return normalizedOpenAi
-
-  const normalizedGemini = normalizeProviderUpdate(providers.gemini, 'gemini')
-  if (hasProviderValidationError(normalizedGemini)) return normalizedGemini
-
-  const normalizedGrok = normalizeProviderUpdate(providers.grok, 'grok')
-  if (hasProviderValidationError(normalizedGrok)) return normalizedGrok
-
-  const normalizedOpenRouter = normalizeProviderUpdate(providers.openrouter, 'openrouter')
-  if (hasProviderValidationError(normalizedOpenRouter)) return normalizedOpenRouter
-
-  const normalizedOllama = normalizeProviderUpdate(providers.ollama, 'ollama')
-  if (hasProviderValidationError(normalizedOllama)) return normalizedOllama
-
-  return {
-    anthropic: normalizedAnthropic,
-    openai: normalizedOpenAi,
-    gemini: normalizedGemini,
-    grok: normalizedGrok,
-    openrouter: normalizedOpenRouter,
-    ollama: normalizedOllama,
-  }
-}
-
-function normalizeProviderUpdate(
-  config: Schema.Schema.Type<typeof providerUpdateSchema> | undefined,
-  provider: (typeof PROVIDERS)[number],
-): Schema.Schema.Type<typeof providerUpdateSchema> | { readonly error: string } | undefined {
-  if (!config) {
-    return undefined
-  }
-
-  if (config.baseUrl === '') {
-    return {
-      ...config,
-      baseUrl: undefined,
-    }
-  }
-
-  if (config.baseUrl !== undefined && !URL.canParse(config.baseUrl)) {
-    return { error: `providers.${provider}.baseUrl: Must be a valid http/https URL` }
-  }
-
-  return config
-}
-
-function hasProviderValidationError(
-  value: Schema.Schema.Type<typeof providerUpdateSchema> | { readonly error: string } | undefined,
-): value is { readonly error: string } {
-  return typeof value === 'object' && value !== null && 'error' in value
-}
-
 export function registerSettingsHandlers(): void {
   typedHandle('settings:get', () =>
     Effect.gen(function* () {
@@ -142,20 +93,29 @@ export function registerSettingsHandlers(): void {
         return { ok: false, error } satisfies { ok: false; error: string }
       }
 
-      const providers = normalizeProviderUpdates(result.data.providers)
-      if (providers && 'error' in providers) {
-        logger.warn('Invalid settings update payload', { error: providers.error })
-        return { ok: false, error: providers.error } satisfies { ok: false; error: string }
+      const projectPathValidation = yield* validateSettingsProjectPath(result.data.projectPath)
+      if (!projectPathValidation.ok) {
+        logger.warn('Invalid settings project path', { error: projectPathValidation.error })
+        return { ok: false, error: projectPathValidation.error } satisfies {
+          ok: false
+          error: string
+        }
       }
+
+      const recentProjects = yield* validateRecentProjectPaths(result.data.recentProjects)
 
       const settings = yield* SettingsService
       yield* settings.update({
         ...result.data,
-        providers,
-        selectedModel: result.data.selectedModel
-          ? SupportedModelId(result.data.selectedModel)
-          : undefined,
+        projectPath:
+          result.data.projectPath !== undefined ? projectPathValidation.value : undefined,
+        recentProjects,
+        selectedModel:
+          result.data.selectedModel !== undefined
+            ? SupportedModelId(result.data.selectedModel)
+            : undefined,
         favoriteModels: result.data.favoriteModels?.map(SupportedModelId),
+        enabledModels: result.data.enabledModels?.map(SupportedModelId),
       })
       return { ok: true } satisfies { ok: true }
     }),
@@ -168,19 +128,17 @@ export function registerSettingsHandlers(): void {
         return undefined
       }
       const settings = yield* SettingsService
-      yield* settings.update({ enabledModels: models })
+      yield* settings.update({ enabledModels: models.map(SupportedModelId) })
       return undefined
     }),
   )
 
   typedHandle(
     'settings:test-api-key',
-    (
-      _event,
-      provider: string,
-      apiKey: string,
-      baseUrl?: string,
-      authMethod?: 'api-key' | 'subscription',
-    ) => testCredentials(provider, apiKey, baseUrl, authMethod),
+    (_event, provider: string, apiKey: string, projectPath?: string | null) =>
+      Effect.gen(function* () {
+        const validatedProjectPath = yield* validateProjectPath(projectPath)
+        return yield* testCredentials(provider, apiKey, validatedProjectPath)
+      }),
   )
 }

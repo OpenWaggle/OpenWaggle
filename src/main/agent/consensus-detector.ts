@@ -21,7 +21,6 @@ const AGREEMENT_PHRASES = [
   'we are aligned',
   'good to go',
   'ship it',
-  'approve',
   'no issues found',
 ]
 

@@ -1,6 +1,6 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
-import type { UIMessage } from '@tanstack/ai-react'
+import type { UIMessage } from '@shared/types/chat-ui'
 import { useEffect, useRef, useState } from 'react'
 
 interface OptimisticSteeredUserTurn {

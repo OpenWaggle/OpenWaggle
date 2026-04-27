@@ -7,22 +7,21 @@ import { useChatStore } from '../chat-store'
 
 const mockApi = {
   listFullConversations: vi.fn(),
+  listSessions: vi.fn(async () => []),
+  getSessionTree: vi.fn(async () => null),
   getConversation: vi.fn(),
   createConversation: vi.fn(),
   deleteConversation: vi.fn(),
-  updateConversationProjectPath: vi.fn(),
-  updateConversationPlanMode: vi.fn(),
 }
 
 vi.mock('@/lib/ipc', () => ({
   api: {
     listFullConversations: (...args: unknown[]) => mockApi.listFullConversations(...args),
+    listSessions: (...args: unknown[]) => mockApi.listSessions(...args),
+    getSessionTree: (...args: unknown[]) => mockApi.getSessionTree(...args),
     getConversation: (...args: unknown[]) => mockApi.getConversation(...args),
     createConversation: (...args: unknown[]) => mockApi.createConversation(...args),
     deleteConversation: (...args: unknown[]) => mockApi.deleteConversation(...args),
-    updateConversationProjectPath: (...args: unknown[]) =>
-      mockApi.updateConversationProjectPath(...args),
-    updateConversationPlanMode: (...args: unknown[]) => mockApi.updateConversationPlanMode(...args),
   },
 }))
 
@@ -38,7 +37,7 @@ function resetStore(): void {
   })
 }
 
-function makeConversation(id: ConversationId, title = 'Thread'): Conversation {
+function makeConversation(id: ConversationId, title = 'Session'): Conversation {
   return {
     id,
     title,
@@ -89,18 +88,18 @@ describe('useChatStore unit', () => {
     })
   })
 
-  describe('startDraftThread', () => {
+  describe('startDraftSession', () => {
     it('sets activeConversationId to null', () => {
       const id = ConversationId('test-conv-id')
       useChatStore.getState().setActiveConversationId(id)
-      useChatStore.getState().startDraftThread()
+      useChatStore.getState().startDraftSession()
       expect(useChatStore.getState().activeConversationId).toBeNull()
     })
   })
 
   describe('createConversation', () => {
     it('creates a conversation and sets the active id', async () => {
-      const fakeConv = makeConversation(ConversationId('new-conv-id'), 'New thread')
+      const fakeConv = makeConversation(ConversationId('new-conv-id'), 'New session')
       mockApi.createConversation.mockResolvedValue(fakeConv)
 
       const result = await useChatStore.getState().createConversation('/test/project')

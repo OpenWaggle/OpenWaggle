@@ -1,11 +1,9 @@
 import { SupportedModelId } from '@shared/types/brand'
 import {
   DEFAULT_SETTINGS,
-  type ExecutionMode,
-  type ProviderConfig,
-  QUALITY_PRESETS,
-  type QualityPreset,
   type Settings,
+  THINKING_LEVELS,
+  type ThinkingLevel,
 } from '@shared/types/settings'
 import { includes } from '@shared/utils/validation'
 import { create } from 'zustand'
@@ -24,16 +22,12 @@ interface PreferencesState {
 
   loadSettings: () => Promise<void>
   retryLoad: () => Promise<void>
-  setSelectedModel: (
-    model: SupportedModelId,
-    authMethod?: 'api-key' | 'subscription',
-  ) => Promise<void>
+  setSelectedModel: (model: SupportedModelId) => Promise<void>
   toggleFavoriteModel: (model: SupportedModelId) => Promise<void>
   setProjectPath: (path: string | null) => Promise<void>
   pushRecentProject: (path: string) => Promise<void>
   removeRecentProject: (path: string) => Promise<void>
-  setExecutionMode: (mode: ExecutionMode) => Promise<void>
-  setQualityPreset: (preset: QualityPreset) => Promise<void>
+  setThinkingLevel: (preset: ThinkingLevel) => Promise<void>
   setEnabledModels: (models: string[]) => Promise<void>
   setProjectDisplayName: (path: string, name: string) => Promise<void>
   clearProjectDisplayName: (path: string) => Promise<void>
@@ -41,12 +35,12 @@ interface PreferencesState {
 }
 
 /**
- * Best-effort write of project-level preferences to config.local.toml.
- * Fire-and-forget — errors are silently caught since global settings are the primary store.
+ * Best-effort write of project-level preferences to .openwaggle/settings.json.
+ * Fire-and-forget — errors are logged since global settings are the primary store.
  */
 function persistProjectPreference(
   projectPath: string | null,
-  prefs: { model?: string; qualityPreset?: string },
+  prefs: { model?: string; thinkingLevel?: string },
 ): void {
   if (projectPath) {
     api.setProjectPreferences(projectPath, prefs).catch((err: unknown) => {
@@ -63,14 +57,11 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
   async loadSettings() {
     try {
       const settings = await api.getSettings()
-      set({ settings, isLoaded: true, loadError: null })
+      set({ settings, isLoaded: false, loadError: null })
       if (settings.projectPath) {
-        get()
-          .loadProjectPreferences(settings.projectPath)
-          .catch((err: unknown) => {
-            logger.warn('Failed to load project preferences', { error: String(err) })
-          })
+        await get().loadProjectPreferences(settings.projectPath)
       }
+      set({ isLoaded: true, loadError: null })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load settings'
       set({ isLoaded: true, loadError: message })
@@ -85,49 +76,10 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     await useProviderStore.getState().loadProviderModels()
   },
 
-  async setSelectedModel(model: SupportedModelId, authMethod?: 'api-key' | 'subscription') {
-    const { useProviderStore } = await import('./provider-store')
+  async setSelectedModel(model: SupportedModelId) {
     const { settings } = get()
-    const { providerModels } = useProviderStore.getState()
-    const providerInfo = providerModels.find((group) =>
-      group.models.some((entry) => entry.id === model),
-    )
-
-    if (!providerInfo) {
-      await api.updateSettings({ selectedModel: model })
-      set({ settings: { ...settings, selectedModel: model } })
-      persistProjectPreference(settings.projectPath, { model })
-      return
-    }
-
-    const providerId = providerInfo.provider
-    const existingConfig = settings.providers[providerId]
-    const hasApiKey = (existingConfig?.apiKey?.trim().length ?? 0) > 0
-    const canEnable = !providerInfo.requiresApiKey || hasApiKey
-    const shouldEnableProvider = canEnable && !(existingConfig?.enabled ?? false)
-
-    // Switch authMethod if the user selected a model from a different connection
-    const needsAuthSwitch = authMethod !== undefined && existingConfig?.authMethod !== authMethod
-
-    if (!shouldEnableProvider && !needsAuthSwitch) {
-      await api.updateSettings({ selectedModel: model })
-      set({ settings: { ...settings, selectedModel: model } })
-      persistProjectPreference(settings.projectPath, { model })
-      return
-    }
-
-    const nextProviders: Settings['providers'] = {
-      ...settings.providers,
-      [providerId]: {
-        apiKey: existingConfig?.apiKey ?? '',
-        baseUrl: existingConfig?.baseUrl,
-        enabled: true,
-        authMethod: needsAuthSwitch ? authMethod : existingConfig?.authMethod,
-      } satisfies ProviderConfig,
-    }
-
-    await api.updateSettings({ selectedModel: model, providers: nextProviders })
-    set({ settings: { ...settings, selectedModel: model, providers: nextProviders } })
+    await api.updateSettings({ selectedModel: model })
+    set({ settings: { ...settings, selectedModel: model } })
     persistProjectPreference(settings.projectPath, { model })
   },
 
@@ -160,20 +112,16 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     set({ settings: { ...settings, projectPath: path, recentProjects } })
     if (path) {
       await get().loadProjectPreferences(path)
+      const { useProviderStore } = await import('./provider-store')
+      await useProviderStore.getState().loadProviderModels()
     }
   },
 
-  async setExecutionMode(mode: ExecutionMode) {
+  async setThinkingLevel(preset: ThinkingLevel) {
     const { settings } = get()
-    await api.updateSettings({ executionMode: mode })
-    set({ settings: { ...settings, executionMode: mode } })
-  },
-
-  async setQualityPreset(preset: QualityPreset) {
-    const { settings } = get()
-    await api.updateSettings({ qualityPreset: preset })
-    set({ settings: { ...settings, qualityPreset: preset } })
-    persistProjectPreference(settings.projectPath, { qualityPreset: preset })
+    await api.updateSettings({ thinkingLevel: preset })
+    set({ settings: { ...settings, thinkingLevel: preset } })
+    persistProjectPreference(settings.projectPath, { thinkingLevel: preset })
   },
 
   async pushRecentProject(path: string) {
@@ -198,8 +146,16 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
 
   async setEnabledModels(models: string[]) {
     const { settings } = get()
-    await api.setEnabledModels(models)
-    set({ settings: { ...settings, enabledModels: models } })
+    const enabledModels = models.map(SupportedModelId)
+    const selectedModel = enabledModels.includes(settings.selectedModel)
+      ? settings.selectedModel
+      : (enabledModels[0] ?? DEFAULT_SETTINGS.selectedModel)
+    await api.setEnabledModels(enabledModels)
+    if (selectedModel !== settings.selectedModel) {
+      await api.updateSettings({ selectedModel })
+      persistProjectPreference(settings.projectPath, { model: selectedModel })
+    }
+    set({ settings: { ...settings, enabledModels, selectedModel } })
   },
 
   async setProjectDisplayName(path: string, name: string) {
@@ -222,21 +178,21 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
 
     const { settings } = get()
     const model = prefs.model ? SupportedModelId(prefs.model) : undefined
-    const qualityPreset =
-      prefs.qualityPreset && includes(QUALITY_PRESETS, prefs.qualityPreset)
-        ? prefs.qualityPreset
+    const thinkingLevel =
+      prefs.thinkingLevel && includes(THINKING_LEVELS, prefs.thinkingLevel)
+        ? prefs.thinkingLevel
         : undefined
 
-    if (!model && !qualityPreset) return
+    if (!model && !thinkingLevel) return
 
     const merged = {
       ...settings,
       ...(model ? { selectedModel: model } : {}),
-      ...(qualityPreset ? { qualityPreset } : {}),
+      ...(thinkingLevel ? { thinkingLevel } : {}),
     }
     await api.updateSettings({
       ...(model ? { selectedModel: model } : {}),
-      ...(qualityPreset ? { qualityPreset } : {}),
+      ...(thinkingLevel ? { thinkingLevel } : {}),
     })
     set({ settings: merged })
   },
