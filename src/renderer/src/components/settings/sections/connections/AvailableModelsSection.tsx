@@ -2,12 +2,11 @@ import type { Provider } from '@shared/types/settings'
 import { useState } from 'react'
 import { useConnectionModelGroups } from '@/hooks/useConnectionModelGroups'
 import { usePreferences } from '@/hooks/useSettings'
-import { enabledKey } from './helpers'
 import { type ModelGroup, ModelGroupAccordion } from './ModelGroupAccordion'
 
 export function AvailableModelsSection() {
   const { settings, setEnabledModels } = usePreferences()
-  const groups = useConnectionModelGroups(settings.providers)
+  const groups = useConnectionModelGroups()
 
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const enabledSet = new Set(settings.enabledModels)
@@ -21,28 +20,22 @@ export function AvailableModelsSection() {
     })
   }
 
-  function handleToggle(
-    provider: Provider,
-    authMethod: 'api-key' | 'subscription',
-    modelId: string,
-    enabled: boolean,
-  ): void {
-    const key = enabledKey(provider, authMethod, modelId)
+  function handleToggle(_provider: Provider, modelRef: string, enabled: boolean): void {
     const current = [...settings.enabledModels]
-    const next = enabled ? [...new Set([...current, key])] : current.filter((k) => k !== key)
+    const next = enabled
+      ? [...new Set([...current, modelRef])]
+      : current.filter((model) => model !== modelRef)
     void setEnabledModels(next)
   }
 
   function handleSelectAll(group: ModelGroup): void {
-    const keys = group.models.map((m) => enabledKey(group.provider, group.authMethod, String(m.id)))
-    void setEnabledModels([...new Set([...settings.enabledModels, ...keys])])
+    const refs = group.models.map((model) => String(model.id))
+    void setEnabledModels([...new Set([...settings.enabledModels, ...refs])])
   }
 
   function handleClear(group: ModelGroup): void {
-    const keySet = new Set(
-      group.models.map((m) => enabledKey(group.provider, group.authMethod, String(m.id))),
-    )
-    void setEnabledModels([...settings.enabledModels].filter((k) => !keySet.has(k)))
+    const modelRefs = new Set(group.models.map((model) => String(model.id)))
+    void setEnabledModels([...settings.enabledModels].filter((model) => !modelRefs.has(model)))
   }
 
   return (
@@ -55,9 +48,7 @@ export function AvailableModelsSection() {
       </div>
 
       {groups.length === 0 ? (
-        <p className="text-[13px] text-text-muted">
-          Configure a provider above to see available models.
-        </p>
+        <p className="text-[13px] text-text-muted">Pi did not report any providers or models.</p>
       ) : (
         <div className="rounded-lg border border-border bg-[#111418] overflow-hidden">
           {groups.map((group, i) => (

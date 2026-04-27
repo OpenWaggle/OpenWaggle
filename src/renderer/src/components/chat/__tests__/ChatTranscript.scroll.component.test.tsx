@@ -1,4 +1,4 @@
-import type { UIMessage } from '@tanstack/ai-react'
+import type { UIMessage } from '@shared/types/chat-ui'
 import { act, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ChatTranscriptSectionState } from '../use-chat-panel-controller'
@@ -63,14 +63,12 @@ function createSection(
     activeConversationId: null,
     chatRows: [createMessageChatRow(defaultMessage)],
     lastUserMessageId: 'msg-1',
-    compactedMessageIds: new Set(),
+    streamSignalVersion: 0,
     userDidSend: false,
     onUserDidSendConsumed: vi.fn(),
     onOpenProject: vi.fn().mockResolvedValue(undefined),
     onSelectProjectPath: vi.fn(),
     onRetryText: vi.fn().mockResolvedValue(undefined),
-    onAnswerQuestion: vi.fn().mockResolvedValue(undefined),
-    onRespondToPlan: vi.fn().mockResolvedValue(undefined),
     onOpenSettings: vi.fn(),
     onDismissError: vi.fn(),
     ...overrides,

@@ -1,7 +1,6 @@
 import type { AgentErrorInfo } from '@shared/types/errors'
 import { create } from 'zustand'
 
-const DIFF_PANEL_WIDTH = 600
 const DELAY_MS = 3500
 const FEEDBACK_COOLDOWN_MS = 60_000
 
@@ -30,17 +29,11 @@ export type SettingsTab =
   | 'archived'
   | 'connections'
 
-export type InspectorPanel = 'none' | 'diff' | 'context'
-
 interface UIState {
-  settingsOpen: boolean
   sidebarOpen: boolean
   terminalOpen: boolean
-  activeView: 'chat' | 'skills' | 'mcps' | 'settings'
+  activeView: 'chat' | 'skills' | 'settings'
   activeSettingsTab: SettingsTab
-  activeInspector: InspectorPanel
-  diffPanelOpen: boolean
-  diffPanelWidth: number
   diffRefreshKey: number
   toastMessage: string | null
   toastData: ToastData | null
@@ -51,16 +44,8 @@ interface UIState {
 
   toggleSidebar: () => void
   toggleTerminal: () => void
-  toggleDiffPanel: () => void
-  toggleInspector: (panel: 'diff' | 'context') => void
-  setActiveInspector: (panel: InspectorPanel) => void
-  openSettings: (tab?: SettingsTab) => void
-  closeSettings: () => void
-  setActiveView: (view: 'chat' | 'skills' | 'mcps' | 'settings') => void
+  setActiveView: (view: 'chat' | 'skills' | 'settings') => void
   setActiveSettingsTab: (tab: SettingsTab) => void
-  openSkillsView: () => void
-  openMcpsView: () => void
-  resizeDiffPanel: (delta: number) => void
   bumpDiffRefreshKey: () => void
   closeTerminal: () => void
   showToast: (message: string) => void
@@ -78,14 +63,10 @@ let toastTimer: ReturnType<typeof setTimeout> | null = null
 let feedbackCooldownTimer: ReturnType<typeof setTimeout> | null = null
 
 export const useUIStore = create<UIState>((set, get) => ({
-  settingsOpen: false,
   sidebarOpen: true,
   terminalOpen: false,
   activeView: 'chat',
   activeSettingsTab: 'general',
-  activeInspector: 'none',
-  diffPanelOpen: false,
-  diffPanelWidth: DIFF_PANEL_WIDTH,
   diffRefreshKey: 0,
   toastMessage: null,
   toastData: null,
@@ -102,53 +83,12 @@ export const useUIStore = create<UIState>((set, get) => ({
     set({ terminalOpen: !get().terminalOpen })
   },
 
-  toggleDiffPanel() {
-    const next = get().activeInspector === 'diff' ? 'none' : 'diff'
-    set({ activeInspector: next, diffPanelOpen: next === 'diff' })
-  },
-
-  toggleInspector(panel) {
-    const next = get().activeInspector === panel ? 'none' : panel
-    set({ activeInspector: next, diffPanelOpen: next === 'diff' })
-  },
-
-  setActiveInspector(panel) {
-    set({ activeInspector: panel, diffPanelOpen: panel === 'diff' })
-  },
-
-  openSettings(tab) {
-    set({
-      activeView: 'settings',
-      activeSettingsTab: tab ?? 'general',
-      settingsOpen: true,
-      activeInspector: 'none',
-      diffPanelOpen: false,
-    })
-  },
-
-  closeSettings() {
-    set({ activeView: 'chat', settingsOpen: false })
-  },
-
   setActiveView(view) {
     set({ activeView: view })
   },
 
   setActiveSettingsTab(tab) {
     set({ activeSettingsTab: tab })
-  },
-
-  openSkillsView() {
-    set({ activeView: 'skills', activeInspector: 'none', diffPanelOpen: false })
-  },
-
-  openMcpsView() {
-    set({ activeView: 'mcps', activeInspector: 'none', diffPanelOpen: false })
-  },
-
-  resizeDiffPanel(delta) {
-    const next = get().diffPanelWidth + delta
-    set({ diffPanelWidth: Math.min(DIFF_PANEL_MAX, Math.max(DIFF_PANEL_MIN, next)) })
   },
 
   bumpDiffRefreshKey() {

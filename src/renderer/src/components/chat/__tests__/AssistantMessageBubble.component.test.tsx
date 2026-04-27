@@ -1,5 +1,5 @@
 import { ConversationId, SupportedModelId } from '@shared/types/brand'
-import type { UIMessage } from '@tanstack/ai-react'
+import type { UIMessage } from '@shared/types/chat-ui'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { UseMessageCollapseResult } from '../hooks/useMessageCollapse'
@@ -162,26 +162,26 @@ describe('AssistantMessageBubble', () => {
   })
 
   it('renders ToolCallRouter for tool-call parts', () => {
-    const message = createMessage('m1', [toolCallPart('readFile', 'tc-1'), toolResultPart('tc-1')])
+    const message = createMessage('m1', [toolCallPart('read', 'tc-1'), toolResultPart('tc-1')])
     render(<AssistantMessageBubble message={message} conversationId={defaultConversationId} />)
-    expect(screen.getByTestId('tool-call-router')).toHaveTextContent('readFile')
+    expect(screen.getByTestId('tool-call-router')).toHaveTextContent('read')
   })
 
-  it('does not render tool-result or thinking parts', () => {
+  it('renders standalone tool-result parts while keeping matched tool-call results nested', () => {
     const message = createMessage('m1', [textPart('Hello'), toolResultPart('tc-1'), thinkingPart()])
     const { container } = render(
       <AssistantMessageBubble message={message} conversationId={defaultConversationId} />,
     )
-    expect(container.querySelectorAll('[data-testid="streaming-text"]')).toHaveLength(1)
-    expect(container.querySelector('[data-testid="tool-result"]')).toBeNull()
-    expect(container.querySelector('[data-testid="thinking"]')).toBeNull()
+    expect(container.querySelectorAll('[data-testid="streaming-text"]')).toHaveLength(3)
+    expect(screen.getByText('internal reasoning')).toBeInTheDocument()
+    expect(screen.getByText('Tool result · output-available')).toBeInTheDocument()
   })
 
   it('renders all parts when canCollapseToSynthesis=false', () => {
     setCollapse({ canCollapseToSynthesis: false, renderAllParts: true })
     const message = createMessage('m1', [
       textPart('First'),
-      toolCallPart('readFile', 'tc-1'),
+      toolCallPart('read', 'tc-1'),
       textPart('Second'),
     ])
     render(<AssistantMessageBubble message={message} conversationId={defaultConversationId} />)
@@ -199,7 +199,7 @@ describe('AssistantMessageBubble', () => {
     })
     const message = createMessage('m1', [
       textPart('Earlier text'),
-      toolCallPart('readFile', 'tc-1'),
+      toolCallPart('read', 'tc-1'),
       textPart('Synthesis'),
     ])
     render(<AssistantMessageBubble message={message} conversationId={defaultConversationId} />)
@@ -217,7 +217,7 @@ describe('AssistantMessageBubble', () => {
       lastRenderableTextPartIndex: 1,
       collapseLabel: 'Show 1 tool call',
     })
-    const message = createMessage('m1', [toolCallPart('readFile', 'tc-1'), textPart('Summary')])
+    const message = createMessage('m1', [toolCallPart('read', 'tc-1'), textPart('Summary')])
     render(<AssistantMessageBubble message={message} conversationId={defaultConversationId} />)
     expect(screen.getByTestId('collapsible-details')).toHaveTextContent('Show 1 tool call')
   })

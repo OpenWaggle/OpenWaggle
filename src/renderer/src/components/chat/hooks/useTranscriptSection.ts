@@ -1,14 +1,13 @@
-import { isCompactionEventPart } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
+import type { UIMessage } from '@shared/types/chat-ui'
 import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { WaggleCollaborationStatus } from '@shared/types/waggle'
-import type { UIMessage } from '@tanstack/ai-react'
 import { useState } from 'react'
-import type { useAgentChat } from '@/hooks/useAgentChat'
 import type { useStreamingPhase } from '@/hooks/useStreamingPhase'
 import { useWaggleMetadataLookup } from '@/hooks/useWaggleMetadataLookup'
-import type { ChatRow } from '../types-chat-row'
+import { useSessionStore } from '@/stores/session-store'
+import { resolveTranscriptMessages } from '../session-workspace-transcript'
 import type { ChatTranscriptSectionState } from '../use-chat-panel-controller'
 import { useChatRows } from './useChatRows'
 
@@ -38,6 +37,7 @@ export interface TranscriptSectionParams {
   readonly isLoading: boolean
   readonly isSteering: boolean
   readonly error: Error | undefined
+  readonly streamSignalVersion: number
   readonly projectPath: string | null
   readonly recentProjects: readonly string[]
   readonly activeConversationId: ConversationId | null
@@ -48,9 +48,8 @@ export interface TranscriptSectionParams {
   readonly handleOpenProject: () => Promise<void>
   readonly handleSelectProjectPath: (path: string) => void
   readonly handleSendText: (content: string) => Promise<void>
-  readonly answerQuestion: ReturnType<typeof useAgentChat>['answerQuestion']
-  readonly respondToPlan: ReturnType<typeof useAgentChat>['respondToPlan']
   readonly openSettings: () => void
+  readonly handleBranchFromMessage: (messageId: string) => void
   readonly userDidSend: boolean
   readonly onUserDidSendConsumed: () => void
 }
@@ -61,6 +60,7 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     isLoading,
     isSteering,
     error,
+    streamSignalVersion,
     projectPath,
     recentProjects,
     activeConversationId,
@@ -70,22 +70,36 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     handleOpenProject,
     handleSelectProjectPath,
     handleSendText,
-    answerQuestion,
-    respondToPlan,
     openSettings,
+    handleBranchFromMessage,
     userDidSend,
     onUserDidSendConsumed,
   } = params
 
   const [dismissedError, setDismissedError] = useState<string | null>(null)
+  const activeWorkspace = useSessionStore((state) => state.activeWorkspace)
+  const draftBranch = useSessionStore((state) => state.draftBranch)
+  const draftBranchSourceNodeId =
+    activeConversationId &&
+    draftBranch?.sessionId &&
+    String(draftBranch.sessionId) === String(activeConversationId)
+      ? draftBranch.sourceNodeId
+      : null
 
-  const waggleMetadataLookup = useWaggleMetadataLookup(activeConversation, messages)
-
-  const lastUserMessage = resolveLastUserMessage(messages)
   const transcriptLoading = isLoading || isSteering
-
-  const baseChatRows = useChatRows({
+  const transcriptMessages = resolveTranscriptMessages({
+    activeConversationId,
+    activeWorkspace,
+    isRunning: transcriptLoading,
     messages,
+    draftBranchSourceNodeId,
+  })
+  const waggleMetadataLookup = useWaggleMetadataLookup(activeConversation, transcriptMessages)
+
+  const lastUserMessage = resolveLastUserMessage(transcriptMessages)
+
+  const chatRows = useChatRows({
+    messages: transcriptMessages,
     isLoading: transcriptLoading,
     error,
     lastUserMessage,
@@ -96,73 +110,30 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     phase,
   })
 
-  // Inject compaction event rows from persisted system messages
-  const chatRows = injectCompactionEvents(baseChatRows, activeConversation)
-
-  // Build set of compacted message IDs for collapse rendering
-  const compactedMessageIds = new Set<string>()
-  if (activeConversation) {
-    for (const msg of activeConversation.messages) {
-      if (msg.metadata?.compacted) {
-        compactedMessageIds.add(String(msg.id))
-      }
-    }
-  }
-
-  // Compute lastUserMessageId for thread-restore identity gating, not send anchoring.
+  // Compute lastUserMessageId for session-restore identity gating, not send anchoring.
   const lastUserMessageId = (() => {
-    for (let i = messages.length - 1; i >= 0; i -= 1) {
-      if (messages[i]?.role === 'user') return messages[i]?.id ?? null
+    for (let i = transcriptMessages.length - 1; i >= 0; i -= 1) {
+      if (transcriptMessages[i]?.role === 'user') return transcriptMessages[i]?.id ?? null
     }
     return null
   })()
 
   return {
-    messages,
+    messages: transcriptMessages,
     isLoading: transcriptLoading,
     projectPath,
     recentProjects,
     activeConversationId,
     chatRows,
-    compactedMessageIds,
     onOpenProject: handleOpenProject,
     onSelectProjectPath: handleSelectProjectPath,
     onRetryText: handleSendText,
-    onAnswerQuestion: answerQuestion,
-    onRespondToPlan: respondToPlan,
     onOpenSettings: openSettings,
     onDismissError: setDismissedError,
+    onBranchFromMessage: handleBranchFromMessage,
     lastUserMessageId,
+    streamSignalVersion,
     userDidSend,
     onUserDidSendConsumed,
   }
-}
-
-/**
- * Extract compaction events from persisted system messages and append them
- * to the chat rows. In the timeline, compaction events appear as lightweight
- * inline rows between user/assistant message bubbles.
- */
-function injectCompactionEvents(rows: ChatRow[], conversation: Conversation | null): ChatRow[] {
-  if (!conversation) return rows
-
-  const compactionRows: ChatRow[] = []
-  for (const msg of conversation.messages) {
-    if (msg.role !== 'system') continue
-    for (const part of msg.parts) {
-      if (isCompactionEventPart(part)) {
-        compactionRows.push({
-          type: 'compaction-event',
-          data: part.data,
-          messageId: msg.id,
-        })
-      }
-    }
-  }
-
-  if (compactionRows.length === 0) return rows
-
-  // Append compaction events before error/phase rows at the end
-  const result = [...rows, ...compactionRows]
-  return result
 }

@@ -29,7 +29,7 @@ vi.mock('@/lib/ipc', () => ({
 function createArchivedConversation(overrides?: Partial<ConversationSummary>): ConversationSummary {
   return {
     id: ConversationId('conv-1'),
-    title: 'Archived thread',
+    title: 'Archived session',
     projectPath: '/tmp/project',
     messageCount: 4,
     createdAt: 1,
@@ -59,41 +59,41 @@ describe('ArchivedSection', () => {
     unarchiveConversationMock.mockReset()
   })
 
-  it('shows a loading state while archived threads are being fetched', () => {
+  it('shows a loading state while archived sessions are being fetched', () => {
     const deferred = createDeferredPromise<ConversationSummary[]>()
     listArchivedConversationsMock.mockReturnValueOnce(deferred.promise)
 
     renderWithQueryClient(<ArchivedSection />)
 
-    expect(screen.getByText(/loading archived threads/i)).toBeInTheDocument()
+    expect(screen.getByText(/loading archived sessions/i)).toBeInTheDocument()
     deferred.resolve([])
   })
 
-  it('shows the empty state when there are no archived threads', async () => {
+  it('shows the empty state when there are no archived sessions', async () => {
     listArchivedConversationsMock.mockResolvedValueOnce([])
 
     renderWithQueryClient(<ArchivedSection />)
 
-    expect(await screen.findByText(/no archived threads/i)).toBeInTheDocument()
+    expect(await screen.findByText(/no archived sessions/i)).toBeInTheDocument()
   })
 
-  it('restores an archived thread and invalidates the archived query', async () => {
+  it('restores an archived session and invalidates the archived query', async () => {
     const conversation = createArchivedConversation()
     listArchivedConversationsMock.mockResolvedValueOnce([conversation]).mockResolvedValueOnce([])
     unarchiveConversationMock.mockResolvedValueOnce(undefined)
 
     renderWithQueryClient(<ArchivedSection />)
 
-    fireEvent.click(await screen.findByTitle('Restore thread'))
+    fireEvent.click(await screen.findByTitle('Restore session'))
 
     await waitFor(() => {
       expect(unarchiveConversationMock).toHaveBeenCalledWith(conversation.id)
       expect(listArchivedConversationsMock).toHaveBeenCalledTimes(2)
-      expect(screen.getByText(/no archived threads/i)).toBeInTheDocument()
+      expect(screen.getByText(/no archived sessions/i)).toBeInTheDocument()
     })
   })
 
-  it('deletes an archived thread after confirmation and invalidates the archived query', async () => {
+  it('deletes an archived session after confirmation and invalidates the archived query', async () => {
     const conversation = createArchivedConversation()
     listArchivedConversationsMock.mockResolvedValueOnce([conversation]).mockResolvedValueOnce([])
     showConfirmMock.mockResolvedValueOnce(true)
@@ -107,11 +107,11 @@ describe('ArchivedSection', () => {
       expect(showConfirmMock).toHaveBeenCalled()
       expect(deleteConversationMock).toHaveBeenCalledWith(conversation.id)
       expect(listArchivedConversationsMock).toHaveBeenCalledTimes(2)
-      expect(screen.getByText(/no archived threads/i)).toBeInTheDocument()
+      expect(screen.getByText(/no archived sessions/i)).toBeInTheDocument()
     })
   })
 
-  it('keeps archived threads visible when deleting fails after confirmation', async () => {
+  it('keeps archived sessions visible when deleting fails after confirmation', async () => {
     const conversation = createArchivedConversation()
     listArchivedConversationsMock.mockResolvedValueOnce([conversation])
     showConfirmMock.mockResolvedValueOnce(true)
@@ -123,7 +123,7 @@ describe('ArchivedSection', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent('Delete exploded')
-      expect(screen.getByText('Archived thread')).toBeInTheDocument()
+      expect(screen.getByText('Archived session')).toBeInTheDocument()
     })
   })
 
@@ -138,7 +138,7 @@ describe('ArchivedSection', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent('Dialog unavailable')
-      expect(screen.getByText('Archived thread')).toBeInTheDocument()
+      expect(screen.getByText('Archived session')).toBeInTheDocument()
     })
   })
 })

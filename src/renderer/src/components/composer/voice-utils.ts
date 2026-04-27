@@ -5,10 +5,6 @@ const DEFAULT_SILENCE_THRESHOLD = 0.012
 const DEFAULT_SILENCE_PADDING_MS = 160
 const PCM16_NEGATIVE_SCALE = 32768
 const PCM16_POSITIVE_SCALE = 32767
-const PCM_LEVEL_MIDPOINT = 128
-const MIN_PEAK_LEVEL = 0.04
-const LIVE_LEVEL_GAIN = 1.85
-const ENVELOPE_LEVEL_GAIN = 1.3
 
 export const WHISPER_TARGET_SAMPLE_RATE = 16_000
 
@@ -18,11 +14,7 @@ interface DecodedAudioBuffer {
   samples: Float32Array
 }
 
-function clampPeak(value: number): number {
-  return Math.max(MIN_PEAK_LEVEL, Math.min(1, value))
-}
-
-export function toMono(buffer: AudioBuffer): Float32Array {
+function toMono(buffer: AudioBuffer): Float32Array {
   if (buffer.numberOfChannels === 1) return new Float32Array(buffer.getChannelData(0))
   const mono = new Float32Array(buffer.length)
   const weight = 1 / buffer.numberOfChannels
@@ -101,48 +93,4 @@ export function toPcm16(samples: Float32Array): Uint8Array {
     )
   }
   return bytes
-}
-
-export function extractLivePeak(data: Uint8Array<ArrayBufferLike>): number {
-  if (data.length === 0) return MIN_PEAK_LEVEL
-  let sum = 0
-  let max = 0
-  for (let index = 0; index < data.length; index += 1) {
-    const normalized = (data[index] - PCM_LEVEL_MIDPOINT) / PCM_LEVEL_MIDPOINT
-    const magnitude = Math.abs(normalized)
-    sum += normalized * normalized
-    if (magnitude > max) max = magnitude
-  }
-  const rms = Math.sqrt(sum / data.length)
-  const blended = Math.max(max, rms * LIVE_LEVEL_GAIN)
-  return clampPeak(blended)
-}
-
-export function seedPeaks(capacity: number): readonly number[] {
-  return Array.from({ length: Math.max(0, capacity) }, () => MIN_PEAK_LEVEL)
-}
-
-export function buildPeakEnvelope(
-  samples: Float32Array,
-  bucketCount: number,
-  gain = ENVELOPE_LEVEL_GAIN,
-): readonly number[] {
-  if (bucketCount <= 0) return []
-  if (samples.length === 0) return seedPeaks(bucketCount)
-  const peaks = new Array<number>(bucketCount).fill(MIN_PEAK_LEVEL)
-  const bucketSize = Math.max(1, Math.floor(samples.length / bucketCount))
-  for (let bucketIndex = 0; bucketIndex < bucketCount; bucketIndex += 1) {
-    const startIndex = bucketIndex * bucketSize
-    const endIndex =
-      bucketIndex === bucketCount - 1
-        ? samples.length
-        : Math.min(samples.length, startIndex + bucketSize)
-    let max = 0
-    for (let sampleIndex = startIndex; sampleIndex < endIndex; sampleIndex += 1) {
-      const magnitude = Math.abs(samples[sampleIndex])
-      if (magnitude > max) max = magnitude
-    }
-    peaks[bucketIndex] = clampPeak(max * gain)
-  }
-  return peaks
 }

@@ -19,7 +19,7 @@ beforeEach(() => {
     branchMessage: null,
   })
   useComposerStore.setState({
-    qualityMenuOpen: false,
+    thinkingMenuOpen: false,
     executionMenuOpen: false,
     branchMenuOpen: false,
   })
@@ -34,11 +34,11 @@ describe('action dialog', () => {
   })
 
   it('openActionDialog closes menus via composer store', () => {
-    useComposerStore.getState().openMenu('quality')
-    expect(useComposerStore.getState().qualityMenuOpen).toBe(true)
+    useComposerStore.getState().openMenu('thinking')
+    expect(useComposerStore.getState().thinkingMenuOpen).toBe(true)
 
     useComposerActionStore.getState().openActionDialog('delete-branch')
-    expect(useComposerStore.getState().qualityMenuOpen).toBe(false)
+    expect(useComposerStore.getState().thinkingMenuOpen).toBe(false)
     expect(useComposerStore.getState().executionMenuOpen).toBe(false)
     expect(useComposerStore.getState().branchMenuOpen).toBe(false)
   })

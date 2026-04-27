@@ -1,25 +1,20 @@
 import type { AgentSendPayload } from '@shared/types/agent'
-import type { ConversationId } from '@shared/types/brand'
 import type { LexicalEditor } from 'lexical'
 import { $createParagraphNode, $createTextNode, $getRoot, $isElementNode } from 'lexical'
 import { ArrowDownToLine, Ban } from 'lucide-react'
 import { useEffect, useEffectEvent, useRef } from 'react'
-import { useChat } from '@/hooks/useChat'
 import { useProject } from '@/hooks/useProject'
+import { useSelectedModelThinkingLevel } from '@/hooks/useSelectedModelThinkingLevel'
 import { cn } from '@/lib/cn'
-import { api } from '@/lib/ipc'
-import { useChatStore } from '@/stores/chat-store'
 import { useComposerActionStore } from '@/stores/composer-action-store'
 import { useComposerStore } from '@/stores/composer-store'
-import { useContextStore } from '@/stores/context-store'
 import { usePreferencesStore } from '@/stores/preferences-store'
-import { ActionDialog } from './ActionDialog'
 import { AutoTextAttachmentChips } from './AutoTextAttachmentChips'
 import { ComposerAlerts } from './ComposerAlerts'
-import { ComposerStatusBar } from './ComposerStatusBar'
 import { ComposerToolbar } from './ComposerToolbar'
 import { LexicalComposerEditor } from './LexicalComposerEditor'
 import { clearEditor } from './lexical-utils'
+import { consumeSendResult } from './send-result'
 import { useAutoTextAttachment } from './useAutoTextAttachment'
 import { useFileAttachment } from './useFileAttachment'
 import { useVoiceCapture } from './useVoiceCapture'
@@ -28,12 +23,36 @@ import { VoiceRecorder } from './VoiceRecorder'
 // ── Component ──
 
 interface ComposerProps {
-  onSend: (payload: AgentSendPayload) => void
-  onEnqueue: (payload: AgentSendPayload) => void
+  onSend: (payload: AgentSendPayload) => Promise<void> | void
+  onEnqueue: (payload: AgentSendPayload) => Promise<void> | void
   onCancel: () => void
   isLoading: boolean
   disabled?: boolean
   onToast?: (message: string) => void
+}
+
+function insertTextAtEditorOrStore(
+  editor: LexicalEditor | null,
+  text: string,
+  setInput: (value: string) => void,
+): void {
+  if (!editor) {
+    const store = useComposerStore.getState()
+    setInput(store.input + text)
+    return
+  }
+
+  editor.update(() => {
+    const root = $getRoot()
+    root.selectEnd()
+    const lastChild = root.getLastChild()
+    const paragraph = lastChild && $isElementNode(lastChild) ? lastChild : $createParagraphNode()
+    if (!lastChild || !$isElementNode(lastChild)) {
+      root.append(paragraph)
+    }
+    paragraph.append($createTextNode(text))
+    root.selectEnd()
+  })
 }
 
 export function Composer({
@@ -51,16 +70,14 @@ export function Composer({
   const setAttachmentError = useComposerStore((s) => s.setAttachmentError)
   const addAttachments = useComposerStore((s) => s.addAttachments)
   const removeAttachment = useComposerStore((s) => s.removeAttachment)
-  const { activeConversation } = useChat()
-  const planModeActive = activeConversation?.planModeActive ?? false
-  const activeConversationId = useChatStore((s) => s.activeConversationId)
   const branchMessage = useComposerActionStore((s) => s.branchMessage)
   const setBranchMessage = useComposerActionStore((s) => s.setBranchMessage)
   const reset = useComposerStore((s) => s.reset)
   const pushHistory = useComposerStore((s) => s.pushHistory)
 
   const { projectPath } = useProject()
-  const qualityPreset = usePreferencesStore((s) => s.settings.qualityPreset)
+  const selectedModel = usePreferencesStore((s) => s.settings.selectedModel)
+  const { effectiveThinkingLevel } = useSelectedModelThinkingLevel()
 
   const editorRef = useRef<LexicalEditor | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -76,12 +93,18 @@ export function Composer({
 
   function dispatchPayload(payload: AgentSendPayload): boolean {
     if ((!payload.text && payload.attachments.length === 0) || disabled) return false
-    // Read compacting state at dispatch time — no reactive subscription needed
-    const isCompacting = useContextStore.getState().isCompacting
-    if (isLoading || isCompacting) {
-      onEnqueue(payload)
+    if (!projectPath) {
+      onToast?.('Select a project before sending.')
+      return false
+    }
+    if (!selectedModel.trim()) {
+      onToast?.('Select a model in Settings before sending.')
+      return false
+    }
+    if (isLoading) {
+      consumeSendResult(onEnqueue(payload))
     } else {
-      onSend(payload)
+      consumeSendResult(onSend(payload))
     }
     return true
   }
@@ -97,71 +120,25 @@ export function Composer({
   function handleSubmit(text?: string): void {
     const trimmedInput = (text ?? input).trim()
 
-    // Intercept /compact command — execute as control action, not chat message.
-    // Regex ensures "/compacting..." doesn't accidentally trigger compaction.
-    if (/^\/compact(\s|$)/.test(trimmedInput) && activeConversationId) {
-      const guidance = trimmedInput.replace(/^\/compact\s*/, '').trim() || undefined
-      const shouldSave = useComposerStore.getState().compactSaveForThread && guidance
-      clearComposerInput()
-      useComposerStore.getState().setCompactSaveForThread(false)
-      if (shouldSave) {
-        api
-          .updateCompactionGuidance(activeConversationId, guidance)
-          .catch(() => onToast?.('Failed to save compaction guidance'))
-      }
-      void executeCompaction(activeConversationId, guidance)
-      return
-    }
-
     submitPayload({
       text: trimmedInput,
-      qualityPreset,
+      thinkingLevel: effectiveThinkingLevel,
       attachments,
-      planModeRequested: planModeActive || undefined,
-    })
-  }
-
-  function executeCompaction(
-    conversationId: ConversationId,
-    guidance: string | undefined,
-  ): Promise<void> {
-    const { setCompacting } = useContextStore.getState()
-    setCompacting(true)
-    return api.requestCompaction(conversationId, guidance).finally(() => {
-      setCompacting(false)
     })
   }
 
   function sendComposed(text: string): boolean {
     return submitPayload({
       text,
-      qualityPreset,
+      thinkingLevel: effectiveThinkingLevel,
       attachments: useComposerStore.getState().attachments,
-      planModeRequested: planModeActive || undefined,
     })
   }
 
   // ── Voice ──
 
   function insertTextAtCursor(text: string): void {
-    const editor = editorRef.current
-    if (!editor) {
-      // Fallback: append to store input
-      const store = useComposerStore.getState()
-      store.setInput(store.input + text)
-      return
-    }
-    editor.update(() => {
-      const root = $getRoot()
-      root.selectEnd()
-      const lastChild = root.getLastChild()
-      const paragraph = lastChild && $isElementNode(lastChild) ? lastChild : $createParagraphNode()
-      if (!lastChild || !$isElementNode(lastChild)) {
-        root.append(paragraph)
-      }
-      paragraph.append($createTextNode(text))
-      root.selectEnd()
-    })
+    insertTextAtEditorOrStore(editorRef.current, text, setInput)
   }
 
   const voice = useVoiceCapture({ insertText: insertTextAtCursor, sendComposed })
@@ -180,7 +157,11 @@ export function Composer({
     onToast,
   })
   const canSend =
-    (!!input.trim() || attachments.length > 0) && !disabled && !hasPreparingTextAttachment
+    (!!input.trim() || attachments.length > 0) &&
+    !disabled &&
+    !hasPreparingTextAttachment &&
+    Boolean(projectPath) &&
+    selectedModel.trim().length > 0
   const isVoiceModeActive = voice.isActive
 
   // ── Effects ──
@@ -200,9 +181,8 @@ export function Composer({
     const state = useComposerStore.getState()
     submitPayload({
       text: state.input.trim(),
-      qualityPreset,
+      thinkingLevel: effectiveThinkingLevel,
       attachments: state.attachments,
-      planModeRequested: planModeActive || undefined,
     })
   })
 
@@ -367,11 +347,7 @@ export function Composer({
             fileInputRef={fileInputRef}
           />
         )}
-
-        <ComposerStatusBar onToast={onToast} />
       </div>
-
-      <ActionDialog onToast={onToast} />
     </div>
   )
 }

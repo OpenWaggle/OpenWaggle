@@ -12,8 +12,8 @@ import {
   X,
 } from 'lucide-react'
 import { useState } from 'react'
+import { clearLastAgentErrorInfo, getLastAgentErrorInfo } from '@/lib/agent-error-store'
 import { api } from '@/lib/ipc'
-import { clearLastAgentErrorInfo, getLastAgentErrorInfo } from '@/lib/ipc-connection-adapter'
 import { createRendererLogger } from '@/lib/logger'
 import { useUIStore } from '@/stores/ui-store'
 

@@ -1,5 +1,6 @@
 import { DOUBLE_FACTOR } from '@shared/constants/math'
-import { SupportedModelId, TeamConfigId } from '@shared/types/brand'
+import { type SupportedModelId, TeamConfigId } from '@shared/types/brand'
+import { DEFAULT_MODEL_REF } from '@shared/types/settings'
 import type {
   WaggleAgentColor,
   WaggleAgentSlot,
@@ -60,7 +61,6 @@ export type WaggleFormAction =
   | { readonly type: 'set-agent-model'; readonly index: 0 | 1; readonly model: SupportedModelId }
   | { readonly type: 'set-agent-role'; readonly index: 0 | 1; readonly roleDescription: string }
   | { readonly type: 'set-agent-color'; readonly index: 0 | 1; readonly color: WaggleAgentColor }
-  | { readonly type: 'set-mode'; readonly mode: WaggleCollaborationMode }
   | { readonly type: 'set-stop-condition'; readonly stopCondition: WaggleStopCondition }
   | { readonly type: 'set-max-turns'; readonly maxTurns: number }
 
@@ -75,13 +75,13 @@ const INITIAL_WAGGLE_FORM_STATE: WaggleFormState = {
   agents: [
     {
       label: 'Agent A',
-      model: SupportedModelId('claude-sonnet-4-5'),
+      model: DEFAULT_MODEL_REF,
       roleDescription: '',
       color: 'blue',
     },
     {
       label: 'Agent B',
-      model: SupportedModelId('claude-sonnet-4-5'),
+      model: DEFAULT_MODEL_REF,
       roleDescription: '',
       color: 'amber',
     },
@@ -143,7 +143,6 @@ function waggleFormReducer(state: WaggleFormState, action: WaggleFormAction): Wa
         color: value.color,
       })),
     }))
-    .case('set-mode', (value) => ({ ...state, mode: value.mode }))
     .case('set-stop-condition', (value) => ({ ...state, stopCondition: value.stopCondition }))
     .case('set-max-turns', (value) => ({ ...state, maxTurns: value.maxTurns }))
     .assertComplete()

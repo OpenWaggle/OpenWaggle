@@ -1,11 +1,9 @@
-import type { SubscriptionProvider } from '@shared/types/auth'
 import type { Provider } from '@shared/types/settings'
 import {
   AnthropicIcon,
-  ClaudeCodeIcon,
-  CodexIcon,
   GeminiIcon,
-  GrokIcon,
+  GroqIcon,
+  getProviderIcon,
   OllamaIcon,
   OpenAIIcon,
   OpenRouterIcon,
@@ -13,98 +11,59 @@ import {
 
 type ProviderIcon = typeof OpenAIIcon
 
-export const PROVIDER_META: Record<
-  Provider,
-  {
-    icon: ProviderIcon
-    color: string
-    description: string
-  }
-> = {
+export interface ProviderMeta {
+  readonly icon: ProviderIcon
+  readonly color: string
+}
+
+export const PROVIDER_META: Partial<Record<Provider, ProviderMeta>> = {
   openai: {
     icon: OpenAIIcon,
     color: '#10a37f',
-    description: 'GPT-4o, o1, o3 and other OpenAI models',
   },
   anthropic: {
     icon: AnthropicIcon,
     color: '#d4a27f',
-    description: 'Claude Sonnet, Opus, Haiku models',
   },
-  gemini: {
+  google: {
     icon: GeminiIcon,
     color: '#4285f4',
-    description: 'Gemini 2.5 Pro, Flash and other Google AI models',
   },
-  grok: {
-    icon: GrokIcon,
+  'google-gemini-cli': {
+    icon: GeminiIcon,
+    color: '#4285f4',
+  },
+  'google-antigravity': {
+    icon: GeminiIcon,
+    color: '#4285f4',
+  },
+  xai: {
+    icon: getProviderIcon('xai'),
     color: '#e44d26',
-    description: 'Grok models from xAI',
+  },
+  groq: {
+    icon: GroqIcon,
+    color: '#e44d26',
+  },
+  deepseek: {
+    icon: getProviderIcon('deepseek'),
+    color: '#4d6bfe',
   },
   openrouter: {
     icon: OpenRouterIcon,
     color: '#7c5cfc',
-    description: 'Access models from multiple providers via OpenRouter',
   },
   ollama: {
     icon: OllamaIcon,
     color: '#555d6e',
-    description: 'Run open-source models locally with Ollama',
   },
 }
 
-export const SUBSCRIPTION_META: Record<
-  SubscriptionProvider,
-  {
-    icon: ProviderIcon
-    iconColor: string
-    connectedLogoBg: string
-    connectedLogoBorder: string
-    disconnectedLogoBg: string
-    disconnectedLogoBorder: string
-    name: string
-    description: string
-    tosWarning?: string
-  }
-> = {
-  anthropic: {
-    icon: ClaudeCodeIcon,
-    iconColor: '#D97757',
-    connectedLogoBg: '#1a1520',
-    connectedLogoBorder: '#2a2040',
-    disconnectedLogoBg: '#111418',
-    disconnectedLogoBorder: '#1e2229',
-    name: 'Claude Code',
-    description: 'Sign in with your Anthropic Claude Pro/Max subscription',
-    tosWarning:
-      "Anthropic's Terms of Service prohibit using subscription OAuth tokens in third-party applications. After signing in, copy the authorization code from the browser — it will be picked up from your clipboard automatically.",
-  },
-  openai: {
-    icon: CodexIcon,
-    iconColor: '#7A9DFF',
-    connectedLogoBg: '#0f1020',
-    connectedLogoBorder: '#1a1a40',
-    disconnectedLogoBg: '#111418',
-    disconnectedLogoBorder: '#1e2229',
-    name: 'OpenAI Codex',
-    description: 'Sign in with your ChatGPT Plus/Pro subscription (Codex)',
-    tosWarning:
-      "Uses OpenAI's Codex authentication flow. This is not officially supported for third-party applications.",
-  },
-  openrouter: {
-    icon: OpenRouterIcon,
-    iconColor: '#7c5cfc',
-    connectedLogoBg: '#13111f',
-    connectedLogoBorder: '#251f40',
-    disconnectedLogoBg: '#111418',
-    disconnectedLogoBorder: '#1e2229',
-    name: 'OpenRouter Subscription',
-    description: 'Sign in with your OpenRouter account',
-  },
+export function getProviderMeta(provider: Provider): ProviderMeta {
+  return (
+    PROVIDER_META[provider] ?? {
+      icon: getProviderIcon(provider),
+      color: '#8da2c0',
+    }
+  )
 }
-
-export const SUBSCRIPTION_PROVIDER_ORDER: SubscriptionProvider[] = [
-  'openrouter',
-  'openai',
-  'anthropic',
-]

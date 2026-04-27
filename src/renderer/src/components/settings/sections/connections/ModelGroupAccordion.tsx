@@ -1,17 +1,14 @@
-import { isSubscriptionProvider } from '@shared/types/auth'
 import type { ModelDisplayInfo } from '@shared/types/llm'
 import type { Provider } from '@shared/types/settings'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import { enabledKey } from './helpers'
 import { ModelCheckboxRow } from './ModelCheckboxRow'
-import { PROVIDER_META, SUBSCRIPTION_META } from './meta'
+import { getProviderMeta } from './meta'
 
 interface ModelGroup {
   readonly key: string
   readonly label: string
   readonly subtitle?: string
   readonly provider: Provider
-  readonly authMethod: 'api-key' | 'subscription'
   readonly models: readonly ModelDisplayInfo[]
 }
 
@@ -21,12 +18,7 @@ interface ModelGroupAccordionProps {
   readonly isLast: boolean
   readonly enabledSet: ReadonlySet<string>
   readonly onToggleExpand: (key: string) => void
-  readonly onToggleModel: (
-    provider: Provider,
-    authMethod: 'api-key' | 'subscription',
-    modelId: string,
-    enabled: boolean,
-  ) => void
+  readonly onToggleModel: (provider: Provider, modelRef: string, enabled: boolean) => void
   readonly onSelectAll: (group: ModelGroup) => void
   readonly onClear: (group: ModelGroup) => void
 }
@@ -43,16 +35,10 @@ export function ModelGroupAccordion({
   onSelectAll,
   onClear,
 }: ModelGroupAccordionProps) {
-  const providerMeta = PROVIDER_META[group.provider]
-  const subMeta =
-    group.authMethod === 'subscription' && isSubscriptionProvider(group.provider)
-      ? SUBSCRIPTION_META[group.provider]
-      : undefined
-  const Icon = subMeta?.icon ?? providerMeta.icon
-  const iconColor = subMeta?.iconColor ?? providerMeta.color
-  const enabledCount = group.models.filter((m) =>
-    enabledSet.has(enabledKey(group.provider, group.authMethod, m.id)),
-  ).length
+  const providerMeta = getProviderMeta(group.provider)
+  const Icon = providerMeta.icon
+  const iconColor = providerMeta.color
+  const enabledCount = group.models.filter((model) => enabledSet.has(model.id)).length
 
   return (
     <div className={!isLast ? 'border-b border-border' : ''}>
@@ -110,9 +96,8 @@ export function ModelGroupAccordion({
                 <ModelCheckboxRow
                   key={model.id}
                   model={model}
-                  checked={enabledSet.has(enabledKey(group.provider, group.authMethod, model.id))}
+                  checked={enabledSet.has(model.id)}
                   provider={group.provider}
-                  authMethod={group.authMethod}
                   onToggle={onToggleModel}
                 />
               ))}

@@ -1,7 +1,7 @@
 import { ConversationId, MessageId, SupportedModelId } from '@shared/types/brand'
+import type { UIMessage } from '@shared/types/chat-ui'
 import type { Conversation } from '@shared/types/conversation'
 import type { WaggleConfig, WaggleMessageMetadata } from '@shared/types/waggle'
-import type { UIMessage } from '@tanstack/ai-react'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useWaggleStore } from '@/stores/waggle-store'
@@ -61,7 +61,7 @@ describe('useWaggleMetadataLookup', () => {
     useWaggleStore.getState().reset()
   })
 
-  it('returns the same lookup reference when inputs and waggle state are unchanged', () => {
+  it('returns equivalent metadata when inputs and waggle state are unchanged', () => {
     const config = makeConfig()
     const metadata: WaggleMessageMetadata = {
       agentIndex: 0,
@@ -95,7 +95,7 @@ describe('useWaggleMetadataLookup', () => {
       currentMessages: messages,
     })
 
-    expect(result.current).toBe(firstLookup)
+    expect(result.current).toStrictEqual(firstLookup)
     expect(result.current['ui-assistant-1']).toEqual(metadata)
   })
 

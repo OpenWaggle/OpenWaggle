@@ -9,7 +9,6 @@ import {
   type ComposerActionDialogKind,
   useComposerActionStore,
 } from '@/stores/composer-action-store'
-import { usePreferencesStore } from '@/stores/preferences-store'
 
 interface ActionDialogConfig {
   title: string
@@ -54,12 +53,6 @@ function getActionDialogConfig(
       confirmTone: 'normal' as const,
       inputPlaceholder: `origin/${currentBranch}`,
     }))
-    .case('confirm-full-access', () => ({
-      title: 'Switch to Full access',
-      description: 'This enables write/edit/command tools without approval prompts.',
-      confirmLabel: 'Switch',
-      confirmTone: 'danger' as const,
-    }))
     .assertComplete()
 }
 
@@ -79,7 +72,6 @@ export function ActionDialog({ onToast }: ActionDialogProps) {
 
   const { projectPath } = useProject()
   const { status: gitStatus, createBranch, renameBranch, deleteBranch, setUpstream } = useGit()
-  const setExecutionMode = usePreferencesStore((s) => s.setExecutionMode)
 
   const inputRef = useRef<HTMLInputElement>(null)
   const gitBranch = gitStatus?.branch ?? null
@@ -127,10 +119,6 @@ export function ActionDialog({ onToast }: ActionDialogProps) {
 
     try {
       await choose(actionDialog)
-        .case('confirm-full-access', async () => {
-          await setExecutionMode('full-access')
-          closeActionDialog()
-        })
         .case('create-branch', async () => {
           const name = actionDialogInput.trim()
           if (!name) {

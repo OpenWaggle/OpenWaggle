@@ -1,10 +1,16 @@
 import type { AgentSendPayload } from '@shared/types/agent'
-import type { ConversationId } from '@shared/types/brand'
+import { type ConversationId, SessionId, SessionNodeId } from '@shared/types/brand'
+import type { UIMessage } from '@shared/types/chat-ui'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import type { WaggleCollaborationStatus, WaggleConfig } from '@shared/types/waggle'
-import type { UIMessage } from '@tanstack/ai-react'
-import { useCallback, useState } from 'react'
-import { useAgentChat } from '@/hooks/useAgentChat'
+import { useNavigate } from '@tanstack/react-router'
+import { useState } from 'react'
+import { parseCompactCommand } from '@/components/composer/compact-command'
+import {
+  type AgentChatStatus,
+  type AgentCompactionStatus,
+  useAgentChat,
+} from '@/hooks/useAgentChat'
 import { useAutoSendQueue } from '@/hooks/useAutoSendQueue'
 import { useChat } from '@/hooks/useChat'
 import { useConversationNav } from '@/hooks/useConversationNav'
@@ -17,16 +23,12 @@ import { useWaggleChat } from '@/hooks/useWaggleChat'
 import { api } from '@/lib/ipc'
 import { createRendererLogger } from '@/lib/logger'
 import { usePreferencesStore } from '@/stores/preferences-store'
+import { useSessionStore } from '@/stores/session-store'
 import { useUIStore } from '@/stores/ui-store'
 import { useWaggleStore } from '@/stores/waggle-store'
 import { useComposerSection } from './hooks/useComposerSection'
 import { useSteerWorkflow } from './hooks/useSteerWorkflow'
 import { useTranscriptSection } from './hooks/useTranscriptSection'
-import type {
-  ApprovalResponseAction,
-  PendingApproval,
-  PendingAskUser,
-} from './pending-tool-interactions'
 import { reportAutoSendQueueFailure } from './queue-failure-feedback'
 import type { ChatRow } from './types-chat-row'
 
@@ -39,9 +41,10 @@ export interface ChatTranscriptSectionState {
   readonly recentProjects: readonly string[]
   readonly activeConversationId: ConversationId | null
   readonly chatRows: ChatRow[]
-  readonly compactedMessageIds: ReadonlySet<string>
-  /** The ID of the last user message — used to identify stable thread hydration for scroll restore. */
+  /** The ID of the last user message — used to identify stable session hydration for scroll restore. */
   readonly lastUserMessageId: string | null
+  /** Monotonic streaming signal used by scroll-follow without rescanning the full transcript. */
+  readonly streamSignalVersion: number
   /** Intent flag — true when user pressed Send, consumed by scroll hook. */
   readonly userDidSend: boolean
   /** Callback to clear userDidSend after the scroll effect processes it. */
@@ -49,26 +52,19 @@ export interface ChatTranscriptSectionState {
   onOpenProject: () => Promise<void>
   onSelectProjectPath: (path: string) => void
   onRetryText: (content: string) => Promise<void>
-  onAnswerQuestion: ReturnType<typeof useAgentChat>['answerQuestion']
-  onRespondToPlan: ReturnType<typeof useAgentChat>['respondToPlan']
   onOpenSettings: () => void
   onDismissError: (errorId: string | null) => void
+  onBranchFromMessage: (messageId: string) => void
 }
 
 export interface ChatComposerSectionState {
-  readonly pendingApproval: PendingApproval | null
-  readonly pendingAskUser: PendingAskUser | null
   readonly activeConversationId: ConversationId | null
   readonly waggleStatus: WaggleCollaborationStatus
   readonly commandPaletteOpen: boolean
   readonly slashSkills: readonly SkillDiscoveryItem[]
   readonly isLoading: boolean
-  readonly status: 'ready' | 'submitted' | 'streaming' | 'error'
-  onToolApprovalResponse: (
-    pendingApproval: PendingApproval,
-    response: ApprovalResponseAction,
-  ) => Promise<void>
-  onAnswerQuestion: ReturnType<typeof useAgentChat>['answerQuestion']
+  readonly status: AgentChatStatus
+  readonly compactionStatus: AgentCompactionStatus | null
   onStopCollaboration: () => void
   onSelectSkill: (skillId: string, skillName?: string) => void
   onStartWaggle: (config: WaggleConfig) => void
@@ -92,17 +88,19 @@ export interface ChatPanelSections {
 export function useChatPanelSections(): ChatPanelSections {
   // ── Intent-driven scroll flag ──
   const [userDidSend, setUserDidSend] = useState(false)
-  const onUserDidSendConsumed = useCallback(() => setUserDidSend(false), [])
 
+  function onUserDidSendConsumed(): void {
+    setUserDidSend(false)
+  }
+
+  const navigate = useNavigate()
   const commandPaletteOpen = useUIStore((s) => s.commandPaletteOpen)
   const setActiveView = useUIStore((s) => s.setActiveView)
-  const openSettings = useUIStore((s) => s.openSettings)
   const showToast = useUIStore((s) => s.showToast)
 
   const model = usePreferencesStore((s) => s.settings.selectedModel)
-  const qualityPreset = usePreferencesStore((s) => s.settings.qualityPreset)
+  const thinkingLevel = usePreferencesStore((s) => s.settings.thinkingLevel)
   const recentProjects = usePreferencesStore((s) => s.settings.recentProjects)
-  const executionMode = usePreferencesStore((s) => s.settings.executionMode)
 
   const { projectPath, selectFolder, setProjectPath } = useProject()
   const {
@@ -110,26 +108,44 @@ export function useChatPanelSections(): ChatPanelSections {
     activeConversation,
     activeConversationId,
     createConversation,
-    startDraftThread,
+    startDraftSession,
     setActiveConversation,
-    updateConversationProjectPath,
+    refreshConversation,
   } = useChat()
 
   const { refreshStatus: refreshGitStatus, refreshBranches: refreshGitBranches } = useGit()
-  const { handleOpenProject, handleSelectProjectPath } = useConversationNav({
+  const refreshSessionWorkspace = useSessionStore((state) => state.refreshSessionWorkspace)
+  const draftBranch = useSessionStore((state) => state.draftBranch)
+  const setDraftBranch = useSessionStore((state) => state.setDraftBranch)
+  const clearDraftBranchForSession = useSessionStore((state) => state.clearDraftBranchForSession)
+  const {
+    handleOpenProject: handleOpenProjectNavigation,
+    handleSelectProjectPath: handleSelectProjectPathNavigation,
+  } = useConversationNav({
     conversations,
-    activeConversationId,
     projectPath,
     setActiveView,
     setProjectPath,
     selectFolder,
-    createConversation,
-    startDraftThread,
+    startDraftSession,
     setActiveConversation,
-    updateConversationProjectPath,
     refreshGitStatus,
     refreshGitBranches,
   })
+
+  async function handleOpenProject(): Promise<void> {
+    await handleOpenProjectNavigation()
+    void navigate({ to: '/' })
+  }
+
+  async function handleSelectProjectPath(path: string): Promise<void> {
+    await handleSelectProjectPathNavigation(path)
+    void navigate({ to: '/' })
+  }
+
+  function openSettings(): void {
+    void navigate({ to: '/settings' })
+  }
 
   const {
     messages,
@@ -140,17 +156,16 @@ export function useChatPanelSections(): ChatPanelSections {
     stop,
     steer,
     error,
-    respondToolApproval,
-    answerQuestion,
-    respondToPlan,
     withDeferredSnapshotRefresh,
     previewSteeredUserTurn,
-  } = useAgentChat(activeConversationId, activeConversation, model, qualityPreset)
+    streamSignalVersion,
+    compactionStatus,
+  } = useAgentChat(activeConversationId, activeConversation, model, thinkingLevel)
 
   const { handleSend, handleSendText, handleSendWaggle } = useSendMessage({
     activeConversationId,
     projectPath,
-    qualityPreset,
+    thinkingLevel,
     createConversation,
     sendMessage,
     sendWaggleMessage,
@@ -173,9 +188,38 @@ export function useChatPanelSections(): ChatPanelSections {
   const waggleStatus: WaggleCollaborationStatus =
     waggleOwningId && waggleOwningId !== activeConversationId ? 'idle' : waggleStoreStatus
 
-  const trustProjectPath = activeConversation?.projectPath ?? projectPath
+  async function materializeDraftBranchForSend(): Promise<boolean> {
+    if (!activeConversationId) {
+      return true
+    }
+
+    const sessionId = SessionId(String(activeConversationId))
+    if (draftBranch?.sessionId !== sessionId) {
+      return true
+    }
+
+    const navigation = await api.navigateSessionTree(sessionId, model, draftBranch.sourceNodeId)
+    if (navigation.cancelled) {
+      showToast('Branch source is no longer available.')
+      return false
+    }
+
+    await refreshSessionWorkspace(sessionId, { nodeId: draftBranch.sourceNodeId })
+    return true
+  }
 
   async function handleSendWithWaggle(payload: AgentSendPayload): Promise<void> {
+    const compactCommand = parseCompactCommand(payload.text)
+    if (compactCommand) {
+      await handleCompactSession(compactCommand.customInstructions)
+      return
+    }
+
+    const draftBranchReady = await materializeDraftBranchForSend()
+    if (!draftBranchReady) {
+      return
+    }
+
     setUserDidSend(true)
     phase.reset()
 
@@ -193,9 +237,30 @@ export function useChatPanelSections(): ChatPanelSections {
       } else {
         await handleSend(payload)
       }
+      if (activeConversationId) {
+        clearDraftBranchForSession(SessionId(String(activeConversationId)))
+      }
     } catch (sendError) {
       setUserDidSend(false)
       throw sendError
+    }
+  }
+
+  async function handleCompactSession(customInstructions?: string): Promise<void> {
+    if (!activeConversationId) {
+      showToast('Nothing to compact yet.')
+      return
+    }
+
+    try {
+      await api.compactSession(activeConversationId, model, customInstructions)
+      await Promise.all([
+        refreshConversation(activeConversationId),
+        refreshSessionWorkspace(SessionId(String(activeConversationId))),
+      ])
+    } catch (compactError) {
+      const message = compactError instanceof Error ? compactError.message : String(compactError)
+      showToast(message)
     }
   }
 
@@ -208,6 +273,14 @@ export function useChatPanelSections(): ChatPanelSections {
       api.cancelWaggle(activeConversationId)
     }
     stopWaggleCollaboration()
+  }
+
+  function handleCancelRun(): void {
+    if (activeConversationId && waggleStatus !== 'idle') {
+      api.cancelWaggle(activeConversationId)
+      stopWaggleCollaboration()
+    }
+    stop()
   }
 
   const { isSteering, handleSteer } = useSteerWorkflow({
@@ -229,6 +302,23 @@ export function useChatPanelSections(): ChatPanelSections {
     },
   })
 
+  function handleBranchFromMessage(messageId: string): void {
+    if (!activeConversationId) {
+      return
+    }
+
+    const sessionId = SessionId(String(activeConversationId))
+    const nodeId = SessionNodeId(messageId)
+    setDraftBranch({ sessionId, sourceNodeId: nodeId })
+    void navigate({
+      to: '/sessions/$sessionId',
+      params: { sessionId: String(sessionId) },
+      search: (previous) => ({ ...previous, node: String(nodeId) }),
+    })
+
+    void refreshSessionWorkspace(sessionId, { nodeId })
+  }
+
   const transcript = useTranscriptSection({
     messages,
     isLoading,
@@ -244,29 +334,24 @@ export function useChatPanelSections(): ChatPanelSections {
     handleOpenProject,
     handleSelectProjectPath,
     handleSendText,
-    answerQuestion,
-    respondToPlan,
     openSettings,
+    handleBranchFromMessage,
     userDidSend,
     onUserDidSendConsumed,
+    streamSignalVersion,
   })
 
   const composer = useComposerSection({
-    messages,
     isLoading,
     isSteering,
     status,
+    compactionStatus,
     activeConversationId,
-    trustProjectPath,
-    executionMode,
     waggleStatus,
     commandPaletteOpen,
     slashSkills: catalog?.skills ?? [],
     phase,
-    activeConversation,
-    respondToolApproval,
-    answerQuestion,
-    stop,
+    stop: handleCancelRun,
     showToast,
     handleSteer,
     handleSendWithWaggle,

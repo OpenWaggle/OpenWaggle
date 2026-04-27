@@ -207,7 +207,7 @@ async function seedMarketingConversation(userDataDir: string, projectPath: strin
           {
             type: 'text',
             text: [
-              "I'm less worried about the happy path and more worried about merge readiness. These kinds of fixes often look great in manual testing while hiding edge-case regressions in approvals, reloads, or thread switching.",
+              "I'm less worried about the happy path and more worried about merge readiness. These kinds of fixes often look great in manual testing while hiding edge-case regressions in tool rendering, reloads, or thread switching.",
               '',
               '**Risk areas I want challenged**',
               '',

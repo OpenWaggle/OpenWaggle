@@ -1,13 +1,12 @@
 import { CommandPalette } from '@/components/command-palette/CommandPalette'
+import { ActionDialog } from '@/components/composer/ActionDialog'
+import { CompactionStatusStrip } from '@/components/composer/CompactionStatusStrip'
 import { Composer } from '@/components/composer/Composer'
+import { ComposerBranchRow } from '@/components/composer/ComposerBranchRow'
 import { QueuedMessages } from '@/components/composer/QueuedMessages'
 import { WaggleCollaborationStatus as WaggleCollaborationStatusBanner } from '@/components/waggle/CollaborationStatus'
-import { useChat } from '@/hooks/useChat'
 import { useMessageQueueStore } from '@/stores/message-queue-store'
-import { ApprovalBanner } from './ApprovalBanner'
-import { AskUserBlock } from './AskUserBlock'
 
-import { PlanModeBanner } from './PlanModeBanner'
 import type { ChatComposerSectionState } from './use-chat-panel-controller'
 
 interface ChatComposerStackProps {
@@ -17,20 +16,14 @@ interface ChatComposerStackProps {
 function noOp(): void {}
 
 export function ChatComposerStack({ section }: ChatComposerStackProps) {
-  const { activeConversation } = useChat()
-  const planModeActive = activeConversation?.planModeActive ?? false
-
   const {
-    pendingApproval,
-    pendingAskUser,
     activeConversationId,
     waggleStatus,
     commandPaletteOpen,
     slashSkills,
     isLoading,
     status,
-    onToolApprovalResponse,
-    onAnswerQuestion,
+    compactionStatus,
     onStopCollaboration,
     onSelectSkill,
     onStartWaggle,
@@ -44,28 +37,6 @@ export function ChatComposerStack({ section }: ChatComposerStackProps) {
 
   return (
     <>
-      {pendingApproval && (
-        <div className="mx-auto w-full max-w-[720px] px-5 pb-2">
-          <ApprovalBanner
-            toolCallId={pendingApproval.toolCallId}
-            toolName={pendingApproval.toolName}
-            toolArgs={pendingApproval.toolArgs}
-            approvalId={pendingApproval.approvalId}
-            onApprovalResponse={onToolApprovalResponse}
-          />
-        </div>
-      )}
-
-      {pendingAskUser && activeConversationId && (
-        <div className="mx-auto w-full max-w-[720px] px-5 pb-2">
-          <AskUserBlock
-            questions={pendingAskUser.questions}
-            conversationId={activeConversationId}
-            onAnswer={onAnswerQuestion}
-          />
-        </div>
-      )}
-
       <WaggleCollaborationStatusBanner
         currentConversationId={activeConversationId}
         onStop={waggleStatus !== 'idle' ? onStopCollaboration : noOp}
@@ -81,22 +52,18 @@ export function ChatComposerStack({ section }: ChatComposerStackProps) {
         </div>
       )}
 
-      {planModeActive && (
-        <div className="mx-auto w-full max-w-[720px] px-5 pb-2">
-          <PlanModeBanner />
-        </div>
-      )}
-
-      <div className="mx-auto w-full max-w-[720px] px-5 pb-5">
+      <div className="mx-auto w-full max-w-[720px] px-5 pb-5" data-chat-composer-form="true">
+        {compactionStatus ? (
+          <CompactionStatusStrip state={compactionStatus} onCancel={onCancel} />
+        ) : null}
         <QueuedMessages
           conversationId={activeConversationId}
           onSteer={onSteer}
           isStreaming={status === 'streaming' || status === 'submitted'}
+          isCompacting={status === 'compacting' || status === 'retrying'}
         />
         <Composer
-          onSend={(payload) => {
-            void onSendWithWaggle(payload)
-          }}
+          onSend={onSendWithWaggle}
           onEnqueue={(payload) => {
             if (activeConversationId) {
               enqueue(activeConversationId, payload)
@@ -106,6 +73,8 @@ export function ChatComposerStack({ section }: ChatComposerStackProps) {
           isLoading={isLoading}
           onToast={onToast}
         />
+        <ComposerBranchRow onToast={onToast} />
+        <ActionDialog onToast={onToast} />
       </div>
     </>
   )

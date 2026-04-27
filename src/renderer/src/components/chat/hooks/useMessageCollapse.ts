@@ -1,10 +1,9 @@
-import type { UIMessage } from '@tanstack/ai-react'
+import type { UIMessage } from '@shared/types/chat-ui'
 import { useState } from 'react'
 import {
   countToolCallParts,
   getLastRenderableTextPartIndex,
   hasRenderableTextPartBeforeIndex,
-  hasUnansweredBlockingToolCall,
 } from '../message-bubble-utils'
 
 export interface UseMessageCollapseResult {
@@ -31,19 +30,18 @@ export function useMessageCollapse(
     message.parts,
     lastRenderableTextPartIndex,
   )
-  // Waggle segments represent individual agent turns — never collapse them to synthesis.
+  const hasThinkingParts = message.parts.some(
+    (part) => part.type === 'thinking' && part.content.trim().length > 0,
+  )
+  // Waggle messages represent individual agent turns — never collapse them to synthesis.
   // Each agent's full response (including tool calls) should always be visible.
-  // Never collapse messages with unanswered blocking tool calls (proposePlan /
-  // askUser). These require user interaction (Approve/Revise, answer questions)
-  // and must remain visible — especially after app restart when isStreaming is
-  // false but the user still needs to respond.
   // Collapse is deferred until the entire agent run finishes (isRunActive = false),
   // not just when the individual message stream ends, to prevent tools from
-  // collapsing mid-run during continuation messages.
+  // collapsing while Pi is still processing queued turns or tool updates.
   const canCollapseToSynthesis =
     !isWaggle &&
     !isRunActive &&
-    !hasUnansweredBlockingToolCall(message.parts) &&
+    !hasThinkingParts &&
     lastRenderableTextPartIndex >= 0 &&
     (toolCallCount > 0 || hasEarlierRenderableTextParts)
   const showDetails = expandedStateKey === collapseStateKey

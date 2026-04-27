@@ -1,3 +1,5 @@
+import { SupportedModelId } from '@shared/types/brand'
+import type { ProviderInfo } from '@shared/types/llm'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -11,28 +13,35 @@ vi.mock('@/lib/ipc', () => ({
     getSettings: vi.fn().mockResolvedValue({}),
     updateSettings: vi.fn().mockResolvedValue({ ok: true }),
     getProviderModels: vi.fn().mockResolvedValue([]),
-    getModelCompatibility: vi.fn().mockResolvedValue([]),
   },
 }))
 
-vi.mock('@/hooks/useChat', () => ({
-  useChat: vi.fn(() => ({
-    activeConversation: null,
-    conversations: [],
-    activeConversationId: null,
-    setActiveConversation: vi.fn(),
-    createConversation: vi.fn(),
-    startDraftThread: vi.fn(),
-    updateConversationProjectPath: vi.fn(),
-  })),
-}))
-
-vi.mock('@/queries/conversations', () => ({
-  useTogglePlanModeMutation: vi.fn(() => ({
-    mutate: vi.fn(),
-    isPending: false,
-  })),
-}))
+const SELECTED_MODEL = SupportedModelId('openai/gpt-5')
+const PROVIDER_MODELS: ProviderInfo[] = [
+  {
+    provider: 'openai',
+    displayName: 'OpenAI',
+    auth: {
+      configured: true,
+      source: 'api-key',
+      apiKeyConfigured: true,
+      apiKeySource: 'api-key',
+      oauthConnected: false,
+      supportsApiKey: true,
+      supportsOAuth: true,
+    },
+    models: [
+      {
+        id: SELECTED_MODEL,
+        modelId: 'gpt-5',
+        name: 'GPT 5',
+        provider: 'openai',
+        available: true,
+        availableThinkingLevels: ['off', 'minimal', 'low', 'medium', 'high'],
+      },
+    ],
+  },
+]
 
 function renderToolbar(overrides: Partial<Parameters<typeof ComposerToolbar>[0]> = {}) {
   const fileInputRef = { current: null } as React.RefObject<HTMLInputElement | null>
@@ -53,26 +62,73 @@ describe('ComposerToolbar', () => {
     useComposerStore.setState(useComposerStore.getInitialState())
     usePreferencesStore.setState({
       ...usePreferencesStore.getInitialState(),
-      settings: DEFAULT_SETTINGS,
+      settings: {
+        ...DEFAULT_SETTINGS,
+        selectedModel: SELECTED_MODEL,
+        enabledModels: [SELECTED_MODEL],
+      },
       isLoaded: true,
     })
     useProviderStore.setState({
       ...useProviderStore.getInitialState(),
-      providerModels: [],
+      providerModels: PROVIDER_MODELS,
     })
   })
 
-  it('renders quality preset label', () => {
+  it('renders thinking level label', () => {
     renderToolbar()
-    expect(screen.getByTitle('Select quality preset')).toBeInTheDocument()
+    expect(screen.getByTitle('Select thinking level')).toBeInTheDocument()
   })
 
-  it('opens quality menu on click', () => {
+  it('opens thinking menu on click', () => {
     renderToolbar()
-    fireEvent.click(screen.getByTitle('Select quality preset'))
-    expect(useComposerStore.getState().qualityMenuOpen).toBe(true)
+    fireEvent.click(screen.getByTitle('Select thinking level'))
+    expect(useComposerStore.getState().thinkingMenuOpen).toBe(true)
     expect(screen.getByText('Low')).toBeInTheDocument()
     expect(screen.getByText('High')).toBeInTheDocument()
+  })
+
+  it('shows the selected model effective thinking level instead of unsupported xhigh', () => {
+    usePreferencesStore.setState({
+      settings: {
+        ...usePreferencesStore.getState().settings,
+        thinkingLevel: 'xhigh',
+      },
+    })
+
+    renderToolbar()
+
+    expect(screen.getByRole('button', { name: /high/i })).toBeInTheDocument()
+    fireEvent.click(screen.getByTitle('Extra High is not available for this model; using High'))
+    expect(screen.queryByText('Extra High')).not.toBeInTheDocument()
+    expect(screen.getAllByText('High')).toHaveLength(2)
+  })
+
+  it('maps non-reasoning selected models to off in the toolbar', () => {
+    useProviderStore.setState({
+      providerModels: [
+        {
+          ...PROVIDER_MODELS[0],
+          models: [
+            {
+              id: SELECTED_MODEL,
+              modelId: 'gpt-5',
+              name: 'GPT 5',
+              provider: 'openai',
+              available: true,
+              availableThinkingLevels: ['off'],
+            },
+          ],
+        },
+      ],
+    })
+
+    renderToolbar()
+
+    expect(screen.getByRole('button', { name: /off/i })).toBeInTheDocument()
+    fireEvent.click(screen.getByTitle('Selected model does not support thinking'))
+    expect(screen.getAllByText('Off')).toHaveLength(2)
+    expect(screen.queryByText('Medium')).not.toBeInTheDocument()
   })
 
   it('renders send button when not loading', () => {

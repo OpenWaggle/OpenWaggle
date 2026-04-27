@@ -1,13 +1,13 @@
 import { useEffect } from 'react'
+import { isTerminalTransportEvent } from '@/lib/agent-stream-utils'
 import { api } from '@/lib/ipc'
-import { isTerminalChunk } from '@/lib/ipc-connection-adapter'
 import { useBackgroundRunStore } from '@/stores/background-run-store'
 import { useChatStore } from '@/stores/chat-store'
 
 /**
  * Mounted once at the workspace level. Tracks which conversations have
- * active background runs by listening to stream chunk start/end events
- * and the run-completed event. Does NOT track chunk content — only presence.
+ * active background runs by listening to runtime start/end events
+ * and the run-completed event. Does NOT track event content — only presence.
  *
  * When a background run completes, updates only the affected conversation's
  * metadata in the sidebar (timestamp) instead of reloading the full list.
@@ -24,12 +24,12 @@ export function useBackgroundRunMonitor(): void {
 
   // Track stream lifecycle globally
   useEffect(() => {
-    const unsubChunk = api.onStreamChunk((payload) => {
-      if (payload.chunk.type === 'RUN_STARTED') {
+    const unsubEvent = api.onAgentEvent((payload) => {
+      if (payload.event.type === 'agent_start') {
         addActiveRun(payload.conversationId)
         return
       }
-      if (isTerminalChunk(payload.chunk)) {
+      if (isTerminalTransportEvent(payload.event)) {
         removeActiveRun(payload.conversationId)
       }
     })
@@ -40,7 +40,7 @@ export function useBackgroundRunMonitor(): void {
     })
 
     return () => {
-      unsubChunk()
+      unsubEvent()
       unsubCompleted()
     }
   }, [addActiveRun, refreshConversation, removeActiveRun])

@@ -1,315 +1,131 @@
 import type { JsonObject } from '@shared/types/json'
-import {
-  BookOpen,
-  Camera,
-  CheckSquare,
-  ClipboardList,
-  FileEdit,
-  FilePlus,
-  FileText,
-  FolderTree,
-  FormInput,
-  Globe,
-  type LucideIcon,
-  MessageCircleQuestion,
-  MousePointer,
-  Network,
-  Search,
-  Send,
-  Sparkles,
-  SquarePen,
-  Terminal,
-  Trash2,
-  Type,
-  Users,
-  Wrench,
-  XCircle,
-} from 'lucide-react'
-import type { BuiltInToolName } from '../../../main/tools/built-in-tools'
+
+type PiNativeToolName = 'read' | 'write' | 'edit' | 'bash' | 'grep' | 'find' | 'ls'
 
 interface ToolDisplayEntry {
-  readonly icon: LucideIcon
-  readonly displayName: string
   readonly primaryArg: string
   readonly verbs: {
     readonly running: string
     readonly completed: string
-    readonly approval: string
   }
 }
 
 /**
- * Display metadata for every built-in tool. Keyed by `BuiltInToolName` —
- * TypeScript enforces that every built-in tool has an entry and rejects
- * typos or stale keys.
+ * Display metadata for Pi-native tools that OpenWaggle renders as UI.
+ * Runtime tool availability still comes from Pi, not from this map.
  */
-const BUILT_IN_TOOL_DISPLAY: Record<BuiltInToolName, ToolDisplayEntry> = {
-  readFile: {
-    icon: FileText,
-    displayName: 'Read File',
+const PI_TOOL_DISPLAY: Record<PiNativeToolName, ToolDisplayEntry> = {
+  read: {
     primaryArg: 'path',
-    verbs: { running: 'Reading', completed: 'Read', approval: 'Read' },
+    verbs: { running: 'Reading', completed: 'Read' },
   },
-  writeFile: {
-    icon: FilePlus,
-    displayName: 'Write File',
+  write: {
     primaryArg: 'path',
-    verbs: { running: 'Writing', completed: 'Wrote', approval: 'Write' },
+    verbs: { running: 'Writing', completed: 'Wrote' },
   },
-  editFile: {
-    icon: FileEdit,
-    displayName: 'Edit File',
+  edit: {
     primaryArg: 'path',
-    verbs: { running: 'Editing', completed: 'Edited', approval: 'Edit' },
+    verbs: { running: 'Editing', completed: 'Edited' },
   },
-  runCommand: {
-    icon: Terminal,
-    displayName: 'Run Command',
+  bash: {
     primaryArg: 'command',
-    verbs: { running: 'Running', completed: 'Ran', approval: 'Run' },
+    verbs: { running: 'Running', completed: 'Ran' },
   },
-  glob: {
-    icon: Search,
-    displayName: 'Glob',
+  grep: {
     primaryArg: 'pattern',
-    verbs: { running: 'Searching', completed: 'Searched', approval: 'Search' },
+    verbs: { running: 'Searching', completed: 'Searched' },
   },
-  listFiles: {
-    icon: FolderTree,
-    displayName: 'List Files',
+  find: {
+    primaryArg: 'pattern',
+    verbs: { running: 'Finding', completed: 'Found' },
+  },
+  ls: {
     primaryArg: 'path',
-    verbs: { running: 'Listing', completed: 'Listed', approval: 'List' },
-  },
-  askUser: {
-    icon: MessageCircleQuestion,
-    displayName: 'Ask User',
-    primaryArg: 'questions',
-    verbs: { running: 'Asking', completed: 'Asked', approval: 'Ask' },
-  },
-  loadSkill: {
-    icon: Sparkles,
-    displayName: 'Load Skill',
-    primaryArg: 'skillId',
-    verbs: { running: 'Loading skill', completed: 'Loaded skill', approval: 'Load skill' },
-  },
-  loadAgents: {
-    icon: BookOpen,
-    displayName: 'Load Agents',
-    primaryArg: '',
-    verbs: { running: 'Loading agents', completed: 'Loaded agents', approval: 'Load agents' },
-  },
-  webFetch: {
-    icon: Globe,
-    displayName: 'Web Fetch',
-    primaryArg: 'url',
-    verbs: { running: 'Fetching', completed: 'Fetched', approval: 'Fetch' },
-  },
-  proposePlan: {
-    icon: SquarePen,
-    displayName: 'Propose Plan',
-    primaryArg: '',
-    verbs: { running: 'Planning', completed: 'Planned', approval: 'Plan' },
-  },
-  orchestrate: {
-    icon: Network,
-    displayName: 'Orchestrate',
-    primaryArg: '',
-    verbs: { running: 'Orchestrating', completed: 'Orchestrated', approval: 'Orchestrate' },
-  },
-  spawnAgent: {
-    icon: Users,
-    displayName: 'Spawn Agent',
-    primaryArg: '',
-    verbs: { running: 'Spawning agent', completed: 'Spawned agent', approval: 'Spawn agent' },
-  },
-  sendMessage: {
-    icon: Send,
-    displayName: 'Send Message',
-    primaryArg: '',
-    verbs: { running: 'Sending message', completed: 'Sent message', approval: 'Send message' },
-  },
-  taskCreate: {
-    icon: ClipboardList,
-    displayName: 'Create Task',
-    primaryArg: '',
-    verbs: { running: 'Creating task', completed: 'Created task', approval: 'Create task' },
-  },
-  taskGet: {
-    icon: ClipboardList,
-    displayName: 'Get Task',
-    primaryArg: '',
-    verbs: { running: 'Getting task', completed: 'Got task', approval: 'Get task' },
-  },
-  taskList: {
-    icon: ClipboardList,
-    displayName: 'List Tasks',
-    primaryArg: '',
-    verbs: { running: 'Listing tasks', completed: 'Listed tasks', approval: 'List tasks' },
-  },
-  taskUpdate: {
-    icon: CheckSquare,
-    displayName: 'Update Task',
-    primaryArg: '',
-    verbs: { running: 'Updating task', completed: 'Updated task', approval: 'Update task' },
-  },
-  teamCreate: {
-    icon: Users,
-    displayName: 'Create Team',
-    primaryArg: '',
-    verbs: { running: 'Creating team', completed: 'Created team', approval: 'Create team' },
-  },
-  teamDelete: {
-    icon: Trash2,
-    displayName: 'Delete Team',
-    primaryArg: '',
-    verbs: { running: 'Deleting team', completed: 'Deleted team', approval: 'Delete team' },
-  },
-}
-
-const KNOWN_MCP_TOOL_NAMES = [
-  'browserNavigate',
-  'browserClick',
-  'browserType',
-  'browserScreenshot',
-  'browserExtractText',
-  'browserFillForm',
-  'browserClose',
-] as const
-
-type KnownMcpToolName = (typeof KNOWN_MCP_TOOL_NAMES)[number]
-
-/** Display entries for known MCP tools (e.g. Playwright browser tools). */
-const MCP_TOOL_DISPLAY: Record<KnownMcpToolName, ToolDisplayEntry> = {
-  browserNavigate: {
-    icon: Globe,
-    displayName: 'Navigate',
-    primaryArg: 'url',
-    verbs: { running: 'Navigating to', completed: 'Navigated to', approval: 'Navigate to' },
-  },
-  browserClick: {
-    icon: MousePointer,
-    displayName: 'Click',
-    primaryArg: 'selector',
-    verbs: { running: 'Clicking', completed: 'Clicked', approval: 'Click' },
-  },
-  browserType: {
-    icon: Type,
-    displayName: 'Type',
-    primaryArg: 'selector',
-    verbs: { running: 'Typing into', completed: 'Typed into', approval: 'Type into' },
-  },
-  browserScreenshot: {
-    icon: Camera,
-    displayName: 'Screenshot',
-    primaryArg: '',
-    verbs: {
-      running: 'Taking screenshot',
-      completed: 'Took screenshot',
-      approval: 'Take screenshot',
-    },
-  },
-  browserExtractText: {
-    icon: FileText,
-    displayName: 'Extract Text',
-    primaryArg: 'selector',
-    verbs: { running: 'Extracting text', completed: 'Extracted text', approval: 'Extract text' },
-  },
-  browserFillForm: {
-    icon: FormInput,
-    displayName: 'Fill Form',
-    primaryArg: '',
-    verbs: { running: 'Filling form', completed: 'Filled form', approval: 'Fill form' },
-  },
-  browserClose: {
-    icon: XCircle,
-    displayName: 'Close Browser',
-    primaryArg: '',
-    verbs: {
-      running: 'Closing browser',
-      completed: 'Closed browser',
-      approval: 'Close browser',
-    },
+    verbs: { running: 'Listing', completed: 'Listed' },
   },
 }
 
 function getDefaultEntry(name: string): ToolDisplayEntry {
   return {
-    icon: Wrench,
-    displayName: name,
     primaryArg: '',
-    verbs: { running: name, completed: name, approval: name },
+    verbs: { running: name, completed: name },
   }
 }
 
-function isBuiltInToolName(name: string): name is BuiltInToolName {
-  return name in BUILT_IN_TOOL_DISPLAY
-}
-
-function isKnownMcpToolName(name: string): name is KnownMcpToolName {
-  return name in MCP_TOOL_DISPLAY
+function isPiNativeToolName(name: string): name is PiNativeToolName {
+  return name in PI_TOOL_DISPLAY
 }
 
 function getToolEntry(name: string): ToolDisplayEntry {
-  if (isBuiltInToolName(name)) {
-    return BUILT_IN_TOOL_DISPLAY[name]
-  }
-  if (isKnownMcpToolName(name)) {
-    return MCP_TOOL_DISPLAY[name]
+  if (isPiNativeToolName(name)) {
+    return PI_TOOL_DISPLAY[name]
   }
   return getDefaultEntry(name)
 }
 
-export function getToolConfig(
-  name: string,
-): Pick<ToolDisplayEntry, 'icon' | 'displayName' | 'primaryArg'> {
-  return getToolEntry(name)
-}
-
-export function getToolVerbs(name: string): ToolDisplayEntry['verbs'] {
-  return getToolEntry(name).verbs
-}
-
-export function getToolApprovalText(name: string, args: JsonObject): string {
-  const entry = getToolEntry(name)
-  const verb = entry.verbs.approval
-
-  const value = args[entry.primaryArg]
-  if (typeof value !== 'string') return verb
-
-  if (name === 'runCommand') {
-    return `${verb} \`${value}\``
-  }
-
-  return `${verb} ${value}`
-}
-
-export function getToolActionText(name: string, args: JsonObject, isRunning: boolean): string {
+function getToolActionText(name: string, args: JsonObject, isRunning: boolean): string {
   const entry = getToolEntry(name)
   const verb = isRunning ? entry.verbs.running : entry.verbs.completed
+  const label = formatToolTarget(name, args, entry.primaryArg)
 
-  const value = args[entry.primaryArg]
-  if (typeof value !== 'string') return isRunning ? `${verb}...` : verb
-
-  if (name === 'runCommand') {
-    return `${verb} \`${value}\``
-  }
-
-  return isRunning ? `${verb} ${value}...` : `${verb} ${value}`
+  if (!label) return isRunning ? `${verb}...` : verb
+  if (isRunning && name === 'bash') return `${verb} ${label}`
+  return isRunning ? `${verb} ${label}...` : `${verb} ${label}`
 }
 
-export interface ActionTextParams {
+function formatToolTarget(name: string, args: JsonObject, primaryArg: string): string {
+  if (name === 'bash' && typeof args.command === 'string') {
+    return `\`${args.command}\``
+  }
+
+  if (name === 'read' && typeof args.path === 'string') {
+    return `${args.path}${formatReadLineSuffix(args)}`
+  }
+
+  if (name === 'grep' && typeof args.pattern === 'string') {
+    const path = typeof args.path === 'string' && args.path ? args.path : '.'
+    const glob = typeof args.glob === 'string' && args.glob ? ` (${args.glob})` : ''
+    return `/${args.pattern}/ in ${path}${glob}`
+  }
+
+  if (name === 'find' && typeof args.pattern === 'string') {
+    const path = typeof args.path === 'string' && args.path ? args.path : '.'
+    return `${args.pattern} in ${path}`
+  }
+
+  if (name === 'ls') {
+    const path = typeof args.path === 'string' && args.path ? args.path : '.'
+    return path
+  }
+
+  const value = args[primaryArg]
+  return typeof value === 'string' ? value : ''
+}
+
+function formatReadLineSuffix(args: JsonObject): string {
+  const offset = typeof args.offset === 'number' ? args.offset : undefined
+  const limit = typeof args.limit === 'number' ? args.limit : undefined
+  if (offset === undefined && limit === undefined) {
+    return ''
+  }
+
+  const startLine = offset ?? 1
+  if (limit === undefined) {
+    return `:${String(startLine)}`
+  }
+
+  return `:${String(startLine)}-${String(startLine + limit - 1)}`
+}
+
+interface ActionTextParams {
   readonly name: string
   readonly args: JsonObject
-  readonly awaitingApproval: boolean
   readonly awaitingResult: boolean
   readonly isError: boolean
   readonly isRunning: boolean
 }
 
 export function resolveActionText(params: ActionTextParams): string {
-  if (params.awaitingApproval) {
-    return getToolApprovalText(params.name, params.args)
-  }
   if (params.awaitingResult) {
     return formatStatusActionText('Requested', params.name, params.args)
   }
@@ -323,7 +139,7 @@ function formatStatusActionText(prefix: string, name: string, args: JsonObject):
   if (typeof args.path === 'string') {
     return `${prefix} ${name} ${args.path}`
   }
-  if (name === 'runCommand' && typeof args.command === 'string') {
+  if (name === 'bash' && typeof args.command === 'string') {
     return `${prefix} ${name} \`${args.command}\``
   }
   return `${prefix} ${name}`

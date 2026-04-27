@@ -24,13 +24,13 @@ export function useWaggleChat(conversationId: ConversationId | null): void {
       }
     })
 
-    // Track live message -> agent metadata from Waggle stream chunks.
-    // When a TEXT_MESSAGE_START arrives, we map the messageId to the agent metadata
+    // Track live message -> agent metadata from Waggle transport events.
+    // When an assistant message_start arrives, we map the messageId to the agent metadata
     // so ChatPanel can show agent labels during streaming (before persistence).
-    const unsubChunk = api.onWaggleStreamChunk((payload) => {
+    const unsubEvent = api.onWaggleEvent((payload) => {
       if (targetConversationId && payload.conversationId === targetConversationId) {
-        if (payload.chunk.type === 'TEXT_MESSAGE_START' && payload.chunk.messageId) {
-          trackMessageMetadata(payload.chunk.messageId, {
+        if (payload.event.type === 'message_start' && payload.event.role === 'assistant') {
+          trackMessageMetadata(payload.event.messageId, {
             agentIndex: payload.meta.agentIndex,
             agentLabel: payload.meta.agentLabel,
             agentColor: payload.meta.agentColor,
@@ -57,7 +57,7 @@ export function useWaggleChat(conversationId: ConversationId | null): void {
 
     return () => {
       unsubTurn()
-      unsubChunk()
+      unsubEvent()
       unsubRunCompleted()
     }
   }, [targetConversationId, handleTurnEvent, trackMessageMetadata])

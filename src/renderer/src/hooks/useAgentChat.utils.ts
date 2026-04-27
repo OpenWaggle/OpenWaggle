@@ -1,13 +1,7 @@
 import type { AttachmentRecord, MessagePart } from '@shared/types/agent'
+import type { UIMessage } from '@shared/types/chat-ui'
 import type { Conversation } from '@shared/types/conversation'
 import { chooseBy } from '@shared/utils/decision'
-import type { StreamChunk } from '@tanstack/ai'
-import type { UIMessage } from '@tanstack/ai-react'
-import {
-  buildPersistedToolCallLookup,
-  type PersistedToolCallLookup,
-  restorePersistedToolCallPart,
-} from '@/lib/persisted-tool-call-reconciliation'
 
 // ─── MessagePart → UIMessage Parts Conversion ────────────────
 
@@ -34,7 +28,7 @@ export function formatAttachmentPreview(
 }
 
 /**
- * Convert a single persisted MessagePart to TanStack UIMessage parts.
+ * Convert a single persisted MessagePart to UIMessage parts.
  * Shared by both conversationToUIMessages (historical) and
  * buildPartialAssistantMessage (background reconnection).
  */
@@ -48,7 +42,6 @@ export function messagePartToUIParts(part: MessagePart): UIMessage['parts'] {
         name: value.toolCall.name,
         arguments: JSON.stringify(value.toolCall.args),
         state: value.toolCall.state ?? 'input-complete',
-        approval: value.toolCall.approval,
       },
     ])
     .case('tool-result', (value): UIMessage['parts'] => [
@@ -65,8 +58,12 @@ export function messagePartToUIParts(part: MessagePart): UIMessage['parts'] {
         content: formatAttachmentPreview(value.attachment),
       },
     ])
-    .case('reasoning', (): UIMessage['parts'] => [])
-    .case('compaction-event', (): UIMessage['parts'] => [])
+    .case('reasoning', (value): UIMessage['parts'] => [
+      {
+        type: 'thinking',
+        content: value.text,
+      },
+    ])
     .assertComplete()
 }
 
@@ -78,97 +75,26 @@ export function conversationToUIMessages(conv: Conversation): UIMessage[] {
     role: msg.role,
     parts: msg.parts.flatMap(messagePartToUIParts),
     createdAt: new Date(msg.createdAt),
+    ...(msg.metadata?.compactionSummary
+      ? { metadata: { compactionSummary: msg.metadata.compactionSummary } }
+      : {}),
   }))
-}
-
-export function restorePersistedToolCallMetadata(
-  messages: UIMessage[],
-  conversation: Conversation | null,
-): UIMessage[] {
-  const persistedToolCalls = buildPersistedToolCallLookup(conversation)
-  return restorePersistedToolCallMetadataWithLookup(messages, persistedToolCalls)
-}
-
-export function restorePersistedToolCallMetadataWithLookup(
-  messages: UIMessage[],
-  persistedToolCalls: PersistedToolCallLookup,
-): UIMessage[] {
-  let didChange = false
-
-  const restoredMessages = messages.map((message) => {
-    let messageChanged = false
-    const restoredParts = message.parts.map((part) => {
-      if (part.type !== 'tool-call') {
-        return part
-      }
-
-      const restoredPart = restorePersistedToolCallPart(part, persistedToolCalls)
-      if (restoredPart === part) {
-        return part
-      }
-
-      didChange = true
-      messageChanged = true
-      return restoredPart
-    })
-
-    return messageChanged ? { ...message, parts: restoredParts } : message
-  })
-
-  return didChange ? restoredMessages : messages
 }
 
 // ─── Background Run Reconnection Helpers ─────────────────────
 
-export function buildPartialAssistantMessage(parts: readonly MessagePart[]): UIMessage {
+export function buildPartialAssistantMessage(parts: readonly MessagePart[]): UIMessage | null {
   const uiParts: UIMessage['parts'] = parts.flatMap(messagePartToUIParts)
+  if (uiParts.length === 0) {
+    return null
+  }
 
   return {
     id: `bg-stream-${Date.now()}`,
     role: 'assistant',
-    parts: uiParts.length > 0 ? uiParts : [{ type: 'text', content: '' }],
+    parts: uiParts,
     createdAt: new Date(),
   }
-}
-
-// ─── Stream Delta Application ────────────────────────────────
-
-/**
- * Apply a single stream chunk delta to the last assistant message.
- * Returns the same array reference if nothing changed, otherwise a new array.
- * Only handles text deltas — tool call/result parts arrive via TOOL_CALL_END
- * which triggers a full snapshot refresh from the main process.
- */
-export function applyStreamDelta(chunk: StreamChunk, messages: UIMessage[]): UIMessage[] {
-  if (chunk.type !== 'TEXT_MESSAGE_CONTENT') return messages
-
-  const { delta } = chunk
-  const last = messages[messages.length - 1]
-  if (!last || last.role !== 'assistant') return messages
-
-  const lastTextPartIndex = findLastTextPartIndex(last.parts)
-  if (lastTextPartIndex === -1) {
-    // No text part yet — add one
-    const updatedParts = [...last.parts, { type: 'text' as const, content: delta }]
-    return [...messages.slice(0, -1), { ...last, parts: updatedParts }]
-  }
-
-  const textPart = last.parts[lastTextPartIndex]
-  if (textPart.type !== 'text') return messages
-
-  const updatedParts = [...last.parts]
-  updatedParts[lastTextPartIndex] = {
-    type: 'text' as const,
-    content: textPart.content + delta,
-  }
-  return [...messages.slice(0, -1), { ...last, parts: updatedParts }]
-}
-
-function findLastTextPartIndex(parts: UIMessage['parts']): number {
-  for (let i = parts.length - 1; i >= 0; i--) {
-    if (parts[i].type === 'text') return i
-  }
-  return -1
 }
 
 // ─── Snapshot ↔ Optimistic User Message Reconciliation ───────
@@ -176,7 +102,7 @@ function findLastTextPartIndex(parts: UIMessage['parts']): number {
 /**
  * Extract the concatenated text content from a UIMessage's text parts.
  */
-function getUIMessageText(message: UIMessage): string {
+export function getUIMessageText(message: UIMessage): string {
   return message.parts
     .filter(
       (part): part is Extract<(typeof message.parts)[number], { type: 'text' }> =>
@@ -188,19 +114,59 @@ function getUIMessageText(message: UIMessage): string {
 
 /**
  * When the persisted conversation snapshot is loaded after a stream completes,
- * user messages may appear duplicated: TanStack's optimistic user message
- * (ID like `msg-{timestamp}-{random}`) and the persisted copy (UUID from disk)
- * have different IDs but identical content.
+ * user messages may appear duplicated: the local optimistic user message and
+ * the persisted copy have different IDs but identical content.
  *
  * This function reconciles by replacing each persisted user message with an
  * existing in-memory user message that has the same text, preserving the
- * original ID so React doesn't remount the element and TanStack's internal
- * bookkeeping stays consistent.
+ * optimistic ID so React keeps the row stable across the snapshot refresh.
  *
  * Matching is done by normalized text content (role=user + same text).
  * Each existing message is consumed at most once (queue per text key) to
  * handle the edge case of multiple identical user messages.
  */
+export function appendMissingOptimisticUserMessages(
+  snapshotMessages: UIMessage[],
+  optimisticUserMessages: readonly UIMessage[],
+): UIMessage[] {
+  if (optimisticUserMessages.length === 0) {
+    return snapshotMessages
+  }
+
+  const snapshotUserCountsByText = new Map<string, number>()
+  for (const message of snapshotMessages) {
+    if (message.role !== 'user') {
+      continue
+    }
+    const text = getUIMessageText(message)
+    if (!text) {
+      continue
+    }
+    snapshotUserCountsByText.set(text, (snapshotUserCountsByText.get(text) ?? 0) + 1)
+  }
+
+  const missingOptimisticMessages: UIMessage[] = []
+  for (const message of optimisticUserMessages) {
+    if (message.role !== 'user') {
+      continue
+    }
+    const text = getUIMessageText(message)
+    if (!text) {
+      continue
+    }
+    const count = snapshotUserCountsByText.get(text) ?? 0
+    if (count > 0) {
+      snapshotUserCountsByText.set(text, count - 1)
+      continue
+    }
+    missingOptimisticMessages.push(message)
+  }
+
+  return missingOptimisticMessages.length > 0
+    ? [...snapshotMessages, ...missingOptimisticMessages]
+    : snapshotMessages
+}
+
 export function reconcileSnapshotUserMessages(
   snapshotMessages: UIMessage[],
   existingMessages: UIMessage[],

@@ -1,15 +1,18 @@
-import { Bug, Gauge, Hash, PanelLeft, SquareTerminal } from 'lucide-react'
+import { Bug, Hash, PanelLeft, SquareTerminal } from 'lucide-react'
 import { useState } from 'react'
 import { CommitDialog } from '@/components/layout/CommitDialog'
 import { useChat } from '@/hooks/useChat'
+import { useDiffRouteNavigation } from '@/hooks/useDiffRouteNavigation'
 import { useGit } from '@/hooks/useGit'
 import { useProject } from '@/hooks/useProject'
+import { useSessions } from '@/hooks/useSessions'
 import { cn } from '@/lib/cn'
 import { projectName } from '@/lib/format'
 import { useUIStore } from '@/stores/ui-store'
 
 export function Header() {
   const { activeConversation } = useChat()
+  const { activeSessionTree } = useSessions()
   const { projectPath } = useProject()
 
   const sidebarOpen = useUIStore((s) => s.sidebarOpen)
@@ -17,8 +20,6 @@ export function Header() {
 
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
   const toggleTerminal = useUIStore((s) => s.toggleTerminal)
-  const toggleInspector = useUIStore((s) => s.toggleInspector)
-  const activeInspector = useUIStore((s) => s.activeInspector)
   const bumpDiffRefreshKey = useUIStore((s) => s.bumpDiffRefreshKey)
   const showToast = useUIStore((s) => s.showToast)
   const openFeedbackModal = useUIStore((s) => s.openFeedbackModal)
@@ -34,6 +35,7 @@ export function Header() {
   } = useGit()
 
   const [commitOpen, setCommitOpen] = useState(false)
+  const { diffOpen, isChatRoute, toggleDiff } = useDiffRouteNavigation()
 
   function handleRefreshGit(): void {
     void refreshGitStatus(projectPath)
@@ -57,6 +59,13 @@ export function Header() {
     return result
   }
 
+  const activeBranchName =
+    activeSessionTree?.branches.find(
+      (branch) => branch.id === activeSessionTree.session.lastActiveBranchId,
+    )?.name ??
+    activeSessionTree?.branches[0]?.name ??
+    'main'
+
   return (
     <>
       <header className="drag-region flex shrink-0 items-center justify-between h-12 px-5 gap-3 bg-bg border-b border-border">
@@ -75,13 +84,13 @@ export function Header() {
             </button>
           )}
 
-          {/* Thread icon */}
           <Hash className="no-drag h-3.5 w-3.5 text-text-tertiary" />
 
-          {/* Title */}
           <span className="no-drag text-[14px] font-medium text-text-primary">
-            {activeConversation?.title ?? 'New thread'}
+            {activeSessionTree?.session.title ?? activeConversation?.title ?? 'New session'}
           </span>
+
+          <span className="no-drag text-[12px] text-text-tertiary">/ {activeBranchName}</span>
 
           {/* Project pill */}
           <span className="no-drag flex items-center h-5 px-2 rounded border border-border bg-bg-tertiary text-[12px] text-text-secondary">
@@ -150,30 +159,16 @@ export function Header() {
           {/* Divider */}
           <div className="w-px h-5 bg-border" />
 
-          {/* Context inspector toggle */}
-          <button
-            type="button"
-            aria-label="Toggle context inspector"
-            onClick={() => toggleInspector('context')}
-            className={cn(
-              'no-drag flex items-center gap-1 h-7 px-2 rounded-[5px] border border-button-border transition-colors hover:bg-bg-hover',
-              activeInspector === 'context' && 'bg-bg-hover border-accent/40',
-            )}
-            title="Toggle context inspector"
-          >
-            <Gauge className="h-3.5 w-3.5 text-text-secondary" />
-          </button>
-
           {/* Diff stats — clickable to toggle diff panel */}
           <button
             type="button"
             aria-label="Toggle diff panel"
-            onClick={() => toggleInspector('diff')}
-            disabled={!projectPath}
+            onClick={toggleDiff}
+            disabled={!projectPath || !isChatRoute}
             className={cn(
               'no-drag flex items-center gap-1 transition-opacity hover:opacity-80',
-              !projectPath && 'pointer-events-none opacity-30',
-              activeInspector === 'diff' && 'opacity-100',
+              (!projectPath || !isChatRoute) && 'pointer-events-none opacity-30',
+              diffOpen && 'opacity-100',
             )}
             title="Toggle diff panel"
           >

@@ -20,15 +20,27 @@ describe('ipc', () => {
   })
 
   describe('when window.api is available', () => {
-    it('exports the real api object', async () => {
+    it('delegates to the real api object', async () => {
       const fakeApi = {
         getSettings: vi.fn().mockResolvedValue({ providers: {} }),
-        onStreamChunk: vi.fn(() => () => {}),
+        onAgentEvent: vi.fn(() => () => {}),
       }
       ;(globalThis as Record<string, unknown>).window = { api: fakeApi }
 
       const { api } = await import('../ipc')
-      expect(api).toBe(fakeApi)
+      await expect(api.getSettings()).resolves.toEqual({ providers: {} })
+      expect(fakeApi.getSettings).toHaveBeenCalledTimes(1)
+    })
+
+    it('uses fallback behavior for missing methods on a stale preload api', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      ;(globalThis as Record<string, unknown>).window = { api: { getSettings: vi.fn() } }
+
+      const { api } = await import('../ipc')
+      await expect(api.listSessions()).rejects.toThrow(/window\.api unavailable/)
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('listSessions'))
+
+      consoleSpy.mockRestore()
     })
   })
 
@@ -58,7 +70,7 @@ describe('ipc', () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       const { api } = await import('../ipc')
 
-      const unsubscribe = api.onStreamChunk(() => {})
+      const unsubscribe = api.onAgentEvent(() => {})
       expect(typeof unsubscribe).toBe('function')
       // Calling unsubscribe should not throw
       expect(() => unsubscribe()).not.toThrow()

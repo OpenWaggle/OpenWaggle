@@ -1,6 +1,5 @@
-import { MessageId } from '@shared/types/brand'
-import type { UIMessage } from '@tanstack/ai-react'
-import { Check, Copy, FileDown, FileText, Image, Pin } from 'lucide-react'
+import type { UIMessage } from '@shared/types/chat-ui'
+import { Check, Copy, FileDown, FileText, GitBranch, Image } from 'lucide-react'
 import { Children, cloneElement, isValidElement, type ReactNode } from 'react'
 import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
@@ -8,14 +7,11 @@ import remarkGfm from 'remark-gfm'
 import { ATTACHMENT_TEXT_PREFIX } from '@/hooks/useAgentChat.utils'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { cn } from '@/lib/cn'
-import { api } from '@/lib/ipc'
 import {
   safeMarkdownComponents,
   safeMarkdownRehypePlugins,
   safeMarkdownUrlTransform,
 } from '@/lib/markdown-safety'
-import { useChatStore } from '@/stores/chat-store'
-import { useContextStore } from '@/stores/context-store'
 import { renderTextWithMentions } from './MentionText'
 
 const USER_REMARK_PLUGINS = [remarkGfm]
@@ -25,8 +21,8 @@ const USER_REMARK_PLUGINS = [remarkGfm]
  * mention-chip-enriched fragments. Skips recursion into <a> and <code>
  * elements to avoid chipifying link text or code content.
  *
- * Uses Children.map/cloneElement (legacy React APIs) because ReactMarkdown
- * children are opaque ReactNode trees. If React deprecates these, migrate
+ * Uses Children.map/cloneElement because ReactMarkdown children are opaque
+ * ReactNode trees. If React deprecates these APIs, migrate
  * to a custom remark plugin instead.
  */
 function processChildrenForMentions(children: ReactNode): ReactNode {
@@ -48,14 +44,18 @@ function processChildrenForMentions(children: ReactNode): ReactNode {
   })
 }
 
+function UserMarkdownParagraph({ children }: { readonly children?: ReactNode }) {
+  return <p>{processChildrenForMentions(children)}</p>
+}
+
+function UserMarkdownListItem({ children }: { readonly children?: ReactNode }) {
+  return <li>{processChildrenForMentions(children)}</li>
+}
+
 const userMarkdownComponents: Components = {
   ...safeMarkdownComponents,
-  p({ children }) {
-    return <p>{processChildrenForMentions(children)}</p>
-  },
-  li({ children }) {
-    return <li>{processChildrenForMentions(children)}</li>
-  },
+  p: UserMarkdownParagraph,
+  li: UserMarkdownListItem,
 }
 
 function isAttachmentText(content: string): boolean {
@@ -87,8 +87,18 @@ function getAttachmentIcon(name: string): typeof FileText {
   return FileText
 }
 
+function AttachmentIcon({ name }: { readonly name: string }) {
+  const icon = getAttachmentIcon(name)
+  if (icon === Image) {
+    return <Image className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
+  }
+  if (icon === FileDown) {
+    return <FileDown className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
+  }
+  return <FileText className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
+}
+
 function AttachmentChip({ name }: { readonly name: string }) {
-  const Icon = getAttachmentIcon(name)
   return (
     <div
       className={cn(
@@ -96,7 +106,7 @@ function AttachmentChip({ name }: { readonly name: string }) {
         'bg-bg-tertiary px-2 py-1 text-[12px] text-text-secondary',
       )}
     >
-      <Icon className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
+      <AttachmentIcon name={name} />
       <span className="truncate max-w-[200px]">{name}</span>
     </div>
   )
@@ -104,33 +114,11 @@ function AttachmentChip({ name }: { readonly name: string }) {
 
 interface UserMessageBubbleProps {
   message: UIMessage
+  onBranchFromMessage?: (messageId: string) => void
 }
 
-export function UserMessageBubble({ message }: UserMessageBubbleProps) {
+export function UserMessageBubble({ message, onBranchFromMessage }: UserMessageBubbleProps) {
   const { copied, copy } = useCopyToClipboard()
-  const conversationId = useChatStore((s) => s.activeConversationId)
-  const isPinned = useContextStore(
-    (s) => s.snapshot?.pinnedMessageIds?.includes(message.id) ?? false,
-  )
-
-  function handleTogglePin() {
-    if (!conversationId) return
-    if (isPinned) {
-      void api.removePinByMessage(conversationId, message.id)
-    } else {
-      const text = message.parts
-        .filter(
-          (p): p is Extract<(typeof message.parts)[number], { type: 'text' }> => p.type === 'text',
-        )
-        .map((p) => p.content)
-        .join('\n')
-      void api.addPin(conversationId, {
-        type: 'message',
-        content: text,
-        messageId: MessageId(message.id),
-      })
-    }
-  }
 
   const textParts = message.parts.filter(
     (p): p is Extract<(typeof message.parts)[number], { type: 'text' }> => p.type === 'text',
@@ -171,17 +159,17 @@ export function UserMessageBubble({ message }: UserMessageBubbleProps) {
           </div>
         )}
         <div className="absolute -bottom-7 right-0 flex items-center gap-2 opacity-0 group-hover/user-msg:opacity-100 transition-all">
-          <button
-            type="button"
-            onClick={handleTogglePin}
-            className={cn(
-              'flex items-center gap-1 text-[12px] cursor-pointer transition-colors',
-              isPinned ? 'text-accent' : 'text-text-muted hover:text-text-secondary',
-            )}
-            title={isPinned ? 'Unpin message' : 'Pin message'}
-          >
-            <Pin className="h-3 w-3" />
-          </button>
+          {onBranchFromMessage ? (
+            <button
+              type="button"
+              title="Branch from message"
+              onClick={() => onBranchFromMessage(message.id)}
+              className="flex items-center gap-1 text-[12px] text-text-muted hover:text-text-secondary cursor-pointer"
+            >
+              <GitBranch className="h-3 w-3" />
+            </button>
+          ) : null}
+
           <button
             type="button"
             title="Copy message"

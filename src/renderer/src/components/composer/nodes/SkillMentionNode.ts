@@ -3,7 +3,6 @@ import {
   DecoratorNode,
   type DOMExportOutput,
   type EditorConfig,
-  type LexicalNode,
   type NodeKey,
   type SerializedLexicalNode,
   type Spread,
@@ -87,10 +86,4 @@ export class SkillMentionNode extends DecoratorNode<ReactNode> {
 
 export function $createSkillMentionNode(skillId: string, skillName: string): SkillMentionNode {
   return $applyNodeReplacement(new SkillMentionNode(skillId, skillName))
-}
-
-export function $isSkillMentionNode(
-  node: LexicalNode | null | undefined,
-): node is SkillMentionNode {
-  return node instanceof SkillMentionNode
 }

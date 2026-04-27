@@ -68,8 +68,8 @@ describe('composer-store', () => {
 
   describe('menu toggles', () => {
     it('openMenu sets only the targeted menu to true', () => {
-      useComposerStore.getState().openMenu('quality')
-      expect(useComposerStore.getState().qualityMenuOpen).toBe(true)
+      useComposerStore.getState().openMenu('thinking')
+      expect(useComposerStore.getState().thinkingMenuOpen).toBe(true)
       expect(useComposerStore.getState().executionMenuOpen).toBe(false)
       expect(useComposerStore.getState().branchMenuOpen).toBe(false)
     })
@@ -77,7 +77,7 @@ describe('composer-store', () => {
     it('openMenu with null closes all menus', () => {
       useComposerStore.getState().openMenu('execution')
       useComposerStore.getState().openMenu(null)
-      expect(useComposerStore.getState().qualityMenuOpen).toBe(false)
+      expect(useComposerStore.getState().thinkingMenuOpen).toBe(false)
       expect(useComposerStore.getState().executionMenuOpen).toBe(false)
       expect(useComposerStore.getState().branchMenuOpen).toBe(false)
     })
@@ -86,9 +86,9 @@ describe('composer-store', () => {
       useComposerStore.getState().openMenu('branch')
       expect(useComposerStore.getState().branchMenuOpen).toBe(true)
 
-      useComposerStore.getState().openMenu('quality')
+      useComposerStore.getState().openMenu('thinking')
       expect(useComposerStore.getState().branchMenuOpen).toBe(false)
-      expect(useComposerStore.getState().qualityMenuOpen).toBe(true)
+      expect(useComposerStore.getState().thinkingMenuOpen).toBe(true)
     })
   })
 

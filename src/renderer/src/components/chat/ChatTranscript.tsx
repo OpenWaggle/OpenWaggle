@@ -1,11 +1,7 @@
 import type { ConversationId } from '@shared/types/brand'
-import type { PlanResponse } from '@shared/types/plan'
-import type { QuestionAnswer } from '@shared/types/question'
 import { chooseBy } from '@shared/utils/decision'
-import type { UIMessage } from '@tanstack/ai-react'
 import { cn } from '@/lib/cn'
 import { ChatRowRenderer } from './ChatRowRenderer'
-import { CompactedMessageGroup } from './CompactedMessageGroup'
 import { useChatScrollBehaviour } from './hooks/useChatScrollBehaviour'
 import { ScrollToBottomButton } from './ScrollToBottomButton'
 import type { ChatRow } from './types-chat-row'
@@ -13,7 +9,6 @@ import type { ChatTranscriptSectionState } from './use-chat-panel-controller'
 import { WelcomeScreen } from './WelcomeScreen'
 
 const PADDING_TOP = 20
-const EMPTY_SET: ReadonlySet<string> = new Set()
 
 interface ChatTranscriptProps {
   readonly section: ChatTranscriptSectionState
@@ -22,33 +17,30 @@ interface ChatTranscriptProps {
 interface TranscriptRowProps {
   row: ChatRow
   conversationId: ConversationId | null
-  onAnswerQuestion: (conversationId: ConversationId, answers: QuestionAnswer[]) => Promise<void>
-  onRespondToPlan: (conversationId: ConversationId, response: PlanResponse) => Promise<void>
   onOpenSettings: () => void
   onRetryText: (content: string) => Promise<void>
   onDismissError: (errorId: string | null) => void
+  onBranchFromMessage: (messageId: string) => void
 }
 
 function TranscriptRow({
   row,
   conversationId,
-  onAnswerQuestion,
-  onRespondToPlan,
   onOpenSettings,
   onRetryText,
   onDismissError,
+  onBranchFromMessage,
 }: TranscriptRowProps) {
   return (
     <ChatRowRenderer
       row={row}
       conversationId={conversationId}
-      onAnswerQuestion={onAnswerQuestion}
-      onRespondToPlan={onRespondToPlan}
       onOpenSettings={onOpenSettings}
       onRetry={(content) => {
         void onRetryText(content)
       }}
       onDismissError={onDismissError}
+      onBranchFromMessage={onBranchFromMessage}
     />
   )
 }
@@ -56,148 +48,58 @@ function TranscriptRow({
 function getChatRowKey(row: ChatRow): string {
   return chooseBy(row, 'type')
     .case('message', (value) => `message:${value.message.id}`)
-    .case('segment', (value) => `segment:${value.segment.id}`)
+    .case('compaction-summary', (value) => `compaction:${value.id}`)
     .case('phase-indicator', (value) => `phase:${value.label}`)
     .case('run-summary', (value) => `run-summary:${String(value.totalMs)}`)
-    .case('compaction-event', (value) => `compaction:${value.messageId}`)
     .case('error', (value) => `error:${value.conversationId ?? 'none'}:${value.error.message}`)
     .assertComplete()
 }
 
-function getStreamPartVersion(part: UIMessage['parts'][number]): number {
-  return chooseBy(part, 'type')
-    .case('text', (value) => value.content.length)
-    .case('thinking', (value) => value.content.length)
-    .case(
-      'tool-call',
-      (value) =>
-        value.id.length +
-        value.name.length +
-        value.arguments.length +
-        value.state.length +
-        (value.approval?.approved === undefined ? 0 : 1) +
-        (value.output === undefined ? 0 : 1),
-    )
-    .case(
-      'tool-result',
-      (value) =>
-        value.toolCallId.length +
-        value.content.length +
-        value.state.length +
-        (value.error?.length ?? 0),
-    )
-    .case('image', (value) => value.source.value.length)
-    .case('audio', (value) => value.source.value.length)
-    .case('video', (value) => value.source.value.length)
-    .case('document', (value) => value.source.value.length)
-    .assertComplete()
-}
-
-function getStreamVersion(messages: readonly UIMessage[]): number {
-  let version = messages.length
-  for (const message of messages) {
-    version += message.id.length + message.role.length + message.parts.length
-    for (const part of message.parts) {
-      version += getStreamPartVersion(part)
-    }
-  }
-  return version
-}
-
-// ─── Row Rendering with Compacted Message Grouping ──────────
+// ─── Row Rendering ──────────────────────────────────────────
 
 interface RenderTranscriptRowsParams {
   rows: ChatRow[]
-  compactedMessageIds: ReadonlySet<string>
   activeConversationId: ConversationId | null
-  onAnswerQuestion: (conversationId: ConversationId, answers: QuestionAnswer[]) => Promise<void>
-  onRespondToPlan: (conversationId: ConversationId, response: PlanResponse) => Promise<void>
   onOpenSettings: () => void
   onRetryText: (content: string) => Promise<void>
   onDismissError: (errorId: string | null) => void
+  onBranchFromMessage: (messageId: string) => void
 }
 
-function renderTranscriptRows(params: RenderTranscriptRowsParams): React.ReactNode[] {
+function TranscriptRows(params: RenderTranscriptRowsParams) {
   const {
     rows,
-    compactedMessageIds,
     activeConversationId,
-    onAnswerQuestion,
-    onRespondToPlan,
     onOpenSettings,
     onRetryText,
     onDismissError,
+    onBranchFromMessage,
   } = params
 
-  const elements: React.ReactNode[] = []
-  let compactedGroup: React.ReactNode[] = []
-  let compactedGroupKey = ''
-
-  function flushCompactedGroup() {
-    if (compactedGroup.length === 0) return
-    elements.push(
-      <div
-        key={`compacted-${compactedGroupKey}`}
-        className="mx-auto w-full max-w-[720px] px-12 pb-2"
-      >
-        <CompactedMessageGroup count={compactedGroup.length}>
-          {compactedGroup}
-        </CompactedMessageGroup>
-      </div>,
-    )
-    compactedGroup = []
-    compactedGroupKey = ''
-  }
-
-  for (let index = 0; index < rows.length; index++) {
-    const row = rows[index]
-    const isUserMessage = row.type === 'message' && row.message.role === 'user'
-    const isCompacted =
-      (row.type === 'message' || row.type === 'segment') &&
-      compactedMessageIds.has(row.type === 'message' ? row.message.id : row.parentMessage.id)
-
-    if (isCompacted) {
-      if (compactedGroupKey === '') compactedGroupKey = getChatRowKey(row)
-      compactedGroup.push(
-        <div key={getChatRowKey(row)} className="mx-auto w-full max-w-[720px] px-12 pb-6">
-          <TranscriptRow
-            row={row}
-            conversationId={activeConversationId}
-            onAnswerQuestion={onAnswerQuestion}
-            onRespondToPlan={onRespondToPlan}
-            onOpenSettings={onOpenSettings}
-            onRetryText={onRetryText}
-            onDismissError={onDismissError}
-          />
-        </div>,
-      )
-      continue
-    }
-
-    flushCompactedGroup()
-
-    elements.push(
-      <div
-        key={getChatRowKey(row)}
-        className="mx-auto w-full max-w-[720px] px-12 pb-6"
-        {...(isUserMessage ? { 'data-user-message-id': row.message.id } : {})}
-        style={index === 0 ? { paddingTop: PADDING_TOP } : undefined}
-      >
-        <TranscriptRow
-          row={row}
-          conversationId={activeConversationId}
-          onAnswerQuestion={onAnswerQuestion}
-          onRespondToPlan={onRespondToPlan}
-          onOpenSettings={onOpenSettings}
-          onRetryText={onRetryText}
-          onDismissError={onDismissError}
-        />
-      </div>,
-    )
-  }
-
-  flushCompactedGroup()
-  return elements
+  return (
+    <>
+      {rows.map((row, index) => {
+        const isUserMessage = row.type === 'message' && row.message.role === 'user'
+        return (
+          <div
+            key={getChatRowKey(row)}
+            className="mx-auto w-full max-w-[720px] px-12 pb-6"
+            {...(isUserMessage ? { 'data-user-message-id': row.message.id } : {})}
+            style={index === 0 ? { paddingTop: PADDING_TOP } : undefined}
+          >
+            <TranscriptRow
+              row={row}
+              conversationId={activeConversationId}
+              onOpenSettings={onOpenSettings}
+              onRetryText={onRetryText}
+              onDismissError={onDismissError}
+              onBranchFromMessage={onBranchFromMessage}
+            />
+          </div>
+        )
+      })}
+    </>
+  )
 }
 
 // ─── Component ──────────────────────────────────────────────
@@ -210,15 +112,14 @@ export function ChatTranscript({ section }: ChatTranscriptProps) {
     recentProjects,
     activeConversationId,
     chatRows: rows,
-    compactedMessageIds = EMPTY_SET,
     onOpenProject,
     onSelectProjectPath,
     onRetryText,
-    onAnswerQuestion,
-    onRespondToPlan,
     onOpenSettings,
     onDismissError,
+    onBranchFromMessage,
     lastUserMessageId,
+    streamSignalVersion,
     userDidSend,
     onUserDidSendConsumed,
   } = section
@@ -241,7 +142,7 @@ export function ChatTranscript({ section }: ChatTranscriptProps) {
     activeConversationId: activeConversationId ?? null,
     lastUserMessageId,
     rowsLength: rows.length,
-    streamVersion: getStreamVersion(messages),
+    streamVersion: streamSignalVersion,
     isLoading,
     userDidSend,
     onUserDidSendConsumed,
@@ -258,9 +159,13 @@ export function ChatTranscript({ section }: ChatTranscriptProps) {
             void onOpenProject()
           }}
           onSelectProjectPath={onSelectProjectPath}
-          onRetry={(content) => {
-            void onRetryText(content)
-          }}
+          onRetry={
+            projectPath
+              ? (content) => {
+                  void onRetryText(content)
+                }
+              : undefined
+          }
         />
       </div>
     )
@@ -288,16 +193,14 @@ export function ChatTranscript({ section }: ChatTranscriptProps) {
         onTouchCancel={handleTouchEnd}
       >
         <div ref={contentRef} className="flex min-h-full flex-col">
-          {renderTranscriptRows({
-            rows,
-            compactedMessageIds,
-            activeConversationId,
-            onAnswerQuestion,
-            onRespondToPlan,
-            onOpenSettings,
-            onRetryText,
-            onDismissError,
-          })}
+          <TranscriptRows
+            rows={rows}
+            activeConversationId={activeConversationId}
+            onOpenSettings={onOpenSettings}
+            onRetryText={onRetryText}
+            onDismissError={onDismissError}
+            onBranchFromMessage={onBranchFromMessage}
+          />
         </div>
       </div>
 

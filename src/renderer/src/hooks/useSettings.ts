@@ -19,7 +19,14 @@ export function useSettingsSetup(): void {
       await loadSettings()
       if (!active) return
 
-      await Promise.all([loadProviderModels(), loadAllAuthAccounts()])
+      await loadProviderModels()
+      if (!active) return
+
+      const oauthProviders = useProviderStore
+        .getState()
+        .providerModels.filter((provider) => provider.auth.supportsOAuth)
+        .map((provider) => provider.provider)
+      await loadAllAuthAccounts(oauthProviders)
     }
 
     void initialize()
@@ -54,8 +61,7 @@ export function usePreferences() {
   const toggleFavoriteModel = usePreferencesStore((s) => s.toggleFavoriteModel)
   const setEnabledModels = usePreferencesStore((s) => s.setEnabledModels)
   const setProjectPath = usePreferencesStore((s) => s.setProjectPath)
-  const setExecutionMode = usePreferencesStore((s) => s.setExecutionMode)
-  const setQualityPreset = usePreferencesStore((s) => s.setQualityPreset)
+  const setThinkingLevel = usePreferencesStore((s) => s.setThinkingLevel)
   const pushRecentProject = usePreferencesStore((s) => s.pushRecentProject)
   const retryLoad = usePreferencesStore((s) => s.retryLoad)
 
@@ -67,8 +73,7 @@ export function usePreferences() {
     toggleFavoriteModel,
     setEnabledModels,
     setProjectPath,
-    setExecutionMode,
-    setQualityPreset,
+    setThinkingLevel,
     pushRecentProject,
     retryLoad,
   }
@@ -82,10 +87,7 @@ export function useProviders() {
   const testingProviders = useProviderStore((s) => s.testingProviders)
   const testResults = useProviderStore((s) => s.testResults)
   const providerModels = useProviderStore((s) => s.providerModels)
-  const modelFetchErrors = useProviderStore((s) => s.modelFetchErrors)
   const updateApiKey = useProviderStore((s) => s.updateApiKey)
-  const toggleProvider = useProviderStore((s) => s.toggleProvider)
-  const updateBaseUrl = useProviderStore((s) => s.updateBaseUrl)
   const testApiKey = useProviderStore((s) => s.testApiKey)
   const clearTestResult = useProviderStore((s) => s.clearTestResult)
 
@@ -93,17 +95,14 @@ export function useProviders() {
     testingProviders,
     testResults,
     providerModels,
-    modelFetchErrors,
     updateApiKey,
-    toggleProvider,
-    updateBaseUrl,
     testApiKey,
     clearTestResult,
   }
 }
 
 /**
- * Auth-only hook — OAuth flow status and subscription accounts.
+ * Auth-only hook — OAuth flow status and connected accounts.
  * Does NOT subscribe to preferences or provider stores.
  */
 export function useAuth() {
@@ -111,6 +110,7 @@ export function useAuth() {
   const authAccounts = useAuthStore((s) => s.authAccounts)
   const startOAuth = useAuthStore((s) => s.startOAuth)
   const submitAuthCode = useAuthStore((s) => s.submitAuthCode)
+  const cancelOAuth = useAuthStore((s) => s.cancelOAuth)
   const disconnectAuth = useAuthStore((s) => s.disconnectAuth)
 
   return {
@@ -118,6 +118,7 @@ export function useAuth() {
     authAccounts,
     startOAuth,
     submitAuthCode,
+    cancelOAuth,
     disconnectAuth,
   }
 }

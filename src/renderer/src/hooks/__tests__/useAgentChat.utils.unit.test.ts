@@ -1,11 +1,7 @@
 import { ConversationId, MessageId, ToolCallId } from '@shared/types/brand'
 import type { Conversation } from '@shared/types/conversation'
 import { describe, expect, it } from 'vitest'
-import {
-  conversationToUIMessages,
-  formatAttachmentPreview,
-  restorePersistedToolCallMetadata,
-} from '../useAgentChat.utils'
+import { conversationToUIMessages, formatAttachmentPreview } from '../useAgentChat.utils'
 
 const LONG_TEXT = 'x'.repeat(400)
 const REGULAR_ATTACHMENT_NAME = 'notes.md'
@@ -41,10 +37,10 @@ describe('formatAttachmentPreview', () => {
 })
 
 describe('conversationToUIMessages', () => {
-  it('preserves persisted approval metadata on tool-call parts', () => {
+  it('preserves persisted tool-call state on tool-call parts', () => {
     const conversation: Conversation = {
       id: ConversationId('conv-1'),
-      title: 'Pending approval',
+      title: 'Pending tool',
       projectPath: '/repo',
       createdAt: 1,
       updatedAt: 1,
@@ -58,13 +54,9 @@ describe('conversationToUIMessages', () => {
               type: 'tool-call',
               toolCall: {
                 id: ToolCallId('tool-1'),
-                name: 'writeFile',
+                name: 'write',
                 args: { path: 'pending.txt' },
-                state: 'approval-requested',
-                approval: {
-                  id: 'approval_tool-1',
-                  needsApproval: true,
-                },
+                state: 'input-complete',
               },
             },
           ],
@@ -78,79 +70,36 @@ describe('conversationToUIMessages', () => {
     expect(toolCall).toEqual({
       type: 'tool-call',
       id: 'tool-1',
-      name: 'writeFile',
+      name: 'write',
       arguments: '{"path":"pending.txt"}',
-      state: 'approval-requested',
-      approval: {
-        id: 'approval_tool-1',
-        needsApproval: true,
-      },
+      state: 'input-complete',
     })
   })
-})
 
-describe('restorePersistedToolCallMetadata', () => {
-  it('restores stripped tool-call approval metadata from the persisted conversation snapshot', () => {
+  it('maps persisted reasoning parts to inline thinking UI parts', () => {
     const conversation: Conversation = {
-      id: ConversationId('conv-1'),
-      title: 'Pending approval',
-      projectPath: null,
+      id: ConversationId('conv-reasoning'),
+      title: 'Reasoning',
+      projectPath: '/repo',
       createdAt: 1,
       updatedAt: 1,
       messages: [
         {
-          id: MessageId('msg-1'),
+          id: MessageId('msg-reasoning'),
           role: 'assistant',
           createdAt: 1,
-          parts: [
-            {
-              type: 'tool-call',
-              toolCall: {
-                id: ToolCallId('tool-restore'),
-                name: 'writeFile',
-                args: { path: 'pending.txt' },
-                state: 'approval-requested',
-                approval: {
-                  id: 'approval_tool-restore',
-                  needsApproval: true,
-                },
-              },
-            },
-          ],
+          parts: [{ type: 'reasoning', text: 'Need to inspect the file first.' }],
         },
       ],
     }
 
-    const restoredMessages = restorePersistedToolCallMetadata(
-      [
-        {
-          id: 'msg-1',
-          role: 'assistant',
-          createdAt: new Date(1),
-          parts: [
-            {
-              type: 'tool-call',
-              id: 'tool-restore-shadow',
-              name: 'writeFile',
-              arguments: '{"path":"pending.txt"}',
-              state: 'input-complete',
-            },
-          ],
-        },
-      ],
-      conversation,
-    )
+    const messages = conversationToUIMessages(conversation)
 
-    expect(restoredMessages[0]?.parts[0]).toEqual({
-      type: 'tool-call',
-      id: 'tool-restore-shadow',
-      name: 'writeFile',
-      arguments: '{"path":"pending.txt"}',
-      state: 'approval-requested',
-      approval: {
-        id: 'approval_tool-restore',
-        needsApproval: true,
+    expect(messages[0]?.parts).toEqual([
+      {
+        type: 'thinking',
+        content: 'Need to inspect the file first.',
       },
-    })
+    ])
   })
 })

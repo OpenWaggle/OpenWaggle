@@ -1,11 +1,11 @@
 import type { RefObject } from 'react'
-import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 
 const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 64
 const SCROLL_UP_HYSTERESIS_PX = 1
 const SCROLLBAR_HIDE_DELAY_MS = 800
 const SCROLL_PERSIST_DEBOUNCE_MS = 150
-const THREAD_RESTORE_RETRY_MS = 96
+const SESSION_RESTORE_RETRY_MS = 96
 const SCROLL_CACHE_MAX_ENTRIES = 100
 const SCROLL_CACHE_KEY = 'openwaggle:scroll-positions'
 const SCROLL_CACHE_ENTRY_LENGTH = 2
@@ -48,6 +48,17 @@ export interface UseChatScrollBehaviourResult {
   readonly handleTouchStart: (event: ScrollTouchEvent) => void
   readonly handleTouchMove: (event: ScrollTouchEvent) => void
   readonly handleTouchEnd: () => void
+}
+
+interface ScrollActions {
+  readonly applyPendingRestore: () => boolean
+  readonly cancelPendingRestoreRetry: () => void
+  readonly cancelPendingStickToBottom: () => void
+  readonly flushScrollCache: () => void
+  readonly scheduleRestoreRetry: () => void
+  readonly scheduleStickToBottom: () => void
+  readonly scrollMessagesToBottom: (behavior?: ScrollBehavior) => void
+  readonly syncButtonVisibility: () => void
 }
 
 function isScrollCacheEntry(value: unknown): value is [string, number] {
@@ -144,89 +155,84 @@ export function useChatScrollBehaviour(
   const scrollCacheRef = useRef<Map<string, number>>(loadScrollCache())
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const scrollbarTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const actionsRef = useRef<ScrollActions | null>(null)
 
   activeConversationIdRef.current = activeConversationId
 
   const [showScrollbar, setShowScrollbar] = useState(false)
   const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 
-  const syncButtonVisibility = useCallback(() => {
+  function syncButtonVisibility(): void {
     setShowScrollToBottom(!shouldAutoScrollRef.current)
-  }, [])
+  }
 
-  const saveScrollCacheSoon = useCallback(() => {
+  function saveScrollCacheSoon(): void {
     if (persistTimerRef.current) clearTimeout(persistTimerRef.current)
     persistTimerRef.current = setTimeout(() => {
       persistTimerRef.current = null
       saveScrollCache(scrollCacheRef.current)
     }, SCROLL_PERSIST_DEBOUNCE_MS)
-  }, [])
+  }
 
-  const flushScrollCache = useCallback(() => {
+  function flushScrollCache(): void {
     if (persistTimerRef.current) {
       clearTimeout(persistTimerRef.current)
       persistTimerRef.current = null
     }
     saveScrollCache(scrollCacheRef.current)
-  }, [])
+  }
 
-  const rememberScrollPosition = useCallback(
-    (conversationId: string | null, scrollTop: number) => {
-      if (!conversationId) return
-      scrollCacheRef.current.delete(conversationId)
-      scrollCacheRef.current.set(conversationId, Math.max(0, scrollTop))
-      saveScrollCacheSoon()
-    },
-    [saveScrollCacheSoon],
-  )
+  function rememberScrollPosition(conversationId: string | null, scrollTop: number): void {
+    if (!conversationId) return
+    scrollCacheRef.current.delete(conversationId)
+    scrollCacheRef.current.set(conversationId, Math.max(0, scrollTop))
+    saveScrollCacheSoon()
+  }
 
-  const showScrollbarTemporarily = useCallback(() => {
+  function showScrollbarTemporarily(): void {
     setShowScrollbar(true)
     if (scrollbarTimerRef.current) clearTimeout(scrollbarTimerRef.current)
     scrollbarTimerRef.current = setTimeout(() => {
       setShowScrollbar(false)
     }, SCROLLBAR_HIDE_DELAY_MS)
-  }, [])
+  }
 
-  const cancelPendingStickToBottom = useCallback(() => {
+  function cancelPendingStickToBottom(): void {
     const pendingFrame = pendingAutoScrollFrameRef.current
     if (pendingFrame === null) return
     pendingAutoScrollFrameRef.current = null
     window.cancelAnimationFrame(pendingFrame)
-  }, [])
+  }
 
-  const cancelPendingRestoreRetry = useCallback(() => {
+  function cancelPendingRestoreRetry(): void {
     if (pendingRestoreTimerRef.current) {
       clearTimeout(pendingRestoreTimerRef.current)
       pendingRestoreTimerRef.current = null
     }
-  }, [])
+  }
 
-  const scrollMessagesToBottom = useCallback(
-    (behavior: ScrollBehavior = 'auto') => {
-      const scrollContainer = scrollerRef.current
-      if (!scrollContainer) return
-      scrollElementToBottom(scrollContainer, behavior)
-      lastKnownScrollTopRef.current = scrollContainer.scrollTop
-      shouldAutoScrollRef.current = true
-      pendingUserScrollUpIntentRef.current = false
-      pendingRestoreScrollTopRef.current = null
-      syncButtonVisibility()
-      rememberScrollPosition(activeConversationIdRef.current, scrollContainer.scrollTop)
-    },
-    [rememberScrollPosition, syncButtonVisibility],
-  )
+  function scrollMessagesToBottom(behavior: ScrollBehavior = 'auto'): void {
+    const scrollContainer = scrollerRef.current
+    if (!scrollContainer) return
+    scrollElementToBottom(scrollContainer, behavior)
+    lastKnownScrollTopRef.current = scrollContainer.scrollTop
+    shouldAutoScrollRef.current = true
+    pendingUserScrollUpIntentRef.current = false
+    pendingRestoreScrollTopRef.current = null
+    syncButtonVisibility()
+    rememberScrollPosition(activeConversationIdRef.current, scrollContainer.scrollTop)
+  }
 
-  const scheduleStickToBottom = useCallback(() => {
+  function scheduleStickToBottom(): void {
     if (pendingAutoScrollFrameRef.current !== null) return
     pendingAutoScrollFrameRef.current = window.requestAnimationFrame(() => {
       pendingAutoScrollFrameRef.current = null
       if (!shouldAutoScrollRef.current) return
       scrollMessagesToBottom()
     })
-  }, [scrollMessagesToBottom])
+  }
 
-  const applyPendingRestore = useCallback((): boolean => {
+  function applyPendingRestore(): boolean {
     const scrollContainer = scrollerRef.current
     const target = pendingRestoreScrollTopRef.current
     if (!scrollContainer || target === null) return false
@@ -247,31 +253,26 @@ export function useChatScrollBehaviour(
     pendingRestoreScrollTopRef.current = null
     rememberScrollPosition(activeConversationIdRef.current, nextScrollTop)
     return false
-  }, [rememberScrollPosition, syncButtonVisibility])
+  }
 
-  const scheduleRestoreRetry = useCallback(() => {
+  function scheduleRestoreRetry(): void {
     if (pendingRestoreTimerRef.current !== null) return
     pendingRestoreTimerRef.current = setTimeout(() => {
       pendingRestoreTimerRef.current = null
       if (applyPendingRestore()) {
         scheduleRestoreRetry()
       }
-    }, THREAD_RESTORE_RETRY_MS)
-  }, [applyPendingRestore])
+    }, SESSION_RESTORE_RETRY_MS)
+  }
 
-  const scrollToBottom = useCallback(() => {
+  function scrollToBottom(): void {
     cancelPendingStickToBottom()
     cancelPendingRestoreRetry()
     scrollMessagesToBottom('smooth')
     scheduleStickToBottom()
-  }, [
-    cancelPendingRestoreRetry,
-    cancelPendingStickToBottom,
-    scheduleStickToBottom,
-    scrollMessagesToBottom,
-  ])
+  }
 
-  const handleScroll = useCallback(() => {
+  function handleScroll(): void {
     const scrollContainer = scrollerRef.current
     if (!scrollContainer) return
 
@@ -317,14 +318,9 @@ export function useChatScrollBehaviour(
     syncButtonVisibility()
     lastKnownScrollTopRef.current = currentScrollTop
     rememberScrollPosition(activeConversationIdRef.current, currentScrollTop)
-  }, [
-    cancelPendingStickToBottom,
-    rememberScrollPosition,
-    showScrollbarTemporarily,
-    syncButtonVisibility,
-  ])
+  }
 
-  const optOutOfAutoScrollForUserIntent = useCallback(() => {
+  function optOutOfAutoScrollForUserIntent(): void {
     const scrollContainer = scrollerRef.current
     pendingUserScrollUpIntentRef.current = true
     if (!scrollContainer || scrollContainer.scrollTop <= 0) return
@@ -332,75 +328,85 @@ export function useChatScrollBehaviour(
     shouldAutoScrollRef.current = false
     cancelPendingStickToBottom()
     syncButtonVisibility()
-  }, [cancelPendingStickToBottom, syncButtonVisibility])
+  }
 
-  const handleWheel = useCallback(
-    (event: ScrollWheelEvent) => {
-      if (event.deltaY < 0) {
-        optOutOfAutoScrollForUserIntent()
-      }
-    },
-    [optOutOfAutoScrollForUserIntent],
-  )
+  function handleWheel(event: ScrollWheelEvent): void {
+    if (event.deltaY < 0) {
+      optOutOfAutoScrollForUserIntent()
+    }
+  }
 
-  const handlePointerDown = useCallback(() => {
+  function handlePointerDown(): void {
     isPointerScrollActiveRef.current = true
-  }, [])
+  }
 
-  const handlePointerUp = useCallback(() => {
+  function handlePointerUp(): void {
     isPointerScrollActiveRef.current = false
-  }, [])
+  }
 
-  const handlePointerCancel = useCallback(() => {
+  function handlePointerCancel(): void {
     isPointerScrollActiveRef.current = false
-  }, [])
+  }
 
-  const handleTouchStart = useCallback((event: ScrollTouchEvent) => {
+  function handleTouchStart(event: ScrollTouchEvent): void {
     const touch = event.touches[0]
     if (!touch) return
     lastTouchClientYRef.current = touch.clientY
-  }, [])
+  }
 
-  const handleTouchMove = useCallback(
-    (event: ScrollTouchEvent) => {
-      const touch = event.touches[0]
-      if (!touch) return
-      const previousTouchY = lastTouchClientYRef.current
-      if (previousTouchY !== null && touch.clientY > previousTouchY + SCROLL_UP_HYSTERESIS_PX) {
-        optOutOfAutoScrollForUserIntent()
-      }
-      lastTouchClientYRef.current = touch.clientY
-    },
-    [optOutOfAutoScrollForUserIntent],
-  )
+  function handleTouchMove(event: ScrollTouchEvent): void {
+    const touch = event.touches[0]
+    if (!touch) return
+    const previousTouchY = lastTouchClientYRef.current
+    if (previousTouchY !== null && touch.clientY > previousTouchY + SCROLL_UP_HYSTERESIS_PX) {
+      optOutOfAutoScrollForUserIntent()
+    }
+    lastTouchClientYRef.current = touch.clientY
+  }
 
-  const handleTouchEnd = useCallback(() => {
+  function handleTouchEnd(): void {
     lastTouchClientYRef.current = null
-  }, [])
+  }
+
+  actionsRef.current = {
+    applyPendingRestore,
+    cancelPendingRestoreRetry,
+    cancelPendingStickToBottom,
+    flushScrollCache,
+    scheduleRestoreRetry,
+    scheduleStickToBottom,
+    scrollMessagesToBottom,
+    syncButtonVisibility,
+  }
 
   useLayoutEffect(() => {
     const content = contentRef.current
     if (!content || typeof ResizeObserver === 'undefined') return
 
     const observer = new ResizeObserver(() => {
+      const actions = actionsRef.current
+      if (!actions) return
       if (pendingRestoreScrollTopRef.current !== null) {
-        if (applyPendingRestore()) {
-          scheduleRestoreRetry()
+        if (actions.applyPendingRestore()) {
+          actions.scheduleRestoreRetry()
         }
         return
       }
       if (!shouldAutoScrollRef.current) return
-      scheduleStickToBottom()
+      actions.scheduleStickToBottom()
     })
 
     observer.observe(content)
     return () => observer.disconnect()
-  }, [applyPendingRestore, scheduleRestoreRetry, scheduleStickToBottom])
+  }, [])
 
   useLayoutEffect(() => {
+    const actions = actionsRef.current
+    if (!actions) return
+
     const previous = lastRestoredConversationRef.current
     if (previous && previous !== activeConversationId) {
-      flushScrollCache()
+      actions.flushScrollCache()
       switchBaselineLastUserMessageIdRef.current = previousLastUserMessageIdRef.current
     }
 
@@ -411,16 +417,10 @@ export function useChatScrollBehaviour(
     shouldAutoScrollRef.current = true
     lastTouchClientYRef.current = null
     isPointerScrollActiveRef.current = false
-    cancelPendingStickToBottom()
-    cancelPendingRestoreRetry()
-    syncButtonVisibility()
-  }, [
-    activeConversationId,
-    cancelPendingRestoreRetry,
-    cancelPendingStickToBottom,
-    flushScrollCache,
-    syncButtonVisibility,
-  ])
+    actions.cancelPendingStickToBottom()
+    actions.cancelPendingRestoreRetry()
+    actions.syncButtonVisibility()
+  }, [activeConversationId])
 
   useLayoutEffect(() => {
     if (hasRestoredScrollRef.current) return
@@ -438,27 +438,21 @@ export function useChatScrollBehaviour(
 
     const scrollContainer = scrollerRef.current
     if (!scrollContainer) return
+    const actions = actionsRef.current
+    if (!actions) return
 
     const persisted = scrollCacheRef.current.get(activeConversationId)
     if (persisted !== undefined && persisted > 0) {
       pendingRestoreScrollTopRef.current = persisted
-      if (applyPendingRestore()) {
-        scheduleRestoreRetry()
+      if (actions.applyPendingRestore()) {
+        actions.scheduleRestoreRetry()
       }
     } else {
-      scrollMessagesToBottom()
+      actions.scrollMessagesToBottom()
     }
 
     hasRestoredScrollRef.current = true
-  }, [
-    activeConversationId,
-    applyPendingRestore,
-    lastUserMessageId,
-    rowsLength,
-    scheduleRestoreRetry,
-    scrollMessagesToBottom,
-    userDidSend,
-  ])
+  }, [activeConversationId, lastUserMessageId, rowsLength, userDidSend])
 
   useLayoutEffect(() => {
     previousLastUserMessageIdRef.current = lastUserMessageId
@@ -470,35 +464,30 @@ export function useChatScrollBehaviour(
     if (rowsLength === 0) return
     if (!scrollerRef.current) return
 
-    cancelPendingRestoreRetry()
+    const actions = actionsRef.current
+    if (!actions) return
+
+    actions.cancelPendingRestoreRetry()
     pendingRestoreScrollTopRef.current = null
     shouldAutoScrollRef.current = true
     pendingUserScrollUpIntentRef.current = false
     hasRestoredScrollRef.current = true
-    scrollMessagesToBottom()
-    scheduleStickToBottom()
+    actions.scrollMessagesToBottom()
+    actions.scheduleStickToBottom()
     onUserDidSendConsumed()
-  }, [
-    cancelPendingRestoreRetry,
-    isLoading,
-    onUserDidSendConsumed,
-    rowsLength,
-    scheduleStickToBottom,
-    scrollMessagesToBottom,
-    userDidSend,
-  ])
+  }, [isLoading, onUserDidSendConsumed, rowsLength, userDidSend])
 
   useLayoutEffect(() => {
     const hasContentSignal = rowsLength > 0 || streamVersion > 0
     if (!isLoading && !hasContentSignal) return
     if (!shouldAutoScrollRef.current) return
-    scheduleStickToBottom()
-  }, [isLoading, rowsLength, scheduleStickToBottom, streamVersion])
+    actionsRef.current?.scheduleStickToBottom()
+  }, [isLoading, rowsLength, streamVersion])
 
   useLayoutEffect(() => {
     return () => {
-      cancelPendingStickToBottom()
-      cancelPendingRestoreRetry()
+      actionsRef.current?.cancelPendingStickToBottom()
+      actionsRef.current?.cancelPendingRestoreRetry()
       if (persistTimerRef.current) clearTimeout(persistTimerRef.current)
       if (scrollbarTimerRef.current) clearTimeout(scrollbarTimerRef.current)
 
@@ -510,7 +499,7 @@ export function useChatScrollBehaviour(
       }
       saveScrollCache(scrollCacheRef.current)
     }
-  }, [cancelPendingRestoreRetry, cancelPendingStickToBottom])
+  }, [])
 
   return {
     scrollerRef,

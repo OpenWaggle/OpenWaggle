@@ -1,7 +1,6 @@
+import type { UIMessage } from '@shared/types/chat-ui'
 import type { Conversation } from '@shared/types/conversation'
 import type { WaggleConfig, WaggleMessageMetadata } from '@shared/types/waggle'
-import type { UIMessage } from '@tanstack/ai-react'
-import { useRef } from 'react'
 import { useWaggleStore } from '@/stores/waggle-store'
 
 const EMPTY_WAGGLE_METADATA_LOOKUP: Readonly<Record<string, WaggleMessageMetadata>> = Object.freeze(
@@ -12,16 +11,15 @@ const EMPTY_WAGGLE_METADATA_LOOKUP: Readonly<Record<string, WaggleMessageMetadat
  * Derives a UIMessage-id -> Waggle metadata lookup.
  *
  * During live streaming, prefers `liveMessageMetadata` (built from
- * `waggle:stream-chunk` TEXT_MESSAGE_START events). This keeps agent
+ * `waggle:event` message-start transport events). This keeps agent
  * attribution accurate even if multiple assistant UIMessages are emitted
  * within the same turn.
  *
  * Falls back to `completedTurnMeta` (ordered turn-end metadata) and then
  * to `initialTurnMeta` / current-agent hints when a live mapping is missing.
  *
- * For historical (reloaded) conversations, uses persisted metadata when
- * available (including synthesis), with position-based derivation only as
- * a legacy fallback for older conversations.
+ * For reloaded sessions, uses persisted per-message metadata when available,
+ * including synthesis messages.
  */
 export function useWaggleMetadataLookup(
   conversation: Conversation | null,
@@ -36,18 +34,6 @@ export function useWaggleMetadataLookup(
   const status = useWaggleStore((s) => s.status)
   const currentAgentIndex = useWaggleStore((s) => s.currentAgentIndex)
   const currentAgentLabel = useWaggleStore((s) => s.currentAgentLabel)
-  const cacheRef = useRef<{
-    conversation: Conversation | null
-    messages: UIMessage[]
-    config: WaggleConfig | null | undefined
-    liveMessageMetadata: Readonly<Record<string, WaggleMessageMetadata>>
-    completedTurnMeta: readonly WaggleMessageMetadata[]
-    initialTurnMeta: WaggleMessageMetadata | null
-    status: string
-    currentAgentIndex: number
-    currentAgentLabel: string
-    lookup: Readonly<Record<string, WaggleMessageMetadata>>
-  } | null>(null)
 
   // Use the active config only for the owning conversation; others use persisted waggleConfig.
   // When owningId is null (config set before conversation exists), apply to current view.
@@ -56,33 +42,7 @@ export function useWaggleMetadataLookup(
   const config: WaggleConfig | null | undefined = liveConfig ?? conversation?.waggleConfig
 
   if (!config) {
-    cacheRef.current = {
-      conversation,
-      messages,
-      config,
-      liveMessageMetadata,
-      completedTurnMeta,
-      initialTurnMeta,
-      status,
-      currentAgentIndex,
-      currentAgentLabel,
-      lookup: EMPTY_WAGGLE_METADATA_LOOKUP,
-    }
     return EMPTY_WAGGLE_METADATA_LOOKUP
-  }
-
-  if (
-    cacheRef.current?.conversation === conversation &&
-    cacheRef.current.messages === messages &&
-    cacheRef.current.config === config &&
-    cacheRef.current.liveMessageMetadata === liveMessageMetadata &&
-    cacheRef.current.completedTurnMeta === completedTurnMeta &&
-    cacheRef.current.initialTurnMeta === initialTurnMeta &&
-    cacheRef.current.status === status &&
-    cacheRef.current.currentAgentIndex === currentAgentIndex &&
-    cacheRef.current.currentAgentLabel === currentAgentLabel
-  ) {
-    return cacheRef.current.lookup
   }
 
   const lookup: Record<string, WaggleMessageMetadata> = {}
@@ -163,20 +123,7 @@ export function useWaggleMetadataLookup(
     assistantIndex++
   }
 
-  const stableLookup = Object.freeze(lookup)
-  cacheRef.current = {
-    conversation,
-    messages,
-    config,
-    liveMessageMetadata,
-    completedTurnMeta,
-    initialTurnMeta,
-    status,
-    currentAgentIndex,
-    currentAgentLabel,
-    lookup: stableLookup,
-  }
-  return stableLookup
+  return Object.freeze(lookup)
 }
 
 /**

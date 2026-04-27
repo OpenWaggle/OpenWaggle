@@ -59,20 +59,32 @@ const PROVIDER_MODELS: ProviderInfo[] = [
   {
     provider: 'anthropic',
     displayName: 'Anthropic',
-    requiresApiKey: true,
-    supportsBaseUrl: false,
-    supportsSubscription: false,
-    supportsDynamicModelFetch: false,
+
+    auth: {
+      configured: true,
+      source: 'api-key',
+      apiKeyConfigured: true,
+      apiKeySource: 'api-key',
+      oauthConnected: false,
+      supportsApiKey: true,
+      supportsOAuth: true,
+    },
     models: [
       {
-        id: SupportedModelId('claude-sonnet-4-5'),
+        id: SupportedModelId('anthropic/claude-sonnet-4-5'),
+        modelId: 'claude-sonnet-4-5',
         name: 'Claude Sonnet 4.5',
         provider: 'anthropic',
+        available: true,
+        availableThinkingLevels: ['off', 'minimal', 'low', 'medium', 'high'],
       },
       {
-        id: SupportedModelId('claude-opus-4'),
+        id: SupportedModelId('anthropic/claude-opus-4'),
+        modelId: 'claude-opus-4',
         name: 'Claude Opus 4',
         provider: 'anthropic',
+        available: true,
+        availableThinkingLevels: ['off', 'minimal', 'low', 'medium', 'high'],
       },
     ],
   },
@@ -88,13 +100,13 @@ function createPreset(overrides?: Partial<WaggleTeamPreset>): WaggleTeamPreset {
       agents: [
         {
           label: 'Reviewer',
-          model: SupportedModelId('claude-sonnet-4-5'),
+          model: SupportedModelId('anthropic/claude-sonnet-4-5'),
           roleDescription: 'Finds regressions before they land.',
           color: 'blue',
         },
         {
           label: 'Implementer',
-          model: SupportedModelId('claude-opus-4'),
+          model: SupportedModelId('anthropic/claude-opus-4'),
           roleDescription: 'Shapes the implementation details.',
           color: 'amber',
         },
@@ -208,13 +220,13 @@ describe('WaggleSection', () => {
         agents: [
           {
             label: 'Strategist',
-            model: SupportedModelId('claude-sonnet-4-5'),
+            model: SupportedModelId('anthropic/claude-sonnet-4-5'),
             roleDescription: 'Frames trade-offs before implementation.',
             color: 'blue',
           },
           {
             label: 'Skeptic',
-            model: SupportedModelId('claude-opus-4'),
+            model: SupportedModelId('anthropic/claude-opus-4'),
             roleDescription: 'Challenges weak assumptions.',
             color: 'amber',
           },

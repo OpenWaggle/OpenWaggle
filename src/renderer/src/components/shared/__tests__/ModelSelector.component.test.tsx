@@ -1,3 +1,4 @@
+import { SupportedModelId } from '@shared/types/brand'
 import type { ProviderInfo } from '@shared/types/llm'
 import { DEFAULT_SETTINGS, type Settings } from '@shared/types/settings'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -15,6 +16,7 @@ const { apiMock } = vi.hoisted(() => ({
     testApiKey: vi.fn(),
     showConfirm: vi.fn(),
     startOAuth: vi.fn(),
+    cancelOAuth: vi.fn(),
     onOAuthStatus: vi.fn().mockReturnValue(() => {}),
     getAuthAccountInfo: vi.fn(),
     submitAuthCode: vi.fn(),
@@ -30,32 +32,82 @@ const PROVIDER_MODELS: ProviderInfo[] = [
   {
     provider: 'anthropic',
     displayName: 'Anthropic',
-    requiresApiKey: true,
-    supportsBaseUrl: false,
-    supportsSubscription: true,
-    supportsDynamicModelFetch: false,
+
+    auth: {
+      configured: true,
+      source: 'api-key',
+      apiKeyConfigured: true,
+      apiKeySource: 'api-key',
+      oauthConnected: false,
+      supportsApiKey: true,
+      supportsOAuth: true,
+    },
     models: [
-      { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', provider: 'anthropic' },
-      { id: 'claude-opus-4-5', name: 'Claude Opus 4.5', provider: 'anthropic' },
+      {
+        id: SupportedModelId('anthropic/claude-sonnet-4-5'),
+        modelId: 'claude-sonnet-4-5',
+        name: 'Claude Sonnet 4.5',
+        provider: 'anthropic',
+        available: true,
+        availableThinkingLevels: ['off', 'minimal', 'low', 'medium', 'high'],
+      },
+      {
+        id: SupportedModelId('anthropic/claude-opus-4-5'),
+        modelId: 'claude-opus-4-5',
+        name: 'Claude Opus 4.5',
+        provider: 'anthropic',
+        available: true,
+        availableThinkingLevels: ['off', 'minimal', 'low', 'medium', 'high'],
+      },
     ],
   },
   {
     provider: 'openai',
     displayName: 'OpenAI',
-    requiresApiKey: true,
-    supportsBaseUrl: false,
-    supportsSubscription: true,
-    supportsDynamicModelFetch: false,
-    models: [{ id: 'gpt-4.1-mini', name: 'GPT 4.1 Mini', provider: 'openai' }],
+
+    auth: {
+      configured: true,
+      source: 'api-key',
+      apiKeyConfigured: true,
+      apiKeySource: 'api-key',
+      oauthConnected: false,
+      supportsApiKey: true,
+      supportsOAuth: true,
+    },
+    models: [
+      {
+        id: SupportedModelId('openai/gpt-4.1-mini'),
+        modelId: 'gpt-4.1-mini',
+        name: 'GPT 4.1 Mini',
+        provider: 'openai',
+        available: true,
+        availableThinkingLevels: ['off'],
+      },
+    ],
   },
   {
     provider: 'gemini',
     displayName: 'Gemini',
-    requiresApiKey: true,
-    supportsBaseUrl: false,
-    supportsSubscription: false,
-    supportsDynamicModelFetch: false,
-    models: [{ id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'gemini' }],
+
+    auth: {
+      configured: true,
+      source: 'api-key',
+      apiKeyConfigured: true,
+      apiKeySource: 'api-key',
+      oauthConnected: false,
+      supportsApiKey: true,
+      supportsOAuth: false,
+    },
+    models: [
+      {
+        id: SupportedModelId('gemini/gemini-2.5-flash'),
+        modelId: 'gemini-2.5-flash',
+        name: 'Gemini 2.5 Flash',
+        provider: 'gemini',
+        available: true,
+        availableThinkingLevels: ['off', 'minimal', 'low', 'medium', 'high'],
+      },
+    ],
   },
 ]
 
@@ -84,10 +136,6 @@ function seedStore(overrides?: {
   const nextSettings: Settings = {
     ...DEFAULT_SETTINGS,
     ...overrides?.settings,
-    providers: {
-      ...DEFAULT_SETTINGS.providers,
-      ...overrides?.settings?.providers,
-    },
   }
 
   usePreferencesStore.setState({
@@ -106,18 +154,12 @@ describe('ModelSelector', () => {
     vi.clearAllMocks()
     seedStore({
       settings: {
-        selectedModel: 'claude-sonnet-4-5',
+        selectedModel: SupportedModelId('anthropic/claude-sonnet-4-5'),
         enabledModels: [
-          'anthropic:api-key:claude-sonnet-4-5',
-          'anthropic:api-key:claude-opus-4-5',
-          'gemini:api-key:gemini-2.5-flash',
+          SupportedModelId('anthropic/claude-sonnet-4-5'),
+          SupportedModelId('anthropic/claude-opus-4-5'),
+          SupportedModelId('gemini/gemini-2.5-flash'),
         ],
-        providers: {
-          ...DEFAULT_SETTINGS.providers,
-          anthropic: { apiKey: 'anthropic-key', enabled: true },
-          openai: { apiKey: '', enabled: false },
-          gemini: { apiKey: 'gemini-key', enabled: true },
-        },
       },
     })
   })
@@ -147,7 +189,7 @@ describe('ModelSelector', () => {
     fireEvent.click(screen.getByRole('option', { name: 'Gemini 2.5 Flash' }))
 
     await waitFor(() => {
-      expect(onChange).toHaveBeenCalledWith('gemini-2.5-flash', 'api-key')
+      expect(onChange).toHaveBeenCalledWith('gemini/gemini-2.5-flash')
     })
   })
 
@@ -157,23 +199,42 @@ describe('ModelSelector', () => {
         {
           provider: 'ollama',
           displayName: 'Ollama',
-          requiresApiKey: false,
-          supportsBaseUrl: false,
-          supportsSubscription: false,
-          supportsDynamicModelFetch: true,
+
+          auth: {
+            configured: true,
+            source: 'environment-or-custom',
+            apiKeyConfigured: true,
+            apiKeySource: 'environment-or-custom',
+            oauthConnected: false,
+            supportsApiKey: true,
+            supportsOAuth: false,
+          },
           models: [
-            { id: 'llama3.2:latest', name: 'Llama3.2:latest', provider: 'ollama' },
-            { id: 'llama3.2:latest', name: 'Llama3.2:latest', provider: 'ollama' },
+            {
+              id: SupportedModelId('ollama/llama3.2:latest'),
+              modelId: 'llama3.2:latest',
+              name: 'Llama3.2:latest',
+              provider: 'ollama',
+              available: true,
+              availableThinkingLevels: ['off'],
+            },
+            {
+              id: SupportedModelId('ollama/llama3.2:latest'),
+              modelId: 'llama3.2:latest',
+              name: 'Llama3.2:latest',
+              provider: 'ollama',
+              available: true,
+              availableThinkingLevels: ['off'],
+            },
           ],
         },
       ],
       settings: {
-        selectedModel: 'llama3.2:latest',
-        enabledModels: ['ollama:api-key:llama3.2:latest', 'ollama:api-key:llama3.2:latest'],
-        providers: {
-          ...DEFAULT_SETTINGS.providers,
-          ollama: { apiKey: '', enabled: true },
-        },
+        selectedModel: SupportedModelId('ollama/llama3.2:latest'),
+        enabledModels: [
+          SupportedModelId('ollama/llama3.2:latest'),
+          SupportedModelId('ollama/llama3.2:latest'),
+        ],
       },
     })
 
@@ -187,13 +248,11 @@ describe('ModelSelector', () => {
   it('filters to only enabledModels when set', () => {
     seedStore({
       settings: {
-        selectedModel: 'claude-sonnet-4-5',
-        enabledModels: ['anthropic:api-key:claude-sonnet-4-5', 'gemini:api-key:gemini-2.5-flash'],
-        providers: {
-          ...DEFAULT_SETTINGS.providers,
-          anthropic: { apiKey: 'anthropic-key', enabled: true },
-          gemini: { apiKey: 'gemini-key', enabled: true },
-        },
+        selectedModel: SupportedModelId('anthropic/claude-sonnet-4-5'),
+        enabledModels: [
+          SupportedModelId('anthropic/claude-sonnet-4-5'),
+          SupportedModelId('gemini/gemini-2.5-flash'),
+        ],
       },
     })
 
@@ -211,13 +270,8 @@ describe('ModelSelector', () => {
   it('shows no models when enabledModels is empty', () => {
     seedStore({
       settings: {
-        selectedModel: 'claude-sonnet-4-5',
+        selectedModel: SupportedModelId('anthropic/claude-sonnet-4-5'),
         enabledModels: [],
-        providers: {
-          ...DEFAULT_SETTINGS.providers,
-          anthropic: { apiKey: 'anthropic-key', enabled: true },
-          gemini: { apiKey: 'gemini-key', enabled: true },
-        },
       },
     })
 
@@ -243,17 +297,12 @@ describe('ModelSelector', () => {
   it('excludes stale enabledModels entries not in current provider catalog', () => {
     seedStore({
       settings: {
-        selectedModel: 'claude-sonnet-4-5',
+        selectedModel: SupportedModelId('anthropic/claude-sonnet-4-5'),
         enabledModels: [
-          'anthropic:api-key:claude-sonnet-4-5', // valid — exists in providerModels
-          'anthropic:api-key:claude-opus-4-5-20251101', // stale — version suffix doesn't match
-          'openai:subscription:gpt-5.4', // stale — no openai model with this ID in catalog
+          SupportedModelId('anthropic/claude-sonnet-4-5'), // valid — exists in providerModels
+          SupportedModelId('anthropic/claude-opus-4-5-20251101'), // stale — version suffix doesn't match
+          SupportedModelId('openai/gpt-5.4'), // stale — no openai model with this ID in catalog
         ],
-        providers: {
-          ...DEFAULT_SETTINGS.providers,
-          anthropic: { apiKey: 'anthropic-key', enabled: true },
-          openai: { apiKey: '', enabled: false },
-        },
       },
     })
 
@@ -268,18 +317,14 @@ describe('ModelSelector', () => {
     expect(screen.getAllByRole('option')).toHaveLength(1)
   })
 
-  it('excludes legacy bare model IDs from dropdown', () => {
+  it('excludes providerless model IDs from dropdown', () => {
     seedStore({
       settings: {
-        selectedModel: 'claude-sonnet-4-5',
+        selectedModel: SupportedModelId('anthropic/claude-sonnet-4-5'),
         enabledModels: [
-          'gpt-5.4', // legacy bare ID — no provider:authMethod prefix
-          'anthropic:api-key:claude-sonnet-4-5',
+          SupportedModelId('gpt-5.4'),
+          SupportedModelId('anthropic/claude-sonnet-4-5'),
         ],
-        providers: {
-          ...DEFAULT_SETTINGS.providers,
-          anthropic: { apiKey: 'anthropic-key', enabled: true },
-        },
       },
     })
 

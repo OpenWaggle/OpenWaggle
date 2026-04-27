@@ -1,10 +1,19 @@
-import type { ConversationId } from '@shared/types/brand'
+import { type ConversationId, SessionId } from '@shared/types/brand'
 import type { Conversation, ConversationSummary } from '@shared/types/conversation'
 import { create } from 'zustand'
 import { api } from '@/lib/ipc'
 import { createRendererLogger } from '@/lib/logger'
+import { useSessionStore } from '@/stores/session-store'
 
 const logger = createRendererLogger('chat-store')
+
+function conversationSessionId(id: ConversationId): SessionId {
+  return SessionId(String(id))
+}
+
+function optionalConversationSessionId(id: ConversationId | null): SessionId | null {
+  return id ? conversationSessionId(id) : null
+}
 
 function handleStoreError(err: unknown, action: string, setError: (message: string) => void): void {
   const message = err instanceof Error ? err.message : String(err)
@@ -19,14 +28,13 @@ function toSummary(conversation: Conversation): ConversationSummary {
     projectPath: conversation.projectPath,
     messageCount: conversation.messages.length,
     archived: conversation.archived,
-    planModeActive: conversation.planModeActive,
     createdAt: conversation.createdAt,
     updatedAt: conversation.updatedAt,
   }
 }
 
 function shouldShowSummary(summary: ConversationSummary): boolean {
-  return summary.title !== 'New thread' || summary.messageCount > 0
+  return summary.title !== 'New session' || summary.messageCount > 0
 }
 
 function mergeSummary(
@@ -62,16 +70,14 @@ interface ChatState {
   error: string | null
 
   loadConversations: () => Promise<void>
-  createConversation: (projectPath: string | null) => Promise<ConversationId>
-  startDraftThread: () => void
+  createConversation: (projectPath: string) => Promise<ConversationId>
+  startDraftSession: () => void
   setActiveConversationId: (id: ConversationId | null) => void
   setActiveConversation: (id: ConversationId | null) => void
   refreshConversation: (id: ConversationId) => Promise<void>
   upsertConversation: (conversation: Conversation) => void
   deleteConversation: (id: ConversationId) => Promise<void>
   updateConversationTitle: (id: ConversationId, title: string) => void
-  updateConversationProjectPath: (id: ConversationId, projectPath: string | null) => Promise<void>
-  updateConversationPlanMode: (id: ConversationId, active: boolean) => Promise<void>
   clearError: () => void
 }
 
@@ -105,12 +111,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
           : null,
         error: null,
       })
+      void useSessionStore.getState().loadSessions()
     } catch (err) {
       handleStoreError(err, 'load conversations', (error) => set({ error }))
     }
   },
 
-  async createConversation(projectPath: string | null) {
+  async createConversation(projectPath: string) {
     try {
       const conversation = await api.createConversation(projectPath)
       get().upsertConversation(conversation)
@@ -119,6 +126,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         activeConversation: conversation,
         error: null,
       })
+      void useSessionStore.getState().refreshSessionsAndTree(conversationSessionId(conversation.id))
       return conversation.id
     } catch (err) {
       handleStoreError(err, 'create conversation', (error) => set({ error }))
@@ -126,7 +134,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  startDraftThread() {
+  startDraftSession() {
     set({ activeConversationId: null, activeConversation: null })
   },
 
@@ -153,6 +161,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const conversation = await api.getConversation(id)
       if (!conversation) return
       get().upsertConversation(conversation)
+      void useSessionStore.getState().refreshSessionTree(conversationSessionId(id))
     } catch (err) {
       handleStoreError(err, 'refresh conversation', (error) => set({ error }))
     }
@@ -192,6 +201,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     try {
       await api.deleteConversation(id)
+      void useSessionStore
+        .getState()
+        .refreshSessionsAndTree(optionalConversationSessionId(get().activeConversationId))
     } catch (err) {
       set({
         conversations: previousConversations,
@@ -231,28 +243,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           state.activeConversationId === id ? conversation : state.activeConversation,
       }
     })
-  },
-
-  async updateConversationProjectPath(id: ConversationId, projectPath: string | null) {
-    try {
-      const updated = await api.updateConversationProjectPath(id, projectPath)
-      if (updated) {
-        get().upsertConversation(updated)
-      }
-    } catch (err) {
-      handleStoreError(err, 'update project path', (error) => set({ error }))
-    }
-  },
-
-  async updateConversationPlanMode(id: ConversationId, active: boolean) {
-    try {
-      const updated = await api.updateConversationPlanMode(id, active)
-      if (updated) {
-        get().upsertConversation(updated)
-      }
-    } catch (err) {
-      handleStoreError(err, 'update plan mode', (error) => set({ error }))
-    }
+    void useSessionStore.getState().refreshSessionsAndTree(conversationSessionId(id))
   },
 
   clearError() {

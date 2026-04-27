@@ -8,20 +8,13 @@ type ConversationNavDeps = Parameters<typeof createConversationNavHandlers>[0]
 function makeDeps(overrides: Partial<ConversationNavDeps> = {}): ConversationNavDeps {
   return {
     conversations: [] as ConversationSummary[],
-    activeConversationId: null as ConversationId | null,
     projectPath: '/test/project' as string | null,
     setActiveView: vi.fn(),
     setProjectPath: vi.fn<(path: string | null) => Promise<void>>().mockResolvedValue(undefined),
     selectFolder: vi.fn<() => Promise<string | null>>().mockResolvedValue(null),
-    createConversation: vi
-      .fn<(p: string | null) => Promise<ConversationId>>()
-      .mockResolvedValue('new-conv' as ConversationId),
-    startDraftThread: vi.fn(),
+    startDraftSession: vi.fn(),
     setActiveConversation: vi
       .fn<(id: ConversationId | null) => Promise<void>>()
-      .mockResolvedValue(undefined),
-    updateConversationProjectPath: vi
-      .fn<(id: ConversationId, p: string | null) => Promise<void>>()
       .mockResolvedValue(undefined),
     refreshGitStatus: vi.fn<(p: string | null) => Promise<void>>().mockResolvedValue(undefined),
     refreshGitBranches: vi.fn<(p: string | null) => Promise<void>>().mockResolvedValue(undefined),
@@ -83,23 +76,20 @@ describe('createConversationNavHandlers', () => {
   })
 
   describe('handleNewConversation', () => {
-    it('sets view to chat and starts draft thread', () => {
+    it('sets view to chat and starts draft session', () => {
       const deps = makeDeps()
       const { handleNewConversation } = createConversationNavHandlers(deps)
 
       handleNewConversation()
 
       expect(deps.setActiveView).toHaveBeenCalledWith('chat')
-      expect(deps.startDraftThread).toHaveBeenCalled()
-      expect(deps.createConversation).not.toHaveBeenCalled()
+      expect(deps.startDraftSession).toHaveBeenCalled()
     })
   })
 
   describe('handleOpenProject', () => {
-    it('with existing conversation: updates path and refreshes git', async () => {
-      const convId = 'conv-3' as ConversationId
+    it('selects a project and starts a draft session', async () => {
       const deps = makeDeps({
-        activeConversationId: convId,
         selectFolder: vi.fn<() => Promise<string | null>>().mockResolvedValue('/new/project'),
       })
       const { handleOpenProject } = createConversationNavHandlers(deps)
@@ -107,24 +97,8 @@ describe('createConversationNavHandlers', () => {
       await handleOpenProject()
 
       expect(deps.setActiveView).toHaveBeenCalledWith('chat')
-      expect(deps.updateConversationProjectPath).toHaveBeenCalledWith(convId, '/new/project')
       expect(deps.setProjectPath).toHaveBeenCalledWith('/new/project')
-      expect(deps.setActiveConversation).toHaveBeenCalledWith(convId)
-      expect(deps.refreshGitStatus).toHaveBeenCalledWith('/new/project')
-    })
-
-    it('without conversation: creates new conversation', async () => {
-      const deps = makeDeps({
-        activeConversationId: null,
-        selectFolder: vi.fn<() => Promise<string | null>>().mockResolvedValue('/new/project'),
-      })
-      const { handleOpenProject } = createConversationNavHandlers(deps)
-
-      await handleOpenProject()
-
-      expect(deps.setProjectPath).toHaveBeenCalledWith('/new/project')
-      expect(deps.createConversation).toHaveBeenCalledWith('/new/project')
-      expect(deps.updateConversationProjectPath).not.toHaveBeenCalled()
+      expect(deps.startDraftSession).toHaveBeenCalled()
       expect(deps.refreshGitStatus).toHaveBeenCalledWith('/new/project')
       expect(deps.refreshGitBranches).toHaveBeenCalledWith('/new/project')
     })
@@ -138,34 +112,20 @@ describe('createConversationNavHandlers', () => {
       await handleOpenProject()
 
       expect(deps.setActiveView).toHaveBeenCalledWith('chat')
-      expect(deps.createConversation).not.toHaveBeenCalled()
+      expect(deps.startDraftSession).not.toHaveBeenCalled()
       expect(deps.setProjectPath).not.toHaveBeenCalled()
     })
   })
 
   describe('handleSelectProjectPath', () => {
-    it('with existing conversation: updates, refreshes', async () => {
-      const convId = 'conv-4' as ConversationId
-      const deps = makeDeps({ activeConversationId: convId })
-      const { handleSelectProjectPath } = createConversationNavHandlers(deps)
-
-      await handleSelectProjectPath('/selected/path')
-
-      expect(deps.setActiveView).toHaveBeenCalledWith('chat')
-      expect(deps.updateConversationProjectPath).toHaveBeenCalledWith(convId, '/selected/path')
-      expect(deps.setProjectPath).toHaveBeenCalledWith('/selected/path')
-      expect(deps.setActiveConversation).toHaveBeenCalledWith(convId)
-      expect(deps.refreshGitStatus).toHaveBeenCalledWith('/selected/path')
-    })
-
-    it('without conversation: creates new', async () => {
-      const deps = makeDeps({ activeConversationId: null })
+    it('selects project and starts a draft session', async () => {
+      const deps = makeDeps()
       const { handleSelectProjectPath } = createConversationNavHandlers(deps)
 
       await handleSelectProjectPath('/selected/path')
 
       expect(deps.setProjectPath).toHaveBeenCalledWith('/selected/path')
-      expect(deps.createConversation).toHaveBeenCalledWith('/selected/path')
+      expect(deps.startDraftSession).toHaveBeenCalled()
       expect(deps.refreshGitStatus).toHaveBeenCalledWith('/selected/path')
     })
   })

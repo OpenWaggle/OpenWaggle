@@ -4,7 +4,7 @@ import { create } from 'zustand'
 
 export type { ComposerActionDialogKind } from './composer-action-store'
 
-type MenuKind = 'quality' | 'execution' | 'branch' | null
+type MenuKind = 'thinking' | 'execution' | 'branch' | null
 
 const PROMPT_HISTORY_KEY = 'openwaggle:prompt-history'
 const PROMPT_HISTORY_MAX = 100
@@ -64,7 +64,7 @@ interface ComposerState {
   setAttachmentError: (error: string | null) => void
 
   // Menu toggles (only one open at a time)
-  qualityMenuOpen: boolean
+  thinkingMenuOpen: boolean
   executionMenuOpen: boolean
   branchMenuOpen: boolean
   openMenu: (menu: MenuKind) => void
@@ -74,10 +74,6 @@ interface ComposerState {
   dismissedSlashToken: string | null
   setSlashHighlightIndex: (index: number) => void
   setDismissedSlashToken: (token: string | null) => void
-
-  // Compact command
-  compactSaveForThread: boolean
-  setCompactSaveForThread: (value: boolean) => void
 
   // Lexical editor ref (set by EditorRefPlugin, consumed by skill selection)
   lexicalEditor: LexicalEditor | null
@@ -95,12 +91,11 @@ interface InitialComposerState {
   draftInput: string
   attachments: PreparedAttachment[]
   attachmentError: string | null
-  qualityMenuOpen: boolean
+  thinkingMenuOpen: boolean
   executionMenuOpen: boolean
   branchMenuOpen: boolean
   slashHighlightIndex: number
   dismissedSlashToken: string | null
-  compactSaveForThread: boolean
 }
 
 function buildInitialState(): InitialComposerState {
@@ -113,12 +108,11 @@ function buildInitialState(): InitialComposerState {
     draftInput: '',
     attachments: [],
     attachmentError: null,
-    qualityMenuOpen: false,
+    thinkingMenuOpen: false,
     executionMenuOpen: false,
     branchMenuOpen: false,
     slashHighlightIndex: 0,
     dismissedSlashToken: null,
-    compactSaveForThread: false,
   }
 }
 
@@ -185,7 +179,7 @@ export const useComposerStore = create<ComposerState>((set, get) => ({
 
   openMenu(menu: MenuKind) {
     set({
-      qualityMenuOpen: menu === 'quality',
+      thinkingMenuOpen: menu === 'thinking',
       executionMenuOpen: menu === 'execution',
       branchMenuOpen: menu === 'branch',
     })
@@ -197,10 +191,6 @@ export const useComposerStore = create<ComposerState>((set, get) => ({
 
   setDismissedSlashToken(token: string | null) {
     set({ dismissedSlashToken: token })
-  },
-
-  setCompactSaveForThread(value: boolean) {
-    set({ compactSaveForThread: value })
   },
 
   lexicalEditor: null,
@@ -219,7 +209,7 @@ export const useComposerStore = create<ComposerState>((set, get) => ({
       attachmentError: null,
       dismissedSlashToken: null,
       slashHighlightIndex: 0,
-      qualityMenuOpen: false,
+      thinkingMenuOpen: false,
       executionMenuOpen: false,
       branchMenuOpen: false,
     })

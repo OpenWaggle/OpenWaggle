@@ -1,15 +1,15 @@
 import type { ConversationId } from '@shared/types/brand'
-import type { QualityPreset } from '@shared/types/settings'
+import type { ThinkingLevel } from '@shared/types/settings'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useMessageQueueStore } from '@/stores/message-queue-store'
 import { QueuedMessages } from '../QueuedMessages'
 
 const CONV_A = 'conv-a' as ConversationId
-const QUALITY: QualityPreset = 'medium'
+const THINKING: ThinkingLevel = 'medium'
 
 function makePayload(text: string) {
-  return { text, qualityPreset: QUALITY, attachments: [] as const }
+  return { text, thinkingLevel: THINKING, attachments: [] as const }
 }
 
 const noOpSteer = vi.fn().mockResolvedValue(undefined)
@@ -63,6 +63,22 @@ describe('QueuedMessages', () => {
     expect(screen.getByText('Steer')).toBeInTheDocument()
   })
 
+  it('uses compaction copy and hides Steer while compaction is running', () => {
+    useMessageQueueStore.getState().enqueue(CONV_A, makePayload('wait for compact'))
+
+    render(
+      <QueuedMessages
+        conversationId={CONV_A}
+        onSteer={noOpSteer}
+        isStreaming={true}
+        isCompacting={true}
+      />,
+    )
+
+    expect(screen.getByText('Queued until compaction finishes')).toBeInTheDocument()
+    expect(screen.queryByText('Steer')).not.toBeInTheDocument()
+  })
+
   it('Steer button calls onSteer with correct messageId', () => {
     useMessageQueueStore.getState().enqueue(CONV_A, makePayload('steer me'))
     render(<QueuedMessages conversationId={CONV_A} onSteer={noOpSteer} isStreaming={true} />)
@@ -88,7 +104,7 @@ describe('QueuedMessages', () => {
   it('shows attachment count for text-less messages', () => {
     useMessageQueueStore.getState().enqueue(CONV_A, {
       text: '',
-      qualityPreset: QUALITY,
+      thinkingLevel: THINKING,
       attachments: [
         {
           id: 'a1',

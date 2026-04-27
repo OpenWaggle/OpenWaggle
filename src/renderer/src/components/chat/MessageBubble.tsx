@@ -1,8 +1,6 @@
 import type { ConversationId } from '@shared/types/brand'
+import type { UIMessage } from '@shared/types/chat-ui'
 import type { SupportedModelId } from '@shared/types/llm'
-import type { PlanResponse } from '@shared/types/plan'
-import type { QuestionAnswer } from '@shared/types/question'
-import type { UIMessage } from '@tanstack/ai-react'
 import { AssistantMessageBubble, type WaggleInfo } from './AssistantMessageBubble'
 import { UserMessageBubble } from './UserMessageBubble'
 
@@ -12,9 +10,8 @@ interface MessageBubbleProps {
   isRunActive?: boolean
   assistantModel?: SupportedModelId
   conversationId: ConversationId | null
-  onAnswerQuestion: (conversationId: ConversationId, answers: QuestionAnswer[]) => Promise<void>
-  onRespondToPlan?: (conversationId: ConversationId, response: PlanResponse) => Promise<void>
   waggle?: WaggleInfo
+  onBranchFromMessage?: (messageId: string) => void
 }
 
 export function MessageBubble({
@@ -23,11 +20,11 @@ export function MessageBubble({
   isRunActive,
   assistantModel,
   conversationId,
-  onRespondToPlan,
   waggle,
+  onBranchFromMessage,
 }: MessageBubbleProps) {
   if (message.role === 'user') {
-    return <UserMessageBubble message={message} />
+    return <UserMessageBubble message={message} onBranchFromMessage={onBranchFromMessage} />
   }
 
   return (
@@ -37,8 +34,8 @@ export function MessageBubble({
       isRunActive={isRunActive}
       assistantModel={assistantModel}
       conversationId={conversationId}
-      onRespondToPlan={onRespondToPlan}
       waggle={waggle}
+      onBranchFromMessage={onBranchFromMessage}
     />
   )
 }

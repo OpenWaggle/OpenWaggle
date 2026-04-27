@@ -1,14 +1,17 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
-import type { QualityPreset } from '@shared/types/settings'
+import type { ThinkingLevel } from '@shared/types/settings'
 import type { WaggleConfig } from '@shared/types/waggle'
 import { useEffect, useRef } from 'react'
+import { createRendererLogger } from '@/lib/logger'
+
+const logger = createRendererLogger('use-send-message')
 
 interface SendMessageDeps {
   readonly activeConversationId: ConversationId | null
   readonly projectPath: string | null
-  readonly qualityPreset: QualityPreset
-  readonly createConversation: (projectPath: string | null) => Promise<ConversationId>
+  readonly thinkingLevel: ThinkingLevel
+  readonly createConversation: (projectPath: string) => Promise<ConversationId>
   readonly sendMessage: (payload: AgentSendPayload) => Promise<void>
   readonly sendWaggleMessage: (payload: AgentSendPayload, config: WaggleConfig) => Promise<void>
   readonly setPendingMessage: (payload: AgentSendPayload | null) => void
@@ -26,7 +29,7 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
   const {
     activeConversationId,
     projectPath,
-    qualityPreset,
+    thinkingLevel,
     createConversation,
     sendMessage,
     sendWaggleMessage,
@@ -36,22 +39,39 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
 
   async function handleSend(payload: AgentSendPayload): Promise<void> {
     if (!activeConversationId) {
+      if (!projectPath) {
+        throw new Error('Select a project before sending.')
+      }
       setPendingMessage(payload)
-      await createConversation(projectPath)
+      try {
+        await createConversation(projectPath)
+      } catch (error) {
+        setPendingMessage(null)
+        throw error
+      }
       return
     }
     await sendMessage(payload)
   }
 
   async function handleSendText(content: string): Promise<void> {
-    await handleSend({ text: content, qualityPreset, attachments: [] })
+    await handleSend({ text: content, thinkingLevel, attachments: [] })
   }
 
   async function handleSendWaggle(payload: AgentSendPayload, config: WaggleConfig): Promise<void> {
     if (!activeConversationId) {
+      if (!projectPath) {
+        throw new Error('Select a project before sending.')
+      }
       setPendingMessage(payload)
       setPendingWaggleConfig(config)
-      await createConversation(projectPath)
+      try {
+        await createConversation(projectPath)
+      } catch (error) {
+        setPendingMessage(null)
+        setPendingWaggleConfig(null)
+        throw error
+      }
       return
     }
     await sendWaggleMessage(payload, config)
@@ -63,8 +83,8 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
 interface UseSendMessageOptions {
   readonly activeConversationId: ConversationId | null
   readonly projectPath: string | null
-  readonly qualityPreset: QualityPreset
-  readonly createConversation: (projectPath: string | null) => Promise<ConversationId>
+  readonly thinkingLevel: ThinkingLevel
+  readonly createConversation: (projectPath: string) => Promise<ConversationId>
   readonly sendMessage: (payload: AgentSendPayload) => Promise<void>
   readonly sendWaggleMessage: (payload: AgentSendPayload, config: WaggleConfig) => Promise<void>
 }
@@ -95,11 +115,12 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
       const config = pendingWaggleConfig.current
       pendingMessage.current = null
       pendingWaggleConfig.current = null
-      if (config) {
-        void sendWaggleMessage(payload, config)
-      } else {
-        void sendMessage(payload)
-      }
+      const sendPromise = config ? sendWaggleMessage(payload, config) : sendMessage(payload)
+      void sendPromise.catch((error: unknown) => {
+        logger.error('Pending first message send failed', {
+          error: error instanceof Error ? error.message : String(error),
+        })
+      })
     }
   }, [activeConversationId, sendMessage, sendWaggleMessage])
 
