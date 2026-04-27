@@ -46,11 +46,11 @@ When a user sends a message:
 
 ## Provider And Model Metadata
 
-Provider/model/auth data comes from Pi `ModelRegistry` and `AuthStorage`. OpenWaggle exposes that metadata through ports and IPC DTOs so the settings UI can curate enabled models without owning a separate runtime registry.
+Provider/model/auth data comes from Pi `ModelRegistry` and `AuthStorage`. OpenWaggle exposes that metadata through ports and IPC DTOs so the settings UI can curate enabled models.
 
 ## Tool Surface
 
-OpenWaggle does not pass a custom initial tool set to Pi and does not add a legacy approval manager. Pi owns tool execution. OpenWaggle renders Pi-emitted tool events.
+Pi owns tool execution. OpenWaggle renders Pi-emitted tool events directly in the transcript.
 
 ## Tech Stack
 

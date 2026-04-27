@@ -5,14 +5,14 @@ order: 3
 section: "Extending"
 ---
 
-OpenWaggle does not currently ship an in-app MCP server manager or a custom OpenWaggle tool runtime.
+OpenWaggle runtime capabilities are routed through Pi adapter boundaries.
 
 Future runtime capabilities should be implemented as Pi-native extensions or adapter-backed ports:
 
 - Pi SDK imports stay in `src/main/adapters/pi/`.
 - Application and IPC layers consume vendor-free OpenWaggle ports.
 - Renderer code displays OpenWaggle-owned DTOs and runtime events.
-- New tools must not force Pi to look like the old TanStack-era runtime.
+- New tools should use Pi-native extension points and OpenWaggle-owned IPC DTOs.
 
 This keeps OpenWaggle extensible without leaking vendor SDK types across the app.
 

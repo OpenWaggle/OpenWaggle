@@ -37,12 +37,6 @@ OpenWaggle calls Pi `session.compact(customInstructions)`. The command is a cont
 
 Automatic compaction policy belongs to Pi. OpenWaggle does not implement a separate automatic compaction layer.
 
-## Not Present In The Current Baseline
+## Model Limits
 
-The current Pi-native baseline does not include:
-
-- Context inspector drawer.
-- Pinned messages.
-- Saved compaction guidance.
-- OpenWaggle-owned model compatibility gates.
-- A custom token accounting system.
+Context availability follows the selected Pi model's reported context window. OpenWaggle displays that value in the composer and uses Pi's compaction behavior for runtime context management.

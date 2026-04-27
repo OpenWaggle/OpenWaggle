@@ -34,7 +34,7 @@ OpenWaggle works the same way. It's a desktop coding workspace built on Pi's age
 
 ### Multi-Model Support
 
-OpenWaggle reads provider and model metadata from Pi instead of maintaining a separate provider registry. Use OpenWaggle's Settings UI to choose the Pi-reported providers and models you want available in the composer. For provider and model mechanics, use Pi's provider and model docs as the source of truth.
+OpenWaggle reads provider and model metadata from Pi. Use OpenWaggle's Settings UI to choose the Pi-reported providers and models you want available in the composer. For provider and model mechanics, use Pi's provider and model docs as the source of truth.
 
 Settings separates provider authentication by method:
 
@@ -62,7 +62,7 @@ OpenWaggle is now a UI and product shell over Pi's coding-agent runtime:
 - **Native Pi tools** — file reads, writes, edits, shell commands, and search/listing tools are provided by Pi
 - **Session tree projection** — Pi sessions, nodes, and branches are projected into OpenWaggle's SQLite read model
 - **Skills/resources** — Pi loads `.pi/skills` and `.agents/skills`; OpenWaggle also adds `.openwaggle/skills` to Pi's skill loader and exposes catalog toggles in the UI
-- **Live tool timeline** — OpenWaggle renders the tool events Pi emits without wrapping them in a parallel approval system
+- **Live tool timeline** — OpenWaggle renders the tool events Pi emits as part of the session stream
 
 ### Git Integration
 
@@ -155,7 +155,7 @@ When Waggle Mode is active, the collaboration status bar appears above the compo
 
 ### Tools
 
-The agent can read files, write code, and run shell commands through Pi's native coding-agent tools. OpenWaggle displays those tool calls in the transcript and does not add a separate approval manager or compatibility tool layer.
+The agent can read files, write code, and run shell commands through Pi's native coding-agent tools. OpenWaggle displays those tool calls directly in the transcript.
 
 Pi documents the default built-in tool set and SDK integration points in the [Pi coding-agent README](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/README.md) and [Pi SDK guide](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/sdk.md).
 

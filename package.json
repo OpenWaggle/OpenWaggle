@@ -131,7 +131,6 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-markdown": "^10.1.0",
-    "react-virtuoso": "^4.18.1",
     "react-voice-visualizer": "2.0.8",
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",

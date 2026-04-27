@@ -29,7 +29,7 @@ The command palette can also start a saved Waggle preset.
 
 ## Runtime Behavior
 
-Waggle does not introduce a separate custom approval token, tool runtime, or provider system. Pi executes the native tools for each turn, and OpenWaggle stores Waggle attribution metadata in the session projection. Internal collaboration instructions are written through hidden Pi custom messages, so the transcript shows the user request and agent outputs rather than coordination prompts.
+Waggle uses the same Pi runtime, tool events, provider metadata, and session projection as standard sessions. Pi executes the native tools for each turn, and OpenWaggle stores Waggle attribution metadata in the session projection. Internal collaboration instructions are written through hidden Pi custom messages, so the transcript shows the user request and agent outputs rather than coordination prompts.
 
 ## Synthesis
 

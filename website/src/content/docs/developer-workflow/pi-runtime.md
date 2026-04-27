@@ -18,9 +18,9 @@ When you send a message:
 5. OpenWaggle translates Pi session events into vendor-free `AgentTransportEvent` values for the renderer.
 6. The SQLite projection stores session nodes, branches, and UI read models.
 
-OpenWaggle does not pass an initial custom tool list to Pi and does not wrap Pi tools in a legacy approval layer.
+OpenWaggle lets Pi choose the active runtime tool surface and renders Pi tool events directly in the transcript.
 
-Pi documents the default tool controls in the [coding-agent README](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/README.md#tool-options). Future runtime customization should use Pi-native extension points rather than an OpenWaggle compatibility layer.
+Pi documents the default tool controls in the [coding-agent README](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/README.md#tool-options). Future runtime customization should use Pi-native extension points behind OpenWaggle ports.
 
 ## Tool Surface
 

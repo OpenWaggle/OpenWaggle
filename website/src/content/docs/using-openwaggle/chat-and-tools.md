@@ -39,7 +39,7 @@ Pi owns active tool selection. OpenWaggle does not pass an explicit allowlist to
 | `find` | Find files. |
 | `ls` | List directory contents. |
 
-OpenWaggle does not add a separate approval manager, execution-mode switch, or compatibility tool bridge. Pi owns tool execution; OpenWaggle renders the resulting events.
+Pi owns tool execution. OpenWaggle renders the resulting events directly in the transcript.
 
 ## Command Palette
 

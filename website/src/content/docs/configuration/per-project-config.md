@@ -5,7 +5,7 @@ order: 2
 section: "Configuration"
 ---
 
-OpenWaggle reads project-local configuration from `.openwaggle/settings.json` in the project root.
+OpenWaggle reads project-local, per-user configuration from `.openwaggle/settings.json` in the project root. Keep real settings files gitignored; if shared defaults are needed, commit an explicit non-secret template/default file instead.
 
 ## Settings File
 
@@ -27,12 +27,12 @@ Top-level keys belong to OpenWaggle. Pi runtime settings live under `pi` and use
 }
 ```
 
-The Pi adapter passes only the nested `pi` object to Pi's `SettingsManager`. Pi's project-local `.pi/settings.json` can also be read by the Pi settings loader, but `.openwaggle/settings.json` is the primary OpenWaggle-facing configuration file.
+The Pi adapter passes only the nested `pi` object to Pi's `SettingsManager`. Pi's project-local `.pi/settings.json` can also be read by the Pi settings loader, but both real settings files are local runtime configuration and should stay untracked. `.openwaggle/settings.json` is the primary OpenWaggle-facing configuration file.
 
 ## Thinking Level
 
-The composer thinking level uses Pi-native values: `off`, `minimal`, `low`, `medium`, `high`, and `xhigh`. OpenWaggle stores the selected level and passes it to Pi for each run. It is not a custom OpenWaggle quality preset and does not configure separate temperature, top-p, or max-token values.
+The composer thinking level uses Pi-native values: `off`, `minimal`, `low`, `medium`, `high`, and `xhigh`. OpenWaggle stores the selected level and passes it to Pi for each run.
 
-## Runtime Limits
+## Runtime Settings
 
-The current Pi-native baseline does not include project-local tool trust approvals or a Plan Mode toggle.
+Pi runtime settings belong under the nested `pi` object and follow Pi's JSON setting names.

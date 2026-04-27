@@ -16,4 +16,4 @@ Thinking levels are Pi-native reasoning-depth values:
 
 The composer selector writes the selected level to settings and sends it to Pi when creating the run. Pi applies the level for thinking-capable models.
 
-OpenWaggle no longer supports custom quality tiers, TOML `[quality.*]` sections, or per-project temperature/top-p/max-token overrides. Those fields were legacy OpenWaggle sampling abstractions and are not part of the Pi-native runtime surface.
+OpenWaggle stores and sends the selected Pi thinking level for each run.

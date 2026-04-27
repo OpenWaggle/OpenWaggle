@@ -115,7 +115,7 @@ OpenWaggle is an Electron desktop coding agent with multi-model LLM support. Thr
 
 - **Main** (`src/main/`) — Node.js. Pi runtime adapters, persistence, IPC handlers. Built by `electron-vite` as CJS with ESM interop.
 - **Preload** (`src/preload/`) — Bridge. Exposes typed `api` object via `contextBridge`. Every method maps to a specific IPC channel.
-- **Renderer** (`src/renderer/src/`) — React 19 + Zustand + Tailwind v4. State in two Zustand stores: `chat-store.ts` (conversations, streaming) and `settings-store.ts` (API keys, model selection).
+- **Renderer** (`src/renderer/src/`) — React 19 + Zustand + Tailwind v4. State lives in focused Zustand stores with granular selectors for chat, sessions, settings/preferences, providers, auth, UI, and Waggle state.
 
 ### IPC Type System
 
@@ -142,7 +142,7 @@ Pi SDK imports are confined to `src/main/adapters/pi/`.
 
 ### Pi Native Tool Surface
 
-OpenWaggle does not define an initial custom runtime tool layer. Standard sends call Pi through `AgentKernelService`, and the Pi adapter passes no `tools` / `customTools` unless a future feature intentionally introduces a Pi-native extension. The renderer displays Pi-emitted tool events (`read`, `write`, `edit`, `bash`, search/listing tools) without translating them into legacy OpenWaggle tools or approval gates.
+OpenWaggle does not define an initial custom runtime tool layer. Standard sends call Pi through `AgentKernelService`, and the renderer displays Pi-emitted tool events (`read`, `write`, `edit`, `bash`, search/listing tools) directly.
 
 ### Persistence
 
@@ -151,7 +151,7 @@ OpenWaggle does not define an initial custom runtime tool layer. Standard sends 
 
 ### Model System
 
-`SupportedModelId` is a provider-qualified string in Pi form: `provider/modelId`. Provider/model/auth metadata comes from Pi `ModelRegistry` and `AuthStorage` through the Pi adapter and `ProviderService`; OpenWaggle must not keep hardcoded provider tuples or a parallel provider registry. The renderer fetches grouped model lists dynamically via `providers:get-models` IPC, and the composer shows only the user-enabled model refs.
+`SupportedModelId` is a provider-qualified string in Pi form: `provider/modelId`. Provider/model/auth metadata comes from Pi `ModelRegistry` and `AuthStorage` through the Pi adapter and `ProviderService`. The renderer fetches grouped model lists dynamically via `providers:get-models` IPC, and the composer shows only the user-enabled model refs.
 
 ## Engineering Principles
 
@@ -277,7 +277,7 @@ Rules:
 - **Branded types** (`src/shared/types/brand.ts`): `ConversationId`, `MessageId`, `ToolCallId` prevent accidental ID mixing. Use constructors at boundaries: `ConversationId(uuid())`.
 - **Discriminated unions**: Message parts (`type: 'text' | 'tool-call' | 'tool-result'`), agent events (`type: 'text-delta' | 'tool-call-start' | ...`), stream chunks.
 - **Path aliases**: `@shared/*` → `src/shared/*` (all targets), `@/*` → `src/renderer/src/*` (renderer only).
-- **Provider/model catalog**: Pi `ModelRegistry` and `AuthStorage` are the source of truth. OpenWaggle exposes Pi-derived provider/model/auth state through ports; do not reintroduce an OpenWaggle-owned provider registry.
+- **Provider/model catalog**: Pi `ModelRegistry` and `AuthStorage` are the source of truth. OpenWaggle exposes Pi-derived provider/model/auth state through ports.
 
 ## Electron-Vite Config
 

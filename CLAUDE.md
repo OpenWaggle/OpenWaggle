@@ -126,7 +126,7 @@ OpenWaggle follows **hexagonal architecture** with Effect.ts as the DI backbone.
 | **Adapters** | `src/main/adapters/` | `Layer` implementations wrapping vendor SDKs and infrastructure. |
 | **Application** | `src/main/application/` | Effect.gen programs orchestrating business logic via `yield*` ports. |
 | **Transport** | `src/main/ipc/` | IPC handlers. Thin dispatch + transport coordination. |
-| **Infrastructure** | `src/main/store/`, `src/main/adapters/` | Persistence and vendor/runtime adapters behind ports. Provider/model/auth metadata comes from Pi adapter services, not a parallel OpenWaggle provider registry. |
+| **Infrastructure** | `src/main/store/`, `src/main/adapters/` | Persistence and vendor/runtime adapters behind ports. Provider/model/auth metadata comes from Pi adapter services. |
 
 ### ⛔ Hexagonal Rules (MUST FOLLOW)
 
@@ -260,7 +260,7 @@ Rules:
 - **Branded types** (`src/shared/types/brand.ts`): `ConversationId`, `MessageId`, `ToolCallId` prevent accidental ID mixing. Use constructors at boundaries: `ConversationId(uuid())`.
 - **Discriminated unions**: Message parts (`type: 'text' | 'tool-call' | 'tool-result'`), agent events (`type: 'text-delta' | 'tool-call-start' | ...`), stream chunks.
 - **Path aliases**: `@shared/*` → `src/shared/*` (all targets), `@/*` → `src/renderer/src/*` (renderer only).
-- **Provider/model catalog**: Pi `ModelRegistry` and `AuthStorage` are the source of truth. OpenWaggle exposes Pi-derived provider/model/auth state through ports; do not reintroduce an OpenWaggle-owned provider registry.
+- **Provider/model catalog**: Pi `ModelRegistry` and `AuthStorage` are the source of truth. OpenWaggle exposes Pi-derived provider/model/auth state through ports.
 
 ## Electron-Vite Config
 
