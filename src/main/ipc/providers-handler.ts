@@ -1,55 +1,31 @@
 import { SupportedModelId } from '@shared/types/brand'
 import { generateDisplayName } from '@shared/types/llm'
-import type { Provider } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import { ProviderService } from '../ports/provider-service'
+import { validateProjectPath } from './project-path-validation'
 import { typedHandle } from './typed-ipc'
 
 export function registerProvidersHandlers(): void {
-  typedHandle('providers:get-models', () =>
+  typedHandle('providers:get-models', (_event, projectPath?: string | null) =>
     Effect.gen(function* () {
+      const validatedProjectPath = yield* validateProjectPath(projectPath)
       const providerSvc = yield* ProviderService
-      const providers = yield* providerSvc.getAll()
-      return [...providers].map((p) => ({
-        provider: p.id,
-        displayName: p.displayName,
-        requiresApiKey: p.requiresApiKey,
-        apiKeyManagementUrl: p.apiKeyManagementUrl,
-        supportsBaseUrl: p.supportsBaseUrl,
-        supportsSubscription: p.supportsSubscription,
-        supportsDynamicModelFetch: p.supportsDynamicModelFetch,
-        models: p.models.map((m) => ({
-          id: SupportedModelId(m),
-          name: generateDisplayName(m),
-          provider: p.id,
-          contextWindow: p.getContextWindow?.(m)?.contextTokens,
+      const providers = yield* providerSvc.getAll(validatedProjectPath)
+      return [...providers].map((provider) => ({
+        provider: provider.id,
+        displayName: provider.displayName,
+        apiKeyManagementUrl: provider.apiKeyManagementUrl,
+        auth: provider.auth,
+        models: provider.models.map((model) => ({
+          id: SupportedModelId(model.id),
+          modelId: model.modelId,
+          name: model.name ?? generateDisplayName(model.modelId),
+          provider: provider.id,
+          available: model.available,
+          availableThinkingLevels: model.availableThinkingLevels,
+          contextWindow: model.contextWindow,
         })),
       }))
     }),
-  )
-
-  typedHandle(
-    'providers:fetch-models',
-    (
-      _event,
-      providerId: Provider,
-      baseUrl?: string,
-      apiKey?: string,
-      authMethod?: 'api-key' | 'subscription',
-    ) =>
-      Effect.gen(function* () {
-        const providerSvc = yield* ProviderService
-        const models = yield* providerSvc.fetchModels(providerId, baseUrl, apiKey, authMethod)
-        if (models.length > 0) {
-          yield* providerSvc.indexModels(models, providerId)
-        }
-        const providerInfo = yield* providerSvc.get(providerId)
-        return [...models].map((m) => ({
-          id: SupportedModelId(m),
-          name: generateDisplayName(m),
-          provider: providerId,
-          contextWindow: providerInfo?.getContextWindow?.(m)?.contextTokens,
-        }))
-      }),
   )
 }

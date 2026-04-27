@@ -46,7 +46,7 @@ export const ERROR_CODE_META: Record<AgentErrorCode, ErrorCodeMeta> = {
   },
   'conversation-not-found': {
     userMessage: 'Conversation not found',
-    suggestion: 'The conversation may have been deleted. Start a new thread.',
+    suggestion: 'The session may have been deleted. Start a new session.',
     retryable: false,
   },
   'no-project': {
@@ -61,7 +61,7 @@ export const ERROR_CODE_META: Record<AgentErrorCode, ErrorCodeMeta> = {
   },
   'context-overflow': {
     userMessage: 'Context window exceeded',
-    suggestion: 'The conversation will be compacted automatically.',
+    suggestion: 'Start a new branch or switch to a model with a larger context window.',
     retryable: true,
   },
   unknown: {

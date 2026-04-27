@@ -89,7 +89,7 @@ describe('typedHandle', () => {
 
     const registeredHandler = ipcMainHandleMock.mock.calls[0][1]
     const fakeEvent = { sender: {} }
-    const result = await registeredHandler(fakeEvent, { executionMode: 'default-permissions' })
+    const result = await registeredHandler(fakeEvent, { thinkingLevel: 'medium' })
 
     expect(result).toEqual({ ok: true })
   })
@@ -99,7 +99,7 @@ describe('typedHandle', () => {
       Effect.fail(
         new ValidationIssuesError({
           operation: 'settings:update',
-          issues: ['providers.openai.apiKey: Expected string'],
+          issues: ['selectedModel: Expected string'],
         }),
       ),
     )
@@ -109,7 +109,7 @@ describe('typedHandle', () => {
     const fakeEvent = { sender: {} }
 
     await expect(registeredHandler(fakeEvent, {})).rejects.toThrow(
-      'Invalid arguments for "settings:update": providers.openai.apiKey: Expected string',
+      'Invalid arguments for "settings:update": selectedModel: Expected string',
     )
   })
 })

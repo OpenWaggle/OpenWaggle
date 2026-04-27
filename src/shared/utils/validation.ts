@@ -20,25 +20,8 @@ export function includes<T extends string>(arr: readonly T[], value: string): va
 }
 
 /**
- * Validates that a string is a well-formed base URL with http: or https: protocol.
- * Used for provider baseUrl validation in settings (both read and write paths).
- */
-/**
  * Type guard for plain objects (non-null, non-array).
  */
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-/**
- * Validates that a string is a well-formed base URL with http: or https: protocol.
- * Used for provider baseUrl validation in settings (both read and write paths).
- */
-export function isValidBaseUrl(value: string): boolean {
-  try {
-    const parsed = new URL(value)
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
-  } catch {
-    return false
-  }
 }

@@ -10,7 +10,6 @@ const DATABASE_FILE_NAME = 'openwaggle.db'
 // Not centralized in @shared/constants/ — this is a low-level SQLite driver
 // tuning knob (prepared statement LRU cache), not application-level configuration.
 const SQLITE_PREPARE_CACHE_SIZE = 128
-
 interface AppMigration {
   readonly id: number
   readonly name: string
@@ -30,13 +29,6 @@ const APP_MIGRATIONS: readonly AppMigration[] = [
       )
       `,
       `
-      CREATE TABLE IF NOT EXISTS auth_tokens (
-        provider TEXT PRIMARY KEY,
-        encrypted_value TEXT NOT NULL,
-        updated_at INTEGER NOT NULL
-      )
-      `,
-      `
       CREATE TABLE IF NOT EXISTS team_presets (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -47,170 +39,100 @@ const APP_MIGRATIONS: readonly AppMigration[] = [
         updated_at INTEGER NOT NULL
       )
       `,
+    ],
+  },
+  {
+    id: 5,
+    name: 'pi-session-projection-core',
+    statements: [
       `
-      CREATE TABLE IF NOT EXISTS conversations (
+      CREATE TABLE IF NOT EXISTS sessions (
         id TEXT PRIMARY KEY,
-        title TEXT NOT NULL,
-        model TEXT,
+        pi_session_id TEXT NOT NULL UNIQUE,
+        pi_session_file TEXT,
         project_path TEXT,
+        title TEXT NOT NULL,
         archived INTEGER NOT NULL DEFAULT 0,
         waggle_config_json TEXT,
         created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL
-      )
-      `,
-      `
-      CREATE INDEX IF NOT EXISTS idx_conversations_updated_at
-      ON conversations (updated_at DESC)
-      `,
-      `
-      CREATE TABLE IF NOT EXISTS conversation_messages (
-        id TEXT PRIMARY KEY,
-        conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-        role TEXT NOT NULL,
-        model TEXT,
-        metadata_json TEXT,
-        created_at INTEGER NOT NULL,
-        position INTEGER NOT NULL
-      )
-      `,
-      `
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_conversation_messages_position
-      ON conversation_messages (conversation_id, position)
-      `,
-      `
-      CREATE TABLE IF NOT EXISTS conversation_message_parts (
-        id TEXT PRIMARY KEY,
-        message_id TEXT NOT NULL REFERENCES conversation_messages(id) ON DELETE CASCADE,
-        part_type TEXT NOT NULL,
-        content_json TEXT NOT NULL,
-        position INTEGER NOT NULL
-      )
-      `,
-      `
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_conversation_message_parts_position
-      ON conversation_message_parts (message_id, position)
-      `,
-      `
-      CREATE TABLE IF NOT EXISTS orchestration_events (
-        sequence INTEGER PRIMARY KEY AUTOINCREMENT,
-        event_id TEXT NOT NULL UNIQUE,
-        aggregate_kind TEXT NOT NULL,
-        stream_id TEXT NOT NULL,
-        stream_version INTEGER NOT NULL,
-        event_type TEXT NOT NULL,
-        occurred_at TEXT NOT NULL,
-        command_id TEXT,
-        causation_event_id TEXT,
-        correlation_id TEXT,
-        actor_kind TEXT NOT NULL,
-        payload_json TEXT NOT NULL,
-        metadata_json TEXT NOT NULL
-      )
-      `,
-      `
-      CREATE INDEX IF NOT EXISTS idx_orchestration_events_sequence
-      ON orchestration_events (sequence)
-      `,
-      `
-      CREATE TABLE IF NOT EXISTS provider_session_runtime (
-        thread_id TEXT PRIMARY KEY,
-        provider_name TEXT NOT NULL,
-        adapter_key TEXT NOT NULL,
-        runtime_mode TEXT NOT NULL,
-        status TEXT NOT NULL,
-        last_seen_at TEXT NOT NULL,
-        resume_cursor_json TEXT,
-        runtime_payload_json TEXT
-      )
-      `,
-      `
-      CREATE TABLE IF NOT EXISTS team_runtime_state (
-        project_path TEXT NOT NULL,
-        team_name TEXT NOT NULL,
-        team_config_json TEXT,
-        tasks_json TEXT,
-        pending_messages_json TEXT,
         updated_at INTEGER NOT NULL,
-        PRIMARY KEY (project_path, team_name)
+        last_active_node_id TEXT,
+        last_active_branch_id TEXT
       )
       `,
-    ],
-  },
-  {
-    id: 2,
-    name: 'orchestration-read-models',
-    statements: [
       `
-      CREATE TABLE IF NOT EXISTS orchestration_runs (
-        run_id TEXT PRIMARY KEY,
-        conversation_id TEXT NOT NULL,
-        status TEXT NOT NULL,
-        started_at TEXT NOT NULL,
-        finished_at TEXT,
-        max_parallel_tasks INTEGER,
-        task_order_json TEXT NOT NULL,
-        outputs_json TEXT NOT NULL,
-        fallback_used INTEGER NOT NULL DEFAULT 0,
-        fallback_reason TEXT,
+      CREATE INDEX IF NOT EXISTS idx_sessions_updated_at
+      ON sessions (updated_at DESC)
+      `,
+      `
+      CREATE TABLE IF NOT EXISTS session_nodes (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+        parent_id TEXT REFERENCES session_nodes(id) ON DELETE CASCADE,
+        pi_entry_type TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        role TEXT,
+        timestamp_ms INTEGER NOT NULL,
+        content_json TEXT NOT NULL,
+        metadata_json TEXT NOT NULL,
+        branch_hint_id TEXT,
+        path_depth INTEGER NOT NULL,
+        created_order INTEGER NOT NULL
+      )
+      `,
+      `
+      CREATE INDEX IF NOT EXISTS idx_session_nodes_session_created_order
+      ON session_nodes (session_id, created_order ASC)
+      `,
+      `
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_session_nodes_session_created_order_unique
+      ON session_nodes (session_id, created_order)
+      `,
+      `
+      CREATE TABLE IF NOT EXISTS session_branches (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+        source_node_id TEXT REFERENCES session_nodes(id),
+        head_node_id TEXT REFERENCES session_nodes(id),
+        name TEXT NOT NULL,
+        is_main INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       )
       `,
       `
-      CREATE INDEX IF NOT EXISTS idx_orchestration_runs_conversation_updated_at
-      ON orchestration_runs (conversation_id, updated_at DESC)
+      CREATE INDEX IF NOT EXISTS idx_session_branches_session_updated_at
+      ON session_branches (session_id, updated_at DESC)
       `,
       `
-      CREATE TABLE IF NOT EXISTS orchestration_run_tasks (
-        run_id TEXT NOT NULL REFERENCES orchestration_runs(run_id) ON DELETE CASCADE,
-        task_id TEXT NOT NULL,
-        kind TEXT NOT NULL,
+      CREATE TABLE IF NOT EXISTS session_branch_state (
+        branch_id TEXT PRIMARY KEY REFERENCES session_branches(id) ON DELETE CASCADE,
+        future_mode TEXT NOT NULL,
+        waggle_preset_id TEXT,
+        waggle_config_json TEXT,
+        last_active_at INTEGER NOT NULL,
+        ui_state_json TEXT NOT NULL
+      )
+      `,
+      `
+      CREATE TABLE IF NOT EXISTS session_tree_ui_state (
+        session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+        expanded_node_ids_json TEXT NOT NULL,
+        branches_sidebar_collapsed INTEGER NOT NULL DEFAULT 0,
+        updated_at INTEGER NOT NULL
+      )
+      `,
+      `
+      CREATE TABLE IF NOT EXISTS session_active_runs (
+        run_id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+        branch_id TEXT NOT NULL REFERENCES session_branches(id) ON DELETE CASCADE,
+        run_mode TEXT NOT NULL,
         status TEXT NOT NULL,
-        depends_on_json TEXT NOT NULL,
-        title TEXT,
-        input_json TEXT,
-        output_json TEXT,
-        started_at TEXT,
-        finished_at TEXT,
-        error_code TEXT,
-        error TEXT,
-        retry_json TEXT,
-        attempts_json TEXT,
-        timeout_ms INTEGER,
-        metadata_json TEXT,
-        created_order INTEGER NOT NULL,
-        PRIMARY KEY (run_id, task_id)
+        runtime_json TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
       )
       `,
-      `
-      CREATE INDEX IF NOT EXISTS idx_orchestration_run_tasks_created_order
-      ON orchestration_run_tasks (run_id, created_order ASC)
-      `,
-    ],
-  },
-  {
-    id: 3,
-    name: 'plan-mode-per-conversation',
-    statements: [
-      `ALTER TABLE conversations ADD COLUMN plan_mode_active INTEGER NOT NULL DEFAULT 0`,
-    ],
-  },
-  {
-    id: 4,
-    name: 'context-ux-pinned-context-and-compaction-guidance',
-    statements: [
-      `ALTER TABLE conversations ADD COLUMN compaction_guidance TEXT`,
-      `
-      CREATE TABLE IF NOT EXISTS pinned_context (
-        id TEXT PRIMARY KEY,
-        conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-        type TEXT NOT NULL,
-        content TEXT NOT NULL,
-        message_id TEXT,
-        created_at INTEGER NOT NULL
-      )
-      `,
-      `CREATE INDEX IF NOT EXISTS idx_pinned_context_conversation ON pinned_context(conversation_id)`,
     ],
   },
 ]

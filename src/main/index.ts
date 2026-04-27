@@ -1,14 +1,11 @@
-import { join } from 'node:path'
+import { existsSync } from 'node:fs'
+import { extname, join, posix, resolve, sep } from 'node:path'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
-import { app, BrowserWindow, Menu, shell } from 'electron'
-import { initializeTokenStore } from './auth/token-manager'
-import { startDevtoolsEventBus, stopDevtoolsEventBus } from './devtools/event-bus'
+import { app, BrowserWindow, Menu, protocol, shell } from 'electron'
 import { env } from './env'
 import { persistAllActiveRuns } from './ipc/agent-handler'
 import { cleanupTerminals, registerAllIpcHandlers } from './ipc/handlers'
 import { createLogger, initFileLogger } from './logger'
-import { mcpManager } from './mcp'
-import { registerAllProviders } from './providers'
 import { disposeAppRuntime, initializeAppRuntime, runAppEffect } from './runtime'
 import {
   assertSecureWebPreferences,
@@ -16,10 +13,8 @@ import {
   SECURE_WEB_PREFERENCES,
 } from './security/electron-security'
 import { configureAppStoragePaths } from './session-data'
-import { getSettings, initializeSettingsStore } from './store/settings'
+import { initializeSettingsStore } from './store/settings'
 import { initializeTeamStore } from './store/teams'
-import { registerRunSubAgent } from './sub-agents/facade'
-import { runSubAgent } from './sub-agents/sub-agent-runner'
 import { disposeAutoUpdater, initAutoUpdater } from './updater'
 
 const WIDTH = 1200
@@ -29,13 +24,31 @@ const MIN_HEIGHT = 600
 const X = 16
 const Y = 16
 const FAILURE_EXIT_CODE = 1
-configureAppStoragePaths(app, env.OPENWAGGLE_USER_DATA_DIR)
+const RENDERER_PROTOCOL = 'openwaggle'
+const RENDERER_PROTOCOL_HOST = 'app'
+const RENDERER_PROTOCOL_ORIGIN = `${RENDERER_PROTOCOL}://${RENDERER_PROTOCOL_HOST}`
+const INDEX_HTML = 'index.html'
+const ELECTRON_FILE_NOT_FOUND_ERROR_CODE = -6
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: RENDERER_PROTOCOL,
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+    },
+  },
+])
 
 const appIconPath = is.dev
   ? join(__dirname, '../../build/icon.png')
   : join(process.resourcesPath, 'icon.png')
 const logger = createLogger('main/index')
 let ipcHandlersRegistered = false
+let rendererProtocolRegistered = false
+let beforeQuitCleanupDone = false
 
 function buildApplicationMenu(): void {
   if (process.platform === 'darwin') {
@@ -95,35 +108,110 @@ function registerIpcHandlersOnce(): void {
   registerAllIpcHandlers()
 }
 
-async function bootstrapServicesAndWindow(): Promise<void> {
-  await initializeAppRuntime()
-  await Promise.all([initializeSettingsStore(), initializeTokenStore(), initializeTeamStore()])
+function rendererRootPath(): string {
+  return resolve(__dirname, '../renderer')
+}
 
+function normalizedRendererRequestPath(requestUrl: string): string {
+  const url = new URL(requestUrl)
+  return posix.normalize(decodeURIComponent(url.pathname)).replace(/^\/+/, '')
+}
+
+function isRendererStaticAssetRequest(requestUrl: string): boolean {
   try {
-    await Promise.all([registerAllProviders(), startDevtoolsEventBus()])
-  } catch (error) {
-    logger.error(
-      'Provider or devtools bootstrap failed; continuing with degraded startup',
-      describeError(error),
-    )
+    return extname(normalizedRendererRequestPath(requestUrl)).length > 0
+  } catch {
+    return false
+  }
+}
+
+function isRendererIndexRequest(requestUrl: string): boolean {
+  try {
+    const normalizedPath = normalizedRendererRequestPath(requestUrl)
+    return normalizedPath.length === 0 || normalizedPath === INDEX_HTML
+  } catch {
+    return false
+  }
+}
+
+function resolveRendererFilePath(rendererRoot: string, requestUrl: string): string {
+  const indexPath = join(rendererRoot, INDEX_HTML)
+  const url = new URL(requestUrl)
+
+  if (url.host !== RENDERER_PROTOCOL_HOST) {
+    return indexPath
   }
 
+  const normalizedPath = normalizedRendererRequestPath(requestUrl)
+  if (normalizedPath.includes('..')) {
+    return indexPath
+  }
+
+  const requestedPath = normalizedPath.length > 0 ? normalizedPath : INDEX_HTML
+  const candidatePath = resolve(rendererRoot, requestedPath)
+  const rendererRootPrefix = `${rendererRoot}${sep}`
+  const isInsideRendererRoot =
+    candidatePath === rendererRoot || candidatePath.startsWith(rendererRootPrefix)
+
+  if (isInsideRendererRoot && existsSync(candidatePath)) {
+    return candidatePath
+  }
+
+  return indexPath
+}
+
+function devRendererUrl(): string | null {
+  return is.dev && env.ELECTRON_RENDERER_URL ? env.ELECTRON_RENDERER_URL : null
+}
+
+function registerRendererProtocolOnce(): void {
+  if (rendererProtocolRegistered || devRendererUrl() !== null) {
+    return
+  }
+
+  rendererProtocolRegistered = true
+  const rendererRoot = rendererRootPath()
+  const indexPath = join(rendererRoot, INDEX_HTML)
+
+  protocol.registerFileProtocol(RENDERER_PROTOCOL, (request, callback) => {
+    try {
+      const candidatePath = resolveRendererFilePath(rendererRoot, request.url)
+      const isAssetRequest = isRendererStaticAssetRequest(request.url)
+      if (isAssetRequest && candidatePath === indexPath && !isRendererIndexRequest(request.url)) {
+        callback({ error: ELECTRON_FILE_NOT_FOUND_ERROR_CODE })
+        return
+      }
+      callback({ path: candidatePath })
+    } catch {
+      callback({ path: indexPath })
+    }
+  })
+}
+
+async function bootstrapServicesAndWindow(): Promise<void> {
+  await initializeAppRuntime()
+  await Promise.all([initializeSettingsStore(), initializeTeamStore()])
+
   registerIpcHandlersOnce()
+  registerRendererProtocolOnce()
   createWindow()
   initAutoUpdater()
+}
 
-  // MCP connects in background — not needed for initial render
-  const settings = getSettings()
-  mcpManager.initialize(settings.mcpServers).catch((error: unknown) => {
-    logger.error(
-      'MCP initialization failed; continuing without MCP connectivity',
-      describeError(error),
+function isTrustedRendererProtocolRequest(url: string): boolean {
+  try {
+    const parsedUrl = new URL(url)
+    return (
+      parsedUrl.protocol === `${RENDERER_PROTOCOL}:` && parsedUrl.host === RENDERER_PROTOCOL_HOST
     )
-  })
+  } catch {
+    return false
+  }
 }
 
 function isTrustedRendererRequest(url: string): boolean {
   if (url.startsWith('file://')) return true
+  if (isTrustedRendererProtocolRequest(url)) return true
   if (!env.ELECTRON_RENDERER_URL) return false
 
   try {
@@ -171,7 +259,8 @@ function createWindow(): void {
   })
 
   // Prevent in-app navigation — all external URLs open in the user's default browser
-  const rendererOrigin = is.dev && env.ELECTRON_RENDERER_URL ? env.ELECTRON_RENDERER_URL : 'file://'
+  const rendererOrigin =
+    is.dev && env.ELECTRON_RENDERER_URL ? env.ELECTRON_RENDERER_URL : RENDERER_PROTOCOL_ORIGIN
   mainWindow.webContents.on('will-navigate', (event, url) => {
     if (!url.startsWith(rendererOrigin)) {
       event.preventDefault()
@@ -196,73 +285,100 @@ function createWindow(): void {
     },
   )
 
-  if (is.dev && env.ELECTRON_RENDERER_URL) {
-    mainWindow.loadURL(env.ELECTRON_RENDERER_URL)
+  const rendererDevUrl = devRendererUrl()
+  if (rendererDevUrl !== null) {
+    mainWindow.loadURL(rendererDevUrl)
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    mainWindow.loadURL(`${RENDERER_PROTOCOL_ORIGIN}/${INDEX_HTML}`)
   }
 }
 
-app
-  .whenReady()
-  .then(() => {
-    electronApp.setAppUserModelId('com.openwaggle.app')
-    if (process.platform === 'darwin') {
-      app.dock?.setIcon(appIconPath)
+function focusExistingWindow(): void {
+  const existingWindow = BrowserWindow.getAllWindows()[0]
+  if (!existingWindow) {
+    return
+  }
+
+  if (existingWindow.isMinimized()) {
+    existingWindow.restore()
+  }
+
+  existingWindow.show()
+  existingWindow.focus()
+}
+
+function registerAppLifecycle(): void {
+  app
+    .whenReady()
+    .then(() => {
+      electronApp.setAppUserModelId('com.openwaggle.app')
+      if (process.platform === 'darwin') {
+        app.dock?.setIcon(appIconPath)
+      }
+
+      app.on('browser-window-created', (_, window) => {
+        optimizer.watchWindowShortcuts(window)
+      })
+
+      buildApplicationMenu()
+
+      // Initialize file logger now that app paths are available
+      void initFileLogger(app.getPath('logs'))
+
+      void bootstrapServicesAndWindow().catch((error: unknown) => {
+        logger.error('Bootstrap failed; quitting for safety', describeError(error))
+        app.exit(FAILURE_EXIT_CODE)
+      })
+
+      app.on('activate', () => {
+        if (BrowserWindow.getAllWindows().length === 0) createWindow()
+      })
+
+      app.on('will-quit', () => {
+        void disposeAppRuntime()
+      })
+    })
+    .catch((error: unknown) => {
+      logger.error('App startup failed before ready', describeError(error))
+    })
+
+  app.on('window-all-closed', () => {
+    cleanupTerminals()
+    if (process.platform !== 'darwin') {
+      app.quit()
     }
-
-    app.on('browser-window-created', (_, window) => {
-      optimizer.watchWindowShortcuts(window)
-    })
-
-    buildApplicationMenu()
-
-    // Initialize file logger now that app paths are available
-    void initFileLogger(app.getPath('logs'))
-
-    // Late-bind runSubAgent to break spawn-agent → sub-agent-runner cycle
-    registerRunSubAgent(runSubAgent)
-
-    void bootstrapServicesAndWindow().catch((error: unknown) => {
-      logger.error('Bootstrap failed; quitting for safety', describeError(error))
-      app.exit(FAILURE_EXIT_CODE)
-    })
-
-    app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) createWindow()
-    })
-
-    app.on('will-quit', () => {
-      void disposeAppRuntime()
-    })
-  })
-  .catch((error: unknown) => {
-    logger.error('App startup failed before ready', describeError(error))
   })
 
-let mcpCleanupDone = false
+  app.on('before-quit', (e) => {
+    disposeAutoUpdater()
+    if (!beforeQuitCleanupDone) {
+      e.preventDefault()
+      runAppEffect(persistAllActiveRuns())
+        .then(() => {
+          beforeQuitCleanupDone = true
+          app.quit()
+        })
+        .catch(() => {
+          beforeQuitCleanupDone = true
+          app.quit()
+        })
+    }
+  })
+}
 
-app.on('window-all-closed', () => {
-  cleanupTerminals()
-  if (process.platform !== 'darwin') {
-    app.quit()
-  }
-})
+function startApp(): void {
+  configureAppStoragePaths(app, env.OPENWAGGLE_USER_DATA_DIR)
 
-app.on('before-quit', (e) => {
-  stopDevtoolsEventBus()
-  disposeAutoUpdater()
-  if (!mcpCleanupDone) {
-    e.preventDefault()
-    runAppEffect(persistAllActiveRuns())
-      .then(() => mcpManager.disconnectAll())
-      .then(() => {
-        mcpCleanupDone = true
-        app.quit()
-      })
-      .catch(() => {
-        mcpCleanupDone = true
-        app.quit()
-      })
+  if (env.OPENWAGGLE_DISABLE_SINGLE_INSTANCE !== '1') {
+    if (!app.requestSingleInstanceLock()) {
+      logger.warn('Another OpenWaggle instance is already running; quitting this instance')
+      app.quit()
+      return
+    }
+    app.on('second-instance', focusExistingWindow)
   }
-})
+
+  registerAppLifecycle()
+}
+
+startApp()

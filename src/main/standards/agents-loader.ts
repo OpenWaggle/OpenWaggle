@@ -8,7 +8,7 @@ export interface LoadedAgentsInstruction {
   readonly error?: string
 }
 
-export async function loadAgentsInstruction(
+export async function loadProjectAgentsInstruction(
   projectPath: string | null,
 ): Promise<LoadedAgentsInstruction> {
   if (!projectPath) {

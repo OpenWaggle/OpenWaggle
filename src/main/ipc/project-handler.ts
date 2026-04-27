@@ -1,11 +1,15 @@
+import { safeDecodeUnknown } from '@shared/schema'
+import { projectPreferencesSchema } from '@shared/schemas/validation'
+import { THINKING_LEVELS } from '@shared/types/settings'
+import { includes } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
 import { BrowserWindow, dialog, type OpenDialogOptions } from 'electron'
 import {
   getProjectPreferences,
-  isProjectToolCallTrusted,
-  recordToolCallApproval,
+  type ProjectPreferences,
   setProjectPreferences,
 } from '../config/project-config'
+import { validateProjectPath } from './project-path-validation'
 import { typedHandle } from './typed-ipc'
 
 function createProjectFolderDialogOptions(): OpenDialogOptions {
@@ -13,6 +17,39 @@ function createProjectFolderDialogOptions(): OpenDialogOptions {
     properties: ['openDirectory'],
     title: 'Select Project Folder',
   }
+}
+
+function isCanonicalModelRef(value: string): boolean {
+  const trimmed = value.trim()
+  if (!trimmed || trimmed.startsWith('/') || trimmed.endsWith('/')) {
+    return false
+  }
+  return trimmed.includes('/')
+}
+
+function validateProjectPreferences(
+  preferences: unknown,
+): Effect.Effect<ProjectPreferences, Error> {
+  const result = safeDecodeUnknown(projectPreferencesSchema, preferences)
+  if (!result.success) {
+    return Effect.fail(new Error(`Invalid project preferences: ${result.issues.join('; ')}`))
+  }
+
+  const model = result.data.model?.trim()
+  if (model !== undefined && !isCanonicalModelRef(model)) {
+    return Effect.fail(new Error('Project preference model must be a provider/model ref.'))
+  }
+
+  const { thinkingLevel } = result.data
+  if (thinkingLevel !== undefined && !includes(THINKING_LEVELS, thinkingLevel)) {
+    return Effect.fail(new Error('Project preference thinking level is invalid.'))
+  }
+
+  const validatedPreferences: ProjectPreferences = {
+    ...(model !== undefined ? { model } : {}),
+    ...(thinkingLevel !== undefined ? { thinkingLevel } : {}),
+  }
+  return Effect.succeed(validatedPreferences)
 }
 
 export function registerProjectHandlers(): void {
@@ -34,28 +71,26 @@ export function registerProjectHandlers(): void {
     }),
   )
 
-  typedHandle(
-    'project-config:is-tool-call-trusted',
-    (_event, projectPath: string, toolName, rawArgs: string) =>
-      Effect.promise(() => isProjectToolCallTrusted(projectPath, toolName, rawArgs)),
-  )
-
-  typedHandle(
-    'project-config:record-tool-approval',
-    (_event, projectPath: string, toolName, rawArgs: string) =>
-      Effect.promise(() =>
-        recordToolCallApproval(projectPath, toolName, rawArgs, 'tool-approval'),
-      ).pipe(Effect.asVoid),
-  )
-
   typedHandle('project-config:get-preferences', (_event, projectPath: string) =>
-    Effect.promise(() => getProjectPreferences(projectPath)).pipe(
-      Effect.map((prefs) => prefs ?? null),
-    ),
+    Effect.gen(function* () {
+      const validatedProjectPath = yield* validateProjectPath(projectPath)
+      if (!validatedProjectPath) {
+        return null
+      }
+      const prefs = yield* Effect.promise(() => getProjectPreferences(validatedProjectPath))
+      return prefs ?? null
+    }),
   )
 
   typedHandle('project-config:set-preferences', (_event, projectPath: string, preferences) =>
-    Effect.promise(() => setProjectPreferences(projectPath, preferences)),
+    Effect.gen(function* () {
+      const validatedProjectPath = yield* validateProjectPath(projectPath)
+      if (!validatedProjectPath) {
+        return yield* Effect.fail(new Error('Project path is required.'))
+      }
+      const validatedPreferences = yield* validateProjectPreferences(preferences)
+      yield* Effect.promise(() => setProjectPreferences(validatedProjectPath, validatedPreferences))
+    }),
   )
 
   typedHandle('dialog:confirm', (_event, message: string, detail?: string) =>

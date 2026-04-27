@@ -5,16 +5,14 @@ const {
   typedHandleMock,
   getSettingsMock,
   updateSettingsMock,
-  providerRegistryGetMock,
-  startChatStreamMock,
-  createChatAdapterMock,
+  providerServiceGetMock,
+  probeCredentialsMock,
 } = vi.hoisted(() => ({
   typedHandleMock: vi.fn(),
   getSettingsMock: vi.fn(),
   updateSettingsMock: vi.fn(),
-  providerRegistryGetMock: vi.fn(),
-  startChatStreamMock: vi.fn(),
-  createChatAdapterMock: vi.fn(),
+  providerServiceGetMock: vi.fn(),
+  probeCredentialsMock: vi.fn(),
 }))
 
 vi.mock('../typed-ipc', () => ({
@@ -24,20 +22,6 @@ vi.mock('../typed-ipc', () => ({
 vi.mock('../../store/settings', () => ({
   getSettings: getSettingsMock,
   updateSettings: updateSettingsMock,
-}))
-
-vi.mock('../../providers', () => ({
-  providerRegistry: {
-    get: providerRegistryGetMock,
-  },
-}))
-
-vi.mock('../../adapters/tanstack-chat-adapter', () => ({
-  startChatStream: startChatStreamMock,
-}))
-
-vi.mock('../../ports/chat-adapter-type', () => ({
-  wrapChatAdapter: vi.fn((inner: unknown) => ({ _inner: inner })),
 }))
 
 vi.mock('../../logger', () => ({
@@ -51,8 +35,7 @@ vi.mock('../../logger', () => ({
 
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { Layer } from 'effect'
-import { ChatStreamError, ProviderLookupError } from '../../errors'
-import { ChatService } from '../../ports/chat-service'
+import { ProviderProbeService } from '../../ports/provider-probe-service'
 import { ProviderService } from '../../ports/provider-service'
 import { SettingsService } from '../../services/settings-service'
 import { registerSettingsHandlers } from '../settings-handler'
@@ -60,54 +43,30 @@ import { registerSettingsHandlers } from '../settings-handler'
 const TestSettingsLayer = Layer.succeed(SettingsService, {
   get: () => Effect.sync(() => getSettingsMock()),
   update: (partial) => Effect.sync(() => updateSettingsMock(partial)),
-  transformMcpServers: () => Effect.void,
   initialize: () => Effect.void,
   flushForTests: () => Effect.void,
 })
 
 const TestProviderServiceLayer = Layer.succeed(ProviderService, {
-  get: (providerId) => Effect.sync(() => providerRegistryGetMock(providerId)),
+  get: (providerId) => Effect.sync(() => providerServiceGetMock(providerId)),
   getAll: () => Effect.succeed([]),
-  getProviderForModel: () => Effect.succeed({} as never),
+  getProviderForModel: () => Effect.dieMessage('not used by settings handler tests'),
   isKnownModel: () => Effect.succeed(true),
-  createChatAdapter: (model, apiKey, baseUrl, authMethod) =>
-    Effect.try({
-      try: () => createChatAdapterMock(model, apiKey, baseUrl, authMethod),
-      catch: () => new ProviderLookupError({ modelId: model }),
-    }),
-  indexModels: () => Effect.void,
-  fetchModels: () => Effect.succeed([]),
 })
 
-const TestChatServiceLayer = Layer.succeed(ChatService, {
-  stream: () =>
-    Effect.succeed(
-      (async function* emptyStream() {
-        /* empty */
-      })(),
-    ),
-  testConnection: (options) =>
+const TestProviderProbeLayer = Layer.succeed(ProviderProbeService, {
+  probeCredentials: (input) =>
     Effect.tryPromise({
-      try: async () => {
-        const stream = startChatStreamMock({
-          adapter: options.adapter,
-          messages: [{ role: 'user', content: 'Hi' }],
-        })
-        for await (const chunk of stream) {
-          if (chunk.type === 'RUN_ERROR') throw new Error(chunk.error.message)
-          if (chunk.type === 'RUN_FINISHED') return
-        }
-        throw new Error('Connection closed before completion')
-      },
-      catch: (cause) =>
-        new ChatStreamError({
-          message: cause instanceof Error ? cause.message : String(cause),
-          cause,
-        }),
+      try: () => Promise.resolve(probeCredentialsMock(input)),
+      catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
     }),
 })
 
-const TestLayer = Layer.mergeAll(TestSettingsLayer, TestProviderServiceLayer, TestChatServiceLayer)
+const TestLayer = Layer.mergeAll(
+  TestSettingsLayer,
+  TestProviderServiceLayer,
+  TestProviderProbeLayer,
+)
 
 function getTypedEffectInvokeHandler(
   name: string,
@@ -128,9 +87,8 @@ describe('registerSettingsHandlers', () => {
     typedHandleMock.mockReset()
     getSettingsMock.mockReset()
     updateSettingsMock.mockReset()
-    providerRegistryGetMock.mockReset()
-    startChatStreamMock.mockReset()
-    createChatAdapterMock.mockReset()
+    providerServiceGetMock.mockReset()
+    probeCredentialsMock.mockReset()
   })
 
   it('registers all expected IPC channels', () => {
@@ -167,16 +125,14 @@ describe('registerSettingsHandlers', () => {
       expect(handler).toBeDefined()
 
       const payload = {
-        executionMode: 'full-access',
-        qualityPreset: 'high',
+        thinkingLevel: 'high',
       }
       const result = await handler?.({}, payload)
       expect(result).toEqual({ ok: true })
       expect(updateSettingsMock).toHaveBeenCalledOnce()
       expect(updateSettingsMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          executionMode: 'full-access',
-          qualityPreset: 'high',
+          thinkingLevel: 'high',
         }),
       )
     })
@@ -188,7 +144,7 @@ describe('registerSettingsHandlers', () => {
       expect(handler).toBeDefined()
 
       const payload = {
-        executionMode: 'invalid-mode',
+        thinkingLevel: 'invalid-mode',
       }
       const result = await handler?.({}, payload)
       expect(result).toEqual({
@@ -198,90 +154,48 @@ describe('registerSettingsHandlers', () => {
       expect(updateSettingsMock).not.toHaveBeenCalled()
     })
 
-    it('converts selectedModel string to SupportedModelId', async () => {
+    it('converts selectedModel canonical ref to SupportedModelId', async () => {
       registerSettingsHandlers()
 
       const handler = getTypedEffectInvokeHandler('settings:update')
       expect(handler).toBeDefined()
 
-      const payload = { selectedModel: 'gpt-4.1-mini' }
+      const payload = { selectedModel: 'openai/gpt-4.1-mini' }
       await handler?.({}, payload)
 
       expect(updateSettingsMock).toHaveBeenCalledOnce()
       const call = updateSettingsMock.mock.calls[0][0]
       // The branded type is still a string at runtime
-      expect(call.selectedModel).toBe('gpt-4.1-mini')
+      expect(call.selectedModel).toBe('openai/gpt-4.1-mini')
     })
 
-    it('converts favoriteModels strings to SupportedModelId array', async () => {
+    it('passes empty selectedModel through so the settings store can clear stale selections', async () => {
+      registerSettingsHandlers()
+
+      const handler = getTypedEffectInvokeHandler('settings:update')
+      expect(handler).toBeDefined()
+
+      await handler?.({}, { selectedModel: '' })
+
+      expect(updateSettingsMock).toHaveBeenCalledOnce()
+      const call = updateSettingsMock.mock.calls[0][0]
+      expect(call.selectedModel).toBe('')
+    })
+
+    it('converts favoriteModels canonical refs to SupportedModelId array', async () => {
       registerSettingsHandlers()
 
       const handler = getTypedEffectInvokeHandler('settings:update')
       expect(handler).toBeDefined()
 
       const payload = {
-        favoriteModels: ['claude-sonnet-4-5', 'gpt-4.1-mini'],
+        favoriteModels: ['anthropic/claude-sonnet-4-5', 'openai/gpt-4.1-mini'],
       }
       await handler?.({}, payload)
 
       expect(updateSettingsMock).toHaveBeenCalledOnce()
       const call = updateSettingsMock.mock.calls[0][0]
-      expect(call.favoriteModels).toEqual(['claude-sonnet-4-5', 'gpt-4.1-mini'])
-    })
-
-    it('validates provider configs within the update', async () => {
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:update')
-      expect(handler).toBeDefined()
-
-      const payload = {
-        providers: {
-          anthropic: { apiKey: 'sk-test-key', enabled: true },
-        },
-      }
-      const result = await handler?.({}, payload)
-      expect(result).toEqual({ ok: true })
-      expect(updateSettingsMock).toHaveBeenCalledOnce()
-    })
-
-    it('rejects invalid provider baseUrl', async () => {
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:update')
-      expect(handler).toBeDefined()
-
-      const payload = {
-        providers: {
-          anthropic: {
-            apiKey: 'sk-test',
-            baseUrl: 'not-a-url',
-            enabled: true,
-          },
-        },
-      }
-      const result = await handler?.({}, payload)
-      expect(result).toEqual({
-        ok: false,
-        error: expect.any(String),
-      })
-      expect(updateSettingsMock).not.toHaveBeenCalled()
-    })
-
-    it('allows empty string baseUrl (coerced to undefined)', async () => {
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:update')
-      expect(handler).toBeDefined()
-
-      const payload = {
-        providers: {
-          anthropic: { apiKey: 'sk-test', baseUrl: '', enabled: true },
-        },
-      }
-      const result = await handler?.({}, payload)
-      expect(result).toEqual({ ok: true })
-      expect(updateSettingsMock).toHaveBeenCalledOnce()
+      expect(call.favoriteModels).toEqual(['anthropic/claude-sonnet-4-5', 'openai/gpt-4.1-mini'])
     })
 
     it('accepts projectPath as null', async () => {
@@ -317,7 +231,7 @@ describe('registerSettingsHandlers', () => {
 
   describe('settings:test-api-key', () => {
     it('returns error for unknown provider', async () => {
-      providerRegistryGetMock.mockReturnValue(undefined)
+      providerServiceGetMock.mockReturnValue(undefined)
       registerSettingsHandlers()
 
       const handler = getTypedEffectInvokeHandler('settings:test-api-key')
@@ -328,213 +242,128 @@ describe('registerSettingsHandlers', () => {
         success: false,
         error: 'Unknown provider: nonexistent',
       })
+      expect(probeCredentialsMock).not.toHaveBeenCalled()
     })
 
-    it('returns success for provider that does not require API key and has no fetchModels', async () => {
-      providerRegistryGetMock.mockReturnValue({
-        id: 'ollama',
-        requiresApiKey: false,
-      })
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:test-api-key')
-      const result = await handler?.({}, 'ollama', '')
-      expect(result).toEqual({ success: true })
-    })
-
-    it('tests connectivity for provider with fetchModels (success with models)', async () => {
-      providerRegistryGetMock.mockReturnValue({
-        id: 'ollama',
-        requiresApiKey: false,
-        fetchModels: vi.fn().mockResolvedValue(['llama3', 'codellama']),
-      })
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:test-api-key')
-      const result = await handler?.({}, 'ollama', '', 'http://localhost:11434')
-      expect(result).toEqual({ success: true })
-    })
-
-    it('returns success for keyless provider even when fetchModels returns empty list', async () => {
-      providerRegistryGetMock.mockReturnValue({
-        id: 'ollama',
-        requiresApiKey: false,
-        fetchModels: vi.fn().mockResolvedValue([]),
-      })
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:test-api-key')
-      const result = await handler?.({}, 'ollama', '')
-      expect(result).toEqual({ success: true })
-    })
-
-    it('returns success for keyless provider even when fetchModels throws', async () => {
-      providerRegistryGetMock.mockReturnValue({
-        id: 'ollama',
-        requiresApiKey: false,
-        fetchModels: vi.fn().mockRejectedValue(new Error('ECONNREFUSED')),
-      })
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:test-api-key')
-      const result = await handler?.({}, 'ollama', '')
-      expect(result).toEqual({ success: true })
-    })
-
-    it('tests API key by streaming a chat message (success path)', async () => {
-      const mockAdapter = { id: 'mock-adapter' }
-      createChatAdapterMock.mockReturnValue(mockAdapter)
-      providerRegistryGetMock.mockReturnValue({
+    it('returns success when the probe succeeds', async () => {
+      providerServiceGetMock.mockReturnValue({
         id: 'anthropic',
-        requiresApiKey: true,
-        testModel: 'claude-haiku-3.5',
-        createAdapter: vi.fn().mockReturnValue(mockAdapter),
-      })
+        displayName: 'Anthropic',
 
-      // Simulate an async iterable stream that yields RUN_FINISHED
-      const streamChunks = [{ type: 'RUN_FINISHED', finishReason: 'stop' }]
-      startChatStreamMock.mockReturnValue({
-        [Symbol.asyncIterator]: () => {
-          let index = 0
-          return {
-            next: async () => {
-              if (index < streamChunks.length) {
-                return { value: streamChunks[index++], done: false }
-              }
-              return { value: undefined, done: true }
-            },
-          }
+        auth: {
+          configured: false,
+          source: 'none',
+          apiKeyConfigured: false,
+          apiKeySource: 'none',
+          oauthConnected: false,
+          supportsApiKey: true,
+          supportsOAuth: true,
         },
+        models: [],
+        testModel: 'claude-haiku-3.5',
       })
-
+      probeCredentialsMock.mockResolvedValue(undefined)
       registerSettingsHandlers()
 
       const handler = getTypedEffectInvokeHandler('settings:test-api-key')
       const result = await handler?.({}, 'anthropic', 'sk-ant-test-key')
+
       expect(result).toEqual({ success: true })
-      expect(startChatStreamMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          messages: [{ role: 'user', content: 'Hi' }],
-        }),
-      )
+      expect(probeCredentialsMock).toHaveBeenCalledWith({
+        providerId: 'anthropic',
+        modelId: 'claude-haiku-3.5',
+        apiKey: 'sk-ant-test-key',
+      })
     })
 
-    it('tests API key and returns error when stream yields RUN_ERROR', async () => {
-      createChatAdapterMock.mockReturnValue({})
-      providerRegistryGetMock.mockReturnValue({
-        id: 'anthropic',
-        requiresApiKey: true,
-        testModel: 'claude-haiku-3.5',
-      })
+    it('normalizes empty API keys to undefined for keyless probes', async () => {
+      providerServiceGetMock.mockReturnValue({
+        id: 'ollama',
+        displayName: 'Ollama',
 
-      const streamChunks = [
-        {
-          type: 'RUN_ERROR',
-          error: { message: 'Invalid API key' },
+        auth: {
+          configured: false,
+          source: 'none',
+          apiKeyConfigured: false,
+          apiKeySource: 'none',
+          oauthConnected: false,
+          supportsApiKey: true,
+          supportsOAuth: false,
         },
-      ]
-      startChatStreamMock.mockReturnValue({
-        [Symbol.asyncIterator]: () => {
-          let index = 0
-          return {
-            next: async () => {
-              if (index < streamChunks.length) {
-                return { value: streamChunks[index++], done: false }
-              }
-              return { value: undefined, done: true }
-            },
-          }
-        },
+        models: [],
+        testModel: 'llama3.2',
       })
-
+      probeCredentialsMock.mockResolvedValue(undefined)
       registerSettingsHandlers()
 
       const handler = getTypedEffectInvokeHandler('settings:test-api-key')
-      const result = await handler?.({}, 'anthropic', 'bad-key')
+      const result = await handler?.({}, 'ollama', '')
+
+      expect(result).toEqual({ success: true })
+      expect(probeCredentialsMock).toHaveBeenCalledWith({
+        providerId: 'ollama',
+        modelId: 'llama3.2',
+        apiKey: undefined,
+      })
+    })
+
+    it('tests the selected provider with the supplied API key only', async () => {
+      providerServiceGetMock.mockReturnValue({
+        id: 'openai',
+        displayName: 'OpenAI',
+
+        auth: {
+          configured: false,
+          source: 'none',
+          apiKeyConfigured: false,
+          apiKeySource: 'none',
+          oauthConnected: false,
+          supportsApiKey: true,
+          supportsOAuth: true,
+        },
+        models: [],
+        testModel: 'gpt-4.1-mini',
+      })
+      probeCredentialsMock.mockResolvedValue(undefined)
+      registerSettingsHandlers()
+
+      const handler = getTypedEffectInvokeHandler('settings:test-api-key')
+      await handler?.({}, 'openai', 'token')
+
+      expect(probeCredentialsMock).toHaveBeenCalledWith({
+        providerId: 'openai',
+        modelId: 'gpt-4.1-mini',
+        apiKey: 'token',
+      })
+    })
+
+    it('returns a structured failure when the probe throws', async () => {
+      providerServiceGetMock.mockReturnValue({
+        id: 'gemini',
+        displayName: 'Gemini',
+
+        auth: {
+          configured: false,
+          source: 'none',
+          apiKeyConfigured: false,
+          apiKeySource: 'none',
+          oauthConnected: false,
+          supportsApiKey: true,
+          supportsOAuth: false,
+        },
+        models: [],
+        testModel: 'gemini-2.5-flash',
+      })
+      probeCredentialsMock.mockRejectedValue(new Error('Invalid API key'))
+      registerSettingsHandlers()
+
+      const handler = getTypedEffectInvokeHandler('settings:test-api-key')
+      const result = await handler?.({}, 'gemini', 'bad-key')
+
       expect(result).toEqual({
         success: false,
         error: 'Invalid API key',
       })
-    })
-
-    it('returns error when stream closes without RUN_FINISHED or RUN_ERROR', async () => {
-      createChatAdapterMock.mockReturnValue({})
-      providerRegistryGetMock.mockReturnValue({
-        id: 'anthropic',
-        requiresApiKey: true,
-        testModel: 'claude-haiku-3.5',
-      })
-
-      // Stream that yields TEXT_MESSAGE_CONTENT but never finishes
-      const streamChunks = [{ type: 'TEXT_MESSAGE_CONTENT', content: 'Hello' }]
-      startChatStreamMock.mockReturnValue({
-        [Symbol.asyncIterator]: () => {
-          let index = 0
-          return {
-            next: async () => {
-              if (index < streamChunks.length) {
-                return { value: streamChunks[index++], done: false }
-              }
-              return { value: undefined, done: true }
-            },
-          }
-        },
-      })
-
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:test-api-key')
-      const result = await handler?.({}, 'anthropic', 'sk-key')
-      expect(result).toEqual({
-        success: false,
-        error: 'Connection closed before completion',
-      })
-    })
-
-    it('propagates adapter creation failures as ChatStreamError', async () => {
-      createChatAdapterMock.mockImplementation(() => {
-        throw new Error('Adapter creation failed')
-      })
-      providerRegistryGetMock.mockReturnValue({
-        id: 'anthropic',
-        requiresApiKey: true,
-        testModel: 'claude-haiku-3.5',
-      })
-
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:test-api-key')
-      await expect(handler?.({}, 'anthropic', 'sk-key')).rejects.toThrow(/Failed to create adapter/)
-    })
-
-    it('passes baseUrl to createChatAdapter when provided', async () => {
-      createChatAdapterMock.mockReturnValue({})
-      providerRegistryGetMock.mockReturnValue({
-        id: 'openai',
-        requiresApiKey: true,
-        testModel: 'gpt-4.1-mini',
-      })
-
-      startChatStreamMock.mockReturnValue({
-        [Symbol.asyncIterator]: () => ({
-          next: async () => ({
-            value: { type: 'RUN_FINISHED' },
-            done: false,
-          }),
-        }),
-      })
-
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:test-api-key')
-      await handler?.({}, 'openai', 'sk-key', 'https://custom.api.com')
-
-      expect(createChatAdapterMock).toHaveBeenCalledWith(
-        'gpt-4.1-mini',
-        'sk-key',
-        'https://custom.api.com',
-        undefined,
-      )
     })
   })
 })

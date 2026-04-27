@@ -1,88 +1,33 @@
 import * as SqlClient from '@effect/sql/SqlClient'
 import { BASE_TEN, PERCENT_BASE } from '@shared/constants/math'
-import { Schema, safeDecodeUnknown } from '@shared/schema'
-import { AUTH_METHODS } from '@shared/types/auth'
-import { McpServerId, SupportedModelId } from '@shared/types/brand'
-import type { McpServerConfig } from '@shared/types/mcp'
-import { mcpServerConfigSchema } from '@shared/types/mcp'
+import { SupportedModelId } from '@shared/types/brand'
+import { parseModelRef } from '@shared/types/llm'
 import {
   DEFAULT_SETTINGS,
-  EXECUTION_MODES,
-  type ExecutionMode,
-  PROVIDERS,
-  type Provider,
-  type ProviderConfig,
-  QUALITY_PRESETS,
-  type QualityPreset,
   type Settings,
+  THINKING_LEVELS,
+  type ThinkingLevel,
 } from '@shared/types/settings'
-import { includes, isValidBaseUrl } from '@shared/utils/validation'
+import { includes } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
-import { safeStorage } from 'electron'
 import { createLogger } from '../logger'
-import { providerRegistry } from '../providers'
 import { runAppEffect } from '../runtime'
-import { decryptString, encryptString, isEncryptedString } from './encryption'
 
 const logger = createLogger('settings')
 
-const SETTINGS_KEY_PROVIDERS = 'providers'
 const SETTINGS_KEY_DEFAULT_MODEL = 'selectedModel'
 const SETTINGS_KEY_FAVORITE_MODELS = 'favoriteModels'
 const SETTINGS_KEY_PROJECT_PATH = 'projectPath'
-const SETTINGS_KEY_EXECUTION_MODE = 'executionMode'
-const SETTINGS_KEY_QUALITY_PRESET = 'qualityPreset'
+const SETTINGS_KEY_THINKING_LEVEL = 'thinkingLevel'
 const SETTINGS_KEY_RECENT_PROJECTS = 'recentProjects'
 const SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT = 'skillTogglesByProject'
-const SETTINGS_KEY_MCP_SERVERS = 'mcpServers'
 const SETTINGS_KEY_ENABLED_MODELS = 'enabledModels'
 const SETTINGS_KEY_PROJECT_DISPLAY_NAMES = 'projectDisplayNames'
-const ENABLED_MODEL_ID_PARTS_START_INDEX = 2
 
 interface SettingsStoreRow {
   readonly key: string
   readonly value_json: string
 }
-
-type SettingsValue =
-  | undefined
-  | string
-  | number
-  | boolean
-  | null
-  | SettingsValue[]
-  | { [key: string]: SettingsValue }
-
-/**
- * Schema for validating raw provider config from SQLite.
- * `enabled` is optional on disk so `getSettings()` can still apply defaults.
- */
-const providerConfigSchema = Schema.Struct({
-  apiKey: Schema.optional(Schema.String),
-  baseUrl: Schema.optional(
-    Schema.String.pipe(
-      Schema.filter((value) => isValidBaseUrl(value) || 'Must be a valid http/https URL'),
-    ),
-  ),
-  enabled: Schema.optional(Schema.Boolean),
-  authMethod: Schema.optional(Schema.Literal(...AUTH_METHODS)),
-})
-
-const settingsValueSchema: Schema.Schema<SettingsValue> = Schema.suspend(() =>
-  Schema.Union(
-    Schema.Undefined,
-    Schema.String,
-    Schema.Number,
-    Schema.Boolean,
-    Schema.Null,
-    Schema.mutable(Schema.Array(settingsValueSchema)),
-    Schema.mutable(Schema.Record({ key: Schema.String, value: settingsValueSchema })),
-  ),
-)
-
-const settingsObjectSchema = Schema.mutable(
-  Schema.Record({ key: Schema.String, value: settingsValueSchema }),
-)
 
 let settingsCache = createDefaultSettingsSnapshot()
 let initializationPromise: Promise<void> | null = null
@@ -91,11 +36,6 @@ let writeQueue: Promise<void> = Promise.resolve()
 function createDefaultSettingsSnapshot(): Settings {
   return {
     ...DEFAULT_SETTINGS,
-    providers: Object.fromEntries(
-      PROVIDERS.map((provider) => [provider, { ...DEFAULT_SETTINGS.providers[provider] }]),
-    ),
-    encryptionAvailable: safeStorage.isEncryptionAvailable(),
-    apiKeysRequireManualResave: false,
   }
 }
 
@@ -174,42 +114,10 @@ function resolveProjectPath(raw: unknown): string | null {
   return isStringOrNull(raw) ? raw : DEFAULT_SETTINGS.projectPath
 }
 
-function parseEnabledModelKey(
-  rawKey: string,
-): { readonly provider: Provider; readonly modelId: string } | null {
-  const parts = rawKey.split(':')
-  const rawProvider = parts[0]
-  const rawAuthMethod = parts[1]
-  const modelId = parts.slice(ENABLED_MODEL_ID_PARTS_START_INDEX).join(':').trim()
-
-  if (
-    rawProvider === undefined ||
-    rawAuthMethod === undefined ||
-    !includes(PROVIDERS, rawProvider) ||
-    (rawAuthMethod !== 'api-key' && rawAuthMethod !== 'subscription') ||
-    modelId.length === 0
-  ) {
-    return null
-  }
-
-  return { provider: rawProvider, modelId }
-}
-
-function inferProviderForModel(
-  modelId: string,
-  enabledModels: readonly string[],
-): Provider | undefined {
-  for (const key of enabledModels) {
-    const parsed = parseEnabledModelKey(key)
-    if (parsed?.modelId === modelId) {
-      return parsed.provider
-    }
-  }
-
-  return undefined
-}
-
-function resolveSelectedModel(raw: unknown, enabledModels: readonly string[]): SupportedModelId {
+function resolveSelectedModel(
+  raw: unknown,
+  enabledModels: readonly SupportedModelId[],
+): SupportedModelId {
   if (typeof raw !== 'string') {
     return DEFAULT_SETTINGS.selectedModel
   }
@@ -219,83 +127,19 @@ function resolveSelectedModel(raw: unknown, enabledModels: readonly string[]): S
     return DEFAULT_SETTINGS.selectedModel
   }
 
-  if (providerRegistry.isKnownModel(normalizedModel)) {
-    return SupportedModelId(normalizedModel)
+  if (parseModelRef(normalizedModel)) {
+    const model = SupportedModelId(normalizedModel)
+    return enabledModels.includes(model) ? model : DEFAULT_SETTINGS.selectedModel
   }
 
-  const inferredProvider = inferProviderForModel(normalizedModel, enabledModels)
-  if (!inferredProvider) {
-    return DEFAULT_SETTINGS.selectedModel
-  }
-
-  const provider = providerRegistry.get(inferredProvider)
-  if (!provider) {
-    return DEFAULT_SETTINGS.selectedModel
-  }
-
-  providerRegistry.indexModels([normalizedModel], provider)
-  return SupportedModelId(normalizedModel)
+  return DEFAULT_SETTINGS.selectedModel
 }
 
 function buildSettingsSnapshot(storedSettings: Readonly<Record<string, unknown>>): {
   readonly settings: Settings
-  readonly rawProviders: Record<string, unknown>
-  readonly migratedProviders: Partial<Record<Provider, ProviderConfig>>
 } {
-  const rawProvidersValue = getStoredValue(storedSettings, SETTINGS_KEY_PROVIDERS) ?? {}
-  const storedProviders = safeDecodeUnknown(settingsObjectSchema, rawProvidersValue)
-  const validProviders = storedProviders.success ? storedProviders.data : {}
-  const providers: Partial<Record<Provider, ProviderConfig>> = {}
-  const encryptionAvailable = safeStorage.isEncryptionAvailable()
-  const migratedProviders: Partial<Record<Provider, ProviderConfig>> = {}
-  let apiKeysRequireManualResave = false
-
-  for (const id of PROVIDERS) {
-    const defaults = DEFAULT_SETTINGS.providers[id]
-    if (!defaults) continue
-
-    const raw = validProviders[id]
-    const parsed = safeDecodeUnknown(providerConfigSchema, raw)
-
-    if (parsed.success) {
-      const storedApiKey = parsed.data.apiKey ?? ''
-      const decryptedApiKey = decryptString(storedApiKey)
-      providers[id] = {
-        apiKey: decryptedApiKey,
-        baseUrl: parsed.data.baseUrl ?? defaults.baseUrl,
-        enabled: parsed.data.enabled ?? defaults.enabled,
-        authMethod: parsed.data.authMethod ?? 'api-key',
-      }
-
-      const shouldMigrate =
-        encryptionAvailable && decryptedApiKey.trim().length > 0 && !isEncryptedString(storedApiKey)
-
-      if (shouldMigrate) {
-        const migratedApiKey = encryptString(decryptedApiKey)
-        if (isEncryptedString(migratedApiKey)) {
-          migratedProviders[id] = {
-            apiKey: migratedApiKey,
-            baseUrl: parsed.data.baseUrl ?? defaults.baseUrl,
-            enabled: parsed.data.enabled ?? defaults.enabled,
-            authMethod: parsed.data.authMethod ?? 'api-key',
-          }
-        } else {
-          apiKeysRequireManualResave = true
-          logger.warn('Failed to auto-migrate plaintext API key; manual re-save required', {
-            provider: id,
-          })
-        }
-      }
-    } else {
-      providers[id] = { ...defaults }
-    }
-  }
-
-  const executionMode = resolveExecutionMode(
-    getStoredValue(storedSettings, SETTINGS_KEY_EXECUTION_MODE),
-  )
-  const qualityPreset = resolveQualityPreset(
-    getStoredValue(storedSettings, SETTINGS_KEY_QUALITY_PRESET),
+  const thinkingLevel = resolveThinkingLevel(
+    getStoredValue(storedSettings, SETTINGS_KEY_THINKING_LEVEL),
   )
   const favoriteModels = resolveFavoriteModels(
     getStoredValue(storedSettings, SETTINGS_KEY_FAVORITE_MODELS),
@@ -313,7 +157,6 @@ function buildSettingsSnapshot(storedSettings: Readonly<Record<string, unknown>>
     getStoredValue(storedSettings, SETTINGS_KEY_DEFAULT_MODEL),
     enabledModels,
   )
-  const mcpServers = resolveMcpServers(getStoredValue(storedSettings, SETTINGS_KEY_MCP_SERVERS))
   const projectDisplayNames = sanitizeProjectDisplayNames(
     getStoredValue(storedSettings, SETTINGS_KEY_PROJECT_DISPLAY_NAMES) ??
       DEFAULT_SETTINGS.projectDisplayNames,
@@ -321,40 +164,16 @@ function buildSettingsSnapshot(storedSettings: Readonly<Record<string, unknown>>
 
   return {
     settings: {
-      providers,
       selectedModel: selectedModel,
       favoriteModels,
       enabledModels,
       projectPath: resolveProjectPath(getStoredValue(storedSettings, SETTINGS_KEY_PROJECT_PATH)),
-      executionMode,
-      qualityPreset,
+      thinkingLevel,
       recentProjects,
       skillTogglesByProject,
-      mcpServers,
       projectDisplayNames,
-      encryptionAvailable,
-      apiKeysRequireManualResave,
     },
-    rawProviders: validProviders,
-    migratedProviders,
   }
-}
-
-function serializeProviders(
-  providers: Readonly<Partial<Record<Provider, ProviderConfig>>>,
-): Partial<Record<Provider, ProviderConfig>> {
-  const serialized: Partial<Record<Provider, ProviderConfig>> = {}
-  for (const id of PROVIDERS) {
-    const config = providers[id]
-    if (!config) continue
-    serialized[id] = {
-      apiKey: encryptString(config.apiKey),
-      enabled: config.enabled,
-      baseUrl: config.baseUrl,
-      authMethod: config.authMethod,
-    }
-  }
-  return serialized
 }
 
 export async function initializeSettingsStore(): Promise<void> {
@@ -367,13 +186,6 @@ export async function initializeSettingsStore(): Promise<void> {
       const storedSettings = await listStoredSettings()
       const built = buildSettingsSnapshot(storedSettings)
       settingsCache = built.settings
-
-      if (Object.keys(built.migratedProviders).length > 0) {
-        queueStoredSettingWrite(SETTINGS_KEY_PROVIDERS, {
-          ...built.rawProviders,
-          ...built.migratedProviders,
-        })
-      }
 
       if (built.settings.selectedModel !== storedSettings[SETTINGS_KEY_DEFAULT_MODEL]) {
         queueStoredSettingWrite(SETTINGS_KEY_DEFAULT_MODEL, built.settings.selectedModel)
@@ -397,61 +209,25 @@ export function getSettings(): Settings {
   return settingsCache
 }
 
-/**
- * Atomically read-transform-write the mcpServers array.
- * Eliminates read-modify-write races between concurrent IPC handlers
- * that each call get() + update() with interleaving yield points.
- */
-export function transformMcpServers(
-  fn: (servers: readonly McpServerConfig[]) => readonly McpServerConfig[],
-): void {
-  const updated = fn(settingsCache.mcpServers)
-  updateSettings({ mcpServers: [...updated] })
-}
-
 export function updateSettings(partial: Partial<Settings>): void {
-  const nextProviders: Partial<Record<Provider, ProviderConfig>> = {
-    ...settingsCache.providers,
-  }
-
-  if (partial.providers !== undefined) {
-    for (const id of PROVIDERS) {
-      const config = partial.providers[id]
-      if (!config) continue
-
-      if (config.baseUrl !== undefined && !isValidBaseUrl(config.baseUrl)) {
-        logger.warn('Skipping invalid provider baseUrl', { provider: id, baseUrl: config.baseUrl })
-        continue
-      }
-
-      const existing = nextProviders[id] ?? DEFAULT_SETTINGS.providers[id]
-      nextProviders[id] = {
-        apiKey: config.apiKey,
-        enabled: config.enabled,
-        baseUrl: config.baseUrl ?? existing?.baseUrl,
-        authMethod:
-          config.authMethod ?? existing?.authMethod ?? DEFAULT_SETTINGS.providers[id]?.authMethod,
-      }
-    }
-
-    queueStoredSettingWrite(SETTINGS_KEY_PROVIDERS, serializeProviders(nextProviders))
-  }
-
-  const selectedModel = partial.selectedModel ?? settingsCache.selectedModel
+  const enabledModels =
+    partial.enabledModels !== undefined
+      ? sanitizeEnabledModels(partial.enabledModels)
+      : settingsCache.enabledModels
+  const selectedModel =
+    partial.selectedModel !== undefined
+      ? resolveSelectedModel(partial.selectedModel, enabledModels)
+      : settingsCache.selectedModel
   const favoriteModels =
     partial.favoriteModels !== undefined
       ? sanitizeFavoriteModels(partial.favoriteModels)
       : settingsCache.favoriteModels
   const projectPath =
     partial.projectPath !== undefined ? partial.projectPath : settingsCache.projectPath
-  const executionMode =
-    partial.executionMode !== undefined && includes(EXECUTION_MODES, partial.executionMode)
-      ? partial.executionMode
-      : settingsCache.executionMode
-  const qualityPreset =
-    partial.qualityPreset !== undefined && includes(QUALITY_PRESETS, partial.qualityPreset)
-      ? partial.qualityPreset
-      : settingsCache.qualityPreset
+  const thinkingLevel =
+    partial.thinkingLevel !== undefined && includes(THINKING_LEVELS, partial.thinkingLevel)
+      ? partial.thinkingLevel
+      : settingsCache.thinkingLevel
   const recentProjects =
     partial.recentProjects !== undefined
       ? sanitizeRecentProjects(partial.recentProjects)
@@ -460,14 +236,6 @@ export function updateSettings(partial: Partial<Settings>): void {
     partial.skillTogglesByProject !== undefined
       ? sanitizeSkillTogglesByProject(partial.skillTogglesByProject)
       : settingsCache.skillTogglesByProject
-  const enabledModels =
-    partial.enabledModels !== undefined
-      ? sanitizeEnabledModels(partial.enabledModels)
-      : settingsCache.enabledModels
-  const mcpServers =
-    partial.mcpServers !== undefined
-      ? sanitizeMcpServers(partial.mcpServers)
-      : settingsCache.mcpServers
   const projectDisplayNames =
     partial.projectDisplayNames !== undefined
       ? sanitizeProjectDisplayNames(partial.projectDisplayNames)
@@ -475,23 +243,18 @@ export function updateSettings(partial: Partial<Settings>): void {
 
   settingsCache = {
     ...settingsCache,
-    providers: nextProviders,
     selectedModel: selectedModel,
     favoriteModels,
     enabledModels,
     projectPath,
-    executionMode,
-    qualityPreset,
+    thinkingLevel,
     recentProjects,
     skillTogglesByProject,
-    mcpServers,
     projectDisplayNames,
-    encryptionAvailable: safeStorage.isEncryptionAvailable(),
-    apiKeysRequireManualResave: false,
   }
 
   if (partial.selectedModel !== undefined) {
-    queueStoredSettingWrite(SETTINGS_KEY_DEFAULT_MODEL, partial.selectedModel)
+    queueStoredSettingWrite(SETTINGS_KEY_DEFAULT_MODEL, selectedModel)
   }
   if (partial.favoriteModels !== undefined) {
     queueStoredSettingWrite(SETTINGS_KEY_FAVORITE_MODELS, favoriteModels)
@@ -499,18 +262,11 @@ export function updateSettings(partial: Partial<Settings>): void {
   if (partial.projectPath !== undefined) {
     queueStoredSettingWrite(SETTINGS_KEY_PROJECT_PATH, partial.projectPath)
   }
-  if (partial.executionMode !== undefined) {
-    if (includes(EXECUTION_MODES, partial.executionMode)) {
-      queueStoredSettingWrite(SETTINGS_KEY_EXECUTION_MODE, partial.executionMode)
+  if (partial.thinkingLevel !== undefined) {
+    if (includes(THINKING_LEVELS, partial.thinkingLevel)) {
+      queueStoredSettingWrite(SETTINGS_KEY_THINKING_LEVEL, partial.thinkingLevel)
     } else {
-      logger.warn('Skipping invalid executionMode', { value: partial.executionMode })
-    }
-  }
-  if (partial.qualityPreset !== undefined) {
-    if (includes(QUALITY_PRESETS, partial.qualityPreset)) {
-      queueStoredSettingWrite(SETTINGS_KEY_QUALITY_PRESET, partial.qualityPreset)
-    } else {
-      logger.warn('Skipping invalid qualityPreset', { value: partial.qualityPreset })
+      logger.warn('Skipping invalid thinkingLevel', { value: partial.thinkingLevel })
     }
   }
   if (partial.recentProjects !== undefined) {
@@ -522,40 +278,44 @@ export function updateSettings(partial: Partial<Settings>): void {
   if (partial.enabledModels !== undefined) {
     queueStoredSettingWrite(SETTINGS_KEY_ENABLED_MODELS, enabledModels)
   }
-  if (partial.mcpServers !== undefined) {
-    queueStoredSettingWrite(SETTINGS_KEY_MCP_SERVERS, mcpServers)
-  }
   if (partial.projectDisplayNames !== undefined) {
     queueStoredSettingWrite(SETTINGS_KEY_PROJECT_DISPLAY_NAMES, projectDisplayNames)
   }
 }
 
-function resolveExecutionMode(raw: unknown): ExecutionMode {
-  return typeof raw === 'string' && includes(EXECUTION_MODES, raw)
+function resolveThinkingLevel(raw: unknown): ThinkingLevel {
+  return typeof raw === 'string' && includes(THINKING_LEVELS, raw)
     ? raw
-    : DEFAULT_SETTINGS.executionMode
+    : DEFAULT_SETTINGS.thinkingLevel
 }
 
-function resolveQualityPreset(raw: unknown): QualityPreset {
-  return typeof raw === 'string' && includes(QUALITY_PRESETS, raw)
-    ? raw
-    : DEFAULT_SETTINGS.qualityPreset
-}
-
-function resolveEnabledModels(raw: unknown): string[] {
+function resolveEnabledModels(raw: unknown): SupportedModelId[] {
   return Array.isArray(raw) && raw.every((value) => typeof value === 'string')
     ? sanitizeEnabledModels(raw)
     : [...DEFAULT_SETTINGS.enabledModels]
 }
 
-function sanitizeEnabledModels(models: readonly string[]): string[] {
+function normalizeStoredModelRef(raw: string): SupportedModelId | null {
+  const trimmed = raw.trim()
+  if (!trimmed) {
+    return null
+  }
+
+  if (parseModelRef(trimmed)) {
+    return SupportedModelId(trimmed)
+  }
+
+  return null
+}
+
+function sanitizeEnabledModels(models: readonly string[]): SupportedModelId[] {
   const seen = new Set<string>()
-  const result: string[] = []
+  const result: SupportedModelId[] = []
   for (const model of models) {
-    const trimmed = model.trim()
-    if (!trimmed || seen.has(trimmed)) continue
-    seen.add(trimmed)
-    result.push(trimmed)
+    const normalized = normalizeStoredModelRef(model)
+    if (!normalized || seen.has(normalized)) continue
+    seen.add(normalized)
+    result.push(normalized)
   }
   return result
 }
@@ -589,36 +349,15 @@ function sanitizeProjectDisplayNames(raw: unknown): Record<string, string> {
   return result
 }
 
-function resolveMcpServers(raw: unknown): McpServerConfig[] {
-  if (!Array.isArray(raw)) return []
-  return sanitizeMcpServers(raw)
-}
-
-function sanitizeMcpServers(servers: readonly unknown[]): McpServerConfig[] {
-  const result: McpServerConfig[] = []
-  for (const entry of servers) {
-    const parsed = safeDecodeUnknown(mcpServerConfigSchema, entry)
-    if (parsed.success) {
-      result.push({
-        ...parsed.data,
-        id: McpServerId(parsed.data.id),
-      })
-    } else {
-      logger.warn('Skipping invalid MCP server config', { entry })
-    }
-  }
-  return result
-}
-
 function sanitizeFavoriteModels(models: readonly string[]): SupportedModelId[] {
   const seen = new Set<string>()
   const result: SupportedModelId[] = []
 
   for (const model of models) {
-    const trimmed = model.trim()
-    if (!trimmed || seen.has(trimmed)) continue
-    seen.add(trimmed)
-    result.push(SupportedModelId(trimmed))
+    const normalized = normalizeStoredModelRef(model)
+    if (!normalized || seen.has(normalized)) continue
+    seen.add(normalized)
+    result.push(normalized)
     if (result.length >= PERCENT_BASE) break
   }
 

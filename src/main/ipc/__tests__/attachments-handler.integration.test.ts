@@ -1,3 +1,5 @@
+import { ATTACHMENT } from '@shared/constants/resource-limits'
+import type { PreparedAttachment } from '@shared/types/agent'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -43,7 +45,10 @@ const {
   mammothExtractMock: vi.fn(),
   jszipLoadAsyncMock: vi.fn(),
   showMessageBoxMock: vi.fn(),
-  files: new Map<string, { size: number; content: Buffer; isFile: boolean; mtimeMs: number }>(),
+  files: new Map<
+    string,
+    { size: number; content: Buffer; isFile: boolean; isDirectory: boolean; mtimeMs: number }
+  >(),
 }))
 
 vi.mock('../typed-ipc', () => ({
@@ -126,6 +131,17 @@ function registerFile(
     size: size ?? buffer.length,
     content: buffer,
     isFile: true,
+    isDirectory: false,
+    mtimeMs,
+  })
+}
+
+function registerDirectory(path: string, mtimeMs = Date.now()): void {
+  files.set(path, {
+    size: 0,
+    content: Buffer.alloc(0),
+    isFile: false,
+    isDirectory: true,
     mtimeMs,
   })
 }
@@ -153,6 +169,7 @@ describe('registerAttachmentHandlers', () => {
     jszipLoadAsyncMock.mockReset()
     showMessageBoxMock.mockReset()
     files.clear()
+    registerDirectory('/tmp/repo')
 
     statMock.mockImplementation(async (filePath: string) => {
       const file = files.get(filePath)
@@ -162,6 +179,7 @@ describe('registerAttachmentHandlers', () => {
       return {
         size: file.size,
         isFile: () => file.isFile,
+        isDirectory: () => file.isDirectory,
         mtimeMs: file.mtimeMs,
       }
     })
@@ -474,56 +492,32 @@ describe('registerAttachmentHandlers', () => {
     ).rejects.toThrow('Total attachment size exceeds 20 MB')
   })
 
-  it('accepts files outside project root without prompting', async () => {
+  it('rejects files outside the selected project root', async () => {
     registerFile('/tmp/outside.txt', 'outside')
 
     registerAttachmentHandlers()
     const handler = registeredHandler('attachments:prepare')
 
-    const result = (await handler?.({}, '/tmp/repo', ['/tmp/outside.txt'])) as Array<{
-      path: string
-      extractedText: string
-    }>
-    expect(result[0]).toMatchObject({
-      path: '/tmp/outside.txt',
-      extractedText: 'outside',
-    })
+    await expect(handler?.({}, '/tmp/repo', ['/tmp/outside.txt'])).rejects.toThrow(
+      'Attachments must be inside the selected project.',
+    )
     expect(showMessageBoxMock).not.toHaveBeenCalled()
   })
 
   it('hydrates binary source for image/pdf attachments in main process', async () => {
     registerFile('/tmp/repo/diagram.png', Buffer.from('image-bytes'))
     registerFile('/tmp/repo/spec.pdf', Buffer.from('pdf-bytes'))
+    registerFile('/tmp/repo/notes.txt', Buffer.from('notes'))
 
-    const hydrated = await hydrateAttachmentSources([
-      {
-        id: 'a1',
-        kind: 'image',
-        name: 'diagram.png',
-        path: '/tmp/repo/diagram.png',
-        mimeType: 'image/png',
-        sizeBytes: 11,
-        extractedText: 'image',
-      },
-      {
-        id: 'a2',
-        kind: 'pdf',
-        name: 'spec.pdf',
-        path: '/tmp/repo/spec.pdf',
-        mimeType: 'application/pdf',
-        sizeBytes: 9,
-        extractedText: 'pdf',
-      },
-      {
-        id: 'a3',
-        kind: 'text',
-        name: 'notes.txt',
-        path: '/tmp/repo/notes.txt',
-        mimeType: 'text/plain',
-        sizeBytes: 4,
-        extractedText: 'notes',
-      },
-    ])
+    registerAttachmentHandlers()
+    const handler = registeredHandler('attachments:prepare')
+    const prepared = (await handler?.({}, '/tmp/repo', [
+      '/tmp/repo/diagram.png',
+      '/tmp/repo/spec.pdf',
+      '/tmp/repo/notes.txt',
+    ])) as PreparedAttachment[]
+
+    const hydrated = await hydrateAttachmentSources(prepared)
 
     expect(hydrated[0]).toMatchObject({
       kind: 'image',
@@ -577,6 +571,16 @@ describe('registerAttachmentHandlers', () => {
       const handler = registeredHandler('attachments:prepare-from-text')
 
       await expect(handler?.({}, '', 'operation-2')).rejects.toThrow()
+    })
+
+    it('rejects text input larger than the per-attachment limit', async () => {
+      registerAttachmentHandlers()
+      const handler = registeredHandler('attachments:prepare-from-text')
+      const oversizedText = 'x'.repeat(ATTACHMENT.MAX_SIZE_BYTES + 1)
+
+      await expect(handler?.({}, oversizedText, 'operation-oversized')).rejects.toThrow(
+        'Generated attachment exceeds 8 MB.',
+      )
     })
   })
 

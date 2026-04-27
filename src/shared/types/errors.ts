@@ -29,10 +29,4 @@ export interface AgentErrorInfo {
 }
 
 // Domain logic re-exported from canonical location
-export {
-  classifyErrorMessage,
-  ERROR_CODE_META,
-  extractInnerErrorMessage,
-  isAgentErrorCode,
-  makeErrorInfo,
-} from '../domain/error-classifier'
+export { classifyErrorMessage, isAgentErrorCode, makeErrorInfo } from '../domain/error-classifier'

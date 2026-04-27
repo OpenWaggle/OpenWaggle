@@ -26,9 +26,9 @@ describe('extractExplicitSkillReferences', () => {
   })
 
   it('captures slash references at the start of the prompt', () => {
-    const result = extractExplicitSkillReferences('/tanstack-tool-streaming fix this issue')
+    const result = extractExplicitSkillReferences('/pi-integration fix this issue')
 
-    expect(result.slashSkillIds).toEqual(['tanstack-tool-streaming'])
-    expect(result.allSkillIds).toEqual(['tanstack-tool-streaming'])
+    expect(result.slashSkillIds).toEqual(['pi-integration'])
+    expect(result.allSkillIds).toEqual(['pi-integration'])
   })
 })

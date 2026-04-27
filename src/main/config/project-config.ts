@@ -1,62 +1,36 @@
 import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
-import { dirname, isAbsolute, join, resolve } from 'node:path'
-import {
-  decodeUnknownOrThrow,
-  type Schema,
-  type SchemaType,
-  safeDecodeUnknown,
-} from '@shared/schema'
-import {
-  projectLocalConfigSchema,
-  projectSharedConfigSchema,
-  type qualityTierSchema,
-} from '@shared/schemas/validation'
+import { join } from 'node:path'
+import { decodeUnknownOrThrow, type SchemaType, safeDecodeUnknown } from '@shared/schema'
+import { projectSettingsFileSchema } from '@shared/schemas/validation'
+import type { JsonObject } from '@shared/types/json'
+import type { ThinkingLevel } from '@shared/types/settings'
 import { formatErrorMessage, isEnoent } from '@shared/utils/node-error'
 import { createLogger } from '../logger'
 
-const CLAMP_OPTIONAL_ARG_3 = 2
-const CLAMP_OPTIONAL_ARG_3_VALUE_1_000_000 = 1_000_000
+const JSON_INDENT_SPACES = 2
 const OPENWAGGLE_CONFIG_DIR = '.openwaggle'
-const SHARED_PROJECT_CONFIG_FILE_NAME = 'config.toml'
-const LOCAL_PROJECT_CONFIG_FILE_NAME = 'config.local.toml'
-const EMPTY_CONFIG_TOML = ''
-const LOCAL_CONFIG_GIT_EXCLUDE_ENTRY = '.openwaggle/config.local.toml'
-const GIT_DIR_NAME = '.git'
-const GIT_DIR_POINTER_PREFIX = 'gitdir:'
+const PROJECT_SETTINGS_FILE_NAME = 'settings.json'
+const EMPTY_SETTINGS_JSON = '{}\n'
 
 const logger = createLogger('project-config')
 
-export interface BaseSamplingConfig {
-  readonly temperature: number
-  readonly topP: number
-  readonly maxTokens: number
-}
-
-export interface ProjectQualityOverrides {
-  readonly low?: Partial<BaseSamplingConfig>
-  readonly medium?: Partial<BaseSamplingConfig>
-  readonly high?: Partial<BaseSamplingConfig>
-}
-
 export interface ProjectPreferences {
   readonly model?: string
-  readonly qualityPreset?: string
+  readonly thinkingLevel?: ThinkingLevel
 }
 
 export interface ProjectConfig {
-  readonly quality?: ProjectQualityOverrides
   readonly preferences?: ProjectPreferences
+  readonly pi?: JsonObject
 }
 
 const EMPTY_CONFIG: ProjectConfig = {}
-type ParsedProjectSharedConfig = SchemaType<typeof projectSharedConfigSchema>
-type ParsedProjectLocalConfig = SchemaType<typeof projectLocalConfigSchema>
+type ParsedProjectSettingsFile = SchemaType<typeof projectSettingsFileSchema>
 
 interface ConfigCacheEntry {
   readonly config: ProjectConfig
-  readonly sharedMtime: number | null
-  readonly localMtime: number | null
+  readonly settingsMtime: number | null
 }
 
 const configCache = new Map<string, ConfigCacheEntry>()
@@ -70,33 +44,31 @@ function getConfigDirectoryPath(projectPath: string): string {
   return join(projectPath, OPENWAGGLE_CONFIG_DIR)
 }
 
-function getSharedConfigPath(projectPath: string): string {
-  return join(getConfigDirectoryPath(projectPath), SHARED_PROJECT_CONFIG_FILE_NAME)
-}
-
-function getLocalConfigPath(projectPath: string): string {
-  return join(getConfigDirectoryPath(projectPath), LOCAL_PROJECT_CONFIG_FILE_NAME)
+export function getProjectSettingsPath(projectPath: string): string {
+  return join(getConfigDirectoryPath(projectPath), PROJECT_SETTINGS_FILE_NAME)
 }
 
 function getConfigTempPath(configPath: string): string {
   return `${configPath}.${randomUUID()}.tmp`
 }
 
-async function readValidatedConfig<TSchema extends Schema.Schema.AnyNoContext>(
+function parseSettingsJson(raw: string): unknown {
+  return raw.trim().length > 0 ? JSON.parse(raw) : {}
+}
+
+async function readValidatedProjectSettings(
   filePath: string,
-  schema: TSchema,
   options: {
     strict: boolean
     logLabel: string
   },
-): Promise<SchemaType<TSchema> | null> {
+): Promise<ParsedProjectSettingsFile | null> {
   try {
     const raw = await readFile(filePath, 'utf-8')
-    const { parse } = await import('smol-toml')
-    const parsedToml: unknown = raw.trim().length > 0 ? parse(raw) : {}
-    const validated = safeDecodeUnknown(schema, parsedToml)
+    const parsedJson = parseSettingsJson(raw)
+    const validated = safeDecodeUnknown(projectSettingsFileSchema, parsedJson)
     if (!validated.success) {
-      const message = `Invalid project config schema: ${validated.issues.join('; ')}`
+      const message = `Invalid project settings schema: ${validated.issues.join('; ')}`
       if (options.strict) {
         throw new Error(message)
       }
@@ -130,30 +102,15 @@ async function readConfigMtime(filePath: string): Promise<number | null> {
   }
 }
 
-async function ensureLocalConfigGitExcludeBestEffort(projectPath: string): Promise<void> {
-  try {
-    await ensureLocalConfigGitExclude(projectPath)
-  } catch (error) {
-    logger.warn('Failed to update .git/info/exclude for local config', {
-      error: formatErrorMessage(error),
-    })
-  }
-}
-
 export async function loadProjectConfig(projectPath: string): Promise<ProjectConfig> {
-  const sharedConfigPath = getSharedConfigPath(projectPath)
-  const localConfigPath = getLocalConfigPath(projectPath)
+  const settingsPath = getProjectSettingsPath(projectPath)
 
-  let sharedMtime: number | null
-  let localMtime: number | null
+  let settingsMtime: number | null
 
   try {
-    ;[sharedMtime, localMtime] = await Promise.all([
-      readConfigMtime(sharedConfigPath),
-      readConfigMtime(localConfigPath),
-    ])
+    settingsMtime = await readConfigMtime(settingsPath)
   } catch (error) {
-    logger.warn('Failed to stat project config files', {
+    logger.warn('Failed to stat project settings file', {
       error: formatErrorMessage(error),
     })
     configCache.delete(projectPath)
@@ -161,36 +118,25 @@ export async function loadProjectConfig(projectPath: string): Promise<ProjectCon
   }
 
   const cached = configCache.get(projectPath)
-  if (cached && cached.sharedMtime === sharedMtime && cached.localMtime === localMtime) {
+  if (cached && cached.settingsMtime === settingsMtime) {
     return cached.config
   }
 
-  const [sharedConfig, localConfig] = await Promise.all([
-    readValidatedConfig(sharedConfigPath, projectSharedConfigSchema, {
-      strict: false,
-      logLabel: '.openwaggle/config.toml',
-    }),
-    readValidatedConfig(localConfigPath, projectLocalConfigSchema, {
-      strict: false,
-      logLabel: '.openwaggle/config.local.toml',
-    }),
-  ])
+  const settings = await readValidatedProjectSettings(settingsPath, {
+    strict: false,
+    logLabel: '.openwaggle/settings.json',
+  })
 
-  const mergedConfig = parseProjectConfig(sharedConfig, localConfig)
+  const mergedConfig = parseProjectConfig(settings)
   configCache.set(projectPath, {
     config: mergedConfig,
-    sharedMtime,
-    localMtime,
+    settingsMtime,
   })
 
   return mergedConfig
 }
 
-async function ensureConfigFile(
-  projectPath: string,
-  configPath: string,
-  afterCreate: (() => Promise<void>) | null,
-): Promise<string> {
+async function ensureSettingsFile(projectPath: string, configPath: string): Promise<string> {
   const configDir = getConfigDirectoryPath(projectPath)
 
   await mkdir(configDir, { recursive: true })
@@ -201,113 +147,28 @@ async function ensureConfigFile(
     if (!isEnoent(error)) {
       throw error
     }
-    await writeFile(configPath, EMPTY_CONFIG_TOML, 'utf-8')
-    if (afterCreate) {
-      await afterCreate()
-    }
+    await writeFile(configPath, EMPTY_SETTINGS_JSON, 'utf-8')
   }
 
   return configPath
 }
 
-async function readGitDirFromPointerFile(gitPath: string): Promise<string | null> {
-  const raw = await readFile(gitPath, 'utf-8')
-  const firstLine = raw.split(/\r?\n/u, 1)[0]?.trim() ?? ''
-  if (!firstLine.toLowerCase().startsWith(GIT_DIR_POINTER_PREFIX)) {
-    return null
-  }
-
-  const relativeOrAbsolutePath = firstLine.slice(GIT_DIR_POINTER_PREFIX.length).trim()
-  if (relativeOrAbsolutePath.length === 0) {
-    return null
-  }
-
-  if (isAbsolute(relativeOrAbsolutePath)) {
-    return relativeOrAbsolutePath
-  }
-
-  return resolve(dirname(gitPath), relativeOrAbsolutePath)
+export async function ensureProjectSettingsFile(projectPath: string): Promise<string> {
+  return ensureSettingsFile(projectPath, getProjectSettingsPath(projectPath))
 }
 
-async function resolveGitDirectory(projectPath: string): Promise<string | null> {
-  const gitPath = join(projectPath, GIT_DIR_NAME)
-
-  try {
-    const metadata = await stat(gitPath)
-    if (metadata.isDirectory()) {
-      return gitPath
-    }
-    if (!metadata.isFile()) {
-      return null
-    }
-
-    return readGitDirFromPointerFile(gitPath)
-  } catch (error) {
-    if (isEnoent(error)) {
-      return null
-    }
-    throw error
-  }
-}
-
-async function ensureLocalConfigGitExclude(projectPath: string): Promise<void> {
-  const gitDir = await resolveGitDirectory(projectPath)
-  if (!gitDir) {
-    return
-  }
-
-  const infoDir = join(gitDir, 'info')
-  const excludePath = join(infoDir, 'exclude')
-
-  await mkdir(infoDir, { recursive: true })
-
-  let currentContent = ''
-  try {
-    currentContent = await readFile(excludePath, 'utf-8')
-  } catch (error) {
-    if (!isEnoent(error)) {
-      throw error
-    }
-  }
-
-  const hasEntry = currentContent
-    .split(/\r?\n/u)
-    .map((line) => line.trim())
-    .includes(LOCAL_CONFIG_GIT_EXCLUDE_ENTRY)
-  if (hasEntry) {
-    return
-  }
-
-  const lineBreak = currentContent.length === 0 || currentContent.endsWith('\n') ? '' : '\n'
-  const nextContent = `${currentContent}${lineBreak}${LOCAL_CONFIG_GIT_EXCLUDE_ENTRY}\n`
-  await writeFile(excludePath, nextContent, 'utf-8')
-}
-
-export async function ensureProjectConfigFile(projectPath: string): Promise<string> {
-  return ensureConfigFile(projectPath, getSharedConfigPath(projectPath), null)
-}
-
-export async function ensureLocalProjectConfigFile(projectPath: string): Promise<string> {
-  return ensureConfigFile(projectPath, getLocalConfigPath(projectPath), async () =>
-    ensureLocalConfigGitExcludeBestEffort(projectPath),
-  )
-}
-
-async function updateConfigFile<TSchema extends Schema.Schema.AnyNoContext>(
+async function updateProjectSettingsFile(
   configPath: string,
-  schema: TSchema,
-  logLabel: string,
-  updater: (current: SchemaType<TSchema>) => SchemaType<TSchema>,
-): Promise<SchemaType<TSchema>> {
+  updater: (current: ParsedProjectSettingsFile) => ParsedProjectSettingsFile,
+): Promise<ParsedProjectSettingsFile> {
   const current =
-    (await readValidatedConfig(configPath, schema, {
+    (await readValidatedProjectSettings(configPath, {
       strict: true,
-      logLabel,
-    })) ?? decodeUnknownOrThrow(schema, {})
-  const next = decodeUnknownOrThrow(schema, updater(current))
+      logLabel: '.openwaggle/settings.json',
+    })) ?? decodeUnknownOrThrow(projectSettingsFileSchema, {})
+  const next = decodeUnknownOrThrow(projectSettingsFileSchema, updater(current))
 
-  const { stringify } = await import('smol-toml')
-  const serialized = stringify(next)
+  const serialized = `${JSON.stringify(next, null, JSON_INDENT_SPACES)}\n`
   const tempPath = getConfigTempPath(configPath)
 
   try {
@@ -323,32 +184,12 @@ async function updateConfigFile<TSchema extends Schema.Schema.AnyNoContext>(
 
 export async function updateProjectConfig(
   projectPath: string,
-  updater: (current: ParsedProjectSharedConfig) => ParsedProjectSharedConfig,
+  updater: (current: ParsedProjectSettingsFile) => ParsedProjectSettingsFile,
 ): Promise<ProjectConfig> {
-  const configPath = await ensureProjectConfigFile(projectPath)
-  const next = await updateConfigFile(
-    configPath,
-    projectSharedConfigSchema,
-    '.openwaggle/config.toml',
-    updater,
-  )
+  const configPath = await ensureProjectSettingsFile(projectPath)
+  const next = await updateProjectSettingsFile(configPath, updater)
   configCache.delete(projectPath)
-  return parseProjectConfig(next, null)
-}
-
-async function updateLocalProjectConfig(
-  projectPath: string,
-  updater: (current: ParsedProjectLocalConfig) => ParsedProjectLocalConfig,
-): Promise<ProjectConfig> {
-  const configPath = await ensureLocalProjectConfigFile(projectPath)
-  const next = await updateConfigFile(
-    configPath,
-    projectLocalConfigSchema,
-    '.openwaggle/config.local.toml',
-    updater,
-  )
-  configCache.delete(projectPath)
-  return parseProjectConfig(null, next)
+  return parseProjectConfig(next)
 }
 
 export async function getProjectPreferences(
@@ -362,82 +203,35 @@ export async function setProjectPreferences(
   projectPath: string,
   preferences: ProjectPreferences,
 ): Promise<void> {
-  await updateLocalProjectConfig(projectPath, (current) => ({
+  await updateProjectConfig(projectPath, (current) => ({
     ...current,
     preferences: {
       ...current.preferences,
       ...(preferences.model !== undefined ? { model: preferences.model } : {}),
-      ...(preferences.qualityPreset !== undefined
-        ? { quality_preset: preferences.qualityPreset }
+      ...(preferences.thinkingLevel !== undefined
+        ? { thinkingLevel: preferences.thinkingLevel }
         : {}),
     },
   }))
 }
 
-function parseProjectConfig(
-  shared: ParsedProjectSharedConfig | null,
-  local: ParsedProjectLocalConfig | null,
-): ProjectConfig {
-  const quality = shared?.quality
-
-  const qualityOverrides: ProjectQualityOverrides = {
-    low: parseTierOverride(quality?.low),
-    medium: parseTierOverride(quality?.medium),
-    high: parseTierOverride(quality?.high),
-  }
-
-  const hasQuality =
-    qualityOverrides.low !== undefined ||
-    qualityOverrides.medium !== undefined ||
-    qualityOverrides.high !== undefined
-
+function parseProjectConfig(settings: ParsedProjectSettingsFile | null): ProjectConfig {
   const preferences: ProjectPreferences | undefined =
-    local?.preferences?.model || local?.preferences?.quality_preset
+    settings?.preferences?.model || settings?.preferences?.thinkingLevel
       ? {
-          ...(local.preferences.model ? { model: local.preferences.model } : {}),
-          ...(local.preferences.quality_preset
-            ? { qualityPreset: local.preferences.quality_preset }
+          ...(settings.preferences.model ? { model: settings.preferences.model } : {}),
+          ...(settings.preferences.thinkingLevel
+            ? { thinkingLevel: settings.preferences.thinkingLevel }
             : {}),
         }
       : undefined
 
-  if (!hasQuality && !preferences) {
+  if (!preferences && !settings?.pi) {
     return EMPTY_CONFIG
   }
 
   return {
-    ...(hasQuality ? { quality: qualityOverrides } : {}),
     ...(preferences ? { preferences } : {}),
+    ...(settings?.pi ? { pi: settings.pi } : {}),
   }
-}
-
-function clampOptional(value: number, min: number, max: number, name: string): number | undefined {
-  if (value >= min && value <= max) return value
-  logger.warn(
-    `config.toml: ${name} = ${String(value)} is out of range [${String(min)}, ${String(max)}], ignoring`,
-  )
-  return undefined
-}
-
-function parseTierOverride(
-  tier: SchemaType<typeof qualityTierSchema> | undefined,
-): Partial<BaseSamplingConfig> | undefined {
-  if (!tier) return undefined
-
-  const out: { temperature?: number; topP?: number; maxTokens?: number } = {}
-
-  if (typeof tier.temperature === 'number') {
-    const v = clampOptional(tier.temperature, 0, CLAMP_OPTIONAL_ARG_3, 'temperature')
-    if (v !== undefined) out.temperature = v
-  }
-  if (typeof tier.top_p === 'number') {
-    const v = clampOptional(tier.top_p, 0, 1, 'top_p')
-    if (v !== undefined) out.topP = v
-  }
-  if (typeof tier.max_tokens === 'number') {
-    const v = clampOptional(tier.max_tokens, 1, CLAMP_OPTIONAL_ARG_3_VALUE_1_000_000, 'max_tokens')
-    if (v !== undefined) out.maxTokens = v
-  }
-
-  return Object.keys(out).length > 0 ? out : undefined
 }

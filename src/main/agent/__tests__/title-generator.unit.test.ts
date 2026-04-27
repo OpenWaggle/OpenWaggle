@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { deduplicateConsecutiveWords } from '../title-generator'
+import { buildDeterministicTitle, deduplicateConsecutiveWords } from '../title-generator'
 
 describe('deduplicateConsecutiveWords', () => {
   it('removes concatenated duplicate fragments: "HelloHello" → "Hello"', () => {
@@ -44,5 +44,31 @@ describe('deduplicateConsecutiveWords', () => {
   it('deduplicates longer concatenated repeats like FunctionFunction', () => {
     expect(deduplicateConsecutiveWords('FunctionFunction')).toBe('Function')
     expect(deduplicateConsecutiveWords('WorldWorld')).toBe('World')
+  })
+})
+
+describe('buildDeterministicTitle', () => {
+  it('uses the first message content directly when already short', () => {
+    expect(buildDeterministicTitle('Fix Electron tray menu state')).toBe(
+      'Fix Electron tray menu state',
+    )
+  })
+
+  it('collapses multiline whitespace into a clean single-line title', () => {
+    expect(buildDeterministicTitle('  Investigate bug\n\n in session restore   flow ')).toBe(
+      'Investigate bug in session restore flow',
+    )
+  })
+
+  it('truncates long titles at a word boundary when possible', () => {
+    expect(
+      buildDeterministicTitle(
+        'Implement a complete session projection rebuild around the Pi SDK agent kernel',
+      ),
+    ).toBe('Implement a complete session projection rebuild around the...')
+  })
+
+  it('falls back to New session for empty input', () => {
+    expect(buildDeterministicTitle('   ')).toBe('New session')
   })
 })

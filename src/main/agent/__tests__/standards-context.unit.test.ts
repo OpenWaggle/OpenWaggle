@@ -25,12 +25,7 @@ describe('loadAgentStandardsContext', () => {
     await fs.mkdir(path.join(projectPath, '.openwaggle'), { recursive: true })
     await fs.writeFile(path.join(projectPath, '.openwaggle', 'skills'), 'not-a-directory', 'utf8')
 
-    const context = await loadAgentStandardsContext(projectPath, 'hello', {
-      ...DEFAULT_SETTINGS,
-      providers: {
-        ...DEFAULT_SETTINGS.providers,
-      },
-    })
+    const context = await loadAgentStandardsContext(projectPath, 'hello', DEFAULT_SETTINGS)
 
     expect(context.agentsStatus).toBe('found')
     expect(context.activeSkills).toEqual([])

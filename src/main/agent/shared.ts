@@ -9,17 +9,7 @@ import { MessageId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 
 // ---------------------------------------------------------------------------
-// ChatContentPart — inline type previously duplicated in agent-loop.ts
-// ---------------------------------------------------------------------------
-
-export type ChatContentPart =
-  | { type: 'text'; content: string }
-  | { type: 'image'; source: { type: 'data'; value: string; mimeType: string } }
-  | { type: 'document'; source: { type: 'data'; value: string; mimeType: string } }
-
-// ---------------------------------------------------------------------------
-// makeMessage — previously duplicated in agent-loop.ts and service.ts
-// Uses orchestration's signature (includes optional metadata)
+// makeMessage — shared message construction helper.
 // ---------------------------------------------------------------------------
 
 export function makeMessage(
@@ -61,30 +51,4 @@ export function buildPersistedUserMessageParts(payload: AgentSendPayload): Messa
     parts.push({ type: 'attachment', attachment: persisted })
   }
   return parts.length > 0 ? parts : [{ type: 'text', text: '' }]
-}
-
-// ---------------------------------------------------------------------------
-// Re-exports from providers layer (canonical location for provider resolution)
-// ---------------------------------------------------------------------------
-
-export type {
-  ProviderResolution,
-  ProviderResolutionError,
-  ResolvedProviderResult,
-} from '../providers/provider-resolver'
-export {
-  buildSamplingOptions,
-  isResolutionError,
-  resolveProviderAndQuality,
-} from '../providers/provider-resolver'
-
-// ---------------------------------------------------------------------------
-// resolveAgentProjectPath — throw instead of process.cwd() fallback
-// ---------------------------------------------------------------------------
-
-export function resolveAgentProjectPath(
-  conversationProjectPath: string | null | undefined,
-): string {
-  if (conversationProjectPath) return conversationProjectPath
-  throw new Error('No project path set on the conversation — cannot run agent without a project')
 }

@@ -32,11 +32,15 @@ const RULES: readonly ArchitectureRule[] = [
     allowEmpty: true,
   },
 
-  // ── Provider singleton isolation ───────────────────────────
+  // ── Provider catalog isolation ─────────────────────────────
   {
-    name: 'No providerRegistry outside adapters/providers/services/store',
-    command:
-      "grep -rn providerRegistry src/main/ --include='*.ts' | grep -v __tests__ | grep -v 'src/main/adapters/' | grep -v 'src/main/providers/' | grep -v 'src/main/services/' | grep -v 'src/main/store/'",
+    name: 'No src/main/providers runtime directory',
+    command: "find src/main/providers -type f -name '*.ts' 2>/dev/null",
+    allowEmpty: true,
+  },
+  {
+    name: 'No providerRegistry references in production source',
+    command: "grep -rn providerRegistry src/main/ --include='*.ts' | grep -v __tests__",
     allowEmpty: true,
   },
 

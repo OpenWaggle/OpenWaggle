@@ -17,8 +17,7 @@ const optionalUrlSchema = Schema.optional(
 const envSchema = Schema.Struct({
   ELECTRON_RENDERER_URL: optionalUrlSchema,
   OPENWAGGLE_USER_DATA_DIR: Schema.optional(Schema.String),
-  OPENWAGGLE_ENABLE_APPROVAL_TRACE: Schema.optional(Schema.String),
-  OPENWAGGLE_ENABLE_CODEX_SSE_TRACE: Schema.optional(Schema.String),
+  OPENWAGGLE_DISABLE_SINGLE_INSTANCE: Schema.optional(Schema.String),
   OPENWAGGLE_LOG_LEVEL: Schema.optional(Schema.Literal('debug', 'info', 'warn', 'error')),
 })
 
@@ -26,12 +25,10 @@ export type Env = SchemaType<typeof envSchema>
 
 export const env: Env = decodeUnknownOrThrow(envSchema, process.env)
 
-export const approvalTraceEnabled = env.OPENWAGGLE_ENABLE_APPROVAL_TRACE === '1'
-export const codexSseTraceEnabled = env.OPENWAGGLE_ENABLE_CODEX_SSE_TRACE === '1'
 export const logLevel = env.OPENWAGGLE_LOG_LEVEL ?? 'info'
 
 /**
- * Safe environment for child processes (e.g. runCommand tool).
+ * Safe environment for child processes.
  * Only passes through essential variables — prevents leaking API keys,
  * secrets, or other sensitive values from the parent process.
  */
@@ -45,22 +42,6 @@ export function getSafeChildEnv(): Record<string, string | undefined> {
     USER: process.env.USER,
     TMPDIR: process.env.TMPDIR,
   }
-}
-
-export function getDefinedEnv(
-  entries: Readonly<Record<string, string | undefined>>,
-): Record<string, string> {
-  const result: Record<string, string> = {}
-  for (const [key, value] of Object.entries(entries)) {
-    if (typeof value === 'string') {
-      result[key] = value
-    }
-  }
-  return result
-}
-
-export function getSafeChildEnvEntries(): Record<string, string> {
-  return getDefinedEnv(getSafeChildEnv())
 }
 
 /**

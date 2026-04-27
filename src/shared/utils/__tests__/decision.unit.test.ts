@@ -69,7 +69,7 @@ describe('decision utility', () => {
       | { type: 'reasoning'; note: string }
 
     function getPart(): Part {
-      return { type: 'tool', name: 'readFile' }
+      return { type: 'tool', name: 'read' }
     }
 
     const part = getPart()
@@ -80,7 +80,7 @@ describe('decision utility', () => {
       .case('reasoning', (value) => value.note)
       .assertComplete()
 
-    expect(result).toBe('readFile')
+    expect(result).toBe('read')
   })
 
   it('throws at runtime when assertComplete has no matching case', () => {

@@ -5,11 +5,8 @@
  * into a pure Effect program that depends on hexagonal ports.
  */
 import * as Effect from 'effect/Effect'
-import { ChatStreamError } from '../errors'
-import { ChatService } from '../ports/chat-service'
+import { ProviderProbeService } from '../ports/provider-probe-service'
 import { ProviderService } from '../ports/provider-service'
-
-const TEST_TIMEOUT_MS = 15_000
 
 interface TestCredentialsSuccess {
   readonly success: true
@@ -22,25 +19,14 @@ interface TestCredentialsFailure {
 
 type TestCredentialsResult = TestCredentialsSuccess | TestCredentialsFailure
 
-/**
- * Test a provider's credentials by sending a minimal chat request.
- *
- * For providers that don't require an API key (e.g. Ollama), tests
- * connectivity by verifying the adapter can be created and a minimal
- * stream completes without error.
- */
-export function testCredentials(
-  providerId: string,
-  apiKey: string,
-  baseUrl?: string,
-  authMethod?: 'api-key' | 'subscription',
-) {
+/** Test a provider's credentials through a minimal Pi session prompt. */
+export function testCredentials(providerId: string, apiKey: string, projectPath?: string | null) {
   return Effect.gen(function* () {
     const providerService = yield* ProviderService
-    const chatService = yield* ChatService
+    const providerProbeService = yield* ProviderProbeService
 
     // Look up the provider
-    const provider = yield* providerService.get(providerId)
+    const provider = yield* providerService.get(providerId, projectPath)
     if (!provider) {
       return {
         success: false,
@@ -48,36 +34,14 @@ export function testCredentials(
       } satisfies TestCredentialsFailure
     }
 
-    // For providers that don't require an API key, test basic connectivity
-    if (!provider.requiresApiKey) {
-      // If the provider supports dynamic model fetch, attempt it as a health check.
-      // Currently this logic stays in the handler since fetchModels is not yet
-      // part of the ProviderService port. Return success for keyless providers.
-      return { success: true } satisfies TestCredentialsSuccess
-    }
+    const normalizedApiKey = apiKey.trim() === '' ? undefined : apiKey
 
-    // Create an adapter for the provider's test model
-    const adapter = yield* providerService
-      .createChatAdapter(provider.testModel, apiKey, baseUrl, authMethod)
-      .pipe(
-        Effect.catchAll((err) =>
-          Effect.fail(
-            new ChatStreamError({
-              message: `Failed to create adapter: ${err._tag}`,
-              cause: err,
-            }),
-          ),
-        ),
-      )
-
-    // Test the connection with a timeout
-    const abortController = new AbortController()
-    const timeoutId = setTimeout(() => abortController.abort(), TEST_TIMEOUT_MS)
-
-    const result = yield* chatService
-      .testConnection({
-        adapter,
-        abortController,
+    const result = yield* providerProbeService
+      .probeCredentials({
+        providerId: provider.id,
+        modelId: provider.testModel,
+        apiKey: normalizedApiKey,
+        projectPath,
       })
       .pipe(
         Effect.map((): TestCredentialsResult => ({ success: true })),
@@ -87,7 +51,6 @@ export function testCredentials(
             error: err.message || 'Provider returned an error while testing credentials',
           } satisfies TestCredentialsFailure),
         ),
-        Effect.ensuring(Effect.sync(() => clearTimeout(timeoutId))),
       )
 
     return result

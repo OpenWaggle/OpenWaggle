@@ -43,24 +43,15 @@ export const api: OpenWaggleApi = {
   sendMessage: invoke('agent:send-message'),
   cancelAgent: send('agent:cancel'),
   steerAgent: invoke('agent:steer'),
-  onStreamChunk: on('agent:stream-chunk'),
+  onAgentEvent: on('agent:event'),
 
-  // Context Injection
-  injectContext: send('agent:inject-context'),
-  onContextInjected: on('agent:context-injected'),
-
-  // Agent Questions
-  answerQuestion: invoke('agent:answer-question'),
   getAgentPhase: invoke('agent:get-phase'),
   getBackgroundRun: invoke('agent:get-background-run'),
   listActiveRuns: invoke('agent:list-active-runs'),
+  getContextUsage: invoke('agent:get-context-usage'),
+  compactSession: invoke('agent:compact-session'),
   onRunCompleted: on('agent:run-completed'),
-  onQuestion: on('agent:question'),
   onAgentPhase: on('agent:phase'),
-
-  // Plan Proposals
-  respondToPlan: invoke('agent:respond-to-plan'),
-  onPlanProposal: on('agent:plan-proposal'),
 
   // Settings
   getSettings: invoke('settings:get'),
@@ -70,12 +61,9 @@ export const api: OpenWaggleApi = {
 
   // Providers
   getProviderModels: invoke('providers:get-models'),
-  fetchProviderModels: invoke('providers:fetch-models'),
 
   // Project
   selectProjectFolder: invoke('project:select-folder'),
-  isProjectToolCallTrusted: invoke('project-config:is-tool-call-trusted'),
-  recordProjectToolApproval: invoke('project-config:record-tool-approval'),
   getProjectPreferences: invoke('project-config:get-preferences'),
   setProjectPreferences: invoke('project-config:set-preferences'),
 
@@ -89,12 +77,11 @@ export const api: OpenWaggleApi = {
   unarchiveConversation: invoke('conversations:unarchive'),
   listArchivedConversations: invoke('conversations:list-archived'),
   updateConversationTitle: invoke('conversations:update-title'),
-  updateConversationProjectPath: invoke('conversations:update-project-path'),
-  updateConversationPlanMode: invoke('conversations:update-plan-mode'),
+  listSessions: invoke('sessions:list'),
+  getSessionTree: invoke('sessions:get-tree'),
+  getSessionWorkspace: invoke('sessions:get-workspace'),
+  navigateSessionTree: invoke('sessions:navigate-tree'),
   onConversationTitleUpdated: on('conversations:title-updated'),
-
-  // Devtools
-  getDevtoolsEventBusConfig: invoke('devtools:get-event-bus-config'),
 
   // Terminal
   createTerminal: invoke('terminal:create'),
@@ -143,41 +130,25 @@ export const api: OpenWaggleApi = {
   // Dialog
   showConfirm: invoke('dialog:confirm'),
 
-  // Orchestration
-  getOrchestrationRun: invoke('orchestration:get-run'),
-  listOrchestrationRuns: invoke('orchestration:list-runs'),
-  cancelOrchestrationRun: invoke('orchestration:cancel-run'),
-  onOrchestrationEvent: on('orchestration:event'),
-
   // Waggle
   sendWaggleMessage: invoke('agent:send-waggle-message'),
   cancelWaggle: send('agent:cancel-waggle'),
-  onWaggleStreamChunk: on('waggle:stream-chunk'),
+  onWaggleEvent: on('waggle:event'),
   onWaggleTurnEvent: on('waggle:turn-event'),
 
   // Auth
   startOAuth: invoke('auth:start-oauth'),
   submitAuthCode: invoke('auth:submit-code'),
+  cancelOAuth: invoke('auth:cancel-oauth'),
+  setProviderApiKey: invoke('auth:set-api-key'),
   disconnectAuth: invoke('auth:disconnect'),
   getAuthAccountInfo: invoke('auth:get-account-info'),
   onOAuthStatus: on('auth:oauth-status'),
-
-  // MCP
-  listMcpServers: invoke('mcp:list-servers'),
-  addMcpServer: invoke('mcp:add-server'),
-  removeMcpServer: invoke('mcp:remove-server'),
-  toggleMcpServer: invoke('mcp:toggle-server'),
-  updateMcpServer: invoke('mcp:update-server'),
-  onMcpStatusChanged: on('mcp:status-changed'),
 
   // Teams
   listTeams: invoke('teams:list'),
   saveTeam: invoke('teams:save'),
   deleteTeam: invoke('teams:delete'),
-
-  // Sub-Agents
-  onSubAgentEvent: on('sub-agent:event'),
-  onTeamEvent: on('team:event'),
 
   // Feedback
   checkGhCli: invoke('feedback:check-gh'),
@@ -186,18 +157,6 @@ export const api: OpenWaggleApi = {
   submitFeedback: invoke('feedback:submit'),
   generateFeedbackMarkdown: invoke('feedback:generate-markdown'),
   openExternal: invoke('shell:open-external'),
-
-  // Context
-  getContextSnapshot: invoke('context:get-snapshot'),
-  getBaselineSnapshot: invoke('context:get-baseline'),
-  requestCompaction: invoke('context:compact'),
-  addPin: invoke('context:pin-add'),
-  removePin: invoke('context:pin-remove'),
-  removePinByMessage: invoke('context:pin-remove-by-message'),
-  listPins: invoke('context:pin-list'),
-  getModelCompatibility: invoke('context:model-compatibility'),
-  updateCompactionGuidance: invoke('context:update-compaction-guidance'),
-  onContextSnapshot: on('context:snapshot-changed'),
 
   // Composer
   suggestFiles: invoke('composer:file-suggest'),
