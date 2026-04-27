@@ -1,4 +1,0 @@
-interface:
-  display_name: "OpenAI Codex Subscription Fix"
-  short_description: "Fix OpenAI subscription Codex transport errors"
-  default_prompt: "Use $openai-codex-subscription-transport to diagnose and fix OpenAI subscription OAuth requests that fail against ChatGPT Codex responses."
