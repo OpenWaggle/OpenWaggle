@@ -135,6 +135,31 @@ const APP_MIGRATIONS: readonly AppMigration[] = [
       `,
     ],
   },
+  {
+    id: 8,
+    name: 'drop-legacy-pre-pi-persistence',
+    statements: [
+      `DROP TABLE IF EXISTS conversation_message_parts`,
+      `DROP TABLE IF EXISTS pinned_context`,
+      `DROP TABLE IF EXISTS conversation_messages`,
+      `DROP TABLE IF EXISTS conversations`,
+      `DROP TABLE IF EXISTS orchestration_run_tasks`,
+      `DROP TABLE IF EXISTS orchestration_runs`,
+      `DROP TABLE IF EXISTS orchestration_events`,
+      `DROP TABLE IF EXISTS provider_session_runtime`,
+      `DROP TABLE IF EXISTS team_runtime_state`,
+      `DROP TABLE IF EXISTS auth_tokens`,
+      `
+      DELETE FROM settings_store
+      WHERE key IN (
+        'providers',
+        'executionMode',
+        'qualityPreset',
+        'mcpServers'
+      )
+      `,
+    ],
+  },
 ]
 
 export interface AppDatabaseService {

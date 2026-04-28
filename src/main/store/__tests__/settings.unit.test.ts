@@ -28,6 +28,29 @@ vi.mock('electron', () => ({
   },
 }))
 
+interface SettingsStoreRow {
+  readonly key: string
+}
+
+interface LegacyTableRow {
+  readonly name: string
+}
+
+const LEGACY_CLEANUP_MIGRATION_ID = 8
+const LEGACY_PERSISTENCE_TABLES = [
+  'conversation_message_parts',
+  'pinned_context',
+  'conversation_messages',
+  'conversations',
+  'orchestration_run_tasks',
+  'orchestration_runs',
+  'orchestration_events',
+  'provider_session_runtime',
+  'team_runtime_state',
+  'auth_tokens',
+] as const
+const LEGACY_SETTINGS_KEYS = ['providers', 'executionMode', 'qualityPreset', 'mcpServers'] as const
+
 async function disposeRuntime(): Promise<void> {
   const { disposeAppRuntime } = await import('../../runtime')
   await disposeAppRuntime()
@@ -55,6 +78,61 @@ async function writeRawSetting(key: string, value: unknown): Promise<void> {
   )
 }
 
+async function seedLegacyPersistenceForCleanup(): Promise<void> {
+  const { resetAppRuntimeForTests, runAppEffect } = await import('../../runtime')
+  await runAppEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      for (const tableName of LEGACY_PERSISTENCE_TABLES) {
+        yield* sql.unsafe(`CREATE TABLE IF NOT EXISTS ${tableName} (id TEXT PRIMARY KEY)`)
+      }
+      for (const key of LEGACY_SETTINGS_KEYS) {
+        yield* sql`
+          INSERT INTO settings_store (key, value_json, updated_at)
+          VALUES (${key}, ${JSON.stringify({ legacy: true })}, ${Date.now()})
+          ON CONFLICT(key) DO UPDATE SET
+            value_json = excluded.value_json,
+            updated_at = excluded.updated_at
+        `
+      }
+      yield* sql`
+        DELETE FROM _migrations
+        WHERE id = ${LEGACY_CLEANUP_MIGRATION_ID}
+      `
+    }),
+  )
+  await resetAppRuntimeForTests()
+}
+
+async function readLegacyPersistenceNames(): Promise<{
+  readonly tables: readonly string[]
+  readonly settingsKeys: readonly string[]
+}> {
+  const { runAppEffect } = await import('../../runtime')
+  return runAppEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const tableRows = yield* sql<LegacyTableRow>`
+        SELECT name
+        FROM sqlite_master
+        WHERE type = ${'table'}
+          AND name IN ${sql.in([...LEGACY_PERSISTENCE_TABLES])}
+        ORDER BY name ASC
+      `
+      const settingRows = yield* sql<SettingsStoreRow>`
+        SELECT key
+        FROM settings_store
+        WHERE key IN ${sql.in([...LEGACY_SETTINGS_KEYS])}
+        ORDER BY key ASC
+      `
+      return {
+        tables: tableRows.map((row) => row.name),
+        settingsKeys: settingRows.map((row) => row.key),
+      }
+    }),
+  )
+}
+
 describe('settings store', () => {
   beforeEach(async () => {
     await disposeRuntime()
@@ -69,6 +147,17 @@ describe('settings store', () => {
     if (state.userDataDir) {
       await fs.rm(state.userDataDir, { recursive: true, force: true })
     }
+  })
+
+  it('drops pre-Pi persistence tables and settings keys during database bootstrap', async () => {
+    await seedLegacyPersistenceForCleanup()
+
+    const legacyPersistence = await readLegacyPersistenceNames()
+
+    expect(legacyPersistence).toEqual({
+      tables: [],
+      settingsKeys: [],
+    })
   })
 
   it('sanitizes and limits recent projects from persisted settings', async () => {
