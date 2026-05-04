@@ -1,3 +1,4 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import { useEffect } from 'react'
 import { isTerminalTransportEvent } from '@/lib/agent-stream-utils'
 import { api } from '@/lib/ipc'
@@ -25,13 +26,15 @@ export function useBackgroundRunMonitor(): void {
   // Track stream lifecycle globally
   useEffect(() => {
     const unsubEvent = api.onAgentEvent((payload) => {
-      if (payload.event.type === 'agent_start') {
-        addActiveRun(payload.conversationId)
-        return
-      }
-      if (isTerminalTransportEvent(payload.event)) {
-        removeActiveRun(payload.conversationId)
-      }
+      matchBy(payload.event, 'type')
+        .with('agent_start', () => {
+          addActiveRun(payload.conversationId)
+        })
+        .otherwise((event) => {
+          if (isTerminalTransportEvent(event)) {
+            removeActiveRun(payload.conversationId)
+          }
+        })
     })
 
     const unsubCompleted = api.onRunCompleted((payload) => {

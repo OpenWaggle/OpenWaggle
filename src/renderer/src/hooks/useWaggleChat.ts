@@ -1,3 +1,4 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import type { ConversationId } from '@shared/types/brand'
 import { useEffect } from 'react'
 import { api } from '@/lib/ipc'
@@ -28,9 +29,17 @@ export function useWaggleChat(conversationId: ConversationId | null): void {
     // When an assistant message_start arrives, we map the messageId to the agent metadata
     // so ChatPanel can show agent labels during streaming (before persistence).
     const unsubEvent = api.onWaggleEvent((payload) => {
-      if (targetConversationId && payload.conversationId === targetConversationId) {
-        if (payload.event.type === 'message_start' && payload.event.role === 'assistant') {
-          trackMessageMetadata(payload.event.messageId, {
+      if (!targetConversationId || payload.conversationId !== targetConversationId) {
+        return
+      }
+
+      matchBy(payload.event, 'type')
+        .with('message_start', (event) => {
+          if (event.role !== 'assistant') {
+            return
+          }
+
+          trackMessageMetadata(event.messageId, {
             agentIndex: payload.meta.agentIndex,
             agentLabel: payload.meta.agentLabel,
             agentColor: payload.meta.agentColor,
@@ -38,8 +47,8 @@ export function useWaggleChat(conversationId: ConversationId | null): void {
             turnNumber: payload.meta.turnNumber,
             ...(payload.meta.isSynthesis ? { isSynthesis: true } : {}),
           })
-        }
-      }
+        })
+        .otherwise(() => {})
     })
 
     // Safety net: if the collaboration-complete turn event was missed,

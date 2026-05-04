@@ -1,3 +1,4 @@
+import { match } from '@diegogbrisa/ts-match'
 import { getMessageText } from '@shared/types/agent'
 import type { SessionNode, SessionTree } from '@shared/types/session'
 import { ChevronDown, ChevronRight } from 'lucide-react'
@@ -73,12 +74,13 @@ function nodeLabel(node: SessionNode): string {
 }
 
 function nodeRoleLabel(node: SessionNode): string {
-  if (node.kind === 'user_message') return 'User'
-  if (node.kind === 'assistant_message') return 'Assistant'
-  if (node.kind === 'tool_result') return 'Tool'
-  if (node.kind === 'branch_summary') return 'Branch summary'
-  if (node.kind === 'compaction_summary') return 'Compaction'
-  return node.kind.replace(/_/g, ' ')
+  return match(node.kind)
+    .with('user_message', () => 'User')
+    .with('assistant_message', () => 'Assistant')
+    .with('tool_result', () => 'Tool')
+    .with('branch_summary', () => 'Branch summary')
+    .with('compaction_summary', () => 'Compaction')
+    .otherwise((kind) => kind.replace(/_/g, ' '))
 }
 
 function isActivePathNode(node: SessionNode, activePathIds: ReadonlySet<string>): boolean {
