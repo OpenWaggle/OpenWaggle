@@ -217,24 +217,24 @@ function hydrateWaggleConfig(raw: unknown): WaggleConfig | undefined {
 }
 
 function transformPart(part: ParsedPart): MessagePart {
-  return matchBy(part, 'type').cases((group) => [
-    group('text', (value): MessagePart => ({ type: 'text', text: value.text })),
-    group(
+  return matchBy(part, 'type')
+    .with('text', (value): MessagePart => ({ type: 'text', text: value.text }))
+    .with(
       'reasoning',
       'thinking',
       (value): MessagePart => ({
         type: 'reasoning',
         text: value.text,
       }),
-    ),
-    group(
+    )
+    .with(
       'attachment',
       (value): MessagePart => ({
         type: 'attachment',
         attachment: value.attachment,
       }),
-    ),
-    group(
+    )
+    .with(
       'tool-call',
       (value): MessagePart => ({
         type: 'tool-call',
@@ -245,8 +245,8 @@ function transformPart(part: ParsedPart): MessagePart {
           state: value.toolCall.state,
         },
       }),
-    ),
-    group(
+    )
+    .with(
       'tool-result',
       (value): MessagePart => ({
         type: 'tool-result',
@@ -260,8 +260,8 @@ function transformPart(part: ParsedPart): MessagePart {
           details: value.toolResult.details,
         },
       }),
-    ),
-  ])
+    )
+    .exhaustive()
 }
 
 function hydrateConversationSummary(row: SessionSummaryRow): ConversationSummary {
