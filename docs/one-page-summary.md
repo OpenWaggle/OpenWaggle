@@ -24,8 +24,9 @@ Provider/model/auth metadata comes from Pi `ModelRegistry` and `AuthStorage`:
 ### Pi-Native Coding Agent Toolkit
 - **Native Pi tools** — read, write, edit, search/listing, and shell activity provided by Pi
 - **Tool timeline** — OpenWaggle renders Pi-emitted tool calls without a parallel runtime layer
-- **Skills/resources** — Pi-native resource loading via `.pi/skills` / `.agents/skills`, plus OpenWaggle runtime support and catalog UI for `.openwaggle/skills`
-- **Git integration** — live diff stats, branch management, commit dialog, side-by-side diffs
+- **Session Tree** — Pi session nodes and branches projected into a right-side tree navigation surface
+- **Skills/resources** — Pi-native project resource loading with `.openwaggle > .pi > .agents` precedence
+- **Git integration** — live diff stats, Git branch management, commit dialog, side-by-side diffs
 
 ### Rich Input & Interaction
 - **Attachments** — drag-and-drop text files, PDFs (text extraction), images (OCR)

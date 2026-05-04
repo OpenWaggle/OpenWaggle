@@ -1,6 +1,6 @@
 ---
 title: "App Settings"
-description: "Current OpenWaggle settings: connections, waggle mode, archived sessions, and storage."
+description: "Current OpenWaggle settings: connections, waggle mode, archived sessions and branches, and storage."
 order: 1
 section: "Configuration"
 ---
@@ -14,9 +14,11 @@ Open Settings from the sidebar gear icon.
 | **General** | General application settings. |
 | **Waggle Mode** | Multi-agent team configuration and presets. |
 | **Connections** | Pi-backed API-key and OAuth provider authentication, plus enabled model selection. |
-| **Archived sessions** | Restore or permanently delete archived sessions grouped by project. |
+| **Archived items** | Restore archived sessions and non-main session branches, or permanently delete archived sessions. |
 
 Configuration, Personalization, Git, Environments, and Worktrees are visible as disabled settings areas but are not active product surfaces yet.
+
+Archived branches are hidden from normal sidebar navigation but remain visible in the full Session Tree with archived state. Branch deletion is not exposed until Pi supports native branch deletion.
 
 ## Connections
 

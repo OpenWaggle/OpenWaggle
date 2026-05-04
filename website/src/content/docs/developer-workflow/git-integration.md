@@ -1,6 +1,6 @@
 ---
 title: "Git Integration"
-description: "Built-in git features including live diff stats, branch management, commit dialog, diff panel, and terminal."
+description: "Built-in git features including live diff stats, Git branch management, commit dialog, diff panel, and terminal."
 order: 1
 section: "Developer Workflow"
 ---
@@ -22,7 +22,9 @@ Stats update automatically when:
 
 Click the diff stats to toggle the diff panel.
 
-## Branch Management
+## Git Branch Management
+
+This section covers repository Git branches. Pi session branches are conversation/runtime branches inside OpenWaggle sessions; use the [Session Tree](/docs/using-openwaggle/session-tree) for those.
 
 Click the **branch name** in the branch row below the composer to open the branch picker.
 

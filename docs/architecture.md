@@ -24,7 +24,7 @@ The standard run path is:
 5. The renderer reduces those transport events into live UI messages.
 6. Completed Pi messages are projected into SQLite `sessions`, `session_nodes`, and branch tables.
 
-OpenWaggle keeps Pi's resource loader as the runtime source of truth. The Pi adapter adds `.openwaggle/skills` as an additional skill path and applies OpenWaggle catalog toggles to `.openwaggle/skills` and root `.agents/skills`, while Pi continues to load `.pi/skills`, `.agents/skills`, and global/user resources through its native discovery.
+OpenWaggle keeps Pi's resource loader as the runtime source of truth. The Pi adapter injects project resource roots in `.openwaggle > .pi > .agents` order for skills, extensions, prompts, and themes, then strips those implicit roots when Pi persists project settings. OpenWaggle catalog toggles apply to `.openwaggle/skills` and root `.agents/skills`, while Pi-native discovery still governs Pi-owned/global resources.
 
 ## Persistence
 

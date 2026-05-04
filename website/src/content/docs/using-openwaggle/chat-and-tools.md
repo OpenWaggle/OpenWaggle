@@ -16,6 +16,8 @@ To start work:
 3. Pick an enabled provider-qualified model in the composer.
 4. Send a message.
 
+Session branches are Pi conversation branches inside a session, not Git branches. Use the right-side [Session Tree](/docs/using-openwaggle/session-tree) to inspect and navigate the full Pi node graph.
+
 ## Messages
 
 Assistant output streams from Pi session events. OpenWaggle projects those events into a renderer-friendly transcript with:
@@ -50,6 +52,7 @@ Current command-palette uses include:
 - Skill references.
 - Waggle presets.
 - `/compact` for manual Pi compaction.
+- **Open Session Tree** for branch and node navigation in the active Pi session.
 
 ## Error Handling
 

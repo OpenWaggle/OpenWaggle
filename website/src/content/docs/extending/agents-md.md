@@ -41,6 +41,6 @@ Use `AGENTS.md` for things like:
 ## AGENTS.md vs Skills
 
 - **AGENTS.md** — Baseline project context discovered by Pi/OpenWaggle for the active project.
-- **Skills** — Runtime-loaded through Pi-native resource locations plus OpenWaggle's `.openwaggle/skills` bridge; OpenWaggle also has a catalog UI for skill preview and toggles.
+- **Skills** — Runtime-loaded through Pi-native resource locations with `.openwaggle > .pi > .agents` project precedence; OpenWaggle also has a catalog UI for skill preview and toggles.
 
 See [Skills System](/docs/extending/skills-system) for more on skills.

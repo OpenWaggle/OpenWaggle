@@ -20,8 +20,10 @@ Pi reference: [Extensions](https://github.com/badlogic/pi-mono/blob/main/package
 
 ## Skills vs Runtime Extensions
 
-Skills are instruction packages. OpenWaggle supports `.openwaggle/skills/` by adding it to Pi's loader, while Pi continues to load `.pi/skills/` and `.agents/skills/`.
+Skills are instruction packages. Runtime extensions change what the agent can actually do.
 
-Runtime extensions change what the agent can actually do. Those belong behind Pi adapter boundaries and need explicit product support in IPC and the renderer.
+OpenWaggle injects project resource roots into Pi with `.openwaggle > .pi > .agents` precedence for skills, extensions, prompts, and themes. Same-name project resources resolve from `.openwaggle` first, then `.pi`, then `.agents`.
+
+Runtime extensions belong behind Pi adapter boundaries and need explicit product support in IPC and the renderer.
 
 For custom provider registration, see Pi's [`pi.registerProvider()` documentation](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/custom-provider.md).

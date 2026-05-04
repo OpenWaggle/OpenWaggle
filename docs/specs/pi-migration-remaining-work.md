@@ -1,7 +1,7 @@
 # Pi Migration Remaining Work
 
 _Status: active implementation spec_
-_Last updated: 2026-04-27_
+_Last updated: 2026-05-04_
 _Replaces audited/deleted historical specs:_
 
 - `docs/specs/pi-sdk-migration-blueprint.md`
@@ -218,6 +218,8 @@ Implemented in the current branch:
 
 - Header icon opens/closes the Session Tree panel.
 - Diff and Session Tree never render as stacked right sidebars.
+- Docked right-side panels open and close with the same width-clipping motion model as the left sidebar.
+- Docked right-side panels clamp opened width so the chat transcript remains visible on non-fullscreen windows and keep the closing panel content mounted so Diff cannot flash while Session Tree closes.
 - Full filter set works and persists through Pi setting.
 - Search narrows visible nodes without blocking typing, searches persisted node content/branch ids even when a renderer message object is not hydrated, preserves matching ancestors for orientation, and temporarily expands result paths so matches hidden under collapsed nodes remain visible.
 - Expanded node state survives panel close/reopen and app restart.

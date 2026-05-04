@@ -29,6 +29,10 @@ Effect `Context.Tag` service definitions. Interfaces that the domain and applica
 - `SessionRepository` — Session tree persistence
 - `SessionProjectionRepository` — Conversation-shaped UI read model over session tables
 - `ProviderService` — OpenWaggle-owned provider/model summaries backed by Pi metadata
+- `ProviderAuthService` — Provider API-key configuration state backed by Pi auth storage
+- `ProviderOAuthService` — Provider OAuth flow state backed by Pi auth storage
+- `ProviderProbeService` — Provider/model credential probing through project-scoped Pi services
+- `SessionTreePreferencesService` — Pi-backed Session Tree and branch-summary preferences
 - `StandardsService` — Agent/skill loading
 - `TeamsRepository` — Team preset persistence
 
@@ -51,6 +55,10 @@ Known current gap: `StandardsService` is registered in the runtime but is not co
 - `sqlite-teams-repository.ts` — Implements TeamsRepository via SQLite store
 - `standards-adapter.ts` — Implements StandardsService via filesystem
 - `pi/pi-provider-service.ts` — Implements ProviderService via Pi provider/model metadata
+- `pi/pi-provider-auth-service.ts` — Implements ProviderAuthService via Pi auth storage
+- `pi/pi-provider-oauth-service.ts` — Implements ProviderOAuthService via Pi auth storage
+- `pi/pi-provider-probe-adapter.ts` — Implements ProviderProbeService via project-scoped Pi services
+- `pi/pi-session-tree-preferences-service.ts` — Implements SessionTreePreferencesService via Pi project settings
 
 **Rules:**
 - MAY import vendor SDKs only in the adapter slice that owns that vendor
@@ -117,9 +125,14 @@ const AppLayer = Layer.mergeAll(
   AppDatabaseLive,
   SettingsService.Live,
   SqliteSessionProjectionRepositoryLive,
+  SqliteSessionRepositoryLive,
   FilesystemStandardsLive,
   PiAgentKernelLive,
+  PiProviderAuthLive,
+  PiProviderProbeLive,
+  PiProviderOAuthLive,
   ProviderServiceLive,
+  PiSessionTreePreferencesLive,
   SqliteTeamsRepositoryLive,
 )
 ```

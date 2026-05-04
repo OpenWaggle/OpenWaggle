@@ -1,7 +1,7 @@
 ---
 title: "Attachments & Voice Input"
 description: "How to attach files to messages and use local speech-to-text voice input in OpenWaggle."
-order: 3
+order: 4
 section: "Using OpenWaggle"
 ---
 

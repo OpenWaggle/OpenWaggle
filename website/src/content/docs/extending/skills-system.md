@@ -13,7 +13,13 @@ Pi references: [coding-agent customization](https://github.com/badlogic/pi-mono/
 
 Pi's runtime resource loader is the source of truth for skills that affect agent runs. Current Pi discovery includes project `.pi/skills/` and `.agents/skills/` locations, plus user/global Pi resource locations.
 
-OpenWaggle also adds `.openwaggle/skills/` to Pi's skill loader. The Skills panel scans `.openwaggle/skills/` and `.agents/skills/`, shows metadata, previews instructions, and persists per-project enable/disable toggles for the OpenWaggle catalog.
+OpenWaggle injects project resource roots into Pi in this order:
+
+```text
+.openwaggle > .pi > .agents
+```
+
+For same-name project skills, `.openwaggle/skills/` wins, then `.pi/skills/`, then `.agents/skills/`. The Skills panel scans `.openwaggle/skills/` and `.agents/skills/`, shows metadata, previews instructions, and persists per-project enable/disable toggles for the OpenWaggle catalog.
 
 Catalog toggles are applied to `.openwaggle/skills/` and root `.agents/skills/` before Pi builds runtime context. `.pi/skills/`, ancestor `.agents/skills/`, and global/user Pi resources remain governed by Pi discovery.
 
@@ -34,7 +40,7 @@ Slash references stay visible in the message text. Pi also registers loaded skil
 
 ## Recommended Runtime Folder
 
-For skills that should be loaded by Pi today, use:
+For skills that should be loaded by Pi today, use one of these project locations:
 
 ```text
 .openwaggle/skills/my-skill/SKILL.md

@@ -61,13 +61,14 @@ OpenWaggle is now a UI and product shell over Pi's coding-agent runtime:
 
 - **Native Pi tools** — file reads, writes, edits, shell commands, and search/listing tools are provided by Pi
 - **Session tree projection** — Pi sessions, nodes, and branches are projected into OpenWaggle's SQLite read model
-- **Skills/resources** — Pi loads `.pi/skills` and `.agents/skills`; OpenWaggle also adds `.openwaggle/skills` to Pi's skill loader and exposes catalog toggles in the UI
+- **Session Tree panel** — inspect and navigate Pi session branches through a right-side tree view
+- **Skills/resources** — project resources load with `.openwaggle > .pi > .agents` precedence for skills, extensions, prompts, and themes
 - **Live tool timeline** — OpenWaggle renders the tool events Pi emits as part of the session stream
 
 ### Git Integration
 
 - **Live diff stats** — see changed files and line counts in real time
-- **Branch management** — switch, create, and manage branches from the branch row below the composer
+- **Git branch management** — switch, create, and manage repository branches from the branch row below the composer
 - **Commit dialog** — stage files, write messages, and commit without leaving the app
 - **Diff panel** — inline view of all working tree changes
 
@@ -143,6 +144,10 @@ Pi references for this behavior:
 
 Start a session, send a message, and the agent responds with Pi's native coding-agent tool access to your project. Use the model selector in the composer to choose from the models you enabled in Settings.
 
+### Session Tree & Branches
+
+Open the Session Tree from the header tree icon or command palette to inspect Pi session nodes and branches. Session branches are conversation/runtime branches inside a Pi session; they are separate from repository Git branches.
+
 ### Waggle Mode
 
 1. **Configure a team** — Go to Settings > Waggle Mode, or create one on the fly
@@ -169,7 +174,7 @@ Drag and drop files onto the composer, or use the attachment button:
 
 ### Skills
 
-Pi-native skills extend the agent's prompt context with specialized knowledge and workflows. Current runtime discovery includes `.openwaggle/skills`, Pi's native `.pi/skills`, and `.agents/skills`.
+Pi-native skills extend the agent's prompt context with specialized knowledge and workflows. Current project resource discovery uses `.openwaggle > .pi > .agents` precedence. OpenWaggle exposes catalog UI for `.openwaggle/skills` and root `.agents/skills`, while Pi-native discovery still governs Pi-owned/global resources.
 
 - **Discover** — open the Skills panel from the sidebar
 - **Enable/disable** — toggle skills per project
@@ -180,7 +185,7 @@ For runtime extensions beyond instruction skills, use Pi's extension system; see
 
 ### Git Workflow
 
-- **Branch picker** — click the branch name in the row below the composer to switch or create branches
+- **Git branch picker** — click the branch name in the row below the composer to switch or create repository branches
 - **Diff panel** — toggle with `Ctrl+D` to see all working tree changes
 - **Commit dialog** — select files, write a message, commit — all from the header
 
@@ -195,6 +200,10 @@ OpenWaggle supports per-project configuration via `.openwaggle/settings.json`. O
     "thinkingLevel": "medium"
   },
   "pi": {
+    "treeFilterMode": "default",
+    "branchSummary": {
+      "skipPrompt": false
+    },
     "compaction": {
       "enabled": true
     }
@@ -202,7 +211,7 @@ OpenWaggle supports per-project configuration via `.openwaggle/settings.json`. O
 }
 ```
 
-The Pi adapter passes the nested `pi` object to Pi's settings manager. Pi's project-local `.pi/settings.json` can also be read by the Pi settings loader, but `.openwaggle/settings.json` is the primary OpenWaggle-facing file. See [Per-Project Configuration](https://openwaggle.ai/docs/configuration/per-project-config) for the current reference.
+The Pi adapter passes the nested `pi` object to Pi's settings manager. Pi's project-local `.pi/settings.json` can also be read by the Pi settings loader, but `.openwaggle/settings.json` is the primary OpenWaggle-facing file. Project resources use `.openwaggle > .pi > .agents` precedence. See [Per-Project Configuration](https://openwaggle.ai/docs/configuration/per-project-config) for the current reference.
 
 ## Development
 
