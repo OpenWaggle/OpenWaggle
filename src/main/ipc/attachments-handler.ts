@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { match, matchBy } from '@diegogbrisa/ts-match'
+import { match } from '@diegogbrisa/ts-match'
 import { PERCENT_BASE } from '@shared/constants/math'
 import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import { TIME_UNIT } from '@shared/constants/time'
@@ -172,47 +172,45 @@ function resolveAttachmentKind(mimeType: string): PreparedAttachment['kind'] {
 
 function guessMimeType(filePath: string): string | null {
   const ext = path.extname(filePath).toLowerCase()
-  return matchBy({ ext }, 'ext')
-    .partial((group) => [
-      group('.pdf', () => 'application/pdf'),
-      group('.png', () => 'image/png'),
-      group('.jpg', '.jpeg', () => 'image/jpeg'),
-      group('.webp', () => 'image/webp'),
-      group('.gif', () => 'image/gif'),
-      group('.bmp', () => 'image/bmp'),
-      group('.svg', () => 'image/svg+xml'),
-      group('.md', () => 'text/markdown'),
-      group('.json', () => 'application/json'),
-      group('.yaml', '.yml', () => 'application/yaml'),
-      group('.xml', () => 'application/xml'),
-      group('.csv', () => 'text/csv'),
-      group('.log', () => 'text/plain'),
-      group('.docx', () => DOCX_MIME_TYPE),
-      group('.rtf', () => RTF_MIME_TYPE),
-      group('.odt', () => ODT_MIME_TYPE),
-      group(
-        '.ts',
-        '.tsx',
-        '.js',
-        '.jsx',
-        '.mjs',
-        '.cjs',
-        '.py',
-        '.java',
-        '.go',
-        '.rs',
-        '.swift',
-        '.kt',
-        '.css',
-        '.scss',
-        '.sass',
-        '.less',
-        '.html',
-        '.htm',
-        '.txt',
-        () => 'text/plain',
-      ),
-    ])
+  return match(ext)
+    .with('.pdf', () => 'application/pdf')
+    .with('.png', () => 'image/png')
+    .with('.jpg', '.jpeg', () => 'image/jpeg')
+    .with('.webp', () => 'image/webp')
+    .with('.gif', () => 'image/gif')
+    .with('.bmp', () => 'image/bmp')
+    .with('.svg', () => 'image/svg+xml')
+    .with('.md', () => 'text/markdown')
+    .with('.json', () => 'application/json')
+    .with('.yaml', '.yml', () => 'application/yaml')
+    .with('.xml', () => 'application/xml')
+    .with('.csv', () => 'text/csv')
+    .with('.log', () => 'text/plain')
+    .with('.docx', () => DOCX_MIME_TYPE)
+    .with('.rtf', () => RTF_MIME_TYPE)
+    .with('.odt', () => ODT_MIME_TYPE)
+    .with(
+      '.ts',
+      '.tsx',
+      '.js',
+      '.jsx',
+      '.mjs',
+      '.cjs',
+      '.py',
+      '.java',
+      '.go',
+      '.rs',
+      '.swift',
+      '.kt',
+      '.css',
+      '.scss',
+      '.sass',
+      '.less',
+      '.html',
+      '.htm',
+      '.txt',
+      () => 'text/plain',
+    )
     .otherwise(() => null)
 }
 
