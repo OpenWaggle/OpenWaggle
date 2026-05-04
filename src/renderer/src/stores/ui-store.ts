@@ -8,6 +8,8 @@ export const DIFF_PANEL_MIN = 360
 export const DIFF_PANEL_MAX = 900
 export const CHAT_MIN_WIDTH = 420
 
+export type RightSidebarPanel = 'diff' | 'session-tree'
+
 export interface ToastData {
   message: string
   /** Visual variant — defaults to 'neutral'. */
@@ -41,6 +43,7 @@ interface UIState {
   feedbackModalOpen: boolean
   feedbackErrorContext: AgentErrorInfo | null
   feedbackCooldownActive: boolean
+  lastRightSidebarPanel: RightSidebarPanel
 
   toggleSidebar: () => void
   toggleTerminal: () => void
@@ -57,6 +60,7 @@ interface UIState {
   openFeedbackModal: (errorContext?: AgentErrorInfo) => void
   closeFeedbackModal: () => void
   startFeedbackCooldown: () => void
+  setLastRightSidebarPanel: (panel: RightSidebarPanel) => void
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null
@@ -74,6 +78,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   feedbackModalOpen: false,
   feedbackErrorContext: null,
   feedbackCooldownActive: false,
+  lastRightSidebarPanel: 'diff',
 
   toggleSidebar() {
     set({ sidebarOpen: !get().sidebarOpen })
@@ -151,6 +156,10 @@ export const useUIStore = create<UIState>((set, get) => ({
       feedbackCooldownTimer = null
       set({ feedbackCooldownActive: false })
     }, FEEDBACK_COOLDOWN_MS)
+  },
+
+  setLastRightSidebarPanel(panel) {
+    set({ lastRightSidebarPanel: panel })
   },
 }))
 

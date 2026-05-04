@@ -10,16 +10,16 @@ import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { cn } from '@/lib/cn'
 
 interface WidthAcceptanceContext {
-  readonly currentWidth: number
   readonly nextWidth: number
-  readonly gap: HTMLDivElement
   readonly panel: HTMLDivElement
   readonly root: HTMLDivElement
+  readonly sidebar: HTMLDivElement
 }
 
 interface RightSidebarLayoutProps {
   readonly children: ReactNode
   readonly defaultWidth: number
+  readonly mainMinWidth: number
   readonly maxWidth: number
   readonly minWidth: number
   readonly open: boolean
@@ -31,11 +31,11 @@ interface RightSidebarLayoutProps {
 }
 
 interface ResizeState {
-  readonly gap: HTMLDivElement
   readonly panel: HTMLDivElement
   readonly pointerId: number
   readonly rail: HTMLButtonElement
   readonly root: HTMLDivElement
+  readonly sidebar: HTMLDivElement
   readonly startWidth: number
   readonly startX: number
   moved: boolean
@@ -78,24 +78,47 @@ function persistWidth(storageKey: string, width: number): void {
   window.localStorage.setItem(storageKey, String(width))
 }
 
-function sidebarGapStyle(open: boolean, width: number): CSSProperties {
-  return { width: open ? width : ZERO_WIDTH_PX }
+function pixelValue(value: number): string {
+  return `${String(value)}px`
 }
 
-function sidebarPanelStyle(open: boolean, width: number): CSSProperties {
-  return {
-    transform: open ? 'translateX(0)' : 'translateX(100%)',
-    width,
-  }
+export function sidebarWidthValue(width: number, mainMinWidth: number): string {
+  return `min(${pixelValue(width)}, max(${pixelValue(ZERO_WIDTH_PX)}, calc(100% - ${pixelValue(mainMinWidth)})))`
 }
 
-function resizeRailStyle(open: boolean, width: number): CSSProperties {
-  return { right: open ? width - RESIZE_RAIL_HALF_WIDTH_PX : ZERO_WIDTH_PX }
+function sidebarShellStyle(open: boolean, width: number, mainMinWidth: number): CSSProperties {
+  return { width: open ? sidebarWidthValue(width, mainMinWidth) : ZERO_WIDTH_PX }
+}
+
+function sidebarPanelStyle(): CSSProperties {
+  return { width: '100%' }
+}
+
+function resizeRailRightValue(open: boolean, width: number, mainMinWidth: number): string {
+  return open
+    ? `calc(${sidebarWidthValue(width, mainMinWidth)} - ${pixelValue(RESIZE_RAIL_HALF_WIDTH_PX)})`
+    : pixelValue(ZERO_WIDTH_PX)
+}
+
+function resizeRailStyle(open: boolean, width: number, mainMinWidth: number): CSSProperties {
+  return { right: resizeRailRightValue(open, width, mainMinWidth) }
+}
+
+function clampedVisibleWidth(
+  width: number,
+  minWidth: number,
+  maxWidth: number,
+  rootWidth: number,
+  mainMinWidth: number,
+): number {
+  const maxVisibleWidth = Math.max(ZERO_WIDTH_PX, rootWidth - mainMinWidth)
+  return Math.min(clampWidth(width, minWidth, maxWidth), maxVisibleWidth)
 }
 
 export function RightSidebarLayout({
   children,
   defaultWidth,
+  mainMinWidth,
   maxWidth,
   minWidth,
   open,
@@ -107,7 +130,7 @@ export function RightSidebarLayout({
 }: RightSidebarLayoutProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const mainRef = useRef<HTMLDivElement>(null)
-  const gapRef = useRef<HTMLDivElement>(null)
+  const sidebarRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const hasOpenedRef = useRef(false)
   const [width, setWidth] = useState(() =>
@@ -119,9 +142,12 @@ export function RightSidebarLayout({
 
   useEffect(() => {
     widthRef.current = width
-    gapRef.current?.style.setProperty('width', `${String(open ? width : ZERO_WIDTH_PX)}px`)
-    panelRef.current?.style.setProperty('width', `${String(width)}px`)
-  }, [open, width])
+    sidebarRef.current?.style.setProperty(
+      'width',
+      open ? sidebarWidthValue(width, mainMinWidth) : pixelValue(ZERO_WIDTH_PX),
+    )
+    panelRef.current?.style.setProperty('width', '100%')
+  }, [mainMinWidth, open, width])
 
   useEffect(() => {
     if (open) {
@@ -137,17 +163,22 @@ export function RightSidebarLayout({
     mainRef.current?.focus({ preventScroll: true })
   }, [open])
 
-  function capturePanel(node: HTMLDivElement | null): void {
-    panelRef.current = node
+  function captureSidebar(node: HTMLDivElement | null): void {
+    sidebarRef.current = node
     if (node && open) {
       hasOpenedRef.current = true
     }
   }
 
+  function capturePanel(node: HTMLDivElement | null): void {
+    panelRef.current = node
+  }
+
   function applyWidth(nextWidth: number): void {
     widthRef.current = nextWidth
-    gapRef.current?.style.setProperty('width', `${String(nextWidth)}px`)
-    panelRef.current?.style.setProperty('width', `${String(nextWidth)}px`)
+    const nextWidthValue = sidebarWidthValue(nextWidth, mainMinWidth)
+    sidebarRef.current?.style.setProperty('width', nextWidthValue)
+    panelRef.current?.style.setProperty('width', '100%')
   }
 
   function commitWidth(nextWidth: number): void {
@@ -181,51 +212,55 @@ export function RightSidebarLayout({
         {children}
       </div>
 
-      {shouldRenderSidebar ? (
-        <>
+      <ResizeRail
+        maxWidth={maxWidth}
+        mainMinWidth={mainMinWidth}
+        minWidth={minWidth}
+        open={open}
+        panelRef={panelRef}
+        rootRef={rootRef}
+        sidebarRef={sidebarRef}
+        width={width}
+        widthRef={widthRef}
+        applyWidth={applyWidth}
+        commitWidth={commitWidth}
+        shouldAcceptWidth={shouldAcceptWidth}
+      />
+      <aside
+        ref={captureSidebar}
+        inert={!open}
+        className={cn(
+          'relative h-full shrink-0 overflow-hidden transition-[width] duration-200 ease-out',
+          open ? 'pointer-events-auto' : 'pointer-events-none',
+        )}
+        data-right-sidebar-main-min-width={mainMinWidth}
+        data-right-sidebar-preferred-width={width}
+        data-right-sidebar-shell="true"
+        style={sidebarShellStyle(open, width, mainMinWidth)}
+      >
+        {shouldRenderSidebar ? (
           <div
-            ref={gapRef}
-            aria-hidden="true"
-            className="h-full shrink-0 transition-[width] duration-200 ease-linear"
-            style={sidebarGapStyle(open, width)}
-          />
-          <ResizeRail
-            maxWidth={maxWidth}
-            minWidth={minWidth}
-            open={open}
-            gapRef={gapRef}
-            panelRef={panelRef}
-            rootRef={rootRef}
-            width={width}
-            widthRef={widthRef}
-            applyWidth={applyWidth}
-            commitWidth={commitWidth}
-            shouldAcceptWidth={shouldAcceptWidth}
-          />
-          <aside
             ref={capturePanel}
-            inert={!open}
-            className={cn(
-              'absolute inset-y-0 right-0 z-10 h-full overflow-hidden border-l border-border bg-diff-bg transition-[transform,width] duration-200 ease-linear',
-              open ? 'pointer-events-auto' : 'pointer-events-none',
-            )}
-            style={sidebarPanelStyle(open, width)}
+            className="absolute inset-y-0 right-0 h-full min-w-0 overflow-hidden border-l border-border bg-diff-bg"
+            data-right-sidebar-panel="true"
+            style={sidebarPanelStyle()}
           >
-            <div className="h-full w-full min-w-0 overflow-hidden">{sidebar}</div>
-          </aside>
-        </>
-      ) : null}
+            {sidebar}
+          </div>
+        ) : null}
+      </aside>
     </div>
   )
 }
 
 interface ResizeRailProps {
   readonly maxWidth: number
+  readonly mainMinWidth: number
   readonly minWidth: number
   readonly open: boolean
-  readonly gapRef: RefObject<HTMLDivElement | null>
   readonly panelRef: RefObject<HTMLDivElement | null>
   readonly rootRef: RefObject<HTMLDivElement | null>
+  readonly sidebarRef: RefObject<HTMLDivElement | null>
   readonly width: number
   readonly widthRef: RefObject<number>
   readonly applyWidth: (width: number) => void
@@ -235,11 +270,12 @@ interface ResizeRailProps {
 
 function ResizeRail({
   maxWidth,
+  mainMinWidth,
   minWidth,
   open,
-  gapRef,
   panelRef,
   rootRef,
+  sidebarRef,
   width,
   widthRef,
   applyWidth,
@@ -254,6 +290,7 @@ function ResizeRail({
     if (!resizeState) {
       return
     }
+    const nextStoredWidth = resizeState.moved ? resizeState.width : width
 
     resizeStateRef.current = null
 
@@ -261,16 +298,23 @@ function ResizeRail({
       window.cancelAnimationFrame(resizeState.rafId)
     }
 
-    resizeState.gap.style.removeProperty('transition-duration')
     resizeState.panel.style.removeProperty('transition-duration')
     resizeState.rail.style.removeProperty('transition-duration')
+    resizeState.sidebar.style.removeProperty('transition-duration')
+    resizeState.rail.style.setProperty(
+      'right',
+      resizeRailRightValue(open, nextStoredWidth, mainMinWidth),
+    )
+    applyWidth(nextStoredWidth)
     document.body.classList.remove(RESIZE_BODY_CLASS)
 
     if (resizeState.rail.hasPointerCapture(pointerId)) {
       resizeState.rail.releasePointerCapture(pointerId)
     }
 
-    commitWidth(resizeState.width)
+    if (resizeState.moved) {
+      commitWidth(nextStoredWidth)
+    }
   }
 
   function handlePointerDown(event: React.PointerEvent<HTMLButtonElement>): void {
@@ -278,21 +322,27 @@ function ResizeRail({
       return
     }
 
-    const gap = gapRef.current
     const panel = panelRef.current
     const root = rootRef.current
-    if (!gap || !panel || !root) {
+    const sidebar = sidebarRef.current
+    if (!panel || !root || !sidebar) {
       return
     }
 
     event.preventDefault()
     event.stopPropagation()
 
-    const startWidth = clampWidth(widthRef.current, minWidth, maxWidth)
-    gap.style.setProperty('transition-duration', '0ms')
-    gap.style.setProperty('width', `${String(startWidth)}px`)
+    const startWidth = clampedVisibleWidth(
+      widthRef.current,
+      minWidth,
+      maxWidth,
+      root.clientWidth,
+      mainMinWidth,
+    )
     panel.style.setProperty('transition-duration', '0ms')
-    panel.style.setProperty('width', `${String(startWidth)}px`)
+    panel.style.setProperty('width', '100%')
+    sidebar.style.setProperty('transition-duration', '0ms')
+    sidebar.style.setProperty('width', `${String(startWidth)}px`)
     event.currentTarget.style.setProperty('transition-duration', '0ms')
     event.currentTarget.style.setProperty(
       'right',
@@ -301,7 +351,6 @@ function ResizeRail({
     document.body.classList.add(RESIZE_BODY_CLASS)
 
     resizeStateRef.current = {
-      gap,
       moved: false,
       panel,
       pendingWidth: startWidth,
@@ -309,6 +358,7 @@ function ResizeRail({
       rafId: null,
       rail: event.currentTarget,
       root,
+      sidebar,
       startWidth,
       startX: event.clientX,
       width: startWidth,
@@ -343,11 +393,10 @@ function ResizeRail({
       const nextWidth = activeState.pendingWidth
       const accepted =
         shouldAcceptWidth?.({
-          currentWidth: activeState.width,
           nextWidth,
-          gap: activeState.gap,
           panel: activeState.panel,
           root: activeState.root,
+          sidebar: activeState.sidebar,
         }) ?? true
 
       if (!accepted) {
@@ -383,9 +432,9 @@ function ResizeRail({
       if (resizeState.rafId !== null) {
         window.cancelAnimationFrame(resizeState.rafId)
       }
-      resizeState.gap.style.removeProperty('transition-duration')
       resizeState.panel.style.removeProperty('transition-duration')
       resizeState.rail.style.removeProperty('transition-duration')
+      resizeState.sidebar.style.removeProperty('transition-duration')
       document.body.classList.remove(RESIZE_BODY_CLASS)
     }
   }, [])
@@ -393,14 +442,14 @@ function ResizeRail({
   return (
     <button
       type="button"
-      aria-label="Resize diff sidebar"
+      aria-label="Resize right sidebar"
       className={cn(
-        'absolute inset-y-0 z-20 hidden w-4 shrink-0 cursor-col-resize border-0 bg-transparent p-0 transition-[right,opacity] duration-200 ease-linear sm:block',
+        'absolute inset-y-0 z-20 hidden w-4 shrink-0 cursor-col-resize border-0 bg-transparent p-0 transition-[right,opacity] duration-200 ease-out sm:block',
         'after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-transparent after:transition-colors',
         'hover:after:bg-accent/50 active:after:bg-accent/70',
         open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0',
       )}
-      style={resizeRailStyle(open, width)}
+      style={resizeRailStyle(open, width, mainMinWidth)}
       onClick={(event) => {
         if (!suppressClickRef.current) {
           return
@@ -414,7 +463,7 @@ function ResizeRail({
       onPointerMove={handlePointerMove}
       onPointerUp={endResize}
       tabIndex={-1}
-      title="Drag to resize diff sidebar"
+      title="Drag to resize right sidebar"
     />
   )
 }
@@ -436,7 +485,7 @@ function RightSidebarSheet({ children, open, onOpenChange }: RightSidebarSheetPr
     >
       <button
         type="button"
-        aria-label="Close diff sidebar"
+        aria-label="Close right sidebar"
         className="absolute inset-0 bg-black/35 backdrop-blur-[2px]"
         onClick={() => onOpenChange(false)}
       />

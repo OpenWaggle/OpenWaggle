@@ -28,7 +28,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'git', label: 'Git', icon: GitBranch, enabled: false },
   { id: 'environments', label: 'Environments', icon: Blocks, enabled: false },
   { id: 'worktrees', label: 'Worktrees', icon: Folders, enabled: false },
-  { id: 'archived', label: 'Archived sessions', icon: Archive, enabled: true },
+  { id: 'archived', label: 'Archived items', icon: Archive, enabled: true },
   { id: 'connections', label: 'Connections', icon: Cable, enabled: true },
 ]
 

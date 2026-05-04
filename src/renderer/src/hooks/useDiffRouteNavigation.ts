@@ -1,5 +1,6 @@
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { useChatStore } from '@/stores/chat-store'
+import { useUIStore } from '@/stores/ui-store'
 
 type RightPanelMode = 'diff' | 'session-tree' | null
 
@@ -42,6 +43,7 @@ export function useDiffRouteNavigation(): DiffRouteNavigation {
     },
   })
   const activeConversationId = useChatStore((state) => state.activeConversationId)
+  const setLastRightSidebarPanel = useUIStore((state) => state.setLastRightSidebarPanel)
   const isChatRoute = isChatPath(pathname)
   const currentRouteSessionId = routeSessionId(pathname)
   const targetSessionId =
@@ -53,6 +55,11 @@ export function useDiffRouteNavigation(): DiffRouteNavigation {
   function setRightPanel(panel: RightPanelMode): void {
     if (!isChatRoute) {
       return
+    }
+
+    const panelToRemember = panel ?? rightPanel
+    if (panelToRemember !== null) {
+      setLastRightSidebarPanel(panelToRemember)
     }
 
     const panelSearchValue = panel ?? undefined
