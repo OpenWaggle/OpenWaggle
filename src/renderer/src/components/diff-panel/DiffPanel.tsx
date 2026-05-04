@@ -30,12 +30,11 @@ type DiffPanelAction =
   | { readonly type: 'load-failure' }
 
 function diffPanelReducer(state: DiffPanelState, action: DiffPanelAction): DiffPanelState {
-  return matchBy(action, 'type')
-    .with('clear', () => ({ fileDiffs: [], isLoading: false }))
-    .with('start-loading', () => ({ ...state, isLoading: true }))
-    .with('load-success', (value) => ({ fileDiffs: value.fileDiffs, isLoading: false }))
-    .with('load-failure', () => ({ fileDiffs: [], isLoading: false }))
-    .exhaustive()
+  return matchBy(action, 'type').cases((group) => [
+    group('clear', 'load-failure', () => ({ fileDiffs: [], isLoading: false })),
+    group('start-loading', () => ({ ...state, isLoading: true })),
+    group('load-success', (value) => ({ fileDiffs: value.fileDiffs, isLoading: false })),
+  ])
 }
 
 export function DiffPanel({ projectPath, onSendMessage }: DiffPanelProps) {
