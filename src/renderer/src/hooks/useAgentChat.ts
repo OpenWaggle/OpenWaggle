@@ -1,3 +1,4 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
@@ -413,85 +414,81 @@ export function useAgentChat(
         return
       }
 
-      if (payload.event.type === 'agent_start') {
-        streamSignalVersionRef.current += 1
-        clearLastAgentErrorInfo(conversationId)
-        setError(undefined)
-        setStatus('streaming')
-        if (!foregroundStreamActiveRef.current) {
-          backgroundStreamingRef.current = true
-          backgroundReconnectConversationIdRef.current = conversationId
-          setBackgroundStreaming(true)
-        }
-      }
-
-      if (payload.event.type === 'compaction_start') {
-        streamSignalVersionRef.current += 1
-        setError(undefined)
-        setStatus('compacting')
-        setCompactionStatus({ type: 'compacting', reason: payload.event.reason })
-      }
-
-      if (payload.event.type === 'compaction_end') {
-        streamSignalVersionRef.current += 1
-        setCompactionStatus(null)
-        const hasCompactionError = payload.event.errorMessage && !payload.event.aborted
-        if (hasCompactionError) {
-          const nextError = new Error(payload.event.errorMessage)
-          setError(nextError)
-          setStatus('error')
-        }
-        if (
-          !hasCompactionError &&
-          !foregroundStreamActiveRef.current &&
-          !backgroundStreamingRef.current
-        ) {
-          setStatus('ready')
-        }
-      }
-
-      if (payload.event.type === 'auto_retry_start') {
-        streamSignalVersionRef.current += 1
-        setStatus('retrying')
-        setCompactionStatus({
-          type: 'retrying',
-          attempt: payload.event.attempt,
-          maxAttempts: payload.event.maxAttempts,
-          delayMs: payload.event.delayMs,
-          errorMessage: payload.event.errorMessage,
+      matchBy(payload.event, 'type')
+        .with('agent_start', () => {
+          streamSignalVersionRef.current += 1
+          clearLastAgentErrorInfo(conversationId)
+          setError(undefined)
+          setStatus('streaming')
+          if (!foregroundStreamActiveRef.current) {
+            backgroundStreamingRef.current = true
+            backgroundReconnectConversationIdRef.current = conversationId
+            setBackgroundStreaming(true)
+          }
         })
-      }
-
-      if (payload.event.type === 'auto_retry_end') {
-        streamSignalVersionRef.current += 1
-        setCompactionStatus(null)
-        const hasRetryError = !payload.event.success && payload.event.finalError
-        if (hasRetryError) {
-          const nextError = new Error(payload.event.finalError)
+        .with('compaction_start', (event) => {
+          streamSignalVersionRef.current += 1
+          setError(undefined)
+          setStatus('compacting')
+          setCompactionStatus({ type: 'compacting', reason: event.reason })
+        })
+        .with('compaction_end', (event) => {
+          streamSignalVersionRef.current += 1
+          setCompactionStatus(null)
+          const hasCompactionError = event.errorMessage && !event.aborted
+          if (hasCompactionError) {
+            const nextError = new Error(event.errorMessage)
+            setError(nextError)
+            setStatus('error')
+          }
+          if (
+            !hasCompactionError &&
+            !foregroundStreamActiveRef.current &&
+            !backgroundStreamingRef.current
+          ) {
+            setStatus('ready')
+          }
+        })
+        .with('auto_retry_start', (event) => {
+          streamSignalVersionRef.current += 1
+          setStatus('retrying')
+          setCompactionStatus({
+            type: 'retrying',
+            attempt: event.attempt,
+            maxAttempts: event.maxAttempts,
+            delayMs: event.delayMs,
+            errorMessage: event.errorMessage,
+          })
+        })
+        .with('auto_retry_end', (event) => {
+          streamSignalVersionRef.current += 1
+          setCompactionStatus(null)
+          const hasRetryError = !event.success && event.finalError
+          if (hasRetryError) {
+            const nextError = new Error(event.finalError)
+            setError(nextError)
+            setStatus('error')
+          }
+          if (
+            !hasRetryError &&
+            !foregroundStreamActiveRef.current &&
+            !backgroundStreamingRef.current
+          ) {
+            setStatus('ready')
+          }
+        })
+        .with('agent_end', (event) => {
+          if (event.reason !== 'error' || !event.error) {
+            return
+          }
+          streamSignalVersionRef.current += 1
+          const nextError = new Error(event.error.message)
+          terminalRunErrorRef.current = nextError
+          setLastAgentErrorInfo(conversationId, event.error)
           setError(nextError)
           setStatus('error')
-        }
-        if (
-          !hasRetryError &&
-          !foregroundStreamActiveRef.current &&
-          !backgroundStreamingRef.current
-        ) {
-          setStatus('ready')
-        }
-      }
-
-      if (
-        payload.event.type === 'agent_end' &&
-        payload.event.reason === 'error' &&
-        payload.event.error
-      ) {
-        streamSignalVersionRef.current += 1
-        const nextError = new Error(payload.event.error.message)
-        terminalRunErrorRef.current = nextError
-        setLastAgentErrorInfo(conversationId, payload.event.error)
-        setError(nextError)
-        setStatus('error')
-      }
+        })
+        .otherwise(() => {})
 
       if (foregroundStreamActiveRef.current || backgroundStreamingRef.current) {
         streamSignalVersionRef.current += 1

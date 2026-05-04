@@ -1,3 +1,4 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import type { ConversationId } from '@shared/types/brand'
 import type {
   WaggleCollaborationStatus,
@@ -7,7 +8,6 @@ import type {
   WaggleMessageMetadata,
   WaggleTurnEvent,
 } from '@shared/types/waggle'
-import { chooseBy } from '@shared/utils/decision'
 import { create } from 'zustand'
 
 interface WaggleState {
@@ -97,39 +97,39 @@ export const useWaggleStore = create<WaggleState>((set) => ({
   },
 
   handleTurnEvent(event) {
-    chooseBy(event, 'type')
-      .case('turn-start', (value) => {
+    matchBy(event, 'type')
+      .with('turn-start', (value) => {
         set({
           currentTurn: value.turnNumber,
           currentAgentIndex: value.agentIndex,
           currentAgentLabel: value.agentLabel,
         })
       })
-      .case('consensus-reached', (value) => {
+      .with('consensus-reached', (value) => {
         set({ lastConsensusResult: value.result })
       })
-      .case('file-conflict', (value) => {
+      .with('file-conflict', (value) => {
         set((s) => ({ fileConflicts: [...s.fileConflicts, value.warning] }))
       })
-      .case('collaboration-complete', (value) => {
+      .with('collaboration-complete', (value) => {
         set({
           status: 'completed',
           completionReason: value.reason,
         })
       })
-      .case('collaboration-stopped', (value) => {
+      .with('collaboration-stopped', (value) => {
         set({
           status: 'stopped',
           completionReason: value.reason,
         })
       })
-      .case('synthesis-start', () => {
+      .with('synthesis-start', () => {
         set({
           currentAgentIndex: -1,
           currentAgentLabel: 'Synthesis',
         })
       })
-      .case('turn-end', (value) => {
+      .with('turn-end', (value) => {
         set((s) => ({
           completedTurnMeta: [
             ...s.completedTurnMeta,
@@ -144,7 +144,7 @@ export const useWaggleStore = create<WaggleState>((set) => ({
           ],
         }))
       })
-      .assertComplete()
+      .exhaustive()
   },
 
   trackMessageMetadata(messageId, meta) {

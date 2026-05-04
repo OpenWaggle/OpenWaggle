@@ -1,3 +1,4 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import type {
   GitBranchCheckoutPayload,
   GitBranchCreatePayload,
@@ -94,11 +95,14 @@ export const useGitStore = create<GitState>((set, get) => ({
   async commit(projectPath: string, payload: GitCommitPayload) {
     set({ isCommitting: true })
     try {
-      const result = await api.commitGit(projectPath, payload)
-      if (result.ok) {
-        await get().refreshStatus(projectPath)
-      }
-      return result
+      return await matchBy
+        .promise(api.commitGit(projectPath, payload), 'ok')
+        .with(true, async (result) => {
+          await get().refreshStatus(projectPath)
+          return result
+        })
+        .with(false, (result) => result)
+        .exhaustive()
     } finally {
       set({ isCommitting: false })
     }
@@ -107,11 +111,14 @@ export const useGitStore = create<GitState>((set, get) => ({
   async checkoutBranch(projectPath: string, payload: GitBranchCheckoutPayload) {
     set({ isBranchActionRunning: true })
     try {
-      const result = await api.checkoutGitBranch(projectPath, payload)
-      if (result.ok) {
-        await Promise.all([get().refreshStatus(projectPath), get().refreshBranches(projectPath)])
-      }
-      return result
+      return await matchBy
+        .promise(api.checkoutGitBranch(projectPath, payload), 'ok')
+        .with(true, async (result) => {
+          await Promise.all([get().refreshStatus(projectPath), get().refreshBranches(projectPath)])
+          return result
+        })
+        .with(false, (result) => result)
+        .exhaustive()
     } finally {
       set({ isBranchActionRunning: false })
     }
@@ -120,11 +127,14 @@ export const useGitStore = create<GitState>((set, get) => ({
   async createBranch(projectPath: string, payload: GitBranchCreatePayload) {
     set({ isBranchActionRunning: true })
     try {
-      const result = await api.createGitBranch(projectPath, payload)
-      if (result.ok) {
-        await Promise.all([get().refreshStatus(projectPath), get().refreshBranches(projectPath)])
-      }
-      return result
+      return await matchBy
+        .promise(api.createGitBranch(projectPath, payload), 'ok')
+        .with(true, async (result) => {
+          await Promise.all([get().refreshStatus(projectPath), get().refreshBranches(projectPath)])
+          return result
+        })
+        .with(false, (result) => result)
+        .exhaustive()
     } finally {
       set({ isBranchActionRunning: false })
     }
@@ -133,11 +143,14 @@ export const useGitStore = create<GitState>((set, get) => ({
   async renameBranch(projectPath: string, payload: GitBranchRenamePayload) {
     set({ isBranchActionRunning: true })
     try {
-      const result = await api.renameGitBranch(projectPath, payload)
-      if (result.ok) {
-        await Promise.all([get().refreshStatus(projectPath), get().refreshBranches(projectPath)])
-      }
-      return result
+      return await matchBy
+        .promise(api.renameGitBranch(projectPath, payload), 'ok')
+        .with(true, async (result) => {
+          await Promise.all([get().refreshStatus(projectPath), get().refreshBranches(projectPath)])
+          return result
+        })
+        .with(false, (result) => result)
+        .exhaustive()
     } finally {
       set({ isBranchActionRunning: false })
     }
@@ -146,11 +159,14 @@ export const useGitStore = create<GitState>((set, get) => ({
   async deleteBranch(projectPath: string, payload: GitBranchDeletePayload) {
     set({ isBranchActionRunning: true })
     try {
-      const result = await api.deleteGitBranch(projectPath, payload)
-      if (result.ok) {
-        await Promise.all([get().refreshStatus(projectPath), get().refreshBranches(projectPath)])
-      }
-      return result
+      return await matchBy
+        .promise(api.deleteGitBranch(projectPath, payload), 'ok')
+        .with(true, async (result) => {
+          await Promise.all([get().refreshStatus(projectPath), get().refreshBranches(projectPath)])
+          return result
+        })
+        .with(false, (result) => result)
+        .exhaustive()
     } finally {
       set({ isBranchActionRunning: false })
     }
@@ -159,11 +175,14 @@ export const useGitStore = create<GitState>((set, get) => ({
   async setUpstream(projectPath: string, payload: GitBranchSetUpstreamPayload) {
     set({ isBranchActionRunning: true })
     try {
-      const result = await api.setGitBranchUpstream(projectPath, payload)
-      if (result.ok) {
-        await Promise.all([get().refreshStatus(projectPath), get().refreshBranches(projectPath)])
-      }
-      return result
+      return await matchBy
+        .promise(api.setGitBranchUpstream(projectPath, payload), 'ok')
+        .with(true, async (result) => {
+          await Promise.all([get().refreshStatus(projectPath), get().refreshBranches(projectPath)])
+          return result
+        })
+        .with(false, (result) => result)
+        .exhaustive()
     } finally {
       set({ isBranchActionRunning: false })
     }

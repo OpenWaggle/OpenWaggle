@@ -1,5 +1,5 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import type { UpdateStatus } from '@shared/types/updater'
-import { chooseBy } from '@shared/utils/decision'
 import { Loader2, RefreshCw, RotateCcw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/ipc'
@@ -55,35 +55,35 @@ const UP_TO_DATE: StatusRow = {
 }
 
 function getStatusRow(status: UpdateStatus): StatusRow {
-  return chooseBy(status, 'type')
-    .case('idle', () => UP_TO_DATE)
-    .case('not-available', () => UP_TO_DATE)
-    .case('checking', () => ({
+  return matchBy(status, 'type')
+    .with('idle', () => UP_TO_DATE)
+    .with('not-available', () => UP_TO_DATE)
+    .with('checking', () => ({
       subtitle: 'Checking for updates…',
       subtitleClass: 'text-[#9098a8]',
       dotClass: null,
     }))
-    .case('available', (s) => ({
+    .with('available', (s) => ({
       subtitle: `Downloading v${s.version}…`,
       subtitleClass: 'text-[#61a8ff]',
       dotClass: 'bg-[#61a8ff]',
     }))
-    .case('downloading', (s) => ({
+    .with('downloading', (s) => ({
       subtitle: `Downloading v${s.version}… ${Math.round(s.percent)}%`,
       subtitleClass: 'text-[#61a8ff]',
       dotClass: 'bg-[#61a8ff]',
     }))
-    .case('downloaded', (s) => ({
+    .with('downloaded', (s) => ({
       subtitle: `v${s.version} ready to install`,
       subtitleClass: 'text-[#4caf72]',
       dotClass: 'bg-[#4caf72]',
     }))
-    .case('error', () => ({
+    .with('error', () => ({
       subtitle: 'Update check failed',
       subtitleClass: 'text-[#ef4444]',
       dotClass: 'bg-[#ef4444]',
     }))
-    .assertComplete()
+    .exhaustive()
 }
 
 export function GeneralSection() {

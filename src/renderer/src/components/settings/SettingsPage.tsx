@@ -1,4 +1,4 @@
-import { choose } from '@shared/utils/decision'
+import { match } from '@diegogbrisa/ts-match'
 import { useNavigate } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import { useChat } from '@/hooks/useChat'
@@ -66,10 +66,10 @@ export function SettingsPage({ activeTab }: SettingsPageProps) {
 }
 
 function SettingsTabContent({ tab }: { tab: SettingsTab }) {
-  return choose(tab)
-    .case('general', () => <GeneralSection />)
-    .case('waggle', () => <WaggleSection />)
-    .case('connections', () => <ConnectionsSection />)
-    .case('archived', () => <ArchivedSection />)
-    .catchAll(() => <GeneralSection />)
+  return match(tab)
+    .with('general', () => <GeneralSection />)
+    .with('waggle', () => <WaggleSection />)
+    .with('connections', () => <ConnectionsSection />)
+    .with('archived', () => <ArchivedSection />)
+    .otherwise(() => <GeneralSection />)
 }

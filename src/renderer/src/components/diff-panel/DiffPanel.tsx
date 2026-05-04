@@ -1,6 +1,6 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import type { GitFileDiff } from '@shared/types/git'
 import type { ReviewComment } from '@shared/types/review'
-import { chooseBy } from '@shared/utils/decision'
 import { useEffect, useReducer } from 'react'
 import { Spinner } from '@/components/shared/Spinner'
 import { api } from '@/lib/ipc'
@@ -19,23 +19,22 @@ interface RenderableDiffFile extends GitFileDiff {
 }
 
 interface DiffPanelState {
-  readonly fileDiffs: RenderableDiffFile[]
+  readonly fileDiffs: readonly RenderableDiffFile[]
   readonly isLoading: boolean
 }
 
 type DiffPanelAction =
   | { readonly type: 'clear' }
   | { readonly type: 'start-loading' }
-  | { readonly type: 'load-success'; readonly fileDiffs: RenderableDiffFile[] }
+  | { readonly type: 'load-success'; readonly fileDiffs: readonly RenderableDiffFile[] }
   | { readonly type: 'load-failure' }
 
 function diffPanelReducer(state: DiffPanelState, action: DiffPanelAction): DiffPanelState {
-  return chooseBy(action, 'type')
-    .case('clear', () => ({ fileDiffs: [], isLoading: false }))
-    .case('start-loading', () => ({ ...state, isLoading: true }))
-    .case('load-success', (value) => ({ fileDiffs: value.fileDiffs, isLoading: false }))
-    .case('load-failure', () => ({ fileDiffs: [], isLoading: false }))
-    .assertComplete()
+  return matchBy(action, 'type')
+    .with('clear', 'load-failure', () => ({ fileDiffs: [], isLoading: false }))
+    .with('start-loading', () => ({ ...state, isLoading: true }))
+    .with('load-success', (value) => ({ fileDiffs: value.fileDiffs, isLoading: false }))
+    .exhaustive()
 }
 
 export function DiffPanel({ projectPath, onSendMessage }: DiffPanelProps) {

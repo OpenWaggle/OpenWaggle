@@ -1,5 +1,5 @@
+import { match } from '@diegogbrisa/ts-match'
 import type { GitBranchMutationResult } from '@shared/types/git'
-import { choose } from '@shared/utils/decision'
 import { useEffect, useRef } from 'react'
 import { useEscapeHotkey } from '@/hooks/useEscapeHotkey'
 import { useGit } from '@/hooks/useGit'
@@ -26,35 +26,35 @@ function getActionDialogConfig(
 ): ActionDialogConfig {
   const currentBranch = gitBranch ?? 'current branch'
   const targetBranch = actionDialogInput.trim() || currentBranch
-  return choose(kind)
-    .case('create-branch', () => ({
+  return match(kind)
+    .with('create-branch', () => ({
       title: 'Create branch',
       description: 'Create and checkout a new branch from the current HEAD.',
       confirmLabel: 'Create',
       confirmTone: 'normal' as const,
       inputPlaceholder: 'feature/my-branch',
     }))
-    .case('rename-branch', () => ({
+    .with('rename-branch', () => ({
       title: `Rename "${currentBranch}"`,
       description: 'Enter the new branch name.',
       confirmLabel: 'Rename',
       confirmTone: 'normal' as const,
       inputPlaceholder: 'feature/new-name',
     }))
-    .case('delete-branch', () => ({
+    .with('delete-branch', () => ({
       title: `Delete "${targetBranch}"`,
       description: 'This removes the local branch. This action cannot be undone.',
       confirmLabel: 'Delete',
       confirmTone: 'danger' as const,
     }))
-    .case('set-upstream', () => ({
+    .with('set-upstream', () => ({
       title: `Set upstream for "${currentBranch}"`,
       description: 'Enter the remote tracking branch (for example origin/main).',
       confirmLabel: 'Set upstream',
       confirmTone: 'normal' as const,
       inputPlaceholder: `origin/${currentBranch}`,
     }))
-    .assertComplete()
+    .exhaustive()
 }
 
 interface ActionDialogProps {
@@ -114,8 +114,8 @@ export function ActionDialog({ onToast }: ActionDialogProps) {
     setActionDialogBusy(true)
 
     try {
-      await choose(actionDialog)
-        .case('create-branch', async () => {
+      await match(actionDialog)
+        .with('create-branch', async () => {
           const name = actionDialogInput.trim()
           if (!name) {
             setActionDialogError('Branch name is required.')
@@ -134,7 +134,7 @@ export function ActionDialog({ onToast }: ActionDialogProps) {
           }
           closeActionDialog()
         })
-        .case('rename-branch', async () => {
+        .with('rename-branch', async () => {
           if (!gitBranch) return
           const target = actionDialogInput.trim()
           if (!target) {
@@ -154,7 +154,7 @@ export function ActionDialog({ onToast }: ActionDialogProps) {
           }
           closeActionDialog()
         })
-        .case('delete-branch', async () => {
+        .with('delete-branch', async () => {
           const target = actionDialogInput.trim() || gitBranch
           if (!target) return
           if (target === gitBranch) {
@@ -176,7 +176,7 @@ export function ActionDialog({ onToast }: ActionDialogProps) {
           }
           closeActionDialog()
         })
-        .case('set-upstream', async () => {
+        .with('set-upstream', async () => {
           if (!gitBranch) return
           const upstream = actionDialogInput.trim()
           if (!upstream) {
@@ -196,7 +196,7 @@ export function ActionDialog({ onToast }: ActionDialogProps) {
           }
           closeActionDialog()
         })
-        .assertComplete()
+        .exhaustive()
       setActionDialogBusy(false)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Action failed.'

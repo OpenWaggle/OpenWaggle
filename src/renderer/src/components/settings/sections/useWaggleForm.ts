@@ -1,3 +1,4 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import { DOUBLE_FACTOR } from '@shared/constants/math'
 import { type SupportedModelId, TeamConfigId } from '@shared/types/brand'
 import { DEFAULT_MODEL_REF } from '@shared/types/settings'
@@ -9,7 +10,6 @@ import type {
   WaggleStopCondition,
   WaggleTeamPreset,
 } from '@shared/types/waggle'
-import { chooseBy } from '@shared/utils/decision'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useReducer } from 'react'
 import {
@@ -108,73 +108,73 @@ function updateAgentAt(
 }
 
 function waggleFormReducer(state: WaggleFormState, action: WaggleFormAction): WaggleFormState {
-  return chooseBy(action, 'type')
-    .case('load-preset', (value) => ({
+  return matchBy(action, 'type')
+    .with('load-preset', (value) => ({
       agents: value.config.agents,
       mode: value.config.mode,
       stopCondition: value.config.stop.primary,
       maxTurns: value.config.stop.maxTurnsSafety,
     }))
-    .case('set-agent-label', (value) => ({
+    .with('set-agent-label', (value) => ({
       ...state,
       agents: updateAgentAt(state.agents, value.index, (agent) => ({
         ...agent,
         label: value.label,
       })),
     }))
-    .case('set-agent-model', (value) => ({
+    .with('set-agent-model', (value) => ({
       ...state,
       agents: updateAgentAt(state.agents, value.index, (agent) => ({
         ...agent,
         model: value.model,
       })),
     }))
-    .case('set-agent-role', (value) => ({
+    .with('set-agent-role', (value) => ({
       ...state,
       agents: updateAgentAt(state.agents, value.index, (agent) => ({
         ...agent,
         roleDescription: value.roleDescription,
       })),
     }))
-    .case('set-agent-color', (value) => ({
+    .with('set-agent-color', (value) => ({
       ...state,
       agents: updateAgentAt(state.agents, value.index, (agent) => ({
         ...agent,
         color: value.color,
       })),
     }))
-    .case('set-stop-condition', (value) => ({ ...state, stopCondition: value.stopCondition }))
-    .case('set-max-turns', (value) => ({ ...state, maxTurns: value.maxTurns }))
-    .assertComplete()
+    .with('set-stop-condition', (value) => ({ ...state, stopCondition: value.stopCondition }))
+    .with('set-max-turns', (value) => ({ ...state, maxTurns: value.maxTurns }))
+    .exhaustive()
 }
 
 function wagglePresetReducer(
   state: WagglePresetState,
   action: WagglePresetAction,
 ): WagglePresetState {
-  return chooseBy(action, 'type')
-    .case('select-preset', (value) => ({
+  return matchBy(action, 'type')
+    .with('select-preset', (value) => ({
       ...state,
       activePresetId: value.activePresetId,
     }))
-    .case('save-success', (value) => ({
+    .with('save-success', (value) => ({
       ...state,
       activePresetId: value.activePresetId,
       error: null,
     }))
-    .case('clear-active-preset', () => ({
+    .with('clear-active-preset', () => ({
       ...state,
       activePresetId: null,
     }))
-    .case('clear-error', () => ({
+    .with('clear-error', () => ({
       ...state,
       error: null,
     }))
-    .case('set-error', (value) => ({
+    .with('set-error', (value) => ({
       ...state,
       error: value.error,
     }))
-    .assertComplete()
+    .exhaustive()
 }
 
 export interface WaggleFormHook {

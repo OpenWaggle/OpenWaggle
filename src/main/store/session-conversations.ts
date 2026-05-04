@@ -1,3 +1,4 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import * as SqlClient from '@effect/sql/SqlClient'
 import { Schema, type SchemaType, safeDecodeUnknown } from '@shared/schema'
 import { waggleConfigSchema, waggleMetadataSchema } from '@shared/schemas/waggle'
@@ -13,7 +14,6 @@ import type { Conversation, ConversationSummary } from '@shared/types/conversati
 import type { JsonValue } from '@shared/types/json'
 import type { SessionNode } from '@shared/types/session'
 import type { WaggleConfig } from '@shared/types/waggle'
-import { chooseBy } from '@shared/utils/decision'
 import { isRecord } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
@@ -217,18 +217,24 @@ function hydrateWaggleConfig(raw: unknown): WaggleConfig | undefined {
 }
 
 function transformPart(part: ParsedPart): MessagePart {
-  return chooseBy(part, 'type')
-    .case('text', (value): MessagePart => ({ type: 'text', text: value.text }))
-    .case('reasoning', (value): MessagePart => ({ type: 'reasoning', text: value.text }))
-    .case('thinking', (value): MessagePart => ({ type: 'reasoning', text: value.text }))
-    .case(
+  return matchBy(part, 'type')
+    .with('text', (value): MessagePart => ({ type: 'text', text: value.text }))
+    .with(
+      'reasoning',
+      'thinking',
+      (value): MessagePart => ({
+        type: 'reasoning',
+        text: value.text,
+      }),
+    )
+    .with(
       'attachment',
       (value): MessagePart => ({
         type: 'attachment',
         attachment: value.attachment,
       }),
     )
-    .case(
+    .with(
       'tool-call',
       (value): MessagePart => ({
         type: 'tool-call',
@@ -240,7 +246,7 @@ function transformPart(part: ParsedPart): MessagePart {
         },
       }),
     )
-    .case(
+    .with(
       'tool-result',
       (value): MessagePart => ({
         type: 'tool-result',
@@ -255,7 +261,7 @@ function transformPart(part: ParsedPart): MessagePart {
         },
       }),
     )
-    .assertComplete()
+    .exhaustive()
 }
 
 function hydrateConversationSummary(row: SessionSummaryRow): ConversationSummary {

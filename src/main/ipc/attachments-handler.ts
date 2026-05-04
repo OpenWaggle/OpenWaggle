@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { match } from '@diegogbrisa/ts-match'
 import { PERCENT_BASE } from '@shared/constants/math'
 import { ATTACHMENT, BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import { TIME_UNIT } from '@shared/constants/time'
 import { decodeUnknownOrThrow, Schema } from '@shared/schema'
 import type { PreparedAttachment } from '@shared/types/agent'
-import { choose } from '@shared/utils/decision'
 import * as Effect from 'effect/Effect'
 import { app } from 'electron'
 import { createLogger } from '../logger'
@@ -172,45 +172,46 @@ function resolveAttachmentKind(mimeType: string): PreparedAttachment['kind'] {
 
 function guessMimeType(filePath: string): string | null {
   const ext = path.extname(filePath).toLowerCase()
-  return choose(ext)
-    .case('.pdf', () => 'application/pdf')
-    .case('.png', () => 'image/png')
-    .case('.jpg', () => 'image/jpeg')
-    .case('.jpeg', () => 'image/jpeg')
-    .case('.webp', () => 'image/webp')
-    .case('.gif', () => 'image/gif')
-    .case('.bmp', () => 'image/bmp')
-    .case('.svg', () => 'image/svg+xml')
-    .case('.md', () => 'text/markdown')
-    .case('.json', () => 'application/json')
-    .case('.yaml', () => 'application/yaml')
-    .case('.yml', () => 'application/yaml')
-    .case('.xml', () => 'application/xml')
-    .case('.csv', () => 'text/csv')
-    .case('.log', () => 'text/plain')
-    .case('.docx', () => DOCX_MIME_TYPE)
-    .case('.rtf', () => RTF_MIME_TYPE)
-    .case('.odt', () => ODT_MIME_TYPE)
-    .case('.ts', () => 'text/plain')
-    .case('.tsx', () => 'text/plain')
-    .case('.js', () => 'text/plain')
-    .case('.jsx', () => 'text/plain')
-    .case('.mjs', () => 'text/plain')
-    .case('.cjs', () => 'text/plain')
-    .case('.py', () => 'text/plain')
-    .case('.java', () => 'text/plain')
-    .case('.go', () => 'text/plain')
-    .case('.rs', () => 'text/plain')
-    .case('.swift', () => 'text/plain')
-    .case('.kt', () => 'text/plain')
-    .case('.css', () => 'text/plain')
-    .case('.scss', () => 'text/plain')
-    .case('.sass', () => 'text/plain')
-    .case('.less', () => 'text/plain')
-    .case('.html', () => 'text/plain')
-    .case('.htm', () => 'text/plain')
-    .case('.txt', () => 'text/plain')
-    .catchAll(() => null)
+  return match(ext)
+    .with('.pdf', () => 'application/pdf')
+    .with('.png', () => 'image/png')
+    .with('.jpg', '.jpeg', () => 'image/jpeg')
+    .with('.webp', () => 'image/webp')
+    .with('.gif', () => 'image/gif')
+    .with('.bmp', () => 'image/bmp')
+    .with('.svg', () => 'image/svg+xml')
+    .with('.md', () => 'text/markdown')
+    .with('.json', () => 'application/json')
+    .with('.yaml', '.yml', () => 'application/yaml')
+    .with('.xml', () => 'application/xml')
+    .with('.csv', () => 'text/csv')
+    .with('.log', () => 'text/plain')
+    .with('.docx', () => DOCX_MIME_TYPE)
+    .with('.rtf', () => RTF_MIME_TYPE)
+    .with('.odt', () => ODT_MIME_TYPE)
+    .with(
+      '.ts',
+      '.tsx',
+      '.js',
+      '.jsx',
+      '.mjs',
+      '.cjs',
+      '.py',
+      '.java',
+      '.go',
+      '.rs',
+      '.swift',
+      '.kt',
+      '.css',
+      '.scss',
+      '.sass',
+      '.less',
+      '.html',
+      '.htm',
+      '.txt',
+      () => 'text/plain',
+    )
+    .otherwise(() => null)
 }
 
 function normalizeText(value: string): string {
@@ -230,13 +231,13 @@ function decodeXmlEntities(value: string): string {
       return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : ''
     }
 
-    return choose(entity)
-      .case('amp', () => '&')
-      .case('lt', () => '<')
-      .case('gt', () => '>')
-      .case('quot', () => '"')
-      .case('apos', () => "'")
-      .catchAll(() => '')
+    return match(entity)
+      .with('amp', () => '&')
+      .with('lt', () => '<')
+      .with('gt', () => '>')
+      .with('quot', () => '"')
+      .with('apos', () => "'")
+      .otherwise(() => '')
   })
 }
 
@@ -300,23 +301,23 @@ async function prepareAttachment(filePath: string): Promise<PreparedAttachment> 
   const kind = resolveAttachmentKind(mimeType)
   const attachmentName = path.basename(filePath)
 
-  const extractedText = await choose(kind)
-    .case('pdf', () =>
+  const extractedText = await match(kind)
+    .with('pdf', () =>
       withExtractionFallback(attachmentName, 'pdf', () => extractTextFromPdf(buffer)),
     )
-    .case('image', () =>
+    .with('image', () =>
       withExtractionFallback(attachmentName, 'image-ocr', () => extractTextFromImage(buffer)),
     )
-    .catchAll(() =>
-      choose(mimeType)
-        .case(DOCX_MIME_TYPE, () =>
+    .otherwise(() =>
+      match(mimeType)
+        .with(DOCX_MIME_TYPE, () =>
           withExtractionFallback(attachmentName, 'docx', () => extractTextFromDocx(buffer)),
         )
-        .case(ODT_MIME_TYPE, () =>
+        .with(ODT_MIME_TYPE, () =>
           withExtractionFallback(attachmentName, 'odt', () => extractTextFromOdt(buffer)),
         )
-        .case(RTF_MIME_TYPE, () => Promise.resolve(extractTextFromRtf(buffer.toString('utf8'))))
-        .catchAll(() => Promise.resolve(normalizeText(buffer.toString('utf8')))),
+        .with(RTF_MIME_TYPE, () => Promise.resolve(extractTextFromRtf(buffer.toString('utf8'))))
+        .otherwise(() => Promise.resolve(normalizeText(buffer.toString('utf8')))),
     )
 
   return {
