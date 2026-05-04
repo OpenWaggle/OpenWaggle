@@ -11,7 +11,8 @@ import { useGitStore } from '@/stores/git-store'
 import { usePreferencesStore } from '@/stores/preferences-store'
 import { useSessionStatusStore } from '@/stores/session-status-store'
 import { useSessionStore } from '@/stores/session-store'
-import { CHAT_MIN_WIDTH, DIFF_PANEL_MAX, DIFF_PANEL_MIN } from '@/stores/ui-store'
+import { CHAT_MIN_WIDTH, DIFF_PANEL_MAX, DIFF_PANEL_MIN, useUIStore } from '@/stores/ui-store'
+import { resolveRightSidebarPanel } from './right-sidebar-panel'
 
 const DIFF_PANEL_DEFAULT_WIDTH = 600
 const DIFF_PANEL_STORAGE_KEY = 'openwaggle:diff-sidebar-width'
@@ -82,6 +83,13 @@ export function ChatRouteSurface({
   const refreshSessionWorkspace = useSessionStore((state) => state.refreshSessionWorkspace)
   const draftBranch = useSessionStore((state) => state.draftBranch)
   const clearDraftBranchForSession = useSessionStore((state) => state.clearDraftBranchForSession)
+  const lastRightSidebarPanel = useUIStore((state) => state.lastRightSidebarPanel)
+  const setLastRightSidebarPanel = useUIStore((state) => state.setLastRightSidebarPanel)
+  const renderedRightSidebarPanel = resolveRightSidebarPanel({
+    diffOpen,
+    lastPanel: lastRightSidebarPanel,
+    sessionTreeOpen,
+  })
 
   useEffect(() => {
     if (routeConversationId === null) {
@@ -138,16 +146,15 @@ export function ChatRouteSurface({
   }, [nextProjectPath, refreshGitBranches, refreshGitStatus])
 
   function shouldAcceptDiffWidth(input: {
-    readonly currentWidth: number
     readonly nextWidth: number
-    readonly gap: HTMLDivElement
     readonly panel: HTMLDivElement
     readonly root: HTMLDivElement
+    readonly sidebar: HTMLDivElement
   }): boolean {
-    const previousGapWidth = input.gap.style.width
     const previousPanelWidth = input.panel.style.width
-    input.gap.style.setProperty('width', `${String(input.nextWidth)}px`)
+    const previousSidebarWidth = input.sidebar.style.width
     input.panel.style.setProperty('width', `${String(input.nextWidth)}px`)
+    input.sidebar.style.setProperty('width', `${String(input.nextWidth)}px`)
 
     const mainWidth = input.root.clientWidth - input.nextWidth
     const composerForm = input.root.querySelector<HTMLElement>('[data-chat-composer-form="true"]')
@@ -156,19 +163,29 @@ export function ChatRouteSurface({
       : true
     const accepted = mainWidth >= CHAT_MIN_WIDTH && composerFits
 
-    if (previousGapWidth.length > 0) {
-      input.gap.style.setProperty('width', previousGapWidth)
-    } else {
-      input.gap.style.removeProperty('width')
-    }
-
     if (previousPanelWidth.length > 0) {
       input.panel.style.setProperty('width', previousPanelWidth)
     } else {
       input.panel.style.removeProperty('width')
     }
 
+    if (previousSidebarWidth.length > 0) {
+      input.sidebar.style.setProperty('width', previousSidebarWidth)
+    } else {
+      input.sidebar.style.removeProperty('width')
+    }
+
     return accepted
+  }
+
+  function handleDiffOpenChange(open: boolean): void {
+    setLastRightSidebarPanel('diff')
+    onDiffOpenChange(open)
+  }
+
+  function handleSessionTreeOpenChange(open: boolean): void {
+    setLastRightSidebarPanel('session-tree')
+    onSessionTreeOpenChange(open)
   }
 
   return (
@@ -176,32 +193,36 @@ export function ChatRouteSurface({
       <PanelErrorBoundary name="Chat" className="flex min-w-0 flex-1 overflow-hidden">
         <RightSidebarLayout
           defaultWidth={DIFF_PANEL_DEFAULT_WIDTH}
+          mainMinWidth={CHAT_MIN_WIDTH}
           maxWidth={DIFF_PANEL_MAX}
           minWidth={DIFF_PANEL_MIN}
           open={diffOpen || sessionTreeOpen}
           sheetBreakpointPx={DIFF_PANEL_SHEET_BREAKPOINT_PX}
           storageKey={DIFF_PANEL_STORAGE_KEY}
           onOpenChange={(open) => {
-            if (diffOpen) {
-              onDiffOpenChange(open)
+            if (renderedRightSidebarPanel === 'diff') {
+              handleDiffOpenChange(open)
               return
             }
-            onSessionTreeOpenChange(open)
+            handleSessionTreeOpenChange(open)
           }}
           shouldAcceptWidth={shouldAcceptDiffWidth}
           sidebar={
             <Suspense fallback={<DiffSidebarFallback />}>
-              {sessionTreeOpen ? (
-                <LazySessionTreePanel onClose={() => onSessionTreeOpenChange(false)} />
+              {renderedRightSidebarPanel === 'session-tree' ? (
+                <LazySessionTreePanel onClose={() => handleSessionTreeOpenChange(false)} />
               ) : (
-                <LazyChatDiffPane section={sections.diff} onClose={() => onDiffOpenChange(false)} />
+                <LazyChatDiffPane
+                  section={sections.diff}
+                  onClose={() => handleDiffOpenChange(false)}
+                />
               )}
             </Suspense>
           }
         >
           <ChatPanelContent
             sections={sections}
-            onOpenSessionTree={() => onSessionTreeOpenChange(true)}
+            onOpenSessionTree={() => handleSessionTreeOpenChange(true)}
           />
         </RightSidebarLayout>
       </PanelErrorBoundary>

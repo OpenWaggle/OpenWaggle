@@ -1,7 +1,7 @@
 ---
 title: "Waggle Mode"
 description: "Two Pi-backed agents taking structured turns on the same task."
-order: 2
+order: 3
 section: "Using OpenWaggle"
 ---
 

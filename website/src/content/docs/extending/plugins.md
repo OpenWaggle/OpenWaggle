@@ -9,7 +9,7 @@ OpenWaggle does not currently expose an end-user plugin marketplace or plugin ma
 
 The active extension points today are:
 
-- Pi-native project skills in `.pi/skills/`, `.openwaggle/skills/`, or `.agents/skills/`
+- Pi-native project resources loaded with `.openwaggle > .pi > .agents` precedence for skills, extensions, prompts, and themes
 - project instructions through `AGENTS.md`
 - Pi-native runtime extension work behind main-process adapter/port boundaries
 

@@ -44,6 +44,8 @@ When a user sends a message:
 6. The adapter translates Pi events into OpenWaggle-owned `AgentTransportEvent` values.
 7. SQLite session projection tables persist sessions, nodes, branches, and branch UI state.
 
+The renderer reads the session projection through OpenWaggle-owned IPC DTOs. Session Tree selection, branch rows, draft branch state, and route `branch`/`node` search parameters are UI over that projection rather than direct Pi SDK objects.
+
 ## Provider And Model Metadata
 
 Provider/model/auth data comes from Pi `ModelRegistry` and `AuthStorage`. OpenWaggle exposes that metadata through ports and IPC DTOs so the settings UI can curate enabled models.
@@ -51,6 +53,10 @@ Provider/model/auth data comes from Pi `ModelRegistry` and `AuthStorage`. OpenWa
 ## Tool Surface
 
 Pi owns tool execution. OpenWaggle renders Pi-emitted tool events directly in the transcript.
+
+## Project Resources
+
+OpenWaggle injects project resource roots into Pi with `.openwaggle > .pi > .agents` precedence for skills, extensions, prompts, and themes. OpenWaggle-owned catalog toggles apply where the app owns the catalog surface; Pi-native discovery still governs Pi-owned/global resources.
 
 ## Tech Stack
 

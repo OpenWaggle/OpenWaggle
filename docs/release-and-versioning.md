@@ -10,23 +10,29 @@ Husky is configured with a `pre-push` hook that runs only when pushing to `main`
 
 ## CI/CD
 
-Every push to `main` and every PR runs CI (typecheck, lint, tests). Releases are fully automated — push a `feat:` or `fix:` commit to `main` and CI will:
+Every push to `main` and every PR runs CI for typechecking, linting, and tests. The current release workflow is still Conventional Commit derived: when release-eligible commits land on `main`, CI determines the version bump, updates `package.json`, creates a tag, builds platform artifacts, and publishes a GitHub Release with checksums.
 
-1. Determine the version bump from Conventional Commits
-2. Bump `package.json`, commit, and tag
-3. Build for macOS (arm64 + x64), Windows, and Linux in parallel
-4. Create a GitHub Release with all artifacts + SHA256 checksums
-
-No manual tag creation or version editing is needed for normal `feat:`/`fix:` releases. The workflow currently publishes unsigned platform artifacts; public distribution still depends on platform trust work such as macOS notarization and Windows code signing.
+The workflow currently publishes unsigned platform artifacts. Public distribution still depends on platform trust work such as macOS notarization and Windows code signing.
 
 ## Versioning
 
-OpenWaggle uses semver with prerelease stages. During alpha/beta, every `feat:` or `fix:` push increments the counter (`alpha.1` → `alpha.2`). After going stable, standard semver bumps apply.
+OpenWaggle uses semver with prerelease stages. The current release train is `0.3.0-alpha.N`.
 
-| Stage | Version | What happens on each push |
-|-------|---------|--------------------------|
-| Alpha | `0.2.0-alpha.N` | Increments `alpha.N+1` |
-| Beta | `0.2.0-beta.N` | Increments `beta.N+1` |
-| Stable | `0.2.0` | `fix:` → `0.2.1`, `feat:` → `0.3.0`, breaking → `1.0.0` |
+| Stage | Example Version | What Happens On Release |
+|-------|-----------------|-------------------------|
+| Alpha | `0.3.0-alpha.N` | Increments `alpha.N+1` on release-eligible changes. |
+| Beta | `0.3.0-beta.N` | Increments `beta.N+1` after the project moves to beta. |
+| Stable | `0.3.0` | `fix:` increments patch, `feat:` increments minor, breaking changes increment major. |
 
 To transition stages, manually set the version in `package.json` and commit as `chore(release): <message>`.
+
+## Release Notes
+
+Release intent metadata is planned but not implemented yet. Until committed release-intent files exist, product-impacting PRs should include reviewer-facing release notes in the PR body:
+
+- User-visible feature or behavior changes.
+- Relevant docs updates.
+- Validation evidence.
+- Known remaining scope or follow-up work.
+
+Do not rely on commit subjects alone for large product changes such as Session Tree, branch lifecycle, resource precedence, or provider/auth behavior.

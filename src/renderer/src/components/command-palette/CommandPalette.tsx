@@ -7,6 +7,7 @@ import {
   Archive,
   GitBranch,
   GitPullRequest,
+  ListTree,
   MessageSquare,
   Search,
   Settings,
@@ -163,7 +164,7 @@ export function CommandPalette({
             id: 'session-tree',
             label: 'Open Session Tree',
             description: 'Navigate the Pi session tree',
-            icon: <GitBranch className="h-3.5 w-3.5" />,
+            icon: <ListTree className="h-3.5 w-3.5" />,
             action: handleOpenSessionTree,
           },
         ]

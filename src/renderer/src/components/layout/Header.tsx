@@ -1,4 +1,4 @@
-import { Bug, GitBranch, Hash, PanelLeft, SquareTerminal } from 'lucide-react'
+import { Bug, Hash, ListTree, PanelLeft, SquareTerminal } from 'lucide-react'
 import { useState } from 'react'
 import { CommitDialog } from '@/components/layout/CommitDialog'
 import { useChat } from '@/hooks/useChat'
@@ -173,7 +173,7 @@ export function Header() {
             )}
             title={activeSessionTree ? 'Toggle Session Tree' : 'No session tree available'}
           >
-            <GitBranch className="h-3.5 w-3.5 text-text-secondary" />
+            <ListTree className="h-3.5 w-3.5 text-text-secondary" />
           </button>
 
           {/* Diff stats — clickable to toggle diff panel */}

@@ -2,7 +2,7 @@
 name: project-learnings
 description: Technical learnings log for OpenWaggle. Stores warnings, pattern preferences, and historical engineering learnings; workflow policy lives in AGENTS.md and CLAUDE.md.
 owner: openwaggle-core
-last_updated: 2026-04-27
+last_updated: 2026-05-04
 ---
 
 # LEARNINGS.md
@@ -40,7 +40,7 @@ This document stores project-specific technical learnings only.
 
 - Provider/model/auth metadata should be Pi-derived through adapter ports. Renderer and IPC DTOs can stay OpenWaggle-owned, but their contents must come from Pi `AuthStorage`, `ModelRegistry`, and cwd-bound session services.
 - Pi tool-call events can provide canonical input/result data at the adapter boundary. Prefer emitting authoritative OpenWaggle transport events once the tool state is known instead of renderer-side repair layers.
-- OpenWaggle bridges `.openwaggle/skills` into Pi by passing it as an additional Pi `DefaultResourceLoader` skill path. The adapter also filters `.openwaggle/skills` and root `.agents/skills` with OpenWaggle catalog toggles while leaving `.pi/skills` and Pi's native discovery unchanged. [SKILL?]
+- OpenWaggle injects project resource roots into Pi in `.openwaggle > .pi > .agents` order for skills, extensions, prompts, and themes. OpenWaggle catalog toggles apply to `.openwaggle/skills` and root `.agents/skills`, while Pi-native discovery still governs Pi-owned/global resources. [SKILL?]
 - Pi `DefaultResourceLoader` resolves project/package resource paths before `additional*Paths`, and duplicate skill/prompt/theme names are first-wins. To make `.openwaggle > .pi > .agents` truthful, inject ordered project resource roots into the Pi settings storage layer before resource loading, and strip those implicit roots again when persisting Pi project settings. [SKILL?]
 - Pi `ModelRegistry.registerProvider()` requires enough provider metadata to be runtime-valid even in tests: custom providers with models need `baseUrl` and either `apiKey` or `oauth`. [SKILL?]
 - Pi's extension loader uses `import.meta.resolve()` on its Node alias path. Electron's CJS main-process bundle can rewrite that incorrectly, so OpenWaggle must force Pi's bundled virtual-module loader branch and fail loudly if the loader shape changes. [SKILL?]
@@ -69,7 +69,7 @@ This document stores project-specific technical learnings only.
 - Chromium DIPS SQLite startup warnings in dev can be caused by multiple Electron dev instances sharing the same user data profile. Acquire Electron's single-instance lock before normal app lifecycle startup and keep `sessionData` under the configured `userData` directory.
 - Playwright Electron E2E can run while a developer OpenWaggle instance is already open only if the test app opts out of the single-instance lock and uses an isolated `OPENWAGGLE_USER_DATA_DIR`; otherwise Electron exits before `firstWindow()` even though the renderer/debug ports briefly appear. [SKILL?]
 - Electron Playwright E2E launches the built app from an unpackaged Electron runtime, so `is.dev` can be true even when no Vite dev-server URL exists. Register the production renderer protocol whenever no dev renderer URL is available; do not key protocol registration on packaged/dev mode alone. [SKILL?]
-- For T3Code-style right sidebars, keep the layout gap separate from the sidebar content container: animate the gap width and slide/transform a fixed or absolute content panel. Animating the content panel's width as a flex item makes large diff content participate in layout during open/close and can make toggles feel slow. [SKILL?]
+- OpenWaggle docked sidebars should share the same width-clipping animation model: a width-transitioning overflow-hidden shell with edge-anchored content, clamped against a reserved main-content width. Preserve the active sidebar content while closing so a sibling panel cannot flash during the close animation. [SKILL?]
 - TanStack Router scans files under `src/renderer/src/routes`, including nested test folders, unless filenames match the configured ignore prefix. Route-adjacent test files should be prefixed with `-` (for example `__tests__/-route-search.unit.test.ts`) or they will produce route-tree build warnings. [SKILL?]
 - Empty-state starter prompts should be inert until a project path exists. Calling the first-message send path without a project rejects by design; unguarded optional callbacks turn that expected guard into an unhandled renderer promise rejection visible in live Electron QA. [SKILL?]
 - React Doctor can flag React Compiler `[PruneHoistedContexts] Rewrite hoisted function references` when a component-local handler calls another handler declared later in the same component. Prefer ordering dependent handlers after the handlers they call, or extracting the logic, so React Compiler can optimize the component. [SKILL?]

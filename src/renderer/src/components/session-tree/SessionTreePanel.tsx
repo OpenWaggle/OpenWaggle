@@ -1,7 +1,7 @@
 import type { SessionNode, SessionTreeFilterMode } from '@shared/types/session'
 import { useHotkey } from '@tanstack/react-hotkeys'
 import { useNavigate } from '@tanstack/react-router'
-import { GitBranch, Search, X } from 'lucide-react'
+import { ListTree, Search, X } from 'lucide-react'
 import { useDeferredValue, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
 import {
   createBranchDraftSelectionFromNode,
@@ -554,7 +554,7 @@ function SessionTreePanelLayout({
     <section className="flex h-full min-w-0 flex-col bg-diff-bg" aria-label="Session Tree">
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4">
         <div className="flex min-w-0 items-center gap-2">
-          <GitBranch className="h-4 w-4 shrink-0 text-text-tertiary" />
+          <ListTree className="h-4 w-4 shrink-0 text-text-tertiary" />
           <h2 className="truncate text-[13px] font-semibold text-text-primary">Session Tree</h2>
         </div>
         <button

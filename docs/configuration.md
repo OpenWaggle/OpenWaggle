@@ -18,6 +18,8 @@ your-project/
 
 Pi's project-local `.pi/settings.json` can also be read by the Pi settings loader. Both real settings files are local runtime configuration and should remain untracked. If a team needs shared defaults, commit an explicit non-secret template/default file instead of a live settings file. `.openwaggle/settings.json` is the user-facing OpenWaggle namespace and wins when both provide the same Pi setting.
 
+OpenWaggle also injects project resource roots into Pi in `.openwaggle > .pi > .agents` order for skills, extensions, prompts, and themes. These implicit roots are stripped again when Pi persists settings so `.openwaggle/settings.json` stays focused on real user/project preferences.
+
 ## Shape
 
 ```json
@@ -27,6 +29,10 @@ Pi's project-local `.pi/settings.json` can also be read by the Pi settings loade
     "thinkingLevel": "medium"
   },
   "pi": {
+    "treeFilterMode": "default",
+    "branchSummary": {
+      "skipPrompt": false
+    },
     "compaction": {
       "enabled": true,
       "reserveTokens": 16384,
@@ -51,6 +57,8 @@ Rules:
 4. Pi receives only the nested `pi` settings object, merged over `.pi/settings.json` when present.
 
 Project settings are cached by modification time. Edits to `.openwaggle/settings.json` take effect on the next project config read or Pi runtime service creation.
+
+Current Pi-backed UI preferences include Session Tree filter mode through `pi.treeFilterMode` and branch-summary prompt behavior through `pi.branchSummary.skipPrompt`.
 
 ## Thinking Level
 

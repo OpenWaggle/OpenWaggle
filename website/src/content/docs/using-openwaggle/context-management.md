@@ -1,7 +1,7 @@
 ---
 title: "Context Management"
 description: "Pi-reported context usage and manual /compact support."
-order: 4
+order: 5
 section: "Using OpenWaggle"
 ---
 
@@ -36,6 +36,19 @@ OpenWaggle calls Pi `session.compact(customInstructions)`. The command is a cont
 ## Automatic Compaction
 
 Automatic compaction policy belongs to Pi. OpenWaggle does not implement a separate automatic compaction layer.
+
+## Branch Summaries
+
+Branch summaries are separate from manual compaction. They apply when you select an earlier session-tree node and the current branch has downstream work that would be left behind.
+
+When prompted, you can:
+
+- Continue with no summary.
+- Ask Pi to summarize the abandoned branch.
+- Provide custom summary instructions through the composer.
+- Cancel and return to the previous branch selection.
+
+The custom summary text is sent to Pi's branch-summarization flow, not as a normal chat message. Pi's `branchSummary.skipPrompt` setting can skip the prompt when you prefer the no-prompt behavior.
 
 ## Model Limits
 
