@@ -55,6 +55,7 @@ const TestSettingsLayer = Layer.succeed(SettingsService, {
 
 const TestSessionLayer = Layer.succeed(SessionRepository, {
   list: () => Effect.succeed([]),
+  listArchivedBranches: () => Effect.succeed([]),
   getTree: () => Effect.succeed(null),
   getWorkspace: () => Effect.succeed(null),
   persistSnapshot: (input) =>
@@ -62,6 +63,10 @@ const TestSessionLayer = Layer.succeed(SessionRepository, {
       persistSnapshotMock(input)
     }),
   updateRuntime: () => Effect.void,
+  renameBranch: () => Effect.void,
+  archiveBranch: () => Effect.void,
+  restoreBranch: () => Effect.void,
+  updateTreeUiState: () => Effect.void,
 })
 
 const TestAgentKernelLayer = Layer.succeed(AgentKernelService, {

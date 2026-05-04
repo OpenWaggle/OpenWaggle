@@ -18,3 +18,5 @@ __pycache__/
 
 .tmp-*
 tmp/
+
+.playwright-mcp/

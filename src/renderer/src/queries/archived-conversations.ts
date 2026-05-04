@@ -1,4 +1,4 @@
-import type { ConversationId } from '@shared/types/brand'
+import type { ConversationId, SessionBranchId, SessionId } from '@shared/types/brand'
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/ipc'
 import { queryKeys } from './query-keys'
@@ -10,6 +10,18 @@ export function archivedConversationsQueryOptions() {
   })
 }
 
+export function archivedSessionBranchesQueryOptions() {
+  return queryOptions({
+    queryKey: queryKeys.archivedSessionBranches,
+    queryFn: () => api.listArchivedSessionBranches(),
+  })
+}
+
+export interface RestoreSessionBranchInput {
+  readonly sessionId: SessionId
+  readonly branchId: SessionBranchId
+}
+
 export function useUnarchiveConversationMutation() {
   const queryClient = useQueryClient()
 
@@ -18,6 +30,21 @@ export function useUnarchiveConversationMutation() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({
         queryKey: queryKeys.archivedConversations,
+        exact: true,
+      })
+    },
+  })
+}
+
+export function useRestoreSessionBranchMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ sessionId, branchId }: RestoreSessionBranchInput) =>
+      api.restoreSessionBranch(sessionId, branchId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.archivedSessionBranches,
         exact: true,
       })
     },

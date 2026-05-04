@@ -20,6 +20,7 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { compactCommandText } from '@/components/composer/compact-command'
 import { setEditorText } from '@/components/composer/lexical-utils'
+import { useEscapeHotkey } from '@/hooks/useEscapeHotkey'
 import { cn } from '@/lib/cn'
 import { teamPresetsQueryOptions } from '@/queries/teams'
 import { useComposerStore } from '@/stores/composer-store'
@@ -49,9 +50,15 @@ interface CommandPaletteProps {
   slashSkills: readonly SkillDiscoveryItem[]
   onSelectSkill: (skillId: string, skillName?: string) => void
   onStartWaggle: (config: WaggleConfig) => void
+  onOpenSessionTree?: () => void
 }
 
-export function CommandPalette({ slashSkills, onSelectSkill, onStartWaggle }: CommandPaletteProps) {
+export function CommandPalette({
+  slashSkills,
+  onSelectSkill,
+  onStartWaggle,
+  onOpenSessionTree,
+}: CommandPaletteProps) {
   const navigate = useNavigate()
   const closeCommandPalette = useUIStore((s) => s.closeCommandPalette)
   const teamPresetsQuery = useQuery(teamPresetsQueryOptions())
@@ -65,17 +72,7 @@ export function CommandPalette({ slashSkills, onSelectSkill, onStartWaggle }: Co
     inputRef.current?.focus()
   }, [])
 
-  // Close on Escape
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent): void {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        closeCommandPalette()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [closeCommandPalette])
+  useEscapeHotkey(closeCommandPalette)
 
   const lowerQuery = query.toLowerCase().trim()
   const presets = teamPresetsQuery.data ?? []
@@ -105,6 +102,11 @@ export function CommandPalette({ slashSkills, onSelectSkill, onStartWaggle }: Co
   function handleSkillSelect(skillId: string, skillName?: string): void {
     onSelectSkill(skillId, skillName)
     closeCommandPalette()
+  }
+
+  function handleOpenSessionTree(): void {
+    closeCommandPalette()
+    onOpenSessionTree?.()
   }
 
   function handleInsertCompactCommand(): void {
@@ -155,6 +157,17 @@ export function CommandPalette({ slashSkills, onSelectSkill, onStartWaggle }: Co
       icon: <Archive className="h-3.5 w-3.5" />,
       action: handleInsertCompactCommand,
     },
+    ...(onOpenSessionTree
+      ? [
+          {
+            id: 'session-tree',
+            label: 'Open Session Tree',
+            description: 'Navigate the Pi session tree',
+            icon: <GitBranch className="h-3.5 w-3.5" />,
+            action: handleOpenSessionTree,
+          },
+        ]
+      : []),
     {
       id: 'new-worktree',
       label: 'New worktree',
@@ -256,11 +269,17 @@ export function CommandPalette({ slashSkills, onSelectSkill, onStartWaggle }: Co
     choose(e.key)
       .case('ArrowDown', () => {
         e.preventDefault()
+        if (allItems.length === 0) {
+          return
+        }
         setHighlightIndex((prev) => (prev + 1) % allItems.length)
         scrollHighlightedIntoView()
       })
       .case('ArrowUp', () => {
         e.preventDefault()
+        if (allItems.length === 0) {
+          return
+        }
         setHighlightIndex((prev) => (prev === 0 ? allItems.length - 1 : prev - 1))
         scrollHighlightedIntoView()
       })

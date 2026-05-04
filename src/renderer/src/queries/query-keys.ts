@@ -3,6 +3,7 @@ import type { ConversationId } from '@shared/types/brand'
 export const queryKeys = {
   teams: ['teams'] as const,
   archivedConversations: ['archivedConversations'] as const,
+  archivedSessionBranches: ['archivedSessionBranches'] as const,
   conversations: ['conversations'] as const,
   conversation: (id: ConversationId | null) => ['conversation', id] as const,
   skills: (projectPath: string | null) => ['skills', projectPath] as const,

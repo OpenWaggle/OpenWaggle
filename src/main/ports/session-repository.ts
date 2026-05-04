@@ -1,9 +1,10 @@
 import type { MessageRole } from '@shared/types/agent'
-import type { SessionId } from '@shared/types/brand'
+import type { SessionBranchId, SessionId } from '@shared/types/brand'
 import type {
   SessionNodeKind,
   SessionSummary,
   SessionTree,
+  SessionTreeUiStatePatch,
   SessionWorkspace,
   SessionWorkspaceSelection,
 } from '@shared/types/session'
@@ -43,6 +44,9 @@ export interface SessionRepositoryShape {
   readonly list: (
     limit?: number,
   ) => Effect.Effect<readonly SessionSummary[], SessionProjectionRepositoryError>
+  readonly listArchivedBranches: (
+    limit?: number,
+  ) => Effect.Effect<readonly SessionSummary[], SessionProjectionRepositoryError>
   readonly getTree: (
     sessionId: SessionId,
   ) => Effect.Effect<SessionTree | null, SessionProjectionRepositoryError>
@@ -55,6 +59,23 @@ export interface SessionRepositoryShape {
   ) => Effect.Effect<void, SessionProjectionRepositoryError>
   readonly updateRuntime: (
     input: UpdateSessionRuntimeInput,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  readonly renameBranch: (
+    sessionId: SessionId,
+    branchId: SessionBranchId,
+    name: string,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  readonly archiveBranch: (
+    sessionId: SessionId,
+    branchId: SessionBranchId,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  readonly restoreBranch: (
+    sessionId: SessionId,
+    branchId: SessionBranchId,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  readonly updateTreeUiState: (
+    sessionId: SessionId,
+    patch: SessionTreeUiStatePatch,
   ) => Effect.Effect<void, SessionProjectionRepositoryError>
 }
 

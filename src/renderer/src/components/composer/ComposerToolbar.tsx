@@ -31,6 +31,7 @@ interface ComposerToolbarProps {
   onToggleVoice: () => void
   voiceMode: 'idle' | 'recording' | 'transcribing'
   fileInputRef: React.RefObject<HTMLInputElement | null>
+  sendTitle?: string
 }
 
 export function ComposerToolbar({
@@ -41,6 +42,7 @@ export function ComposerToolbar({
   onToggleVoice,
   voiceMode,
   fileInputRef,
+  sendTitle,
 }: ComposerToolbarProps) {
   const settings = usePreferencesStore((s) => s.settings)
   const providerModels = useProviderStore((s) => s.providerModels)
@@ -187,7 +189,7 @@ export function ComposerToolbar({
                 ? 'border border-accent/35 bg-accent/10 text-accent hover:bg-accent/18'
                 : 'border border-border bg-bg-tertiary cursor-not-allowed',
             )}
-            title="Add message"
+            title={sendTitle ?? 'Add message'}
           >
             <ArrowUp className={cn('h-4 w-4', canSend ? 'text-accent' : 'text-text-muted')} />
           </button>
@@ -202,7 +204,7 @@ export function ComposerToolbar({
                 ? 'bg-gradient-to-b from-accent to-accent-dim'
                 : 'border border-border bg-bg-tertiary cursor-not-allowed',
             )}
-            title="Send message"
+            title={sendTitle ?? 'Send message'}
           >
             <ArrowUp className={cn('h-4 w-4', canSend ? 'text-bg' : 'text-text-muted')} />
           </button>

@@ -16,6 +16,7 @@ export type SessionNodeKind =
   | 'compaction_summary'
 
 export type SessionFutureMode = 'standard' | 'waggle'
+export type SessionTreeFilterMode = 'default' | 'no-tools' | 'user-only' | 'labeled-only' | 'all'
 
 export interface SessionSummary {
   readonly id: SessionId
@@ -26,6 +27,8 @@ export interface SessionSummary {
   readonly updatedAt: number
   readonly lastActiveNodeId?: SessionNodeId | null
   readonly lastActiveBranchId?: SessionBranchId | null
+  readonly branches?: readonly SessionBranch[]
+  readonly treeUiState?: SessionTreeUiState | null
 }
 
 export interface SessionNode {
@@ -51,6 +54,8 @@ export interface SessionBranch {
   readonly headNodeId: SessionNodeId | null
   readonly name: string
   readonly isMain: boolean
+  readonly archived?: boolean
+  readonly archivedAt?: number | null
   readonly createdAt: number
   readonly updatedAt: number
 }
@@ -66,8 +71,14 @@ export interface SessionBranchState {
 export interface SessionTreeUiState {
   readonly sessionId: SessionId
   readonly expandedNodeIds: readonly SessionNodeId[]
+  readonly expandedNodeIdsTouched: boolean
   readonly branchesSidebarCollapsed: boolean
   readonly updatedAt: number
+}
+
+export interface SessionTreeUiStatePatch {
+  readonly expandedNodeIds?: readonly SessionNodeId[]
+  readonly branchesSidebarCollapsed?: boolean
 }
 
 export interface SessionTree {

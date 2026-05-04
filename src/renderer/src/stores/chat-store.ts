@@ -3,6 +3,7 @@ import type { Conversation, ConversationSummary } from '@shared/types/conversati
 import { create } from 'zustand'
 import { api } from '@/lib/ipc'
 import { createRendererLogger } from '@/lib/logger'
+import { useComposerStore } from '@/stores/composer-store'
 import { useSessionStore } from '@/stores/session-store'
 
 const logger = createRendererLogger('chat-store')
@@ -201,6 +202,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     try {
       await api.deleteConversation(id)
+      useComposerStore.getState().clearScopedDraftsForSession(String(id))
       void useSessionStore
         .getState()
         .refreshSessionsAndTree(optionalConversationSessionId(get().activeConversationId))

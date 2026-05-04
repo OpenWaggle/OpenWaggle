@@ -5,6 +5,7 @@ import { ChatPanelContent } from '@/components/chat/ChatPanel'
 import { useChatPanelSections } from '@/components/chat/use-chat-panel-controller'
 import { PanelErrorBoundary } from '@/components/shared/PanelErrorBoundary'
 import { RightSidebarLayout } from '@/components/shared/RightSidebarLayout'
+import { useBranchSummaryStore } from '@/stores/branch-summary-store'
 import { useChatStore } from '@/stores/chat-store'
 import { useGitStore } from '@/stores/git-store'
 import { usePreferencesStore } from '@/stores/preferences-store'
@@ -20,13 +21,20 @@ const OVERFLOW_TOLERANCE_PX = 0.5
 const LazyChatDiffPane = lazy(() =>
   import('@/components/chat/ChatDiffPane').then((module) => ({ default: module.ChatDiffPane })),
 )
+const LazySessionTreePanel = lazy(() =>
+  import('@/components/session-tree/SessionTreePanel').then((module) => ({
+    default: module.SessionTreePanel,
+  })),
+)
 
 interface ChatRouteSurfaceProps {
   readonly branchId: string | null
   readonly diffOpen: boolean
   readonly nodeId: string | null
   readonly sessionId: string | null
+  readonly sessionTreeOpen: boolean
   readonly onDiffOpenChange: (open: boolean) => void
+  readonly onSessionTreeOpenChange: (open: boolean) => void
 }
 
 function conversationIdFromRoute(sessionId: string): ConversationId {
@@ -49,7 +57,9 @@ export function ChatRouteSurface({
   diffOpen,
   nodeId,
   sessionId,
+  sessionTreeOpen,
   onDiffOpenChange,
+  onSessionTreeOpenChange,
 }: ChatRouteSurfaceProps) {
   const navigate = useNavigate()
   const sections = useChatPanelSections()
@@ -70,6 +80,8 @@ export function ChatRouteSurface({
   const refreshGitStatus = useGitStore((state) => state.refreshStatus)
   const refreshGitBranches = useGitStore((state) => state.refreshBranches)
   const refreshSessionWorkspace = useSessionStore((state) => state.refreshSessionWorkspace)
+  const draftBranch = useSessionStore((state) => state.draftBranch)
+  const clearDraftBranchForSession = useSessionStore((state) => state.clearDraftBranchForSession)
 
   useEffect(() => {
     if (routeConversationId === null) {
@@ -93,6 +105,16 @@ export function ChatRouteSurface({
   const routeSessionTreeId = routeConversationId ? SessionId(String(routeConversationId)) : null
   const routeBranchId = branchId ? SessionBranchId(branchId) : null
   const routeNodeId = nodeId ? SessionNodeId(nodeId) : null
+
+  useEffect(() => {
+    if (
+      draftBranch &&
+      (routeSessionTreeId === null || draftBranch.sessionId !== routeSessionTreeId || routeBranchId)
+    ) {
+      useBranchSummaryStore.getState().clearPrompt()
+      clearDraftBranchForSession(draftBranch.sessionId)
+    }
+  }, [clearDraftBranchForSession, draftBranch, routeBranchId, routeSessionTreeId])
 
   useEffect(() => {
     void refreshSessionWorkspace(routeSessionTreeId, {
@@ -156,18 +178,31 @@ export function ChatRouteSurface({
           defaultWidth={DIFF_PANEL_DEFAULT_WIDTH}
           maxWidth={DIFF_PANEL_MAX}
           minWidth={DIFF_PANEL_MIN}
-          open={diffOpen}
+          open={diffOpen || sessionTreeOpen}
           sheetBreakpointPx={DIFF_PANEL_SHEET_BREAKPOINT_PX}
           storageKey={DIFF_PANEL_STORAGE_KEY}
-          onOpenChange={onDiffOpenChange}
+          onOpenChange={(open) => {
+            if (diffOpen) {
+              onDiffOpenChange(open)
+              return
+            }
+            onSessionTreeOpenChange(open)
+          }}
           shouldAcceptWidth={shouldAcceptDiffWidth}
           sidebar={
             <Suspense fallback={<DiffSidebarFallback />}>
-              <LazyChatDiffPane section={sections.diff} onClose={() => onDiffOpenChange(false)} />
+              {sessionTreeOpen ? (
+                <LazySessionTreePanel onClose={() => onSessionTreeOpenChange(false)} />
+              ) : (
+                <LazyChatDiffPane section={sections.diff} onClose={() => onDiffOpenChange(false)} />
+              )}
             </Suspense>
           }
         >
-          <ChatPanelContent sections={sections} />
+          <ChatPanelContent
+            sections={sections}
+            onOpenSessionTree={() => onSessionTreeOpenChange(true)}
+          />
         </RightSidebarLayout>
       </PanelErrorBoundary>
     </div>

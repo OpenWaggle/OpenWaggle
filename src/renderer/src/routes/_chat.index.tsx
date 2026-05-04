@@ -10,12 +10,22 @@ export const Route = createFileRoute('/_chat/')({
 function ChatIndexRouteView() {
   const navigate = useNavigate()
   const search = Route.useSearch()
-  const diffOpen = search.diff === 1
+  const diffOpen = search.panel === 'diff' || (search.diff === 1 && search.panel === undefined)
+  const sessionTreeOpen = search.panel === 'session-tree'
 
   function setDiffOpen(open: boolean): void {
+    const panel = open ? 'diff' : undefined
     void navigate({
       to: '/',
-      search: (previous) => ({ ...previous, diff: open ? 1 : undefined }),
+      search: { diff: undefined, panel },
+    })
+  }
+
+  function setSessionTreeOpen(open: boolean): void {
+    const panel = open ? 'session-tree' : undefined
+    void navigate({
+      to: '/',
+      search: { diff: undefined, panel },
     })
   }
 
@@ -25,7 +35,9 @@ function ChatIndexRouteView() {
       diffOpen={diffOpen}
       nodeId={null}
       sessionId={null}
+      sessionTreeOpen={sessionTreeOpen}
       onDiffOpenChange={setDiffOpen}
+      onSessionTreeOpenChange={setSessionTreeOpen}
     />
   )
 }

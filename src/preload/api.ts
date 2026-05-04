@@ -57,6 +57,9 @@ export const api: OpenWaggleApi = {
   getSettings: invoke('settings:get'),
   updateSettings: invoke('settings:update'),
   setEnabledModels: invoke('settings:set-enabled-models'),
+  getPiTreeFilterMode: invoke('pi-settings:get-tree-filter-mode'),
+  setPiTreeFilterMode: invoke('pi-settings:set-tree-filter-mode'),
+  getPiBranchSummarySkipPrompt: invoke('pi-settings:get-branch-summary-skip-prompt'),
   testApiKey: invoke('settings:test-api-key'),
 
   // Providers
@@ -78,9 +81,14 @@ export const api: OpenWaggleApi = {
   listArchivedConversations: invoke('conversations:list-archived'),
   updateConversationTitle: invoke('conversations:update-title'),
   listSessions: invoke('sessions:list'),
+  listArchivedSessionBranches: invoke('sessions:list-archived-branches'),
   getSessionTree: invoke('sessions:get-tree'),
   getSessionWorkspace: invoke('sessions:get-workspace'),
   navigateSessionTree: invoke('sessions:navigate-tree'),
+  renameSessionBranch: invoke('sessions:rename-branch'),
+  archiveSessionBranch: invoke('sessions:archive-branch'),
+  restoreSessionBranch: invoke('sessions:restore-branch'),
+  updateSessionTreeUiState: invoke('sessions:update-tree-ui-state'),
   onConversationTitleUpdated: on('conversations:title-updated'),
 
   // Terminal

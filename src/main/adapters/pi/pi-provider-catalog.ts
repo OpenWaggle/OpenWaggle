@@ -8,6 +8,7 @@ import {
   createAgentSessionServices,
   getAgentDir,
   ModelRegistry,
+  type SettingsManager,
 } from '@mariozechner/pi-coding-agent'
 import { createModelRef } from '@shared/types/llm'
 import { THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
@@ -276,13 +277,22 @@ function filterDisabledCatalogSkills(
 export function createOpenWagglePiResourceLoaderOptions(
   projectPath: string,
   options: PiRuntimeServicesOptions = {},
+  settingsManager?: SettingsManager,
 ): PiResourceLoaderOptions {
   const skillToggles = options.skillToggles ?? {}
   return {
-    additionalExtensionPaths: includeExistingPath(getOpenWaggleExtensionsRoot(projectPath)),
-    additionalSkillPaths: includeExistingPath(getOpenWaggleSkillsRoot(projectPath)),
-    additionalPromptTemplatePaths: includeExistingPath(getOpenWagglePromptsRoot(projectPath)),
-    additionalThemePaths: includeExistingPath(getOpenWaggleThemesRoot(projectPath)),
+    additionalExtensionPaths: settingsManager
+      ? []
+      : includeExistingPath(getOpenWaggleExtensionsRoot(projectPath)),
+    additionalSkillPaths: settingsManager
+      ? []
+      : includeExistingPath(getOpenWaggleSkillsRoot(projectPath)),
+    additionalPromptTemplatePaths: settingsManager
+      ? []
+      : includeExistingPath(getOpenWagglePromptsRoot(projectPath)),
+    additionalThemePaths: settingsManager
+      ? []
+      : includeExistingPath(getOpenWaggleThemesRoot(projectPath)),
     skillsOverride: (base) => filterDisabledCatalogSkills(projectPath, skillToggles, base),
   }
 }
@@ -306,12 +316,17 @@ export async function createPiRuntimeServices(
   options: PiRuntimeServicesOptions = {},
 ): Promise<AgentSessionServices> {
   const authStorage = createPiRuntimeAuthStorage()
+  const settingsManager = createOpenWagglePiSettingsManager(projectPath)
   return createAgentSessionServices({
     cwd: projectPath,
     agentDir: getPiAgentDir(),
     authStorage,
-    settingsManager: createOpenWagglePiSettingsManager(projectPath),
-    resourceLoaderOptions: createOpenWagglePiResourceLoaderOptions(projectPath, options),
+    settingsManager,
+    resourceLoaderOptions: createOpenWagglePiResourceLoaderOptions(
+      projectPath,
+      options,
+      settingsManager,
+    ),
   })
 }
 

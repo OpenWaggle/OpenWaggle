@@ -1,7 +1,11 @@
 import type { RefObject } from 'react'
 import { useLayoutEffect, useRef, useState } from 'react'
+import {
+  getMaxScrollTop,
+  isScrollContainerNearBottom,
+  scrollElementToBottom,
+} from '@/lib/scroll-to-bottom'
 
-const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 64
 const SCROLL_UP_HYSTERESIS_PX = 1
 const SCROLLBAR_HIDE_DELAY_MS = 800
 const SCROLL_PERSIST_DEBOUNCE_MS = 150
@@ -9,12 +13,6 @@ const SESSION_RESTORE_RETRY_MS = 96
 const SCROLL_CACHE_MAX_ENTRIES = 100
 const SCROLL_CACHE_KEY = 'openwaggle:scroll-positions'
 const SCROLL_CACHE_ENTRY_LENGTH = 2
-
-interface ScrollPosition {
-  readonly scrollTop: number
-  readonly clientHeight: number
-  readonly scrollHeight: number
-}
 
 interface ScrollWheelEvent {
   readonly deltaY: number
@@ -95,32 +93,6 @@ function saveScrollCache(cache: Map<string, number>): void {
   } catch {
     // Ignore storage errors.
   }
-}
-
-function isScrollContainerNearBottom(
-  position: ScrollPosition,
-  thresholdPx = AUTO_SCROLL_BOTTOM_THRESHOLD_PX,
-): boolean {
-  const threshold = Number.isFinite(thresholdPx)
-    ? Math.max(0, thresholdPx)
-    : AUTO_SCROLL_BOTTOM_THRESHOLD_PX
-  const { scrollTop, clientHeight, scrollHeight } = position
-  if (![scrollTop, clientHeight, scrollHeight].every(Number.isFinite)) {
-    return true
-  }
-  return scrollHeight - clientHeight - scrollTop <= threshold
-}
-
-function getMaxScrollTop(el: HTMLElement): number {
-  return Math.max(0, el.scrollHeight - el.clientHeight)
-}
-
-function scrollElementToBottom(el: HTMLElement, behavior: ScrollBehavior): void {
-  if (typeof el.scrollTo === 'function') {
-    el.scrollTo({ top: el.scrollHeight, behavior })
-    return
-  }
-  el.scrollTop = el.scrollHeight
 }
 
 export function useChatScrollBehaviour(

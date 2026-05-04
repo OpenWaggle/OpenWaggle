@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useClickOutside } from '@/hooks/useClickOutside'
+import { useEscapeHotkey } from '@/hooks/useEscapeHotkey'
 import { cn } from '@/lib/cn'
 
 interface ContextMenuProps {
@@ -14,19 +15,7 @@ export function ContextMenu({ open, onClose, position, children }: ContextMenuPr
   const menuRef = useRef<HTMLDivElement>(null)
   useClickOutside(menuRef, onClose, open)
 
-  useEffect(() => {
-    if (!open) return
-
-    function onKeyDown(event: KeyboardEvent): void {
-      if (event.key === 'Escape') {
-        event.stopPropagation()
-        onClose()
-      }
-    }
-
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [open, onClose])
+  useEscapeHotkey(onClose, { enabled: open })
 
   if (!open) return null
 

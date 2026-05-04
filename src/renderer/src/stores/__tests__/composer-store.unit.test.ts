@@ -23,6 +23,8 @@ describe('composer-store', () => {
       actionDialogInput: '',
       actionDialogError: null,
       actionDialogBusy: false,
+      activeDraftContextKey: null,
+      scopedDrafts: {},
     })
   })
 
@@ -175,6 +177,100 @@ describe('composer-store', () => {
       expect(useComposerStore.getState().promptHistory).toEqual(['kept'])
       expect(useComposerStore.getState().historyIndex).toBe(1)
       expect(useComposerStore.getState().draftInput).toBe('')
+    })
+  })
+
+  describe('scoped drafts', () => {
+    it('saves the current context and loads the fallback draft when switching contexts', () => {
+      const attachment = makeAttachment('a1')
+      useComposerStore.getState().setInput('main draft')
+      useComposerStore.getState().addAttachments([attachment])
+      useComposerStore.getState().setActiveDraftContextKey('project:/tmp:session:s1:branch:main')
+
+      const applied = useComposerStore
+        .getState()
+        .switchScopedDraftContext('project:/tmp:session:s1:draft:n1', {
+          input: 'retry prompt',
+          attachments: [],
+        })
+
+      expect(applied.input).toBe('retry prompt')
+      expect(useComposerStore.getState().input).toBe('retry prompt')
+      expect(
+        useComposerStore.getState().getScopedDraft('project:/tmp:session:s1:branch:main'),
+      ).toEqual({ input: 'main draft', attachments: [attachment] })
+    })
+
+    it('loads a saved draft instead of the fallback for an existing context', () => {
+      useComposerStore.getState().saveScopedDraft('project:/tmp:session:s1:branch:main', {
+        input: 'saved main draft',
+        attachments: [],
+      })
+
+      const applied = useComposerStore
+        .getState()
+        .switchScopedDraftContext('project:/tmp:session:s1:branch:main', {
+          input: 'fallback',
+          attachments: [],
+        })
+
+      expect(applied.input).toBe('saved main draft')
+      expect(useComposerStore.getState().input).toBe('saved main draft')
+    })
+
+    it('removes the active scoped draft on reset after send', () => {
+      useComposerStore.getState().setInput('draft to send')
+      useComposerStore.getState().setActiveDraftContextKey('project:/tmp:session:s1:branch:main')
+      useComposerStore.getState().saveScopedDraft('project:/tmp:session:s1:branch:main', {
+        input: 'draft to send',
+        attachments: [],
+      })
+
+      useComposerStore.getState().reset()
+
+      expect(
+        useComposerStore.getState().getScopedDraft('project:/tmp:session:s1:branch:main'),
+      ).toBeNull()
+    })
+
+    it('clears visible draft state when clearing drafts for the active session', () => {
+      const attachment = makeAttachment('session-draft')
+      useComposerStore.getState().setActiveDraftContextKey('project:/tmp:session:s1:branch:main')
+      useComposerStore.getState().setInput('archived draft')
+      useComposerStore.getState().addAttachments([attachment])
+      useComposerStore.getState().saveScopedDraft('project:/tmp:session:s1:branch:main', {
+        input: 'archived draft',
+        attachments: [attachment],
+      })
+
+      useComposerStore.getState().clearScopedDraftsForSession('s1')
+
+      expect(useComposerStore.getState().activeDraftContextKey).toBeNull()
+      expect(useComposerStore.getState().input).toBe('')
+      expect(useComposerStore.getState().attachments).toEqual([])
+      expect(
+        useComposerStore.getState().getScopedDraft('project:/tmp:session:s1:branch:main'),
+      ).toBeNull()
+    })
+
+    it('clears visible draft state when clearing drafts for the active branch', () => {
+      const attachment = makeAttachment('branch-draft')
+      useComposerStore.getState().setActiveDraftContextKey('project:/tmp:session:s1:branch:b1')
+      useComposerStore.getState().setInput('archived branch draft')
+      useComposerStore.getState().addAttachments([attachment])
+      useComposerStore.getState().saveScopedDraft('project:/tmp:session:s1:branch:b1', {
+        input: 'archived branch draft',
+        attachments: [attachment],
+      })
+
+      useComposerStore.getState().clearScopedDraftsForBranch('s1', 'b1')
+
+      expect(useComposerStore.getState().activeDraftContextKey).toBeNull()
+      expect(useComposerStore.getState().input).toBe('')
+      expect(useComposerStore.getState().attachments).toEqual([])
+      expect(
+        useComposerStore.getState().getScopedDraft('project:/tmp:session:s1:branch:b1'),
+      ).toBeNull()
     })
   })
 

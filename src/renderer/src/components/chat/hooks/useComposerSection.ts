@@ -25,6 +25,10 @@ export interface ComposerSectionParams {
   readonly handleSendWithWaggle: (payload: AgentSendPayload) => Promise<void>
   readonly handleStartWaggle: (config: WaggleConfig) => void
   readonly handleStopCollaboration: () => void
+  readonly handleSkipBranchSummary: () => void
+  readonly handleSummarizeBranch: () => void
+  readonly handleStartCustomBranchSummary: () => void
+  readonly handleCancelBranchSummary: () => void
 }
 
 export function useComposerSection(params: ComposerSectionParams): ChatComposerSectionState {
@@ -44,6 +48,10 @@ export function useComposerSection(params: ComposerSectionParams): ChatComposerS
     handleSendWithWaggle,
     handleStartWaggle,
     handleStopCollaboration,
+    handleSkipBranchSummary,
+    handleSummarizeBranch,
+    handleStartCustomBranchSummary,
+    handleCancelBranchSummary,
   } = params
 
   function handleSelectSkill(skillId: string, skillName?: string): void {
@@ -86,5 +94,9 @@ export function useComposerSection(params: ComposerSectionParams): ChatComposerS
     onSteer: handleSteer,
     onCancel: stop,
     onToast: showToast,
+    onSkipBranchSummary: handleSkipBranchSummary,
+    onSummarizeBranch: handleSummarizeBranch,
+    onStartCustomBranchSummary: handleStartCustomBranchSummary,
+    onCancelBranchSummary: handleCancelBranchSummary,
   }
 }

@@ -1,9 +1,11 @@
 import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { SupportedModelId } from '@shared/types/brand'
+import type { SessionTreeFilterMode } from '@shared/types/session'
 import { THINKING_LEVELS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import { testCredentials } from '../application/provider-test-service'
 import { createLogger } from '../logger'
+import { SessionTreePreferencesService } from '../ports/session-tree-preferences-service'
 import { SettingsService } from '../services/settings-service'
 import { validateProjectPath } from './project-path-validation'
 import { typedHandle } from './typed-ipc'
@@ -44,6 +46,22 @@ function validateRecentProjectPaths(projects: readonly string[] | undefined) {
       ),
     ),
   ).pipe(Effect.map((validatedProjects) => validatedProjects.filter(isString)))
+}
+
+function isTreeFilterMode(value: unknown): value is SessionTreeFilterMode {
+  return (
+    value === 'default' ||
+    value === 'no-tools' ||
+    value === 'user-only' ||
+    value === 'labeled-only' ||
+    value === 'all'
+  )
+}
+
+function validateTreeFilterMode(value: unknown): Effect.Effect<SessionTreeFilterMode, Error> {
+  return isTreeFilterMode(value)
+    ? Effect.succeed(value)
+    : Effect.fail(new Error('Invalid tree filter mode'))
 }
 
 const settingsUpdateSchema = Schema.Struct({
@@ -130,6 +148,33 @@ export function registerSettingsHandlers(): void {
       const settings = yield* SettingsService
       yield* settings.update({ enabledModels: models.map(SupportedModelId) })
       return undefined
+    }),
+  )
+
+  typedHandle('pi-settings:get-tree-filter-mode', (_event, projectPath?: string | null) =>
+    Effect.gen(function* () {
+      const validatedProjectPath = yield* validateProjectPath(projectPath)
+      const preferences = yield* SessionTreePreferencesService
+      return yield* preferences.getTreeFilterMode(validatedProjectPath)
+    }),
+  )
+
+  typedHandle(
+    'pi-settings:set-tree-filter-mode',
+    (_event, mode: unknown, projectPath?: string | null) =>
+      Effect.gen(function* () {
+        const validatedMode = yield* validateTreeFilterMode(mode)
+        const validatedProjectPath = yield* validateProjectPath(projectPath)
+        const preferences = yield* SessionTreePreferencesService
+        return yield* preferences.setTreeFilterMode(validatedMode, validatedProjectPath)
+      }),
+  )
+
+  typedHandle('pi-settings:get-branch-summary-skip-prompt', (_event, projectPath?: string | null) =>
+    Effect.gen(function* () {
+      const validatedProjectPath = yield* validateProjectPath(projectPath)
+      const preferences = yield* SessionTreePreferencesService
+      return yield* preferences.getBranchSummarySkipPrompt(validatedProjectPath)
     }),
   )
 
