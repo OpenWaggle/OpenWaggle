@@ -1,5 +1,5 @@
+import { match } from '@diegogbrisa/ts-match'
 import type { GitCommitResult, GitStatusSummary } from '@shared/types/git'
-import { choose } from '@shared/utils/decision'
 import { Loader2, RefreshCw, X } from 'lucide-react'
 import { useState } from 'react'
 import { useEscapeHotkey } from '@/hooks/useEscapeHotkey'
@@ -31,12 +31,12 @@ const STATUS_CLASS: Record<string, string> = {
 function humanCommitError(result: GitCommitResult): string {
   if (result.ok) return ''
 
-  return choose(result.code)
-    .case('empty-message', () => 'Commit message is required.')
-    .case('nothing-to-commit', () => 'No changes are available to commit.')
-    .case('merge-in-progress', () => 'A merge is in progress. Resolve it before committing.')
-    .case('not-git-repo', () => 'Selected folder is not a Git repository.')
-    .catchAll(() => result.message)
+  return match(result.code)
+    .with('empty-message', () => 'Commit message is required.')
+    .with('nothing-to-commit', () => 'No changes are available to commit.')
+    .with('merge-in-progress', () => 'A merge is in progress. Resolve it before committing.')
+    .with('not-git-repo', () => 'Selected folder is not a Git repository.')
+    .otherwise(() => result.message)
 }
 
 export function CommitDialog({

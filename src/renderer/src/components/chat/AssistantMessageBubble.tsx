@@ -1,8 +1,8 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import type { ConversationId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { WaggleAgentColor } from '@shared/types/waggle'
-import { chooseBy } from '@shared/utils/decision'
 import { GitBranch } from 'lucide-react'
 import React from 'react'
 import { AGENT_BORDER_LEFT } from '@/lib/agent-colors'
@@ -123,8 +123,8 @@ export function AssistantMessageBubble({
           const content =
             !collapse.renderAllParts && i !== collapse.lastRenderableTextPartIndex
               ? null
-              : chooseBy(part, 'type')
-                  .case('text', (value) =>
+              : matchBy(part, 'type')
+                  .with('text', (value) =>
                     value.content.trim() ? (
                       <StreamingText
                         key={`${message.id}-text-${String(i)}`}
@@ -133,7 +133,7 @@ export function AssistantMessageBubble({
                       />
                     ) : null,
                   )
-                  .case('tool-call', (value) => (
+                  .with('tool-call', (value) => (
                     <ToolCallRouter
                       key={`tool-${value.id}`}
                       part={value}
@@ -142,7 +142,7 @@ export function AssistantMessageBubble({
                       isStreaming={!!isStreaming}
                     />
                   ))
-                  .case('thinking', (value) =>
+                  .with('thinking', (value) =>
                     value.content.trim() ? (
                       <StreamingText
                         key={`${message.id}-thinking-${value.stepId ?? String(i)}`}
@@ -152,12 +152,12 @@ export function AssistantMessageBubble({
                       />
                     ) : null,
                   )
-                  .case('tool-result', (value) =>
+                  .with('tool-result', (value) =>
                     messageToolCallIds.has(value.toolCallId) ? null : (
                       <StandaloneToolResult content={value.content} state={value.state} />
                     ),
                   )
-                  .catchAll(() => null)
+                  .otherwise(() => null)
 
           if (divider !== null || content !== null) {
             return (

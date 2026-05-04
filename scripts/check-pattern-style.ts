@@ -50,7 +50,7 @@ async function main() {
         violations.push({
           file: toRelative(filePath),
           line: pos.line + 1,
-          reason: 'switch statements are disallowed; use choose/chooseBy',
+          reason: 'switch statements are disallowed; use match/matchBy from @diegogbrisa/ts-match',
         })
       }
 
@@ -59,7 +59,7 @@ async function main() {
         violations.push({
           file: toRelative(filePath),
           line: pos.line + 1,
-          reason: 'else-if chains are disallowed; use choose/chooseBy or guard clauses',
+          reason: 'else-if chains are disallowed; use match/matchBy from @diegogbrisa/ts-match or guard clauses',
         })
       }
 

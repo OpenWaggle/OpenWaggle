@@ -40,10 +40,9 @@
     "format": "biome format --write src/",
     "check:fast": "pnpm typecheck && pnpm lint",
     "check:pattern-style": "tsx scripts/check-pattern-style.ts",
-    "check:decision-size": "tsx scripts/check-decision-size.ts",
     "check:magic-numbers": "tsx scripts/check-magic-numbers.ts",
     "check:architecture": "tsx scripts/check-architecture.ts",
-    "check": "pnpm typecheck && pnpm lint && pnpm check:pattern-style && pnpm check:decision-size && pnpm check:magic-numbers && pnpm check:architecture",
+    "check": "pnpm typecheck && pnpm lint && pnpm check:pattern-style && pnpm check:magic-numbers && pnpm check:architecture",
     "prepush:main": "pnpm check && pnpm format && pnpm test:all",
     "website:capture-screenshots": "pnpm prepare:native:electron && tsx scripts/capture-website-screenshots.ts",
     "prepare": "husky",
@@ -69,6 +68,7 @@
     "url": "https://github.com/OpenWaggle/OpenWaggle.git"
   },
   "dependencies": {
+    "@diegogbrisa/ts-match": "^1.2.0",
     "@lexical/history": "^0.42.0",
     "@lexical/plain-text": "^0.42.0",
     "@lexical/react": "^0.42.0",

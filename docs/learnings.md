@@ -60,6 +60,7 @@ This document stores project-specific technical learnings only.
 
 ### Electron & Renderer Patterns
 
+- ESM-only dependencies that expose only `exports.import` must be added to `BUNDLED_DEPS` in `electron.vite.config.ts` when imported by the Electron main process; otherwise the CJS main bundle can leave a `require()` to a package with no CJS export and crash at app load. [SKILL?]
 - React Compiler handles render memoization, but external hook/effect identities still need stable references when those identities are semantically required.
 - Renderer state selectors must remain granular and stable; avoid selectors that allocate new objects or arrays on every render.
 - Background-run reconnection hooks must guard by conversation id and persisted snapshot key before starting async rehydration. Re-rendering from a fresh-but-equivalent conversation object can otherwise create an infinite reconnect/render loop that appears as a Vitest worker OOM. [SKILL?]

@@ -15,8 +15,9 @@ interface TreeNode {
   isChanged: boolean
 }
 
-function buildTree(files: GitFileDiff[]): TreeNode[] {
+function buildTree(files: readonly GitFileDiff[]): TreeNode[] {
   const changedPaths = new Set(files.map((f) => f.path))
+  const nodeByPath = new Map<string, TreeNode>()
   const root: TreeNode[] = []
 
   for (const file of files) {
@@ -28,18 +29,22 @@ function buildTree(files: GitFileDiff[]): TreeNode[] {
       const isFile = i === parts.length - 1
       const pathSoFar = parts.slice(0, i + 1).join('/')
 
-      let existing = current.find((n) => n.name === part)
-      if (!existing) {
-        existing = {
-          name: part,
-          path: pathSoFar,
-          children: [],
-          isFile,
-          isChanged: isFile && changedPaths.has(file.path),
-        }
-        current.push(existing)
+      const existing = nodeByPath.get(pathSoFar)
+      if (existing) {
+        current = existing.children
+        continue
       }
-      current = existing.children
+
+      const node = {
+        name: part,
+        path: pathSoFar,
+        children: [],
+        isFile,
+        isChanged: isFile && changedPaths.has(file.path),
+      }
+      nodeByPath.set(pathSoFar, node)
+      current.push(node)
+      current = node.children
     }
   }
 
@@ -104,7 +109,7 @@ function FileTreeNode({ node, depth, onFileClick }: FileTreeNodeProps) {
 }
 
 interface FileTreeProps {
-  files: GitFileDiff[]
+  files: readonly GitFileDiff[]
   onFileClick: (path: string) => void
   onSendReview: () => void
   reviewCount: number

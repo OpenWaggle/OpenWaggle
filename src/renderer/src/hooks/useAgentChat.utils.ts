@@ -1,7 +1,7 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import type { AttachmentRecord, MessagePart } from '@shared/types/agent'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { Conversation } from '@shared/types/conversation'
-import { chooseBy } from '@shared/utils/decision'
 
 // ─── MessagePart → UIMessage Parts Conversion ────────────────
 
@@ -33,9 +33,9 @@ export function formatAttachmentPreview(
  * buildPartialAssistantMessage (background reconnection).
  */
 export function messagePartToUIParts(part: MessagePart): UIMessage['parts'] {
-  return chooseBy(part, 'type')
-    .case('text', (value): UIMessage['parts'] => [{ type: 'text', content: value.text }])
-    .case('tool-call', (value): UIMessage['parts'] => [
+  return matchBy(part, 'type')
+    .with('text', (value): UIMessage['parts'] => [{ type: 'text', content: value.text }])
+    .with('tool-call', (value): UIMessage['parts'] => [
       {
         type: 'tool-call',
         id: String(value.toolCall.id),
@@ -44,7 +44,7 @@ export function messagePartToUIParts(part: MessagePart): UIMessage['parts'] {
         state: value.toolCall.state ?? 'input-complete',
       },
     ])
-    .case('tool-result', (value): UIMessage['parts'] => [
+    .with('tool-result', (value): UIMessage['parts'] => [
       {
         type: 'tool-result',
         toolCallId: String(value.toolResult.id),
@@ -52,19 +52,19 @@ export function messagePartToUIParts(part: MessagePart): UIMessage['parts'] {
         state: value.toolResult.isError ? 'error' : 'complete',
       },
     ])
-    .case('attachment', (value): UIMessage['parts'] => [
+    .with('attachment', (value): UIMessage['parts'] => [
       {
         type: 'text',
         content: formatAttachmentPreview(value.attachment),
       },
     ])
-    .case('reasoning', (value): UIMessage['parts'] => [
+    .with('reasoning', (value): UIMessage['parts'] => [
       {
         type: 'thinking',
         content: value.text,
       },
     ])
-    .assertComplete()
+    .exhaustive()
 }
 
 // ─── Conversation → UIMessage Conversion ─────────────────────

@@ -1,5 +1,5 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import type { ConversationId } from '@shared/types/brand'
-import { chooseBy } from '@shared/utils/decision'
 import { Spinner } from '@/components/shared/Spinner'
 import { TurnDivider } from '@/components/waggle/TurnDivider'
 import { formatElapsed } from '@/hooks/useStreamingPhase'
@@ -26,8 +26,8 @@ export function ChatRowRenderer({
   onDismissError,
   onBranchFromMessage,
 }: ChatRowRendererProps) {
-  return chooseBy(row, 'type')
-    .case('message', (value) => (
+  return matchBy(row, 'type')
+    .with('message', (value) => (
       <div className="flex flex-col gap-6">
         {value.showTurnDivider && value.turnDividerProps && (
           <TurnDivider
@@ -48,10 +48,10 @@ export function ChatRowRenderer({
         />
       </div>
     ))
-    .case('compaction-summary', (value) => (
+    .with('compaction-summary', (value) => (
       <CompactionSummaryCard summary={value.summary} tokensBefore={value.tokensBefore} />
     ))
-    .case('phase-indicator', (value) => (
+    .with('phase-indicator', (value) => (
       <div className="flex items-center gap-2 py-3">
         <Spinner size="sm" className="text-accent" />
         <span className="text-sm text-text-tertiary">{value.label}...</span>
@@ -62,8 +62,8 @@ export function ChatRowRenderer({
         ) : null}
       </div>
     ))
-    .case('run-summary', (value) => <RunSummary phases={value.phases} totalMs={value.totalMs} />)
-    .case('error', (value) => (
+    .with('run-summary', (value) => <RunSummary phases={value.phases} totalMs={value.totalMs} />)
+    .with('error', (value) => (
       <ChatErrorDisplay
         error={value.error}
         lastUserMessage={value.lastUserMessage}
@@ -74,5 +74,5 @@ export function ChatRowRenderer({
         onRetry={onRetry}
       />
     ))
-    .assertComplete()
+    .exhaustive()
 }

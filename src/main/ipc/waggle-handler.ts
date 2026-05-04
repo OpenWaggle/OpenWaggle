@@ -1,9 +1,9 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import { decodeUnknownOrThrow } from '@shared/schema'
 import { agentSendPayloadSchema } from '@shared/schemas/validation'
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { ConversationId } from '@shared/types/brand'
 import type { WaggleConfig } from '@shared/types/waggle'
-import { chooseBy } from '@shared/utils/decision'
 import * as Effect from 'effect/Effect'
 import { classifyAgentError } from '../agent/error-classifier'
 import { executeWaggleRun } from '../application/waggle-run-service'
@@ -72,8 +72,8 @@ export function registerWaggleHandlers(): void {
               })
             }
 
-            chooseBy(result, 'outcome')
-              .case('validation-error', (value) => {
+            matchBy(result, 'outcome')
+              .with('validation-error', (value) => {
                 emitErrorAndFinish(
                   conversationId,
                   value.message,
@@ -81,7 +81,7 @@ export function registerWaggleHandlers(): void {
                   `waggle-${conversationId}`,
                 )
               })
-              .case('not-found', (value) => {
+              .with('not-found', (value) => {
                 emitErrorAndFinish(
                   conversationId,
                   value.message,
@@ -89,7 +89,7 @@ export function registerWaggleHandlers(): void {
                   `waggle-${conversationId}`,
                 )
               })
-              .case('no-project', (value) => {
+              .with('no-project', (value) => {
                 emitErrorAndFinish(
                   conversationId,
                   value.message,
@@ -97,7 +97,7 @@ export function registerWaggleHandlers(): void {
                   `waggle-${conversationId}`,
                 )
               })
-              .case('aborted', () => {
+              .with('aborted', () => {
                 emitTransportEvent(conversationId, {
                   type: 'agent_end',
                   timestamp: Date.now(),
@@ -105,7 +105,7 @@ export function registerWaggleHandlers(): void {
                   reason: 'aborted',
                 })
               })
-              .case('success', (value) => {
+              .with('success', (value) => {
                 const assistantCount = value.newMessages.filter(
                   (m) => m.role === 'assistant',
                 ).length
@@ -127,7 +127,7 @@ export function registerWaggleHandlers(): void {
                   reason: 'stop',
                 })
               })
-              .assertComplete()
+              .exhaustive()
           }),
           Effect.sync(() => {
             if (activeWaggleRuns.deleteIfCurrent(conversationId, abortController)) {
