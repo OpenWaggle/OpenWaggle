@@ -10,7 +10,7 @@ import {
   Loader2,
   X,
 } from 'lucide-react'
-import { useEffect } from 'react'
+import { useEscapeHotkey } from '@/hooks/useEscapeHotkey'
 import { useFeedback } from '@/hooks/useFeedback'
 import { cn } from '@/lib/cn'
 import { api } from '@/lib/ipc'
@@ -44,17 +44,7 @@ export function FeedbackModal() {
 
   const fb = useFeedback(errorContext, lastUserMessage, activeModel, activeProvider)
 
-  // Escape to close
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent): void {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        closeFeedbackModal()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [closeFeedbackModal])
+  useEscapeHotkey(closeFeedbackModal)
 
   const canSubmit = fb.title.trim().length > 0 && !fb.submitting && !fb.cooldownActive
   const ghReady = fb.ghStatus?.available && fb.ghStatus.authenticated
@@ -187,10 +177,9 @@ export function FeedbackModal() {
                     {fb.ghStatus.available ? (
                       <code className="rounded bg-bg px-1 py-0.5 text-[12px]">gh auth login</code>
                     ) : (
-                      <a
-                        href="https://cli.github.com"
-                        onClick={(e) => {
-                          e.preventDefault()
+                      <button
+                        type="button"
+                        onClick={() => {
                           api.openExternal('https://cli.github.com').catch((err: unknown) => {
                             logger.warn('Failed to open external URL', { error: String(err) })
                           })
@@ -198,7 +187,7 @@ export function FeedbackModal() {
                         className="underline hover:no-underline"
                       >
                         cli.github.com
-                      </a>
+                      </button>
                     )}
                     {' — or use "Copy & Open GitHub" below'}
                   </span>

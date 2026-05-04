@@ -1,10 +1,12 @@
-import type { ConversationId } from '@shared/types/brand'
+import { ConversationId, SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useBranchSummaryStore } from '@/stores/branch-summary-store'
 import { useComposerStore } from '@/stores/composer-store'
+import { useMessageQueueStore } from '@/stores/message-queue-store'
 import { usePreferencesStore } from '@/stores/preferences-store'
 import { useProviderStore } from '@/stores/provider-store'
 import { ChatPanel } from '../ChatPanel'
@@ -43,13 +45,14 @@ function makeMessage(
 
 function createSections(
   overrides: Partial<ChatPanelSections['transcript']> = {},
+  composerOverrides: Partial<ChatPanelSections['composer']> = {},
 ): ChatPanelSections {
   const transcript = {
     messages: [],
     isLoading: false,
     projectPath: '/test/project',
     recentProjects: [],
-    activeConversationId: 'conv-1' as ConversationId,
+    activeConversationId: ConversationId('conv-1'),
     chatRows: [],
     lastUserMessageId: null,
     streamSignalVersion: 0,
@@ -79,6 +82,11 @@ function createSections(
       onSteer: vi.fn().mockResolvedValue(undefined),
       onCancel: vi.fn(),
       onToast: vi.fn(),
+      onSkipBranchSummary: vi.fn(),
+      onSummarizeBranch: vi.fn(),
+      onStartCustomBranchSummary: vi.fn(),
+      onCancelBranchSummary: vi.fn(),
+      ...composerOverrides,
     },
     diff: {
       projectPath: transcript.projectPath,
@@ -87,8 +95,11 @@ function createSections(
   }
 }
 
-function renderPanel(overrides: Partial<ChatPanelSections['transcript']> = {}) {
-  useChatPanelSectionsMock.mockReturnValue(createSections(overrides))
+function renderPanel(
+  overrides: Partial<ChatPanelSections['transcript']> = {},
+  composerOverrides: Partial<ChatPanelSections['composer']> = {},
+) {
+  useChatPanelSectionsMock.mockReturnValue(createSections(overrides, composerOverrides))
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -104,10 +115,16 @@ function renderPanel(overrides: Partial<ChatPanelSections['transcript']> = {}) {
 
 describe('ChatPanel', () => {
   beforeEach(() => {
+    useBranchSummaryStore.setState(useBranchSummaryStore.getInitialState())
     useComposerStore.setState(useComposerStore.getInitialState())
+    useMessageQueueStore.setState({ queues: new Map() })
     usePreferencesStore.setState({
       ...usePreferencesStore.getInitialState(),
-      settings: DEFAULT_SETTINGS,
+      settings: {
+        ...DEFAULT_SETTINGS,
+        projectPath: '/test/project',
+        selectedModel: SupportedModelId('openai/gpt-5'),
+      },
       isLoaded: true,
     })
     useProviderStore.setState({
@@ -179,6 +196,35 @@ describe('ChatPanel', () => {
       chatRows: [{ type: 'message', message, isStreaming: false, showTurnDivider: false }],
     })
     expect(screen.queryByText(/open a project/i)).toBeNull()
+  })
+
+  it('routes custom branch-summary submission through send instead of enqueue while loading', () => {
+    const onSendWithWaggle = vi.fn().mockResolvedValue(undefined)
+    useBranchSummaryStore.getState().openPrompt({
+      sessionId: SessionId('conv-1'),
+      sourceNodeId: SessionNodeId('source-node'),
+      restoreSelection: { branchId: null, nodeId: null },
+      previousComposerText: 'original prompt',
+      draftComposerText: 'draft prompt',
+    })
+    useBranchSummaryStore.getState().startCustomPrompt('draft prompt')
+    useComposerStore.getState().setInput('focus on decisions')
+
+    renderPanel(
+      { isLoading: true },
+      {
+        isLoading: true,
+        status: 'streaming',
+        onSendWithWaggle,
+      },
+    )
+
+    fireEvent.click(screen.getByTitle('Summarize branch'))
+
+    expect(onSendWithWaggle).toHaveBeenCalledWith(
+      expect.objectContaining({ text: 'focus on decisions' }),
+    )
+    expect(useMessageQueueStore.getState().queues.get(ConversationId('conv-1'))).toBeUndefined()
   })
 
   it('renders the composer input area', () => {

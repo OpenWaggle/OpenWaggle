@@ -29,6 +29,7 @@ const logger = createLogger('session-conversations')
 const EMPTY_INDEX = 0
 const MAIN_BRANCH_NAME = 'main'
 const EXPANDED_NODE_IDS_DEFAULT_JSON = '[]'
+const EXPANDED_NODE_IDS_UNTOUCHED = 0
 const TREE_SIDEBAR_EXPANDED = 0
 const DEFAULT_BRANCH_UI_STATE_JSON = '{}'
 const MESSAGE_ENTRY_TYPE = 'message'
@@ -68,6 +69,7 @@ interface SessionBranchRow {
   readonly head_node_id: string | null
   readonly name: string
   readonly is_main: number
+  readonly archived_at: number | null
   readonly created_at: number
   readonly updated_at: number
 }
@@ -441,6 +443,7 @@ interface DerivedSessionBranch {
   readonly headNodeId: string | null
   readonly name: string
   readonly isMain: boolean
+  readonly archivedAt: number | null
   readonly createdAt: number
 }
 
@@ -679,6 +682,7 @@ function deriveSessionBranches(input: {
 }): {
   readonly branches: readonly DerivedSessionBranch[]
   readonly activeBranchId: string
+  readonly activeNodeId: string | null
 } {
   const fallbackHeadId = input.nodes[input.nodes.length - 1]?.id ?? null
   const activeHeadId = input.activeNodeId ?? fallbackHeadId
@@ -694,6 +698,7 @@ function deriveSessionBranches(input: {
   if (input.nodes.length === 0) {
     return {
       activeBranchId: mainId,
+      activeNodeId: null,
       branches: [
         {
           id: mainId,
@@ -701,6 +706,7 @@ function deriveSessionBranches(input: {
           headNodeId: null,
           name: MAIN_BRANCH_NAME,
           isMain: true,
+          archivedAt: mainBranchRow?.archived_at ?? null,
           createdAt: mainBranchRow?.created_at ?? Date.now(),
         },
       ],
@@ -743,18 +749,23 @@ function deriveSessionBranches(input: {
         : (existingBranch?.name ??
           deriveNewBranchName({ sourceNodeId, headNodeId: headId, nodeById, fallback })),
       isMain,
+      archivedAt: existingBranch?.archived_at ?? null,
       createdAt: existingBranch?.created_at ?? Date.now(),
     }
   })
 
   const activeBranch =
-    branches.find((branch) => branch.headNodeId === activeHeadId) ??
-    branches.find((branch) => branch.id === mainId) ??
+    branches.find(
+      (branch) => branch.headNodeId === activeHeadId && isActiveSelectableBranch(branch),
+    ) ??
+    branches.find((branch) => branch.id === mainId && isActiveSelectableBranch(branch)) ??
+    branches.find(isActiveSelectableBranch) ??
     branches[EMPTY_INDEX]
 
   return {
     branches,
     activeBranchId: activeBranch?.id ?? mainId,
+    activeNodeId: activeBranch?.headNodeId ?? null,
   }
 }
 
@@ -800,6 +811,7 @@ function emptyDerivedMainBranch(sessionId: string): DerivedSessionBranch {
     headNodeId: null,
     name: MAIN_BRANCH_NAME,
     isMain: true,
+    archivedAt: null,
     createdAt: Date.now(),
   }
 }
@@ -816,16 +828,24 @@ function ensureMainBranch(branches: readonly DerivedSessionBranch[], sessionId: 
       ]
 }
 
+function isActiveSelectableBranch(branch: DerivedSessionBranch): boolean {
+  return branch.archivedAt === null
+}
+
 function normalizeDerivedBranches(input: {
   readonly branches: readonly DerivedSessionBranch[]
   readonly sessionId: string
   readonly activeBranchId: string
+  readonly activeNodeId: string | null
 }) {
   const branches = ensureMainBranch(input.branches, input.sessionId)
-  const activeBranchId = branches.some((branch) => branch.id === input.activeBranchId)
+  const activeBranchId = branches.some(
+    (branch) => branch.id === input.activeBranchId && isActiveSelectableBranch(branch),
+  )
     ? input.activeBranchId
     : mainBranchId(input.sessionId)
-  return { branches, activeBranchId }
+  const activeBranch = branches.find((branch) => branch.id === activeBranchId)
+  return { branches, activeBranchId, activeNodeId: activeBranch?.headNodeId ?? null }
 }
 
 function deriveSessionBranchesForSnapshot(input: {
@@ -1054,6 +1074,7 @@ export async function createConversation(input: CreateConversationInput): Promis
               head_node_id,
               name,
               is_main,
+              archived_at,
               created_at,
               updated_at
             )
@@ -1064,6 +1085,7 @@ export async function createConversation(input: CreateConversationInput): Promis
               ${null},
               ${MAIN_BRANCH_NAME},
               ${1},
+              ${null},
               ${now},
               ${now}
             )
@@ -1092,12 +1114,14 @@ export async function createConversation(input: CreateConversationInput): Promis
             INSERT INTO session_tree_ui_state (
               session_id,
               expanded_node_ids_json,
+              expanded_node_ids_touched,
               branches_sidebar_collapsed,
               updated_at
             )
             VALUES (
               ${sessionId},
               ${EXPANDED_NODE_IDS_DEFAULT_JSON},
+              ${EXPANDED_NODE_IDS_UNTOUCHED},
               ${TREE_SIDEBAR_EXPANDED},
               ${now}
             )
@@ -1162,6 +1186,7 @@ export async function persistSessionSnapshot(input: PersistSessionSnapshotInput)
           head_node_id,
           name,
           is_main,
+          archived_at,
           created_at,
           updated_at
         FROM session_branches
@@ -1181,7 +1206,11 @@ export async function persistSessionSnapshot(input: PersistSessionSnapshotInput)
               WHERE branch_id IN ${sql.in(existingBranches.map((branch) => branch.id))}
             `
           : []
-      const { branches, activeBranchId } = deriveSessionBranchesForSnapshot({
+      const {
+        branches,
+        activeBranchId,
+        activeNodeId: resolvedActiveNodeId,
+      } = deriveSessionBranchesForSnapshot({
         sessionId: String(input.sessionId),
         nodes,
         activeNodeId: input.activeNodeId,
@@ -1259,6 +1288,7 @@ export async function persistSessionSnapshot(input: PersistSessionSnapshotInput)
                 head_node_id,
                 name,
                 is_main,
+                archived_at,
                 created_at,
                 updated_at
               )
@@ -1269,6 +1299,7 @@ export async function persistSessionSnapshot(input: PersistSessionSnapshotInput)
                 ${branch.headNodeId},
                 ${branch.name},
                 ${branch.isMain ? 1 : 0},
+                ${branch.archivedAt},
                 ${branch.createdAt},
                 ${now}
               )
@@ -1306,12 +1337,14 @@ export async function persistSessionSnapshot(input: PersistSessionSnapshotInput)
             INSERT INTO session_tree_ui_state (
               session_id,
               expanded_node_ids_json,
+              expanded_node_ids_touched,
               branches_sidebar_collapsed,
               updated_at
             )
             VALUES (
               ${input.sessionId},
               ${EXPANDED_NODE_IDS_DEFAULT_JSON},
+              ${EXPANDED_NODE_IDS_UNTOUCHED},
               ${TREE_SIDEBAR_EXPANDED},
               ${now}
             )
@@ -1328,7 +1361,7 @@ export async function persistSessionSnapshot(input: PersistSessionSnapshotInput)
                   waggle_config_json
                 ),
                 updated_at = ${now},
-                last_active_node_id = ${input.activeNodeId},
+                last_active_node_id = ${resolvedActiveNodeId},
                 last_active_branch_id = ${activeBranchId}
             WHERE id = ${input.sessionId}
           `

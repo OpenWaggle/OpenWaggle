@@ -1,4 +1,5 @@
 import type { AgentSendPayload } from '@shared/types/agent'
+import { useHotkey } from '@tanstack/react-hotkeys'
 import type { LexicalEditor } from 'lexical'
 import { $createParagraphNode, $createTextNode, $getRoot, $isElementNode } from 'lexical'
 import { ArrowDownToLine, Ban } from 'lucide-react'
@@ -28,6 +29,12 @@ interface ComposerProps {
   onCancel: () => void
   isLoading: boolean
   disabled?: boolean
+  placeholder?: string
+  sendTitle?: string
+  requiresText?: boolean
+  clearOnSubmit?: boolean
+  recordHistory?: boolean
+  allowEnqueue?: boolean
   onToast?: (message: string) => void
 }
 
@@ -55,12 +62,52 @@ function insertTextAtEditorOrStore(
   })
 }
 
+interface ComposerDropOverlayProps {
+  readonly isAtCapacity: boolean
+}
+
+function ComposerDropOverlay({ isAtCapacity }: ComposerDropOverlayProps) {
+  return (
+    <div
+      className={cn(
+        'pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[var(--radius-panel)] backdrop-blur-[1px]',
+        isAtCapacity ? 'bg-red-400/5' : 'bg-accent/8',
+      )}
+    >
+      <div
+        className={cn(
+          'flex items-center gap-2 rounded-lg bg-bg-secondary/90 px-4 py-2 shadow-sm border',
+          isAtCapacity ? 'border-red-400/30' : 'border-accent/30',
+        )}
+      >
+        {isAtCapacity ? (
+          <>
+            <Ban className="h-4 w-4 text-red-400" />
+            <span className="text-[13px] font-medium text-red-400">Maximum files attached</span>
+          </>
+        ) : (
+          <>
+            <ArrowDownToLine className="h-4 w-4 text-accent" />
+            <span className="text-[13px] font-medium text-accent">Drop files to attach</span>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function Composer({
   onSend,
   onEnqueue,
   onCancel,
   isLoading,
   disabled,
+  placeholder,
+  sendTitle,
+  requiresText = false,
+  clearOnSubmit = true,
+  recordHistory = true,
+  allowEnqueue = true,
   onToast,
 }: ComposerProps) {
   const input = useComposerStore((s) => s.input)
@@ -92,6 +139,7 @@ export function Composer({
   }
 
   function dispatchPayload(payload: AgentSendPayload): boolean {
+    if (requiresText && !payload.text) return false
     if ((!payload.text && payload.attachments.length === 0) || disabled) return false
     if (!projectPath) {
       onToast?.('Select a project before sending.')
@@ -101,7 +149,7 @@ export function Composer({
       onToast?.('Select a model in Settings before sending.')
       return false
     }
-    if (isLoading) {
+    if (isLoading && allowEnqueue) {
       consumeSendResult(onEnqueue(payload))
     } else {
       consumeSendResult(onSend(payload))
@@ -112,8 +160,10 @@ export function Composer({
   function submitPayload(payload: AgentSendPayload): boolean {
     const sent = dispatchPayload(payload)
     if (!sent) return false
-    if (payload.text) pushHistory(payload.text)
-    clearComposerInput()
+    if (recordHistory && payload.text) pushHistory(payload.text)
+    if (clearOnSubmit) {
+      clearComposerInput()
+    }
     return true
   }
 
@@ -156,8 +206,11 @@ export function Composer({
     setInput,
     onToast,
   })
+  const hasSubmitContent = requiresText
+    ? input.trim().length > 0
+    : !!input.trim() || attachments.length > 0
   const canSend =
-    (!!input.trim() || attachments.length > 0) &&
+    hasSubmitContent &&
     !disabled &&
     !hasPreparingTextAttachment &&
     Boolean(projectPath) &&
@@ -186,16 +239,12 @@ export function Composer({
     })
   })
 
-  useEffect(() => {
-    if (!isVoiceModeActive) return
-    function onKeyDown(event: KeyboardEvent): void {
-      if (event.key !== 'Enter' || event.shiftKey) return
-      event.preventDefault()
-      handleVoiceEnter()
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [isVoiceModeActive])
+  useHotkey('Enter', handleVoiceEnter, {
+    enabled: isVoiceModeActive,
+    preventDefault: true,
+    ignoreInputs: false,
+    conflictBehavior: 'allow',
+  })
 
   // ── File attachments (file picker + drag-and-drop) ──
 
@@ -250,36 +299,7 @@ export function Composer({
           void handleDrop(event)
         }}
       >
-        {/* Drop zone overlay */}
-        {isDragOver && (
-          <div
-            className={cn(
-              'pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[var(--radius-panel)] backdrop-blur-[1px]',
-              isAtCapacity ? 'bg-red-400/5' : 'bg-accent/8',
-            )}
-          >
-            <div
-              className={cn(
-                'flex items-center gap-2 rounded-lg bg-bg-secondary/90 px-4 py-2 shadow-sm border',
-                isAtCapacity ? 'border-red-400/30' : 'border-accent/30',
-              )}
-            >
-              {isAtCapacity ? (
-                <>
-                  <Ban className="h-4 w-4 text-red-400" />
-                  <span className="text-[13px] font-medium text-red-400">
-                    Maximum files attached
-                  </span>
-                </>
-              ) : (
-                <>
-                  <ArrowDownToLine className="h-4 w-4 text-accent" />
-                  <span className="text-[13px] font-medium text-accent">Drop files to attach</span>
-                </>
-              )}
-            </div>
-          </div>
-        )}
+        {isDragOver ? <ComposerDropOverlay isAtCapacity={isAtCapacity} /> : null}
         <div className="px-4 pt-3">
           <AutoTextAttachmentChips
             pendingTextAttachmentChips={pendingTextAttachmentChips}
@@ -325,7 +345,8 @@ export function Composer({
             onSubmit={handleSubmit}
             disabled={disabled}
             placeholder={
-              isLoading ? 'Add a message to the conversation...' : 'Ask for follow-up changes'
+              placeholder ??
+              (isLoading ? 'Add a message to the conversation...' : 'Ask for follow-up changes')
             }
             editorRef={editorRef}
             checkAndConvertPaste={checkAndConvertPaste}
@@ -345,6 +366,7 @@ export function Composer({
             onToggleVoice={voice.toggleVoice}
             voiceMode={voice.mode}
             fileInputRef={fileInputRef}
+            sendTitle={sendTitle}
           />
         )}
       </div>

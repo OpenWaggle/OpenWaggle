@@ -46,6 +46,7 @@ interface ResizeState {
 
 const RESIZE_MOVE_THRESHOLD_PX = 2
 const RESIZE_RAIL_HALF_WIDTH_PX = 8
+const RESIZE_BODY_CLASS = 'right-sidebar-resizing'
 const SHEET_MAX_WIDTH_PX = 820
 const SHEET_VIEWPORT_WIDTH = '88vw'
 const ZERO_WIDTH_PX = 0
@@ -105,15 +106,16 @@ export function RightSidebarLayout({
   shouldAcceptWidth,
 }: RightSidebarLayoutProps) {
   const rootRef = useRef<HTMLDivElement>(null)
+  const mainRef = useRef<HTMLDivElement>(null)
   const gapRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
-  const [hasOpened, setHasOpened] = useState(false)
+  const hasOpenedRef = useRef(false)
   const [width, setWidth] = useState(() =>
     clampWidth(readStoredWidth(storageKey, defaultWidth), minWidth, maxWidth),
   )
   const widthRef = useRef(width)
   const isSheet = useMediaQuery(`(max-width: ${String(sheetBreakpointPx)}px)`)
-  const shouldRenderSidebar = hasOpened || open
+  const shouldRenderSidebar = hasOpenedRef.current || open
 
   useEffect(() => {
     widthRef.current = width
@@ -121,10 +123,24 @@ export function RightSidebarLayout({
     panelRef.current?.style.setProperty('width', `${String(width)}px`)
   }, [open, width])
 
+  useEffect(() => {
+    if (open) {
+      return
+    }
+
+    const panel = panelRef.current
+    const activeElement = document.activeElement
+    if (!panel || !activeElement || !panel.contains(activeElement)) {
+      return
+    }
+
+    mainRef.current?.focus({ preventScroll: true })
+  }, [open])
+
   function capturePanel(node: HTMLDivElement | null): void {
     panelRef.current = node
-    if (node && open && !hasOpened) {
-      setHasOpened(true)
+    if (node && open) {
+      hasOpenedRef.current = true
     }
   }
 
@@ -156,7 +172,12 @@ export function RightSidebarLayout({
 
   return (
     <div ref={rootRef} className="relative flex h-full min-w-0 flex-1 overflow-hidden">
-      <div className="min-w-0 flex-1 overflow-hidden" data-right-sidebar-main="true">
+      <div
+        ref={mainRef}
+        className="min-w-0 flex-1 overflow-hidden"
+        data-right-sidebar-main="true"
+        tabIndex={-1}
+      >
         {children}
       </div>
 
@@ -183,7 +204,7 @@ export function RightSidebarLayout({
           />
           <aside
             ref={capturePanel}
-            aria-hidden={!open}
+            inert={!open}
             className={cn(
               'absolute inset-y-0 right-0 z-10 h-full overflow-hidden border-l border-border bg-diff-bg transition-[transform,width] duration-200 ease-linear',
               open ? 'pointer-events-auto' : 'pointer-events-none',
@@ -243,8 +264,7 @@ function ResizeRail({
     resizeState.gap.style.removeProperty('transition-duration')
     resizeState.panel.style.removeProperty('transition-duration')
     resizeState.rail.style.removeProperty('transition-duration')
-    document.body.style.removeProperty('cursor')
-    document.body.style.removeProperty('user-select')
+    document.body.classList.remove(RESIZE_BODY_CLASS)
 
     if (resizeState.rail.hasPointerCapture(pointerId)) {
       resizeState.rail.releasePointerCapture(pointerId)
@@ -278,8 +298,7 @@ function ResizeRail({
       'right',
       `${String(startWidth - RESIZE_RAIL_HALF_WIDTH_PX)}px`,
     )
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
+    document.body.classList.add(RESIZE_BODY_CLASS)
 
     resizeStateRef.current = {
       gap,
@@ -367,8 +386,7 @@ function ResizeRail({
       resizeState.gap.style.removeProperty('transition-duration')
       resizeState.panel.style.removeProperty('transition-duration')
       resizeState.rail.style.removeProperty('transition-duration')
-      document.body.style.removeProperty('cursor')
-      document.body.style.removeProperty('user-select')
+      document.body.classList.remove(RESIZE_BODY_CLASS)
     }
   }, [])
 
@@ -410,7 +428,7 @@ interface RightSidebarSheetProps {
 function RightSidebarSheet({ children, open, onOpenChange }: RightSidebarSheetProps) {
   return (
     <div
-      aria-hidden={!open}
+      inert={!open}
       className={cn(
         'fixed inset-0 z-50 transition-opacity duration-200 ease-out',
         open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0',

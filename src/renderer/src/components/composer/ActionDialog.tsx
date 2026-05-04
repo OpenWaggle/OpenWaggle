@@ -1,6 +1,7 @@
 import type { GitBranchMutationResult } from '@shared/types/git'
 import { choose } from '@shared/utils/decision'
 import { useEffect, useRef } from 'react'
+import { useEscapeHotkey } from '@/hooks/useEscapeHotkey'
 import { useGit } from '@/hooks/useGit'
 import { useProject } from '@/hooks/useProject'
 import { cn } from '@/lib/cn'
@@ -84,18 +85,13 @@ export function ActionDialog({ onToast }: ActionDialogProps) {
     actionDialog === 'rename-branch' ||
     actionDialog === 'set-upstream'
 
-  // Escape key closes dialog
-  useEffect(() => {
-    if (!actionDialog) return
-    function onKeyDown(event: KeyboardEvent): void {
-      if (event.key !== 'Escape') return
+  useEscapeHotkey(
+    () => {
       if (useComposerActionStore.getState().actionDialogBusy) return
-      event.preventDefault()
       closeActionDialog()
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [actionDialog, closeActionDialog])
+    },
+    { enabled: actionDialog !== null },
+  )
 
   // Auto-focus input
   useEffect(() => {

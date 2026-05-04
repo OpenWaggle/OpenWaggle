@@ -160,6 +160,18 @@ const APP_MIGRATIONS: readonly AppMigration[] = [
       `,
     ],
   },
+  {
+    id: 9,
+    name: 'session-branch-archive-state',
+    statements: [`ALTER TABLE session_branches ADD COLUMN archived_at INTEGER`],
+  },
+  {
+    id: 10,
+    name: 'session-tree-expanded-state-touched',
+    statements: [
+      `ALTER TABLE session_tree_ui_state ADD COLUMN expanded_node_ids_touched INTEGER NOT NULL DEFAULT 0`,
+    ],
+  },
 ]
 
 export interface AppDatabaseService {

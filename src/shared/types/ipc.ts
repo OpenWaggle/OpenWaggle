@@ -1,7 +1,13 @@
 import type { AgentSendPayload, PreparedAttachment } from './agent'
 import type { OAuthAccountInfo, OAuthFlowStatus, OAuthProvider } from './auth'
 import type { ActiveRunInfo, BackgroundRunSnapshot } from './background-run'
-import type { ConversationId, SessionId, SessionNodeId, TeamConfigId } from './brand'
+import type {
+  ConversationId,
+  SessionBranchId,
+  SessionId,
+  SessionNodeId,
+  TeamConfigId,
+} from './brand'
 import type { FileSuggestion } from './composer'
 import type { ContextCompactionResult, ContextUsageSnapshot } from './context-usage'
 import type { Conversation, ConversationSummary } from './conversation'
@@ -30,6 +36,8 @@ import type {
   SessionNavigateTreeOptions,
   SessionSummary,
   SessionTree,
+  SessionTreeFilterMode,
+  SessionTreeUiStatePatch,
   SessionWorkspace,
   SessionWorkspaceSelection,
 } from './session'
@@ -87,6 +95,18 @@ export interface IpcInvokeChannelMap {
     args: [models: string[]]
     return: undefined
   }
+  'pi-settings:get-tree-filter-mode': {
+    args: [projectPath?: string | null]
+    return: SessionTreeFilterMode
+  }
+  'pi-settings:set-tree-filter-mode': {
+    args: [mode: SessionTreeFilterMode, projectPath?: string | null]
+    return: undefined
+  }
+  'pi-settings:get-branch-summary-skip-prompt': {
+    args: [projectPath?: string | null]
+    return: boolean
+  }
   'settings:test-api-key': {
     args: [provider: string, apiKey: string, projectPath?: string | null]
     return: { success: boolean; error?: string }
@@ -143,6 +163,10 @@ export interface IpcInvokeChannelMap {
     args: [limit?: number]
     return: SessionSummary[]
   }
+  'sessions:list-archived-branches': {
+    args: [limit?: number]
+    return: SessionSummary[]
+  }
   'sessions:get-tree': {
     args: [sessionId: SessionId]
     return: SessionTree | null
@@ -159,6 +183,22 @@ export interface IpcInvokeChannelMap {
       options?: SessionNavigateTreeOptions,
     ]
     return: { editorText?: string; cancelled: boolean }
+  }
+  'sessions:rename-branch': {
+    args: [sessionId: SessionId, branchId: SessionBranchId, name: string]
+    return: undefined
+  }
+  'sessions:archive-branch': {
+    args: [sessionId: SessionId, branchId: SessionBranchId]
+    return: undefined
+  }
+  'sessions:restore-branch': {
+    args: [sessionId: SessionId, branchId: SessionBranchId]
+    return: undefined
+  }
+  'sessions:update-tree-ui-state': {
+    args: [sessionId: SessionId, patch: SessionTreeUiStatePatch]
+    return: undefined
   }
   'providers:get-models': {
     args: [projectPath?: string | null]
@@ -482,6 +522,9 @@ export interface OpenWaggleApi {
   getSettings(): Promise<Settings>
   updateSettings(settings: Partial<Settings>): Promise<{ ok: true } | { ok: false; error: string }>
   setEnabledModels(models: string[]): Promise<void>
+  getPiTreeFilterMode(projectPath?: string | null): Promise<SessionTreeFilterMode>
+  setPiTreeFilterMode(mode: SessionTreeFilterMode, projectPath?: string | null): Promise<void>
+  getPiBranchSummarySkipPrompt(projectPath?: string | null): Promise<boolean>
   testApiKey(
     provider: string,
     apiKey: string,
@@ -512,6 +555,7 @@ export interface OpenWaggleApi {
   listArchivedConversations(): Promise<ConversationSummary[]>
   updateConversationTitle(id: ConversationId, title: string): Promise<void>
   listSessions(limit?: number): Promise<SessionSummary[]>
+  listArchivedSessionBranches(limit?: number): Promise<SessionSummary[]>
   getSessionTree(sessionId: SessionId): Promise<SessionTree | null>
   getSessionWorkspace(
     sessionId: SessionId,
@@ -523,6 +567,10 @@ export interface OpenWaggleApi {
     targetNodeId: SessionNodeId,
     options?: SessionNavigateTreeOptions,
   ): Promise<{ editorText?: string; cancelled: boolean }>
+  renameSessionBranch(sessionId: SessionId, branchId: SessionBranchId, name: string): Promise<void>
+  archiveSessionBranch(sessionId: SessionId, branchId: SessionBranchId): Promise<void>
+  restoreSessionBranch(sessionId: SessionId, branchId: SessionBranchId): Promise<void>
+  updateSessionTreeUiState(sessionId: SessionId, patch: SessionTreeUiStatePatch): Promise<void>
   onConversationTitleUpdated(
     callback: (payload: IpcEventPayload<'conversations:title-updated'>) => void,
   ): () => void

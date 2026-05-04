@@ -1,7 +1,7 @@
 # Pi Migration Remaining Work
 
-_Status: active follow-up spec_  
-_Created: 2026-04-27_  
+_Status: active implementation spec_
+_Last updated: 2026-04-27_
 _Replaces audited/deleted historical specs:_
 
 - `docs/specs/pi-sdk-migration-blueprint.md`
@@ -12,463 +12,578 @@ _Replaces audited/deleted historical specs:_
 
 ## Purpose
 
-This spec records only the actionable Pi-migration work that remains after reconciling the deleted migration specs against the current codebase.
+This spec records the remaining work needed to finish the Pi-native migration after reconciling historical migration specs, current implementation, Pi TUI behavior, and product decisions.
 
-The current implementation already has the core Pi runtime boundary, Pi-derived provider/model/auth wiring, project-local `.openwaggle/settings.json` Pi settings bridge, SQLite session projection tables, Pi session snapshot persistence, and root-to-active-node transcript rendering. Those completed areas are not restated as work items here.
+The runtime migration is mostly complete: Pi is already the runtime kernel, provider/model/auth state is Pi-derived, `.openwaggle/settings.json` bridges Pi settings, SQLite session projection tables exist, Pi snapshots are persisted, and renderer routes can select session branch/node context. The remaining work is product/projection/UI completeness over Pi sessions.
 
-## Current-source constraints
+## Source constraints
 
-Use these as the source of truth when implementing this remaining work:
+Implementation must stay faithful to:
 
 - `docs/first-principles.md`
   - Pi is the runtime kernel.
   - Runtime capabilities come from Pi first.
-  - OpenWaggle owns typed IPC, UI state, and SQLite product projection.
-  - No hidden orchestration should stand in for real Pi session/tree structure.
-- `docs/lessons.md`
-  - Do **not** implement the old permanent second branch sidebar. Branches belong nested under their owning session in the project/session sidebar.
-  - Branch/fork controls should live on nodes, with a draft branch shown under the session until the next send materializes the Pi branch.
-- `docs/architecture.md` and `docs/system-architecture.md`
+  - OpenWaggle owns typed IPC, renderer UI state, and SQLite product projection.
+  - Product state must be an explicit projection over real Pi sessions/nodes/branches.
+- `docs/hexagonal-architecture.md`
   - Pi SDK imports stay confined to `src/main/adapters/pi/`.
-  - Application and IPC code depend on OpenWaggle-owned ports and DTOs.
+  - IPC/application code depends on OpenWaggle-owned ports and DTOs.
+  - Persistence changes go through ports/adapters instead of direct IPC-to-store imports.
+- `docs/lessons.md`
+  - Mirror Pi TUI/SDK behavior by default.
+  - Do not show the full Pi node tree in the left sidebar.
+  - Do not introduce Waggle-only branch semantics.
 
 ## Explicit non-goals
 
-Do not use this spec to revive deleted runtime/product surfaces:
+Do not revive deleted runtime/product surfaces:
 
 - no removed vendor-runtime chat transport
 - no deprecated external stream-shape contract
 - no old flat-message SQLite tables as product truth
-- no removed context side-panel or pinned-context system in this migration follow-up
-- no legacy tool-gating product flow; future runtime policy controls must be a new Pi-native/product feature
+- no removed context side-panel/pinned-context system
+- no legacy tool-gating product flow
 - no permanent second branch sidebar
-- no fake projection-only branch deletion that leaves Pi session/tree truth unchanged
+- no fake projection-only branch deletion that makes SQLite disagree with Pi session truth
 
 ---
 
-## 0. Project-local resource precedence hardening
+## Implementation order
 
-### Problem
+1. **Standard-mode session/branch contract**
+   - ✅ session/branch projection metadata
+   - ✅ branch archive/rename and sidebar navigation semantics
+   - ✅ right-side Session Tree shell, filters, route slot, and persisted expanded state
+   - ✅ draft branch lifecycle, including send-time Pi materialization and scoped composer drafts
+   - ✅ composer-integrated branch summary flow
+   - transcript action parity remains: full node-backed branch-out matrix plus Pi-style fork/clone triggers
+2. **Shared tests as contract**
+   - write mode-parameterized branch behavior tests that run for `standard` now and remain skipped/TODO for `waggle` until Waggle is Pi-extension backed.
+3. **Hotkeys foundation and consolidation**
+   - ✅ add `@tanstack/react-hotkeys`
+   - ✅ implement Session Tree shortcuts with it
+   - ✅ consolidate app-level/global renderer keydown handlers that were suitable for TanStack Hotkeys in this phase.
+4. **Resource precedence hardening**
+   - ✅ enforce `.openwaggle > .pi > .agents` for skills, prompts, themes, and extensions inside the Pi adapter.
+5. **Retry/compaction/durability parity**
+   - surface Pi retry/compaction events inline
+   - persist/reconcile interrupted active runs without auto-resuming after process death.
+6. **Waggle Pi-extension phase**
+   - refactor Waggle away from separate app-level orchestration into Pi extension/in-session behavior.
+   - Waggle must pass the same branch behavior contract as standard mode.
+7. **Session-native naming cleanup**
+   - after behavior stabilizes, migrate conversation-shaped APIs/names toward session-native surfaces.
 
-OpenWaggle is the user-facing project namespace, but Pi's default resource loader merges additional skill/prompt/extension/theme paths after Pi-discovered paths. If two resources collide by id/name, `.openwaggle/` may not actually take precedence over `.pi/` or `.agents/`.
+---
 
-Evidence:
-
-- Current OpenWaggle adapter adds `.openwaggle/*` through `additional*Paths`:
-  - `src/main/adapters/pi/pi-provider-catalog.ts`
-- Pi `DefaultResourceLoader` merges `additionalSkillPaths` after resolved default skill paths:
-  - `/usr/local/lib/node_modules/@mariozechner/pi-coding-agent/dist/core/resource-loader.js`
-- Existing tests verify loading and toggles, but not collision precedence:
-  - `src/main/adapters/pi/__tests__/pi-provider-catalog.unit.test.ts`
+## 1. Left sidebar session/branch navigation
 
 ### Required behavior
 
-1. `.openwaggle/` resources must be the primary OpenWaggle-facing project resources.
-2. Legacy Pi/user-agent resource locations remain supported as fallback/discovery sources.
-3. Effective project-local precedence must be `.openwaggle/` first, then `.pi/`, then `.agents/`, without breaking Pi global/user resources.
-4. OpenWaggle catalog toggles continue to apply to `.openwaggle/skills` and root `.agents/skills`; Pi-native `.pi/skills` remains Pi-owned unless a future product decision changes that.
-5. Resource `sourceInfo`/diagnostics should remain truthful after any reordering/filtering.
+The left sidebar is navigation-first. It shows projects, sessions, materialized branches, and transient draft branch rows only. It must never show the full Pi node graph.
 
-### Implementation outline
+- Sessions with only `main` show only the session row.
+- Sessions with multiple non-archived materialized branches show branch rows for all sessions, not only the active session.
+- `main` appears as a branch row only once a session has more than one materialized branch.
+- Branch rows are ordered by current stable projection order: `main` first, then other branches in stable creation/projection order.
+- Session row click keeps current behavior: open the session's last active branch; fallback to `main`/nearest valid branch if unavailable.
+- Branch row click navigates to that branch head/full conversation.
+- Branch lists are collapsible per session via a small chevron on the session row.
+- Collapsed/expanded branch-list state persists per session in `session_tree_ui_state.branches_sidebar_collapsed`.
+- A transient draft branch auto-expands its owning session while the draft exists.
+- A collapsed session row may show a subtle active-branch chip/label; header remains the strongest active context display.
+- Archived branches are hidden from normal left-sidebar navigation and do not produce archived-count badges in the main sidebar.
 
-1. Add collision-precedence tests for skills first, then prompts/extensions/themes as needed.
-2. Prefer Pi public exports and resource-loader override hooks; avoid deep private imports.
-3. If Pi's default loader cannot express the needed precedence, build ordered resource lists with public package/resource APIs, then feed a deterministic ordered result through `skillsOverride`, `promptsOverride`, `themesOverride`, and extension handling.
-4. Keep all custom resource ordering confined to the Pi adapter layer.
-5. Document any Pi SDK limitation or workaround in `.openwaggle/skills/pi-integration/SKILL.md`.
+### Draft branch rows
+
+- Draft rows remain allowed in the left sidebar as immediate feedback.
+- Current placement is preserved: draft row appears at the top of the owning session's branch list before materialized branches.
+- Draft row is visually dashed/muted and contextual.
+- Draft row updates or disappears when the user clicks around without materializing work.
+- Draft row becomes durable only after materialization by send or branch-summary creation.
+- Draft branch context is not restored across app reload/restart.
+
+### Branch row actions
+
+- Branch row actions open from a hover-revealed three-dots overflow button.
+- Non-main branch actions:
+  - Rename
+  - Archive
+- Branch rename is inline in the sidebar row.
+- Branch rename is left-sidebar only in v1.
+- `main` is not renamable.
+- Archive action on `main` is treated as archive-session. If other active branches exist, warn that archiving main archives/hides the full session and all branches.
+- Archive branch/session actions are left-sidebar only.
+- Restore is only possible from Settings archived section.
+
+### Archive/delete semantics
+
+- Session archive is supported.
+- Session delete is supported.
+- Branch archive/restore is supported as OpenWaggle projection/UI metadata.
+- Branch delete is not supported until Pi exposes native subtree/branch deletion.
+- Archived branches remain in the full Session Tree because Pi session truth is append-only.
+- Archived branch state is an overlay/badge, not a Session Tree filter.
+- Settings archived section groups archived branches under owning sessions/projects.
+- Restoring a branch does not auto-navigate; it makes the branch visible again.
+- If archiving the active non-main branch, navigate to `main` or the closest available branch; product requirement is simply not to leave the user stranded on a hidden branch.
+
+### Implementation status
+
+Implemented in the current branch:
+
+- SQLite tracks branch archive state with `session_branches.archived_at`.
+- `listSessions()` projects non-archived branches for sidebar navigation and preserves manual branch names/archive state across Pi reprojection.
+- IPC/preload/repository APIs support branch rename/archive/restore and tree UI state updates.
+- Left sidebar renders branch rows for all sessions, persists branch-list collapse state, supports inline non-main rename, archives non-main branches, and maps main archive to session archive.
+- Settings archived section lists archived branches grouped by project/session and restores them without navigation.
 
 ### Acceptance criteria
 
-- Given the same skill id in `.openwaggle/skills`, `.pi/skills`, and `.agents/skills`, the `.openwaggle` skill wins.
-- Removing the `.openwaggle` copy falls back to `.pi`, then `.agents`.
-- Disabled OpenWaggle catalog skills remain filtered out.
-- Diagnostics still point at the actual resource file that was loaded or suppressed.
+- Branch rows render for every session with multiple non-archived branches.
+- Single-main sessions stay compact.
+- Branch collapse state persists per session.
+- Draft row appears at the top of the owning session's branch list and disappears when draft context clears.
+- Rename preserves manual branch names across later Pi snapshots.
+- Archiving a branch hides it from sidebar but leaves it visible in Session Tree.
+- Restore from Settings makes a branch visible without auto-navigation.
 
 ---
 
-## 1. Session tree UX parity
-
-### Problem
-
-The database and shared types can represent a Pi session tree, but the renderer does not yet expose the full interleaved node graph. The current sidebar renders nested branch rows under the active session, not the full Pi node sequence.
-
-Evidence:
-
-- Projection/types exist:
-  - `src/shared/types/session.ts`
-  - `src/main/services/database-service.ts`
-  - `src/main/store/sessions.ts`
-- Current branch UI maps `activeSessionTree.branches`, not `activeSessionTree.nodes`:
-  - `src/renderer/src/components/layout/Sidebar.tsx`
-- No renderer UI writes `session_tree_ui_state.expanded_node_ids_json`.
-- No IPC method currently updates tree expansion/collapse state:
-  - `src/shared/types/ipc.ts`
-  - `src/preload/api.ts`
-  - `src/main/ipc/sessions-handler.ts`
+## 2. Right-side Session Tree panel
 
 ### Required behavior
 
-Implement a node-tree UI inside the current project/session sidebar model:
+The full Pi node graph belongs in an explicit right-side Session Tree panel opened from a header tree icon. This mirrors Pi TUI `/tree` as an on-demand navigation surface.
 
-1. Render the full interleaved visible node sequence for the active session under its session row.
-2. Keep branches nested under the owning session; do not add a permanent second sidebar.
-3. Show node type distinctions for at least:
-   - user message
-   - assistant message
-   - tool result
-   - compaction summary
-   - branch summary
-   - model/thinking/session/system/custom timeline entries when surfaced
-4. Clicking a visible node must navigate the working context to that node.
-5. Active node must be auto-revealed and its ancestors expanded.
-6. Users must be able to manually expand/collapse tree sections.
-7. Expansion state must persist per session across restarts.
-8. Draft branches must continue to appear under the owning session until the next send materializes the branch in Pi.
-9. Branch/fork controls must be available from node rows where Pi semantics allow branching.
+- Session Tree shares the existing right-side panel slot with Diff.
+- Right panel mode is one of: `null | 'diff' | 'session-tree'`.
+- Only one right-side panel can be open at a time.
+- Header tree icon opens Session Tree.
+- Command/action system exposes `Open Session Tree`.
+- Use OpenWaggle design system, not raw ASCII art.
+- Preserve tree semantics with indentation, connector lines, active-path markers, keyboard focus, compact rows, muted structural nodes, and badges.
 
-### Implementation outline
+### Filters
 
-1. Add a focused tree component, for example:
-   - `src/renderer/src/components/layout/SessionNodeTree.tsx`
-   - `src/renderer/src/components/layout/SessionNodeTreeRow.tsx`
-2. Keep it self-wired through `useSessionStore`/route hooks where possible; avoid large pass-through controller props.
-3. Add IPC to persist UI state, for example:
-   - `sessions:update-tree-ui-state(sessionId, patch)`
-   - patch fields: `expandedNodeIds`, `branchesSidebarCollapsed` only if a collapsed branch section still exists in the nested-sidebar design
-4. Add `SessionRepository` methods for tree UI state updates rather than writing SQLite directly from IPC.
-5. Keep the persistence adapter in `src/main/store/` and the port in `src/main/ports/`.
-6. Preserve route search params for active `branch` and `node`.
-7. If a selected node no longer exists in Pi, reuse the existing stale-node cancellation behavior and refresh the workspace from the latest projection.
+Ship the full Pi tree filter set in v1:
+
+- `Default`
+- `No tools`
+- `User only`
+- `Labeled`
+- `All`
+
+The selected filter persists globally through Pi `treeFilterMode` settings, matching Pi TUI. Do not create a separate per-session OpenWaggle filter preference in v1.
+
+Archived branch state is an overlay; it does not add a sixth filter.
+
+### Tree state and markers
+
+- Expanded/collapsed node state persists per session in SQLite (`session_tree_ui_state.expanded_node_ids_json` plus `expanded_node_ids_touched` so first-open defaults can expand the tree without breaking explicit collapse-all persistence).
+- Active materialized branch path is visually distinct from selected draft/preview path.
+- Suggested semantics:
+  - active materialized path: solid accent marker
+  - draft/preview path: dashed or secondary accent marker
+  - inactive paths: neutral/muted
+  - archived branch heads/path: muted plus `Archived` badge
+
+### Keyboard and hotkeys
+
+Use `@tanstack/react-hotkeys` for new renderer/global keyboard shortcuts.
+
+Minimum Session Tree keyboard behavior:
+
+- Arrow up/down: move focused node
+- Arrow left: collapse expanded node or move to parent
+- Arrow right: expand collapsed node or move to first child
+- Enter: select focused node
+- Escape: close panel
+
+The same phase must add the TanStack Hotkeys foundation and consolidate suitable existing app-level/global keyboard handlers. Component-local editor/listbox interactions can remain with their owning component/editor systems when appropriate.
+
+### Implementation status
+
+Implemented in the current branch:
+
+- Route search supports `panel: 'diff' | 'session-tree'`; Diff and Session Tree share the same right-side slot.
+- Header tree icon and command palette action open the Session Tree.
+- Session Tree renders OpenWaggle-styled graph rows with connector rails, interactive node dots, active/draft/archive/branch badges, expand/collapse controls, and Pi filter modes. The renderer builds a Pi-like visible tree model: filter-hidden ancestors are transparent, active-path children are ordered first, single-child chains stay on the same rail, and indentation appears only around real branch points.
+- Session Tree controls keep the toolbar focused on Pi filter select plus deferred node search; the shared OpenWaggle scroll-to-bottom affordance appears as the same center-bottom overlay pattern used by the chat transcript only when tree content is scrollable and the user is away from the bottom.
+- Filter mode persists globally through Pi `treeFilterMode` settings via Pi adapter-backed IPC.
+- Expanded node ids persist per session through `session_tree_ui_state.expanded_node_ids_json`; untouched sessions default to all parent nodes expanded, while explicit user collapse state is preserved by `expanded_node_ids_touched`.
+- Session Tree keyboard support uses `@tanstack/react-hotkeys` for Arrow up/down/left/right, Enter, and Escape.
 
 ### Acceptance criteria
 
-- A branched session shows its visible Pi node graph under the session row.
-- Selecting a node updates the route and transcript to the root-to-selected-node path.
-- Active node reveal works after session switch, branch switch, app reload, and manual node navigation.
-- Manual expansion/collapse survives app restart.
-- Draft branch rows still work and do not call Pi navigation until materialization on send.
-- No second permanent branch sidebar is introduced.
+- Header icon opens/closes the Session Tree panel.
+- Diff and Session Tree never render as stacked right sidebars.
+- Full filter set works and persists through Pi setting.
+- Search narrows visible nodes without blocking typing, searches persisted node content/branch ids even when a renderer message object is not hydrated, preserves matching ancestors for orientation, and temporarily expands result paths so matches hidden under collapsed nodes remain visible.
+- Expanded node state survives panel close/reopen and app restart.
+- Keyboard navigation works and is accessible.
+- Archived branches remain visible with archived state.
 
 ---
 
-## 2. Transcript structural/timeline node rendering
+## 3. Node selection, draft context, and materialization
 
-### Problem
+### Selection rules
 
-The backend preserves structural node kinds, but the renderer mostly converts projected nodes into `UIMessage`s. Nodes without hydrated messages are skipped, and branch summaries are currently rendered as plain assistant text rather than differentiated timeline rows.
+- Selecting/clicking an existing materialized branch head navigates to that branch and clears draft state.
+- Selecting/clicking a non-head node creates or updates an OpenWaggle transient draft context.
+- Non-head selection changes the transcript to root → selected node.
+- Non-head selection does not mutate Pi until the draft materializes, except when branch summarization is explicitly chosen.
+- Clicking around updates/clears the single transient draft context for that session.
+- Switching session/project clears unsent draft branch context.
+- Draft branch context is not deep-linked and is not restored across restart.
 
-Evidence:
+### User-node retry/edit parity
 
-- Node kinds exist in `src/shared/types/session.ts`.
-- Pi entries are mapped to structural kinds in `src/main/adapters/pi/pi-agent-kernel-adapter.ts`.
-- `workspacePathToMessages()` skips transcript path entries without `node.message`:
-  - `src/renderer/src/components/chat/session-workspace-transcript.ts`
-- `ChatRow` currently supports message, compaction summary, phase indicator, run summary, and error only:
-  - `src/renderer/src/components/chat/types-chat-row.ts`
-  - `src/renderer/src/components/chat/ChatRowRenderer.tsx`
+Mirror Pi TUI `navigateTree()` behavior:
+
+- selecting a user message treats the branch point as the parent node and pre-fills composer with the user message text for retry/edit.
+- selecting assistant/tool/summary/other branchable nodes continues from after that node with a blank composer unless an existing scoped draft should be restored.
+
+Actual Pi navigation still waits until materialization, except summary materialization.
+
+### Transcript behavior in draft context
+
+- Draft context transcript shows only root → selected-node path.
+- Do not show downstream original branch content dimmed.
+- If the user wants the old downstream path, they can navigate back to the materialized branch or open Session Tree.
+
+### Branch summary materialization
+
+Branch-summary choice mirrors Pi tree-navigation timing: it happens when the draft is created, not when the user sends.
+
+When selecting a non-head node that abandons downstream content from the current branch:
+
+- If Pi `branchSummary.skipPrompt` is false, the composer enters branch-summary decision mode.
+- If skip-prompt is true, default to `No summary` and keep the draft transient.
+- If no downstream content exists, do not show the summary choice.
+
+Composer-integrated summary choices:
+
+- `No summary`
+  - keep draft transient until send
+  - restore normal composer with preserved prompt
+- `Summarize`
+  - call Pi navigation/summarization immediately
+  - materialize the branch after summary completes
+  - restore normal composer with preserved prompt
+- `Summarize with custom prompt`
+  - reuse the composer input for summary instructions
+  - submit routes to Pi branch summarization, not normal chat send
+  - materialize branch after summary completes
+- `Cancel` / Escape
+  - cancel draft and restore previous materialized context
+
+If the user sends from a transient draft, materialize the branch by navigating Pi to the selected node/options first, then sending the message.
+
+### Implementation status
+
+Implemented in the current branch:
+
+- Selecting a materialized branch head from Session Tree navigates to that branch and clears draft state.
+- Selecting a non-head node from Session Tree creates a transient OpenWaggle draft context and refreshes the transcript to the selected path without immediate Pi mutation.
+- Branching from a user message uses the parent node as the draft source and pre-fills the composer with the original user text, matching Pi retry/edit direction.
+- Branch-summary choice appears when draft creation abandons downstream content and honors Pi `branchSummary.skipPrompt`.
+- `No summary` keeps the draft transient; `Summarize` and custom summary instructions call Pi navigation immediately and materialize the branch before send.
+- Cancel/Escape restores the previous materialized context and previous composer text.
+- Composer drafts are scoped by project/session/branch/draft context, preserved across navigation, cleared for sent/deleted/archived contexts, and restored only for matching live contexts.
+- Sending from a transient draft navigates Pi to the selected source before sending, then clears the draft state.
+
+Still remaining:
+
+- shared mode-parameterized branch behavior contract tests
+
+### Acceptance criteria
+
+- Selecting non-head nodes creates draft context without Pi mutation unless summary is chosen.
+- Summary choice appears at draft creation, composer-integrated.
+- `No summary` remains transient.
+- `Summarize`/custom summary materializes a real branch before send.
+- Cancel restores previous branch context and composer text.
+- Sending from draft materializes branch and clears draft state.
+
+---
+
+## 4. Transcript branching, fork, and clone actions
+
+### Same-session branch-out
+
+The chat transcript must show a Git branch-out affordance everywhere the user can validly branch out.
+
+Show `Branch from here` on visible branchable rows that map to real Pi session nodes:
+
+- user message rows
+- assistant message rows
+- visible tool rows/results represented as Pi nodes
+- branch summary rows
+- compaction summary rows
+- visible structural/timeline rows with real node ids
+
+Do not show branch-out on UI-only rows:
+
+- welcome screen
+- loading/streaming phase indicators
+- run summaries
+- error banners
+- hidden internal Waggle coordination entries
+- separators with no Pi node id
+
+Branch icons appear on hover/focus in the existing row action cluster, not always visible and not inside markdown content. Keyboard users must be able to reach the action.
+
+Branching from transcript does not auto-open Session Tree.
+
+Current implementation status:
+
+- Implemented: branch-out for user and assistant message rows backed by visible transcript messages.
+- Remaining: distinct node-backed branch actions for visible tool-result rows, branch-summary rows, compaction-summary rows, and any future structural/timeline rows that map to real Pi nodes.
+- Remaining: Pi-style fork and clone actions below.
+
+### Pi-style fork to new session
+
+Pi `/fork` creates a new session from before a previous user message and pre-fills composer with that user message text.
+
+OpenWaggle triggers:
+
+- user message row action: `Fork to new session`
+- composer slash command: `/fork`
+- command palette: `Fork to new session…`
+
+`/fork` and command palette action open a previous-user-message selector. A direct user-message row action skips the selector.
+
+Only user message rows show `Fork to new session`. Assistant/tool/summary rows do not.
+
+### Pi-style clone to new session
+
+Pi `/clone` duplicates the current session at the current position.
+
+OpenWaggle triggers:
+
+- left-sidebar session overflow: `Clone to new session`
+- composer slash command: `/clone`
+- command palette: `Clone to new session`
+
+Command palette clone uses current active session/branch/node context. Sidebar clone is row-scoped; mirror Pi mechanics first, and if a non-active row cannot safely clone without switching runtime state, disable it with a truthful explanation.
+
+If the user is in a transient draft context, clone uses the currently visible draft path/current position and does not first materialize a same-session branch.
+
+### Acceptance criteria
+
+- Branch and fork are visually distinct on user-message rows.
+- Branch from here creates same-session draft context.
+- Fork to new session creates a new session and pre-fills composer with the selected user message text.
+- Clone to new session duplicates current/row-scoped position into a new session.
+- `/fork` and `/clone` mirror Pi semantics.
+
+---
+
+## 5. Composer draft preservation
 
 ### Required behavior
 
-1. Render the transcript from `SessionWorkspace.transcriptPath`, not only from hydrated messages.
-2. Add first-class row types for structural/timeline entries:
-   - branch summary
-   - model change
-   - thinking level change
-   - session info
-   - label/custom entries that are meant to display
-3. Keep compaction summaries as first-class cards.
-4. Add branch divergence markers/styling when the current path leaves shared history.
-5. Preserve tool chronology. Do not collapse multiple tool calls into one fake grouped item.
-6. Keep live streaming tail behavior unchanged: append unsaved live tail only when viewing the active branch head or draft branch source.
+Never destroy in-progress user intent already typed in the composer.
 
-### Implementation outline
-
-1. Introduce a `SessionTranscriptRow` derivation step that accepts:
-   - `SessionWorkspace.transcriptPath`
-   - live `UIMessage[]`
-   - run/loading state
-   - draft branch source node id
-2. Extend `ChatRow` or introduce a session-native row union with structural row variants.
-3. Keep `UIMessage` as the message row payload; do not force all session nodes through `UIMessage`.
-4. Add components for timeline rows, for example:
-   - `BranchSummaryRow`
-   - `SessionTimelineRow`
-   - `BranchDivergenceMarker`
-5. Update component tests for:
-   - branch summary row
-   - model/thinking/session/custom row display
-   - skipped hidden custom Waggle prompts
-   - live tail preservation at active head
+- Composer drafts are scoped to concrete project/session/branch/draft context, not global app state.
+- On navigation, save current context draft and load target context draft so prompts do not leak across projects/sessions/branches.
+- Lifecycle actions like archive/restore/delete do not directly mutate the visible composer except through resulting navigation.
+- Materialized branch drafts persist across in-app navigation in renderer state.
+- Composer drafts are not restored after app restart in the current implementation; transient draft branch context also does not persist across restart.
+- If transient draft context clears, restore/preserve composer text according to the materialized context the user returns to.
+- Attachments are part of composer intent and follow the same in-memory context scoping where safe; do not persist attachment capabilities across restart without the memory-safe attachment rules.
+- Archived conversations/sessions/branches do not restore old unsent composer drafts later; restoring archive restores history, not old unsent prompts.
+- If a stored draft belongs to a deleted session/branch, it is removed from persistence. This cleanup must not be confused with clearing the currently visible composer unless deletion causes navigation.
 
 ### Acceptance criteria
 
-- A transcript path containing structural nodes renders them visibly and distinctly.
-- Branch summaries are not plain assistant bubbles.
-- Branch divergence is visible without overwhelming the transcript.
-- Existing compaction summary cards and tool-call rendering still work.
-- Hidden internal Waggle prompt custom messages remain hidden from product transcript UI.
+- Typed composer text survives branch-summary mode cancellation/materialization.
+- Composer text does not leak from one project/session/branch into another during navigation.
+- In-app navigation restores materialized branch draft text and in-memory attachment metadata for the matching context.
+- Composer drafts, including transient draft context, are not restored after restart in this phase.
 
 ---
 
-## 3. Branch metadata and actions
-
-### Problem
-
-Branch rows are derived and displayed, but branch actions remain incomplete. Auto-naming exists; user-facing branch rename/delete and active branch labels on session rows do not.
-
-Evidence:
-
-- Auto branch naming is implemented in `src/main/store/session-conversations.ts`.
-- `SessionListItem` renders title and updated time only:
-  - `src/renderer/src/components/layout/SessionListItem.tsx`
-- Session branch IPC currently has list/get/navigate only:
-  - `src/shared/types/ipc.ts`
-  - `src/preload/api.ts`
-  - `src/main/ipc/sessions-handler.ts`
-- `BranchRows` are buttons without action menus:
-  - `src/renderer/src/components/layout/Sidebar.tsx`
+## 6. Structural/timeline transcript rendering
 
 ### Required behavior
 
-1. Show the active branch label subtly on the active session row, while keeping rows single-line.
-2. Allow user branch rename for non-main branches.
-3. Preserve manual branch names across subsequent Pi snapshot projections.
-4. Keep `main` non-renamable.
-5. Add branch delete only if the implementation can mutate Pi session/tree truth, not merely hide a projected read-model row.
-6. Keep `main` non-deletable.
-7. If branch deletion becomes supported, deleting a branch must delete the subtree and activate the nearest surviving parent branch when the deleted subtree was active.
+The default chat transcript remains conversational/product-relevant:
 
-### Implementation outline
+- user messages
+- assistant messages
+- tool activity/results as currently supported
+- branch summaries
+- compaction summaries
+- branch/draft context indicators
 
-1. Add read-model data needed for active branch label:
-   - either include active branch display data in `SessionSummary`, or derive it from the active tree for the selected session.
-2. Add session branch mutation APIs for rename:
-   - `sessions:rename-branch(sessionId, branchId, name)`
-   - implement through `SessionRepository` and `session_branches.name`
-3. Ensure `persistSessionSnapshot()` preserves existing non-main branch names when branch identity remains stable.
-4. Investigate Pi SDK support before adding delete:
-   - if Pi supports subtree deletion, add an `AgentKernelService` operation and project the resulting snapshot;
-   - if Pi does not support it, leave delete unimplemented rather than faking it in SQLite.
+Low-level structural Pi entries are not shown in the default transcript:
+
+- `model_change`
+- `thinking_level_change`
+- `session_info`
+- `label`
+- `custom`
+
+Those entries remain available in the Session Tree through filters such as `All` and `Labeled`.
+
+Branch summaries and compaction summaries should render as distinct product/timeline rows, not plain assistant bubbles.
 
 ### Acceptance criteria
 
-- Session rows display current branch context without adding a second line.
-- Renaming a non-main branch updates sidebar/header labels immediately and survives another run snapshot.
-- `main` rename/delete actions are unavailable.
-- No branch delete UI ships unless Pi session truth is actually mutated.
+- Default transcript does not become noisy with bookkeeping entries.
+- Branch/compaction summaries are visually distinct.
+- Hidden internal Waggle custom prompts remain hidden.
+- Session Tree can expose structural nodes through filters.
 
 ---
 
-## 4. Branch-scoped Waggle future mode/config
+## 7. Branch-scoped future mode and Waggle
 
-### Problem
+### Standard branch config
 
-The schema supports branch future mode/config, and Waggle writes metadata after runs, but the visible Waggle configuration is still conversation/store-scoped in renderer behavior. There is no branch-state mutation IPC for pre-run configuration, inheritance, or active-run locking.
+- Composer represents the active branch state.
+- Future mode/config changes on one branch do not affect other branches.
+- Child/draft branches inherit parent mode/config at draft creation.
+- Materialized branch state persists through SQLite branch state.
 
-Evidence:
+### Waggle target architecture
 
-- Branch state schema exists:
-  - `src/main/services/database-service.ts`
-  - `src/shared/types/session.ts`
-- Snapshot persistence can write active branch Waggle config:
-  - `src/main/store/session-conversations.ts`
-  - `src/main/application/waggle-run-service.ts`
-- Renderer Waggle store is conversation-scoped:
-  - `src/renderer/src/stores/waggle-store.ts`
-- Current session IPC has no branch state mutation channels:
-  - `src/shared/types/ipc.ts`
+Waggle is a later phase after standard-mode branch semantics are complete and tested.
+
+Target:
+
+- Waggle implemented as Pi extension/in-session behavior rather than separate runtimes.
+- Waggle uses the same Pi session/tree/projection path as standard mode.
+- Everything agreed for standard-mode branches applies equally to Waggle:
+  - branch navigation
+  - draft creation/materialization
+  - transcript branch-out
+  - archive/restore
+  - fork/clone semantics
+  - active-run semantics
+- Waggle-specific differences:
+  - independent branch-scoped run configuration
+  - transcript UX coloring/attribution
+
+### Tests
+
+Create mode-parameterized branch behavior tests:
+
+- run for `standard` immediately
+- include skipped/TODO `waggle` cases until Waggle is Pi-extension backed
+- unskip Waggle once implemented and require the same branch behavior contract to pass
+
+### Acceptance criteria
+
+- Standard branch behavior has contract tests before Waggle refactor.
+- Waggle implementation later passes the same contract with only config/color/attribution differences.
+
+---
+
+## 8. Project-local resource precedence
 
 ### Required behavior
 
-1. Waggle future mode/config must be branch-scoped product state.
-2. Composer controls must reflect the current branch state only.
-3. Updating Waggle config on one branch must not mutate other branches.
-4. New draft/materialized child branches must inherit the parent branch future mode/config by default.
-5. Users can change inherited config before sending on that branch.
-6. Visible Waggle branch config is locked while that branch has an active Waggle run.
-7. Standard-mode and Waggle-mode turns continue writing to the same canonical Pi branch path.
-8. Waggle turn attribution remains persisted in node metadata.
+Effective project resource precedence is:
 
-### Implementation outline
+```text
+.openwaggle > .pi > .agents
+```
 
-1. Add branch state mutation APIs:
-   - `sessions:update-branch-state(sessionId, branchId, patch)`
-   - patch fields: `futureMode`, `waggleConfig`, optional UI lock state if persisted
-2. Move renderer Waggle configuration reads/writes from conversation-level state to active `SessionWorkspace.activeBranchState` plus optimistic branch-local UI state.
-3. On draft branch creation, copy parent branch state into draft UI state.
-4. On branch materialization, persist inherited branch state with the new derived branch identity.
-5. Store active-run locks either in `session_active_runs` or in `session_branch_state.ui_state_json`, depending on whether restart-safe run status is required.
-6. Keep Waggle orchestration through the existing Pi session/custom-message adapter path unless a later Pi extension has a concrete product/runtime reason.
+Applies to:
 
-### Acceptance criteria
+- skills
+- prompts
+- themes
+- extensions
 
-- Enabling/disabling Waggle on one branch does not affect another branch.
-- A child branch inherits parent Waggle mode/config before first send.
-- The composer always makes the active branch mode visible.
-- Active Waggle run config cannot be edited until the run stops/completes/fails.
-- Persisted branch state survives app restart and another Pi session snapshot.
+Implementation must stay confined to `src/main/adapters/pi/`.
 
----
+### Implementation status
 
-## 5. Waggle runtime state completeness
+Implemented in the current branch:
 
-### Problem
-
-Current Waggle supports two-agent sequential turns, synthesis, basic turn attribution, and same-session Pi snapshots. Missing runtime/product states from the reconciled specs include waiting-for-user/resume, explicit synthesis/failure status, and richer persisted run outcome metadata.
-
-Evidence:
-
-- Waggle statuses are currently `idle`, `running`, `paused`, `completed`, `stopped`:
-  - `src/shared/types/waggle.ts`
-- `synthesis-start` updates the current agent label but not a dedicated status:
-  - `src/renderer/src/stores/waggle-store.ts`
-- No waiting-for-user event/resume path exists in current `WaggleTurnEvent`.
-- Persisted metadata has attribution fields but not status/stop/waiting fields:
-  - `src/shared/schemas/waggle.ts`
-  - `src/main/application/waggle-run-service.ts`
-
-### Required behavior
-
-1. Add explicit Waggle states for:
-   - synthesizing
-   - waiting-for-user
-   - failed
-2. Define how a Waggle run pauses for user input and resumes on the same branch when the user replies.
-3. Persist enough node/run metadata to audit:
-   - run id
-   - agent slot or synthesis role
-   - turn index
-   - status/outcome
-   - stop reason
-   - waiting-for-user reason when applicable
-4. Keep visible user replies in the normal transcript position.
-5. Turning Waggle off affects future behavior only; stopping/cancelling remains a separate explicit action.
-
-### Implementation outline
-
-1. Extend `WaggleCollaborationStatus`, `WaggleTurnEvent`, schemas, and renderer store handling.
-2. Add application-service semantics for waiting-for-user:
-   - detect runtime condition
-   - persist/emit pause state
-   - hold or reconstruct continuation metadata
-   - resume on next user reply if branch mode/run state still indicates waiting
-3. Decide whether waiting state lives in `session_active_runs` or branch UI state.
-4. Add tests around pause/resume, stop, future-mode toggle during wait, and synthesis status transitions.
+- Pi project settings storage injects project resource roots in `.openwaggle`, `.pi`, `.agents` order for skills, prompts, themes, and extensions.
+- The Pi resource loader is configured from those ordered paths in the Pi adapter.
+- Implicit precedence roots are stripped again when Pi project settings are persisted so `.openwaggle/settings.json` does not accumulate adapter-added defaults.
+- Unit coverage verifies same-name skill collisions prefer `.openwaggle` while existing setting persistence behavior remains truthful.
 
 ### Acceptance criteria
 
-- Waiting-for-user appears as a first-class UI/run state.
-- A user reply resumes the same branch/run unless the user explicitly stops it first.
-- Synthesis has a visible distinct state.
-- Failed Waggle runs surface a failed state and actionable error.
-- Persisted Waggle node/run metadata remains valid after reload.
+- Same resource id/name in all three locations resolves to `.openwaggle`.
+- Removing `.openwaggle` falls back to `.pi`, then `.agents`.
+- Skill toggles still apply where OpenWaggle owns catalog state.
+- Diagnostics/source info remain truthful.
 
 ---
 
-## 6. Projection durability and restart-safe run state
+## 9. Pi retry, compaction, and interrupted-run durability
 
-### Problem
+### Retry and context overflow
 
-The current persistence path projects full Pi session snapshots after completed runtime operations. This is simple and aligns with the current architecture, but the deleted projection spec also required incremental durability for runtime/session mutations and restart-safe active run state. The current `session_active_runs` table is unused.
+Mirror Pi native behavior:
 
-Evidence:
+- Pi retryable provider/runtime errors emit `auto_retry_start` / `auto_retry_end`.
+- OpenWaggle surfaces retry inline, not in a modal.
+- Inline retry row/banner uses OpenWaggle design system and exposes cancel mapped to Pi `abortRetry()`.
+- Final failure uses normal error UI.
+- Context overflow recovery is separate from normal retry and surfaces as inline compaction/recovery status.
+- Manual compaction remains slash-command based: `/compact` and `/compact <custom instructions>`.
 
-- Pi snapshot projection is built from `session.sessionManager.getEntries()`:
-  - `src/main/adapters/pi/pi-agent-kernel-adapter.ts`
-- Standard run persists after `agentKernel.run()` returns:
-  - `src/main/application/agent-run-service.ts`
-- Snapshot persistence deletes `session_active_runs` and there is no insert/update path:
-  - `src/main/store/session-conversations.ts`
-- Active run tracking is currently in memory:
-  - `src/main/ipc/active-agent-runs.ts`
-  - `src/main/ipc/agent-handler.ts`
-  - `src/main/ipc/waggle-handler.ts`
+### Interrupted runs after process death
 
-### Required behavior
+If OpenWaggle restarts and finds active run records:
 
-1. Preserve the first user node when a first run fails after Pi session creation and prompt acceptance.
-2. Avoid losing already-emitted/runtime-known nodes if the app process dies before a full run completes.
-3. Use `session_active_runs` only for lightweight restart-safe UI/run state, not as canonical transcript history.
-4. Do not persist a raw Pi event log by default.
-5. Keep full snapshot reconciliation as the repair/checkpoint path.
+- reconcile latest Pi session snapshot into SQLite
+- mark run as interrupted
+- do not auto-resume after process death
+- show compact icon indicator on affected session/branch rows
+- show inline notice when opened
+- no startup modal/toast storm
+- clear the interrupted indication when user dismisses the inline notice or sends a new message from the affected branch
 
-### Implementation outline
-
-1. Add minimal incremental projection at durability boundaries rather than a broad raw-event log:
-   - after visible user prompt node is created
-   - after assistant message end
-   - after compaction summary creation
-   - after branch navigation/summary mutation
-2. Alternatively, if Pi exposes a cheap current snapshot during stream events, persist partial snapshots after stable node boundaries.
-3. Insert/update `session_active_runs` when a standard or Waggle run starts, changes status, waits, stops, fails, or completes.
-4. Clear active run rows only after terminal projection is safely persisted.
-5. On startup, surface interrupted/stopped UI state rather than attempting magical runtime continuation unless Pi exposes a clean continuation API.
+Live provider/runtime errors while app is alive still use Pi auto-retry.
 
 ### Acceptance criteria
 
-- Killing the app mid-run does not delete session identity or already-durable visible user input.
-- Restarted app can show interrupted active-run state for sessions that were mid-run.
-- Successful completed runs still end with a reconciled full Pi session snapshot.
-- No raw event-log table is introduced.
+- Retry countdown/cancel appears inline and follows Pi settings.
+- Context overflow recovery is visible inline.
+- Restart after interrupted run reconciles product projection and shows compact interrupted indication without auto-resume.
 
 ---
 
-## 7. Session-native naming cleanup
+## 10. Session-native naming cleanup
 
-### Problem
+This is last, after functional behavior stabilizes.
 
-The physical persistence model is now session-native, but a conversation-shaped compatibility/read-model layer and some test/user-facing copy remain. This does not block runtime correctness, but it does keep old mental models alive for future maintainers.
+Current conversation-shaped surfaces remain:
 
-Evidence:
+- `conversations:*` IPC
+- `Conversation` DTOs
+- `SessionProjectionRepository`
+- `activeConversationId` renderer naming
 
-- `SessionProjectionRepository` exposes `Conversation` DTOs:
-  - `src/main/ports/session-projection-repository.ts`
-- IPC still includes `conversations:*` channels:
-  - `src/shared/types/ipc.ts`
-- Renderer chat state still uses `activeConversationId` naming:
-  - `src/renderer/src/stores/chat-store.ts`
-  - `src/renderer/src/hooks/useChat.ts`
-- Some E2E helper/test names still use “thread”.
+Required direction:
 
-### Required behavior
-
-1. Preserve product behavior while gradually renaming public/internal surfaces to session-native names.
-2. Do not reintroduce flat persistence tables or a separate flat transcript model.
-3. Keep compatibility shims only where necessary during the transition, and document them as temporary.
-
-### Implementation outline
-
-1. Add session-native IPC channels before removing `conversations:*` channels.
-2. Rename renderer active state from conversation to session in focused slices.
-3. Rename test helpers from thread/conversation where they are no longer accurate.
-4. Keep branded type boundaries (`SessionId`, `SessionNodeId`, `SessionBranchId`) explicit.
-
-### Acceptance criteria
-
-- New code paths use session terminology.
-- User-facing errors and UI copy say “session”.
-- Compatibility names are either removed or explicitly isolated.
-- No product screen depends on flattening the session tree into old flat-message assumptions.
+- add session-native IPC/state names before removing old names
+- keep compatibility shims isolated and temporary
+- avoid reviving old flat-message storage or runtime semantics
 
 ---
 
-## Audited items intentionally not carried forward
+## Verification requirements
 
-These deleted-spec requirements were reviewed and are not current remaining work:
+For each implementation slice:
 
-1. **Permanent second branch sidebar** — superseded by current lesson: branches/nodes belong under their owning session in the main project/session sidebar.
-2. **Thick Waggle Pi extension as a migration requirement** — current architecture uses OpenWaggle application-layer Waggle orchestration over Pi session/custom-message primitives. Keep this unless a future Pi extension provides a concrete simplification or capability need.
-3. **Independent product session id value** — current clean-cut creation uses Pi session creation as the first identity event and stores the Pi id in the branded OpenWaggle session id value. Revisit only if a future Pi session identity limitation requires separate product identity.
-4. **Legacy tool-gating flow** — removed from the migration target. Future runtime policy controls must be designed fresh and kept behind Pi adapter/product boundaries.
-
-## Minimal verification matrix for implementations from this spec
-
-For any implementation work against this spec:
-
-1. `pnpm typecheck:node`
-2. `pnpm typecheck:web`
-3. `pnpm check:architecture`
-4. Relevant unit/integration/component tests near the changed feature
-5. If renderer code changes: `npx -y react-doctor@latest . --verbose --diff main`
-6. If renderer/preload/IPC changes: Electron QA in the real app via CDP, following `.agents/skills/electron-qa/SKILL.md`
-7. If session tree/branch UX changes: one E2E or live-QA path covering branch creation, branch switch, node navigation, app reload, and transcript path correctness
+1. Follow TDD vertical slices: one behavior test, minimal implementation, refactor.
+2. Prefer public-interface/integration-style tests over implementation mocks.
+3. Run targeted tests for the touched slice.
+4. Run `pnpm typecheck` or narrower typecheck as the slice grows.
+5. Run `pnpm check:architecture` for main-process changes.
+6. If renderer code is touched:
+   - run React Doctor diagnostics
+   - run Electron QA via MCP against the real app after static checks pass
+7. Keep this spec and relevant user docs truthful as behavior lands.

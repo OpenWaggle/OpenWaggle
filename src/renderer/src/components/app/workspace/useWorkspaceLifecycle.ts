@@ -1,11 +1,11 @@
 import { SessionId } from '@shared/types/brand'
+import { useHotkeys } from '@tanstack/react-hotkeys'
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { useChat } from '@/hooks/useChat'
 import { useDiffRouteNavigation } from '@/hooks/useDiffRouteNavigation'
 import { useGit } from '@/hooks/useGit'
 import { useGitRefresh } from '@/hooks/useGitRefresh'
-import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { useProject } from '@/hooks/useProject'
 import { useSessionStatusMonitor } from '@/hooks/useSessionStatusMonitor'
 import { useSessions } from '@/hooks/useSessions'
@@ -28,7 +28,7 @@ export function useWorkspaceLifecycle(): void {
   const toggleTerminal = useUIStore((s) => s.toggleTerminal)
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
   const toggleCommandPalette = useUIStore((s) => s.toggleCommandPalette)
-  const { toggleDiff } = useDiffRouteNavigation()
+  const { toggleDiff, toggleSessionTree } = useDiffRouteNavigation()
 
   function startDraftSessionRoute(): void {
     startDraftSession()
@@ -66,11 +66,15 @@ export function useWorkspaceLifecycle(): void {
 
   useSessionStatusMonitor()
 
-  useKeyboardShortcuts([
-    { key: 'j', ctrl: true, action: toggleTerminal },
-    { key: 'n', ctrl: true, action: startDraftSessionRoute },
-    { key: 'b', ctrl: true, action: toggleSidebar },
-    { key: 'd', ctrl: true, action: toggleDiff },
-    { key: 'k', ctrl: true, action: toggleCommandPalette },
-  ])
+  useHotkeys(
+    [
+      { hotkey: 'Mod+J', callback: toggleTerminal },
+      { hotkey: 'Mod+N', callback: startDraftSessionRoute },
+      { hotkey: 'Mod+B', callback: toggleSidebar },
+      { hotkey: 'Mod+D', callback: toggleDiff },
+      { hotkey: 'Mod+K', callback: toggleCommandPalette },
+      { hotkey: 'Mod+Shift+Y', callback: toggleSessionTree },
+    ],
+    { preventDefault: true },
+  )
 }

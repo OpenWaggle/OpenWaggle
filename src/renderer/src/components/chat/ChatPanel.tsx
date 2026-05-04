@@ -5,9 +5,10 @@ import { type ChatPanelSections, useChatPanelSections } from './use-chat-panel-c
 
 interface ChatPanelContentProps {
   readonly sections: ChatPanelSections
+  readonly onOpenSessionTree?: () => void
 }
 
-export function ChatPanelContent({ sections }: ChatPanelContentProps) {
+export function ChatPanelContent({ sections, onOpenSessionTree }: ChatPanelContentProps) {
   return (
     <div className="flex h-full w-full overflow-hidden">
       <div
@@ -19,7 +20,7 @@ export function ChatPanelContent({ sections }: ChatPanelContentProps) {
         </PanelErrorBoundary>
 
         <PanelErrorBoundary name="Composer">
-          <ChatComposerStack section={sections.composer} />
+          <ChatComposerStack section={sections.composer} onOpenSessionTree={onOpenSessionTree} />
         </PanelErrorBoundary>
       </div>
     </div>

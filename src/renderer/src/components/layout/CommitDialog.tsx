@@ -1,7 +1,8 @@
 import type { GitCommitResult, GitStatusSummary } from '@shared/types/git'
 import { choose } from '@shared/utils/decision'
 import { Loader2, RefreshCw, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useEscapeHotkey } from '@/hooks/useEscapeHotkey'
 import { cn } from '@/lib/cn'
 
 const ROWS = 3
@@ -57,17 +58,7 @@ export function CommitDialog({
 
   const changedFiles = status?.changedFiles ?? []
 
-  // Escape to close
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent): void {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        onClose()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
+  useEscapeHotkey(onClose)
 
   function togglePath(filePath: string): void {
     setSelectedPaths((prev) => {

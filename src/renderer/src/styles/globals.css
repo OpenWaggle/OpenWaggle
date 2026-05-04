@@ -82,6 +82,11 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
+  body.right-sidebar-resizing {
+    cursor: col-resize;
+    user-select: none;
+  }
+
   /* Drag region for titlebar */
   .drag-region {
     -webkit-app-region: drag;
@@ -434,5 +439,40 @@
 
   .prose-thinking blockquote {
     border-left-color: color-mix(in srgb, var(--color-thinking-text) 55%, transparent);
+  }
+}
+
+@layer components {
+  @keyframes session-tree-row-enter {
+    from {
+      opacity: 0;
+      transform: translateY(3px) scale(0.995);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  .session-tree-row-enter {
+    animation: session-tree-row-enter 140ms ease-out both;
+  }
+
+  .session-tree-active-dot {
+    box-shadow:
+      0 0 0 3px color-mix(in srgb, var(--color-accent) 16%, transparent),
+      0 0 10px color-mix(in srgb, var(--color-accent) 10%, transparent);
+  }
+
+  .session-tree-node-dot:is(:hover, :focus-visible) {
+    box-shadow:
+      0 0 0 3px color-mix(in srgb, var(--color-accent) 18%, transparent),
+      0 0 12px color-mix(in srgb, var(--color-accent) 14%, transparent);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .session-tree-row-enter {
+      animation: none;
+    }
   }
 }

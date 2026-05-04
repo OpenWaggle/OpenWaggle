@@ -1,11 +1,22 @@
 import type { AgentSendPayload } from '@shared/types/agent'
-import { type ConversationId, SessionId, SessionNodeId } from '@shared/types/brand'
+import {
+  ConversationId,
+  type SessionBranchId,
+  SessionId,
+  type SessionNodeId,
+} from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import type { WaggleCollaborationStatus, WaggleConfig } from '@shared/types/waggle'
 import { useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
+import {
+  createBranchDraftSelection,
+  shouldPromptForBranchSummary,
+} from '@/components/chat/branch-from-message'
 import { parseCompactCommand } from '@/components/composer/compact-command'
+import { buildComposerDraftContextKey } from '@/components/composer/composer-draft-context'
+import { setEditorText } from '@/components/composer/lexical-utils'
 import {
   type AgentChatStatus,
   type AgentCompactionStatus,
@@ -22,6 +33,9 @@ import { useStreamingPhase } from '@/hooks/useStreamingPhase'
 import { useWaggleChat } from '@/hooks/useWaggleChat'
 import { api } from '@/lib/ipc'
 import { createRendererLogger } from '@/lib/logger'
+import { type BranchSummaryPromptState, useBranchSummaryStore } from '@/stores/branch-summary-store'
+import { useChatStore } from '@/stores/chat-store'
+import { useComposerStore } from '@/stores/composer-store'
 import { usePreferencesStore } from '@/stores/preferences-store'
 import { useSessionStore } from '@/stores/session-store'
 import { useUIStore } from '@/stores/ui-store'
@@ -72,6 +86,10 @@ export interface ChatComposerSectionState {
   onSteer: (messageId: string) => Promise<void>
   onCancel: () => void
   onToast: (message: string) => void
+  onSkipBranchSummary: () => void
+  onSummarizeBranch: () => void
+  onStartCustomBranchSummary: () => void
+  onCancelBranchSummary: () => void
 }
 
 export interface ChatDiffSectionState {
@@ -114,6 +132,8 @@ export function useChatPanelSections(): ChatPanelSections {
   } = useChat()
 
   const { refreshStatus: refreshGitStatus, refreshBranches: refreshGitBranches } = useGit()
+  const activeWorkspace = useSessionStore((state) => state.activeWorkspace)
+  const loadSessions = useSessionStore((state) => state.loadSessions)
   const refreshSessionWorkspace = useSessionStore((state) => state.refreshSessionWorkspace)
   const draftBranch = useSessionStore((state) => state.draftBranch)
   const setDraftBranch = useSessionStore((state) => state.setDraftBranch)
@@ -188,6 +208,269 @@ export function useChatPanelSections(): ChatPanelSections {
   const waggleStatus: WaggleCollaborationStatus =
     waggleOwningId && waggleOwningId !== activeConversationId ? 'idle' : waggleStoreStatus
 
+  function setComposerTextValue(text: string): void {
+    const composer = useComposerStore.getState()
+    composer.setInput(text)
+    if (composer.lexicalEditor) {
+      setEditorText(composer.lexicalEditor, text)
+    }
+  }
+
+  function draftBranchComposerContextKey(
+    sessionId: SessionId,
+    sourceNodeId: SessionNodeId,
+  ): string {
+    return buildComposerDraftContextKey({
+      projectPath: activeWorkspace?.tree.session.projectPath ?? projectPath,
+      sessionId,
+      draftSourceNodeId: sourceNodeId,
+    })
+  }
+
+  function switchComposerToDraftBranch(input: {
+    readonly sessionId: SessionId
+    readonly sourceNodeId: SessionNodeId
+    readonly fallbackText: string
+  }): string {
+    const contextKey = draftBranchComposerContextKey(input.sessionId, input.sourceNodeId)
+    const appliedDraft = useComposerStore.getState().switchScopedDraftContext(contextKey, {
+      input: input.fallbackText,
+      attachments: [],
+    })
+    setComposerTextValue(appliedDraft.input)
+    return appliedDraft.input
+  }
+
+  function routeToSessionSelection(
+    sessionId: SessionId,
+    selection: {
+      readonly branchId?: SessionBranchId | null
+      readonly nodeId?: SessionNodeId | null
+    },
+  ): void {
+    void navigate({
+      to: '/sessions/$sessionId',
+      params: { sessionId: String(sessionId) },
+      search: (previous) => ({
+        ...previous,
+        branch: selection.branchId ? String(selection.branchId) : undefined,
+        node: selection.nodeId ? String(selection.nodeId) : undefined,
+      }),
+    })
+  }
+
+  function maybeOpenBranchSummaryPrompt(input: {
+    readonly sessionId: SessionId
+    readonly sourceNodeId: SessionNodeId
+    readonly restoreSelection: {
+      readonly branchId: SessionBranchId | null
+      readonly nodeId: SessionNodeId | null
+    }
+    readonly previousComposerText: string
+    readonly draftComposerText: string
+  }): void {
+    useBranchSummaryStore.getState().clearPrompt()
+
+    if (!shouldPromptForBranchSummary(activeWorkspace, input.sourceNodeId)) {
+      return
+    }
+
+    function openIfCurrent(): void {
+      const currentState = useSessionStore.getState()
+      const currentDraft = currentState.draftBranch
+      const currentWorkspace = currentState.activeWorkspace
+      if (
+        !currentDraft ||
+        currentDraft.sessionId !== input.sessionId ||
+        currentDraft.sourceNodeId !== input.sourceNodeId ||
+        currentWorkspace?.tree.session.id !== input.sessionId
+      ) {
+        return
+      }
+      useBranchSummaryStore.getState().openPrompt(input)
+    }
+
+    if (typeof api.getPiBranchSummarySkipPrompt !== 'function') {
+      openIfCurrent()
+      return
+    }
+
+    void api
+      .getPiBranchSummarySkipPrompt(activeWorkspace?.tree.session.projectPath ?? projectPath)
+      .then((skipPrompt) => {
+        if (!skipPrompt) {
+          openIfCurrent()
+        }
+      })
+      .catch((skipPromptError: unknown) => {
+        const message =
+          skipPromptError instanceof Error ? skipPromptError.message : String(skipPromptError)
+        logger.warn('Failed to load branch summary skip-prompt preference', { message })
+        openIfCurrent()
+      })
+  }
+
+  function isCurrentBranchSummaryPrompt(prompt: BranchSummaryPromptState): boolean {
+    const currentPrompt = useBranchSummaryStore.getState().prompt
+    const currentWorkspace = useSessionStore.getState().activeWorkspace
+    const currentConversationId = useChatStore.getState().activeConversationId
+    return (
+      currentPrompt?.sessionId === prompt.sessionId &&
+      currentPrompt.sourceNodeId === prompt.sourceNodeId &&
+      currentPrompt.previousComposerText === prompt.previousComposerText &&
+      currentPrompt.draftComposerText === prompt.draftComposerText &&
+      currentPrompt.mode === 'summarizing' &&
+      currentWorkspace?.tree.session.id === prompt.sessionId &&
+      String(currentConversationId) === String(prompt.sessionId)
+    )
+  }
+
+  async function materializeBranchSummary(customInstructions?: string): Promise<void> {
+    const prompt = useBranchSummaryStore.getState().prompt
+    if (!prompt) {
+      return
+    }
+
+    const previousMode = prompt.mode
+    useBranchSummaryStore.getState().startSummarizing()
+
+    try {
+      const trimmedInstructions = customInstructions?.trim()
+      const navigation = await api.navigateSessionTree(
+        prompt.sessionId,
+        model,
+        prompt.sourceNodeId,
+        {
+          summarize: true,
+          ...(trimmedInstructions ? { customInstructions: trimmedInstructions } : {}),
+        },
+      )
+
+      if (!isCurrentBranchSummaryPrompt(prompt)) {
+        return
+      }
+
+      if (navigation.cancelled) {
+        showToast('Branch summarization cancelled.')
+        if (previousMode === 'custom') {
+          useBranchSummaryStore.getState().startCustomPrompt(prompt.draftComposerText)
+        } else {
+          useBranchSummaryStore.getState().restoreChoice()
+        }
+        return
+      }
+
+      useBranchSummaryStore.getState().clearPrompt()
+      clearDraftBranchForSession(prompt.sessionId)
+
+      await Promise.all([
+        loadSessions(),
+        refreshConversation(ConversationId(String(prompt.sessionId))),
+        refreshSessionWorkspace(prompt.sessionId),
+      ])
+
+      if (String(useChatStore.getState().activeConversationId) !== String(prompt.sessionId)) {
+        return
+      }
+
+      const workspace = useSessionStore.getState().activeWorkspace
+      if (workspace) {
+        const contextKey = buildComposerDraftContextKey({
+          projectPath: workspace.tree.session.projectPath,
+          sessionId: prompt.sessionId,
+          activeBranchId: workspace.activeBranchId,
+          activeNodeId: workspace.activeNodeId,
+        })
+        const appliedDraft = useComposerStore.getState().switchScopedDraftContext(
+          contextKey,
+          {
+            input: prompt.draftComposerText,
+            attachments: [],
+          },
+          {
+            input: prompt.draftComposerText,
+            attachments: useComposerStore.getState().attachments,
+          },
+        )
+        useComposerStore
+          .getState()
+          .clearScopedDraft(draftBranchComposerContextKey(prompt.sessionId, prompt.sourceNodeId))
+        setComposerTextValue(appliedDraft.input)
+      }
+
+      routeToSessionSelection(prompt.sessionId, {
+        branchId: workspace?.activeBranchId ?? null,
+        nodeId: workspace?.activeNodeId ?? null,
+      })
+    } catch (summaryError) {
+      if (!isCurrentBranchSummaryPrompt(prompt)) {
+        return
+      }
+      const message = summaryError instanceof Error ? summaryError.message : String(summaryError)
+      showToast(message)
+      if (previousMode === 'custom') {
+        useBranchSummaryStore.getState().startCustomPrompt(prompt.draftComposerText)
+      } else {
+        useBranchSummaryStore.getState().restoreChoice()
+      }
+    }
+  }
+
+  function handleSkipBranchSummary(): void {
+    const prompt = useBranchSummaryStore.getState().prompt
+    if (!prompt) {
+      return
+    }
+    useBranchSummaryStore.getState().clearPrompt()
+    setComposerTextValue(prompt.draftComposerText)
+  }
+
+  function handleStartCustomBranchSummary(): void {
+    const prompt = useBranchSummaryStore.getState().prompt
+    if (!prompt) {
+      return
+    }
+    const composerText = useComposerStore.getState().input
+    useBranchSummaryStore.getState().startCustomPrompt(composerText)
+    setComposerTextValue('')
+  }
+
+  function handleCancelBranchSummary(): void {
+    const prompt = useBranchSummaryStore.getState().prompt
+    if (!prompt) {
+      return
+    }
+    const restoreContextKey = buildComposerDraftContextKey({
+      projectPath: activeWorkspace?.tree.session.projectPath ?? projectPath,
+      sessionId: prompt.sessionId,
+      activeBranchId: prompt.restoreSelection.branchId,
+      activeNodeId: prompt.restoreSelection.nodeId,
+    })
+    const appliedDraft = useComposerStore.getState().switchScopedDraftContext(
+      restoreContextKey,
+      {
+        input: prompt.previousComposerText,
+        attachments: [],
+      },
+      {
+        input: '',
+        attachments: [],
+      },
+    )
+    useComposerStore
+      .getState()
+      .clearScopedDraft(draftBranchComposerContextKey(prompt.sessionId, prompt.sourceNodeId))
+    useBranchSummaryStore.getState().clearPrompt()
+    clearDraftBranchForSession(prompt.sessionId)
+    setComposerTextValue(appliedDraft.input)
+    routeToSessionSelection(prompt.sessionId, prompt.restoreSelection)
+    void refreshSessionWorkspace(prompt.sessionId, prompt.restoreSelection)
+  }
+
+  function handleSummarizeBranch(): void {
+    void materializeBranchSummary()
+  }
+
   async function materializeDraftBranchForSend(): Promise<boolean> {
     if (!activeConversationId) {
       return true
@@ -209,6 +492,12 @@ export function useChatPanelSections(): ChatPanelSections {
   }
 
   async function handleSendWithWaggle(payload: AgentSendPayload): Promise<void> {
+    const branchSummaryPrompt = useBranchSummaryStore.getState().prompt
+    if (branchSummaryPrompt?.mode === 'custom') {
+      await materializeBranchSummary(payload.text)
+      return
+    }
+
     const compactCommand = parseCompactCommand(payload.text)
     if (compactCommand) {
       await handleCompactSession(compactCommand.customInstructions)
@@ -308,15 +597,40 @@ export function useChatPanelSections(): ChatPanelSections {
     }
 
     const sessionId = SessionId(String(activeConversationId))
-    const nodeId = SessionNodeId(messageId)
-    setDraftBranch({ sessionId, sourceNodeId: nodeId })
+    const previousComposerText = useComposerStore.getState().input
+    const selection = createBranchDraftSelection({
+      messages,
+      workspace: activeWorkspace,
+      messageId,
+    })
+    const fallbackDraftText = selection.prefillText ?? ''
+    setDraftBranch({ sessionId, sourceNodeId: selection.sourceNodeId })
+    const draftComposerText = switchComposerToDraftBranch({
+      sessionId,
+      sourceNodeId: selection.sourceNodeId,
+      fallbackText: fallbackDraftText,
+    })
+    maybeOpenBranchSummaryPrompt({
+      sessionId,
+      sourceNodeId: selection.sourceNodeId,
+      restoreSelection: {
+        branchId: activeWorkspace?.activeBranchId ?? null,
+        nodeId: activeWorkspace?.activeNodeId ?? null,
+      },
+      previousComposerText,
+      draftComposerText,
+    })
     void navigate({
       to: '/sessions/$sessionId',
       params: { sessionId: String(sessionId) },
-      search: (previous) => ({ ...previous, node: String(nodeId) }),
+      search: (previous) => ({
+        ...previous,
+        branch: undefined,
+        node: String(selection.routeNodeId),
+      }),
     })
 
-    void refreshSessionWorkspace(sessionId, { nodeId })
+    void refreshSessionWorkspace(sessionId, { nodeId: selection.routeNodeId })
   }
 
   const transcript = useTranscriptSection({
@@ -357,6 +671,10 @@ export function useChatPanelSections(): ChatPanelSections {
     handleSendWithWaggle,
     handleStartWaggle,
     handleStopCollaboration,
+    handleSkipBranchSummary,
+    handleSummarizeBranch,
+    handleStartCustomBranchSummary,
+    handleCancelBranchSummary,
   })
 
   return {

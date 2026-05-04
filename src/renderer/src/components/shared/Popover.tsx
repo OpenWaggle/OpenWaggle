@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEscapeHotkey } from '@/hooks/useEscapeHotkey'
 import { usePopover } from '@/hooks/usePopover'
 import { cn } from '@/lib/cn'
 
@@ -55,24 +55,16 @@ export function Popover({
     }
   }
 
-  // Escape key handler
-  useEffect(() => {
-    if (!isOpen) return
-
-    function onKeyDown(event: KeyboardEvent): void {
-      if (event.key === 'Escape') {
-        event.stopPropagation()
-        if (isControlled) {
-          onOpenChange?.(false)
-        } else {
-          popoverClose()
-        }
+  useEscapeHotkey(
+    () => {
+      if (isControlled) {
+        onOpenChange?.(false)
+      } else {
+        popoverClose()
       }
-    }
-
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [isOpen, isControlled, onOpenChange, popoverClose])
+    },
+    { enabled: isOpen },
+  )
 
   const triggerContent = typeof trigger === 'function' ? trigger({ isOpen, toggle }) : trigger
 

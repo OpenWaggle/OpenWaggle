@@ -1,21 +1,25 @@
 import { CommandPalette } from '@/components/command-palette/CommandPalette'
 import { ActionDialog } from '@/components/composer/ActionDialog'
+import { BranchSummaryPrompt } from '@/components/composer/BranchSummaryPrompt'
 import { CompactionStatusStrip } from '@/components/composer/CompactionStatusStrip'
 import { Composer } from '@/components/composer/Composer'
 import { ComposerBranchRow } from '@/components/composer/ComposerBranchRow'
 import { QueuedMessages } from '@/components/composer/QueuedMessages'
+import { useScopedComposerDrafts } from '@/components/composer/useScopedComposerDrafts'
 import { WaggleCollaborationStatus as WaggleCollaborationStatusBanner } from '@/components/waggle/CollaborationStatus'
+import { useBranchSummaryStore } from '@/stores/branch-summary-store'
 import { useMessageQueueStore } from '@/stores/message-queue-store'
 
 import type { ChatComposerSectionState } from './use-chat-panel-controller'
 
 interface ChatComposerStackProps {
   readonly section: ChatComposerSectionState
+  readonly onOpenSessionTree?: () => void
 }
 
 function noOp(): void {}
 
-export function ChatComposerStack({ section }: ChatComposerStackProps) {
+export function ChatComposerStack({ section, onOpenSessionTree }: ChatComposerStackProps) {
   const {
     activeConversationId,
     waggleStatus,
@@ -31,9 +35,20 @@ export function ChatComposerStack({ section }: ChatComposerStackProps) {
     onSteer,
     onCancel,
     onToast,
+    onSkipBranchSummary,
+    onSummarizeBranch,
+    onStartCustomBranchSummary,
+    onCancelBranchSummary,
   } = section
 
+  useScopedComposerDrafts(activeConversationId)
+
   const enqueue = useMessageQueueStore((s) => s.enqueue)
+  const branchSummaryMode = useBranchSummaryStore((s) => s.prompt?.mode ?? null)
+  const composerDisabledForBranchSummary =
+    branchSummaryMode === 'choice' || branchSummaryMode === 'summarizing'
+  const composerPlaceholder =
+    branchSummaryMode === 'custom' ? 'Custom instructions for the branch summary' : undefined
 
   return (
     <>
@@ -48,6 +63,7 @@ export function ChatComposerStack({ section }: ChatComposerStackProps) {
             slashSkills={slashSkills}
             onSelectSkill={onSelectSkill}
             onStartWaggle={onStartWaggle}
+            onOpenSessionTree={onOpenSessionTree}
           />
         </div>
       )}
@@ -62,6 +78,12 @@ export function ChatComposerStack({ section }: ChatComposerStackProps) {
           isStreaming={status === 'streaming' || status === 'submitted'}
           isCompacting={status === 'compacting' || status === 'retrying'}
         />
+        <BranchSummaryPrompt
+          onNoSummary={onSkipBranchSummary}
+          onSummarize={onSummarizeBranch}
+          onCustomSummary={onStartCustomBranchSummary}
+          onCancel={onCancelBranchSummary}
+        />
         <Composer
           onSend={onSendWithWaggle}
           onEnqueue={(payload) => {
@@ -71,6 +93,13 @@ export function ChatComposerStack({ section }: ChatComposerStackProps) {
           }}
           onCancel={onCancel}
           isLoading={isLoading}
+          disabled={composerDisabledForBranchSummary}
+          placeholder={composerPlaceholder}
+          requiresText={branchSummaryMode === 'custom'}
+          clearOnSubmit={branchSummaryMode !== 'custom'}
+          recordHistory={branchSummaryMode !== 'custom'}
+          allowEnqueue={branchSummaryMode !== 'custom'}
+          sendTitle={branchSummaryMode === 'custom' ? 'Summarize branch' : undefined}
           onToast={onToast}
         />
         <ComposerBranchRow onToast={onToast} />

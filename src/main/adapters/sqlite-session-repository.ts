@@ -16,6 +16,15 @@ export const SqliteSessionRepositoryLive = Effect.promise(async () => {
           catch: (cause) =>
             new SessionProjectionRepositoryError({ operation: 'listSessions', cause }),
         }),
+      listArchivedBranches: (limit) =>
+        Effect.tryPromise({
+          try: () => store.listArchivedSessionBranches(limit),
+          catch: (cause) =>
+            new SessionProjectionRepositoryError({
+              operation: 'listArchivedSessionBranches',
+              cause,
+            }),
+        }),
       getTree: (sessionId) =>
         Effect.tryPromise({
           try: () => store.getSessionTree(sessionId),
@@ -42,6 +51,30 @@ export const SqliteSessionRepositoryLive = Effect.promise(async () => {
           try: () => sessionConversationStore.updateSessionRuntime(input),
           catch: (cause) =>
             new SessionProjectionRepositoryError({ operation: 'updateSessionRuntime', cause }),
+        }),
+      renameBranch: (sessionId, branchId, name) =>
+        Effect.tryPromise({
+          try: () => store.renameSessionBranch(sessionId, branchId, name),
+          catch: (cause) =>
+            new SessionProjectionRepositoryError({ operation: 'renameSessionBranch', cause }),
+        }),
+      archiveBranch: (sessionId, branchId) =>
+        Effect.tryPromise({
+          try: () => store.archiveSessionBranch(sessionId, branchId),
+          catch: (cause) =>
+            new SessionProjectionRepositoryError({ operation: 'archiveSessionBranch', cause }),
+        }),
+      restoreBranch: (sessionId, branchId) =>
+        Effect.tryPromise({
+          try: () => store.restoreSessionBranch(sessionId, branchId),
+          catch: (cause) =>
+            new SessionProjectionRepositoryError({ operation: 'restoreSessionBranch', cause }),
+        }),
+      updateTreeUiState: (sessionId, patch) =>
+        Effect.tryPromise({
+          try: () => store.updateSessionTreeUiState(sessionId, patch),
+          catch: (cause) =>
+            new SessionProjectionRepositoryError({ operation: 'updateSessionTreeUiState', cause }),
         }),
     } satisfies SessionRepositoryShape),
   )

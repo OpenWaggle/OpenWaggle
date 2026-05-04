@@ -6,6 +6,11 @@ export type { ComposerActionDialogKind } from './composer-action-store'
 
 type MenuKind = 'thinking' | 'execution' | 'branch' | null
 
+export interface ComposerScopedDraft {
+  readonly input: string
+  readonly attachments: readonly PreparedAttachment[]
+}
+
 const PROMPT_HISTORY_KEY = 'openwaggle:prompt-history'
 const PROMPT_HISTORY_MAX = 100
 
@@ -60,8 +65,24 @@ interface ComposerState {
   attachments: PreparedAttachment[]
   attachmentError: string | null
   addAttachments: (files: PreparedAttachment[]) => void
+  replaceAttachments: (files: readonly PreparedAttachment[]) => void
   removeAttachment: (id: string) => void
   setAttachmentError: (error: string | null) => void
+
+  // Scoped drafts
+  activeDraftContextKey: string | null
+  scopedDrafts: Readonly<Record<string, ComposerScopedDraft>>
+  setActiveDraftContextKey: (contextKey: string | null) => void
+  switchScopedDraftContext: (
+    contextKey: string,
+    fallbackDraft?: ComposerScopedDraft,
+    currentDraftOverride?: ComposerScopedDraft,
+  ) => ComposerScopedDraft
+  saveScopedDraft: (contextKey: string, draft: ComposerScopedDraft) => void
+  getScopedDraft: (contextKey: string) => ComposerScopedDraft | null
+  clearScopedDraft: (contextKey: string) => void
+  clearScopedDraftsForSession: (sessionId: string) => void
+  clearScopedDraftsForBranch: (sessionId: string, branchId: string) => void
 
   // Menu toggles (only one open at a time)
   thinkingMenuOpen: boolean
@@ -91,6 +112,8 @@ interface InitialComposerState {
   draftInput: string
   attachments: PreparedAttachment[]
   attachmentError: string | null
+  activeDraftContextKey: string | null
+  scopedDrafts: Readonly<Record<string, ComposerScopedDraft>>
   thinkingMenuOpen: boolean
   executionMenuOpen: boolean
   branchMenuOpen: boolean
@@ -108,6 +131,8 @@ function buildInitialState(): InitialComposerState {
     draftInput: '',
     attachments: [],
     attachmentError: null,
+    activeDraftContextKey: null,
+    scopedDrafts: {},
     thinkingMenuOpen: false,
     executionMenuOpen: false,
     branchMenuOpen: false,
@@ -117,6 +142,58 @@ function buildInitialState(): InitialComposerState {
 }
 
 const INITIAL_STATE: InitialComposerState = buildInitialState()
+
+function isEmptyScopedDraft(draft: ComposerScopedDraft): boolean {
+  return draft.input.trim().length === 0 && draft.attachments.length === 0
+}
+
+function normalizeScopedDraft(draft: ComposerScopedDraft): ComposerScopedDraft {
+  return {
+    input: draft.input,
+    attachments: [...draft.attachments],
+  }
+}
+
+function upsertScopedDraft(
+  drafts: Readonly<Record<string, ComposerScopedDraft>>,
+  contextKey: string,
+  draft: ComposerScopedDraft,
+): Readonly<Record<string, ComposerScopedDraft>> {
+  const nextDrafts = { ...drafts }
+  if (isEmptyScopedDraft(draft)) {
+    delete nextDrafts[contextKey]
+  } else {
+    nextDrafts[contextKey] = normalizeScopedDraft(draft)
+  }
+  return nextDrafts
+}
+
+function removeScopedDraft(
+  drafts: Readonly<Record<string, ComposerScopedDraft>>,
+  contextKey: string,
+): Readonly<Record<string, ComposerScopedDraft>> {
+  const nextDrafts = { ...drafts }
+  delete nextDrafts[contextKey]
+  return nextDrafts
+}
+
+function contextMatchesSession(contextKey: string, sessionId: string): boolean {
+  return contextKey.includes(`session:${sessionId}:`)
+}
+
+function contextMatchesBranch(contextKey: string, sessionId: string, branchId: string): boolean {
+  return contextKey.includes(`session:${sessionId}:branch:${branchId}`)
+}
+
+function clearActiveDraftContextState() {
+  return {
+    activeDraftContextKey: null,
+    input: '',
+    cursorIndex: 0,
+    attachments: [],
+    attachmentError: null,
+  }
+}
 
 export const useComposerStore = create<ComposerState>((set, get) => ({
   ...INITIAL_STATE,
@@ -169,6 +246,101 @@ export const useComposerStore = create<ComposerState>((set, get) => ({
     set((s) => ({ attachments: [...s.attachments, ...files] }))
   },
 
+  replaceAttachments(files: readonly PreparedAttachment[]) {
+    set({ attachments: [...files] })
+  },
+
+  setActiveDraftContextKey(contextKey: string | null) {
+    set({ activeDraftContextKey: contextKey })
+  },
+
+  switchScopedDraftContext(contextKey, fallbackDraft, currentDraftOverride) {
+    const state = get()
+    if (state.activeDraftContextKey === contextKey) {
+      return normalizeScopedDraft({ input: state.input, attachments: state.attachments })
+    }
+
+    const currentDraft =
+      currentDraftOverride ??
+      normalizeScopedDraft({
+        input: state.input,
+        attachments: state.attachments,
+      })
+    const scopedDrafts = state.activeDraftContextKey
+      ? upsertScopedDraft(state.scopedDrafts, state.activeDraftContextKey, currentDraft)
+      : state.scopedDrafts
+    const nextDraft = normalizeScopedDraft(
+      scopedDrafts[contextKey] ?? fallbackDraft ?? { input: '', attachments: [] },
+    )
+
+    set({
+      activeDraftContextKey: contextKey,
+      scopedDrafts,
+      input: nextDraft.input,
+      cursorIndex: nextDraft.input.length,
+      attachments: [...nextDraft.attachments],
+      attachmentError: null,
+      dismissedSlashToken: null,
+      slashHighlightIndex: 0,
+      historyIndex: state.promptHistory.length,
+      draftInput: '',
+    })
+
+    return nextDraft
+  },
+
+  saveScopedDraft(contextKey, draft) {
+    set((state) => ({
+      scopedDrafts: upsertScopedDraft(state.scopedDrafts, contextKey, draft),
+    }))
+  },
+
+  getScopedDraft(contextKey) {
+    return get().scopedDrafts[contextKey] ?? null
+  },
+
+  clearScopedDraft(contextKey) {
+    set((state) => ({
+      scopedDrafts: removeScopedDraft(state.scopedDrafts, contextKey),
+    }))
+  },
+
+  clearScopedDraftsForSession(sessionId) {
+    set((state) => {
+      const nextDrafts = { ...state.scopedDrafts }
+      for (const contextKey of Object.keys(nextDrafts)) {
+        if (contextMatchesSession(contextKey, sessionId)) {
+          delete nextDrafts[contextKey]
+        }
+      }
+      return {
+        scopedDrafts: nextDrafts,
+        ...(state.activeDraftContextKey &&
+        contextMatchesSession(state.activeDraftContextKey, sessionId)
+          ? clearActiveDraftContextState()
+          : {}),
+      }
+    })
+  },
+
+  clearScopedDraftsForBranch(sessionId, branchId) {
+    set((state) => {
+      const nextDrafts = { ...state.scopedDrafts }
+      for (const contextKey of Object.keys(nextDrafts)) {
+        if (contextMatchesBranch(contextKey, sessionId, branchId)) {
+          delete nextDrafts[contextKey]
+        }
+      }
+      return {
+        scopedDrafts: nextDrafts,
+        ...(state.activeDraftContextKey &&
+        contextMatchesBranch(state.activeDraftContextKey, sessionId, branchId)
+          ? clearActiveDraftContextState()
+          : {}),
+      }
+    })
+  },
+
   removeAttachment(id: string) {
     set((s) => ({ attachments: s.attachments.filter((a) => a.id !== id) }))
   },
@@ -199,7 +371,7 @@ export const useComposerStore = create<ComposerState>((set, get) => ({
   },
 
   reset() {
-    const { promptHistory } = get()
+    const { activeDraftContextKey, promptHistory, scopedDrafts } = get()
     set({
       input: '',
       cursorIndex: 0,
@@ -212,6 +384,9 @@ export const useComposerStore = create<ComposerState>((set, get) => ({
       thinkingMenuOpen: false,
       executionMenuOpen: false,
       branchMenuOpen: false,
+      scopedDrafts: activeDraftContextKey
+        ? removeScopedDraft(scopedDrafts, activeDraftContextKey)
+        : scopedDrafts,
     })
   },
 }))

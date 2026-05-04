@@ -9,6 +9,7 @@ import type {
   SessionTranscriptEntry,
   SessionTree,
   SessionTreeUiState,
+  SessionTreeUiStatePatch,
   SessionWorkspace,
   SessionWorkspaceSelection,
 } from '@shared/types/session'
@@ -29,6 +30,7 @@ const CUSTOM_MESSAGE_ENTRY_TYPE = 'custom_message'
 const MAIN_BRANCH_NAME = 'main'
 const STANDARD_FUTURE_MODE = 'standard'
 const DEFAULT_UI_STATE_JSON = '{}'
+const EXPANDED_NODE_IDS_DEFAULT_JSON = '[]'
 const EMPTY_INDEX = 0
 const logger = createLogger('store/sessions')
 
@@ -50,6 +52,7 @@ interface SessionBranchRow {
   readonly head_node_id: string | null
   readonly name: string
   readonly is_main: number
+  readonly archived_at: number | null
   readonly created_at: number
   readonly updated_at: number
 }
@@ -65,6 +68,7 @@ interface SessionBranchStateRow {
 interface SessionTreeUiStateRow {
   readonly session_id: string
   readonly expanded_node_ids_json: string
+  readonly expanded_node_ids_touched: number
   readonly branches_sidebar_collapsed: number
   readonly updated_at: number
 }
@@ -165,6 +169,67 @@ function hydrateSessionSummary(row: SessionSummaryRow): SessionSummary {
   }
 }
 
+function fallbackMainBranch(session: SessionSummary): SessionBranch {
+  return {
+    id: mainBranchId(session.id),
+    sessionId: session.id,
+    sourceNodeId: null,
+    headNodeId: session.lastActiveNodeId ?? null,
+    name: MAIN_BRANCH_NAME,
+    isMain: true,
+    archivedAt: null,
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
+  }
+}
+
+function attachArchivedBranchState(
+  sessions: readonly SessionSummary[],
+  branchRows: readonly SessionBranchRow[],
+): SessionSummary[] {
+  const branchesBySessionId = new Map<string, SessionBranch[]>()
+  for (const row of branchRows) {
+    const branches = branchesBySessionId.get(row.session_id) ?? []
+    branches.push(hydrateBranch(row))
+    branchesBySessionId.set(row.session_id, branches)
+  }
+
+  return sessions.map((session) => ({
+    ...session,
+    branches: branchesBySessionId.get(String(session.id)) ?? [],
+    treeUiState: null,
+  }))
+}
+
+function attachSessionNavigationState(
+  sessions: readonly SessionSummary[],
+  branchRows: readonly SessionBranchRow[],
+  uiStateRows: readonly SessionTreeUiStateRow[],
+): SessionSummary[] {
+  const branchesBySessionId = new Map<string, SessionBranch[]>()
+  for (const row of branchRows) {
+    if (row.archived_at !== null) {
+      continue
+    }
+    const branches = branchesBySessionId.get(row.session_id) ?? []
+    branches.push(hydrateBranch(row))
+    branchesBySessionId.set(row.session_id, branches)
+  }
+
+  const uiStateBySessionId = new Map(
+    uiStateRows.map((row) => [row.session_id, hydrateUiState(row)]),
+  )
+
+  return sessions.map((session) => {
+    const branches = branchesBySessionId.get(String(session.id)) ?? [fallbackMainBranch(session)]
+    return {
+      ...session,
+      branches,
+      treeUiState: uiStateBySessionId.get(String(session.id)) ?? null,
+    }
+  })
+}
+
 function hydrateBranch(row: SessionBranchRow): SessionBranch {
   return {
     id: SessionBranchId(row.id),
@@ -173,6 +238,8 @@ function hydrateBranch(row: SessionBranchRow): SessionBranch {
     headNodeId: row.head_node_id ? SessionNodeId(row.head_node_id) : null,
     name: row.name,
     isMain: row.is_main === 1,
+    archived: row.archived_at === null ? undefined : true,
+    archivedAt: row.archived_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -192,6 +259,7 @@ function hydrateUiState(row: SessionTreeUiStateRow): SessionTreeUiState {
   return {
     sessionId: SessionId(row.session_id),
     expandedNodeIds: parseExpandedNodeIds(row.expanded_node_ids_json),
+    expandedNodeIdsTouched: row.expanded_node_ids_touched === 1,
     branchesSidebarCollapsed: row.branches_sidebar_collapsed === 1,
     updatedAt: row.updated_at,
   }
@@ -263,8 +331,17 @@ function findNodeById(
   return nodes.find((node) => node.id === nodeId) ?? null
 }
 
+function isVisibleBranch(branch: SessionBranch): boolean {
+  return branch.archived !== true
+}
+
 function getDefaultBranch(tree: SessionTree): SessionBranch | null {
-  return tree.branches.find((branch) => branch.isMain) ?? tree.branches[EMPTY_INDEX] ?? null
+  return (
+    tree.branches.find((branch) => branch.isMain && isVisibleBranch(branch)) ??
+    tree.branches.find(isVisibleBranch) ??
+    tree.branches[EMPTY_INDEX] ??
+    null
+  )
 }
 
 function getNodeBranch(tree: SessionTree, node: SessionNode | null): SessionBranch | null {
@@ -282,7 +359,9 @@ function resolveWorkspaceBranch(
   return (
     findBranchById(tree.branches, selection?.branchId) ??
     getNodeBranch(tree, selectedNode) ??
-    findBranchById(tree.branches, tree.session.lastActiveBranchId) ??
+    tree.branches.find(
+      (branch) => branch.id === tree.session.lastActiveBranchId && isVisibleBranch(branch),
+    ) ??
     getDefaultBranch(tree)
   )
 }
@@ -335,6 +414,174 @@ function buildSessionWorkspace(
   }
 }
 
+function selectMutableBranch(
+  sql: SqlClient.SqlClient,
+  sessionId: SessionId,
+  branchId: SessionBranchId,
+) {
+  return Effect.gen(function* () {
+    const rows = yield* sql<SessionBranchRow>`
+      SELECT
+        id,
+        session_id,
+        source_node_id,
+        head_node_id,
+        name,
+        is_main,
+        archived_at,
+        created_at,
+        updated_at
+      FROM session_branches
+      WHERE session_id = ${sessionId}
+        AND id = ${branchId}
+      LIMIT 1
+    `
+    const branch = rows[EMPTY_INDEX]
+    if (!branch || branch.is_main === 1) {
+      return yield* Effect.fail(new Error('Session branch not found or cannot be modified.'))
+    }
+    return branch
+  })
+}
+
+export async function archiveSessionBranch(
+  sessionId: SessionId,
+  branchId: SessionBranchId,
+): Promise<void> {
+  await runAppEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* selectMutableBranch(sql, sessionId, branchId)
+      const now = Date.now()
+      yield* sql`
+        UPDATE session_branches
+        SET archived_at = ${now},
+            updated_at = ${now}
+        WHERE session_id = ${sessionId}
+          AND id = ${branchId}
+          AND is_main = 0
+          AND archived_at IS NULL
+      `
+      yield* sql`
+        UPDATE sessions
+        SET last_active_branch_id = ${mainBranchId(sessionId)},
+            last_active_node_id = (
+              SELECT head_node_id
+              FROM session_branches
+              WHERE session_id = ${sessionId}
+                AND id = ${mainBranchId(sessionId)}
+              LIMIT 1
+            ),
+            updated_at = ${now}
+        WHERE id = ${sessionId}
+          AND last_active_branch_id = ${branchId}
+      `
+    }),
+  )
+}
+
+export async function restoreSessionBranch(
+  sessionId: SessionId,
+  branchId: SessionBranchId,
+): Promise<void> {
+  await runAppEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* selectMutableBranch(sql, sessionId, branchId)
+      const now = Date.now()
+      yield* sql`
+        UPDATE session_branches
+        SET archived_at = ${null},
+            updated_at = ${now}
+        WHERE session_id = ${sessionId}
+          AND id = ${branchId}
+          AND is_main = 0
+          AND archived_at IS NOT NULL
+      `
+    }),
+  )
+}
+
+export async function renameSessionBranch(
+  sessionId: SessionId,
+  branchId: SessionBranchId,
+  name: string,
+): Promise<void> {
+  const normalizedName = name.trim()
+  if (!normalizedName) {
+    throw new Error('Branch name must be non-empty.')
+  }
+
+  await runAppEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* selectMutableBranch(sql, sessionId, branchId)
+      const now = Date.now()
+      yield* sql`
+        UPDATE session_branches
+        SET name = ${normalizedName},
+            updated_at = ${now}
+        WHERE session_id = ${sessionId}
+          AND id = ${branchId}
+          AND is_main = 0
+      `
+    }),
+  )
+}
+
+export async function updateSessionTreeUiState(
+  sessionId: SessionId,
+  patch: SessionTreeUiStatePatch,
+): Promise<void> {
+  await runAppEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const existingRows = yield* sql<SessionTreeUiStateRow>`
+        SELECT
+          session_id,
+          expanded_node_ids_json,
+          expanded_node_ids_touched,
+          branches_sidebar_collapsed,
+          updated_at
+        FROM session_tree_ui_state
+        WHERE session_id = ${sessionId}
+        LIMIT 1
+      `
+      const existing = existingRows[EMPTY_INDEX]
+      const expandedNodeIdsJson = patch.expandedNodeIds
+        ? JSON.stringify(patch.expandedNodeIds.map((id) => String(id)))
+        : (existing?.expanded_node_ids_json ?? EXPANDED_NODE_IDS_DEFAULT_JSON)
+      const expandedNodeIdsTouched =
+        patch.expandedNodeIds !== undefined ? true : existing?.expanded_node_ids_touched === 1
+      const branchesSidebarCollapsed =
+        patch.branchesSidebarCollapsed ?? existing?.branches_sidebar_collapsed === 1
+      const now = Date.now()
+
+      yield* sql`
+        INSERT INTO session_tree_ui_state (
+          session_id,
+          expanded_node_ids_json,
+          expanded_node_ids_touched,
+          branches_sidebar_collapsed,
+          updated_at
+        )
+        VALUES (
+          ${sessionId},
+          ${expandedNodeIdsJson},
+          ${expandedNodeIdsTouched ? 1 : 0},
+          ${branchesSidebarCollapsed ? 1 : 0},
+          ${now}
+        )
+        ON CONFLICT(session_id) DO UPDATE SET
+          expanded_node_ids_json = excluded.expanded_node_ids_json,
+          expanded_node_ids_touched = excluded.expanded_node_ids_touched,
+          branches_sidebar_collapsed = excluded.branches_sidebar_collapsed,
+          updated_at = excluded.updated_at
+      `
+    }),
+  )
+}
+
 export async function listSessions(limit?: number): Promise<SessionSummary[]> {
   return runAppEffect(
     Effect.gen(function* () {
@@ -355,8 +602,95 @@ export async function listSessions(limit?: number): Promise<SessionSummary[]> {
         ORDER BY updated_at DESC
         LIMIT ${effectiveLimit}
       `
+      const sessions = rows.map(hydrateSessionSummary)
 
-      return rows.map(hydrateSessionSummary)
+      if (sessions.length === 0) {
+        return []
+      }
+
+      const sessionIds = sessions.map((session) => String(session.id))
+      const branchRows = yield* sql<SessionBranchRow>`
+        SELECT
+          id,
+          session_id,
+          source_node_id,
+          head_node_id,
+          name,
+          is_main,
+          archived_at,
+          created_at,
+          updated_at
+        FROM session_branches
+        WHERE session_id IN ${sql.in(sessionIds)}
+        ORDER BY session_id ASC, created_at ASC
+      `
+      const uiStateRows = yield* sql<SessionTreeUiStateRow>`
+        SELECT
+          session_id,
+          expanded_node_ids_json,
+          expanded_node_ids_touched,
+          branches_sidebar_collapsed,
+          updated_at
+        FROM session_tree_ui_state
+        WHERE session_id IN ${sql.in(sessionIds)}
+      `
+
+      return attachSessionNavigationState(sessions, branchRows, uiStateRows)
+    }),
+  )
+}
+
+export async function listArchivedSessionBranches(limit?: number): Promise<SessionSummary[]> {
+  return runAppEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const effectiveLimit = limit ?? -1
+      const rows = yield* sql<SessionSummaryRow>`
+        SELECT
+          id,
+          title,
+          project_path,
+          archived,
+          created_at,
+          updated_at,
+          last_active_node_id,
+          last_active_branch_id
+        FROM sessions
+        WHERE archived = 0
+          AND EXISTS (
+            SELECT 1
+            FROM session_branches
+            WHERE session_branches.session_id = sessions.id
+              AND session_branches.archived_at IS NOT NULL
+          )
+        ORDER BY updated_at DESC
+        LIMIT ${effectiveLimit}
+      `
+      const sessions = rows.map(hydrateSessionSummary)
+
+      if (sessions.length === 0) {
+        return []
+      }
+
+      const sessionIds = sessions.map((session) => String(session.id))
+      const branchRows = yield* sql<SessionBranchRow>`
+        SELECT
+          id,
+          session_id,
+          source_node_id,
+          head_node_id,
+          name,
+          is_main,
+          archived_at,
+          created_at,
+          updated_at
+        FROM session_branches
+        WHERE session_id IN ${sql.in(sessionIds)}
+          AND archived_at IS NOT NULL
+        ORDER BY session_id ASC, archived_at DESC, created_at ASC
+      `
+
+      return attachArchivedBranchState(sessions, branchRows)
     }),
   )
 }
@@ -405,6 +739,7 @@ export async function getSessionTree(sessionId: SessionId): Promise<SessionTree 
           head_node_id,
           name,
           is_main,
+          archived_at,
           created_at,
           updated_at
         FROM session_branches
@@ -428,6 +763,7 @@ export async function getSessionTree(sessionId: SessionId): Promise<SessionTree 
         SELECT
           session_id,
           expanded_node_ids_json,
+          expanded_node_ids_touched,
           branches_sidebar_collapsed,
           updated_at
         FROM session_tree_ui_state
@@ -484,6 +820,7 @@ export async function getSessionTree(sessionId: SessionId): Promise<SessionTree 
                   headNodeId: lastNode?.id ?? null,
                   name: MAIN_BRANCH_NAME,
                   isMain: true,
+                  archivedAt: null,
                   createdAt: session.createdAt,
                   updatedAt: session.updatedAt,
                 },

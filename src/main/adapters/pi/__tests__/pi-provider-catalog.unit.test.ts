@@ -61,6 +61,76 @@ describe('getPiModelAvailableThinkingLevels', () => {
 })
 
 describe('createPiRuntimeServices', () => {
+  it('prefers .openwaggle resources over Pi-native project resources on name collisions', async () => {
+    const projectPath = await createTempProject()
+    const openWaggleSkill = await writeSkill(projectPath, '.openwaggle', 'shared-skill')
+    const piSkill = await writeSkill(projectPath, '.pi', 'shared-skill')
+    const agentsSkill = await writeSkill(projectPath, '.agents', 'shared-skill')
+
+    const skillPaths = await loadedSkillPaths(projectPath)
+
+    expect(skillPaths).toContain(openWaggleSkill)
+    expect(skillPaths).not.toContain(piSkill)
+    expect(skillPaths).not.toContain(agentsSkill)
+  })
+
+  it('falls back from .openwaggle to .pi, then .agents on skill collisions', async () => {
+    const projectPath = await createTempProject()
+    const openWaggleSkill = await writeSkill(projectPath, '.openwaggle', 'shared-skill')
+    const piSkill = await writeSkill(projectPath, '.pi', 'shared-skill')
+    const agentsSkill = await writeSkill(projectPath, '.agents', 'shared-skill')
+
+    expect(await loadedSkillPaths(projectPath)).toContain(openWaggleSkill)
+
+    await fs.rm(path.dirname(openWaggleSkill), { recursive: true, force: true })
+    const piFallbackPaths = await loadedSkillPaths(projectPath)
+    expect(piFallbackPaths).toContain(piSkill)
+    expect(piFallbackPaths).not.toContain(agentsSkill)
+
+    await fs.rm(path.dirname(piSkill), { recursive: true, force: true })
+    expect(await loadedSkillPaths(projectPath)).toContain(agentsSkill)
+  })
+
+  it('injects ordered project resource roots for every Pi resource kind', async () => {
+    const projectPath = await createTempProject()
+    await writeJson(path.join(projectPath, '.openwaggle', 'settings.json'), {
+      pi: {
+        skills: ['skills/custom'],
+        extensions: ['extensions/custom'],
+        prompts: ['prompts/custom'],
+        themes: ['themes/custom'],
+      },
+    })
+
+    const services = await createPiRuntimeServices(projectPath)
+    const projectSettings = services.settingsManager.getProjectSettings()
+
+    expect(projectSettings.skills).toEqual([
+      path.join('..', '.openwaggle', 'skills'),
+      'skills',
+      path.join('..', '.agents', 'skills'),
+      'skills/custom',
+    ])
+    expect(projectSettings.extensions).toEqual([
+      path.join('..', '.openwaggle', 'extensions'),
+      'extensions',
+      path.join('..', '.agents', 'extensions'),
+      'extensions/custom',
+    ])
+    expect(projectSettings.prompts).toEqual([
+      path.join('..', '.openwaggle', 'prompts'),
+      'prompts',
+      path.join('..', '.agents', 'prompts'),
+      'prompts/custom',
+    ])
+    expect(projectSettings.themes).toEqual([
+      path.join('..', '.openwaggle', 'themes'),
+      'themes',
+      path.join('..', '.agents', 'themes'),
+      'themes/custom',
+    ])
+  })
+
   it('loads .openwaggle/skills together with Pi-native project skills', async () => {
     const projectPath = await createTempProject()
     const openWaggleSkill = await writeSkill(projectPath, '.openwaggle', 'openwaggle-skill')

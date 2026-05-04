@@ -9,6 +9,7 @@ import { PiProviderAuthLive } from './adapters/pi/pi-provider-auth-service'
 import { PiProviderOAuthLive } from './adapters/pi/pi-provider-oauth-service'
 import { PiProviderProbeLive } from './adapters/pi/pi-provider-probe-adapter'
 import { ProviderServiceLive } from './adapters/pi/pi-provider-service'
+import { PiSessionTreePreferencesLive } from './adapters/pi/pi-session-tree-preferences-service'
 import { SqliteSessionProjectionRepositoryLive } from './adapters/sqlite-session-projection-repository'
 import { SqliteSessionRepositoryLive } from './adapters/sqlite-session-repository'
 import { SqliteTeamsRepositoryLive } from './adapters/sqlite-teams-repository'
@@ -30,6 +31,7 @@ const AppLayer = Layer.mergeAll(
   PiProviderProbeLive,
   PiProviderOAuthLive,
   ProviderServiceLive,
+  PiSessionTreePreferencesLive,
   SqliteTeamsRepositoryLive,
 )
 

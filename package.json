@@ -76,6 +76,7 @@
     "@lobehub/icons-static-svg": "^1.87.0",
     "@mariozechner/pi-coding-agent": "0.70.2",
     "@sinclair/typebox": "0.34.49",
+    "@tanstack/react-hotkeys": "^0.10.0",
     "@tanstack/react-router": "^1.168.23",
     "@xenova/transformers": "2.17.2",
     "ajv": "^8.18.0",

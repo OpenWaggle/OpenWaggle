@@ -1,4 +1,4 @@
-import { Bug, Hash, PanelLeft, SquareTerminal } from 'lucide-react'
+import { Bug, GitBranch, Hash, PanelLeft, SquareTerminal } from 'lucide-react'
 import { useState } from 'react'
 import { CommitDialog } from '@/components/layout/CommitDialog'
 import { useChat } from '@/hooks/useChat'
@@ -35,7 +35,8 @@ export function Header() {
   } = useGit()
 
   const [commitOpen, setCommitOpen] = useState(false)
-  const { diffOpen, isChatRoute, toggleDiff } = useDiffRouteNavigation()
+  const { diffOpen, isChatRoute, sessionTreeOpen, toggleDiff, toggleSessionTree } =
+    useDiffRouteNavigation()
 
   function handleRefreshGit(): void {
     void refreshGitStatus(projectPath)
@@ -158,6 +159,22 @@ export function Header() {
 
           {/* Divider */}
           <div className="w-px h-5 bg-border" />
+
+          <button
+            type="button"
+            aria-label="Toggle Session Tree"
+            aria-expanded={sessionTreeOpen}
+            onClick={toggleSessionTree}
+            disabled={!activeSessionTree || !isChatRoute}
+            className={cn(
+              'no-drag flex h-7 items-center gap-1 rounded-[5px] border border-button-border px-2 transition-colors hover:bg-bg-hover',
+              (!activeSessionTree || !isChatRoute) && 'pointer-events-none opacity-30',
+              sessionTreeOpen && 'bg-bg-active text-text-primary',
+            )}
+            title={activeSessionTree ? 'Toggle Session Tree' : 'No session tree available'}
+          >
+            <GitBranch className="h-3.5 w-3.5 text-text-secondary" />
+          </button>
 
           {/* Diff stats — clickable to toggle diff panel */}
           <button

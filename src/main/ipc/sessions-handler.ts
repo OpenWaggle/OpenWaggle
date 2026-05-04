@@ -1,6 +1,10 @@
 import { ConversationId, SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
-import type { SessionNavigateTreeOptions, SessionWorkspaceSelection } from '@shared/types/session'
+import type {
+  SessionNavigateTreeOptions,
+  SessionTreeUiStatePatch,
+  SessionWorkspaceSelection,
+} from '@shared/types/session'
 import { isRecord } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
 import { navigateAgentSessionTree } from '../application/agent-session-service'
@@ -63,6 +67,19 @@ function validateOptionalSessionBranchId(
   return Effect.succeed(SessionBranchId(branchId))
 }
 
+function validateBranchName(name: unknown): Effect.Effect<string, Error> {
+  if (typeof name !== 'string') {
+    return Effect.fail(new Error('Session branch name must be a string.'))
+  }
+
+  const trimmed = name.trim()
+  if (!trimmed) {
+    return Effect.fail(new Error('Session branch name must be non-empty.'))
+  }
+
+  return Effect.succeed(trimmed)
+}
+
 function validateWorkspaceSelection(
   selection: SessionWorkspaceSelection | undefined,
 ): Effect.Effect<SessionWorkspaceSelection | undefined, Error> {
@@ -80,6 +97,48 @@ function validateWorkspaceSelection(
     return {
       branchId,
       nodeId,
+    }
+  })
+}
+
+function validateTreeUiStatePatch(
+  patch: SessionTreeUiStatePatch,
+): Effect.Effect<SessionTreeUiStatePatch, Error> {
+  if (!isRecord(patch)) {
+    return Effect.fail(new Error('Session tree UI state patch must be an object.'))
+  }
+
+  return Effect.gen(function* () {
+    const hasExpandedNodeIds = patch.expandedNodeIds !== undefined
+    const hasBranchesSidebarCollapsed = patch.branchesSidebarCollapsed !== undefined
+    if (!hasExpandedNodeIds && !hasBranchesSidebarCollapsed) {
+      return yield* Effect.fail(
+        new Error('Session tree UI state patch must include at least one field.'),
+      )
+    }
+
+    const expandedNodeIds: SessionNodeId[] = []
+    if (hasExpandedNodeIds) {
+      if (!Array.isArray(patch.expandedNodeIds)) {
+        return yield* Effect.fail(new Error('Expanded session node IDs must be an array.'))
+      }
+      for (const nodeId of patch.expandedNodeIds) {
+        expandedNodeIds.push(yield* validateSessionNodeId(nodeId))
+      }
+    }
+
+    if (
+      patch.branchesSidebarCollapsed !== undefined &&
+      typeof patch.branchesSidebarCollapsed !== 'boolean'
+    ) {
+      return yield* Effect.fail(new Error('Branches sidebar collapsed must be a boolean.'))
+    }
+
+    return {
+      ...(hasExpandedNodeIds ? { expandedNodeIds } : {}),
+      ...(hasBranchesSidebarCollapsed
+        ? { branchesSidebarCollapsed: patch.branchesSidebarCollapsed }
+        : {}),
     }
   })
 }
@@ -119,6 +178,15 @@ export function registerSessionsHandlers(): void {
       const validatedLimit = yield* validateListLimit(limit)
       const repo = yield* SessionRepository
       const results = yield* repo.list(validatedLimit)
+      return [...results]
+    }),
+  )
+
+  typedHandle('sessions:list-archived-branches', (_event, limit?: number) =>
+    Effect.gen(function* () {
+      const validatedLimit = yield* validateListLimit(limit)
+      const repo = yield* SessionRepository
+      const results = yield* repo.listArchivedBranches(validatedLimit)
       return [...results]
     }),
   )
@@ -166,6 +234,60 @@ export function registerSessionsHandlers(): void {
             ? { customInstructions: validatedOptions.customInstructions }
             : {}),
         })
+      }),
+  )
+
+  typedHandle(
+    'sessions:rename-branch',
+    (_event, sessionId: SessionId, branchId: SessionBranchId, name: string) =>
+      Effect.gen(function* () {
+        const validatedSessionId = yield* validateSessionId(sessionId)
+        const validatedBranchId = yield* validateOptionalSessionBranchId(branchId)
+        const validatedName = yield* validateBranchName(name)
+        if (!validatedBranchId) {
+          return yield* Effect.fail(new Error('Session branch ID must be a non-empty string.'))
+        }
+        const repo = yield* SessionRepository
+        return yield* repo.renameBranch(validatedSessionId, validatedBranchId, validatedName)
+      }),
+  )
+
+  typedHandle(
+    'sessions:archive-branch',
+    (_event, sessionId: SessionId, branchId: SessionBranchId) =>
+      Effect.gen(function* () {
+        const validatedSessionId = yield* validateSessionId(sessionId)
+        const validatedBranchId = yield* validateOptionalSessionBranchId(branchId)
+        if (!validatedBranchId) {
+          return yield* Effect.fail(new Error('Session branch ID must be a non-empty string.'))
+        }
+        const repo = yield* SessionRepository
+        return yield* repo.archiveBranch(validatedSessionId, validatedBranchId)
+      }),
+  )
+
+  typedHandle(
+    'sessions:restore-branch',
+    (_event, sessionId: SessionId, branchId: SessionBranchId) =>
+      Effect.gen(function* () {
+        const validatedSessionId = yield* validateSessionId(sessionId)
+        const validatedBranchId = yield* validateOptionalSessionBranchId(branchId)
+        if (!validatedBranchId) {
+          return yield* Effect.fail(new Error('Session branch ID must be a non-empty string.'))
+        }
+        const repo = yield* SessionRepository
+        return yield* repo.restoreBranch(validatedSessionId, validatedBranchId)
+      }),
+  )
+
+  typedHandle(
+    'sessions:update-tree-ui-state',
+    (_event, sessionId: SessionId, patch: SessionTreeUiStatePatch) =>
+      Effect.gen(function* () {
+        const validatedSessionId = yield* validateSessionId(sessionId)
+        const validatedPatch = yield* validateTreeUiStatePatch(patch)
+        const repo = yield* SessionRepository
+        return yield* repo.updateTreeUiState(validatedSessionId, validatedPatch)
       }),
   )
 }

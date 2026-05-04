@@ -2,6 +2,8 @@ import { ConversationId, type SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
 import { resolveSessionStatusPill, TERMINAL_STATUSES } from '@shared/types/session-status'
 import {
+  ChevronDown,
+  ChevronRight,
   CircleCheck,
   CirclePause,
   ClipboardList,
@@ -46,6 +48,9 @@ interface SessionListItemProps {
   readonly onSelect: (id: ConversationId) => void
   readonly onDelete: (id: ConversationId) => void
   readonly onMarkUnread: (id: ConversationId) => void
+  readonly hasBranchDisclosure?: boolean
+  readonly branchesCollapsed?: boolean
+  readonly onToggleBranches?: () => void
 }
 
 function sessionConversationId(sessionId: SessionId): ConversationId {
@@ -59,6 +64,9 @@ export function SessionListItem({
   onSelect,
   onDelete,
   onMarkUnread,
+  hasBranchDisclosure = false,
+  branchesCollapsed = false,
+  onToggleBranches,
 }: SessionListItemProps) {
   const conversationId = sessionConversationId(session.id)
   const status = useSessionStatusStore((s) => s.statuses.get(conversationId) ?? 'idle')
@@ -101,6 +109,23 @@ export function SessionListItem({
       )}
       onContextMenu={handleContextMenu}
     >
+      {hasBranchDisclosure ? (
+        <button
+          type="button"
+          aria-label={branchesCollapsed ? 'Expand branches' : 'Collapse branches'}
+          onClick={(event) => {
+            event.stopPropagation()
+            onToggleBranches?.()
+          }}
+          className="mr-1 flex h-4 w-4 shrink-0 items-center justify-center rounded text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
+        >
+          {branchesCollapsed ? (
+            <ChevronRight className="h-3 w-3" />
+          ) : (
+            <ChevronDown className="h-3 w-3" />
+          )}
+        </button>
+      ) : null}
       {pill && StatusIcon ? (
         <span className="mr-2 flex h-3.5 w-3.5 shrink-0 items-center justify-center">
           <StatusIcon className={cn('h-3.5 w-3.5', pill.colorClass, pill.animateClass)} />
