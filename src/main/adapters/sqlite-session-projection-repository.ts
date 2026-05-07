@@ -14,19 +14,19 @@ import {
 } from '../ports/session-projection-repository'
 
 export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => {
-  const store = await import('../store/session-conversations')
+  const store = await import('../store/session-details')
 
   return Layer.succeed(
     SessionProjectionRepository,
     SessionProjectionRepository.of({
       get: (id) =>
         Effect.tryPromise({
-          try: () => store.getConversation(id),
+          try: () => store.getSessionDetail(id),
           catch: (cause) => new SessionProjectionRepositoryError({ operation: 'get', cause }),
         }).pipe(
-          Effect.flatMap((conversation) =>
-            conversation
-              ? Effect.succeed(conversation)
+          Effect.flatMap((session) =>
+            session
+              ? Effect.succeed(session)
               : Effect.fail(
                   new SessionProjectionRepositoryError({
                     operation: 'get',
@@ -38,57 +38,58 @@ export const SqliteSessionProjectionRepositoryLive = Effect.promise(async () => 
 
       getOptional: (id) =>
         Effect.tryPromise({
-          try: () => store.getConversation(id),
+          try: () => store.getSessionDetail(id),
           catch: (cause) =>
             new SessionProjectionRepositoryError({ operation: 'getOptional', cause }),
         }),
 
       list: (limit) =>
         Effect.tryPromise({
-          try: () => store.listConversations(limit),
+          try: () => store.listSessionSummaries(limit),
           catch: (cause) => new SessionProjectionRepositoryError({ operation: 'list', cause }),
         }),
 
-      listFull: (limit) =>
+      listDetails: (limit) =>
         Effect.tryPromise({
-          try: () => store.listFullConversations(limit),
-          catch: (cause) => new SessionProjectionRepositoryError({ operation: 'listFull', cause }),
+          try: () => store.listSessionDetails(limit),
+          catch: (cause) =>
+            new SessionProjectionRepositoryError({ operation: 'listDetails', cause }),
         }),
 
       create: (input) =>
         Effect.tryPromise({
-          try: () => store.createConversation(input),
+          try: () => store.createSession(input),
           catch: (cause) => new SessionProjectionRepositoryError({ operation: 'create', cause }),
         }),
 
       delete: (id) =>
         Effect.tryPromise({
-          try: () => store.deleteConversation(id),
+          try: () => store.deleteSession(id),
           catch: (cause) => new SessionProjectionRepositoryError({ operation: 'delete', cause }),
         }),
 
       archive: (id) =>
         Effect.tryPromise({
-          try: () => store.archiveConversation(id),
+          try: () => store.archiveSession(id),
           catch: (cause) => new SessionProjectionRepositoryError({ operation: 'archive', cause }),
         }),
 
       unarchive: (id) =>
         Effect.tryPromise({
-          try: () => store.unarchiveConversation(id),
+          try: () => store.unarchiveSession(id),
           catch: (cause) => new SessionProjectionRepositoryError({ operation: 'unarchive', cause }),
         }),
 
       listArchived: () =>
         Effect.tryPromise({
-          try: () => store.listArchivedConversations(),
+          try: () => store.listArchivedSessions(),
           catch: (cause) =>
             new SessionProjectionRepositoryError({ operation: 'listArchived', cause }),
         }),
 
       updateTitle: (id, title) =>
         Effect.tryPromise({
-          try: () => store.updateConversationTitle(id, title),
+          try: () => store.updateSessionTitle(id, title),
           catch: (cause) =>
             new SessionProjectionRepositoryError({ operation: 'updateTitle', cause }),
         }),

@@ -1,4 +1,4 @@
-import { ConversationId, SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
+import { SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type {
   SessionNavigateTreeOptions,
@@ -224,7 +224,7 @@ export function registerSessionsHandlers(): void {
         const validatedTargetNodeId = yield* validateSessionNodeId(targetNodeId)
         const validatedOptions = yield* validateNavigateTreeOptions(options)
         return yield* navigateAgentSessionTree({
-          conversationId: ConversationId(String(validatedSessionId)),
+          sessionId: SessionId(String(validatedSessionId)),
           model,
           targetNodeId: validatedTargetNodeId,
           ...(validatedOptions?.summarize !== undefined

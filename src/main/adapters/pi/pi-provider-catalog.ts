@@ -6,6 +6,7 @@ import {
   AuthStorage,
   type CreateAgentSessionServicesOptions,
   createAgentSessionServices,
+  type ExtensionFactory,
   getAgentDir,
   ModelRegistry,
   type SettingsManager,
@@ -54,6 +55,7 @@ interface PiModelRuntime {
 
 interface PiRuntimeServicesOptions {
   readonly skillToggles?: Readonly<Record<string, boolean>>
+  readonly extensionFactories?: readonly ExtensionFactory[]
 }
 
 export interface PiProjectModelRuntime extends PiModelRuntime {
@@ -294,6 +296,7 @@ export function createOpenWagglePiResourceLoaderOptions(
       ? []
       : includeExistingPath(getOpenWaggleThemesRoot(projectPath)),
     skillsOverride: (base) => filterDisabledCatalogSkills(projectPath, skillToggles, base),
+    ...(options.extensionFactories ? { extensionFactories: [...options.extensionFactories] } : {}),
   }
 }
 
@@ -392,11 +395,12 @@ export async function createPiProjectModelRuntime(input: {
   readonly projectPath: string
   readonly modelReference: string
   readonly skillToggles?: Readonly<Record<string, boolean>>
+  readonly extensionFactories?: readonly ExtensionFactory[]
 }): Promise<PiProjectModelRuntime> {
-  const services = await createPiRuntimeServices(
-    input.projectPath,
-    input.skillToggles ? { skillToggles: input.skillToggles } : {},
-  )
+  const services = await createPiRuntimeServices(input.projectPath, {
+    ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
+    ...(input.extensionFactories ? { extensionFactories: input.extensionFactories } : {}),
+  })
   const model = findPiModel(services.modelRegistry, input.modelReference)
   if (!model) {
     throw new Error(`Pi model registry could not resolve model ${input.modelReference}`)

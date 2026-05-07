@@ -1,8 +1,8 @@
-import type { ConversationId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 import type { AgentPhaseState } from '@shared/types/phase'
 import type { AgentTransportEvent } from '@shared/types/stream'
 
-interface ConversationPhaseState {
+interface SessionPhaseState {
   current: AgentPhaseState | null
   runStatus: 'idle' | 'running'
 }
@@ -12,14 +12,14 @@ interface PhaseChangeResult {
   readonly phase: AgentPhaseState | null
 }
 
-const states = new Map<string, ConversationPhaseState>()
+const states = new Map<string, SessionPhaseState>()
 
-function getState(conversationId: ConversationId): ConversationPhaseState {
-  const key = String(conversationId)
+function getState(sessionId: SessionId): SessionPhaseState {
+  const key = String(sessionId)
   const existing = states.get(key)
   if (existing) return existing
 
-  const created: ConversationPhaseState = {
+  const created: SessionPhaseState = {
     current: null,
     runStatus: 'idle',
   }
@@ -28,7 +28,7 @@ function getState(conversationId: ConversationId): ConversationPhaseState {
 }
 
 function setPhase(
-  state: ConversationPhaseState,
+  state: SessionPhaseState,
   label: AgentPhaseState['label'],
   startedAt: number,
 ): PhaseChangeResult {
@@ -40,8 +40,8 @@ function setPhase(
   return { changed: true, phase: next }
 }
 
-function clearPhase(conversationId: ConversationId): PhaseChangeResult {
-  const key = String(conversationId)
+function clearPhase(sessionId: SessionId): PhaseChangeResult {
+  const key = String(sessionId)
   const state = states.get(key)
   if (!state) {
     return { changed: false, phase: null }
@@ -53,11 +53,11 @@ function clearPhase(conversationId: ConversationId): PhaseChangeResult {
 }
 
 export function updatePhaseFromTransportEvent(
-  conversationId: ConversationId,
+  sessionId: SessionId,
   event: AgentTransportEvent,
   now: number,
 ): PhaseChangeResult {
-  const state = getState(conversationId)
+  const state = getState(sessionId)
 
   if (event.type === 'agent_start') {
     state.runStatus = 'running'
@@ -80,17 +80,17 @@ export function updatePhaseFromTransportEvent(
   }
 
   if (event.type === 'agent_end') {
-    return clearPhase(conversationId)
+    return clearPhase(sessionId)
   }
 
   return { changed: false, phase: state.current }
 }
 
-export function resetPhaseForConversation(conversationId: ConversationId): PhaseChangeResult {
-  return clearPhase(conversationId)
+export function resetPhaseForSession(sessionId: SessionId): PhaseChangeResult {
+  return clearPhase(sessionId)
 }
 
-export function getPhaseForConversation(conversationId: ConversationId): AgentPhaseState | null {
-  const state = states.get(String(conversationId))
+export function getPhaseForSession(sessionId: SessionId): AgentPhaseState | null {
+  const state = states.get(String(sessionId))
   return state?.current ?? null
 }

@@ -52,6 +52,11 @@ const TestSessionRepositoryLayer = Layer.succeed(SessionRepository, {
   restoreBranch: (sessionId, branchId) => Effect.sync(() => restoreBranchMock(sessionId, branchId)),
   updateTreeUiState: (sessionId, patch) =>
     Effect.sync(() => updateTreeUiStateMock(sessionId, patch)),
+  recordActiveRun: () => Effect.void,
+  clearActiveRun: () => Effect.void,
+  clearInterruptedRuns: () => Effect.void,
+  listActiveRunsForRecovery: () => Effect.succeed([]),
+  markActiveRunInterrupted: () => Effect.void,
 })
 
 function requireTypedEffectInvokeHandler(name: string): (...args: unknown[]) => Promise<unknown> {

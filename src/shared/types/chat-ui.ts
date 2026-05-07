@@ -26,6 +26,7 @@ export interface ChatToolResultPart {
   readonly toolCallId: string
   readonly content: unknown
   readonly state: string
+  readonly sourceMessageId?: string
   readonly error?: string
   readonly output?: unknown
 }
@@ -69,7 +70,12 @@ export interface ChatCompactionSummaryMetadata {
   readonly tokensBefore: number
 }
 
+export interface ChatBranchSummaryMetadata {
+  readonly summary: string
+}
+
 export interface UIMessageMetadata {
+  readonly branchSummary?: ChatBranchSummaryMetadata
   readonly compactionSummary?: ChatCompactionSummaryMetadata
 }
 

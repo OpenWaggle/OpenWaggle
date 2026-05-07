@@ -1,12 +1,12 @@
 import type { MessagePart } from '@shared/types/agent'
 import type { ActiveRunInfo, BackgroundRunSnapshot, RunMode } from '@shared/types/background-run'
-import { type ConversationId, ToolCallId } from '@shared/types/brand'
+import { type SessionId, ToolCallId } from '@shared/types/brand'
 import type { JsonObject, JsonValue } from '@shared/types/json'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { AgentPhaseEventPayload } from '@shared/types/phase'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import type { WaggleStreamMetadata, WaggleTurnEvent } from '@shared/types/waggle'
-import { resetPhaseForConversation, updatePhaseFromTransportEvent } from '../agent/phase-tracker'
+import { resetPhaseForSession, updatePhaseFromTransportEvent } from '../agent/phase-tracker'
 import { broadcastToWindows } from './broadcast'
 
 // ─── Active Run Tracking ─────────────────────────────────────
@@ -18,7 +18,7 @@ interface ActiveStreamBuffer {
   readonly parts: readonly MessagePart[]
 }
 
-const activeBuffers = new Map<ConversationId, ActiveStreamBuffer>()
+const activeBuffers = new Map<SessionId, ActiveStreamBuffer>()
 
 function isJsonObject(value: JsonValue | undefined): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -103,42 +103,37 @@ function appendToolResultPart(input: {
 }
 
 function updateBufferedParts(
-  conversationId: ConversationId,
+  sessionId: SessionId,
   update: (parts: readonly MessagePart[]) => readonly MessagePart[],
 ): void {
-  const buffer = activeBuffers.get(conversationId)
+  const buffer = activeBuffers.get(sessionId)
   if (!buffer) return
-  activeBuffers.set(conversationId, {
+  activeBuffers.set(sessionId, {
     ...buffer,
     parts: update(buffer.parts),
   })
 }
 
-function applyEventToStreamBuffer(
-  conversationId: ConversationId,
-  event: AgentTransportEvent,
-): void {
+function applyEventToStreamBuffer(sessionId: SessionId, event: AgentTransportEvent): void {
   if (event.type === 'message_start' && event.role === 'assistant') {
-    updateBufferedParts(conversationId, () => [])
+    updateBufferedParts(sessionId, () => [])
     return
   }
 
   if (event.type === 'message_update') {
     const assistantEvent = event.assistantMessageEvent
     if (assistantEvent.type === 'text_delta') {
-      updateBufferedParts(conversationId, (parts) => appendTextPart(parts, assistantEvent.delta))
+      updateBufferedParts(sessionId, (parts) => appendTextPart(parts, assistantEvent.delta))
       return
     }
 
     if (assistantEvent.type === 'thinking_delta') {
-      updateBufferedParts(conversationId, (parts) =>
-        appendReasoningPart(parts, assistantEvent.delta),
-      )
+      updateBufferedParts(sessionId, (parts) => appendReasoningPart(parts, assistantEvent.delta))
       return
     }
 
     if (assistantEvent.type === 'toolcall_start' || assistantEvent.type === 'toolcall_end') {
-      updateBufferedParts(conversationId, (parts) =>
+      updateBufferedParts(sessionId, (parts) =>
         upsertToolCallPart({
           parts,
           toolCallId: assistantEvent.toolCallId,
@@ -150,7 +145,7 @@ function applyEventToStreamBuffer(
     }
 
     if (assistantEvent.type === 'toolcall_delta' && assistantEvent.input !== undefined) {
-      updateBufferedParts(conversationId, (parts) =>
+      updateBufferedParts(sessionId, (parts) =>
         upsertToolCallPart({
           parts,
           toolCallId: assistantEvent.toolCallId,
@@ -162,7 +157,7 @@ function applyEventToStreamBuffer(
   }
 
   if (event.type === 'tool_execution_start' || event.type === 'tool_execution_update') {
-    updateBufferedParts(conversationId, (parts) =>
+    updateBufferedParts(sessionId, (parts) =>
       upsertToolCallPart({
         parts,
         toolCallId: event.toolCallId,
@@ -174,7 +169,7 @@ function applyEventToStreamBuffer(
   }
 
   if (event.type === 'tool_execution_end') {
-    updateBufferedParts(conversationId, (parts) =>
+    updateBufferedParts(sessionId, (parts) =>
       appendToolResultPart({
         parts: upsertToolCallPart({
           parts,
@@ -193,11 +188,11 @@ function applyEventToStreamBuffer(
 }
 
 export function startStreamBuffer(
-  conversationId: ConversationId,
+  sessionId: SessionId,
   model: SupportedModelId,
   mode: RunMode,
 ): void {
-  activeBuffers.set(conversationId, {
+  activeBuffers.set(sessionId, {
     model,
     mode,
     startedAt: Date.now(),
@@ -205,15 +200,15 @@ export function startStreamBuffer(
   })
 }
 
-export function clearStreamBuffer(conversationId: ConversationId): void {
-  activeBuffers.delete(conversationId)
+export function clearStreamBuffer(sessionId: SessionId): void {
+  activeBuffers.delete(sessionId)
 }
 
-export function getStreamBuffer(conversationId: ConversationId): BackgroundRunSnapshot | null {
-  const buffer = activeBuffers.get(conversationId)
+export function getStreamBuffer(sessionId: SessionId): BackgroundRunSnapshot | null {
+  const buffer = activeBuffers.get(sessionId)
   if (!buffer) return null
   return {
-    conversationId,
+    sessionId,
     model: buffer.model,
     mode: buffer.mode,
     startedAt: buffer.startedAt,
@@ -223,9 +218,9 @@ export function getStreamBuffer(conversationId: ConversationId): BackgroundRunSn
 
 export function listStreamBuffers(): ActiveRunInfo[] {
   const result: ActiveRunInfo[] = []
-  for (const [conversationId, buffer] of activeBuffers) {
+  for (const [sessionId, buffer] of activeBuffers) {
     result.push({
-      conversationId,
+      sessionId,
       model: buffer.model,
       mode: buffer.mode,
       startedAt: buffer.startedAt,
@@ -234,33 +229,30 @@ export function listStreamBuffers(): ActiveRunInfo[] {
   return result
 }
 
-export function emitRunCompleted(conversationId: ConversationId): void {
-  broadcastToWindows('agent:run-completed', { conversationId })
+export function emitRunCompleted(sessionId: SessionId): void {
+  broadcastToWindows('agent:run-completed', { sessionId })
 }
 
 // ─── Transport Event Emission ───────────────────────────────
 
-export function emitTransportEvent(
-  conversationId: ConversationId,
-  event: AgentTransportEvent,
-): void {
-  applyEventToStreamBuffer(conversationId, event)
+export function emitTransportEvent(sessionId: SessionId, event: AgentTransportEvent): void {
+  applyEventToStreamBuffer(sessionId, event)
 
   maybeEmitPhase({
-    conversationId,
-    phase: updatePhaseFromTransportEvent(conversationId, event, Date.now()),
+    sessionId,
+    phase: updatePhaseFromTransportEvent(sessionId, event, Date.now()),
   })
 
-  broadcastToWindows('agent:event', { conversationId, event })
+  broadcastToWindows('agent:event', { sessionId, event })
 }
 
 export function emitErrorAndFinish(
-  conversationId: ConversationId,
+  sessionId: SessionId,
   message: string,
   code: string,
   runId = '',
 ): void {
-  emitTransportEvent(conversationId, {
+  emitTransportEvent(sessionId, {
     type: 'agent_end',
     runId,
     reason: 'error',
@@ -270,30 +262,30 @@ export function emitErrorAndFinish(
 }
 
 export function emitWaggleTransportEvent(
-  conversationId: ConversationId,
+  sessionId: SessionId,
   event: AgentTransportEvent,
   meta: WaggleStreamMetadata,
 ): void {
-  broadcastToWindows('waggle:event', { conversationId, event, meta })
+  broadcastToWindows('waggle:event', { sessionId, event, meta })
 }
 
-export function emitWaggleTurnEvent(conversationId: ConversationId, event: WaggleTurnEvent): void {
-  broadcastToWindows('waggle:turn-event', { conversationId, event })
+export function emitWaggleTurnEvent(sessionId: SessionId, event: WaggleTurnEvent): void {
+  broadcastToWindows('waggle:turn-event', { sessionId, event })
 }
 
-export function clearAgentPhase(conversationId: ConversationId): void {
-  const result = resetPhaseForConversation(conversationId)
+export function clearAgentPhase(sessionId: SessionId): void {
+  const result = resetPhaseForSession(sessionId)
   if (!result.changed) return
-  broadcastToWindows('agent:phase', { conversationId, phase: null })
+  broadcastToWindows('agent:phase', { sessionId, phase: null })
 }
 
 function maybeEmitPhase(input: {
-  conversationId: ConversationId
+  sessionId: SessionId
   phase: { changed: boolean; phase: AgentPhaseEventPayload['phase'] }
 }): void {
   if (!input.phase.changed) return
   broadcastToWindows('agent:phase', {
-    conversationId: input.conversationId,
+    sessionId: input.sessionId,
     phase: input.phase.phase,
   })
 }

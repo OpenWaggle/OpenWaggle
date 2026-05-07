@@ -1,5 +1,7 @@
 import type { Message, MessageRole } from './agent'
+import type { RunMode } from './background-run'
 import type { SessionBranchId, SessionId, SessionNodeId } from './brand'
+import type { SupportedModelId } from './llm'
 import type { WaggleConfig } from './waggle'
 
 export type SessionNodeKind =
@@ -22,6 +24,7 @@ export interface SessionSummary {
   readonly id: SessionId
   readonly title: string
   readonly projectPath: string | null
+  readonly messageCount?: number
   readonly archived?: boolean
   readonly createdAt: number
   readonly updatedAt: number
@@ -29,6 +32,28 @@ export interface SessionSummary {
   readonly lastActiveBranchId?: SessionBranchId | null
   readonly branches?: readonly SessionBranch[]
   readonly treeUiState?: SessionTreeUiState | null
+}
+
+export interface SessionInterruptedRun {
+  readonly runId: string
+  readonly sessionId: SessionId
+  readonly branchId: SessionBranchId
+  readonly runMode: RunMode
+  readonly model: SupportedModelId
+  readonly interruptedAt: number
+}
+
+export interface SessionDetail {
+  readonly id: SessionId
+  readonly title: string
+  readonly projectPath: string | null
+  readonly piSessionId?: string
+  readonly piSessionFile?: string
+  readonly messages: Message[]
+  readonly waggleConfig?: WaggleConfig
+  readonly archived?: boolean
+  readonly createdAt: number
+  readonly updatedAt: number
 }
 
 export interface SessionNode {
@@ -56,6 +81,7 @@ export interface SessionBranch {
   readonly isMain: boolean
   readonly archived?: boolean
   readonly archivedAt?: number | null
+  readonly interruptedRun?: SessionInterruptedRun
   readonly createdAt: number
   readonly updatedAt: number
 }
@@ -97,6 +123,12 @@ export interface SessionWorkspaceSelection {
 export interface SessionNavigateTreeOptions {
   readonly summarize?: boolean
   readonly customInstructions?: string
+}
+
+export interface SessionCopyToNewResult {
+  readonly session?: SessionDetail
+  readonly editorText?: string
+  readonly cancelled: boolean
 }
 
 export interface SessionTranscriptEntry {

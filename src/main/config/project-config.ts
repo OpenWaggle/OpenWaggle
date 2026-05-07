@@ -3,8 +3,11 @@ import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { decodeUnknownOrThrow, type SchemaType, safeDecodeUnknown } from '@shared/schema'
 import { projectSettingsFileSchema } from '@shared/schemas/validation'
+import { wagglePresetSchema } from '@shared/schemas/waggle'
+import { SupportedModelId, WagglePresetId } from '@shared/types/brand'
 import type { JsonObject } from '@shared/types/json'
 import type { ThinkingLevel } from '@shared/types/settings'
+import type { WagglePreset } from '@shared/types/waggle'
 import { formatErrorMessage, isEnoent } from '@shared/utils/node-error'
 import { createLogger } from '../logger'
 
@@ -22,6 +25,7 @@ export interface ProjectPreferences {
 
 export interface ProjectConfig {
   readonly preferences?: ProjectPreferences
+  readonly wagglePresets?: readonly WagglePreset[]
   readonly pi?: JsonObject
 }
 
@@ -226,12 +230,56 @@ function parseProjectConfig(settings: ParsedProjectSettingsFile | null): Project
         }
       : undefined
 
-  if (!preferences && !settings?.pi) {
+  const wagglePresets = parseWagglePresets(settings?.wagglePresets)
+
+  if (!preferences && wagglePresets.length === 0 && !settings?.pi) {
     return EMPTY_CONFIG
   }
 
   return {
     ...(preferences ? { preferences } : {}),
+    ...(wagglePresets.length > 0 ? { wagglePresets } : {}),
     ...(settings?.pi ? { pi: settings.pi } : {}),
   }
+}
+
+function hydrateWagglePreset(raw: unknown): WagglePreset | null {
+  const decoded = safeDecodeUnknown(wagglePresetSchema, raw)
+  if (!decoded.success) {
+    return null
+  }
+
+  const preset = decoded.data
+  return {
+    ...preset,
+    id: WagglePresetId(preset.id),
+    config: {
+      ...preset.config,
+      agents: [
+        {
+          ...preset.config.agents[0],
+          model: SupportedModelId(preset.config.agents[0].model),
+        },
+        {
+          ...preset.config.agents[1],
+          model: SupportedModelId(preset.config.agents[1].model),
+        },
+      ],
+    },
+  }
+}
+
+function parseWagglePresets(rawPresets: readonly unknown[] | undefined): readonly WagglePreset[] {
+  if (!rawPresets) {
+    return []
+  }
+
+  const presets: WagglePreset[] = []
+  for (const rawPreset of rawPresets) {
+    const preset = hydrateWagglePreset(rawPreset)
+    if (preset) {
+      presets.push(preset)
+    }
+  }
+  return presets
 }
