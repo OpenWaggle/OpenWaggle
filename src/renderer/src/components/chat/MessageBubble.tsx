@@ -1,4 +1,4 @@
-import type { ConversationId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SupportedModelId } from '@shared/types/llm'
 import { AssistantMessageBubble, type WaggleInfo } from './AssistantMessageBubble'
@@ -9,9 +9,11 @@ interface MessageBubbleProps {
   isStreaming?: boolean
   isRunActive?: boolean
   assistantModel?: SupportedModelId
-  conversationId: ConversationId | null
+  sessionId: SessionId | null
   waggle?: WaggleInfo
+  hideAgentLabel?: boolean
   onBranchFromMessage?: (messageId: string) => void
+  onForkFromMessage?: (messageId: string) => void
 }
 
 export function MessageBubble({
@@ -19,12 +21,20 @@ export function MessageBubble({
   isStreaming,
   isRunActive,
   assistantModel,
-  conversationId,
+  sessionId,
   waggle,
+  hideAgentLabel,
   onBranchFromMessage,
+  onForkFromMessage,
 }: MessageBubbleProps) {
   if (message.role === 'user') {
-    return <UserMessageBubble message={message} onBranchFromMessage={onBranchFromMessage} />
+    return (
+      <UserMessageBubble
+        message={message}
+        onBranchFromMessage={onBranchFromMessage}
+        onForkFromMessage={onForkFromMessage}
+      />
+    )
   }
 
   return (
@@ -33,8 +43,9 @@ export function MessageBubble({
       isStreaming={isStreaming}
       isRunActive={isRunActive}
       assistantModel={assistantModel}
-      conversationId={conversationId}
+      sessionId={sessionId}
       waggle={waggle}
+      hideAgentLabel={hideAgentLabel}
       onBranchFromMessage={onBranchFromMessage}
     />
   )

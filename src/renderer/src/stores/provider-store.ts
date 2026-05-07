@@ -1,6 +1,6 @@
 import { SupportedModelId } from '@shared/types/brand'
 import type { ProviderInfo } from '@shared/types/llm'
-import { DEFAULT_SETTINGS, type Provider } from '@shared/types/settings'
+import { DEFAULT_SETTINGS, type Provider, type Settings } from '@shared/types/settings'
 import { create } from 'zustand'
 import { api } from '@/lib/ipc'
 import { createRendererLogger } from '@/lib/logger'
@@ -104,7 +104,7 @@ interface ProviderState {
   testResults: Partial<Record<Provider, { success: boolean; error?: string } | null>>
   loadError: string | null
 
-  loadProviderModels: () => Promise<void>
+  loadProviderModels: (settingsSnapshot?: Settings) => Promise<Settings | null>
   updateApiKey: (provider: Provider, apiKey: string) => Promise<void>
   testApiKey: (provider: Provider, apiKey: string) => Promise<boolean>
   clearTestResult: (provider: Provider) => void
@@ -117,10 +117,9 @@ export const useProviderStore = create<ProviderState>((set) => ({
   testResults: {},
   loadError: null,
 
-  async loadProviderModels() {
+  async loadProviderModels(settingsSnapshot?: Settings) {
     try {
-      const { usePreferencesStore } = await import('./preferences-store')
-      const currentSettings = usePreferencesStore.getState().settings
+      const currentSettings = settingsSnapshot ?? (await api.getSettings())
       const baseProviderModels = normalizeProviderGroups(
         await api.getProviderModels(currentSettings.projectPath),
       )
@@ -138,15 +137,16 @@ export const useProviderStore = create<ProviderState>((set) => ({
             DEFAULT_SETTINGS.selectedModel)
 
       if (pruned !== null || selectedModel !== currentSettings.selectedModel) {
-        await api.updateSettings({ enabledModels, selectedModel })
-        usePreferencesStore.setState({
-          settings: { ...currentSettings, enabledModels, selectedModel },
-        })
+        const modelSettings = { enabledModels, selectedModel }
+        await api.updateSettings(modelSettings)
+        return { ...currentSettings, ...modelSettings }
       }
+      return null
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       logger.error('Failed to load provider models', { message })
       set({ loadError: message })
+      return null
     }
   },
 
@@ -161,12 +161,8 @@ export const useProviderStore = create<ProviderState>((set) => ({
       testingProviders: { ...state.testingProviders, [provider]: true },
     }))
     try {
-      const { usePreferencesStore } = await import('./preferences-store')
-      const result = await api.testApiKey(
-        provider,
-        apiKey,
-        usePreferencesStore.getState().settings.projectPath,
-      )
+      const currentSettings = await api.getSettings()
+      const result = await api.testApiKey(provider, apiKey, currentSettings.projectPath)
       set((state) => ({
         testResults: { ...state.testResults, [provider]: result },
         testingProviders: { ...state.testingProviders, [provider]: false },

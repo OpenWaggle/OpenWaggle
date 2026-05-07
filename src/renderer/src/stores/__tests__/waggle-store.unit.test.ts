@@ -1,4 +1,4 @@
-import { ConversationId } from '@shared/types/brand'
+import { SessionId } from '@shared/types/brand'
 import type {
   WaggleConfig,
   WaggleConsensusCheckResult,
@@ -92,12 +92,12 @@ describe('waggle-store', () => {
 
   describe('startCollaboration', () => {
     it('initializes collaboration state from config', () => {
-      const conversationId = ConversationId('conv-waggle-1')
+      const sessionId = SessionId('session-waggle-1')
       const config = makeConfig()
-      useWaggleStore.getState().startCollaboration(conversationId, config)
+      useWaggleStore.getState().startCollaboration(sessionId, config)
 
       const state = useWaggleStore.getState()
-      expect(state.activeCollaborationId).toBe(conversationId)
+      expect(state.activeCollaborationId).toBe(sessionId)
       expect(state.activeConfig).toBe(config)
       expect(state.status).toBe('running')
       expect(state.currentTurn).toBe(0)
@@ -106,9 +106,9 @@ describe('waggle-store', () => {
     })
 
     it('sets initialTurnMeta from the first agent config', () => {
-      const conversationId = ConversationId('conv-initial-meta')
+      const sessionId = SessionId('session-initial-meta')
       const config = makeConfig()
-      useWaggleStore.getState().startCollaboration(conversationId, config)
+      useWaggleStore.getState().startCollaboration(sessionId, config)
 
       const state = useWaggleStore.getState()
       expect(state.initialTurnMeta).toEqual({
@@ -132,7 +132,7 @@ describe('waggle-store', () => {
         completionReason: 'old-reason',
       })
 
-      useWaggleStore.getState().startCollaboration(ConversationId('conv-2'), makeConfig())
+      useWaggleStore.getState().startCollaboration(SessionId('session-2'), makeConfig())
 
       const state = useWaggleStore.getState()
       expect(state.completedTurnMeta).toEqual([])
@@ -145,7 +145,7 @@ describe('waggle-store', () => {
 
   describe('handleTurnEvent', () => {
     beforeEach(() => {
-      useWaggleStore.getState().startCollaboration(ConversationId('conv-events'), makeConfig())
+      useWaggleStore.getState().startCollaboration(SessionId('session-events'), makeConfig())
     })
 
     it('handles turn-start by updating current turn info', () => {
@@ -179,37 +179,6 @@ describe('waggle-store', () => {
       expect(meta[0].agentLabel).toBe('Architect')
       expect(meta[0].agentColor).toBe('blue')
       expect(meta[0].turnNumber).toBe(1)
-    })
-
-    it('handles turn-end with synthesis agent (agentIndex -1) by setting isSynthesis', () => {
-      const event: WaggleTurnEvent = {
-        type: 'turn-end',
-        turnNumber: 3,
-        agentIndex: -1,
-        agentLabel: 'Synthesis',
-        agentColor: 'emerald',
-        agentModel: 'claude-sonnet-4-20250514' as never,
-      }
-      useWaggleStore.getState().handleTurnEvent(event)
-
-      const meta = useWaggleStore.getState().completedTurnMeta
-      expect(meta).toHaveLength(1)
-      expect(meta[0].isSynthesis).toBe(true)
-    })
-
-    it('handles turn-end without synthesis does not set isSynthesis', () => {
-      const event: WaggleTurnEvent = {
-        type: 'turn-end',
-        turnNumber: 1,
-        agentIndex: 0,
-        agentLabel: 'Architect',
-        agentColor: 'blue',
-        agentModel: 'claude-sonnet-4-20250514' as never,
-      }
-      useWaggleStore.getState().handleTurnEvent(event)
-
-      const meta = useWaggleStore.getState().completedTurnMeta
-      expect(meta[0].isSynthesis).toBeUndefined()
     })
 
     it('handles consensus-reached by storing the result', () => {
@@ -272,15 +241,6 @@ describe('waggle-store', () => {
       const state = useWaggleStore.getState()
       expect(state.status).toBe('stopped')
       expect(state.completionReason).toBe('User cancelled')
-    })
-
-    it('handles synthesis-start by setting synthesis agent label', () => {
-      const event: WaggleTurnEvent = { type: 'synthesis-start' }
-      useWaggleStore.getState().handleTurnEvent(event)
-
-      const state = useWaggleStore.getState()
-      expect(state.currentAgentIndex).toBe(-1)
-      expect(state.currentAgentLabel).toBe('Synthesis')
     })
 
     it('accumulates completed turn metadata across multiple turn-end events', () => {
@@ -364,7 +324,7 @@ describe('waggle-store', () => {
 
   describe('stopCollaboration', () => {
     it('sets status to stopped', () => {
-      useWaggleStore.getState().startCollaboration(ConversationId('conv-stop'), makeConfig())
+      useWaggleStore.getState().startCollaboration(SessionId('session-stop'), makeConfig())
       useWaggleStore.getState().stopCollaboration()
 
       expect(useWaggleStore.getState().status).toBe('stopped')
@@ -372,7 +332,7 @@ describe('waggle-store', () => {
 
     it('preserves other state (config, turn meta) when stopping', () => {
       const config = makeConfig()
-      useWaggleStore.getState().startCollaboration(ConversationId('conv-stop'), config)
+      useWaggleStore.getState().startCollaboration(SessionId('session-stop'), config)
       useWaggleStore.getState().handleTurnEvent({
         type: 'turn-end',
         turnNumber: 1,
@@ -393,7 +353,7 @@ describe('waggle-store', () => {
   describe('reset', () => {
     it('returns all state to initial defaults', () => {
       // Fill in some non-default state
-      useWaggleStore.getState().startCollaboration(ConversationId('conv-reset'), makeConfig())
+      useWaggleStore.getState().startCollaboration(SessionId('session-reset'), makeConfig())
       useWaggleStore.getState().handleTurnEvent({
         type: 'turn-start',
         turnNumber: 1,
@@ -431,11 +391,11 @@ describe('waggle-store', () => {
 
   describe('full lifecycle', () => {
     it('tracks a complete collaboration from start to consensus completion', () => {
-      const conversationId = ConversationId('conv-lifecycle')
+      const sessionId = SessionId('session-lifecycle')
       const config = makeConfig()
 
       // Start
-      useWaggleStore.getState().startCollaboration(conversationId, config)
+      useWaggleStore.getState().startCollaboration(sessionId, config)
       expect(useWaggleStore.getState().status).toBe('running')
 
       // Turn 1: Architect
@@ -482,30 +442,17 @@ describe('waggle-store', () => {
         result: makeConsensusResult(true),
       })
 
-      // Synthesis
-      useWaggleStore.getState().handleTurnEvent({ type: 'synthesis-start' })
-      expect(useWaggleStore.getState().currentAgentLabel).toBe('Synthesis')
-
-      useWaggleStore.getState().handleTurnEvent({
-        type: 'turn-end',
-        turnNumber: 3,
-        agentIndex: -1,
-        agentLabel: 'Synthesis',
-        agentColor: 'emerald',
-        agentModel: 'claude-sonnet-4-20250514' as never,
-      })
-
       // Collaboration complete
       useWaggleStore.getState().handleTurnEvent({
         type: 'collaboration-complete',
         reason: 'Consensus reached',
-        totalTurns: 3,
+        totalTurns: 2,
       })
 
       const finalState = useWaggleStore.getState()
       expect(finalState.status).toBe('completed')
       expect(finalState.completionReason).toBe('Consensus reached')
-      expect(finalState.completedTurnMeta).toHaveLength(3)
+      expect(finalState.completedTurnMeta).toHaveLength(2)
       expect(finalState.lastConsensusResult?.reached).toBe(true)
     })
   })

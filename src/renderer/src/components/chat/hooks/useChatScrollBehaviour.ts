@@ -23,7 +23,7 @@ interface ScrollTouchEvent {
 }
 
 export interface UseChatScrollBehaviourParams {
-  readonly activeConversationId: string | null
+  readonly activeSessionId: string | null
   readonly lastUserMessageId: string | null
   readonly rowsLength: number
   readonly streamVersion: number
@@ -99,7 +99,7 @@ export function useChatScrollBehaviour(
   params: UseChatScrollBehaviourParams,
 ): UseChatScrollBehaviourResult {
   const {
-    activeConversationId,
+    activeSessionId,
     rowsLength,
     streamVersion,
     isLoading,
@@ -119,9 +119,9 @@ export function useChatScrollBehaviour(
   const pendingAutoScrollFrameRef = useRef<number | null>(null)
   const pendingRestoreTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingRestoreScrollTopRef = useRef<number | null>(null)
-  const lastRestoredConversationRef = useRef<string | null>(null)
+  const lastRestoredSessionRef = useRef<string | null>(null)
   const hasRestoredScrollRef = useRef(false)
-  const activeConversationIdRef = useRef(activeConversationId)
+  const activeSessionIdRef = useRef(activeSessionId)
   const previousLastUserMessageIdRef = useRef(lastUserMessageId)
   const switchBaselineLastUserMessageIdRef = useRef<string | null>(null)
   const scrollCacheRef = useRef<Map<string, number>>(loadScrollCache())
@@ -129,7 +129,7 @@ export function useChatScrollBehaviour(
   const scrollbarTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const actionsRef = useRef<ScrollActions | null>(null)
 
-  activeConversationIdRef.current = activeConversationId
+  activeSessionIdRef.current = activeSessionId
 
   const [showScrollbar, setShowScrollbar] = useState(false)
   const [showScrollToBottom, setShowScrollToBottom] = useState(false)
@@ -154,10 +154,10 @@ export function useChatScrollBehaviour(
     saveScrollCache(scrollCacheRef.current)
   }
 
-  function rememberScrollPosition(conversationId: string | null, scrollTop: number): void {
-    if (!conversationId) return
-    scrollCacheRef.current.delete(conversationId)
-    scrollCacheRef.current.set(conversationId, Math.max(0, scrollTop))
+  function rememberScrollPosition(sessionId: string | null, scrollTop: number): void {
+    if (!sessionId) return
+    scrollCacheRef.current.delete(sessionId)
+    scrollCacheRef.current.set(sessionId, Math.max(0, scrollTop))
     saveScrollCacheSoon()
   }
 
@@ -192,7 +192,7 @@ export function useChatScrollBehaviour(
     pendingUserScrollUpIntentRef.current = false
     pendingRestoreScrollTopRef.current = null
     syncButtonVisibility()
-    rememberScrollPosition(activeConversationIdRef.current, scrollContainer.scrollTop)
+    rememberScrollPosition(activeSessionIdRef.current, scrollContainer.scrollTop)
   }
 
   function scheduleStickToBottom(): void {
@@ -223,7 +223,7 @@ export function useChatScrollBehaviour(
     }
 
     pendingRestoreScrollTopRef.current = null
-    rememberScrollPosition(activeConversationIdRef.current, nextScrollTop)
+    rememberScrollPosition(activeSessionIdRef.current, nextScrollTop)
     return false
   }
 
@@ -289,7 +289,7 @@ export function useChatScrollBehaviour(
     shouldAutoScrollRef.current = shouldAutoScroll
     syncButtonVisibility()
     lastKnownScrollTopRef.current = currentScrollTop
-    rememberScrollPosition(activeConversationIdRef.current, currentScrollTop)
+    rememberScrollPosition(activeSessionIdRef.current, currentScrollTop)
   }
 
   function optOutOfAutoScrollForUserIntent(): void {
@@ -376,14 +376,14 @@ export function useChatScrollBehaviour(
     const actions = actionsRef.current
     if (!actions) return
 
-    const previous = lastRestoredConversationRef.current
-    if (previous && previous !== activeConversationId) {
+    const previous = lastRestoredSessionRef.current
+    if (previous && previous !== activeSessionId) {
       actions.flushScrollCache()
       switchBaselineLastUserMessageIdRef.current = previousLastUserMessageIdRef.current
     }
 
     hasRestoredScrollRef.current = false
-    lastRestoredConversationRef.current = activeConversationId
+    lastRestoredSessionRef.current = activeSessionId
     pendingRestoreScrollTopRef.current = null
     pendingUserScrollUpIntentRef.current = false
     shouldAutoScrollRef.current = true
@@ -392,11 +392,11 @@ export function useChatScrollBehaviour(
     actions.cancelPendingStickToBottom()
     actions.cancelPendingRestoreRetry()
     actions.syncButtonVisibility()
-  }, [activeConversationId])
+  }, [activeSessionId])
 
   useLayoutEffect(() => {
     if (hasRestoredScrollRef.current) return
-    if (!activeConversationId) return
+    if (!activeSessionId) return
     if (rowsLength === 0) return
     if (userDidSend) return
     const switchBaselineLastUserMessageId = switchBaselineLastUserMessageIdRef.current
@@ -413,7 +413,7 @@ export function useChatScrollBehaviour(
     const actions = actionsRef.current
     if (!actions) return
 
-    const persisted = scrollCacheRef.current.get(activeConversationId)
+    const persisted = scrollCacheRef.current.get(activeSessionId)
     if (persisted !== undefined && persisted > 0) {
       pendingRestoreScrollTopRef.current = persisted
       if (actions.applyPendingRestore()) {
@@ -424,7 +424,7 @@ export function useChatScrollBehaviour(
     }
 
     hasRestoredScrollRef.current = true
-  }, [activeConversationId, lastUserMessageId, rowsLength, userDidSend])
+  }, [activeSessionId, lastUserMessageId, rowsLength, userDidSend])
 
   useLayoutEffect(() => {
     previousLastUserMessageIdRef.current = lastUserMessageId
@@ -463,11 +463,11 @@ export function useChatScrollBehaviour(
       if (persistTimerRef.current) clearTimeout(persistTimerRef.current)
       if (scrollbarTimerRef.current) clearTimeout(scrollbarTimerRef.current)
 
-      const conversationId = lastRestoredConversationRef.current
+      const sessionId = lastRestoredSessionRef.current
       const scroller = scrollerRef.current
-      if (conversationId && scroller) {
-        scrollCacheRef.current.delete(conversationId)
-        scrollCacheRef.current.set(conversationId, Math.max(0, scroller.scrollTop))
+      if (sessionId && scroller) {
+        scrollCacheRef.current.delete(sessionId)
+        scrollCacheRef.current.set(sessionId, Math.max(0, scroller.scrollTop))
       }
       saveScrollCache(scrollCacheRef.current)
     }

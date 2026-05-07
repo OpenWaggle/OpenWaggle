@@ -1,16 +1,20 @@
-import { ConversationId, type SessionId } from '@shared/types/brand'
+import { SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
 import { resolveSessionStatusPill, TERMINAL_STATUSES } from '@shared/types/session-status'
 import {
+  AlertTriangle,
+  Archive,
   ChevronDown,
   ChevronRight,
   CircleCheck,
   CirclePause,
   ClipboardList,
+  Copy,
   Eye,
   GitCompareArrows,
   Loader2,
   MessageCircle,
+  MoreHorizontal,
   Trash2,
   XCircle,
 } from 'lucide-react'
@@ -40,21 +44,173 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
 }
 
 type SessionListItemVariant = 'project' | 'root'
+type SessionItemStatusIcon = React.ComponentType<{ className?: string }>
 
 interface SessionListItemProps {
   readonly session: SessionSummary
   readonly isActive: boolean
   readonly variant?: SessionListItemVariant
-  readonly onSelect: (id: ConversationId) => void
-  readonly onDelete: (id: ConversationId) => void
-  readonly onMarkUnread: (id: ConversationId) => void
+  readonly onSelect: (id: SessionId) => void
+  readonly onDelete: (id: SessionId) => void
+  readonly onArchive: (id: SessionId) => void
+  readonly onMarkUnread: (id: SessionId) => void
+  readonly onClone: (id: SessionId) => void
   readonly hasBranchDisclosure?: boolean
   readonly branchesCollapsed?: boolean
   readonly onToggleBranches?: () => void
 }
 
-function sessionConversationId(sessionId: SessionId): ConversationId {
-  return ConversationId(String(sessionId))
+function toSessionId(sessionId: SessionId): SessionId {
+  return SessionId(String(sessionId))
+}
+
+function BranchDisclosureButton({
+  visible,
+  collapsed,
+  onToggle,
+}: {
+  readonly visible: boolean
+  readonly collapsed: boolean
+  readonly onToggle?: () => void
+}) {
+  if (!visible) {
+    return null
+  }
+
+  const DisclosureIcon = collapsed ? ChevronRight : ChevronDown
+
+  return (
+    <button
+      type="button"
+      aria-label={collapsed ? 'Expand branches' : 'Collapse branches'}
+      onClick={(event) => {
+        event.stopPropagation()
+        onToggle?.()
+      }}
+      className="mr-1 flex h-4 w-4 shrink-0 items-center justify-center rounded text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
+    >
+      <DisclosureIcon className="h-3 w-3" />
+    </button>
+  )
+}
+
+function SessionStatusMarkers({
+  pill,
+  StatusIcon,
+  hasInterruptedRun,
+}: {
+  readonly pill: ReturnType<typeof resolveSessionStatusPill>
+  readonly StatusIcon: SessionItemStatusIcon | null
+  readonly hasInterruptedRun: boolean
+}) {
+  return (
+    <>
+      {pill && StatusIcon ? (
+        <span className="mr-2 flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+          <StatusIcon className={cn('h-3.5 w-3.5', pill.colorClass, pill.animateClass)} />
+        </span>
+      ) : null}
+      {hasInterruptedRun ? (
+        <span
+          className="mr-2 flex h-3.5 w-3.5 shrink-0 items-center justify-center text-amber-400"
+          title="A run was interrupted in this session"
+        >
+          <AlertTriangle className="h-3.5 w-3.5" />
+        </span>
+      ) : null}
+    </>
+  )
+}
+
+function SessionItemContextMenu({
+  open,
+  position,
+  sessionId,
+  onClose,
+  onMarkUnread,
+  onClone,
+  onArchive,
+  onDelete,
+}: {
+  readonly open: boolean
+  readonly position: { readonly x: number; readonly y: number }
+  readonly sessionId: SessionId
+  readonly onClose: () => void
+  readonly onMarkUnread: (id: SessionId) => void
+  readonly onClone: (id: SessionId) => void
+  readonly onArchive: (id: SessionId) => void
+  readonly onDelete: (id: SessionId) => void
+}) {
+  function closeAfter(action: () => void): void {
+    action()
+    onClose()
+  }
+
+  function confirmDelete(): void {
+    onClose()
+    void api.showConfirm('Delete this session?', 'This cannot be undone.').then((confirmed) => {
+      if (confirmed) {
+        onDelete(sessionId)
+      }
+    })
+  }
+
+  return (
+    <ContextMenu open={open} onClose={onClose} position={position}>
+      <button
+        type="button"
+        onClick={() => closeAfter(() => onMarkUnread(sessionId))}
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
+      >
+        <Eye className="h-3 w-3 shrink-0" />
+        <span>Mark as unread</span>
+      </button>
+      <button
+        type="button"
+        onClick={() => closeAfter(() => onClone(sessionId))}
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
+      >
+        <Copy className="h-3 w-3 shrink-0" />
+        <span>Clone to new session</span>
+      </button>
+      <button
+        type="button"
+        onClick={() => closeAfter(() => onArchive(sessionId))}
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
+      >
+        <Archive className="h-3 w-3 shrink-0" />
+        <span>Archive session</span>
+      </button>
+      <button
+        type="button"
+        onClick={confirmDelete}
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-error"
+      >
+        <Trash2 className="h-3 w-3 shrink-0" />
+        <span>Delete session</span>
+      </button>
+    </ContextMenu>
+  )
+}
+
+function useSessionItemStatus(sessionId: SessionId, session: SessionSummary) {
+  const status = useSessionStatusStore((s) => s.statuses.get(sessionId) ?? 'idle')
+  const completedAt = useSessionStatusStore((s) => s.completedAt.get(sessionId))
+  const lastVisited = useSessionStatusStore((s) => s.lastVisitedAt.get(sessionId))
+  const isTerminal = TERMINAL_STATUSES.has(status)
+  const isSeen =
+    isTerminal &&
+    completedAt !== undefined &&
+    lastVisited !== undefined &&
+    completedAt <= lastVisited
+  const visibleStatus = isSeen ? 'idle' : status
+  const pill = resolveSessionStatusPill(visibleStatus)
+
+  return {
+    pill,
+    StatusIcon: pill ? ICON_MAP[pill.icon] : null,
+    hasInterruptedRun: session.branches?.some((branch) => branch.interruptedRun) ?? false,
+  }
 }
 
 export function SessionListItem({
@@ -63,38 +219,29 @@ export function SessionListItem({
   variant = 'root',
   onSelect,
   onDelete,
+  onArchive,
   onMarkUnread,
+  onClone,
   hasBranchDisclosure = false,
   branchesCollapsed = false,
   onToggleBranches,
 }: SessionListItemProps) {
-  const conversationId = sessionConversationId(session.id)
-  const status = useSessionStatusStore((s) => s.statuses.get(conversationId) ?? 'idle')
-  const completedAt = useSessionStatusStore((s) => s.completedAt.get(conversationId))
-  const lastVisited = useSessionStatusStore((s) => s.lastVisitedAt.get(conversationId))
+  const sessionId = toSessionId(session.id)
+  const { pill, StatusIcon, hasInterruptedRun } = useSessionItemStatus(sessionId, session)
 
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
 
-  const isTerminal = TERMINAL_STATUSES.has(status)
-  const isSeen =
-    isTerminal &&
-    completedAt !== undefined &&
-    lastVisited !== undefined &&
-    completedAt <= lastVisited
-  const visibleStatus = isSeen ? 'idle' : status
-
-  const pill = resolveSessionStatusPill(visibleStatus)
-  const StatusIcon = pill ? ICON_MAP[pill.icon] : null
-  const canMarkUnread = isSeen
-  const hasMenuItems = canMarkUnread || !isActive
-
   function handleContextMenu(e: React.MouseEvent): void {
-    if (!hasMenuItems) {
-      return
-    }
     e.preventDefault()
     setMenuPos({ x: e.clientX, y: e.clientY })
+    setMenuOpen(true)
+  }
+
+  function handleActionsClick(event: React.MouseEvent<HTMLButtonElement>): void {
+    event.stopPropagation()
+    const rect = event.currentTarget.getBoundingClientRect()
+    setMenuPos({ x: rect.left, y: rect.bottom })
     setMenuOpen(true)
   }
 
@@ -109,31 +256,19 @@ export function SessionListItem({
       )}
       onContextMenu={handleContextMenu}
     >
-      {hasBranchDisclosure ? (
-        <button
-          type="button"
-          aria-label={branchesCollapsed ? 'Expand branches' : 'Collapse branches'}
-          onClick={(event) => {
-            event.stopPropagation()
-            onToggleBranches?.()
-          }}
-          className="mr-1 flex h-4 w-4 shrink-0 items-center justify-center rounded text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
-        >
-          {branchesCollapsed ? (
-            <ChevronRight className="h-3 w-3" />
-          ) : (
-            <ChevronDown className="h-3 w-3" />
-          )}
-        </button>
-      ) : null}
-      {pill && StatusIcon ? (
-        <span className="mr-2 flex h-3.5 w-3.5 shrink-0 items-center justify-center">
-          <StatusIcon className={cn('h-3.5 w-3.5', pill.colorClass, pill.animateClass)} />
-        </span>
-      ) : null}
+      <BranchDisclosureButton
+        visible={hasBranchDisclosure}
+        collapsed={branchesCollapsed}
+        onToggle={onToggleBranches}
+      />
+      <SessionStatusMarkers
+        pill={pill}
+        StatusIcon={StatusIcon}
+        hasInterruptedRun={hasInterruptedRun}
+      />
       <button
         type="button"
-        onClick={() => onSelect(conversationId)}
+        onClick={() => onSelect(sessionId)}
         className="min-w-0 flex-1 truncate text-left"
       >
         <span
@@ -145,44 +280,38 @@ export function SessionListItem({
           {truncate(session.title, TITLE_TRUNCATE_LENGTH)}
         </span>
       </button>
-      <span className="ml-auto shrink-0 text-[11px] text-text-tertiary">
-        {formatRelativeTime(session.updatedAt)}
-      </span>
+      <div className="relative ml-auto h-5 w-14 shrink-0">
+        <button
+          type="button"
+          aria-label={`Open session actions for ${session.title}`}
+          onClick={handleActionsClick}
+          className={cn(
+            'peer absolute inset-y-0 right-0 z-10 flex h-5 w-5 items-center justify-center rounded text-text-tertiary opacity-0 transition-[background-color,color,opacity] hover:bg-bg-hover hover:text-text-secondary group-hover:opacity-100 focus:opacity-100',
+            menuOpen ? 'opacity-100' : null,
+          )}
+        >
+          <MoreHorizontal className="h-3.5 w-3.5" />
+        </button>
+        <span
+          className={cn(
+            'pointer-events-none absolute inset-y-0 right-0 flex items-center text-right text-[11px] text-text-tertiary transition-opacity group-hover:opacity-0 peer-focus:opacity-0',
+            menuOpen ? 'opacity-0' : 'opacity-100',
+          )}
+        >
+          {formatRelativeTime(session.updatedAt)}
+        </span>
+      </div>
 
-      <ContextMenu open={menuOpen} onClose={() => setMenuOpen(false)} position={menuPos}>
-        {canMarkUnread && (
-          <button
-            type="button"
-            onClick={() => {
-              onMarkUnread(conversationId)
-              setMenuOpen(false)
-            }}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
-          >
-            <Eye className="h-3 w-3 shrink-0" />
-            <span>Mark as unread</span>
-          </button>
-        )}
-        {!isActive && (
-          <button
-            type="button"
-            onClick={() => {
-              setMenuOpen(false)
-              void api
-                .showConfirm('Delete this session?', 'This cannot be undone.')
-                .then((confirmed) => {
-                  if (confirmed) {
-                    onDelete(conversationId)
-                  }
-                })
-            }}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-error"
-          >
-            <Trash2 className="h-3 w-3 shrink-0" />
-            <span>Delete session</span>
-          </button>
-        )}
-      </ContextMenu>
+      <SessionItemContextMenu
+        open={menuOpen}
+        position={menuPos}
+        sessionId={sessionId}
+        onClose={() => setMenuOpen(false)}
+        onMarkUnread={onMarkUnread}
+        onClone={onClone}
+        onArchive={onArchive}
+        onDelete={onDelete}
+      />
     </div>
   )
 }

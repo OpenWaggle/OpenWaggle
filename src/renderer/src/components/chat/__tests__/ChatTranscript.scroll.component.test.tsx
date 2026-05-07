@@ -9,13 +9,10 @@ vi.mock('../ChatRowRenderer', () => ({
   ChatRowRenderer: ({ row }: { row: ChatRow }) => (
     <div>
       {row.type === 'message'
-        ? row.message.parts
-            .filter(
-              (part): part is Extract<(typeof row.message.parts)[number], { type: 'text' }> =>
-                part.type === 'text',
-            )
-            .map((part) => part.content)
-            .join('')
+        ? row.message.parts.reduce(
+            (text, part) => (part.type === 'text' ? `${text}${part.content}` : text),
+            '',
+          )
         : 'row-content'}
     </div>
   ),
@@ -60,7 +57,7 @@ function createSection(
     isLoading: false,
     projectPath: '/repo',
     recentProjects: [],
-    activeConversationId: null,
+    activeSessionId: null,
     chatRows: [createMessageChatRow(defaultMessage)],
     lastUserMessageId: 'msg-1',
     streamSignalVersion: 0,
@@ -71,6 +68,9 @@ function createSection(
     onRetryText: vi.fn().mockResolvedValue(undefined),
     onOpenSettings: vi.fn(),
     onDismissError: vi.fn(),
+    onDismissInterruptedRun: vi.fn(),
+    onBranchFromMessage: vi.fn(),
+    onForkFromMessage: vi.fn(),
     ...overrides,
   }
 }

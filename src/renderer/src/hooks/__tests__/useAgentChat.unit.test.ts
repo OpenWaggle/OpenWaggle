@@ -1,18 +1,18 @@
 // @vitest-environment jsdom
 
 import type { AgentSendPayload } from '@shared/types/agent'
-import { ConversationId, MessageId, SupportedModelId, ToolCallId } from '@shared/types/brand'
-import type { Conversation } from '@shared/types/conversation'
+import { MessageId, SessionId, SupportedModelId, ToolCallId } from '@shared/types/brand'
+import type { SessionDetail } from '@shared/types/session'
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useOptimisticUserMessageStore } from '@/stores/optimistic-user-message-store'
+import { useOptimisticUserMessageStore } from '../../stores/optimistic-user-message-store'
 import { useAgentChat } from '../useAgentChat'
 
 const {
   apiMock,
   hasActiveRunMock,
   useBackgroundRunStoreMock,
-  upsertConversationMock,
+  upsertSessionMock,
   useChatStoreMock,
   agentEventHandlers,
   runCompletedHandlers,
@@ -27,7 +27,7 @@ const {
       return () => {}
     }),
     getBackgroundRun: vi.fn(async () => null),
-    getConversation: vi.fn(async () => null),
+    getSessionDetail: vi.fn(async () => null),
     sendMessage: vi.fn(async () => undefined),
     sendWaggleMessage: vi.fn(async () => undefined),
     cancelAgent: vi.fn(),
@@ -35,13 +35,13 @@ const {
   },
   hasActiveRunMock: vi.fn(() => false),
   useBackgroundRunStoreMock: vi.fn(
-    (selector: (state: { hasActiveRun: (conversationId: string) => boolean }) => unknown) =>
+    (selector: (state: { hasActiveRun: (sessionId: string) => boolean }) => unknown) =>
       selector({ hasActiveRun: hasActiveRunMock }),
   ),
-  upsertConversationMock: vi.fn(),
+  upsertSessionMock: vi.fn(),
   useChatStoreMock: vi.fn(
-    (selector: (state: { upsertConversation: (value: unknown) => void }) => unknown) =>
-      selector({ upsertConversation: upsertConversationMock }),
+    (selector: (state: { upsertSession: (value: unknown) => void }) => unknown) =>
+      selector({ upsertSession: upsertSessionMock }),
   ),
   agentEventHandlers: [] as Array<(payload: unknown) => void>,
   runCompletedHandlers: [] as Array<(payload: unknown) => void>,
@@ -71,10 +71,10 @@ function emitRunCompleted(payload: unknown): void {
   }
 }
 
-function createConversation(): Conversation {
+function createSession(): SessionDetail {
   return {
-    id: ConversationId('conv-1'),
-    title: 'Conversation',
+    id: SessionId('session-1'),
+    title: 'SessionDetail',
     projectPath: '/tmp/project',
     createdAt: 1,
     updatedAt: 1,
@@ -99,13 +99,13 @@ function createConversation(): Conversation {
   }
 }
 
-function createConversationWithMessages(
+function createSessionWithMessages(
   updatedAt: number,
-  messages: Conversation['messages'],
-): Conversation {
+  messages: SessionDetail['messages'],
+): SessionDetail {
   return {
-    id: ConversationId('conv-1'),
-    title: 'Conversation',
+    id: SessionId('session-1'),
+    title: 'SessionDetail',
     projectPath: '/tmp/project',
     createdAt: 1,
     updatedAt,
@@ -133,27 +133,27 @@ describe('useAgentChat', () => {
     apiMock.onAgentEvent.mockClear()
     apiMock.onRunCompleted.mockClear()
     apiMock.getBackgroundRun.mockReset()
-    apiMock.getConversation.mockReset()
+    apiMock.getSessionDetail.mockReset()
     apiMock.sendMessage.mockReset()
     apiMock.sendWaggleMessage.mockReset()
     apiMock.cancelAgent.mockReset()
     apiMock.steerAgent.mockReset()
     hasActiveRunMock.mockReset()
     hasActiveRunMock.mockReturnValue(false)
-    upsertConversationMock.mockReset()
+    upsertSessionMock.mockReset()
     useChatStoreMock.mockClear()
     agentEventHandlers.length = 0
     runCompletedHandlers.length = 0
-    useOptimisticUserMessageStore.setState({ messagesByConversationId: new Map() })
+    useOptimisticUserMessageStore.setState({ messagesBySessionId: new Map() })
   })
 
-  it('hydrates persisted tool-call state from the conversation snapshot', async () => {
-    const conversation = createConversation()
+  it('hydrates persisted tool-call state from the session snapshot', async () => {
+    const session = createSession()
 
     const { result } = renderHook(() =>
       useAgentChat(
-        ConversationId('conv-1'),
-        conversation,
+        SessionId('session-1'),
+        session,
         SupportedModelId('claude-sonnet-4-5'),
         'medium',
       ),
@@ -171,8 +171,8 @@ describe('useAgentChat', () => {
     })
   })
 
-  it('rehydrates the same conversation when a newer persisted snapshot arrives', async () => {
-    const initialConversation = createConversationWithMessages(1, [
+  it('rehydrates the same session when a newer persisted snapshot arrives', async () => {
+    const initialSession = createSessionWithMessages(1, [
       {
         id: MessageId('user-1'),
         role: 'user',
@@ -181,7 +181,7 @@ describe('useAgentChat', () => {
       },
     ])
 
-    const updatedConversation = createConversationWithMessages(2, [
+    const updatedSession = createSessionWithMessages(2, [
       {
         id: MessageId('user-1'),
         role: 'user',
@@ -219,15 +219,15 @@ describe('useAgentChat', () => {
     ])
 
     const { result, rerender } = renderHook(
-      ({ conversation }: { conversation: Conversation }) =>
+      ({ session }: { session: SessionDetail }) =>
         useAgentChat(
-          ConversationId('conv-1'),
-          conversation,
+          SessionId('session-1'),
+          session,
           SupportedModelId('claude-sonnet-4-5'),
           'medium',
         ),
       {
-        initialProps: { conversation: initialConversation },
+        initialProps: { session: initialSession },
       },
     )
 
@@ -241,7 +241,7 @@ describe('useAgentChat', () => {
       )
     })
 
-    rerender({ conversation: updatedConversation })
+    rerender({ session: updatedSession })
 
     await waitFor(() => {
       expect(result.current.messages).toHaveLength(2)
@@ -276,8 +276,8 @@ describe('useAgentChat', () => {
   it('streams optimistic user and assistant text through OpenWaggle runtime events', async () => {
     const { result } = renderHook(() =>
       useAgentChat(
-        ConversationId('conv-1'),
-        createConversation(),
+        SessionId('session-1'),
+        createSession(),
         SupportedModelId('claude-sonnet-4-5'),
         'medium',
       ),
@@ -289,7 +289,7 @@ describe('useAgentChat', () => {
     })
 
     expect(apiMock.sendMessage).toHaveBeenCalledWith(
-      ConversationId('conv-1'),
+      SessionId('session-1'),
       SEND_PAYLOAD,
       SupportedModelId('claude-sonnet-4-5'),
     )
@@ -297,7 +297,7 @@ describe('useAgentChat', () => {
 
     await act(async () => {
       emitAgentEvent({
-        conversationId: ConversationId('conv-1'),
+        sessionId: SessionId('session-1'),
         event: {
           type: 'agent_start',
           runId: 'run-1',
@@ -305,7 +305,7 @@ describe('useAgentChat', () => {
         },
       })
       emitAgentEvent({
-        conversationId: ConversationId('conv-1'),
+        sessionId: SessionId('session-1'),
         event: {
           type: 'message_start',
           messageId: 'assistant-1',
@@ -314,7 +314,7 @@ describe('useAgentChat', () => {
         },
       })
       emitAgentEvent({
-        conversationId: ConversationId('conv-1'),
+        sessionId: SessionId('session-1'),
         event: {
           type: 'message_update',
           messageId: 'assistant-1',
@@ -327,7 +327,7 @@ describe('useAgentChat', () => {
           timestamp: 3,
         },
       })
-      emitRunCompleted({ conversationId: ConversationId('conv-1') })
+      emitRunCompleted({ sessionId: SessionId('session-1') })
       await sendPromise
     })
 
@@ -343,8 +343,8 @@ describe('useAgentChat', () => {
   it('settles a foreground send when the run is cancelled', async () => {
     const { result } = renderHook(() =>
       useAgentChat(
-        ConversationId('conv-1'),
-        createConversation(),
+        SessionId('session-1'),
+        createSession(),
         SupportedModelId('claude-sonnet-4-5'),
         'medium',
       ),
@@ -360,15 +360,15 @@ describe('useAgentChat', () => {
       await sendPromise
     })
 
-    expect(apiMock.cancelAgent).toHaveBeenCalledWith(ConversationId('conv-1'))
+    expect(apiMock.cancelAgent).toHaveBeenCalledWith(SessionId('session-1'))
     expect(result.current.status).toBe('ready')
   })
 
   it('settles a foreground send when the run is steered', async () => {
     const { result } = renderHook(() =>
       useAgentChat(
-        ConversationId('conv-1'),
-        createConversation(),
+        SessionId('session-1'),
+        createSession(),
         SupportedModelId('claude-sonnet-4-5'),
         'medium',
       ),
@@ -384,15 +384,15 @@ describe('useAgentChat', () => {
       await sendPromise
     })
 
-    expect(apiMock.steerAgent).toHaveBeenCalledWith(ConversationId('conv-1'))
+    expect(apiMock.steerAgent).toHaveBeenCalledWith(SessionId('session-1'))
     expect(result.current.status).toBe('ready')
   })
 
   it('surfaces compaction lifecycle events as foreground activity', async () => {
     const { result } = renderHook(() =>
       useAgentChat(
-        ConversationId('conv-1'),
-        createConversation(),
+        SessionId('session-1'),
+        createSession(),
         SupportedModelId('claude-sonnet-4-5'),
         'medium',
       ),
@@ -400,7 +400,7 @@ describe('useAgentChat', () => {
 
     await act(async () => {
       emitAgentEvent({
-        conversationId: ConversationId('conv-1'),
+        sessionId: SessionId('session-1'),
         event: {
           type: 'compaction_start',
           reason: 'manual',
@@ -415,7 +415,7 @@ describe('useAgentChat', () => {
 
     await act(async () => {
       emitAgentEvent({
-        conversationId: ConversationId('conv-1'),
+        sessionId: SessionId('session-1'),
         event: {
           type: 'compaction_end',
           reason: 'manual',
@@ -439,8 +439,8 @@ describe('useAgentChat', () => {
   it('applies stream text immediately as chunks arrive', async () => {
     const { result } = renderHook(() =>
       useAgentChat(
-        ConversationId('conv-1'),
-        createConversation(),
+        SessionId('session-1'),
+        createSession(),
         SupportedModelId('claude-sonnet-4-5'),
         'medium',
       ),
@@ -453,7 +453,7 @@ describe('useAgentChat', () => {
 
     await act(async () => {
       emitAgentEvent({
-        conversationId: ConversationId('conv-1'),
+        sessionId: SessionId('session-1'),
         event: {
           type: 'agent_start',
           runId: 'run-1',
@@ -461,7 +461,7 @@ describe('useAgentChat', () => {
         },
       })
       emitAgentEvent({
-        conversationId: ConversationId('conv-1'),
+        sessionId: SessionId('session-1'),
         event: {
           type: 'message_start',
           messageId: 'assistant-1',
@@ -470,7 +470,7 @@ describe('useAgentChat', () => {
         },
       })
       emitAgentEvent({
-        conversationId: ConversationId('conv-1'),
+        sessionId: SessionId('session-1'),
         event: {
           type: 'message_update',
           messageId: 'assistant-1',
@@ -494,7 +494,7 @@ describe('useAgentChat', () => {
     )
 
     await act(async () => {
-      emitRunCompleted({ conversationId: ConversationId('conv-1') })
+      emitRunCompleted({ sessionId: SessionId('session-1') })
       await sendPromise
     })
   })
@@ -502,8 +502,8 @@ describe('useAgentChat', () => {
   it('uses canonical tool input from toolcall_start without waiting for follow-up events', async () => {
     const { result } = renderHook(() =>
       useAgentChat(
-        ConversationId('conv-1'),
-        createConversation(),
+        SessionId('session-1'),
+        createSession(),
         SupportedModelId('claude-sonnet-4-5'),
         'medium',
       ),
@@ -516,7 +516,7 @@ describe('useAgentChat', () => {
 
     await act(async () => {
       emitAgentEvent({
-        conversationId: ConversationId('conv-1'),
+        sessionId: SessionId('session-1'),
         event: {
           type: 'agent_start',
           runId: 'run-1',
@@ -524,7 +524,7 @@ describe('useAgentChat', () => {
         },
       })
       emitAgentEvent({
-        conversationId: ConversationId('conv-1'),
+        sessionId: SessionId('session-1'),
         event: {
           type: 'message_start',
           messageId: 'assistant-1',
@@ -533,7 +533,7 @@ describe('useAgentChat', () => {
         },
       })
       emitAgentEvent({
-        conversationId: ConversationId('conv-1'),
+        sessionId: SessionId('session-1'),
         event: {
           type: 'message_update',
           messageId: 'assistant-1',
@@ -567,7 +567,7 @@ describe('useAgentChat', () => {
     )
 
     await act(async () => {
-      emitRunCompleted({ conversationId: ConversationId('conv-1') })
+      emitRunCompleted({ sessionId: SessionId('session-1') })
       await sendPromise
     })
   })
@@ -575,13 +575,13 @@ describe('useAgentChat', () => {
   it('keeps an optimistic user message when reconnecting after a route remount', async () => {
     hasActiveRunMock.mockReturnValue(true)
     apiMock.getBackgroundRun.mockResolvedValue({
-      conversationId: ConversationId('conv-1'),
+      sessionId: SessionId('session-1'),
       model: SupportedModelId('claude-sonnet-4-5'),
       mode: 'agent',
       startedAt: 1,
       parts: [],
     })
-    useOptimisticUserMessageStore.getState().add(ConversationId('conv-1'), {
+    useOptimisticUserMessageStore.getState().add(SessionId('session-1'), {
       id: 'optimistic-user-1',
       role: 'user',
       parts: [{ type: 'text', content: 'First prompt survives remount' }],
@@ -590,8 +590,8 @@ describe('useAgentChat', () => {
 
     const { result } = renderHook(() =>
       useAgentChat(
-        ConversationId('conv-1'),
-        createConversationWithMessages(1, []),
+        SessionId('session-1'),
+        createSessionWithMessages(1, []),
         SupportedModelId('claude-sonnet-4-5'),
         'medium',
       ),
@@ -610,7 +610,7 @@ describe('useAgentChat', () => {
   })
 
   it('continues streaming when agent_start arrives after a route remount', async () => {
-    useOptimisticUserMessageStore.getState().add(ConversationId('conv-1'), {
+    useOptimisticUserMessageStore.getState().add(SessionId('session-1'), {
       id: 'optimistic-user-1',
       role: 'user',
       parts: [{ type: 'text', content: 'First prompt survives remount' }],
@@ -619,8 +619,8 @@ describe('useAgentChat', () => {
 
     const { result } = renderHook(() =>
       useAgentChat(
-        ConversationId('conv-1'),
-        createConversationWithMessages(1, []),
+        SessionId('session-1'),
+        createSessionWithMessages(1, []),
         SupportedModelId('claude-sonnet-4-5'),
         'medium',
       ),
@@ -632,7 +632,7 @@ describe('useAgentChat', () => {
 
     await act(async () => {
       emitAgentEvent({
-        conversationId: ConversationId('conv-1'),
+        sessionId: SessionId('session-1'),
         event: {
           type: 'agent_start',
           runId: 'run-1',
@@ -640,7 +640,7 @@ describe('useAgentChat', () => {
         },
       })
       emitAgentEvent({
-        conversationId: ConversationId('conv-1'),
+        sessionId: SessionId('session-1'),
         event: {
           type: 'message_start',
           messageId: 'assistant-1',
@@ -649,7 +649,7 @@ describe('useAgentChat', () => {
         },
       })
       emitAgentEvent({
-        conversationId: ConversationId('conv-1'),
+        sessionId: SessionId('session-1'),
         event: {
           type: 'message_update',
           messageId: 'assistant-1',
@@ -679,11 +679,11 @@ describe('useAgentChat', () => {
     )
   })
 
-  it('uses the latest persisted conversation snapshot when reconnecting to a background run', async () => {
+  it('uses the latest persisted session snapshot when reconnecting to a background run', async () => {
     hasActiveRunMock.mockReturnValue(true)
     apiMock.getBackgroundRun.mockResolvedValue(null)
-    apiMock.getConversation.mockResolvedValue(
-      createConversationWithMessages(2, [
+    apiMock.getSessionDetail.mockResolvedValue(
+      createSessionWithMessages(2, [
         {
           id: MessageId('user-1'),
           role: 'user',
@@ -695,8 +695,8 @@ describe('useAgentChat', () => {
 
     const { result } = renderHook(() =>
       useAgentChat(
-        ConversationId('conv-1'),
-        createConversationWithMessages(1, []),
+        SessionId('session-1'),
+        createSessionWithMessages(1, []),
         SupportedModelId('claude-sonnet-4-5'),
         'medium',
       ),
@@ -716,18 +716,18 @@ describe('useAgentChat', () => {
   it('reconnects to an active background run snapshot', async () => {
     hasActiveRunMock.mockReturnValue(true)
     apiMock.getBackgroundRun.mockResolvedValue({
-      conversationId: ConversationId('conv-1'),
+      sessionId: SessionId('session-1'),
       model: SupportedModelId('claude-sonnet-4-5'),
       mode: 'agent',
       startedAt: 1,
       parts: [{ type: 'text', text: 'Partial answer' }],
     })
 
-    const conversation = createConversation()
+    const session = createSession()
     const { result } = renderHook(() =>
       useAgentChat(
-        ConversationId('conv-1'),
-        conversation,
+        SessionId('session-1'),
+        session,
         SupportedModelId('claude-sonnet-4-5'),
         'medium',
       ),

@@ -1,4 +1,4 @@
-import type { ConversationId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 import type {
   WaggleCollaborationStatus,
   WaggleConfig,
@@ -12,9 +12,9 @@ import { create } from 'zustand'
 
 interface WaggleState {
   // Active collaboration
-  activeCollaborationId: ConversationId | null
-  /** Tracks which conversation the idle config targets (before startCollaboration). */
-  configConversationId: ConversationId | null
+  activeCollaborationId: SessionId | null
+  /** Tracks which session the idle config targets (before startCollaboration). */
+  configSessionId: SessionId | null
   activeConfig: WaggleConfig | null
   status: WaggleCollaborationStatus
   currentTurn: number
@@ -39,9 +39,9 @@ interface WaggleState {
   completionReason: string | null
 
   // Actions
-  setConfig: (config: WaggleConfig, conversationId: ConversationId | null) => void
+  setConfig: (config: WaggleConfig, sessionId: SessionId | null) => void
   clearConfig: () => void
-  startCollaboration: (conversationId: ConversationId, config: WaggleConfig) => void
+  startCollaboration: (sessionId: SessionId, config: WaggleConfig) => void
   handleTurnEvent: (event: WaggleTurnEvent) => void
   trackMessageMetadata: (messageId: string, meta: WaggleMessageMetadata) => void
   stopCollaboration: () => void
@@ -50,7 +50,7 @@ interface WaggleState {
 
 export const useWaggleStore = create<WaggleState>((set) => ({
   activeCollaborationId: null,
-  configConversationId: null,
+  configSessionId: null,
   activeConfig: null,
   status: 'idle',
   currentTurn: 0,
@@ -63,19 +63,19 @@ export const useWaggleStore = create<WaggleState>((set) => ({
   lastConsensusResult: null,
   completionReason: null,
 
-  setConfig(config, conversationId) {
-    set({ activeConfig: config, configConversationId: conversationId })
+  setConfig(config, sessionId) {
+    set({ activeConfig: config, configSessionId: sessionId })
   },
 
   clearConfig() {
-    set({ activeConfig: null, configConversationId: null })
+    set({ activeConfig: null, configSessionId: null })
   },
 
-  startCollaboration(conversationId, config) {
+  startCollaboration(sessionId, config) {
     const firstAgent = config.agents[0]
     set({
-      activeCollaborationId: conversationId,
-      configConversationId: conversationId,
+      activeCollaborationId: sessionId,
+      configSessionId: sessionId,
       activeConfig: config,
       status: 'running',
       currentTurn: 0,
@@ -123,12 +123,6 @@ export const useWaggleStore = create<WaggleState>((set) => ({
           completionReason: value.reason,
         })
       })
-      .case('synthesis-start', () => {
-        set({
-          currentAgentIndex: -1,
-          currentAgentLabel: 'Synthesis',
-        })
-      })
       .case('turn-end', (value) => {
         set((s) => ({
           completedTurnMeta: [
@@ -139,7 +133,6 @@ export const useWaggleStore = create<WaggleState>((set) => ({
               agentColor: value.agentColor,
               agentModel: value.agentModel,
               turnNumber: value.turnNumber,
-              ...(value.agentIndex === -1 ? { isSynthesis: true } : {}),
             },
           ],
         }))
@@ -160,7 +153,7 @@ export const useWaggleStore = create<WaggleState>((set) => ({
   reset() {
     set({
       activeCollaborationId: null,
-      configConversationId: null,
+      configSessionId: null,
       activeConfig: null,
       status: 'idle',
       currentTurn: 0,

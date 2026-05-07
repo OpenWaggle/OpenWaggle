@@ -1,7 +1,7 @@
 import { SessionId, SessionNodeId } from '@shared/types/brand'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useBranchSummaryStore } from '@/stores/branch-summary-store'
+import { useBranchSummaryStore } from '../../../stores/branch-summary-store'
 import { BranchSummaryPrompt } from '../BranchSummaryPrompt'
 
 const SESSION_ID = SessionId('session-1')

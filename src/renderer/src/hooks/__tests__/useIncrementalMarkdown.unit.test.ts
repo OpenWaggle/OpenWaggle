@@ -6,7 +6,7 @@ vi.mock('@/lib/shiki/rehype-shiki-plugin', () => ({
   applyShikiToHast: vi.fn(),
 }))
 
-import { ShikiCache } from '@/lib/shiki/shiki-cache'
+import { ShikiCache } from '../../lib/shiki/shiki-cache'
 import { findSplitIndex, useIncrementalMarkdown } from '../useIncrementalMarkdown'
 
 const SHIKI_OPTIONS = { highlighter: undefined, cache: new ShikiCache() }

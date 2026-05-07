@@ -29,11 +29,11 @@ interface ContextUsageRequestState {
 }
 
 function buildRequestKey(
-  conversationId: string | null,
+  sessionId: string | null,
   model: SupportedModelId,
-  conversationVersion: string,
+  sessionVersion: string,
 ): string {
-  return conversationId ? `${conversationId}:${model}:${conversationVersion}` : ''
+  return sessionId ? `${sessionId}:${model}:${sessionVersion}` : ''
 }
 
 function findContextWindow(
@@ -89,18 +89,18 @@ function formatUsageTitle(input: {
 }
 
 export function ContextMeter() {
-  const activeConversationId = useChatStore((s) => s.activeConversationId)
-  const activeConversation = useChatStore((s) => s.activeConversation)
+  const activeSessionId = useChatStore((s) => s.activeSessionId)
+  const activeSession = useChatStore((s) => s.activeSession)
   const selectedModel = usePreferencesStore((s) => s.settings.selectedModel)
   const providerModels = useProviderStore((s) => s.providerModels)
   const fallbackContextWindow = findContextWindow(providerModels, selectedModel)
-  const conversationVersion = activeConversation
-    ? `${String(activeConversation.updatedAt)}:${String(activeConversation.messages.length)}`
+  const sessionVersion = activeSession
+    ? `${String(activeSession.updatedAt)}:${String(activeSession.messages.length)}`
     : ''
   const requestKey = buildRequestKey(
-    activeConversationId ? String(activeConversationId) : null,
+    activeSessionId ? String(activeSessionId) : null,
     selectedModel,
-    conversationVersion,
+    sessionVersion,
   )
 
   const [requestState, setRequestState] = useState<ContextUsageRequestState>({
@@ -110,7 +110,7 @@ export function ContextMeter() {
   })
 
   useEffect(() => {
-    if (!activeConversationId) {
+    if (!activeSessionId) {
       return
     }
     if (typeof api.getContextUsage !== 'function') {
@@ -121,7 +121,7 @@ export function ContextMeter() {
     const currentRequestKey = requestKey
 
     api
-      .getContextUsage(activeConversationId, selectedModel)
+      .getContextUsage(activeSessionId, selectedModel)
       .then((snapshot) => {
         if (cancelled) {
           return
@@ -141,12 +141,12 @@ export function ContextMeter() {
     return () => {
       cancelled = true
     }
-  }, [activeConversationId, selectedModel, requestKey])
+  }, [activeSessionId, selectedModel, requestKey])
 
   const snapshot = requestState.key === requestKey ? requestState.snapshot : null
   const contextWindow = snapshot?.contextWindow ?? fallbackContextWindow
-  const percent = snapshot?.percent ?? (activeConversationId || !fallbackContextWindow ? null : 0)
-  const tokens = snapshot?.tokens ?? (activeConversationId || !fallbackContextWindow ? null : 0)
+  const percent = snapshot?.percent ?? (activeSessionId || !fallbackContextWindow ? null : 0)
+  const tokens = snapshot?.tokens ?? (activeSessionId || !fallbackContextWindow ? null : 0)
   const normalizedPercent = clampPercent(percent)
   const dashOffset = CIRCUMFERENCE - (normalizedPercent / PERCENT_MAX) * CIRCUMFERENCE
   const strokeColor = getStrokeColor(percent, contextWindow !== null)
@@ -173,7 +173,11 @@ export function ContextMeter() {
           viewBox={`0 0 ${String(VIEWBOX_SIZE)} ${String(VIEWBOX_SIZE)}`}
           className="-rotate-90"
           role="img"
-          aria-label="Context usage meter"
+          aria-label={
+            requestState.key === requestKey && requestState.failed
+              ? 'Context usage unavailable'
+              : 'Context usage meter'
+          }
         >
           <title>Context usage meter</title>
           <circle

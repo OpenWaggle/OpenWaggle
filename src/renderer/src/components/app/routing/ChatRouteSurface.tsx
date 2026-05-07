@@ -1,4 +1,4 @@
-import { ConversationId, SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
+import { SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
 import { useNavigate } from '@tanstack/react-router'
 import { lazy, Suspense, useEffect } from 'react'
 import { ChatPanelContent } from '@/components/chat/ChatPanel'
@@ -38,8 +38,8 @@ interface ChatRouteSurfaceProps {
   readonly onSessionTreeOpenChange: (open: boolean) => void
 }
 
-function conversationIdFromRoute(sessionId: string): ConversationId {
-  return ConversationId(sessionId)
+function sessionIdFromRoute(sessionId: string): SessionId {
+  return SessionId(sessionId)
 }
 
 function DiffSidebarFallback() {
@@ -64,17 +64,15 @@ export function ChatRouteSurface({
 }: ChatRouteSurfaceProps) {
   const navigate = useNavigate()
   const sections = useChatPanelSections()
-  const routeConversationId = sessionId ? conversationIdFromRoute(sessionId) : null
-  const activeConversationId = useChatStore((state) => state.activeConversationId)
-  const setActiveConversation = useChatStore((state) => state.setActiveConversation)
-  const routeConversationSummary = useChatStore((state) => {
-    if (routeConversationId === null) {
+  const routeSessionId = sessionId ? sessionIdFromRoute(sessionId) : null
+  const activeSessionId = useChatStore((state) => state.activeSessionId)
+  const setActiveSession = useChatStore((state) => state.setActiveSession)
+  const routeSessionSummary = useChatStore((state) => {
+    if (routeSessionId === null) {
       return null
     }
 
-    return (
-      state.conversations.find((conversation) => conversation.id === routeConversationId) ?? null
-    )
+    return state.sessions.find((session) => session.id === routeSessionId) ?? null
   })
   const projectPath = usePreferencesStore((state) => state.settings.projectPath)
   const setProjectPath = usePreferencesStore((state) => state.setProjectPath)
@@ -92,11 +90,11 @@ export function ChatRouteSurface({
   })
 
   useEffect(() => {
-    if (routeConversationId === null) {
-      if (activeConversationId !== null) {
+    if (routeSessionId === null) {
+      if (activeSessionId !== null) {
         void navigate({
           to: '/sessions/$sessionId',
-          params: { sessionId: String(activeConversationId) },
+          params: { sessionId: String(activeSessionId) },
           replace: true,
           search: diffOpen ? { diff: 1 } : {},
         })
@@ -104,13 +102,13 @@ export function ChatRouteSurface({
       return
     }
 
-    if (activeConversationId !== routeConversationId) {
-      setActiveConversation(routeConversationId)
+    if (activeSessionId !== routeSessionId) {
+      setActiveSession(routeSessionId)
     }
-    useSessionStatusStore.getState().markVisited(routeConversationId)
-  }, [activeConversationId, diffOpen, navigate, routeConversationId, setActiveConversation])
+    useSessionStatusStore.getState().markVisited(routeSessionId)
+  }, [activeSessionId, diffOpen, navigate, routeSessionId, setActiveSession])
 
-  const routeSessionTreeId = routeConversationId ? SessionId(String(routeConversationId)) : null
+  const routeSessionTreeId = routeSessionId ? SessionId(String(routeSessionId)) : null
   const routeBranchId = branchId ? SessionBranchId(branchId) : null
   const routeNodeId = nodeId ? SessionNodeId(nodeId) : null
 
@@ -131,7 +129,7 @@ export function ChatRouteSurface({
     })
   }, [refreshSessionWorkspace, routeBranchId, routeNodeId, routeSessionTreeId])
 
-  const routeProjectPath = routeConversationSummary?.projectPath ?? null
+  const routeProjectPath = routeSessionSummary?.projectPath ?? null
   const nextProjectPath = routeProjectPath ?? projectPath
 
   useEffect(() => {

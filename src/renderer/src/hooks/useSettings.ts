@@ -19,8 +19,12 @@ export function useSettingsSetup(): void {
       await loadSettings()
       if (!active) return
 
-      await loadProviderModels()
+      const updatedSettings = await loadProviderModels(usePreferencesStore.getState().settings)
       if (!active) return
+
+      if (updatedSettings) {
+        usePreferencesStore.setState({ settings: updatedSettings })
+      }
 
       const oauthProviders = useProviderStore
         .getState()

@@ -17,7 +17,7 @@ function createDefaultParams(
   overrides: Partial<UseChatScrollBehaviourParams> = {},
 ): UseChatScrollBehaviourParams {
   return {
-    activeConversationId: 'conv-1',
+    activeSessionId: 'session-1',
     lastUserMessageId: 'user-1',
     rowsLength: 5,
     streamVersion: 5,
@@ -121,12 +121,12 @@ function renderScrollHook(params: UseChatScrollBehaviourParams, layout: TestLayo
   )
 }
 
-function expectScrollCacheEntry(conversationId: string, scrollTop: number): void {
+function expectScrollCacheEntry(sessionId: string, scrollTop: number): void {
   const raw = localStorage.getItem(SCROLL_CACHE_KEY)
   expect(raw).not.toBeNull()
   const parsed: unknown = JSON.parse(raw ?? '[]')
   expect(Array.isArray(parsed)).toBe(true)
-  expect(parsed).toContainEqual([conversationId, scrollTop])
+  expect(parsed).toContainEqual([sessionId, scrollTop])
 }
 
 function flushAnimationFrame(): void {
@@ -392,7 +392,7 @@ describe('useChatScrollBehaviour', () => {
       clientHeight: 500,
     })
     const touchHook = renderScrollHook(
-      createDefaultParams({ activeConversationId: 'conv-touch' }),
+      createDefaultParams({ activeSessionId: 'session-touch' }),
       touchLayout,
     )
 
@@ -435,7 +435,7 @@ describe('useChatScrollBehaviour', () => {
       clientHeight: 500,
     })
     const { result, rerender } = renderScrollHook(
-      createDefaultParams({ activeConversationId: 'conv-a', lastUserMessageId: 'user-a' }),
+      createDefaultParams({ activeSessionId: 'session-a', lastUserMessageId: 'user-a' }),
       layout,
     )
 
@@ -445,12 +445,12 @@ describe('useChatScrollBehaviour', () => {
     })
 
     layout.setScrollTop(900)
-    rerender(createDefaultParams({ activeConversationId: 'conv-b', lastUserMessageId: 'user-b' }))
+    rerender(createDefaultParams({ activeSessionId: 'session-b', lastUserMessageId: 'user-b' }))
     act(() => {
       result.current.handleScroll()
     })
 
-    rerender(createDefaultParams({ activeConversationId: 'conv-a', lastUserMessageId: 'user-a' }))
+    rerender(createDefaultParams({ activeSessionId: 'session-a', lastUserMessageId: 'user-a' }))
 
     expect(layout.getScrollTop()).toBe(320)
   })
@@ -461,7 +461,7 @@ describe('useChatScrollBehaviour', () => {
       clientHeight: 500,
     })
     const { result, rerender } = renderScrollHook(
-      createDefaultParams({ activeConversationId: 'conv-a', lastUserMessageId: 'user-a' }),
+      createDefaultParams({ activeSessionId: 'session-a', lastUserMessageId: 'user-a' }),
       layout,
     )
 
@@ -470,9 +470,9 @@ describe('useChatScrollBehaviour', () => {
       result.current.handleScroll()
     })
 
-    rerender(createDefaultParams({ activeConversationId: 'conv-b', lastUserMessageId: 'user-b' }))
+    rerender(createDefaultParams({ activeSessionId: 'session-b', lastUserMessageId: 'user-b' }))
     layout.setNaturalScrollHeight(100)
-    rerender(createDefaultParams({ activeConversationId: 'conv-a', lastUserMessageId: 'user-a' }))
+    rerender(createDefaultParams({ activeSessionId: 'session-a', lastUserMessageId: 'user-a' }))
 
     expect(layout.getScrollTop()).toBe(0)
 
@@ -491,7 +491,7 @@ describe('useChatScrollBehaviour', () => {
     })
     const { result, rerender } = renderScrollHook(
       createDefaultParams({
-        activeConversationId: 'conv-a',
+        activeSessionId: 'session-a',
         lastUserMessageId: 'user-a',
       }),
       layout,
@@ -504,7 +504,7 @@ describe('useChatScrollBehaviour', () => {
 
     rerender(
       createDefaultParams({
-        activeConversationId: 'conv-b',
+        activeSessionId: 'session-b',
         lastUserMessageId: 'user-a',
       }),
     )
@@ -513,7 +513,7 @@ describe('useChatScrollBehaviour', () => {
     layout.setNaturalScrollHeight(500)
     rerender(
       createDefaultParams({
-        activeConversationId: 'conv-b',
+        activeSessionId: 'session-b',
         lastUserMessageId: 'user-b',
       }),
     )
@@ -521,7 +521,7 @@ describe('useChatScrollBehaviour', () => {
 
     rerender(
       createDefaultParams({
-        activeConversationId: 'conv-a',
+        activeSessionId: 'session-a',
         lastUserMessageId: 'user-b',
       }),
     )
@@ -530,7 +530,7 @@ describe('useChatScrollBehaviour', () => {
     layout.setNaturalScrollHeight(2000)
     rerender(
       createDefaultParams({
-        activeConversationId: 'conv-a',
+        activeSessionId: 'session-a',
         lastUserMessageId: 'user-a',
       }),
     )
@@ -543,7 +543,7 @@ describe('useChatScrollBehaviour', () => {
       clientHeight: 500,
     })
     const { result, rerender } = renderScrollHook(
-      createDefaultParams({ activeConversationId: 'conv-a', lastUserMessageId: 'user-a' }),
+      createDefaultParams({ activeSessionId: 'session-a', lastUserMessageId: 'user-a' }),
       layout,
     )
 
@@ -553,13 +553,13 @@ describe('useChatScrollBehaviour', () => {
     })
 
     layout.setScrollTop(900)
-    rerender(createDefaultParams({ activeConversationId: 'conv-b', lastUserMessageId: 'user-b' }))
+    rerender(createDefaultParams({ activeSessionId: 'session-b', lastUserMessageId: 'user-b' }))
 
     act(() => {
       vi.advanceTimersByTime(SCROLL_PERSIST_DEBOUNCE_MS)
     })
 
-    expectScrollCacheEntry('conv-a', 320)
+    expectScrollCacheEntry('session-a', 320)
   })
 
   it('showScrollbar starts false and becomes true on scroll then hides', () => {

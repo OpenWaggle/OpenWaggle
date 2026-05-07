@@ -1,7 +1,8 @@
-import { ConversationId, SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
+import { SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
 import type { SessionBranch, SessionTree } from '@shared/types/session'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import {
+  AlertTriangle,
   Archive,
   ArrowDownAZ,
   Calendar,
@@ -18,6 +19,8 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import openwaggleLockup from '@/assets/openwaggle-lockup.png'
+import { buildComposerDraftContextKey } from '@/components/composer/composer-draft-context'
+import { setEditorText } from '@/components/composer/lexical-utils'
 import { Popover } from '@/components/shared/Popover'
 import { useChat } from '@/hooks/useChat'
 import { useFullscreen } from '@/hooks/useFullscreen'
@@ -28,6 +31,7 @@ import { cn } from '@/lib/cn'
 import { projectName } from '@/lib/format'
 import { api } from '@/lib/ipc'
 import { useBranchSummaryStore } from '@/stores/branch-summary-store'
+import { useChatStore } from '@/stores/chat-store'
 import { useComposerStore } from '@/stores/composer-store'
 import { usePreferencesStore } from '@/stores/preferences-store'
 import { useSessionStatusStore } from '@/stores/session-status-store'
@@ -133,7 +137,14 @@ function BranchRows({
                 : 'text-text-tertiary hover:bg-bg-hover hover:text-text-secondary',
             )}
           >
-            <GitBranch className="h-3 w-3 shrink-0" />
+            {row.branch.interruptedRun ? (
+              <AlertTriangle
+                className="h-3 w-3 shrink-0 text-amber-400"
+                aria-label="Interrupted run"
+              />
+            ) : (
+              <GitBranch className="h-3 w-3 shrink-0" />
+            )}
             {isRenaming ? (
               <input
                 ref={renameInputRef}
@@ -221,9 +232,11 @@ interface ProjectGroupSectionProps {
   readonly draftBranch: ReturnType<typeof useSessions>['draftBranch']
   readonly displayProjectName: (path: string) => string
   readonly onSelectProjectPath: (path: string) => void
-  readonly onSelectConversation: (id: ConversationId) => void
-  readonly onDeleteConversation: (id: ConversationId) => void
-  readonly onMarkUnread: (id: ConversationId) => void
+  readonly onSelectSession: (id: SessionId) => void
+  readonly onDeleteSession: (id: SessionId) => void
+  readonly onArchiveSession: (id: SessionId) => void
+  readonly onCloneSession: (id: SessionId) => void
+  readonly onMarkUnread: (id: SessionId) => void
   readonly onSelectBranch: (sessionId: string, branch: SessionBranch) => void
   readonly onRenameBranch: (sessionId: string, branch: SessionBranch, name: string) => void
   readonly onArchiveBranch: (sessionId: string, branch: SessionBranch) => void
@@ -239,8 +252,10 @@ function ProjectGroupSection({
   draftBranch,
   displayProjectName,
   onSelectProjectPath,
-  onSelectConversation,
-  onDeleteConversation,
+  onSelectSession,
+  onDeleteSession,
+  onArchiveSession,
+  onCloneSession,
   onMarkUnread,
   onSelectBranch,
   onRenameBranch,
@@ -295,8 +310,10 @@ function ProjectGroupSection({
                   session={session}
                   isActive={session.id === activeSessionId}
                   variant="project"
-                  onSelect={onSelectConversation}
-                  onDelete={onDeleteConversation}
+                  onSelect={onSelectSession}
+                  onDelete={onDeleteSession}
+                  onArchive={onArchiveSession}
+                  onClone={onCloneSession}
                   onMarkUnread={onMarkUnread}
                   hasBranchDisclosure={hasBranchDisclosure}
                   branchesCollapsed={branchRowsCollapsed}
@@ -352,13 +369,13 @@ function SidebarBrandArea({ isFullscreen }: SidebarBrandAreaProps) {
 
 interface SidebarPrimaryActionsProps {
   readonly activeView: 'chat' | 'skills' | 'settings'
-  readonly onNewConversation: () => void
+  readonly onNewSession: () => void
   readonly onOpenSkills: () => void
 }
 
 function SidebarPrimaryActions({
   activeView,
-  onNewConversation,
+  onNewSession,
   onOpenSkills,
 }: SidebarPrimaryActionsProps) {
   return (
@@ -366,7 +383,7 @@ function SidebarPrimaryActions({
       <button
         type="button"
         aria-label="New session"
-        onClick={onNewConversation}
+        onClick={onNewSession}
         className="no-drag flex h-[34px] w-full items-center gap-2 px-3 text-left transition-colors hover:bg-bg-hover"
       >
         <Edit3 className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
@@ -473,10 +490,12 @@ interface SidebarProjectListProps {
   readonly sessionGroups: ReturnType<typeof buildSidebarProjectGroups>
   readonly displayProjectName: (path: string) => string
   readonly onArchiveBranch: (sessionId: string, branch: SessionBranch) => void
-  readonly onDeleteConversation: (id: ConversationId) => void
+  readonly onArchiveSession: (id: SessionId) => void
+  readonly onDeleteSession: (id: SessionId) => void
+  readonly onCloneSession: (id: SessionId) => void
   readonly onRenameBranch: (sessionId: string, branch: SessionBranch, name: string) => void
   readonly onSelectBranch: (sessionId: string, branch: SessionBranch) => void
-  readonly onSelectConversation: (id: ConversationId) => void
+  readonly onSelectSession: (id: SessionId) => void
   readonly onSelectProjectPath: (path: string) => void
   readonly onToggleBranches: (sessionId: SessionId, collapsed: boolean) => void
 }
@@ -490,10 +509,12 @@ function SidebarProjectList({
   sessionGroups,
   displayProjectName,
   onArchiveBranch,
-  onDeleteConversation,
+  onArchiveSession,
+  onDeleteSession,
+  onCloneSession,
   onRenameBranch,
   onSelectBranch,
-  onSelectConversation,
+  onSelectSession,
   onSelectProjectPath,
   onToggleBranches,
 }: SidebarProjectListProps) {
@@ -517,8 +538,10 @@ function SidebarProjectList({
       draftBranch={draftBranch}
       displayProjectName={displayProjectName}
       onSelectProjectPath={onSelectProjectPath}
-      onSelectConversation={onSelectConversation}
-      onDeleteConversation={onDeleteConversation}
+      onSelectSession={onSelectSession}
+      onDeleteSession={onDeleteSession}
+      onArchiveSession={onArchiveSession}
+      onCloneSession={onCloneSession}
       onMarkUnread={(id) => {
         useSessionStatusStore.getState().markUnread(id)
       }}
@@ -550,7 +573,7 @@ function SidebarSettingsButton({ onOpenSettings }: SidebarSettingsButtonProps) {
   )
 }
 
-export function Sidebar() {
+function useSidebarController() {
   const sidebarOpen = useUIStore((s) => s.sidebarOpen)
   const showToast = useUIStore((s) => s.showToast)
   const navigate = useNavigate()
@@ -561,20 +584,24 @@ export function Sidebar() {
   const recentProjects = usePreferencesStore((s) => s.settings.recentProjects)
   const projectDisplayNames = usePreferencesStore((s) => s.settings.projectDisplayNames)
   const selectedModel = usePreferencesStore((s) => s.settings.selectedModel)
-  const { activeConversationId, startDraftSession, deleteConversation, loadConversations } =
-    useChat()
+  const {
+    activeSessionId: activeChatSessionId,
+    startDraftSession,
+    deleteSession,
+    loadSessions: loadChatSessions,
+  } = useChat()
   const {
     sessions,
     activeSessionTree,
     activeWorkspace,
     draftBranch,
-    loadSessions,
+    loadSessions: loadSessionTrees,
     refreshSessionTree,
     refreshSessionWorkspace,
     clearDraftBranchForSession,
   } = useSessions()
   const { refreshStatus: refreshGitStatus, refreshBranches: refreshGitBranches } = useGit()
-  const activeSessionId = activeConversationId ? SessionId(String(activeConversationId)) : null
+  const activeSessionId = activeChatSessionId ? SessionId(String(activeChatSessionId)) : null
   const matchingActiveSessionTree =
     activeSessionId && activeSessionTree?.session.id === activeSessionId ? activeSessionTree : null
   const matchingActiveWorkspace =
@@ -607,13 +634,13 @@ export function Sidebar() {
     }
   }
 
-  function handleSelectConversation(id: ConversationId): void {
+  function handleSelectSession(id: SessionId): void {
     clearTransientDraftContext()
     void navigate({ to: '/sessions/$sessionId', params: { sessionId: String(id) } })
   }
 
   async function refreshAfterSessionMutation(sessionId: SessionId): Promise<void> {
-    await loadSessions()
+    await loadSessionTrees()
     await refreshSessionTree(sessionId)
   }
 
@@ -682,25 +709,7 @@ export function Sidebar() {
   function handleArchiveBranch(sessionId: string, branch: SessionBranch): void {
     const targetSessionId = SessionId(sessionId)
     if (branch.isMain) {
-      void (async () => {
-        const confirmed = await api.showConfirm(
-          'Archive this session?',
-          'Archiving main archives the full session and hides all branches from normal navigation.',
-        )
-        if (!confirmed) {
-          return
-        }
-
-        await api.archiveConversation(ConversationId(sessionId))
-        useComposerStore.getState().clearScopedDraftsForSession(sessionId)
-        await Promise.all([loadConversations(), loadSessions()])
-        if (activeSessionId === targetSessionId) {
-          void navigate({ to: '/' })
-        }
-      })().catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : String(error)
-        showToast(`Failed to archive session: ${message}`)
-      })
+      handleArchiveSession(targetSessionId)
       return
     }
 
@@ -721,10 +730,47 @@ export function Sidebar() {
       })
   }
 
+  function handleArchiveSession(sessionId: SessionId): void {
+    void (async () => {
+      const confirmed = await api.showConfirm(
+        'Archive this session?',
+        'Archiving hides the full session and all branches from normal navigation.',
+      )
+      if (!confirmed) {
+        return
+      }
+
+      await api.archiveSession(sessionId)
+      useComposerStore.getState().clearScopedDraftsForSession(String(sessionId))
+      await Promise.all([loadChatSessions(), loadSessionTrees()])
+      if (activeSessionId === sessionId) {
+        startDraftSession()
+        void navigate({ to: '/' })
+      }
+    })().catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error)
+      showToast(`Failed to archive session: ${message}`)
+    })
+  }
+
+  function handleDeleteSession(sessionId: SessionId): void {
+    void deleteSession(sessionId)
+      .then(() => {
+        if (activeSessionId === sessionId) {
+          startDraftSession()
+          void navigate({ to: '/' })
+        }
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error)
+        showToast(`Failed to delete session: ${message}`)
+      })
+  }
+
   function handleToggleBranches(sessionId: SessionId, collapsed: boolean): void {
     void api
       .updateSessionTreeUiState(sessionId, { branchesSidebarCollapsed: collapsed })
-      .then(() => loadSessions())
+      .then(() => loadSessionTrees())
       .then(() => refreshSessionTree(sessionId))
       .catch((error: unknown) => {
         const message = error instanceof Error ? error.message : String(error)
@@ -732,7 +778,65 @@ export function Sidebar() {
       })
   }
 
-  function handleNewConversation(): void {
+  function setComposerTextValue(text: string): void {
+    const composer = useComposerStore.getState()
+    composer.setInput(text)
+    composer.setCursorIndex(text.length)
+    if (composer.lexicalEditor) {
+      setEditorText(composer.lexicalEditor, text)
+    }
+  }
+
+  function activateClonedSession(sessionId: SessionId, project: string | null): void {
+    const contextKey = buildComposerDraftContextKey({ projectPath: project, sessionId })
+    useComposerStore.getState().switchScopedDraftContext(contextKey, {
+      input: '',
+      attachments: [],
+    })
+    setComposerTextValue('')
+    useChatStore.getState().setActiveSession(sessionId)
+    void navigate({ to: '/sessions/$sessionId', params: { sessionId: String(sessionId) } })
+  }
+
+  function handleCloneSession(sessionId: SessionId): void {
+    if (activeSessionId !== sessionId) {
+      showToast('Open this session before cloning it.')
+      return
+    }
+
+    const targetNodeId =
+      matchingActiveWorkspace?.activeNodeId ?? matchingActiveSessionTree?.session.lastActiveNodeId
+    if (!targetNodeId) {
+      showToast('No session history to clone.')
+      return
+    }
+
+    void api
+      .cloneSessionToNew(sessionId, selectedModel, SessionNodeId(String(targetNodeId)))
+      .then((result) => {
+        if (result.cancelled) {
+          showToast('Session clone cancelled.')
+          return
+        }
+        if (!result.session) {
+          showToast('Session clone did not return a session.')
+          return
+        }
+        useChatStore.getState().upsertSession(result.session)
+        activateClonedSession(result.session.id, result.session.projectPath)
+        return Promise.all([
+          loadChatSessions(),
+          loadSessionTrees(),
+          refreshSessionWorkspace(result.session.id),
+        ])
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error)
+        showToast(`Failed to clone session: ${message}`)
+      })
+  }
+
+  function handleNewSession(): void {
     clearTransientDraftContext()
     startDraftSession()
     void navigate({ to: '/' })
@@ -756,6 +860,76 @@ export function Sidebar() {
     void navigate({ to: '/' })
   }
 
+  function handleOpenSkills(): void {
+    void navigate({ to: '/skills' })
+  }
+
+  function handleOpenSettings(): void {
+    void navigate({ to: '/settings' })
+  }
+
+  return {
+    activeBranchId,
+    activeSessionId,
+    activeView,
+    displayProjectName,
+    draftBranch,
+    handleArchiveBranch,
+    handleArchiveSession,
+    handleDeleteSession,
+    handleCloneSession,
+    handleNewSession,
+    handleOpenProject,
+    handleOpenSettings,
+    handleOpenSkills,
+    handleRenameBranch,
+    handleSelectBranch,
+    handleSelectProjectPath,
+    handleSelectSession,
+    handleToggleBranches,
+    isFullscreen,
+    matchingActiveSessionTree,
+    projectPath,
+    sessionGroups,
+    setSortMenuOpen,
+    setSortMode,
+    sidebarOpen,
+    sortMenuOpen,
+    sortMode,
+  }
+}
+
+export function Sidebar() {
+  const {
+    activeBranchId,
+    activeSessionId,
+    activeView,
+    displayProjectName,
+    draftBranch,
+    handleArchiveBranch,
+    handleArchiveSession,
+    handleDeleteSession,
+    handleCloneSession,
+    handleNewSession,
+    handleOpenProject,
+    handleOpenSettings,
+    handleOpenSkills,
+    handleRenameBranch,
+    handleSelectBranch,
+    handleSelectProjectPath,
+    handleSelectSession,
+    handleToggleBranches,
+    isFullscreen,
+    matchingActiveSessionTree,
+    projectPath,
+    sessionGroups,
+    setSortMenuOpen,
+    setSortMode,
+    sidebarOpen,
+    sortMenuOpen,
+    sortMode,
+  } = useSidebarController()
+
   return (
     <div
       className={cn(
@@ -771,10 +945,8 @@ export function Sidebar() {
           <SidebarBrandArea isFullscreen={isFullscreen} />
           <SidebarPrimaryActions
             activeView={activeView}
-            onNewConversation={handleNewConversation}
-            onOpenSkills={() => {
-              void navigate({ to: '/skills' })
-            }}
+            onNewSession={handleNewSession}
+            onOpenSkills={handleOpenSkills}
           />
           <div className="shrink-0 h-20" />
           <SidebarProjectsHeader
@@ -796,10 +968,12 @@ export function Sidebar() {
               sessionGroups={sessionGroups}
               displayProjectName={displayProjectName}
               onArchiveBranch={handleArchiveBranch}
-              onDeleteConversation={deleteConversation}
+              onArchiveSession={handleArchiveSession}
+              onDeleteSession={handleDeleteSession}
+              onCloneSession={handleCloneSession}
               onRenameBranch={handleRenameBranch}
               onSelectBranch={handleSelectBranch}
-              onSelectConversation={handleSelectConversation}
+              onSelectSession={handleSelectSession}
               onSelectProjectPath={(nextProjectPath) => {
                 void handleSelectProjectPath(nextProjectPath)
               }}
@@ -808,11 +982,7 @@ export function Sidebar() {
           </div>
         </div>
 
-        <SidebarSettingsButton
-          onOpenSettings={() => {
-            void navigate({ to: '/settings' })
-          }}
-        />
+        <SidebarSettingsButton onOpenSettings={handleOpenSettings} />
       </nav>
     </div>
   )

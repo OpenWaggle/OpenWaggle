@@ -1,5 +1,5 @@
 import type { AgentSendPayload } from '@shared/types/agent'
-import type { ConversationId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 import { useState } from 'react'
 import { createRendererLogger } from '@/lib/logger'
 import { useMessageQueueStore } from '@/stores/message-queue-store'
@@ -8,7 +8,7 @@ import { reportQueuedSteerFailure } from '../queue-failure-feedback'
 const logger = createRendererLogger('chat-panel')
 
 interface SteerWorkflowDeps {
-  readonly activeConversationId: ConversationId | null
+  readonly activeSessionId: SessionId | null
   readonly steer: () => Promise<void>
   readonly previewSteeredUserTurn: (payload: AgentSendPayload) => () => void
   readonly withDeferredSnapshotRefresh: <T>(operation: () => Promise<T>) => Promise<T>
@@ -24,7 +24,7 @@ interface SteerWorkflowReturn {
 export function useSteerWorkflow(deps: SteerWorkflowDeps): SteerWorkflowReturn {
   const [isSteering, setIsSteering] = useState(false)
   const {
-    activeConversationId,
+    activeSessionId,
     steer,
     previewSteeredUserTurn,
     withDeferredSnapshotRefresh,
@@ -33,12 +33,12 @@ export function useSteerWorkflow(deps: SteerWorkflowDeps): SteerWorkflowReturn {
   } = deps
 
   async function handleSteer(messageId: string): Promise<void> {
-    if (!activeConversationId) return
-    const queue = useMessageQueueStore.getState().queues.get(activeConversationId)
+    if (!activeSessionId) return
+    const queue = useMessageQueueStore.getState().queues.get(activeSessionId)
     const item = queue?.find((i) => i.id === messageId)
     if (!item) return
     setIsSteering(true)
-    useMessageQueueStore.getState().dismiss(activeConversationId, messageId)
+    useMessageQueueStore.getState().dismiss(activeSessionId, messageId)
     const clearOptimisticSteeredTurn = previewSteeredUserTurn(item.payload)
     try {
       await withDeferredSnapshotRefresh(async () => {
@@ -47,8 +47,8 @@ export function useSteerWorkflow(deps: SteerWorkflowDeps): SteerWorkflowReturn {
       })
     } catch (error) {
       clearOptimisticSteeredTurn()
-      useMessageQueueStore.getState().enqueue(activeConversationId, item.payload)
-      reportQueuedSteerFailure({ logger, showToast }, activeConversationId, messageId, error)
+      useMessageQueueStore.getState().enqueue(activeSessionId, item.payload)
+      reportQueuedSteerFailure({ logger, showToast }, activeSessionId, messageId, error)
     } finally {
       setIsSteering(false)
     }

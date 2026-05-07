@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useComposerActionStore } from '@/stores/composer-action-store'
-import { useGitStore } from '@/stores/git-store'
+import { useComposerActionStore } from '../../../stores/composer-action-store'
+import { useGitStore } from '../../../stores/git-store'
 import { ActionDialog } from '../ActionDialog'
 
 vi.mock('@/lib/ipc', () => ({

@@ -1,21 +1,18 @@
-import type { ConversationId, SessionNodeId } from '@shared/types/brand'
+import type { SessionId, SessionNodeId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SessionWorkspace } from '@shared/types/session'
 import { messagePartToUIParts } from '@/hooks/useAgentChat.utils'
 
 interface ResolveTranscriptMessagesInput {
-  readonly activeConversationId: ConversationId | null
+  readonly activeSessionId: SessionId | null
   readonly activeWorkspace: SessionWorkspace | null
   readonly isRunning: boolean
   readonly messages: UIMessage[]
   readonly draftBranchSourceNodeId?: SessionNodeId | null
 }
 
-function workspaceBelongsToConversation(
-  workspace: SessionWorkspace,
-  conversationId: ConversationId,
-): boolean {
-  return String(workspace.tree.session.id) === String(conversationId)
+function workspaceBelongsToSession(workspace: SessionWorkspace, sessionId: SessionId): boolean {
+  return String(workspace.tree.session.id) === String(sessionId)
 }
 
 function workspacePathToMessages(workspace: SessionWorkspace, messages: UIMessage[]): UIMessage[] {
@@ -40,8 +37,17 @@ function workspacePathToMessages(workspace: SessionWorkspace, messages: UIMessag
       role: message.role,
       parts: message.parts.flatMap(messagePartToUIParts),
       createdAt: new Date(message.createdAt),
-      ...(message.metadata?.compactionSummary
-        ? { metadata: { compactionSummary: message.metadata.compactionSummary } }
+      ...(message.metadata?.branchSummary || message.metadata?.compactionSummary
+        ? {
+            metadata: {
+              ...(message.metadata.branchSummary
+                ? { branchSummary: message.metadata.branchSummary }
+                : {}),
+              ...(message.metadata.compactionSummary
+                ? { compactionSummary: message.metadata.compactionSummary }
+                : {}),
+            },
+          }
         : {}),
     })
   }
@@ -128,17 +134,17 @@ function appendLiveTailWhenViewingHeadOrDraftSource(
 }
 
 export function resolveTranscriptMessages({
-  activeConversationId,
+  activeSessionId,
   activeWorkspace,
   isRunning,
   messages,
   draftBranchSourceNodeId,
 }: ResolveTranscriptMessagesInput): UIMessage[] {
-  if (!activeConversationId || !activeWorkspace) {
+  if (!activeSessionId || !activeWorkspace) {
     return messages
   }
 
-  if (!workspaceBelongsToConversation(activeWorkspace, activeConversationId)) {
+  if (!workspaceBelongsToSession(activeWorkspace, activeSessionId)) {
     return messages
   }
 

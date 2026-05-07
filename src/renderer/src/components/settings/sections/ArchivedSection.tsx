@@ -1,19 +1,19 @@
-import type { ConversationId, SessionBranchId, SessionId } from '@shared/types/brand'
+import type { SessionBranchId, SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
 import { useQuery } from '@tanstack/react-query'
 import { Archive, ChevronDown, ChevronRight, RotateCcw, Trash2 } from 'lucide-react'
 import { useState } from 'react'
-import { groupConversationsByProject, type ProjectGroup } from '@/components/layout/sidebar-utils'
+import { groupSessionsByProject, type ProjectGroup } from '@/components/layout/sidebar-utils'
 import { cn } from '@/lib/cn'
 import { formatRelativeTime, projectName } from '@/lib/format'
 import { api } from '@/lib/ipc'
 import {
-  archivedConversationsQueryOptions,
   archivedSessionBranchesQueryOptions,
-  useArchivedDeleteConversationMutation,
+  archivedSessionsQueryOptions,
+  useArchivedDeleteSessionMutation,
   useRestoreSessionBranchMutation,
-  useUnarchiveConversationMutation,
-} from '@/queries/archived-conversations'
+  useUnarchiveSessionMutation,
+} from '@/queries/archived-sessions'
 import { useComposerStore } from '@/stores/composer-store'
 import { useSessionStore } from '@/stores/session-store'
 
@@ -48,8 +48,8 @@ function archivedBranchCount(group: ArchivedBranchProjectGroup): number {
 
 interface ArchivedGroupProps {
   readonly group: ProjectGroup
-  readonly onRestore: (id: ConversationId) => void
-  readonly onDelete: (id: ConversationId) => void
+  readonly onRestore: (id: SessionId) => void
+  readonly onDelete: (id: SessionId) => void
 }
 
 function ArchivedGroup({ group, onRestore, onDelete }: ArchivedGroupProps) {
@@ -67,7 +67,7 @@ function ArchivedGroup({ group, onRestore, onDelete }: ArchivedGroupProps) {
         <span className="text-[13px] font-medium text-text-secondary">
           {group.path ? projectName(group.path) : 'No project'}
         </span>
-        <span className="text-[11px] text-text-muted">({group.conversations.length})</span>
+        <span className="text-[11px] text-text-muted">({group.sessions.length})</span>
       </button>
 
       <div
@@ -76,22 +76,22 @@ function ArchivedGroup({ group, onRestore, onDelete }: ArchivedGroupProps) {
       >
         <div className="min-h-0 overflow-hidden">
           <div className="space-y-1 pt-1 pl-2">
-            {group.conversations.map((conv) => (
+            {group.sessions.map((session) => (
               <div
-                key={String(conv.id)}
+                key={String(session.id)}
                 className={cn(
                   'group flex items-center gap-3 rounded-md border border-border px-3 py-2',
                 )}
               >
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] text-text-secondary">{conv.title}</p>
+                  <p className="truncate text-[13px] text-text-secondary">{session.title}</p>
                   <p className="text-[11px] text-text-muted">
-                    {conv.messageCount} messages · {formatRelativeTime(conv.updatedAt)}
+                    {session.messageCount} messages · {formatRelativeTime(session.updatedAt)}
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => onRestore(conv.id)}
+                  onClick={() => onRestore(session.id)}
                   className="shrink-0 rounded-md px-2 py-1 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
                   title="Restore session"
                 >
@@ -99,7 +99,7 @@ function ArchivedGroup({ group, onRestore, onDelete }: ArchivedGroupProps) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => onDelete(conv.id)}
+                  onClick={() => onDelete(session.id)}
                   className="shrink-0 rounded-md px-2 py-1 text-[12px] text-text-muted transition-colors hover:bg-bg-hover hover:text-error"
                   title="Delete permanently"
                 >
@@ -185,15 +185,15 @@ function ArchivedBranchGroup({ group, onRestoreBranch }: ArchivedBranchGroupProp
 }
 
 export function ArchivedSection() {
-  const archivedQuery = useQuery(archivedConversationsQueryOptions())
+  const archivedQuery = useQuery(archivedSessionsQueryOptions())
   const archivedBranchesQuery = useQuery(archivedSessionBranchesQueryOptions())
-  const unarchiveMutation = useUnarchiveConversationMutation()
+  const unarchiveMutation = useUnarchiveSessionMutation()
   const restoreBranchMutation = useRestoreSessionBranchMutation()
-  const deleteMutation = useArchivedDeleteConversationMutation()
+  const deleteMutation = useArchivedDeleteSessionMutation()
   const loadSessions = useSessionStore((state) => state.loadSessions)
   const [actionError, setActionError] = useState<string | null>(null)
 
-  function handleRestore(id: ConversationId): void {
+  function handleRestore(id: SessionId): void {
     setActionError(null)
     void unarchiveMutation
       .mutateAsync(id)
@@ -217,7 +217,7 @@ export function ArchivedSection() {
       })
   }
 
-  function handleDelete(id: ConversationId): void {
+  function handleDelete(id: SessionId): void {
     setActionError(null)
     void api
       .showConfirm(
@@ -280,7 +280,7 @@ export function ArchivedSection() {
     )
   }
 
-  const groups = groupConversationsByProject(archived)
+  const groups = groupSessionsByProject(archived)
   const branchGroups = groupArchivedBranchesByProject(archivedBranchSessions)
 
   return (

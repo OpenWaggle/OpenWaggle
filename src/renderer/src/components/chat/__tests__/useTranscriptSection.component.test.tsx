@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 
 import {
-  ConversationId,
   MessageId,
   SessionBranchId,
   SessionId,
@@ -12,7 +11,7 @@ import type { UIMessage } from '@shared/types/chat-ui'
 import type { SessionNode, SessionWorkspace } from '@shared/types/session'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useSessionStore } from '@/stores/session-store'
+import { useSessionStore } from '../../../stores/session-store'
 import { useTranscriptSection } from '../hooks/useTranscriptSection'
 
 vi.mock('@/lib/ipc', () => ({
@@ -20,7 +19,7 @@ vi.mock('@/lib/ipc', () => ({
 }))
 
 const SESSION_ID = SessionId('session-1')
-const CONVERSATION_ID = ConversationId('session-1')
+const CONVERSATION_ID = SessionId('session-1')
 const MAIN_BRANCH_ID = SessionBranchId('session-1:main')
 
 function uiMessage(id: string, role: 'user' | 'assistant', content: string): UIMessage {
@@ -65,6 +64,17 @@ function workspaceWithPath(
   nodes: readonly SessionNode[],
   activeNodeId: SessionNodeId,
 ): SessionWorkspace {
+  const transcriptPath: SessionWorkspace['transcriptPath'] = []
+  for (const node of nodes) {
+    if (node.createdOrder <= 2) {
+      transcriptPath.push({
+        node,
+        branchId: node.branchId,
+        isActive: node.id === activeNodeId,
+      })
+    }
+  }
+
   return {
     tree: {
       session: {
@@ -94,13 +104,7 @@ function workspaceWithPath(
     },
     activeBranchId: MAIN_BRANCH_ID,
     activeNodeId,
-    transcriptPath: nodes
-      .filter((node) => node.createdOrder <= 2)
-      .map((node) => ({
-        node,
-        branchId: node.branchId,
-        isActive: node.id === activeNodeId,
-      })),
+    transcriptPath,
   }
 }
 
@@ -168,8 +172,8 @@ describe('useTranscriptSection', () => {
         streamSignalVersion: 0,
         projectPath: '/tmp/project',
         recentProjects: [],
-        activeConversationId: CONVERSATION_ID,
-        activeConversation: null,
+        activeSessionId: CONVERSATION_ID,
+        activeSession: null,
         model: SupportedModelId('openai/gpt-5'),
         waggleStatus: 'idle',
         phase,
@@ -177,15 +181,20 @@ describe('useTranscriptSection', () => {
         handleSelectProjectPath: vi.fn(),
         handleSendText: vi.fn(),
         openSettings: vi.fn(),
+        handleDismissInterruptedRun: vi.fn(),
         handleBranchFromMessage: vi.fn(),
+        handleForkFromMessage: vi.fn(),
         userDidSend: false,
         onUserDidSendConsumed: vi.fn(),
       }),
     )
 
-    const renderedMessages = result.current.chatRows
-      .filter((row) => row.type === 'message')
-      .map((row) => row.message.id)
+    const renderedMessages: string[] = []
+    for (const row of result.current.chatRows) {
+      if (row.type === 'message') {
+        renderedMessages.push(row.message.id)
+      }
+    }
 
     expect(renderedMessages).toEqual([
       'user-before-branch',

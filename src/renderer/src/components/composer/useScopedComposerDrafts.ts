@@ -1,4 +1,4 @@
-import { type ConversationId, SessionId } from '@shared/types/brand'
+import { SessionId } from '@shared/types/brand'
 import { useEffect } from 'react'
 import { useBranchSummaryStore } from '@/stores/branch-summary-store'
 import { type ComposerScopedDraft, useComposerStore } from '@/stores/composer-store'
@@ -25,22 +25,22 @@ function currentDraftOverride(): ComposerScopedDraft | undefined {
   }
 }
 
-export function useScopedComposerDrafts(activeConversationId: ConversationId | null): void {
+export function useScopedComposerDrafts(activeSessionId: SessionId | null): void {
   const projectPath = usePreferencesStore((state) => state.settings.projectPath)
   const activeWorkspace = useSessionStore((state) => state.activeWorkspace)
   const draftBranch = useSessionStore((state) => state.draftBranch)
 
-  const activeSessionId = activeConversationId ? SessionId(String(activeConversationId)) : null
+  const scopedSessionId = activeSessionId ? SessionId(String(activeSessionId)) : null
   const workspaceBelongsToSession =
-    !activeSessionId || activeWorkspace?.tree.session.id === activeSessionId
+    !scopedSessionId || activeWorkspace?.tree.session.id === scopedSessionId
   const draftSourceNodeId =
-    draftBranch && activeSessionId && draftBranch.sessionId === activeSessionId
+    draftBranch && scopedSessionId && draftBranch.sessionId === scopedSessionId
       ? draftBranch.sourceNodeId
       : null
   const contextKey = workspaceBelongsToSession
     ? buildComposerDraftContextKey({
         projectPath,
-        sessionId: activeSessionId,
+        sessionId: scopedSessionId,
         activeBranchId: activeWorkspace?.activeBranchId ?? null,
         activeNodeId: activeWorkspace?.activeNodeId ?? null,
         draftSourceNodeId,

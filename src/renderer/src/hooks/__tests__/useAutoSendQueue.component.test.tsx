@@ -1,12 +1,12 @@
-import type { ConversationId } from '@shared/types/brand'
+import { SessionId } from '@shared/types/brand'
 import type { ThinkingLevel } from '@shared/types/settings'
 import { renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useMessageQueueStore } from '@/stores/message-queue-store'
+import { useMessageQueueStore } from '../../stores/message-queue-store'
 import { useAutoSendQueue } from '../useAutoSendQueue'
 
-const CONV_A = 'conv-a' as ConversationId
-const CONV_B = 'conv-b' as ConversationId
+const CONV_A = SessionId('session-a')
+const CONV_B = SessionId('session-b')
 const THINKING: ThinkingLevel = 'medium'
 
 function makePayload(text: string) {
@@ -32,9 +32,7 @@ describe('useAutoSendQueue', () => {
     const send = vi.fn().mockResolvedValue(undefined)
     useMessageQueueStore.getState().enqueue(CONV_A, makePayload('test'))
 
-    renderHook(() =>
-      useAutoSendQueue({ conversationId: CONV_A, status: 'ready', sendMessage: send }),
-    )
+    renderHook(() => useAutoSendQueue({ sessionId: CONV_A, status: 'ready', sendMessage: send }))
 
     expect(send).not.toHaveBeenCalled()
   })
@@ -45,7 +43,7 @@ describe('useAutoSendQueue', () => {
 
     const { rerender } = renderHook(
       ({ status }: { status: 'ready' | 'streaming' }) =>
-        useAutoSendQueue({ conversationId: CONV_A, status, sendMessage: send }),
+        useAutoSendQueue({ sessionId: CONV_A, status, sendMessage: send }),
       { initialProps: { status: 'streaming' as const } },
     )
 
@@ -60,7 +58,7 @@ describe('useAutoSendQueue', () => {
 
     const { rerender } = renderHook(
       ({ status }: { status: 'ready' | 'streaming' }) =>
-        useAutoSendQueue({ conversationId: CONV_A, status, sendMessage: send }),
+        useAutoSendQueue({ sessionId: CONV_A, status, sendMessage: send }),
       { initialProps: { status: 'streaming' as const } },
     )
 
@@ -69,13 +67,13 @@ describe('useAutoSendQueue', () => {
     expect(send).not.toHaveBeenCalled()
   })
 
-  it('does NOT fire when conversationId is null', () => {
+  it('does NOT fire when sessionId is null', () => {
     const send = vi.fn().mockResolvedValue(undefined)
     useMessageQueueStore.getState().enqueue(CONV_A, makePayload('test'))
 
     const { rerender } = renderHook(
       ({ status }: { status: 'ready' | 'streaming' }) =>
-        useAutoSendQueue({ conversationId: null, status, sendMessage: send }),
+        useAutoSendQueue({ sessionId: null, status, sendMessage: send }),
       { initialProps: { status: 'streaming' as const } },
     )
 
@@ -90,7 +88,7 @@ describe('useAutoSendQueue', () => {
 
     const { rerender } = renderHook(
       ({ status, paused }: { status: 'ready' | 'streaming'; paused: boolean }) =>
-        useAutoSendQueue({ conversationId: CONV_A, status, sendMessage: send, paused }),
+        useAutoSendQueue({ sessionId: CONV_A, status, sendMessage: send, paused }),
       { initialProps: { status: 'streaming' as const, paused: true } },
     )
 
@@ -105,7 +103,7 @@ describe('useAutoSendQueue', () => {
 
     const { rerender } = renderHook(
       ({ status, paused }: { status: 'ready' | 'submitted' | 'streaming'; paused: boolean }) =>
-        useAutoSendQueue({ conversationId: CONV_A, status, sendMessage: send, paused }),
+        useAutoSendQueue({ sessionId: CONV_A, status, sendMessage: send, paused }),
       { initialProps: { status: 'streaming' as const, paused: false } },
     )
 
@@ -129,7 +127,7 @@ describe('useAutoSendQueue', () => {
 
     const { rerender } = renderHook(
       ({ status, paused }: { status: 'ready' | 'submitted' | 'streaming'; paused: boolean }) =>
-        useAutoSendQueue({ conversationId: CONV_A, status, sendMessage: send, paused }),
+        useAutoSendQueue({ sessionId: CONV_A, status, sendMessage: send, paused }),
       { initialProps: { status: 'streaming' as const, paused: false } },
     )
 
@@ -151,7 +149,7 @@ describe('useAutoSendQueue', () => {
     const send = vi.fn().mockResolvedValue(undefined)
 
     renderHook(() =>
-      useAutoSendQueue({ conversationId: CONV_A, status: 'streaming', sendMessage: send }),
+      useAutoSendQueue({ sessionId: CONV_A, status: 'streaming', sendMessage: send }),
     )
 
     useMessageQueueStore.getState().enqueue(CONV_A, makePayload('wait until ready'))
@@ -171,7 +169,7 @@ describe('useAutoSendQueue', () => {
     const { rerender } = renderHook(
       ({ status }: { status: 'ready' | 'streaming' }) =>
         useAutoSendQueue({
-          conversationId: CONV_A,
+          sessionId: CONV_A,
           status,
           sendMessage: send,
           onSendFailure,
@@ -194,7 +192,7 @@ describe('useAutoSendQueue', () => {
     expect(firstCall?.[1]).toBe(sendError)
   })
 
-  it('reports send failure through the callback captured for the original conversation', async () => {
+  it('reports send failure through the callback captured for the original session', async () => {
     const sendDeferred = createDeferred<void>()
     const send = vi.fn().mockReturnValue(sendDeferred.promise)
     const onSendFailureA = vi.fn()
@@ -203,23 +201,23 @@ describe('useAutoSendQueue', () => {
 
     const { rerender } = renderHook(
       ({
-        conversationId,
+        sessionId,
         status,
         onSendFailure,
       }: {
-        conversationId: ConversationId | null
+        sessionId: SessionId | null
         status: 'ready' | 'streaming'
         onSendFailure?: (payload: ReturnType<typeof makePayload>, error: unknown) => void
       }) =>
         useAutoSendQueue({
-          conversationId,
+          sessionId,
           status,
           sendMessage: send,
           onSendFailure,
         }),
       {
         initialProps: {
-          conversationId: CONV_A,
+          sessionId: CONV_A,
           status: 'streaming' as const,
           onSendFailure: onSendFailureA,
         },
@@ -227,13 +225,13 @@ describe('useAutoSendQueue', () => {
     )
 
     rerender({
-      conversationId: CONV_A,
+      sessionId: CONV_A,
       status: 'ready',
       onSendFailure: onSendFailureA,
     })
 
     rerender({
-      conversationId: CONV_B,
+      sessionId: CONV_B,
       status: 'ready',
       onSendFailure: onSendFailureB,
     })

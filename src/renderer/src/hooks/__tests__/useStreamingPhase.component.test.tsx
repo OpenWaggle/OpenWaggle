@@ -1,4 +1,4 @@
-import { ConversationId } from '@shared/types/brand'
+import { SessionId } from '@shared/types/brand'
 import type { AgentPhaseEventPayload, AgentPhaseState } from '@shared/types/phase'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -41,21 +41,21 @@ describe('useStreamingPhase', () => {
   })
 
   it('computes total elapsed from the first phase start when reset was not called', () => {
-    const conversationId = ConversationId('conv-phase-no-reset')
+    const sessionId = SessionId('session-phase-no-reset')
     let nowMs = 1_000
     const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => nowMs)
 
-    const { result } = renderHook(() => useStreamingPhase(conversationId))
+    const { result } = renderHook(() => useStreamingPhase(sessionId))
 
     act(() => {
       const phase: AgentPhaseState = { label: 'Thinking', startedAt: 1_000 }
-      emitPhaseEvent({ conversationId, phase })
+      emitPhaseEvent({ sessionId, phase })
     })
 
     nowMs = 2_200
 
     act(() => {
-      emitPhaseEvent({ conversationId, phase: null })
+      emitPhaseEvent({ sessionId, phase: null })
     })
 
     expect(result.current.totalElapsedMs).toBe(1_200)

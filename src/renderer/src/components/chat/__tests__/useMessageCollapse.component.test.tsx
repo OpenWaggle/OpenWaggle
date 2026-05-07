@@ -24,29 +24,29 @@ function createMessage(id: string, parts: MessagePart[]): UIMessage {
 }
 
 describe('useMessageCollapse', () => {
-  describe('canCollapseToSynthesis', () => {
+  describe('canCollapseDetails', () => {
     it('is true when not streaming, has last text part, and has tool calls', () => {
       const message = createMessage('m1', [toolCallPart('read', 'tc-1'), textPart('Summary here')])
       const { result } = renderHook(() => useMessageCollapse(message, false, false))
-      expect(result.current.canCollapseToSynthesis).toBe(true)
+      expect(result.current.canCollapseDetails).toBe(true)
     })
 
     it('is false when streaming', () => {
       const message = createMessage('m1', [toolCallPart('read', 'tc-1'), textPart('Summary here')])
       const { result } = renderHook(() => useMessageCollapse(message, true, true))
-      expect(result.current.canCollapseToSynthesis).toBe(false)
+      expect(result.current.canCollapseDetails).toBe(false)
     })
 
     it('is false when no renderable text part exists', () => {
       const message = createMessage('m1', [toolCallPart('read', 'tc-1')])
       const { result } = renderHook(() => useMessageCollapse(message, false, false))
-      expect(result.current.canCollapseToSynthesis).toBe(false)
+      expect(result.current.canCollapseDetails).toBe(false)
     })
 
     it('is false when only a single text part with no tool calls', () => {
       const message = createMessage('m1', [textPart('Just text')])
       const { result } = renderHook(() => useMessageCollapse(message, false, false))
-      expect(result.current.canCollapseToSynthesis).toBe(false)
+      expect(result.current.canCollapseDetails).toBe(false)
     })
   })
 
@@ -79,7 +79,7 @@ describe('useMessageCollapse', () => {
     it('is false when completed and canCollapse', () => {
       const message = createMessage('m1', [toolCallPart('read', 'tc-1'), textPart('Summary')])
       const { result } = renderHook(() => useMessageCollapse(message, false, false))
-      expect(result.current.canCollapseToSynthesis).toBe(true)
+      expect(result.current.canCollapseDetails).toBe(true)
       expect(result.current.renderAllParts).toBe(false)
     })
 

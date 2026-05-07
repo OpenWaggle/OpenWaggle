@@ -1,5 +1,5 @@
 import type { AgentSendPayload } from '@shared/types/agent'
-import type { ConversationId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import type { WaggleCollaborationStatus, WaggleConfig } from '@shared/types/waggle'
 import { $createParagraphNode, $createTextNode, $getRoot } from 'lexical'
@@ -7,6 +7,7 @@ import { $createSkillMentionNode } from '@/components/composer/nodes/SkillMentio
 import type { AgentChatStatus, AgentCompactionStatus } from '@/hooks/useAgentChat'
 import type { useStreamingPhase } from '@/hooks/useStreamingPhase'
 import { useComposerStore } from '@/stores/composer-store'
+import type { SessionForkTarget } from '../session-fork-targets'
 import type { ChatComposerSectionState } from '../use-chat-panel-controller'
 
 export interface ComposerSectionParams {
@@ -14,10 +15,12 @@ export interface ComposerSectionParams {
   readonly isSteering: boolean
   readonly status: AgentChatStatus
   readonly compactionStatus: AgentCompactionStatus | null
-  readonly activeConversationId: ConversationId | null
+  readonly activeSessionId: SessionId | null
   readonly waggleStatus: WaggleCollaborationStatus
   readonly commandPaletteOpen: boolean
   readonly slashSkills: readonly SkillDiscoveryItem[]
+  readonly forkSelectorOpen: boolean
+  readonly forkTargets: readonly SessionForkTarget[]
   readonly phase: ReturnType<typeof useStreamingPhase>
   readonly stop: () => void
   readonly showToast: (message: string) => void
@@ -29,6 +32,10 @@ export interface ComposerSectionParams {
   readonly handleSummarizeBranch: () => void
   readonly handleStartCustomBranchSummary: () => void
   readonly handleCancelBranchSummary: () => void
+  readonly handleOpenForkSelector: () => void
+  readonly handleCloseForkSelector: () => void
+  readonly handleSelectForkTarget: (target: SessionForkTarget) => void
+  readonly handleCloneToNewSession: () => void
 }
 
 export function useComposerSection(params: ComposerSectionParams): ChatComposerSectionState {
@@ -37,10 +44,12 @@ export function useComposerSection(params: ComposerSectionParams): ChatComposerS
     isSteering,
     status,
     compactionStatus,
-    activeConversationId,
+    activeSessionId,
     waggleStatus,
     commandPaletteOpen,
     slashSkills,
+    forkSelectorOpen,
+    forkTargets,
     phase,
     stop,
     showToast,
@@ -52,6 +61,10 @@ export function useComposerSection(params: ComposerSectionParams): ChatComposerS
     handleSummarizeBranch,
     handleStartCustomBranchSummary,
     handleCancelBranchSummary,
+    handleOpenForkSelector,
+    handleCloseForkSelector,
+    handleSelectForkTarget,
+    handleCloneToNewSession,
   } = params
 
   function handleSelectSkill(skillId: string, skillName?: string): void {
@@ -80,10 +93,12 @@ export function useComposerSection(params: ComposerSectionParams): ChatComposerS
   }
 
   return {
-    activeConversationId,
+    activeSessionId,
     waggleStatus,
     commandPaletteOpen,
     slashSkills,
+    forkSelectorOpen,
+    forkTargets,
     isLoading: isLoading || isSteering || phase.current !== null,
     status,
     compactionStatus,
@@ -98,5 +113,9 @@ export function useComposerSection(params: ComposerSectionParams): ChatComposerS
     onSummarizeBranch: handleSummarizeBranch,
     onStartCustomBranchSummary: handleStartCustomBranchSummary,
     onCancelBranchSummary: handleCancelBranchSummary,
+    onOpenForkSelector: handleOpenForkSelector,
+    onCloseForkSelector: handleCloseForkSelector,
+    onSelectForkTarget: handleSelectForkTarget,
+    onCloneToNewSession: handleCloneToNewSession,
   }
 }

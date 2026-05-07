@@ -71,9 +71,11 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
   async retryLoad() {
     set({ loadError: null, isLoaded: false })
     await get().loadSettings()
-    // Dynamically import to avoid circular dependency at module load time
     const { useProviderStore } = await import('./provider-store')
-    await useProviderStore.getState().loadProviderModels()
+    const updatedSettings = await useProviderStore.getState().loadProviderModels(get().settings)
+    if (updatedSettings) {
+      set({ settings: updatedSettings })
+    }
   },
 
   async setSelectedModel(model: SupportedModelId) {
@@ -113,7 +115,10 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     if (path) {
       await get().loadProjectPreferences(path)
       const { useProviderStore } = await import('./provider-store')
-      await useProviderStore.getState().loadProviderModels()
+      const updatedSettings = await useProviderStore.getState().loadProviderModels(get().settings)
+      if (updatedSettings) {
+        set({ settings: updatedSettings })
+      }
     }
   },
 
