@@ -17,7 +17,7 @@ The renderer runs with:
 
 ## Local Data
 
-OpenWaggle stores app-owned state locally in SQLite. This includes settings, sessions, session projections, and team presets.
+OpenWaggle stores app-owned state locally. Settings, sessions, and session projections live in SQLite. Waggle presets live in user-data JSON and project `.openwaggle/settings.json`.
 
 Provider credentials are not owned by the SQLite session projection. They are resolved through Pi auth storage, environment variables, or project/custom provider configuration.
 

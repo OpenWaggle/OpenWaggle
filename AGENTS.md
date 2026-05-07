@@ -146,7 +146,8 @@ OpenWaggle does not define an initial custom runtime tool layer. Standard sends 
 
 ### Persistence
 
-- **App-owned state**: SQLite database at `{userData}/openwaggle.db` (settings, sessions, session nodes/branches, team presets, UI state)
+- **App-owned state**: SQLite database at `{userData}/openwaggle.db` (settings, sessions, session nodes/branches, UI state)
+- **Waggle presets**: global presets live in `{userData}/waggle-presets.json`; project presets live in `.openwaggle/settings.json`
 - **Project-owned state**: `.openwaggle/settings.json` with OpenWaggle keys at the top level and Pi runtime settings under `pi`
 
 ### Model System
@@ -274,7 +275,7 @@ Rules:
 
 ## Key Patterns
 
-- **Branded types** (`src/shared/types/brand.ts`): `ConversationId`, `MessageId`, `ToolCallId` prevent accidental ID mixing. Use constructors at boundaries: `ConversationId(uuid())`.
+- **Branded types** (`src/shared/types/brand.ts`): `SessionId`, `MessageId`, `ToolCallId` prevent accidental ID mixing. Use constructors at boundaries: `SessionId(uuid())`.
 - **Discriminated unions**: Message parts (`type: 'text' | 'tool-call' | 'tool-result'`), agent events (`type: 'text-delta' | 'tool-call-start' | ...`), stream chunks.
 - **Path aliases**: `@shared/*` → `src/shared/*` (all targets), `@/*` → `src/renderer/src/*` (renderer only).
 - **Provider/model catalog**: Pi `ModelRegistry` and `AuthStorage` are the source of truth. OpenWaggle exposes Pi-derived provider/model/auth state through ports.
@@ -378,7 +379,7 @@ Always use granular selectors with `useChatStore((s) => s.field)` — never call
 ## Task Management
 
 1. **Read the relevant first principles** in `docs/principles/`
-2. **Plan first** for non-trivial tasks; create a plan in the conversation or a temporary plan file
+2. **Plan first** for non-trivial tasks; create a plan in the session or a temporary plan file
 3. **Verify the plan** against both first principles and current architecture
 4. **Track progress** and keep the implementation aligned with the principles
 5. **Explain changes** at a high level

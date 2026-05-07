@@ -5,7 +5,7 @@ order: 2
 section: "Using OpenWaggle"
 ---
 
-OpenWaggle sessions are Pi session graphs. A single session can contain multiple Pi session branches and nodes, while your repository can also have separate Git branches. Session branches are conversation/runtime branches; Git branches are version-control branches.
+OpenWaggle sessions are Pi session graphs. A single session can contain multiple Pi session branches and nodes, while your repository can also have separate Git branches. Session branches are Pi runtime branches; Git branches are version-control branches.
 
 ![OpenWaggle Session Tree showing a checkout refactor session with alternate Pi session branches](/screenshots/session-tree-panel.png)
 
@@ -38,8 +38,8 @@ The filter menu mirrors Pi tree filters:
 
 | Filter | What It Shows |
 |--------|---------------|
-| Default | The normal tree view for conversation navigation. |
-| No tools | Conversation nodes without tool-only detail. |
+| Default | The normal tree view for session navigation. |
+| No tools | Session nodes without tool-only detail. |
 | User only | User-message nodes. |
 | Labeled | Labeled nodes and branches. |
 | All | Every projected session node, including structural/tool detail. |
@@ -60,6 +60,13 @@ Selecting a non-head node creates a transient draft branch context:
 - The draft becomes durable only after the next send, unless you explicitly choose a branch-summary action that materializes the branch first.
 
 Route search can preserve `branch`, `node`, and `panel=session-tree` so links can reopen the same session-tree context. Draft branches are transient UI state and are not restored from a copied URL.
+
+You can also copy work into a separate session:
+
+- **Fork to new session** starts from a selected previous user turn and pre-fills the composer with that turn for retry/edit.
+- **Clone to new session** copies the current selected node path into a separate session with a blank composer.
+
+Both actions use Pi session state as the source and keep the original session unchanged.
 
 ## Branch Summary Prompt
 

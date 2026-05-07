@@ -35,7 +35,11 @@ pnpm build
 ## Platform Installers
 
 ```bash
-pnpm build:mac    # macOS .dmg (x64 + arm64)
-pnpm build:win    # Windows NSIS installer (x64)
-pnpm build:linux  # Linux AppImage (x64)
+pnpm build:mac      # macOS .dmg for this Mac's native architecture
+pnpm build:mac:all  # macOS .dmgs for arm64 + x64
+pnpm build:win      # Windows NSIS installer (x64)
+pnpm build:linux    # Linux AppImage (x64)
 ```
+
+On Apple silicon, test the arm64 DMG or `dist/mac-arm64/OpenWaggle.app`. The x64 app under
+`dist/mac/` runs through Rosetta and is useful only for Intel compatibility checks.
