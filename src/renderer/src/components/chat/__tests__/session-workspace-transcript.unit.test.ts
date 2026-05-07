@@ -1,17 +1,11 @@
-import {
-  ConversationId,
-  MessageId,
-  SessionBranchId,
-  SessionId,
-  SessionNodeId,
-} from '@shared/types/brand'
+import { MessageId, SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SessionNode, SessionWorkspace } from '@shared/types/session'
 import { describe, expect, it } from 'vitest'
 import { resolveTranscriptMessages } from '../session-workspace-transcript'
 
 const SESSION_ID = SessionId('session-1')
-const CONVERSATION_ID = ConversationId('session-1')
+const SESSION_DETAIL_ID = SessionId('session-1')
 const MAIN_BRANCH_ID = SessionBranchId('session-1:main')
 
 function uiMessage(id: string, role: 'user' | 'assistant', content: string): UIMessage {
@@ -133,7 +127,7 @@ describe('resolveTranscriptMessages', () => {
     )
 
     const resolved = resolveTranscriptMessages({
-      activeConversationId: CONVERSATION_ID,
+      activeSessionId: SESSION_DETAIL_ID,
       activeWorkspace: workspaceWithPath(
         [beforeBranch, answerBeforeBranch, branchPoint, afterBranch],
         branchPoint.id,
@@ -164,7 +158,7 @@ describe('resolveTranscriptMessages', () => {
     const assistant = sessionNode('assistant-head', 'user-head', 'assistant', 'Head answer', 1)
 
     const resolved = resolveTranscriptMessages({
-      activeConversationId: CONVERSATION_ID,
+      activeSessionId: SESSION_DETAIL_ID,
       activeWorkspace: workspaceWithPath([user, assistant], assistant.id, assistant.id),
       isRunning: true,
       messages: [

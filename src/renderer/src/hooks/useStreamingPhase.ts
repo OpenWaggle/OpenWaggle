@@ -1,5 +1,5 @@
 import { TIME_UNIT } from '@shared/constants/time'
-import type { ConversationId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 import type { AgentPhaseState } from '@shared/types/phase'
 import { useEffect, useRef, useState } from 'react'
 import { api } from '@/lib/ipc'
@@ -50,7 +50,7 @@ export interface StreamingPhaseHandle extends StreamingPhaseState {
  * giving an accurate picture of where time was spent from the user's
  * perspective.
  */
-export function useStreamingPhase(conversationId: ConversationId | null): StreamingPhaseHandle {
+export function useStreamingPhase(sessionId: SessionId | null): StreamingPhaseHandle {
   const [currentLabel, setCurrentLabel] = useState<string | null>(null)
   const [elapsedMs, setElapsedMs] = useState(0)
   const [completedSnapshot, setCompletedSnapshot] = useState<readonly CompletedPhase[]>([])
@@ -76,7 +76,7 @@ export function useStreamingPhase(conversationId: ConversationId | null): Stream
   }
 
   useEffect(() => {
-    if (!conversationId) {
+    if (!sessionId) {
       phaseRef.current = null
       completedRef.current = []
       clientPhaseStartRef.current = 0
@@ -151,14 +151,14 @@ export function useStreamingPhase(conversationId: ConversationId | null): Stream
     }
 
     const unsubscribe = api.onAgentPhase((payload) => {
-      if (payload.conversationId !== conversationId) return
+      if (payload.sessionId !== sessionId) return
       sawEvent = true
       handlePhaseChange(payload.phase)
     })
 
     // Bootstrap from snapshot if no events arrived yet
     void api
-      .getAgentPhase(conversationId)
+      .getAgentPhase(sessionId)
       .then((snapshot) => {
         if (!active || sawEvent) return
         handlePhaseChange(snapshot)
@@ -171,7 +171,7 @@ export function useStreamingPhase(conversationId: ConversationId | null): Stream
       active = false
       unsubscribe()
     }
-  }, [conversationId])
+  }, [sessionId])
 
   // Elapsed time ticker — only runs when a phase is active.
   // Updates both the current phase elapsed and total elapsed.

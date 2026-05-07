@@ -7,6 +7,7 @@
  */
 
 import { Schema } from '@shared/schema'
+import { wagglePresetSchema } from '@shared/schemas/waggle'
 import type { JsonArray, JsonObject, JsonValue } from '@shared/types/json'
 import { THINKING_LEVELS } from '@shared/types/settings'
 
@@ -39,7 +40,7 @@ export const jsonValueSchema: Schema.Schema<JsonValue> = Schema.suspend(() =>
 
 const jsonLooseRecordSchema = Schema.Record({
   key: Schema.String,
-  value: jsonValueSchema,
+  value: Schema.Unknown,
 })
 
 export const preparedAttachmentSchema = Schema.Struct({
@@ -67,6 +68,7 @@ export const projectPreferencesSchema = Schema.Struct({
 export const projectSettingsFileSchema = Schema.Struct(
   {
     preferences: Schema.optional(projectPreferencesSchema),
+    wagglePresets: Schema.optional(Schema.mutable(Schema.Array(wagglePresetSchema))),
     pi: Schema.optional(jsonObjectSchema),
   },
   jsonLooseRecordSchema,

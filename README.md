@@ -50,10 +50,10 @@ The flagship feature. Pair two AI agents, configure their roles, and let them co
 - **Structured turns** — agents alternate over the same Pi-backed session projection
 - **Consensus detection** — automatically stops when agents converge on a solution
 - **Manual stop** — take back control at any time
-- **Team presets** — save your favorite agent pairings (3 built-in, unlimited custom)
+- **Waggle presets** — save your favorite agent pairings (3 built-in, unlimited custom)
 - **Conflict tracking** — warns when agents edit the same files
 
-Open Settings > Waggle Mode to configure teams, or use the command palette (`Ctrl+K` / `Cmd+K`) and search for "waggle" to start a session.
+Open Settings > Waggle Mode to configure Waggle presets and agent roles, or use the command palette (`Ctrl+K` / `Cmd+K`) and search for "waggle" to start a session.
 
 ### Pi-Native Agent Runtime
 
@@ -146,7 +146,7 @@ Start a session, send a message, and the agent responds with Pi's native coding-
 
 ### Session Tree & Branches
 
-Open the Session Tree from the header tree icon or command palette to inspect Pi session nodes and branches. Session branches are conversation/runtime branches inside a Pi session; they are separate from repository Git branches.
+Open the Session Tree from the header tree icon or command palette to inspect Pi session nodes and branches. Session branches are Pi runtime branches inside a Pi session; they are separate from repository Git branches.
 
 ### Waggle Mode
 
@@ -266,10 +266,14 @@ pnpm prepush:main     # Pre-push quality gate for main
 ### Platform Builds
 
 ```bash
-pnpm build:mac        # macOS .dmg (arm64 + x64)
+pnpm build:mac        # macOS .dmg for this Mac's native architecture
+pnpm build:mac:all    # macOS .dmgs for arm64 + x64
 pnpm build:win        # Windows NSIS installer
 pnpm build:linux      # Linux AppImage
 ```
+
+On Apple silicon, use the arm64 DMG or `dist/mac-arm64/OpenWaggle.app`. The x64 app under
+`dist/mac/` runs through Rosetta and is not representative of OpenWaggle performance.
 
 See [docs/release-and-versioning.md](docs/release-and-versioning.md) for CI/CD, versioning, and git hooks details.
 

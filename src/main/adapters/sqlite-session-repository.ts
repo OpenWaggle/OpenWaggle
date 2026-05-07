@@ -4,7 +4,7 @@ import { SessionRepository, type SessionRepositoryShape } from '../ports/session
 
 export const SqliteSessionRepositoryLive = Effect.promise(async () => {
   const store = await import('../store/sessions')
-  const sessionConversationStore = await import('../store/session-conversations')
+  const sessionDetailStore = await import('../store/session-details')
   const { withSessionLock } = await import('../store/session-lock')
 
   return Layer.succeed(
@@ -41,14 +41,14 @@ export const SqliteSessionRepositoryLive = Effect.promise(async () => {
         Effect.tryPromise({
           try: () =>
             withSessionLock(input.sessionId, () =>
-              sessionConversationStore.persistSessionSnapshot(input),
+              sessionDetailStore.persistSessionSnapshot(input),
             ),
           catch: (cause) =>
             new SessionProjectionRepositoryError({ operation: 'persistSessionSnapshot', cause }),
         }),
       updateRuntime: (input) =>
         Effect.tryPromise({
-          try: () => sessionConversationStore.updateSessionRuntime(input),
+          try: () => sessionDetailStore.updateSessionRuntime(input),
           catch: (cause) =>
             new SessionProjectionRepositoryError({ operation: 'updateSessionRuntime', cause }),
         }),
@@ -75,6 +75,45 @@ export const SqliteSessionRepositoryLive = Effect.promise(async () => {
           try: () => store.updateSessionTreeUiState(sessionId, patch),
           catch: (cause) =>
             new SessionProjectionRepositoryError({ operation: 'updateSessionTreeUiState', cause }),
+        }),
+      recordActiveRun: (input) =>
+        Effect.tryPromise({
+          try: () => store.recordSessionActiveRun(input),
+          catch: (cause) =>
+            new SessionProjectionRepositoryError({ operation: 'recordSessionActiveRun', cause }),
+        }),
+      clearActiveRun: (input) =>
+        Effect.tryPromise({
+          try: () => store.clearSessionActiveRun(input),
+          catch: (cause) =>
+            new SessionProjectionRepositoryError({ operation: 'clearSessionActiveRun', cause }),
+        }),
+      clearInterruptedRuns: (input) =>
+        Effect.tryPromise({
+          try: () => store.clearInterruptedSessionRuns(input),
+          catch: (cause) =>
+            new SessionProjectionRepositoryError({
+              operation: 'clearInterruptedSessionRuns',
+              cause,
+            }),
+        }),
+      listActiveRunsForRecovery: () =>
+        Effect.tryPromise({
+          try: () => store.listSessionActiveRunsForRecovery(),
+          catch: (cause) =>
+            new SessionProjectionRepositoryError({
+              operation: 'listSessionActiveRunsForRecovery',
+              cause,
+            }),
+        }),
+      markActiveRunInterrupted: (input) =>
+        Effect.tryPromise({
+          try: () => store.markSessionActiveRunInterrupted(input),
+          catch: (cause) =>
+            new SessionProjectionRepositoryError({
+              operation: 'markSessionActiveRunInterrupted',
+              cause,
+            }),
         }),
     } satisfies SessionRepositoryShape),
   )

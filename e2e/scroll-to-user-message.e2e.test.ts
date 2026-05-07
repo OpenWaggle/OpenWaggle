@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test'
 import { OpenWaggleApp } from './support/openwaggle-app'
 import {
-  makeThreadNavigationScrollConversations,
-  makeScrollRegressionConversation,
+  makeThreadNavigationScrollSessions,
+  makeScrollRegressionSession,
   NAV_SCROLL_THREAD_TITLE_A,
   NAV_SCROLL_THREAD_TITLE_B,
   NAV_THREAD_B_USER_MARKER,
@@ -15,7 +15,7 @@ test('after sending a message, transcript sticks to the bottom like t3code', asy
   const app = await OpenWaggleApp.launch('openwaggle-e2e-scroll-regression-')
 
   try {
-    await makeScrollRegressionConversation(app.userDataDir)
+    await makeScrollRegressionSession(app.userDataDir)
     await app.restart()
 
     const mainWindow = app.mainWindow()
@@ -38,7 +38,7 @@ test('[data-user-message-id] attribute is present on user message rows', async (
   const app = await OpenWaggleApp.launch('openwaggle-e2e-scroll-attr-')
 
   try {
-    await makeScrollRegressionConversation(app.userDataDir)
+    await makeScrollRegressionSession(app.userDataDir)
     await app.restart()
 
     const mainWindow = app.mainWindow()
@@ -55,7 +55,7 @@ test('thread navigation restores per-thread scroll and does not jump to user-anc
   const app = await OpenWaggleApp.launch('openwaggle-e2e-scroll-navigation-')
 
   try {
-    await makeThreadNavigationScrollConversations(app.userDataDir)
+    await makeThreadNavigationScrollSessions(app.userDataDir)
     await app.restart()
 
     const mainWindow = app.mainWindow()

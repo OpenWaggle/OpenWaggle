@@ -1,7 +1,7 @@
-import type { ConversationId } from '@shared/types/brand'
+import type { SessionBranchId, SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
-import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
+import type { SessionDetail } from '@shared/types/session'
 import type { WaggleCollaborationStatus } from '@shared/types/waggle'
 import { useState } from 'react'
 import type { useStreamingPhase } from '@/hooks/useStreamingPhase'
@@ -40,8 +40,8 @@ export interface TranscriptSectionParams {
   readonly streamSignalVersion: number
   readonly projectPath: string | null
   readonly recentProjects: readonly string[]
-  readonly activeConversationId: ConversationId | null
-  readonly activeConversation: Conversation | null
+  readonly activeSessionId: SessionId | null
+  readonly activeSession: SessionDetail | null
   readonly model: SupportedModelId
   readonly waggleStatus: WaggleCollaborationStatus
   readonly phase: ReturnType<typeof useStreamingPhase>
@@ -49,7 +49,9 @@ export interface TranscriptSectionParams {
   readonly handleSelectProjectPath: (path: string) => void
   readonly handleSendText: (content: string) => Promise<void>
   readonly openSettings: () => void
+  readonly handleDismissInterruptedRun: (runId: string, branchId: SessionBranchId) => void
   readonly handleBranchFromMessage: (messageId: string) => void
+  readonly handleForkFromMessage: (messageId: string) => void
   readonly userDidSend: boolean
   readonly onUserDidSendConsumed: () => void
 }
@@ -63,15 +65,17 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     streamSignalVersion,
     projectPath,
     recentProjects,
-    activeConversationId,
-    activeConversation,
+    activeSessionId,
+    activeSession,
     model,
     phase,
     handleOpenProject,
     handleSelectProjectPath,
     handleSendText,
     openSettings,
+    handleDismissInterruptedRun,
     handleBranchFromMessage,
+    handleForkFromMessage,
     userDidSend,
     onUserDidSendConsumed,
   } = params
@@ -80,23 +84,28 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
   const activeWorkspace = useSessionStore((state) => state.activeWorkspace)
   const draftBranch = useSessionStore((state) => state.draftBranch)
   const draftBranchSourceNodeId =
-    activeConversationId &&
+    activeSessionId &&
     draftBranch?.sessionId &&
-    String(draftBranch.sessionId) === String(activeConversationId)
+    String(draftBranch.sessionId) === String(activeSessionId)
       ? draftBranch.sourceNodeId
       : null
 
   const transcriptLoading = isLoading || isSteering
   const transcriptMessages = resolveTranscriptMessages({
-    activeConversationId,
+    activeSessionId,
     activeWorkspace,
     isRunning: transcriptLoading,
     messages,
     draftBranchSourceNodeId,
   })
-  const waggleMetadataLookup = useWaggleMetadataLookup(activeConversation, transcriptMessages)
+  const waggleMetadataLookup = useWaggleMetadataLookup(activeSession, transcriptMessages)
 
   const lastUserMessage = resolveLastUserMessage(transcriptMessages)
+  const interruptedRun =
+    activeWorkspace?.tree.session.id === activeSessionId
+      ? activeWorkspace.tree.branches.find((branch) => branch.id === activeWorkspace.activeBranchId)
+          ?.interruptedRun
+      : undefined
 
   const chatRows = useChatRows({
     messages: transcriptMessages,
@@ -104,10 +113,11 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     error,
     lastUserMessage,
     dismissedError,
-    conversationId: activeConversationId,
+    sessionId: activeSessionId,
     model,
     waggleMetadataLookup,
     phase,
+    interruptedRun,
   })
 
   // Compute lastUserMessageId for session-restore identity gating, not send anchoring.
@@ -123,14 +133,16 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
     isLoading: transcriptLoading,
     projectPath,
     recentProjects,
-    activeConversationId,
+    activeSessionId,
     chatRows,
     onOpenProject: handleOpenProject,
     onSelectProjectPath: handleSelectProjectPath,
     onRetryText: handleSendText,
     onOpenSettings: openSettings,
     onDismissError: setDismissedError,
+    onDismissInterruptedRun: handleDismissInterruptedRun,
     onBranchFromMessage: handleBranchFromMessage,
+    onForkFromMessage: handleForkFromMessage,
     lastUserMessageId,
     streamSignalVersion,
     userDidSend,

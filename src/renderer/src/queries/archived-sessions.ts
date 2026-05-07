@@ -1,12 +1,12 @@
-import type { ConversationId, SessionBranchId, SessionId } from '@shared/types/brand'
+import type { SessionBranchId, SessionId } from '@shared/types/brand'
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/ipc'
 import { queryKeys } from './query-keys'
 
-export function archivedConversationsQueryOptions() {
+export function archivedSessionsQueryOptions() {
   return queryOptions({
-    queryKey: queryKeys.archivedConversations,
-    queryFn: () => api.listArchivedConversations(),
+    queryKey: queryKeys.archivedSessions,
+    queryFn: () => api.listArchivedSessions(),
   })
 }
 
@@ -17,19 +17,19 @@ export function archivedSessionBranchesQueryOptions() {
   })
 }
 
-export interface RestoreSessionBranchInput {
+interface RestoreSessionBranchInput {
   readonly sessionId: SessionId
   readonly branchId: SessionBranchId
 }
 
-export function useUnarchiveConversationMutation() {
+export function useUnarchiveSessionMutation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (conversationId: ConversationId) => api.unarchiveConversation(conversationId),
+    mutationFn: (sessionId: SessionId) => api.unarchiveSession(sessionId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
-        queryKey: queryKeys.archivedConversations,
+        queryKey: queryKeys.archivedSessions,
         exact: true,
       })
     },
@@ -51,14 +51,14 @@ export function useRestoreSessionBranchMutation() {
   })
 }
 
-export function useArchivedDeleteConversationMutation() {
+export function useArchivedDeleteSessionMutation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (conversationId: ConversationId) => api.deleteConversation(conversationId),
+    mutationFn: (sessionId: SessionId) => api.deleteSession(sessionId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
-        queryKey: queryKeys.archivedConversations,
+        queryKey: queryKeys.archivedSessions,
         exact: true,
       })
     },

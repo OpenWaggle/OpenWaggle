@@ -1,22 +1,23 @@
 import { DOUBLE_FACTOR } from '@shared/constants/math'
-import { type SupportedModelId, TeamConfigId } from '@shared/types/brand'
+import { type SupportedModelId, WagglePresetId } from '@shared/types/brand'
 import { DEFAULT_MODEL_REF } from '@shared/types/settings'
 import type {
   WaggleAgentColor,
   WaggleAgentSlot,
   WaggleCollaborationMode,
   WaggleConfig,
+  WagglePreset,
   WaggleStopCondition,
-  WaggleTeamPreset,
 } from '@shared/types/waggle'
 import { chooseBy } from '@shared/utils/decision'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useReducer } from 'react'
 import {
-  teamPresetsQueryOptions,
-  useDeleteTeamPresetMutation,
-  useSaveTeamPresetMutation,
-} from '@/queries/teams'
+  useDeleteWagglePresetMutation,
+  useSaveWagglePresetMutation,
+  wagglePresetsQueryOptions,
+} from '@/queries/waggle-presets'
+import { usePreferencesStore } from '@/stores/preferences-store'
 
 const MAX_TURNS = 8
 const SLICE_ARG_2 = 60
@@ -26,7 +27,7 @@ function describeWaggleError(error: unknown, fallback: string): string {
 }
 
 /** Shallow structural comparison between form config and a preset's config. */
-function configMatchesPreset(config: WaggleConfig, preset: WaggleTeamPreset): boolean {
+function configMatchesPreset(config: WaggleConfig, preset: WagglePreset): boolean {
   const pc = preset.config
   if (config.mode !== pc.mode) return false
   if (config.stop.primary !== pc.stop.primary) return false
@@ -180,24 +181,25 @@ function wagglePresetReducer(
 export interface WaggleFormHook {
   readonly formState: WaggleFormState
   readonly dispatchForm: React.Dispatch<WaggleFormAction>
-  readonly presets: readonly WaggleTeamPreset[]
+  readonly presets: readonly WagglePreset[]
   readonly activePresetId: string | null
   readonly isModified: boolean
   readonly displayedError: string | null
-  readonly loadPreset: (preset: WaggleTeamPreset) => void
+  readonly loadPreset: (preset: WagglePreset) => void
   readonly handleSaveEdits: () => Promise<void>
   readonly handleNewCustom: () => Promise<void>
   readonly handleDeletePreset: (id: string) => Promise<void>
 }
 
 export function useWaggleForm(): WaggleFormHook {
-  const teamPresetsQuery = useQuery(teamPresetsQueryOptions())
-  const saveTeamPresetMutation = useSaveTeamPresetMutation()
-  const deleteTeamPresetMutation = useDeleteTeamPresetMutation()
+  const projectPath = usePreferencesStore((state) => state.settings.projectPath)
+  const wagglePresetsQuery = useQuery(wagglePresetsQueryOptions(projectPath))
+  const saveWagglePresetMutation = useSaveWagglePresetMutation(projectPath)
+  const deleteWagglePresetMutation = useDeleteWagglePresetMutation(projectPath)
   const [formState, dispatchForm] = useReducer(waggleFormReducer, INITIAL_WAGGLE_FORM_STATE)
   const [presetState, dispatchPreset] = useReducer(wagglePresetReducer, INITIAL_WAGGLE_PRESET_STATE)
   const { activePresetId, error } = presetState
-  const presets = teamPresetsQuery.data ?? []
+  const presets = wagglePresetsQuery.data ?? []
 
   useEffect(() => {
     if (!activePresetId) return
@@ -205,7 +207,7 @@ export function useWaggleForm(): WaggleFormHook {
     dispatchPreset({ type: 'clear-active-preset' })
   }, [activePresetId, presets])
 
-  function loadPreset(preset: WaggleTeamPreset): void {
+  function loadPreset(preset: WagglePreset): void {
     dispatchPreset({ type: 'select-preset', activePresetId: preset.id })
     dispatchForm({ type: 'load-preset', config: preset.config })
   }
@@ -222,8 +224,8 @@ export function useWaggleForm(): WaggleFormHook {
   const currentConfig = buildConfig()
   const activePreset = presets.find((p) => p.id === activePresetId)
   const isModified = activePreset ? !configMatchesPreset(currentConfig, activePreset) : false
-  const queryError = teamPresetsQuery.error
-    ? describeWaggleError(teamPresetsQuery.error, 'Failed to load team presets.')
+  const queryError = wagglePresetsQuery.error
+    ? describeWaggleError(wagglePresetsQuery.error, 'Failed to load Waggle presets.')
     : null
   const displayedError = error ?? queryError
 
@@ -242,12 +244,12 @@ export function useWaggleForm(): WaggleFormHook {
     dispatchPreset({ type: 'clear-error' })
 
     try {
-      const saved = await saveTeamPresetMutation.mutateAsync(saveInput)
+      const saved = await saveWagglePresetMutation.mutateAsync(saveInput)
       dispatchPreset({ type: 'save-success', activePresetId: saved.id })
     } catch (saveError) {
       dispatchPreset({
         type: 'set-error',
-        error: describeWaggleError(saveError, 'Failed to save team preset.'),
+        error: describeWaggleError(saveError, 'Failed to save Waggle preset.'),
       })
     }
   }
@@ -256,7 +258,7 @@ export function useWaggleForm(): WaggleFormHook {
     const config = buildConfig()
     const [agentA, agentB] = formState.agents
     const saveInput = {
-      id: TeamConfigId(''),
+      id: WagglePresetId(''),
       name: `${agentA.label} + ${agentB.label}`,
       description: `Custom: ${agentA.roleDescription.slice(0, SLICE_ARG_2)}`,
       config,
@@ -267,12 +269,12 @@ export function useWaggleForm(): WaggleFormHook {
     dispatchPreset({ type: 'clear-error' })
 
     try {
-      const saved = await saveTeamPresetMutation.mutateAsync(saveInput)
+      const saved = await saveWagglePresetMutation.mutateAsync(saveInput)
       dispatchPreset({ type: 'save-success', activePresetId: saved.id })
     } catch (saveError) {
       dispatchPreset({
         type: 'set-error',
-        error: describeWaggleError(saveError, 'Failed to create team preset.'),
+        error: describeWaggleError(saveError, 'Failed to create Waggle preset.'),
       })
     }
   }
@@ -281,14 +283,14 @@ export function useWaggleForm(): WaggleFormHook {
     dispatchPreset({ type: 'clear-error' })
 
     try {
-      await deleteTeamPresetMutation.mutateAsync(TeamConfigId(id))
+      await deleteWagglePresetMutation.mutateAsync(WagglePresetId(id))
       if (activePresetId === id) {
         dispatchPreset({ type: 'clear-active-preset' })
       }
     } catch (deleteError) {
       dispatchPreset({
         type: 'set-error',
-        error: describeWaggleError(deleteError, 'Failed to delete team preset.'),
+        error: describeWaggleError(deleteError, 'Failed to delete Waggle preset.'),
       })
     }
   }

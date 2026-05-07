@@ -1,4 +1,4 @@
-import type { ConversationId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import { ActiveRunManager } from './active-run-manager'
 
@@ -6,37 +6,35 @@ interface AgentRunMetadata {
   readonly model: SupportedModelId
 }
 
-const activeRuns = new ActiveRunManager<ConversationId, AgentRunMetadata>()
-const activeCompactions = new ActiveRunManager<ConversationId, AgentRunMetadata>()
-const activeWaggleRuns = new ActiveRunManager<ConversationId, Record<string, never>>()
+const activeRuns = new ActiveRunManager<SessionId, AgentRunMetadata>()
+const activeCompactions = new ActiveRunManager<SessionId, AgentRunMetadata>()
+const activeWaggleRuns = new ActiveRunManager<SessionId, Record<string, never>>()
 
 export { activeCompactions, activeRuns, activeWaggleRuns }
 
-export function hasAnyActiveRun(conversationId: ConversationId): boolean {
+export function hasAnyActiveRun(sessionId: SessionId): boolean {
   return (
-    activeRuns.has(conversationId) ||
-    activeCompactions.has(conversationId) ||
-    activeWaggleRuns.has(conversationId)
+    activeRuns.has(sessionId) || activeCompactions.has(sessionId) || activeWaggleRuns.has(sessionId)
   )
 }
 
-export function cancelConversationRuns(conversationId: ConversationId): boolean {
-  const cancelledAgent = activeRuns.cancel(conversationId)
-  const cancelledCompaction = activeCompactions.cancel(conversationId)
-  const cancelledWaggle = activeWaggleRuns.cancel(conversationId)
+export function cancelSessionRuns(sessionId: SessionId): boolean {
+  const cancelledAgent = activeRuns.cancel(sessionId)
+  const cancelledCompaction = activeCompactions.cancel(sessionId)
+  const cancelledWaggle = activeWaggleRuns.cancel(sessionId)
   return cancelledAgent || cancelledCompaction || cancelledWaggle
 }
 
-export function getAllActiveRunConversationIds(): ConversationId[] {
+export function getAllActiveRunSessionIds(): SessionId[] {
   return [
     ...new Set([...activeRuns.keys(), ...activeCompactions.keys(), ...activeWaggleRuns.keys()]),
   ]
 }
 
-export function cancelAllConversationRuns(): ConversationId[] {
-  const conversationIds = getAllActiveRunConversationIds()
+export function cancelAllSessionRuns(): SessionId[] {
+  const sessionIds = getAllActiveRunSessionIds()
   activeRuns.cancelAll()
   activeCompactions.cancelAll()
   activeWaggleRuns.cancelAll()
-  return conversationIds
+  return sessionIds
 }

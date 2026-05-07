@@ -70,17 +70,19 @@ export const api: OpenWaggleApi = {
   getProjectPreferences: invoke('project-config:get-preferences'),
   setProjectPreferences: invoke('project-config:set-preferences'),
 
-  // Conversations
-  listConversations: invoke('conversations:list'),
-  listFullConversations: invoke('conversations:list-full'),
-  getConversation: invoke('conversations:get'),
-  createConversation: invoke('conversations:create'),
-  deleteConversation: invoke('conversations:delete'),
-  archiveConversation: invoke('conversations:archive'),
-  unarchiveConversation: invoke('conversations:unarchive'),
-  listArchivedConversations: invoke('conversations:list-archived'),
-  updateConversationTitle: invoke('conversations:update-title'),
+  // Sessions
   listSessions: invoke('sessions:list'),
+  listSessionDetails: invoke('sessions:list-details'),
+  getSessionDetail: invoke('sessions:get-detail'),
+  createSession: invoke('sessions:create'),
+  forkSessionToNew: invoke('sessions:fork-to-new'),
+  cloneSessionToNew: invoke('sessions:clone-to-new'),
+  dismissInterruptedSessionRun: invoke('sessions:dismiss-interrupted-run'),
+  deleteSession: invoke('sessions:delete'),
+  archiveSession: invoke('sessions:archive'),
+  unarchiveSession: invoke('sessions:unarchive'),
+  listArchivedSessions: invoke('sessions:list-archived'),
+  updateSessionTitle: invoke('sessions:update-title'),
   listArchivedSessionBranches: invoke('sessions:list-archived-branches'),
   getSessionTree: invoke('sessions:get-tree'),
   getSessionWorkspace: invoke('sessions:get-workspace'),
@@ -89,7 +91,7 @@ export const api: OpenWaggleApi = {
   archiveSessionBranch: invoke('sessions:archive-branch'),
   restoreSessionBranch: invoke('sessions:restore-branch'),
   updateSessionTreeUiState: invoke('sessions:update-tree-ui-state'),
-  onConversationTitleUpdated: on('conversations:title-updated'),
+  onSessionTitleUpdated: on('sessions:title-updated'),
 
   // Terminal
   createTerminal: invoke('terminal:create'),
@@ -153,10 +155,10 @@ export const api: OpenWaggleApi = {
   getAuthAccountInfo: invoke('auth:get-account-info'),
   onOAuthStatus: on('auth:oauth-status'),
 
-  // Teams
-  listTeams: invoke('teams:list'),
-  saveTeam: invoke('teams:save'),
-  deleteTeam: invoke('teams:delete'),
+  // Waggle presets
+  listWagglePresets: invoke('waggle-presets:list'),
+  saveWagglePreset: invoke('waggle-presets:save'),
+  deleteWagglePreset: invoke('waggle-presets:delete'),
 
   // Feedback
   checkGhCli: invoke('feedback:check-gh'),

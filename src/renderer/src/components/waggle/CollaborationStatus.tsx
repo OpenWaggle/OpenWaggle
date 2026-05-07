@@ -1,4 +1,5 @@
-import type { ConversationId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
+import { generateDisplayName } from '@shared/types/llm'
 import { AlertTriangle, Loader2, X } from 'lucide-react'
 import { AGENT_BG } from '@/lib/agent-colors'
 import { cn } from '@/lib/cn'
@@ -7,19 +8,17 @@ import { useWaggleStore } from '@/stores/waggle-store'
 const SLICE_ARG_1 = -3
 
 interface CollaborationStatusProps {
-  currentConversationId: ConversationId | null
+  currentSessionId: SessionId | null
   onStop: () => void
 }
 
-export function WaggleCollaborationStatus({
-  currentConversationId,
-  onStop,
-}: CollaborationStatusProps) {
+export function WaggleCollaborationStatus({ currentSessionId, onStop }: CollaborationStatusProps) {
   const status = useWaggleStore((s) => s.status)
   const config = useWaggleStore((s) => s.activeConfig)
   const activeCollaborationId = useWaggleStore((s) => s.activeCollaborationId)
-  const configConversationId = useWaggleStore((s) => s.configConversationId)
+  const configSessionId = useWaggleStore((s) => s.configSessionId)
   const currentTurn = useWaggleStore((s) => s.currentTurn)
+  const currentAgentIndex = useWaggleStore((s) => s.currentAgentIndex)
   const currentAgentLabel = useWaggleStore((s) => s.currentAgentLabel)
   const fileConflicts = useWaggleStore((s) => s.fileConflicts)
   const completionReason = useWaggleStore((s) => s.completionReason)
@@ -28,9 +27,10 @@ export function WaggleCollaborationStatus({
 
   if (!config) return null
 
-  // Scope: only show for the conversation that owns the waggle state
-  const owningConversationId = activeCollaborationId ?? configConversationId
-  if (owningConversationId && owningConversationId !== currentConversationId) return null
+  // Scope: only show for the session that owns the waggle state
+  const owningSessionId = activeCollaborationId ?? configSessionId
+  if (owningSessionId && owningSessionId !== currentSessionId) return null
+  const currentAgent = config.agents[currentAgentIndex]
 
   function handleDismiss(): void {
     if (status === 'running') {
@@ -50,11 +50,18 @@ export function WaggleCollaborationStatus({
         )}
       >
         {/* Agent dots — always visible */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex min-w-0 items-center gap-2 shrink-0">
           {config.agents.map((agent) => (
-            <div key={agent.label} className="flex items-center gap-1">
+            <div
+              key={`${agent.label}-${String(agent.model)}`}
+              className="flex items-center gap-1"
+              title={`${agent.label} · ${generateDisplayName(agent.model)}`}
+            >
               <div className={cn('h-2 w-2 rounded-full', AGENT_BG[agent.color])} />
               <span className="text-[11px] font-medium text-text-secondary">{agent.label}</span>
+              <span className="hidden text-[11px] text-text-tertiary sm:inline">
+                · {generateDisplayName(agent.model)}
+              </span>
             </div>
           ))}
         </div>
@@ -64,7 +71,7 @@ export function WaggleCollaborationStatus({
         {/* Status-specific content */}
         {status === 'idle' && (
           <span className="text-[12px] text-text-tertiary truncate">
-            Sequential — send a message to start
+            Waggle ready · Sequential — send a message to start
           </span>
         )}
 
@@ -73,13 +80,14 @@ export function WaggleCollaborationStatus({
             <Loader2 className="h-3 w-3 animate-spin text-accent shrink-0" />
             <span className="text-[12px] text-text-secondary truncate">
               Turn {currentTurn + 1}: {currentAgentLabel}
+              {currentAgent ? ` · ${generateDisplayName(currentAgent.model)}` : ''}
             </span>
           </div>
         )}
 
         {status === 'completed' && (
           <span className="text-[12px] text-text-secondary truncate">
-            {completionReason ?? 'Collaboration complete'}
+            Waggle complete · {completionReason ?? 'Collaboration complete'}
           </span>
         )}
 

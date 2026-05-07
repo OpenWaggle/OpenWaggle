@@ -1,16 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import type {
-  AgentSendPayload,
-  Message,
-  MessagePart,
-  PreparedAttachment,
-} from '@shared/types/agent'
+import type { Message, MessagePart, PreparedAttachment } from '@shared/types/agent'
 import { MessageId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
-
-// ---------------------------------------------------------------------------
-// makeMessage — shared message construction helper.
-// ---------------------------------------------------------------------------
 
 export function makeMessage(
   role: 'user' | 'assistant' | 'system',
@@ -28,11 +19,14 @@ export function makeMessage(
   }
 }
 
-// ---------------------------------------------------------------------------
-// buildPersistedUserMessageParts — byte-for-byte identical in both files
-// ---------------------------------------------------------------------------
+export interface PersistedUserMessagePartsPayload {
+  readonly text: string
+  readonly attachments: readonly PreparedAttachment[]
+}
 
-export function buildPersistedUserMessageParts(payload: AgentSendPayload): MessagePart[] {
+export function buildPersistedUserMessageParts(
+  payload: PersistedUserMessagePartsPayload,
+): MessagePart[] {
   const parts: MessagePart[] = []
   if (payload.text.trim()) {
     parts.push({ type: 'text', text: payload.text.trim() })

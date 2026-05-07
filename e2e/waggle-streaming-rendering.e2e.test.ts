@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { OpenWaggleApp } from './support/openwaggle-app'
 import {
-  makeWaggleRegressionConversation,
+  makeWaggleRegressionSession,
   WAGGLE_REGRESSION_PROMPT,
   WAGGLE_REGRESSION_THREAD_TITLE,
   WAGGLE_REGRESSION_TURN_CONTENTS,
@@ -12,7 +12,7 @@ test('waggle transcript keeps clean turn order and preserves the initiating user
   const app = await OpenWaggleApp.launch('openwaggle-e2e-waggle-streaming-')
 
   try {
-    await makeWaggleRegressionConversation(app.userDataDir)
+    await makeWaggleRegressionSession(app.userDataDir)
     await app.restart()
 
     const mainWindow = app.mainWindow()

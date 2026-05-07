@@ -24,7 +24,7 @@ Click the diff stats to toggle the diff panel.
 
 ## Git Branch Management
 
-This section covers repository Git branches. Pi session branches are conversation/runtime branches inside OpenWaggle sessions; use the [Session Tree](/docs/using-openwaggle/session-tree) for those.
+This section covers repository Git branches. Pi session branches are Pi runtime branches inside OpenWaggle sessions; use the [Session Tree](/docs/using-openwaggle/session-tree) for those.
 
 Click the **branch name** in the branch row below the composer to open the branch picker.
 

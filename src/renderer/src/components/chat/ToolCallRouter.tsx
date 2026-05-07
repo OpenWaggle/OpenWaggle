@@ -1,19 +1,24 @@
-import type { ConversationId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { ToolCallBlock } from './ToolCallBlock'
 
 interface ToolCallRouterProps {
   part: Extract<UIMessage['parts'][number], { type: 'tool-call' }>
-  toolResults: Map<string, { content: unknown; state: string; error?: string }>
-  conversationId: ConversationId | null
+  toolResults: Map<
+    string,
+    { content: unknown; state: string; sourceMessageId?: string; error?: string }
+  >
+  sessionId: SessionId | null
   isStreaming: boolean
+  onBranchFromMessage?: (messageId: string) => void
 }
 
 export function ToolCallRouter({
   part,
   toolResults,
-  conversationId: _conversationId,
+  sessionId: _sessionId,
   isStreaming,
+  onBranchFromMessage,
 }: ToolCallRouterProps) {
   const finalResult = toolResults.get(part.id)
   const visibleResult =
@@ -29,6 +34,7 @@ export function ToolCallRouter({
       state={part.state}
       result={visibleResult}
       isStreaming={isStreaming}
+      onBranchFromMessage={onBranchFromMessage}
     />
   )
 }

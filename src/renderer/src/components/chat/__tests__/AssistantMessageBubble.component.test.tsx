@@ -1,4 +1,4 @@
-import { ConversationId, SupportedModelId } from '@shared/types/brand'
+import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -11,7 +11,7 @@ type MessagePart = UIMessage['parts'][number]
 // ---------------------------------------------------------------------------
 const mockCollapse = vi.hoisted(() => ({
   current: {
-    canCollapseToSynthesis: false,
+    canCollapseDetails: false,
     showDetails: false,
     toggleDetails: vi.fn(),
     collapseLabel: '',
@@ -98,7 +98,7 @@ function createMessage(id: string, parts: MessagePart[]): UIMessage {
   return { id, role: 'assistant', parts }
 }
 
-const defaultConversationId = ConversationId('conv-1')
+const defaultSessionId = SessionId('session-1')
 
 function setCollapse(overrides: Partial<UseMessageCollapseResult>) {
   mockCollapse.current = { ...mockCollapse.current, ...overrides }
@@ -106,7 +106,7 @@ function setCollapse(overrides: Partial<UseMessageCollapseResult>) {
 
 function resetCollapse() {
   mockCollapse.current = {
-    canCollapseToSynthesis: false,
+    canCollapseDetails: false,
     showDetails: false,
     toggleDetails: vi.fn(),
     collapseLabel: '',
@@ -128,7 +128,7 @@ describe('AssistantMessageBubble', () => {
     render(
       <AssistantMessageBubble
         message={message}
-        conversationId={defaultConversationId}
+        sessionId={defaultSessionId}
         waggle={{ agentLabel: 'Architect', agentColor: 'blue' }}
       />,
     )
@@ -140,7 +140,7 @@ describe('AssistantMessageBubble', () => {
     render(
       <AssistantMessageBubble
         message={message}
-        conversationId={defaultConversationId}
+        sessionId={defaultSessionId}
         assistantModel={SupportedModelId('claude-sonnet-4-5')}
       />,
     )
@@ -149,13 +149,13 @@ describe('AssistantMessageBubble', () => {
 
   it('renders StreamingText for text parts', () => {
     const message = createMessage('m1', [textPart('Hello world')])
-    render(<AssistantMessageBubble message={message} conversationId={defaultConversationId} />)
+    render(<AssistantMessageBubble message={message} sessionId={defaultSessionId} />)
     expect(screen.getByTestId('streaming-text')).toHaveTextContent('Hello world')
   })
 
   it('does not render empty text parts', () => {
     const message = createMessage('m1', [textPart('   '), textPart('Visible')])
-    render(<AssistantMessageBubble message={message} conversationId={defaultConversationId} />)
+    render(<AssistantMessageBubble message={message} sessionId={defaultSessionId} />)
     const texts = screen.getAllByTestId('streaming-text')
     expect(texts).toHaveLength(1)
     expect(texts[0]).toHaveTextContent('Visible')
@@ -163,35 +163,35 @@ describe('AssistantMessageBubble', () => {
 
   it('renders ToolCallRouter for tool-call parts', () => {
     const message = createMessage('m1', [toolCallPart('read', 'tc-1'), toolResultPart('tc-1')])
-    render(<AssistantMessageBubble message={message} conversationId={defaultConversationId} />)
+    render(<AssistantMessageBubble message={message} sessionId={defaultSessionId} />)
     expect(screen.getByTestId('tool-call-router')).toHaveTextContent('read')
   })
 
   it('renders standalone tool-result parts while keeping matched tool-call results nested', () => {
     const message = createMessage('m1', [textPart('Hello'), toolResultPart('tc-1'), thinkingPart()])
     const { container } = render(
-      <AssistantMessageBubble message={message} conversationId={defaultConversationId} />,
+      <AssistantMessageBubble message={message} sessionId={defaultSessionId} />,
     )
     expect(container.querySelectorAll('[data-testid="streaming-text"]')).toHaveLength(3)
     expect(screen.getByText('internal reasoning')).toBeInTheDocument()
     expect(screen.getByText('Tool result · output-available')).toBeInTheDocument()
   })
 
-  it('renders all parts when canCollapseToSynthesis=false', () => {
-    setCollapse({ canCollapseToSynthesis: false, renderAllParts: true })
+  it('renders all parts when canCollapseDetails=false', () => {
+    setCollapse({ canCollapseDetails: false, renderAllParts: true })
     const message = createMessage('m1', [
       textPart('First'),
       toolCallPart('read', 'tc-1'),
       textPart('Second'),
     ])
-    render(<AssistantMessageBubble message={message} conversationId={defaultConversationId} />)
+    render(<AssistantMessageBubble message={message} sessionId={defaultSessionId} />)
     expect(screen.getAllByTestId('streaming-text')).toHaveLength(2)
     expect(screen.getByTestId('tool-call-router')).toBeInTheDocument()
   })
 
-  it('renders only lastRenderableTextPartIndex when canCollapseToSynthesis=true and showDetails=false', () => {
+  it('renders only lastRenderableTextPartIndex when canCollapseDetails=true and showDetails=false', () => {
     setCollapse({
-      canCollapseToSynthesis: true,
+      canCollapseDetails: true,
       showDetails: false,
       renderAllParts: false,
       lastRenderableTextPartIndex: 2,
@@ -200,39 +200,54 @@ describe('AssistantMessageBubble', () => {
     const message = createMessage('m1', [
       textPart('Earlier text'),
       toolCallPart('read', 'tc-1'),
-      textPart('Synthesis'),
+      textPart('Final answer'),
     ])
-    render(<AssistantMessageBubble message={message} conversationId={defaultConversationId} />)
+    render(<AssistantMessageBubble message={message} sessionId={defaultSessionId} />)
     const texts = screen.getAllByTestId('streaming-text')
     expect(texts).toHaveLength(1)
-    expect(texts[0]).toHaveTextContent('Synthesis')
+    expect(texts[0]).toHaveTextContent('Final answer')
     expect(screen.queryByTestId('tool-call-router')).toBeNull()
   })
 
-  it('renders CollapsibleDetails divider when canCollapseToSynthesis=true', () => {
+  it('renders CollapsibleDetails divider when canCollapseDetails=true', () => {
     setCollapse({
-      canCollapseToSynthesis: true,
+      canCollapseDetails: true,
       showDetails: false,
       renderAllParts: false,
       lastRenderableTextPartIndex: 1,
       collapseLabel: 'Show 1 tool call',
     })
     const message = createMessage('m1', [toolCallPart('read', 'tc-1'), textPart('Summary')])
-    render(<AssistantMessageBubble message={message} conversationId={defaultConversationId} />)
+    render(<AssistantMessageBubble message={message} sessionId={defaultSessionId} />)
     expect(screen.getByTestId('collapsible-details')).toHaveTextContent('Show 1 tool call')
   })
 
-  it('applies waggle border class when waggle prop provided', () => {
+  it('leaves the continuous waggle rail to the turn wrapper', () => {
     const message = createMessage('m1', [textPart('Hello')])
     const { container } = render(
       <AssistantMessageBubble
         message={message}
-        conversationId={defaultConversationId}
+        sessionId={defaultSessionId}
         waggle={{ agentLabel: 'Architect', agentColor: 'blue' }}
       />,
     )
     const outer = container.firstElementChild
-    expect(outer?.className).toContain('border-l-2')
-    expect(outer?.className).toContain('border-l-[#4c8cf5]')
+    expect(outer?.className).not.toContain('border-l-2')
+    expect(screen.getByTestId('agent-label')).toHaveTextContent('Architect')
+  })
+
+  it('hides repeated agent label when rendered inside a grouped waggle turn', () => {
+    const message = createMessage('m1', [textPart('Hello')])
+    render(
+      <AssistantMessageBubble
+        message={message}
+        sessionId={defaultSessionId}
+        waggle={{ agentLabel: 'Architect', agentColor: 'blue' }}
+        assistantModel={SupportedModelId('gpt-5.5')}
+        hideAgentLabel
+      />,
+    )
+    expect(screen.queryByTestId('agent-label')).toBeNull()
+    expect(screen.getByTestId('streaming-text')).toHaveTextContent('Hello')
   })
 })

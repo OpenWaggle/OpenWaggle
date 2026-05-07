@@ -1,4 +1,4 @@
-import { seedSingleConversation } from './conversation-fixtures'
+import { seedSingleSession } from './session-fixtures'
 
 export const WAGGLE_REGRESSION_THREAD_TITLE = 'Waggle Streaming Regression'
 export const WAGGLE_REGRESSION_PROMPT = 'what is the star feature of this app?'
@@ -14,7 +14,7 @@ export const WAGGLE_REGRESSION_TURN_LABELS = [
 export const WAGGLE_REGRESSION_TURN_CONTENTS = [
   'Advocate turn 1: Waggle mode is the standout feature.',
   'Critic turn 2: The claim is strong, but verify implementation evidence.',
-  'Advocate turn 3: Evidence confirms two-agent sequential debate and synthesis.',
+  'Advocate turn 3: Evidence confirms two-agent sequential debate.',
   'Critic turn 4: Distinguish Waggle from generic orchestration behavior.',
   'Advocate turn 5: Final position keeps Waggle as the signature capability.',
 ] as const
@@ -79,7 +79,7 @@ const WAGGLE_REGRESSION_CONFIG = {
   },
 } as const
 
-export async function makeWaggleRegressionConversation(userDataDir: string): Promise<void> {
+export async function makeWaggleRegressionSession(userDataDir: string): Promise<void> {
   const now = Date.now()
   const assistantMessages = WAGGLE_REGRESSION_AGENT_METAS.map((meta, index) => ({
     id: `waggle-assistant-${String(index + 1)}`,
@@ -92,7 +92,7 @@ export async function makeWaggleRegressionConversation(userDataDir: string): Pro
     createdAt: now - (WAGGLE_REGRESSION_AGENT_METAS.length - index),
   }))
 
-  await seedSingleConversation(userDataDir, {
+  await seedSingleSession(userDataDir, {
     title: WAGGLE_REGRESSION_THREAD_TITLE,
     updatedAt: now,
     waggleConfig: WAGGLE_REGRESSION_CONFIG,

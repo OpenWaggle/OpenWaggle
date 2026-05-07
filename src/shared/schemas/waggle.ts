@@ -15,7 +15,6 @@ export const waggleMetadataSchema = Schema.Struct({
   agentColor: waggleAgentColorSchema,
   agentModel: Schema.optional(Schema.String),
   turnNumber: Schema.Number,
-  isSynthesis: Schema.optional(Schema.Boolean),
   sessionId: Schema.optional(Schema.String),
 })
 
@@ -39,7 +38,7 @@ export const waggleConfigSchema = Schema.Struct({
   }),
 })
 
-export const waggleTeamPresetSchema = Schema.Struct({
+export const wagglePresetSchema = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
   description: Schema.String,

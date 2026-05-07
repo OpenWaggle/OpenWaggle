@@ -1,5 +1,5 @@
 import type { AgentSendPayload } from '@shared/types/agent'
-import { ConversationId } from '@shared/types/brand'
+import { SessionId } from '@shared/types/brand'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createSendHandlers } from '../useSendMessage'
 
@@ -7,12 +7,12 @@ type SendDeps = Parameters<typeof createSendHandlers>[0]
 
 function makeDeps(overrides: Partial<SendDeps> = {}): SendDeps {
   return {
-    activeConversationId: null,
+    activeSessionId: null,
     projectPath: '/test/project',
     thinkingLevel: 'medium',
-    createConversation: vi
-      .fn<(projectPath: string | null) => Promise<ConversationId>>()
-      .mockResolvedValue(ConversationId('new-conv')),
+    createSession: vi
+      .fn<(projectPath: string | null) => Promise<SessionId>>()
+      .mockResolvedValue(SessionId('new-session')),
     sendMessage: vi.fn<(p: AgentSendPayload) => Promise<void>>().mockResolvedValue(undefined),
     sendWaggleMessage: vi
       .fn<(payload: AgentSendPayload) => Promise<void>>()
@@ -29,9 +29,9 @@ describe('createSendHandlers', () => {
   })
 
   describe('handleSend', () => {
-    it('with active conversation: calls sendMessage directly', async () => {
-      const convId = ConversationId('conv-5')
-      const deps = makeDeps({ activeConversationId: convId })
+    it('with active session: calls sendMessage directly', async () => {
+      const convId = SessionId('session-5')
+      const deps = makeDeps({ activeSessionId: convId })
       const { handleSend } = createSendHandlers(deps)
       const payload: AgentSendPayload = { text: 'hello', thinkingLevel: 'medium', attachments: [] }
 
@@ -41,21 +41,21 @@ describe('createSendHandlers', () => {
       expect(deps.setPendingMessage).not.toHaveBeenCalled()
     })
 
-    it('without active conversation: sets pending and creates conversation', async () => {
-      const deps = makeDeps({ activeConversationId: null })
+    it('without active session: sets pending and creates session', async () => {
+      const deps = makeDeps({ activeSessionId: null })
       const { handleSend } = createSendHandlers(deps)
       const payload: AgentSendPayload = { text: 'hello', thinkingLevel: 'medium', attachments: [] }
 
       await handleSend(payload)
 
       expect(deps.setPendingMessage).toHaveBeenCalledWith(payload)
-      expect(deps.createConversation).toHaveBeenCalledWith('/test/project')
+      expect(deps.createSession).toHaveBeenCalledWith('/test/project')
       expect(deps.sendMessage).not.toHaveBeenCalled()
     })
 
     it('rejects first-message sends when no project is selected', async () => {
       const deps = makeDeps({
-        activeConversationId: null,
+        activeSessionId: null,
         projectPath: null,
       })
       const { handleSend } = createSendHandlers(deps)
@@ -64,15 +64,15 @@ describe('createSendHandlers', () => {
       await expect(handleSend(payload)).rejects.toThrow('Select a project before sending.')
 
       expect(deps.setPendingMessage).not.toHaveBeenCalled()
-      expect(deps.createConversation).not.toHaveBeenCalled()
+      expect(deps.createSession).not.toHaveBeenCalled()
       expect(deps.sendMessage).not.toHaveBeenCalled()
     })
   })
 
   describe('handleSendText', () => {
     it('wraps handleSend with correct payload shape', async () => {
-      const convId = ConversationId('conv-6')
-      const deps = makeDeps({ activeConversationId: convId, thinkingLevel: 'high' })
+      const convId = SessionId('session-6')
+      const deps = makeDeps({ activeSessionId: convId, thinkingLevel: 'high' })
       const { handleSendText } = createSendHandlers(deps)
 
       await handleSendText('test message')

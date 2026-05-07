@@ -1,6 +1,6 @@
 import type { AttachmentRecord, MessagePart } from '@shared/types/agent'
 import type { UIMessage } from '@shared/types/chat-ui'
-import type { Conversation } from '@shared/types/conversation'
+import type { SessionDetail } from '@shared/types/session'
 import { chooseBy } from '@shared/utils/decision'
 
 // ─── MessagePart → UIMessage Parts Conversion ────────────────
@@ -29,7 +29,7 @@ export function formatAttachmentPreview(
 
 /**
  * Convert a single persisted MessagePart to UIMessage parts.
- * Shared by both conversationToUIMessages (historical) and
+ * Shared by both sessionToUIMessages (historical) and
  * buildPartialAssistantMessage (background reconnection).
  */
 export function messagePartToUIParts(part: MessagePart): UIMessage['parts'] {
@@ -67,16 +67,23 @@ export function messagePartToUIParts(part: MessagePart): UIMessage['parts'] {
     .assertComplete()
 }
 
-// ─── Conversation → UIMessage Conversion ─────────────────────
+// ─── SessionDetail → UIMessage Conversion ─────────────────────
 
-export function conversationToUIMessages(conv: Conversation): UIMessage[] {
-  return conv.messages.map((msg) => ({
+export function sessionToUIMessages(session: SessionDetail): UIMessage[] {
+  return session.messages.map((msg) => ({
     id: String(msg.id),
     role: msg.role,
     parts: msg.parts.flatMap(messagePartToUIParts),
     createdAt: new Date(msg.createdAt),
-    ...(msg.metadata?.compactionSummary
-      ? { metadata: { compactionSummary: msg.metadata.compactionSummary } }
+    ...(msg.metadata?.branchSummary || msg.metadata?.compactionSummary
+      ? {
+          metadata: {
+            ...(msg.metadata.branchSummary ? { branchSummary: msg.metadata.branchSummary } : {}),
+            ...(msg.metadata.compactionSummary
+              ? { compactionSummary: msg.metadata.compactionSummary }
+              : {}),
+          },
+        }
       : {}),
   }))
 }
@@ -113,7 +120,7 @@ export function getUIMessageText(message: UIMessage): string {
 }
 
 /**
- * When the persisted conversation snapshot is loaded after a stream completes,
+ * When the persisted session snapshot is loaded after a stream completes,
  * user messages may appear duplicated: the local optimistic user message and
  * the persisted copy have different IDs but identical content.
  *

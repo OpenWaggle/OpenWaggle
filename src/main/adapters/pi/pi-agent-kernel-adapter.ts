@@ -5,15 +5,30 @@ import type {
   AgentSessionEvent,
   AgentSessionServices,
   ContextUsage,
+  CreateAgentSessionRuntimeFactory,
+  ExtensionAPI,
+  ExtensionContext,
+  ExtensionFactory,
   SessionEntry,
 } from '@mariozechner/pi-coding-agent'
-import { createAgentSessionFromServices, SessionManager } from '@mariozechner/pi-coding-agent'
-import type { MessagePart, MessageRole } from '@shared/types/agent'
+import {
+  createAgentSessionFromServices,
+  createAgentSessionRuntime,
+  SessionManager,
+} from '@mariozechner/pi-coding-agent'
+import {
+  getMessageText,
+  type HydratedAgentSendPayload,
+  isToolCallPart,
+  type Message,
+  type MessagePart,
+  type MessageRole,
+} from '@shared/types/agent'
 import { ToolCallId } from '@shared/types/brand'
 import type { ContextUsageSnapshot } from '@shared/types/context-usage'
-import type { Conversation } from '@shared/types/conversation'
 import type { JsonObject, JsonValue } from '@shared/types/json'
 import { createModelRef, type SupportedModelId } from '@shared/types/llm'
+import type { SessionDetail } from '@shared/types/session'
 import type { ThinkingLevel } from '@shared/types/settings'
 import type { AgentTransportAgentEndEvent, AgentTransportEvent } from '@shared/types/stream'
 import { clampThinkingLevel } from '@shared/utils/thinking-levels'
@@ -23,19 +38,24 @@ import * as Effect from 'effect/Effect'
 import { createLogger } from '../../logger'
 import {
   type AgentKernelCompactResult,
+  type AgentKernelForkSessionResult,
   AgentKernelMissingEntryError,
   type AgentKernelRunInput,
+  type AgentKernelRunResult,
   AgentKernelService,
   type AgentKernelSessionInput,
   type AgentKernelSessionSnapshot,
-  type AgentKernelWaggleTurnInput,
+  type AgentKernelWaggleRunInput,
+  type AgentKernelWaggleTurnCompletion,
   type CompactAgentKernelSessionInput,
+  type ForkAgentKernelSessionInput,
   type NavigateAgentKernelSessionInput,
 } from '../../ports/agent-kernel-service'
 import type { ProjectedSessionNodeInput } from '../../ports/session-repository'
 import { createStreamingMessageId, toJsonObject, toJsonValue } from './pi-message-mapper'
 import {
   createPiProjectModelRuntime,
+  getPiAgentDir,
   getPiModelAvailableThinkingLevels,
   type PiModel,
 } from './pi-provider-catalog'
@@ -58,14 +78,40 @@ type PiCustomTextContent = {
 
 type PiCustomContent = string | (PiCustomTextContent | PiPromptInput['images'][number])[]
 
-function resolveProjectPath(input: AgentKernelRunInput): string {
-  return resolveConversationProjectPath(input.conversation)
+interface PiRunSessionRuntime {
+  readonly model: PiModel
+  readonly session: AgentSession
 }
 
-function resolveConversationProjectPath(conversation: Conversation): string {
-  const projectPath = conversation.projectPath
+interface Deferred {
+  readonly promise: Promise<void>
+  readonly resolve: () => void
+  readonly reject: (error: unknown) => void
+}
+
+function createDeferred(): Deferred {
+  let resolveCurrent: (() => void) | undefined
+  let rejectCurrent: ((error: unknown) => void) | undefined
+  const promise = new Promise<void>((resolve, reject) => {
+    resolveCurrent = resolve
+    rejectCurrent = reject
+  })
+
+  return {
+    promise,
+    resolve: () => resolveCurrent?.(),
+    reject: (error) => rejectCurrent?.(error),
+  }
+}
+
+function resolveProjectPath(input: AgentKernelRunInput): string {
+  return resolveSessionProjectPath(input.session)
+}
+
+function resolveSessionProjectPath(session: SessionDetail): string {
+  const projectPath = session.projectPath
   if (!projectPath) {
-    throw new Error('No project path set on the conversation — cannot run Pi agent')
+    throw new Error('No project path set on the session — cannot run Pi agent')
   }
   return projectPath
 }
@@ -168,10 +214,23 @@ function isAgentEndReason(
   )
 }
 
-function getAgentEndAssistantMessage(messages: readonly unknown[]): Record<string, unknown> | null {
+interface AgentEndAssistantMessage {
+  readonly role: 'assistant'
+  readonly stopReason?: unknown
+  readonly usage?: unknown
+  readonly errorMessage?: unknown
+}
+
+function isAgentEndAssistantMessage(message: unknown): message is AgentEndAssistantMessage {
+  return isRecord(message) && message.role === 'assistant'
+}
+
+function getAgentEndAssistantMessage(
+  messages: readonly unknown[],
+): AgentEndAssistantMessage | null {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index]
-    if (isRecord(message) && message.role === 'assistant') {
+    if (isAgentEndAssistantMessage(message)) {
       return message
     }
   }
@@ -1016,14 +1075,21 @@ async function createPiSessionForRun(input: {
   return result
 }
 
-async function runPiSession(input: AgentKernelRunInput) {
-  const projectPath = resolveProjectPath(input)
+async function createPiRunSessionRuntime(input: {
+  readonly session: SessionDetail
+  readonly projectPath: string
+  readonly payload: HydratedAgentSendPayload
+  readonly modelReference: SupportedModelId
+  readonly skillToggles?: Readonly<Record<string, boolean>>
+  readonly extensionFactories?: readonly ExtensionFactory[]
+}): Promise<PiRunSessionRuntime> {
   const { model, services } = await createPiProjectModelRuntime({
-    projectPath,
-    modelReference: input.model,
+    projectPath: input.projectPath,
+    modelReference: input.modelReference,
     ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
+    ...(input.extensionFactories ? { extensionFactories: [...input.extensionFactories] } : {}),
   })
-  const sessionManager = createSessionManagerForConversation(input.conversation, projectPath)
+  const sessionManager = createSessionManagerForSession(input.session, input.projectPath)
   const thinkingLevel = resolvePiRuntimeThinkingLevel(model, input.payload.thinkingLevel)
   const { session } = await createPiSessionForRun({
     services,
@@ -1032,81 +1098,196 @@ async function runPiSession(input: AgentKernelRunInput) {
     thinkingLevel,
   })
 
-  const runId = randomUUID()
-  const unsubscribe = session.subscribe(createSessionListener(input, runId))
-  const abortListener = () => {
-    void session.abort().catch((error) => {
-      logger.warn('Failed to abort Pi session cleanly', {
-        error: error instanceof Error ? error.message : String(error),
-      })
-    })
-  }
-  let previousMessageCount = session.agent.state.messages.length
+  return { model, session }
+}
 
-  if (input.signal.aborted) {
-    await session.abort().catch((error) => {
-      logger.warn('Failed to abort pre-cancelled Pi session cleanly', {
-        error: error instanceof Error ? error.message : String(error),
-      })
+function createAbortListener(session: AgentSession, warning: string): () => void {
+  return () => {
+    void abortPiSession(session, warning)
+  }
+}
+
+async function abortPiSession(session: AgentSession, warning: string): Promise<void> {
+  await session.abort().catch((error) => {
+    logger.warn(warning, {
+      error: error instanceof Error ? error.message : String(error),
     })
-    unsubscribe()
-    session.dispose()
-    return {
-      newMessages: [],
-      piSessionId: session.sessionId,
-      piSessionFile: session.sessionFile,
-      sessionSnapshot: projectPiSessionSnapshot(session),
-      aborted: true,
-    }
+  })
+}
+
+function buildSuccessfulRunResult(input: {
+  readonly session: AgentSession
+  readonly payload: HydratedAgentSendPayload
+  readonly appended: readonly unknown[]
+  readonly signal: AbortSignal
+}): AgentKernelRunResult {
+  const terminalError = extractPiAssistantTerminalError(input.appended)
+  const stopReason = getPiAssistantStopReason(input.appended)
+
+  return {
+    newMessages: buildPiRunNewMessages(input.payload, input.appended),
+    piSessionId: input.session.sessionId,
+    piSessionFile: input.session.sessionFile,
+    sessionSnapshot: projectPiSessionSnapshot(input.session),
+    ...(stopReason === 'aborted' || input.signal.aborted ? { aborted: true } : {}),
+    ...(terminalError ? { terminalError } : {}),
+  }
+}
+
+function buildFailedRunResult(input: {
+  readonly session: AgentSession
+  readonly newMessages: readonly Message[]
+  readonly aborted: boolean
+  readonly message: string
+}): AgentKernelRunResult {
+  return {
+    newMessages: input.newMessages,
+    piSessionId: input.session.sessionId,
+    piSessionFile: input.session.sessionFile,
+    sessionSnapshot: projectPiSessionSnapshot(input.session),
+    ...(input.aborted ? { aborted: true } : { terminalError: input.message }),
+  }
+}
+
+async function abortPreCancelledRun(
+  session: AgentSession,
+  warning: string,
+): Promise<AgentKernelRunResult> {
+  await abortPiSession(session, warning)
+  return {
+    newMessages: [],
+    piSessionId: session.sessionId,
+    piSessionFile: session.sessionFile,
+    sessionSnapshot: projectPiSessionSnapshot(session),
+    aborted: true,
+  }
+}
+
+async function promptPiSession(
+  session: AgentSession,
+  model: PiModel,
+  payload: HydratedAgentSendPayload,
+): Promise<void> {
+  const promptInput = buildPiPromptInput(model, payload)
+  await session.prompt(
+    promptInput.text,
+    promptInput.images.length > 0 ? { images: [...promptInput.images] } : undefined,
+  )
+}
+
+async function runSubscribedPiOperation(input: {
+  readonly runInput: AgentKernelRunInput
+  readonly session: AgentSession
+  readonly unsubscribe: () => void
+  readonly abortWarning: string
+  readonly preAbortWarning: string
+  readonly operation: () => Promise<void>
+  readonly buildErrorMessages: (appended: readonly unknown[]) => readonly Message[]
+}): Promise<AgentKernelRunResult> {
+  const abortListener = createAbortListener(input.session, input.abortWarning)
+  let previousMessageCount = input.session.agent.state.messages.length
+
+  if (input.runInput.signal.aborted) {
+    const result = await abortPreCancelledRun(input.session, input.preAbortWarning)
+    input.unsubscribe()
+    input.session.dispose()
+    return result
   }
 
-  input.signal.addEventListener('abort', abortListener, { once: true })
+  input.runInput.signal.addEventListener('abort', abortListener, { once: true })
 
   try {
-    previousMessageCount = session.agent.state.messages.length
-    const promptInput = buildPiPromptInput(model, input.payload)
-    await session.prompt(
-      promptInput.text,
-      promptInput.images.length > 0 ? { images: [...promptInput.images] } : undefined,
-    )
-
-    const appended = session.agent.state.messages.slice(previousMessageCount)
-    const terminalError = extractPiAssistantTerminalError(appended)
-    const stopReason = getPiAssistantStopReason(appended)
-
-    return {
-      newMessages: buildPiRunNewMessages(input.payload, appended),
-      piSessionId: session.sessionId,
-      piSessionFile: session.sessionFile,
-      sessionSnapshot: projectPiSessionSnapshot(session),
-      ...(stopReason === 'aborted' || input.signal.aborted ? { aborted: true } : {}),
-      ...(terminalError ? { terminalError } : {}),
-    }
+    previousMessageCount = input.session.agent.state.messages.length
+    await input.operation()
+    const appended = input.session.agent.state.messages.slice(previousMessageCount)
+    return buildSuccessfulRunResult({
+      session: input.session,
+      payload: input.runInput.payload,
+      appended,
+      signal: input.runInput.signal,
+    })
   } catch (error) {
-    const appended = session.agent.state.messages.slice(previousMessageCount)
+    const appended = input.session.agent.state.messages.slice(previousMessageCount)
     const stopReason = getPiAssistantStopReason(appended)
-    const aborted = input.signal.aborted || stopReason === 'aborted'
+    const aborted = input.runInput.signal.aborted || stopReason === 'aborted'
     const message = error instanceof Error ? error.message : String(error)
-    emitEvent(input.onEvent, {
+    emitEvent(input.runInput.onEvent, {
       type: 'agent_end',
-      runId,
+      runId: input.runInput.runId,
       reason: aborted ? 'aborted' : 'error',
       ...(aborted ? {} : { error: { message } }),
       timestamp: Date.now(),
-      model: input.model,
+      model: input.runInput.model,
     })
-    return {
-      newMessages: buildPiRunNewMessages(input.payload, appended),
-      piSessionId: session.sessionId,
-      piSessionFile: session.sessionFile,
-      sessionSnapshot: projectPiSessionSnapshot(session),
-      ...(aborted ? { aborted: true } : { terminalError: message }),
-    }
+    return buildFailedRunResult({
+      session: input.session,
+      newMessages: input.buildErrorMessages(appended),
+      aborted,
+      message,
+    })
   } finally {
-    input.signal.removeEventListener('abort', abortListener)
-    unsubscribe()
-    session.dispose()
+    input.runInput.signal.removeEventListener('abort', abortListener)
+    input.unsubscribe()
+    input.session.dispose()
   }
+}
+
+async function sendInitialWaggleMessages(
+  session: AgentSession,
+  model: PiModel,
+  input: AgentKernelWaggleRunInput,
+): Promise<void> {
+  await session.sendCustomMessage(
+    {
+      customType: WAGGLE_VISIBLE_USER_CUSTOM_TYPE,
+      content: piPromptInputToCustomContent(buildPiPromptInput(model, input.payload)),
+      display: true,
+      details: { source: 'openwaggle', kind: 'waggle-user-request' },
+    },
+    { triggerTurn: false },
+  )
+
+  await session.sendCustomMessage(
+    {
+      customType: WAGGLE_TURN_CUSTOM_TYPE,
+      content: piPromptInputToCustomContent(
+        buildPiPromptInput(
+          model,
+          buildWaggleTurnPayload(input.payload, {
+            config: input.config,
+            agentIndex: 0,
+            turnNumber: 0,
+          }),
+        ),
+      ),
+      display: false,
+      details: { source: 'openwaggle', kind: 'waggle-turn', turnNumber: 0, agentIndex: 0 },
+    },
+    { triggerTurn: true },
+  )
+}
+
+async function runPiSession(input: AgentKernelRunInput) {
+  const projectPath = resolveProjectPath(input)
+  const { model, session } = await createPiRunSessionRuntime({
+    session: input.session,
+    projectPath,
+    modelReference: input.model,
+    payload: input.payload,
+    skillToggles: input.skillToggles,
+  })
+
+  const runId = input.runId
+  const unsubscribe = session.subscribe(createSessionListener(input, runId))
+  return runSubscribedPiOperation({
+    runInput: input,
+    session,
+    unsubscribe,
+    abortWarning: 'Failed to abort Pi session cleanly',
+    preAbortWarning: 'Failed to abort pre-cancelled Pi session cleanly',
+    operation: () => promptPiSession(session, model, input.payload),
+    buildErrorMessages: (appended) => buildPiRunNewMessages(input.payload, appended),
+  })
 }
 
 function piPromptInputToCustomContent(input: PiPromptInput): PiCustomContent {
@@ -1117,129 +1298,257 @@ function piPromptInputToCustomContent(input: PiPromptInput): PiCustomContent {
   return input.text ? [{ type: 'text', text: input.text }, ...input.images] : [...input.images]
 }
 
-async function runPiWaggleTurn(input: AgentKernelWaggleTurnInput) {
-  const projectPath = resolveProjectPath(input)
-  const { model, services } = await createPiProjectModelRuntime({
-    projectPath,
-    modelReference: input.model,
-    ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
-  })
-  const sessionManager = createSessionManagerForConversation(input.conversation, projectPath)
-  const thinkingLevel = resolvePiRuntimeThinkingLevel(model, input.payload.thinkingLevel)
-  const { session } = await createPiSessionForRun({
-    services,
-    model,
-    sessionManager,
-    thinkingLevel,
-  })
+function buildWaggleTurnPayload(
+  payload: HydratedAgentSendPayload,
+  input: {
+    readonly config: AgentKernelWaggleRunInput['config']
+    readonly agentIndex: number
+    readonly turnNumber: number
+  },
+): HydratedAgentSendPayload {
+  const agent = input.config.agents[input.agentIndex]
+  const otherAgent = input.config.agents[input.agentIndex === 0 ? 1 : 0]
+  const lines = [
+    `You are "${agent.label}". ${agent.roleDescription}`,
+    '',
+    `You are collaborating with "${otherAgent.label}" (${otherAgent.roleDescription}).`,
+    `This is turn ${String(input.turnNumber + 1)} of the collaboration.`,
+    '',
+    'Guidelines:',
+    '- Use tools to inspect real files and project state before making claims.',
+    '- Build on previous contributions rather than repeating them.',
+    '- If you agree with the other agent, say so explicitly and briefly.',
+    '- If you disagree, explain your reasoning with references to actual code.',
+    '- Focus on adding new value each turn.',
+    '- End your turn with a concise, direct summary of your findings and position.',
+  ]
 
-  const runId = randomUUID()
-  const unsubscribe = session.subscribe(createSessionListener(input, runId))
-  const abortListener = () => {
-    void session.abort().catch((error) => {
-      logger.warn('Failed to abort Pi Waggle turn cleanly', {
-        error: error instanceof Error ? error.message : String(error),
-      })
-    })
-  }
-  let previousMessageCount = session.agent.state.messages.length
-
-  if (input.signal.aborted) {
-    await session.abort().catch((error) => {
-      logger.warn('Failed to abort pre-cancelled Pi Waggle turn cleanly', {
-        error: error instanceof Error ? error.message : String(error),
-      })
-    })
-    unsubscribe()
-    session.dispose()
-    return {
-      newMessages: [],
-      piSessionId: session.sessionId,
-      piSessionFile: session.sessionFile,
-      sessionSnapshot: projectPiSessionSnapshot(session),
-      aborted: true,
-    }
-  }
-
-  input.signal.addEventListener('abort', abortListener, { once: true })
-
-  try {
-    previousMessageCount = session.agent.state.messages.length
-
-    if (input.visibleUserRequest) {
-      const visibleInput = buildPiPromptInput(model, input.visibleUserRequest)
-      await session.sendCustomMessage(
-        {
-          customType: WAGGLE_VISIBLE_USER_CUSTOM_TYPE,
-          content: piPromptInputToCustomContent(visibleInput),
-          display: true,
-          details: { source: 'openwaggle', kind: 'waggle-user-request' },
-        },
-        { triggerTurn: false },
-      )
-    }
-
-    const turnInput = buildPiPromptInput(model, input.payload)
-    await session.sendCustomMessage(
-      {
-        customType: WAGGLE_TURN_CUSTOM_TYPE,
-        content: piPromptInputToCustomContent(turnInput),
-        display: false,
-        details: { source: 'openwaggle', kind: 'waggle-turn' },
-      },
-      { triggerTurn: true },
+  if (input.turnNumber > 0) {
+    lines.push(
+      '',
+      'Review the session above and continue the collaboration.',
+      'If the other agent made claims about the code, verify them by reading relevant files.',
+      'Focus on your role and perspective.',
     )
+  }
 
-    const appended = session.agent.state.messages.slice(previousMessageCount)
-    const terminalError = extractPiAssistantTerminalError(appended)
-    const stopReason = getPiAssistantStopReason(appended)
-
-    return {
-      newMessages: buildPiRunAssistantMessages(appended),
-      piSessionId: session.sessionId,
-      piSessionFile: session.sessionFile,
-      sessionSnapshot: projectPiSessionSnapshot(session),
-      ...(stopReason === 'aborted' || input.signal.aborted ? { aborted: true } : {}),
-      ...(terminalError ? { terminalError } : {}),
-    }
-  } catch (error) {
-    const appended = session.agent.state.messages.slice(previousMessageCount)
-    const stopReason = getPiAssistantStopReason(appended)
-    const aborted = input.signal.aborted || stopReason === 'aborted'
-    const message = error instanceof Error ? error.message : String(error)
-    emitEvent(input.onEvent, {
-      type: 'agent_end',
-      runId,
-      reason: aborted ? 'aborted' : 'error',
-      ...(aborted ? {} : { error: { message } }),
-      timestamp: Date.now(),
-      model: input.model,
-    })
-    return {
-      newMessages: buildPiRunAssistantMessages(appended),
-      piSessionId: session.sessionId,
-      piSessionFile: session.sessionFile,
-      sessionSnapshot: projectPiSessionSnapshot(session),
-      ...(aborted ? { aborted: true } : { terminalError: message }),
-    }
-  } finally {
-    input.signal.removeEventListener('abort', abortListener)
-    unsubscribe()
-    session.dispose()
+  return {
+    ...payload,
+    text: `${lines.join('\n')}\n\n---\n\nUser request:\n${payload.text}`,
+    attachments: [],
   }
 }
 
-function createSessionManagerForConversation(
-  conversation: Conversation,
+function buildWaggleTurnCompletion(
+  meta: AgentKernelWaggleTurnCompletion['meta'],
+  messages: readonly unknown[],
+): AgentKernelWaggleTurnCompletion {
+  const assistantMessages = buildPiRunAssistantMessages(messages)
+  const responseText = assistantMessages.map(getMessageText).join('\n\n')
+  const hasToolCalls = assistantMessages.some((message) => message.parts.some(isToolCallPart))
+  const terminalError = extractPiAssistantTerminalError(messages)
+
+  return {
+    meta,
+    assistantMessages,
+    responseText,
+    hasToolCalls,
+    ...(terminalError ? { terminalError } : {}),
+  }
+}
+
+function withTransportEventModel(
+  event: AgentTransportEvent,
+  meta: AgentKernelWaggleTurnCompletion['meta'],
+): AgentTransportEvent {
+  return { ...event, model: meta.agentModel }
+}
+
+function getWaggleTurnAgentIndex(
+  config: AgentKernelWaggleRunInput['config'],
+  turnNumber: number,
+): number {
+  return turnNumber % config.agents.length
+}
+
+function emitWaggleTurnStart(
+  input: AgentKernelWaggleRunInput,
+  meta: AgentKernelWaggleTurnCompletion['meta'],
+): void {
+  input.onTurnEvent({
+    type: 'turn-start',
+    turnNumber: meta.turnNumber,
+    agentIndex: meta.agentIndex,
+    agentLabel: meta.agentLabel,
+  })
+}
+
+async function sendWaggleTurnMessage(input: {
+  readonly pi: ExtensionAPI
+  readonly ctx: Pick<ExtensionContext, 'modelRegistry'>
+  readonly payload: HydratedAgentSendPayload
+  readonly config: AgentKernelWaggleRunInput['config']
+  readonly turnNumber: number
+}): Promise<void> {
+  const agentIndex = getWaggleTurnAgentIndex(input.config, input.turnNumber)
+  const agent = input.config.agents[agentIndex]
+  const modelReference = createModelRefFromSupportedModelId(agent.model)
+  const model = input.ctx.modelRegistry.find(modelReference.provider, modelReference.id)
+  if (!model) {
+    throw new Error(`Pi model registry could not resolve model ${String(agent.model)}`)
+  }
+
+  const modelChanged = await input.pi.setModel(model)
+  if (!modelChanged) {
+    throw new Error(`Pi model ${String(agent.model)} is not available for Waggle mode`)
+  }
+
+  const turnPayload = buildWaggleTurnPayload(input.payload, {
+    config: input.config,
+    agentIndex,
+    turnNumber: input.turnNumber,
+  })
+  input.pi.sendMessage(
+    {
+      customType: WAGGLE_TURN_CUSTOM_TYPE,
+      content: piPromptInputToCustomContent(buildPiPromptInput(model, turnPayload)),
+      display: false,
+      details: {
+        source: 'openwaggle',
+        kind: 'waggle-turn',
+        turnNumber: input.turnNumber,
+        agentIndex,
+      },
+    },
+    { triggerTurn: true, deliverAs: 'followUp' },
+  )
+}
+
+function createModelRefFromSupportedModelId(modelReference: string): {
+  readonly provider: string
+  readonly id: string
+} {
+  const separatorIndex = modelReference.indexOf('/')
+  if (separatorIndex <= 0 || separatorIndex === modelReference.length - 1) {
+    throw new Error(`Expected provider/model id, received ${modelReference}`)
+  }
+  return {
+    provider: modelReference.slice(0, separatorIndex),
+    id: modelReference.slice(separatorIndex + 1),
+  }
+}
+
+function createWaggleExtension(input: {
+  readonly runInput: AgentKernelWaggleRunInput
+  readonly payload: HydratedAgentSendPayload
+  readonly loopDone: Deferred
+  readonly updateMeta: (meta: AgentKernelWaggleTurnCompletion['meta']) => void
+}): ExtensionFactory {
+  return (pi) => {
+    let turnNumber = 0
+    let stopped = false
+
+    pi.on('agent_end', async (event, ctx) => {
+      if (stopped) {
+        return
+      }
+
+      try {
+        const agentIndex = getWaggleTurnAgentIndex(input.runInput.config, turnNumber)
+        const meta = input.runInput.createTurnMetadata({ turnNumber, agentIndex })
+        const decision = await input.runInput.onTurnComplete(
+          buildWaggleTurnCompletion(meta, event.messages),
+        )
+        const nextTurnNumber = turnNumber + 1
+        if (!decision.continue || nextTurnNumber >= input.runInput.config.stop.maxTurnsSafety) {
+          stopped = true
+          input.loopDone.resolve()
+          return
+        }
+
+        turnNumber = nextTurnNumber
+        const nextAgentIndex = getWaggleTurnAgentIndex(input.runInput.config, turnNumber)
+        const nextMeta = input.runInput.createTurnMetadata({
+          turnNumber,
+          agentIndex: nextAgentIndex,
+        })
+        input.updateMeta(nextMeta)
+        emitWaggleTurnStart(input.runInput, nextMeta)
+        await sendWaggleTurnMessage({
+          pi,
+          ctx,
+          payload: input.payload,
+          config: input.runInput.config,
+          turnNumber,
+        })
+      } catch (error) {
+        stopped = true
+        input.loopDone.reject(error)
+      }
+    })
+  }
+}
+
+async function runPiWaggle(input: AgentKernelWaggleRunInput) {
+  const projectPath = resolveProjectPath(input)
+  const loopDone = createDeferred()
+  let currentMeta = input.createTurnMetadata({ turnNumber: 0, agentIndex: 0 })
+  const { model, session } = await createPiRunSessionRuntime({
+    session: input.session,
+    projectPath,
+    modelReference: input.config.agents[0]?.model ?? input.model,
+    payload: input.payload,
+    skillToggles: input.skillToggles,
+    extensionFactories: [
+      createWaggleExtension({
+        runInput: input,
+        payload: input.payload,
+        loopDone,
+        updateMeta: (meta) => {
+          currentMeta = meta
+        },
+      }),
+    ],
+  })
+
+  const runId = input.runId
+  const unsubscribe = session.subscribe(
+    createSessionListener(
+      {
+        ...input,
+        model: input.config.agents[0].model,
+        onEvent: (event) =>
+          input.onWaggleEvent(withTransportEventModel(event, currentMeta), currentMeta),
+      },
+      runId,
+    ),
+  )
+  return runSubscribedPiOperation({
+    runInput: input,
+    session,
+    unsubscribe,
+    abortWarning: 'Failed to abort Pi Waggle turn cleanly',
+    preAbortWarning: 'Failed to abort pre-cancelled Pi Waggle turn cleanly',
+    operation: async () => {
+      emitWaggleTurnStart(input, currentMeta)
+      await sendInitialWaggleMessages(session, model, input)
+      await loopDone.promise
+    },
+    buildErrorMessages: buildPiRunAssistantMessages,
+  })
+}
+
+function createSessionManagerForSession(
+  session: SessionDetail,
   projectPath: string,
 ): SessionManager {
-  if (conversation.piSessionFile && existsSync(conversation.piSessionFile)) {
-    return SessionManager.open(conversation.piSessionFile, undefined, projectPath)
+  if (session.piSessionFile && existsSync(session.piSessionFile)) {
+    return SessionManager.open(session.piSessionFile, undefined, projectPath)
   }
 
   const sessionManager = SessionManager.create(projectPath)
-  if (conversation.piSessionId) {
-    sessionManager.newSession({ id: conversation.piSessionId })
+  if (session.piSessionId) {
+    sessionManager.newSession({ id: session.piSessionId })
   }
   return sessionManager
 }
@@ -1250,13 +1559,13 @@ async function withPiSession<T>(
   input: AgentKernelSessionInput,
   operation: PiSessionOperation<T>,
 ): Promise<T> {
-  const projectPath = resolveConversationProjectPath(input.conversation)
+  const projectPath = resolveSessionProjectPath(input.session)
   const { model, services } = await createPiProjectModelRuntime({
     projectPath,
     modelReference: input.model,
     ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
   })
-  const sessionManager = createSessionManagerForConversation(input.conversation, projectPath)
+  const sessionManager = createSessionManagerForSession(input.session, projectPath)
   const { session } = await createAgentSessionFromServices({
     services,
     model,
@@ -1268,6 +1577,36 @@ async function withPiSession<T>(
   } finally {
     session.dispose()
   }
+}
+
+async function createPiSessionRuntime(input: AgentKernelSessionInput) {
+  const projectPath = resolveSessionProjectPath(input.session)
+  const initialSessionManager = createSessionManagerForSession(input.session, projectPath)
+  const createRuntime: CreateAgentSessionRuntimeFactory = async (options) => {
+    const { model, services } = await createPiProjectModelRuntime({
+      projectPath: options.cwd,
+      modelReference: input.model,
+      ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
+    })
+    const runtime = await createAgentSessionFromServices({
+      services,
+      model,
+      sessionManager: options.sessionManager,
+      sessionStartEvent: options.sessionStartEvent,
+    })
+
+    return {
+      ...runtime,
+      services,
+      diagnostics: services.diagnostics,
+    }
+  }
+
+  return createAgentSessionRuntime(createRuntime, {
+    cwd: projectPath,
+    agentDir: getPiAgentDir(),
+    sessionManager: initialSessionManager,
+  })
 }
 
 function toContextUsageSnapshot(usage: ContextUsage | undefined): ContextUsageSnapshot | null {
@@ -1286,6 +1625,14 @@ async function getPiContextUsage(
   input: AgentKernelSessionInput,
 ): Promise<ContextUsageSnapshot | null> {
   return withPiSession(input, (session) => toContextUsageSnapshot(session.getContextUsage()))
+}
+
+async function getPiSessionSnapshot(input: AgentKernelSessionInput) {
+  return withPiSession(input, (session) => ({
+    piSessionId: session.sessionId,
+    piSessionFile: session.sessionFile,
+    sessionSnapshot: projectPiSessionSnapshot(session),
+  }))
 }
 
 async function compactPiSession(
@@ -1352,6 +1699,42 @@ async function navigatePiSessionTree(input: NavigateAgentKernelSessionInput) {
   })
 }
 
+async function forkPiSession(
+  input: ForkAgentKernelSessionInput,
+): Promise<AgentKernelForkSessionResult> {
+  const runtime = await createPiSessionRuntime(input)
+  try {
+    const result = await runtime.fork(input.targetNodeId, { position: input.position })
+    if (result.cancelled) {
+      return {
+        cancelled: true,
+        piSessionId: runtime.session.sessionId,
+        piSessionFile: runtime.session.sessionFile,
+        sessionSnapshot: projectPiSessionSnapshot(runtime.session),
+      }
+    }
+
+    return {
+      cancelled: false,
+      piSessionId: runtime.session.sessionId,
+      piSessionFile: runtime.session.sessionFile,
+      sessionSnapshot: projectPiSessionSnapshot(runtime.session),
+      ...(result.selectedText ? { editorText: result.selectedText } : {}),
+    }
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.message === 'Invalid entry ID for forking' ||
+        error.message === `Entry ${input.targetNodeId} not found`)
+    ) {
+      throw new AgentKernelMissingEntryError(input.targetNodeId)
+    }
+    throw error
+  } finally {
+    await runtime.dispose()
+  }
+}
+
 async function createPiSession(projectPath: string) {
   const sessionManager = SessionManager.create(projectPath)
   return {
@@ -1375,15 +1758,21 @@ export const PiAgentKernelLive = Layer.succeed(
         catch: (error) => (error instanceof Error ? error : new Error(String(error))),
       }),
 
-    runWaggleTurn: (input: AgentKernelWaggleTurnInput) =>
+    runWaggle: (input: AgentKernelWaggleRunInput) =>
       Effect.tryPromise({
-        try: () => runPiWaggleTurn(input),
+        try: () => runPiWaggle(input),
         catch: (error) => (error instanceof Error ? error : new Error(String(error))),
       }),
 
     getContextUsage: (input: AgentKernelSessionInput) =>
       Effect.tryPromise({
         try: () => getPiContextUsage(input),
+        catch: (error) => (error instanceof Error ? error : new Error(String(error))),
+      }),
+
+    getSessionSnapshot: (input: AgentKernelSessionInput) =>
+      Effect.tryPromise({
+        try: () => getPiSessionSnapshot(input),
         catch: (error) => (error instanceof Error ? error : new Error(String(error))),
       }),
 
@@ -1396,6 +1785,12 @@ export const PiAgentKernelLive = Layer.succeed(
     navigateTree: (input: NavigateAgentKernelSessionInput) =>
       Effect.tryPromise({
         try: () => navigatePiSessionTree(input),
+        catch: (error) => (error instanceof Error ? error : new Error(String(error))),
+      }),
+
+    forkSession: (input: ForkAgentKernelSessionInput) =>
+      Effect.tryPromise({
+        try: () => forkPiSession(input),
         catch: (error) => (error instanceof Error ? error : new Error(String(error))),
       }),
   }),

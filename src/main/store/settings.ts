@@ -11,7 +11,7 @@ import {
 import { includes } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
-import { runAppEffect } from '../runtime'
+import { runStoreEffect } from './store-runtime'
 
 const logger = createLogger('settings')
 
@@ -56,7 +56,7 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
 }
 
 async function listStoredSettings(): Promise<Record<string, unknown>> {
-  const rows = await runAppEffect(
+  const rows = await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       return yield* sql<SettingsStoreRow>`
@@ -81,7 +81,7 @@ async function listStoredSettings(): Promise<Record<string, unknown>> {
 }
 
 async function writeStoredSettingToDb(key: string, value: unknown): Promise<void> {
-  await runAppEffect(
+  await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       yield* sql`

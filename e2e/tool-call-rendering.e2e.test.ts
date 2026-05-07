@@ -12,14 +12,14 @@ import {
   REGRESSION_TOOL_PATH,
   REGRESSION_USER_PROMPT,
   restartAndOpenThread,
-  seedRegressionConversation,
+  seedRegressionSession,
 } from './support/tool-call-regression-fixtures'
 
 test('historical unresolved Pi write tool-call does not render as running', async () => {
   const app = await OpenWaggleApp.launch('openwaggle-e2e-toolcall-regression-')
 
   try {
-    const title = await seedRegressionConversation(app, [
+    const title = await seedRegressionSession(app, [
       makeUserMessage(REGRESSION_USER_PROMPT, Date.now() - 2),
       makeAssistantMessage(
         [makeWriteToolCallPart('tool-call-1', REGRESSION_TOOL_PATH, REGRESSION_TOOL_CONTENT)],
@@ -40,7 +40,7 @@ test('concrete Pi write result renders completed after reload', async () => {
   const app = await OpenWaggleApp.launch('openwaggle-e2e-toolcall-regression-')
 
   try {
-    const title = await seedRegressionConversation(app, [
+    const title = await seedRegressionSession(app, [
       makeUserMessage(REGRESSION_USER_PROMPT, Date.now() - 2),
       makeAssistantMessage(
         [

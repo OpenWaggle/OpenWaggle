@@ -1,12 +1,13 @@
-import type { ConversationId, SessionNodeId } from '@shared/types/brand'
-import { SessionId } from '@shared/types/brand'
+import { SessionId, type SessionNodeId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
 import {
+  type AgentKernelForkPosition,
   type AgentKernelNavigateTreeResult,
   AgentKernelService,
+  type AgentKernelSessionSnapshot,
   isAgentKernelMissingEntryError,
 } from '../ports/agent-kernel-service'
 import { ProviderService } from '../ports/provider-service'
@@ -21,7 +22,7 @@ type NavigateTreeOutcome =
   | { readonly type: 'missing-entry' }
 
 export interface AgentSessionCommandInput {
-  readonly conversationId: ConversationId
+  readonly sessionId: SessionId
   readonly model: SupportedModelId
 }
 
@@ -37,16 +38,72 @@ export interface AgentSessionNavigateTreeInput extends AgentSessionCommandInput 
   readonly customInstructions?: string
 }
 
+export interface AgentSessionForkInput extends AgentSessionCommandInput {
+  readonly targetNodeId: SessionNodeId
+}
+
+interface AgentSessionCopyInput extends AgentSessionForkInput {
+  readonly position: AgentKernelForkPosition
+}
+
+interface KernelSnapshotResult {
+  readonly piSessionId: string
+  readonly piSessionFile?: string
+  readonly sessionSnapshot: AgentKernelSessionSnapshot
+}
+
+function loadSessionForCommand(input: AgentSessionCommandInput) {
+  return Effect.gen(function* () {
+    const sessionProjectionRepo = yield* SessionProjectionRepository
+    const session = yield* sessionProjectionRepo.getOptional(input.sessionId)
+    if (!session) {
+      return yield* Effect.fail(new Error('Session not found'))
+    }
+
+    const providerService = yield* ProviderService
+    const isKnown = yield* providerService.isKnownModel(input.model, session.projectPath)
+    if (!isKnown) {
+      return yield* Effect.fail(new Error(`Unknown model: ${input.model}`))
+    }
+
+    return session
+  })
+}
+
+function loadValidatedAgentSession(input: AgentSessionCommandInput) {
+  return Effect.gen(function* () {
+    const session = yield* loadSessionForCommand(input)
+    const skillToggles = yield* getSkillToggles(session.projectPath)
+    return {
+      session,
+      ...(skillToggles ? { skillToggles } : {}),
+    }
+  })
+}
+
+function persistKernelSnapshot(sessionId: SessionId, result: KernelSnapshotResult) {
+  return Effect.gen(function* () {
+    const sessionRepo = yield* SessionRepository
+    yield* sessionRepo.persistSnapshot({
+      sessionId: SessionId(String(sessionId)),
+      nodes: result.sessionSnapshot.nodes,
+      activeNodeId: result.sessionSnapshot.activeNodeId,
+      piSessionId: result.piSessionId,
+      piSessionFile: result.piSessionFile,
+    })
+  })
+}
+
 export function getAgentContextUsage(input: AgentSessionCommandInput) {
   return Effect.gen(function* () {
-    const conversationRepo = yield* SessionProjectionRepository
-    const conversation = yield* conversationRepo.getOptional(input.conversationId)
-    if (!conversation) {
+    const sessionProjectionRepo = yield* SessionProjectionRepository
+    const session = yield* sessionProjectionRepo.getOptional(input.sessionId)
+    if (!session) {
       return null
     }
 
     const providerService = yield* ProviderService
-    const isKnown = yield* providerService.isKnownModel(input.model, conversation.projectPath)
+    const isKnown = yield* providerService.isKnownModel(input.model, session.projectPath)
     if (!isKnown) {
       return null
     }
@@ -54,39 +111,80 @@ export function getAgentContextUsage(input: AgentSessionCommandInput) {
     const agentKernel = yield* AgentKernelService
     const settingsService = yield* SettingsService
     const settings = yield* settingsService.get()
-    const skillToggles = conversation.projectPath
-      ? settings.skillTogglesByProject[conversation.projectPath]
+    const skillToggles = session.projectPath
+      ? settings.skillTogglesByProject[session.projectPath]
       : undefined
     return yield* agentKernel.getContextUsage({
-      conversation,
+      session,
       model: input.model,
       ...(skillToggles ? { skillToggles } : {}),
     })
   })
 }
 
-export function compactAgentSession(input: AgentSessionCompactInput) {
+function getSkillToggles(projectPath: string | null | undefined) {
   return Effect.gen(function* () {
-    const conversationRepo = yield* SessionProjectionRepository
-    const conversation = yield* conversationRepo.getOptional(input.conversationId)
-    if (!conversation) {
-      return yield* Effect.fail(new Error('Conversation not found'))
-    }
+    const settingsService = yield* SettingsService
+    const settings = yield* settingsService.get()
+    return projectPath ? settings.skillTogglesByProject[projectPath] : undefined
+  })
+}
 
-    const providerService = yield* ProviderService
-    const isKnown = yield* providerService.isKnownModel(input.model, conversation.projectPath)
-    if (!isKnown) {
-      return yield* Effect.fail(new Error(`Unknown model: ${input.model}`))
+function copyAgentSessionToNewSession(input: AgentSessionCopyInput) {
+  return Effect.gen(function* () {
+    const { session, skillToggles } = yield* loadValidatedAgentSession(input)
+
+    if (!session.projectPath) {
+      return yield* Effect.fail(new Error('No project path set on the session.'))
     }
 
     const agentKernel = yield* AgentKernelService
-    const settingsService = yield* SettingsService
-    const settings = yield* settingsService.get()
-    const skillToggles = conversation.projectPath
-      ? settings.skillTogglesByProject[conversation.projectPath]
-      : undefined
+    const result = yield* agentKernel.forkSession({
+      session,
+      model: input.model,
+      targetNodeId: String(input.targetNodeId),
+      position: input.position,
+      ...(skillToggles ? { skillToggles } : {}),
+    })
+
+    if (result.cancelled) {
+      return { cancelled: true }
+    }
+
+    const sessionProjectionRepo = yield* SessionProjectionRepository
+    const createdProjection = yield* sessionProjectionRepo.create({
+      projectPath: session.projectPath,
+      piSessionId: result.piSessionId,
+      piSessionFile: result.piSessionFile,
+    })
+
+    yield* persistKernelSnapshot(SessionId(String(createdProjection.id)), result)
+
+    const persistedSession = yield* sessionProjectionRepo.get(
+      SessionId(String(createdProjection.id)),
+    )
+    return {
+      session: persistedSession,
+      cancelled: false,
+      ...(result.editorText ? { editorText: result.editorText } : {}),
+    }
+  })
+}
+
+export function forkAgentSessionToNewSession(input: AgentSessionForkInput) {
+  return copyAgentSessionToNewSession({ ...input, position: 'before' })
+}
+
+export function cloneAgentSessionToNewSession(input: AgentSessionForkInput) {
+  return copyAgentSessionToNewSession({ ...input, position: 'at' })
+}
+
+export function compactAgentSession(input: AgentSessionCompactInput) {
+  return Effect.gen(function* () {
+    const { session, skillToggles } = yield* loadValidatedAgentSession(input)
+    const agentKernel = yield* AgentKernelService
     const result = yield* agentKernel.compact({
-      conversation,
+      session,
       model: input.model,
       customInstructions: input.customInstructions,
       ...(input.signal ? { signal: input.signal } : {}),
@@ -94,14 +192,7 @@ export function compactAgentSession(input: AgentSessionCompactInput) {
       ...(skillToggles ? { skillToggles } : {}),
     })
 
-    const sessionRepo = yield* SessionRepository
-    yield* sessionRepo.persistSnapshot({
-      sessionId: SessionId(String(input.conversationId)),
-      nodes: result.sessionSnapshot.nodes,
-      activeNodeId: result.sessionSnapshot.activeNodeId,
-      piSessionId: result.piSessionId,
-      piSessionFile: result.piSessionFile,
-    })
+    yield* persistKernelSnapshot(input.sessionId, result)
 
     return {
       summary: result.summary,
@@ -113,28 +204,11 @@ export function compactAgentSession(input: AgentSessionCompactInput) {
 
 export function navigateAgentSessionTree(input: AgentSessionNavigateTreeInput) {
   return Effect.gen(function* () {
-    const conversationRepo = yield* SessionProjectionRepository
-    const conversation = yield* conversationRepo.getOptional(input.conversationId)
-    if (!conversation) {
-      return yield* Effect.fail(new Error('Conversation not found'))
-    }
-
-    const providerService = yield* ProviderService
-    const isKnown = yield* providerService.isKnownModel(input.model, conversation.projectPath)
-    if (!isKnown) {
-      return yield* Effect.fail(new Error(`Unknown model: ${input.model}`))
-    }
-
+    const { session, skillToggles } = yield* loadValidatedAgentSession(input)
     const agentKernel = yield* AgentKernelService
-    const settingsService = yield* SettingsService
-    const settings = yield* settingsService.get()
-    const skillToggles = conversation.projectPath
-      ? settings.skillTogglesByProject[conversation.projectPath]
-      : undefined
-
     const navigation = yield* agentKernel
       .navigateTree({
-        conversation,
+        session,
         model: input.model,
         targetNodeId: String(input.targetNodeId),
         summarize: input.summarize,
@@ -151,7 +225,7 @@ export function navigateAgentSessionTree(input: AgentSessionNavigateTreeInput) {
         Effect.catchAll((error): Effect.Effect<NavigateTreeOutcome, Error> => {
           if (isAgentKernelMissingEntryError(error)) {
             logger.warn('Skipped Pi tree navigation because the target entry is absent', {
-              conversationId: String(input.conversationId),
+              sessionId: String(input.sessionId),
               targetNodeId: String(input.targetNodeId),
             })
             return Effect.succeed({ type: 'missing-entry' })
@@ -166,14 +240,7 @@ export function navigateAgentSessionTree(input: AgentSessionNavigateTreeInput) {
     }
 
     const { result } = navigation
-    const sessionRepo = yield* SessionRepository
-    yield* sessionRepo.persistSnapshot({
-      sessionId: SessionId(String(input.conversationId)),
-      nodes: result.sessionSnapshot.nodes,
-      activeNodeId: result.sessionSnapshot.activeNodeId,
-      piSessionId: result.piSessionId,
-      piSessionFile: result.piSessionFile,
-    })
+    yield* persistKernelSnapshot(input.sessionId, result)
 
     return {
       editorText: result.editorText,

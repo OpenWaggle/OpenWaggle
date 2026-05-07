@@ -80,8 +80,13 @@ export interface CompactionSummaryMetadata {
   readonly tokensBefore: number
 }
 
+export interface BranchSummaryMetadata {
+  readonly summary: string
+}
+
 export interface MessageMetadata {
   readonly waggle?: WaggleMessageMetadata
+  readonly branchSummary?: BranchSummaryMetadata
   readonly compactionSummary?: CompactionSummaryMetadata
 }
 

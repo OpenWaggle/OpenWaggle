@@ -44,7 +44,7 @@ describe('typedOn', () => {
   })
 
   it('registers a listener on ipcMain.on with the given channel', () => {
-    typedOn('agent:cancel', (_event, _conversationId?) => Effect.void)
+    typedOn('agent:cancel', (_event, _sessionId?) => Effect.void)
 
     expect(ipcMainOnMock).toHaveBeenCalledOnce()
     expect(ipcMainOnMock).toHaveBeenCalledWith('agent:cancel', expect.any(Function))
@@ -52,7 +52,7 @@ describe('typedOn', () => {
 
   it('runs the effect handler when the listener fires', async () => {
     const effectBody = vi.fn()
-    typedOn('agent:cancel', (_event, _conversationId?) => Effect.sync(() => effectBody()))
+    typedOn('agent:cancel', (_event, _sessionId?) => Effect.sync(() => effectBody()))
 
     const registeredListener = ipcMainOnMock.mock.calls[0][1]
     const fakeEvent = { sender: {} }

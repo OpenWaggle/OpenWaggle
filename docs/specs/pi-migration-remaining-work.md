@@ -36,13 +36,13 @@ Implementation must stay faithful to:
 
 ## Explicit non-goals
 
-Do not revive deleted runtime/product surfaces:
+Do not restore removed runtime/product surfaces:
 
 - no removed vendor-runtime chat transport
-- no deprecated external stream-shape contract
-- no old flat-message SQLite tables as product truth
+- no stale external stream-shape contract
+- no removed flat-message SQLite tables as product truth
 - no removed context side-panel/pinned-context system
-- no legacy tool-gating product flow
+- no removed tool-gating product flow
 - no permanent second branch sidebar
 - no fake projection-only branch deletion that makes SQLite disagree with Pi session truth
 
@@ -56,9 +56,9 @@ Do not revive deleted runtime/product surfaces:
    - ✅ right-side Session Tree shell, filters, route slot, and persisted expanded state
    - ✅ draft branch lifecycle, including send-time Pi materialization and scoped composer drafts
    - ✅ composer-integrated branch summary flow
-   - transcript action parity remains: full node-backed branch-out matrix plus Pi-style fork/clone triggers
+   - ✅ full node-backed transcript branch-out matrix plus Pi-style fork/clone triggers
 2. **Shared tests as contract**
-   - write mode-parameterized branch behavior tests that run for `standard` now and remain skipped/TODO for `waggle` until Waggle is Pi-extension backed.
+   - ✅ mode-parameterized branch behavior tests run for both `standard` and `waggle`.
 3. **Hotkeys foundation and consolidation**
    - ✅ add `@tanstack/react-hotkeys`
    - ✅ implement Session Tree shortcuts with it
@@ -66,13 +66,13 @@ Do not revive deleted runtime/product surfaces:
 4. **Resource precedence hardening**
    - ✅ enforce `.openwaggle > .pi > .agents` for skills, prompts, themes, and extensions inside the Pi adapter.
 5. **Retry/compaction/durability parity**
-   - surface Pi retry/compaction events inline
-   - persist/reconcile interrupted active runs without auto-resuming after process death.
+   - ✅ surface Pi retry/compaction events inline.
+   - ✅ persist/reconcile interrupted active runs without auto-resuming after process death.
 6. **Waggle Pi-extension phase**
    - refactor Waggle away from separate app-level orchestration into Pi extension/in-session behavior.
    - Waggle must pass the same branch behavior contract as standard mode.
 7. **Session-native naming cleanup**
-   - after behavior stabilizes, migrate conversation-shaped APIs/names toward session-native surfaces.
+   - after behavior stabilizes, migrate session-native APIs/names toward session-native surfaces.
 
 ---
 
@@ -87,7 +87,7 @@ The left sidebar is navigation-first. It shows projects, sessions, materialized 
 - `main` appears as a branch row only once a session has more than one materialized branch.
 - Branch rows are ordered by current stable projection order: `main` first, then other branches in stable creation/projection order.
 - Session row click keeps current behavior: open the session's last active branch; fallback to `main`/nearest valid branch if unavailable.
-- Branch row click navigates to that branch head/full conversation.
+- Branch row click navigates to that branch head/full session.
 - Branch lists are collapsible per session via a small chevron on the session row.
 - Collapsed/expanded branch-list state persists per session in `session_tree_ui_state.branches_sidebar_collapsed`.
 - A transient draft branch auto-expands its owning session while the draft exists.
@@ -396,7 +396,7 @@ Never destroy in-progress user intent already typed in the composer.
 - Composer drafts are not restored after app restart in the current implementation; transient draft branch context also does not persist across restart.
 - If transient draft context clears, restore/preserve composer text according to the materialized context the user returns to.
 - Attachments are part of composer intent and follow the same in-memory context scoping where safe; do not persist attachment capabilities across restart without the memory-safe attachment rules.
-- Archived conversations/sessions/branches do not restore old unsent composer drafts later; restoring archive restores history, not old unsent prompts.
+- Archived sessions and branches do not restore old unsent composer drafts later; restoring archive restores history, not old unsent prompts.
 - If a stored draft belongs to a deleted session/branch, it is removed from persistence. This cleanup must not be confused with clearing the currently visible composer unless deletion causes navigation.
 
 ### Acceptance criteria
@@ -412,7 +412,7 @@ Never destroy in-progress user intent already typed in the composer.
 
 ### Required behavior
 
-The default chat transcript remains conversational/product-relevant:
+The default chat transcript remains sessional/product-relevant:
 
 - user messages
 - assistant messages
@@ -442,7 +442,7 @@ Branch summaries and compaction summaries should render as distinct product/time
 
 ---
 
-## 7. Branch-scoped future mode and Waggle
+## 7. Branch-scoped mode and Waggle
 
 ### Standard branch config
 
@@ -451,11 +451,7 @@ Branch summaries and compaction summaries should render as distinct product/time
 - Child/draft branches inherit parent mode/config at draft creation.
 - Materialized branch state persists through SQLite branch state.
 
-### Waggle target architecture
-
-Waggle is a later phase after standard-mode branch semantics are complete and tested.
-
-Target:
+### Waggle architecture
 
 - Waggle implemented as Pi extension/in-session behavior rather than separate runtimes.
 - Waggle uses the same Pi session/tree/projection path as standard mode.
@@ -474,14 +470,14 @@ Target:
 
 Create mode-parameterized branch behavior tests:
 
-- run for `standard` immediately
-- include skipped/TODO `waggle` cases until Waggle is Pi-extension backed
-- unskip Waggle once implemented and require the same branch behavior contract to pass
+- run for `standard`
+- run for `waggle`
+- require the same branch behavior contract to pass, with only config/color/attribution differences
 
 ### Acceptance criteria
 
-- Standard branch behavior has contract tests before Waggle refactor.
-- Waggle implementation later passes the same contract with only config/color/attribution differences.
+- Standard branch behavior has contract tests.
+- Waggle passes the same contract with only config/color/attribution differences.
 
 ---
 
@@ -549,6 +545,15 @@ If OpenWaggle restarts and finds active run records:
 
 Live provider/runtime errors while app is alive still use Pi auto-retry.
 
+### Implementation status
+
+Implemented in the current branch:
+
+- Standard and Waggle sends write a durable active-run row for the active session branch before calling Pi and clear it when the run finishes in-process.
+- Startup reconciliation reads durable active-run rows, refreshes the SQLite projection from the latest Pi session snapshot, marks the run interrupted, and does not auto-resume execution.
+- Interrupted runs show an amber sidebar indicator on affected session/branch rows and an inline notice in the opened transcript.
+- The interrupted indication clears when the user dismisses the notice or sends a new message from the affected branch.
+
 ### Acceptance criteria
 
 - Retry countdown/cancel appears inline and follows Pi settings.
@@ -561,12 +566,12 @@ Live provider/runtime errors while app is alive still use Pi auto-retry.
 
 This is last, after functional behavior stabilizes.
 
-Current conversation-shaped surfaces remain:
+Current session-native surfaces remain:
 
-- `conversations:*` IPC
-- `Conversation` DTOs
+- `sessions:*` IPC
+- `Session` DTOs
 - `SessionProjectionRepository`
-- `activeConversationId` renderer naming
+- `activeSessionId` renderer naming
 
 Required direction:
 

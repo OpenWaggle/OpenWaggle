@@ -1,40 +1,40 @@
-import type { ConversationId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 import { useSessionStatusStore } from '@/stores/session-status-store'
 
-interface ConversationNavItem {
-  readonly id: ConversationId
+interface SessionNavItem {
+  readonly id: SessionId
   readonly projectPath: string | null
 }
 
-interface ConversationNavDeps {
-  readonly conversations: readonly ConversationNavItem[]
+interface SessionNavDeps {
+  readonly sessions: readonly SessionNavItem[]
   readonly projectPath: string | null
   readonly setActiveView: (view: 'chat' | 'skills') => void
   readonly setProjectPath: (path: string | null) => Promise<void>
   readonly selectFolder: () => Promise<string | null>
   readonly startDraftSession: () => void
-  readonly setActiveConversation: (id: ConversationId | null) => void
+  readonly setActiveSession: (id: SessionId | null) => void
   readonly refreshGitStatus: (projectPath: string | null) => Promise<void>
   readonly refreshGitBranches: (projectPath: string | null) => Promise<void>
 }
 
-interface ConversationNavHandlers {
-  readonly handleSelectConversation: (id: ConversationId) => Promise<void>
-  readonly handleNewConversation: () => void
+interface SessionNavHandlers {
+  readonly handleSelectSession: (id: SessionId) => Promise<void>
+  readonly handleNewSession: () => void
   readonly handleOpenProject: () => Promise<void>
   readonly handleSelectProjectPath: (path: string) => Promise<void>
 }
 
 /** Pure factory — testable without React. */
-export function createConversationNavHandlers(deps: ConversationNavDeps): ConversationNavHandlers {
+export function createSessionNavHandlers(deps: SessionNavDeps): SessionNavHandlers {
   const {
-    conversations,
+    sessions,
     projectPath,
     setActiveView,
     setProjectPath,
     selectFolder,
     startDraftSession,
-    setActiveConversation,
+    setActiveSession,
     refreshGitStatus,
     refreshGitBranches,
   } = deps
@@ -43,19 +43,19 @@ export function createConversationNavHandlers(deps: ConversationNavDeps): Conver
     void Promise.all([refreshGitStatus(path), refreshGitBranches(path)])
   }
 
-  async function handleSelectConversation(id: ConversationId): Promise<void> {
+  async function handleSelectSession(id: SessionId): Promise<void> {
     setActiveView('chat')
-    const conv = conversations.find((c) => c.id === id)
-    const nextProjectPath = conv?.projectPath ?? projectPath
-    setActiveConversation(id)
+    const session = sessions.find((c) => c.id === id)
+    const nextProjectPath = session?.projectPath ?? projectPath
+    setActiveSession(id)
     useSessionStatusStore.getState().markVisited(id)
-    if (conv && conv.projectPath !== projectPath) {
-      await setProjectPath(conv.projectPath)
+    if (session && session.projectPath !== projectPath) {
+      await setProjectPath(session.projectPath)
     }
     refreshGit(nextProjectPath)
   }
 
-  function handleNewConversation(): void {
+  function handleNewSession(): void {
     setActiveView('chat')
     startDraftSession()
   }
@@ -77,14 +77,14 @@ export function createConversationNavHandlers(deps: ConversationNavDeps): Conver
   }
 
   return {
-    handleSelectConversation,
-    handleNewConversation,
+    handleSelectSession,
+    handleNewSession,
     handleOpenProject,
     handleSelectProjectPath,
   }
 }
 
 /** Hook wrapper — calls the factory with current deps. */
-export function useConversationNav(deps: ConversationNavDeps): ConversationNavHandlers {
-  return createConversationNavHandlers(deps)
+export function useSessionNav(deps: SessionNavDeps): SessionNavHandlers {
+  return createSessionNavHandlers(deps)
 }

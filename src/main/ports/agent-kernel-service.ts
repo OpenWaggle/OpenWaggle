@@ -1,8 +1,9 @@
 import type { HydratedAgentSendPayload, Message } from '@shared/types/agent'
 import type { ContextCompactionResult, ContextUsageSnapshot } from '@shared/types/context-usage'
-import type { Conversation } from '@shared/types/conversation'
 import type { SupportedModelId } from '@shared/types/llm'
+import type { SessionDetail } from '@shared/types/session'
 import type { AgentTransportEvent } from '@shared/types/stream'
+import type { WaggleConfig, WaggleStreamMetadata, WaggleTurnEvent } from '@shared/types/waggle'
 import { Context, type Effect } from 'effect'
 import type { ProjectedSessionNodeInput } from './session-repository'
 
@@ -28,7 +29,8 @@ export interface AgentKernelSessionSnapshot {
 }
 
 export interface AgentKernelRunInput {
-  readonly conversation: Conversation
+  readonly session: SessionDetail
+  readonly runId: string
   readonly payload: HydratedAgentSendPayload
   readonly model: SupportedModelId
   readonly skillToggles?: Readonly<Record<string, boolean>>
@@ -36,8 +38,29 @@ export interface AgentKernelRunInput {
   readonly onEvent: (event: AgentTransportEvent) => void
 }
 
-export interface AgentKernelWaggleTurnInput extends AgentKernelRunInput {
-  readonly visibleUserRequest?: HydratedAgentSendPayload
+export interface AgentKernelWaggleTurnCompletion {
+  readonly meta: WaggleStreamMetadata
+  readonly assistantMessages: readonly Message[]
+  readonly responseText: string
+  readonly hasToolCalls: boolean
+  readonly terminalError?: string
+}
+
+export interface AgentKernelWaggleTurnDecision {
+  readonly continue: boolean
+}
+
+export interface AgentKernelWaggleRunInput extends AgentKernelRunInput {
+  readonly config: WaggleConfig
+  readonly onWaggleEvent: (event: AgentTransportEvent, meta: WaggleStreamMetadata) => void
+  readonly onTurnEvent: (event: WaggleTurnEvent) => void
+  readonly createTurnMetadata: (input: {
+    readonly turnNumber: number
+    readonly agentIndex: number
+  }) => WaggleStreamMetadata
+  readonly onTurnComplete: (
+    completion: AgentKernelWaggleTurnCompletion,
+  ) => AgentKernelWaggleTurnDecision | Promise<AgentKernelWaggleTurnDecision>
 }
 
 export interface AgentKernelRunResult {
@@ -47,6 +70,12 @@ export interface AgentKernelRunResult {
   readonly sessionSnapshot: AgentKernelSessionSnapshot
   readonly aborted?: boolean
   readonly terminalError?: string
+}
+
+export interface AgentKernelSessionSnapshotResult {
+  readonly piSessionId: string
+  readonly piSessionFile?: string
+  readonly sessionSnapshot: AgentKernelSessionSnapshot
 }
 
 export interface AgentKernelCompactResult extends ContextCompactionResult {
@@ -65,7 +94,7 @@ export interface CreateAgentKernelSessionResult {
 }
 
 export interface AgentKernelSessionInput {
-  readonly conversation: Conversation
+  readonly session: SessionDetail
   readonly model: SupportedModelId
   readonly skillToggles?: Readonly<Record<string, boolean>>
 }
@@ -82,7 +111,22 @@ export interface NavigateAgentKernelSessionInput extends AgentKernelSessionInput
   readonly customInstructions?: string
 }
 
+export type AgentKernelForkPosition = 'before' | 'at'
+
+export interface ForkAgentKernelSessionInput extends AgentKernelSessionInput {
+  readonly targetNodeId: string
+  readonly position: AgentKernelForkPosition
+}
+
 export interface AgentKernelNavigateTreeResult {
+  readonly piSessionId: string
+  readonly piSessionFile?: string
+  readonly sessionSnapshot: AgentKernelSessionSnapshot
+  readonly editorText?: string
+  readonly cancelled: boolean
+}
+
+export interface AgentKernelForkSessionResult {
   readonly piSessionId: string
   readonly piSessionFile?: string
   readonly sessionSnapshot: AgentKernelSessionSnapshot
@@ -92,8 +136,8 @@ export interface AgentKernelNavigateTreeResult {
 
 export interface AgentKernelServiceShape {
   readonly run: (input: AgentKernelRunInput) => Effect.Effect<AgentKernelRunResult, Error>
-  readonly runWaggleTurn: (
-    input: AgentKernelWaggleTurnInput,
+  readonly runWaggle: (
+    input: AgentKernelWaggleRunInput,
   ) => Effect.Effect<AgentKernelRunResult, Error>
   readonly createSession: (
     input: CreateAgentKernelSessionInput,
@@ -107,6 +151,12 @@ export interface AgentKernelServiceShape {
   readonly navigateTree: (
     input: NavigateAgentKernelSessionInput,
   ) => Effect.Effect<AgentKernelNavigateTreeResult, Error>
+  readonly forkSession: (
+    input: ForkAgentKernelSessionInput,
+  ) => Effect.Effect<AgentKernelForkSessionResult, Error>
+  readonly getSessionSnapshot: (
+    input: AgentKernelSessionInput,
+  ) => Effect.Effect<AgentKernelSessionSnapshotResult, Error>
 }
 
 export class AgentKernelService extends Context.Tag('@openwaggle/AgentKernelService')<

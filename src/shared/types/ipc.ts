@@ -1,16 +1,9 @@
 import type { AgentSendPayload, PreparedAttachment } from './agent'
 import type { OAuthAccountInfo, OAuthFlowStatus, OAuthProvider } from './auth'
 import type { ActiveRunInfo, BackgroundRunSnapshot } from './background-run'
-import type {
-  ConversationId,
-  SessionBranchId,
-  SessionId,
-  SessionNodeId,
-  TeamConfigId,
-} from './brand'
+import type { SessionBranchId, SessionId, SessionNodeId, WagglePresetId } from './brand'
 import type { FileSuggestion } from './composer'
 import type { ContextCompactionResult, ContextUsageSnapshot } from './context-usage'
-import type { Conversation, ConversationSummary } from './conversation'
 import type {
   DiagnosticsInfo,
   FeedbackPayload,
@@ -33,6 +26,8 @@ import type {
 import type { ProviderInfo, SupportedModelId } from './llm'
 import type { AgentPhaseEventPayload, AgentPhaseState } from './phase'
 import type {
+  SessionCopyToNewResult,
+  SessionDetail,
   SessionNavigateTreeOptions,
   SessionSummary,
   SessionTree,
@@ -50,12 +45,7 @@ import type {
 import type { AgentTransportEvent } from './stream'
 import type { UpdateStatus } from './updater'
 import type { VoiceTranscriptionRequest, VoiceTranscriptionResult } from './voice'
-import type {
-  WaggleConfig,
-  WaggleStreamMetadata,
-  WaggleTeamPreset,
-  WaggleTurnEvent,
-} from './waggle'
+import type { WaggleConfig, WagglePreset, WaggleStreamMetadata, WaggleTurnEvent } from './waggle'
 
 // ─── IPC Channel Map ─────────────────────────────────────────
 // Single source of truth for every IPC channel.
@@ -68,19 +58,19 @@ import type {
  */
 export interface IpcInvokeChannelMap {
   'agent:send-message': {
-    args: [conversationId: ConversationId, payload: AgentSendPayload, model: SupportedModelId]
+    args: [sessionId: SessionId, payload: AgentSendPayload, model: SupportedModelId]
     return: undefined
   }
   'agent:steer': {
-    args: [conversationId: ConversationId]
+    args: [sessionId: SessionId]
     return: { preserved: boolean }
   }
   'agent:get-context-usage': {
-    args: [conversationId: ConversationId, model: SupportedModelId]
+    args: [sessionId: SessionId, model: SupportedModelId]
     return: ContextUsageSnapshot | null
   }
   'agent:compact-session': {
-    args: [conversationId: ConversationId, model: SupportedModelId, customInstructions?: string]
+    args: [sessionId: SessionId, model: SupportedModelId, customInstructions?: string]
     return: ContextCompactionResult
   }
   'settings:get': {
@@ -123,40 +113,48 @@ export interface IpcInvokeChannelMap {
     args: [projectPath: string, preferences: { model?: string; thinkingLevel?: string }]
     return: undefined
   }
-  'conversations:list': {
+  'sessions:list-details': {
     args: [limit?: number]
-    return: ConversationSummary[]
+    return: SessionDetail[]
   }
-  'conversations:list-full': {
-    args: [limit?: number]
-    return: Conversation[]
+  'sessions:get-detail': {
+    args: [id: SessionId]
+    return: SessionDetail | null
   }
-  'conversations:get': {
-    args: [id: ConversationId]
-    return: Conversation | null
-  }
-  'conversations:create': {
+  'sessions:create': {
     args: [projectPath: string]
-    return: Conversation
+    return: SessionDetail
   }
-  'conversations:delete': {
-    args: [id: ConversationId]
+  'sessions:fork-to-new': {
+    args: [sessionId: SessionId, model: SupportedModelId, targetNodeId: SessionNodeId]
+    return: SessionCopyToNewResult
+  }
+  'sessions:clone-to-new': {
+    args: [sessionId: SessionId, model: SupportedModelId, targetNodeId: SessionNodeId]
+    return: SessionCopyToNewResult
+  }
+  'sessions:dismiss-interrupted-run': {
+    args: [sessionId: SessionId, runId: string]
     return: undefined
   }
-  'conversations:archive': {
-    args: [id: ConversationId]
+  'sessions:delete': {
+    args: [id: SessionId]
     return: undefined
   }
-  'conversations:unarchive': {
-    args: [id: ConversationId]
+  'sessions:archive': {
+    args: [id: SessionId]
     return: undefined
   }
-  'conversations:list-archived': {
+  'sessions:unarchive': {
+    args: [id: SessionId]
+    return: undefined
+  }
+  'sessions:list-archived': {
     args: []
-    return: ConversationSummary[]
+    return: SessionSummary[]
   }
-  'conversations:update-title': {
-    args: [id: ConversationId, title: string]
+  'sessions:update-title': {
+    args: [id: SessionId, title: string]
     return: undefined
   }
   'sessions:list': {
@@ -261,11 +259,11 @@ export interface IpcInvokeChannelMap {
     return: PreparedAttachment
   }
   'agent:get-phase': {
-    args: [conversationId: ConversationId]
+    args: [sessionId: SessionId]
     return: AgentPhaseState | null
   }
   'agent:get-background-run': {
-    args: [conversationId: ConversationId]
+    args: [sessionId: SessionId]
     return: BackgroundRunSnapshot | null
   }
   'agent:list-active-runs': {
@@ -310,7 +308,7 @@ export interface IpcInvokeChannelMap {
   }
   // Waggle mode
   'agent:send-waggle-message': {
-    args: [conversationId: ConversationId, payload: AgentSendPayload, config: WaggleConfig]
+    args: [sessionId: SessionId, payload: AgentSendPayload, config: WaggleConfig]
     return: undefined
   }
   // Auth
@@ -338,17 +336,17 @@ export interface IpcInvokeChannelMap {
     args: [provider: string, apiKey: string]
     return: undefined
   }
-  // Teams
-  'teams:list': {
-    args: []
-    return: WaggleTeamPreset[]
+  // Waggle presets
+  'waggle-presets:list': {
+    args: [projectPath?: string | null]
+    return: WagglePreset[]
   }
-  'teams:save': {
-    args: [preset: WaggleTeamPreset]
-    return: WaggleTeamPreset
+  'waggle-presets:save': {
+    args: [preset: WagglePreset, projectPath?: string | null]
+    return: WagglePreset
   }
-  'teams:delete': {
-    args: [id: TeamConfigId]
+  'waggle-presets:delete': {
+    args: [id: WagglePresetId, projectPath?: string | null]
     return: undefined
   }
   // Feedback
@@ -405,10 +403,10 @@ export interface IpcInvokeChannelMap {
  */
 export interface IpcSendChannelMap {
   'agent:cancel': {
-    args: [conversationId?: ConversationId]
+    args: [sessionId?: SessionId]
   }
   'agent:cancel-waggle': {
-    args: [conversationId: ConversationId]
+    args: [sessionId: SessionId]
   }
   'terminal:write': {
     args: [terminalId: string, data: string]
@@ -424,7 +422,7 @@ export interface IpcSendChannelMap {
 interface IpcEventChannelMap {
   /** Pi-shaped runtime events for the renderer's live transcript runtime */
   'agent:event': {
-    payload: { conversationId: ConversationId; event: AgentTransportEvent }
+    payload: { sessionId: SessionId; event: AgentTransportEvent }
   }
   'terminal:data': {
     payload: { terminalId: string; data: string }
@@ -433,7 +431,7 @@ interface IpcEventChannelMap {
     payload: AgentPhaseEventPayload
   }
   'agent:run-completed': {
-    payload: { conversationId: ConversationId }
+    payload: { sessionId: SessionId }
   }
   'window:fullscreen-changed': {
     payload: boolean
@@ -443,13 +441,13 @@ interface IpcEventChannelMap {
   }
   'waggle:event': {
     payload: {
-      conversationId: ConversationId
+      sessionId: SessionId
       event: AgentTransportEvent
       meta: WaggleStreamMetadata
     }
   }
   'waggle:turn-event': {
-    payload: { conversationId: ConversationId; event: WaggleTurnEvent }
+    payload: { sessionId: SessionId; event: WaggleTurnEvent }
   }
   'attachments:prepare-from-text-progress': {
     payload: {
@@ -460,8 +458,8 @@ interface IpcEventChannelMap {
       stage: 'writing' | 'completed'
     }
   }
-  'conversations:title-updated': {
-    payload: { conversationId: ConversationId; title: string }
+  'sessions:title-updated': {
+    payload: { sessionId: SessionId; title: string }
   }
   'updater:status-changed': {
     payload: UpdateStatus
@@ -494,24 +492,24 @@ export type IpcEventPayload<C extends IpcEventChannel> = IpcEventChannelMap[C]['
 export interface OpenWaggleApi {
   // Agent
   sendMessage(
-    conversationId: ConversationId,
+    sessionId: SessionId,
     payload: AgentSendPayload,
     model: SupportedModelId,
   ): Promise<void>
-  cancelAgent(conversationId?: ConversationId): void
-  steerAgent(conversationId: ConversationId): Promise<{ preserved: boolean }>
+  cancelAgent(sessionId?: SessionId): void
+  steerAgent(sessionId: SessionId): Promise<{ preserved: boolean }>
   /** Subscribe to live Pi-shaped runtime events from the main process */
   onAgentEvent(callback: (payload: IpcEventPayload<'agent:event'>) => void): () => void
 
-  getAgentPhase(conversationId: ConversationId): Promise<AgentPhaseState | null>
-  getBackgroundRun(conversationId: ConversationId): Promise<BackgroundRunSnapshot | null>
+  getAgentPhase(sessionId: SessionId): Promise<AgentPhaseState | null>
+  getBackgroundRun(sessionId: SessionId): Promise<BackgroundRunSnapshot | null>
   listActiveRuns(): Promise<ActiveRunInfo[]>
   getContextUsage(
-    conversationId: ConversationId,
+    sessionId: SessionId,
     model: SupportedModelId,
   ): Promise<ContextUsageSnapshot | null>
   compactSession(
-    conversationId: ConversationId,
+    sessionId: SessionId,
     model: SupportedModelId,
     customInstructions?: string,
   ): Promise<ContextCompactionResult>
@@ -544,17 +542,27 @@ export interface OpenWaggleApi {
     preferences: { model?: string; thinkingLevel?: string },
   ): Promise<void>
 
-  // Conversations
-  listConversations(limit?: number): Promise<ConversationSummary[]>
-  listFullConversations(limit?: number): Promise<Conversation[]>
-  getConversation(id: ConversationId): Promise<Conversation | null>
-  createConversation(projectPath: string): Promise<Conversation>
-  deleteConversation(id: ConversationId): Promise<void>
-  archiveConversation(id: ConversationId): Promise<void>
-  unarchiveConversation(id: ConversationId): Promise<void>
-  listArchivedConversations(): Promise<ConversationSummary[]>
-  updateConversationTitle(id: ConversationId, title: string): Promise<void>
+  // Sessions
   listSessions(limit?: number): Promise<SessionSummary[]>
+  listSessionDetails(limit?: number): Promise<SessionDetail[]>
+  getSessionDetail(id: SessionId): Promise<SessionDetail | null>
+  createSession(projectPath: string): Promise<SessionDetail>
+  forkSessionToNew(
+    sessionId: SessionId,
+    model: SupportedModelId,
+    targetNodeId: SessionNodeId,
+  ): Promise<SessionCopyToNewResult>
+  cloneSessionToNew(
+    sessionId: SessionId,
+    model: SupportedModelId,
+    targetNodeId: SessionNodeId,
+  ): Promise<SessionCopyToNewResult>
+  dismissInterruptedSessionRun(sessionId: SessionId, runId: string): Promise<void>
+  deleteSession(id: SessionId): Promise<void>
+  archiveSession(id: SessionId): Promise<void>
+  unarchiveSession(id: SessionId): Promise<void>
+  listArchivedSessions(): Promise<SessionSummary[]>
+  updateSessionTitle(id: SessionId, title: string): Promise<void>
   listArchivedSessionBranches(limit?: number): Promise<SessionSummary[]>
   getSessionTree(sessionId: SessionId): Promise<SessionTree | null>
   getSessionWorkspace(
@@ -571,8 +579,8 @@ export interface OpenWaggleApi {
   archiveSessionBranch(sessionId: SessionId, branchId: SessionBranchId): Promise<void>
   restoreSessionBranch(sessionId: SessionId, branchId: SessionBranchId): Promise<void>
   updateSessionTreeUiState(sessionId: SessionId, patch: SessionTreeUiStatePatch): Promise<void>
-  onConversationTitleUpdated(
-    callback: (payload: IpcEventPayload<'conversations:title-updated'>) => void,
+  onSessionTitleUpdated(
+    callback: (payload: IpcEventPayload<'sessions:title-updated'>) => void,
   ): () => void
 
   // Terminal
@@ -643,11 +651,11 @@ export interface OpenWaggleApi {
 
   // Waggle mode
   sendWaggleMessage(
-    conversationId: ConversationId,
+    sessionId: SessionId,
     payload: AgentSendPayload,
     config: WaggleConfig,
   ): Promise<void>
-  cancelWaggle(conversationId: ConversationId): void
+  cancelWaggle(sessionId: SessionId): void
   onWaggleEvent(callback: (payload: IpcEventPayload<'waggle:event'>) => void): () => void
   onWaggleTurnEvent(callback: (payload: IpcEventPayload<'waggle:turn-event'>) => void): () => void
 
@@ -660,10 +668,10 @@ export interface OpenWaggleApi {
   getAuthAccountInfo(provider: OAuthProvider): Promise<OAuthAccountInfo>
   onOAuthStatus(callback: (status: IpcEventPayload<'auth:oauth-status'>) => void): () => void
 
-  // Teams
-  listTeams(): Promise<WaggleTeamPreset[]>
-  saveTeam(preset: WaggleTeamPreset): Promise<WaggleTeamPreset>
-  deleteTeam(id: TeamConfigId): Promise<void>
+  // Waggle presets
+  listWagglePresets(projectPath?: string | null): Promise<WagglePreset[]>
+  saveWagglePreset(preset: WagglePreset, projectPath?: string | null): Promise<WagglePreset>
+  deleteWagglePreset(id: WagglePresetId, projectPath?: string | null): Promise<void>
 
   // Feedback
   checkGhCli(): Promise<GhCliStatus>

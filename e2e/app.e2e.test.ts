@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { seedSingleConversation } from './support/conversation-fixtures'
+import { seedSingleSession } from './support/session-fixtures'
 import { OpenWaggleApp } from './support/openwaggle-app'
 
 test('app launches and persists a created thread', async () => {
@@ -9,9 +9,9 @@ test('app launches and persists a created thread', async () => {
     const mainWindow = app.mainWindow()
     await expect(mainWindow.page.getByText('No projects yet')).toBeVisible()
 
-    // Seed a conversation directly — lazy thread creation means the UI
+    // Seed a session directly — lazy thread creation means the UI
     // button alone doesn't persist a DB row until the first message is sent.
-    await seedSingleConversation(app.userDataDir, {
+    await seedSingleSession(app.userDataDir, {
       title: 'Persisted Thread',
       updatedAt: Date.now(),
       messages: [],

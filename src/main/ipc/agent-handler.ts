@@ -4,18 +4,19 @@
  * Responsibilities: abort controller lifecycle, active run tracking,
  * stream buffer management, IPC event emission, cleanup.
  *
- * Business logic (model validation, conversation fetching, run execution,
+ * Business logic (model validation, session fetching, run execution,
  * message persistence, error classification) lives in AgentRunService.
  */
+import { randomUUID } from 'node:crypto'
 import { decodeUnknownOrThrow } from '@shared/schema'
 import { agentSendPayloadSchema } from '@shared/schemas/validation'
 import type { AgentSendPayload } from '@shared/types/agent'
-import type { ConversationId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import * as Effect from 'effect/Effect'
-import { cleanupConversationRun } from '../agent/conversation-cleanup'
-import { getPhaseForConversation } from '../agent/phase-tracker'
+import { getPhaseForSession } from '../agent/phase-tracker'
+import { cleanupSessionRun } from '../agent/session-cleanup'
 import { type AgentRunResult, executeAgentRun } from '../application/agent-run-service'
 import { compactAgentSession, getAgentContextUsage } from '../application/agent-session-service'
 import { broadcastToWindows } from '../utils/broadcast'
@@ -31,28 +32,28 @@ import {
 import {
   activeCompactions,
   activeRuns,
-  cancelAllConversationRuns,
-  cancelConversationRuns,
+  cancelAllSessionRuns,
+  cancelSessionRuns,
   hasAnyActiveRun,
 } from './active-agent-runs'
 import { emitErrorAndFinish } from './run-handler-utils'
 import { typedHandle, typedOn } from './typed-ipc'
 
-function clearConversationTransportState(conversationId: ConversationId): void {
-  clearAgentPhase(conversationId)
-  clearStreamBuffer(conversationId)
-  cleanupConversationRun(conversationId)
+function clearSessionTransportState(sessionId: SessionId): void {
+  clearAgentPhase(sessionId)
+  clearStreamBuffer(sessionId)
+  cleanupSessionRun(sessionId)
 }
 
-function emitCancelledCompletion(conversationId: ConversationId): void {
-  clearConversationTransportState(conversationId)
-  emitRunCompleted(conversationId)
+function emitCancelledCompletion(sessionId: SessionId): void {
+  clearSessionTransportState(sessionId)
+  emitRunCompleted(sessionId)
 }
 
-function handleRunResult(conversationId: ConversationId, result: AgentRunResult): void {
+function handleRunResult(sessionId: SessionId, result: AgentRunResult): void {
   if (result.assignedTitle) {
-    broadcastToWindows('conversations:title-updated', {
-      conversationId,
+    broadcastToWindows('sessions:title-updated', {
+      sessionId,
       title: result.assignedTitle,
     })
   }
@@ -66,7 +67,7 @@ function handleRunResult(conversationId: ConversationId, result: AgentRunResult)
     result.outcome === 'not-found' ||
     result.outcome === 'error'
   ) {
-    emitErrorAndFinish(conversationId, result.message, result.code)
+    emitErrorAndFinish(sessionId, result.message, result.code)
   }
 }
 
@@ -82,28 +83,30 @@ export function persistAllActiveRuns() {
 export function registerAgentHandlers(): void {
   typedHandle(
     'agent:send-message',
-    (_event, conversationId: ConversationId, payload: AgentSendPayload, model: SupportedModelId) =>
+    (_event, sessionId: SessionId, payload: AgentSendPayload, model: SupportedModelId) =>
       Effect.gen(function* () {
         const validatedPayload = decodeUnknownOrThrow(agentSendPayloadSchema, payload)
         // ─── Transport: cancel existing same-session work, register new ────
-        if (cancelConversationRuns(conversationId)) {
-          clearConversationTransportState(conversationId)
+        if (cancelSessionRuns(sessionId)) {
+          clearSessionTransportState(sessionId)
         }
 
         const abortController = new AbortController()
-        activeRuns.register(conversationId, abortController, {
+        const runId = randomUUID()
+        activeRuns.register(sessionId, abortController, {
           model,
         })
 
-        startStreamBuffer(conversationId, model, 'classic')
+        startStreamBuffer(sessionId, model, 'classic')
 
         function onEventWithUsageCapture(event: AgentTransportEvent) {
-          emitTransportEvent(conversationId, event)
+          emitTransportEvent(sessionId, event)
         }
 
         // ─── Application: delegate to service ────────────
         const result = yield* executeAgentRun({
-          conversationId,
+          sessionId,
+          runId,
           payload: validatedPayload,
           model,
           signal: abortController.signal,
@@ -111,69 +114,62 @@ export function registerAgentHandlers(): void {
         })
 
         // ─── Transport: respond based on outcome ─────────
-        handleRunResult(conversationId, result)
+        handleRunResult(sessionId, result)
 
         // ─── Transport: cleanup ──────────────────────────
-        if (activeRuns.deleteIfCurrent(conversationId, abortController)) {
-          clearAgentPhase(conversationId)
-          clearStreamBuffer(conversationId)
-          emitRunCompleted(conversationId)
+        if (activeRuns.deleteIfCurrent(sessionId, abortController)) {
+          clearAgentPhase(sessionId)
+          clearStreamBuffer(sessionId)
+          emitRunCompleted(sessionId)
         }
       }),
   )
 
-  typedOn('agent:cancel', (_event, conversationId?: ConversationId) =>
+  typedOn('agent:cancel', (_event, sessionId?: SessionId) =>
     Effect.sync(() => {
-      if (conversationId) {
-        if (cancelConversationRuns(conversationId)) {
-          emitCancelledCompletion(conversationId)
+      if (sessionId) {
+        if (cancelSessionRuns(sessionId)) {
+          emitCancelledCompletion(sessionId)
         }
       } else {
-        const cancelledConversationIds = cancelAllConversationRuns()
-        for (const id of cancelledConversationIds) {
+        const cancelledSessionIds = cancelAllSessionRuns()
+        for (const id of cancelledSessionIds) {
           emitCancelledCompletion(id)
         }
       }
     }),
   )
 
-  typedHandle('agent:get-phase', (_event, conversationId: ConversationId) =>
-    Effect.sync(() => getPhaseForConversation(conversationId)),
+  typedHandle('agent:get-phase', (_event, sessionId: SessionId) =>
+    Effect.sync(() => getPhaseForSession(sessionId)),
   )
 
-  typedHandle('agent:get-background-run', (_event, conversationId: ConversationId) =>
-    Effect.sync(() => getStreamBuffer(conversationId)),
+  typedHandle('agent:get-background-run', (_event, sessionId: SessionId) =>
+    Effect.sync(() => getStreamBuffer(sessionId)),
   )
 
   typedHandle('agent:list-active-runs', () => Effect.sync(() => listStreamBuffers()))
 
-  typedHandle(
-    'agent:get-context-usage',
-    (_event, conversationId: ConversationId, model: SupportedModelId) =>
-      getAgentContextUsage({ conversationId, model }),
+  typedHandle('agent:get-context-usage', (_event, sessionId: SessionId, model: SupportedModelId) =>
+    getAgentContextUsage({ sessionId, model }),
   )
 
   typedHandle(
     'agent:compact-session',
-    (
-      _event,
-      conversationId: ConversationId,
-      model: SupportedModelId,
-      customInstructions?: string,
-    ) =>
+    (_event, sessionId: SessionId, model: SupportedModelId, customInstructions?: string) =>
       Effect.gen(function* () {
-        if (hasAnyActiveRun(conversationId)) {
+        if (hasAnyActiveRun(sessionId)) {
           return yield* Effect.fail(
             new Error('Wait for the current run to finish before compacting.'),
           )
         }
 
         const abortController = new AbortController()
-        activeCompactions.register(conversationId, abortController, { model })
+        activeCompactions.register(sessionId, abortController, { model })
         let delayedSuccessfulCompactionEnd: AgentTransportEvent | null = null
 
         return yield* compactAgentSession({
-          conversationId,
+          sessionId,
           model,
           customInstructions,
           signal: abortController.signal,
@@ -182,29 +178,29 @@ export function registerAgentHandlers(): void {
               delayedSuccessfulCompactionEnd = event
               return
             }
-            emitTransportEvent(conversationId, event)
+            emitTransportEvent(sessionId, event)
           },
         }).pipe(
           Effect.tap(() =>
             Effect.sync(() => {
               if (delayedSuccessfulCompactionEnd) {
-                emitTransportEvent(conversationId, delayedSuccessfulCompactionEnd)
+                emitTransportEvent(sessionId, delayedSuccessfulCompactionEnd)
               }
             }),
           ),
           Effect.ensuring(
             Effect.sync(() => {
-              activeCompactions.deleteIfCurrent(conversationId, abortController)
+              activeCompactions.deleteIfCurrent(sessionId, abortController)
             }),
           ),
         )
       }),
   )
 
-  typedHandle('agent:steer', (_event, conversationId: ConversationId) =>
+  typedHandle('agent:steer', (_event, sessionId: SessionId) =>
     Effect.sync(() => {
-      if (cancelConversationRuns(conversationId)) {
-        emitCancelledCompletion(conversationId)
+      if (cancelSessionRuns(sessionId)) {
+        emitCancelledCompletion(sessionId)
       }
 
       return { preserved: false }

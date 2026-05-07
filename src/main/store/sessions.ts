@@ -4,6 +4,7 @@ import { SessionBranchId, SessionId, SessionNodeId, SupportedModelId } from '@sh
 import type {
   SessionBranch,
   SessionBranchState,
+  SessionInterruptedRun,
   SessionNode,
   SessionSummary,
   SessionTranscriptEntry,
@@ -17,13 +18,19 @@ import type { WaggleConfig } from '@shared/types/waggle'
 import { isRecord } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
-import { runAppEffect } from '../runtime'
+import type {
+  PersistSessionActiveRunInput,
+  RecoverableSessionActiveRun,
+  SessionActiveRunIdentity,
+  SessionInterruptedRunScope,
+} from '../ports/session-repository'
 import {
-  hydrateConversationMessage,
-  hydrateStructuralConversationMessage,
+  hydrateSessionMessage,
+  hydrateStructuralSessionMessage,
   type SessionNodeRow,
-} from './session-conversations'
+} from './session-details'
 import { buildPiWorkingContextPath } from './session-working-context'
+import { runStoreEffect } from './store-runtime'
 
 const MESSAGE_ENTRY_TYPE = 'message'
 const CUSTOM_MESSAGE_ENTRY_TYPE = 'custom_message'
@@ -73,6 +80,16 @@ interface SessionTreeUiStateRow {
   readonly updated_at: number
 }
 
+interface SessionActiveRunRow {
+  readonly run_id: string
+  readonly session_id: string
+  readonly branch_id: string
+  readonly run_mode: string
+  readonly status: string
+  readonly runtime_json: string
+  readonly updated_at: number
+}
+
 const expandedNodeIdsSchema = Schema.mutable(Schema.Array(Schema.String))
 const waggleConfigSchema = Schema.Struct({
   mode: Schema.Literal('sequential'),
@@ -94,6 +111,10 @@ const waggleConfigSchema = Schema.Struct({
     primary: Schema.Literal('consensus', 'user-stop'),
     maxTurnsSafety: Schema.Number,
   }),
+})
+
+const activeRunRuntimeSchema = Schema.Struct({
+  model: Schema.String,
 })
 
 function mainBranchId(sessionId: SessionId): SessionBranchId {
@@ -154,6 +175,78 @@ function parseWaggleConfig(raw: string | null): WaggleConfig | undefined {
   }
 }
 
+function parseActiveRunModel(row: SessionActiveRunRow): SupportedModelId | null {
+  const runtime = safeDecodeUnknown(
+    activeRunRuntimeSchema,
+    parseJson(row.runtime_json, `active-run:${row.run_id}:runtime`),
+  )
+  if (!runtime.success) {
+    logger.warn('Ignoring session run with invalid runtime metadata', {
+      runId: row.run_id,
+    })
+    return null
+  }
+
+  return SupportedModelId(runtime.data.model)
+}
+
+function parseActiveRunMode(row: SessionActiveRunRow): 'classic' | 'waggle' | null {
+  if (row.run_mode !== 'classic' && row.run_mode !== 'waggle') {
+    logger.warn('Ignoring session run with invalid mode', {
+      runId: row.run_id,
+      runMode: row.run_mode,
+    })
+    return null
+  }
+
+  return row.run_mode
+}
+
+function hydrateRecoverableActiveRun(row: SessionActiveRunRow): RecoverableSessionActiveRun | null {
+  const runMode = parseActiveRunMode(row)
+  const model = parseActiveRunModel(row)
+  if (!runMode || !model) {
+    return null
+  }
+
+  return {
+    runId: row.run_id,
+    sessionId: SessionId(row.session_id),
+    branchId: SessionBranchId(row.branch_id),
+    runMode,
+    model,
+  }
+}
+
+function hydrateInterruptedRun(row: SessionActiveRunRow): SessionInterruptedRun | null {
+  if (row.status !== 'interrupted') {
+    return null
+  }
+
+  const activeRun = hydrateRecoverableActiveRun(row)
+  if (!activeRun) {
+    return null
+  }
+
+  return {
+    ...activeRun,
+    interruptedAt: row.updated_at,
+  }
+}
+
+function interruptedRunsByBranchId(
+  rows: readonly SessionActiveRunRow[],
+): ReadonlyMap<string, SessionInterruptedRun> {
+  const interruptedRuns = new Map<string, SessionInterruptedRun>()
+  for (const row of rows) {
+    const interruptedRun = hydrateInterruptedRun(row)
+    if (interruptedRun) {
+      interruptedRuns.set(String(interruptedRun.branchId), interruptedRun)
+    }
+  }
+  return interruptedRuns
+}
+
 function hydrateSessionSummary(row: SessionSummaryRow): SessionSummary {
   return {
     id: SessionId(row.id),
@@ -167,6 +260,19 @@ function hydrateSessionSummary(row: SessionSummaryRow): SessionSummary {
       ? SessionBranchId(row.last_active_branch_id)
       : null,
   }
+}
+
+function normalizeSessionListLimit(limit?: number): number {
+  return limit ?? -1
+}
+
+function hydrateSessionRows(rows: readonly SessionSummaryRow[]): SessionSummary[] | null {
+  const sessions = rows.map(hydrateSessionSummary)
+  return sessions.length > 0 ? sessions : null
+}
+
+function sessionIdsForQuery(sessions: readonly SessionSummary[]): string[] {
+  return sessions.map((session) => String(session.id))
 }
 
 function fallbackMainBranch(session: SessionSummary): SessionBranch {
@@ -205,14 +311,16 @@ function attachSessionNavigationState(
   sessions: readonly SessionSummary[],
   branchRows: readonly SessionBranchRow[],
   uiStateRows: readonly SessionTreeUiStateRow[],
+  activeRunRows: readonly SessionActiveRunRow[],
 ): SessionSummary[] {
   const branchesBySessionId = new Map<string, SessionBranch[]>()
+  const interruptedRunByBranchId = interruptedRunsByBranchId(activeRunRows)
   for (const row of branchRows) {
     if (row.archived_at !== null) {
       continue
     }
     const branches = branchesBySessionId.get(row.session_id) ?? []
-    branches.push(hydrateBranch(row))
+    branches.push(hydrateBranch(row, interruptedRunByBranchId))
     branchesBySessionId.set(row.session_id, branches)
   }
 
@@ -230,7 +338,10 @@ function attachSessionNavigationState(
   })
 }
 
-function hydrateBranch(row: SessionBranchRow): SessionBranch {
+function hydrateBranch(
+  row: SessionBranchRow,
+  interruptedRunByBranchId?: ReadonlyMap<string, SessionInterruptedRun>,
+): SessionBranch {
   return {
     id: SessionBranchId(row.id),
     sessionId: SessionId(row.session_id),
@@ -240,6 +351,7 @@ function hydrateBranch(row: SessionBranchRow): SessionBranch {
     isMain: row.is_main === 1,
     archived: row.archived_at === null ? undefined : true,
     archivedAt: row.archived_at,
+    interruptedRun: interruptedRunByBranchId?.get(row.id),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -448,7 +560,7 @@ export async function archiveSessionBranch(
   sessionId: SessionId,
   branchId: SessionBranchId,
 ): Promise<void> {
-  await runAppEffect(
+  await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       yield* selectMutableBranch(sql, sessionId, branchId)
@@ -484,7 +596,7 @@ export async function restoreSessionBranch(
   sessionId: SessionId,
   branchId: SessionBranchId,
 ): Promise<void> {
-  await runAppEffect(
+  await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       yield* selectMutableBranch(sql, sessionId, branchId)
@@ -512,7 +624,7 @@ export async function renameSessionBranch(
     throw new Error('Branch name must be non-empty.')
   }
 
-  await runAppEffect(
+  await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       yield* selectMutableBranch(sql, sessionId, branchId)
@@ -533,7 +645,7 @@ export async function updateSessionTreeUiState(
   sessionId: SessionId,
   patch: SessionTreeUiStatePatch,
 ): Promise<void> {
-  await runAppEffect(
+  await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       const existingRows = yield* sql<SessionTreeUiStateRow>`
@@ -582,11 +694,119 @@ export async function updateSessionTreeUiState(
   )
 }
 
-export async function listSessions(limit?: number): Promise<SessionSummary[]> {
-  return runAppEffect(
+export async function recordSessionActiveRun(input: PersistSessionActiveRunInput): Promise<void> {
+  const now = Date.now()
+  await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
-      const effectiveLimit = limit ?? -1
+      yield* sql`
+        INSERT INTO session_active_runs (
+          run_id,
+          session_id,
+          branch_id,
+          run_mode,
+          status,
+          runtime_json,
+          updated_at
+        )
+        VALUES (
+          ${input.runId},
+          ${input.sessionId},
+          ${input.branchId},
+          ${input.runMode},
+          ${'running'},
+          ${JSON.stringify({ model: String(input.model) })},
+          ${now}
+        )
+        ON CONFLICT(run_id) DO UPDATE SET
+          session_id = excluded.session_id,
+          branch_id = excluded.branch_id,
+          run_mode = excluded.run_mode,
+          status = excluded.status,
+          runtime_json = excluded.runtime_json,
+          updated_at = excluded.updated_at
+      `
+    }),
+  )
+}
+
+export async function clearSessionActiveRun(input: SessionActiveRunIdentity): Promise<void> {
+  await runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`
+        DELETE FROM session_active_runs
+        WHERE session_id = ${input.sessionId}
+          AND run_id = ${input.runId}
+      `
+    }),
+  )
+}
+
+export async function clearInterruptedSessionRuns(
+  input: SessionInterruptedRunScope,
+): Promise<void> {
+  await runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`
+        DELETE FROM session_active_runs
+        WHERE session_id = ${input.sessionId}
+          AND branch_id = ${input.branchId}
+          AND status = ${'interrupted'}
+      `
+    }),
+  )
+}
+
+export async function listSessionActiveRunsForRecovery(): Promise<RecoverableSessionActiveRun[]> {
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const rows = yield* sql<SessionActiveRunRow>`
+        SELECT
+          run_id,
+          session_id,
+          branch_id,
+          run_mode,
+          status,
+          runtime_json,
+          updated_at
+        FROM session_active_runs
+        WHERE status = ${'running'}
+        ORDER BY updated_at ASC
+      `
+
+      return rows.flatMap((row) => {
+        const activeRun = hydrateRecoverableActiveRun(row)
+        return activeRun ? [activeRun] : []
+      })
+    }),
+  )
+}
+
+export async function markSessionActiveRunInterrupted(
+  input: SessionActiveRunIdentity,
+): Promise<void> {
+  await runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      yield* sql`
+        UPDATE session_active_runs
+        SET status = ${'interrupted'},
+            updated_at = ${Date.now()}
+        WHERE session_id = ${input.sessionId}
+          AND run_id = ${input.runId}
+      `
+    }),
+  )
+}
+
+export async function listSessions(limit?: number): Promise<SessionSummary[]> {
+  return runStoreEffect(
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient
+      const effectiveLimit = normalizeSessionListLimit(limit)
       const rows = yield* sql<SessionSummaryRow>`
         SELECT
           id,
@@ -602,13 +822,12 @@ export async function listSessions(limit?: number): Promise<SessionSummary[]> {
         ORDER BY updated_at DESC
         LIMIT ${effectiveLimit}
       `
-      const sessions = rows.map(hydrateSessionSummary)
-
-      if (sessions.length === 0) {
+      const sessions = hydrateSessionRows(rows)
+      if (!sessions) {
         return []
       }
 
-      const sessionIds = sessions.map((session) => String(session.id))
+      const sessionIds = sessionIdsForQuery(sessions)
       const branchRows = yield* sql<SessionBranchRow>`
         SELECT
           id,
@@ -634,17 +853,31 @@ export async function listSessions(limit?: number): Promise<SessionSummary[]> {
         FROM session_tree_ui_state
         WHERE session_id IN ${sql.in(sessionIds)}
       `
+      const activeRunRows = yield* sql<SessionActiveRunRow>`
+        SELECT
+          run_id,
+          session_id,
+          branch_id,
+          run_mode,
+          status,
+          runtime_json,
+          updated_at
+        FROM session_active_runs
+        WHERE session_id IN ${sql.in(sessionIds)}
+          AND status = ${'interrupted'}
+        ORDER BY updated_at DESC
+      `
 
-      return attachSessionNavigationState(sessions, branchRows, uiStateRows)
+      return attachSessionNavigationState(sessions, branchRows, uiStateRows, activeRunRows)
     }),
   )
 }
 
 export async function listArchivedSessionBranches(limit?: number): Promise<SessionSummary[]> {
-  return runAppEffect(
+  return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
-      const effectiveLimit = limit ?? -1
+      const effectiveLimit = normalizeSessionListLimit(limit)
       const rows = yield* sql<SessionSummaryRow>`
         SELECT
           id,
@@ -666,13 +899,12 @@ export async function listArchivedSessionBranches(limit?: number): Promise<Sessi
         ORDER BY updated_at DESC
         LIMIT ${effectiveLimit}
       `
-      const sessions = rows.map(hydrateSessionSummary)
-
-      if (sessions.length === 0) {
+      const sessions = hydrateSessionRows(rows)
+      if (!sessions) {
         return []
       }
 
-      const sessionIds = sessions.map((session) => String(session.id))
+      const sessionIds = sessionIdsForQuery(sessions)
       const branchRows = yield* sql<SessionBranchRow>`
         SELECT
           id,
@@ -696,7 +928,7 @@ export async function listArchivedSessionBranches(limit?: number): Promise<Sessi
 }
 
 export async function getSessionTree(sessionId: SessionId): Promise<SessionTree | null> {
-  return runAppEffect(
+  return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       const sessionRows = yield* sql<SessionSummaryRow>`
@@ -770,6 +1002,20 @@ export async function getSessionTree(sessionId: SessionId): Promise<SessionTree 
         WHERE session_id = ${sessionId}
         LIMIT 1
       `
+      const activeRunRows = yield* sql<SessionActiveRunRow>`
+        SELECT
+          run_id,
+          session_id,
+          branch_id,
+          run_mode,
+          status,
+          runtime_json,
+          updated_at
+        FROM session_active_runs
+        WHERE session_id = ${sessionId}
+          AND status = ${'interrupted'}
+        ORDER BY updated_at DESC
+      `
 
       const sessionRow = sessionRows[EMPTY_INDEX]
       if (!sessionRow) {
@@ -780,6 +1026,7 @@ export async function getSessionTree(sessionId: SessionId): Promise<SessionTree 
       const visibleParentById = buildVisibleParentByRowId(nodeRows)
       const visibleDepthById = new Map<string, number>()
       const session = hydrateSessionSummary(sessionRow)
+      const interruptedRunByBranchId = interruptedRunsByBranchId(activeRunRows)
       const nodes: SessionNode[] = visibleNodeRows.map((row) => {
         const parentId = visibleParentById.get(row.id) ?? null
         return {
@@ -798,8 +1045,8 @@ export async function getSessionTree(sessionId: SessionId): Promise<SessionTree 
             (row.pi_entry_type === MESSAGE_ENTRY_TYPE ||
               row.kind === 'user_message' ||
               row.kind === 'assistant_message')
-              ? hydrateConversationMessage(row)
-              : (hydrateStructuralConversationMessage(row) ?? undefined),
+              ? hydrateSessionMessage(row)
+              : (hydrateStructuralSessionMessage(row) ?? undefined),
           contentJson: row.content_json,
           metadataJson: row.metadata_json,
         }
@@ -811,7 +1058,7 @@ export async function getSessionTree(sessionId: SessionId): Promise<SessionTree 
         nodes,
         branches:
           branchRows.length > 0
-            ? branchRows.map(hydrateBranch)
+            ? branchRows.map((row) => hydrateBranch(row, interruptedRunByBranchId))
             : [
                 {
                   id: mainBranchId(session.id),
@@ -821,6 +1068,7 @@ export async function getSessionTree(sessionId: SessionId): Promise<SessionTree 
                   name: MAIN_BRANCH_NAME,
                   isMain: true,
                   archivedAt: null,
+                  interruptedRun: interruptedRunByBranchId.get(String(mainBranchId(session.id))),
                   createdAt: session.createdAt,
                   updatedAt: session.updatedAt,
                 },

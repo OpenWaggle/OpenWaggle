@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useUIStore } from '@/stores/ui-store'
+import { useUIStore } from '../../../stores/ui-store'
 
 // Mock IPC
 const mockCheckGhCli = vi.fn()
