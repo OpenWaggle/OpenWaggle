@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { seedConversations } from './support/conversation-fixtures'
+import { seedSessions } from './support/session-fixtures'
 import { OpenWaggleApp } from './support/openwaggle-app'
 
 const FIRST_THREAD_TITLE = 'Navigation First Thread'
@@ -7,11 +7,11 @@ const SECOND_THREAD_TITLE = 'Navigation Second Thread'
 const FIRST_THREAD_BODY = 'first-thread-body-visible-immediately'
 const SECOND_THREAD_BODY = 'second-thread-body-visible-immediately'
 
-test('switches threads immediately from the preloaded conversation read model', async () => {
+test('switches threads immediately from the preloaded session read model', async () => {
   const app = await OpenWaggleApp.launch('openwaggle-thread-nav-e2e-')
 
   try {
-    await seedConversations(app.userDataDir, [
+    await seedSessions(app.userDataDir, [
       {
         title: FIRST_THREAD_TITLE,
         projectPath: app.userDataDir,

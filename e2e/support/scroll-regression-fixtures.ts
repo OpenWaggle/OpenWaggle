@@ -1,8 +1,8 @@
-import { seedConversations, seedSingleConversation } from './conversation-fixtures'
+import { seedSessions, seedSingleSession } from './session-fixtures'
 
 /**
  * 600+ word assistant response that generates enough vertical height
- * to push the conversation well beyond the viewport.
+ * to push the session well beyond the viewport.
  */
 export const LONG_ASSISTANT_TEXT = `I'll walk you through a comprehensive analysis of the project architecture, covering all major subsystems and their interactions.
 
@@ -18,7 +18,7 @@ Session node content uses discriminated message-part shapes with JSON content co
 
 ### Agent Loop
 
-The agent loop orchestrates multi-turn conversations with language models. It receives user messages, constructs prompts with system instructions and conversation history, and streams responses from the selected provider. During streaming, the loop emits typed events that the renderer consumes to update the UI in real time.
+The agent loop orchestrates multi-turn sessions with language models. It receives user messages, constructs prompts with system instructions and session history, and streams responses from the selected provider. During streaming, the loop emits typed events that the renderer consumes to update the UI in real time.
 
 Tool execution is integrated into Pi's native streaming pipeline. When Pi emits a tool-call event, the main process projects the OpenWaggle-owned transport event and the renderer updates the transcript incrementally. This creates a recursive pattern where a single user message can trigger multiple rounds of model inference and Pi-native tool execution.
 
@@ -26,7 +26,7 @@ Tool execution is integrated into Pi's native streaming pipeline. When Pi emits 
 
 Provider, model, and auth metadata come from Pi runtime services through adapter ports. OpenWaggle owns the settings and selection UI. At startup and project changes, Pi-derived model lists are made available to the renderer through typed IPC.
 
-Runtime session creation is deferred until a conversation actually needs to communicate with a specific model. This lazy initialization pattern reduces startup time and keeps provider-specific behavior behind the Pi adapter boundary.
+Runtime session creation is deferred until a session actually needs to communicate with a specific model. This lazy initialization pattern reduces startup time and keeps provider-specific behavior behind the Pi adapter boundary.
 
 ### Pi Tool Surface
 
@@ -34,7 +34,7 @@ OpenWaggle renders Pi-emitted native tool events such as file reads, writes, edi
 
 ### Renderer Architecture
 
-The renderer uses React 19 with Zustand for state management and Tailwind CSS for styling. State is divided into focused stores: the chat store manages conversations and streaming state, while the settings store handles user preferences and API configuration.
+The renderer uses React 19 with Zustand for state management and Tailwind CSS for styling. State is divided into focused stores: the chat store manages sessions and streaming state, while the settings store handles user preferences and API configuration.
 
 The chat transcript renders session workspaces as ordered rows derived from the active transcript path and live streaming tail. Rows are decorated with metadata like streaming status, turn dividers, compaction summaries, and Waggle agent information. Focused Zustand selectors keep streaming updates scoped to the transcript surface.
 
@@ -57,20 +57,20 @@ export const NAV_THREAD_B_USER_MARKER = 'B marker: user content for scroll navig
 const NAV_LONG_ASSISTANT_TEXT = `${LONG_ASSISTANT_TEXT}\n\n${LONG_ASSISTANT_TEXT}\n\n${LONG_ASSISTANT_TEXT}`
 
 /**
- * Seeds a conversation with 3 messages: user → long assistant → user.
+ * Seeds a session with 3 messages: user → long assistant → user.
  * This lets us verify that the LAST user message is scrolled near the top
- * when the conversation is opened, exercising the scroll-to-user-message
+ * when the session is opened, exercising the scroll-to-user-message
  * behavior without needing a live LLM call.
  */
 /**
- * Seeds a conversation with 1 user message + 1 long assistant response.
+ * Seeds a session with 1 user message + 1 long assistant response.
  * The long text pushes the chat container far below the viewport, so any
  * subsequent user message must be scrolled back to the top to be readable.
  */
-export async function makeScrollRegressionConversation(userDataDir: string): Promise<void> {
+export async function makeScrollRegressionSession(userDataDir: string): Promise<void> {
   const now = Date.now()
 
-  await seedSingleConversation(userDataDir, {
+  await seedSingleSession(userDataDir, {
     title: SCROLL_THREAD_TITLE,
     updatedAt: now,
     messages: [
@@ -92,15 +92,15 @@ export async function makeScrollRegressionConversation(userDataDir: string): Pro
 }
 
 /**
- * Seeds two conversations used to verify per-thread scroll restoration.
+ * Seeds two sessions used to verify per-thread scroll restoration.
  * Thread A is intentionally long enough to be scrollable.
  */
-export async function makeThreadNavigationScrollConversations(userDataDir: string): Promise<void> {
+export async function makeThreadNavigationScrollSessions(userDataDir: string): Promise<void> {
   const now = Date.now()
   const earlierTimestamp = now - 10
   const laterTimestamp = now - 5
 
-  await seedConversations(userDataDir, [
+  await seedSessions(userDataDir, [
     {
       title: NAV_SCROLL_THREAD_TITLE_A,
       updatedAt: now,

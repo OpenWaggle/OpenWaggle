@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { expect, test } from '@playwright/test'
-import { seedSingleConversation } from './support/conversation-fixtures'
+import { seedSingleSession } from './support/session-fixtures'
 import { OpenWaggleApp } from './support/openwaggle-app'
 
 const DIFF_ROUTE_THREAD_TITLE = 'Diff Route Test Thread'
@@ -23,7 +23,7 @@ test.describe('diff route sidebar', () => {
     const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-e2e-diff-project-'))
 
     try {
-      await seedSingleConversation(app.userDataDir, {
+      await seedSingleSession(app.userDataDir, {
         title: DIFF_ROUTE_THREAD_TITLE,
         updatedAt: Date.now(),
         projectPath,
@@ -43,15 +43,15 @@ test.describe('diff route sidebar', () => {
       await expect(diffToggle).toBeVisible()
       await diffToggle.click()
 
-      await expect(page).toHaveURL(/\?diff=1/)
+      await expect(page).toHaveURL(/\?panel=diff/)
       const diffAside = page.locator('aside').filter({ hasText: 'Working tree diff' })
-      await expect(diffAside).toHaveAttribute('aria-hidden', 'false')
-      await expect(page.getByRole('button', { name: 'Resize diff sidebar' })).toBeVisible()
+      await expect(diffAside).not.toHaveAttribute('inert', '')
+      await expect(page.getByRole('button', { name: 'Resize right sidebar' })).toBeVisible()
 
       await page.getByRole('button', { name: 'Close diff sidebar' }).click()
 
-      await expect(page).not.toHaveURL(/\?diff=1/)
-      await expect(diffAside).toHaveAttribute('aria-hidden', 'true')
+      await expect(page).not.toHaveURL(/\?panel=diff/)
+      await expect(diffAside).toHaveAttribute('inert', '')
     } finally {
       await app.cleanup()
       await fs.rm(projectPath, { recursive: true, force: true })

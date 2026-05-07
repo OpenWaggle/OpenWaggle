@@ -1,5 +1,5 @@
-import type { SeedConversationInput } from './conversation-fixtures'
-import { seedConversations, seedSingleConversation } from './conversation-fixtures'
+import type { SeedSessionInput } from './session-fixtures'
+import { seedSessions, seedSingleSession } from './session-fixtures'
 import { OpenWaggleApp } from './openwaggle-app'
 
 export const REGRESSION_ASSISTANT_MODEL = 'openai-codex/gpt-5.5'
@@ -63,12 +63,12 @@ export function makeWriteToolResultPart(
   }
 }
 
-export async function seedRegressionConversation(
+export async function seedRegressionSession(
   app: OpenWaggleApp,
   messages: readonly unknown[],
 ): Promise<string> {
   const title = `${REGRESSION_THREAD_TITLE} ${Date.now().toString(36).slice(-6)}`
-  await seedSingleConversation(app.userDataDir, {
+  await seedSingleSession(app.userDataDir, {
     title,
     updatedAt: Date.now(),
     messages,
@@ -76,11 +76,11 @@ export async function seedRegressionConversation(
   return title
 }
 
-export async function seedToolStateConversations(
+export async function seedToolStateSessions(
   userDataDir: string,
-  conversations: readonly SeedConversationInput[],
+  sessions: readonly SeedSessionInput[],
 ): Promise<void> {
-  await seedConversations(userDataDir, conversations)
+  await seedSessions(userDataDir, sessions)
 }
 
 export async function restartAndOpenThread(app: OpenWaggleApp, title: string) {
