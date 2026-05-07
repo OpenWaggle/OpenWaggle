@@ -290,4 +290,3 @@ Known limitation to validate: Pi TUI supports custom message renderers, but may 
 - Manual validation:
   - `pi -e packages/pi-waggle` smoke test in Pi TUI
   - OpenWaggle Electron QA with one real Waggle run
-
