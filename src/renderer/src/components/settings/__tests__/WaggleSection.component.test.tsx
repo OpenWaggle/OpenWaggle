@@ -1,22 +1,28 @@
-import { SupportedModelId, TeamConfigId } from '@shared/types/brand'
+import { SupportedModelId, WagglePresetId } from '@shared/types/brand'
 import type { ProviderInfo } from '@shared/types/llm'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
-import type { WaggleTeamPreset } from '@shared/types/waggle'
+import type { WagglePreset } from '@shared/types/waggle'
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { CommandPalette } from '@/components/command-palette/CommandPalette'
-import { useUIStore } from '@/stores/ui-store'
-import { useWaggleStore } from '@/stores/waggle-store'
-import { renderWithQueryClient } from '@/test-utils/query-test-utils'
+import { usePreferencesStore } from '../../../stores/preferences-store'
+import { useUIStore } from '../../../stores/ui-store'
+import { useWaggleStore } from '../../../stores/waggle-store'
+import { renderWithQueryClient } from '../../../test-utils/query-test-utils'
+import { CommandPalette } from '../../command-palette/CommandPalette'
 
-const { listTeamsMock, saveTeamMock, deleteTeamMock, usePreferencesMock, useProvidersMock } =
-  vi.hoisted(() => ({
-    listTeamsMock: vi.fn(),
-    saveTeamMock: vi.fn(),
-    deleteTeamMock: vi.fn(),
-    usePreferencesMock: vi.fn(),
-    useProvidersMock: vi.fn(),
-  }))
+const {
+  listWagglePresetsMock,
+  saveWagglePresetMock,
+  deleteWagglePresetMock,
+  usePreferencesMock,
+  useProvidersMock,
+} = vi.hoisted(() => ({
+  listWagglePresetsMock: vi.fn(),
+  saveWagglePresetMock: vi.fn(),
+  deleteWagglePresetMock: vi.fn(),
+  usePreferencesMock: vi.fn(),
+  useProvidersMock: vi.fn(),
+}))
 
 vi.mock('@/hooks/useSettings', () => ({
   usePreferences: usePreferencesMock,
@@ -25,9 +31,9 @@ vi.mock('@/hooks/useSettings', () => ({
 
 vi.mock('@/lib/ipc', () => ({
   api: {
-    listTeams: listTeamsMock,
-    saveTeam: saveTeamMock,
-    deleteTeam: deleteTeamMock,
+    listWagglePresets: listWagglePresetsMock,
+    saveWagglePreset: saveWagglePresetMock,
+    deleteWagglePreset: deleteWagglePresetMock,
   },
 }))
 
@@ -90,9 +96,11 @@ const PROVIDER_MODELS: ProviderInfo[] = [
   },
 ]
 
-function createPreset(overrides?: Partial<WaggleTeamPreset>): WaggleTeamPreset {
+const PROJECT_PATH = '/tmp/openwaggle-project'
+
+function createPreset(overrides?: Partial<WagglePreset>): WagglePreset {
   return {
-    id: TeamConfigId('team-1'),
+    id: WagglePresetId('preset-1'),
     name: 'Review Pair',
     description: 'Custom: Finds regressions before they land.',
     config: {
@@ -125,11 +133,18 @@ function createPreset(overrides?: Partial<WaggleTeamPreset>): WaggleTeamPreset {
 
 describe('WaggleSection', () => {
   beforeEach(() => {
-    listTeamsMock.mockReset()
-    saveTeamMock.mockReset()
-    deleteTeamMock.mockReset()
+    listWagglePresetsMock.mockReset()
+    saveWagglePresetMock.mockReset()
+    deleteWagglePresetMock.mockReset()
     usePreferencesMock.mockReset()
     useProvidersMock.mockReset()
+    usePreferencesStore.setState({
+      ...usePreferencesStore.getInitialState(),
+      settings: {
+        ...DEFAULT_SETTINGS,
+        projectPath: PROJECT_PATH,
+      },
+    })
     useUIStore.setState(useUIStore.getInitialState())
     useWaggleStore.setState(useWaggleStore.getInitialState())
 
@@ -139,12 +154,12 @@ describe('WaggleSection', () => {
     useProvidersMock.mockReturnValue({
       providerModels: PROVIDER_MODELS,
     })
-    deleteTeamMock.mockResolvedValue(undefined)
+    deleteWagglePresetMock.mockResolvedValue(undefined)
   })
 
   it('loads a selected preset into the editable form', async () => {
     const preset = createPreset()
-    listTeamsMock.mockResolvedValueOnce([preset])
+    listWagglePresetsMock.mockResolvedValueOnce([preset])
 
     renderWithQueryClient(<WaggleSection />)
 
@@ -175,8 +190,8 @@ describe('WaggleSection', () => {
       },
       updatedAt: 2,
     })
-    listTeamsMock.mockResolvedValueOnce([preset]).mockResolvedValueOnce([savedPreset])
-    saveTeamMock.mockResolvedValueOnce(savedPreset)
+    listWagglePresetsMock.mockResolvedValueOnce([preset]).mockResolvedValueOnce([savedPreset])
+    saveWagglePresetMock.mockResolvedValueOnce(savedPreset)
 
     renderWithQueryClient(<WaggleSection />)
 
@@ -191,7 +206,7 @@ describe('WaggleSection', () => {
     fireEvent.click(await screen.findByRole('button', { name: /save changes/i }))
 
     await waitFor(() => {
-      expect(saveTeamMock).toHaveBeenCalledWith(
+      expect(saveWagglePresetMock).toHaveBeenCalledWith(
         expect.objectContaining({
           id: preset.id,
           name: 'Refiner + Implementer',
@@ -205,14 +220,15 @@ describe('WaggleSection', () => {
             ]),
           }),
         }),
+        PROJECT_PATH,
       )
     })
-    expect(listTeamsMock).toHaveBeenCalledTimes(2)
+    expect(listWagglePresetsMock).toHaveBeenCalledTimes(2)
   })
 
   it('creates a new custom preset from the current form values', async () => {
     const savedPreset = createPreset({
-      id: TeamConfigId('team-2'),
+      id: WagglePresetId('preset-2'),
       name: 'Strategist + Skeptic',
       description: 'Custom: Frames trade-offs before implementation.',
       config: {
@@ -237,8 +253,8 @@ describe('WaggleSection', () => {
         },
       },
     })
-    listTeamsMock.mockResolvedValueOnce([]).mockResolvedValueOnce([savedPreset])
-    saveTeamMock.mockResolvedValueOnce(savedPreset)
+    listWagglePresetsMock.mockResolvedValueOnce([]).mockResolvedValueOnce([savedPreset])
+    saveWagglePresetMock.mockResolvedValueOnce(savedPreset)
 
     renderWithQueryClient(<WaggleSection />)
 
@@ -255,20 +271,21 @@ describe('WaggleSection', () => {
     fireEvent.click(screen.getByRole('button', { name: /new custom preset/i }))
 
     await waitFor(() => {
-      expect(saveTeamMock).toHaveBeenCalledWith(
+      expect(saveWagglePresetMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          id: TeamConfigId(''),
+          id: WagglePresetId(''),
           name: 'Strategist + Skeptic',
           description: 'Custom: Frames trade-offs before implementation.',
           isBuiltIn: false,
         }),
+        PROJECT_PATH,
       )
     })
-    expect(listTeamsMock).toHaveBeenCalledTimes(2)
+    expect(listWagglePresetsMock).toHaveBeenCalledTimes(2)
   })
 
   it('shows an inline error when presets fail to load', async () => {
-    listTeamsMock.mockRejectedValueOnce(new Error('Failed to load presets'))
+    listWagglePresetsMock.mockRejectedValueOnce(new Error('Failed to load presets'))
 
     renderWithQueryClient(<WaggleSection />)
 
@@ -277,8 +294,8 @@ describe('WaggleSection', () => {
 
   it('shows an inline error when saving edits fails', async () => {
     const preset = createPreset()
-    listTeamsMock.mockResolvedValueOnce([preset])
-    saveTeamMock.mockRejectedValueOnce(new Error('Save exploded'))
+    listWagglePresetsMock.mockResolvedValueOnce([preset])
+    saveWagglePresetMock.mockRejectedValueOnce(new Error('Save exploded'))
 
     renderWithQueryClient(<WaggleSection />)
 
@@ -292,9 +309,9 @@ describe('WaggleSection', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Save exploded')
   })
 
-  it('shares the teams query cache with the command palette', async () => {
+  it('shares the Waggle preset query cache with the command palette', async () => {
     const preset = createPreset()
-    listTeamsMock.mockResolvedValueOnce([preset])
+    listWagglePresetsMock.mockResolvedValueOnce([preset])
 
     renderWithQueryClient(
       <>
@@ -304,7 +321,8 @@ describe('WaggleSection', () => {
     )
 
     await waitFor(() => {
-      expect(listTeamsMock).toHaveBeenCalledTimes(1)
+      expect(listWagglePresetsMock).toHaveBeenCalledTimes(1)
+      expect(listWagglePresetsMock).toHaveBeenCalledWith(PROJECT_PATH)
     })
 
     fireEvent.change(screen.getByPlaceholderText('Search'), { target: { value: 'review' } })

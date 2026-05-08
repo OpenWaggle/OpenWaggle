@@ -1,10 +1,11 @@
 import type { SkillDiscoveryItem } from '@shared/types/standards'
-import type { WaggleConfig, WaggleTeamPreset } from '@shared/types/waggle'
+import type { WaggleConfig, WagglePreset } from '@shared/types/waggle'
 import { choose } from '@shared/utils/decision'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {
   Archive,
+  Copy,
   GitBranch,
   GitPullRequest,
   ListTree,
@@ -23,8 +24,9 @@ import { compactCommandText } from '@/components/composer/compact-command'
 import { setEditorText } from '@/components/composer/lexical-utils'
 import { useEscapeHotkey } from '@/hooks/useEscapeHotkey'
 import { cn } from '@/lib/cn'
-import { teamPresetsQueryOptions } from '@/queries/teams'
+import { wagglePresetsQueryOptions } from '@/queries/waggle-presets'
 import { useComposerStore } from '@/stores/composer-store'
+import { usePreferencesStore } from '@/stores/preferences-store'
 import { useUIStore } from '@/stores/ui-store'
 import { useWaggleStore } from '@/stores/waggle-store'
 
@@ -52,6 +54,8 @@ interface CommandPaletteProps {
   onSelectSkill: (skillId: string, skillName?: string) => void
   onStartWaggle: (config: WaggleConfig) => void
   onOpenSessionTree?: () => void
+  onForkToNewSession?: () => void
+  onCloneToNewSession?: () => void
 }
 
 export function CommandPalette({
@@ -59,10 +63,13 @@ export function CommandPalette({
   onSelectSkill,
   onStartWaggle,
   onOpenSessionTree,
+  onForkToNewSession,
+  onCloneToNewSession,
 }: CommandPaletteProps) {
   const navigate = useNavigate()
   const closeCommandPalette = useUIStore((s) => s.closeCommandPalette)
-  const teamPresetsQuery = useQuery(teamPresetsQueryOptions())
+  const projectPath = usePreferencesStore((state) => state.settings.projectPath)
+  const wagglePresetsQuery = useQuery(wagglePresetsQueryOptions(projectPath))
 
   const [query, setQuery] = useState('')
   const [highlightIndex, setHighlightIndex] = useState(0)
@@ -76,11 +83,11 @@ export function CommandPalette({
   useEscapeHotkey(closeCommandPalette)
 
   const lowerQuery = query.toLowerCase().trim()
-  const presets = teamPresetsQuery.data ?? []
+  const presets = wagglePresetsQuery.data ?? []
 
   // ── Waggle handlers ──
 
-  function handleSelectPreset(preset: WaggleTeamPreset): void {
+  function handleSelectPreset(preset: WagglePreset): void {
     onStartWaggle(preset.config)
     closeCommandPalette()
   }
@@ -108,6 +115,16 @@ export function CommandPalette({
   function handleOpenSessionTree(): void {
     closeCommandPalette()
     onOpenSessionTree?.()
+  }
+
+  function handleForkToNewSession(): void {
+    closeCommandPalette()
+    onForkToNewSession?.()
+  }
+
+  function handleCloneToNewSession(): void {
+    closeCommandPalette()
+    onCloneToNewSession?.()
   }
 
   function handleInsertCompactCommand(): void {
@@ -166,6 +183,28 @@ export function CommandPalette({
             description: 'Navigate the Pi session tree',
             icon: <ListTree className="h-3.5 w-3.5" />,
             action: handleOpenSessionTree,
+          },
+        ]
+      : []),
+    ...(onForkToNewSession
+      ? [
+          {
+            id: 'session-fork-to-new',
+            label: 'Fork to new session...',
+            description: 'Select a previous user message and continue in a new session',
+            icon: <GitBranch className="h-3.5 w-3.5" />,
+            action: handleForkToNewSession,
+          },
+        ]
+      : []),
+    ...(onCloneToNewSession
+      ? [
+          {
+            id: 'session-clone-to-new',
+            label: 'Clone to new session',
+            description: 'Duplicate the current session position',
+            icon: <Copy className="h-3.5 w-3.5" />,
+            action: handleCloneToNewSession,
           },
         ]
       : []),
@@ -392,7 +431,7 @@ function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max)}...` : text
 }
 
-function presetIcon(preset: WaggleTeamPreset): React.ReactNode {
+function presetIcon(preset: WagglePreset): React.ReactNode {
   const name = preset.name.toLowerCase()
   if (name.includes('review')) return <GitPullRequest className="h-3.5 w-3.5" />
   if (name.includes('debate')) return <Swords className="h-3.5 w-3.5" />

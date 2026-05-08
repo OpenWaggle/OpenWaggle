@@ -1,5 +1,5 @@
 import type { AgentSendPayload } from '@shared/types/agent'
-import type { ConversationId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 import type { ThinkingLevel } from '@shared/types/settings'
 import type { WaggleConfig } from '@shared/types/waggle'
 import { useEffect, useRef } from 'react'
@@ -8,10 +8,10 @@ import { createRendererLogger } from '@/lib/logger'
 const logger = createRendererLogger('use-send-message')
 
 interface SendMessageDeps {
-  readonly activeConversationId: ConversationId | null
+  readonly activeSessionId: SessionId | null
   readonly projectPath: string | null
   readonly thinkingLevel: ThinkingLevel
-  readonly createConversation: (projectPath: string) => Promise<ConversationId>
+  readonly createSession: (projectPath: string) => Promise<SessionId>
   readonly sendMessage: (payload: AgentSendPayload) => Promise<void>
   readonly sendWaggleMessage: (payload: AgentSendPayload, config: WaggleConfig) => Promise<void>
   readonly setPendingMessage: (payload: AgentSendPayload | null) => void
@@ -27,10 +27,10 @@ interface SendMessageHandlers {
 /** Pure factory — testable without React. */
 export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
   const {
-    activeConversationId,
+    activeSessionId,
     projectPath,
     thinkingLevel,
-    createConversation,
+    createSession,
     sendMessage,
     sendWaggleMessage,
     setPendingMessage,
@@ -38,13 +38,13 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
   } = deps
 
   async function handleSend(payload: AgentSendPayload): Promise<void> {
-    if (!activeConversationId) {
+    if (!activeSessionId) {
       if (!projectPath) {
         throw new Error('Select a project before sending.')
       }
       setPendingMessage(payload)
       try {
-        await createConversation(projectPath)
+        await createSession(projectPath)
       } catch (error) {
         setPendingMessage(null)
         throw error
@@ -59,14 +59,14 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
   }
 
   async function handleSendWaggle(payload: AgentSendPayload, config: WaggleConfig): Promise<void> {
-    if (!activeConversationId) {
+    if (!activeSessionId) {
       if (!projectPath) {
         throw new Error('Select a project before sending.')
       }
       setPendingMessage(payload)
       setPendingWaggleConfig(config)
       try {
-        await createConversation(projectPath)
+        await createSession(projectPath)
       } catch (error) {
         setPendingMessage(null)
         setPendingWaggleConfig(null)
@@ -81,23 +81,23 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
 }
 
 interface UseSendMessageOptions {
-  readonly activeConversationId: ConversationId | null
+  readonly activeSessionId: SessionId | null
   readonly projectPath: string | null
   readonly thinkingLevel: ThinkingLevel
-  readonly createConversation: (projectPath: string) => Promise<ConversationId>
+  readonly createSession: (projectPath: string) => Promise<SessionId>
   readonly sendMessage: (payload: AgentSendPayload) => Promise<void>
   readonly sendWaggleMessage: (payload: AgentSendPayload, config: WaggleConfig) => Promise<void>
 }
 
 /** Hook wrapper — manages the pending-message ref and dispatch effect. */
 export function useSendMessage(options: UseSendMessageOptions): SendMessageHandlers {
-  const { activeConversationId, sendMessage, sendWaggleMessage, ...rest } = options
+  const { activeSessionId, sendMessage, sendWaggleMessage, ...rest } = options
   const pendingMessage = useRef<AgentSendPayload | null>(null)
   const pendingWaggleConfig = useRef<WaggleConfig | null>(null)
 
   const handlers = createSendHandlers({
     ...rest,
-    activeConversationId,
+    activeSessionId,
     sendMessage,
     sendWaggleMessage,
     setPendingMessage: (payload) => {
@@ -108,9 +108,9 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
     },
   })
 
-  // Dispatch pending message when a conversation becomes active
+  // Dispatch pending message when a session becomes active
   useEffect(() => {
-    if (activeConversationId && pendingMessage.current) {
+    if (activeSessionId && pendingMessage.current) {
       const payload = pendingMessage.current
       const config = pendingWaggleConfig.current
       pendingMessage.current = null
@@ -122,7 +122,7 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
         })
       })
     }
-  }, [activeConversationId, sendMessage, sendWaggleMessage])
+  }, [activeSessionId, sendMessage, sendWaggleMessage])
 
   return handlers
 }

@@ -1,36 +1,35 @@
-import { ConversationId, SessionBranchId, SessionId } from '@shared/types/brand'
-import type { ConversationSummary } from '@shared/types/conversation'
+import { SessionBranchId, SessionId } from '@shared/types/brand'
 import type { SessionSummary } from '@shared/types/session'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { renderWithQueryClient } from '@/test-utils/query-test-utils'
+import { renderWithQueryClient } from '../../../test-utils/query-test-utils'
 import { ArchivedSection } from '../sections/ArchivedSection'
 
 const {
-  deleteConversationMock,
-  listArchivedConversationsMock,
+  deleteSessionMock,
+  listArchivedSessionsMock,
   listArchivedSessionBranchesMock,
   loadSessionsMock,
   restoreSessionBranchMock,
   showConfirmMock,
-  unarchiveConversationMock,
+  unarchiveSessionMock,
 } = vi.hoisted(() => ({
-  deleteConversationMock: vi.fn(),
-  listArchivedConversationsMock: vi.fn(),
+  deleteSessionMock: vi.fn(),
+  listArchivedSessionsMock: vi.fn(),
   listArchivedSessionBranchesMock: vi.fn(),
   loadSessionsMock: vi.fn(),
   restoreSessionBranchMock: vi.fn(),
   showConfirmMock: vi.fn(),
-  unarchiveConversationMock: vi.fn(),
+  unarchiveSessionMock: vi.fn(),
 }))
 
 vi.mock('@/lib/ipc', () => ({
   api: {
-    listArchivedConversations: listArchivedConversationsMock,
+    listArchivedSessions: listArchivedSessionsMock,
     listArchivedSessionBranches: listArchivedSessionBranchesMock,
-    unarchiveConversation: unarchiveConversationMock,
+    unarchiveSession: unarchiveSessionMock,
     restoreSessionBranch: restoreSessionBranchMock,
-    deleteConversation: deleteConversationMock,
+    deleteSession: deleteSessionMock,
     showConfirm: showConfirmMock,
   },
 }))
@@ -40,9 +39,9 @@ vi.mock('@/stores/session-store', () => ({
     selector({ loadSessions: loadSessionsMock }),
 }))
 
-function createArchivedConversation(overrides?: Partial<ConversationSummary>): ConversationSummary {
+function createArchivedSession(overrides?: Partial<SessionSummary>): SessionSummary {
   return {
-    id: ConversationId('conv-1'),
+    id: SessionId('session-1'),
     title: 'Archived session',
     projectPath: '/tmp/project',
     messageCount: 4,
@@ -97,20 +96,20 @@ function createDeferredPromise<T>() {
 
 describe('ArchivedSection', () => {
   beforeEach(() => {
-    deleteConversationMock.mockReset()
-    listArchivedConversationsMock.mockReset()
+    deleteSessionMock.mockReset()
+    listArchivedSessionsMock.mockReset()
     listArchivedSessionBranchesMock.mockReset()
     loadSessionsMock.mockReset()
     restoreSessionBranchMock.mockReset()
     showConfirmMock.mockReset()
-    unarchiveConversationMock.mockReset()
+    unarchiveSessionMock.mockReset()
     listArchivedSessionBranchesMock.mockResolvedValue([])
     loadSessionsMock.mockResolvedValue(undefined)
   })
 
   it('shows a loading state while archived sessions are being fetched', () => {
-    const deferred = createDeferredPromise<ConversationSummary[]>()
-    listArchivedConversationsMock.mockReturnValueOnce(deferred.promise)
+    const deferred = createDeferredPromise<SessionSummary[]>()
+    listArchivedSessionsMock.mockReturnValueOnce(deferred.promise)
 
     renderWithQueryClient(<ArchivedSection />)
 
@@ -119,7 +118,7 @@ describe('ArchivedSection', () => {
   })
 
   it('shows the empty state when there are no archived sessions or branches', async () => {
-    listArchivedConversationsMock.mockResolvedValueOnce([])
+    listArchivedSessionsMock.mockResolvedValueOnce([])
 
     renderWithQueryClient(<ArchivedSection />)
 
@@ -127,17 +126,17 @@ describe('ArchivedSection', () => {
   })
 
   it('restores an archived session and invalidates the archived query', async () => {
-    const conversation = createArchivedConversation()
-    listArchivedConversationsMock.mockResolvedValueOnce([conversation]).mockResolvedValueOnce([])
-    unarchiveConversationMock.mockResolvedValueOnce(undefined)
+    const session = createArchivedSession()
+    listArchivedSessionsMock.mockResolvedValueOnce([session]).mockResolvedValueOnce([])
+    unarchiveSessionMock.mockResolvedValueOnce(undefined)
 
     renderWithQueryClient(<ArchivedSection />)
 
     fireEvent.click(await screen.findByTitle('Restore session'))
 
     await waitFor(() => {
-      expect(unarchiveConversationMock).toHaveBeenCalledWith(conversation.id)
-      expect(listArchivedConversationsMock).toHaveBeenCalledTimes(2)
+      expect(unarchiveSessionMock).toHaveBeenCalledWith(session.id)
+      expect(listArchivedSessionsMock).toHaveBeenCalledTimes(2)
       expect(screen.getByText(/no archived sessions/i)).toBeInTheDocument()
     })
   })
@@ -145,7 +144,7 @@ describe('ArchivedSection', () => {
   it('restores an archived branch without navigating to it', async () => {
     const session = createArchivedBranchSession()
     const branch = session.branches?.[0]
-    listArchivedConversationsMock.mockResolvedValueOnce([])
+    listArchivedSessionsMock.mockResolvedValueOnce([])
     listArchivedSessionBranchesMock.mockResolvedValueOnce([session]).mockResolvedValueOnce([])
     restoreSessionBranchMock.mockResolvedValueOnce(undefined)
 
@@ -163,10 +162,10 @@ describe('ArchivedSection', () => {
   })
 
   it('deletes an archived session after confirmation and invalidates the archived query', async () => {
-    const conversation = createArchivedConversation()
-    listArchivedConversationsMock.mockResolvedValueOnce([conversation]).mockResolvedValueOnce([])
+    const session = createArchivedSession()
+    listArchivedSessionsMock.mockResolvedValueOnce([session]).mockResolvedValueOnce([])
     showConfirmMock.mockResolvedValueOnce(true)
-    deleteConversationMock.mockResolvedValueOnce(undefined)
+    deleteSessionMock.mockResolvedValueOnce(undefined)
 
     renderWithQueryClient(<ArchivedSection />)
 
@@ -174,17 +173,17 @@ describe('ArchivedSection', () => {
 
     await waitFor(() => {
       expect(showConfirmMock).toHaveBeenCalled()
-      expect(deleteConversationMock).toHaveBeenCalledWith(conversation.id)
-      expect(listArchivedConversationsMock).toHaveBeenCalledTimes(2)
+      expect(deleteSessionMock).toHaveBeenCalledWith(session.id)
+      expect(listArchivedSessionsMock).toHaveBeenCalledTimes(2)
       expect(screen.getByText(/no archived sessions/i)).toBeInTheDocument()
     })
   })
 
   it('keeps archived sessions visible when deleting fails after confirmation', async () => {
-    const conversation = createArchivedConversation()
-    listArchivedConversationsMock.mockResolvedValueOnce([conversation])
+    const session = createArchivedSession()
+    listArchivedSessionsMock.mockResolvedValueOnce([session])
     showConfirmMock.mockResolvedValueOnce(true)
-    deleteConversationMock.mockRejectedValueOnce(new Error('Delete exploded'))
+    deleteSessionMock.mockRejectedValueOnce(new Error('Delete exploded'))
 
     renderWithQueryClient(<ArchivedSection />)
 
@@ -197,8 +196,8 @@ describe('ArchivedSection', () => {
   })
 
   it('shows an inline error when opening the delete confirmation fails', async () => {
-    const conversation = createArchivedConversation()
-    listArchivedConversationsMock.mockResolvedValueOnce([conversation])
+    const session = createArchivedSession()
+    listArchivedSessionsMock.mockResolvedValueOnce([session])
     showConfirmMock.mockRejectedValueOnce(new Error('Dialog unavailable'))
 
     renderWithQueryClient(<ArchivedSection />)

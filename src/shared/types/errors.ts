@@ -14,7 +14,7 @@ export type AgentErrorCode =
   | 'provider-down'
   | 'model-not-found'
   | 'provider-unavailable'
-  | 'conversation-not-found'
+  | 'session-not-found'
   | 'no-project'
   | 'persist-failed'
   | 'context-overflow'

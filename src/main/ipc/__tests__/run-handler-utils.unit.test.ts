@@ -1,6 +1,6 @@
 import type { Message, PreparedAttachment } from '@shared/types/agent'
-import { ConversationId, MessageId } from '@shared/types/brand'
-import type { Conversation } from '@shared/types/conversation'
+import { MessageId, SessionId } from '@shared/types/brand'
+import type { SessionDetail } from '@shared/types/session'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -16,8 +16,8 @@ const { emitTransportEventMock, updateTitleMock, hydrateAttachmentSourcesMock } 
 )
 
 vi.mock('../../utils/stream-bridge', () => ({
-  emitErrorAndFinish(conversationId: unknown, message: string, code: string, runId = '') {
-    emitTransportEventMock(conversationId, {
+  emitErrorAndFinish(sessionId: unknown, message: string, code: string, runId = '') {
+    emitTransportEventMock(sessionId, {
       type: 'agent_end',
       timestamp: Date.now(),
       runId,
@@ -27,21 +27,21 @@ vi.mock('../../utils/stream-bridge', () => ({
   },
 }))
 
-const makeTestConversationLayer = () =>
+const makeTestSessionProjectionLayer = () =>
   Layer.succeed(SessionProjectionRepository, {
     get: (id) =>
       Effect.tryPromise({
-        try: async () => makeConversation({ id }),
+        try: async () => makeSessionDetail({ id }),
         catch: (cause) => new SessionProjectionRepositoryError({ operation: 'get', cause }),
       }),
     getOptional: (id) =>
       Effect.tryPromise({
-        try: async () => makeConversation({ id }),
+        try: async () => makeSessionDetail({ id }),
         catch: (cause) => new SessionProjectionRepositoryError({ operation: 'getOptional', cause }),
       }),
     list: () => Effect.succeed([]),
-    listFull: () => Effect.succeed([]),
-    create: () => Effect.succeed(makeConversation()),
+    listDetails: () => Effect.succeed([]),
+    create: () => Effect.succeed(makeSessionDetail()),
     delete: () => Effect.void,
     archive: () => Effect.void,
     unarchive: () => Effect.void,
@@ -52,7 +52,7 @@ const makeTestConversationLayer = () =>
       }),
   })
 
-const TestRuntimeLayer = makeTestConversationLayer()
+const TestRuntimeLayer = makeTestSessionProjectionLayer()
 
 vi.mock('../../utils/attachment-hydration', () => ({
   hydrateAttachmentSources: hydrateAttachmentSourcesMock,
@@ -64,7 +64,7 @@ import {
   hydratePayloadAttachments,
 } from '../run-handler-utils'
 
-const CONV_ID = ConversationId('test-conv-id')
+const CONV_ID = SessionId('test-conv-id')
 
 function makeMessage(overrides: Partial<Message> = {}): Message {
   return {
@@ -76,7 +76,7 @@ function makeMessage(overrides: Partial<Message> = {}): Message {
   }
 }
 
-function makeConversation(overrides: Partial<Conversation> = {}): Conversation {
+function makeSessionDetail(overrides: Partial<SessionDetail> = {}): SessionDetail {
   return {
     id: CONV_ID,
     title: 'New session',
@@ -101,9 +101,9 @@ function makeAttachment(overrides: Partial<PreparedAttachment> = {}): PreparedAt
   }
 }
 
-function runTitleAssignment(conversation: Conversation, text: string): Promise<string | null> {
+function runTitleAssignment(session: SessionDetail, text: string): Promise<string | null> {
   return Effect.runPromise(
-    Effect.provide(assignSessionTitleFromUserText(CONV_ID, conversation, text), TestRuntimeLayer),
+    Effect.provide(assignSessionTitleFromUserText(CONV_ID, session, text), TestRuntimeLayer),
   )
 }
 
@@ -148,7 +148,7 @@ describe('hydratePayloadAttachments', () => {
 
 describe('assignSessionTitleFromUserText', () => {
   it('assigns a deterministic title for a new session projection', async () => {
-    const conv = makeConversation()
+    const conv = makeSessionDetail()
     const title = await runTitleAssignment(conv, 'Hello world')
 
     expect(title).toBe('Hello world')
@@ -156,7 +156,7 @@ describe('assignSessionTitleFromUserText', () => {
   })
 
   it('skips when title is already set', async () => {
-    const conv = makeConversation({ title: 'Existing title' })
+    const conv = makeSessionDetail({ title: 'Existing title' })
     const title = await runTitleAssignment(conv, 'Hello world')
 
     expect(title).toBeNull()
@@ -164,7 +164,7 @@ describe('assignSessionTitleFromUserText', () => {
   })
 
   it('skips when messages already exist', async () => {
-    const conv = makeConversation({ messages: [makeMessage()] })
+    const conv = makeSessionDetail({ messages: [makeMessage()] })
     const title = await runTitleAssignment(conv, 'Hello world')
 
     expect(title).toBeNull()
@@ -172,7 +172,7 @@ describe('assignSessionTitleFromUserText', () => {
   })
 
   it('skips when text is empty or whitespace', async () => {
-    const conv = makeConversation()
+    const conv = makeSessionDetail()
     const title = await runTitleAssignment(conv, '   ')
 
     expect(title).toBeNull()

@@ -1,7 +1,7 @@
 import { VOICE_MODEL_BASE } from '@shared/types/voice'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useComposerStore } from '@/stores/composer-store'
+import { useComposerStore } from '../../../stores/composer-store'
 import type { VoiceVisualizerControls } from '../useVoiceCapture'
 
 const mocks = vi.hoisted(() => ({

@@ -1,22 +1,16 @@
 import type { AgentSendPayload } from '@shared/types/agent'
-import {
-  ConversationId,
-  type SessionBranchId,
-  SessionId,
-  type SessionNodeId,
-} from '@shared/types/brand'
+import { type SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import type { WaggleCollaborationStatus, WaggleConfig } from '@shared/types/waggle'
 import { useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
-import {
-  createBranchDraftSelection,
-  shouldPromptForBranchSummary,
-} from '@/components/chat/branch-from-message'
+import { createBranchDraftSelection } from '@/components/chat/branch-from-message'
+import { maybeOpenBranchSummaryPrompt } from '@/components/chat/branch-summary-prompt-controller'
 import { parseCompactCommand } from '@/components/composer/compact-command'
 import { buildComposerDraftContextKey } from '@/components/composer/composer-draft-context'
 import { setEditorText } from '@/components/composer/lexical-utils'
+import { parseSessionCopyCommand } from '@/components/composer/session-copy-command'
 import {
   type AgentChatStatus,
   type AgentCompactionStatus,
@@ -24,10 +18,10 @@ import {
 } from '@/hooks/useAgentChat'
 import { useAutoSendQueue } from '@/hooks/useAutoSendQueue'
 import { useChat } from '@/hooks/useChat'
-import { useConversationNav } from '@/hooks/useConversationNav'
 import { useGit } from '@/hooks/useGit'
 import { useProject } from '@/hooks/useProject'
 import { useSendMessage } from '@/hooks/useSendMessage'
+import { useSessionNav } from '@/hooks/useSessionNav'
 import { useSkills } from '@/hooks/useSkills'
 import { useStreamingPhase } from '@/hooks/useStreamingPhase'
 import { useWaggleChat } from '@/hooks/useWaggleChat'
@@ -44,6 +38,7 @@ import { useComposerSection } from './hooks/useComposerSection'
 import { useSteerWorkflow } from './hooks/useSteerWorkflow'
 import { useTranscriptSection } from './hooks/useTranscriptSection'
 import { reportAutoSendQueueFailure } from './queue-failure-feedback'
+import { getVisibleForkTargets, type SessionForkTarget } from './session-fork-targets'
 import type { ChatRow } from './types-chat-row'
 
 const logger = createRendererLogger('chat-panel')
@@ -53,7 +48,7 @@ export interface ChatTranscriptSectionState {
   readonly isLoading: boolean
   readonly projectPath: string | null
   readonly recentProjects: readonly string[]
-  readonly activeConversationId: ConversationId | null
+  readonly activeSessionId: SessionId | null
   readonly chatRows: ChatRow[]
   /** The ID of the last user message — used to identify stable session hydration for scroll restore. */
   readonly lastUserMessageId: string | null
@@ -68,17 +63,21 @@ export interface ChatTranscriptSectionState {
   onRetryText: (content: string) => Promise<void>
   onOpenSettings: () => void
   onDismissError: (errorId: string | null) => void
+  onDismissInterruptedRun: (runId: string, branchId: SessionBranchId) => void
   onBranchFromMessage: (messageId: string) => void
+  onForkFromMessage: (messageId: string) => void
 }
 
 export interface ChatComposerSectionState {
-  readonly activeConversationId: ConversationId | null
+  readonly activeSessionId: SessionId | null
   readonly waggleStatus: WaggleCollaborationStatus
   readonly commandPaletteOpen: boolean
   readonly slashSkills: readonly SkillDiscoveryItem[]
   readonly isLoading: boolean
   readonly status: AgentChatStatus
   readonly compactionStatus: AgentCompactionStatus | null
+  readonly forkSelectorOpen: boolean
+  readonly forkTargets: readonly SessionForkTarget[]
   onStopCollaboration: () => void
   onSelectSkill: (skillId: string, skillName?: string) => void
   onStartWaggle: (config: WaggleConfig) => void
@@ -90,6 +89,10 @@ export interface ChatComposerSectionState {
   onSummarizeBranch: () => void
   onStartCustomBranchSummary: () => void
   onCancelBranchSummary: () => void
+  onOpenForkSelector: () => void
+  onCloseForkSelector: () => void
+  onSelectForkTarget: (target: SessionForkTarget) => void
+  onCloneToNewSession: () => void
 }
 
 export interface ChatDiffSectionState {
@@ -106,6 +109,7 @@ export interface ChatPanelSections {
 export function useChatPanelSections(): ChatPanelSections {
   // ── Intent-driven scroll flag ──
   const [userDidSend, setUserDidSend] = useState(false)
+  const [forkSelectorOpen, setForkSelectorOpen] = useState(false)
 
   function onUserDidSendConsumed(): void {
     setUserDidSend(false)
@@ -122,13 +126,13 @@ export function useChatPanelSections(): ChatPanelSections {
 
   const { projectPath, selectFolder, setProjectPath } = useProject()
   const {
-    conversations,
-    activeConversation,
-    activeConversationId,
-    createConversation,
+    sessions,
+    activeSession,
+    activeSessionId,
+    createSession,
     startDraftSession,
-    setActiveConversation,
-    refreshConversation,
+    setActiveSession,
+    refreshSession,
   } = useChat()
 
   const { refreshStatus: refreshGitStatus, refreshBranches: refreshGitBranches } = useGit()
@@ -141,14 +145,14 @@ export function useChatPanelSections(): ChatPanelSections {
   const {
     handleOpenProject: handleOpenProjectNavigation,
     handleSelectProjectPath: handleSelectProjectPathNavigation,
-  } = useConversationNav({
-    conversations,
+  } = useSessionNav({
+    sessions,
     projectPath,
     setActiveView,
     setProjectPath,
     selectFolder,
     startDraftSession,
-    setActiveConversation,
+    setActiveSession,
     refreshGitStatus,
     refreshGitBranches,
   })
@@ -167,6 +171,30 @@ export function useChatPanelSections(): ChatPanelSections {
     void navigate({ to: '/settings' })
   }
 
+  function handleDismissInterruptedRun(runId: string, branchId: SessionBranchId): void {
+    if (!activeSessionId) {
+      return
+    }
+    if (typeof api.dismissInterruptedSessionRun !== 'function') {
+      showToast('Update OpenWaggle to dismiss interrupted run notices.')
+      return
+    }
+
+    void api
+      .dismissInterruptedSessionRun(activeSessionId, runId)
+      .then(() =>
+        Promise.all([
+          loadSessions(),
+          refreshSession(activeSessionId),
+          refreshSessionWorkspace(activeSessionId, { branchId }),
+        ]),
+      )
+      .catch((dismissError: unknown) => {
+        const message = dismissError instanceof Error ? dismissError.message : String(dismissError)
+        showToast(message)
+      })
+  }
+
   const {
     messages,
     sendMessage,
@@ -180,33 +208,33 @@ export function useChatPanelSections(): ChatPanelSections {
     previewSteeredUserTurn,
     streamSignalVersion,
     compactionStatus,
-  } = useAgentChat(activeConversationId, activeConversation, model, thinkingLevel)
+  } = useAgentChat(activeSessionId, activeSession, model, thinkingLevel)
 
   const { handleSend, handleSendText, handleSendWaggle } = useSendMessage({
-    activeConversationId,
+    activeSessionId,
     projectPath,
     thinkingLevel,
-    createConversation,
+    createSession,
     sendMessage,
     sendWaggleMessage,
   })
 
-  useWaggleChat(activeConversationId)
-  const phase = useStreamingPhase(activeConversationId)
+  useWaggleChat(activeSessionId)
+  const phase = useStreamingPhase(activeSessionId)
   const { catalog } = useSkills(projectPath)
 
   const waggleStoreStatus = useWaggleStore((s) => s.status)
   const waggleConfig = useWaggleStore((s) => s.activeConfig)
   const waggleActiveCollaborationId = useWaggleStore((s) => s.activeCollaborationId)
-  const waggleConfigConversationId = useWaggleStore((s) => s.configConversationId)
+  const waggleConfigSessionId = useWaggleStore((s) => s.configSessionId)
   const setWaggleConfig = useWaggleStore((s) => s.setConfig)
   const startWaggleCollaboration = useWaggleStore((s) => s.startCollaboration)
   const stopWaggleCollaboration = useWaggleStore((s) => s.stopCollaboration)
 
-  // Scope waggle status to the active conversation — other conversations see 'idle'
-  const waggleOwningId = waggleActiveCollaborationId ?? waggleConfigConversationId
+  // Scope waggle status to the active session — other sessions see 'idle'
+  const waggleOwningId = waggleActiveCollaborationId ?? waggleConfigSessionId
   const waggleStatus: WaggleCollaborationStatus =
-    waggleOwningId && waggleOwningId !== activeConversationId ? 'idle' : waggleStoreStatus
+    waggleOwningId && waggleOwningId !== activeSessionId ? 'idle' : waggleStoreStatus
 
   function setComposerTextValue(text: string): void {
     const composer = useComposerStore.getState()
@@ -259,61 +287,140 @@ export function useChatPanelSections(): ChatPanelSections {
     })
   }
 
-  function maybeOpenBranchSummaryPrompt(input: {
-    readonly sessionId: SessionId
-    readonly sourceNodeId: SessionNodeId
-    readonly restoreSelection: {
-      readonly branchId: SessionBranchId | null
-      readonly nodeId: SessionNodeId | null
-    }
-    readonly previousComposerText: string
-    readonly draftComposerText: string
-  }): void {
-    useBranchSummaryStore.getState().clearPrompt()
+  function routeToCopiedSession(sessionId: SessionId): void {
+    void navigate({
+      to: '/sessions/$sessionId',
+      params: { sessionId: String(sessionId) },
+      search: (previous) => ({
+        ...previous,
+        branch: undefined,
+        node: undefined,
+      }),
+    })
+  }
 
-    if (!shouldPromptForBranchSummary(activeWorkspace, input.sourceNodeId)) {
+  async function activateCopiedSession(input: {
+    readonly sessionId: SessionId
+    readonly editorText: string
+  }): Promise<void> {
+    const session = useChatStore.getState().sessionById.get(input.sessionId)
+    const contextKey = buildComposerDraftContextKey({
+      projectPath: session?.projectPath ?? projectPath,
+      sessionId: input.sessionId,
+    })
+    const appliedDraft = useComposerStore.getState().switchScopedDraftContext(contextKey, {
+      input: input.editorText,
+      attachments: [],
+    })
+    setComposerTextValue(appliedDraft.input)
+    setActiveSession(input.sessionId)
+    routeToCopiedSession(input.sessionId)
+    await Promise.all([
+      loadSessions(),
+      refreshSession(input.sessionId),
+      refreshSessionWorkspace(input.sessionId),
+    ])
+  }
+
+  async function forkMessageToNewSession(messageId: string): Promise<void> {
+    if (!activeSessionId) {
       return
     }
 
-    function openIfCurrent(): void {
-      const currentState = useSessionStore.getState()
-      const currentDraft = currentState.draftBranch
-      const currentWorkspace = currentState.activeWorkspace
-      if (
-        !currentDraft ||
-        currentDraft.sessionId !== input.sessionId ||
-        currentDraft.sourceNodeId !== input.sourceNodeId ||
-        currentWorkspace?.tree.session.id !== input.sessionId
-      ) {
+    try {
+      const result = await api.forkSessionToNew(
+        SessionId(String(activeSessionId)),
+        model,
+        SessionNodeId(messageId),
+      )
+      if (result.cancelled) {
+        showToast('Session fork cancelled.')
         return
       }
-      useBranchSummaryStore.getState().openPrompt(input)
-    }
 
-    if (typeof api.getPiBranchSummarySkipPrompt !== 'function') {
-      openIfCurrent()
+      if (!result.session) {
+        showToast('Session fork did not return a session.')
+        return
+      }
+
+      useChatStore.getState().upsertSession(result.session)
+      await activateCopiedSession({
+        sessionId: result.session.id,
+        editorText: result.editorText ?? '',
+      })
+    } catch (copyError) {
+      const message = copyError instanceof Error ? copyError.message : String(copyError)
+      showToast(`Failed to fork session: ${message}`)
+    }
+  }
+
+  function handleForkFromMessage(messageId: string): void {
+    void forkMessageToNewSession(messageId)
+  }
+
+  const forkTargets = getVisibleForkTargets(activeWorkspace)
+
+  function handleOpenForkSelector(): void {
+    if (forkTargets.length === 0) {
+      showToast('No user messages are available to fork.')
+      return
+    }
+    setForkSelectorOpen(true)
+  }
+
+  function handleCloseForkSelector(): void {
+    setForkSelectorOpen(false)
+  }
+
+  function handleSelectForkTarget(target: SessionForkTarget): void {
+    setForkSelectorOpen(false)
+    void forkMessageToNewSession(String(target.entryId))
+  }
+
+  async function cloneCurrentSessionToNewSession(): Promise<void> {
+    if (!activeSessionId) {
+      showToast('No active session to clone.')
       return
     }
 
-    void api
-      .getPiBranchSummarySkipPrompt(activeWorkspace?.tree.session.projectPath ?? projectPath)
-      .then((skipPrompt) => {
-        if (!skipPrompt) {
-          openIfCurrent()
-        }
-      })
-      .catch((skipPromptError: unknown) => {
-        const message =
-          skipPromptError instanceof Error ? skipPromptError.message : String(skipPromptError)
-        logger.warn('Failed to load branch summary skip-prompt preference', { message })
-        openIfCurrent()
-      })
+    const targetNodeId = draftBranch?.sourceNodeId ?? activeWorkspace?.activeNodeId
+    if (!targetNodeId) {
+      showToast('No session history to clone.')
+      return
+    }
+
+    try {
+      const result = await api.cloneSessionToNew(
+        SessionId(String(activeSessionId)),
+        model,
+        SessionNodeId(String(targetNodeId)),
+      )
+      if (result.cancelled) {
+        showToast('Session clone cancelled.')
+        return
+      }
+
+      if (!result.session) {
+        showToast('Session clone did not return a session.')
+        return
+      }
+
+      useChatStore.getState().upsertSession(result.session)
+      await activateCopiedSession({ sessionId: result.session.id, editorText: '' })
+    } catch (copyError) {
+      const message = copyError instanceof Error ? copyError.message : String(copyError)
+      showToast(`Failed to clone session: ${message}`)
+    }
+  }
+
+  function handleCloneToNewSession(): void {
+    void cloneCurrentSessionToNewSession()
   }
 
   function isCurrentBranchSummaryPrompt(prompt: BranchSummaryPromptState): boolean {
     const currentPrompt = useBranchSummaryStore.getState().prompt
     const currentWorkspace = useSessionStore.getState().activeWorkspace
-    const currentConversationId = useChatStore.getState().activeConversationId
+    const currentSessionId = useChatStore.getState().activeSessionId
     return (
       currentPrompt?.sessionId === prompt.sessionId &&
       currentPrompt.sourceNodeId === prompt.sourceNodeId &&
@@ -321,7 +428,7 @@ export function useChatPanelSections(): ChatPanelSections {
       currentPrompt.draftComposerText === prompt.draftComposerText &&
       currentPrompt.mode === 'summarizing' &&
       currentWorkspace?.tree.session.id === prompt.sessionId &&
-      String(currentConversationId) === String(prompt.sessionId)
+      String(currentSessionId) === String(prompt.sessionId)
     )
   }
 
@@ -365,11 +472,11 @@ export function useChatPanelSections(): ChatPanelSections {
 
       await Promise.all([
         loadSessions(),
-        refreshConversation(ConversationId(String(prompt.sessionId))),
+        refreshSession(SessionId(String(prompt.sessionId))),
         refreshSessionWorkspace(prompt.sessionId),
       ])
 
-      if (String(useChatStore.getState().activeConversationId) !== String(prompt.sessionId)) {
+      if (String(useChatStore.getState().activeSessionId) !== String(prompt.sessionId)) {
         return
       }
 
@@ -472,11 +579,11 @@ export function useChatPanelSections(): ChatPanelSections {
   }
 
   async function materializeDraftBranchForSend(): Promise<boolean> {
-    if (!activeConversationId) {
+    if (!activeSessionId) {
       return true
     }
 
-    const sessionId = SessionId(String(activeConversationId))
+    const sessionId = SessionId(String(activeSessionId))
     if (draftBranch?.sessionId !== sessionId) {
       return true
     }
@@ -504,6 +611,16 @@ export function useChatPanelSections(): ChatPanelSections {
       return
     }
 
+    const sessionCopyCommand = parseSessionCopyCommand(payload.text)
+    if (sessionCopyCommand?.type === 'fork') {
+      handleOpenForkSelector()
+      return
+    }
+    if (sessionCopyCommand?.type === 'clone') {
+      await cloneCurrentSessionToNewSession()
+      return
+    }
+
     const draftBranchReady = await materializeDraftBranchForSend()
     if (!draftBranchReady) {
       return
@@ -513,21 +630,21 @@ export function useChatPanelSections(): ChatPanelSections {
     phase.reset()
 
     try {
-      const waggleReadyForThisConversation =
+      const waggleReadyForThisSession =
         waggleConfig &&
         waggleStatus === 'idle' &&
-        (!waggleOwningId || waggleOwningId === activeConversationId)
+        (!waggleOwningId || waggleOwningId === activeSessionId)
 
-      if (waggleReadyForThisConversation) {
-        if (activeConversationId) {
-          startWaggleCollaboration(activeConversationId, waggleConfig)
+      if (waggleReadyForThisSession) {
+        if (activeSessionId) {
+          startWaggleCollaboration(activeSessionId, waggleConfig)
         }
         await handleSendWaggle(payload, waggleConfig)
       } else {
         await handleSend(payload)
       }
-      if (activeConversationId) {
-        clearDraftBranchForSession(SessionId(String(activeConversationId)))
+      if (activeSessionId) {
+        clearDraftBranchForSession(SessionId(String(activeSessionId)))
       }
     } catch (sendError) {
       setUserDidSend(false)
@@ -536,16 +653,16 @@ export function useChatPanelSections(): ChatPanelSections {
   }
 
   async function handleCompactSession(customInstructions?: string): Promise<void> {
-    if (!activeConversationId) {
+    if (!activeSessionId) {
       showToast('Nothing to compact yet.')
       return
     }
 
     try {
-      await api.compactSession(activeConversationId, model, customInstructions)
+      await api.compactSession(activeSessionId, model, customInstructions)
       await Promise.all([
-        refreshConversation(activeConversationId),
-        refreshSessionWorkspace(SessionId(String(activeConversationId))),
+        refreshSession(activeSessionId),
+        refreshSessionWorkspace(SessionId(String(activeSessionId))),
       ])
     } catch (compactError) {
       const message = compactError instanceof Error ? compactError.message : String(compactError)
@@ -554,26 +671,26 @@ export function useChatPanelSections(): ChatPanelSections {
   }
 
   function handleStartWaggle(config: WaggleConfig): void {
-    setWaggleConfig(config, activeConversationId)
+    setWaggleConfig(config, activeSessionId)
   }
 
   function handleStopCollaboration(): void {
-    if (activeConversationId) {
-      api.cancelWaggle(activeConversationId)
+    if (activeSessionId) {
+      api.cancelWaggle(activeSessionId)
     }
     stopWaggleCollaboration()
   }
 
   function handleCancelRun(): void {
-    if (activeConversationId && waggleStatus !== 'idle') {
-      api.cancelWaggle(activeConversationId)
+    if (activeSessionId && waggleStatus !== 'idle') {
+      api.cancelWaggle(activeSessionId)
       stopWaggleCollaboration()
     }
     stop()
   }
 
   const { isSteering, handleSteer } = useSteerWorkflow({
-    activeConversationId,
+    activeSessionId,
     steer,
     previewSteeredUserTurn,
     withDeferredSnapshotRefresh,
@@ -582,21 +699,21 @@ export function useChatPanelSections(): ChatPanelSections {
   })
 
   useAutoSendQueue({
-    conversationId: activeConversationId,
+    sessionId: activeSessionId,
     status,
     sendMessage: handleSend,
     paused: isSteering,
     onSendFailure: (payload, sendError) => {
-      reportAutoSendQueueFailure({ logger, showToast }, activeConversationId, payload, sendError)
+      reportAutoSendQueueFailure({ logger, showToast }, activeSessionId, payload, sendError)
     },
   })
 
   function handleBranchFromMessage(messageId: string): void {
-    if (!activeConversationId) {
+    if (!activeSessionId) {
       return
     }
 
-    const sessionId = SessionId(String(activeConversationId))
+    const sessionId = SessionId(String(activeSessionId))
     const previousComposerText = useComposerStore.getState().input
     const selection = createBranchDraftSelection({
       messages,
@@ -619,6 +736,8 @@ export function useChatPanelSections(): ChatPanelSections {
       },
       previousComposerText,
       draftComposerText,
+      activeWorkspace,
+      projectPath,
     })
     void navigate({
       to: '/sessions/$sessionId',
@@ -640,8 +759,8 @@ export function useChatPanelSections(): ChatPanelSections {
     error,
     projectPath,
     recentProjects,
-    activeConversationId,
-    activeConversation,
+    activeSessionId,
+    activeSession,
     model,
     waggleStatus,
     phase,
@@ -649,7 +768,9 @@ export function useChatPanelSections(): ChatPanelSections {
     handleSelectProjectPath,
     handleSendText,
     openSettings,
+    handleDismissInterruptedRun,
     handleBranchFromMessage,
+    handleForkFromMessage,
     userDidSend,
     onUserDidSendConsumed,
     streamSignalVersion,
@@ -660,7 +781,9 @@ export function useChatPanelSections(): ChatPanelSections {
     isSteering,
     status,
     compactionStatus,
-    activeConversationId,
+    forkSelectorOpen,
+    forkTargets,
+    activeSessionId,
     waggleStatus,
     commandPaletteOpen,
     slashSkills: catalog?.skills ?? [],
@@ -675,6 +798,10 @@ export function useChatPanelSections(): ChatPanelSections {
     handleSummarizeBranch,
     handleStartCustomBranchSummary,
     handleCancelBranchSummary,
+    handleOpenForkSelector,
+    handleCloseForkSelector,
+    handleSelectForkTarget,
+    handleCloneToNewSession,
   })
 
   return {

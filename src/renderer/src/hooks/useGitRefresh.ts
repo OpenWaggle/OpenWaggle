@@ -1,4 +1,4 @@
-import type { ConversationId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 import { useEffect } from 'react'
 import { isTerminalTransportEvent } from '@/lib/agent-stream-utils'
 import { api } from '@/lib/ipc'
@@ -8,10 +8,10 @@ const DELAY_MS = 500
 
 interface UseGitRefreshOptions {
   readonly projectPath: string | null
-  readonly activeConversationId: ConversationId | null
+  readonly activeSessionId: SessionId | null
   readonly refreshGitStatus: (projectPath: string | null) => Promise<void>
   readonly refreshGitBranches: (projectPath: string | null) => Promise<void>
-  readonly refreshConversation: (id: ConversationId) => Promise<void>
+  readonly refreshSession: (id: SessionId) => Promise<void>
 }
 
 /**
@@ -20,10 +20,10 @@ interface UseGitRefreshOptions {
  */
 export function useGitRefresh({
   projectPath,
-  activeConversationId,
+  activeSessionId,
   refreshGitStatus,
   refreshGitBranches,
-  refreshConversation,
+  refreshSession,
 }: UseGitRefreshOptions): void {
   const bumpDiffRefreshKey = useUIStore((s) => s.bumpDiffRefreshKey)
 
@@ -31,11 +31,11 @@ export function useGitRefresh({
   useEffect(() => {
     let refreshTimer: ReturnType<typeof setTimeout> | null = null
 
-    const unsubscribe = api.onAgentEvent(({ conversationId, event }) => {
+    const unsubscribe = api.onAgentEvent(({ sessionId, event }) => {
       if (!isTerminalTransportEvent(event)) return
 
-      if (activeConversationId === conversationId) {
-        void refreshConversation(activeConversationId)
+      if (activeSessionId === sessionId) {
+        void refreshSession(activeSessionId)
       }
       if (projectPath) {
         if (refreshTimer) clearTimeout(refreshTimer)
@@ -52,10 +52,10 @@ export function useGitRefresh({
       if (refreshTimer) clearTimeout(refreshTimer)
     }
   }, [
-    activeConversationId,
+    activeSessionId,
     bumpDiffRefreshKey,
     projectPath,
-    refreshConversation,
+    refreshSession,
     refreshGitBranches,
     refreshGitStatus,
   ])

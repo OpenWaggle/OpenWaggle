@@ -3,9 +3,9 @@ import type { ProviderInfo } from '@shared/types/llm'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useAuthStore } from '@/stores/auth-store'
-import { usePreferencesStore } from '@/stores/preferences-store'
-import { useProviderStore } from '@/stores/provider-store'
+import { useAuthStore } from '../../../stores/auth-store'
+import { usePreferencesStore } from '../../../stores/preferences-store'
+import { useProviderStore } from '../../../stores/provider-store'
 import { ConnectionsSection } from '../sections/ConnectionsSection'
 
 const PROVIDER_MODELS: ProviderInfo[] = [

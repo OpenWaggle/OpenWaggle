@@ -1,10 +1,10 @@
-import { ConversationId, MessageId, SupportedModelId } from '@shared/types/brand'
+import { MessageId, SessionId, SupportedModelId, ToolCallId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
-import type { Conversation } from '@shared/types/conversation'
+import type { SessionDetail } from '@shared/types/session'
 import type { WaggleConfig, WaggleMessageMetadata } from '@shared/types/waggle'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { useWaggleStore } from '@/stores/waggle-store'
+import { useWaggleStore } from '../../stores/waggle-store'
 import { useWaggleMetadataLookup } from '../useWaggleMetadataLookup'
 
 function makeConfig(): WaggleConfig {
@@ -28,10 +28,10 @@ function makeConfig(): WaggleConfig {
   }
 }
 
-function makeConversation(config: WaggleConfig, metadata?: WaggleMessageMetadata): Conversation {
+function makeSessionDetail(config: WaggleConfig, metadata?: WaggleMessageMetadata): SessionDetail {
   return {
-    id: ConversationId('conv-waggle'),
-    title: 'Waggle Conversation',
+    id: SessionId('session-waggle'),
+    title: 'Waggle SessionDetail',
     projectPath: null,
     createdAt: 1,
     updatedAt: 1,
@@ -56,6 +56,14 @@ function makeAssistantMessage(id: string): UIMessage {
   }
 }
 
+function makeUserMessage(id: string): UIMessage {
+  return {
+    id,
+    role: 'user',
+    parts: [{ type: 'text', content: 'question' }],
+  }
+}
+
 describe('useWaggleMetadataLookup', () => {
   beforeEach(() => {
     useWaggleStore.getState().reset()
@@ -70,20 +78,20 @@ describe('useWaggleMetadataLookup', () => {
       agentModel: SupportedModelId('claude-sonnet-4-5'),
       turnNumber: 0,
     }
-    const conversation = makeConversation(config, metadata)
-    const messages = [makeAssistantMessage('ui-assistant-1')]
+    const session = makeSessionDetail(config, metadata)
+    const messages = [makeAssistantMessage('assistant-1')]
 
     const { result, rerender } = renderHook(
       ({
-        currentConversation,
+        currentSession,
         currentMessages,
       }: {
-        currentConversation: Conversation | null
+        currentSession: SessionDetail | null
         currentMessages: UIMessage[]
-      }) => useWaggleMetadataLookup(currentConversation, currentMessages),
+      }) => useWaggleMetadataLookup(currentSession, currentMessages),
       {
         initialProps: {
-          currentConversation: conversation,
+          currentSession: session,
           currentMessages: messages,
         },
       },
@@ -91,17 +99,17 @@ describe('useWaggleMetadataLookup', () => {
 
     const firstLookup = result.current
     rerender({
-      currentConversation: conversation,
+      currentSession: session,
       currentMessages: messages,
     })
 
     expect(result.current).toStrictEqual(firstLookup)
-    expect(result.current['ui-assistant-1']).toEqual(metadata)
+    expect(result.current['assistant-1']).toEqual(metadata)
   })
 
   it('returns a new lookup when live waggle state changes', () => {
     const config = makeConfig()
-    const conversation = makeConversation(config)
+    const session = makeSessionDetail(config)
     const messages = [
       makeAssistantMessage('ui-assistant-1'),
       makeAssistantMessage('ui-assistant-2'),
@@ -109,15 +117,15 @@ describe('useWaggleMetadataLookup', () => {
 
     const { result, rerender } = renderHook(
       ({
-        currentConversation,
+        currentSession,
         currentMessages,
       }: {
-        currentConversation: Conversation | null
+        currentSession: SessionDetail | null
         currentMessages: UIMessage[]
-      }) => useWaggleMetadataLookup(currentConversation, currentMessages),
+      }) => useWaggleMetadataLookup(currentSession, currentMessages),
       {
         initialProps: {
-          currentConversation: conversation,
+          currentSession: session,
           currentMessages: messages,
         },
       },
@@ -140,7 +148,7 @@ describe('useWaggleMetadataLookup', () => {
       currentAgentLabel: 'Reviewer',
     })
     rerender({
-      currentConversation: conversation,
+      currentSession: session,
       currentMessages: messages,
     })
 
@@ -154,7 +162,7 @@ describe('useWaggleMetadataLookup', () => {
 
   it('prefers live message metadata over assistant-position fallback during streaming', () => {
     const config = makeConfig()
-    const conversation = makeConversation(config)
+    const session = makeSessionDetail(config)
     const messages = [makeAssistantMessage('ui-assistant-live')]
 
     useWaggleStore.setState({
@@ -178,7 +186,7 @@ describe('useWaggleMetadataLookup', () => {
       },
     })
 
-    const { result } = renderHook(() => useWaggleMetadataLookup(conversation, messages))
+    const { result } = renderHook(() => useWaggleMetadataLookup(session, messages))
     expect(result.current['ui-assistant-live']).toMatchObject({
       agentIndex: 1,
       agentLabel: 'Reviewer',
@@ -189,7 +197,7 @@ describe('useWaggleMetadataLookup', () => {
 
   it('maps each live assistant message id directly when multiple messages are streamed in a waggle run', () => {
     const config = makeConfig()
-    const conversation = makeConversation(config)
+    const session = makeSessionDetail(config)
     const messages = [
       makeAssistantMessage('ui-assistant-live-a'),
       makeAssistantMessage('ui-assistant-live-b'),
@@ -223,7 +231,7 @@ describe('useWaggleMetadataLookup', () => {
       },
     })
 
-    const { result } = renderHook(() => useWaggleMetadataLookup(conversation, messages))
+    const { result } = renderHook(() => useWaggleMetadataLookup(session, messages))
     expect(result.current['ui-assistant-live-a']).toMatchObject({
       agentLabel: 'Architect',
       turnNumber: 0,
@@ -231,6 +239,107 @@ describe('useWaggleMetadataLookup', () => {
     expect(result.current['ui-assistant-live-b']).toMatchObject({
       agentLabel: 'Reviewer',
       turnNumber: 1,
+    })
+  })
+
+  it('matches persisted metadata by message id when transcript projection filters tool nodes', () => {
+    const config = makeConfig()
+    const architectMeta: WaggleMessageMetadata = {
+      agentIndex: 0,
+      agentLabel: 'Architect',
+      agentColor: 'blue',
+      agentModel: SupportedModelId('claude-sonnet-4-5'),
+      turnNumber: 0,
+    }
+    const reviewerMeta: WaggleMessageMetadata = {
+      agentIndex: 1,
+      agentLabel: 'Reviewer',
+      agentColor: 'amber',
+      agentModel: SupportedModelId('gpt-4o'),
+      turnNumber: 1,
+    }
+    const session: SessionDetail = {
+      id: SessionId('session-waggle'),
+      title: 'Waggle SessionDetail',
+      projectPath: null,
+      createdAt: 1,
+      updatedAt: 1,
+      waggleConfig: config,
+      messages: [
+        {
+          id: MessageId('architect-node'),
+          role: 'assistant',
+          createdAt: 1,
+          parts: [{ type: 'text', text: 'architect' }],
+          metadata: { waggle: architectMeta },
+        },
+        {
+          id: MessageId('tool-result-node'),
+          role: 'assistant',
+          createdAt: 2,
+          parts: [
+            {
+              type: 'tool-result',
+              toolResult: {
+                id: ToolCallId('tool-1'),
+                name: 'bash',
+                args: {},
+                result: 'ok',
+                isError: false,
+                duration: 1,
+              },
+            },
+          ],
+        },
+        {
+          id: MessageId('reviewer-node'),
+          role: 'assistant',
+          createdAt: 3,
+          parts: [{ type: 'text', text: 'reviewer' }],
+          metadata: { waggle: reviewerMeta },
+        },
+      ],
+    }
+    const projectedMessages = [
+      makeAssistantMessage('architect-node'),
+      makeAssistantMessage('reviewer-node'),
+    ]
+
+    const { result } = renderHook(() => useWaggleMetadataLookup(session, projectedMessages))
+    expect(result.current['architect-node']).toEqual(architectMeta)
+    expect(result.current['reviewer-node']).toEqual(reviewerMeta)
+  })
+
+  it('uses active turn metadata for live assistant output after the latest user message', () => {
+    const config = makeConfig()
+    const session = makeSessionDetail(config)
+    const messages = [
+      makeAssistantMessage('old-standard-assistant'),
+      makeUserMessage('current-user'),
+      makeAssistantMessage('live-assistant-without-start-meta'),
+    ]
+
+    useWaggleStore.setState({
+      activeConfig: config,
+      status: 'running',
+      completedTurnMeta: [],
+      initialTurnMeta: {
+        agentIndex: 0,
+        agentLabel: 'Architect',
+        agentColor: 'blue',
+        agentModel: SupportedModelId('claude-sonnet-4-5'),
+        turnNumber: 0,
+      },
+      currentAgentIndex: 0,
+      currentAgentLabel: 'Architect',
+    })
+
+    const { result } = renderHook(() => useWaggleMetadataLookup(session, messages))
+    expect(result.current['old-standard-assistant']).toBeUndefined()
+    expect(result.current['live-assistant-without-start-meta']).toMatchObject({
+      agentLabel: 'Architect',
+      agentColor: 'blue',
+      agentModel: SupportedModelId('claude-sonnet-4-5'),
     })
   })
 })

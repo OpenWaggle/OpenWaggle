@@ -346,7 +346,7 @@ export function Composer({
             disabled={disabled}
             placeholder={
               placeholder ??
-              (isLoading ? 'Add a message to the conversation...' : 'Ask for follow-up changes')
+              (isLoading ? 'Add a message to the session...' : 'Ask for follow-up changes')
             }
             editorRef={editorRef}
             checkAndConvertPaste={checkAndConvertPaste}

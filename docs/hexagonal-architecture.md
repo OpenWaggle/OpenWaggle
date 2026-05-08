@@ -27,14 +27,14 @@ Effect `Context.Tag` service definitions. Interfaces that the domain and applica
 **Current ports:**
 - `AgentKernelService` — Pi-backed agent runtime
 - `SessionRepository` — Session tree persistence
-- `SessionProjectionRepository` — Conversation-shaped UI read model over session tables
+- `SessionProjectionRepository` — Session-shaped UI read model over session tables
 - `ProviderService` — OpenWaggle-owned provider/model summaries backed by Pi metadata
 - `ProviderAuthService` — Provider API-key configuration state backed by Pi auth storage
 - `ProviderOAuthService` — Provider OAuth flow state backed by Pi auth storage
 - `ProviderProbeService` — Provider/model credential probing through project-scoped Pi services
 - `SessionTreePreferencesService` — Pi-backed Session Tree and branch-summary preferences
 - `StandardsService` — Agent/skill loading
-- `TeamsRepository` — Team preset persistence
+- `WagglePresetsRepository` — Waggle preset persistence across built-in, global, and project scopes
 
 **Rules:**
 - MUST NOT import from Pi SDK or any vendor SDK
@@ -52,7 +52,7 @@ Known current gap: `StandardsService` is registered in the runtime but is not co
 - `pi/pi-agent-kernel-adapter.ts` — Implements AgentKernelService via Pi SDK
 - `sqlite-session-projection-repository.ts` — Implements SessionProjectionRepository via SQLite store
 - `sqlite-session-repository.ts` — Implements SessionRepository via SQLite store
-- `sqlite-teams-repository.ts` — Implements TeamsRepository via SQLite store
+- `settings-waggle-presets-repository.ts` — Implements WagglePresetsRepository via built-in presets, user-data JSON, and project `.openwaggle/settings.json`
 - `standards-adapter.ts` — Implements StandardsService via filesystem
 - `pi/pi-provider-service.ts` — Implements ProviderService via Pi provider/model metadata
 - `pi/pi-provider-auth-service.ts` — Implements ProviderAuthService via Pi auth storage
@@ -99,7 +99,7 @@ Persistence modules that implement the actual I/O behind ports/adapters. Provide
 **Rules:**
 - Encapsulated behind adapter Layer implementations
 - Not imported directly by IPC handlers, agent core, or application services
-- The `store/` module is accessed only through SessionProjectionRepository, SettingsService, TeamsRepository adapters
+- The `store/` module is accessed only through SessionProjectionRepository and SettingsService adapters
 
 ---
 
@@ -133,7 +133,7 @@ const AppLayer = Layer.mergeAll(
   PiProviderOAuthLive,
   ProviderServiceLive,
   PiSessionTreePreferencesLive,
-  SqliteTeamsRepositoryLive,
+  SettingsWagglePresetsRepositoryLive,
 )
 ```
 

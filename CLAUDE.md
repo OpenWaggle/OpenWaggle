@@ -132,7 +132,7 @@ OpenWaggle follows **hexagonal architecture** with Effect.ts as the DI backbone.
 
 1. **Domain imports nothing from infrastructure.** No Pi SDK, `electron`, `node:fs`, `@effect/sql` in `src/main/domain/` or `src/shared/domain/`.
 2. **Agent core (`src/main/agent/`) has zero vendor imports.** No Pi SDK. Uses domain/shared types such as `AgentTransportEvent`.
-3. **IPC handlers MUST NOT import from `src/main/store/`.** Use `yield* ConversationRepository`, `yield* SettingsService`, etc.
+3. **IPC handlers MUST NOT import from `src/main/store/`.** Use `yield* SessionRepository`, `yield* SettingsService`, etc.
 4. **IPC handlers MUST NOT import Pi SDK.** Vendor SDK is confined to adapters.
 5. **Application services use `yield*` for DI.** No direct store or registry access.
 6. **Pi SDK is ONLY allowed in:** `src/main/adapters/pi/`.
@@ -257,7 +257,7 @@ Rules:
 
 ## Key Patterns
 
-- **Branded types** (`src/shared/types/brand.ts`): `ConversationId`, `MessageId`, `ToolCallId` prevent accidental ID mixing. Use constructors at boundaries: `ConversationId(uuid())`.
+- **Branded types** (`src/shared/types/brand.ts`): `SessionId`, `MessageId`, `ToolCallId` prevent accidental ID mixing. Use constructors at boundaries: `SessionId(uuid())`.
 - **Discriminated unions**: Message parts (`type: 'text' | 'tool-call' | 'tool-result'`), agent events (`type: 'text-delta' | 'tool-call-start' | ...`), stream chunks.
 - **Path aliases**: `@shared/*` → `src/shared/*` (all targets), `@/*` → `src/renderer/src/*` (renderer only).
 - **Provider/model catalog**: Pi `ModelRegistry` and `AuthStorage` are the source of truth. OpenWaggle exposes Pi-derived provider/model/auth state through ports.
@@ -361,7 +361,7 @@ Always use granular selectors with `useChatStore((s) => s.field)` — never call
 ## Task Management
 
 1. **Read the relevant first principles** in `docs/principles/`
-2. **Plan first** for non-trivial tasks; create a plan in the conversation or a temporary plan file
+2. **Plan first** for non-trivial tasks; create a plan in the session or a temporary plan file
 3. **Verify the plan** against both first principles and current architecture
 4. **Track progress** and keep the implementation aligned with the principles
 5. **Explain changes** at a high level

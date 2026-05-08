@@ -35,7 +35,9 @@ SQLite stores OpenWaggle's product projection:
 - `session_branches`
 - `session_branch_state`
 - `session_tree_ui_state`
-- lightweight run, settings, and team preset read models
+- lightweight run and settings read models
+
+Waggle presets are not SQLite read models. Global presets live in the Electron user-data directory as `waggle-presets.json`; project-scoped presets live in `.openwaggle/settings.json` and take precedence over global and built-in presets.
 
 ## Provider Model
 

@@ -44,8 +44,8 @@ export const ERROR_CODE_META: Record<AgentErrorCode, ErrorCodeMeta> = {
     suggestion: 'Check your network connection and provider base URL in Settings.',
     retryable: true,
   },
-  'conversation-not-found': {
-    userMessage: 'Conversation not found',
+  'session-not-found': {
+    userMessage: 'Session not found',
     suggestion: 'The session may have been deleted. Start a new session.',
     retryable: false,
   },
@@ -55,7 +55,7 @@ export const ERROR_CODE_META: Record<AgentErrorCode, ErrorCodeMeta> = {
     retryable: false,
   },
   'persist-failed': {
-    userMessage: 'Failed to save conversation',
+    userMessage: 'Failed to save session',
     suggestion: 'Check disk space and file permissions.',
     retryable: false,
   },

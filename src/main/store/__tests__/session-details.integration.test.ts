@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import * as SqlClient from '@effect/sql/SqlClient'
-import { SessionBranchId, SessionId } from '@shared/types/brand'
+import { SessionBranchId, SessionId, SupportedModelId } from '@shared/types/brand'
 import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,6 +10,7 @@ const { state, getPathMock } = vi.hoisted(() => ({
   state: { userDataDir: '' },
   getPathMock: vi.fn(() => ''),
 }))
+const BRANCH_CONTRACT_FUTURE_MODES: readonly ['standard', 'waggle'] = ['standard', 'waggle']
 
 getPathMock.mockImplementation(() => state.userDataDir)
 
@@ -27,12 +28,13 @@ vi.mock('electron', () => ({
 import type { ProjectedSessionNodeInput } from '../../ports/session-repository'
 import { resetAppRuntimeForTests, runAppEffect } from '../../runtime'
 import {
-  createConversation,
-  getConversation,
-  listConversations,
+  createSession,
+  getSessionDetail,
+  listSessionDetails,
+  listSessionSummaries,
   persistSessionSnapshot,
-  updateConversationTitle,
-} from '../session-conversations'
+  updateSessionTitle,
+} from '../session-details'
 import {
   archiveSessionBranch,
   getSessionTree,
@@ -44,7 +46,7 @@ import {
   updateSessionTreeUiState,
 } from '../sessions'
 
-describe('session-conversations integration', () => {
+describe('session-details integration', () => {
   let tmpDir = ''
 
   beforeEach(async () => {
@@ -58,15 +60,15 @@ describe('session-conversations integration', () => {
     await fs.rm(tmpDir, { recursive: true, force: true })
   })
 
-  it('persists and reloads conversations through the session projection tables', async () => {
-    const conversation = await createConversation({
+  it('persists and reloads sessions through the session projection tables', async () => {
+    const session = await createSession({
       projectPath: '/tmp/project-a',
       piSessionId: 'pi-session-a',
       piSessionFile: '/tmp/pi-session-a.jsonl',
     })
-    const saved = { ...conversation, title: 'Projected session' }
+    const saved = { ...session, title: 'Projected session' }
 
-    await updateConversationTitle(saved.id, saved.title)
+    await updateSessionTitle(saved.id, saved.title)
     await persistSessionSnapshot({
       sessionId: SessionId(String(saved.id)),
       piSessionId: 'pi-session-a',
@@ -106,9 +108,9 @@ describe('session-conversations integration', () => {
       ],
     })
 
-    const reloaded = await getConversation(saved.id)
-    const summaries = await listConversations()
-    const sessions = await listSessions()
+    const reloaded = await getSessionDetail(saved.id)
+    const summaries = await listSessionSummaries()
+    const sessions = await listSessionDetails()
     const tree = await getSessionTree(SessionId(String(saved.id)))
 
     expect(reloaded?.title).toBe('Projected session')
@@ -122,14 +124,14 @@ describe('session-conversations integration', () => {
   })
 
   it('renders visible Waggle custom requests while hiding internal Waggle turn prompts', async () => {
-    const conversation = await createConversation({
+    const session = await createSession({
       projectPath: '/tmp/project-waggle',
       piSessionId: 'pi-session-waggle',
       piSessionFile: '/tmp/pi-session-waggle.jsonl',
     })
 
     await persistSessionSnapshot({
-      sessionId: SessionId(String(conversation.id)),
+      sessionId: SessionId(String(session.id)),
       piSessionId: 'pi-session-waggle',
       piSessionFile: '/tmp/pi-session-waggle.jsonl',
       activeNodeId: 'assistant-turn',
@@ -189,8 +191,8 @@ describe('session-conversations integration', () => {
       ],
     })
 
-    const reloaded = await getConversation(conversation.id)
-    const sessionId = SessionId(String(conversation.id))
+    const reloaded = await getSessionDetail(session.id)
+    const sessionId = SessionId(String(session.id))
     const tree = await getSessionTree(sessionId)
     const workspace = await getSessionWorkspace(sessionId)
 
@@ -214,14 +216,14 @@ describe('session-conversations integration', () => {
   })
 
   it('hydrates tool results and structural Pi summaries as transcript messages', async () => {
-    const conversation = await createConversation({
+    const session = await createSession({
       projectPath: '/tmp/project-structural-transcript',
       piSessionId: 'pi-session-structural-transcript',
       piSessionFile: '/tmp/pi-session-structural-transcript.jsonl',
     })
 
     await persistSessionSnapshot({
-      sessionId: SessionId(String(conversation.id)),
+      sessionId: SessionId(String(session.id)),
       piSessionId: 'pi-session-structural-transcript',
       piSessionFile: '/tmp/pi-session-structural-transcript.jsonl',
       activeNodeId: 'compaction-summary-1',
@@ -320,7 +322,7 @@ describe('session-conversations integration', () => {
       ],
     })
 
-    const reloaded = await getConversation(conversation.id)
+    const reloaded = await getSessionDetail(session.id)
 
     expect(reloaded?.messages.map((message) => String(message.id))).toEqual([
       'user-1',
@@ -339,12 +341,12 @@ describe('session-conversations integration', () => {
   })
 
   it('loads the active post-compaction working context instead of the pre-compaction history', async () => {
-    const conversation = await createConversation({
+    const session = await createSession({
       projectPath: '/tmp/project-post-compaction-context',
       piSessionId: 'pi-session-post-compaction-context',
       piSessionFile: '/tmp/pi-session-post-compaction-context.jsonl',
     })
-    const sessionId = SessionId(String(conversation.id))
+    const sessionId = SessionId(String(session.id))
 
     await persistSessionSnapshot({
       sessionId,
@@ -461,7 +463,7 @@ describe('session-conversations integration', () => {
       ],
     })
 
-    const reloaded = await getConversation(conversation.id)
+    const reloaded = await getSessionDetail(session.id)
     const workspace = await getSessionWorkspace(sessionId)
 
     expect(reloaded?.messages.map((message) => String(message.id))).toEqual([
@@ -485,12 +487,12 @@ describe('session-conversations integration', () => {
   })
 
   it('preserves stable branch identity and active branch state across Pi tree snapshots', async () => {
-    const conversation = await createConversation({
+    const session = await createSession({
       projectPath: '/tmp/project-branches',
       piSessionId: 'pi-session-branches',
       piSessionFile: '/tmp/pi-session-branches.jsonl',
     })
-    const sessionId = SessionId(String(conversation.id))
+    const sessionId = SessionId(String(session.id))
     const mainBranchId = `${sessionId}:main`
 
     await persistSessionSnapshot({
@@ -678,13 +680,190 @@ describe('session-conversations integration', () => {
     ])
   })
 
+  it.each(
+    BRANCH_CONTRACT_FUTURE_MODES,
+  )('preserves %s branch future-mode state across Pi reprojection', async (futureMode) => {
+    const session = await createSession({
+      projectPath: `/tmp/project-${futureMode}-branch-contract`,
+      piSessionId: `pi-session-${futureMode}-branch-contract`,
+      piSessionFile: `/tmp/pi-session-${futureMode}-branch-contract.jsonl`,
+    })
+    const sessionId = SessionId(String(session.id))
+    const mainBranchId = `${sessionId}:main`
+    const nodes: ProjectedSessionNodeInput[] = [
+      {
+        id: 'root-user',
+        parentId: null,
+        piEntryType: 'message',
+        kind: 'user_message',
+        role: 'user',
+        timestampMs: 10,
+        contentJson: JSON.stringify({
+          parts: [{ type: 'text', text: 'Start' }],
+          model: null,
+        }),
+        metadataJson: '{}',
+        pathDepth: 0,
+        createdOrder: 0,
+      },
+      {
+        id: 'assistant-1',
+        parentId: 'root-user',
+        piEntryType: 'message',
+        kind: 'assistant_message',
+        role: 'assistant',
+        timestampMs: 20,
+        contentJson: JSON.stringify({
+          parts: [{ type: 'text', text: 'Continue' }],
+          model: 'openai/gpt-5.4',
+        }),
+        metadataJson: '{}',
+        pathDepth: 1,
+        createdOrder: 1,
+      },
+    ]
+
+    await persistSessionSnapshot({
+      sessionId,
+      piSessionId: `pi-session-${futureMode}-branch-contract`,
+      piSessionFile: `/tmp/pi-session-${futureMode}-branch-contract.jsonl`,
+      activeNodeId: 'assistant-1',
+      nodes,
+    })
+
+    await runAppEffect(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+            UPDATE session_branch_state
+            SET future_mode = ${futureMode},
+                ui_state_json = ${`{"mode":"${futureMode}"}`}
+            WHERE branch_id = ${mainBranchId}
+          `
+      }),
+    )
+
+    await persistSessionSnapshot({
+      sessionId,
+      piSessionId: `pi-session-${futureMode}-branch-contract`,
+      piSessionFile: `/tmp/pi-session-${futureMode}-branch-contract.jsonl`,
+      activeNodeId: 'assistant-1',
+      nodes,
+    })
+
+    const tree = await getSessionTree(sessionId)
+    const branchState = tree?.branchStates.find((state) => String(state.branchId) === mainBranchId)
+
+    expect(branchState?.futureMode).toBe(futureMode)
+    expect(branchState?.uiStateJson).toBe(`{"mode":"${futureMode}"}`)
+  })
+
+  it('preserves interrupted run indicators across Pi reprojection', async () => {
+    const session = await createSession({
+      projectPath: '/tmp/project-interrupted-run',
+      piSessionId: 'pi-session-interrupted-run',
+      piSessionFile: '/tmp/pi-session-interrupted-run.jsonl',
+    })
+    const sessionId = SessionId(String(session.id))
+    const branchId = SessionBranchId(`${sessionId}:main`)
+    const nodes: ProjectedSessionNodeInput[] = [
+      {
+        id: 'root-user',
+        parentId: null,
+        piEntryType: 'message',
+        kind: 'user_message',
+        role: 'user',
+        timestampMs: 10,
+        contentJson: JSON.stringify({
+          parts: [{ type: 'text', text: 'Start' }],
+          model: null,
+        }),
+        metadataJson: '{}',
+        pathDepth: 0,
+        createdOrder: 0,
+      },
+      {
+        id: 'assistant-1',
+        parentId: 'root-user',
+        piEntryType: 'message',
+        kind: 'assistant_message',
+        role: 'assistant',
+        timestampMs: 20,
+        contentJson: JSON.stringify({
+          parts: [{ type: 'text', text: 'Continue' }],
+          model: 'openai/gpt-5.4',
+        }),
+        metadataJson: '{}',
+        pathDepth: 1,
+        createdOrder: 1,
+      },
+    ]
+
+    await persistSessionSnapshot({
+      sessionId,
+      piSessionId: 'pi-session-interrupted-run',
+      piSessionFile: '/tmp/pi-session-interrupted-run.jsonl',
+      activeNodeId: 'assistant-1',
+      nodes,
+    })
+
+    await runAppEffect(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          INSERT INTO session_active_runs (
+            run_id,
+            session_id,
+            branch_id,
+            run_mode,
+            status,
+            runtime_json,
+            updated_at
+          )
+          VALUES (
+            ${'run-interrupted-1'},
+            ${sessionId},
+            ${branchId},
+            ${'classic'},
+            ${'interrupted'},
+            ${JSON.stringify({ model: 'openai/gpt-5.4' })},
+            ${100}
+          )
+        `
+      }),
+    )
+
+    await persistSessionSnapshot({
+      sessionId,
+      piSessionId: 'pi-session-interrupted-run',
+      piSessionFile: '/tmp/pi-session-interrupted-run.jsonl',
+      activeNodeId: 'assistant-1',
+      nodes,
+    })
+
+    const tree = await getSessionTree(sessionId)
+    const sessions = await listSessions()
+    const treeMainBranch = tree?.branches.find((branch) => branch.id === branchId)
+    const listMainBranch = sessions[0]?.branches?.find((branch) => branch.id === branchId)
+
+    expect(treeMainBranch?.interruptedRun).toEqual({
+      runId: 'run-interrupted-1',
+      sessionId,
+      branchId,
+      runMode: 'classic',
+      model: SupportedModelId('openai/gpt-5.4'),
+      interruptedAt: 100,
+    })
+    expect(listMainBranch?.interruptedRun?.runId).toBe('run-interrupted-1')
+  })
+
   it('archives a branch without deleting it from the session tree projection', async () => {
-    const conversation = await createConversation({
+    const session = await createSession({
       projectPath: '/tmp/project-archived-branch',
       piSessionId: 'pi-session-archived-branch',
       piSessionFile: '/tmp/pi-session-archived-branch.jsonl',
     })
-    const sessionId = SessionId(String(conversation.id))
+    const sessionId = SessionId(String(session.id))
     const branchId = SessionBranchId(`${sessionId}:branch:branch-user`)
     const nodes: ProjectedSessionNodeInput[] = [
       {
@@ -795,12 +974,12 @@ describe('session-conversations integration', () => {
   })
 
   it('restores an archived branch without selecting it automatically', async () => {
-    const conversation = await createConversation({
+    const session = await createSession({
       projectPath: '/tmp/project-restored-branch',
       piSessionId: 'pi-session-restored-branch',
       piSessionFile: '/tmp/pi-session-restored-branch.jsonl',
     })
-    const sessionId = SessionId(String(conversation.id))
+    const sessionId = SessionId(String(session.id))
     const branchId = SessionBranchId(`${sessionId}:branch:branch-user`)
 
     await persistSessionSnapshot({
@@ -884,12 +1063,12 @@ describe('session-conversations integration', () => {
   })
 
   it('rejects branch mutations for main or missing branches', async () => {
-    const conversation = await createConversation({
+    const session = await createSession({
       projectPath: '/tmp/project-branch-mutation-validation',
       piSessionId: 'pi-session-branch-mutation-validation',
       piSessionFile: '/tmp/pi-session-branch-mutation-validation.jsonl',
     })
-    const sessionId = SessionId(String(conversation.id))
+    const sessionId = SessionId(String(session.id))
 
     await persistSessionSnapshot({
       sessionId,
@@ -911,12 +1090,12 @@ describe('session-conversations integration', () => {
   })
 
   it('renames a non-main branch and preserves the custom name across snapshots', async () => {
-    const conversation = await createConversation({
+    const session = await createSession({
       projectPath: '/tmp/project-renamed-branch',
       piSessionId: 'pi-session-renamed-branch',
       piSessionFile: '/tmp/pi-session-renamed-branch.jsonl',
     })
-    const sessionId = SessionId(String(conversation.id))
+    const sessionId = SessionId(String(session.id))
     const branchId = SessionBranchId(`${sessionId}:branch:branch-user`)
     const nodes: ProjectedSessionNodeInput[] = [
       {
@@ -1011,12 +1190,12 @@ describe('session-conversations integration', () => {
   })
 
   it('persists branch-list collapse state for session navigation summaries', async () => {
-    const conversation = await createConversation({
+    const session = await createSession({
       projectPath: '/tmp/project-tree-ui-state',
       piSessionId: 'pi-session-tree-ui-state',
       piSessionFile: '/tmp/pi-session-tree-ui-state.jsonl',
     })
-    const sessionId = SessionId(String(conversation.id))
+    const sessionId = SessionId(String(session.id))
 
     await updateSessionTreeUiState(sessionId, { branchesSidebarCollapsed: true })
 

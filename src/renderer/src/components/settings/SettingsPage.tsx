@@ -17,14 +17,14 @@ interface SettingsPageProps {
 
 export function SettingsPage({ activeTab }: SettingsPageProps) {
   const navigate = useNavigate()
-  const { activeConversationId } = useChat()
+  const { activeSessionId } = useChat()
   const isFullscreen = useFullscreen()
 
   function navigateBackToApp(): void {
-    if (activeConversationId) {
+    if (activeSessionId) {
       void navigate({
         to: '/sessions/$sessionId',
-        params: { sessionId: String(activeConversationId) },
+        params: { sessionId: String(activeSessionId) },
       })
       return
     }

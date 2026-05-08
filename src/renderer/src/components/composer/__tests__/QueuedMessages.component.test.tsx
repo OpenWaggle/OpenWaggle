@@ -1,11 +1,11 @@
-import type { ConversationId } from '@shared/types/brand'
+import { SessionId } from '@shared/types/brand'
 import type { ThinkingLevel } from '@shared/types/settings'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useMessageQueueStore } from '@/stores/message-queue-store'
+import { useMessageQueueStore } from '../../../stores/message-queue-store'
 import { QueuedMessages } from '../QueuedMessages'
 
-const CONV_A = 'conv-a' as ConversationId
+const CONV_A = SessionId('session-a')
 const THINKING: ThinkingLevel = 'medium'
 
 function makePayload(text: string) {
@@ -22,15 +22,15 @@ describe('QueuedMessages', () => {
 
   it('renders nothing when the queue is empty', () => {
     const { container } = render(
-      <QueuedMessages conversationId={CONV_A} onSteer={noOpSteer} isStreaming={false} />,
+      <QueuedMessages sessionId={CONV_A} onSteer={noOpSteer} isStreaming={false} />,
     )
     expect(container.firstChild).toBeNull()
   })
 
-  it('renders nothing when conversationId is null', () => {
+  it('renders nothing when sessionId is null', () => {
     useMessageQueueStore.getState().enqueue(CONV_A, makePayload('test'))
     const { container } = render(
-      <QueuedMessages conversationId={null} onSteer={noOpSteer} isStreaming={false} />,
+      <QueuedMessages sessionId={null} onSteer={noOpSteer} isStreaming={false} />,
     )
     expect(container.firstChild).toBeNull()
   })
@@ -38,7 +38,7 @@ describe('QueuedMessages', () => {
   it('renders header with count badge', () => {
     useMessageQueueStore.getState().enqueue(CONV_A, makePayload('first'))
     useMessageQueueStore.getState().enqueue(CONV_A, makePayload('second'))
-    render(<QueuedMessages conversationId={CONV_A} onSteer={noOpSteer} isStreaming={false} />)
+    render(<QueuedMessages sessionId={CONV_A} onSteer={noOpSteer} isStreaming={false} />)
     expect(screen.getByText('Queued')).toBeInTheDocument()
     expect(screen.getByText('2')).toBeInTheDocument()
   })
@@ -46,7 +46,7 @@ describe('QueuedMessages', () => {
   it('renders message cards with text', () => {
     useMessageQueueStore.getState().enqueue(CONV_A, makePayload('first message'))
     useMessageQueueStore.getState().enqueue(CONV_A, makePayload('second message'))
-    render(<QueuedMessages conversationId={CONV_A} onSteer={noOpSteer} isStreaming={false} />)
+    render(<QueuedMessages sessionId={CONV_A} onSteer={noOpSteer} isStreaming={false} />)
     expect(screen.getByText('first message')).toBeInTheDocument()
     expect(screen.getByText('second message')).toBeInTheDocument()
   })
@@ -55,11 +55,11 @@ describe('QueuedMessages', () => {
     useMessageQueueStore.getState().enqueue(CONV_A, makePayload('test'))
 
     const { rerender } = render(
-      <QueuedMessages conversationId={CONV_A} onSteer={noOpSteer} isStreaming={false} />,
+      <QueuedMessages sessionId={CONV_A} onSteer={noOpSteer} isStreaming={false} />,
     )
     expect(screen.queryByText('Steer')).not.toBeInTheDocument()
 
-    rerender(<QueuedMessages conversationId={CONV_A} onSteer={noOpSteer} isStreaming={true} />)
+    rerender(<QueuedMessages sessionId={CONV_A} onSteer={noOpSteer} isStreaming={true} />)
     expect(screen.getByText('Steer')).toBeInTheDocument()
   })
 
@@ -68,7 +68,7 @@ describe('QueuedMessages', () => {
 
     render(
       <QueuedMessages
-        conversationId={CONV_A}
+        sessionId={CONV_A}
         onSteer={noOpSteer}
         isStreaming={true}
         isCompacting={true}
@@ -81,7 +81,7 @@ describe('QueuedMessages', () => {
 
   it('Steer button calls onSteer with correct messageId', () => {
     useMessageQueueStore.getState().enqueue(CONV_A, makePayload('steer me'))
-    render(<QueuedMessages conversationId={CONV_A} onSteer={noOpSteer} isStreaming={true} />)
+    render(<QueuedMessages sessionId={CONV_A} onSteer={noOpSteer} isStreaming={true} />)
 
     const steerButton = screen.getByText('Steer')
     fireEvent.click(steerButton)
@@ -92,7 +92,7 @@ describe('QueuedMessages', () => {
 
   it('Trash button dismisses message', () => {
     useMessageQueueStore.getState().enqueue(CONV_A, makePayload('dismiss me'))
-    render(<QueuedMessages conversationId={CONV_A} onSteer={noOpSteer} isStreaming={false} />)
+    render(<QueuedMessages sessionId={CONV_A} onSteer={noOpSteer} isStreaming={false} />)
     expect(screen.getByText('dismiss me')).toBeInTheDocument()
 
     const dismissButton = screen.getByTitle('Dismiss')
@@ -117,7 +117,7 @@ describe('QueuedMessages', () => {
         },
       ],
     })
-    render(<QueuedMessages conversationId={CONV_A} onSteer={noOpSteer} isStreaming={false} />)
+    render(<QueuedMessages sessionId={CONV_A} onSteer={noOpSteer} isStreaming={false} />)
     expect(screen.getByText('1 attachment(s)')).toBeInTheDocument()
   })
 })

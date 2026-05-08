@@ -1,19 +1,19 @@
-import type { ConversationId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 import { create } from 'zustand'
 import { api } from '@/lib/ipc'
 
 interface BackgroundRunState {
-  activeRunIds: Set<ConversationId>
-  addActiveRun: (id: ConversationId) => void
-  removeActiveRun: (id: ConversationId) => void
-  hasActiveRun: (id: ConversationId) => boolean
+  activeRunIds: Set<SessionId>
+  addActiveRun: (id: SessionId) => void
+  removeActiveRun: (id: SessionId) => void
+  hasActiveRun: (id: SessionId) => boolean
   initialize: () => Promise<void>
 }
 
 export const useBackgroundRunStore = create<BackgroundRunState>((set, get) => ({
-  activeRunIds: new Set<ConversationId>(),
+  activeRunIds: new Set<SessionId>(),
 
-  addActiveRun(id: ConversationId) {
+  addActiveRun(id: SessionId) {
     set((state) => {
       if (state.activeRunIds.has(id)) return state
       const next = new Set(state.activeRunIds)
@@ -22,7 +22,7 @@ export const useBackgroundRunStore = create<BackgroundRunState>((set, get) => ({
     })
   },
 
-  removeActiveRun(id: ConversationId) {
+  removeActiveRun(id: SessionId) {
     set((state) => {
       if (!state.activeRunIds.has(id)) return state
       const next = new Set(state.activeRunIds)
@@ -31,13 +31,13 @@ export const useBackgroundRunStore = create<BackgroundRunState>((set, get) => ({
     })
   },
 
-  hasActiveRun(id: ConversationId): boolean {
+  hasActiveRun(id: SessionId): boolean {
     return get().activeRunIds.has(id)
   },
 
   async initialize() {
     const runs = await api.listActiveRuns()
-    const ids = new Set<ConversationId>(runs.map((r) => r.conversationId))
+    const ids = new Set<SessionId>(runs.map((r) => r.sessionId))
     set({ activeRunIds: ids })
   },
 }))

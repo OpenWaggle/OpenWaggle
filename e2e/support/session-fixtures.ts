@@ -24,13 +24,13 @@ function isRecord(value: unknown): value is { readonly [key: string]: unknown } 
   return typeof value === 'object' && value !== null
 }
 
-interface ConversationRowFixture {
+interface SessionRowFixture {
   readonly id: string
   readonly branchId: string
   readonly createdAt: number
 }
 
-export interface SeedConversationInput {
+export interface SeedSessionInput {
   readonly title: string
   readonly updatedAt: number
   readonly messages: readonly unknown[]
@@ -81,7 +81,7 @@ function mainBranchId(sessionId: string): string {
   return `${sessionId}:${MAIN_BRANCH_NAME}`
 }
 
-function insertSessionRow(database: DatabaseSync): ConversationRowFixture {
+function insertSessionRow(database: DatabaseSync): SessionRowFixture {
   const id = crypto.randomUUID()
   const now = Date.now()
   const branchId = mainBranchId(id)
@@ -123,7 +123,7 @@ function insertSessionRow(database: DatabaseSync): ConversationRowFixture {
 function readStringField(record: { readonly [key: string]: unknown }, key: string): string {
   const value = record[key]
   if (typeof value !== 'string') {
-    throw new Error(`Expected string field "${key}" in conversation fixture`)
+    throw new Error(`Expected string field "${key}" in session fixture`)
   }
   return value
 }
@@ -161,26 +161,26 @@ function messageKind(role: string): string {
   if (role === 'user') return USER_MESSAGE_KIND
   if (role === 'assistant') return ASSISTANT_MESSAGE_KIND
   if (role === 'system') return SYSTEM_MESSAGE_KIND
-  throw new Error(`Unsupported conversation role in fixture: ${role}`)
+  throw new Error(`Unsupported session role in fixture: ${role}`)
 }
 
 function seedSessionRow(
   database: DatabaseSync,
-  row: ConversationRowFixture,
-  conversationInput: SeedConversationInput,
+  row: SessionRowFixture,
+  sessionInput: SeedSessionInput,
   defaultProjectPath: string,
 ): void {
   database.exec('BEGIN')
 
   try {
     const projectPath =
-      conversationInput.projectPath === undefined ? defaultProjectPath : conversationInput.projectPath
+      sessionInput.projectPath === undefined ? defaultProjectPath : sessionInput.projectPath
     const waggleConfigJson =
-      conversationInput.waggleConfig === undefined || conversationInput.waggleConfig === null
+      sessionInput.waggleConfig === undefined || sessionInput.waggleConfig === null
         ? null
-        : JSON.stringify(conversationInput.waggleConfig)
+        : JSON.stringify(sessionInput.waggleConfig)
 
-    const lastMessage = conversationInput.messages[conversationInput.messages.length - 1]
+    const lastMessage = sessionInput.messages[sessionInput.messages.length - 1]
     const lastMessageId = isRecord(lastMessage) ? readStringField(lastMessage, 'id') : null
 
     database
@@ -198,11 +198,11 @@ function seedSessionRow(
         `,
       )
       .run(
-        conversationInput.title,
+        sessionInput.title,
         projectPath,
         waggleConfigJson,
-        conversationInput.archived ? SQLITE_TRUE : SQLITE_FALSE,
-        conversationInput.updatedAt,
+        sessionInput.archived ? SQLITE_TRUE : SQLITE_FALSE,
+        sessionInput.updatedAt,
         lastMessageId,
         row.branchId,
         row.id,
@@ -211,15 +211,15 @@ function seedSessionRow(
     database.prepare('DELETE FROM session_nodes WHERE session_id = ?').run(row.id)
 
     let parentId: string | null = null
-    for (const [messageIndex, messageValue] of conversationInput.messages.entries()) {
+    for (const [messageIndex, messageValue] of sessionInput.messages.entries()) {
       if (!isRecord(messageValue)) {
-        throw new Error('Conversation message fixture must be an object')
+        throw new Error('Session message fixture must be an object')
       }
 
       const messageId = readStringField(messageValue, 'id')
       const role = readStringField(messageValue, 'role')
       const model = readOptionalStringField(messageValue, 'model')
-      const createdAt = readOptionalNumberField(messageValue, 'createdAt') ?? conversationInput.updatedAt
+      const createdAt = readOptionalNumberField(messageValue, 'createdAt') ?? sessionInput.updatedAt
       const metadata = readOptionalRecordField(messageValue, 'metadata')
       const parts = readParts(messageValue)
 
@@ -288,7 +288,7 @@ function seedSessionRow(
         MAIN_BRANCH_NAME,
         SQLITE_TRUE,
         row.createdAt,
-        conversationInput.updatedAt,
+        sessionInput.updatedAt,
       )
 
     database
@@ -314,7 +314,7 @@ function seedSessionRow(
         waggleConfigJson ? WAGGLE_FUTURE_MODE : STANDARD_FUTURE_MODE,
         null,
         waggleConfigJson,
-        conversationInput.updatedAt,
+        sessionInput.updatedAt,
         DEFAULT_BRANCH_UI_STATE_JSON,
       )
 
@@ -336,7 +336,7 @@ function seedSessionRow(
         row.id,
         EXPANDED_NODE_IDS_DEFAULT_JSON,
         TREE_SIDEBAR_EXPANDED,
-        conversationInput.updatedAt,
+        sessionInput.updatedAt,
       )
 
     database.exec('COMMIT')
@@ -346,31 +346,31 @@ function seedSessionRow(
   }
 }
 
-export async function seedSingleConversation(
+export async function seedSingleSession(
   userDataDir: string,
-  conversationInput: SeedConversationInput,
+  sessionInput: SeedSessionInput,
 ): Promise<void> {
   await waitForDatabase(userDataDir)
   const database = openDatabase(userDataDir)
   try {
     const row = insertSessionRow(database)
-    seedSessionRow(database, row, conversationInput, userDataDir)
+    seedSessionRow(database, row, sessionInput, userDataDir)
   } finally {
     database.close()
   }
 }
 
-export async function seedConversations(
+export async function seedSessions(
   userDataDir: string,
-  conversationInputs: readonly SeedConversationInput[],
+  sessionInputs: readonly SeedSessionInput[],
 ): Promise<void> {
   await waitForDatabase(userDataDir)
   const database = openDatabase(userDataDir)
 
   try {
-    for (const conversationInput of conversationInputs) {
+    for (const sessionInput of sessionInputs) {
       const row = insertSessionRow(database)
-      seedSessionRow(database, row, conversationInput, userDataDir)
+      seedSessionRow(database, row, sessionInput, userDataDir)
     }
   } finally {
     database.close()

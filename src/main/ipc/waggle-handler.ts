@@ -1,7 +1,7 @@
 import { decodeUnknownOrThrow } from '@shared/schema'
 import { agentSendPayloadSchema } from '@shared/schemas/validation'
 import type { AgentSendPayload } from '@shared/types/agent'
-import type { ConversationId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 import type { WaggleConfig } from '@shared/types/waggle'
 import { chooseBy } from '@shared/utils/decision'
 import * as Effect from 'effect/Effect'
@@ -17,91 +17,78 @@ import {
   emitWaggleTurnEvent,
   startStreamBuffer,
 } from '../utils/stream-bridge'
-import { activeWaggleRuns, cancelConversationRuns } from './active-agent-runs'
+import { activeWaggleRuns, cancelSessionRuns } from './active-agent-runs'
 import { emitErrorAndFinish } from './run-handler-utils'
 import { typedHandle, typedOn } from './typed-ipc'
 
 export function registerWaggleHandlers(): void {
   typedHandle(
     'agent:send-waggle-message',
-    (_event, conversationId: ConversationId, payload: AgentSendPayload, config: WaggleConfig) =>
+    (_event, sessionId: SessionId, payload: AgentSendPayload, config: WaggleConfig) =>
       Effect.gen(function* () {
         const validatedPayload = decodeUnknownOrThrow(agentSendPayloadSchema, payload)
         // ─── Cancel existing same-session work ──────────────
-        if (cancelConversationRuns(conversationId)) {
-          clearAgentPhase(conversationId)
-          clearStreamBuffer(conversationId)
+        if (cancelSessionRuns(sessionId)) {
+          clearAgentPhase(sessionId)
+          clearStreamBuffer(sessionId)
         }
 
         const abortController = new AbortController()
-        activeWaggleRuns.register(conversationId, abortController, {})
+        const runId = `waggle-${sessionId}`
+        activeWaggleRuns.register(sessionId, abortController, {})
 
         yield* Effect.ensuring(
           Effect.gen(function* () {
             const firstAgentModel = config.agents?.[0]?.model
             if (firstAgentModel) {
-              startStreamBuffer(conversationId, firstAgentModel, 'waggle')
+              startStreamBuffer(sessionId, firstAgentModel, 'waggle')
             }
 
-            emitTransportEvent(conversationId, {
+            emitTransportEvent(sessionId, {
               type: 'agent_start',
               timestamp: Date.now(),
-              runId: `waggle-${conversationId}`,
+              runId,
             })
 
             const result = yield* executeWaggleRun({
-              conversationId,
+              sessionId,
+              runId,
               payload: validatedPayload,
               config,
               signal: abortController.signal,
               onEvent: (event, meta) => {
-                emitWaggleTransportEvent(conversationId, event, meta)
+                emitWaggleTransportEvent(sessionId, event, meta)
                 if (event.type !== 'agent_end') {
-                  emitTransportEvent(conversationId, event)
+                  emitTransportEvent(sessionId, event)
                 }
               },
               onTurnEvent: (event) => {
-                emitWaggleTurnEvent(conversationId, event)
+                emitWaggleTurnEvent(sessionId, event)
               },
             })
 
             if ('assignedTitle' in result && result.assignedTitle) {
-              broadcastToWindows('conversations:title-updated', {
-                conversationId,
+              broadcastToWindows('sessions:title-updated', {
+                sessionId,
                 title: result.assignedTitle,
               })
             }
 
             chooseBy(result, 'outcome')
               .case('validation-error', (value) => {
-                emitErrorAndFinish(
-                  conversationId,
-                  value.message,
-                  value.code,
-                  `waggle-${conversationId}`,
-                )
+                emitErrorAndFinish(sessionId, value.message, value.code, runId)
               })
               .case('not-found', (value) => {
-                emitErrorAndFinish(
-                  conversationId,
-                  value.message,
-                  value.code,
-                  `waggle-${conversationId}`,
-                )
+                emitErrorAndFinish(sessionId, value.message, value.code, runId)
               })
               .case('no-project', (value) => {
-                emitErrorAndFinish(
-                  conversationId,
-                  value.message,
-                  value.code,
-                  `waggle-${conversationId}`,
-                )
+                emitErrorAndFinish(sessionId, value.message, value.code, runId)
               })
               .case('aborted', () => {
-                emitTransportEvent(conversationId, {
+                emitTransportEvent(sessionId, {
                   type: 'agent_end',
                   timestamp: Date.now(),
-                  runId: `waggle-${conversationId}`,
+                  runId,
                   reason: 'aborted',
                 })
               })
@@ -111,40 +98,35 @@ export function registerWaggleHandlers(): void {
                 ).length
                 if (assistantCount === 0 && value.lastError) {
                   const classified = classifyAgentError(new Error(value.lastError))
-                  emitErrorAndFinish(
-                    conversationId,
-                    classified.userMessage,
-                    classified.code,
-                    `waggle-${conversationId}`,
-                  )
+                  emitErrorAndFinish(sessionId, classified.userMessage, classified.code, runId)
                   return
                 }
 
-                emitTransportEvent(conversationId, {
+                emitTransportEvent(sessionId, {
                   type: 'agent_end',
                   timestamp: Date.now(),
-                  runId: `waggle-${conversationId}`,
+                  runId,
                   reason: 'stop',
                 })
               })
               .assertComplete()
           }),
           Effect.sync(() => {
-            if (activeWaggleRuns.deleteIfCurrent(conversationId, abortController)) {
-              clearStreamBuffer(conversationId)
-              emitRunCompleted(conversationId)
+            if (activeWaggleRuns.deleteIfCurrent(sessionId, abortController)) {
+              clearStreamBuffer(sessionId)
+              emitRunCompleted(sessionId)
             }
           }),
         )
       }),
   )
 
-  typedOn('agent:cancel-waggle', (_event, conversationId: ConversationId) =>
+  typedOn('agent:cancel-waggle', (_event, sessionId: SessionId) =>
     Effect.sync(() => {
-      if (activeWaggleRuns.cancel(conversationId)) {
-        clearAgentPhase(conversationId)
-        clearStreamBuffer(conversationId)
-        emitRunCompleted(conversationId)
+      if (activeWaggleRuns.cancel(sessionId)) {
+        clearAgentPhase(sessionId)
+        clearStreamBuffer(sessionId)
+        emitRunCompleted(sessionId)
       }
     }),
   )

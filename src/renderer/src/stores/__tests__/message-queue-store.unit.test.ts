@@ -1,10 +1,10 @@
-import type { ConversationId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 import type { ThinkingLevel } from '@shared/types/settings'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { selectQueue, useMessageQueueStore } from '../message-queue-store'
 
-const CONV_A = 'conv-a' as ConversationId
-const CONV_B = 'conv-b' as ConversationId
+const CONV_A = 'session-a' as SessionId
+const CONV_B = 'session-b' as SessionId
 const THINKING: ThinkingLevel = 'medium'
 
 function makePayload(text: string) {
@@ -17,7 +17,7 @@ describe('message-queue-store', () => {
   })
 
   describe('enqueue', () => {
-    it('adds a message to the queue for a conversation', () => {
+    it('adds a message to the queue for a session', () => {
       useMessageQueueStore.getState().enqueue(CONV_A, makePayload('hello'))
       const queue = useMessageQueueStore.getState().queues.get(CONV_A)
       expect(queue).toHaveLength(1)
@@ -33,7 +33,7 @@ describe('message-queue-store', () => {
       expect(queue?.[1].payload.text).toBe('second')
     })
 
-    it('isolates queues per conversation', () => {
+    it('isolates queues per session', () => {
       useMessageQueueStore.getState().enqueue(CONV_A, makePayload('a'))
       useMessageQueueStore.getState().enqueue(CONV_B, makePayload('b'))
       expect(useMessageQueueStore.getState().queues.get(CONV_A)).toHaveLength(1)
@@ -62,7 +62,7 @@ describe('message-queue-store', () => {
       expect(item).toBeNull()
     })
 
-    it('removes the conversation key when the last item is dequeued', () => {
+    it('removes the session key when the last item is dequeued', () => {
       useMessageQueueStore.getState().enqueue(CONV_A, makePayload('only'))
       useMessageQueueStore.getState().dequeue(CONV_A)
       expect(useMessageQueueStore.getState().queues.has(CONV_A)).toBe(false)
@@ -81,12 +81,12 @@ describe('message-queue-store', () => {
       expect(remaining?.[0].payload.text).toBe('keep')
     })
 
-    it('is a no-op when conversation has no queue', () => {
+    it('is a no-op when session has no queue', () => {
       useMessageQueueStore.getState().dismiss(CONV_A, 'nonexistent')
       expect(useMessageQueueStore.getState().queues.has(CONV_A)).toBe(false)
     })
 
-    it('removes the conversation key when last item is dismissed', () => {
+    it('removes the session key when last item is dismissed', () => {
       useMessageQueueStore.getState().enqueue(CONV_A, makePayload('only'))
       const queue = useMessageQueueStore.getState().queues.get(CONV_A)
       useMessageQueueStore.getState().dismiss(CONV_A, queue?.[0].id ?? '')
@@ -95,14 +95,14 @@ describe('message-queue-store', () => {
   })
 
   describe('clearQueue', () => {
-    it('removes all items for a conversation', () => {
+    it('removes all items for a session', () => {
       useMessageQueueStore.getState().enqueue(CONV_A, makePayload('a'))
       useMessageQueueStore.getState().enqueue(CONV_A, makePayload('b'))
       useMessageQueueStore.getState().clearQueue(CONV_A)
       expect(useMessageQueueStore.getState().queues.has(CONV_A)).toBe(false)
     })
 
-    it('does not affect other conversations', () => {
+    it('does not affect other sessions', () => {
       useMessageQueueStore.getState().enqueue(CONV_A, makePayload('a'))
       useMessageQueueStore.getState().enqueue(CONV_B, makePayload('b'))
       useMessageQueueStore.getState().clearQueue(CONV_A)
@@ -151,14 +151,14 @@ describe('message-queue-store', () => {
   })
 
   describe('selectQueue', () => {
-    it('returns the queue for a conversation', () => {
+    it('returns the queue for a session', () => {
       useMessageQueueStore.getState().enqueue(CONV_A, makePayload('test'))
       const selector = selectQueue(CONV_A)
       const result = selector(useMessageQueueStore.getState())
       expect(result).toHaveLength(1)
     })
 
-    it('returns stable empty array for null conversationId', () => {
+    it('returns stable empty array for null sessionId', () => {
       const selector = selectQueue(null)
       const a = selector(useMessageQueueStore.getState())
       const b = selector(useMessageQueueStore.getState())
@@ -166,7 +166,7 @@ describe('message-queue-store', () => {
       expect(a).toBe(b)
     })
 
-    it('returns stable empty array for unknown conversation', () => {
+    it('returns stable empty array for unknown session', () => {
       const selector = selectQueue(CONV_A)
       const a = selector(useMessageQueueStore.getState())
       const b = selector(useMessageQueueStore.getState())

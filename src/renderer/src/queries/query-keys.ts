@@ -1,11 +1,11 @@
-import type { ConversationId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 
 export const queryKeys = {
-  teams: ['teams'] as const,
-  archivedConversations: ['archivedConversations'] as const,
+  wagglePresets: (projectPath: string | null) => ['wagglePresets', projectPath] as const,
+  archivedSessions: ['archivedSessions'] as const,
   archivedSessionBranches: ['archivedSessionBranches'] as const,
-  conversations: ['conversations'] as const,
-  conversation: (id: ConversationId | null) => ['conversation', id] as const,
+  sessions: ['sessions'] as const,
+  session: (id: SessionId | null) => ['session', id] as const,
   skills: (projectPath: string | null) => ['skills', projectPath] as const,
   skillPreview: (projectPath: string | null, skillId: string | null) =>
     ['skillPreview', projectPath, skillId] as const,

@@ -1,5 +1,5 @@
 import type { AgentSendPayload } from '@shared/types/agent'
-import type { ConversationId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { useEffect, useRef, useState } from 'react'
 
@@ -22,37 +22,37 @@ interface OptimisticSteeredTurnReturn {
  */
 export function useOptimisticSteeredTurn(
   hydratedMessages: UIMessage[],
-  conversationId: ConversationId | null,
-  isConversationIdle: boolean,
+  sessionId: SessionId | null,
+  isSessionIdle: boolean,
   buildClientUserMessage: (payload: AgentSendPayload) => string,
   messagesRef: React.RefObject<UIMessage[]>,
 ): OptimisticSteeredTurnReturn {
   const [optimisticSteeredUserTurn, setOptimisticSteeredUserTurn] =
     useState<OptimisticSteeredUserTurn | null>(null)
 
-  const previousConversationIdRef = useRef(conversationId)
+  const previousSessionIdRef = useRef(sessionId)
 
-  // Clear optimistic turn on conversation switch
+  // Clear optimistic turn on session switch
   useEffect(() => {
-    if (previousConversationIdRef.current === conversationId) {
+    if (previousSessionIdRef.current === sessionId) {
       return
     }
-    previousConversationIdRef.current = conversationId
+    previousSessionIdRef.current = sessionId
     setOptimisticSteeredUserTurn(null)
-  }, [conversationId])
+  }, [sessionId])
 
   // Clear optimistic turn when real message arrives
   useEffect(() => {
     if (!optimisticSteeredUserTurn) {
       return
     }
-    if (!isConversationIdle) {
+    if (!isSessionIdle) {
       return
     }
     if (hasMatchingSteeredUserTurn(hydratedMessages, optimisticSteeredUserTurn)) {
       setOptimisticSteeredUserTurn(null)
     }
-  }, [hydratedMessages, isConversationIdle, optimisticSteeredUserTurn])
+  }, [hydratedMessages, isSessionIdle, optimisticSteeredUserTurn])
 
   const visibleMessages = insertOptimisticSteeredUserTurn(
     hydratedMessages,

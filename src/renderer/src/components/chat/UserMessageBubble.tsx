@@ -1,5 +1,5 @@
 import type { UIMessage } from '@shared/types/chat-ui'
-import { Check, Copy, FileDown, FileText, GitBranch, Image } from 'lucide-react'
+import { Check, Copy, FileDown, FileText, GitBranch, GitFork, Image } from 'lucide-react'
 import { Children, cloneElement, isValidElement, type ReactNode } from 'react'
 import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
@@ -115,9 +115,14 @@ function AttachmentChip({ name }: { readonly name: string }) {
 interface UserMessageBubbleProps {
   message: UIMessage
   onBranchFromMessage?: (messageId: string) => void
+  onForkFromMessage?: (messageId: string) => void
 }
 
-export function UserMessageBubble({ message, onBranchFromMessage }: UserMessageBubbleProps) {
+export function UserMessageBubble({
+  message,
+  onBranchFromMessage,
+  onForkFromMessage,
+}: UserMessageBubbleProps) {
   const { copied, copy } = useCopyToClipboard()
 
   const textParts = message.parts.filter(
@@ -167,6 +172,17 @@ export function UserMessageBubble({ message, onBranchFromMessage }: UserMessageB
               className="flex items-center gap-1 text-[12px] text-text-muted hover:text-text-secondary cursor-pointer"
             >
               <GitBranch className="h-3 w-3" />
+            </button>
+          ) : null}
+
+          {onForkFromMessage ? (
+            <button
+              type="button"
+              title="Fork to new session"
+              onClick={() => onForkFromMessage(message.id)}
+              className="flex cursor-pointer items-center gap-1 text-[12px] text-text-muted hover:text-text-secondary"
+            >
+              <GitFork className="h-3 w-3" />
             </button>
           ) : null}
 

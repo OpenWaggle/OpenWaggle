@@ -10,13 +10,14 @@ import { PiProviderOAuthLive } from './adapters/pi/pi-provider-oauth-service'
 import { PiProviderProbeLive } from './adapters/pi/pi-provider-probe-adapter'
 import { ProviderServiceLive } from './adapters/pi/pi-provider-service'
 import { PiSessionTreePreferencesLive } from './adapters/pi/pi-session-tree-preferences-service'
+import { SettingsWagglePresetsRepositoryLive } from './adapters/settings-waggle-presets-repository'
 import { SqliteSessionProjectionRepositoryLive } from './adapters/sqlite-session-projection-repository'
 import { SqliteSessionRepositoryLive } from './adapters/sqlite-session-repository'
-import { SqliteTeamsRepositoryLive } from './adapters/sqlite-teams-repository'
 import { FilesystemStandardsLive } from './adapters/standards-adapter'
 import { AppDatabaseLive } from './services/database-service'
 import { AppLogger } from './services/logger-service'
 import { SettingsService } from './services/settings-service'
+import { setStoreEffectRunner } from './store/store-runtime'
 
 const AppLayer = Layer.mergeAll(
   NodeContext.layer,
@@ -32,7 +33,7 @@ const AppLayer = Layer.mergeAll(
   PiProviderOAuthLive,
   ProviderServiceLive,
   PiSessionTreePreferencesLive,
-  SqliteTeamsRepositoryLive,
+  SettingsWagglePresetsRepositoryLive,
 )
 
 function makeAppRuntime() {
@@ -41,6 +42,8 @@ function makeAppRuntime() {
 
 let currentRuntime = makeAppRuntime()
 
+installStoreEffectRunner()
+
 export type AppServices =
   typeof AppLayer extends Layer.Layer<infer R, infer _E, infer _RIn> ? R : never
 export type AppRuntimeError =
@@ -48,6 +51,10 @@ export type AppRuntimeError =
 
 function getAppRuntime() {
   return currentRuntime
+}
+
+function installStoreEffectRunner(): void {
+  setStoreEffectRunner((effect) => getAppRuntime().runPromise(effect))
 }
 
 export async function initializeAppRuntime(): Promise<void> {
@@ -61,6 +68,7 @@ export async function disposeAppRuntime(): Promise<void> {
 export async function resetAppRuntimeForTests(): Promise<void> {
   await disposeAppRuntime()
   currentRuntime = makeAppRuntime()
+  installStoreEffectRunner()
 }
 
 export function runAppEffect<A, E>(effect: EffectType<A, E, AppServices>): Promise<A> {

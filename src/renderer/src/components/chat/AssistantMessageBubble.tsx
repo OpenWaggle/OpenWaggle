@@ -1,12 +1,10 @@
-import type { ConversationId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { WaggleAgentColor } from '@shared/types/waggle'
 import { chooseBy } from '@shared/utils/decision'
 import { GitBranch } from 'lucide-react'
 import React from 'react'
-import { AGENT_BORDER_LEFT } from '@/lib/agent-colors'
-import { cn } from '@/lib/cn'
 import { AgentLabel } from './AgentLabel'
 import { CollapsibleDetails } from './CollapsibleDetails'
 import { useMessageCollapse } from './hooks/useMessageCollapse'
@@ -54,8 +52,9 @@ interface AssistantMessageBubbleProps {
   isStreaming?: boolean
   isRunActive?: boolean
   assistantModel?: SupportedModelId
-  conversationId: ConversationId | null
+  sessionId: SessionId | null
   waggle?: WaggleInfo
+  hideAgentLabel?: boolean
   onBranchFromMessage?: (messageId: string) => void
 }
 
@@ -64,13 +63,17 @@ export function AssistantMessageBubble({
   isStreaming,
   isRunActive,
   assistantModel,
-  conversationId,
+  sessionId,
   waggle,
+  hideAgentLabel,
   onBranchFromMessage,
 }: AssistantMessageBubbleProps) {
   const collapse = useMessageCollapse(message, isStreaming, isRunActive, !!waggle)
 
-  const toolResults = new Map<string, { content: unknown; state: string; error?: string }>()
+  const toolResults = new Map<
+    string,
+    { content: unknown; state: string; sourceMessageId?: string; error?: string }
+  >()
   const messageToolCallIds = new Set<string>()
   for (const part of message.parts) {
     if (part.type === 'tool-call') {
@@ -82,36 +85,44 @@ export function AssistantMessageBubble({
       toolResults.set(part.toolCallId, {
         content: part.content,
         state: part.state,
+        sourceMessageId: part.sourceMessageId,
         error: part.error,
       })
     }
   }
 
   return (
-    <div
-      className={cn(
-        'group/assistant-msg relative w-full',
-        waggle && `border-l-2 pl-3 ${AGENT_BORDER_LEFT[waggle.agentColor]}`,
-      )}
-    >
+    <div className="group/assistant-msg relative w-full">
+      {hideAgentLabel && onBranchFromMessage ? (
+        <button
+          type="button"
+          title="Branch from message"
+          onClick={() => onBranchFromMessage(message.id)}
+          className="absolute right-0 top-0 opacity-0 group-hover/assistant-msg:opacity-100 transition-opacity text-text-muted hover:text-text-secondary"
+        >
+          <GitBranch className="h-3.5 w-3.5" />
+        </button>
+      ) : null}
       <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between gap-2">
-          <AgentLabel assistantModel={assistantModel} waggle={waggle} />
-          {onBranchFromMessage ? (
-            <button
-              type="button"
-              title="Branch from message"
-              onClick={() => onBranchFromMessage(message.id)}
-              className="opacity-0 group-hover/assistant-msg:opacity-100 transition-opacity text-text-muted hover:text-text-secondary"
-            >
-              <GitBranch className="h-3.5 w-3.5" />
-            </button>
-          ) : null}
-        </div>
+        {!hideAgentLabel ? (
+          <div className="flex items-center justify-between gap-2">
+            <AgentLabel assistantModel={assistantModel} waggle={waggle} />
+            {onBranchFromMessage ? (
+              <button
+                type="button"
+                title="Branch from message"
+                onClick={() => onBranchFromMessage(message.id)}
+                className="ml-auto opacity-0 group-hover/assistant-msg:opacity-100 transition-opacity text-text-muted hover:text-text-secondary"
+              >
+                <GitBranch className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
+          </div>
+        ) : null}
 
         {message.parts.map((part, i) => {
           const divider =
-            collapse.canCollapseToSynthesis && i === collapse.lastRenderableTextPartIndex ? (
+            collapse.canCollapseDetails && i === collapse.lastRenderableTextPartIndex ? (
               <CollapsibleDetails
                 key={`${message.id}-divider`}
                 showDetails={collapse.showDetails}
@@ -138,8 +149,9 @@ export function AssistantMessageBubble({
                       key={`tool-${value.id}`}
                       part={value}
                       toolResults={toolResults}
-                      conversationId={conversationId}
+                      sessionId={sessionId}
                       isStreaming={!!isStreaming}
+                      onBranchFromMessage={onBranchFromMessage}
                     />
                   ))
                   .case('thinking', (value) =>

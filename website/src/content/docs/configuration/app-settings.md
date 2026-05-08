@@ -12,7 +12,7 @@ Open Settings from the sidebar gear icon.
 | Section | Description |
 |---------|-------------|
 | **General** | General application settings. |
-| **Waggle Mode** | Multi-agent team configuration and presets. |
+| **Waggle Mode** | Multi-agent Waggle configuration and presets. |
 | **Connections** | Pi-backed API-key and OAuth provider authentication, plus enabled model selection. |
 | **Archived items** | Restore archived sessions and non-main session branches, or permanently delete archived sessions. |
 
@@ -32,7 +32,7 @@ The composer only shows enabled models.
 
 ## Data Storage
 
-OpenWaggle stores app-owned settings, sessions, session projections, and team presets in `openwaggle.db` under Electron's user-data directory.
+OpenWaggle stores app-owned settings, sessions, and session projections in `openwaggle.db` under Electron's user-data directory. Global Waggle presets live in `waggle-presets.json` under the same user-data directory, and project Waggle presets live in `.openwaggle/settings.json`.
 
 Provider credentials are resolved by Pi auth storage, environment variables, or project/custom Pi provider configuration. Pi's default auth storage path is `~/.pi/agent/auth.json`.
 

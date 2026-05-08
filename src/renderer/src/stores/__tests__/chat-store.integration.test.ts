@@ -1,31 +1,31 @@
-import { ConversationId } from '@shared/types/brand'
-import type { Conversation } from '@shared/types/conversation'
+import { SessionId } from '@shared/types/brand'
+import type { SessionDetail } from '@shared/types/session'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useChatStore } from '../chat-store'
 
 /**
- * Integration tests for the renderer conversation read model.
- * Full conversations are cached locally so session navigation can select the
+ * Integration tests for the renderer session read model.
+ * Full sessions are cached locally so session navigation can select the
  * target transcript synchronously without waiting on per-click IPC.
  */
 
 const mockApi = {
-  listFullConversations: vi.fn(),
+  listSessionDetails: vi.fn(),
   listSessions: vi.fn(async () => []),
   getSessionTree: vi.fn(async () => null),
-  getConversation: vi.fn(),
-  createConversation: vi.fn(),
-  deleteConversation: vi.fn(),
+  getSessionDetail: vi.fn(),
+  createSession: vi.fn(),
+  deleteSession: vi.fn(),
 }
 
 vi.mock('@/lib/ipc', () => ({
   api: {
-    listFullConversations: (...args: unknown[]) => mockApi.listFullConversations(...args),
+    listSessionDetails: (...args: unknown[]) => mockApi.listSessionDetails(...args),
     listSessions: (...args: unknown[]) => mockApi.listSessions(...args),
     getSessionTree: (...args: unknown[]) => mockApi.getSessionTree(...args),
-    getConversation: (...args: unknown[]) => mockApi.getConversation(...args),
-    createConversation: (...args: unknown[]) => mockApi.createConversation(...args),
-    deleteConversation: (...args: unknown[]) => mockApi.deleteConversation(...args),
+    getSessionDetail: (...args: unknown[]) => mockApi.getSessionDetail(...args),
+    createSession: (...args: unknown[]) => mockApi.createSession(...args),
+    deleteSession: (...args: unknown[]) => mockApi.deleteSession(...args),
   },
 }))
 
@@ -40,15 +40,15 @@ vi.mock('@/lib/logger', () => ({
 
 function resetStore(): void {
   useChatStore.setState({
-    conversations: [],
-    conversationById: new Map<ConversationId, Conversation>(),
-    activeConversationId: null,
-    activeConversation: null,
+    sessions: [],
+    sessionById: new Map<SessionId, SessionDetail>(),
+    activeSessionId: null,
+    activeSession: null,
     error: null,
   })
 }
 
-function makeConversation(id: ConversationId, title = 'Session'): Conversation {
+function makeSessionDetail(id: SessionId, title = 'Session'): SessionDetail {
   return {
     id,
     title,
@@ -69,61 +69,61 @@ describe('useChatStore integration', () => {
     resetStore()
   })
 
-  it('starts with null activeConversationId', () => {
-    expect(useChatStore.getState().activeConversationId).toBeNull()
+  it('starts with null activeSessionId', () => {
+    expect(useChatStore.getState().activeSessionId).toBeNull()
   })
 
-  it('creates a conversation and marks it active', async () => {
-    const conv = makeConversation(ConversationId('conv-1'), 'New session')
-    mockApi.createConversation.mockResolvedValue(conv)
+  it('creates a session and marks it active', async () => {
+    const session = makeSessionDetail(SessionId('session-1'), 'New session')
+    mockApi.createSession.mockResolvedValue(session)
 
-    const id = await useChatStore.getState().createConversation('/repo')
+    const id = await useChatStore.getState().createSession('/repo')
 
-    expect(id).toBe('conv-1')
-    expect(useChatStore.getState().activeConversationId).toBe('conv-1')
-    expect(mockApi.createConversation).toHaveBeenCalledWith('/repo')
+    expect(id).toBe('session-1')
+    expect(useChatStore.getState().activeSessionId).toBe('session-1')
+    expect(mockApi.createSession).toHaveBeenCalledWith('/repo')
   })
 
-  it('sets activeConversationId synchronously', () => {
-    const id = ConversationId('conv-2')
-    const conversation = makeConversation(id)
-    useChatStore.getState().upsertConversation(conversation)
+  it('sets activeSessionId synchronously', () => {
+    const id = SessionId('session-2')
+    const session = makeSessionDetail(id)
+    useChatStore.getState().upsertSession(session)
 
-    useChatStore.getState().setActiveConversationId(id)
+    useChatStore.getState().setActiveSessionId(id)
 
-    expect(useChatStore.getState().activeConversationId).toBe(id)
-    expect(useChatStore.getState().activeConversation).toBe(conversation)
+    expect(useChatStore.getState().activeSessionId).toBe(id)
+    expect(useChatStore.getState().activeSession).toBe(session)
   })
 
-  it('startDraftSession clears activeConversationId', () => {
-    useChatStore.getState().setActiveConversationId(ConversationId('conv-3'))
+  it('startDraftSession clears activeSessionId', () => {
+    useChatStore.getState().setActiveSessionId(SessionId('session-3'))
     useChatStore.getState().startDraftSession()
-    expect(useChatStore.getState().activeConversationId).toBeNull()
+    expect(useChatStore.getState().activeSessionId).toBeNull()
   })
 
-  it('loads full conversations and switches between them without fetching on click', async () => {
-    const first = makeConversation(ConversationId('conv-first'), 'First')
-    const second = makeConversation(ConversationId('conv-second'), 'Second')
-    mockApi.listFullConversations.mockResolvedValue([first, second])
+  it('loads full sessions and switches between them without fetching on click', async () => {
+    const first = makeSessionDetail(SessionId('session-first'), 'First')
+    const second = makeSessionDetail(SessionId('session-second'), 'Second')
+    mockApi.listSessionDetails.mockResolvedValue([first, second])
 
-    await useChatStore.getState().loadConversations()
-    useChatStore.getState().setActiveConversationId(second.id)
+    await useChatStore.getState().loadSessions()
+    useChatStore.getState().setActiveSessionId(second.id)
 
-    expect(useChatStore.getState().conversations.map((conversation) => conversation.id)).toEqual([
+    expect(useChatStore.getState().sessions.map((session) => session.id)).toEqual([
       first.id,
       second.id,
     ])
-    expect(useChatStore.getState().activeConversation).toBe(second)
-    expect(mockApi.getConversation).not.toHaveBeenCalled()
+    expect(useChatStore.getState().activeSession).toBe(second)
+    expect(mockApi.getSessionDetail).not.toHaveBeenCalled()
   })
 
-  it('throws and preserves state on createConversation failure', async () => {
-    mockApi.createConversation.mockRejectedValue(new Error('quota exceeded'))
+  it('throws and preserves state on createSession failure', async () => {
+    mockApi.createSession.mockRejectedValue(new Error('quota exceeded'))
 
-    await expect(useChatStore.getState().createConversation('/tmp/repo')).rejects.toThrow(
+    await expect(useChatStore.getState().createSession('/tmp/repo')).rejects.toThrow(
       'quota exceeded',
     )
 
-    expect(useChatStore.getState().activeConversationId).toBeNull()
+    expect(useChatStore.getState().activeSessionId).toBeNull()
   })
 })

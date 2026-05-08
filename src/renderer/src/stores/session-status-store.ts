@@ -1,27 +1,27 @@
-import type { ConversationId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 import { type SessionStatus, TERMINAL_STATUSES } from '@shared/types/session-status'
 import { create } from 'zustand'
 
 interface SessionStatusState {
-  statuses: Map<ConversationId, SessionStatus>
+  statuses: Map<SessionId, SessionStatus>
   /** When a terminal status (completed/error) was recorded */
-  completedAt: Map<ConversationId, number>
+  completedAt: Map<SessionId, number>
   /** When the user last visited (navigated to) a session */
-  lastVisitedAt: Map<ConversationId, number>
+  lastVisitedAt: Map<SessionId, number>
 
-  setStatus: (id: ConversationId, status: SessionStatus) => void
-  clearStatus: (id: ConversationId) => void
-  getStatus: (id: ConversationId) => SessionStatus
-  markVisited: (id: ConversationId) => void
-  markUnread: (id: ConversationId) => void
+  setStatus: (id: SessionId, status: SessionStatus) => void
+  clearStatus: (id: SessionId) => void
+  getStatus: (id: SessionId) => SessionStatus
+  markVisited: (id: SessionId) => void
+  markUnread: (id: SessionId) => void
 }
 
 export const useSessionStatusStore = create<SessionStatusState>((set, get) => ({
-  statuses: new Map<ConversationId, SessionStatus>(),
-  completedAt: new Map<ConversationId, number>(),
-  lastVisitedAt: new Map<ConversationId, number>(),
+  statuses: new Map<SessionId, SessionStatus>(),
+  completedAt: new Map<SessionId, number>(),
+  lastVisitedAt: new Map<SessionId, number>(),
 
-  setStatus(id: ConversationId, status: SessionStatus) {
+  setStatus(id: SessionId, status: SessionStatus) {
     set((state) => {
       const next: Partial<SessionStatusState> = {}
 
@@ -57,7 +57,7 @@ export const useSessionStatusStore = create<SessionStatusState>((set, get) => ({
     })
   },
 
-  clearStatus(id: ConversationId) {
+  clearStatus(id: SessionId) {
     set((state) => {
       if (!state.statuses.has(id)) return state
       const next = new Map(state.statuses)
@@ -68,11 +68,11 @@ export const useSessionStatusStore = create<SessionStatusState>((set, get) => ({
     })
   },
 
-  getStatus(id: ConversationId): SessionStatus {
+  getStatus(id: SessionId): SessionStatus {
     return get().statuses.get(id) ?? 'idle'
   },
 
-  markVisited(id: ConversationId) {
+  markVisited(id: SessionId) {
     set((state) => {
       const nextVisited = new Map(state.lastVisitedAt)
       nextVisited.set(id, Date.now())
@@ -80,7 +80,7 @@ export const useSessionStatusStore = create<SessionStatusState>((set, get) => ({
     })
   },
 
-  markUnread(id: ConversationId) {
+  markUnread(id: SessionId) {
     set((state) => {
       const completed = state.completedAt.get(id) ?? Date.now()
       const nextVisited = new Map(state.lastVisitedAt)

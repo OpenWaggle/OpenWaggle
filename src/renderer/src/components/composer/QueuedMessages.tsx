@@ -1,9 +1,9 @@
-import type { ConversationId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 import { ArrowUp, Timer, Trash2 } from 'lucide-react'
 import { selectQueue, useMessageQueueStore } from '@/stores/message-queue-store'
 
 interface QueuedMessagesProps {
-  readonly conversationId: ConversationId | null
+  readonly sessionId: SessionId | null
   readonly onSteer: (messageId: string) => Promise<void>
   readonly isStreaming: boolean
   readonly isCompacting?: boolean
@@ -17,15 +17,15 @@ interface QueuedMessagesProps {
  * than a separate full-width panel.
  */
 export function QueuedMessages({
-  conversationId,
+  sessionId,
   onSteer,
   isStreaming,
   isCompacting = false,
 }: QueuedMessagesProps) {
-  const queue = useMessageQueueStore(selectQueue(conversationId))
+  const queue = useMessageQueueStore(selectQueue(sessionId))
   const dismiss = useMessageQueueStore((s) => s.dismiss)
 
-  if (queue.length === 0 || !conversationId) return null
+  if (queue.length === 0 || !sessionId) return null
 
   return (
     <div className="mx-auto flex w-[calc(100%-28px)] flex-col gap-1.5 rounded-t-[var(--radius-panel)] border-x border-t border-border-light bg-bg-secondary p-[8px_10px_6px_10px] opacity-60">
@@ -60,7 +60,7 @@ export function QueuedMessages({
               )}
               <button
                 type="button"
-                onClick={() => dismiss(conversationId, item.id)}
+                onClick={() => dismiss(sessionId, item.id)}
                 className="rounded-[5px] p-[4px_5px]"
                 title="Dismiss"
               >

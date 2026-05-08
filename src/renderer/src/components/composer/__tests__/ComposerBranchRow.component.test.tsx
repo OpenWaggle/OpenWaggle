@@ -1,10 +1,10 @@
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useComposerActionStore } from '@/stores/composer-action-store'
-import { useComposerStore } from '@/stores/composer-store'
-import { useGitStore } from '@/stores/git-store'
-import { usePreferencesStore } from '@/stores/preferences-store'
+import { useComposerActionStore } from '../../../stores/composer-action-store'
+import { useComposerStore } from '../../../stores/composer-store'
+import { useGitStore } from '../../../stores/git-store'
+import { usePreferencesStore } from '../../../stores/preferences-store'
 import { ComposerBranchRow } from '../ComposerBranchRow'
 
 vi.mock('@/lib/ipc', () => ({

@@ -1,4 +1,4 @@
-import type { TeamConfigId } from './brand'
+import type { WagglePresetId } from './brand'
 import type { SupportedModelId } from './llm'
 
 export const WAGGLE_COLLABORATION_MODES = ['sequential'] as const
@@ -28,8 +28,8 @@ export interface WaggleConfig {
   readonly stop: WaggleStopConfig
 }
 
-export interface WaggleTeamPreset {
-  readonly id: TeamConfigId
+export interface WagglePreset {
+  readonly id: WagglePresetId
   readonly name: string
   readonly description: string
   readonly config: WaggleConfig
@@ -81,7 +81,6 @@ export interface WaggleStreamMetadata {
   readonly agentModel: SupportedModelId
   readonly turnNumber: number
   readonly collaborationMode: WaggleCollaborationMode
-  readonly isSynthesis?: boolean
   readonly sessionId?: string
 }
 
@@ -91,7 +90,6 @@ export interface WaggleMessageMetadata {
   readonly agentColor: WaggleAgentColor
   readonly agentModel?: SupportedModelId
   readonly turnNumber: number
-  readonly isSynthesis?: boolean
   /** Unique ID for this waggle session. Groups turns that belong to the same waggle run. */
   readonly sessionId?: string
 }
@@ -118,5 +116,4 @@ export type WaggleTurnEvent =
       readonly reason: string
       readonly totalTurns: number
     }
-  | { readonly type: 'synthesis-start' }
   | { readonly type: 'collaboration-stopped'; readonly reason: string }

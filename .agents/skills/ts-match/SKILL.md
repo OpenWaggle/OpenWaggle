@@ -39,9 +39,12 @@ Keep simple `if` conditions when a normal condition is clearer.
 - Import only public APIs from `@diegogbrisa/ts-match` or documented package subpaths.
 - Never import from `src`, `dist`, or internal files in user code.
 - Do not invent helpers. Use only APIs listed here or in the README.
-- Prefer `.with(...).exhaustive()` for closed unions.
+- Prefer chained `.with(...).exhaustive()` for closed unions in normal application code.
+- Use variadic `.with(pattern1, pattern2, handler)` or `.with(tag1, tag2, handler)` as the default way to share one handler across a small number of equivalent patterns/tags.
+- Do not convert an otherwise simple `.with(...)` chain to `.cases((group) => [...])` just because one branch has shared tags.
 - Use `.otherwise(...)` only when fallback behavior is intentional.
-- Use `match.promise(...)` or `matchBy.promise(...)` when the source may be promise-backed, handlers may return promises, or callers need one normalized promise.
+- Use `match.promise(...)` or `matchBy.promise(...)` primarily when the matched input itself is promise-backed or may be promise-backed. Promise builders resolve the input internally; handlers receive `Awaited<TInput>`.
+- Do not choose promise builders merely because branch handlers are async. If the input is already resolved, use plain `match(...)` or `matchBy(...)`; awaiting the terminal result is fine when handlers return promises.
 - Do not use unsafe TypeScript casts. Do not add const assertions to inline ts-match arrays just to make inference work.
 - Do not use broad `any` in examples or generated code.
 - Keep examples real and inference-first: no fake `const input: unknown = ...`, no direct `JSON.parse(...)` typed as trusted data, no assertion-style endings, and no return/result annotations unless they are genuinely needed.
@@ -104,7 +107,7 @@ const displayName = match(profile)
   .otherwise(() => 'Guest')
 ```
 
-Use promise builders when the input may be async or when terminals should return promises:
+Use promise builders when the input itself may be async. Pass the promise-producing expression directly so the builder resolves it and matches the resolved value:
 
 ```ts
 const status = await matchBy
@@ -113,7 +116,7 @@ const status = await matchBy
   .otherwise(() => ({ type: 'needsReview' }))
 ```
 
-Use sync `match(promise)` only if you intentionally want to match the `Promise` object itself.
+Use plain `match(...)` / `matchBy(...)` when the input is already resolved, even if one or more handlers return promises. Use sync `match(promise)` only if you intentionally want to match the `Promise` object itself.
 
 ## `match(value)` use cases
 
@@ -240,7 +243,9 @@ React is only an example consumer; do not imply `ts-match` depends on React. Pre
 
 ## `match.promise(valueOrPromise)` use cases
 
-Promise builders accept `T | PromiseLike<T>`, including thenables. Handlers receive `Awaited<TInput>`.
+Promise builders are for promise-backed inputs. They accept `T | PromiseLike<T>`, including thenables, resolve the input internally, and pass `Awaited<TInput>` to handlers. Prefer passing the promise-producing expression directly instead of awaiting into a temporary value and then matching.
+
+Do not use `match.promise(...)` solely because branch handlers return promises. If the matched value is already resolved, use `match(value)` and await the terminal result when needed.
 
 ```ts
 type ProfileResponse =
@@ -271,7 +276,7 @@ const result = match
   .exhaustive()
 ```
 
-Handler return values are awaited and unwrapped, so promise-returning and plain branches produce one terminal promise.
+Handler return values are awaited and unwrapped, so promise-returning and plain branches produce one terminal promise. This is supported behavior, but it is not by itself a reason to choose `match.promise(...)` over `match(...)` when the matched input is already resolved.
 
 ### Promise safe terminals
 
@@ -346,7 +351,7 @@ Autocomplete suggests finite tag-like paths. Broad scalar paths such as arbitrar
 
 ### `.with(...tags, handler)`
 
-Use `.with(...)` for inference-friendly chained dispatch. One or more tags can share a handler.
+Use chained `.with(...)` for normal application dispatch. One or more tags can share a handler, and variadic `.with(tag1, tag2, handler)` is the default grouping mechanism for simple same-handler cases.
 
 ```ts
 const status = matchBy(event, 'type')
@@ -354,6 +359,8 @@ const status = matchBy(event, 'type')
   .with('stop', (event) => `stopped:${event.reason}`)
   .exhaustive()
 ```
+
+Keep one-to-one branches as one `.with(tag, handler)` each. Do not rewrite a readable `.with(...)` chain into `.cases((group) => [...])` only to use `group(...)` for one repeated handler.
 
 ### `.cases({...})` object maps
 
@@ -371,17 +378,17 @@ Avoid object maps for `null`, `undefined`, or collisions like `1` and `'1'`; use
 
 ### `.cases((group) => [...])` callback groups
 
-Use callback groups when several tags share a handler and you want contextual narrowed handler inference.
+Use callback groups when case-list syntax is materially clearer than chained `.with(...)`: many branches are grouped, cases are generated or reused, tuple/object entries are needed, or callback-local grouped inference is specifically needed. Do not use `group(tag, handler)` for ordinary one-to-one cases that read better as `.with(tag, handler)`.
 
 ```ts
 const status = matchBy(event, 'type').cases((group) => [
   group('start', 'resume', (event) => `active:${event.id}`),
-  group('stop', (event) => `stopped:${event.reason}`),
-  group('error', (event) => `error:${event.message}`),
+  group('stop', 'pause', (event) => `inactive:${event.reason}`),
+  group('error', 'timeout', (event) => `error:${event.message}`),
 ])
 ```
 
-This form supports single-tag groups, variadic multi-tag groups, and array-form groups.
+This form supports single-tag groups, variadic multi-tag groups, and array-form groups. Prefer chained `.with(...)` when most entries would be single-tag groups.
 
 ### `.cases([...])` tuple/grouped entry arrays
 
@@ -451,7 +458,7 @@ const review = matchBy(cartAction, 'type')
   )
 ```
 
-Use `.partial((group) => [...])` when multiple partial tags share one handler and you want annotation-free narrowed parameters. Prefer variadic callback groups like `group('addItem', 'updateQuantity', handler)` while typing because they provide the best tag autocomplete; array groups like `group(['addItem', 'updateQuantity'], handler)` remain valid without `as const` when the grouped tag list reads better.
+Use `.partial((group) => [...])` only for partial tag handling followed by `.otherwise(...)`, and only when the callback group form is clearer than chained `.with(...).otherwise(...)`. `partial` is not required to share one handler; for simple grouped tags, prefer variadic `.with(tag1, tag2, handler)`. Prefer variadic callback groups like `group('addItem', 'updateQuantity', handler)` while typing because they provide the best tag autocomplete; array groups like `group(['addItem', 'updateQuantity'], handler)` remain valid without `as const` when the grouped tag list reads better.
 
 ## `matchBy.promise(valueOrPromise, path)` use cases
 
@@ -497,16 +504,25 @@ All synchronous `matchBy` case shapes are available on promise builders; show on
 
 ## `group(...)` use cases
 
-Prefer callback `group` for inferred handler parameters:
+Prefer variadic `.with(...)` before reaching for `group(...)`:
+
+```ts
+const status = matchBy(event, 'type')
+  .with('start', 'resume', (event) => `active:${event.id}`)
+  .with('stop', (event) => `stopped:${event.reason}`)
+  .exhaustive()
+```
+
+Use callback `group` when case-list syntax is genuinely clearer or needed for generated/reusable/group-heavy case sets:
 
 ```ts
 const status = matchBy(event, 'type').cases((group) => [
   group('start', 'resume', (event) => `active:${event.id}`),
-  group('stop', (event) => `stopped:${event.reason}`),
+  group('stop', 'pause', (event) => `inactive:${event.reason}`),
 ])
 ```
 
-Use exported `group(...)` for reusable prebuilt groups, especially when handlers do not need narrowed parameters or are explicitly annotated:
+Do not use `group(...)` for one-to-one cases in normal application code. Use exported `group(...)` for reusable prebuilt groups, especially when handlers do not need narrowed parameters or are explicitly annotated:
 
 ```ts
 const statusCases = [group(['start', 'resume'], () => 'active'), group('stop', () => 'inactive')]
@@ -607,7 +623,7 @@ Common diagnostic fixes:
 - `ts-match: P.exclude(pattern) cannot contain P.select(...)` — remove the selection or move it outside the excluded pattern.
 - `ts-match: invalid P.rest(...) usage` — use `P.rest(...)` only as the final tuple pattern item.
 
-If grouped-case handler inference is weak, prefer callback-local `.cases((group) => [...])` or `.partial((group) => [...])` so the handler is typed from the active `matchBy` path. Use variadic callback groups (`group('a', 'b', handler)`) when editor tag suggestions matter; array-form groups (`group(['a', 'b'], handler)`) are supported without `as const` but may not get the same in-array literal completions. Use exported `group(...)` for reusable groups whose handlers do not need contextual variant inference.
+If grouped-case handler inference is weak and variadic `.with(tag1, tag2, handler)` cannot express the needed structure cleanly, prefer callback-local `.cases((group) => [...])` or `.partial((group) => [...])` so the handler is typed from the active `matchBy` path. Use variadic callback groups (`group('a', 'b', handler)`) when editor tag suggestions matter; array-form groups (`group(['a', 'b'], handler)`) are supported without `as const` but may not get the same in-array literal completions. Use exported `group(...)` for reusable groups whose handlers do not need contextual variant inference.
 
 ## Important limitations
 
@@ -628,9 +644,11 @@ If grouped-case handler inference is weak, prefer callback-local `.cases((group)
 - Importing internal files.
 - Using undocumented helper aliases.
 - Adding casts to force handler types instead of changing the pattern, path, or callback `group` shape.
-- Using sync `match` with promise-returning handlers when callers expect one normalized promise.
+- Using `match.promise(...)` or `matchBy.promise(...)` only because handlers are async while the matched input is already resolved; use plain `match(...)` / `matchBy(...)` and await the terminal result instead.
 - Awaiting promise-producing sources before `match.promise(...)` or `matchBy.promise(...)` when passing the source directly would keep inference and error handling simpler.
 - Using inline `.cases({...})` inside hot loops.
+- Converting a simple chained `.with(...)` matcher into `.cases((group) => [...])` just to group one branch.
+- Using `group(tag, handler)` for one-to-one cases where `.with(tag, handler)` is simpler.
 - Recommending hoisted case maps that require manual handler annotations as normal user-facing code.
 - Using object-map `.cases({...})` for `null`, `undefined`, bare `__proto__:` syntax, or normalized key collisions.
 - Selecting inside repeated contexts such as arrays or records.
@@ -644,12 +662,14 @@ Before introducing or modifying ts-match usage:
 1. Confirm every imported symbol is listed in this skill or README.
 2. Confirm examples import only from package root or documented subpaths.
 3. Confirm closed unions use `.exhaustive()` or exhaustive `.cases(...)`.
-4. Confirm promise-backed sources or promise-returning handlers use `match.promise` or `matchBy.promise` when callers need promises.
-5. Confirm safe terminals are used only on promise builders.
-6. Confirm `safeOtherwise(...)` always has a fallback handler.
-7. Confirm `matchBy.promise(...)` path/tag/case/group inference is based on the resolved input type.
-8. Confirm no unsafe casts, broad `any`, internal imports, unsupported helper names, or `switch` rewrites were added.
-9. Confirm docs/examples use generic scenarios; include JSX-return examples for UI-state use cases when helpful, without implying a React dependency.
-10. Compile the affected project examples/tests.
-11. If editing this library itself, run `pnpm check`, `pnpm pack:check`, and `pnpm test`.
-12. If changing public types or overloads, ensure `pnpm test:editor-dx` is covered by `pnpm check` and verify packaged `dist/*.d.ts` autocomplete when relevant.
+4. Confirm simple same-handler cases use variadic `.with(...)` before considering callback `group(...)`.
+5. Confirm `.partial(...)` is used only for partial handling plus fallback, not merely to access `group(...)`.
+6. Confirm promise-backed sources are passed directly to `match.promise` or `matchBy.promise` when the resolved value is primarily consumed by the matcher.
+7. Confirm safe terminals are used only on promise builders.
+8. Confirm `safeOtherwise(...)` always has a fallback handler.
+9. Confirm `matchBy.promise(...)` path/tag/case/group inference is based on the resolved input type.
+10. Confirm no unsafe casts, broad `any`, internal imports, unsupported helper names, or `switch` rewrites were added.
+11. Confirm docs/examples use generic scenarios; include JSX-return examples for UI-state use cases when helpful, without implying a React dependency.
+12. Compile the affected project examples/tests.
+13. If editing this library itself, run `pnpm check`, `pnpm pack:check`, and `pnpm test`.
+14. If changing public types or overloads, ensure `pnpm test:editor-dx` is covered by `pnpm check` and verify packaged `dist/*.d.ts` autocomplete when relevant.

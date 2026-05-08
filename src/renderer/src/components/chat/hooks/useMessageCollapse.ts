@@ -7,7 +7,7 @@ import {
 } from '../message-bubble-utils'
 
 export interface UseMessageCollapseResult {
-  canCollapseToSynthesis: boolean
+  canCollapseDetails: boolean
   showDetails: boolean
   toggleDetails: () => void
   collapseLabel: string
@@ -33,19 +33,19 @@ export function useMessageCollapse(
   const hasThinkingParts = message.parts.some(
     (part) => part.type === 'thinking' && part.content.trim().length > 0,
   )
-  // Waggle messages represent individual agent turns — never collapse them to synthesis.
+  // Waggle messages represent individual agent turns, so each turn stays fully visible.
   // Each agent's full response (including tool calls) should always be visible.
   // Collapse is deferred until the entire agent run finishes (isRunActive = false),
   // not just when the individual message stream ends, to prevent tools from
   // collapsing while Pi is still processing queued turns or tool updates.
-  const canCollapseToSynthesis =
+  const canCollapseDetails =
     !isWaggle &&
     !isRunActive &&
     !hasThinkingParts &&
     lastRenderableTextPartIndex >= 0 &&
     (toolCallCount > 0 || hasEarlierRenderableTextParts)
   const showDetails = expandedStateKey === collapseStateKey
-  const renderAllParts = !!isStreaming || !!isRunActive || showDetails || !canCollapseToSynthesis
+  const renderAllParts = !!isStreaming || !!isRunActive || showDetails || !canCollapseDetails
   const collapseLabel =
     toolCallCount > 0
       ? `Show ${String(toolCallCount)} tool ${toolCallCount === 1 ? 'call' : 'calls'}`
@@ -58,7 +58,7 @@ export function useMessageCollapse(
   }
 
   return {
-    canCollapseToSynthesis,
+    canCollapseDetails,
     showDetails,
     toggleDetails,
     collapseLabel,

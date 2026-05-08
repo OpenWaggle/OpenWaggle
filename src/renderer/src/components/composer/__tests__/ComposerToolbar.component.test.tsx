@@ -3,9 +3,9 @@ import type { ProviderInfo } from '@shared/types/llm'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useComposerStore } from '@/stores/composer-store'
-import { usePreferencesStore } from '@/stores/preferences-store'
-import { useProviderStore } from '@/stores/provider-store'
+import { useComposerStore } from '../../../stores/composer-store'
+import { usePreferencesStore } from '../../../stores/preferences-store'
+import { useProviderStore } from '../../../stores/provider-store'
 import { ComposerToolbar } from '../ComposerToolbar'
 
 vi.mock('@/lib/ipc', () => ({

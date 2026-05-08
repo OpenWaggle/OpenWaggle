@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { extname, join, posix, resolve, sep } from 'node:path'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { app, BrowserWindow, Menu, protocol, shell } from 'electron'
+import { reconcileInterruptedAgentRuns } from './application/agent-run-service'
 import { env } from './env'
 import { persistAllActiveRuns } from './ipc/agent-handler'
 import { cleanupTerminals, registerAllIpcHandlers } from './ipc/handlers'
@@ -14,7 +15,6 @@ import {
 } from './security/electron-security'
 import { configureAppStoragePaths } from './session-data'
 import { initializeSettingsStore } from './store/settings'
-import { initializeTeamStore } from './store/teams'
 import { disposeAutoUpdater, initAutoUpdater } from './updater'
 
 const WIDTH = 1200
@@ -190,7 +190,8 @@ function registerRendererProtocolOnce(): void {
 
 async function bootstrapServicesAndWindow(): Promise<void> {
   await initializeAppRuntime()
-  await Promise.all([initializeSettingsStore(), initializeTeamStore()])
+  await initializeSettingsStore()
+  await runAppEffect(reconcileInterruptedAgentRuns())
 
   registerIpcHandlersOnce()
   registerRendererProtocolOnce()

@@ -1,11 +1,11 @@
 import type { AgentSendPayload } from '@shared/types/agent'
-import type { ConversationId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 import { useEffect, useRef } from 'react'
 import { useMessageQueueStore } from '@/stores/message-queue-store'
 import type { AgentChatStatus } from './useAgentChat'
 
 interface UseAutoSendQueueOptions {
-  conversationId: ConversationId | null
+  sessionId: SessionId | null
   status: AgentChatStatus
   sendMessage: (payload: AgentSendPayload) => Promise<void>
   paused?: boolean
@@ -22,7 +22,7 @@ interface UseAutoSendQueueOptions {
  * so the non-ready → ready transition is still detected once unpaused.
  */
 export function useAutoSendQueue({
-  conversationId,
+  sessionId,
   status,
   sendMessage,
   paused = false,
@@ -50,16 +50,16 @@ export function useAutoSendQueue({
 
     if (status !== 'ready') return
     if (prevStatus === 'ready') return
-    if (!conversationId) return
+    if (!sessionId) return
 
-    const item = useMessageQueueStore.getState().dequeue(conversationId)
+    const item = useMessageQueueStore.getState().dequeue(sessionId)
     if (!item) return
 
     const reportSendFailure = onSendFailureRef.current
     sendMessageRef.current(item.payload).catch((error: unknown) => {
       // Re-enqueue so the message isn't silently lost on send failure
-      useMessageQueueStore.getState().enqueue(conversationId, item.payload)
+      useMessageQueueStore.getState().enqueue(sessionId, item.payload)
       reportSendFailure?.(item.payload, error)
     })
-  }, [status, conversationId, paused])
+  }, [status, sessionId, paused])
 }

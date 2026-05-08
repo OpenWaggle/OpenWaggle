@@ -18,8 +18,7 @@ describe('AgentLabel', () => {
     )
     const el = screen.getByText(/Architect/)
     expect(el).toBeInTheDocument()
-    expect(el.textContent).toContain('Architect')
-    expect(el.textContent).toContain('Claude')
+    expect(screen.getByText(/Claude/)).toBeInTheDocument()
   })
 
   it('renders nothing when neither assistantModel nor waggle provided', () => {
@@ -34,7 +33,7 @@ describe('AgentLabel', () => {
         waggle={{ agentLabel: 'Reviewer', agentColor: 'amber' }}
       />,
     )
-    const el = screen.getByText(/Reviewer/)
-    expect(el.className).toContain('text-[#f5a623]')
+    const el = screen.getByText(/Reviewer/).parentElement
+    expect(el?.className).toContain('text-[#f5a623]')
   })
 })

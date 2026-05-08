@@ -1,6 +1,6 @@
 import { generateDisplayName, type ProviderInfo } from '@shared/types/llm'
 import type { Settings } from '@shared/types/settings'
-import type { WaggleAgentSlot, WaggleStopCondition, WaggleTeamPreset } from '@shared/types/waggle'
+import type { WaggleAgentSlot, WagglePreset, WaggleStopCondition } from '@shared/types/waggle'
 import { Plus, Save, Trash2 } from 'lucide-react'
 import { usePreferences, useProviders } from '@/hooks/useSettings'
 import { AGENT_BG, AGENT_BORDER } from '@/lib/agent-colors'
@@ -42,7 +42,7 @@ export function WaggleSection() {
         </p>
       )}
 
-      <TeamPresetsPanel
+      <WagglePresetsPanel
         presets={presets}
         activePresetId={activePresetId}
         isModified={isModified}
@@ -84,17 +84,17 @@ export function WaggleSection() {
   )
 }
 
-interface TeamPresetsPanelProps {
-  presets: readonly WaggleTeamPreset[]
+interface WagglePresetsPanelProps {
+  presets: readonly WagglePreset[]
   activePresetId: string | null
   isModified: boolean
-  onLoadPreset: (preset: WaggleTeamPreset) => void
+  onLoadPreset: (preset: WagglePreset) => void
   onDeletePreset: (id: string) => Promise<void>
   onSaveEdits: () => Promise<void>
   onNewCustom: () => Promise<void>
 }
 
-function TeamPresetsPanel({
+function WagglePresetsPanel({
   presets,
   activePresetId,
   isModified,
@@ -102,14 +102,14 @@ function TeamPresetsPanel({
   onDeletePreset,
   onSaveEdits,
   onNewCustom,
-}: TeamPresetsPanelProps) {
+}: WagglePresetsPanelProps) {
   return (
     <div className="rounded-lg border border-border bg-[#111418] p-5">
-      <h3 className="text-sm font-medium text-text-secondary mb-4">Team Presets</h3>
+      <h3 className="text-sm font-medium text-text-secondary mb-4">Waggle Presets</h3>
 
       <div className="grid grid-cols-2 gap-3">
         {presets.map((preset) => (
-          <TeamPresetCard
+          <WagglePresetCard
             key={preset.id}
             preset={preset}
             isActive={activePresetId === preset.id}
@@ -145,21 +145,21 @@ function TeamPresetsPanel({
   )
 }
 
-interface TeamPresetCardProps {
-  preset: WaggleTeamPreset
+interface WagglePresetCardProps {
+  preset: WagglePreset
   isActive: boolean
   isActiveModified: boolean
   onSelect: () => void
   onDelete: () => Promise<void>
 }
 
-function TeamPresetCard({
+function WagglePresetCard({
   preset,
   isActive,
   isActiveModified,
   onSelect,
   onDelete,
-}: TeamPresetCardProps) {
+}: WagglePresetCardProps) {
   return (
     <button
       type="button"

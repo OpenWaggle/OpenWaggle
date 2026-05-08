@@ -1,9 +1,9 @@
-import type { ConversationId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionStatusStore } from '../session-status-store'
 
-const ID_A = 'conv-a' as ConversationId
-const ID_B = 'conv-b' as ConversationId
+const ID_A = 'session-a' as SessionId
+const ID_B = 'session-b' as SessionId
 
 describe('session-status-store', () => {
   beforeEach(() => {

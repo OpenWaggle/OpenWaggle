@@ -10,7 +10,7 @@ The flagship feature. Configure two AI agents with different models and roles, t
 - **Sequential turns** — agents build on each other's work in structured rounds
 - **Structured turns** — both agents alternate over the same Pi-backed session projection
 - **Consensus detection** — auto-stops when agents converge
-- **Team presets** — save and reuse your favorite agent pairings
+- **Waggle presets** — save and reuse your favorite agent pairings
 - **Conflict tracking** — warns when agents edit the same files
 
 ## Key Features
@@ -76,7 +76,7 @@ pnpm dev
 1. Open Settings → Connections
 2. Authenticate with API-key or OAuth providers shown by Pi
 3. Enable the models you want in the composer
-4. Pick a model in the composer and start a session or configure a Waggle team
+4. Pick a model in the composer and start a session or configure Waggle presets
 
 ## Current Status
 

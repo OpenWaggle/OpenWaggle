@@ -1,14 +1,14 @@
-import { ConversationId, SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
+import { SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useBranchSummaryStore } from '@/stores/branch-summary-store'
-import { useComposerStore } from '@/stores/composer-store'
-import { useMessageQueueStore } from '@/stores/message-queue-store'
-import { usePreferencesStore } from '@/stores/preferences-store'
-import { useProviderStore } from '@/stores/provider-store'
+import { useBranchSummaryStore } from '../../../stores/branch-summary-store'
+import { useComposerStore } from '../../../stores/composer-store'
+import { useMessageQueueStore } from '../../../stores/message-queue-store'
+import { usePreferencesStore } from '../../../stores/preferences-store'
+import { useProviderStore } from '../../../stores/provider-store'
 import { ChatPanel } from '../ChatPanel'
 import type { ChatPanelSections } from '../use-chat-panel-controller'
 
@@ -52,7 +52,7 @@ function createSections(
     isLoading: false,
     projectPath: '/test/project',
     recentProjects: [],
-    activeConversationId: ConversationId('conv-1'),
+    activeSessionId: SessionId('session-1'),
     chatRows: [],
     lastUserMessageId: null,
     streamSignalVersion: 0,
@@ -63,18 +63,24 @@ function createSections(
     onRetryText: vi.fn().mockResolvedValue(undefined),
     onOpenSettings: vi.fn(),
     onDismissError: vi.fn(),
+    onDismissInterruptedRun: vi.fn(),
+    onBranchFromMessage: vi.fn(),
+    onForkFromMessage: vi.fn(),
     ...overrides,
   }
 
   return {
     transcript,
     composer: {
-      activeConversationId: transcript.activeConversationId,
+      activeSessionId: transcript.activeSessionId,
       waggleStatus: 'idle',
       commandPaletteOpen: false,
       slashSkills: [],
+      forkSelectorOpen: false,
+      forkTargets: [],
       isLoading: transcript.isLoading,
       status: transcript.isLoading ? 'streaming' : 'ready',
+      compactionStatus: null,
       onStopCollaboration: vi.fn(),
       onSelectSkill: vi.fn(),
       onStartWaggle: vi.fn(),
@@ -86,6 +92,10 @@ function createSections(
       onSummarizeBranch: vi.fn(),
       onStartCustomBranchSummary: vi.fn(),
       onCancelBranchSummary: vi.fn(),
+      onOpenForkSelector: vi.fn(),
+      onCloseForkSelector: vi.fn(),
+      onSelectForkTarget: vi.fn(),
+      onCloneToNewSession: vi.fn(),
       ...composerOverrides,
     },
     diff: {
@@ -201,7 +211,7 @@ describe('ChatPanel', () => {
   it('routes custom branch-summary submission through send instead of enqueue while loading', () => {
     const onSendWithWaggle = vi.fn().mockResolvedValue(undefined)
     useBranchSummaryStore.getState().openPrompt({
-      sessionId: SessionId('conv-1'),
+      sessionId: SessionId('session-1'),
       sourceNodeId: SessionNodeId('source-node'),
       restoreSelection: { branchId: null, nodeId: null },
       previousComposerText: 'original prompt',
@@ -224,7 +234,7 @@ describe('ChatPanel', () => {
     expect(onSendWithWaggle).toHaveBeenCalledWith(
       expect.objectContaining({ text: 'focus on decisions' }),
     )
-    expect(useMessageQueueStore.getState().queues.get(ConversationId('conv-1'))).toBeUndefined()
+    expect(useMessageQueueStore.getState().queues.get(SessionId('session-1'))).toBeUndefined()
   })
 
   it('renders the composer input area', () => {

@@ -1,5 +1,5 @@
-import { type ConversationId, SessionId } from '@shared/types/brand'
-import type { Conversation, ConversationSummary } from '@shared/types/conversation'
+import { SessionId } from '@shared/types/brand'
+import type { SessionDetail, SessionSummary } from '@shared/types/session'
 import { create } from 'zustand'
 import { api } from '@/lib/ipc'
 import { createRendererLogger } from '@/lib/logger'
@@ -8,12 +8,12 @@ import { useSessionStore } from '@/stores/session-store'
 
 const logger = createRendererLogger('chat-store')
 
-function conversationSessionId(id: ConversationId): SessionId {
+function toSessionId(id: SessionId): SessionId {
   return SessionId(String(id))
 }
 
-function optionalConversationSessionId(id: ConversationId | null): SessionId | null {
-  return id ? conversationSessionId(id) : null
+function optionalSessionId(id: SessionId | null): SessionId | null {
+  return id ? toSessionId(id) : null
 }
 
 function handleStoreError(err: unknown, action: string, setError: (message: string) => void): void {
@@ -22,26 +22,26 @@ function handleStoreError(err: unknown, action: string, setError: (message: stri
   setError(`Failed to ${action}: ${message}`)
 }
 
-function toSummary(conversation: Conversation): ConversationSummary {
+function toSummary(session: SessionDetail): SessionSummary {
   return {
-    id: conversation.id,
-    title: conversation.title,
-    projectPath: conversation.projectPath,
-    messageCount: conversation.messages.length,
-    archived: conversation.archived,
-    createdAt: conversation.createdAt,
-    updatedAt: conversation.updatedAt,
+    id: session.id,
+    title: session.title,
+    projectPath: session.projectPath,
+    messageCount: session.messages.length,
+    archived: session.archived,
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
   }
 }
 
-function shouldShowSummary(summary: ConversationSummary): boolean {
-  return summary.title !== 'New session' || summary.messageCount > 0
+function shouldShowSummary(summary: SessionSummary): boolean {
+  return summary.title !== 'New session' || (summary.messageCount ?? 0) > 0
 }
 
 function mergeSummary(
-  summaries: readonly ConversationSummary[],
-  summary: ConversationSummary,
-): ConversationSummary[] {
+  summaries: readonly SessionSummary[],
+  summary: SessionSummary,
+): SessionSummary[] {
   const existingIndex = summaries.findIndex((item) => item.id === summary.id)
   if (!shouldShowSummary(summary)) {
     return existingIndex === -1
@@ -56,173 +56,166 @@ function mergeSummary(
   return summaries.map((item) => (item.id === summary.id ? summary : item))
 }
 
-function removeSummary(
-  summaries: readonly ConversationSummary[],
-  id: ConversationId,
-): ConversationSummary[] {
+function removeSummary(summaries: readonly SessionSummary[], id: SessionId): SessionSummary[] {
   return summaries.filter((summary) => summary.id !== id)
 }
 
 interface ChatState {
-  conversations: ConversationSummary[]
-  conversationById: Map<ConversationId, Conversation>
-  activeConversationId: ConversationId | null
-  activeConversation: Conversation | null
+  sessions: SessionSummary[]
+  sessionById: Map<SessionId, SessionDetail>
+  activeSessionId: SessionId | null
+  activeSession: SessionDetail | null
   error: string | null
 
-  loadConversations: () => Promise<void>
-  createConversation: (projectPath: string) => Promise<ConversationId>
+  loadSessions: () => Promise<void>
+  createSession: (projectPath: string) => Promise<SessionId>
   startDraftSession: () => void
-  setActiveConversationId: (id: ConversationId | null) => void
-  setActiveConversation: (id: ConversationId | null) => void
-  refreshConversation: (id: ConversationId) => Promise<void>
-  upsertConversation: (conversation: Conversation) => void
-  deleteConversation: (id: ConversationId) => Promise<void>
-  updateConversationTitle: (id: ConversationId, title: string) => void
+  setActiveSessionId: (id: SessionId | null) => void
+  setActiveSession: (id: SessionId | null) => void
+  refreshSession: (id: SessionId) => Promise<void>
+  upsertSession: (session: SessionDetail) => void
+  deleteSession: (id: SessionId) => Promise<void>
+  updateSessionTitle: (id: SessionId, title: string) => void
   clearError: () => void
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
-  conversations: [],
-  conversationById: new Map<ConversationId, Conversation>(),
-  activeConversationId: null,
-  activeConversation: null,
+  sessions: [],
+  sessionById: new Map<SessionId, SessionDetail>(),
+  activeSessionId: null,
+  activeSession: null,
   error: null,
 
-  async loadConversations() {
+  async loadSessions() {
     try {
-      const all = await api.listFullConversations()
-      const conversationById = new Map<ConversationId, Conversation>()
-      const conversations: ConversationSummary[] = []
+      const all = await api.listSessionDetails()
+      const sessionById = new Map<SessionId, SessionDetail>()
+      const sessions: SessionSummary[] = []
 
-      for (const conversation of all) {
-        conversationById.set(conversation.id, conversation)
-        const summary = toSummary(conversation)
+      for (const session of all) {
+        sessionById.set(session.id, session)
+        const summary = toSummary(session)
         if (shouldShowSummary(summary)) {
-          conversations.push(summary)
+          sessions.push(summary)
         }
       }
 
-      const activeConversationId = get().activeConversationId
+      const activeSessionId = get().activeSessionId
       set({
-        conversations,
-        conversationById,
-        activeConversation: activeConversationId
-          ? (conversationById.get(activeConversationId) ?? null)
-          : null,
+        sessions,
+        sessionById,
+        activeSession: activeSessionId ? (sessionById.get(activeSessionId) ?? null) : null,
         error: null,
       })
       void useSessionStore.getState().loadSessions()
     } catch (err) {
-      handleStoreError(err, 'load conversations', (error) => set({ error }))
+      handleStoreError(err, 'load sessions', (error) => set({ error }))
     }
   },
 
-  async createConversation(projectPath: string) {
+  async createSession(projectPath: string) {
     try {
-      const conversation = await api.createConversation(projectPath)
-      get().upsertConversation(conversation)
+      const session = await api.createSession(projectPath)
+      get().upsertSession(session)
       set({
-        activeConversationId: conversation.id,
-        activeConversation: conversation,
+        activeSessionId: session.id,
+        activeSession: session,
         error: null,
       })
-      void useSessionStore.getState().refreshSessionsAndTree(conversationSessionId(conversation.id))
-      return conversation.id
+      void useSessionStore.getState().refreshSessionsAndTree(toSessionId(session.id))
+      return session.id
     } catch (err) {
-      handleStoreError(err, 'create conversation', (error) => set({ error }))
+      handleStoreError(err, 'create session', (error) => set({ error }))
       throw err
     }
   },
 
   startDraftSession() {
-    set({ activeConversationId: null, activeConversation: null })
+    set({ activeSessionId: null, activeSession: null })
   },
 
-  setActiveConversationId(id: ConversationId | null) {
-    get().setActiveConversation(id)
+  setActiveSessionId(id: SessionId | null) {
+    get().setActiveSession(id)
   },
 
-  setActiveConversation(id: ConversationId | null) {
+  setActiveSession(id: SessionId | null) {
     if (!id) {
-      set({ activeConversationId: null, activeConversation: null })
+      set({ activeSessionId: null, activeSession: null })
       return
     }
 
-    const cached = get().conversationById.get(id) ?? null
-    set({ activeConversationId: id, activeConversation: cached })
+    const cached = get().sessionById.get(id) ?? null
+    set({ activeSessionId: id, activeSession: cached })
 
     if (!cached) {
-      void get().refreshConversation(id)
+      void get().refreshSession(id)
     }
   },
 
-  async refreshConversation(id: ConversationId) {
+  async refreshSession(id: SessionId) {
     try {
-      const conversation = await api.getConversation(id)
-      if (!conversation) return
-      get().upsertConversation(conversation)
-      void useSessionStore.getState().refreshSessionTree(conversationSessionId(id))
+      const session = await api.getSessionDetail(id)
+      if (!session) return
+      get().upsertSession(session)
+      void useSessionStore.getState().refreshSessionTree(toSessionId(id))
     } catch (err) {
-      handleStoreError(err, 'refresh conversation', (error) => set({ error }))
+      handleStoreError(err, 'refresh session', (error) => set({ error }))
     }
   },
 
-  upsertConversation(conversation: Conversation) {
+  upsertSession(session: SessionDetail) {
     set((state) => {
-      const conversationById = new Map(state.conversationById)
-      conversationById.set(conversation.id, conversation)
+      const sessionById = new Map(state.sessionById)
+      sessionById.set(session.id, session)
       return {
-        conversationById,
-        conversations: mergeSummary(state.conversations, toSummary(conversation)),
-        activeConversation:
-          state.activeConversationId === conversation.id ? conversation : state.activeConversation,
+        sessionById,
+        sessions: mergeSummary(state.sessions, toSummary(session)),
+        activeSession: state.activeSessionId === session.id ? session : state.activeSession,
         error: null,
       }
     })
   },
 
-  async deleteConversation(id: ConversationId) {
-    const previousConversations = get().conversations
-    const previousConversationById = get().conversationById
-    const previousActiveConversationId = get().activeConversationId
-    const previousActiveConversation = get().activeConversation
+  async deleteSession(id: SessionId) {
+    const previousSessions = get().sessions
+    const previousSessionById = get().sessionById
+    const previousActiveSessionId = get().activeSessionId
+    const previousActiveSession = get().activeSession
 
     set((state) => {
-      const conversationById = new Map(state.conversationById)
-      conversationById.delete(id)
+      const sessionById = new Map(state.sessionById)
+      sessionById.delete(id)
       return {
-        conversationById,
-        conversations: removeSummary(state.conversations, id),
-        ...(state.activeConversationId === id
-          ? { activeConversationId: null, activeConversation: null }
-          : {}),
+        sessionById,
+        sessions: removeSummary(state.sessions, id),
+        ...(state.activeSessionId === id ? { activeSessionId: null, activeSession: null } : {}),
       }
     })
 
     try {
-      await api.deleteConversation(id)
+      await api.deleteSession(id)
       useComposerStore.getState().clearScopedDraftsForSession(String(id))
       void useSessionStore
         .getState()
-        .refreshSessionsAndTree(optionalConversationSessionId(get().activeConversationId))
+        .refreshSessionsAndTree(optionalSessionId(get().activeSessionId))
     } catch (err) {
       set({
-        conversations: previousConversations,
-        conversationById: previousConversationById,
-        activeConversationId: previousActiveConversationId,
-        activeConversation: previousActiveConversation,
+        sessions: previousSessions,
+        sessionById: previousSessionById,
+        activeSessionId: previousActiveSessionId,
+        activeSession: previousActiveSession,
       })
-      handleStoreError(err, 'delete conversation', (error) => set({ error }))
+      handleStoreError(err, 'delete session', (error) => set({ error }))
+      throw err
     }
   },
 
-  updateConversationTitle(id: ConversationId, title: string) {
+  updateSessionTitle(id: SessionId, title: string) {
     set((state) => {
-      const existing = state.conversationById.get(id)
+      const existing = state.sessionById.get(id)
       if (!existing) {
         const now = Date.now()
-        const fallbackSummary: ConversationSummary = {
+        const fallbackSummary: SessionSummary = {
           id,
           title,
           projectPath: null,
@@ -231,21 +224,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
           updatedAt: now,
         }
         return {
-          conversations: mergeSummary(state.conversations, fallbackSummary),
+          sessions: mergeSummary(state.sessions, fallbackSummary),
         }
       }
 
-      const conversation = { ...existing, title }
-      const conversationById = new Map(state.conversationById)
-      conversationById.set(id, conversation)
+      const session = { ...existing, title }
+      const sessionById = new Map(state.sessionById)
+      sessionById.set(id, session)
       return {
-        conversationById,
-        conversations: mergeSummary(state.conversations, toSummary(conversation)),
-        activeConversation:
-          state.activeConversationId === id ? conversation : state.activeConversation,
+        sessionById,
+        sessions: mergeSummary(state.sessions, toSummary(session)),
+        activeSession: state.activeSessionId === id ? session : state.activeSession,
       }
     })
-    void useSessionStore.getState().refreshSessionsAndTree(conversationSessionId(id))
+    void useSessionStore.getState().refreshSessionsAndTree(toSessionId(id))
   },
 
   clearError() {

@@ -1,4 +1,4 @@
-import { SupportedModelId } from '@shared/types/brand'
+import { SessionBranchId, SessionId, SupportedModelId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { WaggleMessageMetadata } from '@shared/types/waggle'
 import { describe, expect, it } from 'vitest'
@@ -107,7 +107,7 @@ function getAssistantMessageRows(
     error: undefined,
     lastUserMessage: null,
     dismissedError: null,
-    conversationId: 'conv-rows',
+    sessionId: 'session-rows',
     model: SupportedModelId('gpt-5-mini'),
 
     waggleMetadataLookup,
@@ -117,6 +117,29 @@ function getAssistantMessageRows(
   return rows.filter(
     (row): row is Extract<(typeof rows)[number], { type: 'message' }> =>
       row.type === 'message' && row.message.role === 'assistant',
+  )
+}
+
+function getWaggleTurnRows(
+  messages: UIMessage[],
+  waggleMetadataLookup: Readonly<Record<string, WaggleMessageMetadata>>,
+) {
+  const rows = buildChatRows({
+    messages,
+    isLoading: false,
+    error: undefined,
+    lastUserMessage: null,
+    dismissedError: null,
+    sessionId: 'session-rows',
+    model: SupportedModelId('gpt-5-mini'),
+
+    waggleMetadataLookup,
+    phase: { current: null, completed: [], totalElapsedMs: 0 },
+  })
+
+  return rows.filter(
+    (row): row is Extract<(typeof rows)[number], { type: 'waggle-turn' }> =>
+      row.type === 'waggle-turn',
   )
 }
 
@@ -156,7 +179,12 @@ describe('buildChatRows tool-call rendering', () => {
     expect(assistantRows).toHaveLength(1)
     expect(assistantRows[0]?.message.parts).toMatchObject([
       { type: 'tool-call', id: 'tool-a' },
-      { type: 'tool-result', toolCallId: 'tool-a', state: 'complete' },
+      {
+        type: 'tool-result',
+        toolCallId: 'tool-a',
+        state: 'complete',
+        sourceMessageId: 'tool-result-1',
+      },
     ])
   })
 
@@ -193,8 +221,10 @@ describe('buildChatRows tool-call rendering', () => {
       },
     }
 
-    const assistantRows = getAssistantMessageRows(messages, waggleMetadataLookup)
-    expect(assistantRows).toHaveLength(2)
+    const waggleRows = getWaggleTurnRows(messages, waggleMetadataLookup)
+    expect(waggleRows).toHaveLength(2)
+    expect(waggleRows[0]?.messages).toHaveLength(1)
+    expect(waggleRows[1]?.messages).toHaveLength(1)
   })
 
   it('renders pending and terminal repeated tool rows independently', () => {
@@ -264,7 +294,7 @@ describe('buildChatRows compaction summaries', () => {
       error: undefined,
       lastUserMessage: null,
       dismissedError: null,
-      conversationId: 'conv-compaction',
+      sessionId: 'session-compaction',
       model: SupportedModelId('gpt-5-mini'),
       waggleMetadataLookup: {},
       phase: { current: null, completed: [], totalElapsedMs: 0 },
@@ -277,6 +307,69 @@ describe('buildChatRows compaction summaries', () => {
       summary: 'Kept the failing test context.',
       tokensBefore: 123456,
     })
+  })
+
+  it('turns branch summary messages into dedicated summary rows', () => {
+    const branchMessage: UIMessage = {
+      id: 'branch-summary',
+      role: 'assistant',
+      parts: [{ type: 'text', content: 'Branch summary\n\nThe abandoned path edited tests.' }],
+      metadata: {
+        branchSummary: {
+          summary: 'The abandoned path edited tests.',
+        },
+      },
+    }
+
+    const rows = buildChatRows({
+      messages: [createUserMessage('user-1', 'branch'), branchMessage],
+      isLoading: false,
+      error: undefined,
+      lastUserMessage: null,
+      dismissedError: null,
+      sessionId: 'session-branch-summary',
+      model: SupportedModelId('gpt-5-mini'),
+      waggleMetadataLookup: {},
+      phase: { current: null, completed: [], totalElapsedMs: 0 },
+    })
+
+    expect(rows.map((row) => row.type)).toEqual(['message', 'branch-summary'])
+    expect(rows[1]).toMatchObject({
+      type: 'branch-summary',
+      id: 'branch-summary',
+      summary: 'The abandoned path edited tests.',
+    })
+  })
+})
+
+describe('buildChatRows interrupted runs', () => {
+  it('places an interrupted run notice before transcript messages', () => {
+    const rows = buildChatRows({
+      messages: [createUserMessage('user-1', 'continue from last run')],
+      isLoading: false,
+      error: undefined,
+      lastUserMessage: null,
+      dismissedError: null,
+      sessionId: 'session-interrupted',
+      model: SupportedModelId('gpt-5-mini'),
+      waggleMetadataLookup: {},
+      phase: { current: null, completed: [], totalElapsedMs: 0 },
+      interruptedRun: {
+        runId: 'run-interrupted-1',
+        sessionId: SessionId('session-interrupted'),
+        branchId: SessionBranchId('session-interrupted:main'),
+        runMode: 'classic',
+        model: SupportedModelId('openai/gpt-5.4'),
+        interruptedAt: 1000,
+      },
+    })
+
+    expect(rows[0]).toMatchObject({
+      type: 'interrupted-run',
+      runId: 'run-interrupted-1',
+      branchId: SessionBranchId('session-interrupted:main'),
+    })
+    expect(rows[1]).toMatchObject({ type: 'message' })
   })
 })
 
@@ -297,7 +390,7 @@ describe('buildChatRows reasoning visibility', () => {
       error: undefined,
       lastUserMessage: null,
       dismissedError: null,
-      conversationId: 'conv-reasoning',
+      sessionId: 'session-reasoning',
       model: SupportedModelId('gpt-5-mini'),
       waggleMetadataLookup: {},
       phase: { current: null, completed: [], totalElapsedMs: 0 },
@@ -340,7 +433,7 @@ describe('buildChatRows isRunActive', () => {
       error: undefined,
       lastUserMessage: null,
       dismissedError: null,
-      conversationId: 'conv-active',
+      sessionId: 'session-active',
       model: SupportedModelId('gpt-5-mini'),
       waggleMetadataLookup: {},
       phase: { current: null, completed: [], totalElapsedMs: 0 },
@@ -373,7 +466,7 @@ describe('buildChatRows isRunActive', () => {
       error: undefined,
       lastUserMessage: null,
       dismissedError: null,
-      conversationId: 'conv-inactive',
+      sessionId: 'session-inactive',
       model: SupportedModelId('gpt-5-mini'),
       waggleMetadataLookup: {},
       phase: { current: null, completed: [], totalElapsedMs: 0 },
@@ -402,7 +495,7 @@ describe('buildChatRows waggle message metadata', () => {
 
   const DEFAULT_PHASE = { current: null, completed: [], totalElapsedMs: 0 }
 
-  it('shows turn dividers from explicit Waggle message metadata', () => {
+  it('groups explicit Waggle message metadata into one row per turn', () => {
     const advocateMsg: UIMessage = {
       id: 'waggle-advocate',
       role: 'assistant',
@@ -420,7 +513,7 @@ describe('buildChatRows waggle message metadata', () => {
       error: undefined,
       lastUserMessage: null,
       dismissedError: null,
-      conversationId: 'conv-waggle',
+      sessionId: 'session-waggle',
       model: SupportedModelId('claude-sonnet-4-6'),
       waggleMetadataLookup: {
         'waggle-advocate': ADVOCATE_META,
@@ -434,20 +527,87 @@ describe('buildChatRows waggle message metadata', () => {
       phase: DEFAULT_PHASE,
     })
 
-    const messageRows = rows.filter((r) => r.type === 'message' && r.message.role === 'assistant')
-    expect(messageRows).toHaveLength(2)
-    expect(messageRows[0].showTurnDivider).toBe(true)
-    expect(messageRows[0].turnDividerProps).toMatchObject({
+    const waggleRows = rows.filter((r) => r.type === 'waggle-turn')
+    expect(waggleRows).toHaveLength(2)
+    expect(waggleRows[0]?.messages).toHaveLength(1)
+    expect(waggleRows[0]?.turnDividerProps).toMatchObject({
       agentLabel: 'Advocate',
       agentColor: 'blue',
       turnNumber: 0,
     })
-    expect(messageRows[1].showTurnDivider).toBe(true)
-    expect(messageRows[1].turnDividerProps).toMatchObject({
+    expect(waggleRows[1]?.messages).toHaveLength(1)
+    expect(waggleRows[1]?.turnDividerProps).toMatchObject({
       agentLabel: 'Critic',
       agentColor: 'amber',
       turnNumber: 1,
     })
+  })
+
+  it('keeps one continuous Waggle turn row for multiple Pi message nodes in the same turn', () => {
+    const messages = [
+      createUserMessage('user-1', 'question'),
+      createAssistantToolMessage('waggle-tool-a', 'tool-a'),
+      createAssistantToolMessage('waggle-tool-b', 'tool-b'),
+      {
+        id: 'waggle-final',
+        role: 'assistant' as const,
+        parts: [{ type: 'text' as const, content: 'Final turn answer' }],
+      },
+    ]
+
+    const rows = buildChatRows({
+      messages,
+      isLoading: false,
+      error: undefined,
+      lastUserMessage: null,
+      dismissedError: null,
+      sessionId: 'session-waggle',
+      model: SupportedModelId('claude-sonnet-4-6'),
+      waggleMetadataLookup: {
+        'waggle-tool-a': ADVOCATE_META,
+        'waggle-tool-b': ADVOCATE_META,
+        'waggle-final': ADVOCATE_META,
+      },
+      phase: DEFAULT_PHASE,
+    })
+
+    const waggleRows = rows.filter((r) => r.type === 'waggle-turn')
+    expect(waggleRows).toHaveLength(1)
+    expect(waggleRows[0]?.messages.map((row) => row.message.id)).toEqual([
+      'waggle-tool-a',
+      'waggle-tool-b',
+      'waggle-final',
+    ])
+  })
+
+  it('keeps fallback live metadata in the same turn when only one message has session id', () => {
+    const messages = [
+      createUserMessage('user-1', 'question'),
+      createAssistantToolMessage('waggle-tool-a', 'tool-a'),
+      createAssistantToolMessage('waggle-tool-b', 'tool-b'),
+    ]
+
+    const rows = buildChatRows({
+      messages,
+      isLoading: true,
+      error: undefined,
+      lastUserMessage: null,
+      dismissedError: null,
+      sessionId: 'session-waggle',
+      model: SupportedModelId('claude-sonnet-4-6'),
+      waggleMetadataLookup: {
+        'waggle-tool-a': ADVOCATE_META,
+        'waggle-tool-b': { ...ADVOCATE_META, sessionId: 'session-waggle' },
+      },
+      phase: DEFAULT_PHASE,
+    })
+
+    const waggleRows = rows.filter((r) => r.type === 'waggle-turn')
+    expect(waggleRows).toHaveLength(1)
+    expect(waggleRows[0]?.messages.map((row) => row.message.id)).toEqual([
+      'waggle-tool-a',
+      'waggle-tool-b',
+    ])
   })
 
   it('renders post-waggle messages without waggle styling', () => {
@@ -468,7 +628,7 @@ describe('buildChatRows waggle message metadata', () => {
       error: undefined,
       lastUserMessage: null,
       dismissedError: null,
-      conversationId: 'conv-waggle',
+      sessionId: 'session-waggle',
       model: SupportedModelId('claude-sonnet-4-6'),
 
       // Only the waggle message has metadata, not the post-waggle one
@@ -476,11 +636,13 @@ describe('buildChatRows waggle message metadata', () => {
       phase: DEFAULT_PHASE,
     })
 
+    const waggleRows = rows.filter((r) => r.type === 'waggle-turn')
     const messageRows = rows.filter((r) => r.type === 'message' && r.message.role === 'assistant')
-    expect(messageRows).toHaveLength(2)
+    expect(waggleRows).toHaveLength(1)
+    expect(messageRows).toHaveLength(1)
 
     // Post-waggle message should have no waggle styling
-    expect(messageRows[1].waggle).toBeUndefined()
-    expect(messageRows[1].showTurnDivider).toBe(false)
+    expect(messageRows[0]?.waggle).toBeUndefined()
+    expect(messageRows[0]?.showTurnDivider).toBe(false)
   })
 })

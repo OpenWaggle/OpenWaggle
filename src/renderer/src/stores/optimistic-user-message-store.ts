@@ -1,17 +1,14 @@
-import type { ConversationId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { create } from 'zustand'
 
 const EMPTY_MESSAGES: readonly UIMessage[] = []
 
 interface OptimisticUserMessageState {
-  readonly messagesByConversationId: Map<ConversationId, readonly UIMessage[]>
-  readonly add: (conversationId: ConversationId, message: UIMessage) => void
-  readonly removeMatched: (
-    conversationId: ConversationId,
-    persistedMessages: readonly UIMessage[],
-  ) => void
-  readonly clear: (conversationId: ConversationId) => void
+  readonly messagesBySessionId: Map<SessionId, readonly UIMessage[]>
+  readonly add: (sessionId: SessionId, message: UIMessage) => void
+  readonly removeMatched: (sessionId: SessionId, persistedMessages: readonly UIMessage[]) => void
+  readonly clear: (sessionId: SessionId) => void
 }
 
 function getTextContent(message: UIMessage): string {
@@ -63,43 +60,43 @@ function removeMatchedMessages(
 
 const nullSelector = (_state: OptimisticUserMessageState): readonly UIMessage[] => EMPTY_MESSAGES
 const selectorCache = new Map<
-  ConversationId,
+  SessionId,
   (state: OptimisticUserMessageState) => readonly UIMessage[]
 >()
 
-export function selectOptimisticUserMessages(conversationId: ConversationId | null) {
-  if (!conversationId) {
+export function selectOptimisticUserMessages(sessionId: SessionId | null) {
+  if (!sessionId) {
     return nullSelector
   }
 
-  let selector = selectorCache.get(conversationId)
+  let selector = selectorCache.get(sessionId)
   if (!selector) {
     selector = (state: OptimisticUserMessageState): readonly UIMessage[] =>
-      state.messagesByConversationId.get(conversationId) ?? EMPTY_MESSAGES
-    selectorCache.set(conversationId, selector)
+      state.messagesBySessionId.get(sessionId) ?? EMPTY_MESSAGES
+    selectorCache.set(sessionId, selector)
   }
   return selector
 }
 
 export const useOptimisticUserMessageStore = create<OptimisticUserMessageState>((set) => ({
-  messagesByConversationId: new Map(),
+  messagesBySessionId: new Map(),
 
-  add(conversationId, message) {
+  add(sessionId, message) {
     set((state) => {
-      const existing = state.messagesByConversationId.get(conversationId) ?? EMPTY_MESSAGES
+      const existing = state.messagesBySessionId.get(sessionId) ?? EMPTY_MESSAGES
       if (existing.some((candidate) => candidate.id === message.id)) {
         return state
       }
 
-      const next = new Map(state.messagesByConversationId)
-      next.set(conversationId, [...existing, message])
-      return { messagesByConversationId: next }
+      const next = new Map(state.messagesBySessionId)
+      next.set(sessionId, [...existing, message])
+      return { messagesBySessionId: next }
     })
   },
 
-  removeMatched(conversationId, persistedMessages) {
+  removeMatched(sessionId, persistedMessages) {
     set((state) => {
-      const existing = state.messagesByConversationId.get(conversationId)
+      const existing = state.messagesBySessionId.get(sessionId)
       if (!existing) {
         return state
       }
@@ -109,24 +106,24 @@ export const useOptimisticUserMessageStore = create<OptimisticUserMessageState>(
         return state
       }
 
-      const next = new Map(state.messagesByConversationId)
+      const next = new Map(state.messagesBySessionId)
       if (remaining.length === 0) {
-        next.delete(conversationId)
+        next.delete(sessionId)
       } else {
-        next.set(conversationId, remaining)
+        next.set(sessionId, remaining)
       }
-      return { messagesByConversationId: next }
+      return { messagesBySessionId: next }
     })
   },
 
-  clear(conversationId) {
+  clear(sessionId) {
     set((state) => {
-      if (!state.messagesByConversationId.has(conversationId)) {
+      if (!state.messagesBySessionId.has(sessionId)) {
         return state
       }
-      const next = new Map(state.messagesByConversationId)
-      next.delete(conversationId)
-      return { messagesByConversationId: next }
+      const next = new Map(state.messagesBySessionId)
+      next.delete(sessionId)
+      return { messagesBySessionId: next }
     })
   },
 }))

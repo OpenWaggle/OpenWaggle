@@ -1,5 +1,7 @@
 import type { MessageRole } from '@shared/types/agent'
+import type { RunMode } from '@shared/types/background-run'
 import type { SessionBranchId, SessionId } from '@shared/types/brand'
+import type { SupportedModelId } from '@shared/types/llm'
 import type {
   SessionNodeKind,
   SessionSummary,
@@ -40,6 +42,32 @@ export interface UpdateSessionRuntimeInput {
   readonly piSessionFile?: string
 }
 
+export interface PersistSessionActiveRunInput {
+  readonly runId: string
+  readonly sessionId: SessionId
+  readonly branchId: SessionBranchId
+  readonly runMode: RunMode
+  readonly model: SupportedModelId
+}
+
+export interface SessionActiveRunIdentity {
+  readonly sessionId: SessionId
+  readonly runId: string
+}
+
+export interface SessionInterruptedRunScope {
+  readonly sessionId: SessionId
+  readonly branchId: SessionBranchId
+}
+
+export interface RecoverableSessionActiveRun {
+  readonly runId: string
+  readonly sessionId: SessionId
+  readonly branchId: SessionBranchId
+  readonly runMode: RunMode
+  readonly model: SupportedModelId
+}
+
 export interface SessionRepositoryShape {
   readonly list: (
     limit?: number,
@@ -76,6 +104,22 @@ export interface SessionRepositoryShape {
   readonly updateTreeUiState: (
     sessionId: SessionId,
     patch: SessionTreeUiStatePatch,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  readonly recordActiveRun: (
+    input: PersistSessionActiveRunInput,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  readonly clearActiveRun: (
+    input: SessionActiveRunIdentity,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  readonly clearInterruptedRuns: (
+    input: SessionInterruptedRunScope,
+  ) => Effect.Effect<void, SessionProjectionRepositoryError>
+  readonly listActiveRunsForRecovery: () => Effect.Effect<
+    readonly RecoverableSessionActiveRun[],
+    SessionProjectionRepositoryError
+  >
+  readonly markActiveRunInterrupted: (
+    input: SessionActiveRunIdentity,
   ) => Effect.Effect<void, SessionProjectionRepositoryError>
 }
 

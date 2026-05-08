@@ -209,7 +209,7 @@ describe('getVisibleSessionTreeRows', () => {
 })
 
 describe('getVisibleSessionTreeNodes', () => {
-  it('returns the visible row nodes for legacy callers', () => {
+  it('returns the visible row nodes for node-only callers', () => {
     const nodes = getVisibleSessionTreeNodes(TREE, [SessionNodeId('root')])
 
     expect(nodes.map((visibleNode) => String(visibleNode.id))).toEqual([

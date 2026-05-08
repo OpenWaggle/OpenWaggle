@@ -1,4 +1,4 @@
-import { ConversationId } from '@shared/types/brand'
+import { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
@@ -57,7 +57,7 @@ function resultsWithEntry(
   return map
 }
 
-const defaultConversationId = ConversationId('conv-1')
+const defaultSessionId = SessionId('session-1')
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -69,7 +69,7 @@ describe('ToolCallRouter', () => {
       <ToolCallRouter
         part={part}
         toolResults={emptyResults()}
-        conversationId={defaultConversationId}
+        sessionId={defaultSessionId}
         isStreaming={false}
       />,
     )
@@ -82,7 +82,7 @@ describe('ToolCallRouter', () => {
       <ToolCallRouter
         part={part}
         toolResults={resultsWithEntry('tc-bash', 'hi')}
-        conversationId={defaultConversationId}
+        sessionId={defaultSessionId}
         isStreaming={false}
       />,
     )
@@ -95,7 +95,7 @@ describe('ToolCallRouter', () => {
       <ToolCallRouter
         part={part}
         toolResults={emptyResults()}
-        conversationId={defaultConversationId}
+        sessionId={defaultSessionId}
         isStreaming={true}
       />,
     )

@@ -16,7 +16,7 @@ To start work:
 3. Pick an enabled provider-qualified model in the composer.
 4. Send a message.
 
-Session branches are Pi conversation branches inside a session, not Git branches. Use the right-side [Session Tree](/docs/using-openwaggle/session-tree) to inspect and navigate the full Pi node graph.
+Session branches are Pi session branches inside a session, not Git branches. Use the right-side [Session Tree](/docs/using-openwaggle/session-tree) to inspect and navigate the full Pi node graph.
 
 ## Messages
 
@@ -52,11 +52,15 @@ Current command-palette uses include:
 - Skill references.
 - Waggle presets.
 - `/compact` for manual Pi compaction.
+- `/fork` to choose a previous user turn and copy that branch into a new session.
+- `/clone` to copy the current selected node path into a new session.
 - **Open Session Tree** for branch and node navigation in the active Pi session.
 
 ## Error Handling
 
 When something fails, OpenWaggle shows a structured error panel with the message, details, copy action, settings shortcut for auth errors, and retry/dismiss controls where relevant.
+
+If the app closes while a run is active, OpenWaggle does not auto-resume it on restart. It refreshes the latest Pi session snapshot, marks the affected session branch as interrupted, and shows a compact inline notice when you open that branch. Dismissing the notice or sending a new message from that branch clears the indicator.
 
 ## Command Environment
 

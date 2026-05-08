@@ -10,18 +10,12 @@ import { randomUUID } from 'node:crypto'
 import { DOUBLE_FACTOR } from '@shared/constants/math'
 import { CONSENSUS } from '@shared/constants/text-processing'
 import { safeDecodeUnknown } from '@shared/schema'
+import { jsonObjectSchema } from '@shared/schemas/validation'
 import { waggleConfigSchema, waggleMetadataSchema } from '@shared/schemas/waggle'
-import {
-  type AgentSendPayload,
-  getMessageText,
-  type HydratedAgentSendPayload,
-  isToolCallPart,
-  type Message,
-} from '@shared/types/agent'
-import { type ConversationId, SessionId, SupportedModelId } from '@shared/types/brand'
-import type { Conversation } from '@shared/types/conversation'
+import type { AgentSendPayload, HydratedAgentSendPayload, Message } from '@shared/types/agent'
+import { SessionBranchId, SessionId, SupportedModelId } from '@shared/types/brand'
+import type { JsonObject } from '@shared/types/json'
 import type { SessionNode } from '@shared/types/session'
-import type { Settings } from '@shared/types/settings'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import type {
   WaggleCollaborationStatus,
@@ -31,7 +25,6 @@ import type {
   WaggleTurnEvent,
 } from '@shared/types/waggle'
 import { formatErrorMessage } from '@shared/utils/node-error'
-import { isRecord } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
 import { checkConsensus } from '../agent/consensus-detector'
 import { makeErrorInfo } from '../agent/error-classifier'
@@ -41,7 +34,6 @@ import { createLogger } from '../logger'
 import {
   type AgentKernelRunResult,
   AgentKernelService,
-  type AgentKernelServiceShape,
   type AgentKernelSessionSnapshot,
 } from '../ports/agent-kernel-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
@@ -49,14 +41,15 @@ import { type ProjectedSessionNodeInput, SessionRepository } from '../ports/sess
 import { SettingsService } from '../services/settings-service'
 import { assignSessionTitleFromUserText, hydratePayloadAttachments } from './run-handler-utils'
 
-const SYNTHESIS_PROMPT_TRUNCATION_LENGTH = 3000
 const UNRESOLVED_TOOL_NAME_PREVIEW_COUNT = 3
+const MAIN_BRANCH_NAME = 'main'
 const logger = createLogger('waggle-run-service')
 
 // ─── Types ───────────────────────────────────────────────────
 
 export interface WaggleRunInput {
-  readonly conversationId: ConversationId
+  readonly sessionId: SessionId
+  readonly runId: string
   readonly payload: AgentSendPayload
   readonly config: WaggleConfig
   readonly signal: AbortSignal
@@ -70,13 +63,9 @@ interface UnresolvedToolCall {
   readonly state?: 'input-complete'
 }
 
-interface TurnRunOutcome {
-  readonly workingConversation: Conversation
-  readonly taggedAssistantMessages: readonly Message[]
-  readonly responseText: string
-  readonly hasToolCalls: boolean
-  readonly agentResult?: AgentKernelRunResult
-  readonly error?: string
+interface ActiveRunIdentity {
+  readonly sessionId: SessionId
+  readonly runId: string
 }
 
 // ─── Service Functions ───────────────────────────────────────
@@ -86,8 +75,10 @@ interface TurnRunOutcome {
  * Returns a discriminated union describing the outcome.
  */
 export function executeWaggleRun(input: WaggleRunInput) {
+  let activeRunIdentity: ActiveRunIdentity | null = null
+
   return Effect.gen(function* () {
-    const { conversationId, payload, config, signal, onEvent, onTurnEvent } = input
+    const { sessionId, runId, payload, config, signal, onEvent, onTurnEvent } = input
     let assignedTitle: string | undefined
 
     const parseResult = safeDecodeUnknown(waggleConfigSchema, config)
@@ -101,11 +92,11 @@ export function executeWaggleRun(input: WaggleRunInput) {
 
     const settingsService = yield* SettingsService
     const settings = yield* settingsService.get()
-    const conversationRepo = yield* SessionProjectionRepository
-    const conversation = yield* conversationRepo.getOptional(conversationId)
+    const sessionProjectionRepo = yield* SessionProjectionRepository
+    const session = yield* sessionProjectionRepo.getOptional(sessionId)
 
-    if (!conversation) {
-      const errorInfo = makeErrorInfo('conversation-not-found', 'Conversation not found')
+    if (!session) {
+      const errorInfo = makeErrorInfo('session-not-found', 'Session not found')
       return {
         outcome: 'not-found' as const,
         message: errorInfo.userMessage,
@@ -113,20 +104,16 @@ export function executeWaggleRun(input: WaggleRunInput) {
       }
     }
 
-    if (!conversation.projectPath) {
+    if (!session.projectPath) {
       return {
         outcome: 'no-project' as const,
         message: 'Please select a project folder before starting Waggle mode.',
         code: 'no-project',
       }
     }
-    const skillToggles = settings.skillTogglesByProject[conversation.projectPath]
+    const skillToggles = settings.skillTogglesByProject[session.projectPath]
 
-    const nextTitle = yield* assignSessionTitleFromUserText(
-      conversationId,
-      conversation,
-      payload.text,
-    )
+    const nextTitle = yield* assignSessionTitleFromUserText(sessionId, session, payload.text)
     if (nextTitle) {
       assignedTitle = nextTitle
     }
@@ -140,7 +127,6 @@ export function executeWaggleRun(input: WaggleRunInput) {
     const accumulatedMessages: Message[] = [
       makeMessage('user', buildPersistedUserMessageParts(hydratedPayload)),
     ]
-    let workingConversation: Conversation = { ...conversation }
     const conflictTracker = new FileConflictTracker()
     const waggleSessionId = randomUUID()
     const maxTurns = config.stop.maxTurnsSafety
@@ -151,130 +137,126 @@ export function executeWaggleRun(input: WaggleRunInput) {
     let lastTurnError: string | undefined
     let successfulTurnCount = 0
     const sessionRepo = yield* SessionRepository
-    const initialSessionTree = yield* sessionRepo.getTree(SessionId(String(conversationId)))
+    const initialSessionTree = yield* sessionRepo.getTree(SessionId(String(sessionId)))
     const knownNodeIds = new Set<string>(
       initialSessionTree?.nodes.map((node) => String(node.id)) ?? [],
     )
     const waggleMetadataByNodeId = seedWaggleMetadataFromTree(initialSessionTree?.nodes ?? [])
+    const newTurnMetadata: WaggleMessageMetadata[] = []
+    const branchId =
+      initialSessionTree?.session.lastActiveBranchId ??
+      initialSessionTree?.branches.find((branch) => branch.isMain)?.id ??
+      SessionBranchId(`${sessionId}:${MAIN_BRANCH_NAME}`)
+
+    yield* sessionRepo.clearInterruptedRuns({ sessionId, branchId })
+    yield* sessionRepo.recordActiveRun({
+      runId,
+      sessionId,
+      branchId,
+      runMode: 'waggle',
+      model: config.agents[0].model,
+    })
+    activeRunIdentity = { sessionId, runId }
 
     logger.info('Starting Pi-native Waggle collaboration', {
-      conversationId,
+      sessionId,
       agents: config.agents.map((agent) => agent.label),
       maxTurns,
       stopCondition: config.stop.primary,
     })
 
-    for (let turnNumber = 0; turnNumber < maxTurns; turnNumber += 1) {
-      if (signal.aborted) {
-        status = 'stopped'
-        onTurnEvent({ type: 'collaboration-stopped', reason: 'User cancelled' })
-        break
-      }
-
-      const agentIndex = turnNumber % DOUBLE_FACTOR
+    function createTurnMetadata(input: {
+      readonly turnNumber: number
+      readonly agentIndex: number
+    }): WaggleStreamMetadata {
+      const { turnNumber, agentIndex } = input
       const agent = config.agents[agentIndex]
-      if (!agent) {
-        break
-      }
-
-      onTurnEvent({
-        type: 'turn-start',
-        turnNumber: successfulTurnCount,
-        agentIndex,
-        agentLabel: agent.label,
-      })
-
-      const meta: WaggleStreamMetadata = {
+      return {
         agentIndex,
         agentLabel: agent.label,
         agentColor: agent.color,
         agentModel: agent.model,
-        turnNumber: successfulTurnCount,
+        turnNumber,
         collaborationMode: config.mode,
         sessionId: waggleSessionId,
       }
+    }
 
-      const turnOutcome = yield* runWaggleTurn({
-        agentKernel,
-        workingConversation,
-        payload: buildTurnPayload(hydratedPayload, config, agentIndex, turnNumber),
-        ...(turnNumber === 0 ? { visibleUserRequest: hydratedPayload } : {}),
-        model: agent.model,
-        signal,
-        meta,
-        onEvent,
-        skillToggles,
-        onFileModified: (filePath) => {
-          const warning = conflictTracker.recordModification(
-            filePath,
-            agentIndex,
-            config.agents,
-            turnNumber,
-          )
-          if (warning) {
-            onTurnEvent({ type: 'file-conflict', warning })
-          }
-        },
-      })
-
-      workingConversation = turnOutcome.workingConversation
-
-      if (turnOutcome.agentResult) {
-        yield* persistWaggleSnapshot({
-          conversationId,
-          result: turnOutcome.agentResult,
-          snapshot: applyWaggleMetadataToSnapshot({
-            snapshot: turnOutcome.agentResult.sessionSnapshot,
-            metadataByNodeId: waggleMetadataByNodeId,
-            knownNodeIds,
-            currentTurnMetadata: meta,
-          }),
-          waggleConfig: config,
-        })
+    function handleWaggleEvent(event: AgentTransportEvent, meta: WaggleStreamMetadata): void {
+      onEvent(event, meta)
+      if (event.type !== 'tool_execution_end') {
+        return
       }
+      if (event.toolName !== 'write' && event.toolName !== 'edit') {
+        return
+      }
+      const filePath = extractFilePath(event.args)
+      if (!filePath) {
+        return
+      }
+      const warning = conflictTracker.recordModification(
+        filePath,
+        meta.agentIndex,
+        config.agents,
+        meta.turnNumber,
+      )
+      if (warning) {
+        onTurnEvent({ type: 'file-conflict', warning })
+      }
+    }
 
-      if (turnOutcome.error) {
+    function handleTurnComplete(input: {
+      readonly meta: WaggleStreamMetadata
+      readonly assistantMessages: readonly Message[]
+      readonly responseText: string
+      readonly hasToolCalls: boolean
+      readonly terminalError?: string
+    }): { readonly continue: boolean } {
+      const { meta } = input
+
+      if (input.terminalError) {
         consecutiveErrorTurns += 1
-        lastTurnError = turnOutcome.error
+        lastTurnError = input.terminalError
         logger.warn('Waggle turn failed', {
-          conversationId,
-          turnNumber,
-          agentLabel: agent.label,
+          sessionId,
+          turnNumber: meta.turnNumber,
+          agentLabel: meta.agentLabel,
           consecutiveErrors: consecutiveErrorTurns,
-          error: turnOutcome.error,
+          error: input.terminalError,
         })
 
         if (consecutiveErrorTurns >= DOUBLE_FACTOR) {
           status = 'stopped'
           onTurnEvent({
             type: 'collaboration-stopped',
-            reason: turnOutcome.error,
+            reason: input.terminalError,
           })
-          break
+          return { continue: false }
         }
-        continue
+        return { continue: true }
       }
 
-      const unresolvedToolCalls = turnOutcome.taggedAssistantMessages.flatMap((message) =>
+      const taggedAssistantMessages = tagAssistantMessages(input.assistantMessages, meta)
+      const unresolvedToolCalls = taggedAssistantMessages.flatMap((message) =>
         getUnresolvedToolCalls(message),
       )
       if (unresolvedToolCalls.length > 0) {
         const unresolvedToolsSummary = summarizeUnresolvedTools(unresolvedToolCalls)
-        const stopReason = `Waggle stopped because ${agent.label} has unresolved tool calls (${unresolvedToolsSummary}).`
+        const stopReason = `Waggle stopped because ${meta.agentLabel} has unresolved tool calls (${unresolvedToolsSummary}).`
 
         status = 'stopped'
         lastTurnError = stopReason
         onTurnEvent({ type: 'collaboration-stopped', reason: stopReason })
         logger.warn('Stopping Waggle due unresolved tool calls', {
-          conversationId,
-          turnNumber,
-          agentLabel: agent.label,
+          sessionId,
+          turnNumber: meta.turnNumber,
+          agentLabel: meta.agentLabel,
           unresolvedToolCalls,
         })
-        break
+        return { continue: false }
       }
 
-      if (turnOutcome.responseText.trim().length === 0 && !turnOutcome.hasToolCalls) {
+      if (input.responseText.trim().length === 0 && !input.hasToolCalls) {
         consecutiveErrorTurns += 1
         lastTurnError = 'Agent turn produced no useful output.'
         if (consecutiveErrorTurns >= DOUBLE_FACTOR) {
@@ -283,26 +265,28 @@ export function executeWaggleRun(input: WaggleRunInput) {
             type: 'collaboration-stopped',
             reason: lastTurnError,
           })
-          break
+          return { continue: false }
         }
-        continue
+        return { continue: true }
       }
 
       consecutiveErrorTurns = 0
-      const displayTurnNumber = successfulTurnCount
       successfulTurnCount += 1
-      accumulatedMessages.push(...turnOutcome.taggedAssistantMessages)
+      accumulatedMessages.push(...taggedAssistantMessages)
+      for (const _message of taggedAssistantMessages) {
+        newTurnMetadata.push(toWaggleMessageMetadata(meta))
+      }
 
       onTurnEvent({
         type: 'turn-end',
-        turnNumber: displayTurnNumber,
-        agentIndex,
-        agentLabel: agent.label,
-        agentColor: agent.color,
-        agentModel: agent.model,
+        turnNumber: meta.turnNumber,
+        agentIndex: meta.agentIndex,
+        agentLabel: meta.agentLabel,
+        agentColor: meta.agentColor,
+        agentModel: meta.agentModel,
       })
 
-      lastAssistantTexts = [lastAssistantTexts[1], turnOutcome.responseText]
+      lastAssistantTexts = [lastAssistantTexts[1], input.responseText]
 
       const successfulTurns = accumulatedMessages.filter(
         (message) => message.role === 'assistant',
@@ -313,7 +297,7 @@ export function executeWaggleRun(input: WaggleRunInput) {
         lastAssistantTexts[0].trim().length > CONSENSUS.MIN_SUBSTANTIVE_LENGTH &&
         lastAssistantTexts[1].trim().length > CONSENSUS.MIN_SUBSTANTIVE_LENGTH
       ) {
-        const consensusResult = checkConsensus(lastAssistantTexts, turnNumber + 1, maxTurns)
+        const consensusResult = checkConsensus(lastAssistantTexts, meta.turnNumber + 1, maxTurns)
         if (consensusResult.reached) {
           status = 'completed'
           consensusReason = consensusResult.reason
@@ -324,14 +308,49 @@ export function executeWaggleRun(input: WaggleRunInput) {
             totalTurns: successfulTurnCount,
           })
           logger.info('Waggle consensus reached', {
-            conversationId,
+            sessionId,
             totalTurns: successfulTurnCount,
             reason: consensusResult.reason,
           })
-          break
+          return { continue: false }
         }
       }
+
+      return { continue: true }
     }
+
+    const agentResult = yield* agentKernel.runWaggle({
+      session,
+      runId,
+      payload: hydratedPayload,
+      model: config.agents[0].model,
+      config,
+      signal,
+      skillToggles,
+      onEvent: () => undefined,
+      onWaggleEvent: handleWaggleEvent,
+      onTurnEvent,
+      createTurnMetadata,
+      onTurnComplete: handleTurnComplete,
+    })
+
+    if (agentResult.aborted || signal.aborted) {
+      status = 'stopped'
+      onTurnEvent({ type: 'collaboration-stopped', reason: 'User cancelled' })
+      return { outcome: 'aborted' as const, ...(assignedTitle ? { assignedTitle } : {}) }
+    }
+
+    yield* persistWaggleSnapshot({
+      sessionId,
+      result: agentResult,
+      snapshot: applyWaggleMetadataToSnapshot({
+        snapshot: agentResult.sessionSnapshot,
+        metadataByNodeId: waggleMetadataByNodeId,
+        knownNodeIds,
+        newTurnMetadata,
+      }),
+      waggleConfig: config,
+    })
 
     if (status === 'running') {
       status = 'completed'
@@ -342,32 +361,8 @@ export function executeWaggleRun(input: WaggleRunInput) {
       })
     }
 
-    const synthesisFailure = yield* maybeRunSynthesis({
-      agentKernel,
-      conversationId,
-      workingConversation,
-      payload: hydratedPayload,
-      config,
-      settings,
-      skillToggles,
-      signal,
-      accumulatedMessages,
-      onEvent,
-      onTurnEvent,
-      waggleSessionId,
-      waggleMetadataByNodeId,
-      knownNodeIds,
-    })
-    if (synthesisFailure) {
-      lastTurnError = synthesisFailure
-    }
-
-    if (signal.aborted) {
-      return { outcome: 'aborted' as const, ...(assignedTitle ? { assignedTitle } : {}) }
-    }
-
     logger.info('Pi-native Waggle collaboration finished', {
-      conversationId,
+      sessionId,
       status,
       totalTurns: successfulTurnCount,
       consensusReason,
@@ -379,70 +374,30 @@ export function executeWaggleRun(input: WaggleRunInput) {
       lastError: lastTurnError,
       ...(assignedTitle ? { assignedTitle } : {}),
     }
-  })
+  }).pipe(
+    Effect.ensuring(
+      Effect.gen(function* () {
+        if (!activeRunIdentity) {
+          return
+        }
+        const sessionRepo = yield* SessionRepository
+        yield* sessionRepo.clearActiveRun(activeRunIdentity).pipe(
+          Effect.catchAll((error) =>
+            Effect.sync(() => {
+              logger.warn('Failed to clear durable Waggle active run', {
+                sessionId: activeRunIdentity?.sessionId,
+                runId: activeRunIdentity?.runId,
+                error: formatErrorMessage(error),
+              })
+            }),
+          ),
+        )
+      }),
+    ),
+  )
 }
 
 // ─── Internal Helpers ────────────────────────────────────────
-
-function buildTurnPayload(
-  payload: HydratedAgentSendPayload,
-  config: WaggleConfig,
-  agentIndex: number,
-  turnNumber: number,
-): HydratedAgentSendPayload {
-  const agent = config.agents[agentIndex]
-  const collaborationContext = buildCollaborationSystemPrompt(
-    agent,
-    agentIndex,
-    config.agents,
-    turnNumber,
-  )
-
-  return {
-    ...payload,
-    text: `${collaborationContext}\n\n---\n\nUser request:\n${payload.text}`,
-    attachments: [],
-  }
-}
-
-function buildCollaborationSystemPrompt(
-  currentAgent: WaggleConfig['agents'][number],
-  agentIndex: number,
-  agents: WaggleConfig['agents'],
-  turnNumber: number,
-): string {
-  const otherIndex = agentIndex === 0 ? 1 : 0
-  const otherAgent = agents[otherIndex]
-  if (!otherAgent) {
-    return currentAgent.roleDescription
-  }
-
-  const lines = [
-    `You are "${currentAgent.label}". ${currentAgent.roleDescription}`,
-    '',
-    `You are collaborating with "${otherAgent.label}" (${otherAgent.roleDescription}).`,
-    `This is turn ${String(turnNumber + 1)} of the collaboration.`,
-    '',
-    'Guidelines:',
-    '- Use tools to inspect real files and project state before making claims.',
-    '- Build on previous contributions rather than repeating them.',
-    '- If you agree with the other agent, say so explicitly and briefly.',
-    '- If you disagree, explain your reasoning with references to actual code.',
-    '- Focus on adding new value each turn.',
-    '- End your turn with a concise, direct summary of your findings and position.',
-  ]
-
-  if (turnNumber > 0) {
-    lines.push(
-      '',
-      'Review the conversation above and continue the collaboration.',
-      'If the other agent made claims about the code, verify them by reading relevant files.',
-      'Focus on your role and perspective.',
-    )
-  }
-
-  return lines.join('\n')
-}
 
 function tagAssistantMessages(
   messages: readonly Message[],
@@ -460,83 +415,6 @@ function tagAssistantMessages(
           agentModel: meta.agentModel,
           turnNumber: meta.turnNumber,
           sessionId: meta.sessionId,
-          ...(meta.isSynthesis ? { isSynthesis: true } : {}),
-        },
-      }),
-    )
-}
-
-function mergeWorkingConversation(
-  conversation: Conversation,
-  result: AgentKernelRunResult,
-): Conversation {
-  return {
-    ...conversation,
-    piSessionId: result.piSessionId,
-    piSessionFile: result.piSessionFile,
-    messages: [...conversation.messages, ...result.newMessages],
-  }
-}
-
-function runWaggleTurn(input: {
-  readonly agentKernel: AgentKernelServiceShape
-  readonly workingConversation: Conversation
-  readonly payload: HydratedAgentSendPayload
-  readonly visibleUserRequest?: HydratedAgentSendPayload
-  readonly model: SupportedModelId
-  readonly signal: AbortSignal
-  readonly meta: WaggleStreamMetadata
-  readonly onEvent: (event: AgentTransportEvent, meta: WaggleStreamMetadata) => void
-  readonly skillToggles?: Readonly<Record<string, boolean>>
-  readonly onFileModified: (path: string) => void
-}) {
-  return input.agentKernel
-    .runWaggleTurn({
-      conversation: input.workingConversation,
-      payload: input.payload,
-      ...(input.visibleUserRequest ? { visibleUserRequest: input.visibleUserRequest } : {}),
-      model: input.model,
-      signal: input.signal,
-      onEvent: (event) => {
-        input.onEvent(event, input.meta)
-        if (event.type !== 'tool_execution_end') {
-          return
-        }
-        if (event.toolName !== 'write' && event.toolName !== 'edit') {
-          return
-        }
-        const filePath = extractFilePath(event.args)
-        if (filePath) {
-          input.onFileModified(filePath)
-        }
-      },
-      ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
-    })
-    .pipe(
-      Effect.match({
-        onFailure: (err): TurnRunOutcome => ({
-          workingConversation: input.workingConversation,
-          taggedAssistantMessages: [],
-          responseText: '',
-          hasToolCalls: false,
-          error: err instanceof Error ? err.message : String(err),
-        }),
-        onSuccess: (result: AgentKernelRunResult): TurnRunOutcome => {
-          const workingConversation = mergeWorkingConversation(input.workingConversation, result)
-          const taggedAssistantMessages = tagAssistantMessages(result.newMessages, input.meta)
-          const responseText = taggedAssistantMessages.map(getMessageText).join('\n\n')
-          const hasToolCalls = taggedAssistantMessages.some((message) =>
-            message.parts.some(isToolCallPart),
-          )
-
-          return {
-            workingConversation,
-            taggedAssistantMessages,
-            responseText,
-            hasToolCalls,
-            agentResult: result,
-            ...(result.terminalError ? { error: result.terminalError } : {}),
-          }
         },
       }),
     )
@@ -577,180 +455,6 @@ function summarizeUnresolvedTools(unresolvedToolCalls: readonly UnresolvedToolCa
     : unresolvedToolNames
 }
 
-function buildSynthesisModelCandidates(
-  settings: Settings,
-  agents: WaggleConfig['agents'],
-): readonly SupportedModelId[] {
-  const primaryModel = settings.selectedModel
-  const fallbackModel = agents[0]?.model
-  if (!fallbackModel || fallbackModel === primaryModel) {
-    return [primaryModel]
-  }
-  return [primaryModel, fallbackModel]
-}
-
-function buildSynthesisPrompt(
-  userRequest: string,
-  assistantMessages: readonly Message[],
-  agents: WaggleConfig['agents'],
-): string {
-  const summaries = assistantMessages.map((message, index) => {
-    const agentMeta = message.metadata?.waggle
-    const label =
-      agentMeta?.agentLabel ?? agents[index % agents.length]?.label ?? `Agent ${String(index)}`
-    const text = getMessageText(message)
-    const truncated =
-      text.length > SYNTHESIS_PROMPT_TRUNCATION_LENGTH
-        ? `${text.slice(0, SYNTHESIS_PROMPT_TRUNCATION_LENGTH)}... [truncated]`
-        : text
-    return `### ${label} (Turn ${String(index + 1)}):\n${truncated}`
-  })
-
-  return [
-    'You are a neutral synthesis agent. Produce a clear, structured summary of the Waggle collaboration that just took place.',
-    '',
-    '## Original User Request',
-    userRequest,
-    '',
-    '## Collaboration Transcript',
-    ...summaries,
-    '',
-    '## Your Task',
-    'Produce a concise synthesis with these sections:',
-    '',
-    '### Agreed',
-    '### Disagreed',
-    '### Key Findings',
-    '### Open Questions',
-    '### Recommendation',
-    '',
-    'Be concise. Focus on substance over meta-commentary. Do not use tools.',
-  ].join('\n')
-}
-
-function maybeRunSynthesis(input: {
-  readonly agentKernel: AgentKernelServiceShape
-  readonly conversationId: ConversationId
-  readonly workingConversation: Conversation
-  readonly payload: HydratedAgentSendPayload
-  readonly config: WaggleConfig
-  readonly settings: Settings
-  readonly skillToggles?: Readonly<Record<string, boolean>>
-  readonly signal: AbortSignal
-  readonly accumulatedMessages: Message[]
-  readonly onEvent: (event: AgentTransportEvent, meta: WaggleStreamMetadata) => void
-  readonly onTurnEvent: (event: WaggleTurnEvent) => void
-  readonly waggleSessionId: string
-  readonly waggleMetadataByNodeId: Map<string, WaggleMessageMetadata>
-  readonly knownNodeIds: Set<string>
-}) {
-  const successfulAssistantMessages = input.accumulatedMessages.filter(
-    (message) => message.role === 'assistant',
-  )
-  if (
-    successfulAssistantMessages.length < DOUBLE_FACTOR ||
-    input.signal.aborted ||
-    successfulAssistantMessages.some((message) => message.metadata?.waggle?.isSynthesis)
-  ) {
-    return Effect.succeed(undefined)
-  }
-
-  return Effect.gen(function* () {
-    input.onTurnEvent({ type: 'synthesis-start' })
-    const synthesisModels = buildSynthesisModelCandidates(input.settings, input.config.agents)
-    const synthesisTurnNumber = successfulAssistantMessages.length
-    const synthesisPrompt = buildSynthesisPrompt(
-      input.payload.text,
-      successfulAssistantMessages,
-      input.config.agents,
-    )
-    const synthesisPayload: HydratedAgentSendPayload = {
-      ...input.payload,
-      text: synthesisPrompt,
-      attachments: [],
-    }
-    let workingConversation = input.workingConversation
-    let lastFailureReason: string | undefined
-
-    for (const synthesisModel of synthesisModels) {
-      const meta: WaggleStreamMetadata = {
-        agentIndex: -1,
-        agentLabel: 'Synthesis',
-        agentColor: 'emerald',
-        agentModel: synthesisModel,
-        turnNumber: synthesisTurnNumber,
-        collaborationMode: input.config.mode,
-        isSynthesis: true,
-        sessionId: input.waggleSessionId,
-      }
-
-      const result = yield* input.agentKernel
-        .runWaggleTurn({
-          conversation: workingConversation,
-          payload: synthesisPayload,
-          model: synthesisModel,
-          signal: input.signal,
-          onEvent: (event) => input.onEvent(event, meta),
-          ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
-        })
-        .pipe(
-          Effect.match({
-            onFailure: (err) => ({
-              ok: false as const,
-              error: err instanceof Error ? err.message : String(err),
-            }),
-            onSuccess: (value: AgentKernelRunResult) => ({ ok: true as const, value }),
-          }),
-        )
-
-      if (!result.ok) {
-        lastFailureReason = `Synthesis failed on model ${String(synthesisModel)}: ${result.error}`
-        logger.warn('Waggle synthesis model failed', {
-          conversationId: input.conversationId,
-          model: synthesisModel,
-          error: result.error,
-        })
-        continue
-      }
-
-      workingConversation = mergeWorkingConversation(workingConversation, result.value)
-      const assistantMessages = result.value.newMessages.filter(
-        (message) => message.role === 'assistant',
-      )
-      const responseText = assistantMessages.map(getMessageText).join('\n\n')
-      if (!responseText.trim()) {
-        lastFailureReason = `Synthesis produced no output on model ${String(synthesisModel)}.`
-        continue
-      }
-
-      input.accumulatedMessages.push(...tagAssistantMessages(assistantMessages, meta))
-
-      input.onTurnEvent({
-        type: 'turn-end',
-        turnNumber: synthesisTurnNumber,
-        agentIndex: -1,
-        agentLabel: 'Synthesis',
-        agentColor: 'emerald',
-        agentModel: synthesisModel,
-      })
-      yield* persistWaggleSnapshot({
-        conversationId: input.conversationId,
-        result: result.value,
-        snapshot: applyWaggleMetadataToSnapshot({
-          snapshot: result.value.sessionSnapshot,
-          metadataByNodeId: input.waggleMetadataByNodeId,
-          knownNodeIds: input.knownNodeIds,
-          currentTurnMetadata: meta,
-        }),
-        waggleConfig: input.config,
-      })
-      return undefined
-    }
-
-    return lastFailureReason
-  })
-}
-
 function toWaggleMessageMetadata(meta: WaggleStreamMetadata): WaggleMessageMetadata {
   return {
     agentIndex: meta.agentIndex,
@@ -758,15 +462,22 @@ function toWaggleMessageMetadata(meta: WaggleStreamMetadata): WaggleMessageMetad
     agentColor: meta.agentColor,
     agentModel: meta.agentModel,
     turnNumber: meta.turnNumber,
-    isSynthesis: meta.isSynthesis,
     sessionId: meta.sessionId,
   }
 }
 
-function parseMetadataJson(raw: string, nodeId: string): Record<string, unknown> {
+function parseMetadataJson(raw: string, nodeId: string): JsonObject {
   try {
     const parsed = JSON.parse(raw)
-    return isRecord(parsed) ? parsed : {}
+    const result = safeDecodeUnknown(jsonObjectSchema, parsed)
+    if (!result.success) {
+      logger.warn('Ignoring invalid session node metadata JSON', {
+        nodeId,
+        issues: result.issues.join('; '),
+      })
+      return {}
+    }
+    return result.data
   } catch (error) {
     logger.warn('Failed to parse session node metadata JSON', {
       nodeId,
@@ -799,7 +510,6 @@ function extractWaggleMetadata(node: SessionNode): WaggleMessageMetadata | null 
     agentColor: parsed.data.agentColor,
     ...(agentModel ? { agentModel } : {}),
     turnNumber: parsed.data.turnNumber,
-    ...(parsed.data.isSynthesis !== undefined ? { isSynthesis: parsed.data.isSynthesis } : {}),
     ...(parsed.data.sessionId ? { sessionId: parsed.data.sessionId } : {}),
   }
 }
@@ -828,8 +538,19 @@ function applyMetadataToNode(
     ...node,
     metadataJson: JSON.stringify({
       ...parseMetadataJson(node.metadataJson, node.id),
-      waggle: meta,
+      waggle: waggleMetadataToJson(meta),
     }),
+  }
+}
+
+function waggleMetadataToJson(meta: WaggleMessageMetadata): JsonObject {
+  return {
+    agentIndex: meta.agentIndex,
+    agentLabel: meta.agentLabel,
+    agentColor: meta.agentColor,
+    ...(meta.agentModel ? { agentModel: String(meta.agentModel) } : {}),
+    turnNumber: meta.turnNumber,
+    ...(meta.sessionId ? { sessionId: meta.sessionId } : {}),
   }
 }
 
@@ -837,9 +558,9 @@ function applyWaggleMetadataToSnapshot(input: {
   readonly snapshot: AgentKernelSessionSnapshot
   readonly metadataByNodeId: Map<string, WaggleMessageMetadata>
   readonly knownNodeIds: Set<string>
-  readonly currentTurnMetadata: WaggleStreamMetadata
+  readonly newTurnMetadata: readonly WaggleMessageMetadata[]
 }): AgentKernelSessionSnapshot {
-  const currentTurnMessageMetadata = toWaggleMessageMetadata(input.currentTurnMetadata)
+  let newMetadataIndex = 0
   const nextNodes = input.snapshot.nodes.map((node) => {
     const wasKnown = input.knownNodeIds.has(node.id)
     input.knownNodeIds.add(node.id)
@@ -857,8 +578,14 @@ function applyWaggleMetadataToSnapshot(input: {
       return node
     }
 
-    input.metadataByNodeId.set(node.id, currentTurnMessageMetadata)
-    return applyMetadataToNode(node, currentTurnMessageMetadata)
+    const metadata = input.newTurnMetadata[newMetadataIndex]
+    newMetadataIndex += 1
+    if (!metadata) {
+      return node
+    }
+
+    input.metadataByNodeId.set(node.id, metadata)
+    return applyMetadataToNode(node, metadata)
   })
 
   return {
@@ -868,7 +595,7 @@ function applyWaggleMetadataToSnapshot(input: {
 }
 
 function persistWaggleSnapshot(input: {
-  readonly conversationId: ConversationId
+  readonly sessionId: SessionId
   readonly result: AgentKernelRunResult
   readonly snapshot: AgentKernelSessionSnapshot
   readonly waggleConfig: WaggleConfig | undefined
@@ -876,7 +603,7 @@ function persistWaggleSnapshot(input: {
   return Effect.gen(function* () {
     const sessionRepo = yield* SessionRepository
     yield* sessionRepo.persistSnapshot({
-      sessionId: SessionId(String(input.conversationId)),
+      sessionId: SessionId(String(input.sessionId)),
       nodes: input.snapshot.nodes,
       activeNodeId: input.snapshot.activeNodeId,
       piSessionId: input.result.piSessionId,
@@ -887,7 +614,7 @@ function persistWaggleSnapshot(input: {
     Effect.tapError((persistError) =>
       Effect.sync(() =>
         logger.error('Failed to persist Waggle session snapshot', {
-          conversationId: input.conversationId,
+          sessionId: input.sessionId,
           error: formatErrorMessage(persistError),
         }),
       ),

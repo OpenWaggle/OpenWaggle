@@ -1,0 +1,56 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+  "entry": [
+    "electron.vite.config.ts",
+    "src/main/index.ts",
+    "src/preload/index.ts",
+    "src/renderer/src/main.tsx",
+    "src/renderer/src/**/*.d.ts",
+    "src/shared/types/**/*.d.ts",
+    "src/shared/utils/decision.typecheck.ts",
+    "scripts/**/*.ts",
+    "vitest.*.config.ts",
+    "playwright.config.ts"
+  ],
+  "ignorePatterns": ["out/**", "dist/**", "release/**", "node_modules/**"],
+  "ignoreDependencies": [
+    "babel-plugin-react-compiler",
+    "better-sqlite3",
+    "diff",
+    // Packaged Electron updater resolves debug's `require("ms")` from the
+    // app-level node_modules inside app.asar.
+    "ms",
+    "node:sqlite",
+    "tailwindcss"
+  ],
+  // TanStack Router file routes must each export `Route`; that framework contract
+  // makes duplicate-export analysis noisy for this app.
+  "rules": { "duplicate-exports": "off" },
+  "duplicates": {
+    "ignore": ["**/__tests__/**", "e2e/**"],
+    "ignoreImports": true,
+    "minTokens": 100
+  },
+  "usedClassMembers": [
+    {
+      "extends": "DecoratorNode",
+      "members": [
+        "clone",
+        "createDOM",
+        "decorate",
+        "exportDOM",
+        "exportJSON",
+        "getTextContent",
+        "getType",
+        "importDOM",
+        "importJSON",
+        "isInline",
+        "updateDOM"
+      ]
+    }
+  ],
+  "health": {
+    "maxCrap": 100
+  },
+  "ignoreExportsUsedInFile": true
+}

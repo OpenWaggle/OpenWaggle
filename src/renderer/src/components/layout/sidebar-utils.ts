@@ -1,25 +1,25 @@
-import type { ConversationSummary } from '@shared/types/conversation'
+import type { SessionSummary } from '@shared/types/session'
 import { projectName } from '@/lib/format'
 
 export interface ProjectGroup {
   path: string | null
   displayName: string
-  conversations: ConversationSummary[]
+  sessions: SessionSummary[]
 }
 
-export function groupConversationsByProject(
-  conversations: ConversationSummary[],
+export function groupSessionsByProject(
+  sessions: SessionSummary[],
   displayNameOverrides: Record<string, string> = {},
 ): ProjectGroup[] {
-  const groups = new Map<string, ConversationSummary[]>()
+  const groups = new Map<string, SessionSummary[]>()
 
-  for (const conv of conversations) {
-    const key = conv.projectPath ?? '__none__'
+  for (const session of sessions) {
+    const key = session.projectPath ?? '__none__'
     const existing = groups.get(key)
     if (existing) {
-      existing.push(conv)
+      existing.push(session)
     } else {
-      groups.set(key, [conv])
+      groups.set(key, [session])
     }
   }
 
@@ -28,7 +28,7 @@ export function groupConversationsByProject(
     const path = key === '__none__' ? null : key
     const displayName =
       key === '__none__' ? 'No project' : (displayNameOverrides[key] ?? projectName(key))
-    result.push({ path, displayName, conversations: convs })
+    result.push({ path, displayName, sessions: convs })
   }
 
   return result

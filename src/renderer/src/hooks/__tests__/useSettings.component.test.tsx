@@ -6,12 +6,14 @@ const {
   loadProviderModelsMock,
   loadAllAuthAccountsMock,
   onOAuthStatusMock,
+  setPreferencesStateMock,
   unsubscribeMock,
 } = vi.hoisted(() => ({
   loadSettingsMock: vi.fn(),
   loadProviderModelsMock: vi.fn(),
   loadAllAuthAccountsMock: vi.fn(),
   onOAuthStatusMock: vi.fn(),
+  setPreferencesStateMock: vi.fn(),
   unsubscribeMock: vi.fn(),
 }))
 
@@ -48,6 +50,14 @@ function getProviderState() {
   }
 }
 
+function getPreferencesState() {
+  return {
+    settings: {
+      projectPath: null,
+    },
+  }
+}
+
 function selectAuth<T>(
   selector: (state: { loadAllAuthAccounts: typeof loadAllAuthAccountsMock }) => T,
 ): T {
@@ -61,7 +71,10 @@ vi.mock('@/lib/ipc', () => ({
 }))
 
 vi.mock('@/stores/preferences-store', () => ({
-  usePreferencesStore: selectPreferences,
+  usePreferencesStore: Object.assign(selectPreferences, {
+    getState: getPreferencesState,
+    setState: setPreferencesStateMock,
+  }),
 }))
 
 vi.mock('@/stores/provider-store', () => ({

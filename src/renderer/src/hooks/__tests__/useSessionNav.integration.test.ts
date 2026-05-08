@@ -1,36 +1,34 @@
-import type { ConversationId } from '@shared/types/brand'
-import type { ConversationSummary } from '@shared/types/conversation'
+import type { SessionId } from '@shared/types/brand'
+import type { SessionSummary } from '@shared/types/session'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createConversationNavHandlers } from '../useConversationNav'
+import { createSessionNavHandlers } from '../useSessionNav'
 
-type ConversationNavDeps = Parameters<typeof createConversationNavHandlers>[0]
+type SessionNavDeps = Parameters<typeof createSessionNavHandlers>[0]
 
-function makeDeps(overrides: Partial<ConversationNavDeps> = {}): ConversationNavDeps {
+function makeDeps(overrides: Partial<SessionNavDeps> = {}): SessionNavDeps {
   return {
-    conversations: [] as ConversationSummary[],
+    sessions: [] as SessionSummary[],
     projectPath: '/test/project' as string | null,
     setActiveView: vi.fn(),
     setProjectPath: vi.fn<(path: string | null) => Promise<void>>().mockResolvedValue(undefined),
     selectFolder: vi.fn<() => Promise<string | null>>().mockResolvedValue(null),
     startDraftSession: vi.fn(),
-    setActiveConversation: vi
-      .fn<(id: ConversationId | null) => Promise<void>>()
-      .mockResolvedValue(undefined),
+    setActiveSession: vi.fn<(id: SessionId | null) => Promise<void>>().mockResolvedValue(undefined),
     refreshGitStatus: vi.fn<(p: string | null) => Promise<void>>().mockResolvedValue(undefined),
     refreshGitBranches: vi.fn<(p: string | null) => Promise<void>>().mockResolvedValue(undefined),
     ...overrides,
   }
 }
 
-describe('createConversationNavHandlers', () => {
+describe('createSessionNavHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  describe('handleSelectConversation', () => {
+  describe('handleSelectSession', () => {
     it('sets view to chat, updates project path when different, refreshes git', async () => {
-      const convId = 'conv-1' as ConversationId
-      const conversations: ConversationSummary[] = [
+      const convId = 'session-1' as SessionId
+      const sessions: SessionSummary[] = [
         {
           id: convId,
           title: 'Test',
@@ -40,21 +38,21 @@ describe('createConversationNavHandlers', () => {
           updatedAt: 1,
         },
       ]
-      const deps = makeDeps({ conversations, projectPath: '/test/project' })
-      const { handleSelectConversation } = createConversationNavHandlers(deps)
+      const deps = makeDeps({ sessions, projectPath: '/test/project' })
+      const { handleSelectSession } = createSessionNavHandlers(deps)
 
-      await handleSelectConversation(convId)
+      await handleSelectSession(convId)
 
       expect(deps.setActiveView).toHaveBeenCalledWith('chat')
       expect(deps.setProjectPath).toHaveBeenCalledWith('/other/path')
-      expect(deps.setActiveConversation).toHaveBeenCalledWith(convId)
+      expect(deps.setActiveSession).toHaveBeenCalledWith(convId)
       expect(deps.refreshGitStatus).toHaveBeenCalledWith('/other/path')
       expect(deps.refreshGitBranches).toHaveBeenCalledWith('/other/path')
     })
 
     it('skips setProjectPath when project path matches', async () => {
-      const convId = 'conv-2' as ConversationId
-      const conversations: ConversationSummary[] = [
+      const convId = 'session-2' as SessionId
+      const sessions: SessionSummary[] = [
         {
           id: convId,
           title: 'Same',
@@ -64,23 +62,23 @@ describe('createConversationNavHandlers', () => {
           updatedAt: 1,
         },
       ]
-      const deps = makeDeps({ conversations, projectPath: '/test/project' })
-      const { handleSelectConversation } = createConversationNavHandlers(deps)
+      const deps = makeDeps({ sessions, projectPath: '/test/project' })
+      const { handleSelectSession } = createSessionNavHandlers(deps)
 
-      await handleSelectConversation(convId)
+      await handleSelectSession(convId)
 
       expect(deps.setActiveView).toHaveBeenCalledWith('chat')
       expect(deps.setProjectPath).not.toHaveBeenCalled()
-      expect(deps.setActiveConversation).toHaveBeenCalledWith(convId)
+      expect(deps.setActiveSession).toHaveBeenCalledWith(convId)
     })
   })
 
-  describe('handleNewConversation', () => {
+  describe('handleNewSession', () => {
     it('sets view to chat and starts draft session', () => {
       const deps = makeDeps()
-      const { handleNewConversation } = createConversationNavHandlers(deps)
+      const { handleNewSession } = createSessionNavHandlers(deps)
 
-      handleNewConversation()
+      handleNewSession()
 
       expect(deps.setActiveView).toHaveBeenCalledWith('chat')
       expect(deps.startDraftSession).toHaveBeenCalled()
@@ -92,7 +90,7 @@ describe('createConversationNavHandlers', () => {
       const deps = makeDeps({
         selectFolder: vi.fn<() => Promise<string | null>>().mockResolvedValue('/new/project'),
       })
-      const { handleOpenProject } = createConversationNavHandlers(deps)
+      const { handleOpenProject } = createSessionNavHandlers(deps)
 
       await handleOpenProject()
 
@@ -107,7 +105,7 @@ describe('createConversationNavHandlers', () => {
       const deps = makeDeps({
         selectFolder: vi.fn<() => Promise<string | null>>().mockResolvedValue(null),
       })
-      const { handleOpenProject } = createConversationNavHandlers(deps)
+      const { handleOpenProject } = createSessionNavHandlers(deps)
 
       await handleOpenProject()
 
@@ -120,7 +118,7 @@ describe('createConversationNavHandlers', () => {
   describe('handleSelectProjectPath', () => {
     it('selects project and starts a draft session', async () => {
       const deps = makeDeps()
-      const { handleSelectProjectPath } = createConversationNavHandlers(deps)
+      const { handleSelectProjectPath } = createSessionNavHandlers(deps)
 
       await handleSelectProjectPath('/selected/path')
 

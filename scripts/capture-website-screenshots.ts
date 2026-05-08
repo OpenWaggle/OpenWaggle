@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { _electron as electron, expect, type ElectronApplication, type Page } from '@playwright/test'
-import { seedSingleConversation } from '../e2e/support/conversation-fixtures'
+import { seedSingleSession } from '../e2e/support/session-fixtures'
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const SCREENSHOT_OUTPUT_DIR = path.join(ROOT_DIR, 'website', 'public', 'screenshots')
@@ -132,11 +132,11 @@ function makeWaggleMetadata(agentLabel: 'Advocate' | 'Critic', turnNumber: numbe
   }
 }
 
-async function seedMarketingConversation(userDataDir: string, projectPath: string): Promise<void> {
-  console.info('[website-shots] seeding marketing conversation')
+async function seedMarketingSession(userDataDir: string, projectPath: string): Promise<void> {
+  console.info('[website-shots] seeding marketing session')
   const now = Date.now()
 
-  await seedSingleConversation(userDataDir, {
+  await seedSingleSession(userDataDir, {
     title: THREAD_TITLE,
     projectPath,
     updatedAt: now,
@@ -348,7 +348,7 @@ async function main(): Promise<void> {
     currentApp = launched.app
 
     await configureProject(launched.page, projectPath)
-    await seedMarketingConversation(userDataDir, projectPath)
+    await seedMarketingSession(userDataDir, projectPath)
 
     console.info('[website-shots] restarting app to pick up seeded state')
     launched = await restartApp(launched.app, userDataDir)

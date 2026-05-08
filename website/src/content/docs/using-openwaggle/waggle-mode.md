@@ -10,13 +10,12 @@ Waggle Mode pairs two configured agents on the same task. Each turn runs through
 ## How It Works
 
 1. Agent A receives the task and produces a response.
-2. Agent B receives the task plus Agent A's output and responds.
+2. Agent B receives the same session context plus Agent A's output and responds.
 3. The agents alternate for the configured turn limit or until consensus is detected.
-4. A synthesis step produces the final response.
 
 The current collaboration style is sequential turns.
 
-## Setting Up A Team
+## Setting Up Presets
 
 Open **Settings > Waggle Mode** and configure:
 
@@ -29,11 +28,9 @@ The command palette can also start a saved Waggle preset.
 
 ## Runtime Behavior
 
-Waggle uses the same Pi runtime, tool events, provider metadata, and session projection as standard sessions. Pi executes the native tools for each turn, and OpenWaggle stores Waggle attribution metadata in the session projection. Internal collaboration instructions are written through hidden Pi custom messages, so the transcript shows the user request and agent outputs rather than coordination prompts.
+Waggle uses the same Pi runtime, tool events, provider metadata, and session projection as standard sessions. A Pi extension drives the two-agent turn loop inside the active Pi session, Pi executes the native tools for each turn, and OpenWaggle stores Waggle attribution metadata in the session projection. Internal collaboration instructions are written through hidden Pi custom messages, so the transcript shows the user request and agent outputs rather than coordination prompts.
 
-## Synthesis
-
-After the turn loop, OpenWaggle asks a configured model to synthesize the result. The current implementation tries the globally selected model first, then falls back to the first agent model if needed.
+Waggle runs use the same branch and interruption behavior as standard runs. If the app closes while a Waggle run is active, OpenWaggle refreshes the latest Pi session snapshot on restart, marks the affected branch as interrupted, and waits for you to continue manually.
 
 ## Conflict Tracking
 

@@ -25,15 +25,15 @@ interface ChatErrorDisplayProps {
   error: Error
   lastUserMessage: string | null
   dismissedError: string | null
-  conversationId: string | null
+  sessionId: string | null
   onDismiss: (message: string) => void
   onOpenSettings?: () => void
   onRetry?: (content: string) => void
 }
 
-function resolveErrorInfo(error: Error, conversationId: string | null): AgentErrorInfo {
-  if (conversationId) {
-    const stored = getLastAgentErrorInfo(conversationId)
+function resolveErrorInfo(error: Error, sessionId: string | null): AgentErrorInfo {
+  if (sessionId) {
+    const stored = getLastAgentErrorInfo(sessionId)
     if (stored) return stored
   }
   return classifyErrorMessage(error.message)
@@ -43,7 +43,7 @@ export function ChatErrorDisplay({
   error,
   lastUserMessage,
   dismissedError,
-  conversationId,
+  sessionId,
   onDismiss,
   onOpenSettings,
   onRetry,
@@ -54,7 +54,7 @@ export function ChatErrorDisplay({
 
   if (dismissedError === error.message) return null
 
-  const info = resolveErrorInfo(error, conversationId)
+  const info = resolveErrorInfo(error, sessionId)
   const isAuthError = info.code === 'api-key-invalid' || info.code === 'session-expired'
 
   function handleCopy(): void {
@@ -65,7 +65,7 @@ export function ChatErrorDisplay({
   }
 
   function handleDismiss(): void {
-    if (conversationId) clearLastAgentErrorInfo(conversationId)
+    if (sessionId) clearLastAgentErrorInfo(sessionId)
     onDismiss(error.message)
   }
 

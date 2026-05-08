@@ -1,7 +1,7 @@
 import type { JsonObject } from '@shared/types/json'
 import { hasConcreteToolOutput, normalizeToolResultPayload } from '@shared/utils/tool-result-state'
 import { isRecord } from '@shared/utils/validation'
-import { AlertCircle, Check, ChevronRight, Clipboard, Loader2, X } from 'lucide-react'
+import { AlertCircle, Check, ChevronRight, Clipboard, GitBranch, Loader2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { cn } from '@/lib/cn'
@@ -27,8 +27,9 @@ interface ToolCallBlockProps {
   name: string
   args: string
   state: string
-  result?: { content: unknown; state: string; error?: string }
+  result?: { content: unknown; state: string; sourceMessageId?: string; error?: string }
   isStreaming?: boolean
+  onBranchFromMessage?: (messageId: string) => void
 }
 
 interface UnifiedDiffLine {
@@ -72,30 +73,38 @@ function getToolResultDetails(content: unknown): unknown {
   return parsed.details
 }
 
+function textFromContentBlocks(content: readonly unknown[]): string | null {
+  const textBlocks: string[] = []
+  for (const block of content) {
+    if (isTextContentBlock(block)) {
+      textBlocks.push(block.text)
+    }
+  }
+  return textBlocks.length > 0 ? textBlocks.join('\n') : null
+}
+
+function stringField(value: { readonly [key: string]: unknown }, key: string): string | null {
+  const field = value[key]
+  return typeof field === 'string' ? field : null
+}
+
+function textFromResultRecord(parsed: { readonly [key: string]: unknown }): string | null {
+  const content = parsed.content
+  if (Array.isArray(content)) {
+    const contentText = textFromContentBlocks(content)
+    if (contentText) {
+      return contentText
+    }
+  }
+
+  return stringField(parsed, 'message') ?? stringField(parsed, 'error')
+}
+
 function getToolResultText(content: unknown): string {
   const parsed = parseResultPayload(content)
-  if (typeof parsed === 'string') {
-    return parsed
-  }
-
-  if (isRecord(parsed)) {
-    if (Array.isArray(parsed.content)) {
-      const textBlocks = parsed.content.filter(isTextContentBlock).map((block) => block.text)
-      if (textBlocks.length > 0) {
-        return textBlocks.join('\n')
-      }
-    }
-
-    if (typeof parsed.message === 'string') {
-      return parsed.message
-    }
-
-    if (typeof parsed.error === 'string') {
-      return parsed.error
-    }
-  }
-
-  return formatUnknownContent(parsed)
+  if (typeof parsed === 'string') return parsed
+  if (!isRecord(parsed)) return formatUnknownContent(parsed)
+  return textFromResultRecord(parsed) ?? formatUnknownContent(parsed)
 }
 
 function getStringArg(args: JsonObject, key: string): string | null {
@@ -236,6 +245,7 @@ export function ToolCallBlock({
   state,
   result,
   isStreaming = false,
+  onBranchFromMessage,
 }: ToolCallBlockProps) {
   const [expanded, setExpanded] = useState(false)
   const hasConcreteResult = result ? hasConcreteToolOutput(result.content) : false
@@ -254,6 +264,7 @@ export function ToolCallBlock({
   const liveOutputPreview = isRunning && resultText.trim() ? buildTailPreview(resultText) : ''
   const failedOutputPreview =
     !expanded && isError && resultText.trim() ? buildTailPreview(resultText) : ''
+  const branchSourceMessageId = result?.sourceMessageId
 
   const startTime = useRef<number | null>(null)
   const [duration, setDuration] = useState(0)
@@ -278,55 +289,67 @@ export function ToolCallBlock({
 
   return (
     <div className="group/tool">
-      <button
-        type="button"
-        aria-expanded={expanded}
-        aria-label={`${actionText} — ${expanded ? 'collapse' : 'expand'} details`}
-        onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center gap-2 py-0.5 text-[13px] transition-colors"
-      >
-        {isRunning && (
-          <Loader2
-            role="status"
-            aria-label="Running"
-            className="h-3.5 w-3.5 text-text-tertiary animate-spin shrink-0"
-          />
-        )}
-        {hasConcreteResult && result && !isError && !isRunning && (
-          <Check className="h-3.5 w-3.5 text-text-muted shrink-0" />
-        )}
-        {result && isError && <X className="h-3.5 w-3.5 text-error/80 shrink-0" />}
-
-        <span
-          className={cn(
-            'truncate',
-            isRunning && 'text-text-tertiary',
-            hasConcreteResult && result && !isError && !isRunning && 'text-text-muted',
-            result && isError && 'text-error/80',
-          )}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          aria-expanded={expanded}
+          aria-label={`${actionText} — ${expanded ? 'collapse' : 'expand'} details`}
+          onClick={() => setExpanded(!expanded)}
+          className="flex min-w-0 flex-1 items-center gap-2 py-0.5 text-[13px] transition-colors"
         >
-          {actionText}
-        </span>
-
-        {diff && (
-          <span className="flex items-center gap-1 text-[12px] shrink-0">
-            <span className="text-success">+{diff.additions}</span>
-            <span className="text-error">-{diff.deletions}</span>
-          </span>
-        )}
-
-        {duration > 0 && !isRunning && (
-          <span className="text-[12px] text-text-muted shrink-0">{formatDuration(duration)}</span>
-        )}
-
-        <ChevronRight
-          className={cn(
-            'ml-auto h-3 w-3 text-text-muted shrink-0 transition-transform',
-            'invisible group-hover/tool:visible',
-            expanded && 'visible rotate-90',
+          {isRunning && (
+            <Loader2
+              role="status"
+              aria-label="Running"
+              className="h-3.5 w-3.5 text-text-tertiary animate-spin shrink-0"
+            />
           )}
-        />
-      </button>
+          {hasConcreteResult && result && !isError && !isRunning && (
+            <Check className="h-3.5 w-3.5 text-text-muted shrink-0" />
+          )}
+          {result && isError && <X className="h-3.5 w-3.5 text-error/80 shrink-0" />}
+
+          <span
+            className={cn(
+              'truncate',
+              isRunning && 'text-text-tertiary',
+              hasConcreteResult && result && !isError && !isRunning && 'text-text-muted',
+              result && isError && 'text-error/80',
+            )}
+          >
+            {actionText}
+          </span>
+
+          {diff && (
+            <span className="flex items-center gap-1 text-[12px] shrink-0">
+              <span className="text-success">+{diff.additions}</span>
+              <span className="text-error">-{diff.deletions}</span>
+            </span>
+          )}
+
+          {duration > 0 && !isRunning && (
+            <span className="text-[12px] text-text-muted shrink-0">{formatDuration(duration)}</span>
+          )}
+
+          <ChevronRight
+            className={cn(
+              'ml-auto h-3 w-3 text-text-muted shrink-0 transition-transform',
+              'invisible group-hover/tool:visible',
+              expanded && 'visible rotate-90',
+            )}
+          />
+        </button>
+        {branchSourceMessageId && onBranchFromMessage ? (
+          <button
+            type="button"
+            title="Branch from tool result"
+            onClick={() => onBranchFromMessage(branchSourceMessageId)}
+            className="opacity-0 text-text-muted transition-opacity hover:text-text-secondary group-hover/tool:opacity-100 focus:opacity-100"
+          >
+            <GitBranch className="h-3.5 w-3.5" />
+          </button>
+        ) : null}
+      </div>
 
       {!expanded && inlineDiffVisible && diff && (
         <div className="ml-5 mt-1">

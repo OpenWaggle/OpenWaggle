@@ -1,4 +1,4 @@
-import type { ConversationId } from './brand'
+import type { SessionId } from './brand'
 
 export type AgentPhaseLabel =
   | 'Thinking'
@@ -19,6 +19,6 @@ export interface AgentPhaseState {
 }
 
 export interface AgentPhaseEventPayload {
-  readonly conversationId: ConversationId
+  readonly sessionId: SessionId
   readonly phase: AgentPhaseState | null
 }

@@ -3,16 +3,13 @@ import { useHotkey } from '@tanstack/react-hotkeys'
 import { useNavigate } from '@tanstack/react-router'
 import { ListTree, Search, X } from 'lucide-react'
 import { useDeferredValue, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
-import {
-  createBranchDraftSelectionFromNode,
-  shouldPromptForBranchSummary,
-} from '@/components/chat/branch-from-message'
+import { createBranchDraftSelectionFromNode } from '@/components/chat/branch-from-message'
+import { maybeOpenBranchSummaryPrompt } from '@/components/chat/branch-summary-prompt-controller'
 import { ScrollToBottomButton } from '@/components/chat/ScrollToBottomButton'
 import { buildComposerDraftContextKey } from '@/components/composer/composer-draft-context'
 import { setEditorText } from '@/components/composer/lexical-utils'
 import { useEscapeHotkey } from '@/hooks/useEscapeHotkey'
 import { api } from '@/lib/ipc'
-import { createRendererLogger } from '@/lib/logger'
 import { isScrollContainerNearBottom, scrollElementToBottom } from '@/lib/scroll-to-bottom'
 import { useBranchSummaryStore } from '@/stores/branch-summary-store'
 import { useComposerStore } from '@/stores/composer-store'
@@ -79,8 +76,6 @@ const FILTER_OPTIONS: readonly { value: SessionTreeFilterMode; label: string }[]
   { value: 'labeled-only', label: 'Labeled' },
   { value: 'all', label: 'All' },
 ]
-
-const logger = createRendererLogger('session-tree')
 
 function isSessionTreeFilterMode(value: string): value is SessionTreeFilterMode {
   return FILTER_OPTIONS.some((option) => option.value === value)
@@ -252,62 +247,6 @@ function useSessionTreePanelController(onClose: SessionTreePanelProps['onClose']
     return appliedDraft.input
   }
 
-  function maybeOpenBranchSummaryPrompt(input: {
-    readonly sessionId: SessionNode['sessionId']
-    readonly sourceNodeId: SessionNode['id']
-    readonly previousComposerText: string
-    readonly draftComposerText: string
-  }): void {
-    useBranchSummaryStore.getState().clearPrompt()
-
-    if (!shouldPromptForBranchSummary(activeWorkspace, input.sourceNodeId)) {
-      return
-    }
-
-    function openIfCurrent(): void {
-      const currentState = useSessionStore.getState()
-      const currentDraft = currentState.draftBranch
-      const currentWorkspace = currentState.activeWorkspace
-      if (
-        !currentDraft ||
-        currentDraft.sessionId !== input.sessionId ||
-        currentDraft.sourceNodeId !== input.sourceNodeId ||
-        currentWorkspace?.tree.session.id !== input.sessionId
-      ) {
-        return
-      }
-      useBranchSummaryStore.getState().openPrompt({
-        sessionId: input.sessionId,
-        sourceNodeId: input.sourceNodeId,
-        restoreSelection: {
-          branchId: activeWorkspace?.activeBranchId ?? null,
-          nodeId: activeWorkspace?.activeNodeId ?? null,
-        },
-        previousComposerText: input.previousComposerText,
-        draftComposerText: input.draftComposerText,
-      })
-    }
-
-    if (typeof api.getPiBranchSummarySkipPrompt !== 'function') {
-      openIfCurrent()
-      return
-    }
-
-    void api
-      .getPiBranchSummarySkipPrompt(tree?.session.projectPath ?? null)
-      .then((skipPrompt) => {
-        if (!skipPrompt) {
-          openIfCurrent()
-        }
-      })
-      .catch((skipPromptError: unknown) => {
-        const message =
-          skipPromptError instanceof Error ? skipPromptError.message : String(skipPromptError)
-        logger.warn('Failed to load branch summary skip-prompt preference', { message })
-        openIfCurrent()
-      })
-  }
-
   function selectNode(node: SessionNode): void {
     if (!tree) {
       return
@@ -355,8 +294,14 @@ function useSessionTreePanelController(onClose: SessionTreePanelProps['onClose']
     maybeOpenBranchSummaryPrompt({
       sessionId,
       sourceNodeId: selection.sourceNodeId,
+      restoreSelection: {
+        branchId: activeWorkspace?.activeBranchId ?? null,
+        nodeId: activeWorkspace?.activeNodeId ?? null,
+      },
       previousComposerText,
       draftComposerText,
+      activeWorkspace,
+      projectPath: tree?.session.projectPath ?? null,
     })
     void navigate({
       to: '/sessions/$sessionId',

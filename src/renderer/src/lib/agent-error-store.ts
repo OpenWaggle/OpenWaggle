@@ -7,21 +7,21 @@ import {
 
 const lastErrorInfoMap = new Map<string, AgentErrorInfo>()
 
-export function getLastAgentErrorInfo(conversationId: string): AgentErrorInfo | null {
-  return lastErrorInfoMap.get(conversationId) ?? null
+export function getLastAgentErrorInfo(sessionId: string): AgentErrorInfo | null {
+  return lastErrorInfoMap.get(sessionId) ?? null
 }
 
-export function clearLastAgentErrorInfo(conversationId: string): void {
-  lastErrorInfoMap.delete(conversationId)
+export function clearLastAgentErrorInfo(sessionId: string): void {
+  lastErrorInfoMap.delete(sessionId)
 }
 
 export function setLastAgentErrorInfo(
-  conversationId: string,
+  sessionId: string,
   error: { readonly message: string; readonly code?: string },
 ): void {
   const info =
     error.code && isAgentErrorCode(error.code)
       ? makeErrorInfo(error.code, error.message)
       : classifyErrorMessage(error.message)
-  lastErrorInfoMap.set(conversationId, info)
+  lastErrorInfoMap.set(sessionId, info)
 }

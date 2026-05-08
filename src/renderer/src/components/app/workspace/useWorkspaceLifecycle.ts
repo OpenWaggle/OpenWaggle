@@ -15,13 +15,13 @@ import { useUIStore } from '@/stores/ui-store'
 export function useWorkspaceLifecycle(): void {
   const { projectPath } = useProject()
   const {
-    activeConversationId,
+    activeSessionId,
     startDraftSession,
-    loadConversations,
-    refreshConversation,
-    updateConversationTitle,
+    loadSessions: loadChatSessions,
+    refreshSession,
+    updateSessionTitle,
   } = useChat()
-  const { loadSessions, refreshSessionTree } = useSessions()
+  const { loadSessions: loadSessionTrees, refreshSessionTree } = useSessions()
   const { refreshStatus: refreshGitStatus, refreshBranches: refreshGitBranches } = useGit()
 
   const navigate = useNavigate()
@@ -36,9 +36,9 @@ export function useWorkspaceLifecycle(): void {
   }
 
   useEffect(() => {
-    void loadConversations()
-    void loadSessions()
-  }, [loadConversations, loadSessions])
+    void loadChatSessions()
+    void loadSessionTrees()
+  }, [loadChatSessions, loadSessionTrees])
 
   useEffect(() => {
     void refreshGitStatus(projectPath)
@@ -47,22 +47,22 @@ export function useWorkspaceLifecycle(): void {
 
   // Subscribe to LLM-generated title updates from main process
   useEffect(() => {
-    return api.onConversationTitleUpdated(({ conversationId, title }) => {
-      updateConversationTitle(conversationId, title)
+    return api.onSessionTitleUpdated(({ sessionId, title }) => {
+      updateSessionTitle(sessionId, title)
     })
-  }, [updateConversationTitle])
+  }, [updateSessionTitle])
 
   useGitRefresh({
     projectPath,
-    activeConversationId,
+    activeSessionId,
     refreshGitStatus,
     refreshGitBranches,
-    refreshConversation,
+    refreshSession,
   })
 
   useEffect(() => {
-    void refreshSessionTree(activeConversationId ? SessionId(String(activeConversationId)) : null)
-  }, [activeConversationId, refreshSessionTree])
+    void refreshSessionTree(activeSessionId ? SessionId(String(activeSessionId)) : null)
+  }, [activeSessionId, refreshSessionTree])
 
   useSessionStatusMonitor()
 

@@ -131,6 +131,16 @@ describe('UserMessageBubble', () => {
     expect(onBranchFromMessage).toHaveBeenCalledWith('u-branch')
   })
 
+  it('calls the fork callback with the message id', () => {
+    const message = createUserMessage('u-fork', [{ type: 'text', content: 'fork here' }])
+    const onForkFromMessage = vi.fn()
+
+    render(<UserMessageBubble message={message} onForkFromMessage={onForkFromMessage} />)
+    fireEvent.click(screen.getByTitle('Fork to new session'))
+
+    expect(onForkFromMessage).toHaveBeenCalledWith('u-fork')
+  })
+
   it('renders the prose-user CSS class for compact styling', () => {
     const message = createUserMessage('u1', [{ type: 'text', content: 'Test' }])
     const { container } = render(<UserMessageBubble message={message} />)

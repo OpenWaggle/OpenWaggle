@@ -1,8 +1,12 @@
 import { randomUUID } from 'node:crypto'
-import type { Message, MessagePart, PreparedAttachment } from '@shared/types/agent'
+import type { Message, MessagePart } from '@shared/types/agent'
 import { MessageId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
 import { isRecord } from '@shared/utils/validation'
+import {
+  buildPersistedUserMessageParts,
+  type PersistedUserMessagePartsPayload,
+} from '../../agent/shared'
 import { piHistoryToProjectedMessages } from './pi-message-mapper'
 
 function makeMessage(
@@ -17,32 +21,6 @@ function makeMessage(
     model,
     createdAt: Date.now(),
   }
-}
-
-interface PiPersistablePayload {
-  readonly text: string
-  readonly attachments: readonly PreparedAttachment[]
-}
-
-function buildPersistedUserMessageParts(payload: PiPersistablePayload): MessagePart[] {
-  const parts: MessagePart[] = []
-  if (payload.text.trim()) {
-    parts.push({ type: 'text', text: payload.text.trim() })
-  }
-  for (const attachment of payload.attachments) {
-    const persisted: PreparedAttachment = {
-      id: attachment.id,
-      kind: attachment.kind,
-      origin: attachment.origin,
-      name: attachment.name,
-      path: attachment.path,
-      mimeType: attachment.mimeType,
-      sizeBytes: attachment.sizeBytes,
-      extractedText: attachment.extractedText,
-    }
-    parts.push({ type: 'attachment', attachment: persisted })
-  }
-  return parts.length > 0 ? parts : [{ type: 'text', text: '' }]
 }
 
 interface PiRuntimeAssistantMessage {
@@ -136,7 +114,7 @@ export function extractPiAssistantTerminalError(messages: readonly unknown[]): s
 }
 
 export function buildPiRunNewMessages(
-  payload: PiPersistablePayload,
+  payload: PersistedUserMessagePartsPayload,
   appendedMessages: readonly unknown[],
 ): Message[] {
   const filteredAppended = appendedMessages.filter(

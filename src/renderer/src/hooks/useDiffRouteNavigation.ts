@@ -42,12 +42,12 @@ export function useDiffRouteNavigation(): DiffRouteNavigation {
       return null
     },
   })
-  const activeConversationId = useChatStore((state) => state.activeConversationId)
+  const activeSessionId = useChatStore((state) => state.activeSessionId)
   const setLastRightSidebarPanel = useUIStore((state) => state.setLastRightSidebarPanel)
   const isChatRoute = isChatPath(pathname)
   const currentRouteSessionId = routeSessionId(pathname)
   const targetSessionId =
-    currentRouteSessionId ?? (activeConversationId ? String(activeConversationId) : null)
+    currentRouteSessionId ?? (activeSessionId ? String(activeSessionId) : null)
 
   const diffOpen = rightPanel === 'diff'
   const sessionTreeOpen = rightPanel === 'session-tree'

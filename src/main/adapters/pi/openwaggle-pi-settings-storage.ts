@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { getAgentDir, SettingsManager } from '@mariozechner/pi-coding-agent'
-import { decodeUnknownOrThrow } from '@shared/schema'
+import { decodeUnknownOrThrow, type SchemaType } from '@shared/schema'
 import { jsonObjectSchema, projectSettingsFileSchema } from '@shared/schemas/validation'
 import type { JsonObject, JsonValue } from '@shared/types/json'
 
@@ -10,6 +10,7 @@ const OPENWAGGLE_CONFIG_DIR = '.openwaggle'
 const PI_CONFIG_DIR = '.pi'
 const SETTINGS_FILE_NAME = 'settings.json'
 type ResourceKind = 'skills' | 'extensions' | 'prompts' | 'themes'
+type ParsedProjectSettingsFile = SchemaType<typeof projectSettingsFileSchema>
 
 type ResourceRootSegments = Readonly<Record<ResourceKind, readonly string[]>>
 
@@ -67,7 +68,7 @@ function parseJsonObject(content: string | undefined): JsonObject {
   return decodeUnknownOrThrow(jsonObjectSchema, parsed)
 }
 
-function parseOpenWaggleSettings(content: string | undefined): JsonObject {
+function parseOpenWaggleSettings(content: string | undefined): ParsedProjectSettingsFile {
   if (!content || content.trim().length === 0) {
     return {}
   }
@@ -92,6 +93,10 @@ function mergeJsonObjects(base: JsonObject, override: JsonObject): JsonObject {
 }
 
 function serializeJsonObject(value: JsonObject): string {
+  return `${JSON.stringify(value, null, JSON_INDENT_SPACES)}\n`
+}
+
+function serializeOpenWaggleSettings(value: ParsedProjectSettingsFile): string {
   return `${JSON.stringify(value, null, JSON_INDENT_SPACES)}\n`
 }
 
@@ -244,13 +249,11 @@ function writeProjectPiSettings(projectPath: string, nextPiSettings: string): vo
   )
   const settingsPath = getOpenWaggleProjectSettingsPath(projectPath)
   const currentOpenWaggleSettings = parseOpenWaggleSettings(readFileIfPresent(settingsPath))
-  writeJsonFile(
-    settingsPath,
-    serializeJsonObject({
-      ...currentOpenWaggleSettings,
-      pi: nextPi,
-    }),
-  )
+  const nextOpenWaggleSettings = decodeUnknownOrThrow(projectSettingsFileSchema, {
+    ...currentOpenWaggleSettings,
+    pi: nextPi,
+  })
+  writeJsonFile(settingsPath, serializeOpenWaggleSettings(nextOpenWaggleSettings))
 }
 
 function createOpenWagglePiSettingsStorage(projectPath: string): SettingsStorageLike {

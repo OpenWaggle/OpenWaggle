@@ -19,7 +19,7 @@ vi.mock('@/router', () => ({
   router: {},
 }))
 
-import { App } from '@/App'
+import { App } from '../App'
 
 describe('App', () => {
   beforeEach(() => {

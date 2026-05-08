@@ -1,7 +1,7 @@
 import type { SkillCatalogResult } from '@shared/types/standards'
 import { act, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { renderHookWithQueryClient } from '@/test-utils/query-test-utils'
+import { renderHookWithQueryClient } from '../../test-utils/query-test-utils'
 import { useSkills } from '../useSkills'
 
 const { getSkillPreviewMock, getStandardsStatusMock, listSkillsMock, setSkillEnabledMock } =

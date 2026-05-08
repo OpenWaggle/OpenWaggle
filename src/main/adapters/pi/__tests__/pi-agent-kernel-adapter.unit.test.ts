@@ -1,6 +1,6 @@
 import type { AgentSessionEvent } from '@mariozechner/pi-coding-agent'
 import type { AgentSendPayload } from '@shared/types/agent'
-import { ConversationId, SupportedModelId } from '@shared/types/brand'
+import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import { describe, expect, it } from 'vitest'
 import type { AgentKernelRunInput } from '../../../ports/agent-kernel-service'
@@ -22,14 +22,15 @@ function makePayload(overrides: Partial<AgentSendPayload> = {}): AgentSendPayloa
 
 function makeRunInput(onEvent: (event: AgentTransportEvent) => void): AgentKernelRunInput {
   return {
-    conversation: {
-      id: ConversationId('conv-tool-events'),
+    session: {
+      id: SessionId('conv-tool-events'),
       title: 'Tool events',
       projectPath: '/tmp/project',
       messages: [],
       createdAt: 1,
       updatedAt: 1,
     },
+    runId: 'run-tool-events',
     payload: {
       text: 'Run tests',
       thinkingLevel: 'medium',

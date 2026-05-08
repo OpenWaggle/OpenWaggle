@@ -9,7 +9,7 @@ The main process owns runtime execution, persistence, provider configuration, au
 Layering follows the hexagonal model:
 
 - `src/main/domain/` contains pure business logic.
-- `src/main/ports/` defines Effect service ports such as `AgentKernelService`, `SessionRepository`, `SessionProjectionRepository`, `SessionTreePreferencesService`, `ProviderService`, `ProviderAuthService`, `ProviderOAuthService`, `ProviderProbeService`, `TeamsRepository`, and `StandardsService`.
+- `src/main/ports/` defines Effect service ports such as `AgentKernelService`, `SessionRepository`, `SessionProjectionRepository`, `SessionTreePreferencesService`, `ProviderService`, `ProviderAuthService`, `ProviderOAuthService`, `ProviderProbeService`, `WagglePresetsRepository`, and `StandardsService`.
 - `src/main/adapters/` implements ports. Pi SDK imports are confined to `src/main/adapters/pi/`.
 - `src/main/application/` orchestrates runs through ports.
 - `src/main/ipc/` handles Electron IPC and emits transport events.
@@ -36,6 +36,10 @@ Pi sessions and OpenWaggle sessions are projected into:
 - `session_tree_ui_state`
 
 Session trees, branches, Waggle metadata, and future-mode state are explicit projection data over the Pi session graph.
+
+## Waggle Presets
+
+Waggle presets are resolved through `WagglePresetsRepository`. Built-in presets are bundled in the adapter, global presets are stored in Electron user data as `waggle-presets.json`, and project presets are stored in `.openwaggle/settings.json`. Project presets override global presets with the same id.
 
 ## Waggle
 

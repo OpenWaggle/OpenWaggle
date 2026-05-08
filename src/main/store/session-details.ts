@@ -2,16 +2,9 @@ import * as SqlClient from '@effect/sql/SqlClient'
 import { Schema, type SchemaType, safeDecodeUnknown } from '@shared/schema'
 import { waggleConfigSchema, waggleMetadataSchema } from '@shared/schemas/waggle'
 import type { Message, MessagePart } from '@shared/types/agent'
-import {
-  ConversationId,
-  MessageId,
-  SessionId,
-  SupportedModelId,
-  ToolCallId,
-} from '@shared/types/brand'
-import type { Conversation, ConversationSummary } from '@shared/types/conversation'
+import { MessageId, SessionId, SupportedModelId, ToolCallId } from '@shared/types/brand'
 import type { JsonValue } from '@shared/types/json'
-import type { SessionNode } from '@shared/types/session'
+import type { SessionDetail, SessionNode, SessionSummary } from '@shared/types/session'
 import type { WaggleConfig } from '@shared/types/waggle'
 import { chooseBy } from '@shared/utils/decision'
 import { isRecord } from '@shared/utils/validation'
@@ -21,10 +14,10 @@ import type {
   PersistSessionSnapshotInput,
   ProjectedSessionNodeInput,
 } from '../ports/session-repository'
-import { runAppEffect } from '../runtime'
 import { buildPiWorkingContextPath } from './session-working-context'
+import { runStoreEffect } from './store-runtime'
 
-const logger = createLogger('session-conversations')
+const logger = createLogger('session-details')
 
 const EMPTY_INDEX = 0
 const MAIN_BRANCH_NAME = 'main'
@@ -81,6 +74,16 @@ interface SessionBranchStateRow {
   readonly waggle_config_json: string | null
   readonly last_active_at: number
   readonly ui_state_json: string
+}
+
+interface SessionActiveRunRow {
+  readonly run_id: string
+  readonly session_id: string
+  readonly branch_id: string
+  readonly run_mode: string
+  readonly status: string
+  readonly runtime_json: string
+  readonly updated_at: number
 }
 
 export interface SessionNodeRow {
@@ -258,9 +261,9 @@ function transformPart(part: ParsedPart): MessagePart {
     .assertComplete()
 }
 
-function hydrateConversationSummary(row: SessionSummaryRow): ConversationSummary {
+function hydrateSessionSummary(row: SessionSummaryRow): SessionSummary {
   return {
-    id: ConversationId(row.id),
+    id: SessionId(row.id),
     title: row.title,
     projectPath: row.project_path,
     messageCount: row.message_count,
@@ -270,7 +273,7 @@ function hydrateConversationSummary(row: SessionSummaryRow): ConversationSummary
   }
 }
 
-export function hydrateConversationMessage(row: SessionNodeRow) {
+export function hydrateSessionMessage(row: SessionNodeRow) {
   const parsedContent = safeDecodeUnknown(
     messageNodeContentSchema,
     parseJsonValue(row.content_json),
@@ -312,17 +315,17 @@ export function hydrateConversationMessage(row: SessionNodeRow) {
   }
 }
 
-function hydrateConversation(
+function hydrateSessionDetail(
   sessionRow: SessionRow,
   nodeRows: readonly SessionNodeRow[],
-): Conversation | null {
+): SessionDetail | null {
   try {
-    const messages = hydrateConversationMessages(
+    const messages = hydrateSessionMessages(
       getActivePathRows(sessionRow.last_active_node_id, nodeRows),
     )
 
     return {
-      id: ConversationId(sessionRow.id),
+      id: SessionId(sessionRow.id),
       title: sessionRow.title,
       projectPath: sessionRow.project_path,
       piSessionId: sessionRow.pi_session_id,
@@ -334,8 +337,8 @@ function hydrateConversation(
       updatedAt: sessionRow.updated_at,
     }
   } catch (error) {
-    logger.warn('Failed to hydrate session-backed conversation', {
-      conversationId: sessionRow.id,
+    logger.warn('Failed to hydrate session-backed session', {
+      sessionId: sessionRow.id,
       error: describeError(error),
     })
     return null
@@ -372,7 +375,7 @@ function getNumberField(value: unknown, key: string): number | null {
   return typeof field === 'number' && Number.isFinite(field) ? field : null
 }
 
-export function hydrateStructuralConversationMessage(row: SessionNodeRow): Message | null {
+export function hydrateStructuralSessionMessage(row: SessionNodeRow): Message | null {
   const content = parseJsonValue(row.content_json)
   const summary = getStringField(content, 'summary')
   if (!summary) {
@@ -384,6 +387,7 @@ export function hydrateStructuralConversationMessage(row: SessionNodeRow): Messa
       id: MessageId(row.id),
       role: 'assistant',
       parts: [{ type: 'text', text: `Branch summary\n\n${summary}` }],
+      metadata: { branchSummary: { summary } },
       createdAt: row.timestamp_ms,
     }
   }
@@ -404,12 +408,12 @@ export function hydrateStructuralConversationMessage(row: SessionNodeRow): Messa
   return null
 }
 
-function hydrateConversationMessages(nodeRows: readonly SessionNodeRow[]): Message[] {
+function hydrateSessionMessages(nodeRows: readonly SessionNodeRow[]): Message[] {
   const messages: Message[] = []
 
   for (const row of nodeRows) {
     if (row.kind === 'branch_summary' || row.kind === 'compaction_summary') {
-      const structuralMessage = hydrateStructuralConversationMessage(row)
+      const structuralMessage = hydrateStructuralSessionMessage(row)
       if (structuralMessage) {
         messages.push(structuralMessage)
       }
@@ -417,7 +421,7 @@ function hydrateConversationMessages(nodeRows: readonly SessionNodeRow[]): Messa
     }
 
     if (row.kind === TOOL_RESULT_KIND) {
-      messages.push(hydrateConversationMessage(row))
+      messages.push(hydrateSessionMessage(row))
       continue
     }
 
@@ -430,7 +434,7 @@ function hydrateConversationMessages(nodeRows: readonly SessionNodeRow[]): Messa
     }
 
     if (row.role !== null) {
-      messages.push(hydrateConversationMessage(row))
+      messages.push(hydrateSessionMessage(row))
     }
   }
 
@@ -891,12 +895,12 @@ function deriveBranchHints(input: {
   return branchHintByNodeId
 }
 
-function isConversation(conversation: Conversation | null): conversation is Conversation {
-  return conversation !== null
+function isSessionDetail(session: SessionDetail | null): session is SessionDetail {
+  return session !== null
 }
 
-export async function listConversations(limit?: number): Promise<ConversationSummary[]> {
-  return runAppEffect(
+export async function listSessionSummaries(limit?: number): Promise<SessionSummary[]> {
+  return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       const effectiveLimit = limit ?? -1
@@ -920,19 +924,19 @@ export async function listConversations(limit?: number): Promise<ConversationSum
         LIMIT ${effectiveLimit}
       `
 
-      return rows.map(hydrateConversationSummary)
+      return rows.map(hydrateSessionSummary)
     }),
   )
 }
 
-export async function listFullConversations(limit?: number): Promise<Conversation[]> {
-  const summaries = await listConversations(limit)
-  const conversations = await Promise.all(summaries.map((summary) => getConversation(summary.id)))
-  return conversations.filter(isConversation)
+export async function listSessionDetails(limit?: number): Promise<SessionDetail[]> {
+  const summaries = await listSessionSummaries(limit)
+  const sessions = await Promise.all(summaries.map((summary) => getSessionDetail(summary.id)))
+  return sessions.filter(isSessionDetail)
 }
 
-export async function listArchivedConversations(): Promise<ConversationSummary[]> {
-  return runAppEffect(
+export async function listArchivedSessions(): Promise<SessionSummary[]> {
+  return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       const rows = yield* sql<SessionSummaryRow>`
@@ -954,13 +958,13 @@ export async function listArchivedConversations(): Promise<ConversationSummary[]
         ORDER BY s.updated_at DESC
       `
 
-      return rows.map(hydrateConversationSummary)
+      return rows.map(hydrateSessionSummary)
     }),
   )
 }
 
-export async function getConversation(id: ConversationId): Promise<Conversation | null> {
-  return runAppEffect(
+export async function getSessionDetail(id: SessionId): Promise<SessionDetail | null> {
+  return runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       const sessionRows = yield* sql<SessionRow>`
@@ -1005,23 +1009,23 @@ export async function getConversation(id: ConversationId): Promise<Conversation 
         ORDER BY created_order ASC
       `
 
-      return hydrateConversation(sessionRow, nodeRows)
+      return hydrateSessionDetail(sessionRow, nodeRows)
     }),
   )
 }
 
-export interface CreateConversationInput {
+export interface CreateSessionInput {
   readonly projectPath: string
   readonly piSessionId: string
   readonly piSessionFile?: string
 }
 
-export async function createConversation(input: CreateConversationInput): Promise<Conversation> {
+export async function createSession(input: CreateSessionInput): Promise<SessionDetail> {
   const now = Date.now()
-  const id = ConversationId(input.piSessionId)
+  const id = SessionId(input.piSessionId)
   const sessionId = SessionId(String(id))
   const branchId = mainBranchId(String(sessionId))
-  const conversation: Conversation = {
+  const session: SessionDetail = {
     id,
     title: 'New session',
     projectPath: input.projectPath,
@@ -1032,7 +1036,7 @@ export async function createConversation(input: CreateConversationInput): Promis
     updatedAt: now,
   }
 
-  await runAppEffect(
+  await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       yield* sql.withTransaction(
@@ -1056,7 +1060,7 @@ export async function createConversation(input: CreateConversationInput): Promis
               ${input.piSessionId},
               ${input.piSessionFile ?? null},
               ${input.projectPath},
-              ${conversation.title},
+              ${session.title},
               ${0},
               ${null},
               ${now},
@@ -1131,11 +1135,11 @@ export async function createConversation(input: CreateConversationInput): Promis
     }),
   )
 
-  return conversation
+  return session
 }
 
 export async function updateSessionRuntime(input: UpdateSessionRuntimeInput): Promise<void> {
-  await runAppEffect(
+  await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       yield* sql`
@@ -1153,7 +1157,7 @@ export async function persistSessionSnapshot(input: PersistSessionSnapshotInput)
   const now = Date.now()
   const nodes = [...input.nodes].sort((left, right) => left.createdOrder - right.createdOrder)
 
-  await runAppEffect(
+  await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       const sessionRows = yield* sql<SessionRow>`
@@ -1206,6 +1210,18 @@ export async function persistSessionSnapshot(input: PersistSessionSnapshotInput)
               WHERE branch_id IN ${sql.in(existingBranches.map((branch) => branch.id))}
             `
           : []
+      const existingActiveRuns = yield* sql<SessionActiveRunRow>`
+        SELECT
+          run_id,
+          session_id,
+          branch_id,
+          run_mode,
+          status,
+          runtime_json,
+          updated_at
+        FROM session_active_runs
+        WHERE session_id = ${input.sessionId}
+      `
       const {
         branches,
         activeBranchId,
@@ -1224,6 +1240,7 @@ export async function persistSessionSnapshot(input: PersistSessionSnapshotInput)
       const branchStateById = new Map(
         existingBranchStates.map((branchState) => [branchState.branch_id, branchState]),
       )
+      const branchIds = new Set(branches.map((branch) => branch.id))
 
       yield* sql.withTransaction(
         Effect.gen(function* () {
@@ -1333,6 +1350,33 @@ export async function persistSessionSnapshot(input: PersistSessionSnapshotInput)
             `
           }
 
+          for (const activeRun of existingActiveRuns) {
+            if (!branchIds.has(activeRun.branch_id)) {
+              continue
+            }
+
+            yield* sql`
+              INSERT INTO session_active_runs (
+                run_id,
+                session_id,
+                branch_id,
+                run_mode,
+                status,
+                runtime_json,
+                updated_at
+              )
+              VALUES (
+                ${activeRun.run_id},
+                ${activeRun.session_id},
+                ${activeRun.branch_id},
+                ${activeRun.run_mode},
+                ${activeRun.status},
+                ${activeRun.runtime_json},
+                ${activeRun.updated_at}
+              )
+            `
+          }
+
           yield* sql`
             INSERT INTO session_tree_ui_state (
               session_id,
@@ -1371,8 +1415,8 @@ export async function persistSessionSnapshot(input: PersistSessionSnapshotInput)
   )
 }
 
-export async function deleteConversation(id: ConversationId): Promise<void> {
-  await runAppEffect(
+export async function deleteSession(id: SessionId): Promise<void> {
+  await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       yield* sql`
@@ -1383,8 +1427,8 @@ export async function deleteConversation(id: ConversationId): Promise<void> {
   )
 }
 
-async function updateArchivedState(id: ConversationId, archived: boolean): Promise<void> {
-  await runAppEffect(
+async function updateArchivedState(id: SessionId, archived: boolean): Promise<void> {
+  await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       yield* sql`
@@ -1397,16 +1441,16 @@ async function updateArchivedState(id: ConversationId, archived: boolean): Promi
   )
 }
 
-export async function archiveConversation(id: ConversationId): Promise<void> {
+export async function archiveSession(id: SessionId): Promise<void> {
   await updateArchivedState(id, true)
 }
 
-export async function unarchiveConversation(id: ConversationId): Promise<void> {
+export async function unarchiveSession(id: SessionId): Promise<void> {
   await updateArchivedState(id, false)
 }
 
-export async function updateConversationTitle(id: ConversationId, title: string): Promise<void> {
-  await runAppEffect(
+export async function updateSessionTitle(id: SessionId, title: string): Promise<void> {
+  await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
       yield* sql`

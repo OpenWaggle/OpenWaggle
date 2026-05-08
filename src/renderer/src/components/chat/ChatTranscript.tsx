@@ -1,4 +1,4 @@
-import type { ConversationId } from '@shared/types/brand'
+import type { SessionBranchId, SessionId } from '@shared/types/brand'
 import { chooseBy } from '@shared/utils/decision'
 import { cn } from '@/lib/cn'
 import { ChatRowRenderer } from './ChatRowRenderer'
@@ -16,31 +16,37 @@ interface ChatTranscriptProps {
 
 interface TranscriptRowProps {
   row: ChatRow
-  conversationId: ConversationId | null
+  sessionId: SessionId | null
   onOpenSettings: () => void
   onRetryText: (content: string) => Promise<void>
   onDismissError: (errorId: string | null) => void
+  onDismissInterruptedRun: (runId: string, branchId: SessionBranchId) => void
   onBranchFromMessage: (messageId: string) => void
+  onForkFromMessage: (messageId: string) => void
 }
 
 function TranscriptRow({
   row,
-  conversationId,
+  sessionId,
   onOpenSettings,
   onRetryText,
   onDismissError,
+  onDismissInterruptedRun,
   onBranchFromMessage,
+  onForkFromMessage,
 }: TranscriptRowProps) {
   return (
     <ChatRowRenderer
       row={row}
-      conversationId={conversationId}
+      sessionId={sessionId}
       onOpenSettings={onOpenSettings}
       onRetry={(content) => {
         void onRetryText(content)
       }}
       onDismissError={onDismissError}
+      onDismissInterruptedRun={onDismissInterruptedRun}
       onBranchFromMessage={onBranchFromMessage}
+      onForkFromMessage={onForkFromMessage}
     />
   )
 }
@@ -48,10 +54,13 @@ function TranscriptRow({
 function getChatRowKey(row: ChatRow): string {
   return chooseBy(row, 'type')
     .case('message', (value) => `message:${value.message.id}`)
+    .case('waggle-turn', (value) => value.id)
+    .case('interrupted-run', (value) => `interrupted-run:${value.runId}`)
+    .case('branch-summary', (value) => `branch-summary:${value.id}`)
     .case('compaction-summary', (value) => `compaction:${value.id}`)
     .case('phase-indicator', (value) => `phase:${value.label}`)
     .case('run-summary', (value) => `run-summary:${String(value.totalMs)}`)
-    .case('error', (value) => `error:${value.conversationId ?? 'none'}:${value.error.message}`)
+    .case('error', (value) => `error:${value.sessionId ?? 'none'}:${value.error.message}`)
     .assertComplete()
 }
 
@@ -59,21 +68,25 @@ function getChatRowKey(row: ChatRow): string {
 
 interface RenderTranscriptRowsParams {
   rows: ChatRow[]
-  activeConversationId: ConversationId | null
+  activeSessionId: SessionId | null
   onOpenSettings: () => void
   onRetryText: (content: string) => Promise<void>
   onDismissError: (errorId: string | null) => void
+  onDismissInterruptedRun: (runId: string, branchId: SessionBranchId) => void
   onBranchFromMessage: (messageId: string) => void
+  onForkFromMessage: (messageId: string) => void
 }
 
 function TranscriptRows(params: RenderTranscriptRowsParams) {
   const {
     rows,
-    activeConversationId,
+    activeSessionId,
     onOpenSettings,
     onRetryText,
     onDismissError,
+    onDismissInterruptedRun,
     onBranchFromMessage,
+    onForkFromMessage,
   } = params
 
   return (
@@ -89,11 +102,13 @@ function TranscriptRows(params: RenderTranscriptRowsParams) {
           >
             <TranscriptRow
               row={row}
-              conversationId={activeConversationId}
+              sessionId={activeSessionId}
               onOpenSettings={onOpenSettings}
               onRetryText={onRetryText}
               onDismissError={onDismissError}
+              onDismissInterruptedRun={onDismissInterruptedRun}
               onBranchFromMessage={onBranchFromMessage}
+              onForkFromMessage={onForkFromMessage}
             />
           </div>
         )
@@ -110,14 +125,16 @@ export function ChatTranscript({ section }: ChatTranscriptProps) {
     isLoading,
     projectPath,
     recentProjects,
-    activeConversationId,
+    activeSessionId,
     chatRows: rows,
     onOpenProject,
     onSelectProjectPath,
     onRetryText,
     onOpenSettings,
     onDismissError,
+    onDismissInterruptedRun,
     onBranchFromMessage,
+    onForkFromMessage,
     lastUserMessageId,
     streamSignalVersion,
     userDidSend,
@@ -139,7 +156,7 @@ export function ChatTranscript({ section }: ChatTranscriptProps) {
     handleTouchMove,
     handleTouchEnd,
   } = useChatScrollBehaviour({
-    activeConversationId: activeConversationId ?? null,
+    activeSessionId: activeSessionId ?? null,
     lastUserMessageId,
     rowsLength: rows.length,
     streamVersion: streamSignalVersion,
@@ -148,7 +165,7 @@ export function ChatTranscript({ section }: ChatTranscriptProps) {
     onUserDidSendConsumed,
   })
 
-  if (messages.length === 0 && !isLoading) {
+  if (messages.length === 0 && rows.length === 0 && !isLoading) {
     return (
       <div className="flex-1 overflow-y-auto chat-scroll">
         <WelcomeScreen
@@ -195,11 +212,13 @@ export function ChatTranscript({ section }: ChatTranscriptProps) {
         <div ref={contentRef} className="flex min-h-full flex-col">
           <TranscriptRows
             rows={rows}
-            activeConversationId={activeConversationId}
+            activeSessionId={activeSessionId}
             onOpenSettings={onOpenSettings}
             onRetryText={onRetryText}
             onDismissError={onDismissError}
+            onDismissInterruptedRun={onDismissInterruptedRun}
             onBranchFromMessage={onBranchFromMessage}
+            onForkFromMessage={onForkFromMessage}
           />
         </div>
       </div>

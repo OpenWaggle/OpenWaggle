@@ -1,7 +1,7 @@
-import { ConversationId, MessageId, ToolCallId } from '@shared/types/brand'
-import type { Conversation } from '@shared/types/conversation'
+import { MessageId, SessionId, ToolCallId } from '@shared/types/brand'
+import type { SessionDetail } from '@shared/types/session'
 import { describe, expect, it } from 'vitest'
-import { conversationToUIMessages, formatAttachmentPreview } from '../useAgentChat.utils'
+import { formatAttachmentPreview, sessionToUIMessages } from '../useAgentChat.utils'
 
 const LONG_TEXT = 'x'.repeat(400)
 const REGULAR_ATTACHMENT_NAME = 'notes.md'
@@ -36,10 +36,10 @@ describe('formatAttachmentPreview', () => {
   })
 })
 
-describe('conversationToUIMessages', () => {
+describe('sessionToUIMessages', () => {
   it('preserves persisted tool-call state on tool-call parts', () => {
-    const conversation: Conversation = {
-      id: ConversationId('conv-1'),
+    const session: SessionDetail = {
+      id: SessionId('session-1'),
       title: 'Pending tool',
       projectPath: '/repo',
       createdAt: 1,
@@ -64,7 +64,7 @@ describe('conversationToUIMessages', () => {
       ],
     }
 
-    const messages = conversationToUIMessages(conversation)
+    const messages = sessionToUIMessages(session)
     const toolCall = messages[0]?.parts[0]
 
     expect(toolCall).toEqual({
@@ -77,8 +77,8 @@ describe('conversationToUIMessages', () => {
   })
 
   it('maps persisted reasoning parts to inline thinking UI parts', () => {
-    const conversation: Conversation = {
-      id: ConversationId('conv-reasoning'),
+    const session: SessionDetail = {
+      id: SessionId('session-reasoning'),
       title: 'Reasoning',
       projectPath: '/repo',
       createdAt: 1,
@@ -93,7 +93,7 @@ describe('conversationToUIMessages', () => {
       ],
     }
 
-    const messages = conversationToUIMessages(conversation)
+    const messages = sessionToUIMessages(session)
 
     expect(messages[0]?.parts).toEqual([
       {

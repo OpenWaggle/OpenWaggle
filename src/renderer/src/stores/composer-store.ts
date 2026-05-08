@@ -2,8 +2,6 @@ import type { PreparedAttachment } from '@shared/types/agent'
 import type { LexicalEditor } from 'lexical'
 import { create } from 'zustand'
 
-export type { ComposerActionDialogKind } from './composer-action-store'
-
 type MenuKind = 'thinking' | 'execution' | 'branch' | null
 
 export interface ComposerScopedDraft {
@@ -100,7 +98,7 @@ interface ComposerState {
   lexicalEditor: LexicalEditor | null
   setLexicalEditor: (editor: LexicalEditor | null) => void
 
-  // Reset (on conversation switch or after send)
+  // Reset (on session switch or after send)
   reset: () => void
 }
 

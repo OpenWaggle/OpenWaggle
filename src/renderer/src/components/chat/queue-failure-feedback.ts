@@ -1,5 +1,5 @@
 import type { AgentSendPayload } from '@shared/types/agent'
-import type { ConversationId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
 import type { Logger } from '@shared/types/logger'
 
 const AUTO_SEND_FAILURE_TOAST =
@@ -17,12 +17,12 @@ function formatError(error: unknown): string {
 
 export function reportAutoSendQueueFailure(
   deps: QueueFailureFeedbackDeps,
-  conversationId: ConversationId | null,
+  sessionId: SessionId | null,
   payload: AgentSendPayload,
   error: unknown,
 ): void {
   deps.logger.error('Failed to auto-send queued message', {
-    conversationId,
+    sessionId,
     error: formatError(error),
     queuedText: payload.text,
   })
@@ -31,12 +31,12 @@ export function reportAutoSendQueueFailure(
 
 export function reportQueuedSteerFailure(
   deps: QueueFailureFeedbackDeps,
-  conversationId: ConversationId,
+  sessionId: SessionId,
   messageId: string,
   error: unknown,
 ): void {
   deps.logger.error('Failed to steer queued message', {
-    conversationId,
+    sessionId,
     messageId,
     error: formatError(error),
   })

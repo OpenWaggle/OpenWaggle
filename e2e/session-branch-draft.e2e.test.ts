@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { seedSingleConversation } from './support/conversation-fixtures'
+import { seedSingleSession } from './support/session-fixtures'
 import { OpenWaggleApp } from './support/openwaggle-app'
 
 const TITLE = 'Draft branch transcript scope'
@@ -12,7 +12,7 @@ test('draft branch selection shows transcript only up to the selected source nod
   const app = await OpenWaggleApp.launch('openwaggle-branch-draft-e2e-')
 
   try {
-    await seedSingleConversation(app.userDataDir, {
+    await seedSingleSession(app.userDataDir, {
       title: TITLE,
       projectPath: app.userDataDir,
       updatedAt: Date.now(),

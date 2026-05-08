@@ -10,6 +10,7 @@ import { WaggleCollaborationStatus as WaggleCollaborationStatusBanner } from '@/
 import { useBranchSummaryStore } from '@/stores/branch-summary-store'
 import { useMessageQueueStore } from '@/stores/message-queue-store'
 
+import { SessionForkSelector } from './SessionForkSelector'
 import type { ChatComposerSectionState } from './use-chat-panel-controller'
 
 interface ChatComposerStackProps {
@@ -21,10 +22,12 @@ function noOp(): void {}
 
 export function ChatComposerStack({ section, onOpenSessionTree }: ChatComposerStackProps) {
   const {
-    activeConversationId,
+    activeSessionId,
     waggleStatus,
     commandPaletteOpen,
     slashSkills,
+    forkSelectorOpen,
+    forkTargets,
     isLoading,
     status,
     compactionStatus,
@@ -39,9 +42,13 @@ export function ChatComposerStack({ section, onOpenSessionTree }: ChatComposerSt
     onSummarizeBranch,
     onStartCustomBranchSummary,
     onCancelBranchSummary,
+    onOpenForkSelector,
+    onCloseForkSelector,
+    onSelectForkTarget,
+    onCloneToNewSession,
   } = section
 
-  useScopedComposerDrafts(activeConversationId)
+  useScopedComposerDrafts(activeSessionId)
 
   const enqueue = useMessageQueueStore((s) => s.enqueue)
   const branchSummaryMode = useBranchSummaryStore((s) => s.prompt?.mode ?? null)
@@ -53,7 +60,7 @@ export function ChatComposerStack({ section, onOpenSessionTree }: ChatComposerSt
   return (
     <>
       <WaggleCollaborationStatusBanner
-        currentConversationId={activeConversationId}
+        currentSessionId={activeSessionId}
         onStop={waggleStatus !== 'idle' ? onStopCollaboration : noOp}
       />
 
@@ -64,16 +71,25 @@ export function ChatComposerStack({ section, onOpenSessionTree }: ChatComposerSt
             onSelectSkill={onSelectSkill}
             onStartWaggle={onStartWaggle}
             onOpenSessionTree={onOpenSessionTree}
+            onForkToNewSession={onOpenForkSelector}
+            onCloneToNewSession={onCloneToNewSession}
           />
         </div>
       )}
+
+      <SessionForkSelector
+        open={forkSelectorOpen}
+        targets={forkTargets}
+        onSelect={onSelectForkTarget}
+        onClose={onCloseForkSelector}
+      />
 
       <div className="mx-auto w-full max-w-[720px] px-5 pb-5" data-chat-composer-form="true">
         {compactionStatus ? (
           <CompactionStatusStrip state={compactionStatus} onCancel={onCancel} />
         ) : null}
         <QueuedMessages
-          conversationId={activeConversationId}
+          sessionId={activeSessionId}
           onSteer={onSteer}
           isStreaming={status === 'streaming' || status === 'submitted'}
           isCompacting={status === 'compacting' || status === 'retrying'}
@@ -87,8 +103,8 @@ export function ChatComposerStack({ section, onOpenSessionTree }: ChatComposerSt
         <Composer
           onSend={onSendWithWaggle}
           onEnqueue={(payload) => {
-            if (activeConversationId) {
-              enqueue(activeConversationId, payload)
+            if (activeSessionId) {
+              enqueue(activeSessionId, payload)
             }
           }}
           onCancel={onCancel}
