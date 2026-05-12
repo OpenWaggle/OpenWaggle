@@ -41,10 +41,9 @@
     "format": "biome format --write src/",
     "check:fast": "pnpm typecheck && pnpm lint",
     "check:pattern-style": "tsx scripts/check-pattern-style.ts",
-    "check:decision-size": "tsx scripts/check-decision-size.ts",
     "check:magic-numbers": "tsx scripts/check-magic-numbers.ts",
     "check:architecture": "tsx scripts/check-architecture.ts",
-    "check": "pnpm typecheck && pnpm lint && pnpm check:pattern-style && pnpm check:decision-size && pnpm check:magic-numbers && pnpm check:architecture",
+    "check": "pnpm typecheck && pnpm lint && pnpm check:pattern-style && pnpm check:magic-numbers && pnpm check:architecture",
     "prepush:main": "pnpm check && pnpm format && pnpm test:all",
     "website:capture-screenshots": "pnpm prepare:native:electron && tsx scripts/capture-website-screenshots.ts",
     "prepare": "husky",
@@ -62,7 +61,17 @@
       "sharp"
     ],
     "overrides": {
-      "electron-vite>vite": "$vite"
+      "electron-vite>vite": "$vite",
+      "@tanstack/history": "1.161.6",
+      "@tanstack/query-core": "5.100.10",
+      "@tanstack/react-hotkeys": "0.10.0",
+      "@tanstack/react-query": "5.100.10",
+      "@tanstack/react-router": "1.169.2",
+      "@tanstack/router-core": "1.169.2",
+      "@tanstack/router-generator": "1.166.42",
+      "@tanstack/router-plugin": "1.167.35",
+      "@tanstack/router-utils": "1.161.8",
+      "@tanstack/virtual-file-routes": "1.161.7"
     }
   },
   "repository": {
@@ -70,11 +79,12 @@
     "url": "https://github.com/OpenWaggle/OpenWaggle.git"
   },
   "dependencies": {
+    "@diegogbrisa/ts-match": "1.2.0",
     "@lexical/react": "^0.42.0",
     "@lobehub/icons-static-svg": "^1.87.0",
     "@mariozechner/pi-coding-agent": "0.70.2",
-    "@tanstack/react-hotkeys": "^0.10.0",
-    "@tanstack/react-router": "^1.168.23",
+    "@tanstack/react-hotkeys": "0.10.0",
+    "@tanstack/react-router": "1.169.2",
     "@xenova/transformers": "2.17.2",
     "better-sqlite3": "^12.6.2",
     "electron-updater": "^6.6.2",
@@ -99,8 +109,8 @@
     "@playwright/test": "^1.58.2",
     "@rolldown/plugin-babel": "^0.2.2",
     "@tailwindcss/vite": "^4.2.2",
-    "@tanstack/react-query": "^5.90.21",
-    "@tanstack/router-plugin": "^1.167.23",
+    "@tanstack/react-query": "5.100.10",
+    "@tanstack/router-plugin": "1.167.35",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",

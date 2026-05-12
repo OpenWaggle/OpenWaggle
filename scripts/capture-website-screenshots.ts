@@ -3,7 +3,14 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { _electron as electron, expect, type ElectronApplication, type Page } from '@playwright/test'
+import type { OpenWaggleApi } from '@shared/types/ipc'
 import { seedSingleSession } from '../e2e/support/session-fixtures'
+
+declare global {
+  interface Window {
+    readonly api: OpenWaggleApi
+  }
+}
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const SCREENSHOT_OUTPUT_DIR = path.join(ROOT_DIR, 'website', 'public', 'screenshots')

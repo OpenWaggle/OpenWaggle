@@ -7,7 +7,6 @@
     "src/renderer/src/main.tsx",
     "src/renderer/src/**/*.d.ts",
     "src/shared/types/**/*.d.ts",
-    "src/shared/utils/decision.typecheck.ts",
     "scripts/**/*.ts",
     "vitest.*.config.ts",
     "playwright.config.ts"

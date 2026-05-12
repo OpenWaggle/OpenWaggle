@@ -17,6 +17,12 @@ const PI_EXTENSION_NODE_ALIAS_BRANCH =
   '...(isBunBinary ? { virtualModules: VIRTUAL_MODULES, tryNative: false } : { alias: getAliases() }),'
 const PI_EXTENSION_VIRTUAL_MODULE_BRANCH =
   '...{ virtualModules: VIRTUAL_MODULES, tryNative: false },'
+const MCP_CONFIG_WATCH_IGNORES = [
+  '**/.mcp.json',
+  '**/.agents/mcp.json',
+  '**/.pi/mcp.json',
+  '**/.openwaggle/agent/mcp.json',
+]
 
 const BUNDLED_DEPS = [
   'effect',
@@ -24,6 +30,7 @@ const BUNDLED_DEPS = [
   '@effect/platform-node',
   '@effect/sql',
   '@effect/sql-sqlite-node',
+  '@diegogbrisa/ts-match',
   '@mariozechner/pi-coding-agent',
   '@mariozechner/pi-agent-core',
   '@mariozechner/pi-ai',
@@ -126,6 +133,11 @@ export default defineConfig({
     }
   },
   renderer: {
+    server: {
+      watch: {
+        ignored: MCP_CONFIG_WATCH_IGNORES,
+      },
+    },
     optimizeDeps: {
       // Force re-optimization in dev so Vite does not serve stale prebundled
       // dependency copies after local dependency changes or upgrades.
