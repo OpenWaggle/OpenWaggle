@@ -1,3 +1,4 @@
+import { match, P } from '@diegogbrisa/ts-match'
 import type { JsonObject } from '@shared/types/json'
 
 type PiNativeToolName = 'read' | 'write' | 'edit' | 'bash' | 'grep' | 'find' | 'ls'
@@ -74,32 +75,32 @@ function getToolActionText(name: string, args: JsonObject, isRunning: boolean): 
 }
 
 function formatToolTarget(name: string, args: JsonObject, primaryArg: string): string {
-  if (name === 'bash' && typeof args.command === 'string') {
-    return `\`${args.command}\``
-  }
-
-  if (name === 'read' && typeof args.path === 'string') {
-    return `${args.path}${formatReadLineSuffix(args)}`
-  }
-
-  if (name === 'grep' && typeof args.pattern === 'string') {
-    const path = typeof args.path === 'string' && args.path ? args.path : '.'
-    const glob = typeof args.glob === 'string' && args.glob ? ` (${args.glob})` : ''
-    return `/${args.pattern}/ in ${path}${glob}`
-  }
-
-  if (name === 'find' && typeof args.pattern === 'string') {
-    const path = typeof args.path === 'string' && args.path ? args.path : '.'
-    return `${args.pattern} in ${path}`
-  }
-
-  if (name === 'ls') {
-    const path = typeof args.path === 'string' && args.path ? args.path : '.'
-    return path
-  }
-
-  const value = args[primaryArg]
-  return typeof value === 'string' ? value : ''
+  return match({ name, args })
+    .with(
+      { name: 'bash', args: { command: P.select('command', P.string) } },
+      ({ command }) => `\`${command}\``,
+    )
+    .with(
+      { name: 'read', args: { path: P.select('path', P.string) } },
+      ({ path }) => `${path}${formatReadLineSuffix(args)}`,
+    )
+    .with({ name: 'grep', args: { pattern: P.select('pattern', P.string) } }, ({ pattern }) => {
+      const path = typeof args.path === 'string' && args.path ? args.path : '.'
+      const glob = typeof args.glob === 'string' && args.glob ? ` (${args.glob})` : ''
+      return `/${pattern}/ in ${path}${glob}`
+    })
+    .with({ name: 'find', args: { pattern: P.select('pattern', P.string) } }, ({ pattern }) => {
+      const path = typeof args.path === 'string' && args.path ? args.path : '.'
+      return `${pattern} in ${path}`
+    })
+    .with({ name: 'ls' }, () => {
+      const path = typeof args.path === 'string' && args.path ? args.path : '.'
+      return path
+    })
+    .otherwise(() => {
+      const value = args[primaryArg]
+      return typeof value === 'string' ? value : ''
+    })
 }
 
 function formatReadLineSuffix(args: JsonObject): string {

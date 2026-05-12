@@ -163,8 +163,8 @@ export function useChatPanelSections(): ChatPanelSections {
   }
 
   async function handleSelectProjectPath(path: string): Promise<void> {
-    await handleSelectProjectPathNavigation(path)
     void navigate({ to: '/' })
+    await handleSelectProjectPathNavigation(path)
   }
 
   function openSettings(): void {

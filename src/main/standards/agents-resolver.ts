@@ -1,8 +1,9 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { matchBy } from '@diegogbrisa/ts-match'
 import type { AgentsResolutionResult, AgentsScopeItem } from '@shared/types/standards'
 import { isEnoent } from '@shared/utils/node-error'
-import { isPathInside } from '@shared/utils/paths'
+import { isPathInside } from '../utils/paths'
 
 export async function resolveRootAgents(projectPath: string): Promise<AgentsScopeItem> {
   return readAgentsScope(projectPath, projectPath)
@@ -14,9 +15,14 @@ export async function resolveAgentsChainForPath(
 ): Promise<AgentsResolutionResult> {
   const root = await resolveRootAgents(projectPath)
   const warnings: string[] = []
-  if (root.status === 'error' && root.error) {
-    warnings.push(`Failed to load root AGENTS.md: ${root.error}`)
-  }
+  matchBy(root, 'status')
+    .with('error', (value) => {
+      if (value.error) {
+        warnings.push(`Failed to load root AGENTS.md: ${value.error}`)
+      }
+    })
+    .with('found', 'missing', () => undefined)
+    .exhaustive()
 
   const targetDir = await resolveTargetDirectoryWithinProject(projectPath, targetPath)
   const dirs = listScopeDirectories(projectPath, targetDir)
@@ -24,16 +30,19 @@ export async function resolveAgentsChainForPath(
 
   for (const dir of dirs.slice(1)) {
     const scope = await readAgentsScope(projectPath, dir)
-    if (scope.status === 'found') {
-      scoped.push(scope)
-      continue
-    }
-
-    if (scope.status === 'error' && scope.error) {
-      warnings.push(
-        `Failed to load AGENTS.md for scope "${scope.scopeRelativeDir}": ${scope.error}`,
-      )
-    }
+    matchBy(scope, 'status')
+      .with('found', (value) => {
+        scoped.push(value)
+      })
+      .with('error', (value) => {
+        if (value.error) {
+          warnings.push(
+            `Failed to load AGENTS.md for scope "${value.scopeRelativeDir}": ${value.error}`,
+          )
+        }
+      })
+      .with('missing', () => undefined)
+      .exhaustive()
   }
 
   return {
@@ -57,9 +66,14 @@ export async function resolveAgentsForRun(
     warnings.push(warning)
   }
 
-  if (root.status === 'error' && root.error) {
-    addWarning(`Failed to load root AGENTS.md: ${root.error}`)
-  }
+  matchBy(root, 'status')
+    .with('error', (value) => {
+      if (value.error) {
+        addWarning(`Failed to load root AGENTS.md: ${value.error}`)
+      }
+    })
+    .with('found', 'missing', () => undefined)
+    .exhaustive()
 
   const scopedByFilePath = new Map<string, AgentsScopeItem>()
   for (const candidatePath of candidatePaths) {
@@ -91,13 +105,26 @@ export async function resolveAgentsForRun(
 export function buildEffectiveAgentsInstruction(resolution: AgentsResolutionResult): string {
   const sections: string[] = []
 
-  if (resolution.root.status === 'found' && resolution.root.content.trim()) {
-    sections.push(`Root scope (${resolution.root.filePath})\n${resolution.root.content.trim()}`)
-  }
+  matchBy(resolution.root, 'status')
+    .with('found', (root) => {
+      if (root.content.trim()) {
+        sections.push(`Root scope (${root.filePath})\n${root.content.trim()}`)
+      }
+    })
+    .with('missing', 'error', () => undefined)
+    .exhaustive()
 
   for (const scope of resolution.scoped) {
-    if (scope.status !== 'found' || !scope.content.trim()) continue
-    sections.push(`Scope ${scope.scopeRelativeDir} (${scope.filePath})\n${scope.content.trim()}`)
+    matchBy(scope, 'status')
+      .with('found', (value) => {
+        if (value.content.trim()) {
+          sections.push(
+            `Scope ${value.scopeRelativeDir} (${value.filePath})\n${value.content.trim()}`,
+          )
+        }
+      })
+      .with('missing', 'error', () => undefined)
+      .exhaustive()
   }
 
   return sections.join('\n\n')

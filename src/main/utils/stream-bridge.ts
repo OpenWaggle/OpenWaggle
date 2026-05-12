@@ -1,3 +1,4 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import type { MessagePart } from '@shared/types/agent'
 import type { ActiveRunInfo, BackgroundRunSnapshot, RunMode } from '@shared/types/background-run'
 import { type SessionId, ToolCallId } from '@shared/types/brand'
@@ -115,76 +116,86 @@ function updateBufferedParts(
 }
 
 function applyEventToStreamBuffer(sessionId: SessionId, event: AgentTransportEvent): void {
-  if (event.type === 'message_start' && event.role === 'assistant') {
-    updateBufferedParts(sessionId, () => [])
-    return
-  }
-
-  if (event.type === 'message_update') {
-    const assistantEvent = event.assistantMessageEvent
-    if (assistantEvent.type === 'text_delta') {
-      updateBufferedParts(sessionId, (parts) => appendTextPart(parts, assistantEvent.delta))
-      return
-    }
-
-    if (assistantEvent.type === 'thinking_delta') {
-      updateBufferedParts(sessionId, (parts) => appendReasoningPart(parts, assistantEvent.delta))
-      return
-    }
-
-    if (assistantEvent.type === 'toolcall_start' || assistantEvent.type === 'toolcall_end') {
+  matchBy(event, 'type')
+    .with('agent_start', 'agent_end', 'turn_start', 'turn_end', () => undefined)
+    .with('message_start', (value) => {
+      if (value.role === 'assistant') {
+        updateBufferedParts(sessionId, () => [])
+      }
+    })
+    .with('message_update', (value) => {
+      matchBy(value.assistantMessageEvent, 'type')
+        .with('text_start', 'text_end', 'thinking_start', 'thinking_end', () => undefined)
+        .with('text_delta', (assistantEvent) => {
+          updateBufferedParts(sessionId, (parts) => appendTextPart(parts, assistantEvent.delta))
+        })
+        .with('thinking_delta', (assistantEvent) => {
+          updateBufferedParts(sessionId, (parts) =>
+            appendReasoningPart(parts, assistantEvent.delta),
+          )
+        })
+        .with('toolcall_start', 'toolcall_end', (assistantEvent) => {
+          updateBufferedParts(sessionId, (parts) =>
+            upsertToolCallPart({
+              parts,
+              toolCallId: assistantEvent.toolCallId,
+              toolName: assistantEvent.toolName,
+              args: assistantEvent.input,
+            }),
+          )
+        })
+        .with('toolcall_delta', (assistantEvent) => {
+          if (assistantEvent.input !== undefined) {
+            updateBufferedParts(sessionId, (parts) =>
+              upsertToolCallPart({
+                parts,
+                toolCallId: assistantEvent.toolCallId,
+                args: assistantEvent.input,
+              }),
+            )
+          }
+        })
+        .with('done', 'error', () => undefined)
+        .exhaustive()
+    })
+    .with('message_end', () => undefined)
+    .with('tool_execution_start', 'tool_execution_update', (value) => {
       updateBufferedParts(sessionId, (parts) =>
         upsertToolCallPart({
           parts,
-          toolCallId: assistantEvent.toolCallId,
-          toolName: assistantEvent.toolName,
-          args: assistantEvent.input,
+          toolCallId: value.toolCallId,
+          toolName: value.toolName,
+          args: value.args,
         }),
       )
-      return
-    }
-
-    if (assistantEvent.type === 'toolcall_delta' && assistantEvent.input !== undefined) {
+    })
+    .with('tool_execution_end', (value) => {
       updateBufferedParts(sessionId, (parts) =>
-        upsertToolCallPart({
-          parts,
-          toolCallId: assistantEvent.toolCallId,
-          args: assistantEvent.input,
+        appendToolResultPart({
+          parts: upsertToolCallPart({
+            parts,
+            toolCallId: value.toolCallId,
+            toolName: value.toolName,
+            args: value.args,
+          }),
+          toolCallId: value.toolCallId,
+          toolName: value.toolName,
+          args: value.args,
+          result: value.result,
+          isError: value.isError,
         }),
       )
-    }
-    return
-  }
-
-  if (event.type === 'tool_execution_start' || event.type === 'tool_execution_update') {
-    updateBufferedParts(sessionId, (parts) =>
-      upsertToolCallPart({
-        parts,
-        toolCallId: event.toolCallId,
-        toolName: event.toolName,
-        args: event.args,
-      }),
+    })
+    .with(
+      'queue_update',
+      'compaction_start',
+      'compaction_end',
+      'auto_retry_start',
+      'auto_retry_end',
+      'custom',
+      () => undefined,
     )
-    return
-  }
-
-  if (event.type === 'tool_execution_end') {
-    updateBufferedParts(sessionId, (parts) =>
-      appendToolResultPart({
-        parts: upsertToolCallPart({
-          parts,
-          toolCallId: event.toolCallId,
-          toolName: event.toolName,
-          args: event.args,
-        }),
-        toolCallId: event.toolCallId,
-        toolName: event.toolName,
-        args: event.args,
-        result: event.result,
-        isError: event.isError,
-      }),
-    )
-  }
+    .exhaustive()
 }
 
 export function startStreamBuffer(

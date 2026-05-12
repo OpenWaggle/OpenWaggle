@@ -1,3 +1,4 @@
+import { isMatching, P } from '@diegogbrisa/ts-match'
 import type { RefObject } from 'react'
 import { useLayoutEffect, useRef, useState } from 'react'
 import {
@@ -12,7 +13,6 @@ const SCROLL_PERSIST_DEBOUNCE_MS = 150
 const SESSION_RESTORE_RETRY_MS = 96
 const SCROLL_CACHE_MAX_ENTRIES = 100
 const SCROLL_CACHE_KEY = 'openwaggle:scroll-positions'
-const SCROLL_CACHE_ENTRY_LENGTH = 2
 
 interface ScrollWheelEvent {
   readonly deltaY: number
@@ -60,13 +60,7 @@ interface ScrollActions {
 }
 
 function isScrollCacheEntry(value: unknown): value is [string, number] {
-  return (
-    Array.isArray(value) &&
-    value.length === SCROLL_CACHE_ENTRY_LENGTH &&
-    typeof value[0] === 'string' &&
-    typeof value[1] === 'number' &&
-    Number.isFinite(value[1])
-  )
+  return isMatching(P.tuple([P.string, P.finite]), value)
 }
 
 function loadScrollCache(): Map<string, number> {

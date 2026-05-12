@@ -1,4 +1,4 @@
-import { choose } from '@shared/utils/decision'
+import { match } from '@diegogbrisa/ts-match'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -42,18 +42,18 @@ describe('registerGitHandlers', () => {
         cb: (err: Error | null, stdout: string, stderr: string) => void,
       ) => {
         const key = args.join(' ')
-        choose(key)
-          .case('rev-parse --is-inside-work-tree', () => cb(null, 'true\n', ''))
-          .case('rev-parse --abbrev-ref HEAD', () => cb(null, 'main\n', ''))
-          .case('status --porcelain=v1', () =>
+        match(key)
+          .with('rev-parse --is-inside-work-tree', () => cb(null, 'true\n', ''))
+          .with('rev-parse --abbrev-ref HEAD', () => cb(null, 'main\n', ''))
+          .with('status --porcelain=v1', () =>
             cb(null, ' M src/main/index.ts\n?? docs/new.md\n', ''),
           )
-          .case('diff --numstat HEAD', () => cb(null, '10\t2\tsrc/main/index.ts\n', ''))
-          .case('rev-list --left-right --count HEAD...@{upstream}', () => {
+          .with('diff --numstat HEAD', () => cb(null, '10\t2\tsrc/main/index.ts\n', ''))
+          .with('rev-list --left-right --count HEAD...@{upstream}', () => {
             // Output format: <ahead>\t<behind>
             cb(null, '3\t1\n', '')
           })
-          .catchAll(() => cb(new Error(`Unexpected git command: ${key}`), '', ''))
+          .otherwise(() => cb(new Error(`Unexpected git command: ${key}`), '', ''))
       },
     )
 
@@ -61,14 +61,7 @@ describe('registerGitHandlers', () => {
     const handler = registeredHandler('git:status')
     expect(handler).toBeDefined()
 
-    const result = (await handler?.({}, '/tmp/repo')) as {
-      branch: string
-      additions: number
-      deletions: number
-      filesChanged: number
-      ahead: number
-      behind: number
-    }
+    const result = await handler?.({}, '/tmp/repo')
 
     expect(result).toMatchObject({
       branch: 'main',
@@ -89,13 +82,13 @@ describe('registerGitHandlers', () => {
         cb: (err: Error | null, stdout: string, stderr: string) => void,
       ) => {
         const key = args.join(' ')
-        choose(key)
-          .case('rev-parse --is-inside-work-tree', () => cb(null, 'true\n', ''))
-          .case('rev-parse --abbrev-ref HEAD', () => cb(null, 'main\n', ''))
-          .case('status --porcelain=v1', () => cb(null, 'RM old.txt -> new.txt\n', ''))
-          .case('diff --numstat HEAD', () => cb(null, '1\t0\told.txt => new.txt\n', ''))
-          .case('rev-list --left-right --count HEAD...@{upstream}', () => cb(null, '0\t0\n', ''))
-          .catchAll(() => cb(new Error(`Unexpected git command: ${key}`), '', ''))
+        match(key)
+          .with('rev-parse --is-inside-work-tree', () => cb(null, 'true\n', ''))
+          .with('rev-parse --abbrev-ref HEAD', () => cb(null, 'main\n', ''))
+          .with('status --porcelain=v1', () => cb(null, 'RM old.txt -> new.txt\n', ''))
+          .with('diff --numstat HEAD', () => cb(null, '1\t0\told.txt => new.txt\n', ''))
+          .with('rev-list --left-right --count HEAD...@{upstream}', () => cb(null, '0\t0\n', ''))
+          .otherwise(() => cb(new Error(`Unexpected git command: ${key}`), '', ''))
       },
     )
 
@@ -103,25 +96,22 @@ describe('registerGitHandlers', () => {
     const handler = registeredHandler('git:status')
     expect(handler).toBeDefined()
 
-    const result = (await handler?.({}, '/tmp/repo')) as {
-      filesChanged: number
-      additions: number
-      deletions: number
-      changedFiles: Array<{ path: string; additions: number; deletions: number }>
-    }
+    const result = await handler?.({}, '/tmp/repo')
 
-    expect(result.filesChanged).toBe(1)
-    expect(result.additions).toBe(1)
-    expect(result.deletions).toBe(0)
-    expect(result.changedFiles).toEqual([
-      {
-        path: 'new.txt',
-        additions: 1,
-        deletions: 0,
-        status: 'modified',
-        staged: true,
-      },
-    ])
+    expect(result).toMatchObject({
+      filesChanged: 1,
+      additions: 1,
+      deletions: 0,
+      changedFiles: [
+        {
+          path: 'new.txt',
+          additions: 1,
+          deletions: 0,
+          status: 'modified',
+          staged: true,
+        },
+      ],
+    })
   })
 
   it('stages only specified paths when committing', async () => {
@@ -171,14 +161,13 @@ describe('registerGitHandlers', () => {
     const handler = registeredHandler('git:commit')
     expect(handler).toBeDefined()
 
-    const result = (await handler?.({}, '/tmp/repo', {
+    const result = await handler?.({}, '/tmp/repo', {
       message: 'test commit',
       amend: false,
       paths: ['src/main/index.ts', 'docs/new.md'],
-    })) as { ok: boolean; commitHash?: string }
+    })
 
-    expect(result.ok).toBe(true)
-    expect(result.commitHash).toBe('abc1234')
+    expect(result).toMatchObject({ ok: true, commitHash: 'abc1234' })
     expect(stagedPaths).toEqual([['src/main/index.ts', 'docs/new.md']])
     expect(commitCommands).toEqual(['commit -m test commit -- src/main/index.ts docs/new.md'])
   })
@@ -196,17 +185,17 @@ describe('registerGitHandlers', () => {
         ) => void,
       ) => {
         const key = args.join(' ')
-        choose(key)
-          .case('rev-parse --is-inside-work-tree', () => cb(null, 'true\n', ''))
-          .case('rev-parse -q --verify MERGE_HEAD', () =>
+        match(key)
+          .with('rev-parse --is-inside-work-tree', () => cb(null, 'true\n', ''))
+          .with('rev-parse -q --verify MERGE_HEAD', () =>
             cb(
               { name: 'GitError', message: 'not merging', code: 1, stdout: '', stderr: '' },
               '',
               '',
             ),
           )
-          .case('add -- src/file.ts', () => cb(null, '', ''))
-          .case('commit -m test commit -- src/file.ts', () =>
+          .with('add -- src/file.ts', () => cb(null, '', ''))
+          .with('commit -m test commit -- src/file.ts', () =>
             cb(
               {
                 name: 'GitError',
@@ -219,7 +208,7 @@ describe('registerGitHandlers', () => {
               '',
             ),
           )
-          .catchAll(() => cb(new Error(`Unexpected git command: ${key}`), '', ''))
+          .otherwise(() => cb(new Error(`Unexpected git command: ${key}`), '', ''))
       },
     )
 
@@ -227,11 +216,11 @@ describe('registerGitHandlers', () => {
     const handler = registeredHandler('git:commit')
     expect(handler).toBeDefined()
 
-    const result = (await handler?.({}, '/tmp/repo', {
+    const result = await handler?.({}, '/tmp/repo', {
       message: 'test commit',
       amend: false,
       paths: ['src/file.ts'],
-    })) as { ok: boolean; code?: string }
+    })
 
     expect(result).toEqual({
       ok: false,
@@ -249,10 +238,10 @@ describe('registerGitHandlers', () => {
         cb: (err: Error | null, stdout: string, stderr: string) => void,
       ) => {
         const key = args.join(' ')
-        choose(key)
-          .case('rev-parse --is-inside-work-tree', () => cb(null, 'true\n', ''))
-          .case('rev-parse --abbrev-ref HEAD', () => cb(null, 'main\n', ''))
-          .case(
+        match(key)
+          .with('rev-parse --is-inside-work-tree', () => cb(null, 'true\n', ''))
+          .with('rev-parse --abbrev-ref HEAD', () => cb(null, 'main\n', ''))
+          .with(
             'for-each-ref --format=%(refname)%09%(refname:short)%09%(upstream:short)%09%(HEAD)%09%(upstream:track) refs/heads refs/remotes',
             () =>
               cb(
@@ -266,7 +255,7 @@ describe('registerGitHandlers', () => {
                 '',
               ),
           )
-          .catchAll(() => cb(new Error(`Unexpected git command: ${key}`), '', ''))
+          .otherwise(() => cb(new Error(`Unexpected git command: ${key}`), '', ''))
       },
     )
 
@@ -274,24 +263,15 @@ describe('registerGitHandlers', () => {
     const handler = registeredHandler('git:branches:list')
     expect(handler).toBeDefined()
 
-    const result = (await handler?.({}, '/tmp/repo')) as {
-      currentBranch: string | null
-      branches: Array<{
-        name: string
-        isRemote: boolean
-        isCurrent: boolean
-        ahead: number
-        behind: number
-      }>
-    }
+    const result = await handler?.({}, '/tmp/repo')
 
-    expect(result.currentBranch).toBe('main')
-    expect(result.branches.map((branch) => branch.name)).toEqual(['feature', 'main', 'origin/main'])
-    expect(result.branches.find((branch) => branch.name === 'main')).toMatchObject({
-      isRemote: false,
-      isCurrent: true,
-      ahead: 2,
-      behind: 1,
+    expect(result).toMatchObject({
+      currentBranch: 'main',
+      branches: [
+        { name: 'feature' },
+        { name: 'main', isRemote: false, isCurrent: true, ahead: 2, behind: 1 },
+        { name: 'origin/main' },
+      ],
     })
   })
 
@@ -336,9 +316,9 @@ describe('registerGitHandlers', () => {
     const handler = registeredHandler('git:branches:checkout')
     expect(handler).toBeDefined()
 
-    const result = (await handler?.({}, '/tmp/repo', {
+    const result = await handler?.({}, '/tmp/repo', {
       name: 'origin/feature',
-    })) as { ok: boolean; message: string }
+    })
 
     expect(result).toEqual({
       ok: true,
@@ -390,9 +370,9 @@ describe('registerGitHandlers', () => {
     const handler = registeredHandler('git:branches:checkout')
     expect(handler).toBeDefined()
 
-    const result = (await handler?.({}, '/tmp/repo', {
+    const result = await handler?.({}, '/tmp/repo', {
       name: 'upstream/main',
-    })) as { ok: boolean; code?: string; message: string }
+    })
 
     expect(result).toEqual({
       ok: false,
@@ -440,10 +420,10 @@ describe('registerGitHandlers', () => {
     const handler = registeredHandler('git:branches:set-upstream')
     expect(handler).toBeDefined()
 
-    const result = (await handler?.({}, '/tmp/repo', {
+    const result = await handler?.({}, '/tmp/repo', {
       name: 'main',
       upstream: 'origin/missing',
-    })) as { ok: boolean; code?: string; message: string }
+    })
 
     expect(result).toEqual({
       ok: false,

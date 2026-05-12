@@ -228,17 +228,16 @@ describe('useGitStore unit', () => {
       expect(useGitStore.getState().isCommitting).toBe(false)
     })
 
-    it('resets isCommitting even when commitGit throws', async () => {
+    it('returns a visible failure result when commitGit throws', async () => {
       apiMock.commitGit.mockRejectedValue(new Error('IPC failure'))
 
-      await expect(
-        useGitStore.getState().commit('/tmp/repo', {
-          message: 'fail',
-          amend: false,
-          paths: [],
-        }),
-      ).rejects.toThrow('IPC failure')
+      const result = await useGitStore.getState().commit('/tmp/repo', {
+        message: 'fail',
+        amend: false,
+        paths: [],
+      })
 
+      expect(result).toEqual({ ok: false, code: 'unknown', message: 'IPC failure' })
       expect(useGitStore.getState().isCommitting).toBe(false)
     })
   })
@@ -294,13 +293,12 @@ describe('useGitStore unit', () => {
       expect(useGitStore.getState().isBranchActionRunning).toBe(false)
     })
 
-    it('resets isBranchActionRunning even on IPC throw', async () => {
+    it('returns a visible failure result when create IPC throws', async () => {
       apiMock.createGitBranch.mockRejectedValue(new Error('timeout'))
 
-      await expect(
-        useGitStore.getState().createBranch('/tmp/repo', { name: 'boom' }),
-      ).rejects.toThrow('timeout')
+      const result = await useGitStore.getState().createBranch('/tmp/repo', { name: 'boom' })
 
+      expect(result).toEqual({ ok: false, code: 'unknown', message: 'timeout' })
       expect(useGitStore.getState().isBranchActionRunning).toBe(false)
     })
   })
@@ -356,13 +354,12 @@ describe('useGitStore unit', () => {
       expect(useGitStore.getState().isBranchActionRunning).toBe(false)
     })
 
-    it('resets isBranchActionRunning on IPC throw', async () => {
+    it('returns a visible failure result when rename IPC throws', async () => {
       apiMock.renameGitBranch.mockRejectedValue(new Error('crash'))
 
-      await expect(
-        useGitStore.getState().renameBranch('/tmp/repo', { from: 'a', to: 'b' }),
-      ).rejects.toThrow('crash')
+      const result = await useGitStore.getState().renameBranch('/tmp/repo', { from: 'a', to: 'b' })
 
+      expect(result).toEqual({ ok: false, code: 'unknown', message: 'crash' })
       expect(useGitStore.getState().isBranchActionRunning).toBe(false)
     })
   })
@@ -418,16 +415,15 @@ describe('useGitStore unit', () => {
       expect(useGitStore.getState().isBranchActionRunning).toBe(false)
     })
 
-    it('resets isBranchActionRunning on IPC throw', async () => {
+    it('returns a visible failure result when upstream IPC throws', async () => {
       apiMock.setGitBranchUpstream.mockRejectedValue(new Error('net error'))
 
-      await expect(
-        useGitStore.getState().setUpstream('/tmp/repo', {
-          name: 'x',
-          upstream: 'origin/x',
-        }),
-      ).rejects.toThrow('net error')
+      const result = await useGitStore.getState().setUpstream('/tmp/repo', {
+        name: 'x',
+        upstream: 'origin/x',
+      })
 
+      expect(result).toEqual({ ok: false, code: 'unknown', message: 'net error' })
       expect(useGitStore.getState().isBranchActionRunning).toBe(false)
     })
   })
@@ -435,13 +431,12 @@ describe('useGitStore unit', () => {
   // ── checkoutBranch (additional error path) ──
 
   describe('checkoutBranch', () => {
-    it('resets isBranchActionRunning on IPC throw', async () => {
+    it('returns a visible failure result when checkout IPC throws', async () => {
       apiMock.checkoutGitBranch.mockRejectedValue(new Error('checkout failed'))
 
-      await expect(
-        useGitStore.getState().checkoutBranch('/tmp/repo', { name: 'broken' }),
-      ).rejects.toThrow('checkout failed')
+      const result = await useGitStore.getState().checkoutBranch('/tmp/repo', { name: 'broken' })
 
+      expect(result).toEqual({ ok: false, code: 'unknown', message: 'checkout failed' })
       expect(useGitStore.getState().isBranchActionRunning).toBe(false)
     })
 
@@ -497,13 +492,15 @@ describe('useGitStore unit', () => {
       expect(useGitStore.getState().isBranchActionRunning).toBe(false)
     })
 
-    it('resets isBranchActionRunning on IPC throw', async () => {
+    it('returns a visible failure result when delete IPC throws', async () => {
       apiMock.deleteGitBranch.mockRejectedValue(new Error('IPC down'))
 
-      await expect(
-        useGitStore.getState().deleteBranch('/tmp/repo', { name: 'x', force: false }),
-      ).rejects.toThrow('IPC down')
+      const result = await useGitStore.getState().deleteBranch('/tmp/repo', {
+        name: 'x',
+        force: false,
+      })
 
+      expect(result).toEqual({ ok: false, code: 'unknown', message: 'IPC down' })
       expect(useGitStore.getState().isBranchActionRunning).toBe(false)
     })
   })

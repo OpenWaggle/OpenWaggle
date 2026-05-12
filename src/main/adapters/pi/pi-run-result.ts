@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
+import { isMatching, P } from '@diegogbrisa/ts-match'
 import type { Message, MessagePart } from '@shared/types/agent'
 import { MessageId } from '@shared/types/brand'
 import type { SupportedModelId } from '@shared/types/llm'
-import { isRecord } from '@shared/utils/validation'
 import {
   buildPersistedUserMessageParts,
   type PersistedUserMessagePartsPayload,
@@ -41,45 +41,29 @@ interface PiRuntimeToolResultMessage {
 }
 
 function isPiRuntimeAssistantMessage(value: unknown): value is PiRuntimeAssistantMessage {
-  if (!isRecord(value)) {
-    return false
-  }
-  if (value.role !== 'assistant') {
-    return false
-  }
-  if (!Array.isArray(value.content)) {
-    return false
-  }
-  if (typeof value.model !== 'string') {
-    return false
-  }
-  if (
-    'stopReason' in value &&
-    value.stopReason !== undefined &&
-    typeof value.stopReason !== 'string'
-  ) {
-    return false
-  }
-  if (
-    'errorMessage' in value &&
-    value.errorMessage !== undefined &&
-    typeof value.errorMessage !== 'string'
-  ) {
-    return false
-  }
-  return true
+  return isMatching(
+    {
+      role: 'assistant',
+      content: P.array(P._),
+      model: P.string,
+      stopReason: P.optional(P.string),
+      errorMessage: P.optional(P.string),
+    },
+    value,
+  )
 }
 
 function isPiRuntimeToolResultMessage(value: unknown): value is PiRuntimeToolResultMessage {
-  if (!isRecord(value)) {
-    return false
-  }
-  return (
-    value.role === 'toolResult' &&
-    typeof value.toolCallId === 'string' &&
-    typeof value.toolName === 'string' &&
-    Array.isArray(value.content) &&
-    typeof value.isError === 'boolean'
+  return isMatching(
+    {
+      role: 'toolResult',
+      toolCallId: P.string,
+      toolName: P.string,
+      content: P.array(P._),
+      isError: P.boolean,
+      details: P.optional(P._),
+    },
+    value,
   )
 }
 

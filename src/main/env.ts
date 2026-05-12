@@ -27,6 +27,8 @@ export const env: Env = decodeUnknownOrThrow(envSchema, process.env)
 
 export const logLevel = env.OPENWAGGLE_LOG_LEVEL ?? 'info'
 
+let temporaryProcessEnvQueue: Promise<void> = Promise.resolve()
+
 /**
  * Safe environment for child processes.
  * Only passes through essential variables — prevents leaking API keys,
@@ -56,4 +58,40 @@ export function getGhCliEnv(): Record<string, string | undefined> {
   delete env.GITHUB_TOKEN
   delete env.GH_TOKEN
   return env
+}
+
+export async function withTemporaryProcessEnv<T>(
+  overrides: Readonly<Record<string, string>>,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const release = await acquireTemporaryProcessEnvLock()
+  const previousValues = new Map<string, string | undefined>()
+
+  for (const [key, value] of Object.entries(overrides)) {
+    previousValues.set(key, process.env[key])
+    process.env[key] = value
+  }
+
+  try {
+    return await operation()
+  } finally {
+    for (const [key, previousValue] of previousValues) {
+      if (previousValue === undefined) {
+        delete process.env[key]
+        continue
+      }
+      process.env[key] = previousValue
+    }
+    release()
+  }
+}
+
+async function acquireTemporaryProcessEnvLock(): Promise<() => void> {
+  const previous = temporaryProcessEnvQueue
+  let releaseCurrent: (() => void) | undefined
+  temporaryProcessEnvQueue = new Promise<void>((resolve) => {
+    releaseCurrent = resolve
+  })
+  await previous
+  return () => releaseCurrent?.()
 }

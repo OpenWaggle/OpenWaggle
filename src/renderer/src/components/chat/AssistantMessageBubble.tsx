@@ -1,8 +1,8 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { WaggleAgentColor } from '@shared/types/waggle'
-import { chooseBy } from '@shared/utils/decision'
 import { GitBranch } from 'lucide-react'
 import React from 'react'
 import { AgentLabel } from './AgentLabel'
@@ -100,7 +100,7 @@ export function AssistantMessageBubble({
           onClick={() => onBranchFromMessage(message.id)}
           className="absolute right-0 top-0 opacity-0 group-hover/assistant-msg:opacity-100 transition-opacity text-text-muted hover:text-text-secondary"
         >
-          <GitBranch className="h-3.5 w-3.5" />
+          <GitBranch className="size-3.5" />
         </button>
       ) : null}
       <div className="flex flex-col gap-2">
@@ -114,7 +114,7 @@ export function AssistantMessageBubble({
                 onClick={() => onBranchFromMessage(message.id)}
                 className="ml-auto opacity-0 group-hover/assistant-msg:opacity-100 transition-opacity text-text-muted hover:text-text-secondary"
               >
-                <GitBranch className="h-3.5 w-3.5" />
+                <GitBranch className="size-3.5" />
               </button>
             ) : null}
           </div>
@@ -134,8 +134,8 @@ export function AssistantMessageBubble({
           const content =
             !collapse.renderAllParts && i !== collapse.lastRenderableTextPartIndex
               ? null
-              : chooseBy(part, 'type')
-                  .case('text', (value) =>
+              : matchBy(part, 'type')
+                  .with('text', (value) =>
                     value.content.trim() ? (
                       <StreamingText
                         key={`${message.id}-text-${String(i)}`}
@@ -144,7 +144,7 @@ export function AssistantMessageBubble({
                       />
                     ) : null,
                   )
-                  .case('tool-call', (value) => (
+                  .with('tool-call', (value) => (
                     <ToolCallRouter
                       key={`tool-${value.id}`}
                       part={value}
@@ -154,7 +154,7 @@ export function AssistantMessageBubble({
                       onBranchFromMessage={onBranchFromMessage}
                     />
                   ))
-                  .case('thinking', (value) =>
+                  .with('thinking', (value) =>
                     value.content.trim() ? (
                       <StreamingText
                         key={`${message.id}-thinking-${value.stepId ?? String(i)}`}
@@ -164,12 +164,12 @@ export function AssistantMessageBubble({
                       />
                     ) : null,
                   )
-                  .case('tool-result', (value) =>
+                  .with('tool-result', (value) =>
                     messageToolCallIds.has(value.toolCallId) ? null : (
                       <StandaloneToolResult content={value.content} state={value.state} />
                     ),
                   )
-                  .catchAll(() => null)
+                  .otherwise(() => null)
 
           if (divider !== null || content !== null) {
             return (

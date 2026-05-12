@@ -1,7 +1,7 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import type { AttachmentRecord, MessagePart } from '@shared/types/agent'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SessionDetail } from '@shared/types/session'
-import { chooseBy } from '@shared/utils/decision'
 
 // ─── MessagePart → UIMessage Parts Conversion ────────────────
 
@@ -33,9 +33,9 @@ export function formatAttachmentPreview(
  * buildPartialAssistantMessage (background reconnection).
  */
 export function messagePartToUIParts(part: MessagePart): UIMessage['parts'] {
-  return chooseBy(part, 'type')
-    .case('text', (value): UIMessage['parts'] => [{ type: 'text', content: value.text }])
-    .case('tool-call', (value): UIMessage['parts'] => [
+  return matchBy(part, 'type')
+    .with('text', (value): UIMessage['parts'] => [{ type: 'text', content: value.text }])
+    .with('tool-call', (value): UIMessage['parts'] => [
       {
         type: 'tool-call',
         id: String(value.toolCall.id),
@@ -44,7 +44,7 @@ export function messagePartToUIParts(part: MessagePart): UIMessage['parts'] {
         state: value.toolCall.state ?? 'input-complete',
       },
     ])
-    .case('tool-result', (value): UIMessage['parts'] => [
+    .with('tool-result', (value): UIMessage['parts'] => [
       {
         type: 'tool-result',
         toolCallId: String(value.toolResult.id),
@@ -52,19 +52,19 @@ export function messagePartToUIParts(part: MessagePart): UIMessage['parts'] {
         state: value.toolResult.isError ? 'error' : 'complete',
       },
     ])
-    .case('attachment', (value): UIMessage['parts'] => [
+    .with('attachment', (value): UIMessage['parts'] => [
       {
         type: 'text',
         content: formatAttachmentPreview(value.attachment),
       },
     ])
-    .case('reasoning', (value): UIMessage['parts'] => [
+    .with('reasoning', (value): UIMessage['parts'] => [
       {
         type: 'thinking',
         content: value.text,
       },
     ])
-    .assertComplete()
+    .exhaustive()
 }
 
 // ─── SessionDetail → UIMessage Conversion ─────────────────────
@@ -119,6 +119,51 @@ export function getUIMessageText(message: UIMessage): string {
     .join('\n\n')
 }
 
+function getNonEmptyUserMessageText(message: UIMessage): string | null {
+  if (message.role !== 'user') {
+    return null
+  }
+
+  const text = getUIMessageText(message)
+  return text || null
+}
+
+function countUserMessagesByText(messages: readonly UIMessage[]): Map<string, number> {
+  const countsByText = new Map<string, number>()
+  for (const message of messages) {
+    const text = getNonEmptyUserMessageText(message)
+    if (!text) {
+      continue
+    }
+    countsByText.set(text, (countsByText.get(text) ?? 0) + 1)
+  }
+  return countsByText
+}
+
+function consumeUserMessageTextCount(countsByText: Map<string, number>, text: string): boolean {
+  const count = countsByText.get(text) ?? 0
+  if (count === 0) {
+    return false
+  }
+  countsByText.set(text, count - 1)
+  return true
+}
+
+function findMissingOptimisticUserMessages(
+  snapshotUserCountsByText: Map<string, number>,
+  optimisticUserMessages: readonly UIMessage[],
+): UIMessage[] {
+  const missingMessages: UIMessage[] = []
+  for (const message of optimisticUserMessages) {
+    const text = getNonEmptyUserMessageText(message)
+    if (!text || consumeUserMessageTextCount(snapshotUserCountsByText, text)) {
+      continue
+    }
+    missingMessages.push(message)
+  }
+  return missingMessages
+}
+
 /**
  * When the persisted session snapshot is loaded after a stream completes,
  * user messages may appear duplicated: the local optimistic user message and
@@ -140,34 +185,10 @@ export function appendMissingOptimisticUserMessages(
     return snapshotMessages
   }
 
-  const snapshotUserCountsByText = new Map<string, number>()
-  for (const message of snapshotMessages) {
-    if (message.role !== 'user') {
-      continue
-    }
-    const text = getUIMessageText(message)
-    if (!text) {
-      continue
-    }
-    snapshotUserCountsByText.set(text, (snapshotUserCountsByText.get(text) ?? 0) + 1)
-  }
-
-  const missingOptimisticMessages: UIMessage[] = []
-  for (const message of optimisticUserMessages) {
-    if (message.role !== 'user') {
-      continue
-    }
-    const text = getUIMessageText(message)
-    if (!text) {
-      continue
-    }
-    const count = snapshotUserCountsByText.get(text) ?? 0
-    if (count > 0) {
-      snapshotUserCountsByText.set(text, count - 1)
-      continue
-    }
-    missingOptimisticMessages.push(message)
-  }
+  const missingOptimisticMessages = findMissingOptimisticUserMessages(
+    countUserMessagesByText(snapshotMessages),
+    optimisticUserMessages,
+  )
 
   return missingOptimisticMessages.length > 0
     ? [...snapshotMessages, ...missingOptimisticMessages]

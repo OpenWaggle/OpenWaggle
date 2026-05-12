@@ -1,3 +1,4 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import type { SessionId } from '@shared/types/brand'
 import type { AgentPhaseState } from '@shared/types/phase'
 import type { AgentTransportEvent } from '@shared/types/stream'
@@ -59,31 +60,50 @@ export function updatePhaseFromTransportEvent(
 ): PhaseChangeResult {
   const state = getState(sessionId)
 
-  if (event.type === 'agent_start') {
-    state.runStatus = 'running'
-    return setPhase(state, 'Thinking', now)
-  }
-
-  if (event.type === 'message_update' && event.assistantMessageEvent.type === 'text_delta') {
-    if (state.runStatus !== 'running') {
-      return { changed: false, phase: state.current }
-    }
-    return setPhase(state, 'Writing', now)
-  }
-
-  if (
-    event.type === 'message_update' &&
-    (event.assistantMessageEvent.type === 'toolcall_start' ||
-      event.assistantMessageEvent.type === 'toolcall_end')
-  ) {
-    return setPhase(state, 'Thinking', now)
-  }
-
-  if (event.type === 'agent_end') {
-    return clearPhase(sessionId)
-  }
-
-  return { changed: false, phase: state.current }
+  return matchBy(event, 'type')
+    .with('agent_start', () => {
+      state.runStatus = 'running'
+      return setPhase(state, 'Thinking', now)
+    })
+    .with('message_update', (value) =>
+      matchBy(value.assistantMessageEvent, 'type')
+        .with('text_delta', () =>
+          state.runStatus === 'running'
+            ? setPhase(state, 'Writing', now)
+            : { changed: false, phase: state.current },
+        )
+        .with('toolcall_start', 'toolcall_end', () => setPhase(state, 'Thinking', now))
+        .with(
+          'text_start',
+          'text_end',
+          'thinking_start',
+          'thinking_delta',
+          'thinking_end',
+          'toolcall_delta',
+          'done',
+          'error',
+          () => ({ changed: false, phase: state.current }),
+        )
+        .exhaustive(),
+    )
+    .with('agent_end', () => clearPhase(sessionId))
+    .with(
+      'turn_start',
+      'turn_end',
+      'message_start',
+      'message_end',
+      'tool_execution_start',
+      'tool_execution_update',
+      'tool_execution_end',
+      'queue_update',
+      'compaction_start',
+      'compaction_end',
+      'auto_retry_start',
+      'auto_retry_end',
+      'custom',
+      () => ({ changed: false, phase: state.current }),
+    )
+    .exhaustive()
 }
 
 export function resetPhaseForSession(sessionId: SessionId): PhaseChangeResult {

@@ -1,3 +1,4 @@
+import { match } from '@diegogbrisa/ts-match'
 import { TRIPLE_FACTOR } from '@shared/constants/math'
 import { BYTES_PER_KIBIBYTE } from '@shared/constants/resource-limits'
 import { GIT_CACHE } from '@shared/constants/time'
@@ -8,7 +9,6 @@ import type {
   GitFileStatus,
   GitStatusSummary,
 } from '@shared/types/git'
-import { choose } from '@shared/utils/decision'
 import * as Effect from 'effect/Effect'
 import { typedHandle } from '../typed-ipc'
 import { isGitRepository, projectPathSchema, runGit, stripSurroundingQuotes } from './shared'
@@ -61,14 +61,14 @@ export function normalizeGitPath(rawPath: string): string {
 }
 
 function mapStatusCode(code: string): GitFileStatus {
-  return choose(code)
-    .case('M', (): GitFileStatus => 'modified')
-    .case('A', (): GitFileStatus => 'added')
-    .case('D', (): GitFileStatus => 'deleted')
-    .case('R', (): GitFileStatus => 'renamed')
-    .case('C', (): GitFileStatus => 'copied')
-    .case('?', (): GitFileStatus => 'untracked')
-    .catchAll((): GitFileStatus => 'unknown')
+  return match(code)
+    .with('M', (): GitFileStatus => 'modified')
+    .with('A', (): GitFileStatus => 'added')
+    .with('D', (): GitFileStatus => 'deleted')
+    .with('R', (): GitFileStatus => 'renamed')
+    .with('C', (): GitFileStatus => 'copied')
+    .with('?', (): GitFileStatus => 'untracked')
+    .otherwise((): GitFileStatus => 'unknown')
 }
 
 function parsePorcelain(stdout: string): ParsedPorcelainEntry[] {

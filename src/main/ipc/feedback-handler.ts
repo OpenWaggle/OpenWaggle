@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import os from 'node:os'
 import { BASE_TEN } from '@shared/constants/math'
 import { BYTES_PER_KIBIBYTE, FEEDBACK } from '@shared/constants/resource-limits'
-import type { DiagnosticsInfo, FeedbackPayload } from '@shared/types/feedback'
+import type { DiagnosticsInfo, FeedbackPayload, FeedbackSubmitResult } from '@shared/types/feedback'
 import * as Effect from 'effect/Effect'
 import { app } from 'electron'
 import { getGhCliEnv } from '../env'
@@ -226,12 +226,15 @@ export function registerFeedbackHandlers(): void {
       const issueUrl = urlMatch ? urlMatch[0].trim() : undefined
 
       logger.info('feedback issue created', { issueUrl })
-      return { success: true, issueUrl }
+      return {
+        success: true,
+        ...(issueUrl ? { issueUrl } : {}),
+      } satisfies FeedbackSubmitResult
     }).pipe(
       Effect.catchAll((errorMessage) =>
         Effect.sync(() => {
           logger.error('failed to create feedback issue', { error: errorMessage })
-          return { success: false, error: errorMessage }
+          return { success: false, error: errorMessage } satisfies FeedbackSubmitResult
         }),
       ),
     ),
