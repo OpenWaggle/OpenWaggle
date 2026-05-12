@@ -71,7 +71,7 @@ describe('preferences-store integration', () => {
     expect(usePreferencesStore.getState().settings.thinkingLevel).toBe('high')
   })
 
-  it('tracks recent projects in newest-first order with dedupe and max size', async () => {
+  it('tracks recent projects in first-added order with dedupe and max size', async () => {
     const entries = [
       '/tmp/repo-1',
       '/tmp/repo-2',
@@ -93,16 +93,16 @@ describe('preferences-store integration', () => {
 
     const recentProjects = usePreferencesStore.getState().settings.recentProjects
     expect(recentProjects).toEqual([
-      '/tmp/repo-9',
-      '/tmp/repo-11',
-      '/tmp/repo-10',
-      '/tmp/repo-8',
-      '/tmp/repo-7',
-      '/tmp/repo-6',
-      '/tmp/repo-5',
-      '/tmp/repo-4',
-      '/tmp/repo-3',
       '/tmp/repo-2',
+      '/tmp/repo-3',
+      '/tmp/repo-4',
+      '/tmp/repo-5',
+      '/tmp/repo-6',
+      '/tmp/repo-7',
+      '/tmp/repo-8',
+      '/tmp/repo-9',
+      '/tmp/repo-10',
+      '/tmp/repo-11',
     ])
     expect(recentProjects).toHaveLength(10)
   })

@@ -64,15 +64,15 @@ export function createSessionNavHandlers(deps: SessionNavDeps): SessionNavHandle
     setActiveView('chat')
     const path = await selectFolder()
     if (!path) return
-    await setProjectPath(path)
     startDraftSession()
+    await setProjectPath(path)
     refreshGit(path)
   }
 
   async function handleSelectProjectPath(path: string): Promise<void> {
     setActiveView('chat')
-    await setProjectPath(path)
     startDraftSession()
+    await setProjectPath(path)
     refreshGit(path)
   }
 

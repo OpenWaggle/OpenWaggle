@@ -9,11 +9,7 @@ export function useProject() {
   const setProjectPath = usePreferencesStore((s) => s.setProjectPath)
 
   async function selectFolder() {
-    const path = await api.selectProjectFolder()
-    if (path) {
-      await setProjectPath(path)
-    }
-    return path
+    return api.selectProjectFolder()
   }
 
   return {

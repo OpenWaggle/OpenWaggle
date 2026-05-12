@@ -7,6 +7,8 @@ import {
   ArrowDownAZ,
   Calendar,
   Check,
+  ChevronDown,
+  ChevronRight,
   Clock,
   Edit3,
   Folder,
@@ -61,7 +63,7 @@ interface DraftBranchRowProps {
 function DraftBranchRow({ sourceNodeId }: DraftBranchRowProps) {
   return (
     <div className="mx-2 flex h-7 w-[calc(100%-16px)] items-center gap-2 rounded-md border border-dashed border-border pl-11 pr-3 text-left text-text-tertiary">
-      <GitBranch className="h-3 w-3 shrink-0" />
+      <GitBranch className="size-3 shrink-0" />
       <span className="min-w-0 flex-1 truncate text-[12px]">Draft branch from {sourceNodeId}</span>
     </div>
   )
@@ -139,11 +141,11 @@ function BranchRows({
           >
             {row.branch.interruptedRun ? (
               <AlertTriangle
-                className="h-3 w-3 shrink-0 text-amber-400"
+                className="size-3 shrink-0 text-amber-400"
                 aria-label="Interrupted run"
               />
             ) : (
-              <GitBranch className="h-3 w-3 shrink-0" />
+              <GitBranch className="size-3 shrink-0" />
             )}
             {isRenaming ? (
               <input
@@ -187,9 +189,9 @@ function BranchRows({
                       event.stopPropagation()
                       toggle()
                     }}
-                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-text-tertiary opacity-0 transition-colors hover:bg-bg-hover hover:text-text-secondary group-hover:opacity-100 focus:opacity-100"
+                    className="flex size-5 shrink-0 items-center justify-center rounded text-text-tertiary opacity-0 transition-colors hover:bg-bg-hover hover:text-text-secondary group-hover:opacity-100 focus:opacity-100"
                   >
-                    <MoreHorizontal className="h-3.5 w-3.5" />
+                    <MoreHorizontal className="size-3.5" />
                   </button>
                 )}
               >
@@ -199,7 +201,7 @@ function BranchRows({
                     onClick={() => startRename(row.branch)}
                     className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
                   >
-                    <Edit3 className="h-3 w-3 shrink-0" />
+                    <Edit3 className="size-3 shrink-0" />
                     <span>Rename</span>
                   </button>
                 ) : null}
@@ -211,7 +213,7 @@ function BranchRows({
                   }}
                   className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
                 >
-                  <Archive className="h-3 w-3 shrink-0" />
+                  <Archive className="size-3 shrink-0" />
                   <span>{row.branch.isMain ? 'Archive session' : 'Archive'}</span>
                 </button>
               </Popover>
@@ -231,7 +233,16 @@ interface ProjectGroupSectionProps {
   readonly activeBranchId: SessionTree['session']['lastActiveBranchId']
   readonly draftBranch: ReturnType<typeof useSessions>['draftBranch']
   readonly displayProjectName: (path: string) => string
-  readonly onSelectProjectPath: (path: string) => void
+  readonly collapsed: boolean
+  readonly onNewSessionForProject: (path: string) => void
+  readonly onOpenProjectInFinder: (path: string) => void
+  readonly onRenameProject: (path: string, name: string) => void
+  readonly onArchiveProjectSessions: (
+    path: string,
+    sessions: readonly SidebarProjectGroup['sessions'][number][],
+  ) => void
+  readonly onRemoveProject: (path: string) => void
+  readonly onToggleProjectCollapsed: (path: string) => void
   readonly onSelectSession: (id: SessionId) => void
   readonly onDeleteSession: (id: SessionId) => void
   readonly onArchiveSession: (id: SessionId) => void
@@ -251,7 +262,13 @@ function ProjectGroupSection({
   activeBranchId,
   draftBranch,
   displayProjectName,
-  onSelectProjectPath,
+  collapsed,
+  onNewSessionForProject,
+  onOpenProjectInFinder,
+  onRenameProject,
+  onArchiveProjectSessions,
+  onRemoveProject,
+  onToggleProjectCollapsed,
   onSelectSession,
   onDeleteSession,
   onArchiveSession,
@@ -262,24 +279,165 @@ function ProjectGroupSection({
   onArchiveBranch,
   onToggleBranches,
 }: ProjectGroupSectionProps) {
+  const projectLabel = displayProjectName(group.projectPath)
+  const DisclosureIcon = collapsed ? ChevronRight : ChevronDown
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [renaming, setRenaming] = useState(false)
+  const [renameValue, setRenameValue] = useState(projectLabel)
+  const renameInputRef = useRef<HTMLInputElement>(null)
+  const sessionCount = group.sessions.length
+  const archiveLabel =
+    sessionCount === 0
+      ? 'No sessions to archive'
+      : `Archive ${sessionCount} session${sessionCount === 1 ? '' : 's'}…`
+
+  useEffect(() => {
+    if (!renaming) {
+      return
+    }
+    renameInputRef.current?.focus()
+    renameInputRef.current?.select()
+  }, [renaming])
+
+  function startRename(): void {
+    setMenuOpen(false)
+    setRenameValue(projectLabel)
+    setRenaming(true)
+  }
+
+  function cancelRename(): void {
+    setRenaming(false)
+    setRenameValue(projectLabel)
+  }
+
+  function saveRename(): void {
+    const trimmed = renameValue.trim()
+    if (trimmed && trimmed !== projectLabel) {
+      onRenameProject(group.projectPath, trimmed)
+    }
+    setRenaming(false)
+  }
+
   return (
     <section className="mb-2">
-      <button
-        type="button"
-        onClick={() => onSelectProjectPath(group.projectPath)}
+      <div
         className={cn(
-          'flex h-7 w-full items-center gap-2 px-4 text-left transition-colors hover:bg-bg-hover',
+          'group flex h-7 w-full items-center gap-1.5 px-4 transition-colors hover:bg-bg-hover',
           isCurrentProject ? 'text-text-secondary' : 'text-text-tertiary',
         )}
         title={group.projectPath}
       >
-        <Folder className="h-3.5 w-3.5 shrink-0" />
-        <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
-          {displayProjectName(group.projectPath)}
-        </span>
-      </button>
+        {renaming ? (
+          <div className="flex min-w-0 flex-1 items-center gap-1.5">
+            <DisclosureIcon className="size-3 shrink-0 text-text-muted" />
+            <Folder className="size-3.5 shrink-0" />
+            <input
+              ref={renameInputRef}
+              value={renameValue}
+              onChange={(event) => setRenameValue(event.target.value)}
+              onBlur={saveRename}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  saveRename()
+                }
+                if (event.key === 'Escape') {
+                  event.preventDefault()
+                  cancelRename()
+                }
+              }}
+              className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-text-primary outline-none"
+            />
+          </div>
+        ) : (
+          <button
+            type="button"
+            aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${projectLabel}`}
+            aria-expanded={!collapsed}
+            onClick={() => onToggleProjectCollapsed(group.projectPath)}
+            className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+          >
+            <DisclosureIcon className="size-3 shrink-0 text-text-muted" />
+            <Folder className="size-3.5 shrink-0" />
+            <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{projectLabel}</span>
+          </button>
+        )}
+        <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+          <button
+            type="button"
+            aria-label={`New session in ${projectLabel}`}
+            onClick={() => onNewSessionForProject(group.projectPath)}
+            className="flex size-5 items-center justify-center rounded text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
+          >
+            <Edit3 className="size-3.5" />
+          </button>
+          <Popover
+            open={menuOpen}
+            onOpenChange={setMenuOpen}
+            placement="bottom-end"
+            className="min-w-[190px] py-1"
+            trigger={({ isOpen, toggle }) => (
+              <button
+                type="button"
+                aria-label={`Open project actions for ${projectLabel}`}
+                aria-expanded={isOpen}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  toggle()
+                }}
+                className="flex size-5 items-center justify-center rounded text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
+              >
+                <MoreHorizontal className="size-3.5" />
+              </button>
+            )}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false)
+                onOpenProjectInFinder(group.projectPath)
+              }}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
+            >
+              <Folder className="size-3 shrink-0" />
+              <span>Open in Finder</span>
+            </button>
+            <button
+              type="button"
+              onClick={startRename}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
+            >
+              <Edit3 className="size-3 shrink-0" />
+              <span>Rename project</span>
+            </button>
+            <button
+              type="button"
+              disabled={sessionCount === 0}
+              onClick={() => {
+                setMenuOpen(false)
+                onArchiveProjectSessions(group.projectPath, group.sessions)
+              }}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover disabled:cursor-not-allowed disabled:text-text-muted disabled:hover:bg-transparent"
+            >
+              <Archive className="size-3 shrink-0" />
+              <span>{archiveLabel}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false)
+                onRemoveProject(group.projectPath)
+              }}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-error transition-colors hover:bg-bg-hover"
+            >
+              <AlertTriangle className="size-3 shrink-0" />
+              <span>Remove…</span>
+            </button>
+          </Popover>
+        </div>
+      </div>
 
-      {group.sessions.length === 0 ? (
+      {collapsed ? null : group.sessions.length === 0 ? (
         <div className="px-10 py-1.5 text-[12px] text-text-muted">No sessions</div>
       ) : (
         <div className="space-y-0.5">
@@ -386,7 +544,7 @@ function SidebarPrimaryActions({
         onClick={onNewSession}
         className="no-drag flex h-[34px] w-full items-center gap-2 px-3 text-left transition-colors hover:bg-bg-hover"
       >
-        <Edit3 className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
+        <Edit3 className="size-3.5 shrink-0 text-text-tertiary" />
         <span className="text-[14px] text-text-secondary">New session</span>
       </button>
 
@@ -402,7 +560,7 @@ function SidebarPrimaryActions({
         )}
         title="Open skills"
       >
-        <Sparkles className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
+        <Sparkles className="size-3.5 shrink-0 text-text-tertiary" />
         <span className="text-[14px]">Skills</span>
       </button>
     </div>
@@ -435,7 +593,7 @@ function SidebarProjectsHeader({
           className="rounded p-0.5 text-text-tertiary transition-colors hover:text-text-secondary"
           title="Open project folder"
         >
-          <FolderPlus className="h-[13px] w-[13px]" />
+          <FolderPlus className="size-[13px]" />
         </button>
         <Popover
           open={sortMenuOpen}
@@ -453,7 +611,7 @@ function SidebarProjectsHeader({
               )}
               title="Sort sessions"
             >
-              <LayoutList className="h-3 w-3" />
+              <LayoutList className="size-3" />
             </button>
           }
         >
@@ -470,9 +628,9 @@ function SidebarProjectsHeader({
                 sortMode === opt.value ? 'text-accent' : 'text-text-secondary',
               )}
             >
-              <opt.icon className="h-3 w-3 shrink-0" />
+              <opt.icon className="size-3 shrink-0" />
               <span className="flex-1">{opt.label}</span>
-              {sortMode === opt.value ? <Check className="h-3 w-3 shrink-0" /> : null}
+              {sortMode === opt.value ? <Check className="size-3 shrink-0" /> : null}
             </button>
           ))}
         </Popover>
@@ -489,14 +647,23 @@ interface SidebarProjectListProps {
   readonly projectPath: string | null
   readonly sessionGroups: ReturnType<typeof buildSidebarProjectGroups>
   readonly displayProjectName: (path: string) => string
+  readonly collapsedProjectPaths: ReadonlySet<string>
   readonly onArchiveBranch: (sessionId: string, branch: SessionBranch) => void
   readonly onArchiveSession: (id: SessionId) => void
   readonly onDeleteSession: (id: SessionId) => void
   readonly onCloneSession: (id: SessionId) => void
   readonly onRenameBranch: (sessionId: string, branch: SessionBranch, name: string) => void
+  readonly onRenameProject: (path: string, name: string) => void
+  readonly onOpenProjectInFinder: (path: string) => void
+  readonly onArchiveProjectSessions: (
+    path: string,
+    sessions: readonly SidebarProjectGroup['sessions'][number][],
+  ) => void
+  readonly onRemoveProject: (path: string) => void
   readonly onSelectBranch: (sessionId: string, branch: SessionBranch) => void
   readonly onSelectSession: (id: SessionId) => void
-  readonly onSelectProjectPath: (path: string) => void
+  readonly onNewSessionForProject: (path: string) => void
+  readonly onToggleProjectCollapsed: (path: string) => void
   readonly onToggleBranches: (sessionId: SessionId, collapsed: boolean) => void
 }
 
@@ -508,20 +675,26 @@ function SidebarProjectList({
   projectPath,
   sessionGroups,
   displayProjectName,
+  collapsedProjectPaths,
   onArchiveBranch,
   onArchiveSession,
   onDeleteSession,
   onCloneSession,
   onRenameBranch,
+  onRenameProject,
+  onOpenProjectInFinder,
+  onArchiveProjectSessions,
+  onRemoveProject,
   onSelectBranch,
   onSelectSession,
-  onSelectProjectPath,
+  onNewSessionForProject,
+  onToggleProjectCollapsed,
   onToggleBranches,
 }: SidebarProjectListProps) {
   if (sessionGroups.projects.length === 0) {
     return (
       <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
-        <Folder className="h-5 w-5 text-text-muted/75" />
+        <Folder className="size-5 text-text-muted/75" />
         <p className="text-[13px] text-text-muted">No projects yet</p>
       </div>
     )
@@ -537,7 +710,13 @@ function SidebarProjectList({
       activeBranchId={activeBranchId}
       draftBranch={draftBranch}
       displayProjectName={displayProjectName}
-      onSelectProjectPath={onSelectProjectPath}
+      collapsed={collapsedProjectPaths.has(group.projectPath)}
+      onNewSessionForProject={onNewSessionForProject}
+      onOpenProjectInFinder={onOpenProjectInFinder}
+      onRenameProject={onRenameProject}
+      onArchiveProjectSessions={onArchiveProjectSessions}
+      onRemoveProject={onRemoveProject}
+      onToggleProjectCollapsed={onToggleProjectCollapsed}
       onSelectSession={onSelectSession}
       onDeleteSession={onDeleteSession}
       onArchiveSession={onArchiveSession}
@@ -566,7 +745,7 @@ function SidebarSettingsButton({ onOpenSettings }: SidebarSettingsButtonProps) {
         onClick={onOpenSettings}
         className="flex h-9 w-full items-center gap-2.5 px-4 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
       >
-        <Settings className="h-3.5 w-3.5" />
+        <Settings className="size-3.5" />
         <span className="text-[14px] text-text-secondary">Settings</span>
       </button>
     </div>
@@ -584,6 +763,8 @@ function useSidebarController() {
   const recentProjects = usePreferencesStore((s) => s.settings.recentProjects)
   const projectDisplayNames = usePreferencesStore((s) => s.settings.projectDisplayNames)
   const selectedModel = usePreferencesStore((s) => s.settings.selectedModel)
+  const setProjectDisplayName = usePreferencesStore((s) => s.setProjectDisplayName)
+  const removeProjectReferences = usePreferencesStore((s) => s.removeProjectReferences)
   const {
     activeSessionId: activeChatSessionId,
     startDraftSession,
@@ -612,6 +793,9 @@ function useSidebarController() {
   const isFullscreen = useFullscreen()
   const [sortMode, setSortMode] = useState<SidebarSessionSortMode>('recent')
   const [sortMenuOpen, setSortMenuOpen] = useState(false)
+  const [collapsedProjectPaths, setCollapsedProjectPaths] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  )
   const sessionGroups = buildSidebarProjectGroups({
     sessions,
     currentProjectPath: projectPath,
@@ -778,6 +962,108 @@ function useSidebarController() {
       })
   }
 
+  function handleOpenProjectInFinder(path: string): void {
+    void api.openPath(path).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error)
+      showToast(`Failed to open project folder: ${message}`)
+    })
+  }
+
+  function handleRenameProject(path: string, name: string): void {
+    void setProjectDisplayName(path, name).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error)
+      showToast(`Failed to rename project: ${message}`)
+    })
+  }
+
+  function handleArchiveProjectSessions(
+    path: string,
+    projectSessions: readonly (typeof sessions)[number][],
+  ): void {
+    void (async () => {
+      const sessionCount = projectSessions.length
+      if (sessionCount === 0) {
+        return
+      }
+
+      const confirmed = await api.showConfirm(
+        `Archive ${sessionCount} session${sessionCount === 1 ? '' : 's'} in ${displayProjectName(path)}?`,
+        `Project: ${path}`,
+      )
+      if (!confirmed) {
+        return
+      }
+
+      await Promise.all(projectSessions.map((session) => api.archiveSession(session.id)))
+      for (const session of projectSessions) {
+        useComposerStore.getState().clearScopedDraftsForSession(String(session.id))
+      }
+      await Promise.all([loadChatSessions(), loadSessionTrees()])
+
+      const archivedActiveSession =
+        activeSessionId !== null &&
+        projectSessions.some((session) => session.id === activeSessionId)
+      if (archivedActiveSession) {
+        startDraftSession()
+        void navigate({ to: '/' })
+      }
+    })().catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error)
+      showToast(`Failed to archive project sessions: ${message}`)
+    })
+  }
+
+  function handleRemoveProject(path: string): void {
+    void (async () => {
+      const archivedSessions = await api.listArchivedSessions()
+      const projectSessionsById = new Map<string, (typeof sessions)[number]>()
+      for (const session of sessions) {
+        if (session.projectPath === path) {
+          projectSessionsById.set(String(session.id), session)
+        }
+      }
+      for (const session of archivedSessions) {
+        if (session.projectPath === path) {
+          projectSessionsById.set(String(session.id), session)
+        }
+      }
+      const projectSessions = [...projectSessionsById.values()]
+      const sessionCount = projectSessions.length
+      const confirmed = await api.showConfirm(
+        `Remove ${displayProjectName(path)} and permanently delete ${sessionCount} session${sessionCount === 1 ? '' : 's'}?`,
+        `Project: ${path}\nThis cannot be undone.`,
+      )
+      if (!confirmed) {
+        return
+      }
+
+      const projectSessionIds = new Set(projectSessions.map((session) => String(session.id)))
+      const activeRuns = await api.listActiveRuns()
+      const matchingActiveRuns = activeRuns.filter((run) =>
+        projectSessionIds.has(String(run.sessionId)),
+      )
+      await Promise.all(matchingActiveRuns.map((run) => api.cancelAgent(run.sessionId)))
+
+      await Promise.all(projectSessions.map((session) => api.deleteSession(session.id)))
+      for (const session of projectSessions) {
+        useComposerStore.getState().clearScopedDraftsForSession(String(session.id))
+      }
+      await removeProjectReferences(path)
+      await Promise.all([loadChatSessions(), loadSessionTrees()])
+
+      const removedActiveSession =
+        activeSessionId !== null && projectSessionIds.has(String(activeSessionId))
+      if (removedActiveSession || projectPath === path) {
+        startDraftSession()
+        refreshGit(null)
+        void navigate({ to: '/' })
+      }
+    })().catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error)
+      showToast(`Failed to remove project: ${message}`)
+    })
+  }
+
   function setComposerTextValue(text: string): void {
     const composer = useComposerStore.getState()
     composer.setInput(text)
@@ -842,22 +1128,47 @@ function useSidebarController() {
     void navigate({ to: '/' })
   }
 
+  function handleToggleProjectCollapsed(path: string): void {
+    setCollapsedProjectPaths((current) => {
+      const next = new Set(current)
+      if (next.has(path)) {
+        next.delete(path)
+      } else {
+        next.add(path)
+      }
+      return next
+    })
+  }
+
+  function expandProject(path: string): void {
+    setCollapsedProjectPaths((current) => {
+      if (!current.has(path)) {
+        return current
+      }
+      const next = new Set(current)
+      next.delete(path)
+      return next
+    })
+  }
+
   async function handleOpenProject(): Promise<void> {
     const path = await selectFolder()
     if (!path) return
     clearTransientDraftContext()
-    await setProjectPath(path)
     startDraftSession()
-    refreshGit(path)
+    expandProject(path)
     void navigate({ to: '/' })
+    await setProjectPath(path)
+    refreshGit(path)
   }
 
   async function handleSelectProjectPath(path: string): Promise<void> {
     clearTransientDraftContext()
-    await setProjectPath(path)
     startDraftSession()
-    refreshGit(path)
+    expandProject(path)
     void navigate({ to: '/' })
+    await setProjectPath(path)
+    refreshGit(path)
   }
 
   function handleOpenSkills(): void {
@@ -872,6 +1183,7 @@ function useSidebarController() {
     activeBranchId,
     activeSessionId,
     activeView,
+    collapsedProjectPaths,
     displayProjectName,
     draftBranch,
     handleArchiveBranch,
@@ -880,13 +1192,18 @@ function useSidebarController() {
     handleCloneSession,
     handleNewSession,
     handleOpenProject,
+    handleOpenProjectInFinder,
     handleOpenSettings,
     handleOpenSkills,
+    handleArchiveProjectSessions,
     handleRenameBranch,
+    handleRenameProject,
+    handleRemoveProject,
     handleSelectBranch,
     handleSelectProjectPath,
     handleSelectSession,
     handleToggleBranches,
+    handleToggleProjectCollapsed,
     isFullscreen,
     matchingActiveSessionTree,
     projectPath,
@@ -904,6 +1221,7 @@ export function Sidebar() {
     activeBranchId,
     activeSessionId,
     activeView,
+    collapsedProjectPaths,
     displayProjectName,
     draftBranch,
     handleArchiveBranch,
@@ -912,13 +1230,18 @@ export function Sidebar() {
     handleCloneSession,
     handleNewSession,
     handleOpenProject,
+    handleOpenProjectInFinder,
     handleOpenSettings,
     handleOpenSkills,
+    handleArchiveProjectSessions,
     handleRenameBranch,
+    handleRenameProject,
+    handleRemoveProject,
     handleSelectBranch,
     handleSelectProjectPath,
     handleSelectSession,
     handleToggleBranches,
+    handleToggleProjectCollapsed,
     isFullscreen,
     matchingActiveSessionTree,
     projectPath,
@@ -967,16 +1290,22 @@ export function Sidebar() {
               projectPath={projectPath}
               sessionGroups={sessionGroups}
               displayProjectName={displayProjectName}
+              collapsedProjectPaths={collapsedProjectPaths}
               onArchiveBranch={handleArchiveBranch}
               onArchiveSession={handleArchiveSession}
               onDeleteSession={handleDeleteSession}
               onCloneSession={handleCloneSession}
               onRenameBranch={handleRenameBranch}
+              onRenameProject={handleRenameProject}
+              onOpenProjectInFinder={handleOpenProjectInFinder}
+              onArchiveProjectSessions={handleArchiveProjectSessions}
+              onRemoveProject={handleRemoveProject}
               onSelectBranch={handleSelectBranch}
               onSelectSession={handleSelectSession}
-              onSelectProjectPath={(nextProjectPath) => {
+              onNewSessionForProject={(nextProjectPath) => {
                 void handleSelectProjectPath(nextProjectPath)
               }}
+              onToggleProjectCollapsed={handleToggleProjectCollapsed}
               onToggleBranches={handleToggleBranches}
             />
           </div>

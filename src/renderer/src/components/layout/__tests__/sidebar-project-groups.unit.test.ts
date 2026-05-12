@@ -14,12 +14,13 @@ function makeSession(
   title: string,
   projectPath: string | null,
   updatedAt: number,
+  createdAt = CREATED_AT,
 ): SessionSummary {
   return {
     id: SessionId(id),
     title,
     projectPath,
-    createdAt: CREATED_AT,
+    createdAt,
     updatedAt,
     lastActiveNodeId: null,
     lastActiveBranchId: null,
@@ -42,15 +43,35 @@ describe('buildSidebarProjectGroups', () => {
 
     expect(grouped.projects.map((project) => project.projectPath)).toEqual([
       '/repo/current',
-      '/repo/empty',
       '/repo/other',
+      '/repo/empty',
     ])
     expect(grouped.projects[0]?.sessions.map((session) => session.title)).toEqual([
       'Current new',
       'Current old',
     ])
-    expect(grouped.projects[1]?.latestUpdatedAt).toBe(EMPTY_LATEST_UPDATED_AT)
-    expect(grouped.projects[1]?.sessions).toEqual([])
+    expect(grouped.projects[2]?.latestUpdatedAt).toBe(EMPTY_LATEST_UPDATED_AT)
+    expect(grouped.projects[2]?.sessions).toEqual([])
+  })
+
+  it('orders projects by newest first-session timestamp without promoting the selected project', () => {
+    const grouped = buildSidebarProjectGroups({
+      currentProjectPath: '/repo/current',
+      recentProjects: ['/repo/sessionless'],
+      sortMode: 'recent',
+      sessions: [
+        makeSession('current', 'Current project', '/repo/current', UPDATED_AT_NEW, 30),
+        makeSession('newer', 'Newer project', '/repo/newer', UPDATED_AT_MIDDLE, 40),
+        makeSession('older', 'Older project', '/repo/older', UPDATED_AT_OLD, 20),
+      ],
+    })
+
+    expect(grouped.projects.map((project) => project.projectPath)).toEqual([
+      '/repo/newer',
+      '/repo/current',
+      '/repo/older',
+      '/repo/sessionless',
+    ])
   })
 
   it('keeps session-only projects visible when they are not recent projects', () => {
@@ -59,8 +80,8 @@ describe('buildSidebarProjectGroups', () => {
       recentProjects: [],
       sortMode: 'recent',
       sessions: [
-        makeSession('one', 'Older project', '/repo/old', UPDATED_AT_OLD),
-        makeSession('two', 'Newer project', '/repo/new', UPDATED_AT_NEW),
+        makeSession('one', 'Older project', '/repo/old', UPDATED_AT_OLD, 20),
+        makeSession('two', 'Newer project', '/repo/new', UPDATED_AT_NEW, 40),
       ],
     })
 

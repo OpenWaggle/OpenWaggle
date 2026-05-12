@@ -116,7 +116,7 @@ describe('createSessionNavHandlers', () => {
   })
 
   describe('handleSelectProjectPath', () => {
-    it('selects project and starts a draft session', async () => {
+    it('starts a draft before selecting the project so stale session routes cannot reclaim focus', async () => {
       const deps = makeDeps()
       const { handleSelectProjectPath } = createSessionNavHandlers(deps)
 
@@ -125,6 +125,9 @@ describe('createSessionNavHandlers', () => {
       expect(deps.setProjectPath).toHaveBeenCalledWith('/selected/path')
       expect(deps.startDraftSession).toHaveBeenCalled()
       expect(deps.refreshGitStatus).toHaveBeenCalledWith('/selected/path')
+      expect(deps.startDraftSession.mock.invocationCallOrder[0]).toBeLessThan(
+        deps.setProjectPath.mock.invocationCallOrder[0] ?? Number.MAX_SAFE_INTEGER,
+      )
     })
   })
 })

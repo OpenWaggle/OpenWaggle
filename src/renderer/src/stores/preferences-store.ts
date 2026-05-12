@@ -31,6 +31,7 @@ interface PreferencesState {
   setEnabledModels: (models: string[]) => Promise<void>
   setProjectDisplayName: (path: string, name: string) => Promise<void>
   clearProjectDisplayName: (path: string) => Promise<void>
+  removeProjectReferences: (path: string) => Promise<void>
   loadProjectPreferences: (projectPath: string) => Promise<void>
 }
 
@@ -47,6 +48,14 @@ function persistProjectPreference(
       logger.warn('Failed to persist project preferences', { error: String(err) })
     })
   }
+}
+
+function appendRecentProject(paths: readonly string[], path: string): readonly string[] {
+  const normalized = path.trim()
+  if (!normalized || paths.includes(normalized)) {
+    return paths
+  }
+  return [...paths, normalized].slice(-SLICE_ARG_2_VALUE_10)
 }
 
 export const usePreferencesStore = create<PreferencesState>((set, get) => ({
@@ -107,8 +116,7 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     const { settings } = get()
     let recentProjects = settings.recentProjects
     if (path) {
-      const deduped = [path, ...settings.recentProjects.filter((p) => p !== path)]
-      recentProjects = deduped.slice(0, SLICE_ARG_2_VALUE_10)
+      recentProjects = appendRecentProject(settings.recentProjects, path)
     }
     await api.updateSettings({ projectPath: path, recentProjects })
     set({ settings: { ...settings, projectPath: path, recentProjects } })
@@ -134,10 +142,7 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     if (!normalized) return
 
     const { settings } = get()
-    const recentProjects = [
-      normalized,
-      ...settings.recentProjects.filter((p) => p !== normalized),
-    ].slice(0, SLICE_ARG_2_VALUE_10)
+    const recentProjects = appendRecentProject(settings.recentProjects, normalized)
     await api.updateSettings({ recentProjects })
     set({ settings: { ...settings, recentProjects } })
   },
@@ -175,6 +180,28 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     const { [path]: _, ...rest } = settings.projectDisplayNames
     await api.updateSettings({ projectDisplayNames: rest })
     set({ settings: { ...settings, projectDisplayNames: rest } })
+  },
+
+  async removeProjectReferences(path: string) {
+    const { settings } = get()
+    const recentProjects = settings.recentProjects.filter((projectPath) => projectPath !== path)
+    const { [path]: _displayName, ...projectDisplayNames } = settings.projectDisplayNames
+    const { [path]: _skillToggles, ...skillTogglesByProject } = settings.skillTogglesByProject
+    const projectPath = settings.projectPath === path ? null : settings.projectPath
+    const nextSettings = {
+      ...settings,
+      projectPath,
+      recentProjects,
+      projectDisplayNames,
+      skillTogglesByProject,
+    }
+    await api.updateSettings({
+      projectPath,
+      recentProjects,
+      projectDisplayNames,
+      skillTogglesByProject,
+    })
+    set({ settings: nextSettings })
   },
 
   async loadProjectPreferences(projectPath: string) {
