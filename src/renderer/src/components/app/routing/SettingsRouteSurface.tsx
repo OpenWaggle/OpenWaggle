@@ -7,6 +7,7 @@ const SETTINGS_TABS: readonly SettingsTab[] = [
   'general',
   'configuration',
   'waggle',
+  'mcp',
   'personalization',
   'git',
   'environments',

@@ -142,7 +142,7 @@ describe('ConnectionsSection', () => {
     render(<ConnectionsSection />)
 
     fireEvent.click(screen.getByRole('button', { name: /OAuth Providers/i }))
-    fireEvent.click(screen.getByRole('button', { name: 'Connect OpenAI Codex' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Connect OpenAI Codex' }))
 
     expect(startOAuth).toHaveBeenCalledWith('openai-codex')
   })
@@ -166,9 +166,9 @@ describe('ConnectionsSection', () => {
     render(<ConnectionsSection />)
 
     fireEvent.click(screen.getByRole('button', { name: /OAuth Providers/i }))
-    const toggle = screen.getByRole('button', { name: 'Cancel OpenAI Codex sign in' })
+    const toggle = screen.getByRole('switch', { name: 'Cancel OpenAI Codex sign in' })
 
-    expect(toggle).not.toBeDisabled()
+    expect(toggle).toHaveAttribute('aria-disabled', 'false')
     fireEvent.click(toggle)
     expect(cancelOAuth).toHaveBeenCalledWith('openai-codex')
   })
