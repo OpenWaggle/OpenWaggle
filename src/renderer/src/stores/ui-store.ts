@@ -13,7 +13,7 @@ export type RightSidebarPanel = 'diff' | 'session-tree'
 export interface ToastData {
   message: string
   /** Visual variant — defaults to 'neutral'. */
-  variant?: 'neutral' | 'success'
+  variant?: 'neutral' | 'success' | 'error'
   /** When set, the toast persists until manually dismissed. */
   persistent?: boolean
   /** Optional action shown as a clickable label. Supports a URL or an onClick callback. */
@@ -24,6 +24,7 @@ export type SettingsTab =
   | 'general'
   | 'configuration'
   | 'waggle'
+  | 'mcp'
   | 'personalization'
   | 'git'
   | 'environments'
@@ -51,7 +52,7 @@ interface UIState {
   setActiveSettingsTab: (tab: SettingsTab) => void
   bumpDiffRefreshKey: () => void
   closeTerminal: () => void
-  showToast: (message: string) => void
+  showToast: (message: string, variant?: ToastData['variant']) => void
   showPersistentToast: (data: ToastData) => void
   clearToast: () => void
   openCommandPalette: () => void
@@ -104,9 +105,9 @@ export const useUIStore = create<UIState>((set, get) => ({
     set({ terminalOpen: false })
   },
 
-  showToast(message) {
+  showToast(message, variant = 'neutral') {
     if (toastTimer) clearTimeout(toastTimer)
-    set({ toastMessage: message, toastData: { message } })
+    set({ toastMessage: message, toastData: { message, variant } })
     toastTimer = setTimeout(() => {
       toastTimer = null
       set({ toastMessage: null, toastData: null })
