@@ -29,6 +29,7 @@ import type { ProjectedSessionNodeInput } from '../../ports/session-repository'
 import { resetAppRuntimeForTests, runAppEffect } from '../../runtime'
 import {
   createSession,
+  deleteSession,
   getSessionDetail,
   listSessionDetails,
   listSessionSummaries,
@@ -121,6 +122,21 @@ describe('session-details integration', () => {
     expect(sessions[0]?.id).toBe(saved.id)
     expect(tree?.branches[0]?.name).toBe('main')
     expect(tree?.nodes).toHaveLength(2)
+  })
+
+  it('removes the Pi session file when deleting a session projection', async () => {
+    const sessionFile = path.join(tmpDir, 'pi-session-delete.jsonl')
+    await fs.writeFile(sessionFile, '{"type":"session_info"}\n', 'utf8')
+    const session = await createSession({
+      projectPath: '/tmp/project-delete',
+      piSessionId: 'pi-session-delete',
+      piSessionFile: sessionFile,
+    })
+
+    await deleteSession(session.id)
+
+    await expect(fs.stat(sessionFile)).rejects.toThrow()
+    await expect(getSessionDetail(session.id)).resolves.toBeNull()
   })
 
   it('renders visible Waggle custom requests while hiding internal Waggle turn prompts', async () => {

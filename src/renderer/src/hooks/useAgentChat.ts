@@ -555,7 +555,13 @@ export function useAgentChat(
     status: backgroundStreaming ? 'streaming' : status,
     stop: () => {
       if (sessionId) {
-        api.cancelAgent(sessionId)
+        void api.cancelAgent(sessionId).catch((cancelError: unknown) => {
+          const normalizedError =
+            cancelError instanceof Error ? cancelError : new Error(String(cancelError))
+          setError(normalizedError)
+          setStatus('error')
+          terminalRunErrorRef.current = normalizedError
+        })
       }
       foregroundStreamActiveRef.current = false
       foregroundSessionIdRef.current = null

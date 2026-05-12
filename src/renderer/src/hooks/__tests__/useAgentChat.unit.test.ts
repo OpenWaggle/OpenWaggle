@@ -30,7 +30,7 @@ const {
     getSessionDetail: vi.fn(async () => null),
     sendMessage: vi.fn(async () => undefined),
     sendWaggleMessage: vi.fn(async () => undefined),
-    cancelAgent: vi.fn(),
+    cancelAgent: vi.fn(async () => undefined),
     steerAgent: vi.fn(async () => ({ preserved: true })),
   },
   hasActiveRunMock: vi.fn(() => false),
@@ -137,6 +137,7 @@ describe('useAgentChat', () => {
     apiMock.sendMessage.mockReset()
     apiMock.sendWaggleMessage.mockReset()
     apiMock.cancelAgent.mockReset()
+    apiMock.cancelAgent.mockResolvedValue(undefined)
     apiMock.steerAgent.mockReset()
     hasActiveRunMock.mockReset()
     hasActiveRunMock.mockReturnValue(false)
