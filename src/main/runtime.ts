@@ -5,6 +5,7 @@ import type { Exit as ExitType } from 'effect/Exit'
 import * as Layer from 'effect/Layer'
 import * as ManagedRuntime from 'effect/ManagedRuntime'
 import { PiAgentKernelLive } from './adapters/pi/pi-agent-kernel-adapter'
+import { PiMcpConfigServiceLive } from './adapters/pi/pi-mcp-config-service'
 import { PiProviderAuthLive } from './adapters/pi/pi-provider-auth-service'
 import { PiProviderOAuthLive } from './adapters/pi/pi-provider-oauth-service'
 import { PiProviderProbeLive } from './adapters/pi/pi-provider-probe-adapter'
@@ -28,6 +29,7 @@ const AppLayer = Layer.mergeAll(
   SqliteSessionRepositoryLive,
   FilesystemStandardsLive,
   PiAgentKernelLive,
+  PiMcpConfigServiceLive,
   PiProviderAuthLive,
   PiProviderProbeLive,
   PiProviderOAuthLive,

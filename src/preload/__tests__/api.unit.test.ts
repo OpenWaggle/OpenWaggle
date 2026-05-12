@@ -38,6 +38,10 @@ describe('preload api surface contract', () => {
     'setPiTreeFilterMode',
     'getPiBranchSummarySkipPrompt',
     'testApiKey',
+    'getMcpSettings',
+    'setMcpAdapterEnabled',
+    'setMcpServerEnabled',
+    'writeMcpSourceConfig',
     'setProviderApiKey',
     // Providers
     'getProviderModels',
@@ -102,6 +106,7 @@ describe('preload api surface contract', () => {
     'copyToClipboard',
     'openLogsDir',
     'getLogsPath',
+    'openPath',
     // Dialog
     'showConfirm',
     // Waggle

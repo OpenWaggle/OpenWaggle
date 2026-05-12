@@ -24,6 +24,7 @@ import type {
   GitStatusSummary,
 } from './git'
 import type { ProviderInfo, SupportedModelId } from './llm'
+import type { McpSetServerEnabledInput, McpSettingsView, McpWriteSourceConfigInput } from './mcp'
 import type { AgentPhaseEventPayload, AgentPhaseState } from './phase'
 import type {
   SessionCopyToNewResult,
@@ -59,6 +60,10 @@ import type { WaggleConfig, WagglePreset, WaggleStreamMetadata, WaggleTurnEvent 
 export interface IpcInvokeChannelMap {
   'agent:send-message': {
     args: [sessionId: SessionId, payload: AgentSendPayload, model: SupportedModelId]
+    return: undefined
+  }
+  'agent:cancel': {
+    args: [sessionId?: SessionId]
     return: undefined
   }
   'agent:steer': {
@@ -100,6 +105,22 @@ export interface IpcInvokeChannelMap {
   'settings:test-api-key': {
     args: [provider: string, apiKey: string, projectPath?: string | null]
     return: { success: boolean; error?: string }
+  }
+  'mcp:get-settings': {
+    args: [projectPath?: string | null]
+    return: McpSettingsView
+  }
+  'mcp:set-adapter-enabled': {
+    args: [enabled: boolean, projectPath?: string | null]
+    return: McpSettingsView
+  }
+  'mcp:set-server-enabled': {
+    args: [input: McpSetServerEnabledInput]
+    return: McpSettingsView
+  }
+  'mcp:write-source-config': {
+    args: [input: McpWriteSourceConfigInput]
+    return: McpSettingsView
   }
   'project:select-folder': {
     args: []
@@ -374,6 +395,10 @@ export interface IpcInvokeChannelMap {
     args: [url: string]
     return: undefined
   }
+  'shell:open-path': {
+    args: [path: string]
+    return: undefined
+  }
   // Composer
   'composer:file-suggest': {
     args: [projectPath: string, query: string]
@@ -402,9 +427,6 @@ export interface IpcInvokeChannelMap {
  * Send channels — one-way, renderer → main (no response)
  */
 export interface IpcSendChannelMap {
-  'agent:cancel': {
-    args: [sessionId?: SessionId]
-  }
   'agent:cancel-waggle': {
     args: [sessionId: SessionId]
   }
@@ -496,7 +518,7 @@ export interface OpenWaggleApi {
     payload: AgentSendPayload,
     model: SupportedModelId,
   ): Promise<void>
-  cancelAgent(sessionId?: SessionId): void
+  cancelAgent(sessionId?: SessionId): Promise<void>
   steerAgent(sessionId: SessionId): Promise<{ preserved: boolean }>
   /** Subscribe to live Pi-shaped runtime events from the main process */
   onAgentEvent(callback: (payload: IpcEventPayload<'agent:event'>) => void): () => void
@@ -528,6 +550,10 @@ export interface OpenWaggleApi {
     apiKey: string,
     projectPath?: string | null,
   ): Promise<{ success: boolean; error?: string }>
+  getMcpSettings(projectPath?: string | null): Promise<McpSettingsView>
+  setMcpAdapterEnabled(enabled: boolean, projectPath?: string | null): Promise<McpSettingsView>
+  setMcpServerEnabled(input: McpSetServerEnabledInput): Promise<McpSettingsView>
+  writeMcpSourceConfig(input: McpWriteSourceConfigInput): Promise<McpSettingsView>
 
   // Providers
   getProviderModels(projectPath?: string | null): Promise<ProviderInfo[]>
@@ -648,6 +674,7 @@ export interface OpenWaggleApi {
   copyToClipboard(text: string): void
   openLogsDir(): Promise<void>
   getLogsPath(): Promise<string>
+  openPath(path: string): Promise<void>
 
   // Waggle mode
   sendWaggleMessage(
