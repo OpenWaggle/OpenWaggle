@@ -27,3 +27,9 @@ OpenWaggle injects project resource roots into Pi with `.openwaggle > .pi > .age
 Runtime extensions belong behind Pi adapter boundaries and need explicit product support in IPC and the renderer.
 
 For custom provider registration, see Pi's [`pi.registerProvider()` documentation](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/custom-provider.md).
+
+## MCP
+
+MCP is the first user-facing Pi extension-backed runtime capability in OpenWaggle. It uses the `pi-mcp-adapter` package and keeps source configuration in MCP JSON files instead of OpenWaggle's SQLite settings store.
+
+OpenWaggle binds Pi session extensions during session creation and emits `session_shutdown` before disposal. Future extension hosting should follow the same boundary: Pi owns runtime extension execution, OpenWaggle owns typed settings/projection UI and passes only explicit adapter inputs across the boundary.
