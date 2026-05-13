@@ -22,6 +22,14 @@
     "node:sqlite",
     "tailwindcss"
   ],
+  "ignoreDependencyOverrides": [
+    { "package": "@tanstack/history", "source": "package.json" },
+    { "package": "@tanstack/query-core", "source": "package.json" },
+    { "package": "@tanstack/router-core", "source": "package.json" },
+    { "package": "@tanstack/router-generator", "source": "package.json" },
+    { "package": "@tanstack/router-utils", "source": "package.json" },
+    { "package": "@tanstack/virtual-file-routes", "source": "package.json" }
+  ],
   // TanStack Router file routes must each export `Route`; that framework contract
   // makes duplicate-export analysis noisy for this app.
   "rules": { "duplicate-exports": "off" },
