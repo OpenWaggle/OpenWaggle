@@ -31,7 +31,7 @@ export function useWorkspaceLifecycle(): void {
   const { toggleDiff, toggleSessionTree } = useDiffRouteNavigation()
 
   function startDraftSessionRoute(): void {
-    startDraftSession()
+    startDraftSession(projectPath)
     void navigate({ to: '/' })
   }
 

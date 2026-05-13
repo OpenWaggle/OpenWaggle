@@ -39,6 +39,10 @@ interface SettingsStorageLike {
   withLock(scope: SettingsScope, fn: (current: string | undefined) => string | undefined): void
 }
 
+interface OpenWagglePiSettingsManagerOptions {
+  readonly excludedGlobalPackageSources?: readonly string[]
+}
+
 function getOpenWaggleProjectSettingsPath(projectPath: string): string {
   return join(projectPath, OPENWAGGLE_CONFIG_DIR, SETTINGS_FILE_NAME)
 }
@@ -78,6 +82,93 @@ function parseOpenWaggleSettings(content: string | undefined): ParsedProjectSett
 
 function isJsonObject(value: JsonValue | undefined): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function getPackageSource(value: JsonValue): string | null {
+  if (typeof value === 'string') {
+    return value
+  }
+  if (isJsonObject(value) && typeof value.source === 'string') {
+    return value.source
+  }
+  return null
+}
+
+function getPackageEntries(settings: JsonObject): JsonValue[] {
+  return Array.isArray(settings.packages) ? [...settings.packages] : []
+}
+
+function isExcludedPackageSource(
+  value: JsonValue,
+  excludedPackageSources: ReadonlySet<string>,
+): boolean {
+  const source = getPackageSource(value)
+  return source !== null && excludedPackageSources.has(source)
+}
+
+function withoutExcludedGlobalPackages(
+  content: string | undefined,
+  excludedPackageSources: readonly string[] | undefined,
+): string | undefined {
+  if (!excludedPackageSources || excludedPackageSources.length === 0) {
+    return content
+  }
+
+  const settings = parseJsonObject(content)
+  const packages = getPackageEntries(settings)
+  if (packages.length === 0) {
+    return content
+  }
+
+  const excludedSources = new Set(excludedPackageSources)
+  const visiblePackages = packages.filter(
+    (entry) => !isExcludedPackageSource(entry, excludedSources),
+  )
+  if (visiblePackages.length === packages.length) {
+    return content
+  }
+
+  return serializeJsonObject({
+    ...settings,
+    packages: visiblePackages,
+  })
+}
+
+function withPreservedExcludedGlobalPackages(
+  currentContent: string | undefined,
+  nextContent: string | undefined,
+  excludedPackageSources: readonly string[] | undefined,
+): string | undefined {
+  if (!nextContent || !excludedPackageSources || excludedPackageSources.length === 0) {
+    return nextContent
+  }
+
+  const currentSettings = parseJsonObject(currentContent)
+  const nextSettings = parseJsonObject(nextContent)
+  const excludedSources = new Set(excludedPackageSources)
+  const excludedPackages = getPackageEntries(currentSettings).filter((entry) =>
+    isExcludedPackageSource(entry, excludedSources),
+  )
+  if (excludedPackages.length === 0) {
+    return nextContent
+  }
+
+  const nextPackages = getPackageEntries(nextSettings)
+  const nextPackageSources = new Set(
+    nextPackages.map(getPackageSource).filter((source): source is string => source !== null),
+  )
+  const preservedPackages = excludedPackages.filter((entry) => {
+    const source = getPackageSource(entry)
+    return source !== null && !nextPackageSources.has(source)
+  })
+  if (preservedPackages.length === 0) {
+    return nextContent
+  }
+
+  return serializeJsonObject({
+    ...nextSettings,
+    packages: [...nextPackages, ...preservedPackages],
+  })
 }
 
 function mergeJsonObjects(base: JsonObject, override: JsonObject): JsonObject {
@@ -256,12 +347,24 @@ function writeProjectPiSettings(projectPath: string, nextPiSettings: string): vo
   writeJsonFile(settingsPath, serializeOpenWaggleSettings(nextOpenWaggleSettings))
 }
 
-function createOpenWagglePiSettingsStorage(projectPath: string): SettingsStorageLike {
+function createOpenWagglePiSettingsStorage(
+  projectPath: string,
+  options: OpenWagglePiSettingsManagerOptions = {},
+): SettingsStorageLike {
   return {
     withLock(scope, fn) {
       if (scope === 'global') {
         const globalSettingsPath = getPiGlobalSettingsPath()
-        const next = fn(readFileIfPresent(globalSettingsPath))
+        const current = readFileIfPresent(globalSettingsPath)
+        const visibleCurrent = withoutExcludedGlobalPackages(
+          current,
+          options.excludedGlobalPackageSources,
+        )
+        const next = withPreservedExcludedGlobalPackages(
+          current,
+          fn(visibleCurrent),
+          options.excludedGlobalPackageSources,
+        )
         if (next !== undefined) {
           writeJsonFile(globalSettingsPath, next)
         }
@@ -276,6 +379,9 @@ function createOpenWagglePiSettingsStorage(projectPath: string): SettingsStorage
   }
 }
 
-export function createOpenWagglePiSettingsManager(projectPath: string): SettingsManager {
-  return SettingsManager.fromStorage(createOpenWagglePiSettingsStorage(projectPath))
+export function createOpenWagglePiSettingsManager(
+  projectPath: string,
+  options: OpenWagglePiSettingsManagerOptions = {},
+): SettingsManager {
+  return SettingsManager.fromStorage(createOpenWagglePiSettingsStorage(projectPath, options))
 }

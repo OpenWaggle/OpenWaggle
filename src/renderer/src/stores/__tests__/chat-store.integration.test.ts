@@ -42,6 +42,8 @@ function resetStore(): void {
   useChatStore.setState({
     sessions: [],
     sessionById: new Map<SessionId, SessionDetail>(),
+    missingSessionIds: new Set<SessionId>(),
+    draftSession: null,
     activeSessionId: null,
     activeSession: null,
     error: null,
@@ -95,10 +97,11 @@ describe('useChatStore integration', () => {
     expect(useChatStore.getState().activeSession).toBe(session)
   })
 
-  it('startDraftSession clears activeSessionId', () => {
+  it('startDraftSession clears activeSessionId and keeps the target project path', () => {
     useChatStore.getState().setActiveSessionId(SessionId('session-3'))
-    useChatStore.getState().startDraftSession()
+    useChatStore.getState().startDraftSession('/repo/draft')
     expect(useChatStore.getState().activeSessionId).toBeNull()
+    expect(useChatStore.getState().draftSession).toEqual({ projectPath: '/repo/draft' })
   })
 
   it('loads full sessions and switches between them without fetching on click', async () => {

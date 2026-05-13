@@ -4,8 +4,8 @@ import path from 'node:path'
 import { DOUBLE_FACTOR } from '@shared/constants/math'
 import type { SkillCatalogResult, SkillDiscoveryItem } from '@shared/types/standards'
 import { isEnoent } from '@shared/utils/node-error'
-import { isPathInside } from '@shared/utils/paths'
 import { normalizeSkillId as normalizeSkillIdValue } from '@shared/utils/skill-id'
+import { isPathInside } from '../utils/paths'
 
 interface ParsedSkillDocument {
   readonly name: string

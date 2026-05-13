@@ -1,5 +1,5 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import type { SessionBranchId, SessionId } from '@shared/types/brand'
-import { chooseBy } from '@shared/utils/decision'
 import { cn } from '@/lib/cn'
 import { ChatRowRenderer } from './ChatRowRenderer'
 import { useChatScrollBehaviour } from './hooks/useChatScrollBehaviour'
@@ -52,16 +52,16 @@ function TranscriptRow({
 }
 
 function getChatRowKey(row: ChatRow): string {
-  return chooseBy(row, 'type')
-    .case('message', (value) => `message:${value.message.id}`)
-    .case('waggle-turn', (value) => value.id)
-    .case('interrupted-run', (value) => `interrupted-run:${value.runId}`)
-    .case('branch-summary', (value) => `branch-summary:${value.id}`)
-    .case('compaction-summary', (value) => `compaction:${value.id}`)
-    .case('phase-indicator', (value) => `phase:${value.label}`)
-    .case('run-summary', (value) => `run-summary:${String(value.totalMs)}`)
-    .case('error', (value) => `error:${value.sessionId ?? 'none'}:${value.error.message}`)
-    .assertComplete()
+  return matchBy(row, 'type')
+    .with('message', (value) => `message:${value.message.id}`)
+    .with('waggle-turn', (value) => value.id)
+    .with('interrupted-run', (value) => `interrupted-run:${value.runId}`)
+    .with('branch-summary', (value) => `branch-summary:${value.id}`)
+    .with('compaction-summary', (value) => `compaction:${value.id}`)
+    .with('phase-indicator', (value) => `phase:${value.label}`)
+    .with('run-summary', (value) => `run-summary:${String(value.totalMs)}`)
+    .with('error', (value) => `error:${value.sessionId ?? 'none'}:${value.error.message}`)
+    .exhaustive()
 }
 
 // ─── Row Rendering ──────────────────────────────────────────

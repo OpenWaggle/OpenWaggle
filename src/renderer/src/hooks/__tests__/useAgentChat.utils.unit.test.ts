@@ -1,11 +1,26 @@
 import { MessageId, SessionId, ToolCallId } from '@shared/types/brand'
+import type { UIMessage } from '@shared/types/chat-ui'
 import type { SessionDetail } from '@shared/types/session'
 import { describe, expect, it } from 'vitest'
-import { formatAttachmentPreview, sessionToUIMessages } from '../useAgentChat.utils'
+import {
+  appendMissingOptimisticUserMessages,
+  formatAttachmentPreview,
+  mergeBackgroundReconnectMessages,
+  sessionToUIMessages,
+} from '../useAgentChat.utils'
 
 const LONG_TEXT = 'x'.repeat(400)
 const REGULAR_ATTACHMENT_NAME = 'notes.md'
 const AUTO_ATTACHMENT_NAME = 'Pasted Text 1.md'
+
+function userMessage(id: string, content: string): UIMessage {
+  return {
+    id,
+    role: 'user',
+    parts: [{ type: 'text', content }],
+    createdAt: new Date(1),
+  }
+}
 
 describe('formatAttachmentPreview', () => {
   it('shows only attachment label for auto-converted long prompt files', () => {
@@ -33,6 +48,55 @@ describe('formatAttachmentPreview', () => {
       origin: 'user-file',
     })
     expect(preview).toBe(`[Attachment] ${REGULAR_ATTACHMENT_NAME}`)
+  })
+})
+
+describe('appendMissingOptimisticUserMessages', () => {
+  it('appends optimistic user messages that are absent from the persisted snapshot', () => {
+    const snapshotMessages = [userMessage('persisted-1', 'already persisted')]
+    const optimisticMessages = [
+      userMessage('optimistic-1', 'already persisted'),
+      userMessage('optimistic-2', 'still missing'),
+    ]
+
+    expect(appendMissingOptimisticUserMessages(snapshotMessages, optimisticMessages)).toEqual([
+      ...snapshotMessages,
+      optimisticMessages[1],
+    ])
+  })
+
+  it('consumes persisted duplicate counts before appending extra optimistic duplicates', () => {
+    const snapshotMessages = [
+      userMessage('persisted-1', 'repeat'),
+      userMessage('persisted-2', 'repeat'),
+    ]
+    const optimisticMessages = [
+      userMessage('optimistic-1', 'repeat'),
+      userMessage('optimistic-2', 'repeat'),
+      userMessage('optimistic-3', 'repeat'),
+    ]
+
+    expect(appendMissingOptimisticUserMessages(snapshotMessages, optimisticMessages)).toEqual([
+      ...snapshotMessages,
+      optimisticMessages[2],
+    ])
+  })
+})
+
+describe('mergeBackgroundReconnectMessages', () => {
+  it('does not duplicate an optimistic user message already present in the reconnect snapshot', () => {
+    const persistedUser = userMessage('persisted-user-1', 'Draft a one-page summary of this app')
+    const optimisticUser = userMessage('optimistic-user-1', 'Draft a one-page summary of this app')
+    const cachedAssistant: UIMessage = {
+      id: 'assistant-live-1',
+      role: 'assistant',
+      parts: [{ type: 'thinking', content: 'Inspecting implementation files' }],
+      createdAt: new Date(2),
+    }
+
+    expect(
+      mergeBackgroundReconnectMessages([persistedUser], [optimisticUser, cachedAssistant]),
+    ).toEqual([persistedUser, cachedAssistant])
   })
 })
 

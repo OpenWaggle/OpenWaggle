@@ -1,3 +1,4 @@
+import { isMatching, match, P } from '@diegogbrisa/ts-match'
 import type { JsonObject } from '@shared/types/json'
 import { hasConcreteToolOutput, normalizeToolResultPayload } from '@shared/utils/tool-result-state'
 import { isRecord } from '@shared/utils/validation'
@@ -47,7 +48,7 @@ interface UnifiedDiffData {
 function isTextContentBlock(
   value: unknown,
 ): value is { readonly type: 'text'; readonly text: string } {
-  return isRecord(value) && value.type === 'text' && typeof value.text === 'string'
+  return isMatching({ type: 'text', text: P.string }, value)
 }
 
 function parseResultPayload(content: unknown): unknown {
@@ -67,10 +68,9 @@ function formatUnknownContent(content: unknown): string {
 
 function getToolResultDetails(content: unknown): unknown {
   const parsed = parseResultPayload(content)
-  if (!isRecord(parsed) || !('details' in parsed)) {
-    return undefined
-  }
-  return parsed.details
+  return match(parsed)
+    .with({ details: P.select() }, (details) => details)
+    .otherwise(() => undefined)
 }
 
 function textFromContentBlocks(content: readonly unknown[]): string | null {
@@ -83,28 +83,35 @@ function textFromContentBlocks(content: readonly unknown[]): string | null {
   return textBlocks.length > 0 ? textBlocks.join('\n') : null
 }
 
-function stringField(value: { readonly [key: string]: unknown }, key: string): string | null {
-  const field = value[key]
-  return typeof field === 'string' ? field : null
-}
-
 function textFromResultRecord(parsed: { readonly [key: string]: unknown }): string | null {
-  const content = parsed.content
-  if (Array.isArray(content)) {
-    const contentText = textFromContentBlocks(content)
-    if (contentText) {
-      return contentText
-    }
+  const contentText = match(parsed)
+    .with({ content: P.select('content', P.array(P._)) }, ({ content }) =>
+      textFromContentBlocks(content),
+    )
+    .otherwise(() => null)
+
+  if (contentText) {
+    return contentText
   }
 
-  return stringField(parsed, 'message') ?? stringField(parsed, 'error')
+  const message = match(parsed.message)
+    .with(P.string, (value) => value)
+    .otherwise(() => null)
+  if (message) {
+    return message
+  }
+
+  return match(parsed.error)
+    .with(P.string, (value) => value)
+    .otherwise(() => null)
 }
 
 function getToolResultText(content: unknown): string {
   const parsed = parseResultPayload(content)
-  if (typeof parsed === 'string') return parsed
-  if (!isRecord(parsed)) return formatUnknownContent(parsed)
-  return textFromResultRecord(parsed) ?? formatUnknownContent(parsed)
+  return match(parsed)
+    .with(P.string, (value) => value)
+    .when(isRecord, (value) => textFromResultRecord(value) ?? formatUnknownContent(value))
+    .otherwise((value) => formatUnknownContent(value))
 }
 
 function getStringArg(args: JsonObject, key: string): string | null {
@@ -190,14 +197,26 @@ function parseUnifiedDiff(diffText: string): UnifiedDiffData {
   return { text: diffText, lines, additions, deletions }
 }
 
+function getUnifiedDiffLineClassName(type: UnifiedDiffLine['type']): string {
+  return match(type)
+    .with('add', () => 'bg-success/10 text-success')
+    .with('remove', () => 'bg-error/10 text-error')
+    .with('meta', () => 'text-text-muted')
+    .with('context', () => 'text-text-secondary')
+    .exhaustive()
+}
+
 function getEditUnifiedDiff(content: unknown, name: string): UnifiedDiffData | null {
   if (name !== 'edit') {
     return null
   }
 
   const details = getToolResultDetails(content)
-  if (isRecord(details) && typeof details.diff === 'string' && details.diff.trim()) {
-    return parseUnifiedDiff(details.diff)
+  const diff = match(details)
+    .with({ diff: P.select('diff', P.string) }, ({ diff }) => diff)
+    .otherwise(() => null)
+  if (diff?.trim()) {
+    return parseUnifiedDiff(diff)
   }
 
   const parsed = parseResultPayload(content)
@@ -233,7 +252,7 @@ function CopyButton({ label, value }: { readonly label: string; readonly value: 
         copy(value)
       }}
     >
-      <Clipboard className="h-3 w-3" />
+      <Clipboard className="size-3" />
       {copied ? 'Copied' : label}
     </button>
   )
@@ -301,13 +320,13 @@ export function ToolCallBlock({
             <Loader2
               role="status"
               aria-label="Running"
-              className="h-3.5 w-3.5 text-text-tertiary animate-spin shrink-0"
+              className="size-3.5 text-text-tertiary animate-spin shrink-0"
             />
           )}
           {hasConcreteResult && result && !isError && !isRunning && (
-            <Check className="h-3.5 w-3.5 text-text-muted shrink-0" />
+            <Check className="size-3.5 text-text-muted shrink-0" />
           )}
-          {result && isError && <X className="h-3.5 w-3.5 text-error/80 shrink-0" />}
+          {result && isError && <X className="size-3.5 text-error/80 shrink-0" />}
 
           <span
             className={cn(
@@ -333,7 +352,7 @@ export function ToolCallBlock({
 
           <ChevronRight
             className={cn(
-              'ml-auto h-3 w-3 text-text-muted shrink-0 transition-transform',
+              'ml-auto size-3 text-text-muted shrink-0 transition-transform',
               'invisible group-hover/tool:visible',
               expanded && 'visible rotate-90',
             )}
@@ -346,7 +365,7 @@ export function ToolCallBlock({
             onClick={() => onBranchFromMessage(branchSourceMessageId)}
             className="opacity-0 text-text-muted transition-opacity hover:text-text-secondary group-hover/tool:opacity-100 focus:opacity-100"
           >
-            <GitBranch className="h-3.5 w-3.5" />
+            <GitBranch className="size-3.5" />
           </button>
         ) : null}
       </div>
@@ -523,7 +542,7 @@ function ToolResult({
     return (
       <div className="rounded-md border border-error/20 bg-error/5 px-3 py-2">
         <div className="flex items-start gap-2">
-          <AlertCircle className="h-3.5 w-3.5 text-error shrink-0 mt-0.5" />
+          <AlertCircle className="size-3.5 text-error shrink-0 mt-0.5" />
           <pre className="text-[13px] font-mono text-error whitespace-pre-wrap break-words flex-1">
             {displayContent}
           </pre>
@@ -572,13 +591,7 @@ function UnifiedDiffView({
         {diff.lines.map((line, index) => (
           <div
             key={`${String(index)}-${line.type}`}
-            className={cn(
-              'flex whitespace-pre px-3',
-              line.type === 'add' && 'bg-success/10 text-success',
-              line.type === 'remove' && 'bg-error/10 text-error',
-              line.type === 'meta' && 'text-text-muted',
-              line.type === 'context' && 'text-text-secondary',
-            )}
+            className={cn('flex whitespace-pre px-3', getUnifiedDiffLineClassName(line.type))}
           >
             {line.content}
           </div>

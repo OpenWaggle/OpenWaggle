@@ -1,3 +1,4 @@
+import { isMatching, P } from '@diegogbrisa/ts-match'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { SupportedModelId } from '@shared/types/brand'
 import type { SessionTreeFilterMode } from '@shared/types/session'
@@ -49,13 +50,7 @@ function validateRecentProjectPaths(projects: readonly string[] | undefined) {
 }
 
 function isTreeFilterMode(value: unknown): value is SessionTreeFilterMode {
-  return (
-    value === 'default' ||
-    value === 'no-tools' ||
-    value === 'user-only' ||
-    value === 'labeled-only' ||
-    value === 'all'
-  )
+  return isMatching(P.union('default', 'no-tools', 'user-only', 'labeled-only', 'all'), value)
 }
 
 function validateTreeFilterMode(value: unknown): Effect.Effect<SessionTreeFilterMode, Error> {

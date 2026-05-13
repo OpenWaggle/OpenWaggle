@@ -76,14 +76,18 @@ export function useStreamingPhase(sessionId: SessionId | null): StreamingPhaseHa
   }
 
   useEffect(() => {
+    pendingResetRef.current = false
+    phaseRef.current = null
+    completedRef.current = []
+    interactionStartRef.current = 0
+    clientPhaseStartRef.current = 0
+    lastPhaseEndRef.current = 0
+    setCurrentLabel(null)
+    setElapsedMs(0)
+    setCompletedSnapshot([])
+    setTotalSnapshot(0)
+
     if (!sessionId) {
-      phaseRef.current = null
-      completedRef.current = []
-      clientPhaseStartRef.current = 0
-      lastPhaseEndRef.current = 0
-      setCurrentLabel(null)
-      setCompletedSnapshot([])
-      setTotalSnapshot(0)
       return
     }
 
@@ -135,17 +139,21 @@ export function useStreamingPhase(sessionId: SessionId | null): StreamingPhaseHa
       // Transition: no phase -> new phase (run started)
       if (!prevPhase && nextPhase) {
         phaseRef.current = nextPhase
+        const phaseStartedAt = nextPhase.startedAt > 0 ? Math.min(nextPhase.startedAt, now) : now
         const interactionStartedAt =
-          interactionStartRef.current > 0 ? interactionStartRef.current : now
+          interactionStartRef.current > 0 ? interactionStartRef.current : phaseStartedAt
         if (interactionStartRef.current === 0) {
           interactionStartRef.current = interactionStartedAt
         }
         // Use lastPhaseEndRef if available (between-turn gap absorbed into
         // this phase), otherwise use interactionStartRef (first run, includes
-        // IPC + server setup time from when user hit send).
+        // IPC + server setup time from when user hit send; remounts use the
+        // runtime phase timestamp because there is no local send timestamp).
         clientPhaseStartRef.current =
           lastPhaseEndRef.current > 0 ? lastPhaseEndRef.current : interactionStartedAt
         setCurrentLabel(nextPhase.label)
+        setElapsedMs(Math.max(0, now - clientPhaseStartRef.current))
+        setTotalSnapshot(Math.max(0, now - interactionStartRef.current))
         return
       }
     }

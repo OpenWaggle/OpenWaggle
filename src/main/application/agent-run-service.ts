@@ -34,6 +34,7 @@ export interface AgentRunInput {
   readonly model: SupportedModelId
   readonly signal: AbortSignal
   readonly onEvent: (event: AgentTransportEvent) => void
+  readonly onTitleAssigned?: (title: string) => void
 }
 
 interface AgentRunResultBase {
@@ -124,6 +125,9 @@ export function executeAgentRun(input: AgentRunInput) {
     const nextTitle = yield* assignSessionTitleFromUserText(sessionId, session, payload.text)
     if (nextTitle) {
       assignedTitle = nextTitle
+      yield* Effect.sync(() => {
+        input.onTitleAssigned?.(nextTitle)
+      })
     }
 
     const sessionRepo = yield* SessionRepository
@@ -167,6 +171,13 @@ export function executeAgentRun(input: AgentRunInput) {
 
     if (agentResult.terminalError) {
       const classified = classifyAgentError(new Error(agentResult.terminalError))
+      logger.error('Agent run ended with terminal error', {
+        sessionId,
+        runId,
+        model,
+        code: classified.code,
+        error: agentResult.terminalError,
+      })
       return {
         outcome: 'error' as const,
         message: classified.userMessage,
@@ -194,6 +205,13 @@ export function executeAgentRun(input: AgentRunInput) {
         })
       }
       const classified = classifyAgentError(err)
+      logger.error('Agent run failed before terminal transport event', {
+        sessionId: input.sessionId,
+        runId: input.runId,
+        model: input.model,
+        code: classified.code,
+        error: formatErrorMessage(err),
+      })
       return Effect.succeed({
         outcome: 'error' as const,
         message: classified.userMessage,

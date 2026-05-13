@@ -55,6 +55,7 @@ export interface WaggleRunInput {
   readonly signal: AbortSignal
   readonly onEvent: (event: AgentTransportEvent, meta: WaggleStreamMetadata) => void
   readonly onTurnEvent: (event: WaggleTurnEvent) => void
+  readonly onTitleAssigned?: (title: string) => void
 }
 
 interface UnresolvedToolCall {
@@ -116,6 +117,9 @@ export function executeWaggleRun(input: WaggleRunInput) {
     const nextTitle = yield* assignSessionTitleFromUserText(sessionId, session, payload.text)
     if (nextTitle) {
       assignedTitle = nextTitle
+      yield* Effect.sync(() => {
+        input.onTitleAssigned?.(nextTitle)
+      })
     }
 
     const hydratedPayload: HydratedAgentSendPayload = {

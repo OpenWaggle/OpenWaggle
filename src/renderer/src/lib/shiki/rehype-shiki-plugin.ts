@@ -7,7 +7,8 @@
  */
 import type { Element, ElementContent, Properties, Root, RootContent } from 'hast'
 import type { Highlighter } from 'shiki'
-import { DEFAULT_THEME, resolveLanguage } from './highlighter'
+import { createRendererLogger } from '@/lib/logger'
+import { DEFAULT_THEME, type PreloadedLanguage, resolveLanguage } from './highlighter'
 import type { ShikiCache } from './shiki-cache'
 
 // ---------------------------------------------------------------------------
@@ -25,6 +26,7 @@ export interface RehypeShikiOptions {
 // ---------------------------------------------------------------------------
 
 const LANGUAGE_CLASS_RE = /^language-(.+)$/
+const logger = createRendererLogger('shiki')
 
 /** Extract the language identifier from a `className` property array. */
 function extractLanguageFromClass(properties: Properties): string | undefined {
@@ -150,7 +152,7 @@ export function applyShikiToHast(tree: Root, options: RehypeShikiOptions): void 
 function highlightCode(
   highlighter: Highlighter,
   code: string,
-  language: string,
+  language: PreloadedLanguage,
 ): Element | undefined {
   try {
     const root = highlighter.codeToHast(code, { lang: language, theme: DEFAULT_THEME })
@@ -161,7 +163,11 @@ function highlightCode(
 
     const codeEl = preEl.children.find((c): c is Element => isElement(c) && c.tagName === 'code')
     return codeEl
-  } catch {
+  } catch (error) {
+    logger.warn('Failed to highlight markdown code block', {
+      language,
+      error: error instanceof Error ? error.message : String(error),
+    })
     return undefined
   }
 }

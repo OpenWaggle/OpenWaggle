@@ -7,7 +7,6 @@
     "src/renderer/src/main.tsx",
     "src/renderer/src/**/*.d.ts",
     "src/shared/types/**/*.d.ts",
-    "src/shared/utils/decision.typecheck.ts",
     "scripts/**/*.ts",
     "vitest.*.config.ts",
     "playwright.config.ts"
@@ -23,9 +22,24 @@
     "node:sqlite",
     "tailwindcss"
   ],
+  "ignoreDependencyOverrides": [
+    { "package": "@tanstack/history", "source": "package.json" },
+    { "package": "@tanstack/query-core", "source": "package.json" },
+    { "package": "@tanstack/router-core", "source": "package.json" },
+    { "package": "@tanstack/router-generator", "source": "package.json" },
+    { "package": "@tanstack/router-utils", "source": "package.json" },
+    { "package": "@tanstack/virtual-file-routes", "source": "package.json" }
+  ],
   // TanStack Router file routes must each export `Route`; that framework contract
   // makes duplicate-export analysis noisy for this app.
   "rules": { "duplicate-exports": "off" },
+  "overrides": [
+    {
+      // Vitest mock specifiers intentionally point at virtual mock modules.
+      "files": ["**/__tests__/**"],
+      "rules": { "unresolved-imports": "off" }
+    }
+  ],
   "duplicates": {
     "ignore": ["**/__tests__/**", "e2e/**"],
     "ignoreImports": true,

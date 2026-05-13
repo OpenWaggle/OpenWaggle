@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto'
+import { rename, rm } from 'node:fs/promises'
+import { matchBy } from '@diegogbrisa/ts-match'
 import * as SqlClient from '@effect/sql/SqlClient'
 import { Schema, type SchemaType, safeDecodeUnknown } from '@shared/schema'
 import { waggleConfigSchema, waggleMetadataSchema } from '@shared/schemas/waggle'
@@ -6,7 +9,6 @@ import { MessageId, SessionId, SupportedModelId, ToolCallId } from '@shared/type
 import type { JsonValue } from '@shared/types/json'
 import type { SessionDetail, SessionNode, SessionSummary } from '@shared/types/session'
 import type { WaggleConfig } from '@shared/types/waggle'
-import { chooseBy } from '@shared/utils/decision'
 import { isRecord } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../logger'
@@ -30,6 +32,7 @@ const TOOL_RESULT_KIND = 'tool_result'
 const STANDARD_FUTURE_MODE = 'standard'
 const WAGGLE_FUTURE_MODE = 'waggle'
 const BRANCH_NAME_TRUNCATE_LENGTH = 48
+const STAGED_SESSION_DELETE_SUFFIX = 'delete'
 
 interface SessionRow {
   readonly id: string
@@ -84,6 +87,11 @@ interface SessionActiveRunRow {
   readonly status: string
   readonly runtime_json: string
   readonly updated_at: number
+}
+
+interface StagedSessionFileDeletion {
+  readonly cleanup: () => Promise<void>
+  readonly restore: () => Promise<void>
 }
 
 export interface SessionNodeRow {
@@ -179,6 +187,55 @@ function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+function hasNodeErrorCode(error: unknown, code: string): boolean {
+  return (
+    error instanceof Error &&
+    'code' in error &&
+    typeof error.code === 'string' &&
+    error.code === code
+  )
+}
+
+function noopAsync(): Promise<void> {
+  return Promise.resolve()
+}
+
+async function stageSessionFileDeletion(
+  filePath: string | null,
+): Promise<StagedSessionFileDeletion> {
+  if (!filePath) {
+    return { cleanup: noopAsync, restore: noopAsync }
+  }
+
+  const stagedPath = `${filePath}.${randomUUID()}.${STAGED_SESSION_DELETE_SUFFIX}`
+  try {
+    await rename(filePath, stagedPath)
+  } catch (error) {
+    if (hasNodeErrorCode(error, 'ENOENT')) {
+      return { cleanup: noopAsync, restore: noopAsync }
+    }
+    throw error
+  }
+
+  return {
+    cleanup: () => rm(stagedPath, { force: true }),
+    restore: async () => {
+      try {
+        await rename(stagedPath, filePath)
+      } catch (error) {
+        if (hasNodeErrorCode(error, 'ENOENT')) {
+          return
+        }
+        logger.warn('Failed to restore staged Pi session file after delete failure', {
+          path: filePath,
+          stagedPath,
+          error: describeError(error),
+        })
+      }
+    },
+  }
+}
+
 function parseJsonValue(raw: string | null): unknown {
   if (raw === null) {
     return undefined
@@ -220,18 +277,18 @@ function hydrateWaggleConfig(raw: unknown): WaggleConfig | undefined {
 }
 
 function transformPart(part: ParsedPart): MessagePart {
-  return chooseBy(part, 'type')
-    .case('text', (value): MessagePart => ({ type: 'text', text: value.text }))
-    .case('reasoning', (value): MessagePart => ({ type: 'reasoning', text: value.text }))
-    .case('thinking', (value): MessagePart => ({ type: 'reasoning', text: value.text }))
-    .case(
+  return matchBy(part, 'type')
+    .with('text', (value): MessagePart => ({ type: 'text', text: value.text }))
+    .with('reasoning', (value): MessagePart => ({ type: 'reasoning', text: value.text }))
+    .with('thinking', (value): MessagePart => ({ type: 'reasoning', text: value.text }))
+    .with(
       'attachment',
       (value): MessagePart => ({
         type: 'attachment',
         attachment: value.attachment,
       }),
     )
-    .case(
+    .with(
       'tool-call',
       (value): MessagePart => ({
         type: 'tool-call',
@@ -243,7 +300,7 @@ function transformPart(part: ParsedPart): MessagePart {
         },
       }),
     )
-    .case(
+    .with(
       'tool-result',
       (value): MessagePart => ({
         type: 'tool-result',
@@ -258,7 +315,7 @@ function transformPart(part: ParsedPart): MessagePart {
         },
       }),
     )
-    .assertComplete()
+    .exhaustive()
 }
 
 function hydrateSessionSummary(row: SessionSummaryRow): SessionSummary {
@@ -1416,15 +1473,35 @@ export async function persistSessionSnapshot(input: PersistSessionSnapshotInput)
 }
 
 export async function deleteSession(id: SessionId): Promise<void> {
-  await runStoreEffect(
+  const piSessionFile = await runStoreEffect(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient
-      yield* sql`
-        DELETE FROM sessions
+      const rows = yield* sql<{ readonly pi_session_file: string | null }>`
+        SELECT pi_session_file
+        FROM sessions
         WHERE id = ${id}
+        LIMIT 1
       `
+      return rows[EMPTY_INDEX]?.pi_session_file ?? null
     }),
   )
+  const stagedFile = await stageSessionFileDeletion(piSessionFile)
+
+  try {
+    await runStoreEffect(
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient
+        yield* sql`
+          DELETE FROM sessions
+          WHERE id = ${id}
+        `
+      }),
+    )
+    await stagedFile.cleanup()
+  } catch (error) {
+    await stagedFile.restore()
+    throw error
+  }
 }
 
 async function updateArchivedState(id: SessionId, archived: boolean): Promise<void> {

@@ -41,7 +41,7 @@ function on<C extends IpcEventChannel>(
 export const api: OpenWaggleApi = {
   // Agent
   sendMessage: invoke('agent:send-message'),
-  cancelAgent: send('agent:cancel'),
+  cancelAgent: invoke('agent:cancel'),
   steerAgent: invoke('agent:steer'),
   onAgentEvent: on('agent:event'),
 
@@ -61,6 +61,10 @@ export const api: OpenWaggleApi = {
   setPiTreeFilterMode: invoke('pi-settings:set-tree-filter-mode'),
   getPiBranchSummarySkipPrompt: invoke('pi-settings:get-branch-summary-skip-prompt'),
   testApiKey: invoke('settings:test-api-key'),
+  getMcpSettings: invoke('mcp:get-settings'),
+  setMcpAdapterEnabled: invoke('mcp:set-adapter-enabled'),
+  setMcpServerEnabled: invoke('mcp:set-server-enabled'),
+  writeMcpSourceConfig: invoke('mcp:write-source-config'),
 
   // Providers
   getProviderModels: invoke('providers:get-models'),
@@ -136,6 +140,7 @@ export const api: OpenWaggleApi = {
   copyToClipboard: send('clipboard:write-text'),
   openLogsDir: invoke('app:open-logs-dir'),
   getLogsPath: invoke('app:get-logs-path'),
+  openPath: invoke('shell:open-path'),
 
   // Dialog
   showConfirm: invoke('dialog:confirm'),

@@ -18,6 +18,19 @@ export function registerShellHandlers(): void {
 
   typedOn('clipboard:write-text', (_event, text) => Effect.sync(() => clipboard.writeText(text)))
 
+  typedHandle('shell:open-path', (_event, targetPath) =>
+    Effect.gen(function* () {
+      const trimmedPath = targetPath.trim()
+      if (!trimmedPath) {
+        return yield* Effect.fail(new Error('Path is required.'))
+      }
+      const result = yield* Effect.promise(() => shell.openPath(trimmedPath))
+      if (result) {
+        return yield* Effect.fail(new Error(result))
+      }
+    }),
+  )
+
   typedHandle('shell:open-external', (_event, url) =>
     Effect.gen(function* () {
       const parsed = new URL(url)

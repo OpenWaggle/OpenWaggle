@@ -1,3 +1,4 @@
+import { delimiter } from 'node:path'
 import { decodeUnknownOrThrow, Schema, type SchemaType } from '@shared/schema'
 
 const optionalUrlSchema = Schema.optional(
@@ -26,6 +27,18 @@ export type Env = SchemaType<typeof envSchema>
 export const env: Env = decodeUnknownOrThrow(envSchema, process.env)
 
 export const logLevel = env.OPENWAGGLE_LOG_LEVEL ?? 'info'
+
+const MACOS_NPM_COMPATIBLE_PATH_DIRS = [
+  '/opt/homebrew/bin',
+  '/usr/local/bin',
+  '/usr/bin',
+  '/bin',
+  '/usr/sbin',
+  '/sbin',
+]
+const POSIX_NPM_COMPATIBLE_PATH_DIRS = ['/usr/local/bin', '/usr/bin', '/bin']
+
+let temporaryProcessEnvQueue: Promise<void> = Promise.resolve()
 
 /**
  * Safe environment for child processes.
@@ -56,4 +69,77 @@ export function getGhCliEnv(): Record<string, string | undefined> {
   delete env.GITHUB_TOKEN
   delete env.GH_TOKEN
   return env
+}
+
+export function getNpmCompatiblePath(): string {
+  const result: string[] = []
+  const seen = new Set<string>()
+
+  function addPath(value: string | undefined): void {
+    if (!value || seen.has(value)) {
+      return
+    }
+    seen.add(value)
+    result.push(value)
+  }
+
+  for (const value of getNpmCompatiblePathDirs()) {
+    addPath(value)
+  }
+
+  for (const value of (process.env.PATH ?? '').split(delimiter)) {
+    addPath(value)
+  }
+
+  return result.join(delimiter)
+}
+
+function getNpmCompatiblePathDirs(): readonly string[] {
+  if (process.platform === 'darwin') {
+    return MACOS_NPM_COMPATIBLE_PATH_DIRS
+  }
+  if (process.platform === 'win32') {
+    return []
+  }
+  return POSIX_NPM_COMPATIBLE_PATH_DIRS
+}
+
+export async function withNpmCompatibleProcessEnv<T>(operation: () => Promise<T>): Promise<T> {
+  return withTemporaryProcessEnv({ PATH: getNpmCompatiblePath() }, operation)
+}
+
+export async function withTemporaryProcessEnv<T>(
+  overrides: Readonly<Record<string, string>>,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const release = await acquireTemporaryProcessEnvLock()
+  const previousValues = new Map<string, string | undefined>()
+
+  for (const [key, value] of Object.entries(overrides)) {
+    previousValues.set(key, process.env[key])
+    process.env[key] = value
+  }
+
+  try {
+    return await operation()
+  } finally {
+    for (const [key, previousValue] of previousValues) {
+      if (previousValue === undefined) {
+        delete process.env[key]
+        continue
+      }
+      process.env[key] = previousValue
+    }
+    release()
+  }
+}
+
+async function acquireTemporaryProcessEnvLock(): Promise<() => void> {
+  const previous = temporaryProcessEnvQueue
+  let releaseCurrent: (() => void) | undefined
+  temporaryProcessEnvQueue = new Promise<void>((resolve) => {
+    releaseCurrent = resolve
+  })
+  await previous
+  return () => releaseCurrent?.()
 }

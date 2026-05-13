@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
-import * as ts from 'typescript'
+import ts from 'typescript'
 
 const ROOT = process.cwd()
 
@@ -27,7 +27,7 @@ const ZERO_LITERAL = '0'
 const MAX_REPORTED_FINDINGS = 200
 const DISALLOWED_EXTRACTION_COMMENT = 'Extracted from inlined numeric' + ' literal'
 
-function isTestFile(filePath) {
+function isTestFile(filePath: string): boolean {
   const normalizedPath = filePath.replace(/\\/g, '/')
 
   return (
@@ -38,16 +38,16 @@ function isTestFile(filePath) {
   )
 }
 
-function getScriptKind(filePath) {
+function getScriptKind(filePath: string): ts.ScriptKind {
   if (filePath.endsWith('.tsx')) return ts.ScriptKind.TSX
   if (filePath.endsWith('.jsx')) return ts.ScriptKind.JSX
   if (filePath.endsWith('.ts')) return ts.ScriptKind.TS
   return ts.ScriptKind.JS
 }
 
-async function collectCodeFiles(directoryPath) {
+async function collectCodeFiles(directoryPath: string): Promise<string[]> {
   const entries = await fs.readdir(directoryPath, { withFileTypes: true })
-  const files = []
+  const files: string[] = []
 
   for (const entry of entries) {
     if (EXCLUDED_DIRECTORIES.has(entry.name)) {
@@ -83,8 +83,8 @@ async function collectCodeFiles(directoryPath) {
   return files
 }
 
-function isInTypePosition(node) {
-  let current = node.parent
+function isInTypePosition(node: ts.Node): boolean {
+  let current: ts.Node | undefined = node.parent
   while (current) {
     if (ts.isTypeNode(current) || ts.isTypeQueryNode(current)) {
       return true
@@ -94,8 +94,8 @@ function isInTypePosition(node) {
   return false
 }
 
-function isInEnumDeclaration(node) {
-  let current = node.parent
+function isInEnumDeclaration(node: ts.Node): boolean {
+  let current: ts.Node | undefined = node.parent
   while (current) {
     if (ts.isEnumDeclaration(current)) {
       return true
@@ -105,7 +105,7 @@ function isInEnumDeclaration(node) {
   return false
 }
 
-function isWithinNamedConstantInitializer(node) {
+function isWithinNamedConstantInitializer(node: ts.Node): boolean {
   let current = node
   while (current.parent) {
     if (ts.isVariableDeclaration(current.parent) && current.parent.initializer === current) {
@@ -126,11 +126,11 @@ function isWithinNamedConstantInitializer(node) {
   return false
 }
 
-function isScreamingSnakeCase(name) {
+function isScreamingSnakeCase(name: string): boolean {
   return /^[A-Z][A-Z0-9_]*$/.test(name)
 }
 
-function isCandidateNumericExpression(node) {
+function isCandidateNumericExpression(node: ts.Node): boolean {
   if (ts.isNumericLiteral(node)) {
     if (ts.isPrefixUnaryExpression(node.parent) && node.parent.operand === node) {
       return false
@@ -149,12 +149,12 @@ function isCandidateNumericExpression(node) {
   return false
 }
 
-function walk(node, visitor) {
+function walk(node: ts.Node, visitor: (node: ts.Node) => void): void {
   visitor(node)
   ts.forEachChild(node, (child) => walk(child, visitor))
 }
 
-function shouldIgnoreLiteralValue(literalText) {
+function shouldIgnoreLiteralValue(literalText: string): boolean {
   return (
     literalText === ZERO_LITERAL ||
     literalText === ONE_LITERAL ||
@@ -163,12 +163,12 @@ function shouldIgnoreLiteralValue(literalText) {
   )
 }
 
-function toRelative(filePath) {
+function toRelative(filePath: string): string {
   return path.relative(ROOT, filePath).replace(/\\/g, '/')
 }
 
-async function collectTargetFiles() {
-  const files = []
+async function collectTargetFiles(): Promise<string[]> {
+  const files: string[] = []
 
   for (const includeRoot of INCLUDE_ROOTS) {
     const fullPath = path.join(ROOT, includeRoot)
@@ -199,10 +199,10 @@ async function collectTargetFiles() {
   return files.sort((left, right) => left.localeCompare(right))
 }
 
-async function main() {
+async function main(): Promise<void> {
   const targetFiles = await collectTargetFiles()
-  const inlineFindings = []
-  const commentFindings = []
+  const inlineFindings: string[] = []
+  const commentFindings: string[] = []
 
   for (const filePath of targetFiles) {
     const sourceText = await fs.readFile(filePath, 'utf8')

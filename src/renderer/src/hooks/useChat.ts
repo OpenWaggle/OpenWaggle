@@ -1,13 +1,14 @@
 import type { SessionId } from '@shared/types/brand'
 import type { SessionDetail, SessionSummary } from '@shared/types/session'
-import { useChatStore } from '@/stores/chat-store'
+import { type DraftSessionState, useChatStore } from '@/stores/chat-store'
 
 interface ChatReturn {
   sessions: SessionSummary[]
   activeSession: SessionDetail | null
   activeSessionId: SessionId | null
+  draftSession: DraftSessionState | null
   createSession: (projectPath: string) => Promise<SessionId>
-  startDraftSession: () => void
+  startDraftSession: (projectPath?: string | null) => void
   setActiveSession: (id: SessionId | null) => void
   refreshSession: (id: SessionId) => Promise<void>
   deleteSession: (id: SessionId) => Promise<void>
@@ -26,6 +27,7 @@ export function useChat(): ChatReturn {
   const sessions = useChatStore((s) => s.sessions)
   const activeSession = useChatStore((s) => s.activeSession)
   const activeSessionId = useChatStore((s) => s.activeSessionId)
+  const draftSession = useChatStore((s) => s.draftSession)
   const createSession = useChatStore((s) => s.createSession)
   const startDraftSession = useChatStore((s) => s.startDraftSession)
   const setActiveSession = useChatStore((s) => s.setActiveSession)
@@ -38,6 +40,7 @@ export function useChat(): ChatReturn {
     sessions,
     activeSession,
     activeSessionId,
+    draftSession,
     createSession,
     startDraftSession,
     setActiveSession,

@@ -1,3 +1,4 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import type { UIMessage, UIMessagePart } from '@shared/types/chat-ui'
 import type { AgentTransportEvent } from '@shared/types/stream'
 
@@ -331,83 +332,67 @@ function applyAssistantMessageEvent(
   event: Extract<AgentTransportEvent, { type: 'message_update' }>,
 ): UIMessage[] {
   const assistantEvent = event.assistantMessageEvent
+  const cloneMessages = (): UIMessage[] => messages.slice()
 
-  if (assistantEvent.type === 'text_delta') {
-    return appendTextDelta(messages, event.messageId, assistantEvent.delta)
-  }
-
-  if (assistantEvent.type === 'thinking_start') {
-    return ensureThinkingStep(messages, event.messageId, assistantEvent.contentIndex)
-  }
-
-  if (assistantEvent.type === 'thinking_delta') {
-    return appendThinkingDelta(
-      messages,
-      event.messageId,
-      assistantEvent.contentIndex,
-      assistantEvent.delta,
+  return matchBy(assistantEvent, 'type')
+    .with('text_start', cloneMessages)
+    .with('text_delta', (value) => appendTextDelta(messages, event.messageId, value.delta))
+    .with('text_end', cloneMessages)
+    .with('thinking_start', (value) =>
+      ensureThinkingStep(messages, event.messageId, value.contentIndex),
     )
-  }
-
-  if (assistantEvent.type === 'toolcall_start') {
-    return ensureToolCall(
-      messages,
-      event.messageId,
-      assistantEvent.toolCallId,
-      assistantEvent.toolName,
-      assistantEvent.input,
+    .with('thinking_delta', (value) =>
+      appendThinkingDelta(messages, event.messageId, value.contentIndex, value.delta),
     )
-  }
-
-  if (assistantEvent.type === 'toolcall_delta') {
-    if (assistantEvent.input !== undefined) {
-      return updateToolCallInput(
+    .with('thinking_end', cloneMessages)
+    .with('toolcall_start', (value) =>
+      ensureToolCall(messages, event.messageId, value.toolCallId, value.toolName, value.input),
+    )
+    .with('toolcall_delta', (value) =>
+      value.input !== undefined
+        ? updateToolCallInput(messages, value.toolCallId, value.input, 'input-streaming')
+        : appendToolCallArgs(messages, value.toolCallId, value.delta),
+    )
+    .with('toolcall_end', (value) => {
+      const ensuredMessages = ensureToolCall(
         messages,
-        assistantEvent.toolCallId,
-        assistantEvent.input,
-        'input-streaming',
+        event.messageId,
+        value.toolCallId,
+        value.toolName,
+        value.input,
       )
-    }
-    return appendToolCallArgs(messages, assistantEvent.toolCallId, assistantEvent.delta)
-  }
-
-  if (assistantEvent.type === 'toolcall_end') {
-    const ensuredMessages = ensureToolCall(
-      messages,
-      event.messageId,
-      assistantEvent.toolCallId,
-      assistantEvent.toolName,
-      assistantEvent.input,
-    )
-    return finalizeToolCallInput(ensuredMessages, assistantEvent.toolCallId, assistantEvent.input)
-  }
-
-  return [...messages]
+      return finalizeToolCallInput(ensuredMessages, value.toolCallId, value.input)
+    })
+    .with('done', 'error', cloneMessages)
+    .exhaustive()
 }
 
 export function applyAgentTransportEvent(
   messages: readonly UIMessage[],
   event: AgentTransportEvent,
 ): UIMessage[] {
-  if (event.type === 'message_start' && event.role === 'assistant') {
-    return ensureAssistantMessage(messages, event.messageId)
-  }
+  const cloneMessages = (): UIMessage[] => messages.slice()
 
-  if (event.type === 'message_update') {
-    return applyAssistantMessageEvent(messages, event)
-  }
-
-  if (event.type === 'tool_execution_start') {
-    return startToolExecution(messages, event)
-  }
-
-  if (event.type === 'tool_execution_update') {
-    return updateToolExecution(messages, event)
-  }
-
-  if (event.type === 'tool_execution_end') {
-    return finishToolExecution(messages, event)
-  }
-
-  return [...messages]
+  return matchBy(event, 'type')
+    .with('agent_start', 'agent_end', 'turn_start', 'turn_end', cloneMessages)
+    .with('message_start', (value) =>
+      value.role === 'assistant'
+        ? ensureAssistantMessage(messages, value.messageId)
+        : cloneMessages(),
+    )
+    .with('message_update', (value) => applyAssistantMessageEvent(messages, value))
+    .with('message_end', cloneMessages)
+    .with('tool_execution_start', (value) => startToolExecution(messages, value))
+    .with('tool_execution_update', (value) => updateToolExecution(messages, value))
+    .with('tool_execution_end', (value) => finishToolExecution(messages, value))
+    .with(
+      'queue_update',
+      'compaction_start',
+      'compaction_end',
+      'auto_retry_start',
+      'auto_retry_end',
+      'custom',
+      cloneMessages,
+    )
+    .exhaustive()
 }

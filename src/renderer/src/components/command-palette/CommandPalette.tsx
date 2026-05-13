@@ -1,6 +1,6 @@
+import { match } from '@diegogbrisa/ts-match'
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import type { WaggleConfig, WagglePreset } from '@shared/types/waggle'
-import { choose } from '@shared/utils/decision'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {
@@ -306,8 +306,8 @@ export function CommandPalette({
   }
 
   function handleKeyDown(e: React.KeyboardEvent): void {
-    choose(e.key)
-      .case('ArrowDown', () => {
+    match(e.key)
+      .with('ArrowDown', () => {
         e.preventDefault()
         if (allItems.length === 0) {
           return
@@ -315,7 +315,7 @@ export function CommandPalette({
         setHighlightIndex((prev) => (prev + 1) % allItems.length)
         scrollHighlightedIntoView()
       })
-      .case('ArrowUp', () => {
+      .with('ArrowUp', () => {
         e.preventDefault()
         if (allItems.length === 0) {
           return
@@ -323,12 +323,12 @@ export function CommandPalette({
         setHighlightIndex((prev) => (prev === 0 ? allItems.length - 1 : prev - 1))
         scrollHighlightedIntoView()
       })
-      .case('Enter', () => {
+      .with('Enter', () => {
         if (!allItems[highlightIndex]) return
         e.preventDefault()
         allItems[highlightIndex].action()
       })
-      .catchAll(() => undefined)
+      .otherwise(() => undefined)
   }
 
   // Track section boundaries for headers

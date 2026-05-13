@@ -1,7 +1,13 @@
 import { generateDisplayName, type ProviderInfo } from '@shared/types/llm'
 import type { Settings } from '@shared/types/settings'
-import type { WaggleAgentSlot, WagglePreset, WaggleStopCondition } from '@shared/types/waggle'
+import {
+  WAGGLE_AGENT_COLORS,
+  type WaggleAgentSlot,
+  type WagglePreset,
+  type WaggleStopCondition,
+} from '@shared/types/waggle'
 import { Plus, Save, Trash2 } from 'lucide-react'
+import { Textarea } from '@/components/ui/Textarea'
 import { usePreferences, useProviders } from '@/hooks/useSettings'
 import { AGENT_BG, AGENT_BORDER } from '@/lib/agent-colors'
 import { cn } from '@/lib/cn'
@@ -127,7 +133,7 @@ function WagglePresetsPanel({
             onClick={() => void onSaveEdits()}
             className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-accent/30 bg-accent/5 p-2.5 text-[12px] font-medium text-accent hover:bg-accent/10 transition-colors"
           >
-            <Save className="h-3 w-3" />
+            <Save className="size-3" />
             Save Changes
           </button>
         )}
@@ -137,7 +143,7 @@ function WagglePresetsPanel({
           onClick={() => void onNewCustom()}
           className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-dashed border-border p-2.5 text-[12px] font-medium text-text-muted hover:border-border-light hover:text-text-secondary transition-colors"
         >
-          <Plus className="h-3 w-3" />
+          <Plus className="size-3" />
           New Custom Preset
         </button>
       </div>
@@ -193,14 +199,10 @@ function WagglePresetCard({
           </div>
           <p className="text-[12px] text-text-tertiary line-clamp-2">{preset.description}</p>
           <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-text-muted">
-            <div
-              className={cn('h-1.5 w-1.5 rounded-full', AGENT_BG[preset.config.agents[0].color])}
-            />
+            <div className={cn('size-1.5 rounded-full', AGENT_BG[preset.config.agents[0].color])} />
             <span className="truncate">{generateDisplayName(preset.config.agents[0].model)}</span>
             <span className="text-text-tertiary">vs</span>
-            <div
-              className={cn('h-1.5 w-1.5 rounded-full', AGENT_BG[preset.config.agents[1].color])}
-            />
+            <div className={cn('size-1.5 rounded-full', AGENT_BG[preset.config.agents[1].color])} />
             <span className="truncate">{generateDisplayName(preset.config.agents[1].model)}</span>
           </div>
         </div>
@@ -219,7 +221,7 @@ function WagglePresetCard({
             }}
             className="p-1 rounded text-text-muted hover:text-error transition-colors cursor-pointer"
           >
-            <Trash2 className="h-3 w-3" />
+            <Trash2 className="size-3" />
           </span>
         )}
       </div>
@@ -368,17 +370,15 @@ function AgentSlotCard({
       {/* Role */}
       <div className="space-y-1.5">
         <span className="text-[13px] text-text-primary">Role description</span>
-        <textarea
+        <Textarea
           value={agent.roleDescription}
           onChange={(e) =>
             dispatchForm({ type: 'set-agent-role', index, roleDescription: e.target.value })
           }
           rows={ROWS}
           placeholder="Describe this agent's role and perspective..."
-          className={cn(
-            'w-full rounded-md border border-border bg-bg px-3 py-2 text-[13px] text-text-primary resize-none',
-            'placeholder:text-text-tertiary focus:border-border-light focus:outline-none',
-          )}
+          resize="none"
+          className="rounded-md border-border text-text-primary placeholder:text-text-tertiary"
         />
       </div>
 
@@ -386,7 +386,7 @@ function AgentSlotCard({
       <div className="flex items-center justify-between h-[40px]">
         <span className="text-[13px] text-text-primary">Color</span>
         <div className="flex items-center gap-2">
-          {(['blue', 'amber', 'emerald', 'violet'] as const).map((c) => (
+          {WAGGLE_AGENT_COLORS.map((c) => (
             <button
               key={c}
               type="button"

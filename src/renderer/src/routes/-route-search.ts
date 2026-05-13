@@ -1,3 +1,4 @@
+import { isMatching, P } from '@diegogbrisa/ts-match'
 import type { SettingsTab } from '@/stores/ui-store'
 
 export type ChatRightPanel = 'diff' | 'session-tree'
@@ -26,7 +27,7 @@ function parseSearchString(value: unknown): string | undefined {
 }
 
 function parseRightPanel(value: unknown): ChatRightPanel | undefined {
-  return value === 'diff' || value === 'session-tree' ? value : undefined
+  return isMatching(P.union('diff', 'session-tree'), value) ? value : undefined
 }
 
 export function parseChatRouteSearch(search: Record<string, unknown>): ChatRouteSearch {

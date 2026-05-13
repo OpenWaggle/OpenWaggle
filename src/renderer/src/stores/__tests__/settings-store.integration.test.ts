@@ -46,8 +46,10 @@ describe('preferences-store integration', () => {
     useProviderStore.setState({
       baseProviderModels: [],
       providerModels: [],
+      isLoading: false,
       testingProviders: {},
       testResults: {},
+      loadError: null,
     })
   })
 
@@ -71,7 +73,7 @@ describe('preferences-store integration', () => {
     expect(usePreferencesStore.getState().settings.thinkingLevel).toBe('high')
   })
 
-  it('tracks recent projects in newest-first order with dedupe and max size', async () => {
+  it('tracks recent projects in first-added order with dedupe and max size', async () => {
     const entries = [
       '/tmp/repo-1',
       '/tmp/repo-2',
@@ -93,16 +95,16 @@ describe('preferences-store integration', () => {
 
     const recentProjects = usePreferencesStore.getState().settings.recentProjects
     expect(recentProjects).toEqual([
-      '/tmp/repo-9',
-      '/tmp/repo-11',
-      '/tmp/repo-10',
-      '/tmp/repo-8',
-      '/tmp/repo-7',
-      '/tmp/repo-6',
-      '/tmp/repo-5',
-      '/tmp/repo-4',
-      '/tmp/repo-3',
       '/tmp/repo-2',
+      '/tmp/repo-3',
+      '/tmp/repo-4',
+      '/tmp/repo-5',
+      '/tmp/repo-6',
+      '/tmp/repo-7',
+      '/tmp/repo-8',
+      '/tmp/repo-9',
+      '/tmp/repo-10',
+      '/tmp/repo-11',
     ])
     expect(recentProjects).toHaveLength(10)
   })
@@ -149,8 +151,10 @@ describe('provider-store integration', () => {
     useProviderStore.setState({
       baseProviderModels: [],
       providerModels: [],
+      isLoading: false,
       testingProviders: {},
       testResults: {},
+      loadError: null,
     })
   })
 
@@ -186,6 +190,22 @@ describe('provider-store integration', () => {
     await useProviderStore.getState().loadProviderModels()
 
     expect(useProviderStore.getState().providerModels).toHaveLength(1)
+  })
+
+  it('does not clear model preferences when Pi returns an empty provider catalog', async () => {
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      selectedModel: SupportedModelId('openai-codex/gpt-5.5'),
+      enabledModels: [SupportedModelId('openai-codex/gpt-5.5')],
+    }
+    apiMock.getSettings.mockResolvedValue(settings)
+    apiMock.getProviderModels.mockResolvedValue([])
+
+    const updatedSettings = await useProviderStore.getState().loadProviderModels(settings)
+
+    expect(updatedSettings).toBeNull()
+    expect(apiMock.updateSettings).not.toHaveBeenCalled()
+    expect(useProviderStore.getState().isLoading).toBe(false)
   })
 
   it('keeps Pi catalog models when loading provider groups', async () => {

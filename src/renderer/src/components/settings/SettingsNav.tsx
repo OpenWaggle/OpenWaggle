@@ -5,6 +5,7 @@ import {
   Cable,
   Folders,
   GitBranch,
+  Network,
   Palette,
   Settings2,
   Sliders,
@@ -24,6 +25,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'general', label: 'General', icon: Settings2, enabled: true },
   { id: 'configuration', label: 'Configuration', icon: Sliders, enabled: false },
   { id: 'waggle', label: 'Waggle Mode', icon: Waypoints, enabled: true },
+  { id: 'mcp', label: 'MCP', icon: Network, enabled: true },
   { id: 'personalization', label: 'Personalization', icon: Palette, enabled: false },
   { id: 'git', label: 'Git', icon: GitBranch, enabled: false },
   { id: 'environments', label: 'Environments', icon: Blocks, enabled: false },
@@ -49,7 +51,7 @@ export function SettingsNav({ activeTab }: SettingsNavProps) {
   }
 
   return (
-    <nav className="flex w-[200px] shrink-0 flex-col gap-0.5 border-r border-border py-2 px-2">
+    <nav className="flex w-[200px] shrink-0 flex-col gap-0.5 border-r border-border p-2">
       {NAV_ITEMS.map((item) => {
         const isActive = activeTab === item.id
         return (
@@ -67,7 +69,7 @@ export function SettingsNav({ activeTab }: SettingsNavProps) {
                   : 'text-text-muted/50 cursor-not-allowed',
             )}
           >
-            <item.icon className="h-4 w-4 shrink-0" />
+            <item.icon className="size-4 shrink-0" />
             <span>{item.label}</span>
           </button>
         )

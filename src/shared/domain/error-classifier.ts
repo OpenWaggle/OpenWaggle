@@ -64,6 +64,11 @@ export const ERROR_CODE_META: Record<AgentErrorCode, ErrorCodeMeta> = {
     suggestion: 'Start a new branch or switch to a model with a larger context window.',
     retryable: true,
   },
+  'runtime-package-manager-unavailable': {
+    userMessage: 'Runtime package manager unavailable',
+    suggestion: 'OpenWaggle could not run npm while loading Pi extensions. Check the app logs.',
+    retryable: false,
+  },
   unknown: {
     userMessage: 'Something went wrong',
     retryable: true,
@@ -146,6 +151,14 @@ export function classifyErrorMessage(message: string): AgentErrorInfo {
 
   if (lower.includes('session expired') || lower.includes('sign in again')) {
     return makeErrorInfo('session-expired', displayMessage)
+  }
+
+  if (
+    lower.includes('failed to run npm') ||
+    lower.includes('invalid npmcommand') ||
+    lower.includes('npm root -g')
+  ) {
+    return makeErrorInfo('runtime-package-manager-unavailable', displayMessage)
   }
 
   // Rate limiting

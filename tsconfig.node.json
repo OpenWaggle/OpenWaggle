@@ -19,7 +19,8 @@
     "src/main/**/*",
     "src/preload/**/*",
     "src/shared/**/*",
-    "scripts/check-architecture.ts",
+    "e2e/support/session-fixtures.ts",
+    "scripts/**/*.ts",
     "electron.vite.config.ts"
   ]
 }

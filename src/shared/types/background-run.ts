@@ -15,5 +15,6 @@ export interface ActiveRunInfo {
 
 /** Full snapshot including accumulated message parts for reconnection. */
 export interface BackgroundRunSnapshot extends ActiveRunInfo {
+  readonly messageId?: string
   readonly parts: readonly MessagePart[]
 }

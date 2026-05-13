@@ -11,11 +11,19 @@ import {
   ModelRegistry,
   type SettingsManager,
 } from '@mariozechner/pi-coding-agent'
+import { MCP_ADAPTER_PACKAGE_SOURCES } from '@shared/constants/mcp'
 import { createModelRef } from '@shared/types/llm'
 import { THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
-import { isPathInside } from '@shared/utils/paths'
 import { normalizeSkillId } from '@shared/utils/skill-id'
+import { withNpmCompatibleProcessEnv } from '../../env'
+import { isPathInside } from '../../utils/paths'
 import { createOpenWagglePiSettingsManager } from './openwaggle-pi-settings-storage'
+import {
+  type OpenWaggleMcpRuntimeContext,
+  prepareOpenWaggleMcpRuntimeContext,
+  rememberOpenWaggleMcpRuntimeContext,
+  withOpenWaggleMcpAdapterProcessContext,
+} from './pi-mcp-config-service'
 
 export interface ProviderModelRecord {
   readonly ref: string
@@ -56,6 +64,8 @@ interface PiModelRuntime {
 interface PiRuntimeServicesOptions {
   readonly skillToggles?: Readonly<Record<string, boolean>>
   readonly extensionFactories?: readonly ExtensionFactory[]
+  readonly mcpRuntimeContext?: OpenWaggleMcpRuntimeContext | null
+  readonly loadMcpAdapter?: boolean
 }
 
 export interface PiProjectModelRuntime extends PiModelRuntime {
@@ -319,18 +329,44 @@ export async function createPiRuntimeServices(
   options: PiRuntimeServicesOptions = {},
 ): Promise<AgentSessionServices> {
   const authStorage = createPiRuntimeAuthStorage()
-  const settingsManager = createOpenWagglePiSettingsManager(projectPath)
-  return createAgentSessionServices({
-    cwd: projectPath,
-    agentDir: getPiAgentDir(),
-    authStorage,
-    settingsManager,
-    resourceLoaderOptions: createOpenWagglePiResourceLoaderOptions(
-      projectPath,
-      options,
-      settingsManager,
+  const loadMcpAdapter = options.loadMcpAdapter ?? true
+  const settingsManager = createOpenWagglePiSettingsManager(
+    projectPath,
+    loadMcpAdapter
+      ? {}
+      : {
+          excludedGlobalPackageSources: MCP_ADAPTER_PACKAGE_SOURCES,
+        },
+  )
+  const mcpRuntimeContext = loadMcpAdapter
+    ? options.mcpRuntimeContext === undefined
+      ? await prepareOpenWaggleMcpRuntimeContext(projectPath)
+      : options.mcpRuntimeContext
+    : null
+  const services = await withNpmCompatibleProcessEnv(() =>
+    withOpenWaggleMcpAdapterProcessContext(mcpRuntimeContext, () =>
+      createAgentSessionServices({
+        cwd: projectPath,
+        agentDir: getPiAgentDir(),
+        authStorage,
+        settingsManager,
+        ...(mcpRuntimeContext
+          ? {
+              extensionFlagValues: new Map<string, boolean | string>([
+                ['mcp-config', mcpRuntimeContext.configPath],
+              ]),
+            }
+          : {}),
+        resourceLoaderOptions: createOpenWagglePiResourceLoaderOptions(
+          projectPath,
+          options,
+          settingsManager,
+        ),
+      }),
     ),
-  })
+  )
+  rememberOpenWaggleMcpRuntimeContext(services, mcpRuntimeContext)
+  return services
 }
 
 export async function createPiProviderCatalogSnapshot(
@@ -344,7 +380,7 @@ export async function createPiProviderCatalogSnapshot(
     )
   }
 
-  const services = await createPiRuntimeServices(normalizedProjectPath)
+  const services = await createPiRuntimeServices(normalizedProjectPath, { loadMcpAdapter: false })
   return createPiProviderCatalogSnapshotFromRuntime(services.modelRegistry, services.authStorage)
 }
 

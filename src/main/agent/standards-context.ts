@@ -3,7 +3,6 @@ import type { PreparedAttachment } from '@shared/types/agent'
 import type { Settings } from '@shared/types/settings'
 import type { SkillActivationResult, SkillDiscoveryItem } from '@shared/types/standards'
 import { inferAgentsCandidatePaths } from '@shared/utils/agents-path-inference'
-import { isPathInside } from '@shared/utils/paths'
 import { activateSkillsFromText } from '../skills/skill-activation'
 import {
   type LoadedSkillCatalog,
@@ -11,6 +10,7 @@ import {
   loadSkillInstructions,
 } from '../skills/skill-catalog'
 import { resolveAgentsForRun } from '../standards/agents-resolver'
+import { isPathInside } from '../utils/paths'
 
 export interface ActiveSkillInstruction {
   readonly id: string

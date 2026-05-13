@@ -88,6 +88,8 @@ export function usePreferences() {
  * Does NOT subscribe to preferences or auth stores.
  */
 export function useProviders() {
+  const isLoading = useProviderStore((s) => s.isLoading)
+  const loadError = useProviderStore((s) => s.loadError)
   const testingProviders = useProviderStore((s) => s.testingProviders)
   const testResults = useProviderStore((s) => s.testResults)
   const providerModels = useProviderStore((s) => s.providerModels)
@@ -96,6 +98,8 @@ export function useProviders() {
   const clearTestResult = useProviderStore((s) => s.clearTestResult)
 
   return {
+    isLoading,
+    loadError,
     testingProviders,
     testResults,
     providerModels,

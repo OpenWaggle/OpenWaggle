@@ -44,15 +44,17 @@ describe('shell-handler', () => {
     mockShellOpenPath.mockReset()
     mockShellOpenExternal.mockReset()
     mockAppGetPath.mockReset()
+    mockShellOpenPath.mockResolvedValue('')
     mockAppGetPath.mockReturnValue('/tmp/logs')
   })
 
-  it('registers exactly three handlers', () => {
+  it('registers exactly four handlers', () => {
     registerShellHandlers()
 
-    expect(handlers.size).toBe(3)
+    expect(handlers.size).toBe(4)
     expect(handlers.has('app:open-logs-dir')).toBe(true)
     expect(handlers.has('app:get-logs-path')).toBe(true)
+    expect(handlers.has('shell:open-path')).toBe(true)
     expect(handlers.has('shell:open-external')).toBe(true)
   })
 
@@ -124,6 +126,35 @@ describe('shell-handler', () => {
         'Disallowed URL protocol: file:',
       )
       expect(mockShellOpenExternal).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('shell:open-path', () => {
+    it('opens local paths through shell.openPath', async () => {
+      registerShellHandlers()
+      const handler = handlers.get('shell:open-path')
+      expect(handler).toBeDefined()
+
+      await handler?.({}, '/tmp/project')
+      expect(mockShellOpenPath).toHaveBeenCalledWith('/tmp/project')
+    })
+
+    it('rejects empty paths', async () => {
+      registerShellHandlers()
+      const handler = handlers.get('shell:open-path')
+
+      await expect(handler?.({}, '  ')).rejects.toThrow('Path is required.')
+      expect(mockShellOpenPath).not.toHaveBeenCalled()
+    })
+
+    it('rejects shell.openPath failures', async () => {
+      mockShellOpenPath.mockResolvedValueOnce('No application can open the file')
+      registerShellHandlers()
+      const handler = handlers.get('shell:open-path')
+
+      await expect(handler?.({}, '/tmp/project')).rejects.toThrow(
+        'No application can open the file',
+      )
     })
   })
 })

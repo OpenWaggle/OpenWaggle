@@ -10,17 +10,24 @@ import { safeMarkdownSanitizeSchema } from '../../markdown-safety'
 import { createRehypeShikiPlugin } from '../rehype-shiki-plugin'
 import { ShikiCache } from '../shiki-cache'
 
-function collectStyles(
-  node:
-    | Root
-    | Element
-    | { type: string; properties?: Record<string, unknown>; children?: unknown[] },
-): string[] {
+interface StyleNode {
+  readonly type: string
+  readonly properties?: Record<string, unknown>
+  readonly children?: readonly unknown[]
+}
+
+function isStyleNode(value: unknown): value is StyleNode {
+  return typeof value === 'object' && value !== null && 'type' in value
+}
+
+function collectStyles(node: Root | Element | StyleNode): string[] {
   const styles: string[] = []
   if ('properties' in node && node.properties?.style) styles.push(String(node.properties.style))
   if ('children' in node && Array.isArray(node.children)) {
     for (const child of node.children) {
-      styles.push(...collectStyles(child as Parameters<typeof collectStyles>[0]))
+      if (isStyleNode(child)) {
+        styles.push(...collectStyles(child))
+      }
     }
   }
   return styles

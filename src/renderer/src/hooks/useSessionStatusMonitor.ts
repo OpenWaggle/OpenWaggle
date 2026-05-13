@@ -1,3 +1,4 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import type { SessionId } from '@shared/types/brand'
 import { type SessionStatus, TERMINAL_STATUSES } from '@shared/types/session-status'
 import { useEffect } from 'react'
@@ -45,36 +46,50 @@ export function useSessionStatusMonitor(): void {
     })
 
     const unsubWaggleTurn = api.onWaggleTurnEvent(({ sessionId, event }) => {
-      if (event.type === 'turn-start') {
-        activeWaggleSessions.add(sessionId)
-        setStatusWithVisitCheck(sessionId, 'waggle-running')
-      }
-      // Terminal waggle events transition to 'completed' via onRunCompleted above.
+      matchBy(event, 'type')
+        .with('turn-start', () => {
+          activeWaggleSessions.add(sessionId)
+          setStatusWithVisitCheck(sessionId, 'waggle-running')
+        })
+        // Terminal waggle events transition to 'completed' via onRunCompleted above.
+        .otherwise(() => undefined)
     })
 
     const unsubEvent = api.onAgentEvent(({ sessionId, event }) => {
-      if (event.type === 'agent_start') {
-        if (activeWaggleSessions.has(sessionId)) return
-        setStatusWithVisitCheck(sessionId, 'connecting')
-        return
-      }
-      if (event.type === 'agent_end' && event.reason === 'error') {
-        setStatusWithVisitCheck(sessionId, 'error')
-        return
-      }
-      if (
-        (event.type === 'message_update' && event.assistantMessageEvent.type === 'text_delta') ||
-        (event.type === 'message_update' &&
-          event.assistantMessageEvent.type === 'toolcall_start') ||
-        event.type === 'tool_execution_start'
-      ) {
-        if (activeWaggleSessions.has(sessionId)) return
-        setStatusWithVisitCheck(sessionId, 'working')
-        return
-      }
-      if (isTerminalTransportEvent(event)) {
-        setStatusWithVisitCheck(sessionId, 'completed')
-      }
+      matchBy(event, 'type')
+        .with('agent_start', () => {
+          if (!activeWaggleSessions.has(sessionId)) {
+            setStatusWithVisitCheck(sessionId, 'connecting')
+          }
+        })
+        .with('agent_end', (value) => {
+          if (value.reason === 'error') {
+            setStatusWithVisitCheck(sessionId, 'error')
+            return
+          }
+          if (isTerminalTransportEvent(value)) {
+            setStatusWithVisitCheck(sessionId, 'completed')
+          }
+        })
+        .with('message_update', (value) => {
+          matchBy(value.assistantMessageEvent, 'type')
+            .with('text_delta', 'toolcall_start', () => {
+              if (!activeWaggleSessions.has(sessionId)) {
+                setStatusWithVisitCheck(sessionId, 'working')
+              }
+            })
+            .otherwise(() => undefined)
+        })
+        .with('tool_execution_start', () => {
+          if (!activeWaggleSessions.has(sessionId)) {
+            setStatusWithVisitCheck(sessionId, 'working')
+          }
+        })
+        .otherwise((value) => {
+          if (isTerminalTransportEvent(value)) {
+            setStatusWithVisitCheck(sessionId, 'completed')
+          }
+        })
     })
 
     return () => {

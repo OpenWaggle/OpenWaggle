@@ -1,5 +1,5 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import type { UpdateStatus } from '@shared/types/updater'
-import { chooseBy } from '@shared/utils/decision'
 import { Loader2, RefreshCw, RotateCcw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/ipc'
@@ -55,35 +55,35 @@ const UP_TO_DATE: StatusRow = {
 }
 
 function getStatusRow(status: UpdateStatus): StatusRow {
-  return chooseBy(status, 'type')
-    .case('idle', () => UP_TO_DATE)
-    .case('not-available', () => UP_TO_DATE)
-    .case('checking', () => ({
+  return matchBy(status, 'type')
+    .with('idle', () => UP_TO_DATE)
+    .with('not-available', () => UP_TO_DATE)
+    .with('checking', () => ({
       subtitle: 'Checking for updates…',
       subtitleClass: 'text-[#9098a8]',
       dotClass: null,
     }))
-    .case('available', (s) => ({
+    .with('available', (s) => ({
       subtitle: `Downloading v${s.version}…`,
       subtitleClass: 'text-[#61a8ff]',
       dotClass: 'bg-[#61a8ff]',
     }))
-    .case('downloading', (s) => ({
+    .with('downloading', (s) => ({
       subtitle: `Downloading v${s.version}… ${Math.round(s.percent)}%`,
       subtitleClass: 'text-[#61a8ff]',
       dotClass: 'bg-[#61a8ff]',
     }))
-    .case('downloaded', (s) => ({
+    .with('downloaded', (s) => ({
       subtitle: `v${s.version} ready to install`,
       subtitleClass: 'text-[#4caf72]',
       dotClass: 'bg-[#4caf72]',
     }))
-    .case('error', () => ({
+    .with('error', () => ({
       subtitle: 'Update check failed',
       subtitleClass: 'text-[#ef4444]',
       dotClass: 'bg-[#ef4444]',
     }))
-    .assertComplete()
+    .exhaustive()
 }
 
 export function GeneralSection() {
@@ -115,9 +115,9 @@ export function GeneralSection() {
           <div className="flex h-14 items-center justify-between px-5">
             <div className="flex items-center gap-2">
               {statusRow.dotClass ? (
-                <div className={`h-2 w-2 shrink-0 rounded-full ${statusRow.dotClass}`} />
+                <div className={`size-2 shrink-0 rounded-full ${statusRow.dotClass}`} />
               ) : isChecking ? (
-                <Loader2 className="h-3 w-3 shrink-0 animate-spin text-[#9098a8]" />
+                <Loader2 className="size-3 shrink-0 animate-spin text-[#9098a8]" />
               ) : null}
               <div className="flex flex-col gap-0.5">
                 <span className="text-[13px] font-medium text-[#e7e9ee]">Latest version</span>
@@ -139,7 +139,7 @@ export function GeneralSection() {
                   }}
                   className="inline-flex h-7 items-center gap-1.5 rounded-[5px] border border-[#2a2f3a] bg-[#1a1f28] px-3 text-[12px] font-medium text-[#c9cdd6] transition-colors hover:bg-[#222830]"
                 >
-                  <RefreshCw className="h-3 w-3" />
+                  <RefreshCw className="size-3" />
                   Check now
                 </button>
               )}
@@ -155,7 +155,7 @@ export function GeneralSection() {
                   }}
                   className="inline-flex h-7 items-center gap-1.5 rounded-[5px] bg-[#f5a623] px-3 text-[12px] font-semibold text-white transition-colors hover:bg-[#e09520]"
                 >
-                  <RotateCcw className="h-3 w-3" />
+                  <RotateCcw className="size-3" />
                   Restart to update
                 </button>
               )}

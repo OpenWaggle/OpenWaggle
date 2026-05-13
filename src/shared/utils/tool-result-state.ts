@@ -1,4 +1,4 @@
-import { isRecord } from './validation'
+import { match, P } from '@diegogbrisa/ts-match'
 
 export function parseSerializedToolPayload(value: unknown): unknown {
   if (typeof value !== 'string') {
@@ -13,19 +13,10 @@ export function parseSerializedToolPayload(value: unknown): unknown {
 }
 
 export function unwrapStructuredToolPayload(value: unknown): unknown {
-  if (!isRecord(value)) {
-    return value
-  }
-
-  if (value.kind === 'json' && 'data' in value) {
-    return value.data
-  }
-
-  if (value.kind === 'text' && 'text' in value) {
-    return value.text
-  }
-
-  return value
+  return match(value)
+    .with({ kind: 'json', data: P.select() }, (data) => data)
+    .with({ kind: 'text', text: P.select() }, (text) => text)
+    .otherwise(() => value)
 }
 
 export function normalizeToolResultPayload(value: unknown): unknown {

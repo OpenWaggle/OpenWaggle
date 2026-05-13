@@ -15,12 +15,15 @@ export function ToastOverlay() {
   }
 
   const isSuccess = toastData.variant === 'success'
+  const isError = toastData.variant === 'error'
 
   return (
     <div
       className={cn(
         'pointer-events-auto fixed right-5 top-16 z-[9999] flex items-center gap-2 rounded-lg border px-3.5 py-2.5 text-[13px] text-text-secondary shadow-lg',
-        isSuccess ? 'border-success/30 bg-success/8' : 'border-border-light bg-bg-secondary',
+        isSuccess && 'border-success/30 bg-success/8',
+        isError && 'border-error/30 bg-error/8 text-error',
+        !isSuccess && !isError && 'border-border-light bg-bg-secondary',
       )}
     >
       <span>{toastData.message}</span>
@@ -41,7 +44,7 @@ export function ToastOverlay() {
           className="inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-[12px] font-medium text-accent transition-colors hover:bg-accent/10"
         >
           {toastData.action.label}
-          {toastData.action.url && <ExternalLink className="h-3 w-3" />}
+          {toastData.action.url && <ExternalLink className="size-3" />}
         </button>
       )}
       {toastData.persistent && (
@@ -51,7 +54,7 @@ export function ToastOverlay() {
           className="rounded p-0.5 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
           title="Dismiss"
         >
-          <X className="h-3.5 w-3.5" />
+          <X className="size-3.5" />
         </button>
       )}
     </div>

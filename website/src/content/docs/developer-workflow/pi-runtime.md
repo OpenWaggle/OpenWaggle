@@ -39,6 +39,12 @@ OpenWaggle also renders Pi search/listing tools when Pi enables or emits them:
 
 Tool availability and behavior are Pi runtime concerns. OpenWaggle's job is to render the events truthfully.
 
+## MCP Extension
+
+MCP support is a Pi extension-backed capability. OpenWaggle enables the `npm:pi-mcp-adapter@2.5.4` package source in global Pi settings, merges all supported MCP config sources for the active project, and passes a generated effective config to Pi through extension flags. Because the adapter reads config during extension load and initializes in `session_start`, OpenWaggle scopes adapter startup and session binding to the generated config and an isolated adapter cwd.
+
+OpenWaggle does not run a separate MCP tool executor beside Pi. `/mcp` and `/mcp-auth` remain adapter commands handled inside Pi, while Settings > MCP provides desktop controls for package enablement, source editing, and per-server toggles.
+
 ## Context And Compaction
 
 Context usage comes from Pi `session.getContextUsage()`. Manual compaction calls Pi `session.compact(customInstructions)` and is triggered from the composer with `/compact`.

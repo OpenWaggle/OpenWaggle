@@ -12,6 +12,7 @@ import { SettingsService } from '../../services/settings-service'
 import { executeAgentRun, reconcileInterruptedAgentRuns } from '../agent-run-service'
 
 const runMock = vi.fn()
+const updateTitleMock = vi.fn()
 const persistSnapshotMock = vi.fn()
 const recordActiveRunMock = vi.fn()
 const clearActiveRunMock = vi.fn()
@@ -42,6 +43,19 @@ const session: SessionDetail = {
   updatedAt: 2,
 }
 
+const newSession: SessionDetail = {
+  id: sessionId,
+  title: 'New session',
+  projectPath: '/tmp/project',
+  piSessionId: 'pi-session-1',
+  piSessionFile: '/tmp/pi-session-1.jsonl',
+  messages: [],
+  createdAt: 1,
+  updatedAt: 2,
+}
+
+let projectionSession: SessionDetail = session
+
 const sessionTree: SessionTree = {
   session: {
     id: sessionId,
@@ -71,8 +85,8 @@ const sessionTree: SessionTree = {
 }
 
 const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
-  get: () => Effect.succeed(session),
-  getOptional: () => Effect.succeed(session),
+  get: () => Effect.succeed(projectionSession),
+  getOptional: () => Effect.succeed(projectionSession),
   list: () => Effect.succeed([]),
   listDetails: () => Effect.succeed([]),
   create: () => Effect.succeed(session),
@@ -80,7 +94,10 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   archive: () => Effect.void,
   unarchive: () => Effect.void,
   listArchived: () => Effect.succeed([]),
-  updateTitle: () => Effect.void,
+  updateTitle: (id, title) =>
+    Effect.sync(() => {
+      updateTitleMock(id, title)
+    }),
 })
 
 const TestProviderLayer = Layer.succeed(ProviderService, {
@@ -208,7 +225,9 @@ const TestLayer = Layer.mergeAll(
 
 describe('executeAgentRun', () => {
   beforeEach(() => {
+    projectionSession = session
     runMock.mockReset()
+    updateTitleMock.mockReset()
     persistSnapshotMock.mockReset()
     recordActiveRunMock.mockReset()
     clearActiveRunMock.mockReset()
@@ -246,6 +265,41 @@ describe('executeAgentRun', () => {
       sessionId,
       runId: 'run-standard-1',
     })
+  })
+
+  it('notifies immediately when a first user message assigns a session title', async () => {
+    projectionSession = newSession
+    const order: string[] = []
+    runMock.mockImplementationOnce(() => {
+      order.push('run')
+    })
+
+    const result = await Effect.runPromise(
+      executeAgentRun({
+        sessionId,
+        runId: 'run-title-1',
+        payload: {
+          text: 'Draft a one-page summary of this app',
+          thinkingLevel: 'medium',
+          attachments: [],
+        },
+        model,
+        signal: new AbortController().signal,
+        onEvent: () => undefined,
+        onTitleAssigned: (title) => {
+          order.push(`title:${title}`)
+        },
+      }).pipe(Effect.provide(TestLayer)),
+    )
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        outcome: 'success',
+        assignedTitle: 'Draft a one-page summary of this app',
+      }),
+    )
+    expect(updateTitleMock).toHaveBeenCalledWith(sessionId, 'Draft a one-page summary of this app')
+    expect(order).toEqual(['title:Draft a one-page summary of this app', 'run'])
   })
 
   it('reprojects and marks durable active runs as interrupted on startup', async () => {
