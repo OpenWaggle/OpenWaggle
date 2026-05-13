@@ -794,11 +794,15 @@ export async function withOpenWaggleMcpAdapterProcessContext<T>(
   context: OpenWaggleMcpRuntimeContext | null,
   operation: () => Promise<T>,
 ): Promise<T> {
+  const release = await acquireMcpAdapterProcessContextLock()
   if (!context) {
-    return operation()
+    try {
+      return await operation()
+    } finally {
+      release()
+    }
   }
 
-  const release = await acquireMcpAdapterProcessContextLock()
   const previousCwd = process.cwd
   const previousArgv = [...process.argv]
   process.cwd = () => context.adapterCwd

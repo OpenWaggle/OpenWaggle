@@ -257,6 +257,40 @@ describe('Pi MCP config service', () => {
       expect(process.argv).toEqual(previousArgv)
     }))
 
+  it('serializes null-context operations against scoped MCP process globals', () =>
+    withFixture(async ({ home, agentDir, project }) => {
+      const service = createPiMcpConfigServiceForTests({ homeDir: home, agentDir })
+      const context = await service.prepareRuntimeContext(project)
+      if (!context) {
+        throw new Error('Expected MCP runtime context')
+      }
+
+      const previousCwd = process.cwd()
+      let releaseScopedOperation: (() => void) | undefined
+      let markScopedOperationStarted: (() => void) | undefined
+      const scopedOperationFinished = new Promise<void>((release) => {
+        releaseScopedOperation = release
+      })
+      const scopedOperationStarted = new Promise<void>((resolve) => {
+        markScopedOperationStarted = resolve
+      })
+      const scopedOperation = withOpenWaggleMcpAdapterProcessContext(context, async () => {
+        expect(process.cwd()).toBe(context.adapterCwd)
+        markScopedOperationStarted?.()
+        await scopedOperationFinished
+      })
+
+      await scopedOperationStarted
+
+      const nullContextOperation = withOpenWaggleMcpAdapterProcessContext(null, async () =>
+        process.cwd(),
+      )
+      releaseScopedOperation?.()
+
+      await expect(nullContextOperation).resolves.toBe(previousCwd)
+      await scopedOperation
+    }))
+
   it('toggles only the selected source entry by moving it between active and disabled server maps', () =>
     withFixture(async ({ home, agentDir, project }) => {
       const service = createPiMcpConfigServiceForTests({ homeDir: home, agentDir })
