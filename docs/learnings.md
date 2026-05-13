@@ -24,6 +24,7 @@ This document stores project-specific technical learnings only.
 
 - Electron update safety needs explicit release-channel metadata and update-track policy in addition to semver prerelease strings. A version like `1.0.0-alpha.3` identifies the installed build kind, but once users can opt into Alpha/Beta from Settings, future update eligibility must be driven by separate selected update-track state. [SKILL: release]
 - OpenWaggle release intent should be modeled as committed change metadata consumed into changelog/GitHub Release notes, while Alpha/Beta/RC remain release-train state owned by the release workflow rather than repeated on every change entry. [SKILL: release]
+- Release QA should verify installer/install/launch behavior from the exact CI build artifacts before publishing the GitHub release; post-publish verification cannot prevent shipping broken installers. Deterministic packaged-app smoke exits (for example `OPENWAGGLE_SMOKE_TEST=1`) keep cross-platform launch checks reliable in CI. [SKILL?]
 
 ### Pi Runtime & Session Projection
 

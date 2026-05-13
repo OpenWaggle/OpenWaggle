@@ -24,6 +24,7 @@ const MIN_HEIGHT = 600
 const X = 16
 const Y = 16
 const FAILURE_EXIT_CODE = 1
+const SMOKE_TEST_LAUNCH_TIMEOUT_MS = 45_000
 const RENDERER_PROTOCOL = 'openwaggle'
 const RENDERER_PROTOCOL_HOST = 'app'
 const RENDERER_PROTOCOL_ORIGIN = `${RENDERER_PROTOCOL}://${RENDERER_PROTOCOL_HOST}`
@@ -49,6 +50,10 @@ const logger = createLogger('main/index')
 let ipcHandlersRegistered = false
 let rendererProtocolRegistered = false
 let beforeQuitCleanupDone = false
+
+function isSmokeTestMode(): boolean {
+  return env.OPENWAGGLE_SMOKE_TEST === '1'
+}
 
 function buildApplicationMenu(): void {
   if (process.platform === 'darwin') {
@@ -188,6 +193,47 @@ function registerRendererProtocolOnce(): void {
   })
 }
 
+function waitForSmokeTestRendererLoad(window: BrowserWindow): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      cleanup()
+      reject(
+        new Error(`Timed out waiting for renderer load after ${SMOKE_TEST_LAUNCH_TIMEOUT_MS}ms.`),
+      )
+    }, SMOKE_TEST_LAUNCH_TIMEOUT_MS)
+
+    const handleDidFinishLoad = (): void => {
+      cleanup()
+      resolve()
+    }
+
+    const handleDidFailLoad = (
+      _event: Electron.Event,
+      errorCode: number,
+      errorDescription: string,
+      validatedUrl: string,
+      isMainFrame: boolean,
+    ): void => {
+      if (!isMainFrame) {
+        return
+      }
+      cleanup()
+      reject(
+        new Error(`Renderer failed to load (${errorCode}): ${errorDescription} (${validatedUrl}).`),
+      )
+    }
+
+    const cleanup = (): void => {
+      clearTimeout(timeout)
+      window.webContents.removeListener('did-finish-load', handleDidFinishLoad)
+      window.webContents.removeListener('did-fail-load', handleDidFailLoad)
+    }
+
+    window.webContents.once('did-finish-load', handleDidFinishLoad)
+    window.webContents.on('did-fail-load', handleDidFailLoad)
+  })
+}
+
 async function bootstrapServicesAndWindow(): Promise<void> {
   await initializeAppRuntime()
   await initializeSettingsStore()
@@ -195,7 +241,14 @@ async function bootstrapServicesAndWindow(): Promise<void> {
 
   registerIpcHandlersOnce()
   registerRendererProtocolOnce()
-  createWindow()
+  const smokeTestMode = isSmokeTestMode()
+  const mainWindow = createWindow({ showWindow: !smokeTestMode })
+  if (smokeTestMode) {
+    await waitForSmokeTestRendererLoad(mainWindow)
+    logger.info('Smoke launch verification succeeded; exiting')
+    app.exit(0)
+    return
+  }
   initAutoUpdater()
 }
 
@@ -222,7 +275,11 @@ function isTrustedRendererRequest(url: string): boolean {
   }
 }
 
-function createWindow(): void {
+interface CreateWindowOptions {
+  readonly showWindow: boolean
+}
+
+function createWindow(options: CreateWindowOptions = { showWindow: true }): BrowserWindow {
   const webPreferences = {
     preload: join(__dirname, '../preload/index.js'),
     ...SECURE_WEB_PREFERENCES,
@@ -244,6 +301,9 @@ function createWindow(): void {
   installCspHeaders(mainWindow.webContents.session)
 
   mainWindow.on('ready-to-show', () => {
+    if (!options.showWindow) {
+      return
+    }
     mainWindow.show()
   })
 
@@ -292,6 +352,8 @@ function createWindow(): void {
   } else {
     mainWindow.loadURL(`${RENDERER_PROTOCOL_ORIGIN}/${INDEX_HTML}`)
   }
+
+  return mainWindow
 }
 
 function focusExistingWindow(): void {
