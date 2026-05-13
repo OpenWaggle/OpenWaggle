@@ -718,9 +718,10 @@ async function installMcpAdapterPackage(
   source: string,
   projectPath?: string | null,
 ): Promise<void> {
-  const cwd = projectPath?.trim() || process.cwd()
   const agentDir = getAgentDir()
+  const cwd = projectPath?.trim() || agentDir
   const npmCacheDir = path.join(agentDir, MCP_CONFIG.NPM_CACHE_DIR)
+  await mkdir(agentDir, { recursive: true })
   await mkdir(npmCacheDir, { recursive: true })
 
   await withTemporaryProcessEnv(
