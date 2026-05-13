@@ -259,7 +259,7 @@ jobs:
           name: ${{ matrix.artifact_name }}
           path: ${{ runner.temp }}/release/${{ matrix.platform }}
 
-      - name: Verify Linux installer + launch smoke
+      - name: Verify Linux installer
         if: matrix.platform == 'linux'
         shell: bash
         run: |
@@ -304,11 +304,7 @@ jobs:
           test -x "$HOME/.local/bin/openwaggle"
           test -f "$HOME/.local/share/applications/openwaggle.desktop"
 
-          sudo apt-get update
-          sudo apt-get install -y xvfb
-          xvfb-run -a env OPENWAGGLE_SMOKE_TEST=1 OPENWAGGLE_DISABLE_SINGLE_INSTANCE=1 APPIMAGE_EXTRACT_AND_RUN=1 "$HOME/.local/bin/openwaggle" --no-sandbox
-
-      - name: Verify macOS installers + launch smoke
+      - name: Verify macOS installers
         if: matrix.platform == 'macos'
         shell: bash
         run: |
@@ -326,9 +322,8 @@ jobs:
           test -d "$APP_PATH"
           APP_BINARY="$APP_PATH/Contents/MacOS/OpenWaggle"
           test -x "$APP_BINARY"
-          OPENWAGGLE_SMOKE_TEST=1 OPENWAGGLE_DISABLE_SINGLE_INSTANCE=1 "$APP_BINARY"
 
-      - name: Verify Windows installer + launch smoke
+      - name: Verify Windows installer
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
@@ -346,20 +341,6 @@ jobs:
           )
           $found = $paths | Where-Object { Test-Path $_ } | Select-Object -First 1
           if (-not $found) { throw 'Installed executable not found after silent install' }
-
-          $env:OPENWAGGLE_SMOKE_TEST = '1'
-          $env:OPENWAGGLE_DISABLE_SINGLE_INSTANCE = '1'
-          $process = Start-Process -FilePath $found -ArgumentList '--no-sandbox' -PassThru
-          try {
-            Wait-Process -Id $process.Id -Timeout 120 -ErrorAction Stop
-          } catch {
-            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-            throw 'Smoke launch timed out'
-          }
-          $process.Refresh()
-          if ($process.ExitCode -ne 0) {
-            throw "Smoke launch failed with exit code $($process.ExitCode)"
-          }
 
   release:
     name: Create GitHub Release

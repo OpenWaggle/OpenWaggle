@@ -19,7 +19,6 @@ const envSchema = Schema.Struct({
   ELECTRON_RENDERER_URL: optionalUrlSchema,
   OPENWAGGLE_USER_DATA_DIR: Schema.optional(Schema.String),
   OPENWAGGLE_DISABLE_SINGLE_INSTANCE: Schema.optional(Schema.String),
-  OPENWAGGLE_SMOKE_TEST: Schema.optional(Schema.Literal('1')),
   OPENWAGGLE_LOG_LEVEL: Schema.optional(Schema.Literal('debug', 'info', 'warn', 'error')),
 })
 
