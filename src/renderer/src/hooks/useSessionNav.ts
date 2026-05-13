@@ -12,7 +12,7 @@ interface SessionNavDeps {
   readonly setActiveView: (view: 'chat' | 'skills') => void
   readonly setProjectPath: (path: string | null) => Promise<void>
   readonly selectFolder: () => Promise<string | null>
-  readonly startDraftSession: () => void
+  readonly startDraftSession: (projectPath?: string | null) => void
   readonly setActiveSession: (id: SessionId | null) => void
   readonly refreshGitStatus: (projectPath: string | null) => Promise<void>
   readonly refreshGitBranches: (projectPath: string | null) => Promise<void>
@@ -57,21 +57,21 @@ export function createSessionNavHandlers(deps: SessionNavDeps): SessionNavHandle
 
   function handleNewSession(): void {
     setActiveView('chat')
-    startDraftSession()
+    startDraftSession(projectPath)
   }
 
   async function handleOpenProject(): Promise<void> {
     setActiveView('chat')
     const path = await selectFolder()
     if (!path) return
-    startDraftSession()
+    startDraftSession(path)
     await setProjectPath(path)
     refreshGit(path)
   }
 
   async function handleSelectProjectPath(path: string): Promise<void> {
     setActiveView('chat')
-    startDraftSession()
+    startDraftSession(path)
     await setProjectPath(path)
     refreshGit(path)
   }

@@ -21,6 +21,20 @@ const logger = createRendererLogger('chat')
 
 const DELAY_MS = 2000
 
+function formatErrorDetails(error: Error, info: AgentErrorInfo): string {
+  const detailLines = [`Raw: ${info.message}`]
+  if (info.code !== 'unknown') {
+    detailLines.push(`Code: ${info.code}`)
+  }
+
+  const stackIsRendererCreatedTransportError = error.stack?.startsWith(`Error: ${info.message}`)
+  if (error.stack && error.stack !== error.message && !stackIsRendererCreatedTransportError) {
+    detailLines.push('', error.stack)
+  }
+
+  return detailLines.join('\n')
+}
+
 interface ChatErrorDisplayProps {
   error: Error
   lastUserMessage: string | null
@@ -56,6 +70,7 @@ export function ChatErrorDisplay({
 
   const info = resolveErrorInfo(error, sessionId)
   const isAuthError = info.code === 'api-key-invalid' || info.code === 'session-expired'
+  const details = formatErrorDetails(error, info)
 
   function handleCopy(): void {
     const text = `${info.userMessage}${info.suggestion ? `\n${info.suggestion}` : ''}\n\nRaw: ${info.message}`
@@ -72,13 +87,13 @@ export function ChatErrorDisplay({
   return (
     <div className="my-3 rounded-xl border border-error/25 bg-error/6 px-4 py-3">
       <div className="flex items-start gap-3">
-        <AlertCircle className="h-4 w-4 shrink-0 text-error mt-0.5" />
+        <AlertCircle className="size-4 shrink-0 text-error mt-0.5" />
         <div className="flex-1 min-w-0">
           <p className="text-sm text-error/90">{info.userMessage}</p>
           {info.suggestion && (
             <p className="text-[13px] text-text-tertiary mt-1">{info.suggestion}</p>
           )}
-          {error.stack && (
+          {details && (
             <div className="mt-1.5">
               <button
                 type="button"
@@ -86,15 +101,15 @@ export function ChatErrorDisplay({
                 className="flex items-center gap-1 text-[12px] text-text-tertiary hover:text-text-secondary transition-colors"
               >
                 {showDetails ? (
-                  <ChevronDown className="h-3 w-3" />
+                  <ChevronDown className="size-3" />
                 ) : (
-                  <ChevronRight className="h-3 w-3" />
+                  <ChevronRight className="size-3" />
                 )}
                 Show details
               </button>
               {showDetails && (
                 <pre className="mt-1.5 max-h-40 overflow-auto rounded-md bg-bg/50 p-2 text-[11px] text-text-tertiary font-mono whitespace-pre-wrap break-all">
-                  {error.stack}
+                  {details}
                 </pre>
               )}
             </div>
@@ -106,7 +121,7 @@ export function ChatErrorDisplay({
                 onClick={onOpenSettings}
                 className="flex items-center gap-1.5 rounded-md bg-accent/10 px-2.5 py-1 text-[13px] font-medium text-accent hover:bg-accent/20 transition-colors"
               >
-                <Settings className="h-3 w-3" />
+                <Settings className="size-3" />
                 Open Settings
               </button>
             )}
@@ -119,7 +134,7 @@ export function ChatErrorDisplay({
                 }}
                 className="flex items-center gap-1.5 rounded-md bg-error/10 px-2.5 py-1 text-[13px] font-medium text-error hover:bg-error/20 transition-colors"
               >
-                <RefreshCw className="h-3 w-3" />
+                <RefreshCw className="size-3" />
                 Retry
               </button>
             )}
@@ -128,7 +143,7 @@ export function ChatErrorDisplay({
               onClick={handleCopy}
               className="flex items-center gap-1.5 rounded-md bg-bg-hover px-2.5 py-1 text-[13px] font-medium text-text-tertiary hover:text-text-secondary transition-colors"
             >
-              {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+              {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
               {copied ? 'Copied' : 'Copy'}
             </button>
             {!isAuthError && (
@@ -137,7 +152,7 @@ export function ChatErrorDisplay({
                 onClick={() => openFeedbackModal(info)}
                 className="flex items-center gap-1.5 rounded-md bg-bg-hover px-2.5 py-1 text-[13px] font-medium text-text-tertiary hover:text-text-secondary transition-colors"
               >
-                <Bug className="h-3 w-3" />
+                <Bug className="size-3" />
                 Report
               </button>
             )}
@@ -151,7 +166,7 @@ export function ChatErrorDisplay({
                 }}
                 className="flex items-center gap-1.5 rounded-md bg-bg-hover px-2.5 py-1 text-[13px] font-medium text-text-tertiary hover:text-text-secondary transition-colors"
               >
-                <FolderOpen className="h-3 w-3" />
+                <FolderOpen className="size-3" />
                 Open Logs
               </button>
             )}
@@ -160,7 +175,7 @@ export function ChatErrorDisplay({
               onClick={handleDismiss}
               className="flex items-center gap-1.5 rounded-md bg-bg-hover px-2.5 py-1 text-[13px] font-medium text-text-tertiary hover:text-text-secondary transition-colors"
             >
-              <X className="h-3 w-3" />
+              <X className="size-3" />
               Dismiss
             </button>
           </div>

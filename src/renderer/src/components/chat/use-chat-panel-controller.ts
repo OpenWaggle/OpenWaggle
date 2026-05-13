@@ -158,13 +158,25 @@ export function useChatPanelSections(): ChatPanelSections {
   })
 
   async function handleOpenProject(): Promise<void> {
-    await handleOpenProjectNavigation()
-    void navigate({ to: '/' })
+    try {
+      await handleOpenProjectNavigation()
+      void navigate({ to: '/' })
+    } catch (openError) {
+      const message = openError instanceof Error ? openError.message : String(openError)
+      logger.error('Failed to open project', { error: message })
+      showToast(message)
+    }
   }
 
   async function handleSelectProjectPath(path: string): Promise<void> {
-    void navigate({ to: '/' })
-    await handleSelectProjectPathNavigation(path)
+    try {
+      await handleSelectProjectPathNavigation(path)
+      void navigate({ to: '/' })
+    } catch (selectError) {
+      const message = selectError instanceof Error ? selectError.message : String(selectError)
+      logger.error('Failed to select project', { error: message })
+      showToast(message)
+    }
   }
 
   function openSettings(): void {
@@ -212,12 +224,28 @@ export function useChatPanelSections(): ChatPanelSections {
 
   const { handleSend, handleSendText, handleSendWaggle } = useSendMessage({
     activeSessionId,
+    model,
     projectPath,
     thinkingLevel,
     createSession,
     sendMessage,
     sendWaggleMessage,
   })
+
+  async function handleStarterPrompt(content: string): Promise<void> {
+    if (!model.trim()) {
+      showToast('Select a model before sending.')
+      return
+    }
+
+    try {
+      await handleSendText(content)
+    } catch (sendError) {
+      const message = sendError instanceof Error ? sendError.message : String(sendError)
+      logger.error('Failed to send starter prompt', { error: message })
+      showToast(message)
+    }
+  }
 
   useWaggleChat(activeSessionId)
   const phase = useStreamingPhase(activeSessionId)
@@ -766,7 +794,7 @@ export function useChatPanelSections(): ChatPanelSections {
     phase,
     handleOpenProject,
     handleSelectProjectPath,
-    handleSendText,
+    handleSendText: handleStarterPrompt,
     openSettings,
     handleDismissInterruptedRun,
     handleBranchFromMessage,

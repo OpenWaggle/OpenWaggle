@@ -1,9 +1,13 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
+import type { SupportedModelId } from '@shared/types/llm'
 import type { ThinkingLevel } from '@shared/types/settings'
 import type { WaggleConfig } from '@shared/types/waggle'
-import { useEffect, useRef } from 'react'
+import { createOptimisticUserMessage } from '@/hooks/useAgentChat.utils'
+import { api } from '@/lib/ipc'
 import { createRendererLogger } from '@/lib/logger'
+import { useBackgroundRunStore } from '@/stores/background-run-store'
+import { useOptimisticUserMessageStore } from '@/stores/optimistic-user-message-store'
 
 const logger = createRendererLogger('use-send-message')
 
@@ -13,9 +17,12 @@ interface SendMessageDeps {
   readonly thinkingLevel: ThinkingLevel
   readonly createSession: (projectPath: string) => Promise<SessionId>
   readonly sendMessage: (payload: AgentSendPayload) => Promise<void>
+  readonly sendMessageToSession: (
+    sessionId: SessionId,
+    payload: AgentSendPayload,
+    config: WaggleConfig | null,
+  ) => Promise<void>
   readonly sendWaggleMessage: (payload: AgentSendPayload, config: WaggleConfig) => Promise<void>
-  readonly setPendingMessage: (payload: AgentSendPayload | null) => void
-  readonly setPendingWaggleConfig: (config: WaggleConfig | null) => void
 }
 
 interface SendMessageHandlers {
@@ -32,9 +39,8 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
     thinkingLevel,
     createSession,
     sendMessage,
+    sendMessageToSession,
     sendWaggleMessage,
-    setPendingMessage,
-    setPendingWaggleConfig,
   } = deps
 
   async function handleSend(payload: AgentSendPayload): Promise<void> {
@@ -42,13 +48,8 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       if (!projectPath) {
         throw new Error('Select a project before sending.')
       }
-      setPendingMessage(payload)
-      try {
-        await createSession(projectPath)
-      } catch (error) {
-        setPendingMessage(null)
-        throw error
-      }
+      const sessionId = await createSession(projectPath)
+      void sendMessageToSession(sessionId, payload, null)
       return
     }
     await sendMessage(payload)
@@ -63,15 +64,8 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
       if (!projectPath) {
         throw new Error('Select a project before sending.')
       }
-      setPendingMessage(payload)
-      setPendingWaggleConfig(config)
-      try {
-        await createSession(projectPath)
-      } catch (error) {
-        setPendingMessage(null)
-        setPendingWaggleConfig(null)
-        throw error
-      }
+      const sessionId = await createSession(projectPath)
+      void sendMessageToSession(sessionId, payload, config)
       return
     }
     await sendWaggleMessage(payload, config)
@@ -82,6 +76,7 @@ export function createSendHandlers(deps: SendMessageDeps): SendMessageHandlers {
 
 interface UseSendMessageOptions {
   readonly activeSessionId: SessionId | null
+  readonly model: SupportedModelId
   readonly projectPath: string | null
   readonly thinkingLevel: ThinkingLevel
   readonly createSession: (projectPath: string) => Promise<SessionId>
@@ -89,40 +84,39 @@ interface UseSendMessageOptions {
   readonly sendWaggleMessage: (payload: AgentSendPayload, config: WaggleConfig) => Promise<void>
 }
 
-/** Hook wrapper — manages the pending-message ref and dispatch effect. */
+/** Hook wrapper — binds first-message sends to the concrete created session id. */
 export function useSendMessage(options: UseSendMessageOptions): SendMessageHandlers {
-  const { activeSessionId, sendMessage, sendWaggleMessage, ...rest } = options
-  const pendingMessage = useRef<AgentSendPayload | null>(null)
-  const pendingWaggleConfig = useRef<WaggleConfig | null>(null)
+  const { activeSessionId, model, sendMessage, sendWaggleMessage, ...rest } = options
 
-  const handlers = createSendHandlers({
+  async function sendMessageToSession(
+    sessionId: SessionId,
+    payload: AgentSendPayload,
+    config: WaggleConfig | null,
+  ): Promise<void> {
+    const optimisticUserMessage = createOptimisticUserMessage(payload)
+    useOptimisticUserMessageStore.getState().add(sessionId, optimisticUserMessage)
+    useBackgroundRunStore.getState().setRunRenderMessages(sessionId, [optimisticUserMessage])
+
+    try {
+      if (config) {
+        await api.sendWaggleMessage(sessionId, payload, config)
+      } else {
+        await api.sendMessage(sessionId, payload, model)
+      }
+    } catch (error) {
+      useBackgroundRunStore.getState().clearRunRenderSnapshot(sessionId)
+      logger.error('First message send failed', {
+        sessionId: String(sessionId),
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  return createSendHandlers({
     ...rest,
     activeSessionId,
     sendMessage,
+    sendMessageToSession,
     sendWaggleMessage,
-    setPendingMessage: (payload) => {
-      pendingMessage.current = payload
-    },
-    setPendingWaggleConfig: (config) => {
-      pendingWaggleConfig.current = config
-    },
   })
-
-  // Dispatch pending message when a session becomes active
-  useEffect(() => {
-    if (activeSessionId && pendingMessage.current) {
-      const payload = pendingMessage.current
-      const config = pendingWaggleConfig.current
-      pendingMessage.current = null
-      pendingWaggleConfig.current = null
-      const sendPromise = config ? sendWaggleMessage(payload, config) : sendMessage(payload)
-      void sendPromise.catch((error: unknown) => {
-        logger.error('Pending first message send failed', {
-          error: error instanceof Error ? error.message : String(error),
-        })
-      })
-    }
-  }, [activeSessionId, sendMessage, sendWaggleMessage])
-
-  return handlers
 }

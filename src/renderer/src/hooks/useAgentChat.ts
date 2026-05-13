@@ -1,6 +1,8 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
+import type { IpcEventPayload } from '@shared/types/ipc'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { SessionDetail } from '@shared/types/session'
 import type { ThinkingLevel } from '@shared/types/settings'
@@ -17,8 +19,10 @@ import {
 } from '@/stores/optimistic-user-message-store'
 import {
   appendMissingOptimisticUserMessages,
+  buildClientUserMessage,
   buildPartialAssistantMessage,
-  formatAttachmentPreview,
+  createOptimisticUserMessage,
+  mergeBackgroundReconnectMessages,
   reconcileSnapshotUserMessages,
   sessionToUIMessages,
 } from './useAgentChat.utils'
@@ -68,6 +72,77 @@ interface AgentRunActions {
   readonly settlePendingRun: (nextError?: Error) => void
 }
 
+interface UpdateMessagesOptions {
+  readonly cacheRunSnapshot?: boolean
+}
+
+interface MutableValueRef<T> {
+  current: T
+}
+
+type SetMessagesBySessionId = (messagesBySessionId: Map<SessionId, UIMessage[]>) => void
+type SetRunRenderMessages = (sessionId: SessionId, messages: UIMessage[]) => void
+type SetAgentChatStatus = (status: AgentChatStatus) => void
+type SetAgentChatError = (error: Error | undefined) => void
+type SetBackgroundStreaming = (backgroundStreaming: boolean) => void
+type SetCompactionStatus = (status: AgentCompactionStatus | null) => void
+
+interface AgentStreamEventContext {
+  readonly subscribedSessionId: SessionId
+  readonly currentSessionIdRef: MutableValueRef<SessionId | null>
+  readonly foregroundStreamActiveRef: MutableValueRef<boolean>
+  readonly backgroundStreamingRef: MutableValueRef<boolean>
+  readonly backgroundReconnectSessionIdRef: MutableValueRef<SessionId | null>
+  readonly streamSignalVersionRef: MutableValueRef<number>
+  readonly terminalRunErrorRef: MutableValueRef<Error | undefined>
+  readonly messagesBySessionIdRef: MutableValueRef<Map<SessionId, UIMessage[]>>
+  readonly setMessagesBySessionId: SetMessagesBySessionId
+  readonly setRunRenderMessages: SetRunRenderMessages
+  readonly setError: SetAgentChatError
+  readonly setStatus: SetAgentChatStatus
+  readonly setCompactionStatus: SetCompactionStatus
+  readonly setBackgroundStreaming: SetBackgroundStreaming
+}
+
+interface SessionHydrationContext {
+  readonly currentSessionIdRef: MutableValueRef<SessionId | null>
+  readonly foregroundStreamActiveRef: MutableValueRef<boolean>
+  readonly foregroundSessionIdRef: MutableValueRef<SessionId | null>
+  readonly pendingRunWaiterRef: MutableValueRef<PendingRunWaiter | null>
+  readonly terminalRunErrorRef: MutableValueRef<Error | undefined>
+  readonly streamSignalVersionRef: MutableValueRef<number>
+  readonly lastHydratedSessionIdRef: MutableValueRef<SessionId | null>
+  readonly lastHydratedSnapshotKeyRef: MutableValueRef<string | null>
+  readonly lastHydratedOptimisticKeyRef: MutableValueRef<string | null>
+  readonly backgroundStreamingRef: MutableValueRef<boolean>
+  readonly backgroundReconnectSessionIdRef: MutableValueRef<SessionId | null>
+  readonly messagesBySessionIdRef: MutableValueRef<Map<SessionId, UIMessage[]>>
+  readonly setMessagesBySessionId: SetMessagesBySessionId
+  readonly setRunRenderMessages: SetRunRenderMessages
+  readonly setBackgroundStreaming: SetBackgroundStreaming
+  readonly setCompactionStatus: SetCompactionStatus
+  readonly setStatus: SetAgentChatStatus
+  readonly setError: SetAgentChatError
+}
+
+interface SessionHydrationInput {
+  readonly sessionId: SessionId
+  readonly session: SessionDetail
+  readonly optimisticUserMessages: readonly UIMessage[]
+  readonly hasActiveRun: boolean
+  readonly cachedRenderMessages: readonly UIMessage[] | null
+}
+
+interface SessionHydrationKeys {
+  readonly snapshotKey: string
+  readonly optimisticKey: string
+  readonly sessionChanged: boolean
+  readonly snapshotChanged: boolean
+  readonly optimisticChanged: boolean
+}
+
+const EMPTY_UI_MESSAGES: UIMessage[] = []
+
 function createPendingRunWaiter(): {
   readonly promise: Promise<void>
   readonly waiter: PendingRunWaiter
@@ -103,6 +178,418 @@ function mergeSessionAndOptimisticMessages(
   return appendMissingOptimisticUserMessages(sessionToUIMessages(session), optimisticUserMessages)
 }
 
+function getMessagesForSession(
+  messagesBySessionIdRef: MutableValueRef<Map<SessionId, UIMessage[]>>,
+  targetSessionId: SessionId,
+): UIMessage[] {
+  return messagesBySessionIdRef.current.get(targetSessionId) ?? EMPTY_UI_MESSAGES
+}
+
+function setMessagesForSession(
+  messagesBySessionIdRef: MutableValueRef<Map<SessionId, UIMessage[]>>,
+  setMessagesBySessionId: SetMessagesBySessionId,
+  setRunRenderMessages: SetRunRenderMessages,
+  targetSessionId: SessionId,
+  nextMessages: UIMessage[],
+  options: UpdateMessagesOptions = {},
+): void {
+  const nextMessagesBySessionId = new Map(messagesBySessionIdRef.current)
+  nextMessagesBySessionId.set(targetSessionId, nextMessages)
+  messagesBySessionIdRef.current = nextMessagesBySessionId
+  setMessagesBySessionId(nextMessagesBySessionId)
+
+  if (options.cacheRunSnapshot) {
+    setRunRenderMessages(targetSessionId, nextMessages)
+  }
+}
+
+function updateMessagesForSession(
+  messagesBySessionIdRef: MutableValueRef<Map<SessionId, UIMessage[]>>,
+  setMessagesBySessionId: SetMessagesBySessionId,
+  setRunRenderMessages: SetRunRenderMessages,
+  targetSessionId: SessionId,
+  update: (currentMessages: UIMessage[]) => UIMessage[],
+  options: UpdateMessagesOptions = {},
+): void {
+  setMessagesForSession(
+    messagesBySessionIdRef,
+    setMessagesBySessionId,
+    setRunRenderMessages,
+    targetSessionId,
+    update(getMessagesForSession(messagesBySessionIdRef, targetSessionId)),
+    options,
+  )
+}
+
+function signalStreamChange(context: AgentStreamEventContext): void {
+  context.streamSignalVersionRef.current += 1
+}
+
+function setReadyIfNoActiveRun(context: AgentStreamEventContext): void {
+  if (!context.foregroundStreamActiveRef.current && !context.backgroundStreamingRef.current) {
+    context.setStatus('ready')
+  }
+}
+
+function handleAgentStartEvent(context: AgentStreamEventContext): void {
+  signalStreamChange(context)
+  clearLastAgentErrorInfo(context.subscribedSessionId)
+  context.setError(undefined)
+  context.setStatus('streaming')
+  if (!context.foregroundStreamActiveRef.current) {
+    context.backgroundStreamingRef.current = true
+    context.backgroundReconnectSessionIdRef.current = context.subscribedSessionId
+    context.setBackgroundStreaming(true)
+  }
+}
+
+function handleCompactionEndEvent(
+  event: Extract<IpcEventPayload<'agent:event'>['event'], { readonly type: 'compaction_end' }>,
+  context: AgentStreamEventContext,
+): void {
+  signalStreamChange(context)
+  context.setCompactionStatus(null)
+  const hasCompactionError = event.errorMessage !== undefined && !event.aborted
+  if (hasCompactionError) {
+    const nextError = new Error(event.errorMessage)
+    context.setError(nextError)
+    context.setStatus('error')
+    return
+  }
+  setReadyIfNoActiveRun(context)
+}
+
+function handleAutoRetryEndEvent(
+  event: Extract<IpcEventPayload<'agent:event'>['event'], { readonly type: 'auto_retry_end' }>,
+  context: AgentStreamEventContext,
+): void {
+  signalStreamChange(context)
+  context.setCompactionStatus(null)
+  const hasRetryError = !event.success && event.finalError !== undefined
+  if (hasRetryError) {
+    const nextError = new Error(event.finalError)
+    context.setError(nextError)
+    context.setStatus('error')
+    return
+  }
+  setReadyIfNoActiveRun(context)
+}
+
+function handleAgentEndEvent(
+  event: Extract<IpcEventPayload<'agent:event'>['event'], { readonly type: 'agent_end' }>,
+  context: AgentStreamEventContext,
+): void {
+  if (event.reason !== 'error' || !event.error) {
+    return
+  }
+
+  signalStreamChange(context)
+  const nextError = new Error(event.error.message)
+  context.terminalRunErrorRef.current = nextError
+  setLastAgentErrorInfo(context.subscribedSessionId, event.error)
+  context.setError(nextError)
+  context.setStatus('error')
+}
+
+function handleAgentStateEvent(
+  event: IpcEventPayload<'agent:event'>['event'],
+  context: AgentStreamEventContext,
+): void {
+  matchBy(event, 'type')
+    .with('agent_start', () => handleAgentStartEvent(context))
+    .with('compaction_start', (value) => {
+      signalStreamChange(context)
+      context.setError(undefined)
+      context.setStatus('compacting')
+      context.setCompactionStatus({ type: 'compacting', reason: value.reason })
+    })
+    .with('compaction_end', (value) => handleCompactionEndEvent(value, context))
+    .with('auto_retry_start', (value) => {
+      signalStreamChange(context)
+      context.setStatus('retrying')
+      context.setCompactionStatus({
+        type: 'retrying',
+        attempt: value.attempt,
+        maxAttempts: value.maxAttempts,
+        delayMs: value.delayMs,
+        errorMessage: value.errorMessage,
+      })
+    })
+    .with('auto_retry_end', (value) => handleAutoRetryEndEvent(value, context))
+    .with('agent_end', (value) => handleAgentEndEvent(value, context))
+    .with(
+      'turn_start',
+      'turn_end',
+      'message_start',
+      'message_update',
+      'message_end',
+      'tool_execution_start',
+      'tool_execution_update',
+      'tool_execution_end',
+      'queue_update',
+      'custom',
+      () => undefined,
+    )
+    .exhaustive()
+}
+
+function shouldHandleStreamPayload(
+  payload: IpcEventPayload<'agent:event'>,
+  context: AgentStreamEventContext,
+): boolean {
+  return (
+    payload.sessionId === context.subscribedSessionId &&
+    context.currentSessionIdRef.current === context.subscribedSessionId
+  )
+}
+
+function handleAgentStreamPayload(
+  payload: IpcEventPayload<'agent:event'>,
+  context: AgentStreamEventContext,
+): void {
+  if (!shouldHandleStreamPayload(payload, context)) {
+    return
+  }
+
+  handleAgentStateEvent(payload.event, context)
+
+  if (context.foregroundStreamActiveRef.current || context.backgroundStreamingRef.current) {
+    signalStreamChange(context)
+    updateMessagesForSession(
+      context.messagesBySessionIdRef,
+      context.setMessagesBySessionId,
+      context.setRunRenderMessages,
+      context.subscribedSessionId,
+      (currentMessages) => applyAgentTransportEvent(currentMessages, payload.event),
+      { cacheRunSnapshot: true },
+    )
+  }
+}
+
+function resolvePendingForegroundRun(context: SessionHydrationContext): void {
+  const pending = context.pendingRunWaiterRef.current
+  context.pendingRunWaiterRef.current = null
+  pending?.resolve()
+}
+
+function clearForegroundRunState(context: SessionHydrationContext): void {
+  context.foregroundStreamActiveRef.current = false
+  context.foregroundSessionIdRef.current = null
+  context.terminalRunErrorRef.current = undefined
+}
+
+function resetMissingSessionHydration(context: SessionHydrationContext): void {
+  if (context.foregroundStreamActiveRef.current) {
+    resolvePendingForegroundRun(context)
+  }
+  clearForegroundRunState(context)
+  context.streamSignalVersionRef.current = 0
+  context.lastHydratedSessionIdRef.current = null
+  context.lastHydratedSnapshotKeyRef.current = null
+  context.lastHydratedOptimisticKeyRef.current = null
+  context.setStatus('ready')
+  context.setCompactionStatus(null)
+  context.setError(undefined)
+}
+
+function getSessionHydrationKeys(
+  input: SessionHydrationInput,
+  context: SessionHydrationContext,
+): SessionHydrationKeys {
+  const snapshotKey = buildSessionSnapshotKey(input.session)
+  const optimisticKey = buildOptimisticMessagesKey(input.optimisticUserMessages)
+  return {
+    snapshotKey,
+    optimisticKey,
+    sessionChanged: context.lastHydratedSessionIdRef.current !== input.sessionId,
+    snapshotChanged: context.lastHydratedSnapshotKeyRef.current !== snapshotKey,
+    optimisticChanged: context.lastHydratedOptimisticKeyRef.current !== optimisticKey,
+  }
+}
+
+function updateHydrationKeys(
+  sessionId: SessionId,
+  keys: SessionHydrationKeys,
+  context: SessionHydrationContext,
+): void {
+  context.lastHydratedSessionIdRef.current = sessionId
+  context.lastHydratedSnapshotKeyRef.current = keys.snapshotKey
+  context.lastHydratedOptimisticKeyRef.current = keys.optimisticKey
+}
+
+function resetSessionChangedState(
+  keys: SessionHydrationKeys,
+  context: SessionHydrationContext,
+): void {
+  if (!keys.sessionChanged) {
+    return
+  }
+  context.setBackgroundStreaming(false)
+  context.backgroundStreamingRef.current = false
+  context.backgroundReconnectSessionIdRef.current = null
+  context.setCompactionStatus(null)
+}
+
+function shouldKeepForegroundHydration(
+  input: SessionHydrationInput,
+  keys: SessionHydrationKeys,
+  context: SessionHydrationContext,
+): boolean {
+  if (!context.foregroundStreamActiveRef.current) {
+    return false
+  }
+  if (context.foregroundSessionIdRef.current !== input.sessionId) {
+    resolvePendingForegroundRun(context)
+    clearForegroundRunState(context)
+    return false
+  }
+  context.lastHydratedOptimisticKeyRef.current = keys.optimisticKey
+  return true
+}
+
+function shouldSkipActiveRunHydration(
+  input: SessionHydrationInput,
+  keys: SessionHydrationKeys,
+  context: SessionHydrationContext,
+): boolean {
+  return (
+    context.backgroundReconnectSessionIdRef.current === input.sessionId &&
+    !keys.sessionChanged &&
+    !keys.snapshotChanged &&
+    !keys.optimisticChanged
+  )
+}
+
+function handleActiveRunReconnectResult(
+  capturedSessionId: SessionId,
+  nextMessages: UIMessage[] | null,
+  context: SessionHydrationContext,
+): void {
+  if (
+    !nextMessages ||
+    context.currentSessionIdRef.current !== capturedSessionId ||
+    context.backgroundReconnectSessionIdRef.current !== capturedSessionId
+  ) {
+    return
+  }
+  updateMessagesForSession(
+    context.messagesBySessionIdRef,
+    context.setMessagesBySessionId,
+    context.setRunRenderMessages,
+    capturedSessionId,
+    (currentMessages) => mergeBackgroundReconnectMessages(nextMessages, currentMessages),
+    { cacheRunSnapshot: true },
+  )
+}
+
+function handleActiveRunReconnectError(
+  capturedSessionId: SessionId,
+  reconnectError: unknown,
+  context: SessionHydrationContext,
+): void {
+  if (context.currentSessionIdRef.current !== capturedSessionId) {
+    return
+  }
+  context.setError(
+    reconnectError instanceof Error ? reconnectError : new Error(String(reconnectError)),
+  )
+  context.setStatus('error')
+  context.setBackgroundStreaming(false)
+  context.backgroundStreamingRef.current = false
+}
+
+function hydrateActiveRunSession(
+  input: SessionHydrationInput,
+  keys: SessionHydrationKeys,
+  context: SessionHydrationContext,
+): void {
+  if (shouldSkipActiveRunHydration(input, keys, context)) {
+    return
+  }
+
+  const persistedMessages = mergeSessionAndOptimisticMessages(
+    input.session,
+    input.optimisticUserMessages,
+  )
+  const nextMessages = input.cachedRenderMessages
+    ? mergeBackgroundReconnectMessages([...persistedMessages], [...input.cachedRenderMessages])
+    : reconcileSnapshotUserMessages(
+        persistedMessages,
+        getMessagesForSession(context.messagesBySessionIdRef, input.sessionId),
+      )
+  setMessagesForSession(
+    context.messagesBySessionIdRef,
+    context.setMessagesBySessionId,
+    context.setRunRenderMessages,
+    input.sessionId,
+    nextMessages,
+    { cacheRunSnapshot: true },
+  )
+  updateHydrationKeys(input.sessionId, keys, context)
+  context.backgroundStreamingRef.current = true
+  context.backgroundReconnectSessionIdRef.current = input.sessionId
+  context.setBackgroundStreaming(true)
+  context.setStatus('streaming')
+  void reconnectToBackgroundRun(input.sessionId, input.session, input.optimisticUserMessages)
+    .then((nextReconnectMessages) =>
+      handleActiveRunReconnectResult(input.sessionId, nextReconnectMessages, context),
+    )
+    .catch((reconnectError: unknown) =>
+      handleActiveRunReconnectError(input.sessionId, reconnectError, context),
+    )
+}
+
+function hydrateIdleSession(
+  input: SessionHydrationInput,
+  keys: SessionHydrationKeys,
+  context: SessionHydrationContext,
+): void {
+  context.setBackgroundStreaming(false)
+  context.backgroundStreamingRef.current = false
+  context.backgroundReconnectSessionIdRef.current = null
+
+  if (!keys.sessionChanged && !keys.snapshotChanged && !keys.optimisticChanged) {
+    return
+  }
+
+  const snapshotMessages = appendMissingOptimisticUserMessages(
+    sessionToUIMessages(input.session),
+    input.optimisticUserMessages,
+  )
+  setMessagesForSession(
+    context.messagesBySessionIdRef,
+    context.setMessagesBySessionId,
+    context.setRunRenderMessages,
+    input.sessionId,
+    reconcileSnapshotUserMessages(
+      snapshotMessages,
+      getMessagesForSession(context.messagesBySessionIdRef, input.sessionId),
+    ),
+  )
+  updateHydrationKeys(input.sessionId, keys, context)
+
+  if (keys.sessionChanged) {
+    context.setStatus('ready')
+    context.setError(undefined)
+  }
+}
+
+function hydrateSessionMessages(
+  input: SessionHydrationInput,
+  context: SessionHydrationContext,
+): void {
+  const keys = getSessionHydrationKeys(input, context)
+  if (shouldKeepForegroundHydration(input, keys, context)) {
+    return
+  }
+  resetSessionChangedState(keys, context)
+  if (input.hasActiveRun) {
+    hydrateActiveRunSession(input, keys, context)
+    return
+  }
+  hydrateIdleSession(input, keys, context)
+}
+
 export function useAgentChat(
   sessionId: SessionId | null,
   session: SessionDetail | null,
@@ -111,6 +598,8 @@ export function useAgentChat(
 ): AgentChatReturn {
   const upsertSession = useChatStore((state) => state.upsertSession)
   const hasActiveRun = useBackgroundRunStore((state) => state.hasActiveRun)
+  const getRunRenderSnapshot = useBackgroundRunStore((state) => state.getRunRenderSnapshot)
+  const setRunRenderMessages = useBackgroundRunStore((state) => state.setRunRenderMessages)
   const optimisticUserMessages = useOptimisticUserMessageStore(
     selectOptimisticUserMessages(sessionId),
   )
@@ -118,11 +607,16 @@ export function useAgentChat(
   const removeMatchedOptimisticUserMessages = useOptimisticUserMessageStore(
     (state) => state.removeMatched,
   )
-  const [messages, setMessages] = useState<UIMessage[]>([])
+  const [messagesBySessionId, setMessagesBySessionId] = useState(
+    () => new Map<SessionId, UIMessage[]>(),
+  )
   const [status, setStatus] = useState<AgentChatStatus>('ready')
   const [error, setError] = useState<Error | undefined>(undefined)
   const [backgroundStreaming, setBackgroundStreaming] = useState(false)
   const [compactionStatus, setCompactionStatus] = useState<AgentCompactionStatus | null>(null)
+  const messagesBySessionIdRef = useRef(messagesBySessionId)
+  messagesBySessionIdRef.current = messagesBySessionId
+  const messages = sessionId ? (messagesBySessionId.get(sessionId) ?? EMPTY_UI_MESSAGES) : []
 
   const isLoading =
     status === 'submitted' ||
@@ -239,21 +733,27 @@ export function useAgentChat(
       return
     }
 
-    const runPromise = startForegroundRun(sessionId)
+    const targetSessionId = sessionId
+    const runPromise = startForegroundRun(targetSessionId)
     const sendPromise = waggleConfig
-      ? api.sendWaggleMessage(sessionId, payload, waggleConfig)
-      : api.sendMessage(sessionId, payload, model)
+      ? api.sendWaggleMessage(targetSessionId, payload, waggleConfig)
+      : api.sendMessage(targetSessionId, payload, model)
 
     try {
       await sendPromise
       await runPromise
     } catch (runError) {
       const normalizedError = runError instanceof Error ? runError : new Error(String(runError))
-      setError(normalizedError)
-      setStatus('error')
-      foregroundStreamActiveRef.current = false
-      foregroundSessionIdRef.current = null
-      terminalRunErrorRef.current = normalizedError
+      if (foregroundSessionIdRef.current === targetSessionId) {
+        pendingRunWaiterRef.current = null
+        foregroundStreamActiveRef.current = false
+        foregroundSessionIdRef.current = null
+      }
+      if (currentSessionIdRef.current === targetSessionId) {
+        setError(normalizedError)
+        setStatus('error')
+        terminalRunErrorRef.current = normalizedError
+      }
       throw normalizedError
     }
   }
@@ -263,10 +763,20 @@ export function useAgentChat(
     waggleConfig: WaggleConfig | null,
   ): Promise<void> {
     const optimisticUserMessage = createOptimisticUserMessage(payload)
-    if (sessionId) {
-      addOptimisticUserMessage(sessionId, optimisticUserMessage)
+    if (!sessionId) {
+      return
     }
-    setMessages((currentMessages) => [...currentMessages, optimisticUserMessage])
+
+    const targetSessionId = sessionId
+    addOptimisticUserMessage(targetSessionId, optimisticUserMessage)
+    updateMessagesForSession(
+      messagesBySessionIdRef,
+      setMessagesBySessionId,
+      setRunRenderMessages,
+      targetSessionId,
+      (currentMessages) => [...currentMessages, optimisticUserMessage],
+      { cacheRunSnapshot: true },
+    )
     await dispatchAgentSend(payload, waggleConfig)
   }
 
@@ -276,118 +786,52 @@ export function useAgentChat(
   }
 
   useEffect(() => {
+    const hydrationContext: SessionHydrationContext = {
+      currentSessionIdRef,
+      foregroundStreamActiveRef,
+      foregroundSessionIdRef,
+      pendingRunWaiterRef,
+      terminalRunErrorRef,
+      streamSignalVersionRef,
+      lastHydratedSessionIdRef,
+      lastHydratedSnapshotKeyRef,
+      lastHydratedOptimisticKeyRef,
+      backgroundStreamingRef,
+      backgroundReconnectSessionIdRef,
+      messagesBySessionIdRef,
+      setMessagesBySessionId,
+      setRunRenderMessages,
+      setBackgroundStreaming,
+      setCompactionStatus,
+      setStatus,
+      setError,
+    }
+
     if (!sessionId || !session) {
-      foregroundStreamActiveRef.current = false
-      foregroundSessionIdRef.current = null
-      terminalRunErrorRef.current = undefined
-      streamSignalVersionRef.current = 0
-      lastHydratedSessionIdRef.current = null
-      lastHydratedSnapshotKeyRef.current = null
-      lastHydratedOptimisticKeyRef.current = null
-      pendingRunWaiterRef.current = null
-      setMessages([])
-      setStatus('ready')
-      setCompactionStatus(null)
-      setError(undefined)
+      resetMissingSessionHydration(hydrationContext)
       return
     }
 
-    const snapshotKey = buildSessionSnapshotKey(session)
-    const optimisticKey = buildOptimisticMessagesKey(optimisticUserMessages)
-
-    if (foregroundStreamActiveRef.current) {
-      if (foregroundSessionIdRef.current === sessionId) {
-        lastHydratedOptimisticKeyRef.current = optimisticKey
-        return
-      }
-      const pending = pendingRunWaiterRef.current
-      pendingRunWaiterRef.current = null
-      pending?.reject(new Error('SessionDetail changed before the run completed.'))
-      foregroundStreamActiveRef.current = false
-      foregroundSessionIdRef.current = null
-      terminalRunErrorRef.current = undefined
-    }
-
-    const sessionChanged = lastHydratedSessionIdRef.current !== sessionId
-    if (sessionChanged) {
-      setBackgroundStreaming(false)
-      backgroundStreamingRef.current = false
-      backgroundReconnectSessionIdRef.current = null
-      setCompactionStatus(null)
-    }
-    const snapshotChanged = lastHydratedSnapshotKeyRef.current !== snapshotKey
-    const optimisticChanged = lastHydratedOptimisticKeyRef.current !== optimisticKey
-
-    if (hasActiveRun(sessionId)) {
-      if (
-        backgroundReconnectSessionIdRef.current === sessionId &&
-        !sessionChanged &&
-        !snapshotChanged &&
-        !optimisticChanged
-      ) {
-        return
-      }
-
-      const capturedSessionId = sessionId
-      const startingStreamVersion = streamSignalVersionRef.current
-      const snapshotMessages = mergeSessionAndOptimisticMessages(session, optimisticUserMessages)
-      setMessages(reconcileSnapshotUserMessages(snapshotMessages, messagesRef.current))
-      lastHydratedSessionIdRef.current = capturedSessionId
-      lastHydratedSnapshotKeyRef.current = snapshotKey
-      lastHydratedOptimisticKeyRef.current = optimisticKey
-      backgroundStreamingRef.current = true
-      backgroundReconnectSessionIdRef.current = capturedSessionId
-      setBackgroundStreaming(true)
-      setStatus('streaming')
-      void reconnectToBackgroundRun(capturedSessionId, session, optimisticUserMessages)
-        .then((nextMessages) => {
-          if (
-            !nextMessages ||
-            currentSessionIdRef.current !== capturedSessionId ||
-            backgroundReconnectSessionIdRef.current !== capturedSessionId ||
-            streamSignalVersionRef.current !== startingStreamVersion
-          ) {
-            return
-          }
-          setMessages(nextMessages)
-        })
-        .catch((reconnectError: unknown) => {
-          if (currentSessionIdRef.current !== capturedSessionId) {
-            return
-          }
-          setError(
-            reconnectError instanceof Error ? reconnectError : new Error(String(reconnectError)),
-          )
-          setStatus('error')
-          setBackgroundStreaming(false)
-          backgroundStreamingRef.current = false
-        })
-      return
-    }
-
-    setBackgroundStreaming(false)
-    backgroundStreamingRef.current = false
-    backgroundReconnectSessionIdRef.current = null
-
-    if (!sessionChanged && !snapshotChanged && !optimisticChanged) {
-      return
-    }
-
-    const persistedSnapshotMessages = sessionToUIMessages(session)
-    const snapshotMessages = appendMissingOptimisticUserMessages(
-      persistedSnapshotMessages,
-      optimisticUserMessages,
+    const activeRun = hasActiveRun(sessionId)
+    const cachedRenderSnapshot = activeRun ? getRunRenderSnapshot(sessionId) : null
+    hydrateSessionMessages(
+      {
+        sessionId,
+        session,
+        optimisticUserMessages,
+        hasActiveRun: activeRun,
+        cachedRenderMessages: cachedRenderSnapshot?.messages ?? null,
+      },
+      hydrationContext,
     )
-    setMessages(reconcileSnapshotUserMessages(snapshotMessages, messagesRef.current))
-    lastHydratedSessionIdRef.current = sessionId
-    lastHydratedSnapshotKeyRef.current = snapshotKey
-    lastHydratedOptimisticKeyRef.current = optimisticKey
-
-    if (sessionChanged) {
-      setStatus('ready')
-      setError(undefined)
-    }
-  }, [sessionId, session, hasActiveRun, optimisticUserMessages])
+  }, [
+    sessionId,
+    session,
+    hasActiveRun,
+    getRunRenderSnapshot,
+    setRunRenderMessages,
+    optimisticUserMessages,
+  ])
 
   useEffect(() => {
     if (!sessionId || !session || !isSessionIdle) {
@@ -402,99 +846,32 @@ export function useAgentChat(
       return
     }
 
+    const subscribedSessionId = sessionId
+    const streamEventContext: AgentStreamEventContext = {
+      subscribedSessionId,
+      currentSessionIdRef,
+      foregroundStreamActiveRef,
+      backgroundStreamingRef,
+      backgroundReconnectSessionIdRef,
+      streamSignalVersionRef,
+      terminalRunErrorRef,
+      messagesBySessionIdRef,
+      setMessagesBySessionId,
+      setRunRenderMessages,
+      setError,
+      setStatus,
+      setCompactionStatus,
+      setBackgroundStreaming,
+    }
     const unsubscribeStream = api.onAgentEvent((payload) => {
-      if (payload.sessionId !== sessionId) {
-        return
-      }
-
-      if (payload.event.type === 'agent_start') {
-        streamSignalVersionRef.current += 1
-        clearLastAgentErrorInfo(sessionId)
-        setError(undefined)
-        setStatus('streaming')
-        if (!foregroundStreamActiveRef.current) {
-          backgroundStreamingRef.current = true
-          backgroundReconnectSessionIdRef.current = sessionId
-          setBackgroundStreaming(true)
-        }
-      }
-
-      if (payload.event.type === 'compaction_start') {
-        streamSignalVersionRef.current += 1
-        setError(undefined)
-        setStatus('compacting')
-        setCompactionStatus({ type: 'compacting', reason: payload.event.reason })
-      }
-
-      if (payload.event.type === 'compaction_end') {
-        streamSignalVersionRef.current += 1
-        setCompactionStatus(null)
-        const hasCompactionError = payload.event.errorMessage && !payload.event.aborted
-        if (hasCompactionError) {
-          const nextError = new Error(payload.event.errorMessage)
-          setError(nextError)
-          setStatus('error')
-        }
-        if (
-          !hasCompactionError &&
-          !foregroundStreamActiveRef.current &&
-          !backgroundStreamingRef.current
-        ) {
-          setStatus('ready')
-        }
-      }
-
-      if (payload.event.type === 'auto_retry_start') {
-        streamSignalVersionRef.current += 1
-        setStatus('retrying')
-        setCompactionStatus({
-          type: 'retrying',
-          attempt: payload.event.attempt,
-          maxAttempts: payload.event.maxAttempts,
-          delayMs: payload.event.delayMs,
-          errorMessage: payload.event.errorMessage,
-        })
-      }
-
-      if (payload.event.type === 'auto_retry_end') {
-        streamSignalVersionRef.current += 1
-        setCompactionStatus(null)
-        const hasRetryError = !payload.event.success && payload.event.finalError
-        if (hasRetryError) {
-          const nextError = new Error(payload.event.finalError)
-          setError(nextError)
-          setStatus('error')
-        }
-        if (
-          !hasRetryError &&
-          !foregroundStreamActiveRef.current &&
-          !backgroundStreamingRef.current
-        ) {
-          setStatus('ready')
-        }
-      }
-
-      if (
-        payload.event.type === 'agent_end' &&
-        payload.event.reason === 'error' &&
-        payload.event.error
-      ) {
-        streamSignalVersionRef.current += 1
-        const nextError = new Error(payload.event.error.message)
-        terminalRunErrorRef.current = nextError
-        setLastAgentErrorInfo(sessionId, payload.event.error)
-        setError(nextError)
-        setStatus('error')
-      }
-
-      if (foregroundStreamActiveRef.current || backgroundStreamingRef.current) {
-        streamSignalVersionRef.current += 1
-        setMessages((currentMessages) => applyAgentTransportEvent(currentMessages, payload.event))
-      }
+      handleAgentStreamPayload(payload, streamEventContext)
     })
 
     const unsubscribeCompleted = api.onRunCompleted((payload) => {
-      if (payload.sessionId !== sessionId) {
+      if (
+        payload.sessionId !== subscribedSessionId ||
+        currentSessionIdRef.current !== subscribedSessionId
+      ) {
         return
       }
 
@@ -510,7 +887,7 @@ export function useAgentChat(
       }
       agentRunActionsRef.current?.settlePendingRun(terminalError)
       terminalRunErrorRef.current = undefined
-      deferredRefreshSessionIdRef.current = sessionId
+      deferredRefreshSessionIdRef.current = subscribedSessionId
       if (
         deferredSnapshotRefreshCountRef.current > 0 ||
         statusRef.current === 'submitted' ||
@@ -526,7 +903,7 @@ export function useAgentChat(
       unsubscribeStream()
       unsubscribeCompleted()
     }
-  }, [sessionId])
+  }, [sessionId, setRunRenderMessages])
 
   useEffect(() => {
     if (!sessionId) {
@@ -601,10 +978,8 @@ async function reconnectToBackgroundRun(
   session: SessionDetail,
   optimisticUserMessages: readonly UIMessage[],
 ): Promise<UIMessage[] | null> {
-  const [snapshot, latestSession] = await Promise.all([
-    api.getBackgroundRun(sessionId),
-    api.getSessionDetail(sessionId),
-  ])
+  const latestSession = await api.getSessionDetail(sessionId)
+  const snapshot = await api.getBackgroundRun(sessionId)
   const historicalMessages = mergeSessionAndOptimisticMessages(
     latestSession ?? session,
     optimisticUserMessages,
@@ -613,32 +988,6 @@ async function reconnectToBackgroundRun(
     return historicalMessages
   }
 
-  const partialAssistant = buildPartialAssistantMessage(snapshot.parts)
+  const partialAssistant = buildPartialAssistantMessage(snapshot.parts, snapshot.messageId)
   return partialAssistant ? [...historicalMessages, partialAssistant] : historicalMessages
-}
-
-function buildClientUserMessage(payload: AgentSendPayload): string {
-  const chunks: string[] = []
-  const text = payload.text.trim()
-  if (text) {
-    chunks.push(text)
-  }
-  for (const attachment of payload.attachments) {
-    chunks.push(formatAttachmentPreview(attachment))
-  }
-  return chunks.join('\n\n')
-}
-
-function createOptimisticUserMessage(payload: AgentSendPayload): UIMessage {
-  return {
-    id: `optimistic-user-${Date.now()}`,
-    role: 'user',
-    parts: [
-      {
-        type: 'text',
-        content: buildClientUserMessage(payload),
-      },
-    ],
-    createdAt: new Date(),
-  }
 }

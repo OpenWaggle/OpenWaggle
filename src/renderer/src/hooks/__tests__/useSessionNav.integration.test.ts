@@ -12,7 +12,7 @@ function makeDeps(overrides: Partial<SessionNavDeps> = {}): SessionNavDeps {
     setActiveView: vi.fn(),
     setProjectPath: vi.fn<(path: string | null) => Promise<void>>().mockResolvedValue(undefined),
     selectFolder: vi.fn<() => Promise<string | null>>().mockResolvedValue(null),
-    startDraftSession: vi.fn(),
+    startDraftSession: vi.fn<(projectPath?: string | null) => void>(),
     setActiveSession: vi.fn<(id: SessionId | null) => Promise<void>>().mockResolvedValue(undefined),
     refreshGitStatus: vi.fn<(p: string | null) => Promise<void>>().mockResolvedValue(undefined),
     refreshGitBranches: vi.fn<(p: string | null) => Promise<void>>().mockResolvedValue(undefined),
@@ -81,7 +81,7 @@ describe('createSessionNavHandlers', () => {
       handleNewSession()
 
       expect(deps.setActiveView).toHaveBeenCalledWith('chat')
-      expect(deps.startDraftSession).toHaveBeenCalled()
+      expect(deps.startDraftSession).toHaveBeenCalledWith('/test/project')
     })
   })
 
@@ -96,7 +96,7 @@ describe('createSessionNavHandlers', () => {
 
       expect(deps.setActiveView).toHaveBeenCalledWith('chat')
       expect(deps.setProjectPath).toHaveBeenCalledWith('/new/project')
-      expect(deps.startDraftSession).toHaveBeenCalled()
+      expect(deps.startDraftSession).toHaveBeenCalledWith('/new/project')
       expect(deps.refreshGitStatus).toHaveBeenCalledWith('/new/project')
       expect(deps.refreshGitBranches).toHaveBeenCalledWith('/new/project')
     })
@@ -123,7 +123,7 @@ describe('createSessionNavHandlers', () => {
       await handleSelectProjectPath('/selected/path')
 
       expect(deps.setProjectPath).toHaveBeenCalledWith('/selected/path')
-      expect(deps.startDraftSession).toHaveBeenCalled()
+      expect(deps.startDraftSession).toHaveBeenCalledWith('/selected/path')
       expect(deps.refreshGitStatus).toHaveBeenCalledWith('/selected/path')
       expect(deps.startDraftSession.mock.invocationCallOrder[0]).toBeLessThan(
         deps.setProjectPath.mock.invocationCallOrder[0] ?? Number.MAX_SAFE_INTEGER,

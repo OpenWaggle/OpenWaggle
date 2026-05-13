@@ -1,0 +1,7 @@
+export const TOOL_STATE_RANK = {
+  UNKNOWN: 0,
+  INPUT_STREAMING: 1,
+  INPUT_COMPLETE: 2,
+  EXECUTING: 3,
+  TERMINAL: 4,
+} as const

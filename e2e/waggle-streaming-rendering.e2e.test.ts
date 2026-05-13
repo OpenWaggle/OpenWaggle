@@ -26,7 +26,7 @@ test('waggle transcript keeps clean turn order and preserves the initiating user
     }
 
     const turnLabels = await app.window().evaluate(() =>
-      Array.from(document.querySelectorAll('[role="log"] span'))
+      Array.from(document.querySelectorAll('[role="log"] [data-waggle-turn-label="true"]'))
         .map((node) => node.textContent?.trim() ?? '')
         .filter((text) => /^Turn \d+:/.test(text)),
     )
