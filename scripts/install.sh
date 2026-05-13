@@ -80,7 +80,7 @@ elif [ "${PLATFORM}" = "linux" ]; then
   ASSET_PATTERN="openwaggle-.*-${ARCH_LABEL}\\.AppImage"
 fi
 
-ASSET_URL="$(printf '%s' "${RELEASE_JSON}" | grep '"browser_download_url"' | grep -oE "https://[^\"]+" | grep -E "${ASSET_PATTERN}" | head -1)"
+ASSET_URL="$(printf '%s' "${RELEASE_JSON}" | grep '"browser_download_url"' | sed -n "s/.*\"browser_download_url\": *\"\([^\"]*\\)\".*/\1/p" | grep -E "${ASSET_PATTERN}" | head -1)"
 [ -z "${ASSET_URL:-}" ] && error "No matching asset found for ${PLATFORM}/${ARCH_LABEL}"
 
 FILENAME="$(basename "${ASSET_URL}")"
@@ -92,7 +92,7 @@ info "Downloading ${FILENAME}…"
 curl -fSL --progress-bar -o "${DOWNLOAD_PATH}" "${ASSET_URL}"
 
 # --- Verify SHA256 if checksum file exists ---
-SHA_URL="$(printf '%s' "${RELEASE_JSON}" | grep '"browser_download_url"' | grep -oE "https://[^\"]+" | grep "SHA256SUMS" | head -1)"
+SHA_URL="$(printf '%s' "${RELEASE_JSON}" | grep '"browser_download_url"' | sed -n "s/.*\"browser_download_url\": *\"\([^\"]*\\)\".*/\1/p" | grep "SHA256SUMS" | head -1)"
 if [ -n "${SHA_URL:-}" ]; then
   info "Verifying checksum…"
   SHA_FILE="${TMPDIR}/SHA256SUMS.txt"

@@ -188,7 +188,6 @@ function registerRendererProtocolOnce(): void {
   })
 }
 
-
 async function bootstrapServicesAndWindow(): Promise<void> {
   await initializeAppRuntime()
   await initializeSettingsStore()
@@ -293,7 +292,6 @@ function createWindow(): void {
   } else {
     mainWindow.loadURL(`${RENDERER_PROTOCOL_ORIGIN}/${INDEX_HTML}`)
   }
-
 }
 
 function focusExistingWindow(): void {
