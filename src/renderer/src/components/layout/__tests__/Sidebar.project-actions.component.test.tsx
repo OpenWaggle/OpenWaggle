@@ -122,6 +122,8 @@ function resetStores(session = makeSession()): void {
   useChatStore.setState({
     sessions: [session],
     sessionById: new Map(),
+    missingSessionIds: new Set(),
+    draftSession: null,
     activeSessionId: SESSION_ID,
     activeSession: null,
     error: null,
@@ -180,9 +182,14 @@ describe('Sidebar project actions', () => {
 
     await waitFor(() => {
       expect(useChatStore.getState().activeSessionId).toBeNull()
+      expect(useChatStore.getState().draftSession).toEqual({ projectPath: PROJECT_PATH })
       expect(usePreferencesStore.getState().settings.projectPath).toBe(PROJECT_PATH)
       expect(navigateMock).toHaveBeenCalledWith({ to: '/' })
     })
+    const draftRow = screen.getByRole('button', { name: /draft session in openwaggle/i })
+    expect(draftRow).toBeInTheDocument()
+    expect(draftRow).toHaveClass('w-full', 'bg-bg-active')
+    expect(draftRow).not.toHaveClass('mx-2')
   })
 
   it('opens the project folder from the project action menu', async () => {

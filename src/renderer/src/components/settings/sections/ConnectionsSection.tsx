@@ -42,7 +42,7 @@ function AuthProviderGroup({
         )}
       >
         <div className="flex min-w-0 items-start gap-2.5">
-          <Icon className="mt-0.5 h-4 w-4 shrink-0 text-text-tertiary" />
+          <Icon className="mt-0.5 size-4 shrink-0 text-text-tertiary" />
           <div className="min-w-0 space-y-1">
             <div className="flex items-center gap-2">
               <h3 className="text-[16px] font-semibold text-text-primary">{title}</h3>
@@ -53,7 +53,7 @@ function AuthProviderGroup({
             <p className="max-w-[720px] text-[12px] leading-5 text-text-tertiary">{description}</p>
           </div>
         </div>
-        <Chevron className="mt-1 h-4 w-4 shrink-0 text-text-tertiary" />
+        <Chevron className="mt-1 size-4 shrink-0 text-text-tertiary" />
       </button>
 
       {isOpen &&
@@ -69,11 +69,12 @@ function AuthProviderGroup({
 }
 
 export function ConnectionsSection() {
-  const { providerModels } = useProviders()
+  const { providerModels, isLoading, loadError } = useProviders()
   const [apiKeysOpen, setApiKeysOpen] = useState(false)
   const [oauthOpen, setOauthOpen] = useState(false)
   const apiKeyProviders = providerModels.filter((providerInfo) => providerInfo.auth.supportsApiKey)
   const oauthProviders = providerModels.filter((providerInfo) => providerInfo.auth.supportsOAuth)
+  const loadingText = 'Loading Pi providers…'
 
   return (
     <div className="space-y-6">
@@ -84,13 +85,23 @@ export function ConnectionsSection() {
         </p>
       </div>
 
+      {loadError && (
+        <p className="rounded-lg border border-error/25 bg-error/6 px-3 py-2 text-sm text-error">
+          Failed to load providers: {loadError}
+        </p>
+      )}
+
+      {isLoading && providerModels.length === 0 && (
+        <p className="text-[13px] text-text-muted">Loading Pi providers…</p>
+      )}
+
       <AuthProviderGroup
         title="API Key Providers"
         description="Use Pi's API-key, environment, or custom-provider auth for key-based access."
         count={apiKeyProviders.length}
         isOpen={apiKeysOpen}
         icon={KeyRound}
-        emptyText="Pi did not report any API-key providers."
+        emptyText={isLoading ? loadingText : 'Pi did not report any API-key providers.'}
         onToggle={() => setApiKeysOpen((open) => !open)}
       >
         {apiKeyProviders.map((providerInfo, index) => (
@@ -108,7 +119,7 @@ export function ConnectionsSection() {
         count={oauthProviders.length}
         isOpen={oauthOpen}
         icon={ShieldCheck}
-        emptyText="Pi did not report any OAuth providers."
+        emptyText={isLoading ? loadingText : 'Pi did not report any OAuth providers.'}
         onToggle={() => setOauthOpen((open) => !open)}
       >
         {oauthProviders.map((providerInfo, index) => (

@@ -100,6 +100,7 @@ function normalizeProviderGroups(providerModels: readonly ProviderInfo[]): Provi
 interface ProviderState {
   baseProviderModels: ProviderInfo[]
   providerModels: ProviderInfo[]
+  isLoading: boolean
   testingProviders: Partial<Record<Provider, boolean>>
   testResults: Partial<Record<Provider, { success: boolean; error?: string } | null>>
   loadError: string | null
@@ -113,17 +114,22 @@ interface ProviderState {
 export const useProviderStore = create<ProviderState>((set) => ({
   baseProviderModels: [],
   providerModels: [],
+  isLoading: false,
   testingProviders: {},
   testResults: {},
   loadError: null,
 
   async loadProviderModels(settingsSnapshot?: Settings) {
+    set({ isLoading: true, loadError: null })
     try {
       const currentSettings = settingsSnapshot ?? (await api.getSettings())
       const baseProviderModels = normalizeProviderGroups(
         await api.getProviderModels(currentSettings.projectPath),
       )
       set({ baseProviderModels, providerModels: baseProviderModels, loadError: null })
+      if (baseProviderModels.length === 0) {
+        return null
+      }
       const catalog = buildModelCatalogSet(baseProviderModels)
       const available = buildAvailableModelSet(baseProviderModels)
       const pruned = pruneStaleEnabledModels(currentSettings.enabledModels, catalog)
@@ -147,6 +153,8 @@ export const useProviderStore = create<ProviderState>((set) => ({
       logger.error('Failed to load provider models', { message })
       set({ loadError: message })
       return null
+    } finally {
+      set({ isLoading: false })
     }
   },
 

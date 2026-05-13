@@ -60,6 +60,31 @@ interface DraftBranchRowProps {
   readonly sourceNodeId: string
 }
 
+interface DraftSessionRowProps {
+  readonly projectLabel: string
+  readonly onSelect: () => void
+}
+
+function DraftSessionRow({ projectLabel, onSelect }: DraftSessionRowProps) {
+  return (
+    <button
+      type="button"
+      aria-current="true"
+      aria-label={`Draft session in ${projectLabel}`}
+      onClick={onSelect}
+      className="group flex h-[34px] w-full items-center gap-2 bg-bg-active pl-10 pr-4 text-left transition-colors hover:bg-bg-hover"
+    >
+      <Edit3 className="size-3.5 shrink-0 text-text-secondary" />
+      <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-text-primary">
+        New session
+      </span>
+      <span className="shrink-0 rounded border border-border bg-bg-tertiary px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-muted">
+        Draft
+      </span>
+    </button>
+  )
+}
+
 function DraftBranchRow({ sourceNodeId }: DraftBranchRowProps) {
   return (
     <div className="mx-2 flex h-7 w-[calc(100%-16px)] items-center gap-2 rounded-md border border-dashed border-border pl-11 pr-3 text-left text-text-tertiary">
@@ -232,6 +257,7 @@ interface ProjectGroupSectionProps {
   readonly activeSessionTree: SessionTree | null
   readonly activeBranchId: SessionTree['session']['lastActiveBranchId']
   readonly draftBranch: ReturnType<typeof useSessions>['draftBranch']
+  readonly draftSessionProjectPath: string | null
   readonly displayProjectName: (path: string) => string
   readonly collapsed: boolean
   readonly onNewSessionForProject: (path: string) => void
@@ -261,6 +287,7 @@ function ProjectGroupSection({
   activeSessionTree,
   activeBranchId,
   draftBranch,
+  draftSessionProjectPath,
   displayProjectName,
   collapsed,
   onNewSessionForProject,
@@ -286,6 +313,7 @@ function ProjectGroupSection({
   const [renameValue, setRenameValue] = useState(projectLabel)
   const renameInputRef = useRef<HTMLInputElement>(null)
   const sessionCount = group.sessions.length
+  const showDraftSession = draftSessionProjectPath === group.projectPath
   const archiveLabel =
     sessionCount === 0
       ? 'No sessions to archive'
@@ -437,10 +465,16 @@ function ProjectGroupSection({
         </div>
       </div>
 
-      {collapsed ? null : group.sessions.length === 0 ? (
+      {collapsed ? null : group.sessions.length === 0 && !showDraftSession ? (
         <div className="px-10 py-1.5 text-[12px] text-text-muted">No sessions</div>
       ) : (
         <div className="space-y-0.5">
+          {showDraftSession ? (
+            <DraftSessionRow
+              projectLabel={projectLabel}
+              onSelect={() => onNewSessionForProject(group.projectPath)}
+            />
+          ) : null}
           {group.sessions.map((session) => {
             const sourceBranches =
               activeSessionTree?.session.id === session.id
@@ -644,6 +678,7 @@ interface SidebarProjectListProps {
   readonly activeSessionId: SessionId | null
   readonly activeSessionTree: SessionTree | null
   readonly draftBranch: ReturnType<typeof useSessions>['draftBranch']
+  readonly draftSessionProjectPath: string | null
   readonly projectPath: string | null
   readonly sessionGroups: ReturnType<typeof buildSidebarProjectGroups>
   readonly displayProjectName: (path: string) => string
@@ -672,6 +707,7 @@ function SidebarProjectList({
   activeSessionId,
   activeSessionTree,
   draftBranch,
+  draftSessionProjectPath,
   projectPath,
   sessionGroups,
   displayProjectName,
@@ -709,6 +745,7 @@ function SidebarProjectList({
       activeSessionTree={activeSessionTree}
       activeBranchId={activeBranchId}
       draftBranch={draftBranch}
+      draftSessionProjectPath={draftSessionProjectPath}
       displayProjectName={displayProjectName}
       collapsed={collapsedProjectPaths.has(group.projectPath)}
       onNewSessionForProject={onNewSessionForProject}
@@ -767,6 +804,7 @@ function useSidebarController() {
   const removeProjectReferences = usePreferencesStore((s) => s.removeProjectReferences)
   const {
     activeSessionId: activeChatSessionId,
+    draftSession,
     startDraftSession,
     deleteSession,
     loadSessions: loadChatSessions,
@@ -783,6 +821,7 @@ function useSidebarController() {
   } = useSessions()
   const { refreshStatus: refreshGitStatus, refreshBranches: refreshGitBranches } = useGit()
   const activeSessionId = activeChatSessionId ? SessionId(String(activeChatSessionId)) : null
+  const draftSessionProjectPath = draftSession?.projectPath ?? null
   const matchingActiveSessionTree =
     activeSessionId && activeSessionTree?.session.id === activeSessionId ? activeSessionTree : null
   const matchingActiveWorkspace =
@@ -820,6 +859,7 @@ function useSidebarController() {
 
   function handleSelectSession(id: SessionId): void {
     clearTransientDraftContext()
+    useChatStore.getState().setActiveSession(id)
     void navigate({ to: '/sessions/$sessionId', params: { sessionId: String(id) } })
   }
 
@@ -849,6 +889,7 @@ function useSidebarController() {
       clearDraftBranchForSession(activeSessionId)
     }
     clearDraftBranchForSession(targetSessionId)
+    useChatStore.getState().setActiveSession(targetSessionId)
 
     void navigate({
       to: '/sessions/$sessionId',
@@ -928,7 +969,7 @@ function useSidebarController() {
       useComposerStore.getState().clearScopedDraftsForSession(String(sessionId))
       await Promise.all([loadChatSessions(), loadSessionTrees()])
       if (activeSessionId === sessionId) {
-        startDraftSession()
+        startDraftSession(projectPath)
         void navigate({ to: '/' })
       }
     })().catch((error: unknown) => {
@@ -941,7 +982,7 @@ function useSidebarController() {
     void deleteSession(sessionId)
       .then(() => {
         if (activeSessionId === sessionId) {
-          startDraftSession()
+          startDraftSession(projectPath)
           void navigate({ to: '/' })
         }
       })
@@ -1004,7 +1045,7 @@ function useSidebarController() {
         activeSessionId !== null &&
         projectSessions.some((session) => session.id === activeSessionId)
       if (archivedActiveSession) {
-        startDraftSession()
+        startDraftSession(projectPath)
         void navigate({ to: '/' })
       }
     })().catch((error: unknown) => {
@@ -1054,7 +1095,7 @@ function useSidebarController() {
       const removedActiveSession =
         activeSessionId !== null && projectSessionIds.has(String(activeSessionId))
       if (removedActiveSession || projectPath === path) {
-        startDraftSession()
+        startDraftSession(null)
         refreshGit(null)
         void navigate({ to: '/' })
       }
@@ -1124,7 +1165,7 @@ function useSidebarController() {
 
   function handleNewSession(): void {
     clearTransientDraftContext()
-    startDraftSession()
+    startDraftSession(projectPath)
     void navigate({ to: '/' })
   }
 
@@ -1155,20 +1196,30 @@ function useSidebarController() {
     const path = await selectFolder()
     if (!path) return
     clearTransientDraftContext()
-    startDraftSession()
+    startDraftSession(path)
     expandProject(path)
     void navigate({ to: '/' })
-    await setProjectPath(path)
-    refreshGit(path)
+    try {
+      await setProjectPath(path)
+      refreshGit(path)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      showToast(`Failed to select project: ${message}`)
+    }
   }
 
   async function handleSelectProjectPath(path: string): Promise<void> {
     clearTransientDraftContext()
-    startDraftSession()
+    startDraftSession(path)
     expandProject(path)
     void navigate({ to: '/' })
-    await setProjectPath(path)
-    refreshGit(path)
+    try {
+      await setProjectPath(path)
+      refreshGit(path)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      showToast(`Failed to select project: ${message}`)
+    }
   }
 
   function handleOpenSkills(): void {
@@ -1186,6 +1237,7 @@ function useSidebarController() {
     collapsedProjectPaths,
     displayProjectName,
     draftBranch,
+    draftSessionProjectPath,
     handleArchiveBranch,
     handleArchiveSession,
     handleDeleteSession,
@@ -1224,6 +1276,7 @@ export function Sidebar() {
     collapsedProjectPaths,
     displayProjectName,
     draftBranch,
+    draftSessionProjectPath,
     handleArchiveBranch,
     handleArchiveSession,
     handleDeleteSession,
@@ -1287,6 +1340,7 @@ export function Sidebar() {
               activeSessionId={activeSessionId}
               activeSessionTree={matchingActiveSessionTree}
               draftBranch={draftBranch}
+              draftSessionProjectPath={draftSessionProjectPath}
               projectPath={projectPath}
               sessionGroups={sessionGroups}
               displayProjectName={displayProjectName}

@@ -46,8 +46,10 @@ describe('preferences-store integration', () => {
     useProviderStore.setState({
       baseProviderModels: [],
       providerModels: [],
+      isLoading: false,
       testingProviders: {},
       testResults: {},
+      loadError: null,
     })
   })
 
@@ -149,8 +151,10 @@ describe('provider-store integration', () => {
     useProviderStore.setState({
       baseProviderModels: [],
       providerModels: [],
+      isLoading: false,
       testingProviders: {},
       testResults: {},
+      loadError: null,
     })
   })
 
@@ -186,6 +190,22 @@ describe('provider-store integration', () => {
     await useProviderStore.getState().loadProviderModels()
 
     expect(useProviderStore.getState().providerModels).toHaveLength(1)
+  })
+
+  it('does not clear model preferences when Pi returns an empty provider catalog', async () => {
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      selectedModel: SupportedModelId('openai-codex/gpt-5.5'),
+      enabledModels: [SupportedModelId('openai-codex/gpt-5.5')],
+    }
+    apiMock.getSettings.mockResolvedValue(settings)
+    apiMock.getProviderModels.mockResolvedValue([])
+
+    const updatedSettings = await useProviderStore.getState().loadProviderModels(settings)
+
+    expect(updatedSettings).toBeNull()
+    expect(apiMock.updateSettings).not.toHaveBeenCalled()
+    expect(useProviderStore.getState().isLoading).toBe(false)
   })
 
   it('keeps Pi catalog models when loading provider groups', async () => {
