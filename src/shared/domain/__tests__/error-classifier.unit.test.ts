@@ -47,4 +47,13 @@ describe('classifyErrorMessage', () => {
       expect(classifyErrorMessage('Something completely unexpected').code).toBe('unknown')
     })
   })
+
+  describe('runtime package manager errors', () => {
+    it('classifies Pi npm startup failures as runtime-package-manager-unavailable', () => {
+      const result = classifyErrorMessage('Failed to run npm root -g: undefined')
+
+      expect(result.code).toBe('runtime-package-manager-unavailable')
+      expect(result.retryable).toBe(false)
+    })
+  })
 })

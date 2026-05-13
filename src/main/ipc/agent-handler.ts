@@ -52,13 +52,6 @@ function emitCancelledCompletion(sessionId: SessionId): void {
 }
 
 function handleRunResult(sessionId: SessionId, result: AgentRunResult): void {
-  if (result.assignedTitle) {
-    broadcastToWindows('sessions:title-updated', {
-      sessionId,
-      title: result.assignedTitle,
-    })
-  }
-
   if (result.outcome === 'error' && result.transportEmitted) {
     return
   }
@@ -111,6 +104,9 @@ export function registerAgentHandlers(): void {
           model,
           signal: abortController.signal,
           onEvent: onEventWithUsageCapture,
+          onTitleAssigned: (title) => {
+            broadcastToWindows('sessions:title-updated', { sessionId, title })
+          },
         })
 
         // ─── Transport: respond based on outcome ─────────

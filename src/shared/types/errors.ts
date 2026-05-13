@@ -18,6 +18,7 @@ export type AgentErrorCode =
   | 'no-project'
   | 'persist-failed'
   | 'context-overflow'
+  | 'runtime-package-manager-unavailable'
   | 'unknown'
 
 export interface AgentErrorInfo {

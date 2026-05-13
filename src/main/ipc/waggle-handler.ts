@@ -65,14 +65,10 @@ export function registerWaggleHandlers(): void {
               onTurnEvent: (event) => {
                 emitWaggleTurnEvent(sessionId, event)
               },
+              onTitleAssigned: (title) => {
+                broadcastToWindows('sessions:title-updated', { sessionId, title })
+              },
             })
-
-            if ('assignedTitle' in result && result.assignedTitle) {
-              broadcastToWindows('sessions:title-updated', {
-                sessionId,
-                title: result.assignedTitle,
-              })
-            }
 
             matchBy(result, 'outcome')
               .with('validation-error', (value) => {

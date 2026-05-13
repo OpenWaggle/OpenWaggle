@@ -8,7 +8,11 @@ import {
   getAgentDir,
   SettingsManager,
 } from '@mariozechner/pi-coding-agent'
-import { MCP_ADAPTER_PACKAGE_SOURCE, MCP_CONFIG } from '@shared/constants/mcp'
+import {
+  MCP_ADAPTER_PACKAGE_SOURCE,
+  MCP_ADAPTER_PACKAGE_SOURCES,
+  MCP_CONFIG,
+} from '@shared/constants/mcp'
 import { decodeUnknownOrThrow } from '@shared/schema'
 import { mcpConfigFileSchema, piAgentSettingsFileSchema } from '@shared/schemas/mcp'
 import type {
@@ -31,7 +35,7 @@ import type {
   PiAgentSettingsFile,
 } from '@shared/types/mcp'
 import { Effect, Layer } from 'effect'
-import { withTemporaryProcessEnv } from '../../env'
+import { getNpmCompatiblePath, withTemporaryProcessEnv } from '../../env'
 import { createLogger } from '../../logger'
 import { McpConfigService } from '../../ports/mcp-config-service'
 
@@ -96,6 +100,7 @@ const mcpRuntimeContextsByServices = new WeakMap<
   OpenWaggleMcpRuntimeContext
 >()
 let mcpAdapterProcessContextQueue: Promise<void> = Promise.resolve()
+const MCP_ADAPTER_PACKAGE_SOURCE_SET = new Set<string>(MCP_ADAPTER_PACKAGE_SOURCES)
 
 function isEnoent(error: unknown): boolean {
   return (
@@ -280,7 +285,7 @@ function getPackageEntries(settings: PiAgentSettingsFile): McpPackageEntry[] {
 }
 
 function packageSourceMatches(value: McpPackageEntry): boolean {
-  return getPackageSource(value) === MCP_ADAPTER_PACKAGE_SOURCE
+  return MCP_ADAPTER_PACKAGE_SOURCE_SET.has(getPackageSource(value))
 }
 
 function isAdapterEnabled(settings: PiAgentSettingsFile): boolean {
@@ -288,10 +293,10 @@ function isAdapterEnabled(settings: PiAgentSettingsFile): boolean {
 }
 
 function addAdapterPackageSource(settings: PiAgentSettingsFile): PiAgentSettingsFile {
-  const packages = [...getPackageEntries(settings)]
-  if (!packages.some(packageSourceMatches)) {
-    packages.push(MCP_ADAPTER_PACKAGE_SOURCE)
-  }
+  const packages = [
+    ...getPackageEntries(settings).filter((entry) => !packageSourceMatches(entry)),
+    MCP_ADAPTER_PACKAGE_SOURCE,
+  ]
   return {
     ...settings,
     packages,
@@ -720,6 +725,7 @@ async function installMcpAdapterPackage(
 
   await withTemporaryProcessEnv(
     {
+      PATH: getNpmCompatiblePath(),
       npm_config_cache: npmCacheDir,
       NPM_CONFIG_CACHE: npmCacheDir,
     },

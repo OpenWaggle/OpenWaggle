@@ -11,10 +11,11 @@ import {
   ModelRegistry,
   type SettingsManager,
 } from '@mariozechner/pi-coding-agent'
-import { MCP_ADAPTER_PACKAGE_SOURCE } from '@shared/constants/mcp'
+import { MCP_ADAPTER_PACKAGE_SOURCES } from '@shared/constants/mcp'
 import { createModelRef } from '@shared/types/llm'
 import { THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
 import { normalizeSkillId } from '@shared/utils/skill-id'
+import { withNpmCompatibleProcessEnv } from '../../env'
 import { isPathInside } from '../../utils/paths'
 import { createOpenWagglePiSettingsManager } from './openwaggle-pi-settings-storage'
 import {
@@ -334,7 +335,7 @@ export async function createPiRuntimeServices(
     loadMcpAdapter
       ? {}
       : {
-          excludedGlobalPackageSources: [MCP_ADAPTER_PACKAGE_SOURCE],
+          excludedGlobalPackageSources: MCP_ADAPTER_PACKAGE_SOURCES,
         },
   )
   const mcpRuntimeContext = loadMcpAdapter
@@ -342,25 +343,27 @@ export async function createPiRuntimeServices(
       ? await prepareOpenWaggleMcpRuntimeContext(projectPath)
       : options.mcpRuntimeContext
     : null
-  const services = await withOpenWaggleMcpAdapterProcessContext(mcpRuntimeContext, () =>
-    createAgentSessionServices({
-      cwd: projectPath,
-      agentDir: getPiAgentDir(),
-      authStorage,
-      settingsManager,
-      ...(mcpRuntimeContext
-        ? {
-            extensionFlagValues: new Map<string, boolean | string>([
-              ['mcp-config', mcpRuntimeContext.configPath],
-            ]),
-          }
-        : {}),
-      resourceLoaderOptions: createOpenWagglePiResourceLoaderOptions(
-        projectPath,
-        options,
+  const services = await withNpmCompatibleProcessEnv(() =>
+    withOpenWaggleMcpAdapterProcessContext(mcpRuntimeContext, () =>
+      createAgentSessionServices({
+        cwd: projectPath,
+        agentDir: getPiAgentDir(),
+        authStorage,
         settingsManager,
-      ),
-    }),
+        ...(mcpRuntimeContext
+          ? {
+              extensionFlagValues: new Map<string, boolean | string>([
+                ['mcp-config', mcpRuntimeContext.configPath],
+              ]),
+            }
+          : {}),
+        resourceLoaderOptions: createOpenWagglePiResourceLoaderOptions(
+          projectPath,
+          options,
+          settingsManager,
+        ),
+      }),
+    ),
   )
   rememberOpenWaggleMcpRuntimeContext(services, mcpRuntimeContext)
   return services

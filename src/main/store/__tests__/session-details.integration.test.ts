@@ -124,6 +124,115 @@ describe('session-details integration', () => {
     expect(tree?.nodes).toHaveLength(2)
   })
 
+  it('keeps persisted messages isolated for concurrent sessions with identical prompts', async () => {
+    const first = await createSession({
+      projectPath: '/tmp/project-isolation-a',
+      piSessionId: 'pi-session-isolation-a',
+      piSessionFile: '/tmp/pi-session-isolation-a.jsonl',
+    })
+    const second = await createSession({
+      projectPath: '/tmp/project-isolation-b',
+      piSessionId: 'pi-session-isolation-b',
+      piSessionFile: '/tmp/pi-session-isolation-b.jsonl',
+    })
+    const prompt = 'Draft a one-page summary of this app'
+
+    await persistSessionSnapshot({
+      sessionId: SessionId(String(first.id)),
+      piSessionId: 'pi-session-isolation-a',
+      piSessionFile: '/tmp/pi-session-isolation-a.jsonl',
+      activeNodeId: 'assistant-a',
+      nodes: [
+        {
+          id: 'user-a',
+          parentId: null,
+          piEntryType: 'message',
+          kind: 'user_message',
+          role: 'user',
+          timestampMs: 10,
+          contentJson: JSON.stringify({
+            parts: [{ type: 'text', text: prompt }],
+            model: null,
+          }),
+          metadataJson: '{}',
+          pathDepth: 0,
+          createdOrder: 0,
+        },
+        {
+          id: 'assistant-a',
+          parentId: 'user-a',
+          piEntryType: 'message',
+          kind: 'assistant_message',
+          role: 'assistant',
+          timestampMs: 20,
+          contentJson: JSON.stringify({
+            parts: [{ type: 'text', text: 'first session answer' }],
+            model: 'openai/gpt-5.4',
+          }),
+          metadataJson: '{}',
+          pathDepth: 1,
+          createdOrder: 1,
+        },
+      ],
+    })
+    await persistSessionSnapshot({
+      sessionId: SessionId(String(second.id)),
+      piSessionId: 'pi-session-isolation-b',
+      piSessionFile: '/tmp/pi-session-isolation-b.jsonl',
+      activeNodeId: 'assistant-b',
+      nodes: [
+        {
+          id: 'user-b',
+          parentId: null,
+          piEntryType: 'message',
+          kind: 'user_message',
+          role: 'user',
+          timestampMs: 10,
+          contentJson: JSON.stringify({
+            parts: [{ type: 'text', text: prompt }],
+            model: null,
+          }),
+          metadataJson: '{}',
+          pathDepth: 0,
+          createdOrder: 0,
+        },
+        {
+          id: 'assistant-b',
+          parentId: 'user-b',
+          piEntryType: 'message',
+          kind: 'assistant_message',
+          role: 'assistant',
+          timestampMs: 20,
+          contentJson: JSON.stringify({
+            parts: [{ type: 'text', text: 'second session answer' }],
+            model: 'openai/gpt-5.4',
+          }),
+          metadataJson: '{}',
+          pathDepth: 1,
+          createdOrder: 1,
+        },
+      ],
+    })
+
+    const firstReloaded = await getSessionDetail(first.id)
+    const secondReloaded = await getSessionDetail(second.id)
+
+    expect(firstReloaded?.messages.map((message) => String(message.id))).toEqual([
+      'user-a',
+      'assistant-a',
+    ])
+    expect(secondReloaded?.messages.map((message) => String(message.id))).toEqual([
+      'user-b',
+      'assistant-b',
+    ])
+    expect(firstReloaded?.messages[1]?.parts).toEqual([
+      { type: 'text', text: 'first session answer' },
+    ])
+    expect(secondReloaded?.messages[1]?.parts).toEqual([
+      { type: 'text', text: 'second session answer' },
+    ])
+  })
+
   it('removes the Pi session file when deleting a session projection', async () => {
     const sessionFile = path.join(tmpDir, 'pi-session-delete.jsonl')
     await fs.writeFile(sessionFile, '{"type":"session_info"}\n', 'utf8')

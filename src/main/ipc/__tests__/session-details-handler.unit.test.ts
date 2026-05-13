@@ -27,6 +27,10 @@ const {
   unarchiveSessionMock,
   listArchivedSessionsMock,
   updateSessionTitleMock,
+  cancelSessionRunsMock,
+  clearAgentPhaseMock,
+  clearStreamBufferMock,
+  emitRunCompletedMock,
 } = vi.hoisted(() => ({
   typedHandleMock: vi.fn(),
   cleanupSessionRunMock: vi.fn(),
@@ -44,6 +48,10 @@ const {
   unarchiveSessionMock: vi.fn(),
   listArchivedSessionsMock: vi.fn(),
   updateSessionTitleMock: vi.fn(),
+  cancelSessionRunsMock: vi.fn(),
+  clearAgentPhaseMock: vi.fn(),
+  clearStreamBufferMock: vi.fn(),
+  emitRunCompletedMock: vi.fn(),
 }))
 
 vi.mock('../typed-ipc', () => ({
@@ -52,6 +60,16 @@ vi.mock('../typed-ipc', () => ({
 
 vi.mock('../../agent/session-cleanup', () => ({
   cleanupSessionRun: cleanupSessionRunMock,
+}))
+
+vi.mock('../active-agent-runs', () => ({
+  cancelSessionRuns: cancelSessionRunsMock,
+}))
+
+vi.mock('../../utils/stream-bridge', () => ({
+  clearAgentPhase: clearAgentPhaseMock,
+  clearStreamBuffer: clearStreamBufferMock,
+  emitRunCompleted: emitRunCompletedMock,
 }))
 
 const TestSessionProjectionRepoLayer = Layer.succeed(
@@ -224,6 +242,11 @@ describe('registerSessionDetailsHandlers', () => {
     unarchiveSessionMock.mockReset()
     listArchivedSessionsMock.mockReset()
     updateSessionTitleMock.mockReset()
+    cancelSessionRunsMock.mockReset()
+    cancelSessionRunsMock.mockReturnValue(false)
+    clearAgentPhaseMock.mockReset()
+    clearStreamBufferMock.mockReset()
+    emitRunCompletedMock.mockReset()
   })
 
   it('registers only session detail IPC channels', () => {
@@ -388,13 +411,18 @@ describe('registerSessionDetailsHandlers', () => {
 
   it('cleans up the active run before deleting a session', async () => {
     deleteSessionMock.mockResolvedValue(undefined)
+    cancelSessionRunsMock.mockReturnValue(true)
 
     registerSessionDetailsHandlers()
     const handler = getInvokeHandler('sessions:delete')
 
     await handler?.({}, SessionId('session-delete'))
 
+    expect(cancelSessionRunsMock).toHaveBeenCalledWith(SessionId('session-delete'))
+    expect(clearAgentPhaseMock).toHaveBeenCalledWith(SessionId('session-delete'))
+    expect(clearStreamBufferMock).toHaveBeenCalledWith(SessionId('session-delete'))
     expect(cleanupSessionRunMock).toHaveBeenCalledWith(SessionId('session-delete'))
+    expect(emitRunCompletedMock).toHaveBeenCalledWith(SessionId('session-delete'))
     expect(deleteSessionMock).toHaveBeenCalledWith(SessionId('session-delete'))
   })
 
@@ -406,7 +434,11 @@ describe('registerSessionDetailsHandlers', () => {
 
     await handler?.({}, SessionId('session-archive'))
 
+    expect(cancelSessionRunsMock).toHaveBeenCalledWith(SessionId('session-archive'))
+    expect(clearAgentPhaseMock).toHaveBeenCalledWith(SessionId('session-archive'))
+    expect(clearStreamBufferMock).toHaveBeenCalledWith(SessionId('session-archive'))
     expect(cleanupSessionRunMock).toHaveBeenCalledWith(SessionId('session-archive'))
+    expect(emitRunCompletedMock).not.toHaveBeenCalled()
     expect(archiveSessionMock).toHaveBeenCalledWith(SessionId('session-archive'))
   })
 })

@@ -16,6 +16,7 @@ interface ActiveStreamBuffer {
   readonly model: SupportedModelId
   readonly mode: RunMode
   readonly startedAt: number
+  readonly messageId?: string
   readonly parts: readonly MessagePart[]
 }
 
@@ -115,15 +116,26 @@ function updateBufferedParts(
   })
 }
 
+function updateBufferedAssistantMessageId(sessionId: SessionId, messageId: string): void {
+  const buffer = activeBuffers.get(sessionId)
+  if (!buffer) return
+  activeBuffers.set(sessionId, {
+    ...buffer,
+    messageId,
+  })
+}
+
 function applyEventToStreamBuffer(sessionId: SessionId, event: AgentTransportEvent): void {
   matchBy(event, 'type')
     .with('agent_start', 'agent_end', 'turn_start', 'turn_end', () => undefined)
     .with('message_start', (value) => {
       if (value.role === 'assistant') {
+        updateBufferedAssistantMessageId(sessionId, value.messageId)
         updateBufferedParts(sessionId, () => [])
       }
     })
     .with('message_update', (value) => {
+      updateBufferedAssistantMessageId(sessionId, value.messageId)
       matchBy(value.assistantMessageEvent, 'type')
         .with('text_start', 'text_end', 'thinking_start', 'thinking_end', () => undefined)
         .with('text_delta', (assistantEvent) => {
@@ -223,6 +235,7 @@ export function getStreamBuffer(sessionId: SessionId): BackgroundRunSnapshot | n
     model: buffer.model,
     mode: buffer.mode,
     startedAt: buffer.startedAt,
+    ...(buffer.messageId ? { messageId: buffer.messageId } : {}),
     parts: [...buffer.parts],
   }
 }

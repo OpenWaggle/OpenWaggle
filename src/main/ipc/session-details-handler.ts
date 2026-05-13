@@ -9,8 +9,20 @@ import {
 } from '../application/agent-session-service'
 import { AgentKernelService } from '../ports/agent-kernel-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
+import { clearAgentPhase, clearStreamBuffer, emitRunCompleted } from '../utils/stream-bridge'
+import { cancelSessionRuns } from './active-agent-runs'
 import { validateRequiredProjectPath } from './project-path-validation'
 import { typedHandle } from './typed-ipc'
+
+function cleanupBeforeSessionRemoval(sessionId: SessionId): void {
+  const cancelledActiveRun = cancelSessionRuns(sessionId)
+  clearAgentPhase(sessionId)
+  clearStreamBuffer(sessionId)
+  cleanupSessionRun(sessionId)
+  if (cancelledActiveRun) {
+    emitRunCompleted(sessionId)
+  }
+}
 
 export function registerSessionDetailsHandlers(): void {
   typedHandle('sessions:list-details', (_event, limit?: number) =>
@@ -61,7 +73,7 @@ export function registerSessionDetailsHandlers(): void {
   )
 
   typedHandle('sessions:delete', (_event, id: SessionId) =>
-    Effect.sync(() => cleanupSessionRun(id)).pipe(
+    Effect.sync(() => cleanupBeforeSessionRemoval(id)).pipe(
       Effect.zipRight(
         Effect.gen(function* () {
           const repo = yield* SessionProjectionRepository
@@ -72,7 +84,7 @@ export function registerSessionDetailsHandlers(): void {
   )
 
   typedHandle('sessions:archive', (_event, id: SessionId) =>
-    Effect.sync(() => cleanupSessionRun(id)).pipe(
+    Effect.sync(() => cleanupBeforeSessionRemoval(id)).pipe(
       Effect.zipRight(
         Effect.gen(function* () {
           const repo = yield* SessionProjectionRepository
