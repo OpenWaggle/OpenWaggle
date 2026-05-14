@@ -12,7 +12,7 @@ import { app } from 'electron'
 import { createLogger } from '../logger'
 import { rememberPreparedAttachment } from '../utils/attachment-registry'
 import { broadcastToWindows } from '../utils/broadcast'
-import { isPathInsideDirectory, validateRequiredProjectPath } from './project-path-validation'
+import { validateRequiredProjectPath } from './project-path-validation'
 import { typedHandle } from './typed-ipc'
 
 const SLICE_ARG_1 = 2
@@ -364,13 +364,6 @@ export function registerAttachmentHandlers(): void {
       const resolvedPaths = yield* Effect.promise(() =>
         Promise.all(uniquePaths.map((filePath) => fs.realpath(filePath))),
       )
-      const outsideProjectPath = resolvedPaths.find(
-        (filePath) => !isPathInsideDirectory(projectPath, filePath),
-      )
-      if (outsideProjectPath) {
-        return yield* Effect.fail(new Error('Attachments must be inside the selected project.'))
-      }
-
       const stats = yield* Effect.promise(() =>
         Promise.all(resolvedPaths.map((filePath) => fs.stat(filePath))),
       )

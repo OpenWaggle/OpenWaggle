@@ -34,6 +34,23 @@ function on<C extends IpcEventChannel>(
   }
 }
 
+const invokePrepareAttachments = invoke('attachments:prepare')
+
+function prepareSelectedAttachments(
+  projectPath: string,
+  files: readonly File[],
+): ReturnType<OpenWaggleApi['prepareAttachments']> {
+  const paths = files
+    .map((file) => webUtils.getPathForFile(file))
+    .filter((filePath) => filePath.length > 0)
+
+  if (paths.length === 0) {
+    return Promise.resolve([])
+  }
+
+  return invokePrepareAttachments(projectPath, paths)
+}
+
 /**
  * Typed API exposed to the renderer via contextBridge.
  * Every method maps to a specific IPC channel with strict types.
@@ -118,11 +135,8 @@ export const api: OpenWaggleApi = {
   deleteGitBranch: invoke('git:branches:delete'),
   setGitBranchUpstream: invoke('git:branches:set-upstream'),
 
-  // File paths (preload-only, no IPC round-trip)
-  getFilePath: (file: File) => webUtils.getPathForFile(file),
-
   // Attachments
-  prepareAttachments: invoke('attachments:prepare'),
+  prepareAttachments: prepareSelectedAttachments,
   prepareAttachmentFromText: invoke('attachments:prepare-from-text'),
   onPrepareAttachmentFromTextProgress: on('attachments:prepare-from-text-progress'),
 

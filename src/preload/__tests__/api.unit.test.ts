@@ -13,7 +13,7 @@ vi.mock('electron', () => ({
   },
 }))
 
-import { ipcRenderer } from 'electron'
+import { ipcRenderer, webUtils } from 'electron'
 import { api } from '../api'
 
 describe('preload api surface contract', () => {
@@ -88,8 +88,6 @@ describe('preload api surface contract', () => {
     'renameGitBranch',
     'deleteGitBranch',
     'setGitBranchUpstream',
-    // File paths
-    'getFilePath',
     // Attachments
     'prepareAttachments',
     'prepareAttachmentFromText',
@@ -153,6 +151,19 @@ describe('preload api surface contract', () => {
     const actualKeys = Object.keys(api).sort()
     const expectedKeys = [...EXPECTED_METHODS].sort()
     expect(actualKeys).toEqual(expectedKeys)
+  })
+
+  it('prepares attachments from user-selected File objects via preload path extraction', async () => {
+    const file = new File(['screenshot'], 'screenshot.png')
+    vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce([])
+    vi.mocked(webUtils.getPathForFile).mockReturnValueOnce('/tmp/Desktop/screenshot.png')
+
+    await api.prepareAttachments('/tmp/repo', [file])
+
+    expect(webUtils.getPathForFile).toHaveBeenCalledWith(file)
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith('attachments:prepare', '/tmp/repo', [
+      '/tmp/Desktop/screenshot.png',
+    ])
   })
 
   describe('event listener methods return unsubscribe functions', () => {

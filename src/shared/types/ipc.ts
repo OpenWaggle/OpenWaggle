@@ -645,11 +645,8 @@ export interface OpenWaggleApi {
     payload: GitBranchSetUpstreamPayload,
   ): Promise<GitBranchMutationResult>
 
-  // File paths (preload-only, no IPC round-trip)
-  getFilePath(file: File): string
-
   // Attachments
-  prepareAttachments(projectPath: string, paths: string[]): Promise<PreparedAttachment[]>
+  prepareAttachments(projectPath: string, files: readonly File[]): Promise<PreparedAttachment[]>
   prepareAttachmentFromText(text: string, operationId: string): Promise<PreparedAttachment>
   onPrepareAttachmentFromTextProgress(
     callback: (payload: IpcEventPayload<'attachments:prepare-from-text-progress'>) => void,
