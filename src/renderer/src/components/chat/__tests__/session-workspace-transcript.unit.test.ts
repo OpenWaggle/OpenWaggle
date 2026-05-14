@@ -133,7 +133,6 @@ describe('resolveTranscriptMessages', () => {
         branchPoint.id,
         afterBranch.id,
       ),
-      isRunning: false,
       messages: [
         uiMessage('user-before-branch', 'user', 'Before branch'),
         uiMessage('assistant-before-branch', 'assistant', 'Answer before branch'),
@@ -160,7 +159,6 @@ describe('resolveTranscriptMessages', () => {
     const resolved = resolveTranscriptMessages({
       activeSessionId: SESSION_DETAIL_ID,
       activeWorkspace: workspaceWithPath([user, assistant], assistant.id, assistant.id),
-      isRunning: true,
       messages: [
         uiMessage('user-head', 'user', 'Head user'),
         uiMessage('assistant-head', 'assistant', 'Head answer'),
@@ -174,6 +172,27 @@ describe('resolveTranscriptMessages', () => {
       'assistant-head',
       'live-user',
       'live-assistant',
+    ])
+  })
+
+  it('keeps completed live tail messages while the workspace snapshot is still catching up', () => {
+    const user = sessionNode('user-head', null, 'user', 'Head user', 0)
+    const assistant = sessionNode('assistant-head', 'user-head', 'assistant', 'Head answer', 1)
+
+    const resolved = resolveTranscriptMessages({
+      activeSessionId: SESSION_DETAIL_ID,
+      activeWorkspace: workspaceWithPath([user, assistant], assistant.id, assistant.id),
+      messages: [
+        uiMessage('user-head', 'user', 'Head user'),
+        uiMessage('assistant-head', 'assistant', 'Head answer'),
+        uiMessage('completed-assistant', 'assistant', 'Completed response still visible'),
+      ],
+    })
+
+    expect(resolved.map((message) => message.id)).toEqual([
+      'user-head',
+      'assistant-head',
+      'completed-assistant',
     ])
   })
 })

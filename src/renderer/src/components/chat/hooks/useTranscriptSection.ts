@@ -94,7 +94,6 @@ export function useTranscriptSection(params: TranscriptSectionParams): ChatTrans
   const transcriptMessages = resolveTranscriptMessages({
     activeSessionId,
     activeWorkspace,
-    isRunning: transcriptLoading,
     messages,
     draftBranchSourceNodeId,
   })
