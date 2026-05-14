@@ -492,15 +492,25 @@ describe('registerAttachmentHandlers', () => {
     ).rejects.toThrow('Total attachment size exceeds 20 MB')
   })
 
-  it('rejects files outside the selected project root', async () => {
-    registerFile('/tmp/outside.txt', 'outside')
+  it('accepts user-selected screenshot files outside the selected project root', async () => {
+    const screenshotPath = '/tmp/Desktop/Screenshot 2026-05-14 at 1.23.45 PM.png'
+    registerFile(screenshotPath, Buffer.from('fake-screenshot-bytes'))
 
     registerAttachmentHandlers()
     const handler = registeredHandler('attachments:prepare')
 
-    await expect(handler?.({}, '/tmp/repo', ['/tmp/outside.txt'])).rejects.toThrow(
-      'Attachments must be inside the selected project.',
-    )
+    const result = await handler?.({}, '/tmp/repo', [screenshotPath])
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        kind: 'image',
+        origin: 'user-file',
+        name: 'Screenshot 2026-05-14 at 1.23.45 PM.png',
+        path: screenshotPath,
+        mimeType: 'image/png',
+        extractedText: 'OCR extracted text',
+      }),
+    ])
     expect(showMessageBoxMock).not.toHaveBeenCalled()
   })
 

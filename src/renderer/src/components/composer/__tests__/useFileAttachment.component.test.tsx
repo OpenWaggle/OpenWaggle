@@ -2,12 +2,10 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const prepareAttachmentsMock = vi.fn()
-const getFilePathMock = vi.fn()
 
 vi.mock('@/lib/ipc', () => ({
   api: {
     prepareAttachments: (...args: unknown[]) => prepareAttachmentsMock(...args),
-    getFilePath: (file: File) => getFilePathMock(file),
   },
 }))
 
@@ -35,17 +33,13 @@ function createDragEvent(files: File[] = []): React.DragEvent {
   } as unknown as React.DragEvent
 }
 
-function createFileWithPath(name: string, path: string): File {
-  const file = new File(['content'], name)
-  // Mock getFilePath to return the given path for this file
-  getFilePathMock.mockImplementation((f: File) => (f === file ? path : ''))
-  return file
+function createFile(name: string): File {
+  return new File(['content'], name)
 }
 
 describe('useFileAttachment', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    getFilePathMock.mockReturnValue('')
   })
 
   it('starts with isDragOver false', () => {
@@ -59,7 +53,7 @@ describe('useFileAttachment', () => {
     const { result } = renderHook(() => useFileAttachment(params))
 
     act(() => {
-      result.current.handleDragEnter(createDragEvent([createFileWithPath('a.txt', '/a.txt')]))
+      result.current.handleDragEnter(createDragEvent([createFile('a.txt')]))
     })
 
     expect(result.current.isDragOver).toBe(true)
@@ -70,7 +64,7 @@ describe('useFileAttachment', () => {
     const { result } = renderHook(() => useFileAttachment(params))
 
     act(() => {
-      result.current.handleDragEnter(createDragEvent([createFileWithPath('a.txt', '/a.txt')]))
+      result.current.handleDragEnter(createDragEvent([createFile('a.txt')]))
       result.current.handleDragLeave(createDragEvent())
     })
 
@@ -82,7 +76,7 @@ describe('useFileAttachment', () => {
     const { result } = renderHook(() => useFileAttachment(params))
 
     await act(async () => {
-      await result.current.handleDrop(createDragEvent([createFileWithPath('a.txt', '/a.txt')]))
+      await result.current.handleDrop(createDragEvent([createFile('a.txt')]))
     })
 
     expect(params.setAttachmentError).toHaveBeenCalledWith(
@@ -106,7 +100,7 @@ describe('useFileAttachment', () => {
     expect(result.current.isAtCapacity).toBe(true)
 
     await act(async () => {
-      await result.current.handleDrop(createDragEvent([createFileWithPath('new.txt', '/new.txt')]))
+      await result.current.handleDrop(createDragEvent([createFile('new.txt')]))
     })
 
     expect(prepareAttachmentsMock).not.toHaveBeenCalled()
@@ -125,16 +119,15 @@ describe('useFileAttachment', () => {
       },
     ]
     prepareAttachmentsMock.mockResolvedValue(prepared)
+    const file = createFile('test.txt')
     const params = createParams()
     const { result } = renderHook(() => useFileAttachment(params))
 
     await act(async () => {
-      await result.current.handleDrop(
-        createDragEvent([createFileWithPath('test.txt', '/test/project/test.txt')]),
-      )
+      await result.current.handleDrop(createDragEvent([file]))
     })
 
-    expect(prepareAttachmentsMock).toHaveBeenCalledWith('/test/project', ['/test/project/test.txt'])
+    expect(prepareAttachmentsMock).toHaveBeenCalledWith('/test/project', [file])
     expect(params.addAttachments).toHaveBeenCalledWith(prepared)
   })
 
@@ -151,12 +144,13 @@ describe('useFileAttachment', () => {
       },
     ]
     prepareAttachmentsMock.mockResolvedValue(prepared)
+    const file = createFile('doc.pdf')
     const params = createParams()
     const { result } = renderHook(() => useFileAttachment(params))
 
     const inputEvent = {
       target: {
-        files: [createFileWithPath('doc.pdf', '/test/project/doc.pdf')],
+        files: [file],
         value: 'something',
       },
     } as unknown as React.ChangeEvent<HTMLInputElement>
@@ -165,7 +159,7 @@ describe('useFileAttachment', () => {
       await result.current.handleAttachFiles(inputEvent)
     })
 
-    expect(prepareAttachmentsMock).toHaveBeenCalledWith('/test/project', ['/test/project/doc.pdf'])
+    expect(prepareAttachmentsMock).toHaveBeenCalledWith('/test/project', [file])
     expect(params.addAttachments).toHaveBeenCalledWith(prepared)
     expect(inputEvent.target.value).toBe('')
   })
@@ -181,16 +175,9 @@ describe('useFileAttachment', () => {
       extractedText: '',
     }))
     prepareAttachmentsMock.mockResolvedValue([])
-    const fileA = createFileWithPath('a.txt', '/a.txt')
-    const fileB = new File(['content'], 'b.txt')
-    const fileC = new File(['content'], 'c.txt')
-    // getFilePath returns path for all files
-    getFilePathMock.mockImplementation((f: File) => {
-      if (f === fileA) return '/a.txt'
-      if (f === fileB) return '/b.txt'
-      if (f === fileC) return '/c.txt'
-      return ''
-    })
+    const fileA = createFile('a.txt')
+    const fileB = createFile('b.txt')
+    const fileC = createFile('c.txt')
     const params = createParams({ attachments: existingAttachments })
     const { result } = renderHook(() => useFileAttachment(params))
 
@@ -199,6 +186,6 @@ describe('useFileAttachment', () => {
       await result.current.handleDrop(createDragEvent([fileA, fileB, fileC]))
     })
 
-    expect(prepareAttachmentsMock).toHaveBeenCalledWith('/test/project', ['/a.txt', '/b.txt'])
+    expect(prepareAttachmentsMock).toHaveBeenCalledWith('/test/project', [fileA, fileB])
   })
 })

@@ -1,6 +1,9 @@
 import type { PreparedAttachment } from '@shared/types/agent'
 import { useRef, useState } from 'react'
 import { api } from '@/lib/ipc'
+import { createRendererLogger } from '@/lib/logger'
+
+const logger = createRendererLogger('file-attachment')
 
 const MAX_ATTACHMENTS = 5
 
@@ -23,26 +26,36 @@ export interface UseFileAttachmentResult {
   readonly handleAttachFiles: (event: React.ChangeEvent<HTMLInputElement>) => Promise<void>
 }
 
-function extractFilePaths(files: readonly File[]): string[] {
-  return files.map((file) => api.getFilePath(file)).filter((filePath) => filePath.length > 0)
+function describeAttachmentError(err: unknown): string {
+  return err instanceof Error ? err.message : 'Failed to prepare attachments.'
+}
+
+function reportAttachmentError(
+  err: unknown,
+  setAttachmentError: (error: string | null) => void,
+  onToast: ((message: string) => void) | undefined,
+): void {
+  const message = describeAttachmentError(err)
+  logger.warn('Failed to prepare selected file attachments', { error: message })
+  setAttachmentError(message)
+  onToast?.(message)
 }
 
 async function prepareAndAttach(
   projectPath: string,
-  paths: string[],
+  files: readonly File[],
   addAttachments: (attachments: PreparedAttachment[]) => void,
   setAttachmentError: (error: string | null) => void,
   onToast: ((message: string) => void) | undefined,
 ): Promise<void> {
   try {
     setAttachmentError(null)
-    const prepared = await api.prepareAttachments(projectPath, paths)
+    const prepared = await api.prepareAttachments(projectPath, files)
+    if (prepared.length === 0) return
     addAttachments(prepared)
     onToast?.(`Attached ${String(prepared.length)} file${prepared.length === 1 ? '' : 's'}.`)
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to prepare attachments.'
-    setAttachmentError(message)
-    onToast?.(message)
+    reportAttachmentError(err, setAttachmentError, onToast)
   }
 }
 
@@ -84,16 +97,16 @@ export function useFileAttachment({
     }
   }
 
-  async function validateAndAttach(paths: string[]): Promise<void> {
+  async function validateAndAttach(files: readonly File[]): Promise<void> {
     if (!projectPath) {
       setAttachmentError('Select a project before attaching files.')
       return
     }
-    if (paths.length === 0) return
+    if (files.length === 0) return
     if (isAtCapacity) return
 
     // Silently trim to remaining capacity
-    const trimmed = paths.slice(0, remainingSlots)
+    const trimmed = files.slice(0, remainingSlots)
     await prepareAndAttach(projectPath, trimmed, addAttachments, setAttachmentError, onToast)
   }
 
@@ -104,14 +117,22 @@ export function useFileAttachment({
 
     if (isAtCapacity) return
 
-    const paths = extractFilePaths(Array.from(event.dataTransfer.files))
-    await validateAndAttach(paths)
+    try {
+      await validateAndAttach(Array.from(event.dataTransfer.files))
+    } catch (err) {
+      reportAttachmentError(err, setAttachmentError, onToast)
+    }
   }
 
   async function handleAttachFiles(event: React.ChangeEvent<HTMLInputElement>): Promise<void> {
-    const paths = extractFilePaths(Array.from(event.target.files ?? []))
-    event.target.value = ''
-    await validateAndAttach(paths)
+    const files = Array.from(event.target.files ?? [])
+    try {
+      await validateAndAttach(files)
+    } catch (err) {
+      reportAttachmentError(err, setAttachmentError, onToast)
+    } finally {
+      event.target.value = ''
+    }
   }
 
   return {
