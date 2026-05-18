@@ -41,6 +41,8 @@ const logger = createLogger('pi-mcp-config')
 const requireFromPiMcpConfigService = createRequire(import.meta.url)
 const MCP_ADAPTER_PACKAGE_JSON = `${MCP_ADAPTER_PACKAGE_NAME}/package.json`
 const BUNDLED_MCP_ADAPTER_VERSION = bundledMcpAdapterPackage.version
+const ASAR_PATH_SEGMENT = `${path.sep}app.asar${path.sep}`
+const ASAR_UNPACKED_PATH_SEGMENT = `${path.sep}app.asar.unpacked${path.sep}`
 
 interface McpSourceDefinition {
   readonly id: McpConfigSourceId
@@ -750,8 +752,18 @@ async function readPackageVersion(packageDir: string): Promise<string | null> {
   }
 }
 
+export function resolveCopyableBundledMcpAdapterPackageDir(packageDir: string): string {
+  if (!packageDir.includes(ASAR_PATH_SEGMENT)) {
+    return packageDir
+  }
+
+  return packageDir.replace(ASAR_PATH_SEGMENT, ASAR_UNPACKED_PATH_SEGMENT)
+}
+
 function getBundledMcpAdapterPackageDir(): string {
-  return path.dirname(requireFromPiMcpConfigService.resolve(MCP_ADAPTER_PACKAGE_JSON))
+  return resolveCopyableBundledMcpAdapterPackageDir(
+    path.dirname(requireFromPiMcpConfigService.resolve(MCP_ADAPTER_PACKAGE_JSON)),
+  )
 }
 
 function bundledMcpAdapterMatchesSource(source: string): boolean {

@@ -34,6 +34,8 @@ files:
 extraResources:
   - from: build/icon.png
     to: icon.png
+asarUnpack:
+  - node_modules/pi-mcp-adapter/**/*
 mac:
   # Local builds: skip codesigning (no Apple Developer ID).
   # Distribution: remove this, configure CSC_LINK/CSC_KEY_PASSWORD.
