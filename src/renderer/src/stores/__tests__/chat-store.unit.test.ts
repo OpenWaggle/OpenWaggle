@@ -2,6 +2,7 @@ import { SessionId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useChatStore } from '../chat-store'
+import { useSessionStore } from '../session-store'
 
 // ── Mocks ────────────────────────────────────────────────────
 
@@ -31,8 +32,17 @@ function resetStore(): void {
   useChatStore.setState({
     sessions: [],
     sessionById: new Map<SessionId, SessionDetail>(),
+    missingSessionIds: new Set<SessionId>(),
+    draftSession: null,
     activeSessionId: null,
     activeSession: null,
+    error: null,
+  })
+  useSessionStore.setState({
+    sessions: [],
+    activeSessionTree: null,
+    activeWorkspace: null,
+    draftBranch: null,
     error: null,
   })
 }
@@ -89,11 +99,12 @@ describe('useChatStore unit', () => {
   })
 
   describe('startDraftSession', () => {
-    it('sets activeSessionId to null', () => {
+    it('sets activeSessionId to null and records the draft project', () => {
       const id = SessionId('test-session-id')
       useChatStore.getState().setActiveSessionId(id)
-      useChatStore.getState().startDraftSession()
+      useChatStore.getState().startDraftSession('/test/project')
       expect(useChatStore.getState().activeSessionId).toBeNull()
+      expect(useChatStore.getState().draftSession).toEqual({ projectPath: '/test/project' })
     })
   })
 
@@ -105,6 +116,7 @@ describe('useChatStore unit', () => {
       const result = await useChatStore.getState().createSession('/test/project')
       expect(result).toBe('new-session-id')
       expect(useChatStore.getState().activeSessionId).toBe('new-session-id')
+      expect(useChatStore.getState().draftSession).toBeNull()
       expect(mockApi.createSession).toHaveBeenCalledWith('/test/project')
     })
 
@@ -118,6 +130,22 @@ describe('useChatStore unit', () => {
   })
 
   describe('deleteSession', () => {
+    it('clears active state and prevents deleted sessions from being reselected', async () => {
+      const id = SessionId('delete-session-id')
+      const session = makeSessionDetail(id)
+      useChatStore.getState().upsertSession(session)
+      useChatStore.getState().setActiveSessionId(id)
+      mockApi.deleteSession.mockResolvedValueOnce(undefined)
+
+      await useChatStore.getState().deleteSession(id)
+      useChatStore.getState().setActiveSessionId(id)
+
+      expect(useChatStore.getState().activeSessionId).toBeNull()
+      expect(useChatStore.getState().activeSession).toBeNull()
+      expect(useChatStore.getState().missingSessionIds.has(id)).toBe(true)
+      expect(mockApi.getSessionDetail).not.toHaveBeenCalled()
+    })
+
     it('throws and restores state when api deletion fails', async () => {
       const id = SessionId('delete-session-id')
       const session = makeSessionDetail(id)
@@ -140,6 +168,46 @@ describe('useChatStore unit', () => {
       ])
       expect(useChatStore.getState().activeSessionId).toBe(id)
       expect(useChatStore.getState().activeSession).toBe(session)
+      expect(useChatStore.getState().missingSessionIds.has(id)).toBe(false)
+    })
+
+    it('clears active state when a refreshed session no longer exists', async () => {
+      const id = SessionId('missing-session-id')
+      useChatStore.getState().setActiveSessionId(id)
+      mockApi.getSessionDetail.mockResolvedValueOnce(null)
+
+      await useChatStore.getState().refreshSession(id)
+
+      expect(useChatStore.getState().activeSessionId).toBeNull()
+      expect(useChatStore.getState().activeSession).toBeNull()
+      expect(useChatStore.getState().missingSessionIds.has(id)).toBe(true)
+    })
+  })
+
+  describe('updateSessionTitle', () => {
+    it('does not refresh the active tree for non-active session title updates', async () => {
+      const activeId = SessionId('active-session-id')
+      const inactiveId = SessionId('inactive-session-id')
+      useChatStore.getState().upsertSession(makeSessionDetail(activeId, 'Active'))
+      useChatStore.getState().upsertSession(makeSessionDetail(inactiveId, 'Inactive'))
+      useChatStore.getState().setActiveSessionId(activeId)
+
+      useChatStore.getState().updateSessionTitle(inactiveId, 'Inactive renamed')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(mockApi.listSessions).toHaveBeenCalled()
+      expect(mockApi.getSessionTree).not.toHaveBeenCalledWith(inactiveId)
+    })
+
+    it('refreshes the active tree for active session title updates', async () => {
+      const activeId = SessionId('active-session-id')
+      useChatStore.getState().upsertSession(makeSessionDetail(activeId, 'Active'))
+      useChatStore.getState().setActiveSessionId(activeId)
+
+      useChatStore.getState().updateSessionTitle(activeId, 'Active renamed')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(mockApi.getSessionTree).toHaveBeenCalledWith(activeId)
     })
   })
 })

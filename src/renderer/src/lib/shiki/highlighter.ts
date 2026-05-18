@@ -4,7 +4,7 @@
  * Pre-loads 12 common language grammars on first access.
  * Uses the JavaScript regex engine (no WASM needed).
  */
-import type { Highlighter } from 'shiki'
+import type { BundledLanguage, Highlighter } from 'shiki'
 import { createHighlighter, createJavaScriptRegexEngine } from 'shiki'
 
 const PRELOADED_LANGUAGES = [
@@ -20,9 +20,10 @@ const PRELOADED_LANGUAGES = [
   'sql',
   'rust',
   'go',
-] as const
+] as const satisfies readonly BundledLanguage[]
 
 const PRELOADED_THEMES = ['github-dark'] as const
+export type PreloadedLanguage = (typeof PRELOADED_LANGUAGES)[number]
 
 let highlighterPromise: Promise<Highlighter> | undefined
 
@@ -41,7 +42,7 @@ export function getHighlighter(): Promise<Highlighter> {
 export const PRELOADED_LANGUAGE_SET: ReadonlySet<string> = new Set<string>(PRELOADED_LANGUAGES)
 
 /** Map short aliases to their canonical language IDs (Shiki handles these, but our guard set doesn't). */
-const LANGUAGE_ALIASES: ReadonlyMap<string, string> = new Map([
+const LANGUAGE_ALIASES: ReadonlyMap<string, PreloadedLanguage> = new Map([
   ['ts', 'typescript'],
   ['tsx', 'typescript'],
   ['js', 'javascript'],
@@ -56,16 +57,18 @@ const LANGUAGE_ALIASES: ReadonlyMap<string, string> = new Map([
   ['jsonc', 'json'],
 ])
 
+function isPreloadedLanguage(lang: string): lang is PreloadedLanguage {
+  return PRELOADED_LANGUAGE_SET.has(lang)
+}
+
 /**
  * Resolve a language alias to its canonical preloaded name.
  * Returns the canonical name if the language (or its alias) is preloaded,
  * otherwise returns undefined.
  */
-export function resolveLanguage(lang: string): string | undefined {
-  if (PRELOADED_LANGUAGE_SET.has(lang)) return lang
-  const canonical = LANGUAGE_ALIASES.get(lang)
-  if (canonical && PRELOADED_LANGUAGE_SET.has(canonical)) return canonical
-  return undefined
+export function resolveLanguage(lang: string): PreloadedLanguage | undefined {
+  if (isPreloadedLanguage(lang)) return lang
+  return LANGUAGE_ALIASES.get(lang)
 }
 
 /** Default theme used for highlighting. */

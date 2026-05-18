@@ -1,4 +1,4 @@
-import { choose } from '@shared/utils/decision'
+import { match } from '@diegogbrisa/ts-match'
 import { useNavigate } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import { useChat } from '@/hooks/useChat'
@@ -7,9 +7,9 @@ import { cn } from '@/lib/cn'
 import type { SettingsTab } from '@/stores/ui-store'
 import { SettingsNav } from './SettingsNav'
 import { ArchivedSection } from './sections/ArchivedSection'
-import { ConfigurationSection } from './sections/ConfigurationSection'
 import { ConnectionsSection } from './sections/ConnectionsSection'
 import { GeneralSection } from './sections/GeneralSection'
+import { McpSection } from './sections/McpSection'
 import { WaggleSection } from './sections/WaggleSection'
 
 interface SettingsPageProps {
@@ -34,7 +34,7 @@ export function SettingsPage({ activeTab }: SettingsPageProps) {
   }
 
   return (
-    <div className="flex size-full flex-col bg-bg">
+    <div className="flex h-full w-full flex-col bg-bg">
       {/* Header */}
       <div
         className={cn(
@@ -67,11 +67,11 @@ export function SettingsPage({ activeTab }: SettingsPageProps) {
 }
 
 function SettingsTabContent({ tab }: { tab: SettingsTab }) {
-  return choose(tab)
-    .case('general', () => <GeneralSection />)
-    .case('configuration', () => <ConfigurationSection />)
-    .case('waggle', () => <WaggleSection />)
-    .case('connections', () => <ConnectionsSection />)
-    .case('archived', () => <ArchivedSection />)
-    .catchAll(() => <GeneralSection />)
+  return match(tab)
+    .with('general', () => <GeneralSection />)
+    .with('waggle', () => <WaggleSection />)
+    .with('mcp', () => <McpSection />)
+    .with('connections', () => <ConnectionsSection />)
+    .with('archived', () => <ArchivedSection />)
+    .otherwise(() => <GeneralSection />)
 }

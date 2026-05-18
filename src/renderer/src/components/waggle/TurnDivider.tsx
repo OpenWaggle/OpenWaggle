@@ -20,7 +20,7 @@ export function TurnDivider({ turnNumber, agentLabel, agentColor, agentModel }: 
           AGENT_TEXT[agentColor],
         )}
       >
-        <span>
+        <span data-waggle-turn-label="true">
           Turn {turnNumber + 1}: {agentLabel}
         </span>
         {agentModel ? (

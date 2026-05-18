@@ -1,3 +1,4 @@
+import { match } from '@diegogbrisa/ts-match'
 import type { AgentErrorInfo } from '@shared/types/errors'
 import type { FeedbackCategory, FeedbackPayload, GhCliStatus } from '@shared/types/feedback'
 import { useEffect, useState } from 'react'
@@ -103,19 +104,20 @@ export function useFeedback(
     setSubmitting(true)
 
     try {
-      const result = await api.submitFeedback(buildPayload())
-      if (result.success) {
-        showPersistentToast({
-          message: 'Issue created successfully',
-          variant: 'success',
-          persistent: true,
-          action: result.issueUrl ? { label: 'View on GitHub', url: result.issueUrl } : undefined,
+      await match
+        .promise(api.submitFeedback(buildPayload()))
+        .with({ success: true }, (result) => {
+          showPersistentToast({
+            message: 'Issue created successfully',
+            variant: 'success',
+            persistent: true,
+            action: result.issueUrl ? { label: 'View on GitHub', url: result.issueUrl } : undefined,
+          })
+          closeFeedbackModal()
+          startFeedbackCooldown()
         })
-        closeFeedbackModal()
-        startFeedbackCooldown()
-      } else {
-        setError(result.error ?? 'Failed to create issue.')
-      }
+        .with({ success: false }, (result) => setError(result.error ?? 'Failed to create issue.'))
+        .exhaustive()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred.')
     } finally {

@@ -1,10 +1,6 @@
 import { SupportedModelId } from '@shared/types/brand'
 import {
   DEFAULT_SETTINGS,
-  MCP_DEFAULT_MODES,
-  MCP_PROJECT_MODES,
-  type McpDefaultMode,
-  type McpProjectMode,
   type Settings,
   THINKING_LEVELS,
   type ThinkingLevel,
@@ -21,7 +17,6 @@ const SLICE_ARG_2_VALUE_10 = 10
 
 interface PreferencesState {
   settings: Settings
-  projectMcpSettings: { readonly enabled: McpProjectMode }
   isLoaded: boolean
   loadError: string | null
 
@@ -33,13 +28,11 @@ interface PreferencesState {
   pushRecentProject: (path: string) => Promise<void>
   removeRecentProject: (path: string) => Promise<void>
   setThinkingLevel: (preset: ThinkingLevel) => Promise<void>
-  setMcpDefault: (mode: McpDefaultMode) => Promise<void>
-  setProjectMcpEnabled: (mode: McpProjectMode) => Promise<void>
   setEnabledModels: (models: string[]) => Promise<void>
   setProjectDisplayName: (path: string, name: string) => Promise<void>
   clearProjectDisplayName: (path: string) => Promise<void>
+  removeProjectReferences: (path: string) => Promise<void>
   loadProjectPreferences: (projectPath: string) => Promise<void>
-  loadProjectMcpSettings: (projectPath: string) => Promise<void>
 }
 
 /**
@@ -57,9 +50,16 @@ function persistProjectPreference(
   }
 }
 
+function appendRecentProject(paths: readonly string[], path: string): readonly string[] {
+  const normalized = path.trim()
+  if (!normalized || paths.includes(normalized)) {
+    return paths
+  }
+  return [...paths, normalized].slice(-SLICE_ARG_2_VALUE_10)
+}
+
 export const usePreferencesStore = create<PreferencesState>((set, get) => ({
   settings: DEFAULT_SETTINGS,
-  projectMcpSettings: { enabled: 'inherit' },
   isLoaded: false,
   loadError: null,
 
@@ -69,7 +69,6 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
       set({ settings, isLoaded: false, loadError: null })
       if (settings.projectPath) {
         await get().loadProjectPreferences(settings.projectPath)
-        await get().loadProjectMcpSettings(settings.projectPath)
       }
       set({ isLoaded: true, loadError: null })
     } catch (err) {
@@ -117,21 +116,17 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     const { settings } = get()
     let recentProjects = settings.recentProjects
     if (path) {
-      const deduped = [path, ...settings.recentProjects.filter((p) => p !== path)]
-      recentProjects = deduped.slice(0, SLICE_ARG_2_VALUE_10)
+      recentProjects = appendRecentProject(settings.recentProjects, path)
     }
     await api.updateSettings({ projectPath: path, recentProjects })
     set({ settings: { ...settings, projectPath: path, recentProjects } })
     if (path) {
       await get().loadProjectPreferences(path)
-      await get().loadProjectMcpSettings(path)
       const { useProviderStore } = await import('./provider-store')
       const updatedSettings = await useProviderStore.getState().loadProviderModels(get().settings)
       if (updatedSettings) {
         set({ settings: updatedSettings })
       }
-    } else {
-      set({ projectMcpSettings: { enabled: 'inherit' } })
     }
   },
 
@@ -142,37 +137,12 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     persistProjectPreference(settings.projectPath, { thinkingLevel: preset })
   },
 
-  async setMcpDefault(mode: McpDefaultMode) {
-    if (!includes(MCP_DEFAULT_MODES, mode)) return
-    const { settings } = get()
-    await api.updateSettings({ mcpDefault: mode })
-    set({ settings: { ...settings, mcpDefault: mode } })
-  },
-
-  async setProjectMcpEnabled(mode: McpProjectMode) {
-    if (!includes(MCP_PROJECT_MODES, mode)) return
-    const { settings } = get()
-    if (!settings.projectPath) {
-      set({ projectMcpSettings: { enabled: mode } })
-      return
-    }
-    if (typeof api.setProjectMcpSettings !== 'function') {
-      logger.warn('Project MCP settings API is unavailable')
-      return
-    }
-    await api.setProjectMcpSettings(settings.projectPath, { enabled: mode })
-    set({ projectMcpSettings: { enabled: mode } })
-  },
-
   async pushRecentProject(path: string) {
     const normalized = path.trim()
     if (!normalized) return
 
     const { settings } = get()
-    const recentProjects = [
-      normalized,
-      ...settings.recentProjects.filter((p) => p !== normalized),
-    ].slice(0, SLICE_ARG_2_VALUE_10)
+    const recentProjects = appendRecentProject(settings.recentProjects, normalized)
     await api.updateSettings({ recentProjects })
     set({ settings: { ...settings, recentProjects } })
   },
@@ -212,6 +182,28 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     set({ settings: { ...settings, projectDisplayNames: rest } })
   },
 
+  async removeProjectReferences(path: string) {
+    const { settings } = get()
+    const recentProjects = settings.recentProjects.filter((projectPath) => projectPath !== path)
+    const { [path]: _displayName, ...projectDisplayNames } = settings.projectDisplayNames
+    const { [path]: _skillToggles, ...skillTogglesByProject } = settings.skillTogglesByProject
+    const projectPath = settings.projectPath === path ? null : settings.projectPath
+    const nextSettings = {
+      ...settings,
+      projectPath,
+      recentProjects,
+      projectDisplayNames,
+      skillTogglesByProject,
+    }
+    await api.updateSettings({
+      projectPath,
+      recentProjects,
+      projectDisplayNames,
+      skillTogglesByProject,
+    })
+    set({ settings: nextSettings })
+  },
+
   async loadProjectPreferences(projectPath: string) {
     const prefs = await api.getProjectPreferences(projectPath)
     if (!prefs) return
@@ -235,20 +227,5 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
       ...(thinkingLevel ? { thinkingLevel } : {}),
     })
     set({ settings: merged })
-  },
-
-  async loadProjectMcpSettings(projectPath: string) {
-    if (typeof api.getProjectMcpSettings !== 'function') {
-      set({ projectMcpSettings: { enabled: 'inherit' } })
-      return
-    }
-
-    try {
-      const mcpSettings = await api.getProjectMcpSettings(projectPath)
-      set({ projectMcpSettings: mcpSettings })
-    } catch (err) {
-      logger.warn('Failed to load project MCP settings', { error: String(err) })
-      set({ projectMcpSettings: { enabled: 'inherit' } })
-    }
   },
 }))

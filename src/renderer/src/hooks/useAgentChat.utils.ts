@@ -1,11 +1,13 @@
-import type { AttachmentRecord, MessagePart } from '@shared/types/agent'
-import type { UIMessage } from '@shared/types/chat-ui'
+import { isMatching, match, matchBy } from '@diegogbrisa/ts-match'
+import { TOOL_STATE_RANK } from '@shared/constants/tool-state'
+import type { AgentSendPayload, AttachmentRecord, MessagePart } from '@shared/types/agent'
+import type { UIMessage, UIMessagePart } from '@shared/types/chat-ui'
 import type { SessionDetail } from '@shared/types/session'
-import { chooseBy } from '@shared/utils/decision'
 
 // ─── MessagePart → UIMessage Parts Conversion ────────────────
 
 const MAX_ATTACHMENT_PREVIEW_CHARS = 320
+let optimisticUserMessageCounter = 0
 
 /** Prefix used to identify attachment text parts in UIMessage rendering. */
 export const ATTACHMENT_TEXT_PREFIX = '[Attachment] '
@@ -27,15 +29,43 @@ export function formatAttachmentPreview(
   return `${ATTACHMENT_TEXT_PREFIX}${attachment.name}\n${clipped}`
 }
 
+export function buildClientUserMessage(payload: AgentSendPayload): string {
+  const chunks: string[] = []
+  const text = payload.text.trim()
+  if (text) {
+    chunks.push(text)
+  }
+  for (const attachment of payload.attachments) {
+    chunks.push(formatAttachmentPreview(attachment))
+  }
+  return chunks.join('\n\n')
+}
+
+export function createOptimisticUserMessage(payload: AgentSendPayload): UIMessage {
+  optimisticUserMessageCounter += 1
+
+  return {
+    id: `optimistic-user-${Date.now()}-${String(optimisticUserMessageCounter)}`,
+    role: 'user',
+    parts: [
+      {
+        type: 'text',
+        content: buildClientUserMessage(payload),
+      },
+    ],
+    createdAt: new Date(),
+  }
+}
+
 /**
  * Convert a single persisted MessagePart to UIMessage parts.
  * Shared by both sessionToUIMessages (historical) and
  * buildPartialAssistantMessage (background reconnection).
  */
 export function messagePartToUIParts(part: MessagePart): UIMessage['parts'] {
-  return chooseBy(part, 'type')
-    .case('text', (value): UIMessage['parts'] => [{ type: 'text', content: value.text }])
-    .case('tool-call', (value): UIMessage['parts'] => [
+  return matchBy(part, 'type')
+    .with('text', (value): UIMessage['parts'] => [{ type: 'text', content: value.text }])
+    .with('tool-call', (value): UIMessage['parts'] => [
       {
         type: 'tool-call',
         id: String(value.toolCall.id),
@@ -44,7 +74,7 @@ export function messagePartToUIParts(part: MessagePart): UIMessage['parts'] {
         state: value.toolCall.state ?? 'input-complete',
       },
     ])
-    .case('tool-result', (value): UIMessage['parts'] => [
+    .with('tool-result', (value): UIMessage['parts'] => [
       {
         type: 'tool-result',
         toolCallId: String(value.toolResult.id),
@@ -52,19 +82,19 @@ export function messagePartToUIParts(part: MessagePart): UIMessage['parts'] {
         state: value.toolResult.isError ? 'error' : 'complete',
       },
     ])
-    .case('attachment', (value): UIMessage['parts'] => [
+    .with('attachment', (value): UIMessage['parts'] => [
       {
         type: 'text',
         content: formatAttachmentPreview(value.attachment),
       },
     ])
-    .case('reasoning', (value): UIMessage['parts'] => [
+    .with('reasoning', (value): UIMessage['parts'] => [
       {
         type: 'thinking',
         content: value.text,
       },
     ])
-    .assertComplete()
+    .exhaustive()
 }
 
 // ─── SessionDetail → UIMessage Conversion ─────────────────────
@@ -90,18 +120,198 @@ export function sessionToUIMessages(session: SessionDetail): UIMessage[] {
 
 // ─── Background Run Reconnection Helpers ─────────────────────
 
-export function buildPartialAssistantMessage(parts: readonly MessagePart[]): UIMessage | null {
+export function buildPartialAssistantMessage(
+  parts: readonly MessagePart[],
+  messageId?: string,
+): UIMessage | null {
   const uiParts: UIMessage['parts'] = parts.flatMap(messagePartToUIParts)
   if (uiParts.length === 0) {
     return null
   }
 
   return {
-    id: `bg-stream-${Date.now()}`,
+    id: messageId ?? `bg-stream-${Date.now()}`,
     role: 'assistant',
     parts: uiParts,
     createdAt: new Date(),
   }
+}
+
+function isAssistantMessage(
+  message: UIMessage,
+): message is UIMessage & { readonly role: 'assistant' } {
+  return isMatching({ role: 'assistant' }, message)
+}
+
+function mergeTextContent(snapshotContent: string, currentContent: string): string {
+  return match({ snapshotContent, currentContent })
+    .when(
+      (value) => value.snapshotContent.includes(value.currentContent),
+      (value) => value.snapshotContent,
+    )
+    .when(
+      (value) => value.currentContent.includes(value.snapshotContent),
+      (value) => value.currentContent,
+    )
+    .otherwise((value) => `${value.snapshotContent}${value.currentContent}`)
+}
+
+function toolStateRank(state: string): number {
+  return match(state)
+    .with('complete', 'error', 'output-available', () => TOOL_STATE_RANK.TERMINAL)
+    .with('executing', () => TOOL_STATE_RANK.EXECUTING)
+    .with('input-complete', () => TOOL_STATE_RANK.INPUT_COMPLETE)
+    .with('input-streaming', () => TOOL_STATE_RANK.INPUT_STREAMING)
+    .otherwise(() => TOOL_STATE_RANK.UNKNOWN)
+}
+
+function findLastTextPartIndex(parts: readonly UIMessagePart[]): number {
+  for (let index = parts.length - 1; index >= 0; index -= 1) {
+    if (parts[index]?.type === 'text') {
+      return index
+    }
+  }
+  return -1
+}
+
+function findLastThinkingPartIndex(parts: readonly UIMessagePart[], stepId?: string): number {
+  for (let index = parts.length - 1; index >= 0; index -= 1) {
+    const part = parts[index]
+    if (part?.type !== 'thinking') {
+      continue
+    }
+    if (!stepId || part.stepId === stepId) {
+      return index
+    }
+  }
+  return -1
+}
+
+function findMergeablePartIndex(parts: readonly UIMessagePart[], part: UIMessagePart): number {
+  return matchBy(part, 'type')
+    .with('text', () => findLastTextPartIndex(parts))
+    .with('thinking', (value) => findLastThinkingPartIndex(parts, value.stepId))
+    .with('tool-call', (value) =>
+      parts.findIndex((candidate) => candidate.type === 'tool-call' && candidate.id === value.id),
+    )
+    .with('tool-result', (value) =>
+      parts.findIndex(
+        (candidate) =>
+          candidate.type === 'tool-result' && candidate.toolCallId === value.toolCallId,
+      ),
+    )
+    .with('image', (value) =>
+      parts.findIndex(
+        (candidate) => candidate.type === 'image' && candidate.source.value === value.source.value,
+      ),
+    )
+    .with('audio', (value) =>
+      parts.findIndex(
+        (candidate) => candidate.type === 'audio' && candidate.source.value === value.source.value,
+      ),
+    )
+    .with('video', (value) =>
+      parts.findIndex(
+        (candidate) => candidate.type === 'video' && candidate.source.value === value.source.value,
+      ),
+    )
+    .with('document', (value) =>
+      parts.findIndex(
+        (candidate) =>
+          candidate.type === 'document' && candidate.source.value === value.source.value,
+      ),
+    )
+    .exhaustive()
+}
+
+function mergeMessagePart(snapshotPart: UIMessagePart, currentPart: UIMessagePart): UIMessagePart {
+  return match({ snapshotPart, currentPart })
+    .with(
+      { snapshotPart: { type: 'text' }, currentPart: { type: 'text' } },
+      (value): UIMessagePart => ({
+        type: 'text',
+        content: mergeTextContent(value.snapshotPart.content, value.currentPart.content),
+      }),
+    )
+    .with(
+      { snapshotPart: { type: 'thinking' }, currentPart: { type: 'thinking' } },
+      (value): UIMessagePart => {
+        const stepId = value.currentPart.stepId ?? value.snapshotPart.stepId
+        return {
+          type: 'thinking',
+          content: mergeTextContent(value.snapshotPart.content, value.currentPart.content),
+          ...(stepId ? { stepId } : {}),
+        }
+      },
+    )
+    .with(
+      { snapshotPart: { type: 'tool-call' }, currentPart: { type: 'tool-call' } },
+      (value): UIMessagePart =>
+        toolStateRank(value.currentPart.state) >= toolStateRank(value.snapshotPart.state)
+          ? value.currentPart
+          : value.snapshotPart,
+    )
+    .otherwise((value) => value.currentPart)
+}
+
+function mergeAssistantParts(
+  snapshotParts: readonly UIMessagePart[],
+  currentParts: readonly UIMessagePart[],
+): UIMessagePart[] {
+  const mergedParts = [...snapshotParts]
+  for (const currentPart of currentParts) {
+    const partIndex = findMergeablePartIndex(mergedParts, currentPart)
+    const existingPart = partIndex >= 0 ? mergedParts[partIndex] : undefined
+    if (!existingPart) {
+      mergedParts.push(currentPart)
+      continue
+    }
+    mergedParts[partIndex] = mergeMessagePart(existingPart, currentPart)
+  }
+  return mergedParts
+}
+
+export function mergeBackgroundReconnectMessages(
+  reconnectMessages: UIMessage[],
+  currentMessages: UIMessage[],
+): UIMessage[] {
+  const currentMessagesById = new Map(currentMessages.map((message) => [message.id, message]))
+  const reconnectMessageIds = new Set(reconnectMessages.map((message) => message.id))
+  const reconnectUserCountsByText = countUserMessagesByText(reconnectMessages)
+  const mergedMessages = reconnectMessages.map((message) => {
+    const currentMessage = currentMessagesById.get(message.id)
+    return match(currentMessage)
+      .with(undefined, () => message)
+      .when(isAssistantMessage, (currentAssistantMessage) =>
+        match(message)
+          .when(
+            isAssistantMessage,
+            (assistantMessage): UIMessage => ({
+              ...assistantMessage,
+              parts: mergeAssistantParts(assistantMessage.parts, currentAssistantMessage.parts),
+              createdAt: currentAssistantMessage.createdAt ?? assistantMessage.createdAt,
+              metadata: currentAssistantMessage.metadata ?? assistantMessage.metadata,
+            }),
+          )
+          .otherwise(() => currentAssistantMessage),
+      )
+      .otherwise((value) => value)
+  })
+
+  for (const currentMessage of currentMessages) {
+    if (!reconnectMessageIds.has(currentMessage.id)) {
+      const currentUserText = getNonEmptyUserMessageText(currentMessage)
+      if (
+        currentUserText &&
+        consumeUserMessageTextCount(reconnectUserCountsByText, currentUserText)
+      ) {
+        continue
+      }
+      mergedMessages.push(currentMessage)
+    }
+  }
+
+  return mergedMessages
 }
 
 // ─── Snapshot ↔ Optimistic User Message Reconciliation ───────
@@ -117,6 +327,51 @@ export function getUIMessageText(message: UIMessage): string {
     )
     .map((part) => part.content)
     .join('\n\n')
+}
+
+function getNonEmptyUserMessageText(message: UIMessage): string | null {
+  if (message.role !== 'user') {
+    return null
+  }
+
+  const text = getUIMessageText(message)
+  return text || null
+}
+
+function countUserMessagesByText(messages: readonly UIMessage[]): Map<string, number> {
+  const countsByText = new Map<string, number>()
+  for (const message of messages) {
+    const text = getNonEmptyUserMessageText(message)
+    if (!text) {
+      continue
+    }
+    countsByText.set(text, (countsByText.get(text) ?? 0) + 1)
+  }
+  return countsByText
+}
+
+function consumeUserMessageTextCount(countsByText: Map<string, number>, text: string): boolean {
+  const count = countsByText.get(text) ?? 0
+  if (count === 0) {
+    return false
+  }
+  countsByText.set(text, count - 1)
+  return true
+}
+
+function findMissingOptimisticUserMessages(
+  snapshotUserCountsByText: Map<string, number>,
+  optimisticUserMessages: readonly UIMessage[],
+): UIMessage[] {
+  const missingMessages: UIMessage[] = []
+  for (const message of optimisticUserMessages) {
+    const text = getNonEmptyUserMessageText(message)
+    if (!text || consumeUserMessageTextCount(snapshotUserCountsByText, text)) {
+      continue
+    }
+    missingMessages.push(message)
+  }
+  return missingMessages
 }
 
 /**
@@ -140,34 +395,10 @@ export function appendMissingOptimisticUserMessages(
     return snapshotMessages
   }
 
-  const snapshotUserCountsByText = new Map<string, number>()
-  for (const message of snapshotMessages) {
-    if (message.role !== 'user') {
-      continue
-    }
-    const text = getUIMessageText(message)
-    if (!text) {
-      continue
-    }
-    snapshotUserCountsByText.set(text, (snapshotUserCountsByText.get(text) ?? 0) + 1)
-  }
-
-  const missingOptimisticMessages: UIMessage[] = []
-  for (const message of optimisticUserMessages) {
-    if (message.role !== 'user') {
-      continue
-    }
-    const text = getUIMessageText(message)
-    if (!text) {
-      continue
-    }
-    const count = snapshotUserCountsByText.get(text) ?? 0
-    if (count > 0) {
-      snapshotUserCountsByText.set(text, count - 1)
-      continue
-    }
-    missingOptimisticMessages.push(message)
-  }
+  const missingOptimisticMessages = findMissingOptimisticUserMessages(
+    countUserMessagesByText(snapshotMessages),
+    optimisticUserMessages,
+  )
 
   return missingOptimisticMessages.length > 0
     ? [...snapshotMessages, ...missingOptimisticMessages]

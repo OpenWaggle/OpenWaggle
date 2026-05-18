@@ -1,5 +1,5 @@
 import type { AgentsInstructionStatus, SkillCatalogResult } from '@shared/types/standards'
-import { queryOptions } from '@tanstack/react-query'
+import { queryOptions, type UseQueryOptions } from '@tanstack/react-query'
 import { api } from '@/lib/ipc'
 import { queryKeys } from './query-keys'
 
@@ -23,7 +23,21 @@ export async function fetchSkillResources(projectPath: string): Promise<SkillRes
   return { standardsStatus, catalog }
 }
 
-export function skillResourcesQueryOptions(projectPath: string | null) {
+type SkillResourcesQueryOptions = UseQueryOptions<
+  SkillResourcesResult,
+  Error,
+  SkillResourcesResult,
+  ReturnType<typeof queryKeys.skills>
+>
+
+type SkillPreviewQueryOptions = UseQueryOptions<
+  Awaited<ReturnType<typeof fetchSkillPreview>>,
+  Error,
+  Awaited<ReturnType<typeof fetchSkillPreview>>,
+  ReturnType<typeof queryKeys.skillPreview>
+>
+
+export function skillResourcesQueryOptions(projectPath: string | null): SkillResourcesQueryOptions {
   return queryOptions({
     queryKey: queryKeys.skills(projectPath),
     enabled: projectPath !== null,
@@ -45,7 +59,7 @@ export function skillPreviewQueryOptions(
   projectPath: string | null,
   skillId: string | null,
   enabled: boolean = projectPath !== null && skillId !== null,
-) {
+): SkillPreviewQueryOptions {
   return queryOptions({
     queryKey: queryKeys.skillPreview(projectPath, skillId),
     enabled,

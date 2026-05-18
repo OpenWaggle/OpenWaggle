@@ -1,5 +1,5 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import type { SessionBranchId, SessionId } from '@shared/types/brand'
-import { chooseBy } from '@shared/utils/decision'
 import { Spinner } from '@/components/shared/Spinner'
 import { TurnDivider } from '@/components/waggle/TurnDivider'
 import { formatElapsed } from '@/hooks/useStreamingPhase'
@@ -34,8 +34,8 @@ export function ChatRowRenderer({
   onBranchFromMessage,
   onForkFromMessage,
 }: ChatRowRendererProps) {
-  return chooseBy(row, 'type')
-    .case('interrupted-run', (value) => (
+  return matchBy(row, 'type')
+    .with('interrupted-run', (value) => (
       <InterruptedRunNotice
         runId={value.runId}
         branchId={value.branchId}
@@ -45,7 +45,7 @@ export function ChatRowRenderer({
         onDismiss={onDismissInterruptedRun}
       />
     ))
-    .case('message', (value) => (
+    .with('message', (value) => (
       <div className="flex flex-col gap-6">
         {value.showTurnDivider && value.turnDividerProps && (
           <TurnDivider
@@ -67,7 +67,7 @@ export function ChatRowRenderer({
         />
       </div>
     ))
-    .case('waggle-turn', (value) => (
+    .with('waggle-turn', (value) => (
       <section className="flex flex-col gap-3" data-waggle-turn={value.id}>
         <TurnDivider
           turnNumber={value.turnDividerProps.turnNumber}
@@ -95,14 +95,14 @@ export function ChatRowRenderer({
         </div>
       </section>
     ))
-    .case('branch-summary', (value) => (
+    .with('branch-summary', (value) => (
       <BranchSummaryCard
         id={value.id}
         summary={value.summary}
         onBranchFromMessage={onBranchFromMessage}
       />
     ))
-    .case('compaction-summary', (value) => (
+    .with('compaction-summary', (value) => (
       <CompactionSummaryCard
         id={value.id}
         summary={value.summary}
@@ -110,7 +110,7 @@ export function ChatRowRenderer({
         onBranchFromMessage={onBranchFromMessage}
       />
     ))
-    .case('phase-indicator', (value) => (
+    .with('phase-indicator', (value) => (
       <div className="flex items-center gap-2 py-3">
         <Spinner size="sm" className="text-accent" />
         <span className="text-sm text-text-tertiary">{value.label}...</span>
@@ -121,8 +121,8 @@ export function ChatRowRenderer({
         ) : null}
       </div>
     ))
-    .case('run-summary', (value) => <RunSummary phases={value.phases} totalMs={value.totalMs} />)
-    .case('error', (value) => (
+    .with('run-summary', (value) => <RunSummary phases={value.phases} totalMs={value.totalMs} />)
+    .with('error', (value) => (
       <ChatErrorDisplay
         error={value.error}
         lastUserMessage={value.lastUserMessage}
@@ -133,5 +133,5 @@ export function ChatRowRenderer({
         onRetry={onRetry}
       />
     ))
-    .assertComplete()
+    .exhaustive()
 }

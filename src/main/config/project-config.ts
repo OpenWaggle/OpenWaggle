@@ -6,7 +6,7 @@ import { projectSettingsFileSchema } from '@shared/schemas/validation'
 import { wagglePresetSchema } from '@shared/schemas/waggle'
 import { SupportedModelId, WagglePresetId } from '@shared/types/brand'
 import type { JsonObject } from '@shared/types/json'
-import type { McpProjectMode, ThinkingLevel } from '@shared/types/settings'
+import type { ThinkingLevel } from '@shared/types/settings'
 import type { WagglePreset } from '@shared/types/waggle'
 import { formatErrorMessage, isEnoent } from '@shared/utils/node-error'
 import { createLogger } from '../logger'
@@ -23,13 +23,8 @@ export interface ProjectPreferences {
   readonly thinkingLevel?: ThinkingLevel
 }
 
-export interface ProjectMcpSettings {
-  readonly enabled: McpProjectMode
-}
-
 export interface ProjectConfig {
   readonly preferences?: ProjectPreferences
-  readonly mcp?: ProjectMcpSettings
   readonly wagglePresets?: readonly WagglePreset[]
   readonly pi?: JsonObject
 }
@@ -224,57 +219,28 @@ export async function setProjectPreferences(
   }))
 }
 
-export async function getProjectMcpSettings(projectPath: string): Promise<ProjectMcpSettings> {
-  const config = await loadProjectConfig(projectPath)
-  return config.mcp ?? { enabled: 'inherit' }
-}
-
-export async function setProjectMcpSettings(
-  projectPath: string,
-  mcp: ProjectMcpSettings,
-): Promise<void> {
-  await updateProjectConfig(projectPath, (current) => ({
-    ...current,
-    mcp,
-  }))
-}
-
 function parseProjectConfig(settings: ParsedProjectSettingsFile | null): ProjectConfig {
-  const preferences = parseProjectPreferences(settings)
-  const mcp = parseProjectMcpConfig(settings)
-  const wagglePresets = parseWagglePresets(settings?.wagglePresets)
-  const pi = settings?.pi
+  const preferences: ProjectPreferences | undefined =
+    settings?.preferences?.model || settings?.preferences?.thinkingLevel
+      ? {
+          ...(settings.preferences.model ? { model: settings.preferences.model } : {}),
+          ...(settings.preferences.thinkingLevel
+            ? { thinkingLevel: settings.preferences.thinkingLevel }
+            : {}),
+        }
+      : undefined
 
-  if (!preferences && !mcp && wagglePresets.length === 0 && !pi) {
+  const wagglePresets = parseWagglePresets(settings?.wagglePresets)
+
+  if (!preferences && wagglePresets.length === 0 && !settings?.pi) {
     return EMPTY_CONFIG
   }
 
   return {
     ...(preferences ? { preferences } : {}),
-    ...(mcp ? { mcp } : {}),
     ...(wagglePresets.length > 0 ? { wagglePresets } : {}),
-    ...(pi ? { pi } : {}),
+    ...(settings?.pi ? { pi: settings.pi } : {}),
   }
-}
-
-function parseProjectPreferences(
-  settings: ParsedProjectSettingsFile | null,
-): ProjectPreferences | undefined {
-  const preferences = settings?.preferences
-  if (!preferences?.model && !preferences?.thinkingLevel) {
-    return undefined
-  }
-
-  return {
-    ...(preferences.model ? { model: preferences.model } : {}),
-    ...(preferences.thinkingLevel ? { thinkingLevel: preferences.thinkingLevel } : {}),
-  }
-}
-
-function parseProjectMcpConfig(
-  settings: ParsedProjectSettingsFile | null,
-): ProjectMcpSettings | undefined {
-  return settings?.mcp ? { enabled: settings.mcp.enabled } : undefined
 }
 
 function hydrateWagglePreset(raw: unknown): WagglePreset | null {

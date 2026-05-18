@@ -1,16 +1,22 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
-import * as ts from 'typescript'
+import ts from 'typescript'
 
 const ROOT = process.cwd()
 const SRC_DIR = path.join(ROOT, 'src')
 
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx'])
 
-async function collectSourceFiles(dir) {
+interface PatternViolation {
+  readonly file: string
+  readonly line: number
+  readonly reason: string
+}
+
+async function collectSourceFiles(dir: string): Promise<string[]> {
   const entries = await fs.readdir(dir, { withFileTypes: true })
-  const files = []
+  const files: string[] = []
 
   for (const entry of entries) {
     const fullPath = path.join(dir, entry.name)
@@ -27,18 +33,18 @@ async function collectSourceFiles(dir) {
   return files
 }
 
-function walk(node, visit) {
+function walk(node: ts.Node, visit: (node: ts.Node) => void): void {
   visit(node)
   ts.forEachChild(node, (child) => walk(child, visit))
 }
 
-function toRelative(filePath) {
+function toRelative(filePath: string): string {
   return path.relative(ROOT, filePath)
 }
 
-async function main() {
+async function main(): Promise<void> {
   const files = await collectSourceFiles(SRC_DIR)
-  const violations = []
+  const violations: PatternViolation[] = []
 
   for (const filePath of files) {
     const text = await fs.readFile(filePath, 'utf8')
@@ -50,7 +56,7 @@ async function main() {
         violations.push({
           file: toRelative(filePath),
           line: pos.line + 1,
-          reason: 'switch statements are disallowed; use choose/chooseBy',
+          reason: 'switch statements are disallowed; use match/matchBy from @diegogbrisa/ts-match',
         })
       }
 
@@ -59,7 +65,7 @@ async function main() {
         violations.push({
           file: toRelative(filePath),
           line: pos.line + 1,
-          reason: 'else-if chains are disallowed; use choose/chooseBy or guard clauses',
+          reason: 'else-if chains are disallowed; use match/matchBy from @diegogbrisa/ts-match or guard clauses',
         })
       }
 

@@ -1,3 +1,4 @@
+import { match } from '@diegogbrisa/ts-match'
 import { getMessageText } from '@shared/types/agent'
 import type { SessionNode, SessionTreeFilterMode } from '@shared/types/session'
 
@@ -76,25 +77,13 @@ export function filterSessionTreeNodes(
   nodes: readonly SessionNode[],
   mode: SessionTreeFilterMode,
 ): readonly SessionNode[] {
-  return nodes.filter((node) => {
-    if (mode === 'all') {
-      return true
-    }
-
-    if (mode === 'user-only') {
-      return isUserNode(node)
-    }
-
-    if (mode === 'labeled-only') {
-      return isLabeledNode(node)
-    }
-
-    if (mode === 'no-tools') {
-      return !isBookkeepingNode(node) && !isToolNode(node)
-    }
-
-    return !isBookkeepingNode(node)
-  })
+  return match(mode)
+    .with('all', () => nodes)
+    .with('user-only', () => nodes.filter(isUserNode))
+    .with('labeled-only', () => nodes.filter(isLabeledNode))
+    .with('no-tools', () => nodes.filter((node) => !isBookkeepingNode(node) && !isToolNode(node)))
+    .with('default', () => nodes.filter((node) => !isBookkeepingNode(node)))
+    .exhaustive()
 }
 
 export function searchSessionTreeNodes(input: {

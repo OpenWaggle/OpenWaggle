@@ -1,3 +1,4 @@
+import { isMatching, match, P } from '@diegogbrisa/ts-match'
 import type { JsonObject } from '@shared/types/json'
 import { hasConcreteToolOutput, normalizeToolResultPayload } from '@shared/utils/tool-result-state'
 import { isRecord } from '@shared/utils/validation'
@@ -47,7 +48,7 @@ interface UnifiedDiffData {
 function isTextContentBlock(
   value: unknown,
 ): value is { readonly type: 'text'; readonly text: string } {
-  return isRecord(value) && value.type === 'text' && typeof value.text === 'string'
+  return isMatching({ type: 'text', text: P.string }, value)
 }
 
 function parseResultPayload(content: unknown): unknown {
@@ -67,10 +68,9 @@ function formatUnknownContent(content: unknown): string {
 
 function getToolResultDetails(content: unknown): unknown {
   const parsed = parseResultPayload(content)
-  if (!isRecord(parsed) || !('details' in parsed)) {
-    return undefined
-  }
-  return parsed.details
+  return match(parsed)
+    .with({ details: P.select() }, (details) => details)
+    .otherwise(() => undefined)
 }
 
 function textFromContentBlocks(content: readonly unknown[]): string | null {
@@ -83,28 +83,35 @@ function textFromContentBlocks(content: readonly unknown[]): string | null {
   return textBlocks.length > 0 ? textBlocks.join('\n') : null
 }
 
-function stringField(value: { readonly [key: string]: unknown }, key: string): string | null {
-  const field = value[key]
-  return typeof field === 'string' ? field : null
-}
-
 function textFromResultRecord(parsed: { readonly [key: string]: unknown }): string | null {
-  const content = parsed.content
-  if (Array.isArray(content)) {
-    const contentText = textFromContentBlocks(content)
-    if (contentText) {
-      return contentText
-    }
+  const contentText = match(parsed)
+    .with({ content: P.select('content', P.array(P._)) }, ({ content }) =>
+      textFromContentBlocks(content),
+    )
+    .otherwise(() => null)
+
+  if (contentText) {
+    return contentText
   }
 
-  return stringField(parsed, 'message') ?? stringField(parsed, 'error')
+  const message = match(parsed.message)
+    .with(P.string, (value) => value)
+    .otherwise(() => null)
+  if (message) {
+    return message
+  }
+
+  return match(parsed.error)
+    .with(P.string, (value) => value)
+    .otherwise(() => null)
 }
 
 function getToolResultText(content: unknown): string {
   const parsed = parseResultPayload(content)
-  if (typeof parsed === 'string') return parsed
-  if (!isRecord(parsed)) return formatUnknownContent(parsed)
-  return textFromResultRecord(parsed) ?? formatUnknownContent(parsed)
+  return match(parsed)
+    .with(P.string, (value) => value)
+    .when(isRecord, (value) => textFromResultRecord(value) ?? formatUnknownContent(value))
+    .otherwise((value) => formatUnknownContent(value))
 }
 
 function getStringArg(args: JsonObject, key: string): string | null {
@@ -190,14 +197,26 @@ function parseUnifiedDiff(diffText: string): UnifiedDiffData {
   return { text: diffText, lines, additions, deletions }
 }
 
+function getUnifiedDiffLineClassName(type: UnifiedDiffLine['type']): string {
+  return match(type)
+    .with('add', () => 'bg-success/10 text-success')
+    .with('remove', () => 'bg-error/10 text-error')
+    .with('meta', () => 'text-text-muted')
+    .with('context', () => 'text-text-secondary')
+    .exhaustive()
+}
+
 function getEditUnifiedDiff(content: unknown, name: string): UnifiedDiffData | null {
   if (name !== 'edit') {
     return null
   }
 
   const details = getToolResultDetails(content)
-  if (isRecord(details) && typeof details.diff === 'string' && details.diff.trim()) {
-    return parseUnifiedDiff(details.diff)
+  const diff = match(details)
+    .with({ diff: P.select('diff', P.string) }, ({ diff }) => diff)
+    .otherwise(() => null)
+  if (diff?.trim()) {
+    return parseUnifiedDiff(diff)
   }
 
   const parsed = parseResultPayload(content)
@@ -216,148 +235,6 @@ function getEditUnifiedDiff(content: unknown, name: string): UnifiedDiffData | n
 function buildTailPreview(text: string): string {
   const lines = text.trim().split(LINE_SPLIT_SEPARATOR)
   return lines.slice(-OUTPUT_PREVIEW_LINES).join('\n')
-}
-
-interface ToolCallViewModel {
-  readonly parsedArgs: JsonObject
-  readonly hasConcreteResult: boolean
-  readonly resultError: string | null
-  readonly isError: boolean
-  readonly isRunning: boolean
-  readonly awaitingResult: boolean
-  readonly actionText: string
-  readonly diff: UnifiedDiffData | null
-  readonly resultText: string
-  readonly command: string | null
-  readonly path: string | null
-  readonly inlineDiffVisible: boolean
-  readonly liveOutputPreview: string
-  readonly failedOutputPreview: string
-  readonly branchSourceMessageId: string | undefined
-}
-
-interface ToolCallExecutionState {
-  readonly hasConcreteResult: boolean
-  readonly resultError: string | null
-  readonly isError: boolean
-  readonly isRunning: boolean
-  readonly awaitingResult: boolean
-}
-
-interface ToolCallOutputPreviews {
-  readonly liveOutputPreview: string
-  readonly failedOutputPreview: string
-}
-
-function buildToolCallExecutionState(input: {
-  readonly state: string
-  readonly result: ToolCallBlockProps['result']
-  readonly isStreaming: boolean
-}): ToolCallExecutionState {
-  const hasConcreteResult = input.result ? hasConcreteToolOutput(input.result.content) : false
-  const resultError = getResultError(input.result)
-  const isError = resultError !== null
-  const isRunning =
-    input.isStreaming &&
-    (input.state === 'input-streaming' || input.state === 'executing' || !input.result)
-
-  return {
-    hasConcreteResult,
-    resultError,
-    isError,
-    isRunning,
-    awaitingResult: (!input.result || !hasConcreteResult) && !isRunning,
-  }
-}
-
-function getToolResultTextForViewModel(input: {
-  readonly result: ToolCallBlockProps['result']
-  readonly expanded: boolean
-  readonly isRunning: boolean
-  readonly isError: boolean
-}): string {
-  if (!input.result || (!input.expanded && !input.isRunning && !input.isError)) {
-    return ''
-  }
-
-  return getToolResultText(input.result.content)
-}
-
-function getToolCallDiff(input: {
-  readonly name: string
-  readonly result: ToolCallBlockProps['result']
-  readonly isError: boolean
-}): UnifiedDiffData | null {
-  if (!input.result || input.isError) {
-    return null
-  }
-
-  return getEditUnifiedDiff(input.result.content, input.name)
-}
-
-function buildToolCallOutputPreviews(input: {
-  readonly resultText: string
-  readonly expanded: boolean
-  readonly isRunning: boolean
-  readonly isError: boolean
-}): ToolCallOutputPreviews {
-  const hasResultText = input.resultText.trim().length > 0
-  return {
-    liveOutputPreview: input.isRunning && hasResultText ? buildTailPreview(input.resultText) : '',
-    failedOutputPreview:
-      !input.expanded && input.isError && hasResultText ? buildTailPreview(input.resultText) : '',
-  }
-}
-
-function buildToolCallViewModel(input: {
-  readonly name: string
-  readonly args: string
-  readonly state: string
-  readonly result: ToolCallBlockProps['result']
-  readonly isStreaming: boolean
-  readonly expanded: boolean
-}): ToolCallViewModel {
-  const executionState = buildToolCallExecutionState(input)
-  const parsedArgs = parseToolArgs(input.args)
-  const diff = getToolCallDiff({
-    name: input.name,
-    result: input.result,
-    isError: executionState.isError,
-  })
-  const resultText = getToolResultTextForViewModel({
-    result: input.result,
-    expanded: input.expanded,
-    isRunning: executionState.isRunning,
-    isError: executionState.isError,
-  })
-  const outputPreviews = buildToolCallOutputPreviews({
-    resultText,
-    expanded: input.expanded,
-    isRunning: executionState.isRunning,
-    isError: executionState.isError,
-  })
-  const command = getStringArg(parsedArgs, 'command')
-  const path = getStringArg(parsedArgs, 'path')
-
-  return {
-    parsedArgs,
-    ...executionState,
-    actionText: resolveActionText({
-      name: input.name,
-      args: parsedArgs,
-      awaitingResult: executionState.awaitingResult,
-      isError: executionState.isError,
-      isRunning: executionState.isRunning,
-    }),
-    diff,
-    resultText,
-    command,
-    path,
-    inlineDiffVisible: diff !== null && diff.lines.length <= INLINE_DIFF_LINE_LIMIT,
-    liveOutputPreview: outputPreviews.liveOutputPreview,
-    failedOutputPreview: outputPreviews.failedOutputPreview,
-    branchSourceMessageId: input.result?.sourceMessageId,
-  }
 }
 
 function CopyButton({ label, value }: { readonly label: string; readonly value: string }) {
@@ -390,356 +267,162 @@ export function ToolCallBlock({
   onBranchFromMessage,
 }: ToolCallBlockProps) {
   const [expanded, setExpanded] = useState(false)
+  const hasConcreteResult = result ? hasConcreteToolOutput(result.content) : false
+  const resultError = getResultError(result)
+  const isError = resultError !== null
+  const isRunning = isStreaming && (state === 'input-streaming' || state === 'executing' || !result)
+  const awaitingResult = (!result || !hasConcreteResult) && !isRunning
+
+  const parsedArgs = parseToolArgs(args)
+  const diff = result && !isError ? getEditUnifiedDiff(result.content, name) : null
+  const shouldReadResultText = result !== undefined && (expanded || isRunning || isError)
+  const resultText = shouldReadResultText ? getToolResultText(result.content) : ''
+  const command = getStringArg(parsedArgs, 'command')
+  const path = getStringArg(parsedArgs, 'path')
+  const inlineDiffVisible = diff !== null && diff.lines.length <= INLINE_DIFF_LINE_LIMIT
+  const liveOutputPreview = isRunning && resultText.trim() ? buildTailPreview(resultText) : ''
+  const failedOutputPreview =
+    !expanded && isError && resultText.trim() ? buildTailPreview(resultText) : ''
+  const branchSourceMessageId = result?.sourceMessageId
+
   const startTime = useRef<number | null>(null)
   const [duration, setDuration] = useState(0)
-  const viewModel = buildToolCallViewModel({
-    name,
-    args,
-    state,
-    result,
-    isStreaming,
-    expanded,
-  })
 
   useEffect(() => {
-    if (viewModel.isRunning && !startTime.current) {
+    if (isRunning && !startTime.current) {
       startTime.current = Date.now()
     }
-    if (!viewModel.isRunning && startTime.current) {
+    if (!isRunning && startTime.current) {
       setDuration(Date.now() - startTime.current)
       startTime.current = null
     }
-  }, [viewModel.isRunning])
+  }, [isRunning])
+
+  const actionText = resolveActionText({
+    name,
+    args: parsedArgs,
+    awaitingResult,
+    isError,
+    isRunning,
+  })
 
   return (
     <div className="group/tool">
       <div className="flex items-center gap-2">
-        <ToolCallHeader
-          expanded={expanded}
-          duration={duration}
-          viewModel={viewModel}
-          onToggle={() => setExpanded(!expanded)}
-        />
-        <ToolCallBranchButton
-          sourceMessageId={viewModel.branchSourceMessageId}
-          onBranchFromMessage={onBranchFromMessage}
-        />
+        <button
+          type="button"
+          aria-expanded={expanded}
+          aria-label={`${actionText} — ${expanded ? 'collapse' : 'expand'} details`}
+          onClick={() => setExpanded(!expanded)}
+          className="flex min-w-0 flex-1 items-center gap-2 py-0.5 text-[13px] transition-colors"
+        >
+          {isRunning && (
+            <Loader2
+              role="status"
+              aria-label="Running"
+              className="size-3.5 text-text-tertiary animate-spin shrink-0"
+            />
+          )}
+          {hasConcreteResult && result && !isError && !isRunning && (
+            <Check className="size-3.5 text-text-muted shrink-0" />
+          )}
+          {result && isError && <X className="size-3.5 text-error/80 shrink-0" />}
+
+          <span
+            className={cn(
+              'truncate',
+              isRunning && 'text-text-tertiary',
+              hasConcreteResult && result && !isError && !isRunning && 'text-text-muted',
+              result && isError && 'text-error/80',
+            )}
+          >
+            {actionText}
+          </span>
+
+          {diff && (
+            <span className="flex items-center gap-1 text-[12px] shrink-0">
+              <span className="text-success">+{diff.additions}</span>
+              <span className="text-error">-{diff.deletions}</span>
+            </span>
+          )}
+
+          {duration > 0 && !isRunning && (
+            <span className="text-[12px] text-text-muted shrink-0">{formatDuration(duration)}</span>
+          )}
+
+          <ChevronRight
+            className={cn(
+              'ml-auto size-3 text-text-muted shrink-0 transition-transform',
+              'invisible group-hover/tool:visible',
+              expanded && 'visible rotate-90',
+            )}
+          />
+        </button>
+        {branchSourceMessageId && onBranchFromMessage ? (
+          <button
+            type="button"
+            title="Branch from tool result"
+            onClick={() => onBranchFromMessage(branchSourceMessageId)}
+            className="opacity-0 text-text-muted transition-opacity hover:text-text-secondary group-hover/tool:opacity-100 focus:opacity-100"
+          >
+            <GitBranch className="size-3.5" />
+          </button>
+        ) : null}
       </div>
 
-      <CollapsedToolPreview expanded={expanded} viewModel={viewModel} />
-      <ExpandedToolDetails
-        expanded={expanded}
-        name={name}
-        rawArgs={args}
-        result={result}
-        viewModel={viewModel}
-      />
-    </div>
-  )
-}
-
-function ToolCallHeader({
-  expanded,
-  duration,
-  viewModel,
-  onToggle,
-}: {
-  readonly expanded: boolean
-  readonly duration: number
-  readonly viewModel: ToolCallViewModel
-  readonly onToggle: () => void
-}) {
-  return (
-    <button
-      type="button"
-      aria-expanded={expanded}
-      aria-label={`${viewModel.actionText} — ${expanded ? 'collapse' : 'expand'} details`}
-      onClick={onToggle}
-      className="flex min-w-0 flex-1 items-center gap-2 py-0.5 text-[13px] transition-colors"
-    >
-      <ToolCallStatusIcon viewModel={viewModel} />
-      <ToolCallActionText viewModel={viewModel} />
-      <ToolCallDiffStats diff={viewModel.diff} />
-      <ToolCallDuration duration={duration} isRunning={viewModel.isRunning} />
-      <ChevronRight
-        className={cn(
-          'ml-auto size-3 text-text-muted shrink-0 transition-transform',
-          'invisible group-hover/tool:visible',
-          expanded && 'visible rotate-90',
-        )}
-      />
-    </button>
-  )
-}
-
-function ToolCallStatusIcon({ viewModel }: { readonly viewModel: ToolCallViewModel }) {
-  if (viewModel.isRunning) {
-    return (
-      <Loader2
-        role="status"
-        aria-label="Running"
-        className="size-3.5 text-text-tertiary animate-spin shrink-0"
-      />
-    )
-  }
-
-  if (viewModel.isError) {
-    return <X className="size-3.5 text-error/80 shrink-0" />
-  }
-
-  if (viewModel.hasConcreteResult) {
-    return <Check className="size-3.5 text-text-muted shrink-0" />
-  }
-
-  return null
-}
-
-function ToolCallActionText({ viewModel }: { readonly viewModel: ToolCallViewModel }) {
-  return (
-    <span
-      className={cn(
-        'truncate',
-        viewModel.isRunning && 'text-text-tertiary',
-        viewModel.hasConcreteResult &&
-          !viewModel.isError &&
-          !viewModel.isRunning &&
-          'text-text-muted',
-        viewModel.isError && 'text-error/80',
+      {!expanded && inlineDiffVisible && diff && (
+        <div className="ml-5 mt-1">
+          <UnifiedDiffView diff={diff} compact />
+        </div>
       )}
-    >
-      {viewModel.actionText}
-    </span>
-  )
-}
 
-function ToolCallDiffStats({ diff }: { readonly diff: UnifiedDiffData | null }) {
-  if (!diff) {
-    return null
-  }
+      {!expanded && liveOutputPreview && (
+        <pre className="ml-5 mt-1 max-h-[120px] overflow-hidden rounded-md bg-bg-secondary/60 px-3 py-2 text-[12px] font-mono text-text-tertiary whitespace-pre-wrap break-words">
+          {liveOutputPreview}
+        </pre>
+      )}
 
-  return (
-    <span className="flex items-center gap-1 text-[12px] shrink-0">
-      <span className="text-success">+{diff.additions}</span>
-      <span className="text-error">-{diff.deletions}</span>
-    </span>
-  )
-}
+      {!expanded && failedOutputPreview && (
+        <pre className="ml-5 mt-1 max-h-[160px] overflow-hidden rounded-md border border-error/20 bg-error/5 px-3 py-2 text-[12px] font-mono text-error whitespace-pre-wrap break-words">
+          {failedOutputPreview}
+        </pre>
+      )}
 
-function ToolCallDuration({
-  duration,
-  isRunning,
-}: {
-  readonly duration: number
-  readonly isRunning: boolean
-}) {
-  if (duration <= 0 || isRunning) {
-    return null
-  }
+      {expanded && (
+        <div className="ml-5 mt-1 rounded-md border border-border bg-bg-secondary/50 overflow-hidden">
+          <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+            <CopyButton label="Copy args" value={args} />
+            {path && <CopyButton label="Copy path" value={path} />}
+            {command && <CopyButton label="Copy command" value={command} />}
+            {resultText && <CopyButton label="Copy output" value={resultText} />}
+          </div>
 
-  return <span className="text-[12px] text-text-muted shrink-0">{formatDuration(duration)}</span>
-}
+          {diff && (
+            <div className="px-3 py-2">
+              <UnifiedDiffView diff={diff} />
+            </div>
+          )}
 
-function ToolCallBranchButton({
-  sourceMessageId,
-  onBranchFromMessage,
-}: {
-  readonly sourceMessageId: string | undefined
-  readonly onBranchFromMessage: ToolCallBlockProps['onBranchFromMessage']
-}) {
-  if (!sourceMessageId || !onBranchFromMessage) {
-    return null
-  }
+          <div className="px-3 py-2">
+            <div className="text-[13px] text-text-tertiary mb-1">Arguments</div>
+            <ToolArgs name={name} args={parsedArgs} rawArgs={args} path={path} />
+          </div>
 
-  return (
-    <button
-      type="button"
-      title="Branch from tool result"
-      onClick={() => onBranchFromMessage(sourceMessageId)}
-      className="opacity-0 text-text-muted transition-opacity hover:text-text-secondary group-hover/tool:opacity-100 focus:opacity-100"
-    >
-      <GitBranch className="size-3.5" />
-    </button>
-  )
-}
+          {hasConcreteResult && result && !diff && !isError && (
+            <div className="border-t border-border px-3 py-2">
+              <div className="text-[13px] text-text-tertiary mb-1">Result</div>
+              <ToolResult content={result.content} isError={isError} name={name} path={path} />
+            </div>
+          )}
 
-function CollapsedToolPreview({
-  expanded,
-  viewModel,
-}: {
-  readonly expanded: boolean
-  readonly viewModel: ToolCallViewModel
-}) {
-  if (expanded) {
-    return null
-  }
-
-  return (
-    <>
-      <CollapsedDiffPreview viewModel={viewModel} />
-      <CollapsedLiveOutputPreview value={viewModel.liveOutputPreview} />
-      <CollapsedFailedOutputPreview value={viewModel.failedOutputPreview} />
-    </>
-  )
-}
-
-function CollapsedDiffPreview({ viewModel }: { readonly viewModel: ToolCallViewModel }) {
-  if (!viewModel.inlineDiffVisible || !viewModel.diff) {
-    return null
-  }
-
-  return (
-    <div className="ml-5 mt-1">
-      <UnifiedDiffView diff={viewModel.diff} compact />
-    </div>
-  )
-}
-
-function CollapsedLiveOutputPreview({ value }: { readonly value: string }) {
-  if (!value) {
-    return null
-  }
-
-  return (
-    <pre className="ml-5 mt-1 max-h-[120px] overflow-hidden rounded-md bg-bg-secondary/60 px-3 py-2 text-[12px] font-mono text-text-tertiary whitespace-pre-wrap break-words">
-      {value}
-    </pre>
-  )
-}
-
-function CollapsedFailedOutputPreview({ value }: { readonly value: string }) {
-  if (!value) {
-    return null
-  }
-
-  return (
-    <pre className="ml-5 mt-1 max-h-[160px] overflow-hidden rounded-md border border-error/20 bg-error/5 px-3 py-2 text-[12px] font-mono text-error whitespace-pre-wrap break-words">
-      {value}
-    </pre>
-  )
-}
-
-function ExpandedToolDetails({
-  expanded,
-  name,
-  rawArgs,
-  result,
-  viewModel,
-}: {
-  readonly expanded: boolean
-  readonly name: string
-  readonly rawArgs: string
-  readonly result: ToolCallBlockProps['result']
-  readonly viewModel: ToolCallViewModel
-}) {
-  if (!expanded) {
-    return null
-  }
-
-  return (
-    <div className="ml-5 mt-1 rounded-md border border-border bg-bg-secondary/50 overflow-hidden">
-      <ExpandedToolActions rawArgs={rawArgs} viewModel={viewModel} />
-      <ExpandedDiff diff={viewModel.diff} />
-      <ExpandedArguments name={name} rawArgs={rawArgs} viewModel={viewModel} />
-      <ExpandedResult name={name} result={result} viewModel={viewModel} />
-      <ExpandedError name={name} result={result} viewModel={viewModel} />
-    </div>
-  )
-}
-
-function ExpandedToolActions({
-  rawArgs,
-  viewModel,
-}: {
-  readonly rawArgs: string
-  readonly viewModel: ToolCallViewModel
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
-      <CopyButton label="Copy args" value={rawArgs} />
-      {viewModel.path && <CopyButton label="Copy path" value={viewModel.path} />}
-      {viewModel.command && <CopyButton label="Copy command" value={viewModel.command} />}
-      {viewModel.resultText && <CopyButton label="Copy output" value={viewModel.resultText} />}
-    </div>
-  )
-}
-
-function ExpandedDiff({ diff }: { readonly diff: UnifiedDiffData | null }) {
-  if (!diff) {
-    return null
-  }
-
-  return (
-    <div className="px-3 py-2">
-      <UnifiedDiffView diff={diff} />
-    </div>
-  )
-}
-
-function ExpandedArguments({
-  name,
-  rawArgs,
-  viewModel,
-}: {
-  readonly name: string
-  readonly rawArgs: string
-  readonly viewModel: ToolCallViewModel
-}) {
-  return (
-    <div className="px-3 py-2">
-      <div className="text-[13px] text-text-tertiary mb-1">Arguments</div>
-      <ToolArgs name={name} args={viewModel.parsedArgs} rawArgs={rawArgs} path={viewModel.path} />
-    </div>
-  )
-}
-
-function ExpandedResult({
-  name,
-  result,
-  viewModel,
-}: {
-  readonly name: string
-  readonly result: ToolCallBlockProps['result']
-  readonly viewModel: ToolCallViewModel
-}) {
-  if (!viewModel.hasConcreteResult || !result || viewModel.diff || viewModel.isError) {
-    return null
-  }
-
-  return (
-    <div className="border-t border-border px-3 py-2">
-      <div className="text-[13px] text-text-tertiary mb-1">Result</div>
-      <ToolResult
-        content={result.content}
-        isError={viewModel.isError}
-        name={name}
-        path={viewModel.path}
-      />
-    </div>
-  )
-}
-
-function ExpandedError({
-  name,
-  result,
-  viewModel,
-}: {
-  readonly name: string
-  readonly result: ToolCallBlockProps['result']
-  readonly viewModel: ToolCallViewModel
-}) {
-  if (!result || !viewModel.isError) {
-    return null
-  }
-
-  return (
-    <div role="alert" className="border-t border-border px-3 py-2">
-      <div className="text-[13px] text-text-tertiary mb-1">Error</div>
-      <ToolResult
-        content={viewModel.resultError ?? result.content}
-        isError
-        name={name}
-        path={viewModel.path}
-      />
+          {result && isError && (
+            <div role="alert" className="border-t border-border px-3 py-2">
+              <div className="text-[13px] text-text-tertiary mb-1">Error</div>
+              <ToolResult content={resultError ?? result.content} isError name={name} path={path} />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -908,13 +591,7 @@ function UnifiedDiffView({
         {diff.lines.map((line, index) => (
           <div
             key={`${String(index)}-${line.type}`}
-            className={cn(
-              'flex whitespace-pre px-3',
-              line.type === 'add' && 'bg-success/10 text-success',
-              line.type === 'remove' && 'bg-error/10 text-error',
-              line.type === 'meta' && 'text-text-muted',
-              line.type === 'context' && 'text-text-secondary',
-            )}
+            className={cn('flex whitespace-pre px-3', getUnifiedDiffLineClassName(line.type))}
           >
             {line.content}
           </div>

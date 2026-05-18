@@ -1,5 +1,6 @@
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
+import { assertMatching, P } from '@diegogbrisa/ts-match'
 import { AUDIO_RECORDING, AUDIO_SAMPLE_RATE, LANGUAGE_CODE } from '@shared/constants/audio-config'
 import { DOUBLE_FACTOR } from '@shared/constants/math'
 import { VOICE_TIMEOUT } from '@shared/constants/time'
@@ -97,11 +98,26 @@ const transcriberPromises: Partial<Record<VoiceModel, Promise<WhisperTranscriber
 const lastUsedAt: Partial<Record<VoiceModel, number>> = {}
 const evictionTimers: Partial<Record<VoiceModel, ReturnType<typeof setTimeout>>> = {}
 
-function isTransformersModule(value: unknown): value is TransformersModule {
-  if (typeof value !== 'object' || value === null) return false
-  if (!('pipeline' in value) || typeof value.pipeline !== 'function') return false
-  if (!('env' in value) || typeof value.env !== 'object' || value.env === null) return false
-  return true
+function isTransformersEnv(value: unknown): value is TransformersEnv {
+  return typeof value === 'object' && value !== null
+}
+
+function isTransformersPipeline(value: unknown): value is TransformersModule['pipeline'] {
+  return typeof value === 'function'
+}
+
+function assertTransformersModule(value: unknown): asserts value is TransformersModule {
+  try {
+    assertMatching(
+      {
+        env: P.when(isTransformersEnv),
+        pipeline: P.when(isTransformersPipeline),
+      },
+      value,
+    )
+  } catch {
+    throw new Error('Transformers runtime is unavailable.')
+  }
 }
 
 function pcm16BytesToFloat32(bytes: Uint8Array): Float32Array {
@@ -155,9 +171,7 @@ async function loadTranscriber(model: VoiceModel): Promise<WhisperTranscriber> {
   const config = VOICE_MODEL_CONFIG[model]
   const transcriberPromise = (async () => {
     const imported: unknown = await import('@xenova/transformers')
-    if (!isTransformersModule(imported)) {
-      throw new Error('Transformers runtime is unavailable.')
-    }
+    assertTransformersModule(imported)
 
     const cacheDir = path.join(app.getPath('userData'), 'models', 'transformers')
     await mkdir(cacheDir, { recursive: true })

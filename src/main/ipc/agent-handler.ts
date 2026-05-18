@@ -8,6 +8,7 @@
  * message persistence, error classification) lives in AgentRunService.
  */
 import { randomUUID } from 'node:crypto'
+import { matchBy } from '@diegogbrisa/ts-match'
 import { decodeUnknownOrThrow } from '@shared/schema'
 import { agentSendPayloadSchema } from '@shared/schemas/validation'
 import type { AgentSendPayload } from '@shared/types/agent'
@@ -37,7 +38,7 @@ import {
   hasAnyActiveRun,
 } from './active-agent-runs'
 import { emitErrorAndFinish } from './run-handler-utils'
-import { typedHandle, typedOn } from './typed-ipc'
+import { typedHandle } from './typed-ipc'
 
 function clearSessionTransportState(sessionId: SessionId): void {
   clearAgentPhase(sessionId)
@@ -51,24 +52,16 @@ function emitCancelledCompletion(sessionId: SessionId): void {
 }
 
 function handleRunResult(sessionId: SessionId, result: AgentRunResult): void {
-  if (result.assignedTitle) {
-    broadcastToWindows('sessions:title-updated', {
-      sessionId,
-      title: result.assignedTitle,
-    })
-  }
-
   if (result.outcome === 'error' && result.transportEmitted) {
     return
   }
 
-  if (
-    result.outcome === 'invalid-model' ||
-    result.outcome === 'not-found' ||
-    result.outcome === 'error'
-  ) {
-    emitErrorAndFinish(sessionId, result.message, result.code)
-  }
+  matchBy(result, 'outcome')
+    .with('success', 'aborted', () => undefined)
+    .with('invalid-model', 'not-found', 'error', (value) =>
+      emitErrorAndFinish(sessionId, value.message, value.code),
+    )
+    .exhaustive()
 }
 
 /**
@@ -111,6 +104,9 @@ export function registerAgentHandlers(): void {
           model,
           signal: abortController.signal,
           onEvent: onEventWithUsageCapture,
+          onTitleAssigned: (title) => {
+            broadcastToWindows('sessions:title-updated', { sessionId, title })
+          },
         })
 
         // ─── Transport: respond based on outcome ─────────
@@ -125,7 +121,7 @@ export function registerAgentHandlers(): void {
       }),
   )
 
-  typedOn('agent:cancel', (_event, sessionId?: SessionId) =>
+  typedHandle('agent:cancel', (_event, sessionId?: SessionId) =>
     Effect.sync(() => {
       if (sessionId) {
         if (cancelSessionRuns(sessionId)) {

@@ -1,3 +1,4 @@
+import { match } from '@diegogbrisa/ts-match'
 import type { GitBranchMutationResult } from '@shared/types/git'
 import { GitBranch, Loader2, Trash2 } from 'lucide-react'
 import { Popover } from '@/components/shared/Popover'
@@ -46,12 +47,17 @@ export function BranchPicker({ onToast }: BranchPickerProps) {
   }
 
   async function handleCheckout(name: string): Promise<void> {
-    const result = await runBranchMutation(
-      () =>
-        projectPath ? checkoutBranch(projectPath, { name }) : Promise.resolve(noProjectResult),
-      onToast,
-    )
-    if (result.ok) openMenu(null)
+    await match
+      .promise(
+        runBranchMutation(
+          () =>
+            projectPath ? checkoutBranch(projectPath, { name }) : Promise.resolve(noProjectResult),
+          onToast,
+        ),
+      )
+      .with({ ok: true }, () => openMenu(null))
+      .with({ ok: false }, () => undefined)
+      .exhaustive()
   }
 
   return (
@@ -67,7 +73,7 @@ export function BranchPicker({ onToast }: BranchPickerProps) {
           className="flex items-center gap-1 h-6 px-2 rounded-[5px] border border-border text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
           title="Manage branches"
         >
-          <GitBranch className="h-[13px] w-[13px] text-text-tertiary" />
+          <GitBranch className="size-[13px] text-text-tertiary" />
           <span>{gitBranch ?? 'branch'}</span>
           <span className="text-[9px] text-text-tertiary">&#x2228;</span>
         </button>
@@ -80,7 +86,7 @@ export function BranchPicker({ onToast }: BranchPickerProps) {
           placeholder="Search branches"
           className="h-8 flex-1 rounded-md border border-border bg-bg px-2 text-[12px] text-text-primary placeholder:text-text-tertiary focus:border-accent/50 focus:outline-none"
         />
-        {isBranchActionRunning && <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />}
+        {isBranchActionRunning && <Loader2 className="size-3.5 animate-spin text-accent" />}
       </div>
       <div className="mb-2 flex flex-wrap gap-1">
         <button
@@ -154,10 +160,10 @@ export function BranchPicker({ onToast }: BranchPickerProps) {
                       <button
                         type="button"
                         onClick={() => openActionDialog('delete-branch', branch.name)}
-                        className="flex h-6 w-6 items-center justify-center rounded border border-border text-text-tertiary transition-colors hover:bg-error/10 hover:text-error"
+                        className="flex size-6 items-center justify-center rounded border border-border text-text-tertiary transition-colors hover:bg-error/10 hover:text-error"
                         title={`Delete "${branch.name}"`}
                       >
-                        <Trash2 className="h-3 w-3" />
+                        <Trash2 className="size-3" />
                       </button>
                     )}
                   </div>

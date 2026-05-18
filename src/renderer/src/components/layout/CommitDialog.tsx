@@ -1,5 +1,5 @@
+import { match } from '@diegogbrisa/ts-match'
 import type { GitCommitResult, GitStatusSummary } from '@shared/types/git'
-import { choose } from '@shared/utils/decision'
 import { Loader2, RefreshCw, X } from 'lucide-react'
 import { useState } from 'react'
 import { useEscapeHotkey } from '@/hooks/useEscapeHotkey'
@@ -31,12 +31,12 @@ const STATUS_CLASS: Record<string, string> = {
 function humanCommitError(result: GitCommitResult): string {
   if (result.ok) return ''
 
-  return choose(result.code)
-    .case('empty-message', () => 'Commit message is required.')
-    .case('nothing-to-commit', () => 'No changes are available to commit.')
-    .case('merge-in-progress', () => 'A merge is in progress. Resolve it before committing.')
-    .case('not-git-repo', () => 'Selected folder is not a Git repository.')
-    .catchAll(() => result.message)
+  return match(result.code)
+    .with('empty-message', () => 'Commit message is required.')
+    .with('nothing-to-commit', () => 'No changes are available to commit.')
+    .with('merge-in-progress', () => 'A merge is in progress. Resolve it before committing.')
+    .with('not-git-repo', () => 'Selected folder is not a Git repository.')
+    .otherwise(() => result.message)
 }
 
 export function CommitDialog({
@@ -83,12 +83,11 @@ export function CommitDialog({
   async function handleCommit(): Promise<void> {
     if (!projectPath || !message.trim() || selectedPaths.size === 0) return
     setError(null)
-    const result = await onCommit(message.trim(), amend, [...selectedPaths])
-    if (result.ok) {
-      onClose()
-      return
-    }
-    setError(humanCommitError(result))
+    await match
+      .promise(onCommit(message.trim(), amend, [...selectedPaths]))
+      .with({ ok: true }, () => onClose())
+      .with({ ok: false }, (result) => setError(humanCommitError(result)))
+      .exhaustive()
   }
 
   const canSubmit = !!projectPath && !!message.trim() && selectedPaths.size > 0 && !isCommitting
@@ -109,11 +108,11 @@ export function CommitDialog({
             className="rounded p-1 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
             title="Close"
           >
-            <X className="h-4 w-4" />
+            <X className="size-4" />
           </button>
         </div>
 
-        <div className="space-y-4 px-4 py-4">
+        <div className="space-y-4 p-4">
           <div className="flex items-center justify-between rounded-md border border-border bg-bg px-3 py-2">
             <div className="text-[13px] text-text-secondary">
               {status
@@ -127,7 +126,7 @@ export function CommitDialog({
               title="Refresh status"
               disabled={isRefreshing}
             >
-              <RefreshCw className={cn('h-3.5 w-3.5', isRefreshing && 'animate-spin')} />
+              <RefreshCw className={cn('size-3.5', isRefreshing && 'animate-spin')} />
               Refresh
             </button>
           </div>
@@ -153,7 +152,7 @@ export function CommitDialog({
               type="checkbox"
               checked={amend}
               onChange={(e) => setAmend(e.target.checked)}
-              className="h-3.5 w-3.5 rounded border-border bg-bg"
+              className="size-3.5 rounded border-border bg-bg"
             />
             Amend last commit
           </label>
@@ -165,7 +164,7 @@ export function CommitDialog({
                   type="checkbox"
                   checked={selectedPaths.size === changedFiles.length}
                   onChange={toggleAll}
-                  className="h-3.5 w-3.5 rounded border-border bg-bg"
+                  className="size-3.5 rounded border-border bg-bg"
                 />
                 <span className="text-[12px] font-medium text-text-tertiary">
                   {selectedPaths.size === changedFiles.length ? 'Deselect all' : 'Select all'}
@@ -186,7 +185,7 @@ export function CommitDialog({
                     type="checkbox"
                     checked={selectedPaths.has(file.path)}
                     onChange={() => togglePath(file.path)}
-                    className="h-3.5 w-3.5 shrink-0 rounded border-border bg-bg"
+                    className="size-3.5 shrink-0 rounded border-border bg-bg"
                   />
                   <span className={cn('truncate text-[13px] flex-1', STATUS_CLASS[file.status])}>
                     {file.path}
@@ -221,7 +220,7 @@ export function CommitDialog({
                 : 'cursor-not-allowed border border-border bg-bg-tertiary text-text-tertiary',
             )}
           >
-            {isCommitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {isCommitting && <Loader2 className="size-3.5 animate-spin" />}
             Commit
           </button>
         </div>

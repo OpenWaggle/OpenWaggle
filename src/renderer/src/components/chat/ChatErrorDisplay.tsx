@@ -21,6 +21,20 @@ const logger = createRendererLogger('chat')
 
 const DELAY_MS = 2000
 
+function formatErrorDetails(error: Error, info: AgentErrorInfo): string {
+  const detailLines = [`Raw: ${info.message}`]
+  if (info.code !== 'unknown') {
+    detailLines.push(`Code: ${info.code}`)
+  }
+
+  const stackIsRendererCreatedTransportError = error.stack?.startsWith(`Error: ${info.message}`)
+  if (error.stack && error.stack !== error.message && !stackIsRendererCreatedTransportError) {
+    detailLines.push('', error.stack)
+  }
+
+  return detailLines.join('\n')
+}
+
 interface ChatErrorDisplayProps {
   error: Error
   lastUserMessage: string | null
@@ -56,6 +70,7 @@ export function ChatErrorDisplay({
 
   const info = resolveErrorInfo(error, sessionId)
   const isAuthError = info.code === 'api-key-invalid' || info.code === 'session-expired'
+  const details = formatErrorDetails(error, info)
 
   function handleCopy(): void {
     const text = `${info.userMessage}${info.suggestion ? `\n${info.suggestion}` : ''}\n\nRaw: ${info.message}`
@@ -78,7 +93,7 @@ export function ChatErrorDisplay({
           {info.suggestion && (
             <p className="text-[13px] text-text-tertiary mt-1">{info.suggestion}</p>
           )}
-          {error.stack && (
+          {details && (
             <div className="mt-1.5">
               <button
                 type="button"
@@ -94,7 +109,7 @@ export function ChatErrorDisplay({
               </button>
               {showDetails && (
                 <pre className="mt-1.5 max-h-40 overflow-auto rounded-md bg-bg/50 p-2 text-[11px] text-text-tertiary font-mono whitespace-pre-wrap break-all">
-                  {error.stack}
+                  {details}
                 </pre>
               )}
             </div>

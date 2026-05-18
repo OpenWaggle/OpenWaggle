@@ -1,7 +1,8 @@
+import { isMatching, P } from '@diegogbrisa/ts-match'
 import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { SupportedModelId } from '@shared/types/brand'
 import type { SessionTreeFilterMode } from '@shared/types/session'
-import { MCP_DEFAULT_MODES, THINKING_LEVELS } from '@shared/types/settings'
+import { THINKING_LEVELS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import { testCredentials } from '../application/provider-test-service'
 import { createLogger } from '../logger'
@@ -49,13 +50,7 @@ function validateRecentProjectPaths(projects: readonly string[] | undefined) {
 }
 
 function isTreeFilterMode(value: unknown): value is SessionTreeFilterMode {
-  return (
-    value === 'default' ||
-    value === 'no-tools' ||
-    value === 'user-only' ||
-    value === 'labeled-only' ||
-    value === 'all'
-  )
+  return isMatching(P.union('default', 'no-tools', 'user-only', 'labeled-only', 'all'), value)
 }
 
 function validateTreeFilterMode(value: unknown): Effect.Effect<SessionTreeFilterMode, Error> {
@@ -84,7 +79,6 @@ const settingsUpdateSchema = Schema.Struct({
       }),
     ),
   ),
-  mcpDefault: Schema.optional(Schema.Literal(...MCP_DEFAULT_MODES)),
   projectDisplayNames: Schema.optional(
     Schema.mutable(
       Schema.Record({

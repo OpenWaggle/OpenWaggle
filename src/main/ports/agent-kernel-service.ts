@@ -34,7 +34,6 @@ export interface AgentKernelRunInput {
   readonly payload: HydratedAgentSendPayload
   readonly model: SupportedModelId
   readonly skillToggles?: Readonly<Record<string, boolean>>
-  readonly mcpEnabled: boolean
   readonly signal: AbortSignal
   readonly onEvent: (event: AgentTransportEvent) => void
 }
@@ -98,7 +97,6 @@ export interface AgentKernelSessionInput {
   readonly session: SessionDetail
   readonly model: SupportedModelId
   readonly skillToggles?: Readonly<Record<string, boolean>>
-  readonly mcpEnabled: boolean
 }
 
 export interface CompactAgentKernelSessionInput extends AgentKernelSessionInput {

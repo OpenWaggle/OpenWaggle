@@ -5,12 +5,12 @@ import type { Exit as ExitType } from 'effect/Exit'
 import * as Layer from 'effect/Layer'
 import * as ManagedRuntime from 'effect/ManagedRuntime'
 import { PiAgentKernelLive } from './adapters/pi/pi-agent-kernel-adapter'
+import { PiMcpConfigServiceLive } from './adapters/pi/pi-mcp-config-service'
 import { PiProviderAuthLive } from './adapters/pi/pi-provider-auth-service'
 import { PiProviderOAuthLive } from './adapters/pi/pi-provider-oauth-service'
 import { PiProviderProbeLive } from './adapters/pi/pi-provider-probe-adapter'
 import { ProviderServiceLive } from './adapters/pi/pi-provider-service'
 import { PiSessionTreePreferencesLive } from './adapters/pi/pi-session-tree-preferences-service'
-import { ProjectMcpSettingsLive } from './adapters/project-mcp-settings-service'
 import { SettingsWagglePresetsRepositoryLive } from './adapters/settings-waggle-presets-repository'
 import { SqliteSessionProjectionRepositoryLive } from './adapters/sqlite-session-projection-repository'
 import { SqliteSessionRepositoryLive } from './adapters/sqlite-session-repository'
@@ -29,12 +29,12 @@ const AppLayer = Layer.mergeAll(
   SqliteSessionRepositoryLive,
   FilesystemStandardsLive,
   PiAgentKernelLive,
+  PiMcpConfigServiceLive,
   PiProviderAuthLive,
   PiProviderProbeLive,
   PiProviderOAuthLive,
   ProviderServiceLive,
   PiSessionTreePreferencesLive,
-  ProjectMcpSettingsLive,
   SettingsWagglePresetsRepositoryLive,
 )
 

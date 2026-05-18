@@ -3,10 +3,6 @@ import { SupportedModelId } from './brand'
 export type Provider = string
 export const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'] as const
 export type ThinkingLevel = (typeof THINKING_LEVELS)[number]
-export const MCP_DEFAULT_MODES = ['enabled', 'disabled'] as const
-export type McpDefaultMode = (typeof MCP_DEFAULT_MODES)[number]
-export const MCP_PROJECT_MODES = ['inherit', 'enabled', 'disabled'] as const
-export type McpProjectMode = (typeof MCP_PROJECT_MODES)[number]
 
 export const DEFAULT_MODEL_REF = SupportedModelId('')
 
@@ -20,7 +16,6 @@ export interface Settings {
   readonly recentProjects: readonly string[]
   readonly skillTogglesByProject: Readonly<Record<string, Readonly<Record<string, boolean>>>>
   readonly projectDisplayNames: Readonly<Record<string, string>>
-  readonly mcpDefault: McpDefaultMode
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -32,5 +27,4 @@ export const DEFAULT_SETTINGS: Settings = {
   recentProjects: [],
   skillTogglesByProject: {},
   projectDisplayNames: {},
-  mcpDefault: 'enabled',
 }

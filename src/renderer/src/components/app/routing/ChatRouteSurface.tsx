@@ -66,13 +66,22 @@ export function ChatRouteSurface({
   const sections = useChatPanelSections()
   const routeSessionId = sessionId ? sessionIdFromRoute(sessionId) : null
   const activeSessionId = useChatStore((state) => state.activeSessionId)
+  const activeSession = useChatStore((state) => state.activeSession)
+  const draftSession = useChatStore((state) => state.draftSession)
   const setActiveSession = useChatStore((state) => state.setActiveSession)
-  const routeSessionSummary = useChatStore((state) => {
+  const routeSessionDetail = useChatStore((state) => {
     if (routeSessionId === null) {
       return null
     }
 
-    return state.sessions.find((session) => session.id === routeSessionId) ?? null
+    return state.sessionById.get(routeSessionId) ?? null
+  })
+  const routeSessionMissing = useChatStore((state) => {
+    if (routeSessionId === null) {
+      return false
+    }
+
+    return state.missingSessionIds.has(routeSessionId)
   })
   const projectPath = usePreferencesStore((state) => state.settings.projectPath)
   const setProjectPath = usePreferencesStore((state) => state.setProjectPath)
@@ -91,7 +100,7 @@ export function ChatRouteSurface({
 
   useEffect(() => {
     if (routeSessionId === null) {
-      if (activeSessionId !== null) {
+      if (draftSession === null && activeSessionId !== null && activeSession !== null) {
         void navigate({
           to: '/sessions/$sessionId',
           params: { sessionId: String(activeSessionId) },
@@ -102,11 +111,31 @@ export function ChatRouteSurface({
       return
     }
 
+    if (draftSession !== null) {
+      void navigate({ to: '/', replace: true })
+      return
+    }
+
+    if (routeSessionMissing) {
+      setActiveSession(null)
+      void navigate({ to: '/', replace: true })
+      return
+    }
+
     if (activeSessionId !== routeSessionId) {
       setActiveSession(routeSessionId)
     }
     useSessionStatusStore.getState().markVisited(routeSessionId)
-  }, [activeSessionId, diffOpen, navigate, routeSessionId, setActiveSession])
+  }, [
+    activeSession,
+    activeSessionId,
+    diffOpen,
+    draftSession,
+    navigate,
+    routeSessionId,
+    routeSessionMissing,
+    setActiveSession,
+  ])
 
   const routeSessionTreeId = routeSessionId ? SessionId(String(routeSessionId)) : null
   const routeBranchId = branchId ? SessionBranchId(branchId) : null
@@ -129,14 +158,18 @@ export function ChatRouteSurface({
     })
   }, [refreshSessionWorkspace, routeBranchId, routeNodeId, routeSessionTreeId])
 
-  const routeProjectPath = routeSessionSummary?.projectPath ?? null
-  const nextProjectPath = routeProjectPath ?? projectPath
+  const routeProjectPath = routeSessionDetail?.projectPath ?? null
+  const nextProjectPath = draftSession?.projectPath ?? routeProjectPath ?? projectPath
 
   useEffect(() => {
+    if (draftSession !== null) {
+      return
+    }
+
     if (routeProjectPath !== null && routeProjectPath !== projectPath) {
       void setProjectPath(routeProjectPath)
     }
-  }, [projectPath, routeProjectPath, setProjectPath])
+  }, [draftSession, projectPath, routeProjectPath, setProjectPath])
 
   useEffect(() => {
     void refreshGitStatus(nextProjectPath)

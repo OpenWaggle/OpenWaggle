@@ -3,8 +3,14 @@
 # Usage: curl -fsSL https://raw.githubusercontent.com/OpenWaggle/OpenWaggle/main/scripts/install.sh | bash
 set -euo pipefail
 
-REPO="OpenWaggle/OpenWaggle"
-API_URL="https://api.github.com/repos/${REPO}/releases/latest"
+DEFAULT_REPO="OpenWaggle/OpenWaggle"
+REPO="${OPENWAGGLE_INSTALL_REPO:-${DEFAULT_REPO}}"
+RELEASE_TAG="${OPENWAGGLE_RELEASE_TAG:-}"
+DEFAULT_API_URL="https://api.github.com/repos/${REPO}/releases/latest"
+if [ -n "${RELEASE_TAG}" ]; then
+  DEFAULT_API_URL="https://api.github.com/repos/${REPO}/releases/tags/${RELEASE_TAG}"
+fi
+API_URL="${OPENWAGGLE_RELEASE_API_URL:-${DEFAULT_API_URL}}"
 READY_MESSAGE="Ready to waggle"
 READY_TYPE_DELAY_SECONDS="0.045"
 READY_CURSOR_BLINK_DELAY_SECONDS="0.12"
@@ -50,16 +56,22 @@ case "${OS}" in
 esac
 
 case "${ARCH}" in
-  x86_64|amd64) ARCH_LABEL="x64" ;;
+  x86_64|amd64)
+    if [ "${PLATFORM}" = "linux" ]; then
+      ARCH_LABEL="x86_64"
+    else
+      ARCH_LABEL="x64"
+    fi
+    ;;
   arm64|aarch64) ARCH_LABEL="arm64" ;;
   *)             error "Unsupported architecture: ${ARCH}" ;;
 esac
 
 # --- Fetch latest release info ---
-info "Fetching latest release from GitHub…"
+info "Fetching release metadata…"
 RELEASE_JSON="$(curl -fsSL "${API_URL}")" || error "Failed to fetch release info. Is the repo public?"
 VERSION="$(printf '%s' "${RELEASE_JSON}" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')"
-info "Latest version: ${VERSION}"
+info "Resolved version: ${VERSION}"
 
 # --- Determine asset name ---
 if [ "${PLATFORM}" = "mac" ]; then
@@ -68,7 +80,7 @@ elif [ "${PLATFORM}" = "linux" ]; then
   ASSET_PATTERN="openwaggle-.*-${ARCH_LABEL}\\.AppImage"
 fi
 
-ASSET_URL="$(printf '%s' "${RELEASE_JSON}" | grep '"browser_download_url"' | grep -oE "https://[^\"]+" | grep -E "${ASSET_PATTERN}" | head -1)"
+ASSET_URL="$(printf '%s' "${RELEASE_JSON}" | grep '"browser_download_url"' | sed -n "s/.*\"browser_download_url\": *\"\([^\"]*\\)\".*/\1/p" | grep -E "${ASSET_PATTERN}" | head -1)"
 [ -z "${ASSET_URL:-}" ] && error "No matching asset found for ${PLATFORM}/${ARCH_LABEL}"
 
 FILENAME="$(basename "${ASSET_URL}")"
@@ -80,7 +92,7 @@ info "Downloading ${FILENAME}…"
 curl -fSL --progress-bar -o "${DOWNLOAD_PATH}" "${ASSET_URL}"
 
 # --- Verify SHA256 if checksum file exists ---
-SHA_URL="$(printf '%s' "${RELEASE_JSON}" | grep '"browser_download_url"' | grep -oE "https://[^\"]+" | grep "SHA256SUMS" | head -1)"
+SHA_URL="$(printf '%s' "${RELEASE_JSON}" | grep '"browser_download_url"' | sed -n "s/.*\"browser_download_url\": *\"\([^\"]*\\)\".*/\1/p" | grep "SHA256SUMS" | head -1)"
 if [ -n "${SHA_URL:-}" ]; then
   info "Verifying checksum…"
   SHA_FILE="${TMPDIR}/SHA256SUMS.txt"

@@ -1,13 +1,27 @@
 export type AgentsInstructionStatus = 'found' | 'missing' | 'error'
 
-export interface AgentsScopeItem {
+interface AgentsScopeItemBase {
   readonly filePath: string
   readonly scopeDir: string
   readonly scopeRelativeDir: string
-  readonly content: string
-  readonly status: AgentsInstructionStatus
-  readonly error?: string
 }
+
+export type AgentsScopeItem =
+  | (AgentsScopeItemBase & {
+      readonly status: 'found'
+      readonly content: string
+      readonly error?: undefined
+    })
+  | (AgentsScopeItemBase & {
+      readonly status: 'missing'
+      readonly content: ''
+      readonly error?: undefined
+    })
+  | (AgentsScopeItemBase & {
+      readonly status: 'error'
+      readonly content: ''
+      readonly error: string
+    })
 
 export interface AgentsResolutionResult {
   readonly projectPath: string

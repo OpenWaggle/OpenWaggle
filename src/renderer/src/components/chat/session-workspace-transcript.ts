@@ -6,7 +6,6 @@ import { messagePartToUIParts } from '@/hooks/useAgentChat.utils'
 interface ResolveTranscriptMessagesInput {
   readonly activeSessionId: SessionId | null
   readonly activeWorkspace: SessionWorkspace | null
-  readonly isRunning: boolean
   readonly messages: UIMessage[]
   readonly draftBranchSourceNodeId?: SessionNodeId | null
 }
@@ -127,16 +126,13 @@ function appendLiveTailWhenViewingHeadOrDraftSource(
     return workspaceMessages
   }
 
-  const tail = viewingHead
-    ? messages.slice(lastWorkspaceMessageIndex + 1)
-    : unsavedLiveTail(workspace, messages, lastWorkspaceMessageIndex)
+  const tail = unsavedLiveTail(workspace, messages, lastWorkspaceMessageIndex)
   return tail.length > 0 ? [...workspaceMessages, ...tail] : workspaceMessages
 }
 
 export function resolveTranscriptMessages({
   activeSessionId,
   activeWorkspace,
-  isRunning,
   messages,
   draftBranchSourceNodeId,
 }: ResolveTranscriptMessagesInput): UIMessage[] {
@@ -153,12 +149,10 @@ export function resolveTranscriptMessages({
     return messages
   }
 
-  return isRunning
-    ? appendLiveTailWhenViewingHeadOrDraftSource(
-        activeWorkspace,
-        workspaceMessages,
-        messages,
-        draftBranchSourceNodeId,
-      )
-    : workspaceMessages
+  return appendLiveTailWhenViewingHeadOrDraftSource(
+    activeWorkspace,
+    workspaceMessages,
+    messages,
+    draftBranchSourceNodeId,
+  )
 }

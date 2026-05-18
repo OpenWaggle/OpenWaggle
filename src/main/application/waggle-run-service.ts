@@ -39,7 +39,6 @@ import {
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { type ProjectedSessionNodeInput, SessionRepository } from '../ports/session-repository'
 import { SettingsService } from '../services/settings-service'
-import { getEffectiveMcpEnabled } from './mcp-runtime-settings'
 import { assignSessionTitleFromUserText, hydratePayloadAttachments } from './run-handler-utils'
 
 const UNRESOLVED_TOOL_NAME_PREVIEW_COUNT = 3
@@ -56,6 +55,7 @@ export interface WaggleRunInput {
   readonly signal: AbortSignal
   readonly onEvent: (event: AgentTransportEvent, meta: WaggleStreamMetadata) => void
   readonly onTurnEvent: (event: WaggleTurnEvent) => void
+  readonly onTitleAssigned?: (title: string) => void
 }
 
 interface UnresolvedToolCall {
@@ -113,11 +113,13 @@ export function executeWaggleRun(input: WaggleRunInput) {
       }
     }
     const skillToggles = settings.skillTogglesByProject[session.projectPath]
-    const mcpEnabled = yield* getEffectiveMcpEnabled(session.projectPath)
 
     const nextTitle = yield* assignSessionTitleFromUserText(sessionId, session, payload.text)
     if (nextTitle) {
       assignedTitle = nextTitle
+      yield* Effect.sync(() => {
+        input.onTitleAssigned?.(nextTitle)
+      })
     }
 
     const hydratedPayload: HydratedAgentSendPayload = {
@@ -329,7 +331,6 @@ export function executeWaggleRun(input: WaggleRunInput) {
       config,
       signal,
       skillToggles,
-      mcpEnabled,
       onEvent: () => undefined,
       onWaggleEvent: handleWaggleEvent,
       onTurnEvent,

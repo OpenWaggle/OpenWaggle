@@ -5,10 +5,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   clearConfigCache,
   ensureProjectSettingsFile,
-  getProjectMcpSettings,
   getProjectSettingsPath,
   loadProjectConfig,
-  setProjectMcpSettings,
   setProjectPreferences,
   updateProjectConfig,
 } from '../project-config'
@@ -38,9 +36,6 @@ describe('loadProjectConfig', () => {
           model: 'openai-codex/gpt-5.4',
           thinkingLevel: 'xhigh',
         },
-        mcp: {
-          enabled: 'disabled',
-        },
         pi: {
           compaction: { enabled: false },
         },
@@ -53,7 +48,6 @@ describe('loadProjectConfig', () => {
       model: 'openai-codex/gpt-5.4',
       thinkingLevel: 'xhigh',
     })
-    expect(config.mcp).toEqual({ enabled: 'disabled' })
     expect(config.pi).toEqual({ compaction: { enabled: false } })
   })
 
@@ -127,29 +121,6 @@ describe('loadProjectConfig', () => {
     const config = await loadProjectConfig(tmpDir)
     expect(config.pi).toEqual({ compaction: { enabled: false } })
     expect(config.preferences).toEqual({ model: 'openai/gpt-4.1' })
-  })
-
-  it('persists project MCP settings without changing nested Pi settings', async () => {
-    writeFileSync(
-      getSettingsPath(tmpDir),
-      JSON.stringify({
-        pi: {
-          compaction: { enabled: false },
-        },
-      }),
-      'utf-8',
-    )
-
-    await setProjectMcpSettings(tmpDir, { enabled: 'disabled' })
-
-    const config = await loadProjectConfig(tmpDir)
-    expect(config.mcp).toEqual({ enabled: 'disabled' })
-    expect(config.pi).toEqual({ compaction: { enabled: false } })
-    await expect(getProjectMcpSettings(tmpDir)).resolves.toEqual({ enabled: 'disabled' })
-  })
-
-  it('defaults project MCP settings to inherit when unset', async () => {
-    await expect(getProjectMcpSettings(tmpDir)).resolves.toEqual({ enabled: 'inherit' })
   })
 
   it('fails safely on invalid settings parsing during update and does not overwrite file', async () => {

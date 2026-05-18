@@ -1,10 +1,22 @@
 import type { WagglePresetId } from '@shared/types/brand'
 import type { WagglePreset } from '@shared/types/waggle'
-import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  queryOptions,
+  type UseQueryOptions,
+  useMutation,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { api } from '@/lib/ipc'
 import { queryKeys } from './query-keys'
 
-export function wagglePresetsQueryOptions(projectPath: string | null) {
+type WagglePresetsQueryOptions = UseQueryOptions<
+  Awaited<ReturnType<typeof api.listWagglePresets>>,
+  Error,
+  Awaited<ReturnType<typeof api.listWagglePresets>>,
+  ReturnType<typeof queryKeys.wagglePresets>
+>
+
+export function wagglePresetsQueryOptions(projectPath: string | null): WagglePresetsQueryOptions {
   return queryOptions({
     queryKey: queryKeys.wagglePresets(projectPath),
     queryFn: () => api.listWagglePresets(projectPath),

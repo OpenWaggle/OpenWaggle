@@ -20,7 +20,6 @@ import { ProviderService } from '../ports/provider-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
 import { SettingsService } from '../services/settings-service'
-import { getEffectiveMcpEnabled } from './mcp-runtime-settings'
 import { assignSessionTitleFromUserText, hydratePayloadAttachments } from './run-handler-utils'
 
 const MAIN_BRANCH_NAME = 'main'
@@ -35,6 +34,7 @@ export interface AgentRunInput {
   readonly model: SupportedModelId
   readonly signal: AbortSignal
   readonly onEvent: (event: AgentTransportEvent) => void
+  readonly onTitleAssigned?: (title: string) => void
 }
 
 interface AgentRunResultBase {
@@ -121,11 +121,13 @@ export function executeAgentRun(input: AgentRunInput) {
     const skillToggles = session.projectPath
       ? settings.skillTogglesByProject[session.projectPath]
       : undefined
-    const mcpEnabled = yield* getEffectiveMcpEnabled(session.projectPath)
 
     const nextTitle = yield* assignSessionTitleFromUserText(sessionId, session, payload.text)
     if (nextTitle) {
       assignedTitle = nextTitle
+      yield* Effect.sync(() => {
+        input.onTitleAssigned?.(nextTitle)
+      })
     }
 
     const sessionRepo = yield* SessionRepository
@@ -156,7 +158,6 @@ export function executeAgentRun(input: AgentRunInput) {
       model,
       signal,
       onEvent,
-      mcpEnabled,
       ...(skillToggles ? { skillToggles } : {}),
     })
 
@@ -170,6 +171,13 @@ export function executeAgentRun(input: AgentRunInput) {
 
     if (agentResult.terminalError) {
       const classified = classifyAgentError(new Error(agentResult.terminalError))
+      logger.error('Agent run ended with terminal error', {
+        sessionId,
+        runId,
+        model,
+        code: classified.code,
+        error: agentResult.terminalError,
+      })
       return {
         outcome: 'error' as const,
         message: classified.userMessage,
@@ -197,6 +205,13 @@ export function executeAgentRun(input: AgentRunInput) {
         })
       }
       const classified = classifyAgentError(err)
+      logger.error('Agent run failed before terminal transport event', {
+        sessionId: input.sessionId,
+        runId: input.runId,
+        model: input.model,
+        code: classified.code,
+        error: formatErrorMessage(err),
+      })
       return Effect.succeed({
         outcome: 'error' as const,
         message: classified.userMessage,
@@ -248,7 +263,6 @@ export function reconcileInterruptedAgentRuns() {
         .getSessionSnapshot({
           session,
           model: activeRun.model,
-          mcpEnabled: yield* getEffectiveMcpEnabled(session.projectPath),
         })
         .pipe(
           Effect.flatMap((result) =>

@@ -31,8 +31,12 @@ export interface DiagnosticsInfo {
   readonly arch: string
 }
 
-export interface FeedbackSubmitResult {
-  readonly success: boolean
-  readonly issueUrl?: string
-  readonly error?: string
-}
+export type FeedbackSubmitResult =
+  | {
+      readonly success: true
+      readonly issueUrl?: string
+    }
+  | {
+      readonly success: false
+      readonly error?: string
+    }

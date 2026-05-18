@@ -11,7 +11,6 @@ import {
   AgentKernelService,
   type AgentKernelWaggleRunInput,
 } from '../../ports/agent-kernel-service'
-import { ProjectMcpSettingsService } from '../../ports/project-mcp-settings-service'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { type PersistSessionSnapshotInput, SessionRepository } from '../../ports/session-repository'
 import { SettingsService } from '../../services/settings-service'
@@ -90,11 +89,6 @@ const TestSettingsLayer = Layer.succeed(SettingsService, {
   update: () => Effect.void,
   initialize: () => Effect.void,
   flushForTests: () => Effect.void,
-})
-
-const TestProjectMcpSettingsLayer = Layer.succeed(ProjectMcpSettingsService, {
-  get: () => Effect.succeed({ enabled: 'inherit' }),
-  set: () => Effect.void,
 })
 
 const TestSessionLayer = Layer.succeed(SessionRepository, {
@@ -188,7 +182,6 @@ const TestAgentKernelLayer = Layer.succeed(AgentKernelService, {
 const TestLayer = Layer.mergeAll(
   TestSessionProjectionLayer,
   TestSettingsLayer,
-  TestProjectMcpSettingsLayer,
   TestSessionLayer,
   TestAgentKernelLayer,
 )
@@ -229,7 +222,6 @@ describe('executeWaggleRun', () => {
       config: waggleConfig,
       model: waggleConfig.agents[0].model,
       skillToggles: { 'code-review': false },
-      mcpEnabled: true,
     })
     expect(recordActiveRunMock).toHaveBeenCalledWith({
       runId: 'run-waggle-1',

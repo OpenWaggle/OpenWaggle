@@ -1,12 +1,14 @@
 import type { SessionSummary } from '@shared/types/session'
 
 const EMPTY_UPDATED_AT = 0
+const EMPTY_CREATED_AT = 0
 
 export type SidebarSessionSortMode = 'recent' | 'oldest' | 'name'
 
 export interface SidebarProjectGroup {
   readonly projectPath: string
   readonly sessions: readonly SessionSummary[]
+  readonly firstSessionCreatedAt: number
   readonly latestUpdatedAt: number
 }
 
@@ -47,12 +49,23 @@ function latestUpdatedAt(sessions: readonly SessionSummary[]): number {
   return sessions.reduce((latest, session) => Math.max(latest, session.updatedAt), EMPTY_UPDATED_AT)
 }
 
-function addUniqueProjectPath(paths: string[], path: string | null): void {
+function firstSessionCreatedAt(sessions: readonly SessionSummary[]): number {
+  if (sessions.length === 0) {
+    return EMPTY_CREATED_AT
+  }
+  return sessions.reduce(
+    (earliest, session) => Math.min(earliest, session.createdAt),
+    Number.MAX_SAFE_INTEGER,
+  )
+}
+
+function addUniqueProjectPath(paths: string[], path: string | null): boolean {
   const normalized = normalizedProjectPath(path)
   if (!normalized || paths.includes(normalized)) {
-    return
+    return false
   }
   paths.push(normalized)
+  return true
 }
 
 export function buildSidebarProjectGroups({
@@ -74,20 +87,24 @@ export function buildSidebarProjectGroups({
     sessionsByProject.set(projectPath, projectSessions)
   }
 
-  const projectPaths: string[] = []
-  addUniqueProjectPath(projectPaths, currentProjectPath)
+  const sessionProjectPaths = [...sessionsByProject.keys()].sort((left, right) => {
+    const leftCreatedAt = firstSessionCreatedAt(sessionsByProject.get(left) ?? [])
+    const rightCreatedAt = firstSessionCreatedAt(sessionsByProject.get(right) ?? [])
+    return rightCreatedAt - leftCreatedAt
+  })
+
+  const sessionlessProjectPaths: string[] = []
   for (const projectPath of recentProjects) {
-    addUniqueProjectPath(projectPaths, projectPath)
+    if (!sessionsByProject.has(projectPath)) {
+      addUniqueProjectPath(sessionlessProjectPaths, projectPath)
+    }
+  }
+  const normalizedCurrentProjectPath = normalizedProjectPath(currentProjectPath)
+  if (normalizedCurrentProjectPath && !sessionsByProject.has(normalizedCurrentProjectPath)) {
+    addUniqueProjectPath(sessionlessProjectPaths, normalizedCurrentProjectPath)
   }
 
-  const sessionProjectPaths = [...sessionsByProject.keys()].sort((left, right) => {
-    const leftUpdatedAt = latestUpdatedAt(sessionsByProject.get(left) ?? [])
-    const rightUpdatedAt = latestUpdatedAt(sessionsByProject.get(right) ?? [])
-    return rightUpdatedAt - leftUpdatedAt
-  })
-  for (const projectPath of sessionProjectPaths) {
-    addUniqueProjectPath(projectPaths, projectPath)
-  }
+  const projectPaths = [...sessionProjectPaths, ...sessionlessProjectPaths]
 
   return {
     projects: projectPaths.map((projectPath) => {
@@ -95,6 +112,7 @@ export function buildSidebarProjectGroups({
       return {
         projectPath,
         sessions: sortSessions(projectSessions, sortMode),
+        firstSessionCreatedAt: firstSessionCreatedAt(projectSessions),
         latestUpdatedAt: latestUpdatedAt(projectSessions),
       }
     }),

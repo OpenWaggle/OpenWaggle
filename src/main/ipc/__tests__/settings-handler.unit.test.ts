@@ -249,19 +249,6 @@ describe('registerSettingsHandlers', () => {
       expect(result).toEqual({ ok: true })
       expect(updateSettingsMock).toHaveBeenCalledOnce()
     })
-
-    it('accepts mcpDefault update', async () => {
-      registerSettingsHandlers()
-
-      const handler = getTypedEffectInvokeHandler('settings:update')
-      expect(handler).toBeDefined()
-
-      const result = await handler?.({}, { mcpDefault: 'disabled' })
-      expect(result).toEqual({ ok: true })
-      expect(updateSettingsMock).toHaveBeenCalledWith(
-        expect.objectContaining({ mcpDefault: 'disabled' }),
-      )
-    })
   })
 
   describe('pi-settings:get-tree-filter-mode', () => {

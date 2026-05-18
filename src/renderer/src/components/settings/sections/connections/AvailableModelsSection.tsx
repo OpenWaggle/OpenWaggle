@@ -1,11 +1,12 @@
 import type { Provider } from '@shared/types/settings'
 import { useState } from 'react'
 import { useConnectionModelGroups } from '@/hooks/useConnectionModelGroups'
-import { usePreferences } from '@/hooks/useSettings'
+import { usePreferences, useProviders } from '@/hooks/useSettings'
 import { type ModelGroup, ModelGroupAccordion } from './ModelGroupAccordion'
 
 export function AvailableModelsSection() {
   const { settings, setEnabledModels } = usePreferences()
+  const { isLoading } = useProviders()
   const groups = useConnectionModelGroups()
 
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
@@ -47,7 +48,9 @@ export function AvailableModelsSection() {
         </p>
       </div>
 
-      {groups.length === 0 ? (
+      {isLoading && groups.length === 0 ? (
+        <p className="text-[13px] text-text-muted">Loading Pi models…</p>
+      ) : groups.length === 0 ? (
         <p className="text-[13px] text-text-muted">Pi did not report any providers or models.</p>
       ) : (
         <div className="rounded-lg border border-border bg-[#111418] overflow-hidden">

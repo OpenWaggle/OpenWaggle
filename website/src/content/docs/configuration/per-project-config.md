@@ -55,18 +55,37 @@ your-project/
     extensions/
     prompts/
     themes/
+    agent/
+      mcp.json
   .pi/
     settings.json
     skills/
     extensions/
     prompts/
     themes/
+    mcp.json
   .agents/
     skills/
     extensions/
     prompts/
     themes/
+    mcp.json
 ```
+
+## MCP Config Precedence
+
+OpenWaggle reads MCP config from standard MCP files, Pi-owned files, `.agents`, and the OpenWaggle-owned project file. Effective precedence is:
+
+```text
+~/.config/mcp/mcp.json
+~/.pi/agent/mcp.json
+<project>/.mcp.json
+<project>/.agents/mcp.json
+<project>/.pi/mcp.json
+<project>/.openwaggle/agent/mcp.json
+```
+
+Later files override earlier files by server name and adapter setting key. Settings > MCP writes only the selected source file, and disabled servers are preserved under `openwaggle.disabledMcpServers`.
 
 ## Thinking Level
 

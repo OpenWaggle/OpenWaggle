@@ -77,6 +77,15 @@ describe('useUIStore — extra coverage', () => {
       expect(useUIStore.getState().toastMessage).toBe('Hello world')
     })
 
+    it('stores the requested toast variant', () => {
+      useUIStore.getState().showToast('Saved', 'success')
+
+      expect(useUIStore.getState().toastData).toMatchObject({
+        message: 'Saved',
+        variant: 'success',
+      })
+    })
+
     it('auto-clears after the toast delay', () => {
       useUIStore.getState().showToast('Temporary')
 

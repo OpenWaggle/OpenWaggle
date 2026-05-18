@@ -11,7 +11,7 @@ const PROVIDER_PROBE_TIMEOUT_MS = 15_000
 
 async function runPiPromptProbe(input: ProviderProbeInput): Promise<void> {
   const cwd = input.projectPath ?? process.cwd()
-  const services = await createPiRuntimeServices(cwd)
+  const services = await createPiRuntimeServices(cwd, { loadMcpAdapter: false })
   if (input.apiKey) {
     services.authStorage.setRuntimeApiKey(input.providerId, input.apiKey)
   }

@@ -1,7 +1,13 @@
 import { generateDisplayName, type ProviderInfo } from '@shared/types/llm'
 import type { Settings } from '@shared/types/settings'
-import type { WaggleAgentSlot, WagglePreset, WaggleStopCondition } from '@shared/types/waggle'
+import {
+  WAGGLE_AGENT_COLORS,
+  type WaggleAgentSlot,
+  type WagglePreset,
+  type WaggleStopCondition,
+} from '@shared/types/waggle'
 import { Plus, Save, Trash2 } from 'lucide-react'
+import { Textarea } from '@/components/ui/Textarea'
 import { usePreferences, useProviders } from '@/hooks/useSettings'
 import { AGENT_BG, AGENT_BORDER } from '@/lib/agent-colors'
 import { cn } from '@/lib/cn'
@@ -364,17 +370,15 @@ function AgentSlotCard({
       {/* Role */}
       <div className="space-y-1.5">
         <span className="text-[13px] text-text-primary">Role description</span>
-        <textarea
+        <Textarea
           value={agent.roleDescription}
           onChange={(e) =>
             dispatchForm({ type: 'set-agent-role', index, roleDescription: e.target.value })
           }
           rows={ROWS}
           placeholder="Describe this agent's role and perspective..."
-          className={cn(
-            'w-full rounded-md border border-border bg-bg px-3 py-2 text-[13px] text-text-primary resize-none',
-            'placeholder:text-text-tertiary focus:border-border-light focus:outline-none',
-          )}
+          resize="none"
+          className="rounded-md border-border text-text-primary placeholder:text-text-tertiary"
         />
       </div>
 
@@ -382,7 +386,7 @@ function AgentSlotCard({
       <div className="flex items-center justify-between h-[40px]">
         <span className="text-[13px] text-text-primary">Color</span>
         <div className="flex items-center gap-2">
-          {(['blue', 'amber', 'emerald', 'violet'] as const).map((c) => (
+          {WAGGLE_AGENT_COLORS.map((c) => (
             <button
               key={c}
               type="button"

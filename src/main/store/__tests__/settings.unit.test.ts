@@ -237,15 +237,6 @@ describe('settings store', () => {
     expect(settings.thinkingLevel).toBe('medium')
   })
 
-  it('falls back to enabled MCP default when persisted value is invalid', async () => {
-    await writeRawSetting('mcpDefault', 'auto')
-
-    const { getSettings } = await loadSettingsModule()
-    const settings = getSettings()
-
-    expect(settings.mcpDefault).toBe('enabled')
-  })
-
   it('sanitizes and limits favorite models from persisted settings', async () => {
     await writeRawSetting('favoriteModels', [
       'openai/gpt-4.1-mini',
@@ -288,12 +279,6 @@ describe('settings store', () => {
     const { getSettings, updateSettings } = await loadSettingsModule()
     updateSettings({ thinkingLevel: 'high' })
     expect(getSettings().thinkingLevel).toBe('high')
-  })
-
-  it('roundtrips valid mcpDefault through updateSettings', async () => {
-    const { getSettings, updateSettings } = await loadSettingsModule()
-    updateSettings({ mcpDefault: 'disabled' })
-    expect(getSettings().mcpDefault).toBe('disabled')
   })
 
   it('roundtrips recentProjects through updateSettings', async () => {

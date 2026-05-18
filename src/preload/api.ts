@@ -34,6 +34,23 @@ function on<C extends IpcEventChannel>(
   }
 }
 
+const invokePrepareAttachments = invoke('attachments:prepare')
+
+function prepareSelectedAttachments(
+  projectPath: string,
+  files: readonly File[],
+): ReturnType<OpenWaggleApi['prepareAttachments']> {
+  const paths = files
+    .map((file) => webUtils.getPathForFile(file))
+    .filter((filePath) => filePath.length > 0)
+
+  if (paths.length === 0) {
+    return Promise.resolve([])
+  }
+
+  return invokePrepareAttachments(projectPath, paths)
+}
+
 /**
  * Typed API exposed to the renderer via contextBridge.
  * Every method maps to a specific IPC channel with strict types.
@@ -41,7 +58,7 @@ function on<C extends IpcEventChannel>(
 export const api: OpenWaggleApi = {
   // Agent
   sendMessage: invoke('agent:send-message'),
-  cancelAgent: send('agent:cancel'),
+  cancelAgent: invoke('agent:cancel'),
   steerAgent: invoke('agent:steer'),
   onAgentEvent: on('agent:event'),
 
@@ -61,6 +78,10 @@ export const api: OpenWaggleApi = {
   setPiTreeFilterMode: invoke('pi-settings:set-tree-filter-mode'),
   getPiBranchSummarySkipPrompt: invoke('pi-settings:get-branch-summary-skip-prompt'),
   testApiKey: invoke('settings:test-api-key'),
+  getMcpSettings: invoke('mcp:get-settings'),
+  setMcpAdapterEnabled: invoke('mcp:set-adapter-enabled'),
+  setMcpServerEnabled: invoke('mcp:set-server-enabled'),
+  writeMcpSourceConfig: invoke('mcp:write-source-config'),
 
   // Providers
   getProviderModels: invoke('providers:get-models'),
@@ -69,8 +90,6 @@ export const api: OpenWaggleApi = {
   selectProjectFolder: invoke('project:select-folder'),
   getProjectPreferences: invoke('project-config:get-preferences'),
   setProjectPreferences: invoke('project-config:set-preferences'),
-  getProjectMcpSettings: invoke('project-config:get-mcp'),
-  setProjectMcpSettings: invoke('project-config:set-mcp'),
 
   // Sessions
   listSessions: invoke('sessions:list'),
@@ -116,11 +135,8 @@ export const api: OpenWaggleApi = {
   deleteGitBranch: invoke('git:branches:delete'),
   setGitBranchUpstream: invoke('git:branches:set-upstream'),
 
-  // File paths (preload-only, no IPC round-trip)
-  getFilePath: (file: File) => webUtils.getPathForFile(file),
-
   // Attachments
-  prepareAttachments: invoke('attachments:prepare'),
+  prepareAttachments: prepareSelectedAttachments,
   prepareAttachmentFromText: invoke('attachments:prepare-from-text'),
   onPrepareAttachmentFromTextProgress: on('attachments:prepare-from-text-progress'),
 
@@ -138,6 +154,7 @@ export const api: OpenWaggleApi = {
   copyToClipboard: send('clipboard:write-text'),
   openLogsDir: invoke('app:open-logs-dir'),
   getLogsPath: invoke('app:get-logs-path'),
+  openPath: invoke('shell:open-path'),
 
   // Dialog
   showConfirm: invoke('dialog:confirm'),

@@ -1,3 +1,4 @@
+import { match } from '@diegogbrisa/ts-match'
 import type { GitStatusSummary } from '@shared/types/git'
 import { Bug, Hash, ListTree, PanelLeft, SquareTerminal } from 'lucide-react'
 import { useState } from 'react'
@@ -263,12 +264,15 @@ export function Header() {
         message: 'No project selected.',
       }
     }
-    const result = await commitGit(projectPath, { message, amend, paths })
-    if (result.ok) {
-      bumpDiffRefreshKey()
-      showToast(`Commit created: ${result.summary}`)
-    }
-    return result
+    return match
+      .promise(commitGit(projectPath, { message, amend, paths }))
+      .with({ ok: true }, (result) => {
+        bumpDiffRefreshKey()
+        showToast(`Commit created: ${result.summary}`)
+        return result
+      })
+      .with({ ok: false }, (result) => result)
+      .exhaustive()
   }
 
   const activeBranchName =
