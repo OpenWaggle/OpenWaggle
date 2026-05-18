@@ -17,7 +17,10 @@ import { THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
 import { normalizeSkillId } from '@shared/utils/skill-id'
 import { withNpmCompatibleProcessEnv } from '../../env'
 import { isPathInside } from '../../utils/paths'
-import { createOpenWagglePiSettingsManager } from './openwaggle-pi-settings-storage'
+import {
+  createOpenWaggleGlobalPiSettingsManager,
+  createOpenWagglePiSettingsManager,
+} from './openwaggle-pi-settings-storage'
 import {
   type OpenWaggleMcpRuntimeContext,
   prepareOpenWaggleMcpRuntimeContext,
@@ -72,8 +75,6 @@ export interface PiProjectModelRuntime extends PiModelRuntime {
   readonly services: AgentSessionServices
 }
 
-let sharedAuthStorage: AuthStorage | null = null
-let sharedModelRegistry: ModelRegistry | null = null
 let builtInModelProviders: ReadonlySet<string> | null = null
 
 const OPENWAGGLE_SKILLS_ROOT_SEGMENTS = ['.openwaggle', 'skills'] as const
@@ -103,22 +104,6 @@ export function getPiAgentDir(): string {
   return getAgentDir()
 }
 
-function getSharedAuthStorage(): AuthStorage {
-  if (sharedAuthStorage) {
-    return sharedAuthStorage
-  }
-  sharedAuthStorage = AuthStorage.create()
-  return sharedAuthStorage
-}
-
-function getSharedModelRegistry(): ModelRegistry {
-  if (sharedModelRegistry) {
-    return sharedModelRegistry
-  }
-  sharedModelRegistry = ModelRegistry.create(getSharedAuthStorage())
-  return sharedModelRegistry
-}
-
 export function getBuiltInPiModelProviderIds(): ReadonlySet<string> {
   if (builtInModelProviders) {
     return builtInModelProviders
@@ -128,11 +113,6 @@ export function getBuiltInPiModelProviderIds(): ReadonlySet<string> {
   const modelRegistry = ModelRegistry.inMemory(authStorage)
   builtInModelProviders = new Set(modelRegistry.getAll().map((model) => model.provider))
   return builtInModelProviders
-}
-
-export function reloadPiProviderCatalog(): void {
-  sharedAuthStorage?.reload()
-  sharedModelRegistry?.refresh()
 }
 
 function piModelSupportsXhighThinking(modelId: string): boolean {
@@ -370,15 +350,31 @@ export async function createPiRuntimeServices(
   return services
 }
 
+async function createPiGlobalProviderCatalogServices(): Promise<AgentSessionServices> {
+  const agentDir = getPiAgentDir()
+  const authStorage = createPiRuntimeAuthStorage()
+  const settingsManager = createOpenWaggleGlobalPiSettingsManager({
+    excludedGlobalPackageSources: MCP_ADAPTER_PACKAGE_SOURCES,
+  })
+  const services = await withNpmCompatibleProcessEnv(() =>
+    createAgentSessionServices({
+      cwd: agentDir,
+      agentDir,
+      authStorage,
+      settingsManager,
+    }),
+  )
+  rememberOpenWaggleMcpRuntimeContext(services, null)
+  return services
+}
+
 export async function createPiProviderCatalogSnapshot(
   projectPath?: string | null,
 ): Promise<ProviderCatalogSnapshot> {
   const normalizedProjectPath = projectPath?.trim()
   if (!normalizedProjectPath) {
-    return createPiProviderCatalogSnapshotFromRuntime(
-      getSharedModelRegistry(),
-      getSharedAuthStorage(),
-    )
+    const services = await createPiGlobalProviderCatalogServices()
+    return createPiProviderCatalogSnapshotFromRuntime(services.modelRegistry, services.authStorage)
   }
 
   const services = await createPiRuntimeServices(normalizedProjectPath, { loadMcpAdapter: false })
@@ -398,7 +394,6 @@ export function setPiProviderApiKey(providerId: string, apiKey: string): void {
   } else {
     authStorage.remove(provider)
   }
-  reloadPiProviderCatalog()
 }
 
 export function createPiRuntimeAuthStorage(): AuthStorage {
