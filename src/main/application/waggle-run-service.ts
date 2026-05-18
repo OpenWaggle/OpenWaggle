@@ -39,6 +39,7 @@ import {
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { type ProjectedSessionNodeInput, SessionRepository } from '../ports/session-repository'
 import { SettingsService } from '../services/settings-service'
+import { getEffectiveMcpEnabled } from './mcp-runtime-settings'
 import { assignSessionTitleFromUserText, hydratePayloadAttachments } from './run-handler-utils'
 
 const UNRESOLVED_TOOL_NAME_PREVIEW_COUNT = 3
@@ -112,6 +113,7 @@ export function executeWaggleRun(input: WaggleRunInput) {
       }
     }
     const skillToggles = settings.skillTogglesByProject[session.projectPath]
+    const mcpEnabled = yield* getEffectiveMcpEnabled(session.projectPath)
 
     const nextTitle = yield* assignSessionTitleFromUserText(sessionId, session, payload.text)
     if (nextTitle) {
@@ -327,6 +329,7 @@ export function executeWaggleRun(input: WaggleRunInput) {
       config,
       signal,
       skillToggles,
+      mcpEnabled,
       onEvent: () => undefined,
       onWaggleEvent: handleWaggleEvent,
       onTurnEvent,

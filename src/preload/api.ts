@@ -69,6 +69,8 @@ export const api: OpenWaggleApi = {
   selectProjectFolder: invoke('project:select-folder'),
   getProjectPreferences: invoke('project-config:get-preferences'),
   setProjectPreferences: invoke('project-config:set-preferences'),
+  getProjectMcpSettings: invoke('project-config:get-mcp'),
+  setProjectMcpSettings: invoke('project-config:set-mcp'),
 
   // Sessions
   listSessions: invoke('sessions:list'),

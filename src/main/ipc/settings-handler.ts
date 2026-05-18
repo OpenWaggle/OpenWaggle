@@ -1,7 +1,7 @@
 import { Schema, safeDecodeUnknown } from '@shared/schema'
 import { SupportedModelId } from '@shared/types/brand'
 import type { SessionTreeFilterMode } from '@shared/types/session'
-import { THINKING_LEVELS } from '@shared/types/settings'
+import { MCP_DEFAULT_MODES, THINKING_LEVELS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import { testCredentials } from '../application/provider-test-service'
 import { createLogger } from '../logger'
@@ -84,6 +84,7 @@ const settingsUpdateSchema = Schema.Struct({
       }),
     ),
   ),
+  mcpDefault: Schema.optional(Schema.Literal(...MCP_DEFAULT_MODES)),
   projectDisplayNames: Schema.optional(
     Schema.mutable(
       Schema.Record({

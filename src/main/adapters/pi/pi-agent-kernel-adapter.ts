@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
+import { matchBy } from '@diegogbrisa/ts-match'
 import type {
   AgentSession,
   AgentSessionEvent,
@@ -22,7 +23,6 @@ import {
   isToolCallPart,
   type Message,
   type MessagePart,
-  type MessageRole,
 } from '@shared/types/agent'
 import { ToolCallId } from '@shared/types/brand'
 import type { ContextUsageSnapshot } from '@shared/types/context-usage'
@@ -52,6 +52,7 @@ import {
   type NavigateAgentKernelSessionInput,
 } from '../../ports/agent-kernel-service'
 import type { ProjectedSessionNodeInput } from '../../ports/session-repository'
+import { getOpenWaggleCorePiExtensionPaths } from './pi-mcp-adapter'
 import { createStreamingMessageId, toJsonObject, toJsonValue } from './pi-message-mapper'
 import {
   createPiProjectModelRuntime,
@@ -104,6 +105,8 @@ function createDeferred(): Deferred {
   }
 }
 
+type PiSessionEntry<TType extends SessionEntry['type']> = Extract<SessionEntry, { type: TType }>
+
 function resolveProjectPath(input: AgentKernelRunInput): string {
   return resolveSessionProjectPath(input.session)
 }
@@ -121,33 +124,52 @@ function parsePiEntryTimestamp(timestamp: string): number {
   return Number.isFinite(parsed) ? parsed : Date.now()
 }
 
+function textMessagePart(text: string): MessagePart {
+  return { type: 'text', text }
+}
+
+function fallbackTextParts(): MessagePart[] {
+  return [textMessagePart('')]
+}
+
+function getPiImageBlockLabel(block: Readonly<Record<string, unknown>>): string {
+  return typeof block.mimeType === 'string' ? block.mimeType : 'image'
+}
+
+function piContentBlockToPart(block: unknown): MessagePart | null {
+  if (!isRecord(block)) {
+    return null
+  }
+
+  if (block.type === 'text' && typeof block.text === 'string') {
+    return textMessagePart(block.text)
+  }
+
+  if (block.type === 'image') {
+    return textMessagePart(`[Image input: ${getPiImageBlockLabel(block)}]`)
+  }
+
+  return null
+}
+
 function piTextAndImageContentToParts(content: unknown): MessagePart[] {
   if (typeof content === 'string') {
-    return content ? [{ type: 'text', text: content }] : [{ type: 'text', text: '' }]
+    return [textMessagePart(content)]
   }
 
   if (!Array.isArray(content)) {
-    return [{ type: 'text', text: '' }]
+    return fallbackTextParts()
   }
 
   const parts: MessagePart[] = []
   for (const block of content) {
-    if (!isRecord(block) || typeof block.type !== 'string') {
-      continue
-    }
-
-    if (block.type === 'text' && typeof block.text === 'string') {
-      parts.push({ type: 'text', text: block.text })
-      continue
-    }
-
-    if (block.type === 'image') {
-      const mimeType = typeof block.mimeType === 'string' ? block.mimeType : 'image'
-      parts.push({ type: 'text', text: `[Image input: ${mimeType}]` })
+    const part = piContentBlockToPart(block)
+    if (part) {
+      parts.push(part)
     }
   }
 
-  return parts.length > 0 ? parts : [{ type: 'text', text: '' }]
+  return parts.length > 0 ? parts : fallbackTextParts()
 }
 
 function piAssistantContentToParts(content: readonly unknown[]): MessagePart[] {
@@ -314,97 +336,100 @@ function buildRawNodeContentJson(value: JsonValue): string {
   return JSON.stringify(value)
 }
 
-function messageProjectionForEntry(entry: Extract<SessionEntry, { type: 'message' }>): {
-  readonly kind: ProjectedSessionNodeInput['kind']
-  readonly role: MessageRole | null
-  readonly contentJson: string
-  readonly metadataJson: string
-} {
-  const message = entry.message
+type PiSessionMessage = PiSessionEntry<'message'>['message']
+type PiMessage<TRole extends PiSessionMessage['role']> = Extract<PiSessionMessage, { role: TRole }>
 
-  if (message.role === 'user') {
-    const parts = piTextAndImageContentToParts(message.content)
-    return {
-      kind: 'user_message',
-      role: 'user',
-      contentJson: buildMessageNodeContentJson(parts, null),
-      metadataJson: '{}',
-    }
+type ProjectedEntryDetails = Pick<
+  ProjectedSessionNodeInput,
+  'kind' | 'role' | 'contentJson' | 'metadataJson'
+>
+
+function projectUserPiMessage(message: PiMessage<'user'>): ProjectedEntryDetails {
+  const parts = piTextAndImageContentToParts(message.content)
+  return {
+    kind: 'user_message',
+    role: 'user',
+    contentJson: buildMessageNodeContentJson(parts, null),
+    metadataJson: '{}',
   }
+}
 
-  if (message.role === 'assistant') {
-    const parts = piAssistantContentToParts(message.content)
-    const model = createModelRef(message.provider, message.model)
-    return {
-      kind: 'assistant_message',
-      role: 'assistant',
-      contentJson: buildMessageNodeContentJson(parts, model),
-      metadataJson: buildRawNodeContentJson({
-        api: message.api,
-        provider: message.provider,
-        model: message.model,
-        usage: toJsonValue(message.usage),
-        stopReason: message.stopReason,
-        errorMessage: message.errorMessage ?? null,
-      }),
-    }
+function projectAssistantPiMessage(message: PiMessage<'assistant'>): ProjectedEntryDetails {
+  const parts = piAssistantContentToParts(message.content)
+  const model = createModelRef(message.provider, message.model)
+  return {
+    kind: 'assistant_message',
+    role: 'assistant',
+    contentJson: buildMessageNodeContentJson(parts, model),
+    metadataJson: buildRawNodeContentJson({
+      api: message.api,
+      provider: message.provider,
+      model: message.model,
+      usage: toJsonValue(message.usage),
+      stopReason: message.stopReason,
+      errorMessage: message.errorMessage ?? null,
+    }),
   }
+}
 
-  if (message.role === 'toolResult') {
-    return {
-      kind: 'tool_result',
-      role: null,
-      contentJson: buildMessageNodeContentJson([piToolResultContentToPart(message)], null),
-      metadataJson: buildRawNodeContentJson({
-        toolCallId: message.toolCallId,
-        toolName: message.toolName,
-        isError: message.isError,
-      }),
-    }
+function projectToolResultPiMessage(message: PiMessage<'toolResult'>): ProjectedEntryDetails {
+  return {
+    kind: 'tool_result',
+    role: null,
+    contentJson: buildMessageNodeContentJson([piToolResultContentToPart(message)], null),
+    metadataJson: buildRawNodeContentJson({
+      toolCallId: message.toolCallId,
+      toolName: message.toolName,
+      isError: message.isError,
+    }),
   }
+}
 
-  if (message.role === 'branchSummary') {
-    return {
-      kind: 'branch_summary',
-      role: null,
-      contentJson: buildRawNodeContentJson({
-        summary: message.summary,
-        fromId: message.fromId,
-      }),
-      metadataJson: '{}',
-    }
+function projectBranchSummaryPiMessage(message: PiMessage<'branchSummary'>): ProjectedEntryDetails {
+  return {
+    kind: 'branch_summary',
+    role: null,
+    contentJson: buildRawNodeContentJson({
+      summary: message.summary,
+      fromId: message.fromId,
+    }),
+    metadataJson: '{}',
   }
+}
 
-  if (message.role === 'compactionSummary') {
-    return {
-      kind: 'compaction_summary',
-      role: null,
-      contentJson: buildRawNodeContentJson({
-        summary: message.summary,
-        tokensBefore: message.tokensBefore,
-      }),
-      metadataJson: '{}',
-    }
+function projectCompactionSummaryPiMessage(
+  message: PiMessage<'compactionSummary'>,
+): ProjectedEntryDetails {
+  return {
+    kind: 'compaction_summary',
+    role: null,
+    contentJson: buildRawNodeContentJson({
+      summary: message.summary,
+      tokensBefore: message.tokensBefore,
+    }),
+    metadataJson: '{}',
   }
+}
 
-  if (message.role === 'bashExecution') {
-    return {
-      kind: 'custom',
-      role: null,
-      contentJson: buildRawNodeContentJson({
-        role: message.role,
-        command: message.command,
-        output: message.output,
-        exitCode: message.exitCode ?? null,
-        cancelled: message.cancelled,
-        truncated: message.truncated,
-        fullOutputPath: message.fullOutputPath ?? null,
-        excludeFromContext: message.excludeFromContext ?? false,
-      }),
-      metadataJson: '{}',
-    }
+function projectBashExecutionPiMessage(message: PiMessage<'bashExecution'>): ProjectedEntryDetails {
+  return {
+    kind: 'custom',
+    role: null,
+    contentJson: buildRawNodeContentJson({
+      role: message.role,
+      command: message.command,
+      output: message.output,
+      exitCode: message.exitCode ?? null,
+      cancelled: message.cancelled,
+      truncated: message.truncated,
+      fullOutputPath: message.fullOutputPath ?? null,
+      excludeFromContext: message.excludeFromContext ?? false,
+    }),
+    metadataJson: '{}',
   }
+}
 
+function projectCustomPiMessage(message: PiMessage<'custom'>): ProjectedEntryDetails {
   return {
     kind: 'custom',
     role: null,
@@ -419,206 +444,222 @@ function messageProjectionForEntry(entry: Extract<SessionEntry, { type: 'message
   }
 }
 
+function messageProjectionForEntry(entry: PiSessionEntry<'message'>): ProjectedEntryDetails {
+  return matchBy(entry.message, 'role')
+    .with('user', projectUserPiMessage)
+    .with('assistant', projectAssistantPiMessage)
+    .with('toolResult', projectToolResultPiMessage)
+    .with('branchSummary', projectBranchSummaryPiMessage)
+    .with('compactionSummary', projectCompactionSummaryPiMessage)
+    .with('bashExecution', projectBashExecutionPiMessage)
+    .with('custom', projectCustomPiMessage)
+    .exhaustive()
+}
+
+interface PiEntryProjectionContext {
+  readonly createdOrder: number
+  readonly pathDepth: number
+  readonly timestampMs: number
+}
+
+function buildProjectedPiEntry(
+  context: PiEntryProjectionContext,
+  entry: SessionEntry,
+  details: ProjectedEntryDetails,
+): ProjectedSessionNodeInput {
+  return {
+    id: entry.id,
+    parentId: entry.parentId,
+    piEntryType: entry.type,
+    kind: details.kind,
+    role: details.role,
+    timestampMs: context.timestampMs,
+    contentJson: details.contentJson,
+    metadataJson: details.metadataJson,
+    pathDepth: context.pathDepth,
+    createdOrder: context.createdOrder,
+  }
+}
+
+function projectMessagePiEntry(
+  context: PiEntryProjectionContext,
+  entry: PiSessionEntry<'message'>,
+): ProjectedSessionNodeInput {
+  return buildProjectedPiEntry(context, entry, messageProjectionForEntry(entry))
+}
+
+function projectModelChangePiEntry(
+  context: PiEntryProjectionContext,
+  entry: PiSessionEntry<'model_change'>,
+): ProjectedSessionNodeInput {
+  return buildProjectedPiEntry(context, entry, {
+    kind: 'model_change',
+    role: null,
+    contentJson: buildRawNodeContentJson({
+      provider: entry.provider,
+      modelId: entry.modelId,
+      modelRef: createModelRef(entry.provider, entry.modelId),
+    }),
+    metadataJson: '{}',
+  })
+}
+
+function projectThinkingLevelChangePiEntry(
+  context: PiEntryProjectionContext,
+  entry: PiSessionEntry<'thinking_level_change'>,
+): ProjectedSessionNodeInput {
+  return buildProjectedPiEntry(context, entry, {
+    kind: 'thinking_level_change',
+    role: null,
+    contentJson: buildRawNodeContentJson({
+      thinkingLevel: entry.thinkingLevel,
+    }),
+    metadataJson: '{}',
+  })
+}
+
+function projectCompactionPiEntry(
+  context: PiEntryProjectionContext,
+  entry: PiSessionEntry<'compaction'>,
+): ProjectedSessionNodeInput {
+  return buildProjectedPiEntry(context, entry, {
+    kind: 'compaction_summary',
+    role: null,
+    contentJson: buildRawNodeContentJson({
+      summary: entry.summary,
+      firstKeptEntryId: entry.firstKeptEntryId,
+      tokensBefore: entry.tokensBefore,
+      details: toJsonValue(entry.details ?? null),
+      fromHook: entry.fromHook ?? false,
+    }),
+    metadataJson: '{}',
+  })
+}
+
+function projectBranchSummaryPiEntry(
+  context: PiEntryProjectionContext,
+  entry: PiSessionEntry<'branch_summary'>,
+): ProjectedSessionNodeInput {
+  return buildProjectedPiEntry(context, entry, {
+    kind: 'branch_summary',
+    role: null,
+    contentJson: buildRawNodeContentJson({
+      summary: entry.summary,
+      fromId: entry.fromId,
+      details: toJsonValue(entry.details ?? null),
+      fromHook: entry.fromHook ?? false,
+    }),
+    metadataJson: '{}',
+  })
+}
+
+function projectCustomPiEntry(
+  context: PiEntryProjectionContext,
+  entry: PiSessionEntry<'custom'>,
+): ProjectedSessionNodeInput {
+  return buildProjectedPiEntry(context, entry, {
+    kind: 'custom',
+    role: null,
+    contentJson: buildRawNodeContentJson({
+      customType: entry.customType,
+      data: toJsonValue(entry.data ?? null),
+    }),
+    metadataJson: '{}',
+  })
+}
+
+function projectVisibleWaggleCustomMessagePiEntry(
+  context: PiEntryProjectionContext,
+  entry: PiSessionEntry<'custom_message'>,
+): ProjectedSessionNodeInput {
+  return buildProjectedPiEntry(context, entry, {
+    kind: 'user_message',
+    role: 'user',
+    contentJson: buildMessageNodeContentJson(piTextAndImageContentToParts(entry.content), null),
+    metadataJson: buildRawNodeContentJson({
+      customType: entry.customType,
+      display: entry.display,
+      details: toJsonValue(entry.details ?? null),
+    }),
+  })
+}
+
+function projectCustomMessagePiEntry(
+  context: PiEntryProjectionContext,
+  entry: PiSessionEntry<'custom_message'>,
+): ProjectedSessionNodeInput {
+  if (entry.customType === WAGGLE_VISIBLE_USER_CUSTOM_TYPE && entry.display) {
+    return projectVisibleWaggleCustomMessagePiEntry(context, entry)
+  }
+
+  return buildProjectedPiEntry(context, entry, {
+    kind: 'custom',
+    role: null,
+    contentJson: buildRawNodeContentJson({
+      customType: entry.customType,
+      content: toJsonValue(entry.content),
+      display: entry.display,
+      details: toJsonValue(entry.details ?? null),
+    }),
+    metadataJson: buildRawNodeContentJson({
+      customType: entry.customType,
+      display: entry.display,
+      details: toJsonValue(entry.details ?? null),
+    }),
+  })
+}
+
+function projectLabelPiEntry(
+  context: PiEntryProjectionContext,
+  entry: PiSessionEntry<'label'>,
+): ProjectedSessionNodeInput {
+  return buildProjectedPiEntry(context, entry, {
+    kind: 'label',
+    role: null,
+    contentJson: buildRawNodeContentJson({
+      targetId: entry.targetId,
+      label: entry.label ?? null,
+    }),
+    metadataJson: '{}',
+  })
+}
+
+function projectSessionInfoPiEntry(
+  context: PiEntryProjectionContext,
+  entry: PiSessionEntry<'session_info'>,
+): ProjectedSessionNodeInput {
+  return buildProjectedPiEntry(context, entry, {
+    kind: 'session_info',
+    role: null,
+    contentJson: buildRawNodeContentJson({
+      name: entry.name ?? null,
+    }),
+    metadataJson: '{}',
+  })
+}
+
 function projectPiEntry(input: {
   readonly entry: SessionEntry
   readonly createdOrder: number
   readonly pathDepth: number
 }): ProjectedSessionNodeInput {
-  const timestampMs = parsePiEntryTimestamp(input.entry.timestamp)
-
-  if (input.entry.type === 'message') {
-    const projectedMessage = messageProjectionForEntry(input.entry)
-    return {
-      id: input.entry.id,
-      parentId: input.entry.parentId,
-      piEntryType: input.entry.type,
-      kind: projectedMessage.kind,
-      role: projectedMessage.role,
-      timestampMs,
-      contentJson: projectedMessage.contentJson,
-      metadataJson: projectedMessage.metadataJson,
-      pathDepth: input.pathDepth,
-      createdOrder: input.createdOrder,
-    }
-  }
-
-  if (input.entry.type === 'model_change') {
-    return {
-      id: input.entry.id,
-      parentId: input.entry.parentId,
-      piEntryType: input.entry.type,
-      kind: 'model_change',
-      role: null,
-      timestampMs,
-      contentJson: buildRawNodeContentJson({
-        provider: input.entry.provider,
-        modelId: input.entry.modelId,
-        modelRef: createModelRef(input.entry.provider, input.entry.modelId),
-      }),
-      metadataJson: '{}',
-      pathDepth: input.pathDepth,
-      createdOrder: input.createdOrder,
-    }
-  }
-
-  if (input.entry.type === 'thinking_level_change') {
-    return {
-      id: input.entry.id,
-      parentId: input.entry.parentId,
-      piEntryType: input.entry.type,
-      kind: 'thinking_level_change',
-      role: null,
-      timestampMs,
-      contentJson: buildRawNodeContentJson({
-        thinkingLevel: input.entry.thinkingLevel,
-      }),
-      metadataJson: '{}',
-      pathDepth: input.pathDepth,
-      createdOrder: input.createdOrder,
-    }
-  }
-
-  if (input.entry.type === 'compaction') {
-    return {
-      id: input.entry.id,
-      parentId: input.entry.parentId,
-      piEntryType: input.entry.type,
-      kind: 'compaction_summary',
-      role: null,
-      timestampMs,
-      contentJson: buildRawNodeContentJson({
-        summary: input.entry.summary,
-        firstKeptEntryId: input.entry.firstKeptEntryId,
-        tokensBefore: input.entry.tokensBefore,
-        details: toJsonValue(input.entry.details ?? null),
-        fromHook: input.entry.fromHook ?? false,
-      }),
-      metadataJson: '{}',
-      pathDepth: input.pathDepth,
-      createdOrder: input.createdOrder,
-    }
-  }
-
-  if (input.entry.type === 'branch_summary') {
-    return {
-      id: input.entry.id,
-      parentId: input.entry.parentId,
-      piEntryType: input.entry.type,
-      kind: 'branch_summary',
-      role: null,
-      timestampMs,
-      contentJson: buildRawNodeContentJson({
-        summary: input.entry.summary,
-        fromId: input.entry.fromId,
-        details: toJsonValue(input.entry.details ?? null),
-        fromHook: input.entry.fromHook ?? false,
-      }),
-      metadataJson: '{}',
-      pathDepth: input.pathDepth,
-      createdOrder: input.createdOrder,
-    }
-  }
-
-  if (input.entry.type === 'custom') {
-    return {
-      id: input.entry.id,
-      parentId: input.entry.parentId,
-      piEntryType: input.entry.type,
-      kind: 'custom',
-      role: null,
-      timestampMs,
-      contentJson: buildRawNodeContentJson({
-        customType: input.entry.customType,
-        data: toJsonValue(input.entry.data ?? null),
-      }),
-      metadataJson: '{}',
-      pathDepth: input.pathDepth,
-      createdOrder: input.createdOrder,
-    }
-  }
-
-  if (
-    input.entry.type === 'custom_message' &&
-    input.entry.customType === WAGGLE_VISIBLE_USER_CUSTOM_TYPE &&
-    input.entry.display
-  ) {
-    return {
-      id: input.entry.id,
-      parentId: input.entry.parentId,
-      piEntryType: input.entry.type,
-      kind: 'user_message',
-      role: 'user',
-      timestampMs,
-      contentJson: buildMessageNodeContentJson(
-        piTextAndImageContentToParts(input.entry.content),
-        null,
-      ),
-      metadataJson: buildRawNodeContentJson({
-        customType: input.entry.customType,
-        display: input.entry.display,
-        details: toJsonValue(input.entry.details ?? null),
-      }),
-      pathDepth: input.pathDepth,
-      createdOrder: input.createdOrder,
-    }
-  }
-
-  if (input.entry.type === 'custom_message') {
-    return {
-      id: input.entry.id,
-      parentId: input.entry.parentId,
-      piEntryType: input.entry.type,
-      kind: 'custom',
-      role: null,
-      timestampMs,
-      contentJson: buildRawNodeContentJson({
-        customType: input.entry.customType,
-        content: toJsonValue(input.entry.content),
-        display: input.entry.display,
-        details: toJsonValue(input.entry.details ?? null),
-      }),
-      metadataJson: buildRawNodeContentJson({
-        customType: input.entry.customType,
-        display: input.entry.display,
-        details: toJsonValue(input.entry.details ?? null),
-      }),
-      pathDepth: input.pathDepth,
-      createdOrder: input.createdOrder,
-    }
-  }
-
-  if (input.entry.type === 'label') {
-    return {
-      id: input.entry.id,
-      parentId: input.entry.parentId,
-      piEntryType: input.entry.type,
-      kind: 'label',
-      role: null,
-      timestampMs,
-      contentJson: buildRawNodeContentJson({
-        targetId: input.entry.targetId,
-        label: input.entry.label ?? null,
-      }),
-      metadataJson: '{}',
-      pathDepth: input.pathDepth,
-      createdOrder: input.createdOrder,
-    }
-  }
-
-  return {
-    id: input.entry.id,
-    parentId: input.entry.parentId,
-    piEntryType: input.entry.type,
-    kind: 'session_info',
-    role: null,
-    timestampMs,
-    contentJson: buildRawNodeContentJson({
-      name: input.entry.name ?? null,
-    }),
-    metadataJson: '{}',
-    pathDepth: input.pathDepth,
+  const context: PiEntryProjectionContext = {
     createdOrder: input.createdOrder,
+    pathDepth: input.pathDepth,
+    timestampMs: parsePiEntryTimestamp(input.entry.timestamp),
   }
+
+  return matchBy(input.entry, 'type')
+    .with('message', (entry) => projectMessagePiEntry(context, entry))
+    .with('model_change', (entry) => projectModelChangePiEntry(context, entry))
+    .with('thinking_level_change', (entry) => projectThinkingLevelChangePiEntry(context, entry))
+    .with('compaction', (entry) => projectCompactionPiEntry(context, entry))
+    .with('branch_summary', (entry) => projectBranchSummaryPiEntry(context, entry))
+    .with('custom', (entry) => projectCustomPiEntry(context, entry))
+    .with('custom_message', (entry) => projectCustomMessagePiEntry(context, entry))
+    .with('label', (entry) => projectLabelPiEntry(context, entry))
+    .with('session_info', (entry) => projectSessionInfoPiEntry(context, entry))
+    .exhaustive()
 }
 
 function getPiEntryDepth(input: {
@@ -664,32 +705,26 @@ function projectPiSessionSnapshot(session: AgentSession): AgentKernelSessionSnap
   }
 }
 
-function getToolCallFromAssistantEvent(event: AgentSessionEvent): {
+type PiToolCallEvent = Extract<
+  PiAssistantMessageEvent,
+  { type: 'toolcall_start' | 'toolcall_delta' | 'toolcall_end' }
+>
+type PiToolCallPartialEvent = Extract<
+  PiAssistantMessageEvent,
+  { type: 'toolcall_start' | 'toolcall_delta' }
+>
+type PiToolCallDeltaAssistantEvent = Extract<PiAssistantMessageEvent, { type: 'toolcall_delta' }>
+type PiToolCallEndAssistantEvent = Extract<PiAssistantMessageEvent, { type: 'toolcall_end' }>
+type PiTextDeltaAssistantEvent = Extract<PiAssistantMessageEvent, { type: 'text_delta' }>
+type PiThinkingStartAssistantEvent = Extract<PiAssistantMessageEvent, { type: 'thinking_start' }>
+type PiThinkingDeltaAssistantEvent = Extract<PiAssistantMessageEvent, { type: 'thinking_delta' }>
+
+function getToolCallFromPartialAssistantEvent(event: PiToolCallPartialEvent): {
   readonly id: string
   readonly name: string
   readonly arguments: unknown
 } | null {
-  if (event.type !== 'message_update') {
-    return null
-  }
-
-  const assistantEvent = event.assistantMessageEvent
-  if (assistantEvent.type === 'toolcall_end') {
-    return {
-      id: assistantEvent.toolCall.id,
-      name: assistantEvent.toolCall.name,
-      arguments: assistantEvent.toolCall.arguments,
-    }
-  }
-
-  if (
-    (assistantEvent.type !== 'toolcall_start' && assistantEvent.type !== 'toolcall_delta') ||
-    !('partial' in assistantEvent)
-  ) {
-    return null
-  }
-
-  const content = assistantEvent.partial.content[assistantEvent.contentIndex]
+  const content = event.partial.content[event.contentIndex]
   if (!content || content.type !== 'toolCall') {
     return null
   }
@@ -699,6 +734,29 @@ function getToolCallFromAssistantEvent(event: AgentSessionEvent): {
     name: content.name,
     arguments: content.arguments,
   }
+}
+
+function getToolCallFromEndAssistantEvent(event: PiToolCallEndAssistantEvent): {
+  readonly id: string
+  readonly name: string
+  readonly arguments: unknown
+} {
+  return {
+    id: event.toolCall.id,
+    name: event.toolCall.name,
+    arguments: event.toolCall.arguments,
+  }
+}
+
+function getToolCallFromAssistantEvent(event: PiToolCallEvent): {
+  readonly id: string
+  readonly name: string
+  readonly arguments: unknown
+} | null {
+  return matchBy(event, 'type')
+    .with('toolcall_end', getToolCallFromEndAssistantEvent)
+    .with('toolcall_start', 'toolcall_delta', getToolCallFromPartialAssistantEvent)
+    .exhaustive()
 }
 
 function emitEvent(
@@ -713,6 +771,25 @@ interface SessionListenerInput {
   readonly onEvent: (event: AgentTransportEvent) => void
 }
 
+type PiMessageStartEvent = Extract<AgentSessionEvent, { type: 'message_start' }>
+type PiMessageUpdateEvent = Extract<AgentSessionEvent, { type: 'message_update' }>
+type PiMessageEndEvent = Extract<AgentSessionEvent, { type: 'message_end' }>
+type PiToolExecutionStartEvent = Extract<AgentSessionEvent, { type: 'tool_execution_start' }>
+type PiToolExecutionUpdateEvent = Extract<AgentSessionEvent, { type: 'tool_execution_update' }>
+type PiToolExecutionEndEvent = Extract<AgentSessionEvent, { type: 'tool_execution_end' }>
+type PiQueueUpdateEvent = Extract<AgentSessionEvent, { type: 'queue_update' }>
+type PiCompactionStartEvent = Extract<AgentSessionEvent, { type: 'compaction_start' }>
+type PiCompactionEndEvent = Extract<AgentSessionEvent, { type: 'compaction_end' }>
+type PiAutoRetryStartEvent = Extract<AgentSessionEvent, { type: 'auto_retry_start' }>
+type PiAutoRetryEndEvent = Extract<AgentSessionEvent, { type: 'auto_retry_end' }>
+type PiAgentEndEvent = Extract<AgentSessionEvent, { type: 'agent_end' }>
+type PiAssistantMessageEvent = PiMessageUpdateEvent['assistantMessageEvent']
+type PiToolCall = NonNullable<ReturnType<typeof getToolCallFromAssistantEvent>>
+type TransportAssistantMessageEvent = Extract<
+  AgentTransportEvent,
+  { type: 'message_update' }
+>['assistantMessageEvent']
+
 export function createSessionListener(
   input: SessionListenerInput,
   runId: string,
@@ -722,11 +799,60 @@ export function createSessionListener(
   const startedToolCalls = new Set<string>()
   const toolCallInputs = new Map<string, JsonValue>()
 
-  function emitToolCallStart(
+  function emitTransportEvent(event: AgentTransportEvent): void {
+    emitEvent(input.onEvent, event)
+  }
+
+  function emitAssistantMessageEvent(
     messageId: string,
-    contentIndex: number,
-    toolCall: NonNullable<ReturnType<typeof getToolCallFromAssistantEvent>>,
+    assistantMessageEvent: TransportAssistantMessageEvent,
   ): void {
+    emitTransportEvent({
+      type: 'message_update',
+      messageId,
+      role: 'assistant',
+      assistantMessageEvent,
+      timestamp: Date.now(),
+      model: input.model,
+    })
+  }
+
+  function emitMessageStart(messageId: string): void {
+    emitTransportEvent({
+      type: 'message_start',
+      messageId,
+      role: 'assistant',
+      timestamp: Date.now(),
+      model: input.model,
+    })
+  }
+
+  function ensureAssistantMessageId(): string {
+    if (!currentMessageId) {
+      currentMessageId = createStreamingMessageId()
+      emitMessageStart(currentMessageId)
+    }
+    return currentMessageId
+  }
+
+  function getThinkingStepId(messageId: string, contentIndex: number): string {
+    return `${messageId}:thinking:${String(contentIndex)}`
+  }
+
+  function emitThinkingStartIfNeeded(messageId: string, contentIndex: number): void {
+    const stepId = getThinkingStepId(messageId, contentIndex)
+    if (thinkingSteps.has(stepId)) {
+      return
+    }
+
+    thinkingSteps.add(stepId)
+    emitAssistantMessageEvent(messageId, {
+      type: 'thinking_start',
+      contentIndex,
+    })
+  }
+
+  function emitToolCallStart(messageId: string, contentIndex: number, toolCall: PiToolCall): void {
     if (startedToolCalls.has(toolCall.id)) {
       return
     }
@@ -734,310 +860,263 @@ export function createSessionListener(
     const toolInput = toJsonValue(toolCall.arguments)
     startedToolCalls.add(toolCall.id)
     toolCallInputs.set(toolCall.id, toolInput)
-    emitEvent(input.onEvent, {
-      type: 'message_update',
-      messageId,
+    emitAssistantMessageEvent(messageId, {
+      type: 'toolcall_start',
+      contentIndex,
+      toolCallId: toolCall.id,
+      toolName: toolCall.name,
+      input: toolInput,
+    })
+  }
+
+  function handleAgentStart(): void {
+    emitTransportEvent({
+      type: 'agent_start',
+      runId,
+      timestamp: Date.now(),
+      model: input.model,
+    })
+  }
+
+  function handleMessageStart(event: PiMessageStartEvent): void {
+    if (event.message.role !== 'assistant') {
+      return
+    }
+
+    currentMessageId = createStreamingMessageId()
+    emitMessageStart(currentMessageId)
+  }
+
+  function handleTextDelta(messageId: string, assistantEvent: PiTextDeltaAssistantEvent): void {
+    emitAssistantMessageEvent(messageId, {
+      type: 'text_delta',
+      contentIndex: assistantEvent.contentIndex,
+      delta: assistantEvent.delta,
+    })
+  }
+
+  function handleThinkingStart(
+    messageId: string,
+    assistantEvent: PiThinkingStartAssistantEvent,
+  ): void {
+    emitThinkingStartIfNeeded(messageId, assistantEvent.contentIndex)
+  }
+
+  function handleThinkingDelta(
+    messageId: string,
+    assistantEvent: PiThinkingDeltaAssistantEvent,
+  ): void {
+    emitThinkingStartIfNeeded(messageId, assistantEvent.contentIndex)
+    emitAssistantMessageEvent(messageId, {
+      type: 'thinking_delta',
+      contentIndex: assistantEvent.contentIndex,
+      delta: assistantEvent.delta,
+    })
+  }
+
+  function handleToolCallStart(messageId: string, assistantEvent: PiToolCallPartialEvent): void {
+    const toolCall = getToolCallFromAssistantEvent(assistantEvent)
+    if (toolCall) {
+      emitToolCallStart(messageId, assistantEvent.contentIndex, toolCall)
+    }
+  }
+
+  function handleToolCallDelta(
+    messageId: string,
+    assistantEvent: PiToolCallDeltaAssistantEvent,
+  ): void {
+    const toolCall = getToolCallFromAssistantEvent(assistantEvent)
+    if (!toolCall) {
+      return
+    }
+
+    emitToolCallStart(messageId, assistantEvent.contentIndex, toolCall)
+    const toolInput = toJsonValue(toolCall.arguments)
+    toolCallInputs.set(toolCall.id, toolInput)
+    emitAssistantMessageEvent(messageId, {
+      type: 'toolcall_delta',
+      contentIndex: assistantEvent.contentIndex,
+      toolCallId: toolCall.id,
+      delta: assistantEvent.delta,
+      input: toolInput,
+    })
+  }
+
+  function handleToolCallEnd(messageId: string, assistantEvent: PiToolCallEndAssistantEvent): void {
+    const toolCall = getToolCallFromAssistantEvent(assistantEvent)
+    if (!toolCall) {
+      return
+    }
+
+    emitToolCallStart(messageId, assistantEvent.contentIndex, toolCall)
+    const toolInput = toJsonValue(toolCall.arguments)
+    toolCallInputs.set(toolCall.id, toolInput)
+    emitAssistantMessageEvent(messageId, {
+      type: 'toolcall_end',
+      contentIndex: assistantEvent.contentIndex,
+      toolCallId: toolCall.id,
+      toolName: toolCall.name,
+      input: toolInput,
+    })
+  }
+
+  function handleMessageUpdate(event: PiMessageUpdateEvent): void {
+    const messageId = ensureAssistantMessageId()
+
+    matchBy(event.assistantMessageEvent, 'type')
+      .with('text_delta', (assistantEvent) => handleTextDelta(messageId, assistantEvent))
+      .with('thinking_start', (assistantEvent) => handleThinkingStart(messageId, assistantEvent))
+      .with('thinking_delta', (assistantEvent) => handleThinkingDelta(messageId, assistantEvent))
+      .with('toolcall_start', (assistantEvent) => handleToolCallStart(messageId, assistantEvent))
+      .with('toolcall_delta', (assistantEvent) => handleToolCallDelta(messageId, assistantEvent))
+      .with('toolcall_end', (assistantEvent) => handleToolCallEnd(messageId, assistantEvent))
+      .with('start', 'text_start', 'text_end', 'thinking_end', 'done', 'error', () => undefined)
+      .exhaustive()
+  }
+
+  function handleToolExecutionStart(event: PiToolExecutionStartEvent): void {
+    const toolInput = toJsonValue(event.args)
+    toolCallInputs.set(event.toolCallId, toolInput)
+    emitTransportEvent({
+      type: 'tool_execution_start',
+      toolCallId: event.toolCallId,
+      toolName: event.toolName,
+      args: toolInput,
+      parentMessageId: currentMessageId ?? undefined,
+      timestamp: Date.now(),
+      model: input.model,
+    })
+  }
+
+  function handleToolExecutionUpdate(event: PiToolExecutionUpdateEvent): void {
+    const toolInput = toJsonValue(event.args)
+    toolCallInputs.set(event.toolCallId, toolInput)
+    emitTransportEvent({
+      type: 'tool_execution_update',
+      toolCallId: event.toolCallId,
+      toolName: event.toolName,
+      args: toolInput,
+      partialResult: toJsonValue(event.partialResult),
+      timestamp: Date.now(),
+      model: input.model,
+    })
+  }
+
+  function handleToolExecutionEnd(event: PiToolExecutionEndEvent): void {
+    emitTransportEvent({
+      type: 'tool_execution_end',
+      toolCallId: event.toolCallId,
+      toolName: event.toolName,
+      args: toolCallInputs.get(event.toolCallId),
+      result: toJsonValue(event.result),
+      isError: event.isError,
+      timestamp: Date.now(),
+      model: input.model,
+    })
+  }
+
+  function handleMessageEnd(event: PiMessageEndEvent): void {
+    if (!currentMessageId || event.message.role !== 'assistant') {
+      return
+    }
+
+    emitTransportEvent({
+      type: 'message_end',
+      messageId: currentMessageId,
       role: 'assistant',
-      assistantMessageEvent: {
-        type: 'toolcall_start',
-        contentIndex,
-        toolCallId: toolCall.id,
-        toolName: toolCall.name,
-        input: toolInput,
-      },
+      timestamp: Date.now(),
+      model: input.model,
+    })
+    currentMessageId = null
+  }
+
+  function handleQueueUpdate(event: PiQueueUpdateEvent): void {
+    emitTransportEvent({
+      type: 'queue_update',
+      steering: [...event.steering],
+      followUp: [...event.followUp],
+      timestamp: Date.now(),
+      model: input.model,
+    })
+  }
+
+  function handleCompactionStart(event: PiCompactionStartEvent): void {
+    emitTransportEvent({
+      type: 'compaction_start',
+      reason: event.reason,
+      timestamp: Date.now(),
+      model: input.model,
+    })
+  }
+
+  function handleCompactionEnd(event: PiCompactionEndEvent): void {
+    emitTransportEvent({
+      type: 'compaction_end',
+      reason: event.reason,
+      result: toJsonValue(event.result ?? null),
+      aborted: event.aborted,
+      willRetry: event.willRetry,
+      ...(event.errorMessage ? { errorMessage: event.errorMessage } : {}),
+      timestamp: Date.now(),
+      model: input.model,
+    })
+  }
+
+  function handleAutoRetryStart(event: PiAutoRetryStartEvent): void {
+    emitTransportEvent({
+      type: 'auto_retry_start',
+      attempt: event.attempt,
+      maxAttempts: event.maxAttempts,
+      delayMs: event.delayMs,
+      errorMessage: event.errorMessage,
+      timestamp: Date.now(),
+      model: input.model,
+    })
+  }
+
+  function handleAutoRetryEnd(event: PiAutoRetryEndEvent): void {
+    emitTransportEvent({
+      type: 'auto_retry_end',
+      success: event.success,
+      attempt: event.attempt,
+      ...(event.finalError ? { finalError: event.finalError } : {}),
+      timestamp: Date.now(),
+      model: input.model,
+    })
+  }
+
+  function handleAgentEnd(event: PiAgentEndEvent): void {
+    const reason = getAgentEndReason(event.messages)
+    const error =
+      reason === 'error' || reason === 'aborted' ? getAgentEndError(event.messages) : undefined
+    emitTransportEvent({
+      type: 'agent_end',
+      runId,
+      reason,
+      usage: getAgentEndUsage(event.messages),
+      ...(error ? { error } : {}),
       timestamp: Date.now(),
       model: input.model,
     })
   }
 
   return (event) => {
-    if (event.type === 'agent_start') {
-      emitEvent(input.onEvent, {
-        type: 'agent_start',
-        runId,
-        timestamp: Date.now(),
-        model: input.model,
-      })
-      return
-    }
-
-    if (event.type === 'message_start' && event.message.role === 'assistant') {
-      currentMessageId = createStreamingMessageId()
-      emitEvent(input.onEvent, {
-        type: 'message_start',
-        messageId: currentMessageId,
-        role: 'assistant',
-        timestamp: Date.now(),
-        model: input.model,
-      })
-      return
-    }
-
-    if (event.type === 'message_update') {
-      if (!currentMessageId) {
-        currentMessageId = createStreamingMessageId()
-        emitEvent(input.onEvent, {
-          type: 'message_start',
-          messageId: currentMessageId,
-          role: 'assistant',
-          timestamp: Date.now(),
-          model: input.model,
-        })
-      }
-
-      const assistantEvent = event.assistantMessageEvent
-      if (assistantEvent.type === 'text_delta') {
-        emitEvent(input.onEvent, {
-          type: 'message_update',
-          messageId: currentMessageId,
-          role: 'assistant',
-          assistantMessageEvent: {
-            type: 'text_delta',
-            contentIndex: assistantEvent.contentIndex,
-            delta: assistantEvent.delta,
-          },
-          timestamp: Date.now(),
-          model: input.model,
-        })
-        return
-      }
-
-      if (assistantEvent.type === 'thinking_start') {
-        const stepId = `${currentMessageId}:thinking:${String(assistantEvent.contentIndex)}`
-        thinkingSteps.add(stepId)
-        emitEvent(input.onEvent, {
-          type: 'message_update',
-          messageId: currentMessageId,
-          role: 'assistant',
-          assistantMessageEvent: {
-            type: 'thinking_start',
-            contentIndex: assistantEvent.contentIndex,
-          },
-          timestamp: Date.now(),
-          model: input.model,
-        })
-        return
-      }
-
-      if (assistantEvent.type === 'thinking_delta') {
-        const stepId = `${currentMessageId}:thinking:${String(assistantEvent.contentIndex)}`
-        if (!thinkingSteps.has(stepId)) {
-          thinkingSteps.add(stepId)
-          emitEvent(input.onEvent, {
-            type: 'message_update',
-            messageId: currentMessageId,
-            role: 'assistant',
-            assistantMessageEvent: {
-              type: 'thinking_start',
-              contentIndex: assistantEvent.contentIndex,
-            },
-            timestamp: Date.now(),
-            model: input.model,
-          })
-        }
-        emitEvent(input.onEvent, {
-          type: 'message_update',
-          messageId: currentMessageId,
-          role: 'assistant',
-          assistantMessageEvent: {
-            type: 'thinking_delta',
-            contentIndex: assistantEvent.contentIndex,
-            delta: assistantEvent.delta,
-          },
-          timestamp: Date.now(),
-          model: input.model,
-        })
-        return
-      }
-
-      if (assistantEvent.type === 'toolcall_start') {
-        const toolCall = getToolCallFromAssistantEvent(event)
-        if (toolCall) {
-          emitToolCallStart(currentMessageId, assistantEvent.contentIndex, toolCall)
-        }
-        return
-      }
-
-      if (assistantEvent.type === 'toolcall_delta') {
-        const toolCall = getToolCallFromAssistantEvent(event)
-        if (toolCall) {
-          emitToolCallStart(currentMessageId, assistantEvent.contentIndex, toolCall)
-          const toolInput = toJsonValue(toolCall.arguments)
-          toolCallInputs.set(toolCall.id, toolInput)
-          emitEvent(input.onEvent, {
-            type: 'message_update',
-            messageId: currentMessageId,
-            role: 'assistant',
-            assistantMessageEvent: {
-              type: 'toolcall_delta',
-              contentIndex: assistantEvent.contentIndex,
-              toolCallId: toolCall.id,
-              delta: assistantEvent.delta,
-              input: toolInput,
-            },
-            timestamp: Date.now(),
-            model: input.model,
-          })
-        }
-        return
-      }
-
-      if (assistantEvent.type === 'toolcall_end') {
-        const toolCall = getToolCallFromAssistantEvent(event)
-        if (toolCall) {
-          emitToolCallStart(currentMessageId, assistantEvent.contentIndex, toolCall)
-          const toolInput = toJsonValue(toolCall.arguments)
-          toolCallInputs.set(toolCall.id, toolInput)
-          emitEvent(input.onEvent, {
-            type: 'message_update',
-            messageId: currentMessageId,
-            role: 'assistant',
-            assistantMessageEvent: {
-              type: 'toolcall_end',
-              contentIndex: assistantEvent.contentIndex,
-              toolCallId: toolCall.id,
-              toolName: toolCall.name,
-              input: toolInput,
-            },
-            timestamp: Date.now(),
-            model: input.model,
-          })
-        }
-      }
-      return
-    }
-
-    if (event.type === 'tool_execution_start') {
-      const toolInput = toJsonValue(event.args)
-      toolCallInputs.set(event.toolCallId, toolInput)
-      emitEvent(input.onEvent, {
-        type: 'tool_execution_start',
-        toolCallId: event.toolCallId,
-        toolName: event.toolName,
-        args: toolInput,
-        parentMessageId: currentMessageId ?? undefined,
-        timestamp: Date.now(),
-        model: input.model,
-      })
-      return
-    }
-
-    if (event.type === 'tool_execution_update') {
-      const toolInput = toJsonValue(event.args)
-      toolCallInputs.set(event.toolCallId, toolInput)
-      emitEvent(input.onEvent, {
-        type: 'tool_execution_update',
-        toolCallId: event.toolCallId,
-        toolName: event.toolName,
-        args: toolInput,
-        partialResult: toJsonValue(event.partialResult),
-        timestamp: Date.now(),
-        model: input.model,
-      })
-      return
-    }
-
-    if (event.type === 'tool_execution_end') {
-      const toolInput = toolCallInputs.get(event.toolCallId)
-      emitEvent(input.onEvent, {
-        type: 'tool_execution_end',
-        toolCallId: event.toolCallId,
-        toolName: event.toolName,
-        args: toolInput,
-        result: toJsonValue(event.result),
-        isError: event.isError,
-        timestamp: Date.now(),
-        model: input.model,
-      })
-      return
-    }
-
-    if (event.type === 'message_end' && currentMessageId && event.message.role === 'assistant') {
-      emitEvent(input.onEvent, {
-        type: 'message_end',
-        messageId: currentMessageId,
-        role: 'assistant',
-        timestamp: Date.now(),
-        model: input.model,
-      })
-      currentMessageId = null
-      return
-    }
-
-    if (event.type === 'queue_update') {
-      emitEvent(input.onEvent, {
-        type: 'queue_update',
-        steering: [...event.steering],
-        followUp: [...event.followUp],
-        timestamp: Date.now(),
-        model: input.model,
-      })
-      return
-    }
-
-    if (event.type === 'compaction_start') {
-      emitEvent(input.onEvent, {
-        type: 'compaction_start',
-        reason: event.reason,
-        timestamp: Date.now(),
-        model: input.model,
-      })
-      return
-    }
-
-    if (event.type === 'compaction_end') {
-      emitEvent(input.onEvent, {
-        type: 'compaction_end',
-        reason: event.reason,
-        result: toJsonValue(event.result ?? null),
-        aborted: event.aborted,
-        willRetry: event.willRetry,
-        ...(event.errorMessage ? { errorMessage: event.errorMessage } : {}),
-        timestamp: Date.now(),
-        model: input.model,
-      })
-      return
-    }
-
-    if (event.type === 'auto_retry_start') {
-      emitEvent(input.onEvent, {
-        type: 'auto_retry_start',
-        attempt: event.attempt,
-        maxAttempts: event.maxAttempts,
-        delayMs: event.delayMs,
-        errorMessage: event.errorMessage,
-        timestamp: Date.now(),
-        model: input.model,
-      })
-      return
-    }
-
-    if (event.type === 'auto_retry_end') {
-      emitEvent(input.onEvent, {
-        type: 'auto_retry_end',
-        success: event.success,
-        attempt: event.attempt,
-        ...(event.finalError ? { finalError: event.finalError } : {}),
-        timestamp: Date.now(),
-        model: input.model,
-      })
-      return
-    }
-
-    if (event.type === 'agent_end') {
-      const reason = getAgentEndReason(event.messages)
-      const error =
-        reason === 'error' || reason === 'aborted' ? getAgentEndError(event.messages) : undefined
-      emitEvent(input.onEvent, {
-        type: 'agent_end',
-        runId,
-        reason,
-        usage: getAgentEndUsage(event.messages),
-        ...(error ? { error } : {}),
-        timestamp: Date.now(),
-        model: input.model,
-      })
-    }
+    matchBy(event, 'type')
+      .with('agent_start', handleAgentStart)
+      .with('message_start', handleMessageStart)
+      .with('message_update', handleMessageUpdate)
+      .with('tool_execution_start', handleToolExecutionStart)
+      .with('tool_execution_update', handleToolExecutionUpdate)
+      .with('tool_execution_end', handleToolExecutionEnd)
+      .with('message_end', handleMessageEnd)
+      .with('queue_update', handleQueueUpdate)
+      .with('compaction_start', handleCompactionStart)
+      .with('compaction_end', handleCompactionEnd)
+      .with('auto_retry_start', handleAutoRetryStart)
+      .with('auto_retry_end', handleAutoRetryEnd)
+      .with('agent_end', handleAgentEnd)
+      .with('turn_start', 'turn_end', () => undefined)
+      .exhaustive()
   }
 }
 
@@ -1082,11 +1161,13 @@ async function createPiRunSessionRuntime(input: {
   readonly modelReference: SupportedModelId
   readonly skillToggles?: Readonly<Record<string, boolean>>
   readonly extensionFactories?: readonly ExtensionFactory[]
+  readonly mcpEnabled: boolean
 }): Promise<PiRunSessionRuntime> {
   const { model, services } = await createPiProjectModelRuntime({
     projectPath: input.projectPath,
     modelReference: input.modelReference,
     ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
+    extensionPaths: getOpenWaggleCorePiExtensionPaths({ mcpEnabled: input.mcpEnabled }),
     ...(input.extensionFactories ? { extensionFactories: [...input.extensionFactories] } : {}),
   })
   const sessionManager = createSessionManagerForSession(input.session, input.projectPath)
@@ -1275,6 +1356,7 @@ async function runPiSession(input: AgentKernelRunInput) {
     modelReference: input.model,
     payload: input.payload,
     skillToggles: input.skillToggles,
+    mcpEnabled: input.mcpEnabled,
   })
 
   const runId = input.runId
@@ -1499,6 +1581,7 @@ async function runPiWaggle(input: AgentKernelWaggleRunInput) {
     modelReference: input.config.agents[0]?.model ?? input.model,
     payload: input.payload,
     skillToggles: input.skillToggles,
+    mcpEnabled: input.mcpEnabled,
     extensionFactories: [
       createWaggleExtension({
         runInput: input,
@@ -1564,6 +1647,7 @@ async function withPiSession<T>(
     projectPath,
     modelReference: input.model,
     ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
+    extensionPaths: getOpenWaggleCorePiExtensionPaths({ mcpEnabled: input.mcpEnabled }),
   })
   const sessionManager = createSessionManagerForSession(input.session, projectPath)
   const { session } = await createAgentSessionFromServices({
@@ -1587,6 +1671,7 @@ async function createPiSessionRuntime(input: AgentKernelSessionInput) {
       projectPath: options.cwd,
       modelReference: input.model,
       ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
+      extensionPaths: getOpenWaggleCorePiExtensionPaths({ mcpEnabled: input.mcpEnabled }),
     })
     const runtime = await createAgentSessionFromServices({
       services,

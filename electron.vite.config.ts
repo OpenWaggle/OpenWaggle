@@ -24,6 +24,7 @@ const BUNDLED_DEPS = [
   '@effect/platform-node',
   '@effect/sql',
   '@effect/sql-sqlite-node',
+  '@diegogbrisa/ts-match',
   '@mariozechner/pi-coding-agent',
   '@mariozechner/pi-agent-core',
   '@mariozechner/pi-ai',

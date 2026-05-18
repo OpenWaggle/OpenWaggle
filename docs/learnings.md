@@ -2,7 +2,7 @@
 name: project-learnings
 description: Technical learnings log for OpenWaggle. Stores warnings, pattern preferences, and historical engineering learnings; workflow policy lives in AGENTS.md and CLAUDE.md.
 owner: openwaggle-core
-last_updated: 2026-05-04
+last_updated: 2026-05-18
 ---
 
 # LEARNINGS.md
@@ -50,6 +50,8 @@ This document stores project-specific technical learnings only.
 - Pi `ModelRegistry.getAvailable()` means a provider has configured auth through auth.json, environment, OAuth, or custom config. It does not guarantee account-level entitlement for every listed model; model/account rejection handling must remain runtime diagnostic behavior, not a hardcoded provider/model suppression list. [SKILL?]
 - Pi exposes OAuth-capable providers through `AuthStorage.getOAuthProviders()`, but does not expose an equivalent API-key-capable provider list. Until the SDK adds one, keep any API-key capability mirror confined to the Pi adapter and treat provider-level availability, API-key configuration, and OAuth connection as separate state. [SKILL?]
 - OpenWaggle project config is `.openwaggle/settings.json`. Top-level keys are OpenWaggle-owned, and Pi settings live under `pi`; the Pi adapter bridges that nested object into Pi with `SettingsManager.fromStorage(...)` while still allowing Pi's native `.pi/settings.json` input at lower precedence. [SKILL?]
+- Project-scoped provider catalog reads must not force Pi package installation. Pi `DefaultPackageManager.resolve()` installs missing configured npm/git packages by default, so provider-list reads should filter missing package sources before building Pi session services and preserve installed/local extension provider registrations. [SKILL?]
+- Core OpenWaggle runtime extensions that must work offline should be app dependencies injected into Pi through adapter-controlled extension paths, not configured as Pi packages that install from npm at provider-list or run time. Keep OpenWaggle settings responsible for enable/disable policy and leave extension-native server config in the Pi adapter layer. [SKILL?]
 - Current Pi SDK types tool result payloads as JSON values, not strings. Preserve structured tool results in OpenWaggle persistence/UI state and serialize to text only when rebuilding Pi history entries that require text content. [SKILL?]
 - Thinking levels are Pi-native run options. Store/pass Pi levels (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`) directly. [SKILL?]
 - Pi `createAgentSession({ thinkingLevel })` only forces `off` for non-reasoning models; it does not clamp unsupported `xhigh` to model-specific availability the way `AgentSession.setThinkingLevel()` does. Clamp requested levels in the Pi adapter or route changes through `setThinkingLevel()` before prompting so OpenWaggle state and Pi session entries do not record unsupported `xhigh`. [SKILL?]
@@ -68,6 +70,7 @@ This document stores project-specific technical learnings only.
 - First-message sends can cross a route remount before the persisted SQLite user node is reflected in the renderer conversation snapshot. Keep optimistic user turns in renderer-owned state keyed by conversation id, merge them into hydration/background reconnect snapshots, and mark a remounted run as background streaming on `agent_start` so subsequent stream events are not dropped. [SKILL?]
 - Session-native transcript rendering must read from `SessionWorkspace.transcriptPath` for the active route/branch/node selection. Preserve live tails only when the selected workspace is already at the active branch head; draft/earlier-node views should hide downstream main-branch continuation. [SKILL?]
 - Electron QA for renderer, preload, and IPC changes must exercise the real app through CDP after static checks pass.
+- ESM-only packages imported by Electron main-process code must be bundled into `out/main/index.js` via `BUNDLED_DEPS`/`externalizeDeps.exclude`. If Rolldown externalizes them, Electron's CJS loader can fail at app load even after TypeScript, Vitest, and static checks pass. [SKILL?]
 - Electron-builder's pnpm packaging can flatten runtime dependencies into `app.asar` without preserving every transitive package path needed by runtime `require()` calls. For `electron-updater`, keep `ms` as an explicit runtime dependency because `builder-util-runtime -> debug` calls `require("ms")`, and verify the packaged `app.asar` contains that module before release. [SKILL?]
 - On Apple silicon, local macOS performance testing must use `dist/mac-arm64` or an arm64 DMG. Electron-builder's `dist/mac` output is x64 when both architectures are built, runs through Rosetta, and can show multi-second renderer startup that does not represent native app performance. [SKILL?]
 - Chromium DIPS SQLite startup warnings in dev can be caused by multiple Electron dev instances sharing the same user data profile. Acquire Electron's single-instance lock before normal app lifecycle startup and keep `sessionData` under the configured `userData` directory.

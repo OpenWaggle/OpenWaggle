@@ -20,6 +20,7 @@ import { ProviderService } from '../ports/provider-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
 import { SettingsService } from '../services/settings-service'
+import { getEffectiveMcpEnabled } from './mcp-runtime-settings'
 import { assignSessionTitleFromUserText, hydratePayloadAttachments } from './run-handler-utils'
 
 const MAIN_BRANCH_NAME = 'main'
@@ -120,6 +121,7 @@ export function executeAgentRun(input: AgentRunInput) {
     const skillToggles = session.projectPath
       ? settings.skillTogglesByProject[session.projectPath]
       : undefined
+    const mcpEnabled = yield* getEffectiveMcpEnabled(session.projectPath)
 
     const nextTitle = yield* assignSessionTitleFromUserText(sessionId, session, payload.text)
     if (nextTitle) {
@@ -154,6 +156,7 @@ export function executeAgentRun(input: AgentRunInput) {
       model,
       signal,
       onEvent,
+      mcpEnabled,
       ...(skillToggles ? { skillToggles } : {}),
     })
 
@@ -245,6 +248,7 @@ export function reconcileInterruptedAgentRuns() {
         .getSessionSnapshot({
           session,
           model: activeRun.model,
+          mcpEnabled: yield* getEffectiveMcpEnabled(session.projectPath),
         })
         .pipe(
           Effect.flatMap((result) =>

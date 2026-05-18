@@ -21,6 +21,8 @@
     // app-level node_modules inside app.asar.
     "ms",
     "node:sqlite",
+    // Loaded by Pi's extension loader from an app-owned package path.
+    "pi-mcp-adapter",
     "tailwindcss"
   ],
   // TanStack Router file routes must each export `Route`; that framework contract

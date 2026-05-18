@@ -14,6 +14,8 @@ const { apiMock } = vi.hoisted(() => ({
     showConfirm: vi.fn(),
     getProjectPreferences: vi.fn(),
     setProjectPreferences: vi.fn(),
+    getProjectMcpSettings: vi.fn(),
+    setProjectMcpSettings: vi.fn(),
     startOAuth: vi.fn(),
     cancelOAuth: vi.fn(),
     onOAuthStatus: vi.fn(),
@@ -23,7 +25,7 @@ const { apiMock } = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('@/lib/ipc', () => ({
+vi.mock('../../lib/ipc', () => ({
   api: apiMock,
 }))
 
@@ -36,10 +38,14 @@ describe('preferences-store integration', () => {
     vi.clearAllMocks()
     apiMock.getSettings.mockResolvedValue(DEFAULT_SETTINGS)
     apiMock.getProviderModels.mockResolvedValue([])
+    apiMock.getProjectPreferences.mockResolvedValue(null)
+    apiMock.getProjectMcpSettings.mockResolvedValue({ enabled: 'inherit' })
     apiMock.setProviderApiKey.mockResolvedValue(undefined)
     apiMock.setEnabledModels.mockResolvedValue(undefined)
+    apiMock.setProjectMcpSettings.mockResolvedValue(undefined)
     usePreferencesStore.setState({
       settings: DEFAULT_SETTINGS,
+      projectMcpSettings: { enabled: 'inherit' },
       isLoaded: false,
       loadError: null,
     })
@@ -69,6 +75,34 @@ describe('preferences-store integration', () => {
 
     expect(apiMock.updateSettings).toHaveBeenCalledWith({ thinkingLevel: 'high' })
     expect(usePreferencesStore.getState().settings.thinkingLevel).toBe('high')
+  })
+
+  it('persists global MCP default updates', async () => {
+    await usePreferencesStore.getState().setMcpDefault('disabled')
+
+    expect(apiMock.updateSettings).toHaveBeenCalledWith({ mcpDefault: 'disabled' })
+    expect(usePreferencesStore.getState().settings.mcpDefault).toBe('disabled')
+  })
+
+  it('loads and persists project MCP overrides', async () => {
+    const loadedSettings = {
+      ...DEFAULT_SETTINGS,
+      projectPath: '/tmp/repo',
+    }
+    apiMock.getSettings.mockResolvedValue(loadedSettings)
+    apiMock.getProjectMcpSettings.mockResolvedValue({ enabled: 'disabled' })
+
+    await usePreferencesStore.getState().loadSettings()
+
+    expect(apiMock.getProjectMcpSettings).toHaveBeenCalledWith('/tmp/repo')
+    expect(usePreferencesStore.getState().projectMcpSettings).toEqual({ enabled: 'disabled' })
+
+    await usePreferencesStore.getState().setProjectMcpEnabled('enabled')
+
+    expect(apiMock.setProjectMcpSettings).toHaveBeenCalledWith('/tmp/repo', {
+      enabled: 'enabled',
+    })
+    expect(usePreferencesStore.getState().projectMcpSettings).toEqual({ enabled: 'enabled' })
   })
 
   it('tracks recent projects in newest-first order with dedupe and max size', async () => {
@@ -139,10 +173,14 @@ describe('provider-store integration', () => {
     vi.clearAllMocks()
     apiMock.getSettings.mockResolvedValue(DEFAULT_SETTINGS)
     apiMock.getProviderModels.mockResolvedValue([])
+    apiMock.getProjectPreferences.mockResolvedValue(null)
+    apiMock.getProjectMcpSettings.mockResolvedValue({ enabled: 'inherit' })
     apiMock.setProviderApiKey.mockResolvedValue(undefined)
     apiMock.setEnabledModels.mockResolvedValue(undefined)
+    apiMock.setProjectMcpSettings.mockResolvedValue(undefined)
     usePreferencesStore.setState({
       settings: DEFAULT_SETTINGS,
+      projectMcpSettings: { enabled: 'inherit' },
       isLoaded: true,
       loadError: null,
     })

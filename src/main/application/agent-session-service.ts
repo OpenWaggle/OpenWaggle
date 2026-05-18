@@ -14,6 +14,7 @@ import { ProviderService } from '../ports/provider-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
 import { SettingsService } from '../services/settings-service'
+import { getEffectiveMcpEnabled } from './mcp-runtime-settings'
 
 const logger = createLogger('agent-session-service')
 
@@ -74,8 +75,10 @@ function loadValidatedAgentSession(input: AgentSessionCommandInput) {
   return Effect.gen(function* () {
     const session = yield* loadSessionForCommand(input)
     const skillToggles = yield* getSkillToggles(session.projectPath)
+    const mcpEnabled = yield* getEffectiveMcpEnabled(session.projectPath)
     return {
       session,
+      mcpEnabled,
       ...(skillToggles ? { skillToggles } : {}),
     }
   })
@@ -114,9 +117,11 @@ export function getAgentContextUsage(input: AgentSessionCommandInput) {
     const skillToggles = session.projectPath
       ? settings.skillTogglesByProject[session.projectPath]
       : undefined
+    const mcpEnabled = yield* getEffectiveMcpEnabled(session.projectPath)
     return yield* agentKernel.getContextUsage({
       session,
       model: input.model,
+      mcpEnabled,
       ...(skillToggles ? { skillToggles } : {}),
     })
   })
@@ -132,7 +137,7 @@ function getSkillToggles(projectPath: string | null | undefined) {
 
 function copyAgentSessionToNewSession(input: AgentSessionCopyInput) {
   return Effect.gen(function* () {
-    const { session, skillToggles } = yield* loadValidatedAgentSession(input)
+    const { session, skillToggles, mcpEnabled } = yield* loadValidatedAgentSession(input)
 
     if (!session.projectPath) {
       return yield* Effect.fail(new Error('No project path set on the session.'))
@@ -144,6 +149,7 @@ function copyAgentSessionToNewSession(input: AgentSessionCopyInput) {
       model: input.model,
       targetNodeId: String(input.targetNodeId),
       position: input.position,
+      mcpEnabled,
       ...(skillToggles ? { skillToggles } : {}),
     })
 
@@ -181,12 +187,13 @@ export function cloneAgentSessionToNewSession(input: AgentSessionForkInput) {
 
 export function compactAgentSession(input: AgentSessionCompactInput) {
   return Effect.gen(function* () {
-    const { session, skillToggles } = yield* loadValidatedAgentSession(input)
+    const { session, skillToggles, mcpEnabled } = yield* loadValidatedAgentSession(input)
     const agentKernel = yield* AgentKernelService
     const result = yield* agentKernel.compact({
       session,
       model: input.model,
       customInstructions: input.customInstructions,
+      mcpEnabled,
       ...(input.signal ? { signal: input.signal } : {}),
       ...(input.onEvent ? { onEvent: input.onEvent } : {}),
       ...(skillToggles ? { skillToggles } : {}),
@@ -204,7 +211,7 @@ export function compactAgentSession(input: AgentSessionCompactInput) {
 
 export function navigateAgentSessionTree(input: AgentSessionNavigateTreeInput) {
   return Effect.gen(function* () {
-    const { session, skillToggles } = yield* loadValidatedAgentSession(input)
+    const { session, skillToggles, mcpEnabled } = yield* loadValidatedAgentSession(input)
     const agentKernel = yield* AgentKernelService
     const navigation = yield* agentKernel
       .navigateTree({
@@ -213,6 +220,7 @@ export function navigateAgentSessionTree(input: AgentSessionNavigateTreeInput) {
         targetNodeId: String(input.targetNodeId),
         summarize: input.summarize,
         customInstructions: input.customInstructions,
+        mcpEnabled,
         ...(skillToggles ? { skillToggles } : {}),
       })
       .pipe(

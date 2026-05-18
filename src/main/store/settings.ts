@@ -4,6 +4,8 @@ import { SupportedModelId } from '@shared/types/brand'
 import { parseModelRef } from '@shared/types/llm'
 import {
   DEFAULT_SETTINGS,
+  MCP_DEFAULT_MODES,
+  type McpDefaultMode,
   type Settings,
   THINKING_LEVELS,
   type ThinkingLevel,
@@ -23,6 +25,7 @@ const SETTINGS_KEY_RECENT_PROJECTS = 'recentProjects'
 const SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT = 'skillTogglesByProject'
 const SETTINGS_KEY_ENABLED_MODELS = 'enabledModels'
 const SETTINGS_KEY_PROJECT_DISPLAY_NAMES = 'projectDisplayNames'
+const SETTINGS_KEY_MCP_DEFAULT = 'mcpDefault'
 
 interface SettingsStoreRow {
   readonly key: string
@@ -161,6 +164,7 @@ function buildSettingsSnapshot(storedSettings: Readonly<Record<string, unknown>>
     getStoredValue(storedSettings, SETTINGS_KEY_PROJECT_DISPLAY_NAMES) ??
       DEFAULT_SETTINGS.projectDisplayNames,
   )
+  const mcpDefault = resolveMcpDefault(getStoredValue(storedSettings, SETTINGS_KEY_MCP_DEFAULT))
 
   return {
     settings: {
@@ -172,6 +176,7 @@ function buildSettingsSnapshot(storedSettings: Readonly<Record<string, unknown>>
       recentProjects,
       skillTogglesByProject,
       projectDisplayNames,
+      mcpDefault,
     },
   }
 }
@@ -210,39 +215,48 @@ export function getSettings(): Settings {
 }
 
 export function updateSettings(partial: Partial<Settings>): void {
+  const nextSettings = buildUpdatedSettings(partial, settingsCache)
+  settingsCache = nextSettings
+  queueSettingsUpdateWrites(partial, nextSettings)
+}
+
+function buildUpdatedSettings(partial: Partial<Settings>, current: Settings): Settings {
   const enabledModels =
     partial.enabledModels !== undefined
       ? sanitizeEnabledModels(partial.enabledModels)
-      : settingsCache.enabledModels
+      : current.enabledModels
   const selectedModel =
     partial.selectedModel !== undefined
       ? resolveSelectedModel(partial.selectedModel, enabledModels)
-      : settingsCache.selectedModel
+      : current.selectedModel
   const favoriteModels =
     partial.favoriteModels !== undefined
       ? sanitizeFavoriteModels(partial.favoriteModels)
-      : settingsCache.favoriteModels
-  const projectPath =
-    partial.projectPath !== undefined ? partial.projectPath : settingsCache.projectPath
+      : current.favoriteModels
+  const projectPath = partial.projectPath !== undefined ? partial.projectPath : current.projectPath
   const thinkingLevel =
     partial.thinkingLevel !== undefined && includes(THINKING_LEVELS, partial.thinkingLevel)
       ? partial.thinkingLevel
-      : settingsCache.thinkingLevel
+      : current.thinkingLevel
   const recentProjects =
     partial.recentProjects !== undefined
       ? sanitizeRecentProjects(partial.recentProjects)
-      : settingsCache.recentProjects
+      : current.recentProjects
   const skillTogglesByProject =
     partial.skillTogglesByProject !== undefined
       ? sanitizeSkillTogglesByProject(partial.skillTogglesByProject)
-      : settingsCache.skillTogglesByProject
+      : current.skillTogglesByProject
   const projectDisplayNames =
     partial.projectDisplayNames !== undefined
       ? sanitizeProjectDisplayNames(partial.projectDisplayNames)
-      : settingsCache.projectDisplayNames
+      : current.projectDisplayNames
+  const mcpDefault =
+    partial.mcpDefault !== undefined && includes(MCP_DEFAULT_MODES, partial.mcpDefault)
+      ? partial.mcpDefault
+      : current.mcpDefault
 
-  settingsCache = {
-    ...settingsCache,
+  return {
+    ...current,
     selectedModel: selectedModel,
     favoriteModels,
     enabledModels,
@@ -251,36 +265,65 @@ export function updateSettings(partial: Partial<Settings>): void {
     recentProjects,
     skillTogglesByProject,
     projectDisplayNames,
+    mcpDefault,
   }
+}
 
+function queueSettingsUpdateWrites(partial: Partial<Settings>, nextSettings: Settings): void {
   if (partial.selectedModel !== undefined) {
-    queueStoredSettingWrite(SETTINGS_KEY_DEFAULT_MODEL, selectedModel)
+    queueStoredSettingWrite(SETTINGS_KEY_DEFAULT_MODEL, nextSettings.selectedModel)
   }
   if (partial.favoriteModels !== undefined) {
-    queueStoredSettingWrite(SETTINGS_KEY_FAVORITE_MODELS, favoriteModels)
+    queueStoredSettingWrite(SETTINGS_KEY_FAVORITE_MODELS, nextSettings.favoriteModels)
   }
   if (partial.projectPath !== undefined) {
     queueStoredSettingWrite(SETTINGS_KEY_PROJECT_PATH, partial.projectPath)
   }
   if (partial.thinkingLevel !== undefined) {
-    if (includes(THINKING_LEVELS, partial.thinkingLevel)) {
-      queueStoredSettingWrite(SETTINGS_KEY_THINKING_LEVEL, partial.thinkingLevel)
-    } else {
-      logger.warn('Skipping invalid thinkingLevel', { value: partial.thinkingLevel })
-    }
+    queueThinkingLevelWrite(partial.thinkingLevel)
   }
   if (partial.recentProjects !== undefined) {
-    queueStoredSettingWrite(SETTINGS_KEY_RECENT_PROJECTS, recentProjects)
+    queueStoredSettingWrite(SETTINGS_KEY_RECENT_PROJECTS, nextSettings.recentProjects)
   }
   if (partial.skillTogglesByProject !== undefined) {
-    queueStoredSettingWrite(SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT, skillTogglesByProject)
+    queueStoredSettingWrite(
+      SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT,
+      nextSettings.skillTogglesByProject,
+    )
   }
   if (partial.enabledModels !== undefined) {
-    queueStoredSettingWrite(SETTINGS_KEY_ENABLED_MODELS, enabledModels)
+    queueStoredSettingWrite(SETTINGS_KEY_ENABLED_MODELS, nextSettings.enabledModels)
   }
   if (partial.projectDisplayNames !== undefined) {
-    queueStoredSettingWrite(SETTINGS_KEY_PROJECT_DISPLAY_NAMES, projectDisplayNames)
+    queueStoredSettingWrite(SETTINGS_KEY_PROJECT_DISPLAY_NAMES, nextSettings.projectDisplayNames)
   }
+  if (partial.mcpDefault !== undefined) {
+    queueMcpDefaultWrite(partial.mcpDefault)
+  }
+}
+
+function queueThinkingLevelWrite(thinkingLevel: ThinkingLevel): void {
+  if (includes(THINKING_LEVELS, thinkingLevel)) {
+    queueStoredSettingWrite(SETTINGS_KEY_THINKING_LEVEL, thinkingLevel)
+    return
+  }
+
+  logger.warn('Skipping invalid thinkingLevel', { value: thinkingLevel })
+}
+
+function queueMcpDefaultWrite(mcpDefault: McpDefaultMode): void {
+  if (includes(MCP_DEFAULT_MODES, mcpDefault)) {
+    queueStoredSettingWrite(SETTINGS_KEY_MCP_DEFAULT, mcpDefault)
+    return
+  }
+
+  logger.warn('Skipping invalid mcpDefault', { value: mcpDefault })
+}
+
+function resolveMcpDefault(raw: unknown): McpDefaultMode {
+  return typeof raw === 'string' && includes(MCP_DEFAULT_MODES, raw)
+    ? raw
+    : DEFAULT_SETTINGS.mcpDefault
 }
 
 function resolveThinkingLevel(raw: unknown): ThinkingLevel {

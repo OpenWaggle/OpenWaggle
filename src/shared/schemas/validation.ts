@@ -9,7 +9,7 @@
 import { Schema } from '@shared/schema'
 import { wagglePresetSchema } from '@shared/schemas/waggle'
 import type { JsonArray, JsonObject, JsonValue } from '@shared/types/json'
-import { THINKING_LEVELS } from '@shared/types/settings'
+import { MCP_PROJECT_MODES, THINKING_LEVELS } from '@shared/types/settings'
 
 const attachmentKindSchema = Schema.Literal('text', 'image', 'pdf')
 const attachmentOriginSchema = Schema.Literal('user-file', 'auto-paste-text')
@@ -65,9 +65,14 @@ export const projectPreferencesSchema = Schema.Struct({
   thinkingLevel: Schema.optional(Schema.Literal(...THINKING_LEVELS)),
 })
 
+export const projectMcpSettingsSchema = Schema.Struct({
+  enabled: Schema.Literal(...MCP_PROJECT_MODES),
+})
+
 export const projectSettingsFileSchema = Schema.Struct(
   {
     preferences: Schema.optional(projectPreferencesSchema),
+    mcp: Schema.optional(projectMcpSettingsSchema),
     wagglePresets: Schema.optional(Schema.mutable(Schema.Array(wagglePresetSchema))),
     pi: Schema.optional(jsonObjectSchema),
   },

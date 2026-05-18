@@ -37,6 +37,7 @@ function makeRunInput(onEvent: (event: AgentTransportEvent) => void): AgentKerne
       attachments: [],
     },
     model: SupportedModelId('openai/gpt-5.4'),
+    mcpEnabled: true,
     signal: new AbortController().signal,
     onEvent,
   }

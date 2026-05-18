@@ -45,6 +45,8 @@ describe('preload api surface contract', () => {
     'selectProjectFolder',
     'getProjectPreferences',
     'setProjectPreferences',
+    'getProjectMcpSettings',
+    'setProjectMcpSettings',
     'listSessions',
     'listSessionDetails',
     'getSessionDetail',

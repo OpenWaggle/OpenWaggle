@@ -1,6 +1,10 @@
 import { SupportedModelId } from '@shared/types/brand'
 import {
   DEFAULT_SETTINGS,
+  MCP_DEFAULT_MODES,
+  MCP_PROJECT_MODES,
+  type McpDefaultMode,
+  type McpProjectMode,
   type Settings,
   THINKING_LEVELS,
   type ThinkingLevel,
@@ -17,6 +21,7 @@ const SLICE_ARG_2_VALUE_10 = 10
 
 interface PreferencesState {
   settings: Settings
+  projectMcpSettings: { readonly enabled: McpProjectMode }
   isLoaded: boolean
   loadError: string | null
 
@@ -28,10 +33,13 @@ interface PreferencesState {
   pushRecentProject: (path: string) => Promise<void>
   removeRecentProject: (path: string) => Promise<void>
   setThinkingLevel: (preset: ThinkingLevel) => Promise<void>
+  setMcpDefault: (mode: McpDefaultMode) => Promise<void>
+  setProjectMcpEnabled: (mode: McpProjectMode) => Promise<void>
   setEnabledModels: (models: string[]) => Promise<void>
   setProjectDisplayName: (path: string, name: string) => Promise<void>
   clearProjectDisplayName: (path: string) => Promise<void>
   loadProjectPreferences: (projectPath: string) => Promise<void>
+  loadProjectMcpSettings: (projectPath: string) => Promise<void>
 }
 
 /**
@@ -51,6 +59,7 @@ function persistProjectPreference(
 
 export const usePreferencesStore = create<PreferencesState>((set, get) => ({
   settings: DEFAULT_SETTINGS,
+  projectMcpSettings: { enabled: 'inherit' },
   isLoaded: false,
   loadError: null,
 
@@ -60,6 +69,7 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
       set({ settings, isLoaded: false, loadError: null })
       if (settings.projectPath) {
         await get().loadProjectPreferences(settings.projectPath)
+        await get().loadProjectMcpSettings(settings.projectPath)
       }
       set({ isLoaded: true, loadError: null })
     } catch (err) {
@@ -114,11 +124,14 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     set({ settings: { ...settings, projectPath: path, recentProjects } })
     if (path) {
       await get().loadProjectPreferences(path)
+      await get().loadProjectMcpSettings(path)
       const { useProviderStore } = await import('./provider-store')
       const updatedSettings = await useProviderStore.getState().loadProviderModels(get().settings)
       if (updatedSettings) {
         set({ settings: updatedSettings })
       }
+    } else {
+      set({ projectMcpSettings: { enabled: 'inherit' } })
     }
   },
 
@@ -127,6 +140,28 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     await api.updateSettings({ thinkingLevel: preset })
     set({ settings: { ...settings, thinkingLevel: preset } })
     persistProjectPreference(settings.projectPath, { thinkingLevel: preset })
+  },
+
+  async setMcpDefault(mode: McpDefaultMode) {
+    if (!includes(MCP_DEFAULT_MODES, mode)) return
+    const { settings } = get()
+    await api.updateSettings({ mcpDefault: mode })
+    set({ settings: { ...settings, mcpDefault: mode } })
+  },
+
+  async setProjectMcpEnabled(mode: McpProjectMode) {
+    if (!includes(MCP_PROJECT_MODES, mode)) return
+    const { settings } = get()
+    if (!settings.projectPath) {
+      set({ projectMcpSettings: { enabled: mode } })
+      return
+    }
+    if (typeof api.setProjectMcpSettings !== 'function') {
+      logger.warn('Project MCP settings API is unavailable')
+      return
+    }
+    await api.setProjectMcpSettings(settings.projectPath, { enabled: mode })
+    set({ projectMcpSettings: { enabled: mode } })
   },
 
   async pushRecentProject(path: string) {
@@ -200,5 +235,20 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
       ...(thinkingLevel ? { thinkingLevel } : {}),
     })
     set({ settings: merged })
+  },
+
+  async loadProjectMcpSettings(projectPath: string) {
+    if (typeof api.getProjectMcpSettings !== 'function') {
+      set({ projectMcpSettings: { enabled: 'inherit' } })
+      return
+    }
+
+    try {
+      const mcpSettings = await api.getProjectMcpSettings(projectPath)
+      set({ projectMcpSettings: mcpSettings })
+    } catch (err) {
+      logger.warn('Failed to load project MCP settings', { error: String(err) })
+      set({ projectMcpSettings: { enabled: 'inherit' } })
+    }
   },
 }))

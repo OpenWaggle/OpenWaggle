@@ -36,7 +36,7 @@ import type {
   SessionWorkspace,
   SessionWorkspaceSelection,
 } from './session'
-import type { Settings } from './settings'
+import type { McpProjectMode, Settings } from './settings'
 import type {
   AgentsInstructionStatus,
   AgentsResolutionResult,
@@ -111,6 +111,14 @@ export interface IpcInvokeChannelMap {
   }
   'project-config:set-preferences': {
     args: [projectPath: string, preferences: { model?: string; thinkingLevel?: string }]
+    return: undefined
+  }
+  'project-config:get-mcp': {
+    args: [projectPath: string]
+    return: { enabled: McpProjectMode }
+  }
+  'project-config:set-mcp': {
+    args: [projectPath: string, settings: { enabled: McpProjectMode }]
     return: undefined
   }
   'sessions:list-details': {
@@ -541,6 +549,8 @@ export interface OpenWaggleApi {
     projectPath: string,
     preferences: { model?: string; thinkingLevel?: string },
   ): Promise<void>
+  getProjectMcpSettings(projectPath: string): Promise<{ enabled: McpProjectMode }>
+  setProjectMcpSettings(projectPath: string, settings: { enabled: McpProjectMode }): Promise<void>
 
   // Sessions
   listSessions(limit?: number): Promise<SessionSummary[]>

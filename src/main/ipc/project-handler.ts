@@ -1,5 +1,5 @@
 import { safeDecodeUnknown } from '@shared/schema'
-import { projectPreferencesSchema } from '@shared/schemas/validation'
+import { projectMcpSettingsSchema, projectPreferencesSchema } from '@shared/schemas/validation'
 import { THINKING_LEVELS } from '@shared/types/settings'
 import { includes } from '@shared/utils/validation'
 import * as Effect from 'effect/Effect'
@@ -9,6 +9,10 @@ import {
   type ProjectPreferences,
   setProjectPreferences,
 } from '../config/project-config'
+import {
+  type ProjectMcpSettings,
+  ProjectMcpSettingsService,
+} from '../ports/project-mcp-settings-service'
 import { validateProjectPath } from './project-path-validation'
 import { typedHandle } from './typed-ipc'
 
@@ -52,6 +56,15 @@ function validateProjectPreferences(
   return Effect.succeed(validatedPreferences)
 }
 
+function validateProjectMcpSettings(settings: unknown): Effect.Effect<ProjectMcpSettings, Error> {
+  const result = safeDecodeUnknown(projectMcpSettingsSchema, settings)
+  if (!result.success) {
+    return Effect.fail(new Error(`Invalid project MCP settings: ${result.issues.join('; ')}`))
+  }
+
+  return Effect.succeed({ enabled: result.data.enabled })
+}
+
 export function registerProjectHandlers(): void {
   typedHandle('project:select-folder', (event) =>
     Effect.gen(function* () {
@@ -90,6 +103,29 @@ export function registerProjectHandlers(): void {
       }
       const validatedPreferences = yield* validateProjectPreferences(preferences)
       yield* Effect.promise(() => setProjectPreferences(validatedProjectPath, validatedPreferences))
+    }),
+  )
+
+  typedHandle('project-config:get-mcp', (_event, projectPath: string) =>
+    Effect.gen(function* () {
+      const validatedProjectPath = yield* validateProjectPath(projectPath)
+      if (!validatedProjectPath) {
+        return { enabled: 'inherit' as const }
+      }
+      const mcpSettings = yield* ProjectMcpSettingsService
+      return yield* mcpSettings.get(validatedProjectPath)
+    }),
+  )
+
+  typedHandle('project-config:set-mcp', (_event, projectPath: string, settings) =>
+    Effect.gen(function* () {
+      const validatedProjectPath = yield* validateProjectPath(projectPath)
+      if (!validatedProjectPath) {
+        return yield* Effect.fail(new Error('Project path is required.'))
+      }
+      const validatedSettings = yield* validateProjectMcpSettings(settings)
+      const mcpSettings = yield* ProjectMcpSettingsService
+      yield* mcpSettings.set(validatedProjectPath, validatedSettings)
     }),
   )
 

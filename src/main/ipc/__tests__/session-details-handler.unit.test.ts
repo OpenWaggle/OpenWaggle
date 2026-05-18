@@ -8,6 +8,7 @@ import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionProjectionRepositoryError } from '../../errors'
 import { AgentKernelService } from '../../ports/agent-kernel-service'
+import { ProjectMcpSettingsService } from '../../ports/project-mcp-settings-service'
 import { ProviderService } from '../../ports/provider-service'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { SessionRepository } from '../../ports/session-repository'
@@ -182,12 +183,18 @@ const TestSettingsLayer = Layer.succeed(SettingsService, {
   flushForTests: () => Effect.void,
 })
 
+const TestProjectMcpSettingsLayer = Layer.succeed(ProjectMcpSettingsService, {
+  get: () => Effect.succeed({ enabled: 'inherit' }),
+  set: () => Effect.void,
+})
+
 const TestRuntimeLayer = Layer.mergeAll(
   TestSessionProjectionRepoLayer,
   TestAgentKernelLayer,
   TestSessionRepoLayer,
   TestProviderLayer,
   TestSettingsLayer,
+  TestProjectMcpSettingsLayer,
 )
 
 import { registerSessionDetailsHandlers } from '../session-details-handler'

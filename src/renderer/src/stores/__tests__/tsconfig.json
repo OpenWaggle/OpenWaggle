@@ -1,0 +1,9 @@
+{
+  "extends": "../../../../../tsconfig.web.json",
+  "compilerOptions": {
+    "composite": false,
+    "types": ["vitest/globals", "node"]
+  },
+  "include": ["./settings-store.integration.test.ts"],
+  "exclude": []
+}

@@ -1,0 +1,9 @@
+{
+  "extends": "../../../../../../tsconfig.web.json",
+  "compilerOptions": {
+    "composite": false,
+    "types": ["vitest/globals", "vitest/jsdom", "@testing-library/jest-dom", "node"]
+  },
+  "include": ["./ConfigurationSection.component.test.tsx"],
+  "exclude": []
+}

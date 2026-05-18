@@ -5,6 +5,7 @@ import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { type AgentKernelRunInput, AgentKernelService } from '../../ports/agent-kernel-service'
+import { ProjectMcpSettingsService } from '../../ports/project-mcp-settings-service'
 import { ProviderService } from '../../ports/provider-service'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { type PersistSessionSnapshotInput, SessionRepository } from '../../ports/session-repository'
@@ -95,6 +96,11 @@ const TestSettingsLayer = Layer.succeed(SettingsService, {
   update: () => Effect.void,
   initialize: () => Effect.void,
   flushForTests: () => Effect.void,
+})
+
+const TestProjectMcpSettingsLayer = Layer.succeed(ProjectMcpSettingsService, {
+  get: () => Effect.succeed({ enabled: 'inherit' }),
+  set: () => Effect.void,
 })
 
 const TestSessionLayer = Layer.succeed(SessionRepository, {
@@ -202,6 +208,7 @@ const TestLayer = Layer.mergeAll(
   TestSessionProjectionLayer,
   TestProviderLayer,
   TestSettingsLayer,
+  TestProjectMcpSettingsLayer,
   TestSessionLayer,
   TestAgentKernelLayer,
 )
@@ -264,6 +271,7 @@ describe('executeAgentRun', () => {
     expect(getSessionSnapshotMock).toHaveBeenCalledWith({
       session,
       model,
+      mcpEnabled: true,
     })
     expect(persistSnapshotMock).toHaveBeenCalledWith({
       sessionId,
