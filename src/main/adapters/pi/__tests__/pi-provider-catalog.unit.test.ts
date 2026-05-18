@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import type { ExtensionFactory } from '@mariozechner/pi-coding-agent'
-import { MCP_ADAPTER_LEGACY_PACKAGE_SOURCES } from '@shared/constants/mcp'
+import { MCP_ADAPTER_PACKAGE_SOURCE } from '@shared/constants/mcp'
 import { describe, expect, it } from 'vitest'
 import {
   createPiProviderCatalogSnapshot,
@@ -97,13 +97,12 @@ describe('getPiModelAvailableThinkingLevels', () => {
 })
 
 describe('createPiProviderCatalogSnapshot', () => {
-  it('loads project provider catalog without installing configured MCP adapter packages', async () => {
+  it('loads project provider catalog without loading configured OpenWaggle MCP packages', async () => {
     const projectPath = await createTempProject()
     const providerId = 'offline-provider'
-    const adapterPackageSource = MCP_ADAPTER_LEGACY_PACKAGE_SOURCES[0]
     await writeProviderExtension(projectPath, providerId)
     await writeJson(path.join(projectPath, '.pi', 'settings.json'), {
-      packages: [adapterPackageSource],
+      packages: [MCP_ADAPTER_PACKAGE_SOURCE],
     })
 
     const snapshot = await createPiProviderCatalogSnapshot(projectPath)

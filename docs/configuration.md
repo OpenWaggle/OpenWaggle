@@ -24,7 +24,7 @@ OpenWaggle also injects project resource roots into Pi in `.openwaggle > .pi > .
 
 ## MCP Configuration
 
-MCP support is powered by OpenWaggle's bundled `pi-mcp-adapter@2.5.4` Pi extension package. Settings > MCP enables or disables the local `extensions/pi-mcp-adapter` package source in global Pi settings without deleting installed package files or MCP config files. Legacy `npm:pi-mcp-adapter` entries are normalized to the bundled local source so opening Connections or starting a run does not require a live adapter install.
+MCP support is powered by OpenWaggle's bundled `pi-mcp-adapter@2.5.4` Pi extension package. Settings > MCP enables or disables the local `extensions/pi-mcp-adapter` package source in global Pi settings without deleting installed package files or MCP config files.
 
 OpenWaggle reads MCP config from all supported project locations and builds the effective runtime config in this order:
 

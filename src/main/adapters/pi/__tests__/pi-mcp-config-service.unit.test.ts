@@ -1,11 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import {
-  MCP_ADAPTER_LEGACY_PACKAGE_SOURCES,
-  MCP_ADAPTER_PACKAGE_SOURCE,
-  MCP_CONFIG,
-} from '@shared/constants/mcp'
+import { MCP_ADAPTER_PACKAGE_SOURCE, MCP_CONFIG } from '@shared/constants/mcp'
 import { decodeUnknownOrThrow } from '@shared/schema'
 import { mcpConfigFileSchema, piAgentSettingsFileSchema } from '@shared/schemas/mcp'
 import type { McpConfigFile, PiAgentSettingsFile } from '@shared/types/mcp'
@@ -181,22 +177,6 @@ describe('Pi MCP config service', () => {
           playwright: { command: 'npx', args: ['-y', 'playwright@1.58.2'] },
         },
       })
-    }))
-
-  it('normalizes legacy unpinned adapter package sources to the configured package', () =>
-    withFixture(async ({ home, agentDir, project }) => {
-      const service = createPiMcpConfigServiceForTests({ homeDir: home, agentDir })
-
-      await writeJson(path.join(agentDir, 'settings.json'), {
-        packages: ['npm:other-package@1.0.0', MCP_ADAPTER_LEGACY_PACKAGE_SOURCES[0]],
-      })
-
-      const enabled = await service.setAdapterEnabled(true, project)
-      expect(enabled.adapter.enabled).toBe(true)
-      expect((await readPiSettings(path.join(agentDir, 'settings.json'))).packages).toEqual([
-        'npm:other-package@1.0.0',
-        MCP_ADAPTER_PACKAGE_SOURCE,
-      ])
     }))
 
   it('does not enable the adapter package source when installation fails', () =>
