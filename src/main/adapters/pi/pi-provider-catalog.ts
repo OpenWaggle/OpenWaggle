@@ -6,15 +6,18 @@ import {
   AuthStorage,
   type CreateAgentSessionServicesOptions,
   createAgentSessionServices,
+  DefaultPackageManager,
   type ExtensionFactory,
   getAgentDir,
   ModelRegistry,
-  type SettingsManager,
+  type PackageSource,
+  SettingsManager,
 } from '@mariozechner/pi-coding-agent'
 import { createModelRef } from '@shared/types/llm'
 import { THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
 import { isPathInside } from '@shared/utils/paths'
 import { normalizeSkillId } from '@shared/utils/skill-id'
+import { createLogger } from '../../logger'
 import { createOpenWagglePiSettingsManager } from './openwaggle-pi-settings-storage'
 
 export interface ProviderModelRecord {
@@ -53,8 +56,14 @@ interface PiModelRuntime {
   readonly modelRegistry: ModelRegistry
 }
 
+interface PiProviderCatalogRuntime {
+  readonly authStorage: AuthStorage
+  readonly modelRegistry: ModelRegistry
+}
+
 interface PiRuntimeServicesOptions {
   readonly skillToggles?: Readonly<Record<string, boolean>>
+  readonly extensionPaths?: readonly string[]
   readonly extensionFactories?: readonly ExtensionFactory[]
 }
 
@@ -88,6 +97,10 @@ type PiResourceLoaderOptions = NonNullable<
 >
 type PiSkillsOverride = NonNullable<PiResourceLoaderOptions['skillsOverride']>
 type PiSkillsOverrideInput = Parameters<PiSkillsOverride>[0]
+type PiSettings = ReturnType<SettingsManager['getGlobalSettings']>
+type PiPackageScope = 'global' | 'project'
+
+const logger = createLogger('pi-provider-catalog')
 
 export function getPiAgentDir(): string {
   return getAgentDir()
@@ -282,10 +295,12 @@ export function createOpenWagglePiResourceLoaderOptions(
   settingsManager?: SettingsManager,
 ): PiResourceLoaderOptions {
   const skillToggles = options.skillToggles ?? {}
+  const additionalExtensionPaths = [
+    ...(settingsManager ? [] : includeExistingPath(getOpenWaggleExtensionsRoot(projectPath))),
+    ...(options.extensionPaths ?? []),
+  ]
   return {
-    additionalExtensionPaths: settingsManager
-      ? []
-      : includeExistingPath(getOpenWaggleExtensionsRoot(projectPath)),
+    additionalExtensionPaths,
     additionalSkillPaths: settingsManager
       ? []
       : includeExistingPath(getOpenWaggleSkillsRoot(projectPath)),
@@ -311,6 +326,144 @@ function createPiProviderCatalogSnapshotFromRuntime(
     credentials: buildAuthCredentialMap(authStorage),
     configuredAuthProviders: buildConfiguredAuthProviderSet(modelRegistry),
     builtInModelProviders: getBuiltInPiModelProviderIds(),
+  }
+}
+
+function getPiPackageSource(source: PackageSource): string {
+  return typeof source === 'string' ? source : source.source
+}
+
+function getInstalledPiPackagePath(
+  projectPath: string,
+  packageManager: DefaultPackageManager,
+  source: PackageSource,
+  scope: PiPackageScope,
+): string | undefined {
+  const sourceText = getPiPackageSource(source)
+  try {
+    return packageManager.getInstalledPath(sourceText, scope === 'global' ? 'user' : 'project')
+  } catch (error) {
+    logger.warn('Skipping invalid Pi package while building provider catalog', {
+      projectPath,
+      source: sourceText,
+      scope,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return undefined
+  }
+}
+
+function filterInstalledPiPackages(input: {
+  readonly projectPath: string
+  readonly packageManager: DefaultPackageManager
+  readonly packages: readonly PackageSource[] | undefined
+  readonly scope: PiPackageScope
+}): PackageSource[] | undefined {
+  if (!input.packages) {
+    return undefined
+  }
+
+  const installedPackages: PackageSource[] = []
+  for (const source of input.packages) {
+    const installedPath = getInstalledPiPackagePath(
+      input.projectPath,
+      input.packageManager,
+      source,
+      input.scope,
+    )
+    if (installedPath) {
+      installedPackages.push(source)
+      continue
+    }
+
+    logger.warn('Skipping missing Pi package while building provider catalog', {
+      projectPath: input.projectPath,
+      source: getPiPackageSource(source),
+      scope: input.scope,
+    })
+  }
+
+  return installedPackages
+}
+
+function withInstalledPiPackagesOnly(input: {
+  readonly projectPath: string
+  readonly packageManager: DefaultPackageManager
+  readonly settings: PiSettings
+  readonly scope: PiPackageScope
+}): PiSettings {
+  const installedPackages = filterInstalledPiPackages({
+    projectPath: input.projectPath,
+    packageManager: input.packageManager,
+    packages: input.settings.packages,
+    scope: input.scope,
+  })
+  return installedPackages ? { ...input.settings, packages: installedPackages } : input.settings
+}
+
+function createStaticPiSettingsManager(input: {
+  readonly global: PiSettings
+  readonly project: PiSettings
+}): SettingsManager {
+  return SettingsManager.fromStorage({
+    withLock(scope, fn) {
+      const settings = scope === 'global' ? input.global : input.project
+      fn(JSON.stringify(settings))
+    },
+  })
+}
+
+async function createProviderCatalogSettingsManager(input: {
+  readonly projectPath: string
+  readonly agentDir: string
+}): Promise<SettingsManager> {
+  const settingsManager = createOpenWagglePiSettingsManager(input.projectPath)
+  await settingsManager.reload()
+  const packageManager = new DefaultPackageManager({
+    cwd: input.projectPath,
+    agentDir: input.agentDir,
+    settingsManager,
+  })
+  return createStaticPiSettingsManager({
+    global: withInstalledPiPackagesOnly({
+      projectPath: input.projectPath,
+      packageManager,
+      settings: settingsManager.getGlobalSettings(),
+      scope: 'global',
+    }),
+    project: withInstalledPiPackagesOnly({
+      projectPath: input.projectPath,
+      packageManager,
+      settings: settingsManager.getProjectSettings(),
+      scope: 'project',
+    }),
+  })
+}
+
+async function createPiProviderCatalogRuntime(
+  projectPath: string,
+): Promise<PiProviderCatalogRuntime> {
+  const agentDir = getPiAgentDir()
+  const authStorage = createPiRuntimeAuthStorage()
+  const settingsManager = await createProviderCatalogSettingsManager({
+    projectPath,
+    agentDir,
+  })
+  const services = await createAgentSessionServices({
+    cwd: projectPath,
+    agentDir,
+    authStorage,
+    settingsManager,
+    resourceLoaderOptions: createOpenWagglePiResourceLoaderOptions(
+      projectPath,
+      {},
+      settingsManager,
+    ),
+  })
+
+  return {
+    authStorage: services.authStorage,
+    modelRegistry: services.modelRegistry,
   }
 }
 
@@ -344,8 +497,8 @@ export async function createPiProviderCatalogSnapshot(
     )
   }
 
-  const services = await createPiRuntimeServices(normalizedProjectPath)
-  return createPiProviderCatalogSnapshotFromRuntime(services.modelRegistry, services.authStorage)
+  const runtime = await createPiProviderCatalogRuntime(normalizedProjectPath)
+  return createPiProviderCatalogSnapshotFromRuntime(runtime.modelRegistry, runtime.authStorage)
 }
 
 export function setPiProviderApiKey(providerId: string, apiKey: string): void {
@@ -395,10 +548,12 @@ export async function createPiProjectModelRuntime(input: {
   readonly projectPath: string
   readonly modelReference: string
   readonly skillToggles?: Readonly<Record<string, boolean>>
+  readonly extensionPaths?: readonly string[]
   readonly extensionFactories?: readonly ExtensionFactory[]
 }): Promise<PiProjectModelRuntime> {
   const services = await createPiRuntimeServices(input.projectPath, {
     ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
+    ...(input.extensionPaths ? { extensionPaths: input.extensionPaths } : {}),
     ...(input.extensionFactories ? { extensionFactories: input.extensionFactories } : {}),
   })
   const model = findPiModel(services.modelRegistry, input.modelReference)

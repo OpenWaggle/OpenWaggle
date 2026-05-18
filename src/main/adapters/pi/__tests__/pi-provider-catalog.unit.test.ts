@@ -1,8 +1,13 @@
+import { existsSync } from 'node:fs'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { createPiRuntimeServices, getPiModelAvailableThinkingLevels } from '../pi-provider-catalog'
+import {
+  createPiProviderCatalogSnapshot,
+  createPiRuntimeServices,
+  getPiModelAvailableThinkingLevels,
+} from '../pi-provider-catalog'
 
 async function createTempProject(): Promise<string> {
   return fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-skills-'))
@@ -23,6 +28,35 @@ async function writeSkill(projectPath: string, root: string, id: string): Promis
 async function writeJson(filePath: string, value: unknown): Promise<void> {
   await fs.mkdir(path.dirname(filePath), { recursive: true })
   await fs.writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
+}
+
+async function writeProviderExtension(projectPath: string, providerId: string): Promise<string> {
+  const extensionPath = path.join(projectPath, '.pi', 'extensions', `${providerId}.js`)
+  await fs.mkdir(path.dirname(extensionPath), { recursive: true })
+  await fs.writeFile(
+    extensionPath,
+    `export default function extension(pi) {
+  pi.registerProvider('${providerId}', {
+    baseUrl: 'https://example.test/v1',
+    apiKey: 'OPENWAGGLE_TEST_PROVIDER_API_KEY',
+    api: 'openai-completions',
+    models: [
+      {
+        id: 'offline-model',
+        name: 'Offline Model',
+        reasoning: false,
+        input: ['text'],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 128000,
+        maxTokens: 4096,
+      },
+    ],
+  })
+}
+`,
+    'utf8',
+  )
+  return extensionPath
 }
 
 function loadedSkillPaths(projectPath: string): Promise<readonly string[]> {
@@ -57,6 +91,26 @@ describe('getPiModelAvailableThinkingLevels', () => {
       'high',
       'xhigh',
     ])
+  })
+})
+
+describe('createPiProviderCatalogSnapshot', () => {
+  it('loads project provider catalog without installing missing Pi packages', async () => {
+    const projectPath = await createTempProject()
+    const providerId = 'offline-provider'
+    const missingPackageName = 'openwaggle-provider-catalog-missing-package-test'
+    await writeProviderExtension(projectPath, providerId)
+    await writeJson(path.join(projectPath, '.pi', 'settings.json'), {
+      packages: [`npm:${missingPackageName}`],
+    })
+
+    const snapshot = await createPiProviderCatalogSnapshot(projectPath)
+    const provider = snapshot.providers.find((candidate) => candidate.provider === providerId)
+
+    expect(provider?.models.map((model) => model.ref)).toContain(`${providerId}/offline-model`)
+    expect(
+      existsSync(path.join(projectPath, '.pi', 'npm', 'node_modules', missingPackageName)),
+    ).toBe(false)
   })
 })
 
