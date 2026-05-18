@@ -316,7 +316,7 @@ jobs:
           test -f "$ARTIFACT_DIR/$ARM64_DMG"
           test -f "$ARTIFACT_DIR/$X64_DMG"
 
-          MOUNT_POINT="$(hdiutil attach -nobrowse -readonly "$ARTIFACT_DIR/$ARM64_DMG" | awk '/\/Volumes\// { print $NF; exit }')"
+          MOUNT_POINT="$(hdiutil attach -nobrowse -readonly "$ARTIFACT_DIR/$ARM64_DMG" | awk -F'\t' '/\/Volumes\// { print $NF; exit }')"
           trap 'hdiutil detach "$MOUNT_POINT" -quiet >/dev/null 2>&1 || true' EXIT
           APP_PATH=$(find "$MOUNT_POINT" -maxdepth 1 -name '*.app' | head -n 1)
           test -d "$APP_PATH"
