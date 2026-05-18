@@ -1,9 +1,0 @@
-{
-  "preferences": {
-    "model": "openai-codex/gpt-5.5",
-    "thinkingLevel": "xhigh"
-  },
-  "packages": [
-    "npm:pi-mcp-adapter"
-  ]
-}
