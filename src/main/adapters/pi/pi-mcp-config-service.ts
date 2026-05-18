@@ -1,16 +1,14 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { cp as copyDirectory, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { homedir } from 'node:os'
 import path from 'node:path'
+import { type AgentSessionServices, getAgentDir } from '@mariozechner/pi-coding-agent'
 import {
-  type AgentSessionServices,
-  DefaultPackageManager,
-  getAgentDir,
-  SettingsManager,
-} from '@mariozechner/pi-coding-agent'
-import {
+  MCP_ADAPTER_PACKAGE_NAME,
   MCP_ADAPTER_PACKAGE_SOURCE,
   MCP_ADAPTER_PACKAGE_SOURCES,
+  MCP_ADAPTER_PACKAGE_VERSION,
   MCP_CONFIG,
 } from '@shared/constants/mcp'
 import { decodeUnknownOrThrow } from '@shared/schema'
@@ -35,11 +33,14 @@ import type {
   PiAgentSettingsFile,
 } from '@shared/types/mcp'
 import { Effect, Layer } from 'effect'
-import { getNpmCompatiblePath, withTemporaryProcessEnv } from '../../env'
+import bundledMcpAdapterPackage from 'pi-mcp-adapter/package.json'
 import { createLogger } from '../../logger'
 import { McpConfigService } from '../../ports/mcp-config-service'
 
 const logger = createLogger('pi-mcp-config')
+const requireFromPiMcpConfigService = createRequire(import.meta.url)
+const MCP_ADAPTER_PACKAGE_JSON = `${MCP_ADAPTER_PACKAGE_NAME}/package.json`
+const BUNDLED_MCP_ADAPTER_VERSION = bundledMcpAdapterPackage.version
 
 interface McpSourceDefinition {
   readonly id: McpConfigSourceId
@@ -634,12 +635,11 @@ export function createPiMcpConfigService(
     projectPath?: string | null,
   ): Promise<McpSettingsView> {
     const currentSettings = await readGlobalPiSettings(options)
-    const wasEnabled = isAdapterEnabled(currentSettings)
     const nextSettings = enabled
       ? addAdapterPackageSource(currentSettings)
       : removeAdapterPackageSource(currentSettings)
 
-    if (enabled && !wasEnabled) {
+    if (enabled) {
       await options.installAdapterPackage(MCP_ADAPTER_PACKAGE_SOURCE, projectPath)
     }
 
@@ -694,6 +694,20 @@ export function createPiMcpConfigService(
   async function prepareRuntimeContext(
     projectPath?: string | null,
   ): Promise<OpenWaggleMcpRuntimeContext | null> {
+    const view = await getView(projectPath)
+    if (view.adapter.lastError) {
+      throw new Error(view.adapter.lastError)
+    }
+    if (!view.adapter.enabled) {
+      return null
+    }
+
+    await options.installAdapterPackage(MCP_ADAPTER_PACKAGE_SOURCE, projectPath)
+    await writeGlobalPiSettings(
+      options,
+      addAdapterPackageSource(await readGlobalPiSettings(options)),
+    )
+
     const configPath = await prepareEffectiveConfig(projectPath)
     if (!configPath) {
       return null
@@ -714,28 +728,69 @@ export function createPiMcpConfigService(
   }
 }
 
-async function installMcpAdapterPackage(
-  source: string,
-  projectPath?: string | null,
-): Promise<void> {
-  const agentDir = getAgentDir()
-  const cwd = projectPath?.trim() || agentDir
-  const npmCacheDir = path.join(agentDir, MCP_CONFIG.NPM_CACHE_DIR)
-  await mkdir(agentDir, { recursive: true })
-  await mkdir(npmCacheDir, { recursive: true })
+function readJsonObjectProperty(value: object, property: string): unknown {
+  return Object.getOwnPropertyDescriptor(value, property)?.value
+}
 
-  await withTemporaryProcessEnv(
-    {
-      PATH: getNpmCompatiblePath(),
-      npm_config_cache: npmCacheDir,
-      NPM_CONFIG_CACHE: npmCacheDir,
-    },
-    async () => {
-      const settingsManager = SettingsManager.create(cwd, agentDir)
-      const packageManager = new DefaultPackageManager({ cwd, agentDir, settingsManager })
-      await packageManager.install(source, { local: false })
-    },
+function readPackageJsonVersion(content: string): string | null {
+  const parsed: unknown = JSON.parse(content)
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    return null
+  }
+
+  const version = readJsonObjectProperty(parsed, 'version')
+  return typeof version === 'string' ? version : null
+}
+
+async function readPackageVersion(packageDir: string): Promise<string | null> {
+  try {
+    return readPackageJsonVersion(await readFile(path.join(packageDir, 'package.json'), 'utf-8'))
+  } catch {
+    return null
+  }
+}
+
+function getBundledMcpAdapterPackageDir(): string {
+  return path.dirname(requireFromPiMcpConfigService.resolve(MCP_ADAPTER_PACKAGE_JSON))
+}
+
+function bundledMcpAdapterMatchesSource(source: string): boolean {
+  return (
+    MCP_ADAPTER_PACKAGE_SOURCE_SET.has(source) &&
+    BUNDLED_MCP_ADAPTER_VERSION === MCP_ADAPTER_PACKAGE_VERSION
   )
+}
+
+async function installedMcpAdapterMatchesSource(
+  source: string,
+  installedPath: string,
+): Promise<boolean> {
+  return (
+    MCP_ADAPTER_PACKAGE_SOURCE_SET.has(source) &&
+    (await readPackageVersion(installedPath)) === MCP_ADAPTER_PACKAGE_VERSION
+  )
+}
+
+async function installBundledMcpAdapterPackage(source: string, agentDir: string): Promise<void> {
+  const installedPath = path.join(agentDir, MCP_ADAPTER_PACKAGE_SOURCE)
+  if (await installedMcpAdapterMatchesSource(source, installedPath)) {
+    return
+  }
+
+  const bundledPath = getBundledMcpAdapterPackageDir()
+  if (!bundledMcpAdapterMatchesSource(source)) {
+    throw new Error(`Bundled ${MCP_ADAPTER_PACKAGE_NAME} version does not match ${source}`)
+  }
+
+  await rm(installedPath, { recursive: true, force: true })
+  await mkdir(path.dirname(installedPath), { recursive: true })
+  await copyDirectory(bundledPath, installedPath, { recursive: true, dereference: true })
+}
+
+async function installMcpAdapterPackage(source: string): Promise<void> {
+  const agentDir = getAgentDir()
+  await mkdir(agentDir, { recursive: true })
+  await installBundledMcpAdapterPackage(source, agentDir)
 }
 
 export function createPiMcpConfigServiceForTests(options: {
@@ -758,13 +813,6 @@ export async function prepareOpenWaggleMcpRuntimeContext(
     agentDir: getAgentDir(),
     installAdapterPackage: installMcpAdapterPackage,
   })
-  const view = await service.getView(projectPath)
-  if (view.adapter.lastError) {
-    throw new Error(view.adapter.lastError)
-  }
-  if (!view.adapter.enabled) {
-    return null
-  }
   return service.prepareRuntimeContext(projectPath)
 }
 
