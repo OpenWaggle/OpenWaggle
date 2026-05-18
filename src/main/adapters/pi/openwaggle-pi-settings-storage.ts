@@ -41,6 +41,7 @@ interface SettingsStorageLike {
 
 interface OpenWagglePiSettingsManagerOptions {
   readonly excludedGlobalPackageSources?: readonly string[]
+  readonly excludedProjectPackageSources?: readonly string[]
 }
 
 function getOpenWaggleProjectSettingsPath(projectPath: string): string {
@@ -98,6 +99,32 @@ function getPackageEntries(settings: JsonObject): JsonValue[] {
   return Array.isArray(settings.packages) ? [...settings.packages] : []
 }
 
+function getExcludedExtensionPatterns(excludedPackageSources: readonly string[]): string[] {
+  return excludedPackageSources.flatMap((source) => [`!${source}`, `!${source}/**`])
+}
+
+function withExcludedExtensionPatterns(
+  settings: JsonObject,
+  excludedPackageSources: readonly string[],
+): JsonObject {
+  const excludedPatterns = getExcludedExtensionPatterns(excludedPackageSources)
+  if (excludedPatterns.length === 0) {
+    return settings
+  }
+
+  const extensions = isStringArray(settings.extensions) ? settings.extensions : []
+  const nextExtensions = [...extensions]
+  for (const pattern of excludedPatterns) {
+    if (!nextExtensions.includes(pattern)) {
+      nextExtensions.push(pattern)
+    }
+  }
+  return {
+    ...settings,
+    extensions: nextExtensions,
+  }
+}
+
 function isExcludedPackageSource(
   value: JsonValue,
   excludedPackageSources: ReadonlySet<string>,
@@ -106,7 +133,7 @@ function isExcludedPackageSource(
   return source !== null && excludedPackageSources.has(source)
 }
 
-function withoutExcludedGlobalPackages(
+function withoutExcludedPackages(
   content: string | undefined,
   excludedPackageSources: readonly string[] | undefined,
 ): string | undefined {
@@ -117,24 +144,25 @@ function withoutExcludedGlobalPackages(
   const settings = parseJsonObject(content)
   const packages = getPackageEntries(settings)
   if (packages.length === 0) {
-    return content
+    return serializeJsonObject(withExcludedExtensionPatterns(settings, excludedPackageSources))
   }
 
   const excludedSources = new Set(excludedPackageSources)
   const visiblePackages = packages.filter(
     (entry) => !isExcludedPackageSource(entry, excludedSources),
   )
-  if (visiblePackages.length === packages.length) {
-    return content
-  }
+  const visibleSettings =
+    visiblePackages.length === packages.length
+      ? settings
+      : {
+          ...settings,
+          packages: visiblePackages,
+        }
 
-  return serializeJsonObject({
-    ...settings,
-    packages: visiblePackages,
-  })
+  return serializeJsonObject(withExcludedExtensionPatterns(visibleSettings, excludedPackageSources))
 }
 
-function withPreservedExcludedGlobalPackages(
+function withPreservedExcludedPackages(
   currentContent: string | undefined,
   nextContent: string | undefined,
   excludedPackageSources: readonly string[] | undefined,
@@ -354,27 +382,51 @@ function createOpenWagglePiSettingsStorage(
   return {
     withLock(scope, fn) {
       if (scope === 'global') {
-        const globalSettingsPath = getPiGlobalSettingsPath()
-        const current = readFileIfPresent(globalSettingsPath)
-        const visibleCurrent = withoutExcludedGlobalPackages(
-          current,
-          options.excludedGlobalPackageSources,
-        )
-        const next = withPreservedExcludedGlobalPackages(
-          current,
-          fn(visibleCurrent),
-          options.excludedGlobalPackageSources,
-        )
-        if (next !== undefined) {
-          writeJsonFile(globalSettingsPath, next)
-        }
+        withGlobalPiSettingsLock(options, fn)
         return
       }
 
-      const next = fn(serializeJsonObject(readProjectPiSettings(projectPath)))
+      const current = serializeJsonObject(readProjectPiSettings(projectPath))
+      const visibleCurrent = withoutExcludedPackages(current, options.excludedProjectPackageSources)
+      const next = withPreservedExcludedPackages(
+        current,
+        fn(visibleCurrent),
+        options.excludedProjectPackageSources,
+      )
       if (next !== undefined) {
         writeProjectPiSettings(projectPath, next)
       }
+    },
+  }
+}
+
+function withGlobalPiSettingsLock(
+  options: OpenWagglePiSettingsManagerOptions,
+  fn: (current: string | undefined) => string | undefined,
+): void {
+  const globalSettingsPath = getPiGlobalSettingsPath()
+  const current = readFileIfPresent(globalSettingsPath)
+  const visibleCurrent = withoutExcludedPackages(current, options.excludedGlobalPackageSources)
+  const next = withPreservedExcludedPackages(
+    current,
+    fn(visibleCurrent),
+    options.excludedGlobalPackageSources,
+  )
+  if (next !== undefined) {
+    writeJsonFile(globalSettingsPath, next)
+  }
+}
+
+function createOpenWaggleGlobalPiSettingsStorage(
+  options: OpenWagglePiSettingsManagerOptions = {},
+): SettingsStorageLike {
+  return {
+    withLock(scope, fn) {
+      if (scope === 'global') {
+        withGlobalPiSettingsLock(options, fn)
+        return
+      }
+      fn(undefined)
     },
   }
 }
@@ -384,4 +436,10 @@ export function createOpenWagglePiSettingsManager(
   options: OpenWagglePiSettingsManagerOptions = {},
 ): SettingsManager {
   return SettingsManager.fromStorage(createOpenWagglePiSettingsStorage(projectPath, options))
+}
+
+export function createOpenWaggleGlobalPiSettingsManager(
+  options: OpenWagglePiSettingsManagerOptions = {},
+): SettingsManager {
+  return SettingsManager.fromStorage(createOpenWaggleGlobalPiSettingsStorage(options))
 }

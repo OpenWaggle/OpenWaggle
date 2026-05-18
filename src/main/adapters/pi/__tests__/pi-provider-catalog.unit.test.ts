@@ -1,9 +1,15 @@
+import { existsSync } from 'node:fs'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import type { ExtensionFactory } from '@mariozechner/pi-coding-agent'
-import { describe, expect, it } from 'vitest'
-import { createPiRuntimeServices, getPiModelAvailableThinkingLevels } from '../pi-provider-catalog'
+import { MCP_ADAPTER_PACKAGE_SOURCE } from '@shared/constants/mcp'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  createPiProviderCatalogSnapshot,
+  createPiRuntimeServices,
+  getPiModelAvailableThinkingLevels,
+} from '../pi-provider-catalog'
 
 async function createTempProject(): Promise<string> {
   return fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-skills-'))
@@ -26,11 +32,63 @@ async function writeJson(filePath: string, value: unknown): Promise<void> {
   await fs.writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
 }
 
+function providerExtensionModule(providerId: string): string {
+  return `export default function extension(pi) {
+  pi.registerProvider('${providerId}', {
+    baseUrl: 'https://example.test/v1',
+    apiKey: 'OPENWAGGLE_TEST_PROVIDER_API_KEY',
+    api: 'openai-completions',
+    models: [
+      {
+        id: 'offline-model',
+        name: 'Offline Model',
+        reasoning: false,
+        input: ['text'],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 128000,
+        maxTokens: 4096,
+      },
+    ],
+  })
+}
+`
+}
+
+async function writeProviderExtension(projectPath: string, providerId: string): Promise<string> {
+  const extensionPath = path.join(projectPath, '.pi', 'extensions', `${providerId}.js`)
+  await fs.mkdir(path.dirname(extensionPath), { recursive: true })
+  await fs.writeFile(extensionPath, providerExtensionModule(providerId), 'utf8')
+  return extensionPath
+}
+
+async function writeProviderPackage(
+  baseDir: string,
+  packageSource: string,
+  providerId: string,
+): Promise<void> {
+  const packageDir = path.join(baseDir, packageSource)
+  await writeJson(path.join(packageDir, 'package.json'), {
+    pi: {
+      extensions: ['extensions/provider.js'],
+    },
+  })
+  await fs.mkdir(path.join(packageDir, 'extensions'), { recursive: true })
+  await fs.writeFile(
+    path.join(packageDir, 'extensions', 'provider.js'),
+    providerExtensionModule(providerId),
+    'utf8',
+  )
+}
+
 function loadedSkillPaths(projectPath: string): Promise<readonly string[]> {
   return createPiRuntimeServices(projectPath).then((services) =>
     services.resourceLoader.getSkills().skills.map((skill) => skill.filePath),
   )
 }
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
 
 describe('getPiModelAvailableThinkingLevels', () => {
   it('returns off only for non-reasoning models', () => {
@@ -58,6 +116,56 @@ describe('getPiModelAvailableThinkingLevels', () => {
       'high',
       'xhigh',
     ])
+  })
+})
+
+describe('createPiProviderCatalogSnapshot', () => {
+  it('loads global provider catalog without loading configured OpenWaggle MCP packages', async () => {
+    const root = await createTempProject()
+    const agentDir = path.join(root, 'pi-agent')
+    const home = path.join(root, 'home')
+    const providerId = 'global-offline-provider'
+    const mcpProviderId = 'mcp-adapter-leak-provider'
+    vi.stubEnv('HOME', home)
+    vi.stubEnv('PI_CODING_AGENT_DIR', agentDir)
+    await writeProviderPackage(agentDir, 'extensions/global-provider-package', providerId)
+    await writeProviderPackage(agentDir, MCP_ADAPTER_PACKAGE_SOURCE, mcpProviderId)
+    await writeJson(path.join(agentDir, 'settings.json'), {
+      packages: ['extensions/global-provider-package', MCP_ADAPTER_PACKAGE_SOURCE],
+    })
+
+    try {
+      const snapshot = await createPiProviderCatalogSnapshot(null)
+
+      expect(snapshot.providers.map((provider) => provider.provider)).toContain(providerId)
+      expect(snapshot.providers.map((provider) => provider.provider)).not.toContain(mcpProviderId)
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('loads project provider catalog without loading configured OpenWaggle MCP packages', async () => {
+    const projectPath = await createTempProject()
+    const providerId = 'offline-provider'
+    const mcpProviderId = 'project-mcp-adapter-leak-provider'
+    await writeProviderExtension(projectPath, providerId)
+    await writeProviderPackage(
+      path.join(projectPath, '.pi'),
+      MCP_ADAPTER_PACKAGE_SOURCE,
+      mcpProviderId,
+    )
+    await writeJson(path.join(projectPath, '.pi', 'settings.json'), {
+      packages: [MCP_ADAPTER_PACKAGE_SOURCE],
+    })
+
+    const snapshot = await createPiProviderCatalogSnapshot(projectPath)
+    const provider = snapshot.providers.find((candidate) => candidate.provider === providerId)
+
+    expect(provider?.models.map((model) => model.ref)).toContain(`${providerId}/offline-model`)
+    expect(snapshot.providers.map((candidate) => candidate.provider)).not.toContain(mcpProviderId)
+    expect(existsSync(path.join(projectPath, '.pi', 'npm', 'node_modules', 'pi-mcp-adapter'))).toBe(
+      false,
+    )
   })
 })
 

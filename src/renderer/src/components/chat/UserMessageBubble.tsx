@@ -90,12 +90,12 @@ function getAttachmentIcon(name: string): typeof FileText {
 function AttachmentIcon({ name }: { readonly name: string }) {
   const icon = getAttachmentIcon(name)
   if (icon === Image) {
-    return <Image className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
+    return <Image className="size-3.5 shrink-0 text-text-tertiary" />
   }
   if (icon === FileDown) {
-    return <FileDown className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
+    return <FileDown className="size-3.5 shrink-0 text-text-tertiary" />
   }
-  return <FileText className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
+  return <FileText className="size-3.5 shrink-0 text-text-tertiary" />
 }
 
 function AttachmentChip({ name }: { readonly name: string }) {
@@ -171,7 +171,7 @@ export function UserMessageBubble({
               onClick={() => onBranchFromMessage(message.id)}
               className="flex items-center gap-1 text-[12px] text-text-muted hover:text-text-secondary cursor-pointer"
             >
-              <GitBranch className="h-3 w-3" />
+              <GitBranch className="size-3" />
             </button>
           ) : null}
 
@@ -182,7 +182,7 @@ export function UserMessageBubble({
               onClick={() => onForkFromMessage(message.id)}
               className="flex cursor-pointer items-center gap-1 text-[12px] text-text-muted hover:text-text-secondary"
             >
-              <GitFork className="h-3 w-3" />
+              <GitFork className="size-3" />
             </button>
           ) : null}
 
@@ -192,7 +192,7 @@ export function UserMessageBubble({
             onClick={handleCopy}
             className="flex items-center gap-1 text-[12px] text-text-muted hover:text-text-secondary cursor-pointer"
           >
-            {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+            {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
           </button>
         </div>
       </div>

@@ -499,7 +499,7 @@ function SessionTreePanelLayout({
     <section className="flex h-full min-w-0 flex-col bg-diff-bg" aria-label="Session Tree">
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4">
         <div className="flex min-w-0 items-center gap-2">
-          <ListTree className="h-4 w-4 shrink-0 text-text-tertiary" />
+          <ListTree className="size-4 shrink-0 text-text-tertiary" />
           <h2 className="truncate text-[13px] font-semibold text-text-primary">Session Tree</h2>
         </div>
         <button
@@ -508,7 +508,7 @@ function SessionTreePanelLayout({
           onClick={onClose}
           className="rounded p-1 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
         >
-          <X className="h-4 w-4" />
+          <X className="size-4" />
         </button>
       </div>
 
@@ -533,7 +533,7 @@ function SessionTreePanelLayout({
           </select>
         </div>
         <div className="relative mx-auto w-full min-w-0">
-          <Search className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-text-muted" />
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-text-muted" />
           <input
             id="session-tree-search"
             type="search"
@@ -549,7 +549,7 @@ function SessionTreePanelLayout({
       <div className="relative min-h-0 flex-1">
         <div
           ref={scrollContainerRef}
-          className="h-full overflow-y-auto px-2 py-2"
+          className="h-full overflow-y-auto p-2"
           onScroll={onTreeScroll}
         >
           {!tree ? (

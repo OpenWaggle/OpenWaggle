@@ -33,7 +33,7 @@ The composer only shows enabled models.
 
 ## MCP
 
-Settings > MCP enables the `npm:pi-mcp-adapter@2.5.4` Pi extension package source and shows the merged effective MCP view. OpenWaggle reads standard, Pi, `.agents`, and `.openwaggle/agent/mcp.json` config files, then passes Pi a generated effective config for the next turn. Runtime adapter startup is scoped to that generated config and the active project so MCP servers do not depend on the Electron launcher cwd.
+Settings > MCP enables OpenWaggle's bundled `pi-mcp-adapter@2.5.4` through the local `extensions/pi-mcp-adapter` Pi extension package source and shows the merged effective MCP view. OpenWaggle reads standard, Pi, `.agents`, and `.openwaggle/agent/mcp.json` config files, then passes Pi a generated effective config for the next turn. Runtime adapter startup is scoped to that generated config and the active project so MCP servers do not depend on the Electron launcher cwd.
 
 Per-server toggles preserve config by moving entries between `mcpServers` and `openwaggle.disabledMcpServers` in the selected source file. The advanced JSON editor remains available for every `pi-mcp-adapter` field.
 

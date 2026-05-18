@@ -26,7 +26,7 @@ The standard run path is:
 
 OpenWaggle keeps Pi's resource loader as the runtime source of truth. The Pi adapter injects project resource roots in `.openwaggle > .pi > .agents` order for skills, extensions, prompts, and themes, then strips those implicit roots when Pi persists project settings. OpenWaggle catalog toggles apply to `.openwaggle/skills` and root `.agents/skills`, while Pi-native discovery still governs Pi-owned/global resources.
 
-MCP is integrated as a Pi extension, not as a parallel OpenWaggle tool runtime. Settings > MCP manages the `npm:pi-mcp-adapter@2.5.4` package source, reads standard/Pi/OpenWaggle project MCP config files, and passes Pi a generated effective config for the active project. Session creation binds Pi extension hooks under that generated MCP context so adapter tools and commands initialize from the active project.
+MCP is integrated as a Pi extension, not as a parallel OpenWaggle tool runtime. Settings > MCP manages OpenWaggle's bundled `pi-mcp-adapter@2.5.4` through the local `extensions/pi-mcp-adapter` package source, reads standard/Pi/OpenWaggle project MCP config files, and passes Pi a generated effective config for the active project. Session creation binds Pi extension hooks under that generated MCP context so adapter tools and commands initialize from the active project.
 
 ## Persistence
 

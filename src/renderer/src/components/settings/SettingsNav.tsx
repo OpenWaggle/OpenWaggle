@@ -23,7 +23,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { id: 'general', label: 'General', icon: Settings2, enabled: true },
-  { id: 'configuration', label: 'Configuration', icon: Sliders, enabled: false },
+  { id: 'configuration', label: 'Configuration', icon: Sliders, enabled: true },
   { id: 'waggle', label: 'Waggle Mode', icon: Waypoints, enabled: true },
   { id: 'mcp', label: 'MCP', icon: Network, enabled: true },
   { id: 'personalization', label: 'Personalization', icon: Palette, enabled: false },

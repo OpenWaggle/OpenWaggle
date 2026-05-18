@@ -341,7 +341,7 @@ function AgentSlotCard({
   return (
     <div className={cn('rounded-lg border bg-[#111418] p-5 space-y-4', AGENT_BORDER[agent.color])}>
       <div className="flex items-center gap-2">
-        <div className={cn('h-2.5 w-2.5 rounded-full', AGENT_BG[agent.color])} />
+        <div className={cn('size-2.5 rounded-full', AGENT_BG[agent.color])} />
         <h3 className="text-sm font-medium text-text-secondary">Agent {dotLabel}</h3>
       </div>
 
@@ -392,7 +392,7 @@ function AgentSlotCard({
               type="button"
               onClick={() => dispatchForm({ type: 'set-agent-color', index, color: c })}
               className={cn(
-                'h-6 w-6 rounded-full transition-all',
+                'size-6 rounded-full transition-all',
                 AGENT_BG[c],
                 agent.color === c
                   ? 'ring-2 ring-white/40 ring-offset-1 ring-offset-[#111418]'

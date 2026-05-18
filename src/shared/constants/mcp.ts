@@ -1,9 +1,7 @@
-export const MCP_ADAPTER_PACKAGE_SOURCE = 'npm:pi-mcp-adapter@2.5.4'
-export const MCP_ADAPTER_LEGACY_PACKAGE_SOURCES = ['npm:pi-mcp-adapter'] as const
-export const MCP_ADAPTER_PACKAGE_SOURCES = [
-  MCP_ADAPTER_PACKAGE_SOURCE,
-  ...MCP_ADAPTER_LEGACY_PACKAGE_SOURCES,
-] as const
+export const MCP_ADAPTER_PACKAGE_NAME = 'pi-mcp-adapter'
+export const MCP_ADAPTER_PACKAGE_VERSION = '2.5.4'
+export const MCP_ADAPTER_PACKAGE_SOURCE = `extensions/${MCP_ADAPTER_PACKAGE_NAME}`
+export const MCP_ADAPTER_PACKAGE_SOURCES = [MCP_ADAPTER_PACKAGE_SOURCE] as const
 
 export const MCP_CONFIG = {
   JSON_INDENT_SPACES: 2,

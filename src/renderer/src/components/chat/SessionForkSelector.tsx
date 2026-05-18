@@ -32,8 +32,8 @@ export function SessionForkSelector({
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4">
       <section className="w-full max-w-[520px] rounded-xl border border-border-light bg-bg-secondary p-4 shadow-2xl">
         <div className="flex items-start gap-3">
-          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
-            <GitBranch className="h-4 w-4" />
+          <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
+            <GitBranch className="size-4" />
           </span>
           <div className="min-w-0 flex-1">
             <h3 className="text-sm font-semibold text-text-primary">Fork to new session</h3>

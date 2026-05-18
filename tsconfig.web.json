@@ -12,6 +12,7 @@
     "outDir": "./out",
     "rootDir": ".",
     "paths": {
+      "*": ["./*"],
       "@/*": ["./src/renderer/src/*"],
       "@shared/*": ["./src/shared/*"]
     }

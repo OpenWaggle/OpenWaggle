@@ -4,7 +4,7 @@ import {
   ProviderOAuthService,
   type ProviderOAuthServiceShape,
 } from '../../ports/provider-oauth-service'
-import { createPiRuntimeAuthStorage, reloadPiProviderCatalog } from './pi-provider-catalog'
+import { createPiRuntimeAuthStorage } from './pi-provider-catalog'
 
 function getOAuthProvider(providerId: string) {
   return createPiRuntimeAuthStorage()
@@ -43,7 +43,6 @@ export const PiProviderOAuthLive = Layer.succeed(
             onManualCodeInput: handlers.onManualCodeInput,
             signal: handlers.signal,
           })
-          reloadPiProviderCatalog()
         },
         catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
       }),
@@ -51,7 +50,6 @@ export const PiProviderOAuthLive = Layer.succeed(
     logout: (provider) =>
       Effect.sync(() => {
         createPiRuntimeAuthStorage().logout(provider)
-        reloadPiProviderCatalog()
       }),
 
     isConnected: (provider) =>

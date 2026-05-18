@@ -1,17 +1,14 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import {
-  MCP_ADAPTER_LEGACY_PACKAGE_SOURCES,
-  MCP_ADAPTER_PACKAGE_SOURCE,
-  MCP_CONFIG,
-} from '@shared/constants/mcp'
+import { MCP_ADAPTER_PACKAGE_SOURCE, MCP_CONFIG } from '@shared/constants/mcp'
 import { decodeUnknownOrThrow } from '@shared/schema'
 import { mcpConfigFileSchema, piAgentSettingsFileSchema } from '@shared/schemas/mcp'
 import type { McpConfigFile, PiAgentSettingsFile } from '@shared/types/mcp'
 import { describe, expect, it } from 'vitest'
 import {
   createPiMcpConfigServiceForTests,
+  resolveCopyableBundledMcpAdapterPackageDir,
   withOpenWaggleMcpAdapterProcessContext,
 } from '../pi-mcp-config-service'
 
@@ -69,6 +66,38 @@ async function withFixture<T>(fn: (fixture: McpFixture) => Promise<T>) {
 }
 
 describe('Pi MCP config service', () => {
+  it('resolves packaged asar adapter paths to the unpacked copyable directory', () => {
+    const packagedPath = path.join(
+      path.sep,
+      'Applications',
+      'OpenWaggle.app',
+      'Contents',
+      'Resources',
+      'app.asar',
+      'node_modules',
+      'pi-mcp-adapter',
+    )
+
+    expect(resolveCopyableBundledMcpAdapterPackageDir(packagedPath)).toBe(
+      path.join(
+        path.sep,
+        'Applications',
+        'OpenWaggle.app',
+        'Contents',
+        'Resources',
+        'app.asar.unpacked',
+        'node_modules',
+        'pi-mcp-adapter',
+      ),
+    )
+  })
+
+  it('keeps development adapter package paths unchanged', () => {
+    const packagePath = path.join(path.sep, 'repo', 'node_modules', 'pi-mcp-adapter')
+
+    expect(resolveCopyableBundledMcpAdapterPackageDir(packagePath)).toBe(packagePath)
+  })
+
   it('merges all MCP config sources into an effective config with OpenWaggle project precedence', () =>
     withFixture(async ({ home, agentDir, project }) => {
       const service = createPiMcpConfigServiceForTests({ homeDir: home, agentDir })
@@ -183,22 +212,6 @@ describe('Pi MCP config service', () => {
       })
     }))
 
-  it('normalizes legacy unpinned adapter package sources to the configured package', () =>
-    withFixture(async ({ home, agentDir, project }) => {
-      const service = createPiMcpConfigServiceForTests({ homeDir: home, agentDir })
-
-      await writeJson(path.join(agentDir, 'settings.json'), {
-        packages: ['npm:other-package@1.0.0', MCP_ADAPTER_LEGACY_PACKAGE_SOURCES[0]],
-      })
-
-      const enabled = await service.setAdapterEnabled(true, project)
-      expect(enabled.adapter.enabled).toBe(true)
-      expect((await readPiSettings(path.join(agentDir, 'settings.json'))).packages).toEqual([
-        'npm:other-package@1.0.0',
-        MCP_ADAPTER_PACKAGE_SOURCE,
-      ])
-    }))
-
   it('does not enable the adapter package source when installation fails', () =>
     withFixture(async ({ home, agentDir, project }) => {
       const service = createPiMcpConfigServiceForTests({
@@ -221,11 +234,21 @@ describe('Pi MCP config service', () => {
 
   it('prepares an adapter runtime context and scopes adapter process discovery while loading', () =>
     withFixture(async ({ home, agentDir, project }) => {
-      const service = createPiMcpConfigServiceForTests({ homeDir: home, agentDir })
+      const installs: string[] = []
+      const service = createPiMcpConfigServiceForTests({
+        homeDir: home,
+        agentDir,
+        installAdapterPackage: async (source) => {
+          installs.push(source)
+        },
+      })
       await writeJson(path.join(project, '.openwaggle', 'agent', 'mcp.json'), {
         mcpServers: {
           projectServer: { command: 'project-server' },
         },
+      })
+      await writeJson(path.join(agentDir, 'settings.json'), {
+        packages: [MCP_ADAPTER_PACKAGE_SOURCE],
       })
 
       const context = await service.prepareRuntimeContext(project)
@@ -233,6 +256,7 @@ describe('Pi MCP config service', () => {
         throw new Error('Expected MCP runtime context')
       }
 
+      expect(installs).toEqual([MCP_ADAPTER_PACKAGE_SOURCE])
       expect(context.configPath).toMatch(
         new RegExp(`^${escapeRegExp(path.join(agentDir, 'openwaggle-mcp'))}`),
       )
@@ -260,6 +284,10 @@ describe('Pi MCP config service', () => {
   it('serializes null-context operations against scoped MCP process globals', () =>
     withFixture(async ({ home, agentDir, project }) => {
       const service = createPiMcpConfigServiceForTests({ homeDir: home, agentDir })
+      await writeJson(path.join(agentDir, 'settings.json'), {
+        packages: [MCP_ADAPTER_PACKAGE_SOURCE],
+      })
+
       const context = await service.prepareRuntimeContext(project)
       if (!context) {
         throw new Error('Expected MCP runtime context')

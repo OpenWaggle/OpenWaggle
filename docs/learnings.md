@@ -2,7 +2,7 @@
 name: project-learnings
 description: Technical learnings log for OpenWaggle. Stores warnings, pattern preferences, and historical engineering learnings; workflow policy lives in AGENTS.md and CLAUDE.md.
 owner: openwaggle-core
-last_updated: 2026-05-14
+last_updated: 2026-05-18
 ---
 
 # LEARNINGS.md
@@ -52,7 +52,9 @@ This document stores project-specific technical learnings only.
 - Pi exposes OAuth-capable providers through `AuthStorage.getOAuthProviders()`, but does not expose an equivalent API-key-capable provider list. Until the SDK adds one, keep any API-key capability mirror confined to the Pi adapter and treat provider-level availability, API-key configuration, and OAuth connection as separate state. [SKILL?]
 - OpenWaggle project config is `.openwaggle/settings.json`. Top-level keys are OpenWaggle-owned, and Pi settings live under `pi`; the Pi adapter bridges that nested object into Pi with `SettingsManager.fromStorage(...)` while still allowing Pi's native `.pi/settings.json` input at lower precedence. [SKILL?]
 - Embedded Pi extension packages can assume CLI-style startup state: `pi-mcp-adapter` reads `--mcp-config` and `process.cwd()` during extension load before Pi applies runtime flags, then initializes MCP state in `session_start`. Electron-hosted Pi runs need adapter-boundary scoping for argv/cwd during resource loading and extension binding, plus `session_shutdown` on disposal, so package extensions do not read the app process cwd or leak MCP server processes. [SKILL?]
-- Provider metadata/probe services should opt out of MCP adapter package loading, not only skip the generated MCP runtime context. Filter the MCP package source from the transient Pi settings view for metadata/auth probes so Settings and provider tests cannot fail because an optional tool-extension config is invalid, without mutating the user's global Pi settings. [SKILL?]
+- Provider metadata/probe services should opt out of MCP adapter loading, not only skip the generated MCP runtime context. Filter MCP package sources and matching extension auto-discovery patterns from transient global and project Pi settings views for metadata/auth probes so Settings and provider tests cannot fail because an optional tool-extension config is invalid, without mutating user Pi settings. [SKILL?]
+- OpenWaggle-owned Pi extension packages should be bundled with the app, copied into the user's Pi agent directory, and enabled through local package sources such as `extensions/pi-mcp-adapter`. Leaving core app support as `npm:` Pi package settings can reintroduce runtime network/global-npm failures even when provider catalog probes filter the package out. [SKILL?]
+- Packaged Electron apps cannot directory-copy runtime dependencies directly from `app.asar`. OpenWaggle-owned Pi extension packages that are copied into the user's Pi agent directory must be `asarUnpack`ed and resolve `app.asar` package paths to `app.asar.unpacked` before `fs.cp`. [SKILL?]
 - Renderer model preference pruning must only run against an authoritative non-empty Pi provider catalog. Treat an empty catalog response as unavailable/transient so Settings cannot clear `selectedModel`/`enabledModels` and leave first-message sends without a usable model. [SKILL?]
 - Current Pi SDK types tool result payloads as JSON values, not strings. Preserve structured tool results in OpenWaggle persistence/UI state and serialize to text only when rebuilding Pi history entries that require text content. [SKILL?]
 - Thinking levels are Pi-native run options. Store/pass Pi levels (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`) directly. [SKILL?]
