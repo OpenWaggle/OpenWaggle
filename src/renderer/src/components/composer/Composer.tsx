@@ -82,12 +82,12 @@ function ComposerDropOverlay({ isAtCapacity }: ComposerDropOverlayProps) {
       >
         {isAtCapacity ? (
           <>
-            <Ban className="h-4 w-4 text-red-400" />
+            <Ban className="size-4 text-red-400" />
             <span className="text-[13px] font-medium text-red-400">Maximum files attached</span>
           </>
         ) : (
           <>
-            <ArrowDownToLine className="h-4 w-4 text-accent" />
+            <ArrowDownToLine className="size-4 text-accent" />
             <span className="text-[13px] font-medium text-accent">Drop files to attach</span>
           </>
         )}

@@ -127,7 +127,7 @@ function WagglePresetsPanel({
             onClick={() => void onSaveEdits()}
             className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-accent/30 bg-accent/5 p-2.5 text-[12px] font-medium text-accent hover:bg-accent/10 transition-colors"
           >
-            <Save className="h-3 w-3" />
+            <Save className="size-3" />
             Save Changes
           </button>
         )}
@@ -137,7 +137,7 @@ function WagglePresetsPanel({
           onClick={() => void onNewCustom()}
           className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-dashed border-border p-2.5 text-[12px] font-medium text-text-muted hover:border-border-light hover:text-text-secondary transition-colors"
         >
-          <Plus className="h-3 w-3" />
+          <Plus className="size-3" />
           New Custom Preset
         </button>
       </div>
@@ -193,14 +193,10 @@ function WagglePresetCard({
           </div>
           <p className="text-[12px] text-text-tertiary line-clamp-2">{preset.description}</p>
           <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-text-muted">
-            <div
-              className={cn('h-1.5 w-1.5 rounded-full', AGENT_BG[preset.config.agents[0].color])}
-            />
+            <div className={cn('size-1.5 rounded-full', AGENT_BG[preset.config.agents[0].color])} />
             <span className="truncate">{generateDisplayName(preset.config.agents[0].model)}</span>
             <span className="text-text-tertiary">vs</span>
-            <div
-              className={cn('h-1.5 w-1.5 rounded-full', AGENT_BG[preset.config.agents[1].color])}
-            />
+            <div className={cn('size-1.5 rounded-full', AGENT_BG[preset.config.agents[1].color])} />
             <span className="truncate">{generateDisplayName(preset.config.agents[1].model)}</span>
           </div>
         </div>
@@ -219,7 +215,7 @@ function WagglePresetCard({
             }}
             className="p-1 rounded text-text-muted hover:text-error transition-colors cursor-pointer"
           >
-            <Trash2 className="h-3 w-3" />
+            <Trash2 className="size-3" />
           </span>
         )}
       </div>
@@ -339,7 +335,7 @@ function AgentSlotCard({
   return (
     <div className={cn('rounded-lg border bg-[#111418] p-5 space-y-4', AGENT_BORDER[agent.color])}>
       <div className="flex items-center gap-2">
-        <div className={cn('h-2.5 w-2.5 rounded-full', AGENT_BG[agent.color])} />
+        <div className={cn('size-2.5 rounded-full', AGENT_BG[agent.color])} />
         <h3 className="text-sm font-medium text-text-secondary">Agent {dotLabel}</h3>
       </div>
 
@@ -392,7 +388,7 @@ function AgentSlotCard({
               type="button"
               onClick={() => dispatchForm({ type: 'set-agent-color', index, color: c })}
               className={cn(
-                'h-6 w-6 rounded-full transition-all',
+                'size-6 rounded-full transition-all',
                 AGENT_BG[c],
                 agent.color === c
                   ? 'ring-2 ring-white/40 ring-offset-1 ring-offset-[#111418]'

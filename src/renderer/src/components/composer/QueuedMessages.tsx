@@ -31,11 +31,11 @@ export function QueuedMessages({
     <div className="mx-auto flex w-[calc(100%-28px)] flex-col gap-1.5 rounded-t-[var(--radius-panel)] border-x border-t border-border-light bg-bg-secondary p-[8px_10px_6px_10px] opacity-60">
       {/* Header */}
       <div className="flex items-center gap-1.5 px-1">
-        <Timer className="h-3 w-3 text-text-tertiary" />
+        <Timer className="size-3 text-text-tertiary" />
         <span className="text-[11px] font-semibold text-text-tertiary">
           {isCompacting ? 'Queued until compaction finishes' : 'Queued'}
         </span>
-        <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-text-tertiary/12 text-[10px] font-semibold text-text-tertiary">
+        <span className="flex size-[18px] items-center justify-center rounded-full bg-text-tertiary/12 text-[10px] font-semibold text-text-tertiary">
           {queue.length}
         </span>
       </div>
@@ -54,7 +54,7 @@ export function QueuedMessages({
                   onClick={() => void onSteer(item.id)}
                   className="flex items-center gap-1 rounded-[5px] bg-accent/8 px-2 py-1"
                 >
-                  <ArrowUp className="h-[11px] w-[11px] text-accent" />
+                  <ArrowUp className="size-[11px] text-accent" />
                   <span className="text-[10px] font-semibold text-accent">Steer</span>
                 </button>
               )}
@@ -64,7 +64,7 @@ export function QueuedMessages({
                 className="rounded-[5px] p-[4px_5px]"
                 title="Dismiss"
               >
-                <Trash2 className="h-[11px] w-[11px] text-text-muted hover:text-text-primary" />
+                <Trash2 className="size-[11px] text-text-muted hover:text-text-primary" />
               </button>
             </div>
           </div>

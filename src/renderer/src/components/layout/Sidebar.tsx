@@ -61,7 +61,7 @@ interface DraftBranchRowProps {
 function DraftBranchRow({ sourceNodeId }: DraftBranchRowProps) {
   return (
     <div className="mx-2 flex h-7 w-[calc(100%-16px)] items-center gap-2 rounded-md border border-dashed border-border pl-11 pr-3 text-left text-text-tertiary">
-      <GitBranch className="h-3 w-3 shrink-0" />
+      <GitBranch className="size-3 shrink-0" />
       <span className="min-w-0 flex-1 truncate text-[12px]">Draft branch from {sourceNodeId}</span>
     </div>
   )
@@ -139,11 +139,11 @@ function BranchRows({
           >
             {row.branch.interruptedRun ? (
               <AlertTriangle
-                className="h-3 w-3 shrink-0 text-amber-400"
+                className="size-3 shrink-0 text-amber-400"
                 aria-label="Interrupted run"
               />
             ) : (
-              <GitBranch className="h-3 w-3 shrink-0" />
+              <GitBranch className="size-3 shrink-0" />
             )}
             {isRenaming ? (
               <input
@@ -187,9 +187,9 @@ function BranchRows({
                       event.stopPropagation()
                       toggle()
                     }}
-                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-text-tertiary opacity-0 transition-colors hover:bg-bg-hover hover:text-text-secondary group-hover:opacity-100 focus:opacity-100"
+                    className="flex size-5 shrink-0 items-center justify-center rounded text-text-tertiary opacity-0 transition-colors hover:bg-bg-hover hover:text-text-secondary group-hover:opacity-100 focus:opacity-100"
                   >
-                    <MoreHorizontal className="h-3.5 w-3.5" />
+                    <MoreHorizontal className="size-3.5" />
                   </button>
                 )}
               >
@@ -199,7 +199,7 @@ function BranchRows({
                     onClick={() => startRename(row.branch)}
                     className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
                   >
-                    <Edit3 className="h-3 w-3 shrink-0" />
+                    <Edit3 className="size-3 shrink-0" />
                     <span>Rename</span>
                   </button>
                 ) : null}
@@ -211,7 +211,7 @@ function BranchRows({
                   }}
                   className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
                 >
-                  <Archive className="h-3 w-3 shrink-0" />
+                  <Archive className="size-3 shrink-0" />
                   <span>{row.branch.isMain ? 'Archive session' : 'Archive'}</span>
                 </button>
               </Popover>
@@ -273,7 +273,7 @@ function ProjectGroupSection({
         )}
         title={group.projectPath}
       >
-        <Folder className="h-3.5 w-3.5 shrink-0" />
+        <Folder className="size-3.5 shrink-0" />
         <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
           {displayProjectName(group.projectPath)}
         </span>
@@ -386,7 +386,7 @@ function SidebarPrimaryActions({
         onClick={onNewSession}
         className="no-drag flex h-[34px] w-full items-center gap-2 px-3 text-left transition-colors hover:bg-bg-hover"
       >
-        <Edit3 className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
+        <Edit3 className="size-3.5 shrink-0 text-text-tertiary" />
         <span className="text-[14px] text-text-secondary">New session</span>
       </button>
 
@@ -402,7 +402,7 @@ function SidebarPrimaryActions({
         )}
         title="Open skills"
       >
-        <Sparkles className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
+        <Sparkles className="size-3.5 shrink-0 text-text-tertiary" />
         <span className="text-[14px]">Skills</span>
       </button>
     </div>
@@ -435,7 +435,7 @@ function SidebarProjectsHeader({
           className="rounded p-0.5 text-text-tertiary transition-colors hover:text-text-secondary"
           title="Open project folder"
         >
-          <FolderPlus className="h-[13px] w-[13px]" />
+          <FolderPlus className="size-[13px]" />
         </button>
         <Popover
           open={sortMenuOpen}
@@ -453,7 +453,7 @@ function SidebarProjectsHeader({
               )}
               title="Sort sessions"
             >
-              <LayoutList className="h-3 w-3" />
+              <LayoutList className="size-3" />
             </button>
           }
         >
@@ -470,9 +470,9 @@ function SidebarProjectsHeader({
                 sortMode === opt.value ? 'text-accent' : 'text-text-secondary',
               )}
             >
-              <opt.icon className="h-3 w-3 shrink-0" />
+              <opt.icon className="size-3 shrink-0" />
               <span className="flex-1">{opt.label}</span>
-              {sortMode === opt.value ? <Check className="h-3 w-3 shrink-0" /> : null}
+              {sortMode === opt.value ? <Check className="size-3 shrink-0" /> : null}
             </button>
           ))}
         </Popover>
@@ -521,7 +521,7 @@ function SidebarProjectList({
   if (sessionGroups.projects.length === 0) {
     return (
       <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
-        <Folder className="h-5 w-5 text-text-muted/75" />
+        <Folder className="size-5 text-text-muted/75" />
         <p className="text-[13px] text-text-muted">No projects yet</p>
       </div>
     )
@@ -566,7 +566,7 @@ function SidebarSettingsButton({ onOpenSettings }: SidebarSettingsButtonProps) {
         onClick={onOpenSettings}
         className="flex h-9 w-full items-center gap-2.5 px-4 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
       >
-        <Settings className="h-3.5 w-3.5" />
+        <Settings className="size-3.5" />
         <span className="text-[14px] text-text-secondary">Settings</span>
       </button>
     </div>

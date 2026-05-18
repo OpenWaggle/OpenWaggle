@@ -100,7 +100,7 @@ export function AssistantMessageBubble({
           onClick={() => onBranchFromMessage(message.id)}
           className="absolute right-0 top-0 opacity-0 group-hover/assistant-msg:opacity-100 transition-opacity text-text-muted hover:text-text-secondary"
         >
-          <GitBranch className="h-3.5 w-3.5" />
+          <GitBranch className="size-3.5" />
         </button>
       ) : null}
       <div className="flex flex-col gap-2">
@@ -114,7 +114,7 @@ export function AssistantMessageBubble({
                 onClick={() => onBranchFromMessage(message.id)}
                 className="ml-auto opacity-0 group-hover/assistant-msg:opacity-100 transition-opacity text-text-muted hover:text-text-secondary"
               >
-                <GitBranch className="h-3.5 w-3.5" />
+                <GitBranch className="size-3.5" />
               </button>
             ) : null}
           </div>

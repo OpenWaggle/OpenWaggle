@@ -63,7 +63,7 @@ function ArchivedGroup({ group, onRestore, onDelete }: ArchivedGroupProps) {
         onClick={() => setCollapsed((p) => !p)}
         className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-bg-hover"
       >
-        <Chevron className="h-3 w-3 shrink-0 text-text-muted" />
+        <Chevron className="size-3 shrink-0 text-text-muted" />
         <span className="text-[13px] font-medium text-text-secondary">
           {group.path ? projectName(group.path) : 'No project'}
         </span>
@@ -95,7 +95,7 @@ function ArchivedGroup({ group, onRestore, onDelete }: ArchivedGroupProps) {
                   className="shrink-0 rounded-md px-2 py-1 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
                   title="Restore session"
                 >
-                  <RotateCcw className="h-3.5 w-3.5" />
+                  <RotateCcw className="size-3.5" />
                 </button>
                 <button
                   type="button"
@@ -103,7 +103,7 @@ function ArchivedGroup({ group, onRestore, onDelete }: ArchivedGroupProps) {
                   className="shrink-0 rounded-md px-2 py-1 text-[12px] text-text-muted transition-colors hover:bg-bg-hover hover:text-error"
                   title="Delete permanently"
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  <Trash2 className="size-3.5" />
                 </button>
               </div>
             ))}
@@ -131,7 +131,7 @@ function ArchivedBranchGroup({ group, onRestoreBranch }: ArchivedBranchGroupProp
         onClick={() => setCollapsed((p) => !p)}
         className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-bg-hover"
       >
-        <Chevron className="h-3 w-3 shrink-0 text-text-muted" />
+        <Chevron className="size-3 shrink-0 text-text-muted" />
         <span className="text-[13px] font-medium text-text-secondary">
           {group.path ? projectName(group.path) : 'No project'}
         </span>
@@ -170,7 +170,7 @@ function ArchivedBranchGroup({ group, onRestoreBranch }: ArchivedBranchGroupProp
                         className="shrink-0 rounded-md px-2 py-1 text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
                         title="Restore branch"
                       >
-                        <RotateCcw className="h-3.5 w-3.5" />
+                        <RotateCcw className="size-3.5" />
                       </button>
                     </div>
                   ))}
@@ -245,7 +245,7 @@ export function ArchivedSection() {
   if (archivedQuery.isPending || archivedBranchesQuery.isPending) {
     return (
       <div className="flex items-center justify-center py-20 text-text-muted text-[13px]">
-        Loading archived sessions...
+        Loading archived sessions…
       </div>
     )
   }
@@ -274,7 +274,7 @@ export function ArchivedSection() {
   if (archived.length === 0 && archivedBranchSessions.length === 0) {
     return (
       <div className="flex flex-col items-center gap-3 py-20 text-center">
-        <Archive className="h-6 w-6 text-text-muted/60" />
+        <Archive className="size-6 text-text-muted/60" />
         <p className="text-[13px] text-text-muted">No archived sessions or branches</p>
       </div>
     )

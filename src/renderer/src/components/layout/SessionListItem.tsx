@@ -87,9 +87,9 @@ function BranchDisclosureButton({
         event.stopPropagation()
         onToggle?.()
       }}
-      className="mr-1 flex h-4 w-4 shrink-0 items-center justify-center rounded text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
+      className="mr-1 flex size-4 shrink-0 items-center justify-center rounded text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
     >
-      <DisclosureIcon className="h-3 w-3" />
+      <DisclosureIcon className="size-3" />
     </button>
   )
 }
@@ -106,16 +106,16 @@ function SessionStatusMarkers({
   return (
     <>
       {pill && StatusIcon ? (
-        <span className="mr-2 flex h-3.5 w-3.5 shrink-0 items-center justify-center">
-          <StatusIcon className={cn('h-3.5 w-3.5', pill.colorClass, pill.animateClass)} />
+        <span className="mr-2 flex size-3.5 shrink-0 items-center justify-center">
+          <StatusIcon className={cn('size-3.5', pill.colorClass, pill.animateClass)} />
         </span>
       ) : null}
       {hasInterruptedRun ? (
         <span
-          className="mr-2 flex h-3.5 w-3.5 shrink-0 items-center justify-center text-amber-400"
+          className="mr-2 flex size-3.5 shrink-0 items-center justify-center text-amber-400"
           title="A run was interrupted in this session"
         >
-          <AlertTriangle className="h-3.5 w-3.5" />
+          <AlertTriangle className="size-3.5" />
         </span>
       ) : null}
     </>
@@ -162,7 +162,7 @@ function SessionItemContextMenu({
         onClick={() => closeAfter(() => onMarkUnread(sessionId))}
         className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
       >
-        <Eye className="h-3 w-3 shrink-0" />
+        <Eye className="size-3 shrink-0" />
         <span>Mark as unread</span>
       </button>
       <button
@@ -170,7 +170,7 @@ function SessionItemContextMenu({
         onClick={() => closeAfter(() => onClone(sessionId))}
         className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
       >
-        <Copy className="h-3 w-3 shrink-0" />
+        <Copy className="size-3 shrink-0" />
         <span>Clone to new session</span>
       </button>
       <button
@@ -178,7 +178,7 @@ function SessionItemContextMenu({
         onClick={() => closeAfter(() => onArchive(sessionId))}
         className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover"
       >
-        <Archive className="h-3 w-3 shrink-0" />
+        <Archive className="size-3 shrink-0" />
         <span>Archive session</span>
       </button>
       <button
@@ -186,7 +186,7 @@ function SessionItemContextMenu({
         onClick={confirmDelete}
         className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-error"
       >
-        <Trash2 className="h-3 w-3 shrink-0" />
+        <Trash2 className="size-3 shrink-0" />
         <span>Delete session</span>
       </button>
     </ContextMenu>
@@ -286,11 +286,11 @@ export function SessionListItem({
           aria-label={`Open session actions for ${session.title}`}
           onClick={handleActionsClick}
           className={cn(
-            'peer absolute inset-y-0 right-0 z-10 flex h-5 w-5 items-center justify-center rounded text-text-tertiary opacity-0 transition-[background-color,color,opacity] hover:bg-bg-hover hover:text-text-secondary group-hover:opacity-100 focus:opacity-100',
+            'peer absolute inset-y-0 right-0 z-10 flex size-5 items-center justify-center rounded text-text-tertiary opacity-0 transition-[background-color,color,opacity] hover:bg-bg-hover hover:text-text-secondary group-hover:opacity-100 focus:opacity-100',
             menuOpen ? 'opacity-100' : null,
           )}
         >
-          <MoreHorizontal className="h-3.5 w-3.5" />
+          <MoreHorizontal className="size-3.5" />
         </button>
         <span
           className={cn(

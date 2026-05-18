@@ -66,11 +66,11 @@ function HeaderLeft({
           className="no-drag rounded-md p-1.5 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
           title="Show sidebar"
         >
-          <PanelLeft className="h-4 w-4" />
+          <PanelLeft className="size-4" />
         </button>
       )}
 
-      <Hash className="no-drag h-3.5 w-3.5 text-text-tertiary" />
+      <Hash className="no-drag size-3.5 text-text-tertiary" />
       <span className="no-drag text-[14px] font-medium text-text-primary">{title}</span>
       <span className="no-drag text-[12px] text-text-tertiary">/ {activeBranchName}</span>
       <span className="no-drag flex items-center h-5 px-2 rounded border border-border bg-bg-tertiary text-[12px] text-text-secondary">
@@ -104,7 +104,7 @@ function TerminalButton({ open, projectPath, onToggle }: TerminalButtonProps) {
       disabled={!projectPath}
       title={terminalTitle(projectPath, open)}
     >
-      <SquareTerminal className="h-3.5 w-3.5 text-text-secondary" />
+      <SquareTerminal className="size-3.5 text-text-secondary" />
       <span className="text-[13px] font-medium text-text-primary">{open ? 'Hide' : 'Open'}</span>
       <span className="text-[9px] text-text-tertiary">&#x2228;</span>
     </button>
@@ -143,7 +143,7 @@ function FeedbackButton({ onOpen }: { readonly onOpen: () => void }) {
       className="no-drag flex items-center gap-1 h-7 px-2 rounded-[5px] border border-button-border transition-colors hover:bg-bg-hover"
       title="Report a bug"
     >
-      <Bug className="h-3.5 w-3.5 text-text-secondary" />
+      <Bug className="size-3.5 text-text-secondary" />
     </button>
   )
 }
@@ -170,7 +170,7 @@ function SessionTreeButton({
       )}
       title={hasSessionTree ? 'Toggle Session Tree' : 'No session tree available'}
     >
-      <ListTree className="h-3.5 w-3.5 text-text-secondary" />
+      <ListTree className="size-3.5 text-text-secondary" />
     </button>
   )
 }

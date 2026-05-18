@@ -24,7 +24,7 @@ export function InterruptedRunNotice({
   return (
     <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-text-secondary">
       <div className="flex items-start gap-3">
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+        <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-400" />
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -38,10 +38,10 @@ export function InterruptedRunNotice({
               <button
                 type="button"
                 onClick={() => onDismiss(runId, branchId)}
-                className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
+                className="flex size-6 shrink-0 items-center justify-center rounded text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
                 aria-label="Dismiss interrupted run notice"
               >
-                <X className="h-3.5 w-3.5" />
+                <X className="size-3.5" />
               </button>
             ) : null}
           </div>
