@@ -1,6 +1,6 @@
 # Coding Standards
 
-Universal standards applied during code review. Project-specific conventions should be read from `CLAUDE.md` or equivalent project instructions before reviewing.
+Universal standards applied during code review. Project-specific conventions should be read from `AGENTS.md`, `MEMORY.md`, and `.agents/standards.md` before reviewing.
 
 ## Baseline expectations
 

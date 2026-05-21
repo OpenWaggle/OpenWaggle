@@ -87,7 +87,7 @@ The project uses `react-doctor.config.json` at the repo root:
 ```json
 {
   "ignore": {
-    "files": [".Codex/worktrees/**", ".codex/worktrees/**"],
+    "files": [".codex/worktrees/**"],
     "rules": []
   }
 }
