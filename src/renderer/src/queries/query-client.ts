@@ -2,7 +2,7 @@ import { QueryClient } from '@tanstack/react-query'
 
 const DEFAULT_STALE_TIME_MS = 30_000
 
-function buildQueryClient(): QueryClient {
+function buildQueryClient() {
   return new QueryClient({
     defaultOptions: {
       queries: {

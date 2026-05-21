@@ -1,7 +1,8 @@
-import { createRootRoute, Outlet } from '@tanstack/react-router'
-import { WorkspaceShell } from '@/components/app/workspace/WorkspaceShell'
+import { createRootRouteWithContext, Outlet } from '@tanstack/react-router'
+import type { OpenWaggleRouterContext } from '@/router-context'
+import { WorkspaceShell } from '@/shell'
 
-export const Route = createRootRoute({
+export const Route = createRootRouteWithContext<OpenWaggleRouterContext>()({
   component: RootRouteView,
 })
 

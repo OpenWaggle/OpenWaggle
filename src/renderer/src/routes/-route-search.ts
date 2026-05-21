@@ -1,5 +1,5 @@
 import { isMatching, P } from '@diegogbrisa/ts-match'
-import type { SettingsTab } from '@/stores/ui-store'
+import type { SettingsTab } from '@/shell'
 
 export type ChatRightPanel = 'diff' | 'session-tree'
 
@@ -12,21 +12,17 @@ export interface ChatRouteSearch {
 
 const SETTINGS_TABS: readonly SettingsTab[] = [
   'general',
-  'configuration',
   'waggle',
-  'personalization',
-  'git',
-  'environments',
-  'worktrees',
+  'mcp',
   'archived',
   'connections',
 ]
 
-function parseSearchString(value: unknown): string | undefined {
+function parseSearchString(value: unknown) {
   return typeof value === 'string' && value.trim().length > 0 ? value : undefined
 }
 
-function parseRightPanel(value: unknown): ChatRightPanel | undefined {
+function parseRightPanel(value: unknown) {
   return isMatching(P.union('diff', 'session-tree'), value) ? value : undefined
 }
 

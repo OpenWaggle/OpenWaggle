@@ -1,0 +1,64 @@
+import type { SessionId } from '@shared/types/brand'
+import { useEffect } from 'react'
+import { useWaggleStore } from '@/features/waggle/state/waggle-store'
+import { api } from '@/shared/lib/ipc'
+
+/**
+ * Subscribe to Waggle IPC events and route them to the collaboration store.
+ * Tracks both turn events (status changes) and stream chunks (live message metadata).
+ */
+export function useWaggleChat(sessionId: SessionId | null): void {
+  const handleTurnEvent = useWaggleStore((s) => s.handleTurnEvent)
+  const trackMessageMetadata = useWaggleStore((s) => s.trackMessageMetadata)
+  const activeCollaborationId = useWaggleStore((s) => s.activeCollaborationId)
+
+  // Match events against the active collaboration, not just the viewed session.
+  // This prevents dropping events (including collaboration-complete) when the user
+  // switches to a different session while waggle is running.
+  const targetSessionId = activeCollaborationId ?? sessionId
+
+  useEffect(() => {
+    const unsubTurn = api.onWaggleTurnEvent((payload) => {
+      if (targetSessionId && payload.sessionId === targetSessionId) {
+        handleTurnEvent(payload.event)
+      }
+    })
+
+    // Track live message -> agent metadata from Waggle transport events.
+    // When an assistant message_start arrives, we map the messageId to the agent metadata
+    // so ChatPanel can show agent labels during streaming (before persistence).
+    const unsubEvent = api.onWaggleEvent((payload) => {
+      if (targetSessionId && payload.sessionId === targetSessionId) {
+        if (payload.event.type === 'message_start' && payload.event.role === 'assistant') {
+          trackMessageMetadata(payload.event.messageId, {
+            agentIndex: payload.meta.agentIndex,
+            agentLabel: payload.meta.agentLabel,
+            agentColor: payload.meta.agentColor,
+            agentModel: payload.meta.agentModel,
+            turnNumber: payload.meta.turnNumber,
+            sessionId: payload.meta.sessionId,
+          })
+        }
+      }
+    })
+
+    // Safety net: if the collaboration-complete turn event was missed,
+    // onRunCompleted still transitions the store to 'completed'.
+    const unsubRunCompleted = api.onRunCompleted((payload) => {
+      const state = useWaggleStore.getState()
+      if (state.activeCollaborationId === payload.sessionId && state.status === 'running') {
+        state.handleTurnEvent({
+          type: 'collaboration-complete',
+          reason: state.completionReason ?? 'Run completed',
+          totalTurns: 0,
+        })
+      }
+    })
+
+    return () => {
+      unsubTurn()
+      unsubEvent()
+      unsubRunCompleted()
+    }
+  }, [targetSessionId, handleTurnEvent, trackMessageMetadata])
+}

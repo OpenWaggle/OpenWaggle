@@ -1,0 +1,89 @@
+import {
+  $applyNodeReplacement,
+  DecoratorNode,
+  type DOMExportOutput,
+  type EditorConfig,
+  type NodeKey,
+  type SerializedLexicalNode,
+  type Spread,
+} from 'lexical'
+import type { ReactNode } from 'react'
+import { createElement } from 'react'
+import { SkillMentionChip } from './SkillMentionChip'
+
+export type SerializedSkillMentionNode = Spread<
+  { skillId: string; skillName: string },
+  SerializedLexicalNode
+>
+
+export class SkillMentionNode extends DecoratorNode<ReactNode> {
+  __skillId: string
+  __skillName: string
+
+  static getType() {
+    return 'skill-mention'
+  }
+
+  static clone(node: SkillMentionNode) {
+    return new SkillMentionNode(node.__skillId, node.__skillName, node.__key)
+  }
+
+  constructor(skillId: string, skillName: string, key?: NodeKey) {
+    super(key)
+    this.__skillId = skillId
+    this.__skillName = skillName
+  }
+
+  createDOM(_config: EditorConfig) {
+    const span = document.createElement('span')
+    span.style.display = 'inline'
+    return span
+  }
+
+  updateDOM() {
+    return false
+  }
+
+  exportDOM(): DOMExportOutput {
+    const element = document.createElement('span')
+    element.textContent = `/${this.__skillId}`
+    return { element }
+  }
+
+  static importDOM() {
+    return null
+  }
+
+  static importJSON(serializedNode: SerializedSkillMentionNode) {
+    return $createSkillMentionNode(serializedNode.skillId, serializedNode.skillName)
+  }
+
+  exportJSON() {
+    return {
+      ...super.exportJSON(),
+      skillId: this.__skillId,
+      skillName: this.__skillName,
+      type: 'skill-mention',
+      version: 1,
+    }
+  }
+
+  getTextContent() {
+    return `/${this.__skillId}`
+  }
+
+  isInline() {
+    return true
+  }
+
+  decorate(): ReactNode {
+    return createElement(SkillMentionChip, {
+      skillId: this.__skillId,
+      skillName: this.__skillName,
+    })
+  }
+}
+
+export function $createSkillMentionNode(skillId: string, skillName: string): SkillMentionNode {
+  return $applyNodeReplacement(new SkillMentionNode(skillId, skillName))
+}

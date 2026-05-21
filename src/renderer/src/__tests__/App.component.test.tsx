@@ -4,11 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const useSettingsSetupMock = vi.fn()
 const usePreferencesMock = vi.fn()
 
-vi.mock('@/hooks/useSettings', () => ({
-  useSettingsSetup: (): void => {
+vi.mock('@/features/settings/hooks/useSettings', () => ({
+  useSettingsSetup: () => {
     useSettingsSetupMock()
   },
-  usePreferences: (): ReturnType<typeof usePreferencesMock> => usePreferencesMock(),
+  usePreferences: () => usePreferencesMock(),
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -34,7 +34,7 @@ describe('App', () => {
     render(<App />)
 
     expect(screen.queryByTestId('router-provider')).toBeNull()
-    expect(screen.getByText('Loading...')).toBeInTheDocument()
+    expect(screen.getByText('Loading…')).toBeInTheDocument()
   })
 
   it('renders the route tree after preferences are loaded', () => {

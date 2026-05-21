@@ -1,10 +1,8 @@
-import { QueryClientProvider } from '@tanstack/react-query'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { AppErrorBoundary } from '@/components/shared/AppErrorBoundary'
-import { rendererQueryClient } from '@/queries/query-client'
+import { AppErrorBoundary } from '@/shared/ui/AppErrorBoundary'
 import { App } from './App'
-import { getHighlighter } from './lib/shiki/highlighter'
+import { getHighlighter } from './shared/lib/shiki/highlighter'
 import './styles/globals.css'
 
 // Eagerly start loading Shiki so it's ready before the first message renders.
@@ -15,10 +13,8 @@ if (!root) throw new Error('Root element not found')
 
 createRoot(root).render(
   <StrictMode>
-    <QueryClientProvider client={rendererQueryClient}>
-      <AppErrorBoundary>
-        <App />
-      </AppErrorBoundary>
-    </QueryClientProvider>
+    <AppErrorBoundary>
+      <App />
+    </AppErrorBoundary>
   </StrictMode>,
 )
