@@ -17,7 +17,16 @@ Layering follows the hexagonal model:
 
 ## Renderer
 
-The renderer is React 19 + Zustand + Tailwind. It does not consume vendor runtime objects. It receives `AgentTransportEvent` over IPC and reduces those into `UIMessage` state for transcript rendering.
+The renderer is React 19 + TanStack Router/Query + Zustand + Tailwind. It does not consume vendor runtime objects. It receives `AgentTransportEvent` over IPC and reduces those into `UIMessage` state for transcript rendering.
+
+Renderer organization is feature-first:
+
+- `src/renderer/src/routes/` owns TanStack Router route files and route-only surfaces.
+- `src/renderer/src/features/` owns product features, including components, hooks, state, constants, commands, model types, pure logic, and colocated tests.
+- `src/renderer/src/shared/` owns reusable renderer primitives with no product-domain ownership.
+- `src/renderer/src/shell/` owns app-frame composition around routes and features.
+
+Detailed renderer rules live in `docs/renderer-architecture.md`.
 
 ## IPC
 

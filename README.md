@@ -277,7 +277,7 @@ On Apple silicon, use the arm64 DMG or `dist/mac-arm64/OpenWaggle.app`. The x64 
 
 See [docs/release-and-versioning.md](docs/release-and-versioning.md) for CI/CD, versioning, and git hooks details.
 
-See [docs/architecture.md](docs/architecture.md) for the full architecture overview, process boundaries, IPC type system, and Pi runtime internals.
+See [docs/architecture.md](docs/architecture.md) for the architecture documentation index.
 
 ---
 

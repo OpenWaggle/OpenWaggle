@@ -18,7 +18,7 @@ Implementation must stay faithful to:
   - Runtime capabilities come from Pi first.
   - Product state is an explicit projection over real Pi sessions/nodes/branches.
   - Waggle and standard mode share the same canonical session/tree model.
-- `docs/lessons.md`
+- `MEMORY.md`
   - Waggle mode must run inside Pi as extension/runtime behavior.
   - Waggle and standard mode differ only because Waggle runs two models sequentially per user turn.
   - Branch navigation, draft creation, materialization, archive/restore, composer behavior, git, diffs, and active-run semantics apply equally to standard and Waggle.
