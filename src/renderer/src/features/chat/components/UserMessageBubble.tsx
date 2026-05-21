@@ -138,7 +138,12 @@ export function UserMessageBubble({
 
   return (
     <div className="group/user-msg flex justify-end w-full">
-      <div className="relative rounded-[16px_16px_2px_16px] bg-bg-hover border border-border-light py-2.5 px-3.5">
+      <div
+        className={cn(
+          'relative min-w-0 max-w-full rounded-[16px_16px_2px_16px]',
+          'border border-border-light bg-bg-hover px-3.5 py-2.5',
+        )}
+      >
         {attachmentParts.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-2">
             {attachmentParts.map((p, i) => (
@@ -150,7 +155,7 @@ export function UserMessageBubble({
           </div>
         )}
         {contentParts.length > 0 && (
-          <div className="prose prose-user max-w-none">
+          <div className="prose prose-user max-w-none break-words [overflow-wrap:anywhere]">
             {contentParts.map((p, i) => (
               <ReactMarkdown
                 key={`${message.id}-text-${String(i)}`}

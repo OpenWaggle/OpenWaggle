@@ -151,6 +151,34 @@ describe('UserMessageBubble', () => {
     expect(proseDiv).toBeInTheDocument()
   })
 
+  it('keeps long pasted tokens inside the user bubble width constraints', () => {
+    const longToken = 'a'.repeat(800)
+    const message = createUserMessage('u1', [{ type: 'text', content: longToken }])
+    const { container } = render(<UserMessageBubble message={message} />)
+
+    const outerDiv = container.firstChild
+    expect(outerDiv).toBeInstanceOf(HTMLDivElement)
+    if (!(outerDiv instanceof HTMLDivElement)) {
+      throw new Error('Expected outer user message element')
+    }
+
+    const bubbleDiv = outerDiv.firstElementChild
+    expect(bubbleDiv).toBeInstanceOf(HTMLDivElement)
+    if (!(bubbleDiv instanceof HTMLDivElement)) {
+      throw new Error('Expected inner user bubble element')
+    }
+
+    expect(bubbleDiv.className).toContain('min-w-0')
+    expect(bubbleDiv.className).toContain('max-w-full')
+
+    const proseDiv = container.querySelector('.prose-user')
+    expect(proseDiv).toBeInTheDocument()
+    if (!(proseDiv instanceof HTMLDivElement)) {
+      throw new Error('Expected prose wrapper element')
+    }
+    expect(proseDiv.className).toContain('break-words')
+  })
+
   it('renders attachment text parts as chips instead of markdown', () => {
     const message = createUserMessage('u1', [
       { type: 'text', content: 'Check this file' },
