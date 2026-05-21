@@ -1,4 +1,6 @@
 ---
+import Button from '@/components/ui/Button.astro';
+
 const currentPath = Astro.url.pathname;
 const isDocsPage = currentPath.startsWith('/docs');
 ---
@@ -20,16 +22,18 @@ const isDocsPage = currentPath.startsWith('/docs');
       <a href="https://github.com/OpenWaggle/OpenWaggle" target="_blank" rel="noopener noreferrer" class="text-sm font-medium text-text-tertiary transition-colors hover:text-text-primary">GitHub</a>
     </nav>
     <!-- Mobile hamburger -->
-    <button
+    <Button
       id="mobile-menu-toggle"
-      class="flex h-8 w-8 items-center justify-center rounded-md text-text-tertiary md:hidden"
+      variant="ghost"
+      size="icon"
+      class="md:hidden"
       aria-label="Toggle menu"
       aria-expanded="false"
     >
       <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
       </svg>
-    </button>
+    </Button>
   </div>
   <!-- Mobile nav -->
   <div id="mobile-menu" class="hidden border-t border-border bg-bg px-6 py-4 md:hidden">

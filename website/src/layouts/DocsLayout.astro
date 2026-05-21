@@ -2,6 +2,7 @@
 import BaseLayout from './BaseLayout.astro';
 import Sidebar from '@/components/docs/Sidebar.astro';
 import PrevNext from '@/components/docs/PrevNext.astro';
+import Button from '@/components/ui/Button.astro';
 
 interface Props {
   title: string;
@@ -19,16 +20,17 @@ const { title, description, slug } = Astro.props;
     <div class="min-w-0 flex-1 py-8 lg:pl-12">
       <!-- Mobile sidebar toggle + search -->
       <div class="mb-6 flex items-center gap-4 lg:hidden">
-        <button
+        <Button
           id="docs-sidebar-toggle"
-          class="flex h-8 w-8 items-center justify-center rounded-md border border-border text-text-tertiary"
+          variant="secondary"
+          size="icon"
           aria-label="Toggle sidebar"
           aria-expanded="false"
         >
           <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
-        </button>
+        </Button>
       </div>
 
       <article class="prose-docs">
