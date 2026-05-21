@@ -94,15 +94,16 @@ export function getNpmCompatiblePath(): string {
     result.push(value)
   }
 
+  // Preserve user PATH precedence; extra directories are fallbacks for GUI-launched apps.
+  for (const value of (process.env.PATH ?? '').split(delimiter)) {
+    addPath(value)
+  }
+
   for (const value of getUserToolPathDirs()) {
     addPath(value)
   }
 
   for (const value of getNpmCompatiblePathDirs()) {
-    addPath(value)
-  }
-
-  for (const value of (process.env.PATH ?? '').split(delimiter)) {
     addPath(value)
   }
 
@@ -130,14 +131,6 @@ function getUserToolPathDirs() {
       ? [...MACOS_USER_TOOL_PATH_SEGMENTS, ...POSIX_USER_TOOL_PATH_SEGMENTS]
       : POSIX_USER_TOOL_PATH_SEGMENTS
   return pathSegments.map((segments) => join(homeDir, ...segments))
-}
-
-export function initializeProcessPath(): void {
-  process.env.PATH = getNpmCompatiblePath()
-}
-
-export function getCurrentProcessPath(): string | undefined {
-  return process.env.PATH
 }
 
 export async function withNpmCompatibleProcessEnv<T>(operation: () => Promise<T>): Promise<T> {

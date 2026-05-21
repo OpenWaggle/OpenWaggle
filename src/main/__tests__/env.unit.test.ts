@@ -1,12 +1,7 @@
 import { homedir } from 'node:os'
 import { delimiter, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import {
-  getCurrentProcessPath,
-  getNpmCompatiblePath,
-  getSafeChildEnv,
-  initializeProcessPath,
-} from '../env'
+import { getNpmCompatiblePath, getSafeChildEnv } from '../env'
 
 const MINIMAL_PATH = ['/usr/bin', '/bin'].join(delimiter)
 
@@ -43,12 +38,13 @@ describe('main process environment helpers', () => {
     expect(entries).toContain('/usr/local/bin')
   })
 
-  it('initializes the main process PATH for packaged app child processes', () => {
-    vi.stubEnv('PATH', MINIMAL_PATH)
+  it('preserves existing PATH precedence before npm-compatible fallbacks', () => {
+    const existingEntries = ['/custom/shims', '/usr/bin', '/bin']
+    vi.stubEnv('PATH', existingEntries.join(delimiter))
 
-    initializeProcessPath()
+    const entries = pathEntries(getSafeChildEnv().PATH)
 
-    const entries = pathEntries(getCurrentProcessPath())
+    expect(entries.slice(0, existingEntries.length)).toEqual(existingEntries)
     expect(entries).toContain(join(homedir(), '.local', 'bin'))
     expect(entries).toContain('/usr/local/bin')
   })
