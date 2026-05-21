@@ -104,4 +104,4 @@ Mechanical enforcement:
 Mechanical enforcement:
 
 - OpenWaggle ESLint rules catch inline import types, `for (;;)`, raw website/renderer buttons, architecture bypass comments, and inline magic numbers.
-- `pnpm check:agent-instructions` catches stale instruction references.
+- `pnpm check:repository-standards` catches repository standards drift.
