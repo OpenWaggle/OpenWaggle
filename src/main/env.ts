@@ -1,4 +1,5 @@
-import { delimiter } from 'node:path'
+import { homedir } from 'node:os'
+import { delimiter, join } from 'node:path'
 import { decodeUnknownOrThrow, Schema, type SchemaType } from '@shared/schema'
 
 const optionalUrlSchema = Schema.optional(
@@ -37,6 +38,16 @@ const MACOS_NPM_COMPATIBLE_PATH_DIRS = [
   '/sbin',
 ]
 const POSIX_NPM_COMPATIBLE_PATH_DIRS = ['/usr/local/bin', '/usr/bin', '/bin']
+const POSIX_USER_TOOL_PATH_SEGMENTS = [
+  ['.local', 'bin'],
+  ['.volta', 'bin'],
+  ['.asdf', 'shims'],
+  ['.mise', 'shims'],
+  ['.cargo', 'bin'],
+  ['.bun', 'bin'],
+  ['.deno', 'bin'],
+] as const
+const MACOS_USER_TOOL_PATH_SEGMENTS = [['Library', 'pnpm']] as const
 
 let temporaryProcessEnvQueue: Promise<void> = Promise.resolve()
 
@@ -47,7 +58,7 @@ let temporaryProcessEnvQueue: Promise<void> = Promise.resolve()
  */
 export function getSafeChildEnv(): Record<string, string | undefined> {
   return {
-    PATH: process.env.PATH,
+    PATH: getNpmCompatiblePath(),
     HOME: process.env.HOME,
     SHELL: process.env.SHELL,
     TERM: process.env.TERM,
@@ -83,11 +94,16 @@ export function getNpmCompatiblePath(): string {
     result.push(value)
   }
 
-  for (const value of getNpmCompatiblePathDirs()) {
+  // Preserve user PATH precedence; extra directories are fallbacks for GUI-launched apps.
+  for (const value of (process.env.PATH ?? '').split(delimiter)) {
     addPath(value)
   }
 
-  for (const value of (process.env.PATH ?? '').split(delimiter)) {
+  for (const value of getUserToolPathDirs()) {
+    addPath(value)
+  }
+
+  for (const value of getNpmCompatiblePathDirs()) {
     addPath(value)
   }
 
@@ -102,6 +118,19 @@ function getNpmCompatiblePathDirs() {
     return []
   }
   return POSIX_NPM_COMPATIBLE_PATH_DIRS
+}
+
+function getUserToolPathDirs() {
+  if (process.platform === 'win32') {
+    return []
+  }
+
+  const homeDir = homedir()
+  const pathSegments =
+    process.platform === 'darwin'
+      ? [...MACOS_USER_TOOL_PATH_SEGMENTS, ...POSIX_USER_TOOL_PATH_SEGMENTS]
+      : POSIX_USER_TOOL_PATH_SEGMENTS
+  return pathSegments.map((segments) => join(homeDir, ...segments))
 }
 
 export async function withNpmCompatibleProcessEnv<T>(operation: () => Promise<T>): Promise<T> {
