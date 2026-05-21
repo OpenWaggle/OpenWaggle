@@ -21,3 +21,7 @@ tmp/
 .tmp/
 
 .playwright-mcp/
+
+.fallow
+# TypeScript incremental build artifacts
+*.tsbuildinfo

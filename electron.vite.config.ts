@@ -46,6 +46,22 @@ const BUNDLED_DEPS = [
   'unpdf',
 ]
 
+interface UnknownObject {
+  readonly [key: string]: unknown
+}
+
+function isObject(value: unknown): value is UnknownObject {
+  return typeof value === 'object' && value !== null
+}
+
+function dependencyNamesFromPackageJson(value: unknown) {
+  if (!isObject(value) || !isObject(value.dependencies)) {
+    return []
+  }
+
+  return Object.keys(value.dependencies)
+}
+
 /**
  * Vite 8 (Rolldown) only accepts `string[]` for `external`, not RegExp.
  * electron-vite's `externalizeDepsPlugin` and preset plugin both add RegExp
@@ -58,8 +74,8 @@ function rolldownExternalFixPlugin(): Plugin {
     name: 'vite:rolldown-external-fix',
     enforce: 'post',
     configResolved(config) {
-      const pkg = JSON.parse(readFileSync(resolve('package.json'), 'utf-8'))
-      const allDeps = Object.keys(pkg.dependencies ?? {})
+      const packageJson: unknown = JSON.parse(readFileSync(resolve('package.json'), 'utf-8'))
+      const allDeps = dependencyNamesFromPackageJson(packageJson)
       const externalDeps = allDeps.filter(d => !BUNDLED_DEPS.some(b => d === b || d.startsWith(b + '/')))
       const external = [...new Set([...ALWAYS_EXTERNAL, ...externalDeps])]
 

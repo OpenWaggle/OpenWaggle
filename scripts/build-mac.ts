@@ -5,7 +5,7 @@ const FAILURE_EXIT_CODE = 1
 const APPLE_SILICON_ARCH = 'arm64'
 const INTEL_ARCH = 'x64'
 
-function currentMacBuildArch(): string {
+function currentMacBuildArch() {
   return process.arch === APPLE_SILICON_ARCH ? APPLE_SILICON_ARCH : INTEL_ARCH
 }
 
