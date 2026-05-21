@@ -11,7 +11,7 @@ import {
 
 const tempDirs: string[] = []
 
-async function makeTempProject(): Promise<string> {
+async function makeTempProject() {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-skill-catalog-'))
   tempDirs.push(dir)
   return dir
@@ -22,7 +22,7 @@ async function writeSkill(
   folder: string,
   content: string,
   withScripts = false,
-): Promise<void> {
+) {
   const skillDir = path.join(projectPath, '.openwaggle', 'skills', folder)
   await fs.mkdir(skillDir, { recursive: true })
   await fs.writeFile(path.join(skillDir, 'SKILL.md'), content, 'utf8')

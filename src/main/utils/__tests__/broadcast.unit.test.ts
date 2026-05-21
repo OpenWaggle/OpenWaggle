@@ -1,3 +1,4 @@
+import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({
@@ -10,10 +11,10 @@ import { BrowserWindow } from 'electron'
 import { broadcastToWindows } from '../broadcast'
 
 function createMockWindow(destroyed: boolean) {
-  return {
+  return fromPartial<Electron.BrowserWindow>({
     isDestroyed: () => destroyed,
     webContents: { send: vi.fn() },
-  }
+  })
 }
 
 describe('broadcastToWindows', () => {
@@ -24,10 +25,7 @@ describe('broadcastToWindows', () => {
   it('sends to all non-destroyed windows', () => {
     const win1 = createMockWindow(false)
     const win2 = createMockWindow(false)
-    vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([
-      win1,
-      win2,
-    ] as unknown as Electron.BrowserWindow[])
+    vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([win1, win2])
 
     broadcastToWindows('test:channel', { data: 'hello' })
 
@@ -38,10 +36,7 @@ describe('broadcastToWindows', () => {
   it('skips destroyed windows', () => {
     const alive = createMockWindow(false)
     const destroyed = createMockWindow(true)
-    vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([
-      alive,
-      destroyed,
-    ] as unknown as Electron.BrowserWindow[])
+    vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([alive, destroyed])
 
     broadcastToWindows('test:channel', 'payload')
 
@@ -59,9 +54,7 @@ describe('broadcastToWindows', () => {
 
   it('passes multiple args to webContents.send', () => {
     const win = createMockWindow(false)
-    vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([
-      win,
-    ] as unknown as Electron.BrowserWindow[])
+    vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([win])
 
     broadcastToWindows('multi:args', 'arg1', 42, { nested: true })
 

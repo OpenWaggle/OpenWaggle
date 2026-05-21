@@ -40,18 +40,18 @@ import {
 import { emitErrorAndFinish } from './run-handler-utils'
 import { typedHandle } from './typed-ipc'
 
-function clearSessionTransportState(sessionId: SessionId): void {
+function clearSessionTransportState(sessionId: SessionId) {
   clearAgentPhase(sessionId)
   clearStreamBuffer(sessionId)
   cleanupSessionRun(sessionId)
 }
 
-function emitCancelledCompletion(sessionId: SessionId): void {
+function emitCancelledCompletion(sessionId: SessionId) {
   clearSessionTransportState(sessionId)
   emitRunCompleted(sessionId)
 }
 
-function handleRunResult(sessionId: SessionId, result: AgentRunResult): void {
+function handleRunResult(sessionId: SessionId, result: AgentRunResult) {
   if (result.outcome === 'error' && result.transportEmitted) {
     return
   }
@@ -73,7 +73,7 @@ export function persistAllActiveRuns() {
   return Effect.void
 }
 
-export function registerAgentHandlers(): void {
+function registerAgentRunHandlers() {
   typedHandle(
     'agent:send-message',
     (_event, sessionId: SessionId, payload: AgentSendPayload, model: SupportedModelId) =>
@@ -135,7 +135,9 @@ export function registerAgentHandlers(): void {
       }
     }),
   )
+}
 
+function registerAgentStateHandlers() {
   typedHandle('agent:get-phase', (_event, sessionId: SessionId) =>
     Effect.sync(() => getPhaseForSession(sessionId)),
   )
@@ -149,7 +151,9 @@ export function registerAgentHandlers(): void {
   typedHandle('agent:get-context-usage', (_event, sessionId: SessionId, model: SupportedModelId) =>
     getAgentContextUsage({ sessionId, model }),
   )
+}
 
+function registerAgentCompactionHandlers() {
   typedHandle(
     'agent:compact-session',
     (_event, sessionId: SessionId, model: SupportedModelId, customInstructions?: string) =>
@@ -192,7 +196,9 @@ export function registerAgentHandlers(): void {
         )
       }),
   )
+}
 
+function registerAgentSteeringHandlers() {
   typedHandle('agent:steer', (_event, sessionId: SessionId) =>
     Effect.sync(() => {
       if (cancelSessionRuns(sessionId)) {
@@ -202,4 +208,11 @@ export function registerAgentHandlers(): void {
       return { preserved: false }
     }),
   )
+}
+
+export function registerAgentHandlers(): void {
+  registerAgentRunHandlers()
+  registerAgentStateHandlers()
+  registerAgentCompactionHandlers()
+  registerAgentSteeringHandlers()
 }

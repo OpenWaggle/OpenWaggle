@@ -32,25 +32,12 @@ function mapCommitFailure(stderr: string): GitCommitFailure {
 
 async function commitGit(projectPath: string, payload: GitCommitPayload): Promise<GitCommitResult> {
   const message = payload.message.trim()
-  if (!message) {
-    return commitFailure('empty-message', 'Commit message is required.')
-  }
-  if (!(await isGitRepository(projectPath))) {
-    return commitFailure('not-git-repo', 'Selected folder is not a Git repository.')
-  }
-
-  const mergeCheck = await runGit(projectPath, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])
-  if (mergeCheck.code === 0) {
-    return commitFailure('merge-in-progress', 'Resolve the merge in progress before committing.')
-  }
+  const preflightFailure = await validateCommitPreflight(projectPath, message)
+  if (preflightFailure) return preflightFailure
 
   // Stage only the files explicitly selected by the user.
-  if (payload.paths.length > 0) {
-    const addResult = await runGit(projectPath, ['add', '--', ...payload.paths])
-    if (addResult.code !== 0) {
-      return mapCommitFailure(addResult.stderr)
-    }
-  }
+  const stageFailure = await stageCommitPaths(projectPath, payload.paths)
+  if (stageFailure) return stageFailure
 
   const commitArgs = ['commit', '-m', message]
   if (payload.amend) {
@@ -74,6 +61,27 @@ async function commitGit(projectPath: string, payload: GitCommitPayload): Promis
     commitHash,
     summary,
   }
+}
+
+async function validateCommitPreflight(projectPath: string, message: string) {
+  if (!message) {
+    return commitFailure('empty-message', 'Commit message is required.')
+  }
+  if (!(await isGitRepository(projectPath))) {
+    return commitFailure('not-git-repo', 'Selected folder is not a Git repository.')
+  }
+
+  const mergeCheck = await runGit(projectPath, ['rev-parse', '-q', '--verify', 'MERGE_HEAD'])
+  return mergeCheck.code === 0
+    ? commitFailure('merge-in-progress', 'Resolve the merge in progress before committing.')
+    : null
+}
+
+async function stageCommitPaths(projectPath: string, paths: readonly string[]) {
+  if (paths.length === 0) return null
+
+  const addResult = await runGit(projectPath, ['add', '--', ...paths])
+  return addResult.code === 0 ? null : mapCommitFailure(addResult.stderr)
 }
 
 const commitPayloadSchema = Schema.Struct({

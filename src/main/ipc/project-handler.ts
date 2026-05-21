@@ -19,7 +19,7 @@ function createProjectFolderDialogOptions(): OpenDialogOptions {
   }
 }
 
-function isCanonicalModelRef(value: string): boolean {
+function isCanonicalModelRef(value: string) {
   const trimmed = value.trim()
   if (!trimmed || trimmed.startsWith('/') || trimmed.endsWith('/')) {
     return false
@@ -27,9 +27,7 @@ function isCanonicalModelRef(value: string): boolean {
   return trimmed.includes('/')
 }
 
-function validateProjectPreferences(
-  preferences: unknown,
-): Effect.Effect<ProjectPreferences, Error> {
+function validateProjectPreferences(preferences: unknown) {
   const result = safeDecodeUnknown(projectPreferencesSchema, preferences)
   if (!result.success) {
     return Effect.fail(new Error(`Invalid project preferences: ${result.issues.join('; ')}`))

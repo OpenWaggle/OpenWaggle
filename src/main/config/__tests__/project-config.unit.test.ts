@@ -11,7 +11,7 @@ import {
   updateProjectConfig,
 } from '../project-config'
 
-function getSettingsPath(projectPath: string): string {
+function getSettingsPath(projectPath: string) {
   return join(projectPath, '.openwaggle', 'settings.json')
 }
 

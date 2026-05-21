@@ -10,18 +10,15 @@ function getSettingsManager(projectPath?: string | null) {
   return createOpenWagglePiSettingsManager(projectPath ?? DEFAULT_PROJECT_PATH)
 }
 
-function readTreeFilterMode(projectPath?: string | null): SessionTreeFilterMode {
+function readTreeFilterMode(projectPath?: string | null) {
   return getSettingsManager(projectPath).getTreeFilterMode()
 }
 
-function readBranchSummarySkipPrompt(projectPath?: string | null): boolean {
+function readBranchSummarySkipPrompt(projectPath?: string | null) {
   return getSettingsManager(projectPath).getBranchSummarySkipPrompt()
 }
 
-async function writeTreeFilterMode(
-  mode: SessionTreeFilterMode,
-  projectPath?: string | null,
-): Promise<void> {
+async function writeTreeFilterMode(mode: SessionTreeFilterMode, projectPath?: string | null) {
   const settingsManager = getSettingsManager(projectPath)
   settingsManager.setTreeFilterMode(mode)
   await settingsManager.flush()

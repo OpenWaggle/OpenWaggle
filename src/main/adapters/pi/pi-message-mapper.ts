@@ -8,7 +8,7 @@ function makeProjectedMessage(
   role: 'user' | 'assistant' | 'system',
   parts: MessagePart[],
   model?: string,
-): Message {
+) {
   return {
     id: MessageId(randomUUID()),
     role,
@@ -49,7 +49,7 @@ export function toJsonObject(value: unknown): JsonObject {
   return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, toJsonValue(entry)]))
 }
 
-function toToolResultArgs(details: unknown, fallbackArgs: JsonObject | undefined): JsonObject {
+function toToolResultArgs(details: unknown, fallbackArgs: JsonObject | undefined) {
   if (!isRecord(details)) {
     return fallbackArgs ?? {}
   }
@@ -58,129 +58,177 @@ function toToolResultArgs(details: unknown, fallbackArgs: JsonObject | undefined
   return Object.keys(args).length > 0 ? args : (fallbackArgs ?? {})
 }
 
-function toToolResultDuration(details: unknown): number {
+function toToolResultDuration(details: unknown) {
   return isRecord(details) && typeof details.duration === 'number' ? details.duration : 0
 }
 
-function toProjectedToolResultValue(content: readonly unknown[], details: unknown): JsonObject {
+function toProjectedToolResultValue(content: readonly unknown[], details: unknown) {
   return {
     content: toJsonValue(content),
     details: toJsonValue(details ?? null),
   }
 }
 
-export function piHistoryToProjectedMessages(
-  messages: ReadonlyArray<
-    | {
-        readonly role: 'assistant'
-        readonly content: readonly unknown[]
-        readonly model: string
-      }
-    | {
-        readonly role: 'toolResult'
-        readonly content: readonly unknown[]
-        readonly toolCallId: string
-        readonly toolName: string
-        readonly isError: boolean
-        readonly details?: unknown
-      }
-  >,
-): Message[] {
-  const result: Message[] = []
-  let currentAssistantParts: MessagePart[] | null = null
-  let currentAssistantModel: string | undefined
-  let currentToolCallArgs = new Map<string, JsonObject>()
-
-  function flushAssistant(): void {
-    if (!currentAssistantParts) {
-      return
+type PiProjectedHistoryMessage =
+  | {
+      readonly role: 'assistant'
+      readonly content: readonly unknown[]
+      readonly model: string
     }
-    result.push(
-      makeProjectedMessage(
-        'assistant',
-        currentAssistantParts.length > 0 ? currentAssistantParts : [{ type: 'text', text: '' }],
-        currentAssistantModel,
-      ),
-    )
-    currentAssistantParts = null
-    currentAssistantModel = undefined
-    currentToolCallArgs = new Map<string, JsonObject>()
+  | {
+      readonly role: 'toolResult'
+      readonly content: readonly unknown[]
+      readonly toolCallId: string
+      readonly toolName: string
+      readonly isError: boolean
+      readonly details?: unknown
+    }
+
+interface PiProjectionState {
+  readonly result: Message[]
+  currentAssistantParts: MessagePart[] | null
+  currentAssistantModel: string | undefined
+  currentToolCallArgs: Map<string, JsonObject>
+}
+
+interface PiToolCallContent {
+  readonly type: 'toolCall'
+  readonly id: string
+  readonly name: string
+  readonly arguments: JsonObject
+}
+
+function flushAssistant(state: PiProjectionState) {
+  if (!state.currentAssistantParts) {
+    return
+  }
+  state.result.push(
+    makeProjectedMessage(
+      'assistant',
+      state.currentAssistantParts.length > 0
+        ? state.currentAssistantParts
+        : [{ type: 'text', text: '' }],
+      state.currentAssistantModel,
+    ),
+  )
+  state.currentAssistantParts = null
+  state.currentAssistantModel = undefined
+  state.currentToolCallArgs = new Map<string, JsonObject>()
+}
+
+function projectAssistantPart(
+  part: unknown,
+  toolCallArgs: Map<string, JsonObject>,
+): MessagePart | null {
+  if (!isRecord(part) || typeof part.type !== 'string') {
+    return null
+  }
+  if (part.type === 'text' && typeof part.text === 'string') {
+    return { type: 'text', text: part.text }
+  }
+  if (part.type === 'thinking' && typeof part.thinking === 'string') {
+    return { type: 'reasoning', text: part.thinking }
+  }
+  return isPiToolCallContent(part) ? projectToolCallPart(part, toolCallArgs) : null
+}
+
+function isPiToolCallContent(part: unknown): part is PiToolCallContent {
+  return (
+    isRecord(part) &&
+    part.type === 'toolCall' &&
+    typeof part.id === 'string' &&
+    typeof part.name === 'string' &&
+    isRecord(part.arguments)
+  )
+}
+
+function projectToolCallPart(
+  part: PiToolCallContent,
+  toolCallArgs: Map<string, JsonObject>,
+): MessagePart {
+  const toolArgs = toJsonObject(part.arguments)
+  toolCallArgs.set(part.id, toolArgs)
+  return {
+    type: 'tool-call',
+    toolCall: {
+      id: ToolCallId(part.id),
+      name: part.name,
+      args: toolArgs,
+      state: 'input-complete',
+    },
+  }
+}
+
+function projectAssistantParts(content: readonly unknown[], toolCallArgs: Map<string, JsonObject>) {
+  return content.flatMap((part) => {
+    const projected = projectAssistantPart(part, toolCallArgs)
+    return projected ? [projected] : []
+  })
+}
+
+function handleAssistantMessage(
+  state: PiProjectionState,
+  message: Extract<PiProjectedHistoryMessage, { role: 'assistant' }>,
+) {
+  flushAssistant(state)
+  state.currentAssistantParts = projectAssistantParts(message.content, state.currentToolCallArgs)
+  state.currentAssistantModel = message.model
+}
+
+function projectToolResultPart(
+  message: Extract<PiProjectedHistoryMessage, { role: 'toolResult' }>,
+  fallbackArgs: JsonObject | undefined,
+): MessagePart {
+  return {
+    type: 'tool-result',
+    toolResult: {
+      id: ToolCallId(message.toolCallId ?? randomUUID()),
+      name: message.toolName ?? 'unknown',
+      args: toToolResultArgs(message.details, fallbackArgs),
+      result: Array.isArray(message.content)
+        ? toProjectedToolResultValue(message.content, message.details)
+        : '',
+      isError: message.isError === true,
+      duration: toToolResultDuration(message.details),
+      details: toJsonValue(message.details ?? null),
+    },
+  }
+}
+
+function handleToolResultMessage(
+  state: PiProjectionState,
+  message: Extract<PiProjectedHistoryMessage, { role: 'toolResult' }>,
+) {
+  if (!state.currentAssistantParts) {
+    state.currentAssistantParts = []
+  }
+  state.currentAssistantParts = [
+    ...state.currentAssistantParts,
+    projectToolResultPart(message, state.currentToolCallArgs.get(message.toolCallId)),
+  ]
+}
+
+export function piHistoryToProjectedMessages(
+  messages: ReadonlyArray<PiProjectedHistoryMessage>,
+): Message[] {
+  const state: PiProjectionState = {
+    result: [],
+    currentAssistantParts: null,
+    currentAssistantModel: undefined,
+    currentToolCallArgs: new Map<string, JsonObject>(),
   }
 
   for (const message of messages) {
     if (message.role === 'assistant') {
-      flushAssistant()
-
-      const parts: MessagePart[] = []
-      if (Array.isArray(message.content)) {
-        for (const part of message.content) {
-          if (!isRecord(part) || typeof part.type !== 'string') {
-            continue
-          }
-
-          if (part.type === 'text' && typeof part.text === 'string') {
-            parts.push({ type: 'text', text: part.text })
-            continue
-          }
-
-          if (part.type === 'thinking' && typeof part.thinking === 'string') {
-            parts.push({ type: 'reasoning', text: part.thinking })
-            continue
-          }
-
-          if (
-            part.type === 'toolCall' &&
-            typeof part.id === 'string' &&
-            typeof part.name === 'string' &&
-            isRecord(part.arguments)
-          ) {
-            const toolArgs = toJsonObject(part.arguments)
-            currentToolCallArgs.set(part.id, toolArgs)
-            parts.push({
-              type: 'tool-call',
-              toolCall: {
-                id: ToolCallId(part.id),
-                name: part.name,
-                args: toolArgs,
-                state: 'input-complete',
-              },
-            })
-          }
-        }
-      }
-
-      currentAssistantParts = parts
-      currentAssistantModel = message.model
+      handleAssistantMessage(state, message)
       continue
     }
 
-    if (message.role === 'toolResult') {
-      if (!currentAssistantParts) {
-        currentAssistantParts = []
-      }
-
-      currentAssistantParts = [
-        ...currentAssistantParts,
-        {
-          type: 'tool-result',
-          toolResult: {
-            id: ToolCallId(message.toolCallId ?? randomUUID()),
-            name: message.toolName ?? 'unknown',
-            args: toToolResultArgs(message.details, currentToolCallArgs.get(message.toolCallId)),
-            result: Array.isArray(message.content)
-              ? toProjectedToolResultValue(message.content, message.details)
-              : '',
-            isError: message.isError === true,
-            duration: toToolResultDuration(message.details),
-            details: toJsonValue(message.details ?? null),
-          },
-        },
-      ]
-    }
+    handleToolResultMessage(state, message)
   }
 
-  flushAssistant()
-  return result
+  flushAssistant(state)
+  return state.result
 }
 
 export function createStreamingMessageId(): string {

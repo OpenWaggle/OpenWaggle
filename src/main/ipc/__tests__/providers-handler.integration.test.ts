@@ -56,7 +56,7 @@ const TestProviderServiceLayer = Layer.succeed(ProviderService, {
 
 import { registerProvidersHandlers } from '../providers-handler'
 
-function registeredHandler(name: string): ((...args: unknown[]) => Promise<unknown>) | undefined {
+function registeredHandler(name: string) {
   const call = typedHandleMock.mock.calls.find(
     (candidate: readonly unknown[]) => candidate[0] === name && typeof candidate[1] === 'function',
   )

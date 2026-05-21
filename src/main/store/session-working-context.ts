@@ -1,3 +1,4 @@
+import { parseJsonUnknown } from '@shared/schema'
 import { isRecord } from '@shared/utils/validation'
 
 export interface SessionWorkingContextAccessors<TEntry> {
@@ -11,7 +12,7 @@ function getEntryPath<TEntry>(
   entryById: ReadonlyMap<string, TEntry>,
   activeEntryId: string | null,
   accessors: SessionWorkingContextAccessors<TEntry>,
-): readonly TEntry[] {
+) {
   if (!activeEntryId) {
     return []
   }
@@ -34,14 +35,14 @@ function getEntryPath<TEntry>(
 function parseContentJson<TEntry>(
   entry: TEntry,
   accessors: SessionWorkingContextAccessors<TEntry>,
-): unknown {
-  return JSON.parse(accessors.getContentJson(entry))
+) {
+  return parseJsonUnknown(accessors.getContentJson(entry))
 }
 
 function getCompactionFirstKeptEntryId<TEntry>(
   entry: TEntry,
   accessors: SessionWorkingContextAccessors<TEntry>,
-): string | null {
+) {
   if (accessors.getKind(entry) !== 'compaction_summary') {
     return null
   }
@@ -60,11 +61,7 @@ function getCompactionFirstKeptEntryId<TEntry>(
 function findLatestCompaction<TEntry>(
   path: readonly TEntry[],
   accessors: SessionWorkingContextAccessors<TEntry>,
-): {
-  readonly entry: TEntry
-  readonly index: number
-  readonly firstKeptEntryId: string
-} | null {
+) {
   let latest: {
     readonly entry: TEntry
     readonly index: number
@@ -86,7 +83,7 @@ function appendNonCompactionEntries<TEntry>(
   target: TEntry[],
   entries: readonly TEntry[],
   accessors: SessionWorkingContextAccessors<TEntry>,
-): void {
+) {
   for (const entry of entries) {
     if (accessors.getKind(entry) !== 'compaction_summary') {
       target.push(entry)

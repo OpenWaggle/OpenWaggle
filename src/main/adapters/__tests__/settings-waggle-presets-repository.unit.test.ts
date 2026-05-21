@@ -58,7 +58,7 @@ function createPreset(input: {
 
 function runWithRepository<A>(
   useRepository: (repository: WagglePresetsRepositoryShape) => Effect.Effect<A>,
-): Promise<A> {
+) {
   return Effect.runPromise(
     Effect.gen(function* () {
       const repository = yield* WagglePresetsRepository

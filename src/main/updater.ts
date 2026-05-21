@@ -10,7 +10,7 @@ const logger = createLogger('updater')
 let currentStatus: UpdateStatus = { type: 'idle' }
 let checkInterval: ReturnType<typeof setInterval> | null = null
 
-function setStatus(status: UpdateStatus): void {
+function setStatus(status: UpdateStatus) {
   currentStatus = status
   broadcastToWindows('updater:status-changed', status)
 }

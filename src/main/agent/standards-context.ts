@@ -59,41 +59,35 @@ export const EMPTY_STANDARDS_CONTEXT: AgentStandardsContext = {
   warnings: [],
 }
 
-export async function loadAgentStandardsContext(
-  projectPath: string | null,
-  userText: string,
-  settings: Settings,
-  attachments: readonly PreparedAttachment[] = [],
-): Promise<AgentStandardsContext> {
-  if (!projectPath) {
-    return EMPTY_STANDARDS_CONTEXT
-  }
-
-  const warnings: string[] = []
-  const attachmentPathsInsideProject = attachments
+function getAttachmentPathsInsideProject(
+  projectPath: string,
+  attachments: readonly PreparedAttachment[],
+) {
+  return attachments
     .map((attachment) => path.resolve(attachment.path))
     .filter((attachmentPath) => isPathInside(projectPath, attachmentPath))
-  const candidatePaths = inferAgentsCandidatePaths({
-    text: userText,
-    attachmentPaths: attachmentPathsInsideProject,
-  })
-  const agentsResolution = await resolveAgentsForRun(projectPath, candidatePaths)
-  warnings.push(...agentsResolution.warnings)
+}
 
-  const toggles = settings.skillTogglesByProject[projectPath] ?? {}
-  let catalog: LoadedSkillCatalog = {
-    projectPath,
-    skills: [],
-  }
+async function loadCatalogWithWarnings(
+  projectPath: string,
+  toggles: Readonly<Record<string, boolean>>,
+  warnings: string[],
+) {
   try {
-    catalog = await loadSkillCatalog(projectPath, toggles)
+    return await loadSkillCatalog(projectPath, toggles)
   } catch (error) {
     warnings.push(
       `Failed to load skills catalog: ${error instanceof Error ? error.message : String(error)}`,
     )
+    return { projectPath, skills: [] } satisfies LoadedSkillCatalog
   }
+}
 
-  const activation = activateSkillsFromText(userText, catalog.skills)
+function addActivationWarnings(
+  activation: ReturnType<typeof activateSkillsFromText>,
+  catalog: LoadedSkillCatalog,
+  warnings: string[],
+) {
   if (activation.unresolvedExplicitIds.length > 0) {
     warnings.push(
       `Some explicit skills were not found or are disabled: ${activation.unresolvedExplicitIds.join(', ')}`,
@@ -105,16 +99,22 @@ export async function loadAgentStandardsContext(
       warnings.push(`Failed to load skill "${skill.id}": ${skill.loadError}`)
     }
   }
+}
 
+async function loadActiveSkills(input: {
+  readonly projectPath: string
+  readonly selectedSkillIds: readonly string[]
+  readonly toggles: Readonly<Record<string, boolean>>
+  readonly warnings: string[]
+}) {
   const activeSkills: ActiveSkillInstruction[] = []
-  for (const skillId of activation.selectedSkillIds) {
+  for (const skillId of input.selectedSkillIds) {
     try {
-      const skill = await loadSkillInstructions(projectPath, skillId, toggles)
+      const skill = await loadSkillInstructions(input.projectPath, skillId, input.toggles)
       if (!skill.enabled) {
-        warnings.push(`Skill "${skillId}" is disabled and could not be activated.`)
+        input.warnings.push(`Skill "${skillId}" is disabled and could not be activated.`)
         continue
       }
-
       activeSkills.push({
         id: skill.id,
         name: skill.name,
@@ -125,11 +125,43 @@ export async function loadAgentStandardsContext(
         hasScripts: skill.hasScripts,
       })
     } catch (error) {
-      warnings.push(
+      input.warnings.push(
         `Failed to load active skill "${skillId}": ${error instanceof Error ? error.message : String(error)}`,
       )
     }
   }
+  return activeSkills
+}
+
+export async function loadAgentStandardsContext(
+  projectPath: string | null,
+  userText: string,
+  settings: Settings,
+  attachments: readonly PreparedAttachment[] = [],
+): Promise<AgentStandardsContext> {
+  if (!projectPath) {
+    return EMPTY_STANDARDS_CONTEXT
+  }
+
+  const warnings: string[] = []
+  const attachmentPathsInsideProject = getAttachmentPathsInsideProject(projectPath, attachments)
+  const candidatePaths = inferAgentsCandidatePaths({
+    text: userText,
+    attachmentPaths: attachmentPathsInsideProject,
+  })
+  const agentsResolution = await resolveAgentsForRun(projectPath, candidatePaths)
+  warnings.push(...agentsResolution.warnings)
+
+  const toggles = settings.skillTogglesByProject[projectPath] ?? {}
+  const catalog = await loadCatalogWithWarnings(projectPath, toggles, warnings)
+  const activation = activateSkillsFromText(userText, catalog.skills)
+  addActivationWarnings(activation, catalog, warnings)
+  const activeSkills = await loadActiveSkills({
+    projectPath,
+    selectedSkillIds: activation.selectedSkillIds,
+    toggles,
+    warnings,
+  })
 
   return {
     agentsPath: agentsResolution.root.filePath,

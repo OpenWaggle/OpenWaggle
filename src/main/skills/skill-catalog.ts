@@ -33,7 +33,7 @@ const SKILL_DIRS = [
   ['.agents', 'skills'],
 ] as const
 
-function resolveSkillRoots(projectPath: string): string[] {
+function resolveSkillRoots(projectPath: string) {
   return SKILL_DIRS.map((segments) => path.join(projectPath, ...segments))
 }
 
@@ -135,7 +135,7 @@ function createDefaultSkillDefinition(
   folderPath: string,
   skillPath: string,
   enabled: boolean,
-): LoadedSkillDefinition {
+): SkillDiscoveryItem {
   return {
     id: skillId,
     name: skillId,
@@ -180,7 +180,7 @@ async function loadSkillMetadata(
   }
 }
 
-async function readSkillFileWithinProject(projectPath: string, skillPath: string): Promise<string> {
+async function readSkillFileWithinProject(projectPath: string, skillPath: string) {
   const projectRootReal = await resolveRealPath(projectPath)
   const skillRealPath = await resolveRealPath(skillPath)
 
@@ -191,7 +191,7 @@ async function readSkillFileWithinProject(projectPath: string, skillPath: string
   return fs.readFile(skillRealPath, 'utf8')
 }
 
-async function resolveRealPath(targetPath: string): Promise<string> {
+async function resolveRealPath(targetPath: string) {
   try {
     return await fs.realpath(targetPath)
   } catch (error) {
@@ -202,12 +202,12 @@ async function resolveRealPath(targetPath: string): Promise<string> {
   }
 }
 
-function formatSkillError(_projectPath: string, folderName: string, error: unknown): string {
+function formatSkillError(_projectPath: string, folderName: string, error: unknown) {
   const message = error instanceof Error ? error.message : String(error)
   return `${folderName}/SKILL.md: ${message}`
 }
 
-async function hasScriptsFolder(folderPath: string): Promise<boolean> {
+async function hasScriptsFolder(folderPath: string) {
   const scriptsPath = path.join(folderPath, 'scripts')
   try {
     const stat = await fs.stat(scriptsPath)
@@ -260,7 +260,7 @@ function parseSkillDocument(markdown: string): ParsedSkillDocument {
   return { name, description, body }
 }
 
-function parseFrontmatterFields(frontmatter: string): Record<string, string> {
+function parseFrontmatterFields(frontmatter: string) {
   const fields: Record<string, string> = {}
   const lines = frontmatter.split('\n')
   for (const line of lines) {
@@ -275,7 +275,7 @@ function parseFrontmatterFields(frontmatter: string): Record<string, string> {
   return fields
 }
 
-function stripQuotes(value: string): string {
+function stripQuotes(value: string) {
   if (
     (value.startsWith('"') && value.endsWith('"')) ||
     (value.startsWith("'") && value.endsWith("'"))

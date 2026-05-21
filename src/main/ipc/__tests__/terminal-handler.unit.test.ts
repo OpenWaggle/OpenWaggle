@@ -43,7 +43,7 @@ vi.mock('node-pty', () => ({
 
 import { cleanupTerminals, registerTerminalHandlers } from '../terminal-handler'
 
-function getInvokeHandler(name: string): ((...args: unknown[]) => Promise<unknown>) | undefined {
+function getInvokeHandler(name: string) {
   const call = typedHandleMock.mock.calls.find(
     (candidate: readonly unknown[]) => candidate[0] === name && typeof candidate[1] === 'function',
   )
@@ -54,11 +54,23 @@ function getInvokeHandler(name: string): ((...args: unknown[]) => Promise<unknow
   return (...args: unknown[]) => Effect.runPromise(handler(...args))
 }
 
-function getSendHandler(name: string): ((...args: unknown[]) => Promise<void>) | undefined {
+function getSendHandler(name: string) {
   const call = typedOnMock.mock.calls.find((c: unknown[]) => c[0] === name)
   const handler = call?.[1]
   if (typeof handler !== 'function') return undefined
   return (...args: unknown[]) => Effect.runPromise(handler(...args))
+}
+
+function firstCallValue(call: readonly unknown[]) {
+  return call[0]
+}
+
+function expectString(value: unknown) {
+  if (typeof value !== 'string') {
+    throw new Error('Expected string value')
+  }
+
+  return value
 }
 
 describe('registerTerminalHandlers', () => {
@@ -92,8 +104,8 @@ describe('registerTerminalHandlers', () => {
   it('registers all expected IPC channels', () => {
     registerTerminalHandlers()
 
-    const typedChannels = typedHandleMock.mock.calls.map((c: unknown[]) => c[0] as string)
-    const sendChannels = typedOnMock.mock.calls.map((c: unknown[]) => c[0] as string)
+    const typedChannels = typedHandleMock.mock.calls.map(firstCallValue)
+    const sendChannels = typedOnMock.mock.calls.map(firstCallValue)
 
     expect(typedChannels).toContain('terminal:create')
     expect(typedChannels).toContain('terminal:close')
@@ -159,7 +171,7 @@ describe('registerTerminalHandlers', () => {
       registerTerminalHandlers()
       const handler = getInvokeHandler('terminal:create')
 
-      const id = (await handler?.({}, '/tmp')) as string
+      const id = expectString(await handler?.({}, '/tmp'))
       // UUID v4 format
       expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
     })

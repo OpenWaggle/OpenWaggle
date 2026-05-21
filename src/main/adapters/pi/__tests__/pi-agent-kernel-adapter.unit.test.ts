@@ -3,7 +3,6 @@ import type { AgentSendPayload } from '@shared/types/agent'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import { describe, expect, it } from 'vitest'
-import type { AgentKernelRunInput } from '../../../ports/agent-kernel-service'
 import { createSessionListener } from '../pi-agent-kernel-adapter'
 import {
   buildPiRunAssistantMessages,
@@ -11,7 +10,7 @@ import {
   extractPiAssistantTerminalError,
 } from '../pi-run-result'
 
-function makePayload(overrides: Partial<AgentSendPayload> = {}): AgentSendPayload {
+function makePayload(overrides: Partial<AgentSendPayload> = {}) {
   return {
     text: 'Build a coding game in this repo',
     thinkingLevel: 'medium',
@@ -20,7 +19,7 @@ function makePayload(overrides: Partial<AgentSendPayload> = {}): AgentSendPayloa
   }
 }
 
-function makeRunInput(onEvent: (event: AgentTransportEvent) => void): AgentKernelRunInput {
+function makeRunInput(onEvent: (event: AgentTransportEvent) => void) {
   return {
     session: {
       id: SessionId('conv-tool-events'),

@@ -13,7 +13,7 @@ import { typedHandle } from './typed-ipc'
 
 const MAX_SESSION_LIST_LIMIT = 500
 
-function validateListLimit(limit: unknown): Effect.Effect<number | undefined, Error> {
+function validateListLimit(limit: unknown) {
   if (limit === undefined) {
     return Effect.succeed(undefined)
   }
@@ -32,32 +32,28 @@ function validateListLimit(limit: unknown): Effect.Effect<number | undefined, Er
   return Effect.succeed(limit)
 }
 
-function validateSessionId(sessionId: unknown): Effect.Effect<SessionId, Error> {
+function validateSessionId(sessionId: unknown) {
   if (typeof sessionId !== 'string' || sessionId.trim().length === 0) {
     return Effect.fail(new Error('Session ID must be a non-empty string.'))
   }
   return Effect.succeed(SessionId(sessionId))
 }
 
-function validateSessionNodeId(nodeId: unknown): Effect.Effect<SessionNodeId, Error> {
+function validateSessionNodeId(nodeId: unknown) {
   if (typeof nodeId !== 'string' || nodeId.trim().length === 0) {
     return Effect.fail(new Error('Session node ID must be a non-empty string.'))
   }
   return Effect.succeed(SessionNodeId(nodeId))
 }
 
-function validateOptionalSessionNodeId(
-  nodeId: unknown,
-): Effect.Effect<SessionNodeId | null | undefined, Error> {
+function validateOptionalSessionNodeId(nodeId: unknown) {
   if (nodeId === null || nodeId === undefined) {
     return Effect.succeed(nodeId)
   }
   return validateSessionNodeId(nodeId)
 }
 
-function validateOptionalSessionBranchId(
-  branchId: unknown,
-): Effect.Effect<SessionBranchId | null | undefined, Error> {
+function validateOptionalSessionBranchId(branchId: unknown) {
   if (branchId === null || branchId === undefined) {
     return Effect.succeed(branchId)
   }
@@ -67,7 +63,7 @@ function validateOptionalSessionBranchId(
   return Effect.succeed(SessionBranchId(branchId))
 }
 
-function validateBranchName(name: unknown): Effect.Effect<string, Error> {
+function validateBranchName(name: unknown) {
   if (typeof name !== 'string') {
     return Effect.fail(new Error('Session branch name must be a string.'))
   }
@@ -80,9 +76,7 @@ function validateBranchName(name: unknown): Effect.Effect<string, Error> {
   return Effect.succeed(trimmed)
 }
 
-function validateWorkspaceSelection(
-  selection: SessionWorkspaceSelection | undefined,
-): Effect.Effect<SessionWorkspaceSelection | undefined, Error> {
+function validateWorkspaceSelection(selection: SessionWorkspaceSelection | undefined) {
   if (selection === undefined) {
     return Effect.succeed(undefined)
   }
@@ -101,9 +95,7 @@ function validateWorkspaceSelection(
   })
 }
 
-function validateTreeUiStatePatch(
-  patch: SessionTreeUiStatePatch,
-): Effect.Effect<SessionTreeUiStatePatch, Error> {
+function validateTreeUiStatePatch(patch: SessionTreeUiStatePatch) {
   if (!isRecord(patch)) {
     return Effect.fail(new Error('Session tree UI state patch must be an object.'))
   }
@@ -143,9 +135,7 @@ function validateTreeUiStatePatch(
   })
 }
 
-function validateNavigateTreeOptions(
-  options: SessionNavigateTreeOptions | undefined,
-): Effect.Effect<SessionNavigateTreeOptions | undefined, Error> {
+function validateNavigateTreeOptions(options: SessionNavigateTreeOptions | undefined) {
   if (options === undefined) {
     return Effect.succeed(undefined)
   }
@@ -172,7 +162,7 @@ function validateNavigateTreeOptions(
   })
 }
 
-export function registerSessionsHandlers(): void {
+function registerSessionReadHandlers() {
   typedHandle('sessions:list', (_event, limit?: number) =>
     Effect.gen(function* () {
       const validatedLimit = yield* validateListLimit(limit)
@@ -209,7 +199,9 @@ export function registerSessionsHandlers(): void {
         return yield* repo.getWorkspace(validatedSessionId, validatedSelection)
       }),
   )
+}
 
+function registerSessionNavigationHandlers() {
   typedHandle(
     'sessions:navigate-tree',
     (
@@ -236,7 +228,15 @@ export function registerSessionsHandlers(): void {
         })
       }),
   )
+}
 
+function requireBranchId(branchId: SessionBranchId | null | undefined) {
+  return branchId
+    ? Effect.succeed(branchId)
+    : Effect.fail(new Error('Session branch ID must be a non-empty string.'))
+}
+
+function registerSessionBranchHandlers() {
   typedHandle(
     'sessions:rename-branch',
     (_event, sessionId: SessionId, branchId: SessionBranchId, name: string) =>
@@ -244,11 +244,9 @@ export function registerSessionsHandlers(): void {
         const validatedSessionId = yield* validateSessionId(sessionId)
         const validatedBranchId = yield* validateOptionalSessionBranchId(branchId)
         const validatedName = yield* validateBranchName(name)
-        if (!validatedBranchId) {
-          return yield* Effect.fail(new Error('Session branch ID must be a non-empty string.'))
-        }
+        const requiredBranchId = yield* requireBranchId(validatedBranchId)
         const repo = yield* SessionRepository
-        return yield* repo.renameBranch(validatedSessionId, validatedBranchId, validatedName)
+        return yield* repo.renameBranch(validatedSessionId, requiredBranchId, validatedName)
       }),
   )
 
@@ -258,11 +256,9 @@ export function registerSessionsHandlers(): void {
       Effect.gen(function* () {
         const validatedSessionId = yield* validateSessionId(sessionId)
         const validatedBranchId = yield* validateOptionalSessionBranchId(branchId)
-        if (!validatedBranchId) {
-          return yield* Effect.fail(new Error('Session branch ID must be a non-empty string.'))
-        }
+        const requiredBranchId = yield* requireBranchId(validatedBranchId)
         const repo = yield* SessionRepository
-        return yield* repo.archiveBranch(validatedSessionId, validatedBranchId)
+        return yield* repo.archiveBranch(validatedSessionId, requiredBranchId)
       }),
   )
 
@@ -272,11 +268,9 @@ export function registerSessionsHandlers(): void {
       Effect.gen(function* () {
         const validatedSessionId = yield* validateSessionId(sessionId)
         const validatedBranchId = yield* validateOptionalSessionBranchId(branchId)
-        if (!validatedBranchId) {
-          return yield* Effect.fail(new Error('Session branch ID must be a non-empty string.'))
-        }
+        const requiredBranchId = yield* requireBranchId(validatedBranchId)
         const repo = yield* SessionRepository
-        return yield* repo.restoreBranch(validatedSessionId, validatedBranchId)
+        return yield* repo.restoreBranch(validatedSessionId, requiredBranchId)
       }),
   )
 
@@ -290,4 +284,10 @@ export function registerSessionsHandlers(): void {
         return yield* repo.updateTreeUiState(validatedSessionId, validatedPatch)
       }),
   )
+}
+
+export function registerSessionsHandlers(): void {
+  registerSessionReadHandlers()
+  registerSessionNavigationHandlers()
+  registerSessionBranchHandlers()
 }

@@ -44,7 +44,7 @@ export function testCredentials(providerId: string, apiKey: string, projectPath?
         projectPath,
       })
       .pipe(
-        Effect.map((): TestCredentialsResult => ({ success: true })),
+        Effect.map(() => ({ success: true })),
         Effect.catchAll((err) =>
           Effect.succeed({
             success: false,

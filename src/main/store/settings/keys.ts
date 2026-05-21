@@ -1,0 +1,8 @@
+export const SETTINGS_KEY_DEFAULT_MODEL = 'selectedModel'
+export const SETTINGS_KEY_FAVORITE_MODELS = 'favoriteModels'
+export const SETTINGS_KEY_PROJECT_PATH = 'projectPath'
+export const SETTINGS_KEY_THINKING_LEVEL = 'thinkingLevel'
+export const SETTINGS_KEY_RECENT_PROJECTS = 'recentProjects'
+export const SETTINGS_KEY_SKILL_TOGGLES_BY_PROJECT = 'skillTogglesByProject'
+export const SETTINGS_KEY_ENABLED_MODELS = 'enabledModels'
+export const SETTINGS_KEY_PROJECT_DISPLAY_NAMES = 'projectDisplayNames'

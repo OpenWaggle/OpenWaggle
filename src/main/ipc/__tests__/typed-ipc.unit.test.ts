@@ -33,7 +33,7 @@ vi.mock('../../runtime', () => ({
 
 import { typedHandle, typedOn } from '../typed-ipc'
 
-function okResult(): { ok: true } {
+function okResult(): { readonly ok: true } {
   return { ok: true }
 }
 

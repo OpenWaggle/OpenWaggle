@@ -19,7 +19,7 @@ function execFilePromise(
   command: string,
   args: string[],
   options?: { env?: NodeJS.ProcessEnv },
-): Promise<{ stdout: string; stderr: string }> {
+): Promise<{ readonly stdout: string; readonly stderr: string }> {
   return new Promise((resolve, reject) => {
     execFile(
       command,
@@ -39,7 +39,7 @@ function execFilePromise(
   })
 }
 
-function humanOsName(): string {
+function humanOsName() {
   const platform = process.platform
   if (platform === 'darwin') return `macOS ${os.release()}`
   if (platform === 'win32') return `Windows ${os.release()}`
@@ -57,7 +57,7 @@ function collectDiagnostics(): DiagnosticsInfo {
   }
 }
 
-async function readRecentLogs(lineCount: number): Promise<string> {
+async function readRecentLogs(lineCount: number) {
   const logPath = getLogFilePath()
   if (!logPath) return ''
 
@@ -71,91 +71,108 @@ async function readRecentLogs(lineCount: number): Promise<string> {
   }
 }
 
-async function buildMarkdownBody(payload: FeedbackPayload): Promise<string> {
-  const sections: string[] = []
+function buildDescriptionSection(payload: FeedbackPayload) {
+  return `## Description\n\n${payload.description || '_No description provided._'}`
+}
 
-  sections.push(`## Description\n\n${payload.description || '_No description provided._'}`)
+function buildSystemInfoSection(payload: FeedbackPayload) {
+  if (!payload.includeSystemInfo) return undefined
 
-  if (payload.includeSystemInfo) {
-    const info = collectDiagnostics()
-    sections.push(
-      [
-        '## System Info',
-        '',
-        `| Field | Value |`,
-        `|-------|-------|`,
-        `| OS | ${info.os} |`,
-        `| App Version | ${info.appVersion} |`,
-        `| Electron | ${info.electronVersion} |`,
-        `| Node.js | ${info.nodeVersion} |`,
-        `| Arch | ${info.arch} |`,
-      ].join('\n'),
-    )
+  const info = collectDiagnostics()
+  return [
+    '## System Info',
+    '',
+    `| Field | Value |`,
+    `|-------|-------|`,
+    `| OS | ${info.os} |`,
+    `| App Version | ${info.appVersion} |`,
+    `| Electron | ${info.electronVersion} |`,
+    `| Node.js | ${info.nodeVersion} |`,
+    `| Arch | ${info.arch} |`,
+  ].join('\n')
+}
+
+function buildModelInfoSection(payload: FeedbackPayload) {
+  if (!payload.includeModelInfo || !(payload.activeModel ?? payload.activeProvider)) {
+    return undefined
   }
 
-  if (payload.includeModelInfo && (payload.activeModel ?? payload.activeProvider)) {
-    const modelLines = ['## Model Info', '']
-    if (payload.activeProvider) modelLines.push(`- **Provider:** ${payload.activeProvider}`)
-    if (payload.activeModel) modelLines.push(`- **Model:** ${payload.activeModel}`)
-    sections.push(modelLines.join('\n'))
-  }
+  const modelLines = ['## Model Info', '']
+  if (payload.activeProvider) modelLines.push(`- **Provider:** ${payload.activeProvider}`)
+  if (payload.activeModel) modelLines.push(`- **Model:** ${payload.activeModel}`)
+  return modelLines.join('\n')
+}
 
-  if (payload.includeErrorContext && payload.lastErrorContext) {
-    const ctx = payload.lastErrorContext
-    const errorLines = [
-      '## Error Context',
-      '',
-      `- **Code:** \`${ctx.code}\``,
-      `- **Message:** ${ctx.userMessage}`,
-    ]
-    if (ctx.suggestion) errorLines.push(`- **Suggestion:** ${ctx.suggestion}`)
-    errorLines.push(
-      '',
-      '<details><summary>Raw error</summary>',
-      '',
-      '```',
-      ctx.message,
-      '```',
-      '',
-      '</details>',
-    )
-    sections.push(errorLines.join('\n'))
-  }
+function buildErrorContextSection(payload: FeedbackPayload) {
+  if (!payload.includeErrorContext || !payload.lastErrorContext) return undefined
 
-  if (payload.includeLastMessage && payload.lastUserMessage) {
-    sections.push(
-      [
-        '## Last User Message',
-        '',
-        '<details><summary>Message content</summary>',
-        '',
-        '```',
-        payload.lastUserMessage,
-        '```',
-        '',
-        '</details>',
-      ].join('\n'),
-    )
-  }
+  const ctx = payload.lastErrorContext
+  const errorLines = [
+    '## Error Context',
+    '',
+    `- **Code:** \`${ctx.code}\``,
+    `- **Message:** ${ctx.userMessage}`,
+  ]
+  if (ctx.suggestion) errorLines.push(`- **Suggestion:** ${ctx.suggestion}`)
+  errorLines.push(
+    '',
+    '<details><summary>Raw error</summary>',
+    '',
+    '```',
+    ctx.message,
+    '```',
+    '',
+    '</details>',
+  )
+  return errorLines.join('\n')
+}
 
-  if (payload.includeLogs) {
-    const logs = await readRecentLogs(FEEDBACK.DEFAULT_LOG_LINE_COUNT)
-    if (logs) {
-      sections.push(
-        [
-          '## Recent Logs',
-          '',
-          '<details><summary>Last 100 lines (redacted)</summary>',
-          '',
-          '```',
-          logs,
-          '```',
-          '',
-          '</details>',
-        ].join('\n'),
-      )
-    }
-  }
+function buildLastMessageSection(payload: FeedbackPayload) {
+  if (!payload.includeLastMessage || !payload.lastUserMessage) return undefined
+
+  return [
+    '## Last User Message',
+    '',
+    '<details><summary>Message content</summary>',
+    '',
+    '```',
+    payload.lastUserMessage,
+    '```',
+    '',
+    '</details>',
+  ].join('\n')
+}
+
+async function buildLogsSection(payload: FeedbackPayload) {
+  if (!payload.includeLogs) return undefined
+
+  const logs = await readRecentLogs(FEEDBACK.DEFAULT_LOG_LINE_COUNT)
+  if (!logs) return undefined
+
+  return [
+    '## Recent Logs',
+    '',
+    '<details><summary>Last 100 lines (redacted)</summary>',
+    '',
+    '```',
+    logs,
+    '```',
+    '',
+    '</details>',
+  ].join('\n')
+}
+
+function appendMarkdownSection(sections: string[], section: string | undefined) {
+  if (section) sections.push(section)
+}
+
+async function buildMarkdownBody(payload: FeedbackPayload) {
+  const sections = [buildDescriptionSection(payload)]
+  appendMarkdownSection(sections, buildSystemInfoSection(payload))
+  appendMarkdownSection(sections, buildModelInfoSection(payload))
+  appendMarkdownSection(sections, buildErrorContextSection(payload))
+  appendMarkdownSection(sections, buildLastMessageSection(payload))
+  appendMarkdownSection(sections, await buildLogsSection(payload))
 
   return sections.join('\n\n')
 }

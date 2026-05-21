@@ -56,7 +56,7 @@ const REMOVED_PERSISTENCE_TABLES = [
 ] as const
 const REMOVED_SETTINGS_KEYS = ['providers', 'executionMode', 'qualityPreset', 'mcpServers'] as const
 
-async function disposeRuntime(): Promise<void> {
+async function disposeRuntime() {
   const { disposeAppRuntime } = await import('../../runtime')
   await disposeAppRuntime()
 }
@@ -67,7 +67,7 @@ async function loadSettingsModule() {
   return module
 }
 
-async function writeRawSetting(key: string, value: unknown): Promise<void> {
+async function writeRawSetting(key: string, value: unknown) {
   const { runAppEffect } = await import('../../runtime')
   await runAppEffect(
     Effect.gen(function* () {
@@ -83,7 +83,7 @@ async function writeRawSetting(key: string, value: unknown): Promise<void> {
   )
 }
 
-async function seedRemovedPersistenceForCleanup(): Promise<void> {
+async function seedRemovedPersistenceForCleanup() {
   const { resetAppRuntimeForTests, runAppEffect } = await import('../../runtime')
   await runAppEffect(
     Effect.gen(function* () {
@@ -111,10 +111,7 @@ async function seedRemovedPersistenceForCleanup(): Promise<void> {
   await resetAppRuntimeForTests()
 }
 
-async function readRemovedPersistenceNames(): Promise<{
-  readonly tables: readonly string[]
-  readonly settingsKeys: readonly string[]
-}> {
+async function readRemovedPersistenceNames() {
   const { runAppEffect } = await import('../../runtime')
   return runAppEffect(
     Effect.gen(function* () {
@@ -140,7 +137,7 @@ async function readRemovedPersistenceNames(): Promise<{
   )
 }
 
-async function readTableColumns(tableName: string): Promise<readonly string[]> {
+async function readTableColumns(tableName: string) {
   const { runAppEffect } = await import('../../runtime')
   return runAppEffect(
     Effect.gen(function* () {

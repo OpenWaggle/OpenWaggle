@@ -9,15 +9,19 @@ const {
   mockCheckForUpdatesFn,
   mockQuitAndInstall,
   autoUpdaterRef,
-} = vi.hoisted(() => ({
-  mockIsDev: { value: false },
-  mockBroadcastToWindows: vi.fn(),
-  mockCheckForUpdatesFn: vi.fn(() => Promise.resolve()),
-  mockQuitAndInstall: vi.fn(),
-  autoUpdaterRef: { current: null } as {
+} = vi.hoisted(() => {
+  const autoUpdaterRef: {
     current: import('node:events').EventEmitter | null
-  },
-}))
+  } = { current: null }
+
+  return {
+    mockIsDev: { value: false },
+    mockBroadcastToWindows: vi.fn(),
+    mockCheckForUpdatesFn: vi.fn(() => Promise.resolve()),
+    mockQuitAndInstall: vi.fn(),
+    autoUpdaterRef,
+  }
+})
 
 vi.mock('@electron-toolkit/utils', () => ({
   get is() {
@@ -25,10 +29,10 @@ vi.mock('@electron-toolkit/utils', () => ({
   },
 }))
 
-vi.mock('electron-updater', () => {
+vi.mock('electron-updater', async () => {
   // EventEmitter is available here — vi.mock factories execute in Node context
   // after vi.hoisted() but before module-scope code outside mocks.
-  const { EventEmitter } = require('node:events') as typeof import('node:events')
+  const { EventEmitter } = await import('node:events')
   const emitter = new EventEmitter()
 
   // Expose to outer scope so tests can emit events and inspect listeners.
@@ -68,7 +72,7 @@ import {
 } from '../updater'
 
 // Convenience getter so tests read more cleanly.
-function emitter(): import('node:events').EventEmitter {
+function emitter() {
   if (!autoUpdaterRef.current) throw new Error('autoUpdater emitter not initialized')
   return autoUpdaterRef.current
 }

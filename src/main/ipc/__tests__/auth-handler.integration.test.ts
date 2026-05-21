@@ -51,13 +51,11 @@ vi.mock('../../auth', () => ({
   }),
 }))
 
-function getRegisteredAuthHandler(
-  channel: string,
-): ((event: unknown, provider: string) => Promise<unknown>) | undefined {
+function getRegisteredAuthHandler(channel: string) {
   const call = mockHandle.mock.calls.find((candidate) => candidate[0] === channel)
   const handler = call?.[1]
   if (typeof handler !== 'function') return undefined
-  return (event, provider) => handler(event, provider)
+  return (event: unknown, provider: string) => handler(event, provider)
 }
 
 describe('auth-handler', () => {

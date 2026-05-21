@@ -222,13 +222,13 @@ export function navigateAgentSessionTree(input: AgentSessionNavigateTreeInput) {
             result,
           }),
         ),
-        Effect.catchAll((error): Effect.Effect<NavigateTreeOutcome, Error> => {
+        Effect.catchAll((error) => {
           if (isAgentKernelMissingEntryError(error)) {
             logger.warn('Skipped Pi tree navigation because the target entry is absent', {
               sessionId: String(input.sessionId),
               targetNodeId: String(input.targetNodeId),
             })
-            return Effect.succeed({ type: 'missing-entry' })
+            return Effect.succeed<NavigateTreeOutcome>({ type: 'missing-entry' })
           }
 
           return Effect.fail(error)

@@ -15,7 +15,7 @@ interface PhaseChangeResult {
 
 const states = new Map<string, SessionPhaseState>()
 
-function getState(sessionId: SessionId): SessionPhaseState {
+function getState(sessionId: SessionId) {
   const key = String(sessionId)
   const existing = states.get(key)
   if (existing) return existing
@@ -28,11 +28,7 @@ function getState(sessionId: SessionId): SessionPhaseState {
   return created
 }
 
-function setPhase(
-  state: SessionPhaseState,
-  label: AgentPhaseState['label'],
-  startedAt: number,
-): PhaseChangeResult {
+function setPhase(state: SessionPhaseState, label: AgentPhaseState['label'], startedAt: number) {
   const next: AgentPhaseState = { label, startedAt }
   if (state.current && state.current.label === next.label) {
     return { changed: false, phase: state.current }
@@ -41,7 +37,7 @@ function setPhase(
   return { changed: true, phase: next }
 }
 
-function clearPhase(sessionId: SessionId): PhaseChangeResult {
+function clearPhase(sessionId: SessionId) {
   const key = String(sessionId)
   const state = states.get(key)
   if (!state) {

@@ -23,10 +23,7 @@ const writeSourceConfigSchema = Schema.Struct({
   rawJson: Schema.String,
 })
 
-function decodeProjectPathArg(
-  value: unknown,
-  action: string,
-): Effect.Effect<string | null | undefined, Error> {
+function decodeProjectPathArg(value: unknown, action: string) {
   if (typeof value === 'string' || value === null || value === undefined) {
     return Effect.succeed(value)
   }

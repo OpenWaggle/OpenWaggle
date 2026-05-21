@@ -11,7 +11,7 @@ export function deduplicateConsecutiveWords(title: string): string {
   return result
 }
 
-function truncateTitle(text: string): string {
+function truncateTitle(text: string) {
   if (text.length <= TITLE.FALLBACK_LENGTH) {
     return text
   }
@@ -22,7 +22,7 @@ function truncateTitle(text: string): string {
   return `${candidate}...`
 }
 
-function normalizeTitleInput(text: string): string {
+function normalizeTitleInput(text: string) {
   return text
     .slice(0, TITLE.INPUT_MAX_CHARS)
     .split(/\r?\n/)

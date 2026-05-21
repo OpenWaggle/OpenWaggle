@@ -1,5 +1,5 @@
-import { MessageId, SessionBranchId, SessionId, SupportedModelId } from '@shared/types/brand'
-import type { SessionDetail, SessionTree } from '@shared/types/session'
+import { MessageId, SupportedModelId } from '@shared/types/brand'
+import type { SessionDetail } from '@shared/types/session'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
@@ -10,6 +10,13 @@ import { SessionProjectionRepository } from '../../ports/session-projection-repo
 import { type PersistSessionSnapshotInput, SessionRepository } from '../../ports/session-repository'
 import { SettingsService } from '../../services/settings-service'
 import { executeAgentRun, reconcileInterruptedAgentRuns } from '../agent-run-service'
+import {
+  runServiceBranchId,
+  runServiceNewSession,
+  runServiceSession,
+  runServiceSessionId,
+  runServiceSessionTree,
+} from './agent-run-service.test-utils'
 
 const runMock = vi.fn()
 const updateTitleMock = vi.fn()
@@ -21,68 +28,13 @@ const listActiveRunsForRecoveryMock = vi.fn()
 const markActiveRunInterruptedMock = vi.fn()
 const getSessionSnapshotMock = vi.fn()
 
-const sessionId = SessionId('session-1')
-const branchId = SessionBranchId('session-1:main')
+const sessionId = runServiceSessionId
+const branchId = runServiceBranchId
 const model = SupportedModelId('openai/gpt-5.4')
-
-const session: SessionDetail = {
-  id: sessionId,
-  title: 'Existing session',
-  projectPath: '/tmp/project',
-  piSessionId: 'pi-session-1',
-  piSessionFile: '/tmp/pi-session-1.jsonl',
-  messages: [
-    {
-      id: MessageId('user-previous'),
-      role: 'user',
-      parts: [{ type: 'text', text: 'Existing prompt' }],
-      createdAt: 1,
-    },
-  ],
-  createdAt: 1,
-  updatedAt: 2,
-}
-
-const newSession: SessionDetail = {
-  id: sessionId,
-  title: 'New session',
-  projectPath: '/tmp/project',
-  piSessionId: 'pi-session-1',
-  piSessionFile: '/tmp/pi-session-1.jsonl',
-  messages: [],
-  createdAt: 1,
-  updatedAt: 2,
-}
+const session = runServiceSession
+const newSession = runServiceNewSession
 
 let projectionSession: SessionDetail = session
-
-const sessionTree: SessionTree = {
-  session: {
-    id: sessionId,
-    title: 'Existing session',
-    projectPath: '/tmp/project',
-    createdAt: 1,
-    updatedAt: 2,
-    lastActiveNodeId: null,
-    lastActiveBranchId: branchId,
-  },
-  nodes: [],
-  branches: [
-    {
-      id: branchId,
-      sessionId,
-      sourceNodeId: null,
-      headNodeId: null,
-      name: 'main',
-      isMain: true,
-      archivedAt: null,
-      createdAt: 1,
-      updatedAt: 2,
-    },
-  ],
-  branchStates: [],
-  uiState: null,
-}
 
 const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   get: () => Effect.succeed(projectionSession),
@@ -117,7 +69,7 @@ const TestSettingsLayer = Layer.succeed(SettingsService, {
 const TestSessionLayer = Layer.succeed(SessionRepository, {
   list: () => Effect.succeed([]),
   listArchivedBranches: () => Effect.succeed([]),
-  getTree: () => Effect.succeed(sessionTree),
+  getTree: () => Effect.succeed(runServiceSessionTree),
   getWorkspace: () => Effect.succeed(null),
   persistSnapshot: (input: PersistSessionSnapshotInput) =>
     Effect.sync(() => {

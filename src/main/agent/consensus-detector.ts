@@ -158,7 +158,7 @@ function checkShrinkingResponse(
   return null
 }
 
-function extractSentences(text: string): Set<string> {
+function extractSentences(text: string) {
   return new Set(
     text
       .split(/[.!?\n]+/)

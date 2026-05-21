@@ -55,6 +55,6 @@ describe('withSessionLock', () => {
   })
 })
 
-function delay(ms: number): Promise<void> {
+function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }

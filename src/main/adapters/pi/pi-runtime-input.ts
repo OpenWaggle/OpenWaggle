@@ -12,9 +12,7 @@ export interface PiPromptInput {
   readonly images: readonly PiImageContent[]
 }
 
-function buildAttachmentSummary(
-  attachment: HydratedAgentSendPayload['attachments'][number],
-): string {
+function buildAttachmentSummary(attachment: HydratedAgentSendPayload['attachments'][number]) {
   const extracted = attachment.extractedText.trim()
   return extracted
     ? `[Attachment: ${attachment.name}]\n${extracted}`
@@ -35,7 +33,7 @@ function buildImageContent(
   }
 }
 
-function modelSupportsImage(model: PiModel): boolean {
+function modelSupportsImage(model: PiModel) {
   return model.input.includes('image')
 }
 

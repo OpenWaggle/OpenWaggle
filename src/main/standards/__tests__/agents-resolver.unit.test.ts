@@ -11,7 +11,7 @@ import {
 
 const tempDirs: string[] = []
 
-async function makeTempProject(): Promise<string> {
+async function makeTempProject() {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-agents-resolver-'))
   tempDirs.push(dir)
   return dir

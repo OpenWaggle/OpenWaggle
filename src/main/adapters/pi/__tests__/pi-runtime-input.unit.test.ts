@@ -1,10 +1,9 @@
 import { AuthStorage, ModelRegistry } from '@mariozechner/pi-coding-agent'
 import type { HydratedAgentSendPayload } from '@shared/types/agent'
 import { describe, expect, it } from 'vitest'
-import type { PiModel } from '../pi-provider-catalog'
 import { buildPiPromptInput } from '../pi-runtime-input'
 
-function makeRegistry(): ModelRegistry {
+function makeRegistry() {
   const authStorage = AuthStorage.inMemory()
   const modelRegistry = ModelRegistry.inMemory(authStorage)
   modelRegistry.registerProvider('test-provider', {
@@ -37,7 +36,7 @@ function makeRegistry(): ModelRegistry {
   return modelRegistry
 }
 
-function requireModel(modelRegistry: ModelRegistry, modelId: string): PiModel {
+function requireModel(modelRegistry: ModelRegistry, modelId: string) {
   const model = modelRegistry.find('test-provider', modelId)
   if (!model) {
     throw new Error(`Missing test model ${modelId}`)

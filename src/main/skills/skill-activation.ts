@@ -27,7 +27,7 @@ export function activateSkillsFromText(
   }
 }
 
-function findExplicitSkillIds(text: string, skills: readonly LoadedSkillDefinition[]): string[] {
+function findExplicitSkillIds(text: string, skills: readonly LoadedSkillDefinition[]) {
   const references = extractExplicitSkillReferences(text)
   const explicitIds = [...references.allSkillIds]
   const lowerText = text.toLowerCase()
@@ -47,7 +47,7 @@ function findHeuristicSkillIds(
   text: string,
   skills: readonly LoadedSkillDefinition[],
   explicitIds: readonly string[],
-): string[] {
+) {
   const messageTokens = tokenize(text)
   if (messageTokens.size === 0) return []
 
@@ -65,12 +65,12 @@ function findHeuristicSkillIds(
   return scored.slice(0, SKILL_ACTIVATION.MAX_MATCHES).map((entry) => entry.skillId)
 }
 
-function tokenize(value: string): Set<string> {
+function tokenize(value: string) {
   const matches = value.toLowerCase().match(/[a-z0-9][a-z0-9-_]*/g)
   return new Set(matches ?? [])
 }
 
-function countOverlap(a: Set<string>, b: Set<string>): number {
+function countOverlap(a: Set<string>, b: Set<string>) {
   let count = 0
   for (const token of a) {
     if (b.has(token)) {
@@ -80,18 +80,18 @@ function countOverlap(a: Set<string>, b: Set<string>): number {
   return count
 }
 
-function matchesWholeToken(text: string, token: string): boolean {
+function matchesWholeToken(text: string, token: string) {
   const regex = new RegExp(`(^|\\s)${escapeRegex(token)}(\\s|$)`, 'i')
   return regex.test(text)
 }
 
-function matchesWholeText(text: string, value: string): boolean {
+function matchesWholeText(text: string, value: string) {
   const escaped = escapeRegex(value.toLowerCase())
   if (!escaped) return false
   const regex = new RegExp(`(^|\\s)${escaped}(\\s|$)`, 'i')
   return regex.test(text)
 }
 
-function escapeRegex(value: string): string {
+function escapeRegex(value: string) {
   return value.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }

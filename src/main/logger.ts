@@ -26,7 +26,7 @@ interface LogEntry {
 
 export type { Logger, LogLevel }
 
-function safeSerialize(data: object): string {
+function safeSerialize(data: object) {
   try {
     return JSON.stringify(data)
   } catch {
@@ -34,7 +34,7 @@ function safeSerialize(data: object): string {
   }
 }
 
-function formatLine(entry: LogEntry): string {
+function formatLine(entry: LogEntry) {
   const ts = new Date().toISOString().slice(SLICE_ARG_1, SLICE_ARG_2) // HH:mm:ss.mmm
   if (entry.data && Object.keys(entry.data).length > 0) {
     return `${ts} [${entry.namespace}] ${entry.message} ${safeSerialize(entry.data)}`
@@ -42,11 +42,11 @@ function formatLine(entry: LogEntry): string {
   return `${ts} [${entry.namespace}] ${entry.message}`
 }
 
-function isLevelEnabled(level: LogLevel): boolean {
+function isLevelEnabled(level: LogLevel) {
   return LOG_LEVEL_PRIORITIES[level] >= LOG_LEVEL_PRIORITIES[configuredLogLevel]
 }
 
-function writeToConsole(entry: LogEntry): void {
+function writeToConsole(entry: LogEntry) {
   const ts = new Date().toISOString().slice(SLICE_ARG_1, SLICE_ARG_2) // HH:mm:ss.mmm
   const prefix = `${ts} [${entry.namespace}] ${entry.message}`
   const consoleMethod = {
@@ -64,7 +64,7 @@ function writeToConsole(entry: LogEntry): void {
   consoleMethod(prefix)
 }
 
-function reportFileLoggerFailure(message: string, error: unknown): void {
+function reportFileLoggerFailure(message: string, error: unknown) {
   const errorMessage = error instanceof Error ? error.message : String(error)
   try {
     process.stderr.write(`${FILE_LOGGER_FALLBACK_PREFIX} ${message}: ${errorMessage}\n`)
@@ -84,7 +84,7 @@ class FileWriter {
   private buffer: LogEntry[] = []
   private flushScheduled = false
 
-  async init(logsDir: string): Promise<void> {
+  async init(logsDir: string) {
     try {
       await mkdir(logsDir, { recursive: true })
       this.logsDir = logsDir
@@ -97,7 +97,7 @@ class FileWriter {
     }
   }
 
-  write(entry: LogEntry): void {
+  write(entry: LogEntry) {
     if (!this.logsDir) return
     this.buffer.push(entry)
     if (!this.flushScheduled) {
@@ -106,18 +106,18 @@ class FileWriter {
     }
   }
 
-  getLogFilePath(): string {
+  getLogFilePath() {
     return this.currentPath ?? ''
   }
 
-  private ensureDatePath(): void {
+  private ensureDatePath() {
     const dateStr = new Date().toISOString().slice(0, SLICE_ARG_2_VALUE_10) // YYYY-MM-DD
     if (dateStr === this.currentDate) return
     this.currentDate = dateStr
     this.currentPath = path.join(this.logsDir ?? '', `openwaggle-${dateStr}.log`)
   }
 
-  private flush(): void {
+  private flush() {
     this.flushScheduled = false
     if (this.buffer.length === 0) return
     this.ensureDatePath()
@@ -131,7 +131,7 @@ class FileWriter {
     })
   }
 
-  private async pruneOldLogs(): Promise<void> {
+  private async pruneOldLogs() {
     if (!this.logsDir) return
     const logsDir = this.logsDir
     try {
@@ -175,7 +175,7 @@ export function getLogFilePath(): string {
 }
 
 export function createLogger(namespace: string): Logger {
-  const log = (level: LogLevel, message: string, data?: object): void => {
+  const log = (level: LogLevel, message: string, data?: object) => {
     if (!isLevelEnabled(level)) {
       return
     }

@@ -19,7 +19,7 @@ vi.mock('../typed-ipc', () => ({
 
 import { registerWagglePresetsHandlers } from '../waggle-presets-handler'
 
-function getInvokeHandler(name: string): ((...args: unknown[]) => Promise<unknown>) | undefined {
+function getInvokeHandler(name: string) {
   const call = typedHandleMock.mock.calls.find(
     (args: readonly unknown[]) => args[0] === name && typeof args[1] === 'function',
   )
