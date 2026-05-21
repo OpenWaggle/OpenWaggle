@@ -2,8 +2,12 @@ import { useChatStore } from '@/features/chat/state'
 import { useProviderStore } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { formatContextWindow } from '@/shared/lib/format-tokens'
-import { useContextUsageSnapshot } from '../hooks'
-import { buildContextMeterValue, buildContextUsageRequestKey, findContextWindow } from '../lib'
+import { useContextUsageSnapshot } from '../hooks/useContextUsageSnapshot'
+import {
+  buildContextMeterValue,
+  buildContextUsageRequestKey,
+  findContextWindow,
+} from '../lib/context-meter-view'
 import { ContextMeterRing } from './ContextMeterRing'
 
 export function ContextMeter() {

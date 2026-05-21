@@ -42,10 +42,10 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
     if (!this.state.hasError) return this.props.children
 
     return (
-      <div role="alert" className="flex h-full w-full items-center justify-center bg-bg px-6">
+      <div role="alert" className="flex size-full items-center justify-center bg-bg px-6">
         <div className="w-full max-w-md rounded-xl border border-error/30 bg-bg-secondary p-5">
           <div className="mb-3 flex items-center gap-2 text-error">
-            <AlertTriangle className="h-4 w-4" />
+            <AlertTriangle className="size-4" />
             <h1 className="text-sm font-semibold">Something went wrong</h1>
           </div>
           <p className="text-[13px] text-text-secondary">
@@ -62,7 +62,7 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
             onClick={this.handleReload}
             className="mt-4"
           >
-            <RefreshCw className="h-3 w-3" />
+            <RefreshCw className="size-3" />
             Reload app
           </Button>
         </div>

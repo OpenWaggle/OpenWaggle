@@ -5,8 +5,12 @@ import { usePreferencesStore } from '@/features/settings/state'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import { Popover } from '@/shared/ui/Popover'
-import { THINKING_LEVEL_LABELS } from '../constants'
-import { getThinkingButtonLabel, getThinkingButtonTitle, hasOnlyOffThinkingLevel } from '../lib'
+import { THINKING_LEVEL_LABELS } from '../constants/thinking-level-labels'
+import {
+  getThinkingButtonLabel,
+  getThinkingButtonTitle,
+  hasOnlyOffThinkingLevel,
+} from '../lib/thinking-level-view'
 
 export function ThinkingLevelMenu() {
   const settings = usePreferencesStore((s) => s.settings)

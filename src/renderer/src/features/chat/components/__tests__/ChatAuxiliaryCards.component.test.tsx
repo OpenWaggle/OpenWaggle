@@ -53,6 +53,7 @@ describe('chat auxiliary cards', () => {
   it('renders interrupted run metadata and delegates dismissal', () => {
     const onDismiss = vi.fn()
     const branchId = SessionBranchId('branch-1')
+    const interruptedAt = 1_764_080_000_000
 
     render(
       <InterruptedRunNotice
@@ -60,7 +61,7 @@ describe('chat auxiliary cards', () => {
         branchId={branchId}
         runMode="waggle"
         model={SupportedModelId('openai/gpt-5.5')}
-        interruptedAt={Date.now()}
+        interruptedAt={interruptedAt}
         onDismiss={onDismiss}
       />,
     )

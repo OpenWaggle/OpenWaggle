@@ -1,5 +1,5 @@
 import type { RefObject } from 'react'
-import { buildCommandPaletteEntries } from '../lib'
+import { buildCommandPaletteEntries } from '../lib/command-palette-entries'
 import type { CommandPaletteItem } from '../model'
 import { CommandPaletteItemButton } from './CommandPaletteItemButton'
 

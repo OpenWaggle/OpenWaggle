@@ -1,8 +1,8 @@
 import { Search } from 'lucide-react'
 import { Select } from '@/shared/ui/Select'
 import { TextInput } from '@/shared/ui/TextInput'
-import { SESSION_TREE } from '../constants'
-import type { SessionTreePanelFilters as SessionTreePanelFiltersModel } from '../model'
+import { SESSION_TREE } from '../constants/session-tree'
+import type { SessionTreePanelFilters as SessionTreePanelFiltersModel } from '../model/session-tree-panel'
 
 interface SessionTreePanelFiltersProps {
   readonly filters: SessionTreePanelFiltersModel

@@ -32,11 +32,11 @@ export function TerminalPanel({ projectPath, onClose }: TerminalPanelProps) {
           className="flex items-center justify-center rounded p-0.5 text-text-tertiary hover:text-text-primary hover:bg-bg-hover transition-colors"
           title="Close terminal"
         >
-          <X className="h-3.5 w-3.5" />
+          <X className="size-3.5" />
         </Button>
       </div>
 
-      <div ref={containerRef} className="flex-1 overflow-hidden px-1 py-1" />
+      <div ref={containerRef} className="flex-1 overflow-hidden p-1" />
       {terminalStatus.errorMessage && (
         <div className="border-t border-border px-3 py-2 text-[12px] text-error">
           {terminalStatus.errorMessage}

@@ -38,7 +38,7 @@ export function InlineComment({
     <div className="flex flex-col gap-2 w-full bg-diff-header-bg py-2 px-3 border-y border-border">
       {/* Comment Meta */}
       <div className="flex items-center gap-1.5 h-[18px]">
-        <MessageSquare className="h-[11px] w-[11px] text-text-tertiary shrink-0" />
+        <MessageSquare className="size-[11px] text-text-tertiary shrink-0" />
         <span className="text-[11px] font-medium text-text-secondary">Comment on {lineLabel}</span>
       </div>
 

@@ -1,5 +1,5 @@
 import { cn } from '@/shared/lib/cn'
-import { CONTEXT_METER } from '../constants'
+import { CONTEXT_METER } from '../constants/context-meter'
 
 interface ContextMeterRingProps {
   readonly displayValue: string

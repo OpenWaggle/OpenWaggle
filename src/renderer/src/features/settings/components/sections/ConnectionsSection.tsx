@@ -39,7 +39,7 @@ function AuthProviderGroup({
         onClick={onToggle}
         aria-expanded={isOpen}
         className={cn(
-          'flex w-full items-start justify-between gap-4 rounded-md px-1 py-1 text-left transition-colors',
+          'flex w-full items-start justify-between gap-4 rounded-md p-1 text-left transition-colors',
           'hover:bg-bg-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-light',
         )}
       >

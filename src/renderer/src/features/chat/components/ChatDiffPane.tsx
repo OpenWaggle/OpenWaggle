@@ -15,7 +15,7 @@ export function ChatDiffPane({ section, onClose }: ChatDiffPaneProps) {
   const bumpDiffRefreshKey = useUIStore((s) => s.bumpDiffRefreshKey)
 
   return (
-    <div className="flex h-full w-full min-w-0 flex-col overflow-hidden bg-diff-bg">
+    <div className="flex size-full min-w-0 flex-col overflow-hidden bg-diff-bg">
       <header className="drag-region flex h-12 shrink-0 items-center justify-between border-b border-border bg-diff-header-bg px-3">
         <div className="flex min-w-0 items-center gap-2">
           <span className="no-drag text-[13px] font-medium text-text-primary">Changes</span>
@@ -30,7 +30,7 @@ export function ChatDiffPane({ section, onClose }: ChatDiffPaneProps) {
             className="rounded-md p-1.5 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
             title="Refresh diff"
           >
-            <RefreshCw className="h-3.5 w-3.5" />
+            <RefreshCw className="size-3.5" />
           </Button>
           <Button
             variant="unstyled"
@@ -40,7 +40,7 @@ export function ChatDiffPane({ section, onClose }: ChatDiffPaneProps) {
             className="rounded-md p-1.5 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
             title="Close diff sidebar"
           >
-            <X className="h-3.5 w-3.5" />
+            <X className="size-3.5" />
           </Button>
         </div>
       </header>

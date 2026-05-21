@@ -20,7 +20,7 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
   const feedbackModalOpen = useUIStore((s) => s.feedbackModalOpen)
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-bg">
+    <div className="flex size-full overflow-hidden bg-bg">
       <Sidebar />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">

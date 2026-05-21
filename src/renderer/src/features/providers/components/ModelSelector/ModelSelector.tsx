@@ -61,7 +61,7 @@ function readEnabledModel(
 }
 
 function sortModelsByProvider(models: FlatModel[]) {
-  return [...models].sort((a, b) => {
+  return models.slice().sort((a, b) => {
     if (a.provider !== b.provider) return a.provider.localeCompare(b.provider)
     return 0
   })
@@ -88,9 +88,7 @@ interface SelectedModelIconProps {
 
 function SelectedModelIcon({ provider }: SelectedModelIconProps) {
   const color = resolveIconColor(provider)
-  return (
-    <ProviderModelIcon provider={provider} className="h-3.5 w-3.5 shrink-0" style={{ color }} />
-  )
+  return <ProviderModelIcon provider={provider} className="size-3.5 shrink-0" style={{ color }} />
 }
 
 export function ModelSelector({

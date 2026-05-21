@@ -21,7 +21,7 @@ interface VoiceRecorderProps {
 export function VoiceRecorder({ fileInputRef, voice }: VoiceRecorderProps) {
   return (
     <div className="flex h-11 items-center justify-between px-4">
-      <div className="flex h-full w-full items-center gap-3">
+      <div className="flex size-full items-center gap-3">
         <ComposerAttachButton fileInputRef={fileInputRef} />
 
         <div className="flex min-w-0 flex-1 items-center gap-2.5 overflow-hidden">
@@ -39,14 +39,14 @@ export function VoiceRecorder({ fileInputRef, voice }: VoiceRecorderProps) {
             variant="unstyled"
             type="button"
             onClick={voice.stopCapture}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-bg-tertiary text-text-primary transition-colors hover:bg-bg-hover"
+            className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-bg-tertiary text-text-primary transition-colors hover:bg-bg-hover"
             title="Stop recording"
           >
-            <Square className="h-3.5 w-3.5" />
+            <Square className="size-3.5" />
           </Button>
         ) : (
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-bg-tertiary text-text-tertiary">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-bg-tertiary text-text-tertiary">
+            <Loader2 className="size-3.5 animate-spin" />
           </div>
         )}
 
@@ -56,7 +56,7 @@ export function VoiceRecorder({ fileInputRef, voice }: VoiceRecorderProps) {
           onClick={voice.stopAndSend}
           disabled={voice.mode === 'transcribing'}
           className={cn(
-            'flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors',
+            'flex size-8 shrink-0 items-center justify-center rounded-full transition-colors',
             voice.mode === 'transcribing'
               ? 'cursor-not-allowed border border-border bg-bg-tertiary'
               : 'bg-text-primary text-bg hover:bg-text-primary/90',
@@ -64,7 +64,7 @@ export function VoiceRecorder({ fileInputRef, voice }: VoiceRecorderProps) {
           title="Send recording"
         >
           <ArrowUp
-            className={cn('h-4 w-4', voice.mode === 'transcribing' ? 'text-text-muted' : 'text-bg')}
+            className={cn('size-4', voice.mode === 'transcribing' ? 'text-text-muted' : 'text-bg')}
           />
         </Button>
       </div>

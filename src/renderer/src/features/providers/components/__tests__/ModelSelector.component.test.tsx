@@ -5,7 +5,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useProviderStore } from '@/features/providers/state/provider-store'
 import { usePreferencesStore } from '@/features/settings/state'
-import { ModelSelector } from '../ModelSelector'
+import { ModelSelector } from '../ModelSelector/ModelSelector'
 
 const { apiMock } = vi.hoisted(() => ({
   apiMock: {

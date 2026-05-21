@@ -15,7 +15,7 @@ export function CommandPaletteSearch({
 }: CommandPaletteSearchProps) {
   return (
     <div className="flex h-11 items-center gap-2 border-b border-border px-3.5">
-      <Search className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
+      <Search className="size-3.5 shrink-0 text-text-tertiary" />
       <TextInput
         ref={inputRef}
         type="text"

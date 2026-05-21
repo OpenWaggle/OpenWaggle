@@ -1,5 +1,5 @@
 import { Popover } from '@/shared/ui/Popover'
-import { useBranchPickerController } from '../hooks'
+import { useBranchPickerController } from '../hooks/useBranchPickerController'
 import { BranchPickerActions } from './BranchPickerActions'
 import { BranchPickerList } from './BranchPickerList'
 import { BranchPickerSearch } from './BranchPickerSearch'

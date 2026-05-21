@@ -31,9 +31,9 @@ interface CategoryOption {
 }
 
 const CATEGORIES: CategoryOption[] = [
-  { value: 'bug', label: 'Bug', icon: <Bug className="h-3.5 w-3.5" /> },
-  { value: 'feature', label: 'Feature', icon: <Lightbulb className="h-3.5 w-3.5" /> },
-  { value: 'question', label: 'Question', icon: <HelpCircle className="h-3.5 w-3.5" /> },
+  { value: 'bug', label: 'Bug', icon: <Bug className="size-3.5" /> },
+  { value: 'feature', label: 'Feature', icon: <Lightbulb className="size-3.5" /> },
+  { value: 'question', label: 'Question', icon: <HelpCircle className="size-3.5" /> },
 ]
 
 interface FeedbackModalBodyProps {
@@ -50,7 +50,7 @@ export function FeedbackModalBody({
   lastUserMessage,
 }: FeedbackModalBodyProps) {
   return (
-    <div className="space-y-4 px-4 py-4">
+    <div className="space-y-4 p-4">
       <div className="flex gap-2">
         {CATEGORIES.map((cat) => (
           <Button
@@ -164,12 +164,12 @@ function GhCliStatusBanner({
     >
       {ghReady ? (
         <>
-          <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+          <CheckCircle2 className="size-3.5 shrink-0" />
           Ready to submit via GitHub CLI
         </>
       ) : (
         <>
-          <CircleAlert className="h-3.5 w-3.5 shrink-0" />
+          <CircleAlert className="size-3.5 shrink-0" />
           <GhCliHelpText available={!!fb.ghStatus?.available} />
         </>
       )}
@@ -215,16 +215,16 @@ export function FeedbackModalFooter({ fb, canSubmit, ghReady, onClose }: Feedbac
         Cancel
       </Button>
       <Button variant="secondary" onClick={() => void fb.copyAndOpen()}>
-        <Copy className="h-3 w-3" />
+        <Copy className="size-3" />
         Copy & Open GitHub
-        <ExternalLink className="h-3 w-3" />
+        <ExternalLink className="size-3" />
       </Button>
       <Button
         variant={canSubmit && ghReady ? 'primary' : 'secondary'}
         onClick={() => void fb.submit()}
         disabled={!canSubmit || !ghReady}
       >
-        {fb.submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+        {fb.submitting && <Loader2 className="size-3.5 animate-spin" />}
         Submit Issue
       </Button>
     </div>

@@ -10,11 +10,17 @@ export function ComposerHiddenFileInput({
   fileInputRef,
   handleAttachFiles,
 }: ComposerHiddenFileInputProps) {
-  function handleChange(event: ChangeEvent<HTMLInputElement>) {
+  function attachSelectedFiles(event: ChangeEvent<HTMLInputElement>) {
     void handleAttachFiles(event)
   }
 
   return (
-    <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleChange} />
+    <input
+      ref={fileInputRef}
+      type="file"
+      multiple
+      className="hidden"
+      onChange={attachSelectedFiles}
+    />
   )
 }

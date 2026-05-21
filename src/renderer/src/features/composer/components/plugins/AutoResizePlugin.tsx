@@ -3,16 +3,20 @@ import { useEffect, useRef } from 'react'
 
 const COMPOSER_MAX_HEIGHT_PX = 300
 
+function getAutoResizeBaseCssText(element: HTMLElement) {
+  return element.style.cssText
+    .replaceAll(/(?:^|;)\s*(?:height|overflow-y)\s*:[^;]*/g, '')
+    .replace(/^;+|;+$/g, '')
+}
+
 function adjustHeight(element: HTMLElement) {
-  element.style.height = 'auto'
+  const baseCssText = getAutoResizeBaseCssText(element)
+  element.style.cssText = `${baseCssText};height:auto;`
   const scrollHeight = element.scrollHeight
-  if (scrollHeight > COMPOSER_MAX_HEIGHT_PX) {
-    element.style.height = `${String(COMPOSER_MAX_HEIGHT_PX)}px`
-    element.style.overflowY = 'auto'
-  } else {
-    element.style.height = `${String(scrollHeight)}px`
-    element.style.overflowY = 'hidden'
-  }
+  const capped = scrollHeight > COMPOSER_MAX_HEIGHT_PX
+  const height = capped ? COMPOSER_MAX_HEIGHT_PX : scrollHeight
+  const overflowY = capped ? 'auto' : 'hidden'
+  element.style.cssText = `${baseCssText};height:${String(height)}px;overflow-y:${overflowY};`
 }
 
 /**

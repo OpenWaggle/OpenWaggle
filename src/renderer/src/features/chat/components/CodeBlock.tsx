@@ -50,7 +50,7 @@ export function CodeBlock({ children, language, className }: CodeBlockProps) {
           onClick={handleCopy}
           className="flex items-center gap-1 text-[13px] text-text-muted hover:text-text-secondary transition-colors"
         >
-          {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+          {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
           {copied ? 'Copied' : 'Copy'}
         </Button>
       </div>

@@ -1,6 +1,6 @@
 import { useSessionStatusStore } from '@/features/sessions/state'
 import { cn } from '@/shared/lib/cn'
-import { SIDEBAR_LAYOUT } from '../constants'
+import { SIDEBAR_LAYOUT } from '../constants/sidebar-layout'
 import { useSidebarController } from '../hooks/useSidebarController'
 import {
   SidebarBrandArea,

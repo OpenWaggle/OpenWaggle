@@ -31,7 +31,7 @@ export function ScrollToBottomButton({ visible, onClick }: ScrollToBottomButtonP
         )}
         aria-label="Scroll to bottom"
       >
-        <ChevronDown className="h-3 w-3" />
+        <ChevronDown className="size-3" />
         <span>Scroll to bottom</span>
       </Button>
     </div>

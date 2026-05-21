@@ -18,7 +18,7 @@ export function AgentLabel({ assistantModel, waggle }: AgentLabelProps) {
             AGENT_TEXT[waggle.agentColor],
           )}
         >
-          <span className={cn('h-1.5 w-1.5 rounded-full', AGENT_BG[waggle.agentColor])} />
+          <span className={cn('size-1.5 rounded-full', AGENT_BG[waggle.agentColor])} />
           <span>{waggle.agentLabel}</span>
           {assistantModel && ` \u00b7 ${generateDisplayName(assistantModel)}`}
         </span>

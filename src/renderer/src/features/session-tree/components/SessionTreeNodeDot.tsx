@@ -1,8 +1,8 @@
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
-import { SESSION_TREE } from '../constants'
-import type { SessionTreeRow, SessionTreeRowGeometry } from '../model'
+import { SESSION_TREE } from '../constants/session-tree'
+import type { SessionTreeRow, SessionTreeRowGeometry } from '../model/session-tree-row'
 
 interface SessionTreeNodeDotProps {
   readonly expanded: boolean
@@ -57,9 +57,9 @@ export function SessionTreeNodeDot({
       style={style}
     >
       {expanded ? (
-        <ChevronDown className="h-2.5 w-2.5 opacity-80" />
+        <ChevronDown className="size-2.5 opacity-80" />
       ) : (
-        <ChevronRight className="h-2.5 w-2.5" />
+        <ChevronRight className="size-2.5" />
       )}
     </Button>
   )

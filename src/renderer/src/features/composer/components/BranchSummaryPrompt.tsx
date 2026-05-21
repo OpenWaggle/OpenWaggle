@@ -69,12 +69,12 @@ export function BranchSummaryPrompt({
   return (
     <div className="mb-2 rounded-[var(--radius-panel)] border border-accent/20 bg-accent/7 px-3 py-2 text-[12px] text-text-secondary">
       <div className="flex min-w-0 items-center gap-2">
-        <GitBranch className="h-3.5 w-3.5 shrink-0 text-accent" />
+        <GitBranch className="size-3.5 shrink-0 text-accent" />
         <div className="min-w-0 flex-1">
           <div className="font-medium text-text-primary">Branch summary</div>
           <div className="truncate text-text-tertiary">{modeCopy(mode)}</div>
         </div>
-        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" /> : null}
+        {busy ? <Loader2 className="size-3.5 animate-spin text-accent" /> : null}
       </div>
 
       {mode === 'choice' ? (

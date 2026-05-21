@@ -31,6 +31,18 @@ interface DiffCursor {
   headerSeen: boolean
 }
 
+function createLineReviewComment(filePath: string, lineNum: number, content: string) {
+  const createdAt = Math.trunc(performance.timeOrigin + performance.now())
+  return {
+    id: `${filePath}:${String(lineNum)}-${String(createdAt)}`,
+    filePath,
+    startLine: lineNum,
+    endLine: lineNum,
+    content,
+    createdAt,
+  }
+}
+
 function shouldSkipDiffMetadataLine(line: string) {
   return (
     line.startsWith('diff --git') ||
@@ -185,7 +197,7 @@ export function DiffFileSection({
         className="flex items-center justify-between w-full h-[34px] px-3 bg-diff-header-bg"
       >
         <div className="flex items-center gap-1.5">
-          <ChevIcon className="h-[13px] w-[13px] text-text-tertiary shrink-0" />
+          <ChevIcon className="size-[13px] text-text-tertiary shrink-0" />
           <span className="text-[12px] font-medium text-text-primary">{filePath}</span>
         </div>
         <div className="flex items-center gap-1">
@@ -260,14 +272,7 @@ export function DiffFileSection({
                       onAddSingleComment(filePath, lineNum, lineNum, content)
                     }
                     onAddToReview={(content) => {
-                      onAddToReview({
-                        id: `${filePath}:${String(lineNum)}-${Date.now()}`,
-                        filePath,
-                        startLine: lineNum,
-                        endLine: lineNum,
-                        content,
-                        createdAt: Date.now(),
-                      })
+                      onAddToReview(createLineReviewComment(filePath, lineNum, content))
                       onSetActiveComment(null)
                     }}
                     onCancel={() => onSetActiveComment(null)}

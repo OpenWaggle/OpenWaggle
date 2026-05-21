@@ -36,7 +36,7 @@ interface ChatRouteSurfaceProps {
 function DiffSidebarFallback() {
   return (
     <output
-      className="flex h-full w-full items-center justify-center bg-diff-bg text-[13px] text-text-tertiary"
+      className="flex size-full items-center justify-center bg-diff-bg text-[13px] text-text-tertiary"
       aria-live="polite"
     >
       Loading diff…

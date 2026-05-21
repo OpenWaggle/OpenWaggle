@@ -41,11 +41,11 @@ export function WelcomeScreen({
   }
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-[720px] px-5 py-5">
+    <div className="mx-auto flex min-size-full max-w-[720px] p-5">
       <div className="flex w-full flex-col pt-8">
         <div className="flex flex-1 items-center justify-center pb-20">
           <div className="flex flex-col items-center text-center">
-            <img src={openwaggleMark} alt="OpenWaggle logo" className="h-20 w-20 object-contain" />
+            <img src={openwaggleMark} alt="OpenWaggle logo" className="size-20 object-contain" />
             <div className="mt-5 space-y-2">
               <h2 className={WELCOME_KICKER_CLASS}>Let&apos;s build</h2>
               {hasProject ? (
@@ -63,7 +63,7 @@ export function WelcomeScreen({
                       title="Open project picker"
                     >
                       <span className="truncate">{projectName(projectPath)}</span>
-                      <ChevronDown className="pointer-events-none absolute right-0 top-1/2 h-5 w-5 -translate-y-1/2" />
+                      <ChevronDown className="pointer-events-none absolute right-0 top-1/2 size-5 -translate-y-1/2" />
                     </Button>
                   }
                 >
@@ -76,7 +76,7 @@ export function WelcomeScreen({
                     }}
                     className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] text-text-secondary transition-colors hover:bg-bg-hover"
                   >
-                    <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+                    <FolderOpen className="size-3.5 shrink-0" />
                     Select folder…
                   </Button>
 
@@ -93,7 +93,7 @@ export function WelcomeScreen({
                           onClick={() => handleChooseProject(path)}
                           className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] text-text-secondary transition-colors hover:bg-bg-hover"
                         >
-                          <FolderOpen className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
+                          <FolderOpen className="size-3.5 shrink-0 text-text-tertiary" />
                           <span className="min-w-0 flex-1 truncate">{projectName(path)}</span>
                           {path === projectPath && (
                             <span className="text-[11px] text-text-muted">Current</span>
@@ -113,7 +113,7 @@ export function WelcomeScreen({
                   className="inline-flex max-w-sm items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm text-text-tertiary transition-colors hover:border-border-light hover:text-text-secondary"
                   title="Open project picker"
                 >
-                  <FolderOpen className="h-4 w-4 shrink-0" />
+                  <FolderOpen className="size-4 shrink-0" />
                   <span>Select a project folder to get started</span>
                 </Button>
               )}
@@ -131,8 +131,8 @@ export function WelcomeScreen({
                 onClick={() => onRetry?.(prompt.label)}
                 className="group flex min-h-[98px] flex-col rounded-2xl border border-border bg-bg-secondary px-5 py-3.5 text-left transition-all hover:-translate-y-0.5 hover:border-accent/50 hover:bg-bg-hover/45 hover:shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]"
               >
-                <span className="mb-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-bg/80">
-                  <prompt.icon className="h-3.5 w-3.5 text-text-secondary transition-colors group-hover:text-text-primary" />
+                <span className="mb-2 inline-flex size-5 items-center justify-center rounded-full bg-bg/80">
+                  <prompt.icon className="size-3.5 text-text-secondary transition-colors group-hover:text-text-primary" />
                 </span>
                 <p className="text-[14px] leading-snug text-text-primary/92">{prompt.label}</p>
               </Button>

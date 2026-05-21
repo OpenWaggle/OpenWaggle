@@ -1,4 +1,4 @@
-import { useActionDialogController } from '../hooks'
+import { useActionDialogController } from '../hooks/useActionDialogController'
 import { ActionDialogError } from './ActionDialogError'
 import { ActionDialogFooter } from './ActionDialogFooter'
 import { ActionDialogInput } from './ActionDialogInput'

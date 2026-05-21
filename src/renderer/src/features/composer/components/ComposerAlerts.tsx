@@ -28,7 +28,7 @@ export function ComposerAlerts({ alerts }: ComposerAlertsProps) {
               aria-label={`Dismiss message: ${alert.message}`}
               title="Dismiss message"
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="size-3.5" />
             </Button>
           ) : null}
         </div>

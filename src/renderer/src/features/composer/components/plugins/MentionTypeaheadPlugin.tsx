@@ -1,11 +1,9 @@
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { useProject } from '@/features/sessions/hooks'
-import {
-  useMentionDetection,
-  useMentionKeyboard,
-  useMentionSelection,
-  useMentionSuggestions,
-} from '../../hooks'
+import { useMentionDetection } from '../../hooks/useMentionDetection'
+import { useMentionKeyboard } from '../../hooks/useMentionKeyboard'
+import { useMentionSelection } from '../../hooks/useMentionSelection'
+import { useMentionSuggestions } from '../../hooks/useMentionSuggestions'
 import { MentionTypeaheadDropdown } from '../mentions/MentionTypeaheadDropdown'
 
 export function MentionTypeaheadPlugin() {

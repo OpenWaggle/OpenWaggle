@@ -14,8 +14,11 @@ import {
   User,
   Waypoints,
 } from 'lucide-react'
-import { COMMAND_PALETTE } from '../constants'
-import type { CommandPaletteActionHandlers, CommandPaletteItem } from '../model'
+import { COMMAND_PALETTE } from '../constants/command-palette'
+import type {
+  CommandPaletteActionHandlers,
+  CommandPaletteItem,
+} from '../model/command-palette-item'
 import { openFeedbackModal } from './command-palette-actions'
 import { truncateCommandDescription } from './command-palette-text'
 
@@ -30,20 +33,20 @@ export function createBaseCommands(actions: CommandPaletteActionHandlers) {
       id: 'waggle',
       label: 'Waggle Mode',
       description: 'Start LLM collaboration session',
-      icon: <Waypoints className="h-3.5 w-3.5" />,
+      icon: <Waypoints className="size-3.5" />,
       action: actions.startWaggle,
     },
     {
       id: 'feedback',
       label: 'Feedback',
-      icon: <MessageSquare className="h-3.5 w-3.5" />,
+      icon: <MessageSquare className="size-3.5" />,
       action: openFeedbackModal,
     },
     {
       id: 'compact',
       label: 'Compact session',
       description: 'Run /compact with optional instructions',
-      icon: <Archive className="h-3.5 w-3.5" />,
+      icon: <Archive className="size-3.5" />,
       action: actions.insertCompactCommand,
     },
     ...optionalCommands,
@@ -60,17 +63,22 @@ export function createSkillItems(
   lowerQuery: string,
   selectSkill: CommandPaletteActionHandlers['selectSkill'],
 ) {
-  return slashSkills
-    .filter((skill) => skill.enabled && skill.loadStatus === 'ok')
-    .filter((skill) => skillMatchesQuery(skill, lowerQuery))
-    .map((skill) => ({
+  const items: CommandPaletteItem[] = []
+  for (const skill of slashSkills) {
+    if (!skill.enabled || skill.loadStatus !== 'ok') continue
+    if (!skillMatchesQuery(skill, lowerQuery)) continue
+
+    items.push({
       id: `skill-${skill.id}`,
       label: skill.name,
       description: truncateCommandDescription(skill.description, COMMAND_PALETTE.DESCRIPTION_LIMIT),
-      icon: <Shield className="h-3.5 w-3.5" />,
+      icon: <Shield className="size-3.5" />,
       section: 'Skills',
       action: () => selectSkill(skill.id, skill.name),
-    }))
+    })
+  }
+
+  return items
 }
 
 export function createPresetItems(
@@ -78,9 +86,11 @@ export function createPresetItems(
   lowerQuery: string,
   selectPreset: CommandPaletteActionHandlers['selectPreset'],
 ) {
-  return presets
-    .filter((preset) => presetMatchesQuery(preset, lowerQuery))
-    .map((preset) => ({
+  const items: CommandPaletteItem[] = []
+  for (const preset of presets) {
+    if (!presetMatchesQuery(preset, lowerQuery)) continue
+
+    items.push({
       id: `waggle-preset-${preset.id}`,
       label: preset.name,
       description: truncateCommandDescription(
@@ -92,7 +102,10 @@ export function createPresetItems(
       trailing: 'Sequential',
       trailingBadge: preset.isBuiltIn ? undefined : 'Custom',
       action: () => selectPreset(preset),
-    }))
+    })
+  }
+
+  return items
 }
 
 export function createConfigureWaggleItem(lowerQuery: string, configureWaggle: () => void) {
@@ -102,7 +115,7 @@ export function createConfigureWaggleItem(lowerQuery: string, configureWaggle: (
       id: 'configure-waggle',
       label: 'Configure Waggle Mode...',
       description: 'Open Waggle Mode settings',
-      icon: <Settings className="h-3.5 w-3.5" />,
+      icon: <Settings className="size-3.5" />,
       section: 'configure',
       action: configureWaggle,
     },
@@ -115,7 +128,7 @@ function createSessionTreeCommand(actions: CommandPaletteActionHandlers) {
     id: 'session-tree',
     label: 'Open Session Tree',
     description: 'Navigate the Pi session tree',
-    icon: <ListTree className="h-3.5 w-3.5" />,
+    icon: <ListTree className="size-3.5" />,
     action: actions.openSessionTree,
   }
 }
@@ -126,7 +139,7 @@ function createForkCommand(actions: CommandPaletteActionHandlers) {
     id: 'session-fork-to-new',
     label: 'Fork to new session...',
     description: 'Select a previous user message and continue in a new session',
-    icon: <GitBranch className="h-3.5 w-3.5" />,
+    icon: <GitBranch className="size-3.5" />,
     action: actions.forkToNewSession,
   }
 }
@@ -137,7 +150,7 @@ function createCloneCommand(actions: CommandPaletteActionHandlers) {
     id: 'session-clone-to-new',
     label: 'Clone to new session',
     description: 'Duplicate the current session position',
-    icon: <Copy className="h-3.5 w-3.5" />,
+    icon: <Copy className="size-3.5" />,
     action: actions.cloneToNewSession,
   }
 }
@@ -176,11 +189,11 @@ function isWaggleFilter(lowerQuery: string) {
 
 function presetIcon(preset: WagglePreset) {
   const name = preset.name.toLowerCase()
-  if (name.includes('review')) return <GitPullRequest className="h-3.5 w-3.5" />
-  if (name.includes('debate')) return <Swords className="h-3.5 w-3.5" />
-  if (name.includes('red team')) return <ShieldAlert className="h-3.5 w-3.5" />
-  if (name.includes('qa') || name.includes('test')) return <Shield className="h-3.5 w-3.5" />
-  return <User className="h-3.5 w-3.5" />
+  if (name.includes('review')) return <GitPullRequest className="size-3.5" />
+  if (name.includes('debate')) return <Swords className="size-3.5" />
+  if (name.includes('red team')) return <ShieldAlert className="size-3.5" />
+  if (name.includes('qa') || name.includes('test')) return <Shield className="size-3.5" />
+  return <User className="size-3.5" />
 }
 
 function appendOptionalCommand(commands: CommandPaletteItem[], command: CommandPaletteItem | null) {

@@ -6,15 +6,17 @@ import { useWaggleStore } from '@/features/waggle/state'
 import { wagglePresetsQueryOptions } from '@/queries/waggle-presets'
 import { useUIStore } from '@/shell/ui-store'
 import {
+  createOptionalCommandPaletteAction,
+  insertCompactCommand,
+} from '../lib/command-palette-actions'
+import {
   createBaseCommands,
   createConfigureWaggleItem,
-  createOptionalCommandPaletteAction,
   createPresetItems,
   createSkillItems,
   filterBaseCommands,
-  insertCompactCommand,
-  normalizeCommandQuery,
-} from '../lib'
+} from '../lib/command-palette-items'
+import { normalizeCommandQuery } from '../lib/command-palette-text'
 import type { CommandPaletteActionHandlers, CommandPaletteCallbacks } from '../model'
 
 interface UseCommandPaletteItemsInput extends CommandPaletteCallbacks {

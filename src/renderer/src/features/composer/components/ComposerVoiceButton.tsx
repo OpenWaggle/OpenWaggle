@@ -19,15 +19,15 @@ export function ComposerVoiceButton({ mode, onToggleVoice }: ComposerVoiceButton
       onClick={onToggleVoice}
       disabled={isTranscribing}
       className={cn(
-        'flex h-5 w-5 items-center justify-center transition-colors',
+        'flex size-5 items-center justify-center transition-colors',
         getVoiceButtonTone(isTranscribing, isListening),
       )}
       title={getVoiceButtonTitle(mode)}
     >
       {isTranscribing ? (
-        <Loader2 className="h-[15px] w-[15px] animate-spin" />
+        <Loader2 className="size-[15px] animate-spin" />
       ) : (
-        <Mic className="h-[15px] w-[15px]" />
+        <Mic className="size-[15px]" />
       )}
     </Button>
   )

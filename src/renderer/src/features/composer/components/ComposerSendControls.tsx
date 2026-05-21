@@ -40,10 +40,10 @@ function CancelRunButton({ onCancel }: CancelRunButtonProps) {
       variant="unstyled"
       type="button"
       onClick={onCancel}
-      className="flex h-8 w-8 items-center justify-center rounded-full border border-error/35 bg-error/10 text-error transition-colors hover:bg-error/18"
+      className="flex size-8 items-center justify-center rounded-full border border-error/35 bg-error/10 text-error transition-colors hover:bg-error/18"
       title="Cancel"
     >
-      <Square className="h-3.5 w-3.5" />
+      <Square className="size-3.5" />
     </Button>
   )
 }
@@ -63,14 +63,12 @@ function SendMessageButton({ isLoading, canSend, sendTitle, onSend }: SendMessag
       onClick={onSend}
       disabled={!canSend}
       className={cn(
-        'flex h-8 w-8 items-center justify-center rounded-full transition-colors',
+        'flex size-8 items-center justify-center rounded-full transition-colors',
         getSendButtonTone(isLoading, canSend),
       )}
       title={sendTitle ?? (isLoading ? 'Add message' : 'Send message')}
     >
-      <ArrowUp
-        className={cn('h-4 w-4', canSend ? getSendIconTone(isLoading) : 'text-text-muted')}
-      />
+      <ArrowUp className={cn('size-4', canSend ? getSendIconTone(isLoading) : 'text-text-muted')} />
     </Button>
   )
 }

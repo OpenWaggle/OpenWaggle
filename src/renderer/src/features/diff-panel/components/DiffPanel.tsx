@@ -192,7 +192,7 @@ export function DiffPanel({ projectPath, onSendMessage }: DiffPanelProps) {
   }
 
   return (
-    <div className="flex flex-col h-full w-full bg-diff-bg">
+    <div className="flex flex-col size-full bg-diff-bg">
       <DiffPanelContent
         fileDiffs={fileDiffs}
         isLoading={isLoading}

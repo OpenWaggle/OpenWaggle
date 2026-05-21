@@ -11,7 +11,7 @@ interface ChatPanelContentProps {
 
 export function ChatPanelContent({ sections, onOpenSessionTree }: ChatPanelContentProps) {
   return (
-    <div className="flex h-full w-full overflow-hidden">
+    <div className="flex size-full overflow-hidden">
       <div
         className="flex min-w-0 flex-1 flex-col overflow-hidden bg-bg"
         data-chat-panel-main="true"

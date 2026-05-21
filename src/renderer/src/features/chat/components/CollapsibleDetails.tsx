@@ -22,7 +22,7 @@ export function CollapsibleDetails({
       <span className="h-px flex-1 bg-border group-hover:bg-border-light transition-colors" />
       <span className="flex items-center gap-1 text-xs shrink-0 select-none">
         {showDetails ? 'Hide details' : collapseLabel}
-        {showDetails ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+        {showDetails ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
       </span>
       <span className="h-px flex-1 bg-border group-hover:bg-border-light transition-colors" />
     </Button>

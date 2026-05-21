@@ -38,7 +38,7 @@ export function FeedbackModal() {
             className="rounded p-1 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
             title="Close"
           >
-            <X className="h-4 w-4" />
+            <X className="size-4" />
           </Button>
         </div>
 

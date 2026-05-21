@@ -222,7 +222,7 @@ export function SidebarProjectHeader({
   const DisclosureIcon = collapsed ? ChevronRight : ChevronDown
   const [menuOpen, setMenuOpen] = useState(false)
   const [renaming, setRenaming] = useState(false)
-  const [renameValue, setRenameValue] = useState(projectLabel)
+  const [renameValue, setRenameValue] = useState('')
   const renameInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -235,6 +235,7 @@ export function SidebarProjectHeader({
     const trimmed = renameValue.trim()
     if (trimmed && trimmed !== projectLabel) actions.rename(group.projectPath, trimmed)
     setRenaming(false)
+    setRenameValue('')
   }
 
   return (
@@ -257,7 +258,7 @@ export function SidebarProjectHeader({
         actions={{
           cancelRename() {
             setRenaming(false)
-            setRenameValue(projectLabel)
+            setRenameValue('')
           },
           saveRename,
           setRenameValue,

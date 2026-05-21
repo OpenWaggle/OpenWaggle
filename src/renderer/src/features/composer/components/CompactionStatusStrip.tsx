@@ -53,7 +53,7 @@ export function CompactionStatusStrip({ state, onCancel }: CompactionStatusStrip
         aria-label={cancelLabel}
         title={cancelLabel}
       >
-        <Square className="h-3 w-3" />
+        <Square className="size-3" />
         <span>Stop</span>
       </Button>
     </div>

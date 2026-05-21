@@ -1,5 +1,5 @@
-import { SESSION_TREE } from '../constants'
-import type { SessionTreeRowGeometry } from '../model'
+import { SESSION_TREE } from '../constants/session-tree'
+import type { SessionTreeRowGeometry } from '../model/session-tree-row'
 
 interface SessionTreeConnectorOverlayProps {
   readonly geometry: SessionTreeRowGeometry

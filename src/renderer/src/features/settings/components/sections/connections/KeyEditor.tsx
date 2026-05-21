@@ -88,7 +88,7 @@ function KeyEditorHeader({
             className="inline-flex items-center gap-1 text-[12px] font-medium text-link-yellow hover:opacity-90 transition-opacity"
           >
             Get API key
-            <ExternalLink className="h-3 w-3" />
+            <ExternalLink className="size-3" />
           </a>
         )}
         <Button
@@ -97,7 +97,7 @@ function KeyEditorHeader({
           onClick={onClose}
           className="rounded p-0.5 text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors"
         >
-          <X className="h-3.5 w-3.5" />
+          <X className="size-3.5" />
         </Button>
       </div>
     </div>
@@ -138,7 +138,7 @@ function KeyInput({
         onClick={actions.onToggleVisibility}
         className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-secondary"
       >
-        {state.showKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+        {state.showKey ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
       </Button>
     </div>
   )
@@ -175,7 +175,7 @@ function KeyEditorButtons({
       >
         {state.isTesting ? (
           <>
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <Loader2 className="size-3.5 animate-spin" />
             Testing
           </>
         ) : (
@@ -221,12 +221,12 @@ function KeyTestResult({ result }: { readonly result: KeyEditorProps['testResult
     >
       {result.success ? (
         <>
-          <Check className="h-3 w-3" />
+          <Check className="size-3" />
           Connection successful
         </>
       ) : (
         <>
-          <X className="h-3 w-3" />
+          <X className="size-3" />
           {result.error ?? 'Connection failed — check your API key'}
         </>
       )}

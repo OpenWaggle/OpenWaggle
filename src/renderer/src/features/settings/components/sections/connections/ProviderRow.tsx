@@ -36,7 +36,7 @@ export function ProviderRow({ providerInfo, isLast, autoEdit, onEditingChange }:
     <div className={cn(!isLast && 'border-b border-border')}>
       <div className="flex items-center justify-between h-14 px-5">
         <div className="flex items-center gap-2 min-w-0">
-          <Icon className="h-3.5 w-3.5 shrink-0" style={{ color: meta.color }} />
+          <Icon className="size-3.5 shrink-0" style={{ color: meta.color }} />
           <span className="truncate text-[13px] font-medium text-text-primary">
             {providerInfo.displayName}
           </span>
@@ -44,7 +44,7 @@ export function ProviderRow({ providerInfo, isLast, autoEdit, onEditingChange }:
 
         <div className="flex items-center gap-2.5">
           <div className="flex items-center gap-1 rounded-[10px] px-2 h-[22px]">
-            <div className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: statusColor }} />
+            <div className="size-1.5 rounded-full" style={{ backgroundColor: statusColor }} />
             <span className="text-[11px] font-medium" style={{ color: statusColor }}>
               {statusText}
             </span>
@@ -59,11 +59,11 @@ export function ProviderRow({ providerInfo, isLast, autoEdit, onEditingChange }:
               onEditingChange?.(next)
             }}
             className={cn(
-              'flex items-center justify-center rounded-[5px] border border-input-card-border bg-[#1a1f28] h-7 w-7',
+              'flex items-center justify-center rounded-[5px] border border-input-card-border bg-[#1a1f28] size-7',
               'text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors',
             )}
           >
-            <Pencil className="h-3 w-3" />
+            <Pencil className="size-3" />
           </Button>
         </div>
       </div>

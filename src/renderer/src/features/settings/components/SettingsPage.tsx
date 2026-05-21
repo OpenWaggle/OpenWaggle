@@ -35,7 +35,7 @@ export function SettingsPage({ activeTab }: SettingsPageProps) {
   }
 
   return (
-    <div className="flex h-full w-full flex-col bg-bg">
+    <div className="flex size-full flex-col bg-bg">
       {/* Header */}
       <div
         className={cn(

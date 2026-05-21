@@ -13,9 +13,9 @@ import openwaggleLockup from '@/assets/openwaggle-lockup.png'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import { Popover } from '@/shared/ui/Popover'
-import { SIDEBAR_LAYOUT } from '../constants'
+import { SIDEBAR_LAYOUT } from '../constants/sidebar-layout'
 import type { SidebarSessionSortMode } from '../lib/sidebar-project-groups'
-import type { SidebarView } from '../model'
+import type { SidebarView } from '../model/sidebar-types'
 
 const SORT_OPTIONS: { value: SidebarSessionSortMode; label: string; icon: typeof Clock }[] = [
   { value: 'recent', label: 'Recent', icon: Clock },

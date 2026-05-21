@@ -38,7 +38,7 @@ export function ModelSelectorRow({ model, isSelected, onSelect }: ModelSelectorR
     >
       <ProviderModelIcon
         provider={model.provider}
-        className="h-4 w-4 shrink-0 flex-none"
+        className="size-4 shrink-0 flex-none"
         style={{ color: iconColor }}
       />
       <div className="min-w-0 flex-1 truncate text-[13px] font-medium">
@@ -50,7 +50,7 @@ export function ModelSelectorRow({ model, isSelected, onSelect }: ModelSelectorR
       {model.contextWindowLabel && (
         <span className="shrink-0 text-[10px] text-text-tertiary">{model.contextWindowLabel}</span>
       )}
-      {isSelected && <Check className="h-3 w-3 shrink-0 text-accent" />}
+      {isSelected && <Check className="size-3 shrink-0 text-accent" />}
     </div>
   )
 }

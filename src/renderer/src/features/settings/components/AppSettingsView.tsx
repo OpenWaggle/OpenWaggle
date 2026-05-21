@@ -8,7 +8,7 @@ interface AppSettingsViewProps {
 
 export function AppSettingsView({ activeTab }: AppSettingsViewProps) {
   return (
-    <div className="absolute inset-0 z-50 flex h-full w-full overflow-hidden bg-bg">
+    <div className="absolute inset-0 z-50 flex size-full overflow-hidden bg-bg">
       <PanelErrorBoundary name="Settings" className="flex flex-1 overflow-hidden">
         <SettingsPage activeTab={activeTab} />
       </PanelErrorBoundary>

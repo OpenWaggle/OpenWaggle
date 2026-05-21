@@ -37,7 +37,7 @@ export function ModelGroupAccordion({ group, state, actions }: ModelGroupAccordi
           aria-expanded={state.isExpanded}
           className="flex items-center gap-3 flex-1 min-w-0 text-left"
         >
-          <Icon className="h-4 w-4 shrink-0" style={{ color: iconColor }} />
+          <Icon className="size-4 shrink-0" style={{ color: iconColor }} />
           <div className="flex-1 min-w-0">
             <span className="text-[13px] font-medium text-text-primary">{group.label}</span>
             {group.models.length > 0 && (
@@ -47,9 +47,9 @@ export function ModelGroupAccordion({ group, state, actions }: ModelGroupAccordi
             )}
           </div>
           {state.isExpanded ? (
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
+            <ChevronDown className="size-3.5 shrink-0 text-text-tertiary" />
           ) : (
-            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-text-tertiary" />
+            <ChevronRight className="size-3.5 shrink-0 text-text-tertiary" />
           )}
         </Button>
         <div className="flex gap-2 shrink-0">
@@ -78,7 +78,7 @@ export function ModelGroupAccordion({ group, state, actions }: ModelGroupAccordi
       {state.isExpanded && (
         <div className="px-4 pb-2 border-t border-border/50">
           {group.models.length === 0 ? (
-            <p className="py-3 text-[12px] text-text-muted">Loading models...</p>
+            <p className="py-3 text-[12px] text-text-muted">Loading models&hellip;</p>
           ) : (
             <div className="space-y-px pt-1">
               {group.models.map((model) => (

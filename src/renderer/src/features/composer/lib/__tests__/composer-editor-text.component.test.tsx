@@ -1,7 +1,7 @@
 import { waitFor } from '@testing-library/react'
 import { $getRoot, createEditor, type LexicalEditor } from 'lexical'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useComposerStore } from '../../state'
+import { useComposerStore } from '../../state/composer-store'
 import { insertTextAtEditorOrStore } from '../composer-editor-text'
 import { clearEditor, setEditorText } from '../lexical-utils'
 
