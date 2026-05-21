@@ -87,13 +87,13 @@ The project uses `react-doctor.config.json` at the repo root:
 ```json
 {
   "ignore": {
-    "files": [".codex/worktrees/**"],
+    "files": [".codex/worktrees/**", ".openwaggle/worktrees/**", ".pi/worktrees/**"],
     "rules": []
   }
 }
 ```
 
-- `ignore.files` — Glob patterns to exclude (worktrees, generated code).
+- `ignore.files` — Glob patterns to exclude tool-managed worktrees and generated code.
 - `ignore.rules` — Rules to suppress using `plugin/rule` format.
 
 To suppress a rule project-wide, add it to `ignore.rules`. To suppress for specific files, add glob patterns to `ignore.files`.

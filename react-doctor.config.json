@@ -1,6 +1,6 @@
 {
   "ignore": {
-    "files": [".codex/worktrees/**"],
+    "files": [".codex/worktrees/**", ".openwaggle/worktrees/**", ".pi/worktrees/**"],
     "rules": []
   }
 }

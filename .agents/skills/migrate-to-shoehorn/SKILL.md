@@ -1,11 +1,13 @@
 ---
 name: migrate-to-shoehorn
-description: Migrate test-only TypeScript partial mocks or intentionally invalid inputs from raw type assertions to @total-typescript/shoehorn. Use when tests need partial data, invalid-input fixtures, or removal of `as` casts.
+description: Use @total-typescript/shoehorn for test-only partial mocks or intentionally invalid inputs. Use when writing tests, refactoring tests, or removing raw `as` casts from test fixtures.
 ---
 
 # Migrate To Shoehorn
 
 Use Shoehorn as a test-only escape hatch. It improves test ergonomics over raw casts, but production code must model types directly instead.
+
+This is not a one-time migration-only skill. Keep using it whenever tests need partial fixtures, intentionally invalid inputs, or cleanup of raw assertions. Once a specific area is migrated, the skill remains valid as guidance for future test fixture work.
 
 ## Rules
 

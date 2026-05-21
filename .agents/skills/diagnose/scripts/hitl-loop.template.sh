@@ -28,7 +28,7 @@ capture() {
 
 # --- edit below ---------------------------------------------------------
 
-step "Open the app at http://localhost:3000 and sign in."
+step "Open the app or preview URL relevant to this bug, then sign in if required."
 
 capture ERRORED "Click the 'Export' button. Did it throw an error? (y/n)"
 
