@@ -60,7 +60,7 @@ export async function resolveAgentsForRun(
   const root = await resolveRootAgents(projectPath)
   const seenWarnings = new Set<string>()
   const warnings: string[] = []
-  const addWarning = (warning: string): void => {
+  const addWarning = (warning: string) => {
     if (seenWarnings.has(warning)) return
     seenWarnings.add(warning)
     warnings.push(warning)
@@ -130,10 +130,7 @@ export function buildEffectiveAgentsInstruction(resolution: AgentsResolutionResu
   return sections.join('\n\n')
 }
 
-async function resolveTargetDirectoryWithinProject(
-  projectPath: string,
-  targetPath: string,
-): Promise<string> {
+async function resolveTargetDirectoryWithinProject(projectPath: string, targetPath: string) {
   const projectRoot = path.resolve(projectPath)
   const projectRootReal = await resolveRealPath(projectRoot)
   const candidateAbsolutePath = path.isAbsolute(targetPath)
@@ -156,7 +153,7 @@ async function resolveTargetDirectoryWithinProject(
   }
 }
 
-async function resolveCandidatePathForBoundary(targetPath: string): Promise<string> {
+async function resolveCandidatePathForBoundary(targetPath: string) {
   try {
     return await fs.realpath(targetPath)
   } catch (error) {
@@ -180,7 +177,7 @@ async function resolveCandidatePathForBoundary(targetPath: string): Promise<stri
   return path.resolve(targetPath)
 }
 
-function listScopeDirectories(projectPath: string, targetDir: string): string[] {
+function listScopeDirectories(projectPath: string, targetDir: string) {
   const root = path.resolve(projectPath)
   const relative = path.relative(root, path.resolve(targetDir))
   if (!relative || relative === '.') {
@@ -233,12 +230,12 @@ async function readAgentsScope(projectPath: string, scopeDir: string): Promise<A
   }
 }
 
-function toScopeRelativeDir(projectPath: string, scopeDir: string): string {
+function toScopeRelativeDir(projectPath: string, scopeDir: string) {
   const relative = path.relative(path.resolve(projectPath), path.resolve(scopeDir))
   return relative.length === 0 ? '.' : relative
 }
 
-async function resolveRealPath(targetPath: string): Promise<string> {
+async function resolveRealPath(targetPath: string) {
   try {
     return await fs.realpath(targetPath)
   } catch (error) {

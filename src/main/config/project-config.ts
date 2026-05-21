@@ -1,7 +1,12 @@
 import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { decodeUnknownOrThrow, type SchemaType, safeDecodeUnknown } from '@shared/schema'
+import {
+  decodeUnknownOrThrow,
+  parseJsonUnknown,
+  type SchemaType,
+  safeDecodeUnknown,
+} from '@shared/schema'
 import { projectSettingsFileSchema } from '@shared/schemas/validation'
 import { wagglePresetSchema } from '@shared/schemas/waggle'
 import { SupportedModelId, WagglePresetId } from '@shared/types/brand'
@@ -44,7 +49,7 @@ export function clearConfigCache(): void {
   configCache.clear()
 }
 
-function getConfigDirectoryPath(projectPath: string): string {
+function getConfigDirectoryPath(projectPath: string) {
   return join(projectPath, OPENWAGGLE_CONFIG_DIR)
 }
 
@@ -52,12 +57,12 @@ export function getProjectSettingsPath(projectPath: string): string {
   return join(getConfigDirectoryPath(projectPath), PROJECT_SETTINGS_FILE_NAME)
 }
 
-function getConfigTempPath(configPath: string): string {
+function getConfigTempPath(configPath: string) {
   return `${configPath}.${randomUUID()}.tmp`
 }
 
-function parseSettingsJson(raw: string): unknown {
-  return raw.trim().length > 0 ? JSON.parse(raw) : {}
+function parseSettingsJson(raw: string) {
+  return raw.trim().length > 0 ? parseJsonUnknown(raw) : {}
 }
 
 async function readValidatedProjectSettings(
@@ -66,7 +71,7 @@ async function readValidatedProjectSettings(
     strict: boolean
     logLabel: string
   },
-): Promise<ParsedProjectSettingsFile | null> {
+) {
   try {
     const raw = await readFile(filePath, 'utf-8')
     const parsedJson = parseSettingsJson(raw)
@@ -94,7 +99,7 @@ async function readValidatedProjectSettings(
   }
 }
 
-async function readConfigMtime(filePath: string): Promise<number | null> {
+async function readConfigMtime(filePath: string) {
   try {
     const metadata = await stat(filePath)
     return metadata.mtimeMs
@@ -140,7 +145,7 @@ export async function loadProjectConfig(projectPath: string): Promise<ProjectCon
   return mergedConfig
 }
 
-async function ensureSettingsFile(projectPath: string, configPath: string): Promise<string> {
+async function ensureSettingsFile(projectPath: string, configPath: string) {
   const configDir = getConfigDirectoryPath(projectPath)
 
   await mkdir(configDir, { recursive: true })
@@ -164,7 +169,7 @@ export async function ensureProjectSettingsFile(projectPath: string): Promise<st
 async function updateProjectSettingsFile(
   configPath: string,
   updater: (current: ParsedProjectSettingsFile) => ParsedProjectSettingsFile,
-): Promise<ParsedProjectSettingsFile> {
+) {
   const current =
     (await readValidatedProjectSettings(configPath, {
       strict: true,
@@ -219,17 +224,8 @@ export async function setProjectPreferences(
   }))
 }
 
-function parseProjectConfig(settings: ParsedProjectSettingsFile | null): ProjectConfig {
-  const preferences: ProjectPreferences | undefined =
-    settings?.preferences?.model || settings?.preferences?.thinkingLevel
-      ? {
-          ...(settings.preferences.model ? { model: settings.preferences.model } : {}),
-          ...(settings.preferences.thinkingLevel
-            ? { thinkingLevel: settings.preferences.thinkingLevel }
-            : {}),
-        }
-      : undefined
-
+function parseProjectConfig(settings: ParsedProjectSettingsFile | null) {
+  const preferences = parseProjectPreferences(settings)
   const wagglePresets = parseWagglePresets(settings?.wagglePresets)
 
   if (!preferences && wagglePresets.length === 0 && !settings?.pi) {
@@ -240,6 +236,21 @@ function parseProjectConfig(settings: ParsedProjectSettingsFile | null): Project
     ...(preferences ? { preferences } : {}),
     ...(wagglePresets.length > 0 ? { wagglePresets } : {}),
     ...(settings?.pi ? { pi: settings.pi } : {}),
+  }
+}
+
+function parseProjectPreferences(
+  settings: ParsedProjectSettingsFile | null,
+): ProjectPreferences | undefined {
+  const model = settings?.preferences?.model
+  const thinkingLevel = settings?.preferences?.thinkingLevel
+  if (!model && !thinkingLevel) {
+    return undefined
+  }
+
+  return {
+    ...(model ? { model } : {}),
+    ...(thinkingLevel ? { thinkingLevel } : {}),
   }
 }
 
@@ -269,7 +280,7 @@ function hydrateWagglePreset(raw: unknown): WagglePreset | null {
   }
 }
 
-function parseWagglePresets(rawPresets: readonly unknown[] | undefined): readonly WagglePreset[] {
+function parseWagglePresets(rawPresets: readonly unknown[] | undefined): WagglePreset[] {
   if (!rawPresets) {
     return []
   }

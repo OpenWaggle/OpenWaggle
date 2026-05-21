@@ -14,7 +14,7 @@ import { cancelSessionRuns } from './active-agent-runs'
 import { validateRequiredProjectPath } from './project-path-validation'
 import { typedHandle } from './typed-ipc'
 
-function cleanupBeforeSessionRemoval(sessionId: SessionId): void {
+function cleanupBeforeSessionRemoval(sessionId: SessionId) {
   const cancelledActiveRun = cancelSessionRuns(sessionId)
   clearAgentPhase(sessionId)
   clearStreamBuffer(sessionId)
@@ -24,7 +24,7 @@ function cleanupBeforeSessionRemoval(sessionId: SessionId): void {
   }
 }
 
-export function registerSessionDetailsHandlers(): void {
+function registerSessionDetailsReadHandlers() {
   typedHandle('sessions:list-details', (_event, limit?: number) =>
     Effect.gen(function* () {
       const repo = yield* SessionProjectionRepository
@@ -39,7 +39,9 @@ export function registerSessionDetailsHandlers(): void {
       return yield* repo.getOptional(id)
     }),
   )
+}
 
+function registerSessionCreationHandlers() {
   typedHandle('sessions:create', (_event, projectPath: string) =>
     Effect.gen(function* () {
       const normalizedProjectPath = yield* validateRequiredProjectPath(projectPath)
@@ -71,7 +73,9 @@ export function registerSessionDetailsHandlers(): void {
   typedHandle('sessions:dismiss-interrupted-run', (_event, sessionId: SessionId, runId: string) =>
     dismissInterruptedAgentRun({ sessionId, runId }),
   )
+}
 
+function registerSessionMutationHandlers() {
   typedHandle('sessions:delete', (_event, id: SessionId) =>
     Effect.sync(() => cleanupBeforeSessionRemoval(id)).pipe(
       Effect.zipRight(
@@ -115,4 +119,10 @@ export function registerSessionDetailsHandlers(): void {
       yield* repo.updateTitle(id, title)
     }),
   )
+}
+
+export function registerSessionDetailsHandlers(): void {
+  registerSessionDetailsReadHandlers()
+  registerSessionCreationHandlers()
+  registerSessionMutationHandlers()
 }

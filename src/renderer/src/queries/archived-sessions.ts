@@ -1,35 +1,30 @@
 import type { SessionBranchId, SessionId } from '@shared/types/brand'
-import {
-  queryOptions,
-  type UseQueryOptions,
-  useMutation,
-  useQueryClient,
-} from '@tanstack/react-query'
-import { api } from '@/lib/ipc'
+import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
+import { api } from '@/shared/lib/ipc'
 import { queryKeys } from './query-keys'
+import type { OpenWaggleQueryOptions } from './query-options'
 
-type ArchivedSessionsQueryOptions = UseQueryOptions<
-  Awaited<ReturnType<typeof api.listArchivedSessions>>,
+type ArchivedSessions = Awaited<ReturnType<typeof api.listArchivedSessions>>
+type ArchivedSessionBranches = Awaited<ReturnType<typeof api.listArchivedSessionBranches>>
+
+export function archivedSessionsQueryOptions(): OpenWaggleQueryOptions<
+  ArchivedSessions,
   Error,
-  Awaited<ReturnType<typeof api.listArchivedSessions>>,
+  ArchivedSessions,
   typeof queryKeys.archivedSessions
->
-
-type ArchivedSessionBranchesQueryOptions = UseQueryOptions<
-  Awaited<ReturnType<typeof api.listArchivedSessionBranches>>,
-  Error,
-  Awaited<ReturnType<typeof api.listArchivedSessionBranches>>,
-  typeof queryKeys.archivedSessionBranches
->
-
-export function archivedSessionsQueryOptions(): ArchivedSessionsQueryOptions {
+> {
   return queryOptions({
     queryKey: queryKeys.archivedSessions,
     queryFn: () => api.listArchivedSessions(),
   })
 }
 
-export function archivedSessionBranchesQueryOptions(): ArchivedSessionBranchesQueryOptions {
+export function archivedSessionBranchesQueryOptions(): OpenWaggleQueryOptions<
+  ArchivedSessionBranches,
+  Error,
+  ArchivedSessionBranches,
+  typeof queryKeys.archivedSessionBranches
+> {
   return queryOptions({
     queryKey: queryKeys.archivedSessionBranches,
     queryFn: () => api.listArchivedSessionBranches(),

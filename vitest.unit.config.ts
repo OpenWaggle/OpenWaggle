@@ -10,7 +10,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['src/**/*.unit.test.ts'],
+    include: ['src/**/*.unit.test.ts', 'scripts/**/*.unit.test.ts'],
     coverage: {
       enabled: false,
     },

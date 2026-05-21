@@ -11,7 +11,7 @@ const DIPS_FILENAMES = ['DIPS', 'DIPS-wal', 'DIPS-shm'] as const
 
 const tempDirectories: string[] = []
 
-function createTempDirectory(): string {
+function createTempDirectory() {
   const tempDirectory = mkdtempSync(join(tmpdir(), 'openwaggle-session-data-'))
   tempDirectories.push(tempDirectory)
   return tempDirectory

@@ -1,52 +1,30 @@
-# Architecture
+# Architecture Index
 
-OpenWaggle is an Electron desktop coding agent built around a Pi-native runtime boundary.
+This file is the entrypoint for OpenWaggle architecture documentation. It is intentionally an index, not a second canonical architecture description.
 
-## Process Boundaries
+## Core Documents
 
-- **Main** (`src/main/`) owns Pi runtime adapters, persistence, and IPC handlers.
-- **Preload** (`src/preload/`) exposes the typed `window.api` bridge and contains no business logic.
-- **Renderer** (`src/renderer/src/`) is a React 19 + Zustand UI that consumes OpenWaggle-owned IPC events.
-- **Shared** (`src/shared/`) contains vendor-free IPC, stream, session, message, and configuration types.
+- `docs/first-principles.md` defines the stable product and architecture principles.
+- `docs/system-architecture.md` describes the current whole-system shape.
+- `docs/hexagonal-architecture.md` defines main-process layering rules.
+- `docs/renderer-architecture.md` defines renderer organization, state, UI, testing, and enforcement rules.
 
-## Runtime Boundary
+## Decision Records
 
-Application services depend on `AgentKernelService`, not Pi SDK directly. `src/main/adapters/pi/` is the only place that imports `@mariozechner/pi-coding-agent`.
+ADRs live in `docs/adr/`. They explain why major architectural decisions were made; the architecture documents explain how the system works today.
 
-Pi SDK reference: [Pi SDK](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/sdk.md).
+- `docs/adr/0001-adopt-main-process-hexagonal-architecture.md`
+- `docs/adr/0002-migrate-runtime-to-pi.md`
+- `docs/adr/0003-adopt-feature-first-renderer-architecture.md`
 
-The standard run path is:
+## Specs
 
-1. IPC handler receives a send request and registers cancellation/stream state.
-2. `agent-run-service.ts` validates the project-scoped model and loads the session projection through ports.
-3. `AgentKernelService.run()` opens or creates the Pi session and prompts it.
-4. Pi session events are translated once into `AgentTransportEvent`.
-5. The renderer reduces those transport events into live UI messages.
-6. Completed Pi messages are projected into SQLite `sessions`, `session_nodes`, and branch tables.
+Specs capture planned or in-progress product/runtime work. They may be more detailed than the stable architecture references and can become stale as implementation completes.
 
-OpenWaggle keeps Pi's resource loader as the runtime source of truth. The Pi adapter injects project resource roots in `.openwaggle > .pi > .agents` order for skills, extensions, prompts, and themes, then strips those implicit roots when Pi persists project settings. OpenWaggle catalog toggles apply to `.openwaggle/skills` and root `.agents/skills`, while Pi-native discovery still governs Pi-owned/global resources.
+- `docs/specs/pi-migration-remaining-work.md`
+- `docs/specs/pi-waggle-extension-package-spec.md`
+- `docs/specs/waggle-composer-wireframes.md`
 
-MCP is integrated as a Pi extension, not as a parallel OpenWaggle tool runtime. Settings > MCP manages OpenWaggle's bundled `pi-mcp-adapter@2.5.4` through the local `extensions/pi-mcp-adapter` package source, reads standard/Pi/OpenWaggle project MCP config files, and passes Pi a generated effective config for the active project. Session creation binds Pi extension hooks under that generated MCP context so adapter tools and commands initialize from the active project.
+## User-Facing Docs
 
-## Persistence
-
-SQLite stores OpenWaggle's product projection:
-
-- `sessions`
-- `session_nodes`
-- `session_branches`
-- `session_branch_state`
-- `session_tree_ui_state`
-- lightweight run and settings read models
-
-Waggle presets are not SQLite read models. Global presets live in the Electron user-data directory as `waggle-presets.json`; project-scoped presets live in `.openwaggle/settings.json` and take precedence over global and built-in presets.
-
-## Provider Model
-
-Pi is the provider/model/auth source of truth. The Pi adapter reads `ModelRegistry` and `AuthStorage`, then exposes vendor-free DTOs through `ProviderService` and IPC so the renderer can show provider logos, auth method groups, and the user-curated model selector.
-
-Model identity is provider-qualified (`provider/modelId`). The same hosted model id can appear under several providers, and OpenWaggle treats each provider/model pair as a distinct runtime option.
-
-## Hexagonal Rule
-
-Pi SDK and vendor imports stay in adapters. Domain, application, IPC, ports, shared types, and renderer code use OpenWaggle-owned types.
+Published user-facing documentation lives under `website/src/content/docs/`.

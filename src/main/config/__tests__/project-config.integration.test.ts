@@ -8,7 +8,7 @@ import {
   setProjectPreferences,
 } from '../project-config'
 
-function settingsPath(projectPath: string): string {
+function settingsPath(projectPath: string) {
   return join(projectPath, '.openwaggle', 'settings.json')
 }
 

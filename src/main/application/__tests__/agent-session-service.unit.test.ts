@@ -1,20 +1,22 @@
 import { SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
-import type { SessionDetail } from '@shared/types/session'
-import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AgentKernelMissingEntryError, AgentKernelService } from '../../ports/agent-kernel-service'
-import { ProviderService } from '../../ports/provider-service'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { SessionRepository } from '../../ports/session-repository'
-import { SettingsService } from '../../services/settings-service'
 import {
   cloneAgentSessionToNewSession,
   compactAgentSession,
   forkAgentSessionToNewSession,
   navigateAgentSessionTree,
 } from '../agent-session-service'
+import {
+  sessionServiceForkedSession,
+  sessionServiceProviderLayer,
+  sessionServiceSession,
+  sessionServiceSettingsLayer,
+} from './agent-session-service.test-utils'
 
 const persistSnapshotMock = vi.fn()
 const compactMock = vi.fn()
@@ -23,27 +25,8 @@ const forkSessionMock = vi.fn()
 const createProjectionMock = vi.fn()
 const getProjectionMock = vi.fn()
 
-const session: SessionDetail = {
-  id: SessionId('session-1'),
-  title: 'Session 1',
-  projectPath: '/tmp/project',
-  piSessionId: 'pi-session-1',
-  piSessionFile: '/tmp/pi-session-1.jsonl',
-  messages: [],
-  createdAt: 1,
-  updatedAt: 2,
-}
-
-const forkedSession: SessionDetail = {
-  id: SessionId('pi-session-forked'),
-  title: 'New session',
-  projectPath: '/tmp/project',
-  piSessionId: 'pi-session-forked',
-  piSessionFile: '/tmp/pi-session-forked.jsonl',
-  messages: [],
-  createdAt: 3,
-  updatedAt: 4,
-}
+const session = sessionServiceSession
+const forkedSession = sessionServiceForkedSession
 
 const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   get: (id) =>
@@ -64,20 +47,6 @@ const TestSessionProjectionLayer = Layer.succeed(SessionProjectionRepository, {
   unarchive: () => Effect.void,
   listArchived: () => Effect.succeed([]),
   updateTitle: () => Effect.void,
-})
-
-const TestProviderLayer = Layer.succeed(ProviderService, {
-  get: () => Effect.succeed(undefined),
-  getAll: () => Effect.succeed([]),
-  getProviderForModel: () => Effect.dieMessage('getProviderForModel is not used'),
-  isKnownModel: () => Effect.succeed(true),
-})
-
-const TestSettingsLayer = Layer.succeed(SettingsService, {
-  get: () => Effect.succeed(DEFAULT_SETTINGS),
-  update: () => Effect.void,
-  initialize: () => Effect.void,
-  flushForTests: () => Effect.void,
 })
 
 const TestSessionLayer = Layer.succeed(SessionRepository, {
@@ -126,8 +95,8 @@ const TestAgentKernelLayer = Layer.succeed(AgentKernelService, {
 
 const TestLayer = Layer.mergeAll(
   TestSessionProjectionLayer,
-  TestProviderLayer,
-  TestSettingsLayer,
+  sessionServiceProviderLayer,
+  sessionServiceSettingsLayer,
   TestSessionLayer,
   TestAgentKernelLayer,
 )

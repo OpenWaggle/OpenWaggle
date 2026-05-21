@@ -59,7 +59,7 @@ const TestSessionRepositoryLayer = Layer.succeed(SessionRepository, {
   markActiveRunInterrupted: () => Effect.void,
 })
 
-function requireTypedEffectInvokeHandler(name: string): (...args: unknown[]) => Promise<unknown> {
+function requireTypedEffectInvokeHandler(name: string) {
   const call = typedHandleMock.mock.calls.find(
     (candidate: readonly unknown[]) => candidate[0] === name && typeof candidate[1] === 'function',
   )

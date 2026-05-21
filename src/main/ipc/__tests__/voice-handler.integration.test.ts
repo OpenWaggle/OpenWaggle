@@ -1,29 +1,36 @@
+import { fromAny } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+interface TransformersEnvMock {
+  allowLocalModels?: boolean
+  allowRemoteModels?: boolean
+  cacheDir?: string
+  backends?: {
+    onnx?: {
+      logLevel?: 'verbose' | 'info' | 'warning' | 'error' | 'fatal'
+    }
+  }
+}
+
 const { typedHandleMock, getPathMock, mkdirMock, pipelineMock, transformersEnv } = vi.hoisted(
-  () => ({
-    typedHandleMock: vi.fn(),
-    getPathMock: vi.fn(() => '/tmp/openwaggle-user-data'),
-    mkdirMock: vi.fn(async () => undefined),
-    pipelineMock: vi.fn(),
-    transformersEnv: {
+  () => {
+    const transformersEnv: TransformersEnvMock = {
       backends: {
         onnx: {
-          logLevel: undefined as 'verbose' | 'info' | 'warning' | 'error' | 'fatal' | undefined,
+          logLevel: undefined,
         },
       },
-    } as {
-      allowLocalModels?: boolean
-      allowRemoteModels?: boolean
-      cacheDir?: string
-      backends?: {
-        onnx?: {
-          logLevel?: 'verbose' | 'info' | 'warning' | 'error' | 'fatal'
-        }
-      }
-    },
-  }),
+    }
+
+    return {
+      typedHandleMock: vi.fn(),
+      getPathMock: vi.fn(() => '/tmp/openwaggle-user-data'),
+      mkdirMock: vi.fn(async () => undefined),
+      pipelineMock: vi.fn(),
+      transformersEnv,
+    }
+  },
 )
 
 vi.mock('../typed-ipc', () => ({
@@ -47,7 +54,7 @@ vi.mock('@xenova/transformers', () => ({
 
 import { registerVoiceHandlers, resetVoiceHandlerForTests } from '../voice-handler'
 
-function registeredHandler(name: string): ((...args: unknown[]) => Promise<unknown>) | undefined {
+function registeredHandler(name: string) {
   const call = typedHandleMock.mock.calls.find((c: unknown[]) => c[0] === name)
   const handler = call?.[1]
   if (typeof handler !== 'function') {
@@ -56,7 +63,7 @@ function registeredHandler(name: string): ((...args: unknown[]) => Promise<unkno
   return (...args: unknown[]) => Effect.runPromise(handler(...args))
 }
 
-function toPcm16(values: number[]): Uint8Array {
+function toPcm16(values: number[]) {
   const bytes = new Uint8Array(values.length * 2)
   const view = new DataView(bytes.buffer)
   for (let index = 0; index < values.length; index += 1) {
@@ -92,13 +99,13 @@ describe('registerVoiceHandlers', () => {
     const handler = registeredHandler('voice:transcribe-local')
 
     expect(handler).toBeDefined()
-    const result = (await handler?.(
-      {},
-      { pcm16: toPcm16([0.2, -1.3, 0.9]), sampleRate: 16_000 },
-    )) as {
-      text: string
-      model: string
-    }
+    const result = fromAny<
+      {
+        text: string
+        model: string
+      },
+      unknown
+    >(await handler?.({}, { pcm16: toPcm16([0.2, -1.3, 0.9]), sampleRate: 16_000 }))
 
     expect(mkdirMock).toHaveBeenCalledWith('/tmp/openwaggle-user-data/models/transformers', {
       recursive: true,

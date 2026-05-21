@@ -4,34 +4,17 @@ import { getAgentDir, SettingsManager } from '@mariozechner/pi-coding-agent'
 import { decodeUnknownOrThrow, type SchemaType } from '@shared/schema'
 import { jsonObjectSchema, projectSettingsFileSchema } from '@shared/schemas/validation'
 import type { JsonObject, JsonValue } from '@shared/types/json'
+import {
+  isStringArray,
+  PI_CONFIG_DIR,
+  withOpenWaggleResourcePrecedence,
+  withoutImplicitOpenWaggleResourcePrecedence,
+} from './openwaggle-pi-settings-resources'
 
 const JSON_INDENT_SPACES = 2
 const OPENWAGGLE_CONFIG_DIR = '.openwaggle'
-const PI_CONFIG_DIR = '.pi'
 const SETTINGS_FILE_NAME = 'settings.json'
-type ResourceKind = 'skills' | 'extensions' | 'prompts' | 'themes'
 type ParsedProjectSettingsFile = SchemaType<typeof projectSettingsFileSchema>
-
-type ResourceRootSegments = Readonly<Record<ResourceKind, readonly string[]>>
-
-const OPENWAGGLE_RESOURCE_ROOTS: ResourceRootSegments = {
-  skills: ['..', OPENWAGGLE_CONFIG_DIR, 'skills'],
-  extensions: ['..', OPENWAGGLE_CONFIG_DIR, 'extensions'],
-  prompts: ['..', OPENWAGGLE_CONFIG_DIR, 'prompts'],
-  themes: ['..', OPENWAGGLE_CONFIG_DIR, 'themes'],
-}
-const PI_RESOURCE_ROOTS: ResourceRootSegments = {
-  skills: ['skills'],
-  extensions: ['extensions'],
-  prompts: ['prompts'],
-  themes: ['themes'],
-}
-const AGENTS_RESOURCE_ROOTS: ResourceRootSegments = {
-  skills: ['..', '.agents', 'skills'],
-  extensions: ['..', '.agents', 'extensions'],
-  prompts: ['..', '.agents', 'prompts'],
-  themes: ['..', '.agents', 'themes'],
-}
 
 type SettingsScope = 'global' | 'project'
 
@@ -44,15 +27,15 @@ interface OpenWagglePiSettingsManagerOptions {
   readonly excludedProjectPackageSources?: readonly string[]
 }
 
-function getOpenWaggleProjectSettingsPath(projectPath: string): string {
+function getOpenWaggleProjectSettingsPath(projectPath: string) {
   return join(projectPath, OPENWAGGLE_CONFIG_DIR, SETTINGS_FILE_NAME)
 }
 
-function getPiProjectSettingsPath(projectPath: string): string {
+function getPiProjectSettingsPath(projectPath: string) {
   return join(projectPath, PI_CONFIG_DIR, SETTINGS_FILE_NAME)
 }
 
-function getPiGlobalSettingsPath(): string {
+function getPiGlobalSettingsPath() {
   return join(getAgentDir(), SETTINGS_FILE_NAME)
 }
 
@@ -60,7 +43,7 @@ function readFileIfPresent(filePath: string): string | undefined {
   return existsSync(filePath) ? readFileSync(filePath, 'utf-8') : undefined
 }
 
-function writeJsonFile(filePath: string, content: string): void {
+function writeJsonFile(filePath: string, content: string) {
   mkdirSync(dirname(filePath), { recursive: true })
   writeFileSync(filePath, content, 'utf-8')
 }
@@ -95,18 +78,18 @@ function getPackageSource(value: JsonValue): string | null {
   return null
 }
 
-function getPackageEntries(settings: JsonObject): JsonValue[] {
+function getPackageEntries(settings: JsonObject) {
   return Array.isArray(settings.packages) ? [...settings.packages] : []
 }
 
-function getExcludedExtensionPatterns(excludedPackageSources: readonly string[]): string[] {
+function getExcludedExtensionPatterns(excludedPackageSources: readonly string[]) {
   return excludedPackageSources.flatMap((source) => [`!${source}`, `!${source}/**`])
 }
 
 function withExcludedExtensionPatterns(
   settings: JsonObject,
   excludedPackageSources: readonly string[],
-): JsonObject {
+) {
   const excludedPatterns = getExcludedExtensionPatterns(excludedPackageSources)
   if (excludedPatterns.length === 0) {
     return settings
@@ -125,10 +108,7 @@ function withExcludedExtensionPatterns(
   }
 }
 
-function isExcludedPackageSource(
-  value: JsonValue,
-  excludedPackageSources: ReadonlySet<string>,
-): boolean {
+function isExcludedPackageSource(value: JsonValue, excludedPackageSources: ReadonlySet<string>) {
   const source = getPackageSource(value)
   return source !== null && excludedPackageSources.has(source)
 }
@@ -136,7 +116,7 @@ function isExcludedPackageSource(
 function withoutExcludedPackages(
   content: string | undefined,
   excludedPackageSources: readonly string[] | undefined,
-): string | undefined {
+) {
   if (!excludedPackageSources || excludedPackageSources.length === 0) {
     return content
   }
@@ -166,7 +146,7 @@ function withPreservedExcludedPackages(
   currentContent: string | undefined,
   nextContent: string | undefined,
   excludedPackageSources: readonly string[] | undefined,
-): string | undefined {
+) {
   if (!nextContent || !excludedPackageSources || excludedPackageSources.length === 0) {
     return nextContent
   }
@@ -183,7 +163,7 @@ function withPreservedExcludedPackages(
 
   const nextPackages = getPackageEntries(nextSettings)
   const nextPackageSources = new Set(
-    nextPackages.map(getPackageSource).filter((source): source is string => source !== null),
+    nextPackages.map(getPackageSource).filter((source) => source !== null),
   )
   const preservedPackages = excludedPackages.filter((entry) => {
     const source = getPackageSource(entry)
@@ -199,7 +179,7 @@ function withPreservedExcludedPackages(
   })
 }
 
-function mergeJsonObjects(base: JsonObject, override: JsonObject): JsonObject {
+function mergeJsonObjects(base: JsonObject, override: JsonObject) {
   const result: JsonObject = { ...base }
   for (const [key, overrideValue] of Object.entries(override)) {
     const baseValue = result[key]
@@ -211,143 +191,15 @@ function mergeJsonObjects(base: JsonObject, override: JsonObject): JsonObject {
   return result
 }
 
-function serializeJsonObject(value: JsonObject): string {
+function serializeJsonObject(value: JsonObject) {
   return `${JSON.stringify(value, null, JSON_INDENT_SPACES)}\n`
 }
 
-function serializeOpenWaggleSettings(value: ParsedProjectSettingsFile): string {
+function serializeOpenWaggleSettings(value: ParsedProjectSettingsFile) {
   return `${JSON.stringify(value, null, JSON_INDENT_SPACES)}\n`
 }
 
-function isStringArray(value: JsonValue | undefined): value is string[] {
-  return Array.isArray(value) && value.every((entry) => typeof entry === 'string')
-}
-
-function prependResourceRoots(
-  projectPath: string,
-  configured: JsonValue | undefined,
-  roots: readonly (readonly string[])[],
-): string[] {
-  const result: string[] = []
-  const seen = new Set<string>()
-
-  function addPath(candidate: string): void {
-    const resolved = join(projectPath, PI_CONFIG_DIR, candidate)
-    if (seen.has(resolved)) {
-      return
-    }
-    seen.add(resolved)
-    result.push(candidate)
-  }
-
-  for (const root of roots) {
-    addPath(join(...root))
-  }
-  if (isStringArray(configured)) {
-    for (const configuredPath of configured) {
-      addPath(configuredPath)
-    }
-  }
-
-  return result
-}
-
-function getImplicitResourceRoots(kind: ResourceKind): readonly (readonly string[])[] {
-  if (kind === 'skills') {
-    return [
-      OPENWAGGLE_RESOURCE_ROOTS.skills,
-      PI_RESOURCE_ROOTS.skills,
-      AGENTS_RESOURCE_ROOTS.skills,
-    ]
-  }
-  if (kind === 'extensions') {
-    return [
-      OPENWAGGLE_RESOURCE_ROOTS.extensions,
-      PI_RESOURCE_ROOTS.extensions,
-      AGENTS_RESOURCE_ROOTS.extensions,
-    ]
-  }
-  if (kind === 'prompts') {
-    return [
-      OPENWAGGLE_RESOURCE_ROOTS.prompts,
-      PI_RESOURCE_ROOTS.prompts,
-      AGENTS_RESOURCE_ROOTS.prompts,
-    ]
-  }
-  return [OPENWAGGLE_RESOURCE_ROOTS.themes, PI_RESOURCE_ROOTS.themes, AGENTS_RESOURCE_ROOTS.themes]
-}
-
-function withOpenWaggleResourcePrecedence(projectPath: string, settings: JsonObject): JsonObject {
-  return {
-    ...settings,
-    skills: prependResourceRoots(projectPath, settings.skills, getImplicitResourceRoots('skills')),
-    extensions: prependResourceRoots(
-      projectPath,
-      settings.extensions,
-      getImplicitResourceRoots('extensions'),
-    ),
-    prompts: prependResourceRoots(
-      projectPath,
-      settings.prompts,
-      getImplicitResourceRoots('prompts'),
-    ),
-    themes: prependResourceRoots(projectPath, settings.themes, getImplicitResourceRoots('themes')),
-  }
-}
-
-function removeImplicitResourceRoots(
-  projectPath: string,
-  configured: JsonValue | undefined,
-  kind: ResourceKind,
-): string[] | undefined {
-  if (!isStringArray(configured)) {
-    return undefined
-  }
-
-  const implicitRoots = new Set(
-    getImplicitResourceRoots(kind).map((root) => join(projectPath, PI_CONFIG_DIR, join(...root))),
-  )
-  const filtered = configured.filter(
-    (configuredPath) => !implicitRoots.has(join(projectPath, PI_CONFIG_DIR, configuredPath)),
-  )
-  return filtered.length > 0 ? filtered : undefined
-}
-
-function withoutImplicitOpenWaggleResourcePrecedence(
-  projectPath: string,
-  settings: JsonObject,
-): JsonObject {
-  const next: JsonObject = { ...settings }
-  const skills = removeImplicitResourceRoots(projectPath, settings.skills, 'skills')
-  const extensions = removeImplicitResourceRoots(projectPath, settings.extensions, 'extensions')
-  const prompts = removeImplicitResourceRoots(projectPath, settings.prompts, 'prompts')
-  const themes = removeImplicitResourceRoots(projectPath, settings.themes, 'themes')
-
-  if (skills) {
-    next.skills = skills
-  } else {
-    delete next.skills
-  }
-  if (extensions) {
-    next.extensions = extensions
-  } else {
-    delete next.extensions
-  }
-  if (prompts) {
-    next.prompts = prompts
-  } else {
-    delete next.prompts
-  }
-  if (themes) {
-    next.themes = themes
-  } else {
-    delete next.themes
-  }
-
-  return next
-}
-
-function readProjectPiSettings(projectPath: string): JsonObject {
+function readProjectPiSettings(projectPath: string) {
   const piProjectSettings = parseJsonObject(
     readFileIfPresent(getPiProjectSettingsPath(projectPath)),
   )
@@ -361,7 +213,7 @@ function readProjectPiSettings(projectPath: string): JsonObject {
   return withOpenWaggleResourcePrecedence(projectPath, mergedSettings)
 }
 
-function writeProjectPiSettings(projectPath: string, nextPiSettings: string): void {
+function writeProjectPiSettings(projectPath: string, nextPiSettings: string) {
   const nextPi = withoutImplicitOpenWaggleResourcePrecedence(
     projectPath,
     parseJsonObject(nextPiSettings),
@@ -403,7 +255,7 @@ function createOpenWagglePiSettingsStorage(
 function withGlobalPiSettingsLock(
   options: OpenWagglePiSettingsManagerOptions,
   fn: (current: string | undefined) => string | undefined,
-): void {
+) {
   const globalSettingsPath = getPiGlobalSettingsPath()
   const current = readFileIfPresent(globalSettingsPath)
   const visibleCurrent = withoutExcludedPackages(current, options.excludedGlobalPackageSources)

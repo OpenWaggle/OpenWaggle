@@ -1,12 +1,20 @@
-import { existsSync } from 'node:fs'
-import { extname, join, posix, resolve, sep } from 'node:path'
+import { join } from 'node:path'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
-import { app, BrowserWindow, Menu, protocol, shell } from 'electron'
+import { app, BrowserWindow, Menu, shell } from 'electron'
 import { reconcileInterruptedAgentRuns } from './application/agent-run-service'
 import { env } from './env'
 import { persistAllActiveRuns } from './ipc/agent-handler'
 import { cleanupTerminals, registerAllIpcHandlers } from './ipc/handlers'
 import { createLogger, initFileLogger } from './logger'
+import {
+  devRendererUrl,
+  INDEX_HTML,
+  RENDERER_PROTOCOL,
+  RENDERER_PROTOCOL_HOST,
+  RENDERER_PROTOCOL_ORIGIN,
+  registerRendererProtocolOnce,
+  registerRendererScheme,
+} from './renderer-protocol'
 import { disposeAppRuntime, initializeAppRuntime, runAppEffect } from './runtime'
 import {
   assertSecureWebPreferences,
@@ -24,33 +32,16 @@ const MIN_HEIGHT = 600
 const X = 16
 const Y = 16
 const FAILURE_EXIT_CODE = 1
-const RENDERER_PROTOCOL = 'openwaggle'
-const RENDERER_PROTOCOL_HOST = 'app'
-const RENDERER_PROTOCOL_ORIGIN = `${RENDERER_PROTOCOL}://${RENDERER_PROTOCOL_HOST}`
-const INDEX_HTML = 'index.html'
-const ELECTRON_FILE_NOT_FOUND_ERROR_CODE = -6
-
-protocol.registerSchemesAsPrivileged([
-  {
-    scheme: RENDERER_PROTOCOL,
-    privileges: {
-      standard: true,
-      secure: true,
-      supportFetchAPI: true,
-      corsEnabled: true,
-    },
-  },
-])
+registerRendererScheme()
 
 const appIconPath = is.dev
   ? join(__dirname, '../../build/icon.png')
   : join(process.resourcesPath, 'icon.png')
 const logger = createLogger('main/index')
 let ipcHandlersRegistered = false
-let rendererProtocolRegistered = false
 let beforeQuitCleanupDone = false
 
-function buildApplicationMenu(): void {
+function buildApplicationMenu() {
   if (process.platform === 'darwin') {
     Menu.setApplicationMenu(
       Menu.buildFromTemplate([
@@ -85,7 +76,7 @@ function buildApplicationMenu(): void {
   }
 }
 
-function describeError(error: unknown): { message: string; name?: string; stack?: string } {
+function describeError(error: unknown) {
   if (error instanceof Error) {
     return {
       message: error.message,
@@ -97,7 +88,7 @@ function describeError(error: unknown): { message: string; name?: string; stack?
   return { message: String(error) }
 }
 
-function registerIpcHandlersOnce(): void {
+function registerIpcHandlersOnce() {
   if (ipcHandlersRegistered) {
     logger.warn('Skipping duplicate IPC handler registration')
     return
@@ -108,87 +99,7 @@ function registerIpcHandlersOnce(): void {
   registerAllIpcHandlers()
 }
 
-function rendererRootPath(): string {
-  return resolve(__dirname, '../renderer')
-}
-
-function normalizedRendererRequestPath(requestUrl: string): string {
-  const url = new URL(requestUrl)
-  return posix.normalize(decodeURIComponent(url.pathname)).replace(/^\/+/, '')
-}
-
-function isRendererStaticAssetRequest(requestUrl: string): boolean {
-  try {
-    return extname(normalizedRendererRequestPath(requestUrl)).length > 0
-  } catch {
-    return false
-  }
-}
-
-function isRendererIndexRequest(requestUrl: string): boolean {
-  try {
-    const normalizedPath = normalizedRendererRequestPath(requestUrl)
-    return normalizedPath.length === 0 || normalizedPath === INDEX_HTML
-  } catch {
-    return false
-  }
-}
-
-function resolveRendererFilePath(rendererRoot: string, requestUrl: string): string {
-  const indexPath = join(rendererRoot, INDEX_HTML)
-  const url = new URL(requestUrl)
-
-  if (url.host !== RENDERER_PROTOCOL_HOST) {
-    return indexPath
-  }
-
-  const normalizedPath = normalizedRendererRequestPath(requestUrl)
-  if (normalizedPath.includes('..')) {
-    return indexPath
-  }
-
-  const requestedPath = normalizedPath.length > 0 ? normalizedPath : INDEX_HTML
-  const candidatePath = resolve(rendererRoot, requestedPath)
-  const rendererRootPrefix = `${rendererRoot}${sep}`
-  const isInsideRendererRoot =
-    candidatePath === rendererRoot || candidatePath.startsWith(rendererRootPrefix)
-
-  if (isInsideRendererRoot && existsSync(candidatePath)) {
-    return candidatePath
-  }
-
-  return indexPath
-}
-
-function devRendererUrl(): string | null {
-  return is.dev && env.ELECTRON_RENDERER_URL ? env.ELECTRON_RENDERER_URL : null
-}
-
-function registerRendererProtocolOnce(): void {
-  if (rendererProtocolRegistered || devRendererUrl() !== null) {
-    return
-  }
-
-  rendererProtocolRegistered = true
-  const rendererRoot = rendererRootPath()
-  const indexPath = join(rendererRoot, INDEX_HTML)
-
-  protocol.registerFileProtocol(RENDERER_PROTOCOL, (request, callback) => {
-    try {
-      const candidatePath = resolveRendererFilePath(rendererRoot, request.url)
-      const isAssetRequest = isRendererStaticAssetRequest(request.url)
-      if (isAssetRequest && candidatePath === indexPath && !isRendererIndexRequest(request.url)) {
-        callback({ error: ELECTRON_FILE_NOT_FOUND_ERROR_CODE })
-        return
-      }
-      callback({ path: candidatePath })
-    } catch {
-      callback({ path: indexPath })
-    }
-  })
-}
-
-async function bootstrapServicesAndWindow(): Promise<void> {
+async function bootstrapServicesAndWindow() {
   await initializeAppRuntime()
   await initializeSettingsStore()
   await runAppEffect(reconcileInterruptedAgentRuns())
@@ -199,7 +110,7 @@ async function bootstrapServicesAndWindow(): Promise<void> {
   initAutoUpdater()
 }
 
-function isTrustedRendererProtocolRequest(url: string): boolean {
+function isTrustedRendererProtocolRequest(url: string) {
   try {
     const parsedUrl = new URL(url)
     return (
@@ -210,7 +121,7 @@ function isTrustedRendererProtocolRequest(url: string): boolean {
   }
 }
 
-function isTrustedRendererRequest(url: string): boolean {
+function isTrustedRendererRequest(url: string) {
   if (url.startsWith('file://')) return true
   if (isTrustedRendererProtocolRequest(url)) return true
   if (!env.ELECTRON_RENDERER_URL) return false
@@ -222,7 +133,7 @@ function isTrustedRendererRequest(url: string): boolean {
   }
 }
 
-function createWindow(): void {
+function createWindow() {
   const webPreferences = {
     preload: join(__dirname, '../preload/index.js'),
     ...SECURE_WEB_PREFERENCES,
@@ -294,7 +205,7 @@ function createWindow(): void {
   }
 }
 
-function focusExistingWindow(): void {
+function focusExistingWindow() {
   const existingWindow = BrowserWindow.getAllWindows()[0]
   if (!existingWindow) {
     return
@@ -308,7 +219,7 @@ function focusExistingWindow(): void {
   existingWindow.focus()
 }
 
-function registerAppLifecycle(): void {
+function registerAppLifecycle() {
   app
     .whenReady()
     .then(() => {
@@ -367,7 +278,7 @@ function registerAppLifecycle(): void {
   })
 }
 
-function startApp(): void {
+function startApp() {
   configureAppStoragePaths(app, env.OPENWAGGLE_USER_DATA_DIR)
 
   if (env.OPENWAGGLE_DISABLE_SINGLE_INSTANCE !== '1') {

@@ -1,0 +1,44 @@
+{
+  "compilerOptions": {
+    "allowSyntheticDefaultImports": true,
+    "composite": false,
+    "esModuleInterop": true,
+    "exactOptionalPropertyTypes": true,
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "noUncheckedIndexedAccess": true,
+    "paths": {
+      "*": ["./*"],
+      "@/*": ["./src/renderer/src/*"],
+      "@shared/*": ["./src/shared/*"]
+    },
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2022",
+    "types": ["node", "react", "react-dom", "vite/client", "vitest/globals"]
+  },
+  "include": [
+    "electron.vite.config.ts",
+    "eslint.config.ts",
+    "playwright.config.ts",
+    "scripts/**/*.ts",
+    "src/**/*.d.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "vitest*.config.ts",
+    "website/.astro/**/*.d.ts",
+    "website/**/*.d.ts",
+    "website/**/*.ts",
+    "website/**/*.tsx"
+  ],
+  "exclude": [
+    "dist/**",
+    "node_modules/**",
+    "out/**",
+    "website/dist/**",
+    "website/node_modules/**"
+  ]
+}

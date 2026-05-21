@@ -1,5 +1,6 @@
 import { SupportedModelId } from '@shared/types/brand'
 import type { WaggleAgentSlot } from '@shared/types/waggle'
+import { fromAny } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { FileConflictTracker } from '../file-conflict-tracker'
 
@@ -7,10 +8,7 @@ import { FileConflictTracker } from '../file-conflict-tracker'
 // Fixture helpers
 // ---------------------------------------------------------------------------
 
-function makeAgents(
-  labelA = 'Architect',
-  labelB = 'Reviewer',
-): readonly [WaggleAgentSlot, WaggleAgentSlot] {
+function makeAgents(labelA = 'Architect', labelB = 'Reviewer') {
   return [
     {
       label: labelA,
@@ -210,8 +208,7 @@ describe('FileConflictTracker', () => {
 
   describe('agent label fallback', () => {
     it('falls back to "Agent 0" when agents tuple does not cover index 0', () => {
-      // Cast to satisfy the readonly tuple type while simulating a missing entry
-      const sparseAgents = [
+      const sparseAgents = fromAny<readonly [WaggleAgentSlot, WaggleAgentSlot], unknown>([
         undefined,
         {
           label: 'Reviewer',
@@ -219,7 +216,7 @@ describe('FileConflictTracker', () => {
           roleDescription: '',
           color: 'amber',
         },
-      ] as unknown as readonly [WaggleAgentSlot, WaggleAgentSlot]
+      ])
 
       tracker.recordModification('src/index.ts', 0, sparseAgents, 1)
       const warning = tracker.recordModification('src/index.ts', 1, sparseAgents, 2)
@@ -229,7 +226,7 @@ describe('FileConflictTracker', () => {
     })
 
     it('falls back to "Agent 1" when agents tuple does not cover index 1', () => {
-      const sparseAgents = [
+      const sparseAgents = fromAny<readonly [WaggleAgentSlot, WaggleAgentSlot], unknown>([
         {
           label: 'Architect',
           model: SupportedModelId('claude-sonnet-4-5'),
@@ -237,7 +234,7 @@ describe('FileConflictTracker', () => {
           color: 'blue',
         },
         undefined,
-      ] as unknown as readonly [WaggleAgentSlot, WaggleAgentSlot]
+      ])
 
       tracker.recordModification('src/index.ts', 0, sparseAgents, 1)
       const warning = tracker.recordModification('src/index.ts', 1, sparseAgents, 2)

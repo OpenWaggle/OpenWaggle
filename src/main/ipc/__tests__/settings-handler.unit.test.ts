@@ -1,113 +1,27 @@
-import * as Effect from 'effect/Effect'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const {
-  typedHandleMock,
-  getSettingsMock,
-  updateSettingsMock,
-  providerServiceGetMock,
-  probeCredentialsMock,
-  getTreeFilterModeMock,
-  setTreeFilterModeMock,
-  getBranchSummarySkipPromptMock,
-} = vi.hoisted(() => ({
-  typedHandleMock: vi.fn(),
-  getSettingsMock: vi.fn(),
-  updateSettingsMock: vi.fn(),
-  providerServiceGetMock: vi.fn(),
-  probeCredentialsMock: vi.fn(),
-  getTreeFilterModeMock: vi.fn(),
-  setTreeFilterModeMock: vi.fn(),
-  getBranchSummarySkipPromptMock: vi.fn(),
-}))
-
-vi.mock('../typed-ipc', () => ({
-  typedHandle: typedHandleMock,
-}))
-
-vi.mock('../../store/settings', () => ({
-  getSettings: getSettingsMock,
-  updateSettings: updateSettingsMock,
-}))
-
-vi.mock('../../logger', () => ({
-  createLogger: () => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-}))
-
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
-import { Layer } from 'effect'
-import { ProviderProbeService } from '../../ports/provider-probe-service'
-import { ProviderService } from '../../ports/provider-service'
-import { SessionTreePreferencesService } from '../../ports/session-tree-preferences-service'
-import { SettingsService } from '../../services/settings-service'
-import { registerSettingsHandlers } from '../settings-handler'
-
-const TestSettingsLayer = Layer.succeed(SettingsService, {
-  get: () => Effect.sync(() => getSettingsMock()),
-  update: (partial) => Effect.sync(() => updateSettingsMock(partial)),
-  initialize: () => Effect.void,
-  flushForTests: () => Effect.void,
-})
-
-const TestProviderServiceLayer = Layer.succeed(ProviderService, {
-  get: (providerId) => Effect.sync(() => providerServiceGetMock(providerId)),
-  getAll: () => Effect.succeed([]),
-  getProviderForModel: () => Effect.dieMessage('not used by settings handler tests'),
-  isKnownModel: () => Effect.succeed(true),
-})
-
-const TestSessionTreePreferencesLayer = Layer.succeed(SessionTreePreferencesService, {
-  getTreeFilterMode: (projectPath) => Effect.sync(() => getTreeFilterModeMock(projectPath)),
-  setTreeFilterMode: (mode, projectPath) =>
-    Effect.sync(() => setTreeFilterModeMock(mode, projectPath)),
-  getBranchSummarySkipPrompt: (projectPath) =>
-    Effect.sync(() => getBranchSummarySkipPromptMock(projectPath)),
-})
-
-const TestProviderProbeLayer = Layer.succeed(ProviderProbeService, {
-  probeCredentials: (input) =>
-    Effect.tryPromise({
-      try: () => Promise.resolve(probeCredentialsMock(input)),
-      catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
-    }),
-})
-
-const TestLayer = Layer.mergeAll(
-  TestSettingsLayer,
-  TestProviderServiceLayer,
-  TestProviderProbeLayer,
-  TestSessionTreePreferencesLayer,
-)
-
-function getTypedEffectInvokeHandler(
-  name: string,
-): ((...args: unknown[]) => Promise<unknown>) | undefined {
-  const call = typedHandleMock.mock.calls.find(
-    (candidate: readonly unknown[]) => candidate[0] === name && typeof candidate[1] === 'function',
-  )
-  const handler = call?.[1]
-  if (typeof handler !== 'function') {
-    return undefined
-  }
-
-  return (...args: unknown[]) => Effect.runPromise(Effect.provide(handler(...args), TestLayer))
-}
+import { beforeEach, describe, expect, it } from 'vitest'
+import {
+  getBranchSummarySkipPromptMock,
+  getSettingsMock,
+  getTreeFilterModeMock,
+  getTypedEffectInvokeHandler,
+  loadSettingsHandlers,
+  probeCredentialsMock,
+  providerServiceGetMock,
+  resetSettingsHandlerMocks,
+  setTreeFilterModeMock,
+  typedHandleMock,
+  updateSettingsMock,
+} from './settings-handler.test-harness'
 
 describe('registerSettingsHandlers', () => {
-  beforeEach(() => {
-    typedHandleMock.mockReset()
-    getSettingsMock.mockReset()
-    updateSettingsMock.mockReset()
-    providerServiceGetMock.mockReset()
-    probeCredentialsMock.mockReset()
-    getTreeFilterModeMock.mockReset()
-    setTreeFilterModeMock.mockReset()
-    getBranchSummarySkipPromptMock.mockReset()
+  let registerSettingsHandlers: Awaited<
+    ReturnType<typeof loadSettingsHandlers>
+  >['registerSettingsHandlers']
+
+  beforeEach(async () => {
+    resetSettingsHandlerMocks()
+    ;({ registerSettingsHandlers } = await loadSettingsHandlers())
   })
 
   it('registers all expected IPC channels', () => {
@@ -146,16 +60,11 @@ describe('registerSettingsHandlers', () => {
       const handler = getTypedEffectInvokeHandler('settings:update')
       expect(handler).toBeDefined()
 
-      const payload = {
-        thinkingLevel: 'high',
-      }
-      const result = await handler?.({}, payload)
+      const result = await handler?.({}, { thinkingLevel: 'high' })
       expect(result).toEqual({ ok: true })
       expect(updateSettingsMock).toHaveBeenCalledOnce()
       expect(updateSettingsMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          thinkingLevel: 'high',
-        }),
+        expect.objectContaining({ thinkingLevel: 'high' }),
       )
     })
 
@@ -165,14 +74,8 @@ describe('registerSettingsHandlers', () => {
       const handler = getTypedEffectInvokeHandler('settings:update')
       expect(handler).toBeDefined()
 
-      const payload = {
-        thinkingLevel: 'invalid-mode',
-      }
-      const result = await handler?.({}, payload)
-      expect(result).toEqual({
-        ok: false,
-        error: expect.any(String),
-      })
+      const result = await handler?.({}, { thinkingLevel: 'invalid-mode' })
+      expect(result).toEqual({ ok: false, error: expect.any(String) })
       expect(updateSettingsMock).not.toHaveBeenCalled()
     })
 
@@ -182,12 +85,10 @@ describe('registerSettingsHandlers', () => {
       const handler = getTypedEffectInvokeHandler('settings:update')
       expect(handler).toBeDefined()
 
-      const payload = { selectedModel: 'openai/gpt-4.1-mini' }
-      await handler?.({}, payload)
+      await handler?.({}, { selectedModel: 'openai/gpt-4.1-mini' })
 
       expect(updateSettingsMock).toHaveBeenCalledOnce()
       const call = updateSettingsMock.mock.calls[0][0]
-      // The branded type is still a string at runtime
       expect(call.selectedModel).toBe('openai/gpt-4.1-mini')
     })
 
@@ -210,10 +111,12 @@ describe('registerSettingsHandlers', () => {
       const handler = getTypedEffectInvokeHandler('settings:update')
       expect(handler).toBeDefined()
 
-      const payload = {
-        favoriteModels: ['anthropic/claude-sonnet-4-5', 'openai/gpt-4.1-mini'],
-      }
-      await handler?.({}, payload)
+      await handler?.(
+        {},
+        {
+          favoriteModels: ['anthropic/claude-sonnet-4-5', 'openai/gpt-4.1-mini'],
+        },
+      )
 
       expect(updateSettingsMock).toHaveBeenCalledOnce()
       const call = updateSettingsMock.mock.calls[0][0]
@@ -226,8 +129,7 @@ describe('registerSettingsHandlers', () => {
       const handler = getTypedEffectInvokeHandler('settings:update')
       expect(handler).toBeDefined()
 
-      const payload = { projectPath: null }
-      const result = await handler?.({}, payload)
+      const result = await handler?.({}, { projectPath: null })
       expect(result).toEqual({ ok: true })
       expect(updateSettingsMock).toHaveBeenCalledWith(
         expect.objectContaining({ projectPath: null }),
@@ -240,18 +142,20 @@ describe('registerSettingsHandlers', () => {
       const handler = getTypedEffectInvokeHandler('settings:update')
       expect(handler).toBeDefined()
 
-      const payload = {
-        skillTogglesByProject: {
-          '/tmp/repo': { 'skill-a': true, 'skill-b': false },
+      const result = await handler?.(
+        {},
+        {
+          skillTogglesByProject: {
+            '/tmp/repo': { 'skill-a': true, 'skill-b': false },
+          },
         },
-      }
-      const result = await handler?.({}, payload)
+      )
       expect(result).toEqual({ ok: true })
       expect(updateSettingsMock).toHaveBeenCalledOnce()
     })
   })
 
-  describe('pi-settings:get-tree-filter-mode', () => {
+  describe('pi tree preferences', () => {
     it('returns the persisted Pi tree filter mode', async () => {
       getTreeFilterModeMock.mockReturnValue('no-tools')
       registerSettingsHandlers()
@@ -263,9 +167,7 @@ describe('registerSettingsHandlers', () => {
       expect(result).toBe('no-tools')
       expect(getTreeFilterModeMock).toHaveBeenCalledWith(undefined)
     })
-  })
 
-  describe('pi-settings:set-tree-filter-mode', () => {
     it('validates and persists a Pi tree filter mode', async () => {
       registerSettingsHandlers()
 
@@ -286,9 +188,7 @@ describe('registerSettingsHandlers', () => {
       await expect(handler?.({}, 'bad-mode', null)).rejects.toThrow('Invalid tree filter mode')
       expect(setTreeFilterModeMock).not.toHaveBeenCalled()
     })
-  })
 
-  describe('pi-settings:get-branch-summary-skip-prompt', () => {
     it('returns the Pi branch-summary skip-prompt preference', async () => {
       getBranchSummarySkipPromptMock.mockReturnValue(true)
       registerSettingsHandlers()
@@ -311,10 +211,7 @@ describe('registerSettingsHandlers', () => {
       expect(handler).toBeDefined()
 
       const result = await handler?.({}, 'nonexistent', 'some-key')
-      expect(result).toEqual({
-        success: false,
-        error: 'Unknown provider: nonexistent',
-      })
+      expect(result).toEqual({ success: false, error: 'Unknown provider: nonexistent' })
       expect(probeCredentialsMock).not.toHaveBeenCalled()
     })
 
@@ -322,7 +219,6 @@ describe('registerSettingsHandlers', () => {
       providerServiceGetMock.mockReturnValue({
         id: 'anthropic',
         displayName: 'Anthropic',
-
         auth: {
           configured: false,
           source: 'none',
@@ -353,7 +249,6 @@ describe('registerSettingsHandlers', () => {
       providerServiceGetMock.mockReturnValue({
         id: 'ollama',
         displayName: 'Ollama',
-
         auth: {
           configured: false,
           source: 'none',
@@ -384,7 +279,6 @@ describe('registerSettingsHandlers', () => {
       providerServiceGetMock.mockReturnValue({
         id: 'openai',
         displayName: 'OpenAI',
-
         auth: {
           configured: false,
           source: 'none',
@@ -414,7 +308,6 @@ describe('registerSettingsHandlers', () => {
       providerServiceGetMock.mockReturnValue({
         id: 'gemini',
         displayName: 'Gemini',
-
         auth: {
           configured: false,
           source: 'none',
@@ -433,10 +326,7 @@ describe('registerSettingsHandlers', () => {
       const handler = getTypedEffectInvokeHandler('settings:test-api-key')
       const result = await handler?.({}, 'gemini', 'bad-key')
 
-      expect(result).toEqual({
-        success: false,
-        error: 'Invalid API key',
-      })
+      expect(result).toEqual({ success: false, error: 'Invalid API key' })
     })
   })
 })

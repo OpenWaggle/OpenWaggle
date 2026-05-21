@@ -11,13 +11,13 @@ export interface AppPathManager {
   setPath(name: 'userData' | 'sessionData', value: string): void
 }
 
-function getChromiumDipsPaths(sessionDataPath: string): readonly string[] {
+function getChromiumDipsPaths(sessionDataPath: string) {
   return CHROMIUM_DIPS_SIDE_SUFFIXES.map((suffix) =>
     join(sessionDataPath, `${CHROMIUM_DIPS_BASENAME}${suffix}`),
   )
 }
 
-function repairChromiumDipsDatabaseOnce(sessionDataPath: string): void {
+function repairChromiumDipsDatabaseOnce(sessionDataPath: string) {
   const repairMarkerPath = join(sessionDataPath, CHROMIUM_DIPS_REPAIR_MARKER_FILENAME)
   if (existsSync(repairMarkerPath)) {
     return

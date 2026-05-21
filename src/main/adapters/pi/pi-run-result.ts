@@ -13,7 +13,7 @@ function makeMessage(
   role: 'user' | 'assistant' | 'system',
   parts: MessagePart[],
   model?: SupportedModelId,
-): Message {
+) {
   return {
     id: MessageId(randomUUID()),
     role,
@@ -102,8 +102,7 @@ export function buildPiRunNewMessages(
   appendedMessages: readonly unknown[],
 ): Message[] {
   const filteredAppended = appendedMessages.filter(
-    (message): message is PiRuntimeAssistantMessage | PiRuntimeToolResultMessage =>
-      isPiRuntimeAssistantMessage(message) || isPiRuntimeToolResultMessage(message),
+    (message) => isPiRuntimeAssistantMessage(message) || isPiRuntimeToolResultMessage(message),
   )
 
   const assistantAndToolMessages = piHistoryToProjectedMessages(filteredAppended)
@@ -112,8 +111,7 @@ export function buildPiRunNewMessages(
 
 export function buildPiRunAssistantMessages(appendedMessages: readonly unknown[]): Message[] {
   const filteredAppended = appendedMessages.filter(
-    (message): message is PiRuntimeAssistantMessage | PiRuntimeToolResultMessage =>
-      isPiRuntimeAssistantMessage(message) || isPiRuntimeToolResultMessage(message),
+    (message) => isPiRuntimeAssistantMessage(message) || isPiRuntimeToolResultMessage(message),
   )
 
   return piHistoryToProjectedMessages(filteredAppended)

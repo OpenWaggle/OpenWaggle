@@ -29,7 +29,7 @@ Implementation must stay faithful to:
   - Pi SDK imports stay confined to `src/main/adapters/pi/`.
   - IPC/application code depends on OpenWaggle-owned ports and DTOs.
   - Persistence changes go through ports/adapters instead of direct IPC-to-store imports.
-- `docs/lessons.md`
+- `MEMORY.md`
   - Mirror Pi TUI/SDK behavior by default.
   - Do not show the full Pi node tree in the left sidebar.
   - Do not introduce Waggle-only branch semantics.
@@ -589,7 +589,7 @@ For each implementation slice:
 2. Prefer public-interface/integration-style tests over implementation mocks.
 3. Run targeted tests for the touched slice.
 4. Run `pnpm typecheck` or narrower typecheck as the slice grows.
-5. Run `pnpm check:architecture` for main-process changes.
+5. Run `pnpm lint` or `pnpm check` for main-process architecture enforcement.
 6. If renderer code is touched:
    - run React Doctor diagnostics
    - run Electron QA via MCP against the real app after static checks pass

@@ -4,110 +4,7 @@ vi.mock('../../typed-ipc', () => ({
   typedHandle: vi.fn(),
 }))
 
-import { mergeDiffsByPath, normalizeGitPath, parseUnifiedDiff } from '../status-handler'
-
-// ---------------------------------------------------------------------------
-// normalizeGitPath
-// ---------------------------------------------------------------------------
-
-describe('normalizeGitPath', () => {
-  // --- empty / whitespace ---------------------------------------------------
-
-  it('returns empty string for empty input', () => {
-    expect(normalizeGitPath('')).toBe('')
-  })
-
-  it('returns empty string for whitespace-only input', () => {
-    expect(normalizeGitPath('   ')).toBe('')
-  })
-
-  // --- passthrough -----------------------------------------------------------
-
-  it('returns a simple path unchanged', () => {
-    expect(normalizeGitPath('src/main/index.ts')).toBe('src/main/index.ts')
-  })
-
-  it('trims surrounding whitespace from a simple path', () => {
-    expect(normalizeGitPath('  src/main/index.ts  ')).toBe('src/main/index.ts')
-  })
-
-  // --- brace rename format: {old => new} -----------------------------------
-
-  it('resolves brace rename to the new path', () => {
-    expect(normalizeGitPath('src/{old => new}.ts')).toBe('src/new.ts')
-  })
-
-  it('resolves nested brace rename', () => {
-    expect(normalizeGitPath('src/{components/old => components/new}/file.ts')).toBe(
-      'src/components/new/file.ts',
-    )
-  })
-
-  it('resolves brace rename with empty old side (new file in subdir)', () => {
-    expect(normalizeGitPath('src/{ => new}/file.ts')).toBe('src/new/file.ts')
-  })
-
-  it('resolves brace rename with empty new side (removed subdir)', () => {
-    expect(normalizeGitPath('src/{old => }/file.ts')).toBe('src//file.ts')
-  })
-
-  it('resolves brace rename with surrounding quotes', () => {
-    expect(normalizeGitPath('"src/{old => new}.ts"')).toBe('src/new.ts')
-  })
-
-  // --- plain rename format: old => new --------------------------------------
-
-  it('resolves plain => rename to the new path', () => {
-    expect(normalizeGitPath('old.txt => new.txt')).toBe('new.txt')
-  })
-
-  it('resolves plain => rename with spaces in filenames', () => {
-    expect(normalizeGitPath('"old file.txt" => "new file.txt"')).toBe('new file.txt')
-  })
-
-  it('resolves => rename with multiple arrows (takes last segment)', () => {
-    expect(normalizeGitPath('a => b => c.txt')).toBe('c.txt')
-  })
-
-  // --- arrow rename format: old -> new --------------------------------------
-
-  it('resolves plain -> rename to the new path', () => {
-    expect(normalizeGitPath('old.txt -> new.txt')).toBe('new.txt')
-  })
-
-  it('resolves -> rename with multiple arrows (takes last segment)', () => {
-    expect(normalizeGitPath('a -> b -> c.txt')).toBe('c.txt')
-  })
-
-  // --- => takes precedence over -> because it is checked first ---------------
-
-  it('prefers => over -> when both appear', () => {
-    // The loop checks ' => ' first, so it resolves via =>
-    expect(normalizeGitPath('a => b -> c.txt')).toBe('b -> c.txt')
-  })
-
-  // --- quote stripping -------------------------------------------------------
-
-  it('strips surrounding double quotes from a simple path', () => {
-    expect(normalizeGitPath('"src/file.txt"')).toBe('src/file.txt')
-  })
-
-  it('does not strip single quotes', () => {
-    expect(normalizeGitPath("'src/file.txt'")).toBe("'src/file.txt'")
-  })
-
-  it('does not strip quotes that are not at both ends', () => {
-    expect(normalizeGitPath('"src/file.txt')).toBe('"src/file.txt')
-  })
-
-  it('strips quotes from the result of a rename', () => {
-    expect(normalizeGitPath('"old.txt" => "new.txt"')).toBe('new.txt')
-  })
-})
-
-// ---------------------------------------------------------------------------
-// parseUnifiedDiff
-// ---------------------------------------------------------------------------
+import { parseUnifiedDiff } from '../status-handler'
 
 describe('parseUnifiedDiff', () => {
   it('returns empty array for empty input', () => {
@@ -196,7 +93,7 @@ describe('parseUnifiedDiff', () => {
     expect(result[0]?.deletions).toBe(1)
   })
 
-  it('handles diff with only additions (new file)', () => {
+  it('handles diff with only additions', () => {
     const input = [
       'diff --git a/new-file.ts b/new-file.ts',
       'new file mode 100644',
@@ -215,7 +112,7 @@ describe('parseUnifiedDiff', () => {
     expect(result[0]?.deletions).toBe(0)
   })
 
-  it('handles diff with only deletions (removed file)', () => {
+  it('handles diff with only deletions', () => {
     const input = [
       'diff --git a/removed.ts b/removed.ts',
       'deleted file mode 100644',
@@ -260,7 +157,7 @@ describe('parseUnifiedDiff', () => {
     expect(result[0]?.path).toBe('my file.ts')
   })
 
-  it('handles diff with no additions or deletions (mode change only)', () => {
+  it('handles diff with no additions or deletions', () => {
     const input = ['diff --git a/script.sh b/script.sh', 'old mode 100644', 'new mode 100755'].join(
       '\n',
     )
@@ -299,158 +196,5 @@ describe('parseUnifiedDiff', () => {
     expect(result).toHaveLength(1)
     expect(result[0]?.additions).toBe(3)
     expect(result[0]?.deletions).toBe(2)
-  })
-})
-
-// ---------------------------------------------------------------------------
-// mergeDiffsByPath
-// ---------------------------------------------------------------------------
-
-describe('mergeDiffsByPath', () => {
-  it('returns empty array for empty input', () => {
-    expect(mergeDiffsByPath([])).toEqual([])
-  })
-
-  it('returns a single entry unchanged', () => {
-    const input = [{ path: 'a.ts', diff: 'diff content', additions: 3, deletions: 1 }]
-    expect(mergeDiffsByPath(input)).toEqual(input)
-  })
-
-  it('passes through entries with unique paths', () => {
-    const input = [
-      { path: 'a.ts', diff: 'diff a', additions: 1, deletions: 0 },
-      { path: 'b.ts', diff: 'diff b', additions: 0, deletions: 2 },
-    ]
-    const result = mergeDiffsByPath(input)
-
-    expect(result).toHaveLength(2)
-    expect(result[0]?.path).toBe('a.ts')
-    expect(result[1]?.path).toBe('b.ts')
-  })
-
-  it('merges entries with the same path', () => {
-    const input = [
-      { path: 'a.ts', diff: 'first diff', additions: 2, deletions: 1 },
-      { path: 'a.ts', diff: 'second diff', additions: 3, deletions: 4 },
-    ]
-    const result = mergeDiffsByPath(input)
-
-    expect(result).toHaveLength(1)
-    expect(result[0]).toEqual({
-      path: 'a.ts',
-      diff: 'first diff\nsecond diff',
-      additions: 5,
-      deletions: 5,
-    })
-  })
-
-  it('merges three entries with the same path', () => {
-    const input = [
-      { path: 'x.ts', diff: 'd1', additions: 1, deletions: 0 },
-      { path: 'x.ts', diff: 'd2', additions: 2, deletions: 0 },
-      { path: 'x.ts', diff: 'd3', additions: 0, deletions: 3 },
-    ]
-    const result = mergeDiffsByPath(input)
-
-    expect(result).toHaveLength(1)
-    expect(result[0]?.additions).toBe(3)
-    expect(result[0]?.deletions).toBe(3)
-    expect(result[0]?.diff).toBe('d1\nd2\nd3')
-  })
-
-  it('sorts merged output by path', () => {
-    const input = [
-      { path: 'z.ts', diff: 'z', additions: 0, deletions: 0 },
-      { path: 'a.ts', diff: 'a', additions: 0, deletions: 0 },
-      { path: 'm.ts', diff: 'm', additions: 0, deletions: 0 },
-    ]
-    const result = mergeDiffsByPath(input)
-
-    expect(result.map((d) => d.path)).toEqual(['a.ts', 'm.ts', 'z.ts'])
-  })
-
-  it('merges duplicates and sorts together', () => {
-    const input = [
-      { path: 'z.ts', diff: 'z1', additions: 1, deletions: 0 },
-      { path: 'a.ts', diff: 'a1', additions: 0, deletions: 1 },
-      { path: 'z.ts', diff: 'z2', additions: 2, deletions: 0 },
-      { path: 'a.ts', diff: 'a2', additions: 0, deletions: 2 },
-    ]
-    const result = mergeDiffsByPath(input)
-
-    expect(result).toHaveLength(2)
-    expect(result[0]?.path).toBe('a.ts')
-    expect(result[0]?.additions).toBe(0)
-    expect(result[0]?.deletions).toBe(3)
-    expect(result[1]?.path).toBe('z.ts')
-    expect(result[1]?.additions).toBe(3)
-    expect(result[1]?.deletions).toBe(0)
-  })
-
-  it('handles entries with zero additions and deletions', () => {
-    const input = [
-      { path: 'a.ts', diff: 'mode change', additions: 0, deletions: 0 },
-      { path: 'a.ts', diff: 'content change', additions: 1, deletions: 1 },
-    ]
-    const result = mergeDiffsByPath(input)
-
-    expect(result).toHaveLength(1)
-    expect(result[0]?.additions).toBe(1)
-    expect(result[0]?.deletions).toBe(1)
-  })
-})
-
-// ---------------------------------------------------------------------------
-// parseUnifiedDiff + mergeDiffsByPath integration
-// ---------------------------------------------------------------------------
-
-describe('parseUnifiedDiff + mergeDiffsByPath integration', () => {
-  it('parses and merges a combined worktree+cached diff correctly', () => {
-    const worktreeDiff = [
-      'diff --git a/shared.ts b/shared.ts',
-      '--- a/shared.ts',
-      '+++ b/shared.ts',
-      '@@ -1 +1,2 @@',
-      '-old worktree',
-      '+new worktree line 1',
-      '+new worktree line 2',
-    ].join('\n')
-
-    const cachedDiff = [
-      'diff --git a/shared.ts b/shared.ts',
-      '--- a/shared.ts',
-      '+++ b/shared.ts',
-      '@@ -5 +5 @@',
-      '-old cached',
-      '+new cached',
-    ].join('\n')
-
-    const parsed = [...parseUnifiedDiff(worktreeDiff), ...parseUnifiedDiff(cachedDiff)]
-    const merged = mergeDiffsByPath(parsed)
-
-    expect(merged).toHaveLength(1)
-    expect(merged[0]?.path).toBe('shared.ts')
-    expect(merged[0]?.additions).toBe(3) // 2 from worktree + 1 from cached
-    expect(merged[0]?.deletions).toBe(2) // 1 from worktree + 1 from cached
-  })
-
-  it('keeps separate files distinct through merge', () => {
-    const input = [
-      'diff --git a/alpha.ts b/alpha.ts',
-      '+++ b/alpha.ts',
-      '+line',
-      'diff --git a/beta.ts b/beta.ts',
-      '+++ b/beta.ts',
-      '-removed',
-    ].join('\n')
-
-    const parsed = parseUnifiedDiff(input)
-    const merged = mergeDiffsByPath(parsed)
-
-    expect(merged).toHaveLength(2)
-    expect(merged[0]?.path).toBe('alpha.ts')
-    expect(merged[0]?.additions).toBe(1)
-    expect(merged[1]?.path).toBe('beta.ts')
-    expect(merged[1]?.deletions).toBe(1)
   })
 })

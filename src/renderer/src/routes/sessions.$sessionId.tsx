@@ -1,5 +1,5 @@
 import { createFileRoute, retainSearchParams, useNavigate } from '@tanstack/react-router'
-import { ChatRouteSurface } from '@/components/app/routing/ChatRouteSurface'
+import { ChatRouteSurface } from './-chat-route-surface'
 import { type ChatRouteSearch, parseChatRouteSearch } from './-route-search'
 
 export const Route = createFileRoute('/sessions/$sessionId')({
@@ -17,7 +17,7 @@ function ChatSessionRouteView() {
   const diffOpen = search.panel === 'diff' || (search.diff === 1 && search.panel === undefined)
   const sessionTreeOpen = search.panel === 'session-tree'
 
-  function setDiffOpen(open: boolean): void {
+  function setDiffOpen(open: boolean) {
     const panel = open ? 'diff' : undefined
     void navigate({
       to: '/sessions/$sessionId',
@@ -26,7 +26,7 @@ function ChatSessionRouteView() {
     })
   }
 
-  function setSessionTreeOpen(open: boolean): void {
+  function setSessionTreeOpen(open: boolean) {
     const panel = open ? 'session-tree' : undefined
     void navigate({
       to: '/sessions/$sessionId',

@@ -55,7 +55,7 @@ function getAppRuntime() {
   return currentRuntime
 }
 
-function installStoreEffectRunner(): void {
+function installStoreEffectRunner() {
   setStoreEffectRunner((effect) => getAppRuntime().runPromise(effect))
 }
 

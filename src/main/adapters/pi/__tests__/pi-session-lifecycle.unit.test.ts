@@ -11,7 +11,7 @@ import {
   withOpenWagglePiSessionLifecycleContext,
 } from '../pi-session-lifecycle'
 
-async function createTempProject(): Promise<string> {
+async function createTempProject() {
   return fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-pi-session-lifecycle-'))
 }
 

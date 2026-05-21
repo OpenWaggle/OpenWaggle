@@ -17,7 +17,7 @@ const MIN_ARG_1_VALUE_5 = 5
 // node-pty is a native module loaded via dynamic import at first use
 let ptyModule: typeof NodePtyModule | undefined
 
-async function getPty(): Promise<typeof NodePtyModule> {
+async function getPty() {
   if (!ptyModule) {
     ptyModule = await import('node-pty')
   }
@@ -47,7 +47,7 @@ const terminalResizeSchema = Schema.Struct({
 })
 const terminalWriteSchema = Schema.String.pipe(Schema.maxLength(MAX_TERMINAL_INPUT_BYTES))
 
-function resolveTerminalCwd(projectPath: string): string {
+function resolveTerminalCwd(projectPath: string) {
   const candidate = decodeUnknownOrThrow(terminalPathSchema, projectPath).trim()
   if (!path.isAbsolute(candidate)) {
     throw new Error('Project path must be absolute.')
@@ -76,11 +76,7 @@ export function registerTerminalHandlers(): void {
         cols: TERMINAL.DEFAULT_COLS,
         rows: TERMINAL.DEFAULT_ROWS,
         cwd,
-        env: Object.fromEntries(
-          Object.entries(childEnv).filter(
-            (entry): entry is [string, string] => entry[1] !== undefined,
-          ),
-        ),
+        env: Object.fromEntries(Object.entries(childEnv).filter((entry) => entry[1] !== undefined)),
       })
 
       proc.onData((data: string) => {

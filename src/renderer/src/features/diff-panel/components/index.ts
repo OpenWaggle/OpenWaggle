@@ -1,0 +1,1 @@
+export { DiffPanel } from './DiffPanel'

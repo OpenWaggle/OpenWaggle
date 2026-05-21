@@ -8,7 +8,7 @@ import { loadAgentStandardsContext } from '../standards-context'
 
 const tempDirs: string[] = []
 
-async function makeTempProject(): Promise<string> {
+async function makeTempProject() {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-standards-context-'))
   tempDirs.push(dir)
   return dir

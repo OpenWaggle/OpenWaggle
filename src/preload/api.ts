@@ -13,11 +13,11 @@ import { ipcRenderer, webUtils } from 'electron'
 function invoke<C extends IpcInvokeChannel>(
   channel: C,
 ): (...args: IpcInvokeArgs<C>) => Promise<IpcInvokeReturn<C>> {
-  return (...args) => ipcRenderer.invoke(channel, ...args)
+  return (...args: IpcInvokeArgs<C>) => ipcRenderer.invoke(channel, ...args)
 }
 
 function send<C extends IpcSendChannel>(channel: C): (...args: IpcSendArgs<C>) => void {
-  return (...args) => {
+  return (...args: IpcSendArgs<C>) => {
     ipcRenderer.send(channel, ...args)
   }
 }
@@ -25,8 +25,8 @@ function send<C extends IpcSendChannel>(channel: C): (...args: IpcSendArgs<C>) =
 function on<C extends IpcEventChannel>(
   channel: C,
 ): (callback: (payload: IpcEventPayload<C>) => void) => () => void {
-  return (callback) => {
-    const handler = (_event: Electron.IpcRendererEvent, payload: IpcEventPayload<C>): void => {
+  return (callback: (payload: IpcEventPayload<C>) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: IpcEventPayload<C>) => {
       callback(payload)
     }
     ipcRenderer.on(channel, handler)
@@ -36,10 +36,7 @@ function on<C extends IpcEventChannel>(
 
 const invokePrepareAttachments = invoke('attachments:prepare')
 
-function prepareSelectedAttachments(
-  projectPath: string,
-  files: readonly File[],
-): ReturnType<OpenWaggleApi['prepareAttachments']> {
+function prepareSelectedAttachments(projectPath: string, files: readonly File[]) {
   const paths = files
     .map((file) => webUtils.getPathForFile(file))
     .filter((filePath) => filePath.length > 0)

@@ -13,7 +13,7 @@ import { typedHandle } from './typed-ipc'
 
 const logger = createLogger('ipc-settings')
 
-function isString(value: string | undefined): value is string {
+function isString(value: string | undefined) {
   return value !== undefined
 }
 
@@ -53,7 +53,7 @@ function isTreeFilterMode(value: unknown): value is SessionTreeFilterMode {
   return isMatching(P.union('default', 'no-tools', 'user-only', 'labeled-only', 'all'), value)
 }
 
-function validateTreeFilterMode(value: unknown): Effect.Effect<SessionTreeFilterMode, Error> {
+function validateTreeFilterMode(value: unknown) {
   return isTreeFilterMode(value)
     ? Effect.succeed(value)
     : Effect.fail(new Error('Invalid tree filter mode'))
@@ -89,7 +89,7 @@ const settingsUpdateSchema = Schema.Struct({
   ),
 })
 
-export function registerSettingsHandlers(): void {
+function registerSettingsCrudHandlers() {
   typedHandle('settings:get', () =>
     Effect.gen(function* () {
       const settings = yield* SettingsService
@@ -145,7 +145,9 @@ export function registerSettingsHandlers(): void {
       return undefined
     }),
   )
+}
 
+function registerTreePreferenceHandlers() {
   typedHandle('pi-settings:get-tree-filter-mode', (_event, projectPath?: string | null) =>
     Effect.gen(function* () {
       const validatedProjectPath = yield* validateProjectPath(projectPath)
@@ -172,7 +174,9 @@ export function registerSettingsHandlers(): void {
       return yield* preferences.getBranchSummarySkipPrompt(validatedProjectPath)
     }),
   )
+}
 
+function registerSettingsUtilityHandlers() {
   typedHandle(
     'settings:test-api-key',
     (_event, provider: string, apiKey: string, projectPath?: string | null) =>
@@ -181,4 +185,10 @@ export function registerSettingsHandlers(): void {
         return yield* testCredentials(provider, apiKey, validatedProjectPath)
       }),
   )
+}
+
+export function registerSettingsHandlers(): void {
+  registerSettingsCrudHandlers()
+  registerTreePreferenceHandlers()
+  registerSettingsUtilityHandlers()
 }

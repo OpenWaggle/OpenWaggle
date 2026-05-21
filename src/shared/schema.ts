@@ -17,7 +17,7 @@ export interface SafeDecodeFailure {
   readonly issues: readonly string[]
 }
 
-function formatIssuePath(path: ReadonlyArray<PropertyKey>): string {
+function formatIssuePath(path: ReadonlyArray<PropertyKey>) {
   const joinedPath = path.map(String).join('.')
   return joinedPath.length > 0 ? joinedPath : '(root)'
 }
@@ -32,17 +32,19 @@ export function getParseIssues(error: unknown): readonly string[] | null {
   return ParseResult.isParseError(error) ? formatParseError(error) : null
 }
 
-export function decodeUnknownOrThrow<TSchema extends AnySchema>(
-  schema: TSchema,
-  value: unknown,
-): SchemaType<TSchema> {
-  return Schema.decodeUnknownSync(schema)(value)
+export function decodeUnknownOrThrow<A, I>(schema: Schema.Schema<A, I, never>, value: unknown): A {
+  return ParseResult.decodeUnknownSync(schema)(value)
 }
 
-export function safeDecodeUnknown<TSchema extends AnySchema>(
-  schema: TSchema,
+export function parseJsonUnknown(raw: string): unknown {
+  const parsed: unknown = JSON.parse(raw)
+  return parsed
+}
+
+export function safeDecodeUnknown<A, I>(
+  schema: Schema.Schema<A, I, never>,
   value: unknown,
-): SafeDecodeSuccess<SchemaType<TSchema>> | SafeDecodeFailure {
+): SafeDecodeSuccess<A> | SafeDecodeFailure {
   try {
     return {
       success: true,

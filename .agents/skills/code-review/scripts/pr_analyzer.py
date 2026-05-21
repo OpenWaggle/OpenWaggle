@@ -133,7 +133,7 @@ def is_doc_file(path: str) -> bool:
     return (
         path.startswith('docs/')
         or path.endswith(('.md', '.mdx', '.rst', '.adoc', '.txt'))
-        or path in {'AGENTS.md', 'CODEX.md', 'CLAUDE.md', 'LEARNINGS.md', 'README.md', 'progress.txt'}
+        or path in {'AGENTS.md', 'MEMORY.md', 'README.md', 'progress.txt'}
     )
 
 

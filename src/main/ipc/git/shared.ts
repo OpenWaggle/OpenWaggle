@@ -21,6 +21,36 @@ export interface RunGitOptions {
   readonly maxBuffer?: number
 }
 
+function normalizeGitSuccess(output: string | { stdout?: string; stderr?: string }): GitExecResult {
+  if (typeof output === 'string') {
+    return { stdout: output, stderr: '', code: 0 }
+  }
+  return {
+    stdout: output.stdout ?? '',
+    stderr: output.stderr ?? '',
+    code: 0,
+  }
+}
+
+function normalizeGitError(error: unknown): GitExecResult {
+  const result = safeDecodeUnknown(jsonObjectSchema, error)
+  if (!result.success) {
+    return {
+      stdout: '',
+      stderr: error instanceof Error ? error.message : 'Git command failed',
+      code: 1,
+    }
+  }
+
+  const value = result.data
+  const fallbackMessage = typeof value.message === 'string' ? value.message : 'Git command failed'
+  return {
+    stdout: typeof value.stdout === 'string' ? value.stdout : '',
+    stderr: typeof value.stderr === 'string' ? value.stderr : fallbackMessage,
+    code: typeof value.code === 'number' ? value.code : 1,
+  }
+}
+
 export async function runGit(
   projectPath: string,
   args: string[],
@@ -32,34 +62,9 @@ export async function runGit(
       cwd: projectPath,
       maxBuffer,
     })
-    if (typeof output === 'string') {
-      return { stdout: output, stderr: '', code: 0 }
-    }
-    return {
-      stdout: output.stdout ?? '',
-      stderr: output.stderr ?? '',
-      code: 0,
-    }
-  } catch (err) {
-    const result = safeDecodeUnknown(jsonObjectSchema, err)
-    if (result.success) {
-      const e = result.data
-      return {
-        stdout: typeof e.stdout === 'string' ? e.stdout : '',
-        stderr:
-          typeof e.stderr === 'string'
-            ? e.stderr
-            : typeof e.message === 'string'
-              ? e.message
-              : 'Git command failed',
-        code: typeof e.code === 'number' ? e.code : 1,
-      }
-    }
-    return {
-      stdout: '',
-      stderr: err instanceof Error ? err.message : 'Git command failed',
-      code: 1,
-    }
+    return normalizeGitSuccess(output)
+  } catch (error) {
+    return normalizeGitError(error)
   }
 }
 

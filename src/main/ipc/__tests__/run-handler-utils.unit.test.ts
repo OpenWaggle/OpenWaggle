@@ -11,7 +11,7 @@ const { emitTransportEventMock, updateTitleMock, hydrateAttachmentSourcesMock } 
   () => ({
     emitTransportEventMock: vi.fn(),
     updateTitleMock: vi.fn(),
-    hydrateAttachmentSourcesMock: vi.fn(async () => [] as unknown[]),
+    hydrateAttachmentSourcesMock: vi.fn<() => Promise<unknown[]>>(async () => []),
   }),
 )
 
@@ -101,7 +101,7 @@ function makeAttachment(overrides: Partial<PreparedAttachment> = {}): PreparedAt
   }
 }
 
-function runTitleAssignment(session: SessionDetail, text: string): Promise<string | null> {
+function runTitleAssignment(session: SessionDetail, text: string) {
   return Effect.runPromise(
     Effect.provide(assignSessionTitleFromUserText(CONV_ID, session, text), TestRuntimeLayer),
   )

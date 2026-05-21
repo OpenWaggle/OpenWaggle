@@ -1,3 +1,4 @@
+import { fromAny } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -84,19 +85,21 @@ describe('feedback-handler', () => {
       const handler = handlers.get('feedback:generate-markdown')
       expect(handler).toBeDefined()
 
-      const result = (await handler?.(
-        {},
-        {
-          title: 'Test bug',
-          description: 'Something broke',
-          category: 'bug',
-          includeSystemInfo: false,
-          includeLogs: false,
-          includeErrorContext: false,
-          includeLastMessage: false,
-          includeModelInfo: false,
-        },
-      )) as string
+      const result = fromAny<string, unknown>(
+        await handler?.(
+          {},
+          {
+            title: 'Test bug',
+            description: 'Something broke',
+            category: 'bug',
+            includeSystemInfo: false,
+            includeLogs: false,
+            includeErrorContext: false,
+            includeLastMessage: false,
+            includeModelInfo: false,
+          },
+        ),
+      )
 
       expect(result).toContain('## Description')
       expect(result).toContain('Something broke')
@@ -106,19 +109,21 @@ describe('feedback-handler', () => {
       registerFeedbackHandlers()
       const handler = handlers.get('feedback:generate-markdown')
 
-      const result = (await handler?.(
-        {},
-        {
-          title: 'Test',
-          description: '',
-          category: 'bug',
-          includeSystemInfo: true,
-          includeLogs: false,
-          includeErrorContext: false,
-          includeLastMessage: false,
-          includeModelInfo: false,
-        },
-      )) as string
+      const result = fromAny<string, unknown>(
+        await handler?.(
+          {},
+          {
+            title: 'Test',
+            description: '',
+            category: 'bug',
+            includeSystemInfo: true,
+            includeLogs: false,
+            includeErrorContext: false,
+            includeLastMessage: false,
+            includeModelInfo: false,
+          },
+        ),
+      )
 
       expect(result).toContain('## System Info')
       expect(result).toContain('App Version')
@@ -128,26 +133,28 @@ describe('feedback-handler', () => {
       registerFeedbackHandlers()
       const handler = handlers.get('feedback:generate-markdown')
 
-      const result = (await handler?.(
-        {},
-        {
-          title: 'Error report',
-          description: '',
-          category: 'bug',
-          includeSystemInfo: false,
-          includeLogs: false,
-          includeErrorContext: true,
-          includeLastMessage: false,
-          includeModelInfo: false,
-          lastErrorContext: {
-            code: 'rate-limited',
-            message: 'Too many requests',
-            userMessage: 'Rate limited',
-            suggestion: 'Wait and retry',
-            retryable: true,
+      const result = fromAny<string, unknown>(
+        await handler?.(
+          {},
+          {
+            title: 'Error report',
+            description: '',
+            category: 'bug',
+            includeSystemInfo: false,
+            includeLogs: false,
+            includeErrorContext: true,
+            includeLastMessage: false,
+            includeModelInfo: false,
+            lastErrorContext: {
+              code: 'rate-limited',
+              message: 'Too many requests',
+              userMessage: 'Rate limited',
+              suggestion: 'Wait and retry',
+              retryable: true,
+            },
           },
-        },
-      )) as string
+        ),
+      )
 
       expect(result).toContain('## Error Context')
       expect(result).toContain('rate-limited')
@@ -158,21 +165,23 @@ describe('feedback-handler', () => {
       registerFeedbackHandlers()
       const handler = handlers.get('feedback:generate-markdown')
 
-      const result = (await handler?.(
-        {},
-        {
-          title: 'Test',
-          description: '',
-          category: 'feature',
-          includeSystemInfo: false,
-          includeLogs: false,
-          includeErrorContext: false,
-          includeLastMessage: false,
-          includeModelInfo: true,
-          activeModel: 'claude-sonnet-4-20250514',
-          activeProvider: 'anthropic',
-        },
-      )) as string
+      const result = fromAny<string, unknown>(
+        await handler?.(
+          {},
+          {
+            title: 'Test',
+            description: '',
+            category: 'feature',
+            includeSystemInfo: false,
+            includeLogs: false,
+            includeErrorContext: false,
+            includeLastMessage: false,
+            includeModelInfo: true,
+            activeModel: 'claude-sonnet-4-20250514',
+            activeProvider: 'anthropic',
+          },
+        ),
+      )
 
       expect(result).toContain('## Model Info')
       expect(result).toContain('claude-sonnet-4-20250514')

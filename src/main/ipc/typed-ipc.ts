@@ -18,11 +18,9 @@ import { runAppEffect, runAppEffectExit } from '../runtime'
 
 const logger = createLogger('ipc')
 
-/**
- * Map `undefined` return types to also accept `void` (semantically identical for IPC).
- * biome-ignore lint/suspicious/noConfusingVoidType: void is needed here to match handler return types that implicitly return void
- */
-type MaybeVoid<T> = T extends undefined ? void | undefined : T
+/** Map `undefined` IPC return contracts to `void` so implicit handler returns remain valid. */
+type ImplicitVoid = ReturnType<() => void>
+type MaybeVoid<T> = T extends undefined ? ImplicitVoid : T
 
 /**
  * Generic IPC handler type — accepts the event + channel-specific args.
@@ -68,7 +66,7 @@ function isDatabaseQueryTaggedError(error: unknown): error is DatabaseQueryError
   )
 }
 
-function toReadableIssues(issues: readonly string[]): string {
+function toReadableIssues(issues: readonly string[]) {
   return issues.join('; ')
 }
 
@@ -125,7 +123,7 @@ function toIpcError(channel: IpcInvokeChannel, error: unknown): Error {
  * Type-safe wrapper around `ipcMain.handle()`.
  * Internal — all public handlers should use the Effect-based `typedHandle`.
  */
-function rawHandle<C extends IpcInvokeChannel>(channel: C, handler: IpcHandler<C>): void {
+function rawHandle<C extends IpcInvokeChannel>(channel: C, handler: IpcHandler<C>) {
   ipcMain.handle(channel, (event: IpcMainInvokeEvent, ...args: IpcInvokeArgs<C>) =>
     handler(event, ...args),
   )
@@ -163,7 +161,7 @@ export function typedHandle<C extends IpcInvokeChannel>(
 function rawOn<C extends IpcSendChannel>(
   channel: C,
   listener: (event: IpcMainEvent, ...args: IpcSendArgs<C>) => void,
-): void {
+) {
   ipcMain.on(channel, (event: IpcMainEvent, ...args: IpcSendArgs<C>) => listener(event, ...args))
 }
 

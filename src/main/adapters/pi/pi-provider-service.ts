@@ -2,17 +2,13 @@ import type { ProviderApiKeyAuthSource, ProviderAuthSource } from '@shared/types
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { ProviderLookupError } from '../../errors'
-import {
-  type ProviderCapabilities,
-  type ProviderModelCapabilities,
-  ProviderService,
-} from '../../ports/provider-service'
+import { type ProviderModelCapabilities, ProviderService } from '../../ports/provider-service'
 import {
   createPiProviderCatalogSnapshot,
   getBuiltInPiModelProviderIds,
 } from './pi-provider-catalog'
 
-function toDisplayName(id: string): string {
+function toDisplayName(id: string) {
   return id
     .split(/[-_]/)
     .filter(Boolean)
@@ -30,7 +26,7 @@ function toModelCapabilities(model: {
   readonly input: readonly ('text' | 'image')[]
   readonly contextWindow: number
   readonly maxTokens: number
-}): ProviderModelCapabilities {
+}) {
   return {
     id: model.ref,
     modelId: model.id,
@@ -74,7 +70,7 @@ const PI_API_KEY_AUTH_PROVIDER_DISPLAY_NAMES: ReadonlyMap<string, string> = new 
 function getPiProviderDisplayName(
   providerId: string,
   oauthProviderNames: ReadonlyMap<string, string>,
-): string {
+) {
   return (
     oauthProviderNames.get(providerId) ??
     PI_API_KEY_AUTH_PROVIDER_DISPLAY_NAMES.get(providerId) ??
@@ -108,25 +104,11 @@ function toCapabilities(provider: {
   readonly credentials: ReadonlyMap<string, { readonly type: string }>
   readonly configuredAuthProviders: ReadonlySet<string>
   readonly builtInModelProviders: ReadonlySet<string>
-}): ProviderCapabilities {
+}) {
   const credential = provider.credentials.get(provider.provider)
   const hasConfiguredAuth = provider.configuredAuthProviders.has(provider.provider)
-  const source: ProviderAuthSource =
-    credential?.type === 'api_key'
-      ? 'api-key'
-      : credential?.type === 'oauth'
-        ? 'oauth'
-        : hasConfiguredAuth
-          ? 'environment-or-custom'
-          : 'none'
-  const apiKeySource: ProviderApiKeyAuthSource =
-    credential?.type === 'api_key'
-      ? 'api-key'
-      : credential
-        ? 'none'
-        : hasConfiguredAuth
-          ? 'environment-or-custom'
-          : 'none'
+  const source = getProviderAuthSource(credential?.type, hasConfiguredAuth)
+  const apiKeySource = getProviderApiKeyAuthSource(credential?.type, hasConfiguredAuth)
   return {
     id: provider.provider,
     displayName: getPiProviderDisplayName(provider.provider, provider.oauthProviderNames),
@@ -147,6 +129,24 @@ function toCapabilities(provider: {
     models: provider.models.map(toModelCapabilities),
     testModel: provider.models[0]?.id ?? '',
   }
+}
+
+function getProviderAuthSource(
+  credentialType: string | undefined,
+  hasConfiguredAuth: boolean,
+): ProviderAuthSource {
+  if (credentialType === 'api_key') return 'api-key'
+  if (credentialType === 'oauth') return 'oauth'
+  return hasConfiguredAuth ? 'environment-or-custom' : 'none'
+}
+
+function getProviderApiKeyAuthSource(
+  credentialType: string | undefined,
+  hasConfiguredAuth: boolean,
+): ProviderApiKeyAuthSource {
+  if (credentialType === 'api_key') return 'api-key'
+  if (credentialType) return 'none'
+  return hasConfiguredAuth ? 'environment-or-custom' : 'none'
 }
 
 export const ProviderServiceLive = Layer.succeed(

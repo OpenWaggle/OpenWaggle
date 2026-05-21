@@ -13,20 +13,20 @@ interface ActiveRunEntry<M> {
 export class ActiveRunManager<K, M> {
   private readonly runs = new Map<K, ActiveRunEntry<M>>()
 
-  register(key: K, controller: AbortController, metadata: M): void {
+  register(key: K, controller: AbortController, metadata: M) {
     this.runs.set(key, { controller, metadata })
   }
 
-  get(key: K): ActiveRunEntry<M> | undefined {
+  get(key: K) {
     return this.runs.get(key)
   }
 
-  has(key: K): boolean {
+  has(key: K) {
     return this.runs.has(key)
   }
 
   /** Abort and remove the entry. Returns true if the entry existed. */
-  cancel(key: K): boolean {
+  cancel(key: K) {
     const entry = this.runs.get(key)
     if (!entry) return false
     entry.controller.abort()
@@ -35,7 +35,7 @@ export class ActiveRunManager<K, M> {
   }
 
   /** Cancel all entries matching the predicate, or all entries if no predicate. */
-  cancelAll(predicate?: (entry: ActiveRunEntry<M>, key: K) => boolean): void {
+  cancelAll(predicate?: (entry: ActiveRunEntry<M>, key: K) => boolean) {
     for (const [key, entry] of this.runs) {
       if (!predicate || predicate(entry, key)) {
         entry.controller.abort()
@@ -45,15 +45,15 @@ export class ActiveRunManager<K, M> {
   }
 
   /** Remove without aborting. */
-  delete(key: K): void {
+  delete(key: K) {
     this.runs.delete(key)
   }
 
-  isCurrent(key: K, controller: AbortController): boolean {
+  isCurrent(key: K, controller: AbortController) {
     return this.runs.get(key)?.controller === controller
   }
 
-  deleteIfCurrent(key: K, controller: AbortController): boolean {
+  deleteIfCurrent(key: K, controller: AbortController) {
     if (!this.isCurrent(key, controller)) {
       return false
     }
@@ -61,7 +61,7 @@ export class ActiveRunManager<K, M> {
     return true
   }
 
-  keys(): IterableIterator<K> {
+  keys() {
     return this.runs.keys()
   }
 }

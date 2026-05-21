@@ -1,103 +1,20 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { MCP_ADAPTER_PACKAGE_SOURCE, MCP_CONFIG } from '@shared/constants/mcp'
-import { decodeUnknownOrThrow } from '@shared/schema'
-import { mcpConfigFileSchema, piAgentSettingsFileSchema } from '@shared/schemas/mcp'
-import type { McpConfigFile, PiAgentSettingsFile } from '@shared/types/mcp'
+import { MCP_ADAPTER_PACKAGE_SOURCE } from '@shared/constants/mcp'
 import { describe, expect, it } from 'vitest'
 import {
   createPiMcpConfigServiceForTests,
-  resolveCopyableBundledMcpAdapterPackageDir,
   withOpenWaggleMcpAdapterProcessContext,
 } from '../pi-mcp-config-service'
-
-async function writeJson(
-  filePath: string,
-  value: McpConfigFile | PiAgentSettingsFile,
-): Promise<void> {
-  await mkdir(path.dirname(filePath), { recursive: true })
-  await writeFile(
-    filePath,
-    `${JSON.stringify(value, null, MCP_CONFIG.JSON_INDENT_SPACES)}\n`,
-    'utf-8',
-  )
-}
-
-async function writeText(filePath: string, value: string): Promise<void> {
-  await mkdir(path.dirname(filePath), { recursive: true })
-  await writeFile(filePath, value, 'utf-8')
-}
-
-async function readMcpConfig(filePath: string): Promise<McpConfigFile> {
-  const parsed: unknown = JSON.parse(await readFile(filePath, 'utf-8'))
-  return decodeUnknownOrThrow(mcpConfigFileSchema, parsed)
-}
-
-async function readPiSettings(filePath: string): Promise<PiAgentSettingsFile> {
-  const parsed: unknown = JSON.parse(await readFile(filePath, 'utf-8'))
-  return decodeUnknownOrThrow(piAgentSettingsFileSchema, parsed)
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-interface McpFixture {
-  readonly root: string
-  readonly home: string
-  readonly agentDir: string
-  readonly project: string
-}
-
-async function withFixture<T>(fn: (fixture: McpFixture) => Promise<T>) {
-  const root = await mkdtemp(path.join(tmpdir(), 'openwaggle-mcp-'))
-  const fixture = {
-    root,
-    home: path.join(root, 'home'),
-    agentDir: path.join(root, 'pi-agent'),
-    project: path.join(root, 'project'),
-  }
-  try {
-    return await fn(fixture)
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
-}
+import {
+  escapeRegExp,
+  readMcpConfig,
+  readPiSettings,
+  withFixture,
+  writeJson,
+  writeText,
+} from './pi-mcp-config-service.test-utils'
 
 describe('Pi MCP config service', () => {
-  it('resolves packaged asar adapter paths to the unpacked copyable directory', () => {
-    const packagedPath = path.join(
-      path.sep,
-      'Applications',
-      'OpenWaggle.app',
-      'Contents',
-      'Resources',
-      'app.asar',
-      'node_modules',
-      'pi-mcp-adapter',
-    )
-
-    expect(resolveCopyableBundledMcpAdapterPackageDir(packagedPath)).toBe(
-      path.join(
-        path.sep,
-        'Applications',
-        'OpenWaggle.app',
-        'Contents',
-        'Resources',
-        'app.asar.unpacked',
-        'node_modules',
-        'pi-mcp-adapter',
-      ),
-    )
-  })
-
-  it('keeps development adapter package paths unchanged', () => {
-    const packagePath = path.join(path.sep, 'repo', 'node_modules', 'pi-mcp-adapter')
-
-    expect(resolveCopyableBundledMcpAdapterPackageDir(packagePath)).toBe(packagePath)
-  })
-
   it('merges all MCP config sources into an effective config with OpenWaggle project precedence', () =>
     withFixture(async ({ home, agentDir, project }) => {
       const service = createPiMcpConfigServiceForTests({ homeDir: home, agentDir })

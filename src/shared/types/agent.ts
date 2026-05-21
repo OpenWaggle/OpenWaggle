@@ -60,7 +60,7 @@ export interface AttachmentSource {
 }
 
 /** Renderer-safe attachment shape returned by `attachments:prepare` (no binary payload). */
-export interface PreparedAttachment extends AttachmentRecord {}
+export type PreparedAttachment = AttachmentRecord
 
 /** Main-process runtime attachment shape with hydrated binary source. */
 export interface HydratedAttachment extends AttachmentRecord, AttachmentSource {}

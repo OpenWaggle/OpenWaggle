@@ -131,7 +131,7 @@ function pcm16BytesToFloat32(bytes: Uint8Array): Float32Array {
   return normalized
 }
 
-function extractTranscriptionText(result: unknown): string {
+function extractTranscriptionText(result: unknown) {
   if (typeof result === 'string') {
     return result.trim()
   }
@@ -144,7 +144,7 @@ function extractTranscriptionText(result: unknown): string {
   return result.text.trim()
 }
 
-function mapLoadError(error: unknown, model: VoiceModel): string {
+function mapLoadError(error: unknown, model: VoiceModel) {
   const message = error instanceof Error ? error.message : 'Unknown model load error.'
   const label = model === VOICE_MODEL_BASE ? 'base' : 'tiny'
   if (
@@ -159,7 +159,7 @@ function mapLoadError(error: unknown, model: VoiceModel): string {
   return `Unable to load local Whisper ${label} model. Verify local dependencies and retry.`
 }
 
-function mapTranscriptionError(error: unknown): string {
+function mapTranscriptionError(error: unknown) {
   const message = error instanceof Error ? error.message : 'Unknown transcription error.'
   return `Local voice transcription failed: ${message}`
 }
@@ -199,7 +199,7 @@ async function loadTranscriber(model: VoiceModel): Promise<WhisperTranscriber> {
   return transcriberPromise
 }
 
-function scheduleEviction(model: VoiceModel): void {
+function scheduleEviction(model: VoiceModel) {
   const existingTimer = evictionTimers[model]
   if (existingTimer) clearTimeout(existingTimer)
 
@@ -213,7 +213,7 @@ function scheduleEviction(model: VoiceModel): void {
   }, MODEL_IDLE_TIMEOUT)
 }
 
-function markModelUsed(model: VoiceModel): void {
+function markModelUsed(model: VoiceModel) {
   lastUsedAt[model] = Date.now()
   scheduleEviction(model)
 }

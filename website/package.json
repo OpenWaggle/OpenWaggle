@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "preview": "astro preview"
+    "preview": "astro preview",
+    "test": "vitest run -c vitest.config.ts"
   },
   "dependencies": {
     "@astrojs/mdx": "^4.3.0",
@@ -19,6 +20,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.18",
-    "tailwindcss": "^4.1.18"
+    "tailwindcss": "^4.1.18",
+    "vitest": "4.1.0"
   }
 }

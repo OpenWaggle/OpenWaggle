@@ -1,104 +1,48 @@
-import { existsSync } from 'node:fs'
-import path from 'node:path'
 import {
   type AgentSessionServices,
   type AuthCredential,
   AuthStorage,
-  type CreateAgentSessionServicesOptions,
   createAgentSessionServices,
   type ExtensionFactory,
   getAgentDir,
   ModelRegistry,
-  type SettingsManager,
 } from '@mariozechner/pi-coding-agent'
 import { MCP_ADAPTER_PACKAGE_SOURCES } from '@shared/constants/mcp'
 import { createModelRef } from '@shared/types/llm'
-import { THINKING_LEVELS, type ThinkingLevel } from '@shared/types/settings'
-import { normalizeSkillId } from '@shared/utils/skill-id'
 import { withNpmCompatibleProcessEnv } from '../../env'
-import { isPathInside } from '../../utils/paths'
 import {
   createOpenWaggleGlobalPiSettingsManager,
   createOpenWagglePiSettingsManager,
 } from './openwaggle-pi-settings-storage'
 import {
-  type OpenWaggleMcpRuntimeContext,
   prepareOpenWaggleMcpRuntimeContext,
   rememberOpenWaggleMcpRuntimeContext,
   withOpenWaggleMcpAdapterProcessContext,
 } from './pi-mcp-config-service'
+import {
+  createOpenWagglePiResourceLoaderOptions,
+  type PiRuntimeServicesOptions,
+} from './pi-provider-resources'
+import { getPiModelAvailableThinkingLevels } from './pi-provider-thinking'
 
-export interface ProviderModelRecord {
-  readonly ref: string
-  readonly provider: string
-  readonly id: string
-  readonly name: string
-  readonly available: boolean
-  readonly reasoning: boolean
-  readonly availableThinkingLevels: readonly ThinkingLevel[]
-  readonly input: readonly ('text' | 'image')[]
-  readonly contextWindow: number
-  readonly maxTokens: number
-  readonly api: string
-}
+export { getPiModelAvailableThinkingLevels } from './pi-provider-thinking'
 
-export interface ProviderCatalogRecord {
-  readonly provider: string
-  readonly models: readonly ProviderModelRecord[]
-}
+import type {
+  PiModel,
+  PiProjectModelRuntime,
+  ProviderCatalogSnapshot,
+  ProviderModelRecord,
+} from './pi-provider-catalog-types'
 
-export interface ProviderCatalogSnapshot {
-  readonly providers: readonly ProviderCatalogRecord[]
-  readonly oauthProviders: ReadonlySet<string>
-  readonly oauthProviderNames: ReadonlyMap<string, string>
-  readonly credentials: ReadonlyMap<string, AuthCredential>
-  readonly configuredAuthProviders: ReadonlySet<string>
-  readonly builtInModelProviders: ReadonlySet<string>
-}
-
-export type PiModel = NonNullable<ReturnType<ModelRegistry['find']>>
-
-interface PiModelRuntime {
-  readonly model: PiModel
-  readonly authStorage: AuthStorage
-  readonly modelRegistry: ModelRegistry
-}
-
-interface PiRuntimeServicesOptions {
-  readonly skillToggles?: Readonly<Record<string, boolean>>
-  readonly extensionFactories?: readonly ExtensionFactory[]
-  readonly mcpRuntimeContext?: OpenWaggleMcpRuntimeContext | null
-  readonly loadMcpAdapter?: boolean
-}
-
-export interface PiProjectModelRuntime extends PiModelRuntime {
-  readonly services: AgentSessionServices
-}
+export type {
+  PiModel,
+  PiProjectModelRuntime,
+  ProviderCatalogRecord,
+  ProviderCatalogSnapshot,
+  ProviderModelRecord,
+} from './pi-provider-catalog-types'
 
 let builtInModelProviders: ReadonlySet<string> | null = null
-
-const OPENWAGGLE_SKILLS_ROOT_SEGMENTS = ['.openwaggle', 'skills'] as const
-const OPENWAGGLE_EXTENSIONS_ROOT_SEGMENTS = ['.openwaggle', 'extensions'] as const
-const OPENWAGGLE_PROMPTS_ROOT_SEGMENTS = ['.openwaggle', 'prompts'] as const
-const OPENWAGGLE_THEMES_ROOT_SEGMENTS = ['.openwaggle', 'themes'] as const
-const OPENWAGGLE_CATALOG_SKILL_ROOT_SEGMENTS = [
-  OPENWAGGLE_SKILLS_ROOT_SEGMENTS,
-  ['.agents', 'skills'] as const,
-] as const
-const PI_THINKING_LEVELS_WITHOUT_XHIGH: readonly ThinkingLevel[] = [
-  'off',
-  'minimal',
-  'low',
-  'medium',
-  'high',
-]
-const PI_OFF_THINKING_LEVELS: readonly ThinkingLevel[] = ['off']
-
-type PiResourceLoaderOptions = NonNullable<
-  CreateAgentSessionServicesOptions['resourceLoaderOptions']
->
-type PiSkillsOverride = NonNullable<PiResourceLoaderOptions['skillsOverride']>
-type PiSkillsOverrideInput = Parameters<PiSkillsOverride>[0]
 
 export function getPiAgentDir(): string {
   return getAgentDir()
@@ -115,33 +59,7 @@ export function getBuiltInPiModelProviderIds(): ReadonlySet<string> {
   return builtInModelProviders
 }
 
-function piModelSupportsXhighThinking(modelId: string): boolean {
-  return (
-    modelId.includes('gpt-5.2') ||
-    modelId.includes('gpt-5.3') ||
-    modelId.includes('gpt-5.4') ||
-    modelId.includes('gpt-5.5') ||
-    modelId.includes('opus-4-6') ||
-    modelId.includes('opus-4.6') ||
-    modelId.includes('opus-4-7') ||
-    modelId.includes('opus-4.7')
-  )
-}
-
-export function getPiModelAvailableThinkingLevels(model: {
-  readonly id: string
-  readonly reasoning: boolean
-}): readonly ThinkingLevel[] {
-  if (!model.reasoning) {
-    return PI_OFF_THINKING_LEVELS
-  }
-
-  return piModelSupportsXhighThinking(model.id) ? THINKING_LEVELS : PI_THINKING_LEVELS_WITHOUT_XHIGH
-}
-
-function listPiProviderModelsFromRegistry(
-  modelRegistry: ModelRegistry,
-): readonly ProviderModelRecord[] {
+function listPiProviderModelsFromRegistry(modelRegistry: ModelRegistry) {
   const availableRefs = new Set(
     modelRegistry.getAvailable().map((model) => createModelRef(model.provider, model.id)),
   )
@@ -161,9 +79,7 @@ function listPiProviderModelsFromRegistry(
   }))
 }
 
-function listPiProvidersFromModels(
-  models: readonly ProviderModelRecord[],
-): readonly ProviderCatalogRecord[] {
+function listPiProvidersFromModels(models: readonly ProviderModelRecord[]) {
   const modelsByProvider = new Map<string, ProviderModelRecord[]>()
 
   for (const model of models) {
@@ -183,7 +99,7 @@ function listPiProvidersFromModels(
     }))
 }
 
-function buildAuthCredentialMap(authStorage: AuthStorage): ReadonlyMap<string, AuthCredential> {
+function buildAuthCredentialMap(authStorage: AuthStorage) {
   const credentials = new Map<string, AuthCredential>()
   for (const provider of authStorage.list()) {
     const credential = authStorage.get(provider)
@@ -194,106 +110,22 @@ function buildAuthCredentialMap(authStorage: AuthStorage): ReadonlyMap<string, A
   return credentials
 }
 
-function buildConfiguredAuthProviderSet(modelRegistry: ModelRegistry): ReadonlySet<string> {
+function buildConfiguredAuthProviderSet(modelRegistry: ModelRegistry) {
   return new Set(modelRegistry.getAvailable().map((model) => model.provider))
 }
 
-function buildOAuthProviderSet(authStorage: AuthStorage): ReadonlySet<string> {
+function buildOAuthProviderSet(authStorage: AuthStorage) {
   return new Set(authStorage.getOAuthProviders().map((provider) => provider.id))
 }
 
-function buildOAuthProviderNameMap(authStorage: AuthStorage): ReadonlyMap<string, string> {
+function buildOAuthProviderNameMap(authStorage: AuthStorage) {
   return new Map(authStorage.getOAuthProviders().map((provider) => [provider.id, provider.name]))
-}
-
-function getOpenWaggleSkillsRoot(projectPath: string): string {
-  return path.join(projectPath, ...OPENWAGGLE_SKILLS_ROOT_SEGMENTS)
-}
-
-function getOpenWaggleExtensionsRoot(projectPath: string): string {
-  return path.join(projectPath, ...OPENWAGGLE_EXTENSIONS_ROOT_SEGMENTS)
-}
-
-function getOpenWagglePromptsRoot(projectPath: string): string {
-  return path.join(projectPath, ...OPENWAGGLE_PROMPTS_ROOT_SEGMENTS)
-}
-
-function getOpenWaggleThemesRoot(projectPath: string): string {
-  return path.join(projectPath, ...OPENWAGGLE_THEMES_ROOT_SEGMENTS)
-}
-
-function includeExistingPath(filePath: string): string[] {
-  return existsSync(filePath) ? [filePath] : []
-}
-
-function getOpenWaggleCatalogSkillRoots(projectPath: string): readonly string[] {
-  return OPENWAGGLE_CATALOG_SKILL_ROOT_SEGMENTS.map((segments) =>
-    path.join(projectPath, ...segments),
-  )
-}
-
-function getCatalogSkillIdForPiSkill(projectPath: string, skillFilePath: string): string | null {
-  const resolvedSkillFilePath = path.resolve(skillFilePath)
-  for (const skillRoot of getOpenWaggleCatalogSkillRoots(projectPath)) {
-    const resolvedSkillRoot = path.resolve(skillRoot)
-    if (!isPathInside(resolvedSkillRoot, resolvedSkillFilePath)) {
-      continue
-    }
-
-    const relativePath = path.relative(resolvedSkillRoot, resolvedSkillFilePath)
-    const [skillRootSegment] = relativePath.split(path.sep)
-    if (!skillRootSegment) {
-      return null
-    }
-
-    return normalizeSkillId(path.basename(skillRootSegment, path.extname(skillRootSegment)))
-  }
-
-  return null
-}
-
-function filterDisabledCatalogSkills(
-  projectPath: string,
-  skillToggles: Readonly<Record<string, boolean>>,
-  base: PiSkillsOverrideInput,
-): PiSkillsOverrideInput {
-  return {
-    skills: base.skills.filter((skill) => {
-      const skillId = getCatalogSkillIdForPiSkill(projectPath, skill.filePath)
-      return skillId === null || skillToggles[skillId] !== false
-    }),
-    diagnostics: base.diagnostics,
-  }
-}
-
-export function createOpenWagglePiResourceLoaderOptions(
-  projectPath: string,
-  options: PiRuntimeServicesOptions = {},
-  settingsManager?: SettingsManager,
-): PiResourceLoaderOptions {
-  const skillToggles = options.skillToggles ?? {}
-  return {
-    additionalExtensionPaths: settingsManager
-      ? []
-      : includeExistingPath(getOpenWaggleExtensionsRoot(projectPath)),
-    additionalSkillPaths: settingsManager
-      ? []
-      : includeExistingPath(getOpenWaggleSkillsRoot(projectPath)),
-    additionalPromptTemplatePaths: settingsManager
-      ? []
-      : includeExistingPath(getOpenWagglePromptsRoot(projectPath)),
-    additionalThemePaths: settingsManager
-      ? []
-      : includeExistingPath(getOpenWaggleThemesRoot(projectPath)),
-    skillsOverride: (base) => filterDisabledCatalogSkills(projectPath, skillToggles, base),
-    ...(options.extensionFactories ? { extensionFactories: [...options.extensionFactories] } : {}),
-  }
 }
 
 function createPiProviderCatalogSnapshotFromRuntime(
   modelRegistry: ModelRegistry,
   authStorage: AuthStorage,
-): ProviderCatalogSnapshot {
+) {
   return {
     providers: listPiProvidersFromModels(listPiProviderModelsFromRegistry(modelRegistry)),
     oauthProviders: buildOAuthProviderSet(authStorage),
@@ -350,7 +182,7 @@ export async function createPiRuntimeServices(
   return services
 }
 
-async function createPiGlobalProviderCatalogServices(): Promise<AgentSessionServices> {
+async function createPiGlobalProviderCatalogServices() {
   const agentDir = getPiAgentDir()
   const authStorage = createPiRuntimeAuthStorage()
   const settingsManager = createOpenWaggleGlobalPiSettingsManager({
@@ -400,10 +232,7 @@ export function createPiRuntimeAuthStorage(): AuthStorage {
   return AuthStorage.create()
 }
 
-function findExplicitProviderModelReference(
-  modelRegistry: ModelRegistry,
-  modelReference: string,
-): PiModel | null {
+function findExplicitProviderModelReference(modelRegistry: ModelRegistry, modelReference: string) {
   const separatorIndex = modelReference.indexOf('/')
   if (separatorIndex <= 0 || separatorIndex === modelReference.length - 1) {
     return null

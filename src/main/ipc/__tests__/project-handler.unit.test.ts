@@ -22,9 +22,7 @@ vi.mock('../typed-ipc', () => ({
 
 import { registerProjectHandlers } from '../project-handler'
 
-function getRegisteredHandler(
-  name: string,
-): ((...args: unknown[]) => Promise<unknown>) | undefined {
+function getRegisteredHandler(name: string) {
   const call = typedHandleMock.mock.calls.find(
     (candidate: readonly unknown[]) => candidate[0] === name && typeof candidate[1] === 'function',
   )

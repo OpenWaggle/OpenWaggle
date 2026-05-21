@@ -8,11 +8,11 @@ interface PreparedAttachmentCapability {
 
 const preparedAttachments = new Map<string, PreparedAttachmentCapability>()
 
-function normalizeCapabilityPath(filePath: string): string {
+function normalizeCapabilityPath(filePath: string) {
   return path.normalize(filePath)
 }
 
-function sameOptionalValue(left: string | undefined, right: string | undefined): boolean {
+function sameOptionalValue(left: string | undefined, right: string | undefined) {
   return (left ?? null) === (right ?? null)
 }
 

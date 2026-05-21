@@ -143,17 +143,16 @@ IPC handlers run via `typedHandle` → `runAppEffectExit` → resolves all layer
 
 ## CI Enforcement
 
-`scripts/check-architecture.ts` enforces 8 rules on every PR:
-1. No Pi SDK in `agent/`
-2. No Pi SDK in `shared/`
-3. No Pi SDK in `application/`
-4. No Pi SDK in `ports/`
-5. No direct store imports in `ipc/`
-6. No Pi SDK/provider runtime imports outside `src/main/adapters/pi/`
-7. No infrastructure imports in `domain/`
-8. No direct store imports in `application/`
+ESLint enforces the main-process architecture boundary rules on every PR:
+1. No Pi SDK imports outside `src/main/adapters/pi/`
+2. No direct store imports in `src/main/ipc/`
+3. No direct store imports in `src/main/application/`
+4. No IPC imports in `src/main/application/`
+5. No infrastructure imports in `src/main/domain/` or `src/shared/domain/`
+6. No `src/main/providers/` runtime directory
+7. No production `providerRegistry` references outside the Pi adapter boundary
 
-Run: `pnpm check:architecture`
+Run: `pnpm lint` or `pnpm check`
 
 ---
 

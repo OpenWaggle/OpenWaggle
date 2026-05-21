@@ -9,7 +9,7 @@ const logger = createLogger('pi-provider-probe')
 const PROVIDER_PROBE_PROMPT = 'Reply with exactly OK and nothing else.'
 const PROVIDER_PROBE_TIMEOUT_MS = 15_000
 
-async function runPiPromptProbe(input: ProviderProbeInput): Promise<void> {
+async function runPiPromptProbe(input: ProviderProbeInput) {
   const cwd = input.projectPath ?? process.cwd()
   const services = await createPiRuntimeServices(cwd, { loadMcpAdapter: false })
   if (input.apiKey) {
@@ -55,7 +55,7 @@ async function runPiPromptProbe(input: ProviderProbeInput): Promise<void> {
   }
 }
 
-async function probeProviderCredentials(input: ProviderProbeInput): Promise<void> {
+async function probeProviderCredentials(input: ProviderProbeInput) {
   await runPiPromptProbe(input)
 }
 

@@ -16,7 +16,7 @@ export class FileConflictTracker {
     agentIndex: number,
     agents: readonly [WaggleAgentSlot, WaggleAgentSlot],
     turnNumber: number,
-  ): WaggleFileConflictWarning | null {
+  ) {
     const existing = this.modifications.get(filePath)
 
     if (existing && existing.lastModifiedBy !== agentIndex) {
@@ -48,11 +48,11 @@ export class FileConflictTracker {
     return null
   }
 
-  getModifications(): ReadonlyMap<string, WaggleFileModificationRecord> {
+  getModifications() {
     return this.modifications
   }
 
-  reset(): void {
+  reset() {
     this.modifications.clear()
   }
 }

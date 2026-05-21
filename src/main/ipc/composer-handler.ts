@@ -48,13 +48,13 @@ export function registerComposerHandlers(): void {
   )
 }
 
-function sanitizeQuery(input: string): string {
+function sanitizeQuery(input: string) {
   // Strip path separators to prevent directory traversal, then escape glob metacharacters
   const stripped = input.replace(/[/\\]/g, '').replace(/\.\./g, '')
   return stripped.replace(/[[\]{}()*?!]/g, '\\$&')
 }
 
-async function buildIgnorePatterns(projectPath: string): Promise<string[]> {
+async function buildIgnorePatterns(projectPath: string) {
   try {
     const gitignore = await readFile(path.join(projectPath, '.gitignore'), 'utf8')
     return gitignore

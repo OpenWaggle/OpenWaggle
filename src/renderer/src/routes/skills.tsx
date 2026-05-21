@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { SkillsRouteSurface } from '@/components/app/routing/SkillsRouteSurface'
+import { SkillsRouteSurface } from './-skills-route-surface'
 
 export const Route = createFileRoute('/skills')({
   component: SkillsRouteSurface,

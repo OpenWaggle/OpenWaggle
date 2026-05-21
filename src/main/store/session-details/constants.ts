@@ -1,0 +1,12 @@
+export const EMPTY_INDEX = 0
+export const MAIN_BRANCH_NAME = 'main'
+export const EXPANDED_NODE_IDS_DEFAULT_JSON = '[]'
+export const EXPANDED_NODE_IDS_UNTOUCHED = 0
+export const TREE_SIDEBAR_EXPANDED = 0
+export const DEFAULT_BRANCH_UI_STATE_JSON = '{}'
+export const MESSAGE_ENTRY_TYPE = 'message'
+export const TOOL_RESULT_KIND = 'tool_result'
+export const STANDARD_FUTURE_MODE = 'standard'
+export const WAGGLE_FUTURE_MODE = 'waggle'
+export const BRANCH_NAME_TRUNCATE_LENGTH = 48
+export const STAGED_SESSION_DELETE_SUFFIX = 'delete'

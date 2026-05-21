@@ -15,7 +15,7 @@ import {
 const logger = createLogger('pi-session-lifecycle')
 const mcpRuntimeContextsBySession = new WeakMap<AgentSession, OpenWaggleMcpRuntimeContext>()
 
-async function bindSessionExtensions(session: AgentSession): Promise<void> {
+async function bindSessionExtensions(session: AgentSession) {
   await session.bindExtensions({})
 }
 

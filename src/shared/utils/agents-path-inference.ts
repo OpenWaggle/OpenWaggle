@@ -49,7 +49,7 @@ export function inferAgentsCandidatePaths(input: InferAgentsCandidatePathsInput)
     options?: {
       allowExplicitBarePath?: boolean
     },
-  ): void => {
+  ) => {
     if (ordered.length >= maxCandidates) return
     const normalized = normalizeCandidate(value, options?.allowExplicitBarePath ?? false)
     if (!normalized || seen.has(normalized)) return
@@ -80,7 +80,7 @@ export function inferAgentsCandidatePaths(input: InferAgentsCandidatePathsInput)
   return ordered
 }
 
-function extractMatches(text: string, regex: RegExp): string[] {
+function extractMatches(text: string, regex: RegExp) {
   regex.lastIndex = 0
   const matches: string[] = []
   let match: RegExpExecArray | null = regex.exec(text)
@@ -93,7 +93,7 @@ function extractMatches(text: string, regex: RegExp): string[] {
   return matches
 }
 
-function extractFencedPathLines(text: string): string[] {
+function extractFencedPathLines(text: string) {
   FENCED_BLOCK_REGEX.lastIndex = 0
   const lines: string[] = []
   let blockMatch: RegExpExecArray | null = FENCED_BLOCK_REGEX.exec(text)
@@ -112,7 +112,7 @@ function extractFencedPathLines(text: string): string[] {
   return lines
 }
 
-function normalizeCandidate(value: string, allowExplicitBarePath: boolean): string | null {
+function normalizeCandidate(value: string, allowExplicitBarePath: boolean) {
   let normalized = value.trim()
   if (!normalized) return null
 
@@ -147,7 +147,7 @@ function normalizeCandidate(value: string, allowExplicitBarePath: boolean): stri
   return null
 }
 
-function isPrefixedPathLike(candidate: string): boolean {
+function isPrefixedPathLike(candidate: string) {
   return (
     candidate.startsWith('/') ||
     candidate.startsWith('./') ||
@@ -160,7 +160,7 @@ function isPrefixedPathLike(candidate: string): boolean {
   )
 }
 
-function isLikelyBareProjectPath(candidate: string): boolean {
+function isLikelyBareProjectPath(candidate: string) {
   const segments = candidate.split(/[\\/]/).filter((segment) => segment.length > 0)
   if (segments.length < DOUBLE_FACTOR) return false
   const firstSegment = segments[0]?.toLowerCase()

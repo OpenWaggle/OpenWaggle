@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
-import { SettingsRouteSurface } from '@/components/app/routing/SettingsRouteSurface'
 import { isSettingsTab } from './-route-search'
+import { SettingsRouteSurface } from './-settings-route-surface'
 
 export const Route = createFileRoute('/settings/$tab')({
   component: SettingsTabRouteView,

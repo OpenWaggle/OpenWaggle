@@ -103,7 +103,7 @@ async function runOAuthFlow(
   provider: OAuthProvider,
   emitStatus: StatusEmitter,
   signal: AbortSignal,
-): Promise<void> {
+) {
   emitStatus({ type: 'in-progress', provider })
 
   try {
@@ -166,7 +166,7 @@ async function runOAuthFlow(
   }
 }
 
-function createManualCodePromise(provider: OAuthProvider): Promise<string> {
+function createManualCodePromise(provider: OAuthProvider) {
   const existingPending = pendingCodeHandlers.get(provider)
   if (existingPending) {
     pendingCodeHandlers.delete(provider)
@@ -182,7 +182,7 @@ function createManualCodePromise(provider: OAuthProvider): Promise<string> {
   return manualCodePromise
 }
 
-async function runAuthLifecycleTick(emitStatus: StatusEmitter): Promise<void> {
+async function runAuthLifecycleTick(emitStatus: StatusEmitter) {
   if (authLifecycleTickInFlight) return
   authLifecycleTickInFlight = true
 
@@ -223,7 +223,7 @@ async function runAuthLifecycleTick(emitStatus: StatusEmitter): Promise<void> {
   }
 }
 
-async function logoutOAuthProvider(provider: OAuthProvider): Promise<void> {
+async function logoutOAuthProvider(provider: OAuthProvider) {
   await runAppEffect(
     Effect.gen(function* () {
       const authService = yield* ProviderOAuthService

@@ -75,7 +75,7 @@ export function getNpmCompatiblePath(): string {
   const result: string[] = []
   const seen = new Set<string>()
 
-  function addPath(value: string | undefined): void {
+  function addPath(value: string | undefined) {
     if (!value || seen.has(value)) {
       return
     }
@@ -94,7 +94,7 @@ export function getNpmCompatiblePath(): string {
   return result.join(delimiter)
 }
 
-function getNpmCompatiblePathDirs(): readonly string[] {
+function getNpmCompatiblePathDirs() {
   if (process.platform === 'darwin') {
     return MACOS_NPM_COMPATIBLE_PATH_DIRS
   }
@@ -134,7 +134,7 @@ export async function withTemporaryProcessEnv<T>(
   }
 }
 
-async function acquireTemporaryProcessEnvLock(): Promise<() => void> {
+async function acquireTemporaryProcessEnvLock() {
   const previous = temporaryProcessEnvQueue
   let releaseCurrent: (() => void) | undefined
   temporaryProcessEnvQueue = new Promise<void>((resolve) => {
