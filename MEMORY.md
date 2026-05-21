@@ -34,7 +34,7 @@ Load `.agents/skills/pi-integration/SKILL.md` for details.
 Load `.agents/skills/electron-runtime/SKILL.md` for details.
 
 - Native addons have separate Node and Electron ABI targets. Rebuild with the repo scripts before blaming app code.
-- Packaged apps may not inherit a shell PATH. Pi package/resource loading that shells out to npm needs an adapter-controlled npm-compatible PATH.
+- Packaged apps may not inherit a shell PATH. Pi package/resource loading and Pi-run child processes that shell out to tools need an adapter-controlled npm-compatible PATH, including common user tool dirs such as `~/Library/pnpm` on macOS.
 - `electron-builder` with pnpm can omit transitive runtime modules unless explicit dependencies are present; `ms` is intentionally explicit for `electron-updater`.
 - On Apple silicon, performance/package QA should use arm64 outputs, not Rosetta x64 output from a universal build folder.
 - Electron Playwright E2E requires isolated user data and single-instance lock opt-out when another OpenWaggle instance is running.

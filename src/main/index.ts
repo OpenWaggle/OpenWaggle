@@ -2,7 +2,7 @@ import { join } from 'node:path'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { app, BrowserWindow, Menu, shell } from 'electron'
 import { reconcileInterruptedAgentRuns } from './application/agent-run-service'
-import { env } from './env'
+import { env, initializeProcessPath } from './env'
 import { persistAllActiveRuns } from './ipc/agent-handler'
 import { cleanupTerminals, registerAllIpcHandlers } from './ipc/handlers'
 import { createLogger, initFileLogger } from './logger'
@@ -279,6 +279,7 @@ function registerAppLifecycle() {
 }
 
 function startApp() {
+  initializeProcessPath()
   configureAppStoragePaths(app, env.OPENWAGGLE_USER_DATA_DIR)
 
   if (env.OPENWAGGLE_DISABLE_SINGLE_INSTANCE !== '1') {
