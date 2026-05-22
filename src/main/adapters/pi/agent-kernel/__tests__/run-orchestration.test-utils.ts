@@ -48,7 +48,13 @@ export interface FakePiHarness {
 export interface FakeRunSession {
   readonly sessionId: string
   readonly sessionFile: string
-  readonly agent: { readonly state: { readonly messages: unknown[] } }
+  readonly agent: {
+    readonly state: { readonly messages: unknown[] }
+    readonly waitForIdle: () => Promise<void>
+    readonly hasQueuedMessages: () => boolean
+  }
+  readonly isCompacting: boolean
+  readonly isStreaming: boolean
   readonly sessionManager: {
     readonly buildSessionContext: () => { readonly messages: readonly unknown[] }
     readonly getEntries: () => readonly unknown[]
@@ -140,7 +146,13 @@ export function createFakeSession(
   return {
     sessionId: 'pi-session-1',
     sessionFile: '/repo/.pi/session.jsonl',
-    agent: { state: { messages } },
+    agent: {
+      state: { messages },
+      waitForIdle: vi.fn(async () => undefined),
+      hasQueuedMessages: vi.fn(() => false),
+    },
+    isCompacting: false,
+    isStreaming: false,
     sessionManager: {
       buildSessionContext: () => ({ messages: [] }),
       getEntries: () => [],

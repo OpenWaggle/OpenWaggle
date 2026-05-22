@@ -84,6 +84,8 @@ describe('Pi run orchestration', () => {
     })
     expect(session.subscribe).toHaveBeenCalledOnce()
     expect(session.prompt).toHaveBeenCalledWith('Run tests', undefined)
+    expect(session.agent.waitForIdle).toHaveBeenCalled()
+    expect(session.agent.hasQueuedMessages).toHaveBeenCalled()
     expect(result.newMessages.map((message) => message.role)).toEqual(['user', 'assistant'])
     expect(runMocks.disposeOpenWagglePiSession).toHaveBeenCalledWith(session)
   })
@@ -129,6 +131,8 @@ describe('Pi run orchestration', () => {
       expect.objectContaining({ customType: 'openwaggle.waggle.turn', display: false }),
       { triggerTurn: true, deliverAs: 'followUp' },
     )
+    expect(session.agent.waitForIdle).toHaveBeenCalled()
+    expect(session.agent.hasQueuedMessages).toHaveBeenCalled()
     expect(turnEvents).toEqual([
       { type: 'turn-start', turnNumber: 0, agentIndex: 0, agentLabel: 'Architect' },
       { type: 'turn-start', turnNumber: 1, agentIndex: 1, agentLabel: 'Reviewer' },

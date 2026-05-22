@@ -24,12 +24,9 @@ import {
   disposeOpenWagglePiSession,
 } from '../pi-session-lifecycle'
 import { logger } from './constants'
+import { waitForPostRunSettlement } from './post-run-settlement'
 import { createSessionManagerForSession } from './session-manager'
 import { projectPiSessionSnapshot } from './session-projection'
-
-const POST_RUN_SETTLE_POLL_MS = 25
-const POST_RUN_SETTLE_QUIET_MS = 150
-const POST_RUN_SETTLE_MAX_MS = 15_000
 
 export interface PiRunSessionRuntime {
   readonly model: PiModel
@@ -102,87 +99,20 @@ function createAbortListener(session: AgentSession, warning: string) {
 async function abortPiSession(session: AgentSession, warning: string) {
   await session.abort().catch((error) => {
     logger.warn(warning, {
-      error: error instanceof Error ? error.message : String(error),
+      error: describeError(error),
     })
   })
 }
 
-function wait(ms: number) {
-  return new Promise<void>((resolve) => {
-    setTimeout(resolve, ms)
-  })
-}
-
-function hasQueuedMessages(session: AgentSession) {
-  return session.agent.hasQueuedMessages()
-}
-
-async function waitForIdle(session: AgentSession) {
-  await session.agent.waitForIdle()
-}
-
-function digestMessage(value: unknown) {
-  try {
-    return JSON.stringify(value)
-  } catch {
-    return String(value)
-  }
-}
-
-function buildSessionPostRunFingerprint(session: AgentSession) {
-  const messages = session.agent.state.messages
-  const lastMessage = messages.at(-1)
-  return [
-    messages.length,
-    digestMessage(lastMessage),
-    session.isCompacting ? 'compacting' : 'idle',
-    session.isStreaming ? 'streaming' : 'ready',
-    hasQueuedMessages(session) ? 'queued' : 'drained',
-  ].join('|')
-}
-
-async function waitForPostRunSettlement(session: AgentSession, signal: AbortSignal) {
-  const startedAt = Date.now()
-  let lastChangedAt = startedAt
-  let lastFingerprint = buildSessionPostRunFingerprint(session)
-
-  while (Date.now() - startedAt < POST_RUN_SETTLE_MAX_MS) {
-    await waitForIdle(session)
-    if (signal.aborted) {
-      return
-    }
-
-    const fingerprint = buildSessionPostRunFingerprint(session)
-    const hasPendingWork = session.isCompacting || session.isStreaming || hasQueuedMessages(session)
-    const changed = fingerprint !== lastFingerprint
-
-    if (changed || hasPendingWork) {
-      lastFingerprint = fingerprint
-      lastChangedAt = Date.now()
-      await wait(POST_RUN_SETTLE_POLL_MS)
-      continue
-    }
-
-    if (Date.now() - lastChangedAt >= POST_RUN_SETTLE_QUIET_MS) {
-      return
-    }
-
-    await wait(POST_RUN_SETTLE_POLL_MS)
-  }
-
-  logger.warn('Timed out waiting for Pi post-run settlement before snapshot capture', {
-    maxWaitMs: POST_RUN_SETTLE_MAX_MS,
-    isCompacting: session.isCompacting,
-    isStreaming: session.isStreaming,
-    queuedMessages: hasQueuedMessages(session),
-  })
+function describeError(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function buildSuccessfulRunResult(input: {
   readonly session: AgentSession
   readonly payload: HydratedAgentSendPayload
   readonly appended: readonly unknown[]
-  readonly signal: AbortSignal
+  readonly aborted: boolean
 }): AgentKernelRunResult {
   const terminalError = extractPiAssistantTerminalError(input.appended)
   const stopReason = getPiAssistantStopReason(input.appended)
@@ -192,7 +122,7 @@ function buildSuccessfulRunResult(input: {
     piSessionId: input.session.sessionId,
     piSessionFile: input.session.sessionFile,
     sessionSnapshot: projectPiSessionSnapshot(input.session),
-    ...(stopReason === 'aborted' || input.signal.aborted ? { aborted: true } : {}),
+    ...(stopReason === 'aborted' || input.aborted ? { aborted: true } : {}),
     ...(terminalError ? { terminalError } : {}),
   }
 }
@@ -245,6 +175,9 @@ export async function runSubscribedPiOperation(input: {
 }) {
   const abortListener = createAbortListener(input.session, input.abortWarning)
   let previousMessageCount = input.session.agent.state.messages.length
+  let abortListenerAttached = false
+  let operationAborted = false
+  let settlementAttempted = false
 
   if (input.runInput.signal.aborted) {
     const result = await abortPreCancelledRun(input.session, input.preAbortWarning)
@@ -254,24 +187,62 @@ export async function runSubscribedPiOperation(input: {
   }
 
   input.runInput.signal.addEventListener('abort', abortListener, { once: true })
+  abortListenerAttached = true
 
   try {
     previousMessageCount = input.session.agent.state.messages.length
-    await input.operation()
-    await waitForPostRunSettlement(input.session, input.runInput.signal)
+    let operationFailed = false
+    let operationError: unknown
+
+    try {
+      await input.operation()
+    } catch (error) {
+      operationFailed = true
+      operationError = error
+    }
+
+    operationAborted = input.runInput.signal.aborted
+    input.runInput.signal.removeEventListener('abort', abortListener)
+    abortListenerAttached = false
+
+    settlementAttempted = true
+    await waitForPostRunSettlement(input.session)
     const appended = input.session.agent.state.messages.slice(previousMessageCount)
+
+    if (operationFailed) {
+      const stopReason = getPiAssistantStopReason(appended)
+      const aborted = operationAborted || stopReason === 'aborted'
+      const message = describeError(operationError)
+      input.runInput.onEvent({
+        type: 'agent_end',
+        runId: input.runInput.runId,
+        reason: aborted ? 'aborted' : 'error',
+        ...(aborted ? {} : { error: { message } }),
+        timestamp: Date.now(),
+        model: input.runInput.model,
+      })
+      return buildFailedRunResult({
+        session: input.session,
+        newMessages: input.buildErrorMessages(appended),
+        aborted,
+        message,
+      })
+    }
+
     return buildSuccessfulRunResult({
       session: input.session,
       payload: input.runInput.payload,
       appended,
-      signal: input.runInput.signal,
+      aborted: operationAborted,
     })
   } catch (error) {
-    await waitForPostRunSettlement(input.session, input.runInput.signal)
+    if (!settlementAttempted) {
+      await waitForPostRunSettlement(input.session)
+    }
     const appended = input.session.agent.state.messages.slice(previousMessageCount)
     const stopReason = getPiAssistantStopReason(appended)
-    const aborted = input.runInput.signal.aborted || stopReason === 'aborted'
-    const message = error instanceof Error ? error.message : String(error)
+    const aborted = operationAborted || stopReason === 'aborted'
+    const message = describeError(error)
     input.runInput.onEvent({
       type: 'agent_end',
       runId: input.runInput.runId,
@@ -287,7 +258,9 @@ export async function runSubscribedPiOperation(input: {
       message,
     })
   } finally {
-    input.runInput.signal.removeEventListener('abort', abortListener)
+    if (abortListenerAttached) {
+      input.runInput.signal.removeEventListener('abort', abortListener)
+    }
     input.unsubscribe()
     await disposeOpenWagglePiSession(input.session)
   }
