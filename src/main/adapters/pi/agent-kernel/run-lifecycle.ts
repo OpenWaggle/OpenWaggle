@@ -27,6 +27,10 @@ import { logger } from './constants'
 import { createSessionManagerForSession } from './session-manager'
 import { projectPiSessionSnapshot } from './session-projection'
 
+const POST_RUN_SETTLE_POLL_MS = 25
+const POST_RUN_SETTLE_QUIET_MS = 150
+const POST_RUN_SETTLE_MAX_MS = 15_000
+
 export interface PiRunSessionRuntime {
   readonly model: PiModel
   readonly session: AgentSession
@@ -100,6 +104,81 @@ async function abortPiSession(session: AgentSession, warning: string) {
     logger.warn(warning, {
       error: error instanceof Error ? error.message : String(error),
     })
+  })
+}
+
+function wait(ms: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, ms)
+  })
+}
+
+function hasQueuedMessages(session: AgentSession) {
+  const agent = session.agent as { hasQueuedMessages?: () => boolean }
+  return typeof agent.hasQueuedMessages === 'function' ? agent.hasQueuedMessages() : false
+}
+
+async function waitForIdle(session: AgentSession) {
+  const agent = session.agent as { waitForIdle?: () => Promise<void> }
+  if (typeof agent.waitForIdle === 'function') {
+    await agent.waitForIdle()
+  }
+}
+
+function digestMessage(value: unknown) {
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+function buildSessionPostRunFingerprint(session: AgentSession) {
+  const messages = session.agent.state.messages
+  const lastMessage = messages.at(-1)
+  return [
+    messages.length,
+    digestMessage(lastMessage),
+    session.isCompacting ? 'compacting' : 'idle',
+    session.isStreaming ? 'streaming' : 'ready',
+    hasQueuedMessages(session) ? 'queued' : 'drained',
+  ].join('|')
+}
+
+async function waitForPostRunSettlement(session: AgentSession, signal: AbortSignal) {
+  const startedAt = Date.now()
+  let lastChangedAt = startedAt
+  let lastFingerprint = buildSessionPostRunFingerprint(session)
+
+  while (Date.now() - startedAt < POST_RUN_SETTLE_MAX_MS) {
+    await waitForIdle(session)
+    if (signal.aborted) {
+      return
+    }
+
+    const fingerprint = buildSessionPostRunFingerprint(session)
+    const hasPendingWork = session.isCompacting || session.isStreaming || hasQueuedMessages(session)
+    const changed = fingerprint !== lastFingerprint
+
+    if (changed || hasPendingWork) {
+      lastFingerprint = fingerprint
+      lastChangedAt = Date.now()
+      await wait(POST_RUN_SETTLE_POLL_MS)
+      continue
+    }
+
+    if (Date.now() - lastChangedAt >= POST_RUN_SETTLE_QUIET_MS) {
+      return
+    }
+
+    await wait(POST_RUN_SETTLE_POLL_MS)
+  }
+
+  logger.warn('Timed out waiting for Pi post-run settlement before snapshot capture', {
+    maxWaitMs: POST_RUN_SETTLE_MAX_MS,
+    isCompacting: session.isCompacting,
+    isStreaming: session.isStreaming,
+    queuedMessages: hasQueuedMessages(session),
   })
 }
 
@@ -183,6 +262,7 @@ export async function runSubscribedPiOperation(input: {
   try {
     previousMessageCount = input.session.agent.state.messages.length
     await input.operation()
+    await waitForPostRunSettlement(input.session, input.runInput.signal)
     const appended = input.session.agent.state.messages.slice(previousMessageCount)
     return buildSuccessfulRunResult({
       session: input.session,
@@ -191,6 +271,7 @@ export async function runSubscribedPiOperation(input: {
       signal: input.runInput.signal,
     })
   } catch (error) {
+    await waitForPostRunSettlement(input.session, input.runInput.signal)
     const appended = input.session.agent.state.messages.slice(previousMessageCount)
     const stopReason = getPiAssistantStopReason(appended)
     const aborted = input.runInput.signal.aborted || stopReason === 'aborted'
