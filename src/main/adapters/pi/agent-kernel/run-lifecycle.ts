@@ -114,15 +114,11 @@ function wait(ms: number) {
 }
 
 function hasQueuedMessages(session: AgentSession) {
-  const agent = session.agent as { hasQueuedMessages?: () => boolean }
-  return typeof agent.hasQueuedMessages === 'function' ? agent.hasQueuedMessages() : false
+  return session.agent.hasQueuedMessages()
 }
 
 async function waitForIdle(session: AgentSession) {
-  const agent = session.agent as { waitForIdle?: () => Promise<void> }
-  if (typeof agent.waitForIdle === 'function') {
-    await agent.waitForIdle()
-  }
+  await session.agent.waitForIdle()
 }
 
 function digestMessage(value: unknown) {

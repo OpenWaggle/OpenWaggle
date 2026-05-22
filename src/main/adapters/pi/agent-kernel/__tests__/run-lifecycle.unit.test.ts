@@ -2,6 +2,7 @@ import type { AgentSession } from '@mariozechner/pi-coding-agent'
 import { getMessageText, type HydratedAgentSendPayload } from '@shared/types/agent'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail } from '@shared/types/session'
+import { fromPartial } from '@total-typescript/shoehorn'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentKernelRunInput } from '../../../../ports/agent-kernel-service'
 import { runSubscribedPiOperation } from '../run-lifecycle'
@@ -16,8 +17,10 @@ vi.mock('../../pi-session-lifecycle', () => ({
 }))
 
 interface FakeAgentState {
-  messages: unknown[]
+  messages: PiAgentMessage[]
 }
+
+type PiAgentMessage = AgentSession['agent']['state']['messages'][number]
 
 interface FakeSession {
   readonly sessionId: string
@@ -64,13 +67,30 @@ function assistantMessage(input: {
   readonly text: string
   readonly stopReason: 'stop' | 'error'
   readonly errorMessage?: string
-}) {
+}): PiAgentMessage {
   return {
     role: 'assistant',
     content: [{ type: 'text', text: input.text }],
+    api: 'openai-responses',
+    provider: 'openai-codex',
     model: 'openai/gpt-5.5',
+    usage: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        total: 0,
+      },
+    },
     stopReason: input.stopReason,
     ...(input.errorMessage ? { errorMessage: input.errorMessage } : {}),
+    timestamp: Date.now(),
   }
 }
 
@@ -80,7 +100,7 @@ describe('run lifecycle settlement', () => {
   })
 
   it('waits for delayed post-run recovery updates before snapshot capture', async () => {
-    const messages: unknown[] = []
+    const messages: PiAgentMessage[] = []
     let compacting = false
     const state: FakeAgentState = { messages }
 
@@ -123,7 +143,7 @@ describe('run lifecycle settlement', () => {
 
     const result = await runSubscribedPiOperation({
       runInput: runInput(payload),
-      session: session as unknown as AgentSession,
+      session: fromPartial<AgentSession>(session),
       unsubscribe: vi.fn(),
       abortWarning: 'abort failed',
       preAbortWarning: 'pre-abort failed',
@@ -142,8 +162,11 @@ describe('run lifecycle settlement', () => {
 
     expect('terminalError' in result ? result.terminalError : undefined).toBeUndefined()
     expect(result.newMessages).toHaveLength(2)
-    expect(result.newMessages[1]?.role).toBe('assistant')
-    expect(getMessageText(result.newMessages[1]!)).toBe('Recovered after compact')
+    const recoveredMessage = result.newMessages[1]
+    expect(recoveredMessage?.role).toBe('assistant')
+    expect(recoveredMessage ? getMessageText(recoveredMessage) : null).toBe(
+      'Recovered after compact',
+    )
     expect(lifecycleMocks.disposeOpenWagglePiSession).toHaveBeenCalledWith(session)
   })
 
@@ -182,7 +205,7 @@ describe('run lifecycle settlement', () => {
 
     const result = await runSubscribedPiOperation({
       runInput: runInput(payload),
-      session: session as unknown as AgentSession,
+      session: fromPartial<AgentSession>(session),
       unsubscribe: vi.fn(),
       abortWarning: 'abort failed',
       preAbortWarning: 'pre-abort failed',
