@@ -6,16 +6,24 @@ export default defineConfig({
     alias: {
       '@': resolve('src/renderer/src'),
       '@shared': resolve('src/shared'),
+      '@openwaggle/pi-waggle': resolve('packages/pi-waggle/src'),
+      '@openwaggle/waggle-core': resolve('packages/waggle-core/src'),
     },
   },
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'packages/**/*.test.ts'],
     exclude: ['src/**/*.component.test.tsx'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
-      include: ['src/main/**/*.ts', 'src/renderer/src/**/*.ts', 'src/preload/**/*.ts', 'src/shared/**/*.ts'],
+      include: [
+        'src/main/**/*.ts',
+        'src/renderer/src/**/*.ts',
+        'src/preload/**/*.ts',
+        'src/shared/**/*.ts',
+        'packages/**/*.ts',
+      ],
       exclude: [
         'src/**/*.test.ts',
         'src/**/*.test.tsx',

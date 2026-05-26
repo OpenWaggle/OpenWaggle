@@ -230,6 +230,71 @@ describe('OpenWaggle ESLint plugin', () => {
     expect(messages.at(0)?.message).toContain('Pi SDK imports are confined')
   })
 
+  it('allows Pi SDK imports inside dedicated Pi packages', () => {
+    const messages = lint(
+      "import { SessionManager } from '@mariozechner/pi-coding-agent'\nexport const value = SessionManager\n",
+      'openwaggle/main-architecture-boundaries',
+      'packages/pi-waggle/src/extension.ts',
+    )
+
+    expect(messages).toHaveLength(0)
+  })
+
+  it('reports Pi SDK imports inside portable Waggle core', () => {
+    const messages = lint(
+      "import { SessionManager } from '@mariozechner/pi-coding-agent'\nexport const value = SessionManager\n",
+      'openwaggle/main-architecture-boundaries',
+      'packages/waggle-core/src/config.ts',
+    )
+
+    expect(messages).toHaveLength(1)
+    expect(messages.at(0)?.message).toContain('packages/waggle-core must stay portable')
+  })
+
+  it('reports OpenWaggle app imports inside portable Waggle core', () => {
+    const messages = lint(
+      "import { waggleConfigSchema } from '@shared/schemas/waggle'\nexport const value = waggleConfigSchema\n",
+      'openwaggle/main-architecture-boundaries',
+      'packages/waggle-core/src/config.ts',
+    )
+
+    expect(messages).toHaveLength(1)
+    expect(messages.at(0)?.message).toContain('must not import OpenWaggle app modules')
+  })
+
+  it('reports OpenWaggle app imports inside pi-waggle', () => {
+    const messages = lint(
+      "import { waggleConfigSchema } from '@shared/schemas/waggle'\nexport const value = waggleConfigSchema\n",
+      'openwaggle/main-architecture-boundaries',
+      'packages/pi-waggle/src/extension.ts',
+    )
+
+    expect(messages).toHaveLength(1)
+    expect(messages.at(0)?.message).toContain('packages/pi-waggle must stay reusable')
+  })
+
+  it('reports renderer imports of pi-waggle adapter package surfaces', () => {
+    const messages = lint(
+      "import { PI_WAGGLE_TURN_CUSTOM_TYPE } from '@openwaggle/pi-waggle/protocol'\nexport const value = PI_WAGGLE_TURN_CUSTOM_TYPE\n",
+      'openwaggle/main-architecture-boundaries',
+      'src/renderer/src/features/chat/lib/example.ts',
+    )
+
+    expect(messages).toHaveLength(1)
+    expect(messages.at(0)?.message).toContain('renderer/shared code may not import pi-waggle')
+  })
+
+  it('reports desktop Pi adapter imports of the UI-heavy pi-waggle package root', () => {
+    const messages = lint(
+      "import { createPiWaggleExtension } from '@openwaggle/pi-waggle'\nexport const value = createPiWaggleExtension\n",
+      'openwaggle/main-architecture-boundaries',
+      'src/main/adapters/pi/example.ts',
+    )
+
+    expect(messages).toHaveLength(1)
+    expect(messages.at(0)?.message).toContain('narrow @openwaggle/pi-waggle subpaths')
+  })
+
   it('allows Pi SDK imports inside the Pi adapter boundary', () => {
     const messages = lint(
       "import { SessionManager } from '@mariozechner/pi-coding-agent'\nexport const value = SessionManager\n",

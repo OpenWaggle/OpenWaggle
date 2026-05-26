@@ -6,11 +6,13 @@ export default defineConfig({
     alias: {
       '@': resolve('src/renderer/src'),
       '@shared': resolve('src/shared'),
+      '@openwaggle/pi-waggle': resolve('packages/pi-waggle/src'),
+      '@openwaggle/waggle-core': resolve('packages/waggle-core/src'),
     },
   },
   test: {
     environment: 'node',
-    include: ['src/**/*.unit.test.ts', 'scripts/**/*.unit.test.ts'],
+    include: ['src/**/*.unit.test.ts', 'packages/**/*.unit.test.ts', 'scripts/**/*.unit.test.ts'],
     coverage: {
       enabled: false,
     },
