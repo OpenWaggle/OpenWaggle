@@ -111,7 +111,7 @@ describe('buildPiRunAssistantMessages', () => {
     const appendedMessages = [
       {
         role: 'custom',
-        customType: 'openwaggle.waggle.turn',
+        customType: 'pi-waggle.turn',
         content: 'hidden coordination prompt',
         display: false,
       },

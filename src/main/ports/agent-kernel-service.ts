@@ -36,31 +36,14 @@ export interface AgentKernelRunInput {
   readonly skillToggles?: Readonly<Record<string, boolean>>
   readonly signal: AbortSignal
   readonly onEvent: (event: AgentTransportEvent) => void
+  readonly waggle?: AgentKernelWaggleRunOptions
 }
 
-export interface AgentKernelWaggleTurnCompletion {
-  readonly meta: WaggleStreamMetadata
-  readonly assistantMessages: readonly Message[]
-  readonly responseText: string
-  readonly hasToolCalls: boolean
-  readonly terminalError?: string
-}
-
-export interface AgentKernelWaggleTurnDecision {
-  readonly continue: boolean
-}
-
-export interface AgentKernelWaggleRunInput extends AgentKernelRunInput {
+export interface AgentKernelWaggleRunOptions {
   readonly config: WaggleConfig
+  readonly inheritedModel: SupportedModelId
   readonly onWaggleEvent: (event: AgentTransportEvent, meta: WaggleStreamMetadata) => void
   readonly onTurnEvent: (event: WaggleTurnEvent) => void
-  readonly createTurnMetadata: (input: {
-    readonly turnNumber: number
-    readonly agentIndex: number
-  }) => WaggleStreamMetadata
-  readonly onTurnComplete: (
-    completion: AgentKernelWaggleTurnCompletion,
-  ) => AgentKernelWaggleTurnDecision | Promise<AgentKernelWaggleTurnDecision>
 }
 
 export interface AgentKernelRunResult {
@@ -136,9 +119,6 @@ export interface AgentKernelForkSessionResult {
 
 export interface AgentKernelServiceShape {
   readonly run: (input: AgentKernelRunInput) => Effect.Effect<AgentKernelRunResult, Error>
-  readonly runWaggle: (
-    input: AgentKernelWaggleRunInput,
-  ) => Effect.Effect<AgentKernelRunResult, Error>
   readonly createSession: (
     input: CreateAgentKernelSessionInput,
   ) => Effect.Effect<CreateAgentKernelSessionResult, Error>

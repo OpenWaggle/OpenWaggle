@@ -4,7 +4,7 @@ import {
   type AgentKernelRunInput,
   AgentKernelService,
   type AgentKernelSessionInput,
-  type AgentKernelWaggleRunInput,
+  type AgentKernelWaggleRunOptions,
   type CompactAgentKernelSessionInput,
   type ForkAgentKernelSessionInput,
   type NavigateAgentKernelSessionInput,
@@ -27,6 +27,12 @@ function toAgentKernelError(error: unknown) {
   return error instanceof Error ? error : new Error(String(error))
 }
 
+function hasWaggleRunOptions(
+  input: AgentKernelRunInput,
+): input is AgentKernelRunInput & { readonly waggle: AgentKernelWaggleRunOptions } {
+  return Boolean(input.waggle)
+}
+
 export const PiAgentKernelLive = Layer.succeed(
   AgentKernelService,
   AgentKernelService.of({
@@ -38,13 +44,7 @@ export const PiAgentKernelLive = Layer.succeed(
 
     run: (input: AgentKernelRunInput) =>
       Effect.tryPromise({
-        try: () => runPiSession(input),
-        catch: toAgentKernelError,
-      }),
-
-    runWaggle: (input: AgentKernelWaggleRunInput) =>
-      Effect.tryPromise({
-        try: () => runPiWaggle(input),
+        try: () => (hasWaggleRunOptions(input) ? runPiWaggle(input) : runPiSession(input)),
         catch: toAgentKernelError,
       }),
 

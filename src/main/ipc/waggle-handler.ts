@@ -2,7 +2,7 @@ import { matchBy } from '@diegogbrisa/ts-match'
 import { decodeUnknownOrThrow } from '@shared/schema'
 import { agentSendPayloadSchema } from '@shared/schemas/validation'
 import type { AgentSendPayload, Message } from '@shared/types/agent'
-import type { SessionId } from '@shared/types/brand'
+import type { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { WaggleConfig } from '@shared/types/waggle'
 import * as Effect from 'effect/Effect'
 import { classifyAgentError } from '../agent/error-classifier'
@@ -107,13 +107,13 @@ function runRegisteredWaggleMessage(
   abortController: AbortController,
 ) {
   return Effect.gen(function* () {
-    startWaggleStream(sessionId, runId, config)
     const result = yield* executeWaggleRun({
       sessionId,
       runId,
       payload,
       config,
       signal: abortController.signal,
+      onRunPrepared: (runtimeModel) => startWaggleStream(sessionId, runId, runtimeModel),
       onEvent: (event, meta) => {
         emitWaggleTransportEvent(sessionId, event, meta)
         if (event.type !== 'agent_end') emitTransportEvent(sessionId, event)
@@ -133,9 +133,8 @@ function cancelExistingWaggleWork(sessionId: SessionId) {
   clearStreamBuffer(sessionId)
 }
 
-function startWaggleStream(sessionId: SessionId, runId: string, config: WaggleConfig) {
-  const firstAgentModel = config.agents?.[0]?.model
-  if (firstAgentModel) startStreamBuffer(sessionId, firstAgentModel, 'waggle')
+function startWaggleStream(sessionId: SessionId, runId: string, runtimeModel: SupportedModelId) {
+  startStreamBuffer(sessionId, runtimeModel, 'waggle')
   emitTransportEvent(sessionId, { type: 'agent_start', timestamp: Date.now(), runId })
 }
 

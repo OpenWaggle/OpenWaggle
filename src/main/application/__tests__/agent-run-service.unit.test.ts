@@ -135,7 +135,6 @@ const TestAgentKernelLayer = Layer.succeed(AgentKernelService, {
         },
       }
     }),
-  runWaggle: () => Effect.fail(new Error('runWaggle is not used')),
   getContextUsage: () => Effect.fail(new Error('getContextUsage is not used')),
   compact: () => Effect.fail(new Error('compact is not used')),
   navigateTree: () => Effect.fail(new Error('navigateTree is not used')),

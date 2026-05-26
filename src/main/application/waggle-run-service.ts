@@ -2,37 +2,36 @@
  * WaggleRunService — application-layer coordination for waggle mode execution.
  *
  * Waggle runs are Pi-native turns over the same canonical Pi session as standard
- * mode. This service owns product semantics (turn order, attribution, consensus,
- * persistence) and depends on the AgentKernelService port for runtime execution.
+ * mode. This service owns product-shell semantics (validation, branch/run state,
+ * stream forwarding, persistence) and delegates turn sequencing to Pi-native
+ * Waggle package logic through AgentKernelService.
  */
 
-import { randomUUID } from 'node:crypto'
 import { safeDecodeUnknown } from '@shared/schema'
 import { waggleConfigSchema } from '@shared/schemas/waggle'
-import type { AgentSendPayload, HydratedAgentSendPayload, Message } from '@shared/types/agent'
-import { SessionBranchId, SessionId } from '@shared/types/brand'
+import type { AgentSendPayload, HydratedAgentSendPayload } from '@shared/types/agent'
+import { SessionBranchId, SessionId, SupportedModelId } from '@shared/types/brand'
 import type { SessionDetail, SessionTree } from '@shared/types/session'
 import type { AgentTransportEvent } from '@shared/types/stream'
-import type {
-  WaggleConfig,
-  WaggleMessageMetadata,
-  WaggleStreamMetadata,
-  WaggleTurnEvent,
+import {
+  isInheritedWaggleModelBinding,
+  type WaggleConfig,
+  type WaggleStreamMetadata,
+  type WaggleTurnEvent,
 } from '@shared/types/waggle'
 import { formatErrorMessage } from '@shared/utils/node-error'
 import * as Effect from 'effect/Effect'
 import { makeErrorInfo } from '../agent/error-classifier'
 import { FileConflictTracker } from '../agent/file-conflict-tracker'
-import { buildPersistedUserMessageParts, makeMessage } from '../agent/shared'
 import { createLogger } from '../logger'
+import type { AgentKernelRunResult } from '../ports/agent-kernel-service'
 import { AgentKernelService } from '../ports/agent-kernel-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
 import { SettingsService } from '../services/settings-service'
 import { assignSessionTitleFromUserText, hydratePayloadAttachments } from './run-handler-utils'
-import { applyWaggleMetadataToSnapshot, seedWaggleMetadataFromTree } from './waggle-run/metadata'
+import { extractFilePath } from './waggle-run/metadata'
 import { persistWaggleSnapshot } from './waggle-run/persistence'
-import { createWaggleTurnController } from './waggle-run/turn-controller'
 
 const MAIN_BRANCH_NAME = 'main'
 const logger = createLogger('waggle-run-service')
@@ -45,6 +44,7 @@ export interface WaggleRunInput {
   readonly signal: AbortSignal
   readonly onEvent: (event: AgentTransportEvent, meta: WaggleStreamMetadata) => void
   readonly onTurnEvent: (event: WaggleTurnEvent) => void
+  readonly onRunPrepared?: (runtimeModel: SupportedModelId) => void
   readonly onTitleAssigned?: (title: string) => void
 }
 
@@ -56,6 +56,8 @@ interface ActiveRunIdentity {
 interface PreparedWaggleRun {
   readonly assignedTitle?: string
   readonly hydratedPayload: HydratedAgentSendPayload
+  readonly inheritedModel: SupportedModelId
+  readonly runtimeModel: SupportedModelId
   readonly session: SessionDetail
   readonly skillToggles: Record<string, boolean> | undefined
 }
@@ -87,6 +89,16 @@ function noProjectOutcome() {
 
 function mainBranchFallbackId(sessionId: SessionId) {
   return SessionBranchId(`${sessionId}:${MAIN_BRANCH_NAME}`)
+}
+
+function resolveInitialWaggleRuntimeModel(input: {
+  readonly config: WaggleConfig
+  readonly selectedModel: SupportedModelId
+}): SupportedModelId {
+  const firstAgentModel = input.config.agents[0].model
+  return isInheritedWaggleModelBinding(firstAgentModel)
+    ? input.selectedModel
+    : SupportedModelId(firstAgentModel)
 }
 
 function resolveWaggleBranchId(input: {
@@ -146,6 +158,11 @@ function prepareWaggleRun(input: WaggleRunInput) {
       value: {
         assignedTitle,
         hydratedPayload,
+        inheritedModel: settings.selectedModel,
+        runtimeModel: resolveInitialWaggleRuntimeModel({
+          config: input.config,
+          selectedModel: settings.selectedModel,
+        }),
         session,
         skillToggles: settings.skillTogglesByProject[session.projectPath],
       },
@@ -168,6 +185,7 @@ function assignPreparedTitle(input: WaggleRunInput, session: SessionDetail) {
 function recordDurableWaggleRun(input: {
   readonly branchId: SessionBranchId
   readonly run: WaggleRunInput
+  readonly runtimeModel: SupportedModelId
   readonly sessionRepo: typeof SessionRepository.Service
 }) {
   return Effect.gen(function* () {
@@ -180,7 +198,7 @@ function recordDurableWaggleRun(input: {
       sessionId: input.run.sessionId,
       branchId: input.branchId,
       runMode: 'waggle',
-      model: input.run.config.agents[0].model,
+      model: input.runtimeModel,
     })
   })
 }
@@ -191,49 +209,55 @@ function runPreparedWaggle(
   setActiveRunIdentity: (identity: ActiveRunIdentity) => void,
 ) {
   return Effect.gen(function* () {
-    const accumulatedMessages: Message[] = [
-      makeMessage('user', buildPersistedUserMessageParts(prepared.hydratedPayload)),
-    ]
     const sessionRepo = yield* SessionRepository
     const initialTree = yield* sessionRepo.getTree(SessionId(String(input.sessionId)))
-    const knownNodeIds = new Set(initialTree?.nodes.map((node) => String(node.id)) ?? [])
-    const waggleMetadataByNodeId = seedWaggleMetadataFromTree(initialTree?.nodes ?? [])
-    const newTurnMetadata: WaggleMessageMetadata[] = []
     const branchId = resolveWaggleBranchId({ sessionId: input.sessionId, tree: initialTree })
 
-    yield* recordDurableWaggleRun({ branchId, run: input, sessionRepo })
+    yield* recordDurableWaggleRun({
+      branchId,
+      run: input,
+      runtimeModel: prepared.runtimeModel,
+      sessionRepo,
+    })
     setActiveRunIdentity({ sessionId: input.sessionId, runId: input.runId })
+    yield* Effect.sync(() => input.onRunPrepared?.(prepared.runtimeModel))
     logWaggleStart(input)
 
-    const turnController = createWaggleTurnController({
-      accumulatedMessages,
-      config: input.config,
-      conflictTracker: new FileConflictTracker(),
-      maxTurns: input.config.stop.maxTurnsSafety,
-      newTurnMetadata,
-      onEvent: input.onEvent,
-      onTurnEvent: input.onTurnEvent,
-      sessionId: input.sessionId,
-      waggleSessionId: randomUUID(),
-    })
+    const conflictTracker = new FileConflictTracker()
     const agentKernel = yield* AgentKernelService
-    const result = yield* agentKernel.runWaggle({
+    const result = yield* agentKernel.run({
       session: prepared.session,
       runId: input.runId,
       payload: prepared.hydratedPayload,
-      model: input.config.agents[0].model,
-      config: input.config,
+      model: prepared.runtimeModel,
       signal: input.signal,
       skillToggles: prepared.skillToggles,
       onEvent: () => undefined,
-      onWaggleEvent: turnController.handleWaggleEvent,
-      onTurnEvent: input.onTurnEvent,
-      createTurnMetadata: turnController.createTurnMetadata,
-      onTurnComplete: turnController.handleTurnComplete,
+      waggle: {
+        config: input.config,
+        inheritedModel: prepared.inheritedModel,
+        onWaggleEvent: (event, meta) => {
+          input.onEvent(event, meta)
+          if (event.type !== 'tool_execution_end') return
+          if (event.toolName !== 'write' && event.toolName !== 'edit') return
+
+          const filePath = extractFilePath(event.args)
+          if (!filePath) return
+
+          const warning = conflictTracker.recordModification(
+            filePath,
+            meta.agentIndex,
+            input.config.agents,
+            meta.turnNumber,
+          )
+          if (warning) input.onTurnEvent({ type: 'file-conflict', warning })
+        },
+        onTurnEvent: input.onTurnEvent,
+      },
     })
 
     if (result.aborted || input.signal.aborted) {
-      turnController.stopForUserCancel()
+      input.onTurnEvent({ type: 'collaboration-stopped', reason: 'User cancelled' })
       return {
         outcome: 'aborted' as const,
         ...(prepared.assignedTitle ? { assignedTitle: prepared.assignedTitle } : {}),
@@ -243,17 +267,11 @@ function runPreparedWaggle(
     yield* persistWaggleSnapshot({
       sessionId: input.sessionId,
       result,
-      snapshot: applyWaggleMetadataToSnapshot({
-        snapshot: result.sessionSnapshot,
-        metadataByNodeId: waggleMetadataByNodeId,
-        knownNodeIds,
-        newTurnMetadata,
-      }),
+      snapshot: result.sessionSnapshot,
       waggleConfig: input.config,
     })
 
-    turnController.completeIfStillRunning()
-    return successOutcome(input, prepared, accumulatedMessages, turnController.getState())
+    return successOutcome(input, prepared, result)
   })
 }
 
@@ -269,20 +287,19 @@ function logWaggleStart(input: WaggleRunInput) {
 function successOutcome(
   input: WaggleRunInput,
   prepared: PreparedWaggleRun,
-  accumulatedMessages: readonly Message[],
-  finalState: ReturnType<ReturnType<typeof createWaggleTurnController>['getState']>,
+  result: AgentKernelRunResult,
 ) {
   logger.info('Pi-native Waggle collaboration finished', {
     sessionId: input.sessionId,
-    status: finalState.status,
-    totalTurns: finalState.successfulTurnCount,
-    consensusReason: finalState.consensusReason,
+    aborted: result.aborted ?? false,
+    terminalError: result.terminalError ?? null,
+    assistantMessages: result.newMessages.filter((message) => message.role === 'assistant').length,
   })
 
   return {
     outcome: 'success' as const,
-    newMessages: accumulatedMessages,
-    lastError: finalState.lastTurnError,
+    newMessages: result.newMessages,
+    ...(result.terminalError ? { lastError: result.terminalError } : {}),
     ...(prepared.assignedTitle ? { assignedTitle: prepared.assignedTitle } : {}),
   }
 }
