@@ -18,9 +18,6 @@ import {
   navigatePiSessionTree,
 } from './agent-kernel/session-operations'
 import { createPiSession } from './agent-kernel/session-runtime'
-
-export { createSessionListener } from './agent-kernel/session-listener'
-
 import { runPiWaggle } from './agent-kernel/waggle-run'
 
 function toAgentKernelError(error: unknown) {

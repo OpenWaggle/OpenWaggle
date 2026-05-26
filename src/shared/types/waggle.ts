@@ -3,19 +3,12 @@ import {
   type WaggleCollaborationMode as CoreWaggleCollaborationMode,
   type WaggleStopCondition as CoreWaggleStopCondition,
   WAGGLE_AGENT_COLORS,
-  WAGGLE_COLLABORATION_MODES,
   WAGGLE_INHERIT_MODEL,
-  WAGGLE_STOP_CONDITIONS,
 } from '@openwaggle/waggle-core'
 import { SupportedModelId, type WagglePresetId } from './brand'
 import type { SupportedModelId as SupportedModelIdType } from './llm'
 
-export {
-  WAGGLE_AGENT_COLORS,
-  WAGGLE_COLLABORATION_MODES,
-  WAGGLE_INHERIT_MODEL,
-  WAGGLE_STOP_CONDITIONS,
-}
+export { WAGGLE_AGENT_COLORS, WAGGLE_INHERIT_MODEL }
 
 export type WaggleCollaborationMode = CoreWaggleCollaborationMode
 export type WaggleAgentColor = CoreWaggleAgentColor

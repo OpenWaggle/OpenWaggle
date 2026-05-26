@@ -4,18 +4,12 @@ import {
   parsePiWaggleTurnDetails,
 } from '@openwaggle/pi-waggle/protocol'
 import { parseJsonUnknown } from '@shared/schema'
-import { createModelRef } from '@shared/types/llm'
 import type { ProjectedSessionNodeInput } from '../../../ports/session-repository'
 import { projectionForPiEntry } from './entry-projections'
 
 interface PiSessionSnapshotSource {
   readonly sessionManager: Pick<AgentSession['sessionManager'], 'getEntries' | 'getLeafId'>
 }
-
-const LEGACY_WAGGLE_TURN_CUSTOM_TYPE = 'openwaggle.waggle.turn'
-const LEGACY_FIRST_AGENT_COLOR = 'blue'
-const LEGACY_SECOND_AGENT_COLOR = 'amber'
-const LEGACY_AGENT_DISPLAY_OFFSET = 1
 
 function parsePiEntryTimestamp(timestamp: string) {
   const parsed = Date.parse(timestamp)
@@ -41,43 +35,7 @@ function isAssistantEntry(entry: SessionEntry): entry is Extract<
 function isTurnCustomMessageEntry(
   entry: SessionEntry,
 ): entry is Extract<SessionEntry, { type: 'custom_message' }> {
-  return (
-    entry.type === 'custom_message' &&
-    (entry.customType === PI_WAGGLE_TURN_CUSTOM_TYPE ||
-      entry.customType === LEGACY_WAGGLE_TURN_CUSTOM_TYPE)
-  )
-}
-
-function legacyTurnMetadata(input: {
-  readonly assistant: Extract<SessionEntry, { type: 'message' }> & {
-    readonly message: Extract<
-      Extract<SessionEntry, { type: 'message' }>['message'],
-      { role: 'assistant' }
-    >
-  }
-  readonly details: unknown
-}) {
-  if (!isRecord(input.details)) {
-    return null
-  }
-  const turnNumber = input.details.turnNumber
-  const agentIndex = input.details.agentIndex
-  if (
-    typeof turnNumber !== 'number' ||
-    !Number.isInteger(turnNumber) ||
-    typeof agentIndex !== 'number' ||
-    !Number.isInteger(agentIndex)
-  ) {
-    return null
-  }
-
-  return {
-    agentIndex,
-    agentLabel: `Agent ${String(agentIndex + LEGACY_AGENT_DISPLAY_OFFSET)}`,
-    agentColor: agentIndex === 0 ? LEGACY_FIRST_AGENT_COLOR : LEGACY_SECOND_AGENT_COLOR,
-    agentModel: createModelRef(input.assistant.message.provider, input.assistant.message.model),
-    turnNumber,
-  }
+  return entry.type === 'custom_message' && entry.customType === PI_WAGGLE_TURN_CUSTOM_TYPE
 }
 
 function turnMetadataFromCustomMessage(input: {
@@ -90,22 +48,16 @@ function turnMetadataFromCustomMessage(input: {
   readonly entry: Extract<SessionEntry, { type: 'custom_message' }>
 }) {
   const details = parsePiWaggleTurnDetails(input.entry.details)
-  if (details) {
-    return {
-      agentIndex: details.agentIndex,
-      agentLabel: details.agentLabel,
-      agentColor: details.agentColor,
-      agentModel: details.agentModel,
-      turnNumber: details.turnNumber,
-      sessionId: details.runId,
-    }
-  }
+  if (!details) return null
 
-  if (input.entry.customType === LEGACY_WAGGLE_TURN_CUSTOM_TYPE) {
-    return legacyTurnMetadata({ assistant: input.assistant, details: input.entry.details })
+  return {
+    agentIndex: details.agentIndex,
+    agentLabel: details.agentLabel,
+    agentColor: details.agentColor,
+    agentModel: details.agentModel,
+    turnNumber: details.turnNumber,
+    sessionId: details.runId,
   }
-
-  return null
 }
 
 function nearestTurnMetadata(input: {

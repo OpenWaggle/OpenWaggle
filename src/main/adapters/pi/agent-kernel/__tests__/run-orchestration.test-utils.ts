@@ -1,6 +1,6 @@
 import type { HydratedAgentSendPayload } from '@shared/types/agent'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
-import type { WaggleConfig, WaggleStreamMetadata } from '@shared/types/waggle'
+import type { WaggleConfig } from '@shared/types/waggle'
 import { isRecord } from '@shared/utils/validation'
 import { vi } from 'vitest'
 
@@ -193,22 +193,5 @@ export function waggleConfig(): WaggleConfig {
       },
     ],
     stop: { primary: 'consensus', maxTurnsSafety: 4 },
-  }
-}
-
-export function metadata(
-  config: WaggleConfig,
-  turnNumber: number,
-  agentIndex: number,
-): WaggleStreamMetadata {
-  const agent = config.agents[agentIndex]
-  return {
-    agentIndex,
-    agentLabel: agent.label,
-    agentColor: agent.color,
-    agentModel: SupportedModelId(agent.model),
-    turnNumber,
-    collaborationMode: config.mode,
-    sessionId: 'waggle-run-1',
   }
 }

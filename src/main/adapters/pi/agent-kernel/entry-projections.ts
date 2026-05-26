@@ -22,8 +22,6 @@ type PiCompactionSummaryMessage = Extract<PiMessageEntry['message'], { role: 'co
 type PiBashExecutionMessage = Extract<PiMessageEntry['message'], { role: 'bashExecution' }>
 type PiCustomMessage = Extract<PiMessageEntry['message'], { role: 'custom' }>
 
-const LEGACY_WAGGLE_VISIBLE_USER_CUSTOM_TYPE = 'openwaggle.waggle.user_request'
-
 export interface PiEntryProjection {
   readonly kind: ProjectedSessionNodeInput['kind']
   readonly role: MessageRole | null
@@ -248,11 +246,7 @@ function hiddenOrCustomMessageProjection(
 function customMessageProjection(
   entry: Extract<SessionEntry, { type: 'custom_message' }>,
 ): PiEntryProjection {
-  if (
-    (entry.customType === PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE ||
-      entry.customType === LEGACY_WAGGLE_VISIBLE_USER_CUSTOM_TYPE) &&
-    entry.display
-  ) {
+  if (entry.customType === PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE && entry.display) {
     return visibleWaggleUserMessageProjection(entry)
   }
 

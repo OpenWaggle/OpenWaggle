@@ -8,12 +8,9 @@ import {
   safeDecodeUnknown,
 } from '@shared/schema'
 import { projectSettingsFileSchema } from '@shared/schemas/validation'
-import { wagglePresetSchema } from '@shared/schemas/waggle'
-import { WagglePresetId } from '@shared/types/brand'
 import type { JsonObject } from '@shared/types/json'
 import type { ThinkingLevel } from '@shared/types/settings'
-import { createWaggleModelBinding, type WagglePreset } from '@shared/types/waggle'
-import { formatErrorMessage, isEnoent } from '@shared/utils/node-error'
+import { isEnoent } from '@shared/utils/node-error'
 import { createLogger } from '../logger'
 
 const JSON_INDENT_SPACES = 2
@@ -30,24 +27,11 @@ export interface ProjectPreferences {
 
 export interface ProjectConfig {
   readonly preferences?: ProjectPreferences
-  readonly wagglePresets?: readonly WagglePreset[]
   readonly pi?: JsonObject
 }
 
 const EMPTY_CONFIG: ProjectConfig = {}
 type ParsedProjectSettingsFile = SchemaType<typeof projectSettingsFileSchema>
-
-interface ConfigCacheEntry {
-  readonly config: ProjectConfig
-  readonly settingsMtime: number | null
-}
-
-const configCache = new Map<string, ConfigCacheEntry>()
-
-/** Clear cached configs — useful for tests and after known config edits. */
-export function clearConfigCache(): void {
-  configCache.clear()
-}
 
 function getConfigDirectoryPath(projectPath: string) {
   return join(projectPath, OPENWAGGLE_CONFIG_DIR)
@@ -99,50 +83,15 @@ async function readValidatedProjectSettings(
   }
 }
 
-async function readConfigMtime(filePath: string) {
-  try {
-    const metadata = await stat(filePath)
-    return metadata.mtimeMs
-  } catch (error) {
-    if (isEnoent(error)) {
-      return null
-    }
-    throw error
-  }
-}
-
 export async function loadProjectConfig(projectPath: string): Promise<ProjectConfig> {
   const settingsPath = getProjectSettingsPath(projectPath)
-
-  let settingsMtime: number | null
-
-  try {
-    settingsMtime = await readConfigMtime(settingsPath)
-  } catch (error) {
-    logger.warn('Failed to stat project settings file', {
-      error: formatErrorMessage(error),
-    })
-    configCache.delete(projectPath)
-    return EMPTY_CONFIG
-  }
-
-  const cached = configCache.get(projectPath)
-  if (cached && cached.settingsMtime === settingsMtime) {
-    return cached.config
-  }
 
   const settings = await readValidatedProjectSettings(settingsPath, {
     strict: false,
     logLabel: '.openwaggle/settings.json',
   })
 
-  const mergedConfig = parseProjectConfig(settings)
-  configCache.set(projectPath, {
-    config: mergedConfig,
-    settingsMtime,
-  })
-
-  return mergedConfig
+  return parseProjectConfig(settings)
 }
 
 async function ensureSettingsFile(projectPath: string, configPath: string) {
@@ -197,7 +146,6 @@ export async function updateProjectConfig(
 ): Promise<ProjectConfig> {
   const configPath = await ensureProjectSettingsFile(projectPath)
   const next = await updateProjectSettingsFile(configPath, updater)
-  configCache.delete(projectPath)
   return parseProjectConfig(next)
 }
 
@@ -226,15 +174,13 @@ export async function setProjectPreferences(
 
 function parseProjectConfig(settings: ParsedProjectSettingsFile | null) {
   const preferences = parseProjectPreferences(settings)
-  const wagglePresets = parseWagglePresets(settings?.wagglePresets)
 
-  if (!preferences && wagglePresets.length === 0 && !settings?.pi) {
+  if (!preferences && !settings?.pi) {
     return EMPTY_CONFIG
   }
 
   return {
     ...(preferences ? { preferences } : {}),
-    ...(wagglePresets.length > 0 ? { wagglePresets } : {}),
     ...(settings?.pi ? { pi: settings.pi } : {}),
   }
 }
@@ -252,45 +198,4 @@ function parseProjectPreferences(
     ...(model ? { model } : {}),
     ...(thinkingLevel ? { thinkingLevel } : {}),
   }
-}
-
-function hydrateWagglePreset(raw: unknown): WagglePreset | null {
-  const decoded = safeDecodeUnknown(wagglePresetSchema, raw)
-  if (!decoded.success) {
-    return null
-  }
-
-  const preset = decoded.data
-  return {
-    ...preset,
-    id: WagglePresetId(preset.id),
-    config: {
-      ...preset.config,
-      agents: [
-        {
-          ...preset.config.agents[0],
-          model: createWaggleModelBinding(preset.config.agents[0].model),
-        },
-        {
-          ...preset.config.agents[1],
-          model: createWaggleModelBinding(preset.config.agents[1].model),
-        },
-      ],
-    },
-  }
-}
-
-function parseWagglePresets(rawPresets: readonly unknown[] | undefined): WagglePreset[] {
-  if (!rawPresets) {
-    return []
-  }
-
-  const presets: WagglePreset[] = []
-  for (const rawPreset of rawPresets) {
-    const preset = hydrateWagglePreset(rawPreset)
-    if (preset) {
-      presets.push(preset)
-    }
-  }
-  return presets
 }

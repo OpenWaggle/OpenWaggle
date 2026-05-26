@@ -1,9 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import {
-  BUILT_IN_WAGGLE_PRESETS,
-  normalizeWagglePresetId,
-  type WagglePreset,
-} from '@openwaggle/waggle-core'
+import { BUILT_IN_WAGGLE_PRESETS, type WagglePreset } from '@openwaggle/waggle-core'
 import {
   getPiWaggleProjectPresetsPath,
   getPiWaggleUserPresetsPath,
@@ -59,37 +55,29 @@ export async function loadPiWagglePresetLayers(cwd?: string): Promise<PiWagglePr
   }
 }
 
-function normalizePreset(preset: WagglePreset): WagglePreset {
-  const normalizedId = normalizeWagglePresetId(preset.id)
-  return normalizedId === preset.id ? preset : { ...preset, id: normalizedId }
-}
-
-function normalizedIdSet(ids: readonly string[]) {
-  return new Set(ids.map(normalizeWagglePresetId))
+function idSet(ids: readonly string[]) {
+  return new Set(ids)
 }
 
 export function mergePiWagglePresetLayers(
   layers: PiWagglePresetLayers,
 ): readonly PiWaggleResolvedPreset[] {
-  const hiddenBuiltIns = normalizedIdSet([
+  const hiddenBuiltIns = idSet([
     ...layers.userHiddenBuiltInPresetIds,
     ...layers.projectHiddenBuiltInPresetIds,
   ])
   const resolvedById = new Map<string, PiWaggleResolvedPreset>()
 
   for (const preset of layers.builtIns) {
-    const normalized = normalizePreset(preset)
-    if (!hiddenBuiltIns.has(normalized.id)) {
-      resolvedById.set(normalized.id, { preset: normalized, scope: 'built-in' })
+    if (!hiddenBuiltIns.has(preset.id)) {
+      resolvedById.set(preset.id, { preset, scope: 'built-in' })
     }
   }
   for (const preset of layers.userPresets) {
-    const normalized = normalizePreset(preset)
-    resolvedById.set(normalized.id, { preset: normalized, scope: 'user' })
+    resolvedById.set(preset.id, { preset, scope: 'user' })
   }
   for (const preset of layers.projectPresets) {
-    const normalized = normalizePreset(preset)
-    resolvedById.set(normalized.id, { preset: normalized, scope: 'project' })
+    resolvedById.set(preset.id, { preset, scope: 'project' })
   }
 
   return [...resolvedById.values()]
@@ -110,15 +98,14 @@ export function resolvedPresetsForUi(layers: PiWagglePresetLayers) {
 
 export function hiddenBuiltInPresetsForUi(layers: PiWagglePresetLayers) {
   const hidden: PiWaggleHiddenBuiltInPreset[] = []
-  const projectHiddenIds = normalizedIdSet(layers.projectHiddenBuiltInPresetIds)
-  const userHiddenIds = normalizedIdSet(layers.userHiddenBuiltInPresetIds)
+  const projectHiddenIds = idSet(layers.projectHiddenBuiltInPresetIds)
+  const userHiddenIds = idSet(layers.userHiddenBuiltInPresetIds)
   for (const preset of layers.builtIns) {
-    const normalized = normalizePreset(preset)
-    if (projectHiddenIds.has(normalized.id)) {
-      hidden.push({ preset: normalized, scope: 'project' })
+    if (projectHiddenIds.has(preset.id)) {
+      hidden.push({ preset, scope: 'project' })
     }
-    if (userHiddenIds.has(normalized.id)) {
-      hidden.push({ preset: normalized, scope: 'user' })
+    if (userHiddenIds.has(preset.id)) {
+      hidden.push({ preset, scope: 'user' })
     }
   }
   return hidden.sort((left, right) => {

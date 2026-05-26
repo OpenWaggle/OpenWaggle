@@ -132,7 +132,7 @@ describe('waggle-core', () => {
     expect(next.currentTurn).toBeNull()
   })
 
-  it('ships built-in presets without the legacy builtin- prefix', () => {
+  it('ships built-in presets with Pi-native IDs', () => {
     expect(BUILT_IN_WAGGLE_PRESETS.map((preset) => preset.id)).toEqual([
       'code-review',
       'debate',

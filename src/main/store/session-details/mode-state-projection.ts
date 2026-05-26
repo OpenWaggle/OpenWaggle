@@ -2,7 +2,6 @@ import {
   PI_WAGGLE_MODE_STATE_CUSTOM_TYPE,
   parsePiWaggleModeState,
 } from '@openwaggle/pi-waggle/protocol'
-import { normalizeWagglePresetId } from '@openwaggle/waggle-core'
 import { isRecord } from '@shared/utils/validation'
 import type { ProjectedSessionNodeInput } from '../../ports/session-repository'
 import { hydrateWaggleConfig, parseJsonValue } from './json'
@@ -37,7 +36,7 @@ function modeStateFromNode(node: ProjectedSessionNodeInput) {
   const config = hydrateWaggleConfig(state.config)
   return {
     enabled: state.enabled,
-    ...(state.presetId ? { presetId: normalizeWagglePresetId(state.presetId) } : {}),
+    ...(state.presetId ? { presetId: state.presetId } : {}),
     ...(config ? { config } : {}),
   }
 }

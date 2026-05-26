@@ -5,21 +5,6 @@ const UPDATED_AT_BUILT_IN = 0
 const DEFAULT_MAX_TURNS_SAFETY = 8
 const DEBATE_MAX_TURNS_SAFETY = 10
 
-const LEGACY_BUILT_IN_PRESET_ID_ALIASES = new Map<string, string>([
-  ['builtin-code-review', 'code-review'],
-  ['builtin-debate', 'debate'],
-  ['builtin-red-team', 'red-team'],
-])
-
-export function normalizeWagglePresetId(id: string) {
-  return LEGACY_BUILT_IN_PRESET_ID_ALIASES.get(id) ?? id
-}
-
-function withNormalizedPresetId(preset: WagglePreset): WagglePreset {
-  const normalizedId = normalizeWagglePresetId(preset.id)
-  return normalizedId === preset.id ? preset : { ...preset, id: normalizedId }
-}
-
 export const BUILT_IN_WAGGLE_PRESETS: readonly WagglePreset[] = [
   {
     id: 'code-review',
@@ -115,16 +100,13 @@ export function mergeWagglePresets(input: {
   const mergedById = new Map<string, WagglePreset>()
 
   for (const preset of input.builtIns ?? BUILT_IN_WAGGLE_PRESETS) {
-    const normalized = withNormalizedPresetId(preset)
-    mergedById.set(normalized.id, normalized)
+    mergedById.set(preset.id, preset)
   }
   for (const preset of input.globalPresets ?? []) {
-    const normalized = withNormalizedPresetId(preset)
-    mergedById.set(normalized.id, normalized)
+    mergedById.set(preset.id, preset)
   }
   for (const preset of input.projectPresets ?? []) {
-    const normalized = withNormalizedPresetId(preset)
-    mergedById.set(normalized.id, normalized)
+    mergedById.set(preset.id, preset)
   }
 
   return [...mergedById.values()]

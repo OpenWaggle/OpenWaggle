@@ -31,23 +31,23 @@ function preset(id: string, name: string): WagglePreset {
   }
 }
 
-describe('Pi Waggle preset compatibility', () => {
-  it('applies legacy built-in hidden IDs to current built-in IDs', () => {
+describe('Pi Waggle preset merging', () => {
+  it('hides built-in presets by exact Pi preset ID', () => {
     const resolved = mergePiWagglePresetLayers({
       builtIns: [preset('code-review', 'Code Review')],
       userPresets: [],
       projectPresets: [],
-      userHiddenBuiltInPresetIds: ['builtin-code-review'],
+      userHiddenBuiltInPresetIds: ['code-review'],
       projectHiddenBuiltInPresetIds: [],
     })
 
     expect(resolved).toEqual([])
   })
 
-  it('normalizes legacy override IDs before merging layers', () => {
+  it('keeps unrelated IDs distinct when merging layers', () => {
     const resolved = mergePiWagglePresetLayers({
       builtIns: [preset('code-review', 'Code Review')],
-      userPresets: [preset('builtin-code-review', 'Legacy Override')],
+      userPresets: [preset('custom-code-review', 'Custom Override')],
       projectPresets: [],
       userHiddenBuiltInPresetIds: [],
       projectHiddenBuiltInPresetIds: [],
@@ -55,8 +55,12 @@ describe('Pi Waggle preset compatibility', () => {
 
     expect(resolved).toEqual([
       expect.objectContaining({
+        scope: 'built-in',
+        preset: expect.objectContaining({ id: 'code-review', name: 'Code Review' }),
+      }),
+      expect.objectContaining({
         scope: 'user',
-        preset: expect.objectContaining({ id: 'code-review', name: 'Legacy Override' }),
+        preset: expect.objectContaining({ id: 'custom-code-review', name: 'Custom Override' }),
       }),
     ])
   })

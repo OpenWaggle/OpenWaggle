@@ -80,41 +80,6 @@ function modelFor(modelReference: string): PiWaggleModel {
   })
 }
 
-export function presetEditorJson(input: {
-  readonly name: string
-  readonly maxTurnsSafety?: number
-}) {
-  return JSON.stringify(
-    {
-      name: input.name,
-      description: `${input.name} description`,
-      config: {
-        mode: 'sequential',
-        agents: [
-          {
-            label: 'Architect',
-            model: PRIMARY_MODEL,
-            roleDescription: 'Plans the implementation',
-            color: 'blue',
-          },
-          {
-            label: 'Reviewer',
-            model: PRIMARY_MODEL,
-            roleDescription: 'Reviews the implementation',
-            color: 'amber',
-          },
-        ],
-        stop: {
-          primary: 'consensus',
-          maxTurnsSafety: input.maxTurnsSafety ?? MAX_TURNS_SAFETY,
-        },
-      },
-    },
-    null,
-    JSON_INDENT_SPACES,
-  )
-}
-
 export function configEditorJson(maxTurnsSafety: number) {
   return JSON.stringify(
     {
