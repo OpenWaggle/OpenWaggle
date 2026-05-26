@@ -6,19 +6,30 @@ import type {
   WaggleMessageMetadata,
 } from '@shared/types/waggle'
 
+export const ARCHITECT_MODEL = SupportedModelId('claude-sonnet-4-20250514')
+export const REVIEWER_MODEL = SupportedModelId('gpt-4o')
+
+export function itemAt<TItem>(items: readonly TItem[], index: number): TItem {
+  const item = items[index]
+  if (!item) {
+    throw new Error(`Expected item at index ${String(index)}`)
+  }
+  return item
+}
+
 export function makeConfig() {
   return {
     mode: 'sequential',
     agents: [
       {
         label: 'Architect',
-        model: SupportedModelId('claude-sonnet-4-20250514'),
+        model: ARCHITECT_MODEL,
         roleDescription: 'System designer',
         color: 'blue',
       },
       {
         label: 'Reviewer',
-        model: SupportedModelId('gpt-4o'),
+        model: REVIEWER_MODEL,
         roleDescription: 'Code reviewer',
         color: 'amber',
       },

@@ -36,7 +36,7 @@ export function useWaggleChat(sessionId: SessionId | null): void {
             agentColor: payload.meta.agentColor,
             agentModel: payload.meta.agentModel,
             turnNumber: payload.meta.turnNumber,
-            sessionId: payload.meta.sessionId,
+            ...(payload.meta.sessionId ? { sessionId: payload.meta.sessionId } : {}),
           })
         }
       }

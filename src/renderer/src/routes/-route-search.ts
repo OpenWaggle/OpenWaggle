@@ -27,10 +27,13 @@ function parseRightPanel(value: unknown) {
 }
 
 export function parseChatRouteSearch(search: Record<string, unknown>): ChatRouteSearch {
+  const branch = parseSearchString(search.branch)
+  const node = parseSearchString(search.node)
   const panel = parseRightPanel(search.panel)
+
   return {
-    branch: parseSearchString(search.branch),
-    node: parseSearchString(search.node),
+    ...(branch ? { branch } : {}),
+    ...(node ? { node } : {}),
     ...(search.diff === 1 || search.diff === '1' ? { diff: 1 } : {}),
     ...(panel ? { panel } : {}),
   }

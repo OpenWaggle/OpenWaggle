@@ -10,7 +10,7 @@ vi.mock('@/shared/lib/logger', () => ({
   createRendererLogger: () => loggerMock,
 }))
 
-function ThrowingChild() {
+function ThrowingChild(): never {
   throw new Error('Renderer exploded')
 }
 

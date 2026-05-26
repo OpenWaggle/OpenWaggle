@@ -6,6 +6,7 @@ import {
   FIRST_ROW_INDEX,
   LINEAR_TREE,
   node,
+  nodeAt,
   rowDepths,
   rowIds,
   SECOND_ROW_INDEX,
@@ -76,7 +77,11 @@ describe('getVisibleSessionTreeRows', () => {
     ]
     const rows = visibleRows({
       nodes: hiddenParentTree,
-      filteredNodes: [hiddenParentTree[0], hiddenParentTree[2], hiddenParentTree[3]],
+      filteredNodes: [
+        nodeAt(hiddenParentTree, 0),
+        nodeAt(hiddenParentTree, 2),
+        nodeAt(hiddenParentTree, 3),
+      ],
       expandedNodeIds: ['root', 'hidden-tool'],
     })
 
@@ -88,7 +93,7 @@ describe('getVisibleSessionTreeRows', () => {
   it('does not mark a node as expandable when all descendants are filtered out', () => {
     const filteredRows = visibleRows({
       nodes: TREE,
-      filteredNodes: [TREE[0], TREE[4]],
+      filteredNodes: [nodeAt(TREE, 0), nodeAt(TREE, 4)],
       expandedNodeIds: ['root', 'child-a'],
     })
 

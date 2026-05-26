@@ -56,11 +56,14 @@ describe('session tree row labels and state', () => {
       },
     } satisfies SessionNode
 
+    const branchSummaryNode = {
+      ...node({ id: 'branch-summary-node', depth: 1, order: 3 }),
+      kind: 'branch_summary',
+    } satisfies SessionNode
+
     expect(sessionTreeNodeLabel(messageNode)).toBe('hello world')
     expect(sessionTreeNodeRoleLabel(messageNode)).toBe('User')
-    expect(
-      sessionTreeNodeLabel({ ...messageNode, message: undefined, kind: 'branch_summary' }),
-    ).toBe('branch summary')
+    expect(sessionTreeNodeLabel(branchSummaryNode)).toBe('branch summary')
   })
 
   it('derives row highlight state from active path, active branch head, draft branch, and archived branches', () => {

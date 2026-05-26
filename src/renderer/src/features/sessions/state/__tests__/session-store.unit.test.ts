@@ -70,11 +70,16 @@ function makeTree(id: string): SessionTree {
 
 function makeWorkspace(id: string): SessionWorkspace {
   const tree = makeTree(id)
+  const activeBranchState = tree.branchStates[0]
+  if (!activeBranchState) {
+    throw new Error('Expected test tree to include an active branch state')
+  }
+
   return {
     tree,
     activeBranchId: tree.branches[0]?.id ?? null,
     activeNodeId: null,
-    activeBranchState: tree.branchStates[0],
+    activeBranchState,
     transcriptPath: [],
   }
 }

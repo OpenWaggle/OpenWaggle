@@ -1,6 +1,10 @@
 import type { ProviderInfo } from '@shared/types/llm'
 import type { Settings } from '@shared/types/settings'
-import { WAGGLE_AGENT_COLORS, type WaggleAgentSlot } from '@shared/types/waggle'
+import {
+  isInheritedWaggleModelBinding,
+  WAGGLE_AGENT_COLORS,
+  type WaggleAgentSlot,
+} from '@shared/types/waggle'
 import { ModelSelector } from '@/features/providers/components'
 import { AGENT_BG, AGENT_BORDER } from '@/features/waggle/lib'
 import { cn } from '@/shared/lib/cn'
@@ -28,6 +32,10 @@ export function WaggleAgentSlotCard({
   settings,
   providerModels,
 }: WaggleAgentSlotCardProps) {
+  const selectedAgentModel = isInheritedWaggleModelBinding(agent.model)
+    ? settings.selectedModel
+    : agent.model
+
   return (
     <div className={cn('rounded-lg border bg-[#111418] p-5 space-y-4', AGENT_BORDER[agent.color])}>
       <div className="flex items-center gap-2">
@@ -49,7 +57,7 @@ export function WaggleAgentSlotCard({
       <div className="flex items-center justify-between h-[40px]">
         <span className="text-[13px] text-text-primary">Model</span>
         <ModelSelector
-          value={agent.model}
+          value={selectedAgentModel}
           onChange={(model) => dispatchForm({ type: 'set-agent-model', index, model })}
           settings={settings}
           providerModels={providerModels}

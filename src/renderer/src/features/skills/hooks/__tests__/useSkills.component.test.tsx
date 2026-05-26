@@ -28,6 +28,14 @@ function createCatalog(skills: SkillCatalogResult['skills']) {
   }
 }
 
+function skillAt(catalog: SkillCatalogResult, index: number) {
+  const skill = catalog.skills[index]
+  if (!skill) {
+    throw new Error(`Expected skill at index ${String(index)}`)
+  }
+  return skill
+}
+
 describe('useSkills', () => {
   beforeEach(() => {
     getSkillPreviewMock.mockReset()
@@ -192,7 +200,7 @@ describe('useSkills', () => {
         loadStatus: 'ok',
       },
     ])
-    const refreshedCatalog = createCatalog([initialCatalog.skills[0]])
+    const refreshedCatalog = createCatalog([skillAt(initialCatalog, 0)])
 
     getStandardsStatusMock.mockResolvedValue({
       agents: 'found',

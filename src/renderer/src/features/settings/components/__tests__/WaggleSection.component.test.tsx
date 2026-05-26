@@ -65,6 +65,14 @@ vi.mock('@/features/providers/components', async () => {
 
 import { WaggleSection } from '../sections/WaggleSection'
 
+function elementAt<TElement extends Element>(elements: readonly TElement[], index: number) {
+  const element = elements[index]
+  if (!element) {
+    throw new Error(`Expected element at index ${String(index)}`)
+  }
+  return element
+}
+
 describe('WaggleSection', () => {
   beforeEach(() => {
     listWagglePresetsMock.mockReset()
@@ -198,7 +206,7 @@ describe('WaggleSection', () => {
     fireEvent.change(screen.getByDisplayValue('Agent B'), {
       target: { value: 'Skeptic' },
     })
-    fireEvent.change(screen.getAllByPlaceholderText(/describe this agent's role/i)[0], {
+    fireEvent.change(elementAt(screen.getAllByPlaceholderText(/describe this agent's role/i), 0), {
       target: { value: 'Frames trade-offs before implementation.' },
     })
 

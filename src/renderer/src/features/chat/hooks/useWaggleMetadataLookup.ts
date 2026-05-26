@@ -1,6 +1,10 @@
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SessionDetail } from '@shared/types/session'
-import type { WaggleConfig, WaggleMessageMetadata } from '@shared/types/waggle'
+import {
+  isInheritedWaggleModelBinding,
+  type WaggleConfig,
+  type WaggleMessageMetadata,
+} from '@shared/types/waggle'
 import { useWaggleStore } from '@/features/waggle/state'
 
 const EMPTY_WAGGLE_METADATA_LOOKUP: Readonly<Record<string, WaggleMessageMetadata>> = Object.freeze(
@@ -51,7 +55,7 @@ function getCurrentAgentMetadata(params: LiveMetadataResolutionParams) {
     agentIndex: params.currentAgentIndex,
     agentLabel: params.currentAgentLabel,
     agentColor: agent.color,
-    agentModel: agent.model,
+    ...(!isInheritedWaggleModelBinding(agent.model) ? { agentModel: agent.model } : {}),
     turnNumber: params.completedTurnMeta.length,
   }
 }

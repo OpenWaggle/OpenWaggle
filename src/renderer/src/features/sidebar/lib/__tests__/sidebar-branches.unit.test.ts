@@ -17,8 +17,7 @@ function branch(input: {
     headNodeId: SessionNodeId(`${input.id}:head`),
     name: input.name,
     isMain: input.isMain ?? false,
-    archived: input.archived ? true : undefined,
-    archivedAt: input.archived ? 10 : null,
+    ...(input.archived ? { archived: true, archivedAt: 10 } : { archivedAt: null }),
     createdAt: 1,
     updatedAt: 2,
   }
