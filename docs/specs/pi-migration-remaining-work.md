@@ -26,7 +26,7 @@ Implementation must stay faithful to:
   - OpenWaggle owns typed IPC, renderer UI state, and SQLite product projection.
   - Product state must be an explicit projection over real Pi sessions/nodes/branches.
 - `docs/hexagonal-architecture.md`
-  - Pi SDK imports stay confined to `src/main/adapters/pi/`.
+  - OpenWaggle desktop app Pi SDK imports stay confined to `src/main/adapters/pi/`; dedicated Pi packages may import Pi SDKs inside `packages/pi-*`.
   - IPC/application code depends on OpenWaggle-owned ports and DTOs.
   - Persistence changes go through ports/adapters instead of direct IPC-to-store imports.
 - `MEMORY.md`

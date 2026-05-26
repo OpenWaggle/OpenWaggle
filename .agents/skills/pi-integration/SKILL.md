@@ -9,7 +9,8 @@ Keep OpenWaggle a product/UI layer over Pi. Pi semantics are the runtime source 
 
 ## Boundaries
 
-- Pi SDK imports stay under `src/main/adapters/pi/`.
+- OpenWaggle app Pi SDK imports stay under `src/main/adapters/pi/`; dedicated Pi packages may import Pi SDKs inside `packages/pi-*`.
+- `packages/waggle-core` stays Pi-free; `packages/pi-waggle` is the Pi adapter for portable Waggle policy.
 - Application and IPC layers use OpenWaggle-owned ports and DTOs.
 - Renderer state uses OpenWaggle UI/read models, not Pi SDK types.
 - Future runtime capabilities should enter as Pi-native extensions behind ports, not as a parallel OpenWaggle tool runtime.

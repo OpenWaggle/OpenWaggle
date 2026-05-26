@@ -50,7 +50,7 @@ MCP config precedence is documented in `docs/configuration.md`.
 
 ### Waggle Mode
 
-Waggle is collaborative multi-agent behavior over the same Pi-backed session projection as standard mode. Agent attribution belongs in message metadata and transport metadata, not synthetic transcript tool calls.
+Waggle is collaborative multi-agent behavior over the same Pi-backed session projection as standard mode. The target package split is portable `@openwaggle/waggle-core` plus Pi adapter `@openwaggle/pi-waggle` (ADR-0004). Agent attribution belongs in message metadata and transport metadata projected from Pi session truth, not synthetic transcript tool calls.
 
 Primary references:
 
@@ -71,6 +71,8 @@ Load `.agents/skills/release/SKILL.md` for versioning, release workflow, update-
 - **Session Tree**: Product navigation over projected Pi session nodes and branches.
 - **Branch-scoped config**: Composer and mode configuration attached to a branch, inherited by child branches unless overridden.
 - **Waggle**: Multi-agent collaboration mode running through Pi-native extension/runtime behavior.
+- **Inherited Waggle model**: A Waggle agent model choice that follows the current standard-mode selected model unless the agent is explicitly pinned to a provider/model.
+- **Waggle preset suppression**: User or project configuration that hides a package-provided preset from resolved Waggle preset lists without modifying the installed package.
 - **Project resource roots**: `.openwaggle`, `.pi`, and `.agents` resource folders injected into Pi with OpenWaggle precedence.
 - **Agent skills**: Reusable agent instructions under `.agents/skills/` or project-local `.openwaggle/skills/`.
 

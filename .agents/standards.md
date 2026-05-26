@@ -27,7 +27,7 @@ Main process code follows hexagonal architecture.
 
 - Domain: pure business logic. No Electron, Node fs/process, SQL, Pi SDK, or store imports.
 - Ports: Effect service interfaces. No vendor SDKs or stores.
-- Adapters: infrastructure and vendor code. Pi SDK imports stay under `src/main/adapters/pi/`.
+- Adapters: infrastructure and vendor code. OpenWaggle app Pi SDK imports stay under `src/main/adapters/pi/`; dedicated Pi packages may import Pi SDKs inside `packages/pi-*`.
 - Application services: orchestration through ports. No direct stores, IPC, or Pi SDK imports.
 - IPC handlers: transport only. Decode input, call application services, return DTOs.
 - Stores: persistence implementation details behind ports/services.
@@ -46,6 +46,7 @@ OpenWaggle is a UI and product shell over Pi, not a parallel runtime.
 - Do not add custom OpenWaggle tool/runtime layers unless implemented as explicit Pi-native extensions behind ports.
 - Project resources follow `.openwaggle > .pi > .agents` precedence for skills, extensions, prompts, and themes.
 - OpenWaggle project config is `.openwaggle/settings.json`; Pi settings live under the nested `pi` key.
+- Portable Waggle policy belongs in `packages/waggle-core` without Pi/OpenWaggle/Electron imports; Pi-specific Waggle behavior belongs in `packages/pi-waggle`.
 
 Load `.agents/skills/pi-integration/SKILL.md` before Pi adapter, session projection, provider/auth/model, resource loading, MCP adapter, or run orchestration work.
 

@@ -8,7 +8,7 @@ The main-process rulebook lives in `docs/hexagonal-architecture.md`. This ADR re
 
 ## Consequences
 
-- Pi SDK imports are allowed only inside `src/main/adapters/pi/`.
+- Pi SDK imports in the OpenWaggle desktop app are allowed only inside `src/main/adapters/pi/`; ADR-0004 clarifies the exception for dedicated Pi packages under `packages/pi-*`.
 - IPC handlers should stay transport-oriented and delegate business logic.
 - Application services consume ports instead of stores or vendor SDKs directly.
 - Architecture boundaries are enforced by ESLint through `pnpm lint` and `pnpm check`.

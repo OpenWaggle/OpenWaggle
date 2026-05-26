@@ -46,7 +46,7 @@ Known current gap: `StandardsService` is registered in the runtime but is not co
 
 ### Adapters (`src/main/adapters/`)
 
-`Layer` implementations that satisfy port contracts. The ONLY place vendor SDKs are imported.
+`Layer` implementations that satisfy port contracts. This is the ONLY place the OpenWaggle desktop app imports vendor SDKs.
 
 **Current adapters:**
 - `pi/pi-agent-kernel-adapter.ts` — Implements AgentKernelService via Pi SDK
@@ -62,6 +62,7 @@ Known current gap: `StandardsService` is registered in the runtime but is not co
 
 **Rules:**
 - MAY import vendor SDKs only in the adapter slice that owns that vendor
+- MAY consume dedicated Pi packages such as `@openwaggle/pi-waggle`; those packages may import Pi SDKs internally, but `@openwaggle/waggle-core` must stay Pi-free
 - MUST implement a port from `src/main/ports/`
 - MUST NOT be imported by domain or agent core
 - MUST use runtime type guards (not casts) at type boundaries
@@ -144,7 +145,7 @@ IPC handlers run via `typedHandle` → `runAppEffectExit` → resolves all layer
 ## CI Enforcement
 
 ESLint enforces the main-process architecture boundary rules on every PR:
-1. No Pi SDK imports outside `src/main/adapters/pi/`
+1. No OpenWaggle desktop app Pi SDK imports outside `src/main/adapters/pi/`; dedicated package implementations under `packages/pi-*` are allowed to import Pi SDKs
 2. No direct store imports in `src/main/ipc/`
 3. No direct store imports in `src/main/application/`
 4. No IPC imports in `src/main/application/`

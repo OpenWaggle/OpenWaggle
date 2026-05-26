@@ -16,6 +16,7 @@ ADRs live in `docs/adr/`. They explain why major architectural decisions were ma
 - `docs/adr/0001-adopt-main-process-hexagonal-architecture.md`
 - `docs/adr/0002-migrate-runtime-to-pi.md`
 - `docs/adr/0003-adopt-feature-first-renderer-architecture.md`
+- `docs/adr/0004-split-portable-waggle-core-from-pi-adapter.md`
 
 ## Specs
 
