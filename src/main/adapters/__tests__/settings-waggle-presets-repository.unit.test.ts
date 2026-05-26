@@ -7,6 +7,7 @@ import * as Effect from 'effect/Effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({
+  homeDir: '',
   userDataDir: '',
 }))
 
@@ -16,7 +17,13 @@ vi.mock('electron', () => ({
   },
 }))
 
-import { clearConfigCache, loadProjectConfig } from '../../config/project-config'
+vi.mock('node:os', () => ({
+  default: { homedir: () => state.homeDir, tmpdir: () => '/tmp' },
+  homedir: () => state.homeDir,
+  tmpdir: () => '/tmp',
+}))
+
+import { clearConfigCache, updateProjectConfig } from '../../config/project-config'
 import {
   WagglePresetsRepository,
   type WagglePresetsRepositoryShape,
@@ -73,6 +80,7 @@ describe('SettingsWagglePresetsRepositoryLive', () => {
 
   beforeEach(async () => {
     tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'ow-waggle-presets-'))
+    state.homeDir = path.join(tmpRoot, 'home')
     state.userDataDir = path.join(tmpRoot, 'user-data')
     projectPath = path.join(tmpRoot, 'project')
     await fs.mkdir(projectPath, { recursive: true })
@@ -87,8 +95,98 @@ describe('SettingsWagglePresetsRepositoryLive', () => {
   it('lists built-in presets when no user or project presets exist', async () => {
     const presets = await runWithRepository((repository) => repository.list(projectPath))
 
-    expect(presets.map((preset) => preset.id)).toContain(WagglePresetId('builtin-code-review'))
+    expect(presets.map((preset) => preset.id)).toContain(WagglePresetId('code-review'))
     expect(presets.map((preset) => preset.name)).toContain('Code Review')
+  })
+
+  it('suppresses legacy hidden built-in preset IDs from Pi-compatible user state', async () => {
+    const userPresetPath = path.join(state.homeDir, '.pi', 'agent', 'waggle-presets.json')
+    await fs.mkdir(path.dirname(userPresetPath), { recursive: true })
+    await fs.writeFile(
+      userPresetPath,
+      `${JSON.stringify({ wagglePresets: [], hiddenBuiltInPresetIds: ['builtin-code-review'] })}\n`,
+      'utf-8',
+    )
+
+    const presets = await runWithRepository((repository) => repository.list(null))
+
+    expect(presets.map((preset) => preset.id)).not.toContain(WagglePresetId('code-review'))
+  })
+
+  it('suppresses hidden built-in presets from Pi-compatible user state', async () => {
+    const userPresetPath = path.join(state.homeDir, '.pi', 'agent', 'waggle-presets.json')
+    await fs.mkdir(path.dirname(userPresetPath), { recursive: true })
+    await fs.writeFile(
+      userPresetPath,
+      `${JSON.stringify({ wagglePresets: [], hiddenBuiltInPresetIds: ['code-review'] })}\n`,
+      'utf-8',
+    )
+
+    const presets = await runWithRepository((repository) => repository.list(null))
+
+    expect(presets.map((preset) => preset.id)).not.toContain(WagglePresetId('code-review'))
+  })
+
+  it('normalizes legacy custom override IDs to current built-in IDs', async () => {
+    const userPresetPath = path.join(state.homeDir, '.pi', 'agent', 'waggle-presets.json')
+    await fs.mkdir(path.dirname(userPresetPath), { recursive: true })
+    await fs.writeFile(
+      userPresetPath,
+      `${JSON.stringify({
+        wagglePresets: [createPreset({ id: 'builtin-code-review', name: 'Legacy Override' })],
+        hiddenBuiltInPresetIds: [],
+      })}\n`,
+      'utf-8',
+    )
+
+    const presets = await runWithRepository((repository) => repository.list(null))
+
+    expect(presets.find((preset) => preset.id === WagglePresetId('code-review'))?.name).toBe(
+      'Legacy Override',
+    )
+    expect(presets.map((preset) => preset.id)).not.toContain(WagglePresetId('builtin-code-review'))
+  })
+
+  it('preserves hidden built-in preset state when saving and deleting user presets', async () => {
+    const userPresetPath = path.join(state.homeDir, '.pi', 'agent', 'waggle-presets.json')
+    await fs.mkdir(path.dirname(userPresetPath), { recursive: true })
+    await fs.writeFile(
+      userPresetPath,
+      `${JSON.stringify({ wagglePresets: [], hiddenBuiltInPresetIds: ['code-review'] })}\n`,
+      'utf-8',
+    )
+    const globalPreset = createPreset({ id: 'custom-review', name: 'Global Review' })
+
+    await runWithRepository((repository) => repository.save(globalPreset))
+    await runWithRepository((repository) => repository.delete(globalPreset.id))
+
+    const raw = JSON.parse(await fs.readFile(userPresetPath, 'utf-8'))
+    expect(raw).toMatchObject({
+      wagglePresets: [],
+      hiddenBuiltInPresetIds: ['code-review'],
+    })
+  })
+
+  it('rejects invalid presets instead of writing disappearing preset state', async () => {
+    const userPresetPath = path.join(state.homeDir, '.pi', 'agent', 'waggle-presets.json')
+    const invalidPreset: WagglePreset = {
+      ...createPreset({ id: 'invalid-models', name: 'Invalid Models' }),
+      config: {
+        ...createPreset({ id: 'invalid-models', name: 'Invalid Models' }).config,
+        agents: [
+          {
+            ...createPreset({ id: 'invalid-models', name: 'Invalid Models' }).config.agents[0],
+            model: SupportedModelId(''),
+          },
+          createPreset({ id: 'invalid-models', name: 'Invalid Models' }).config.agents[1],
+        ],
+      },
+    }
+
+    await expect(runWithRepository((repository) => repository.save(invalidPreset))).rejects.toThrow(
+      'Invalid Waggle preset',
+    )
+    await expect(fs.readFile(userPresetPath, 'utf-8')).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
   it('persists global presets in user data when no project path is provided', async () => {
@@ -100,13 +198,15 @@ describe('SettingsWagglePresetsRepositoryLive', () => {
     expect(presets.find((preset) => preset.id === globalPreset.id)?.name).toBe('Global Review')
   })
 
-  it('persists project presets in .openwaggle/settings.json', async () => {
+  it('persists project presets in .pi/waggle-presets.json', async () => {
     const projectPreset = createPreset({ id: 'project-review', name: 'Project Review' })
 
     await runWithRepository((repository) => repository.save(projectPreset, projectPath))
 
-    const config = await loadProjectConfig(projectPath)
-    expect(config.wagglePresets?.map((preset) => preset.name)).toEqual(['Project Review'])
+    const raw = await fs.readFile(path.join(projectPath, '.pi', 'waggle-presets.json'), 'utf-8')
+    expect(JSON.parse(raw)).toMatchObject({
+      wagglePresets: [expect.objectContaining({ name: 'Project Review' })],
+    })
   })
 
   it('prefers project presets over global presets with the same id', async () => {
@@ -130,6 +230,20 @@ describe('SettingsWagglePresetsRepositoryLive', () => {
       'Global Review',
     )
     expect(projectPresets.filter((preset) => preset.id === projectPreset.id)).toHaveLength(1)
+  })
+
+  it('reads legacy project presets until the Pi-compatible project file exists', async () => {
+    const legacyPreset = createPreset({ id: 'legacy-review', name: 'Legacy Project Review' })
+    await updateProjectConfig(projectPath, (current) => ({
+      ...current,
+      wagglePresets: [legacyPreset],
+    }))
+
+    const presets = await runWithRepository((repository) => repository.list(projectPath))
+
+    expect(presets.find((preset) => preset.id === legacyPreset.id)?.name).toBe(
+      'Legacy Project Review',
+    )
   })
 
   it('deletes presets from the requested scope only', async () => {

@@ -9,10 +9,10 @@ import {
 } from '@shared/schema'
 import { projectSettingsFileSchema } from '@shared/schemas/validation'
 import { wagglePresetSchema } from '@shared/schemas/waggle'
-import { SupportedModelId, WagglePresetId } from '@shared/types/brand'
+import { WagglePresetId } from '@shared/types/brand'
 import type { JsonObject } from '@shared/types/json'
 import type { ThinkingLevel } from '@shared/types/settings'
-import type { WagglePreset } from '@shared/types/waggle'
+import { createWaggleModelBinding, type WagglePreset } from '@shared/types/waggle'
 import { formatErrorMessage, isEnoent } from '@shared/utils/node-error'
 import { createLogger } from '../logger'
 
@@ -269,11 +269,11 @@ function hydrateWagglePreset(raw: unknown): WagglePreset | null {
       agents: [
         {
           ...preset.config.agents[0],
-          model: SupportedModelId(preset.config.agents[0].model),
+          model: createWaggleModelBinding(preset.config.agents[0].model),
         },
         {
           ...preset.config.agents[1],
-          model: SupportedModelId(preset.config.agents[1].model),
+          model: createWaggleModelBinding(preset.config.agents[1].model),
         },
       ],
     },
