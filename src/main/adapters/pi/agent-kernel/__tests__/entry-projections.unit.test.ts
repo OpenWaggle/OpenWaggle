@@ -73,7 +73,7 @@ describe('Pi entry projection', () => {
     const projection = projectionForPiEntry({
       ...base('visible'),
       type: 'custom_message',
-      customType: 'openwaggle.waggle.user_request',
+      customType: 'pi-waggle.user-request',
       content: 'Coordinate these agents.',
       details: { turn: 1 },
       display: true,
@@ -83,6 +83,65 @@ describe('Pi entry projection', () => {
     expect(projection.role).toBe('user')
     expect(JSON.parse(projection.contentJson)).toMatchObject({
       parts: [{ type: 'text', text: 'Coordinate these agents.' }],
+    })
+  })
+
+  it('annotates assistant messages from preceding pi-waggle turn entries', () => {
+    const entries = [
+      {
+        ...base('turn'),
+        type: 'custom_message',
+        customType: 'pi-waggle.turn',
+        content: 'hidden coordination prompt',
+        display: true,
+        details: {
+          runId: 'waggle-run-1',
+          turnNumber: 1,
+          agentIndex: 1,
+          agentLabel: 'Reviewer',
+          agentModel: 'anthropic/claude-sonnet-4',
+          agentColor: 'amber',
+        },
+      },
+      {
+        ...base('assistant', 'turn'),
+        type: 'message',
+        message: {
+          role: 'assistant',
+          api: 'anthropic-messages',
+          provider: 'anthropic',
+          model: 'claude-sonnet-4',
+          content: [{ type: 'text', text: 'Reviewed.' }],
+          usage: {
+            input: 0,
+            output: 0,
+            cacheRead: 0,
+            cacheWrite: 0,
+            totalTokens: 0,
+            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+          },
+          stopReason: 'stop',
+          timestamp: 1,
+        },
+      },
+    ] satisfies SessionEntry[]
+
+    const snapshot = projectPiSessionSnapshot({
+      sessionManager: {
+        getEntries: () => entries,
+        getLeafId: () => 'assistant',
+      },
+    })
+
+    expect(JSON.parse(snapshot.nodes[1]?.metadataJson ?? '{}')).toMatchObject({
+      waggle: {
+        agentIndex: 1,
+        agentLabel: 'Reviewer',
+        agentColor: 'amber',
+        agentModel: 'anthropic/claude-sonnet-4',
+        turnNumber: 1,
+        sessionId: 'waggle-run-1',
+      },
     })
   })
 

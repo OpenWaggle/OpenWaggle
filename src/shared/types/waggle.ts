@@ -1,21 +1,43 @@
-import type { WagglePresetId } from './brand'
-import type { SupportedModelId } from './llm'
+import {
+  type WaggleAgentColor as CoreWaggleAgentColor,
+  type WaggleCollaborationMode as CoreWaggleCollaborationMode,
+  type WaggleStopCondition as CoreWaggleStopCondition,
+  WAGGLE_AGENT_COLORS,
+  WAGGLE_COLLABORATION_MODES,
+  WAGGLE_INHERIT_MODEL,
+  WAGGLE_STOP_CONDITIONS,
+} from '@openwaggle/waggle-core'
+import { SupportedModelId, type WagglePresetId } from './brand'
+import type { SupportedModelId as SupportedModelIdType } from './llm'
 
-export const WAGGLE_COLLABORATION_MODES = ['sequential'] as const
-export type WaggleCollaborationMode = (typeof WAGGLE_COLLABORATION_MODES)[number]
+export {
+  WAGGLE_AGENT_COLORS,
+  WAGGLE_COLLABORATION_MODES,
+  WAGGLE_INHERIT_MODEL,
+  WAGGLE_STOP_CONDITIONS,
+}
 
-export const WAGGLE_AGENT_COLORS = ['blue', 'amber', 'emerald', 'violet'] as const
-export type WaggleAgentColor = (typeof WAGGLE_AGENT_COLORS)[number]
+export type WaggleCollaborationMode = CoreWaggleCollaborationMode
+export type WaggleAgentColor = CoreWaggleAgentColor
+export type WaggleStopCondition = CoreWaggleStopCondition
+export type WaggleModelBinding = typeof WAGGLE_INHERIT_MODEL | SupportedModelIdType
+
+export function createWaggleModelBinding(model: string): WaggleModelBinding {
+  return model === WAGGLE_INHERIT_MODEL ? WAGGLE_INHERIT_MODEL : SupportedModelId(model)
+}
+
+export function isInheritedWaggleModelBinding(
+  model: WaggleModelBinding,
+): model is typeof WAGGLE_INHERIT_MODEL {
+  return model === WAGGLE_INHERIT_MODEL
+}
 
 export interface WaggleAgentSlot {
   readonly label: string
-  readonly model: SupportedModelId
+  readonly model: WaggleModelBinding
   readonly roleDescription: string
   readonly color: WaggleAgentColor
 }
-
-export const WAGGLE_STOP_CONDITIONS = ['consensus', 'user-stop'] as const
-export type WaggleStopCondition = (typeof WAGGLE_STOP_CONDITIONS)[number]
 
 export interface WaggleStopConfig {
   readonly primary: WaggleStopCondition

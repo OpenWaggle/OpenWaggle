@@ -1,10 +1,10 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { SessionEntry } from '@mariozechner/pi-coding-agent'
+import { PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE } from '@openwaggle/pi-waggle/protocol'
 import type { MessageRole } from '@shared/types/agent'
 import { createModelRef } from '@shared/types/llm'
 import type { ProjectedSessionNodeInput } from '../../../ports/session-repository'
 import { toJsonValue } from '../pi-message-mapper'
-import { WAGGLE_VISIBLE_USER_CUSTOM_TYPE } from './constants'
 import {
   buildMessageNodeContentJson,
   buildRawNodeContentJson,
@@ -21,6 +21,8 @@ type PiBranchSummaryMessage = Extract<PiMessageEntry['message'], { role: 'branch
 type PiCompactionSummaryMessage = Extract<PiMessageEntry['message'], { role: 'compactionSummary' }>
 type PiBashExecutionMessage = Extract<PiMessageEntry['message'], { role: 'bashExecution' }>
 type PiCustomMessage = Extract<PiMessageEntry['message'], { role: 'custom' }>
+
+const LEGACY_WAGGLE_VISIBLE_USER_CUSTOM_TYPE = 'openwaggle.waggle.user_request'
 
 export interface PiEntryProjection {
   readonly kind: ProjectedSessionNodeInput['kind']
@@ -246,7 +248,11 @@ function hiddenOrCustomMessageProjection(
 function customMessageProjection(
   entry: Extract<SessionEntry, { type: 'custom_message' }>,
 ): PiEntryProjection {
-  if (entry.customType === WAGGLE_VISIBLE_USER_CUSTOM_TYPE && entry.display) {
+  if (
+    (entry.customType === PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE ||
+      entry.customType === LEGACY_WAGGLE_VISIBLE_USER_CUSTOM_TYPE) &&
+    entry.display
+  ) {
     return visibleWaggleUserMessageProjection(entry)
   }
 

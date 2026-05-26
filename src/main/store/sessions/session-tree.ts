@@ -14,6 +14,7 @@ import {
   hydrateSessionSummary,
   hydrateUiState,
   interruptedRunsByBranchId,
+  visibleNodeIdForHead,
 } from './hydration'
 import type {
   SessionActiveRunRow,
@@ -38,7 +39,13 @@ export async function getSessionTree(sessionId: SessionId): Promise<SessionTree 
       return {
         session,
         nodes,
-        branches: buildTreeBranches(session, nodes, data.branchRows, interruptedRunByBranchId),
+        branches: buildTreeBranches(
+          session,
+          nodes,
+          data.nodeRows,
+          data.branchRows,
+          interruptedRunByBranchId,
+        ),
         branchStates: buildTreeBranchStates(session, data.branchStateRows),
         uiState: data.uiStateRows[EMPTY_INDEX]
           ? hydrateUiState(data.uiStateRows[EMPTY_INDEX])
@@ -165,11 +172,17 @@ function loadInterruptedActiveRunRows(sql: SqlClient.SqlClient, sessionId: Sessi
 function buildTreeBranches(
   session: ReturnType<typeof hydrateSessionSummary>,
   nodes: ReturnType<typeof buildSessionNodes>,
+  nodeRows: readonly SessionNodeRow[],
   branchRows: readonly SessionBranchRow[],
   interruptedRunByBranchId: ReturnType<typeof interruptedRunsByBranchId>,
 ) {
   return branchRows.length > 0
-    ? branchRows.map((row) => hydrateBranch(row, interruptedRunByBranchId))
+    ? branchRows.map((row) =>
+        hydrateBranch(
+          { ...row, head_node_id: visibleNodeIdForHead(row.head_node_id, nodeRows) },
+          interruptedRunByBranchId,
+        ),
+      )
     : fallbackBranches(session, nodes, interruptedRunByBranchId)
 }
 

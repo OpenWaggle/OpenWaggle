@@ -1,8 +1,7 @@
 import { parseJsonUnknown, Schema, type SchemaType, safeDecodeUnknown } from '@shared/schema'
 import { waggleConfigSchema } from '@shared/schemas/waggle'
-import { SupportedModelId } from '@shared/types/brand'
 import type { JsonValue } from '@shared/types/json'
-import type { WaggleConfig } from '@shared/types/waggle'
+import { createWaggleModelBinding, type WaggleConfig } from '@shared/types/waggle'
 
 export const sessionJsonValueSchema: Schema.Schema<JsonValue> = Schema.suspend(() =>
   Schema.Union(
@@ -51,11 +50,11 @@ export function hydrateWaggleConfig(raw: unknown): WaggleConfig | undefined {
     agents: [
       {
         ...parsed.data.agents[0],
-        model: SupportedModelId(parsed.data.agents[0].model),
+        model: createWaggleModelBinding(parsed.data.agents[0].model),
       },
       {
         ...parsed.data.agents[1],
-        model: SupportedModelId(parsed.data.agents[1].model),
+        model: createWaggleModelBinding(parsed.data.agents[1].model),
       },
     ],
   }

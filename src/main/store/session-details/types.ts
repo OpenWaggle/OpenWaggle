@@ -107,9 +107,16 @@ export interface BranchStateValue {
   readonly uiStateJson: string
 }
 
+export interface BranchModeStateValue {
+  readonly enabled: boolean
+  readonly presetId?: string
+  readonly config?: WaggleConfig
+}
+
 export interface BranchStateValueInput {
   readonly branch: DerivedSessionBranch
   readonly activeBranchId: string
+  readonly modeState: BranchModeStateValue | null
   readonly waggleConfig: WaggleConfig | undefined
   readonly existingState: SessionBranchStateRow | undefined
   readonly now: number

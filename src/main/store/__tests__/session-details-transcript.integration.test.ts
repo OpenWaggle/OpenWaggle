@@ -65,7 +65,7 @@ describe('session-details transcript projection', () => {
             model: null,
           }),
           metadataJson: JSON.stringify({
-            customType: 'openwaggle.waggle.user_request',
+            customType: 'pi-waggle.user-request',
             display: true,
           }),
           pathDepth: 0,
@@ -79,13 +79,13 @@ describe('session-details transcript projection', () => {
           role: null,
           timestampMs: 20,
           contentJson: JSON.stringify({
-            customType: 'openwaggle.waggle.turn',
+            customType: 'pi-waggle.turn',
             content: 'internal coordination prompt',
-            display: false,
+            display: true,
           }),
           metadataJson: JSON.stringify({
-            customType: 'openwaggle.waggle.turn',
-            display: false,
+            customType: 'pi-waggle.turn',
+            display: true,
           }),
           pathDepth: 1,
           createdOrder: 1,

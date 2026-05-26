@@ -11,6 +11,19 @@ function activeWaggleBranchState(input: BranchStateValueInput): BranchStateValue
   }
 }
 
+function modeStateBranchState(input: BranchStateValueInput): BranchStateValue {
+  return {
+    futureMode: input.modeState?.enabled ? WAGGLE_FUTURE_MODE : STANDARD_FUTURE_MODE,
+    wagglePresetId: input.modeState?.presetId ?? null,
+    waggleConfigJson:
+      input.modeState?.enabled && input.modeState.config
+        ? JSON.stringify(input.modeState.config)
+        : null,
+    lastActiveAt: lastActiveAt(input),
+    uiStateJson: input.existingState?.ui_state_json ?? DEFAULT_BRANCH_UI_STATE_JSON,
+  }
+}
+
 function lastActiveAt(input: BranchStateValueInput) {
   if (input.branch.id === input.activeBranchId) {
     return input.now
@@ -30,6 +43,10 @@ function existingBranchState(input: BranchStateValueInput): BranchStateValue {
 }
 
 export function getBranchStateValue(input: BranchStateValueInput): BranchStateValue {
+  if (input.modeState) {
+    return modeStateBranchState(input)
+  }
+
   if (input.branch.id === input.activeBranchId && input.waggleConfig) {
     return activeWaggleBranchState(input)
   }

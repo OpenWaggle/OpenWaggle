@@ -11,6 +11,7 @@ import {
   EXPANDED_NODE_IDS_UNTOUCHED,
   TREE_SIDEBAR_EXPANDED,
 } from './constants'
+import { latestModeStateForActiveNode, latestModeStateForBranch } from './mode-state-projection'
 import type {
   DerivedSessionBranch,
   SessionActiveRunRow,
@@ -168,12 +169,14 @@ function insertSnapshotBranchState(input: {
   readonly branch: DerivedSessionBranch
   readonly activeBranchId: string
   readonly branchStateById: ReadonlyMap<string, SessionBranchStateRow>
+  readonly nodeById: ReadonlyMap<string, ProjectedSessionNodeInput>
   readonly now: number
   readonly snapshot: PersistSessionSnapshotInput
 }) {
   const branchState = getBranchStateValue({
     branch: input.branch,
     activeBranchId: input.activeBranchId,
+    modeState: latestModeStateForBranch({ branch: input.branch, nodeById: input.nodeById }),
     waggleConfig: input.snapshot.waggleConfig,
     existingState: input.branchStateById.get(input.branch.id),
     now: input.now,
@@ -219,15 +222,41 @@ function upsertTreeUiState(
   `
 }
 
+function resolveSessionWaggleConfigJson(input: {
+  readonly inputConfig: PersistSessionSnapshotInput['waggleConfig']
+  readonly activeModeState: ReturnType<typeof latestModeStateForActiveNode>
+}) {
+  if (input.inputConfig) {
+    return { shouldUpdate: true, value: JSON.stringify(input.inputConfig) }
+  }
+  if (input.activeModeState?.enabled && input.activeModeState.config) {
+    return { shouldUpdate: true, value: JSON.stringify(input.activeModeState.config) }
+  }
+  if (input.activeModeState && !input.activeModeState.enabled) {
+    return { shouldUpdate: true, value: null }
+  }
+  return { shouldUpdate: false, value: null }
+}
+
 function updateSnapshotSessionMetadata(input: SnapshotProjectionInput) {
+  const nodeById = new Map(input.nodes.map((node) => [node.id, node]))
+  const activeModeState = latestModeStateForActiveNode({
+    activeNodeId: input.activeNodeId,
+    nodeById,
+  })
+  const nextWaggleConfigJson = resolveSessionWaggleConfigJson({
+    inputConfig: input.input.waggleConfig,
+    activeModeState,
+  })
+
   return input.sql`
     UPDATE sessions
     SET pi_session_id = ${input.input.piSessionId},
         pi_session_file = ${input.input.piSessionFile ?? null},
-        waggle_config_json = COALESCE(
-          ${input.input.waggleConfig ? JSON.stringify(input.input.waggleConfig) : null},
-          waggle_config_json
-        ),
+        waggle_config_json = CASE
+          WHEN ${nextWaggleConfigJson.shouldUpdate ? 1 : 0} = 1 THEN ${nextWaggleConfigJson.value}
+          ELSE waggle_config_json
+        END,
         updated_at = ${input.now},
         last_active_node_id = ${input.activeNodeId},
         last_active_branch_id = ${input.activeBranchId}
@@ -237,6 +266,7 @@ function updateSnapshotSessionMetadata(input: SnapshotProjectionInput) {
 
 export function replaceSnapshotProjection(input: SnapshotProjectionInput) {
   return Effect.gen(function* () {
+    const nodeById = new Map(input.nodes.map((node) => [node.id, node]))
     yield* deleteSnapshotProjection(input.sql, input.input.sessionId)
     for (const node of input.nodes) {
       yield* insertSnapshotNode({
@@ -258,6 +288,7 @@ export function replaceSnapshotProjection(input: SnapshotProjectionInput) {
         branch,
         activeBranchId: input.activeBranchId,
         branchStateById: input.branchStateById,
+        nodeById,
         now: input.now,
         snapshot: input.input,
       })

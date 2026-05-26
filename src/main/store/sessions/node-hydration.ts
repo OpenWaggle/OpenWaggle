@@ -1,3 +1,7 @@
+import {
+  PI_WAGGLE_MODE_STATE_CUSTOM_TYPE,
+  PI_WAGGLE_TURN_CUSTOM_TYPE,
+} from '@openwaggle/pi-waggle/protocol'
 import { SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
 import { isRecord } from '@shared/utils/validation'
 import {
@@ -13,14 +17,40 @@ export function buildSessionNodes(nodeRows: readonly SessionNodeRow[]) {
   const visibleDepthById = new Map<string, number>()
 
   return nodeRows
-    .filter((row) => !isHiddenCustomMessageRow(row))
+    .filter((row) => !isHiddenProjectionRow(row))
     .map((row) => hydrateSessionNode(row, visibleParentById, visibleDepthById))
+}
+
+export function visibleNodeIdForHead(
+  headNodeId: string | null,
+  nodeRows: readonly SessionNodeRow[],
+) {
+  if (!headNodeId) return null
+
+  const rowById = new Map(nodeRows.map((row) => [row.id, row]))
+  const headRow = rowById.get(headNodeId)
+  if (!headRow) return null
+  if (!isHiddenProjectionRow(headRow)) return headNodeId
+  return findVisibleParentId(headRow.parent_id, rowById)
+}
+
+function isHiddenProjectionRow(row: SessionNodeRow) {
+  return isHiddenCustomMessageRow(row) || isHiddenCustomStateRow(row)
 }
 
 function isHiddenCustomMessageRow(row: SessionNodeRow) {
   if (row.pi_entry_type !== CUSTOM_MESSAGE_ENTRY_TYPE) return false
   const metadata = parseJson(row.metadata_json, `node:${row.id}:metadata`)
-  return isRecord(metadata) && metadata.display === false
+  return (
+    isRecord(metadata) &&
+    (metadata.display === false || metadata.customType === PI_WAGGLE_TURN_CUSTOM_TYPE)
+  )
+}
+
+function isHiddenCustomStateRow(row: SessionNodeRow) {
+  if (row.pi_entry_type !== 'custom') return false
+  const content = parseJson(row.content_json, `node:${row.id}:content`)
+  return isRecord(content) && content.customType === PI_WAGGLE_MODE_STATE_CUSTOM_TYPE
 }
 
 function buildVisibleParentByRowId(rows: readonly SessionNodeRow[]) {
@@ -28,7 +58,7 @@ function buildVisibleParentByRowId(rows: readonly SessionNodeRow[]) {
   const visibleParentById = new Map<string, string | null>()
 
   for (const row of rows) {
-    if (!isHiddenCustomMessageRow(row)) {
+    if (!isHiddenProjectionRow(row)) {
       visibleParentById.set(row.id, findVisibleParentId(row.parent_id, rowById))
     }
   }
@@ -43,7 +73,7 @@ function findVisibleParentId(
   while (currentParentId) {
     const parent = rowById.get(currentParentId)
     if (!parent) return null
-    if (!isHiddenCustomMessageRow(parent)) return currentParentId
+    if (!isHiddenProjectionRow(parent)) return currentParentId
     currentParentId = parent.parent_id
   }
   return null
