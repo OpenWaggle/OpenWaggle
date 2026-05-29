@@ -222,6 +222,21 @@ describe('chat orchestration hooks', () => {
     expect(params.clearDraftBranchForSession).toHaveBeenCalledWith(SESSION_ID)
   })
 
+  it('does not swallow first-message Waggle sends before a session exists', async () => {
+    const config = waggleConfig()
+    const params = sendWorkflowParams({ activeSessionId: null, waggleConfig: config })
+    const { result } = renderHook(() => useChatSendWorkflow(params))
+
+    await act(() => result.current.sendWithWaggle(payload('Run the same prompt again')))
+
+    expect(params.handleSendWaggle).toHaveBeenCalledWith(
+      payload('Run the same prompt again'),
+      config,
+    )
+    expect(params.startWaggleCollaboration).not.toHaveBeenCalled()
+    expect(params.handleSend).not.toHaveBeenCalled()
+  })
+
   it('cancels both Waggle collaboration and the active run when collaboration is running', () => {
     const params = sendWorkflowParams({ waggleStatus: 'running' })
     const { result } = renderHook(() => useChatSendWorkflow(params))
