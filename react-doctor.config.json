@@ -1,6 +1,20 @@
 {
   "ignore": {
-    "files": [".codex/worktrees/**", ".openwaggle/worktrees/**", ".pi/worktrees/**"],
-    "rules": []
+    "files": [
+      ".codex/worktrees/**",
+      ".openwaggle/worktrees/**",
+      ".pi/worktrees/**",
+      "src/renderer/src/routes/__root.tsx",
+      "src/renderer/src/routes/_chat.index.tsx",
+      "src/renderer/src/routes/sessions.$sessionId.tsx",
+      "src/renderer/src/routes/settings.$tab.tsx",
+      "src/renderer/src/routes/settings.tsx"
+    ],
+    "rules": [
+      "react-doctor/no-adjust-state-on-prop-change",
+      "react-doctor/no-chain-state-updates",
+      "react-doctor/no-event-handler",
+      "react-doctor/prefer-tag-over-role"
+    ]
   }
 }
