@@ -12,12 +12,8 @@ import {
   useUnarchiveSessionMutation,
 } from '@/queries/archived-sessions'
 import { api } from '@/shared/lib/ipc'
-import {
-  ArchivedEmptyState,
-  ArchivedErrorAlert,
-  ArchivedSectionContent,
-  groupArchivedBranchesByProject,
-} from './ArchivedGroups'
+import { ArchivedEmptyState, ArchivedErrorAlert, ArchivedSectionContent } from './ArchivedGroups'
+import { groupArchivedBranchesByProject } from './archived-branch-groups'
 
 function describeArchivedError(error: unknown, fallback: string) {
   return error instanceof Error && error.message.trim() ? error.message : fallback
