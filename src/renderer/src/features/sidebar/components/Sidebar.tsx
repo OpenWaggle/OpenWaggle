@@ -12,6 +12,7 @@ import { SidebarProjectList } from './SidebarProjectList'
 
 export function Sidebar() {
   const controller = useSidebarController()
+  const markUnread = useSessionStatusStore((state) => state.markUnread)
   const sidebarHidden = !controller.sidebarOpen || controller.activeView === 'settings'
   const renderState = {
     activeBranchId: controller.activeBranchId,
@@ -37,7 +38,7 @@ export function Sidebar() {
     delete: controller.handleDeleteSession,
     archive: controller.handleArchiveSession,
     clone: controller.handleCloneSession,
-    markUnread: useSessionStatusStore.getState().markUnread,
+    markUnread,
   }
   const branchActions = {
     select: controller.handleSelectBranch,
