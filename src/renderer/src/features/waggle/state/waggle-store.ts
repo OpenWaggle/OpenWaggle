@@ -1,12 +1,13 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { SessionId } from '@shared/types/brand'
-import type {
-  WaggleCollaborationStatus,
-  WaggleConfig,
-  WaggleConsensusCheckResult,
-  WaggleFileConflictWarning,
-  WaggleMessageMetadata,
-  WaggleTurnEvent,
+import {
+  isInheritedWaggleModelBinding,
+  type WaggleCollaborationStatus,
+  type WaggleConfig,
+  type WaggleConsensusCheckResult,
+  type WaggleFileConflictWarning,
+  type WaggleMessageMetadata,
+  type WaggleTurnEvent,
 } from '@shared/types/waggle'
 import { create } from 'zustand'
 
@@ -85,7 +86,9 @@ export const useWaggleStore = create<WaggleState>((set) => ({
         agentIndex: 0,
         agentLabel: firstAgent.label,
         agentColor: firstAgent.color,
-        agentModel: firstAgent.model,
+        ...(!isInheritedWaggleModelBinding(firstAgent.model)
+          ? { agentModel: firstAgent.model }
+          : {}),
         turnNumber: 0,
       },
       completedTurnMeta: [],

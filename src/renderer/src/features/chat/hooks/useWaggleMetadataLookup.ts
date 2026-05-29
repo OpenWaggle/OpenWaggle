@@ -1,6 +1,10 @@
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SessionDetail } from '@shared/types/session'
-import type { WaggleConfig, WaggleMessageMetadata } from '@shared/types/waggle'
+import {
+  isInheritedWaggleModelBinding,
+  type WaggleConfig,
+  type WaggleMessageMetadata,
+} from '@shared/types/waggle'
 import { useWaggleStore } from '@/features/waggle/state'
 
 const EMPTY_WAGGLE_METADATA_LOOKUP: Readonly<Record<string, WaggleMessageMetadata>> = Object.freeze(
@@ -19,6 +23,7 @@ interface LiveMetadataResolutionParams {
   readonly config: WaggleConfig
   readonly currentAgentIndex: number
   readonly currentAgentLabel: string
+  readonly useRunningFallbacks: boolean
 }
 
 function getSessionConfig(
@@ -51,12 +56,12 @@ function getCurrentAgentMetadata(params: LiveMetadataResolutionParams) {
     agentIndex: params.currentAgentIndex,
     agentLabel: params.currentAgentLabel,
     agentColor: agent.color,
-    agentModel: agent.model,
+    ...(!isInheritedWaggleModelBinding(agent.model) ? { agentModel: agent.model } : {}),
     turnNumber: params.completedTurnMeta.length,
   }
 }
 
-function resolveLiveAssistantMetadata(params: LiveMetadataResolutionParams) {
+function resolveAssistantMetadata(params: LiveMetadataResolutionParams) {
   const liveMeta = params.liveMessageMetadata[params.message.id]
   if (liveMeta) {
     return liveMeta
@@ -65,6 +70,10 @@ function resolveLiveAssistantMetadata(params: LiveMetadataResolutionParams) {
   const persisted = params.persistedMeta.get(params.message.id)
   if (persisted) {
     return persisted
+  }
+
+  if (!params.useRunningFallbacks) {
+    return undefined
   }
 
   const completedMeta = params.completedTurnMeta[params.assistantIndex]
@@ -134,21 +143,20 @@ export function useWaggleMetadataLookup(
       continue
     }
 
-    const meta = isLive
-      ? resolveLiveAssistantMetadata({
-          message,
-          messageIndex,
-          assistantIndex,
-          lastUserMessageIndex,
-          persistedMeta,
-          liveMessageMetadata,
-          completedTurnMeta,
-          initialTurnMeta,
-          config,
-          currentAgentIndex,
-          currentAgentLabel,
-        })
-      : persistedMeta.get(message.id)
+    const meta = resolveAssistantMetadata({
+      message,
+      messageIndex,
+      assistantIndex,
+      lastUserMessageIndex,
+      persistedMeta,
+      liveMessageMetadata,
+      completedTurnMeta,
+      initialTurnMeta,
+      config,
+      currentAgentIndex,
+      currentAgentLabel,
+      useRunningFallbacks: isLive,
+    })
     if (meta) {
       lookup[message.id] = meta
     }

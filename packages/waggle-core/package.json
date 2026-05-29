@@ -1,0 +1,16 @@
+{
+  "name": "@openwaggle/waggle-core",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./config": "./src/config.ts",
+    "./consensus": "./src/consensus.ts",
+    "./events": "./src/events.ts",
+    "./presets": "./src/presets.ts",
+    "./prompts": "./src/prompts.ts",
+    "./state": "./src/state.ts",
+    "./turn-policy": "./src/turn-policy.ts"
+  }
+}

@@ -3,8 +3,9 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '@/shared/lib/ipc'
 import { useReviewStore } from '../../state/review-store'
-import { buildDisplayItems, DiffFileSection } from '../DiffFileSection'
+import { DiffFileSection } from '../DiffFileSection'
 import { DiffPanel } from '../DiffPanel'
+import { buildDisplayItems } from '../diff-display-items'
 import { FileTree } from '../FileTree'
 
 vi.mock('@/shared/lib/ipc', () => ({

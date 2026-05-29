@@ -74,20 +74,20 @@ async function handleSendCommand(params: ChatSendWorkflowParams, text: string) {
   return false
 }
 
-function waggleReadyForActiveSession(params: ChatSendWorkflowParams) {
-  return (
-    params.waggleConfig &&
-    params.waggleStatus === 'idle' &&
-    (!params.waggleOwningId || params.waggleOwningId === params.activeSessionId)
-  )
+function activeWaggleConfigForSend(params: ChatSendWorkflowParams): WaggleConfig | null {
+  if (!params.waggleConfig) return null
+  if (params.waggleStatus !== 'idle') return null
+  if (params.waggleOwningId && params.waggleOwningId !== params.activeSessionId) return null
+  return params.waggleConfig
 }
 
 async function sendThroughActiveMode(params: ChatSendWorkflowParams, payload: AgentSendPayload) {
-  if (waggleReadyForActiveSession(params)) {
-    if (params.activeSessionId && params.waggleConfig) {
-      params.startWaggleCollaboration(params.activeSessionId, params.waggleConfig)
-      await params.handleSendWaggle(payload, params.waggleConfig)
+  const waggleConfig = activeWaggleConfigForSend(params)
+  if (waggleConfig) {
+    if (params.activeSessionId) {
+      params.startWaggleCollaboration(params.activeSessionId, waggleConfig)
     }
+    await params.handleSendWaggle(payload, waggleConfig)
     return
   }
   await params.handleSend(payload)

@@ -1,16 +1,18 @@
 import { Search } from 'lucide-react'
-import type { RefObject } from 'react'
+import type { KeyboardEventHandler, RefObject } from 'react'
 import { TextInput } from '@/shared/ui/TextInput'
 
 interface CommandPaletteSearchProps {
   readonly inputRef: RefObject<HTMLInputElement | null>
   readonly query: string
+  readonly onKeyDown: KeyboardEventHandler<HTMLInputElement>
   readonly onQueryChange: (query: string) => void
 }
 
 export function CommandPaletteSearch({
   inputRef,
   query,
+  onKeyDown,
   onQueryChange,
 }: CommandPaletteSearchProps) {
   return (
@@ -20,6 +22,7 @@ export function CommandPaletteSearch({
         ref={inputRef}
         type="text"
         value={query}
+        onKeyDown={onKeyDown}
         onChange={(event) => onQueryChange(event.target.value)}
         placeholder="Search"
         variant="transparent"

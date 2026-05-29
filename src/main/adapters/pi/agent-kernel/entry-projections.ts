@@ -1,10 +1,10 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { SessionEntry } from '@mariozechner/pi-coding-agent'
+import { PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE } from '@openwaggle/pi-waggle/protocol'
 import type { MessageRole } from '@shared/types/agent'
 import { createModelRef } from '@shared/types/llm'
 import type { ProjectedSessionNodeInput } from '../../../ports/session-repository'
 import { toJsonValue } from '../pi-message-mapper'
-import { WAGGLE_VISIBLE_USER_CUSTOM_TYPE } from './constants'
 import {
   buildMessageNodeContentJson,
   buildRawNodeContentJson,
@@ -246,7 +246,7 @@ function hiddenOrCustomMessageProjection(
 function customMessageProjection(
   entry: Extract<SessionEntry, { type: 'custom_message' }>,
 ): PiEntryProjection {
-  if (entry.customType === WAGGLE_VISIBLE_USER_CUSTOM_TYPE && entry.display) {
+  if (entry.customType === PI_WAGGLE_USER_REQUEST_CUSTOM_TYPE && entry.display) {
     return visibleWaggleUserMessageProjection(entry)
   }
 

@@ -3,7 +3,7 @@ import type { AgentSendPayload } from '@shared/types/agent'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import { describe, expect, it } from 'vitest'
-import { createSessionListener } from '../pi-agent-kernel-adapter'
+import { createSessionListener } from '../agent-kernel/session-listener'
 import {
   buildPiRunAssistantMessages,
   buildPiRunNewMessages,
@@ -111,7 +111,7 @@ describe('buildPiRunAssistantMessages', () => {
     const appendedMessages = [
       {
         role: 'custom',
-        customType: 'openwaggle.waggle.turn',
+        customType: 'pi-waggle.turn',
         content: 'hidden coordination prompt',
         display: false,
       },

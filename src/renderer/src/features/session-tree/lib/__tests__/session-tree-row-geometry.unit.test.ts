@@ -10,6 +10,7 @@ import {
   ROW_BOTTOM_OVERLAP_Y,
   ROW_CENTER_Y,
   ROW_TOP_OVERLAP_Y,
+  rowAt,
   SECOND_BRANCH_DOT_X,
   SECOND_ROW_INDEX,
   THIRD_ROW_INDEX,
@@ -22,7 +23,7 @@ describe('getSessionTreeRowGeometry', () => {
       nodes: LINEAR_TREE,
       expandedNodeIds: ['linear-root', 'linear-child'],
     })
-    const childGeometry = getSessionTreeRowGeometry(rows[SECOND_ROW_INDEX])
+    const childGeometry = getSessionTreeRowGeometry(rowAt(rows, SECOND_ROW_INDEX))
 
     expect(childGeometry.parentCenterXPx).toBe(ROOT_DOT_X)
     expect(childGeometry.nodeCenterXPx).toBe(ROOT_DOT_X)
@@ -45,8 +46,8 @@ describe('getSessionTreeRowGeometry', () => {
       expandedNodeIds: ['branch-root', 'active-path', 'off-path'],
       activePathIds: ['branch-root', 'active-path', 'active-leaf'],
     })
-    const activeBranchGeometry = getSessionTreeRowGeometry(rows[SECOND_ROW_INDEX])
-    const activeLeafGeometry = getSessionTreeRowGeometry(rows[THIRD_ROW_INDEX])
+    const activeBranchGeometry = getSessionTreeRowGeometry(rowAt(rows, SECOND_ROW_INDEX))
+    const activeLeafGeometry = getSessionTreeRowGeometry(rowAt(rows, THIRD_ROW_INDEX))
 
     expect(activeBranchGeometry.parentCenterXPx).toBe(ROOT_DOT_X)
     expect(activeBranchGeometry.nodeCenterXPx).toBe(FIRST_BRANCH_DOT_X)
@@ -73,14 +74,14 @@ describe('getSessionTreeRowGeometry', () => {
       expandedNodeIds: ['branch-root', 'active-path', 'off-path'],
       activePathIds: ['branch-root', 'active-path', 'active-leaf'],
     })
-    const activeLeafGeometry = getSessionTreeRowGeometry(rows[THIRD_ROW_INDEX])
+    const activeLeafGeometry = getSessionTreeRowGeometry(rowAt(rows, THIRD_ROW_INDEX))
 
     expect(connectorLineXs(activeLeafGeometry.ancestorLines)).toEqual([ROOT_DOT_X])
   })
 
   it('does not emit a node-depth bottom stub for a branch leaf with a following sibling', () => {
     const rows = visibleRows({ nodes: BRANCH_LEAF_SIBLING_TREE, expandedNodeIds: ['branch-root'] })
-    const firstLeafGeometry = getSessionTreeRowGeometry(rows[SECOND_ROW_INDEX])
+    const firstLeafGeometry = getSessionTreeRowGeometry(rowAt(rows, SECOND_ROW_INDEX))
 
     expect(firstLeafGeometry.branchElbow?.targetCenterXPx).toBe(firstLeafGeometry.nodeCenterXPx)
     expect(firstLeafGeometry.nodeStemBottom).toBeNull()
@@ -93,7 +94,7 @@ describe('getSessionTreeRowGeometry', () => {
 
   it('does not emit a node-depth top stem for different-depth branch children', () => {
     const rows = visibleRows({ nodes: BRANCH_LEAF_SIBLING_TREE, expandedNodeIds: ['branch-root'] })
-    const firstLeafGeometry = getSessionTreeRowGeometry(rows[SECOND_ROW_INDEX])
+    const firstLeafGeometry = getSessionTreeRowGeometry(rowAt(rows, SECOND_ROW_INDEX))
 
     expect(firstLeafGeometry.parentCenterXPx).toBe(ROOT_DOT_X)
     expect(firstLeafGeometry.nodeCenterXPx).toBe(FIRST_BRANCH_DOT_X)

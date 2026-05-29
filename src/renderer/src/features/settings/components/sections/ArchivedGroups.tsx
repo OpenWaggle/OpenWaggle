@@ -6,25 +6,7 @@ import type { ProjectGroup } from '@/features/sidebar/lib'
 import { cn } from '@/shared/lib/cn'
 import { formatRelativeTime, projectName } from '@/shared/lib/format'
 import { Button } from '@/shared/ui/Button'
-
-export interface ArchivedBranchProjectGroup {
-  readonly path: string | null
-  readonly sessions: readonly SessionSummary[]
-}
-
-export function groupArchivedBranchesByProject(sessions: readonly SessionSummary[]) {
-  const groups = new Map<string, ArchivedBranchProjectGroup>()
-  for (const session of sessions) {
-    const key = session.projectPath ?? '__none__'
-    const group = groups.get(key)
-    if (group) {
-      groups.set(key, { ...group, sessions: [...group.sessions, session] })
-    } else {
-      groups.set(key, { path: session.projectPath, sessions: [session] })
-    }
-  }
-  return Array.from(groups.values())
-}
+import type { ArchivedBranchProjectGroup } from './archived-branch-groups'
 
 function archivedBranchCount(group: ArchivedBranchProjectGroup) {
   return group.sessions.reduce((count, session) => count + (session.branches?.length ?? 0), 0)

@@ -10,7 +10,7 @@ Layering follows the hexagonal model:
 
 - `src/main/domain/` contains pure business logic.
 - `src/main/ports/` defines Effect service ports such as `AgentKernelService`, `SessionRepository`, `SessionProjectionRepository`, `SessionTreePreferencesService`, `ProviderService`, `ProviderAuthService`, `ProviderOAuthService`, `ProviderProbeService`, `WagglePresetsRepository`, and `StandardsService`.
-- `src/main/adapters/` implements ports. Pi SDK imports are confined to `src/main/adapters/pi/`.
+- `src/main/adapters/` implements ports. OpenWaggle desktop app Pi SDK imports are confined to `src/main/adapters/pi/`; dedicated Pi packages under `packages/pi-*` may import Pi SDKs internally.
 - `src/main/application/` orchestrates runs through ports.
 - `src/main/ipc/` handles Electron IPC and emits transport events.
 - `src/main/store/` contains SQLite implementations behind adapters.
@@ -52,7 +52,7 @@ Waggle presets are resolved through `WagglePresetsRepository`. Built-in presets 
 
 ## Waggle
 
-Waggle uses the same session projection as standard mode. Agent turn attribution is stored in message metadata and streamed with Waggle transport metadata; it is not encoded as synthetic transcript tool calls.
+Waggle uses the same session projection as standard mode. The target architecture splits portable policy into `@openwaggle/waggle-core` and Pi-specific execution into `@openwaggle/pi-waggle`; see `docs/adr/0004-split-portable-waggle-core-from-pi-adapter.md`. Runtime mode state and turn attribution should come from Pi session entries/messages and be projected into OpenWaggle metadata, not encoded as synthetic transcript tool calls.
 
 ## Providers
 

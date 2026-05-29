@@ -94,7 +94,7 @@ export function makeErrorInfo(code: AgentErrorCode, message: string): AgentError
     code,
     message,
     userMessage: meta.userMessage,
-    suggestion: meta.suggestion,
+    ...(meta.suggestion ? { suggestion: meta.suggestion } : {}),
     retryable: meta.retryable,
   }
 }

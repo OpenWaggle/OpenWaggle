@@ -13,7 +13,7 @@ import type {
 interface ResizeRailProps {
   readonly actions: ResizeRailActions
   readonly bounds: ResizeRailBounds
-  readonly refs: ResizeRailRefs
+  readonly handles: ResizeRailRefs
   readonly state: ResizeRailStateInput
   readonly shouldAcceptWidth?: (context: WidthAcceptanceContext) => boolean
 }
@@ -21,11 +21,17 @@ interface ResizeRailProps {
 export function RightSidebarResizeRail({
   actions,
   bounds,
-  refs,
+  handles,
   state,
   shouldAcceptWidth,
 }: ResizeRailProps) {
-  const resize = useRightSidebarResizeRail({ actions, bounds, refs, state, shouldAcceptWidth })
+  const resize = useRightSidebarResizeRail({
+    actions,
+    bounds,
+    refs: handles,
+    state,
+    shouldAcceptWidth,
+  })
 
   return (
     <Button

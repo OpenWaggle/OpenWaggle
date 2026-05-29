@@ -16,7 +16,7 @@ interface SidebarBranchRowsProps {
 
 interface BranchRenameController {
   readonly branchId: string | null
-  readonly inputRef: React.RefObject<HTMLInputElement | null>
+  readonly inputElement: React.RefObject<HTMLInputElement | null>
   readonly value: string
   readonly cancel: () => void
   readonly save: (branch: SessionBranch) => void
@@ -40,25 +40,33 @@ function DraftBranchRow({ sourceNodeId }: { readonly sourceNodeId: string }) {
 
 function BranchRenameInput({
   branch,
-  rename,
+  cancelRename,
+  inputElement,
+  renameValue,
+  saveRename,
+  setRenameValue,
 }: {
   readonly branch: SessionBranch
-  readonly rename: BranchRenameController
+  readonly cancelRename: () => void
+  readonly inputElement: React.RefObject<HTMLInputElement | null>
+  readonly renameValue: string
+  readonly saveRename: (branch: SessionBranch) => void
+  readonly setRenameValue: (value: string) => void
 }) {
   return (
     <TextInput
-      ref={rename.inputRef}
-      value={rename.value}
-      onChange={(event) => rename.setValue(event.target.value)}
-      onBlur={() => rename.save(branch)}
+      ref={inputElement}
+      value={renameValue}
+      onChange={(event) => setRenameValue(event.target.value)}
+      onBlur={() => saveRename(branch)}
       onKeyDown={(event) => {
         if (event.key === 'Enter') {
           event.preventDefault()
-          rename.save(branch)
+          saveRename(branch)
         }
         if (event.key === 'Escape') {
           event.preventDefault()
-          rename.cancel()
+          cancelRename()
         }
       }}
       variant="transparent"
@@ -158,7 +166,14 @@ function SidebarBranchItem({
         <GitBranch className="size-3 shrink-0" />
       )}
       {isRenaming ? (
-        <BranchRenameInput branch={row.branch} rename={rename} />
+        <BranchRenameInput
+          branch={row.branch}
+          cancelRename={rename.cancel}
+          inputElement={rename.inputElement}
+          renameValue={rename.value}
+          saveRename={rename.save}
+          setRenameValue={rename.setValue}
+        />
       ) : (
         <Button
           variant="unstyled"
@@ -204,7 +219,7 @@ export function SidebarBranchRows({ sessionId, rows, actions }: SidebarBranchRow
 
   const rename: BranchRenameController = {
     branchId: renamingBranchId,
-    inputRef: renameInputRef,
+    inputElement: renameInputRef,
     value: renameValue,
     cancel: cancelRename,
     save(branch) {

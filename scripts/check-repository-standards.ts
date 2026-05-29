@@ -38,6 +38,7 @@ const ignoreGlobs: string[] = [
   'coverage/**',
   'dist/**',
   'node_modules/**',
+  '**/node_modules/**',
   'out/**',
   'release/**',
   'website/.astro/**',

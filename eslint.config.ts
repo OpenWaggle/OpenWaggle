@@ -29,6 +29,7 @@ const config: Config = [
   {
     files: [
       'src/**/*.{ts,tsx}',
+      'packages/**/*.ts',
       'scripts/**/*.ts',
       'website/**/*.{ts,tsx}',
       'electron.vite.config.ts',
@@ -110,6 +111,8 @@ const config: Config = [
     files: [
       'src/**/*.test.{ts,tsx}',
       'src/**/__tests__/**/*.{ts,tsx}',
+      'packages/**/*.test.ts',
+      'packages/**/__tests__/**/*.ts',
       'scripts/**/*.test.ts',
       'website/**/*.test.{ts,tsx}',
       'website/**/__tests__/**/*.{ts,tsx}',

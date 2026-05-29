@@ -13,13 +13,18 @@
     "rootDir": ".",
     "paths": {
       "*": ["./*"],
-      "@shared/*": ["./src/shared/*"]
+      "@shared/*": ["./src/shared/*"],
+      "@openwaggle/pi-waggle": ["./packages/pi-waggle/src/index.ts"],
+      "@openwaggle/pi-waggle/*": ["./packages/pi-waggle/src/*"],
+      "@openwaggle/waggle-core": ["./packages/waggle-core/src/index.ts"],
+      "@openwaggle/waggle-core/*": ["./packages/waggle-core/src/*"]
     }
   },
   "include": [
     "src/main/**/*",
     "src/preload/**/*",
     "src/shared/**/*",
+    "packages/**/*.ts",
     "e2e/support/session-fixtures.ts",
     "scripts/**/*.ts",
     "eslint.config.ts",

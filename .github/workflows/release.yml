@@ -154,7 +154,7 @@ jobs:
 
       - run: pnpm build
 
-      - name: Build macOS DMGs (arm64 + x64)
+      - name: Build macOS artifacts (arm64 + x64)
         run: pnpm exec electron-builder --mac --arm64 --x64 --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
@@ -164,6 +164,7 @@ jobs:
           name: macos-artifacts
           path: |
             dist/*.dmg
+            dist/*.zip
             dist/*.yml
           if-no-files-found: error
 
@@ -313,8 +314,12 @@ jobs:
           ARTIFACT_DIR="$RUNNER_TEMP/release/macos"
           ARM64_DMG="openwaggle-${VERSION}-arm64.dmg"
           X64_DMG="openwaggle-${VERSION}-x64.dmg"
+          ARM64_ZIP="openwaggle-${VERSION}-arm64.zip"
+          X64_ZIP="openwaggle-${VERSION}-x64.zip"
           test -f "$ARTIFACT_DIR/$ARM64_DMG"
           test -f "$ARTIFACT_DIR/$X64_DMG"
+          test -f "$ARTIFACT_DIR/$ARM64_ZIP"
+          test -f "$ARTIFACT_DIR/$X64_ZIP"
 
           MOUNT_POINT="$(hdiutil attach -nobrowse -readonly "$ARTIFACT_DIR/$ARM64_DMG" | awk -F'\t' '/\/Volumes\// { print $NF; exit }')"
           trap 'hdiutil detach "$MOUNT_POINT" -quiet >/dev/null 2>&1 || true' EXIT
@@ -359,7 +364,7 @@ jobs:
       - name: Collect release assets
         run: |
           mkdir -p release
-          find artifacts -type f \( -name '*.dmg' -o -name '*.AppImage' -o -name '*.exe' -o -name '*.yml' \) -exec cp {} release/ \;
+          find artifacts -type f \( -name '*.dmg' -o -name '*.zip' -o -name '*.AppImage' -o -name '*.exe' -o -name '*.yml' \) -exec cp {} release/ \;
           cd release && sha256sum * > SHA256SUMS.txt
 
       - name: Create draft release

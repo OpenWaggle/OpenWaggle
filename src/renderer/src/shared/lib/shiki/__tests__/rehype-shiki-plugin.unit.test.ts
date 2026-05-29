@@ -1,11 +1,11 @@
-import type { Root } from 'hast'
+import type { Element, Root } from 'hast'
 import { createHighlighter, createJavaScriptRegexEngine } from 'shiki'
 import { describe, expect, it } from 'vitest'
 import { createRehypeShikiPlugin } from '../rehype-shiki-plugin'
 import { ShikiCache } from '../shiki-cache'
 
 /** Build a minimal HAST tree for `<pre><code class="language-{lang}">code</code></pre>`. */
-function makeTree(language: string, code: string) {
+function makeTree(language: string, code: string): Root {
   return {
     type: 'root',
     children: [
@@ -27,11 +27,11 @@ function makeTree(language: string, code: string) {
 }
 
 /** Get the code element from a tree. */
-function getCodeElement(tree: Root) {
+function getCodeElement(tree: Root): Element {
   const pre = tree.children[0]
-  if (pre.type !== 'element') throw new Error('Expected element')
+  if (!pre || pre.type !== 'element') throw new Error('Expected pre element')
   const code = pre.children[0]
-  if (code.type !== 'element') throw new Error('Expected element')
+  if (!code || code.type !== 'element') throw new Error('Expected code element')
   return code
 }
 

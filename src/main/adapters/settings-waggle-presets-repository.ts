@@ -1,27 +1,24 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
-import { parseJsonUnknown, Schema, safeDecodeUnknown } from '@shared/schema'
+import {
+  getPiWaggleProjectPresetsPath,
+  getPiWaggleUserPresetsPath,
+  readPiWagglePresetsFileData,
+  writePiWagglePresetsFileData,
+} from '@openwaggle/pi-waggle/preset-storage'
+import { mergePiWagglePresetLayers } from '@openwaggle/pi-waggle/presets'
+import { safeDecodeUnknown } from '@shared/schema'
 import { wagglePresetSchema } from '@shared/schemas/waggle'
-import { SupportedModelId, WagglePresetId } from '@shared/types/brand'
-import type { WagglePreset } from '@shared/types/waggle'
+import { WagglePresetId } from '@shared/types/brand'
+import { createWaggleModelBinding, type WagglePreset } from '@shared/types/waggle'
 import { Effect, Layer } from 'effect'
-import { app } from 'electron'
-import { loadProjectConfig, updateProjectConfig } from '../config/project-config'
 import { createLogger } from '../logger'
 import { WagglePresetsRepository } from '../ports/waggle-presets-repository'
 import { BUILT_IN_WAGGLE_PRESETS } from './settings-waggle-presets-built-ins'
 
-const JSON_INDENT_SPACES = 2
-const GLOBAL_WAGGLE_PRESETS_FILE = 'waggle-presets.json'
-
 const logger = createLogger('waggle-presets-repository')
 
-const wagglePresetFileSchema = Schema.Struct({
-  wagglePresets: Schema.optional(Schema.mutable(Schema.Array(wagglePresetSchema))),
-})
-
 interface ScopedWagglePresets {
+  readonly hiddenBuiltInPresetIds: readonly string[]
   readonly presets: readonly WagglePreset[]
   readonly write: (presets: readonly WagglePreset[]) => Promise<void>
 }
@@ -45,11 +42,11 @@ function hydratePreset(raw: unknown): WagglePreset | null {
       agents: [
         {
           ...preset.config.agents[0],
-          model: SupportedModelId(preset.config.agents[0].model),
+          model: createWaggleModelBinding(preset.config.agents[0].model),
         },
         {
           ...preset.config.agents[1],
-          model: SupportedModelId(preset.config.agents[1].model),
+          model: createWaggleModelBinding(preset.config.agents[1].model),
         },
       ],
     },
@@ -71,131 +68,113 @@ function hydratePresets(rawPresets: readonly unknown[] | undefined): WagglePrese
   return presets
 }
 
-function mergePresetLayers(input: {
-  readonly projectPresets: readonly WagglePreset[]
-  readonly userPresets: readonly WagglePreset[]
-  readonly builtInPresets: readonly WagglePreset[]
-}) {
-  const result: WagglePreset[] = []
-  const seen = new Set<string>()
-
-  for (const layer of [input.projectPresets, input.userPresets, input.builtInPresets]) {
-    for (const preset of layer) {
-      const id = String(preset.id)
-      if (seen.has(id)) {
-        continue
-      }
-      seen.add(id)
-      result.push(preset)
-    }
-  }
-
-  return result
+function isWagglePreset(value: WagglePreset | null): value is WagglePreset {
+  return value !== null
 }
 
-function getGlobalPresetsPath() {
-  return join(app.getPath('userData'), GLOBAL_WAGGLE_PRESETS_FILE)
-}
-
-async function readJsonFile(filePath: string) {
-  try {
-    const raw = await readFile(filePath, 'utf-8')
-    return raw.trim().length > 0 ? parseJsonUnknown(raw) : {}
-  } catch (error) {
-    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-      return null
-    }
-    throw error
+async function readPresetState(filePath: string) {
+  const data = await readPiWagglePresetsFileData(filePath)
+  return {
+    presets: hydratePresets(data.wagglePresets),
+    hiddenBuiltInPresetIds: data.hiddenBuiltInPresetIds,
   }
 }
 
-async function readUserPresets() {
-  const filePath = getGlobalPresetsPath()
-  const parsed = await readJsonFile(filePath)
-  if (!parsed) {
-    return []
-  }
-  const decoded = safeDecodeUnknown(wagglePresetFileSchema, parsed)
-  if (!decoded.success) {
-    logger.warn('Failed to parse user Waggle presets file, ignoring invalid presets', {
-      filePath,
-      issues: decoded.issues,
-    })
-    return []
-  }
-  return hydratePresets(decoded.data.wagglePresets)
+async function writeUserPresets(
+  presets: readonly WagglePreset[],
+  hiddenBuiltInPresetIds: readonly string[],
+) {
+  await writePiWagglePresetsFileData(getPiWaggleUserPresetsPath(), {
+    wagglePresets: presets,
+    hiddenBuiltInPresetIds,
+  })
 }
 
-async function writeUserPresets(presets: readonly WagglePreset[]) {
-  const filePath = getGlobalPresetsPath()
-  await mkdir(dirname(filePath), { recursive: true })
-  await writeFile(
-    filePath,
-    `${JSON.stringify({ wagglePresets: presets }, null, JSON_INDENT_SPACES)}\n`,
-    'utf-8',
-  )
+async function readUserPresetState() {
+  return readPresetState(getPiWaggleUserPresetsPath())
 }
 
-async function readProjectPresets(projectPath?: string | null) {
+async function readProjectPresetState(projectPath?: string | null) {
   if (!projectPath) {
-    return []
+    return { presets: [], hiddenBuiltInPresetIds: [] }
   }
-  const config = await loadProjectConfig(projectPath)
-  return [...(config.wagglePresets ?? [])]
+
+  return readPresetState(getPiWaggleProjectPresetsPath(projectPath))
 }
 
-async function writeProjectPresets(projectPath: string, presets: readonly WagglePreset[]) {
-  await updateProjectConfig(projectPath, (current) => ({
-    ...current,
-    wagglePresets: [...presets],
-  }))
+async function writeProjectPresets(
+  projectPath: string,
+  presets: readonly WagglePreset[],
+  hiddenBuiltInPresetIds: readonly string[],
+) {
+  await writePiWagglePresetsFileData(getPiWaggleProjectPresetsPath(projectPath), {
+    wagglePresets: presets,
+    hiddenBuiltInPresetIds,
+  })
 }
 
 async function loadScopedPresets(projectPath?: string | null): Promise<ScopedWagglePresets> {
   if (projectPath) {
+    const state = await readProjectPresetState(projectPath)
     return {
-      presets: await readProjectPresets(projectPath),
-      write: (presets: readonly WagglePreset[]) => writeProjectPresets(projectPath, presets),
+      ...state,
+      write: (presets: readonly WagglePreset[]) =>
+        writeProjectPresets(projectPath, presets, state.hiddenBuiltInPresetIds),
     }
   }
 
+  const state = await readUserPresetState()
   return {
-    presets: await readUserPresets(),
-    write: writeUserPresets,
+    ...state,
+    write: (presets: readonly WagglePreset[]) =>
+      writeUserPresets(presets, state.hiddenBuiltInPresetIds),
   }
+}
+
+function validatePresetForSave(preset: WagglePreset): WagglePreset {
+  const hydrated = hydratePreset(preset)
+  if (!hydrated) {
+    throw new Error('Invalid Waggle preset. Select a model for each agent or use $inherit.')
+  }
+  return hydrated
 }
 
 function normalizeSavedPreset(preset: WagglePreset): WagglePreset {
   const now = Date.now()
+  const validatedPreset = validatePresetForSave(preset)
   return {
-    ...preset,
-    id: String(preset.id).trim() ? preset.id : WagglePresetId(randomUUID()),
+    ...validatedPreset,
+    id: String(validatedPreset.id).trim() ? validatedPreset.id : WagglePresetId(randomUUID()),
     isBuiltIn: false,
-    createdAt: preset.createdAt > 0 ? preset.createdAt : now,
+    createdAt: validatedPreset.createdAt > 0 ? validatedPreset.createdAt : now,
     updatedAt: now,
   }
 }
 
 async function listWagglePresets(projectPath?: string | null) {
-  const [userPresets, projectPresets] = await Promise.all([
-    readUserPresets().catch((error) => {
+  const [userState, projectState] = await Promise.all([
+    readUserPresetState().catch((error) => {
       logger.warn('Failed to read user Waggle presets', { error: describeError(error) })
-      return []
+      return { presets: [], hiddenBuiltInPresetIds: [] }
     }),
-    readProjectPresets(projectPath).catch((error) => {
+    readProjectPresetState(projectPath).catch((error) => {
       logger.warn('Failed to read project Waggle presets', {
         projectPath,
         error: describeError(error),
       })
-      return []
+      return { presets: [], hiddenBuiltInPresetIds: [] }
     }),
   ])
 
-  return mergePresetLayers({
-    projectPresets,
-    userPresets,
-    builtInPresets: BUILT_IN_WAGGLE_PRESETS,
+  return mergePiWagglePresetLayers({
+    builtIns: BUILT_IN_WAGGLE_PRESETS,
+    userPresets: userState.presets,
+    projectPresets: projectState.presets,
+    userHiddenBuiltInPresetIds: userState.hiddenBuiltInPresetIds,
+    projectHiddenBuiltInPresetIds: projectState.hiddenBuiltInPresetIds,
   })
+    .map((entry) => hydratePreset(entry.preset))
+    .filter(isWagglePreset)
 }
 
 async function saveWagglePreset(preset: WagglePreset, projectPath?: string | null) {

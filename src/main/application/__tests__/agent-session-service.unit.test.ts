@@ -73,7 +73,6 @@ const TestSessionLayer = Layer.succeed(SessionRepository, {
 const TestAgentKernelLayer = Layer.succeed(AgentKernelService, {
   createSession: () => Effect.fail(new Error('createSession is not used')),
   run: () => Effect.fail(new Error('run is not used')),
-  runWaggle: () => Effect.fail(new Error('runWaggle is not used')),
   getContextUsage: () => Effect.fail(new Error('getContextUsage is not used')),
   compact: (input) =>
     Effect.tryPromise({

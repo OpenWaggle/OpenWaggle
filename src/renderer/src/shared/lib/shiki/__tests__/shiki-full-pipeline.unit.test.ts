@@ -16,8 +16,10 @@ interface StyleNode {
   readonly children?: readonly unknown[]
 }
 
-function isStyleNode(value: unknown) {
-  return typeof value === 'object' && value !== null && 'type' in value
+function isStyleNode(value: unknown): value is StyleNode {
+  return (
+    typeof value === 'object' && value !== null && 'type' in value && typeof value.type === 'string'
+  )
 }
 
 function collectStyles(node: Root | Element | StyleNode) {

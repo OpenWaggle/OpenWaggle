@@ -121,7 +121,6 @@ describe('useWaggleChat', () => {
       sessionId: SESSION_ID,
       event: {
         type: 'message_start',
-        runId: 'run-1',
         messageId: MessageId('m1'),
         role: 'assistant',
       },

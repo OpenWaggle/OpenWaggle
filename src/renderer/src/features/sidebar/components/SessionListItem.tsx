@@ -46,7 +46,7 @@ type SessionItemStatusIcon = React.ComponentType<{ className?: string }>
 interface SessionBranchDisclosureState {
   readonly visible: boolean
   readonly collapsed: boolean
-  readonly onToggle?: () => void
+  readonly onToggle?: (() => void) | undefined
 }
 
 interface SessionListItemProps {
@@ -68,7 +68,7 @@ function BranchDisclosureButton({
 }: {
   readonly visible: boolean
   readonly collapsed: boolean
-  readonly onToggle?: () => void
+  readonly onToggle?: (() => void) | undefined
 }) {
   if (!visible) {
     return null
@@ -135,7 +135,7 @@ function useSessionItemStatus(sessionId: SessionId, session: SessionSummary) {
 
   return {
     pill,
-    StatusIcon: pill ? ICON_MAP[pill.icon] : null,
+    StatusIcon: pill ? (ICON_MAP[pill.icon] ?? null) : null,
     hasInterruptedRun: session.branches?.some((branch) => branch.interruptedRun) ?? false,
   }
 }

@@ -1,5 +1,5 @@
 import { SupportedModelId, WagglePresetId } from '@shared/types/brand'
-import type { WagglePreset } from '@shared/types/waggle'
+import { WAGGLE_INHERIT_MODEL, type WagglePreset } from '@shared/types/waggle'
 import { describe, expect, it } from 'vitest'
 import {
   buildWaggleConfig,
@@ -48,6 +48,10 @@ describe('waggle form state reducers', () => {
       stop: { primary: 'consensus', maxTurnsSafety: 8 },
     })
     expect(config.agents.map((agent) => agent.label)).toEqual(['Agent A', 'Agent B'])
+    expect(config.agents.map((agent) => agent.model)).toEqual([
+      WAGGLE_INHERIT_MODEL,
+      WAGGLE_INHERIT_MODEL,
+    ])
   })
 
   it('detects whether a form config still matches a preset exactly', () => {
@@ -92,11 +96,11 @@ describe('waggle form state reducers', () => {
   it('updates stop controls independently from agent slots', () => {
     const withStop = waggleFormReducer(INITIAL_WAGGLE_FORM_STATE, {
       type: 'set-stop-condition',
-      stopCondition: 'max-turns',
+      stopCondition: 'user-stop',
     })
     const withTurns = waggleFormReducer(withStop, { type: 'set-max-turns', maxTurns: 12 })
 
-    expect(withTurns.stopCondition).toBe('max-turns')
+    expect(withTurns.stopCondition).toBe('user-stop')
     expect(withTurns.maxTurns).toBe(12)
     expect(withTurns.agents).toBe(INITIAL_WAGGLE_FORM_STATE.agents)
   })

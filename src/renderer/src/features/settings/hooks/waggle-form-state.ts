@@ -1,14 +1,14 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import { DOUBLE_FACTOR } from '@shared/constants/math'
 import type { SupportedModelId } from '@shared/types/brand'
-import { DEFAULT_MODEL_REF } from '@shared/types/settings'
-import type {
-  WaggleAgentColor,
-  WaggleAgentSlot,
-  WaggleCollaborationMode,
-  WaggleConfig,
-  WagglePreset,
-  WaggleStopCondition,
+import {
+  WAGGLE_INHERIT_MODEL,
+  type WaggleAgentColor,
+  type WaggleAgentSlot,
+  type WaggleCollaborationMode,
+  type WaggleConfig,
+  type WagglePreset,
+  type WaggleStopCondition,
 } from '@shared/types/waggle'
 
 const MAX_TURNS = 8
@@ -45,13 +45,13 @@ export const INITIAL_WAGGLE_FORM_STATE: WaggleFormState = {
   agents: [
     {
       label: 'Agent A',
-      model: DEFAULT_MODEL_REF,
+      model: WAGGLE_INHERIT_MODEL,
       roleDescription: '',
       color: 'blue',
     },
     {
       label: 'Agent B',
-      model: DEFAULT_MODEL_REF,
+      model: WAGGLE_INHERIT_MODEL,
       roleDescription: '',
       color: 'amber',
     },

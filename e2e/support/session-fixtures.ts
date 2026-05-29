@@ -18,7 +18,6 @@ const EXPANDED_NODE_IDS_DEFAULT_JSON = '[]'
 const TREE_SIDEBAR_EXPANDED = 0
 const SQLITE_TRUE = 1
 const SQLITE_FALSE = 0
-const EMPTY_INDEX = 0
 
 function isRecord(value: unknown): value is { readonly [key: string]: unknown } {
   return typeof value === 'object' && value !== null

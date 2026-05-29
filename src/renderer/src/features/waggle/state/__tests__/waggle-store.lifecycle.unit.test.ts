@@ -1,7 +1,12 @@
 import { SessionId } from '@shared/types/brand'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useWaggleStore } from '../waggle-store'
-import { makeConfig, makeConsensusResult, makeFileConflict } from './waggle-store.test-utils'
+import {
+  ARCHITECT_MODEL,
+  makeConfig,
+  makeConsensusResult,
+  makeFileConflict,
+} from './waggle-store.test-utils'
 
 describe('waggle-store collaboration lifecycle behavior', () => {
   beforeEach(() => {
@@ -25,7 +30,7 @@ describe('waggle-store collaboration lifecycle behavior', () => {
 
   it('sets and clears the active config', () => {
     const config = makeConfig()
-    useWaggleStore.getState().setConfig(config)
+    useWaggleStore.getState().setConfig(config, null)
     expect(useWaggleStore.getState().activeConfig).toBe(config)
 
     useWaggleStore.getState().clearConfig()
@@ -49,14 +54,22 @@ describe('waggle-store collaboration lifecycle behavior', () => {
       agentIndex: 0,
       agentLabel: 'Architect',
       agentColor: 'blue',
-      agentModel: 'claude-sonnet-4-20250514',
+      agentModel: ARCHITECT_MODEL,
       turnNumber: 0,
     })
   })
 
   it('resets transient collaboration state on start', () => {
     useWaggleStore.setState({
-      completedTurnMeta: [{ agentIndex: 0, agentLabel: 'X', agentColor: 'blue', turnNumber: 1 }],
+      completedTurnMeta: [
+        {
+          agentIndex: 0,
+          agentLabel: 'X',
+          agentColor: 'blue',
+          agentModel: ARCHITECT_MODEL,
+          turnNumber: 1,
+        },
+      ],
       liveMessageMetadata: {
         'msg-1': { agentIndex: 0, agentLabel: 'X', agentColor: 'blue', turnNumber: 1 },
       },
@@ -84,7 +97,7 @@ describe('waggle-store collaboration lifecycle behavior', () => {
       agentIndex: 0,
       agentLabel: 'Architect',
       agentColor: 'blue',
-      agentModel: 'claude-sonnet-4-20250514',
+      agentModel: ARCHITECT_MODEL,
     })
 
     useWaggleStore.getState().stopCollaboration()

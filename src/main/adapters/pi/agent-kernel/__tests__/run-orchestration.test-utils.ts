@@ -1,6 +1,6 @@
 import type { HydratedAgentSendPayload } from '@shared/types/agent'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
-import type { WaggleConfig, WaggleStreamMetadata } from '@shared/types/waggle'
+import type { WaggleConfig } from '@shared/types/waggle'
 import { isRecord } from '@shared/utils/validation'
 import { vi } from 'vitest'
 
@@ -57,12 +57,14 @@ export interface FakeRunSession {
   readonly isStreaming: boolean
   readonly sessionManager: {
     readonly buildSessionContext: () => { readonly messages: readonly unknown[] }
+    readonly appendCustomEntry: (customType: string, data?: unknown) => string
     readonly getEntries: () => readonly unknown[]
     readonly getLeafId: () => null
   }
   readonly abort: () => Promise<undefined>
   readonly prompt: (text: string) => Promise<void>
   readonly sendCustomMessage: (message: unknown, options: unknown) => Promise<void>
+  readonly setModel: (model: FakeModel) => Promise<void>
   readonly subscribe: (listener: unknown) => () => void
 }
 
@@ -80,8 +82,11 @@ export function modelFromReference(modelReference: string): FakeModel {
   }
 }
 
-export function payload(text = 'Review the architecture'): HydratedAgentSendPayload {
-  return { text, thinkingLevel: 'high', attachments: [] }
+export function payload(
+  text = 'Review the architecture',
+  overrides: Partial<HydratedAgentSendPayload> = {},
+): HydratedAgentSendPayload {
+  return { text, thinkingLevel: 'high', attachments: [], ...overrides }
 }
 
 export function sessionDetail() {
@@ -154,6 +159,7 @@ export function createFakeSession(
     isCompacting: false,
     isStreaming: false,
     sessionManager: {
+      appendCustomEntry: vi.fn(() => 'mode-state-entry'),
       buildSessionContext: () => ({ messages: [] }),
       getEntries: () => [],
       getLeafId: () => null,
@@ -162,6 +168,7 @@ export function createFakeSession(
     prompt: vi.fn(async (text: string) => {
       messages.push(assistantMessage(`response to ${text}`))
     }),
+    setModel: vi.fn(async () => undefined),
     sendCustomMessage: vi.fn(async (message: unknown, options: unknown) => {
       messages.push(message)
       if (shouldTriggerTurn(options)) {
@@ -198,22 +205,5 @@ export function waggleConfig(): WaggleConfig {
       },
     ],
     stop: { primary: 'consensus', maxTurnsSafety: 4 },
-  }
-}
-
-export function metadata(
-  config: WaggleConfig,
-  turnNumber: number,
-  agentIndex: number,
-): WaggleStreamMetadata {
-  const agent = config.agents[agentIndex]
-  return {
-    agentIndex,
-    agentLabel: agent.label,
-    agentColor: agent.color,
-    agentModel: agent.model,
-    turnNumber,
-    collaborationMode: config.mode,
-    sessionId: 'waggle-run-1',
   }
 }

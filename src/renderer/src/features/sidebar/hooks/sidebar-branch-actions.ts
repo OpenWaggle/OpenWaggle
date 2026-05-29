@@ -41,11 +41,12 @@ function navigateToSessionBranch(
   void deps.navigate({
     to: '/sessions/$sessionId',
     params: { sessionId },
-    search: (previous) => ({
-      ...previous,
-      branch: targetBranchId,
-      node: headNodeId ?? undefined,
-    }),
+    search: (previous) => {
+      const { node: _node, ...rest } = previous
+      return headNodeId
+        ? { ...rest, branch: targetBranchId, node: headNodeId }
+        : { ...rest, branch: targetBranchId }
+    },
   })
 
   return { headNodeId, targetBranchId }

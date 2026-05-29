@@ -1,11 +1,14 @@
 import type { SessionId } from '@shared/types/brand'
 import { generateDisplayName } from '@shared/types/llm'
+import { isInheritedWaggleModelBinding, type WaggleAgentSlot } from '@shared/types/waggle'
 import { AlertTriangle, Loader2, X } from 'lucide-react'
+import { usePreferencesStore } from '@/features/settings/state'
 import { AGENT_BG } from '@/features/waggle/lib/agent-colors'
 import { useWaggleStore } from '@/features/waggle/state/waggle-store'
 import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 
+const SINGLE_TURN_COUNT = 1
 const SLICE_ARG_1 = -3
 
 interface CollaborationStatusProps {
@@ -13,7 +16,17 @@ interface CollaborationStatusProps {
   onStop: () => void
 }
 
+function turnCountLabel(turnCount: number) {
+  return `${String(turnCount)} ${turnCount === SINGLE_TURN_COUNT ? 'turn' : 'turns'}`
+}
+
+function displayModelForAgent(agent: WaggleAgentSlot, inheritedModel: string) {
+  if (!isInheritedWaggleModelBinding(agent.model)) return generateDisplayName(agent.model)
+  return inheritedModel.trim() ? generateDisplayName(inheritedModel) : 'Select model'
+}
+
 export function WaggleCollaborationStatus({ currentSessionId, onStop }: CollaborationStatusProps) {
+  const selectedModel = usePreferencesStore((s) => s.settings.selectedModel)
   const status = useWaggleStore((s) => s.status)
   const config = useWaggleStore((s) => s.activeConfig)
   const activeCollaborationId = useWaggleStore((s) => s.activeCollaborationId)
@@ -32,6 +45,7 @@ export function WaggleCollaborationStatus({ currentSessionId, onStop }: Collabor
   const owningSessionId = activeCollaborationId ?? configSessionId
   if (owningSessionId && owningSessionId !== currentSessionId) return null
   const currentAgent = config.agents[currentAgentIndex]
+  const maxTurns = config.stop.maxTurnsSafety
 
   function handleDismiss() {
     if (status === 'running') {
@@ -52,19 +66,22 @@ export function WaggleCollaborationStatus({ currentSessionId, onStop }: Collabor
       >
         {/* Agent dots — always visible */}
         <div className="flex min-w-0 items-center gap-2 shrink-0">
-          {config.agents.map((agent) => (
-            <div
-              key={`${agent.label}-${String(agent.model)}`}
-              className="flex items-center gap-1"
-              title={`${agent.label} · ${generateDisplayName(agent.model)}`}
-            >
-              <div className={cn('size-2 rounded-full', AGENT_BG[agent.color])} />
-              <span className="text-[11px] font-medium text-text-secondary">{agent.label}</span>
-              <span className="hidden text-[11px] text-text-tertiary sm:inline">
-                · {generateDisplayName(agent.model)}
-              </span>
-            </div>
-          ))}
+          {config.agents.map((agent) => {
+            const displayModel = displayModelForAgent(agent, selectedModel)
+            return (
+              <div
+                key={`${agent.label}-${String(agent.model)}`}
+                className="flex items-center gap-1"
+                title={`${agent.label} · ${displayModel}`}
+              >
+                <div className={cn('size-2 rounded-full', AGENT_BG[agent.color])} />
+                <span className="text-[11px] font-medium text-text-secondary">{agent.label}</span>
+                <span className="hidden text-[11px] text-text-tertiary sm:inline">
+                  · {displayModel}
+                </span>
+              </div>
+            )
+          })}
         </div>
 
         <div className="h-3 w-px bg-border shrink-0" />
@@ -72,7 +89,7 @@ export function WaggleCollaborationStatus({ currentSessionId, onStop }: Collabor
         {/* Status-specific content */}
         {status === 'idle' && (
           <span className="text-[12px] text-text-tertiary truncate">
-            Waggle ready · Sequential: send a message to start
+            Waggle ready · Sequential · {turnCountLabel(maxTurns)}: send a message to start
           </span>
         )}
 
@@ -80,8 +97,8 @@ export function WaggleCollaborationStatus({ currentSessionId, onStop }: Collabor
           <div className="flex items-center gap-2 min-w-0">
             <Loader2 className="size-3 animate-spin text-accent shrink-0" />
             <span className="text-[12px] text-text-secondary truncate">
-              Turn {currentTurn + 1}: {currentAgentLabel}
-              {currentAgent ? ` · ${generateDisplayName(currentAgent.model)}` : ''}
+              Turn {currentTurn + SINGLE_TURN_COUNT}/{maxTurns}: {currentAgentLabel}
+              {currentAgent ? ` · ${displayModelForAgent(currentAgent, selectedModel)}` : ''}
             </span>
           </div>
         )}

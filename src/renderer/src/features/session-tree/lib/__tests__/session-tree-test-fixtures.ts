@@ -19,7 +19,7 @@ export function node(input: {
   readonly parentId?: string | null
   readonly depth: number
   readonly order: number
-}) {
+}): SessionNode {
   return {
     id: SessionNodeId(input.id),
     sessionId: SESSION_ID,
@@ -59,6 +59,22 @@ export function connectorLineXs(
   lines: readonly { readonly xPx: number; readonly yStartPx: number; readonly yEndPx: number }[],
 ) {
   return lines.map((line) => line.xPx)
+}
+
+export function rowAt(rows: readonly SessionTreeRow[], index: number): SessionTreeRow {
+  const row = rows[index]
+  if (!row) {
+    throw new Error(`Expected session tree row at index ${String(index)}`)
+  }
+  return row
+}
+
+export function nodeAt(nodes: readonly SessionNode[], index: number): SessionNode {
+  const sessionNode = nodes[index]
+  if (!sessionNode) {
+    throw new Error(`Expected session node at index ${String(index)}`)
+  }
+  return sessionNode
 }
 
 export function visibleRows(input: {

@@ -117,16 +117,20 @@ describe('createSessionNavHandlers', () => {
 
   describe('handleSelectProjectPath', () => {
     it('starts a draft before selecting the project so stale session routes cannot reclaim focus', async () => {
-      const deps = makeDeps()
+      const setProjectPath = vi
+        .fn<(path: string | null) => Promise<void>>()
+        .mockResolvedValue(undefined)
+      const startDraftSession = vi.fn<(projectPath?: string | null) => void>()
+      const deps = makeDeps({ setProjectPath, startDraftSession })
       const { handleSelectProjectPath } = createSessionNavHandlers(deps)
 
       await handleSelectProjectPath('/selected/path')
 
-      expect(deps.setProjectPath).toHaveBeenCalledWith('/selected/path')
-      expect(deps.startDraftSession).toHaveBeenCalledWith('/selected/path')
+      expect(setProjectPath).toHaveBeenCalledWith('/selected/path')
+      expect(startDraftSession).toHaveBeenCalledWith('/selected/path')
       expect(deps.refreshGitStatus).toHaveBeenCalledWith('/selected/path')
-      expect(deps.startDraftSession.mock.invocationCallOrder[0]).toBeLessThan(
-        deps.setProjectPath.mock.invocationCallOrder[0] ?? Number.MAX_SAFE_INTEGER,
+      expect(startDraftSession.mock.invocationCallOrder[0]).toBeLessThan(
+        setProjectPath.mock.invocationCallOrder[0] ?? Number.MAX_SAFE_INTEGER,
       )
     })
   })

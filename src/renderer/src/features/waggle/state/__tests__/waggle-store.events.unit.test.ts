@@ -2,7 +2,14 @@ import { SessionId } from '@shared/types/brand'
 import type { WaggleTurnEvent } from '@shared/types/waggle'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useWaggleStore } from '../waggle-store'
-import { makeConfig, makeConsensusResult, makeFileConflict } from './waggle-store.test-utils'
+import {
+  ARCHITECT_MODEL,
+  itemAt,
+  makeConfig,
+  makeConsensusResult,
+  makeFileConflict,
+  REVIEWER_MODEL,
+} from './waggle-store.test-utils'
 
 describe('waggle-store turn event behavior', () => {
   beforeEach(() => {
@@ -33,14 +40,14 @@ describe('waggle-store turn event behavior', () => {
       agentIndex: 0,
       agentLabel: 'Architect',
       agentColor: 'blue',
-      agentModel: 'claude-sonnet-4-20250514',
+      agentModel: ARCHITECT_MODEL,
     })
 
     const meta = useWaggleStore.getState().completedTurnMeta
     expect(meta).toHaveLength(1)
-    expect(meta[0].agentLabel).toBe('Architect')
-    expect(meta[0].agentColor).toBe('blue')
-    expect(meta[0].turnNumber).toBe(1)
+    expect(itemAt(meta, 0).agentLabel).toBe('Architect')
+    expect(itemAt(meta, 0).agentColor).toBe('blue')
+    expect(itemAt(meta, 0).turnNumber).toBe(1)
   })
 
   it('handles consensus-reached by storing the result', () => {
@@ -61,7 +68,7 @@ describe('waggle-store turn event behavior', () => {
 
     const conflicts = useWaggleStore.getState().fileConflicts
     expect(conflicts).toHaveLength(2)
-    expect(conflicts[0].path).toBe('a.ts')
+    expect(itemAt(conflicts, 0).path).toBe('a.ts')
   })
 
   it('sets terminal status and reason when collaboration completes or stops', () => {
@@ -87,7 +94,7 @@ describe('waggle-store turn event behavior', () => {
       agentIndex: 0,
       agentLabel: 'Architect',
       agentColor: 'blue',
-      agentModel: 'claude-sonnet-4-20250514',
+      agentModel: ARCHITECT_MODEL,
     })
     useWaggleStore.getState().handleTurnEvent({
       type: 'turn-end',
@@ -95,12 +102,12 @@ describe('waggle-store turn event behavior', () => {
       agentIndex: 1,
       agentLabel: 'Reviewer',
       agentColor: 'amber',
-      agentModel: 'gpt-4o',
+      agentModel: REVIEWER_MODEL,
     })
 
     const meta = useWaggleStore.getState().completedTurnMeta
     expect(meta).toHaveLength(2)
-    expect(meta[0].agentLabel).toBe('Architect')
-    expect(meta[1].agentLabel).toBe('Reviewer')
+    expect(itemAt(meta, 0).agentLabel).toBe('Architect')
+    expect(itemAt(meta, 1).agentLabel).toBe('Reviewer')
   })
 })

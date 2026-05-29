@@ -1,0 +1,33 @@
+{
+  "name": "@openwaggle/pi-waggle",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "keywords": [
+    "pi-package"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/extension.ts"
+    ]
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./commands": "./src/commands.ts",
+    "./extension": "./src/extension.ts",
+    "./loop": "./src/loop.ts",
+    "./mode-state": "./src/mode-state.ts",
+    "./preset-storage": "./src/preset-storage.ts",
+    "./presets": "./src/presets.ts",
+    "./protocol": "./src/protocol.ts",
+    "./renderers": "./src/renderers.ts",
+    "./stop-policy": "./src/stop-policy.ts"
+  },
+  "dependencies": {
+    "@openwaggle/waggle-core": "workspace:*"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-tui": "*"
+  }
+}

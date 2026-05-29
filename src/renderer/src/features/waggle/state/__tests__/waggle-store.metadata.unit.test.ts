@@ -2,10 +2,12 @@ import { SessionId } from '@shared/types/brand'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useWaggleStore } from '../waggle-store'
 import {
+  ARCHITECT_MODEL,
   makeConfig,
   makeConsensusResult,
   makeFileConflict,
   makeMessageMetadata,
+  REVIEWER_MODEL,
 } from './waggle-store.test-utils'
 
 describe('waggle-store metadata and reset behavior', () => {
@@ -90,7 +92,7 @@ describe('waggle-store metadata and reset behavior', () => {
       agentIndex: 0,
       agentLabel: 'Architect',
       agentColor: 'blue',
-      agentModel: 'claude-sonnet-4-20250514',
+      agentModel: ARCHITECT_MODEL,
     })
     useWaggleStore
       .getState()
@@ -101,7 +103,7 @@ describe('waggle-store metadata and reset behavior', () => {
       agentIndex: 1,
       agentLabel: 'Reviewer',
       agentColor: 'amber',
-      agentModel: 'gpt-4o',
+      agentModel: REVIEWER_MODEL,
     })
     useWaggleStore
       .getState()

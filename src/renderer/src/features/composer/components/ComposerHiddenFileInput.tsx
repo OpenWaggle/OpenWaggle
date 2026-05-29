@@ -19,6 +19,7 @@ export function ComposerHiddenFileInput({
       ref={fileInputRef}
       type="file"
       multiple
+      aria-label="Attach files"
       className="hidden"
       onChange={attachSelectedFiles}
     />

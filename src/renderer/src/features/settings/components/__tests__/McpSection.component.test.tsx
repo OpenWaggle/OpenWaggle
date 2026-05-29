@@ -100,6 +100,14 @@ const MCP_VIEW = {
   runtimeConfigPath: '/tmp/pi-agent/openwaggle-mcp/project/mcp.json',
 } satisfies McpSettingsView
 
+function sourceAt(index: number) {
+  const source = MCP_VIEW.sources[index]
+  if (!source) {
+    throw new Error(`Expected MCP view source at index ${String(index)}`)
+  }
+  return source
+}
+
 describe('McpSection', () => {
   beforeEach(() => {
     getMcpSettingsMock.mockReset()
@@ -203,7 +211,7 @@ describe('McpSection', () => {
       ...MCP_VIEW,
       sources: [
         {
-          ...MCP_VIEW.sources[0],
+          ...sourceAt(0),
           exists: true,
           parseError: 'Invalid MCP JSON config at /Users/test/.config/mcp/mcp.json',
         },

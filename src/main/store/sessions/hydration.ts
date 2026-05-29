@@ -1,5 +1,5 @@
 import { safeDecodeUnknown } from '@shared/schema'
-import { SessionBranchId, SessionId, SessionNodeId, SupportedModelId } from '@shared/types/brand'
+import { SessionBranchId, SessionId, SessionNodeId } from '@shared/types/brand'
 import type {
   SessionBranch,
   SessionBranchState,
@@ -7,14 +7,14 @@ import type {
   SessionNode,
   SessionSummary,
 } from '@shared/types/session'
-import type { WaggleConfig } from '@shared/types/waggle'
+import { createWaggleModelBinding, type WaggleConfig } from '@shared/types/waggle'
 import { interruptedRunsByBranchId } from './active-run-hydration'
 import { DEFAULT_UI_STATE_JSON, MAIN_BRANCH_NAME, STANDARD_FUTURE_MODE } from './constants'
 import { parseJson } from './json'
 import { expandedNodeIdsSchema, waggleConfigSchema } from './schemas'
 
 export { hydrateRecoverableActiveRun, interruptedRunsByBranchId } from './active-run-hydration'
-export { buildSessionNodes } from './node-hydration'
+export { buildSessionNodes, visibleNodeIdForHead } from './node-hydration'
 
 import type {
   SessionActiveRunRow,
@@ -211,8 +211,8 @@ function parseWaggleConfig(raw: string | null): WaggleConfig | undefined {
   return {
     ...parsed.data,
     agents: [
-      { ...parsed.data.agents[0], model: SupportedModelId(parsed.data.agents[0].model) },
-      { ...parsed.data.agents[1], model: SupportedModelId(parsed.data.agents[1].model) },
+      { ...parsed.data.agents[0], model: createWaggleModelBinding(parsed.data.agents[0].model) },
+      { ...parsed.data.agents[1], model: createWaggleModelBinding(parsed.data.agents[1].model) },
     ],
   }
 }

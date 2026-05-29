@@ -165,7 +165,6 @@ const TestAgentKernelLayer = Layer.succeed(
         catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
       }),
     run: () => Effect.fail(new Error('agent run not used by session detail handler tests')),
-    runWaggle: () => Effect.fail(new Error('Waggle run not used by session detail handler tests')),
     getContextUsage: () =>
       Effect.fail(new Error('context usage not used by session detail handler tests')),
     compact: () => Effect.fail(new Error('compaction not used by session detail handler tests')),

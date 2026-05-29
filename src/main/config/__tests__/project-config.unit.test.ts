@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
-  clearConfigCache,
   ensureProjectSettingsFile,
   getProjectSettingsPath,
   loadProjectConfig,
@@ -19,7 +18,6 @@ describe('loadProjectConfig', () => {
   let tmpDir: string
 
   beforeEach(() => {
-    clearConfigCache()
     tmpDir = join(tmpdir(), `openwaggle-test-${Date.now()}`)
     mkdirSync(join(tmpDir, '.openwaggle'), { recursive: true })
   })

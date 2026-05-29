@@ -31,6 +31,8 @@ const BUNDLED_DEPS = [
   '@effect/sql',
   '@effect/sql-sqlite-node',
   '@diegogbrisa/ts-match',
+  '@openwaggle/pi-waggle',
+  '@openwaggle/waggle-core',
   '@mariozechner/pi-coding-agent',
   '@mariozechner/pi-agent-core',
   '@mariozechner/pi-ai',
@@ -138,6 +140,8 @@ export default defineConfig({
     resolve: {
       alias: {
         '@shared': resolve('src/shared'),
+        '@openwaggle/pi-waggle': resolve('packages/pi-waggle/src'),
+        '@openwaggle/waggle-core': resolve('packages/waggle-core/src'),
       }
     }
   },

@@ -38,7 +38,7 @@ OpenWaggle is an Electron desktop coding-agent UI on top of Pi.
 - Preload: `src/preload/`, typed bridge from renderer to IPC.
 - Renderer: `src/renderer/src/`, React 19, React Compiler, TanStack Router/Query, Zustand, Tailwind v4.
 - Shared: `src/shared/`, platform-neutral types, schemas, constants, and pure utilities.
-- Pi SDK imports belong under `src/main/adapters/pi/` only.
+- OpenWaggle app Pi SDK imports belong under `src/main/adapters/pi/`; dedicated Pi packages may import Pi SDKs inside `packages/pi-*`.
 - Provider/model/auth metadata comes from Pi through OpenWaggle ports, not a parallel OpenWaggle registry.
 
 ## Operating Rules

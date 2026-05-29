@@ -26,10 +26,10 @@ export interface RightSidebarSizing {
 }
 
 export interface ResizeRailRefs {
-  readonly panelRef: RefObject<HTMLDivElement | null>
-  readonly rootRef: RefObject<HTMLDivElement | null>
-  readonly sidebarRef: RefObject<HTMLDivElement | null>
-  readonly widthRef: RefObject<number>
+  readonly panel: RefObject<HTMLDivElement | null>
+  readonly root: RefObject<HTMLDivElement | null>
+  readonly sidebar: RefObject<HTMLDivElement | null>
+  readonly width: RefObject<number>
 }
 
 export interface ResizeRailBounds {

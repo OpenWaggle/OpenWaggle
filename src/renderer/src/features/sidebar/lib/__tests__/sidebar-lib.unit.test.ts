@@ -48,6 +48,14 @@ function branch(input: { readonly id: string; readonly archived?: boolean }): Se
   }
 }
 
+function projectAt<TProject>(projects: readonly TProject[], index: number): TProject {
+  const project = projects[index]
+  if (!project) {
+    throw new Error(`Expected project at index ${String(index)}`)
+  }
+  return project
+}
+
 describe('sidebar library helpers', () => {
   it('groups sessions by project path and names projectless sessions explicitly', () => {
     const grouped = groupSessionsByProject([
@@ -56,7 +64,7 @@ describe('sidebar library helpers', () => {
     ])
 
     expect(grouped.map((group) => group.displayName)).toEqual(['app', 'No project'])
-    expect(grouped[0].sessions.map((item) => item.title)).toEqual(['One'])
+    expect(projectAt(grouped, 0).sessions.map((item) => item.title)).toEqual(['One'])
   })
 
   it('orders project groups by session recency and includes sessionless current or recent projects', () => {
@@ -76,7 +84,7 @@ describe('sidebar library helpers', () => {
       '/work/recent',
       '/work/current',
     ])
-    expect(result.projects[0].sessions.map((item) => item.title)).toEqual(['New'])
+    expect(projectAt(result.projects, 0).sessions.map((item) => item.title)).toEqual(['New'])
   })
 
   it('sorts sessions within a project using the selected mode', () => {
@@ -90,7 +98,10 @@ describe('sidebar library helpers', () => {
       sortMode: 'name',
     })
 
-    expect(result.projects[0].sessions.map((item) => item.title)).toEqual(['Alpha', 'Beta'])
+    expect(projectAt(result.projects, 0).sessions.map((item) => item.title)).toEqual([
+      'Alpha',
+      'Beta',
+    ])
   })
 
   it('builds branch rows from active session tree, hiding archived branches and respecting collapse state', () => {
