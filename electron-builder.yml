@@ -46,6 +46,7 @@ mac:
   entitlementsInherit: build/entitlements.mac.plist
   target:
     - dmg
+    - zip
 win:
   icon: build/icon.ico
   artifactName: ${name}-${version}-${arch}.${ext}
