@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMediaQuery } from '@/shared/hooks/useMediaQuery'
 import { RightSidebarDockedLayout } from './RightSidebarDockedLayout'
+import { RightSidebarResizeRail } from './RightSidebarResizeRail'
 import { RightSidebarSheet } from './RightSidebarSheet'
 import {
   clampWidth,
@@ -50,7 +51,7 @@ export function RightSidebarLayout({
   const mainRef = useRef<HTMLDivElement>(null)
   const sidebarRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
-  const hasOpenedRef = useRef(false)
+  const [hasOpened, setHasOpened] = useState(false)
   const { commitWidth, width, widthRef } = useStoredSidebarWidth({
     defaultWidth,
     maxWidth,
@@ -58,7 +59,7 @@ export function RightSidebarLayout({
     storageKey,
   })
   const isSheet = useMediaQuery(`(max-width: ${String(sheetBreakpointPx)}px)`)
-  const shouldRenderSidebar = hasOpenedRef.current || open
+  const shouldRenderSidebar = hasOpened || open
 
   useEffect(() => {
     widthRef.current = width
@@ -78,7 +79,19 @@ export function RightSidebarLayout({
 
   function captureSidebar(node: HTMLDivElement | null) {
     sidebarRef.current = node
-    if (node && open) hasOpenedRef.current = true
+    if (node && open) setHasOpened(true)
+  }
+
+  function captureRoot(node: HTMLDivElement | null) {
+    rootRef.current = node
+  }
+
+  function captureMain(node: HTMLDivElement | null) {
+    mainRef.current = node
+  }
+
+  function capturePanel(node: HTMLDivElement | null) {
+    panelRef.current = node
   }
 
   function applyWidth(nextWidth: number) {
@@ -102,14 +115,17 @@ export function RightSidebarLayout({
 
   return (
     <RightSidebarDockedLayout
+      captures={{ captureMain, capturePanel, captureRoot }}
       content={{ children, sidebar }}
-      refs={{ mainRef, panelRef, rootRef, sidebarRef, widthRef }}
-      rail={{
-        actions: { applyWidth, commitWidth },
-        bounds: { maxWidth, mainMinWidth, minWidth },
-        state: { open, width },
-        shouldAcceptWidth,
-      }}
+      rail={
+        <RightSidebarResizeRail
+          actions={{ applyWidth, commitWidth }}
+          bounds={{ maxWidth, mainMinWidth, minWidth }}
+          handles={{ panel: panelRef, root: rootRef, sidebar: sidebarRef, width: widthRef }}
+          state={{ open, width }}
+          shouldAcceptWidth={shouldAcceptWidth}
+        />
+      }
       shell={{ mainMinWidth, open, shouldRenderSidebar, width, captureSidebar }}
     />
   )

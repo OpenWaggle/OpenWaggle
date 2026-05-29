@@ -72,16 +72,16 @@ export function useRightSidebarResizeRail({
   function handlePointerDown(event: React.PointerEvent<HTMLButtonElement>) {
     if (!state.open || event.button !== 0) return
 
-    const panel = refs.panelRef.current
-    const root = refs.rootRef.current
-    const sidebar = refs.sidebarRef.current
+    const panel = refs.panel.current
+    const root = refs.root.current
+    const sidebar = refs.sidebar.current
     if (!panel || !root || !sidebar) return
 
     event.preventDefault()
     event.stopPropagation()
 
     const startWidth = clampedVisibleWidth(
-      refs.widthRef.current,
+      refs.width.current,
       bounds.minWidth,
       bounds.maxWidth,
       root.clientWidth,
