@@ -58,12 +58,13 @@ export function CommandPalette({
   }
 
   return (
-    <div
-      role="listbox"
-      className="w-full overflow-hidden rounded-xl border border-[#2a2f3a] bg-[#161a20]"
-      onKeyDown={handleKeyDown}
-    >
-      <CommandPaletteSearch inputRef={inputRef} query={query} onQueryChange={handleQueryChange} />
+    <div className="w-full overflow-hidden rounded-xl border border-[#2a2f3a] bg-[#161a20]">
+      <CommandPaletteSearch
+        inputRef={inputRef}
+        query={query}
+        onKeyDown={handleKeyDown}
+        onQueryChange={handleQueryChange}
+      />
       <CommandPaletteList
         items={items}
         highlightIndex={highlightIndex}
