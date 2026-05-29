@@ -7,7 +7,8 @@ import { useReviewStore } from '@/features/diff-panel/state/review-store'
 import { api } from '@/shared/lib/ipc'
 import { Spinner } from '@/shared/ui/Spinner'
 import { DiffBottomBar } from './DiffBottomBar'
-import { buildDisplayItems, DiffFileSection, type DisplayItem } from './DiffFileSection'
+import { DiffFileSection } from './DiffFileSection'
+import { buildDisplayItems, type DisplayItem } from './diff-display-items'
 import { FileTree } from './FileTree'
 
 interface DiffPanelProps {
