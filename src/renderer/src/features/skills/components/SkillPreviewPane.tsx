@@ -1,11 +1,8 @@
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import {
-  safeMarkdownComponents,
-  safeMarkdownRehypePlugins,
-  safeMarkdownUrlTransform,
-} from '@/shared/lib/markdown-safety'
+import { safeMarkdownComponents } from '@/shared/lib/markdown-link-components'
+import { safeMarkdownRehypePlugins, safeMarkdownUrlTransform } from '@/shared/lib/markdown-safety'
 import { Spinner } from '@/shared/ui/Spinner'
 
 interface SkillPreviewPaneProps {

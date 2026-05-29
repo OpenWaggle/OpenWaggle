@@ -7,11 +7,8 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Highlighter } from 'shiki'
 import { useIncrementalMarkdown } from '@/features/chat/hooks/useIncrementalMarkdown'
-import {
-  type RehypePlugins,
-  SafeMarkdownLink,
-  safeMarkdownUrlTransform,
-} from '@/shared/lib/markdown-safety'
+import { SafeMarkdownLink } from '@/shared/lib/markdown-link-components'
+import { type RehypePlugins, safeMarkdownUrlTransform } from '@/shared/lib/markdown-safety'
 import { isReactElementWithProps } from '@/shared/lib/react-element-guard'
 import type { ShikiCache } from '@/shared/lib/shiki/shiki-cache'
 import { CodeBlock } from './CodeBlock'

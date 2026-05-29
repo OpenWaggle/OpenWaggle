@@ -7,11 +7,8 @@ import remarkGfm from 'remark-gfm'
 import { ATTACHMENT_TEXT_PREFIX } from '@/features/chat/lib/useAgentChat.utils'
 import { useCopyToClipboard } from '@/shared/hooks/useCopyToClipboard'
 import { cn } from '@/shared/lib/cn'
-import {
-  safeMarkdownComponents,
-  safeMarkdownRehypePlugins,
-  safeMarkdownUrlTransform,
-} from '@/shared/lib/markdown-safety'
+import { safeMarkdownComponents } from '@/shared/lib/markdown-link-components'
+import { safeMarkdownRehypePlugins, safeMarkdownUrlTransform } from '@/shared/lib/markdown-safety'
 import { Button } from '@/shared/ui/Button'
 import { renderTextWithMentions } from './MentionText'
 

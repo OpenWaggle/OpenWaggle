@@ -1,5 +1,4 @@
-import type { ComponentPropsWithoutRef } from 'react'
-import type { Components, Options as ReactMarkdownOptions, UrlTransform } from 'react-markdown'
+import type { Options as ReactMarkdownOptions, UrlTransform } from 'react-markdown'
 import rehypeSanitize, { defaultSchema, type Options as SanitizeSchema } from 'rehype-sanitize'
 
 export type RehypePlugins = NonNullable<ReactMarkdownOptions['rehypePlugins']>
@@ -71,19 +70,3 @@ export const safeMarkdownSanitizeSchema: SanitizeSchema = {
 export const safeMarkdownRehypePlugins: RehypePlugins = [
   [rehypeSanitize, safeMarkdownSanitizeSchema],
 ]
-
-export function SafeMarkdownLink({ href, children }: ComponentPropsWithoutRef<'a'>) {
-  if (!href || !isAllowedMarkdownUrl(href)) {
-    return <span>{children}</span>
-  }
-
-  return (
-    <a href={href} target="_blank" rel="noopener noreferrer nofollow">
-      {children}
-    </a>
-  )
-}
-
-export const safeMarkdownComponents: Components = {
-  a: SafeMarkdownLink,
-}
