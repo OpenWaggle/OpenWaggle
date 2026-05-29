@@ -64,8 +64,13 @@ export function registerWaggleHandlers() {
 function registerSendWaggleMessageHandler() {
   typedHandle(
     'agent:send-waggle-message',
-    (_event, sessionId: SessionId, payload: AgentSendPayload, config: WaggleConfig) =>
-      handleSendWaggleMessage(sessionId, payload, config),
+    (
+      _event,
+      sessionId: SessionId,
+      payload: AgentSendPayload,
+      model: SupportedModelId,
+      config: WaggleConfig,
+    ) => handleSendWaggleMessage(sessionId, payload, model, config),
   )
 }
 
@@ -80,6 +85,7 @@ function registerCancelWaggleHandler() {
 function handleSendWaggleMessage(
   sessionId: SessionId,
   payload: AgentSendPayload,
+  model: SupportedModelId,
   config: WaggleConfig,
 ) {
   return Effect.gen(function* () {
@@ -91,7 +97,14 @@ function handleSendWaggleMessage(
     activeWaggleRuns.register(sessionId, abortController, {})
 
     yield* Effect.ensuring(
-      runRegisteredWaggleMessage(sessionId, runId, validatedPayload, config, abortController),
+      runRegisteredWaggleMessage(
+        sessionId,
+        runId,
+        validatedPayload,
+        model,
+        config,
+        abortController,
+      ),
       Effect.sync(() => {
         if (activeWaggleRuns.deleteIfCurrent(sessionId, abortController)) finishWaggleRun(sessionId)
       }),
@@ -103,6 +116,7 @@ function runRegisteredWaggleMessage(
   sessionId: SessionId,
   runId: string,
   payload: AgentSendPayload,
+  model: SupportedModelId,
   config: WaggleConfig,
   abortController: AbortController,
 ) {
@@ -111,6 +125,7 @@ function runRegisteredWaggleMessage(
       sessionId,
       runId,
       payload,
+      model,
       config,
       signal: abortController.signal,
       onRunPrepared: (runtimeModel) => startWaggleStream(sessionId, runId, runtimeModel),

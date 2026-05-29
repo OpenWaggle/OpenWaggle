@@ -1,4 +1,4 @@
-import { SessionBranchId } from '@shared/types/brand'
+import { SessionBranchId, SupportedModelId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import {
   WAGGLE_INHERIT_MODEL,
@@ -23,11 +23,12 @@ import {
   waggleConfig,
 } from './waggle-run-service.test-harness'
 
-function runInput(config: WaggleConfig, runId: string) {
+function runInput(config: WaggleConfig, runId: string, model = selectedModel) {
   return {
     sessionId,
     runId,
     payload: { text: 'Review the implementation', thinkingLevel: 'medium', attachments: [] },
+    model,
     config,
     signal: new AbortController().signal,
     onEvent: () => undefined,
@@ -81,6 +82,26 @@ describe('executeWaggleRun', () => {
     expect(recordActiveRunMock).toHaveBeenCalledWith(
       expect.objectContaining({ model: selectedModel }),
     )
+  })
+
+  it('rejects inherited Waggle models before invoking the kernel when no standard model is selected', async () => {
+    const inheritedConfig: WaggleConfig = {
+      ...waggleConfig,
+      agents: [{ ...waggleConfig.agents[0], model: WAGGLE_INHERIT_MODEL }, waggleConfig.agents[1]],
+    }
+
+    const result = await Effect.runPromise(
+      executeWaggleRun(
+        runInput(inheritedConfig, 'run-waggle-missing-selected-model', SupportedModelId('')),
+      ).pipe(Effect.provide(TestLayer)),
+    )
+
+    expect(result).toMatchObject({
+      outcome: 'validation-error',
+      message: 'Select a model before starting Waggle mode.',
+    })
+    expect(runMock).not.toHaveBeenCalled()
+    expect(recordActiveRunMock).not.toHaveBeenCalled()
   })
 
   it('keeps inherited model separate from the pinned first-turn runtime model', async () => {

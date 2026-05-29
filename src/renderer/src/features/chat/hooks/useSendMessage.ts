@@ -99,7 +99,7 @@ export function useSendMessage(options: UseSendMessageOptions): SendMessageHandl
 
     try {
       if (config) {
-        await api.sendWaggleMessage(sessionId, payload, config)
+        await api.sendWaggleMessage(sessionId, payload, model, config)
       } else {
         await api.sendMessage(sessionId, payload, model)
       }

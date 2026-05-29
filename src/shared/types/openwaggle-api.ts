@@ -218,6 +218,7 @@ export interface OpenWaggleApi {
   sendWaggleMessage(
     sessionId: SessionId,
     payload: AgentSendPayload,
+    model: SupportedModelId,
     config: WaggleConfig,
   ): Promise<void>
   cancelWaggle(sessionId: SessionId): void

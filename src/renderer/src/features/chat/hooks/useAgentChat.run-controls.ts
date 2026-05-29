@@ -147,7 +147,7 @@ export function createAgentRunControls(params: AgentRunControlParams) {
     const targetSessionId = sessionId
     const runPromise = startForegroundRun(targetSessionId)
     const sendPromise = waggleConfig
-      ? api.sendWaggleMessage(targetSessionId, payload, waggleConfig)
+      ? api.sendWaggleMessage(targetSessionId, payload, params.model, waggleConfig)
       : api.sendMessage(targetSessionId, payload, params.model)
 
     try {

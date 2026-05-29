@@ -22,6 +22,7 @@ import type {
   GitFileDiff,
   GitStatusSummary,
 } from './git'
+import type { SupportedModelId } from './llm'
 import type { AgentPhaseState } from './phase'
 import type {
   AgentsInstructionStatus,
@@ -143,7 +144,12 @@ export interface IpcIntegrationInvokeChannelMap {
   }
   // Waggle mode
   'agent:send-waggle-message': {
-    args: [sessionId: SessionId, payload: AgentSendPayload, config: WaggleConfig]
+    args: [
+      sessionId: SessionId,
+      payload: AgentSendPayload,
+      model: SupportedModelId,
+      config: WaggleConfig,
+    ]
     return: undefined
   }
   // Auth

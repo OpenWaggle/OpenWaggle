@@ -40,6 +40,7 @@ export interface WaggleRunInput {
   readonly sessionId: SessionId
   readonly runId: string
   readonly payload: AgentSendPayload
+  readonly model: SupportedModelId
   readonly config: WaggleConfig
   readonly signal: AbortSignal
   readonly onEvent: (event: AgentTransportEvent, meta: WaggleStreamMetadata) => void
@@ -87,6 +88,14 @@ function noProjectOutcome() {
   }
 }
 
+function noInheritedModelOutcome() {
+  return {
+    outcome: 'validation-error' as const,
+    message: 'Select a model before starting Waggle mode.',
+    code: 'validation-error',
+  }
+}
+
 function mainBranchFallbackId(sessionId: SessionId) {
   return SessionBranchId(`${sessionId}:${MAIN_BRANCH_NAME}`)
 }
@@ -99,6 +108,10 @@ function resolveInitialWaggleRuntimeModel(input: {
   return isInheritedWaggleModelBinding(firstAgentModel)
     ? input.selectedModel
     : SupportedModelId(firstAgentModel)
+}
+
+function configRequiresInheritedModel(config: WaggleConfig) {
+  return config.agents.some((agent) => isInheritedWaggleModelBinding(agent.model))
 }
 
 function resolveWaggleBranchId(input: {
@@ -137,6 +150,9 @@ function prepareWaggleRun(input: WaggleRunInput) {
     if (!safeDecodeUnknown(waggleConfigSchema, input.config).success) {
       return { ok: false as const, outcome: validationErrorOutcome() }
     }
+    if (configRequiresInheritedModel(input.config) && !input.model.trim()) {
+      return { ok: false as const, outcome: noInheritedModelOutcome() }
+    }
 
     const settingsService = yield* SettingsService
     const settings = yield* settingsService.get()
@@ -158,10 +174,10 @@ function prepareWaggleRun(input: WaggleRunInput) {
       value: {
         assignedTitle,
         hydratedPayload,
-        inheritedModel: settings.selectedModel,
+        inheritedModel: input.model,
         runtimeModel: resolveInitialWaggleRuntimeModel({
           config: input.config,
-          selectedModel: settings.selectedModel,
+          selectedModel: input.model,
         }),
         session,
         skillToggles: settings.skillTogglesByProject[session.projectPath],

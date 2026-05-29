@@ -122,10 +122,14 @@ describe('registerWaggleHandlers', () => {
         {},
         SESSION_ID,
         { text: 'Review this patch', thinkingLevel: 'medium', attachments: [] },
+        SELECTED_MODEL,
         inheritedFirstAgentConfig(),
       ),
     )
 
+    expect(executeWaggleRunMock).toHaveBeenCalledWith(
+      expect.objectContaining({ model: SELECTED_MODEL }),
+    )
     expect(startStreamBufferMock).toHaveBeenCalledWith(SESSION_ID, SELECTED_MODEL, 'waggle')
     expect(emitTransportEventMock).toHaveBeenCalledWith(
       SESSION_ID,
