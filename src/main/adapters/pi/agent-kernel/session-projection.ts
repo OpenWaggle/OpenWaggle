@@ -11,6 +11,15 @@ interface PiSessionSnapshotSource {
   readonly sessionManager: Pick<AgentSession['sessionManager'], 'getEntries' | 'getLeafId'>
 }
 
+type PiMessageEntry = Extract<SessionEntry, { type: 'message' }>
+type PiAssistantMessageEntry = PiMessageEntry & {
+  readonly message: Extract<PiMessageEntry['message'], { role: 'assistant' }>
+}
+type PiUserMessageEntry = PiMessageEntry & {
+  readonly message: Extract<PiMessageEntry['message'], { role: 'user' }>
+}
+type PiTurnCustomMessageEntry = Extract<SessionEntry, { type: 'custom_message' }>
+
 function parsePiEntryTimestamp(timestamp: string) {
   const parsed = Date.parse(timestamp)
   return Number.isFinite(parsed) ? parsed : Date.now()
@@ -20,33 +29,19 @@ function isRecord(value: unknown): value is { readonly [key: string]: unknown } 
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function isAssistantEntry(entry: SessionEntry): entry is Extract<
-  SessionEntry,
-  { type: 'message' }
-> & {
-  readonly message: Extract<
-    Extract<SessionEntry, { type: 'message' }>['message'],
-    { role: 'assistant' }
-  >
-} {
+function isAssistantEntry(entry: SessionEntry): entry is PiAssistantMessageEntry {
   return entry.type === 'message' && entry.message.role === 'assistant'
 }
 
-function isTurnCustomMessageEntry(
-  entry: SessionEntry,
-): entry is Extract<SessionEntry, { type: 'custom_message' }> {
+function isUserMessageEntry(entry: SessionEntry): entry is PiUserMessageEntry {
+  return entry.type === 'message' && entry.message.role === 'user'
+}
+
+function isTurnCustomMessageEntry(entry: SessionEntry): entry is PiTurnCustomMessageEntry {
   return entry.type === 'custom_message' && entry.customType === PI_WAGGLE_TURN_CUSTOM_TYPE
 }
 
-function turnMetadataFromCustomMessage(input: {
-  readonly assistant: Extract<SessionEntry, { type: 'message' }> & {
-    readonly message: Extract<
-      Extract<SessionEntry, { type: 'message' }>['message'],
-      { role: 'assistant' }
-    >
-  }
-  readonly entry: Extract<SessionEntry, { type: 'custom_message' }>
-}) {
+function turnMetadataFromCustomMessage(input: { readonly entry: PiTurnCustomMessageEntry }) {
   const details = parsePiWaggleTurnDetails(input.entry.details)
   if (!details) return null
 
@@ -60,28 +55,34 @@ function turnMetadataFromCustomMessage(input: {
   }
 }
 
-function nearestTurnMetadata(input: {
-  readonly entry: Extract<SessionEntry, { type: 'message' }> & {
-    readonly message: Extract<
-      Extract<SessionEntry, { type: 'message' }>['message'],
-      { role: 'assistant' }
-    >
+function turnMetadataForPromptParent(
+  parent: PiUserMessageEntry,
+  entryById: ReadonlyMap<string, SessionEntry>,
+) {
+  if (!parent.parentId) {
+    return null
   }
+  const turnParent = entryById.get(parent.parentId)
+  return turnParent && isTurnCustomMessageEntry(turnParent)
+    ? turnMetadataFromCustomMessage({ entry: turnParent })
+    : null
+}
+
+function currentTurnMetadata(input: {
+  readonly entry: PiAssistantMessageEntry
   readonly entryById: ReadonlyMap<string, SessionEntry>
 }) {
-  let currentParentId = input.entry.parentId
-  while (currentParentId) {
-    const parent = input.entryById.get(currentParentId)
-    if (!parent) {
-      return null
-    }
-    if (isTurnCustomMessageEntry(parent)) {
-      return turnMetadataFromCustomMessage({ assistant: input.entry, entry: parent })
-    }
-    currentParentId = parent.parentId
+  if (!input.entry.parentId) {
+    return null
   }
-
-  return null
+  const parent = input.entryById.get(input.entry.parentId)
+  if (!parent) {
+    return null
+  }
+  if (isTurnCustomMessageEntry(parent)) {
+    return turnMetadataFromCustomMessage({ entry: parent })
+  }
+  return isUserMessageEntry(parent) ? turnMetadataForPromptParent(parent, input.entryById) : null
 }
 
 function mergeMetadataJsonWithWaggle(rawMetadataJson: string, waggle: unknown) {
@@ -99,7 +100,7 @@ function projectPiEntry(input: {
   const timestampMs = parsePiEntryTimestamp(input.entry.timestamp)
   const projection = projectionForPiEntry(input.entry)
   const waggleMetadata = isAssistantEntry(input.entry)
-    ? nearestTurnMetadata({ entry: input.entry, entryById: input.entryById })
+    ? currentTurnMetadata({ entry: input.entry, entryById: input.entryById })
     : null
 
   return {

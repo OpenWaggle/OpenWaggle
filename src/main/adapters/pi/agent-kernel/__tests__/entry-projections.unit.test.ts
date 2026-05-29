@@ -9,6 +9,56 @@ function base(id: string, parentId: string | null = null) {
   return { id, parentId, timestamp: TIMESTAMP }
 }
 
+function userMessage(id: string, parentId: string, text: string) {
+  return {
+    ...base(id, parentId),
+    type: 'message',
+    message: { role: 'user', content: text, timestamp: 1 },
+  } satisfies SessionEntry
+}
+
+function assistantMessage(id: string, parentId: string, text: string) {
+  return {
+    ...base(id, parentId),
+    type: 'message',
+    message: {
+      role: 'assistant',
+      api: 'anthropic-messages',
+      provider: 'anthropic',
+      model: 'claude-sonnet-4',
+      content: [{ type: 'text', text }],
+      usage: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+      stopReason: 'stop',
+      timestamp: 1,
+    },
+  } satisfies SessionEntry
+}
+
+function waggleTurn(id: string, parentId: string | null = null) {
+  return {
+    ...base(id, parentId),
+    type: 'custom_message',
+    customType: 'pi-waggle.turn',
+    content: 'hidden coordination prompt',
+    display: true,
+    details: {
+      runId: 'waggle-run-1',
+      turnNumber: 1,
+      agentIndex: 1,
+      agentLabel: 'Reviewer',
+      agentModel: 'anthropic/claude-sonnet-4',
+      agentColor: 'amber',
+    },
+  } satisfies SessionEntry
+}
+
 describe('Pi entry projection', () => {
   it('projects model, thinking, compaction, branch summary, custom, label, and session metadata entries', () => {
     expect(
@@ -88,42 +138,8 @@ describe('Pi entry projection', () => {
 
   it('annotates assistant messages from preceding pi-waggle turn entries', () => {
     const entries = [
-      {
-        ...base('turn'),
-        type: 'custom_message',
-        customType: 'pi-waggle.turn',
-        content: 'hidden coordination prompt',
-        display: true,
-        details: {
-          runId: 'waggle-run-1',
-          turnNumber: 1,
-          agentIndex: 1,
-          agentLabel: 'Reviewer',
-          agentModel: 'anthropic/claude-sonnet-4',
-          agentColor: 'amber',
-        },
-      },
-      {
-        ...base('assistant', 'turn'),
-        type: 'message',
-        message: {
-          role: 'assistant',
-          api: 'anthropic-messages',
-          provider: 'anthropic',
-          model: 'claude-sonnet-4',
-          content: [{ type: 'text', text: 'Reviewed.' }],
-          usage: {
-            input: 0,
-            output: 0,
-            cacheRead: 0,
-            cacheWrite: 0,
-            totalTokens: 0,
-            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-          },
-          stopReason: 'stop',
-          timestamp: 1,
-        },
-      },
+      waggleTurn('turn'),
+      assistantMessage('assistant', 'turn', 'Reviewed.'),
     ] satisfies SessionEntry[]
 
     const snapshot = projectPiSessionSnapshot({
@@ -143,6 +159,56 @@ describe('Pi entry projection', () => {
         sessionId: 'waggle-run-1',
       },
     })
+  })
+
+  it('annotates assistant messages from direct user prompts under pi-waggle turn entries', () => {
+    const entries = [
+      waggleTurn('turn'),
+      userMessage('prompt', 'turn', 'Continue Waggle as Reviewer.'),
+      assistantMessage('assistant', 'prompt', 'Reviewed.'),
+    ] satisfies SessionEntry[]
+
+    const snapshot = projectPiSessionSnapshot({
+      sessionManager: {
+        getEntries: () => entries,
+        getLeafId: () => 'assistant',
+      },
+    })
+
+    expect(JSON.parse(snapshot.nodes[2]?.metadataJson ?? '{}')).toMatchObject({
+      waggle: {
+        agentIndex: 1,
+        agentLabel: 'Reviewer',
+        agentColor: 'amber',
+        agentModel: 'anthropic/claude-sonnet-4',
+        turnNumber: 1,
+        sessionId: 'waggle-run-1',
+      },
+    })
+  })
+
+  it('does not annotate later normal assistant messages with stale Waggle metadata', () => {
+    const entries = [
+      waggleTurn('turn'),
+      assistantMessage('waggle-assistant', 'turn', 'Reviewed.'),
+      userMessage('normal-user', 'waggle-assistant', 'Now answer normally.'),
+      assistantMessage('normal-assistant', 'normal-user', 'Normal answer.'),
+    ] satisfies SessionEntry[]
+
+    const snapshot = projectPiSessionSnapshot({
+      sessionManager: {
+        getEntries: () => entries,
+        getLeafId: () => 'normal-assistant',
+      },
+    })
+
+    expect(JSON.parse(snapshot.nodes[1]?.metadataJson ?? '{}')).toMatchObject({
+      waggle: {
+        agentLabel: 'Reviewer',
+        sessionId: 'waggle-run-1',
+      },
+    })
+    expect(JSON.parse(snapshot.nodes[3]?.metadataJson ?? '{}')).not.toHaveProperty('waggle')
   })
 
   it('projects session snapshots with deterministic depth and ordering', () => {
