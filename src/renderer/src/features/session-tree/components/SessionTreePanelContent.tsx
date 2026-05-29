@@ -15,33 +15,35 @@ function EmptySessionTreeMessage({ searchActive }: { readonly searchActive: bool
 }
 
 export function SessionTreePanelContent({ content }: SessionTreePanelContentProps) {
+  const {
+    onScrollToTreeBottom,
+    onTreeScroll,
+    rowActions,
+    rowRefs: rowElements,
+    scrollContainerRef: scrollContainer,
+    searchActive,
+    showTreeScrollToBottom,
+    tree,
+    treeRowsRef: treeRows,
+    view,
+  } = content
+
   return (
     <div className="relative min-h-0 flex-1">
-      <div
-        ref={content.scrollContainerRef}
-        className="h-full overflow-y-auto p-2"
-        onScroll={content.onTreeScroll}
-      >
-        {!content.tree ? (
+      <div ref={scrollContainer} className="h-full overflow-y-auto p-2" onScroll={onTreeScroll}>
+        {!tree ? (
           <div className="px-2 py-6 text-center text-[12px] text-text-tertiary">
             No session tree yet.
           </div>
-        ) : content.view?.visibleRows.length === 0 ? (
-          <EmptySessionTreeMessage searchActive={content.searchActive} />
-        ) : content.view ? (
-          <div ref={content.treeRowsRef}>
-            <SessionTreeRows
-              actions={content.rowActions}
-              refs={{ rowRefs: content.rowRefs }}
-              view={content.view}
-            />
+        ) : view?.visibleRows.length === 0 ? (
+          <EmptySessionTreeMessage searchActive={searchActive} />
+        ) : view ? (
+          <div ref={treeRows}>
+            <SessionTreeRows actions={rowActions} refs={{ rowRefs: rowElements }} view={view} />
           </div>
         ) : null}
       </div>
-      <ScrollToBottomButton
-        visible={content.showTreeScrollToBottom}
-        onClick={content.onScrollToTreeBottom}
-      />
+      <ScrollToBottomButton visible={showTreeScrollToBottom} onClick={onScrollToTreeBottom} />
     </div>
   )
 }
