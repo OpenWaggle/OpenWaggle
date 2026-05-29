@@ -1,5 +1,5 @@
 import type { CSSProperties, Ref, TextareaHTMLAttributes, UIEvent } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Highlighter, ThemedToken } from 'shiki'
 import { cn } from '@/shared/lib/cn'
 import { createRendererLogger } from '@/shared/lib/logger'
@@ -135,12 +135,10 @@ export function Textarea({
     }
   }, [highlightLanguage])
 
-  const highlightedLines = useMemo<readonly HighlightedLine[] | null>(() => {
-    if (!highlighter || !resolvedLanguage || textValue.length === 0) {
-      return null
-    }
+  let highlightedLines: readonly HighlightedLine[] | null = null
+  if (highlighter && resolvedLanguage && textValue.length > 0) {
     try {
-      return getHighlightedLines(
+      highlightedLines = getHighlightedLines(
         highlighter.codeToTokensBase(textValue, {
           lang: resolvedLanguage,
           theme: DEFAULT_THEME,
@@ -151,9 +149,8 @@ export function Textarea({
         language: resolvedLanguage,
         error: highlightError instanceof Error ? highlightError.message : String(highlightError),
       })
-      return null
     }
-  }, [highlighter, resolvedLanguage, textValue])
+  }
 
   useEffect(() => {
     syncOverlayScroll(textareaRef.current, overlayRef.current)
