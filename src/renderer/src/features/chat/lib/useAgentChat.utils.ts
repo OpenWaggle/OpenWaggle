@@ -11,6 +11,7 @@ export {
 } from './chat-message-conversion'
 export {
   appendMissingOptimisticUserMessages,
+  appendUnpersistedAssistantTail,
   reconcileSnapshotUserMessages,
 } from './chat-message-reconciliation'
 export { getUIMessageText } from './chat-message-text'

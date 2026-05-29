@@ -96,3 +96,54 @@ export function reconcileSnapshotUserMessages(
 
   return didReplace ? reconciled : snapshotMessages
 }
+
+function messagesRepresentSameTurn(snapshotMessage: UIMessage, existingMessage: UIMessage) {
+  if (snapshotMessage.id === existingMessage.id) {
+    return true
+  }
+  if (snapshotMessage.role !== 'user' || existingMessage.role !== 'user') {
+    return false
+  }
+
+  const snapshotText = getUIMessageText(snapshotMessage)
+  return snapshotText.length > 0 && snapshotText === getUIMessageText(existingMessage)
+}
+
+function findAlignedSnapshotEndIndex(
+  snapshotMessages: readonly UIMessage[],
+  existingMessages: readonly UIMessage[],
+) {
+  let existingIndex = -1
+  for (const snapshotMessage of snapshotMessages) {
+    const nextIndex = existingMessages.findIndex(
+      (existingMessage, index) =>
+        index > existingIndex && messagesRepresentSameTurn(snapshotMessage, existingMessage),
+    )
+    if (nextIndex < 0) {
+      return null
+    }
+    existingIndex = nextIndex
+  }
+  return existingIndex
+}
+
+export function appendUnpersistedAssistantTail(
+  snapshotMessages: UIMessage[],
+  existingMessages: readonly UIMessage[],
+): UIMessage[] {
+  if (snapshotMessages.length === 0 || existingMessages.length <= snapshotMessages.length) {
+    return snapshotMessages
+  }
+
+  const alignedEndIndex = findAlignedSnapshotEndIndex(snapshotMessages, existingMessages)
+  if (alignedEndIndex === null || alignedEndIndex >= existingMessages.length - 1) {
+    return snapshotMessages
+  }
+
+  const snapshotMessageIds = new Set(snapshotMessages.map((message) => message.id))
+  const tail = existingMessages
+    .slice(alignedEndIndex + 1)
+    .filter((message) => message.role === 'assistant' && !snapshotMessageIds.has(message.id))
+
+  return tail.length > 0 ? [...snapshotMessages, ...tail] : snapshotMessages
+}

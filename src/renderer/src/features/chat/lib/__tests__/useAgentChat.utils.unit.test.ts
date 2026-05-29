@@ -4,6 +4,7 @@ import type { SessionDetail } from '@shared/types/session'
 import { describe, expect, it } from 'vitest'
 import {
   appendMissingOptimisticUserMessages,
+  appendUnpersistedAssistantTail,
   formatAttachmentPreview,
   mergeBackgroundReconnectMessages,
   sessionToUIMessages,
@@ -80,6 +81,50 @@ describe('appendMissingOptimisticUserMessages', () => {
       ...snapshotMessages,
       optimisticMessages[2],
     ])
+  })
+})
+
+describe('appendUnpersistedAssistantTail', () => {
+  it('preserves live assistant output after a matching refreshed user snapshot', () => {
+    const snapshotMessages = [userMessage('optimistic-user-1', 'review prototypes')]
+    const liveAssistant: UIMessage = {
+      id: 'assistant-live-1',
+      role: 'assistant',
+      parts: [{ type: 'text', content: 'Partial answer' }],
+      createdAt: new Date(2),
+    }
+
+    expect(
+      appendUnpersistedAssistantTail(snapshotMessages, [
+        userMessage('optimistic-user-1', 'review prototypes'),
+        liveAssistant,
+      ]),
+    ).toEqual([...snapshotMessages, liveAssistant])
+  })
+
+  it('does not append stale live output once the refreshed snapshot has a different assistant', () => {
+    const snapshotMessages = [
+      userMessage('optimistic-user-1', 'review prototypes'),
+      {
+        id: 'assistant-persisted-1',
+        role: 'assistant',
+        parts: [{ type: 'text', content: 'Persisted answer' }],
+        createdAt: new Date(2),
+      } satisfies UIMessage,
+    ]
+    const staleLiveAssistant: UIMessage = {
+      id: 'assistant-live-1',
+      role: 'assistant',
+      parts: [{ type: 'text', content: 'Partial answer' }],
+      createdAt: new Date(2),
+    }
+
+    expect(
+      appendUnpersistedAssistantTail(snapshotMessages, [
+        userMessage('optimistic-user-1', 'review prototypes'),
+        staleLiveAssistant,
+      ]),
+    ).toEqual(snapshotMessages)
   })
 })
 
