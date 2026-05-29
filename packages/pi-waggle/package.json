@@ -26,6 +26,9 @@
   "dependencies": {
     "@openwaggle/waggle-core": "workspace:*"
   },
+  "devDependencies": {
+    "@total-typescript/shoehorn": "0.1.2"
+  },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": "*",
     "@mariozechner/pi-tui": "*"

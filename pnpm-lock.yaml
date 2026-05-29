@@ -283,6 +283,10 @@ importers:
       '@openwaggle/waggle-core':
         specifier: workspace:*
         version: link:../waggle-core
+    devDependencies:
+      '@total-typescript/shoehorn':
+        specifier: 0.1.2
+        version: 0.1.2
 
   packages/waggle-core: {}
 

@@ -31,6 +31,8 @@ const DEFAULT_SECOND_AGENT_ROLE =
   'Stress-test the plan for correctness, risks, and missing details.'
 const DEFAULT_STOP_CONDITION = 'consensus'
 const DEFAULT_MAX_TURNS_SAFETY = 8
+const ADVANCED_JSON_LABEL = 'Advanced JSON…'
+const DONE_LABEL = 'Done'
 
 function notify(ctx: ExtensionContext, message: string, type: 'info' | 'warning' | 'error') {
   if (ctx.hasUI) ctx.ui.notify(message, type)
@@ -154,6 +156,85 @@ export async function promptFullWaggleConfig(input: {
   } satisfies WaggleConfig
 }
 
+type GuidedConfigEditResult =
+  | {
+      readonly action: 'continue'
+      readonly config: WaggleConfig
+    }
+  | {
+      readonly action: 'done'
+      readonly config: WaggleConfig
+    }
+
+function guidedConfigOptions(ctx: ExtensionCommandContext, config: WaggleConfig) {
+  const [firstAgent, secondAgent] = config.agents
+  return [
+    `Edit ${agentMenuLabel(ctx, firstAgent)}`,
+    `Edit ${agentMenuLabel(ctx, secondAgent)}`,
+    `Set stop condition — ${config.stop.primary}`,
+    `Set max turns — ${String(config.stop.maxTurnsSafety)}`,
+    ADVANCED_JSON_LABEL,
+    DONE_LABEL,
+  ]
+}
+
+async function editSelectedConfigField(input: {
+  readonly ctx: ExtensionCommandContext
+  readonly config: WaggleConfig
+  readonly selected: string | undefined
+}): Promise<GuidedConfigEditResult> {
+  if (!input.selected || input.selected === DONE_LABEL) {
+    return { action: 'done', config: input.config }
+  }
+
+  const [firstAgent, secondAgent] = input.config.agents
+  if (input.selected.startsWith(`Edit ${firstAgent.label}`)) {
+    const nextAgent = await editAgentSlot({ ctx: input.ctx, agent: firstAgent })
+    return { action: 'continue', config: { ...input.config, agents: [nextAgent, secondAgent] } }
+  }
+
+  if (input.selected.startsWith(`Edit ${secondAgent.label}`)) {
+    const nextAgent = await editAgentSlot({ ctx: input.ctx, agent: secondAgent })
+    return { action: 'continue', config: { ...input.config, agents: [firstAgent, nextAgent] } }
+  }
+
+  if (input.selected.startsWith('Set stop condition')) {
+    const primary = await promptStopCondition(input.ctx, input.config.stop.primary)
+    const config = primary
+      ? { ...input.config, stop: { ...input.config.stop, primary } }
+      : input.config
+    return { action: 'continue', config }
+  }
+
+  if (input.selected.startsWith('Set max turns')) {
+    const config = await editMaxTurnsConfig(input.ctx, input.config)
+    return { action: 'continue', config }
+  }
+
+  if (input.selected !== ADVANCED_JSON_LABEL) {
+    return { action: 'continue', config: input.config }
+  }
+
+  const config = await editAdvancedJsonConfig(input.ctx, input.config)
+  return { action: 'continue', config }
+}
+
+async function editMaxTurnsConfig(ctx: ExtensionCommandContext, config: WaggleConfig) {
+  const rawMaxTurns = await promptPrefilledText({
+    ctx,
+    title: 'Set Waggle max turns',
+    currentValue: String(config.stop.maxTurnsSafety),
+  })
+  return rawMaxTurns === null
+    ? config
+    : { ...config, stop: { ...config.stop, maxTurnsSafety: parseMaxTurns(rawMaxTurns) } }
+}
+
+async function editAdvancedJsonConfig(ctx: ExtensionCommandContext, config: WaggleConfig) {
+  const edited = await ctx.ui.editor('Advanced Waggle config JSON', stringifyConfigJson(config))
+  return edited?.trim() ? parseEditedConfig(edited) : config
+}
+
 export async function editWaggleConfigGuided(input: {
   readonly ctx: ExtensionCommandContext
   readonly initialConfig: WaggleConfig
@@ -163,50 +244,10 @@ export async function editWaggleConfigGuided(input: {
 
   let config = input.initialConfig
   while (true) {
-    const [firstAgent, secondAgent] = config.agents
-    const selected = await input.ctx.ui.select(input.title, [
-      `Edit ${agentMenuLabel(input.ctx, firstAgent)}`,
-      `Edit ${agentMenuLabel(input.ctx, secondAgent)}`,
-      `Set stop condition — ${config.stop.primary}`,
-      `Set max turns — ${String(config.stop.maxTurnsSafety)}`,
-      'Advanced JSON…',
-      'Done',
-    ])
-
-    if (!selected || selected === 'Done') return config
-    if (selected.startsWith(`Edit ${firstAgent.label}`)) {
-      const nextAgent = await editAgentSlot({ ctx: input.ctx, agent: firstAgent })
-      config = { ...config, agents: [nextAgent, secondAgent] }
-      continue
-    }
-    if (selected.startsWith(`Edit ${secondAgent.label}`)) {
-      const nextAgent = await editAgentSlot({ ctx: input.ctx, agent: secondAgent })
-      config = { ...config, agents: [firstAgent, nextAgent] }
-      continue
-    }
-    if (selected.startsWith('Set stop condition')) {
-      const primary = await promptStopCondition(input.ctx, config.stop.primary)
-      if (primary) config = { ...config, stop: { ...config.stop, primary } }
-      continue
-    }
-    if (selected.startsWith('Set max turns')) {
-      const rawMaxTurns = await promptPrefilledText({
-        ctx: input.ctx,
-        title: 'Set Waggle max turns',
-        currentValue: String(config.stop.maxTurnsSafety),
-      })
-      if (rawMaxTurns !== null) {
-        config = { ...config, stop: { ...config.stop, maxTurnsSafety: parseMaxTurns(rawMaxTurns) } }
-      }
-      continue
-    }
-    if (selected === 'Advanced JSON…') {
-      const edited = await input.ctx.ui.editor(
-        'Advanced Waggle config JSON',
-        stringifyConfigJson(config),
-      )
-      if (edited?.trim()) config = parseEditedConfig(edited)
-    }
+    const selected = await input.ctx.ui.select(input.title, guidedConfigOptions(input.ctx, config))
+    const result = await editSelectedConfigField({ ctx: input.ctx, config, selected })
+    if (result.action === 'done') return result.config
+    config = result.config
   }
 }
 

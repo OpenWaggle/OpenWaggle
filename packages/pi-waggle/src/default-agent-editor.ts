@@ -77,6 +77,95 @@ async function editAgentModel(input: {
   return concrete ?? input.agent.model
 }
 
+interface AgentEditMenu {
+  readonly modelBindingLabel: string
+  readonly options: string[]
+}
+
+type AgentEditResult =
+  | {
+      readonly action: 'continue'
+      readonly agent: WaggleAgentSlot
+    }
+  | {
+      readonly action: 'done'
+      readonly agent: WaggleAgentSlot
+    }
+
+function agentEditMenu(ctx: ExtensionContext, agent: WaggleAgentSlot): AgentEditMenu {
+  const modelBindingLabel = isWaggleInheritedModel(agent.model)
+    ? 'Use standard-mode model — active'
+    : 'Use standard-mode model — switch from pinned'
+
+  return {
+    modelBindingLabel,
+    options: [
+      `Edit label — ${agent.label}`,
+      `Edit role prompt — ${normalizePromptPreview(agent.roleDescription)}`,
+      `Change model — ${effectiveModelLabel(ctx, agent.model)}`,
+      modelBindingLabel,
+      `Change color — ${agent.color}`,
+      'Back',
+    ],
+  }
+}
+
+async function editSelectedAgentField(input: {
+  readonly ctx: ExtensionCommandContext
+  readonly agent: WaggleAgentSlot
+  readonly selected: string | undefined
+  readonly modelBindingLabel: string
+}): Promise<AgentEditResult> {
+  if (!input.selected || input.selected === 'Back') {
+    return { action: 'done', agent: input.agent }
+  }
+
+  if (input.selected.startsWith('Edit label')) {
+    const label = await promptPrefilledText({
+      ctx: input.ctx,
+      title: `Agent label for ${input.agent.label}`,
+      currentValue: input.agent.label,
+    })
+    return label === null
+      ? { action: 'done', agent: input.agent }
+      : { action: 'continue', agent: { ...input.agent, label } }
+  }
+
+  if (input.selected.startsWith('Edit role prompt')) {
+    const roleDescription = await promptLongText({
+      ctx: input.ctx,
+      title: `Role prompt for ${input.agent.label}`,
+      currentValue: input.agent.roleDescription,
+    })
+    return roleDescription === null
+      ? { action: 'done', agent: input.agent }
+      : { action: 'continue', agent: { ...input.agent, roleDescription } }
+  }
+
+  if (input.selected.startsWith('Change model')) {
+    return {
+      action: 'continue',
+      agent: {
+        ...input.agent,
+        model: await editAgentModel({ ctx: input.ctx, agent: input.agent }),
+      },
+    }
+  }
+
+  if (input.selected === input.modelBindingLabel) {
+    return { action: 'continue', agent: { ...input.agent, model: WAGGLE_INHERIT_MODEL } }
+  }
+
+  if (!input.selected.startsWith('Change color')) {
+    return { action: 'continue', agent: input.agent }
+  }
+
+  const color = await promptColor(input.ctx, input.agent.color)
+  return color === null
+    ? { action: 'done', agent: input.agent }
+    : { action: 'continue', agent: { ...input.agent, color } }
+}
+
 export async function editAgentSlot(input: {
   readonly ctx: ExtensionCommandContext
   readonly agent: WaggleAgentSlot
@@ -85,52 +174,17 @@ export async function editAgentSlot(input: {
 
   let agent = input.agent
   while (true) {
-    const modelBindingLabel = isWaggleInheritedModel(agent.model)
-      ? 'Use standard-mode model — active'
-      : 'Use standard-mode model — switch from pinned'
-    const selected = await input.ctx.ui.select(`Edit Waggle agent — ${agent.label}`, [
-      `Edit label — ${agent.label}`,
-      `Edit role prompt — ${normalizePromptPreview(agent.roleDescription)}`,
-      `Change model — ${effectiveModelLabel(input.ctx, agent.model)}`,
-      modelBindingLabel,
-      `Change color — ${agent.color}`,
-      'Back',
-    ])
+    const menu = agentEditMenu(input.ctx, agent)
+    const selected = await input.ctx.ui.select(`Edit Waggle agent — ${agent.label}`, menu.options)
+    const result = await editSelectedAgentField({
+      ctx: input.ctx,
+      agent,
+      selected,
+      modelBindingLabel: menu.modelBindingLabel,
+    })
 
-    if (!selected || selected === 'Back') return agent
-    if (selected.startsWith('Edit label')) {
-      const label = await promptPrefilledText({
-        ctx: input.ctx,
-        title: `Agent label for ${agent.label}`,
-        currentValue: agent.label,
-      })
-      if (label === null) return agent
-      agent = { ...agent, label }
-      continue
-    }
-    if (selected.startsWith('Edit role prompt')) {
-      const roleDescription = await promptLongText({
-        ctx: input.ctx,
-        title: `Role prompt for ${agent.label}`,
-        currentValue: agent.roleDescription,
-      })
-      if (roleDescription === null) return agent
-      agent = { ...agent, roleDescription }
-      continue
-    }
-    if (selected.startsWith('Change model')) {
-      agent = { ...agent, model: await editAgentModel({ ctx: input.ctx, agent }) }
-      continue
-    }
-    if (selected === modelBindingLabel) {
-      agent = { ...agent, model: WAGGLE_INHERIT_MODEL }
-      continue
-    }
-    if (selected.startsWith('Change color')) {
-      const color = await promptColor(input.ctx, agent.color)
-      if (color === null) return agent
-      agent = { ...agent, color }
-    }
+    if (result.action === 'done') return result.agent
+    agent = result.agent
   }
 }
 
