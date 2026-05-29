@@ -141,6 +141,94 @@ function buildFailedRunResult(input: {
   }
 }
 
+type PiOperationOutcome =
+  | {
+      readonly status: 'completed'
+    }
+  | {
+      readonly status: 'failed'
+      readonly error: unknown
+    }
+
+async function runPiOperation(operation: () => Promise<void>): Promise<PiOperationOutcome> {
+  try {
+    await operation()
+    return { status: 'completed' }
+  } catch (error) {
+    return { status: 'failed', error }
+  }
+}
+
+async function collectSettledPiMessages(session: AgentSession, previousMessageCount: number) {
+  await waitForPostRunSettlement(session)
+  return session.agent.state.messages.slice(previousMessageCount)
+}
+
+function emitFailedRunEnd(input: {
+  readonly runInput: AgentKernelRunInput
+  readonly aborted: boolean
+  readonly message: string
+}) {
+  input.runInput.onEvent({
+    type: 'agent_end',
+    runId: input.runInput.runId,
+    reason: input.aborted ? 'aborted' : 'error',
+    ...(input.aborted ? {} : { error: { message: input.message } }),
+    timestamp: Date.now(),
+    model: input.runInput.model,
+  })
+}
+
+function buildFailedSubscribedRunResult(input: {
+  readonly session: AgentSession
+  readonly runInput: AgentKernelRunInput
+  readonly appended: readonly unknown[]
+  readonly operationAborted: boolean
+  readonly error: unknown
+  readonly buildErrorMessages: (appended: readonly unknown[]) => readonly Message[]
+}) {
+  const stopReason = getPiAssistantStopReason(input.appended)
+  const aborted = input.operationAborted || stopReason === 'aborted'
+  const message = describeError(input.error)
+
+  emitFailedRunEnd({
+    runInput: input.runInput,
+    aborted,
+    message,
+  })
+
+  return buildFailedRunResult({
+    session: input.session,
+    newMessages: input.buildErrorMessages(input.appended),
+    aborted,
+    message,
+  })
+}
+
+async function buildFailedRunAfterSettlement(input: {
+  readonly session: AgentSession
+  readonly runInput: AgentKernelRunInput
+  readonly previousMessageCount: number
+  readonly operationAborted: boolean
+  readonly settlementAttempted: boolean
+  readonly error: unknown
+  readonly buildErrorMessages: (appended: readonly unknown[]) => readonly Message[]
+}) {
+  if (!input.settlementAttempted) {
+    await waitForPostRunSettlement(input.session)
+  }
+
+  const appended = input.session.agent.state.messages.slice(input.previousMessageCount)
+  return buildFailedSubscribedRunResult({
+    session: input.session,
+    runInput: input.runInput,
+    appended,
+    operationAborted: input.operationAborted,
+    error: input.error,
+    buildErrorMessages: input.buildErrorMessages,
+  })
+}
+
 async function abortPreCancelledRun(session: AgentSession, warning: string) {
   await abortPiSession(session, warning)
   return {
@@ -191,41 +279,23 @@ export async function runSubscribedPiOperation(input: {
 
   try {
     previousMessageCount = input.session.agent.state.messages.length
-    let operationFailed = false
-    let operationError: unknown
-
-    try {
-      await input.operation()
-    } catch (error) {
-      operationFailed = true
-      operationError = error
-    }
+    const operationOutcome = await runPiOperation(input.operation)
 
     operationAborted = input.runInput.signal.aborted
     input.runInput.signal.removeEventListener('abort', abortListener)
     abortListenerAttached = false
 
     settlementAttempted = true
-    await waitForPostRunSettlement(input.session)
-    const appended = input.session.agent.state.messages.slice(previousMessageCount)
+    const appended = await collectSettledPiMessages(input.session, previousMessageCount)
 
-    if (operationFailed) {
-      const stopReason = getPiAssistantStopReason(appended)
-      const aborted = operationAborted || stopReason === 'aborted'
-      const message = describeError(operationError)
-      input.runInput.onEvent({
-        type: 'agent_end',
-        runId: input.runInput.runId,
-        reason: aborted ? 'aborted' : 'error',
-        ...(aborted ? {} : { error: { message } }),
-        timestamp: Date.now(),
-        model: input.runInput.model,
-      })
-      return buildFailedRunResult({
+    if (operationOutcome.status === 'failed') {
+      return buildFailedSubscribedRunResult({
         session: input.session,
-        newMessages: input.buildErrorMessages(appended),
-        aborted,
-        message,
+        runInput: input.runInput,
+        appended,
+        operationAborted,
+        error: operationOutcome.error,
+        buildErrorMessages: input.buildErrorMessages,
       })
     }
 
@@ -236,26 +306,14 @@ export async function runSubscribedPiOperation(input: {
       aborted: operationAborted,
     })
   } catch (error) {
-    if (!settlementAttempted) {
-      await waitForPostRunSettlement(input.session)
-    }
-    const appended = input.session.agent.state.messages.slice(previousMessageCount)
-    const stopReason = getPiAssistantStopReason(appended)
-    const aborted = operationAborted || stopReason === 'aborted'
-    const message = describeError(error)
-    input.runInput.onEvent({
-      type: 'agent_end',
-      runId: input.runInput.runId,
-      reason: aborted ? 'aborted' : 'error',
-      ...(aborted ? {} : { error: { message } }),
-      timestamp: Date.now(),
-      model: input.runInput.model,
-    })
-    return buildFailedRunResult({
+    return buildFailedRunAfterSettlement({
       session: input.session,
-      newMessages: input.buildErrorMessages(appended),
-      aborted,
-      message,
+      runInput: input.runInput,
+      previousMessageCount,
+      operationAborted,
+      settlementAttempted,
+      error,
+      buildErrorMessages: input.buildErrorMessages,
     })
   } finally {
     if (abortListenerAttached) {

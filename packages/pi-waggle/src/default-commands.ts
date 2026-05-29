@@ -7,8 +7,6 @@ import { openWaggleControlCenter } from './default-control-center'
 import { createPresetFromEditor, editPresetFromEditor } from './default-editors'
 import { loadPiWagglePresetLayers, resolvedPresetsForUi } from './presets'
 
-export type { SetDefaultPiWaggleRun, StartDefaultPiWaggleRun } from './default-command-types'
-
 export async function handleDefaultWaggleCommand(
   input: DefaultWaggleCommandInput & { readonly args: string },
 ) {
