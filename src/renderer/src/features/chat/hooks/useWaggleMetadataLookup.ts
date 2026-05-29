@@ -23,6 +23,7 @@ interface LiveMetadataResolutionParams {
   readonly config: WaggleConfig
   readonly currentAgentIndex: number
   readonly currentAgentLabel: string
+  readonly useRunningFallbacks: boolean
 }
 
 function getSessionConfig(
@@ -60,7 +61,7 @@ function getCurrentAgentMetadata(params: LiveMetadataResolutionParams) {
   }
 }
 
-function resolveLiveAssistantMetadata(params: LiveMetadataResolutionParams) {
+function resolveAssistantMetadata(params: LiveMetadataResolutionParams) {
   const liveMeta = params.liveMessageMetadata[params.message.id]
   if (liveMeta) {
     return liveMeta
@@ -69,6 +70,10 @@ function resolveLiveAssistantMetadata(params: LiveMetadataResolutionParams) {
   const persisted = params.persistedMeta.get(params.message.id)
   if (persisted) {
     return persisted
+  }
+
+  if (!params.useRunningFallbacks) {
+    return undefined
   }
 
   const completedMeta = params.completedTurnMeta[params.assistantIndex]
@@ -138,21 +143,20 @@ export function useWaggleMetadataLookup(
       continue
     }
 
-    const meta = isLive
-      ? resolveLiveAssistantMetadata({
-          message,
-          messageIndex,
-          assistantIndex,
-          lastUserMessageIndex,
-          persistedMeta,
-          liveMessageMetadata,
-          completedTurnMeta,
-          initialTurnMeta,
-          config,
-          currentAgentIndex,
-          currentAgentLabel,
-        })
-      : persistedMeta.get(message.id)
+    const meta = resolveAssistantMetadata({
+      message,
+      messageIndex,
+      assistantIndex,
+      lastUserMessageIndex,
+      persistedMeta,
+      liveMessageMetadata,
+      completedTurnMeta,
+      initialTurnMeta,
+      config,
+      currentAgentIndex,
+      currentAgentLabel,
+      useRunningFallbacks: isLive,
+    })
     if (meta) {
       lookup[message.id] = meta
     }

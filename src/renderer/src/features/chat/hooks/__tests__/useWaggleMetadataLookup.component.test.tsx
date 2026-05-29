@@ -129,6 +129,33 @@ describe('useWaggleMetadataLookup', () => {
     })
   })
 
+  it('preserves live message metadata after a mid-turn Waggle stop', () => {
+    const config = makeConfig()
+    const session = makeSessionDetail(config)
+    const messages = [makeUserMessage('current-user'), makeAssistantMessage('aborted-assistant')]
+
+    useWaggleStore.setState({
+      activeConfig: config,
+      status: 'stopped',
+      liveMessageMetadata: {
+        'aborted-assistant': {
+          agentIndex: 0,
+          agentLabel: 'Architect',
+          agentColor: 'blue',
+          agentModel: SupportedModelId('claude-sonnet-4-5'),
+          turnNumber: 0,
+        },
+      },
+    })
+
+    const { result } = renderHook(() => useWaggleMetadataLookup(session, messages))
+    expect(result.current['aborted-assistant']).toMatchObject({
+      agentLabel: 'Architect',
+      agentColor: 'blue',
+      turnNumber: 0,
+    })
+  })
+
   it('maps each live assistant message id directly when multiple messages stream in a waggle run', () => {
     const config = makeConfig()
     const session = makeSessionDetail(config)
