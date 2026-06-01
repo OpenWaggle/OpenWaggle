@@ -2,6 +2,7 @@ import { registerAgentHandlers } from './agent-handler'
 import { registerAttachmentHandlers } from './attachments-handler'
 import { registerAuthHandlers } from './auth-handler'
 import { registerComposerHandlers } from './composer-handler'
+import { registerExtensionsHandlers } from './extensions-handler'
 import { registerFeedbackHandlers } from './feedback-handler'
 import { registerGitHandlers } from './git'
 import { registerMcpHandlers } from './mcp-handler'
@@ -28,6 +29,7 @@ export function registerAllIpcHandlers(): void {
   registerSessionDetailsHandlers()
   registerAttachmentHandlers()
   registerGitHandlers()
+  registerExtensionsHandlers()
   registerMcpHandlers()
   registerProjectHandlers()
   registerProvidersHandlers()

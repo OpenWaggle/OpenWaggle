@@ -9,6 +9,7 @@ type SettingsTab =
   | 'general'
   | 'configuration'
   | 'waggle'
+  | 'extensions'
   | 'mcp'
   | 'personalization'
   | 'git'
@@ -124,6 +125,7 @@ vi.mock('@/shell', () => ({
   CHAT_MIN_WIDTH: 420,
   DIFF_PANEL_MAX: 900,
   DIFF_PANEL_MIN: 360,
+  SETTINGS_TABS: ['general', 'waggle', 'extensions', 'mcp', 'archived', 'connections'] as const,
   useUIStore: <T,>(selector: (state: ShellState) => T) => selector(routeSurfaceMocks.shellState()),
 }))
 
@@ -140,11 +142,11 @@ describe('route surfaces', () => {
   })
 
   it('derives the settings tab from the current route when the route contains a tab segment', () => {
-    routeSurfaceMocks.setPathname('/settings/connections')
+    routeSurfaceMocks.setPathname('/settings/extensions')
 
     render(<SettingsRouteSurface tab="general" />)
 
-    expect(screen.getByText('Settings tab: connections')).toBeInTheDocument()
+    expect(screen.getByText('Settings tab: extensions')).toBeInTheDocument()
   })
 
   it('falls back to the route-provided settings tab for non-tab paths', () => {

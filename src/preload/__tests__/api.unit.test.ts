@@ -42,6 +42,7 @@ describe('preload api surface contract', () => {
     'setMcpAdapterEnabled',
     'setMcpServerEnabled',
     'writeMcpSourceConfig',
+    'listExtensionPackages',
     'setProviderApiKey',
     // Providers
     'getProviderModels',

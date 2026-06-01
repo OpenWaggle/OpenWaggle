@@ -4,6 +4,7 @@ import type { ActiveRunInfo, BackgroundRunSnapshot } from './background-run'
 import type { SessionBranchId, SessionId, SessionNodeId, WagglePresetId } from './brand'
 import type { FileSuggestion } from './composer'
 import type { ContextCompactionResult, ContextUsageSnapshot } from './context-usage'
+import type { ExtensionManagerView } from './extensions'
 import type {
   DiagnosticsInfo,
   FeedbackPayload,
@@ -95,6 +96,7 @@ export interface OpenWaggleApi {
   setMcpAdapterEnabled(enabled: boolean, projectPath?: string | null): Promise<McpSettingsView>
   setMcpServerEnabled(input: McpSetServerEnabledInput): Promise<McpSettingsView>
   writeMcpSourceConfig(input: McpWriteSourceConfigInput): Promise<McpSettingsView>
+  listExtensionPackages(projectPath?: string | null): Promise<ExtensionManagerView>
 
   // Providers
   getProviderModels(projectPath?: string | null): Promise<ProviderInfo[]>

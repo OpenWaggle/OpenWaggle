@@ -79,6 +79,7 @@ export const api: OpenWaggleApi = {
   setMcpAdapterEnabled: invoke('mcp:set-adapter-enabled'),
   setMcpServerEnabled: invoke('mcp:set-server-enabled'),
   writeMcpSourceConfig: invoke('mcp:write-source-config'),
+  listExtensionPackages: invoke('extensions:list-packages'),
 
   // Providers
   getProviderModels: invoke('providers:get-models'),

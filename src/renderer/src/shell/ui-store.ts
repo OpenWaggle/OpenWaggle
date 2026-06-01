@@ -20,7 +20,16 @@ export interface ToastData {
   action?: { label: string; url?: string; onClick?: () => void }
 }
 
-export type SettingsTab = 'general' | 'waggle' | 'mcp' | 'archived' | 'connections'
+export const SETTINGS_TABS = [
+  'general',
+  'waggle',
+  'extensions',
+  'mcp',
+  'archived',
+  'connections',
+] as const
+
+export type SettingsTab = (typeof SETTINGS_TABS)[number]
 
 interface UIState {
   sidebarOpen: boolean

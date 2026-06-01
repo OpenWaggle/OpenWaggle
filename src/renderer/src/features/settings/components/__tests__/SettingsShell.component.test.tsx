@@ -25,6 +25,9 @@ vi.mock('@/shell/useFullscreen', () => ({
 
 vi.mock('../sections/GeneralSection', () => ({ GeneralSection: () => <div>General settings</div> }))
 vi.mock('../sections/WaggleSection', () => ({ WaggleSection: () => <div>Waggle settings</div> }))
+vi.mock('../sections/ExtensionsSection', () => ({
+  ExtensionsSection: () => <div>Extensions settings</div>,
+}))
 vi.mock('../sections/McpSection', () => ({ McpSection: () => <div>MCP settings</div> }))
 vi.mock('../sections/ConnectionsSection', () => ({
   ConnectionsSection: () => <div>Connections settings</div>,
@@ -44,6 +47,7 @@ describe('settings shell components', () => {
     render(<SettingsNav activeTab="general" />)
 
     fireEvent.click(screen.getByRole('button', { name: /Waggle Mode/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Extensions/ }))
     fireEvent.click(screen.getByRole('button', { name: /General/ }))
 
     expect(screen.queryByRole('button', { name: /Git/ })).not.toBeInTheDocument()
@@ -53,7 +57,11 @@ describe('settings shell components', () => {
       to: '/settings/$tab',
       params: { tab: 'waggle' },
     })
-    expect(navigateMock).toHaveBeenNthCalledWith(2, { to: '/settings' })
+    expect(navigateMock).toHaveBeenNthCalledWith(2, {
+      to: '/settings/$tab',
+      params: { tab: 'extensions' },
+    })
+    expect(navigateMock).toHaveBeenNthCalledWith(3, { to: '/settings' })
   })
 
   it('routes back to the active session from the settings page header', () => {

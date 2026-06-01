@@ -4,6 +4,7 @@ export const queryKeys = {
   wagglePresets: (projectPath: string | null) => ['wagglePresets', projectPath] as const,
   archivedSessions: ['archivedSessions'] as const,
   archivedSessionBranches: ['archivedSessionBranches'] as const,
+  extensionPackages: (projectPath: string | null) => ['extensionPackages', projectPath] as const,
   sessions: ['sessions'] as const,
   session: (id: SessionId | null) => ['session', id] as const,
   skills: (projectPath: string | null) => ['skills', projectPath] as const,

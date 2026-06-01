@@ -1,6 +1,7 @@
 import type { AgentSendPayload } from './agent'
 import type { SessionBranchId, SessionId, SessionNodeId } from './brand'
 import type { ContextCompactionResult, ContextUsageSnapshot } from './context-usage'
+import type { ExtensionManagerView } from './extensions'
 import type { ProviderInfo, SupportedModelId } from './llm'
 import type { McpSetServerEnabledInput, McpSettingsView, McpWriteSourceConfigInput } from './mcp'
 import type {
@@ -84,6 +85,10 @@ export interface IpcCoreInvokeChannelMap {
   'mcp:write-source-config': {
     args: [input: McpWriteSourceConfigInput]
     return: McpSettingsView
+  }
+  'extensions:list-packages': {
+    args: [projectPath?: string | null]
+    return: ExtensionManagerView
   }
   'project:select-folder': {
     args: []

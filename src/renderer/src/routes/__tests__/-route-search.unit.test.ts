@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseChatRouteSearch } from '../-route-search'
+import { isSettingsTab, parseChatRouteSearch } from '../-route-search'
 
 describe('parseChatRouteSearch', () => {
   it('preserves session workspace selectors and numeric diff flag', () => {
@@ -24,5 +24,15 @@ describe('parseChatRouteSearch', () => {
     expect(parseChatRouteSearch({ panel: 'session-tree' })).toEqual({ panel: 'session-tree' })
     expect(parseChatRouteSearch({ panel: 'diff' })).toEqual({ panel: 'diff' })
     expect(parseChatRouteSearch({ panel: 'other' })).toEqual({})
+  })
+})
+
+describe('settings route guard', () => {
+  it('accepts the extensions settings route tab', () => {
+    expect(isSettingsTab('extensions')).toBe(true)
+  })
+
+  it('rejects unknown settings route tabs', () => {
+    expect(isSettingsTab('unknown')).toBe(false)
   })
 })
