@@ -5,6 +5,7 @@ import type {
   ExtensionFactory,
   SettingsManager,
 } from '@mariozechner/pi-coding-agent'
+import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { normalizeSkillId } from '@shared/utils/skill-id'
 import { isPathInside } from '../../utils/paths'
 import type { OpenWaggleMcpRuntimeContext } from './pi-mcp-config-service'
@@ -23,7 +24,6 @@ type PiSkillsOverride = NonNullable<PiResourceLoaderOptions['skillsOverride']>
 type PiSkillsOverrideInput = Parameters<PiSkillsOverride>[0]
 
 const OPENWAGGLE_SKILLS_ROOT_SEGMENTS = ['.openwaggle', 'skills'] as const
-const OPENWAGGLE_EXTENSIONS_ROOT_SEGMENTS = ['.openwaggle', 'extensions'] as const
 const OPENWAGGLE_PROMPTS_ROOT_SEGMENTS = ['.openwaggle', 'prompts'] as const
 const OPENWAGGLE_THEMES_ROOT_SEGMENTS = ['.openwaggle', 'themes'] as const
 const OPENWAGGLE_CATALOG_SKILL_ROOT_SEGMENTS = [
@@ -36,7 +36,7 @@ function getOpenWaggleSkillsRoot(projectPath: string) {
 }
 
 function getOpenWaggleExtensionsRoot(projectPath: string) {
-  return path.join(projectPath, ...OPENWAGGLE_EXTENSIONS_ROOT_SEGMENTS)
+  return path.join(projectPath, ...OPENWAGGLE_EXTENSION.PROJECT_ROOT_SEGMENTS)
 }
 
 function getOpenWagglePromptsRoot(projectPath: string) {

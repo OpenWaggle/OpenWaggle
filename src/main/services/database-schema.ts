@@ -90,3 +90,27 @@ export const CURRENT_SESSION_SCHEMA_STATEMENTS = [
   )
   `,
 ] as const
+
+export const CURRENT_EXTENSION_SCHEMA_STATEMENTS = [
+  `
+  CREATE TABLE IF NOT EXISTS extension_lifecycle_state (
+    extension_id TEXT NOT NULL,
+    scope_kind TEXT NOT NULL,
+    scope_id TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 0,
+    trusted INTEGER NOT NULL DEFAULT 0,
+    granted_capabilities_json TEXT NOT NULL,
+    content_hash TEXT,
+    sdk_range TEXT,
+    sdk_compatible INTEGER NOT NULL DEFAULT 0,
+    diagnostics_json TEXT NOT NULL,
+    installed_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (extension_id, scope_kind, scope_id)
+  )
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_extension_lifecycle_scope
+  ON extension_lifecycle_state (scope_kind, scope_id)
+  `,
+] as const

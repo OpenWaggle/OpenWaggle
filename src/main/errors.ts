@@ -31,3 +31,15 @@ export class StandardsLoadError extends Data.TaggedError('StandardsLoadError')<{
   readonly message: string
   readonly cause?: unknown
 }> {}
+
+export class ExtensionDiscoveryError extends Data.TaggedError('ExtensionDiscoveryError')<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
+export class ExtensionLifecycleRepositoryError extends Data.TaggedError(
+  'ExtensionLifecycleRepositoryError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}

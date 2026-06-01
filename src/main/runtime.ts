@@ -4,6 +4,7 @@ import * as Effect from 'effect/Effect'
 import type { Exit as ExitType } from 'effect/Exit'
 import * as Layer from 'effect/Layer'
 import * as ManagedRuntime from 'effect/ManagedRuntime'
+import { FilesystemExtensionManagerLive } from './adapters/filesystem-extension-manager-service'
 import { PiAgentKernelLive } from './adapters/pi/pi-agent-kernel-adapter'
 import { PiMcpConfigServiceLive } from './adapters/pi/pi-mcp-config-service'
 import { PiProviderAuthLive } from './adapters/pi/pi-provider-auth-service'
@@ -12,6 +13,7 @@ import { PiProviderProbeLive } from './adapters/pi/pi-provider-probe-adapter'
 import { ProviderServiceLive } from './adapters/pi/pi-provider-service'
 import { PiSessionTreePreferencesLive } from './adapters/pi/pi-session-tree-preferences-service'
 import { SettingsWagglePresetsRepositoryLive } from './adapters/settings-waggle-presets-repository'
+import { SqliteExtensionLifecycleRepositoryLive } from './adapters/sqlite-extension-lifecycle-repository'
 import { SqliteSessionProjectionRepositoryLive } from './adapters/sqlite-session-projection-repository'
 import { SqliteSessionRepositoryLive } from './adapters/sqlite-session-repository'
 import { FilesystemStandardsLive } from './adapters/standards-adapter'
@@ -20,13 +22,19 @@ import { AppLogger } from './services/logger-service'
 import { SettingsService } from './services/settings-service'
 import { setStoreEffectRunner } from './store/store-runtime'
 
+const ExtensionLifecycleRepositoryLive = SqliteExtensionLifecycleRepositoryLive.pipe(
+  Layer.provide(AppDatabaseLive),
+)
+
 const AppLayer = Layer.mergeAll(
   NodeContext.layer,
   AppLogger.Live,
   AppDatabaseLive,
   SettingsService.Live,
+  ExtensionLifecycleRepositoryLive,
   SqliteSessionProjectionRepositoryLive,
   SqliteSessionRepositoryLive,
+  FilesystemExtensionManagerLive,
   FilesystemStandardsLive,
   PiAgentKernelLive,
   PiMcpConfigServiceLive,

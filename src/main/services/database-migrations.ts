@@ -1,4 +1,7 @@
-import { CURRENT_SESSION_SCHEMA_STATEMENTS } from './database-schema'
+import {
+  CURRENT_EXTENSION_SCHEMA_STATEMENTS,
+  CURRENT_SESSION_SCHEMA_STATEMENTS,
+} from './database-schema'
 
 export interface AppMigration {
   readonly id: number
@@ -164,5 +167,10 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
       `DROP TABLE IF EXISTS sessions`,
       ...CURRENT_SESSION_SCHEMA_STATEMENTS,
     ],
+  },
+  {
+    id: 12,
+    name: 'extension-lifecycle-state',
+    statements: [...CURRENT_EXTENSION_SCHEMA_STATEMENTS],
   },
 ]

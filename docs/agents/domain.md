@@ -74,6 +74,13 @@ Load `.agents/skills/release/SKILL.md` for versioning, release workflow, update-
 - **Inherited Waggle model**: A Waggle agent model choice that follows the current standard-mode selected model unless the agent is explicitly pinned to a provider/model.
 - **Waggle preset suppression**: User or project configuration that hides a package-provided preset from resolved Waggle preset lists without modifying the installed package.
 - **Project resource roots**: `.openwaggle`, `.pi`, and `.agents` resource folders injected into Pi with OpenWaggle precedence.
+- **OpenWaggle extension package**: A first-class OpenWaggle package, usually under `.openwaggle/extensions/<id>/` for project-local development, that can contribute desktop UI/behavior and optionally include Pi runtime resources.
+- **OpenWaggle desktop contribution**: A declared extension contribution to an OpenWaggle-owned surface such as commands, settings, side panels, dialogs, transcript renderers, status widgets, or trusted renderer modules.
+- **Extension capability broker**: The main-process authorization boundary for extension calls. Extensions use brokered capability APIs instead of direct Electron IPC, renderer internals, stores, or Pi SDK objects.
+- **Extension SDK surface**: The intentional public API exposed to extensions for contribution registration, scoped app state, and capability calls.
+- **Pi extension parity for OpenWaggle**: OpenWaggle extensions should preserve Pi-level runtime/resource modification power and extend equivalent contribution capability to OpenWaggle-owned desktop surfaces.
+- **Trusted local extension code**: Extension code the user explicitly approves to run locally. Trust is keyed to package identity, SDK compatibility, version, and content hash, and does not permit importing OpenWaggle internals.
+- **Extension safe startup**: OpenWaggle must start even when extension activation fails. Extension failures are isolated to contributions first, then to the extension, and recovery controls remain OpenWaggle-owned.
 - **Agent skills**: Reusable agent instructions under `.agents/skills/` or project-local `.openwaggle/skills/`.
 
 ## Skill Routing

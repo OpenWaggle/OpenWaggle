@@ -1,0 +1,192 @@
+import { createHash } from 'node:crypto'
+import { readFile, stat } from 'node:fs/promises'
+import path from 'node:path'
+import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+import { formatErrorMessage, isEnoent } from '@shared/utils/node-error'
+import type { ExtensionDiagnostic, ExtensionDiagnosticCode } from '../../extensions/types'
+import { isPathInside } from '../../utils/paths'
+
+export interface ContentHashResult {
+  readonly contentHash: string | null
+  readonly diagnostics: readonly ExtensionDiagnostic[]
+}
+
+export interface ContentHashInput {
+  readonly builtArtifacts: readonly string[]
+  readonly runtimeFiles: readonly string[]
+}
+
+interface ContentHashFileInput {
+  readonly relativePath: string
+  readonly label: string
+  readonly missingCode: ExtensionDiagnosticCode
+}
+
+export interface ValidateDeclaredFilesInput {
+  readonly packagePath: string
+  readonly relativePaths: readonly string[]
+  readonly label: string
+  readonly missingCode: ExtensionDiagnosticCode
+}
+
+function normalizeManifestRelativePath(relativePath: string) {
+  return relativePath.replaceAll(
+    OPENWAGGLE_EXTENSION.PATH.WINDOWS_SEPARATOR,
+    OPENWAGGLE_EXTENSION.PATH.POSIX_SEPARATOR,
+  )
+}
+
+function resolvePackageRelativePath(packagePath: string, relativePath: string) {
+  const resolvedPackagePath = path.resolve(packagePath)
+  const resolvedCandidatePath = path.resolve(
+    packagePath,
+    normalizeManifestRelativePath(relativePath),
+  )
+  return isPathInside(resolvedPackagePath, resolvedCandidatePath) ? resolvedCandidatePath : null
+}
+
+async function fileExists(filePath: string) {
+  try {
+    const fileStat = await stat(filePath)
+    return fileStat.isFile()
+  } catch (error) {
+    if (isEnoent(error)) {
+      return false
+    }
+    throw error
+  }
+}
+
+export async function validateDeclaredFiles(input: ValidateDeclaredFilesInput) {
+  const diagnostics: ExtensionDiagnostic[] = []
+  for (const relativePath of input.relativePaths) {
+    const filePath = resolvePackageRelativePath(input.packagePath, relativePath)
+    if (!filePath) {
+      diagnostics.push({
+        severity: 'error',
+        code: 'package-path-invalid',
+        message: `Declared ${input.label} escapes the extension package root.`,
+        path: relativePath,
+      })
+      continue
+    }
+
+    try {
+      if (!(await fileExists(filePath))) {
+        diagnostics.push({
+          severity: 'error',
+          code: input.missingCode,
+          message: `Declared ${input.label} does not exist.`,
+          path: filePath,
+        })
+      }
+    } catch (error) {
+      diagnostics.push({
+        severity: 'error',
+        code: 'filesystem-error',
+        message: `Failed to inspect declared ${input.label}: ${formatErrorMessage(error)}`,
+        path: filePath,
+      })
+    }
+  }
+  return diagnostics
+}
+
+function contentHashFileLabel(missingCode: ExtensionDiagnosticCode) {
+  return missingCode === 'runtime-file-missing'
+    ? OPENWAGGLE_EXTENSION.LABELS.RUNTIME_FILE
+    : OPENWAGGLE_EXTENSION.LABELS.BUILT_ARTIFACT
+}
+
+function contentHashFileInput(
+  relativePath: string,
+  missingCode: ExtensionDiagnosticCode,
+): ContentHashFileInput {
+  return {
+    relativePath,
+    label: contentHashFileLabel(missingCode),
+    missingCode,
+  }
+}
+
+function getContentHashFileInputs(input: ContentHashInput) {
+  const files: ContentHashFileInput[] = []
+
+  for (const relativePath of input.builtArtifacts) {
+    files.push(contentHashFileInput(relativePath, 'built-artifact-missing'))
+  }
+  for (const relativePath of input.runtimeFiles) {
+    files.push(contentHashFileInput(relativePath, 'runtime-file-missing'))
+  }
+
+  return files
+}
+
+function preferHashFileInput(left: ContentHashFileInput, right: ContentHashFileInput) {
+  return left.missingCode === 'runtime-file-missing' ? right : left
+}
+
+function uniqueSortedHashFileInputs(files: readonly ContentHashFileInput[]) {
+  const byPath = new Map<string, ContentHashFileInput>()
+  for (const file of files) {
+    const normalizedRelativePath = normalizeManifestRelativePath(file.relativePath)
+    const normalizedFile = { ...file, relativePath: normalizedRelativePath }
+    const existing = byPath.get(normalizedRelativePath)
+    byPath.set(
+      normalizedRelativePath,
+      existing ? preferHashFileInput(existing, normalizedFile) : normalizedFile,
+    )
+  }
+  return [...byPath.values()].sort((left, right) =>
+    left.relativePath.localeCompare(right.relativePath),
+  )
+}
+
+export async function calculateContentHash(
+  packagePath: string,
+  rawManifest: string,
+  input: ContentHashInput,
+): Promise<ContentHashResult> {
+  const hash = createHash(OPENWAGGLE_EXTENSION.HASH.ALGORITHM)
+  const diagnostics: ExtensionDiagnostic[] = []
+
+  hash.update(OPENWAGGLE_EXTENSION.HASH.MANIFEST_LABEL)
+  hash.update(OPENWAGGLE_EXTENSION.HASH.FIELD_SEPARATOR)
+  hash.update(rawManifest)
+  hash.update(OPENWAGGLE_EXTENSION.HASH.FIELD_SEPARATOR)
+
+  for (const file of uniqueSortedHashFileInputs(getContentHashFileInputs(input))) {
+    const filePath = resolvePackageRelativePath(packagePath, file.relativePath)
+    if (!filePath) {
+      diagnostics.push({
+        severity: 'error',
+        code: 'package-path-invalid',
+        message: `Declared ${file.label} escapes the extension package root.`,
+        path: file.relativePath,
+      })
+      continue
+    }
+
+    try {
+      const content = await readFile(filePath)
+      hash.update(OPENWAGGLE_EXTENSION.HASH.ARTIFACT_LABEL)
+      hash.update(OPENWAGGLE_EXTENSION.HASH.FIELD_SEPARATOR)
+      hash.update(file.relativePath)
+      hash.update(OPENWAGGLE_EXTENSION.HASH.FIELD_SEPARATOR)
+      hash.update(content)
+      hash.update(OPENWAGGLE_EXTENSION.HASH.FIELD_SEPARATOR)
+    } catch (error) {
+      diagnostics.push({
+        severity: 'error',
+        code: isEnoent(error) ? file.missingCode : 'filesystem-error',
+        message: `Failed to hash ${file.label}: ${formatErrorMessage(error)}`,
+        path: filePath,
+      })
+    }
+  }
+
+  return {
+    contentHash: diagnostics.length === 0 ? hash.digest(OPENWAGGLE_EXTENSION.HASH.ENCODING) : null,
+    diagnostics,
+  }
+}
