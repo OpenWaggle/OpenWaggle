@@ -1,26 +1,24 @@
 import { useExtensionsSectionController } from '@/features/settings/hooks/useExtensionsSectionController'
 import { usePreferences } from '@/features/settings/hooks/useSettings'
-import {
-  ExtensionPackageCard,
-  ExtensionsErrorAlert,
-  ExtensionsSectionHeading,
-} from './ExtensionsSectionPanels'
+import { ExtensionPackageCard } from './ExtensionPackageCard'
+import { ExtensionsErrorAlert, ExtensionsSectionHeading } from './ExtensionsSectionPanels'
 
 export function ExtensionsSection() {
   const { settings } = usePreferences()
-  const controller = useExtensionsSectionController(settings.projectPath)
-  const packages = controller.view?.packages ?? []
-  const hasUnrecoveredError = controller.error !== null && controller.view === null
+  const { view, loading, updatingExtensionId, error, refresh, setTrusted, setEnabled } =
+    useExtensionsSectionController(settings.projectPath)
+  const packages = view?.packages ?? []
+  const hasUnrecoveredError = error !== null && view === null
 
   return (
     <div className="space-y-6">
       <ExtensionsSectionHeading
         projectPath={settings.projectPath}
-        loading={controller.loading}
-        onRefresh={() => void controller.refresh()}
+        loading={loading}
+        onRefresh={() => void refresh()}
       />
-      <ExtensionsErrorAlert message={controller.error} />
-      {controller.loading && !controller.view ? (
+      <ExtensionsErrorAlert message={error} />
+      {loading && !view ? (
         <p className="rounded-lg border border-border bg-[#111418] px-4 py-6 text-[13px] text-text-muted">
           Loading extensions…
         </p>
@@ -30,6 +28,9 @@ export function ExtensionsSection() {
             <ExtensionPackageCard
               key={`${extensionPackage.scope.kind}:${extensionPackage.id}`}
               extensionPackage={extensionPackage}
+              busy={updatingExtensionId === extensionPackage.id}
+              onSetTrusted={(trusted) => void setTrusted(extensionPackage, trusted)}
+              onSetEnabled={(enabled) => void setEnabled(extensionPackage, enabled)}
             />
           ))}
         </div>

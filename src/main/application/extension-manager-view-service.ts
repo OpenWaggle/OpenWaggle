@@ -85,11 +85,25 @@ function diagnosticsToView(
   }))
 }
 
-function lifecycleToView(state: ExtensionLifecycleState): ExtensionLifecycleView {
+function hasErrorDiagnostics(extensionPackage: DiscoveredExtensionPackage) {
+  return extensionPackage.diagnostics.some((diagnostic) => diagnostic.severity === 'error')
+}
+
+function lifecycleToView(
+  state: ExtensionLifecycleState,
+  extensionPackage: DiscoveredExtensionPackage,
+): ExtensionLifecycleView {
+  const isCurrentTrustPin =
+    state.trusted &&
+    extensionPackage.contentHash !== null &&
+    state.contentHash === extensionPackage.contentHash &&
+    extensionPackage.sdkCompatibility?.compatible === true &&
+    !hasErrorDiagnostics(extensionPackage)
+
   return {
-    enabled: state.enabled,
-    trusted: state.trusted,
-    grantedCapabilities: state.grantedCapabilities,
+    enabled: isCurrentTrustPin ? state.enabled : false,
+    trusted: isCurrentTrustPin,
+    grantedCapabilities: isCurrentTrustPin ? state.grantedCapabilities : [],
     contentHash: state.contentHash,
     sdkRange: state.sdkRange,
     sdkCompatible: state.sdkCompatible,
@@ -126,7 +140,7 @@ function packageToSummary(
     manifest: extensionPackage.manifest ? manifestToSummary(extensionPackage.manifest) : null,
     contentHash: extensionPackage.contentHash,
     sdkCompatibility: sdkCompatibilityToView(extensionPackage.sdkCompatibility),
-    lifecycle: lifecycle ? lifecycleToView(lifecycle) : null,
+    lifecycle: lifecycle ? lifecycleToView(lifecycle, extensionPackage) : null,
     diagnostics: diagnosticsToView(extensionPackage.diagnostics),
   }
 }

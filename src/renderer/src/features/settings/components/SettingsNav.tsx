@@ -43,6 +43,8 @@ export function SettingsNav({ activeTab }: SettingsNavProps) {
           <Button
             variant={isActive ? 'accent' : 'row'}
             size="md"
+            align="start"
+            fullWidth
             key={item.id}
             onClick={() => navigateToTab(item.id)}
             className={cn('gap-2.5', isActive ? 'bg-[#17130a] font-medium' : 'text-text-tertiary')}

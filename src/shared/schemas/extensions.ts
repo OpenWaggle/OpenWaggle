@@ -100,6 +100,15 @@ export const extensionUiLaneSchema = Schema.Literal(...OPENWAGGLE_EXTENSION.UI_L
 export const extensionContributionFamilySchema = Schema.Literal(
   ...OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILIES,
 )
+export const extensionLifecycleScopeSchema = Schema.Union(
+  Schema.Struct({
+    kind: Schema.Literal(OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND),
+  }),
+  Schema.Struct({
+    kind: Schema.Literal(OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND),
+    projectPath: nonEmptyStringSchema,
+  }),
+)
 
 export const extensionCapabilityDeclarationSchema = Schema.Struct({
   id: extensionContributionIdSchema,
@@ -178,6 +187,20 @@ export const openWaggleExtensionManifestSchema = Schema.Struct({
   runtimeRequirements: Schema.optional(
     Schema.mutable(Schema.Array(extensionRuntimeRequirementSchema)),
   ),
+})
+
+export const extensionSetTrustedInputSchema = Schema.Struct({
+  extensionId: extensionIdSchema,
+  scope: extensionLifecycleScopeSchema,
+  viewProjectPath: Schema.optional(Schema.NullOr(Schema.String)),
+  trusted: Schema.Boolean,
+})
+
+export const extensionSetEnabledInputSchema = Schema.Struct({
+  extensionId: extensionIdSchema,
+  scope: extensionLifecycleScopeSchema,
+  viewProjectPath: Schema.optional(Schema.NullOr(Schema.String)),
+  enabled: Schema.Boolean,
 })
 
 export type OpenWaggleExtensionManifest = SchemaType<typeof openWaggleExtensionManifestSchema>

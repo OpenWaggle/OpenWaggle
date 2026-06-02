@@ -64,6 +64,16 @@ describe('settings shell components', () => {
     expect(navigateMock).toHaveBeenNthCalledWith(3, { to: '/settings' })
   })
 
+  it('keeps active and inactive nav items in the same layout position', () => {
+    render(<SettingsNav activeTab="extensions" />)
+
+    const activeItem = screen.getByRole('button', { name: /Extensions/ })
+    const inactiveItem = screen.getByRole('button', { name: /Waggle Mode/ })
+
+    expect(activeItem).toHaveClass('w-full', 'justify-start')
+    expect(inactiveItem).toHaveClass('w-full', 'justify-start')
+  })
+
   it('routes back to the active session from the settings page header', () => {
     chatMock.mockReturnValue({ activeSessionId: SessionId('session-1') })
 

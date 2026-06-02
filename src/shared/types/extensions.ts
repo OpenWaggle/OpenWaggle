@@ -21,6 +21,29 @@ export interface ExtensionPackageScopeView {
   readonly projectPath?: string
 }
 
+export type ExtensionPackageLifecycleScope =
+  | {
+      readonly kind: typeof OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND
+    }
+  | {
+      readonly kind: typeof OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND
+      readonly projectPath: string
+    }
+
+export interface ExtensionLifecycleMutationTarget {
+  readonly extensionId: string
+  readonly scope: ExtensionPackageLifecycleScope
+  readonly viewProjectPath?: string | null
+}
+
+export interface ExtensionSetTrustedInput extends ExtensionLifecycleMutationTarget {
+  readonly trusted: boolean
+}
+
+export interface ExtensionSetEnabledInput extends ExtensionLifecycleMutationTarget {
+  readonly enabled: boolean
+}
+
 export interface ExtensionSdkCompatibilityView {
   readonly hostVersion: string
   readonly requiredRange: string

@@ -1,7 +1,11 @@
 import type { AgentSendPayload } from './agent'
 import type { SessionBranchId, SessionId, SessionNodeId } from './brand'
 import type { ContextCompactionResult, ContextUsageSnapshot } from './context-usage'
-import type { ExtensionManagerView } from './extensions'
+import type {
+  ExtensionManagerView,
+  ExtensionSetEnabledInput,
+  ExtensionSetTrustedInput,
+} from './extensions'
 import type { ProviderInfo, SupportedModelId } from './llm'
 import type { McpSetServerEnabledInput, McpSettingsView, McpWriteSourceConfigInput } from './mcp'
 import type {
@@ -88,6 +92,14 @@ export interface IpcCoreInvokeChannelMap {
   }
   'extensions:list-packages': {
     args: [projectPath?: string | null]
+    return: ExtensionManagerView
+  }
+  'extensions:set-trusted': {
+    args: [input: ExtensionSetTrustedInput]
+    return: ExtensionManagerView
+  }
+  'extensions:set-enabled': {
+    args: [input: ExtensionSetEnabledInput]
     return: ExtensionManagerView
   }
   'project:select-folder': {
