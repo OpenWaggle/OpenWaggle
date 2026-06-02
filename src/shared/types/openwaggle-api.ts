@@ -9,6 +9,7 @@ import type {
   ExtensionApproveBuildInput,
   ExtensionListPackagesInput,
   ExtensionManagerView,
+  ExtensionReloadInput,
   ExtensionSetEnabledInput,
   ExtensionSetProjectDisabledInput,
   ExtensionSetTrustedInput,
@@ -112,6 +113,7 @@ export interface OpenWaggleApi {
   ): Promise<ExtensionManagerView>
   acceptExtensionUpdate(input: ExtensionAcceptUpdateInput): Promise<ExtensionManagerView>
   approveExtensionBuild(input: ExtensionApproveBuildInput): Promise<ExtensionManagerView>
+  reloadExtension(input: ExtensionReloadInput): Promise<ExtensionManagerView>
 
   // Providers
   getProviderModels(projectPath?: string | null): Promise<ProviderInfo[]>

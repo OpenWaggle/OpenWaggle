@@ -8,6 +8,7 @@ import { ExtensionManagerService } from '../../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
 import {
   acceptExtensionUpdate,
+  reloadExtension,
   setExtensionEnabled,
   setExtensionTrusted,
 } from '../extension-lifecycle-service'
@@ -50,6 +51,8 @@ const lifecycleState: ExtensionLifecycleState = {
   approvedBuildPlanHash: null,
   buildStatus: OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS.NOT_RUN,
   buildLog: null,
+  reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.NOT_RELOADED,
+  lastReloadedAt: null,
   sdkRange: '>=0.1.0 <0.2.0',
   sdkCompatible: true,
   diagnostics: [],
@@ -166,7 +169,14 @@ describe('extension trust and enable lifecycle mutations', () => {
         : null,
       contentHash: 'changed-hash',
     }
-    const harness = makeTestHarness({ packages: [updatedPackage], lifecycle: lifecycleState })
+    const harness = makeTestHarness({
+      packages: [updatedPackage],
+      lifecycle: {
+        ...lifecycleState,
+        reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.SUCCEEDED,
+        lastReloadedAt: 3000,
+      },
+    })
 
     const view = await Effect.runPromise(
       acceptExtensionUpdate({
@@ -181,6 +191,8 @@ describe('extension trust and enable lifecycle mutations', () => {
       trusted: true,
       contentHash: 'changed-hash',
       packageVersion: '1.1.0',
+      reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.NOT_RELOADED,
+      lastReloadedAt: null,
     })
     expect(view.packages[0]?.lifecycle).toMatchObject({
       enabled: false,
@@ -236,5 +248,46 @@ describe('extension trust and enable lifecycle mutations', () => {
       contentHash: 'abcdef',
     })
     expect(view.packages[0]?.lifecycle).toMatchObject({ enabled: true, trusted: true })
+  })
+
+  it('persists successful reload state for an enabled extension', async () => {
+    const harness = makeTestHarness({ packages: [discoveredPackage], lifecycle: lifecycleState })
+
+    const view = await Effect.runPromise(
+      reloadExtension({
+        extensionId: 'sample-extension',
+        scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: PROJECT_PATH },
+      }).pipe(Effect.provide(harness.layer)),
+    )
+
+    expect(harness.getStoredLifecycle()).toMatchObject({
+      extensionId: 'sample-extension',
+      enabled: true,
+      trusted: true,
+      reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.SUCCEEDED,
+    })
+    expect(harness.getStoredLifecycle()?.lastReloadedAt).toEqual(expect.any(Number))
+    expect(view.packages[0]?.lifecycle).toMatchObject({
+      enabled: true,
+      trusted: true,
+      reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.SUCCEEDED,
+    })
+    expect(view.packages[0]?.lifecycle?.lastReloadedAt).toEqual(expect.any(Number))
+  })
+
+  it('rejects reload for disabled extensions', async () => {
+    const harness = makeTestHarness({
+      packages: [discoveredPackage],
+      lifecycle: { ...lifecycleState, enabled: false },
+    })
+
+    await expect(
+      Effect.runPromise(
+        reloadExtension({
+          extensionId: 'sample-extension',
+          scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: PROJECT_PATH },
+        }).pipe(Effect.provide(harness.layer)),
+      ),
+    ).rejects.toThrow(OPENWAGGLE_EXTENSION.LIFECYCLE.RELOAD_DISABLED_ERROR)
   })
 })

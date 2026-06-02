@@ -4,6 +4,7 @@ import {
   extensionAcceptUpdateInputSchema,
   extensionApproveBuildInputSchema,
   extensionListPackagesInputSchema,
+  extensionReloadInputSchema,
   extensionSetEnabledInputSchema,
   extensionSetProjectDisabledInputSchema,
   extensionSetTrustedInputSchema,
@@ -13,6 +14,7 @@ import type {
   ExtensionApproveBuildInput,
   ExtensionListPackagesInput,
   ExtensionPackageLifecycleScope,
+  ExtensionReloadInput,
   ExtensionSetEnabledInput,
   ExtensionSetProjectDisabledInput,
   ExtensionSetTrustedInput,
@@ -21,6 +23,7 @@ import * as Effect from 'effect/Effect'
 import {
   acceptExtensionUpdate,
   approveExtensionBuild,
+  reloadExtension,
   setExtensionEnabled,
   setExtensionProjectDisabled,
   setExtensionTrusted,
@@ -172,6 +175,19 @@ function normalizeApproveBuildInput(
   })
 }
 
+function normalizeReloadInput(raw: unknown): Effect.Effect<ExtensionReloadInput, Error> {
+  return Effect.gen(function* () {
+    const decoded = yield* decodeSchema(extensionReloadInputSchema, raw)
+    const scope = yield* validateLifecycleScope(decoded.scope)
+    const viewProjectPaths = yield* validateProjectPaths(decoded.viewProjectPaths)
+    return {
+      ...decoded,
+      scope,
+      viewProjectPaths,
+    }
+  })
+}
+
 export function registerExtensionsHandlers(): void {
   typedHandle('extensions:list-packages', (_event, input?: unknown) =>
     Effect.gen(function* () {
@@ -212,6 +228,13 @@ export function registerExtensionsHandlers(): void {
     Effect.gen(function* () {
       const normalizedInput = yield* normalizeApproveBuildInput(input)
       return yield* approveExtensionBuild(normalizedInput)
+    }),
+  )
+
+  typedHandle('extensions:reload', (_event, input: unknown) =>
+    Effect.gen(function* () {
+      const normalizedInput = yield* normalizeReloadInput(input)
+      return yield* reloadExtension(normalizedInput)
     }),
   )
 }

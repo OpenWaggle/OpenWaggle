@@ -1,6 +1,7 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 
 const DEFAULT_EXTENSION_BUILD_STATUS = OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS.NOT_RUN
+const DEFAULT_EXTENSION_RELOAD_STATUS = OPENWAGGLE_EXTENSION.RELOAD_STATUS.NOT_RELOADED
 
 export const CURRENT_SESSION_SCHEMA_STATEMENTS = [
   `
@@ -144,6 +145,17 @@ export const EXTENSION_LIFECYCLE_BUILD_RUN_MIGRATION_STATEMENTS = [
   `,
 ] as const
 
+export const EXTENSION_LIFECYCLE_RELOAD_STATE_MIGRATION_STATEMENTS = [
+  `
+  ALTER TABLE extension_lifecycle_state
+  ADD COLUMN reload_status TEXT NOT NULL DEFAULT '${DEFAULT_EXTENSION_RELOAD_STATUS}'
+  `,
+  `
+  ALTER TABLE extension_lifecycle_state
+  ADD COLUMN last_reloaded_at INTEGER
+  `,
+] as const
+
 export const CURRENT_EXTENSION_LIFECYCLE_SCHEMA_STATEMENTS = [
   `
   CREATE TABLE IF NOT EXISTS extension_lifecycle_state (
@@ -158,6 +170,8 @@ export const CURRENT_EXTENSION_LIFECYCLE_SCHEMA_STATEMENTS = [
     approved_build_plan_hash TEXT,
     build_status TEXT NOT NULL DEFAULT '${DEFAULT_EXTENSION_BUILD_STATUS}',
     build_log TEXT,
+    reload_status TEXT NOT NULL DEFAULT '${DEFAULT_EXTENSION_RELOAD_STATUS}',
+    last_reloaded_at INTEGER,
     sdk_range TEXT,
     sdk_compatible INTEGER NOT NULL DEFAULT 0,
     diagnostics_json TEXT NOT NULL,

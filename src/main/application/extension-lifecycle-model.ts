@@ -3,6 +3,7 @@ import type {
   ExtensionAcceptUpdateInput,
   ExtensionApproveBuildInput,
   ExtensionLifecycleMutationTarget,
+  ExtensionReloadInput,
   ExtensionSetEnabledInput,
   ExtensionSetProjectDisabledInput,
   ExtensionSetTrustedInput,
@@ -16,6 +17,7 @@ import type {
   ExtensionLifecycleState,
   ExtensionPackageScope,
   ExtensionProjectOverrideKey,
+  ExtensionReloadStatus,
 } from '../extensions/types'
 
 export type LifecycleMutationInput =
@@ -23,6 +25,7 @@ export type LifecycleMutationInput =
   | ExtensionSetEnabledInput
   | ExtensionAcceptUpdateInput
   | ExtensionApproveBuildInput
+  | ExtensionReloadInput
 
 function scopeKey(scope: ExtensionPackageScope) {
   return scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND
@@ -198,6 +201,8 @@ interface MakeLifecycleStateInput {
   readonly approvedBuildPlanHash?: string | null
   readonly buildStatus?: ExtensionBuildRunStatus
   readonly buildLog?: string | null
+  readonly reloadStatus?: ExtensionReloadStatus
+  readonly lastReloadedAt?: number | null
   readonly diagnostics?: readonly ExtensionDiagnostic[]
 }
 
@@ -217,6 +222,21 @@ function lifecycleBuildStatus(input: MakeLifecycleStateInput) {
 
 function lifecycleBuildLog(input: MakeLifecycleStateInput) {
   return input.buildLog ?? input.current?.buildLog ?? null
+}
+
+function lifecycleReloadStatus(input: MakeLifecycleStateInput) {
+  return (
+    input.reloadStatus ??
+    input.current?.reloadStatus ??
+    OPENWAGGLE_EXTENSION.RELOAD_STATUS.NOT_RELOADED
+  )
+}
+
+function lifecycleLastReloadedAt(input: MakeLifecycleStateInput) {
+  if (input.lastReloadedAt !== undefined) {
+    return input.lastReloadedAt
+  }
+  return input.current?.lastReloadedAt ?? null
 }
 
 function lifecycleSdkRange(input: MakeLifecycleStateInput) {
@@ -249,6 +269,8 @@ export function makeLifecycleState(input: MakeLifecycleStateInput): ExtensionLif
     approvedBuildPlanHash: lifecycleApprovedBuildPlanHash(input),
     buildStatus: lifecycleBuildStatus(input),
     buildLog: lifecycleBuildLog(input),
+    reloadStatus: lifecycleReloadStatus(input),
+    lastReloadedAt: lifecycleLastReloadedAt(input),
     sdkRange: lifecycleSdkRange(input),
     sdkCompatible: lifecycleSdkCompatible(input),
     diagnostics: lifecycleDiagnostics(input),

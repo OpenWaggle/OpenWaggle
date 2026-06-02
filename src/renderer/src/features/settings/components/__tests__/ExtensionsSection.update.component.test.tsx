@@ -18,6 +18,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     setExtensionProjectDisabled: vi.fn(),
     acceptExtensionUpdate: acceptExtensionUpdateMock,
     approveExtensionBuild: vi.fn(),
+    reloadExtension: vi.fn(),
   },
 }))
 
@@ -82,6 +83,8 @@ const samplePackage: ExtensionManagerView['packages'][number] = {
     approvedBuildPlanHash: null,
     buildStatus: 'not-run',
     buildLog: null,
+    reloadStatus: 'not-reloaded',
+    lastReloadedAt: null,
     sdkRange: '>=0.1.0 <0.2.0',
     sdkCompatible: true,
     diagnostics: [],

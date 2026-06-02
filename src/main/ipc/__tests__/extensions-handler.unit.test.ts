@@ -80,6 +80,8 @@ const trustedLifecycleState: ExtensionLifecycleState = {
   approvedBuildPlanHash: null,
   buildStatus: OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS.NOT_RUN,
   buildLog: null,
+  reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.NOT_RELOADED,
+  lastReloadedAt: null,
   sdkRange: '>=0.1.0 <0.2.0',
   sdkCompatible: true,
   diagnostics: [],
@@ -246,6 +248,31 @@ describe('registerExtensionsHandlers', () => {
         trusted: true,
         enabled: true,
         contentHash: 'abcdef',
+      }),
+    )
+  })
+
+  it('registers extensions:reload and persists reload lifecycle state', async () => {
+    listPackagesMock.mockReturnValue([discoveredPackage])
+    const layer = makeTestLayer({ ...trustedLifecycleState, enabled: true })
+    registerExtensionsHandlers()
+    const handler = getRegisteredHandler('extensions:reload', layer)
+
+    await handler?.(
+      {},
+      {
+        extensionId: 'sample-extension',
+        scope: { kind: 'global' },
+      },
+    )
+
+    expect(upsertLifecycleMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        extensionId: 'sample-extension',
+        trusted: true,
+        enabled: true,
+        reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.SUCCEEDED,
+        lastReloadedAt: expect.any(Number),
       }),
     )
   })

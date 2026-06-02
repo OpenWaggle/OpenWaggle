@@ -6,6 +6,7 @@ import type {
   ExtensionApproveBuildInput,
   ExtensionListPackagesInput,
   ExtensionManagerView,
+  ExtensionReloadInput,
   ExtensionSetEnabledInput,
   ExtensionSetProjectDisabledInput,
   ExtensionSetTrustedInput,
@@ -116,6 +117,10 @@ export interface IpcCoreInvokeChannelMap {
   }
   'extensions:approve-build': {
     args: [input: ExtensionApproveBuildInput]
+    return: ExtensionManagerView
+  }
+  'extensions:reload': {
+    args: [input: ExtensionReloadInput]
     return: ExtensionManagerView
   }
   'project:select-folder': {

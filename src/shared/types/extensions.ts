@@ -55,6 +55,7 @@ export interface ExtensionSetProjectDisabledInput extends ExtensionLifecycleMuta
 
 export type ExtensionAcceptUpdateInput = ExtensionLifecycleMutationTarget
 export type ExtensionApproveBuildInput = ExtensionLifecycleMutationTarget
+export type ExtensionReloadInput = ExtensionLifecycleMutationTarget
 
 export interface ExtensionSdkCompatibilityView {
   readonly hostVersion: string
@@ -80,6 +81,7 @@ export interface ExtensionManifestSummary {
 
 export type ExtensionInstallSource = (typeof OPENWAGGLE_EXTENSION.INSTALL_SOURCES)[number]
 export type ExtensionBuildRunStatus = (typeof OPENWAGGLE_EXTENSION.BUILD_RUN_STATUSES)[number]
+export type ExtensionReloadStatus = (typeof OPENWAGGLE_EXTENSION.RELOAD_STATUSES)[number]
 
 export interface ExtensionBuildPlanView {
   readonly installSource: ExtensionInstallSource
@@ -100,6 +102,8 @@ export interface ExtensionLifecycleView {
   readonly approvedBuildPlanHash: string | null
   readonly buildStatus: ExtensionBuildRunStatus
   readonly buildLog: string | null
+  readonly reloadStatus: ExtensionReloadStatus
+  readonly lastReloadedAt: number | null
   readonly sdkRange: string | null
   readonly sdkCompatible: boolean
   readonly diagnostics: readonly ExtensionDiagnosticView[]

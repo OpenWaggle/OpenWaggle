@@ -16,6 +16,10 @@ function formatBuildStatus(extensionPackage: ExtensionPackageSummary) {
   return extensionPackage.lifecycle?.buildStatus ?? 'not-run'
 }
 
+function formatReloadedAt(lastReloadedAt: number | null | undefined) {
+  return lastReloadedAt ? new Date(lastReloadedAt).toISOString() : 'Never'
+}
+
 function MetadataItem({
   label,
   children,
@@ -56,6 +60,9 @@ export function PackageMetadata({
           {formatBuildStatus(extensionPackage)}
         </MetadataItem>
       ) : null}
+      <MetadataItem label="Last reload" valueClassName="truncate">
+        {formatReloadedAt(extensionPackage.lifecycle?.lastReloadedAt)}
+      </MetadataItem>
       {extensionPackage.lifecycle?.buildLog ? (
         <MetadataItem label="Build log" valueClassName="truncate font-mono">
           {extensionPackage.lifecycle.buildLog}

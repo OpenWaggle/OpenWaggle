@@ -10,6 +10,7 @@ test-results/
 __pycache__/
 .openwaggle/settings.json
 .openwaggle/mcp.json
+.openwaggle/extensions/
 .pi/settings.json
 .pi/mcp.json
 .pi/.npm-cache/

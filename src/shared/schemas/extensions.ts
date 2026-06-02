@@ -254,6 +254,12 @@ export const extensionApproveBuildInputSchema = Schema.Struct({
   viewProjectPaths: Schema.optional(extensionViewProjectPathsSchema),
 })
 
+export const extensionReloadInputSchema = Schema.Struct({
+  extensionId: extensionIdSchema,
+  scope: extensionLifecycleScopeSchema,
+  viewProjectPaths: Schema.optional(extensionViewProjectPathsSchema),
+})
+
 export type OpenWaggleExtensionManifest = SchemaType<typeof openWaggleExtensionManifestSchema>
 export type ExtensionCapabilityDeclaration = SchemaType<typeof extensionCapabilityDeclarationSchema>
 export type ExtensionContributions = SchemaType<typeof extensionContributionsSchema>

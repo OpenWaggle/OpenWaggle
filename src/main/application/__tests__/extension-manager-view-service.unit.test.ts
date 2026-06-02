@@ -53,6 +53,8 @@ const lifecycleState: ExtensionLifecycleState = {
   approvedBuildPlanHash: null,
   buildStatus: OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS.NOT_RUN,
   buildLog: null,
+  reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.NOT_RELOADED,
+  lastReloadedAt: null,
   sdkRange: '>=0.1.0 <0.2.0',
   sdkCompatible: true,
   diagnostics: [],

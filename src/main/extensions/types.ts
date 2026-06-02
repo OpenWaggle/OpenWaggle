@@ -30,6 +30,7 @@ export interface ExtensionSdkCompatibility {
 
 export type ExtensionInstallSource = (typeof OPENWAGGLE_EXTENSION.INSTALL_SOURCES)[number]
 export type ExtensionBuildRunStatus = (typeof OPENWAGGLE_EXTENSION.BUILD_RUN_STATUSES)[number]
+export type ExtensionReloadStatus = (typeof OPENWAGGLE_EXTENSION.RELOAD_STATUSES)[number]
 
 export interface ExtensionBuildPlan {
   readonly installSource: ExtensionInstallSource
@@ -76,6 +77,8 @@ export interface ExtensionLifecycleState extends ExtensionLifecycleKey {
   readonly approvedBuildPlanHash: string | null
   readonly buildStatus: ExtensionBuildRunStatus
   readonly buildLog: string | null
+  readonly reloadStatus: ExtensionReloadStatus
+  readonly lastReloadedAt: number | null
   readonly sdkRange: string | null
   readonly sdkCompatible: boolean
   readonly diagnostics: readonly ExtensionDiagnostic[]

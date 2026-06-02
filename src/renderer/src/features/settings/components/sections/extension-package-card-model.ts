@@ -6,6 +6,7 @@ export interface ExtensionPackageCardActions {
   readonly onSetProjectDisabled: (projectPath: string, disabled: boolean) => void
   readonly onAcceptUpdate: () => void
   readonly onApproveBuild: () => void
+  readonly onReload: () => void
 }
 
 export function packageTitle(extensionPackage: ExtensionPackageSummary) {

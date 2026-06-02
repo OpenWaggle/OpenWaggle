@@ -1,9 +1,12 @@
 import type { ExtensionManagerView, ExtensionPackageSummary } from '@shared/types/extensions'
 import { type UseQueryResult, useQuery } from '@tanstack/react-query'
+import { useProviderStore } from '@/features/providers/state'
+import { usePreferencesStore } from '@/features/settings/state'
 import {
   extensionPackagesQueryOptions,
   useAcceptExtensionUpdateMutation,
   useApproveExtensionBuildMutation,
+  useReloadExtensionMutation,
   useSetExtensionEnabledMutation,
   useSetExtensionProjectDisabledMutation,
   useSetExtensionTrustedMutation,
@@ -38,6 +41,15 @@ export interface ExtensionsSectionController {
   ) => Promise<void>
   readonly acceptUpdate: (extensionPackage: ExtensionPackageSummary) => Promise<void>
   readonly approveBuild: (extensionPackage: ExtensionPackageSummary) => Promise<void>
+  readonly reload: (extensionPackage: ExtensionPackageSummary) => Promise<void>
+}
+
+async function refreshProviderModelsAfterExtensionMutation() {
+  const settingsSnapshot = usePreferencesStore.getState().settings
+  const updatedSettings = await useProviderStore.getState().loadProviderModels(settingsSnapshot)
+  if (updatedSettings) {
+    usePreferencesStore.setState({ settings: updatedSettings })
+  }
 }
 
 export function useExtensionsSectionController(
@@ -51,6 +63,7 @@ export function useExtensionsSectionController(
   const projectDisabledMutation = useSetExtensionProjectDisabledMutation(projectPaths)
   const acceptUpdateMutation = useAcceptExtensionUpdateMutation(projectPaths)
   const approveBuildMutation = useApproveExtensionBuildMutation(projectPaths)
+  const reloadMutation = useReloadExtensionMutation(projectPaths)
   const view: ExtensionManagerView | null = extensionsQuery.data ?? null
   const latestMutationError = mutationError({
     trustedError: trustedMutation.error,
@@ -58,6 +71,7 @@ export function useExtensionsSectionController(
     projectDisabledError: projectDisabledMutation.error,
     updateError: acceptUpdateMutation.error,
     buildError: approveBuildMutation.error,
+    reloadError: reloadMutation.error,
   })
   const pendingMutation = hasPendingMutation({
     trustedPending: trustedMutation.isPending,
@@ -65,6 +79,7 @@ export function useExtensionsSectionController(
     projectDisabledPending: projectDisabledMutation.isPending,
     updatePending: acceptUpdateMutation.isPending,
     buildPending: approveBuildMutation.isPending,
+    reloadPending: reloadMutation.isPending,
   })
   const updatingExtensionId = getUpdatingExtensionId({
     trustedPending: trustedMutation.isPending,
@@ -77,6 +92,8 @@ export function useExtensionsSectionController(
     updateExtensionId: acceptUpdateMutation.variables?.extensionId ?? null,
     buildPending: approveBuildMutation.isPending,
     buildExtensionId: approveBuildMutation.variables?.extensionId ?? null,
+    reloadPending: reloadMutation.isPending,
+    reloadExtensionId: reloadMutation.variables?.extensionId ?? null,
   })
   const error = controllerError({
     queryError: extensionsQuery.error,
@@ -93,48 +110,63 @@ export function useExtensionsSectionController(
     projectDisabledMutation.reset()
     acceptUpdateMutation.reset()
     approveBuildMutation.reset()
+    reloadMutation.reset()
+  }
+
+  async function runExtensionMutation({
+    action,
+    extensionPackage,
+    projectPath,
+    mutate,
+  }: {
+    readonly action: string
+    readonly extensionPackage: ExtensionPackageSummary
+    readonly projectPath: string | null
+    readonly mutate: () => Promise<ExtensionManagerView>
+  }) {
+    resetMutations()
+    try {
+      await mutate()
+      await refreshProviderModelsAfterExtensionMutation()
+    } catch (error) {
+      logMutationFailure({
+        action,
+        extensionPackage,
+        projectPath,
+        viewProjectPaths: projectPaths,
+        error,
+      })
+    }
   }
 
   async function setTrusted(extensionPackage: ExtensionPackageSummary, trusted: boolean) {
-    resetMutations()
-    try {
-      await trustedMutation.mutateAsync({
-        extensionId: extensionPackage.id,
-        scope: packageScopeToMutationScope(extensionPackage),
-        viewProjectPaths: projectPaths,
-        trusted,
-      })
-    } catch (error) {
-      logMutationFailure({
-        action: 'setTrusted',
-        extensionPackage,
-        projectPath: null,
-        viewProjectPaths: projectPaths,
-        error,
-      })
-      // TanStack stores the mutation error; keep fire-and-forget click handlers from rejecting.
-    }
+    await runExtensionMutation({
+      action: 'setTrusted',
+      extensionPackage,
+      projectPath: null,
+      mutate: () =>
+        trustedMutation.mutateAsync({
+          extensionId: extensionPackage.id,
+          scope: packageScopeToMutationScope(extensionPackage),
+          viewProjectPaths: projectPaths,
+          trusted,
+        }),
+    })
   }
 
   async function setEnabled(extensionPackage: ExtensionPackageSummary, enabled: boolean) {
-    resetMutations()
-    try {
-      await enabledMutation.mutateAsync({
-        extensionId: extensionPackage.id,
-        scope: packageScopeToMutationScope(extensionPackage),
-        viewProjectPaths: projectPaths,
-        enabled,
-      })
-    } catch (error) {
-      logMutationFailure({
-        action: 'setEnabled',
-        extensionPackage,
-        projectPath: null,
-        viewProjectPaths: projectPaths,
-        error,
-      })
-      // TanStack stores the mutation error; keep fire-and-forget click handlers from rejecting.
-    }
+    await runExtensionMutation({
+      action: 'setEnabled',
+      extensionPackage,
+      projectPath: null,
+      mutate: () =>
+        enabledMutation.mutateAsync({
+          extensionId: extensionPackage.id,
+          scope: packageScopeToMutationScope(extensionPackage),
+          viewProjectPaths: projectPaths,
+          enabled,
+        }),
+    })
   }
 
   async function setProjectDisabled(
@@ -147,65 +179,61 @@ export function useExtensionsSectionController(
       return
     }
 
-    resetMutations()
-    try {
-      await projectDisabledMutation.mutateAsync({
-        extensionId: extensionPackage.id,
-        scope: packageScopeToMutationScope(extensionPackage),
-        viewProjectPaths: projectPaths,
-        projectPath: targetProjectPath,
-        disabled,
-      })
-    } catch (error) {
-      logMutationFailure({
-        action: 'setProjectDisabled',
-        extensionPackage,
-        projectPath: targetProjectPath,
-        viewProjectPaths: projectPaths,
-        error,
-      })
-      // TanStack stores the mutation error; keep fire-and-forget click handlers from rejecting.
-    }
+    await runExtensionMutation({
+      action: 'setProjectDisabled',
+      extensionPackage,
+      projectPath: targetProjectPath,
+      mutate: () =>
+        projectDisabledMutation.mutateAsync({
+          extensionId: extensionPackage.id,
+          scope: packageScopeToMutationScope(extensionPackage),
+          viewProjectPaths: projectPaths,
+          projectPath: targetProjectPath,
+          disabled,
+        }),
+    })
   }
 
   async function acceptUpdate(extensionPackage: ExtensionPackageSummary) {
-    resetMutations()
-    try {
-      await acceptUpdateMutation.mutateAsync({
-        extensionId: extensionPackage.id,
-        scope: packageScopeToMutationScope(extensionPackage),
-        viewProjectPaths: projectPaths,
-      })
-    } catch (error) {
-      logMutationFailure({
-        action: 'acceptUpdate',
-        extensionPackage,
-        projectPath: null,
-        viewProjectPaths: projectPaths,
-        error,
-      })
-      // TanStack stores the mutation error; keep fire-and-forget click handlers from rejecting.
-    }
+    await runExtensionMutation({
+      action: 'acceptUpdate',
+      extensionPackage,
+      projectPath: null,
+      mutate: () =>
+        acceptUpdateMutation.mutateAsync({
+          extensionId: extensionPackage.id,
+          scope: packageScopeToMutationScope(extensionPackage),
+          viewProjectPaths: projectPaths,
+        }),
+    })
   }
 
   async function approveBuild(extensionPackage: ExtensionPackageSummary) {
-    resetMutations()
-    try {
-      await approveBuildMutation.mutateAsync({
-        extensionId: extensionPackage.id,
-        scope: packageScopeToMutationScope(extensionPackage),
-        viewProjectPaths: projectPaths,
-      })
-    } catch (error) {
-      logMutationFailure({
-        action: 'approveBuild',
-        extensionPackage,
-        projectPath: null,
-        viewProjectPaths: projectPaths,
-        error,
-      })
-      // TanStack stores the mutation error; keep fire-and-forget click handlers from rejecting.
-    }
+    await runExtensionMutation({
+      action: 'approveBuild',
+      extensionPackage,
+      projectPath: null,
+      mutate: () =>
+        approveBuildMutation.mutateAsync({
+          extensionId: extensionPackage.id,
+          scope: packageScopeToMutationScope(extensionPackage),
+          viewProjectPaths: projectPaths,
+        }),
+    })
+  }
+
+  async function reload(extensionPackage: ExtensionPackageSummary) {
+    await runExtensionMutation({
+      action: 'reload',
+      extensionPackage,
+      projectPath: null,
+      mutate: () =>
+        reloadMutation.mutateAsync({
+          extensionId: extensionPackage.id,
+          scope: packageScopeToMutationScope(extensionPackage),
+          viewProjectPaths: projectPaths,
+        }),
+    })
   }
 
   return {
@@ -219,5 +247,6 @@ export function useExtensionsSectionController(
     setProjectDisabled,
     acceptUpdate,
     approveBuild,
+    reload,
   }
 }

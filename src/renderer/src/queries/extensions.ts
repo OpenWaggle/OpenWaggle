@@ -3,6 +3,7 @@ import type {
   ExtensionApproveBuildInput,
   ExtensionListPackagesInput,
   ExtensionManagerView,
+  ExtensionReloadInput,
   ExtensionSetEnabledInput,
   ExtensionSetProjectDisabledInput,
   ExtensionSetTrustedInput,
@@ -20,6 +21,7 @@ type ExtensionApi = Pick<
   | 'setExtensionTrusted'
   | 'acceptExtensionUpdate'
   | 'approveExtensionBuild'
+  | 'reloadExtension'
 >
 
 const extensionApi: ExtensionApi = api
@@ -54,6 +56,10 @@ function acceptExtensionUpdate(input: ExtensionAcceptUpdateInput): Promise<Exten
 
 function approveExtensionBuild(input: ExtensionApproveBuildInput): Promise<ExtensionManagerView> {
   return extensionApi.approveExtensionBuild(input)
+}
+
+function reloadExtension(input: ExtensionReloadInput): Promise<ExtensionManagerView> {
+  return extensionApi.reloadExtension(input)
 }
 
 export function extensionPackagesQueryOptions(
@@ -126,6 +132,18 @@ export function useApproveExtensionBuildMutation(projectPaths: readonly string[]
 
   return useMutation<ExtensionManagerView, Error, ExtensionApproveBuildInput>({
     mutationFn: approveExtensionBuild,
+    onSuccess: (view) => {
+      queryClient.setQueryData(queryKey, view)
+    },
+  })
+}
+
+export function useReloadExtensionMutation(projectPaths: readonly string[]) {
+  const queryClient = useQueryClient()
+  const queryKey = extensionPackagesQueryKey(projectPaths)
+
+  return useMutation<ExtensionManagerView, Error, ExtensionReloadInput>({
+    mutationFn: reloadExtension,
     onSuccess: (view) => {
       queryClient.setQueryData(queryKey, view)
     },

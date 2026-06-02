@@ -23,6 +23,9 @@ export const OPENWAGGLE_EXTENSION = {
     BUILD_APPROVED_LABEL: 'Build approved',
     BUILD_SUCCEEDED_LABEL: 'Build succeeded',
     BUILD_FAILED_LABEL: 'Build failed',
+    RELOAD_ACTION_LABEL: 'Reload',
+    RELOAD_SUCCEEDED_LABEL: 'Reloaded',
+    RELOAD_FAILED_LABEL: 'Reload failed',
     APPROVE_UPDATE_ACTION_LABEL: 'Approve update',
     APPROVE_BUILD_ACTION_LABEL: 'Approve and build',
     NO_UPDATE_AVAILABLE_ERROR: 'No extension update is available.',
@@ -36,6 +39,7 @@ export const OPENWAGGLE_EXTENSION = {
     BUILD_COMMAND_UNAVAILABLE_ERROR: 'The approved local build command is unavailable.',
     BUILD_ARTIFACT_VALIDATION_ERROR:
       'The approved build completed, but declared build artifacts are still invalid.',
+    RELOAD_DISABLED_ERROR: 'Enable this extension before reloading it.',
   },
   LIMITS: {
     ID_MAX_LENGTH: 96,
@@ -147,4 +151,10 @@ export const OPENWAGGLE_EXTENSION = {
     FAILED: 'failed',
   },
   BUILD_RUN_STATUSES: ['not-run', 'succeeded', 'failed'] as const,
+  RELOAD_STATUS: {
+    NOT_RELOADED: 'not-reloaded',
+    SUCCEEDED: 'succeeded',
+    FAILED: 'failed',
+  },
+  RELOAD_STATUSES: ['not-reloaded', 'succeeded', 'failed'] as const,
 } as const

@@ -4,7 +4,11 @@ import { parseJsonUnknown, Schema, safeDecodeUnknown } from '@shared/schema'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { ExtensionLifecycleRepositoryError } from '../errors'
-import type { ExtensionLifecycleState, ExtensionPackageScope } from '../extensions/types'
+import type {
+  ExtensionLifecycleKey,
+  ExtensionLifecycleState,
+  ExtensionPackageScope,
+} from '../extensions/types'
 import { ExtensionLifecycleRepository } from '../ports/extension-lifecycle-repository'
 import { SQLITE_BOOLEAN } from '../services/database-constants'
 
@@ -20,6 +24,8 @@ interface ExtensionLifecycleRow {
   readonly approved_build_plan_hash: string | null
   readonly build_status: string
   readonly build_log: string | null
+  readonly reload_status: string
+  readonly last_reloaded_at: number | null
   readonly sdk_range: string | null
   readonly sdk_compatible: number
   readonly diagnostics_json: string
@@ -39,6 +45,7 @@ const extensionDiagnosticsSchema = Schema.mutable(
 )
 const stringArraySchema = Schema.mutable(Schema.Array(Schema.String))
 const buildStatusSchema = Schema.Literal(...OPENWAGGLE_EXTENSION.BUILD_RUN_STATUSES)
+const reloadStatusSchema = Schema.Literal(...OPENWAGGLE_EXTENSION.RELOAD_STATUSES)
 
 function booleanToSqlite(value: boolean) {
   return value ? SQLITE_BOOLEAN.TRUE : SQLITE_BOOLEAN.FALSE
@@ -85,6 +92,10 @@ function rowToLifecycleState(row: ExtensionLifecycleRow): ExtensionLifecycleStat
   if (!decodedBuildStatus.success) {
     throw new Error(`Invalid build_status: ${decodedBuildStatus.issues.join('; ')}`)
   }
+  const decodedReloadStatus = safeDecodeUnknown(reloadStatusSchema, row.reload_status)
+  if (!decodedReloadStatus.success) {
+    throw new Error(`Invalid reload_status: ${decodedReloadStatus.issues.join('; ')}`)
+  }
 
   return {
     extensionId: row.extension_id,
@@ -101,6 +112,8 @@ function rowToLifecycleState(row: ExtensionLifecycleRow): ExtensionLifecycleStat
     approvedBuildPlanHash: row.approved_build_plan_hash,
     buildStatus: decodedBuildStatus.data,
     buildLog: row.build_log,
+    reloadStatus: decodedReloadStatus.data,
+    lastReloadedAt: row.last_reloaded_at,
     sdkRange: row.sdk_range,
     sdkCompatible: sqliteToBoolean(row.sdk_compatible),
     diagnostics: decodeJsonField(
@@ -124,125 +137,144 @@ function mapRows(operation: string, rows: readonly ExtensionLifecycleRow[]) {
   })
 }
 
+function getLifecycleState(sql: SqlClient.SqlClient, key: ExtensionLifecycleKey) {
+  return Effect.gen(function* () {
+    const scope = scopeToColumns(key.scope)
+    const rows = yield* sql<ExtensionLifecycleRow>`
+      SELECT
+        extension_id,
+        scope_kind,
+        scope_id,
+        enabled,
+        trusted,
+        granted_capabilities_json,
+        content_hash,
+        package_version,
+        approved_build_plan_hash,
+        build_status,
+        build_log,
+        reload_status,
+        last_reloaded_at,
+        sdk_range,
+        sdk_compatible,
+        diagnostics_json,
+        installed_at,
+        updated_at
+      FROM extension_lifecycle_state
+      WHERE extension_id = ${key.extensionId}
+        AND scope_kind = ${scope.scopeKind}
+        AND scope_id = ${scope.scopeId}
+      LIMIT 1
+    `
+    const states = yield* mapRows('get', rows)
+    return states[0] ?? null
+  }).pipe(Effect.mapError((cause) => mapRepositoryError('get', cause)))
+}
+
+function listLifecycleStates(sql: SqlClient.SqlClient, scope: ExtensionPackageScope) {
+  return Effect.gen(function* () {
+    const columns = scopeToColumns(scope)
+    const rows = yield* sql<ExtensionLifecycleRow>`
+      SELECT
+        extension_id,
+        scope_kind,
+        scope_id,
+        enabled,
+        trusted,
+        granted_capabilities_json,
+        content_hash,
+        package_version,
+        approved_build_plan_hash,
+        build_status,
+        build_log,
+        reload_status,
+        last_reloaded_at,
+        sdk_range,
+        sdk_compatible,
+        diagnostics_json,
+        installed_at,
+        updated_at
+      FROM extension_lifecycle_state
+      WHERE scope_kind = ${columns.scopeKind}
+        AND scope_id = ${columns.scopeId}
+      ORDER BY extension_id ASC
+    `
+    return yield* mapRows('list', rows)
+  }).pipe(Effect.mapError((cause) => mapRepositoryError('list', cause)))
+}
+
+function upsertLifecycleState(sql: SqlClient.SqlClient, state: ExtensionLifecycleState) {
+  return Effect.gen(function* () {
+    const scope = scopeToColumns(state.scope)
+    yield* sql`
+      INSERT INTO extension_lifecycle_state (
+        extension_id,
+        scope_kind,
+        scope_id,
+        enabled,
+        trusted,
+        granted_capabilities_json,
+        content_hash,
+        package_version,
+        approved_build_plan_hash,
+        build_status,
+        build_log,
+        reload_status,
+        last_reloaded_at,
+        sdk_range,
+        sdk_compatible,
+        diagnostics_json,
+        installed_at,
+        updated_at
+      )
+      VALUES (
+        ${state.extensionId},
+        ${scope.scopeKind},
+        ${scope.scopeId},
+        ${booleanToSqlite(state.enabled)},
+        ${booleanToSqlite(state.trusted)},
+        ${JSON.stringify(state.grantedCapabilities)},
+        ${state.contentHash},
+        ${state.packageVersion},
+        ${state.approvedBuildPlanHash},
+        ${state.buildStatus},
+        ${state.buildLog},
+        ${state.reloadStatus},
+        ${state.lastReloadedAt},
+        ${state.sdkRange},
+        ${booleanToSqlite(state.sdkCompatible)},
+        ${JSON.stringify(state.diagnostics)},
+        ${state.installedAt},
+        ${state.updatedAt}
+      )
+      ON CONFLICT(extension_id, scope_kind, scope_id) DO UPDATE SET
+        enabled = excluded.enabled,
+        trusted = excluded.trusted,
+        granted_capabilities_json = excluded.granted_capabilities_json,
+        content_hash = excluded.content_hash,
+        package_version = excluded.package_version,
+        approved_build_plan_hash = excluded.approved_build_plan_hash,
+        build_status = excluded.build_status,
+        build_log = excluded.build_log,
+        reload_status = excluded.reload_status,
+        last_reloaded_at = excluded.last_reloaded_at,
+        sdk_range = excluded.sdk_range,
+        sdk_compatible = excluded.sdk_compatible,
+        diagnostics_json = excluded.diagnostics_json,
+        updated_at = excluded.updated_at
+    `
+  }).pipe(Effect.mapError((cause) => mapRepositoryError('upsert', cause)))
+}
+
 export const SqliteExtensionLifecycleRepositoryLive = Layer.effect(
   ExtensionLifecycleRepository,
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient
 
     return ExtensionLifecycleRepository.of({
-      get: (key) =>
-        Effect.gen(function* () {
-          const scope = scopeToColumns(key.scope)
-          const rows = yield* sql<ExtensionLifecycleRow>`
-          SELECT
-            extension_id,
-            scope_kind,
-            scope_id,
-            enabled,
-            trusted,
-            granted_capabilities_json,
-            content_hash,
-            package_version,
-            approved_build_plan_hash,
-            build_status,
-            build_log,
-            sdk_range,
-            sdk_compatible,
-            diagnostics_json,
-            installed_at,
-            updated_at
-          FROM extension_lifecycle_state
-          WHERE extension_id = ${key.extensionId}
-            AND scope_kind = ${scope.scopeKind}
-            AND scope_id = ${scope.scopeId}
-          LIMIT 1
-        `
-          const states = yield* mapRows('get', rows)
-          return states[0] ?? null
-        }).pipe(Effect.mapError((cause) => mapRepositoryError('get', cause))),
-      list: (scope) =>
-        Effect.gen(function* () {
-          const columns = scopeToColumns(scope)
-          const rows = yield* sql<ExtensionLifecycleRow>`
-          SELECT
-            extension_id,
-            scope_kind,
-            scope_id,
-            enabled,
-            trusted,
-            granted_capabilities_json,
-            content_hash,
-            package_version,
-            approved_build_plan_hash,
-            build_status,
-            build_log,
-            sdk_range,
-            sdk_compatible,
-            diagnostics_json,
-            installed_at,
-            updated_at
-          FROM extension_lifecycle_state
-          WHERE scope_kind = ${columns.scopeKind}
-            AND scope_id = ${columns.scopeId}
-          ORDER BY extension_id ASC
-        `
-          return yield* mapRows('list', rows)
-        }).pipe(Effect.mapError((cause) => mapRepositoryError('list', cause))),
-      upsert: (state) =>
-        Effect.gen(function* () {
-          const scope = scopeToColumns(state.scope)
-          yield* sql`
-          INSERT INTO extension_lifecycle_state (
-            extension_id,
-            scope_kind,
-            scope_id,
-            enabled,
-            trusted,
-            granted_capabilities_json,
-            content_hash,
-            package_version,
-            approved_build_plan_hash,
-            build_status,
-            build_log,
-            sdk_range,
-            sdk_compatible,
-            diagnostics_json,
-            installed_at,
-            updated_at
-          )
-          VALUES (
-            ${state.extensionId},
-            ${scope.scopeKind},
-            ${scope.scopeId},
-            ${booleanToSqlite(state.enabled)},
-            ${booleanToSqlite(state.trusted)},
-            ${JSON.stringify(state.grantedCapabilities)},
-            ${state.contentHash},
-            ${state.packageVersion},
-            ${state.approvedBuildPlanHash},
-            ${state.buildStatus},
-            ${state.buildLog},
-            ${state.sdkRange},
-            ${booleanToSqlite(state.sdkCompatible)},
-            ${JSON.stringify(state.diagnostics)},
-            ${state.installedAt},
-            ${state.updatedAt}
-          )
-          ON CONFLICT(extension_id, scope_kind, scope_id) DO UPDATE SET
-            enabled = excluded.enabled,
-            trusted = excluded.trusted,
-            granted_capabilities_json = excluded.granted_capabilities_json,
-            content_hash = excluded.content_hash,
-            package_version = excluded.package_version,
-            approved_build_plan_hash = excluded.approved_build_plan_hash,
-            build_status = excluded.build_status,
-            build_log = excluded.build_log,
-            sdk_range = excluded.sdk_range,
-            sdk_compatible = excluded.sdk_compatible,
-            diagnostics_json = excluded.diagnostics_json,
-            updated_at = excluded.updated_at
-        `
-        }).pipe(Effect.mapError((cause) => mapRepositoryError('upsert', cause))),
+      get: (key) => getLifecycleState(sql, key),
+      list: (scope) => listLifecycleStates(sql, scope),
+      upsert: (state) => upsertLifecycleState(sql, state),
     })
   }),
 )

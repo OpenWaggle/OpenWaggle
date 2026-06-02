@@ -2,17 +2,28 @@ import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type {
   ExtensionAcceptUpdateInput,
   ExtensionApproveBuildInput,
+  ExtensionReloadInput,
   ExtensionSetEnabledInput,
   ExtensionSetProjectDisabledInput,
   ExtensionSetTrustedInput,
 } from '@shared/types/extensions'
 import * as Effect from 'effect/Effect'
-import { isExtensionUpdateAvailable } from '../extensions/runtime-eligibility'
-import type { DiscoveredExtensionPackage, ExtensionDiagnostic } from '../extensions/types'
+import {
+  isExtensionCurrentTrustPin,
+  isExtensionUpdateAvailable,
+} from '../extensions/runtime-eligibility'
+import type { ExtensionDiagnostic } from '../extensions/types'
 import { ExtensionBuildRunner } from '../ports/extension-build-runner'
 import { ExtensionLifecycleRepository } from '../ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from '../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../ports/extension-project-overrides-repository'
+import {
+  buildArtifactsInvalidDiagnostic,
+  buildFailedDiagnostic,
+  buildOutputsAreValid,
+  EXTENSION_BUILD_SUCCESS_EXIT_CODE,
+  makeBuildLog,
+} from './extension-build-lifecycle-model'
 import {
   findPackage,
   getBuildApprovalReadinessError,
@@ -26,8 +37,6 @@ import {
   projectOverrideKey,
 } from './extension-lifecycle-model'
 import { listExtensionPackagesView } from './extension-manager-view-service'
-
-const SUCCESS_EXIT_CODE = 0
 
 function loadMutationPackage(input: LifecycleMutationInput) {
   return Effect.gen(function* () {
@@ -59,80 +68,6 @@ function loadProjectOverridePackage(input: ExtensionSetProjectDisabledInput) {
   })
 }
 
-function isBuildBlockingDiagnostic(diagnostic: ExtensionDiagnostic) {
-  return (
-    diagnostic.severity === 'error' &&
-    OPENWAGGLE_EXTENSION.DIAGNOSTIC.BUILD_BLOCKING_CODES.some((code) => code === diagnostic.code)
-  )
-}
-
-function hasBuildBlockingDiagnostics(extensionPackage: DiscoveredExtensionPackage) {
-  return extensionPackage.diagnostics.some(isBuildBlockingDiagnostic)
-}
-
-function truncateBuildLog(log: string) {
-  if (log.length <= OPENWAGGLE_EXTENSION.LIMITS.BUILD_LOG_MAX_LENGTH) {
-    return log
-  }
-
-  return log.slice(-OPENWAGGLE_EXTENSION.LIMITS.BUILD_LOG_MAX_LENGTH)
-}
-
-function buildLog(input: {
-  readonly command: string
-  readonly exitCode: number | null
-  readonly stdout: string
-  readonly stderr: string
-}) {
-  const sections = [
-    `Command: ${input.command}`,
-    `Exit code: ${input.exitCode === null ? 'unknown' : String(input.exitCode)}`,
-  ]
-
-  if (input.stdout.trim().length > 0) {
-    sections.push(`stdout:\n${input.stdout.trim()}`)
-  }
-  if (input.stderr.trim().length > 0) {
-    sections.push(`stderr:\n${input.stderr.trim()}`)
-  }
-
-  return truncateBuildLog(sections.join('\n\n'))
-}
-
-function buildFailedDiagnostic(input: {
-  readonly extensionPackage: DiscoveredExtensionPackage
-  readonly exitCode: number | null
-}): ExtensionDiagnostic {
-  return {
-    severity: 'error',
-    code: 'build-failed',
-    message: `Build command failed with exit code ${input.exitCode === null ? 'unknown' : String(input.exitCode)}.`,
-    path: input.extensionPackage.packagePath,
-  }
-}
-
-function buildArtifactsInvalidDiagnostic(
-  extensionPackage: DiscoveredExtensionPackage,
-): ExtensionDiagnostic {
-  return {
-    severity: 'error',
-    code: 'build-artifacts-invalid',
-    message: OPENWAGGLE_EXTENSION.LIFECYCLE.BUILD_ARTIFACT_VALIDATION_ERROR,
-    path: extensionPackage.packagePath,
-  }
-}
-
-function buildOutputsAreValid(
-  extensionPackage: DiscoveredExtensionPackage,
-  approvedBuildPlanHash: string,
-) {
-  return (
-    extensionPackage.buildPlan?.inputHash === approvedBuildPlanHash &&
-    extensionPackage.contentHash !== null &&
-    !hasBuildBlockingDiagnostics(extensionPackage)
-  )
-}
-
 export function setExtensionTrusted(input: ExtensionSetTrustedInput) {
   return Effect.gen(function* () {
     const lifecycleRepository = yield* ExtensionLifecycleRepository
@@ -158,6 +93,8 @@ export function setExtensionTrusted(input: ExtensionSetTrustedInput) {
         enabled: false,
         trusted: input.trusted,
         pinCurrentPackage: input.trusted,
+        reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.NOT_RELOADED,
+        lastReloadedAt: null,
       }),
     )
 
@@ -222,6 +159,8 @@ export function acceptExtensionUpdate(input: ExtensionAcceptUpdateInput) {
         enabled: false,
         trusted: true,
         pinCurrentPackage: true,
+        reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.NOT_RELOADED,
+        lastReloadedAt: null,
       }),
     )
 
@@ -253,7 +192,7 @@ export function approveExtensionBuild(input: ExtensionApproveBuildInput) {
       command: buildPlan.command,
     })
     const rediscoveredPackage = yield* loadMutationPackage(input)
-    const commandSucceeded = buildResult.exitCode === SUCCESS_EXIT_CODE
+    const commandSucceeded = buildResult.exitCode === EXTENSION_BUILD_SUCCESS_EXIT_CODE
     const artifactsValid = buildOutputsAreValid(rediscoveredPackage, buildPlan.inputHash)
     const buildDiagnostics: readonly ExtensionDiagnostic[] = commandSucceeded
       ? artifactsValid
@@ -274,8 +213,40 @@ export function approveExtensionBuild(input: ExtensionApproveBuildInput) {
         pinCurrentPackage: false,
         approvedBuildPlanHash: buildPlan.inputHash,
         buildStatus,
-        buildLog: buildLog({ command: buildPlan.command, ...buildResult }),
+        buildLog: makeBuildLog({ command: buildPlan.command, ...buildResult }),
+        reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.NOT_RELOADED,
+        lastReloadedAt: null,
         diagnostics: [...rediscoveredPackage.diagnostics, ...buildDiagnostics],
+      }),
+    )
+
+    return yield* listExtensionPackagesView({ projectPaths: getViewProjectPaths(input) })
+  })
+}
+
+export function reloadExtension(input: ExtensionReloadInput) {
+  return Effect.gen(function* () {
+    const lifecycleRepository = yield* ExtensionLifecycleRepository
+    const extensionPackage = yield* loadMutationPackage(input)
+    const current = yield* lifecycleRepository.get(lifecycleKey(input))
+
+    if (!current?.enabled) {
+      return yield* Effect.fail(new Error(OPENWAGGLE_EXTENSION.LIFECYCLE.RELOAD_DISABLED_ERROR))
+    }
+    if (!isExtensionCurrentTrustPin({ extensionPackage, lifecycle: current })) {
+      const readinessError = getLifecycleReadinessError(extensionPackage, 'enable', current)
+      return yield* Effect.fail(new Error(readinessError ?? 'Extension cannot be reloaded.'))
+    }
+
+    yield* lifecycleRepository.upsert(
+      makeLifecycleState({
+        extensionPackage,
+        current,
+        enabled: current.enabled,
+        trusted: current.trusted,
+        pinCurrentPackage: false,
+        reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.SUCCEEDED,
+        lastReloadedAt: Date.now(),
       }),
     )
 

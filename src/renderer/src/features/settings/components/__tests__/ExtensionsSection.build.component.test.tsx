@@ -16,6 +16,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     setExtensionProjectDisabled: vi.fn(),
     acceptExtensionUpdate: vi.fn(),
     approveExtensionBuild: approveExtensionBuildMock,
+    reloadExtension: vi.fn(),
   },
 }))
 
@@ -119,6 +120,8 @@ const BUILD_APPROVED_VIEW: ExtensionManagerView = {
         approvedBuildPlanHash: 'build-plan-hash',
         buildStatus: 'succeeded',
         buildLog: null,
+        reloadStatus: 'not-reloaded',
+        lastReloadedAt: null,
         sdkRange: '>=0.1.0 <0.2.0',
         sdkCompatible: true,
         diagnostics: [],
@@ -144,6 +147,8 @@ const BUILD_FAILED_VIEW: ExtensionManagerView = {
         approvedBuildPlanHash: 'build-plan-hash',
         buildStatus: 'failed',
         buildLog: 'stderr: missing artifact',
+        reloadStatus: 'not-reloaded',
+        lastReloadedAt: null,
         sdkRange: '>=0.1.0 <0.2.0',
         sdkCompatible: true,
         diagnostics: [

@@ -22,6 +22,8 @@ export function getUpdatingExtensionId({
   updateExtensionId,
   buildPending,
   buildExtensionId,
+  reloadPending,
+  reloadExtensionId,
 }: {
   readonly trustedPending: boolean
   readonly trustedExtensionId: string | null
@@ -33,6 +35,8 @@ export function getUpdatingExtensionId({
   readonly updateExtensionId: string | null
   readonly buildPending: boolean
   readonly buildExtensionId: string | null
+  readonly reloadPending: boolean
+  readonly reloadExtensionId: string | null
 }) {
   if (trustedPending) {
     return trustedExtensionId
@@ -49,6 +53,9 @@ export function getUpdatingExtensionId({
   if (buildPending) {
     return buildExtensionId
   }
+  if (reloadPending) {
+    return reloadExtensionId
+  }
   return null
 }
 
@@ -58,14 +65,23 @@ export function hasPendingMutation({
   projectDisabledPending,
   updatePending,
   buildPending,
+  reloadPending,
 }: {
   readonly trustedPending: boolean
   readonly enabledPending: boolean
   readonly projectDisabledPending: boolean
   readonly updatePending: boolean
   readonly buildPending: boolean
+  readonly reloadPending: boolean
 }) {
-  return trustedPending || enabledPending || projectDisabledPending || updatePending || buildPending
+  return (
+    trustedPending ||
+    enabledPending ||
+    projectDisabledPending ||
+    updatePending ||
+    buildPending ||
+    reloadPending
+  )
 }
 
 export function mutationError({
@@ -74,14 +90,18 @@ export function mutationError({
   projectDisabledError,
   updateError,
   buildError,
+  reloadError,
 }: {
   readonly trustedError: Error | null
   readonly enabledError: Error | null
   readonly projectDisabledError: Error | null
   readonly updateError: Error | null
   readonly buildError: Error | null
+  readonly reloadError: Error | null
 }) {
-  return trustedError ?? enabledError ?? projectDisabledError ?? updateError ?? buildError
+  return (
+    trustedError ?? enabledError ?? projectDisabledError ?? updateError ?? buildError ?? reloadError
+  )
 }
 
 export function controllerError({

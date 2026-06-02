@@ -137,6 +137,8 @@ function lifecycleToView(
     approvedBuildPlanHash: state.approvedBuildPlanHash,
     buildStatus: state.buildStatus,
     buildLog: state.buildLog,
+    reloadStatus: state.reloadStatus,
+    lastReloadedAt: state.lastReloadedAt,
     sdkRange: state.sdkRange,
     sdkCompatible: state.sdkCompatible,
     diagnostics: diagnosticsToView(state.diagnostics),

@@ -8,6 +8,7 @@ const {
   setExtensionTrustedMock,
   setExtensionEnabledMock,
   setExtensionProjectDisabledMock,
+  reloadExtensionMock,
   projectPathMock,
   sessionsMock,
 } = vi.hoisted(() => ({
@@ -15,6 +16,7 @@ const {
   setExtensionTrustedMock: vi.fn(),
   setExtensionEnabledMock: vi.fn(),
   setExtensionProjectDisabledMock: vi.fn(),
+  reloadExtensionMock: vi.fn(),
   projectPathMock: { current: '/tmp/project' },
   sessionsMock: { current: [] },
 }))
@@ -27,6 +29,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     setExtensionProjectDisabled: setExtensionProjectDisabledMock,
     acceptExtensionUpdate: vi.fn(),
     approveExtensionBuild: vi.fn(),
+    reloadExtension: reloadExtensionMock,
   },
 }))
 
@@ -110,6 +113,8 @@ const TRUSTED_LIFECYCLE: NonNullable<ExtensionManagerView['packages'][number]['l
   approvedBuildPlanHash: null,
   buildStatus: 'not-run',
   buildLog: null,
+  reloadStatus: 'not-reloaded',
+  lastReloadedAt: null,
   sdkRange: '>=0.1.0 <0.2.0',
   sdkCompatible: true,
   diagnostics: [],
@@ -138,6 +143,21 @@ const ENABLED_VIEW: ExtensionManagerView = {
       lifecycle: {
         ...TRUSTED_LIFECYCLE,
         enabled: true,
+      },
+    },
+  ],
+}
+
+const RELOADED_VIEW: ExtensionManagerView = {
+  ...ENABLED_VIEW,
+  packages: [
+    {
+      ...SAMPLE_PACKAGE,
+      lifecycle: {
+        ...TRUSTED_LIFECYCLE,
+        enabled: true,
+        reloadStatus: 'succeeded',
+        lastReloadedAt: 2000,
       },
     },
   ],
@@ -175,6 +195,7 @@ describe('ExtensionsSection', () => {
     setExtensionTrustedMock.mockReset()
     setExtensionEnabledMock.mockReset()
     setExtensionProjectDisabledMock.mockReset()
+    reloadExtensionMock.mockReset()
   })
 
   it('loads and renders discovered extension packages for the selected project', async () => {
@@ -272,6 +293,25 @@ describe('ExtensionsSection', () => {
     })
     expect(await screen.findByText('Enabled')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Disable Sample Extension' })).toBeInTheDocument()
+  })
+
+  it('reloads an enabled extension package from settings', async () => {
+    listExtensionPackagesMock.mockResolvedValueOnce(ENABLED_VIEW)
+    reloadExtensionMock.mockResolvedValueOnce(RELOADED_VIEW)
+
+    renderWithQueryClient(<ExtensionsSection />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Reload Sample Extension' }))
+
+    await waitFor(() => {
+      expect(reloadExtensionMock).toHaveBeenCalledWith({
+        extensionId: 'sample-extension',
+        scope: { kind: 'project', projectPath: '/tmp/project' },
+        viewProjectPaths: ['/tmp/project'],
+      })
+    })
+    expect(await screen.findByText('Reloaded')).toBeInTheDocument()
+    expect(screen.getByText('1970-01-01T00:00:02.000Z')).toBeInTheDocument()
   })
 
   it('disables an extension only for the selected project', async () => {

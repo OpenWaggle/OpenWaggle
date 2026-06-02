@@ -151,6 +151,24 @@ function BuildStatusPill({
   )
 }
 
+function ReloadStatusPill({
+  lifecycle,
+}: {
+  readonly lifecycle: ExtensionPackageSummary['lifecycle']
+}) {
+  if (lifecycle?.reloadStatus === OPENWAGGLE_EXTENSION.RELOAD_STATUS.SUCCEEDED) {
+    return (
+      <StatusPill tone="good">{OPENWAGGLE_EXTENSION.LIFECYCLE.RELOAD_SUCCEEDED_LABEL}</StatusPill>
+    )
+  }
+  if (lifecycle?.reloadStatus === OPENWAGGLE_EXTENSION.RELOAD_STATUS.FAILED) {
+    return (
+      <StatusPill tone="error">{OPENWAGGLE_EXTENSION.LIFECYCLE.RELOAD_FAILED_LABEL}</StatusPill>
+    )
+  }
+  return null
+}
+
 export function PackageStatusPills({
   extensionPackage,
 }: {
@@ -165,6 +183,7 @@ export function PackageStatusPills({
       <ProjectStatusPills extensionPackage={extensionPackage} />
       <LifecycleStatusPills lifecycle={lifecycle} />
       <BuildStatusPill extensionPackage={extensionPackage} />
+      <ReloadStatusPill lifecycle={lifecycle} />
       <StatusPill tone={sdkStatus.tone}>{sdkStatus.label}</StatusPill>
     </>
   )

@@ -62,6 +62,8 @@ describe('SqliteExtensionLifecycleRepositoryLive', () => {
           approvedBuildPlanHash: 'build-plan-hash',
           buildStatus: OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS.NOT_RUN,
           buildLog: null,
+          reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.NOT_RELOADED,
+          lastReloadedAt: null,
           sdkRange: '>=0.1.0 <0.2.0',
           sdkCompatible: true,
           diagnostics: [
@@ -92,6 +94,8 @@ describe('SqliteExtensionLifecycleRepositoryLive', () => {
       approvedBuildPlanHash: 'build-plan-hash',
       buildStatus: OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS.NOT_RUN,
       buildLog: null,
+      reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.NOT_RELOADED,
+      lastReloadedAt: null,
       sdkRange: '>=0.1.0 <0.2.0',
       sdkCompatible: true,
       diagnostics: [
@@ -124,6 +128,8 @@ describe('SqliteExtensionLifecycleRepositoryLive', () => {
           approvedBuildPlanHash: null,
           buildStatus: OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS.NOT_RUN,
           buildLog: null,
+          reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.NOT_RELOADED,
+          lastReloadedAt: null,
           sdkRange: null,
           sdkCompatible: false,
           diagnostics: [],
@@ -141,6 +147,8 @@ describe('SqliteExtensionLifecycleRepositoryLive', () => {
           approvedBuildPlanHash: null,
           buildStatus: OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS.NOT_RUN,
           buildLog: null,
+          reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.NOT_RELOADED,
+          lastReloadedAt: null,
           sdkRange: null,
           sdkCompatible: false,
           diagnostics: [],
@@ -155,5 +163,54 @@ describe('SqliteExtensionLifecycleRepositoryLive', () => {
     )
 
     expect(result.map((entry) => entry.extensionId)).toEqual(['project-extension'])
+  })
+
+  it('persists reload lifecycle state across repository restarts', async () => {
+    const databasePath = path.join(tmpRoot, 'extensions.sqlite')
+    const projectPath = path.join(tmpRoot, 'project')
+    const firstLayer = makeTestLayer(databasePath)
+    const reloadedAt = Date.now()
+
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const repository = yield* ExtensionLifecycleRepository
+        yield* repository.upsert({
+          extensionId: 'sample-extension',
+          scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath },
+          enabled: true,
+          trusted: true,
+          grantedCapabilities: ['settings.read'],
+          contentHash: 'abc123',
+          packageVersion: '1.0.0',
+          approvedBuildPlanHash: null,
+          buildStatus: OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS.NOT_RUN,
+          buildLog: null,
+          reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.SUCCEEDED,
+          lastReloadedAt: reloadedAt,
+          sdkRange: '>=0.1.0 <0.2.0',
+          sdkCompatible: true,
+          diagnostics: [],
+          installedAt: reloadedAt,
+          updatedAt: reloadedAt,
+        })
+      }).pipe(Effect.provide(firstLayer)),
+    )
+
+    const secondLayer = makeTestLayer(databasePath)
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const repository = yield* ExtensionLifecycleRepository
+        return yield* repository.get({
+          extensionId: 'sample-extension',
+          scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath },
+        })
+      }).pipe(Effect.provide(secondLayer)),
+    )
+
+    expect(result).toMatchObject({
+      extensionId: 'sample-extension',
+      reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.SUCCEEDED,
+      lastReloadedAt: reloadedAt,
+    })
   })
 })
