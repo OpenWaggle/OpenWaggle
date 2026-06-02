@@ -1,6 +1,7 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { ExtensionContributions } from '@shared/schemas/extensions'
 import type {
+  ExtensionBuildPlanView,
   ExtensionDiagnosticView,
   ExtensionLifecycleView,
   ExtensionListPackagesInput,
@@ -13,6 +14,7 @@ import type {
 } from '@shared/types/extensions'
 import * as Effect from 'effect/Effect'
 import {
+  isExtensionBuildPlanApproved,
   isExtensionCurrentTrustPin,
   isExtensionRuntimeEnabled,
   isExtensionUpdateAvailable,
@@ -83,6 +85,25 @@ function manifestToSummary(
   }
 }
 
+function buildPlanToView(
+  extensionPackage: DiscoveredExtensionPackage,
+  lifecycle: ExtensionLifecycleState | null,
+): ExtensionBuildPlanView | null {
+  const buildPlan = extensionPackage.buildPlan
+  if (!buildPlan) {
+    return null
+  }
+
+  return {
+    installSource: buildPlan.installSource,
+    command: buildPlan.command,
+    outputCount: buildPlan.outputPaths.length,
+    approvalRequired: buildPlan.approvalRequired,
+    approved: isExtensionBuildPlanApproved({ extensionPackage, lifecycle }),
+    inputHash: buildPlan.inputHash,
+  }
+}
+
 function diagnosticsToView(
   diagnostics: readonly ExtensionDiagnostic[],
 ): readonly ExtensionDiagnosticView[] {
@@ -113,6 +134,7 @@ function lifecycleToView(
     grantedCapabilities: enabled ? state.grantedCapabilities : [],
     contentHash: state.contentHash,
     packageVersion: state.packageVersion,
+    approvedBuildPlanHash: state.approvedBuildPlanHash,
     sdkRange: state.sdkRange,
     sdkCompatible: state.sdkCompatible,
     diagnostics: diagnosticsToView(state.diagnostics),
@@ -159,6 +181,7 @@ function packageToSummary(
     packagePath: extensionPackage.packagePath,
     manifestPath: extensionPackage.manifestPath,
     manifest: extensionPackage.manifest ? manifestToSummary(extensionPackage.manifest) : null,
+    buildPlan: buildPlanToView(extensionPackage, lifecycle),
     contentHash: extensionPackage.contentHash,
     sdkCompatibility: sdkCompatibilityToView(extensionPackage.sdkCompatibility),
     lifecycle: lifecycle ? lifecycleToView(lifecycle, extensionPackage, projectOverride) : null,

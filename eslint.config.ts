@@ -41,7 +41,7 @@ const config: Config = [
         ecmaFeatures: {
           jsx: true,
         },
-        project: './tsconfig.eslint.json',
+        projectService: true,
         sourceType: 'module',
         tsconfigRootDir: ROOT_DIR,
       },

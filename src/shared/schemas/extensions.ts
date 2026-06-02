@@ -74,6 +74,19 @@ function isPortableRelativePath(value: string) {
   return true
 }
 
+function isBuildCommand(value: string) {
+  if (value.length > OPENWAGGLE_EXTENSION.LIMITS.BUILD_COMMAND_MAX_LENGTH) {
+    return `Must be at most ${OPENWAGGLE_EXTENSION.LIMITS.BUILD_COMMAND_MAX_LENGTH} characters.`
+  }
+  if (value.includes(OPENWAGGLE_EXTENSION.PATH.NUL_CHARACTER)) {
+    return 'Must not contain NUL bytes.'
+  }
+  if (value.includes('\n') || value.includes('\r')) {
+    return 'Must be a single command line.'
+  }
+  return true
+}
+
 const nonEmptyStringSchema = Schema.String.pipe(Schema.filter(isNonEmptyTrimmed))
 
 export const extensionIdSchema = Schema.String.pipe(
@@ -100,6 +113,7 @@ export const extensionUiLaneSchema = Schema.Literal(...OPENWAGGLE_EXTENSION.UI_L
 export const extensionContributionFamilySchema = Schema.Literal(
   ...OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILIES,
 )
+export const extensionInstallSourceSchema = Schema.Literal(...OPENWAGGLE_EXTENSION.INSTALL_SOURCES)
 export const extensionLifecycleScopeSchema = Schema.Union(
   Schema.Struct({
     kind: Schema.Literal(OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND),
@@ -164,6 +178,15 @@ export const extensionRuntimeRequirementSchema = Schema.Struct({
   command: Schema.optional(extensionRelativePathSchema),
 })
 
+export const extensionInstallSchema = Schema.Struct({
+  source: extensionInstallSourceSchema,
+})
+
+export const extensionBuildSchema = Schema.Struct({
+  command: nonEmptyStringSchema.pipe(Schema.filter(isBuildCommand)),
+  outputs: Schema.optional(Schema.mutable(Schema.Array(extensionRelativePathSchema))),
+})
+
 export const openWaggleExtensionManifestSchema = Schema.Struct({
   manifestVersion: Schema.Literal(1),
   id: extensionIdSchema,
@@ -177,6 +200,8 @@ export const openWaggleExtensionManifestSchema = Schema.Struct({
   }),
   sourceFiles: Schema.mutable(Schema.Array(extensionRelativePathSchema)),
   builtArtifacts: Schema.mutable(Schema.Array(extensionRelativePathSchema)),
+  install: Schema.optional(extensionInstallSchema),
+  build: Schema.optional(extensionBuildSchema),
   capabilities: Schema.optional(Schema.mutable(Schema.Array(extensionCapabilityDeclarationSchema))),
   contributions: Schema.optional(extensionContributionsSchema),
   pi: Schema.optional(
@@ -218,6 +243,12 @@ export const extensionSetProjectDisabledInputSchema = Schema.Struct({
 })
 
 export const extensionAcceptUpdateInputSchema = Schema.Struct({
+  extensionId: extensionIdSchema,
+  scope: extensionLifecycleScopeSchema,
+  viewProjectPaths: Schema.optional(extensionViewProjectPathsSchema),
+})
+
+export const extensionApproveBuildInputSchema = Schema.Struct({
   extensionId: extensionIdSchema,
   scope: extensionLifecycleScopeSchema,
   viewProjectPaths: Schema.optional(extensionViewProjectPathsSchema),

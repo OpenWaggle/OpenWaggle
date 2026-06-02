@@ -2,6 +2,7 @@ import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { type Schema, safeDecodeUnknown } from '@shared/schema'
 import {
   extensionAcceptUpdateInputSchema,
+  extensionApproveBuildInputSchema,
   extensionListPackagesInputSchema,
   extensionSetEnabledInputSchema,
   extensionSetProjectDisabledInputSchema,
@@ -9,6 +10,7 @@ import {
 } from '@shared/schemas/extensions'
 import type {
   ExtensionAcceptUpdateInput,
+  ExtensionApproveBuildInput,
   ExtensionListPackagesInput,
   ExtensionPackageLifecycleScope,
   ExtensionSetEnabledInput,
@@ -18,6 +20,7 @@ import type {
 import * as Effect from 'effect/Effect'
 import {
   acceptExtensionUpdate,
+  approveExtensionBuild,
   setExtensionEnabled,
   setExtensionProjectDisabled,
   setExtensionTrusted,
@@ -36,6 +39,10 @@ function dedupeProjectPaths(projectPaths: readonly string[]) {
   return deduped
 }
 
+function presentString(value: string | undefined): value is string {
+  return value !== undefined
+}
+
 function validateProjectPaths(
   projectPaths: readonly string[] | undefined,
 ): Effect.Effect<readonly string[], Error> {
@@ -44,8 +51,12 @@ function validateProjectPaths(
   }
 
   return Effect.forEach(projectPaths, (projectPath) =>
-    validateRequiredProjectPath(projectPath),
-  ).pipe(Effect.map(dedupeProjectPaths))
+    validateProjectPath(projectPath).pipe(Effect.catchAll(() => Effect.succeed(undefined))),
+  ).pipe(
+    Effect.map((validatedProjectPaths) =>
+      dedupeProjectPaths(validatedProjectPaths.filter(presentString)),
+    ),
+  )
 }
 
 function decodeListPackagesInput(raw: unknown): Effect.Effect<ExtensionListPackagesInput, Error> {
@@ -146,6 +157,21 @@ function normalizeAcceptUpdateInput(
   })
 }
 
+function normalizeApproveBuildInput(
+  raw: unknown,
+): Effect.Effect<ExtensionApproveBuildInput, Error> {
+  return Effect.gen(function* () {
+    const decoded = yield* decodeSchema(extensionApproveBuildInputSchema, raw)
+    const scope = yield* validateLifecycleScope(decoded.scope)
+    const viewProjectPaths = yield* validateProjectPaths(decoded.viewProjectPaths)
+    return {
+      ...decoded,
+      scope,
+      viewProjectPaths,
+    }
+  })
+}
+
 export function registerExtensionsHandlers(): void {
   typedHandle('extensions:list-packages', (_event, input?: unknown) =>
     Effect.gen(function* () {
@@ -179,6 +205,13 @@ export function registerExtensionsHandlers(): void {
     Effect.gen(function* () {
       const normalizedInput = yield* normalizeAcceptUpdateInput(input)
       return yield* acceptExtensionUpdate(normalizedInput)
+    }),
+  )
+
+  typedHandle('extensions:approve-build', (_event, input: unknown) =>
+    Effect.gen(function* () {
+      const normalizedInput = yield* normalizeApproveBuildInput(input)
+      return yield* approveExtensionBuild(normalizedInput)
     }),
   )
 }

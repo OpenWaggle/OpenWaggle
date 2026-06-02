@@ -26,6 +26,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     setExtensionEnabled: setExtensionEnabledMock,
     setExtensionProjectDisabled: setExtensionProjectDisabledMock,
     acceptExtensionUpdate: vi.fn(),
+    approveExtensionBuild: vi.fn(),
   },
 }))
 
@@ -76,6 +77,7 @@ const SAMPLE_PACKAGE: ExtensionManagerView['packages'][number] = {
     trustedRenderer: false,
     runtimeRequirementCount: 0,
   },
+  buildPlan: null,
   contentHash: '1234567890abcdef',
   sdkCompatibility: {
     hostVersion: '0.1.0',
@@ -105,6 +107,7 @@ const TRUSTED_LIFECYCLE: NonNullable<ExtensionManagerView['packages'][number]['l
   grantedCapabilities: ['sample.invoke'],
   contentHash: '1234567890abcdef',
   packageVersion: '1.0.0',
+  approvedBuildPlanHash: null,
   sdkRange: '>=0.1.0 <0.2.0',
   sdkCompatible: true,
   diagnostics: [],
@@ -170,8 +173,6 @@ describe('ExtensionsSection', () => {
     setExtensionTrustedMock.mockReset()
     setExtensionEnabledMock.mockReset()
     setExtensionProjectDisabledMock.mockReset()
-    projectPathMock.current = '/tmp/project'
-    sessionsMock.current = []
   })
 
   it('loads and renders discovered extension packages for the selected project', async () => {
@@ -195,7 +196,6 @@ describe('ExtensionsSection', () => {
     renderWithQueryClient(<ExtensionsSection />)
 
     expect(await screen.findByText('Global scope')).toBeInTheDocument()
-    expect(screen.getAllByText(/no extension packages in this scope/i)).toHaveLength(2)
   })
 
   it('refreshes the extension inventory on demand', async () => {

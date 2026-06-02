@@ -1,6 +1,7 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type {
   ExtensionAcceptUpdateInput,
+  ExtensionApproveBuildInput,
   ExtensionSetEnabledInput,
   ExtensionSetProjectDisabledInput,
   ExtensionSetTrustedInput,
@@ -12,6 +13,7 @@ import { ExtensionManagerService } from '../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../ports/extension-project-overrides-repository'
 import {
   findPackage,
+  getBuildApprovalReadinessError,
   getLifecycleDiscoveryProjectPath,
   getLifecycleReadinessError,
   getProjectDisabledViewProjectPaths,
@@ -60,7 +62,7 @@ export function setExtensionTrusted(input: ExtensionSetTrustedInput) {
     const current = yield* lifecycleRepository.get(lifecycleKey(input))
 
     if (input.trusted) {
-      const readinessError = getLifecycleReadinessError(extensionPackage, 'trust')
+      const readinessError = getLifecycleReadinessError(extensionPackage, 'trust', current)
       if (readinessError) {
         return yield* Effect.fail(new Error(readinessError))
       }
@@ -92,7 +94,7 @@ export function setExtensionEnabled(input: ExtensionSetEnabledInput) {
     const current = yield* lifecycleRepository.get(lifecycleKey(input))
 
     if (input.enabled) {
-      const readinessError = getLifecycleReadinessError(extensionPackage, 'enable')
+      const readinessError = getLifecycleReadinessError(extensionPackage, 'enable', current)
       if (readinessError) {
         return yield* Effect.fail(new Error(readinessError))
       }
@@ -130,7 +132,7 @@ export function acceptExtensionUpdate(input: ExtensionAcceptUpdateInput) {
       return yield* Effect.fail(new Error(OPENWAGGLE_EXTENSION.LIFECYCLE.NO_UPDATE_AVAILABLE_ERROR))
     }
 
-    const readinessError = getLifecycleReadinessError(extensionPackage, 'trust')
+    const readinessError = getLifecycleReadinessError(extensionPackage, 'trust', current)
     if (readinessError) {
       return yield* Effect.fail(new Error(readinessError))
     }
@@ -142,6 +144,32 @@ export function acceptExtensionUpdate(input: ExtensionAcceptUpdateInput) {
         enabled: false,
         trusted: true,
         pinCurrentPackage: true,
+      }),
+    )
+
+    return yield* listExtensionPackagesView({ projectPaths: getViewProjectPaths(input) })
+  })
+}
+
+export function approveExtensionBuild(input: ExtensionApproveBuildInput) {
+  return Effect.gen(function* () {
+    const lifecycleRepository = yield* ExtensionLifecycleRepository
+    const extensionPackage = yield* loadMutationPackage(input)
+    const current = yield* lifecycleRepository.get(lifecycleKey(input))
+    const readinessError = getBuildApprovalReadinessError(extensionPackage)
+
+    if (readinessError) {
+      return yield* Effect.fail(new Error(readinessError))
+    }
+
+    yield* lifecycleRepository.upsert(
+      makeLifecycleState({
+        extensionPackage,
+        current,
+        enabled: false,
+        trusted: current?.trusted ?? false,
+        pinCurrentPackage: false,
+        approvedBuildPlanHash: extensionPackage.buildPlan?.inputHash ?? null,
       }),
     )
 

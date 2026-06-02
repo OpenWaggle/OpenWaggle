@@ -71,4 +71,36 @@ describe('openWaggleExtensionManifestSchema', () => {
       expect(result.issues.join('\n')).toContain('leading or trailing whitespace')
     }
   })
+
+  it('accepts local-build install metadata', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      install: { source: 'local-build' },
+      build: {
+        command: 'pnpm build',
+        outputs: ['dist/index.js'],
+      },
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.install?.source).toBe('local-build')
+      expect(result.data.build?.command).toBe('pnpm build')
+    }
+  })
+
+  it('rejects multiline build commands', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      install: { source: 'local-build' },
+      build: {
+        command: 'pnpm build\npnpm test',
+      },
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.issues.join('\n')).toContain('single command line')
+    }
+  })
 })

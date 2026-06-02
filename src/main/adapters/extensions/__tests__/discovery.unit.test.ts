@@ -247,4 +247,66 @@ describe('discoverExtensionPackages', () => {
     expect(discoveredPackage?.diagnostics).toEqual([])
     expect(discoveredPackage?.contentHash).toHaveLength(OPENWAGGLE_EXTENSION.HASH.HEX_LENGTH)
   })
+
+  it('discovers local-build plans with source-sensitive approval hashes', async () => {
+    const projectPath = path.join(tmpRoot, 'project')
+    const rootPath = path.join(projectPath, '.openwaggle', 'extensions')
+    const packagePath = await writeExtensionPackage(
+      rootPath,
+      'sample-extension',
+      manifest({
+        install: { source: OPENWAGGLE_EXTENSION.INSTALL_SOURCE.LOCAL_BUILD },
+        build: {
+          command: 'pnpm build',
+          outputs: ['dist/index.js'],
+        },
+      }),
+    )
+
+    const before = await discoverSingleProjectPackage(projectPath)
+    await writeText(path.join(packagePath, 'src', 'index.ts'), 'export const source = false\n')
+    const after = await discoverSingleProjectPackage(projectPath)
+
+    expect(before?.buildPlan).toMatchObject({
+      installSource: OPENWAGGLE_EXTENSION.INSTALL_SOURCE.LOCAL_BUILD,
+      command: 'pnpm build',
+      outputPaths: ['dist/index.js'],
+      approvalRequired: true,
+    })
+    expect(before?.buildPlan?.inputHash).toHaveLength(OPENWAGGLE_EXTENSION.HASH.HEX_LENGTH)
+    expect(after?.buildPlan?.inputHash).not.toBe(before?.buildPlan?.inputHash)
+  })
+
+  it('diagnoses local-build packages without commands and outputs missing from built artifacts', async () => {
+    const projectPath = path.join(tmpRoot, 'project')
+    const rootPath = path.join(projectPath, '.openwaggle', 'extensions')
+    await writeExtensionPackage(
+      rootPath,
+      'sample-extension',
+      manifest({
+        install: { source: OPENWAGGLE_EXTENSION.INSTALL_SOURCE.LOCAL_BUILD },
+        build: {
+          command: 'pnpm build',
+          outputs: ['dist/extra.js'],
+        },
+      }),
+    )
+    await writeExtensionPackage(
+      rootPath,
+      'missing-command',
+      manifest({
+        id: 'missing-command',
+        install: { source: OPENWAGGLE_EXTENSION.INSTALL_SOURCE.LOCAL_BUILD },
+      }),
+    )
+
+    const packages = await discoverExtensionPackages({
+      projectPath,
+      hostSdkVersion: OPENWAGGLE_EXTENSION.SDK_VERSION,
+    })
+
+    expect(
+      packages.flatMap((extensionPackage) => extensionPackage.diagnostics.map(({ code }) => code)),
+    ).toEqual(expect.arrayContaining(['build-output-not-artifact', 'build-command-missing']))
+  })
 })

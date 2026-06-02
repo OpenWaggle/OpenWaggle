@@ -14,6 +14,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     setExtensionEnabled: vi.fn(),
     setExtensionProjectDisabled: vi.fn(),
     acceptExtensionUpdate: vi.fn(),
+    approveExtensionBuild: vi.fn(),
   },
 }))
 
@@ -58,6 +59,7 @@ const samplePackage: ExtensionManagerView['packages'][number] = {
     trustedRenderer: false,
     runtimeRequirementCount: 0,
   },
+  buildPlan: null,
   contentHash: '1234567890abcdef',
   sdkCompatibility: {
     hostVersion: '0.1.0',
@@ -131,6 +133,45 @@ describe('ExtensionsSection scope inventory', () => {
     expect(screen.getByText('project')).toBeInTheDocument()
     expect(screen.getByText('other-project')).toBeInTheDocument()
     expect(screen.getByText('session-project')).toBeInTheDocument()
+    expect(listExtensionPackagesMock).toHaveBeenCalledWith({
+      projectPaths: ['/tmp/project', '/tmp/other-project', '/tmp/session-project'],
+    })
+  })
+
+  it('renders project packages under canonical project paths returned by the backend', async () => {
+    const canonicalPackage: ExtensionManagerView['packages'][number] = {
+      ...samplePackage,
+      scope: {
+        kind: 'project',
+        label: 'Project',
+        projectPath: '/tmp/canonical-project',
+      },
+      packagePath: '/tmp/canonical-project/.openwaggle/extensions/sample-extension',
+      manifestPath:
+        '/tmp/canonical-project/.openwaggle/extensions/sample-extension/openwaggle.extension.json',
+      projectOverride: {
+        projectPath: '/tmp/canonical-project',
+        disabled: false,
+        updatedAt: null,
+      },
+      projectOverrides: [
+        {
+          projectPath: '/tmp/canonical-project',
+          disabled: false,
+          updatedAt: null,
+        },
+      ],
+    }
+    listExtensionPackagesMock.mockResolvedValueOnce({
+      projectPath: '/tmp/canonical-project',
+      projectPaths: ['/tmp/canonical-project'],
+      packages: [canonicalPackage],
+    } satisfies ExtensionManagerView)
+
+    renderWithQueryClient(<ExtensionsSection />)
+
+    expect(await screen.findByText('Sample Extension')).toBeInTheDocument()
+    expect(screen.getByText('canonical-project')).toBeInTheDocument()
     expect(listExtensionPackagesMock).toHaveBeenCalledWith({
       projectPaths: ['/tmp/project', '/tmp/other-project', '/tmp/session-project'],
     })

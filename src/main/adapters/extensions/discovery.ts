@@ -11,6 +11,7 @@ import type {
   ExtensionPackageScope,
   ExtensionSdkCompatibility,
 } from '../../extensions/types'
+import { getExtensionBuildPlan } from './build-plan'
 import { getProjectExtensionRoot } from './extension-paths'
 import { loadExtensionManifest } from './manifest-loader'
 import { calculateContentHash, validateDeclaredFiles } from './package-files'
@@ -178,6 +179,7 @@ async function discoverPackage(
       packagePath,
       manifestPath,
       manifest: null,
+      buildPlan: null,
       contentHash: null,
       sdkCompatibility: null,
       diagnostics: baseDiagnostics,
@@ -214,6 +216,11 @@ async function discoverPackage(
     manifestResult.manifest.sdk.openwaggle,
     hostSdkVersion,
   )
+  const buildPlan = await getExtensionBuildPlan(
+    packagePath,
+    manifestResult.rawManifest,
+    manifestResult.manifest,
+  )
 
   return {
     id: manifestResult.manifest.id,
@@ -221,6 +228,7 @@ async function discoverPackage(
     packagePath,
     manifestPath,
     manifest: manifestResult.manifest,
+    buildPlan: buildPlan.buildPlan,
     contentHash: contentHash.contentHash,
     sdkCompatibility,
     diagnostics: [
@@ -228,6 +236,7 @@ async function discoverPackage(
       ...sourceDiagnostics,
       ...artifactDiagnostics,
       ...contentHash.diagnostics,
+      ...buildPlan.diagnostics,
       ...sdkDiagnostics(sdkCompatibility),
     ],
   }
@@ -252,6 +261,7 @@ async function discoverRoot(
         packagePath: root.rootPath,
         manifestPath: getManifestPath(root.rootPath),
         manifest: null,
+        buildPlan: null,
         contentHash: null,
         sdkCompatibility: null,
         diagnostics: [

@@ -6,6 +6,10 @@ function formatHash(hash: string | null) {
   return hash ? `${hash.slice(0, HASH_PREVIEW_LENGTH)}…` : 'Not available'
 }
 
+function formatInstallSource(extensionPackage: ExtensionPackageSummary) {
+  return extensionPackage.buildPlan?.installSource ?? 'prebuilt'
+}
+
 export function PackageMetadata({
   extensionPackage,
 }: {
@@ -31,6 +35,16 @@ export function PackageMetadata({
       <div>
         <span className="text-text-muted">Contributions</span>
         <div className="text-text-secondary">{manifest?.contributionCount ?? 0}</div>
+      </div>
+      <div>
+        <span className="text-text-muted">Install source</span>
+        <div className="text-text-secondary">{formatInstallSource(extensionPackage)}</div>
+      </div>
+      <div>
+        <span className="text-text-muted">Build command</span>
+        <div className="truncate text-text-secondary">
+          {extensionPackage.buildPlan?.command ?? 'Not declared'}
+        </div>
       </div>
     </div>
   )

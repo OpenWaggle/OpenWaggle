@@ -17,6 +17,7 @@ interface ExtensionLifecycleRow {
   readonly granted_capabilities_json: string
   readonly content_hash: string | null
   readonly package_version: string | null
+  readonly approved_build_plan_hash: string | null
   readonly sdk_range: string | null
   readonly sdk_compatible: number
   readonly diagnostics_json: string
@@ -89,6 +90,7 @@ function rowToLifecycleState(row: ExtensionLifecycleRow): ExtensionLifecycleStat
     ),
     contentHash: row.content_hash,
     packageVersion: row.package_version,
+    approvedBuildPlanHash: row.approved_build_plan_hash,
     sdkRange: row.sdk_range,
     sdkCompatible: sqliteToBoolean(row.sdk_compatible),
     diagnostics: decodeJsonField(
@@ -131,6 +133,7 @@ export const SqliteExtensionLifecycleRepositoryLive = Layer.effect(
             granted_capabilities_json,
             content_hash,
             package_version,
+            approved_build_plan_hash,
             sdk_range,
             sdk_compatible,
             diagnostics_json,
@@ -158,6 +161,7 @@ export const SqliteExtensionLifecycleRepositoryLive = Layer.effect(
             granted_capabilities_json,
             content_hash,
             package_version,
+            approved_build_plan_hash,
             sdk_range,
             sdk_compatible,
             diagnostics_json,
@@ -183,6 +187,7 @@ export const SqliteExtensionLifecycleRepositoryLive = Layer.effect(
             granted_capabilities_json,
             content_hash,
             package_version,
+            approved_build_plan_hash,
             sdk_range,
             sdk_compatible,
             diagnostics_json,
@@ -198,6 +203,7 @@ export const SqliteExtensionLifecycleRepositoryLive = Layer.effect(
             ${JSON.stringify(state.grantedCapabilities)},
             ${state.contentHash},
             ${state.packageVersion},
+            ${state.approvedBuildPlanHash},
             ${state.sdkRange},
             ${booleanToSqlite(state.sdkCompatible)},
             ${JSON.stringify(state.diagnostics)},
@@ -210,6 +216,7 @@ export const SqliteExtensionLifecycleRepositoryLive = Layer.effect(
             granted_capabilities_json = excluded.granted_capabilities_json,
             content_hash = excluded.content_hash,
             package_version = excluded.package_version,
+            approved_build_plan_hash = excluded.approved_build_plan_hash,
             sdk_range = excluded.sdk_range,
             sdk_compatible = excluded.sdk_compatible,
             diagnostics_json = excluded.diagnostics_json,

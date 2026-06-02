@@ -1,6 +1,7 @@
 import {
   CURRENT_EXTENSION_PROJECT_OVERRIDE_SCHEMA_STATEMENTS,
   CURRENT_SESSION_SCHEMA_STATEMENTS,
+  EXTENSION_LIFECYCLE_BUILD_APPROVAL_MIGRATION_STATEMENTS,
   EXTENSION_LIFECYCLE_PACKAGE_VERSION_MIGRATION_STATEMENTS,
   EXTENSION_LIFECYCLE_SCHEMA_V1_STATEMENTS,
 } from './database-schema'
@@ -184,5 +185,10 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
     id: 14,
     name: 'extension-lifecycle-package-version',
     statements: [...EXTENSION_LIFECYCLE_PACKAGE_VERSION_MIGRATION_STATEMENTS],
+  },
+  {
+    id: 15,
+    name: 'extension-lifecycle-build-approval',
+    statements: [...EXTENSION_LIFECYCLE_BUILD_APPROVAL_MIGRATION_STATEMENTS],
   },
 ]

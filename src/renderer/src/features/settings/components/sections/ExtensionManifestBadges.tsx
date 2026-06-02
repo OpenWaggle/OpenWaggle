@@ -17,6 +17,9 @@ export function ManifestBadges({
       <span>{manifest.capabilityCount} capabilities</span>
       <span>{manifest.piResourceRootCount} Pi resource roots</span>
       <span>{manifest.runtimeRequirementCount} runtime requirements</span>
+      {extensionPackage.buildPlan ? (
+        <span>{extensionPackage.buildPlan.outputCount} build outputs</span>
+      ) : null}
     </div>
   )
 }

@@ -25,6 +25,7 @@ const projectPackage: DiscoveredExtensionPackage = {
     sourceFiles: ['src/index.ts'],
     builtArtifacts: ['dist/index.js'],
   },
+  buildPlan: null,
   contentHash: 'abcdef',
   sdkCompatibility: {
     hostVersion: OPENWAGGLE_EXTENSION.SDK_VERSION,

@@ -6,6 +6,7 @@ import type { FileSuggestion } from './composer'
 import type { ContextCompactionResult, ContextUsageSnapshot } from './context-usage'
 import type {
   ExtensionAcceptUpdateInput,
+  ExtensionApproveBuildInput,
   ExtensionListPackagesInput,
   ExtensionManagerView,
   ExtensionSetEnabledInput,
@@ -110,6 +111,7 @@ export interface OpenWaggleApi {
     input: ExtensionSetProjectDisabledInput,
   ): Promise<ExtensionManagerView>
   acceptExtensionUpdate(input: ExtensionAcceptUpdateInput): Promise<ExtensionManagerView>
+  approveExtensionBuild(input: ExtensionApproveBuildInput): Promise<ExtensionManagerView>
 
   // Providers
   getProviderModels(projectPath?: string | null): Promise<ProviderInfo[]>

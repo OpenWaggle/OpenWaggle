@@ -3,6 +3,7 @@ import type { SessionBranchId, SessionId, SessionNodeId } from './brand'
 import type { ContextCompactionResult, ContextUsageSnapshot } from './context-usage'
 import type {
   ExtensionAcceptUpdateInput,
+  ExtensionApproveBuildInput,
   ExtensionListPackagesInput,
   ExtensionManagerView,
   ExtensionSetEnabledInput,
@@ -111,6 +112,10 @@ export interface IpcCoreInvokeChannelMap {
   }
   'extensions:accept-update': {
     args: [input: ExtensionAcceptUpdateInput]
+    return: ExtensionManagerView
+  }
+  'extensions:approve-build': {
+    args: [input: ExtensionApproveBuildInput]
     return: ExtensionManagerView
   }
   'project:select-folder': {

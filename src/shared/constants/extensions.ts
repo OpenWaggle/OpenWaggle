@@ -17,11 +17,18 @@ export const OPENWAGGLE_EXTENSION = {
   },
   LIFECYCLE: {
     UPDATE_AVAILABLE_LABEL: 'Update available',
+    BUILD_APPROVAL_REQUIRED_LABEL: 'Build approval required',
+    BUILD_APPROVED_LABEL: 'Build approved',
     APPROVE_UPDATE_ACTION_LABEL: 'Approve update',
+    APPROVE_BUILD_ACTION_LABEL: 'Approve build',
     NO_UPDATE_AVAILABLE_ERROR: 'No extension update is available.',
     UNTRUSTED_UPDATE_ERROR: 'Trust this extension before approving updates.',
     APPROVE_UPDATE_REQUIRED_ERROR:
       'Approve the extension update before trusting the changed package.',
+    NO_BUILD_APPROVAL_REQUIRED_ERROR: 'No local build approval is required for this extension.',
+    BUILD_APPROVAL_UNAVAILABLE_ERROR:
+      'Build approval is unavailable until the extension source files are valid.',
+    BUILD_APPROVAL_REQUIRED_ERROR: 'the local build plan has not been approved.',
   },
   LIMITS: {
     ID_MAX_LENGTH: 96,
@@ -29,6 +36,7 @@ export const OPENWAGGLE_EXTENSION = {
     NAME_MAX_LENGTH: 120,
     DESCRIPTION_MAX_LENGTH: 2_000,
     RELATIVE_PATH_MAX_LENGTH: 260,
+    BUILD_COMMAND_MAX_LENGTH: 500,
   },
   PATTERNS: {
     WINDOWS_ABSOLUTE_PATH: /^[A-Za-z]:[\\/]/,
@@ -83,6 +91,8 @@ export const OPENWAGGLE_EXTENSION = {
       'source-file-missing',
       'built-artifact-missing',
       'runtime-file-missing',
+      'build-command-missing',
+      'build-output-not-artifact',
       'package-path-invalid',
       'sdk-range-invalid',
       'sdk-incompatible',
@@ -96,10 +106,19 @@ export const OPENWAGGLE_EXTENSION = {
     FIELD_SEPARATOR: '\0',
     MANIFEST_LABEL: 'manifest',
     ARTIFACT_LABEL: 'artifact',
+    BUILD_PLAN_LABEL: 'build-plan',
+    SOURCE_LABEL: 'source',
+    BUILD_COMMAND_LABEL: 'build-command',
   },
   LABELS: {
     SOURCE_FILE: 'source file',
     BUILT_ARTIFACT: 'built artifact',
     RUNTIME_FILE: 'runtime file',
+    BUILD_OUTPUT: 'build output',
   },
+  INSTALL_SOURCE: {
+    PREBUILT: 'prebuilt',
+    LOCAL_BUILD: 'local-build',
+  },
+  INSTALL_SOURCES: ['prebuilt', 'local-build'] as const,
 } as const

@@ -5,22 +5,16 @@ import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type {
-  DiscoveredExtensionPackage,
-  ExtensionLifecycleState,
-  ExtensionProjectOverrideState,
-} from '../../extensions/types'
+import type { DiscoveredExtensionPackage, ExtensionLifecycleState } from '../../extensions/types'
 import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from '../../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
 
-const { typedHandleMock, listPackagesMock, upsertLifecycleMock, upsertProjectOverrideMock } =
-  vi.hoisted(() => ({
-    typedHandleMock: vi.fn(),
-    listPackagesMock: vi.fn(),
-    upsertLifecycleMock: vi.fn(),
-    upsertProjectOverrideMock: vi.fn(),
-  }))
+const { typedHandleMock, listPackagesMock, upsertLifecycleMock } = vi.hoisted(() => ({
+  typedHandleMock: vi.fn(),
+  listPackagesMock: vi.fn(),
+  upsertLifecycleMock: vi.fn(),
+}))
 
 vi.mock('../typed-ipc', () => ({
   typedHandle: typedHandleMock,
@@ -43,6 +37,7 @@ const discoveredPackage: DiscoveredExtensionPackage = {
     builtArtifacts: ['dist/index.js'],
     capabilities: [{ id: 'sample.invoke' }],
   },
+  buildPlan: null,
   contentHash: 'abcdef',
   sdkCompatibility: {
     hostVersion: OPENWAGGLE_EXTENSION.SDK_VERSION,
@@ -54,7 +49,6 @@ const discoveredPackage: DiscoveredExtensionPackage = {
 
 function makeTestLayer(lifecycle: ExtensionLifecycleState | null = null) {
   let storedLifecycle = lifecycle
-  let storedProjectOverride: ExtensionProjectOverrideState | null = null
   return Layer.mergeAll(
     Layer.succeed(ExtensionManagerService, {
       listPackages: (input) => Effect.sync(() => listPackagesMock(input)),
@@ -69,12 +63,8 @@ function makeTestLayer(lifecycle: ExtensionLifecycleState | null = null) {
         }),
     }),
     Layer.succeed(ExtensionProjectOverridesRepository, {
-      get: () => Effect.sync(() => storedProjectOverride),
-      upsert: (state) =>
-        Effect.sync(() => {
-          storedProjectOverride = state
-          upsertProjectOverrideMock(state)
-        }),
+      get: () => Effect.succeed(null),
+      upsert: () => Effect.void,
     }),
   )
 }
@@ -87,6 +77,7 @@ const trustedLifecycleState: ExtensionLifecycleState = {
   grantedCapabilities: ['sample.invoke'],
   contentHash: 'abcdef',
   packageVersion: '1.0.0',
+  approvedBuildPlanHash: null,
   sdkRange: '>=0.1.0 <0.2.0',
   sdkCompatible: true,
   diagnostics: [],
@@ -97,6 +88,7 @@ const trustedLifecycleState: ExtensionLifecycleState = {
 const brokenPackage: DiscoveredExtensionPackage = {
   ...discoveredPackage,
   manifest: null,
+  buildPlan: null,
   contentHash: null,
   sdkCompatibility: null,
   diagnostics: [
@@ -124,7 +116,6 @@ describe('registerExtensionsHandlers', () => {
     typedHandleMock.mockReset()
     listPackagesMock.mockReset()
     upsertLifecycleMock.mockReset()
-    upsertProjectOverrideMock.mockReset()
     listPackagesMock.mockReturnValue([brokenPackage])
   })
 
@@ -171,6 +162,29 @@ describe('registerExtensionsHandlers', () => {
     } finally {
       await fs.rm(firstProjectPath, { recursive: true, force: true })
       await fs.rm(secondProjectPath, { recursive: true, force: true })
+    }
+  })
+
+  it('ignores unavailable project paths when listing extension packages', async () => {
+    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-ipc-valid-'))
+    const unavailableProjectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-ipc-stale-'))
+    const realProjectPath = await fs.realpath(projectPath)
+    await fs.rm(unavailableProjectPath, { recursive: true, force: true })
+    registerExtensionsHandlers()
+    const handler = getRegisteredHandler('extensions:list-packages')
+
+    try {
+      const view = await handler?.({}, { projectPaths: [unavailableProjectPath, projectPath] })
+
+      expect(view).toMatchObject({
+        projectPath: realProjectPath,
+        projectPaths: [realProjectPath],
+      })
+      expect(listPackagesMock).toHaveBeenCalledWith({ projectPath: null })
+      expect(listPackagesMock).toHaveBeenCalledWith({ projectPath: realProjectPath })
+      expect(listPackagesMock).not.toHaveBeenCalledWith({ projectPath: unavailableProjectPath })
+    } finally {
+      await fs.rm(projectPath, { recursive: true, force: true })
     }
   })
 
@@ -269,39 +283,6 @@ describe('registerExtensionsHandlers', () => {
         packageVersion: '1.1.0',
       }),
     )
-  })
-
-  it('registers extensions:set-project-disabled and persists user-local project override state', async () => {
-    const projectPath = await fs.mkdtemp(path.join(os.tmpdir(), 'openwaggle-ipc-project-'))
-    const realProjectPath = await fs.realpath(projectPath)
-    listPackagesMock.mockReturnValue([discoveredPackage])
-    const layer = makeTestLayer()
-    registerExtensionsHandlers()
-    const handler = getRegisteredHandler('extensions:set-project-disabled', layer)
-
-    try {
-      await handler?.(
-        {},
-        {
-          extensionId: 'sample-extension',
-          scope: { kind: 'global' },
-          projectPath,
-          disabled: true,
-        },
-      )
-
-      expect(listPackagesMock).toHaveBeenCalledWith({ projectPath: realProjectPath })
-      expect(upsertProjectOverrideMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          extensionId: 'sample-extension',
-          scope: { kind: 'global' },
-          projectPath: realProjectPath,
-          disabled: true,
-        }),
-      )
-    } finally {
-      await fs.rm(projectPath, { recursive: true, force: true })
-    }
   })
 
   it('rejects malformed lifecycle mutation payloads before discovery', async () => {

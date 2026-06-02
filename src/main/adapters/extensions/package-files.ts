@@ -16,6 +16,11 @@ export interface ContentHashInput {
   readonly runtimeFiles: readonly string[]
 }
 
+export interface BuildPlanHashInput {
+  readonly sourceFiles: readonly string[]
+  readonly buildCommand: string
+}
+
 interface ContentHashFileInput {
   readonly relativePath: string
   readonly label: string
@@ -180,6 +185,63 @@ export async function calculateContentHash(
         severity: 'error',
         code: isEnoent(error) ? file.missingCode : 'filesystem-error',
         message: `Failed to hash ${file.label}: ${formatErrorMessage(error)}`,
+        path: filePath,
+      })
+    }
+  }
+
+  return {
+    contentHash: diagnostics.length === 0 ? hash.digest(OPENWAGGLE_EXTENSION.HASH.ENCODING) : null,
+    diagnostics,
+  }
+}
+
+export async function calculateBuildPlanHash(
+  packagePath: string,
+  rawManifest: string,
+  input: BuildPlanHashInput,
+): Promise<ContentHashResult> {
+  const hash = createHash(OPENWAGGLE_EXTENSION.HASH.ALGORITHM)
+  const diagnostics: ExtensionDiagnostic[] = []
+
+  hash.update(OPENWAGGLE_EXTENSION.HASH.BUILD_PLAN_LABEL)
+  hash.update(OPENWAGGLE_EXTENSION.HASH.FIELD_SEPARATOR)
+  hash.update(OPENWAGGLE_EXTENSION.HASH.MANIFEST_LABEL)
+  hash.update(OPENWAGGLE_EXTENSION.HASH.FIELD_SEPARATOR)
+  hash.update(rawManifest)
+  hash.update(OPENWAGGLE_EXTENSION.HASH.FIELD_SEPARATOR)
+  hash.update(OPENWAGGLE_EXTENSION.HASH.BUILD_COMMAND_LABEL)
+  hash.update(OPENWAGGLE_EXTENSION.HASH.FIELD_SEPARATOR)
+  hash.update(input.buildCommand)
+  hash.update(OPENWAGGLE_EXTENSION.HASH.FIELD_SEPARATOR)
+
+  for (const relativePath of uniqueSortedHashFileInputs(
+    input.sourceFiles.map((sourceFile) => contentHashFileInput(sourceFile, 'source-file-missing')),
+  )) {
+    const filePath = resolvePackageRelativePath(packagePath, relativePath.relativePath)
+    if (!filePath) {
+      diagnostics.push({
+        severity: 'error',
+        code: 'package-path-invalid',
+        message: `Declared ${OPENWAGGLE_EXTENSION.LABELS.SOURCE_FILE} escapes the extension package root.`,
+        path: relativePath.relativePath,
+      })
+      continue
+    }
+
+    try {
+      const content = await readFile(filePath)
+      hash.update(OPENWAGGLE_EXTENSION.HASH.SOURCE_LABEL)
+      hash.update(OPENWAGGLE_EXTENSION.HASH.FIELD_SEPARATOR)
+      hash.update(relativePath.relativePath)
+      hash.update(OPENWAGGLE_EXTENSION.HASH.FIELD_SEPARATOR)
+      hash.update(content)
+      hash.update(OPENWAGGLE_EXTENSION.HASH.FIELD_SEPARATOR)
+    } catch (error) {
+      diagnostics.push({
+        severity: 'error',
+        code: isEnoent(error) ? 'source-file-missing' : 'filesystem-error',
+        message: `Failed to hash ${OPENWAGGLE_EXTENSION.LABELS.SOURCE_FILE}: ${formatErrorMessage(error)}`,
         path: filePath,
       })
     }

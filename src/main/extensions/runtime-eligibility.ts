@@ -4,6 +4,20 @@ function hasErrorDiagnostics(extensionPackage: DiscoveredExtensionPackage) {
   return extensionPackage.diagnostics.some((diagnostic) => diagnostic.severity === 'error')
 }
 
+export function isExtensionBuildPlanApproved(input: {
+  readonly extensionPackage: DiscoveredExtensionPackage
+  readonly lifecycle: ExtensionLifecycleState | null
+}) {
+  if (input.extensionPackage.buildPlan?.approvalRequired !== true) {
+    return true
+  }
+
+  return (
+    input.extensionPackage.buildPlan.inputHash !== null &&
+    input.lifecycle?.approvedBuildPlanHash === input.extensionPackage.buildPlan.inputHash
+  )
+}
+
 export function isExtensionCurrentTrustPin(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly lifecycle: ExtensionLifecycleState
@@ -13,6 +27,7 @@ export function isExtensionCurrentTrustPin(input: {
     input.extensionPackage.contentHash !== null &&
     input.lifecycle.contentHash === input.extensionPackage.contentHash &&
     input.extensionPackage.sdkCompatibility?.compatible === true &&
+    isExtensionBuildPlanApproved(input) &&
     !hasErrorDiagnostics(input.extensionPackage)
   )
 }

@@ -34,6 +34,7 @@ const discoveredPackage: DiscoveredExtensionPackage = {
     builtArtifacts: ['dist/index.js'],
     capabilities: [{ id: 'sample.invoke' }],
   },
+  buildPlan: null,
   contentHash: 'abcdef',
   sdkCompatibility: {
     hostVersion: OPENWAGGLE_EXTENSION.SDK_VERSION,
@@ -62,6 +63,7 @@ const lifecycleState: ExtensionLifecycleState = {
   grantedCapabilities: ['sample.invoke'],
   contentHash: 'abcdef',
   packageVersion: '1.0.0',
+  approvedBuildPlanHash: null,
   sdkRange: '>=0.1.0 <0.2.0',
   sdkCompatible: true,
   diagnostics: [],

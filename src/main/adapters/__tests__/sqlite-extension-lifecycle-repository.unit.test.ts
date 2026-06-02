@@ -59,6 +59,7 @@ describe('SqliteExtensionLifecycleRepositoryLive', () => {
           grantedCapabilities: ['settings.read'],
           contentHash: 'abc123',
           packageVersion: '1.0.0',
+          approvedBuildPlanHash: 'build-plan-hash',
           sdkRange: '>=0.1.0 <0.2.0',
           sdkCompatible: true,
           diagnostics: [
@@ -86,6 +87,7 @@ describe('SqliteExtensionLifecycleRepositoryLive', () => {
       grantedCapabilities: ['settings.read'],
       contentHash: 'abc123',
       packageVersion: '1.0.0',
+      approvedBuildPlanHash: 'build-plan-hash',
       sdkRange: '>=0.1.0 <0.2.0',
       sdkCompatible: true,
       diagnostics: [
@@ -115,6 +117,7 @@ describe('SqliteExtensionLifecycleRepositoryLive', () => {
           grantedCapabilities: [],
           contentHash: null,
           packageVersion: null,
+          approvedBuildPlanHash: null,
           sdkRange: null,
           sdkCompatible: false,
           diagnostics: [],
@@ -129,6 +132,7 @@ describe('SqliteExtensionLifecycleRepositoryLive', () => {
           grantedCapabilities: [],
           contentHash: null,
           packageVersion: null,
+          approvedBuildPlanHash: null,
           sdkRange: null,
           sdkCompatible: false,
           diagnostics: [],

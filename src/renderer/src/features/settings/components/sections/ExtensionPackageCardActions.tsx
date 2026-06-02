@@ -1,10 +1,14 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import type {
-  ExtensionPackageSummary,
-  ExtensionProjectOverrideView,
-} from '@shared/types/extensions'
+import type { ExtensionPackageSummary } from '@shared/types/extensions'
 import { Button } from '@/shared/ui/Button'
-import { hasErrorDiagnostics, isSdkCompatible, packageTitle } from './extension-package-card-model'
+import { ProjectOverrideActions } from './ExtensionProjectOverrideActions'
+import {
+  type ExtensionPackageCardActions,
+  hasErrorDiagnostics,
+  isBuildPlanApproved,
+  isSdkCompatible,
+  packageTitle,
+} from './extension-package-card-model'
 
 function canEnablePackage(extensionPackage: ExtensionPackageSummary) {
   return (
@@ -13,6 +17,7 @@ function canEnablePackage(extensionPackage: ExtensionPackageSummary) {
     extensionPackage.manifest !== null &&
     extensionPackage.contentHash !== null &&
     isSdkCompatible(extensionPackage) &&
+    isBuildPlanApproved(extensionPackage) &&
     !hasErrorDiagnostics(extensionPackage)
   )
 }
@@ -23,7 +28,16 @@ function canApproveUpdate(extensionPackage: ExtensionPackageSummary) {
     extensionPackage.manifest !== null &&
     extensionPackage.contentHash !== null &&
     isSdkCompatible(extensionPackage) &&
+    isBuildPlanApproved(extensionPackage) &&
     !hasErrorDiagnostics(extensionPackage)
+  )
+}
+
+function canApproveBuild(extensionPackage: ExtensionPackageSummary) {
+  return (
+    extensionPackage.buildPlan?.approvalRequired === true &&
+    extensionPackage.buildPlan.approved === false &&
+    extensionPackage.buildPlan.inputHash !== null
   )
 }
 
@@ -36,6 +50,9 @@ function disabledEnableReason(extensionPackage: ExtensionPackageSummary) {
   }
   if (extensionPackage.lifecycle?.trusted !== true) {
     return 'Trust this extension before enabling it.'
+  }
+  if (!isBuildPlanApproved(extensionPackage)) {
+    return 'Approve this extension build plan before enabling it.'
   }
   if (extensionPackage.manifest === null) {
     return 'Cannot enable an extension with an invalid manifest.'
@@ -62,8 +79,21 @@ function disabledUpdateReason(extensionPackage: ExtensionPackageSummary) {
   if (!isSdkCompatible(extensionPackage)) {
     return 'Cannot approve an extension update with an incompatible SDK range.'
   }
+  if (!isBuildPlanApproved(extensionPackage)) {
+    return 'Approve this extension build plan before approving the update.'
+  }
   if (hasErrorDiagnostics(extensionPackage)) {
     return 'Cannot approve an extension update with error diagnostics.'
+  }
+  return undefined
+}
+
+function disabledBuildReason(extensionPackage: ExtensionPackageSummary) {
+  if (extensionPackage.buildPlan?.approvalRequired !== true) {
+    return 'This extension does not require local build approval.'
+  }
+  if (extensionPackage.buildPlan.inputHash === null) {
+    return 'Cannot approve the build plan until source files are valid.'
   }
   return undefined
 }
@@ -86,86 +116,117 @@ function enableActionLabel(enabled: boolean) {
   return enabled ? 'Disable' : 'Enable'
 }
 
-function projectActionLabel(projectDisabled: boolean) {
-  return projectDisabled
-    ? OPENWAGGLE_EXTENSION.PROJECT_OVERRIDE.ENABLE_ACTION_LABEL
-    : OPENWAGGLE_EXTENSION.PROJECT_OVERRIDE.DISABLE_ACTION_LABEL
-}
-
-function ProjectOverrideAction({
+function TrustAction({
   extensionPackage,
   busy,
-  onSetProjectDisabled,
+  trusted,
+  updateAvailable,
+  onSetTrusted,
 }: {
   readonly extensionPackage: ExtensionPackageSummary
   readonly busy: boolean
-  readonly onSetProjectDisabled: (projectPath: string, disabled: boolean) => void
+  readonly trusted: boolean
+  readonly updateAvailable: boolean
+  readonly onSetTrusted: (trusted: boolean) => void
 }) {
-  const projectOverride = extensionPackage.projectOverride
-  if (!projectOverride) {
-    return null
-  }
-
-  const projectDisabled = projectOverride.disabled
-  const label = projectActionLabel(projectDisabled)
-
+  const trustLabel = updateAvailable ? 'Untrust' : trustActionLabel(trusted)
   return (
     <Button
       size="xs"
-      variant={projectDisabled ? 'accent' : 'secondary'}
+      variant={trusted || updateAvailable ? 'secondary' : 'accent'}
       disabled={busy}
-      onClick={() => onSetProjectDisabled(projectOverride.projectPath, !projectDisabled)}
-      aria-label={`${label} ${packageTitle(extensionPackage)}`}
+      onClick={() => onSetTrusted(trustActionValue({ trusted, updateAvailable }))}
+      aria-label={`${trustLabel} ${packageTitle(extensionPackage)}`}
     >
-      {busy ? 'Saving…' : label}
+      {busy ? 'Saving…' : trustLabel}
     </Button>
   )
 }
 
-function ProjectOverrideAvailability({
+function UpdateAction({
   extensionPackage,
   busy,
-  projectLabel,
-  onSetProjectDisabled,
+  updateAvailable,
+  onAcceptUpdate,
 }: {
   readonly extensionPackage: ExtensionPackageSummary
   readonly busy: boolean
-  readonly projectLabel: (projectPath: string) => string
-  readonly onSetProjectDisabled: (projectPath: string, disabled: boolean) => void
+  readonly updateAvailable: boolean
+  readonly onAcceptUpdate: () => void
 }) {
-  const projectOverrides: readonly ExtensionProjectOverrideView[] =
-    extensionPackage.projectOverrides
-
-  if (
-    extensionPackage.scope.kind !== OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND ||
-    projectOverrides.length <= 1
-  ) {
+  if (!updateAvailable) {
     return null
   }
 
+  const approveUpdateLabel = OPENWAGGLE_EXTENSION.LIFECYCLE.APPROVE_UPDATE_ACTION_LABEL
   return (
-    <div className="mt-3 basis-full rounded-md border border-border/70 bg-bg-secondary/40 p-2">
-      <div className="mb-2 text-[11px] font-medium text-text-tertiary">Project availability</div>
-      <div className="flex flex-wrap gap-2">
-        {projectOverrides.map((projectOverride) => {
-          const projectDisabled = projectOverride.disabled
-          const label = projectActionLabel(projectDisabled)
-          const projectName = projectLabel(projectOverride.projectPath)
-          return (
-            <Button
-              key={projectOverride.projectPath}
-              size="xs"
-              variant={projectDisabled ? 'accent' : 'secondary'}
-              disabled={busy}
-              onClick={() => onSetProjectDisabled(projectOverride.projectPath, !projectDisabled)}
-              aria-label={`${label} ${packageTitle(extensionPackage)} for ${projectName}`}
-            >
-              {projectName}: {busy ? 'Saving…' : label}
-            </Button>
-          )
-        })}
-      </div>
-    </div>
+    <Button
+      size="xs"
+      variant="accent"
+      disabled={busy || !canApproveUpdate(extensionPackage)}
+      onClick={onAcceptUpdate}
+      aria-label={`${approveUpdateLabel} ${packageTitle(extensionPackage)}`}
+      title={disabledUpdateReason(extensionPackage)}
+    >
+      {busy ? 'Saving…' : approveUpdateLabel}
+    </Button>
+  )
+}
+
+function BuildApprovalAction({
+  extensionPackage,
+  busy,
+  onApproveBuild,
+}: {
+  readonly extensionPackage: ExtensionPackageSummary
+  readonly busy: boolean
+  readonly onApproveBuild: () => void
+}) {
+  const visible =
+    extensionPackage.buildPlan?.approvalRequired === true && !extensionPackage.buildPlan.approved
+  if (!visible) {
+    return null
+  }
+
+  const approveBuildLabel = OPENWAGGLE_EXTENSION.LIFECYCLE.APPROVE_BUILD_ACTION_LABEL
+  return (
+    <Button
+      size="xs"
+      variant="accent"
+      disabled={busy || !canApproveBuild(extensionPackage)}
+      onClick={onApproveBuild}
+      aria-label={`${approveBuildLabel} ${packageTitle(extensionPackage)}`}
+      title={disabledBuildReason(extensionPackage)}
+    >
+      {busy ? 'Saving…' : approveBuildLabel}
+    </Button>
+  )
+}
+
+function EnableAction({
+  extensionPackage,
+  busy,
+  enabled,
+  onSetEnabled,
+}: {
+  readonly extensionPackage: ExtensionPackageSummary
+  readonly busy: boolean
+  readonly enabled: boolean
+  readonly onSetEnabled: (enabled: boolean) => void
+}) {
+  const enableAllowed = enabled || canEnablePackage(extensionPackage)
+  const enableLabel = enableActionLabel(enabled)
+  return (
+    <Button
+      size="xs"
+      variant={enabled ? 'secondary' : 'accent'}
+      disabled={busy || !enableAllowed}
+      onClick={() => onSetEnabled(!enabled)}
+      aria-label={`${enableLabel} ${packageTitle(extensionPackage)}`}
+      title={enabled ? undefined : disabledEnableReason(extensionPackage)}
+    >
+      {enableLabel}
+    </Button>
   )
 }
 
@@ -173,72 +234,48 @@ export function PackageActions({
   extensionPackage,
   busy,
   projectLabel,
-  onSetTrusted,
-  onSetEnabled,
-  onSetProjectDisabled,
-  onAcceptUpdate,
+  actions,
 }: {
   readonly extensionPackage: ExtensionPackageSummary
   readonly busy: boolean
   readonly projectLabel: (projectPath: string) => string
-  readonly onSetTrusted: (trusted: boolean) => void
-  readonly onSetEnabled: (enabled: boolean) => void
-  readonly onSetProjectDisabled: (projectPath: string, disabled: boolean) => void
-  readonly onAcceptUpdate: () => void
+  readonly actions: ExtensionPackageCardActions
 }) {
   const trusted = extensionPackage.lifecycle?.trusted === true
   const enabled = extensionPackage.lifecycle?.enabled === true
   const updateAvailable = extensionPackage.lifecycle?.updateAvailable === true
-  const enableAllowed = enabled || canEnablePackage(extensionPackage)
-  const updateAllowed = canApproveUpdate(extensionPackage)
-  const title = enabled ? undefined : disabledEnableReason(extensionPackage)
-  const trustLabel = updateAvailable ? 'Untrust' : trustActionLabel(trusted)
-  const enableLabel = enableActionLabel(enabled)
-  const approveUpdateLabel = OPENWAGGLE_EXTENSION.LIFECYCLE.APPROVE_UPDATE_ACTION_LABEL
 
   return (
     <div className="mt-4 flex flex-wrap gap-2">
-      <Button
-        size="xs"
-        variant={trusted || updateAvailable ? 'secondary' : 'accent'}
-        disabled={busy}
-        onClick={() => onSetTrusted(trustActionValue({ trusted, updateAvailable }))}
-        aria-label={`${trustLabel} ${packageTitle(extensionPackage)}`}
-      >
-        {busy ? 'Saving…' : trustLabel}
-      </Button>
-      {updateAvailable ? (
-        <Button
-          size="xs"
-          variant="accent"
-          disabled={busy || !updateAllowed}
-          onClick={onAcceptUpdate}
-          aria-label={`${approveUpdateLabel} ${packageTitle(extensionPackage)}`}
-          title={disabledUpdateReason(extensionPackage)}
-        >
-          {busy ? 'Saving…' : approveUpdateLabel}
-        </Button>
-      ) : null}
-      <Button
-        size="xs"
-        variant={enabled ? 'secondary' : 'accent'}
-        disabled={busy || !enableAllowed}
-        onClick={() => onSetEnabled(!enabled)}
-        aria-label={`${enableLabel} ${packageTitle(extensionPackage)}`}
-        title={title}
-      >
-        {enableLabel}
-      </Button>
-      <ProjectOverrideAction
+      <TrustAction
         extensionPackage={extensionPackage}
         busy={busy}
-        onSetProjectDisabled={onSetProjectDisabled}
+        trusted={trusted}
+        updateAvailable={updateAvailable}
+        onSetTrusted={actions.onSetTrusted}
       />
-      <ProjectOverrideAvailability
+      <UpdateAction
+        extensionPackage={extensionPackage}
+        busy={busy}
+        updateAvailable={updateAvailable}
+        onAcceptUpdate={actions.onAcceptUpdate}
+      />
+      <BuildApprovalAction
+        extensionPackage={extensionPackage}
+        busy={busy}
+        onApproveBuild={actions.onApproveBuild}
+      />
+      <EnableAction
+        extensionPackage={extensionPackage}
+        busy={busy}
+        enabled={enabled}
+        onSetEnabled={actions.onSetEnabled}
+      />
+      <ProjectOverrideActions
         extensionPackage={extensionPackage}
         busy={busy}
         projectLabel={projectLabel}
-        onSetProjectDisabled={onSetProjectDisabled}
+        onSetProjectDisabled={actions.onSetProjectDisabled}
       />
     </div>
   )

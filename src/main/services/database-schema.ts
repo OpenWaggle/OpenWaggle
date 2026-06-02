@@ -122,6 +122,13 @@ export const EXTENSION_LIFECYCLE_PACKAGE_VERSION_MIGRATION_STATEMENTS = [
   `,
 ] as const
 
+export const EXTENSION_LIFECYCLE_BUILD_APPROVAL_MIGRATION_STATEMENTS = [
+  `
+  ALTER TABLE extension_lifecycle_state
+  ADD COLUMN approved_build_plan_hash TEXT
+  `,
+] as const
+
 export const CURRENT_EXTENSION_LIFECYCLE_SCHEMA_STATEMENTS = [
   `
   CREATE TABLE IF NOT EXISTS extension_lifecycle_state (
@@ -133,6 +140,7 @@ export const CURRENT_EXTENSION_LIFECYCLE_SCHEMA_STATEMENTS = [
     granted_capabilities_json TEXT NOT NULL,
     content_hash TEXT,
     package_version TEXT,
+    approved_build_plan_hash TEXT,
     sdk_range TEXT,
     sdk_compatible INTEGER NOT NULL DEFAULT 0,
     diagnostics_json TEXT NOT NULL,

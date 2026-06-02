@@ -6,12 +6,39 @@ import { usePreferences } from '@/features/settings/hooks/useSettings'
 import { projectName } from '@/shared/lib/format'
 import { ExtensionPackageCard } from './ExtensionPackageCard'
 import { ExtensionsErrorAlert, ExtensionsSectionHeading } from './ExtensionsSectionPanels'
+import type { ExtensionPackageCardActions } from './extension-package-card-model'
 
 interface ExtensionScopeGroup {
   readonly key: string
   readonly title: string
   readonly subtitle: string
   readonly packages: readonly ExtensionPackageSummary[]
+}
+
+interface ExtensionMutationHandlers {
+  readonly setTrusted: (extensionPackage: ExtensionPackageSummary, trusted: boolean) => void
+  readonly setEnabled: (extensionPackage: ExtensionPackageSummary, enabled: boolean) => void
+  readonly setProjectDisabled: (
+    extensionPackage: ExtensionPackageSummary,
+    projectPath: string,
+    disabled: boolean,
+  ) => void
+  readonly acceptUpdate: (extensionPackage: ExtensionPackageSummary) => void
+  readonly approveBuild: (extensionPackage: ExtensionPackageSummary) => void
+}
+
+function packageActions(
+  extensionPackage: ExtensionPackageSummary,
+  handlers: ExtensionMutationHandlers,
+): ExtensionPackageCardActions {
+  return {
+    onSetTrusted: (trusted) => handlers.setTrusted(extensionPackage, trusted),
+    onSetEnabled: (enabled) => handlers.setEnabled(extensionPackage, enabled),
+    onSetProjectDisabled: (projectPath, disabled) =>
+      handlers.setProjectDisabled(extensionPackage, projectPath, disabled),
+    onAcceptUpdate: () => handlers.acceptUpdate(extensionPackage),
+    onApproveBuild: () => handlers.approveBuild(extensionPackage),
+  }
 }
 
 function addProjectPath(projectPaths: string[], projectPath: string | null) {
@@ -91,22 +118,12 @@ function ExtensionScopeSection({
   group,
   busyExtensionId,
   projectLabel,
-  onSetTrusted,
-  onSetEnabled,
-  onSetProjectDisabled,
-  onAcceptUpdate,
+  handlers,
 }: {
   readonly group: ExtensionScopeGroup
   readonly busyExtensionId: string | null
   readonly projectLabel: (projectPath: string) => string
-  readonly onSetTrusted: (extensionPackage: ExtensionPackageSummary, trusted: boolean) => void
-  readonly onSetEnabled: (extensionPackage: ExtensionPackageSummary, enabled: boolean) => void
-  readonly onSetProjectDisabled: (
-    extensionPackage: ExtensionPackageSummary,
-    projectPath: string,
-    disabled: boolean,
-  ) => void
-  readonly onAcceptUpdate: (extensionPackage: ExtensionPackageSummary) => void
+  readonly handlers: ExtensionMutationHandlers
 }) {
   return (
     <section className="space-y-3 rounded-xl border border-border bg-bg-secondary/30 p-3">
@@ -122,12 +139,7 @@ function ExtensionScopeSection({
               extensionPackage={extensionPackage}
               busy={busyExtensionId === extensionPackage.id}
               projectLabel={projectLabel}
-              onSetTrusted={(trusted) => onSetTrusted(extensionPackage, trusted)}
-              onSetEnabled={(enabled) => onSetEnabled(extensionPackage, enabled)}
-              onSetProjectDisabled={(projectPath, disabled) =>
-                onSetProjectDisabled(extensionPackage, projectPath, disabled)
-              }
-              onAcceptUpdate={() => onAcceptUpdate(extensionPackage)}
+              actions={packageActions(extensionPackage, handlers)}
             />
           ))}
         </div>
@@ -143,7 +155,7 @@ function ExtensionScopeSection({
 export function ExtensionsSection() {
   const { settings } = usePreferences()
   const { sessions } = useSessions()
-  const projectPaths = buildProjectPaths({
+  const requestedProjectPaths = buildProjectPaths({
     selectedProjectPath: settings.projectPath,
     recentProjects: settings.recentProjects,
     sessionProjectPaths: sessions.map((session) => session.projectPath),
@@ -162,10 +174,20 @@ export function ExtensionsSection() {
     setEnabled,
     setProjectDisabled,
     acceptUpdate,
-  } = useExtensionsSectionController(projectPaths)
+    approveBuild,
+  } = useExtensionsSectionController(requestedProjectPaths)
   const packages = view?.packages ?? []
+  const projectPaths = view?.projectPaths ?? requestedProjectPaths
   const scopeGroups = buildScopeGroups({ packages, projectPaths, projectLabel })
   const hasUnrecoveredError = error !== null && view === null
+  const handlers: ExtensionMutationHandlers = {
+    setTrusted: (extensionPackage, trusted) => void setTrusted(extensionPackage, trusted),
+    setEnabled: (extensionPackage, enabled) => void setEnabled(extensionPackage, enabled),
+    setProjectDisabled: (extensionPackage, projectPath, disabled) =>
+      void setProjectDisabled(extensionPackage, projectPath, disabled),
+    acceptUpdate: (extensionPackage) => void acceptUpdate(extensionPackage),
+    approveBuild: (extensionPackage) => void approveBuild(extensionPackage),
+  }
 
   return (
     <div className="space-y-6">
@@ -187,16 +209,7 @@ export function ExtensionsSection() {
               group={group}
               busyExtensionId={updatingExtensionId}
               projectLabel={projectLabel}
-              onSetTrusted={(extensionPackage, trusted) =>
-                void setTrusted(extensionPackage, trusted)
-              }
-              onSetEnabled={(extensionPackage, enabled) =>
-                void setEnabled(extensionPackage, enabled)
-              }
-              onSetProjectDisabled={(extensionPackage, projectPath, disabled) =>
-                void setProjectDisabled(extensionPackage, projectPath, disabled)
-              }
-              onAcceptUpdate={(extensionPackage) => void acceptUpdate(extensionPackage)}
+              handlers={handlers}
             />
           ))}
         </div>

@@ -1,11 +1,13 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type {
   ExtensionAcceptUpdateInput,
+  ExtensionApproveBuildInput,
   ExtensionLifecycleMutationTarget,
   ExtensionSetEnabledInput,
   ExtensionSetProjectDisabledInput,
   ExtensionSetTrustedInput,
 } from '@shared/types/extensions'
+import { isExtensionBuildPlanApproved } from '../extensions/runtime-eligibility'
 import type {
   DiscoveredExtensionPackage,
   ExtensionLifecycleKey,
@@ -18,6 +20,7 @@ export type LifecycleMutationInput =
   | ExtensionSetTrustedInput
   | ExtensionSetEnabledInput
   | ExtensionAcceptUpdateInput
+  | ExtensionApproveBuildInput
 
 function scopeKey(scope: ExtensionPackageScope) {
   return scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND
@@ -90,6 +93,7 @@ function getPackageErrorCodes(extensionPackage: DiscoveredExtensionPackage) {
 export function getLifecycleReadinessError(
   extensionPackage: DiscoveredExtensionPackage,
   action: 'trust' | 'enable',
+  lifecycle: ExtensionLifecycleState | null,
 ) {
   if (!extensionPackage.manifest) {
     return `Cannot ${action} "${extensionPackage.id}" because its manifest is invalid.`
@@ -100,12 +104,26 @@ export function getLifecycleReadinessError(
   if (!extensionPackage.sdkCompatibility?.compatible) {
     return `Cannot ${action} "${extensionPackage.id}" because its SDK range is incompatible.`
   }
+  if (!isExtensionBuildPlanApproved({ extensionPackage, lifecycle })) {
+    return `Cannot ${action} "${extensionPackage.id}" because ${OPENWAGGLE_EXTENSION.LIFECYCLE.BUILD_APPROVAL_REQUIRED_ERROR}`
+  }
 
   const errorCodes = getPackageErrorCodes(extensionPackage)
   if (errorCodes.length > 0) {
     return `Cannot ${action} "${extensionPackage.id}" because package diagnostics include errors: ${errorCodes.join(', ')}.`
   }
 
+  return null
+}
+
+export function getBuildApprovalReadinessError(extensionPackage: DiscoveredExtensionPackage) {
+  const buildPlan = extensionPackage.buildPlan
+  if (buildPlan?.approvalRequired !== true) {
+    return OPENWAGGLE_EXTENSION.LIFECYCLE.NO_BUILD_APPROVAL_REQUIRED_ERROR
+  }
+  if (buildPlan.inputHash === null) {
+    return OPENWAGGLE_EXTENSION.LIFECYCLE.BUILD_APPROVAL_UNAVAILABLE_ERROR
+  }
   return null
 }
 
@@ -157,12 +175,14 @@ export function makeLifecycleState({
   enabled,
   trusted,
   pinCurrentPackage,
+  approvedBuildPlanHash,
 }: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly current: ExtensionLifecycleState | null
   readonly enabled: boolean
   readonly trusted: boolean
   readonly pinCurrentPackage: boolean
+  readonly approvedBuildPlanHash?: string | null
 }): ExtensionLifecycleState {
   const now = Date.now()
   return {
@@ -178,6 +198,7 @@ export function makeLifecycleState({
       trusted,
       pinCurrentPackage,
     }),
+    approvedBuildPlanHash: approvedBuildPlanHash ?? current?.approvedBuildPlanHash ?? null,
     sdkRange: extensionPackage.manifest?.sdk.openwaggle ?? null,
     sdkCompatible: extensionPackage.sdkCompatibility?.compatible ?? false,
     diagnostics: extensionPackage.diagnostics,

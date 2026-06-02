@@ -6,7 +6,11 @@ import type {
 } from '@shared/types/extensions'
 import { AlertTriangle, ShieldCheck } from 'lucide-react'
 import { cn } from '@/shared/lib/cn'
-import { hasErrorDiagnostics, isSdkCompatible } from './extension-package-card-model'
+import {
+  hasErrorDiagnostics,
+  isBuildPlanApproved,
+  isSdkCompatible,
+} from './extension-package-card-model'
 
 type StatusPillTone = 'neutral' | 'good' | 'warning' | 'error'
 
@@ -82,25 +86,33 @@ function sdkStatusPill(extensionPackage: ExtensionPackageSummary): {
   return { tone: 'warning', label: 'SDK blocked' }
 }
 
-export function PackageStatusPills({
+function ProjectStatusPills({
   extensionPackage,
 }: {
   readonly extensionPackage: ExtensionPackageSummary
 }) {
-  const lifecycle = extensionPackage.lifecycle
   const projectStatus = projectOverridePill(extensionPackage.projectOverride)
   const projectSummaryStatus = projectOverridesSummaryPill(extensionPackage)
-  const sdkStatus = sdkStatusPill(extensionPackage)
 
   return (
     <>
-      <StatusPill tone="neutral">{extensionPackage.scope.label}</StatusPill>
       {projectStatus ? (
         <StatusPill tone={projectStatus.tone}>{projectStatus.label}</StatusPill>
       ) : null}
       {projectSummaryStatus ? (
         <StatusPill tone={projectSummaryStatus.tone}>{projectSummaryStatus.label}</StatusPill>
       ) : null}
+    </>
+  )
+}
+
+function LifecycleStatusPills({
+  lifecycle,
+}: {
+  readonly lifecycle: ExtensionPackageSummary['lifecycle']
+}) {
+  return (
+    <>
       <StatusPill tone={lifecycle?.enabled ? 'good' : 'neutral'}>
         {lifecycle?.enabled ? 'Enabled' : 'Disabled'}
       </StatusPill>
@@ -112,6 +124,43 @@ export function PackageStatusPills({
           {OPENWAGGLE_EXTENSION.LIFECYCLE.UPDATE_AVAILABLE_LABEL}
         </StatusPill>
       ) : null}
+    </>
+  )
+}
+
+function BuildStatusPill({
+  extensionPackage,
+}: {
+  readonly extensionPackage: ExtensionPackageSummary
+}) {
+  if (!extensionPackage.buildPlan?.approvalRequired) {
+    return null
+  }
+
+  const approved = isBuildPlanApproved(extensionPackage)
+  return (
+    <StatusPill tone={approved ? 'good' : 'warning'}>
+      {approved
+        ? OPENWAGGLE_EXTENSION.LIFECYCLE.BUILD_APPROVED_LABEL
+        : OPENWAGGLE_EXTENSION.LIFECYCLE.BUILD_APPROVAL_REQUIRED_LABEL}
+    </StatusPill>
+  )
+}
+
+export function PackageStatusPills({
+  extensionPackage,
+}: {
+  readonly extensionPackage: ExtensionPackageSummary
+}) {
+  const lifecycle = extensionPackage.lifecycle
+  const sdkStatus = sdkStatusPill(extensionPackage)
+
+  return (
+    <>
+      <StatusPill tone="neutral">{extensionPackage.scope.label}</StatusPill>
+      <ProjectStatusPills extensionPackage={extensionPackage} />
+      <LifecycleStatusPills lifecycle={lifecycle} />
+      <BuildStatusPill extensionPackage={extensionPackage} />
       <StatusPill tone={sdkStatus.tone}>{sdkStatus.label}</StatusPill>
     </>
   )

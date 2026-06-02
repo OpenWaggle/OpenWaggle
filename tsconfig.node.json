@@ -28,6 +28,7 @@
     "e2e/support/session-fixtures.ts",
     "scripts/**/*.ts",
     "eslint.config.ts",
-    "electron.vite.config.ts"
+    "electron.vite.config.ts",
+    "playwright.config.ts"
   ]
 }

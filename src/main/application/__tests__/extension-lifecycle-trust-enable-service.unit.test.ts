@@ -8,6 +8,7 @@ import { ExtensionManagerService } from '../../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
 import {
   acceptExtensionUpdate,
+  approveExtensionBuild,
   setExtensionEnabled,
   setExtensionTrusted,
 } from '../extension-lifecycle-service'
@@ -29,6 +30,7 @@ const discoveredPackage: DiscoveredExtensionPackage = {
     builtArtifacts: ['dist/index.js'],
     capabilities: [{ id: 'sample.invoke' }],
   },
+  buildPlan: null,
   contentHash: 'abcdef',
   sdkCompatibility: {
     hostVersion: OPENWAGGLE_EXTENSION.SDK_VERSION,
@@ -46,6 +48,7 @@ const lifecycleState: ExtensionLifecycleState = {
   grantedCapabilities: ['sample.invoke'],
   contentHash: 'abcdef',
   packageVersion: '1.0.0',
+  approvedBuildPlanHash: null,
   sdkRange: '>=0.1.0 <0.2.0',
   sdkCompatible: true,
   diagnostics: [],
@@ -105,6 +108,68 @@ describe('extension trust and enable lifecycle mutations', () => {
       sdkCompatible: true,
     })
     expect(view.packages[0]?.lifecycle).toMatchObject({ enabled: false, trusted: true })
+  })
+
+  it('rejects trusting a local-build extension before its build plan is approved', async () => {
+    const localBuildPackage: DiscoveredExtensionPackage = {
+      ...discoveredPackage,
+      buildPlan: {
+        installSource: OPENWAGGLE_EXTENSION.INSTALL_SOURCE.LOCAL_BUILD,
+        command: 'pnpm build',
+        outputPaths: ['dist/index.js'],
+        approvalRequired: true,
+        inputHash: 'build-plan-hash',
+      },
+    }
+    const harness = makeTestHarness({ packages: [localBuildPackage], lifecycle: null })
+
+    await expect(
+      Effect.runPromise(
+        setExtensionTrusted({
+          extensionId: 'sample-extension',
+          scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: PROJECT_PATH },
+          trusted: true,
+        }).pipe(Effect.provide(harness.layer)),
+      ),
+    ).rejects.toThrow(OPENWAGGLE_EXTENSION.LIFECYCLE.BUILD_APPROVAL_REQUIRED_ERROR)
+  })
+
+  it('approves a local-build extension plan before trust pins the runtime package', async () => {
+    const localBuildPackage: DiscoveredExtensionPackage = {
+      ...discoveredPackage,
+      buildPlan: {
+        installSource: OPENWAGGLE_EXTENSION.INSTALL_SOURCE.LOCAL_BUILD,
+        command: 'pnpm build',
+        outputPaths: ['dist/index.js'],
+        approvalRequired: true,
+        inputHash: 'build-plan-hash',
+      },
+    }
+    const harness = makeTestHarness({ packages: [localBuildPackage], lifecycle: null })
+
+    await Effect.runPromise(
+      approveExtensionBuild({
+        extensionId: 'sample-extension',
+        scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: PROJECT_PATH },
+      }).pipe(Effect.provide(harness.layer)),
+    )
+    const view = await Effect.runPromise(
+      setExtensionTrusted({
+        extensionId: 'sample-extension',
+        scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: PROJECT_PATH },
+        trusted: true,
+      }).pipe(Effect.provide(harness.layer)),
+    )
+
+    expect(harness.getStoredLifecycle()).toMatchObject({
+      approvedBuildPlanHash: 'build-plan-hash',
+      contentHash: 'abcdef',
+      trusted: true,
+    })
+    expect(view.packages[0]?.buildPlan).toMatchObject({
+      approvalRequired: true,
+      approved: true,
+    })
   })
 
   it('rejects generic trust repinning when a trusted package changed', async () => {

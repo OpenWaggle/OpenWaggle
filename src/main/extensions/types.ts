@@ -28,12 +28,23 @@ export interface ExtensionSdkCompatibility {
   readonly reason?: string
 }
 
+export type ExtensionInstallSource = (typeof OPENWAGGLE_EXTENSION.INSTALL_SOURCES)[number]
+
+export interface ExtensionBuildPlan {
+  readonly installSource: ExtensionInstallSource
+  readonly command: string | null
+  readonly outputPaths: readonly string[]
+  readonly approvalRequired: boolean
+  readonly inputHash: string | null
+}
+
 export interface DiscoveredExtensionPackage {
   readonly id: string
   readonly scope: ExtensionPackageScope
   readonly packagePath: string
   readonly manifestPath: string
   readonly manifest: OpenWaggleExtensionManifest | null
+  readonly buildPlan: ExtensionBuildPlan | null
   readonly contentHash: string | null
   readonly sdkCompatibility: ExtensionSdkCompatibility | null
   readonly diagnostics: readonly ExtensionDiagnostic[]
@@ -61,6 +72,7 @@ export interface ExtensionLifecycleState extends ExtensionLifecycleKey {
   readonly grantedCapabilities: readonly string[]
   readonly contentHash: string | null
   readonly packageVersion: string | null
+  readonly approvedBuildPlanHash: string | null
   readonly sdkRange: string | null
   readonly sdkCompatible: boolean
   readonly diagnostics: readonly ExtensionDiagnostic[]
