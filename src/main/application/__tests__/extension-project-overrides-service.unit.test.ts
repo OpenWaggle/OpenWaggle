@@ -61,6 +61,7 @@ const lifecycleState: ExtensionLifecycleState = {
   trusted: true,
   grantedCapabilities: ['sample.invoke'],
   contentHash: 'abcdef',
+  packageVersion: '1.0.0',
   sdkRange: '>=0.1.0 <0.2.0',
   sdkCompatible: true,
   diagnostics: [],

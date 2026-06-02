@@ -217,6 +217,12 @@ export const extensionSetProjectDisabledInputSchema = Schema.Struct({
   disabled: Schema.Boolean,
 })
 
+export const extensionAcceptUpdateInputSchema = Schema.Struct({
+  extensionId: extensionIdSchema,
+  scope: extensionLifecycleScopeSchema,
+  viewProjectPaths: Schema.optional(extensionViewProjectPathsSchema),
+})
+
 export type OpenWaggleExtensionManifest = SchemaType<typeof openWaggleExtensionManifestSchema>
 export type ExtensionCapabilityDeclaration = SchemaType<typeof extensionCapabilityDeclarationSchema>
 export type ExtensionContributions = SchemaType<typeof extensionContributionsSchema>

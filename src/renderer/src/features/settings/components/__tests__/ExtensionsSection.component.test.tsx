@@ -25,6 +25,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     setExtensionTrusted: setExtensionTrustedMock,
     setExtensionEnabled: setExtensionEnabledMock,
     setExtensionProjectDisabled: setExtensionProjectDisabledMock,
+    acceptExtensionUpdate: vi.fn(),
   },
 }))
 
@@ -100,21 +101,21 @@ const SAMPLE_PACKAGE: ExtensionManagerView['packages'][number] = {
 const TRUSTED_LIFECYCLE: NonNullable<ExtensionManagerView['packages'][number]['lifecycle']> = {
   enabled: false,
   trusted: true,
+  updateAvailable: false,
   grantedCapabilities: ['sample.invoke'],
   contentHash: '1234567890abcdef',
+  packageVersion: '1.0.0',
   sdkRange: '>=0.1.0 <0.2.0',
   sdkCompatible: true,
   diagnostics: [],
   installedAt: 1000,
   updatedAt: 2000,
 }
-
 const PACKAGE_VIEW: ExtensionManagerView = {
   projectPath: '/tmp/project',
   projectPaths: ['/tmp/project'],
   packages: [SAMPLE_PACKAGE],
 }
-
 const TRUSTED_VIEW: ExtensionManagerView = {
   ...PACKAGE_VIEW,
   packages: [
@@ -124,7 +125,6 @@ const TRUSTED_VIEW: ExtensionManagerView = {
     },
   ],
 }
-
 const ENABLED_VIEW: ExtensionManagerView = {
   ...TRUSTED_VIEW,
   packages: [

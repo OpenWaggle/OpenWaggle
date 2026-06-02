@@ -94,6 +94,7 @@ function ExtensionScopeSection({
   onSetTrusted,
   onSetEnabled,
   onSetProjectDisabled,
+  onAcceptUpdate,
 }: {
   readonly group: ExtensionScopeGroup
   readonly busyExtensionId: string | null
@@ -105,6 +106,7 @@ function ExtensionScopeSection({
     projectPath: string,
     disabled: boolean,
   ) => void
+  readonly onAcceptUpdate: (extensionPackage: ExtensionPackageSummary) => void
 }) {
   return (
     <section className="space-y-3 rounded-xl border border-border bg-bg-secondary/30 p-3">
@@ -125,6 +127,7 @@ function ExtensionScopeSection({
               onSetProjectDisabled={(projectPath, disabled) =>
                 onSetProjectDisabled(extensionPackage, projectPath, disabled)
               }
+              onAcceptUpdate={() => onAcceptUpdate(extensionPackage)}
             />
           ))}
         </div>
@@ -158,6 +161,7 @@ export function ExtensionsSection() {
     setTrusted,
     setEnabled,
     setProjectDisabled,
+    acceptUpdate,
   } = useExtensionsSectionController(projectPaths)
   const packages = view?.packages ?? []
   const scopeGroups = buildScopeGroups({ packages, projectPaths, projectLabel })
@@ -192,6 +196,7 @@ export function ExtensionsSection() {
               onSetProjectDisabled={(extensionPackage, projectPath, disabled) =>
                 void setProjectDisabled(extensionPackage, projectPath, disabled)
               }
+              onAcceptUpdate={(extensionPackage) => void acceptUpdate(extensionPackage)}
             />
           ))}
         </div>

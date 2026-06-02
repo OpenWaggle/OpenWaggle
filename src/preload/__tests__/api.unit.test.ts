@@ -46,6 +46,7 @@ describe('preload api surface contract', () => {
     'setExtensionTrusted',
     'setExtensionEnabled',
     'setExtensionProjectDisabled',
+    'acceptExtensionUpdate',
     'setProviderApiKey',
     // Providers
     'getProviderModels',

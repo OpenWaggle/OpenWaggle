@@ -1,12 +1,11 @@
 import type { ExtensionPackageSummary } from '@shared/types/extensions'
 import { PackageOpen } from 'lucide-react'
+import { ExtensionDiagnostics } from './ExtensionDiagnostics'
+import { ManifestBadges } from './ExtensionManifestBadges'
 import { PackageActions } from './ExtensionPackageCardActions'
-import {
-  ExtensionDiagnostics,
-  ManifestBadges,
-  PackageMetadata,
-} from './ExtensionPackageCardDetails'
-import { PackageStatusPills, PackageTrustIcon, packageTitle } from './ExtensionPackageCardStatus'
+import { PackageStatusPills, PackageTrustIcon } from './ExtensionPackageCardStatus'
+import { PackageMetadata } from './ExtensionPackageMetadata'
+import { packageTitle } from './extension-package-card-model'
 
 export function ExtensionPackageCard({
   extensionPackage,
@@ -15,6 +14,7 @@ export function ExtensionPackageCard({
   onSetTrusted,
   onSetEnabled,
   onSetProjectDisabled,
+  onAcceptUpdate,
 }: {
   readonly extensionPackage: ExtensionPackageSummary
   readonly busy: boolean
@@ -22,6 +22,7 @@ export function ExtensionPackageCard({
   readonly onSetTrusted: (trusted: boolean) => void
   readonly onSetEnabled: (enabled: boolean) => void
   readonly onSetProjectDisabled: (projectPath: string, disabled: boolean) => void
+  readonly onAcceptUpdate: () => void
 }) {
   return (
     <div className="rounded-lg border border-border bg-[#111418] p-4">
@@ -48,6 +49,7 @@ export function ExtensionPackageCard({
         onSetTrusted={onSetTrusted}
         onSetEnabled={onSetEnabled}
         onSetProjectDisabled={onSetProjectDisabled}
+        onAcceptUpdate={onAcceptUpdate}
       />
       <ManifestBadges extensionPackage={extensionPackage} />
       <ExtensionDiagnostics diagnostics={extensionPackage.diagnostics} />

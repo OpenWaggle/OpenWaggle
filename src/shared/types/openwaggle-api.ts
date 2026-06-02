@@ -5,6 +5,7 @@ import type { SessionBranchId, SessionId, SessionNodeId, WagglePresetId } from '
 import type { FileSuggestion } from './composer'
 import type { ContextCompactionResult, ContextUsageSnapshot } from './context-usage'
 import type {
+  ExtensionAcceptUpdateInput,
   ExtensionListPackagesInput,
   ExtensionManagerView,
   ExtensionSetEnabledInput,
@@ -108,6 +109,7 @@ export interface OpenWaggleApi {
   setExtensionProjectDisabled(
     input: ExtensionSetProjectDisabledInput,
   ): Promise<ExtensionManagerView>
+  acceptExtensionUpdate(input: ExtensionAcceptUpdateInput): Promise<ExtensionManagerView>
 
   // Providers
   getProviderModels(projectPath?: string | null): Promise<ProviderInfo[]>

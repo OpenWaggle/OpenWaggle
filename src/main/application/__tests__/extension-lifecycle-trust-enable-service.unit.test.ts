@@ -6,7 +6,11 @@ import type { DiscoveredExtensionPackage, ExtensionLifecycleState } from '../../
 import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from '../../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
-import { setExtensionEnabled, setExtensionTrusted } from '../extension-lifecycle-service'
+import {
+  acceptExtensionUpdate,
+  setExtensionEnabled,
+  setExtensionTrusted,
+} from '../extension-lifecycle-service'
 
 const PROJECT_PATH = '/tmp/project'
 
@@ -41,6 +45,7 @@ const lifecycleState: ExtensionLifecycleState = {
   trusted: true,
   grantedCapabilities: ['sample.invoke'],
   contentHash: 'abcdef',
+  packageVersion: '1.0.0',
   sdkRange: '>=0.1.0 <0.2.0',
   sdkCompatible: true,
   diagnostics: [],
@@ -96,20 +101,49 @@ describe('extension trust and enable lifecycle mutations', () => {
       trusted: true,
       grantedCapabilities: ['sample.invoke'],
       contentHash: 'abcdef',
+      packageVersion: '1.0.0',
       sdkCompatible: true,
     })
     expect(view.packages[0]?.lifecycle).toMatchObject({ enabled: false, trusted: true })
   })
 
-  it('does not preserve stale enabled state when trusting an updated package', async () => {
+  it('rejects generic trust repinning when a trusted package changed', async () => {
     const updatedPackage = { ...discoveredPackage, contentHash: 'changed-hash' }
     const harness = makeTestHarness({ packages: [updatedPackage], lifecycle: lifecycleState })
 
+    await expect(
+      Effect.runPromise(
+        setExtensionTrusted({
+          extensionId: 'sample-extension',
+          scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: PROJECT_PATH },
+          trusted: true,
+        }).pipe(Effect.provide(harness.layer)),
+      ),
+    ).rejects.toThrow(OPENWAGGLE_EXTENSION.LIFECYCLE.APPROVE_UPDATE_REQUIRED_ERROR)
+
+    expect(harness.getStoredLifecycle()).toMatchObject({
+      extensionId: 'sample-extension',
+      enabled: true,
+      trusted: true,
+      contentHash: 'abcdef',
+      packageVersion: '1.0.0',
+    })
+  })
+
+  it('accepts an updated trusted package by repinning hash and disabling runtime loading', async () => {
+    const updatedPackage: DiscoveredExtensionPackage = {
+      ...discoveredPackage,
+      manifest: discoveredPackage.manifest
+        ? { ...discoveredPackage.manifest, version: '1.1.0' }
+        : null,
+      contentHash: 'changed-hash',
+    }
+    const harness = makeTestHarness({ packages: [updatedPackage], lifecycle: lifecycleState })
+
     const view = await Effect.runPromise(
-      setExtensionTrusted({
+      acceptExtensionUpdate({
         extensionId: 'sample-extension',
         scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: PROJECT_PATH },
-        trusted: true,
       }).pipe(Effect.provide(harness.layer)),
     )
 
@@ -118,12 +152,28 @@ describe('extension trust and enable lifecycle mutations', () => {
       enabled: false,
       trusted: true,
       contentHash: 'changed-hash',
+      packageVersion: '1.1.0',
     })
     expect(view.packages[0]?.lifecycle).toMatchObject({
       enabled: false,
       trusted: true,
       contentHash: 'changed-hash',
+      packageVersion: '1.1.0',
+      updateAvailable: false,
     })
+  })
+
+  it('rejects update approval when the package has not changed', async () => {
+    const harness = makeTestHarness({ packages: [discoveredPackage], lifecycle: lifecycleState })
+
+    await expect(
+      Effect.runPromise(
+        acceptExtensionUpdate({
+          extensionId: 'sample-extension',
+          scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: PROJECT_PATH },
+        }).pipe(Effect.provide(harness.layer)),
+      ),
+    ).rejects.toThrow(OPENWAGGLE_EXTENSION.LIFECYCLE.NO_UPDATE_AVAILABLE_ERROR)
   })
 
   it('rejects enabling an extension before it has a current trust pin', async () => {

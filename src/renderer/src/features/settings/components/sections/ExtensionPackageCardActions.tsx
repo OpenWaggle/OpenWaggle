@@ -4,7 +4,7 @@ import type {
   ExtensionProjectOverrideView,
 } from '@shared/types/extensions'
 import { Button } from '@/shared/ui/Button'
-import { hasErrorDiagnostics, isSdkCompatible, packageTitle } from './ExtensionPackageCardStatus'
+import { hasErrorDiagnostics, isSdkCompatible, packageTitle } from './extension-package-card-model'
 
 function canEnablePackage(extensionPackage: ExtensionPackageSummary) {
   return (
@@ -17,9 +17,22 @@ function canEnablePackage(extensionPackage: ExtensionPackageSummary) {
   )
 }
 
+function canApproveUpdate(extensionPackage: ExtensionPackageSummary) {
+  return (
+    extensionPackage.lifecycle?.updateAvailable === true &&
+    extensionPackage.manifest !== null &&
+    extensionPackage.contentHash !== null &&
+    isSdkCompatible(extensionPackage) &&
+    !hasErrorDiagnostics(extensionPackage)
+  )
+}
+
 function disabledEnableReason(extensionPackage: ExtensionPackageSummary) {
   if (extensionPackage.projectOverride?.disabled === true) {
     return 'Enable this extension for the project before changing package enablement.'
+  }
+  if (extensionPackage.lifecycle?.updateAvailable === true) {
+    return 'Approve this extension update before enabling it.'
   }
   if (extensionPackage.lifecycle?.trusted !== true) {
     return 'Trust this extension before enabling it.'
@@ -39,8 +52,34 @@ function disabledEnableReason(extensionPackage: ExtensionPackageSummary) {
   return undefined
 }
 
+function disabledUpdateReason(extensionPackage: ExtensionPackageSummary) {
+  if (extensionPackage.manifest === null) {
+    return 'Cannot approve an extension update with an invalid manifest.'
+  }
+  if (extensionPackage.contentHash === null) {
+    return 'Cannot approve an extension update without a content hash.'
+  }
+  if (!isSdkCompatible(extensionPackage)) {
+    return 'Cannot approve an extension update with an incompatible SDK range.'
+  }
+  if (hasErrorDiagnostics(extensionPackage)) {
+    return 'Cannot approve an extension update with error diagnostics.'
+  }
+  return undefined
+}
+
 function trustActionLabel(trusted: boolean) {
   return trusted ? 'Untrust' : 'Trust'
+}
+
+function trustActionValue({
+  trusted,
+  updateAvailable,
+}: {
+  readonly trusted: boolean
+  readonly updateAvailable: boolean
+}) {
+  return updateAvailable ? false : !trusted
 }
 
 function enableActionLabel(enabled: boolean) {
@@ -137,6 +176,7 @@ export function PackageActions({
   onSetTrusted,
   onSetEnabled,
   onSetProjectDisabled,
+  onAcceptUpdate,
 }: {
   readonly extensionPackage: ExtensionPackageSummary
   readonly busy: boolean
@@ -144,25 +184,41 @@ export function PackageActions({
   readonly onSetTrusted: (trusted: boolean) => void
   readonly onSetEnabled: (enabled: boolean) => void
   readonly onSetProjectDisabled: (projectPath: string, disabled: boolean) => void
+  readonly onAcceptUpdate: () => void
 }) {
   const trusted = extensionPackage.lifecycle?.trusted === true
   const enabled = extensionPackage.lifecycle?.enabled === true
+  const updateAvailable = extensionPackage.lifecycle?.updateAvailable === true
   const enableAllowed = enabled || canEnablePackage(extensionPackage)
+  const updateAllowed = canApproveUpdate(extensionPackage)
   const title = enabled ? undefined : disabledEnableReason(extensionPackage)
-  const trustLabel = trustActionLabel(trusted)
+  const trustLabel = updateAvailable ? 'Untrust' : trustActionLabel(trusted)
   const enableLabel = enableActionLabel(enabled)
+  const approveUpdateLabel = OPENWAGGLE_EXTENSION.LIFECYCLE.APPROVE_UPDATE_ACTION_LABEL
 
   return (
     <div className="mt-4 flex flex-wrap gap-2">
       <Button
         size="xs"
-        variant={trusted ? 'secondary' : 'accent'}
+        variant={trusted || updateAvailable ? 'secondary' : 'accent'}
         disabled={busy}
-        onClick={() => onSetTrusted(!trusted)}
+        onClick={() => onSetTrusted(trustActionValue({ trusted, updateAvailable }))}
         aria-label={`${trustLabel} ${packageTitle(extensionPackage)}`}
       >
         {busy ? 'Saving…' : trustLabel}
       </Button>
+      {updateAvailable ? (
+        <Button
+          size="xs"
+          variant="accent"
+          disabled={busy || !updateAllowed}
+          onClick={onAcceptUpdate}
+          aria-label={`${approveUpdateLabel} ${packageTitle(extensionPackage)}`}
+          title={disabledUpdateReason(extensionPackage)}
+        >
+          {busy ? 'Saving…' : approveUpdateLabel}
+        </Button>
+      ) : null}
       <Button
         size="xs"
         variant={enabled ? 'secondary' : 'accent'}

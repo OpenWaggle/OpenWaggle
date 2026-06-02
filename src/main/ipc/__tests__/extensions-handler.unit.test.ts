@@ -86,6 +86,7 @@ const trustedLifecycleState: ExtensionLifecycleState = {
   trusted: true,
   grantedCapabilities: ['sample.invoke'],
   contentHash: 'abcdef',
+  packageVersion: '1.0.0',
   sdkRange: '>=0.1.0 <0.2.0',
   sdkCompatible: true,
   diagnostics: [],
@@ -229,6 +230,43 @@ describe('registerExtensionsHandlers', () => {
         trusted: true,
         enabled: true,
         contentHash: 'abcdef',
+      }),
+    )
+  })
+
+  it('registers extensions:accept-update and persists the approved package pin', async () => {
+    const updatedPackage: DiscoveredExtensionPackage = {
+      ...discoveredPackage,
+      manifest: discoveredPackage.manifest
+        ? { ...discoveredPackage.manifest, version: '1.1.0' }
+        : null,
+      contentHash: 'changed-hash',
+    }
+    listPackagesMock.mockReturnValue([updatedPackage])
+    const layer = makeTestLayer({
+      ...trustedLifecycleState,
+      enabled: true,
+      contentHash: 'abcdef',
+      packageVersion: '1.0.0',
+    })
+    registerExtensionsHandlers()
+    const handler = getRegisteredHandler('extensions:accept-update', layer)
+
+    await handler?.(
+      {},
+      {
+        extensionId: 'sample-extension',
+        scope: { kind: 'global' },
+      },
+    )
+
+    expect(upsertLifecycleMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        extensionId: 'sample-extension',
+        trusted: true,
+        enabled: false,
+        contentHash: 'changed-hash',
+        packageVersion: '1.1.0',
       }),
     )
   })

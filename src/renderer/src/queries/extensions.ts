@@ -1,4 +1,5 @@
 import type {
+  ExtensionAcceptUpdateInput,
   ExtensionListPackagesInput,
   ExtensionManagerView,
   ExtensionSetEnabledInput,
@@ -16,6 +17,7 @@ type ExtensionApi = Pick<
   | 'setExtensionEnabled'
   | 'setExtensionProjectDisabled'
   | 'setExtensionTrusted'
+  | 'acceptExtensionUpdate'
 >
 
 const extensionApi: ExtensionApi = api
@@ -42,6 +44,10 @@ function setExtensionProjectDisabled(
   input: ExtensionSetProjectDisabledInput,
 ): Promise<ExtensionManagerView> {
   return extensionApi.setExtensionProjectDisabled(input)
+}
+
+function acceptExtensionUpdate(input: ExtensionAcceptUpdateInput): Promise<ExtensionManagerView> {
+  return extensionApi.acceptExtensionUpdate(input)
 }
 
 export function extensionPackagesQueryOptions(
@@ -90,6 +96,18 @@ export function useSetExtensionProjectDisabledMutation(projectPaths: readonly st
 
   return useMutation<ExtensionManagerView, Error, ExtensionSetProjectDisabledInput>({
     mutationFn: setExtensionProjectDisabled,
+    onSuccess: (view) => {
+      queryClient.setQueryData(queryKey, view)
+    },
+  })
+}
+
+export function useAcceptExtensionUpdateMutation(projectPaths: readonly string[]) {
+  const queryClient = useQueryClient()
+  const queryKey = extensionPackagesQueryKey(projectPaths)
+
+  return useMutation<ExtensionManagerView, Error, ExtensionAcceptUpdateInput>({
+    mutationFn: acceptExtensionUpdate,
     onSuccess: (view) => {
       queryClient.setQueryData(queryKey, view)
     },

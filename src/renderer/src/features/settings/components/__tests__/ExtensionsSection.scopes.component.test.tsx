@@ -13,6 +13,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     setExtensionTrusted: vi.fn(),
     setExtensionEnabled: vi.fn(),
     setExtensionProjectDisabled: vi.fn(),
+    acceptExtensionUpdate: vi.fn(),
   },
 }))
 

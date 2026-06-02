@@ -16,6 +16,7 @@ interface ExtensionLifecycleRow {
   readonly trusted: number
   readonly granted_capabilities_json: string
   readonly content_hash: string | null
+  readonly package_version: string | null
   readonly sdk_range: string | null
   readonly sdk_compatible: number
   readonly diagnostics_json: string
@@ -87,6 +88,7 @@ function rowToLifecycleState(row: ExtensionLifecycleRow): ExtensionLifecycleStat
       'granted_capabilities_json',
     ),
     contentHash: row.content_hash,
+    packageVersion: row.package_version,
     sdkRange: row.sdk_range,
     sdkCompatible: sqliteToBoolean(row.sdk_compatible),
     diagnostics: decodeJsonField(
@@ -128,6 +130,7 @@ export const SqliteExtensionLifecycleRepositoryLive = Layer.effect(
             trusted,
             granted_capabilities_json,
             content_hash,
+            package_version,
             sdk_range,
             sdk_compatible,
             diagnostics_json,
@@ -154,6 +157,7 @@ export const SqliteExtensionLifecycleRepositoryLive = Layer.effect(
             trusted,
             granted_capabilities_json,
             content_hash,
+            package_version,
             sdk_range,
             sdk_compatible,
             diagnostics_json,
@@ -178,6 +182,7 @@ export const SqliteExtensionLifecycleRepositoryLive = Layer.effect(
             trusted,
             granted_capabilities_json,
             content_hash,
+            package_version,
             sdk_range,
             sdk_compatible,
             diagnostics_json,
@@ -192,6 +197,7 @@ export const SqliteExtensionLifecycleRepositoryLive = Layer.effect(
             ${booleanToSqlite(state.trusted)},
             ${JSON.stringify(state.grantedCapabilities)},
             ${state.contentHash},
+            ${state.packageVersion},
             ${state.sdkRange},
             ${booleanToSqlite(state.sdkCompatible)},
             ${JSON.stringify(state.diagnostics)},
@@ -203,6 +209,7 @@ export const SqliteExtensionLifecycleRepositoryLive = Layer.effect(
             trusted = excluded.trusted,
             granted_capabilities_json = excluded.granted_capabilities_json,
             content_hash = excluded.content_hash,
+            package_version = excluded.package_version,
             sdk_range = excluded.sdk_range,
             sdk_compatible = excluded.sdk_compatible,
             diagnostics_json = excluded.diagnostics_json,

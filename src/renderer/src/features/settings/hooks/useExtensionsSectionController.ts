@@ -7,6 +7,7 @@ import type {
 import { type UseQueryResult, useQuery } from '@tanstack/react-query'
 import {
   extensionPackagesQueryOptions,
+  useAcceptExtensionUpdateMutation,
   useSetExtensionEnabledMutation,
   useSetExtensionProjectDisabledMutation,
   useSetExtensionTrustedMutation,
@@ -34,6 +35,7 @@ export interface ExtensionsSectionController {
     projectPath: string,
     disabled: boolean,
   ) => Promise<void>
+  readonly acceptUpdate: (extensionPackage: ExtensionPackageSummary) => Promise<void>
 }
 
 function describeError(error: unknown) {
@@ -47,6 +49,8 @@ function getUpdatingExtensionId({
   enabledExtensionId,
   projectDisabledPending,
   projectDisabledExtensionId,
+  updatePending,
+  updateExtensionId,
 }: {
   readonly trustedPending: boolean
   readonly trustedExtensionId: string | null
@@ -54,6 +58,8 @@ function getUpdatingExtensionId({
   readonly enabledExtensionId: string | null
   readonly projectDisabledPending: boolean
   readonly projectDisabledExtensionId: string | null
+  readonly updatePending: boolean
+  readonly updateExtensionId: string | null
 }) {
   if (trustedPending) {
     return trustedExtensionId
@@ -64,6 +70,9 @@ function getUpdatingExtensionId({
   if (projectDisabledPending) {
     return projectDisabledExtensionId
   }
+  if (updatePending) {
+    return updateExtensionId
+  }
   return null
 }
 
@@ -71,12 +80,41 @@ function hasPendingMutation({
   trustedPending,
   enabledPending,
   projectDisabledPending,
+  updatePending,
 }: {
   readonly trustedPending: boolean
   readonly enabledPending: boolean
   readonly projectDisabledPending: boolean
+  readonly updatePending: boolean
 }) {
-  return trustedPending || enabledPending || projectDisabledPending
+  return trustedPending || enabledPending || projectDisabledPending || updatePending
+}
+
+function mutationError({
+  trustedError,
+  enabledError,
+  projectDisabledError,
+  updateError,
+}: {
+  readonly trustedError: Error | null
+  readonly enabledError: Error | null
+  readonly projectDisabledError: Error | null
+  readonly updateError: Error | null
+}) {
+  return trustedError ?? enabledError ?? projectDisabledError ?? updateError
+}
+
+function controllerError({
+  queryError,
+  latestMutationError,
+}: {
+  readonly queryError: Error | null
+  readonly latestMutationError: Error | null
+}) {
+  if (queryError) {
+    return describeError(queryError)
+  }
+  return latestMutationError ? describeError(latestMutationError) : null
 }
 
 function packageScopeToMutationScope(
@@ -128,13 +166,19 @@ export function useExtensionsSectionController(
   const trustedMutation = useSetExtensionTrustedMutation(projectPaths)
   const enabledMutation = useSetExtensionEnabledMutation(projectPaths)
   const projectDisabledMutation = useSetExtensionProjectDisabledMutation(projectPaths)
+  const acceptUpdateMutation = useAcceptExtensionUpdateMutation(projectPaths)
   const view: ExtensionManagerView | null = extensionsQuery.data ?? null
-  const mutationError =
-    trustedMutation.error ?? enabledMutation.error ?? projectDisabledMutation.error
+  const latestMutationError = mutationError({
+    trustedError: trustedMutation.error,
+    enabledError: enabledMutation.error,
+    projectDisabledError: projectDisabledMutation.error,
+    updateError: acceptUpdateMutation.error,
+  })
   const pendingMutation = hasPendingMutation({
     trustedPending: trustedMutation.isPending,
     enabledPending: enabledMutation.isPending,
     projectDisabledPending: projectDisabledMutation.isPending,
+    updatePending: acceptUpdateMutation.isPending,
   })
   const updatingExtensionId = getUpdatingExtensionId({
     trustedPending: trustedMutation.isPending,
@@ -143,12 +187,13 @@ export function useExtensionsSectionController(
     enabledExtensionId: enabledMutation.variables?.extensionId ?? null,
     projectDisabledPending: projectDisabledMutation.isPending,
     projectDisabledExtensionId: projectDisabledMutation.variables?.extensionId ?? null,
+    updatePending: acceptUpdateMutation.isPending,
+    updateExtensionId: acceptUpdateMutation.variables?.extensionId ?? null,
   })
-  const error = extensionsQuery.error
-    ? describeError(extensionsQuery.error)
-    : mutationError
-      ? describeError(mutationError)
-      : null
+  const error = controllerError({
+    queryError: extensionsQuery.error,
+    latestMutationError,
+  })
 
   async function refresh() {
     await extensionsQuery.refetch()
@@ -158,6 +203,7 @@ export function useExtensionsSectionController(
     trustedMutation.reset()
     enabledMutation.reset()
     projectDisabledMutation.reset()
+    acceptUpdateMutation.reset()
   }
 
   async function setTrusted(extensionPackage: ExtensionPackageSummary, trusted: boolean) {
@@ -233,6 +279,26 @@ export function useExtensionsSectionController(
     }
   }
 
+  async function acceptUpdate(extensionPackage: ExtensionPackageSummary) {
+    resetMutations()
+    try {
+      await acceptUpdateMutation.mutateAsync({
+        extensionId: extensionPackage.id,
+        scope: packageScopeToMutationScope(extensionPackage),
+        viewProjectPaths: projectPaths,
+      })
+    } catch (error) {
+      logMutationFailure({
+        action: 'acceptUpdate',
+        extensionPackage,
+        projectPath: null,
+        viewProjectPaths: projectPaths,
+        error,
+      })
+      // TanStack stores the mutation error; keep fire-and-forget click handlers from rejecting.
+    }
+  }
+
   return {
     view,
     loading: extensionsQuery.isFetching || pendingMutation,
@@ -242,5 +308,6 @@ export function useExtensionsSectionController(
     setTrusted,
     setEnabled,
     setProjectDisabled,
+    acceptUpdate,
   }
 }

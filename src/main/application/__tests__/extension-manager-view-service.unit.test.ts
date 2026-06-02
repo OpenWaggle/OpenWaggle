@@ -48,6 +48,7 @@ const lifecycleState: ExtensionLifecycleState = {
   trusted: true,
   grantedCapabilities: ['sample.invoke'],
   contentHash: 'abcdef',
+  packageVersion: '1.0.0',
   sdkRange: '>=0.1.0 <0.2.0',
   sdkCompatible: true,
   diagnostics: [],
@@ -121,7 +122,9 @@ describe('listExtensionPackagesView', () => {
       lifecycle: {
         enabled: true,
         trusted: true,
+        updateAvailable: false,
         grantedCapabilities: ['sample.invoke'],
+        packageVersion: '1.0.0',
       },
       projectOverride: {
         projectPath: PROJECT_PATH,
@@ -153,7 +156,9 @@ describe('listExtensionPackagesView', () => {
     expect(view.packages[0]?.lifecycle).toMatchObject({
       enabled: false,
       trusted: false,
+      updateAvailable: true,
       contentHash: 'abcdef',
+      packageVersion: '1.0.0',
     })
   })
 

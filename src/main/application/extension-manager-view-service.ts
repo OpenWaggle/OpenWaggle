@@ -15,6 +15,7 @@ import * as Effect from 'effect/Effect'
 import {
   isExtensionCurrentTrustPin,
   isExtensionRuntimeEnabled,
+  isExtensionUpdateAvailable,
 } from '../extensions/runtime-eligibility'
 import type {
   DiscoveredExtensionPackage,
@@ -108,8 +109,10 @@ function lifecycleToView(
   return {
     enabled,
     trusted,
+    updateAvailable: isExtensionUpdateAvailable({ extensionPackage, lifecycle: state }),
     grantedCapabilities: enabled ? state.grantedCapabilities : [],
     contentHash: state.contentHash,
+    packageVersion: state.packageVersion,
     sdkRange: state.sdkRange,
     sdkCompatible: state.sdkCompatible,
     diagnostics: diagnosticsToView(state.diagnostics),

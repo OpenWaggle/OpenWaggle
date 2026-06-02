@@ -1,12 +1,14 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { type Schema, safeDecodeUnknown } from '@shared/schema'
 import {
+  extensionAcceptUpdateInputSchema,
   extensionListPackagesInputSchema,
   extensionSetEnabledInputSchema,
   extensionSetProjectDisabledInputSchema,
   extensionSetTrustedInputSchema,
 } from '@shared/schemas/extensions'
 import type {
+  ExtensionAcceptUpdateInput,
   ExtensionListPackagesInput,
   ExtensionPackageLifecycleScope,
   ExtensionSetEnabledInput,
@@ -15,6 +17,7 @@ import type {
 } from '@shared/types/extensions'
 import * as Effect from 'effect/Effect'
 import {
+  acceptExtensionUpdate,
   setExtensionEnabled,
   setExtensionProjectDisabled,
   setExtensionTrusted,
@@ -128,6 +131,21 @@ function normalizeProjectDisabledInput(
   })
 }
 
+function normalizeAcceptUpdateInput(
+  raw: unknown,
+): Effect.Effect<ExtensionAcceptUpdateInput, Error> {
+  return Effect.gen(function* () {
+    const decoded = yield* decodeSchema(extensionAcceptUpdateInputSchema, raw)
+    const scope = yield* validateLifecycleScope(decoded.scope)
+    const viewProjectPaths = yield* validateProjectPaths(decoded.viewProjectPaths)
+    return {
+      ...decoded,
+      scope,
+      viewProjectPaths,
+    }
+  })
+}
+
 export function registerExtensionsHandlers(): void {
   typedHandle('extensions:list-packages', (_event, input?: unknown) =>
     Effect.gen(function* () {
@@ -154,6 +172,13 @@ export function registerExtensionsHandlers(): void {
     Effect.gen(function* () {
       const normalizedInput = yield* normalizeProjectDisabledInput(input)
       return yield* setExtensionProjectDisabled(normalizedInput)
+    }),
+  )
+
+  typedHandle('extensions:accept-update', (_event, input: unknown) =>
+    Effect.gen(function* () {
+      const normalizedInput = yield* normalizeAcceptUpdateInput(input)
+      return yield* acceptExtensionUpdate(normalizedInput)
     }),
   )
 }

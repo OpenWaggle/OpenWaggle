@@ -2,6 +2,7 @@ import type { AgentSendPayload } from './agent'
 import type { SessionBranchId, SessionId, SessionNodeId } from './brand'
 import type { ContextCompactionResult, ContextUsageSnapshot } from './context-usage'
 import type {
+  ExtensionAcceptUpdateInput,
   ExtensionListPackagesInput,
   ExtensionManagerView,
   ExtensionSetEnabledInput,
@@ -106,6 +107,10 @@ export interface IpcCoreInvokeChannelMap {
   }
   'extensions:set-project-disabled': {
     args: [input: ExtensionSetProjectDisabledInput]
+    return: ExtensionManagerView
+  }
+  'extensions:accept-update': {
+    args: [input: ExtensionAcceptUpdateInput]
     return: ExtensionManagerView
   }
   'project:select-folder': {

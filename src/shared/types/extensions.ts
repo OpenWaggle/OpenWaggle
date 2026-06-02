@@ -53,6 +53,8 @@ export interface ExtensionSetProjectDisabledInput extends ExtensionLifecycleMuta
   readonly disabled: boolean
 }
 
+export type ExtensionAcceptUpdateInput = ExtensionLifecycleMutationTarget
+
 export interface ExtensionSdkCompatibilityView {
   readonly hostVersion: string
   readonly requiredRange: string
@@ -78,8 +80,10 @@ export interface ExtensionManifestSummary {
 export interface ExtensionLifecycleView {
   readonly enabled: boolean
   readonly trusted: boolean
+  readonly updateAvailable: boolean
   readonly grantedCapabilities: readonly string[]
   readonly contentHash: string | null
+  readonly packageVersion: string | null
   readonly sdkRange: string | null
   readonly sdkCompatible: boolean
   readonly diagnostics: readonly ExtensionDiagnosticView[]

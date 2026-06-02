@@ -60,6 +60,7 @@ export interface ExtensionLifecycleState extends ExtensionLifecycleKey {
   readonly trusted: boolean
   readonly grantedCapabilities: readonly string[]
   readonly contentHash: string | null
+  readonly packageVersion: string | null
   readonly sdkRange: string | null
   readonly sdkCompatible: boolean
   readonly diagnostics: readonly ExtensionDiagnostic[]

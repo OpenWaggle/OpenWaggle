@@ -17,6 +17,18 @@ export function isExtensionCurrentTrustPin(input: {
   )
 }
 
+export function isExtensionUpdateAvailable(input: {
+  readonly extensionPackage: DiscoveredExtensionPackage
+  readonly lifecycle: ExtensionLifecycleState | null
+}) {
+  return (
+    input.lifecycle?.trusted === true &&
+    input.lifecycle.contentHash !== null &&
+    input.extensionPackage.contentHash !== null &&
+    input.lifecycle.contentHash !== input.extensionPackage.contentHash
+  )
+}
+
 export function isExtensionRuntimeEnabled(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly lifecycle: ExtensionLifecycleState | null

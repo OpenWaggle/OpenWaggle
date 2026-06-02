@@ -15,6 +15,14 @@ export const OPENWAGGLE_EXTENSION = {
     ENABLE_ACTION_LABEL: 'Enable for project',
     REQUIRED_PROJECT_PATH_ERROR: 'Project path is required to set a project extension override.',
   },
+  LIFECYCLE: {
+    UPDATE_AVAILABLE_LABEL: 'Update available',
+    APPROVE_UPDATE_ACTION_LABEL: 'Approve update',
+    NO_UPDATE_AVAILABLE_ERROR: 'No extension update is available.',
+    UNTRUSTED_UPDATE_ERROR: 'Trust this extension before approving updates.',
+    APPROVE_UPDATE_REQUIRED_ERROR:
+      'Approve the extension update before trusting the changed package.',
+  },
   LIMITS: {
     ID_MAX_LENGTH: 96,
     CONTRIBUTION_ID_MAX_LENGTH: 128,

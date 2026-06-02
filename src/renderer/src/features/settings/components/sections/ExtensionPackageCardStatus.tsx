@@ -6,6 +6,7 @@ import type {
 } from '@shared/types/extensions'
 import { AlertTriangle, ShieldCheck } from 'lucide-react'
 import { cn } from '@/shared/lib/cn'
+import { hasErrorDiagnostics, isSdkCompatible } from './extension-package-card-model'
 
 type StatusPillTone = 'neutral' | 'good' | 'warning' | 'error'
 
@@ -28,18 +29,6 @@ function StatusPill({
       {children}
     </span>
   )
-}
-
-export function packageTitle(extensionPackage: ExtensionPackageSummary) {
-  return extensionPackage.manifest?.name ?? extensionPackage.id
-}
-
-export function hasErrorDiagnostics(extensionPackage: ExtensionPackageSummary) {
-  return extensionPackage.diagnostics.some((diagnostic) => diagnostic.severity === 'error')
-}
-
-export function isSdkCompatible(extensionPackage: ExtensionPackageSummary) {
-  return extensionPackage.sdkCompatibility?.compatible ?? false
 }
 
 function projectOverridePill(
@@ -118,6 +107,11 @@ export function PackageStatusPills({
       <StatusPill tone={lifecycle?.trusted ? 'good' : 'warning'}>
         {lifecycle?.trusted ? 'Trusted' : 'Untrusted'}
       </StatusPill>
+      {lifecycle?.updateAvailable ? (
+        <StatusPill tone="warning">
+          {OPENWAGGLE_EXTENSION.LIFECYCLE.UPDATE_AVAILABLE_LABEL}
+        </StatusPill>
+      ) : null}
       <StatusPill tone={sdkStatus.tone}>{sdkStatus.label}</StatusPill>
     </>
   )
