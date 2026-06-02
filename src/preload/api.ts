@@ -82,6 +82,7 @@ export const api: OpenWaggleApi = {
   listExtensionPackages: invoke('extensions:list-packages'),
   setExtensionTrusted: invoke('extensions:set-trusted'),
   setExtensionEnabled: invoke('extensions:set-enabled'),
+  setExtensionProjectDisabled: invoke('extensions:set-project-disabled'),
 
   // Providers
   getProviderModels: invoke('providers:get-models'),

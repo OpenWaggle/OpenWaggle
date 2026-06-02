@@ -6,6 +6,7 @@ import { jsonObjectSchema, projectSettingsFileSchema } from '@shared/schemas/val
 import type { JsonObject, JsonValue } from '@shared/types/json'
 import {
   isStringArray,
+  type OpenWaggleResourcePrecedenceOptions,
   PI_CONFIG_DIR,
   withOpenWaggleResourcePrecedence,
   withoutImplicitOpenWaggleResourcePrecedence,
@@ -22,7 +23,7 @@ interface SettingsStorageLike {
   withLock(scope: SettingsScope, fn: (current: string | undefined) => string | undefined): void
 }
 
-interface OpenWagglePiSettingsManagerOptions {
+interface OpenWagglePiSettingsManagerOptions extends OpenWaggleResourcePrecedenceOptions {
   readonly excludedGlobalPackageSources?: readonly string[]
   readonly excludedProjectPackageSources?: readonly string[]
 }
@@ -199,7 +200,7 @@ function serializeOpenWaggleSettings(value: ParsedProjectSettingsFile) {
   return `${JSON.stringify(value, null, JSON_INDENT_SPACES)}\n`
 }
 
-function readProjectPiSettings(projectPath: string) {
+function readProjectPiSettings(projectPath: string, options: OpenWagglePiSettingsManagerOptions) {
   const piProjectSettings = parseJsonObject(
     readFileIfPresent(getPiProjectSettingsPath(projectPath)),
   )
@@ -210,13 +211,18 @@ function readProjectPiSettings(projectPath: string) {
   const mergedSettings = isJsonObject(openWagglePiSettings)
     ? mergeJsonObjects(piProjectSettings, openWagglePiSettings)
     : piProjectSettings
-  return withOpenWaggleResourcePrecedence(projectPath, mergedSettings)
+  return withOpenWaggleResourcePrecedence(projectPath, mergedSettings, options)
 }
 
-function writeProjectPiSettings(projectPath: string, nextPiSettings: string) {
+function writeProjectPiSettings(
+  projectPath: string,
+  nextPiSettings: string,
+  options: OpenWagglePiSettingsManagerOptions,
+) {
   const nextPi = withoutImplicitOpenWaggleResourcePrecedence(
     projectPath,
     parseJsonObject(nextPiSettings),
+    options,
   )
   const settingsPath = getOpenWaggleProjectSettingsPath(projectPath)
   const currentOpenWaggleSettings = parseOpenWaggleSettings(readFileIfPresent(settingsPath))
@@ -238,7 +244,7 @@ function createOpenWagglePiSettingsStorage(
         return
       }
 
-      const current = serializeJsonObject(readProjectPiSettings(projectPath))
+      const current = serializeJsonObject(readProjectPiSettings(projectPath, options))
       const visibleCurrent = withoutExcludedPackages(current, options.excludedProjectPackageSources)
       const next = withPreservedExcludedPackages(
         current,
@@ -246,7 +252,7 @@ function createOpenWagglePiSettingsStorage(
         options.excludedProjectPackageSources,
       )
       if (next !== undefined) {
-        writeProjectPiSettings(projectPath, next)
+        writeProjectPiSettings(projectPath, next, options)
       }
     },
   }

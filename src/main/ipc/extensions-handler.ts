@@ -1,29 +1,60 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { type Schema, safeDecodeUnknown } from '@shared/schema'
 import {
+  extensionListPackagesInputSchema,
   extensionSetEnabledInputSchema,
+  extensionSetProjectDisabledInputSchema,
   extensionSetTrustedInputSchema,
 } from '@shared/schemas/extensions'
 import type {
+  ExtensionListPackagesInput,
   ExtensionPackageLifecycleScope,
   ExtensionSetEnabledInput,
+  ExtensionSetProjectDisabledInput,
   ExtensionSetTrustedInput,
 } from '@shared/types/extensions'
 import * as Effect from 'effect/Effect'
 import {
   setExtensionEnabled,
+  setExtensionProjectDisabled,
   setExtensionTrusted,
 } from '../application/extension-lifecycle-service'
 import { listExtensionPackagesView } from '../application/extension-manager-view-service'
-import { validateProjectPath } from './project-path-validation'
+import { validateProjectPath, validateRequiredProjectPath } from './project-path-validation'
 import { typedHandle } from './typed-ipc'
 
-function decodeProjectPathArg(value: unknown) {
-  if (typeof value === 'string' || value === null || value === undefined) {
-    return Effect.succeed(value)
+function dedupeProjectPaths(projectPaths: readonly string[]) {
+  const deduped: string[] = []
+  for (const projectPath of projectPaths) {
+    if (!deduped.includes(projectPath)) {
+      deduped.push(projectPath)
+    }
+  }
+  return deduped
+}
+
+function validateProjectPaths(
+  projectPaths: readonly string[] | undefined,
+): Effect.Effect<readonly string[], Error> {
+  if (!projectPaths) {
+    return Effect.succeed([])
   }
 
-  return Effect.fail(new Error('Project path must be a string, null, or undefined.'))
+  return Effect.forEach(projectPaths, (projectPath) =>
+    validateRequiredProjectPath(projectPath),
+  ).pipe(Effect.map(dedupeProjectPaths))
+}
+
+function decodeListPackagesInput(raw: unknown): Effect.Effect<ExtensionListPackagesInput, Error> {
+  return Effect.gen(function* () {
+    if (raw === undefined) {
+      return { projectPaths: [] }
+    }
+
+    const decoded = yield* decodeSchema(extensionListPackagesInputSchema, raw)
+    const projectPaths = yield* validateProjectPaths(decoded.projectPaths)
+    return { projectPaths }
+  })
 }
 
 function decodeSchema<A, I>(schema: Schema.Schema<A, I, never>, value: unknown) {
@@ -58,11 +89,11 @@ function normalizeTrustedInput(raw: unknown): Effect.Effect<ExtensionSetTrustedI
   return Effect.gen(function* () {
     const decoded = yield* decodeSchema(extensionSetTrustedInputSchema, raw)
     const scope = yield* validateLifecycleScope(decoded.scope)
-    const viewProjectPath = yield* validateProjectPath(decoded.viewProjectPath)
+    const viewProjectPaths = yield* validateProjectPaths(decoded.viewProjectPaths)
     return {
       ...decoded,
       scope,
-      viewProjectPath: viewProjectPath ?? null,
+      viewProjectPaths,
     }
   })
 }
@@ -71,21 +102,37 @@ function normalizeEnabledInput(raw: unknown): Effect.Effect<ExtensionSetEnabledI
   return Effect.gen(function* () {
     const decoded = yield* decodeSchema(extensionSetEnabledInputSchema, raw)
     const scope = yield* validateLifecycleScope(decoded.scope)
-    const viewProjectPath = yield* validateProjectPath(decoded.viewProjectPath)
+    const viewProjectPaths = yield* validateProjectPaths(decoded.viewProjectPaths)
     return {
       ...decoded,
       scope,
-      viewProjectPath: viewProjectPath ?? null,
+      viewProjectPaths,
+    }
+  })
+}
+
+function normalizeProjectDisabledInput(
+  raw: unknown,
+): Effect.Effect<ExtensionSetProjectDisabledInput, Error> {
+  return Effect.gen(function* () {
+    const decoded = yield* decodeSchema(extensionSetProjectDisabledInputSchema, raw)
+    const scope = yield* validateLifecycleScope(decoded.scope)
+    const projectPath = yield* validateRequiredProjectPath(decoded.projectPath)
+    const viewProjectPaths = yield* validateProjectPaths(decoded.viewProjectPaths)
+    return {
+      ...decoded,
+      scope,
+      projectPath,
+      viewProjectPaths,
     }
   })
 }
 
 export function registerExtensionsHandlers(): void {
-  typedHandle('extensions:list-packages', (_event, projectPath?: string | null) =>
+  typedHandle('extensions:list-packages', (_event, input?: unknown) =>
     Effect.gen(function* () {
-      const decodedProjectPath = yield* decodeProjectPathArg(projectPath)
-      const validatedProjectPath = yield* validateProjectPath(decodedProjectPath)
-      return yield* listExtensionPackagesView(validatedProjectPath ?? null)
+      const decoded = yield* decodeListPackagesInput(input)
+      return yield* listExtensionPackagesView(decoded)
     }),
   )
 
@@ -100,6 +147,13 @@ export function registerExtensionsHandlers(): void {
     Effect.gen(function* () {
       const normalizedInput = yield* normalizeEnabledInput(input)
       return yield* setExtensionEnabled(normalizedInput)
+    }),
+  )
+
+  typedHandle('extensions:set-project-disabled', (_event, input: unknown) =>
+    Effect.gen(function* () {
+      const normalizedInput = yield* normalizeProjectDisabledInput(input)
+      return yield* setExtensionProjectDisabled(normalizedInput)
     }),
   )
 }

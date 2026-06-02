@@ -159,6 +159,7 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
     modelReference: initialRuntimeModel,
     payload: input.payload,
     skillToggles: input.skillToggles,
+    enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths,
     extensionFactories: [waggleExtension.factory],
   })
 

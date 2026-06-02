@@ -1,5 +1,6 @@
 import {
-  CURRENT_EXTENSION_SCHEMA_STATEMENTS,
+  CURRENT_EXTENSION_LIFECYCLE_SCHEMA_STATEMENTS,
+  CURRENT_EXTENSION_PROJECT_OVERRIDE_SCHEMA_STATEMENTS,
   CURRENT_SESSION_SCHEMA_STATEMENTS,
 } from './database-schema'
 
@@ -171,6 +172,11 @@ export const APP_MIGRATIONS: readonly AppMigration[] = [
   {
     id: 12,
     name: 'extension-lifecycle-state',
-    statements: [...CURRENT_EXTENSION_SCHEMA_STATEMENTS],
+    statements: [...CURRENT_EXTENSION_LIFECYCLE_SCHEMA_STATEMENTS],
+  },
+  {
+    id: 13,
+    name: 'extension-project-overrides',
+    statements: [...CURRENT_EXTENSION_PROJECT_OVERRIDE_SCHEMA_STATEMENTS],
   },
 ]

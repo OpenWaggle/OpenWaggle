@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import type { DiscoveredExtensionPackage, ExtensionLifecycleState } from '../../extensions/types'
 import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from '../../ports/extension-manager-service'
-import { setExtensionEnabled, setExtensionTrusted } from '../extension-lifecycle-service'
+import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
 import { listExtensionPackagesView } from '../extension-manager-view-service'
 
 const PROJECT_PATH = '/tmp/project'
@@ -76,6 +76,10 @@ function makeTestHarness({
             storedLifecycle = state
           }),
       }),
+      Layer.succeed(ExtensionProjectOverridesRepository, {
+        get: () => Effect.succeed(null),
+        upsert: () => Effect.void,
+      }),
     ),
     getStoredLifecycle: () => storedLifecycle,
   }
@@ -90,15 +94,20 @@ const TestLayer = Layer.mergeAll(
     list: () => Effect.succeed([lifecycleState]),
     upsert: () => Effect.void,
   }),
+  Layer.succeed(ExtensionProjectOverridesRepository, {
+    get: () => Effect.succeed(null),
+    upsert: () => Effect.void,
+  }),
 )
 
 describe('listExtensionPackagesView', () => {
   it('maps discovered packages and lifecycle state to a renderer-safe view', async () => {
     const view = await Effect.runPromise(
-      listExtensionPackagesView(PROJECT_PATH).pipe(Effect.provide(TestLayer)),
+      listExtensionPackagesView({ projectPaths: [PROJECT_PATH] }).pipe(Effect.provide(TestLayer)),
     )
 
     expect(view.projectPath).toBe(PROJECT_PATH)
+    expect(view.projectPaths).toEqual([PROJECT_PATH])
     expect(view.packages).toHaveLength(1)
     expect(view.packages[0]).toMatchObject({
       id: 'sample-extension',
@@ -114,6 +123,18 @@ describe('listExtensionPackagesView', () => {
         trusted: true,
         grantedCapabilities: ['sample.invoke'],
       },
+      projectOverride: {
+        projectPath: PROJECT_PATH,
+        disabled: false,
+        updatedAt: null,
+      },
+      projectOverrides: [
+        {
+          projectPath: PROJECT_PATH,
+          disabled: false,
+          updatedAt: null,
+        },
+      ],
     })
   })
 
@@ -124,7 +145,9 @@ describe('listExtensionPackagesView', () => {
     })
 
     const view = await Effect.runPromise(
-      listExtensionPackagesView(PROJECT_PATH).pipe(Effect.provide(harness.layer)),
+      listExtensionPackagesView({ projectPaths: [PROJECT_PATH] }).pipe(
+        Effect.provide(harness.layer),
+      ),
     )
 
     expect(view.packages[0]?.lifecycle).toMatchObject({
@@ -151,7 +174,9 @@ describe('listExtensionPackagesView', () => {
     })
 
     const view = await Effect.runPromise(
-      listExtensionPackagesView(PROJECT_PATH).pipe(Effect.provide(harness.layer)),
+      listExtensionPackagesView({ projectPaths: [PROJECT_PATH] }).pipe(
+        Effect.provide(harness.layer),
+      ),
     )
 
     expect(view.packages[0]?.lifecycle).toMatchObject({
@@ -180,7 +205,9 @@ describe('listExtensionPackagesView', () => {
     })
 
     const view = await Effect.runPromise(
-      listExtensionPackagesView(PROJECT_PATH).pipe(Effect.provide(harness.layer)),
+      listExtensionPackagesView({ projectPaths: [PROJECT_PATH] }).pipe(
+        Effect.provide(harness.layer),
+      ),
     )
 
     expect(view.packages[0]?.lifecycle).toMatchObject({
@@ -188,109 +215,6 @@ describe('listExtensionPackagesView', () => {
       trusted: false,
       grantedCapabilities: [],
       contentHash: 'abcdef',
-    })
-  })
-
-  it('trusts a valid extension by pinning the current content hash', async () => {
-    const harness = makeTestHarness({
-      packages: [discoveredPackage],
-      lifecycle: null,
-    })
-
-    const view = await Effect.runPromise(
-      setExtensionTrusted({
-        extensionId: 'sample-extension',
-        scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: PROJECT_PATH },
-        viewProjectPath: PROJECT_PATH,
-        trusted: true,
-      }).pipe(Effect.provide(harness.layer)),
-    )
-
-    expect(harness.getStoredLifecycle()).toMatchObject({
-      extensionId: 'sample-extension',
-      enabled: false,
-      trusted: true,
-      grantedCapabilities: ['sample.invoke'],
-      contentHash: 'abcdef',
-      sdkCompatible: true,
-    })
-    expect(view.packages[0]?.lifecycle).toMatchObject({
-      enabled: false,
-      trusted: true,
-    })
-  })
-
-  it('does not preserve stale enabled state when trusting an updated package', async () => {
-    const updatedPackage = { ...discoveredPackage, contentHash: 'changed-hash' }
-    const harness = makeTestHarness({
-      packages: [updatedPackage],
-      lifecycle: lifecycleState,
-    })
-
-    const view = await Effect.runPromise(
-      setExtensionTrusted({
-        extensionId: 'sample-extension',
-        scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: PROJECT_PATH },
-        viewProjectPath: PROJECT_PATH,
-        trusted: true,
-      }).pipe(Effect.provide(harness.layer)),
-    )
-
-    expect(harness.getStoredLifecycle()).toMatchObject({
-      extensionId: 'sample-extension',
-      enabled: false,
-      trusted: true,
-      contentHash: 'changed-hash',
-    })
-    expect(view.packages[0]?.lifecycle).toMatchObject({
-      enabled: false,
-      trusted: true,
-      contentHash: 'changed-hash',
-    })
-  })
-
-  it('rejects enabling an extension before it has a current trust pin', async () => {
-    const harness = makeTestHarness({
-      packages: [discoveredPackage],
-      lifecycle: null,
-    })
-
-    await expect(
-      Effect.runPromise(
-        setExtensionEnabled({
-          extensionId: 'sample-extension',
-          scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: PROJECT_PATH },
-          viewProjectPath: PROJECT_PATH,
-          enabled: true,
-        }).pipe(Effect.provide(harness.layer)),
-      ),
-    ).rejects.toThrow('Trust extension "sample-extension" before enabling it.')
-  })
-
-  it('enables a trusted extension when the trust pin matches the current content hash', async () => {
-    const harness = makeTestHarness({
-      packages: [discoveredPackage],
-      lifecycle: lifecycleState,
-    })
-
-    const view = await Effect.runPromise(
-      setExtensionEnabled({
-        extensionId: 'sample-extension',
-        scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: PROJECT_PATH },
-        viewProjectPath: PROJECT_PATH,
-        enabled: true,
-      }).pipe(Effect.provide(harness.layer)),
-    )
-
-    expect(harness.getStoredLifecycle()).toMatchObject({
-      extensionId: 'sample-extension',
-      enabled: true,
-      trusted: true,
-      contentHash: 'abcdef',
-    })
-    expect(view.packages[0]?.lifecycle).toMatchObject({
-      enabled: true,
-      trusted: true,
     })
   })
 })

@@ -16,6 +16,7 @@ export async function runPiSession(input: AgentKernelRunInput) {
     modelReference: input.model,
     payload: input.payload,
     skillToggles: input.skillToggles,
+    enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths,
   })
 
   const unsubscribe = session.subscribe(createSessionListener(input, input.runId))

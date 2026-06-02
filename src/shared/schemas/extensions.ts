@@ -110,6 +110,12 @@ export const extensionLifecycleScopeSchema = Schema.Union(
   }),
 )
 
+const extensionViewProjectPathsSchema = Schema.mutable(Schema.Array(nonEmptyStringSchema))
+
+export const extensionListPackagesInputSchema = Schema.Struct({
+  projectPaths: Schema.optional(extensionViewProjectPathsSchema),
+})
+
 export const extensionCapabilityDeclarationSchema = Schema.Struct({
   id: extensionContributionIdSchema,
   methods: Schema.optional(Schema.mutable(Schema.Array(extensionContributionIdSchema))),
@@ -192,15 +198,23 @@ export const openWaggleExtensionManifestSchema = Schema.Struct({
 export const extensionSetTrustedInputSchema = Schema.Struct({
   extensionId: extensionIdSchema,
   scope: extensionLifecycleScopeSchema,
-  viewProjectPath: Schema.optional(Schema.NullOr(Schema.String)),
+  viewProjectPaths: Schema.optional(extensionViewProjectPathsSchema),
   trusted: Schema.Boolean,
 })
 
 export const extensionSetEnabledInputSchema = Schema.Struct({
   extensionId: extensionIdSchema,
   scope: extensionLifecycleScopeSchema,
-  viewProjectPath: Schema.optional(Schema.NullOr(Schema.String)),
+  viewProjectPaths: Schema.optional(extensionViewProjectPathsSchema),
   enabled: Schema.Boolean,
+})
+
+export const extensionSetProjectDisabledInputSchema = Schema.Struct({
+  extensionId: extensionIdSchema,
+  scope: extensionLifecycleScopeSchema,
+  viewProjectPaths: Schema.optional(extensionViewProjectPathsSchema),
+  projectPath: nonEmptyStringSchema,
+  disabled: Schema.Boolean,
 })
 
 export type OpenWaggleExtensionManifest = SchemaType<typeof openWaggleExtensionManifestSchema>

@@ -1,10 +1,14 @@
-import { join } from 'node:path'
+import { isAbsolute, join, relative, resolve } from 'node:path'
 import type { JsonObject, JsonValue } from '@shared/types/json'
 
 const OPENWAGGLE_CONFIG_DIR = '.openwaggle'
 export const PI_CONFIG_DIR = '.pi'
 type ResourceKind = 'skills' | 'extensions' | 'prompts' | 'themes'
 type ResourceRootSegments = Readonly<Record<ResourceKind, readonly string[]>>
+
+export interface OpenWaggleResourcePrecedenceOptions {
+  readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
+}
 
 const OPENWAGGLE_RESOURCE_ROOTS: ResourceRootSegments = {
   skills: ['..', OPENWAGGLE_CONFIG_DIR, 'skills'],
@@ -32,13 +36,13 @@ export function isStringArray(value: JsonValue | undefined) {
 function prependResourceRoots(
   projectPath: string,
   configured: JsonValue | undefined,
-  roots: readonly (readonly string[])[],
+  roots: readonly string[],
 ) {
   const result: string[] = []
   const seen = new Set<string>()
 
   function addPath(candidate: string) {
-    const resolved = join(projectPath, PI_CONFIG_DIR, candidate)
+    const resolved = resolveResourcePath(projectPath, candidate)
     if (seen.has(resolved)) {
       return
     }
@@ -47,7 +51,7 @@ function prependResourceRoots(
   }
 
   for (const root of roots) {
-    addPath(join(...root))
+    addPath(root)
   }
   if (isStringArray(configured)) {
     for (const configuredPath of configured) {
@@ -58,38 +62,95 @@ function prependResourceRoots(
   return result
 }
 
+function segmentsToPath(segments: readonly string[]) {
+  return join(...segments)
+}
+
+function resolveResourcePath(projectPath: string, candidate: string) {
+  return isAbsolute(candidate) ? candidate : join(projectPath, PI_CONFIG_DIR, candidate)
+}
+
+function isInsideProject(projectPath: string, packagePath: string) {
+  const relativePath = relative(resolve(projectPath), resolve(packagePath))
+  return relativePath.length === 0 || (!relativePath.startsWith('..') && !isAbsolute(relativePath))
+}
+
+function toPiExtensionPath(projectPath: string, packagePath: string) {
+  const normalizedPackagePath = resolve(packagePath)
+  return isInsideProject(projectPath, normalizedPackagePath)
+    ? relative(join(projectPath, PI_CONFIG_DIR), normalizedPackagePath)
+    : normalizedPackagePath
+}
+
 function getImplicitResourceRoots(kind: ResourceKind) {
   if (kind === 'skills') {
     return [
-      OPENWAGGLE_RESOURCE_ROOTS.skills,
-      PI_RESOURCE_ROOTS.skills,
-      AGENTS_RESOURCE_ROOTS.skills,
+      segmentsToPath(OPENWAGGLE_RESOURCE_ROOTS.skills),
+      segmentsToPath(PI_RESOURCE_ROOTS.skills),
+      segmentsToPath(AGENTS_RESOURCE_ROOTS.skills),
     ]
   }
   if (kind === 'extensions') {
     return [
-      OPENWAGGLE_RESOURCE_ROOTS.extensions,
-      PI_RESOURCE_ROOTS.extensions,
-      AGENTS_RESOURCE_ROOTS.extensions,
+      segmentsToPath(OPENWAGGLE_RESOURCE_ROOTS.extensions),
+      segmentsToPath(PI_RESOURCE_ROOTS.extensions),
+      segmentsToPath(AGENTS_RESOURCE_ROOTS.extensions),
     ]
   }
   if (kind === 'prompts') {
     return [
-      OPENWAGGLE_RESOURCE_ROOTS.prompts,
-      PI_RESOURCE_ROOTS.prompts,
-      AGENTS_RESOURCE_ROOTS.prompts,
+      segmentsToPath(OPENWAGGLE_RESOURCE_ROOTS.prompts),
+      segmentsToPath(PI_RESOURCE_ROOTS.prompts),
+      segmentsToPath(AGENTS_RESOURCE_ROOTS.prompts),
     ]
   }
-  return [OPENWAGGLE_RESOURCE_ROOTS.themes, PI_RESOURCE_ROOTS.themes, AGENTS_RESOURCE_ROOTS.themes]
+  return [
+    segmentsToPath(OPENWAGGLE_RESOURCE_ROOTS.themes),
+    segmentsToPath(PI_RESOURCE_ROOTS.themes),
+    segmentsToPath(AGENTS_RESOURCE_ROOTS.themes),
+  ]
 }
-export function withOpenWaggleResourcePrecedence(projectPath: string, settings: JsonObject) {
+
+function getImplicitExtensionResourceRoots(
+  projectPath: string,
+  options: OpenWaggleResourcePrecedenceOptions,
+) {
+  const openWaggleExtensionRoots =
+    options.enabledOpenWaggleExtensionPackagePaths === undefined
+      ? [segmentsToPath(OPENWAGGLE_RESOURCE_ROOTS.extensions)]
+      : options.enabledOpenWaggleExtensionPackagePaths.map((packagePath) =>
+          toPiExtensionPath(projectPath, packagePath),
+        )
+
+  return [
+    ...openWaggleExtensionRoots,
+    segmentsToPath(PI_RESOURCE_ROOTS.extensions),
+    segmentsToPath(AGENTS_RESOURCE_ROOTS.extensions),
+  ]
+}
+
+function getRemovableImplicitExtensionResourceRoots(
+  projectPath: string,
+  options: OpenWaggleResourcePrecedenceOptions,
+) {
+  return [
+    segmentsToPath(OPENWAGGLE_RESOURCE_ROOTS.extensions),
+    ...getImplicitExtensionResourceRoots(projectPath, options),
+  ]
+}
+
+export function withOpenWaggleResourcePrecedence(
+  projectPath: string,
+  settings: JsonObject,
+  options: OpenWaggleResourcePrecedenceOptions = {},
+) {
   return {
     ...settings,
     skills: prependResourceRoots(projectPath, settings.skills, getImplicitResourceRoots('skills')),
     extensions: prependResourceRoots(
       projectPath,
       settings.extensions,
-      getImplicitResourceRoots('extensions'),
+      getImplicitExtensionResourceRoots(projectPath, options),
     ),
     prompts: prependResourceRoots(
       projectPath,
@@ -104,16 +165,20 @@ function removeImplicitResourceRoots(
   projectPath: string,
   configured: JsonValue | undefined,
   kind: ResourceKind,
+  options: OpenWaggleResourcePrecedenceOptions,
 ) {
   if (!isStringArray(configured)) {
     return undefined
   }
 
   const implicitRoots = new Set(
-    getImplicitResourceRoots(kind).map((root) => join(projectPath, PI_CONFIG_DIR, join(...root))),
+    (kind === 'extensions'
+      ? getRemovableImplicitExtensionResourceRoots(projectPath, options)
+      : getImplicitResourceRoots(kind)
+    ).map((root) => resolveResourcePath(projectPath, root)),
   )
   const filtered = configured.filter(
-    (configuredPath) => !implicitRoots.has(join(projectPath, PI_CONFIG_DIR, configuredPath)),
+    (configuredPath) => !implicitRoots.has(resolveResourcePath(projectPath, configuredPath)),
   )
   return filtered.length > 0 ? filtered : undefined
 }
@@ -121,12 +186,18 @@ function removeImplicitResourceRoots(
 export function withoutImplicitOpenWaggleResourcePrecedence(
   projectPath: string,
   settings: JsonObject,
+  options: OpenWaggleResourcePrecedenceOptions = {},
 ) {
   const next: JsonObject = { ...settings }
-  const skills = removeImplicitResourceRoots(projectPath, settings.skills, 'skills')
-  const extensions = removeImplicitResourceRoots(projectPath, settings.extensions, 'extensions')
-  const prompts = removeImplicitResourceRoots(projectPath, settings.prompts, 'prompts')
-  const themes = removeImplicitResourceRoots(projectPath, settings.themes, 'themes')
+  const skills = removeImplicitResourceRoots(projectPath, settings.skills, 'skills', options)
+  const extensions = removeImplicitResourceRoots(
+    projectPath,
+    settings.extensions,
+    'extensions',
+    options,
+  )
+  const prompts = removeImplicitResourceRoots(projectPath, settings.prompts, 'prompts', options)
+  const themes = removeImplicitResourceRoots(projectPath, settings.themes, 'themes', options)
 
   if (skills) {
     next.skills = skills

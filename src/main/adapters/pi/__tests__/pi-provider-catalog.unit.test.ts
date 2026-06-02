@@ -153,7 +153,6 @@ describe('createPiRuntimeServices', () => {
       'skills/custom',
     ])
     expect(projectSettings.extensions).toEqual([
-      path.join('..', '.openwaggle', 'extensions'),
       'extensions',
       path.join('..', '.agents', 'extensions'),
       'extensions/custom',

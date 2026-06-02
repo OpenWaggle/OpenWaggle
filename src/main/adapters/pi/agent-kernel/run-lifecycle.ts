@@ -70,12 +70,16 @@ export async function createPiRunSessionRuntime(input: {
   readonly payload: HydratedAgentSendPayload
   readonly modelReference: AgentKernelRunInput['model']
   readonly skillToggles?: Readonly<Record<string, boolean>>
+  readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   readonly extensionFactories?: readonly ExtensionFactory[]
 }): Promise<PiRunSessionRuntime> {
   const { model, services } = await createPiProjectModelRuntime({
     projectPath: input.projectPath,
     modelReference: input.modelReference,
     ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
+    ...(input.enabledOpenWaggleExtensionPackagePaths
+      ? { enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths }
+      : {}),
     ...(input.extensionFactories ? { extensionFactories: [...input.extensionFactories] } : {}),
   })
   const sessionManager = createSessionManagerForSession(input.session, input.projectPath)

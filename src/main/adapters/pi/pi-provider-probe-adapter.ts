@@ -2,16 +2,29 @@ import { createAgentSessionFromServices, SessionManager } from '@mariozechner/pi
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { createLogger } from '../../logger'
+import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-repository'
+import { ExtensionManagerService } from '../../ports/extension-manager-service'
+import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
 import { type ProviderProbeInput, ProviderProbeService } from '../../ports/provider-probe-service'
+import {
+  listRuntimeEnabledOpenWaggleExtensionPackagePathsFromServices,
+  type OpenWagglePiExtensionSelectionServices,
+} from './openwaggle-pi-extension-selection'
 import { createPiRuntimeServices } from './pi-provider-catalog'
 
 const logger = createLogger('pi-provider-probe')
 const PROVIDER_PROBE_PROMPT = 'Reply with exactly OK and nothing else.'
 const PROVIDER_PROBE_TIMEOUT_MS = 15_000
 
-async function runPiPromptProbe(input: ProviderProbeInput) {
+async function runPiPromptProbe(
+  input: ProviderProbeInput,
+  enabledOpenWaggleExtensionPackagePaths: readonly string[],
+) {
   const cwd = input.projectPath ?? process.cwd()
-  const services = await createPiRuntimeServices(cwd, { loadMcpAdapter: false })
+  const services = await createPiRuntimeServices(cwd, {
+    enabledOpenWaggleExtensionPackagePaths,
+    loadMcpAdapter: false,
+  })
   if (input.apiKey) {
     services.authStorage.setRuntimeApiKey(input.providerId, input.apiKey)
   }
@@ -55,17 +68,50 @@ async function runPiPromptProbe(input: ProviderProbeInput) {
   }
 }
 
-async function probeProviderCredentials(input: ProviderProbeInput) {
-  await runPiPromptProbe(input)
+function loadEnabledOpenWaggleExtensionPackagePaths(
+  projectPath: string | null | undefined,
+  extensionSelectionServices: OpenWagglePiExtensionSelectionServices,
+) {
+  return projectPath
+    ? listRuntimeEnabledOpenWaggleExtensionPackagePathsFromServices(
+        projectPath,
+        extensionSelectionServices,
+      ).pipe(
+        Effect.catchAll((error) =>
+          Effect.sync(() => {
+            logger.warn('Failed to resolve OpenWaggle extension runtime allowlist', {
+              projectPath,
+              error: error instanceof Error ? error.message : String(error),
+            })
+            return []
+          }),
+        ),
+      )
+    : Effect.succeed([])
 }
 
-export const PiProviderProbeLive = Layer.succeed(
+export const PiProviderProbeLive = Layer.effect(
   ProviderProbeService,
-  ProviderProbeService.of({
-    probeCredentials: (input) =>
-      Effect.tryPromise({
-        try: () => probeProviderCredentials(input),
-        catch: (error) => (error instanceof Error ? error : new Error(String(error))),
-      }),
+  Effect.gen(function* () {
+    const extensionSelectionServices = {
+      manager: yield* ExtensionManagerService,
+      lifecycleRepository: yield* ExtensionLifecycleRepository,
+      projectOverridesRepository: yield* ExtensionProjectOverridesRepository,
+    } satisfies OpenWagglePiExtensionSelectionServices
+
+    return ProviderProbeService.of({
+      probeCredentials: (input) =>
+        Effect.gen(function* () {
+          const enabledOpenWaggleExtensionPackagePaths =
+            yield* loadEnabledOpenWaggleExtensionPackagePaths(
+              input.projectPath,
+              extensionSelectionServices,
+            )
+          return yield* Effect.tryPromise({
+            try: () => runPiPromptProbe(input, enabledOpenWaggleExtensionPackagePaths),
+            catch: (error) => (error instanceof Error ? error : new Error(String(error))),
+          })
+        }),
+    })
   }),
 )

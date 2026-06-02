@@ -23,6 +23,9 @@ export async function withPiSession<T>(
     projectPath,
     modelReference: input.model,
     ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
+    ...(input.enabledOpenWaggleExtensionPackagePaths
+      ? { enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths }
+      : {}),
   })
   const sessionManager = createSessionManagerForSession(input.session, projectPath)
   const { session } = await createOpenWaggleAgentSessionFromServices({
@@ -46,6 +49,9 @@ export async function createPiSessionRuntime(input: AgentKernelSessionInput) {
       projectPath: options.cwd,
       modelReference: input.model,
       ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
+      ...(input.enabledOpenWaggleExtensionPackagePaths
+        ? { enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths }
+        : {}),
     })
     const runtime = await createOpenWaggleAgentSessionFromServices({
       services,

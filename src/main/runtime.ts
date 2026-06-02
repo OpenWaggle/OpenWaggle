@@ -14,6 +14,7 @@ import { ProviderServiceLive } from './adapters/pi/pi-provider-service'
 import { PiSessionTreePreferencesLive } from './adapters/pi/pi-session-tree-preferences-service'
 import { SettingsWagglePresetsRepositoryLive } from './adapters/settings-waggle-presets-repository'
 import { SqliteExtensionLifecycleRepositoryLive } from './adapters/sqlite-extension-lifecycle-repository'
+import { SqliteExtensionProjectOverridesRepositoryLive } from './adapters/sqlite-extension-project-overrides-repository'
 import { SqliteSessionProjectionRepositoryLive } from './adapters/sqlite-session-projection-repository'
 import { SqliteSessionRepositoryLive } from './adapters/sqlite-session-repository'
 import { FilesystemStandardsLive } from './adapters/standards-adapter'
@@ -25,23 +26,36 @@ import { setStoreEffectRunner } from './store/store-runtime'
 const ExtensionLifecycleRepositoryLive = SqliteExtensionLifecycleRepositoryLive.pipe(
   Layer.provide(AppDatabaseLive),
 )
+const ExtensionProjectOverridesRepositoryLive = SqliteExtensionProjectOverridesRepositoryLive.pipe(
+  Layer.provide(AppDatabaseLive),
+)
+const ExtensionRuntimeSelectionLive = Layer.mergeAll(
+  ExtensionLifecycleRepositoryLive,
+  ExtensionProjectOverridesRepositoryLive,
+  FilesystemExtensionManagerLive,
+)
+const ProviderServiceWithExtensionSelectionLive = ProviderServiceLive.pipe(
+  Layer.provide(ExtensionRuntimeSelectionLive),
+)
+const PiProviderProbeWithExtensionSelectionLive = PiProviderProbeLive.pipe(
+  Layer.provide(ExtensionRuntimeSelectionLive),
+)
 
 const AppLayer = Layer.mergeAll(
   NodeContext.layer,
   AppLogger.Live,
   AppDatabaseLive,
   SettingsService.Live,
-  ExtensionLifecycleRepositoryLive,
+  ExtensionRuntimeSelectionLive,
   SqliteSessionProjectionRepositoryLive,
   SqliteSessionRepositoryLive,
-  FilesystemExtensionManagerLive,
   FilesystemStandardsLive,
   PiAgentKernelLive,
   PiMcpConfigServiceLive,
   PiProviderAuthLive,
-  PiProviderProbeLive,
+  PiProviderProbeWithExtensionSelectionLive,
   PiProviderOAuthLive,
-  ProviderServiceLive,
+  ProviderServiceWithExtensionSelectionLive,
   PiSessionTreePreferencesLive,
   SettingsWagglePresetsRepositoryLive,
 )

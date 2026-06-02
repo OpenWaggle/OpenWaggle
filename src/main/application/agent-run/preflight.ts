@@ -4,6 +4,7 @@ import { makeErrorInfo } from '../../agent/error-classifier'
 import { ProviderService } from '../../ports/provider-service'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { SettingsService } from '../../services/settings-service'
+import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from '../extension-runtime-service'
 import { assignSessionTitleFromUserText } from '../run-handler-utils'
 import type { AgentRunInput, AgentRunResult } from './types'
 
@@ -12,6 +13,7 @@ interface AgentRunPreflightSuccess {
   readonly session: SessionDetail
   readonly assignedTitle?: string
   readonly skillToggles?: Record<string, boolean>
+  readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
 }
 
 interface AgentRunPreflightFailure {
@@ -39,11 +41,15 @@ export function loadAgentRunPreflight(input: AgentRunInput) {
     if (assignedTitle) {
       yield* Effect.sync(() => input.onTitleAssigned?.(assignedTitle))
     }
+    const enabledOpenWaggleExtensionPackagePaths = session.projectPath
+      ? yield* listRuntimeEnabledOpenWaggleExtensionPackagePaths(session.projectPath)
+      : undefined
 
     return {
       ok: true,
       session,
       ...(assignedTitle ? { assignedTitle } : {}),
+      ...(enabledOpenWaggleExtensionPackagePaths ? { enabledOpenWaggleExtensionPackagePaths } : {}),
       ...(session.projectPath && settings.skillTogglesByProject[session.projectPath]
         ? { skillToggles: settings.skillTogglesByProject[session.projectPath] }
         : {}),

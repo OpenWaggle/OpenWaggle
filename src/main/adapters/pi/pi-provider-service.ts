@@ -2,11 +2,21 @@ import type { ProviderApiKeyAuthSource, ProviderAuthSource } from '@shared/types
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { ProviderLookupError } from '../../errors'
+import { createLogger } from '../../logger'
+import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-repository'
+import { ExtensionManagerService } from '../../ports/extension-manager-service'
+import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
 import { type ProviderModelCapabilities, ProviderService } from '../../ports/provider-service'
+import {
+  listRuntimeEnabledOpenWaggleExtensionPackagePathsFromServices,
+  type OpenWagglePiExtensionSelectionServices,
+} from './openwaggle-pi-extension-selection'
 import {
   createPiProviderCatalogSnapshot,
   getBuiltInPiModelProviderIds,
 } from './pi-provider-catalog'
+
+const logger = createLogger('pi-provider-service')
 
 function toDisplayName(id: string) {
   return id
@@ -149,14 +159,73 @@ function getProviderApiKeyAuthSource(
   return hasConfiguredAuth ? 'environment-or-custom' : 'none'
 }
 
-export const ProviderServiceLive = Layer.succeed(
+function createProjectProviderCatalogSnapshot(
+  projectPath: string | null | undefined,
+  extensionSelectionServices: OpenWagglePiExtensionSelectionServices,
+) {
+  return Effect.gen(function* () {
+    const enabledOpenWaggleExtensionPackagePaths = projectPath
+      ? yield* listRuntimeEnabledOpenWaggleExtensionPackagePathsFromServices(
+          projectPath,
+          extensionSelectionServices,
+        ).pipe(
+          Effect.catchAll((error) =>
+            Effect.sync(() => {
+              logger.warn('Failed to resolve OpenWaggle extension runtime allowlist', {
+                projectPath,
+                error: error instanceof Error ? error.message : String(error),
+              })
+              return []
+            }),
+          ),
+        )
+      : undefined
+
+    return yield* Effect.promise(() =>
+      createPiProviderCatalogSnapshot(projectPath, {
+        enabledOpenWaggleExtensionPackagePaths: enabledOpenWaggleExtensionPackagePaths ?? [],
+      }),
+    )
+  })
+}
+
+export const ProviderServiceLive = Layer.effect(
   ProviderService,
-  ProviderService.of({
-    get: (providerId, projectPath) =>
-      Effect.promise(async () => {
-        const snapshot = await createPiProviderCatalogSnapshot(projectPath)
-        return snapshot.providers
-          .map((provider) =>
+  Effect.gen(function* () {
+    const extensionSelectionServices = {
+      manager: yield* ExtensionManagerService,
+      lifecycleRepository: yield* ExtensionLifecycleRepository,
+      projectOverridesRepository: yield* ExtensionProjectOverridesRepository,
+    } satisfies OpenWagglePiExtensionSelectionServices
+
+    return ProviderService.of({
+      get: (providerId, projectPath) =>
+        Effect.gen(function* () {
+          const snapshot = yield* createProjectProviderCatalogSnapshot(
+            projectPath,
+            extensionSelectionServices,
+          )
+          return snapshot.providers
+            .map((provider) =>
+              toCapabilities({
+                ...provider,
+                oauthProviders: snapshot.oauthProviders,
+                oauthProviderNames: snapshot.oauthProviderNames,
+                credentials: snapshot.credentials,
+                configuredAuthProviders: snapshot.configuredAuthProviders,
+                builtInModelProviders: snapshot.builtInModelProviders,
+              }),
+            )
+            .find((provider) => provider.id === providerId)
+        }),
+
+      getAll: (projectPath) =>
+        Effect.gen(function* () {
+          const snapshot = yield* createProjectProviderCatalogSnapshot(
+            projectPath,
+            extensionSelectionServices,
+          )
+          return snapshot.providers.map((provider) =>
             toCapabilities({
               ...provider,
               oauthProviders: snapshot.oauthProviders,
@@ -166,52 +235,43 @@ export const ProviderServiceLive = Layer.succeed(
               builtInModelProviders: snapshot.builtInModelProviders,
             }),
           )
-          .find((provider) => provider.id === providerId)
-      }),
+        }),
 
-    getAll: (projectPath) =>
-      Effect.promise(async () => {
-        const snapshot = await createPiProviderCatalogSnapshot(projectPath)
-        return snapshot.providers.map((provider) =>
-          toCapabilities({
-            ...provider,
-            oauthProviders: snapshot.oauthProviders,
-            oauthProviderNames: snapshot.oauthProviderNames,
-            credentials: snapshot.credentials,
-            configuredAuthProviders: snapshot.configuredAuthProviders,
-            builtInModelProviders: snapshot.builtInModelProviders,
-          }),
-        )
-      }),
-
-    getProviderForModel: (modelId, projectPath) =>
-      Effect.promise(async () => {
-        const snapshot = await createPiProviderCatalogSnapshot(projectPath)
-        const provider = snapshot.providers.find((candidate) =>
-          candidate.models.some((model) => model.ref === modelId),
-        )
-        return provider
-          ? toCapabilities({
-              ...provider,
-              oauthProviders: snapshot.oauthProviders,
-              oauthProviderNames: snapshot.oauthProviderNames,
-              credentials: snapshot.credentials,
-              configuredAuthProviders: snapshot.configuredAuthProviders,
-              builtInModelProviders: snapshot.builtInModelProviders,
-            })
-          : undefined
-      }).pipe(
-        Effect.flatMap((provider) =>
-          provider ? Effect.succeed(provider) : Effect.fail(new ProviderLookupError({ modelId })),
+      getProviderForModel: (modelId, projectPath) =>
+        Effect.gen(function* () {
+          const snapshot = yield* createProjectProviderCatalogSnapshot(
+            projectPath,
+            extensionSelectionServices,
+          )
+          const provider = snapshot.providers.find((candidate) =>
+            candidate.models.some((model) => model.ref === modelId),
+          )
+          return provider
+            ? toCapabilities({
+                ...provider,
+                oauthProviders: snapshot.oauthProviders,
+                oauthProviderNames: snapshot.oauthProviderNames,
+                credentials: snapshot.credentials,
+                configuredAuthProviders: snapshot.configuredAuthProviders,
+                builtInModelProviders: snapshot.builtInModelProviders,
+              })
+            : undefined
+        }).pipe(
+          Effect.flatMap((provider) =>
+            provider ? Effect.succeed(provider) : Effect.fail(new ProviderLookupError({ modelId })),
+          ),
         ),
-      ),
 
-    isKnownModel: (modelId, projectPath) =>
-      Effect.promise(async () => {
-        const snapshot = await createPiProviderCatalogSnapshot(projectPath)
-        return snapshot.providers.some((provider) =>
-          provider.models.some((model) => model.ref === modelId),
-        )
-      }),
+      isKnownModel: (modelId, projectPath) =>
+        Effect.gen(function* () {
+          const snapshot = yield* createProjectProviderCatalogSnapshot(
+            projectPath,
+            extensionSelectionServices,
+          )
+          return snapshot.providers.some((provider) =>
+            provider.models.some((model) => model.ref === modelId),
+          )
+        }),
+    })
   }),
 )

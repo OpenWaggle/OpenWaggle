@@ -17,6 +17,7 @@ import {
   runServiceSessionId,
   runServiceSessionTree,
 } from './agent-run-service.test-utils'
+import { EmptyExtensionRuntimeLayer } from './extension-runtime-test-layer'
 
 const runMock = vi.fn()
 const updateTitleMock = vi.fn()
@@ -172,6 +173,7 @@ const TestLayer = Layer.mergeAll(
   TestSettingsLayer,
   TestSessionLayer,
   TestAgentKernelLayer,
+  EmptyExtensionRuntimeLayer,
 )
 
 describe('executeAgentRun', () => {
@@ -269,6 +271,7 @@ describe('executeAgentRun', () => {
     expect(getSessionSnapshotMock).toHaveBeenCalledWith({
       session,
       model,
+      enabledOpenWaggleExtensionPackagePaths: [],
     })
     expect(persistSnapshotMock).toHaveBeenCalledWith({
       sessionId,

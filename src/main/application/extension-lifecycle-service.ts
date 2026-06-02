@@ -1,15 +1,24 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import type { ExtensionSetEnabledInput, ExtensionSetTrustedInput } from '@shared/types/extensions'
+import type {
+  ExtensionLifecycleMutationTarget,
+  ExtensionSetEnabledInput,
+  ExtensionSetProjectDisabledInput,
+  ExtensionSetTrustedInput,
+} from '@shared/types/extensions'
 import * as Effect from 'effect/Effect'
 import type {
   DiscoveredExtensionPackage,
   ExtensionLifecycleKey,
   ExtensionLifecycleState,
   ExtensionPackageScope,
+  ExtensionProjectOverrideKey,
 } from '../extensions/types'
 import { ExtensionLifecycleRepository } from '../ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from '../ports/extension-manager-service'
+import { ExtensionProjectOverridesRepository } from '../ports/extension-project-overrides-repository'
 import { listExtensionPackagesView } from './extension-manager-view-service'
+
+type LifecycleMutationInput = ExtensionSetTrustedInput | ExtensionSetEnabledInput
 
 function scopeKey(scope: ExtensionPackageScope) {
   return scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND
@@ -21,25 +30,48 @@ function scopeMatches(left: ExtensionPackageScope, right: ExtensionPackageScope)
   return scopeKey(left) === scopeKey(right)
 }
 
-function getViewProjectPath(input: ExtensionSetTrustedInput | ExtensionSetEnabledInput) {
-  if (input.viewProjectPath !== undefined && input.viewProjectPath !== null) {
-    return input.viewProjectPath
+function getViewProjectPaths(input: LifecycleMutationInput) {
+  if (input.viewProjectPaths !== undefined && input.viewProjectPaths.length > 0) {
+    return input.viewProjectPaths
   }
+
+  return input.scope.kind === OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND
+    ? [input.scope.projectPath]
+    : []
+}
+
+function getProjectDisabledViewProjectPaths(input: ExtensionSetProjectDisabledInput) {
+  if (input.viewProjectPaths !== undefined && input.viewProjectPaths.length > 0) {
+    return input.viewProjectPaths
+  }
+
+  return [input.projectPath]
+}
+
+function getLifecycleDiscoveryProjectPath(input: LifecycleMutationInput) {
   return input.scope.kind === OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND
     ? input.scope.projectPath
     : null
 }
 
-function lifecycleKey(input: ExtensionSetTrustedInput | ExtensionSetEnabledInput) {
+function lifecycleKey(input: LifecycleMutationInput) {
   return {
     extensionId: input.extensionId,
     scope: input.scope,
   } satisfies ExtensionLifecycleKey
 }
 
+function projectOverrideKey(input: ExtensionSetProjectDisabledInput) {
+  return {
+    extensionId: input.extensionId,
+    scope: input.scope,
+    projectPath: input.projectPath,
+  } satisfies ExtensionProjectOverrideKey
+}
+
 function findPackage(
   packages: readonly DiscoveredExtensionPackage[],
-  input: ExtensionSetTrustedInput | ExtensionSetEnabledInput,
+  input: ExtensionLifecycleMutationTarget,
 ) {
   return (
     packages.find(
@@ -130,10 +162,26 @@ function makeLifecycleState({
   }
 }
 
-function loadMutationPackage(input: ExtensionSetTrustedInput | ExtensionSetEnabledInput) {
+function loadMutationPackage(input: LifecycleMutationInput) {
   return Effect.gen(function* () {
     const manager = yield* ExtensionManagerService
-    const packages = yield* manager.listPackages({ projectPath: getViewProjectPath(input) })
+    const packages = yield* manager.listPackages({
+      projectPath: getLifecycleDiscoveryProjectPath(input),
+    })
+    const extensionPackage = findPackage(packages, input)
+    if (!extensionPackage) {
+      return yield* Effect.fail(
+        new Error(`Extension package "${input.extensionId}" was not found.`),
+      )
+    }
+    return extensionPackage
+  })
+}
+
+function loadProjectOverridePackage(input: ExtensionSetProjectDisabledInput) {
+  return Effect.gen(function* () {
+    const manager = yield* ExtensionManagerService
+    const packages = yield* manager.listPackages({ projectPath: input.projectPath })
     const extensionPackage = findPackage(packages, input)
     if (!extensionPackage) {
       return yield* Effect.fail(
@@ -167,7 +215,7 @@ export function setExtensionTrusted(input: ExtensionSetTrustedInput) {
       }),
     )
 
-    return yield* listExtensionPackagesView(getViewProjectPath(input))
+    return yield* listExtensionPackagesView({ projectPaths: getViewProjectPaths(input) })
   })
 }
 
@@ -199,6 +247,35 @@ export function setExtensionEnabled(input: ExtensionSetEnabledInput) {
       }),
     )
 
-    return yield* listExtensionPackagesView(getViewProjectPath(input))
+    return yield* listExtensionPackagesView({ projectPaths: getViewProjectPaths(input) })
+  })
+}
+
+export function setExtensionProjectDisabled(input: ExtensionSetProjectDisabledInput) {
+  return Effect.gen(function* () {
+    if (!input.projectPath) {
+      return yield* Effect.fail(
+        new Error(OPENWAGGLE_EXTENSION.PROJECT_OVERRIDE.REQUIRED_PROJECT_PATH_ERROR),
+      )
+    }
+
+    const projectOverridesRepository = yield* ExtensionProjectOverridesRepository
+    const extensionPackage = yield* loadProjectOverridePackage(input)
+    const key = projectOverrideKey(input)
+    const current = yield* projectOverridesRepository.get(key)
+    const now = Date.now()
+
+    yield* projectOverridesRepository.upsert({
+      extensionId: extensionPackage.id,
+      scope: extensionPackage.scope,
+      projectPath: input.projectPath,
+      disabled: input.disabled,
+      createdAt: current?.createdAt ?? now,
+      updatedAt: now,
+    })
+
+    return yield* listExtensionPackagesView({
+      projectPaths: getProjectDisabledViewProjectPaths(input),
+    })
   })
 }

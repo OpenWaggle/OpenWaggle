@@ -8,6 +8,13 @@ export const OPENWAGGLE_EXTENSION = {
     PROJECT_KIND: 'project',
     GLOBAL_ID: 'global',
   },
+  PROJECT_OVERRIDE: {
+    DISABLED_LABEL: 'Project disabled',
+    ACTIVE_LABEL: 'Project active',
+    DISABLE_ACTION_LABEL: 'Disable for project',
+    ENABLE_ACTION_LABEL: 'Enable for project',
+    REQUIRED_PROJECT_PATH_ERROR: 'Project path is required to set a project extension override.',
+  },
   LIMITS: {
     ID_MAX_LENGTH: 96,
     CONTRIBUTION_ID_MAX_LENGTH: 128,

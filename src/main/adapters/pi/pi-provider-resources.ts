@@ -5,13 +5,13 @@ import type {
   ExtensionFactory,
   SettingsManager,
 } from '@mariozechner/pi-coding-agent'
-import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { normalizeSkillId } from '@shared/utils/skill-id'
 import { isPathInside } from '../../utils/paths'
 import type { OpenWaggleMcpRuntimeContext } from './pi-mcp-config-service'
 
 export interface PiRuntimeServicesOptions {
   readonly skillToggles?: Readonly<Record<string, boolean>>
+  readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   readonly extensionFactories?: readonly ExtensionFactory[]
   readonly mcpRuntimeContext?: OpenWaggleMcpRuntimeContext | null
   readonly loadMcpAdapter?: boolean
@@ -35,10 +35,6 @@ function getOpenWaggleSkillsRoot(projectPath: string) {
   return path.join(projectPath, ...OPENWAGGLE_SKILLS_ROOT_SEGMENTS)
 }
 
-function getOpenWaggleExtensionsRoot(projectPath: string) {
-  return path.join(projectPath, ...OPENWAGGLE_EXTENSION.PROJECT_ROOT_SEGMENTS)
-}
-
 function getOpenWagglePromptsRoot(projectPath: string) {
   return path.join(projectPath, ...OPENWAGGLE_PROMPTS_ROOT_SEGMENTS)
 }
@@ -49,6 +45,10 @@ function getOpenWaggleThemesRoot(projectPath: string) {
 
 function includeExistingPath(filePath: string) {
   return existsSync(filePath) ? [filePath] : []
+}
+
+function getEnabledOpenWaggleExtensionPackagePaths(packagePaths: readonly string[] = []) {
+  return packagePaths.flatMap(includeExistingPath)
 }
 
 function getOpenWaggleCatalogSkillRoots(projectPath: string) {
@@ -99,7 +99,7 @@ export function createOpenWagglePiResourceLoaderOptions(
   return {
     additionalExtensionPaths: settingsManager
       ? []
-      : includeExistingPath(getOpenWaggleExtensionsRoot(projectPath)),
+      : getEnabledOpenWaggleExtensionPackagePaths(options.enabledOpenWaggleExtensionPackagePaths),
     additionalSkillPaths: settingsManager
       ? []
       : includeExistingPath(getOpenWaggleSkillsRoot(projectPath)),

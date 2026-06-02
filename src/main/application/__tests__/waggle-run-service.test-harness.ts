@@ -10,6 +10,7 @@ import { type AgentKernelRunInput, AgentKernelService } from '../../ports/agent-
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { type PersistSessionSnapshotInput, SessionRepository } from '../../ports/session-repository'
 import { SettingsService } from '../../services/settings-service'
+import { EmptyExtensionRuntimeLayer } from './extension-runtime-test-layer'
 
 export const runMock: Mock = vi.fn()
 export const persistSnapshotMock: Mock = vi.fn()
@@ -219,6 +220,7 @@ export const TestLayer = Layer.mergeAll(
   TestSettingsLayer,
   TestSessionLayer,
   TestAgentKernelLayer,
+  EmptyExtensionRuntimeLayer,
 )
 
 export function resetWaggleRunServiceMocks() {

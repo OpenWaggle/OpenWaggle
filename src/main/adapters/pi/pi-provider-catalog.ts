@@ -142,15 +142,15 @@ export async function createPiRuntimeServices(
 ): Promise<AgentSessionServices> {
   const authStorage = createPiRuntimeAuthStorage()
   const loadMcpAdapter = options.loadMcpAdapter ?? true
-  const settingsManager = createOpenWagglePiSettingsManager(
-    projectPath,
-    loadMcpAdapter
+  const settingsManager = createOpenWagglePiSettingsManager(projectPath, {
+    enabledOpenWaggleExtensionPackagePaths: options.enabledOpenWaggleExtensionPackagePaths ?? [],
+    ...(loadMcpAdapter
       ? {}
       : {
           excludedGlobalPackageSources: MCP_ADAPTER_PACKAGE_SOURCES,
           excludedProjectPackageSources: MCP_ADAPTER_PACKAGE_SOURCES,
-        },
-  )
+        }),
+  })
   const mcpRuntimeContext = loadMcpAdapter
     ? options.mcpRuntimeContext === undefined
       ? await prepareOpenWaggleMcpRuntimeContext(projectPath)
@@ -202,6 +202,7 @@ async function createPiGlobalProviderCatalogServices() {
 
 export async function createPiProviderCatalogSnapshot(
   projectPath?: string | null,
+  options: Pick<PiRuntimeServicesOptions, 'enabledOpenWaggleExtensionPackagePaths'> = {},
 ): Promise<ProviderCatalogSnapshot> {
   const normalizedProjectPath = projectPath?.trim()
   if (!normalizedProjectPath) {
@@ -209,7 +210,10 @@ export async function createPiProviderCatalogSnapshot(
     return createPiProviderCatalogSnapshotFromRuntime(services.modelRegistry, services.authStorage)
   }
 
-  const services = await createPiRuntimeServices(normalizedProjectPath, { loadMcpAdapter: false })
+  const services = await createPiRuntimeServices(normalizedProjectPath, {
+    enabledOpenWaggleExtensionPackagePaths: options.enabledOpenWaggleExtensionPackagePaths ?? [],
+    loadMcpAdapter: false,
+  })
   return createPiProviderCatalogSnapshotFromRuntime(services.modelRegistry, services.authStorage)
 }
 
@@ -256,10 +260,14 @@ export async function createPiProjectModelRuntime(input: {
   readonly projectPath: string
   readonly modelReference: string
   readonly skillToggles?: Readonly<Record<string, boolean>>
+  readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
   readonly extensionFactories?: readonly ExtensionFactory[]
 }): Promise<PiProjectModelRuntime> {
   const services = await createPiRuntimeServices(input.projectPath, {
     ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
+    ...(input.enabledOpenWaggleExtensionPackagePaths
+      ? { enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths }
+      : {}),
     ...(input.extensionFactories ? { extensionFactories: input.extensionFactories } : {}),
   })
   const model = findPiModel(services.modelRegistry, input.modelReference)

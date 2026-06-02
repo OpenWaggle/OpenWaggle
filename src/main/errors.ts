@@ -43,3 +43,10 @@ export class ExtensionLifecycleRepositoryError extends Data.TaggedError(
   readonly operation: string
   readonly cause?: unknown
 }> {}
+
+export class ExtensionProjectOverrideRepositoryError extends Data.TaggedError(
+  'ExtensionProjectOverrideRepositoryError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}

@@ -10,8 +10,8 @@
 import { safeDecodeUnknown } from '@shared/schema'
 import { waggleConfigSchema } from '@shared/schemas/waggle'
 import type { AgentSendPayload, HydratedAgentSendPayload } from '@shared/types/agent'
-import { SessionBranchId, SessionId, SupportedModelId } from '@shared/types/brand'
-import type { SessionDetail, SessionTree } from '@shared/types/session'
+import { SessionId, SupportedModelId } from '@shared/types/brand'
+import type { SessionDetail } from '@shared/types/session'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import {
   isInheritedWaggleModelBinding,
@@ -19,7 +19,6 @@ import {
   type WaggleStreamMetadata,
   type WaggleTurnEvent,
 } from '@shared/types/waggle'
-import { formatErrorMessage } from '@shared/utils/node-error'
 import * as Effect from 'effect/Effect'
 import { makeErrorInfo } from '../agent/error-classifier'
 import { FileConflictTracker } from '../agent/file-conflict-tracker'
@@ -29,11 +28,17 @@ import { AgentKernelService } from '../ports/agent-kernel-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
 import { SettingsService } from '../services/settings-service'
+import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-runtime-service'
 import { assignSessionTitleFromUserText, hydratePayloadAttachments } from './run-handler-utils'
 import { extractFilePath } from './waggle-run/metadata'
 import { persistWaggleSnapshot } from './waggle-run/persistence'
+import {
+  clearDurableWaggleActiveRun,
+  recordDurableWaggleRun,
+  resolveWaggleBranchId,
+  type WaggleActiveRunIdentity,
+} from './waggle-run/runtime-state'
 
-const MAIN_BRANCH_NAME = 'main'
 const logger = createLogger('waggle-run-service')
 
 export interface WaggleRunInput {
@@ -49,11 +54,6 @@ export interface WaggleRunInput {
   readonly onTitleAssigned?: (title: string) => void
 }
 
-interface ActiveRunIdentity {
-  readonly sessionId: SessionId
-  readonly runId: string
-}
-
 interface PreparedWaggleRun {
   readonly assignedTitle?: string
   readonly hydratedPayload: HydratedAgentSendPayload
@@ -61,6 +61,7 @@ interface PreparedWaggleRun {
   readonly runtimeModel: SupportedModelId
   readonly session: SessionDetail
   readonly skillToggles: Record<string, boolean> | undefined
+  readonly enabledOpenWaggleExtensionPackagePaths: readonly string[]
 }
 
 function validationErrorOutcome() {
@@ -96,10 +97,6 @@ function noInheritedModelOutcome() {
   }
 }
 
-function mainBranchFallbackId(sessionId: SessionId) {
-  return SessionBranchId(`${sessionId}:${MAIN_BRANCH_NAME}`)
-}
-
 function resolveInitialWaggleRuntimeModel(input: {
   readonly config: WaggleConfig
   readonly selectedModel: SupportedModelId
@@ -112,37 +109,6 @@ function resolveInitialWaggleRuntimeModel(input: {
 
 function configRequiresInheritedModel(config: WaggleConfig) {
   return config.agents.some((agent) => isInheritedWaggleModelBinding(agent.model))
-}
-
-function resolveWaggleBranchId(input: {
-  readonly sessionId: SessionId
-  readonly tree: SessionTree | null
-}) {
-  return (
-    input.tree?.session.lastActiveBranchId ??
-    input.tree?.branches.find((branch) => branch.isMain)?.id ??
-    mainBranchFallbackId(input.sessionId)
-  )
-}
-
-function clearDurableActiveRun(getActiveRunIdentity: () => ActiveRunIdentity | null) {
-  return Effect.gen(function* () {
-    const activeRunIdentity = getActiveRunIdentity()
-    if (!activeRunIdentity) return
-
-    const sessionRepo = yield* SessionRepository
-    yield* sessionRepo.clearActiveRun(activeRunIdentity).pipe(
-      Effect.catchAll((error) =>
-        Effect.sync(() => {
-          logger.warn('Failed to clear durable Waggle active run', {
-            sessionId: activeRunIdentity.sessionId,
-            runId: activeRunIdentity.runId,
-            error: formatErrorMessage(error),
-          })
-        }),
-      ),
-    )
-  })
 }
 
 function prepareWaggleRun(input: WaggleRunInput) {
@@ -168,6 +134,8 @@ function prepareWaggleRun(input: WaggleRunInput) {
         hydratePayloadAttachments(input.payload.attachments),
       ),
     }
+    const enabledOpenWaggleExtensionPackagePaths =
+      yield* listRuntimeEnabledOpenWaggleExtensionPackagePaths(session.projectPath)
 
     return {
       ok: true as const,
@@ -181,6 +149,7 @@ function prepareWaggleRun(input: WaggleRunInput) {
         }),
         session,
         skillToggles: settings.skillTogglesByProject[session.projectPath],
+        enabledOpenWaggleExtensionPackagePaths,
       },
     }
   })
@@ -198,31 +167,10 @@ function assignPreparedTitle(input: WaggleRunInput, session: SessionDetail) {
   })
 }
 
-function recordDurableWaggleRun(input: {
-  readonly branchId: SessionBranchId
-  readonly run: WaggleRunInput
-  readonly runtimeModel: SupportedModelId
-  readonly sessionRepo: typeof SessionRepository.Service
-}) {
-  return Effect.gen(function* () {
-    yield* input.sessionRepo.clearInterruptedRuns({
-      sessionId: input.run.sessionId,
-      branchId: input.branchId,
-    })
-    yield* input.sessionRepo.recordActiveRun({
-      runId: input.run.runId,
-      sessionId: input.run.sessionId,
-      branchId: input.branchId,
-      runMode: 'waggle',
-      model: input.runtimeModel,
-    })
-  })
-}
-
 function runPreparedWaggle(
   input: WaggleRunInput,
   prepared: PreparedWaggleRun,
-  setActiveRunIdentity: (identity: ActiveRunIdentity) => void,
+  setActiveRunIdentity: (identity: WaggleActiveRunIdentity) => void,
 ) {
   return Effect.gen(function* () {
     const sessionRepo = yield* SessionRepository
@@ -248,6 +196,7 @@ function runPreparedWaggle(
       model: prepared.runtimeModel,
       signal: input.signal,
       skillToggles: prepared.skillToggles,
+      enabledOpenWaggleExtensionPackagePaths: prepared.enabledOpenWaggleExtensionPackagePaths,
       onEvent: () => undefined,
       waggle: {
         config: input.config,
@@ -321,7 +270,7 @@ function successOutcome(
 }
 
 export function executeWaggleRun(input: WaggleRunInput) {
-  let activeRunIdentity: ActiveRunIdentity | null = null
+  let activeRunIdentity: WaggleActiveRunIdentity | null = null
 
   return Effect.gen(function* () {
     const prepared = yield* prepareWaggleRun(input)
@@ -329,5 +278,5 @@ export function executeWaggleRun(input: WaggleRunInput) {
     return yield* runPreparedWaggle(input, prepared.value, (identity) => {
       activeRunIdentity = identity
     })
-  }).pipe(Effect.ensuring(clearDurableActiveRun(() => activeRunIdentity)))
+  }).pipe(Effect.ensuring(clearDurableWaggleActiveRun(() => activeRunIdentity)))
 }

@@ -1,48 +1,95 @@
 import type {
+  ExtensionListPackagesInput,
   ExtensionManagerView,
   ExtensionSetEnabledInput,
+  ExtensionSetProjectDisabledInput,
   ExtensionSetTrustedInput,
 } from '@shared/types/extensions'
+import type { OpenWaggleApi } from '@shared/types/openwaggle-api'
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/shared/lib/ipc'
 import type { OpenWaggleQueryOptions } from './query-options'
 
-type ExtensionPackagesQueryKey = readonly ['extensionPackages', string | null]
+type ExtensionApi = Pick<
+  OpenWaggleApi,
+  | 'listExtensionPackages'
+  | 'setExtensionEnabled'
+  | 'setExtensionProjectDisabled'
+  | 'setExtensionTrusted'
+>
+
+const extensionApi: ExtensionApi = api
+
+function extensionPackagesQueryKey(
+  projectPaths: readonly string[],
+): readonly ['extensionPackages', ...string[]] {
+  return ['extensionPackages', ...projectPaths]
+}
+
+function listExtensionPackages(input: ExtensionListPackagesInput): Promise<ExtensionManagerView> {
+  return extensionApi.listExtensionPackages(input)
+}
+
+function setExtensionTrusted(input: ExtensionSetTrustedInput): Promise<ExtensionManagerView> {
+  return extensionApi.setExtensionTrusted(input)
+}
+
+function setExtensionEnabled(input: ExtensionSetEnabledInput): Promise<ExtensionManagerView> {
+  return extensionApi.setExtensionEnabled(input)
+}
+
+function setExtensionProjectDisabled(
+  input: ExtensionSetProjectDisabledInput,
+): Promise<ExtensionManagerView> {
+  return extensionApi.setExtensionProjectDisabled(input)
+}
 
 export function extensionPackagesQueryOptions(
-  projectPath: string | null,
+  projectPaths: readonly string[],
 ): OpenWaggleQueryOptions<
   ExtensionManagerView,
   Error,
   ExtensionManagerView,
-  ExtensionPackagesQueryKey
+  ReturnType<typeof extensionPackagesQueryKey>
 > {
-  const queryKey: ExtensionPackagesQueryKey = ['extensionPackages', projectPath]
+  const queryKey = extensionPackagesQueryKey(projectPaths)
 
   return queryOptions({
     queryKey,
-    queryFn: () => api.listExtensionPackages(projectPath),
+    queryFn: () => listExtensionPackages({ projectPaths }),
   })
 }
 
-export function useSetExtensionTrustedMutation(projectPath: string | null) {
+export function useSetExtensionTrustedMutation(projectPaths: readonly string[]) {
   const queryClient = useQueryClient()
-  const queryKey: ExtensionPackagesQueryKey = ['extensionPackages', projectPath]
+  const queryKey = extensionPackagesQueryKey(projectPaths)
 
   return useMutation<ExtensionManagerView, Error, ExtensionSetTrustedInput>({
-    mutationFn: (input: ExtensionSetTrustedInput) => api.setExtensionTrusted(input),
+    mutationFn: setExtensionTrusted,
     onSuccess: (view) => {
       queryClient.setQueryData(queryKey, view)
     },
   })
 }
 
-export function useSetExtensionEnabledMutation(projectPath: string | null) {
+export function useSetExtensionEnabledMutation(projectPaths: readonly string[]) {
   const queryClient = useQueryClient()
-  const queryKey: ExtensionPackagesQueryKey = ['extensionPackages', projectPath]
+  const queryKey = extensionPackagesQueryKey(projectPaths)
 
   return useMutation<ExtensionManagerView, Error, ExtensionSetEnabledInput>({
-    mutationFn: (input: ExtensionSetEnabledInput) => api.setExtensionEnabled(input),
+    mutationFn: setExtensionEnabled,
+    onSuccess: (view) => {
+      queryClient.setQueryData(queryKey, view)
+    },
+  })
+}
+
+export function useSetExtensionProjectDisabledMutation(projectPaths: readonly string[]) {
+  const queryClient = useQueryClient()
+  const queryKey = extensionPackagesQueryKey(projectPaths)
+
+  return useMutation<ExtensionManagerView, Error, ExtensionSetProjectDisabledInput>({
+    mutationFn: setExtensionProjectDisabled,
     onSuccess: (view) => {
       queryClient.setQueryData(queryKey, view)
     },

@@ -17,6 +17,7 @@ import { hydrateAgentRunPayload, runAgentKernel } from './agent-run/kernel'
 import { buildAgentRunOutcome, recoverAgentRunFailure } from './agent-run/outcome'
 import { loadAgentRunPreflight } from './agent-run/preflight'
 import type { ActiveRunIdentity, AgentRunInput, AgentRunResult } from './agent-run/types'
+import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-runtime-service'
 
 export type { AgentRunInput, AgentRunResult } from './agent-run/types'
 
@@ -91,11 +92,17 @@ export function reconcileInterruptedAgentRuns() {
         yield* sessionRepo.clearActiveRun(identity)
         continue
       }
+      const enabledOpenWaggleExtensionPackagePaths = session.projectPath
+        ? yield* listRuntimeEnabledOpenWaggleExtensionPackagePaths(session.projectPath)
+        : undefined
 
       yield* agentKernel
         .getSessionSnapshot({
           session,
           model: activeRun.model,
+          ...(enabledOpenWaggleExtensionPackagePaths
+            ? { enabledOpenWaggleExtensionPackagePaths }
+            : {}),
         })
         .pipe(
           Effect.flatMap((result) =>

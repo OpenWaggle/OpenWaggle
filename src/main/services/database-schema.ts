@@ -91,7 +91,7 @@ export const CURRENT_SESSION_SCHEMA_STATEMENTS = [
   `,
 ] as const
 
-export const CURRENT_EXTENSION_SCHEMA_STATEMENTS = [
+export const CURRENT_EXTENSION_LIFECYCLE_SCHEMA_STATEMENTS = [
   `
   CREATE TABLE IF NOT EXISTS extension_lifecycle_state (
     extension_id TEXT NOT NULL,
@@ -113,4 +113,28 @@ export const CURRENT_EXTENSION_SCHEMA_STATEMENTS = [
   CREATE INDEX IF NOT EXISTS idx_extension_lifecycle_scope
   ON extension_lifecycle_state (scope_kind, scope_id)
   `,
+] as const
+
+export const CURRENT_EXTENSION_PROJECT_OVERRIDE_SCHEMA_STATEMENTS = [
+  `
+  CREATE TABLE IF NOT EXISTS extension_project_overrides (
+    extension_id TEXT NOT NULL,
+    scope_kind TEXT NOT NULL,
+    scope_id TEXT NOT NULL,
+    project_path TEXT NOT NULL,
+    disabled INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (extension_id, scope_kind, scope_id, project_path)
+  )
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_extension_project_overrides_project
+  ON extension_project_overrides (project_path, disabled)
+  `,
+] as const
+
+export const CURRENT_EXTENSION_SCHEMA_STATEMENTS = [
+  ...CURRENT_EXTENSION_LIFECYCLE_SCHEMA_STATEMENTS,
+  ...CURRENT_EXTENSION_PROJECT_OVERRIDE_SCHEMA_STATEMENTS,
 ] as const

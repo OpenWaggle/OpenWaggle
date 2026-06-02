@@ -66,3 +66,13 @@ export interface ExtensionLifecycleState extends ExtensionLifecycleKey {
   readonly installedAt: number
   readonly updatedAt: number
 }
+
+export interface ExtensionProjectOverrideKey extends ExtensionLifecycleKey {
+  readonly projectPath: string
+}
+
+export interface ExtensionProjectOverrideState extends ExtensionProjectOverrideKey {
+  readonly disabled: boolean
+  readonly createdAt: number
+  readonly updatedAt: number
+}

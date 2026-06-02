@@ -33,7 +33,11 @@ export type ExtensionPackageLifecycleScope =
 export interface ExtensionLifecycleMutationTarget {
   readonly extensionId: string
   readonly scope: ExtensionPackageLifecycleScope
-  readonly viewProjectPath?: string | null
+  readonly viewProjectPaths?: readonly string[]
+}
+
+export interface ExtensionListPackagesInput {
+  readonly projectPaths?: readonly string[]
 }
 
 export interface ExtensionSetTrustedInput extends ExtensionLifecycleMutationTarget {
@@ -42,6 +46,11 @@ export interface ExtensionSetTrustedInput extends ExtensionLifecycleMutationTarg
 
 export interface ExtensionSetEnabledInput extends ExtensionLifecycleMutationTarget {
   readonly enabled: boolean
+}
+
+export interface ExtensionSetProjectDisabledInput extends ExtensionLifecycleMutationTarget {
+  readonly projectPath: string
+  readonly disabled: boolean
 }
 
 export interface ExtensionSdkCompatibilityView {
@@ -78,6 +87,12 @@ export interface ExtensionLifecycleView {
   readonly updatedAt: number
 }
 
+export interface ExtensionProjectOverrideView {
+  readonly projectPath: string
+  readonly disabled: boolean
+  readonly updatedAt: number | null
+}
+
 export interface ExtensionPackageSummary {
   readonly id: string
   readonly scope: ExtensionPackageScopeView
@@ -87,10 +102,13 @@ export interface ExtensionPackageSummary {
   readonly contentHash: string | null
   readonly sdkCompatibility: ExtensionSdkCompatibilityView | null
   readonly lifecycle: ExtensionLifecycleView | null
+  readonly projectOverride: ExtensionProjectOverrideView | null
+  readonly projectOverrides: readonly ExtensionProjectOverrideView[]
   readonly diagnostics: readonly ExtensionDiagnosticView[]
 }
 
 export interface ExtensionManagerView {
   readonly projectPath: string | null
+  readonly projectPaths: readonly string[]
   readonly packages: readonly ExtensionPackageSummary[]
 }

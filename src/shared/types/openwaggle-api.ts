@@ -5,8 +5,10 @@ import type { SessionBranchId, SessionId, SessionNodeId, WagglePresetId } from '
 import type { FileSuggestion } from './composer'
 import type { ContextCompactionResult, ContextUsageSnapshot } from './context-usage'
 import type {
+  ExtensionListPackagesInput,
   ExtensionManagerView,
   ExtensionSetEnabledInput,
+  ExtensionSetProjectDisabledInput,
   ExtensionSetTrustedInput,
 } from './extensions'
 import type {
@@ -100,9 +102,12 @@ export interface OpenWaggleApi {
   setMcpAdapterEnabled(enabled: boolean, projectPath?: string | null): Promise<McpSettingsView>
   setMcpServerEnabled(input: McpSetServerEnabledInput): Promise<McpSettingsView>
   writeMcpSourceConfig(input: McpWriteSourceConfigInput): Promise<McpSettingsView>
-  listExtensionPackages(projectPath?: string | null): Promise<ExtensionManagerView>
+  listExtensionPackages(input?: ExtensionListPackagesInput): Promise<ExtensionManagerView>
   setExtensionTrusted(input: ExtensionSetTrustedInput): Promise<ExtensionManagerView>
   setExtensionEnabled(input: ExtensionSetEnabledInput): Promise<ExtensionManagerView>
+  setExtensionProjectDisabled(
+    input: ExtensionSetProjectDisabledInput,
+  ): Promise<ExtensionManagerView>
 
   // Providers
   getProviderModels(projectPath?: string | null): Promise<ProviderInfo[]>

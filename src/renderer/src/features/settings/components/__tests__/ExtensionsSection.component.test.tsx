@@ -7,12 +7,16 @@ const {
   listExtensionPackagesMock,
   setExtensionTrustedMock,
   setExtensionEnabledMock,
+  setExtensionProjectDisabledMock,
   projectPathMock,
+  sessionsMock,
 } = vi.hoisted(() => ({
   listExtensionPackagesMock: vi.fn(),
   setExtensionTrustedMock: vi.fn(),
   setExtensionEnabledMock: vi.fn(),
+  setExtensionProjectDisabledMock: vi.fn(),
   projectPathMock: { current: '/tmp/project' },
+  sessionsMock: { current: [] },
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -20,6 +24,7 @@ vi.mock('@/shared/lib/ipc', () => ({
     listExtensionPackages: listExtensionPackagesMock,
     setExtensionTrusted: setExtensionTrustedMock,
     setExtensionEnabled: setExtensionEnabledMock,
+    setExtensionProjectDisabled: setExtensionProjectDisabledMock,
   },
 }))
 
@@ -27,7 +32,15 @@ vi.mock('@/features/settings/hooks/useSettings', () => ({
   usePreferences: () => ({
     settings: {
       projectPath: projectPathMock.current,
+      recentProjects: [],
+      projectDisplayNames: {},
     },
+  }),
+}))
+
+vi.mock('@/features/sessions/hooks', () => ({
+  useSessions: () => ({
+    sessions: sessionsMock.current,
   }),
 }))
 
@@ -35,6 +48,7 @@ import { ExtensionsSection } from '../sections/ExtensionsSection'
 
 const EMPTY_VIEW: ExtensionManagerView = {
   projectPath: '/tmp/project',
+  projectPaths: ['/tmp/project'],
   packages: [],
 }
 
@@ -68,6 +82,18 @@ const SAMPLE_PACKAGE: ExtensionManagerView['packages'][number] = {
     compatible: true,
   },
   lifecycle: null,
+  projectOverride: {
+    projectPath: '/tmp/project',
+    disabled: false,
+    updatedAt: null,
+  },
+  projectOverrides: [
+    {
+      projectPath: '/tmp/project',
+      disabled: false,
+      updatedAt: null,
+    },
+  ],
   diagnostics: [],
 }
 
@@ -85,6 +111,7 @@ const TRUSTED_LIFECYCLE: NonNullable<ExtensionManagerView['packages'][number]['l
 
 const PACKAGE_VIEW: ExtensionManagerView = {
   projectPath: '/tmp/project',
+  projectPaths: ['/tmp/project'],
   packages: [SAMPLE_PACKAGE],
 }
 
@@ -111,12 +138,40 @@ const ENABLED_VIEW: ExtensionManagerView = {
   ],
 }
 
+const PROJECT_DISABLED_VIEW: ExtensionManagerView = {
+  ...ENABLED_VIEW,
+  packages: [
+    {
+      ...SAMPLE_PACKAGE,
+      lifecycle: {
+        ...TRUSTED_LIFECYCLE,
+        enabled: false,
+        grantedCapabilities: [],
+      },
+      projectOverride: {
+        projectPath: '/tmp/project',
+        disabled: true,
+        updatedAt: 3000,
+      },
+      projectOverrides: [
+        {
+          projectPath: '/tmp/project',
+          disabled: true,
+          updatedAt: 3000,
+        },
+      ],
+    },
+  ],
+}
+
 describe('ExtensionsSection', () => {
   beforeEach(() => {
     listExtensionPackagesMock.mockReset()
     setExtensionTrustedMock.mockReset()
     setExtensionEnabledMock.mockReset()
+    setExtensionProjectDisabledMock.mockReset()
     projectPathMock.current = '/tmp/project'
+    sessionsMock.current = []
   })
 
   it('loads and renders discovered extension packages for the selected project', async () => {
@@ -127,25 +182,27 @@ describe('ExtensionsSection', () => {
     expect(screen.getByText(/loading extensions/i)).toBeInTheDocument()
     expect(await screen.findByText('Sample Extension')).toBeInTheDocument()
     expect(screen.getByText('Untrusted')).toBeInTheDocument()
+    expect(screen.getByText('Project active')).toBeInTheDocument()
     expect(screen.getByText('SDK compatible')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Trust Sample Extension' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Enable Sample Extension' })).toBeDisabled()
-    expect(listExtensionPackagesMock).toHaveBeenCalledWith('/tmp/project')
+    expect(listExtensionPackagesMock).toHaveBeenCalledWith({ projectPaths: ['/tmp/project'] })
   })
 
-  it('renders an empty state when no extension packages are found', async () => {
+  it('renders the global scope when no extension packages are found', async () => {
     listExtensionPackagesMock.mockResolvedValueOnce(EMPTY_VIEW)
 
     renderWithQueryClient(<ExtensionsSection />)
 
-    expect(await screen.findByText(/no extension packages discovered/i)).toBeInTheDocument()
+    expect(await screen.findByText('Global scope')).toBeInTheDocument()
+    expect(screen.getAllByText(/no extension packages in this scope/i)).toHaveLength(2)
   })
 
   it('refreshes the extension inventory on demand', async () => {
     listExtensionPackagesMock.mockResolvedValueOnce(EMPTY_VIEW).mockResolvedValueOnce(PACKAGE_VIEW)
 
     renderWithQueryClient(<ExtensionsSection />)
-    await screen.findByText(/no extension packages discovered/i)
+    await screen.findByText('Global scope')
     fireEvent.click(screen.getByRole('button', { name: /refresh/i }))
 
     await waitFor(() => {
@@ -175,7 +232,7 @@ describe('ExtensionsSection', () => {
       expect(setExtensionTrustedMock).toHaveBeenCalledWith({
         extensionId: 'sample-extension',
         scope: { kind: 'project', projectPath: '/tmp/project' },
-        viewProjectPath: '/tmp/project',
+        viewProjectPaths: ['/tmp/project'],
         trusted: true,
       })
     })
@@ -207,11 +264,37 @@ describe('ExtensionsSection', () => {
       expect(setExtensionEnabledMock).toHaveBeenCalledWith({
         extensionId: 'sample-extension',
         scope: { kind: 'project', projectPath: '/tmp/project' },
-        viewProjectPath: '/tmp/project',
+        viewProjectPaths: ['/tmp/project'],
         enabled: true,
       })
     })
     expect(await screen.findByText('Enabled')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Disable Sample Extension' })).toBeInTheDocument()
+  })
+
+  it('disables an extension only for the selected project', async () => {
+    listExtensionPackagesMock.mockResolvedValueOnce(ENABLED_VIEW)
+    setExtensionProjectDisabledMock.mockResolvedValueOnce(PROJECT_DISABLED_VIEW)
+
+    renderWithQueryClient(<ExtensionsSection />)
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Disable for project Sample Extension' }),
+    )
+
+    await waitFor(() => {
+      expect(setExtensionProjectDisabledMock).toHaveBeenCalledWith({
+        extensionId: 'sample-extension',
+        scope: { kind: 'project', projectPath: '/tmp/project' },
+        viewProjectPaths: ['/tmp/project'],
+        projectPath: '/tmp/project',
+        disabled: true,
+      })
+    })
+    expect(await screen.findByText('Project disabled')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Enable Sample Extension' })).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: 'Enable for project Sample Extension' }),
+    ).toBeInTheDocument()
   })
 })
