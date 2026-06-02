@@ -52,7 +52,7 @@ function disabledEnableReason(extensionPackage: ExtensionPackageSummary) {
     return 'Trust this extension before enabling it.'
   }
   if (!isBuildPlanApproved(extensionPackage)) {
-    return 'Approve this extension build plan before enabling it.'
+    return 'Approve and run this extension build before enabling it.'
   }
   if (extensionPackage.manifest === null) {
     return 'Cannot enable an extension with an invalid manifest.'
@@ -80,7 +80,7 @@ function disabledUpdateReason(extensionPackage: ExtensionPackageSummary) {
     return 'Cannot approve an extension update with an incompatible SDK range.'
   }
   if (!isBuildPlanApproved(extensionPackage)) {
-    return 'Approve this extension build plan before approving the update.'
+    return 'Approve and run this extension build before approving the update.'
   }
   if (hasErrorDiagnostics(extensionPackage)) {
     return 'Cannot approve an extension update with error diagnostics.'

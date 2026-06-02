@@ -79,6 +79,7 @@ export interface ExtensionManifestSummary {
 }
 
 export type ExtensionInstallSource = (typeof OPENWAGGLE_EXTENSION.INSTALL_SOURCES)[number]
+export type ExtensionBuildRunStatus = (typeof OPENWAGGLE_EXTENSION.BUILD_RUN_STATUSES)[number]
 
 export interface ExtensionBuildPlanView {
   readonly installSource: ExtensionInstallSource
@@ -97,6 +98,8 @@ export interface ExtensionLifecycleView {
   readonly contentHash: string | null
   readonly packageVersion: string | null
   readonly approvedBuildPlanHash: string | null
+  readonly buildStatus: ExtensionBuildRunStatus
+  readonly buildLog: string | null
   readonly sdkRange: string | null
   readonly sdkCompatible: boolean
   readonly diagnostics: readonly ExtensionDiagnosticView[]

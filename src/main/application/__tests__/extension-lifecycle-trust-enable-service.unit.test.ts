@@ -8,7 +8,6 @@ import { ExtensionManagerService } from '../../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
 import {
   acceptExtensionUpdate,
-  approveExtensionBuild,
   setExtensionEnabled,
   setExtensionTrusted,
 } from '../extension-lifecycle-service'
@@ -49,6 +48,8 @@ const lifecycleState: ExtensionLifecycleState = {
   contentHash: 'abcdef',
   packageVersion: '1.0.0',
   approvedBuildPlanHash: null,
+  buildStatus: OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS.NOT_RUN,
+  buildLog: null,
   sdkRange: '>=0.1.0 <0.2.0',
   sdkCompatible: true,
   diagnostics: [],
@@ -132,44 +133,6 @@ describe('extension trust and enable lifecycle mutations', () => {
         }).pipe(Effect.provide(harness.layer)),
       ),
     ).rejects.toThrow(OPENWAGGLE_EXTENSION.LIFECYCLE.BUILD_APPROVAL_REQUIRED_ERROR)
-  })
-
-  it('approves a local-build extension plan before trust pins the runtime package', async () => {
-    const localBuildPackage: DiscoveredExtensionPackage = {
-      ...discoveredPackage,
-      buildPlan: {
-        installSource: OPENWAGGLE_EXTENSION.INSTALL_SOURCE.LOCAL_BUILD,
-        command: 'pnpm build',
-        outputPaths: ['dist/index.js'],
-        approvalRequired: true,
-        inputHash: 'build-plan-hash',
-      },
-    }
-    const harness = makeTestHarness({ packages: [localBuildPackage], lifecycle: null })
-
-    await Effect.runPromise(
-      approveExtensionBuild({
-        extensionId: 'sample-extension',
-        scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: PROJECT_PATH },
-      }).pipe(Effect.provide(harness.layer)),
-    )
-    const view = await Effect.runPromise(
-      setExtensionTrusted({
-        extensionId: 'sample-extension',
-        scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: PROJECT_PATH },
-        trusted: true,
-      }).pipe(Effect.provide(harness.layer)),
-    )
-
-    expect(harness.getStoredLifecycle()).toMatchObject({
-      approvedBuildPlanHash: 'build-plan-hash',
-      contentHash: 'abcdef',
-      trusted: true,
-    })
-    expect(view.packages[0]?.buildPlan).toMatchObject({
-      approvalRequired: true,
-      approved: true,
-    })
   })
 
   it('rejects generic trust repinning when a trusted package changed', async () => {

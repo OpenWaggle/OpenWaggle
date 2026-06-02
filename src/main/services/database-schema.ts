@@ -1,3 +1,7 @@
+import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+
+const DEFAULT_EXTENSION_BUILD_STATUS = OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS.NOT_RUN
+
 export const CURRENT_SESSION_SCHEMA_STATEMENTS = [
   `
   CREATE TABLE IF NOT EXISTS sessions (
@@ -129,6 +133,17 @@ export const EXTENSION_LIFECYCLE_BUILD_APPROVAL_MIGRATION_STATEMENTS = [
   `,
 ] as const
 
+export const EXTENSION_LIFECYCLE_BUILD_RUN_MIGRATION_STATEMENTS = [
+  `
+  ALTER TABLE extension_lifecycle_state
+  ADD COLUMN build_status TEXT NOT NULL DEFAULT '${DEFAULT_EXTENSION_BUILD_STATUS}'
+  `,
+  `
+  ALTER TABLE extension_lifecycle_state
+  ADD COLUMN build_log TEXT
+  `,
+] as const
+
 export const CURRENT_EXTENSION_LIFECYCLE_SCHEMA_STATEMENTS = [
   `
   CREATE TABLE IF NOT EXISTS extension_lifecycle_state (
@@ -141,6 +156,8 @@ export const CURRENT_EXTENSION_LIFECYCLE_SCHEMA_STATEMENTS = [
     content_hash TEXT,
     package_version TEXT,
     approved_build_plan_hash TEXT,
+    build_status TEXT NOT NULL DEFAULT '${DEFAULT_EXTENSION_BUILD_STATUS}',
+    build_log TEXT,
     sdk_range TEXT,
     sdk_compatible INTEGER NOT NULL DEFAULT 0,
     diagnostics_json TEXT NOT NULL,

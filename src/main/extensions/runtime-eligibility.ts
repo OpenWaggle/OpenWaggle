@@ -1,3 +1,4 @@
+import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { DiscoveredExtensionPackage, ExtensionLifecycleState } from './types'
 
 function hasErrorDiagnostics(extensionPackage: DiscoveredExtensionPackage) {
@@ -14,7 +15,8 @@ export function isExtensionBuildPlanApproved(input: {
 
   return (
     input.extensionPackage.buildPlan.inputHash !== null &&
-    input.lifecycle?.approvedBuildPlanHash === input.extensionPackage.buildPlan.inputHash
+    input.lifecycle?.approvedBuildPlanHash === input.extensionPackage.buildPlan.inputHash &&
+    input.lifecycle.buildStatus === OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS.SUCCEEDED
   )
 }
 

@@ -137,11 +137,15 @@ function BuildStatusPill({
     return null
   }
 
-  const approved = isBuildPlanApproved(extensionPackage)
+  if (extensionPackage.lifecycle?.buildStatus === OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS.FAILED) {
+    return <StatusPill tone="error">{OPENWAGGLE_EXTENSION.LIFECYCLE.BUILD_FAILED_LABEL}</StatusPill>
+  }
+
+  const succeeded = isBuildPlanApproved(extensionPackage)
   return (
-    <StatusPill tone={approved ? 'good' : 'warning'}>
-      {approved
-        ? OPENWAGGLE_EXTENSION.LIFECYCLE.BUILD_APPROVED_LABEL
+    <StatusPill tone={succeeded ? 'good' : 'warning'}>
+      {succeeded
+        ? OPENWAGGLE_EXTENSION.LIFECYCLE.BUILD_SUCCEEDED_LABEL
         : OPENWAGGLE_EXTENSION.LIFECYCLE.BUILD_APPROVAL_REQUIRED_LABEL}
     </StatusPill>
   )

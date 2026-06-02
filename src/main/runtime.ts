@@ -4,6 +4,7 @@ import * as Effect from 'effect/Effect'
 import type { Exit as ExitType } from 'effect/Exit'
 import * as Layer from 'effect/Layer'
 import * as ManagedRuntime from 'effect/ManagedRuntime'
+import { ExtensionBuildRunnerLive } from './adapters/extension-build-runner'
 import { FilesystemExtensionManagerLive } from './adapters/filesystem-extension-manager-service'
 import { PiAgentKernelLive } from './adapters/pi/pi-agent-kernel-adapter'
 import { PiMcpConfigServiceLive } from './adapters/pi/pi-mcp-config-service'
@@ -33,6 +34,7 @@ const ExtensionRuntimeSelectionLive = Layer.mergeAll(
   ExtensionLifecycleRepositoryLive,
   ExtensionProjectOverridesRepositoryLive,
   FilesystemExtensionManagerLive,
+  ExtensionBuildRunnerLive,
 )
 const ProviderServiceWithExtensionSelectionLive = ProviderServiceLive.pipe(
   Layer.provide(ExtensionRuntimeSelectionLive),

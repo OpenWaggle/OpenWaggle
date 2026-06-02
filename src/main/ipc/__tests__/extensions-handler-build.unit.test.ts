@@ -3,6 +3,7 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DiscoveredExtensionPackage, ExtensionLifecycleState } from '../../extensions/types'
+import { ExtensionBuildRunner } from '../../ports/extension-build-runner'
 import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from '../../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
@@ -53,6 +54,9 @@ function makeTestLayer() {
   return Layer.mergeAll(
     Layer.succeed(ExtensionManagerService, {
       listPackages: () => Effect.succeed([localBuildPackage]),
+    }),
+    Layer.succeed(ExtensionBuildRunner, {
+      run: () => Effect.succeed({ exitCode: 0, stdout: 'built', stderr: '' }),
     }),
     Layer.succeed(ExtensionLifecycleRepository, {
       get: () => Effect.sync(() => storedLifecycle),
@@ -106,6 +110,7 @@ describe('registerExtensionsHandlers build approval', () => {
         trusted: false,
         enabled: false,
         approvedBuildPlanHash: 'build-plan-hash',
+        buildStatus: OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS.SUCCEEDED,
       }),
     )
   })

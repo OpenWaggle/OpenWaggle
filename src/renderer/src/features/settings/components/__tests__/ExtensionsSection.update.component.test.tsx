@@ -80,6 +80,8 @@ const samplePackage: ExtensionManagerView['packages'][number] = {
     contentHash: TRUSTED_HASH,
     packageVersion: '1.0.0',
     approvedBuildPlanHash: null,
+    buildStatus: 'not-run',
+    buildLog: null,
     sdkRange: '>=0.1.0 <0.2.0',
     sdkCompatible: true,
     diagnostics: [],

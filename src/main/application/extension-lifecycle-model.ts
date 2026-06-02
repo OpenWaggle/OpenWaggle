@@ -10,6 +10,8 @@ import type {
 import { isExtensionBuildPlanApproved } from '../extensions/runtime-eligibility'
 import type {
   DiscoveredExtensionPackage,
+  ExtensionBuildRunStatus,
+  ExtensionDiagnostic,
   ExtensionLifecycleKey,
   ExtensionLifecycleState,
   ExtensionPackageScope,
@@ -90,6 +92,24 @@ function getPackageErrorCodes(extensionPackage: DiscoveredExtensionPackage) {
     .map((diagnostic) => diagnostic.code)
 }
 
+function getBuildPlanReadinessError(
+  extensionPackage: DiscoveredExtensionPackage,
+  lifecycle: ExtensionLifecycleState | null,
+) {
+  const buildPlan = extensionPackage.buildPlan
+  if (buildPlan?.approvalRequired !== true) {
+    return OPENWAGGLE_EXTENSION.LIFECYCLE.BUILD_APPROVAL_REQUIRED_ERROR
+  }
+  if (
+    buildPlan.inputHash !== null &&
+    lifecycle?.approvedBuildPlanHash === buildPlan.inputHash &&
+    lifecycle.buildStatus === OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS.FAILED
+  ) {
+    return 'the approved local build failed.'
+  }
+  return OPENWAGGLE_EXTENSION.LIFECYCLE.BUILD_APPROVAL_REQUIRED_ERROR
+}
+
 export function getLifecycleReadinessError(
   extensionPackage: DiscoveredExtensionPackage,
   action: 'trust' | 'enable',
@@ -105,7 +125,7 @@ export function getLifecycleReadinessError(
     return `Cannot ${action} "${extensionPackage.id}" because its SDK range is incompatible.`
   }
   if (!isExtensionBuildPlanApproved({ extensionPackage, lifecycle })) {
-    return `Cannot ${action} "${extensionPackage.id}" because ${OPENWAGGLE_EXTENSION.LIFECYCLE.BUILD_APPROVAL_REQUIRED_ERROR}`
+    return `Cannot ${action} "${extensionPackage.id}" because ${getBuildPlanReadinessError(extensionPackage, lifecycle)}`
   }
 
   const errorCodes = getPackageErrorCodes(extensionPackage)
@@ -169,40 +189,70 @@ function pinnedPackageVersion({
     : (current?.packageVersion ?? extensionPackage.manifest?.version ?? null)
 }
 
-export function makeLifecycleState({
-  extensionPackage,
-  current,
-  enabled,
-  trusted,
-  pinCurrentPackage,
-  approvedBuildPlanHash,
-}: {
+interface MakeLifecycleStateInput {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly current: ExtensionLifecycleState | null
   readonly enabled: boolean
   readonly trusted: boolean
   readonly pinCurrentPackage: boolean
   readonly approvedBuildPlanHash?: string | null
-}): ExtensionLifecycleState {
+  readonly buildStatus?: ExtensionBuildRunStatus
+  readonly buildLog?: string | null
+  readonly diagnostics?: readonly ExtensionDiagnostic[]
+}
+
+function lifecycleGrantedCapabilities(input: MakeLifecycleStateInput) {
+  return input.trusted ? getGrantedCapabilities(input.extensionPackage) : []
+}
+
+function lifecycleApprovedBuildPlanHash(input: MakeLifecycleStateInput) {
+  return input.approvedBuildPlanHash ?? input.current?.approvedBuildPlanHash ?? null
+}
+
+function lifecycleBuildStatus(input: MakeLifecycleStateInput) {
+  return (
+    input.buildStatus ?? input.current?.buildStatus ?? OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS.NOT_RUN
+  )
+}
+
+function lifecycleBuildLog(input: MakeLifecycleStateInput) {
+  return input.buildLog ?? input.current?.buildLog ?? null
+}
+
+function lifecycleSdkRange(input: MakeLifecycleStateInput) {
+  return input.extensionPackage.manifest?.sdk.openwaggle ?? null
+}
+
+function lifecycleSdkCompatible(input: MakeLifecycleStateInput) {
+  return input.extensionPackage.sdkCompatibility?.compatible ?? false
+}
+
+function lifecycleDiagnostics(input: MakeLifecycleStateInput) {
+  return input.diagnostics ?? input.extensionPackage.diagnostics
+}
+
+export function makeLifecycleState(input: MakeLifecycleStateInput): ExtensionLifecycleState {
   const now = Date.now()
   return {
-    extensionId: extensionPackage.id,
-    scope: extensionPackage.scope,
-    enabled,
-    trusted,
-    grantedCapabilities: trusted ? getGrantedCapabilities(extensionPackage) : [],
-    contentHash: pinnedContentHash({ extensionPackage, current, trusted, pinCurrentPackage }),
+    extensionId: input.extensionPackage.id,
+    scope: input.extensionPackage.scope,
+    enabled: input.enabled,
+    trusted: input.trusted,
+    grantedCapabilities: lifecycleGrantedCapabilities(input),
+    contentHash: pinnedContentHash(input),
     packageVersion: pinnedPackageVersion({
-      extensionPackage,
-      current,
-      trusted,
-      pinCurrentPackage,
+      extensionPackage: input.extensionPackage,
+      current: input.current,
+      trusted: input.trusted,
+      pinCurrentPackage: input.pinCurrentPackage,
     }),
-    approvedBuildPlanHash: approvedBuildPlanHash ?? current?.approvedBuildPlanHash ?? null,
-    sdkRange: extensionPackage.manifest?.sdk.openwaggle ?? null,
-    sdkCompatible: extensionPackage.sdkCompatibility?.compatible ?? false,
-    diagnostics: extensionPackage.diagnostics,
-    installedAt: current?.installedAt ?? now,
+    approvedBuildPlanHash: lifecycleApprovedBuildPlanHash(input),
+    buildStatus: lifecycleBuildStatus(input),
+    buildLog: lifecycleBuildLog(input),
+    sdkRange: lifecycleSdkRange(input),
+    sdkCompatible: lifecycleSdkCompatible(input),
+    diagnostics: lifecycleDiagnostics(input),
+    installedAt: input.current?.installedAt ?? now,
     updatedAt: now,
   }
 }

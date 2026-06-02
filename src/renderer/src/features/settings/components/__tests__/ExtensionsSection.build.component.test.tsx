@@ -117,12 +117,52 @@ const BUILD_APPROVED_VIEW: ExtensionManagerView = {
         contentHash: null,
         packageVersion: null,
         approvedBuildPlanHash: 'build-plan-hash',
+        buildStatus: 'succeeded',
+        buildLog: null,
         sdkRange: '>=0.1.0 <0.2.0',
         sdkCompatible: true,
         diagnostics: [],
         installedAt: 1000,
         updatedAt: 2000,
       },
+    },
+  ],
+}
+
+const BUILD_FAILED_VIEW: ExtensionManagerView = {
+  ...LOCAL_BUILD_VIEW,
+  packages: [
+    {
+      ...LOCAL_BUILD_PACKAGE,
+      lifecycle: {
+        enabled: false,
+        trusted: false,
+        updateAvailable: false,
+        grantedCapabilities: [],
+        contentHash: null,
+        packageVersion: null,
+        approvedBuildPlanHash: 'build-plan-hash',
+        buildStatus: 'failed',
+        buildLog: 'stderr: missing artifact',
+        sdkRange: '>=0.1.0 <0.2.0',
+        sdkCompatible: true,
+        diagnostics: [
+          {
+            severity: 'error',
+            code: 'build-failed',
+            message: 'Build command failed with exit code 1.',
+          },
+        ],
+        installedAt: 1000,
+        updatedAt: 2000,
+      },
+      diagnostics: [
+        {
+          severity: 'error',
+          code: 'build-failed',
+          message: 'Build command failed with exit code 1.',
+        },
+      ],
     },
   ],
 }
@@ -140,7 +180,7 @@ describe('ExtensionsSection build approval', () => {
     renderWithQueryClient(<ExtensionsSection />)
 
     expect(await screen.findByText('Build approval required')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Approve build Sample Extension' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Approve and build Sample Extension' }))
 
     await waitFor(() => {
       expect(approveExtensionBuildMock).toHaveBeenCalledWith({
@@ -149,6 +189,20 @@ describe('ExtensionsSection build approval', () => {
         viewProjectPaths: ['/tmp/project'],
       })
     })
-    expect(await screen.findByText('Build approved')).toBeInTheDocument()
+    expect(await screen.findByText('Build succeeded')).toBeInTheDocument()
+  })
+
+  it('renders failed build state returned by the build approval mutation', async () => {
+    listExtensionPackagesMock.mockResolvedValueOnce(LOCAL_BUILD_VIEW)
+    approveExtensionBuildMock.mockResolvedValueOnce(BUILD_FAILED_VIEW)
+
+    renderWithQueryClient(<ExtensionsSection />)
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Approve and build Sample Extension' }),
+    )
+
+    expect(await screen.findByText('Build failed')).toBeInTheDocument()
+    expect(screen.getByText('stderr: missing artifact')).toBeInTheDocument()
   })
 })

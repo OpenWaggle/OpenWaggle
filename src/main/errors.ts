@@ -50,3 +50,8 @@ export class ExtensionProjectOverrideRepositoryError extends Data.TaggedError(
   readonly operation: string
   readonly cause?: unknown
 }> {}
+
+export class ExtensionBuildRunnerError extends Data.TaggedError('ExtensionBuildRunnerError')<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}

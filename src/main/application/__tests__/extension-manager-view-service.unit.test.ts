@@ -51,6 +51,8 @@ const lifecycleState: ExtensionLifecycleState = {
   contentHash: 'abcdef',
   packageVersion: '1.0.0',
   approvedBuildPlanHash: null,
+  buildStatus: OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS.NOT_RUN,
+  buildLog: null,
   sdkRange: '>=0.1.0 <0.2.0',
   sdkCompatible: true,
   diagnostics: [],

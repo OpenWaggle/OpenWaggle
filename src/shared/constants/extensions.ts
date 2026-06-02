@@ -1,3 +1,5 @@
+import { TIME_UNIT } from './time'
+
 export const OPENWAGGLE_EXTENSION = {
   MANIFEST_FILE: 'openwaggle.extension.json',
   SDK_VERSION: '0.1.0',
@@ -19,8 +21,10 @@ export const OPENWAGGLE_EXTENSION = {
     UPDATE_AVAILABLE_LABEL: 'Update available',
     BUILD_APPROVAL_REQUIRED_LABEL: 'Build approval required',
     BUILD_APPROVED_LABEL: 'Build approved',
+    BUILD_SUCCEEDED_LABEL: 'Build succeeded',
+    BUILD_FAILED_LABEL: 'Build failed',
     APPROVE_UPDATE_ACTION_LABEL: 'Approve update',
-    APPROVE_BUILD_ACTION_LABEL: 'Approve build',
+    APPROVE_BUILD_ACTION_LABEL: 'Approve and build',
     NO_UPDATE_AVAILABLE_ERROR: 'No extension update is available.',
     UNTRUSTED_UPDATE_ERROR: 'Trust this extension before approving updates.',
     APPROVE_UPDATE_REQUIRED_ERROR:
@@ -29,6 +33,9 @@ export const OPENWAGGLE_EXTENSION = {
     BUILD_APPROVAL_UNAVAILABLE_ERROR:
       'Build approval is unavailable until the extension source files are valid.',
     BUILD_APPROVAL_REQUIRED_ERROR: 'the local build plan has not been approved.',
+    BUILD_COMMAND_UNAVAILABLE_ERROR: 'The approved local build command is unavailable.',
+    BUILD_ARTIFACT_VALIDATION_ERROR:
+      'The approved build completed, but declared build artifacts are still invalid.',
   },
   LIMITS: {
     ID_MAX_LENGTH: 96,
@@ -37,6 +44,8 @@ export const OPENWAGGLE_EXTENSION = {
     DESCRIPTION_MAX_LENGTH: 2_000,
     RELATIVE_PATH_MAX_LENGTH: 260,
     BUILD_COMMAND_MAX_LENGTH: 500,
+    BUILD_LOG_MAX_LENGTH: 4_000,
+    BUILD_COMMAND_TIMEOUT_MS: TIME_UNIT.TEN_MINUTES_MS,
   },
   PATTERNS: {
     WINDOWS_ABSOLUTE_PATH: /^[A-Za-z]:[\\/]/,
@@ -83,6 +92,15 @@ export const OPENWAGGLE_EXTENSION = {
   ] as const,
   DIAGNOSTIC: {
     SEVERITIES: ['error', 'warning'] as const,
+    BUILD_BLOCKING_CODES: [
+      'source-file-missing',
+      'built-artifact-missing',
+      'runtime-file-missing',
+      'build-command-missing',
+      'build-output-not-artifact',
+      'package-path-invalid',
+      'filesystem-error',
+    ] as const,
     CODES: [
       'manifest-missing',
       'manifest-json-invalid',
@@ -93,6 +111,8 @@ export const OPENWAGGLE_EXTENSION = {
       'runtime-file-missing',
       'build-command-missing',
       'build-output-not-artifact',
+      'build-failed',
+      'build-artifacts-invalid',
       'package-path-invalid',
       'sdk-range-invalid',
       'sdk-incompatible',
@@ -121,4 +141,10 @@ export const OPENWAGGLE_EXTENSION = {
     LOCAL_BUILD: 'local-build',
   },
   INSTALL_SOURCES: ['prebuilt', 'local-build'] as const,
+  BUILD_RUN_STATUS: {
+    NOT_RUN: 'not-run',
+    SUCCEEDED: 'succeeded',
+    FAILED: 'failed',
+  },
+  BUILD_RUN_STATUSES: ['not-run', 'succeeded', 'failed'] as const,
 } as const

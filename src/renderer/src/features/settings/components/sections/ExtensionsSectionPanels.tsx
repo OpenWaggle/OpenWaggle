@@ -20,8 +20,7 @@ export function ExtensionsSectionHeading({
       <div className="space-y-1">
         <h2 className="text-[20px] font-semibold text-text-primary">Extensions</h2>
         <p className="max-w-[760px] text-[13px] leading-5 text-text-tertiary">
-          Discovered OpenWaggle extension packages. Trust pins the current package hash; enablement
-          is blocked until the package is trusted and valid. Project opt-outs are stored locally.
+          Manage discovered OpenWaggle extension packages across global and project scopes.
         </p>
         <p className="text-[11px] text-text-muted">{scopeSummary}</p>
       </div>

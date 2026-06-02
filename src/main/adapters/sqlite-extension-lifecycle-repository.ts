@@ -18,6 +18,8 @@ interface ExtensionLifecycleRow {
   readonly content_hash: string | null
   readonly package_version: string | null
   readonly approved_build_plan_hash: string | null
+  readonly build_status: string
+  readonly build_log: string | null
   readonly sdk_range: string | null
   readonly sdk_compatible: number
   readonly diagnostics_json: string
@@ -36,6 +38,7 @@ const extensionDiagnosticsSchema = Schema.mutable(
   ),
 )
 const stringArraySchema = Schema.mutable(Schema.Array(Schema.String))
+const buildStatusSchema = Schema.Literal(...OPENWAGGLE_EXTENSION.BUILD_RUN_STATUSES)
 
 function booleanToSqlite(value: boolean) {
   return value ? SQLITE_BOOLEAN.TRUE : SQLITE_BOOLEAN.FALSE
@@ -78,6 +81,11 @@ function decodeJsonField<A, I>(
 }
 
 function rowToLifecycleState(row: ExtensionLifecycleRow): ExtensionLifecycleState {
+  const decodedBuildStatus = safeDecodeUnknown(buildStatusSchema, row.build_status)
+  if (!decodedBuildStatus.success) {
+    throw new Error(`Invalid build_status: ${decodedBuildStatus.issues.join('; ')}`)
+  }
+
   return {
     extensionId: row.extension_id,
     scope: scopeFromColumns(row.scope_kind, row.scope_id),
@@ -91,6 +99,8 @@ function rowToLifecycleState(row: ExtensionLifecycleRow): ExtensionLifecycleStat
     contentHash: row.content_hash,
     packageVersion: row.package_version,
     approvedBuildPlanHash: row.approved_build_plan_hash,
+    buildStatus: decodedBuildStatus.data,
+    buildLog: row.build_log,
     sdkRange: row.sdk_range,
     sdkCompatible: sqliteToBoolean(row.sdk_compatible),
     diagnostics: decodeJsonField(
@@ -134,6 +144,8 @@ export const SqliteExtensionLifecycleRepositoryLive = Layer.effect(
             content_hash,
             package_version,
             approved_build_plan_hash,
+            build_status,
+            build_log,
             sdk_range,
             sdk_compatible,
             diagnostics_json,
@@ -162,6 +174,8 @@ export const SqliteExtensionLifecycleRepositoryLive = Layer.effect(
             content_hash,
             package_version,
             approved_build_plan_hash,
+            build_status,
+            build_log,
             sdk_range,
             sdk_compatible,
             diagnostics_json,
@@ -188,6 +202,8 @@ export const SqliteExtensionLifecycleRepositoryLive = Layer.effect(
             content_hash,
             package_version,
             approved_build_plan_hash,
+            build_status,
+            build_log,
             sdk_range,
             sdk_compatible,
             diagnostics_json,
@@ -204,6 +220,8 @@ export const SqliteExtensionLifecycleRepositoryLive = Layer.effect(
             ${state.contentHash},
             ${state.packageVersion},
             ${state.approvedBuildPlanHash},
+            ${state.buildStatus},
+            ${state.buildLog},
             ${state.sdkRange},
             ${booleanToSqlite(state.sdkCompatible)},
             ${JSON.stringify(state.diagnostics)},
@@ -217,6 +235,8 @@ export const SqliteExtensionLifecycleRepositoryLive = Layer.effect(
             content_hash = excluded.content_hash,
             package_version = excluded.package_version,
             approved_build_plan_hash = excluded.approved_build_plan_hash,
+            build_status = excluded.build_status,
+            build_log = excluded.build_log,
             sdk_range = excluded.sdk_range,
             sdk_compatible = excluded.sdk_compatible,
             diagnostics_json = excluded.diagnostics_json,
