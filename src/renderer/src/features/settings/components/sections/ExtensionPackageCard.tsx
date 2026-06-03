@@ -5,7 +5,11 @@ import { ManifestBadges } from './ExtensionManifestBadges'
 import { PackageActions } from './ExtensionPackageCardActions'
 import { PackageStatusPills, PackageTrustIcon } from './ExtensionPackageCardStatus'
 import { PackageMetadata } from './ExtensionPackageMetadata'
-import { type ExtensionPackageCardActions, packageTitle } from './extension-package-card-model'
+import {
+  type ExtensionPackageCardActions,
+  packageTitle,
+  visiblePackageDiagnostics,
+} from './extension-package-card-model'
 
 export function ExtensionPackageCard({
   extensionPackage,
@@ -43,7 +47,7 @@ export function ExtensionPackageCard({
         actions={actions}
       />
       <ManifestBadges extensionPackage={extensionPackage} />
-      <ExtensionDiagnostics diagnostics={extensionPackage.diagnostics} />
+      <ExtensionDiagnostics diagnostics={visiblePackageDiagnostics(extensionPackage)} />
     </div>
   )
 }

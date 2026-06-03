@@ -96,6 +96,9 @@ export const OPENWAGGLE_EXTENSION = {
   ] as const,
   DIAGNOSTIC: {
     SEVERITIES: ['error', 'warning'] as const,
+    CODE: {
+      RUNTIME_LOAD_FAILED: 'runtime-load-failed',
+    },
     BUILD_BLOCKING_CODES: [
       'source-file-missing',
       'built-artifact-missing',
@@ -120,6 +123,7 @@ export const OPENWAGGLE_EXTENSION = {
       'package-path-invalid',
       'sdk-range-invalid',
       'sdk-incompatible',
+      'runtime-load-failed',
       'filesystem-error',
     ] as const,
   },

@@ -24,6 +24,7 @@ import {
   type PiRuntimeServicesOptions,
 } from './pi-provider-resources'
 import { getPiModelAvailableThinkingLevels } from './pi-provider-thinking'
+import { getPiRuntimeExtensionLoadErrors } from './pi-runtime-extension-load-errors'
 
 export { getPiModelAvailableThinkingLevels } from './pi-provider-thinking'
 
@@ -123,16 +124,16 @@ function buildOAuthProviderNameMap(authStorage: AuthStorage) {
 }
 
 function createPiProviderCatalogSnapshotFromRuntime(
-  modelRegistry: ModelRegistry,
-  authStorage: AuthStorage,
+  services: Pick<AgentSessionServices, 'modelRegistry' | 'authStorage' | 'resourceLoader'>,
 ) {
   return {
-    providers: listPiProvidersFromModels(listPiProviderModelsFromRegistry(modelRegistry)),
-    oauthProviders: buildOAuthProviderSet(authStorage),
-    oauthProviderNames: buildOAuthProviderNameMap(authStorage),
-    credentials: buildAuthCredentialMap(authStorage),
-    configuredAuthProviders: buildConfiguredAuthProviderSet(modelRegistry),
+    providers: listPiProvidersFromModels(listPiProviderModelsFromRegistry(services.modelRegistry)),
+    oauthProviders: buildOAuthProviderSet(services.authStorage),
+    oauthProviderNames: buildOAuthProviderNameMap(services.authStorage),
+    credentials: buildAuthCredentialMap(services.authStorage),
+    configuredAuthProviders: buildConfiguredAuthProviderSet(services.modelRegistry),
     builtInModelProviders: getBuiltInPiModelProviderIds(),
+    extensionLoadErrors: getPiRuntimeExtensionLoadErrors(services),
   }
 }
 
@@ -207,14 +208,14 @@ export async function createPiProviderCatalogSnapshot(
   const normalizedProjectPath = projectPath?.trim()
   if (!normalizedProjectPath) {
     const services = await createPiGlobalProviderCatalogServices()
-    return createPiProviderCatalogSnapshotFromRuntime(services.modelRegistry, services.authStorage)
+    return createPiProviderCatalogSnapshotFromRuntime(services)
   }
 
   const services = await createPiRuntimeServices(normalizedProjectPath, {
     enabledOpenWaggleExtensionPackagePaths: options.enabledOpenWaggleExtensionPackagePaths ?? [],
     loadMcpAdapter: false,
   })
-  return createPiProviderCatalogSnapshotFromRuntime(services.modelRegistry, services.authStorage)
+  return createPiProviderCatalogSnapshotFromRuntime(services)
 }
 
 export function setPiProviderApiKey(providerId: string, apiKey: string): void {

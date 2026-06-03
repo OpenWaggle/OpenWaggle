@@ -71,6 +71,26 @@ const config: Config = [
       'no-empty': ['error', { allowEmptyCatch: false }],
       'no-undef': 'off',
       '@typescript-eslint/consistent-type-assertions': ['error', { assertionStyle: 'never' }],
+      '@typescript-eslint/naming-convention': [
+        'error',
+        {
+          selector: 'function',
+          format: ['camelCase', 'PascalCase'],
+          custom: {
+            regex: '^.{1,55}$',
+            match: true,
+          },
+        },
+        {
+          selector: 'variable',
+          types: ['function'],
+          format: ['camelCase', 'PascalCase'],
+          custom: {
+            regex: '^.{1,55}$',
+            match: true,
+          },
+        },
+      ],
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-unnecessary-type-assertion': 'error',
       '@typescript-eslint/no-unsafe-argument': 'error',

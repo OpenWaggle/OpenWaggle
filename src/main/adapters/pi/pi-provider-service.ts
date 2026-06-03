@@ -2,19 +2,22 @@ import type { ProviderApiKeyAuthSource, ProviderAuthSource } from '@shared/types
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { ProviderLookupError } from '../../errors'
+import { loadWithRuntimeFailureIsolation } from '../../extensions/runtime-load-isolation'
 import { createLogger } from '../../logger'
 import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from '../../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
 import { type ProviderModelCapabilities, ProviderService } from '../../ports/provider-service'
 import {
-  listRuntimeEnabledOpenWaggleExtensionPackagePathsFromServices,
+  listRuntimeEnabledPackages,
   type OpenWagglePiExtensionSelectionServices,
 } from './openwaggle-pi-extension-selection'
+import { recordRuntimeLoadFailure } from './openwaggle-pi-runtime-failure-recording'
 import {
   createPiProviderCatalogSnapshot,
   getBuiltInPiModelProviderIds,
 } from './pi-provider-catalog'
+import { rejectMatchingOpenWaggleExtensionLoadErrors } from './pi-runtime-extension-load-errors'
 
 const logger = createLogger('pi-provider-service')
 
@@ -164,11 +167,8 @@ function createProjectProviderCatalogSnapshot(
   extensionSelectionServices: OpenWagglePiExtensionSelectionServices,
 ) {
   return Effect.gen(function* () {
-    const enabledOpenWaggleExtensionPackagePaths = projectPath
-      ? yield* listRuntimeEnabledOpenWaggleExtensionPackagePathsFromServices(
-          projectPath,
-          extensionSelectionServices,
-        ).pipe(
+    const enabledOpenWaggleExtensionPackages = projectPath
+      ? yield* listRuntimeEnabledPackages(projectPath, extensionSelectionServices).pipe(
           Effect.catchAll((error) =>
             Effect.sync(() => {
               logger.warn('Failed to resolve OpenWaggle extension runtime allowlist', {
@@ -179,11 +179,29 @@ function createProjectProviderCatalogSnapshot(
             }),
           ),
         )
-      : undefined
+      : []
 
     return yield* Effect.promise(() =>
-      createPiProviderCatalogSnapshot(projectPath, {
-        enabledOpenWaggleExtensionPackagePaths: enabledOpenWaggleExtensionPackagePaths ?? [],
+      loadWithRuntimeFailureIsolation({
+        selections: enabledOpenWaggleExtensionPackages,
+        load: async (enabledOpenWaggleExtensionPackagePaths) => {
+          const snapshot = await createPiProviderCatalogSnapshot(projectPath, {
+            enabledOpenWaggleExtensionPackagePaths,
+          })
+          return rejectMatchingOpenWaggleExtensionLoadErrors({
+            result: snapshot,
+            errors: snapshot.extensionLoadErrors,
+            enabledOpenWaggleExtensionPackagePaths,
+          })
+        },
+        recordFailure: (selection, error) =>
+          recordRuntimeLoadFailure({
+            selection,
+            error,
+            extensionSelectionServices,
+            logger,
+            operation: 'Pi provider catalog',
+          }),
       }),
     )
   })

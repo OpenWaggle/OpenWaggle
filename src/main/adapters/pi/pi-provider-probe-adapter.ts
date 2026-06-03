@@ -1,30 +1,32 @@
-import { createAgentSessionFromServices, SessionManager } from '@mariozechner/pi-coding-agent'
+import {
+  type AgentSessionServices,
+  createAgentSessionFromServices,
+  SessionManager,
+} from '@mariozechner/pi-coding-agent'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
+import { loadWithRuntimeFailureIsolation } from '../../extensions/runtime-load-isolation'
 import { createLogger } from '../../logger'
 import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from '../../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
 import { type ProviderProbeInput, ProviderProbeService } from '../../ports/provider-probe-service'
 import {
-  listRuntimeEnabledOpenWaggleExtensionPackagePathsFromServices,
+  listRuntimeEnabledPackages,
   type OpenWagglePiExtensionSelectionServices,
 } from './openwaggle-pi-extension-selection'
+import { recordRuntimeLoadFailure } from './openwaggle-pi-runtime-failure-recording'
 import { createPiRuntimeServices } from './pi-provider-catalog'
+import {
+  getPiRuntimeExtensionLoadErrors,
+  rejectMatchingOpenWaggleExtensionLoadErrors,
+} from './pi-runtime-extension-load-errors'
 
 const logger = createLogger('pi-provider-probe')
 const PROVIDER_PROBE_PROMPT = 'Reply with exactly OK and nothing else.'
 const PROVIDER_PROBE_TIMEOUT_MS = 15_000
 
-async function runPiPromptProbe(
-  input: ProviderProbeInput,
-  enabledOpenWaggleExtensionPackagePaths: readonly string[],
-) {
-  const cwd = input.projectPath ?? process.cwd()
-  const services = await createPiRuntimeServices(cwd, {
-    enabledOpenWaggleExtensionPackagePaths,
-    loadMcpAdapter: false,
-  })
+async function runPiPromptProbe(input: ProviderProbeInput, services: AgentSessionServices) {
   if (input.apiKey) {
     services.authStorage.setRuntimeApiKey(input.providerId, input.apiKey)
   }
@@ -68,15 +70,28 @@ async function runPiPromptProbe(
   }
 }
 
-function loadEnabledOpenWaggleExtensionPackagePaths(
+async function createProbeRuntimeServices(
+  input: ProviderProbeInput,
+  enabledOpenWaggleExtensionPackagePaths: readonly string[],
+) {
+  const cwd = input.projectPath ?? process.cwd()
+  const services = await createPiRuntimeServices(cwd, {
+    enabledOpenWaggleExtensionPackagePaths,
+    loadMcpAdapter: false,
+  })
+  return rejectMatchingOpenWaggleExtensionLoadErrors({
+    result: services,
+    errors: getPiRuntimeExtensionLoadErrors(services),
+    enabledOpenWaggleExtensionPackagePaths,
+  })
+}
+
+function loadEnabledOpenWaggleExtensionPackages(
   projectPath: string | null | undefined,
   extensionSelectionServices: OpenWagglePiExtensionSelectionServices,
 ) {
   return projectPath
-    ? listRuntimeEnabledOpenWaggleExtensionPackagePathsFromServices(
-        projectPath,
-        extensionSelectionServices,
-      ).pipe(
+    ? listRuntimeEnabledPackages(projectPath, extensionSelectionServices).pipe(
         Effect.catchAll((error) =>
           Effect.sync(() => {
             logger.warn('Failed to resolve OpenWaggle extension runtime allowlist', {
@@ -102,13 +117,27 @@ export const PiProviderProbeLive = Layer.effect(
     return ProviderProbeService.of({
       probeCredentials: (input) =>
         Effect.gen(function* () {
-          const enabledOpenWaggleExtensionPackagePaths =
-            yield* loadEnabledOpenWaggleExtensionPackagePaths(
-              input.projectPath,
-              extensionSelectionServices,
-            )
+          const enabledOpenWaggleExtensionPackages = yield* loadEnabledOpenWaggleExtensionPackages(
+            input.projectPath,
+            extensionSelectionServices,
+          )
           return yield* Effect.tryPromise({
-            try: () => runPiPromptProbe(input, enabledOpenWaggleExtensionPackagePaths),
+            try: async () => {
+              const services = await loadWithRuntimeFailureIsolation({
+                selections: enabledOpenWaggleExtensionPackages,
+                load: (enabledOpenWaggleExtensionPackagePaths) =>
+                  createProbeRuntimeServices(input, enabledOpenWaggleExtensionPackagePaths),
+                recordFailure: (selection, error) =>
+                  recordRuntimeLoadFailure({
+                    selection,
+                    error,
+                    extensionSelectionServices,
+                    logger,
+                    operation: 'Pi provider probe',
+                  }),
+              })
+              await runPiPromptProbe(input, services)
+            },
             catch: (error) => (error instanceof Error ? error : new Error(String(error))),
           })
         }),

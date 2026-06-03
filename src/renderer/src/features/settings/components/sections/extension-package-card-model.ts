@@ -17,6 +17,10 @@ export function hasErrorDiagnostics(extensionPackage: ExtensionPackageSummary) {
   return extensionPackage.diagnostics.some((diagnostic) => diagnostic.severity === 'error')
 }
 
+export function visiblePackageDiagnostics(extensionPackage: ExtensionPackageSummary) {
+  return [...extensionPackage.diagnostics, ...(extensionPackage.lifecycle?.diagnostics ?? [])]
+}
+
 export function isSdkCompatible(extensionPackage: ExtensionPackageSummary) {
   return extensionPackage.sdkCompatibility?.compatible ?? false
 }
