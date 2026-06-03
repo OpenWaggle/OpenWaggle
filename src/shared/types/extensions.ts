@@ -82,6 +82,9 @@ export interface ExtensionManifestSummary {
 export type ExtensionInstallSource = (typeof OPENWAGGLE_EXTENSION.INSTALL_SOURCES)[number]
 export type ExtensionBuildRunStatus = (typeof OPENWAGGLE_EXTENSION.BUILD_RUN_STATUSES)[number]
 export type ExtensionReloadStatus = (typeof OPENWAGGLE_EXTENSION.RELOAD_STATUSES)[number]
+export type ExtensionContributionFamily =
+  (typeof OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILIES)[number]
+export type ExtensionContributionUiLane = (typeof OPENWAGGLE_EXTENSION.UI_LANES)[number]
 
 export interface ExtensionBuildPlanView {
   readonly installSource: ExtensionInstallSource
@@ -136,4 +139,43 @@ export interface ExtensionManagerView {
   readonly projectPath: string | null
   readonly projectPaths: readonly string[]
   readonly packages: readonly ExtensionPackageSummary[]
+}
+
+export interface ExtensionListContributionsInput {
+  readonly projectPaths?: readonly string[]
+}
+
+export interface ExtensionContributionEligibilityView {
+  readonly runtimeEnabled: boolean
+  readonly enabled: boolean
+  readonly trusted: boolean
+  readonly sdkCompatible: boolean | null
+  readonly updateAvailable: boolean
+  readonly disabledProjectPaths: readonly string[]
+}
+
+export interface ExtensionContributionRegistryEntry {
+  readonly extensionId: string
+  readonly extensionName: string
+  readonly extensionVersion: string
+  readonly scope: ExtensionPackageScopeView
+  readonly packagePath: string
+  readonly manifestPath: string
+  readonly projectPaths: readonly string[]
+  readonly appliesToAllRequestedProjects: boolean
+  readonly family: ExtensionContributionFamily
+  readonly contributionId: string
+  readonly title: string
+  readonly label: string
+  readonly category?: string
+  readonly capability?: string
+  readonly lane?: ExtensionContributionUiLane
+  readonly entryPath?: string
+  readonly eligibility: ExtensionContributionEligibilityView
+  readonly diagnostics: readonly ExtensionDiagnosticView[]
+}
+
+export interface ExtensionContributionRegistryView {
+  readonly projectPaths: readonly string[]
+  readonly entries: readonly ExtensionContributionRegistryEntry[]
 }

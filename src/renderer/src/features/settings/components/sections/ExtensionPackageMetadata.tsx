@@ -1,6 +1,10 @@
 import type { ExtensionPackageSummary } from '@shared/types/extensions'
 import type { ReactNode } from 'react'
 import { cn } from '@/shared/lib/cn'
+import {
+  PackageContributionDetails,
+  type PackageContributionSummary,
+} from './ExtensionContributionSummary'
 
 const HASH_PREVIEW_LENGTH = 12
 
@@ -39,8 +43,10 @@ function MetadataItem({
 
 export function PackageMetadata({
   extensionPackage,
+  contributionSummary,
 }: {
   readonly extensionPackage: ExtensionPackageSummary
+  readonly contributionSummary: PackageContributionSummary | null
 }) {
   const manifest = extensionPackage.manifest
   return (
@@ -50,7 +56,12 @@ export function PackageMetadata({
       <MetadataItem label="Content hash" valueClassName="font-mono">
         {formatHash(extensionPackage.contentHash)}
       </MetadataItem>
-      <MetadataItem label="Contributions">{manifest?.contributionCount ?? 0}</MetadataItem>
+      <MetadataItem label="Contributions">
+        <PackageContributionDetails
+          summary={contributionSummary}
+          fallbackCount={manifest?.contributionCount ?? 0}
+        />
+      </MetadataItem>
       <MetadataItem label="Install source">{formatInstallSource(extensionPackage)}</MetadataItem>
       <MetadataItem label="Build command" valueClassName="truncate">
         {extensionPackage.buildPlan?.command ?? 'Not declared'}

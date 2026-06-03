@@ -1,5 +1,6 @@
 import type { ExtensionPackageSummary } from '@shared/types/extensions'
 import { PackageOpen } from 'lucide-react'
+import type { PackageContributionSummary } from './ExtensionContributionSummary'
 import { ExtensionDiagnostics } from './ExtensionDiagnostics'
 import { ManifestBadges } from './ExtensionManifestBadges'
 import { PackageActions } from './ExtensionPackageCardActions'
@@ -13,11 +14,13 @@ import {
 
 export function ExtensionPackageCard({
   extensionPackage,
+  contributionSummary,
   busy,
   projectLabel,
   actions,
 }: {
   readonly extensionPackage: ExtensionPackageSummary
+  readonly contributionSummary: PackageContributionSummary | null
   readonly busy: boolean
   readonly projectLabel: (projectPath: string) => string
   readonly actions: ExtensionPackageCardActions
@@ -39,7 +42,10 @@ export function ExtensionPackageCard({
         </div>
         <PackageTrustIcon extensionPackage={extensionPackage} />
       </div>
-      <PackageMetadata extensionPackage={extensionPackage} />
+      <PackageMetadata
+        extensionPackage={extensionPackage}
+        contributionSummary={contributionSummary}
+      />
       <PackageActions
         extensionPackage={extensionPackage}
         busy={busy}

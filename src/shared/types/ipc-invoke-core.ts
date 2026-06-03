@@ -4,6 +4,8 @@ import type { ContextCompactionResult, ContextUsageSnapshot } from './context-us
 import type {
   ExtensionAcceptUpdateInput,
   ExtensionApproveBuildInput,
+  ExtensionContributionRegistryView,
+  ExtensionListContributionsInput,
   ExtensionListPackagesInput,
   ExtensionManagerView,
   ExtensionReloadInput,
@@ -98,6 +100,10 @@ export interface IpcCoreInvokeChannelMap {
   'extensions:list-packages': {
     args: [input?: ExtensionListPackagesInput]
     return: ExtensionManagerView
+  }
+  'extensions:list-contributions': {
+    args: [input?: ExtensionListContributionsInput]
+    return: ExtensionContributionRegistryView
   }
   'extensions:set-trusted': {
     args: [input: ExtensionSetTrustedInput]

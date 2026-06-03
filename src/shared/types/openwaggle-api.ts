@@ -7,6 +7,8 @@ import type { ContextCompactionResult, ContextUsageSnapshot } from './context-us
 import type {
   ExtensionAcceptUpdateInput,
   ExtensionApproveBuildInput,
+  ExtensionContributionRegistryView,
+  ExtensionListContributionsInput,
   ExtensionListPackagesInput,
   ExtensionManagerView,
   ExtensionReloadInput,
@@ -106,6 +108,9 @@ export interface OpenWaggleApi {
   setMcpServerEnabled(input: McpSetServerEnabledInput): Promise<McpSettingsView>
   writeMcpSourceConfig(input: McpWriteSourceConfigInput): Promise<McpSettingsView>
   listExtensionPackages(input?: ExtensionListPackagesInput): Promise<ExtensionManagerView>
+  listExtensionContributions(
+    input?: ExtensionListContributionsInput,
+  ): Promise<ExtensionContributionRegistryView>
   setExtensionTrusted(input: ExtensionSetTrustedInput): Promise<ExtensionManagerView>
   setExtensionEnabled(input: ExtensionSetEnabledInput): Promise<ExtensionManagerView>
   setExtensionProjectDisabled(

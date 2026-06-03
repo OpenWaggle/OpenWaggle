@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { readFile, stat } from 'node:fs/promises'
+import { readFile, realpath, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { formatErrorMessage, isEnoent } from '@shared/utils/node-error'
@@ -50,6 +50,19 @@ function resolvePackageRelativePath(packagePath: string, relativePath: string) {
   return isPathInside(resolvedPackagePath, resolvedCandidatePath) ? resolvedCandidatePath : null
 }
 
+async function resolveSafePackageFilePath(packagePath: string, relativePath: string) {
+  const candidatePath = resolvePackageRelativePath(packagePath, relativePath)
+  if (!candidatePath) {
+    return null
+  }
+
+  const [realPackagePath, realCandidatePath] = await Promise.all([
+    realpath(packagePath),
+    realpath(candidatePath),
+  ])
+  return isPathInside(realPackagePath, realCandidatePath) ? realCandidatePath : null
+}
+
 async function fileExists(filePath: string) {
   try {
     const fileStat = await stat(filePath)
@@ -65,8 +78,8 @@ async function fileExists(filePath: string) {
 export async function validateDeclaredFiles(input: ValidateDeclaredFilesInput) {
   const diagnostics: ExtensionDiagnostic[] = []
   for (const relativePath of input.relativePaths) {
-    const filePath = resolvePackageRelativePath(input.packagePath, relativePath)
-    if (!filePath) {
+    const candidatePath = resolvePackageRelativePath(input.packagePath, relativePath)
+    if (!candidatePath) {
       diagnostics.push({
         severity: 'error',
         code: 'package-path-invalid',
@@ -77,6 +90,17 @@ export async function validateDeclaredFiles(input: ValidateDeclaredFilesInput) {
     }
 
     try {
+      const filePath = await resolveSafePackageFilePath(input.packagePath, relativePath)
+      if (!filePath) {
+        diagnostics.push({
+          severity: 'error',
+          code: 'package-path-invalid',
+          message: `Declared ${input.label} resolves outside the extension package root.`,
+          path: relativePath,
+        })
+        continue
+      }
+
       if (!(await fileExists(filePath))) {
         diagnostics.push({
           severity: 'error',
@@ -88,9 +112,11 @@ export async function validateDeclaredFiles(input: ValidateDeclaredFilesInput) {
     } catch (error) {
       diagnostics.push({
         severity: 'error',
-        code: 'filesystem-error',
-        message: `Failed to inspect declared ${input.label}: ${formatErrorMessage(error)}`,
-        path: filePath,
+        code: isEnoent(error) ? input.missingCode : 'filesystem-error',
+        message: isEnoent(error)
+          ? `Declared ${input.label} does not exist.`
+          : `Failed to inspect declared ${input.label}: ${formatErrorMessage(error)}`,
+        path: candidatePath,
       })
     }
   }
@@ -161,8 +187,8 @@ export async function calculateContentHash(
   hash.update(OPENWAGGLE_EXTENSION.HASH.FIELD_SEPARATOR)
 
   for (const file of uniqueSortedHashFileInputs(getContentHashFileInputs(input))) {
-    const filePath = resolvePackageRelativePath(packagePath, file.relativePath)
-    if (!filePath) {
+    const candidatePath = resolvePackageRelativePath(packagePath, file.relativePath)
+    if (!candidatePath) {
       diagnostics.push({
         severity: 'error',
         code: 'package-path-invalid',
@@ -173,6 +199,17 @@ export async function calculateContentHash(
     }
 
     try {
+      const filePath = await resolveSafePackageFilePath(packagePath, file.relativePath)
+      if (!filePath) {
+        diagnostics.push({
+          severity: 'error',
+          code: 'package-path-invalid',
+          message: `Declared ${file.label} resolves outside the extension package root.`,
+          path: file.relativePath,
+        })
+        continue
+      }
+
       const content = await readFile(filePath)
       hash.update(OPENWAGGLE_EXTENSION.HASH.ARTIFACT_LABEL)
       hash.update(OPENWAGGLE_EXTENSION.HASH.FIELD_SEPARATOR)
@@ -185,7 +222,7 @@ export async function calculateContentHash(
         severity: 'error',
         code: isEnoent(error) ? file.missingCode : 'filesystem-error',
         message: `Failed to hash ${file.label}: ${formatErrorMessage(error)}`,
-        path: filePath,
+        path: candidatePath,
       })
     }
   }
@@ -218,8 +255,8 @@ export async function calculateBuildPlanHash(
   for (const relativePath of uniqueSortedHashFileInputs(
     input.sourceFiles.map((sourceFile) => contentHashFileInput(sourceFile, 'source-file-missing')),
   )) {
-    const filePath = resolvePackageRelativePath(packagePath, relativePath.relativePath)
-    if (!filePath) {
+    const candidatePath = resolvePackageRelativePath(packagePath, relativePath.relativePath)
+    if (!candidatePath) {
       diagnostics.push({
         severity: 'error',
         code: 'package-path-invalid',
@@ -230,6 +267,17 @@ export async function calculateBuildPlanHash(
     }
 
     try {
+      const filePath = await resolveSafePackageFilePath(packagePath, relativePath.relativePath)
+      if (!filePath) {
+        diagnostics.push({
+          severity: 'error',
+          code: 'package-path-invalid',
+          message: `Declared ${OPENWAGGLE_EXTENSION.LABELS.SOURCE_FILE} resolves outside the extension package root.`,
+          path: relativePath.relativePath,
+        })
+        continue
+      }
+
       const content = await readFile(filePath)
       hash.update(OPENWAGGLE_EXTENSION.HASH.SOURCE_LABEL)
       hash.update(OPENWAGGLE_EXTENSION.HASH.FIELD_SEPARATOR)
@@ -242,7 +290,7 @@ export async function calculateBuildPlanHash(
         severity: 'error',
         code: isEnoent(error) ? 'source-file-missing' : 'filesystem-error',
         message: `Failed to hash ${OPENWAGGLE_EXTENSION.LABELS.SOURCE_FILE}: ${formatErrorMessage(error)}`,
-        path: filePath,
+        path: candidatePath,
       })
     }
   }

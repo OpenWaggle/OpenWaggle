@@ -1,8 +1,13 @@
 import { SupportedModelId } from '@shared/types/brand'
-import type { ExtensionManagerView, ExtensionPackageSummary } from '@shared/types/extensions'
+import type {
+  ExtensionContributionRegistryEntry,
+  ExtensionContributionRegistryView,
+  ExtensionManagerView,
+  ExtensionPackageSummary,
+} from '@shared/types/extensions'
 import type { ProviderInfo } from '@shared/types/llm'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
-import { act } from '@testing-library/react'
+import { act, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useProviderStore } from '@/features/providers/state'
 import { usePreferencesStore } from '@/features/settings/state'
@@ -11,6 +16,7 @@ import { renderHookWithQueryClient } from '@/test-utils/query-test-utils'
 const { apiMock } = vi.hoisted(() => ({
   apiMock: {
     listExtensionPackages: vi.fn(),
+    listExtensionContributions: vi.fn(),
     setExtensionTrusted: vi.fn(),
     setExtensionEnabled: vi.fn(),
     setExtensionProjectDisabled: vi.fn(),
@@ -135,10 +141,57 @@ const ENABLED_VIEW: ExtensionManagerView = {
   packages: [SAMPLE_PACKAGE],
 }
 
+const COMMAND_ENTRY: ExtensionContributionRegistryEntry = {
+  extensionId: SAMPLE_PACKAGE.id,
+  extensionName: 'Sample Extension',
+  extensionVersion: '1.0.0',
+  scope: SAMPLE_PACKAGE.scope,
+  packagePath: SAMPLE_PACKAGE.packagePath,
+  manifestPath: SAMPLE_PACKAGE.manifestPath,
+  projectPaths: [PROJECT_PATH],
+  appliesToAllRequestedProjects: true,
+  family: 'commands',
+  contributionId: 'sample.run',
+  title: 'Run sample',
+  label: 'Run sample',
+  category: 'Sample',
+  capability: 'sample.invoke',
+  eligibility: {
+    runtimeEnabled: true,
+    enabled: true,
+    trusted: true,
+    sdkCompatible: true,
+    updateAvailable: false,
+    disabledProjectPaths: [],
+  },
+  diagnostics: [],
+}
+
+const SETTINGS_ENTRY: ExtensionContributionRegistryEntry = {
+  ...COMMAND_ENTRY,
+  family: 'settingsSections',
+  contributionId: 'sample.settings',
+  title: 'Sample settings',
+  label: 'Sample settings',
+  lane: 'trusted-react',
+  entryPath: 'dist/settings.js',
+}
+
+const EMPTY_REGISTRY: ExtensionContributionRegistryView = {
+  projectPaths: [PROJECT_PATH],
+  entries: [],
+}
+
+const CONTRIBUTION_REGISTRY: ExtensionContributionRegistryView = {
+  projectPaths: [PROJECT_PATH],
+  entries: [COMMAND_ENTRY, SETTINGS_ENTRY],
+}
+
 describe('useExtensionsSectionController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     apiMock.listExtensionPackages.mockResolvedValue(ENABLED_VIEW)
+    apiMock.listExtensionContributions.mockResolvedValue(EMPTY_REGISTRY)
     apiMock.setExtensionEnabled.mockResolvedValue(ENABLED_VIEW)
     apiMock.reloadExtension.mockResolvedValue(ENABLED_VIEW)
     apiMock.getSettings.mockResolvedValue(SETTINGS_WITH_STALE_MODEL)
@@ -152,6 +205,58 @@ describe('useExtensionsSectionController', () => {
     useProviderStore.setState({
       ...useProviderStore.getInitialState(),
     })
+  })
+
+  it('exposes an empty contribution registry', async () => {
+    apiMock.listExtensionContributions.mockResolvedValueOnce(EMPTY_REGISTRY)
+
+    const { result } = renderHookWithQueryClient(() =>
+      useExtensionsSectionController([PROJECT_PATH]),
+    )
+
+    await waitFor(() => {
+      expect(result.current.contributionRegistry).toEqual(EMPTY_REGISTRY)
+    })
+    expect(apiMock.listExtensionContributions).toHaveBeenCalledWith({
+      projectPaths: [PROJECT_PATH],
+    })
+  })
+
+  it('exposes non-empty contribution summaries', async () => {
+    apiMock.listExtensionContributions.mockResolvedValueOnce(CONTRIBUTION_REGISTRY)
+
+    const { result } = renderHookWithQueryClient(() =>
+      useExtensionsSectionController([PROJECT_PATH]),
+    )
+
+    await waitFor(() => {
+      expect(result.current.contributionRegistry?.entries).toHaveLength(2)
+    })
+    expect(result.current.contributionRegistry?.entries.map((entry) => entry.family)).toEqual([
+      'commands',
+      'settingsSections',
+    ])
+  })
+
+  it('refreshes contribution registry after disabling an extension', async () => {
+    apiMock.listExtensionContributions.mockResolvedValueOnce(CONTRIBUTION_REGISTRY)
+
+    const { result } = renderHookWithQueryClient(() =>
+      useExtensionsSectionController([PROJECT_PATH]),
+    )
+
+    await waitFor(() => {
+      expect(result.current.contributionRegistry?.entries).toHaveLength(2)
+    })
+
+    await act(async () => {
+      await result.current.setEnabled(SAMPLE_PACKAGE, false)
+    })
+
+    await waitFor(() => {
+      expect(result.current.contributionRegistry).toEqual(EMPTY_REGISTRY)
+    })
+    expect(apiMock.listExtensionContributions).toHaveBeenCalledTimes(2)
   })
 
   it('refreshes provider models after enabling an extension', async () => {

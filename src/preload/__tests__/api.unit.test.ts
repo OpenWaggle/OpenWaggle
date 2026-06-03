@@ -17,6 +17,10 @@ import { ipcRenderer, webUtils } from 'electron'
 import { api } from '../api'
 
 describe('preload api surface contract', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   const EXPECTED_METHODS = [
     // Agent
     'sendMessage',
@@ -43,6 +47,7 @@ describe('preload api surface contract', () => {
     'setMcpServerEnabled',
     'writeMcpSourceConfig',
     'listExtensionPackages',
+    'listExtensionContributions',
     'setExtensionTrusted',
     'setExtensionEnabled',
     'setExtensionProjectDisabled',
@@ -171,6 +176,18 @@ describe('preload api surface contract', () => {
     expect(ipcRenderer.invoke).toHaveBeenCalledWith('attachments:prepare', '/tmp/repo', [
       '/tmp/Desktop/screenshot.png',
     ])
+  })
+
+  it('lists extension contributions through the typed IPC channel', async () => {
+    const input = { projectPaths: ['/tmp/project'] }
+    vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce({
+      projectPaths: ['/tmp/project'],
+      entries: [],
+    })
+
+    await api.listExtensionContributions(input)
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith('extensions:list-contributions', input)
   })
 
   describe('event listener methods return unsubscribe functions', () => {

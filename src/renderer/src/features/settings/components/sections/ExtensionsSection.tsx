@@ -1,9 +1,17 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import type { ExtensionPackageSummary } from '@shared/types/extensions'
+import type {
+  ExtensionContributionRegistryView,
+  ExtensionPackageSummary,
+} from '@shared/types/extensions'
 import { useSessions } from '@/features/sessions/hooks'
 import { useExtensionsSectionController } from '@/features/settings/hooks/useExtensionsSectionController'
 import { usePreferences } from '@/features/settings/hooks/useSettings'
 import { projectName } from '@/shared/lib/format'
+import {
+  ExtensionContributionSummary,
+  type PackageContributionSummary,
+  summarizePackageContributions,
+} from './ExtensionContributionSummary'
 import { ExtensionPackageCard } from './ExtensionPackageCard'
 import { ExtensionsErrorAlert, ExtensionsSectionHeading } from './ExtensionsSectionPanels'
 import type { ExtensionPackageCardActions } from './extension-package-card-model'
@@ -86,6 +94,22 @@ function packagesForProject(packages: readonly ExtensionPackageSummary[], projec
   )
 }
 
+function packageContributionSummary(
+  registry: ExtensionContributionRegistryView | null,
+  extensionPackage: ExtensionPackageSummary,
+): PackageContributionSummary | null {
+  if (!registry) {
+    return null
+  }
+
+  const entries = registry.entries.filter(
+    (entry) =>
+      entry.extensionId === extensionPackage.id &&
+      entry.packagePath === extensionPackage.packagePath,
+  )
+  return entries.length > 0 ? summarizePackageContributions(entries) : null
+}
+
 function buildScopeGroups({
   packages,
   projectPaths,
@@ -118,11 +142,13 @@ function buildScopeGroups({
 
 function ExtensionScopeSection({
   group,
+  contributionRegistry,
   busyExtensionId,
   projectLabel,
   handlers,
 }: {
   readonly group: ExtensionScopeGroup
+  readonly contributionRegistry: ExtensionContributionRegistryView | null
   readonly busyExtensionId: string | null
   readonly projectLabel: (projectPath: string) => string
   readonly handlers: ExtensionMutationHandlers
@@ -139,6 +165,10 @@ function ExtensionScopeSection({
             <ExtensionPackageCard
               key={packageKey(extensionPackage)}
               extensionPackage={extensionPackage}
+              contributionSummary={packageContributionSummary(
+                contributionRegistry,
+                extensionPackage,
+              )}
               busy={busyExtensionId === extensionPackage.id}
               projectLabel={projectLabel}
               actions={packageActions(extensionPackage, handlers)}
@@ -168,6 +198,7 @@ export function ExtensionsSection() {
 
   const {
     view,
+    contributionRegistry,
     loading,
     updatingExtensionId,
     error,
@@ -201,6 +232,9 @@ export function ExtensionsSection() {
         onRefresh={() => void refresh()}
       />
       <ExtensionsErrorAlert message={error} />
+      {view ? (
+        <ExtensionContributionSummary registry={contributionRegistry} packages={packages} />
+      ) : null}
       {loading && !view ? (
         <p className="rounded-lg border border-border bg-[#111418] px-4 py-6 text-[13px] text-text-muted">
           Loading extensions…
@@ -211,6 +245,7 @@ export function ExtensionsSection() {
             <ExtensionScopeSection
               key={group.key}
               group={group}
+              contributionRegistry={contributionRegistry}
               busyExtensionId={updatingExtensionId}
               projectLabel={projectLabel}
               handlers={handlers}

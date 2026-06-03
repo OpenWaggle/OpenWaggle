@@ -1,3 +1,4 @@
+import { assertMatching, P } from '@diegogbrisa/ts-match'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { type Schema, safeDecodeUnknown } from '@shared/schema'
 import {
@@ -12,6 +13,8 @@ import {
 import type {
   ExtensionAcceptUpdateInput,
   ExtensionApproveBuildInput,
+  ExtensionContributionRegistryView,
+  ExtensionListContributionsInput,
   ExtensionListPackagesInput,
   ExtensionPackageLifecycleScope,
   ExtensionReloadInput,
@@ -19,7 +22,9 @@ import type {
   ExtensionSetProjectDisabledInput,
   ExtensionSetTrustedInput,
 } from '@shared/types/extensions'
+import type { Effect as EffectType } from 'effect/Effect'
 import * as Effect from 'effect/Effect'
+import { listExtensionContributionRegistryView } from '../application/extension-contribution-registry-service'
 import {
   acceptExtensionUpdate,
   approveExtensionBuild,
@@ -29,8 +34,15 @@ import {
   setExtensionTrusted,
 } from '../application/extension-lifecycle-service'
 import { listExtensionPackagesView } from '../application/extension-manager-view-service'
+import type { AppServices } from '../runtime'
 import { validateProjectPath, validateRequiredProjectPath } from './project-path-validation'
 import { typedHandle } from './typed-ipc'
+
+export interface RegisterExtensionsHandlersDependencies {
+  readonly listExtensionContributionsView?: (
+    input: ExtensionListContributionsInput,
+  ) => EffectType<ExtensionContributionRegistryView, unknown, AppServices>
+}
 
 function dedupeProjectPaths(projectPaths: readonly string[]) {
   const deduped: string[] = []
@@ -68,6 +80,40 @@ function decodeListPackagesInput(raw: unknown): Effect.Effect<ExtensionListPacka
       return { projectPaths: [] }
     }
 
+    const decoded = yield* decodeSchema(extensionListPackagesInputSchema, raw)
+    const projectPaths = yield* validateProjectPaths(decoded.projectPaths)
+    return { projectPaths }
+  })
+}
+
+function validateListContributionsInputShape(raw: unknown): Effect.Effect<void, Error> {
+  if (raw === undefined) {
+    return Effect.void
+  }
+
+  return Effect.try({
+    try: () => {
+      assertMatching(
+        P.exact({
+          projectPaths: P.optional(P.array(P.string)),
+        }),
+        raw,
+      )
+    },
+    catch: () =>
+      new Error('Extension contribution list input must be an object with optional projectPaths.'),
+  })
+}
+
+function decodeListContributionsInput(
+  raw: unknown,
+): Effect.Effect<ExtensionListContributionsInput, Error> {
+  return Effect.gen(function* () {
+    if (raw === undefined) {
+      return { projectPaths: [] }
+    }
+
+    yield* validateListContributionsInputShape(raw)
     const decoded = yield* decodeSchema(extensionListPackagesInputSchema, raw)
     const projectPaths = yield* validateProjectPaths(decoded.projectPaths)
     return { projectPaths }
@@ -188,11 +234,23 @@ function normalizeReloadInput(raw: unknown): Effect.Effect<ExtensionReloadInput,
   })
 }
 
-export function registerExtensionsHandlers(): void {
+export function registerExtensionsHandlers(
+  dependencies: RegisterExtensionsHandlersDependencies = {},
+): void {
+  const listExtensionContributionsView =
+    dependencies.listExtensionContributionsView ?? listExtensionContributionRegistryView
+
   typedHandle('extensions:list-packages', (_event, input?: unknown) =>
     Effect.gen(function* () {
       const decoded = yield* decodeListPackagesInput(input)
       return yield* listExtensionPackagesView(decoded)
+    }),
+  )
+
+  typedHandle('extensions:list-contributions', (_event, input?: unknown) =>
+    Effect.gen(function* () {
+      const decoded = yield* decodeListContributionsInput(input)
+      return yield* listExtensionContributionsView(decoded)
     }),
   )
 
