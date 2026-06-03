@@ -1,6 +1,7 @@
 import type { AgentSendPayload } from './agent'
 import type { SessionBranchId, SessionId, SessionNodeId } from './brand'
 import type { ContextCompactionResult, ContextUsageSnapshot } from './context-usage'
+import type { ExtensionInvokeInput, ExtensionInvokeResult } from './extension-broker'
 import type {
   ExtensionAcceptUpdateInput,
   ExtensionApproveBuildInput,
@@ -104,6 +105,10 @@ export interface IpcCoreInvokeChannelMap {
   'extensions:list-contributions': {
     args: [input?: ExtensionListContributionsInput]
     return: ExtensionContributionRegistryView
+  }
+  'extensions:invoke': {
+    args: [input: ExtensionInvokeInput]
+    return: ExtensionInvokeResult
   }
   'extensions:set-trusted': {
     args: [input: ExtensionSetTrustedInput]

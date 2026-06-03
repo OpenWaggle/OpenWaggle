@@ -1,0 +1,274 @@
+import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
+import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+import { SessionBranchId, SessionId } from '@shared/types/brand'
+import type { ExtensionInvokeInput } from '@shared/types/extension-broker'
+import type { SessionDetail, SessionTree } from '@shared/types/session'
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import type { DiscoveredExtensionPackage, ExtensionLifecycleState } from '../../extensions/types'
+import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-repository'
+import { ExtensionManagerService } from '../../ports/extension-manager-service'
+import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
+import { SessionProjectionRepository } from '../../ports/session-projection-repository'
+import { SessionRepository } from '../../ports/session-repository'
+import type { AppLoggerService } from '../../services/logger-service'
+import { AppLogger } from '../../services/logger-service'
+import { invokeExtensionCapability } from '../extension-capability-broker-service'
+import {
+  makePackage,
+  type makeProjectOverride,
+  PROJECT_PATH,
+} from './extension-contribution-registry-test-utils'
+
+export const BROKER_EXTENSION_ID = 'broker-extension'
+export const BROKER_CONTRIBUTION_ID = 'broker.run'
+export const TIMESTAMP = 1234
+export const SESSION_ID = SessionId('session-1')
+export const BRANCH_ID = SessionBranchId('session-1:main')
+
+export interface CapturedLog {
+  readonly namespace: string
+  readonly message: string
+  readonly data?: Readonly<Record<string, unknown>>
+}
+
+export function makeBrokerPackage() {
+  return makePackage({
+    id: BROKER_EXTENSION_ID,
+    name: 'Broker Extension',
+    scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND },
+    capabilities: [
+      {
+        id: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.HOST_CONTEXT,
+        methods: [OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SCOPE],
+        scopes: ['app', 'project', 'session', 'branch'],
+      },
+    ],
+    contributions: {
+      commands: [
+        {
+          id: BROKER_CONTRIBUTION_ID,
+          title: 'Run Broker',
+          capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.HOST_CONTEXT,
+          method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SCOPE,
+        },
+      ],
+    },
+  })
+}
+
+export function makeSessionDetail(projectPath: string): SessionDetail {
+  return {
+    id: SESSION_ID,
+    title: 'Session',
+    projectPath,
+    messages: [],
+    createdAt: 1,
+    updatedAt: 2,
+  }
+}
+
+export function makeSessionTree(projectPath: string): SessionTree {
+  return {
+    session: {
+      id: SESSION_ID,
+      title: 'Session',
+      projectPath,
+      createdAt: 1,
+      updatedAt: 2,
+      lastActiveBranchId: BRANCH_ID,
+    },
+    nodes: [],
+    branches: [
+      {
+        id: BRANCH_ID,
+        sessionId: SESSION_ID,
+        sourceNodeId: null,
+        headNodeId: null,
+        name: 'main',
+        isMain: true,
+        archivedAt: null,
+        createdAt: 1,
+        updatedAt: 2,
+      },
+    ],
+    branchStates: [],
+    uiState: null,
+  }
+}
+
+function scopesMatch(
+  left: DiscoveredExtensionPackage['scope'],
+  right: DiscoveredExtensionPackage['scope'],
+) {
+  if (left.kind !== right.kind) {
+    return false
+  }
+
+  if (left.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND) {
+    return true
+  }
+
+  return (
+    right.kind === OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND && left.projectPath === right.projectPath
+  )
+}
+
+function isVisiblePackage(
+  extensionPackage: DiscoveredExtensionPackage,
+  projectPath: string | null | undefined,
+) {
+  return (
+    extensionPackage.scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND ||
+    (projectPath !== null &&
+      projectPath !== undefined &&
+      extensionPackage.scope.kind === OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND &&
+      extensionPackage.scope.projectPath === projectPath)
+  )
+}
+
+function makeLoggerLayer(capturedLogs: CapturedLog[]) {
+  const logger: AppLoggerService = {
+    debug: () => Effect.void,
+    info: (namespace, message, data) =>
+      Effect.sync(() => {
+        capturedLogs.push({
+          namespace,
+          message,
+          ...(data !== undefined ? { data } : {}),
+        })
+      }),
+    warn: () => Effect.void,
+    error: () => Effect.void,
+  }
+  return Layer.succeed(AppLogger, logger)
+}
+
+function makeBrokerLayer(input: {
+  readonly packages: readonly DiscoveredExtensionPackage[]
+  readonly lifecycles: readonly ExtensionLifecycleState[]
+  readonly projectOverrides?: readonly ReturnType<typeof makeProjectOverride>[]
+  readonly sessionDetail?: SessionDetail
+  readonly sessionTree?: SessionTree
+  readonly capturedLogs: CapturedLog[]
+}) {
+  const projectOverrides = input.projectOverrides ?? []
+
+  return Layer.mergeAll(
+    makeLoggerLayer(input.capturedLogs),
+    Layer.succeed(ExtensionManagerService, {
+      listPackages: ({ projectPath }) =>
+        Effect.succeed(
+          input.packages.filter((extensionPackage) =>
+            isVisiblePackage(extensionPackage, projectPath),
+          ),
+        ),
+    }),
+    Layer.succeed(ExtensionLifecycleRepository, {
+      get: (key) =>
+        Effect.succeed(
+          input.lifecycles.find(
+            (lifecycle) =>
+              lifecycle.extensionId === key.extensionId && scopesMatch(lifecycle.scope, key.scope),
+          ) ?? null,
+        ),
+      list: (scope) =>
+        Effect.succeed(input.lifecycles.filter((lifecycle) => scopesMatch(lifecycle.scope, scope))),
+      upsert: () => Effect.void,
+    }),
+    Layer.succeed(ExtensionProjectOverridesRepository, {
+      get: (key) =>
+        Effect.succeed(
+          projectOverrides.find(
+            (projectOverride) =>
+              projectOverride.extensionId === key.extensionId &&
+              scopesMatch(projectOverride.scope, key.scope) &&
+              projectOverride.projectPath === key.projectPath,
+          ) ?? null,
+        ),
+      upsert: () => Effect.void,
+    }),
+    Layer.succeed(SessionProjectionRepository, {
+      get: () => Effect.sync(() => makeSessionDetail(PROJECT_PATH)),
+      getOptional: (id) =>
+        Effect.succeed(
+          input.sessionDetail && input.sessionDetail.id === id ? input.sessionDetail : null,
+        ),
+      list: () => Effect.succeed([]),
+      listDetails: () => Effect.succeed([]),
+      create: ({ projectPath }) => Effect.succeed(makeSessionDetail(projectPath)),
+      delete: () => Effect.void,
+      archive: () => Effect.void,
+      unarchive: () => Effect.void,
+      listArchived: () => Effect.succeed([]),
+      updateTitle: () => Effect.void,
+    }),
+    Layer.succeed(SessionRepository, {
+      list: () => Effect.succeed([]),
+      listArchivedBranches: () => Effect.succeed([]),
+      getTree: (sessionId) =>
+        Effect.succeed(
+          input.sessionTree && input.sessionTree.session.id === sessionId
+            ? input.sessionTree
+            : null,
+        ),
+      getWorkspace: () => Effect.succeed(null),
+      persistSnapshot: () => Effect.void,
+      updateRuntime: () => Effect.void,
+      renameBranch: () => Effect.void,
+      archiveBranch: () => Effect.void,
+      restoreBranch: () => Effect.void,
+      updateTreeUiState: () => Effect.void,
+      recordActiveRun: () => Effect.void,
+      clearActiveRun: () => Effect.void,
+      clearInterruptedRuns: () => Effect.void,
+      listActiveRunsForRecovery: () => Effect.succeed([]),
+      markActiveRunInterrupted: () => Effect.void,
+    }),
+  )
+}
+
+export function makeProjectInvocation(
+  input: {
+    readonly capability?: string
+    readonly method?: string
+    readonly contributionId?: string
+    readonly payload?: unknown
+    readonly scope?: ExtensionInvokeInput['scope']
+  } = {},
+): ExtensionInvokeInput {
+  return {
+    extensionId: BROKER_EXTENSION_ID,
+    contributionId: input.contributionId ?? BROKER_CONTRIBUTION_ID,
+    capability: input.capability ?? OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.HOST_CONTEXT,
+    method: input.method ?? OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SCOPE,
+    scope: input.scope ?? { kind: 'project', projectPath: PROJECT_PATH },
+    ...(input.payload !== undefined ? { payload: input.payload } : { payload: {} }),
+  }
+}
+
+export async function runBroker(input: {
+  readonly invocation: ExtensionInvokeInput
+  readonly packages?: readonly DiscoveredExtensionPackage[]
+  readonly lifecycles?: readonly ExtensionLifecycleState[]
+  readonly projectOverrides?: readonly ReturnType<typeof makeProjectOverride>[]
+  readonly sessionDetail?: SessionDetail
+  readonly sessionTree?: SessionTree
+  readonly capturedLogs?: CapturedLog[]
+}) {
+  const capturedLogs = input.capturedLogs ?? []
+  return Effect.runPromise(
+    invokeExtensionCapability(input.invocation, { now: () => TIMESTAMP }).pipe(
+      Effect.provide(
+        makeBrokerLayer({
+          packages: input.packages ?? [],
+          lifecycles: input.lifecycles ?? [],
+          projectOverrides: input.projectOverrides,
+          sessionDetail: input.sessionDetail,
+          sessionTree: input.sessionTree,
+          capturedLogs,
+        }),
+      ),
+    ),
+  )
+}

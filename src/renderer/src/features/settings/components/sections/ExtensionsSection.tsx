@@ -7,14 +7,15 @@ import { useSessions } from '@/features/sessions/hooks'
 import { useExtensionsSectionController } from '@/features/settings/hooks/useExtensionsSectionController'
 import { usePreferences } from '@/features/settings/hooks/useSettings'
 import { projectName } from '@/shared/lib/format'
-import {
-  ExtensionContributionSummary,
-  type PackageContributionSummary,
-  summarizePackageContributions,
-} from './ExtensionContributionSummary'
+import { ExtensionContributionSummary } from './ExtensionContributionSummary'
 import { ExtensionPackageCard } from './ExtensionPackageCard'
 import { ExtensionsErrorAlert, ExtensionsSectionHeading } from './ExtensionsSectionPanels'
+import {
+  type PackageContributionSummary,
+  summarizePackageContributions,
+} from './extension-contribution-summary-model'
 import type { ExtensionPackageCardActions } from './extension-package-card-model'
+import { SettingsContributionHost } from './SettingsContributionHost'
 
 interface ExtensionScopeGroup {
   readonly key: string
@@ -235,6 +236,7 @@ export function ExtensionsSection() {
       {view ? (
         <ExtensionContributionSummary registry={contributionRegistry} packages={packages} />
       ) : null}
+      <SettingsContributionHost registry={contributionRegistry} />
       {loading && !view ? (
         <p className="rounded-lg border border-border bg-[#111418] px-4 py-6 text-[13px] text-text-muted">
           Loading extensions…

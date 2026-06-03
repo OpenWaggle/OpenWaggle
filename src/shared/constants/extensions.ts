@@ -1,5 +1,68 @@
 import { TIME_UNIT } from './time'
 
+const EXTENSION_CONTRIBUTION_FAMILY = {
+  COMMANDS: 'commands',
+  SLASH_COMMANDS: 'slashCommands',
+  ROUTES: 'routes',
+  SETTINGS_SECTIONS: 'settingsSections',
+  SIDE_PANELS: 'sidePanels',
+  DIALOGS: 'dialogs',
+  TRANSCRIPT_RENDERERS: 'transcriptRenderers',
+  STATUS_WIDGETS: 'statusWidgets',
+} as const
+
+const EXTENSION_STORAGE_KIND = {
+  STATE: 'state',
+  CONFIG: 'config',
+} as const
+
+const EXTENSION_STORAGE_SCOPE = {
+  GLOBAL_KIND: 'global',
+  PROJECT_KIND: 'project',
+  GLOBAL_ID: 'global',
+} as const
+
+const EXTENSION_DIAGNOSTIC_SEVERITY = {
+  ERROR: 'error',
+  WARNING: 'warning',
+} as const
+
+const EXTENSION_DIAGNOSTIC_CODE = {
+  MANIFEST_MISSING: 'manifest-missing',
+  MANIFEST_JSON_INVALID: 'manifest-json-invalid',
+  MANIFEST_SCHEMA_INVALID: 'manifest-schema-invalid',
+  MANIFEST_ID_MISMATCH: 'manifest-id-mismatch',
+  SOURCE_FILE_MISSING: 'source-file-missing',
+  BUILT_ARTIFACT_MISSING: 'built-artifact-missing',
+  RUNTIME_FILE_MISSING: 'runtime-file-missing',
+  BUILD_COMMAND_MISSING: 'build-command-missing',
+  BUILD_OUTPUT_NOT_ARTIFACT: 'build-output-not-artifact',
+  BUILD_FAILED: 'build-failed',
+  BUILD_ARTIFACTS_INVALID: 'build-artifacts-invalid',
+  PACKAGE_PATH_INVALID: 'package-path-invalid',
+  SDK_RANGE_INVALID: 'sdk-range-invalid',
+  SDK_INCOMPATIBLE: 'sdk-incompatible',
+  RUNTIME_LOAD_FAILED: 'runtime-load-failed',
+  FILESYSTEM_ERROR: 'filesystem-error',
+} as const
+
+const EXTENSION_INSTALL_SOURCE = {
+  PREBUILT: 'prebuilt',
+  LOCAL_BUILD: 'local-build',
+} as const
+
+const EXTENSION_BUILD_RUN_STATUS = {
+  NOT_RUN: 'not-run',
+  SUCCEEDED: 'succeeded',
+  FAILED: 'failed',
+} as const
+
+const EXTENSION_RELOAD_STATUS = {
+  NOT_RELOADED: 'not-reloaded',
+  SUCCEEDED: 'succeeded',
+  FAILED: 'failed',
+} as const
+
 export const OPENWAGGLE_EXTENSION = {
   MANIFEST_FILE: 'openwaggle.extension.json',
   SDK_VERSION: '0.1.0',
@@ -76,56 +139,40 @@ export const OPENWAGGLE_EXTENSION = {
   },
   CAPABILITY_SCOPES: ['app', 'project', 'session', 'branch'] as const,
   UI_LANES: ['declarative', 'webview', 'trusted-react'] as const,
-  CONTRIBUTION_FAMILIES: [
-    'commands',
-    'slashCommands',
-    'routes',
-    'settingsSections',
-    'sidePanels',
-    'dialogs',
-    'transcriptRenderers',
-    'statusWidgets',
-  ] as const,
+  CONTRIBUTION_FAMILY: EXTENSION_CONTRIBUTION_FAMILY,
+  CONTRIBUTION_FAMILIES: Object.freeze(Object.values(EXTENSION_CONTRIBUTION_FAMILY)),
+  STORAGE: {
+    KIND: EXTENSION_STORAGE_KIND,
+    KINDS: Object.freeze(Object.values(EXTENSION_STORAGE_KIND)),
+    SCOPE: EXTENSION_STORAGE_SCOPE,
+    SCOPE_KINDS: Object.freeze([
+      EXTENSION_STORAGE_SCOPE.GLOBAL_KIND,
+      EXTENSION_STORAGE_SCOPE.PROJECT_KIND,
+    ]),
+    KEY_MAX_LENGTH: 160,
+  },
   ENTRY_CONTRIBUTION_FAMILIES: [
-    'routes',
-    'settingsSections',
-    'sidePanels',
-    'dialogs',
-    'transcriptRenderers',
-    'statusWidgets',
+    EXTENSION_CONTRIBUTION_FAMILY.ROUTES,
+    EXTENSION_CONTRIBUTION_FAMILY.SETTINGS_SECTIONS,
+    EXTENSION_CONTRIBUTION_FAMILY.SIDE_PANELS,
+    EXTENSION_CONTRIBUTION_FAMILY.DIALOGS,
+    EXTENSION_CONTRIBUTION_FAMILY.TRANSCRIPT_RENDERERS,
+    EXTENSION_CONTRIBUTION_FAMILY.STATUS_WIDGETS,
   ] as const,
   DIAGNOSTIC: {
-    SEVERITIES: ['error', 'warning'] as const,
-    CODE: {
-      RUNTIME_LOAD_FAILED: 'runtime-load-failed',
-    },
+    SEVERITY: EXTENSION_DIAGNOSTIC_SEVERITY,
+    SEVERITIES: Object.freeze(Object.values(EXTENSION_DIAGNOSTIC_SEVERITY)),
+    CODE: EXTENSION_DIAGNOSTIC_CODE,
     BUILD_BLOCKING_CODES: [
-      'source-file-missing',
-      'built-artifact-missing',
-      'runtime-file-missing',
-      'build-command-missing',
-      'build-output-not-artifact',
-      'package-path-invalid',
-      'filesystem-error',
+      EXTENSION_DIAGNOSTIC_CODE.SOURCE_FILE_MISSING,
+      EXTENSION_DIAGNOSTIC_CODE.BUILT_ARTIFACT_MISSING,
+      EXTENSION_DIAGNOSTIC_CODE.RUNTIME_FILE_MISSING,
+      EXTENSION_DIAGNOSTIC_CODE.BUILD_COMMAND_MISSING,
+      EXTENSION_DIAGNOSTIC_CODE.BUILD_OUTPUT_NOT_ARTIFACT,
+      EXTENSION_DIAGNOSTIC_CODE.PACKAGE_PATH_INVALID,
+      EXTENSION_DIAGNOSTIC_CODE.FILESYSTEM_ERROR,
     ] as const,
-    CODES: [
-      'manifest-missing',
-      'manifest-json-invalid',
-      'manifest-schema-invalid',
-      'manifest-id-mismatch',
-      'source-file-missing',
-      'built-artifact-missing',
-      'runtime-file-missing',
-      'build-command-missing',
-      'build-output-not-artifact',
-      'build-failed',
-      'build-artifacts-invalid',
-      'package-path-invalid',
-      'sdk-range-invalid',
-      'sdk-incompatible',
-      'runtime-load-failed',
-      'filesystem-error',
-    ] as const,
+    CODES: Object.freeze(Object.values(EXTENSION_DIAGNOSTIC_CODE)),
   },
   HASH: {
     ALGORITHM: 'sha256',
@@ -144,21 +191,10 @@ export const OPENWAGGLE_EXTENSION = {
     RUNTIME_FILE: 'runtime file',
     BUILD_OUTPUT: 'build output',
   },
-  INSTALL_SOURCE: {
-    PREBUILT: 'prebuilt',
-    LOCAL_BUILD: 'local-build',
-  },
-  INSTALL_SOURCES: ['prebuilt', 'local-build'] as const,
-  BUILD_RUN_STATUS: {
-    NOT_RUN: 'not-run',
-    SUCCEEDED: 'succeeded',
-    FAILED: 'failed',
-  },
-  BUILD_RUN_STATUSES: ['not-run', 'succeeded', 'failed'] as const,
-  RELOAD_STATUS: {
-    NOT_RELOADED: 'not-reloaded',
-    SUCCEEDED: 'succeeded',
-    FAILED: 'failed',
-  },
-  RELOAD_STATUSES: ['not-reloaded', 'succeeded', 'failed'] as const,
+  INSTALL_SOURCE: EXTENSION_INSTALL_SOURCE,
+  INSTALL_SOURCES: Object.freeze(Object.values(EXTENSION_INSTALL_SOURCE)),
+  BUILD_RUN_STATUS: EXTENSION_BUILD_RUN_STATUS,
+  BUILD_RUN_STATUSES: Object.freeze(Object.values(EXTENSION_BUILD_RUN_STATUS)),
+  RELOAD_STATUS: EXTENSION_RELOAD_STATUS,
+  RELOAD_STATUSES: Object.freeze(Object.values(EXTENSION_RELOAD_STATUS)),
 } as const

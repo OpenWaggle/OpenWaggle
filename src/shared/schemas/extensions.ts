@@ -143,6 +143,7 @@ export const extensionCommandContributionSchema = Schema.Struct({
     nonEmptyStringSchema.pipe(Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH)),
   ),
   capability: Schema.optional(extensionContributionIdSchema),
+  method: Schema.optional(extensionContributionIdSchema),
 })
 
 export const extensionRouteContributionSchema = Schema.Struct({

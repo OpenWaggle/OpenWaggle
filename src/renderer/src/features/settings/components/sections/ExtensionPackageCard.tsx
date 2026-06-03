@@ -1,11 +1,11 @@
 import type { ExtensionPackageSummary } from '@shared/types/extensions'
 import { PackageOpen } from 'lucide-react'
-import type { PackageContributionSummary } from './ExtensionContributionSummary'
 import { ExtensionDiagnostics } from './ExtensionDiagnostics'
 import { ManifestBadges } from './ExtensionManifestBadges'
 import { PackageActions } from './ExtensionPackageCardActions'
 import { PackageStatusPills, PackageTrustIcon } from './ExtensionPackageCardStatus'
 import { PackageMetadata } from './ExtensionPackageMetadata'
+import type { PackageContributionSummary } from './extension-contribution-summary-model'
 import {
   type ExtensionPackageCardActions,
   packageTitle,

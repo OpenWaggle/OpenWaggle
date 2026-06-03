@@ -1,19 +1,13 @@
 import type {
   ExtensionContributionFamily,
-  ExtensionContributionRegistryEntry,
   ExtensionContributionRegistryView,
   ExtensionPackageSummary,
 } from '@shared/types/extensions'
-
-interface ExtensionContributionFamilyCount {
-  readonly family: ExtensionContributionFamily
-  readonly count: number
-}
-
-export interface PackageContributionSummary {
-  readonly familyCounts: readonly ExtensionContributionFamilyCount[]
-  readonly totalCount: number
-}
+import type {
+  ExtensionContributionFamilyCount,
+  PackageContributionSummary,
+} from './extension-contribution-summary-model'
+import { familyCountsFor } from './extension-contribution-summary-model'
 
 const FAMILY_LABELS = {
   commands: 'Commands',
@@ -28,30 +22,6 @@ const FAMILY_LABELS = {
 
 function positiveCounts(counts: readonly ExtensionContributionFamilyCount[]) {
   return counts.filter((entry) => entry.count > 0)
-}
-
-function addFamilyCount(
-  counts: ExtensionContributionFamilyCount[],
-  family: ExtensionContributionFamily,
-) {
-  const existing = counts.find((entry) => entry.family === family)
-  if (existing) {
-    counts.splice(counts.indexOf(existing), 1, {
-      family,
-      count: existing.count + 1,
-    })
-    return
-  }
-
-  counts.push({ family, count: 1 })
-}
-
-function familyCountsFor(entries: readonly ExtensionContributionRegistryEntry[]) {
-  const counts: ExtensionContributionFamilyCount[] = []
-  for (const entry of entries) {
-    addFamilyCount(counts, entry.family)
-  }
-  return counts
 }
 
 function declaredTotal(packages: readonly ExtensionPackageSummary[]) {
@@ -144,13 +114,4 @@ export function PackageContributionDetails({
       )}
     </div>
   )
-}
-
-export function summarizePackageContributions(
-  entries: readonly ExtensionContributionRegistryEntry[],
-): PackageContributionSummary {
-  return {
-    familyCounts: familyCountsFor(entries),
-    totalCount: entries.length,
-  }
 }

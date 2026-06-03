@@ -4,6 +4,7 @@ import type { ActiveRunInfo, BackgroundRunSnapshot } from './background-run'
 import type { SessionBranchId, SessionId, SessionNodeId, WagglePresetId } from './brand'
 import type { FileSuggestion } from './composer'
 import type { ContextCompactionResult, ContextUsageSnapshot } from './context-usage'
+import type { ExtensionInvokeInput, ExtensionInvokeResult } from './extension-broker'
 import type {
   ExtensionAcceptUpdateInput,
   ExtensionApproveBuildInput,
@@ -111,6 +112,7 @@ export interface OpenWaggleApi {
   listExtensionContributions(
     input?: ExtensionListContributionsInput,
   ): Promise<ExtensionContributionRegistryView>
+  invokeExtension(input: ExtensionInvokeInput): Promise<ExtensionInvokeResult>
   setExtensionTrusted(input: ExtensionSetTrustedInput): Promise<ExtensionManagerView>
   setExtensionEnabled(input: ExtensionSetEnabledInput): Promise<ExtensionManagerView>
   setExtensionProjectDisabled(

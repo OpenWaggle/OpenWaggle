@@ -81,6 +81,7 @@ export const api: OpenWaggleApi = {
   writeMcpSourceConfig: invoke('mcp:write-source-config'),
   listExtensionPackages: invoke('extensions:list-packages'),
   listExtensionContributions: invoke('extensions:list-contributions'),
+  invokeExtension: invoke('extensions:invoke'),
   setExtensionTrusted: invoke('extensions:set-trusted'),
   setExtensionEnabled: invoke('extensions:set-enabled'),
   setExtensionProjectDisabled: invoke('extensions:set-project-disabled'),

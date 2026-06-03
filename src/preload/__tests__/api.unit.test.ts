@@ -1,3 +1,4 @@
+import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({
@@ -15,6 +16,7 @@ vi.mock('electron', () => ({
 
 import { ipcRenderer, webUtils } from 'electron'
 import { api } from '../api'
+import { createExtensionBrokerSdk, type ExtensionBrokerTransport } from '../extension-sdk'
 
 describe('preload api surface contract', () => {
   beforeEach(() => {
@@ -48,6 +50,7 @@ describe('preload api surface contract', () => {
     'writeMcpSourceConfig',
     'listExtensionPackages',
     'listExtensionContributions',
+    'invokeExtension',
     'setExtensionTrusted',
     'setExtensionEnabled',
     'setExtensionProjectDisabled',
@@ -188,6 +191,50 @@ describe('preload api surface contract', () => {
     await api.listExtensionContributions(input)
 
     expect(ipcRenderer.invoke).toHaveBeenCalledWith('extensions:list-contributions', input)
+  })
+
+  it('invokes extension capabilities through the generic broker IPC channel', async () => {
+    const input = {
+      extensionId: 'sample-extension',
+      contributionId: 'sample.run',
+      capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.HOST_CONTEXT,
+      method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SCOPE,
+      scope: { kind: 'project', projectPath: '/tmp/project' },
+      payload: {},
+    } as const
+    vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce({
+      ok: false,
+      error: { code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.UNKNOWN_EXTENSION },
+    })
+
+    await api.invokeExtension(input)
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith('extensions:invoke', input)
+  })
+
+  it('builds typed extension SDK broker calls from extension identity', async () => {
+    const transport = vi.fn<ExtensionBrokerTransport>(async () => ({
+      ok: false,
+      error: {
+        code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.UNKNOWN_EXTENSION,
+        message: 'Unknown extension.',
+      },
+    }))
+    const sdk = createExtensionBrokerSdk(transport, {
+      extensionId: 'sample-extension',
+      contributionId: 'sample.run',
+    })
+
+    await sdk.hostContext.getScope({ kind: 'project', projectPath: '/tmp/project' })
+
+    expect(transport).toHaveBeenCalledWith({
+      extensionId: 'sample-extension',
+      contributionId: 'sample.run',
+      capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.HOST_CONTEXT,
+      method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SCOPE,
+      scope: { kind: 'project', projectPath: '/tmp/project' },
+      payload: {},
+    })
   })
 
   describe('event listener methods return unsubscribe functions', () => {

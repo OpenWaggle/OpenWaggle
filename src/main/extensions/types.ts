@@ -1,6 +1,8 @@
 import type { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { OpenWaggleExtensionManifest } from '@shared/schemas/extensions'
 
+type ConstantValue<TObject> = TObject[keyof TObject]
+
 export type ExtensionPackageScope =
   | {
       readonly kind: typeof OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND
@@ -10,9 +12,10 @@ export type ExtensionPackageScope =
       readonly projectPath: string
     }
 
-export type ExtensionDiagnosticSeverity =
-  (typeof OPENWAGGLE_EXTENSION.DIAGNOSTIC.SEVERITIES)[number]
-export type ExtensionDiagnosticCode = (typeof OPENWAGGLE_EXTENSION.DIAGNOSTIC.CODES)[number]
+export type ExtensionDiagnosticSeverity = ConstantValue<
+  typeof OPENWAGGLE_EXTENSION.DIAGNOSTIC.SEVERITY
+>
+export type ExtensionDiagnosticCode = ConstantValue<typeof OPENWAGGLE_EXTENSION.DIAGNOSTIC.CODE>
 
 export interface ExtensionDiagnostic {
   readonly severity: ExtensionDiagnosticSeverity
@@ -28,9 +31,9 @@ export interface ExtensionSdkCompatibility {
   readonly reason?: string
 }
 
-export type ExtensionInstallSource = (typeof OPENWAGGLE_EXTENSION.INSTALL_SOURCES)[number]
-export type ExtensionBuildRunStatus = (typeof OPENWAGGLE_EXTENSION.BUILD_RUN_STATUSES)[number]
-export type ExtensionReloadStatus = (typeof OPENWAGGLE_EXTENSION.RELOAD_STATUSES)[number]
+export type ExtensionInstallSource = ConstantValue<typeof OPENWAGGLE_EXTENSION.INSTALL_SOURCE>
+export type ExtensionBuildRunStatus = ConstantValue<typeof OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS>
+export type ExtensionReloadStatus = ConstantValue<typeof OPENWAGGLE_EXTENSION.RELOAD_STATUS>
 
 export interface ExtensionBuildPlan {
   readonly installSource: ExtensionInstallSource

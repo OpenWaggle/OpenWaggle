@@ -173,11 +173,15 @@ describe('ExtensionsSection contribution registry', () => {
 
     renderWithQueryClient(<ExtensionsSection />)
 
-    expect(await screen.findByText('Sample Extension')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Sample Extension' })).toBeInTheDocument()
     const summary = screen.getByLabelText('Extension contribution summary')
     expect(within(summary).getAllByText('2')).toHaveLength(2)
     expect(within(summary).getByText('1')).toBeInTheDocument()
     expect(screen.getByText('Commands 1')).toBeInTheDocument()
     expect(screen.getByText('Settings 1')).toBeInTheDocument()
+    const settingsHost = screen.getByLabelText('Extension settings contributions')
+    expect(within(settingsHost).getByText('Sample settings')).toBeInTheDocument()
+    expect(within(settingsHost).getByText('Trusted React')).toBeInTheDocument()
+    expect(within(settingsHost).getByText('Renderer lane not mounted here.')).toBeInTheDocument()
   })
 })

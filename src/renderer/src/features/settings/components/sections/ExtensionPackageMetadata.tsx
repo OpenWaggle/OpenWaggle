@@ -1,10 +1,8 @@
 import type { ExtensionPackageSummary } from '@shared/types/extensions'
 import type { ReactNode } from 'react'
 import { cn } from '@/shared/lib/cn'
-import {
-  PackageContributionDetails,
-  type PackageContributionSummary,
-} from './ExtensionContributionSummary'
+import { PackageContributionDetails } from './ExtensionContributionSummary'
+import type { PackageContributionSummary } from './extension-contribution-summary-model'
 
 const HASH_PREVIEW_LENGTH = 12
 

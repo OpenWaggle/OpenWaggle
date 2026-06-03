@@ -26,6 +26,7 @@ interface ManifestCommandContribution {
   readonly title: string
   readonly category?: string
   readonly capability?: string
+  readonly method?: string
 }
 
 interface ManifestEntryContribution {
@@ -219,6 +220,7 @@ function contributionToEntry(input: ContributionEntryInput): ExtensionContributi
     ...baseEntry,
     ...(contribution.category !== undefined ? { category: contribution.category } : {}),
     ...(contribution.capability !== undefined ? { capability: contribution.capability } : {}),
+    ...(contribution.method !== undefined ? { method: contribution.method } : {}),
   }
 }
 

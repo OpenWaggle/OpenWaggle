@@ -23,6 +23,7 @@ const SDK_RANGE = '>=0.1.0 <0.2.0'
 function makeManifest(input: {
   readonly id: string
   readonly name: string
+  readonly capabilities?: OpenWaggleExtensionManifest['capabilities']
   readonly contributions: NonNullable<OpenWaggleExtensionManifest['contributions']>
 }): OpenWaggleExtensionManifest {
   return {
@@ -33,6 +34,7 @@ function makeManifest(input: {
     sdk: { openwaggle: SDK_RANGE },
     sourceFiles: ['src/index.ts'],
     builtArtifacts: ['dist/index.js'],
+    ...(input.capabilities !== undefined ? { capabilities: input.capabilities } : {}),
     contributions: input.contributions,
   }
 }
@@ -49,6 +51,7 @@ export function makePackage(input: {
   readonly id: string
   readonly name: string
   readonly scope: ExtensionPackageScope
+  readonly capabilities?: OpenWaggleExtensionManifest['capabilities']
   readonly contributions: NonNullable<OpenWaggleExtensionManifest['contributions']>
 }): DiscoveredExtensionPackage {
   const packagePath = packagePathForScope(input.id, input.scope)
@@ -60,6 +63,7 @@ export function makePackage(input: {
     manifest: makeManifest({
       id: input.id,
       name: input.name,
+      capabilities: input.capabilities,
       contributions: input.contributions,
     }),
     buildPlan: null,

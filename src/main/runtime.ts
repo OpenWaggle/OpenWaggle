@@ -16,6 +16,7 @@ import { PiSessionTreePreferencesLive } from './adapters/pi/pi-session-tree-pref
 import { SettingsWagglePresetsRepositoryLive } from './adapters/settings-waggle-presets-repository'
 import { SqliteExtensionLifecycleRepositoryLive } from './adapters/sqlite-extension-lifecycle-repository'
 import { SqliteExtensionProjectOverridesRepositoryLive } from './adapters/sqlite-extension-project-overrides-repository'
+import { SqliteExtensionStorageRepositoryLive } from './adapters/sqlite-extension-storage-repository'
 import { SqliteSessionProjectionRepositoryLive } from './adapters/sqlite-session-projection-repository'
 import { SqliteSessionRepositoryLive } from './adapters/sqlite-session-repository'
 import { FilesystemStandardsLive } from './adapters/standards-adapter'
@@ -28,6 +29,9 @@ const ExtensionLifecycleRepositoryLive = SqliteExtensionLifecycleRepositoryLive.
   Layer.provide(AppDatabaseLive),
 )
 const ExtensionProjectOverridesRepositoryLive = SqliteExtensionProjectOverridesRepositoryLive.pipe(
+  Layer.provide(AppDatabaseLive),
+)
+const ExtensionStorageRepositoryLive = SqliteExtensionStorageRepositoryLive.pipe(
   Layer.provide(AppDatabaseLive),
 )
 const ExtensionRuntimeSelectionLive = Layer.mergeAll(
@@ -49,6 +53,7 @@ const AppLayer = Layer.mergeAll(
   AppDatabaseLive,
   SettingsService.Live,
   ExtensionRuntimeSelectionLive,
+  ExtensionStorageRepositoryLive,
   SqliteSessionProjectionRepositoryLive,
   SqliteSessionRepositoryLive,
   FilesystemStandardsLive,

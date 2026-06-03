@@ -1,12 +1,15 @@
 import type { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 
+type ConstantValue<TObject> = TObject[keyof TObject]
+
 export type ExtensionPackageScopeKind =
   | typeof OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND
   | typeof OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND
 
-export type ExtensionDiagnosticSeverity =
-  (typeof OPENWAGGLE_EXTENSION.DIAGNOSTIC.SEVERITIES)[number]
-export type ExtensionDiagnosticCode = (typeof OPENWAGGLE_EXTENSION.DIAGNOSTIC.CODES)[number]
+export type ExtensionDiagnosticSeverity = ConstantValue<
+  typeof OPENWAGGLE_EXTENSION.DIAGNOSTIC.SEVERITY
+>
+export type ExtensionDiagnosticCode = ConstantValue<typeof OPENWAGGLE_EXTENSION.DIAGNOSTIC.CODE>
 
 export interface ExtensionDiagnosticView {
   readonly severity: ExtensionDiagnosticSeverity
@@ -79,11 +82,12 @@ export interface ExtensionManifestSummary {
   readonly runtimeRequirementCount: number
 }
 
-export type ExtensionInstallSource = (typeof OPENWAGGLE_EXTENSION.INSTALL_SOURCES)[number]
-export type ExtensionBuildRunStatus = (typeof OPENWAGGLE_EXTENSION.BUILD_RUN_STATUSES)[number]
-export type ExtensionReloadStatus = (typeof OPENWAGGLE_EXTENSION.RELOAD_STATUSES)[number]
-export type ExtensionContributionFamily =
-  (typeof OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILIES)[number]
+export type ExtensionInstallSource = ConstantValue<typeof OPENWAGGLE_EXTENSION.INSTALL_SOURCE>
+export type ExtensionBuildRunStatus = ConstantValue<typeof OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS>
+export type ExtensionReloadStatus = ConstantValue<typeof OPENWAGGLE_EXTENSION.RELOAD_STATUS>
+export type ExtensionContributionFamily = ConstantValue<
+  typeof OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY
+>
 export type ExtensionContributionUiLane = (typeof OPENWAGGLE_EXTENSION.UI_LANES)[number]
 
 export interface ExtensionBuildPlanView {
@@ -169,6 +173,7 @@ export interface ExtensionContributionRegistryEntry {
   readonly label: string
   readonly category?: string
   readonly capability?: string
+  readonly method?: string
   readonly lane?: ExtensionContributionUiLane
   readonly entryPath?: string
   readonly eligibility: ExtensionContributionEligibilityView

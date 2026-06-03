@@ -205,7 +205,38 @@ export const CURRENT_EXTENSION_PROJECT_OVERRIDE_SCHEMA_STATEMENTS = [
   `,
 ] as const
 
+export const CURRENT_EXTENSION_STORAGE_SCHEMA_STATEMENTS = [
+  `
+  CREATE TABLE IF NOT EXISTS extension_storage_items (
+    extension_id TEXT NOT NULL,
+    package_scope_kind TEXT NOT NULL,
+    package_scope_id TEXT NOT NULL,
+    storage_kind TEXT NOT NULL,
+    storage_scope_kind TEXT NOT NULL,
+    storage_scope_id TEXT NOT NULL,
+    key TEXT NOT NULL,
+    value_json TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (
+      extension_id,
+      package_scope_kind,
+      package_scope_id,
+      storage_kind,
+      storage_scope_kind,
+      storage_scope_id,
+      key
+    )
+  )
+  `,
+  `
+  CREATE INDEX IF NOT EXISTS idx_extension_storage_scope
+  ON extension_storage_items (storage_scope_kind, storage_scope_id, extension_id)
+  `,
+] as const
+
 export const CURRENT_EXTENSION_SCHEMA_STATEMENTS = [
   ...CURRENT_EXTENSION_LIFECYCLE_SCHEMA_STATEMENTS,
   ...CURRENT_EXTENSION_PROJECT_OVERRIDE_SCHEMA_STATEMENTS,
+  ...CURRENT_EXTENSION_STORAGE_SCHEMA_STATEMENTS,
 ] as const
