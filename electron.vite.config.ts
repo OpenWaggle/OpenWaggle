@@ -67,7 +67,7 @@ function dependencyNamesFromPackageJson(value: unknown) {
 /**
  * Vite 8 (Rolldown) only accepts `string[]` for `external`, not RegExp.
  * electron-vite's `externalizeDepsPlugin` and preset plugin both add RegExp
- * patterns to `rollupOptions.external`, which Rolldown silently ignores in
+ * patterns to `rolldownOptions.external`, which Rolldown silently ignores in
  * SSR mode (`ssr.noExternal: true`). This plugin runs last and replaces the
  * external array with a pure-string list derived from package.json deps.
  */
@@ -78,16 +78,23 @@ function rolldownExternalFixPlugin(): Plugin {
     configResolved(config) {
       const packageJson: unknown = JSON.parse(readFileSync(resolve('package.json'), 'utf-8'))
       const allDeps = dependencyNamesFromPackageJson(packageJson)
-      const externalDeps = allDeps.filter(d => !BUNDLED_DEPS.some(b => d === b || d.startsWith(b + '/')))
+      const externalDeps = allDeps.filter((dependency) =>
+        !BUNDLED_DEPS.some(
+          (bundledDependency) =>
+            dependency === bundledDependency || dependency.startsWith(`${bundledDependency}/`),
+        ),
+      )
       const external = [...new Set([...ALWAYS_EXTERNAL, ...externalDeps])]
 
       // Strip RegExp entries from the resolved external array and ensure all
       // deps are present as plain strings (Rolldown only accepts string[]).
-      const resolved = config.build.rollupOptions.external
-      const existing = Array.isArray(resolved) ? resolved.filter((e): e is string => typeof e === 'string') : []
+      const resolved = config.build.rolldownOptions.external
+      const existing = Array.isArray(resolved)
+        ? resolved.filter((entry): entry is string => typeof entry === 'string')
+        : []
       const merged = [...new Set([...existing, ...external])]
 
-      config.build.rollupOptions.external = merged
+      config.build.rolldownOptions.external = merged
     },
   }
 }
@@ -130,10 +137,10 @@ export default defineConfig({
       externalizeDeps: {
         exclude: BUNDLED_DEPS,
       },
-      rollupOptions: {
+      rolldownOptions: {
         external: ALWAYS_EXTERNAL,
         output: {
-          inlineDynamicImports: true,
+          codeSplitting: false,
         },
       },
     },

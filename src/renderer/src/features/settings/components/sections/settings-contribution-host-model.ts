@@ -3,7 +3,8 @@ import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type {
   ExtensionContributionRegistryEntry,
   ExtensionContributionRegistryView,
-  ExtensionContributionUiLane,
+  ExtensionContributionRuntime,
+  ExtensionExecutionPlacement,
 } from '@shared/types/extensions'
 
 export type ContributionPillTone = 'neutral' | 'good' | 'warning' | 'error'
@@ -20,26 +21,49 @@ export function contributionPillToneClassName(tone: ContributionPillTone) {
     .exhaustive()
 }
 
-export function laneLabel(lane: ExtensionContributionUiLane | undefined) {
-  if (!lane) {
-    return 'No lane'
+export function runtimeLabel(runtime: ExtensionContributionRuntime | undefined) {
+  if (!runtime) {
+    return 'No runtime'
   }
 
-  return match(lane)
-    .with('declarative', () => 'Declarative')
-    .with('webview', () => 'Webview')
-    .with('trusted-react', () => 'Trusted React')
+  return match(runtime)
+    .with('federated-module', () => 'Federated module')
     .exhaustive()
 }
 
-export function laneTone(lane: ExtensionContributionUiLane | undefined): ContributionPillTone {
-  if (!lane) {
+export function runtimeTone(
+  runtime: ExtensionContributionRuntime | undefined,
+): ContributionPillTone {
+  if (!runtime) {
     return 'error'
   }
 
-  return match(lane)
-    .with('declarative', () => GOOD_TONE)
-    .with('webview', 'trusted-react', () => WARNING_TONE)
+  return match(runtime)
+    .with('federated-module', () => GOOD_TONE)
+    .exhaustive()
+}
+
+export function executionLabel(execution: ExtensionExecutionPlacement | undefined) {
+  if (!execution) {
+    return 'No execution'
+  }
+
+  return match(execution)
+    .with('host-renderer', () => 'Host renderer')
+    .with('frame', () => 'Frame')
+    .exhaustive()
+}
+
+export function executionTone(
+  execution: ExtensionExecutionPlacement | undefined,
+): ContributionPillTone {
+  if (!execution) {
+    return 'error'
+  }
+
+  return match(execution)
+    .with('host-renderer', () => GOOD_TONE)
+    .with('frame', () => WARNING_TONE)
     .exhaustive()
 }
 

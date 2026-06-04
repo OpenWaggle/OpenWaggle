@@ -152,7 +152,8 @@ describe('discoverExtensionPackages', () => {
             {
               id: 'sample.route',
               title: 'Sample Route',
-              lane: 'declarative',
+              runtime: 'federated-module',
+              execution: 'host-renderer',
               entry: runtimePaths[0],
             },
           ],
@@ -160,7 +161,8 @@ describe('discoverExtensionPackages', () => {
             {
               id: 'sample.settings',
               title: 'Sample Settings',
-              lane: 'declarative',
+              runtime: 'federated-module',
+              execution: 'host-renderer',
               entry: runtimePaths[1],
             },
           ],
@@ -168,7 +170,8 @@ describe('discoverExtensionPackages', () => {
             {
               id: 'sample.panel',
               title: 'Sample Panel',
-              lane: 'declarative',
+              runtime: 'federated-module',
+              execution: 'host-renderer',
               entry: runtimePaths[2],
             },
           ],
@@ -176,7 +179,8 @@ describe('discoverExtensionPackages', () => {
             {
               id: 'sample.dialog',
               title: 'Sample Dialog',
-              lane: 'declarative',
+              runtime: 'federated-module',
+              execution: 'host-renderer',
               entry: runtimePaths[3],
             },
           ],
@@ -184,7 +188,8 @@ describe('discoverExtensionPackages', () => {
             {
               id: 'sample.transcript',
               title: 'Sample Transcript',
-              lane: 'declarative',
+              runtime: 'federated-module',
+              execution: 'host-renderer',
               entry: runtimePaths[4],
             },
           ],
@@ -192,7 +197,8 @@ describe('discoverExtensionPackages', () => {
             {
               id: 'sample.status',
               title: 'Sample Status',
-              lane: 'declarative',
+              runtime: 'federated-module',
+              execution: 'host-renderer',
               entry: runtimePaths[5],
             },
           ],

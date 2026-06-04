@@ -133,7 +133,7 @@ function scopesMatch(left: ExtensionPackageScope, right: ExtensionPackageScope) 
   )
 }
 
-function makeTestLayer(input: {
+export function makeContributionRegistryTestLayer(input: {
   readonly packages: readonly DiscoveredExtensionPackage[]
   readonly lifecycles: readonly ExtensionLifecycleState[]
   readonly projectOverrides?: readonly ExtensionProjectOverrideState[]
@@ -178,7 +178,7 @@ export async function loadRegistry(input: {
 }) {
   return Effect.runPromise(
     listExtensionContributionRegistryView({ projectPaths: input.projectPaths }).pipe(
-      Effect.provide(makeTestLayer(input)),
+      Effect.provide(makeContributionRegistryTestLayer(input)),
     ),
   )
 }

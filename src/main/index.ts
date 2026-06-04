@@ -4,6 +4,7 @@ import { app, BrowserWindow, shell } from 'electron'
 import { reconcileInterruptedAgentRuns } from './application/agent-run-service'
 import { configureApplicationMenu, installDevToolsShortcut } from './application-menu'
 import { env } from './env'
+import { registerExtensionRuntimeProtocolOnce } from './extension-runtime-protocol'
 import { persistAllActiveRuns } from './ipc/agent-handler'
 import { cleanupTerminals, registerAllIpcHandlers } from './ipc/handlers'
 import { createLogger, initFileLogger } from './logger'
@@ -72,6 +73,7 @@ async function bootstrapServicesAndWindow() {
 
   registerIpcHandlersOnce()
   registerRendererProtocolOnce()
+  registerExtensionRuntimeProtocolOnce()
   createWindow()
   initAutoUpdater()
 }

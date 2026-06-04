@@ -27,7 +27,13 @@ const discoveredPackage: DiscoveredExtensionPackage = {
     contributions: {
       commands: [{ id: 'sample.run', title: 'Run Sample' }],
       routes: [
-        { id: 'sample.route', title: 'Sample Route', lane: 'declarative', entry: 'dist/route.js' },
+        {
+          id: 'sample.route',
+          title: 'Sample Route',
+          runtime: 'federated-module',
+          execution: 'host-renderer',
+          entry: 'dist/route.js',
+        },
       ],
     },
     trusted: { main: 'dist/main.js' },

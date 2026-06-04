@@ -99,6 +99,7 @@ const config: Config = [
       '@typescript-eslint/no-unsafe-member-access': 'error',
       '@typescript-eslint/no-unsafe-return': 'error',
       '@typescript-eslint/no-unsafe-type-assertion': 'error',
+      '@typescript-eslint/no-deprecated': 'error',
       '@typescript-eslint/no-unused-vars': 'off',
       'eslint-comments/no-use': 'error',
       'openwaggle/no-architecture-ignore-comments': 'error',

@@ -9,7 +9,11 @@ import {
   STORAGE_CONTRIBUTION_ID,
 } from './extension-capability-broker-storage-test-utils'
 import { makeBrokerHarness, runBroker, TIMESTAMP } from './extension-capability-broker-test-utils'
-import { makeLifecycle, PROJECT_PATH } from './extension-contribution-registry-test-utils'
+import {
+  makeLifecycle,
+  OTHER_PROJECT_PATH,
+  PROJECT_PATH,
+} from './extension-contribution-registry-test-utils'
 
 const expectFailure = makeExpectBrokerFailure(TIMESTAMP)
 
@@ -235,6 +239,24 @@ describe('invokeExtensionCapability storage routing', () => {
       }),
       packages: [extensionPackage],
       lifecycles: [makeLifecycle(extensionPackage)],
+    })
+
+    expectFailure(result, OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.OUT_OF_SCOPE)
+  })
+
+  it('rejects project-scoped extension storage outside the active project', async () => {
+    const extensionPackage = makeStorageBrokerPackage()
+    const result = await runBroker({
+      invocation: makeStorageInvocation({
+        contributionId: STORAGE_CONTRIBUTION_ID.SET,
+        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.SET,
+        scope: { kind: 'project', projectPath: OTHER_PROJECT_PATH },
+        key: 'settings',
+        value: 'leak',
+      }),
+      packages: [extensionPackage],
+      lifecycles: [makeLifecycle(extensionPackage)],
+      currentProjectPath: PROJECT_PATH,
     })
 
     expectFailure(result, OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.OUT_OF_SCOPE)

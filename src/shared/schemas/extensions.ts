@@ -109,7 +109,12 @@ export const extensionSemverVersionSchema = Schema.String.pipe(
 export const extensionCapabilityScopeSchema = Schema.Literal(
   ...OPENWAGGLE_EXTENSION.CAPABILITY_SCOPES,
 )
-export const extensionUiLaneSchema = Schema.Literal(...OPENWAGGLE_EXTENSION.UI_LANES)
+export const extensionContributionRuntimeSchema = Schema.Literal(
+  ...OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIMES,
+)
+export const extensionExecutionPlacementSchema = Schema.Literal(
+  ...OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENTS,
+)
 export const extensionContributionFamilySchema = Schema.Literal(
   ...OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILIES,
 )
@@ -154,7 +159,8 @@ export const extensionCommandContributionSchema = Schema.Struct({
 export const extensionRouteContributionSchema = Schema.Struct({
   id: extensionContributionIdSchema,
   title: nonEmptyStringSchema.pipe(Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH)),
-  lane: extensionUiLaneSchema,
+  runtime: extensionContributionRuntimeSchema,
+  execution: extensionExecutionPlacementSchema,
   entry: extensionRelativePathSchema,
   ...extensionContributionBrokerBindingSchema,
 })
@@ -162,7 +168,8 @@ export const extensionRouteContributionSchema = Schema.Struct({
 export const extensionSlotContributionSchema = Schema.Struct({
   id: extensionContributionIdSchema,
   title: nonEmptyStringSchema.pipe(Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH)),
-  lane: extensionUiLaneSchema,
+  runtime: extensionContributionRuntimeSchema,
+  execution: extensionExecutionPlacementSchema,
   entry: extensionRelativePathSchema,
   ...extensionContributionBrokerBindingSchema,
 })

@@ -6,11 +6,13 @@ import { ArrowLeft, PackageOpen, RefreshCw, ShieldAlert } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { usePreferences } from '@/features/settings/hooks'
 import { extensionContributionsQueryOptions } from '@/queries/extensions'
+import { cn } from '@/shared/lib/cn'
 import { Button } from '@/shared/ui/Button'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
+import { useFullscreen } from '@/shell/useFullscreen'
 import type { ExtensionRouteResolution } from '../lib/extension-route-resolution'
 import { resolveExtensionRouteContribution } from '../lib/extension-route-resolution'
-import { ExtensionSandboxFrame } from './ExtensionSandboxFrame'
+import { ExtensionFederatedModuleHost } from './ExtensionFederatedModuleHost'
 
 function activeProjectPaths(projectPath: string | null) {
   return projectPath ? [projectPath] : []
@@ -36,27 +38,38 @@ function ExtensionRouteShell({
   readonly children: ReactNode
 }) {
   const navigate = useNavigate()
+  const isFullscreen = useFullscreen()
 
   return (
-    <div className="flex size-full flex-col bg-bg">
-      <header className="drag-region flex h-12 shrink-0 items-center gap-3 border-b border-border px-4 pl-[80px]">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-bg">
+      <header
+        className={cn(
+          'drag-region flex h-12 shrink-0 items-center gap-3 border-b border-border px-4',
+          !isFullscreen && 'pl-[80px]',
+        )}
+      >
         <Button
-          className="no-drag gap-2 text-text-tertiary hover:bg-bg-hover hover:text-text-secondary"
+          className="no-drag inline-flex h-8 items-center gap-2 rounded-md px-2 text-text-tertiary transition-colors hover:bg-bg-hover hover:text-text-secondary"
           onClick={() => void navigate({ to: '/settings/$tab', params: { tab: 'extensions' } })}
           type="button"
           variant="unstyled"
         >
-          <ArrowLeft className="size-4" />
-          <span className="text-[13px]">Extensions</span>
+          <ArrowLeft className="size-4 shrink-0" />
+          <span className="whitespace-nowrap text-[13px]">Extensions</span>
         </Button>
-        <div className="no-drag flex min-w-0 items-center gap-2 text-[13px] text-text-muted">
-          <PackageOpen className="size-4 text-accent" />
-          <span className="truncate">{extensionId}</span>
-          <span aria-hidden="true">/</span>
-          <span className="truncate">{routeId}</span>
-        </div>
+        <nav
+          aria-label="Extension route breadcrumbs"
+          className="no-drag flex min-w-0 flex-1 items-center gap-2 text-[13px] text-text-muted"
+        >
+          <PackageOpen className="size-4 shrink-0 text-accent" />
+          <span className="min-w-0 truncate">{extensionId}</span>
+          <span aria-hidden="true" className="shrink-0 text-text-muted">
+            /
+          </span>
+          <span className="min-w-0 truncate text-text-secondary">{routeId}</span>
+        </nav>
       </header>
-      <main className="flex-1 overflow-y-auto px-8 py-6">
+      <main className="min-h-0 flex-1 overflow-y-auto px-8 py-6">
         <div className="mx-auto flex max-w-5xl flex-col gap-4">
           <section className="rounded-xl border border-border bg-bg-secondary/30 p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -109,7 +122,7 @@ function ExtensionRouteLoadingCard() {
     <output className="rounded-xl border border-border bg-[#111418] p-6">
       <div className="flex items-center gap-3 text-[13px] text-text-tertiary">
         <RefreshCw className="size-4 animate-spin text-accent" />
-        Loading extension route registry...
+        Loading extension route registry…
       </div>
     </output>
   )
@@ -135,14 +148,17 @@ function ExtensionRouteContributionCard({
           </div>
           <div className="flex flex-wrap gap-1.5">
             <span className="rounded bg-accent/10 px-2 py-1 text-[10px] font-medium text-accent">
-              {contribution.lane}
+              {contribution.runtime}
+            </span>
+            <span className="rounded bg-bg-tertiary px-2 py-1 text-[10px] font-medium text-text-tertiary">
+              {contribution.execution}
             </span>
             <span className="rounded bg-bg-tertiary px-2 py-1 text-[10px] font-medium text-text-tertiary">
               {entry.scope.label}
             </span>
           </div>
         </div>
-        <ExtensionSandboxFrame contribution={contribution} />
+        <ExtensionFederatedModuleHost className="min-h-[420px]" entry={entry} />
         <dl className="mt-4 grid gap-3 text-[12px] text-text-tertiary md:grid-cols-2">
           <div className="min-w-0">
             <dt className="text-text-muted">Contribution ID</dt>

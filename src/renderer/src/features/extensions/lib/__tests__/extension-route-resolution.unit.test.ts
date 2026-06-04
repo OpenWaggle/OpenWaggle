@@ -23,13 +23,15 @@ function routeEntry(
     },
     packagePath: '/tmp/project/.openwaggle/extensions/sample-extension',
     manifestPath: '/tmp/project/.openwaggle/extensions/sample-extension/openwaggle.extension.json',
+    contentHash: 'abcdef',
     projectPaths: [PROJECT_PATH],
     appliesToAllRequestedProjects: true,
     family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.ROUTES,
     contributionId: 'sample.route',
     title: 'Sample route',
     label: 'Sample route',
-    lane: 'webview',
+    runtime: 'federated-module',
+    execution: 'host-renderer',
     entryPath: 'dist/route.html',
     eligibility: {
       runtimeEnabled: true,
@@ -68,7 +70,8 @@ describe('resolveExtensionRouteContribution', () => {
       status: 'available',
       contribution: {
         entry,
-        lane: 'webview',
+        runtime: 'federated-module',
+        execution: 'host-renderer',
         entryPath: 'dist/route.html',
       },
     })
@@ -125,7 +128,7 @@ describe('resolveExtensionRouteContribution', () => {
     })
   })
 
-  it('rejects route entries missing host metadata before mounting a sandbox', () => {
+  it('rejects route entries missing host metadata before mounting a module', () => {
     const resolution = resolveExtensionRouteContribution({
       registry: registry([routeEntry({ entryPath: undefined })]),
       extensionId: 'sample-extension',

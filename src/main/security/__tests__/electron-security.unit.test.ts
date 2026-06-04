@@ -54,7 +54,7 @@ describe('assertSecureWebPreferences', () => {
         [testCase.preference]: testCase.actual,
       }
 
-      expect(() => assertSecureWebPreferences(insecurePreferences)).toThrowError(
+      expect(() => assertSecureWebPreferences(insecurePreferences)).toThrow(
         `Insecure BrowserWindow webPreferences: "${testCase.preference}" must be ${String(testCase.expected)}, received ${String(testCase.actual)}.`,
       )
     }
@@ -66,7 +66,7 @@ describe('buildContentSecurityPolicy', () => {
     expect(buildContentSecurityPolicy()).toBe(CONTENT_SECURITY_POLICY)
     expect(CONTENT_SECURITY_POLICY).toContain("default-src 'self'")
     expect(CONTENT_SECURITY_POLICY).toContain(
-      "script-src 'self' 'sha256-Z2/iFzh9VMlVkEOar1f/oSHWwQk3ve1qk/C2WdsC4Xk='",
+      "script-src 'self' 'sha256-Z2/iFzh9VMlVkEOar1f/oSHWwQk3ve1qk/C2WdsC4Xk=' 'sha256-eIH7vE+gNH4voiA5w6zEXHTLalVDfYnQh0hrEIG7OA0=' openwaggle-extension:",
     )
     expect(CONTENT_SECURITY_POLICY).toContain("style-src 'self' 'unsafe-inline'")
     expect(CONTENT_SECURITY_POLICY).toContain("img-src 'self' data:")

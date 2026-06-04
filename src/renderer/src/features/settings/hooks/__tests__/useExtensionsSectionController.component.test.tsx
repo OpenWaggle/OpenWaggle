@@ -148,6 +148,7 @@ const COMMAND_ENTRY: ExtensionContributionRegistryEntry = {
   scope: SAMPLE_PACKAGE.scope,
   packagePath: SAMPLE_PACKAGE.packagePath,
   manifestPath: SAMPLE_PACKAGE.manifestPath,
+  contentHash: 'abcdef',
   projectPaths: [PROJECT_PATH],
   appliesToAllRequestedProjects: true,
   family: 'commands',
@@ -173,7 +174,8 @@ const SETTINGS_ENTRY: ExtensionContributionRegistryEntry = {
   contributionId: 'sample.settings',
   title: 'Sample settings',
   label: 'Sample settings',
-  lane: 'trusted-react',
+  runtime: 'federated-module',
+  execution: 'host-renderer',
   entryPath: 'dist/settings.js',
 }
 

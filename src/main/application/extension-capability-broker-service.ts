@@ -9,6 +9,7 @@ import { ExtensionManagerService } from '../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../ports/extension-project-overrides-repository'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
+import { SettingsService } from '../services/settings-service'
 import { auditedFailure } from './extension-capability-broker-audit'
 import {
   contributionMethodIsDeclared,
@@ -43,8 +44,30 @@ function currentTimestamp(dependencies: InvokeExtensionCapabilityDependencies) {
   return dependencies.now?.() ?? Date.now()
 }
 
+function resolveActiveProjectScope(scope: ExtensionInvokeScope) {
+  return Effect.gen(function* () {
+    const projectPath = getScopeProjectPath(scope)
+    if (!projectPath) {
+      return scopeOk()
+    }
+
+    const settings = yield* SettingsService
+    const activeProjectPath = (yield* settings.get()).projectPath
+    if (activeProjectPath !== projectPath) {
+      return scopeFailure(`Project "${projectPath}" is not the active project scope.`)
+    }
+
+    return scopeOk()
+  })
+}
+
 function resolveScopeContext(scope: ExtensionInvokeScope) {
   return Effect.gen(function* () {
+    const activeProjectResolution = yield* resolveActiveProjectScope(scope)
+    if (activeProjectResolution._tag === 'failure') {
+      return activeProjectResolution
+    }
+
     if (scope.kind === 'app' || scope.kind === 'project') {
       return scopeOk()
     }

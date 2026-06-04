@@ -12,34 +12,10 @@ import type {
   ExtensionSdkCompatibility,
 } from '../../extensions/types'
 import { getExtensionBuildPlan } from './build-plan'
+import { getManifestContentHashInput } from './content-hash-input'
 import { getProjectExtensionRoot } from './extension-paths'
 import { loadExtensionManifest } from './manifest-loader'
 import { calculateContentHash, validateDeclaredFiles } from './package-files'
-
-interface ManifestEntryContribution {
-  readonly entry: string
-}
-
-interface ManifestEntryContributions {
-  readonly routes?: readonly ManifestEntryContribution[]
-  readonly settingsSections?: readonly ManifestEntryContribution[]
-  readonly sidePanels?: readonly ManifestEntryContribution[]
-  readonly dialogs?: readonly ManifestEntryContribution[]
-  readonly transcriptRenderers?: readonly ManifestEntryContribution[]
-  readonly statusWidgets?: readonly ManifestEntryContribution[]
-}
-
-interface ManifestContentHashSource {
-  readonly builtArtifacts: readonly string[]
-  readonly contributions?: ManifestEntryContributions
-  readonly trusted?: {
-    readonly main?: string
-    readonly renderer?: string
-  }
-  readonly runtimeRequirements?: readonly {
-    readonly command?: string
-  }[]
-}
 
 function scopeSortKey(scope: ExtensionPackageScope) {
   return scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND
@@ -111,55 +87,6 @@ function sdkDiagnostics(compatibility: ExtensionSdkCompatibility): readonly Exte
       message: compatibility.reason ?? 'Extension SDK range is not compatible with this host.',
     },
   ]
-}
-
-function getContributionEntryPaths(manifest: ManifestContentHashSource): readonly string[] {
-  const contributions = manifest.contributions
-  if (!contributions) {
-    return []
-  }
-
-  const entryPaths: string[] = []
-  pushContributionEntryPaths(entryPaths, contributions.routes)
-  pushContributionEntryPaths(entryPaths, contributions.settingsSections)
-  pushContributionEntryPaths(entryPaths, contributions.sidePanels)
-  pushContributionEntryPaths(entryPaths, contributions.dialogs)
-  pushContributionEntryPaths(entryPaths, contributions.transcriptRenderers)
-  pushContributionEntryPaths(entryPaths, contributions.statusWidgets)
-  return entryPaths
-}
-
-function pushContributionEntryPaths(
-  entryPaths: string[],
-  contributions: readonly ManifestEntryContribution[] | undefined,
-) {
-  for (const contribution of contributions ?? []) {
-    entryPaths.push(contribution.entry)
-  }
-}
-
-function pushIfPresent(paths: string[], pathValue: string | undefined) {
-  if (pathValue) {
-    paths.push(pathValue)
-  }
-}
-
-function getManifestContentHashInput(manifest: ManifestContentHashSource) {
-  const runtimeFiles: string[] = []
-
-  for (const entryPath of getContributionEntryPaths(manifest)) {
-    runtimeFiles.push(entryPath)
-  }
-  pushIfPresent(runtimeFiles, manifest.trusted?.main)
-  pushIfPresent(runtimeFiles, manifest.trusted?.renderer)
-  for (const requirement of manifest.runtimeRequirements ?? []) {
-    pushIfPresent(runtimeFiles, requirement.command)
-  }
-
-  return {
-    builtArtifacts: manifest.builtArtifacts,
-    runtimeFiles,
-  }
 }
 
 async function discoverPackage(

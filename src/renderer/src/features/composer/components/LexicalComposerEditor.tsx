@@ -5,7 +5,7 @@ import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary'
 import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin'
 import { PlainTextPlugin } from '@lexical/react/LexicalPlainTextPlugin'
 import type { LexicalEditor } from 'lexical'
-import type { MutableRefObject } from 'react'
+import type { RefObject } from 'react'
 import { cn } from '@/shared/lib/cn'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { FileMentionNode } from './nodes/FileMentionNode'
@@ -22,7 +22,7 @@ interface LexicalComposerEditorProps {
   onSubmit: (text: string) => void
   disabled?: boolean
   placeholder: string
-  editorRef: MutableRefObject<LexicalEditor | null>
+  editorRef: RefObject<LexicalEditor | null>
   checkAndConvertPaste: (pastedText: string, currentEditorText: string) => boolean
 }
 

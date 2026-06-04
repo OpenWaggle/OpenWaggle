@@ -1,3 +1,5 @@
+import { EXTENSION_FRAME_BOOTSTRAP_SCRIPT_HASH } from '@shared/constants/extension-frame'
+import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { Session, WebPreferences } from 'electron'
 
 const SECURITY_PREFERENCE_EXPECTATIONS = [
@@ -13,7 +15,14 @@ const VALUE_SEPARATOR = ' '
 // Vite React injects a deterministic inline preamble script in dev.
 // Allow only that exact script hash so dev boot works without enabling broad unsafe-inline.
 const VITE_REACT_PREAMBLE_HASH = "'sha256-Z2/iFzh9VMlVkEOar1f/oSHWwQk3ve1qk/C2WdsC4Xk='" as const
-const SCRIPT_SRC_VALUES = ["'self'", VITE_REACT_PREAMBLE_HASH] as const
+const EXTENSION_RUNTIME_SCRIPT_SOURCE =
+  `${OPENWAGGLE_EXTENSION.RUNTIME_MODULE_PROTOCOL.SCHEME}:` as const
+const SCRIPT_SRC_VALUES = [
+  "'self'",
+  VITE_REACT_PREAMBLE_HASH,
+  EXTENSION_FRAME_BOOTSTRAP_SCRIPT_HASH,
+  EXTENSION_RUNTIME_SCRIPT_SOURCE,
+] as const
 const STYLE_SRC_VALUES = ["'self'", "'unsafe-inline'"] as const
 const IMG_SRC_VALUES = ["'self'", 'data:'] as const
 const CONNECT_SRC_VALUES = [

@@ -8,17 +8,13 @@ import {
   type CapturedLog,
   makeBrokerPackage,
   makeProjectInvocation,
-  makeSessionDetail,
-  makeSessionTree,
   runBroker,
-  SESSION_ID,
   TIMESTAMP,
 } from './extension-capability-broker-test-utils'
 import {
   makeLifecycle,
   makePackage,
   makeProjectOverride,
-  OTHER_PROJECT_PATH,
   PROJECT_PATH,
 } from './extension-contribution-registry-test-utils'
 
@@ -263,38 +259,5 @@ describe('invokeExtensionCapability', () => {
     })
 
     expectFailure(result, OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.INVALID_PAYLOAD)
-  })
-
-  it('rejects out-of-scope session invocations', async () => {
-    const extensionPackage = makeBrokerPackage()
-    const result = await runBroker({
-      invocation: makeProjectInvocation({
-        scope: { kind: 'session', projectPath: PROJECT_PATH, sessionId: String(SESSION_ID) },
-      }),
-      packages: [extensionPackage],
-      lifecycles: [makeLifecycle(extensionPackage)],
-      sessionDetail: makeSessionDetail(OTHER_PROJECT_PATH),
-    })
-
-    expectFailure(result, OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.OUT_OF_SCOPE)
-  })
-
-  it('rejects out-of-scope branch invocations', async () => {
-    const extensionPackage = makeBrokerPackage()
-    const result = await runBroker({
-      invocation: makeProjectInvocation({
-        scope: {
-          kind: 'branch',
-          projectPath: PROJECT_PATH,
-          sessionId: String(SESSION_ID),
-          branchId: 'missing-branch',
-        },
-      }),
-      packages: [extensionPackage],
-      lifecycles: [makeLifecycle(extensionPackage)],
-      sessionTree: makeSessionTree(PROJECT_PATH),
-    })
-
-    expectFailure(result, OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.OUT_OF_SCOPE)
   })
 })

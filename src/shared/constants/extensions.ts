@@ -11,6 +11,15 @@ const EXTENSION_CONTRIBUTION_FAMILY = {
   STATUS_WIDGETS: 'statusWidgets',
 } as const
 
+const EXTENSION_CONTRIBUTION_RUNTIME = {
+  FEDERATED_MODULE: 'federated-module',
+} as const
+
+const EXTENSION_EXECUTION_PLACEMENT = {
+  HOST_RENDERER: 'host-renderer',
+  FRAME: 'frame',
+} as const
+
 const EXTENSION_STORAGE_KIND = {
   STATE: 'state',
   CONFIG: 'config',
@@ -139,10 +148,18 @@ export const OPENWAGGLE_EXTENSION = {
     RELATIVE_PARENT_SEGMENT: '..',
     CURRENT_DIRECTORY_SEGMENT: '.',
   },
+  RUNTIME_MODULE_PROTOCOL: {
+    SCHEME: 'openwaggle-extension',
+    HOST: 'runtime',
+    MODULE_PATH_PREFIX: '/module',
+  },
   CAPABILITY_SCOPES: ['app', 'project', 'session', 'branch'] as const,
-  UI_LANES: ['declarative', 'webview', 'trusted-react'] as const,
   CONTRIBUTION_FAMILY: EXTENSION_CONTRIBUTION_FAMILY,
   CONTRIBUTION_FAMILIES: Object.freeze(Object.values(EXTENSION_CONTRIBUTION_FAMILY)),
+  CONTRIBUTION_RUNTIME: EXTENSION_CONTRIBUTION_RUNTIME,
+  CONTRIBUTION_RUNTIMES: Object.freeze(Object.values(EXTENSION_CONTRIBUTION_RUNTIME)),
+  EXECUTION_PLACEMENT: EXTENSION_EXECUTION_PLACEMENT,
+  EXECUTION_PLACEMENTS: Object.freeze(Object.values(EXTENSION_EXECUTION_PLACEMENT)),
   STORAGE: {
     KIND: EXTENSION_STORAGE_KIND,
     KINDS: Object.freeze(Object.values(EXTENSION_STORAGE_KIND)),

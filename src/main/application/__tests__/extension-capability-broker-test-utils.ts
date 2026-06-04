@@ -3,6 +3,7 @@ import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { SessionBranchId, SessionId } from '@shared/types/brand'
 import type { ExtensionInvokeInput } from '@shared/types/extension-broker'
 import type { SessionDetail, SessionTree } from '@shared/types/session'
+import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import type { DiscoveredExtensionPackage, ExtensionLifecycleState } from '../../extensions/types'
@@ -14,6 +15,7 @@ import { SessionProjectionRepository } from '../../ports/session-projection-repo
 import { SessionRepository } from '../../ports/session-repository'
 import type { AppLoggerService } from '../../services/logger-service'
 import { AppLogger } from '../../services/logger-service'
+import { SettingsService } from '../../services/settings-service'
 import { invokeExtensionCapability } from '../extension-capability-broker-service'
 import { makeExtensionStorageRepositoryLayer } from './extension-capability-broker-storage-repository-test-utils'
 import {
@@ -154,12 +156,23 @@ function makeBrokerLayer(input: {
   readonly sessionTree?: SessionTree
   readonly storageItems: ExtensionStorageItem[]
   readonly capturedLogs: CapturedLog[]
+  readonly currentProjectPath: string | null
 }) {
   const projectOverrides = input.projectOverrides ?? []
 
   return Layer.mergeAll(
     makeLoggerLayer(input.capturedLogs),
     makeExtensionStorageRepositoryLayer(input.storageItems),
+    Layer.succeed(SettingsService, {
+      get: () =>
+        Effect.succeed({
+          ...DEFAULT_SETTINGS,
+          projectPath: input.currentProjectPath,
+        }),
+      update: () => Effect.void,
+      initialize: () => Effect.void,
+      flushForTests: () => Effect.void,
+    }),
     Layer.succeed(ExtensionManagerService, {
       listPackages: ({ projectPath }) =>
         Effect.succeed(
@@ -260,6 +273,7 @@ export async function runBroker(input: {
   readonly sessionTree?: SessionTree
   readonly storageItems?: readonly ExtensionStorageItem[]
   readonly capturedLogs?: CapturedLog[]
+  readonly currentProjectPath?: string | null
 }) {
   const harness = makeBrokerHarness(input)
   return harness.run(input.invocation)
@@ -273,6 +287,7 @@ export function makeBrokerHarness(input: {
   readonly sessionTree?: SessionTree
   readonly storageItems?: readonly ExtensionStorageItem[]
   readonly capturedLogs?: CapturedLog[]
+  readonly currentProjectPath?: string | null
 }) {
   const capturedLogs = input.capturedLogs ?? []
   const storageItems = [...(input.storageItems ?? [])]
@@ -284,6 +299,7 @@ export function makeBrokerHarness(input: {
     sessionTree: input.sessionTree,
     storageItems,
     capturedLogs,
+    currentProjectPath: input.currentProjectPath ?? PROJECT_PATH,
   })
 
   return {

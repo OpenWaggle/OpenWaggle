@@ -29,13 +29,15 @@ const BASE_ENTRY: ExtensionContributionRegistryEntry = {
   },
   packagePath: '/tmp/project/.openwaggle/extensions/sample-extension',
   manifestPath: '/tmp/project/.openwaggle/extensions/sample-extension/openwaggle.extension.json',
+  contentHash: 'abcdef',
   projectPaths: ['/tmp/project'],
   appliesToAllRequestedProjects: true,
   family: 'settingsSections',
   contributionId: 'sample.settings',
   title: 'Sample settings',
   label: 'Sample settings',
-  lane: 'declarative',
+  runtime: 'federated-module',
+  execution: 'host-renderer',
   entryPath: 'dist/settings.js',
   capability: 'sample.configure',
   eligibility: {
@@ -57,13 +59,14 @@ const COMMAND_ENTRY: ExtensionContributionRegistryEntry = {
   label: 'Run sample',
 }
 
-const WEBVIEW_ENTRY: ExtensionContributionRegistryEntry = {
+const FRAME_ENTRY: ExtensionContributionRegistryEntry = {
   ...BASE_ENTRY,
-  contributionId: 'sample.webview-settings',
-  title: 'Webview settings',
-  label: 'Webview settings',
-  lane: 'webview',
-  entryPath: 'dist/webview-settings.js',
+  contributionId: 'sample.frame-settings',
+  title: 'Frame settings',
+  label: 'Frame settings',
+  runtime: 'federated-module',
+  execution: 'frame',
+  entryPath: 'dist/frame-settings.js',
 }
 
 const BLOCKED_ENTRY: ExtensionContributionRegistryEntry = {
@@ -107,14 +110,18 @@ describe('SettingsContributionHost', () => {
     loggerMock.error.mockClear()
   })
 
-  it('renders declarative settings section contributions through native host cards', () => {
+  it('mounts host-renderer settings section contributions through isolated federated frames', () => {
     render(<SettingsContributionHost registry={registryWith([COMMAND_ENTRY, BASE_ENTRY])} />)
 
     const host = screen.getByLabelText('Extension settings contributions')
     expect(within(host).getByText('Extension settings')).toBeInTheDocument()
     expect(within(host).getByText('Sample settings')).toBeInTheDocument()
-    expect(within(host).getByText('Declarative')).toBeInTheDocument()
-    expect(within(host).getByText('Native settings host')).toBeInTheDocument()
+    expect(within(host).getByText('Federated module')).toBeInTheDocument()
+    expect(within(host).getByText('Host renderer')).toBeInTheDocument()
+    expect(within(host).getByTitle('Extension module: Sample settings')).toHaveAttribute(
+      'sandbox',
+      'allow-scripts',
+    )
     expect(within(host).getByText('dist/settings.js')).toBeInTheDocument()
     expect(within(host).getByText('sample.configure')).toBeInTheDocument()
     expect(within(host).queryByText('Run sample')).not.toBeInTheDocument()
@@ -126,13 +133,15 @@ describe('SettingsContributionHost', () => {
     expect(screen.queryByLabelText('Extension settings contributions')).not.toBeInTheDocument()
   })
 
-  it('contains non-declarative lanes without attempting to mount them', () => {
-    render(<SettingsContributionHost registry={registryWith([WEBVIEW_ENTRY])} />)
+  it('contains frame execution contributions without mounting them in this slice', () => {
+    render(<SettingsContributionHost registry={registryWith([FRAME_ENTRY])} />)
 
     const host = screen.getByLabelText('Extension settings contributions')
-    expect(within(host).getByText('Webview settings')).toBeInTheDocument()
-    expect(within(host).getByText('Webview')).toBeInTheDocument()
-    expect(within(host).getByText('Renderer lane not mounted here.')).toBeInTheDocument()
+    expect(within(host).getByText('Frame settings')).toBeInTheDocument()
+    expect(within(host).getByText('Frame')).toBeInTheDocument()
+    expect(
+      within(host).getByText(/Frame execution uses the federated-module contract/),
+    ).toBeInTheDocument()
   })
 
   it('surfaces contribution eligibility and diagnostics in the settings slot', () => {

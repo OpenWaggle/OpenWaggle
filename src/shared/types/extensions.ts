@@ -88,7 +88,12 @@ export type ExtensionReloadStatus = ConstantValue<typeof OPENWAGGLE_EXTENSION.RE
 export type ExtensionContributionFamily = ConstantValue<
   typeof OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY
 >
-export type ExtensionContributionUiLane = (typeof OPENWAGGLE_EXTENSION.UI_LANES)[number]
+export type ExtensionContributionRuntime = ConstantValue<
+  typeof OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME
+>
+export type ExtensionExecutionPlacement = ConstantValue<
+  typeof OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT
+>
 
 export interface ExtensionBuildPlanView {
   readonly installSource: ExtensionInstallSource
@@ -165,6 +170,7 @@ export interface ExtensionContributionRegistryEntry {
   readonly scope: ExtensionPackageScopeView
   readonly packagePath: string
   readonly manifestPath: string
+  readonly contentHash: string
   readonly projectPaths: readonly string[]
   readonly appliesToAllRequestedProjects: boolean
   readonly family: ExtensionContributionFamily
@@ -175,7 +181,8 @@ export interface ExtensionContributionRegistryEntry {
   readonly capability?: string
   readonly method?: string
   readonly methods?: readonly string[]
-  readonly lane?: ExtensionContributionUiLane
+  readonly runtime?: ExtensionContributionRuntime
+  readonly execution?: ExtensionExecutionPlacement
   readonly entryPath?: string
   readonly eligibility: ExtensionContributionEligibilityView
   readonly diagnostics: readonly ExtensionDiagnosticView[]

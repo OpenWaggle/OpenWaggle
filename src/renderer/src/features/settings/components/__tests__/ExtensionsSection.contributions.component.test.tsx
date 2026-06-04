@@ -108,6 +108,7 @@ const COMMAND_ENTRY: ExtensionContributionRegistryEntry = {
   scope: SAMPLE_PACKAGE.scope,
   packagePath: SAMPLE_PACKAGE.packagePath,
   manifestPath: SAMPLE_PACKAGE.manifestPath,
+  contentHash: 'abcdef',
   projectPaths: ['/tmp/project'],
   appliesToAllRequestedProjects: true,
   family: 'commands',
@@ -133,7 +134,8 @@ const SETTINGS_ENTRY: ExtensionContributionRegistryEntry = {
   contributionId: 'sample.settings',
   title: 'Sample settings',
   label: 'Sample settings',
-  lane: 'trusted-react',
+  runtime: 'federated-module',
+  execution: 'frame',
   entryPath: 'dist/settings.js',
 }
 
@@ -181,7 +183,10 @@ describe('ExtensionsSection contribution registry', () => {
     expect(screen.getByText('Settings 1')).toBeInTheDocument()
     const settingsHost = screen.getByLabelText('Extension settings contributions')
     expect(within(settingsHost).getByText('Sample settings')).toBeInTheDocument()
-    expect(within(settingsHost).getByText('Trusted React')).toBeInTheDocument()
-    expect(within(settingsHost).getByText('Renderer lane not mounted here.')).toBeInTheDocument()
+    expect(within(settingsHost).getByText('Federated module')).toBeInTheDocument()
+    expect(within(settingsHost).getByText('Frame')).toBeInTheDocument()
+    expect(
+      within(settingsHost).getByText(/Frame execution uses the federated-module contract/),
+    ).toBeInTheDocument()
   })
 })

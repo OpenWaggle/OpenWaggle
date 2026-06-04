@@ -49,7 +49,8 @@ describe('openWaggleExtensionManifestSchema', () => {
           {
             id: 'sample.settings',
             title: 'Sample Settings',
-            lane: 'declarative',
+            runtime: 'federated-module',
+            execution: 'host-renderer',
             entry: 'dist/settings.js',
             capability: 'openwaggle.storage',
             methods: ['get', 'set', 'delete', 'list'],
@@ -66,6 +67,28 @@ describe('openWaggleExtensionManifestSchema', () => {
         'delete',
         'list',
       ])
+    }
+  })
+
+  it('rejects obsolete lane-only UI contribution metadata', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      contributions: {
+        routes: [
+          {
+            id: 'sample.legacy',
+            title: 'Legacy Route',
+            lane: 'removed-renderer-lane',
+            entry: 'dist/legacy.js',
+          },
+        ],
+      },
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const issues = result.issues.join('\n')
+      expect(issues).toContain('runtime')
     }
   })
 

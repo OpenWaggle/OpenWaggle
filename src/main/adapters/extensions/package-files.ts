@@ -5,6 +5,7 @@ import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { formatErrorMessage, isEnoent } from '@shared/utils/node-error'
 import type { ExtensionDiagnostic, ExtensionDiagnosticCode } from '../../extensions/types'
 import { isPathInside } from '../../utils/paths'
+import { normalizeManifestRelativePath } from './content-hash-input'
 
 export interface ContentHashResult {
   readonly contentHash: string | null
@@ -34,13 +35,6 @@ export interface ValidateDeclaredFilesInput {
   readonly missingCode: ExtensionDiagnosticCode
 }
 
-function normalizeManifestRelativePath(relativePath: string) {
-  return relativePath.replaceAll(
-    OPENWAGGLE_EXTENSION.PATH.WINDOWS_SEPARATOR,
-    OPENWAGGLE_EXTENSION.PATH.POSIX_SEPARATOR,
-  )
-}
-
 function resolvePackageRelativePath(packagePath: string, relativePath: string) {
   const resolvedPackagePath = path.resolve(packagePath)
   const resolvedCandidatePath = path.resolve(
@@ -50,7 +44,7 @@ function resolvePackageRelativePath(packagePath: string, relativePath: string) {
   return isPathInside(resolvedPackagePath, resolvedCandidatePath) ? resolvedCandidatePath : null
 }
 
-async function resolveSafePackageFilePath(packagePath: string, relativePath: string) {
+export async function resolveSafePackageFilePath(packagePath: string, relativePath: string) {
   const candidatePath = resolvePackageRelativePath(packagePath, relativePath)
   if (!candidatePath) {
     return null

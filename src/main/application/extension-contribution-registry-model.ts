@@ -4,8 +4,9 @@ import type {
   ExtensionContributionEligibilityView,
   ExtensionContributionFamily,
   ExtensionContributionRegistryEntry,
-  ExtensionContributionUiLane,
+  ExtensionContributionRuntime,
   ExtensionDiagnosticView,
+  ExtensionExecutionPlacement,
   ExtensionPackageScopeView,
 } from '@shared/types/extensions'
 import {
@@ -32,7 +33,8 @@ interface ManifestCommandContribution {
 interface ManifestEntryContribution {
   readonly id: string
   readonly title: string
-  readonly lane: ExtensionContributionUiLane
+  readonly runtime: ExtensionContributionRuntime
+  readonly execution: ExtensionExecutionPlacement
   readonly entry: string
   readonly capability?: string
   readonly method?: string
@@ -46,6 +48,7 @@ export interface ExtensionContributionProjectOverrideLookup {
 }
 
 interface ContributionPackageEligibility {
+  readonly contentHash: string
   readonly projectPaths: readonly string[]
   readonly eligibility: ExtensionContributionEligibilityView
   readonly diagnostics: readonly ExtensionDiagnosticView[]
@@ -158,7 +161,7 @@ function buildPackageEligibility(input: {
   readonly projectOverrides: readonly ExtensionContributionProjectOverrideLookup[]
 }): ContributionPackageEligibility | null {
   const { enabled, enabledProjectPaths, disabledProjectPaths } = getEnabledProjectPaths(input)
-  if (!enabled) {
+  if (!enabled || input.extensionPackage.contentHash === null) {
     return null
   }
 
@@ -170,6 +173,7 @@ function buildPackageEligibility(input: {
     : false
 
   return {
+    contentHash: input.extensionPackage.contentHash,
     projectPaths: enabledProjectPaths,
     diagnostics: diagnosticsToView([
       ...input.extensionPackage.diagnostics,
@@ -206,6 +210,7 @@ function contributionToEntry(input: ContributionEntryInput): ExtensionContributi
     scope: scopeToView(extensionPackage.scope),
     packagePath: extensionPackage.packagePath,
     manifestPath: extensionPackage.manifestPath,
+    contentHash: eligibility.contentHash,
     projectPaths: eligibility.projectPaths,
     appliesToAllRequestedProjects:
       eligibility.projectPaths.length === input.requestedProjectPaths.length,
@@ -227,7 +232,8 @@ function contributionToEntry(input: ContributionEntryInput): ExtensionContributi
     return {
       ...baseEntry,
       ...brokerBindings,
-      lane: contribution.lane,
+      runtime: contribution.runtime,
+      execution: contribution.execution,
       entryPath: contribution.entry,
     }
   }

@@ -177,7 +177,8 @@ describe('listExtensionContributionRegistryView failure isolation', () => {
           {
             id: 'multi.settings',
             title: 'Multi Settings',
-            lane: 'declarative',
+            runtime: 'federated-module',
+            execution: 'host-renderer',
             entry: 'dist/settings.js',
           },
         ],

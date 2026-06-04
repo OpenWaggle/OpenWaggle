@@ -3,10 +3,9 @@ import type {
   ExtensionContributionRegistryEntry,
   ExtensionContributionRegistryView,
 } from '@shared/types/extensions'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ExtensionRouteSurfaceContent } from '../ExtensionRouteSurface'
-import { EXTENSION_ROUTE_IFRAME_SANDBOX } from '../ExtensionSandboxFrame'
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => vi.fn(),
@@ -25,13 +24,15 @@ const ROUTE_ENTRY: ExtensionContributionRegistryEntry = {
   },
   packagePath: '/tmp/project/.openwaggle/extensions/sample-extension',
   manifestPath: '/tmp/project/.openwaggle/extensions/sample-extension/openwaggle.extension.json',
+  contentHash: 'abcdef',
   projectPaths: [PROJECT_PATH],
   appliesToAllRequestedProjects: true,
   family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.ROUTES,
   contributionId: 'sample.route',
   title: 'Sample route',
   label: 'Sample route',
-  lane: 'webview',
+  runtime: 'federated-module',
+  execution: 'host-renderer',
   entryPath: 'dist/route.html',
   eligibility: {
     runtimeEnabled: true,
@@ -55,7 +56,7 @@ function renderRouteSurface(input: {
   readonly loading?: boolean
   readonly error?: string | null
 }) {
-  render(
+  return render(
     <ExtensionRouteSurfaceContent
       error={input.error ?? null}
       extensionId="sample-extension"
@@ -69,32 +70,34 @@ function renderRouteSurface(input: {
 }
 
 describe('ExtensionRouteSurfaceContent', () => {
-  it('renders registered extension routes inside a sandboxed iframe foundation', () => {
-    renderRouteSurface({ registry: REGISTRY })
+  it('renders registered extension routes through the federated module mount contract', async () => {
+    const { container } = renderRouteSurface({ registry: REGISTRY })
 
     expect(screen.getByText('Extension route')).toBeInTheDocument()
     expect(screen.getByText('Sample route')).toBeInTheDocument()
-
-    const iframe = screen.getByTitle('Extension route: Sample route')
-    expect(iframe).toHaveAttribute('sandbox', EXTENSION_ROUTE_IFRAME_SANDBOX)
-    expect(iframe).toHaveAttribute('referrerpolicy', 'no-referrer')
-
-    const srcDoc = iframe.getAttribute('srcdoc') ?? ''
-    expect(srcDoc).toContain('Sandboxed iframe host')
-    expect(srcDoc).toContain('sample.route')
-    expect(srcDoc).not.toContain('window.api')
+    expect(container.firstElementChild).toHaveClass('min-h-0', 'flex-1', 'overflow-hidden')
+    expect(screen.getByRole('button', { name: 'Extensions' })).toHaveClass('inline-flex')
+    expect(screen.getByLabelText('Extension route breadcrumbs')).toHaveClass('min-w-0', 'flex-1')
+    const frame = screen.getByTitle('Extension module: Sample route')
+    expect(frame).toHaveAttribute('sandbox', 'allow-scripts')
+    await waitFor(() => {
+      expect(frame).toHaveAttribute(
+        'srcdoc',
+        expect.stringContaining('openwaggle-extension://runtime/module/'),
+      )
+    })
   })
 
   it('renders a contained not-found state for unknown route ids', () => {
     renderRouteSurface({ registry: REGISTRY, routeId: 'missing.route' })
 
     expect(screen.getByRole('alert')).toHaveTextContent('Route contribution not available')
-    expect(screen.queryByTitle('Extension route: Sample route')).not.toBeInTheDocument()
+    expect(screen.queryByText('Mounted sample-extension/sample.route')).not.toBeInTheDocument()
   })
 
   it('renders a contained loading state while registry data is unavailable', () => {
     renderRouteSurface({ registry: null, loading: true })
 
-    expect(screen.getByRole('status')).toHaveTextContent('Loading extension route registry')
+    expect(screen.getByRole('status')).toHaveTextContent('Loading extension route registry…')
   })
 })

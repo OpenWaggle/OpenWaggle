@@ -2,12 +2,14 @@ import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type {
   ExtensionContributionRegistryEntry,
   ExtensionContributionRegistryView,
-  ExtensionContributionUiLane,
+  ExtensionContributionRuntime,
+  ExtensionExecutionPlacement,
 } from '@shared/types/extensions'
 
 export interface ResolvedExtensionRouteContribution {
   readonly entry: ExtensionContributionRegistryEntry
-  readonly lane: ExtensionContributionUiLane
+  readonly runtime: ExtensionContributionRuntime
+  readonly execution: ExtensionExecutionPlacement
   readonly entryPath: string
 }
 
@@ -131,11 +133,12 @@ export function resolveExtensionRouteContribution({
     }
   }
 
-  if (!entry.lane || !entry.entryPath) {
+  if (!entry.runtime || !entry.execution || !entry.entryPath) {
     return {
       status: 'invalid',
       title: 'Route contribution incomplete',
-      message: 'The route contribution is missing its renderer lane or entry path.',
+      message:
+        'The route contribution is missing its renderer runtime, execution placement, or entry path.',
     }
   }
 
@@ -143,7 +146,8 @@ export function resolveExtensionRouteContribution({
     status: 'available',
     contribution: {
       entry,
-      lane: entry.lane,
+      runtime: entry.runtime,
+      execution: entry.execution,
       entryPath: entry.entryPath,
     },
   }

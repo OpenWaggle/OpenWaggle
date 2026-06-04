@@ -2,13 +2,15 @@ import type { ExtensionContributionRegistryEntry } from '@shared/types/extension
 import { Settings2 } from 'lucide-react'
 import { ExtensionDiagnostics } from './ExtensionDiagnostics'
 import { SettingsContributionFact } from './SettingsContributionFact'
-import { SettingsContributionNativeBody } from './SettingsContributionNativeBody'
 import { SettingsContributionPill } from './SettingsContributionPill'
+import { SettingsContributionRuntimeBody } from './SettingsContributionRuntimeBody'
 import {
   eligibilityPills,
-  laneLabel,
-  laneTone,
+  executionLabel,
+  executionTone,
   projectCoverageLabel,
+  runtimeLabel,
+  runtimeTone,
 } from './settings-contribution-host-model'
 
 export function SettingsContributionSlot({
@@ -25,8 +27,11 @@ export function SettingsContributionSlot({
           <div className="flex flex-wrap items-center gap-2">
             <Settings2 className="size-4 text-accent" />
             <h3 className="text-[15px] font-semibold text-text-primary">{entry.title}</h3>
-            <SettingsContributionPill tone={laneTone(entry.lane)}>
-              {laneLabel(entry.lane)}
+            <SettingsContributionPill tone={runtimeTone(entry.runtime)}>
+              {runtimeLabel(entry.runtime)}
+            </SettingsContributionPill>
+            <SettingsContributionPill tone={executionTone(entry.execution)}>
+              {executionLabel(entry.execution)}
             </SettingsContributionPill>
             <SettingsContributionPill tone="neutral">{entry.scope.label}</SettingsContributionPill>
             {extraPills.map((pill) => (
@@ -39,7 +44,7 @@ export function SettingsContributionSlot({
         </div>
       </div>
       <div className="mt-4">
-        <SettingsContributionNativeBody entry={entry} />
+        <SettingsContributionRuntimeBody entry={entry} />
       </div>
       <div className="mt-3 grid gap-3 text-[12px] text-text-tertiary md:grid-cols-2">
         <SettingsContributionFact label="Contribution ID">

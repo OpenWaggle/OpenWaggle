@@ -36,6 +36,7 @@ function makeContributionsView(
         },
         packagePath: '/tmp/user-data/extensions/sample-extension',
         manifestPath: '/tmp/user-data/extensions/sample-extension/openwaggle.extension.json',
+        contentHash: 'abcdef',
         projectPaths: input.projectPaths ?? [],
         appliesToAllRequestedProjects: true,
         family: 'commands',

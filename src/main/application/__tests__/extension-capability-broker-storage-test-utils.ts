@@ -80,7 +80,8 @@ export function makeStorageUiBrokerPackage() {
         {
           id: STORAGE_CONTRIBUTION_ID.SETTINGS,
           title: 'Storage Settings',
-          lane: 'declarative',
+          runtime: 'federated-module',
+          execution: 'host-renderer',
           entry: 'dist/settings.js',
           capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE,
           methods: [...STORAGE_METHODS],
