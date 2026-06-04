@@ -1,4 +1,5 @@
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
+import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({
@@ -234,6 +235,41 @@ describe('preload api surface contract', () => {
       method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SCOPE,
       scope: { kind: 'project', projectPath: '/tmp/project' },
       payload: {},
+    })
+  })
+
+  it('builds typed extension SDK storage calls through the generic broker', async () => {
+    const transport = vi.fn<ExtensionBrokerTransport>(async () => ({
+      ok: false,
+      error: {
+        code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.UNKNOWN_EXTENSION,
+        message: 'Unknown extension.',
+      },
+    }))
+    const sdk = createExtensionBrokerSdk(transport, {
+      extensionId: 'sample-extension',
+      contributionId: 'sample.storage',
+    })
+
+    await sdk.storage.config.set(
+      { kind: 'project', projectPath: '/tmp/project' },
+      'settings',
+      { enabled: true },
+      { storageScope: OPENWAGGLE_EXTENSION.STORAGE.SCOPE.PROJECT_KIND },
+    )
+
+    expect(transport).toHaveBeenCalledWith({
+      extensionId: 'sample-extension',
+      contributionId: 'sample.storage',
+      capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE,
+      method: OPENWAGGLE_EXTENSION_BROKER.METHOD.SET,
+      scope: { kind: 'project', projectPath: '/tmp/project' },
+      payload: {
+        storageKind: OPENWAGGLE_EXTENSION.STORAGE.KIND.CONFIG,
+        storageScope: OPENWAGGLE_EXTENSION.STORAGE.SCOPE.PROJECT_KIND,
+        key: 'settings',
+        value: { enabled: true },
+      },
     })
   })
 

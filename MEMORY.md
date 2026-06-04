@@ -16,6 +16,7 @@ Durable OpenWaggle project memory. Keep this compact and technical. Do not add p
 - Pi SDK imports belong in `src/main/adapters/pi/` only.
 - Provider/model/auth metadata must mirror Pi through `AuthStorage`, `ModelRegistry`, project-scoped runtime services, and OpenWaggle-owned ports.
 - OpenWaggle must not maintain a parallel `src/main/providers/` registry.
+- OpenWaggle extension UI direction is ADR-0006: model visual contributions as surface/runtime/execution, default to a framework-neutral federated-module runtime with `mount(context)`, and do not expand placeholder route/content experiments as a parallel legacy runtime.
 
 ## Pi Runtime Memory
 

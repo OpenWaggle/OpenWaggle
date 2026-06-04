@@ -9,11 +9,13 @@ import type { DiscoveredExtensionPackage, ExtensionLifecycleState } from '../../
 import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from '../../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
+import type { ExtensionStorageItem } from '../../ports/extension-storage-repository'
 import { SessionProjectionRepository } from '../../ports/session-projection-repository'
 import { SessionRepository } from '../../ports/session-repository'
 import type { AppLoggerService } from '../../services/logger-service'
 import { AppLogger } from '../../services/logger-service'
 import { invokeExtensionCapability } from '../extension-capability-broker-service'
+import { makeExtensionStorageRepositoryLayer } from './extension-capability-broker-storage-repository-test-utils'
 import {
   makePackage,
   type makeProjectOverride,
@@ -150,12 +152,14 @@ function makeBrokerLayer(input: {
   readonly projectOverrides?: readonly ReturnType<typeof makeProjectOverride>[]
   readonly sessionDetail?: SessionDetail
   readonly sessionTree?: SessionTree
+  readonly storageItems: ExtensionStorageItem[]
   readonly capturedLogs: CapturedLog[]
 }) {
   const projectOverrides = input.projectOverrides ?? []
 
   return Layer.mergeAll(
     makeLoggerLayer(input.capturedLogs),
+    makeExtensionStorageRepositoryLayer(input.storageItems),
     Layer.succeed(ExtensionManagerService, {
       listPackages: ({ projectPath }) =>
         Effect.succeed(
@@ -254,21 +258,39 @@ export async function runBroker(input: {
   readonly projectOverrides?: readonly ReturnType<typeof makeProjectOverride>[]
   readonly sessionDetail?: SessionDetail
   readonly sessionTree?: SessionTree
+  readonly storageItems?: readonly ExtensionStorageItem[]
+  readonly capturedLogs?: CapturedLog[]
+}) {
+  const harness = makeBrokerHarness(input)
+  return harness.run(input.invocation)
+}
+
+export function makeBrokerHarness(input: {
+  readonly packages?: readonly DiscoveredExtensionPackage[]
+  readonly lifecycles?: readonly ExtensionLifecycleState[]
+  readonly projectOverrides?: readonly ReturnType<typeof makeProjectOverride>[]
+  readonly sessionDetail?: SessionDetail
+  readonly sessionTree?: SessionTree
+  readonly storageItems?: readonly ExtensionStorageItem[]
   readonly capturedLogs?: CapturedLog[]
 }) {
   const capturedLogs = input.capturedLogs ?? []
-  return Effect.runPromise(
-    invokeExtensionCapability(input.invocation, { now: () => TIMESTAMP }).pipe(
-      Effect.provide(
-        makeBrokerLayer({
-          packages: input.packages ?? [],
-          lifecycles: input.lifecycles ?? [],
-          projectOverrides: input.projectOverrides,
-          sessionDetail: input.sessionDetail,
-          sessionTree: input.sessionTree,
-          capturedLogs,
-        }),
+  const storageItems = [...(input.storageItems ?? [])]
+  const layer = makeBrokerLayer({
+    packages: input.packages ?? [],
+    lifecycles: input.lifecycles ?? [],
+    projectOverrides: input.projectOverrides,
+    sessionDetail: input.sessionDetail,
+    sessionTree: input.sessionTree,
+    storageItems,
+    capturedLogs,
+  })
+
+  return {
+    run: (invocation: ExtensionInvokeInput) =>
+      Effect.runPromise(
+        invokeExtensionCapability(invocation, { now: () => TIMESTAMP }).pipe(Effect.provide(layer)),
       ),
-    ),
-  )
+    storageItems: () => storageItems.map((item) => item),
+  }
 }

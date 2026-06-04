@@ -3,6 +3,7 @@ import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useComposerStore } from '@/features/composer/state'
 import { usePreferencesStore } from '@/features/settings/state'
 import { CommandPalette } from '../CommandPalette'
 
@@ -61,6 +62,7 @@ describe('CommandPalette extension commands', () => {
       },
     })
     apiMock.listWagglePresets.mockResolvedValue([])
+    useComposerStore.setState(useComposerStore.getInitialState())
     apiMock.listExtensionContributions.mockResolvedValue({
       projectPaths: [PROJECT_PATH],
       entries: [
@@ -114,5 +116,46 @@ describe('CommandPalette extension commands', () => {
         payload: {},
       })
     })
+  })
+
+  it('lists extension slash commands and inserts slash text for composer submission', async () => {
+    apiMock.listExtensionContributions.mockResolvedValueOnce({
+      projectPaths: [PROJECT_PATH],
+      entries: [
+        {
+          extensionId: 'sample-extension',
+          extensionName: 'Sample Extension',
+          extensionVersion: '1.0.0',
+          scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND, label: 'Global' },
+          packagePath: '/tmp/extensions/sample-extension',
+          manifestPath: '/tmp/extensions/sample-extension/openwaggle.extension.json',
+          projectPaths: [PROJECT_PATH],
+          appliesToAllRequestedProjects: true,
+          family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SLASH_COMMANDS,
+          contributionId: 'sample.slash',
+          title: 'Run sample slash',
+          label: 'Run sample slash',
+          category: 'Sample',
+          capability: 'sample.execute',
+          method: 'run',
+          eligibility: {
+            runtimeEnabled: true,
+            enabled: true,
+            trusted: true,
+            sdkCompatible: true,
+            updateAvailable: false,
+            disabledProjectPaths: [],
+          },
+          diagnostics: [],
+        },
+      ],
+    })
+
+    renderWithQueryClient()
+
+    fireEvent.click(await screen.findByRole('button', { name: /run sample slash/i }))
+
+    expect(useComposerStore.getState().input).toBe('/sample.slash ')
+    expect(apiMock.invokeExtension).not.toHaveBeenCalled()
   })
 })

@@ -1,11 +1,22 @@
 import type { AgentSendPayload } from '@shared/types/agent'
 import type { SessionId, SupportedModelId } from '@shared/types/brand'
+import type { ExtensionInvokeScope } from '@shared/types/extension-broker'
+import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { WaggleCollaborationStatus, WaggleConfig } from '@shared/types/waggle'
 import { useBranchSummaryStore } from '@/features/chat/state/branch-summary-store'
-import { parseCompactCommand, parseSessionCopyCommand } from '@/features/composer/commands'
+import {
+  type ExtensionSlashCommand,
+  extensionSlashCommandPayload,
+  parseCompactCommand,
+  parseExtensionSlashCommand,
+  parseSessionCopyCommand,
+} from '@/features/composer/commands'
 import { api } from '@/shared/lib/ipc'
+import { createRendererLogger } from '@/shared/lib/logger'
 import type { useBranchSummaryWorkflow } from './useBranchSummaryWorkflow'
 import type { useSessionCopyWorkflow } from './useSessionCopyWorkflow'
+
+const logger = createRendererLogger('chat-send-workflow')
 
 interface ChatSendWorkflowParams {
   readonly activeSessionId: SessionId | null
@@ -14,10 +25,12 @@ interface ChatSendWorkflowParams {
   readonly draftBranch: Parameters<
     ReturnType<typeof useBranchSummaryWorkflow>['materializeDraftBranchForSend']
   >[0]
+  readonly extensionContributions: ExtensionContributionRegistryView | null
   readonly handleSend: (payload: AgentSendPayload) => Promise<void>
   readonly handleSendWaggle: (payload: AgentSendPayload, config: WaggleConfig) => Promise<void>
   readonly model: SupportedModelId
   readonly phase: { readonly reset: () => void }
+  readonly projectPath: string | null
   readonly refreshSession: (sessionId: SessionId) => Promise<void>
   readonly refreshSessionWorkspace: (sessionId: SessionId) => Promise<void>
   readonly sessionCopy: ReturnType<typeof useSessionCopyWorkflow>
@@ -49,6 +62,66 @@ async function compactSession(params: ChatSendWorkflowParams, customInstructions
   }
 }
 
+function extensionSlashCommandScope(params: ChatSendWorkflowParams): ExtensionInvokeScope | null {
+  if (!params.projectPath) {
+    return null
+  }
+
+  if (!params.activeSessionId) {
+    return { kind: 'project', projectPath: params.projectPath }
+  }
+
+  return {
+    kind: 'session',
+    projectPath: params.projectPath,
+    sessionId: params.activeSessionId,
+  }
+}
+
+async function invokeExtensionSlashCommand(
+  params: ChatSendWorkflowParams,
+  command: ExtensionSlashCommand,
+) {
+  const { entry } = command
+  if (!entry.capability || !entry.method) {
+    return
+  }
+
+  const scope = extensionSlashCommandScope(params)
+  if (!scope) {
+    params.showToast('Select a project before running extension slash commands.')
+    return
+  }
+
+  try {
+    const result = await api.invokeExtension({
+      extensionId: entry.extensionId,
+      contributionId: entry.contributionId,
+      capability: entry.capability,
+      method: entry.method,
+      scope,
+      payload: extensionSlashCommandPayload(command),
+    })
+
+    if (!result.ok) {
+      logger.warn('Extension slash command rejected', {
+        extensionId: entry.extensionId,
+        contributionId: entry.contributionId,
+        code: result.error.code,
+      })
+      params.showToast(result.error.message)
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    logger.warn('Extension slash command failed', {
+      extensionId: entry.extensionId,
+      contributionId: entry.contributionId,
+      error: message,
+    })
+    params.showToast(message)
+  }
+}
+
 async function handleSendCommand(params: ChatSendWorkflowParams, text: string) {
   const branchSummaryPrompt = useBranchSummaryStore.getState().prompt
   if (branchSummaryPrompt?.mode === 'custom') {
@@ -71,6 +144,13 @@ async function handleSendCommand(params: ChatSendWorkflowParams, text: string) {
     await params.sessionCopy.cloneCurrentSessionToNewSession()
     return true
   }
+
+  const extensionSlashCommand = parseExtensionSlashCommand(text, params.extensionContributions)
+  if (extensionSlashCommand) {
+    await invokeExtensionSlashCommand(params, extensionSlashCommand)
+    return true
+  }
+
   return false
 }
 

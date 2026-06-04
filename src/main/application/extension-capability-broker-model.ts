@@ -123,6 +123,13 @@ export function methodIsDeclared(declaration: ExtensionCapabilityDeclaration, me
   return declaration.methods?.includes(method) === true
 }
 
+export function contributionMethodIsDeclared(
+  entry: ExtensionContributionRegistryEntry,
+  method: string,
+) {
+  return entry.method === method || entry.methods?.includes(method) === true
+}
+
 function isPayloadEmptyObject(payload: unknown) {
   return (
     typeof payload === 'object' &&

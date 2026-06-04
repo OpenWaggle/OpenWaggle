@@ -174,6 +174,7 @@ export interface ExtensionContributionRegistryEntry {
   readonly category?: string
   readonly capability?: string
   readonly method?: string
+  readonly methods?: readonly string[]
   readonly lane?: ExtensionContributionUiLane
   readonly entryPath?: string
   readonly eligibility: ExtensionContributionEligibilityView

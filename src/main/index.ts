@@ -1,7 +1,8 @@
 import { join } from 'node:path'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
-import { app, BrowserWindow, Menu, shell } from 'electron'
+import { app, BrowserWindow, shell } from 'electron'
 import { reconcileInterruptedAgentRuns } from './application/agent-run-service'
+import { configureApplicationMenu, installDevToolsShortcut } from './application-menu'
 import { env } from './env'
 import { persistAllActiveRuns } from './ipc/agent-handler'
 import { cleanupTerminals, registerAllIpcHandlers } from './ipc/handlers'
@@ -40,41 +41,6 @@ const appIconPath = is.dev
 const logger = createLogger('main/index')
 let ipcHandlersRegistered = false
 let beforeQuitCleanupDone = false
-
-function buildApplicationMenu() {
-  if (process.platform === 'darwin') {
-    Menu.setApplicationMenu(
-      Menu.buildFromTemplate([
-        {
-          label: app.name,
-          submenu: [
-            { role: 'about' },
-            { type: 'separator' },
-            { role: 'hide' },
-            { role: 'hideOthers' },
-            { role: 'unhide' },
-            { type: 'separator' },
-            { role: 'quit' },
-          ],
-        },
-        {
-          label: 'Edit',
-          submenu: [
-            { role: 'undo' },
-            { role: 'redo' },
-            { type: 'separator' },
-            { role: 'cut' },
-            { role: 'copy' },
-            { role: 'paste' },
-            { role: 'selectAll' },
-          ],
-        },
-      ]),
-    )
-  } else {
-    Menu.setApplicationMenu(null)
-  }
-}
 
 function describeError(error: unknown) {
   if (error instanceof Error) {
@@ -153,6 +119,7 @@ function createWindow() {
     webPreferences,
   })
   installCspHeaders(mainWindow.webContents.session)
+  installDevToolsShortcut(mainWindow)
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
@@ -232,7 +199,7 @@ function registerAppLifecycle() {
         optimizer.watchWindowShortcuts(window)
       })
 
-      buildApplicationMenu()
+      configureApplicationMenu(app.name)
 
       // Initialize file logger now that app paths are available
       void initFileLogger(app.getPath('logs'))

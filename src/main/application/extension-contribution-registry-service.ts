@@ -4,14 +4,31 @@ import type {
   ExtensionListContributionsInput,
 } from '@shared/types/extensions'
 import * as Effect from 'effect/Effect'
-import type { DiscoveredExtensionPackage, ExtensionPackageScope } from '../extensions/types'
+import type { DiscoveredExtensionPackage, ExtensionLifecycleState } from '../extensions/types'
 import { ExtensionLifecycleRepository } from '../ports/extension-lifecycle-repository'
-import { ExtensionManagerService } from '../ports/extension-manager-service'
-import { ExtensionProjectOverridesRepository } from '../ports/extension-project-overrides-repository'
+import {
+  ExtensionManagerService,
+  type ExtensionManagerServiceShape,
+} from '../ports/extension-manager-service'
+import {
+  ExtensionProjectOverridesRepository,
+  type ExtensionProjectOverridesRepositoryShape,
+} from '../ports/extension-project-overrides-repository'
 import {
   type ExtensionContributionProjectOverrideLookup,
   packageToContributionEntries,
 } from './extension-contribution-registry-model'
+import {
+  appendExtensionDiagnostic,
+  makeDiscoveryFailurePackage,
+  makeExtensionFailureDiagnostic,
+  scopeForProjectPath,
+} from './extension-failure-isolation-model'
+
+interface LifecycleLookup {
+  readonly extensionPackage: DiscoveredExtensionPackage
+  readonly lifecycle: ExtensionLifecycleState | null
+}
 
 function normalizeProjectPaths(projectPaths: readonly string[] | undefined) {
   const normalizedProjectPaths: string[] = []
@@ -26,6 +43,18 @@ function normalizeProjectPaths(projectPaths: readonly string[] | undefined) {
 
 function isGlobalPackage(extensionPackage: DiscoveredExtensionPackage) {
   return extensionPackage.scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND
+}
+
+function listPackagesSafely(manager: ExtensionManagerServiceShape, projectPath: string | null) {
+  return manager
+    .listPackages({ projectPath })
+    .pipe(
+      Effect.catchAll((error) =>
+        Effect.succeed([
+          makeDiscoveryFailurePackage({ scope: scopeForProjectPath(projectPath), error }),
+        ]),
+      ),
+    )
 }
 
 function isProjectPackageForPath(
@@ -58,69 +87,142 @@ function getCandidateProjectPaths(
 function loadContributionPackages(projectPaths: readonly string[]) {
   return Effect.gen(function* () {
     const manager = yield* ExtensionManagerService
-    const globalPackages = yield* manager
-      .listPackages({ projectPath: null })
-      .pipe(Effect.map((packages) => packages.filter(isGlobalPackage)))
+    const globalPackages = yield* listPackagesSafely(manager, null).pipe(
+      Effect.map((packages) => packages.filter(isGlobalPackage)),
+    )
     const projectPackageGroups = yield* Effect.forEach(projectPaths, (projectPath) =>
-      manager
-        .listPackages({ projectPath })
-        .pipe(
-          Effect.map((packages) =>
-            packages.filter((extensionPackage) =>
-              isProjectPackageForPath(extensionPackage, projectPath),
-            ),
+      listPackagesSafely(manager, projectPath).pipe(
+        Effect.map((packages) =>
+          packages.filter((extensionPackage) =>
+            isProjectPackageForPath(extensionPackage, projectPath),
           ),
         ),
+      ),
     )
 
     return [...globalPackages, ...projectPackageGroups.flat()]
   })
 }
 
+function unavailableProjectOverrideLookup(input: {
+  readonly extensionPackage: DiscoveredExtensionPackage
+  readonly projectPath: string
+  readonly error: unknown
+}): ExtensionContributionProjectOverrideLookup {
+  return {
+    projectPath: input.projectPath,
+    projectOverride: { disabled: true },
+    diagnostics: [
+      makeExtensionFailureDiagnostic({
+        operation: `Extension project override read for "${input.extensionPackage.id}"`,
+        code: OPENWAGGLE_EXTENSION.DIAGNOSTIC.CODE.PROJECT_OVERRIDE_UNAVAILABLE,
+        error: input.error,
+        path: input.projectPath,
+      }),
+    ],
+  }
+}
+
+function loadProjectOverride(
+  projectOverridesRepository: ExtensionProjectOverridesRepositoryShape,
+  extensionPackage: DiscoveredExtensionPackage,
+  projectPath: string,
+) {
+  return projectOverridesRepository
+    .get({
+      extensionId: extensionPackage.id,
+      scope: extensionPackage.scope,
+      projectPath,
+    })
+    .pipe(
+      Effect.map(
+        (projectOverride) =>
+          ({
+            projectPath,
+            projectOverride,
+            diagnostics: [],
+          }) satisfies ExtensionContributionProjectOverrideLookup,
+      ),
+      Effect.catchAll((error) =>
+        Effect.succeed(unavailableProjectOverrideLookup({ extensionPackage, projectPath, error })),
+      ),
+    )
+}
+
 function loadProjectOverrides(
-  extensionId: string,
-  extensionScope: ExtensionPackageScope,
+  extensionPackage: DiscoveredExtensionPackage,
   projectPaths: readonly string[],
 ) {
   return Effect.gen(function* () {
     const projectOverridesRepository = yield* ExtensionProjectOverridesRepository
     return yield* Effect.forEach(projectPaths, (projectPath) =>
-      Effect.gen(function* () {
-        const projectOverride = yield* projectOverridesRepository.get({
-          extensionId,
-          scope: extensionScope,
-          projectPath,
-        })
-        return {
-          projectPath,
-          projectOverride,
-        } satisfies ExtensionContributionProjectOverrideLookup
-      }),
+      loadProjectOverride(projectOverridesRepository, extensionPackage, projectPath),
     )
   })
+}
+
+function loadLifecycle(extensionPackage: DiscoveredExtensionPackage) {
+  return Effect.gen(function* () {
+    const lifecycleRepository = yield* ExtensionLifecycleRepository
+    return yield* lifecycleRepository
+      .get({
+        extensionId: extensionPackage.id,
+        scope: extensionPackage.scope,
+      })
+      .pipe(
+        Effect.map(
+          (lifecycle) =>
+            ({
+              extensionPackage,
+              lifecycle,
+            }) satisfies LifecycleLookup,
+        ),
+        Effect.catchAll((error) =>
+          Effect.succeed({
+            extensionPackage: appendExtensionDiagnostic(
+              extensionPackage,
+              makeExtensionFailureDiagnostic({
+                operation: `Extension lifecycle state read for "${extensionPackage.id}"`,
+                code: OPENWAGGLE_EXTENSION.DIAGNOSTIC.CODE.LIFECYCLE_STATE_UNAVAILABLE,
+                error,
+                path: extensionPackage.packagePath,
+              }),
+            ),
+            lifecycle: null,
+          } satisfies LifecycleLookup),
+        ),
+      )
+  })
+}
+
+function packageToContributionEntriesSafely(input: {
+  readonly extensionPackage: DiscoveredExtensionPackage
+  readonly lifecycle: ExtensionLifecycleState | null
+  readonly projectOverrides: readonly ExtensionContributionProjectOverrideLookup[]
+  readonly requestedProjectPaths: readonly string[]
+}) {
+  return Effect.try({
+    try: () => packageToContributionEntries(input),
+    catch: (error) => error,
+  }).pipe(Effect.catchAll(() => Effect.succeed([])))
 }
 
 export function listExtensionContributionRegistryView(input: ExtensionListContributionsInput = {}) {
   return Effect.gen(function* () {
     const projectPaths = normalizeProjectPaths(input.projectPaths)
-    const lifecycleRepository = yield* ExtensionLifecycleRepository
     const packages = yield* loadContributionPackages(projectPaths)
     const entries = yield* Effect.forEach(packages, (extensionPackage) =>
       Effect.gen(function* () {
-        const lifecycle = yield* lifecycleRepository.get({
-          extensionId: extensionPackage.id,
-          scope: extensionPackage.scope,
-        })
+        const lifecycleLookup = yield* loadLifecycle(extensionPackage)
         const candidateProjectPaths = getCandidateProjectPaths(extensionPackage, projectPaths)
         const projectOverrides = yield* loadProjectOverrides(
-          extensionPackage.id,
-          extensionPackage.scope,
+          lifecycleLookup.extensionPackage,
           candidateProjectPaths,
         )
 
-        return packageToContributionEntries({
-          extensionPackage,
-          lifecycle,
+        return yield* packageToContributionEntriesSafely({
+          extensionPackage: lifecycleLookup.extensionPackage,
+          lifecycle: lifecycleLookup.lifecycle,
           projectOverrides,
           requestedProjectPaths: projectPaths,
         })

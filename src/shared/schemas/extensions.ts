@@ -136,14 +136,19 @@ export const extensionCapabilityDeclarationSchema = Schema.Struct({
   scopes: Schema.optional(Schema.mutable(Schema.Array(extensionCapabilityScopeSchema))),
 })
 
+const extensionContributionBrokerBindingSchema = {
+  capability: Schema.optional(extensionContributionIdSchema),
+  method: Schema.optional(extensionContributionIdSchema),
+  methods: Schema.optional(Schema.mutable(Schema.Array(extensionContributionIdSchema))),
+}
+
 export const extensionCommandContributionSchema = Schema.Struct({
   id: extensionContributionIdSchema,
   title: nonEmptyStringSchema.pipe(Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH)),
   category: Schema.optional(
     nonEmptyStringSchema.pipe(Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH)),
   ),
-  capability: Schema.optional(extensionContributionIdSchema),
-  method: Schema.optional(extensionContributionIdSchema),
+  ...extensionContributionBrokerBindingSchema,
 })
 
 export const extensionRouteContributionSchema = Schema.Struct({
@@ -151,6 +156,7 @@ export const extensionRouteContributionSchema = Schema.Struct({
   title: nonEmptyStringSchema.pipe(Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH)),
   lane: extensionUiLaneSchema,
   entry: extensionRelativePathSchema,
+  ...extensionContributionBrokerBindingSchema,
 })
 
 export const extensionSlotContributionSchema = Schema.Struct({
@@ -158,6 +164,7 @@ export const extensionSlotContributionSchema = Schema.Struct({
   title: nonEmptyStringSchema.pipe(Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH)),
   lane: extensionUiLaneSchema,
   entry: extensionRelativePathSchema,
+  ...extensionContributionBrokerBindingSchema,
 })
 
 export const extensionContributionsSchema = Schema.Struct({

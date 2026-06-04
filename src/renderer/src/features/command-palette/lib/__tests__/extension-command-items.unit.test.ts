@@ -3,7 +3,10 @@ import type { ExtensionContributionRegistryEntry } from '@shared/types/extension
 import { describe, expect, it, vi } from 'vitest'
 import {
   createExtensionCommandItems,
+  createExtensionSlashCommandItems,
   type ExtensionCommandActionInput,
+  type ExtensionSlashCommandActionInput,
+  type InsertExtensionSlashCommand,
   type InvokeExtensionCommand,
 } from '../extension-command-items'
 
@@ -75,6 +78,16 @@ describe('createExtensionCommandItems', () => {
           commandEntry({ capability: undefined }),
           commandEntry({ method: undefined }),
           commandEntry({
+            eligibility: {
+              runtimeEnabled: false,
+              enabled: false,
+              trusted: true,
+              sdkCompatible: true,
+              updateAvailable: false,
+              disabledProjectPaths: [],
+            },
+          }),
+          commandEntry({
             family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SETTINGS_SECTIONS,
             entryPath: 'dist/settings.js',
           }),
@@ -96,6 +109,88 @@ describe('createExtensionCommandItems', () => {
       },
       lowerQuery: 'sample',
       invokeCommand,
+    })
+
+    expect(items.map((item) => item.label)).toEqual(['Run sample command'])
+  })
+})
+
+describe('createExtensionSlashCommandItems', () => {
+  it('maps executable slash command contributions to insertable command palette items', () => {
+    const insertCommand: InsertExtensionSlashCommand = vi.fn()
+    const entry = commandEntry({
+      family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SLASH_COMMANDS,
+    })
+    const items = createExtensionSlashCommandItems({
+      registry: { projectPaths: ['/tmp/project'], entries: [entry] },
+      lowerQuery: '',
+      insertCommand,
+    })
+
+    expect(items).toHaveLength(1)
+    expect(items[0]).toMatchObject({
+      id: 'extension-slash-command:sample.extension:sample.run',
+      label: 'Run sample command',
+      section: 'Sample',
+      trailing: '/sample.run',
+      trailingBadge: 'Global',
+    })
+
+    items[0]?.action()
+
+    expect(insertCommand).toHaveBeenCalledWith({
+      entry,
+    } satisfies ExtensionSlashCommandActionInput)
+  })
+
+  it('omits non-slash entries, ineligible entries, and built-in command collisions', () => {
+    const insertCommand: InsertExtensionSlashCommand = vi.fn()
+    const items = createExtensionSlashCommandItems({
+      registry: {
+        projectPaths: ['/tmp/project'],
+        entries: [
+          commandEntry(),
+          commandEntry({
+            family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SLASH_COMMANDS,
+            capability: undefined,
+          }),
+          commandEntry({
+            family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SLASH_COMMANDS,
+            contributionId: 'compact',
+          }),
+          commandEntry({
+            family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SLASH_COMMANDS,
+            eligibility: {
+              runtimeEnabled: true,
+              enabled: true,
+              trusted: false,
+              sdkCompatible: true,
+              updateAvailable: false,
+              disabledProjectPaths: [],
+            },
+          }),
+        ],
+      },
+      lowerQuery: '',
+      insertCommand,
+    })
+
+    expect(items).toEqual([])
+  })
+
+  it('matches slash commands by extension metadata', () => {
+    const insertCommand: InsertExtensionSlashCommand = vi.fn()
+    const items = createExtensionSlashCommandItems({
+      registry: {
+        projectPaths: ['/tmp/project'],
+        entries: [
+          commandEntry({
+            family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SLASH_COMMANDS,
+          }),
+        ],
+      },
+      lowerQuery: 'sample',
+      insertCommand,
     })
 
     expect(items.map((item) => item.label)).toEqual(['Run sample command'])

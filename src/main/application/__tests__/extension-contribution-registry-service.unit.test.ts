@@ -166,6 +166,8 @@ describe('listExtensionContributionRegistryView', () => {
             title: 'Route Contribution',
             lane: 'declarative',
             entry: 'dist/route.js',
+            capability: 'family.storage',
+            methods: ['get', 'set'],
           },
         ],
         settingsSections: [
@@ -241,6 +243,8 @@ describe('listExtensionContributionRegistryView', () => {
       label: 'Route Contribution',
       lane: 'declarative',
       entryPath: 'dist/route.js',
+      capability: 'family.storage',
+      methods: ['get', 'set'],
     })
   })
 })

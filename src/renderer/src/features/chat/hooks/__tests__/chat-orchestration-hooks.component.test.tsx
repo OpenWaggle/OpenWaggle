@@ -115,10 +115,12 @@ function sendWorkflowParams(overrides: Partial<Parameters<typeof useChatSendWork
     },
     clearDraftBranchForSession: vi.fn(),
     draftBranch: null,
+    extensionContributions: null,
     handleSend: vi.fn().mockResolvedValue(undefined),
     handleSendWaggle: vi.fn().mockResolvedValue(undefined),
     model: MODEL,
     phase: { reset: vi.fn() },
+    projectPath: '/tmp/project',
     refreshSession: vi.fn().mockResolvedValue(undefined),
     refreshSessionWorkspace: vi.fn().mockResolvedValue(undefined),
     sessionCopy: {

@@ -1,6 +1,7 @@
 import type { SkillDiscoveryItem } from '@shared/types/standards'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
+import { extensionSlashCommandText } from '@/features/composer/commands'
 import { usePreferencesStore } from '@/features/settings/state'
 import { useWaggleStore } from '@/features/waggle/state'
 import { extensionContributionsQueryOptions } from '@/queries/extensions'
@@ -11,6 +12,7 @@ import { useUIStore } from '@/shell/ui-store'
 import {
   createOptionalCommandPaletteAction,
   insertCompactCommand,
+  insertComposerCommandText,
 } from '../lib/command-palette-actions'
 import {
   createBaseCommands,
@@ -22,7 +24,9 @@ import {
 import { normalizeCommandQuery } from '../lib/command-palette-text'
 import {
   createExtensionCommandItems,
+  createExtensionSlashCommandItems,
   type ExtensionCommandActionInput,
+  type ExtensionSlashCommandActionInput,
 } from '../lib/extension-command-items'
 import type { CommandPaletteActionHandlers, CommandPaletteCallbacks } from '../model'
 
@@ -113,11 +117,20 @@ export function useCommandPaletteItems({
         logger.warn('Extension command failed', { error: String(error) })
       })
   }
+  const insertExtensionSlashCommand = ({ entry }: ExtensionSlashCommandActionInput) => {
+    insertComposerCommandText(extensionSlashCommandText(entry))
+    closeCommandPalette()
+  }
 
   return [
     ...filterBaseCommands(createBaseCommands(actions), lowerQuery),
     ...createSkillItems(slashSkills, lowerQuery, actions.selectSkill),
     ...createPresetItems(wagglePresetsQuery.data ?? [], lowerQuery, actions.selectPreset),
+    ...createExtensionSlashCommandItems({
+      registry: extensionContributionsQuery.data ?? null,
+      lowerQuery,
+      insertCommand: insertExtensionSlashCommand,
+    }),
     ...createExtensionCommandItems({
       registry: extensionContributionsQuery.data ?? null,
       lowerQuery,

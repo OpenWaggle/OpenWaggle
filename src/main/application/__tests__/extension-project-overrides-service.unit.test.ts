@@ -5,6 +5,10 @@ import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { describe, expect, it } from 'vitest'
+import {
+  ExtensionLifecycleRepositoryError,
+  ExtensionProjectOverrideRepositoryError,
+} from '../../errors'
 import type {
   DiscoveredExtensionPackage,
   ExtensionLifecycleState,
@@ -218,6 +222,41 @@ describe('extension project overrides', () => {
       listRuntimeEnabledOpenWaggleExtensionPackagePaths(PROJECT_PATH).pipe(
         Effect.provide(harness.layer),
       ),
+    )
+
+    expect(enabledPackagePaths).toEqual([])
+  })
+
+  it('fails closed when extension state cannot be read while building the runtime allowlist', async () => {
+    const layer = Layer.mergeAll(
+      Layer.succeed(ExtensionManagerService, {
+        listPackages: () => Effect.succeed([discoveredPackage, globalPackage]),
+      }),
+      Layer.succeed(ExtensionLifecycleRepository, {
+        get: () =>
+          Effect.fail(
+            new ExtensionLifecycleRepositoryError({
+              operation: 'get',
+              cause: new Error('lifecycle repository unavailable'),
+            }),
+          ),
+        list: () => Effect.succeed([]),
+        upsert: () => Effect.void,
+      }),
+      Layer.succeed(ExtensionProjectOverridesRepository, {
+        get: () =>
+          Effect.fail(
+            new ExtensionProjectOverrideRepositoryError({
+              operation: 'get',
+              cause: new Error('override repository unavailable'),
+            }),
+          ),
+        upsert: () => Effect.void,
+      }),
+    )
+
+    const enabledPackagePaths = await Effect.runPromise(
+      listRuntimeEnabledOpenWaggleExtensionPackagePaths(PROJECT_PATH).pipe(Effect.provide(layer)),
     )
 
     expect(enabledPackagePaths).toEqual([])

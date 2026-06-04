@@ -1,7 +1,7 @@
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import type { ExtensionInvokeFailureCode } from '@shared/types/extension-broker'
 import { describe, expect, it } from 'vitest'
+import { makeExpectBrokerFailure } from './extension-capability-broker-assertions'
 import {
   BROKER_CONTRIBUTION_ID,
   BROKER_EXTENSION_ID,
@@ -22,19 +22,7 @@ import {
   PROJECT_PATH,
 } from './extension-contribution-registry-test-utils'
 
-function expectFailure(
-  result: Awaited<ReturnType<typeof runBroker>>,
-  code: ExtensionInvokeFailureCode,
-) {
-  if (result.ok) {
-    throw new Error('Expected broker invocation to fail.')
-  }
-
-  expect(result.error.code).toBe(code)
-  expect(result.audit?.failureCode).toBe(code)
-  expect(result.audit?.outcome).toBe(OPENWAGGLE_EXTENSION_BROKER.OUTCOME.REJECTED)
-  expect(result.audit?.timestamp).toBe(TIMESTAMP)
-}
+const expectFailure = makeExpectBrokerFailure(TIMESTAMP)
 
 describe('invokeExtensionCapability', () => {
   it('routes a declared broker capability and audits success', async () => {

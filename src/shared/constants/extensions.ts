@@ -43,6 +43,8 @@ const EXTENSION_DIAGNOSTIC_CODE = {
   SDK_RANGE_INVALID: 'sdk-range-invalid',
   SDK_INCOMPATIBLE: 'sdk-incompatible',
   RUNTIME_LOAD_FAILED: 'runtime-load-failed',
+  LIFECYCLE_STATE_UNAVAILABLE: 'lifecycle-state-unavailable',
+  PROJECT_OVERRIDE_UNAVAILABLE: 'project-override-unavailable',
   FILESYSTEM_ERROR: 'filesystem-error',
 } as const
 

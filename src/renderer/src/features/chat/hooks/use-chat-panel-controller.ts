@@ -1,5 +1,6 @@
 import { SessionId } from '@shared/types/brand'
 import type { WaggleCollaborationStatus } from '@shared/types/waggle'
+import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useAgentChat } from '@/features/chat/hooks/useAgentChat'
 import { useAutoSendQueue } from '@/features/chat/hooks/useAutoSendQueue'
@@ -11,6 +12,7 @@ import { useComposerStore } from '@/features/composer/state'
 import { useSkills } from '@/features/skills/hooks'
 import { useWaggleChat } from '@/features/waggle/hooks'
 import { useWaggleStore } from '@/features/waggle/state'
+import { extensionContributionsQueryOptions } from '@/queries/extensions'
 import { createRendererLogger } from '@/shared/lib/logger'
 import { reportAutoSendQueueFailure } from '../lib/queue-failure-feedback'
 import type { ChatPanelSections } from '../model'
@@ -98,6 +100,10 @@ export function useChatPanelSections(): ChatPanelSections {
   useWaggleChat(activeSessionId)
   const phase = useStreamingPhase(activeSessionId)
   const { catalog } = useSkills(projectPath)
+  const extensionProjectPaths = projectPath ? [projectPath] : []
+  const extensionContributionsQuery = useQuery(
+    extensionContributionsQueryOptions(extensionProjectPaths),
+  )
 
   const waggleStoreStatus = useWaggleStore((s) => s.status)
   const waggleConfig = useWaggleStore((s) => s.activeConfig)
@@ -151,10 +157,12 @@ export function useChatPanelSections(): ChatPanelSections {
     branchSummary,
     clearDraftBranchForSession,
     draftBranch,
+    extensionContributions: extensionContributionsQuery.data ?? null,
     handleSend,
     handleSendWaggle,
     model,
     phase,
+    projectPath,
     refreshSession,
     refreshSessionWorkspace,
     sessionCopy,

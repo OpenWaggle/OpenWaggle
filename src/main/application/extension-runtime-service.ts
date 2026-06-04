@@ -2,9 +2,18 @@ import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import * as Effect from 'effect/Effect'
 import { isExtensionRuntimeEnabled } from '../extensions/runtime-eligibility'
 import type { DiscoveredExtensionPackage } from '../extensions/types'
-import { ExtensionLifecycleRepository } from '../ports/extension-lifecycle-repository'
-import { ExtensionManagerService } from '../ports/extension-manager-service'
-import { ExtensionProjectOverridesRepository } from '../ports/extension-project-overrides-repository'
+import {
+  ExtensionLifecycleRepository,
+  type ExtensionLifecycleRepositoryShape,
+} from '../ports/extension-lifecycle-repository'
+import {
+  ExtensionManagerService,
+  type ExtensionManagerServiceShape,
+} from '../ports/extension-manager-service'
+import {
+  ExtensionProjectOverridesRepository,
+  type ExtensionProjectOverridesRepositoryShape,
+} from '../ports/extension-project-overrides-repository'
 
 function isProjectPackage(extensionPackage: DiscoveredExtensionPackage, projectPath: string) {
   return (
@@ -24,29 +33,56 @@ function present<T>(value: T | null): value is T {
   return value !== null
 }
 
+function listPackagesSafely(manager: ExtensionManagerServiceShape, projectPath: string) {
+  return manager.listPackages({ projectPath }).pipe(Effect.catchAll(() => Effect.succeed([])))
+}
+
+function packageRuntimeEnabledSafely(input: {
+  readonly extensionPackage: DiscoveredExtensionPackage
+  readonly projectPath: string
+  readonly lifecycleRepository: ExtensionLifecycleRepositoryShape
+  readonly projectOverridesRepository: ExtensionProjectOverridesRepositoryShape
+}) {
+  return Effect.gen(function* () {
+    const lifecycle = yield* input.lifecycleRepository
+      .get({
+        extensionId: input.extensionPackage.id,
+        scope: input.extensionPackage.scope,
+      })
+      .pipe(Effect.catchAll(() => Effect.succeed(null)))
+    const projectOverride = yield* input.projectOverridesRepository
+      .get({
+        extensionId: input.extensionPackage.id,
+        scope: input.extensionPackage.scope,
+        projectPath: input.projectPath,
+      })
+      .pipe(Effect.catchAll(() => Effect.succeed({ disabled: true })))
+
+    return isExtensionRuntimeEnabled({
+      extensionPackage: input.extensionPackage,
+      lifecycle,
+      projectOverride,
+    })
+  })
+}
+
 export function listRuntimeEnabledOpenWaggleExtensionPackagePaths(projectPath: string) {
   return Effect.gen(function* () {
     const manager = yield* ExtensionManagerService
     const lifecycleRepository = yield* ExtensionLifecycleRepository
     const projectOverridesRepository = yield* ExtensionProjectOverridesRepository
-    const packages = yield* manager.listPackages({ projectPath })
+    const packages = yield* listPackagesSafely(manager, projectPath)
     const enabledPackagePaths = yield* Effect.forEach(
       packages.filter((extensionPackage) => isRuntimeCandidate(extensionPackage, projectPath)),
       (extensionPackage) =>
         Effect.gen(function* () {
-          const lifecycle = yield* lifecycleRepository.get({
-            extensionId: extensionPackage.id,
-            scope: extensionPackage.scope,
-          })
-          const projectOverride = yield* projectOverridesRepository.get({
-            extensionId: extensionPackage.id,
-            scope: extensionPackage.scope,
+          const runtimeEnabled = yield* packageRuntimeEnabledSafely({
+            extensionPackage,
             projectPath,
+            lifecycleRepository,
+            projectOverridesRepository,
           })
-
-          return isExtensionRuntimeEnabled({ extensionPackage, lifecycle, projectOverride })
-            ? extensionPackage.packagePath
-            : null
+          return runtimeEnabled ? extensionPackage.packagePath : null
         }),
     )
 

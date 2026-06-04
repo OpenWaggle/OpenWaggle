@@ -20,9 +20,14 @@ const EXTENSION_BROKER_OUTCOME = {
 export const OPENWAGGLE_EXTENSION_BROKER = {
   CAPABILITY: {
     HOST_CONTEXT: 'openwaggle.host.context',
+    STORAGE: 'openwaggle.storage',
   },
   METHOD: {
     GET_SCOPE: 'get-scope',
+    GET: 'get',
+    SET: 'set',
+    DELETE: 'delete',
+    LIST: 'list',
   },
   FAILURE_CODE: EXTENSION_BROKER_FAILURE_CODE,
   FAILURE_CODES: Object.freeze(Object.values(EXTENSION_BROKER_FAILURE_CODE)),

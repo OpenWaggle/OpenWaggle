@@ -4,6 +4,7 @@ OpenWaggle is one product domain: an Electron desktop coding-agent workspace bui
 
 ## Canonical Sources
 
+- `CONTEXT.md` defines canonical OpenWaggle product-domain language.
 - `docs/first-principles.md` defines stable product and architecture principles.
 - `docs/system-architecture.md` describes the current implementation shape.
 - `docs/hexagonal-architecture.md` defines main-process layering rules.
@@ -75,9 +76,22 @@ Load `.agents/skills/release/SKILL.md` for versioning, release workflow, update-
 - **Waggle preset suppression**: User or project configuration that hides a package-provided preset from resolved Waggle preset lists without modifying the installed package.
 - **Project resource roots**: `.openwaggle`, `.pi`, and `.agents` resource folders injected into Pi with OpenWaggle precedence.
 - **OpenWaggle extension package**: A first-class OpenWaggle package, usually under `.openwaggle/extensions/<id>/` for project-local development, that can contribute desktop UI/behavior and optionally include Pi runtime resources.
-- **OpenWaggle desktop contribution**: A declared extension contribution to an OpenWaggle-owned surface such as commands, settings, side panels, dialogs, transcript renderers, status widgets, or trusted renderer modules.
+- **Development extension fixture**: An extension package used only for local QA, tests, or demos and never shipped as product content.
+- **OpenWaggle desktop contribution**: A declared extension contribution to an OpenWaggle-owned product surface.
+- **Extension contribution surface**: The OpenWaggle-owned place where an extension contribution appears, such as a route, side panel, dialog, settings section, transcript card, status widget, or compact composer action.
+- **Extension contribution container**: The OpenWaggle-owned shell around mounted extension content, including placement, chrome, sizing, docking, and persistence rules.
+- **Extension contribution runtime**: The execution model OpenWaggle uses to load and mount a visual extension contribution.
+- **Extension execution placement**: The runtime location where a visual extension contribution runs, such as the OpenWaggle renderer or an isolated frame.
+- **Federated module runtime**: The default framework-neutral visual contribution runtime where OpenWaggle loads an extension module and passes a typed mount context.
+- **Extension mount context**: The typed object passed to a federated module so it can attach UI to a host-provided root and use the public extension SDK.
+- **Composer extension surface**: A compact composer-adjacent action surface for extension buttons, selectors, or launchers, not arbitrary composer input injection.
 - **Extension capability broker**: The main-process authorization boundary for extension calls. Extensions use brokered capability APIs instead of direct Electron IPC, renderer internals, stores, or Pi SDK objects.
-- **Extension SDK surface**: The intentional public API exposed to extensions for contribution registration, scoped app state, and capability calls.
+- **Extension SDK surface**: The intentional public API exposed to extensions for contribution behavior, capability calls, theme/context data, and scoped state.
+- **OpenWaggle shared extension module**: An optional host-provided module an extension can import for SDK, theme, or UI convenience when using the federated-module runtime.
+- **OpenWaggle state read capability**: A fully typed public SDK capability that lets extension code read or subscribe to selected OpenWaggle state without importing internal stores.
+- **OpenWaggle action capability**: A fully typed public SDK capability that lets extension code request an OpenWaggle behavior change without writing internal stores.
+- **Extension package state**: Extension-owned reactive in-memory state shared across all contributions from the same OpenWaggle extension package.
+- **Extension contribution instance state**: Extension-owned state scoped to one mounted contribution instance.
 - **Pi extension parity for OpenWaggle**: OpenWaggle extensions should preserve Pi-level runtime/resource modification power and extend equivalent contribution capability to OpenWaggle-owned desktop surfaces.
 - **Trusted local extension code**: Extension code the user explicitly approves to run locally. Trust is keyed to package identity, SDK compatibility, version, and content hash, and does not permit importing OpenWaggle internals.
 - **Extension safe startup**: OpenWaggle must start even when extension activation fails. Extension failures are isolated to contributions first, then to the extension, and recovery controls remain OpenWaggle-owned.

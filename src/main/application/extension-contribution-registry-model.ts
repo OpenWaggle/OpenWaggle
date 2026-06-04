@@ -18,7 +18,6 @@ import type {
   ExtensionDiagnostic,
   ExtensionLifecycleState,
   ExtensionPackageScope,
-  ExtensionProjectOverrideState,
 } from '../extensions/types'
 
 interface ManifestCommandContribution {
@@ -27,6 +26,7 @@ interface ManifestCommandContribution {
   readonly category?: string
   readonly capability?: string
   readonly method?: string
+  readonly methods?: readonly string[]
 }
 
 interface ManifestEntryContribution {
@@ -34,11 +34,15 @@ interface ManifestEntryContribution {
   readonly title: string
   readonly lane: ExtensionContributionUiLane
   readonly entry: string
+  readonly capability?: string
+  readonly method?: string
+  readonly methods?: readonly string[]
 }
 
 export interface ExtensionContributionProjectOverrideLookup {
   readonly projectPath: string
-  readonly projectOverride: ExtensionProjectOverrideState | null
+  readonly projectOverride: { readonly disabled: boolean } | null
+  readonly diagnostics: readonly ExtensionDiagnostic[]
 }
 
 interface ContributionPackageEligibility {
@@ -170,6 +174,7 @@ function buildPackageEligibility(input: {
     diagnostics: diagnosticsToView([
       ...input.extensionPackage.diagnostics,
       ...(input.lifecycle?.diagnostics ?? []),
+      ...input.projectOverrides.flatMap((projectOverride) => projectOverride.diagnostics),
     ]),
     eligibility: {
       runtimeEnabled: true,
@@ -212,15 +217,25 @@ function contributionToEntry(input: ContributionEntryInput): ExtensionContributi
     diagnostics: eligibility.diagnostics,
   }
 
+  const brokerBindings = {
+    ...(contribution.capability !== undefined ? { capability: contribution.capability } : {}),
+    ...(contribution.method !== undefined ? { method: contribution.method } : {}),
+    ...(contribution.methods !== undefined ? { methods: contribution.methods } : {}),
+  }
+
   if (isEntryContribution(contribution)) {
-    return { ...baseEntry, lane: contribution.lane, entryPath: contribution.entry }
+    return {
+      ...baseEntry,
+      ...brokerBindings,
+      lane: contribution.lane,
+      entryPath: contribution.entry,
+    }
   }
 
   return {
     ...baseEntry,
+    ...brokerBindings,
     ...(contribution.category !== undefined ? { category: contribution.category } : {}),
-    ...(contribution.capability !== undefined ? { capability: contribution.capability } : {}),
-    ...(contribution.method !== undefined ? { method: contribution.method } : {}),
   }
 }
 

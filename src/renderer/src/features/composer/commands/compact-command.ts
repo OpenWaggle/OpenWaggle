@@ -1,8 +1,10 @@
+import { BUILT_IN_COMPOSER_SLASH_COMMAND } from './built-in-slash-commands'
+
 export interface CompactCommand {
   readonly customInstructions?: string
 }
 
-const COMPACT_COMMAND = '/compact'
+const COMPACT_COMMAND = BUILT_IN_COMPOSER_SLASH_COMMAND.COMPACT
 
 export function parseCompactCommand(text: string): CompactCommand | null {
   const trimmed = text.trim()

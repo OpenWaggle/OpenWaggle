@@ -9,7 +9,9 @@ import { ExtensionManagerService } from '../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../ports/extension-project-overrides-repository'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
+import { auditedFailure } from './extension-capability-broker-audit'
 import {
+  contributionMethodIsDeclared,
   entryMatchesPackage,
   getCapabilityDeclaration,
   getDeclaredScopes,
@@ -18,7 +20,7 @@ import {
   normalizeInput,
   pickInvocationPackage,
 } from './extension-capability-broker-model'
-import { auditedFailure, routeAuthorizedInvocation } from './extension-capability-broker-results'
+import { routeAuthorizedInvocation } from './extension-capability-broker-results'
 import { listExtensionContributionRegistryView } from './extension-contribution-registry-service'
 
 export interface InvokeExtensionCapabilityDependencies {
@@ -198,7 +200,10 @@ export function invokeExtensionCapability(
       })
     }
 
-    if (entry.method !== input.method || !methodIsDeclared(declaration, input.method)) {
+    if (
+      !contributionMethodIsDeclared(entry, input.method) ||
+      !methodIsDeclared(declaration, input.method)
+    ) {
       return yield* auditedFailure({
         invocation: input,
         code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.UNDECLARED_METHOD,
@@ -217,6 +222,11 @@ export function invokeExtensionCapability(
       })
     }
 
-    return yield* routeAuthorizedInvocation({ invocation: input, declaredScopes, timestamp })
+    return yield* routeAuthorizedInvocation({
+      invocation: input,
+      packageScope: extensionPackage.scope,
+      declaredScopes,
+      timestamp,
+    })
   })
 }
