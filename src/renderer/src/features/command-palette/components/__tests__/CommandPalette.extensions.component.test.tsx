@@ -9,16 +9,21 @@ import { CommandPalette } from '../CommandPalette'
 
 const PROJECT_PATH = '/tmp/project'
 
-const { apiMock } = vi.hoisted(() => ({
+const { apiMock, navigateMock } = vi.hoisted(() => ({
   apiMock: {
     invokeExtension: vi.fn(),
     listExtensionContributions: vi.fn(),
     listWagglePresets: vi.fn(),
   },
+  navigateMock: vi.fn(),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
   api: apiMock,
+}))
+
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => navigateMock,
 }))
 
 function renderWithQueryClient() {
@@ -41,6 +46,8 @@ describe('CommandPalette extension commands', () => {
     apiMock.invokeExtension.mockReset()
     apiMock.listExtensionContributions.mockReset()
     apiMock.listWagglePresets.mockReset()
+    navigateMock.mockReset()
+    window.location.hash = ''
     apiMock.invokeExtension.mockResolvedValue({
       ok: true,
       value: {
@@ -73,6 +80,7 @@ describe('CommandPalette extension commands', () => {
           scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND, label: 'Global' },
           packagePath: '/tmp/extensions/sample-extension',
           manifestPath: '/tmp/extensions/sample-extension/openwaggle.extension.json',
+          contentHash: 'abcdef',
           projectPaths: [PROJECT_PATH],
           appliesToAllRequestedProjects: true,
           family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.COMMANDS,
@@ -129,6 +137,7 @@ describe('CommandPalette extension commands', () => {
           scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND, label: 'Global' },
           packagePath: '/tmp/extensions/sample-extension',
           manifestPath: '/tmp/extensions/sample-extension/openwaggle.extension.json',
+          contentHash: 'abcdef',
           projectPaths: [PROJECT_PATH],
           appliesToAllRequestedProjects: true,
           family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SLASH_COMMANDS,
@@ -157,5 +166,63 @@ describe('CommandPalette extension commands', () => {
 
     expect(useComposerStore.getState().input).toBe('/sample.slash ')
     expect(apiMock.invokeExtension).not.toHaveBeenCalled()
+  })
+
+  it('opens extension side panels through chat route search state', async () => {
+    window.location.hash = '#/sessions/session-1?branch=branch-1&node=node-1'
+    apiMock.listExtensionContributions.mockResolvedValueOnce({
+      projectPaths: [PROJECT_PATH],
+      entries: [
+        {
+          extensionId: 'sample-extension',
+          extensionName: 'Sample Extension',
+          extensionVersion: '1.0.0',
+          scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND, label: 'Global' },
+          packagePath: '/tmp/extensions/sample-extension',
+          manifestPath: '/tmp/extensions/sample-extension/openwaggle.extension.json',
+          contentHash: 'abcdef',
+          projectPaths: [PROJECT_PATH],
+          appliesToAllRequestedProjects: true,
+          family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SIDE_PANELS,
+          contributionId: 'sample.panel',
+          title: 'Open sample panel',
+          label: 'Open sample panel',
+          category: 'Sample',
+          runtime: OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE,
+          execution: OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.HOST_RENDERER,
+          entryPath: 'modules/side-panel.js',
+          eligibility: {
+            runtimeEnabled: true,
+            enabled: true,
+            trusted: true,
+            sdkCompatible: true,
+            updateAvailable: false,
+            disabledProjectPaths: [],
+          },
+          diagnostics: [],
+        },
+      ],
+    })
+
+    renderWithQueryClient()
+
+    fireEvent.click(await screen.findByRole('button', { name: /open sample panel/i }))
+
+    await waitFor(() => {
+      expect(navigateMock).toHaveBeenCalled()
+    })
+    const navigateInput = navigateMock.mock.calls[0]?.[0]
+    expect(navigateInput).toMatchObject({
+      to: '/sessions/$sessionId',
+      params: { sessionId: 'session-1' },
+    })
+    expect(navigateInput.search({ branch: 'branch-1', node: 'node-1' })).toEqual({
+      branch: 'branch-1',
+      node: 'node-1',
+      diff: undefined,
+      panel: 'extension-side-panel',
+      sidePanelExtensionId: 'sample-extension',
+      sidePanelId: 'sample.panel',
+    })
   })
 })

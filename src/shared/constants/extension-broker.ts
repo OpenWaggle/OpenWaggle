@@ -10,6 +10,7 @@ const EXTENSION_BROKER_FAILURE_CODE = {
   OUT_OF_SCOPE: 'out-of-scope',
   UNSUPPORTED_CAPABILITY: 'unsupported-capability',
   UNSUPPORTED_METHOD: 'unsupported-method',
+  TRANSPORT_FAILED: 'transport-failed',
 } as const
 
 const EXTENSION_BROKER_OUTCOME = {

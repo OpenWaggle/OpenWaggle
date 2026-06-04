@@ -1,3 +1,8 @@
+import { createHash } from 'node:crypto'
+import {
+  EXTENSION_FRAME_BOOTSTRAP_SCRIPT,
+  EXTENSION_FRAME_BOOTSTRAP_SCRIPT_HASH,
+} from '@shared/constants/extension-frame'
 import { describe, expect, it, vi } from 'vitest'
 import {
   applyContentSecurityPolicyHeader,
@@ -12,6 +17,10 @@ function createSecurePreferences() {
   return {
     ...SECURE_WEB_PREFERENCES,
   }
+}
+
+function sha256CspHash(source: string) {
+  return `'sha256-${createHash('sha256').update(source).digest('base64')}'`
 }
 
 describe('assertSecureWebPreferences', () => {
@@ -66,13 +75,20 @@ describe('buildContentSecurityPolicy', () => {
     expect(buildContentSecurityPolicy()).toBe(CONTENT_SECURITY_POLICY)
     expect(CONTENT_SECURITY_POLICY).toContain("default-src 'self'")
     expect(CONTENT_SECURITY_POLICY).toContain(
-      "script-src 'self' 'sha256-Z2/iFzh9VMlVkEOar1f/oSHWwQk3ve1qk/C2WdsC4Xk=' 'sha256-eIH7vE+gNH4voiA5w6zEXHTLalVDfYnQh0hrEIG7OA0=' openwaggle-extension:",
+      "script-src 'self' 'sha256-Z2/iFzh9VMlVkEOar1f/oSHWwQk3ve1qk/C2WdsC4Xk=' 'sha256-x35ut7GCp8wd7HooET/EsZ5+RGvrULDTpXQSay10pW8=' openwaggle-extension:",
     )
     expect(CONTENT_SECURITY_POLICY).toContain("style-src 'self' 'unsafe-inline'")
     expect(CONTENT_SECURITY_POLICY).toContain("img-src 'self' data:")
     expect(CONTENT_SECURITY_POLICY).toContain(
       "connect-src 'self' ws://localhost:* http://localhost:* https://localhost:* wss://localhost:*",
     )
+  })
+
+  it('keeps the extension frame bootstrap hash aligned with the inline bootstrap script', () => {
+    expect(EXTENSION_FRAME_BOOTSTRAP_SCRIPT_HASH).toBe(
+      sha256CspHash(EXTENSION_FRAME_BOOTSTRAP_SCRIPT),
+    )
+    expect(CONTENT_SECURITY_POLICY).toContain(EXTENSION_FRAME_BOOTSTRAP_SCRIPT_HASH)
   })
 })
 

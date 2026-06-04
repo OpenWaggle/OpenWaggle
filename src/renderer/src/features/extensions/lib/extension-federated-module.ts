@@ -1,11 +1,14 @@
+import {
+  createExtensionBrokerSdk,
+  type ExtensionBrokerSdk,
+  type ExtensionSdkInvokeRequest,
+} from '@shared/extension-sdk'
 import type { ExtensionInvokeInput, ExtensionInvokeResult } from '@shared/types/extension-broker'
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
 
-export type ExtensionMountInvokeInput = Omit<ExtensionInvokeInput, 'extensionId' | 'contributionId'>
+export type ExtensionMountInvokeInput = ExtensionSdkInvokeRequest
 
-export interface OpenWaggleExtensionSdk {
-  readonly invoke: (input: ExtensionMountInvokeInput) => Promise<ExtensionInvokeResult>
-}
+export type OpenWaggleExtensionSdk = ExtensionBrokerSdk
 
 export interface OpenWaggleExtensionMountContext {
   readonly root: HTMLElement
@@ -70,8 +73,13 @@ export async function importFederatedModule(moduleUrl: string): Promise<OpenWagg
 export function createExtensionMountContext(input: {
   readonly entry: ExtensionContributionRegistryEntry
   readonly root: HTMLElement
-  readonly invoke: OpenWaggleExtensionSdk['invoke']
+  readonly invoke: (input: ExtensionInvokeInput) => Promise<ExtensionInvokeResult>
 }): OpenWaggleExtensionMountContext {
+  const sdk = createExtensionBrokerSdk(input.invoke, {
+    extensionId: input.entry.extensionId,
+    contributionId: input.entry.contributionId,
+  })
+
   return {
     root: input.root,
     extension: {
@@ -93,8 +101,6 @@ export function createExtensionMountContext(input: {
     theme: {
       colorScheme: 'dark',
     },
-    sdk: {
-      invoke: input.invoke,
-    },
+    sdk,
   }
 }

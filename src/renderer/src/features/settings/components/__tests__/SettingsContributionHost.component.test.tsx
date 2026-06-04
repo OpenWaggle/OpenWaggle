@@ -133,15 +133,18 @@ describe('SettingsContributionHost', () => {
     expect(screen.queryByLabelText('Extension settings contributions')).not.toBeInTheDocument()
   })
 
-  it('contains frame execution contributions without mounting them in this slice', () => {
+  it('mounts frame execution contributions through the isolated federated frame host', () => {
     render(<SettingsContributionHost registry={registryWith([FRAME_ENTRY])} />)
 
     const host = screen.getByLabelText('Extension settings contributions')
     expect(within(host).getByText('Frame settings')).toBeInTheDocument()
     expect(within(host).getByText('Frame')).toBeInTheDocument()
-    expect(
-      within(host).getByText(/Frame execution uses the federated-module contract/),
-    ).toBeInTheDocument()
+    const frame = within(host).getByTitle('Extension module: Frame settings')
+    expect(frame).toHaveAttribute('sandbox', 'allow-scripts')
+    expect(frame).toHaveAttribute(
+      'srcdoc',
+      expect.stringContaining('&quot;execution&quot;:&quot;frame&quot;'),
+    )
   })
 
   it('surfaces contribution eligibility and diagnostics in the settings slot', () => {

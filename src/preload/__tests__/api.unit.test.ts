@@ -251,11 +251,10 @@ describe('preload api surface contract', () => {
       contributionId: 'sample.storage',
     })
 
-    await sdk.storage.config.set(
+    await sdk.storage.packageConfig.project.set(
       { kind: 'project', projectPath: '/tmp/project' },
       'settings',
       { enabled: true },
-      { storageScope: OPENWAGGLE_EXTENSION.STORAGE.SCOPE.PROJECT_KIND },
     )
 
     expect(transport).toHaveBeenCalledWith({

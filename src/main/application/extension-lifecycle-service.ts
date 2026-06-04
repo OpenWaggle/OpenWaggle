@@ -127,6 +127,8 @@ export function setExtensionEnabled(input: ExtensionSetEnabledInput) {
         enabled: input.enabled,
         trusted: current?.trusted ?? false,
         pinCurrentPackage: false,
+        reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.NOT_RELOADED,
+        lastReloadedAt: null,
       }),
     )
 

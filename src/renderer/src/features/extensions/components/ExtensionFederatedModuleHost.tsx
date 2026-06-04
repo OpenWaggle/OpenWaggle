@@ -22,6 +22,22 @@ type MountStatus =
   | { readonly kind: 'mounted' }
   | { readonly kind: 'error'; readonly message: string }
 
+interface ReportedMountStatus {
+  readonly mountKey: string
+  readonly status: MountStatus
+}
+
+interface MountExtensionFrameInput {
+  readonly entry: ExtensionContributionRegistryEntry
+  readonly frame: HTMLIFrameElement | null
+  readonly frameId: string
+  readonly frameRuntimeSupported: boolean
+  readonly getCurrentFrameWindow: () => Window | null | undefined
+  readonly moduleUrl: string | null
+  readonly mountKey: string
+  readonly reportStatus: (status: ReportedMountStatus) => void
+}
+
 function invocationProjectPath(input: ExtensionInvokeInput) {
   return input.scope.kind === 'app' ? null : input.scope.projectPath
 }
@@ -32,6 +48,21 @@ function outOfScopeInvokeFailure(projectPath: string): ExtensionInvokeResult {
     error: {
       code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.OUT_OF_SCOPE,
       message: `Project "${projectPath}" is outside this extension contribution scope.`,
+    },
+  }
+}
+
+function describeInvokeError(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function transportInvokeFailure(error: unknown): ExtensionInvokeResult {
+  return {
+    ok: false,
+    error: {
+      code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.TRANSPORT_FAILED,
+      message: 'Extension broker transport failed.',
+      issues: [describeInvokeError(error)],
     },
   }
 }
@@ -55,8 +86,17 @@ async function handleFrameInvoke(input: {
   readonly message: ExtensionFrameInvokeMessage
 }) {
   const decodedInput = extensionInvokeInputFromFrame(input.entry, input.message.input)
-  const result =
-    'ok' in decodedInput ? decodedInput : await invokeBoundExtension(input.entry, decodedInput)
+  const result = await (async () => {
+    if ('ok' in decodedInput) {
+      return decodedInput
+    }
+
+    try {
+      return await invokeBoundExtension(input.entry, decodedInput)
+    } catch (error) {
+      return transportInvokeFailure(error)
+    }
+  })()
 
   postFrameMessage(input.frameWindow, input.frameId, {
     type: 'invoke-result',
@@ -72,6 +112,118 @@ function missingEntryPathStatus(): MountStatus {
   }
 }
 
+function supportsExtensionExecutionPlacement(entry: ExtensionContributionRegistryEntry) {
+  return (
+    entry.execution === OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.HOST_RENDERER ||
+    entry.execution === OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.FRAME
+  )
+}
+
+function supportsFederatedModuleFrameRuntime(entry: ExtensionContributionRegistryEntry) {
+  return (
+    entry.runtime === OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE &&
+    supportsExtensionExecutionPlacement(entry)
+  )
+}
+
+function federatedModuleMountKey(
+  entry: ExtensionContributionRegistryEntry,
+  moduleUrl: string | null,
+) {
+  return JSON.stringify([entry.extensionId, entry.contributionId, entry.execution ?? '', moduleUrl])
+}
+
+function initialMountStatus(input: {
+  readonly frameRuntimeSupported: boolean
+  readonly moduleUrl: string | null
+}): MountStatus {
+  if (!input.frameRuntimeSupported) {
+    return { kind: 'idle' }
+  }
+
+  return input.moduleUrl === null ? missingEntryPathStatus() : { kind: 'loading' }
+}
+
+function mountExtensionFrame(input: MountExtensionFrameInput) {
+  if (!input.frameRuntimeSupported) {
+    return
+  }
+
+  let active = true
+  const frame = input.frame
+  const resolvedModuleUrl = input.moduleUrl
+  if (!frame || resolvedModuleUrl === null) {
+    return () => {
+      active = false
+    }
+  }
+
+  const frameWindow = frame.contentWindow
+  if (!frameWindow) {
+    queueMicrotask(() => {
+      if (!active) {
+        return
+      }
+      input.reportStatus({
+        mountKey: input.mountKey,
+        status: { kind: 'error', message: 'Extension frame is unavailable.' },
+      })
+    })
+    return () => {
+      active = false
+    }
+  }
+  const mountedFrameWindow = frameWindow
+
+  function reportMountStatus(status: MountStatus) {
+    input.reportStatus({ mountKey: input.mountKey, status })
+  }
+
+  function handleFrameMessage(event: MessageEvent<unknown>) {
+    const currentFrameWindow = input.getCurrentFrameWindow()
+    if (!active || event.source !== currentFrameWindow) {
+      return
+    }
+    const frameMessage = decodeExtensionFrameMessage(event.data, input.frameId)
+    if (frameMessage === null) {
+      return
+    }
+
+    if (frameMessage.type === 'mounted') {
+      reportMountStatus({ kind: 'mounted' })
+      return
+    }
+
+    if (frameMessage.type === 'error' || frameMessage.type === 'cleanup-error') {
+      reportMountStatus({ kind: 'error', message: frameMessage.message })
+      return
+    }
+
+    if (frameMessage.type === 'invoke') {
+      void handleFrameInvoke({
+        entry: input.entry,
+        frameId: input.frameId,
+        frameWindow: mountedFrameWindow,
+        message: frameMessage,
+      })
+    }
+  }
+
+  window.addEventListener('message', handleFrameMessage)
+  frame.srcdoc = createExtensionFrameSrcDoc({
+    entry: input.entry,
+    frameId: input.frameId,
+    moduleUrl: resolvedModuleUrl,
+  })
+
+  return () => {
+    active = false
+    postFrameMessage(mountedFrameWindow, input.frameId, { type: 'dispose' })
+    frame.removeAttribute('srcdoc')
+    window.removeEventListener('message', handleFrameMessage)
+  }
+}
+
 export function ExtensionFederatedModuleHost({
   entry,
   className,
@@ -81,74 +233,27 @@ export function ExtensionFederatedModuleHost({
 }) {
   const frameRef = useRef<HTMLIFrameElement | null>(null)
   const frameId = useId()
-  const [status, setStatus] = useState<MountStatus>({ kind: 'idle' })
+  const [reportedStatus, setReportedStatus] = useState<ReportedMountStatus | null>(null)
   const moduleUrl = createExtensionModuleUrl(entry)
-  const hostRuntimeSupported =
-    entry.runtime === OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE &&
-    entry.execution === OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.HOST_RENDERER
+  const frameRuntimeSupported = supportsFederatedModuleFrameRuntime(entry)
+  const mountKey = federatedModuleMountKey(entry, moduleUrl)
+  const status =
+    reportedStatus?.mountKey === mountKey
+      ? reportedStatus.status
+      : initialMountStatus({ frameRuntimeSupported, moduleUrl })
 
   useEffect(() => {
-    if (!hostRuntimeSupported) {
-      return
-    }
-
-    const frame = frameRef.current
-    const resolvedModuleUrl = moduleUrl
-    if (!frame || resolvedModuleUrl === null) {
-      setStatus(missingEntryPathStatus())
-      return
-    }
-
-    const frameWindow = frame.contentWindow
-    if (!frameWindow) {
-      setStatus({ kind: 'error', message: 'Extension frame is unavailable.' })
-      return
-    }
-    const mountedFrameWindow = frameWindow
-
-    let active = true
-    setStatus({ kind: 'loading' })
-
-    function handleFrameMessage(event: MessageEvent<unknown>) {
-      const currentFrameWindow = frameRef.current?.contentWindow
-      if (!active || event.source !== currentFrameWindow) {
-        return
-      }
-      const frameMessage = decodeExtensionFrameMessage(event.data, frameId)
-      if (frameMessage === null) {
-        return
-      }
-
-      if (frameMessage.type === 'mounted') {
-        setStatus({ kind: 'mounted' })
-        return
-      }
-
-      if (frameMessage.type === 'error' || frameMessage.type === 'cleanup-error') {
-        setStatus({ kind: 'error', message: frameMessage.message })
-        return
-      }
-
-      if (frameMessage.type === 'invoke') {
-        void handleFrameInvoke({
-          entry,
-          frameId,
-          frameWindow: mountedFrameWindow,
-          message: frameMessage,
-        })
-      }
-    }
-
-    window.addEventListener('message', handleFrameMessage)
-    frame.srcdoc = createExtensionFrameSrcDoc({ entry, frameId, moduleUrl: resolvedModuleUrl })
-
-    return () => {
-      active = false
-      postFrameMessage(mountedFrameWindow, frameId, { type: 'dispose' })
-      frame.removeAttribute('srcdoc')
-      window.removeEventListener('message', handleFrameMessage)
-    }
-  }, [entry, frameId, hostRuntimeSupported, moduleUrl])
+    return mountExtensionFrame({
+      entry,
+      frame: frameRef.current,
+      frameId,
+      frameRuntimeSupported,
+      getCurrentFrameWindow: () => frameRef.current?.contentWindow,
+      moduleUrl,
+      mountKey,
+      reportStatus: setReportedStatus,
+    })
+  }, [entry, frameId, frameRuntimeSupported, moduleUrl, mountKey])
 
   if (entry.runtime !== OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE) {
     return (
@@ -164,7 +269,7 @@ export function ExtensionFederatedModuleHost({
     )
   }
 
-  if (entry.execution !== OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.HOST_RENDERER) {
+  if (!supportsExtensionExecutionPlacement(entry)) {
     return (
       <div
         role="alert"
@@ -173,7 +278,7 @@ export function ExtensionFederatedModuleHost({
           className,
         )}
       >
-        Frame execution uses the federated-module contract but is not mounted in this slice.
+        Unsupported extension execution placement.
       </div>
     )
   }

@@ -7,8 +7,15 @@ const FEEDBACK_COOLDOWN_MS = 60_000
 export const DIFF_PANEL_MIN = 360
 export const DIFF_PANEL_MAX = 900
 export const CHAT_MIN_WIDTH = 420
+export const EXTENSION_SIDE_PANEL_ROUTE_PANEL = 'extension-side-panel'
 
-export type RightSidebarPanel = 'diff' | 'session-tree'
+export interface ExtensionRightSidebarPanel {
+  readonly kind: 'extension-side-panel'
+  readonly extensionId: string
+  readonly sidePanelId: string
+}
+
+export type RightSidebarPanel = 'diff' | 'session-tree' | ExtensionRightSidebarPanel
 
 export interface ToastData {
   message: string

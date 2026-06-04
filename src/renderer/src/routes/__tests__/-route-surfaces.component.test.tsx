@@ -17,7 +17,12 @@ type SettingsTab =
   | 'worktrees'
   | 'archived'
   | 'connections'
-type RightSidebarPanel = 'diff' | 'session-tree'
+interface ExtensionRightSidebarPanel {
+  readonly kind: 'extension-side-panel'
+  readonly extensionId: string
+  readonly sidePanelId: string
+}
+type RightSidebarPanel = 'diff' | 'session-tree' | ExtensionRightSidebarPanel
 interface RouterState {
   readonly location: {
     readonly pathname: string
@@ -45,6 +50,7 @@ const routeSurfaceMocks = vi.hoisted(() => {
     shellState: (): ShellState => ({ lastRightSidebarPanel, setLastRightSidebarPanel }),
     setLastRightSidebarPanel,
     chatRouteEffects: vi.fn(),
+    sidePanelRefetch: vi.fn(),
   }
 })
 
@@ -85,6 +91,30 @@ vi.mock('@/features/session-tree/components', () => ({
       </Button>
     </aside>
   ),
+}))
+
+vi.mock('@/features/extensions', () => ({
+  ExtensionSidePanelSurface: ({
+    target,
+    onClose,
+  }: {
+    readonly target: { readonly extensionId: string; readonly sidePanelId: string }
+    readonly onClose: () => void
+  }) => (
+    <aside>
+      Extension side panel {target.extensionId}/{target.sidePanelId}
+      <Button variant="unstyled" type="button" onClick={onClose}>
+        Close extension side panel
+      </Button>
+    </aside>
+  ),
+  useExtensionSidePanelContributions: () => ({
+    error: null,
+    loading: false,
+    projectPaths: ['/repo'],
+    refetch: routeSurfaceMocks.sidePanelRefetch,
+    registry: null,
+  }),
 }))
 
 vi.mock('@/features/settings/components', () => ({
@@ -139,6 +169,7 @@ describe('route surfaces', () => {
     routeSurfaceMocks.setLastPanel('diff')
     routeSurfaceMocks.setLastRightSidebarPanel.mockClear()
     routeSurfaceMocks.chatRouteEffects.mockClear()
+    routeSurfaceMocks.sidePanelRefetch.mockClear()
   })
 
   it('derives the settings tab from the current route when the route contains a tab segment', () => {
@@ -169,13 +200,13 @@ describe('route surfaces', () => {
 
     render(
       <ChatRouteSurface
-        branchId="branch-1"
-        diffOpen
-        nodeId="node-1"
-        sessionId="session-1"
-        sessionTreeOpen={false}
-        onDiffOpenChange={onDiffOpenChange}
-        onSessionTreeOpenChange={onSessionTreeOpenChange}
+        workspace={{ branchId: 'branch-1', nodeId: 'node-1', sessionId: 'session-1' }}
+        rightSidebar={{ diffOpen: true, extensionSidePanel: null, sessionTreeOpen: false }}
+        rightSidebarActions={{
+          onDiffOpenChange,
+          onExtensionSidePanelOpenChange: vi.fn(),
+          onSessionTreeOpenChange,
+        }}
       />,
     )
 
@@ -200,13 +231,13 @@ describe('route surfaces', () => {
 
     render(
       <ChatRouteSurface
-        branchId={null}
-        diffOpen={false}
-        nodeId={null}
-        sessionId="session-1"
-        sessionTreeOpen
-        onDiffOpenChange={onDiffOpenChange}
-        onSessionTreeOpenChange={onSessionTreeOpenChange}
+        workspace={{ branchId: null, nodeId: null, sessionId: 'session-1' }}
+        rightSidebar={{ diffOpen: false, extensionSidePanel: null, sessionTreeOpen: true }}
+        rightSidebarActions={{
+          onDiffOpenChange,
+          onExtensionSidePanelOpenChange: vi.fn(),
+          onSessionTreeOpenChange,
+        }}
       />,
     )
 
@@ -216,5 +247,47 @@ describe('route surfaces', () => {
     expect(routeSurfaceMocks.setLastRightSidebarPanel).toHaveBeenCalledWith('session-tree')
     expect(onSessionTreeOpenChange).toHaveBeenCalledWith(false)
     expect(onDiffOpenChange).not.toHaveBeenCalled()
+  })
+
+  it('renders extension side panels from route state and routes close events to extension search', async () => {
+    const onDiffOpenChange = vi.fn()
+    const onSessionTreeOpenChange = vi.fn()
+    const onExtensionSidePanelOpenChange = vi.fn()
+
+    render(
+      <ChatRouteSurface
+        workspace={{ branchId: null, nodeId: null, sessionId: 'session-1' }}
+        rightSidebar={{
+          diffOpen: false,
+          extensionSidePanel: {
+            extensionId: 'sample-extension',
+            sidePanelId: 'sample.side-panel',
+          },
+          sessionTreeOpen: false,
+        }}
+        rightSidebarActions={{
+          onDiffOpenChange,
+          onExtensionSidePanelOpenChange,
+          onSessionTreeOpenChange,
+        }}
+      />,
+    )
+
+    expect(
+      await screen.findByText('Extension side panel sample-extension/sample.side-panel'),
+    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Close right sidebar' }))
+
+    expect(routeSurfaceMocks.setLastRightSidebarPanel).toHaveBeenCalledWith({
+      kind: 'extension-side-panel',
+      extensionId: 'sample-extension',
+      sidePanelId: 'sample.side-panel',
+    })
+    expect(onExtensionSidePanelOpenChange).toHaveBeenCalledWith(false, {
+      extensionId: 'sample-extension',
+      sidePanelId: 'sample.side-panel',
+    })
+    expect(onDiffOpenChange).not.toHaveBeenCalled()
+    expect(onSessionTreeOpenChange).not.toHaveBeenCalled()
   })
 })

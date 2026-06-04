@@ -1,10 +1,16 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type {
+  ExtensionContributionRegistryEntry,
   ExtensionContributionRegistryView,
+  ExtensionDiagnosticView,
   ExtensionListContributionsInput,
 } from '@shared/types/extensions'
 import * as Effect from 'effect/Effect'
-import type { DiscoveredExtensionPackage, ExtensionLifecycleState } from '../extensions/types'
+import type {
+  DiscoveredExtensionPackage,
+  ExtensionDiagnostic,
+  ExtensionLifecycleState,
+} from '../extensions/types'
 import { ExtensionLifecycleRepository } from '../ports/extension-lifecycle-repository'
 import {
   ExtensionManagerService,
@@ -28,6 +34,11 @@ import {
 interface LifecycleLookup {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly lifecycle: ExtensionLifecycleState | null
+}
+
+interface ContributionRegistryPackageResult {
+  readonly entries: readonly ExtensionContributionRegistryEntry[]
+  readonly diagnostics: readonly ExtensionDiagnostic[]
 }
 
 function normalizeProjectPaths(projectPaths: readonly string[] | undefined) {
@@ -82,6 +93,17 @@ function getCandidateProjectPaths(
   return requestedProjectPaths.includes(extensionPackage.scope.projectPath)
     ? [extensionPackage.scope.projectPath]
     : []
+}
+
+function diagnosticsToView(
+  diagnostics: readonly ExtensionDiagnostic[],
+): readonly ExtensionDiagnosticView[] {
+  return diagnostics.map((diagnostic) => ({
+    severity: diagnostic.severity,
+    code: diagnostic.code,
+    message: diagnostic.message,
+    ...(diagnostic.path !== undefined ? { path: diagnostic.path } : {}),
+  }))
 }
 
 function loadContributionPackages(projectPaths: readonly string[]) {
@@ -204,14 +226,35 @@ function packageToContributionEntriesSafely(input: {
   return Effect.try({
     try: () => packageToContributionEntries(input),
     catch: (error) => error,
-  }).pipe(Effect.catchAll(() => Effect.succeed([])))
+  }).pipe(
+    Effect.map(
+      (entries) =>
+        ({
+          entries,
+          diagnostics: [],
+        }) satisfies ContributionRegistryPackageResult,
+    ),
+    Effect.catchAll((error) =>
+      Effect.succeed({
+        entries: [],
+        diagnostics: [
+          makeExtensionFailureDiagnostic({
+            operation: `Extension contribution registry build for "${input.extensionPackage.id}"`,
+            code: OPENWAGGLE_EXTENSION.DIAGNOSTIC.CODE.CONTRIBUTION_REGISTRATION_FAILED,
+            error,
+            path: input.extensionPackage.manifestPath,
+          }),
+        ],
+      } satisfies ContributionRegistryPackageResult),
+    ),
+  )
 }
 
 export function listExtensionContributionRegistryView(input: ExtensionListContributionsInput = {}) {
   return Effect.gen(function* () {
     const projectPaths = normalizeProjectPaths(input.projectPaths)
     const packages = yield* loadContributionPackages(projectPaths)
-    const entries = yield* Effect.forEach(packages, (extensionPackage) =>
+    const packageResults = yield* Effect.forEach(packages, (extensionPackage) =>
       Effect.gen(function* () {
         const lifecycleLookup = yield* loadLifecycle(extensionPackage)
         const candidateProjectPaths = getCandidateProjectPaths(extensionPackage, projectPaths)
@@ -220,18 +263,28 @@ export function listExtensionContributionRegistryView(input: ExtensionListContri
           candidateProjectPaths,
         )
 
-        return yield* packageToContributionEntriesSafely({
+        const registryPackageResult = yield* packageToContributionEntriesSafely({
           extensionPackage: lifecycleLookup.extensionPackage,
           lifecycle: lifecycleLookup.lifecycle,
           projectOverrides,
           requestedProjectPaths: projectPaths,
         })
+
+        return {
+          entries: registryPackageResult.entries,
+          diagnostics: [
+            ...lifecycleLookup.extensionPackage.diagnostics,
+            ...projectOverrides.flatMap((projectOverride) => projectOverride.diagnostics),
+            ...registryPackageResult.diagnostics,
+          ],
+        } satisfies ContributionRegistryPackageResult
       }),
     )
 
     return {
       projectPaths,
-      entries: entries.flat(),
+      entries: packageResults.flatMap((result) => result.entries),
+      diagnostics: diagnosticsToView(packageResults.flatMap((result) => result.diagnostics)),
     } satisfies ExtensionContributionRegistryView
   })
 }

@@ -9,6 +9,7 @@ publish:
 files:
   - '!**/.vscode/*'
   - '!src/*'
+  - '!fixtures/**/*'
   - '!electron.vite.config.*'
   - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'

@@ -5,24 +5,56 @@ import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url)
 const REPOSITORY_ROOT = path.resolve(path.dirname(SCRIPT_PATH), '..')
-const FIXTURE_EXTENSION_ID = 'openwaggle-reload-qa'
-const FIXTURE_SOURCE_PATH = path.join(
-  REPOSITORY_ROOT,
-  'fixtures',
-  'extensions',
-  FIXTURE_EXTENSION_ID,
-)
+const FIXTURE_EXTENSION_IDS = [
+  'openwaggle-reload-qa',
+  'openwaggle-github-issues-overview',
+] as const
+type FixtureExtensionId = (typeof FIXTURE_EXTENSION_IDS)[number]
+
+const FIXTURE_ROOT = path.join(REPOSITORY_ROOT, 'fixtures', 'extensions')
 const PROJECT_EXTENSION_ROOT = path.join(
   REPOSITORY_ROOT,
   ...OPENWAGGLE_EXTENSION.PROJECT_ROOT_SEGMENTS,
 )
-const FIXTURE_TARGET_PATH = path.join(PROJECT_EXTENSION_ROOT, FIXTURE_EXTENSION_ID)
+const ALL_FIXTURES_ARG = 'all'
+const USER_ARG_OFFSET = 2
+
+function isFixtureExtensionId(fixtureId: string): fixtureId is FixtureExtensionId {
+  return FIXTURE_EXTENSION_IDS.some((knownFixtureId) => knownFixtureId === fixtureId)
+}
+
+function fixtureIdsFromArgs(args: readonly string[]): readonly FixtureExtensionId[] {
+  if (args.length === 0 || args.includes(ALL_FIXTURES_ARG)) {
+    return FIXTURE_EXTENSION_IDS
+  }
+
+  return args.filter(isFixtureExtensionId)
+}
+
+function unsupportedFixtureIds(args: readonly string[]) {
+  return args.filter((fixtureId) => fixtureId !== ALL_FIXTURES_ARG && !isFixtureExtensionId(fixtureId))
+}
+
+async function installFixture(fixtureId: FixtureExtensionId) {
+  const fixtureSourcePath = path.join(FIXTURE_ROOT, fixtureId)
+  const fixtureTargetPath = path.join(PROJECT_EXTENSION_ROOT, fixtureId)
+  await rm(fixtureTargetPath, { recursive: true, force: true })
+  await cp(fixtureSourcePath, fixtureTargetPath, { recursive: true })
+  console.info(`Installed ${fixtureId} at ${fixtureTargetPath}`)
+}
 
 async function main() {
+  const userArgs = process.argv.slice(USER_ARG_OFFSET)
+  const unsupportedIds = unsupportedFixtureIds(userArgs)
+  if (unsupportedIds.length > 0) {
+    throw new Error(`Unknown extension QA fixture: ${unsupportedIds.join(', ')}`)
+  }
+
+  const fixtureIds = fixtureIdsFromArgs(userArgs)
   await mkdir(PROJECT_EXTENSION_ROOT, { recursive: true })
-  await rm(FIXTURE_TARGET_PATH, { recursive: true, force: true })
-  await cp(FIXTURE_SOURCE_PATH, FIXTURE_TARGET_PATH, { recursive: true })
-  console.info(`Installed ${FIXTURE_EXTENSION_ID} at ${FIXTURE_TARGET_PATH}`)
+  for (const fixtureId of fixtureIds) {
+    await installFixture(fixtureId)
+  }
 }
 
 main().catch((error: unknown) => {

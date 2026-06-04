@@ -191,4 +191,5 @@ export interface ExtensionContributionRegistryEntry {
 export interface ExtensionContributionRegistryView {
   readonly projectPaths: readonly string[]
   readonly entries: readonly ExtensionContributionRegistryEntry[]
+  readonly diagnostics?: readonly ExtensionDiagnosticView[]
 }

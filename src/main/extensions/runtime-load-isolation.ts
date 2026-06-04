@@ -35,7 +35,19 @@ async function recordFailures<Selection extends RuntimeLoadSelection>(
   recordFailure: (selection: Selection, error: unknown) => Promise<void>,
 ) {
   for (const selection of selections) {
+    await recordFailureSafely(selection, error, recordFailure)
+  }
+}
+
+async function recordFailureSafely<Selection extends RuntimeLoadSelection>(
+  selection: Selection,
+  error: unknown,
+  recordFailure: (selection: Selection, error: unknown) => Promise<void>,
+) {
+  try {
     await recordFailure(selection, error)
+  } catch {
+    // Failure recording is best-effort; it must not break the safe fallback load.
   }
 }
 
@@ -52,7 +64,7 @@ async function findViableSelections<Selection extends RuntimeLoadSelection, Resu
       viableSelections.push(selection)
       continue
     }
-    await recordFailure(selection, isolatedAttempt.error)
+    await recordFailureSafely(selection, isolatedAttempt.error, recordFailure)
   }
 
   return viableSelections
@@ -87,7 +99,7 @@ async function loadWithViableSelections<Selection extends RuntimeLoadSelection, 
       continue
     }
 
-    await recordFailure(selection, viableAttempt.error)
+    await recordFailureSafely(selection, viableAttempt.error, recordFailure)
     return withoutSelectionAttempt.result
   }
 

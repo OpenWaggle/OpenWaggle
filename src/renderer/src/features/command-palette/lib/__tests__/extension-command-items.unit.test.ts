@@ -3,11 +3,14 @@ import type { ExtensionContributionRegistryEntry } from '@shared/types/extension
 import { describe, expect, it, vi } from 'vitest'
 import {
   createExtensionCommandItems,
+  createExtensionSidePanelItems,
   createExtensionSlashCommandItems,
   type ExtensionCommandActionInput,
+  type ExtensionSidePanelActionInput,
   type ExtensionSlashCommandActionInput,
   type InsertExtensionSlashCommand,
   type InvokeExtensionCommand,
+  type OpenExtensionSidePanel,
 } from '../extension-command-items'
 
 function commandEntry(
@@ -23,6 +26,7 @@ function commandEntry(
     },
     packagePath: '/tmp/sample-extension',
     manifestPath: '/tmp/sample-extension/openwaggle.extension.json',
+    contentHash: 'abcdef',
     projectPaths: ['/tmp/project'],
     appliesToAllRequestedProjects: true,
     family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.COMMANDS,
@@ -112,6 +116,80 @@ describe('createExtensionCommandItems', () => {
     })
 
     expect(items.map((item) => item.label)).toEqual(['Run sample command'])
+  })
+})
+
+describe('createExtensionSidePanelItems', () => {
+  it('maps openable side panel contributions to command palette items', () => {
+    const openSidePanel: OpenExtensionSidePanel = vi.fn()
+    const entry = commandEntry({
+      family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SIDE_PANELS,
+      contributionId: 'sample.panel',
+      title: 'Open sample panel',
+      runtime: OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE,
+      execution: OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.HOST_RENDERER,
+      entryPath: 'modules/side-panel.js',
+    })
+    const items = createExtensionSidePanelItems({
+      registry: { projectPaths: ['/tmp/project'], entries: [entry] },
+      lowerQuery: '',
+      openSidePanel,
+    })
+
+    expect(items).toHaveLength(1)
+    expect(items[0]).toMatchObject({
+      id: 'extension-side-panel:sample.extension:sample.panel',
+      label: 'Open sample panel',
+      section: 'Sample',
+      trailing: 'Sample Extension',
+      trailingBadge: 'Global',
+    })
+
+    items[0]?.action()
+
+    expect(openSidePanel).toHaveBeenCalledWith({
+      entry,
+    } satisfies ExtensionSidePanelActionInput)
+  })
+
+  it('omits ineligible side panels and entries without renderer metadata', () => {
+    const openSidePanel: OpenExtensionSidePanel = vi.fn()
+    const items = createExtensionSidePanelItems({
+      registry: {
+        projectPaths: ['/tmp/project'],
+        entries: [
+          commandEntry({
+            family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SIDE_PANELS,
+            runtime: OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE,
+            execution: OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.HOST_RENDERER,
+          }),
+          commandEntry({
+            family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SIDE_PANELS,
+            runtime: OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE,
+            execution: OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.HOST_RENDERER,
+            entryPath: 'modules/side-panel.js',
+            eligibility: {
+              runtimeEnabled: true,
+              enabled: true,
+              trusted: false,
+              sdkCompatible: true,
+              updateAvailable: false,
+              disabledProjectPaths: [],
+            },
+          }),
+          commandEntry({
+            family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SETTINGS_SECTIONS,
+            runtime: OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE,
+            execution: OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.HOST_RENDERER,
+            entryPath: 'modules/settings.js',
+          }),
+        ],
+      },
+      lowerQuery: '',
+      openSidePanel,
+    })
+
+    expect(items).toEqual([])
   })
 })
 

@@ -101,4 +101,27 @@ describe('loadWithRuntimeFailureIsolation', () => {
 
     expect(recordFailure).not.toHaveBeenCalled()
   })
+
+  it('keeps the safe fallback load when recording an isolated failure fails', async () => {
+    const loadFailure = new Error('extension failed')
+    const recordFailure = vi.fn<RecordFailure>(() => {
+      throw new Error('lifecycle repository unavailable')
+    })
+
+    const result = await loadWithRuntimeFailureIsolation({
+      selections: [FIRST_SELECTION],
+      load: async (paths) => {
+        if (paths.includes(FIRST_SELECTION.packagePath)) {
+          throw loadFailure
+        }
+        return 'baseline'
+      },
+      recordFailure: async (selection, error) => {
+        recordFailure(selection, error)
+      },
+    })
+
+    expect(result).toBe('baseline')
+    expect(recordFailure).toHaveBeenCalledWith(FIRST_SELECTION, loadFailure)
+  })
 })

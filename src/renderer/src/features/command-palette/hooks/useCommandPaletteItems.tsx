@@ -8,7 +8,7 @@ import { extensionContributionsQueryOptions } from '@/queries/extensions'
 import { wagglePresetsQueryOptions } from '@/queries/waggle-presets'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
-import { useUIStore } from '@/shell/ui-store'
+import { EXTENSION_SIDE_PANEL_ROUTE_PANEL, useUIStore } from '@/shell/ui-store'
 import {
   createOptionalCommandPaletteAction,
   insertCompactCommand,
@@ -24,13 +24,34 @@ import {
 import { normalizeCommandQuery } from '../lib/command-palette-text'
 import {
   createExtensionCommandItems,
+  createExtensionSidePanelItems,
   createExtensionSlashCommandItems,
   type ExtensionCommandActionInput,
+  type ExtensionSidePanelActionInput,
   type ExtensionSlashCommandActionInput,
 } from '../lib/extension-command-items'
 import type { CommandPaletteActionHandlers, CommandPaletteCallbacks } from '../model'
 
 const logger = createRendererLogger('command-palette')
+
+function currentHashPathname() {
+  const hash = window.location.hash
+  if (!hash.startsWith('#')) {
+    return window.location.pathname
+  }
+
+  const [pathname] = hash.slice(1).split('?')
+  return pathname && pathname.length > 0 ? pathname : '/'
+}
+
+function sessionIdFromPathname(pathname: string) {
+  if (!pathname.startsWith('/sessions/')) {
+    return null
+  }
+
+  const [, sessionsSegment, sessionId] = pathname.split('/')
+  return sessionsSegment === 'sessions' && sessionId ? sessionId : null
+}
 
 interface UseCommandPaletteItemsInput extends CommandPaletteCallbacks {
   readonly query: string
@@ -48,6 +69,7 @@ export function useCommandPaletteItems({
 }: UseCommandPaletteItemsInput) {
   const navigate = useNavigate()
   const closeCommandPalette = useUIStore((s) => s.closeCommandPalette)
+  const setLastRightSidebarPanel = useUIStore((s) => s.setLastRightSidebarPanel)
   const projectPath = usePreferencesStore((state) => state.settings.projectPath)
   const projectPaths = projectPath ? [projectPath] : []
   const wagglePresetsQuery = useQuery(wagglePresetsQueryOptions(projectPath))
@@ -121,6 +143,42 @@ export function useCommandPaletteItems({
     insertComposerCommandText(extensionSlashCommandText(entry))
     closeCommandPalette()
   }
+  const openExtensionSidePanel = ({ entry }: ExtensionSidePanelActionInput) => {
+    const target = {
+      kind: 'extension-side-panel',
+      extensionId: entry.extensionId,
+      sidePanelId: entry.contributionId,
+    } as const
+    const sessionId = sessionIdFromPathname(currentHashPathname())
+
+    setLastRightSidebarPanel(target)
+    closeCommandPalette()
+
+    if (sessionId) {
+      void navigate({
+        to: '/sessions/$sessionId',
+        params: { sessionId },
+        search: (previous) => ({
+          ...previous,
+          diff: undefined,
+          panel: EXTENSION_SIDE_PANEL_ROUTE_PANEL,
+          sidePanelExtensionId: target.extensionId,
+          sidePanelId: target.sidePanelId,
+        }),
+      })
+      return
+    }
+
+    void navigate({
+      to: '/',
+      search: {
+        diff: undefined,
+        panel: EXTENSION_SIDE_PANEL_ROUTE_PANEL,
+        sidePanelExtensionId: target.extensionId,
+        sidePanelId: target.sidePanelId,
+      },
+    })
+  }
 
   return [
     ...filterBaseCommands(createBaseCommands(actions), lowerQuery),
@@ -130,6 +188,11 @@ export function useCommandPaletteItems({
       registry: extensionContributionsQuery.data ?? null,
       lowerQuery,
       insertCommand: insertExtensionSlashCommand,
+    }),
+    ...createExtensionSidePanelItems({
+      registry: extensionContributionsQuery.data ?? null,
+      lowerQuery,
+      openSidePanel: openExtensionSidePanel,
     }),
     ...createExtensionCommandItems({
       registry: extensionContributionsQuery.data ?? null,

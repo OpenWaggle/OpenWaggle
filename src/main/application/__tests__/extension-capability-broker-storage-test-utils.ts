@@ -2,6 +2,7 @@ import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { ExtensionInvokeInput } from '@shared/types/extension-broker'
 import type { JsonValue } from '@shared/types/json'
+import type { ExtensionPackageScope } from '../../extensions/types'
 import { BROKER_EXTENSION_ID } from './extension-capability-broker-test-utils'
 import { makePackage, PROJECT_PATH } from './extension-contribution-registry-test-utils'
 
@@ -11,6 +12,7 @@ export const STORAGE_CONTRIBUTION_ID = {
   DELETE: 'storage.delete',
   LIST: 'storage.list',
   SETTINGS: 'storage.settings',
+  DIALOG: 'storage.dialog',
 } as const
 
 const STORAGE_METHODS = [
@@ -20,11 +22,18 @@ const STORAGE_METHODS = [
   OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST,
 ] as const
 
-export function makeStorageBrokerPackage() {
+export function makeStorageBrokerPackage(
+  input: {
+    readonly extensionId?: string
+    readonly name?: string
+    readonly scope?: ExtensionPackageScope
+  } = {},
+) {
+  const extensionId = input.extensionId ?? BROKER_EXTENSION_ID
   return makePackage({
-    id: BROKER_EXTENSION_ID,
-    name: 'Broker Extension',
-    scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND },
+    id: extensionId,
+    name: input.name ?? 'Broker Extension',
+    scope: input.scope ?? { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND },
     capabilities: [
       {
         id: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE,
@@ -87,11 +96,23 @@ export function makeStorageUiBrokerPackage() {
           methods: [...STORAGE_METHODS],
         },
       ],
+      dialogs: [
+        {
+          id: STORAGE_CONTRIBUTION_ID.DIALOG,
+          title: 'Storage Dialog',
+          runtime: 'federated-module',
+          execution: 'host-renderer',
+          entry: 'dist/dialog.js',
+          capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE,
+          methods: [...STORAGE_METHODS],
+        },
+      ],
     },
   })
 }
 
 export function makeStorageInvocation(input: {
+  readonly extensionId?: string
   readonly contributionId: string
   readonly method: string
   readonly storageKind?: (typeof OPENWAGGLE_EXTENSION.STORAGE.KINDS)[number]
@@ -101,7 +122,7 @@ export function makeStorageInvocation(input: {
   readonly scope?: ExtensionInvokeInput['scope']
 }): ExtensionInvokeInput {
   return {
-    extensionId: BROKER_EXTENSION_ID,
+    extensionId: input.extensionId ?? BROKER_EXTENSION_ID,
     contributionId: input.contributionId,
     capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE,
     method: input.method,

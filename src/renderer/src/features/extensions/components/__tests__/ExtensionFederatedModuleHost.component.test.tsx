@@ -109,6 +109,8 @@ describe('ExtensionFederatedModuleHost', () => {
       expect(frame.srcdoc).toContain('openwaggle-extension://runtime/module/')
     })
     expect(frame.srcdoc).toContain('%5B%22%2Ftmp%2Fproject%22%5D')
+    expect(frame.srcdoc).toContain('packageConfig')
+    expect(frame.srcdoc).toContain('packageState')
     expect(frame.srcdoc).not.toContain('window.api')
 
     dispatchFrameMessage(frame, { type: 'mounted' })
@@ -135,7 +137,7 @@ describe('ExtensionFederatedModuleHost', () => {
     const invokeResult = {
       ok: false,
       error: {
-        code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.CAPABILITY_NOT_GRANTED,
+        code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.UNDECLARED_CAPABILITY,
         message: 'No grant.',
       },
     }
@@ -210,6 +212,41 @@ describe('ExtensionFederatedModuleHost', () => {
     expect(apiMock.invokeExtension).not.toHaveBeenCalled()
   })
 
+  it('returns broker failures to the frame when IPC transport rejects', async () => {
+    apiMock.invokeExtension.mockRejectedValue(new Error('ipc unavailable'))
+    render(<ExtensionFederatedModuleHost entry={ENTRY} />)
+    const frame = extensionFrame()
+    const postMessage = vi.spyOn(extensionFrameWindow(frame), 'postMessage')
+
+    dispatchFrameMessage(frame, {
+      type: 'invoke',
+      requestId: 'invoke-rejected',
+      input: {
+        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.HOST_CONTEXT,
+        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SCOPE,
+        scope: { kind: 'project', projectPath: '/tmp/project' },
+        payload: {},
+      },
+    })
+
+    await waitFor(() => {
+      expect(postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'invoke-result',
+          requestId: 'invoke-rejected',
+          result: expect.objectContaining({
+            ok: false,
+            error: expect.objectContaining({
+              code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.TRANSPORT_FAILED,
+              message: 'Extension broker transport failed.',
+            }),
+          }),
+        }),
+        '*',
+      )
+    })
+  })
+
   it('contains frame-reported mount and cleanup errors', async () => {
     render(<ExtensionFederatedModuleHost entry={ENTRY} />)
     const frame = extensionFrame()
@@ -238,15 +275,22 @@ describe('ExtensionFederatedModuleHost', () => {
     )
   })
 
-  it('does not mount frame execution in the host-renderer slice', () => {
+  it('mounts frame execution through the same isolated federated module contract', async () => {
     render(
       <ExtensionFederatedModuleHost
         entry={{ ...ENTRY, execution: OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.FRAME }}
       />,
     )
 
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'Frame execution uses the federated-module contract',
-    )
+    const frame = extensionFrame()
+    expect(frame).toHaveAttribute('sandbox', EXTENSION_FEDERATED_MODULE_IFRAME_SANDBOX)
+    expect(screen.getByText(/Mounting extension module/)).toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(frame.srcdoc).toContain('openwaggle-extension://runtime/module/')
+    })
+    expect(frame.srcdoc).toContain('&quot;execution&quot;:&quot;frame&quot;')
+    expect(frame.srcdoc).not.toContain('window.api')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

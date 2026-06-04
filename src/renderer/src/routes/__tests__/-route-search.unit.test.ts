@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { isSettingsTab, parseChatRouteSearch } from '../-route-search'
+import {
+  extensionSidePanelTargetFromSearch,
+  isSettingsTab,
+  parseChatRouteSearch,
+} from '../-route-search'
 
 describe('parseChatRouteSearch', () => {
   it('preserves session workspace selectors and numeric diff flag', () => {
@@ -24,6 +28,49 @@ describe('parseChatRouteSearch', () => {
     expect(parseChatRouteSearch({ panel: 'session-tree' })).toEqual({ panel: 'session-tree' })
     expect(parseChatRouteSearch({ panel: 'diff' })).toEqual({ panel: 'diff' })
     expect(parseChatRouteSearch({ panel: 'other' })).toEqual({})
+  })
+
+  it('preserves complete extension side panel selections with explicit search keys', () => {
+    const search = parseChatRouteSearch({
+      panel: 'extension-side-panel',
+      sidePanelExtensionId: 'sample-extension',
+      sidePanelId: 'sample.side-panel',
+    })
+
+    expect(search).toEqual({
+      panel: 'extension-side-panel',
+      sidePanelExtensionId: 'sample-extension',
+      sidePanelId: 'sample.side-panel',
+    })
+    expect(extensionSidePanelTargetFromSearch(search)).toEqual({
+      extensionId: 'sample-extension',
+      sidePanelId: 'sample.side-panel',
+    })
+  })
+
+  it('drops incomplete extension side panel selections instead of creating stringly panels', () => {
+    expect(
+      parseChatRouteSearch({
+        panel: 'extension-side-panel',
+        sidePanelExtensionId: 'sample-extension',
+      }),
+    ).toEqual({})
+    expect(
+      parseChatRouteSearch({
+        panel: 'extension-side-panel',
+        sidePanelId: 'sample.side-panel',
+      }),
+    ).toEqual({})
+  })
+
+  it('ignores side panel ids when a built-in panel is selected', () => {
+    expect(
+      parseChatRouteSearch({
+        panel: 'diff',
+        sidePanelExtensionId: 'sample-extension',
+        sidePanelId: 'sample.side-panel',
+      }),
+    ).toEqual({ panel: 'diff' })
   })
 })
 

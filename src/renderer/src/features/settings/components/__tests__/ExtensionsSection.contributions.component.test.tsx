@@ -144,6 +144,18 @@ const EMPTY_REGISTRY: ExtensionContributionRegistryView = {
   entries: [],
 }
 
+const BROKEN_REGISTRY: ExtensionContributionRegistryView = {
+  projectPaths: ['/tmp/project'],
+  entries: [],
+  diagnostics: [
+    {
+      severity: 'error',
+      code: 'contribution-registration-failed',
+      message: 'Extension contribution registry build failed.',
+    },
+  ],
+}
+
 const CONTRIBUTION_REGISTRY: ExtensionContributionRegistryView = {
   projectPaths: ['/tmp/project'],
   entries: [COMMAND_ENTRY, SETTINGS_ENTRY],
@@ -185,8 +197,24 @@ describe('ExtensionsSection contribution registry', () => {
     expect(within(settingsHost).getByText('Sample settings')).toBeInTheDocument()
     expect(within(settingsHost).getByText('Federated module')).toBeInTheDocument()
     expect(within(settingsHost).getByText('Frame')).toBeInTheDocument()
+    const frame = within(settingsHost).getByTitle('Extension module: Sample settings')
+    expect(frame).toHaveAttribute('sandbox', 'allow-scripts')
+    expect(frame).toHaveAttribute(
+      'srcdoc',
+      expect.stringContaining('&quot;execution&quot;:&quot;frame&quot;'),
+    )
+  })
+
+  it('surfaces contribution registry diagnostics when no entries registered', async () => {
+    listExtensionPackagesMock.mockResolvedValueOnce(EMPTY_VIEW)
+    listContributionsMock.mockResolvedValueOnce(BROKEN_REGISTRY)
+
+    renderWithQueryClient(<ExtensionsSection />)
+
+    const diagnostics = await screen.findByLabelText('Extension contribution registry diagnostics')
+    expect(within(diagnostics).getByText('contribution-registration-failed')).toBeInTheDocument()
     expect(
-      within(settingsHost).getByText(/Frame execution uses the federated-module contract/),
+      within(diagnostics).getByText(': Extension contribution registry build failed.'),
     ).toBeInTheDocument()
   })
 })

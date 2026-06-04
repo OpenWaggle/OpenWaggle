@@ -1,7 +1,29 @@
+import { OPENWAGGLE_EXTENSION_BROKER } from './extension-broker'
+import { OPENWAGGLE_EXTENSION } from './extensions'
+
 export const EXTENSION_FRAME_MESSAGE_CHANNEL = 'openwaggle-extension-frame'
 
 export const EXTENSION_FRAME_BOOTSTRAP_SCRIPT = `
 const CHANNEL = 'openwaggle-extension-frame';
+const BROKER_CAPABILITY = {
+  HOST_CONTEXT: '${OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.HOST_CONTEXT}',
+  STORAGE: '${OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE}',
+};
+const BROKER_METHOD = {
+  GET_SCOPE: '${OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SCOPE}',
+  GET: '${OPENWAGGLE_EXTENSION_BROKER.METHOD.GET}',
+  SET: '${OPENWAGGLE_EXTENSION_BROKER.METHOD.SET}',
+  DELETE: '${OPENWAGGLE_EXTENSION_BROKER.METHOD.DELETE}',
+  LIST: '${OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST}',
+};
+const STORAGE_KIND = {
+  STATE: '${OPENWAGGLE_EXTENSION.STORAGE.KIND.STATE}',
+  CONFIG: '${OPENWAGGLE_EXTENSION.STORAGE.KIND.CONFIG}',
+};
+const STORAGE_SCOPE = {
+  GLOBAL: '${OPENWAGGLE_EXTENSION.STORAGE.SCOPE.GLOBAL_KIND}',
+  PROJECT: '${OPENWAGGLE_EXTENSION.STORAGE.SCOPE.PROJECT_KIND}',
+};
 
 function describeError(error) {
   if (error instanceof Error) {
@@ -64,6 +86,76 @@ function invoke(input) {
   });
 }
 
+function storagePayload(storageKind, storageScope, key, value) {
+  const payload = { storageKind, storageScope };
+  if (key !== undefined) {
+    payload.key = key;
+  }
+  if (value !== undefined) {
+    payload.value = value;
+  }
+  return payload;
+}
+
+function createStorageScopeSdk(storageKind, storageScope) {
+  return {
+    get: (scope, key) =>
+      invoke({
+        capability: BROKER_CAPABILITY.STORAGE,
+        method: BROKER_METHOD.GET,
+        scope,
+        payload: storagePayload(storageKind, storageScope, key),
+      }),
+    set: (scope, key, value) =>
+      invoke({
+        capability: BROKER_CAPABILITY.STORAGE,
+        method: BROKER_METHOD.SET,
+        scope,
+        payload: storagePayload(storageKind, storageScope, key, value),
+      }),
+    delete: (scope, key) =>
+      invoke({
+        capability: BROKER_CAPABILITY.STORAGE,
+        method: BROKER_METHOD.DELETE,
+        scope,
+        payload: storagePayload(storageKind, storageScope, key),
+      }),
+    list: (scope) =>
+      invoke({
+        capability: BROKER_CAPABILITY.STORAGE,
+        method: BROKER_METHOD.LIST,
+        scope,
+        payload: storagePayload(storageKind, storageScope),
+      }),
+  };
+}
+
+function createStorageKindSdk(storageKind) {
+  return {
+    global: createStorageScopeSdk(storageKind, STORAGE_SCOPE.GLOBAL),
+    project: createStorageScopeSdk(storageKind, STORAGE_SCOPE.PROJECT),
+  };
+}
+
+function createOpenWaggleSdk() {
+  return {
+    invoke,
+    hostContext: {
+      getScope: (scope) =>
+        invoke({
+          capability: BROKER_CAPABILITY.HOST_CONTEXT,
+          method: BROKER_METHOD.GET_SCOPE,
+          scope,
+          payload: {},
+        }),
+    },
+    storage: {
+      packageState: createStorageKindSdk(STORAGE_KIND.STATE),
+      packageConfig: createStorageKindSdk(STORAGE_KIND.CONFIG),
+    },
+  };
+}
+
 window.addEventListener('message', (event) => {
   if (event.source !== parent || !isFrameMessage(event.data, config.frameId)) {
     return;
@@ -103,7 +195,7 @@ try {
   const mountResult = await extensionModule.mount({
     ...config.context,
     root,
-    sdk: { invoke },
+    sdk: createOpenWaggleSdk(),
   });
 
   if (typeof mountResult === 'function') {
@@ -127,4 +219,4 @@ try {
 `.trim()
 
 export const EXTENSION_FRAME_BOOTSTRAP_SCRIPT_HASH =
-  "'sha256-eIH7vE+gNH4voiA5w6zEXHTLalVDfYnQh0hrEIG7OA0='"
+  "'sha256-x35ut7GCp8wd7HooET/EsZ5+RGvrULDTpXQSay10pW8='"

@@ -8,6 +8,7 @@ import { useExtensionsSectionController } from '@/features/settings/hooks/useExt
 import { usePreferences } from '@/features/settings/hooks/useSettings'
 import { projectName } from '@/shared/lib/format'
 import { ExtensionContributionSummary } from './ExtensionContributionSummary'
+import { ExtensionDiagnostics } from './ExtensionDiagnostics'
 import { ExtensionPackageCard } from './ExtensionPackageCard'
 import { ExtensionsErrorAlert, ExtensionsSectionHeading } from './ExtensionsSectionPanels'
 import {
@@ -185,6 +186,32 @@ function ExtensionScopeSection({
   )
 }
 
+function ContributionRegistryDiagnostics({
+  registry,
+}: {
+  readonly registry: ExtensionContributionRegistryView | null
+}) {
+  const diagnostics = registry?.diagnostics ?? []
+  if (diagnostics.length === 0) {
+    return null
+  }
+
+  return (
+    <section
+      aria-label="Extension contribution registry diagnostics"
+      className="rounded-xl border border-border bg-bg-secondary/30 p-3"
+    >
+      <h3 className="text-[13px] font-semibold text-text-secondary">
+        Contribution registry diagnostics
+      </h3>
+      <p className="mt-0.5 text-[11px] text-text-muted">
+        Some extension contributions could not be registered.
+      </p>
+      <ExtensionDiagnostics diagnostics={diagnostics} />
+    </section>
+  )
+}
+
 export function ExtensionsSection() {
   const { settings } = usePreferences()
   const { sessions } = useSessions()
@@ -236,6 +263,7 @@ export function ExtensionsSection() {
       {view ? (
         <ExtensionContributionSummary registry={contributionRegistry} packages={packages} />
       ) : null}
+      <ContributionRegistryDiagnostics registry={contributionRegistry} />
       <SettingsContributionHost registry={contributionRegistry} />
       {loading && !view ? (
         <p className="rounded-lg border border-border bg-[#111418] px-4 py-6 text-[13px] text-text-muted">

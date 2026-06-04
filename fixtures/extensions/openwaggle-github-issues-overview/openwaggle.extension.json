@@ -1,0 +1,46 @@
+{
+  "manifestVersion": 1,
+  "id": "openwaggle-github-issues-overview",
+  "name": "GitHub Issues Overview",
+  "version": "0.1.0",
+  "description": "Development-only fixture that demonstrates settings and side panel surfaces sharing extension package state.",
+  "sdk": {
+    "openwaggle": ">=0.1.0 <0.2.0"
+  },
+  "sourceFiles": ["src/settings.js", "src/side-panel.js"],
+  "builtArtifacts": ["modules/settings.js", "modules/side-panel.js"],
+  "install": {
+    "source": "prebuilt"
+  },
+  "capabilities": [
+    {
+      "id": "openwaggle.storage",
+      "methods": ["get", "set", "list"],
+      "scopes": ["project"]
+    }
+  ],
+  "contributions": {
+    "settingsSections": [
+      {
+        "id": "github.settings",
+        "title": "GitHub Issues Settings",
+        "runtime": "federated-module",
+        "execution": "host-renderer",
+        "entry": "modules/settings.js",
+        "capability": "openwaggle.storage",
+        "methods": ["get", "set", "list"]
+      }
+    ],
+    "sidePanels": [
+      {
+        "id": "github.overview",
+        "title": "GitHub Issues Overview",
+        "runtime": "federated-module",
+        "execution": "host-renderer",
+        "entry": "modules/side-panel.js",
+        "capability": "openwaggle.storage",
+        "methods": ["get", "set", "list"]
+      }
+    ]
+  }
+}

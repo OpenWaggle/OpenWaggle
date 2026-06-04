@@ -95,6 +95,32 @@ describe('isExtensionRuntimeModuleAccessAllowed', () => {
     await expect(runAccessCheck({ extensionPackage, contentHash: 'stale' })).resolves.toBe(false)
   })
 
+  it('denies package files once the package is absent from discovery', async () => {
+    const extensionPackage = makePackage({
+      id: 'sample-extension',
+      name: 'Sample Extension',
+      scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: PROJECT_PATH },
+      contributions: ROUTE_CONTRIBUTIONS,
+    })
+
+    await expect(
+      Effect.runPromise(
+        isExtensionRuntimeModuleAccessAllowed({
+          packagePath: extensionPackage.packagePath,
+          contentHash: contentHash(extensionPackage),
+          projectPaths: [PROJECT_PATH],
+        }).pipe(
+          Effect.provide(
+            makeContributionRegistryTestLayer({
+              packages: [],
+              lifecycles: [makeLifecycle(extensionPackage)],
+            }),
+          ),
+        ),
+      ),
+    ).resolves.toBe(false)
+  })
+
   it('denies global package files when the requested project opted out', async () => {
     const extensionPackage = makePackage({
       id: 'sample-extension',
