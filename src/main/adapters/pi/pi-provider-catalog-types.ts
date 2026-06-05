@@ -3,7 +3,7 @@ import type {
   AuthCredential,
   AuthStorage,
   ModelRegistry,
-} from '@mariozechner/pi-coding-agent'
+} from '@earendil-works/pi-coding-agent'
 import type { ThinkingLevel } from '@shared/types/settings'
 
 export interface ProviderModelRecord {

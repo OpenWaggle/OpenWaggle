@@ -1,8 +1,15 @@
-import type { OAuthAccountInfo, OAuthProvider } from '@shared/types/auth'
+import type {
+  OAuthAccountInfo,
+  OAuthDeviceCode,
+  OAuthProvider,
+  OAuthSelectPrompt,
+} from '@shared/types/auth'
 import { Context, type Effect } from 'effect'
 
 export interface OAuthLoginHandlers {
   readonly onAuthUrl: (url: string, usesCallbackServer: boolean) => void
+  readonly onDeviceCode: (params: OAuthDeviceCode) => void
+  readonly onSelect: (params: OAuthSelectPrompt) => Promise<string | undefined>
   readonly onPrompt: () => Promise<string>
   readonly onProgress: () => void
   readonly onManualCodeInput: () => Promise<string>

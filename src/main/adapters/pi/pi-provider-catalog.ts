@@ -6,7 +6,7 @@ import {
   type ExtensionFactory,
   getAgentDir,
   ModelRegistry,
-} from '@mariozechner/pi-coding-agent'
+} from '@earendil-works/pi-coding-agent'
 import { MCP_ADAPTER_PACKAGE_SOURCES } from '@shared/constants/mcp'
 import { createModelRef } from '@shared/types/llm'
 import { withNpmCompatibleProcessEnv } from '../../env'

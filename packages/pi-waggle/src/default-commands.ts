@@ -1,4 +1,4 @@
-import type { ExtensionCommandContext } from '@mariozechner/pi-coding-agent'
+import type { ExtensionCommandContext } from '@earendil-works/pi-coding-agent'
 import { parsePiWaggleCommandArgs } from './commands'
 import { activatePreset, disableWaggle, notify, resolvePresetById } from './default-command-runtime'
 import type { DefaultWaggleCommandInput } from './default-command-types'

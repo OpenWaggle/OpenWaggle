@@ -126,12 +126,15 @@ function OAuthStatusIndicator({ rowState }: { readonly rowState: OAuthRowState }
 
 function OAuthManualCodePrompt({
   provider,
+  oauthStatus,
   submitAuthCode,
 }: {
   readonly provider: string
+  readonly oauthStatus: OAuthFlowStatus
   readonly submitAuthCode: (provider: string, code: string) => Promise<void>
 }) {
   const [pasteValue, setPasteValue] = useState('')
+  const deviceCode = oauthStatus.type === 'awaiting-code' ? oauthStatus.deviceCode : undefined
 
   function handleSubmitCode() {
     const trimmed = pasteValue.trim()
@@ -143,10 +146,20 @@ function OAuthManualCodePrompt({
 
   return (
     <div className="mx-5 mb-3 space-y-2">
-      <p className="text-[11px] text-text-tertiary">
-        Pi is waiting for the browser callback. If it does not finish automatically, paste the OAuth
-        code or callback URL here.
-      </p>
+      {deviceCode ? (
+        <div className="space-y-1 rounded-lg border border-input-card-border bg-input-card px-3 py-2">
+          <p className="text-[11px] text-text-tertiary">Enter this code in the browser window:</p>
+          <p className="font-mono text-[16px] font-semibold tracking-normal text-text-primary">
+            {deviceCode.userCode}
+          </p>
+          <p className="break-all text-[11px] text-text-muted">{deviceCode.verificationUri}</p>
+        </div>
+      ) : (
+        <p className="text-[11px] text-text-tertiary">
+          Pi is waiting for the browser callback. If it does not finish automatically, paste the
+          OAuth code or callback URL here.
+        </p>
+      )}
       <div className="flex items-center gap-2">
         <TextInput
           type="text"
@@ -245,7 +258,11 @@ export function OAuthProviderRow({ providerInfo, isLast }: OAuthProviderRowProps
       </div>
 
       {rowState.isAwaitingCode && (
-        <OAuthManualCodePrompt provider={provider} submitAuthCode={submitAuthCode} />
+        <OAuthManualCodePrompt
+          provider={provider}
+          oauthStatus={oauthStatus}
+          submitAuthCode={submitAuthCode}
+        />
       )}
 
       {rowState.isError && oauthStatus.type === 'error' && (

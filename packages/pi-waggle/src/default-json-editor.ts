@@ -1,4 +1,4 @@
-import type { ExtensionCommandContext } from '@mariozechner/pi-coding-agent'
+import type { ExtensionCommandContext } from '@earendil-works/pi-coding-agent'
 import type { WaggleConfig, WagglePreset } from '@openwaggle/waggle-core'
 
 const EDITOR_JSON_INDENT_SPACES = 2

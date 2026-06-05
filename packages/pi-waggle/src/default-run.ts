@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { ExtensionAPI, ExtensionContext, InputEvent } from '@mariozechner/pi-coding-agent'
+import type { ExtensionAPI, ExtensionContext, InputEvent } from '@earendil-works/pi-coding-agent'
 import type { WaggleConfig, WaggleTurn } from '@openwaggle/waggle-core'
 import { buildWaggleTurnPrompt, getWaggleTurn } from '@openwaggle/waggle-core'
 import type { StartDefaultPiWaggleRun } from './default-command-types'

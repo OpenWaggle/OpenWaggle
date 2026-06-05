@@ -1,4 +1,4 @@
-import type { AgentSessionServices } from '@mariozechner/pi-coding-agent'
+import type { AgentSessionServices } from '@earendil-works/pi-coding-agent'
 import type {
   McpConfigFile,
   McpConfigSourceId,

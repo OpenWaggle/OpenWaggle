@@ -4,7 +4,7 @@ import type {
   CreateAgentSessionServicesOptions,
   ExtensionFactory,
   SettingsManager,
-} from '@mariozechner/pi-coding-agent'
+} from '@earendil-works/pi-coding-agent'
 import { normalizeSkillId } from '@shared/utils/skill-id'
 import { isPathInside } from '../../utils/paths'
 import type { OpenWaggleMcpRuntimeContext } from './pi-mcp-config-service'

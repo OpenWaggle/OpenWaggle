@@ -3,7 +3,7 @@ import type {
   ExtensionAPI,
   ExtensionContext,
   InputEvent,
-} from '@mariozechner/pi-coding-agent'
+} from '@earendil-works/pi-coding-agent'
 import { buildWaggleTurnPrompt } from '@openwaggle/waggle-core'
 import { defaultWaggleCommandCompletions, handleDefaultWaggleCommand } from './default-commands'
 import {

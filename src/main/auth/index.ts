@@ -122,6 +122,16 @@ async function runOAuthFlow(
               emitStatus({ type: 'awaiting-code', provider })
             }
           },
+          onDeviceCode: (deviceCode) => {
+            void shell.openExternal(deviceCode.verificationUri).catch((error) => {
+              logger.warn('Failed to open OAuth device-code URL', {
+                provider,
+                error: error instanceof Error ? error.message : String(error),
+              })
+            })
+            emitStatus({ type: 'awaiting-code', provider, deviceCode })
+          },
+          onSelect: async (selection) => selection.options[0]?.id,
           onPrompt: async () => {
             emitStatus({ type: 'awaiting-code', provider })
             return createManualCodePromise(provider)

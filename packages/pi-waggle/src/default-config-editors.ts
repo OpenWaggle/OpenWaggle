@@ -2,7 +2,7 @@ import type {
   ExtensionAPI,
   ExtensionCommandContext,
   ExtensionContext,
-} from '@mariozechner/pi-coding-agent'
+} from '@earendil-works/pi-coding-agent'
 import {
   MAX_WAGGLE_MAX_TURNS_SAFETY,
   MIN_WAGGLE_MAX_TURNS_SAFETY,

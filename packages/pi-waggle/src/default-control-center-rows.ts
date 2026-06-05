@@ -1,4 +1,4 @@
-import type { ExtensionCommandContext, ExtensionContext } from '@mariozechner/pi-coding-agent'
+import type { ExtensionCommandContext, ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { isWaggleInheritedModel, type WaggleConfig } from '@openwaggle/waggle-core'
 import { type ActiveWaggleState, latestActiveState } from './default-command-runtime'
 import { modelReferenceForCurrentModel } from './default-config-editors'

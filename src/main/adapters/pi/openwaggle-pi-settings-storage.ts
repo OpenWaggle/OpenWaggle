@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { getAgentDir, SettingsManager } from '@mariozechner/pi-coding-agent'
+import { getAgentDir, SettingsManager } from '@earendil-works/pi-coding-agent'
 import { decodeUnknownOrThrow, type SchemaType } from '@shared/schema'
 import { jsonObjectSchema, projectSettingsFileSchema } from '@shared/schemas/validation'
 import type { JsonObject, JsonValue } from '@shared/types/json'
