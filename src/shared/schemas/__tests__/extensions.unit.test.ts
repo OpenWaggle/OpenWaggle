@@ -70,6 +70,86 @@ describe('openWaggleExtensionManifestSchema', () => {
     }
   })
 
+  it('accepts optional project and session targets on contributions', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      contributions: {
+        commands: [
+          {
+            id: 'sample.targeted-command',
+            title: 'Run Targeted Command',
+            target: {
+              projectPaths: ['/tmp/project'],
+              sessionIds: ['session-1'],
+            },
+          },
+        ],
+        sidePanels: [
+          {
+            id: 'sample.targeted-panel',
+            title: 'Targeted Panel',
+            runtime: 'federated-module',
+            execution: 'frame',
+            entry: 'dist/panel.js',
+            target: {
+              projectPaths: ['/tmp/project'],
+            },
+          },
+        ],
+      },
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.contributions?.commands?.[0]?.target).toEqual({
+        projectPaths: ['/tmp/project'],
+        sessionIds: ['session-1'],
+      })
+    }
+  })
+
+  it('accepts exact https network origins', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      network: {
+        origins: ['https://api.github.com'],
+      },
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.network?.origins).toEqual(['https://api.github.com'])
+    }
+  })
+
+  it('rejects non-https network origins', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      network: {
+        origins: ['http://api.github.com'],
+      },
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.issues.join('\n')).toContain('network.origins.0')
+    }
+  })
+
+  it('rejects network origins with paths', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      network: {
+        origins: ['https://api.github.com/repos'],
+      },
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.issues.join('\n')).toContain('network.origins.0')
+    }
+  })
+
   it('rejects obsolete lane-only UI contribution metadata', () => {
     const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
       ...validManifest,
@@ -159,6 +239,42 @@ describe('openWaggleExtensionManifestSchema', () => {
     expect(result.success).toBe(false)
     if (!result.success) {
       expect(result.issues.join('\n')).toContain('single command line')
+    }
+  })
+
+  it('accepts external binary runtime requirements', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      runtimeRequirements: [
+        {
+          id: 'sample.ripgrep',
+          label: 'Ripgrep',
+          binary: 'rg',
+        },
+      ],
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.runtimeRequirements?.[0]?.binary).toBe('rg')
+    }
+  })
+
+  it('rejects runtime requirement binary paths', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      runtimeRequirements: [
+        {
+          id: 'sample.ripgrep',
+          label: 'Ripgrep',
+          binary: '/usr/bin/rg',
+        },
+      ],
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.issues.join('\n')).toContain('executable name')
     }
   })
 })

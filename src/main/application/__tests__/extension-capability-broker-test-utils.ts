@@ -1,9 +1,7 @@
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import { SessionBranchId, SessionId } from '@shared/types/brand'
 import type { ExtensionInvokeInput } from '@shared/types/extension-broker'
 import type { SessionDetail, SessionTree } from '@shared/types/session'
-import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import type { DiscoveredExtensionPackage, ExtensionLifecycleState } from '../../extensions/types'
@@ -15,8 +13,13 @@ import { SessionProjectionRepository } from '../../ports/session-projection-repo
 import { SessionRepository } from '../../ports/session-repository'
 import type { AppLoggerService } from '../../services/logger-service'
 import { AppLogger } from '../../services/logger-service'
-import { SettingsService } from '../../services/settings-service'
 import { invokeExtensionCapability } from '../extension-capability-broker-service'
+import {
+  BROKER_BRANCH_ID,
+  BROKER_SESSION_ID,
+  makeSessionDetail,
+} from './extension-capability-broker-session-test-utils'
+import { makeBrokerSettingsLayer } from './extension-capability-broker-settings-test-utils'
 import { makeExtensionStorageRepositoryLayer } from './extension-capability-broker-storage-repository-test-utils'
 import {
   makePackage,
@@ -27,8 +30,13 @@ import {
 export const BROKER_EXTENSION_ID = 'broker-extension'
 export const BROKER_CONTRIBUTION_ID = 'broker.run'
 export const TIMESTAMP = 1234
-export const SESSION_ID = SessionId('session-1')
-export const BRANCH_ID = SessionBranchId('session-1:main')
+export const SESSION_ID = BROKER_SESSION_ID
+export const BRANCH_ID = BROKER_BRANCH_ID
+
+export {
+  makeSessionDetail,
+  makeSessionTree,
+} from './extension-capability-broker-session-test-utils'
 
 export interface CapturedLog {
   readonly namespace: string
@@ -59,46 +67,6 @@ export function makeBrokerPackage() {
       ],
     },
   })
-}
-
-export function makeSessionDetail(projectPath: string): SessionDetail {
-  return {
-    id: SESSION_ID,
-    title: 'Session',
-    projectPath,
-    messages: [],
-    createdAt: 1,
-    updatedAt: 2,
-  }
-}
-
-export function makeSessionTree(projectPath: string): SessionTree {
-  return {
-    session: {
-      id: SESSION_ID,
-      title: 'Session',
-      projectPath,
-      createdAt: 1,
-      updatedAt: 2,
-      lastActiveBranchId: BRANCH_ID,
-    },
-    nodes: [],
-    branches: [
-      {
-        id: BRANCH_ID,
-        sessionId: SESSION_ID,
-        sourceNodeId: null,
-        headNodeId: null,
-        name: 'main',
-        isMain: true,
-        archivedAt: null,
-        createdAt: 1,
-        updatedAt: 2,
-      },
-    ],
-    branchStates: [],
-    uiState: null,
-  }
 }
 
 function scopesMatch(
@@ -163,16 +131,7 @@ function makeBrokerLayer(input: {
   return Layer.mergeAll(
     makeLoggerLayer(input.capturedLogs),
     makeExtensionStorageRepositoryLayer(input.storageItems),
-    Layer.succeed(SettingsService, {
-      get: () =>
-        Effect.succeed({
-          ...DEFAULT_SETTINGS,
-          projectPath: input.currentProjectPath,
-        }),
-      update: () => Effect.void,
-      initialize: () => Effect.void,
-      flushForTests: () => Effect.void,
-    }),
+    makeBrokerSettingsLayer(input.currentProjectPath),
     Layer.succeed(ExtensionManagerService, {
       listPackages: ({ projectPath }) =>
         Effect.succeed(

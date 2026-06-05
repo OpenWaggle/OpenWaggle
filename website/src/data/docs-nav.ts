@@ -49,6 +49,7 @@ export const docsNav: NavSection[] = [
       { title: 'Skills System', slug: 'extending/skills-system' },
       { title: 'AGENTS.md', slug: 'extending/agents-md' },
       { title: 'Pi Extensions', slug: 'extending/pi-extensions' },
+      { title: 'OpenWaggle Extensions', slug: 'extending/openwaggle-extensions' },
       { title: 'Plugins', slug: 'extending/plugins' },
     ],
   },

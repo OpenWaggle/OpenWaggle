@@ -1,3 +1,4 @@
+import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { DEFAULT_SETTINGS } from '@shared/types/settings'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -11,6 +12,8 @@ const PROJECT_PATH = '/tmp/project'
 
 const { apiMock, navigateMock } = vi.hoisted(() => ({
   apiMock: {
+    getProjectPreferences: vi.fn(),
+    getSettings: vi.fn(),
     invokeExtension: vi.fn(),
     listExtensionContributions: vi.fn(),
     listWagglePresets: vi.fn(),
@@ -43,6 +46,8 @@ function renderWithQueryClient() {
 
 describe('CommandPalette extension commands', () => {
   beforeEach(() => {
+    apiMock.getProjectPreferences.mockReset()
+    apiMock.getSettings.mockReset()
     apiMock.invokeExtension.mockReset()
     apiMock.listExtensionContributions.mockReset()
     apiMock.listWagglePresets.mockReset()
@@ -68,6 +73,8 @@ describe('CommandPalette extension commands', () => {
         timestamp: 1,
       },
     })
+    apiMock.getSettings.mockResolvedValue({ ...DEFAULT_SETTINGS, projectPath: PROJECT_PATH })
+    apiMock.getProjectPreferences.mockResolvedValue(null)
     apiMock.listWagglePresets.mockResolvedValue([])
     useComposerStore.setState(useComposerStore.getInitialState())
     apiMock.listExtensionContributions.mockResolvedValue({
@@ -107,6 +114,46 @@ describe('CommandPalette extension commands', () => {
       isLoaded: true,
       loadError: null,
     })
+  })
+
+  it('refreshes preferences after extension commands mutate OpenWaggle settings', async () => {
+    const selectedProjectPath = '/tmp/other-project'
+    apiMock.invokeExtension.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        extensionId: 'sample-extension',
+        contributionId: 'sample.run',
+        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.ACTIONS,
+        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.SELECT_PROJECT,
+        previousProjectPath: PROJECT_PATH,
+        projectPath: selectedProjectPath,
+        recentProjects: [selectedProjectPath],
+      },
+      audit: {
+        extensionId: 'sample-extension',
+        contributionId: 'sample.run',
+        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.ACTIONS,
+        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.SELECT_PROJECT,
+        scope: { kind: 'app' },
+        outcome: OPENWAGGLE_EXTENSION_BROKER.OUTCOME.SUCCEEDED,
+        timestamp: 1,
+      },
+    })
+    apiMock.getSettings.mockResolvedValueOnce({
+      ...DEFAULT_SETTINGS,
+      projectPath: selectedProjectPath,
+      recentProjects: [selectedProjectPath],
+    })
+
+    renderWithQueryClient()
+
+    fireEvent.click(await screen.findByRole('button', { name: /run sample extension/i }))
+
+    await waitFor(() => {
+      expect(apiMock.getSettings).toHaveBeenCalledOnce()
+    })
+    expect(apiMock.getProjectPreferences).toHaveBeenCalledWith(selectedProjectPath)
+    expect(usePreferencesStore.getState().settings.projectPath).toBe(selectedProjectPath)
   })
 
   it('routes extension command selections through the broker API', async () => {

@@ -52,6 +52,11 @@ function normalizeProjectPaths(projectPaths: readonly string[] | undefined) {
   return normalizedProjectPaths
 }
 
+function normalizeSessionId(sessionId: string | undefined) {
+  const normalized = sessionId?.trim()
+  return normalized && normalized.length > 0 ? normalized : undefined
+}
+
 function isGlobalPackage(extensionPackage: DiscoveredExtensionPackage) {
   return extensionPackage.scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND
 }
@@ -222,6 +227,7 @@ function packageToContributionEntriesSafely(input: {
   readonly lifecycle: ExtensionLifecycleState | null
   readonly projectOverrides: readonly ExtensionContributionProjectOverrideLookup[]
   readonly requestedProjectPaths: readonly string[]
+  readonly requestedSessionId: string | undefined
 }) {
   return Effect.try({
     try: () => packageToContributionEntries(input),
@@ -268,6 +274,7 @@ export function listExtensionContributionRegistryView(input: ExtensionListContri
           lifecycle: lifecycleLookup.lifecycle,
           projectOverrides,
           requestedProjectPaths: projectPaths,
+          requestedSessionId: normalizeSessionId(input.sessionId),
         })
 
         return {

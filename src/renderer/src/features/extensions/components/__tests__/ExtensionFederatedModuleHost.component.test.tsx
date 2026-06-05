@@ -5,7 +5,7 @@ import type { ExtensionContributionRegistryEntry } from '@shared/types/extension
 import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  createExtensionFrameSrcDoc,
+  createExtensionFrameDocument,
   EXTENSION_FEDERATED_MODULE_IFRAME_SANDBOX,
 } from '../../lib/extension-frame-host'
 import { ExtensionFederatedModuleHost } from '../ExtensionFederatedModuleHost'
@@ -106,12 +106,9 @@ describe('ExtensionFederatedModuleHost', () => {
     expect(screen.getByText(/Mounting extension module/)).toBeInTheDocument()
 
     await waitFor(() => {
-      expect(frame.srcdoc).toContain('openwaggle-extension://runtime/module/')
+      expect(frame).toHaveAttribute('src', expect.stringContaining('blob:'))
     })
-    expect(frame.srcdoc).toContain('%5B%22%2Ftmp%2Fproject%22%5D')
-    expect(frame.srcdoc).toContain('packageConfig')
-    expect(frame.srcdoc).toContain('packageState')
-    expect(frame.srcdoc).not.toContain('window.api')
+    expect(frame).not.toHaveAttribute('srcdoc')
 
     dispatchFrameMessage(frame, { type: 'mounted' })
 
@@ -120,17 +117,17 @@ describe('ExtensionFederatedModuleHost', () => {
     })
   })
 
-  it('creates frame srcdoc with static bootstrap code and data-only mount configuration', () => {
-    const srcDoc = createExtensionFrameSrcDoc({
+  it('creates frame document with static bootstrap code and data-only mount configuration', () => {
+    const frameDocument = createExtensionFrameDocument({
       entry: ENTRY,
       frameId: 'frame-1',
       moduleUrl:
         'openwaggle-extension://runtime/module/%2Ftmp%2Fproject%2F.openwaggle%2Fextensions%2Fsample-extension/abcdef/%5B%22%2Ftmp%2Fproject%22%5D/dist/settings.js',
     })
 
-    expect(srcDoc).toContain('data-openwaggle-config=')
-    expect(srcDoc).toContain('openwaggle-extension://runtime/module/')
-    expect(srcDoc).not.toContain('window.api')
+    expect(frameDocument).toContain('data-openwaggle-config=')
+    expect(frameDocument).toContain('openwaggle-extension://runtime/module/')
+    expect(frameDocument).not.toContain('window.api')
   })
 
   it('proxies valid SDK invocations through the bound contribution identity', async () => {
@@ -262,6 +259,14 @@ describe('ExtensionFederatedModuleHost', () => {
     const { unmount } = render(<ExtensionFederatedModuleHost entry={ENTRY} />)
     const frame = extensionFrame()
     const postMessage = vi.spyOn(extensionFrameWindow(frame), 'postMessage')
+    const revokeObjectUrl = vi.spyOn(URL, 'revokeObjectURL')
+    await waitFor(() => {
+      expect(frame).toHaveAttribute('src', expect.stringContaining('blob:'))
+    })
+    const frameUrl = frame.getAttribute('src')
+    if (frameUrl === null) {
+      throw new Error('Expected extension frame document URL.')
+    }
 
     unmount()
 
@@ -273,6 +278,7 @@ describe('ExtensionFederatedModuleHost', () => {
       }),
       '*',
     )
+    expect(revokeObjectUrl).toHaveBeenCalledWith(frameUrl)
   })
 
   it('mounts frame execution through the same isolated federated module contract', async () => {
@@ -287,10 +293,9 @@ describe('ExtensionFederatedModuleHost', () => {
     expect(screen.getByText(/Mounting extension module/)).toBeInTheDocument()
 
     await waitFor(() => {
-      expect(frame.srcdoc).toContain('openwaggle-extension://runtime/module/')
+      expect(frame).toHaveAttribute('src', expect.stringContaining('blob:'))
     })
-    expect(frame.srcdoc).toContain('&quot;execution&quot;:&quot;frame&quot;')
-    expect(frame.srcdoc).not.toContain('window.api')
+    expect(frame).not.toHaveAttribute('srcdoc')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

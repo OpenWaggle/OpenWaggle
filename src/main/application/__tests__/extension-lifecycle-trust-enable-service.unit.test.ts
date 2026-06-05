@@ -138,6 +138,30 @@ describe('extension trust and enable lifecycle mutations', () => {
     ).rejects.toThrow(OPENWAGGLE_EXTENSION.LIFECYCLE.BUILD_APPROVAL_REQUIRED_ERROR)
   })
 
+  it('rejects trusting an extension with missing runtime requirements', async () => {
+    const runtimeRequirementPackage: DiscoveredExtensionPackage = {
+      ...discoveredPackage,
+      diagnostics: [
+        {
+          severity: OPENWAGGLE_EXTENSION.DIAGNOSTIC.SEVERITY.ERROR,
+          code: OPENWAGGLE_EXTENSION.DIAGNOSTIC.CODE.RUNTIME_REQUIREMENT_MISSING,
+          message: 'Missing runtime requirement "Missing CLI".',
+        },
+      ],
+    }
+    const harness = makeTestHarness({ packages: [runtimeRequirementPackage], lifecycle: null })
+
+    await expect(
+      Effect.runPromise(
+        setExtensionTrusted({
+          extensionId: 'sample-extension',
+          scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: PROJECT_PATH },
+          trusted: true,
+        }).pipe(Effect.provide(harness.layer)),
+      ),
+    ).rejects.toThrow(OPENWAGGLE_EXTENSION.DIAGNOSTIC.CODE.RUNTIME_REQUIREMENT_MISSING)
+  })
+
   it('rejects generic trust repinning when a trusted package changed', async () => {
     const updatedPackage = { ...discoveredPackage, contentHash: 'changed-hash' }
     const harness = makeTestHarness({ packages: [updatedPackage], lifecycle: lifecycleState })

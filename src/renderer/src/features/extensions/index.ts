@@ -6,6 +6,7 @@ export {
   ExtensionSidePanelSurfaceContent,
 } from './components/ExtensionSidePanelSurface'
 export { useExtensionSidePanelContributions } from './hooks/useExtensionSidePanelContributions'
+export { refreshPreferencesAfterExtensionInvoke } from './lib/extension-broker-preferences'
 export type {
   ExtensionFederatedModuleLoader,
   OpenWaggleExtensionMountContext,

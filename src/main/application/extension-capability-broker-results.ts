@@ -4,6 +4,11 @@ import type { ExtensionInvokeInput } from '@shared/types/extension-broker'
 import type { ExtensionPackageScope } from '../extensions/types'
 import { auditedFailure, auditedSuccess } from './extension-capability-broker-audit'
 import { hostContextPayloadIsValid } from './extension-capability-broker-model'
+import {
+  routeActionCapability,
+  routeSettingsCapability,
+  routeStateCapability,
+} from './extension-capability-broker-openwaggle'
 import { routeStorageCapability } from './extension-capability-broker-storage-dispatch'
 
 export function routeAuthorizedInvocation(input: {
@@ -14,6 +19,18 @@ export function routeAuthorizedInvocation(input: {
 }) {
   if (input.invocation.capability === OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE) {
     return routeStorageCapability(input)
+  }
+
+  if (input.invocation.capability === OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE) {
+    return routeStateCapability(input)
+  }
+
+  if (input.invocation.capability === OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.ACTIONS) {
+    return routeActionCapability(input)
+  }
+
+  if (input.invocation.capability === OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS) {
+    return routeSettingsCapability(input)
   }
 
   if (input.invocation.capability !== OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.HOST_CONTEXT) {

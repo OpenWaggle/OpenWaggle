@@ -1,13 +1,15 @@
-const STORAGE_CONFIG = 'config'
-const STORAGE_STATE = 'state'
-const CONFIG_KEY = 'github.issues.config'
-const SUMMARY_KEY = 'github.issues.summary'
-
-const DEFAULT_CONFIG = {
-  owner: 'OpenWaggle',
-  repo: 'OpenWaggle',
-  labels: ['enhancement', 'ready-for-agent'],
-}
+import {
+  CONFIG_KEY,
+  fetchIssueSummary,
+  getStoredValue,
+  normalizeConfig,
+  normalizeLabels,
+  normalizeSummary,
+  STORAGE_CONFIG,
+  STORAGE_STATE,
+  SUMMARY_KEY,
+  setStoredValue,
+} from './github-api.js'
 
 function element(tagName, options = {}) {
   const node = document.createElement(tagName)
@@ -18,96 +20,6 @@ function element(tagName, options = {}) {
     node.textContent = options.text
   }
   return node
-}
-
-function firstProjectPath(context) {
-  return context.projectPaths[0] ?? null
-}
-
-function projectScope(context) {
-  const projectPath = firstProjectPath(context)
-  if (!projectPath) {
-    throw new Error('GitHub Issues Overview fixture requires a project-scoped mount.')
-  }
-  return { kind: 'project', projectPath }
-}
-
-function packageStorage(context, storageKind) {
-  return storageKind === STORAGE_CONFIG
-    ? context.sdk.storage.packageConfig
-    : context.sdk.storage.packageState
-}
-
-function storedResultValue(result) {
-  if (!result.ok) {
-    throw new Error(result.error.message)
-  }
-
-  return result.value
-}
-
-async function getStoredValue(context, storageKind, key) {
-  const value = await packageStorage(context, storageKind).project.get(projectScope(context), key)
-  return storedResultValue(value).value
-}
-
-async function setStoredValue(context, storageKind, key, value) {
-  const result = await packageStorage(context, storageKind).project.set(
-    projectScope(context),
-    key,
-    value,
-  )
-  return storedResultValue(result)
-}
-
-function normalizeLabels(value) {
-  return value
-    .split(',')
-    .map((label) => label.trim())
-    .filter((label) => label.length > 0)
-}
-
-function normalizeConfig(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return DEFAULT_CONFIG
-  }
-
-  const owner =
-    typeof value.owner === 'string' && value.owner.trim() ? value.owner.trim() : 'OpenWaggle'
-  const repo =
-    typeof value.repo === 'string' && value.repo.trim() ? value.repo.trim() : 'OpenWaggle'
-  const labels = Array.isArray(value.labels)
-    ? value.labels
-        .filter((label) => typeof label === 'string' && label.trim())
-        .map((label) => label.trim())
-    : DEFAULT_CONFIG.labels
-
-  return { owner, repo, labels }
-}
-
-function stableNumber(seed) {
-  let total = 0
-  for (const char of seed) {
-    total = (total + char.charCodeAt(0)) % 997
-  }
-  return total
-}
-
-function makeSummary(config) {
-  const seed = `${config.owner}/${config.repo}:${config.labels.join(',')}`
-  const base = stableNumber(seed)
-  const open = (base % 37) + 3
-  const stale = Math.floor(open / 3)
-  const ready = Math.max(1, Math.floor(open / 4))
-
-  return {
-    repository: `${config.owner}/${config.repo}`,
-    open,
-    stale,
-    ready,
-    labels: config.labels,
-    updatedAt: new Date().toISOString(),
-  }
 }
 
 function field(label, value) {
@@ -124,7 +36,38 @@ function renderError(root, message) {
   root.append(element('div', { className: 'error', text: message }))
 }
 
-function renderSettings(context, config, summary) {
+function renderMetrics(summary) {
+  const metrics = element('div', { className: 'grid' })
+  for (const metric of [
+    ['Open', summary.open],
+    ['Stale', summary.stale],
+    ['Ready', summary.ready],
+  ]) {
+    const box = element('div', { className: 'metric' })
+    box.append(element('strong', { text: String(metric[1]) }), element('span', { text: metric[0] }))
+    metrics.append(box)
+  }
+  return metrics
+}
+
+async function loadLiveSummary(context, config) {
+  try {
+    const summary = await fetchIssueSummary(config)
+    await setStoredValue(context, STORAGE_STATE, SUMMARY_KEY, summary)
+    return { summary, warning: null }
+  } catch (error) {
+    const storedSummary = normalizeSummary(
+      await getStoredValue(context, STORAGE_STATE, SUMMARY_KEY),
+    )
+    if (storedSummary) {
+      const message = error instanceof Error ? error.message : String(error)
+      return { summary: storedSummary, warning: `GitHub refresh failed: ${message}` }
+    }
+    throw error
+  }
+}
+
+function renderSettings(context, config, summary, warning) {
   const root = context.root
   root.replaceChildren()
 
@@ -143,6 +86,7 @@ function renderSettings(context, config, summary) {
     input:focus { border-color: #f0a000; box-shadow: 0 0 0 2px rgba(240, 160, 0, .18); }
     button { justify-self: start; border: 1px solid #b77900; border-radius: 9px; background: #f0a000; color: #1a1200; font-weight: 700; padding: 9px 12px; cursor: pointer; }
     .saved { min-height: 18px; color: #7ee787; font-size: 12px; }
+    .warning { color: #f7c45f; font-size: 12px; }
     .error { color: #ff7b72; border: 1px solid rgba(255, 123, 114, .3); border-radius: 10px; padding: 12px; background: rgba(255, 123, 114, .08); }
   `
 
@@ -151,24 +95,24 @@ function renderSettings(context, config, summary) {
   const repoField = field('Repository name', config.repo)
   const labelsField = field('Tracked labels', config.labels.join(', '))
   const status = element('div', { className: 'saved' })
-  const save = element('button', { text: 'Save fixture state' })
+  const save = element('button', { text: 'Fetch and save GitHub issues' })
 
   save.addEventListener('click', async () => {
     try {
-      save.textContent = 'Saving...'
+      save.textContent = 'Fetching...'
       const nextConfig = {
         owner: ownerField.input.value.trim(),
         repo: repoField.input.value.trim(),
         labels: normalizeLabels(labelsField.input.value),
       }
-      const nextSummary = makeSummary(nextConfig)
+      const nextSummary = await fetchIssueSummary(nextConfig)
       await setStoredValue(context, STORAGE_CONFIG, CONFIG_KEY, nextConfig)
       await setStoredValue(context, STORAGE_STATE, SUMMARY_KEY, nextSummary)
-      renderSettings(context, nextConfig, nextSummary)
+      renderSettings(context, normalizeConfig(nextConfig), nextSummary, null)
     } catch (error) {
       status.textContent = error instanceof Error ? error.message : String(error)
     } finally {
-      save.textContent = 'Save fixture state'
+      save.textContent = 'Fetch and save GitHub issues'
     }
   })
 
@@ -177,22 +121,21 @@ function renderSettings(context, config, summary) {
     element('h2', { className: 'title', text: 'GitHub Issues Overview' }),
     element('p', {
       className: 'muted',
-      text: 'This settings surface writes project-scoped config and issue summary state through the brokered extension storage capability. The side panel reads the same package state.',
+      text: 'This settings surface fetches public GitHub issues and stores the live summary through the brokered extension storage capability. The side panel reads and refreshes the same package state.',
     }),
+    renderMetrics(summary),
+    ownerField.wrapper,
+    repoField.wrapper,
+    labelsField.wrapper,
+    save,
+    element('div', { className: 'muted', text: summary.updatedAt }),
+    status,
   )
 
-  const metrics = element('div', { className: 'grid' })
-  for (const metric of [
-    ['Open', summary.open],
-    ['Stale', summary.stale],
-    ['Ready', summary.ready],
-  ]) {
-    const box = element('div', { className: 'metric' })
-    box.append(element('strong', { text: String(metric[1]) }), element('span', { text: metric[0] }))
-    metrics.append(box)
+  if (warning) {
+    card.append(element('div', { className: 'warning', text: warning }))
   }
 
-  card.append(metrics, ownerField.wrapper, repoField.wrapper, labelsField.wrapper, save, status)
   root.append(style, card)
 }
 
@@ -200,10 +143,8 @@ export async function mount(context) {
   try {
     const storedConfig = await getStoredValue(context, STORAGE_CONFIG, CONFIG_KEY)
     const config = normalizeConfig(storedConfig)
-    const storedSummary = await getStoredValue(context, STORAGE_STATE, SUMMARY_KEY)
-    const summary =
-      storedSummary && typeof storedSummary === 'object' ? storedSummary : makeSummary(config)
-    renderSettings(context, config, summary)
+    const { summary, warning } = await loadLiveSummary(context, config)
+    renderSettings(context, config, summary, warning)
   } catch (error) {
     renderError(context.root, error instanceof Error ? error.message : String(error))
   }

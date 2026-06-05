@@ -2,7 +2,7 @@ import type {
   ExtensionContributionRegistryEntry,
   ExtensionContributionRegistryView,
 } from '@shared/types/extensions'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   SettingsContributionHost,
@@ -133,7 +133,7 @@ describe('SettingsContributionHost', () => {
     expect(screen.queryByLabelText('Extension settings contributions')).not.toBeInTheDocument()
   })
 
-  it('mounts frame execution contributions through the isolated federated frame host', () => {
+  it('mounts frame execution contributions through the isolated federated frame host', async () => {
     render(<SettingsContributionHost registry={registryWith([FRAME_ENTRY])} />)
 
     const host = screen.getByLabelText('Extension settings contributions')
@@ -141,10 +141,10 @@ describe('SettingsContributionHost', () => {
     expect(within(host).getByText('Frame')).toBeInTheDocument()
     const frame = within(host).getByTitle('Extension module: Frame settings')
     expect(frame).toHaveAttribute('sandbox', 'allow-scripts')
-    expect(frame).toHaveAttribute(
-      'srcdoc',
-      expect.stringContaining('&quot;execution&quot;:&quot;frame&quot;'),
-    )
+    await waitFor(() => {
+      expect(frame).toHaveAttribute('src', expect.stringContaining('blob:'))
+    })
+    expect(frame).not.toHaveAttribute('srcdoc')
   })
 
   it('surfaces contribution eligibility and diagnostics in the settings slot', () => {

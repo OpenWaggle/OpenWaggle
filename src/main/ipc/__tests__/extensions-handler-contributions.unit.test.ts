@@ -94,11 +94,15 @@ describe('registerExtensionsHandlers contribution registry', () => {
     try {
       const view = await handler?.(
         {},
-        { projectPaths: [firstProjectPath, secondProjectPath, firstProjectPath] },
+        {
+          projectPaths: [firstProjectPath, secondProjectPath, firstProjectPath],
+          sessionId: ' session-1 ',
+        },
       )
 
       expect(listContributionsMock).toHaveBeenCalledWith({
         projectPaths: [realFirstProjectPath, realSecondProjectPath],
+        sessionId: 'session-1',
       })
       expect(view).toMatchObject({
         projectPaths: [realFirstProjectPath, realSecondProjectPath],
@@ -118,6 +122,7 @@ describe('registerExtensionsHandlers contribution registry', () => {
     await expect(handler?.({}, '/tmp/project')).rejects.toThrow()
     await expect(handler?.({}, { projectPath: '/tmp/project' })).rejects.toThrow()
     await expect(handler?.({}, { projectPaths: [], extra: true })).rejects.toThrow()
+    await expect(handler?.({}, { projectPaths: [], sessionId: 123 })).rejects.toThrow()
     expect(listContributionsMock).not.toHaveBeenCalled()
   })
 })

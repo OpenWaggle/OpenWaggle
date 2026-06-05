@@ -1,6 +1,7 @@
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
 import {
   EXTENSION_FRAME_BOOTSTRAP_SCRIPT,
+  EXTENSION_FRAME_BOOTSTRAP_SCRIPT_HASH,
   EXTENSION_FRAME_MESSAGE_CHANNEL,
 } from '@shared/constants/extension-frame'
 import { Schema, type SchemaType, safeDecodeUnknown } from '@shared/schema'
@@ -12,6 +13,14 @@ import type { OpenWaggleExtensionMountContext } from './extension-federated-modu
 
 export const EXTENSION_FEDERATED_MODULE_IFRAME_SANDBOX = 'allow-scripts'
 const EXTENSION_FRAME_ROOT_ID = 'openwaggle-extension-root'
+const EXTENSION_FRAME_CSP = [
+  ['default-src', ["'none'"]],
+  ['script-src', [EXTENSION_FRAME_BOOTSTRAP_SCRIPT_HASH, 'openwaggle-extension:']],
+  ['script-src-elem', [EXTENSION_FRAME_BOOTSTRAP_SCRIPT_HASH, 'openwaggle-extension:']],
+  ['style-src', ["'unsafe-inline'"]],
+  ['base-uri', ["'none'"]],
+  ['form-action', ["'none'"]],
+] as const
 
 type ExtensionFrameMountContext = Omit<OpenWaggleExtensionMountContext, 'root' | 'sdk'>
 
@@ -57,6 +66,14 @@ function escapeHtml(value: string) {
     .replaceAll("'", '&#39;')
 }
 
+function escapeDoubleQuotedAttribute(value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+}
+
 function extensionFrameMountContext(entry: ExtensionContributionRegistryEntry) {
   return {
     extension: {
@@ -93,7 +110,16 @@ function extensionFrameConfig(input: {
   })
 }
 
-export function createExtensionFrameSrcDoc(input: {
+function extensionFrameCsp(entry: ExtensionContributionRegistryEntry) {
+  const directives: Array<readonly [string, readonly string[]]> = [...EXTENSION_FRAME_CSP]
+  if (entry.networkOrigins !== undefined && entry.networkOrigins.length > 0) {
+    directives.push(['connect-src', entry.networkOrigins])
+  }
+
+  return directives.map(([name, values]) => `${name} ${values.join(' ')}`).join('; ')
+}
+
+export function createExtensionFrameDocument(input: {
   readonly entry: ExtensionContributionRegistryEntry
   readonly frameId: string
   readonly moduleUrl: string
@@ -104,6 +130,7 @@ export function createExtensionFrameSrcDoc(input: {
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="${escapeDoubleQuotedAttribute(extensionFrameCsp(input.entry))}">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(input.entry.title)}</title>
 <style>

@@ -152,6 +152,7 @@ export interface ExtensionManagerView {
 
 export interface ExtensionListContributionsInput {
   readonly projectPaths?: readonly string[]
+  readonly sessionId?: string
 }
 
 export interface ExtensionContributionEligibilityView {
@@ -161,6 +162,11 @@ export interface ExtensionContributionEligibilityView {
   readonly sdkCompatible: boolean | null
   readonly updateAvailable: boolean
   readonly disabledProjectPaths: readonly string[]
+}
+
+export interface ExtensionContributionTargetView {
+  readonly projectPaths?: readonly string[]
+  readonly sessionIds?: readonly string[]
 }
 
 export interface ExtensionContributionRegistryEntry {
@@ -181,6 +187,8 @@ export interface ExtensionContributionRegistryEntry {
   readonly capability?: string
   readonly method?: string
   readonly methods?: readonly string[]
+  readonly networkOrigins?: readonly string[]
+  readonly target?: ExtensionContributionTargetView
   readonly runtime?: ExtensionContributionRuntime
   readonly execution?: ExtensionExecutionPlacement
   readonly entryPath?: string

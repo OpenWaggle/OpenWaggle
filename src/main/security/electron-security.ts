@@ -25,19 +25,23 @@ const SCRIPT_SRC_VALUES = [
 ] as const
 const STYLE_SRC_VALUES = ["'self'", "'unsafe-inline'"] as const
 const IMG_SRC_VALUES = ["'self'", 'data:'] as const
+const FRAME_SRC_VALUES = ["'self'", 'blob:'] as const
 const CONNECT_SRC_VALUES = [
   "'self'",
   'ws://localhost:*',
   'http://localhost:*',
   'https://localhost:*',
   'wss://localhost:*',
+  'https://api.github.com',
 ] as const
 
 const CSP_DIRECTIVES = [
   ['default-src', ["'self'"]],
   ['script-src', SCRIPT_SRC_VALUES],
+  ['script-src-elem', SCRIPT_SRC_VALUES],
   ['style-src', STYLE_SRC_VALUES],
   ['img-src', IMG_SRC_VALUES],
+  ['frame-src', FRAME_SRC_VALUES],
   ['connect-src', CONNECT_SRC_VALUES],
 ] as const
 

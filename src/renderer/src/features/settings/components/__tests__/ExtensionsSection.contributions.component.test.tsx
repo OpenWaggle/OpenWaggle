@@ -3,7 +3,7 @@ import type {
   ExtensionContributionRegistryView,
   ExtensionManagerView,
 } from '@shared/types/extensions'
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderWithQueryClient } from '@/test-utils/query-test-utils'
 
@@ -199,10 +199,10 @@ describe('ExtensionsSection contribution registry', () => {
     expect(within(settingsHost).getByText('Frame')).toBeInTheDocument()
     const frame = within(settingsHost).getByTitle('Extension module: Sample settings')
     expect(frame).toHaveAttribute('sandbox', 'allow-scripts')
-    expect(frame).toHaveAttribute(
-      'srcdoc',
-      expect.stringContaining('&quot;execution&quot;:&quot;frame&quot;'),
-    )
+    await waitFor(() => {
+      expect(frame).toHaveAttribute('src', expect.stringContaining('blob:'))
+    })
+    expect(frame).not.toHaveAttribute('srcdoc')
   })
 
   it('surfaces contribution registry diagnostics when no entries registered', async () => {

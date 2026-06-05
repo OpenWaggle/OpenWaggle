@@ -24,6 +24,7 @@ function makeManifest(input: {
   readonly id: string
   readonly name: string
   readonly capabilities?: OpenWaggleExtensionManifest['capabilities']
+  readonly network?: OpenWaggleExtensionManifest['network']
   readonly contributions: NonNullable<OpenWaggleExtensionManifest['contributions']>
 }): OpenWaggleExtensionManifest {
   return {
@@ -35,6 +36,7 @@ function makeManifest(input: {
     sourceFiles: ['src/index.ts'],
     builtArtifacts: ['dist/index.js'],
     ...(input.capabilities !== undefined ? { capabilities: input.capabilities } : {}),
+    ...(input.network !== undefined ? { network: input.network } : {}),
     contributions: input.contributions,
   }
 }
@@ -52,6 +54,7 @@ export function makePackage(input: {
   readonly name: string
   readonly scope: ExtensionPackageScope
   readonly capabilities?: OpenWaggleExtensionManifest['capabilities']
+  readonly network?: OpenWaggleExtensionManifest['network']
   readonly contributions: NonNullable<OpenWaggleExtensionManifest['contributions']>
 }): DiscoveredExtensionPackage {
   const packagePath = packagePathForScope(input.id, input.scope)
@@ -64,6 +67,7 @@ export function makePackage(input: {
       id: input.id,
       name: input.name,
       capabilities: input.capabilities,
+      network: input.network,
       contributions: input.contributions,
     }),
     buildPlan: null,
@@ -175,11 +179,13 @@ export async function loadRegistry(input: {
   readonly lifecycles: readonly ExtensionLifecycleState[]
   readonly projectOverrides?: readonly ExtensionProjectOverrideState[]
   readonly projectPaths: readonly string[]
+  readonly sessionId?: string
 }) {
   return Effect.runPromise(
-    listExtensionContributionRegistryView({ projectPaths: input.projectPaths }).pipe(
-      Effect.provide(makeContributionRegistryTestLayer(input)),
-    ),
+    listExtensionContributionRegistryView({
+      projectPaths: input.projectPaths,
+      ...(input.sessionId !== undefined ? { sessionId: input.sessionId } : {}),
+    }).pipe(Effect.provide(makeContributionRegistryTestLayer(input))),
   )
 }
 

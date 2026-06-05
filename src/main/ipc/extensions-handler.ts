@@ -4,6 +4,7 @@ import { type Schema, safeDecodeUnknown } from '@shared/schema'
 import {
   extensionAcceptUpdateInputSchema,
   extensionApproveBuildInputSchema,
+  extensionListContributionsInputSchema,
   extensionListPackagesInputSchema,
   extensionReloadInputSchema,
   extensionSetEnabledInputSchema,
@@ -96,13 +97,21 @@ function validateListContributionsInputShape(raw: unknown): Effect.Effect<void, 
       assertMatching(
         P.exact({
           projectPaths: P.optional(P.array(P.string)),
+          sessionId: P.optional(P.string),
         }),
         raw,
       )
     },
     catch: () =>
-      new Error('Extension contribution list input must be an object with optional projectPaths.'),
+      new Error(
+        'Extension contribution list input must be an object with optional projectPaths and sessionId.',
+      ),
   })
+}
+
+function normalizeOptionalSessionId(sessionId: string | undefined) {
+  const trimmed = sessionId?.trim()
+  return trimmed ? { sessionId: trimmed } : {}
 }
 
 function decodeListContributionsInput(
@@ -114,9 +123,9 @@ function decodeListContributionsInput(
     }
 
     yield* validateListContributionsInputShape(raw)
-    const decoded = yield* decodeSchema(extensionListPackagesInputSchema, raw)
+    const decoded = yield* decodeSchema(extensionListContributionsInputSchema, raw)
     const projectPaths = yield* validateProjectPaths(decoded.projectPaths)
-    return { projectPaths }
+    return { projectPaths, ...normalizeOptionalSessionId(decoded.sessionId) }
   })
 }
 

@@ -81,11 +81,9 @@ describe('ExtensionRouteSurfaceContent', () => {
     const frame = screen.getByTitle('Extension module: Sample route')
     expect(frame).toHaveAttribute('sandbox', 'allow-scripts')
     await waitFor(() => {
-      expect(frame).toHaveAttribute(
-        'srcdoc',
-        expect.stringContaining('openwaggle-extension://runtime/module/'),
-      )
+      expect(frame).toHaveAttribute('src', expect.stringContaining('blob:'))
     })
+    expect(frame).not.toHaveAttribute('srcdoc')
   })
 
   it('renders a contained not-found state for unknown route ids', () => {

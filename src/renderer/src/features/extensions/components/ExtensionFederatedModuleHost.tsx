@@ -6,8 +6,9 @@ import { RefreshCw, ShieldAlert } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { cn } from '@/shared/lib/cn'
 import { api } from '@/shared/lib/ipc'
+import { refreshPreferencesAfterExtensionInvoke } from '../lib/extension-broker-preferences'
 import {
-  createExtensionFrameSrcDoc,
+  createExtensionFrameDocument,
   decodeExtensionFrameMessage,
   EXTENSION_FEDERATED_MODULE_IFRAME_SANDBOX,
   type ExtensionFrameInvokeMessage,
@@ -15,6 +16,8 @@ import {
   postFrameMessage,
 } from '../lib/extension-frame-host'
 import { createExtensionModuleUrl } from '../lib/extension-module-url'
+
+const EXTENSION_FRAME_DOCUMENT_TYPE = 'text/html'
 
 type MountStatus =
   | { readonly kind: 'idle' }
@@ -76,7 +79,10 @@ function invokeBoundExtension(
     return Promise.resolve(outOfScopeInvokeFailure(projectPath))
   }
 
-  return api.invokeExtension(input)
+  return api.invokeExtension(input).then(async (result) => {
+    await refreshPreferencesAfterExtensionInvoke(result)
+    return result
+  })
 }
 
 async function handleFrameInvoke(input: {
@@ -133,6 +139,10 @@ function federatedModuleMountKey(
   return JSON.stringify([entry.extensionId, entry.contributionId, entry.execution ?? '', moduleUrl])
 }
 
+function createFrameDocumentUrl(frameDocument: string) {
+  return URL.createObjectURL(new Blob([frameDocument], { type: EXTENSION_FRAME_DOCUMENT_TYPE }))
+}
+
 function initialMountStatus(input: {
   readonly frameRuntimeSupported: boolean
   readonly moduleUrl: string | null
@@ -158,8 +168,7 @@ function mountExtensionFrame(input: MountExtensionFrameInput) {
     }
   }
 
-  const frameWindow = frame.contentWindow
-  if (!frameWindow) {
+  if (!frame.contentWindow) {
     queueMicrotask(() => {
       if (!active) {
         return
@@ -173,7 +182,6 @@ function mountExtensionFrame(input: MountExtensionFrameInput) {
       active = false
     }
   }
-  const mountedFrameWindow = frameWindow
 
   function reportMountStatus(status: MountStatus) {
     input.reportStatus({ mountKey: input.mountKey, status })
@@ -181,7 +189,7 @@ function mountExtensionFrame(input: MountExtensionFrameInput) {
 
   function handleFrameMessage(event: MessageEvent<unknown>) {
     const currentFrameWindow = input.getCurrentFrameWindow()
-    if (!active || event.source !== currentFrameWindow) {
+    if (!active || !currentFrameWindow || event.source !== currentFrameWindow) {
       return
     }
     const frameMessage = decodeExtensionFrameMessage(event.data, input.frameId)
@@ -203,23 +211,30 @@ function mountExtensionFrame(input: MountExtensionFrameInput) {
       void handleFrameInvoke({
         entry: input.entry,
         frameId: input.frameId,
-        frameWindow: mountedFrameWindow,
+        frameWindow: currentFrameWindow,
         message: frameMessage,
       })
     }
   }
 
   window.addEventListener('message', handleFrameMessage)
-  frame.srcdoc = createExtensionFrameSrcDoc({
-    entry: input.entry,
-    frameId: input.frameId,
-    moduleUrl: resolvedModuleUrl,
-  })
+  const frameDocumentUrl = createFrameDocumentUrl(
+    createExtensionFrameDocument({
+      entry: input.entry,
+      frameId: input.frameId,
+      moduleUrl: resolvedModuleUrl,
+    }),
+  )
+  frame.src = frameDocumentUrl
 
   return () => {
     active = false
-    postFrameMessage(mountedFrameWindow, input.frameId, { type: 'dispose' })
-    frame.removeAttribute('srcdoc')
+    const currentFrameWindow = frame.contentWindow
+    if (currentFrameWindow) {
+      postFrameMessage(currentFrameWindow, input.frameId, { type: 'dispose' })
+    }
+    frame.removeAttribute('src')
+    URL.revokeObjectURL(frameDocumentUrl)
     window.removeEventListener('message', handleFrameMessage)
   }
 }

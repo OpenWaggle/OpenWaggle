@@ -8,6 +8,9 @@ const CHANNEL = 'openwaggle-extension-frame';
 const BROKER_CAPABILITY = {
   HOST_CONTEXT: '${OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.HOST_CONTEXT}',
   STORAGE: '${OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE}',
+  STATE: '${OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STATE}',
+  ACTIONS: '${OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.ACTIONS}',
+  SETTINGS: '${OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS}',
 };
 const BROKER_METHOD = {
   GET_SCOPE: '${OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SCOPE}',
@@ -15,6 +18,10 @@ const BROKER_METHOD = {
   SET: '${OPENWAGGLE_EXTENSION_BROKER.METHOD.SET}',
   DELETE: '${OPENWAGGLE_EXTENSION_BROKER.METHOD.DELETE}',
   LIST: '${OPENWAGGLE_EXTENSION_BROKER.METHOD.LIST}',
+  GET_STATE: '${OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_STATE}',
+  SELECT_PROJECT: '${OPENWAGGLE_EXTENSION_BROKER.METHOD.SELECT_PROJECT}',
+  GET_SETTINGS: '${OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTINGS}',
+  UPDATE_SETTINGS: '${OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTINGS}',
 };
 const STORAGE_KIND = {
   STATE: '${OPENWAGGLE_EXTENSION.STORAGE.KIND.STATE}',
@@ -137,7 +144,46 @@ function createStorageKindSdk(storageKind) {
   };
 }
 
-function createOpenWaggleSdk() {
+function createOpenWaggleHostSdk() {
+  return {
+    state: {
+      get: (scope) =>
+        invoke({
+          capability: BROKER_CAPABILITY.STATE,
+          method: BROKER_METHOD.GET_STATE,
+          scope,
+          payload: {},
+        }),
+    },
+    actions: {
+      selectProject: (scope, projectPath) =>
+        invoke({
+          capability: BROKER_CAPABILITY.ACTIONS,
+          method: BROKER_METHOD.SELECT_PROJECT,
+          scope,
+          payload: { projectPath },
+        }),
+    },
+    settings: {
+      get: (scope) =>
+        invoke({
+          capability: BROKER_CAPABILITY.SETTINGS,
+          method: BROKER_METHOD.GET_SETTINGS,
+          scope,
+          payload: {},
+        }),
+      update: (scope, settings) =>
+        invoke({
+          capability: BROKER_CAPABILITY.SETTINGS,
+          method: BROKER_METHOD.UPDATE_SETTINGS,
+          scope,
+          payload: settings,
+        }),
+    },
+  };
+}
+
+function createExtensionSdk() {
   return {
     invoke,
     hostContext: {
@@ -153,6 +199,7 @@ function createOpenWaggleSdk() {
       packageState: createStorageKindSdk(STORAGE_KIND.STATE),
       packageConfig: createStorageKindSdk(STORAGE_KIND.CONFIG),
     },
+    openWaggle: createOpenWaggleHostSdk(),
   };
 }
 
@@ -195,7 +242,7 @@ try {
   const mountResult = await extensionModule.mount({
     ...config.context,
     root,
-    sdk: createOpenWaggleSdk(),
+    sdk: createExtensionSdk(),
   });
 
   if (typeof mountResult === 'function') {
@@ -219,4 +266,4 @@ try {
 `.trim()
 
 export const EXTENSION_FRAME_BOOTSTRAP_SCRIPT_HASH =
-  "'sha256-x35ut7GCp8wd7HooET/EsZ5+RGvrULDTpXQSay10pW8='"
+  "'sha256-cksM2nZSqi0zOk2pryOur4Xs/F1HhIe5ZYO7mMP+K8A='"

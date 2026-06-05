@@ -7,10 +7,13 @@
   "sdk": {
     "openwaggle": ">=0.1.0 <0.2.0"
   },
-  "sourceFiles": ["src/settings.js", "src/side-panel.js"],
-  "builtArtifacts": ["modules/settings.js", "modules/side-panel.js"],
+  "sourceFiles": ["src/github-api.js", "src/settings.js", "src/side-panel.js"],
+  "builtArtifacts": ["modules/github-api.js", "modules/settings.js", "modules/side-panel.js"],
   "install": {
     "source": "prebuilt"
+  },
+  "network": {
+    "origins": ["https://api.github.com"]
   },
   "capabilities": [
     {

@@ -2,6 +2,7 @@ import type { SkillDiscoveryItem } from '@shared/types/standards'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { extensionSlashCommandText } from '@/features/composer/commands'
+import { refreshPreferencesAfterExtensionInvoke } from '@/features/extensions'
 import { usePreferencesStore } from '@/features/settings/state'
 import { useWaggleStore } from '@/features/waggle/state'
 import { extensionContributionsQueryOptions } from '@/queries/extensions'
@@ -126,14 +127,17 @@ export function useCommandPaletteItems({
             },
         payload: {},
       })
-      .then((result) => {
+      .then(async (result) => {
         if (!result.ok) {
           logger.warn('Extension command rejected', {
             extensionId: entry.extensionId,
             contributionId: entry.contributionId,
             code: result.error.code,
           })
+          return
         }
+
+        await refreshPreferencesAfterExtensionInvoke(result)
       })
       .catch((error: unknown) => {
         logger.warn('Extension command failed', { error: String(error) })

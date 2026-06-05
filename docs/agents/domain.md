@@ -13,6 +13,7 @@ OpenWaggle is one product domain: an Electron desktop coding-agent workspace bui
 - `docs/adr/` records why major architecture decisions were made.
 - `MEMORY.md` records durable technical findings that are too specific for architecture docs.
 - `.agents/standards.md` and `.agents/verification.md` define agent coding and validation rules.
+- `website/src/content/docs/extending/openwaggle-extensions.md` is the user-facing extension author contract.
 
 ## Domain Map
 
@@ -48,6 +49,10 @@ Provider, model, auth, OAuth, and thinking-level metadata come from Pi through O
 Pi resource loading is the runtime source of truth. OpenWaggle injects project roots in `.openwaggle > .pi > .agents` order for skills, extensions, prompts, and themes, then strips implicit roots when Pi persists settings.
 
 MCP config precedence is documented in `docs/configuration.md`.
+
+### OpenWaggle Extensions
+
+OpenWaggle extension packages add desktop contributions and optional Pi runtime resources. Load `website/src/content/docs/extending/openwaggle-extensions.md` before changing extension discovery, lifecycle, SDK schemas, federated module rendering, agent-loop contributions, interaction bridging, or extension QA fixtures. Packaged builds should derive agent-facing installed docs from the full user-facing docs into a Pi-style package-local docs directory, alongside installed Pi docs, instead of maintaining a second repository copy. Generated installed docs need a root index and topic aliases so agents can find docs without guessing paths. Runtime docs lookup should go through a typed docs discovery capability available to both extension code and OpenWaggle's self-modifying agent context.
 
 ### Waggle Mode
 
@@ -92,6 +97,16 @@ Load `.agents/skills/release/SKILL.md` for versioning, release workflow, update-
 - **OpenWaggle action capability**: A fully typed public SDK capability that lets extension code request an OpenWaggle behavior change without writing internal stores.
 - **Extension package state**: Extension-owned reactive in-memory state shared across all contributions from the same OpenWaggle extension package.
 - **Extension contribution instance state**: Extension-owned state scoped to one mounted contribution instance.
+- **Agent-loop contribution**: A desktop contribution that renders or collects feedback during an active Pi agent loop.
+- **Agent-loop binding identity**: The Pi-native tool name or custom message type rendered by an agent-loop contribution.
+- **Extension interaction schema**: The public typed request-and-response contract for rendering Pi interaction primitives in OpenWaggle.
+- **Agent-loop event DTO**: An OpenWaggle public data shape that preserves Pi agent-loop semantics for extension renderers without exposing Pi package internals.
+- **Agent-facing installed documentation**: Build-produced package-local docs derived from the full OpenWaggle docs and installed Pi docs so self-modifying agents can inspect an installed app.
+- **Installed docs index**: Generated entry point that maps common agent questions to package-local OpenWaggle and Pi documentation paths.
+- **Docs discovery capability**: Typed OpenWaggle capability that resolves installed and discovered documentation topics to local documentation paths and lightweight provenance metadata.
+- **Docs discovery topic**: First-party typed topic that identifies an OpenWaggle or Pi documentation entry.
+- **Extension package documentation**: Package-local documentation shipped by an OpenWaggle extension package in a Pi-style `docs/` directory.
+- **Self-modifying agent context**: OpenWaggle-provided context that lets an agent inspect and change OpenWaggle itself using installed product documentation and runtime contracts.
 - **Pi extension parity for OpenWaggle**: OpenWaggle extensions should preserve Pi-level runtime/resource modification power and extend equivalent contribution capability to OpenWaggle-owned desktop surfaces.
 - **Trusted local extension code**: Extension code the user explicitly approves to run locally. Trust is keyed to package identity, SDK compatibility, version, and content hash, and does not permit importing OpenWaggle internals.
 - **Extension safe startup**: OpenWaggle must start even when extension activation fails. Extension failures are isolated to contributions first, then to the extension, and recovery controls remain OpenWaggle-owned.

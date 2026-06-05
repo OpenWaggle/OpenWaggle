@@ -1,10 +1,13 @@
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
-import { EXTENSION_FRAME_MESSAGE_CHANNEL } from '@shared/constants/extension-frame'
+import {
+  EXTENSION_FRAME_BOOTSTRAP_SCRIPT_HASH,
+  EXTENSION_FRAME_MESSAGE_CHANNEL,
+} from '@shared/constants/extension-frame'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
 import { describe, expect, it } from 'vitest'
 import {
-  createExtensionFrameSrcDoc,
+  createExtensionFrameDocument,
   decodeExtensionFrameMessage,
   extensionInvokeInputFromFrame,
 } from '../extension-frame-host'
@@ -42,21 +45,36 @@ const ENTRY: ExtensionContributionRegistryEntry = {
 }
 
 describe('extension frame host helpers', () => {
-  it('creates frame srcdoc with frame execution mount context and no preload API reference', () => {
-    const srcDoc = createExtensionFrameSrcDoc({
+  it('creates frame document with frame execution mount context and no preload API reference', () => {
+    const frameDocument = createExtensionFrameDocument({
       entry: ENTRY,
       frameId: 'frame-1',
       moduleUrl:
         'openwaggle-extension://runtime/module/%2Ftmp%2Fproject%2F.openwaggle%2Fextensions%2Fsample-extension/abcdef/%5B%22%2Ftmp%2Fproject%22%5D/dist/settings.js',
     })
 
-    expect(srcDoc).toContain('data-openwaggle-config=')
-    expect(srcDoc).toContain('openwaggle-extension://runtime/module/')
-    expect(srcDoc).toContain('&quot;execution&quot;:&quot;frame&quot;')
-    expect(srcDoc).toContain('&quot;projectPaths&quot;:[&quot;/tmp/project&quot;]')
-    expect(srcDoc).toContain('packageConfig')
-    expect(srcDoc).toContain('packageState')
-    expect(srcDoc).not.toContain('window.api')
+    expect(frameDocument).toContain('data-openwaggle-config=')
+    expect(frameDocument).toContain('openwaggle-extension://runtime/module/')
+    expect(frameDocument).toContain('&quot;execution&quot;:&quot;frame&quot;')
+    expect(frameDocument).toContain('&quot;projectPaths&quot;:[&quot;/tmp/project&quot;]')
+    expect(frameDocument).toContain('packageConfig')
+    expect(frameDocument).toContain('packageState')
+    expect(frameDocument).toContain('http-equiv="Content-Security-Policy"')
+    expect(frameDocument).toContain(EXTENSION_FRAME_BOOTSTRAP_SCRIPT_HASH)
+    expect(frameDocument).toContain('script-src-elem')
+    expect(frameDocument).not.toContain('connect-src')
+    expect(frameDocument).not.toContain('window.api')
+  })
+
+  it('adds declared network origins to the frame CSP connect-src directive', () => {
+    const frameDocument = createExtensionFrameDocument({
+      entry: { ...ENTRY, networkOrigins: ['https://api.github.com'] },
+      frameId: 'frame-1',
+      moduleUrl:
+        'openwaggle-extension://runtime/module/%2Ftmp%2Fproject%2F.openwaggle%2Fextensions%2Fsample-extension/abcdef/%5B%22%2Ftmp%2Fproject%22%5D/dist/settings.js',
+    })
+
+    expect(frameDocument).toContain('connect-src https://api.github.com')
   })
 
   it('decodes only extension frame messages for the mounted frame id', () => {

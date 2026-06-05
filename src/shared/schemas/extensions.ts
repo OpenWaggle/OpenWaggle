@@ -1,5 +1,6 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { Schema, type SchemaType } from '@shared/schema'
+import { isNetworkOrigin } from './extension-network-origin'
 
 function isNonEmptyTrimmed(value: string) {
   return value.trim().length > 0 || 'Must not be empty.'
@@ -87,6 +88,29 @@ function isBuildCommand(value: string) {
   return true
 }
 
+function isRuntimeRequirementBinary(value: string) {
+  const trimmed = value.trim()
+  if (value !== trimmed) {
+    return 'Must not have leading or trailing whitespace.'
+  }
+  if (value.length > OPENWAGGLE_EXTENSION.LIMITS.RUNTIME_REQUIREMENT_BINARY_MAX_LENGTH) {
+    return `Must be at most ${OPENWAGGLE_EXTENSION.LIMITS.RUNTIME_REQUIREMENT_BINARY_MAX_LENGTH} characters.`
+  }
+  if (value.includes(OPENWAGGLE_EXTENSION.PATH.NUL_CHARACTER)) {
+    return 'Must not contain NUL bytes.'
+  }
+  if (value.includes('\n') || value.includes('\r')) {
+    return 'Must be a single executable name.'
+  }
+  if (
+    value.includes(OPENWAGGLE_EXTENSION.PATH.POSIX_SEPARATOR) ||
+    value.includes(OPENWAGGLE_EXTENSION.PATH.WINDOWS_SEPARATOR)
+  ) {
+    return 'Must be an executable name, not a path.'
+  }
+  return true
+}
+
 const nonEmptyStringSchema = Schema.String.pipe(Schema.filter(isNonEmptyTrimmed))
 
 export const extensionIdSchema = Schema.String.pipe(
@@ -135,6 +159,11 @@ export const extensionListPackagesInputSchema = Schema.Struct({
   projectPaths: Schema.optional(extensionViewProjectPathsSchema),
 })
 
+export const extensionListContributionsInputSchema = Schema.Struct({
+  projectPaths: Schema.optional(extensionViewProjectPathsSchema),
+  sessionId: Schema.optional(nonEmptyStringSchema),
+})
+
 export const extensionCapabilityDeclarationSchema = Schema.Struct({
   id: extensionContributionIdSchema,
   methods: Schema.optional(Schema.mutable(Schema.Array(extensionContributionIdSchema))),
@@ -147,12 +176,22 @@ const extensionContributionBrokerBindingSchema = {
   methods: Schema.optional(Schema.mutable(Schema.Array(extensionContributionIdSchema))),
 }
 
+const extensionContributionTargetSchema = Schema.Struct({
+  projectPaths: Schema.optional(Schema.mutable(Schema.Array(nonEmptyStringSchema))),
+  sessionIds: Schema.optional(Schema.mutable(Schema.Array(nonEmptyStringSchema))),
+})
+
+const extensionContributionTargetBindingSchema = {
+  target: Schema.optional(extensionContributionTargetSchema),
+}
+
 export const extensionCommandContributionSchema = Schema.Struct({
   id: extensionContributionIdSchema,
   title: nonEmptyStringSchema.pipe(Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH)),
   category: Schema.optional(
     nonEmptyStringSchema.pipe(Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH)),
   ),
+  ...extensionContributionTargetBindingSchema,
   ...extensionContributionBrokerBindingSchema,
 })
 
@@ -162,6 +201,7 @@ export const extensionRouteContributionSchema = Schema.Struct({
   runtime: extensionContributionRuntimeSchema,
   execution: extensionExecutionPlacementSchema,
   entry: extensionRelativePathSchema,
+  ...extensionContributionTargetBindingSchema,
   ...extensionContributionBrokerBindingSchema,
 })
 
@@ -171,6 +211,7 @@ export const extensionSlotContributionSchema = Schema.Struct({
   runtime: extensionContributionRuntimeSchema,
   execution: extensionExecutionPlacementSchema,
   entry: extensionRelativePathSchema,
+  ...extensionContributionTargetBindingSchema,
   ...extensionContributionBrokerBindingSchema,
 })
 
@@ -191,6 +232,11 @@ export const extensionRuntimeRequirementSchema = Schema.Struct({
   id: extensionContributionIdSchema,
   label: nonEmptyStringSchema.pipe(Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH)),
   command: Schema.optional(extensionRelativePathSchema),
+  binary: Schema.optional(nonEmptyStringSchema.pipe(Schema.filter(isRuntimeRequirementBinary))),
+})
+
+export const extensionNetworkSchema = Schema.Struct({
+  origins: Schema.mutable(Schema.Array(nonEmptyStringSchema.pipe(Schema.filter(isNetworkOrigin)))),
 })
 
 export const extensionInstallSchema = Schema.Struct({
@@ -217,6 +263,7 @@ export const openWaggleExtensionManifestSchema = Schema.Struct({
   builtArtifacts: Schema.mutable(Schema.Array(extensionRelativePathSchema)),
   install: Schema.optional(extensionInstallSchema),
   build: Schema.optional(extensionBuildSchema),
+  network: Schema.optional(extensionNetworkSchema),
   capabilities: Schema.optional(Schema.mutable(Schema.Array(extensionCapabilityDeclarationSchema))),
   contributions: Schema.optional(extensionContributionsSchema),
   pi: Schema.optional(

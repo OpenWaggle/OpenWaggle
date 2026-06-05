@@ -4,9 +4,7 @@ import type {
   ExtensionContributionEligibilityView,
   ExtensionContributionFamily,
   ExtensionContributionRegistryEntry,
-  ExtensionContributionRuntime,
   ExtensionDiagnosticView,
-  ExtensionExecutionPlacement,
   ExtensionPackageScopeView,
 } from '@shared/types/extensions'
 import {
@@ -20,26 +18,14 @@ import type {
   ExtensionLifecycleState,
   ExtensionPackageScope,
 } from '../extensions/types'
-
-interface ManifestCommandContribution {
-  readonly id: string
-  readonly title: string
-  readonly category?: string
-  readonly capability?: string
-  readonly method?: string
-  readonly methods?: readonly string[]
-}
-
-interface ManifestEntryContribution {
-  readonly id: string
-  readonly title: string
-  readonly runtime: ExtensionContributionRuntime
-  readonly execution: ExtensionExecutionPlacement
-  readonly entry: string
-  readonly capability?: string
-  readonly method?: string
-  readonly methods?: readonly string[]
-}
+import {
+  COMMAND_FAMILY_DESCRIPTORS,
+  ENTRY_FAMILY_DESCRIPTORS,
+  isEntryContribution,
+  type ManifestCommandContribution,
+  type ManifestEntryContribution,
+} from './extension-contribution-family-model'
+import { resolveContributionTarget } from './extension-contribution-target-model'
 
 export interface ExtensionContributionProjectOverrideLookup {
   readonly projectPath: string
@@ -58,43 +44,10 @@ interface ContributionEntryInput {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly eligibility: ContributionPackageEligibility
   readonly requestedProjectPaths: readonly string[]
+  readonly requestedSessionId: string | undefined
   readonly family: ExtensionContributionFamily
   readonly contribution: ManifestCommandContribution | ManifestEntryContribution
 }
-
-interface CommandFamilyDescriptor {
-  readonly family: 'commands' | 'slashCommands'
-  readonly contributions: (
-    contributions: ExtensionContributions,
-  ) => readonly ManifestCommandContribution[] | undefined
-}
-
-interface EntryFamilyDescriptor {
-  readonly family: Exclude<ExtensionContributionFamily, CommandFamilyDescriptor['family']>
-  readonly contributions: (
-    contributions: ExtensionContributions,
-  ) => readonly ManifestEntryContribution[] | undefined
-}
-
-const COMMAND_FAMILY_DESCRIPTORS = [
-  { family: 'commands', contributions: (contributions) => contributions.commands },
-  { family: 'slashCommands', contributions: (contributions) => contributions.slashCommands },
-] satisfies readonly CommandFamilyDescriptor[]
-
-const ENTRY_FAMILY_DESCRIPTORS = [
-  { family: 'routes', contributions: (contributions) => contributions.routes },
-  {
-    family: 'settingsSections',
-    contributions: (contributions) => contributions.settingsSections,
-  },
-  { family: 'sidePanels', contributions: (contributions) => contributions.sidePanels },
-  { family: 'dialogs', contributions: (contributions) => contributions.dialogs },
-  {
-    family: 'transcriptRenderers',
-    contributions: (contributions) => contributions.transcriptRenderers,
-  },
-  { family: 'statusWidgets', contributions: (contributions) => contributions.statusWidgets },
-] satisfies readonly EntryFamilyDescriptor[]
 
 function scopeToView(scope: ExtensionPackageScope): ExtensionPackageScopeView {
   if (scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND) {
@@ -194,14 +147,20 @@ function buildPackageEligibility(input: {
   }
 }
 
-function isEntryContribution(
-  contribution: ManifestCommandContribution | ManifestEntryContribution,
-): contribution is ManifestEntryContribution {
-  return 'entry' in contribution
-}
-
-function contributionToEntry(input: ContributionEntryInput): ExtensionContributionRegistryEntry {
+function contributionToEntry(
+  input: ContributionEntryInput,
+): ExtensionContributionRegistryEntry | null {
   const { contribution, eligibility, extensionPackage } = input
+  const targetResolution = resolveContributionTarget({
+    target: contribution.target,
+    eligibilityProjectPaths: eligibility.projectPaths,
+    requestedProjectPaths: input.requestedProjectPaths,
+    requestedSessionId: input.requestedSessionId,
+  })
+  if (targetResolution === null) {
+    return null
+  }
+
   const manifest = extensionPackage.manifest
   const baseEntry = {
     extensionId: extensionPackage.id,
@@ -211,13 +170,17 @@ function contributionToEntry(input: ContributionEntryInput): ExtensionContributi
     packagePath: extensionPackage.packagePath,
     manifestPath: extensionPackage.manifestPath,
     contentHash: eligibility.contentHash,
-    projectPaths: eligibility.projectPaths,
+    projectPaths: targetResolution.projectPaths,
     appliesToAllRequestedProjects:
-      eligibility.projectPaths.length === input.requestedProjectPaths.length,
+      targetResolution.projectPaths.length === input.requestedProjectPaths.length,
     family: input.family,
     contributionId: contribution.id,
     title: contribution.title,
     label: contribution.title,
+    ...(targetResolution.target !== undefined ? { target: targetResolution.target } : {}),
+    ...(manifest?.network?.origins !== undefined
+      ? { networkOrigins: manifest.network.origins }
+      : {}),
     eligibility: eligibility.eligibility,
     diagnostics: eligibility.diagnostics,
   }
@@ -249,19 +212,26 @@ function contributionsToEntries(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly eligibility: ContributionPackageEligibility
   readonly requestedProjectPaths: readonly string[]
+  readonly requestedSessionId: string | undefined
   readonly contributions: ExtensionContributions
 }) {
   const entries: ExtensionContributionRegistryEntry[] = []
 
   for (const descriptor of COMMAND_FAMILY_DESCRIPTORS) {
     for (const contribution of descriptor.contributions(input.contributions) ?? []) {
-      entries.push(contributionToEntry({ ...input, family: descriptor.family, contribution }))
+      const entry = contributionToEntry({ ...input, family: descriptor.family, contribution })
+      if (entry !== null) {
+        entries.push(entry)
+      }
     }
   }
 
   for (const descriptor of ENTRY_FAMILY_DESCRIPTORS) {
     for (const contribution of descriptor.contributions(input.contributions) ?? []) {
-      entries.push(contributionToEntry({ ...input, family: descriptor.family, contribution }))
+      const entry = contributionToEntry({ ...input, family: descriptor.family, contribution })
+      if (entry !== null) {
+        entries.push(entry)
+      }
     }
   }
 
@@ -273,6 +243,7 @@ export function packageToContributionEntries(input: {
   readonly lifecycle: ExtensionLifecycleState | null
   readonly projectOverrides: readonly ExtensionContributionProjectOverrideLookup[]
   readonly requestedProjectPaths: readonly string[]
+  readonly requestedSessionId: string | undefined
 }) {
   const contributions = input.extensionPackage.manifest?.contributions
   if (!contributions) {
@@ -288,6 +259,7 @@ export function packageToContributionEntries(input: {
     extensionPackage: input.extensionPackage,
     eligibility,
     requestedProjectPaths: input.requestedProjectPaths,
+    requestedSessionId: input.requestedSessionId,
     contributions,
   })
 }

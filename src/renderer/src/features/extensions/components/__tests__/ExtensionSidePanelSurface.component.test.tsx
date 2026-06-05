@@ -87,11 +87,9 @@ describe('ExtensionSidePanelSurfaceContent', () => {
     const frame = screen.getByTitle('Extension module: Sample side panel')
     expect(frame).toHaveAttribute('sandbox', 'allow-scripts')
     await waitFor(() => {
-      expect(frame).toHaveAttribute(
-        'srcdoc',
-        expect.stringContaining('openwaggle-extension://runtime/module/'),
-      )
+      expect(frame).toHaveAttribute('src', expect.stringContaining('blob:'))
     })
+    expect(frame).not.toHaveAttribute('srcdoc')
   })
 
   it('routes the OpenWaggle-owned close button to the caller', () => {

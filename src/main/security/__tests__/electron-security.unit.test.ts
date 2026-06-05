@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import {
   EXTENSION_FRAME_BOOTSTRAP_SCRIPT,
   EXTENSION_FRAME_BOOTSTRAP_SCRIPT_HASH,
@@ -21,6 +22,10 @@ function createSecurePreferences() {
 
 function sha256CspHash(source: string) {
   return `'sha256-${createHash('sha256').update(source).digest('base64')}'`
+}
+
+function readRendererIndexHtml() {
+  return readFileSync(new URL('../../../renderer/index.html', import.meta.url), 'utf8')
 }
 
 describe('assertSecureWebPreferences', () => {
@@ -75,12 +80,16 @@ describe('buildContentSecurityPolicy', () => {
     expect(buildContentSecurityPolicy()).toBe(CONTENT_SECURITY_POLICY)
     expect(CONTENT_SECURITY_POLICY).toContain("default-src 'self'")
     expect(CONTENT_SECURITY_POLICY).toContain(
-      "script-src 'self' 'sha256-Z2/iFzh9VMlVkEOar1f/oSHWwQk3ve1qk/C2WdsC4Xk=' 'sha256-x35ut7GCp8wd7HooET/EsZ5+RGvrULDTpXQSay10pW8=' openwaggle-extension:",
+      `script-src 'self' 'sha256-Z2/iFzh9VMlVkEOar1f/oSHWwQk3ve1qk/C2WdsC4Xk=' ${EXTENSION_FRAME_BOOTSTRAP_SCRIPT_HASH} openwaggle-extension:`,
+    )
+    expect(CONTENT_SECURITY_POLICY).toContain(
+      `script-src-elem 'self' 'sha256-Z2/iFzh9VMlVkEOar1f/oSHWwQk3ve1qk/C2WdsC4Xk=' ${EXTENSION_FRAME_BOOTSTRAP_SCRIPT_HASH} openwaggle-extension:`,
     )
     expect(CONTENT_SECURITY_POLICY).toContain("style-src 'self' 'unsafe-inline'")
     expect(CONTENT_SECURITY_POLICY).toContain("img-src 'self' data:")
+    expect(CONTENT_SECURITY_POLICY).toContain("frame-src 'self' blob:")
     expect(CONTENT_SECURITY_POLICY).toContain(
-      "connect-src 'self' ws://localhost:* http://localhost:* https://localhost:* wss://localhost:*",
+      "connect-src 'self' ws://localhost:* http://localhost:* https://localhost:* wss://localhost:* https://api.github.com",
     )
   })
 
@@ -89,6 +98,10 @@ describe('buildContentSecurityPolicy', () => {
       sha256CspHash(EXTENSION_FRAME_BOOTSTRAP_SCRIPT),
     )
     expect(CONTENT_SECURITY_POLICY).toContain(EXTENSION_FRAME_BOOTSTRAP_SCRIPT_HASH)
+  })
+
+  it('keeps app-level CSP centralized in the Electron response header', () => {
+    expect(readRendererIndexHtml()).not.toContain('Content-Security-Policy')
   })
 })
 

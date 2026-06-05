@@ -16,6 +16,7 @@ import { getManifestContentHashInput } from './content-hash-input'
 import { getProjectExtensionRoot } from './extension-paths'
 import { loadExtensionManifest } from './manifest-loader'
 import { calculateContentHash, validateDeclaredFiles } from './package-files'
+import { diagnoseRuntimeRequirements } from './runtime-requirements'
 
 function scopeSortKey(scope: ExtensionPackageScope) {
   return scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND
@@ -148,6 +149,7 @@ async function discoverPackage(
     manifestResult.rawManifest,
     manifestResult.manifest,
   )
+  const runtimeRequirementDiagnostics = await diagnoseRuntimeRequirements(manifestResult.manifest)
 
   return {
     id: manifestResult.manifest.id,
@@ -164,6 +166,7 @@ async function discoverPackage(
       ...artifactDiagnostics,
       ...contentHash.diagnostics,
       ...buildPlan.diagnostics,
+      ...runtimeRequirementDiagnostics,
       ...sdkDiagnostics(sdkCompatibility),
     ],
   }
