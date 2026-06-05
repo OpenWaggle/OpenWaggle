@@ -26,6 +26,7 @@ interface OAuthRowState {
   readonly connected: boolean
   readonly isBusy: boolean
   readonly isAwaitingCode: boolean
+  readonly isAwaitingSelection: boolean
   readonly isCodeReceived: boolean
   readonly isError: boolean
   readonly statusColor: string
@@ -43,12 +44,14 @@ function resolveOAuthRowState(input: {
   const isBusy =
     input.oauthStatus.type === 'in-progress' ||
     input.oauthStatus.type === 'awaiting-code' ||
+    input.oauthStatus.type === 'awaiting-selection' ||
     input.oauthStatus.type === 'code-received'
 
   return {
     connected,
     isBusy,
     isAwaitingCode: input.oauthStatus.type === 'awaiting-code',
+    isAwaitingSelection: input.oauthStatus.type === 'awaiting-selection',
     isCodeReceived: input.oauthStatus.type === 'code-received',
     isError: input.oauthStatus.type === 'error',
     statusColor: connected ? '#34d399' : '#6b7280',
@@ -106,9 +109,11 @@ function OAuthStatusIndicator({ rowState }: { readonly rowState: OAuthRowState }
         >
           {rowState.isCodeReceived
             ? 'Completing sign in...'
-            : rowState.isAwaitingCode
-              ? 'Waiting for browser...'
-              : 'Opening browser...'}
+            : rowState.isAwaitingSelection
+              ? 'Choose sign-in method...'
+              : rowState.isAwaitingCode
+                ? 'Waiting for browser...'
+                : 'Opening browser...'}
         </span>
       </div>
     )
@@ -181,6 +186,40 @@ function OAuthManualCodePrompt({
         >
           Connect
         </Button>
+      </div>
+    </div>
+  )
+}
+
+function OAuthSelectionPrompt({
+  provider,
+  oauthStatus,
+  submitAuthCode,
+}: {
+  readonly provider: string
+  readonly oauthStatus: OAuthFlowStatus
+  readonly submitAuthCode: (provider: string, code: string) => Promise<void>
+}) {
+  if (oauthStatus.type !== 'awaiting-selection') return null
+
+  return (
+    <div className="mx-5 mb-3 space-y-2 rounded-lg border border-input-card-border bg-input-card px-3 py-2">
+      <p className="text-[11px] text-text-tertiary">{oauthStatus.selection.message}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        {oauthStatus.selection.options.map((option) => (
+          <Button
+            key={option.id}
+            variant="secondary"
+            size="md"
+            type="button"
+            onClick={() => {
+              void submitAuthCode(provider, option.id)
+            }}
+            className="text-[12px]"
+          >
+            {option.label}
+          </Button>
+        ))}
       </div>
     </div>
   )
@@ -259,6 +298,14 @@ export function OAuthProviderRow({ providerInfo, isLast }: OAuthProviderRowProps
 
       {rowState.isAwaitingCode && (
         <OAuthManualCodePrompt
+          provider={provider}
+          oauthStatus={oauthStatus}
+          submitAuthCode={submitAuthCode}
+        />
+      )}
+
+      {rowState.isAwaitingSelection && (
+        <OAuthSelectionPrompt
           provider={provider}
           oauthStatus={oauthStatus}
           submitAuthCode={submitAuthCode}
