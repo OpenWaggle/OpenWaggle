@@ -1,5 +1,5 @@
-import type { ExtensionCommandContext, Theme, ThemeColor } from '@mariozechner/pi-coding-agent'
-import type { Component, Keybinding, KeybindingsManager, TUI } from '@mariozechner/pi-tui'
+import type { ExtensionCommandContext, Theme, ThemeColor } from '@earendil-works/pi-coding-agent'
+import type { Component, Keybinding, KeybindingsManager, TUI } from '@earendil-works/pi-tui'
 import { fromAny, fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
 import { promptPrefilledText } from '../default-prefilled-input'

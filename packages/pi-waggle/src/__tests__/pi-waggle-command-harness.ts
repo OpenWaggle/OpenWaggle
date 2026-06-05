@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { rm } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import type { ExtensionAPI, ExtensionCommandContext } from '@mariozechner/pi-coding-agent'
+import type { ExtensionAPI, ExtensionCommandContext } from '@earendil-works/pi-coding-agent'
 import { WAGGLE_INHERIT_MODEL } from '@openwaggle/waggle-core'
 import { fromAny, fromPartial } from '@total-typescript/shoehorn'
 import { vi } from 'vitest'

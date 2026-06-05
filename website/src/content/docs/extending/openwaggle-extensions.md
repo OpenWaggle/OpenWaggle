@@ -167,9 +167,9 @@ First-party topics should be closed and typed so generated indexes and SDK calls
 
 Agents and developers can inspect the installed Pi docs in a checkout for exact Pi runtime semantics:
 
-- `node_modules/@mariozechner/pi-coding-agent/docs/extensions.md`
-- `node_modules/@mariozechner/pi-coding-agent/docs/rpc.md`
-- `node_modules/@mariozechner/pi-coding-agent/docs/sdk.md`
-- `node_modules/@mariozechner/pi-coding-agent/docs/tui.md`
+- `node_modules/@earendil-works/pi-coding-agent/docs/extensions.md`
+- `node_modules/@earendil-works/pi-coding-agent/docs/rpc.md`
+- `node_modules/@earendil-works/pi-coding-agent/docs/sdk.md`
+- `node_modules/@earendil-works/pi-coding-agent/docs/tui.md`
 
 OpenWaggle docs define how those Pi concepts are exposed in the desktop product.

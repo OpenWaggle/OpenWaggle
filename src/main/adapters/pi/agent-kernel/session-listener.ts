@@ -1,5 +1,5 @@
 import { matchBy } from '@diegogbrisa/ts-match'
-import type { AgentSessionEvent } from '@mariozechner/pi-coding-agent'
+import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import type { JsonValue } from '@shared/types/json'
 import { toJsonValue } from '../pi-message-mapper'
 import { getAgentEndError, getAgentEndReason, getAgentEndUsage } from './agent-end-events'
@@ -177,6 +177,8 @@ function handleSessionEvent(state: SessionListenerState, event: AgentSessionEven
     .with('compaction_end', (value) => emitCompactionEnd(state, value))
     .with('auto_retry_start', (value) => emitAutoRetryStart(state, value))
     .with('auto_retry_end', (value) => emitAutoRetryEnd(state, value))
+    .with('session_info_changed', () => undefined)
+    .with('thinking_level_changed', () => undefined)
     .exhaustive()
 }
 

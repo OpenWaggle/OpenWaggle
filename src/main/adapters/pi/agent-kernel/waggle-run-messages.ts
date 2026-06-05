@@ -1,4 +1,4 @@
-import type { AgentSession } from '@mariozechner/pi-coding-agent'
+import type { AgentSession } from '@earendil-works/pi-coding-agent'
 import {
   createPiWaggleTurnDetails,
   PI_WAGGLE_TURN_CUSTOM_TYPE,

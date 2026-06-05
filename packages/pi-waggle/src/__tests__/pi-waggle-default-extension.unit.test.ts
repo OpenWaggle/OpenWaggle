@@ -4,7 +4,7 @@ import type {
   ExtensionCommandContext,
   InputEvent,
   TurnEndEvent,
-} from '@mariozechner/pi-coding-agent'
+} from '@earendil-works/pi-coding-agent'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'
 import type { PiWaggleModel } from '../extension'

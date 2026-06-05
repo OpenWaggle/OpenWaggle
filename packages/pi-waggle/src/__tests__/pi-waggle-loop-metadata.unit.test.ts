@@ -1,4 +1,4 @@
-import type { AgentEndEvent } from '@mariozechner/pi-coding-agent'
+import type { AgentEndEvent } from '@earendil-works/pi-coding-agent'
 import type { WaggleConfig } from '@openwaggle/waggle-core'
 import { fromPartial } from '@total-typescript/shoehorn'
 import { describe, expect, it, vi } from 'vitest'

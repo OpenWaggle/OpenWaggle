@@ -2,7 +2,7 @@ import {
   type AgentSessionServices,
   createAgentSessionFromServices,
   SessionManager,
-} from '@mariozechner/pi-coding-agent'
+} from '@earendil-works/pi-coding-agent'
 import { Layer } from 'effect'
 import * as Effect from 'effect/Effect'
 import { loadWithRuntimeFailureIsolation } from '../../extensions/runtime-load-isolation'

@@ -25,7 +25,7 @@ const runtimeMocks = vi.hoisted(() => ({
   sessionManagerCreate: vi.fn(),
 }))
 
-vi.mock('@mariozechner/pi-coding-agent', () => ({
+vi.mock('@earendil-works/pi-coding-agent', () => ({
   createAgentSessionRuntime: runtimeMocks.createAgentSessionRuntime,
   SessionManager: { create: runtimeMocks.sessionManagerCreate },
 }))

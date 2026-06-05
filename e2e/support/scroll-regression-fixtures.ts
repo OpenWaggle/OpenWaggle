@@ -114,7 +114,7 @@ export async function makeThreadNavigationScrollSessions(userDataDir: string): P
         {
           id: 'assistant-msg-nav-a-1',
           role: 'assistant',
-          model: 'claude-opus-4-6',
+          model: 'anthropic/claude-opus-4-6',
           parts: [{ type: 'text', text: NAV_LONG_ASSISTANT_TEXT }],
           createdAt: laterTimestamp,
         },
@@ -133,7 +133,7 @@ export async function makeThreadNavigationScrollSessions(userDataDir: string): P
         {
           id: 'assistant-msg-nav-b-1',
           role: 'assistant',
-          model: 'claude-sonnet-4-6',
+          model: 'anthropic/claude-sonnet-4-6',
           parts: [{ type: 'text', text: 'Acknowledged. This is thread B.' }],
           createdAt: laterTimestamp,
         },

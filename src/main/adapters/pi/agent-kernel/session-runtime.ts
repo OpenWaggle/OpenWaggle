@@ -3,7 +3,7 @@ import {
   type CreateAgentSessionRuntimeFactory,
   createAgentSessionRuntime,
   SessionManager,
-} from '@mariozechner/pi-coding-agent'
+} from '@earendil-works/pi-coding-agent'
 import type { AgentKernelSessionInput } from '../../../ports/agent-kernel-service'
 import { createPiProjectModelRuntime, getPiAgentDir } from '../pi-provider-catalog'
 import {

@@ -3,7 +3,7 @@ import type {
   ExtensionCommandContext,
   ExtensionContext,
   InputEvent,
-} from '@mariozechner/pi-coding-agent'
+} from '@earendil-works/pi-coding-agent'
 import type { WaggleConfig } from '@openwaggle/waggle-core'
 import type { DefaultPiWaggleRunState } from './default-run'
 

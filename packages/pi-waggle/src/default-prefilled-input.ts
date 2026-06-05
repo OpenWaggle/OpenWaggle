@@ -1,5 +1,5 @@
-import type { ExtensionCommandContext } from '@mariozechner/pi-coding-agent'
-import { Input, truncateToWidth } from '@mariozechner/pi-tui'
+import type { ExtensionCommandContext } from '@earendil-works/pi-coding-agent'
+import { Input, truncateToWidth } from '@earendil-works/pi-tui'
 
 const KEEP_EXISTING_HELP = 'Existing value is prefilled. Edit it, or press Enter to keep it.'
 const SUBMIT_HELP = 'enter submit  escape/ctrl+c cancel'

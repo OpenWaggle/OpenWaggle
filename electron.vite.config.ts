@@ -9,7 +9,7 @@ import tailwindcss from '@tailwindcss/vite'
 import svgr from 'vite-plugin-svgr'
 
 const ALWAYS_EXTERNAL = ['electron', 'bufferutil', 'utf-8-validate', 'node-pty']
-const PI_EXTENSION_LOADER_PATH = '@mariozechner/pi-coding-agent/dist/core/extensions/loader.js'
+const PI_EXTENSION_LOADER_PATH = '@earendil-works/pi-coding-agent/dist/core/extensions/loader.js'
 const PI_EXTENSION_IMPORT_META_RESOLVE_LINE =
   'return fileURLToPath(import.meta.resolve(specifier));'
 const PI_EXTENSION_BUNDLED_RESOLVE_LINE = 'return specifier;'
@@ -33,10 +33,10 @@ const BUNDLED_DEPS = [
   '@diegogbrisa/ts-match',
   '@openwaggle/pi-waggle',
   '@openwaggle/waggle-core',
-  '@mariozechner/pi-coding-agent',
-  '@mariozechner/pi-agent-core',
-  '@mariozechner/pi-ai',
-  '@mariozechner/pi-tui',
+  '@earendil-works/pi-coding-agent',
+  '@earendil-works/pi-agent-core',
+  '@earendil-works/pi-ai',
+  '@earendil-works/pi-tui',
   '@mariozechner/jiti',
   '@modelcontextprotocol/sdk',
   '@electron-toolkit/utils',

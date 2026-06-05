@@ -1,4 +1,4 @@
-import type { ExtensionCommandContext, ExtensionContext } from '@mariozechner/pi-coding-agent'
+import type { ExtensionCommandContext, ExtensionContext } from '@earendil-works/pi-coding-agent'
 import type { WaggleConfig, WagglePreset } from '@openwaggle/waggle-core'
 import {
   blankConfig,

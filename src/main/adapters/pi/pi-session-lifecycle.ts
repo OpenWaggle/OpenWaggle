@@ -3,8 +3,8 @@ import type {
   CreateAgentSessionFromServicesOptions,
   CreateAgentSessionResult,
   SessionShutdownEvent,
-} from '@mariozechner/pi-coding-agent'
-import { createAgentSessionFromServices } from '@mariozechner/pi-coding-agent'
+} from '@earendil-works/pi-coding-agent'
+import { createAgentSessionFromServices } from '@earendil-works/pi-coding-agent'
 import { createLogger } from '../../logger'
 import {
   getOpenWaggleMcpRuntimeContextForServices,

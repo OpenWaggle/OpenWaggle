@@ -1,4 +1,4 @@
-import type { AgentSessionEvent } from '@mariozechner/pi-coding-agent'
+import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import type { AgentSendPayload } from '@shared/types/agent'
 import { SessionId, SupportedModelId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
@@ -139,6 +139,7 @@ describe('createSessionListener', () => {
 
     listener({
       type: 'agent_end',
+      willRetry: false,
       messages: [
         {
           role: 'assistant',

@@ -3,7 +3,7 @@ import type {
   AgentSessionServices,
   ExtensionFactory,
   SessionManager,
-} from '@mariozechner/pi-coding-agent'
+} from '@earendil-works/pi-coding-agent'
 import type { HydratedAgentSendPayload, Message } from '@shared/types/agent'
 import type { ThinkingLevel } from '@shared/types/settings'
 import { clampThinkingLevel } from '@shared/utils/thinking-levels'
@@ -179,7 +179,6 @@ export async function runSubscribedPiOperation(input: {
 }) {
   const abortListener = createAbortListener(input.session, input.abortWarning)
   let previousMessageCount = input.session.agent.state.messages.length
-  let abortListenerAttached = false
   let operationAborted = false
   let settlementAttempted = false
 
@@ -191,7 +190,6 @@ export async function runSubscribedPiOperation(input: {
   }
 
   input.runInput.signal.addEventListener('abort', abortListener, { once: true })
-  abortListenerAttached = true
 
   try {
     previousMessageCount = input.session.agent.state.messages.length
@@ -207,7 +205,6 @@ export async function runSubscribedPiOperation(input: {
 
     operationAborted = input.runInput.signal.aborted
     input.runInput.signal.removeEventListener('abort', abortListener)
-    abortListenerAttached = false
 
     settlementAttempted = true
     await waitForPostRunSettlement(input.session)
@@ -262,9 +259,7 @@ export async function runSubscribedPiOperation(input: {
       message,
     })
   } finally {
-    if (abortListenerAttached) {
-      input.runInput.signal.removeEventListener('abort', abortListener)
-    }
+    input.runInput.signal.removeEventListener('abort', abortListener)
     input.unsubscribe()
     await disposeOpenWagglePiSession(input.session)
   }

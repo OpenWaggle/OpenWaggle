@@ -125,7 +125,7 @@ export function appendThinkingDelta(
   return updateAssistantParts(ensuredMessages, messageId, (parts) => {
     const partIndex = findThinkingPartIndex(parts, stepId)
     const part = parts[partIndex]
-    if (!part || part.type !== 'thinking') {
+    if (part?.type !== 'thinking') {
       return parts
     }
 
