@@ -1,9 +1,19 @@
 import type { AgentSendPayload, PreparedAttachment } from './agent'
+import type {
+  AgentLoopInteractionResponseInput,
+  AgentLoopInteractionSubmitResult,
+} from './agent-loop-interaction'
 import type { OAuthAccountInfo, OAuthProvider } from './auth'
 import type { ActiveRunInfo, BackgroundRunSnapshot } from './background-run'
 import type { SessionBranchId, SessionId, SessionNodeId, WagglePresetId } from './brand'
 import type { FileSuggestion } from './composer'
 import type { ContextCompactionResult, ContextUsageSnapshot } from './context-usage'
+import type {
+  DocsDiscoveryView,
+  DocsListInput,
+  DocsResolveTopicInput,
+  FirstPartyDocsTopicSummary,
+} from './docs'
 import type { ExtensionInvokeInput, ExtensionInvokeResult } from './extension-broker'
 import type {
   ExtensionAcceptUpdateInput,
@@ -74,6 +84,9 @@ export interface OpenWaggleApi {
   ): Promise<void>
   cancelAgent(sessionId?: SessionId): Promise<void>
   steerAgent(sessionId: SessionId): Promise<{ preserved: boolean }>
+  respondAgentInteraction(
+    input: AgentLoopInteractionResponseInput,
+  ): Promise<AgentLoopInteractionSubmitResult>
   /** Subscribe to live Pi-shaped runtime events from the main process */
   onAgentEvent(callback: (payload: IpcEventPayload<'agent:event'>) => void): () => void
 
@@ -121,6 +134,8 @@ export interface OpenWaggleApi {
   acceptExtensionUpdate(input: ExtensionAcceptUpdateInput): Promise<ExtensionManagerView>
   approveExtensionBuild(input: ExtensionApproveBuildInput): Promise<ExtensionManagerView>
   reloadExtension(input: ExtensionReloadInput): Promise<ExtensionManagerView>
+  discoverDocs(input?: DocsListInput): Promise<DocsDiscoveryView>
+  resolveDocsTopic(input: DocsResolveTopicInput): Promise<FirstPartyDocsTopicSummary | null>
 
   // Providers
   getProviderModels(projectPath?: string | null): Promise<ProviderInfo[]>

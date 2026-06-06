@@ -1,5 +1,5 @@
 import { homedir } from 'node:os'
-import { getAgentDir } from '@mariozechner/pi-coding-agent'
+import { getAgentDir } from '@earendil-works/pi-coding-agent'
 import { Effect, Layer } from 'effect'
 import { McpConfigService } from '../../ports/mcp-config-service'
 import { installMcpAdapterPackage } from './mcp-config/adapter-package'

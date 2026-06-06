@@ -1,7 +1,7 @@
 export const STORAGE_CONFIG = 'config'
 export const STORAGE_STATE = 'state'
 export const CONFIG_KEY = 'github.issues.config'
-export const SUMMARY_KEY = 'github.issues.summary'
+export const SUMMARY_KEY = 'openwaggle.github.issues.summary'
 
 export const DEFAULT_CONFIG = {
   owner: 'OpenWaggle',
@@ -36,6 +36,9 @@ function issueFromValue(value) {
   }
 
   return {
+    number: typeof object.number === 'number' ? object.number : 0,
+    title: typeof object.title === 'string' ? object.title : 'Untitled issue',
+    url: typeof object.html_url === 'string' ? object.html_url : '',
     updatedAt: object.updated_at,
     labels: Array.isArray(object.labels) ? object.labels.map(labelName).filter(Boolean) : [],
   }
@@ -120,6 +123,23 @@ export function normalizeConfig(value) {
   return { owner, repo, labels: labels.length > 0 ? labels : DEFAULT_CONFIG.labels }
 }
 
+function normalizeIssueSummaryItem(value) {
+  const object = objectValue(value)
+  if (!object) {
+    return null
+  }
+
+  return {
+    number: typeof object.number === 'number' ? object.number : 0,
+    title: typeof object.title === 'string' ? object.title : 'Untitled issue',
+    url: typeof object.url === 'string' ? object.url : '',
+    updatedAt: typeof object.updatedAt === 'string' ? object.updatedAt : 'Unknown update time',
+    labels: Array.isArray(object.labels)
+      ? object.labels.filter((label) => typeof label === 'string')
+      : [],
+  }
+}
+
 export function normalizeSummary(value) {
   const object = objectValue(value)
   if (!object) {
@@ -137,6 +157,9 @@ export function normalizeSummary(value) {
     labels: Array.isArray(object.labels)
       ? object.labels.filter((label) => typeof label === 'string')
       : DEFAULT_CONFIG.labels,
+    issues: Array.isArray(object.issues)
+      ? object.issues.map(normalizeIssueSummaryItem).filter(Boolean)
+      : [],
     updatedAt: typeof object.updatedAt === 'string' ? object.updatedAt : 'Not fetched yet',
   }
 }
@@ -156,6 +179,13 @@ export async function fetchIssueSummary(config) {
     stale,
     ready,
     labels: normalizedConfig.labels,
+    issues: issues.slice(0, 8).map((issue) => ({
+      number: issue.number,
+      title: issue.title,
+      url: issue.url,
+      updatedAt: issue.updatedAt,
+      labels: issue.labels,
+    })),
     updatedAt: `Updated from GitHub at ${new Date().toISOString()}`,
   }
 }

@@ -207,6 +207,42 @@ describe('listExtensionContributionRegistryView', () => {
             entry: 'dist/transcript.js',
           },
         ],
+        toolRenderers: [
+          {
+            id: 'family.tool',
+            title: 'Tool Contribution',
+            runtime: 'federated-module',
+            execution: 'host-renderer',
+            entry: 'dist/tool.js',
+            matches: {
+              toolNames: ['sample.tool'],
+            },
+          },
+        ],
+        customMessageRenderers: [
+          {
+            id: 'family.custom-message',
+            title: 'Custom Message Contribution',
+            runtime: 'federated-module',
+            execution: 'host-renderer',
+            entry: 'dist/custom-message.js',
+            matches: {
+              customMessageNames: ['sample.message'],
+            },
+          },
+        ],
+        interactionRenderers: [
+          {
+            id: 'family.interaction',
+            title: 'Interaction Contribution',
+            runtime: 'federated-module',
+            execution: 'host-renderer',
+            entry: 'dist/interaction.js',
+            matches: {
+              interactionKinds: ['sample.interaction'],
+            },
+          },
+        ],
         statusWidgets: [
           {
             id: 'family.status',
@@ -231,8 +267,9 @@ describe('listExtensionContributionRegistryView', () => {
 
     const commandEntry = registry.entries.find((entry) => entry.family === 'commands')
     const routeEntry = registry.entries.find((entry) => entry.family === 'routes')
-    if (!commandEntry || !routeEntry) {
-      throw new Error('Expected command and route contributions in the registry.')
+    const toolEntry = registry.entries.find((entry) => entry.family === 'toolRenderers')
+    if (!commandEntry || !routeEntry || !toolEntry) {
+      throw new Error('Expected command, route, and tool contributions in the registry.')
     }
 
     expect(commandEntry).toMatchObject({
@@ -252,6 +289,12 @@ describe('listExtensionContributionRegistryView', () => {
       entryPath: 'dist/route.js',
       capability: 'family.storage',
       methods: ['get', 'set'],
+    })
+    expect(toolEntry).toMatchObject({
+      contributionId: 'family.tool',
+      matches: {
+        toolNames: ['sample.tool'],
+      },
     })
   })
 })

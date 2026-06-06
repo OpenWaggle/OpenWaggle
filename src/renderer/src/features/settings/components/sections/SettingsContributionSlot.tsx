@@ -1,17 +1,9 @@
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
 import { Settings2 } from 'lucide-react'
 import { ExtensionDiagnostics } from './ExtensionDiagnostics'
-import { SettingsContributionFact } from './SettingsContributionFact'
 import { SettingsContributionPill } from './SettingsContributionPill'
 import { SettingsContributionRuntimeBody } from './SettingsContributionRuntimeBody'
-import {
-  eligibilityPills,
-  executionLabel,
-  executionTone,
-  projectCoverageLabel,
-  runtimeLabel,
-  runtimeTone,
-} from './settings-contribution-host-model'
+import { eligibilityPills } from './settings-contribution-host-model'
 
 export function SettingsContributionSlot({
   entry,
@@ -27,13 +19,6 @@ export function SettingsContributionSlot({
           <div className="flex flex-wrap items-center gap-2">
             <Settings2 className="size-4 text-accent" />
             <h3 className="text-[15px] font-semibold text-text-primary">{entry.title}</h3>
-            <SettingsContributionPill tone={runtimeTone(entry.runtime)}>
-              {runtimeLabel(entry.runtime)}
-            </SettingsContributionPill>
-            <SettingsContributionPill tone={executionTone(entry.execution)}>
-              {executionLabel(entry.execution)}
-            </SettingsContributionPill>
-            <SettingsContributionPill tone="neutral">{entry.scope.label}</SettingsContributionPill>
             {extraPills.map((pill) => (
               <SettingsContributionPill key={pill.label} tone={pill.tone}>
                 {pill.label}
@@ -45,16 +30,6 @@ export function SettingsContributionSlot({
       </div>
       <div className="mt-4">
         <SettingsContributionRuntimeBody entry={entry} />
-      </div>
-      <div className="mt-3 grid gap-3 text-[12px] text-text-tertiary md:grid-cols-2">
-        <SettingsContributionFact label="Contribution ID">
-          {entry.contributionId}
-        </SettingsContributionFact>
-        <SettingsContributionFact label="Projects">
-          {projectCoverageLabel(entry)}
-        </SettingsContributionFact>
-        <SettingsContributionFact label="Package">{entry.packagePath}</SettingsContributionFact>
-        <SettingsContributionFact label="Manifest">{entry.manifestPath}</SettingsContributionFact>
       </div>
       <ExtensionDiagnostics diagnostics={entry.diagnostics} />
     </article>

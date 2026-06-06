@@ -147,6 +147,15 @@ function buildPackageEligibility(input: {
   }
 }
 
+function entryContributionMetadata(contribution: ManifestEntryContribution) {
+  return {
+    runtime: contribution.runtime,
+    execution: contribution.execution,
+    entryPath: contribution.entry,
+    ...(contribution.matches !== undefined ? { matches: contribution.matches } : {}),
+  }
+}
+
 function contributionToEntry(
   input: ContributionEntryInput,
 ): ExtensionContributionRegistryEntry | null {
@@ -195,9 +204,7 @@ function contributionToEntry(
     return {
       ...baseEntry,
       ...brokerBindings,
-      runtime: contribution.runtime,
-      execution: contribution.execution,
-      entryPath: contribution.entry,
+      ...entryContributionMetadata(contribution),
     }
   }
 

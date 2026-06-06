@@ -1,4 +1,4 @@
-import type { ExtensionAPI, ExtensionContext } from '@mariozechner/pi-coding-agent'
+import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent'
 import { isWaggleInheritedModel, type WaggleTurn } from '@openwaggle/waggle-core'
 
 const FIRST_PROVIDER_CHARACTER_INDEX = 0

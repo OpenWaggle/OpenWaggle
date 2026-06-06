@@ -70,6 +70,10 @@ export function useChatPanelSections(): ChatPanelSections {
     previewSteeredUserTurn,
     streamSignalVersion,
     compactionStatus,
+    agentInteractions,
+    agentCustomMessages,
+    agentInteractionEvents,
+    respondAgentInteraction,
   } = useAgentChat(activeSessionId, activeSession, model, thinkingLevel)
 
   const { handleSend, handleSendText, handleSendWaggle } = useSendMessage({
@@ -104,6 +108,7 @@ export function useChatPanelSections(): ChatPanelSections {
   const extensionContributionsQuery = useQuery(
     extensionContributionsQueryOptions(extensionProjectPaths),
   )
+  const extensionRegistry = extensionContributionsQuery.data ?? null
 
   const waggleStoreStatus = useWaggleStore((s) => s.status)
   const waggleConfig = useWaggleStore((s) => s.activeConfig)
@@ -242,6 +247,8 @@ export function useChatPanelSections(): ChatPanelSections {
 
   const transcript = useTranscriptSection({
     messages,
+    customMessages: agentCustomMessages,
+    interactionEvents: agentInteractionEvents,
     isLoading,
     isSteering,
     error,
@@ -252,6 +259,8 @@ export function useChatPanelSections(): ChatPanelSections {
     model,
     waggleStatus,
     phase,
+    extensionRegistry,
+    extensionProjectPaths,
     handleOpenProject,
     handleSelectProjectPath,
     handleSendText: handleStarterPrompt,
@@ -297,6 +306,12 @@ export function useChatPanelSections(): ChatPanelSections {
   return {
     transcript,
     composer,
+    agentInteractions,
+    agentCustomMessages,
+    agentInteractionEvents,
+    extensionRegistry,
+    extensionProjectPaths,
+    onRespondAgentInteraction: respondAgentInteraction,
     diff: {
       projectPath,
       onSendMessage: handleSendText,

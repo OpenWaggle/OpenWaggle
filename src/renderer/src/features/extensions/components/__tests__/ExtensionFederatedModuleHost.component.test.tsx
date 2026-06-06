@@ -4,10 +4,7 @@ import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
 import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  createExtensionFrameDocument,
-  EXTENSION_FEDERATED_MODULE_IFRAME_SANDBOX,
-} from '../../lib/extension-frame-host'
+import { EXTENSION_FEDERATED_MODULE_IFRAME_SANDBOX } from '../../lib/extension-frame-host'
 import { ExtensionFederatedModuleHost } from '../ExtensionFederatedModuleHost'
 
 const apiMock = vi.hoisted(() => ({
@@ -115,19 +112,6 @@ describe('ExtensionFederatedModuleHost', () => {
     await waitFor(() => {
       expect(screen.queryByText(/Mounting extension module/)).not.toBeInTheDocument()
     })
-  })
-
-  it('creates frame document with static bootstrap code and data-only mount configuration', () => {
-    const frameDocument = createExtensionFrameDocument({
-      entry: ENTRY,
-      frameId: 'frame-1',
-      moduleUrl:
-        'openwaggle-extension://runtime/module/%2Ftmp%2Fproject%2F.openwaggle%2Fextensions%2Fsample-extension/abcdef/%5B%22%2Ftmp%2Fproject%22%5D/dist/settings.js',
-    })
-
-    expect(frameDocument).toContain('data-openwaggle-config=')
-    expect(frameDocument).toContain('openwaggle-extension://runtime/module/')
-    expect(frameDocument).not.toContain('window.api')
   })
 
   it('proxies valid SDK invocations through the bound contribution identity', async () => {
@@ -255,30 +239,35 @@ describe('ExtensionFederatedModuleHost', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('cleanup failed')
   })
 
-  it('asks the isolated frame to dispose on unmount', async () => {
-    const { unmount } = render(<ExtensionFederatedModuleHost entry={ENTRY} />)
+  it('does not remount when an equivalent surface payload is recreated', async () => {
+    const createObjectUrl = vi.spyOn(URL, 'createObjectURL')
+    const { rerender } = render(
+      <ExtensionFederatedModuleHost
+        entry={ENTRY}
+        surfacePayload={{
+          surface: 'status',
+          status: { label: 'Thinking', tone: 'running' },
+        }}
+      />,
+    )
     const frame = extensionFrame()
-    const postMessage = vi.spyOn(extensionFrameWindow(frame), 'postMessage')
-    const revokeObjectUrl = vi.spyOn(URL, 'revokeObjectURL')
     await waitFor(() => {
       expect(frame).toHaveAttribute('src', expect.stringContaining('blob:'))
     })
     const frameUrl = frame.getAttribute('src')
-    if (frameUrl === null) {
-      throw new Error('Expected extension frame document URL.')
-    }
 
-    unmount()
-
-    expect(postMessage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        channel: EXTENSION_FRAME_MESSAGE_CHANNEL,
-        frameId: extensionFrameId(frame),
-        type: 'dispose',
-      }),
-      '*',
+    rerender(
+      <ExtensionFederatedModuleHost
+        entry={ENTRY}
+        surfacePayload={{
+          surface: 'status',
+          status: { label: 'Thinking', tone: 'running' },
+        }}
+      />,
     )
-    expect(revokeObjectUrl).toHaveBeenCalledWith(frameUrl)
+
+    expect(frame.getAttribute('src')).toBe(frameUrl)
+    expect(createObjectUrl).toHaveBeenCalledTimes(1)
   })
 
   it('mounts frame execution through the same isolated federated module contract', async () => {

@@ -1,9 +1,15 @@
 import type { AgentSendPayload } from '@shared/types/agent'
+import type {
+  AgentLoopInteraction,
+  AgentLoopInteractionResponse,
+} from '@shared/types/agent-loop-interaction'
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { IpcEventPayload } from '@shared/types/ipc'
 import type { SessionDetail } from '@shared/types/session'
+import type { AgentTransportCustomEvent } from '@shared/types/stream'
 import type { WaggleConfig } from '@shared/types/waggle'
+import type { AgentInteractionEvent } from '../lib/types-chat-row'
 
 export type AgentChatStatus =
   | 'ready'
@@ -37,6 +43,13 @@ export interface AgentChatReturn {
   backgroundStreaming: boolean
   streamSignalVersion: number
   compactionStatus: AgentCompactionStatus | null
+  agentInteractions: readonly AgentLoopInteraction[]
+  agentCustomMessages: readonly AgentTransportCustomEvent[]
+  agentInteractionEvents: readonly AgentInteractionEvent[]
+  respondAgentInteraction: (
+    interaction: AgentLoopInteraction,
+    response: AgentLoopInteractionResponse,
+  ) => Promise<void>
 }
 
 export interface PendingRunWaiter {
@@ -63,6 +76,15 @@ export type SetAgentChatStatus = (status: AgentChatStatus) => void
 export type SetAgentChatError = (error: Error | undefined) => void
 export type SetBackgroundStreaming = (backgroundStreaming: boolean) => void
 export type SetCompactionStatus = (status: AgentCompactionStatus | null) => void
+export type SetAgentInteractionsBySessionId = (
+  interactionsBySessionId: Map<SessionId, readonly AgentLoopInteraction[]>,
+) => void
+export type SetAgentCustomMessagesBySessionId = (
+  messagesBySessionId: Map<SessionId, readonly AgentTransportCustomEvent[]>,
+) => void
+export type SetAgentInteractionEventsBySessionId = (
+  eventsBySessionId: Map<SessionId, readonly AgentInteractionEvent[]>,
+) => void
 
 export interface AgentStreamEventContext {
   readonly subscribedSessionId: SessionId
@@ -72,10 +94,22 @@ export interface AgentStreamEventContext {
   readonly backgroundReconnectSessionIdRef: MutableValueRef<SessionId | null>
   readonly streamSignalVersionRef: MutableValueRef<number>
   readonly terminalRunErrorRef: MutableValueRef<Error | undefined>
+  readonly agentInteractionsBySessionIdRef: MutableValueRef<
+    Map<SessionId, readonly AgentLoopInteraction[]>
+  >
+  readonly agentCustomMessagesBySessionIdRef: MutableValueRef<
+    Map<SessionId, readonly AgentTransportCustomEvent[]>
+  >
+  readonly agentInteractionEventsBySessionIdRef: MutableValueRef<
+    Map<SessionId, readonly AgentInteractionEvent[]>
+  >
   readonly messagesBySessionIdRef: MutableValueRef<Map<SessionId, UIMessage[]>>
   readonly setMessagesBySessionId: SetMessagesBySessionId
   readonly setRunRenderMessages: SetRunRenderMessages
   readonly setError: SetAgentChatError
+  readonly setAgentInteractionsBySessionId: SetAgentInteractionsBySessionId
+  readonly setAgentCustomMessagesBySessionId: SetAgentCustomMessagesBySessionId
+  readonly setAgentInteractionEventsBySessionId: SetAgentInteractionEventsBySessionId
   readonly setStatus: SetAgentChatStatus
   readonly setCompactionStatus: SetCompactionStatus
   readonly setBackgroundStreaming: SetBackgroundStreaming

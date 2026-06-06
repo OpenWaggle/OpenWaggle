@@ -13,6 +13,9 @@ export interface ManifestContentHashSource {
     readonly sidePanels?: readonly ManifestEntryContribution[]
     readonly dialogs?: readonly ManifestEntryContribution[]
     readonly transcriptRenderers?: readonly ManifestEntryContribution[]
+    readonly toolRenderers?: readonly ManifestEntryContribution[]
+    readonly customMessageRenderers?: readonly ManifestEntryContribution[]
+    readonly interactionRenderers?: readonly ManifestEntryContribution[]
     readonly statusWidgets?: readonly ManifestEntryContribution[]
   }
   readonly trusted?: {
@@ -45,6 +48,9 @@ function getContributionEntryPaths(manifest: ManifestContentHashSource): readonl
   pushContributionEntryPaths(entryPaths, contributions.sidePanels)
   pushContributionEntryPaths(entryPaths, contributions.dialogs)
   pushContributionEntryPaths(entryPaths, contributions.transcriptRenderers)
+  pushContributionEntryPaths(entryPaths, contributions.toolRenderers)
+  pushContributionEntryPaths(entryPaths, contributions.customMessageRenderers)
+  pushContributionEntryPaths(entryPaths, contributions.interactionRenderers)
   pushContributionEntryPaths(entryPaths, contributions.statusWidgets)
   return entryPaths
 }

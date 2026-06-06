@@ -29,6 +29,7 @@ describe('preload api surface contract', () => {
     'sendMessage',
     'cancelAgent',
     'steerAgent',
+    'respondAgentInteraction',
     'onAgentEvent',
     'getAgentPhase',
     'getBackgroundRun',
@@ -58,6 +59,8 @@ describe('preload api surface contract', () => {
     'acceptExtensionUpdate',
     'approveExtensionBuild',
     'reloadExtension',
+    'discoverDocs',
+    'resolveDocsTopic',
     'setProviderApiKey',
     // Providers
     'getProviderModels',
@@ -211,6 +214,30 @@ describe('preload api surface contract', () => {
     await api.invokeExtension(input)
 
     expect(ipcRenderer.invoke).toHaveBeenCalledWith('extensions:invoke', input)
+  })
+
+  it('discovers docs through the typed IPC channel', async () => {
+    const input = { projectPaths: ['/tmp/project'], includeExtensions: true }
+    vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce({
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      bundlePath: '/tmp/openwaggle-docs',
+      firstPartyTopics: [],
+      extensionTopics: [],
+      diagnostics: [],
+    })
+
+    await api.discoverDocs(input)
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith('docs:discover', input)
+  })
+
+  it('resolves first-party docs through the typed IPC channel', async () => {
+    const input = { topic: 'openwaggle:extending/openwaggle-extensions' } as const
+    vi.mocked(ipcRenderer.invoke).mockResolvedValueOnce(null)
+
+    await api.resolveDocsTopic(input)
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith('docs:resolve-topic', input)
   })
 
   it('builds typed extension SDK broker calls from extension identity', async () => {

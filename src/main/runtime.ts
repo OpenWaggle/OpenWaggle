@@ -5,6 +5,7 @@ import type { Exit as ExitType } from 'effect/Exit'
 import * as Layer from 'effect/Layer'
 import * as ManagedRuntime from 'effect/ManagedRuntime'
 import { ExtensionBuildRunnerLive } from './adapters/extension-build-runner'
+import { FilesystemDocsBundleLive } from './adapters/filesystem-docs-bundle-service'
 import { FilesystemExtensionManagerLive } from './adapters/filesystem-extension-manager-service'
 import { PiAgentKernelLive } from './adapters/pi/pi-agent-kernel-adapter'
 import { PiMcpConfigServiceLive } from './adapters/pi/pi-mcp-config-service'
@@ -52,6 +53,7 @@ const AppLayer = Layer.mergeAll(
   AppLogger.Live,
   AppDatabaseLive,
   SettingsService.Live,
+  FilesystemDocsBundleLive,
   ExtensionRuntimeSelectionLive,
   ExtensionStorageRepositoryLive,
   SqliteSessionProjectionRepositoryLive,

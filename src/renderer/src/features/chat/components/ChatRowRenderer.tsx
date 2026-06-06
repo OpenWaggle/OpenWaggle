@@ -1,138 +1,167 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import type { SessionBranchId, SessionId } from '@shared/types/brand'
-import { formatElapsed } from '@/features/chat/hooks/useStreamingPhase'
+import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import { TurnDivider } from '@/features/waggle/components'
 import { AGENT_BORDER_LEFT } from '@/features/waggle/lib'
 import { cn } from '@/shared/lib/cn'
-import { Spinner } from '@/shared/ui/Spinner'
-import type { ChatRow } from '../lib/types-chat-row'
+import type { ChatRow, MessageChatRow, WaggleTurnChatRow } from '../lib/types-chat-row'
+import { CustomMessageRow, InteractionEventRow, StatusRow } from './AgentLoopChatRows'
 import { BranchSummaryCard } from './BranchSummaryCard'
 import { ChatErrorDisplay } from './ChatErrorDisplay'
+import type { ChatRowRenderContext } from './ChatRowRenderContext'
 import { CompactionSummaryCard } from './CompactionSummaryCard'
 import { InterruptedRunNotice } from './InterruptedRunNotice'
 import { MessageBubble } from './MessageBubble'
-import { RunSummary } from './RunSummary'
 
 interface ChatRowRendererProps {
   row: ChatRow
-  sessionId: SessionId | null
+  context?: ChatRowRenderContext
+  sessionId?: SessionId | null
+  extensionRegistry?: ExtensionContributionRegistryView | null
+  extensionProjectPaths?: readonly string[]
   onOpenSettings?: () => void
   onRetry?: (content: string) => void
-  onDismissError: (message: string) => void
+  onDismissError?: (message: string) => void
   onDismissInterruptedRun?: (runId: string, branchId: SessionBranchId) => void
   onBranchFromMessage?: (messageId: string) => void
   onForkFromMessage?: (messageId: string) => void
 }
 
-export function ChatRowRenderer({
+function fallbackContext(props: ChatRowRendererProps): ChatRowRenderContext {
+  const extensions = {
+    registry: props.extensionRegistry ?? null,
+    projectPaths: props.extensionProjectPaths ?? [],
+  }
+  return {
+    runtime: { sessionId: props.sessionId ?? null, extensions },
+    extensions,
+    actions: {
+      onBranchFromMessage: props.onBranchFromMessage,
+      onForkFromMessage: props.onForkFromMessage,
+    },
+    onOpenSettings: props.onOpenSettings,
+    onRetry: props.onRetry,
+    onDismissError: props.onDismissError ?? (() => undefined),
+    onDismissInterruptedRun: props.onDismissInterruptedRun,
+  }
+}
+
+function MessageRow({
   row,
-  sessionId,
-  onOpenSettings,
-  onRetry,
-  onDismissError,
-  onDismissInterruptedRun,
-  onBranchFromMessage,
-  onForkFromMessage,
-}: ChatRowRendererProps) {
-  return matchBy(row, 'type')
-    .with('interrupted-run', (value) => (
-      <InterruptedRunNotice
-        runId={value.runId}
-        branchId={value.branchId}
-        runMode={value.runMode}
-        model={value.model}
-        interruptedAt={value.interruptedAt}
-        onDismiss={onDismissInterruptedRun}
-      />
-    ))
-    .with('message', (value) => (
-      <div className="flex flex-col gap-6">
-        {value.showTurnDivider && value.turnDividerProps && (
-          <TurnDivider
-            turnNumber={value.turnDividerProps.turnNumber}
-            agentLabel={value.turnDividerProps.agentLabel}
-            agentColor={value.turnDividerProps.agentColor}
-            agentModel={value.turnDividerProps.agentModel}
-          />
-        )}
-        <MessageBubble
-          message={value.message}
-          sessionId={sessionId}
-          waggle={value.waggle}
-          run={{
-            isStreaming: value.isStreaming,
-            isRunActive: value.isRunActive,
-            assistantModel: value.assistantModel,
-          }}
-          actions={{ onBranchFromMessage, onForkFromMessage }}
-        />
-      </div>
-    ))
-    .with('waggle-turn', (value) => (
-      <section className="flex flex-col gap-3" data-waggle-turn={value.id}>
+  context,
+}: {
+  readonly row: MessageChatRow
+  readonly context: ChatRowRenderContext
+}) {
+  return (
+    <div className="flex flex-col gap-6">
+      {row.showTurnDivider && row.turnDividerProps && (
         <TurnDivider
-          turnNumber={value.turnDividerProps.turnNumber}
-          agentLabel={value.turnDividerProps.agentLabel}
-          agentColor={value.turnDividerProps.agentColor}
-          agentModel={value.turnDividerProps.agentModel}
+          turnNumber={row.turnDividerProps.turnNumber}
+          agentLabel={row.turnDividerProps.agentLabel}
+          agentColor={row.turnDividerProps.agentColor}
+          agentModel={row.turnDividerProps.agentModel}
         />
-        <div
-          className={cn('flex flex-col gap-5 border-l-2 pl-4', AGENT_BORDER_LEFT[value.agentColor])}
-        >
-          {value.messages.map((messageRow) => (
-            <MessageBubble
-              key={messageRow.message.id}
-              message={messageRow.message}
-              sessionId={sessionId}
-              waggle={messageRow.waggle}
-              run={{
-                isStreaming: messageRow.isStreaming,
-                isRunActive: messageRow.isRunActive,
-                assistantModel: messageRow.assistantModel,
-              }}
-              presentation={{ hideAgentLabel: true }}
-              actions={{ onBranchFromMessage, onForkFromMessage }}
-            />
-          ))}
-        </div>
-      </section>
-    ))
-    .with('branch-summary', (value) => (
-      <BranchSummaryCard
-        id={value.id}
-        summary={value.summary}
-        onBranchFromMessage={onBranchFromMessage}
+      )}
+      <MessageBubble
+        message={row.message}
+        runtime={context.runtime}
+        waggle={row.waggle}
+        run={{
+          isStreaming: row.isStreaming,
+          isRunActive: row.isRunActive,
+          assistantModel: row.assistantModel,
+        }}
+        actions={context.actions}
       />
-    ))
-    .with('compaction-summary', (value) => (
-      <CompactionSummaryCard
-        id={value.id}
-        summary={value.summary}
-        tokensBefore={value.tokensBefore}
-        onBranchFromMessage={onBranchFromMessage}
+    </div>
+  )
+}
+
+function WaggleTurnRow({
+  row,
+  context,
+}: {
+  readonly row: WaggleTurnChatRow
+  readonly context: ChatRowRenderContext
+}) {
+  return (
+    <section className="flex flex-col gap-3" data-waggle-turn={row.id}>
+      <TurnDivider
+        turnNumber={row.turnDividerProps.turnNumber}
+        agentLabel={row.turnDividerProps.agentLabel}
+        agentColor={row.turnDividerProps.agentColor}
+        agentModel={row.turnDividerProps.agentModel}
       />
-    ))
-    .with('phase-indicator', (value) => (
-      <div className="flex items-center gap-2 py-3">
-        <Spinner size="sm" className="text-accent" />
-        <span className="text-sm text-text-tertiary">{value.label}...</span>
-        {value.elapsedMs > 0 ? (
-          <span className="text-sm text-text-muted tabular-nums">
-            {formatElapsed(value.elapsedMs)}
-          </span>
-        ) : null}
+      <div className={cn('flex flex-col gap-5 border-l-2 pl-4', AGENT_BORDER_LEFT[row.agentColor])}>
+        {row.messages.map((messageRow) => (
+          <MessageBubble
+            key={messageRow.message.id}
+            message={messageRow.message}
+            runtime={context.runtime}
+            waggle={messageRow.waggle}
+            run={{
+              isStreaming: messageRow.isStreaming,
+              isRunActive: messageRow.isRunActive,
+              assistantModel: messageRow.assistantModel,
+            }}
+            presentation={{ hideAgentLabel: true }}
+            actions={context.actions}
+          />
+        ))}
       </div>
+    </section>
+  )
+}
+
+export function ChatRowRenderer(props: ChatRowRendererProps) {
+  const context = props.context ?? fallbackContext(props)
+  return matchBy(props.row, 'type')
+    .with('interrupted-run', (row) => (
+      <InterruptedRunNotice
+        runId={row.runId}
+        branchId={row.branchId}
+        runMode={row.runMode}
+        model={row.model}
+        interruptedAt={row.interruptedAt}
+        onDismiss={context.onDismissInterruptedRun}
+      />
     ))
-    .with('run-summary', (value) => <RunSummary phases={value.phases} totalMs={value.totalMs} />)
-    .with('error', (value) => (
+    .with('message', (row) => <MessageRow row={row} context={context} />)
+    .with('waggle-turn', (row) => <WaggleTurnRow row={row} context={context} />)
+    .with('branch-summary', (row) => (
+      <BranchSummaryCard
+        id={row.id}
+        summary={row.summary}
+        onBranchFromMessage={context.actions.onBranchFromMessage}
+      />
+    ))
+    .with('compaction-summary', (row) => (
+      <CompactionSummaryCard
+        id={row.id}
+        summary={row.summary}
+        tokensBefore={row.tokensBefore}
+        onBranchFromMessage={context.actions.onBranchFromMessage}
+      />
+    ))
+    .with('agent-loop-custom-message', (row) => (
+      <CustomMessageRow row={row} extensions={context.extensions} />
+    ))
+    .with('phase-indicator', 'run-summary', (row) => (
+      <StatusRow row={row} extensions={context.extensions} />
+    ))
+    .with('agent-loop-interaction-event', (row) => (
+      <InteractionEventRow event={row.event} extensions={context.extensions} />
+    ))
+    .with('error', (row) => (
       <ChatErrorDisplay
-        error={value.error}
-        lastUserMessage={value.lastUserMessage}
-        dismissedError={value.dismissedError}
-        sessionId={value.sessionId}
-        onDismiss={onDismissError}
-        onOpenSettings={onOpenSettings}
-        onRetry={onRetry}
+        error={row.error}
+        lastUserMessage={row.lastUserMessage}
+        dismissedError={row.dismissedError}
+        sessionId={row.sessionId}
+        onDismiss={context.onDismissError}
+        onOpenSettings={context.onOpenSettings}
+        onRetry={context.onRetry}
       />
     ))
     .exhaustive()

@@ -1,4 +1,3 @@
-import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import { PanelRight, RefreshCw, ShieldAlert, X } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -11,23 +10,11 @@ import type {
 import { resolveExtensionSidePanelContribution } from '../lib/extension-side-panel-resolution'
 import { ExtensionFederatedModuleHost } from './ExtensionFederatedModuleHost'
 
-function projectScopeLabel(projectPaths: readonly string[]) {
-  if (projectPaths.length === 0) {
-    return 'App scope'
-  }
-
-  return projectPaths[0] ?? 'App scope'
-}
-
 function ExtensionSidePanelShell({
-  extensionId,
-  scopeLabel,
   title,
   children,
   onClose,
 }: {
-  readonly extensionId: string
-  readonly scopeLabel: string
   readonly title: string
   readonly children: ReactNode
   readonly onClose: () => void
@@ -44,9 +31,6 @@ function ExtensionSidePanelShell({
           </p>
           <h2 className="truncate text-[13px] font-semibold text-text-primary">{title}</h2>
         </div>
-        <span className="hidden max-w-28 truncate rounded-full border border-border/80 bg-bg-tertiary px-2 py-1 text-[10px] text-text-tertiary sm:inline">
-          {scopeLabel}
-        </span>
         <Button
           aria-label="Close extension side panel"
           className="size-7 rounded-md p-0 text-text-tertiary hover:bg-bg-hover hover:text-text-secondary"
@@ -57,13 +41,7 @@ function ExtensionSidePanelShell({
           <X className="size-4" />
         </Button>
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
-        <div className="mb-3 min-w-0 rounded-lg border border-border/70 bg-bg-secondary/40 px-3 py-2 text-[11px] text-text-tertiary">
-          <span className="text-text-muted">Extension</span>{' '}
-          <span className="text-text-secondary">{extensionId}</span>
-        </div>
-        {children}
-      </div>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-3">{children}</div>
     </section>
   )
 }
@@ -109,41 +87,14 @@ function ExtensionSidePanelContribution({
 }: {
   readonly resolution: Extract<ExtensionSidePanelResolution, { readonly status: 'available' }>
 }) {
-  const contribution = resolution.contribution
-  const entry = contribution.entry
+  const entry = resolution.contribution.entry
 
   return (
-    <PanelErrorBoundary name={`Extension side panel: ${entry.title}`} className="min-h-0">
-      <section className="rounded-xl border border-border bg-[#111418] p-3">
-        <div className="mb-3 flex min-w-0 items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h3 className="truncate text-[14px] font-semibold text-text-primary">{entry.title}</h3>
-            <p className="mt-1 truncate text-[11px] text-text-muted">
-              {entry.extensionName} {entry.extensionVersion}
-            </p>
-          </div>
-          <span className="shrink-0 rounded bg-accent/10 px-2 py-1 text-[10px] font-medium text-accent">
-            {contribution.runtime}
-          </span>
-        </div>
-        <ExtensionFederatedModuleHost className="min-h-[280px]" entry={entry} />
-        <dl className="mt-3 grid gap-2 text-[11px] text-text-tertiary">
-          <div className="min-w-0">
-            <dt className="text-text-muted">Contribution ID</dt>
-            <dd className="truncate text-text-secondary">{entry.contributionId}</dd>
-          </div>
-          <div className="min-w-0">
-            <dt className="text-text-muted">Entry</dt>
-            <dd className="truncate text-text-secondary">{contribution.entryPath}</dd>
-          </div>
-          <div className="min-w-0">
-            <dt className="text-text-muted">Family</dt>
-            <dd className="truncate text-text-secondary">
-              {OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SIDE_PANELS}
-            </dd>
-          </div>
-        </dl>
-      </section>
+    <PanelErrorBoundary
+      className="flex min-h-0 flex-1"
+      name={`Extension side panel: ${entry.title}`}
+    >
+      <ExtensionFederatedModuleHost chrome="bare" entry={entry} fill />
     </PanelErrorBoundary>
   )
 }
@@ -258,12 +209,7 @@ export function ExtensionSidePanelSurfaceContent({
   })
 
   return (
-    <ExtensionSidePanelShell
-      extensionId={target.extensionId}
-      onClose={onClose}
-      scopeLabel={projectScopeLabel(projectPaths)}
-      title={title}
-    >
+    <ExtensionSidePanelShell onClose={onClose} title={title}>
       {body}
     </ExtensionSidePanelShell>
   )

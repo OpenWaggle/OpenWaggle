@@ -28,6 +28,11 @@ import { AgentKernelService } from '../ports/agent-kernel-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
 import { SettingsService } from '../services/settings-service'
+import {
+  appendDurableAgentLoopEvents,
+  type DurableAgentLoopEvent,
+  isDurableAgentLoopEvent,
+} from './agent-run/agent-loop-events'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from './extension-runtime-service'
 import { assignSessionTitleFromUserText, hydratePayloadAttachments } from './run-handler-utils'
 import { extractFilePath } from './waggle-run/metadata'
@@ -188,6 +193,7 @@ function runPreparedWaggle(
     logWaggleStart(input)
 
     const conflictTracker = new FileConflictTracker()
+    const durableAgentLoopEvents: DurableAgentLoopEvent[] = []
     const agentKernel = yield* AgentKernelService
     const result = yield* agentKernel.run({
       session: prepared.session,
@@ -202,6 +208,9 @@ function runPreparedWaggle(
         config: input.config,
         inheritedModel: prepared.inheritedModel,
         onWaggleEvent: (event, meta) => {
+          if (isDurableAgentLoopEvent(event)) {
+            durableAgentLoopEvents.push(event)
+          }
           input.onEvent(event, meta)
           if (event.type !== 'tool_execution_end') return
           if (event.toolName !== 'write' && event.toolName !== 'edit') return
@@ -221,6 +230,21 @@ function runPreparedWaggle(
       },
     })
 
+    const existingTree = yield* sessionRepo.getTree(input.sessionId)
+    const sessionSnapshot = appendDurableAgentLoopEvents({
+      snapshot: result.sessionSnapshot,
+      events: durableAgentLoopEvents,
+      runId: input.runId,
+      existingNodes: existingTree?.nodes ?? [],
+    })
+
+    yield* persistWaggleSnapshot({
+      sessionId: input.sessionId,
+      result,
+      snapshot: sessionSnapshot,
+      waggleConfig: input.config,
+    })
+
     if (result.aborted || input.signal.aborted) {
       input.onTurnEvent({ type: 'collaboration-stopped', reason: 'User cancelled' })
       return {
@@ -228,13 +252,6 @@ function runPreparedWaggle(
         ...(prepared.assignedTitle ? { assignedTitle: prepared.assignedTitle } : {}),
       }
     }
-
-    yield* persistWaggleSnapshot({
-      sessionId: input.sessionId,
-      result,
-      snapshot: result.sessionSnapshot,
-      waggleConfig: input.config,
-    })
 
     return successOutcome(input, prepared, result)
   })

@@ -1,5 +1,5 @@
 import { homedir } from 'node:os'
-import { type AgentSessionServices, getAgentDir } from '@mariozechner/pi-coding-agent'
+import { type AgentSessionServices, getAgentDir } from '@earendil-works/pi-coding-agent'
 import { MCP_CONFIG } from '@shared/constants/mcp'
 import { installMcpAdapterPackage } from './adapter-package'
 import { createPiMcpConfigService } from './service-factory'

@@ -1,4 +1,4 @@
-import type { AgentSessionServices } from '@mariozechner/pi-coding-agent'
+import type { AgentSessionServices } from '@earendil-works/pi-coding-agent'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { fromPartial } from '@total-typescript/shoehorn'
 import * as Effect from 'effect/Effect'
@@ -45,7 +45,7 @@ const probeMocks = vi.hoisted(() => ({
   sessionManagerInMemory: vi.fn<() => unknown>(() => ({ kind: 'in-memory-session-manager' })),
 }))
 
-vi.mock('@mariozechner/pi-coding-agent', () => ({
+vi.mock('@earendil-works/pi-coding-agent', () => ({
   createAgentSessionFromServices: probeMocks.createAgentSessionFromServices,
   SessionManager: {
     inMemory: probeMocks.sessionManagerInMemory,

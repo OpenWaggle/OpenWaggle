@@ -169,6 +169,12 @@ export interface ExtensionContributionTargetView {
   readonly sessionIds?: readonly string[]
 }
 
+export interface ExtensionContributionMatchView {
+  readonly toolNames?: readonly string[]
+  readonly customMessageNames?: readonly string[]
+  readonly interactionKinds?: readonly string[]
+}
+
 export interface ExtensionContributionRegistryEntry {
   readonly extensionId: string
   readonly extensionName: string
@@ -189,6 +195,7 @@ export interface ExtensionContributionRegistryEntry {
   readonly methods?: readonly string[]
   readonly networkOrigins?: readonly string[]
   readonly target?: ExtensionContributionTargetView
+  readonly matches?: ExtensionContributionMatchView
   readonly runtime?: ExtensionContributionRuntime
   readonly execution?: ExtensionExecutionPlacement
   readonly entryPath?: string

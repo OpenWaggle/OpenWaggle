@@ -35,6 +35,8 @@ files:
 extraResources:
   - from: build/icon.png
     to: icon.png
+  - from: build/openwaggle-docs
+    to: openwaggle-docs
 asarUnpack:
   - node_modules/pi-mcp-adapter/**/*
 mac:

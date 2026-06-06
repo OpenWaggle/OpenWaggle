@@ -9,6 +9,7 @@ import { extensionInvokeScopeSchema } from '@shared/schemas/extension-broker'
 import { extensionContributionIdSchema } from '@shared/schemas/extensions'
 import type { ExtensionInvokeInput, ExtensionInvokeResult } from '@shared/types/extension-broker'
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
+import type { JsonValue } from '@shared/types/json'
 import type { OpenWaggleExtensionMountContext } from './extension-federated-module'
 
 export const EXTENSION_FEDERATED_MODULE_IFRAME_SANDBOX = 'allow-scripts'
@@ -42,10 +43,24 @@ const extensionFrameInvokeMessageSchema = Schema.Struct({
   requestId: Schema.String,
   input: Schema.Unknown,
 })
+const extensionFrameOpenExternalMessageSchema = Schema.Struct({
+  channel: Schema.Literal(EXTENSION_FRAME_MESSAGE_CHANNEL),
+  frameId: Schema.String,
+  type: Schema.Literal('open-external'),
+  url: Schema.String,
+})
+const extensionFrameResizeMessageSchema = Schema.Struct({
+  channel: Schema.Literal(EXTENSION_FRAME_MESSAGE_CHANNEL),
+  frameId: Schema.String,
+  type: Schema.Literal('resize'),
+  height: Schema.Number,
+})
 const extensionFrameMessageSchema = Schema.Union(
   extensionFrameMountedMessageSchema,
   extensionFrameErrorMessageSchema,
   extensionFrameInvokeMessageSchema,
+  extensionFrameOpenExternalMessageSchema,
+  extensionFrameResizeMessageSchema,
 )
 const extensionMountInvokeInputSchema = Schema.Struct({
   capability: extensionContributionIdSchema,
@@ -74,7 +89,10 @@ function escapeDoubleQuotedAttribute(value: string) {
     .replaceAll('"', '&quot;')
 }
 
-function extensionFrameMountContext(entry: ExtensionContributionRegistryEntry) {
+function extensionFrameMountContext(
+  entry: ExtensionContributionRegistryEntry,
+  surfacePayload: JsonValue | undefined,
+) {
   return {
     extension: {
       id: entry.extensionId,
@@ -89,6 +107,7 @@ function extensionFrameMountContext(entry: ExtensionContributionRegistryEntry) {
     surface: {
       family: entry.family,
       execution: entry.execution ?? '',
+      ...(surfacePayload !== undefined ? { payload: surfacePayload } : {}),
     },
     packagePath: entry.packagePath,
     projectPaths: entry.projectPaths,
@@ -102,11 +121,12 @@ function extensionFrameConfig(input: {
   readonly entry: ExtensionContributionRegistryEntry
   readonly frameId: string
   readonly moduleUrl: string
+  readonly surfacePayload?: JsonValue
 }) {
   return JSON.stringify({
     frameId: input.frameId,
     moduleUrl: input.moduleUrl,
-    context: extensionFrameMountContext(input.entry),
+    context: extensionFrameMountContext(input.entry, input.surfacePayload),
   })
 }
 
@@ -123,6 +143,7 @@ export function createExtensionFrameDocument(input: {
   readonly entry: ExtensionContributionRegistryEntry
   readonly frameId: string
   readonly moduleUrl: string
+  readonly surfacePayload?: JsonValue
 }) {
   const configJson = extensionFrameConfig(input)
 
@@ -136,7 +157,7 @@ export function createExtensionFrameDocument(input: {
 <style>
 :root { color-scheme: dark; font-family: ui-sans-serif, system-ui, sans-serif; background: transparent; color: #e6edf3; }
 * { box-sizing: border-box; }
-html, body, #${EXTENSION_FRAME_ROOT_ID} { min-height: 100%; }
+html, body, #${EXTENSION_FRAME_ROOT_ID} { height: 100%; min-height: 0; }
 body { margin: 0; background: transparent; }
 #${EXTENSION_FRAME_ROOT_ID} { min-width: 0; }
 [role="alert"] { padding: 12px; color: #ff6b6b; font: 12px ui-sans-serif, system-ui, sans-serif; }

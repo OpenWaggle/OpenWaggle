@@ -1,4 +1,4 @@
-import type { ExtensionCommandContext, ExtensionContext } from '@mariozechner/pi-coding-agent'
+import type { ExtensionCommandContext, ExtensionContext } from '@earendil-works/pi-coding-agent'
 import {
   deletePiWaggleCustomPreset,
   hiddenBuiltInPresetsForUi,
@@ -22,6 +22,7 @@ type PresetManagementNavigation = 'back' | 'close'
 
 const BACK_TO_PARENT: PresetManagementNavigation = 'back'
 const CLOSE_MENU: PresetManagementNavigation = 'close'
+const BACK_LABEL = 'Back'
 
 function notify(ctx: ExtensionContext, message: string, type: 'info' | 'warning' | 'error') {
   if (ctx.hasUI) ctx.ui.notify(message, type)
@@ -117,6 +118,48 @@ async function restoreHiddenPreset(input: {
   notify(input.ctx, `Restored built-in preset: ${selected.preset.name}`, 'info')
 }
 
+type PresetManagementResult =
+  | {
+      readonly action: 'continue'
+    }
+  | {
+      readonly action: 'return'
+      readonly navigation: PresetManagementNavigation
+    }
+
+async function handlePresetManagementSelection(input: {
+  readonly ctx: ExtensionCommandContext
+  readonly selected: string | undefined
+  readonly layers: Awaited<ReturnType<typeof loadPiWagglePresetLayers>>
+  readonly hiddenPresets: readonly PiWaggleHiddenBuiltInPreset[]
+  readonly editPreset: () => Promise<void>
+}): Promise<PresetManagementResult> {
+  if (input.selected === BACK_LABEL) {
+    return { action: 'return', navigation: BACK_TO_PARENT }
+  }
+
+  if (!input.selected) {
+    return { action: 'return', navigation: CLOSE_MENU }
+  }
+
+  if (input.selected === MANAGE_EDIT_LABEL) {
+    await input.editPreset()
+    return { action: 'continue' }
+  }
+
+  if (input.selected === MANAGE_DELETE_LABEL) {
+    const preset = await selectPresetToDelete(input.ctx, resolvedPresetsForUi(input.layers))
+    if (preset) await deletePreset({ ctx: input.ctx, preset })
+    return { action: 'continue' }
+  }
+
+  if (input.selected === MANAGE_RESTORE_LABEL) {
+    await restoreHiddenPreset({ ctx: input.ctx, hiddenPresets: input.hiddenPresets })
+  }
+
+  return { action: 'continue' }
+}
+
 export async function managePresets(input: {
   readonly ctx: ExtensionCommandContext
   readonly editPreset: () => Promise<void>
@@ -130,22 +173,16 @@ export async function managePresets(input: {
       MANAGE_EDIT_LABEL,
       MANAGE_DELETE_LABEL,
       ...(hiddenPresets.length > 0 ? [MANAGE_RESTORE_LABEL] : []),
-      'Back',
+      BACK_LABEL,
     ]
     const selected = await input.ctx.ui.select('Manage Waggle presets', options)
-    if (selected === 'Back') return BACK_TO_PARENT
-    if (!selected) return CLOSE_MENU
-    if (selected === MANAGE_EDIT_LABEL) {
-      await input.editPreset()
-      continue
-    }
-    if (selected === MANAGE_DELETE_LABEL) {
-      const preset = await selectPresetToDelete(input.ctx, resolvedPresetsForUi(layers))
-      if (preset) await deletePreset({ ctx: input.ctx, preset })
-      continue
-    }
-    if (selected === MANAGE_RESTORE_LABEL) {
-      await restoreHiddenPreset({ ctx: input.ctx, hiddenPresets })
-    }
+    const result = await handlePresetManagementSelection({
+      ctx: input.ctx,
+      selected,
+      layers,
+      hiddenPresets,
+      editPreset: input.editPreset,
+    })
+    if (result.action === 'return') return result.navigation
   }
 }

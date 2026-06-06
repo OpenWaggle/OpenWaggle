@@ -1,5 +1,5 @@
-import type { ExtensionCommandContext, ExtensionContext } from '@mariozechner/pi-coding-agent'
-import { decodeKittyPrintable, Key, matchesKey, parseKey } from '@mariozechner/pi-tui'
+import type { ExtensionCommandContext, ExtensionContext } from '@earendil-works/pi-coding-agent'
+import { decodeKittyPrintable, Key, matchesKey, parseKey } from '@earendil-works/pi-tui'
 import { singleTerminalLine, truncateTerminalLine } from './terminal-text'
 
 const MODEL_PICKER_VISIBLE_ROWS = 10

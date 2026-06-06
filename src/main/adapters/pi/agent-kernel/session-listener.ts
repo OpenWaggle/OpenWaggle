@@ -1,5 +1,5 @@
 import { matchBy } from '@diegogbrisa/ts-match'
-import type { AgentSessionEvent } from '@mariozechner/pi-coding-agent'
+import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import type { JsonValue } from '@shared/types/json'
 import { toJsonValue } from '../pi-message-mapper'
 import { getAgentEndError, getAgentEndReason, getAgentEndUsage } from './agent-end-events'
@@ -164,6 +164,8 @@ function handleSessionEvent(state: SessionListenerState, event: AgentSessionEven
   matchBy(event, 'type')
     .with('agent_start', () => emitAgentStart(state))
     .with('agent_end', (value) => emitAgentEnd(state, value))
+    .with('session_info_changed', () => undefined)
+    .with('thinking_level_changed', () => undefined)
     .with('turn_start', () => undefined)
     .with('turn_end', () => undefined)
     .with('message_start', (value) => handleMessageStart(state, value))

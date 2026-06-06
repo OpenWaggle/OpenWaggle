@@ -1,4 +1,4 @@
-import type { ExtensionCommandContext } from '@mariozechner/pi-coding-agent'
+import type { ExtensionCommandContext } from '@earendil-works/pi-coding-agent'
 import { parsePiWaggleCommandArgs } from './commands'
 import { activatePreset, disableWaggle, notify, resolvePresetById } from './default-command-runtime'
 import type { DefaultWaggleCommandInput } from './default-command-types'
@@ -6,8 +6,6 @@ import { editActiveConfig, editActiveMaxTurns } from './default-config-editors'
 import { openWaggleControlCenter } from './default-control-center'
 import { createPresetFromEditor, editPresetFromEditor } from './default-editors'
 import { loadPiWagglePresetLayers, resolvedPresetsForUi } from './presets'
-
-export type { SetDefaultPiWaggleRun, StartDefaultPiWaggleRun } from './default-command-types'
 
 export async function handleDefaultWaggleCommand(
   input: DefaultWaggleCommandInput & { readonly args: string },

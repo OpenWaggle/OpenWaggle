@@ -1,13 +1,9 @@
 import {
   CONFIG_KEY,
-  fetchIssueSummary,
   getStoredValue,
   normalizeConfig,
   normalizeLabels,
-  normalizeSummary,
   STORAGE_CONFIG,
-  STORAGE_STATE,
-  SUMMARY_KEY,
   setStoredValue,
 } from './github-api.js'
 
@@ -22,12 +18,15 @@ function element(tagName, options = {}) {
   return node
 }
 
-function field(label, value) {
+function field(label, value, helperText) {
   const wrapper = element('label', { className: 'field' })
   wrapper.append(element('span', { text: label }))
   const input = element('input')
   input.value = value
   wrapper.append(input)
+  if (helperText) {
+    wrapper.append(element('small', { text: helperText }))
+  }
   return { wrapper, input }
 }
 
@@ -36,105 +35,82 @@ function renderError(root, message) {
   root.append(element('div', { className: 'error', text: message }))
 }
 
-function renderMetrics(summary) {
-  const metrics = element('div', { className: 'grid' })
-  for (const metric of [
-    ['Open', summary.open],
-    ['Stale', summary.stale],
-    ['Ready', summary.ready],
-  ]) {
-    const box = element('div', { className: 'metric' })
-    box.append(element('strong', { text: String(metric[1]) }), element('span', { text: metric[0] }))
-    metrics.append(box)
-  }
-  return metrics
-}
-
-async function loadLiveSummary(context, config) {
-  try {
-    const summary = await fetchIssueSummary(config)
-    await setStoredValue(context, STORAGE_STATE, SUMMARY_KEY, summary)
-    return { summary, warning: null }
-  } catch (error) {
-    const storedSummary = normalizeSummary(
-      await getStoredValue(context, STORAGE_STATE, SUMMARY_KEY),
-    )
-    if (storedSummary) {
-      const message = error instanceof Error ? error.message : String(error)
-      return { summary: storedSummary, warning: `GitHub refresh failed: ${message}` }
-    }
-    throw error
-  }
-}
-
-function renderSettings(context, config, summary, warning) {
+function renderSettings(context, config, initialStatus = '') {
   const root = context.root
   root.replaceChildren()
 
   const style = element('style')
   style.textContent = `
-    .card { display: grid; gap: 14px; padding: 14px; border: 1px solid #2d333b; border-radius: 12px; background: #0f1318; color: #d6dde7; }
-    .eyebrow { color: #f0a000; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-    .title { margin: 0; font-size: 18px; line-height: 1.2; }
-    .muted { color: #8b949e; font-size: 12px; line-height: 1.55; }
-    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-    .metric { border: 1px solid #252b33; border-radius: 10px; padding: 10px; background: #121820; }
-    .metric strong { display: block; font-size: 20px; color: #f4f7fb; }
-    .metric span { color: #8b949e; font-size: 11px; }
+    .card { box-sizing: border-box; display: grid; gap: 16px; padding: 14px; border: 1px solid #2d333b; border-radius: 12px; background: #0f1318; color: #d6dde7; }
+    .eyebrow { color: #f0a000; font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+    .title { margin: 0; font-size: 18px; line-height: 1.2; color: #f4f7fb; }
+    .muted { margin: 0; color: #8b949e; font-size: 12px; line-height: 1.55; }
+    .form { display: grid; gap: 12px; }
     .field { display: grid; gap: 6px; color: #aeb7c2; font-size: 12px; }
-    input { width: 100%; border: 1px solid #303844; border-radius: 9px; background: #0b0f14; color: #e6edf3; padding: 9px 10px; outline: none; }
+    .field span { font-weight: 650; color: #d6dde7; }
+    .field small { color: #707a86; font-size: 11px; line-height: 1.45; }
+    input { width: 100%; box-sizing: border-box; border: 1px solid #303844; border-radius: 9px; background: #0b0f14; color: #e6edf3; padding: 9px 10px; outline: none; }
     input:focus { border-color: #f0a000; box-shadow: 0 0 0 2px rgba(240, 160, 0, .18); }
-    button { justify-self: start; border: 1px solid #b77900; border-radius: 9px; background: #f0a000; color: #1a1200; font-weight: 700; padding: 9px 12px; cursor: pointer; }
-    .saved { min-height: 18px; color: #7ee787; font-size: 12px; }
-    .warning { color: #f7c45f; font-size: 12px; }
+    .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+    button { border: 1px solid #b77900; border-radius: 9px; background: #f0a000; color: #1a1200; font-weight: 750; padding: 9px 12px; cursor: pointer; }
+    button:disabled { cursor: wait; opacity: .7; }
+    .status { min-height: 18px; color: #7ee787; font-size: 12px; }
     .error { color: #ff7b72; border: 1px solid rgba(255, 123, 114, .3); border-radius: 10px; padding: 12px; background: rgba(255, 123, 114, .08); }
   `
 
   const card = element('section', { className: 'card' })
-  const ownerField = field('Repository owner', config.owner)
-  const repoField = field('Repository name', config.repo)
-  const labelsField = field('Tracked labels', config.labels.join(', '))
-  const status = element('div', { className: 'saved' })
-  const save = element('button', { text: 'Fetch and save GitHub issues' })
+  const form = element('div', { className: 'form' })
+  const ownerField = field('Repository owner', config.owner, 'GitHub owner or organization.')
+  const repoField = field(
+    'Repository name',
+    config.repo,
+    'Repository used by the side panel and tool renderers.',
+  )
+  const labelsField = field(
+    'Tracked labels',
+    config.labels.join(', '),
+    'Comma-separated labels used to calculate the ready count.',
+  )
+  const actions = element('div', { className: 'actions' })
+  const status = element('div', { className: 'status' })
+  status.textContent = initialStatus
+  const save = element('button', { text: 'Save configuration' })
 
   save.addEventListener('click', async () => {
     try {
-      save.textContent = 'Fetching...'
-      const nextConfig = {
-        owner: ownerField.input.value.trim(),
-        repo: repoField.input.value.trim(),
+      save.disabled = true
+      save.textContent = 'Saving...'
+      const nextConfig = normalizeConfig({
+        owner: ownerField.input.value,
+        repo: repoField.input.value,
         labels: normalizeLabels(labelsField.input.value),
-      }
-      const nextSummary = await fetchIssueSummary(nextConfig)
+      })
       await setStoredValue(context, STORAGE_CONFIG, CONFIG_KEY, nextConfig)
-      await setStoredValue(context, STORAGE_STATE, SUMMARY_KEY, nextSummary)
-      renderSettings(context, normalizeConfig(nextConfig), nextSummary, null)
+      renderSettings(
+        context,
+        nextConfig,
+        'Configuration saved. The side panel will use it on the next refresh.',
+      )
     } catch (error) {
       status.textContent = error instanceof Error ? error.message : String(error)
     } finally {
-      save.textContent = 'Fetch and save GitHub issues'
+      save.disabled = false
+      save.textContent = 'Save configuration'
     }
   })
 
+  form.append(ownerField.wrapper, repoField.wrapper, labelsField.wrapper)
+  actions.append(save, status)
   card.append(
-    element('div', { className: 'eyebrow', text: 'Development fixture' }),
-    element('h2', { className: 'title', text: 'GitHub Issues Overview' }),
+    element('div', { className: 'eyebrow', text: 'Extension configuration' }),
+    element('h2', { className: 'title', text: 'GitHub Issues' }),
     element('p', {
       className: 'muted',
-      text: 'This settings surface fetches public GitHub issues and stores the live summary through the brokered extension storage capability. The side panel reads and refreshes the same package state.',
+      text: 'Choose the repository and labels used by the GitHub Issues side panel, chat extension cards, and Pi tool.',
     }),
-    renderMetrics(summary),
-    ownerField.wrapper,
-    repoField.wrapper,
-    labelsField.wrapper,
-    save,
-    element('div', { className: 'muted', text: summary.updatedAt }),
-    status,
+    form,
+    actions,
   )
-
-  if (warning) {
-    card.append(element('div', { className: 'warning', text: warning }))
-  }
 
   root.append(style, card)
 }
@@ -142,9 +118,7 @@ function renderSettings(context, config, summary, warning) {
 export async function mount(context) {
   try {
     const storedConfig = await getStoredValue(context, STORAGE_CONFIG, CONFIG_KEY)
-    const config = normalizeConfig(storedConfig)
-    const { summary, warning } = await loadLiveSummary(context, config)
-    renderSettings(context, config, summary, warning)
+    renderSettings(context, normalizeConfig(storedConfig))
   } catch (error) {
     renderError(context.root, error instanceof Error ? error.message : String(error))
   }

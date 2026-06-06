@@ -1,5 +1,5 @@
 import path from 'node:path'
-import type { AgentSessionServices } from '@mariozechner/pi-coding-agent'
+import type { AgentSessionServices } from '@earendil-works/pi-coding-agent'
 import { isPathInside } from '../../utils/paths'
 import type { PiExtensionLoadErrorRecord } from './pi-provider-catalog-types'
 

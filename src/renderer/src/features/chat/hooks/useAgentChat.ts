@@ -1,9 +1,14 @@
 import type { AgentSendPayload } from '@shared/types/agent'
+import type {
+  AgentLoopInteraction,
+  AgentLoopInteractionResponse,
+} from '@shared/types/agent-loop-interaction'
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
 import type { SupportedModelId } from '@shared/types/llm'
 import type { SessionDetail } from '@shared/types/session'
 import type { ThinkingLevel } from '@shared/types/settings'
+import type { AgentTransportCustomEvent } from '@shared/types/stream'
 import type { WaggleConfig } from '@shared/types/waggle'
 import { useRef, useState } from 'react'
 import { useBackgroundRunStore } from '@/features/chat/state/background-run-store'
@@ -12,6 +17,7 @@ import {
   selectOptimisticUserMessages,
   useOptimisticUserMessageStore,
 } from '@/features/chat/state/optimistic-user-message-store'
+import { api } from '@/shared/lib/ipc'
 import { buildClientUserMessage } from '../lib/useAgentChat.utils'
 import {
   type RunCompletionEffectContext,
@@ -33,6 +39,18 @@ import { useOptimisticSteeredTurn } from './useOptimisticSteeredTurn'
 
 export type { AgentChatStatus, AgentCompactionStatus } from './useAgentChat.types'
 
+function valueForSession<T extends readonly unknown[]>(
+  valuesBySessionId: ReadonlyMap<SessionId, T>,
+  sessionId: SessionId | null,
+  empty: T,
+) {
+  if (sessionId === null) {
+    return empty
+  }
+
+  return valuesBySessionId.get(sessionId) ?? empty
+}
+
 export function useAgentChat(
   sessionId: SessionId | null,
   session: SessionDetail | null,
@@ -53,13 +71,31 @@ export function useAgentChat(
   const [messagesBySessionId, setMessagesBySessionId] = useState(
     () => new Map<SessionId, UIMessage[]>(),
   )
+  const [agentInteractionsBySessionId, setAgentInteractionsBySessionId] = useState(
+    () => new Map<SessionId, readonly AgentLoopInteraction[]>(),
+  )
+  const [agentCustomMessagesBySessionId, setAgentCustomMessagesBySessionId] = useState(
+    () => new Map<SessionId, readonly AgentTransportCustomEvent[]>(),
+  )
+  const [agentInteractionEventsBySessionId, setAgentInteractionEventsBySessionId] = useState(
+    () => new Map<SessionId, AgentChatReturn['agentInteractionEvents']>(),
+  )
   const [status, setStatus] = useState<AgentChatStatus>('ready')
   const [error, setError] = useState<Error | undefined>(undefined)
   const [backgroundStreaming, setBackgroundStreaming] = useState(false)
   const [compactionStatus, setCompactionStatus] = useState<AgentCompactionStatus | null>(null)
   const messagesBySessionIdRef = useRef(messagesBySessionId)
   messagesBySessionIdRef.current = messagesBySessionId
-  const messages = sessionId ? (messagesBySessionId.get(sessionId) ?? EMPTY_UI_MESSAGES) : []
+  const agentInteractionsBySessionIdRef = useRef(agentInteractionsBySessionId)
+  agentInteractionsBySessionIdRef.current = agentInteractionsBySessionId
+  const agentCustomMessagesBySessionIdRef = useRef(agentCustomMessagesBySessionId)
+  agentCustomMessagesBySessionIdRef.current = agentCustomMessagesBySessionId
+  const agentInteractionEventsBySessionIdRef = useRef(agentInteractionEventsBySessionId)
+  agentInteractionEventsBySessionIdRef.current = agentInteractionEventsBySessionId
+  const messages = valueForSession(messagesBySessionId, sessionId, EMPTY_UI_MESSAGES)
+  const agentInteractions = valueForSession(agentInteractionsBySessionId, sessionId, [])
+  const agentCustomMessages = valueForSession(agentCustomMessagesBySessionId, sessionId, [])
+  const agentInteractionEvents = valueForSession(agentInteractionEventsBySessionId, sessionId, [])
   const isLoading =
     status === 'submitted' ||
     status === 'streaming' ||
@@ -160,10 +196,16 @@ export function useAgentChat(
       backgroundReconnectSessionIdRef,
       streamSignalVersionRef,
       terminalRunErrorRef,
+      agentInteractionsBySessionIdRef,
+      agentCustomMessagesBySessionIdRef,
+      agentInteractionEventsBySessionIdRef,
       messagesBySessionIdRef,
       setMessagesBySessionId,
       setRunRenderMessages,
       setError,
+      setAgentInteractionsBySessionId,
+      setAgentCustomMessagesBySessionId,
+      setAgentInteractionEventsBySessionId,
       setStatus,
       setCompactionStatus,
       setBackgroundStreaming,
@@ -207,6 +249,22 @@ export function useAgentChat(
     runCompletionContext,
   })
 
+  async function respondAgentInteraction(
+    interaction: AgentLoopInteraction,
+    response: AgentLoopInteractionResponse,
+  ) {
+    const result = await api.respondAgentInteraction({
+      sessionId: interaction.sessionId,
+      runId: interaction.runId,
+      interactionId: interaction.interactionId,
+      kind: interaction.kind,
+      response,
+    })
+    if (!result.ok) {
+      throw new Error(result.error.message)
+    }
+  }
+
   return {
     messages: visibleMessages,
     sendMessage: async (payload: AgentSendPayload) =>
@@ -227,5 +285,9 @@ export function useAgentChat(
     backgroundStreaming,
     streamSignalVersion: streamSignalVersionRef.current,
     compactionStatus,
+    agentInteractions,
+    agentCustomMessages,
+    agentInteractionEvents,
+    respondAgentInteraction,
   }
 }

@@ -1,6 +1,16 @@
 import type { AgentSendPayload } from './agent'
+import type {
+  AgentLoopInteractionResponseInput,
+  AgentLoopInteractionSubmitResult,
+} from './agent-loop-interaction'
 import type { SessionBranchId, SessionId, SessionNodeId } from './brand'
 import type { ContextCompactionResult, ContextUsageSnapshot } from './context-usage'
+import type {
+  DocsDiscoveryView,
+  DocsListInput,
+  DocsResolveTopicInput,
+  FirstPartyDocsTopicSummary,
+} from './docs'
 import type { ExtensionInvokeInput, ExtensionInvokeResult } from './extension-broker'
 import type {
   ExtensionAcceptUpdateInput,
@@ -45,6 +55,10 @@ export interface IpcCoreInvokeChannelMap {
   'agent:steer': {
     args: [sessionId: SessionId]
     return: { preserved: boolean }
+  }
+  'agent:respond-interaction': {
+    args: [input: AgentLoopInteractionResponseInput]
+    return: AgentLoopInteractionSubmitResult
   }
   'agent:get-context-usage': {
     args: [sessionId: SessionId, model: SupportedModelId]
@@ -133,6 +147,14 @@ export interface IpcCoreInvokeChannelMap {
   'extensions:reload': {
     args: [input: ExtensionReloadInput]
     return: ExtensionManagerView
+  }
+  'docs:discover': {
+    args: [input?: DocsListInput]
+    return: DocsDiscoveryView
+  }
+  'docs:resolve-topic': {
+    args: [input: DocsResolveTopicInput]
+    return: FirstPartyDocsTopicSummary | null
   }
   'project:select-folder': {
     args: []

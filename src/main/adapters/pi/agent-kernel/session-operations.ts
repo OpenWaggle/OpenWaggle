@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { ContextUsage } from '@mariozechner/pi-coding-agent'
+import type { ContextUsage } from '@earendil-works/pi-coding-agent'
 import type { ContextUsageSnapshot } from '@shared/types/context-usage'
 import {
   AgentKernelMissingEntryError,

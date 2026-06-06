@@ -3,12 +3,34 @@
   "id": "openwaggle-github-issues-overview",
   "name": "GitHub Issues Overview",
   "version": "0.1.0",
-  "description": "Development-only fixture that demonstrates settings and side panel surfaces sharing extension package state.",
+  "description": "Development-only fixture that demonstrates settings, side panel, and agent-loop surfaces sharing extension package state.",
   "sdk": {
     "openwaggle": ">=0.1.0 <0.2.0"
   },
-  "sourceFiles": ["src/github-api.js", "src/settings.js", "src/side-panel.js"],
-  "builtArtifacts": ["modules/github-api.js", "modules/settings.js", "modules/side-panel.js"],
+  "sourceFiles": [
+    "package.json",
+    "src/github-api.js",
+    "src/settings.js",
+    "src/side-panel.js",
+    "src/transcript.js",
+    "src/tool-card.js",
+    "src/custom-message.js",
+    "src/interaction.js",
+    "src/status.js",
+    "pi/extensions/github-issues-tool.js"
+  ],
+  "builtArtifacts": [
+    "package.json",
+    "modules/github-api.js",
+    "modules/settings.js",
+    "modules/side-panel.js",
+    "modules/transcript.js",
+    "modules/tool-card.js",
+    "modules/custom-message.js",
+    "modules/interaction.js",
+    "modules/status.js",
+    "pi/extensions/github-issues-tool.js"
+  ],
   "install": {
     "source": "prebuilt"
   },
@@ -43,6 +65,70 @@
         "entry": "modules/side-panel.js",
         "capability": "openwaggle.storage",
         "methods": ["get", "set", "list"]
+      }
+    ],
+    "transcriptRenderers": [
+      {
+        "id": "github.transcript",
+        "title": "GitHub Issues Transcript Summary",
+        "runtime": "federated-module",
+        "execution": "host-renderer",
+        "entry": "modules/transcript.js",
+        "capability": "openwaggle.storage",
+        "methods": ["get", "list"]
+      }
+    ],
+    "toolRenderers": [
+      {
+        "id": "github.tool-card",
+        "title": "GitHub Issues Tool Card",
+        "runtime": "federated-module",
+        "execution": "host-renderer",
+        "entry": "modules/tool-card.js",
+        "matches": {
+          "toolNames": ["openwaggle.github.listIssues"]
+        },
+        "capability": "openwaggle.storage",
+        "methods": ["get", "list"]
+      }
+    ],
+    "customMessageRenderers": [
+      {
+        "id": "github.custom-message",
+        "title": "GitHub Issues Custom Message",
+        "runtime": "federated-module",
+        "execution": "host-renderer",
+        "entry": "modules/custom-message.js",
+        "matches": {
+          "customMessageNames": ["openwaggle.github.issues.summary"]
+        },
+        "capability": "openwaggle.storage",
+        "methods": ["get", "list"]
+      }
+    ],
+    "interactionRenderers": [
+      {
+        "id": "github.interaction",
+        "title": "GitHub Issues Interaction",
+        "runtime": "federated-module",
+        "execution": "host-renderer",
+        "entry": "modules/interaction.js",
+        "matches": {
+          "interactionKinds": ["select"]
+        },
+        "capability": "openwaggle.storage",
+        "methods": ["get", "list"]
+      }
+    ],
+    "statusWidgets": [
+      {
+        "id": "github.status",
+        "title": "GitHub Issues Status",
+        "runtime": "federated-module",
+        "execution": "host-renderer",
+        "entry": "modules/status.js",
+        "capability": "openwaggle.storage",
+        "methods": ["get", "list"]
       }
     ]
   }

@@ -1,4 +1,4 @@
-import { AuthStorage, ModelRegistry } from '@mariozechner/pi-coding-agent'
+import { AuthStorage, ModelRegistry } from '@earendil-works/pi-coding-agent'
 import type { HydratedAgentSendPayload } from '@shared/types/agent'
 import { describe, expect, it } from 'vitest'
 import { buildPiPromptInput } from '../pi-runtime-input'

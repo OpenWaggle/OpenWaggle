@@ -56,6 +56,53 @@ function renderLabels(labels) {
   return list
 }
 
+function requestOpenExternal(context, url) {
+  const openExternal = context.sdk.openWaggle?.actions?.openExternal
+  if (typeof openExternal !== 'function') {
+    return
+  }
+
+  Promise.resolve(openExternal(url)).catch(() => {})
+}
+
+function issueRow(context, issue) {
+  const hasIssueUrl = typeof issue.url === 'string' && issue.url.length > 0
+  const row = element(hasIssueUrl ? 'a' : 'article', { className: 'issue' })
+  if (hasIssueUrl) {
+    row.href = issue.url
+    row.target = '_blank'
+    row.rel = 'noreferrer'
+    row.addEventListener('click', (event) => {
+      event.preventDefault()
+      requestOpenExternal(context, issue.url)
+    })
+  }
+
+  row.append(
+    element('strong', { text: `#${issue.number} ${issue.title}` }),
+    element('span', { text: issue.updatedAt }),
+  )
+  return row
+}
+
+function renderIssueList(context, summary) {
+  const list = element('div', { className: 'issues' })
+  if (summary.issues.length === 0) {
+    list.append(
+      element('div', {
+        className: 'empty',
+        text: 'GitHub returned no open issues for this repository.',
+      }),
+    )
+    return list
+  }
+
+  for (const issue of summary.issues) {
+    list.append(issueRow(context, issue))
+  }
+  return list
+}
+
 function renderError(root, message) {
   root.replaceChildren()
   root.append(element('div', { className: 'error', text: message }))
@@ -67,7 +114,9 @@ function renderPanel(context, config, summary, warning) {
 
   const style = element('style')
   style.textContent = `
-    .panel { display: grid; gap: 14px; min-height: 100%; padding: 14px; border: 1px solid #2d333b; border-radius: 12px; background: #0f1318; color: #d6dde7; }
+    :root, body { height: 100%; margin: 0; }
+    body { background: transparent; }
+    .panel { box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; height: 100%; min-height: 0; overflow: hidden; padding: 14px; border: 1px solid #2d333b; border-radius: 12px; background: #0f1318; color: #d6dde7; }
     .eyebrow { color: #f0a000; font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
     h2 { margin: 0; font-size: 16px; line-height: 1.25; color: #f4f7fb; }
     .repo { color: #aeb7c2; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -75,8 +124,14 @@ function renderPanel(context, config, summary, warning) {
     .metric { border: 1px solid #252b33; border-radius: 10px; padding: 9px; background: #121820; }
     .metric strong { display: block; font-size: 19px; color: #f4f7fb; }
     .metric span { color: #8b949e; font-size: 10px; }
-    .labels { display: flex; flex-wrap: wrap; gap: 6px; }
+    .labels { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
     .labels span { border: 1px solid rgba(240, 160, 0, .3); border-radius: 999px; background: rgba(240, 160, 0, .1); color: #f7c45f; padding: 4px 7px; font-size: 10px; }
+    .issues { display: grid; flex: 1 1 auto; align-content: start; gap: 8px; min-height: 0; overflow: auto; padding-right: 2px; }
+    .issue { display: grid; gap: 3px; border: 1px solid #252b33; border-radius: 10px; padding: 9px; background: #0b0f14; color: inherit; text-decoration: none; transition: border-color .12s ease, background .12s ease; }
+    .issue:hover { border-color: rgba(240, 160, 0, .45); background: #101721; }
+    .issue:focus-visible { outline: 2px solid rgba(240, 160, 0, .75); outline-offset: 2px; }
+    .issue strong { color: #e6edf3; font-size: 12px; line-height: 1.35; }
+    .issue span, .empty { color: #8b949e; font-size: 10px; }
     .muted { color: #8b949e; font-size: 11px; line-height: 1.55; }
     .warning { color: #f7c45f; font-size: 11px; line-height: 1.55; }
     button { border: 1px solid #303844; border-radius: 9px; background: #121820; color: #d6dde7; padding: 8px 10px; cursor: pointer; }
@@ -111,6 +166,7 @@ function renderPanel(context, config, summary, warning) {
     element('div', { className: 'repo', text: summary.repository }),
     metrics,
     renderLabels(config.labels),
+    renderIssueList(context, summary),
     element('p', {
       className: 'muted',
       text: summary.updatedAt,

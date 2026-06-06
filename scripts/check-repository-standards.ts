@@ -35,6 +35,7 @@ const scanGlobs: string[] = [
 const ignoreGlobs: string[] = [
   '.git/**',
   '.fallow/**',
+  'build/**',
   'coverage/**',
   'dist/**',
   'node_modules/**',

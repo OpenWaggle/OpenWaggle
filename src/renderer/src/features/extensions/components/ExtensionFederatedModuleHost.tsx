@@ -1,261 +1,139 @@
-import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import type { ExtensionInvokeInput, ExtensionInvokeResult } from '@shared/types/extension-broker'
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
+import type { JsonValue } from '@shared/types/json'
 import { RefreshCw, ShieldAlert } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { cn } from '@/shared/lib/cn'
-import { api } from '@/shared/lib/ipc'
-import { refreshPreferencesAfterExtensionInvoke } from '../lib/extension-broker-preferences'
 import {
-  createExtensionFrameDocument,
-  decodeExtensionFrameMessage,
-  EXTENSION_FEDERATED_MODULE_IFRAME_SANDBOX,
-  type ExtensionFrameInvokeMessage,
-  extensionInvokeInputFromFrame,
-  postFrameMessage,
-} from '../lib/extension-frame-host'
+  federatedModuleMountKey,
+  federatedModuleSurfacePayloadJson,
+  initialMountStatus,
+  mountExtensionFrame,
+  type ReportedMountStatus,
+  supportsExtensionExecutionPlacement,
+  supportsFederatedModuleFrameRuntime,
+} from '../lib/extension-federated-frame-mount'
+import { EXTENSION_FEDERATED_MODULE_IFRAME_SANDBOX } from '../lib/extension-frame-host'
 import { createExtensionModuleUrl } from '../lib/extension-module-url'
 
-const EXTENSION_FRAME_DOCUMENT_TYPE = 'text/html'
+const DEFAULT_FRAME_AUTO_MIN_HEIGHT = 96
+const DEFAULT_FRAME_AUTO_MAX_HEIGHT = 520
 
-type MountStatus =
-  | { readonly kind: 'idle' }
-  | { readonly kind: 'loading' }
-  | { readonly kind: 'mounted' }
-  | { readonly kind: 'error'; readonly message: string }
-
-interface ReportedMountStatus {
+interface ReportedFrameHeight {
   readonly mountKey: string
-  readonly status: MountStatus
+  readonly height: number
 }
 
-interface MountExtensionFrameInput {
-  readonly entry: ExtensionContributionRegistryEntry
-  readonly frame: HTMLIFrameElement | null
-  readonly frameId: string
-  readonly frameRuntimeSupported: boolean
-  readonly getCurrentFrameWindow: () => Window | null | undefined
-  readonly moduleUrl: string | null
-  readonly mountKey: string
-  readonly reportStatus: (status: ReportedMountStatus) => void
-}
-
-function invocationProjectPath(input: ExtensionInvokeInput) {
-  return input.scope.kind === 'app' ? null : input.scope.projectPath
-}
-
-function outOfScopeInvokeFailure(projectPath: string): ExtensionInvokeResult {
-  return {
-    ok: false,
-    error: {
-      code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.OUT_OF_SCOPE,
-      message: `Project "${projectPath}" is outside this extension contribution scope.`,
-    },
-  }
-}
-
-function describeInvokeError(error: unknown) {
-  return error instanceof Error ? error.message : String(error)
-}
-
-function transportInvokeFailure(error: unknown): ExtensionInvokeResult {
-  return {
-    ok: false,
-    error: {
-      code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.TRANSPORT_FAILED,
-      message: 'Extension broker transport failed.',
-      issues: [describeInvokeError(error)],
-    },
-  }
-}
-
-function invokeBoundExtension(
-  entry: ExtensionContributionRegistryEntry,
-  input: ExtensionInvokeInput,
-) {
-  const projectPath = invocationProjectPath(input)
-  if (projectPath !== null && !entry.projectPaths.includes(projectPath)) {
-    return Promise.resolve(outOfScopeInvokeFailure(projectPath))
-  }
-
-  return api.invokeExtension(input).then(async (result) => {
-    await refreshPreferencesAfterExtensionInvoke(result)
-    return result
-  })
-}
-
-async function handleFrameInvoke(input: {
-  readonly entry: ExtensionContributionRegistryEntry
-  readonly frameId: string
-  readonly frameWindow: Window
-  readonly message: ExtensionFrameInvokeMessage
+function clampFrameHeight(input: {
+  readonly height: number | null
+  readonly minHeight: number
+  readonly maxHeight: number
 }) {
-  const decodedInput = extensionInvokeInputFromFrame(input.entry, input.message.input)
-  const result = await (async () => {
-    if ('ok' in decodedInput) {
-      return decodedInput
-    }
-
-    try {
-      return await invokeBoundExtension(input.entry, decodedInput)
-    } catch (error) {
-      return transportInvokeFailure(error)
-    }
-  })()
-
-  postFrameMessage(input.frameWindow, input.frameId, {
-    type: 'invoke-result',
-    requestId: input.message.requestId,
-    result,
-  })
+  const measuredHeight = input.height ?? input.minHeight
+  return Math.min(Math.max(Math.ceil(measuredHeight), input.minHeight), input.maxHeight)
 }
 
-function missingEntryPathStatus(): MountStatus {
-  return {
-    kind: 'error',
-    message: 'Extension contribution is missing its federated module entry path.',
-  }
+function activeFrameHeight(input: {
+  readonly mountKey: string
+  readonly reportedHeight: ReportedFrameHeight | null
+}) {
+  return input.reportedHeight?.mountKey === input.mountKey ? input.reportedHeight.height : null
 }
 
-function supportsExtensionExecutionPlacement(entry: ExtensionContributionRegistryEntry) {
-  return (
-    entry.execution === OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.HOST_RENDERER ||
-    entry.execution === OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.FRAME
-  )
+function hostLayout(input: {
+  readonly chrome: 'bare' | 'card'
+  readonly fill: boolean
+  readonly shouldAutoHeight: boolean
+}) {
+  const containerLayout = input.fill
+    ? 'flex size-full min-h-0 flex-col'
+    : input.shouldAutoHeight
+      ? 'flex min-h-0 flex-col'
+      : 'flex min-h-[220px] flex-col'
+  const containerChrome =
+    input.chrome === 'card'
+      ? 'rounded-md border border-border/70 bg-bg-secondary/30 p-3'
+      : 'bg-transparent'
+  const iframeClassName = input.fill
+    ? 'min-h-0 w-full flex-1 bg-transparent'
+    : input.shouldAutoHeight
+      ? 'w-full shrink-0 bg-transparent'
+      : 'min-h-[220px] w-full flex-1 bg-transparent'
+
+  return { containerChrome, containerLayout, iframeClassName }
 }
 
-function supportsFederatedModuleFrameRuntime(entry: ExtensionContributionRegistryEntry) {
-  return (
-    entry.runtime === OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE &&
-    supportsExtensionExecutionPlacement(entry)
-  )
-}
-
-function federatedModuleMountKey(
-  entry: ExtensionContributionRegistryEntry,
-  moduleUrl: string | null,
-) {
-  return JSON.stringify([entry.extensionId, entry.contributionId, entry.execution ?? '', moduleUrl])
-}
-
-function createFrameDocumentUrl(frameDocument: string) {
-  return URL.createObjectURL(new Blob([frameDocument], { type: EXTENSION_FRAME_DOCUMENT_TYPE }))
-}
-
-function initialMountStatus(input: {
+function statusFor(input: {
   readonly frameRuntimeSupported: boolean
   readonly moduleUrl: string | null
-}): MountStatus {
-  if (!input.frameRuntimeSupported) {
-    return { kind: 'idle' }
-  }
-
-  return input.moduleUrl === null ? missingEntryPathStatus() : { kind: 'loading' }
+  readonly mountKey: string
+  readonly reportedStatus: ReportedMountStatus | null
+}) {
+  return input.reportedStatus?.mountKey === input.mountKey
+    ? input.reportedStatus.status
+    : initialMountStatus({
+        frameRuntimeSupported: input.frameRuntimeSupported,
+        moduleUrl: input.moduleUrl,
+      })
 }
 
-function mountExtensionFrame(input: MountExtensionFrameInput) {
-  if (!input.frameRuntimeSupported) {
-    return
+function MountStatusBanner({ status }: { readonly status: ReturnType<typeof initialMountStatus> }) {
+  if (status.kind === 'loading') {
+    return (
+      <div className="mb-3 flex items-center gap-2 text-[12px] text-text-tertiary">
+        <RefreshCw className="size-3 animate-spin text-accent" />
+        Mounting extension module...
+      </div>
+    )
   }
 
-  let active = true
-  const frame = input.frame
-  const resolvedModuleUrl = input.moduleUrl
-  if (!frame || resolvedModuleUrl === null) {
-    return () => {
-      active = false
-    }
+  if (status.kind === 'error') {
+    return (
+      <div role="alert" className="mb-3 flex items-start gap-2 text-[12px] text-error">
+        <ShieldAlert className="mt-0.5 size-3 shrink-0" />
+        <span>{status.message}</span>
+      </div>
+    )
   }
 
-  if (!frame.contentWindow) {
-    queueMicrotask(() => {
-      if (!active) {
-        return
-      }
-      input.reportStatus({
-        mountKey: input.mountKey,
-        status: { kind: 'error', message: 'Extension frame is unavailable.' },
-      })
-    })
-    return () => {
-      active = false
-    }
-  }
-
-  function reportMountStatus(status: MountStatus) {
-    input.reportStatus({ mountKey: input.mountKey, status })
-  }
-
-  function handleFrameMessage(event: MessageEvent<unknown>) {
-    const currentFrameWindow = input.getCurrentFrameWindow()
-    if (!active || !currentFrameWindow || event.source !== currentFrameWindow) {
-      return
-    }
-    const frameMessage = decodeExtensionFrameMessage(event.data, input.frameId)
-    if (frameMessage === null) {
-      return
-    }
-
-    if (frameMessage.type === 'mounted') {
-      reportMountStatus({ kind: 'mounted' })
-      return
-    }
-
-    if (frameMessage.type === 'error' || frameMessage.type === 'cleanup-error') {
-      reportMountStatus({ kind: 'error', message: frameMessage.message })
-      return
-    }
-
-    if (frameMessage.type === 'invoke') {
-      void handleFrameInvoke({
-        entry: input.entry,
-        frameId: input.frameId,
-        frameWindow: currentFrameWindow,
-        message: frameMessage,
-      })
-    }
-  }
-
-  window.addEventListener('message', handleFrameMessage)
-  const frameDocumentUrl = createFrameDocumentUrl(
-    createExtensionFrameDocument({
-      entry: input.entry,
-      frameId: input.frameId,
-      moduleUrl: resolvedModuleUrl,
-    }),
-  )
-  frame.src = frameDocumentUrl
-
-  return () => {
-    active = false
-    const currentFrameWindow = frame.contentWindow
-    if (currentFrameWindow) {
-      postFrameMessage(currentFrameWindow, input.frameId, { type: 'dispose' })
-    }
-    frame.removeAttribute('src')
-    URL.revokeObjectURL(frameDocumentUrl)
-    window.removeEventListener('message', handleFrameMessage)
-  }
+  return null
 }
 
 export function ExtensionFederatedModuleHost({
   entry,
+  autoHeight = false,
   className,
+  chrome = 'card',
+  fill = false,
+  maxAutoHeight = DEFAULT_FRAME_AUTO_MAX_HEIGHT,
+  minAutoHeight = DEFAULT_FRAME_AUTO_MIN_HEIGHT,
+  surfacePayload,
 }: {
   readonly entry: ExtensionContributionRegistryEntry
+  readonly autoHeight?: boolean
   readonly className?: string
+  readonly chrome?: 'bare' | 'card'
+  readonly fill?: boolean
+  readonly maxAutoHeight?: number
+  readonly minAutoHeight?: number
+  readonly surfacePayload?: JsonValue
 }) {
   const frameRef = useRef<HTMLIFrameElement | null>(null)
   const frameId = useId()
+  const [reportedHeight, setReportedHeight] = useState<ReportedFrameHeight | null>(null)
   const [reportedStatus, setReportedStatus] = useState<ReportedMountStatus | null>(null)
   const moduleUrl = createExtensionModuleUrl(entry)
   const frameRuntimeSupported = supportsFederatedModuleFrameRuntime(entry)
-  const mountKey = federatedModuleMountKey(entry, moduleUrl)
-  const status =
-    reportedStatus?.mountKey === mountKey
-      ? reportedStatus.status
-      : initialMountStatus({ frameRuntimeSupported, moduleUrl })
+  const surfacePayloadJson = federatedModuleSurfacePayloadJson(surfacePayload)
+  const mountKey = federatedModuleMountKey(entry, moduleUrl, surfacePayloadJson)
+  const shouldAutoHeight = autoHeight && !fill
+  const layout = hostLayout({ chrome, fill, shouldAutoHeight })
+  const resolvedAutoHeight = clampFrameHeight({
+    height: activeFrameHeight({ mountKey, reportedHeight }),
+    minHeight: minAutoHeight,
+    maxHeight: maxAutoHeight,
+  })
+  const status = statusFor({ frameRuntimeSupported, moduleUrl, mountKey, reportedStatus })
 
   useEffect(() => {
     return mountExtensionFrame({
@@ -266,9 +144,23 @@ export function ExtensionFederatedModuleHost({
       getCurrentFrameWindow: () => frameRef.current?.contentWindow,
       moduleUrl,
       mountKey,
+      reportHeight: shouldAutoHeight
+        ? (height) => {
+            setReportedHeight({ height, mountKey })
+          }
+        : undefined,
       reportStatus: setReportedStatus,
+      surfacePayloadJson,
     })
-  }, [entry, frameId, frameRuntimeSupported, moduleUrl, mountKey])
+  }, [
+    entry,
+    frameId,
+    frameRuntimeSupported,
+    moduleUrl,
+    mountKey,
+    shouldAutoHeight,
+    surfacePayloadJson,
+  ])
 
   if (entry.runtime !== OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE) {
     return (
@@ -298,26 +190,18 @@ export function ExtensionFederatedModuleHost({
     )
   }
 
+  const iframeStyle = shouldAutoHeight ? { height: `${resolvedAutoHeight}px` } : undefined
+
   return (
-    <div className={cn('rounded-md border border-border/70 bg-bg-secondary/30 p-3', className)}>
-      {status.kind === 'loading' ? (
-        <div className="mb-3 flex items-center gap-2 text-[12px] text-text-tertiary">
-          <RefreshCw className="size-3 animate-spin text-accent" />
-          Mounting extension module...
-        </div>
-      ) : null}
-      {status.kind === 'error' ? (
-        <div role="alert" className="mb-3 flex items-start gap-2 text-[12px] text-error">
-          <ShieldAlert className="mt-0.5 size-3 shrink-0" />
-          <span>{status.message}</span>
-        </div>
-      ) : null}
+    <div className={cn(layout.containerLayout, layout.containerChrome, className)}>
+      <MountStatusBanner status={status} />
       <iframe
-        className="min-h-[220px] w-full bg-transparent"
+        className={layout.iframeClassName}
         data-extension-frame-id={frameId}
         ref={frameRef}
         referrerPolicy="no-referrer"
         sandbox={EXTENSION_FEDERATED_MODULE_IFRAME_SANDBOX}
+        style={iframeStyle}
         title={`Extension module: ${entry.title}`}
       />
     </div>

@@ -1,12 +1,21 @@
 import type { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
+import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import type { SupportedModelId } from '@shared/types/llm'
 import { AssistantMessageBubble, type WaggleInfo } from './AssistantMessageBubble'
 import { UserMessageBubble } from './UserMessageBubble'
 
+export interface MessageBubbleRuntime {
+  readonly sessionId: SessionId | null
+  readonly extensions: {
+    readonly registry: ExtensionContributionRegistryView | null
+    readonly projectPaths: readonly string[]
+  }
+}
+
 interface MessageBubbleProps {
   message: UIMessage
-  sessionId: SessionId | null
+  runtime: MessageBubbleRuntime
   waggle?: WaggleInfo
   run?: {
     readonly isStreaming?: boolean
@@ -24,7 +33,7 @@ interface MessageBubbleProps {
 
 export function MessageBubble({
   message,
-  sessionId,
+  runtime,
   waggle,
   run,
   presentation,
@@ -43,13 +52,15 @@ export function MessageBubble({
   return (
     <AssistantMessageBubble
       message={message}
-      isStreaming={run?.isStreaming}
-      isRunActive={run?.isRunActive}
-      assistantModel={run?.assistantModel}
-      sessionId={sessionId}
+      runtime={runtime}
+      run={run}
       waggle={waggle}
-      hideAgentLabel={presentation?.hideAgentLabel}
-      onBranchFromMessage={actions?.onBranchFromMessage}
+      presentation={presentation}
+      actions={
+        actions?.onBranchFromMessage
+          ? { onBranchFromMessage: actions.onBranchFromMessage }
+          : undefined
+      }
     />
   )
 }

@@ -195,8 +195,8 @@ describe('ExtensionsSection contribution registry', () => {
     expect(screen.getByText('Settings 1')).toBeInTheDocument()
     const settingsHost = screen.getByLabelText('Extension settings contributions')
     expect(within(settingsHost).getByText('Sample settings')).toBeInTheDocument()
-    expect(within(settingsHost).getByText('Federated module')).toBeInTheDocument()
-    expect(within(settingsHost).getByText('Frame')).toBeInTheDocument()
+    expect(within(settingsHost).queryByText('Federated module')).not.toBeInTheDocument()
+    expect(within(settingsHost).queryByText('Frame')).not.toBeInTheDocument()
     const frame = within(settingsHost).getByTitle('Extension module: Sample settings')
     expect(frame).toHaveAttribute('sandbox', 'allow-scripts')
     await waitFor(() => {

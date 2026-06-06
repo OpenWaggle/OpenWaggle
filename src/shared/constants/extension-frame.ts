@@ -65,13 +65,62 @@ if (!root) {
 let cleanup = null;
 let disposed = false;
 let invokeSequence = 0;
+let resizeAnimationFrame = 0;
+let resizeObserver = null;
 const pendingInvocations = new Map();
 
 function post(message) {
   parent.postMessage({ channel: CHANNEL, frameId: config.frameId, ...message }, '*');
 }
 
+function measureFrameHeight() {
+  return Math.ceil(
+    Math.max(
+      root.scrollHeight,
+      document.body.scrollHeight,
+      document.documentElement.scrollHeight,
+    ),
+  );
+}
+
+function postFrameHeight() {
+  resizeAnimationFrame = 0;
+  if (!disposed) {
+    post({ type: 'resize', height: measureFrameHeight() });
+  }
+}
+
+function scheduleFrameResize() {
+  if (resizeAnimationFrame !== 0) {
+    return;
+  }
+  resizeAnimationFrame = requestAnimationFrame(postFrameHeight);
+}
+
+function startResizeObserver() {
+  scheduleFrameResize();
+  if (typeof ResizeObserver !== 'function') {
+    return;
+  }
+
+  resizeObserver = new ResizeObserver(scheduleFrameResize);
+  resizeObserver.observe(root);
+  resizeObserver.observe(document.body);
+}
+
+function stopResizeObserver() {
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+    resizeObserver = null;
+  }
+  if (resizeAnimationFrame !== 0) {
+    cancelAnimationFrame(resizeAnimationFrame);
+    resizeAnimationFrame = 0;
+  }
+}
+
 function runCleanup() {
+  stopResizeObserver();
   if (!cleanup) {
     return;
   }
@@ -163,6 +212,12 @@ function createOpenWaggleHostSdk() {
           scope,
           payload: { projectPath },
         }),
+      openExternal: (url) => {
+        if (typeof url === 'string') {
+          post({ type: 'open-external', url });
+        }
+        return Promise.resolve();
+      },
     },
     settings: {
       get: (scope) =>
@@ -248,6 +303,7 @@ try {
   if (typeof mountResult === 'function') {
     cleanup = mountResult;
   }
+  startResizeObserver();
 
   if (disposed) {
     runCleanup();
@@ -266,4 +322,4 @@ try {
 `.trim()
 
 export const EXTENSION_FRAME_BOOTSTRAP_SCRIPT_HASH =
-  "'sha256-cksM2nZSqi0zOk2pryOur4Xs/F1HhIe5ZYO7mMP+K8A='"
+  "'sha256-k4y4hf14weZzymCc0MTftNtopyh1/UycPtJVjpMbuVc='"

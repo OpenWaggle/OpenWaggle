@@ -82,9 +82,15 @@ describe('ExtensionSidePanelSurfaceContent', () => {
     renderSidePanelSurface({ registry: REGISTRY })
 
     expect(screen.getByLabelText('Extension side panel')).toBeInTheDocument()
-    expect(screen.getAllByText('Sample side panel')).toHaveLength(2)
+    expect(screen.getAllByText('Sample side panel')).toHaveLength(1)
     expect(screen.queryByText('Run sample')).not.toBeInTheDocument()
+    expect(screen.queryByText('federated-module')).not.toBeInTheDocument()
+    expect(screen.queryByText('Contribution ID')).not.toBeInTheDocument()
+    expect(screen.queryByText('Entry')).not.toBeInTheDocument()
+    expect(screen.queryByText('Family')).not.toBeInTheDocument()
+    expect(screen.queryByText('sample.side-panel')).not.toBeInTheDocument()
     const frame = screen.getByTitle('Extension module: Sample side panel')
+    expect(frame.parentElement).toHaveClass('size-full', 'bg-transparent')
     expect(frame).toHaveAttribute('sandbox', 'allow-scripts')
     await waitFor(() => {
       expect(frame).toHaveAttribute('src', expect.stringContaining('blob:'))

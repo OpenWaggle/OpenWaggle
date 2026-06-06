@@ -56,6 +56,9 @@ function countContributionFamilies(contributions: ExtensionContributions | undef
     contributionCount(contributions.sidePanels) +
     contributionCount(contributions.dialogs) +
     contributionCount(contributions.transcriptRenderers) +
+    contributionCount(contributions.toolRenderers) +
+    contributionCount(contributions.customMessageRenderers) +
+    contributionCount(contributions.interactionRenderers) +
     contributionCount(contributions.statusWidgets)
   )
 }

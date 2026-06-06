@@ -149,6 +149,16 @@ const TestAgentKernelLayer = Layer.succeed(AgentKernelService, {
         },
         meta,
       )
+      input.waggle.onWaggleEvent(
+        {
+          type: 'custom',
+          timestamp: 11,
+          name: 'openwaggle.github.issues.summary',
+          value: { open: 2 },
+          model: meta.agentModel,
+        },
+        meta,
+      )
       input.waggle.onTurnEvent({
         type: 'turn-start',
         turnNumber: 0,

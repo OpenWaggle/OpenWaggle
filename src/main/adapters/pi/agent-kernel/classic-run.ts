@@ -13,8 +13,11 @@ export async function runPiSession(input: AgentKernelRunInput) {
   const { model, session } = await createPiRunSessionRuntime({
     session: input.session,
     projectPath,
+    runId: input.runId,
     modelReference: input.model,
     payload: input.payload,
+    signal: input.signal,
+    onEvent: input.onEvent,
     skillToggles: input.skillToggles,
     enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths,
   })

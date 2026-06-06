@@ -26,6 +26,106 @@ OpenWaggle owns the container: placement, chrome, sizing, docking, fallback beha
 
 Visual contributions use the federated module runtime. The extension exports `mount(context)` from its entry module. The module can use React, Vue, Preact, Svelte, plain DOM, or another UI stack. The required contract is the mount context, not a framework.
 
+## How An Extension Appears On Screen
+
+Think of an extension like a toy that needs a safe play table.
+
+OpenWaggle owns the table: where the extension appears, how big the container is, when it can run, and which APIs it can call. The extension owns the toy: the UI and behavior inside that container.
+
+```mermaid
+flowchart TD
+  A["1. User installs or edits an extension package"] --> B["2. OpenWaggle reads the manifest"]
+  B --> C["3. OpenWaggle checks files, SDK range, paths, hashes, and lifecycle state"]
+  C --> D{"Does it need a local build?"}
+  D -- "Yes" --> E["4a. User approves the build"]
+  E --> F["4b. OpenWaggle runs build.command and checks build outputs"]
+  D -- "No" --> G["5. User trusts, enables, and reloads the extension"]
+  F --> G
+  G --> H["6. OpenWaggle builds the contribution registry"]
+  H --> I["7. A surface asks for the contribution: settings, side panel, transcript, tool card, dialog, etc."]
+  I --> J["8. OpenWaggle creates the owned iframe/container"]
+  J --> K["9. The iframe imports the extension module"]
+  K --> L["10. OpenWaggle calls mount(context)"]
+  L --> M["11. The extension renders its UI and reports mounted + size"]
+```
+
+The important split is:
+
+- OpenWaggle decides whether the extension is allowed to render.
+- OpenWaggle creates and sizes the container.
+- The extension decides what to render inside `mount(context)`.
+- The extension can render immediately or show its own skeleton while it does async work.
+
+## Readiness And Loading
+
+An extension contribution is ready to be rendered only after all lifecycle checks pass:
+
+- manifest schema is valid
+- referenced files exist
+- SDK range is compatible
+- content hash matches the trusted pin
+- local build is approved and succeeded, when required
+- extension is trusted
+- extension is enabled
+- extension has been reloaded after the last trust, enable, build, or update change
+- project opt-outs do not block the current project
+
+OpenWaggle builds the contribution registry from that state. The registry is the menu of extension contributions that the app can actually use. If a contribution is not in the registry, the UI treats it as unavailable and uses an OpenWaggle-owned fallback when one exists.
+
+Mount readiness is separate from registry readiness:
+
+- Registry readiness means OpenWaggle knows the contribution is allowed and available.
+- Mount readiness means the iframe loaded the module and the module's `mount(context)` function resolved.
+
+OpenWaggle shows a generic mounting state only until `mount(context)` resolves. If an extension needs to fetch data, call storage, or wait for a network API, it should render a lightweight shell or skeleton first and continue the async work after the initial render.
+
+## Local Builds
+
+Most extensions can ship already-built JavaScript in `builtArtifacts`. Those extensions do not compile at render time.
+
+Extensions that need a local build declare it in the manifest:
+
+```json
+{
+  "install": {
+    "source": "local-build"
+  },
+  "build": {
+    "command": "pnpm build",
+    "outputs": ["dist/index.js"]
+  },
+  "builtArtifacts": ["dist/index.js"]
+}
+```
+
+Local builds are intentionally explicit:
+
+- The user approves the build before OpenWaggle runs it.
+- The command runs in the extension package directory.
+- OpenWaggle stores the build status and a capped build log.
+- Build outputs must also be listed in `builtArtifacts`.
+- A failed build blocks the extension from being trusted/enabled for runtime use.
+- Changing source files changes the build-plan hash, so the build must be approved again.
+
+Build time is whatever the extension's build command takes. Runtime rendering does not run that build again.
+
+## What Can Make Loading Feel Slow
+
+The fastest path is a prebuilt local module that renders immediately from cached state. That should usually feel near-instant.
+
+Loading can take longer when:
+
+- the extension has not been trusted, enabled, or reloaded yet
+- a local build is required
+- the extension changed and needs update approval
+- many extension roots or project scopes must be discovered
+- the module is large or imports a large UI framework
+- the extension performs async work inside `mount(context)`
+- the extension fetches network data
+- dev mode is running Vite/Electron rebuilds or stale main-process CSP state
+
+The extension author controls the experience after `mount(context)` starts. If the extension has slow work, it should render a useful initial state first, then update when the async work finishes.
+
 ## Pi Runtime Parity
 
 Runtime behavior stays Pi-native.
@@ -167,9 +267,9 @@ First-party topics should be closed and typed so generated indexes and SDK calls
 
 Agents and developers can inspect the installed Pi docs in a checkout for exact Pi runtime semantics:
 
-- `node_modules/@mariozechner/pi-coding-agent/docs/extensions.md`
-- `node_modules/@mariozechner/pi-coding-agent/docs/rpc.md`
-- `node_modules/@mariozechner/pi-coding-agent/docs/sdk.md`
-- `node_modules/@mariozechner/pi-coding-agent/docs/tui.md`
+- `node_modules/@earendil-works/pi-coding-agent/docs/extensions.md`
+- `node_modules/@earendil-works/pi-coding-agent/docs/rpc.md`
+- `node_modules/@earendil-works/pi-coding-agent/docs/sdk.md`
+- `node_modules/@earendil-works/pi-coding-agent/docs/tui.md`
 
 OpenWaggle docs define how those Pi concepts are exposed in the desktop product.

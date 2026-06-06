@@ -4,6 +4,7 @@ import { AlertTriangle, Check, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import { useAuth } from '@/features/settings/hooks/useSettings'
 import { cn } from '@/shared/lib/cn'
+import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
 import { TextInput } from '@/shared/ui/TextInput'
 import { ToggleSwitch } from '@/shared/ui/ToggleSwitch'
@@ -126,9 +127,11 @@ function OAuthStatusIndicator({ rowState }: { readonly rowState: OAuthRowState }
 
 function OAuthManualCodePrompt({
   provider,
+  deviceCode,
   submitAuthCode,
 }: {
   readonly provider: string
+  readonly deviceCode: Extract<OAuthFlowStatus, { type: 'awaiting-code' }>['deviceCode']
   readonly submitAuthCode: (provider: string, code: string) => Promise<void>
 }) {
   const [pasteValue, setPasteValue] = useState('')
@@ -143,9 +146,28 @@ function OAuthManualCodePrompt({
 
   return (
     <div className="mx-5 mb-3 space-y-2">
+      {deviceCode ? (
+        <div className="rounded-lg border border-accent/25 bg-accent/8 px-3 py-2">
+          <div className="text-[11px] font-medium text-accent">Device code</div>
+          <div className="mt-1 font-mono text-[16px] font-semibold tracking-[0.16em] text-text-primary">
+            {deviceCode.userCode}
+          </div>
+          <Button
+            variant="unstyled"
+            type="button"
+            onClick={() => {
+              void api.openExternal(deviceCode.verificationUri).catch(() => undefined)
+            }}
+            className="mt-1 text-[11px] font-medium text-text-tertiary transition-colors hover:text-text-primary"
+          >
+            Open verification page
+          </Button>
+        </div>
+      ) : null}
       <p className="text-[11px] text-text-tertiary">
-        Pi is waiting for the browser callback. If it does not finish automatically, paste the OAuth
-        code or callback URL here.
+        {deviceCode
+          ? 'Enter the device code in your browser. If Pi asks for a manual callback, paste it here.'
+          : 'Pi is waiting for the browser callback. If it does not finish automatically, paste the OAuth code or callback URL here.'}
       </p>
       <div className="flex items-center gap-2">
         <TextInput
@@ -245,7 +267,11 @@ export function OAuthProviderRow({ providerInfo, isLast }: OAuthProviderRowProps
       </div>
 
       {rowState.isAwaitingCode && (
-        <OAuthManualCodePrompt provider={provider} submitAuthCode={submitAuthCode} />
+        <OAuthManualCodePrompt
+          provider={provider}
+          deviceCode={oauthStatus.type === 'awaiting-code' ? oauthStatus.deviceCode : undefined}
+          submitAuthCode={submitAuthCode}
+        />
       )}
 
       {rowState.isError && oauthStatus.type === 'error' && (

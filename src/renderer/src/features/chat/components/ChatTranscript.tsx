@@ -1,9 +1,12 @@
 import { matchBy } from '@diegogbrisa/ts-match'
-import type { SessionBranchId, SessionId } from '@shared/types/brand'
+import type { SessionId } from '@shared/types/brand'
+import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
+import { ExtensionAgentLoopSurface } from '@/features/extensions'
 import { cn } from '@/shared/lib/cn'
 import { useChatScrollBehaviour } from '../hooks/useChatScrollBehaviour'
 import type { ChatRow } from '../lib/types-chat-row'
 import type { ChatTranscriptSectionState } from '../model'
+import type { ChatRowRenderContext } from './ChatRowRenderContext'
 import { ChatRowRenderer } from './ChatRowRenderer'
 import { ScrollToBottomButton } from './ScrollToBottomButton'
 import { WelcomeScreen } from './WelcomeScreen'
@@ -14,48 +17,20 @@ interface ChatTranscriptProps {
   readonly section: ChatTranscriptSectionState
 }
 
-interface TranscriptRowProps {
-  row: ChatRow
-  sessionId: SessionId | null
-  onOpenSettings: () => void
-  onRetryText: (content: string) => Promise<void>
-  onDismissError: (errorId: string | null) => void
-  onDismissInterruptedRun: (runId: string, branchId: SessionBranchId) => void
-  onBranchFromMessage: (messageId: string) => void
-  onForkFromMessage: (messageId: string) => void
-}
-
-function TranscriptRow({
-  row,
-  sessionId,
-  onOpenSettings,
-  onRetryText,
-  onDismissError,
-  onDismissInterruptedRun,
-  onBranchFromMessage,
-  onForkFromMessage,
-}: TranscriptRowProps) {
-  return (
-    <ChatRowRenderer
-      row={row}
-      sessionId={sessionId}
-      onOpenSettings={onOpenSettings}
-      onRetry={(content) => {
-        void onRetryText(content)
-      }}
-      onDismissError={onDismissError}
-      onDismissInterruptedRun={onDismissInterruptedRun}
-      onBranchFromMessage={onBranchFromMessage}
-      onForkFromMessage={onForkFromMessage}
-    />
-  )
-}
-
 function getChatRowKey(row: ChatRow) {
   return matchBy(row, 'type')
     .with('message', (value) => `message:${value.message.id}`)
     .with('waggle-turn', (value) => value.id)
     .with('interrupted-run', (value) => `interrupted-run:${value.runId}`)
+    .with(
+      'agent-loop-custom-message',
+      (value) => `custom:${value.event.timestamp}:${value.event.name}`,
+    )
+    .with('agent-loop-interaction-event', (value) =>
+      value.event.type === 'agent_interaction_request'
+        ? `interaction-request:${value.event.interaction.interactionId}`
+        : `interaction-resolved:${value.event.interactionId}`,
+    )
     .with('branch-summary', (value) => `branch-summary:${value.id}`)
     .with('compaction-summary', (value) => `compaction:${value.id}`)
     .with('phase-indicator', (value) => `phase:${value.label}`)
@@ -64,31 +39,13 @@ function getChatRowKey(row: ChatRow) {
     .exhaustive()
 }
 
-// ─── Row Rendering ──────────────────────────────────────────
-
-interface RenderTranscriptRowsParams {
-  rows: ChatRow[]
-  activeSessionId: SessionId | null
-  onOpenSettings: () => void
-  onRetryText: (content: string) => Promise<void>
-  onDismissError: (errorId: string | null) => void
-  onDismissInterruptedRun: (runId: string, branchId: SessionBranchId) => void
-  onBranchFromMessage: (messageId: string) => void
-  onForkFromMessage: (messageId: string) => void
-}
-
-function TranscriptRows(params: RenderTranscriptRowsParams) {
-  const {
-    rows,
-    activeSessionId,
-    onOpenSettings,
-    onRetryText,
-    onDismissError,
-    onDismissInterruptedRun,
-    onBranchFromMessage,
-    onForkFromMessage,
-  } = params
-
+function TranscriptRows({
+  rows,
+  context,
+}: {
+  readonly rows: ChatRow[]
+  readonly context: ChatRowRenderContext
+}) {
   return (
     <>
       {rows.map((row, index) => {
@@ -100,16 +57,7 @@ function TranscriptRows(params: RenderTranscriptRowsParams) {
             {...(isUserMessage ? { 'data-user-message-id': row.message.id } : {})}
             style={index === 0 ? { paddingTop: PADDING_TOP } : undefined}
           >
-            <TranscriptRow
-              row={row}
-              sessionId={activeSessionId}
-              onOpenSettings={onOpenSettings}
-              onRetryText={onRetryText}
-              onDismissError={onDismissError}
-              onDismissInterruptedRun={onDismissInterruptedRun}
-              onBranchFromMessage={onBranchFromMessage}
-              onForkFromMessage={onForkFromMessage}
-            />
+            <ChatRowRenderer row={row} context={context} />
           </div>
         )
       })}
@@ -117,7 +65,36 @@ function TranscriptRows(params: RenderTranscriptRowsParams) {
   )
 }
 
-// ─── Component ──────────────────────────────────────────────
+function TranscriptExtensionCards({
+  activeSessionId,
+  extensionRegistry,
+  extensionProjectPaths,
+  rowsLength,
+}: {
+  readonly activeSessionId: SessionId | null
+  readonly extensionRegistry: ExtensionContributionRegistryView | null
+  readonly extensionProjectPaths: readonly string[]
+  readonly rowsLength: number
+}) {
+  return (
+    <div className="mx-auto w-full max-w-[720px] px-12 pb-6">
+      <ExtensionAgentLoopSurface
+        fallback={null}
+        input={{
+          surface: 'transcript',
+          transcript: {
+            sessionId: activeSessionId ? String(activeSessionId) : null,
+            projectPaths: extensionProjectPaths,
+            messageCount: rowsLength,
+            state: rowsLength > 0 ? 'active' : 'empty',
+          },
+        }}
+        projectPaths={extensionProjectPaths}
+        registry={extensionRegistry}
+      />
+    </div>
+  )
+}
 
 export function ChatTranscript({ section }: ChatTranscriptProps) {
   const {
@@ -139,6 +116,8 @@ export function ChatTranscript({ section }: ChatTranscriptProps) {
     streamSignalVersion,
     userDidSend,
     onUserDidSendConsumed,
+    extensionRegistry,
+    extensionProjectPaths,
   } = section
 
   const {
@@ -165,6 +144,21 @@ export function ChatTranscript({ section }: ChatTranscriptProps) {
     onUserDidSendConsumed,
   })
 
+  const rowContext: ChatRowRenderContext = {
+    runtime: {
+      sessionId: activeSessionId,
+      extensions: { registry: extensionRegistry, projectPaths: extensionProjectPaths },
+    },
+    extensions: { registry: extensionRegistry, projectPaths: extensionProjectPaths },
+    actions: { onBranchFromMessage, onForkFromMessage },
+    onOpenSettings,
+    onRetry: (content) => {
+      void onRetryText(content)
+    },
+    onDismissError,
+    onDismissInterruptedRun,
+  }
+
   if (messages.length === 0 && rows.length === 0 && !isLoading) {
     return (
       <div className="flex-1 overflow-y-auto chat-scroll">
@@ -188,37 +182,35 @@ export function ChatTranscript({ section }: ChatTranscriptProps) {
     )
   }
 
+  const scrollerProps = {
+    role: 'log',
+    'aria-label': 'Chat messages',
+    'aria-busy': isLoading,
+    className: cn(
+      'flex flex-1 flex-col overflow-y-auto chat-scroll [overflow-anchor:none]',
+      showScrollbar && 'is-scrolling',
+    ),
+    onScroll: handleScroll,
+    onWheel: handleWheel,
+    onPointerDown: handlePointerDown,
+    onPointerUp: handlePointerUp,
+    onPointerCancel: handlePointerCancel,
+    onTouchStart: handleTouchStart,
+    onTouchMove: handleTouchMove,
+    onTouchEnd: handleTouchEnd,
+    onTouchCancel: handleTouchEnd,
+  }
+
   return (
     <div className="relative flex flex-1 flex-col overflow-hidden">
-      <div
-        ref={scrollerRef}
-        role="log"
-        aria-label="Chat messages"
-        aria-busy={isLoading}
-        className={cn(
-          'flex flex-1 flex-col overflow-y-auto chat-scroll [overflow-anchor:none]',
-          showScrollbar && 'is-scrolling',
-        )}
-        onScroll={handleScroll}
-        onWheel={handleWheel}
-        onPointerDown={handlePointerDown}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerCancel}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={handleTouchEnd}
-      >
+      <div ref={scrollerRef} {...scrollerProps}>
         <div ref={contentRef} className="flex min-h-full flex-col">
-          <TranscriptRows
-            rows={rows}
+          <TranscriptRows rows={rows} context={rowContext} />
+          <TranscriptExtensionCards
             activeSessionId={activeSessionId}
-            onOpenSettings={onOpenSettings}
-            onRetryText={onRetryText}
-            onDismissError={onDismissError}
-            onDismissInterruptedRun={onDismissInterruptedRun}
-            onBranchFromMessage={onBranchFromMessage}
-            onForkFromMessage={onForkFromMessage}
+            extensionRegistry={extensionRegistry}
+            extensionProjectPaths={extensionProjectPaths}
+            rowsLength={rows.length}
           />
         </div>
       </div>

@@ -1,115 +1,15 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { Schema, type SchemaType } from '@shared/schema'
 import { isNetworkOrigin } from './extension-network-origin'
-
-function isNonEmptyTrimmed(value: string) {
-  return value.trim().length > 0 || 'Must not be empty.'
-}
-
-function isExtensionId(value: string) {
-  if (value.length > OPENWAGGLE_EXTENSION.LIMITS.ID_MAX_LENGTH) {
-    return `Must be at most ${OPENWAGGLE_EXTENSION.LIMITS.ID_MAX_LENGTH} characters.`
-  }
-  return (
-    OPENWAGGLE_EXTENSION.PATTERNS.ID.test(value) ||
-    'Use lowercase letters, numbers, dots, underscores, and dashes; start with a letter or number.'
-  )
-}
-
-function isContributionId(value: string) {
-  if (value.length > OPENWAGGLE_EXTENSION.LIMITS.CONTRIBUTION_ID_MAX_LENGTH) {
-    return `Must be at most ${OPENWAGGLE_EXTENSION.LIMITS.CONTRIBUTION_ID_MAX_LENGTH} characters.`
-  }
-  return (
-    OPENWAGGLE_EXTENSION.PATTERNS.CONTRIBUTION_ID.test(value) ||
-    'Use lowercase letters, numbers, dots, underscores, dashes, and forward slashes; start with a letter or number.'
-  )
-}
-
-function isSemverVersion(value: string) {
-  return (
-    OPENWAGGLE_EXTENSION.PATTERNS.SEMVER_VERSION.test(value) ||
-    'Must be a semantic version such as 1.2.3.'
-  )
-}
-
-function isPortableRelativePath(value: string) {
-  const trimmed = value.trim()
-  if (trimmed.length === 0) {
-    return 'Must not be empty.'
-  }
-  if (value !== trimmed) {
-    return 'Must not have leading or trailing whitespace.'
-  }
-  if (trimmed.length > OPENWAGGLE_EXTENSION.LIMITS.RELATIVE_PATH_MAX_LENGTH) {
-    return `Must be at most ${OPENWAGGLE_EXTENSION.LIMITS.RELATIVE_PATH_MAX_LENGTH} characters.`
-  }
-  if (trimmed.includes(OPENWAGGLE_EXTENSION.PATH.NUL_CHARACTER)) {
-    return 'Must not contain NUL bytes.'
-  }
-  if (
-    trimmed.startsWith(OPENWAGGLE_EXTENSION.PATH.POSIX_SEPARATOR) ||
-    trimmed.startsWith(OPENWAGGLE_EXTENSION.PATH.WINDOWS_SEPARATOR) ||
-    OPENWAGGLE_EXTENSION.PATTERNS.WINDOWS_ABSOLUTE_PATH.test(trimmed)
-  ) {
-    return 'Must be relative to the extension package root.'
-  }
-
-  const segments = trimmed
-    .replaceAll(
-      OPENWAGGLE_EXTENSION.PATH.WINDOWS_SEPARATOR,
-      OPENWAGGLE_EXTENSION.PATH.POSIX_SEPARATOR,
-    )
-    .split(OPENWAGGLE_EXTENSION.PATH.POSIX_SEPARATOR)
-  if (
-    segments.some(
-      (segment) =>
-        segment.length === 0 ||
-        segment === OPENWAGGLE_EXTENSION.PATH.CURRENT_DIRECTORY_SEGMENT ||
-        segment === OPENWAGGLE_EXTENSION.PATH.RELATIVE_PARENT_SEGMENT,
-    )
-  ) {
-    return 'Must not contain empty, "." or ".." path segments.'
-  }
-
-  return true
-}
-
-function isBuildCommand(value: string) {
-  if (value.length > OPENWAGGLE_EXTENSION.LIMITS.BUILD_COMMAND_MAX_LENGTH) {
-    return `Must be at most ${OPENWAGGLE_EXTENSION.LIMITS.BUILD_COMMAND_MAX_LENGTH} characters.`
-  }
-  if (value.includes(OPENWAGGLE_EXTENSION.PATH.NUL_CHARACTER)) {
-    return 'Must not contain NUL bytes.'
-  }
-  if (value.includes('\n') || value.includes('\r')) {
-    return 'Must be a single command line.'
-  }
-  return true
-}
-
-function isRuntimeRequirementBinary(value: string) {
-  const trimmed = value.trim()
-  if (value !== trimmed) {
-    return 'Must not have leading or trailing whitespace.'
-  }
-  if (value.length > OPENWAGGLE_EXTENSION.LIMITS.RUNTIME_REQUIREMENT_BINARY_MAX_LENGTH) {
-    return `Must be at most ${OPENWAGGLE_EXTENSION.LIMITS.RUNTIME_REQUIREMENT_BINARY_MAX_LENGTH} characters.`
-  }
-  if (value.includes(OPENWAGGLE_EXTENSION.PATH.NUL_CHARACTER)) {
-    return 'Must not contain NUL bytes.'
-  }
-  if (value.includes('\n') || value.includes('\r')) {
-    return 'Must be a single executable name.'
-  }
-  if (
-    value.includes(OPENWAGGLE_EXTENSION.PATH.POSIX_SEPARATOR) ||
-    value.includes(OPENWAGGLE_EXTENSION.PATH.WINDOWS_SEPARATOR)
-  ) {
-    return 'Must be an executable name, not a path.'
-  }
-  return true
-}
+import {
+  isBuildCommand,
+  isContributionId,
+  isExtensionId,
+  isNonEmptyTrimmed,
+  isPortableRelativePath,
+  isRuntimeRequirementBinary,
+  isSemverVersion,
+} from './extension-schema-primitives'
 
 const nonEmptyStringSchema = Schema.String.pipe(Schema.filter(isNonEmptyTrimmed))
 
@@ -185,6 +85,16 @@ const extensionContributionTargetBindingSchema = {
   target: Schema.optional(extensionContributionTargetSchema),
 }
 
+const extensionContributionMatchSchema = Schema.Struct({
+  toolNames: Schema.optional(Schema.mutable(Schema.Array(nonEmptyStringSchema))),
+  customMessageNames: Schema.optional(Schema.mutable(Schema.Array(nonEmptyStringSchema))),
+  interactionKinds: Schema.optional(Schema.mutable(Schema.Array(nonEmptyStringSchema))),
+})
+
+const extensionContributionMatchBindingSchema = {
+  matches: Schema.optional(extensionContributionMatchSchema),
+}
+
 export const extensionCommandContributionSchema = Schema.Struct({
   id: extensionContributionIdSchema,
   title: nonEmptyStringSchema.pipe(Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH)),
@@ -202,6 +112,7 @@ export const extensionRouteContributionSchema = Schema.Struct({
   execution: extensionExecutionPlacementSchema,
   entry: extensionRelativePathSchema,
   ...extensionContributionTargetBindingSchema,
+  ...extensionContributionMatchBindingSchema,
   ...extensionContributionBrokerBindingSchema,
 })
 
@@ -212,6 +123,7 @@ export const extensionSlotContributionSchema = Schema.Struct({
   execution: extensionExecutionPlacementSchema,
   entry: extensionRelativePathSchema,
   ...extensionContributionTargetBindingSchema,
+  ...extensionContributionMatchBindingSchema,
   ...extensionContributionBrokerBindingSchema,
 })
 
@@ -223,6 +135,13 @@ export const extensionContributionsSchema = Schema.Struct({
   sidePanels: Schema.optional(Schema.mutable(Schema.Array(extensionSlotContributionSchema))),
   dialogs: Schema.optional(Schema.mutable(Schema.Array(extensionSlotContributionSchema))),
   transcriptRenderers: Schema.optional(
+    Schema.mutable(Schema.Array(extensionSlotContributionSchema)),
+  ),
+  toolRenderers: Schema.optional(Schema.mutable(Schema.Array(extensionSlotContributionSchema))),
+  customMessageRenderers: Schema.optional(
+    Schema.mutable(Schema.Array(extensionSlotContributionSchema)),
+  ),
+  interactionRenderers: Schema.optional(
     Schema.mutable(Schema.Array(extensionSlotContributionSchema)),
   ),
   statusWidgets: Schema.optional(Schema.mutable(Schema.Array(extensionSlotContributionSchema))),
@@ -248,6 +167,21 @@ export const extensionBuildSchema = Schema.Struct({
   outputs: Schema.optional(Schema.mutable(Schema.Array(extensionRelativePathSchema))),
 })
 
+export const extensionDocsTopicDeclarationSchema = Schema.Struct({
+  id: extensionContributionIdSchema,
+  title: nonEmptyStringSchema.pipe(Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH)),
+  path: extensionRelativePathSchema,
+  description: Schema.optional(
+    nonEmptyStringSchema.pipe(Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.DESCRIPTION_MAX_LENGTH)),
+  ),
+  aliases: Schema.optional(Schema.mutable(Schema.Array(nonEmptyStringSchema))),
+  keywords: Schema.optional(Schema.mutable(Schema.Array(nonEmptyStringSchema))),
+})
+
+export const extensionDocsSchema = Schema.Struct({
+  topics: Schema.optional(Schema.mutable(Schema.Array(extensionDocsTopicDeclarationSchema))),
+})
+
 export const openWaggleExtensionManifestSchema = Schema.Struct({
   manifestVersion: Schema.Literal(1),
   id: extensionIdSchema,
@@ -263,6 +197,7 @@ export const openWaggleExtensionManifestSchema = Schema.Struct({
   builtArtifacts: Schema.mutable(Schema.Array(extensionRelativePathSchema)),
   install: Schema.optional(extensionInstallSchema),
   build: Schema.optional(extensionBuildSchema),
+  docs: Schema.optional(extensionDocsSchema),
   network: Schema.optional(extensionNetworkSchema),
   capabilities: Schema.optional(Schema.mutable(Schema.Array(extensionCapabilityDeclarationSchema))),
   contributions: Schema.optional(extensionContributionsSchema),
@@ -325,3 +260,4 @@ export const extensionReloadInputSchema = Schema.Struct({
 export type OpenWaggleExtensionManifest = SchemaType<typeof openWaggleExtensionManifestSchema>
 export type ExtensionCapabilityDeclaration = SchemaType<typeof extensionCapabilityDeclarationSchema>
 export type ExtensionContributions = SchemaType<typeof extensionContributionsSchema>
+export type ExtensionDocsTopicDeclaration = SchemaType<typeof extensionDocsTopicDeclarationSchema>

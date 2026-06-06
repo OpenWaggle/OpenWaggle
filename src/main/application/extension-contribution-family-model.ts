@@ -1,6 +1,7 @@
 import type { ExtensionContributions } from '@shared/schemas/extensions'
 import type {
   ExtensionContributionFamily,
+  ExtensionContributionMatchView,
   ExtensionContributionRuntime,
   ExtensionContributionTargetView,
   ExtensionExecutionPlacement,
@@ -23,6 +24,7 @@ export interface ManifestEntryContribution {
   readonly execution: ExtensionExecutionPlacement
   readonly entry: string
   readonly target?: ExtensionContributionTargetView
+  readonly matches?: ExtensionContributionMatchView
   readonly capability?: string
   readonly method?: string
   readonly methods?: readonly string[]
@@ -58,6 +60,15 @@ export const ENTRY_FAMILY_DESCRIPTORS = [
   {
     family: 'transcriptRenderers',
     contributions: (contributions) => contributions.transcriptRenderers,
+  },
+  { family: 'toolRenderers', contributions: (contributions) => contributions.toolRenderers },
+  {
+    family: 'customMessageRenderers',
+    contributions: (contributions) => contributions.customMessageRenderers,
+  },
+  {
+    family: 'interactionRenderers',
+    contributions: (contributions) => contributions.interactionRenderers,
   },
   { family: 'statusWidgets', contributions: (contributions) => contributions.statusWidgets },
 ] satisfies readonly EntryFamilyDescriptor[]

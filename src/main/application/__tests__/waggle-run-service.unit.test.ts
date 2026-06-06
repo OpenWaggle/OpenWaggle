@@ -178,4 +178,51 @@ describe('executeWaggleRun', () => {
     expect(persistSnapshotMock.mock.calls[0]?.[0].nodes[0]?.metadataJson).toContain('Architect')
     expect(clearActiveRunMock).toHaveBeenCalledWith({ sessionId, runId: 'run-waggle-1' })
   })
+
+  it('persists durable agent-loop events emitted during a Waggle run', async () => {
+    const result = await Effect.runPromise(
+      executeWaggleRun(runInput(waggleConfig, 'run-waggle-agent-loop')).pipe(
+        Effect.provide(TestLayer),
+      ),
+    )
+
+    expect(result.outcome).toBe('success')
+    const persisted = persistSnapshotMock.mock.calls[0]?.[0]
+    expect(persisted).toMatchObject({
+      activeNodeId: 'assistant-node-1',
+      nodes: expect.arrayContaining([
+        expect.objectContaining({
+          id: 'run-waggle-agent-loop:agent-loop:0',
+          parentId: 'assistant-node-1',
+          contentJson: expect.stringContaining('openwaggle.github.issues.summary'),
+        }),
+      ]),
+    })
+  })
+
+  it('persists durable agent-loop events before returning an aborted Waggle outcome', async () => {
+    const abortController = new AbortController()
+    abortController.abort()
+
+    const result = await Effect.runPromise(
+      executeWaggleRun({
+        ...runInput(waggleConfig, 'run-waggle-aborted-agent-loop'),
+        signal: abortController.signal,
+      }).pipe(Effect.provide(TestLayer)),
+    )
+
+    expect(result.outcome).toBe('aborted')
+    expect(persistSnapshotMock).toHaveBeenCalledOnce()
+    const persisted = persistSnapshotMock.mock.calls[0]?.[0]
+    expect(persisted).toMatchObject({
+      activeNodeId: 'assistant-node-1',
+      nodes: expect.arrayContaining([
+        expect.objectContaining({
+          id: 'run-waggle-aborted-agent-loop:agent-loop:0',
+          parentId: 'assistant-node-1',
+          contentJson: expect.stringContaining('openwaggle.github.issues.summary'),
+        }),
+      ]),
+    })
+  })
 })

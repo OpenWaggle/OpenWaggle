@@ -57,6 +57,7 @@ export const api: OpenWaggleApi = {
   sendMessage: invoke('agent:send-message'),
   cancelAgent: invoke('agent:cancel'),
   steerAgent: invoke('agent:steer'),
+  respondAgentInteraction: invoke('agent:respond-interaction'),
   onAgentEvent: on('agent:event'),
 
   getAgentPhase: invoke('agent:get-phase'),
@@ -88,6 +89,8 @@ export const api: OpenWaggleApi = {
   acceptExtensionUpdate: invoke('extensions:accept-update'),
   approveExtensionBuild: invoke('extensions:approve-build'),
   reloadExtension: invoke('extensions:reload'),
+  discoverDocs: invoke('docs:discover'),
+  resolveDocsTopic: invoke('docs:resolve-topic'),
 
   // Providers
   getProviderModels: invoke('providers:get-models'),

@@ -5,6 +5,7 @@ import {
 } from '@shared/extension-sdk'
 import type { ExtensionInvokeInput, ExtensionInvokeResult } from '@shared/types/extension-broker'
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
+import type { JsonValue } from '@shared/types/json'
 
 export type ExtensionMountInvokeInput = ExtensionSdkInvokeRequest
 
@@ -25,6 +26,7 @@ export interface OpenWaggleExtensionMountContext {
   readonly surface: {
     readonly family: string
     readonly execution: string
+    readonly payload?: JsonValue
   }
   readonly packagePath: string
   readonly projectPaths: readonly string[]
@@ -73,6 +75,7 @@ export async function importFederatedModule(moduleUrl: string): Promise<OpenWagg
 export function createExtensionMountContext(input: {
   readonly entry: ExtensionContributionRegistryEntry
   readonly root: HTMLElement
+  readonly surfacePayload?: JsonValue
   readonly invoke: (input: ExtensionInvokeInput) => Promise<ExtensionInvokeResult>
 }): OpenWaggleExtensionMountContext {
   const sdk = createExtensionBrokerSdk(input.invoke, {
@@ -95,6 +98,7 @@ export function createExtensionMountContext(input: {
     surface: {
       family: input.entry.family,
       execution: input.entry.execution ?? '',
+      ...(input.surfacePayload !== undefined ? { payload: input.surfacePayload } : {}),
     },
     packagePath: input.entry.packagePath,
     projectPaths: input.entry.projectPaths,

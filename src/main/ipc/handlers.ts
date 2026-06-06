@@ -2,6 +2,7 @@ import { registerAgentHandlers } from './agent-handler'
 import { registerAttachmentHandlers } from './attachments-handler'
 import { registerAuthHandlers } from './auth-handler'
 import { registerComposerHandlers } from './composer-handler'
+import { registerDocsHandlers } from './docs-handler'
 import { registerExtensionBrokerHandlers } from './extension-broker-handler'
 import { registerExtensionsHandlers } from './extensions-handler'
 import { registerFeedbackHandlers } from './feedback-handler'
@@ -44,4 +45,5 @@ export function registerAllIpcHandlers(): void {
   registerFeedbackHandlers()
   registerUpdaterHandlers()
   registerComposerHandlers()
+  registerDocsHandlers()
 }

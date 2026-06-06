@@ -10,6 +10,7 @@ const FIXTURE_EXTENSION_IDS = [
   'openwaggle-github-issues-overview',
 ] as const
 type FixtureExtensionId = (typeof FIXTURE_EXTENSION_IDS)[number]
+const DEFAULT_FIXTURE_EXTENSION_IDS = ['openwaggle-github-issues-overview'] as const satisfies readonly FixtureExtensionId[]
 
 const FIXTURE_ROOT = path.join(REPOSITORY_ROOT, 'fixtures', 'extensions')
 const PROJECT_EXTENSION_ROOT = path.join(
@@ -24,7 +25,11 @@ function isFixtureExtensionId(fixtureId: string): fixtureId is FixtureExtensionI
 }
 
 function fixtureIdsFromArgs(args: readonly string[]): readonly FixtureExtensionId[] {
-  if (args.length === 0 || args.includes(ALL_FIXTURES_ARG)) {
+  if (args.length === 0) {
+    return DEFAULT_FIXTURE_EXTENSION_IDS
+  }
+
+  if (args.includes(ALL_FIXTURES_ARG)) {
     return FIXTURE_EXTENSION_IDS
   }
 

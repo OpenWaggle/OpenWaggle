@@ -116,14 +116,14 @@ describe('SettingsContributionHost', () => {
     const host = screen.getByLabelText('Extension settings contributions')
     expect(within(host).getByText('Extension settings')).toBeInTheDocument()
     expect(within(host).getByText('Sample settings')).toBeInTheDocument()
-    expect(within(host).getByText('Federated module')).toBeInTheDocument()
-    expect(within(host).getByText('Host renderer')).toBeInTheDocument()
     expect(within(host).getByTitle('Extension module: Sample settings')).toHaveAttribute(
       'sandbox',
       'allow-scripts',
     )
-    expect(within(host).getByText('dist/settings.js')).toBeInTheDocument()
-    expect(within(host).getByText('sample.configure')).toBeInTheDocument()
+    expect(within(host).queryByText('Federated module')).not.toBeInTheDocument()
+    expect(within(host).queryByText('Host renderer')).not.toBeInTheDocument()
+    expect(within(host).queryByText('dist/settings.js')).not.toBeInTheDocument()
+    expect(within(host).queryByText('sample.configure')).not.toBeInTheDocument()
     expect(within(host).queryByText('Run sample')).not.toBeInTheDocument()
   })
 
@@ -138,7 +138,7 @@ describe('SettingsContributionHost', () => {
 
     const host = screen.getByLabelText('Extension settings contributions')
     expect(within(host).getByText('Frame settings')).toBeInTheDocument()
-    expect(within(host).getByText('Frame')).toBeInTheDocument()
+    expect(within(host).queryByText('Frame')).not.toBeInTheDocument()
     const frame = within(host).getByTitle('Extension module: Frame settings')
     expect(frame).toHaveAttribute('sandbox', 'allow-scripts')
     await waitFor(() => {

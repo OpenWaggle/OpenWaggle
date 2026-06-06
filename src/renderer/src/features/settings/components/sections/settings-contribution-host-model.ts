@@ -3,14 +3,9 @@ import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type {
   ExtensionContributionRegistryEntry,
   ExtensionContributionRegistryView,
-  ExtensionContributionRuntime,
-  ExtensionExecutionPlacement,
 } from '@shared/types/extensions'
 
 export type ContributionPillTone = 'neutral' | 'good' | 'warning' | 'error'
-
-const GOOD_TONE: ContributionPillTone = 'good'
-const WARNING_TONE: ContributionPillTone = 'warning'
 
 export function contributionPillToneClassName(tone: ContributionPillTone) {
   return match(tone)
@@ -18,52 +13,6 @@ export function contributionPillToneClassName(tone: ContributionPillTone) {
     .with('warning', () => 'bg-amber-500/10 text-amber-300')
     .with('error', () => 'bg-error/10 text-error')
     .with('neutral', () => 'bg-bg-tertiary text-text-tertiary')
-    .exhaustive()
-}
-
-export function runtimeLabel(runtime: ExtensionContributionRuntime | undefined) {
-  if (!runtime) {
-    return 'No runtime'
-  }
-
-  return match(runtime)
-    .with('federated-module', () => 'Federated module')
-    .exhaustive()
-}
-
-export function runtimeTone(
-  runtime: ExtensionContributionRuntime | undefined,
-): ContributionPillTone {
-  if (!runtime) {
-    return 'error'
-  }
-
-  return match(runtime)
-    .with('federated-module', () => GOOD_TONE)
-    .exhaustive()
-}
-
-export function executionLabel(execution: ExtensionExecutionPlacement | undefined) {
-  if (!execution) {
-    return 'No execution'
-  }
-
-  return match(execution)
-    .with('host-renderer', () => 'Host renderer')
-    .with('frame', () => 'Frame')
-    .exhaustive()
-}
-
-export function executionTone(
-  execution: ExtensionExecutionPlacement | undefined,
-): ContributionPillTone {
-  if (!execution) {
-    return 'error'
-  }
-
-  return match(execution)
-    .with('host-renderer', () => GOOD_TONE)
-    .with('frame', () => WARNING_TONE)
     .exhaustive()
 }
 
@@ -111,14 +60,4 @@ export function settingsContributionEntries(
 
 export function contributionKey(entry: ExtensionContributionRegistryEntry) {
   return `${entry.packagePath}:${entry.contributionId}`
-}
-
-export function projectCoverageLabel(entry: ExtensionContributionRegistryEntry) {
-  if (entry.projectPaths.length === 0) {
-    return 'No eligible projects'
-  }
-
-  const projectCount = entry.projectPaths.length
-  const projectLabel = `${projectCount} project${projectCount === 1 ? '' : 's'}`
-  return entry.appliesToAllRequestedProjects ? projectLabel : `${projectLabel} eligible`
 }

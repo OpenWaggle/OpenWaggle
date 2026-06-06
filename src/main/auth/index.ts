@@ -1,12 +1,13 @@
 import { AUTH_TIMEOUT } from '@shared/constants/time'
 import type { OAuthAccountInfo, OAuthFlowStatus, OAuthProvider } from '@shared/types/auth'
 import * as Effect from 'effect/Effect'
-import { shell } from 'electron'
+import { dialog, shell } from 'electron'
 import { createLogger } from '../logger'
-import { ProviderOAuthService } from '../ports/provider-oauth-service'
+import { type OAuthSelectPrompt, ProviderOAuthService } from '../ports/provider-oauth-service'
 import { runAppEffect } from '../runtime'
 
 const logger = createLogger('auth')
+const OAUTH_SELECTION_CANCEL_LABEL = 'Cancel'
 
 type StatusEmitter = (status: OAuthFlowStatus) => void
 
@@ -122,10 +123,20 @@ async function runOAuthFlow(
               emitStatus({ type: 'awaiting-code', provider })
             }
           },
+          onDeviceCode: (deviceCode) => {
+            emitStatus({ type: 'awaiting-code', provider, deviceCode })
+            void shell.openExternal(deviceCode.verificationUri).catch((error) => {
+              logger.warn('Failed to open OAuth device-code URL', {
+                provider,
+                error: error instanceof Error ? error.message : String(error),
+              })
+            })
+          },
           onPrompt: async () => {
             emitStatus({ type: 'awaiting-code', provider })
             return createManualCodePromise(provider)
           },
+          onSelect: (prompt) => selectOAuthPromptOption(provider, prompt, signal),
           onProgress: () => {
             emitStatus({ type: 'in-progress', provider })
           },
@@ -164,6 +175,41 @@ async function runOAuthFlow(
       pending.reject(new Error('Sign-in flow closed before an authorization code was submitted.'))
     }
   }
+}
+
+async function selectOAuthPromptOption(
+  provider: OAuthProvider,
+  prompt: OAuthSelectPrompt,
+  signal: AbortSignal,
+) {
+  if (signal.aborted) {
+    return undefined
+  }
+
+  if (prompt.options.length === 0) {
+    logger.warn('OAuth selection prompt had no options', { provider, prompt })
+    return undefined
+  }
+
+  const optionLabels = prompt.options.map((option) => option.label)
+  const buttons = [...optionLabels, OAUTH_SELECTION_CANCEL_LABEL]
+  const cancelId = buttons.length - 1
+  const result = await dialog.showMessageBox({
+    type: 'question',
+    title: `Choose sign-in method for ${provider}`,
+    message: prompt.message,
+    detail: `Provider: ${provider}`,
+    buttons,
+    defaultId: 0,
+    cancelId,
+    noLink: true,
+  })
+
+  if (result.response === cancelId || signal.aborted) {
+    return undefined
+  }
+
+  return prompt.options[result.response]?.id
 }
 
 function createManualCodePromise(provider: OAuthProvider) {

@@ -17,6 +17,9 @@ const FAMILY_LABELS = {
   sidePanels: 'Side panels',
   dialogs: 'Dialogs',
   transcriptRenderers: 'Transcript',
+  toolRenderers: 'Tools',
+  customMessageRenderers: 'Custom messages',
+  interactionRenderers: 'Interactions',
   statusWidgets: 'Status',
 } satisfies Record<ExtensionContributionFamily, string>
 

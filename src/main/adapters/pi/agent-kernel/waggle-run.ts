@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { AgentSession } from '@mariozechner/pi-coding-agent'
+import type { AgentSession } from '@earendil-works/pi-coding-agent'
 import { createPiWaggleExtension } from '@openwaggle/pi-waggle/loop'
 import { appendPiWaggleModeState, enabledPiWaggleModeState } from '@openwaggle/pi-waggle/mode-state'
 import {
@@ -156,8 +156,12 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
   const { model, session } = await createPiRunSessionRuntime({
     session: input.session,
     projectPath,
+    runId: input.runId,
     modelReference: initialRuntimeModel,
     payload: input.payload,
+    signal: input.signal,
+    onEvent: (event) =>
+      input.waggle.onWaggleEvent(withTransportEventModel(event, currentMeta), currentMeta),
     skillToggles: input.skillToggles,
     enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths,
     extensionFactories: [waggleExtension.factory],

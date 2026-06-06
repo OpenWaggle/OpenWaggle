@@ -34,6 +34,26 @@ describe('openWaggleExtensionManifestSchema', () => {
     }
   })
 
+  it('accepts extension package docs declarations', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      docs: {
+        topics: [
+          {
+            id: 'guides/getting-started',
+            title: 'Getting Started',
+            path: 'docs/getting-started.md',
+            description: 'Extension package docs.',
+            aliases: ['quickstart'],
+            keywords: ['extension', 'docs'],
+          },
+        ],
+      },
+    })
+
+    expect(result.success).toBe(true)
+  })
+
   it('accepts broker method bindings on UI contributions', () => {
     const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
       ...validManifest,
@@ -96,6 +116,18 @@ describe('openWaggleExtensionManifestSchema', () => {
             },
           },
         ],
+        toolRenderers: [
+          {
+            id: 'sample.tool-renderer',
+            title: 'Sample Tool Renderer',
+            runtime: 'federated-module',
+            execution: 'host-renderer',
+            entry: 'dist/tool-renderer.js',
+            matches: {
+              toolNames: ['sample.tool'],
+            },
+          },
+        ],
       },
     })
 
@@ -105,6 +137,9 @@ describe('openWaggleExtensionManifestSchema', () => {
         projectPaths: ['/tmp/project'],
         sessionIds: ['session-1'],
       })
+      expect(result.data.contributions?.toolRenderers?.[0]?.matches?.toolNames).toEqual([
+        'sample.tool',
+      ])
     }
   })
 

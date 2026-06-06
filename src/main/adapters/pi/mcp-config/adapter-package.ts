@@ -1,6 +1,6 @@
 import { cp as copyDirectory, mkdir, readFile, rm } from 'node:fs/promises'
 import path from 'node:path'
-import { getAgentDir } from '@mariozechner/pi-coding-agent'
+import { getAgentDir } from '@earendil-works/pi-coding-agent'
 import { parseJsonUnknown } from '@shared/schema'
 import {
   ASAR_PATH_SEGMENT,

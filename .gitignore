@@ -21,6 +21,8 @@ __pycache__/
 tmp/
 .tmp/
 
+build/openwaggle-docs/
+
 .playwright-mcp/
 
 .fallow
