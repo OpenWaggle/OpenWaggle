@@ -4,7 +4,6 @@ import { AlertTriangle, Check, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import { useAuth } from '@/features/settings/hooks/useSettings'
 import { cn } from '@/shared/lib/cn'
-import { api } from '@/shared/lib/ipc'
 import { Button } from '@/shared/ui/Button'
 import { TextInput } from '@/shared/ui/TextInput'
 import { ToggleSwitch } from '@/shared/ui/ToggleSwitch'
@@ -27,6 +26,7 @@ interface OAuthRowState {
   readonly connected: boolean
   readonly isBusy: boolean
   readonly isAwaitingCode: boolean
+  readonly isAwaitingSelection: boolean
   readonly isCodeReceived: boolean
   readonly isError: boolean
   readonly statusColor: string
@@ -44,12 +44,14 @@ function resolveOAuthRowState(input: {
   const isBusy =
     input.oauthStatus.type === 'in-progress' ||
     input.oauthStatus.type === 'awaiting-code' ||
+    input.oauthStatus.type === 'awaiting-selection' ||
     input.oauthStatus.type === 'code-received'
 
   return {
     connected,
     isBusy,
     isAwaitingCode: input.oauthStatus.type === 'awaiting-code',
+    isAwaitingSelection: input.oauthStatus.type === 'awaiting-selection',
     isCodeReceived: input.oauthStatus.type === 'code-received',
     isError: input.oauthStatus.type === 'error',
     statusColor: connected ? '#34d399' : '#6b7280',
@@ -107,9 +109,11 @@ function OAuthStatusIndicator({ rowState }: { readonly rowState: OAuthRowState }
         >
           {rowState.isCodeReceived
             ? 'Completing sign in...'
-            : rowState.isAwaitingCode
-              ? 'Waiting for browser...'
-              : 'Opening browser...'}
+            : rowState.isAwaitingSelection
+              ? 'Choose sign-in method...'
+              : rowState.isAwaitingCode
+                ? 'Waiting for browser...'
+                : 'Opening browser...'}
         </span>
       </div>
     )
@@ -127,14 +131,15 @@ function OAuthStatusIndicator({ rowState }: { readonly rowState: OAuthRowState }
 
 function OAuthManualCodePrompt({
   provider,
-  deviceCode,
+  oauthStatus,
   submitAuthCode,
 }: {
   readonly provider: string
-  readonly deviceCode: Extract<OAuthFlowStatus, { type: 'awaiting-code' }>['deviceCode']
+  readonly oauthStatus: OAuthFlowStatus
   readonly submitAuthCode: (provider: string, code: string) => Promise<void>
 }) {
   const [pasteValue, setPasteValue] = useState('')
+  const deviceCode = oauthStatus.type === 'awaiting-code' ? oauthStatus.deviceCode : undefined
 
   function handleSubmitCode() {
     const trimmed = pasteValue.trim()
@@ -147,28 +152,19 @@ function OAuthManualCodePrompt({
   return (
     <div className="mx-5 mb-3 space-y-2">
       {deviceCode ? (
-        <div className="rounded-lg border border-accent/25 bg-accent/8 px-3 py-2">
-          <div className="text-[11px] font-medium text-accent">Device code</div>
-          <div className="mt-1 font-mono text-[16px] font-semibold tracking-[0.16em] text-text-primary">
+        <div className="space-y-1 rounded-lg border border-input-card-border bg-input-card px-3 py-2">
+          <p className="text-[11px] text-text-tertiary">Enter this code in the browser window:</p>
+          <p className="font-mono text-[16px] font-semibold tracking-normal text-text-primary">
             {deviceCode.userCode}
-          </div>
-          <Button
-            variant="unstyled"
-            type="button"
-            onClick={() => {
-              void api.openExternal(deviceCode.verificationUri).catch(() => undefined)
-            }}
-            className="mt-1 text-[11px] font-medium text-text-tertiary transition-colors hover:text-text-primary"
-          >
-            Open verification page
-          </Button>
+          </p>
+          <p className="break-all text-[11px] text-text-muted">{deviceCode.verificationUri}</p>
         </div>
-      ) : null}
-      <p className="text-[11px] text-text-tertiary">
-        {deviceCode
-          ? 'Enter the device code in your browser. If Pi asks for a manual callback, paste it here.'
-          : 'Pi is waiting for the browser callback. If it does not finish automatically, paste the OAuth code or callback URL here.'}
-      </p>
+      ) : (
+        <p className="text-[11px] text-text-tertiary">
+          Pi is waiting for the browser callback. If it does not finish automatically, paste the
+          OAuth code or callback URL here.
+        </p>
+      )}
       <div className="flex items-center gap-2">
         <TextInput
           type="text"
@@ -190,6 +186,40 @@ function OAuthManualCodePrompt({
         >
           Connect
         </Button>
+      </div>
+    </div>
+  )
+}
+
+function OAuthSelectionPrompt({
+  provider,
+  oauthStatus,
+  submitAuthCode,
+}: {
+  readonly provider: string
+  readonly oauthStatus: OAuthFlowStatus
+  readonly submitAuthCode: (provider: string, code: string) => Promise<void>
+}) {
+  if (oauthStatus.type !== 'awaiting-selection') return null
+
+  return (
+    <div className="mx-5 mb-3 space-y-2 rounded-lg border border-input-card-border bg-input-card px-3 py-2">
+      <p className="text-[11px] text-text-tertiary">{oauthStatus.selection.message}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        {oauthStatus.selection.options.map((option) => (
+          <Button
+            key={option.id}
+            variant="secondary"
+            size="md"
+            type="button"
+            onClick={() => {
+              void submitAuthCode(provider, option.id)
+            }}
+            className="text-[12px]"
+          >
+            {option.label}
+          </Button>
+        ))}
       </div>
     </div>
   )
@@ -269,7 +299,15 @@ export function OAuthProviderRow({ providerInfo, isLast }: OAuthProviderRowProps
       {rowState.isAwaitingCode && (
         <OAuthManualCodePrompt
           provider={provider}
-          deviceCode={oauthStatus.type === 'awaiting-code' ? oauthStatus.deviceCode : undefined}
+          oauthStatus={oauthStatus}
+          submitAuthCode={submitAuthCode}
+        />
+      )}
+
+      {rowState.isAwaitingSelection && (
+        <OAuthSelectionPrompt
+          provider={provider}
+          oauthStatus={oauthStatus}
           submitAuthCode={submitAuthCode}
         />
       )}

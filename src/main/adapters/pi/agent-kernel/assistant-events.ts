@@ -30,7 +30,7 @@ function getToolCallFromAssistantEvent(event: AgentSessionEvent): PiAssistantToo
           }
 
           const content = assistantEvent.partial.content[assistantEvent.contentIndex]
-          if (!content || content.type !== 'toolCall') {
+          if (content?.type !== 'toolCall') {
             return null
           }
 

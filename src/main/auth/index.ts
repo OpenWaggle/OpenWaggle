@@ -1,18 +1,17 @@
 import { AUTH_TIMEOUT } from '@shared/constants/time'
 import type { OAuthAccountInfo, OAuthFlowStatus, OAuthProvider } from '@shared/types/auth'
 import * as Effect from 'effect/Effect'
-import { dialog, shell } from 'electron'
+import { shell } from 'electron'
 import { createLogger } from '../logger'
-import { type OAuthSelectPrompt, ProviderOAuthService } from '../ports/provider-oauth-service'
+import { ProviderOAuthService } from '../ports/provider-oauth-service'
 import { runAppEffect } from '../runtime'
 
 const logger = createLogger('auth')
-const OAUTH_SELECTION_CANCEL_LABEL = 'Cancel'
 
 type StatusEmitter = (status: OAuthFlowStatus) => void
 
-interface PendingCodeHandler {
-  readonly resolve: (code: string) => void
+interface PendingOAuthInputHandler {
+  readonly resolve: (input: string) => void
   readonly reject: (error: Error) => void
 }
 
@@ -21,7 +20,7 @@ interface InFlightOAuthFlow {
   readonly controller: AbortController
 }
 
-const pendingCodeHandlers = new Map<OAuthProvider, PendingCodeHandler>()
+const pendingInputHandlers = new Map<OAuthProvider, PendingOAuthInputHandler>()
 const inFlightOAuthFlows = new Map<OAuthProvider, InFlightOAuthFlow>()
 const canceledOAuthFlows = new Set<OAuthProvider>()
 const lifecycleConnectivity = new Map<OAuthProvider, boolean>()
@@ -29,9 +28,9 @@ let authLifecycleTimer: ReturnType<typeof setInterval> | null = null
 let authLifecycleTickInFlight = false
 
 export function submitCode(provider: OAuthProvider, code: string): void {
-  const handler = pendingCodeHandlers.get(provider)
+  const handler = pendingInputHandlers.get(provider)
   if (handler) {
-    pendingCodeHandlers.delete(provider)
+    pendingInputHandlers.delete(provider)
     handler.resolve(code)
   }
 }
@@ -68,9 +67,9 @@ export async function cancelOAuth(
   canceledOAuthFlows.add(provider)
   flow.controller.abort()
 
-  const pending = pendingCodeHandlers.get(provider)
+  const pending = pendingInputHandlers.get(provider)
   if (pending) {
-    pendingCodeHandlers.delete(provider)
+    pendingInputHandlers.delete(provider)
     pending.reject(new Error('Login cancelled'))
   }
 
@@ -124,25 +123,29 @@ async function runOAuthFlow(
             }
           },
           onDeviceCode: (deviceCode) => {
-            emitStatus({ type: 'awaiting-code', provider, deviceCode })
             void shell.openExternal(deviceCode.verificationUri).catch((error) => {
               logger.warn('Failed to open OAuth device-code URL', {
                 provider,
                 error: error instanceof Error ? error.message : String(error),
               })
             })
+            emitStatus({ type: 'awaiting-code', provider, deviceCode })
+          },
+          onSelect: async (selection) => {
+            if (selection.options.length === 0) return undefined
+            emitStatus({ type: 'awaiting-selection', provider, selection })
+            return createOAuthInputPromise(provider)
           },
           onPrompt: async () => {
             emitStatus({ type: 'awaiting-code', provider })
-            return createManualCodePromise(provider)
+            return createOAuthInputPromise(provider)
           },
-          onSelect: (prompt) => selectOAuthPromptOption(provider, prompt, signal),
           onProgress: () => {
             emitStatus({ type: 'in-progress', provider })
           },
           onManualCodeInput: () => {
             emitStatus({ type: 'awaiting-code', provider })
-            return createManualCodePromise(provider)
+            return createOAuthInputPromise(provider)
           },
           signal,
         })
@@ -169,63 +172,28 @@ async function runOAuthFlow(
     emitStatus({ type: 'error', provider, message })
     throw err
   } finally {
-    const pending = pendingCodeHandlers.get(provider)
+    const pending = pendingInputHandlers.get(provider)
     if (pending) {
-      pendingCodeHandlers.delete(provider)
+      pendingInputHandlers.delete(provider)
       pending.reject(new Error('Sign-in flow closed before an authorization code was submitted.'))
     }
   }
 }
 
-async function selectOAuthPromptOption(
-  provider: OAuthProvider,
-  prompt: OAuthSelectPrompt,
-  signal: AbortSignal,
-) {
-  if (signal.aborted) {
-    return undefined
-  }
-
-  if (prompt.options.length === 0) {
-    logger.warn('OAuth selection prompt had no options', { provider, prompt })
-    return undefined
-  }
-
-  const optionLabels = prompt.options.map((option) => option.label)
-  const buttons = [...optionLabels, OAUTH_SELECTION_CANCEL_LABEL]
-  const cancelId = buttons.length - 1
-  const result = await dialog.showMessageBox({
-    type: 'question',
-    title: `Choose sign-in method for ${provider}`,
-    message: prompt.message,
-    detail: `Provider: ${provider}`,
-    buttons,
-    defaultId: 0,
-    cancelId,
-    noLink: true,
-  })
-
-  if (result.response === cancelId || signal.aborted) {
-    return undefined
-  }
-
-  return prompt.options[result.response]?.id
-}
-
-function createManualCodePromise(provider: OAuthProvider) {
-  const existingPending = pendingCodeHandlers.get(provider)
+function createOAuthInputPromise(provider: OAuthProvider) {
+  const existingPending = pendingInputHandlers.get(provider)
   if (existingPending) {
-    pendingCodeHandlers.delete(provider)
+    pendingInputHandlers.delete(provider)
     existingPending.reject(
       new Error('A new sign-in attempt was started before the previous one completed.'),
     )
   }
 
-  const manualCodePromise = new Promise<string>((resolve, reject) => {
-    pendingCodeHandlers.set(provider, { resolve, reject })
+  const inputPromise = new Promise<string>((resolve, reject) => {
+    pendingInputHandlers.set(provider, { resolve, reject })
   })
-  void manualCodePromise.catch(() => {})
-  return manualCodePromise
+  void inputPromise.catch(() => {})
+  return inputPromise
 }
 
 async function runAuthLifecycleTick(emitStatus: StatusEmitter) {

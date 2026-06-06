@@ -10,7 +10,7 @@ import {
   createPiMcpConfigService,
   createPiMcpConfigServiceForTests,
 } from './mcp-config/service-factory'
-export { createPiMcpConfigService, createPiMcpConfigServiceForTests }
+
 export {
   getOpenWaggleMcpRuntimeContextForServices,
   prepareOpenWaggleMcpRuntimeContext,
@@ -21,6 +21,7 @@ export type {
   OpenWaggleMcpRuntimeContext,
   PiMcpConfigServiceForTests,
 } from './mcp-config/types'
+export { createPiMcpConfigService, createPiMcpConfigServiceForTests }
 
 function createLivePiMcpConfigService() {
   return createPiMcpConfigService({

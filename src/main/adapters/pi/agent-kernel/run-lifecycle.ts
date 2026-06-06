@@ -180,7 +180,6 @@ export async function runSubscribedPiOperation(input: {
 }) {
   const abortListener = createAbortListener(input.session, input.abortWarning)
   let previousMessageCount = input.session.agent.state.messages.length
-  let abortListenerAttached = false
   let operationAborted = false
   let settlementAttempted = false
 
@@ -192,7 +191,6 @@ export async function runSubscribedPiOperation(input: {
   }
 
   input.runInput.signal.addEventListener('abort', abortListener, { once: true })
-  abortListenerAttached = true
 
   try {
     previousMessageCount = input.session.agent.state.messages.length
@@ -200,7 +198,6 @@ export async function runSubscribedPiOperation(input: {
 
     operationAborted = input.runInput.signal.aborted
     input.runInput.signal.removeEventListener('abort', abortListener)
-    abortListenerAttached = false
 
     settlementAttempted = true
     const appended = await collectSettledPiMessages(input.session, previousMessageCount)
@@ -233,9 +230,7 @@ export async function runSubscribedPiOperation(input: {
       buildErrorMessages: input.buildErrorMessages,
     })
   } finally {
-    if (abortListenerAttached) {
-      input.runInput.signal.removeEventListener('abort', abortListener)
-    }
+    input.runInput.signal.removeEventListener('abort', abortListener)
     input.unsubscribe()
     await disposeOpenWagglePiSession(input.session)
   }

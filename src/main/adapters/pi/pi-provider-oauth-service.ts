@@ -39,8 +39,8 @@ export const PiProviderOAuthLive = Layer.succeed(
               handlers.onAuthUrl(info.url, oauthProvider.usesCallbackServer === true)
             },
             onDeviceCode: handlers.onDeviceCode,
-            onPrompt: handlers.onPrompt,
             onSelect: handlers.onSelect,
+            onPrompt: handlers.onPrompt,
             onProgress: handlers.onProgress,
             onManualCodeInput: handlers.onManualCodeInput,
             signal: handlers.signal,
