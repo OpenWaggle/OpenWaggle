@@ -21,6 +21,14 @@ Mechanical enforcement:
 - `openwaggle/no-shoehorn-outside-tests` keeps Shoehorn test-only.
 - Biome and ESLint ban explicit `any`, non-null assertions, disabled lint comments, and unsafe patterns.
 
+## ts-match
+
+OpenWaggle prefers `@diegogbrisa/ts-match` when pattern matching, exhaustive union handling, runtime guards, or boundary assertions improve clarity or type safety.
+
+Before writing manual multi-branch discriminant/shape logic, runtime shape guards, or boundary assertions, load `.agents/skills/ts-match/SKILL.md` and apply its guidance.
+
+Keep plain TypeScript for simple guard clauses or binary predicates where `ts-match` would add noise.
+
 ## Main Process Architecture
 
 Main process code follows hexagonal architecture.

@@ -13,7 +13,6 @@ import type {
 import {
   isExtensionBuildPlanApproved,
   isExtensionCurrentTrustPin,
-  isExtensionRuntimeEnabled,
   isExtensionUpdateAvailable,
 } from '../extensions/runtime-eligibility'
 import type {
@@ -118,11 +117,7 @@ function lifecycleToView(
   projectOverride: { readonly disabled: boolean } | null,
 ): ExtensionLifecycleView {
   const trusted = isExtensionCurrentTrustPin({ extensionPackage, lifecycle: state })
-  const enabled = isExtensionRuntimeEnabled({
-    extensionPackage,
-    lifecycle: state,
-    projectOverride,
-  })
+  const enabled = state.enabled && trusted && projectOverride?.disabled !== true
 
   return {
     enabled,

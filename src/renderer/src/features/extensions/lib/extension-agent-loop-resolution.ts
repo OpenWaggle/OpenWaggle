@@ -103,7 +103,7 @@ function isBlockedEntry(
   )
 }
 
-function entryMatchesTarget(
+export function extensionAgentLoopEntryMatchesTarget(
   entry: ExtensionContributionRegistryEntry,
   target: ExtensionAgentLoopTarget,
 ) {
@@ -147,8 +147,23 @@ function candidateEntries(
 ) {
   const family = SURFACE_FAMILY[target.surface]
   return registry.entries.filter(
-    (entry) => entry.family === family && entryMatchesTarget(entry, target),
+    (entry) => entry.family === family && extensionAgentLoopEntryMatchesTarget(entry, target),
   )
+}
+
+function resolvedContributionFromEntry(
+  entry: ExtensionContributionRegistryEntry,
+): ResolvedExtensionAgentLoopContribution | null {
+  if (!entry.runtime || !entry.execution || !entry.entryPath) {
+    return null
+  }
+
+  return {
+    entry,
+    runtime: entry.runtime,
+    execution: entry.execution,
+    entryPath: entry.entryPath,
+  }
 }
 
 function notFoundResolution(): ExtensionAgentLoopResolution {
@@ -196,21 +211,48 @@ export function resolveExtensionAgentLoopContribution({
       continue
     }
 
-    if (!entry.runtime || !entry.execution || !entry.entryPath) {
+    const contribution = resolvedContributionFromEntry(entry)
+    if (contribution === null) {
       firstInvalid ??= invalidResolution()
       continue
     }
 
     return {
       status: 'available',
-      contribution: {
-        entry,
-        runtime: entry.runtime,
-        execution: entry.execution,
-        entryPath: entry.entryPath,
-      },
+      contribution,
     }
   }
 
   return firstInvalid ?? firstBlocked ?? notFoundResolution()
+}
+
+export function resolveExtensionAgentLoopContributionEntries({
+  registry,
+  target,
+  requestedProjectPaths,
+  family,
+}: {
+  readonly registry: ExtensionContributionRegistryView
+  readonly target: ExtensionAgentLoopTarget
+  readonly requestedProjectPaths: readonly string[]
+  readonly family: ExtensionContributionFamily
+}): readonly ResolvedExtensionAgentLoopContribution[] {
+  const contributions: ResolvedExtensionAgentLoopContribution[] = []
+
+  for (const entry of registry.entries) {
+    if (entry.family !== family || !extensionAgentLoopEntryMatchesTarget(entry, target)) {
+      continue
+    }
+
+    if (isBlockedEntry(entry, requestedProjectPaths)) {
+      continue
+    }
+
+    const contribution = resolvedContributionFromEntry(entry)
+    if (contribution !== null) {
+      contributions.push(contribution)
+    }
+  }
+
+  return contributions
 }

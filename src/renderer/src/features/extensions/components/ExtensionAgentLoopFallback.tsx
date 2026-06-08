@@ -1,5 +1,7 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import type { ChatToolCallPart } from '@shared/types/chat-ui'
 import { AlertTriangle, CheckCircle2, CircleDashed, MessagesSquare, Wrench } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { Button } from '@/shared/ui/Button'
 import type {
   ExtensionAgentLoopSurfaceInput,
@@ -17,19 +19,7 @@ function prettyJson(value: ExtensionCustomMessageView['value']) {
   return JSON.stringify(value, null, JSON_INDENT)
 }
 
-function StatusIcon({ tone }: { readonly tone: ExtensionStatusView['tone'] }) {
-  if (tone === 'success') {
-    return <CheckCircle2 className="size-4 text-emerald-300" />
-  }
-
-  if (tone === 'warning' || tone === 'error') {
-    return <AlertTriangle className="size-4 text-amber-300" />
-  }
-
-  return <CircleDashed className="size-4 text-accent" />
-}
-
-function ToolFallback({
+function renderToolFallback({
   toolCall,
   toolResult,
 }: {
@@ -62,7 +52,7 @@ function ToolFallback({
   )
 }
 
-function CustomMessageFallback({ message }: { readonly message: ExtensionCustomMessageView }) {
+function renderCustomMessageFallback(message: ExtensionCustomMessageView) {
   return (
     <div className="grid gap-2">
       <div className="flex items-center gap-2 text-[13px] font-medium text-text-primary">
@@ -84,7 +74,7 @@ function actionVariant(tone: ExtensionInteractionActionView['tone']) {
   return 'secondary'
 }
 
-function InteractionFallback({
+function renderInteractionFallback({
   interaction,
   onAction,
 }: {
@@ -118,10 +108,19 @@ function InteractionFallback({
   )
 }
 
-function StatusFallback({ status }: { readonly status: ExtensionStatusView }) {
+function renderStatusFallback(status: ExtensionStatusView) {
+  const icon =
+    status.tone === 'success' ? (
+      <CheckCircle2 className="size-4 text-emerald-300" />
+    ) : status.tone === 'warning' || status.tone === 'error' ? (
+      <AlertTriangle className="size-4 text-amber-300" />
+    ) : (
+      <CircleDashed className="size-4 text-accent" />
+    )
+
   return (
     <div className="flex items-start gap-3 rounded-lg border border-border/80 bg-bg-secondary/50 p-3">
-      <StatusIcon tone={status.tone} />
+      {icon}
       <div className="min-w-0">
         <div className="text-[13px] font-medium text-text-primary">{status.label}</div>
         {status.detail ? (
@@ -132,7 +131,7 @@ function StatusFallback({ status }: { readonly status: ExtensionStatusView }) {
   )
 }
 
-function TranscriptFallback({ transcript }: { readonly transcript: ExtensionTranscriptView }) {
+function renderTranscriptFallback(transcript: ExtensionTranscriptView) {
   return (
     <div className="rounded-lg border border-border/80 bg-bg-secondary/50 p-3">
       <div className="text-[13px] font-medium text-text-primary">Transcript extension card</div>
@@ -143,22 +142,24 @@ function TranscriptFallback({ transcript }: { readonly transcript: ExtensionTran
   )
 }
 
-export function fallbackFor(input: ExtensionAgentLoopSurfaceInput) {
-  if (input.surface === 'tool') {
-    return <ToolFallback toolCall={input.toolCall} toolResult={input.toolResult} />
-  }
+function fallbackFor(input: ExtensionAgentLoopSurfaceInput): ReactNode {
+  return matchBy(input, 'surface')
+    .with('tool', (value) =>
+      renderToolFallback({ toolCall: value.toolCall, toolResult: value.toolResult }),
+    )
+    .with('custom-message', (value) => renderCustomMessageFallback(value.message))
+    .with('interaction', (value) =>
+      renderInteractionFallback({ interaction: value.interaction, onAction: value.onAction }),
+    )
+    .with('transcript', (value) => renderTranscriptFallback(value.transcript))
+    .with('status', (value) => renderStatusFallback(value.status))
+    .exhaustive()
+}
 
-  if (input.surface === 'custom-message') {
-    return <CustomMessageFallback message={input.message} />
-  }
-
-  if (input.surface === 'interaction') {
-    return <InteractionFallback interaction={input.interaction} onAction={input.onAction} />
-  }
-
-  if (input.surface === 'transcript') {
-    return <TranscriptFallback transcript={input.transcript} />
-  }
-
-  return <StatusFallback status={input.status} />
+export function ExtensionAgentLoopFallback({
+  input,
+}: {
+  readonly input: ExtensionAgentLoopSurfaceInput
+}) {
+  return fallbackFor(input)
 }

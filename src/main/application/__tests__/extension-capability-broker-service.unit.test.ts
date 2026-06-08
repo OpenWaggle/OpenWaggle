@@ -91,6 +91,22 @@ describe('invokeExtensionCapability', () => {
     expectFailure(result, OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.DISABLED_EXTENSION)
   })
 
+  it('rejects enabled extensions that have not been reloaded', async () => {
+    const extensionPackage = makeBrokerPackage()
+    const result = await runBroker({
+      invocation: makeProjectInvocation(),
+      packages: [extensionPackage],
+      lifecycles: [
+        makeLifecycle(extensionPackage, {
+          reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.NOT_RELOADED,
+          lastReloadedAt: null,
+        }),
+      ],
+    })
+
+    expectFailure(result, OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.DISABLED_EXTENSION)
+  })
+
   it('rejects unknown contributions', async () => {
     const extensionPackage = makeBrokerPackage()
     const result = await runBroker({

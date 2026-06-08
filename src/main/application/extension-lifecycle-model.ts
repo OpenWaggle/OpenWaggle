@@ -8,7 +8,11 @@ import type {
   ExtensionSetProjectDisabledInput,
   ExtensionSetTrustedInput,
 } from '@shared/types/extensions'
-import { isExtensionBuildPlanApproved } from '../extensions/runtime-eligibility'
+import {
+  getExtensionGrantIds,
+  getMissingExtensionGrantIds,
+  isExtensionBuildPlanApproved,
+} from '../extensions/runtime-eligibility'
 import type {
   DiscoveredExtensionPackage,
   ExtensionBuildRunStatus,
@@ -130,6 +134,12 @@ export function getLifecycleReadinessError(
   if (!isExtensionBuildPlanApproved({ extensionPackage, lifecycle })) {
     return `Cannot ${action} "${extensionPackage.id}" because ${getBuildPlanReadinessError(extensionPackage, lifecycle)}`
   }
+  if (action === 'enable' && lifecycle) {
+    const missingGrantIds = getMissingExtensionGrantIds({ extensionPackage, lifecycle })
+    if (missingGrantIds.length > 0) {
+      return `Cannot enable "${extensionPackage.id}" because required permissions have not been granted: ${missingGrantIds.join(', ')}.`
+    }
+  }
 
   const errorCodes = getPackageErrorCodes(extensionPackage)
   if (errorCodes.length > 0) {
@@ -148,10 +158,6 @@ export function getBuildApprovalReadinessError(extensionPackage: DiscoveredExten
     return OPENWAGGLE_EXTENSION.LIFECYCLE.BUILD_APPROVAL_UNAVAILABLE_ERROR
   }
   return null
-}
-
-function getGrantedCapabilities(extensionPackage: DiscoveredExtensionPackage) {
-  return extensionPackage.manifest?.capabilities?.map((capability) => capability.id) ?? []
 }
 
 function pinnedContentHash({
@@ -207,7 +213,12 @@ interface MakeLifecycleStateInput {
 }
 
 function lifecycleGrantedCapabilities(input: MakeLifecycleStateInput) {
-  return input.trusted ? getGrantedCapabilities(input.extensionPackage) : []
+  if (!input.trusted) {
+    return []
+  }
+  return input.pinCurrentPackage
+    ? getExtensionGrantIds(input.extensionPackage)
+    : (input.current?.grantedCapabilities ?? getExtensionGrantIds(input.extensionPackage))
 }
 
 function lifecycleApprovedBuildPlanHash(input: MakeLifecycleStateInput) {

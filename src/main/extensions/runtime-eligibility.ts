@@ -5,6 +5,57 @@ function hasErrorDiagnostics(extensionPackage: DiscoveredExtensionPackage) {
   return extensionPackage.diagnostics.some((diagnostic) => diagnostic.severity === 'error')
 }
 
+function uniqueGrantIds(grantIds: readonly string[]) {
+  const uniqueIds: string[] = []
+  for (const grantId of grantIds) {
+    if (!uniqueIds.includes(grantId)) {
+      uniqueIds.push(grantId)
+    }
+  }
+  return uniqueIds
+}
+
+export function getExtensionGrantIds(extensionPackage: DiscoveredExtensionPackage) {
+  const manifest = extensionPackage.manifest
+  if (!manifest) {
+    return []
+  }
+
+  const grantIds = manifest.capabilities?.map((capability) => capability.id) ?? []
+
+  if (manifest.trusted?.main !== undefined) {
+    grantIds.push(OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.TRUSTED_MAIN)
+  }
+  if (manifest.trusted?.renderer !== undefined) {
+    grantIds.push(OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.TRUSTED_RENDERER)
+  }
+  if (manifest.network?.origins !== undefined && manifest.network.origins.length > 0) {
+    grantIds.push(OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.NETWORK)
+  }
+  if (extensionPackage.buildPlan?.approvalRequired === true) {
+    grantIds.push(OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.LOCAL_BUILD)
+  }
+
+  return uniqueGrantIds(grantIds)
+}
+
+export function getMissingExtensionGrantIds(input: {
+  readonly extensionPackage: DiscoveredExtensionPackage
+  readonly lifecycle: ExtensionLifecycleState
+}) {
+  const requiredGrantIds = getExtensionGrantIds(input.extensionPackage)
+  return requiredGrantIds.filter(
+    (grantId) => !input.lifecycle.grantedCapabilities.includes(grantId),
+  )
+}
+
+function hasRequiredGrants(input: {
+  readonly extensionPackage: DiscoveredExtensionPackage
+  readonly lifecycle: ExtensionLifecycleState
+}) {
+  return getMissingExtensionGrantIds(input).length === 0
+}
+
 export function isExtensionBuildPlanApproved(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly lifecycle: ExtensionLifecycleState | null
@@ -30,6 +81,7 @@ export function isExtensionCurrentTrustPin(input: {
     input.lifecycle.contentHash === input.extensionPackage.contentHash &&
     input.extensionPackage.sdkCompatibility?.compatible === true &&
     isExtensionBuildPlanApproved(input) &&
+    hasRequiredGrants(input) &&
     !hasErrorDiagnostics(input.extensionPackage)
   )
 }
@@ -46,6 +98,10 @@ export function isExtensionUpdateAvailable(input: {
   )
 }
 
+function isExtensionReloaded(lifecycle: ExtensionLifecycleState) {
+  return lifecycle.reloadStatus === OPENWAGGLE_EXTENSION.RELOAD_STATUS.SUCCEEDED
+}
+
 export function isExtensionRuntimeEnabled(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly lifecycle: ExtensionLifecycleState | null
@@ -57,6 +113,7 @@ export function isExtensionRuntimeEnabled(input: {
 
   return (
     input.lifecycle.enabled &&
+    isExtensionReloaded(input.lifecycle) &&
     isExtensionCurrentTrustPin({
       extensionPackage: input.extensionPackage,
       lifecycle: input.lifecycle,

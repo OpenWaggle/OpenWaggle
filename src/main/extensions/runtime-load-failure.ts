@@ -37,6 +37,7 @@ export function applyRuntimeLoadFailureToLifecycle(input: {
     enabled: false,
     grantedCapabilities: [],
     reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.FAILED,
+    lastReloadedAt: null,
     diagnostics: [
       ...withoutPreviousRuntimeLoadFailures(input.lifecycle.diagnostics),
       runtimeLoadFailedDiagnostic(input),

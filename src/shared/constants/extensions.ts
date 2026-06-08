@@ -79,6 +79,13 @@ const EXTENSION_RELOAD_STATUS = {
   FAILED: 'failed',
 } as const
 
+const EXTENSION_PRIVILEGE_GRANT = {
+  TRUSTED_MAIN: 'openwaggle.privilege.trusted-main',
+  TRUSTED_RENDERER: 'openwaggle.privilege.trusted-renderer',
+  NETWORK: 'openwaggle.privilege.network',
+  LOCAL_BUILD: 'openwaggle.privilege.local-build',
+} as const
+
 export const OPENWAGGLE_EXTENSION = {
   MANIFEST_FILE: 'openwaggle.extension.json',
   SDK_VERSION: '0.1.0',
@@ -103,6 +110,7 @@ export const OPENWAGGLE_EXTENSION = {
     BUILD_SUCCEEDED_LABEL: 'Build succeeded',
     BUILD_FAILED_LABEL: 'Build failed',
     RELOAD_ACTION_LABEL: 'Reload',
+    RELOAD_REQUIRED_LABEL: 'Reload required',
     RELOAD_SUCCEEDED_LABEL: 'Reloaded',
     RELOAD_FAILED_LABEL: 'Reload failed',
     APPROVE_UPDATE_ACTION_LABEL: 'Approve update',
@@ -226,4 +234,6 @@ export const OPENWAGGLE_EXTENSION = {
   BUILD_RUN_STATUSES: Object.freeze(Object.values(EXTENSION_BUILD_RUN_STATUS)),
   RELOAD_STATUS: EXTENSION_RELOAD_STATUS,
   RELOAD_STATUSES: Object.freeze(Object.values(EXTENSION_RELOAD_STATUS)),
+  PRIVILEGE_GRANT: EXTENSION_PRIVILEGE_GRANT,
+  PRIVILEGE_GRANTS: Object.freeze(Object.values(EXTENSION_PRIVILEGE_GRANT)),
 } as const

@@ -7,6 +7,10 @@ export {
   type ExtensionStatusView,
   type ExtensionToolResultView,
 } from './components/ExtensionAgentLoopSurface'
+export {
+  ExtensionDialogSurface,
+  ExtensionDialogSurfaceContent,
+} from './components/ExtensionDialogSurface'
 export { ExtensionFederatedModuleHost } from './components/ExtensionFederatedModuleHost'
 export { ExtensionRouteSurface } from './components/ExtensionRouteSurface'
 export { ExtensionRouteView } from './components/ExtensionRouteView'
@@ -21,8 +25,23 @@ export type {
   ExtensionAgentLoopTarget,
   ResolvedExtensionAgentLoopContribution,
 } from './lib/extension-agent-loop-resolution'
-export { resolveExtensionAgentLoopContribution } from './lib/extension-agent-loop-resolution'
+export {
+  extensionAgentLoopEntryMatchesTarget,
+  resolveExtensionAgentLoopContribution,
+  resolveExtensionAgentLoopContributionEntries,
+} from './lib/extension-agent-loop-resolution'
+export {
+  surfaceLabel,
+  surfacePayload,
+  surfaceTarget,
+} from './lib/extension-agent-loop-surface-model'
 export { refreshPreferencesAfterExtensionInvoke } from './lib/extension-broker-preferences'
+export type {
+  ExtensionDialogResolution,
+  ExtensionDialogTarget,
+  ResolvedExtensionDialogContribution,
+} from './lib/extension-dialog-resolution'
+export { resolveExtensionDialogContribution } from './lib/extension-dialog-resolution'
 export type {
   ExtensionFederatedModuleLoader,
   OpenWaggleExtensionMountContext,

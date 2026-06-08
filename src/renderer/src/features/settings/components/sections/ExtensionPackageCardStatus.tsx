@@ -156,17 +156,27 @@ function ReloadStatusPill({
 }: {
   readonly lifecycle: ExtensionPackageSummary['lifecycle']
 }) {
-  if (lifecycle?.reloadStatus === OPENWAGGLE_EXTENSION.RELOAD_STATUS.SUCCEEDED) {
-    return (
+  return match(lifecycle)
+    .with(null, () => null)
+    .with({ reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.SUCCEEDED }, () => (
       <StatusPill tone="good">{OPENWAGGLE_EXTENSION.LIFECYCLE.RELOAD_SUCCEEDED_LABEL}</StatusPill>
-    )
-  }
-  if (lifecycle?.reloadStatus === OPENWAGGLE_EXTENSION.RELOAD_STATUS.FAILED) {
-    return (
+    ))
+    .with({ reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.FAILED }, () => (
       <StatusPill tone="error">{OPENWAGGLE_EXTENSION.LIFECYCLE.RELOAD_FAILED_LABEL}</StatusPill>
+    ))
+    .with(
+      {
+        enabled: true,
+        reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.NOT_RELOADED,
+      },
+      () => (
+        <StatusPill tone="warning">
+          {OPENWAGGLE_EXTENSION.LIFECYCLE.RELOAD_REQUIRED_LABEL}
+        </StatusPill>
+      ),
     )
-  }
-  return null
+    .with({ reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.NOT_RELOADED }, () => null)
+    .exhaustive()
 }
 
 export function PackageStatusPills({

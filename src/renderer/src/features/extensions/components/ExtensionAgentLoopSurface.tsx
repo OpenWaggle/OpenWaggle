@@ -18,7 +18,7 @@ import {
   surfacePayload,
   surfaceTarget,
 } from '../lib/extension-agent-loop-surface-model'
-import { fallbackFor } from './ExtensionAgentLoopFallback'
+import { ExtensionAgentLoopFallback } from './ExtensionAgentLoopFallback'
 import { ExtensionFederatedModuleHost } from './ExtensionFederatedModuleHost'
 
 export type {
@@ -112,7 +112,8 @@ export function ExtensionAgentLoopSurface({
 }) {
   const fallbackTitle = surfaceLabel(input)
   const payload = surfacePayload(input)
-  const fallbackContent = fallback === undefined ? fallbackFor(input) : fallback
+  const fallbackContent =
+    fallback === undefined ? <ExtensionAgentLoopFallback input={input} /> : fallback
 
   if (registry === null) {
     if (fallback !== undefined) {

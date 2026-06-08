@@ -4,7 +4,10 @@ import type {
   ExtensionContributionRegistryView,
 } from '@shared/types/extensions'
 import { describe, expect, it } from 'vitest'
-import { resolveExtensionAgentLoopContribution } from '../extension-agent-loop-resolution'
+import {
+  resolveExtensionAgentLoopContribution,
+  resolveExtensionAgentLoopContributionEntries,
+} from '../extension-agent-loop-resolution'
 
 const PROJECT_PATH = '/tmp/project'
 
@@ -134,6 +137,54 @@ describe('resolveExtensionAgentLoopContribution', () => {
       status: 'available',
       contribution: { entry: transcriptEntry },
     })
+  })
+
+  it('resolves auxiliary placement contributions that bind to the same Pi tool event', () => {
+    const dialogEntry = entry({
+      family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.DIALOGS,
+      contributionId: 'sample.dialog',
+      title: 'Sample dialog',
+      matches: { toolNames: ['sample.tool'] },
+    })
+    const sidePanelEntry = entry({
+      family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SIDE_PANELS,
+      contributionId: 'sample.side-panel',
+      title: 'Sample side panel',
+      matches: { toolNames: ['sample.tool'] },
+    })
+    const statusEntry = entry({
+      family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.STATUS_WIDGETS,
+      contributionId: 'sample.status',
+      title: 'Sample status',
+      matches: { toolNames: ['sample.tool'] },
+    })
+    const registryView = registry([dialogEntry, sidePanelEntry, statusEntry])
+    const target = { surface: 'tool', toolName: 'sample.tool' } as const
+
+    expect(
+      resolveExtensionAgentLoopContributionEntries({
+        registry: registryView,
+        target,
+        requestedProjectPaths: [PROJECT_PATH],
+        family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.DIALOGS,
+      }).map((contribution) => contribution.entry),
+    ).toEqual([dialogEntry])
+    expect(
+      resolveExtensionAgentLoopContributionEntries({
+        registry: registryView,
+        target,
+        requestedProjectPaths: [PROJECT_PATH],
+        family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SIDE_PANELS,
+      }).map((contribution) => contribution.entry),
+    ).toEqual([sidePanelEntry])
+    expect(
+      resolveExtensionAgentLoopContributionEntries({
+        registry: registryView,
+        target,
+        requestedProjectPaths: [PROJECT_PATH],
+        family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.STATUS_WIDGETS,
+      }).map((contribution) => contribution.entry),
+    ).toEqual([statusEntry])
   })
 
   it('falls back to blocked when the matching renderer is not eligible for the project', () => {

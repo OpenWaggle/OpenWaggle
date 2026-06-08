@@ -2,36 +2,14 @@ import type {
   AgentTransportInteractionRequestEvent,
   AgentTransportInteractionResolvedEvent,
 } from '@shared/types/stream'
-import { formatElapsed } from '@/features/chat/hooks/useStreamingPhase'
 import { ExtensionAgentLoopSurface } from '@/features/extensions'
-import { Spinner } from '@/shared/ui/Spinner'
 import {
   agentLoopInteractionTitle,
   toExtensionInteractionView,
 } from '../lib/agent-loop-interaction-view'
-import type { ChatRow } from '../lib/types-chat-row'
 import type { ChatRowRenderContext } from './ChatRowRenderContext'
-import { RunSummary } from './RunSummary'
 
 const RESPONSE_JSON_INDENT = 2
-
-function CorePhaseIndicator({
-  label,
-  elapsedMs,
-}: {
-  readonly label: string
-  readonly elapsedMs: number
-}) {
-  return (
-    <div className="flex items-center gap-2 py-3">
-      <Spinner size="sm" className="text-accent" />
-      <span className="text-sm text-text-tertiary">{label}...</span>
-      {elapsedMs > 0 ? (
-        <span className="text-sm text-text-muted tabular-nums">{formatElapsed(elapsedMs)}</span>
-      ) : null}
-    </div>
-  )
-}
 
 function eventTimeLabel(timestamp: number) {
   return new Date(timestamp).toLocaleTimeString([], {
@@ -41,11 +19,7 @@ function eventTimeLabel(timestamp: number) {
   })
 }
 
-function InteractionRequestAuditCard({
-  event,
-}: {
-  readonly event: AgentTransportInteractionRequestEvent
-}) {
+function renderInteractionRequestAuditCard(event: AgentTransportInteractionRequestEvent) {
   return (
     <section className="rounded-xl border border-border bg-bg-secondary/70 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -64,11 +38,7 @@ function InteractionRequestAuditCard({
   )
 }
 
-function InteractionResolvedAuditCard({
-  event,
-}: {
-  readonly event: AgentTransportInteractionResolvedEvent
-}) {
+function renderInteractionResolvedAuditCard(event: AgentTransportInteractionResolvedEvent) {
   return (
     <section className="rounded-xl border border-border bg-bg-secondary/70 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -101,7 +71,7 @@ export function InteractionEventRow({
   if (event.type === 'agent_interaction_request') {
     return (
       <div className="grid gap-3">
-        <InteractionRequestAuditCard event={event} />
+        {renderInteractionRequestAuditCard(event)}
         <ExtensionAgentLoopSurface
           fallback={null}
           input={{
@@ -115,62 +85,5 @@ export function InteractionEventRow({
     )
   }
 
-  return <InteractionResolvedAuditCard event={event} />
-}
-
-export function CustomMessageRow({
-  row,
-  extensions,
-}: {
-  readonly row: Extract<ChatRow, { readonly type: 'agent-loop-custom-message' }>
-  readonly extensions: ChatRowRenderContext['extensions']
-}) {
-  return (
-    <ExtensionAgentLoopSurface
-      input={{
-        surface: 'custom-message',
-        message: { name: row.event.name, value: row.event.value ?? null },
-      }}
-      projectPaths={extensions.projectPaths}
-      registry={extensions.registry}
-    />
-  )
-}
-
-export function StatusRow({
-  row,
-  extensions,
-}: {
-  readonly row: Extract<ChatRow, { readonly type: 'phase-indicator' | 'run-summary' }>
-  readonly extensions: ChatRowRenderContext['extensions']
-}) {
-  if (row.type === 'run-summary') {
-    return (
-      <ExtensionAgentLoopSurface
-        fallback={<RunSummary phases={row.phases} totalMs={row.totalMs} />}
-        input={{
-          surface: 'status',
-          status: { label: 'Run complete', detail: formatElapsed(row.totalMs), tone: 'success' },
-        }}
-        projectPaths={extensions.projectPaths}
-        registry={extensions.registry}
-      />
-    )
-  }
-
-  return (
-    <ExtensionAgentLoopSurface
-      fallback={<CorePhaseIndicator elapsedMs={row.elapsedMs} label={row.label} />}
-      input={{
-        surface: 'status',
-        status: {
-          label: `${row.label}...`,
-          detail: row.elapsedMs > 0 ? formatElapsed(row.elapsedMs) : undefined,
-          tone: 'running',
-        },
-      }}
-      projectPaths={extensions.projectPaths}
-      registry={extensions.registry}
-    />
-  )
+  return renderInteractionResolvedAuditCard(event)
 }

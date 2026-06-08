@@ -113,6 +113,7 @@ describe('extension local build lifecycle', () => {
     expect(harness.getStoredLifecycle()).toMatchObject({
       approvedBuildPlanHash: 'build-plan-hash',
       buildStatus: OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS.SUCCEEDED,
+      grantedCapabilities: ['sample.invoke', OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.LOCAL_BUILD],
       contentHash: 'abcdef',
       trusted: true,
     })

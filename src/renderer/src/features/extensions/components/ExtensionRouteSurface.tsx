@@ -288,16 +288,21 @@ export function ExtensionRouteSurface({
 }) {
   const { settings } = usePreferences()
   const projectPaths = activeProjectPaths(settings.projectPath)
-  const contributionsQuery = useQuery(extensionContributionsQueryOptions(projectPaths))
+  const {
+    data: registry = null,
+    error,
+    isPending,
+    refetch,
+  } = useQuery(extensionContributionsQueryOptions(projectPaths))
 
   return (
     <ExtensionRouteSurfaceContent
-      error={contributionsQuery.error?.message ?? null}
+      error={error?.message ?? null}
       extensionId={extensionId}
-      loading={contributionsQuery.isPending}
-      onRefresh={() => void contributionsQuery.refetch()}
+      loading={isPending}
+      onRefresh={() => void refetch()}
       projectPaths={projectPaths}
-      registry={contributionsQuery.data ?? null}
+      registry={registry}
       routeId={routeId}
     />
   )

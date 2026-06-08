@@ -73,8 +73,10 @@ export function useCommandPaletteItems({
   const setLastRightSidebarPanel = useUIStore((s) => s.setLastRightSidebarPanel)
   const projectPath = usePreferencesStore((state) => state.settings.projectPath)
   const projectPaths = projectPath ? [projectPath] : []
-  const wagglePresetsQuery = useQuery(wagglePresetsQueryOptions(projectPath))
-  const extensionContributionsQuery = useQuery(extensionContributionsQueryOptions(projectPaths))
+  const { data: wagglePresets = [] } = useQuery(wagglePresetsQueryOptions(projectPath))
+  const { data: extensionContributions = null } = useQuery(
+    extensionContributionsQueryOptions(projectPaths),
+  )
   const lowerQuery = normalizeCommandQuery(query)
   const configureWaggle = () => {
     closeCommandPalette()
@@ -187,19 +189,19 @@ export function useCommandPaletteItems({
   return [
     ...filterBaseCommands(createBaseCommands(actions), lowerQuery),
     ...createSkillItems(slashSkills, lowerQuery, actions.selectSkill),
-    ...createPresetItems(wagglePresetsQuery.data ?? [], lowerQuery, actions.selectPreset),
+    ...createPresetItems(wagglePresets, lowerQuery, actions.selectPreset),
     ...createExtensionSlashCommandItems({
-      registry: extensionContributionsQuery.data ?? null,
+      registry: extensionContributions,
       lowerQuery,
       insertCommand: insertExtensionSlashCommand,
     }),
     ...createExtensionSidePanelItems({
-      registry: extensionContributionsQuery.data ?? null,
+      registry: extensionContributions,
       lowerQuery,
       openSidePanel: openExtensionSidePanel,
     }),
     ...createExtensionCommandItems({
-      registry: extensionContributionsQuery.data ?? null,
+      registry: extensionContributions,
       lowerQuery,
       invokeCommand: invokeExtensionCommand,
     }),

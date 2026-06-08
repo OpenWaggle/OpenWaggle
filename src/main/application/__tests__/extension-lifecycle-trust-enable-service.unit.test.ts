@@ -271,7 +271,12 @@ describe('extension trust and enable lifecycle mutations', () => {
       trusted: true,
       contentHash: 'abcdef',
     })
-    expect(view.packages[0]?.lifecycle).toMatchObject({ enabled: true, trusted: true })
+    expect(view.packages[0]?.lifecycle).toMatchObject({
+      enabled: true,
+      trusted: true,
+      reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.NOT_RELOADED,
+      lastReloadedAt: null,
+    })
   })
 
   it('persists successful reload state for an enabled extension', async () => {

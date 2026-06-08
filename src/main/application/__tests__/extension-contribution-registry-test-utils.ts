@@ -3,11 +3,13 @@ import type { OpenWaggleExtensionManifest } from '@shared/schemas/extensions'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
+import { getExtensionGrantIds } from '../../extensions/runtime-eligibility'
 import type {
   DiscoveredExtensionPackage,
   ExtensionLifecycleState,
   ExtensionPackageScope,
   ExtensionProjectOverrideState,
+  ExtensionReloadStatus,
 } from '../../extensions/types'
 import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from '../../ports/extension-manager-service'
@@ -86,21 +88,30 @@ export function makeLifecycle(
   options: {
     readonly enabled?: boolean
     readonly trusted?: boolean
+    readonly grantedCapabilities?: readonly string[]
+    readonly reloadStatus?: ExtensionReloadStatus
+    readonly lastReloadedAt?: number | null
   } = {},
 ): ExtensionLifecycleState {
+  const reloadStatus = options.reloadStatus ?? OPENWAGGLE_EXTENSION.RELOAD_STATUS.SUCCEEDED
   return {
     extensionId: extensionPackage.id,
     scope: extensionPackage.scope,
     enabled: options.enabled ?? true,
     trusted: options.trusted ?? true,
-    grantedCapabilities: [],
+    grantedCapabilities: options.grantedCapabilities ?? getExtensionGrantIds(extensionPackage),
     contentHash: extensionPackage.contentHash,
     packageVersion: extensionPackage.manifest?.version ?? null,
     approvedBuildPlanHash: null,
     buildStatus: OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS.NOT_RUN,
     buildLog: null,
-    reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.NOT_RELOADED,
-    lastReloadedAt: null,
+    reloadStatus,
+    lastReloadedAt:
+      options.lastReloadedAt !== undefined
+        ? options.lastReloadedAt
+        : reloadStatus === OPENWAGGLE_EXTENSION.RELOAD_STATUS.SUCCEEDED
+          ? 3000
+          : null,
     sdkRange: extensionPackage.manifest?.sdk.openwaggle ?? null,
     sdkCompatible: extensionPackage.sdkCompatibility?.compatible ?? false,
     diagnostics: [],

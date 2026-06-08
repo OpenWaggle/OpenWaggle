@@ -28,7 +28,13 @@ export function ChatPanelContent({ sections, onOpenSessionTree }: ChatPanelConte
             extensionProjectPaths={sections.extensionProjectPaths}
             onRespond={sections.onRespondAgentInteraction}
           />
-          <ChatComposerStack section={sections.composer} onOpenSessionTree={onOpenSessionTree} />
+          <ChatComposerStack
+            agentInteractions={sections.agentInteractions}
+            extensionProjectPaths={sections.extensionProjectPaths}
+            extensionRegistry={sections.extensionRegistry}
+            section={sections.composer}
+            onOpenSessionTree={onOpenSessionTree}
+          />
         </PanelErrorBoundary>
       </div>
     </div>
