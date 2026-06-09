@@ -33,6 +33,15 @@ export interface RuntimeFactoryInput {
   readonly extensionFactories?: readonly ((pi: FakePi) => void)[]
 }
 
+export function fakeRuntimeServices() {
+  return {
+    diagnostics: { records: [] },
+    resourceLoader: {
+      getExtensions: () => ({ errors: [] }),
+    },
+  }
+}
+
 export interface FakePi {
   readonly on: (event: 'agent_end', handler: AgentEndHandler) => void
   readonly sendMessage: (message: unknown, options: unknown) => void

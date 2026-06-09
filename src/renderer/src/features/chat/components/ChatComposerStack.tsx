@@ -1,4 +1,7 @@
-import type { AgentLoopInteraction } from '@shared/types/agent-loop-interaction'
+import type {
+  AgentLoopInteraction,
+  AgentLoopInteractionResponse,
+} from '@shared/types/agent-loop-interaction'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
 import { useMessageQueueStore } from '@/features/chat/state'
 import { useBranchSummaryStore } from '@/features/chat/state/branch-summary-store'
@@ -22,6 +25,10 @@ interface ChatComposerStackProps {
   readonly agentInteractions?: readonly AgentLoopInteraction[]
   readonly extensionRegistry?: ExtensionContributionRegistryView | null
   readonly extensionProjectPaths?: readonly string[]
+  readonly onRespondAgentInteraction: (
+    interaction: AgentLoopInteraction,
+    response: AgentLoopInteractionResponse,
+  ) => Promise<void>
   readonly onOpenSessionTree?: () => void
 }
 
@@ -35,6 +42,7 @@ export function ChatComposerStack({
   agentInteractions = EMPTY_AGENT_INTERACTIONS,
   extensionRegistry = null,
   extensionProjectPaths = EMPTY_EXTENSION_PROJECT_PATHS,
+  onRespondAgentInteraction,
   onOpenSessionTree,
 }: ChatComposerStackProps) {
   const {
@@ -120,6 +128,7 @@ export function ChatComposerStack({
           agentInteractions={agentInteractions}
           extensionProjectPaths={extensionProjectPaths}
           extensionRegistry={extensionRegistry}
+          onRespond={onRespondAgentInteraction}
         />
         <Composer
           onSend={onSendWithWaggle}

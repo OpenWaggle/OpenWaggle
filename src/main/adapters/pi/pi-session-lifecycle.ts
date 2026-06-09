@@ -1,6 +1,5 @@
 import type {
   AgentSession,
-  CreateAgentSessionFromServicesOptions,
   CreateAgentSessionResult,
   SessionShutdownEvent,
 } from '@earendil-works/pi-coding-agent'
@@ -19,7 +18,9 @@ import {
 const logger = createLogger('pi-session-lifecycle')
 const mcpRuntimeContextsBySession = new WeakMap<AgentSession, OpenWaggleMcpRuntimeContext>()
 
-export interface OpenWaggleAgentSessionOptions extends CreateAgentSessionFromServicesOptions {
+type PiAgentSessionFromServicesOptions = Parameters<typeof createAgentSessionFromServices>[0]
+
+export type OpenWaggleAgentSessionOptions = PiAgentSessionFromServicesOptions & {
   readonly openWaggleUi?: PiInteractionUiContextInput
 }
 

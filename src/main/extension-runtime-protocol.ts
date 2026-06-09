@@ -23,6 +23,8 @@ import { isPathInside } from './utils/paths'
 export const EXTENSION_RUNTIME_PROTOCOL = OPENWAGGLE_EXTENSION.RUNTIME_MODULE_PROTOCOL.SCHEME
 
 const HTTP_NOT_FOUND_STATUS = 404
+const ACCESS_CONTROL_ALLOW_ORIGIN_HEADER = 'access-control-allow-origin'
+const CORS_ANY_ORIGIN = '*'
 const EXTENSION_PACKAGE_ID_SEGMENT_OFFSET = 2
 const MODULE_PREFIX_SEGMENTS =
   OPENWAGGLE_EXTENSION.RUNTIME_MODULE_PROTOCOL.MODULE_PATH_PREFIX.split('/').filter(
@@ -209,8 +211,17 @@ async function resolveExtensionModuleFilePath(
   return resolveSafePackageFilePath(resolvedPackagePath, normalizedRelativePath)
 }
 
-function fileResponse(filePath: string) {
-  return net.fetch(pathToFileURL(filePath).toString())
+async function fileResponse(filePath: string) {
+  const response = await net.fetch(pathToFileURL(filePath).toString())
+  const headers = new Headers(response.headers)
+
+  headers.set(ACCESS_CONTROL_ALLOW_ORIGIN_HEADER, CORS_ANY_ORIGIN)
+
+  return new Response(response.body, {
+    headers,
+    status: response.status,
+    statusText: response.statusText,
+  })
 }
 
 function notFoundResponse() {

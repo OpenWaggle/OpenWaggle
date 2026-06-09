@@ -1,4 +1,5 @@
 import type { ExtensionUIContext } from '@earendil-works/pi-coding-agent'
+import { OPENWAGGLE_AGENT_LOOP } from '@shared/constants/agent-loop'
 import { SessionId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import { fromPartial } from '@total-typescript/shoehorn'
@@ -65,21 +66,19 @@ describe('Pi interaction UI context', () => {
     ])
   })
 
-  it('fails custom TUI interactions explicitly in Electron', async () => {
+  it('bridges Pi custom interactions to pending OpenWaggle desktop interactions', async () => {
     const { emitted, ui } = createContext()
 
-    await expect(ui.custom(() => fromPartial({}))).rejects.toThrow(
-      'Pi custom TUI interactions are not supported',
-    )
-    expect(emitted).toHaveLength(2)
+    const customResult = ui.custom(() => fromPartial({}))
+    expect(emitted).toHaveLength(1)
     const request = emitted[0]
-    const resolved = emitted[1]
     expect(request).toMatchObject({
       type: 'agent_interaction_request',
       interaction: {
         sessionId,
         runId: 'run-pi-ui',
         kind: 'custom',
+        customType: OPENWAGGLE_AGENT_LOOP.PI_TUI_CUSTOM_INTERACTION_TYPE,
         source: 'pi-ui',
         renderer: { kind: 'pi-tui-custom', supported: false },
       },
@@ -87,13 +86,21 @@ describe('Pi interaction UI context', () => {
     if (request?.type !== 'agent_interaction_request') {
       throw new Error('Expected pending custom interaction request')
     }
-    expect(resolved).toMatchObject({
-      type: 'agent_interaction_resolved',
+
+    submitAgentLoopInteractionResponse({
+      sessionId,
       runId: 'run-pi-ui',
       interactionId: request.interaction.interactionId,
       kind: 'custom',
-      status: 'errored',
-      error: { code: 'custom-renderer-unavailable' },
+      response: { kind: 'custom', value: { approved: true } },
+    })
+
+    await expect(customResult).resolves.toEqual({ approved: true })
+    expect(emitted[1]).toMatchObject({
+      type: 'agent_interaction_resolved',
+      kind: 'custom',
+      status: 'resolved',
+      response: { kind: 'custom', value: { approved: true } },
     })
   })
 })

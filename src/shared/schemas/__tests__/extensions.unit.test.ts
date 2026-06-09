@@ -54,42 +54,6 @@ describe('openWaggleExtensionManifestSchema', () => {
     expect(result.success).toBe(true)
   })
 
-  it('accepts broker method bindings on UI contributions', () => {
-    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
-      ...validManifest,
-      capabilities: [
-        {
-          id: 'openwaggle.storage',
-          methods: ['get', 'set', 'delete', 'list'],
-          scopes: ['project'],
-        },
-      ],
-      contributions: {
-        routes: [
-          {
-            id: 'sample.settings',
-            title: 'Sample Settings',
-            runtime: 'federated-module',
-            execution: 'host-renderer',
-            entry: 'dist/settings.js',
-            capability: 'openwaggle.storage',
-            methods: ['get', 'set', 'delete', 'list'],
-          },
-        ],
-      },
-    })
-
-    expect(result.success).toBe(true)
-    if (result.success) {
-      expect(result.data.contributions?.routes?.[0]?.methods).toEqual([
-        'get',
-        'set',
-        'delete',
-        'list',
-      ])
-    }
-  })
-
   it('accepts optional project and session targets on contributions', () => {
     const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
       ...validManifest,

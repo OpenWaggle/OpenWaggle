@@ -113,9 +113,9 @@ describe('extension runtime protocol', () => {
     })
     const chunkUrl = new URL('./chunk.js', routeUrl).href
 
-    expect(
-      await (await dispatchProtocolRequest(EXTENSION_RUNTIME_PROTOCOL, routeUrl)).text(),
-    ).toContain('dist/route.js')
+    const routeResponse = await dispatchProtocolRequest(EXTENSION_RUNTIME_PROTOCOL, routeUrl)
+    expect(routeResponse.headers.get('access-control-allow-origin')).toBe('*')
+    expect(await routeResponse.text()).toContain('dist/route.js')
     expect(
       await (await dispatchProtocolRequest(EXTENSION_RUNTIME_PROTOCOL, chunkUrl)).text(),
     ).toContain('dist/chunk.js')

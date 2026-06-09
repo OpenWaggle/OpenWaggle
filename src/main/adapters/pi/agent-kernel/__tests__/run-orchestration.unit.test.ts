@@ -6,6 +6,7 @@ import { runPiWaggle } from '../waggle-run'
 import {
   createFakePi,
   createFakeSession,
+  fakeRuntimeServices,
   modelFromReference,
   PRIMARY_MODEL,
   payload,
@@ -24,26 +25,21 @@ const runMocks = vi.hoisted(() => ({
   getPiModelAvailableThinkingLevels: vi.fn(),
   resolveSessionProjectPath: vi.fn(),
 }))
-
 vi.mock('../../pi-provider-catalog', () => ({
   createPiProjectModelRuntime: runMocks.createPiProjectModelRuntime,
   getPiModelAvailableThinkingLevels: runMocks.getPiModelAvailableThinkingLevels,
 }))
-
 vi.mock('../../pi-session-lifecycle', () => ({
   createOpenWaggleAgentSessionFromServices: runMocks.createOpenWaggleAgentSessionFromServices,
   disposeOpenWagglePiSession: runMocks.disposeOpenWagglePiSession,
 }))
-
 vi.mock('../session-listener', () => ({
   createSessionListener: runMocks.createSessionListener,
 }))
-
 vi.mock('../session-manager', () => ({
   createSessionManagerForSession: runMocks.createSessionManagerForSession,
   resolveSessionProjectPath: runMocks.resolveSessionProjectPath,
 }))
-
 describe('Pi run orchestration', () => {
   beforeEach(() => {
     runMocks.createPiProjectModelRuntime.mockReset()
@@ -60,16 +56,14 @@ describe('Pi run orchestration', () => {
     runMocks.createSessionListener.mockReturnValue(() => undefined)
     runMocks.getPiModelAvailableThinkingLevels.mockReturnValue(['off', 'medium', 'high'])
   })
-
   it('runs a classic Pi prompt with project runtime, listener subscription, and disposal', async () => {
     const fakePi = createFakePi()
     const session = createFakeSession(fakePi.getAgentEndHandler)
     runMocks.createPiProjectModelRuntime.mockImplementation(async (input: RuntimeFactoryInput) => ({
       model: modelFromReference(input.modelReference),
-      services: {},
+      services: fakeRuntimeServices(),
     }))
     runMocks.createOpenWaggleAgentSessionFromServices.mockResolvedValue({ session })
-
     const result = await runPiSession({
       session: sessionDetail(),
       runId: 'run-1',
@@ -78,7 +72,6 @@ describe('Pi run orchestration', () => {
       signal: new AbortController().signal,
       onEvent: vi.fn(),
     })
-
     expect(runMocks.createPiProjectModelRuntime).toHaveBeenCalledWith({
       projectPath: '/repo',
       modelReference: PRIMARY_MODEL,
@@ -90,7 +83,6 @@ describe('Pi run orchestration', () => {
     expect(result.newMessages.map((message) => message.role)).toEqual(['user', 'assistant'])
     expect(runMocks.disposeOpenWagglePiSession).toHaveBeenCalledWith(session)
   })
-
   it('keeps original text and image attachments in OpenWaggle Waggle turn prompts', async () => {
     const fakePi = createFakePi()
     const session = createFakeSession(fakePi.getAgentEndHandler)
@@ -121,10 +113,9 @@ describe('Pi run orchestration', () => {
       for (const factory of input.extensionFactories ?? []) {
         factory(fakePi.pi)
       }
-      return { model: modelFromReference(input.modelReference), services: {} }
+      return { model: modelFromReference(input.modelReference), services: fakeRuntimeServices() }
     })
     runMocks.createOpenWaggleAgentSessionFromServices.mockResolvedValue({ session })
-
     await runPiWaggle({
       session: sessionDetail(),
       runId: 'run-waggle-attachments',
@@ -139,7 +130,6 @@ describe('Pi run orchestration', () => {
         onTurnEvent: vi.fn(),
       },
     })
-
     expect(session.sendCustomMessage).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
@@ -169,7 +159,6 @@ describe('Pi run orchestration', () => {
       { triggerTurn: true },
     )
   })
-
   it('resolves inherited Waggle agent models to the selected standard model before Pi lookup', async () => {
     const fakePi = createFakePi()
     const session = createFakeSession(fakePi.getAgentEndHandler)
@@ -183,10 +172,9 @@ describe('Pi run orchestration', () => {
       for (const factory of input.extensionFactories ?? []) {
         factory(fakePi.pi)
       }
-      return { model: modelFromReference(input.modelReference), services: {} }
+      return { model: modelFromReference(input.modelReference), services: fakeRuntimeServices() }
     })
     runMocks.createOpenWaggleAgentSessionFromServices.mockResolvedValue({ session })
-
     await runPiWaggle({
       session: sessionDetail(),
       runId: 'run-waggle-inherited-model',
@@ -201,7 +189,6 @@ describe('Pi run orchestration', () => {
         onTurnEvent: (event) => turnEvents.push(event),
       },
     })
-
     expect(runMocks.createPiProjectModelRuntime).toHaveBeenCalledWith(
       expect.objectContaining({ modelReference: PRIMARY_MODEL }),
     )
@@ -210,7 +197,6 @@ describe('Pi run orchestration', () => {
     )
     expect(fakePi.pi.setModel).toHaveBeenCalledWith(modelFromReference(SECONDARY_MODEL))
   })
-
   it('drives Waggle turns through hidden turn messages and agent turn decisions', async () => {
     const sessionMessages: unknown[] = []
     const fakePi = createFakePi((message) => sessionMessages.push(message))
@@ -221,10 +207,9 @@ describe('Pi run orchestration', () => {
       for (const factory of input.extensionFactories ?? []) {
         factory(fakePi.pi)
       }
-      return { model: modelFromReference(input.modelReference), services: {} }
+      return { model: modelFromReference(input.modelReference), services: fakeRuntimeServices() }
     })
     runMocks.createOpenWaggleAgentSessionFromServices.mockResolvedValue({ session })
-
     const result = await runPiWaggle({
       session: sessionDetail(),
       runId: 'run-waggle',
@@ -239,7 +224,6 @@ describe('Pi run orchestration', () => {
         onTurnEvent: (event) => turnEvents.push(event),
       },
     })
-
     expect(runMocks.createPiProjectModelRuntime).toHaveBeenCalledWith(
       expect.objectContaining({ modelReference: PRIMARY_MODEL }),
     )

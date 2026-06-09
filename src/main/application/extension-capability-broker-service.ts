@@ -1,4 +1,5 @@
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
+import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { SessionBranchId, SessionId } from '@shared/types/brand'
 import type { ExtensionInvokeInput, ExtensionInvokeScope } from '@shared/types/extension-broker'
 import * as Effect from 'effect/Effect'
@@ -12,16 +13,18 @@ import { SessionRepository } from '../ports/session-repository'
 import { SettingsService } from '../services/settings-service'
 import { auditedFailure } from './extension-capability-broker-audit'
 import {
-  contributionMethodIsDeclared,
   entryMatchesPackage,
-  getCapabilityDeclaration,
-  getDeclaredScopes,
   getScopeProjectPath,
-  methodIsDeclared,
   normalizeInput,
   pickInvocationPackage,
 } from './extension-capability-broker-model'
 import { routeAuthorizedInvocation } from './extension-capability-broker-results'
+import {
+  contributionMethodIsDeclared,
+  findManifestCapabilityDeclaration,
+  getDeclaredScopes,
+  methodIsDeclared,
+} from './extension-contribution-authorization-model'
 import { listExtensionContributionRegistryView } from './extension-contribution-registry-service'
 
 export interface InvokeExtensionCapabilityDependencies {
@@ -101,12 +104,43 @@ function resolveScopeContext(scope: ExtensionInvokeScope) {
   })
 }
 
-function loadInvocationPackage(extensionId: string, projectPath: string | undefined) {
+function resolveInvocationLookupProjectPath(scope: ExtensionInvokeScope) {
+  const scopeProjectPath = getScopeProjectPath(scope)
+
+  if (scopeProjectPath !== undefined) {
+    return Effect.succeed<string | undefined>(scopeProjectPath)
+  }
+
+  return Effect.gen(function* () {
+    const settings = yield* SettingsService
+    const activeProjectPath = (yield* settings.get()).projectPath?.trim()
+
+    return activeProjectPath && activeProjectPath.length > 0 ? activeProjectPath : undefined
+  })
+}
+
+function loadInvocationPackageForScope(input: {
+  readonly extensionId: string
+  readonly scope: ExtensionInvokeScope
+  readonly lookupProjectPath: string | undefined
+}) {
   return Effect.gen(function* () {
     const manager = yield* ExtensionManagerService
-    const packages = yield* manager.listPackages({ projectPath: projectPath ?? null })
-    const candidates = packages.filter((extensionPackage) => extensionPackage.id === extensionId)
-    return pickInvocationPackage(candidates, projectPath)
+    const packages = yield* manager.listPackages({ projectPath: input.lookupProjectPath ?? null })
+    const candidates = packages.filter(
+      (extensionPackage) => extensionPackage.id === input.extensionId,
+    )
+
+    if (input.scope.kind === 'app') {
+      return (
+        candidates.find(
+          (extensionPackage) =>
+            extensionPackage.scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND,
+        ) ?? pickInvocationPackage(candidates, input.lookupProjectPath)
+      )
+    }
+
+    return pickInvocationPackage(candidates, input.lookupProjectPath)
   })
 }
 
@@ -160,7 +194,8 @@ export function invokeExtensionCapability(
   return Effect.gen(function* () {
     const input = normalizeInput(rawInput)
     const timestamp = currentTimestamp(dependencies)
-    const projectPath = getScopeProjectPath(input.scope)
+    const scopeProjectPath = getScopeProjectPath(input.scope)
+    const lookupProjectPath = yield* resolveInvocationLookupProjectPath(input.scope)
     const scopeResolution = yield* resolveScopeContext(input.scope)
     if (scopeResolution._tag === 'failure') {
       return yield* auditedFailure({
@@ -171,7 +206,11 @@ export function invokeExtensionCapability(
       })
     }
 
-    const extensionPackage = yield* loadInvocationPackage(input.extensionId, projectPath)
+    const extensionPackage = yield* loadInvocationPackageForScope({
+      extensionId: input.extensionId,
+      scope: input.scope,
+      lookupProjectPath,
+    })
     if (!extensionPackage) {
       return yield* auditedFailure({
         invocation: input,
@@ -181,7 +220,7 @@ export function invokeExtensionCapability(
       })
     }
 
-    const runtimeEnabled = yield* isPackageRuntimeEnabled(extensionPackage, projectPath)
+    const runtimeEnabled = yield* isPackageRuntimeEnabled(extensionPackage, lookupProjectPath)
     if (!runtimeEnabled) {
       return yield* auditedFailure({
         invocation: input,
@@ -191,7 +230,11 @@ export function invokeExtensionCapability(
       })
     }
 
-    const entry = yield* findContributionEntry({ extensionPackage, invocation: input, projectPath })
+    const entry = yield* findContributionEntry({
+      extensionPackage,
+      invocation: input,
+      projectPath: lookupProjectPath,
+    })
     if (!entry) {
       return yield* auditedFailure({
         invocation: input,
@@ -201,7 +244,7 @@ export function invokeExtensionCapability(
       })
     }
 
-    if (projectPath && !entry.projectPaths.includes(projectPath)) {
+    if (scopeProjectPath && !entry.projectPaths.includes(scopeProjectPath)) {
       return yield* auditedFailure({
         invocation: input,
         code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.OUT_OF_SCOPE,
@@ -210,8 +253,8 @@ export function invokeExtensionCapability(
       })
     }
 
-    const declaration = getCapabilityDeclaration({
-      extensionPackage,
+    const declaration = findManifestCapabilityDeclaration({
+      manifest: extensionPackage.manifest,
       capability: input.capability,
     })
     if (!declaration || entry.capability !== input.capability) {

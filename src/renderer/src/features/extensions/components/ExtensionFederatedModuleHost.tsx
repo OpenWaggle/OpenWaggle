@@ -77,6 +77,21 @@ function statusFor(input: {
       })
 }
 
+function sameMountStatus(
+  left: ReturnType<typeof initialMountStatus>,
+  right: ReturnType<typeof initialMountStatus>,
+) {
+  if (left.kind !== right.kind) {
+    return false
+  }
+
+  if (left.kind === 'error') {
+    return right.kind === 'error' && left.message === right.message
+  }
+
+  return true
+}
+
 function MountStatusBanner({ status }: { readonly status: ReturnType<typeof initialMountStatus> }) {
   if (status.kind === 'loading') {
     return (
@@ -107,6 +122,7 @@ export function ExtensionFederatedModuleHost({
   fill = false,
   maxAutoHeight = DEFAULT_FRAME_AUTO_MAX_HEIGHT,
   minAutoHeight = DEFAULT_FRAME_AUTO_MIN_HEIGHT,
+  onSurfaceAction,
   surfacePayload,
 }: {
   readonly entry: ExtensionContributionRegistryEntry
@@ -116,9 +132,12 @@ export function ExtensionFederatedModuleHost({
   readonly fill?: boolean
   readonly maxAutoHeight?: number
   readonly minAutoHeight?: number
+  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
   readonly surfacePayload?: JsonValue
 }) {
   const frameRef = useRef<HTMLIFrameElement | null>(null)
+  const onSurfaceActionRef = useRef(onSurfaceAction)
+  const mountEntryRef = useRef(entry)
   const frameId = useId()
   const [reportedHeight, setReportedHeight] = useState<ReportedFrameHeight | null>(null)
   const [reportedStatus, setReportedStatus] = useState<ReportedMountStatus | null>(null)
@@ -136,31 +155,43 @@ export function ExtensionFederatedModuleHost({
   const status = statusFor({ frameRuntimeSupported, moduleUrl, mountKey, reportedStatus })
 
   useEffect(() => {
+    onSurfaceActionRef.current = onSurfaceAction
+  }, [onSurfaceAction])
+
+  useEffect(() => {
+    mountEntryRef.current = entry
+  }, [entry])
+
+  useEffect(() => {
+    const mountEntry = mountEntryRef.current
     return mountExtensionFrame({
-      entry,
+      entry: mountEntry,
       frame: frameRef.current,
       frameId,
       frameRuntimeSupported,
       getCurrentFrameWindow: () => frameRef.current?.contentWindow,
       moduleUrl,
       mountKey,
+      onSurfaceAction: (actionId, payload) => onSurfaceActionRef.current?.(actionId, payload),
       reportHeight: shouldAutoHeight
         ? (height) => {
-            setReportedHeight({ height, mountKey })
+            setReportedHeight((previous) =>
+              previous?.mountKey === mountKey && previous.height === height
+                ? previous
+                : { height, mountKey },
+            )
           }
         : undefined,
-      reportStatus: setReportedStatus,
+      reportStatus: (status) => {
+        setReportedStatus((previous) =>
+          previous?.mountKey === status.mountKey && sameMountStatus(previous.status, status.status)
+            ? previous
+            : status,
+        )
+      },
       surfacePayloadJson,
     })
-  }, [
-    entry,
-    frameId,
-    frameRuntimeSupported,
-    moduleUrl,
-    mountKey,
-    shouldAutoHeight,
-    surfacePayloadJson,
-  ])
+  }, [frameId, frameRuntimeSupported, moduleUrl, mountKey, shouldAutoHeight, surfacePayloadJson])
 
   if (entry.runtime !== OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE) {
     return (

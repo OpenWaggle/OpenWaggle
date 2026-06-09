@@ -28,6 +28,7 @@ export interface ExtensionOpenWaggleSdk {
       scope: ExtensionInvokeScope,
       projectPath: string,
     ) => Promise<ExtensionSelectProjectOperationResult>
+    readonly openExternal: (url: string) => Promise<void>
   }
   readonly settings: {
     readonly get: (scope: ExtensionInvokeScope) => Promise<ExtensionSettingsGetOperationResult>
@@ -53,6 +54,14 @@ export type ExtensionSettingsGetOperationResult =
 export type ExtensionSettingsUpdateOperationResult =
   | ExtensionOperationSuccess<ExtensionSettingsUpdateResult>
   | ExtensionInvokeFailure
+
+export interface CreateOpenWaggleSdkOptions {
+  readonly openExternal?: (url: string) => Promise<void>
+}
+
+const unsupportedOpenExternal = async () => {
+  throw new Error('OpenWaggle external URL action is not available in this extension host context.')
+}
 
 function stateResultError(input: {
   readonly result: ExtensionInvokeResult & { readonly ok: true }
@@ -135,7 +144,10 @@ function toSettingsUpdateResult(
     : settingsResultError({ result, issues: decoded.issues })
 }
 
-export function createOpenWaggleSdk(invoke: ExtensionSdkInvoke): ExtensionOpenWaggleSdk {
+export function createOpenWaggleSdk(
+  invoke: ExtensionSdkInvoke,
+  options: CreateOpenWaggleSdkOptions = {},
+): ExtensionOpenWaggleSdk {
   return {
     state: {
       get: async (scope) =>
@@ -149,6 +161,7 @@ export function createOpenWaggleSdk(invoke: ExtensionSdkInvoke): ExtensionOpenWa
         ),
     },
     actions: {
+      openExternal: options.openExternal ?? unsupportedOpenExternal,
       selectProject: async (scope, projectPath) =>
         toSelectProjectResult(
           await invoke({

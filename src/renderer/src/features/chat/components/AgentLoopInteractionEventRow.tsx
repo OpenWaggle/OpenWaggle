@@ -4,6 +4,7 @@ import type {
 } from '@shared/types/stream'
 import { ExtensionAgentLoopSurface } from '@/features/extensions'
 import {
+  agentLoopInteractionRequiresDesktopRenderer,
   agentLoopInteractionTitle,
   toExtensionInteractionView,
 } from '../lib/agent-loop-interaction-view'
@@ -19,7 +20,11 @@ function eventTimeLabel(timestamp: number) {
   })
 }
 
-function renderInteractionRequestAuditCard(event: AgentTransportInteractionRequestEvent) {
+function InteractionRequestAuditCard({
+  event,
+}: {
+  readonly event: AgentTransportInteractionRequestEvent
+}) {
   return (
     <section className="rounded-xl border border-border bg-bg-secondary/70 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -38,7 +43,11 @@ function renderInteractionRequestAuditCard(event: AgentTransportInteractionReque
   )
 }
 
-function renderInteractionResolvedAuditCard(event: AgentTransportInteractionResolvedEvent) {
+function InteractionResolvedAuditCard({
+  event,
+}: {
+  readonly event: AgentTransportInteractionResolvedEvent
+}) {
   return (
     <section className="rounded-xl border border-border bg-bg-secondary/70 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -69,11 +78,15 @@ export function InteractionEventRow({
   readonly extensions: ChatRowRenderContext['extensions']
 }) {
   if (event.type === 'agent_interaction_request') {
+    const fallback = agentLoopInteractionRequiresDesktopRenderer(event.interaction)
+      ? undefined
+      : null
+
     return (
       <div className="grid gap-3">
-        {renderInteractionRequestAuditCard(event)}
+        <InteractionRequestAuditCard event={event} />
         <ExtensionAgentLoopSurface
-          fallback={null}
+          fallback={fallback}
           input={{
             surface: 'interaction',
             interaction: toExtensionInteractionView(event.interaction),
@@ -85,5 +98,5 @@ export function InteractionEventRow({
     )
   }
 
-  return renderInteractionResolvedAuditCard(event)
+  return <InteractionResolvedAuditCard event={event} />
 }

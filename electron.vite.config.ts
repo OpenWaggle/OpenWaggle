@@ -1,5 +1,5 @@
-import { resolve } from 'path'
 import { readFileSync } from 'fs'
+import { resolve } from 'path'
 import type { Plugin } from 'vite'
 import { defineConfig } from 'electron-vite'
 import react, { reactCompilerPreset } from '@vitejs/plugin-react'
@@ -17,6 +17,9 @@ const PI_EXTENSION_NODE_ALIAS_BRANCH =
   '...(isBunBinary ? { virtualModules: VIRTUAL_MODULES, tryNative: false } : { alias: getAliases() }),'
 const PI_EXTENSION_VIRTUAL_MODULE_BRANCH =
   '...{ virtualModules: VIRTUAL_MODULES, tryNative: false },'
+const UNPDF_DIST_PATH = 'unpdf/dist/index.mjs'
+const UNPDF_IMPORT_META_RESOLVE_LINE = 'import.meta.resolve("pdfjs-dist/package.json")'
+const UNPDF_CJS_RESOLVE_LINE = 'require.resolve("pdfjs-dist/package.json")'
 const MCP_CONFIG_WATCH_IGNORES = [
   '**/.mcp.json',
   '**/.agents/mcp.json',
@@ -129,9 +132,57 @@ function piExtensionLoaderBundlePlugin(): Plugin {
   }
 }
 
+/**
+ * `unpdf` is bundled into the Electron main CJS output. Its Node defaults use
+ * `import.meta.resolve`, which Rolldown correctly warns about for non-ESM
+ * output and would otherwise erase to `{}`. Keep the transform scoped to the
+ * known package metadata lookup instead of disabling import.meta diagnostics.
+ */
+function unpdfCjsResolvePlugin(): Plugin {
+  return {
+    name: 'openwaggle:unpdf-cjs-resolve',
+    enforce: 'pre',
+    transform(code, id) {
+      if (!id.includes(UNPDF_DIST_PATH)) {
+        return null
+      }
+
+      if (!code.includes(UNPDF_IMPORT_META_RESOLVE_LINE)) {
+        throw new Error('unpdf bundle shape changed; update OpenWaggle bundler transform.')
+      }
+
+      return code.replace(UNPDF_IMPORT_META_RESOLVE_LINE, UNPDF_CJS_RESOLVE_LINE)
+    },
+  }
+}
+
+function disablePluginTimingWarningsPlugin(): Plugin {
+  return {
+    name: 'openwaggle:disable-plugin-timing-warnings',
+    enforce: 'post',
+    configResolved(config) {
+      const existingChecks = config.build.rolldownOptions.checks ?? {}
+      config.build.rolldownOptions.checks = {
+        ...existingChecks,
+        pluginTimings: false,
+      }
+
+      const existingWorkerOptions = config.worker.rolldownOptions ?? {}
+      const existingWorkerChecks = existingWorkerOptions.checks ?? {}
+      config.worker.rolldownOptions = {
+        ...existingWorkerOptions,
+        checks: {
+          ...existingWorkerChecks,
+          pluginTimings: false,
+        },
+      }
+    },
+  }
+}
+
 export default defineConfig({
   main: {
-    plugins: [piExtensionLoaderBundlePlugin(), rolldownExternalFixPlugin()],
+    plugins: [piExtensionLoaderBundlePlugin(), unpdfCjsResolvePlugin(), rolldownExternalFixPlugin()],
     build: {
       minify: false,
       externalizeDeps: {
@@ -139,6 +190,9 @@ export default defineConfig({
       },
       rolldownOptions: {
         external: ALWAYS_EXTERNAL,
+        checks: {
+          pluginTimings: false,
+        },
         output: {
           codeSplitting: false,
         },
@@ -161,6 +215,12 @@ export default defineConfig({
   },
   renderer: {
     server: {
+      cors: {
+        origin: '*',
+      },
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+      },
       watch: {
         ignored: MCP_CONFIG_WATCH_IGNORES,
       },
@@ -186,6 +246,7 @@ export default defineConfig({
       react(),
       babel({ presets: [reactCompilerPreset()] }),
       tailwindcss(),
+      disablePluginTimingWarningsPlugin(),
     ]
   }
 })

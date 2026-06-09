@@ -64,14 +64,6 @@ vi.mock('@/features/chat/hooks', () => ({
 }))
 
 vi.mock('@/features/chat/components', () => ({
-  ChatDiffPane: ({ onClose }: { readonly onClose: () => void }) => (
-    <aside>
-      Diff pane
-      <Button variant="unstyled" type="button" onClick={onClose}>
-        Close diff
-      </Button>
-    </aside>
-  ),
   ChatPanelContent: ({ onOpenSessionTree }: { readonly onOpenSessionTree: () => void }) => (
     <main>
       Chat content
@@ -80,17 +72,31 @@ vi.mock('@/features/chat/components', () => ({
       </Button>
     </main>
   ),
+  loadChatDiffPane: () =>
+    Promise.resolve({
+      default: ({ onClose }: { readonly onClose: () => void }) => (
+        <aside>
+          Diff pane
+          <Button variant="unstyled" type="button" onClick={onClose}>
+            Close diff
+          </Button>
+        </aside>
+      ),
+    }),
 }))
 
 vi.mock('@/features/session-tree/components', () => ({
-  SessionTreePanel: ({ onClose }: { readonly onClose: () => void }) => (
-    <aside>
-      Session Tree panel
-      <Button variant="unstyled" type="button" onClick={onClose}>
-        Close tree
-      </Button>
-    </aside>
-  ),
+  loadSessionTreePanel: () =>
+    Promise.resolve({
+      default: ({ onClose }: { readonly onClose: () => void }) => (
+        <aside>
+          Session Tree panel
+          <Button variant="unstyled" type="button" onClick={onClose}>
+            Close tree
+          </Button>
+        </aside>
+      ),
+    }),
 }))
 
 vi.mock('@/features/extensions', () => ({

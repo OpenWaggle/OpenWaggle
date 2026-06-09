@@ -54,9 +54,13 @@ export interface AgentLoopNotifyInteraction extends AgentLoopInteractionBase {
 
 export interface AgentLoopCustomInteraction extends AgentLoopInteractionBase {
   readonly kind: 'custom'
+  readonly customType: string
+  readonly payload?: JsonValue
   readonly renderer: {
     readonly kind: 'pi-tui-custom'
     readonly supported: false
+    readonly factoryName?: string
+    readonly overlay?: boolean
   }
 }
 

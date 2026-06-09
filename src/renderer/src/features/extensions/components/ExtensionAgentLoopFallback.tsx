@@ -12,6 +12,7 @@ import type {
   ExtensionToolResultView,
   ExtensionTranscriptView,
 } from '../lib/extension-agent-loop-surface-model'
+import { CUSTOM_INTERACTION_UNAVAILABLE_ACTION_ID } from '../lib/extension-agent-loop-surface-model'
 
 const JSON_INDENT = 2
 
@@ -81,6 +82,47 @@ function renderInteractionFallback({
   readonly interaction: ExtensionInteractionView
   readonly onAction?: (interactionId: string, actionId: string) => void
 }) {
+  if (interaction.kind === 'custom') {
+    return (
+      <div role="alert" className="rounded-lg border border-error/25 bg-error/5 p-3">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-error" />
+          <div className="min-w-0">
+            <h4 className="text-[13px] font-semibold text-text-primary">
+              Custom desktop interaction renderer unavailable
+            </h4>
+            <p className="mt-1 text-[12px] leading-5 text-text-tertiary">
+              OpenWaggle does not execute Pi TUI custom components inside Electron. This interaction
+              needs a matching extension interaction renderer.
+            </p>
+            <dl className="mt-3 grid gap-1 text-[11px] text-text-muted">
+              <div className="flex min-w-0 gap-2">
+                <dt className="shrink-0 text-text-tertiary">Interaction</dt>
+                <dd className="truncate">{interaction.id}</dd>
+              </div>
+              <div className="flex min-w-0 gap-2">
+                <dt className="shrink-0 text-text-tertiary">State</dt>
+                <dd>{interaction.state}</dd>
+              </div>
+            </dl>
+            {onAction ? (
+              <div className="mt-3">
+                <Button
+                  onClick={() => onAction(interaction.id, CUSTOM_INTERACTION_UNAVAILABLE_ACTION_ID)}
+                  size="xs"
+                  type="button"
+                  variant="secondary"
+                >
+                  Reject interaction
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="grid gap-3">
       <div>

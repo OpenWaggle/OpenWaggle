@@ -1,3 +1,4 @@
+import { OPENWAGGLE_AGENT_LOOP } from '@shared/constants/agent-loop'
 import { SessionId } from '@shared/types/brand'
 import type { AgentTransportEvent } from '@shared/types/stream'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -42,6 +43,7 @@ function customInteraction() {
     sessionId,
     runId: 'run-1',
     kind: 'custom',
+    customType: OPENWAGGLE_AGENT_LOOP.PI_TUI_CUSTOM_INTERACTION_TYPE,
     source: 'pi-ui',
     createdAt: 1,
     renderer: { kind: 'pi-tui-custom', supported: false },
@@ -150,6 +152,7 @@ describe('agent-loop interaction broker', () => {
           sessionId,
           runId: 'run-1',
           kind: 'custom',
+          customType: OPENWAGGLE_AGENT_LOOP.PI_TUI_CUSTOM_INTERACTION_TYPE,
           source: 'pi-ui',
           renderer: { kind: 'pi-tui-custom', supported: false },
         },

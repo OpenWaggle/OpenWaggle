@@ -1,5 +1,4 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import type { ExtensionContributions } from '@shared/schemas/extensions'
 import type {
   ExtensionContributionEligibilityView,
   ExtensionContributionFamily,
@@ -19,12 +18,15 @@ import type {
   ExtensionPackageScope,
 } from '../extensions/types'
 import {
-  COMMAND_FAMILY_DESCRIPTORS,
-  ENTRY_FAMILY_DESCRIPTORS,
   isEntryContribution,
   type ManifestCommandContribution,
   type ManifestEntryContribution,
 } from './extension-contribution-family-model'
+import {
+  type ContributionRegistrationEntry,
+  type ContributionRegistrationResult,
+  packageContributionRegistrations,
+} from './extension-contribution-registration-model'
 import { resolveContributionTarget } from './extension-contribution-target-model'
 
 export interface ExtensionContributionProjectOverrideLookup {
@@ -47,6 +49,11 @@ interface ContributionEntryInput {
   readonly requestedSessionId: string | undefined
   readonly family: ExtensionContributionFamily
   readonly contribution: ManifestCommandContribution | ManifestEntryContribution
+}
+
+interface ContributionRegistryBuildResult {
+  readonly entries: readonly ExtensionContributionRegistryEntry[]
+  readonly diagnostics: readonly ExtensionDiagnostic[]
 }
 
 function scopeToView(scope: ExtensionPackageScope): ExtensionPackageScopeView {
@@ -215,34 +222,61 @@ function contributionToEntry(
   }
 }
 
-function contributionsToEntries(input: {
+function contributionRegistrationsToEntries(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly eligibility: ContributionPackageEligibility
   readonly requestedProjectPaths: readonly string[]
   readonly requestedSessionId: string | undefined
-  readonly contributions: ExtensionContributions
-}) {
+  readonly registrations: readonly ContributionRegistrationEntry[]
+}): readonly ExtensionContributionRegistryEntry[] {
   const entries: ExtensionContributionRegistryEntry[] = []
 
-  for (const descriptor of COMMAND_FAMILY_DESCRIPTORS) {
-    for (const contribution of descriptor.contributions(input.contributions) ?? []) {
-      const entry = contributionToEntry({ ...input, family: descriptor.family, contribution })
-      if (entry !== null) {
-        entries.push(entry)
-      }
-    }
-  }
-
-  for (const descriptor of ENTRY_FAMILY_DESCRIPTORS) {
-    for (const contribution of descriptor.contributions(input.contributions) ?? []) {
-      const entry = contributionToEntry({ ...input, family: descriptor.family, contribution })
-      if (entry !== null) {
-        entries.push(entry)
-      }
+  for (const registration of input.registrations) {
+    const entry = contributionToEntry({
+      ...input,
+      family: registration.family,
+      contribution: registration.contribution,
+    })
+    if (entry !== null) {
+      entries.push(entry)
     }
   }
 
   return entries
+}
+
+export function packageToContributionEntriesWithRegistrationResolver(input: {
+  readonly extensionPackage: DiscoveredExtensionPackage
+  readonly lifecycle: ExtensionLifecycleState | null
+  readonly projectOverrides: readonly ExtensionContributionProjectOverrideLookup[]
+  readonly requestedProjectPaths: readonly string[]
+  readonly requestedSessionId: string | undefined
+  readonly getRegistrationResult: (
+    extensionPackage: DiscoveredExtensionPackage,
+  ) => ContributionRegistrationResult
+}) {
+  const contributions = input.extensionPackage.manifest?.contributions
+  if (!contributions) {
+    return { entries: [], diagnostics: [] } satisfies ContributionRegistryBuildResult
+  }
+
+  const eligibility = buildPackageEligibility(input)
+  if (!eligibility) {
+    return { entries: [], diagnostics: [] } satisfies ContributionRegistryBuildResult
+  }
+
+  const registrationResult = input.getRegistrationResult(input.extensionPackage)
+
+  return {
+    entries: contributionRegistrationsToEntries({
+      extensionPackage: input.extensionPackage,
+      eligibility,
+      requestedProjectPaths: input.requestedProjectPaths,
+      requestedSessionId: input.requestedSessionId,
+      registrations: registrationResult.registrations,
+    }),
+    diagnostics: registrationResult.diagnostics,
+  } satisfies ContributionRegistryBuildResult
 }
 
 export function packageToContributionEntries(input: {
@@ -252,21 +286,12 @@ export function packageToContributionEntries(input: {
   readonly requestedProjectPaths: readonly string[]
   readonly requestedSessionId: string | undefined
 }) {
-  const contributions = input.extensionPackage.manifest?.contributions
-  if (!contributions) {
-    return []
-  }
-
-  const eligibility = buildPackageEligibility(input)
-  if (!eligibility) {
-    return []
-  }
-
-  return contributionsToEntries({
+  return packageToContributionEntriesWithRegistrationResolver({
     extensionPackage: input.extensionPackage,
-    eligibility,
+    lifecycle: input.lifecycle,
+    projectOverrides: input.projectOverrides,
     requestedProjectPaths: input.requestedProjectPaths,
     requestedSessionId: input.requestedSessionId,
-    contributions,
+    getRegistrationResult: packageContributionRegistrations,
   })
 }

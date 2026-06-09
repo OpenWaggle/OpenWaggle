@@ -16,6 +16,11 @@ import type {
 } from './docs'
 import type { ExtensionInvokeInput, ExtensionInvokeResult } from './extension-broker'
 import type {
+  ExtensionFrameRegisterInput,
+  ExtensionFrameRegisterResult,
+  ExtensionFrameUnregisterInput,
+} from './extension-frame'
+import type {
   ExtensionAcceptUpdateInput,
   ExtensionApproveBuildInput,
   ExtensionContributionRegistryView,
@@ -126,6 +131,8 @@ export interface OpenWaggleApi {
     input?: ExtensionListContributionsInput,
   ): Promise<ExtensionContributionRegistryView>
   invokeExtension(input: ExtensionInvokeInput): Promise<ExtensionInvokeResult>
+  registerExtensionFrame(input: ExtensionFrameRegisterInput): Promise<ExtensionFrameRegisterResult>
+  unregisterExtensionFrame(input: ExtensionFrameUnregisterInput): Promise<void>
   setExtensionTrusted(input: ExtensionSetTrustedInput): Promise<ExtensionManagerView>
   setExtensionEnabled(input: ExtensionSetEnabledInput): Promise<ExtensionManagerView>
   setExtensionProjectDisabled(

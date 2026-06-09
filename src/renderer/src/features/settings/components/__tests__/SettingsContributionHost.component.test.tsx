@@ -3,7 +3,7 @@ import type {
   ExtensionContributionRegistryView,
 } from '@shared/types/extensions'
 import { render, screen, waitFor, within } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   SettingsContributionHost,
   SettingsContributionSlot,
@@ -13,9 +13,19 @@ import {
 const loggerMock = vi.hoisted(() => ({
   error: vi.fn(),
 }))
+const apiMock = vi.hoisted(() => ({
+  registerExtensionFrame: vi.fn(),
+  unregisterExtensionFrame: vi.fn(),
+}))
+
+const EXTENSION_FRAME_URL_PREFIX = 'openwaggle-extension-frame://frame/frames/'
 
 vi.mock('@/shared/lib/logger', () => ({
   createRendererLogger: () => loggerMock,
+}))
+
+vi.mock('@/shared/lib/ipc', () => ({
+  api: apiMock,
 }))
 
 const BASE_ENTRY: ExtensionContributionRegistryEntry = {
@@ -106,6 +116,18 @@ function ThrowingContribution(): never {
 }
 
 describe('SettingsContributionHost', () => {
+  beforeEach(() => {
+    apiMock.registerExtensionFrame.mockReset()
+    apiMock.unregisterExtensionFrame.mockReset()
+    apiMock.registerExtensionFrame.mockImplementation((input: { readonly frameId: string }) =>
+      Promise.resolve({
+        frameUrl: `${EXTENSION_FRAME_URL_PREFIX}${encodeURIComponent(input.frameId)}/index.html`,
+        registrationId: `registration-${input.frameId}`,
+      }),
+    )
+    apiMock.unregisterExtensionFrame.mockResolvedValue(undefined)
+  })
+
   afterEach(() => {
     loggerMock.error.mockClear()
   })
@@ -142,7 +164,7 @@ describe('SettingsContributionHost', () => {
     const frame = within(host).getByTitle('Extension module: Frame settings')
     expect(frame).toHaveAttribute('sandbox', 'allow-scripts')
     await waitFor(() => {
-      expect(frame).toHaveAttribute('src', expect.stringContaining('blob:'))
+      expect(frame).toHaveAttribute('src', expect.stringContaining(EXTENSION_FRAME_URL_PREFIX))
     })
     expect(frame).not.toHaveAttribute('srcdoc')
   })

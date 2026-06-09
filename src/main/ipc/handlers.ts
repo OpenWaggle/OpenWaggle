@@ -4,6 +4,7 @@ import { registerAuthHandlers } from './auth-handler'
 import { registerComposerHandlers } from './composer-handler'
 import { registerDocsHandlers } from './docs-handler'
 import { registerExtensionBrokerHandlers } from './extension-broker-handler'
+import { registerExtensionFrameHandlers } from './extension-frame-handler'
 import { registerExtensionsHandlers } from './extensions-handler'
 import { registerFeedbackHandlers } from './feedback-handler'
 import { registerGitHandlers } from './git'
@@ -33,6 +34,7 @@ export function registerAllIpcHandlers(): void {
   registerGitHandlers()
   registerExtensionsHandlers()
   registerExtensionBrokerHandlers()
+  registerExtensionFrameHandlers()
   registerMcpHandlers()
   registerProjectHandlers()
   registerProvidersHandlers()

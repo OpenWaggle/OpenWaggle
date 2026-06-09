@@ -9,7 +9,14 @@ import type { JsonValue } from '@shared/types/json'
 
 export type ExtensionMountInvokeInput = ExtensionSdkInvokeRequest
 
-export type OpenWaggleExtensionSdk = ExtensionBrokerSdk
+export interface OpenWaggleExtensionSurfaceSdk {
+  readonly sendAction: (actionId: string, payload?: JsonValue) => Promise<void>
+  readonly respondInteraction: (value: JsonValue | null) => Promise<void>
+}
+
+export type OpenWaggleExtensionSdk = ExtensionBrokerSdk & {
+  readonly surface: OpenWaggleExtensionSurfaceSdk
+}
 
 export interface OpenWaggleExtensionMountContext {
   readonly root: HTMLElement
@@ -77,11 +84,19 @@ export function createExtensionMountContext(input: {
   readonly root: HTMLElement
   readonly surfacePayload?: JsonValue
   readonly invoke: (input: ExtensionInvokeInput) => Promise<ExtensionInvokeResult>
+  readonly surface?: OpenWaggleExtensionSurfaceSdk
 }): OpenWaggleExtensionMountContext {
-  const sdk = createExtensionBrokerSdk(input.invoke, {
+  const brokerSdk = createExtensionBrokerSdk(input.invoke, {
     extensionId: input.entry.extensionId,
     contributionId: input.entry.contributionId,
   })
+  const sdk = {
+    ...brokerSdk,
+    surface: input.surface ?? {
+      sendAction: async () => undefined,
+      respondInteraction: async () => undefined,
+    },
+  }
 
   return {
     root: input.root,

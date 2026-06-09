@@ -60,6 +60,50 @@ describe('invokeExtensionCapability', () => {
     ])
   })
 
+  it('routes app-scoped calls from active project-local extensions', async () => {
+    const extensionPackage = makePackage({
+      id: BROKER_EXTENSION_ID,
+      name: 'Project Broker Extension',
+      scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: PROJECT_PATH },
+      capabilities: [
+        {
+          id: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.HOST_CONTEXT,
+          methods: [OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SCOPE],
+          scopes: ['app'],
+        },
+      ],
+      contributions: {
+        commands: [
+          {
+            id: BROKER_CONTRIBUTION_ID,
+            title: 'Run Broker',
+            capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.HOST_CONTEXT,
+            method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SCOPE,
+          },
+        ],
+      },
+    })
+    const result = await runBroker({
+      invocation: makeProjectInvocation({ scope: { kind: 'app' } }),
+      packages: [extensionPackage],
+      lifecycles: [makeLifecycle(extensionPackage)],
+      currentProjectPath: PROJECT_PATH,
+    })
+
+    if (!result.ok) {
+      throw new Error(`Expected success, got ${result.error.code}.`)
+    }
+
+    expect(result.value).toMatchObject({
+      extensionId: BROKER_EXTENSION_ID,
+      contributionId: BROKER_CONTRIBUTION_ID,
+      capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.HOST_CONTEXT,
+      method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SCOPE,
+      scope: { kind: 'app' },
+      declaredScopes: ['app'],
+    })
+  })
+
   it('rejects unknown extensions', async () => {
     const result = await runBroker({ invocation: makeProjectInvocation() })
 

@@ -1,15 +1,13 @@
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
-import {
-  EXTENSION_FRAME_BOOTSTRAP_SCRIPT_HASH,
-  EXTENSION_FRAME_MESSAGE_CHANNEL,
-} from '@shared/constants/extension-frame'
+import { EXTENSION_FRAME_MESSAGE_CHANNEL } from '@shared/constants/extension-frame'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
-  createExtensionFrameDocument,
   decodeExtensionFrameMessage,
+  extensionFrameConfig,
   extensionInvokeInputFromFrame,
+  postFrameMessage,
 } from '../extension-frame-host'
 
 const ENTRY: ExtensionContributionRegistryEntry = {
@@ -43,45 +41,46 @@ const ENTRY: ExtensionContributionRegistryEntry = {
   },
   diagnostics: [],
 }
-
 describe('extension frame host helpers', () => {
-  it('creates frame document with frame execution mount context and no preload API reference', () => {
-    const frameDocument = createExtensionFrameDocument({
+  it('creates typed frame execution mount configuration without DOM or SDK fields', () => {
+    const config = extensionFrameConfig({
       entry: ENTRY,
-      frameId: 'frame-1',
       moduleUrl:
         'openwaggle-extension://runtime/module/%2Ftmp%2Fproject%2F.openwaggle%2Fextensions%2Fsample-extension/abcdef/%5B%22%2Ftmp%2Fproject%22%5D/dist/settings.js',
     })
 
-    expect(frameDocument).toContain('data-openwaggle-config=')
-    expect(frameDocument).toContain('openwaggle-extension://runtime/module/')
-    expect(frameDocument).toContain('&quot;execution&quot;:&quot;frame&quot;')
-    expect(frameDocument).toContain('&quot;projectPaths&quot;:[&quot;/tmp/project&quot;]')
-    expect(frameDocument).toContain('packageConfig')
-    expect(frameDocument).toContain('packageState')
-    expect(frameDocument).toContain('http-equiv="Content-Security-Policy"')
-    expect(frameDocument).toContain(EXTENSION_FRAME_BOOTSTRAP_SCRIPT_HASH)
-    expect(frameDocument).toContain('script-src-elem')
-    expect(frameDocument).not.toContain('connect-src')
-    expect(frameDocument).not.toContain('window.api')
-  })
-
-  it('adds declared network origins to the frame CSP connect-src directive', () => {
-    const frameDocument = createExtensionFrameDocument({
-      entry: { ...ENTRY, networkOrigins: ['https://api.github.com'] },
-      frameId: 'frame-1',
+    expect(config).toEqual({
       moduleUrl:
         'openwaggle-extension://runtime/module/%2Ftmp%2Fproject%2F.openwaggle%2Fextensions%2Fsample-extension/abcdef/%5B%22%2Ftmp%2Fproject%22%5D/dist/settings.js',
+      context: {
+        extension: {
+          id: 'sample-extension',
+          name: 'Sample Extension',
+          version: '1.0.0',
+        },
+        contribution: {
+          id: 'sample.settings',
+          title: 'Sample settings',
+          family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SETTINGS_SECTIONS,
+        },
+        surface: {
+          family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SETTINGS_SECTIONS,
+          execution: OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.FRAME,
+        },
+        packagePath: '/tmp/project/.openwaggle/extensions/sample-extension',
+        projectPaths: ['/tmp/project'],
+        theme: {
+          colorScheme: 'dark',
+        },
+      },
     })
-
-    expect(frameDocument).toContain('connect-src https://api.github.com')
   })
 
   it('decodes only extension frame messages for the mounted frame id', () => {
     const message = {
       channel: EXTENSION_FRAME_MESSAGE_CHANNEL,
       frameId: 'frame-1',
-      type: 'mounted',
+      type: 'ready',
     }
 
     expect(decodeExtensionFrameMessage(message, 'frame-1')).toEqual(message)
@@ -89,6 +88,31 @@ describe('extension frame host helpers', () => {
     expect(
       decodeExtensionFrameMessage({ ...message, channel: 'other-channel' }, 'frame-1'),
     ).toBeNull()
+  })
+
+  it('posts typed configure messages to the frame window', () => {
+    const frameWindow = {
+      postMessage: vi.fn(),
+    } satisfies Pick<Window, 'postMessage'>
+    const config = extensionFrameConfig({
+      entry: ENTRY,
+      moduleUrl: 'openwaggle-extension://runtime/module/sample/dist/settings.js',
+    })
+
+    postFrameMessage(frameWindow, 'frame-1', {
+      type: 'configure',
+      config,
+    })
+
+    expect(frameWindow.postMessage).toHaveBeenCalledWith(
+      {
+        channel: EXTENSION_FRAME_MESSAGE_CHANNEL,
+        frameId: 'frame-1',
+        type: 'configure',
+        config,
+      },
+      '*',
+    )
   })
 
   it('binds frame SDK invocations to the mounted contribution identity', () => {

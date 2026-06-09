@@ -18,6 +18,7 @@ import type { PiModel } from '../pi-provider-catalog'
 import { buildPiRunAssistantMessages } from '../pi-run-result'
 import { logger } from './constants'
 import { createPiRunSessionRuntime, runSubscribedPiOperation } from './run-lifecycle'
+import type { PiRuntimeExtensionIsolationInput } from './runtime-extension-isolation'
 import { createSessionListener } from './session-listener'
 import { resolveSessionProjectPath } from './session-manager'
 import { resolveWaggleRuntimeConfig } from './waggle-model-resolution'
@@ -29,7 +30,7 @@ import {
 
 type PiWaggleKernelRunInput = AgentKernelRunInput & {
   readonly waggle: AgentKernelWaggleRunOptions
-}
+} & PiRuntimeExtensionIsolationInput
 
 function appendEnabledWaggleModeState(input: {
   readonly session: AgentSession
@@ -163,7 +164,9 @@ export async function runPiWaggle(input: PiWaggleKernelRunInput) {
     onEvent: (event) =>
       input.waggle.onWaggleEvent(withTransportEventModel(event, currentMeta), currentMeta),
     skillToggles: input.skillToggles,
+    enabledOpenWaggleExtensionPackages: input.enabledOpenWaggleExtensionPackages,
     enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths,
+    recordOpenWaggleExtensionRuntimeFailure: input.recordOpenWaggleExtensionRuntimeFailure,
     extensionFactories: [waggleExtension.factory],
   })
 

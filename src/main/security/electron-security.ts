@@ -1,4 +1,4 @@
-import { EXTENSION_FRAME_BOOTSTRAP_SCRIPT_HASH } from '@shared/constants/extension-frame'
+import { OPENWAGGLE_EXTENSION_FRAME_PROTOCOL } from '@shared/constants/extension-frame'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { Session, WebPreferences } from 'electron'
 
@@ -20,12 +20,12 @@ const EXTENSION_RUNTIME_SCRIPT_SOURCE =
 const SCRIPT_SRC_VALUES = [
   "'self'",
   VITE_REACT_PREAMBLE_HASH,
-  EXTENSION_FRAME_BOOTSTRAP_SCRIPT_HASH,
   EXTENSION_RUNTIME_SCRIPT_SOURCE,
 ] as const
 const STYLE_SRC_VALUES = ["'self'", "'unsafe-inline'"] as const
 const IMG_SRC_VALUES = ["'self'", 'data:'] as const
-const FRAME_SRC_VALUES = ["'self'", 'blob:'] as const
+const EXTENSION_FRAME_SOURCE = `${OPENWAGGLE_EXTENSION_FRAME_PROTOCOL.SCHEME}:` as const
+const FRAME_SRC_VALUES = ["'self'", EXTENSION_FRAME_SOURCE] as const
 const CONNECT_SRC_VALUES = [
   "'self'",
   'ws://localhost:*',
@@ -87,6 +87,14 @@ export function applyContentSecurityPolicyHeader(
   }
 }
 
+function isExtensionFrameProtocolUrl(url: string) {
+  try {
+    return new URL(url).protocol === `${OPENWAGGLE_EXTENSION_FRAME_PROTOCOL.SCHEME}:`
+  } catch {
+    return false
+  }
+}
+
 export function assertSecureWebPreferences(preferences: WebPreferences): void {
   for (const expectation of SECURITY_PREFERENCE_EXPECTATIONS) {
     const actualValue = preferences[expectation.key]
@@ -104,6 +112,11 @@ export function installCspHeaders(session: SessionWithHeadersHandler): void {
   }
 
   session.webRequest.onHeadersReceived((details, callback) => {
+    if (isExtensionFrameProtocolUrl(details.url)) {
+      callback({ responseHeaders: details.responseHeaders })
+      return
+    }
+
     callback({
       responseHeaders: applyContentSecurityPolicyHeader(details.responseHeaders),
     })

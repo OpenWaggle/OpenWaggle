@@ -5,10 +5,20 @@ import type {
   ExtensionContributionRegistryView,
 } from '@shared/types/extensions'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ExtensionAgentLoopSurface } from '../ExtensionAgentLoopSurface'
 
+const apiMock = vi.hoisted(() => ({
+  registerExtensionFrame: vi.fn(),
+  unregisterExtensionFrame: vi.fn(),
+}))
+
+vi.mock('@/shared/lib/ipc', () => ({
+  api: apiMock,
+}))
+
 const PROJECT_PATH = '/tmp/project'
+const EXTENSION_FRAME_URL_PREFIX = 'openwaggle-extension-frame://frame/frames/'
 
 const TOOL_PART: ChatToolCallPart = {
   type: 'tool-call',
@@ -59,6 +69,18 @@ const REGISTRY: ExtensionContributionRegistryView = {
 }
 
 describe('ExtensionAgentLoopSurface', () => {
+  beforeEach(() => {
+    apiMock.registerExtensionFrame.mockReset()
+    apiMock.unregisterExtensionFrame.mockReset()
+    apiMock.registerExtensionFrame.mockImplementation((input: { readonly frameId: string }) =>
+      Promise.resolve({
+        frameUrl: `${EXTENSION_FRAME_URL_PREFIX}${encodeURIComponent(input.frameId)}/index.html`,
+        registrationId: `registration-${input.frameId}`,
+      }),
+    )
+    apiMock.unregisterExtensionFrame.mockResolvedValue(undefined)
+  })
+
   it('renders an OpenWaggle-owned tool fallback when no renderer matches', () => {
     render(
       <ExtensionAgentLoopSurface
@@ -85,7 +107,7 @@ describe('ExtensionAgentLoopSurface', () => {
 
     const frame = screen.getByTitle('Extension module: GitHub tool card')
     await waitFor(() => {
-      expect(frame).toHaveAttribute('src', expect.stringContaining('blob:'))
+      expect(frame).toHaveAttribute('src', expect.stringContaining(EXTENSION_FRAME_URL_PREFIX))
     })
     expect(screen.getByText('GitHub tool card')).toBeInTheDocument()
     expect(screen.queryByText('openwaggle.github.listIssues')).not.toBeInTheDocument()
@@ -101,6 +123,7 @@ describe('ExtensionAgentLoopSurface', () => {
           interaction: {
             id: 'select-issue',
             kind: 'github.issue.select',
+            customType: 'github.issue.select',
             title: 'Select an issue',
             description: 'Pick one issue for the next step.',
             state: 'pending',
@@ -120,6 +143,73 @@ describe('ExtensionAgentLoopSurface', () => {
 
     expect(screen.getByText('Interaction · github.issue.select')).toBeInTheDocument()
     expect(onAction).toHaveBeenCalledWith('select-issue', 'issue-113')
+  })
+
+  it('renders an explicit custom interaction failure when no desktop renderer matches', () => {
+    render(
+      <ExtensionAgentLoopSurface
+        input={{
+          surface: 'interaction',
+          interaction: {
+            id: 'custom-interaction',
+            kind: 'custom',
+            customType: 'github.issue.approval',
+            title: 'Custom desktop interaction',
+            description: 'This custom Pi interaction requires an OpenWaggle desktop renderer.',
+            state: 'pending',
+            actions: [],
+          },
+        }}
+        projectPaths={[PROJECT_PATH]}
+        registry={{ projectPaths: [PROJECT_PATH], entries: [] }}
+      />,
+    )
+
+    expect(screen.getByText('Custom desktop interaction renderer unavailable')).toBeInTheDocument()
+    expect(
+      screen.getByText(/does not execute Pi TUI custom components inside Electron/),
+    ).toBeInTheDocument()
+    expect(screen.getByText('custom-interaction')).toBeInTheDocument()
+  })
+
+  it('mounts matching custom interaction renderer contributions', async () => {
+    const interactionEntry = {
+      ...TOOL_ENTRY,
+      family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.INTERACTION_RENDERERS,
+      contributionId: 'github.custom-interaction',
+      title: 'GitHub custom interaction',
+      label: 'GitHub custom interaction',
+      entryPath: 'dist/custom-interaction.js',
+      matches: { interactionKinds: ['github.issue.approval'] },
+    } satisfies ExtensionContributionRegistryEntry
+
+    render(
+      <ExtensionAgentLoopSurface
+        input={{
+          surface: 'interaction',
+          interaction: {
+            id: 'custom-interaction',
+            kind: 'custom',
+            customType: 'github.issue.approval',
+            title: 'Custom desktop interaction',
+            description: 'This custom Pi interaction requires an OpenWaggle desktop renderer.',
+            state: 'pending',
+            actions: [],
+          },
+        }}
+        projectPaths={[PROJECT_PATH]}
+        registry={{ projectPaths: [PROJECT_PATH], entries: [interactionEntry] }}
+      />,
+    )
+
+    const frame = screen.getByTitle('Extension module: GitHub custom interaction')
+    await waitFor(() => {
+      expect(frame).toHaveAttribute('src', expect.stringContaining(EXTENSION_FRAME_URL_PREFIX))
+    })
+    expect(screen.getByText('GitHub custom interaction')).toBeInTheDocument()
+    expect(
+      screen.queryByText('Custom desktop interaction renderer unavailable'),
+    ).not.toBeInTheDocument()
   })
 
   it('mounts transcript renderer contributions for transcript surfaces', async () => {
@@ -152,7 +242,7 @@ describe('ExtensionAgentLoopSurface', () => {
 
     const frame = screen.getByTitle('Extension module: GitHub transcript')
     await waitFor(() => {
-      expect(frame).toHaveAttribute('src', expect.stringContaining('blob:'))
+      expect(frame).toHaveAttribute('src', expect.stringContaining(EXTENSION_FRAME_URL_PREFIX))
     })
     expect(screen.getByText('GitHub transcript')).toBeInTheDocument()
     expect(screen.queryByText('Transcript renderer')).not.toBeInTheDocument()

@@ -4,14 +4,25 @@ import type {
   ExtensionContributionRegistryView,
 } from '@shared/types/extensions'
 import { render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ExtensionRouteSurfaceContent } from '../ExtensionRouteSurface'
+
+const apiMock = vi.hoisted(() => ({
+  onFullscreenChanged: vi.fn(),
+  registerExtensionFrame: vi.fn(),
+  unregisterExtensionFrame: vi.fn(),
+}))
+
+vi.mock('@/shared/lib/ipc', () => ({
+  api: apiMock,
+}))
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => vi.fn(),
 }))
 
 const PROJECT_PATH = '/tmp/project'
+const EXTENSION_FRAME_URL_PREFIX = 'openwaggle-extension-frame://frame/frames/'
 
 const ROUTE_ENTRY: ExtensionContributionRegistryEntry = {
   extensionId: 'sample-extension',
@@ -70,6 +81,20 @@ function renderRouteSurface(input: {
 }
 
 describe('ExtensionRouteSurfaceContent', () => {
+  beforeEach(() => {
+    apiMock.onFullscreenChanged.mockReset()
+    apiMock.registerExtensionFrame.mockReset()
+    apiMock.unregisterExtensionFrame.mockReset()
+    apiMock.onFullscreenChanged.mockReturnValue(() => undefined)
+    apiMock.registerExtensionFrame.mockImplementation((input: { readonly frameId: string }) =>
+      Promise.resolve({
+        frameUrl: `${EXTENSION_FRAME_URL_PREFIX}${encodeURIComponent(input.frameId)}/index.html`,
+        registrationId: `registration-${input.frameId}`,
+      }),
+    )
+    apiMock.unregisterExtensionFrame.mockResolvedValue(undefined)
+  })
+
   it('renders registered extension routes through the federated module mount contract', async () => {
     const { container } = renderRouteSurface({ registry: REGISTRY })
 
@@ -81,7 +106,7 @@ describe('ExtensionRouteSurfaceContent', () => {
     const frame = screen.getByTitle('Extension module: Sample route')
     expect(frame).toHaveAttribute('sandbox', 'allow-scripts')
     await waitFor(() => {
-      expect(frame).toHaveAttribute('src', expect.stringContaining('blob:'))
+      expect(frame).toHaveAttribute('src', expect.stringContaining(EXTENSION_FRAME_URL_PREFIX))
     })
     expect(frame).not.toHaveAttribute('srcdoc')
   })

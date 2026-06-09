@@ -42,6 +42,15 @@ export const extensionExecutionPlacementSchema = Schema.Literal(
 export const extensionContributionFamilySchema = Schema.Literal(
   ...OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILIES,
 )
+export const extensionCommandContributionFamilySchema = Schema.Literal(
+  ...OPENWAGGLE_EXTENSION.COMMAND_CONTRIBUTION_FAMILIES,
+)
+export const extensionEntryContributionFamilySchema = Schema.Literal(
+  ...OPENWAGGLE_EXTENSION.ENTRY_CONTRIBUTION_FAMILIES,
+)
+export const extensionSlotContributionFamilySchema = Schema.Literal(
+  ...OPENWAGGLE_EXTENSION.SLOT_CONTRIBUTION_FAMILIES,
+)
 export const extensionInstallSourceSchema = Schema.Literal(...OPENWAGGLE_EXTENSION.INSTALL_SOURCES)
 export const extensionLifecycleScopeSchema = Schema.Union(
   Schema.Struct({
@@ -146,6 +155,27 @@ export const extensionContributionsSchema = Schema.Struct({
   ),
   statusWidgets: Schema.optional(Schema.mutable(Schema.Array(extensionSlotContributionSchema))),
 })
+
+export const extensionCommandContributionRegistrationSchema = Schema.Struct({
+  family: extensionCommandContributionFamilySchema,
+  contribution: extensionCommandContributionSchema,
+})
+
+export const extensionRouteContributionRegistrationSchema = Schema.Struct({
+  family: Schema.Literal(OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.ROUTES),
+  contribution: extensionRouteContributionSchema,
+})
+
+export const extensionSlotContributionRegistrationSchema = Schema.Struct({
+  family: extensionSlotContributionFamilySchema,
+  contribution: extensionSlotContributionSchema,
+})
+
+export const extensionContributionRegistrationSchema = Schema.Union(
+  extensionCommandContributionRegistrationSchema,
+  extensionRouteContributionRegistrationSchema,
+  extensionSlotContributionRegistrationSchema,
+)
 
 export const extensionRuntimeRequirementSchema = Schema.Struct({
   id: extensionContributionIdSchema,
@@ -259,5 +289,12 @@ export const extensionReloadInputSchema = Schema.Struct({
 
 export type OpenWaggleExtensionManifest = SchemaType<typeof openWaggleExtensionManifestSchema>
 export type ExtensionCapabilityDeclaration = SchemaType<typeof extensionCapabilityDeclarationSchema>
+export type ExtensionCommandContribution = SchemaType<typeof extensionCommandContributionSchema>
 export type ExtensionContributions = SchemaType<typeof extensionContributionsSchema>
+export type ExtensionContributionRegistration = SchemaType<
+  typeof extensionContributionRegistrationSchema
+>
 export type ExtensionDocsTopicDeclaration = SchemaType<typeof extensionDocsTopicDeclarationSchema>
+export type ExtensionEntryContribution =
+  | SchemaType<typeof extensionRouteContributionSchema>
+  | SchemaType<typeof extensionSlotContributionSchema>

@@ -1,16 +1,20 @@
-import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import { SessionId } from '@shared/types/brand'
 import type { UIMessage } from '@shared/types/chat-ui'
-import type {
-  ExtensionContributionRegistryEntry,
-  ExtensionContributionRegistryView,
-} from '@shared/types/extensions'
-import { act, render, screen } from '@testing-library/react'
+import { act, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ChatTranscriptSectionState } from '../../model'
 
 const REQUEST_ANIMATION_FRAME_DELAY_MS = 16
 const PROJECT_PATH = '/repo'
+
+const apiMock = vi.hoisted(() => ({
+  registerExtensionFrame: vi.fn((input: { readonly frameId: string }) =>
+    Promise.resolve({
+      frameUrl: `openwaggle-extension-frame://frame/frames/${encodeURIComponent(input.frameId)}/index.html`,
+      registrationId: `registration-${input.frameId}`,
+    }),
+  ),
+  unregisterExtensionFrame: vi.fn(() => Promise.resolve(undefined)),
+}))
 
 vi.mock('../ChatRowRenderer', () => ({
   ChatRowRenderer: ({ row }: { row: ChatRow }) => (
@@ -33,6 +37,10 @@ vi.mock('@/shared/lib/cn', () => ({
   cn: (...classes: unknown[]) => classes.filter(Boolean).join(' '),
 }))
 
+vi.mock('@/shared/lib/ipc', () => ({
+  api: apiMock,
+}))
+
 import type { ChatRow } from '../../lib/types-chat-row'
 import { ChatTranscript } from '../ChatTranscript'
 
@@ -51,48 +59,6 @@ function createMessageChatRow(message: UIMessage) {
     isStreaming: false,
     isRunActive: false,
     showTurnDivider: false,
-  }
-}
-
-function transcriptRendererEntry(): ExtensionContributionRegistryEntry {
-  return {
-    extensionId: 'transcript-extension',
-    extensionName: 'Transcript Extension',
-    extensionVersion: '1.0.0',
-    scope: {
-      kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND,
-      label: 'Project',
-      projectPath: PROJECT_PATH,
-    },
-    packagePath: `${PROJECT_PATH}/.openwaggle/extensions/transcript-extension`,
-    manifestPath: `${PROJECT_PATH}/.openwaggle/extensions/transcript-extension/openwaggle.extension.json`,
-    contentHash: 'abcdef',
-    projectPaths: [PROJECT_PATH],
-    appliesToAllRequestedProjects: true,
-    family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.TRANSCRIPT_RENDERERS,
-    contributionId: 'transcript-extension.card',
-    title: 'Transcript Extension Card',
-    label: 'Transcript Extension Card',
-    runtime: OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE,
-    execution: OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.HOST_RENDERER,
-    entryPath: 'dist/transcript.js',
-    matches: {},
-    eligibility: {
-      runtimeEnabled: true,
-      enabled: true,
-      trusted: true,
-      sdkCompatible: true,
-      updateAvailable: false,
-      disabledProjectPaths: [],
-    },
-    diagnostics: [],
-  }
-}
-
-function transcriptRendererRegistry(): ExtensionContributionRegistryView {
-  return {
-    projectPaths: [PROJECT_PATH],
-    entries: [transcriptRendererEntry()],
   }
 }
 
@@ -171,6 +137,8 @@ function configureScrollableElement(scroller: HTMLElement) {
 
 describe('ChatTranscript t3-style scroll behavior', () => {
   beforeEach(() => {
+    apiMock.registerExtensionFrame.mockClear()
+    apiMock.unregisterExtensionFrame.mockClear()
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -288,29 +256,6 @@ describe('ChatTranscript t3-style scroll behavior', () => {
     const { container } = render(<ChatTranscript section={createSection()} />)
     const scroller = container.querySelector('[role="log"]')
     expect(scroller?.className).toContain('[overflow-anchor:none]')
-  })
-
-  it('mounts transcript renderer contributions in the production transcript surface', async () => {
-    render(
-      <ChatTranscript
-        section={createSection({
-          activeSessionId: SessionId('session-1'),
-          extensionRegistry: transcriptRendererRegistry(),
-          extensionProjectPaths: [PROJECT_PATH],
-        })}
-      />,
-    )
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(REQUEST_ANIMATION_FRAME_DELAY_MS)
-    })
-
-    expect(screen.getByText('Transcript Extension Card')).toBeInTheDocument()
-    expect(screen.queryByText('Transcript renderer')).not.toBeInTheDocument()
-    expect(screen.queryByText('transcriptRenderers')).not.toBeInTheDocument()
-
-    const frame = screen.getByTitle('Extension module: Transcript Extension Card')
-    expect(frame).toHaveAttribute('src', expect.stringContaining('blob:'))
   })
 
   it('does not scroll when lastUserMessageId is null', async () => {

@@ -5,15 +5,19 @@ import type { ChatRow } from '../lib/types-chat-row'
 import type { ChatRowRenderContext } from './ChatRowRenderContext'
 import { RunSummary } from './RunSummary'
 
-function renderCorePhaseIndicator(input: { readonly label: string; readonly elapsedMs: number }) {
+function CorePhaseIndicator({
+  label,
+  elapsedMs,
+}: {
+  readonly label: string
+  readonly elapsedMs: number
+}) {
   return (
     <div className="flex items-center gap-2 py-3">
       <Spinner size="sm" className="text-accent" />
-      <span className="text-sm text-text-tertiary">{input.label}...</span>
-      {input.elapsedMs > 0 ? (
-        <span className="text-sm text-text-muted tabular-nums">
-          {formatElapsed(input.elapsedMs)}
-        </span>
+      <span className="text-sm text-text-tertiary">{label}...</span>
+      {elapsedMs > 0 ? (
+        <span className="text-sm text-text-muted tabular-nums">{formatElapsed(elapsedMs)}</span>
       ) : null}
     </div>
   )
@@ -42,7 +46,7 @@ export function StatusRow({
 
   return (
     <ExtensionAgentLoopSurface
-      fallback={renderCorePhaseIndicator({ elapsedMs: row.elapsedMs, label: row.label })}
+      fallback={<CorePhaseIndicator elapsedMs={row.elapsedMs} label={row.label} />}
       input={{
         surface: 'status',
         status: {

@@ -1,9 +1,12 @@
 import { matchBy } from '@diegogbrisa/ts-match'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import type { AgentLoopInteraction } from '@shared/types/agent-loop-interaction'
+import type {
+  AgentLoopInteraction,
+  AgentLoopInteractionResponse,
+} from '@shared/types/agent-loop-interaction'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
-import type { JsonObject } from '@shared/types/json'
-import { useState } from 'react'
+import type { JsonObject, JsonValue } from '@shared/types/json'
+import { useRef, useState } from 'react'
 import {
   type ComposerExtensionActionLauncher,
   ComposerExtensionActions,
@@ -17,9 +20,21 @@ import {
   surfacePayload,
   surfaceTarget,
 } from '@/features/extensions'
+import { responseFromExtensionAction } from '../lib/agent-loop-interaction-response-actions'
 import { toExtensionInteractionView } from '../lib/agent-loop-interaction-view'
 
+type InteractionSurfaceInput = Extract<
+  ExtensionAgentLoopSurfaceInput,
+  { readonly surface: 'interaction' }
+>
+
+interface PendingInteractionDialogInput {
+  readonly interaction: AgentLoopInteraction
+  readonly surfaceInput: InteractionSurfaceInput
+}
+
 interface ActiveComposerExtensionDialog {
+  readonly interaction: AgentLoopInteraction
   readonly target: ExtensionDialogTarget
   readonly surfacePayload: JsonObject
 }
@@ -28,6 +43,10 @@ interface ChatComposerExtensionDialogsProps {
   readonly agentInteractions: readonly AgentLoopInteraction[]
   readonly extensionRegistry: ExtensionContributionRegistryView | null
   readonly extensionProjectPaths: readonly string[]
+  readonly onRespond: (
+    interaction: AgentLoopInteraction,
+    response: AgentLoopInteractionResponse,
+  ) => Promise<void>
 }
 
 function noOp() {}
@@ -58,10 +77,13 @@ function composerDialogPayload(input: ExtensionAgentLoopSurfaceInput): JsonObjec
 
 function pendingInteractionInputs(
   interactions: readonly AgentLoopInteraction[],
-): readonly ExtensionAgentLoopSurfaceInput[] {
+): readonly PendingInteractionDialogInput[] {
   return interactions.map((interaction) => ({
-    surface: 'interaction',
-    interaction: toExtensionInteractionView(interaction),
+    interaction,
+    surfaceInput: {
+      surface: 'interaction',
+      interaction: toExtensionInteractionView(interaction),
+    },
   }))
 }
 
@@ -73,7 +95,7 @@ function buildExtensionDialogLaunchers({
 }: {
   readonly registry: ExtensionContributionRegistryView | null
   readonly projectPaths: readonly string[]
-  readonly inputs: readonly ExtensionAgentLoopSurfaceInput[]
+  readonly inputs: readonly PendingInteractionDialogInput[]
   readonly onOpenDialog: (dialog: ActiveComposerExtensionDialog) => void
 }): readonly ComposerExtensionActionLauncher[] {
   if (registry === null) {
@@ -82,8 +104,8 @@ function buildExtensionDialogLaunchers({
 
   const launchers: ComposerExtensionActionLauncher[] = []
 
-  for (const input of inputs) {
-    const target = surfaceTarget(input)
+  for (const { interaction, surfaceInput } of inputs) {
+    const target = surfaceTarget(surfaceInput)
     const contributions = resolveExtensionAgentLoopContributionEntries({
       registry,
       target,
@@ -101,14 +123,15 @@ function buildExtensionDialogLaunchers({
       }
 
       launchers.push({
-        id: `extension-dialog:${entry.packagePath}:${entry.contentHash}:${entry.contributionId}:${agentLoopInputKey(input)}`,
+        id: `extension-dialog:${entry.packagePath}:${entry.contentHash}:${entry.contributionId}:${agentLoopInputKey(surfaceInput)}`,
         title: entry.title,
-        description: `${surfaceLabel(input)} from ${entry.extensionName}`,
+        description: `${surfaceLabel(surfaceInput)} from ${entry.extensionName}`,
         badge: 'Dialog',
         onOpen: () =>
           onOpenDialog({
+            interaction,
             target: dialogTarget,
-            surfacePayload: composerDialogPayload(input),
+            surfacePayload: composerDialogPayload(surfaceInput),
           }),
       })
     }
@@ -121,24 +144,66 @@ export function ChatComposerExtensionDialogs({
   agentInteractions,
   extensionRegistry,
   extensionProjectPaths,
+  onRespond,
 }: ChatComposerExtensionDialogsProps) {
   const [activeDialog, setActiveDialog] = useState<ActiveComposerExtensionDialog | null>(null)
+  const busyInteractionIdRef = useRef<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  function openDialog(dialog: ActiveComposerExtensionDialog) {
+    setError(null)
+    setActiveDialog(dialog)
+  }
+
+  function handleSurfaceAction(actionId: string, payload?: JsonValue) {
+    if (activeDialog === null || busyInteractionIdRef.current !== null) {
+      return
+    }
+
+    const response = responseFromExtensionAction({
+      interaction: activeDialog.interaction,
+      actionId,
+      payload,
+    })
+    if (response === null) {
+      return
+    }
+
+    const dialog = activeDialog
+    setError(null)
+    busyInteractionIdRef.current = dialog.interaction.interactionId
+    onRespond(dialog.interaction, response)
+      .then(() => {
+        setActiveDialog((current) => (current === dialog ? null : current))
+      })
+      .catch((cause: unknown) => {
+        setError(cause instanceof Error ? cause.message : String(cause))
+      })
+      .finally(() => {
+        busyInteractionIdRef.current = null
+      })
+  }
+
   const launchers = buildExtensionDialogLaunchers({
     registry: extensionRegistry,
     projectPaths: extensionProjectPaths,
     inputs: pendingInteractionInputs(agentInteractions),
-    onOpenDialog: setActiveDialog,
+    onOpenDialog: openDialog,
   })
 
   return (
     <>
       <ComposerExtensionActions launchers={launchers} />
+      {error ? <p className="mb-2 text-[12px] text-error">{error}</p> : null}
       {activeDialog ? (
         <ExtensionDialogSurfaceContent
+          actions={{
+            onClose: () => setActiveDialog(null),
+            onRefresh: noOp,
+            onSurfaceAction: handleSurfaceAction,
+          }}
           error={null}
           loading={false}
-          onClose={() => setActiveDialog(null)}
-          onRefresh={noOp}
           projectPaths={extensionProjectPaths}
           registry={extensionRegistry}
           surfacePayload={activeDialog.surfacePayload}

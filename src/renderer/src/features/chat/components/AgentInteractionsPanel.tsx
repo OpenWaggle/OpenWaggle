@@ -14,8 +14,10 @@ import { Button } from '@/shared/ui/Button'
 import { Select } from '@/shared/ui/Select'
 import { Textarea } from '@/shared/ui/Textarea'
 import { TextInput } from '@/shared/ui/TextInput'
+import { responseFromExtensionAction } from '../lib/agent-loop-interaction-response-actions'
 import {
   agentLoopInteractionMessage,
+  agentLoopInteractionRequiresDesktopRenderer,
   agentLoopInteractionTitle,
   toExtensionInteractionView,
 } from '../lib/agent-loop-interaction-view'
@@ -224,6 +226,9 @@ export function AgentInteractionsPanel({
         {interactions.map((interaction) => {
           const busy = isPending(busyInteractionId, interaction)
           const message = agentLoopInteractionMessage(interaction)
+          const requiresDesktopRenderer = agentLoopInteractionRequiresDesktopRenderer(interaction)
+          const extensionFallback = requiresDesktopRenderer ? undefined : null
+
           return (
             <section
               key={interaction.interactionId}
@@ -231,10 +236,28 @@ export function AgentInteractionsPanel({
             >
               <InteractionHeader interaction={interaction} />
               <ExtensionAgentLoopSurface
-                fallback={null}
+                fallback={extensionFallback}
                 input={{
                   surface: 'interaction',
                   interaction: toExtensionInteractionView(interaction),
+                  ...(!busy
+                    ? {
+                        onAction: (interactionId, actionId, payload) => {
+                          if (interactionId !== interaction.interactionId) {
+                            return
+                          }
+
+                          const response = responseFromExtensionAction({
+                            interaction,
+                            actionId,
+                            payload,
+                          })
+                          if (response !== null) {
+                            submit(interaction, response)
+                          }
+                        },
+                      }
+                    : {}),
                 }}
                 projectPaths={extensionProjectPaths}
                 registry={extensionRegistry}

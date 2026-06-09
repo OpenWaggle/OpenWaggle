@@ -1,12 +1,10 @@
 import { join } from 'node:path'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { app, BrowserWindow, shell } from 'electron'
-import { reconcileInterruptedAgentRuns } from './application/agent-run-service'
 import { configureApplicationMenu, installDevToolsShortcut } from './application-menu'
 import { env } from './env'
+import { registerExtensionFrameProtocolOnce } from './extension-frame-protocol'
 import { registerExtensionRuntimeProtocolOnce } from './extension-runtime-protocol'
-import { persistAllActiveRuns } from './ipc/agent-handler'
-import { cleanupTerminals, registerAllIpcHandlers } from './ipc/handlers'
 import { createLogger, initFileLogger } from './logger'
 import {
   devRendererUrl,
@@ -17,15 +15,12 @@ import {
   registerRendererProtocolOnce,
   registerRendererScheme,
 } from './renderer-protocol'
-import { disposeAppRuntime, initializeAppRuntime, runAppEffect } from './runtime'
 import {
   assertSecureWebPreferences,
   installCspHeaders,
   SECURE_WEB_PREFERENCES,
 } from './security/electron-security'
 import { configureAppStoragePaths } from './session-data'
-import { initializeSettingsStore } from './store/settings'
-import { disposeAutoUpdater, initAutoUpdater } from './updater'
 
 const WIDTH = 1200
 const HEIGHT = 800
@@ -34,48 +29,130 @@ const MIN_HEIGHT = 600
 const X = 16
 const Y = 16
 const FAILURE_EXIT_CODE = 1
+const STARTUP_TIMINGS_SWITCH = 'openwaggle-startup-timings'
+const STARTUP_TIMING_PRECISION = 1
+
+const importAgentHandlerModule = () => import('./ipc/agent-handler')
+const importAgentRunServiceModule = () => import('./application/agent-run-service')
+const importIpcHandlersModule = () => import('./ipc/handlers')
+const importRuntimeModule = () => import('./runtime')
+const importSettingsStoreModule = () => import('./store/settings')
+const importUpdaterModule = () => import('./updater')
+
+type AgentHandlerModule = Awaited<ReturnType<typeof importAgentHandlerModule>>
+type IpcHandlersModule = Awaited<ReturnType<typeof importIpcHandlersModule>>
+type RuntimeModule = Awaited<ReturnType<typeof importRuntimeModule>>
+
 registerRendererScheme()
 
 const appIconPath = is.dev
   ? join(__dirname, '../../build/icon.png')
   : join(process.resourcesPath, 'icon.png')
 const logger = createLogger('main/index')
+const startupStartedAt = performance.now()
 let ipcHandlersRegistered = false
 let beforeQuitCleanupDone = false
+let cleanupTerminalsOnce: IpcHandlersModule['cleanupTerminals'] | null = null
+let disposeAutoUpdaterOnce: (() => void) | null = null
+let persistAllActiveRunsOnce: AgentHandlerModule['persistAllActiveRuns'] | null = null
+let runtimeModulePromise: Promise<RuntimeModule> | null = null
 
 function describeError(error: unknown) {
-  if (error instanceof Error) {
-    return {
-      message: error.message,
-      name: error.name,
-      stack: error.stack,
-    }
-  }
-
-  return { message: String(error) }
+  return error instanceof Error
+    ? { message: error.message, name: error.name, stack: error.stack }
+    : { message: String(error) }
 }
 
-function registerIpcHandlersOnce() {
+function startupMark(label: string) {
+  if (!app.commandLine.hasSwitch(STARTUP_TIMINGS_SWITCH)) {
+    return
+  }
+
+  logger.info('Startup timing', {
+    label,
+    elapsedMs: Number((performance.now() - startupStartedAt).toFixed(STARTUP_TIMING_PRECISION)),
+  })
+}
+
+function getRuntimeModule() {
+  runtimeModulePromise ??= importRuntimeModule()
+  return runtimeModulePromise
+}
+
+async function registerIpcHandlersOnce() {
   if (ipcHandlersRegistered) {
     logger.warn('Skipping duplicate IPC handler registration')
     return
   }
 
-  ipcHandlersRegistered = true
+  const [ipcHandlersModule, agentHandlerModule] = await Promise.all([
+    importIpcHandlersModule(),
+    importAgentHandlerModule(),
+  ])
 
-  registerAllIpcHandlers()
+  ipcHandlersRegistered = true
+  cleanupTerminalsOnce = ipcHandlersModule.cleanupTerminals
+  persistAllActiveRunsOnce = agentHandlerModule.persistAllActiveRuns
+
+  ipcHandlersModule.registerAllIpcHandlers()
+}
+
+async function initializeAutoUpdaterAfterWindow() {
+  try {
+    const { disposeAutoUpdater, initAutoUpdater } = await importUpdaterModule()
+    disposeAutoUpdaterOnce = disposeAutoUpdater
+    initAutoUpdater()
+  } catch (error) {
+    logger.warn('Failed to initialize auto-updater', describeError(error))
+  }
+}
+
+async function persistActiveRunsBeforeQuit() {
+  const [runtimeModule, agentHandlerModule] = await Promise.all([
+    getRuntimeModule(),
+    persistAllActiveRunsOnce ? Promise.resolve(null) : importAgentHandlerModule(),
+  ])
+  const persistAllActiveRuns =
+    persistAllActiveRunsOnce ?? agentHandlerModule?.persistAllActiveRuns ?? null
+
+  if (!persistAllActiveRuns) {
+    return
+  }
+
+  await runtimeModule.runAppEffect(persistAllActiveRuns())
 }
 
 async function bootstrapServicesAndWindow() {
-  await initializeAppRuntime()
-  await initializeSettingsStore()
-  await runAppEffect(reconcileInterruptedAgentRuns())
+  startupMark('bootstrap-start')
 
-  registerIpcHandlersOnce()
+  const [runtimeModule, settingsStoreModule, agentRunServiceModule] = await Promise.all([
+    getRuntimeModule(),
+    importSettingsStoreModule(),
+    importAgentRunServiceModule(),
+  ])
+  startupMark('startup-modules-imported')
+
+  await runtimeModule.initializeAppRuntime()
+  startupMark('app-runtime-initialized')
+
+  await settingsStoreModule.initializeSettingsStore()
+  startupMark('settings-store-initialized')
+
+  await runtimeModule.runAppEffect(agentRunServiceModule.reconcileInterruptedAgentRuns())
+  startupMark('interrupted-runs-reconciled')
+
+  await registerIpcHandlersOnce()
+  startupMark('ipc-handlers-registered')
+
   registerRendererProtocolOnce()
+  registerExtensionFrameProtocolOnce()
   registerExtensionRuntimeProtocolOnce()
+  startupMark('protocol-handlers-registered')
+
   createWindow()
-  initAutoUpdater()
+  startupMark('main-window-created')
+
+  void initializeAutoUpdaterAfterWindow()
 }
 
 function isTrustedRendererProtocolRequest(url: string) {
@@ -124,8 +201,13 @@ function createWindow() {
   installDevToolsShortcut(mainWindow)
 
   mainWindow.on('ready-to-show', () => {
+    startupMark('window-ready-to-show')
     mainWindow.show()
+    startupMark('window-shown')
   })
+
+  mainWindow.webContents.once('dom-ready', () => startupMark('renderer-dom-ready'))
+  mainWindow.webContents.once('did-finish-load', () => startupMark('renderer-did-finish-load'))
 
   mainWindow.on('enter-full-screen', () => {
     mainWindow.webContents.send('window:fullscreen-changed', true)
@@ -167,10 +249,11 @@ function createWindow() {
   )
 
   const rendererDevUrl = devRendererUrl()
+  startupMark('renderer-load-start')
   if (rendererDevUrl !== null) {
-    mainWindow.loadURL(rendererDevUrl)
+    void mainWindow.loadURL(rendererDevUrl)
   } else {
-    mainWindow.loadURL(`${RENDERER_PROTOCOL_ORIGIN}/${INDEX_HTML}`)
+    void mainWindow.loadURL(`${RENDERER_PROTOCOL_ORIGIN}/${INDEX_HTML}`)
   }
 }
 
@@ -216,7 +299,7 @@ function registerAppLifecycle() {
       })
 
       app.on('will-quit', () => {
-        void disposeAppRuntime()
+        void runtimeModulePromise?.then(({ disposeAppRuntime }) => disposeAppRuntime())
       })
     })
     .catch((error: unknown) => {
@@ -224,17 +307,17 @@ function registerAppLifecycle() {
     })
 
   app.on('window-all-closed', () => {
-    cleanupTerminals()
+    cleanupTerminalsOnce?.()
     if (process.platform !== 'darwin') {
       app.quit()
     }
   })
 
   app.on('before-quit', (e) => {
-    disposeAutoUpdater()
+    disposeAutoUpdaterOnce?.()
     if (!beforeQuitCleanupDone) {
       e.preventDefault()
-      runAppEffect(persistAllActiveRuns())
+      persistActiveRunsBeforeQuit()
         .then(() => {
           beforeQuitCleanupDone = true
           app.quit()

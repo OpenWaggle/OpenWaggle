@@ -14,6 +14,8 @@ import type {
   ExtensionToolResultView,
 } from '../lib/extension-agent-loop-surface-model'
 import {
+  CUSTOM_INTERACTION_RESPONSE_ACTION_ID,
+  CUSTOM_INTERACTION_UNAVAILABLE_ACTION_ID,
   surfaceLabel,
   surfacePayload,
   surfaceTarget,
@@ -29,6 +31,7 @@ export type {
   ExtensionStatusView,
   ExtensionToolResultView,
 }
+export { CUSTOM_INTERACTION_RESPONSE_ACTION_ID, CUSTOM_INTERACTION_UNAVAILABLE_ACTION_ID }
 
 const TRANSCRIPT_RENDERER_MAX_HEIGHT = 360
 const TOOL_RENDERER_MAX_HEIGHT = 420
@@ -93,6 +96,11 @@ function ExtensionRenderer({
         entry={entry}
         maxAutoHeight={agentLoopRendererMaxHeight(input)}
         minAutoHeight={AGENT_LOOP_RENDERER_MIN_HEIGHT}
+        onSurfaceAction={
+          input.surface === 'interaction' && input.onAction
+            ? (actionId, payload) => input.onAction?.(input.interaction.id, actionId, payload)
+            : undefined
+        }
         surfacePayload={payload}
       />
     </PanelErrorBoundary>

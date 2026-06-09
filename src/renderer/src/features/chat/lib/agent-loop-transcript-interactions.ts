@@ -1,3 +1,5 @@
+import { match } from '@diegogbrisa/ts-match'
+import { OPENWAGGLE_AGENT_LOOP } from '@shared/constants/agent-loop'
 import type {
   AgentLoopConfirmInteraction,
   AgentLoopCustomInteraction,
@@ -17,6 +19,7 @@ import type {
 import {
   isObject,
   numberField,
+  optionalJsonValue,
   stringField,
   type UnknownObject,
 } from './agent-loop-transcript-event-fields'
@@ -107,11 +110,28 @@ function parseNotifyInteraction(
   return { ...base, kind: 'notify', message, level }
 }
 
-function parseCustomInteraction(base: AgentLoopInteractionBaseFields): AgentLoopCustomInteraction {
+function parseCustomInteraction(
+  base: AgentLoopInteractionBaseFields,
+  interaction: UnknownObject,
+): AgentLoopCustomInteraction | null {
+  const customType =
+    stringField(interaction, 'customType') ?? OPENWAGGLE_AGENT_LOOP.PI_TUI_CUSTOM_INTERACTION_TYPE
+  const payload = optionalJsonValue(interaction.payload)
+  const renderer = isObject(interaction.renderer) ? interaction.renderer : null
+  const factoryName = renderer === null ? null : stringField(renderer, 'factoryName')
+  const overlay = renderer?.overlay
+
   return {
     ...base,
     kind: 'custom',
-    renderer: { kind: 'pi-tui-custom', supported: false },
+    customType,
+    ...(payload !== undefined ? { payload } : {}),
+    renderer: {
+      kind: 'pi-tui-custom',
+      supported: false,
+      ...(factoryName !== null ? { factoryName } : {}),
+      ...(typeof overlay === 'boolean' ? { overlay } : {}),
+    },
   }
 }
 
@@ -127,13 +147,14 @@ export function parseInteraction(
     return null
   }
 
-  if (interaction.kind === 'confirm') return parseConfirmInteraction(base, interaction)
-  if (interaction.kind === 'select') return parseSelectInteraction(base, interaction)
-  if (interaction.kind === 'input') return parseInputInteraction(base, interaction)
-  if (interaction.kind === 'editor') return parseEditorInteraction(base, interaction)
-  if (interaction.kind === 'notify') return parseNotifyInteraction(base, interaction)
-  if (interaction.kind === 'custom') return parseCustomInteraction(base)
-  return null
+  return match(interaction.kind)
+    .with('confirm', () => parseConfirmInteraction(base, interaction))
+    .with('select', () => parseSelectInteraction(base, interaction))
+    .with('input', () => parseInputInteraction(base, interaction))
+    .with('editor', () => parseEditorInteraction(base, interaction))
+    .with('notify', () => parseNotifyInteraction(base, interaction))
+    .with('custom', () => parseCustomInteraction(base, interaction))
+    .otherwise(() => null)
 }
 
 export function parseErrorInfo(error: unknown): AgentTransportInteractionResolvedEvent['error'] {

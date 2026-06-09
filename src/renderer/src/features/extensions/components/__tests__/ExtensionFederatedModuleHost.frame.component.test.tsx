@@ -1,20 +1,16 @@
-import { createHash } from 'node:crypto'
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
-import {
-  EXTENSION_FRAME_BOOTSTRAP_SCRIPT,
-  EXTENSION_FRAME_BOOTSTRAP_SCRIPT_HASH,
-  EXTENSION_FRAME_MESSAGE_CHANNEL,
-} from '@shared/constants/extension-frame'
+import { EXTENSION_FRAME_MESSAGE_CHANNEL } from '@shared/constants/extension-frame'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
 import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createExtensionFrameDocument } from '../../lib/extension-frame-host'
 import { ExtensionFederatedModuleHost } from '../ExtensionFederatedModuleHost'
 
 const apiMock = vi.hoisted(() => ({
   invokeExtension: vi.fn(),
   openExternal: vi.fn(),
+  registerExtensionFrame: vi.fn(),
+  unregisterExtensionFrame: vi.fn(),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -52,6 +48,9 @@ const ENTRY: ExtensionContributionRegistryEntry = {
   },
   diagnostics: [],
 }
+function frameUrl(frameId: string) {
+  return `openwaggle-extension-frame://frame/frames/${encodeURIComponent(frameId)}/index.html`
+}
 
 function extensionFrame() {
   const frame = screen.getByTitle('Extension module: Sample settings')
@@ -66,6 +65,15 @@ function extensionFrameWindow(frame: HTMLIFrameElement) {
   if (!frameWindow) {
     throw new Error('Expected extension module iframe window.')
   }
+  return frameWindow
+}
+
+function stableExtensionFrameWindow(frame: HTMLIFrameElement) {
+  const frameWindow = extensionFrameWindow(frame)
+  Object.defineProperty(frame, 'contentWindow', {
+    configurable: true,
+    value: frameWindow,
+  })
   return frameWindow
 }
 
@@ -86,9 +94,10 @@ function extensionFrameHost(frame: HTMLIFrameElement) {
 }
 
 function dispatchOpenExternal(frame: HTMLIFrameElement, url: string) {
+  const frameWindow = stableExtensionFrameWindow(frame)
   window.dispatchEvent(
     new MessageEvent('message', {
-      source: extensionFrameWindow(frame),
+      source: frameWindow,
       data: {
         channel: EXTENSION_FRAME_MESSAGE_CHANNEL,
         frameId: extensionFrameId(frame),
@@ -100,9 +109,10 @@ function dispatchOpenExternal(frame: HTMLIFrameElement, url: string) {
 }
 
 function dispatchResize(frame: HTMLIFrameElement, height: number) {
+  const frameWindow = stableExtensionFrameWindow(frame)
   window.dispatchEvent(
     new MessageEvent('message', {
-      source: extensionFrameWindow(frame),
+      source: frameWindow,
       data: {
         channel: EXTENSION_FRAME_MESSAGE_CHANNEL,
         frameId: extensionFrameId(frame),
@@ -113,10 +123,25 @@ function dispatchResize(frame: HTMLIFrameElement, height: number) {
   )
 }
 
-function dispatchInvoke(frame: HTMLIFrameElement, requestId: string) {
+function dispatchReady(frame: HTMLIFrameElement) {
+  const frameWindow = stableExtensionFrameWindow(frame)
   window.dispatchEvent(
     new MessageEvent('message', {
-      source: extensionFrameWindow(frame),
+      source: frameWindow,
+      data: {
+        channel: EXTENSION_FRAME_MESSAGE_CHANNEL,
+        frameId: extensionFrameId(frame),
+        type: 'ready',
+      },
+    }),
+  )
+}
+
+function dispatchInvoke(frame: HTMLIFrameElement, requestId: string) {
+  const frameWindow = stableExtensionFrameWindow(frame)
+  window.dispatchEvent(
+    new MessageEvent('message', {
+      source: frameWindow,
       data: {
         channel: EXTENSION_FRAME_MESSAGE_CHANNEL,
         frameId: extensionFrameId(frame),
@@ -152,6 +177,15 @@ describe('ExtensionFederatedModuleHost frame shell', () => {
   beforeEach(() => {
     apiMock.invokeExtension.mockReset()
     apiMock.openExternal.mockReset()
+    apiMock.registerExtensionFrame.mockReset()
+    apiMock.unregisterExtensionFrame.mockReset()
+    apiMock.registerExtensionFrame.mockImplementation((input: { readonly frameId: string }) =>
+      Promise.resolve({
+        frameUrl: frameUrl(input.frameId),
+        registrationId: `registration-${input.frameId}`,
+      }),
+    )
+    apiMock.unregisterExtensionFrame.mockResolvedValue(undefined)
   })
 
   it('can mount as a bare full-height surface when the container owns the chrome', async () => {
@@ -165,22 +199,17 @@ describe('ExtensionFederatedModuleHost frame shell', () => {
     expect(frame).toHaveClass('min-h-0', 'flex-1')
 
     await waitFor(() => {
-      expect(frame).toHaveAttribute('src', expect.stringContaining('blob:'))
+      expect(frame).toHaveAttribute('src', frameUrl(extensionFrameId(frame)))
     })
   })
 
   it('asks the isolated frame to dispose on unmount', async () => {
     const { unmount } = render(<ExtensionFederatedModuleHost entry={ENTRY} />)
     const frame = extensionFrame()
-    const postMessage = vi.spyOn(extensionFrameWindow(frame), 'postMessage')
-    const revokeObjectUrl = vi.spyOn(URL, 'revokeObjectURL')
+    const postMessage = vi.spyOn(stableExtensionFrameWindow(frame), 'postMessage')
     await waitFor(() => {
-      expect(frame).toHaveAttribute('src', expect.stringContaining('blob:'))
+      expect(frame).toHaveAttribute('src', frameUrl(extensionFrameId(frame)))
     })
-    const frameUrl = frame.getAttribute('src')
-    if (frameUrl === null) {
-      throw new Error('Expected extension frame document URL.')
-    }
 
     unmount()
 
@@ -192,30 +221,48 @@ describe('ExtensionFederatedModuleHost frame shell', () => {
       }),
       '*',
     )
-    expect(revokeObjectUrl).toHaveBeenCalledWith(frameUrl)
+    expect(apiMock.unregisterExtensionFrame).toHaveBeenCalledWith({
+      frameId: extensionFrameId(frame),
+      registrationId: `registration-${extensionFrameId(frame)}`,
+    })
   })
 
-  it('creates frame document with static bootstrap code and data-only mount configuration', () => {
-    const frameDocument = createExtensionFrameDocument({
-      entry: ENTRY,
-      frameId: 'frame-1',
-      moduleUrl:
-        'openwaggle-extension://runtime/module/%2Ftmp%2Fproject%2F.openwaggle%2Fextensions%2Fsample-extension/abcdef/%5B%22%2Ftmp%2Fproject%22%5D/dist/settings.js',
+  it('registers the protocol frame and configures it after the ready handshake', async () => {
+    render(<ExtensionFederatedModuleHost entry={ENTRY} />)
+    const frame = extensionFrame()
+    const postMessage = vi.spyOn(stableExtensionFrameWindow(frame), 'postMessage')
+
+    await waitFor(() => {
+      expect(apiMock.registerExtensionFrame).toHaveBeenCalledWith({
+        frameId: extensionFrameId(frame),
+        bootstrapUrl: expect.stringContaining('extension-frame-bootstrap'),
+        networkOrigins: undefined,
+      })
     })
 
-    expect(frameDocument).toContain('data-openwaggle-config=')
-    expect(frameDocument).toContain('openwaggle-extension://runtime/module/')
-    expect(frameDocument).toContain('openExternal:')
-    expect(frameDocument).toContain('height: 100%; min-height: 0;')
-    expect(frameDocument).not.toContain('window.api')
-  })
+    dispatchReady(frame)
 
-  it('keeps the frame bootstrap CSP hash synchronized with the script content', () => {
-    const bootstrapHash = createHash('sha256')
-      .update(EXTENSION_FRAME_BOOTSTRAP_SCRIPT)
-      .digest('base64')
-
-    expect(`'sha256-${bootstrapHash}'`).toBe(EXTENSION_FRAME_BOOTSTRAP_SCRIPT_HASH)
+    await waitFor(() => {
+      expect(postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channel: EXTENSION_FRAME_MESSAGE_CHANNEL,
+          frameId: extensionFrameId(frame),
+          type: 'configure',
+          config: expect.objectContaining({
+            moduleUrl: expect.stringContaining('openwaggle-extension://runtime/module/'),
+            context: expect.objectContaining({
+              extension: {
+                id: 'sample-extension',
+                name: 'Sample Extension',
+                version: '1.0.0',
+              },
+              packagePath: '/tmp/project/.openwaggle/extensions/sample-extension',
+            }),
+          }),
+        }),
+        '*',
+      )
+    })
   })
 
   it('auto-sizes non-fill frames from sandbox resize messages', async () => {
@@ -275,7 +322,7 @@ describe('ExtensionFederatedModuleHost frame shell', () => {
     apiMock.invokeExtension.mockReturnValue(deferred.promise)
     const { unmount } = render(<ExtensionFederatedModuleHost entry={ENTRY} />)
     const frame = extensionFrame()
-    const postMessage = vi.spyOn(extensionFrameWindow(frame), 'postMessage')
+    const postMessage = vi.spyOn(stableExtensionFrameWindow(frame), 'postMessage')
 
     dispatchInvoke(frame, 'invoke-stale')
 

@@ -8,11 +8,7 @@ import type { HydratedAgentSendPayload, Message } from '@shared/types/agent'
 import type { ThinkingLevel } from '@shared/types/settings'
 import { clampThinkingLevel } from '@shared/utils/thinking-levels'
 import type { AgentKernelRunInput, AgentKernelRunResult } from '../../../ports/agent-kernel-service'
-import {
-  createPiProjectModelRuntime,
-  getPiModelAvailableThinkingLevels,
-  type PiModel,
-} from '../pi-provider-catalog'
+import { getPiModelAvailableThinkingLevels, type PiModel } from '../pi-provider-catalog'
 import {
   buildPiRunNewMessages,
   extractPiAssistantTerminalError,
@@ -32,12 +28,30 @@ import {
   describePiRunError,
   runPiOperation,
 } from './run-lifecycle-failure'
+import {
+  createIsolatedPiProjectRuntime,
+  createPiProjectModelRuntimeWithoutOpenWaggleExtensions,
+  type PiProjectRuntimeIsolationOptions,
+  type PiRuntimeExtensionIsolationInput,
+} from './runtime-extension-isolation'
 import { createSessionManagerForSession } from './session-manager'
 import { projectPiSessionSnapshot } from './session-projection'
 
 export interface PiRunSessionRuntime {
   readonly model: PiModel
   readonly session: AgentSession
+}
+
+interface CreatePiRunSessionRuntimeInput extends PiRuntimeExtensionIsolationInput {
+  readonly session: AgentKernelRunInput['session']
+  readonly projectPath: string
+  readonly runId: AgentKernelRunInput['runId']
+  readonly payload: HydratedAgentSendPayload
+  readonly modelReference: AgentKernelRunInput['model']
+  readonly signal: AgentKernelRunInput['signal']
+  readonly onEvent: AgentKernelRunInput['onEvent']
+  readonly skillToggles?: Readonly<Record<string, boolean>>
+  readonly extensionFactories?: readonly ExtensionFactory[]
 }
 
 function resolvePiRuntimeThinkingLevel(model: PiModel, requestedThinkingLevel: ThinkingLevel) {
@@ -74,43 +88,63 @@ async function createPiSessionForRun(input: {
   return result
 }
 
-export async function createPiRunSessionRuntime(input: {
-  readonly session: AgentKernelRunInput['session']
-  readonly projectPath: string
-  readonly runId: AgentKernelRunInput['runId']
-  readonly payload: HydratedAgentSendPayload
-  readonly modelReference: AgentKernelRunInput['model']
-  readonly signal: AgentKernelRunInput['signal']
-  readonly onEvent: AgentKernelRunInput['onEvent']
-  readonly skillToggles?: Readonly<Record<string, boolean>>
-  readonly enabledOpenWaggleExtensionPackagePaths?: readonly string[]
-  readonly extensionFactories?: readonly ExtensionFactory[]
-}): Promise<PiRunSessionRuntime> {
-  const { model, services } = await createPiProjectModelRuntime({
+export async function createPiRunSessionRuntime(
+  input: CreatePiRunSessionRuntimeInput,
+): Promise<PiRunSessionRuntime> {
+  const runtimeOptions = {
     projectPath: input.projectPath,
     modelReference: input.modelReference,
     ...(input.skillToggles ? { skillToggles: input.skillToggles } : {}),
-    ...(input.enabledOpenWaggleExtensionPackagePaths
-      ? { enabledOpenWaggleExtensionPackagePaths: input.enabledOpenWaggleExtensionPackagePaths }
-      : {}),
     ...(input.extensionFactories ? { extensionFactories: [...input.extensionFactories] } : {}),
+  } satisfies PiProjectRuntimeIsolationOptions
+  const selectedRuntime = await createIsolatedPiProjectRuntime({
+    operation: 'Pi run session initialization',
+    extensionIsolation: input,
+    options: runtimeOptions,
   })
   const sessionManager = createSessionManagerForSession(input.session, input.projectPath)
-  const thinkingLevel = resolvePiRuntimeThinkingLevel(model, input.payload.thinkingLevel)
-  const { session } = await createPiSessionForRun({
-    services,
-    model,
-    sessionManager,
-    thinkingLevel,
-    openWaggleUi: {
-      sessionId: input.session.id,
-      runId: input.runId,
-      signal: input.signal,
-      onEvent: input.onEvent,
-    },
-  })
+  const openWaggleUi = {
+    sessionId: input.session.id,
+    runId: input.runId,
+    signal: input.signal,
+    onEvent: input.onEvent,
+  }
 
-  return { model, session }
+  try {
+    const thinkingLevel = resolvePiRuntimeThinkingLevel(
+      selectedRuntime.runtime.model,
+      input.payload.thinkingLevel,
+    )
+    const { session } = await createPiSessionForRun({
+      services: selectedRuntime.runtime.services,
+      model: selectedRuntime.runtime.model,
+      sessionManager,
+      thinkingLevel,
+      openWaggleUi,
+    })
+
+    return { model: selectedRuntime.runtime.model, session }
+  } catch (error) {
+    if (selectedRuntime.enabledOpenWaggleExtensionPackagePaths.length === 0) {
+      throw error
+    }
+
+    const fallbackRuntime =
+      await createPiProjectModelRuntimeWithoutOpenWaggleExtensions(runtimeOptions)
+    const thinkingLevel = resolvePiRuntimeThinkingLevel(
+      fallbackRuntime.model,
+      input.payload.thinkingLevel,
+    )
+    const { session } = await createPiSessionForRun({
+      services: fallbackRuntime.services,
+      model: fallbackRuntime.model,
+      sessionManager,
+      thinkingLevel,
+      openWaggleUi,
+    })
+
+    return { model: fallbackRuntime.model, session }
+  }
 }
 
 function createAbortListener(session: AgentSession, warning: string) {

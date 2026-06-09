@@ -9,6 +9,8 @@ import { ExtensionFederatedModuleHost } from '../ExtensionFederatedModuleHost'
 
 const apiMock = vi.hoisted(() => ({
   invokeExtension: vi.fn(),
+  registerExtensionFrame: vi.fn(),
+  unregisterExtensionFrame: vi.fn(),
 }))
 
 vi.mock('@/shared/lib/ipc', () => ({
@@ -63,6 +65,15 @@ function extensionFrameWindow(frame: HTMLIFrameElement) {
   return frameWindow
 }
 
+function stableExtensionFrameWindow(frame: HTMLIFrameElement) {
+  const frameWindow = extensionFrameWindow(frame)
+  Object.defineProperty(frame, 'contentWindow', {
+    configurable: true,
+    value: frameWindow,
+  })
+  return frameWindow
+}
+
 function extensionFrameId(frame: HTMLIFrameElement) {
   const frameId = frame.dataset.extensionFrameId
   if (!frameId) {
@@ -71,16 +82,22 @@ function extensionFrameId(frame: HTMLIFrameElement) {
   return frameId
 }
 
+function frameUrl(frame: HTMLIFrameElement) {
+  return `openwaggle-extension-frame://frame/frames/${encodeURIComponent(extensionFrameId(frame))}/index.html`
+}
+
 function dispatchFrameMessage(
   frame: HTMLIFrameElement,
   message:
     | { readonly type: 'mounted' }
     | { readonly type: 'error' | 'cleanup-error'; readonly message: string }
-    | { readonly type: 'invoke'; readonly requestId: string; readonly input: unknown },
+    | { readonly type: 'invoke'; readonly requestId: string; readonly input: unknown }
+    | { readonly type: 'surface-action'; readonly actionId: string; readonly payload?: unknown },
 ) {
+  const frameWindow = stableExtensionFrameWindow(frame)
   window.dispatchEvent(
     new MessageEvent('message', {
-      source: extensionFrameWindow(frame),
+      source: frameWindow,
       data: {
         channel: EXTENSION_FRAME_MESSAGE_CHANNEL,
         frameId: extensionFrameId(frame),
@@ -93,6 +110,15 @@ function dispatchFrameMessage(
 describe('ExtensionFederatedModuleHost', () => {
   beforeEach(() => {
     apiMock.invokeExtension.mockReset()
+    apiMock.registerExtensionFrame.mockReset()
+    apiMock.unregisterExtensionFrame.mockReset()
+    apiMock.registerExtensionFrame.mockImplementation((input: { readonly frameId: string }) =>
+      Promise.resolve({
+        frameUrl: `openwaggle-extension-frame://frame/frames/${encodeURIComponent(input.frameId)}/index.html`,
+        registrationId: `registration-${input.frameId}`,
+      }),
+    )
+    apiMock.unregisterExtensionFrame.mockResolvedValue(undefined)
   })
 
   it('mounts federated modules in an isolated iframe without exposing the preload API', async () => {
@@ -103,7 +129,7 @@ describe('ExtensionFederatedModuleHost', () => {
     expect(screen.getByText(/Mounting extension module/)).toBeInTheDocument()
 
     await waitFor(() => {
-      expect(frame).toHaveAttribute('src', expect.stringContaining('blob:'))
+      expect(frame).toHaveAttribute('src', frameUrl(frame))
     })
     expect(frame).not.toHaveAttribute('srcdoc')
 
@@ -125,7 +151,7 @@ describe('ExtensionFederatedModuleHost', () => {
     apiMock.invokeExtension.mockResolvedValue(invokeResult)
     render(<ExtensionFederatedModuleHost entry={ENTRY} />)
     const frame = extensionFrame()
-    const postMessage = vi.spyOn(extensionFrameWindow(frame), 'postMessage')
+    const postMessage = vi.spyOn(stableExtensionFrameWindow(frame), 'postMessage')
 
     dispatchFrameMessage(frame, {
       type: 'invoke',
@@ -162,7 +188,7 @@ describe('ExtensionFederatedModuleHost', () => {
   it('rejects SDK invocations outside the mounted contribution project scope', async () => {
     render(<ExtensionFederatedModuleHost entry={ENTRY} />)
     const frame = extensionFrame()
-    const postMessage = vi.spyOn(extensionFrameWindow(frame), 'postMessage')
+    const postMessage = vi.spyOn(stableExtensionFrameWindow(frame), 'postMessage')
 
     dispatchFrameMessage(frame, {
       type: 'invoke',
@@ -197,7 +223,7 @@ describe('ExtensionFederatedModuleHost', () => {
     apiMock.invokeExtension.mockRejectedValue(new Error('ipc unavailable'))
     render(<ExtensionFederatedModuleHost entry={ENTRY} />)
     const frame = extensionFrame()
-    const postMessage = vi.spyOn(extensionFrameWindow(frame), 'postMessage')
+    const postMessage = vi.spyOn(stableExtensionFrameWindow(frame), 'postMessage')
 
     dispatchFrameMessage(frame, {
       type: 'invoke',
@@ -228,6 +254,23 @@ describe('ExtensionFederatedModuleHost', () => {
     })
   })
 
+  it('routes frame surface actions to the host without invoking broker IPC', async () => {
+    const onSurfaceAction = vi.fn()
+    render(<ExtensionFederatedModuleHost entry={ENTRY} onSurfaceAction={onSurfaceAction} />)
+    const frame = extensionFrame()
+
+    dispatchFrameMessage(frame, {
+      type: 'surface-action',
+      actionId: 'custom-interaction-response',
+      payload: { selected: 'issue-113' },
+    })
+
+    expect(onSurfaceAction).toHaveBeenCalledWith('custom-interaction-response', {
+      selected: 'issue-113',
+    })
+    expect(apiMock.invokeExtension).not.toHaveBeenCalled()
+  })
+
   it('contains frame-reported mount and cleanup errors', async () => {
     render(<ExtensionFederatedModuleHost entry={ENTRY} />)
     const frame = extensionFrame()
@@ -240,7 +283,6 @@ describe('ExtensionFederatedModuleHost', () => {
   })
 
   it('does not remount when an equivalent surface payload is recreated', async () => {
-    const createObjectUrl = vi.spyOn(URL, 'createObjectURL')
     const { rerender } = render(
       <ExtensionFederatedModuleHost
         entry={ENTRY}
@@ -252,9 +294,9 @@ describe('ExtensionFederatedModuleHost', () => {
     )
     const frame = extensionFrame()
     await waitFor(() => {
-      expect(frame).toHaveAttribute('src', expect.stringContaining('blob:'))
+      expect(frame).toHaveAttribute('src', frameUrl(frame))
     })
-    const frameUrl = frame.getAttribute('src')
+    const mountedFrameUrl = frame.getAttribute('src')
 
     rerender(
       <ExtensionFederatedModuleHost
@@ -266,8 +308,8 @@ describe('ExtensionFederatedModuleHost', () => {
       />,
     )
 
-    expect(frame.getAttribute('src')).toBe(frameUrl)
-    expect(createObjectUrl).toHaveBeenCalledTimes(1)
+    expect(frame.getAttribute('src')).toBe(mountedFrameUrl)
+    expect(apiMock.registerExtensionFrame).toHaveBeenCalledTimes(1)
   })
 
   it('mounts frame execution through the same isolated federated module contract', async () => {
@@ -282,7 +324,7 @@ describe('ExtensionFederatedModuleHost', () => {
     expect(screen.getByText(/Mounting extension module/)).toBeInTheDocument()
 
     await waitFor(() => {
-      expect(frame).toHaveAttribute('src', expect.stringContaining('blob:'))
+      expect(frame).toHaveAttribute('src', frameUrl(frame))
     })
     expect(frame).not.toHaveAttribute('srcdoc')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()

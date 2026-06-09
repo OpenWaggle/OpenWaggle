@@ -1,4 +1,6 @@
 export {
+  CUSTOM_INTERACTION_RESPONSE_ACTION_ID,
+  CUSTOM_INTERACTION_UNAVAILABLE_ACTION_ID,
   ExtensionAgentLoopSurface,
   type ExtensionAgentLoopSurfaceInput,
   type ExtensionCustomMessageView,

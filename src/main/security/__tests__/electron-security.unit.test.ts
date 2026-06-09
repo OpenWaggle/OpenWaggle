@@ -1,9 +1,4 @@
-import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
-import {
-  EXTENSION_FRAME_BOOTSTRAP_SCRIPT,
-  EXTENSION_FRAME_BOOTSTRAP_SCRIPT_HASH,
-} from '@shared/constants/extension-frame'
 import { describe, expect, it, vi } from 'vitest'
 import {
   applyContentSecurityPolicyHeader,
@@ -18,10 +13,6 @@ function createSecurePreferences() {
   return {
     ...SECURE_WEB_PREFERENCES,
   }
-}
-
-function sha256CspHash(source: string) {
-  return `'sha256-${createHash('sha256').update(source).digest('base64')}'`
 }
 
 function readRendererIndexHtml() {
@@ -80,24 +71,22 @@ describe('buildContentSecurityPolicy', () => {
     expect(buildContentSecurityPolicy()).toBe(CONTENT_SECURITY_POLICY)
     expect(CONTENT_SECURITY_POLICY).toContain("default-src 'self'")
     expect(CONTENT_SECURITY_POLICY).toContain(
-      `script-src 'self' 'sha256-Z2/iFzh9VMlVkEOar1f/oSHWwQk3ve1qk/C2WdsC4Xk=' ${EXTENSION_FRAME_BOOTSTRAP_SCRIPT_HASH} openwaggle-extension:`,
+      "script-src 'self' 'sha256-Z2/iFzh9VMlVkEOar1f/oSHWwQk3ve1qk/C2WdsC4Xk=' openwaggle-extension:",
     )
     expect(CONTENT_SECURITY_POLICY).toContain(
-      `script-src-elem 'self' 'sha256-Z2/iFzh9VMlVkEOar1f/oSHWwQk3ve1qk/C2WdsC4Xk=' ${EXTENSION_FRAME_BOOTSTRAP_SCRIPT_HASH} openwaggle-extension:`,
+      "script-src-elem 'self' 'sha256-Z2/iFzh9VMlVkEOar1f/oSHWwQk3ve1qk/C2WdsC4Xk=' openwaggle-extension:",
     )
     expect(CONTENT_SECURITY_POLICY).toContain("style-src 'self' 'unsafe-inline'")
     expect(CONTENT_SECURITY_POLICY).toContain("img-src 'self' data:")
-    expect(CONTENT_SECURITY_POLICY).toContain("frame-src 'self' blob:")
+    expect(CONTENT_SECURITY_POLICY).toContain("frame-src 'self' openwaggle-extension-frame:")
     expect(CONTENT_SECURITY_POLICY).toContain(
       "connect-src 'self' ws://localhost:* http://localhost:* https://localhost:* wss://localhost:* https://api.github.com",
     )
   })
 
-  it('keeps the extension frame bootstrap hash aligned with the inline bootstrap script', () => {
-    expect(EXTENSION_FRAME_BOOTSTRAP_SCRIPT_HASH).toBe(
-      sha256CspHash(EXTENSION_FRAME_BOOTSTRAP_SCRIPT),
-    )
-    expect(CONTENT_SECURITY_POLICY).toContain(EXTENSION_FRAME_BOOTSTRAP_SCRIPT_HASH)
+  it('does not allow generic inline scripts in the app-level CSP', () => {
+    expect(CONTENT_SECURITY_POLICY).not.toContain("script-src 'self' 'unsafe-inline'")
+    expect(CONTENT_SECURITY_POLICY).not.toContain("script-src-elem 'self' 'unsafe-inline'")
   })
 
   it('keeps app-level CSP centralized in the Electron response header', () => {
@@ -130,5 +119,65 @@ describe('installCspHeaders', () => {
     installCspHeaders(session)
 
     expect(onHeadersReceived).toHaveBeenCalledOnce()
+  })
+
+  it('applies app-level CSP to normal renderer responses', () => {
+    const onHeadersReceived = vi.fn()
+    const callback = vi.fn()
+    const session = {
+      webRequest: {
+        onHeadersReceived,
+      },
+    }
+
+    installCspHeaders(session)
+    const handler = onHeadersReceived.mock.calls[0]?.[0]
+    if (typeof handler !== 'function') {
+      throw new Error('Expected CSP headers handler.')
+    }
+
+    handler(
+      {
+        url: 'http://localhost:5173/index.html',
+        responseHeaders: { 'X-Test': ['ok'] },
+      },
+      callback,
+    )
+
+    expect(callback).toHaveBeenCalledWith({
+      responseHeaders: {
+        'X-Test': ['ok'],
+        'Content-Security-Policy': [CONTENT_SECURITY_POLICY],
+      },
+    })
+  })
+
+  it('preserves extension frame protocol CSP responses', () => {
+    const onHeadersReceived = vi.fn()
+    const callback = vi.fn()
+    const frameHeaders = {
+      'Content-Security-Policy': ['default-src none; script-src openwaggle-extension-frame:'],
+    }
+    const session = {
+      webRequest: {
+        onHeadersReceived,
+      },
+    }
+
+    installCspHeaders(session)
+    const handler = onHeadersReceived.mock.calls[0]?.[0]
+    if (typeof handler !== 'function') {
+      throw new Error('Expected CSP headers handler.')
+    }
+
+    handler(
+      {
+        url: 'openwaggle-extension-frame://frame/frames/test/index.html',
+        responseHeaders: frameHeaders,
+      },
+      callback,
+    )
+
+    expect(callback).toHaveBeenCalledWith({ responseHeaders: frameHeaders })
   })
 })

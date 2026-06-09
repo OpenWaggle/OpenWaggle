@@ -1,7 +1,13 @@
+import { matchBy } from '@diegogbrisa/ts-match'
+import { EXTENSION_FRAME_SURFACE_ACTION } from '@shared/constants/extension-frame'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { ChatToolCallPart } from '@shared/types/chat-ui'
 import type { JsonObject, JsonValue } from '@shared/types/json'
 import type { ExtensionAgentLoopTarget } from './extension-agent-loop-resolution'
+
+export const CUSTOM_INTERACTION_UNAVAILABLE_ACTION_ID = 'custom-renderer-unavailable'
+export const CUSTOM_INTERACTION_RESPONSE_ACTION_ID =
+  EXTENSION_FRAME_SURFACE_ACTION.CUSTOM_INTERACTION_RESPONSE
 
 export interface ExtensionToolResultView {
   readonly content: string
@@ -23,6 +29,8 @@ export interface ExtensionInteractionActionView {
 export interface ExtensionInteractionView {
   readonly id: string
   readonly kind: string
+  readonly customType: string
+  readonly payload?: JsonValue
   readonly title: string
   readonly description?: string
   readonly state: 'pending' | 'submitted' | 'cancelled' | 'expired'
@@ -55,7 +63,7 @@ export type ExtensionAgentLoopSurfaceInput =
   | {
       readonly surface: 'interaction'
       readonly interaction: ExtensionInteractionView
-      readonly onAction?: (interactionId: string, actionId: string) => void
+      readonly onAction?: (interactionId: string, actionId: string, payload?: JsonValue) => void
     }
   | {
       readonly surface: 'status'
@@ -71,23 +79,19 @@ function textPayload(value: string): JsonValue {
 }
 
 export function surfaceTarget(input: ExtensionAgentLoopSurfaceInput): ExtensionAgentLoopTarget {
-  if (input.surface === 'tool') {
-    return { surface: 'tool', toolName: input.toolCall.name }
-  }
-
-  if (input.surface === 'custom-message') {
-    return { surface: 'custom-message', customMessageName: input.message.name }
-  }
-
-  if (input.surface === 'interaction') {
-    return { surface: 'interaction', interactionKind: input.interaction.kind }
-  }
-
-  if (input.surface === 'transcript') {
-    return { surface: 'transcript' }
-  }
-
-  return { surface: 'status' }
+  return matchBy(input, 'surface')
+    .with('tool', (value) => ({ surface: 'tool', toolName: value.toolCall.name }))
+    .with('custom-message', (value) => ({
+      surface: 'custom-message',
+      customMessageName: value.message.name,
+    }))
+    .with('interaction', (value) => ({
+      surface: 'interaction',
+      interactionKind: value.interaction.customType,
+    }))
+    .with('transcript', () => ({ surface: 'transcript' }))
+    .with('status', () => ({ surface: 'status' }))
+    .exhaustive()
 }
 
 export function surfacePayload(input: ExtensionAgentLoopSurfaceInput): JsonObject {
@@ -128,7 +132,9 @@ export function surfacePayload(input: ExtensionAgentLoopSurfaceInput): JsonObjec
       interaction: {
         id: input.interaction.id,
         kind: input.interaction.kind,
+        customType: input.interaction.customType,
         title: input.interaction.title,
+        ...(input.interaction.payload !== undefined ? { payload: input.interaction.payload } : {}),
         ...(input.interaction.description !== undefined
           ? { description: input.interaction.description }
           : {}),
@@ -165,41 +171,21 @@ export function surfacePayload(input: ExtensionAgentLoopSurfaceInput): JsonObjec
 }
 
 export function surfaceLabel(input: ExtensionAgentLoopSurfaceInput) {
-  if (input.surface === 'tool') {
-    return `Tool output · ${input.toolCall.name}`
-  }
-
-  if (input.surface === 'custom-message') {
-    return `Custom message · ${input.message.name}`
-  }
-
-  if (input.surface === 'interaction') {
-    return `Interaction · ${input.interaction.kind}`
-  }
-
-  if (input.surface === 'transcript') {
-    return 'Transcript summary'
-  }
-
-  return 'Run status'
+  return matchBy(input, 'surface')
+    .with('tool', (value) => `Tool output · ${value.toolCall.name}`)
+    .with('custom-message', (value) => `Custom message · ${value.message.name}`)
+    .with('interaction', (value) => `Interaction · ${value.interaction.customType}`)
+    .with('transcript', () => 'Transcript summary')
+    .with('status', () => 'Run status')
+    .exhaustive()
 }
 
 export function surfaceFamily(input: ExtensionAgentLoopSurfaceInput) {
-  if (input.surface === 'tool') {
-    return OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.TOOL_RENDERERS
-  }
-
-  if (input.surface === 'custom-message') {
-    return OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.CUSTOM_MESSAGE_RENDERERS
-  }
-
-  if (input.surface === 'interaction') {
-    return OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.INTERACTION_RENDERERS
-  }
-
-  if (input.surface === 'transcript') {
-    return OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.TRANSCRIPT_RENDERERS
-  }
-
-  return OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.STATUS_WIDGETS
+  return matchBy(input, 'surface')
+    .with('tool', () => OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.TOOL_RENDERERS)
+    .with('custom-message', () => OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.CUSTOM_MESSAGE_RENDERERS)
+    .with('interaction', () => OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.INTERACTION_RENDERERS)
+    .with('transcript', () => OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.TRANSCRIPT_RENDERERS)
+    .with('status', () => OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.STATUS_WIDGETS)
+    .exhaustive()
 }

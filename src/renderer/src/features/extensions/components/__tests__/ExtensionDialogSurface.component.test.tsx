@@ -4,10 +4,20 @@ import type {
   ExtensionContributionRegistryView,
 } from '@shared/types/extensions'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ExtensionDialogSurfaceContent } from '../ExtensionDialogSurface'
 
+const apiMock = vi.hoisted(() => ({
+  registerExtensionFrame: vi.fn(),
+  unregisterExtensionFrame: vi.fn(),
+}))
+
+vi.mock('@/shared/lib/ipc', () => ({
+  api: apiMock,
+}))
+
 const PROJECT_PATH = '/tmp/project'
+const EXTENSION_FRAME_URL_PREFIX = 'openwaggle-extension-frame://frame/frames/'
 
 const DIALOG_ENTRY: ExtensionContributionRegistryEntry = {
   extensionId: 'sample-extension',
@@ -63,10 +73,12 @@ function renderDialogSurface(input: {
 }) {
   return render(
     <ExtensionDialogSurfaceContent
+      actions={{
+        onClose: input.onClose ?? vi.fn(),
+        onRefresh: vi.fn(),
+      }}
       error={input.error ?? null}
       loading={input.loading ?? false}
-      onClose={input.onClose ?? vi.fn()}
-      onRefresh={vi.fn()}
       projectPaths={[PROJECT_PATH]}
       registry={input.registry}
       surfacePayload={{ surface: 'dialog-test' }}
@@ -81,17 +93,29 @@ function renderDialogSurface(input: {
 }
 
 describe('ExtensionDialogSurfaceContent', () => {
+  beforeEach(() => {
+    apiMock.registerExtensionFrame.mockReset()
+    apiMock.unregisterExtensionFrame.mockReset()
+    apiMock.registerExtensionFrame.mockImplementation((input: { readonly frameId: string }) =>
+      Promise.resolve({
+        frameUrl: `${EXTENSION_FRAME_URL_PREFIX}${encodeURIComponent(input.frameId)}/index.html`,
+        registrationId: `registration-${input.frameId}`,
+      }),
+    )
+    apiMock.unregisterExtensionFrame.mockResolvedValue(undefined)
+  })
+
   it('mounts registered dialog contributions through the federated module host', async () => {
     renderDialogSurface({ registry: REGISTRY })
 
-    expect(screen.getByRole('dialog', { name: 'Sample dialog' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Sample dialog' }).tagName).toBe('DIALOG')
     expect(screen.getAllByText('Sample dialog')).toHaveLength(1)
     expect(screen.queryByText('Run sample')).not.toBeInTheDocument()
     const frame = screen.getByTitle('Extension module: Sample dialog')
     expect(frame.parentElement).toHaveClass('size-full', 'bg-transparent')
     expect(frame).toHaveAttribute('sandbox', 'allow-scripts')
     await waitFor(() => {
-      expect(frame).toHaveAttribute('src', expect.stringContaining('blob:'))
+      expect(frame).toHaveAttribute('src', expect.stringContaining(EXTENSION_FRAME_URL_PREFIX))
     })
     expect(frame).not.toHaveAttribute('srcdoc')
   })
@@ -101,6 +125,15 @@ describe('ExtensionDialogSurfaceContent', () => {
     renderDialogSurface({ registry: REGISTRY, onClose })
 
     fireEvent.click(screen.getByRole('button', { name: 'Close extension dialog' }))
+
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('routes native dialog cancel events to the caller', () => {
+    const onClose = vi.fn()
+    renderDialogSurface({ registry: REGISTRY, onClose })
+
+    fireEvent(screen.getByRole('dialog', { name: 'Sample dialog' }), new Event('cancel'))
 
     expect(onClose).toHaveBeenCalledOnce()
   })

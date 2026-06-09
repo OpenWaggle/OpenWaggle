@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { OPENWAGGLE_EXTENSION_FRAME_PROTOCOL } from '@shared/constants/extension-frame'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const HTTP_OK_STATUS = 200
@@ -64,6 +65,10 @@ async function loadExtensionRuntimeProtocol() {
   return import('../extension-runtime-protocol')
 }
 
+async function loadExtensionFrameProtocol() {
+  return import('../extension-frame-protocol')
+}
+
 function dispatchProtocolRequest(scheme: string, url: string) {
   const handler = protocolMocks.getProtocolHandler(scheme)
   if (!handler) throw new Error('Expected protocol handler')
@@ -116,6 +121,15 @@ describe('renderer protocol', () => {
           corsEnabled: true,
         },
       },
+      {
+        scheme: OPENWAGGLE_EXTENSION_FRAME_PROTOCOL.SCHEME,
+        privileges: {
+          standard: true,
+          secure: true,
+          supportFetchAPI: true,
+          corsEnabled: true,
+        },
+      },
     ])
   })
 
@@ -148,6 +162,7 @@ describe('renderer protocol', () => {
     )
 
     expect(assetResponse.status).toBe(HTTP_OK_STATUS)
+    expect(assetResponse.headers.get('access-control-allow-origin')).toBe('*')
     await expect(assetResponse.text()).resolves.toContain('assets/main.js')
     expect(missingAssetResponse.status).toBe(HTTP_NOT_FOUND_STATUS)
   })
@@ -181,12 +196,15 @@ describe('renderer protocol', () => {
   it('does not register protocol handlers more than once', async () => {
     const { registerRendererProtocolOnce } = await loadRendererProtocol()
     const { registerExtensionRuntimeProtocolOnce } = await loadExtensionRuntimeProtocol()
+    const { registerExtensionFrameProtocolOnce } = await loadExtensionFrameProtocol()
 
     registerRendererProtocolOnce()
     registerRendererProtocolOnce()
     registerExtensionRuntimeProtocolOnce()
     registerExtensionRuntimeProtocolOnce()
+    registerExtensionFrameProtocolOnce()
+    registerExtensionFrameProtocolOnce()
 
-    expect(protocolMocks.handle).toHaveBeenCalledTimes(2)
+    expect(protocolMocks.handle).toHaveBeenCalledTimes(3)
   })
 })

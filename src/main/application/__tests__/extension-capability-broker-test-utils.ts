@@ -14,6 +14,7 @@ import { SessionRepository } from '../../ports/session-repository'
 import type { AppLoggerService } from '../../services/logger-service'
 import { AppLogger } from '../../services/logger-service'
 import { invokeExtensionCapability } from '../extension-capability-broker-service'
+import { clearExtensionContributionRegistryCacheForTests } from '../extension-contribution-registry-cache'
 import {
   BROKER_BRANCH_ID,
   BROKER_SESSION_ID,
@@ -248,6 +249,7 @@ export function makeBrokerHarness(input: {
   readonly capturedLogs?: CapturedLog[]
   readonly currentProjectPath?: string | null
 }) {
+  clearExtensionContributionRegistryCacheForTests()
   const capturedLogs = input.capturedLogs ?? []
   const storageItems = [...(input.storageItems ?? [])]
   const layer = makeBrokerLayer({

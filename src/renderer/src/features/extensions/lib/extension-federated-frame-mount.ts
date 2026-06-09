@@ -1,22 +1,19 @@
-import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
+import { matchBy } from '@diegogbrisa/ts-match'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { safeDecodeUnknown } from '@shared/schema'
 import { jsonValueSchema } from '@shared/schemas/validation'
-import type { ExtensionInvokeInput, ExtensionInvokeResult } from '@shared/types/extension-broker'
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
 import type { JsonValue } from '@shared/types/json'
 import { api } from '@/shared/lib/ipc'
 import { createRendererLogger } from '@/shared/lib/logger'
-import { refreshPreferencesAfterExtensionInvoke } from './extension-broker-preferences'
+import extensionFrameBootstrapUrl from './extension-frame-bootstrap?worker&url'
 import {
-  createExtensionFrameDocument,
   decodeExtensionFrameMessage,
-  type ExtensionFrameInvokeMessage,
-  extensionInvokeInputFromFrame,
+  extensionFrameConfig,
   postFrameMessage,
 } from './extension-frame-host'
+import { handleFrameInvoke } from './extension-frame-invocation'
 
-const EXTENSION_FRAME_DOCUMENT_TYPE = 'text/html'
 const EXTERNAL_LINK_PROTOCOLS = new Set(['http:', 'https:'])
 const logger = createRendererLogger('extension-frame')
 
@@ -39,84 +36,10 @@ interface MountExtensionFrameInput {
   readonly getCurrentFrameWindow: () => Window | null | undefined
   readonly moduleUrl: string | null
   readonly mountKey: string
+  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
   readonly reportHeight?: (height: number) => void
   readonly reportStatus: (status: ReportedMountStatus) => void
   readonly surfacePayloadJson?: string
-}
-
-function invocationProjectPath(input: ExtensionInvokeInput) {
-  return input.scope.kind === 'app' ? null : input.scope.projectPath
-}
-
-function outOfScopeInvokeFailure(projectPath: string): ExtensionInvokeResult {
-  return {
-    ok: false,
-    error: {
-      code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.OUT_OF_SCOPE,
-      message: `Project "${projectPath}" is outside this extension contribution scope.`,
-    },
-  }
-}
-
-function describeInvokeError(error: unknown) {
-  return error instanceof Error ? error.message : String(error)
-}
-
-function transportInvokeFailure(error: unknown): ExtensionInvokeResult {
-  return {
-    ok: false,
-    error: {
-      code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.TRANSPORT_FAILED,
-      message: 'Extension broker transport failed.',
-      issues: [describeInvokeError(error)],
-    },
-  }
-}
-
-function invokeBoundExtension(
-  entry: ExtensionContributionRegistryEntry,
-  input: ExtensionInvokeInput,
-) {
-  const projectPath = invocationProjectPath(input)
-  if (projectPath !== null && !entry.projectPaths.includes(projectPath)) {
-    return Promise.resolve(outOfScopeInvokeFailure(projectPath))
-  }
-
-  return api.invokeExtension(input).then(async (result) => {
-    await refreshPreferencesAfterExtensionInvoke(result)
-    return result
-  })
-}
-
-async function handleFrameInvoke(input: {
-  readonly entry: ExtensionContributionRegistryEntry
-  readonly frameId: string
-  readonly frameWindow: Window
-  readonly message: ExtensionFrameInvokeMessage
-  readonly shouldPostResult: (frameWindow: Window) => boolean
-}) {
-  const decodedInput = extensionInvokeInputFromFrame(input.entry, input.message.input)
-  const result = await (async () => {
-    if ('ok' in decodedInput) {
-      return decodedInput
-    }
-
-    try {
-      return await invokeBoundExtension(input.entry, decodedInput)
-    } catch (error) {
-      return transportInvokeFailure(error)
-    }
-  })()
-
-  if (!input.shouldPostResult(input.frameWindow)) {
-    return
-  }
-
-  postFrameMessage(input.frameWindow, input.frameId, {
-    type: 'invoke-result',
-    requestId: input.message.requestId,
-    result,
-  })
 }
 
 export function missingEntryPathStatus(): MountStatus {
@@ -146,9 +69,14 @@ export function federatedModuleMountKey(
   surfacePayloadJson: string | undefined,
 ) {
   return JSON.stringify([
-    entry.extensionId,
-    entry.contributionId,
+    [entry.extensionId, entry.extensionName, entry.extensionVersion],
+    [entry.contributionId, entry.title, entry.family],
+    entry.runtime ?? '',
     entry.execution ?? '',
+    entry.packagePath,
+    entry.contentHash,
+    entry.projectPaths,
+    entry.networkOrigins ?? [],
     moduleUrl,
     surfacePayloadJson === undefined ? ['absent'] : ['present', surfacePayloadJson],
   ])
@@ -171,8 +99,8 @@ function surfacePayloadFromJson(surfacePayloadJson: string | undefined): JsonVal
   }
 }
 
-function createFrameDocumentUrl(frameDocument: string) {
-  return URL.createObjectURL(new Blob([frameDocument], { type: EXTENSION_FRAME_DOCUMENT_TYPE }))
+function absoluteRendererUrl(url: string) {
+  return new URL(url, window.location.href).toString()
 }
 
 function normalizedExternalUrl(url: string) {
@@ -197,6 +125,53 @@ async function openFrameExternalUrl(url: string) {
   }
 }
 
+function registerProtocolFrame(input: {
+  readonly entry: ExtensionContributionRegistryEntry
+  readonly frame: HTMLIFrameElement
+  readonly frameId: string
+  readonly isActive: () => boolean
+  readonly reportMountStatus: (status: MountStatus) => void
+}) {
+  let registrationId: string | null = null
+  void api
+    .registerExtensionFrame({
+      frameId: input.frameId,
+      bootstrapUrl: absoluteRendererUrl(extensionFrameBootstrapUrl),
+      networkOrigins: input.entry.networkOrigins,
+    })
+    .then((result) => {
+      if (!input.isActive()) {
+        void api.unregisterExtensionFrame({
+          frameId: input.frameId,
+          registrationId: result.registrationId,
+        })
+        return
+      }
+
+      registrationId = result.registrationId
+      input.frame.src = result.frameUrl
+    })
+    .catch((error: unknown) => {
+      if (!input.isActive()) {
+        return
+      }
+
+      input.reportMountStatus({
+        kind: 'error',
+        message: error instanceof Error ? error.message : String(error),
+      })
+    })
+
+  return () => {
+    if (registrationId !== null) {
+      void api.unregisterExtensionFrame({
+        frameId: input.frameId,
+        registrationId,
+      })
+    }
+  }
+}
+
 export function initialMountStatus(input: {
   readonly frameRuntimeSupported: boolean
   readonly moduleUrl: string | null
@@ -214,6 +189,8 @@ export function mountExtensionFrame(input: MountExtensionFrameInput) {
   }
 
   let active = true
+  let configured = false
+  let reportedHeight: number | null = null
   const frame = input.frame
   const resolvedModuleUrl = input.moduleUrl
   if (!frame || resolvedModuleUrl === null) {
@@ -221,6 +198,12 @@ export function mountExtensionFrame(input: MountExtensionFrameInput) {
       active = false
     }
   }
+  const mountModuleUrl = resolvedModuleUrl
+  const frameConfig = extensionFrameConfig({
+    entry: input.entry,
+    moduleUrl: mountModuleUrl,
+    surfacePayload: surfacePayloadFromJson(input.surfacePayloadJson),
+  })
 
   if (!frame.contentWindow) {
     queueMicrotask(() => {
@@ -242,9 +225,29 @@ export function mountExtensionFrame(input: MountExtensionFrameInput) {
   }
 
   function reportFrameHeight(height: number) {
-    if (Number.isFinite(height) && height > 0) {
-      input.reportHeight?.(height)
+    if (!Number.isFinite(height) || height <= 0) {
+      return
     }
+
+    const nextHeight = Math.ceil(height)
+    if (reportedHeight === nextHeight) {
+      return
+    }
+
+    reportedHeight = nextHeight
+    input.reportHeight?.(nextHeight)
+  }
+
+  function configureFrame(frameWindow: Window) {
+    if (configured) {
+      return
+    }
+
+    configured = true
+    postFrameMessage(frameWindow, input.frameId, {
+      type: 'configure',
+      config: frameConfig,
+    })
   }
 
   function handleFrameMessage(event: MessageEvent<unknown>) {
@@ -257,47 +260,45 @@ export function mountExtensionFrame(input: MountExtensionFrameInput) {
       return
     }
 
-    if (frameMessage.type === 'mounted') {
-      reportMountStatus({ kind: 'mounted' })
-      return
-    }
-
-    if (frameMessage.type === 'error' || frameMessage.type === 'cleanup-error') {
-      reportMountStatus({ kind: 'error', message: frameMessage.message })
-      return
-    }
-
-    if (frameMessage.type === 'open-external') {
-      void openFrameExternalUrl(frameMessage.url)
-      return
-    }
-
-    if (frameMessage.type === 'resize') {
-      reportFrameHeight(frameMessage.height)
-      return
-    }
-
-    if (frameMessage.type === 'invoke') {
-      void handleFrameInvoke({
-        entry: input.entry,
-        frameId: input.frameId,
-        frameWindow: currentFrameWindow,
-        message: frameMessage,
-        shouldPostResult: (frameWindow) => active && input.getCurrentFrameWindow() === frameWindow,
+    matchBy(frameMessage, 'type')
+      .with('ready', () => {
+        configureFrame(currentFrameWindow)
       })
-    }
+      .with('mounted', () => {
+        reportMountStatus({ kind: 'mounted' })
+      })
+      .with('error', 'cleanup-error', (message) => {
+        reportMountStatus({ kind: 'error', message: message.message })
+      })
+      .with('open-external', (message) => {
+        void openFrameExternalUrl(message.url)
+      })
+      .with('resize', (message) => {
+        reportFrameHeight(message.height)
+      })
+      .with('surface-action', (message) => {
+        input.onSurfaceAction?.(message.actionId, message.payload)
+      })
+      .with('invoke', (message) => {
+        void handleFrameInvoke({
+          entry: input.entry,
+          frameId: input.frameId,
+          frameWindow: currentFrameWindow,
+          message,
+          shouldPostResult: () => active,
+        })
+      })
+      .exhaustive()
   }
 
   window.addEventListener('message', handleFrameMessage)
-  const frameDocumentUrl = createFrameDocumentUrl(
-    createExtensionFrameDocument({
-      entry: input.entry,
-      frameId: input.frameId,
-      moduleUrl: resolvedModuleUrl,
-      surfacePayload: surfacePayloadFromJson(input.surfacePayloadJson),
-    }),
-  )
-  frame.src = frameDocumentUrl
+  const unregisterProtocolFrame = registerProtocolFrame({
+    entry: input.entry,
+    frame,
+    frameId: input.frameId,
+    isActive: () => active,
+    reportMountStatus,
+  })
 
   return () => {
     active = false
@@ -306,7 +307,7 @@ export function mountExtensionFrame(input: MountExtensionFrameInput) {
       postFrameMessage(currentFrameWindow, input.frameId, { type: 'dispose' })
     }
     frame.removeAttribute('src')
-    URL.revokeObjectURL(frameDocumentUrl)
+    unregisterProtocolFrame()
     window.removeEventListener('message', handleFrameMessage)
   }
 }

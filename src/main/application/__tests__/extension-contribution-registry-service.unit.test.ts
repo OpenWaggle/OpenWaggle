@@ -1,5 +1,9 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
+import {
+  clearExtensionContributionRegistryCacheForTests,
+  getExtensionContributionRegistryCacheStatsForTests,
+} from '../extension-contribution-registry-cache'
 import {
   expectFirstEntry,
   loadRegistry,
@@ -11,6 +15,10 @@ import {
 } from './extension-contribution-registry-test-utils'
 
 describe('listExtensionContributionRegistryView', () => {
+  beforeEach(() => {
+    clearExtensionContributionRegistryCacheForTests()
+  })
+
   it('excludes disabled and untrusted packages', async () => {
     const disabledPackage = makePackage({
       id: 'disabled-extension',
@@ -145,156 +153,131 @@ describe('listExtensionContributionRegistryView', () => {
     expect(entry.appliesToAllRequestedProjects).toBe(false)
   })
 
-  it('preserves contribution families and entry paths from the manifest', async () => {
-    const allFamiliesPackage = makePackage({
-      id: 'family-extension',
-      name: 'Family Extension',
+  it('reuses cached contribution registration for unchanged package inputs', async () => {
+    const extensionPackage = makePackage({
+      id: 'cached-extension',
+      name: 'Cached Extension',
       scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND },
       contributions: {
-        commands: [
-          {
-            id: 'family.command',
-            title: 'Command Contribution',
-            category: 'Tools',
-            capability: 'family.invoke',
-          },
-        ],
-        slashCommands: [{ id: 'family/slash', title: 'Slash Contribution' }],
-        routes: [
-          {
-            id: 'family.route',
-            title: 'Route Contribution',
-            runtime: 'federated-module',
-            execution: 'host-renderer',
-            entry: 'dist/route.js',
-            capability: 'family.storage',
-            methods: ['get', 'set'],
-          },
-        ],
-        settingsSections: [
-          {
-            id: 'family.settings',
-            title: 'Settings Contribution',
-            runtime: 'federated-module',
-            execution: 'host-renderer',
-            entry: 'dist/settings.js',
-          },
-        ],
-        sidePanels: [
-          {
-            id: 'family.side-panel',
-            title: 'Side Panel Contribution',
-            runtime: 'federated-module',
-            execution: 'frame',
-            entry: 'dist/side-panel.js',
-          },
-        ],
-        dialogs: [
-          {
-            id: 'family.dialog',
-            title: 'Dialog Contribution',
-            runtime: 'federated-module',
-            execution: 'host-renderer',
-            entry: 'dist/dialog.js',
-          },
-        ],
-        transcriptRenderers: [
-          {
-            id: 'family.transcript',
-            title: 'Transcript Contribution',
-            runtime: 'federated-module',
-            execution: 'host-renderer',
-            entry: 'dist/transcript.js',
-          },
-        ],
-        toolRenderers: [
-          {
-            id: 'family.tool',
-            title: 'Tool Contribution',
-            runtime: 'federated-module',
-            execution: 'host-renderer',
-            entry: 'dist/tool.js',
-            matches: {
-              toolNames: ['sample.tool'],
-            },
-          },
-        ],
-        customMessageRenderers: [
-          {
-            id: 'family.custom-message',
-            title: 'Custom Message Contribution',
-            runtime: 'federated-module',
-            execution: 'host-renderer',
-            entry: 'dist/custom-message.js',
-            matches: {
-              customMessageNames: ['sample.message'],
-            },
-          },
-        ],
-        interactionRenderers: [
-          {
-            id: 'family.interaction',
-            title: 'Interaction Contribution',
-            runtime: 'federated-module',
-            execution: 'host-renderer',
-            entry: 'dist/interaction.js',
-            matches: {
-              interactionKinds: ['sample.interaction'],
-            },
-          },
-        ],
-        statusWidgets: [
-          {
-            id: 'family.status',
-            title: 'Status Contribution',
-            runtime: 'federated-module',
-            execution: 'host-renderer',
-            entry: 'dist/status.js',
-          },
-        ],
+        commands: [{ id: 'cached.run', title: 'Run Cached' }],
       },
     })
+    const lifecycle = makeLifecycle(extensionPackage)
 
-    const registry = await loadRegistry({
-      packages: [allFamiliesPackage],
-      lifecycles: [makeLifecycle(allFamiliesPackage)],
+    const firstRegistry = await loadRegistry({
+      packages: [extensionPackage],
+      lifecycles: [lifecycle],
+      projectPaths: [PROJECT_PATH],
+    })
+    const firstEntry = expectFirstEntry(firstRegistry)
+    expect(firstEntry.contributionId).toBe('cached.run')
+    expect(getExtensionContributionRegistryCacheStatsForTests()).toEqual({
+      hits: 0,
+      misses: 1,
+      invalidations: 0,
+      size: 1,
+    })
+
+    const secondRegistry = await loadRegistry({
+      packages: [extensionPackage],
+      lifecycles: [lifecycle],
       projectPaths: [PROJECT_PATH],
     })
 
-    expect(registry.entries.map((entry) => entry.family)).toEqual([
-      ...OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILIES,
-    ])
+    expect(expectFirstEntry(secondRegistry).contributionId).toBe('cached.run')
+    expect(getExtensionContributionRegistryCacheStatsForTests()).toEqual({
+      hits: 1,
+      misses: 1,
+      invalidations: 0,
+      size: 1,
+    })
+  })
 
-    const commandEntry = registry.entries.find((entry) => entry.family === 'commands')
-    const routeEntry = registry.entries.find((entry) => entry.family === 'routes')
-    const toolEntry = registry.entries.find((entry) => entry.family === 'toolRenderers')
-    if (!commandEntry || !routeEntry || !toolEntry) {
-      throw new Error('Expected command, route, and tool contributions in the registry.')
+  it('invalidates cached contribution registration when the discovered content hash changes', async () => {
+    const originalPackage = {
+      ...makePackage({
+        id: 'changed-extension',
+        name: 'Changed Extension',
+        scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND },
+        contributions: {
+          commands: [{ id: 'changed.before', title: 'Run Before' }],
+        },
+      }),
+      contentHash: 'before-content-hash',
+    }
+    const changedPackage = {
+      ...makePackage({
+        id: 'changed-extension',
+        name: 'Changed Extension',
+        scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND },
+        contributions: {
+          commands: [{ id: 'changed.after', title: 'Run After' }],
+        },
+      }),
+      contentHash: 'after-content-hash',
     }
 
-    expect(commandEntry).toMatchObject({
-      contributionId: 'family.command',
-      title: 'Command Contribution',
-      label: 'Command Contribution',
-      category: 'Tools',
-      capability: 'family.invoke',
+    const originalRegistry = await loadRegistry({
+      packages: [originalPackage],
+      lifecycles: [makeLifecycle(originalPackage)],
+      projectPaths: [PROJECT_PATH],
     })
-    expect('entryPath' in commandEntry).toBe(false)
-    expect(routeEntry).toMatchObject({
-      contributionId: 'family.route',
-      title: 'Route Contribution',
-      label: 'Route Contribution',
-      runtime: 'federated-module',
-      execution: 'host-renderer',
-      entryPath: 'dist/route.js',
-      capability: 'family.storage',
-      methods: ['get', 'set'],
+    expect(expectFirstEntry(originalRegistry).contributionId).toBe('changed.before')
+
+    const changedRegistry = await loadRegistry({
+      packages: [changedPackage],
+      lifecycles: [makeLifecycle(changedPackage)],
+      projectPaths: [PROJECT_PATH],
     })
-    expect(toolEntry).toMatchObject({
-      contributionId: 'family.tool',
-      matches: {
-        toolNames: ['sample.tool'],
+    expect(expectFirstEntry(changedRegistry).contributionId).toBe('changed.after')
+    expect(getExtensionContributionRegistryCacheStatsForTests()).toEqual({
+      hits: 0,
+      misses: 2,
+      invalidations: 1,
+      size: 1,
+    })
+  })
+
+  it('keeps project override eligibility live when contribution registration is cached', async () => {
+    const extensionPackage = makePackage({
+      id: 'override-cache-extension',
+      name: 'Override Cache Extension',
+      scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND },
+      contributions: {
+        commands: [{ id: 'override-cache.run', title: 'Run With Override' }],
       },
+    })
+    const lifecycle = makeLifecycle(extensionPackage)
+
+    const enabledRegistry = await loadRegistry({
+      packages: [extensionPackage],
+      lifecycles: [lifecycle],
+      projectPaths: [PROJECT_PATH, OTHER_PROJECT_PATH],
+    })
+    expect(expectFirstEntry(enabledRegistry).projectPaths).toEqual([
+      PROJECT_PATH,
+      OTHER_PROJECT_PATH,
+    ])
+
+    const partiallyDisabledRegistry = await loadRegistry({
+      packages: [extensionPackage],
+      lifecycles: [lifecycle],
+      projectOverrides: [
+        makeProjectOverride({
+          extensionPackage,
+          projectPath: PROJECT_PATH,
+          disabled: true,
+        }),
+      ],
+      projectPaths: [PROJECT_PATH, OTHER_PROJECT_PATH],
+    })
+
+    expect(expectFirstEntry(partiallyDisabledRegistry).projectPaths).toEqual([OTHER_PROJECT_PATH])
+    expect(getExtensionContributionRegistryCacheStatsForTests()).toEqual({
+      hits: 1,
+      misses: 1,
+      invalidations: 0,
+      size: 1,
     })
   })
 })

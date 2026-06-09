@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { OpenWaggleExtensionManifest } from '@shared/schemas/extensions'
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
@@ -19,7 +20,6 @@ import { listExtensionContributionRegistryView } from '../extension-contribution
 export const PROJECT_PATH = '/tmp/project'
 export const OTHER_PROJECT_PATH = '/tmp/other-project'
 
-const CONTENT_HASH = 'abcdef'
 const SDK_RANGE = '>=0.1.0 <0.2.0'
 
 function makeManifest(input: {
@@ -58,22 +58,36 @@ export function makePackage(input: {
   readonly capabilities?: OpenWaggleExtensionManifest['capabilities']
   readonly network?: OpenWaggleExtensionManifest['network']
   readonly contributions: NonNullable<OpenWaggleExtensionManifest['contributions']>
+  readonly contentHash?: string
 }): DiscoveredExtensionPackage {
   const packagePath = packagePathForScope(input.id, input.scope)
+  const manifest = makeManifest({
+    id: input.id,
+    name: input.name,
+    capabilities: input.capabilities,
+    network: input.network,
+    contributions: input.contributions,
+  })
+  const contentHash =
+    input.contentHash ??
+    createHash('sha256')
+      .update(
+        JSON.stringify({
+          manifest,
+          packagePath,
+          scope: input.scope,
+        }),
+      )
+      .digest('hex')
+
   return {
     id: input.id,
     scope: input.scope,
     packagePath,
     manifestPath: `${packagePath}/${OPENWAGGLE_EXTENSION.MANIFEST_FILE}`,
-    manifest: makeManifest({
-      id: input.id,
-      name: input.name,
-      capabilities: input.capabilities,
-      network: input.network,
-      contributions: input.contributions,
-    }),
+    manifest,
     buildPlan: null,
-    contentHash: CONTENT_HASH,
+    contentHash,
     sdkCompatibility: {
       hostVersion: OPENWAGGLE_EXTENSION.SDK_VERSION,
       requiredRange: SDK_RANGE,

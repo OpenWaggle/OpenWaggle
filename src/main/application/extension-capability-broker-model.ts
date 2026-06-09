@@ -1,5 +1,5 @@
+import { matchBy } from '@diegogbrisa/ts-match'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
-import type { ExtensionCapabilityDeclaration } from '@shared/schemas/extensions'
 import type {
   ExtensionCapabilityAuditEntry,
   ExtensionInvokeFailureCode,
@@ -9,31 +9,22 @@ import type {
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
 import type { DiscoveredExtensionPackage } from '../extensions/types'
 
-const DEFAULT_DECLARED_SCOPES = ['app'] as const
-
 export function normalizeScope(scope: ExtensionInvokeScope): ExtensionInvokeScope {
-  if (scope.kind === 'app') {
-    return scope
-  }
-
-  if (scope.kind === 'project') {
-    return { ...scope, projectPath: scope.projectPath.trim() }
-  }
-
-  if (scope.kind === 'session') {
-    return {
-      ...scope,
-      projectPath: scope.projectPath.trim(),
-      sessionId: scope.sessionId.trim(),
-    }
-  }
-
-  return {
-    ...scope,
-    projectPath: scope.projectPath.trim(),
-    sessionId: scope.sessionId.trim(),
-    branchId: scope.branchId.trim(),
-  }
+  return matchBy(scope, 'kind')
+    .with('app', (value) => value)
+    .with('project', (value) => ({ ...value, projectPath: value.projectPath.trim() }))
+    .with('session', (value) => ({
+      ...value,
+      projectPath: value.projectPath.trim(),
+      sessionId: value.sessionId.trim(),
+    }))
+    .with('branch', (value) => ({
+      ...value,
+      projectPath: value.projectPath.trim(),
+      sessionId: value.sessionId.trim(),
+      branchId: value.branchId.trim(),
+    }))
+    .exhaustive()
 }
 
 export function normalizeInput(input: ExtensionInvokeInput): ExtensionInvokeInput {
@@ -100,34 +91,6 @@ export function makeCapabilityAudit(input: {
     timestamp: input.timestamp,
     ...(input.failureCode !== undefined ? { failureCode: input.failureCode } : {}),
   }
-}
-
-export function getCapabilityDeclaration(input: {
-  readonly extensionPackage: DiscoveredExtensionPackage
-  readonly capability: string
-}) {
-  return (
-    input.extensionPackage.manifest?.capabilities?.find(
-      (capability) => capability.id === input.capability,
-    ) ?? null
-  )
-}
-
-export function getDeclaredScopes(
-  declaration: ExtensionCapabilityDeclaration,
-): readonly (typeof OPENWAGGLE_EXTENSION.CAPABILITY_SCOPES)[number][] {
-  return declaration.scopes ?? DEFAULT_DECLARED_SCOPES
-}
-
-export function methodIsDeclared(declaration: ExtensionCapabilityDeclaration, method: string) {
-  return declaration.methods?.includes(method) === true
-}
-
-export function contributionMethodIsDeclared(
-  entry: ExtensionContributionRegistryEntry,
-  method: string,
-) {
-  return entry.method === method || entry.methods?.includes(method) === true
 }
 
 function isPayloadEmptyObject(payload: unknown) {

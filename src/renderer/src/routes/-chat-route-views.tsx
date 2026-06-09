@@ -1,11 +1,28 @@
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
+import { lazy, Suspense } from 'react'
 import { EXTENSION_SIDE_PANEL_ROUTE_PANEL } from '@/shell/ui-store'
-import { ChatRouteSurface } from './-chat-route-surface'
 import {
   type ChatExtensionSidePanelTarget,
   type ChatRouteSearch,
   extensionSidePanelTargetFromSearch,
 } from './-route-search'
+
+const LazyChatRouteSurface = lazy(() =>
+  import('./-chat-route-surface').then((module) => ({
+    default: module.ChatRouteSurface,
+  })),
+)
+
+function ChatRouteSurfaceFallback() {
+  return (
+    <output
+      aria-live="polite"
+      className="flex min-h-0 min-w-0 flex-1 items-center justify-center bg-bg text-[13px] text-text-tertiary"
+    >
+      Loading chat…
+    </output>
+  )
+}
 
 export function ChatIndexRouteView() {
   const navigate = useNavigate()
@@ -43,15 +60,17 @@ export function ChatIndexRouteView() {
   }
 
   return (
-    <ChatRouteSurface
-      workspace={{ branchId: null, nodeId: null, sessionId: null }}
-      rightSidebar={{ diffOpen, extensionSidePanel, sessionTreeOpen }}
-      rightSidebarActions={{
-        onDiffOpenChange: setDiffOpen,
-        onExtensionSidePanelOpenChange: setExtensionSidePanelOpen,
-        onSessionTreeOpenChange: setSessionTreeOpen,
-      }}
-    />
+    <Suspense fallback={<ChatRouteSurfaceFallback />}>
+      <LazyChatRouteSurface
+        workspace={{ branchId: null, nodeId: null, sessionId: null }}
+        rightSidebar={{ diffOpen, extensionSidePanel, sessionTreeOpen }}
+        rightSidebarActions={{
+          onDiffOpenChange: setDiffOpen,
+          onExtensionSidePanelOpenChange: setExtensionSidePanelOpen,
+          onSessionTreeOpenChange: setSessionTreeOpen,
+        }}
+      />
+    </Suspense>
   )
 }
 
@@ -110,14 +129,16 @@ export function ChatSessionRouteView() {
   }
 
   return (
-    <ChatRouteSurface
-      workspace={{ branchId: search.branch ?? null, nodeId: search.node ?? null, sessionId }}
-      rightSidebar={{ diffOpen, extensionSidePanel, sessionTreeOpen }}
-      rightSidebarActions={{
-        onDiffOpenChange: setDiffOpen,
-        onExtensionSidePanelOpenChange: setExtensionSidePanelOpen,
-        onSessionTreeOpenChange: setSessionTreeOpen,
-      }}
-    />
+    <Suspense fallback={<ChatRouteSurfaceFallback />}>
+      <LazyChatRouteSurface
+        workspace={{ branchId: search.branch ?? null, nodeId: search.node ?? null, sessionId }}
+        rightSidebar={{ diffOpen, extensionSidePanel, sessionTreeOpen }}
+        rightSidebarActions={{
+          onDiffOpenChange: setDiffOpen,
+          onExtensionSidePanelOpenChange: setExtensionSidePanelOpen,
+          onSessionTreeOpenChange: setSessionTreeOpen,
+        }}
+      />
+    </Suspense>
   )
 }

@@ -47,6 +47,9 @@ const ProviderServiceWithExtensionSelectionLive = ProviderServiceLive.pipe(
 const PiProviderProbeWithExtensionSelectionLive = PiProviderProbeLive.pipe(
   Layer.provide(ExtensionRuntimeSelectionLive),
 )
+const PiAgentKernelWithExtensionSelectionLive = PiAgentKernelLive.pipe(
+  Layer.provide(ExtensionRuntimeSelectionLive),
+)
 
 const AppLayer = Layer.mergeAll(
   NodeContext.layer,
@@ -59,7 +62,7 @@ const AppLayer = Layer.mergeAll(
   SqliteSessionProjectionRepositoryLive,
   SqliteSessionRepositoryLive,
   FilesystemStandardsLive,
-  PiAgentKernelLive,
+  PiAgentKernelWithExtensionSelectionLive,
   PiMcpConfigServiceLive,
   PiProviderAuthLive,
   PiProviderProbeWithExtensionSelectionLive,

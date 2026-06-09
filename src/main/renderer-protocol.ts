@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { extname, join, posix, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { is } from '@electron-toolkit/utils'
+import { OPENWAGGLE_EXTENSION_FRAME_PROTOCOL } from '@shared/constants/extension-frame'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { net, protocol } from 'electron'
 import { env } from './env'
@@ -12,6 +13,8 @@ export const RENDERER_PROTOCOL_ORIGIN = `${RENDERER_PROTOCOL}://${RENDERER_PROTO
 export const EXTENSION_RUNTIME_PROTOCOL = OPENWAGGLE_EXTENSION.RUNTIME_MODULE_PROTOCOL.SCHEME
 export const INDEX_HTML = 'index.html'
 const HTTP_NOT_FOUND_STATUS = 404
+const ACCESS_CONTROL_ALLOW_ORIGIN_HEADER = 'access-control-allow-origin'
+const CORS_ANY_ORIGIN = '*'
 
 let rendererProtocolRegistered = false
 
@@ -28,6 +31,15 @@ export function registerRendererScheme() {
     },
     {
       scheme: EXTENSION_RUNTIME_PROTOCOL,
+      privileges: {
+        standard: true,
+        secure: true,
+        supportFetchAPI: true,
+        corsEnabled: true,
+      },
+    },
+    {
+      scheme: OPENWAGGLE_EXTENSION_FRAME_PROTOCOL.SCHEME,
       privileges: {
         standard: true,
         secure: true,
@@ -93,8 +105,15 @@ export function devRendererUrl() {
   return is.dev && env.ELECTRON_RENDERER_URL ? env.ELECTRON_RENDERER_URL : null
 }
 
-function fileResponse(filePath: string) {
-  return net.fetch(pathToFileURL(filePath).toString())
+async function fileResponse(filePath: string) {
+  const response = await net.fetch(pathToFileURL(filePath).toString())
+  const headers = new Headers(response.headers)
+  headers.set(ACCESS_CONTROL_ALLOW_ORIGIN_HEADER, CORS_ANY_ORIGIN)
+  return new Response(response.body, {
+    headers,
+    status: response.status,
+    statusText: response.statusText,
+  })
 }
 
 function notFoundResponse() {

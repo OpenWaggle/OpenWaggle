@@ -1,10 +1,11 @@
 import { lazy, Suspense } from 'react'
-import { ChatPanelContent } from '@/features/chat/components'
+import { ChatPanelContent, loadChatDiffPane } from '@/features/chat/components'
 import { useChatPanelSections } from '@/features/chat/hooks'
 import {
   ExtensionSidePanelSurface,
   useExtensionSidePanelContributions,
 } from '@/features/extensions'
+import { loadSessionTreePanel } from '@/features/session-tree/components'
 import { PanelErrorBoundary } from '@/shared/ui/PanelErrorBoundary'
 import { RightSidebarLayout } from '@/shared/ui/RightSidebarLayout'
 import { CHAT_MIN_WIDTH, DIFF_PANEL_MAX, DIFF_PANEL_MIN, useUIStore } from '@/shell'
@@ -17,16 +18,8 @@ const DIFF_PANEL_STORAGE_KEY = 'openwaggle:diff-sidebar-width'
 const DIFF_PANEL_SHEET_BREAKPOINT_PX = 1180
 const OVERFLOW_TOLERANCE_PX = 0.5
 
-const LazyChatDiffPane = lazy(() =>
-  import('@/features/chat/components').then((module) => ({
-    default: module.ChatDiffPane,
-  })),
-)
-const LazySessionTreePanel = lazy(() =>
-  import('@/features/session-tree/components').then((module) => ({
-    default: module.SessionTreePanel,
-  })),
-)
+const LazyChatDiffPane = lazy(loadChatDiffPane)
+const LazySessionTreePanel = lazy(loadSessionTreePanel)
 
 interface ChatRouteWorkspaceState {
   readonly branchId: string | null

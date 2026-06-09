@@ -20,9 +20,10 @@ import {
   ExtensionProjectOverridesRepository,
   type ExtensionProjectOverridesRepositoryShape,
 } from '../ports/extension-project-overrides-repository'
+import { getCachedPackageContributionRegistrations } from './extension-contribution-registry-cache'
 import {
   type ExtensionContributionProjectOverrideLookup,
-  packageToContributionEntries,
+  packageToContributionEntriesWithRegistrationResolver,
 } from './extension-contribution-registry-model'
 import {
   appendExtensionDiagnostic,
@@ -30,11 +31,6 @@ import {
   makeExtensionFailureDiagnostic,
   scopeForProjectPath,
 } from './extension-failure-isolation-model'
-
-interface LifecycleLookup {
-  readonly extensionPackage: DiscoveredExtensionPackage
-  readonly lifecycle: ExtensionLifecycleState | null
-}
 
 interface ContributionRegistryPackageResult {
   readonly entries: readonly ExtensionContributionRegistryEntry[]
@@ -197,13 +193,7 @@ function loadLifecycle(extensionPackage: DiscoveredExtensionPackage) {
         scope: extensionPackage.scope,
       })
       .pipe(
-        Effect.map(
-          (lifecycle) =>
-            ({
-              extensionPackage,
-              lifecycle,
-            }) satisfies LifecycleLookup,
-        ),
+        Effect.map((lifecycle) => ({ extensionPackage, lifecycle })),
         Effect.catchAll((error) =>
           Effect.succeed({
             extensionPackage: appendExtensionDiagnostic(
@@ -216,7 +206,7 @@ function loadLifecycle(extensionPackage: DiscoveredExtensionPackage) {
               }),
             ),
             lifecycle: null,
-          } satisfies LifecycleLookup),
+          }),
         ),
       )
   })
@@ -230,14 +220,18 @@ function packageToContributionEntriesSafely(input: {
   readonly requestedSessionId: string | undefined
 }) {
   return Effect.try({
-    try: () => packageToContributionEntries(input),
+    try: () =>
+      packageToContributionEntriesWithRegistrationResolver({
+        ...input,
+        getRegistrationResult: getCachedPackageContributionRegistrations,
+      }),
     catch: (error) => error,
   }).pipe(
     Effect.map(
-      (entries) =>
+      (result) =>
         ({
-          entries,
-          diagnostics: [],
+          entries: result.entries,
+          diagnostics: result.diagnostics,
         }) satisfies ContributionRegistryPackageResult,
     ),
     Effect.catchAll((error) =>

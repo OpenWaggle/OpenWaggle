@@ -13,6 +13,11 @@ import type {
 } from './docs'
 import type { ExtensionInvokeInput, ExtensionInvokeResult } from './extension-broker'
 import type {
+  ExtensionFrameRegisterInput,
+  ExtensionFrameRegisterResult,
+  ExtensionFrameUnregisterInput,
+} from './extension-frame'
+import type {
   ExtensionAcceptUpdateInput,
   ExtensionApproveBuildInput,
   ExtensionContributionRegistryView,
@@ -123,6 +128,14 @@ export interface IpcCoreInvokeChannelMap {
   'extensions:invoke': {
     args: [input: ExtensionInvokeInput]
     return: ExtensionInvokeResult
+  }
+  'extensions:register-frame': {
+    args: [input: ExtensionFrameRegisterInput]
+    return: ExtensionFrameRegisterResult
+  }
+  'extensions:unregister-frame': {
+    args: [input: ExtensionFrameUnregisterInput]
+    return: undefined
   }
   'extensions:set-trusted': {
     args: [input: ExtensionSetTrustedInput]
