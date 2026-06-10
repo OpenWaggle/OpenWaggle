@@ -5,6 +5,7 @@ import type { SessionDetail, SessionTree } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import type { DiscoveredExtensionPackage, ExtensionLifecycleState } from '../../extensions/types'
+import { DocsBundleService } from '../../ports/docs-bundle-service'
 import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from '../../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
@@ -33,6 +34,8 @@ export const BROKER_CONTRIBUTION_ID = 'broker.run'
 export const TIMESTAMP = 1234
 export const SESSION_ID = BROKER_SESSION_ID
 export const BRANCH_ID = BROKER_BRANCH_ID
+const DOCS_BUNDLE_PATH = '/tmp/openwaggle-docs'
+const DOCS_GENERATED_AT = '2026-01-01T00:00:00.000Z'
 
 export {
   makeSessionDetail,
@@ -133,6 +136,17 @@ function makeBrokerLayer(input: {
     makeLoggerLayer(input.capturedLogs),
     makeExtensionStorageRepositoryLayer(input.storageItems),
     makeBrokerSettingsLayer(input.currentProjectPath),
+    Layer.succeed(DocsBundleService, {
+      getBundlePath: () => Effect.succeed(DOCS_BUNDLE_PATH),
+      loadBundle: () =>
+        Effect.succeed({
+          bundlePath: DOCS_BUNDLE_PATH,
+          generatedAt: DOCS_GENERATED_AT,
+          topics: [],
+        }),
+      listTopics: () => Effect.succeed([]),
+      resolveTopic: () => Effect.succeed(null),
+    }),
     Layer.succeed(ExtensionManagerService, {
       listPackages: ({ projectPath }) =>
         Effect.succeed(

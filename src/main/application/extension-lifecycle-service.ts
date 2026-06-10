@@ -12,7 +12,7 @@ import {
   isExtensionCurrentTrustPin,
   isExtensionUpdateAvailable,
 } from '../extensions/runtime-eligibility'
-import type { ExtensionDiagnostic } from '../extensions/types'
+import type { DiscoveredExtensionPackage, ExtensionDiagnostic } from '../extensions/types'
 import { ExtensionBuildRunner } from '../ports/extension-build-runner'
 import { ExtensionLifecycleRepository } from '../ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from '../ports/extension-manager-service'
@@ -24,6 +24,7 @@ import {
   EXTENSION_BUILD_SUCCESS_EXIT_CODE,
   makeBuildLog,
 } from './extension-build-lifecycle-model'
+import { clearCachedPackageContributionRegistrations } from './extension-contribution-registry-cache'
 import {
   findPackage,
   getBuildApprovalReadinessError,
@@ -37,6 +38,12 @@ import {
   projectOverrideKey,
 } from './extension-lifecycle-model'
 import { listExtensionPackagesView } from './extension-manager-view-service'
+
+function unregisterPackageContributionState(extensionPackage: DiscoveredExtensionPackage) {
+  return Effect.sync(() => {
+    clearCachedPackageContributionRegistrations(extensionPackage)
+  })
+}
 
 function loadMutationPackage(input: LifecycleMutationInput) {
   return Effect.gen(function* () {
@@ -97,6 +104,7 @@ export function setExtensionTrusted(input: ExtensionSetTrustedInput) {
         lastReloadedAt: null,
       }),
     )
+    yield* unregisterPackageContributionState(extensionPackage)
 
     return yield* listExtensionPackagesView({ projectPaths: getViewProjectPaths(input) })
   })
@@ -131,6 +139,9 @@ export function setExtensionEnabled(input: ExtensionSetEnabledInput) {
         lastReloadedAt: null,
       }),
     )
+    if (!input.enabled) {
+      yield* unregisterPackageContributionState(extensionPackage)
+    }
 
     return yield* listExtensionPackagesView({ projectPaths: getViewProjectPaths(input) })
   })
@@ -165,6 +176,7 @@ export function acceptExtensionUpdate(input: ExtensionAcceptUpdateInput) {
         lastReloadedAt: null,
       }),
     )
+    yield* unregisterPackageContributionState(extensionPackage)
 
     return yield* listExtensionPackagesView({ projectPaths: getViewProjectPaths(input) })
   })
@@ -221,6 +233,7 @@ export function approveExtensionBuild(input: ExtensionApproveBuildInput) {
         diagnostics: [...rediscoveredPackage.diagnostics, ...buildDiagnostics],
       }),
     )
+    yield* unregisterPackageContributionState(rediscoveredPackage)
 
     return yield* listExtensionPackagesView({ projectPaths: getViewProjectPaths(input) })
   })
@@ -278,6 +291,9 @@ export function setExtensionProjectDisabled(input: ExtensionSetProjectDisabledIn
       createdAt: current?.createdAt ?? now,
       updatedAt: now,
     })
+    if (input.disabled) {
+      yield* unregisterPackageContributionState(extensionPackage)
+    }
 
     return yield* listExtensionPackagesView({
       projectPaths: getProjectDisabledViewProjectPaths(input),

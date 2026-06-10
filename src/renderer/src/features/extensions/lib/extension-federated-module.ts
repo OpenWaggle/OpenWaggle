@@ -1,45 +1,22 @@
 import {
-  createExtensionBrokerSdk,
-  type ExtensionBrokerSdk,
-  type ExtensionSdkInvokeRequest,
-} from '@shared/extension-sdk'
+  createNoopExtensionSurfaceSdk,
+  createOpenWaggleExtensionSurfaceContext,
+  type OpenWaggleExtensionSdk,
+  type OpenWaggleExtensionSurfaceContext,
+  type OpenWaggleExtensionSurfaceSdk,
+} from '@shared/extension-context'
+import { createExtensionBrokerSdk, type ExtensionSdkInvokeRequest } from '@shared/extension-sdk'
 import type { ExtensionInvokeInput, ExtensionInvokeResult } from '@shared/types/extension-broker'
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
 import type { JsonValue } from '@shared/types/json'
+import { createRendererExtensionTheme } from './extension-theme-context'
 
 export type ExtensionMountInvokeInput = ExtensionSdkInvokeRequest
 
-export interface OpenWaggleExtensionSurfaceSdk {
-  readonly sendAction: (actionId: string, payload?: JsonValue) => Promise<void>
-  readonly respondInteraction: (value: JsonValue | null) => Promise<void>
-}
+export type { OpenWaggleExtensionSdk, OpenWaggleExtensionSurfaceSdk }
 
-export type OpenWaggleExtensionSdk = ExtensionBrokerSdk & {
-  readonly surface: OpenWaggleExtensionSurfaceSdk
-}
-
-export interface OpenWaggleExtensionMountContext {
+export interface OpenWaggleExtensionMountContext extends OpenWaggleExtensionSurfaceContext {
   readonly root: HTMLElement
-  readonly extension: {
-    readonly id: string
-    readonly name: string
-    readonly version: string
-  }
-  readonly contribution: {
-    readonly id: string
-    readonly title: string
-    readonly family: string
-  }
-  readonly surface: {
-    readonly family: string
-    readonly execution: string
-    readonly payload?: JsonValue
-  }
-  readonly packagePath: string
-  readonly projectPaths: readonly string[]
-  readonly theme: {
-    readonly colorScheme: 'dark'
-  }
   readonly sdk: OpenWaggleExtensionSdk
 }
 
@@ -92,34 +69,16 @@ export function createExtensionMountContext(input: {
   })
   const sdk = {
     ...brokerSdk,
-    surface: input.surface ?? {
-      sendAction: async () => undefined,
-      respondInteraction: async () => undefined,
-    },
+    surface: input.surface ?? createNoopExtensionSurfaceSdk(),
   }
 
   return {
+    ...createOpenWaggleExtensionSurfaceContext({
+      entry: input.entry,
+      surfacePayload: input.surfacePayload,
+      theme: createRendererExtensionTheme(),
+    }),
     root: input.root,
-    extension: {
-      id: input.entry.extensionId,
-      name: input.entry.extensionName,
-      version: input.entry.extensionVersion,
-    },
-    contribution: {
-      id: input.entry.contributionId,
-      title: input.entry.title,
-      family: input.entry.family,
-    },
-    surface: {
-      family: input.entry.family,
-      execution: input.entry.execution ?? '',
-      ...(input.surfacePayload !== undefined ? { payload: input.surfacePayload } : {}),
-    },
-    packagePath: input.entry.packagePath,
-    projectPaths: input.entry.projectPaths,
-    theme: {
-      colorScheme: 'dark',
-    },
     sdk,
   }
 }

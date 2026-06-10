@@ -1,12 +1,13 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { ExtensionDiscoveryError } from '../../errors'
 import type { ExtensionLifecycleState } from '../../extensions/types'
 import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from '../../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
+import { clearExtensionContributionRegistryCacheForTests } from '../extension-contribution-registry-cache'
 import { listExtensionContributionRegistryView } from '../extension-contribution-registry-service'
 import { setExtensionEnabled } from '../extension-lifecycle-service'
 import { isExtensionRuntimeModuleAccessAllowed } from '../extension-runtime-module-access-service'
@@ -61,6 +62,10 @@ function makeTeardownHarness(lifecycle: ExtensionLifecycleState) {
 }
 
 describe('extension lifecycle teardown', () => {
+  beforeEach(() => {
+    clearExtensionContributionRegistryCacheForTests()
+  })
+
   it('tears down reload state and runtime eligibility when disabling an extension', async () => {
     const harness = makeTeardownHarness({
       ...makeLifecycle(extensionPackage),

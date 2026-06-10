@@ -6,8 +6,16 @@ import {
   extensionSettingsUpdateResultSchema,
   extensionStateReadResultSchema,
 } from '@shared/schemas/extension-broker'
+import {
+  extensionDocsDiscoverResultSchema,
+  extensionDocsResolveTopicResultSchema,
+} from '@shared/schemas/extension-broker-docs'
 import type {
   ExtensionActionSelectProjectResult,
+  ExtensionDocsDiscoverPayload,
+  ExtensionDocsDiscoverResult,
+  ExtensionDocsResolveTopicPayload,
+  ExtensionDocsResolveTopicResult,
   ExtensionInvokeFailure,
   ExtensionInvokeResult,
   ExtensionInvokeScope,
@@ -37,6 +45,16 @@ export interface ExtensionOpenWaggleSdk {
       settings: ExtensionSettingsUpdatePayload,
     ) => Promise<ExtensionSettingsUpdateOperationResult>
   }
+  readonly docs: {
+    readonly discover: (
+      scope: ExtensionInvokeScope,
+      input?: ExtensionDocsDiscoverPayload,
+    ) => Promise<ExtensionDocsDiscoverOperationResult>
+    readonly resolveTopic: (
+      scope: ExtensionInvokeScope,
+      input: ExtensionDocsResolveTopicPayload,
+    ) => Promise<ExtensionDocsResolveTopicOperationResult>
+  }
 }
 
 export type ExtensionStateReadOperationResult =
@@ -53,6 +71,14 @@ export type ExtensionSettingsGetOperationResult =
 
 export type ExtensionSettingsUpdateOperationResult =
   | ExtensionOperationSuccess<ExtensionSettingsUpdateResult>
+  | ExtensionInvokeFailure
+
+export type ExtensionDocsDiscoverOperationResult =
+  | ExtensionOperationSuccess<ExtensionDocsDiscoverResult>
+  | ExtensionInvokeFailure
+
+export type ExtensionDocsResolveTopicOperationResult =
+  | ExtensionOperationSuccess<ExtensionDocsResolveTopicResult>
   | ExtensionInvokeFailure
 
 export interface CreateOpenWaggleSdkOptions {
@@ -93,6 +119,17 @@ function settingsResultError(input: {
     audit: input.result.audit,
     issues: input.issues,
     message: 'Extension broker returned an invalid OpenWaggle settings result.',
+  })
+}
+
+function docsResultError(input: {
+  readonly result: ExtensionInvokeResult & { readonly ok: true }
+  readonly issues: readonly string[]
+}) {
+  return invalidOperationResult({
+    audit: input.result.audit,
+    issues: input.issues,
+    message: 'Extension broker returned an invalid OpenWaggle docs result.',
   })
 }
 
@@ -144,6 +181,30 @@ function toSettingsUpdateResult(
     : settingsResultError({ result, issues: decoded.issues })
 }
 
+function toDocsDiscoverResult(result: ExtensionInvokeResult): ExtensionDocsDiscoverOperationResult {
+  if (!result.ok) {
+    return result
+  }
+
+  const decoded = safeDecodeUnknown(extensionDocsDiscoverResultSchema, result.value)
+  return decoded.success
+    ? { ok: true, value: decoded.data, audit: result.audit }
+    : docsResultError({ result, issues: decoded.issues })
+}
+
+function toDocsResolveTopicResult(
+  result: ExtensionInvokeResult,
+): ExtensionDocsResolveTopicOperationResult {
+  if (!result.ok) {
+    return result
+  }
+
+  const decoded = safeDecodeUnknown(extensionDocsResolveTopicResultSchema, result.value)
+  return decoded.success
+    ? { ok: true, value: decoded.data, audit: result.audit }
+    : docsResultError({ result, issues: decoded.issues })
+}
+
 export function createOpenWaggleSdk(
   invoke: ExtensionSdkInvoke,
   options: CreateOpenWaggleSdkOptions = {},
@@ -189,6 +250,26 @@ export function createOpenWaggleSdk(
             method: OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTINGS,
             scope,
             payload: settings,
+          }),
+        ),
+    },
+    docs: {
+      discover: async (scope, input = {}) =>
+        toDocsDiscoverResult(
+          await invoke({
+            capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.DOCS,
+            method: OPENWAGGLE_EXTENSION_BROKER.METHOD.DISCOVER_DOCS,
+            scope,
+            payload: input,
+          }),
+        ),
+      resolveTopic: async (scope, input) =>
+        toDocsResolveTopicResult(
+          await invoke({
+            capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.DOCS,
+            method: OPENWAGGLE_EXTENSION_BROKER.METHOD.RESOLVE_DOCS_TOPIC,
+            scope,
+            payload: input,
           }),
         ),
     },

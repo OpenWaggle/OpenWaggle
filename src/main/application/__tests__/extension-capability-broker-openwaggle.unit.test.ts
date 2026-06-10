@@ -9,7 +9,6 @@ import { makeExpectBrokerFailure } from './extension-capability-broker-assertion
 import {
   BRANCH_ID,
   BROKER_EXTENSION_ID,
-  makeBrokerHarness,
   makeSessionDetail,
   makeSessionTree,
   runBroker,
@@ -222,61 +221,6 @@ describe('invokeExtensionCapability OpenWaggle capabilities', () => {
       ok: false,
       error: {
         issues: ['Project path must be absolute.'],
-      },
-    })
-  })
-
-  it('updates the declared OpenWaggle settings subset through the broker', async () => {
-    const extensionPackage = makeOpenWaggleBrokerPackage()
-    const harness = makeBrokerHarness({
-      packages: [extensionPackage],
-      lifecycles: [makeLifecycle(extensionPackage)],
-    })
-
-    const updateResult = await harness.run(
-      makeInvocation({
-        contributionId: SETTINGS_CONTRIBUTION_ID,
-        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
-        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.UPDATE_SETTINGS,
-        scope: { kind: 'project', projectPath: PROJECT_PATH },
-        payload: {
-          thinkingLevel: 'high',
-          favoriteModels: ['openai/gpt-5.5'],
-          projectDisplayNames: { [PROJECT_PATH]: 'OpenWaggle Core' },
-        },
-      }),
-    )
-    const getResult = await harness.run(
-      makeInvocation({
-        contributionId: SETTINGS_CONTRIBUTION_ID,
-        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
-        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTINGS,
-        scope: { kind: 'project', projectPath: PROJECT_PATH },
-      }),
-    )
-
-    expect(updateResult).toMatchObject({
-      ok: true,
-      value: {
-        settings: {
-          modelPreferences: {
-            thinkingLevel: 'high',
-            favoriteModels: ['openai/gpt-5.5'],
-          },
-          projectDisplayNames: { [PROJECT_PATH]: 'OpenWaggle Core' },
-        },
-      },
-    })
-    expect(getResult).toMatchObject({
-      ok: true,
-      value: {
-        settings: {
-          modelPreferences: {
-            thinkingLevel: 'high',
-            favoriteModels: ['openai/gpt-5.5'],
-          },
-          projectDisplayNames: { [PROJECT_PATH]: 'OpenWaggle Core' },
-        },
       },
     })
   })

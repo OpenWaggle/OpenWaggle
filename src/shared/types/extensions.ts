@@ -85,6 +85,11 @@ export interface ExtensionManifestSummary {
 export type ExtensionInstallSource = ConstantValue<typeof OPENWAGGLE_EXTENSION.INSTALL_SOURCE>
 export type ExtensionBuildRunStatus = ConstantValue<typeof OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS>
 export type ExtensionReloadStatus = ConstantValue<typeof OPENWAGGLE_EXTENSION.RELOAD_STATUS>
+export type ExtensionRequirementKind = ConstantValue<typeof OPENWAGGLE_EXTENSION.REQUIREMENT_KIND>
+export type ExtensionRuntimeRequirementDeclarationKind = ConstantValue<
+  typeof OPENWAGGLE_EXTENSION.RUNTIME_REQUIREMENT_TYPE
+>
+export type ExtensionPrivilegeGrantId = ConstantValue<typeof OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT>
 export type ExtensionContributionFamily = ConstantValue<
   typeof OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY
 >
@@ -102,6 +107,79 @@ export interface ExtensionBuildPlanView {
   readonly approvalRequired: boolean
   readonly approved: boolean
   readonly inputHash: string | null
+}
+
+export interface ExtensionRuntimeBinaryRequirementView {
+  readonly kind: typeof OPENWAGGLE_EXTENSION.REQUIREMENT_KIND.RUNTIME_BINARY
+  readonly id: string
+  readonly label: string
+  readonly binary: string
+}
+
+export interface ExtensionRuntimeCommandRequirementView {
+  readonly kind: typeof OPENWAGGLE_EXTENSION.REQUIREMENT_KIND.RUNTIME_COMMAND
+  readonly id: string
+  readonly label: string
+  readonly path: string
+}
+
+export type ExtensionRuntimeRequirementView =
+  | ExtensionRuntimeBinaryRequirementView
+  | ExtensionRuntimeCommandRequirementView
+
+export interface ExtensionCapabilityRequirementView {
+  readonly kind: typeof OPENWAGGLE_EXTENSION.REQUIREMENT_KIND.PRIVILEGED_CAPABILITY
+  readonly id: string
+  readonly label: string
+  readonly grantId: string
+  readonly capabilityId: string
+  readonly methods?: readonly string[]
+  readonly scopes?: readonly string[]
+}
+
+export interface ExtensionNetworkRequirementView {
+  readonly kind: typeof OPENWAGGLE_EXTENSION.REQUIREMENT_KIND.PRIVILEGED_NETWORK
+  readonly id: typeof OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.NETWORK
+  readonly label: string
+  readonly grantId: typeof OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.NETWORK
+  readonly origins: readonly string[]
+}
+
+export interface ExtensionLocalBuildRequirementView {
+  readonly kind: typeof OPENWAGGLE_EXTENSION.REQUIREMENT_KIND.PRIVILEGED_LOCAL_BUILD
+  readonly id: typeof OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.LOCAL_BUILD
+  readonly label: string
+  readonly grantId: typeof OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.LOCAL_BUILD
+  readonly command: string | null
+  readonly outputCount: number
+}
+
+export interface ExtensionTrustedMainRequirementView {
+  readonly kind: typeof OPENWAGGLE_EXTENSION.REQUIREMENT_KIND.PRIVILEGED_TRUSTED_MAIN
+  readonly id: typeof OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.TRUSTED_MAIN
+  readonly label: string
+  readonly grantId: typeof OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.TRUSTED_MAIN
+  readonly path: string
+}
+
+export interface ExtensionTrustedRendererRequirementView {
+  readonly kind: typeof OPENWAGGLE_EXTENSION.REQUIREMENT_KIND.PRIVILEGED_TRUSTED_RENDERER
+  readonly id: typeof OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.TRUSTED_RENDERER
+  readonly label: string
+  readonly grantId: typeof OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.TRUSTED_RENDERER
+  readonly path: string
+}
+
+export type ExtensionPrivilegeRequirementView =
+  | ExtensionCapabilityRequirementView
+  | ExtensionNetworkRequirementView
+  | ExtensionLocalBuildRequirementView
+  | ExtensionTrustedMainRequirementView
+  | ExtensionTrustedRendererRequirementView
+
+export interface ExtensionPackageRequirementsView {
+  readonly runtime: readonly ExtensionRuntimeRequirementView[]
+  readonly privileges: readonly ExtensionPrivilegeRequirementView[]
 }
 
 export interface ExtensionLifecycleView {
@@ -136,6 +214,7 @@ export interface ExtensionPackageSummary {
   readonly manifestPath: string
   readonly manifest: ExtensionManifestSummary | null
   readonly buildPlan: ExtensionBuildPlanView | null
+  readonly requirements?: ExtensionPackageRequirementsView
   readonly contentHash: string | null
   readonly sdkCompatibility: ExtensionSdkCompatibilityView | null
   readonly lifecycle: ExtensionLifecycleView | null

@@ -1,4 +1,4 @@
-import type { JsonValue } from './json'
+import type { OpenWaggleExtensionSurfaceContext } from '@shared/extension-context'
 
 export interface ExtensionFrameRegisterInput {
   readonly frameId: string
@@ -16,28 +16,7 @@ export interface ExtensionFrameUnregisterInput {
   readonly registrationId: string
 }
 
-export interface ExtensionFrameMountContext {
-  readonly extension: {
-    readonly id: string
-    readonly name: string
-    readonly version: string
-  }
-  readonly contribution: {
-    readonly id: string
-    readonly title: string
-    readonly family: string
-  }
-  readonly surface: {
-    readonly family: string
-    readonly execution: string
-    readonly payload?: JsonValue
-  }
-  readonly packagePath: string
-  readonly projectPaths: readonly string[]
-  readonly theme: {
-    readonly colorScheme: 'dark'
-  }
-}
+export type ExtensionFrameMountContext = OpenWaggleExtensionSurfaceContext
 
 export interface ExtensionFrameConfig {
   readonly moduleUrl: string

@@ -47,6 +47,8 @@ export { resolveExtensionDialogContribution } from './lib/extension-dialog-resol
 export type {
   ExtensionFederatedModuleLoader,
   OpenWaggleExtensionMountContext,
+  OpenWaggleExtensionSdk,
+  OpenWaggleExtensionSurfaceSdk,
   OpenWaggleFederatedModule,
 } from './lib/extension-federated-module'
 export {

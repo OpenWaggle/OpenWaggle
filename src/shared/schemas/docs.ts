@@ -1,3 +1,4 @@
+import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { Schema, type SchemaType } from '@shared/schema'
 
 const nonEmptyStringSchema = Schema.String.pipe(Schema.minLength(1))
@@ -18,6 +19,13 @@ export const docsListInputSchema = Schema.Struct({
 
 export const docsResolveTopicInputSchema = Schema.Struct({
   topic: firstPartyDocTopicSchema,
+})
+
+export const docsDiscoveryDiagnosticSchema = Schema.Struct({
+  severity: Schema.Literal('warning', 'error'),
+  code: nonEmptyStringSchema,
+  message: nonEmptyStringSchema,
+  path: Schema.optional(nonEmptyStringSchema),
 })
 
 export const installedDocsGroupSchema = Schema.Struct({
@@ -48,6 +56,67 @@ export const installedDocsManifestSchema = Schema.Struct({
   groups: Schema.mutable(Schema.Array(installedDocsGroupSchema)),
   topics: Schema.mutable(Schema.Array(installedDocsTopicSchema)),
 })
+
+export const firstPartyDocsTopicSummarySchema = Schema.Struct({
+  topic: firstPartyDocTopicSchema,
+  source: Schema.Literal('openwaggle', 'pi'),
+  group: nonEmptyStringSchema,
+  title: nonEmptyStringSchema,
+  description: Schema.optional(nonEmptyStringSchema),
+  section: Schema.optional(nonEmptyStringSchema),
+  order: Schema.Number,
+  path: nonEmptyStringSchema,
+  bundlePath: nonEmptyStringSchema,
+  sourcePath: nonEmptyStringSchema,
+  aliases: Schema.Array(nonEmptyStringSchema),
+  keywords: Schema.Array(nonEmptyStringSchema),
+  contentHash: nonEmptyStringSchema,
+})
+
+export const extensionDocsPackageScopeViewSchema = Schema.Struct({
+  kind: Schema.Literal(
+    OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND,
+    OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND,
+  ),
+  label: nonEmptyStringSchema,
+  projectPath: Schema.optional(nonEmptyStringSchema),
+})
+
+export const extensionDocsProvenanceSchema = Schema.Struct({
+  extensionId: nonEmptyStringSchema,
+  extensionName: Schema.NullOr(nonEmptyStringSchema),
+  extensionVersion: Schema.NullOr(nonEmptyStringSchema),
+  scope: extensionDocsPackageScopeViewSchema,
+  packagePath: nonEmptyStringSchema,
+  manifestPath: nonEmptyStringSchema,
+  path: nonEmptyStringSchema,
+  packageContentHash: Schema.NullOr(nonEmptyStringSchema),
+  trust: Schema.Literal('trusted', 'untrusted', 'unknown'),
+  lifecycle: Schema.Literal('enabled', 'disabled', 'unavailable'),
+})
+
+export const extensionDocsTopicSummarySchema = Schema.Struct({
+  topic: nonEmptyStringSchema,
+  localTopic: nonEmptyStringSchema,
+  title: nonEmptyStringSchema,
+  description: Schema.optional(nonEmptyStringSchema),
+  path: nonEmptyStringSchema,
+  aliases: Schema.Array(nonEmptyStringSchema),
+  keywords: Schema.Array(nonEmptyStringSchema),
+  contentHash: Schema.NullOr(nonEmptyStringSchema),
+  provenance: extensionDocsProvenanceSchema,
+  diagnostics: Schema.Array(docsDiscoveryDiagnosticSchema),
+})
+
+export const docsDiscoveryViewSchema = Schema.Struct({
+  generatedAt: nonEmptyStringSchema,
+  bundlePath: nonEmptyStringSchema,
+  firstPartyTopics: Schema.Array(firstPartyDocsTopicSummarySchema),
+  extensionTopics: Schema.Array(extensionDocsTopicSummarySchema),
+  diagnostics: Schema.Array(docsDiscoveryDiagnosticSchema),
+})
+
+export const docsResolveTopicResultSchema = Schema.NullOr(firstPartyDocsTopicSummarySchema)
 
 export type InstalledDocsTopic = SchemaType<typeof installedDocsTopicSchema>
 export type InstalledDocsManifest = SchemaType<typeof installedDocsManifestSchema>

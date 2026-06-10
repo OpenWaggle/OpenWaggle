@@ -1,6 +1,8 @@
 export type {
   ExtensionBrokerSdk,
   ExtensionBrokerTransport,
+  ExtensionDocsDiscoverOperationResult,
+  ExtensionDocsResolveTopicOperationResult,
   ExtensionOpenWaggleSdk,
   ExtensionPackageStorageKindSdk,
   ExtensionPackageStorageSdk,

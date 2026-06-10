@@ -3,10 +3,15 @@ import type { ExtensionInvokeResult, ExtensionInvokeScope } from '@shared/types/
 import {
   type ExtensionBrokerTransport,
   type ExtensionSdkIdentity,
+  type ExtensionSdkInvoke,
   type ExtensionSdkInvokeRequest,
   toInvokeInput,
 } from './extension-sdk-core'
-import { createOpenWaggleSdk, type ExtensionOpenWaggleSdk } from './extension-sdk-openwaggle'
+import {
+  type CreateOpenWaggleSdkOptions,
+  createOpenWaggleSdk,
+  type ExtensionOpenWaggleSdk,
+} from './extension-sdk-openwaggle'
 import { createPackageStorageSdk, type ExtensionPackageStorageSdk } from './extension-sdk-storage'
 
 export type {
@@ -17,6 +22,9 @@ export type {
   ExtensionSdkInvokeRequest,
 } from './extension-sdk-core'
 export type {
+  CreateOpenWaggleSdkOptions,
+  ExtensionDocsDiscoverOperationResult,
+  ExtensionDocsResolveTopicOperationResult,
   ExtensionOpenWaggleSdk,
   ExtensionSelectProjectOperationResult,
   ExtensionSettingsGetOperationResult,
@@ -42,12 +50,10 @@ export interface ExtensionBrokerSdk {
   readonly openWaggle: ExtensionOpenWaggleSdk
 }
 
-export function createExtensionBrokerSdk(
-  transport: ExtensionBrokerTransport,
-  identity: ExtensionSdkIdentity,
+export function createExtensionBrokerSdkFromInvoke(
+  invoke: ExtensionSdkInvoke,
+  options: CreateOpenWaggleSdkOptions = {},
 ): ExtensionBrokerSdk {
-  const invoke = (request: ExtensionSdkInvokeRequest) => transport(toInvokeInput(identity, request))
-
   return {
     invoke,
     hostContext: {
@@ -60,6 +66,15 @@ export function createExtensionBrokerSdk(
         }),
     },
     storage: createPackageStorageSdk(invoke),
-    openWaggle: createOpenWaggleSdk(invoke),
+    openWaggle: createOpenWaggleSdk(invoke, options),
   }
+}
+
+export function createExtensionBrokerSdk(
+  transport: ExtensionBrokerTransport,
+  identity: ExtensionSdkIdentity,
+): ExtensionBrokerSdk {
+  const invoke = (request: ExtensionSdkInvokeRequest) => transport(toInvokeInput(identity, request))
+
+  return createExtensionBrokerSdkFromInvoke(invoke)
 }

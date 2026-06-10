@@ -52,6 +52,9 @@ export const extensionSlotContributionFamilySchema = Schema.Literal(
   ...OPENWAGGLE_EXTENSION.SLOT_CONTRIBUTION_FAMILIES,
 )
 export const extensionInstallSourceSchema = Schema.Literal(...OPENWAGGLE_EXTENSION.INSTALL_SOURCES)
+export const extensionRuntimeRequirementTypeSchema = Schema.Literal(
+  ...OPENWAGGLE_EXTENSION.RUNTIME_REQUIREMENT_TYPES,
+)
 export const extensionLifecycleScopeSchema = Schema.Union(
   Schema.Struct({
     kind: Schema.Literal(OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND),
@@ -180,9 +183,35 @@ export const extensionContributionRegistrationSchema = Schema.Union(
 export const extensionRuntimeRequirementSchema = Schema.Struct({
   id: extensionContributionIdSchema,
   label: nonEmptyStringSchema.pipe(Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH)),
+  kind: Schema.optional(extensionRuntimeRequirementTypeSchema),
   command: Schema.optional(extensionRelativePathSchema),
   binary: Schema.optional(nonEmptyStringSchema.pipe(Schema.filter(isRuntimeRequirementBinary))),
-})
+}).pipe(
+  Schema.filter((requirement) => {
+    const hasBinary = requirement.binary !== undefined
+    const hasCommand = requirement.command !== undefined
+
+    if (hasBinary === hasCommand) {
+      return 'Declare exactly one runtime requirement target: binary or command.'
+    }
+    if (
+      hasBinary &&
+      requirement.kind !== undefined &&
+      requirement.kind !== OPENWAGGLE_EXTENSION.RUNTIME_REQUIREMENT_TYPE.BINARY
+    ) {
+      return 'Runtime requirement kind must be "binary" when binary is declared.'
+    }
+    if (
+      hasCommand &&
+      requirement.kind !== undefined &&
+      requirement.kind !== OPENWAGGLE_EXTENSION.RUNTIME_REQUIREMENT_TYPE.COMMAND
+    ) {
+      return 'Runtime requirement kind must be "command" when command is declared.'
+    }
+
+    return true
+  }),
+)
 
 export const extensionNetworkSchema = Schema.Struct({
   origins: Schema.mutable(Schema.Array(nonEmptyStringSchema.pipe(Schema.filter(isNetworkOrigin)))),

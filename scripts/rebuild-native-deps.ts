@@ -79,20 +79,27 @@ function appendWhitespaceDelimitedOptions(
   return options.reduce(appendWhitespaceDelimitedOption, existingOptions ?? '')
 }
 
-function suppressDependencyDeprecationWarnings(extraEnvironment: NodeJS.ProcessEnv = {}) {
+function suppressDependencyDeprecationWarnings(
+  extraEnvironment: NodeJS.ProcessEnv = {},
+  baseEnvironment: NodeJS.ProcessEnv = process.env,
+) {
   return {
     ...extraEnvironment,
     NODE_OPTIONS: appendWhitespaceDelimitedOption(
-      extraEnvironment.NODE_OPTIONS ?? process.env.NODE_OPTIONS,
+      extraEnvironment.NODE_OPTIONS ?? baseEnvironment['NODE_OPTIONS'],
       SUPPRESS_DEPENDENCY_DEPRECATIONS_OPTION,
     ),
   }
 }
 
-function electronRebuildEnvironment(electronVersion: string, extraEnvironment: NodeJS.ProcessEnv = {}) {
+function electronRebuildEnvironment(
+  electronVersion: string,
+  extraEnvironment: NodeJS.ProcessEnv = {},
+  baseEnvironment: NodeJS.ProcessEnv = process.env,
+) {
   return suppressDependencyDeprecationWarnings({
     ...extraEnvironment,
-    CXXFLAGS: appendWhitespaceDelimitedOptions(process.env.CXXFLAGS, [
+    CXXFLAGS: appendWhitespaceDelimitedOptions(baseEnvironment['CXXFLAGS'], [
       SUPPRESS_CAST_FUNCTION_TYPE_MISMATCH_FLAG,
       SUPPRESS_MISSING_FIELD_INITIALIZERS_FLAG,
     ]),

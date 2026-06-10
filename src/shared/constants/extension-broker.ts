@@ -24,6 +24,7 @@ const EXTENSION_BROKER_CAPABILITY = {
   STATE: 'openwaggle.state',
   ACTIONS: 'openwaggle.actions',
   SETTINGS: 'openwaggle.settings',
+  DOCS: 'openwaggle.docs',
 } as const
 
 const EXTENSION_BROKER_METHOD = {
@@ -36,6 +37,8 @@ const EXTENSION_BROKER_METHOD = {
   SELECT_PROJECT: 'select-project',
   GET_SETTINGS: 'get-settings',
   UPDATE_SETTINGS: 'update-settings',
+  DISCOVER_DOCS: 'discover-docs',
+  RESOLVE_DOCS_TOPIC: 'resolve-docs-topic',
 } as const
 
 export const OPENWAGGLE_EXTENSION_BROKER = {

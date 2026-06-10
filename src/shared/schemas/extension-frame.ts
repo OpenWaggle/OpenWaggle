@@ -4,13 +4,17 @@ import type {
   ExtensionFrameRegisterInput,
   ExtensionFrameUnregisterInput,
 } from '@shared/types/extension-frame'
+import { isNetworkOrigin } from './extension-network-origin'
+import { extensionThemeSchema } from './extension-theme'
 import { jsonValueSchema } from './validation'
+
+const extensionNetworkOriginSchema = Schema.String.pipe(Schema.filter(isNetworkOrigin))
 
 export const extensionFrameRegisterInputSchema: Schema.Schema<ExtensionFrameRegisterInput> =
   Schema.Struct({
     frameId: Schema.String,
     bootstrapUrl: Schema.String,
-    networkOrigins: Schema.optional(Schema.Array(Schema.String)),
+    networkOrigins: Schema.optional(Schema.Array(extensionNetworkOriginSchema)),
   })
 
 export const extensionFrameUnregisterInputSchema: Schema.Schema<ExtensionFrameUnregisterInput> =
@@ -38,9 +42,7 @@ export const extensionFrameMountContextSchema: Schema.Schema<ExtensionFrameConfi
     }),
     packagePath: Schema.String,
     projectPaths: Schema.Array(Schema.String),
-    theme: Schema.Struct({
-      colorScheme: Schema.Literal('dark'),
-    }),
+    theme: extensionThemeSchema,
   })
 
 export const extensionFrameConfigSchema: Schema.Schema<ExtensionFrameConfig> = Schema.Struct({

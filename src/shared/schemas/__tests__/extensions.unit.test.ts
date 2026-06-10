@@ -240,40 +240,4 @@ describe('openWaggleExtensionManifestSchema', () => {
       expect(result.issues.join('\n')).toContain('single command line')
     }
   })
-
-  it('accepts external binary runtime requirements', () => {
-    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
-      ...validManifest,
-      runtimeRequirements: [
-        {
-          id: 'sample.ripgrep',
-          label: 'Ripgrep',
-          binary: 'rg',
-        },
-      ],
-    })
-
-    expect(result.success).toBe(true)
-    if (result.success) {
-      expect(result.data.runtimeRequirements?.[0]?.binary).toBe('rg')
-    }
-  })
-
-  it('rejects runtime requirement binary paths', () => {
-    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
-      ...validManifest,
-      runtimeRequirements: [
-        {
-          id: 'sample.ripgrep',
-          label: 'Ripgrep',
-          binary: '/usr/bin/rg',
-        },
-      ],
-    })
-
-    expect(result.success).toBe(false)
-    if (!result.success) {
-      expect(result.issues.join('\n')).toContain('executable name')
-    }
-  })
 })

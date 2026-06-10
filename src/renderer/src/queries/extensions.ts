@@ -28,6 +28,7 @@ type ExtensionApi = Pick<
 >
 
 const extensionApi: ExtensionApi = api
+const EXTENSION_CONTRIBUTIONS_QUERY_KEY = 'extensionContributions'
 
 function extensionPackagesQueryKey(
   projectPaths: readonly string[],
@@ -38,7 +39,7 @@ function extensionPackagesQueryKey(
 function extensionContributionsKey(
   projectPaths: readonly string[],
 ): readonly ['extensionContributions', ...string[]] {
-  return ['extensionContributions', ...projectPaths]
+  return [EXTENSION_CONTRIBUTIONS_QUERY_KEY, ...projectPaths]
 }
 
 function listExtensionPackages(input: ExtensionListPackagesInput): Promise<ExtensionManagerView> {
@@ -84,8 +85,7 @@ function syncExtensionQueriesAfterMutation(input: {
 }) {
   input.queryClient.setQueryData(extensionPackagesQueryKey(input.projectPaths), input.view)
   return input.queryClient.invalidateQueries({
-    queryKey: extensionContributionsKey(input.projectPaths),
-    exact: true,
+    queryKey: [EXTENSION_CONTRIBUTIONS_QUERY_KEY],
   })
 }
 

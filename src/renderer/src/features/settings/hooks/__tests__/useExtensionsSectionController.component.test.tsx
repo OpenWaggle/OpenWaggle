@@ -36,6 +36,7 @@ vi.mock('@/shared/lib/ipc', () => ({
 import { useExtensionsSectionController } from '../useExtensionsSectionController'
 
 const PROJECT_PATH = '/tmp/project'
+const OTHER_PROJECT_PATH = '/tmp/other-project'
 const OLD_MODEL = SupportedModelId('extension-provider/old-model')
 const NEW_MODEL = SupportedModelId('extension-provider/new-model')
 
@@ -184,6 +185,11 @@ const EMPTY_REGISTRY: ExtensionContributionRegistryView = {
   entries: [],
 }
 
+const EMPTY_OTHER_PROJECT_REGISTRY: ExtensionContributionRegistryView = {
+  projectPaths: [OTHER_PROJECT_PATH],
+  entries: [],
+}
+
 const CONTRIBUTION_REGISTRY: ExtensionContributionRegistryView = {
   projectPaths: [PROJECT_PATH],
   entries: [COMMAND_ENTRY, SETTINGS_ENTRY],
@@ -259,6 +265,26 @@ describe('useExtensionsSectionController', () => {
       expect(result.current.contributionRegistry).toEqual(EMPTY_REGISTRY)
     })
     expect(apiMock.listExtensionContributions).toHaveBeenCalledTimes(2)
+  })
+
+  it('invalidates contribution registries for other project scopes after disabling an extension', async () => {
+    apiMock.listExtensionContributions.mockResolvedValueOnce(CONTRIBUTION_REGISTRY)
+    const otherProjectContributionsKey = ['extensionContributions', OTHER_PROJECT_PATH] as const
+    const { result, client } = renderHookWithQueryClient(() =>
+      useExtensionsSectionController([PROJECT_PATH]),
+    )
+    client.setQueryData(otherProjectContributionsKey, EMPTY_OTHER_PROJECT_REGISTRY)
+
+    await waitFor(() => {
+      expect(result.current.contributionRegistry?.entries).toHaveLength(2)
+    })
+    expect(client.getQueryState(otherProjectContributionsKey)?.isInvalidated).toBe(false)
+
+    await act(async () => {
+      await result.current.setEnabled(SAMPLE_PACKAGE, false)
+    })
+
+    expect(client.getQueryState(otherProjectContributionsKey)?.isInvalidated).toBe(true)
   })
 
   it('refreshes provider models after enabling an extension', async () => {

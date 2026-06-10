@@ -112,6 +112,21 @@ const EXTENSION_PRIVILEGE_GRANT = {
   LOCAL_BUILD: 'openwaggle.privilege.local-build',
 } as const
 
+const EXTENSION_RUNTIME_REQUIREMENT_TYPE = {
+  BINARY: 'binary',
+  COMMAND: 'command',
+} as const
+
+const EXTENSION_REQUIREMENT_KIND = {
+  RUNTIME_BINARY: 'runtime-binary',
+  RUNTIME_COMMAND: 'runtime-command',
+  PRIVILEGED_CAPABILITY: 'privileged-capability',
+  PRIVILEGED_NETWORK: 'privileged-network',
+  PRIVILEGED_LOCAL_BUILD: 'privileged-local-build',
+  PRIVILEGED_TRUSTED_MAIN: 'privileged-trusted-main',
+  PRIVILEGED_TRUSTED_RENDERER: 'privileged-trusted-renderer',
+} as const
+
 export const OPENWAGGLE_EXTENSION = {
   MANIFEST_FILE: 'openwaggle.extension.json',
   SDK_VERSION: '0.1.0',
@@ -254,4 +269,8 @@ export const OPENWAGGLE_EXTENSION = {
   RELOAD_STATUSES: Object.freeze(Object.values(EXTENSION_RELOAD_STATUS)),
   PRIVILEGE_GRANT: EXTENSION_PRIVILEGE_GRANT,
   PRIVILEGE_GRANTS: Object.freeze(Object.values(EXTENSION_PRIVILEGE_GRANT)),
+  RUNTIME_REQUIREMENT_TYPE: EXTENSION_RUNTIME_REQUIREMENT_TYPE,
+  RUNTIME_REQUIREMENT_TYPES: Object.freeze(Object.values(EXTENSION_RUNTIME_REQUIREMENT_TYPE)),
+  REQUIREMENT_KIND: EXTENSION_REQUIREMENT_KIND,
+  REQUIREMENT_KINDS: Object.freeze(Object.values(EXTENSION_REQUIREMENT_KIND)),
 } as const

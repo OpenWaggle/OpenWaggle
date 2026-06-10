@@ -22,6 +22,7 @@ import type {
   ExtensionPackageScope,
   ExtensionProjectOverrideState,
 } from '../extensions/types'
+import { requirementsToView } from './extension-requirements-view-model'
 
 function scopeToView(scope: ExtensionPackageScope): ExtensionPackageScopeView {
   if (scope.kind === OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND) {
@@ -190,6 +191,7 @@ export function packageToSummary(input: {
       ? manifestToSummary(input.extensionPackage.manifest)
       : null,
     buildPlan: buildPlanToView(input.extensionPackage, input.lifecycle),
+    requirements: requirementsToView(input.extensionPackage),
     contentHash: input.extensionPackage.contentHash,
     sdkCompatibility: sdkCompatibilityToView(input.extensionPackage.sdkCompatibility),
     lifecycle: input.lifecycle

@@ -1,8 +1,8 @@
 :root {
   color-scheme: dark;
-  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--ow-font-family-sans, ui-sans-serif, system-ui, sans-serif);
   background: transparent;
-  color: #e6edf3;
+  color: var(--ow-color-text, #e6edf3);
 }
 
 * {
@@ -27,6 +27,6 @@ body {
 
 [role='alert'] {
   padding: 12px;
-  color: #ff6b6b;
-  font: 12px ui-sans-serif, system-ui, sans-serif;
+  color: var(--ow-color-danger, #ff6b6b);
+  font: 12px var(--ow-font-family-sans, ui-sans-serif, system-ui, sans-serif);
 }

@@ -1,7 +1,13 @@
-import { access, readdir, stat } from 'node:fs/promises'
+import { readdir, readFile, realpath, stat } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 
-const RELEASE_ARTIFACT_DIRECTORY_SEGMENTS = ['build', 'Release']
+const NODE_MODULES_SEGMENT = 'node_modules'
+const PACKAGE_JSON_FILE = 'package.json'
+
+interface NativePackageMetadata {
+  readonly name: string
+  readonly optionalDependencyNames: readonly string[]
+}
 
 export type NativeArtifactSignature = {
   readonly packageName: string
@@ -72,9 +78,8 @@ export async function collectNativeArtifactSignatures(
 ) {
   const signatures: NativeArtifactSignature[] = []
   for (const packageName of packageNames) {
-    for (const packageRoot of await findPnpmPackageRoots(paths, packageName)) {
-      const releaseDirectory = join(packageRoot, ...RELEASE_ARTIFACT_DIRECTORY_SEGMENTS)
-      for (const artifactPath of await collectNodeArtifactPaths(releaseDirectory)) {
+    for (const packageRoot of await findNativeArtifactRoots(paths, packageName)) {
+      for (const artifactPath of await collectNodeArtifactPaths(packageRoot)) {
         const artifactStat = await stat(artifactPath)
         signatures.push({
           packageName,
@@ -95,21 +100,87 @@ function sortArtifactSignatures(signatures: readonly NativeArtifactSignature[]) 
   )
 }
 
-async function findPnpmPackageRoots(paths: NativeArtifactPaths, packageName: string) {
-  const packageRoots: string[] = []
-  const packagePathSegments = packageName.split('/')
-  for (const entry of await listDirectoryEntries(paths.pnpmPackageDirectory)) {
-    if (!entry.isDirectory()) {
-      continue
-    }
+function isObject(value: unknown): value is object {
+  return typeof value === 'object' && value !== null
+}
 
-    const packageRoot = join(paths.pnpmPackageDirectory, entry.name, 'node_modules', ...packagePathSegments)
-    if (await pathExists(join(packageRoot, 'package.json'))) {
-      packageRoots.push(packageRoot)
+function dependencyNames(value: unknown) {
+  if (!isObject(value)) {
+    return []
+  }
+
+  return Object.entries(value).flatMap(([dependencyName, dependencyVersion]) =>
+    typeof dependencyVersion === 'string' ? [dependencyName] : [],
+  )
+}
+
+async function readPackageMetadata(packageRoot: string): Promise<NativePackageMetadata | null> {
+  let packageJson: unknown
+  try {
+    packageJson = JSON.parse(await readFile(join(packageRoot, PACKAGE_JSON_FILE), 'utf8'))
+  } catch {
+    return null
+  }
+
+  if (!isObject(packageJson) || !('name' in packageJson) || typeof packageJson.name !== 'string') {
+    return null
+  }
+
+  return {
+    name: packageJson.name,
+    optionalDependencyNames:
+      'optionalDependencies' in packageJson
+        ? dependencyNames(packageJson.optionalDependencies)
+        : [],
+  }
+}
+
+async function canonicalPath(path: string) {
+  try {
+    return await realpath(path)
+  } catch {
+    return path
+  }
+}
+
+function activePackageRootCandidates(paths: NativeArtifactPaths, packageName: string) {
+  const packagePathSegments = packageName.split('/')
+  return [
+    join(paths.projectRoot, NODE_MODULES_SEGMENT, ...packagePathSegments),
+    join(paths.pnpmPackageDirectory, NODE_MODULES_SEGMENT, ...packagePathSegments),
+  ]
+}
+
+async function findActivePackageRoots(paths: NativeArtifactPaths, packageName: string) {
+  const packageRoots = new Set<string>()
+
+  for (const candidateRoot of activePackageRootCandidates(paths, packageName)) {
+    const metadata = await readPackageMetadata(candidateRoot)
+    if (metadata?.name === packageName) {
+      packageRoots.add(await canonicalPath(candidateRoot))
     }
   }
 
-  return packageRoots.sort()
+  return [...packageRoots].sort()
+}
+
+async function findNativeArtifactRoots(paths: NativeArtifactPaths, packageName: string) {
+  const packageRoots = new Set(await findActivePackageRoots(paths, packageName))
+
+  for (const packageRoot of [...packageRoots]) {
+    const metadata = await readPackageMetadata(packageRoot)
+    if (!metadata) {
+      continue
+    }
+
+    for (const dependencyName of metadata.optionalDependencyNames) {
+      for (const dependencyRoot of await findActivePackageRoots(paths, dependencyName)) {
+        packageRoots.add(dependencyRoot)
+      }
+    }
+  }
+
+  return [...packageRoots].sort()
 }
 
 async function collectNodeArtifactPaths(directory: string) {
@@ -132,14 +203,5 @@ async function listDirectoryEntries(directory: string) {
     return await readdir(directory, { withFileTypes: true })
   } catch {
     return []
-  }
-}
-
-async function pathExists(path: string) {
-  try {
-    await access(path)
-    return true
-  } catch {
-    return false
   }
 }

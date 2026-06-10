@@ -4,6 +4,7 @@ import {
   OPENWAGGLE_EXTENSION_FRAME_ROOT_ID,
 } from '@shared/constants/extension-frame'
 import type { ExtensionSdkInvokeRequest } from '@shared/extension-sdk-core'
+import { extensionThemeCssVariableEntries } from '@shared/extension-theme'
 import type { ExtensionInvokeResult } from '@shared/types/extension-broker'
 import type { ExtensionFrameConfig } from '@shared/types/extension-frame'
 import type { JsonValue } from '@shared/types/json'
@@ -146,6 +147,12 @@ function mountContext(input: {
   }
 }
 
+function applyExtensionTheme(config: ExtensionFrameConfig) {
+  for (const entry of extensionThemeCssVariableEntries(config.context.theme)) {
+    document.documentElement.style.setProperty(entry.name, entry.value)
+  }
+}
+
 function handleParentMessage(root: HTMLElement, event: MessageEvent<unknown>) {
   if (event.source !== window.parent) {
     return
@@ -168,6 +175,7 @@ function handleParentMessage(root: HTMLElement, event: MessageEvent<unknown>) {
     }
 
     activeConfig = message.config
+    applyExtensionTheme(message.config)
     void mountExtensionFrame({ config: message.config, root })
     return
   }

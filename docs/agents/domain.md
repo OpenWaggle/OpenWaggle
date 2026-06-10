@@ -52,7 +52,7 @@ MCP config precedence is documented in `docs/configuration.md`.
 
 ### OpenWaggle Extensions
 
-OpenWaggle extension packages add desktop contributions and optional Pi runtime resources. Load `website/src/content/docs/extending/openwaggle-extensions.md` before changing extension discovery, lifecycle, SDK schemas, federated module rendering, agent-loop contributions, interaction bridging, or extension QA fixtures. Packaged builds should derive agent-facing installed docs from the full user-facing docs into a Pi-style package-local docs directory, alongside installed Pi docs, instead of maintaining a second repository copy. Generated installed docs need a root index and topic aliases so agents can find docs without guessing paths. Runtime docs lookup should go through a typed docs discovery capability available to both extension code and OpenWaggle's self-modifying agent context.
+OpenWaggle extension packages add desktop contributions and optional Pi runtime resources. Load `website/src/content/docs/extending/openwaggle-extensions.md` before changing extension discovery, lifecycle, SDK schemas, federated module rendering, agent-loop contributions, interaction bridging, or extension QA fixtures. User-facing website docs are the source of truth. The existing `pnpm docs:generate` path derives `build/openwaggle-docs` from `website/src/content/docs/**` plus installed Pi docs for agent-facing installed documentation, instead of maintaining a second repository copy. Generated installed docs need a root index and topic aliases so agents can find docs without guessing paths. Runtime docs lookup should go through a typed docs discovery capability available to both extension code and OpenWaggle's self-modifying agent context.
 
 ### Waggle Mode
 

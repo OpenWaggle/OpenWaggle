@@ -1,4 +1,5 @@
 import { EXTENSION_FRAME_MESSAGE_CHANNEL } from '@shared/constants/extension-frame'
+import { isOpenWaggleExtensionTheme } from '@shared/extension-theme'
 import type { ExtensionInvokeResult } from '@shared/types/extension-broker'
 import type { ExtensionFrameConfig } from '@shared/types/extension-frame'
 import { isRecord } from '@shared/utils/validation'
@@ -52,10 +53,6 @@ function isSurfaceMetadata(value: unknown) {
   )
 }
 
-function isThemeMetadata(value: unknown) {
-  return isRecord(value) && value.colorScheme === 'dark'
-}
-
 function isFrameContext(value: unknown) {
   return (
     isRecord(value) &&
@@ -64,7 +61,7 @@ function isFrameContext(value: unknown) {
     isSurfaceMetadata(value.surface) &&
     typeof value.packagePath === 'string' &&
     stringArray(value.projectPaths) &&
-    isThemeMetadata(value.theme)
+    isOpenWaggleExtensionTheme(value.theme)
   )
 }
 

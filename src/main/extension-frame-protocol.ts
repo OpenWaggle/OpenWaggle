@@ -1,14 +1,17 @@
+import { is } from '@electron-toolkit/utils'
 import {
   OPENWAGGLE_EXTENSION_FRAME_PROTOCOL,
   OPENWAGGLE_EXTENSION_FRAME_ROOT_ID,
 } from '@shared/constants/extension-frame'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+import { isNetworkOrigin } from '@shared/schemas/extension-network-origin'
 import type {
   ExtensionFrameRegisterInput,
   ExtensionFrameRegisterResult,
   ExtensionFrameUnregisterInput,
 } from '@shared/types/extension-frame'
 import { protocol } from 'electron'
+import { env } from './env'
 import extensionFrameCss from './extension-frame-assets/extension-frame.css.raw?raw'
 import extensionFrameHtml from './extension-frame-assets/extension-frame.html?raw'
 
@@ -24,6 +27,8 @@ const LOCALHOST_NAMES = new Set(['localhost', '127.0.0.1', '[::1]'])
 const EXTENSION_RUNTIME_SCRIPT_SOURCE =
   `${OPENWAGGLE_EXTENSION.RUNTIME_MODULE_PROTOCOL.SCHEME}:` as const
 const VITE_DEV_CONNECT_SOURCES = ['ws://localhost:*', 'ws://127.0.0.1:*'] as const
+const RENDERER_PROTOCOL = 'openwaggle'
+const RENDERER_PROTOCOL_HOST = 'app'
 
 interface RegisteredExtensionFrame {
   readonly registrationId: string
@@ -170,6 +175,11 @@ function normalizedNetworkOrigins(origins: readonly string[] | undefined) {
 
   const normalized: string[] = []
   for (const origin of origins) {
+    const validation = isNetworkOrigin(origin)
+    if (validation !== true) {
+      throw new Error(`Extension frame network origin "${origin}" is invalid: ${validation}`)
+    }
+
     if (!normalized.includes(origin)) {
       normalized.push(origin)
     }
@@ -177,19 +187,51 @@ function normalizedNetworkOrigins(origins: readonly string[] | undefined) {
   return normalized
 }
 
+function devRendererOrigin() {
+  if (!is.dev || !env.ELECTRON_RENDERER_URL) {
+    return null
+  }
+
+  return new URL(env.ELECTRON_RENDERER_URL).origin
+}
+
+function bootstrapUrlIsTrusted(bootstrapUrl: URL) {
+  if (bootstrapUrl.username.length > 0 || bootstrapUrl.password.length > 0) {
+    return false
+  }
+
+  if (
+    bootstrapUrl.protocol === `${RENDERER_PROTOCOL}:` &&
+    bootstrapUrl.host === RENDERER_PROTOCOL_HOST
+  ) {
+    return true
+  }
+
+  const rendererOrigin = devRendererOrigin()
+  return (
+    rendererOrigin !== null &&
+    (bootstrapUrl.protocol === 'http:' || bootstrapUrl.protocol === 'https:') &&
+    bootstrapUrl.origin === rendererOrigin
+  )
+}
+
+function normalizeBootstrapUrl(value: string) {
+  const bootstrapUrl = new URL(value)
+  if (!bootstrapUrlIsTrusted(bootstrapUrl)) {
+    throw new Error('Extension frame bootstrap URL must use the OpenWaggle renderer origin.')
+  }
+
+  return bootstrapUrl.toString()
+}
+
 function validateRegistration(input: ExtensionFrameRegisterInput) {
   if (input.frameId.trim().length === 0) {
     throw new Error('Extension frame id is required.')
   }
 
-  const bootstrapUrl = new URL(input.bootstrapUrl).toString()
-  for (const origin of input.networkOrigins ?? []) {
-    new URL(origin)
-  }
-
   return {
     frameId: input.frameId,
-    bootstrapUrl,
+    bootstrapUrl: normalizeBootstrapUrl(input.bootstrapUrl),
     networkOrigins: normalizedNetworkOrigins(input.networkOrigins),
   }
 }

@@ -3,6 +3,7 @@ import type { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type { ExtensionInvokeInput } from '@shared/types/extension-broker'
 import type { ExtensionPackageScope } from '../extensions/types'
 import { auditedFailure, auditedSuccess } from './extension-capability-broker-audit'
+import { routeDocsCapability } from './extension-capability-broker-docs'
 import { hostContextPayloadIsValid } from './extension-capability-broker-model'
 import {
   routeActionCapability,
@@ -31,6 +32,10 @@ export function routeAuthorizedInvocation(input: {
 
   if (input.invocation.capability === OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS) {
     return routeSettingsCapability(input)
+  }
+
+  if (input.invocation.capability === OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.DOCS) {
+    return routeDocsCapability(input)
   }
 
   if (input.invocation.capability !== OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.HOST_CONTEXT) {

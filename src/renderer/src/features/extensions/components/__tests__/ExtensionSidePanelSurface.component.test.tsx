@@ -1,3 +1,4 @@
+import { EXTENSION_FRAME_MESSAGE_CHANNEL } from '@shared/constants/extension-frame'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type {
   ExtensionContributionRegistryEntry,
@@ -64,6 +65,23 @@ const REGISTRY: ExtensionContributionRegistryView = {
   entries: [COMMAND_ENTRY, SIDE_PANEL_ENTRY],
 }
 
+const EMPTY_REGISTRY: ExtensionContributionRegistryView = {
+  projectPaths: [PROJECT_PATH],
+  entries: [],
+}
+
+function stableExtensionFrameWindow(frame: HTMLIFrameElement) {
+  const frameWindow = frame.contentWindow
+  if (!frameWindow) {
+    throw new Error('Expected extension module iframe window.')
+  }
+  Object.defineProperty(frame, 'contentWindow', {
+    configurable: true,
+    value: frameWindow,
+  })
+  return frameWindow
+}
+
 function renderSidePanelSurface(input: {
   readonly registry: ExtensionContributionRegistryView | null
   readonly sidePanelId?: string
@@ -118,6 +136,53 @@ describe('ExtensionSidePanelSurfaceContent', () => {
       expect(frame).toHaveAttribute('src', expect.stringContaining(EXTENSION_FRAME_URL_PREFIX))
     })
     expect(frame).not.toHaveAttribute('srcdoc')
+  })
+
+  it('disposes and removes the mounted frame when the registry entry disappears', async () => {
+    const { rerender } = renderSidePanelSurface({ registry: REGISTRY })
+    const frame = screen.getByTitle('Extension module: Sample side panel')
+    if (!(frame instanceof HTMLIFrameElement)) {
+      throw new Error('Expected extension module iframe.')
+    }
+    const frameId = frame.dataset.extensionFrameId
+    if (!frameId) {
+      throw new Error('Expected extension module iframe id.')
+    }
+    const postMessage = vi.spyOn(stableExtensionFrameWindow(frame), 'postMessage')
+
+    await waitFor(() => {
+      expect(frame).toHaveAttribute('src', expect.stringContaining(EXTENSION_FRAME_URL_PREFIX))
+    })
+
+    rerender(
+      <ExtensionSidePanelSurfaceContent
+        error={null}
+        loading={false}
+        onClose={vi.fn()}
+        onRefresh={vi.fn()}
+        projectPaths={[PROJECT_PATH]}
+        registry={EMPTY_REGISTRY}
+        target={{
+          extensionId: 'sample-extension',
+          sidePanelId: 'sample.side-panel',
+        }}
+      />,
+    )
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Extension side panel not available')
+    expect(screen.queryByTitle('Extension module: Sample side panel')).not.toBeInTheDocument()
+    expect(postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channel: EXTENSION_FRAME_MESSAGE_CHANNEL,
+        frameId,
+        type: 'dispose',
+      }),
+      '*',
+    )
+    expect(apiMock.unregisterExtensionFrame).toHaveBeenCalledWith({
+      frameId,
+      registrationId: `registration-${frameId}`,
+    })
   })
 
   it('routes the OpenWaggle-owned close button to the caller', () => {

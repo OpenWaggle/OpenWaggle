@@ -1,17 +1,16 @@
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
 import { EXTENSION_FRAME_MESSAGE_CHANNEL } from '@shared/constants/extension-frame'
+import { createOpenWaggleExtensionSurfaceContext } from '@shared/extension-context'
 import { Schema, type SchemaType, safeDecodeUnknown } from '@shared/schema'
 import { extensionInvokeScopeSchema } from '@shared/schemas/extension-broker'
 import { extensionFrameConfigSchema } from '@shared/schemas/extension-frame'
 import { extensionContributionIdSchema } from '@shared/schemas/extensions'
 import { jsonValueSchema } from '@shared/schemas/validation'
 import type { ExtensionInvokeInput, ExtensionInvokeResult } from '@shared/types/extension-broker'
-import type {
-  ExtensionFrameConfig,
-  ExtensionFrameMountContext,
-} from '@shared/types/extension-frame'
+import type { ExtensionFrameConfig } from '@shared/types/extension-frame'
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
 import type { JsonValue } from '@shared/types/json'
+import { createRendererExtensionTheme } from './extension-theme-context'
 
 export const EXTENSION_FEDERATED_MODULE_IFRAME_SANDBOX = 'allow-scripts'
 
@@ -76,34 +75,6 @@ const extensionMountInvokeInputSchema = Schema.Struct({
 export type ExtensionFrameMessage = SchemaType<typeof extensionFrameMessageSchema>
 export type ExtensionFrameInvokeMessage = SchemaType<typeof extensionFrameInvokeMessageSchema>
 
-function extensionFrameMountContext(
-  entry: ExtensionContributionRegistryEntry,
-  surfacePayload: JsonValue | undefined,
-) {
-  return {
-    extension: {
-      id: entry.extensionId,
-      name: entry.extensionName,
-      version: entry.extensionVersion,
-    },
-    contribution: {
-      id: entry.contributionId,
-      title: entry.title,
-      family: entry.family,
-    },
-    surface: {
-      family: entry.family,
-      execution: entry.execution ?? '',
-      ...(surfacePayload !== undefined ? { payload: surfacePayload } : {}),
-    },
-    packagePath: entry.packagePath,
-    projectPaths: entry.projectPaths,
-    theme: {
-      colorScheme: 'dark',
-    },
-  } satisfies ExtensionFrameMountContext
-}
-
 export function extensionFrameConfig(input: {
   readonly entry: ExtensionContributionRegistryEntry
   readonly moduleUrl: string
@@ -111,7 +82,11 @@ export function extensionFrameConfig(input: {
 }) {
   return {
     moduleUrl: input.moduleUrl,
-    context: extensionFrameMountContext(input.entry, input.surfacePayload),
+    context: createOpenWaggleExtensionSurfaceContext({
+      entry: input.entry,
+      surfacePayload: input.surfacePayload,
+      theme: createRendererExtensionTheme(),
+    }),
   } satisfies ExtensionFrameConfig
 }
 

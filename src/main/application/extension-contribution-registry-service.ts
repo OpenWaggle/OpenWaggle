@@ -20,7 +20,10 @@ import {
   ExtensionProjectOverridesRepository,
   type ExtensionProjectOverridesRepositoryShape,
 } from '../ports/extension-project-overrides-repository'
-import { getCachedPackageContributionRegistrations } from './extension-contribution-registry-cache'
+import {
+  getCachedPackageContributionRegistrations,
+  pruneCachedPackageContributionRegistrations,
+} from './extension-contribution-registry-cache'
 import {
   type ExtensionContributionProjectOverrideLookup,
   packageToContributionEntriesWithRegistrationResolver,
@@ -254,6 +257,9 @@ export function listExtensionContributionRegistryView(input: ExtensionListContri
   return Effect.gen(function* () {
     const projectPaths = normalizeProjectPaths(input.projectPaths)
     const packages = yield* loadContributionPackages(projectPaths)
+    yield* Effect.sync(() => {
+      pruneCachedPackageContributionRegistrations(packages)
+    })
     const packageResults = yield* Effect.forEach(packages, (extensionPackage) =>
       Effect.gen(function* () {
         const lifecycleLookup = yield* loadLifecycle(extensionPackage)

@@ -1,6 +1,7 @@
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
 import { EXTENSION_FRAME_MESSAGE_CHANNEL } from '@shared/constants/extension-frame'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+import { createOpenWaggleExtensionTheme } from '@shared/extension-theme'
 import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
 import { describe, expect, it, vi } from 'vitest'
 import {
@@ -69,9 +70,7 @@ describe('extension frame host helpers', () => {
         },
         packagePath: '/tmp/project/.openwaggle/extensions/sample-extension',
         projectPaths: ['/tmp/project'],
-        theme: {
-          colorScheme: 'dark',
-        },
+        theme: createOpenWaggleExtensionTheme(),
       },
     })
   })

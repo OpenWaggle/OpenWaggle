@@ -13,6 +13,8 @@ type ProtocolHandler = (request: ProtocolRequest) => Response | Promise<Response
 const protocolMocks = vi.hoisted(() => {
   const protocolHandlers = new Map<string, ProtocolHandler>()
   return {
+    is: { dev: true },
+    env: { ELECTRON_RENDERER_URL: 'http://localhost:5173' },
     handle: vi.fn((scheme: string, handler: ProtocolHandler) => {
       protocolHandlers.set(scheme, handler)
     }),
@@ -23,10 +25,18 @@ const protocolMocks = vi.hoisted(() => {
   }
 })
 
+vi.mock('@electron-toolkit/utils', () => ({
+  is: protocolMocks.is,
+}))
+
 vi.mock('electron', () => ({
   protocol: {
     handle: protocolMocks.handle,
   },
+}))
+
+vi.mock('../env', () => ({
+  env: protocolMocks.env,
 }))
 
 async function loadExtensionFrameProtocol() {
@@ -42,6 +52,8 @@ function dispatchProtocolRequest(scheme: string, url: string) {
 describe('extension frame protocol', () => {
   beforeEach(() => {
     vi.resetModules()
+    protocolMocks.is.dev = true
+    protocolMocks.env.ELECTRON_RENDERER_URL = 'http://localhost:5173'
     protocolMocks.handle.mockClear()
     protocolMocks.resetHandler()
   })
@@ -114,6 +126,62 @@ describe('extension frame protocol', () => {
 
     expect(bootstrapResponse.status).toBe(HTTP_FOUND_STATUS)
     expect(bootstrapResponse.headers.get('location')).toBe(bootstrapUrl)
+  })
+
+  it('accepts packaged renderer bootstrap module URLs', async () => {
+    protocolMocks.is.dev = false
+    protocolMocks.env.ELECTRON_RENDERER_URL = ''
+    const { registerExtensionFrame, registerExtensionFrameProtocolOnce } =
+      await loadExtensionFrameProtocol()
+    const bootstrapUrl = 'openwaggle://app/assets/extension-frame-bootstrap.js'
+
+    registerExtensionFrameProtocolOnce()
+    const registration = registerExtensionFrame({
+      frameId: 'frame-1',
+      bootstrapUrl,
+    })
+
+    const bootstrapResponse = await dispatchProtocolRequest(
+      'openwaggle-extension-frame',
+      new URL('./bootstrap.js', registration.frameUrl).toString(),
+    )
+
+    expect(bootstrapResponse.status).toBe(HTTP_FOUND_STATUS)
+    expect(bootstrapResponse.headers.get('location')).toBe(bootstrapUrl)
+  })
+
+  it.each([
+    'data:text/javascript,globalThis.pwned=1',
+    'file:///tmp/bootstrap.js',
+    'javascript:alert(1)',
+    'https://example.com/bootstrap.js',
+    'http://api.github.com/bootstrap.js',
+    'openwaggle://other-host/assets/bootstrap.js',
+  ])('rejects untrusted bootstrap URL %s', async (bootstrapUrl) => {
+    const { registerExtensionFrame } = await loadExtensionFrameProtocol()
+
+    expect(() =>
+      registerExtensionFrame({
+        frameId: 'frame-1',
+        bootstrapUrl,
+      }),
+    ).toThrow('Extension frame bootstrap URL must use the OpenWaggle renderer origin.')
+  })
+
+  it.each([
+    'http://api.github.com',
+    'https://api.github.com/repos',
+    'data:text/plain,hi',
+  ])('rejects untrusted network origin %s', async (networkOrigin) => {
+    const { registerExtensionFrame } = await loadExtensionFrameProtocol()
+
+    expect(() =>
+      registerExtensionFrame({
+        frameId: 'frame-1',
+        bootstrapUrl: 'http://localhost:5173/bootstrap.js',
+        networkOrigins: [networkOrigin],
+      }),
+    ).toThrow('Extension frame network origin')
   })
 
   it('ignores stale unregister calls from superseded frame registrations', async () => {

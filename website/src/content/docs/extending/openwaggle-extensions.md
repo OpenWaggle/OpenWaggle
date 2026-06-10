@@ -132,6 +132,39 @@ Visual contributions use the federated module runtime. The extension exports `mo
 
 Composer-adjacent contributions are compact actions, slash commands, or launchers. They can open host-owned dialogs, side panels, or interaction surfaces, but they must not inject arbitrary input controls into the composer text flow.
 
+## Contribution Surfaces At A Glance
+
+Choose the surface by the job the extension is doing, not by the framework used to render it.
+
+- `settingsSections` are for extension configuration, account setup, feature toggles, and diagnostics that belong in Settings. They should read and write settings through brokered SDK capabilities.
+- `sidePanels` are for auxiliary workspace content that benefits from staying open while the user works, such as issue lists, project metadata, logs, or package state shared with other contributions.
+- `dialogs` are for focused host-owned modals, confirmations, pickers, and forms that should temporarily interrupt the current workflow.
+- `routes` are for larger extension-owned views mounted inside an OpenWaggle route container. They should not replace core shell navigation.
+- `commands` and `slashCommands` launch actions from the command palette or composer. Composer contributions are compact launchers or selectors, not arbitrary controls inside the composer text input.
+- `transcriptRenderers` render durable Pi session records in the chat transcript. They must be reconstructable from the mount context and Pi session data after remount or restart.
+- `toolRenderers` render Pi-native tool calls and results. They customize desktop presentation for Pi tools; they do not create a separate OpenWaggle tool runtime.
+- `customMessageRenderers` render Pi custom message records while preserving the Pi-native custom message type as the binding identity.
+- `interactionRenderers` collect feedback for pending Pi interactions such as `confirm`, `select`, `input`, `editor`, `notify`, or typed custom interactions, then return the typed response through the SDK.
+- `statusWidgets` are compact status surfaces for live progress, connection state, or extension-owned indicators.
+
+The same extension can contribute to multiple surfaces. Shared package state can coordinate those live surfaces, while the transcript remains the durable audit trail for agent-loop activity.
+
+## Federated Modules, SDK Context, And Theme
+
+Some early design notes called the visual path a "module-federation lane." The public author contract is now the `federated-module` runtime. OpenWaggle may implement that runtime with module federation, import maps, versioned runtime URLs, or another loader, but extension authors target the same framework-neutral `mount(context)` entry point.
+
+`mount(context)` receives the only OpenWaggle objects a visual contribution should use:
+
+- `context.root`: the host-owned DOM root where the extension attaches content.
+- `context.contribution`: package id, contribution id, contribution family, and manifest-declared metadata for the mounted contribution.
+- `context.surface`: surface-specific data such as the active settings section, side panel container, transcript record, tool event, or pending interaction.
+- `context.sdk`: typed capability calls for package storage, selected OpenWaggle state/actions/settings/docs discovery, and surface behavior such as sending surface actions or responding to pending interactions.
+- `context.theme`: semantic host theme data, including tokens and CSS-variable-shaped values for color, typography, spacing, radius, focus, and elevation.
+
+Use theme tokens from `context.theme` instead of importing OpenWaggle CSS internals or hard-coding app colors. The host owns token values and can adapt them to user settings, high-contrast modes, and future themes. The extension owns only its mounted content and should keep styles scoped to that content.
+
+The SDK/context boundary is also the safety boundary. A renderer module can request brokered actions through `context.sdk`, but it must not import writable OpenWaggle stores, renderer feature files, Electron IPC helpers, or Pi SDK internals.
+
 ## How An Extension Appears On Screen
 
 Think of an extension like a toy that needs a safe play table.
@@ -326,6 +359,24 @@ A contribution should bind to a Pi-native identity:
 
 A single Pi tool or custom message can have multiple OpenWaggle renderers across different surfaces. The transcript is the durable audit trail; dialogs, side panels, status widgets, and composer actions are auxiliary live surfaces.
 
+```mermaid
+flowchart LR
+  A["Pi agent loop"] --> B["Pi tool call, custom message, or interaction request"]
+  B --> C["OpenWaggle projects a public event DTO"]
+  C --> D{"Matching extension renderer?"}
+  D -- "Yes" --> E["OpenWaggle mounts federated module with context"]
+  D -- "No" --> F["OpenWaggle fallback renderer"]
+  E --> G["User sees progress, result, or prompt"]
+  F --> G
+  G --> H{"Does Pi need feedback?"}
+  H -- "No" --> I["Transcript keeps durable record"]
+  H -- "Yes" --> J["Renderer calls sdk.surface.respondInteraction(response)"]
+  J --> K["OpenWaggle broker validates and returns response to Pi"]
+  K --> A
+```
+
+The feedback path is intentionally one-way through OpenWaggle-owned surface actions. Extension UI collects the user's response through `context.sdk.surface.respondInteraction(response)`, then OpenWaggle validates that response against the pending interaction before returning it to Pi. Renderer modules do not mutate Pi sessions or OpenWaggle internal stores directly.
+
 ## Interaction Primitives
 
 OpenWaggle supports Pi interaction primitives as public typed request/response schemas.
@@ -418,7 +469,7 @@ Use `pnpm extension:qa:install` to copy fixture packages into the current checko
 
 This page is the repository source of truth for OpenWaggle extension authoring. Packaged builds should derive Pi-style package-local docs from the full user-facing documentation set so self-modifying agents can inspect installed OpenWaggle product, extension, and runtime contracts without relying on a source checkout.
 
-Do not maintain separate hand-written copies for agents. If installed package-local docs diverge, fix the build copy step or the source documentation.
+Do not maintain separate hand-written copies for agents. The repository mechanism is `pnpm docs:generate`, which generates `build/openwaggle-docs` from `website/src/content/docs/**` plus installed Pi package docs. If installed package-local docs diverge, fix the build copy step or the source documentation.
 
 Generated installed docs must be easy to navigate:
 
@@ -427,19 +478,22 @@ Generated installed docs must be easy to navigate:
 - OpenWaggle docs and Pi docs are grouped predictably, so agents do not need to inspect the package layout by trial and error.
 - Important extension authoring entries should have obvious aliases or index links for manifest schema, SDK surface, agent-loop contributions, interaction schemas, and federated module mounting.
 
-Agents should resolve installed docs through a typed docs discovery capability instead of hardcoding source or packaged paths. The same topic map should be available to extension code and to OpenWaggle's self-modifying agent context. The generated index is the manual fallback for tools that only have filesystem access.
+Agents should resolve installed docs through a typed docs discovery capability instead of hardcoding source or packaged paths. The same topic map is available to extension code through `context.sdk.openWaggle.docs.discover(scope, input)` and `context.sdk.openWaggle.docs.resolveTopic(scope, input)`, provided the manifest declares `openwaggle.docs` with the requested method and scope. OpenWaggle's self-modifying agent context should use the same broker-backed topic map. The generated index is the manual fallback for tools that only have filesystem access.
 
 Docs discovery should return lightweight metadata rather than file content by default:
 
 ```typescript
 {
-  topic: 'openwaggle.extensions.agentLoop',
+  topic: 'openwaggle:extending/openwaggle-extensions',
+  source: 'openwaggle',
+  group: 'OpenWaggle Docs',
   title: 'Agent-loop contributions',
   path: '/path/to/openwaggle/docs/extending/openwaggle-extensions.md',
-  anchors: ['agent-loop-contributions', 'interaction-primitives'],
+  bundlePath: 'topics/openwaggle/extending/openwaggle-extensions.md',
+  sourcePath: 'website/src/content/docs/extending/openwaggle-extensions.md',
   aliases: ['tool renderers', 'transcript cards'],
   keywords: ['ctx.ui.confirm', 'Pi tools', 'custom interaction'],
-  source: 'openwaggle'
+  contentHash: 'sha256...'
 }
 ```
 
@@ -447,9 +501,13 @@ First-party topics should be closed and typed so generated indexes and SDK calls
 
 ```typescript
 {
-  source: 'extension',
-  extensionId: 'openwaggle-github-issues-overview',
-  topic: 'configuration'
+  topic: 'extension:openwaggle-github-issues-overview/configuration',
+  localTopic: 'configuration',
+  provenance: {
+    extensionId: 'openwaggle-github-issues-overview',
+    trust: 'trusted',
+    lifecycle: 'enabled'
+  }
 }
 ```
 
