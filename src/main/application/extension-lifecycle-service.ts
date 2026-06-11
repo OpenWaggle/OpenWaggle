@@ -38,6 +38,10 @@ import {
   projectOverrideKey,
 } from './extension-lifecycle-model'
 import { listExtensionPackagesView } from './extension-manager-view-service'
+import {
+  activateTrustedMainExtensionsForActiveProject,
+  deactivateTrustedMainExtensionPackage,
+} from './extension-trusted-main-activation-service'
 
 function unregisterPackageContributionState(extensionPackage: DiscoveredExtensionPackage) {
   return Effect.sync(() => {
@@ -105,6 +109,7 @@ export function setExtensionTrusted(input: ExtensionSetTrustedInput) {
       }),
     )
     yield* unregisterPackageContributionState(extensionPackage)
+    yield* deactivateTrustedMainExtensionPackage(extensionPackage)
 
     return yield* listExtensionPackagesView({ projectPaths: getViewProjectPaths(input) })
   })
@@ -141,6 +146,7 @@ export function setExtensionEnabled(input: ExtensionSetEnabledInput) {
     )
     if (!input.enabled) {
       yield* unregisterPackageContributionState(extensionPackage)
+      yield* deactivateTrustedMainExtensionPackage(extensionPackage)
     }
 
     return yield* listExtensionPackagesView({ projectPaths: getViewProjectPaths(input) })
@@ -177,6 +183,7 @@ export function acceptExtensionUpdate(input: ExtensionAcceptUpdateInput) {
       }),
     )
     yield* unregisterPackageContributionState(extensionPackage)
+    yield* deactivateTrustedMainExtensionPackage(extensionPackage)
 
     return yield* listExtensionPackagesView({ projectPaths: getViewProjectPaths(input) })
   })
@@ -234,6 +241,7 @@ export function approveExtensionBuild(input: ExtensionApproveBuildInput) {
       }),
     )
     yield* unregisterPackageContributionState(rediscoveredPackage)
+    yield* deactivateTrustedMainExtensionPackage(rediscoveredPackage)
 
     return yield* listExtensionPackagesView({ projectPaths: getViewProjectPaths(input) })
   })
@@ -253,17 +261,18 @@ export function reloadExtension(input: ExtensionReloadInput) {
       return yield* Effect.fail(new Error(readinessError ?? 'Extension cannot be reloaded.'))
     }
 
-    yield* lifecycleRepository.upsert(
-      makeLifecycleState({
-        extensionPackage,
-        current,
-        enabled: current.enabled,
-        trusted: current.trusted,
-        pinCurrentPackage: false,
-        reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.SUCCEEDED,
-        lastReloadedAt: Date.now(),
-      }),
-    )
+    const nextLifecycle = makeLifecycleState({
+      extensionPackage,
+      current,
+      enabled: current.enabled,
+      trusted: current.trusted,
+      pinCurrentPackage: false,
+      reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.SUCCEEDED,
+      lastReloadedAt: Date.now(),
+    })
+
+    yield* lifecycleRepository.upsert(nextLifecycle)
+    yield* activateTrustedMainExtensionsForActiveProject()
 
     return yield* listExtensionPackagesView({ projectPaths: getViewProjectPaths(input) })
   })
@@ -291,9 +300,8 @@ export function setExtensionProjectDisabled(input: ExtensionSetProjectDisabledIn
       createdAt: current?.createdAt ?? now,
       updatedAt: now,
     })
-    if (input.disabled) {
-      yield* unregisterPackageContributionState(extensionPackage)
-    }
+    yield* unregisterPackageContributionState(extensionPackage)
+    yield* activateTrustedMainExtensionsForActiveProject()
 
     return yield* listExtensionPackagesView({
       projectPaths: getProjectDisabledViewProjectPaths(input),

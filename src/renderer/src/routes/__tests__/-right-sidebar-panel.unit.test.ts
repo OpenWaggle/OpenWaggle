@@ -31,6 +31,8 @@ describe('resolveRightSidebarPanel', () => {
         extensionSidePanel: {
           extensionId: 'sample-extension',
           sidePanelId: 'sample.side-panel',
+          packagePath: '/tmp/extensions/sample-extension',
+          contentHash: 'abcdef',
         },
         lastPanel: 'diff',
         sessionTreeOpen: false,
@@ -39,6 +41,8 @@ describe('resolveRightSidebarPanel', () => {
       kind: 'extension-side-panel',
       extensionId: 'sample-extension',
       sidePanelId: 'sample.side-panel',
+      packagePath: '/tmp/extensions/sample-extension',
+      contentHash: 'abcdef',
     })
   })
 

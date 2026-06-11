@@ -18,6 +18,12 @@ export function resolveRightSidebarPanel(input: ResolveRightSidebarPanelInput): 
       kind: 'extension-side-panel',
       extensionId: input.extensionSidePanel.extensionId,
       sidePanelId: input.extensionSidePanel.sidePanelId,
+      ...(input.extensionSidePanel.packagePath
+        ? { packagePath: input.extensionSidePanel.packagePath }
+        : {}),
+      ...(input.extensionSidePanel.contentHash
+        ? { contentHash: input.extensionSidePanel.contentHash }
+        : {}),
     }
   }
 

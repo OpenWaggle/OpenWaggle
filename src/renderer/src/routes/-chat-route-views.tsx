@@ -35,7 +35,14 @@ export function ChatIndexRouteView() {
     const panel: ChatRouteSearch['panel'] = open ? 'diff' : undefined
     void navigate({
       to: '/',
-      search: { diff: undefined, panel, sidePanelExtensionId: undefined, sidePanelId: undefined },
+      search: {
+        diff: undefined,
+        panel,
+        sidePanelExtensionId: undefined,
+        sidePanelId: undefined,
+        sidePanelPackagePath: undefined,
+        sidePanelContentHash: undefined,
+      },
     })
   }
 
@@ -43,7 +50,14 @@ export function ChatIndexRouteView() {
     const panel: ChatRouteSearch['panel'] = open ? 'session-tree' : undefined
     void navigate({
       to: '/',
-      search: { diff: undefined, panel, sidePanelExtensionId: undefined, sidePanelId: undefined },
+      search: {
+        diff: undefined,
+        panel,
+        sidePanelExtensionId: undefined,
+        sidePanelId: undefined,
+        sidePanelPackagePath: undefined,
+        sidePanelContentHash: undefined,
+      },
     })
   }
 
@@ -55,6 +69,8 @@ export function ChatIndexRouteView() {
         panel: open ? EXTENSION_SIDE_PANEL_ROUTE_PANEL : undefined,
         sidePanelExtensionId: open ? target.extensionId : undefined,
         sidePanelId: open ? target.sidePanelId : undefined,
+        sidePanelPackagePath: open ? target.packagePath : undefined,
+        sidePanelContentHash: open ? target.contentHash : undefined,
       },
     })
   }
@@ -93,6 +109,8 @@ export function ChatSessionRouteView() {
         panel,
         sidePanelExtensionId: undefined,
         sidePanelId: undefined,
+        sidePanelPackagePath: undefined,
+        sidePanelContentHash: undefined,
       }),
     })
   }
@@ -108,6 +126,8 @@ export function ChatSessionRouteView() {
         panel,
         sidePanelExtensionId: undefined,
         sidePanelId: undefined,
+        sidePanelPackagePath: undefined,
+        sidePanelContentHash: undefined,
       }),
     })
   }
@@ -124,6 +144,8 @@ export function ChatSessionRouteView() {
         panel,
         sidePanelExtensionId: open ? target.extensionId : undefined,
         sidePanelId: open ? target.sidePanelId : undefined,
+        sidePanelPackagePath: open ? target.packagePath : undefined,
+        sidePanelContentHash: open ? target.contentHash : undefined,
       }),
     })
   }

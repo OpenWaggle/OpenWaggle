@@ -130,11 +130,15 @@ export function ChatRouteSurface({
     const routeTarget = {
       extensionId: target.extensionId,
       sidePanelId: target.sidePanelId,
+      ...(target.packagePath ? { packagePath: target.packagePath } : {}),
+      ...(target.contentHash ? { contentHash: target.contentHash } : {}),
     }
     setLastRightSidebarPanel({
       kind: 'extension-side-panel',
       extensionId: routeTarget.extensionId,
       sidePanelId: routeTarget.sidePanelId,
+      ...(routeTarget.packagePath ? { packagePath: routeTarget.packagePath } : {}),
+      ...(routeTarget.contentHash ? { contentHash: routeTarget.contentHash } : {}),
     })
     rightSidebarActions.onExtensionSidePanelOpenChange(open, routeTarget)
   }

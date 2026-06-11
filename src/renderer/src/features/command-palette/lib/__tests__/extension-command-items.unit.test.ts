@@ -138,7 +138,7 @@ describe('createExtensionSidePanelItems', () => {
 
     expect(items).toHaveLength(1)
     expect(items[0]).toMatchObject({
-      id: 'extension-side-panel:sample.extension:sample.panel',
+      id: 'extension-side-panel:/tmp/sample-extension:abcdef:sample.panel',
       label: 'Open sample panel',
       section: 'Sample',
       trailing: 'Sample Extension',

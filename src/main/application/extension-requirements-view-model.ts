@@ -1,15 +1,29 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type {
   ExtensionCapabilityRequirementView,
+  ExtensionNetworkAccessMode,
   ExtensionNetworkRequirementView,
   ExtensionPackageRequirementsView,
   ExtensionPrivilegeRequirementView,
   ExtensionRuntimeRequirementView,
 } from '@shared/types/extensions'
-import type { DiscoveredExtensionPackage } from '../extensions/types'
+import type { DiscoveredExtensionPackage, ExtensionLifecycleState } from '../extensions/types'
 
 type ExtensionManifest = NonNullable<DiscoveredExtensionPackage['manifest']>
 type ExtensionCapabilityManifestDeclaration = NonNullable<ExtensionManifest['capabilities']>[number]
+
+function grantIsCurrent(input: {
+  readonly extensionPackage: DiscoveredExtensionPackage
+  readonly lifecycle: ExtensionLifecycleState | null
+  readonly grantId: string
+}) {
+  return (
+    input.lifecycle?.trusted === true &&
+    input.extensionPackage.contentHash !== null &&
+    input.lifecycle.contentHash === input.extensionPackage.contentHash &&
+    input.lifecycle.grantedCapabilities.includes(input.grantId)
+  )
+}
 
 function runtimeRequirementsToView(
   manifest: ExtensionManifest,
@@ -22,6 +36,7 @@ function runtimeRequirementsToView(
         kind: OPENWAGGLE_EXTENSION.REQUIREMENT_KIND.RUNTIME_BINARY,
         id: requirement.id,
         label: requirement.label,
+        resolution: OPENWAGGLE_EXTENSION.RUNTIME_REQUIREMENT_RESOLUTION.DIAGNOSTIC_ONLY,
         binary: requirement.binary,
       })
       continue
@@ -32,6 +47,7 @@ function runtimeRequirementsToView(
         kind: OPENWAGGLE_EXTENSION.REQUIREMENT_KIND.RUNTIME_COMMAND,
         id: requirement.id,
         label: requirement.label,
+        resolution: OPENWAGGLE_EXTENSION.RUNTIME_REQUIREMENT_RESOLUTION.DIAGNOSTIC_ONLY,
         path: requirement.command,
       })
     }
@@ -41,6 +57,8 @@ function runtimeRequirementsToView(
 }
 
 function capabilityRequirementToView(
+  extensionPackage: DiscoveredExtensionPackage,
+  lifecycle: ExtensionLifecycleState | null,
   capability: ExtensionCapabilityManifestDeclaration,
 ): ExtensionCapabilityRequirementView {
   return {
@@ -48,13 +66,69 @@ function capabilityRequirementToView(
     id: capability.id,
     label: `Capability: ${capability.id}`,
     grantId: capability.id,
+    consentRequired: true,
+    granted: grantIsCurrent({ extensionPackage, lifecycle, grantId: capability.id }),
     capabilityId: capability.id,
     ...(capability.methods !== undefined ? { methods: capability.methods } : {}),
     ...(capability.scopes !== undefined ? { scopes: capability.scopes } : {}),
   }
 }
 
+function hasEntries(entries: readonly unknown[] | undefined) {
+  return entries !== undefined && entries.length > 0
+}
+
+function hasVisualContributions(manifest: ExtensionManifest) {
+  const contributions = manifest.contributions
+  if (!contributions) {
+    return false
+  }
+
+  return (
+    hasEntries(contributions.routes) ||
+    hasEntries(contributions.settingsSections) ||
+    hasEntries(contributions.sidePanels) ||
+    hasEntries(contributions.dialogs) ||
+    hasEntries(contributions.transcriptRenderers) ||
+    hasEntries(contributions.toolRenderers) ||
+    hasEntries(contributions.customMessageRenderers) ||
+    hasEntries(contributions.interactionRenderers) ||
+    hasEntries(contributions.statusWidgets)
+  )
+}
+
+function uniqueNetworkAccessModes(
+  modes: readonly ExtensionNetworkAccessMode[],
+): readonly ExtensionNetworkAccessMode[] {
+  const uniqueModes: ExtensionNetworkAccessMode[] = []
+  for (const mode of modes) {
+    if (!uniqueModes.includes(mode)) {
+      uniqueModes.push(mode)
+    }
+  }
+  return uniqueModes
+}
+
+function networkAccessModes(manifest: ExtensionManifest): readonly ExtensionNetworkAccessMode[] {
+  const modes: ExtensionNetworkAccessMode[] = []
+
+  if (manifest.trusted?.main !== undefined || manifest.trusted?.renderer !== undefined) {
+    modes.push(OPENWAGGLE_EXTENSION.NETWORK_ACCESS_MODE.DIRECT)
+  }
+  if (hasVisualContributions(manifest)) {
+    modes.push(OPENWAGGLE_EXTENSION.NETWORK_ACCESS_MODE.RESTRICTED)
+  }
+  if (modes.length === 0) {
+    modes.push(OPENWAGGLE_EXTENSION.NETWORK_ACCESS_MODE.BROKERED)
+  }
+
+  return uniqueNetworkAccessModes(modes)
+}
+
 function networkRequirementToView(
+  extensionPackage: DiscoveredExtensionPackage,
+  lifecycle: ExtensionLifecycleState | null,
+  manifest: ExtensionManifest,
   origins: readonly string[],
 ): ExtensionNetworkRequirementView | null {
   if (origins.length === 0) {
@@ -66,12 +140,20 @@ function networkRequirementToView(
     id: OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.NETWORK,
     label: 'Network access',
     grantId: OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.NETWORK,
+    consentRequired: true,
+    granted: grantIsCurrent({
+      extensionPackage,
+      lifecycle,
+      grantId: OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.NETWORK,
+    }),
     origins,
+    accessModes: networkAccessModes(manifest),
   }
 }
 
 function localBuildRequirementToView(
   extensionPackage: DiscoveredExtensionPackage,
+  lifecycle: ExtensionLifecycleState | null,
 ): ExtensionPrivilegeRequirementView | null {
   const manifest = extensionPackage.manifest
   const requiresLocalBuild =
@@ -87,6 +169,12 @@ function localBuildRequirementToView(
     id: OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.LOCAL_BUILD,
     label: 'Local build step',
     grantId: OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.LOCAL_BUILD,
+    consentRequired: true,
+    granted: grantIsCurrent({
+      extensionPackage,
+      lifecycle,
+      grantId: OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.LOCAL_BUILD,
+    }),
     command: extensionPackage.buildPlan?.command ?? manifest?.build?.command ?? null,
     outputCount:
       extensionPackage.buildPlan?.outputPaths.length ?? manifest?.builtArtifacts.length ?? 0,
@@ -94,6 +182,8 @@ function localBuildRequirementToView(
 }
 
 function trustedRuntimeRequirementsToView(
+  extensionPackage: DiscoveredExtensionPackage,
+  lifecycle: ExtensionLifecycleState | null,
   manifest: ExtensionManifest,
 ): readonly ExtensionPrivilegeRequirementView[] {
   const requirements: ExtensionPrivilegeRequirementView[] = []
@@ -104,6 +194,12 @@ function trustedRuntimeRequirementsToView(
       id: OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.TRUSTED_MAIN,
       label: 'Trusted main-process runtime',
       grantId: OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.TRUSTED_MAIN,
+      consentRequired: true,
+      granted: grantIsCurrent({
+        extensionPackage,
+        lifecycle,
+        grantId: OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.TRUSTED_MAIN,
+      }),
       path: manifest.trusted.main,
     })
   }
@@ -113,6 +209,12 @@ function trustedRuntimeRequirementsToView(
       id: OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.TRUSTED_RENDERER,
       label: 'Trusted renderer runtime',
       grantId: OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.TRUSTED_RENDERER,
+      consentRequired: true,
+      granted: grantIsCurrent({
+        extensionPackage,
+        lifecycle,
+        grantId: OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.TRUSTED_RENDERER,
+      }),
       path: manifest.trusted.renderer,
     })
   }
@@ -122,6 +224,7 @@ function trustedRuntimeRequirementsToView(
 
 function privilegeRequirementsToView(
   extensionPackage: DiscoveredExtensionPackage,
+  lifecycle: ExtensionLifecycleState | null,
 ): readonly ExtensionPrivilegeRequirementView[] {
   const manifest = extensionPackage.manifest
   if (!manifest) {
@@ -130,35 +233,49 @@ function privilegeRequirementsToView(
 
   const requirements: ExtensionPrivilegeRequirementView[] = []
   for (const capability of manifest.capabilities ?? []) {
-    requirements.push(capabilityRequirementToView(capability))
+    requirements.push(capabilityRequirementToView(extensionPackage, lifecycle, capability))
   }
 
-  const networkRequirement = networkRequirementToView(manifest.network?.origins ?? [])
+  const networkRequirement = networkRequirementToView(
+    extensionPackage,
+    lifecycle,
+    manifest,
+    manifest.network?.origins ?? [],
+  )
   if (networkRequirement) {
     requirements.push(networkRequirement)
   }
 
-  const localBuildRequirement = localBuildRequirementToView(extensionPackage)
+  const localBuildRequirement = localBuildRequirementToView(extensionPackage, lifecycle)
   if (localBuildRequirement) {
     requirements.push(localBuildRequirement)
   }
 
-  requirements.push(...trustedRuntimeRequirementsToView(manifest))
+  requirements.push(...trustedRuntimeRequirementsToView(extensionPackage, lifecycle, manifest))
   return requirements
 }
 
 export function requirementsToView(
   extensionPackage: DiscoveredExtensionPackage,
+  lifecycle: ExtensionLifecycleState | null = null,
 ): ExtensionPackageRequirementsView {
   if (!extensionPackage.manifest) {
     return {
       runtime: [],
       privileges: [],
+      consentRequired: false,
+      missingGrantIds: [],
     }
   }
 
+  const privileges = privilegeRequirementsToView(extensionPackage, lifecycle)
+
   return {
     runtime: runtimeRequirementsToView(extensionPackage.manifest),
-    privileges: privilegeRequirementsToView(extensionPackage),
+    privileges,
+    consentRequired: privileges.length > 0,
+    missingGrantIds: privileges
+      .filter((requirement) => !requirement.granted)
+      .map((requirement) => requirement.grantId),
   }
 }

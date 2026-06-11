@@ -2,8 +2,10 @@ import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { SessionBranchId, SessionId } from '@shared/types/brand'
 import type { ExtensionInvokeInput, ExtensionInvokeScope } from '@shared/types/extension-broker'
+import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
 import * as Effect from 'effect/Effect'
 import { isExtensionRuntimeEnabled } from '../extensions/runtime-eligibility'
+import { TRUSTED_MAIN_CONTRIBUTION_ID } from '../extensions/trusted-main-runtime'
 import type { DiscoveredExtensionPackage } from '../extensions/types'
 import { ExtensionLifecycleRepository } from '../ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from '../ports/extension-manager-service'
@@ -187,6 +189,29 @@ function findContributionEntry(input: {
   })
 }
 
+function contributionInvocationIsKnown(input: {
+  readonly entry: ExtensionContributionRegistryEntry | null
+  readonly invocation: ExtensionInvokeInput
+  readonly extensionPackage: DiscoveredExtensionPackage
+}) {
+  return (
+    input.entry !== null ||
+    (input.invocation.contributionId === TRUSTED_MAIN_CONTRIBUTION_ID &&
+      input.extensionPackage.manifest?.trusted?.main !== undefined)
+  )
+}
+
+function contributionEntryIsOutOfScope(input: {
+  readonly entry: ExtensionContributionRegistryEntry | null
+  readonly scopeProjectPath: string | undefined
+}) {
+  return (
+    input.scopeProjectPath !== undefined &&
+    input.entry !== null &&
+    !input.entry.projectPaths.includes(input.scopeProjectPath)
+  )
+}
+
 export function invokeExtensionCapability(
   rawInput: ExtensionInvokeInput,
   dependencies: InvokeExtensionCapabilityDependencies = {},
@@ -235,7 +260,13 @@ export function invokeExtensionCapability(
       invocation: input,
       projectPath: lookupProjectPath,
     })
-    if (!entry) {
+    if (
+      !contributionInvocationIsKnown({
+        entry,
+        invocation: input,
+        extensionPackage,
+      })
+    ) {
       return yield* auditedFailure({
         invocation: input,
         code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.UNKNOWN_CONTRIBUTION,
@@ -244,7 +275,7 @@ export function invokeExtensionCapability(
       })
     }
 
-    if (scopeProjectPath && !entry.projectPaths.includes(scopeProjectPath)) {
+    if (contributionEntryIsOutOfScope({ entry, scopeProjectPath })) {
       return yield* auditedFailure({
         invocation: input,
         code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.OUT_OF_SCOPE,
@@ -257,7 +288,7 @@ export function invokeExtensionCapability(
       manifest: extensionPackage.manifest,
       capability: input.capability,
     })
-    if (!declaration || entry.capability !== input.capability) {
+    if (!declaration || (entry && entry.capability !== input.capability)) {
       return yield* auditedFailure({
         invocation: input,
         code: OPENWAGGLE_EXTENSION_BROKER.FAILURE_CODE.UNDECLARED_CAPABILITY,
@@ -267,7 +298,7 @@ export function invokeExtensionCapability(
     }
 
     if (
-      !contributionMethodIsDeclared(entry, input.method) ||
+      (entry && !contributionMethodIsDeclared(entry, input.method)) ||
       !methodIsDeclared(declaration, input.method)
     ) {
       return yield* auditedFailure({

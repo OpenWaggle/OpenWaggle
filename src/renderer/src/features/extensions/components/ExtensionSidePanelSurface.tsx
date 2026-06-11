@@ -1,4 +1,5 @@
 import type { ExtensionContributionRegistryView } from '@shared/types/extensions'
+import type { JsonValue } from '@shared/types/json'
 import { PanelRight, RefreshCw, ShieldAlert, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Button } from '@/shared/ui/Button'
@@ -83,9 +84,13 @@ function ExtensionSidePanelLoadingCard() {
 }
 
 function ExtensionSidePanelContribution({
+  onSurfaceAction,
   resolution,
+  surfacePayload,
 }: {
+  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
   readonly resolution: Extract<ExtensionSidePanelResolution, { readonly status: 'available' }>
+  readonly surfacePayload?: JsonValue
 }) {
   const entry = resolution.contribution.entry
 
@@ -94,7 +99,13 @@ function ExtensionSidePanelContribution({
       className="flex min-h-0 flex-1"
       name={`Extension side panel: ${entry.title}`}
     >
-      <ExtensionFederatedModuleHost chrome="bare" entry={entry} fill />
+      <ExtensionFederatedModuleHost
+        chrome="bare"
+        entry={entry}
+        fill
+        onSurfaceAction={onSurfaceAction}
+        surfacePayload={surfacePayload}
+      />
     </PanelErrorBoundary>
   )
 }
@@ -106,6 +117,8 @@ function extensionSidePanelBody({
   loading,
   error,
   onRefresh,
+  onSurfaceAction,
+  surfacePayload,
 }: {
   readonly target: ExtensionSidePanelTarget
   readonly projectPaths: readonly string[]
@@ -113,6 +126,8 @@ function extensionSidePanelBody({
   readonly loading: boolean
   readonly error: string | null
   readonly onRefresh: () => void
+  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
+  readonly surfacePayload?: JsonValue
 }): ReactNode {
   if (loading && registry === null) {
     return <ExtensionSidePanelLoadingCard />
@@ -145,7 +160,13 @@ function extensionSidePanelBody({
   })
 
   if (resolution.status === 'available') {
-    return <ExtensionSidePanelContribution resolution={resolution} />
+    return (
+      <ExtensionSidePanelContribution
+        onSurfaceAction={onSurfaceAction}
+        resolution={resolution}
+        surfacePayload={surfacePayload}
+      />
+    )
   }
 
   return (
@@ -189,6 +210,8 @@ export function ExtensionSidePanelSurfaceContent({
   error,
   onRefresh,
   onClose,
+  onSurfaceAction,
+  surfacePayload,
 }: {
   readonly target: ExtensionSidePanelTarget
   readonly projectPaths: readonly string[]
@@ -197,6 +220,8 @@ export function ExtensionSidePanelSurfaceContent({
   readonly error: string | null
   readonly onRefresh: () => void
   readonly onClose: () => void
+  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
+  readonly surfacePayload?: JsonValue
 }) {
   const title = extensionSidePanelTitle({ registry, target, projectPaths })
   const body = extensionSidePanelBody({
@@ -206,6 +231,8 @@ export function ExtensionSidePanelSurfaceContent({
     loading,
     error,
     onRefresh,
+    onSurfaceAction,
+    surfacePayload,
   })
 
   return (
@@ -223,6 +250,8 @@ export function ExtensionSidePanelSurface({
   error,
   onRefresh,
   onClose,
+  onSurfaceAction,
+  surfacePayload,
 }: {
   readonly target: ExtensionSidePanelTarget
   readonly projectPaths: readonly string[]
@@ -231,16 +260,20 @@ export function ExtensionSidePanelSurface({
   readonly error: string | null
   readonly onRefresh: () => void
   readonly onClose: () => void
+  readonly onSurfaceAction?: (actionId: string, payload?: JsonValue) => void
+  readonly surfacePayload?: JsonValue
 }) {
-  return (
-    <ExtensionSidePanelSurfaceContent
-      error={error}
-      loading={loading}
-      onClose={onClose}
-      onRefresh={onRefresh}
-      projectPaths={projectPaths}
-      registry={registry}
-      target={target}
-    />
-  )
+  const contentProps = {
+    error,
+    loading,
+    onClose,
+    onRefresh,
+    projectPaths,
+    registry,
+    target,
+    ...(onSurfaceAction ? { onSurfaceAction } : {}),
+    ...(surfacePayload !== undefined ? { surfacePayload } : {}),
+  }
+
+  return <ExtensionSidePanelSurfaceContent {...contentProps} />
 }

@@ -4,122 +4,44 @@ import path from 'node:path'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import {
   ExtensionLifecycleRepositoryError,
   ExtensionProjectOverrideRepositoryError,
 } from '../../errors'
-import type {
-  DiscoveredExtensionPackage,
-  ExtensionLifecycleState,
-  ExtensionProjectOverrideState,
-} from '../../extensions/types'
+import type { TrustedMainExtensionModuleLoader } from '../../extensions/trusted-main-runtime'
+import type { DiscoveredExtensionPackage } from '../../extensions/types'
 import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from '../../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
 import { setExtensionProjectDisabled } from '../extension-lifecycle-service'
 import { listExtensionPackagesView } from '../extension-manager-view-service'
 import { listRuntimeEnabledOpenWaggleExtensionPackagePaths } from '../extension-runtime-service'
-
-const PROJECT_PATH = '/tmp/project'
-
-const discoveredPackage: DiscoveredExtensionPackage = {
-  id: 'sample-extension',
-  scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: PROJECT_PATH },
-  packagePath: '/tmp/project/.openwaggle/extensions/sample-extension',
-  manifestPath: '/tmp/project/.openwaggle/extensions/sample-extension/openwaggle.extension.json',
-  manifest: {
-    manifestVersion: 1,
-    id: 'sample-extension',
-    name: 'Sample Extension',
-    version: '1.0.0',
-    sdk: { openwaggle: '>=0.1.0 <0.2.0' },
-    sourceFiles: ['src/index.ts'],
-    builtArtifacts: ['dist/index.js'],
-    capabilities: [{ id: 'sample.invoke' }],
-  },
-  buildPlan: null,
-  contentHash: 'abcdef',
-  sdkCompatibility: {
-    hostVersion: OPENWAGGLE_EXTENSION.SDK_VERSION,
-    requiredRange: '>=0.1.0 <0.2.0',
-    compatible: true,
-  },
-  diagnostics: [],
-}
-
-const globalPackage: DiscoveredExtensionPackage = {
-  ...discoveredPackage,
-  id: 'global-extension',
-  scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND },
-  packagePath: '/tmp/user-data/extensions/global-extension',
-  manifestPath: '/tmp/user-data/extensions/global-extension/openwaggle.extension.json',
-  manifest: discoveredPackage.manifest
-    ? { ...discoveredPackage.manifest, id: 'global-extension', name: 'Global Extension' }
-    : null,
-}
-
-const lifecycleState: ExtensionLifecycleState = {
-  extensionId: 'sample-extension',
-  scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: PROJECT_PATH },
-  enabled: true,
-  trusted: true,
-  grantedCapabilities: ['sample.invoke'],
-  contentHash: 'abcdef',
-  packageVersion: '1.0.0',
-  approvedBuildPlanHash: null,
-  buildStatus: OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS.NOT_RUN,
-  buildLog: null,
-  reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.SUCCEEDED,
-  lastReloadedAt: 3000,
-  sdkRange: '>=0.1.0 <0.2.0',
-  sdkCompatible: true,
-  diagnostics: [],
-  installedAt: 1000,
-  updatedAt: 2000,
-}
-
-const globalLifecycleState: ExtensionLifecycleState = {
-  ...lifecycleState,
-  extensionId: 'global-extension',
-  scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND },
-}
-
-function makeTestHarness({
-  packages,
-  lifecycle,
-  projectOverride = null,
-}: {
-  readonly packages: readonly DiscoveredExtensionPackage[]
-  readonly lifecycle: ExtensionLifecycleState | null
-  readonly projectOverride?: ExtensionProjectOverrideState | null
-}) {
-  let storedProjectOverride = projectOverride
-  return {
-    layer: Layer.mergeAll(
-      Layer.succeed(ExtensionManagerService, {
-        listPackages: () => Effect.succeed(packages),
-      }),
-      Layer.succeed(ExtensionLifecycleRepository, {
-        get: () => Effect.succeed(lifecycle),
-        list: () => Effect.succeed(lifecycle ? [lifecycle] : []),
-        upsert: () => Effect.void,
-      }),
-      Layer.succeed(ExtensionProjectOverridesRepository, {
-        get: () => Effect.sync(() => storedProjectOverride),
-        upsert: (state) =>
-          Effect.sync(() => {
-            storedProjectOverride = state
-          }),
-      }),
-    ),
-    getStoredProjectOverride: () => storedProjectOverride,
-  }
-}
+import {
+  activateTrustedMainExtensionsForProject,
+  clearTrustedMainExtensionActivationsForTests,
+  getTrustedMainExtensionActivationCountForTests,
+} from '../extension-trusted-main-activation-service'
+import {
+  discoveredPackage,
+  globalLifecycleState,
+  globalPackage,
+  globalTrustedMainLifecycleState,
+  globalTrustedMainPackage,
+  lifecycleState,
+  makeProjectOverridesHarness,
+  OTHER_PROJECT_PATH,
+  PROJECT_PATH,
+} from './extension-project-overrides-test-utils'
+import { TrustedMainActivationDependenciesTestLayer } from './extension-trusted-main-activation-test-layer'
 
 describe('extension project overrides', () => {
+  beforeEach(() => {
+    clearTrustedMainExtensionActivationsForTests()
+  })
+
   it('applies project opt-out as an effective disable without clearing the trust pin', async () => {
-    const harness = makeTestHarness({
+    const harness = makeProjectOverridesHarness({
       packages: [discoveredPackage],
       lifecycle: lifecycleState,
       projectOverride: {
@@ -152,7 +74,7 @@ describe('extension project overrides', () => {
   })
 
   it('excludes project-disabled packages from the Pi runtime allowlist', async () => {
-    const harness = makeTestHarness({
+    const harness = makeProjectOverridesHarness({
       packages: [discoveredPackage],
       lifecycle: lifecycleState,
       projectOverride: {
@@ -175,7 +97,7 @@ describe('extension project overrides', () => {
   })
 
   it('includes trusted and enabled project packages in the Pi runtime allowlist', async () => {
-    const harness = makeTestHarness({
+    const harness = makeProjectOverridesHarness({
       packages: [discoveredPackage],
       lifecycle: lifecycleState,
     })
@@ -190,7 +112,7 @@ describe('extension project overrides', () => {
   })
 
   it('includes trusted global packages in the Pi runtime allowlist for a project', async () => {
-    const harness = makeTestHarness({
+    const harness = makeProjectOverridesHarness({
       packages: [globalPackage],
       lifecycle: globalLifecycleState,
     })
@@ -205,7 +127,7 @@ describe('extension project overrides', () => {
   })
 
   it('excludes project-disabled global packages from the Pi runtime allowlist', async () => {
-    const harness = makeTestHarness({
+    const harness = makeProjectOverridesHarness({
       packages: [globalPackage],
       lifecycle: globalLifecycleState,
       projectOverride: {
@@ -253,6 +175,7 @@ describe('extension project overrides', () => {
           ),
         upsert: () => Effect.void,
       }),
+      TrustedMainActivationDependenciesTestLayer,
     )
 
     const enabledPackagePaths = await Effect.runPromise(
@@ -277,7 +200,7 @@ describe('extension project overrides', () => {
         manifestPath: path.join(packagePath, OPENWAGGLE_EXTENSION.MANIFEST_FILE),
       }
       const lifecycle = { ...lifecycleState, scope: projectPackage.scope }
-      const harness = makeTestHarness({
+      const harness = makeProjectOverridesHarness({
         packages: [projectPackage],
         lifecycle,
       })
@@ -301,5 +224,43 @@ describe('extension project overrides', () => {
     } finally {
       await fs.rm(tmpRoot, { recursive: true, force: true })
     }
+  })
+
+  it('keeps active global trusted main runtime when disabling the extension for another project', async () => {
+    const activatedIds: string[] = []
+    const cleanedUpIds: string[] = []
+    const loader: TrustedMainExtensionModuleLoader = async (extensionPackage) => ({
+      entryPath: `${extensionPackage.packagePath}/dist/main.mjs`,
+      module: {
+        activate: () => {
+          activatedIds.push(extensionPackage.id)
+          return () => {
+            cleanedUpIds.push(extensionPackage.id)
+          }
+        },
+      },
+    })
+    const harness = makeProjectOverridesHarness({
+      packages: [globalTrustedMainPackage],
+      lifecycle: globalTrustedMainLifecycleState,
+    })
+
+    await Effect.runPromise(
+      activateTrustedMainExtensionsForProject(PROJECT_PATH, { loadModule: loader }).pipe(
+        Effect.provide(harness.layer),
+      ),
+    )
+    await Effect.runPromise(
+      setExtensionProjectDisabled({
+        extensionId: 'global-extension',
+        scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND },
+        projectPath: OTHER_PROJECT_PATH,
+        disabled: true,
+      }).pipe(Effect.provide(harness.layer)),
+    )
+
+    expect(activatedIds).toEqual(['global-extension'])
+    expect(cleanedUpIds).toEqual([])
+    expect(getTrustedMainExtensionActivationCountForTests()).toBe(1)
   })
 })

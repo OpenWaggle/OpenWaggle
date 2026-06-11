@@ -8,6 +8,7 @@ import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-re
 import { ExtensionManagerService } from '../../ports/extension-manager-service'
 import { ExtensionProjectOverridesRepository } from '../../ports/extension-project-overrides-repository'
 import { approveExtensionBuild, setExtensionTrusted } from '../extension-lifecycle-service'
+import { TrustedMainActivationDependenciesTestLayer } from './extension-trusted-main-activation-test-layer'
 
 const PROJECT_PATH = '/tmp/project'
 
@@ -87,6 +88,7 @@ function makeTestHarness({
         get: () => Effect.succeed(null),
         upsert: () => Effect.void,
       }),
+      TrustedMainActivationDependenciesTestLayer,
     ),
     getStoredLifecycle: () => storedLifecycle,
   }

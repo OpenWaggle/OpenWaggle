@@ -13,6 +13,8 @@ export interface ExtensionRightSidebarPanel {
   readonly kind: 'extension-side-panel'
   readonly extensionId: string
   readonly sidePanelId: string
+  readonly packagePath?: string
+  readonly contentHash?: string
 }
 
 export type RightSidebarPanel = 'diff' | 'session-tree' | ExtensionRightSidebarPanel

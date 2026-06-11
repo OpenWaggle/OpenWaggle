@@ -79,21 +79,36 @@ export function getCachedPackageContributionRegistrations(
 export function clearCachedPackageContributionRegistrations(
   extensionPackage: DiscoveredExtensionPackage,
 ): void {
-  if (contributionRegistrationCache.delete(packageIdentityCacheKey(extensionPackage))) {
-    contributionRegistrationCacheInvalidations += 1
+  try {
+    if (contributionRegistrationCache.delete(packageIdentityCacheKey(extensionPackage))) {
+      contributionRegistrationCacheInvalidations += 1
+    }
+  } catch {
+    clearContributionRegistrationCacheOnKeyFailure()
   }
 }
 
 export function pruneCachedPackageContributionRegistrations(
   extensionPackages: readonly DiscoveredExtensionPackage[],
 ): void {
-  const activePackageKeys = new Set(extensionPackages.map(packageIdentityCacheKey))
+  try {
+    const activePackageKeys = new Set(extensionPackages.map(packageIdentityCacheKey))
 
-  for (const cachedKey of contributionRegistrationCache.keys()) {
-    if (!activePackageKeys.has(cachedKey)) {
-      contributionRegistrationCache.delete(cachedKey)
-      contributionRegistrationCacheInvalidations += 1
+    for (const cachedKey of contributionRegistrationCache.keys()) {
+      if (!activePackageKeys.has(cachedKey)) {
+        contributionRegistrationCache.delete(cachedKey)
+        contributionRegistrationCacheInvalidations += 1
+      }
     }
+  } catch {
+    clearContributionRegistrationCacheOnKeyFailure()
+  }
+}
+
+function clearContributionRegistrationCacheOnKeyFailure() {
+  if (contributionRegistrationCache.size > 0) {
+    contributionRegistrationCache.clear()
+    contributionRegistrationCacheInvalidations += 1
   }
 }
 

@@ -125,6 +125,33 @@ describe('listExtensionContributionRegistryView', () => {
     expect(entry.appliesToAllRequestedProjects).toBe(true)
   })
 
+  it('exposes default app scope for broker-bound contributions', async () => {
+    const extensionPackage = makePackage({
+      id: 'scoped-extension',
+      name: 'Scoped Extension',
+      scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND },
+      capabilities: [{ id: 'scoped.execute', methods: ['run'] }],
+      contributions: {
+        commands: [
+          {
+            id: 'scoped.run',
+            title: 'Run Scoped',
+            capability: 'scoped.execute',
+            method: 'run',
+          },
+        ],
+      },
+    })
+
+    const registry = await loadRegistry({
+      packages: [extensionPackage],
+      lifecycles: [makeLifecycle(extensionPackage)],
+      projectPaths: [PROJECT_PATH],
+    })
+
+    expect(expectFirstEntry(registry).declaredScopes).toEqual(['app'])
+  })
+
   it('applies project-local contributions only to the matching requested project', async () => {
     const projectPackage = makePackage({
       id: 'project-extension',

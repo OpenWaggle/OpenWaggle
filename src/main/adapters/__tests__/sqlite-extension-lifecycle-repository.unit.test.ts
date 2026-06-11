@@ -213,4 +213,46 @@ describe('SqliteExtensionLifecycleRepositoryLive', () => {
       lastReloadedAt: reloadedAt,
     })
   })
+
+  it('deletes lifecycle state for extension uninstall cleanup', async () => {
+    const layer = makeTestLayer(path.join(tmpRoot, 'extensions.sqlite'))
+    const projectPath = path.join(tmpRoot, 'project')
+    const now = Date.now()
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const repository = yield* ExtensionLifecycleRepository
+        const key = {
+          extensionId: 'remove-extension',
+          scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath },
+        } as const
+        yield* repository.upsert({
+          ...key,
+          enabled: true,
+          trusted: true,
+          grantedCapabilities: ['settings.read'],
+          contentHash: 'abc123',
+          packageVersion: '1.0.0',
+          approvedBuildPlanHash: null,
+          buildStatus: OPENWAGGLE_EXTENSION.BUILD_RUN_STATUS.NOT_RUN,
+          buildLog: null,
+          reloadStatus: OPENWAGGLE_EXTENSION.RELOAD_STATUS.SUCCEEDED,
+          lastReloadedAt: now,
+          sdkRange: '>=0.1.0 <0.2.0',
+          sdkCompatible: true,
+          diagnostics: [],
+          installedAt: now,
+          updatedAt: now,
+        })
+        const deleteLifecycle = repository.delete
+        if (!deleteLifecycle) {
+          throw new Error('Expected lifecycle repository delete support.')
+        }
+        yield* deleteLifecycle(key)
+        return yield* repository.get(key)
+      }).pipe(Effect.provide(layer)),
+    )
+
+    expect(result).toBeNull()
+  })
 })

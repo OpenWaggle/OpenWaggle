@@ -19,6 +19,7 @@ export interface ExtensionCommandActionInput {
 }
 
 export type InvokeExtensionCommand = (input: ExtensionCommandActionInput) => void
+export type CanInvokeExtensionCommand = (entry: ExtensionContributionRegistryEntry) => boolean
 
 export interface ExtensionSlashCommandActionInput {
   readonly entry: ExtensionContributionRegistryEntry
@@ -36,10 +37,12 @@ export function createExtensionCommandItems({
   registry,
   lowerQuery,
   invokeCommand,
+  canInvokeCommand = () => true,
 }: {
   readonly registry: ExtensionContributionRegistryView | null
   readonly lowerQuery: string
   readonly invokeCommand: InvokeExtensionCommand
+  readonly canInvokeCommand?: CanInvokeExtensionCommand
 }) {
   if (registry === null) {
     return []
@@ -48,7 +51,11 @@ export function createExtensionCommandItems({
   const items: CommandPaletteItem[] = []
 
   for (const entry of registry.entries) {
-    if (!isExecutableCommandEntry(entry) || !extensionContributionMatches(entry, lowerQuery)) {
+    if (
+      !isExecutableCommandEntry(entry) ||
+      !extensionContributionMatches(entry, lowerQuery) ||
+      !canInvokeCommand(entry)
+    ) {
       continue
     }
 
@@ -132,7 +139,7 @@ export function createExtensionSidePanelItems({
     }
 
     items.push({
-      id: `extension-side-panel:${entry.extensionId}:${entry.contributionId}`,
+      id: `extension-side-panel:${entry.packagePath}:${entry.contentHash}:${entry.contributionId}`,
       label: entry.title,
       description: truncateCommandDescription(
         `Open side panel from ${entry.extensionName}`,

@@ -1,4 +1,6 @@
 import type { SkillDiscoveryItem } from '@shared/types/standards'
+import type { ExtensionInvokeScope } from '@shared/types/extension-broker'
+import type { ExtensionContributionRegistryEntry } from '@shared/types/extensions'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { extensionSlashCommandText } from '@/features/composer/commands'
@@ -52,6 +54,32 @@ function sessionIdFromPathname(pathname: string) {
 
   const [, sessionsSegment, sessionId] = pathname.split('/')
   return sessionsSegment === 'sessions' && sessionId ? sessionId : null
+}
+
+function extensionCommandInvocationScope(input: {
+  readonly entry: ExtensionContributionRegistryEntry
+  readonly projectPath: string | null | undefined
+}): ExtensionInvokeScope | null {
+  const { entry, projectPath } = input
+  const declaredScopes = entry.declaredScopes
+
+  if (declaredScopes === undefined) {
+    return projectPath ? { kind: 'project', projectPath } : { kind: 'app' }
+  }
+
+  if (
+    projectPath &&
+    declaredScopes.includes('project') &&
+    entry.projectPaths.includes(projectPath)
+  ) {
+    return { kind: 'project', projectPath }
+  }
+
+  if (declaredScopes.includes('app')) {
+    return { kind: 'app' }
+  }
+
+  return null
 }
 
 interface UseCommandPaletteItemsInput extends CommandPaletteCallbacks {
@@ -114,6 +142,15 @@ export function useCommandPaletteItems({
     if (!entry.capability || !entry.method) {
       return
     }
+    const scope = extensionCommandInvocationScope({ entry, projectPath })
+    if (scope === null) {
+      logger.warn('Extension command has no command-palette invocation scope', {
+        extensionId: entry.extensionId,
+        contributionId: entry.contributionId,
+        declaredScopes: entry.declaredScopes,
+      })
+      return
+    }
 
     closeCommandPalette()
     void api
@@ -122,11 +159,7 @@ export function useCommandPaletteItems({
         contributionId: entry.contributionId,
         capability: entry.capability,
         method: entry.method,
-        scope: projectPath
-          ? { kind: 'project', projectPath }
-          : {
-              kind: 'app',
-            },
+        scope,
         payload: {},
       })
       .then(async (result) => {
@@ -154,6 +187,8 @@ export function useCommandPaletteItems({
       kind: 'extension-side-panel',
       extensionId: entry.extensionId,
       sidePanelId: entry.contributionId,
+      packagePath: entry.packagePath,
+      contentHash: entry.contentHash,
     } as const
     const sessionId = sessionIdFromPathname(currentHashPathname())
 
@@ -170,6 +205,8 @@ export function useCommandPaletteItems({
           panel: EXTENSION_SIDE_PANEL_ROUTE_PANEL,
           sidePanelExtensionId: target.extensionId,
           sidePanelId: target.sidePanelId,
+          sidePanelPackagePath: target.packagePath,
+          sidePanelContentHash: target.contentHash,
         }),
       })
       return
@@ -182,6 +219,8 @@ export function useCommandPaletteItems({
         panel: EXTENSION_SIDE_PANEL_ROUTE_PANEL,
         sidePanelExtensionId: target.extensionId,
         sidePanelId: target.sidePanelId,
+        sidePanelPackagePath: target.packagePath,
+        sidePanelContentHash: target.contentHash,
       },
     })
   }
@@ -204,6 +243,8 @@ export function useCommandPaletteItems({
       registry: extensionContributions,
       lowerQuery,
       invokeCommand: invokeExtensionCommand,
+      canInvokeCommand: (entry) =>
+        extensionCommandInvocationScope({ entry, projectPath }) !== null,
     }),
     ...createConfigureWaggleItem(lowerQuery, actions.configureWaggle),
   ]

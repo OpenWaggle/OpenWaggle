@@ -17,6 +17,9 @@ export interface ExtensionLifecycleRepositoryShape {
   readonly upsert: (
     state: ExtensionLifecycleState,
   ) => EffectType<void, ExtensionLifecycleRepositoryError>
+  readonly delete?: (
+    key: ExtensionLifecycleKey,
+  ) => EffectType<void, ExtensionLifecycleRepositoryError>
 }
 
 export class ExtensionLifecycleRepository extends Context.Tag(

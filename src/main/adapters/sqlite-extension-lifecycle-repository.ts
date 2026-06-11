@@ -266,6 +266,18 @@ function upsertLifecycleState(sql: SqlClient.SqlClient, state: ExtensionLifecycl
   }).pipe(Effect.mapError((cause) => mapRepositoryError('upsert', cause)))
 }
 
+function deleteLifecycleState(sql: SqlClient.SqlClient, key: ExtensionLifecycleKey) {
+  return Effect.gen(function* () {
+    const scope = scopeToColumns(key.scope)
+    yield* sql`
+      DELETE FROM extension_lifecycle_state
+      WHERE extension_id = ${key.extensionId}
+        AND scope_kind = ${scope.scopeKind}
+        AND scope_id = ${scope.scopeId}
+    `
+  }).pipe(Effect.mapError((cause) => mapRepositoryError('delete', cause)))
+}
+
 export const SqliteExtensionLifecycleRepositoryLive = Layer.effect(
   ExtensionLifecycleRepository,
   Effect.gen(function* () {
@@ -275,6 +287,7 @@ export const SqliteExtensionLifecycleRepositoryLive = Layer.effect(
       get: (key) => getLifecycleState(sql, key),
       list: (scope) => listLifecycleStates(sql, scope),
       upsert: (state) => upsertLifecycleState(sql, state),
+      delete: (key) => deleteLifecycleState(sql, key),
     })
   }),
 )

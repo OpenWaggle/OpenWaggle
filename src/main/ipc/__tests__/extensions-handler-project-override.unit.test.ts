@@ -5,6 +5,7 @@ import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { TrustedMainActivationDependenciesTestLayer } from '../../application/__tests__/extension-trusted-main-activation-test-layer'
 import type {
   DiscoveredExtensionPackage,
   ExtensionProjectOverrideState,
@@ -68,6 +69,7 @@ function makeTestLayer() {
           upsertProjectOverrideMock(state)
         }),
     }),
+    TrustedMainActivationDependenciesTestLayer,
   )
 }
 

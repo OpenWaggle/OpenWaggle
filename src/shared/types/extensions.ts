@@ -89,7 +89,13 @@ export type ExtensionRequirementKind = ConstantValue<typeof OPENWAGGLE_EXTENSION
 export type ExtensionRuntimeRequirementDeclarationKind = ConstantValue<
   typeof OPENWAGGLE_EXTENSION.RUNTIME_REQUIREMENT_TYPE
 >
+export type ExtensionRuntimeRequirementResolution = ConstantValue<
+  typeof OPENWAGGLE_EXTENSION.RUNTIME_REQUIREMENT_RESOLUTION
+>
 export type ExtensionPrivilegeGrantId = ConstantValue<typeof OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT>
+export type ExtensionNetworkAccessMode = ConstantValue<
+  typeof OPENWAGGLE_EXTENSION.NETWORK_ACCESS_MODE
+>
 export type ExtensionContributionFamily = ConstantValue<
   typeof OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY
 >
@@ -99,6 +105,7 @@ export type ExtensionContributionRuntime = ConstantValue<
 export type ExtensionExecutionPlacement = ConstantValue<
   typeof OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT
 >
+export type ExtensionCapabilityScope = (typeof OPENWAGGLE_EXTENSION.CAPABILITY_SCOPES)[number]
 
 export interface ExtensionBuildPlanView {
   readonly installSource: ExtensionInstallSource
@@ -113,6 +120,7 @@ export interface ExtensionRuntimeBinaryRequirementView {
   readonly kind: typeof OPENWAGGLE_EXTENSION.REQUIREMENT_KIND.RUNTIME_BINARY
   readonly id: string
   readonly label: string
+  readonly resolution: typeof OPENWAGGLE_EXTENSION.RUNTIME_REQUIREMENT_RESOLUTION.DIAGNOSTIC_ONLY
   readonly binary: string
 }
 
@@ -120,6 +128,7 @@ export interface ExtensionRuntimeCommandRequirementView {
   readonly kind: typeof OPENWAGGLE_EXTENSION.REQUIREMENT_KIND.RUNTIME_COMMAND
   readonly id: string
   readonly label: string
+  readonly resolution: typeof OPENWAGGLE_EXTENSION.RUNTIME_REQUIREMENT_RESOLUTION.DIAGNOSTIC_ONLY
   readonly path: string
 }
 
@@ -132,6 +141,8 @@ export interface ExtensionCapabilityRequirementView {
   readonly id: string
   readonly label: string
   readonly grantId: string
+  readonly consentRequired: true
+  readonly granted: boolean
   readonly capabilityId: string
   readonly methods?: readonly string[]
   readonly scopes?: readonly string[]
@@ -142,7 +153,10 @@ export interface ExtensionNetworkRequirementView {
   readonly id: typeof OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.NETWORK
   readonly label: string
   readonly grantId: typeof OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.NETWORK
+  readonly consentRequired: true
+  readonly granted: boolean
   readonly origins: readonly string[]
+  readonly accessModes: readonly ExtensionNetworkAccessMode[]
 }
 
 export interface ExtensionLocalBuildRequirementView {
@@ -150,6 +164,8 @@ export interface ExtensionLocalBuildRequirementView {
   readonly id: typeof OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.LOCAL_BUILD
   readonly label: string
   readonly grantId: typeof OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.LOCAL_BUILD
+  readonly consentRequired: true
+  readonly granted: boolean
   readonly command: string | null
   readonly outputCount: number
 }
@@ -159,6 +175,8 @@ export interface ExtensionTrustedMainRequirementView {
   readonly id: typeof OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.TRUSTED_MAIN
   readonly label: string
   readonly grantId: typeof OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.TRUSTED_MAIN
+  readonly consentRequired: true
+  readonly granted: boolean
   readonly path: string
 }
 
@@ -167,6 +185,8 @@ export interface ExtensionTrustedRendererRequirementView {
   readonly id: typeof OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.TRUSTED_RENDERER
   readonly label: string
   readonly grantId: typeof OPENWAGGLE_EXTENSION.PRIVILEGE_GRANT.TRUSTED_RENDERER
+  readonly consentRequired: true
+  readonly granted: boolean
   readonly path: string
 }
 
@@ -180,6 +200,8 @@ export type ExtensionPrivilegeRequirementView =
 export interface ExtensionPackageRequirementsView {
   readonly runtime: readonly ExtensionRuntimeRequirementView[]
   readonly privileges: readonly ExtensionPrivilegeRequirementView[]
+  readonly consentRequired: boolean
+  readonly missingGrantIds: readonly string[]
 }
 
 export interface ExtensionLifecycleView {
@@ -272,6 +294,7 @@ export interface ExtensionContributionRegistryEntry {
   readonly capability?: string
   readonly method?: string
   readonly methods?: readonly string[]
+  readonly declaredScopes?: readonly ExtensionCapabilityScope[]
   readonly networkOrigins?: readonly string[]
   readonly target?: ExtensionContributionTargetView
   readonly matches?: ExtensionContributionMatchView

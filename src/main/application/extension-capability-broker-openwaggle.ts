@@ -10,6 +10,7 @@ import type {
   ExtensionInvokeInput,
 } from '@shared/types/extension-broker'
 import * as Effect from 'effect/Effect'
+import { ActiveProjectChangeService } from '../ports/active-project-change-service'
 import { SessionProjectionRepository } from '../ports/session-projection-repository'
 import { SessionRepository } from '../ports/session-repository'
 import { SettingsService } from '../services/settings-service'
@@ -182,6 +183,8 @@ function runProjectSelection(
     const projectPath = validation.projectPath
     const recentProjects = appendRecentProject(current.recentProjects, projectPath)
     yield* settingsService.update({ projectPath, recentProjects })
+    const projectChanges = yield* ActiveProjectChangeService
+    yield* projectChanges.reconcileTrustedMainExtensions(projectPath)
 
     return yield* auditedSuccess({
       invocation: input.invocation,

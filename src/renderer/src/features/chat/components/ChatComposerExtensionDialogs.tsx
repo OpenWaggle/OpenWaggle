@@ -1,4 +1,3 @@
-import { matchBy } from '@diegogbrisa/ts-match'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type {
   AgentLoopInteraction,
@@ -12,12 +11,15 @@ import {
   ComposerExtensionActions,
 } from '@/features/composer/components'
 import {
+  agentLoopAuxiliarySurfacePayload,
+  agentLoopInputKey,
   type ExtensionAgentLoopSurfaceInput,
   ExtensionDialogSurfaceContent,
   type ExtensionDialogTarget,
+  ExtensionSidePanelSurfaceContent,
+  type ExtensionSidePanelTarget,
   resolveExtensionAgentLoopContributionEntries,
   surfaceLabel,
-  surfacePayload,
   surfaceTarget,
 } from '@/features/extensions'
 import { responseFromExtensionAction } from '../lib/agent-loop-interaction-response-actions'
@@ -34,10 +36,22 @@ interface PendingInteractionDialogInput {
 }
 
 interface ActiveComposerExtensionDialog {
+  readonly kind: 'dialog'
   readonly interaction: AgentLoopInteraction
   readonly target: ExtensionDialogTarget
   readonly surfacePayload: JsonObject
 }
+
+interface ActiveComposerExtensionSidePanel {
+  readonly kind: 'side-panel'
+  readonly interaction: AgentLoopInteraction
+  readonly target: ExtensionSidePanelTarget
+  readonly surfacePayload: JsonObject
+}
+
+type ActiveComposerExtensionSurface =
+  | ActiveComposerExtensionDialog
+  | ActiveComposerExtensionSidePanel
 
 interface ChatComposerExtensionDialogsProps {
   readonly agentInteractions: readonly AgentLoopInteraction[]
@@ -50,30 +64,6 @@ interface ChatComposerExtensionDialogsProps {
 }
 
 function noOp() {}
-
-function agentLoopInputKey(input: ExtensionAgentLoopSurfaceInput) {
-  return matchBy(input, 'surface')
-    .with('tool', (value) => `tool:${value.toolCall.id}`)
-    .with('custom-message', (value) => `custom-message:${value.message.name}`)
-    .with('interaction', (value) => `interaction:${value.interaction.id}`)
-    .with(
-      'transcript',
-      (value) =>
-        `transcript:${value.transcript.sessionId ?? 'none'}:${String(value.transcript.messageCount)}`,
-    )
-    .with('status', (value) => `status:${value.status.label}`)
-    .exhaustive()
-}
-
-function composerDialogPayload(input: ExtensionAgentLoopSurfaceInput): JsonObject {
-  return {
-    surface: 'composer-adjacent',
-    launcher: {
-      kind: 'dialog',
-    },
-    agentLoop: surfacePayload(input),
-  }
-}
 
 function pendingInteractionInputs(
   interactions: readonly AgentLoopInteraction[],
@@ -91,12 +81,12 @@ function buildExtensionDialogLaunchers({
   registry,
   projectPaths,
   inputs,
-  onOpenDialog,
+  onOpenSurface,
 }: {
   readonly registry: ExtensionContributionRegistryView | null
   readonly projectPaths: readonly string[]
   readonly inputs: readonly PendingInteractionDialogInput[]
-  readonly onOpenDialog: (dialog: ActiveComposerExtensionDialog) => void
+  readonly onOpenSurface: (surface: ActiveComposerExtensionSurface) => void
 }): readonly ComposerExtensionActionLauncher[] {
   if (registry === null) {
     return []
@@ -106,14 +96,20 @@ function buildExtensionDialogLaunchers({
 
   for (const { interaction, surfaceInput } of inputs) {
     const target = surfaceTarget(surfaceInput)
-    const contributions = resolveExtensionAgentLoopContributionEntries({
+    const dialogContributions = resolveExtensionAgentLoopContributionEntries({
       registry,
       target,
       requestedProjectPaths: projectPaths,
       family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.DIALOGS,
     })
+    const sidePanelContributions = resolveExtensionAgentLoopContributionEntries({
+      registry,
+      target,
+      requestedProjectPaths: projectPaths,
+      family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.SIDE_PANELS,
+    })
 
-    for (const contribution of contributions) {
+    for (const contribution of dialogContributions) {
       const entry = contribution.entry
       const dialogTarget: ExtensionDialogTarget = {
         extensionId: entry.extensionId,
@@ -128,10 +124,35 @@ function buildExtensionDialogLaunchers({
         description: `${surfaceLabel(surfaceInput)} from ${entry.extensionName}`,
         badge: 'Dialog',
         onOpen: () =>
-          onOpenDialog({
+          onOpenSurface({
+            kind: 'dialog',
             interaction,
             target: dialogTarget,
-            surfacePayload: composerDialogPayload(surfaceInput),
+            surfacePayload: agentLoopAuxiliarySurfacePayload(surfaceInput, 'dialog'),
+          }),
+      })
+    }
+
+    for (const contribution of sidePanelContributions) {
+      const entry = contribution.entry
+      const sidePanelTarget: ExtensionSidePanelTarget = {
+        extensionId: entry.extensionId,
+        sidePanelId: entry.contributionId,
+        packagePath: entry.packagePath,
+        contentHash: entry.contentHash,
+      }
+
+      launchers.push({
+        id: `extension-side-panel:${entry.packagePath}:${entry.contentHash}:${entry.contributionId}:${agentLoopInputKey(surfaceInput)}`,
+        title: entry.title,
+        description: `${surfaceLabel(surfaceInput)} from ${entry.extensionName}`,
+        badge: 'Side panel',
+        onOpen: () =>
+          onOpenSurface({
+            kind: 'side-panel',
+            interaction,
+            target: sidePanelTarget,
+            surfacePayload: agentLoopAuxiliarySurfacePayload(surfaceInput, 'side-panel'),
           }),
       })
     }
@@ -140,28 +161,60 @@ function buildExtensionDialogLaunchers({
   return launchers
 }
 
+function ActiveComposerSidePanelSurface({
+  activeSurface,
+  extensionProjectPaths,
+  extensionRegistry,
+  onClose,
+  onSurfaceAction,
+}: {
+  readonly activeSurface: ActiveComposerExtensionSidePanel
+  readonly extensionProjectPaths: readonly string[]
+  readonly extensionRegistry: ExtensionContributionRegistryView | null
+  readonly onClose: () => void
+  readonly onSurfaceAction: (actionId: string, payload?: JsonValue) => void
+}) {
+  const surfaceProps = {
+    error: null,
+    loading: false,
+    onClose,
+    onRefresh: noOp,
+    onSurfaceAction,
+    projectPaths: extensionProjectPaths,
+    registry: extensionRegistry,
+    surfacePayload: activeSurface.surfacePayload,
+    target: activeSurface.target,
+  }
+
+  return (
+    <div className="fixed inset-y-4 right-4 z-50 w-[min(420px,calc(100vw-32px))] overflow-hidden rounded-2xl border border-border bg-diff-bg shadow-2xl">
+      <ExtensionSidePanelSurfaceContent {...surfaceProps} />
+    </div>
+  )
+}
+
 export function ChatComposerExtensionDialogs({
   agentInteractions,
   extensionRegistry,
   extensionProjectPaths,
   onRespond,
 }: ChatComposerExtensionDialogsProps) {
-  const [activeDialog, setActiveDialog] = useState<ActiveComposerExtensionDialog | null>(null)
+  const [activeSurface, setActiveSurface] = useState<ActiveComposerExtensionSurface | null>(null)
   const busyInteractionIdRef = useRef<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  function openDialog(dialog: ActiveComposerExtensionDialog) {
+  function openSurface(surface: ActiveComposerExtensionSurface) {
     setError(null)
-    setActiveDialog(dialog)
+    setActiveSurface(surface)
   }
 
   function handleSurfaceAction(actionId: string, payload?: JsonValue) {
-    if (activeDialog === null || busyInteractionIdRef.current !== null) {
+    if (activeSurface === null || busyInteractionIdRef.current !== null) {
       return
     }
 
     const response = responseFromExtensionAction({
-      interaction: activeDialog.interaction,
+      interaction: activeSurface.interaction,
       actionId,
       payload,
     })
@@ -169,12 +222,12 @@ export function ChatComposerExtensionDialogs({
       return
     }
 
-    const dialog = activeDialog
+    const surface = activeSurface
     setError(null)
-    busyInteractionIdRef.current = dialog.interaction.interactionId
-    onRespond(dialog.interaction, response)
+    busyInteractionIdRef.current = surface.interaction.interactionId
+    onRespond(surface.interaction, response)
       .then(() => {
-        setActiveDialog((current) => (current === dialog ? null : current))
+        setActiveSurface((current) => (current === surface ? null : current))
       })
       .catch((cause: unknown) => {
         setError(cause instanceof Error ? cause.message : String(cause))
@@ -188,17 +241,17 @@ export function ChatComposerExtensionDialogs({
     registry: extensionRegistry,
     projectPaths: extensionProjectPaths,
     inputs: pendingInteractionInputs(agentInteractions),
-    onOpenDialog: openDialog,
+    onOpenSurface: openSurface,
   })
 
   return (
     <>
       <ComposerExtensionActions launchers={launchers} />
       {error ? <p className="mb-2 text-[12px] text-error">{error}</p> : null}
-      {activeDialog ? (
+      {activeSurface?.kind === 'dialog' ? (
         <ExtensionDialogSurfaceContent
           actions={{
-            onClose: () => setActiveDialog(null),
+            onClose: () => setActiveSurface(null),
             onRefresh: noOp,
             onSurfaceAction: handleSurfaceAction,
           }}
@@ -206,8 +259,17 @@ export function ChatComposerExtensionDialogs({
           loading={false}
           projectPaths={extensionProjectPaths}
           registry={extensionRegistry}
-          surfacePayload={activeDialog.surfacePayload}
-          target={activeDialog.target}
+          surfacePayload={activeSurface.surfacePayload}
+          target={activeSurface.target}
+        />
+      ) : null}
+      {activeSurface?.kind === 'side-panel' ? (
+        <ActiveComposerSidePanelSurface
+          activeSurface={activeSurface}
+          extensionProjectPaths={extensionProjectPaths}
+          extensionRegistry={extensionRegistry}
+          onClose={() => setActiveSurface(null)}
+          onSurfaceAction={handleSurfaceAction}
         />
       ) : null}
     </>

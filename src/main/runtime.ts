@@ -7,6 +7,7 @@ import * as ManagedRuntime from 'effect/ManagedRuntime'
 import { ExtensionBuildRunnerLive } from './adapters/extension-build-runner'
 import { FilesystemDocsBundleLive } from './adapters/filesystem-docs-bundle-service'
 import { FilesystemExtensionManagerLive } from './adapters/filesystem-extension-manager-service'
+import { FilesystemExtensionPackageRepositoryLive } from './adapters/filesystem-extension-package-repository'
 import { PiAgentKernelLive } from './adapters/pi/pi-agent-kernel-adapter'
 import { PiMcpConfigServiceLive } from './adapters/pi/pi-mcp-config-service'
 import { PiProviderAuthLive } from './adapters/pi/pi-provider-auth-service'
@@ -21,6 +22,7 @@ import { SqliteExtensionStorageRepositoryLive } from './adapters/sqlite-extensio
 import { SqliteSessionProjectionRepositoryLive } from './adapters/sqlite-session-projection-repository'
 import { SqliteSessionRepositoryLive } from './adapters/sqlite-session-repository'
 import { FilesystemStandardsLive } from './adapters/standards-adapter'
+import { ActiveProjectChangeServiceLive } from './application/active-project-change-service'
 import { AppDatabaseLive } from './services/database-service'
 import { AppLogger } from './services/logger-service'
 import { SettingsService } from './services/settings-service'
@@ -39,6 +41,7 @@ const ExtensionRuntimeSelectionLive = Layer.mergeAll(
   ExtensionLifecycleRepositoryLive,
   ExtensionProjectOverridesRepositoryLive,
   FilesystemExtensionManagerLive,
+  FilesystemExtensionPackageRepositoryLive,
   ExtensionBuildRunnerLive,
 )
 const ProviderServiceWithExtensionSelectionLive = ProviderServiceLive.pipe(
@@ -50,12 +53,25 @@ const PiProviderProbeWithExtensionSelectionLive = PiProviderProbeLive.pipe(
 const PiAgentKernelWithExtensionSelectionLive = PiAgentKernelLive.pipe(
   Layer.provide(ExtensionRuntimeSelectionLive),
 )
+const ActiveProjectChangeDependenciesLive = Layer.mergeAll(
+  AppLogger.Live,
+  SettingsService.Live,
+  FilesystemDocsBundleLive,
+  ExtensionRuntimeSelectionLive,
+  ExtensionStorageRepositoryLive,
+  SqliteSessionProjectionRepositoryLive,
+  SqliteSessionRepositoryLive,
+)
+const ActiveProjectChangeWithDependenciesLive = ActiveProjectChangeServiceLive.pipe(
+  Layer.provide(ActiveProjectChangeDependenciesLive),
+)
 
 const AppLayer = Layer.mergeAll(
   NodeContext.layer,
   AppLogger.Live,
   AppDatabaseLive,
   SettingsService.Live,
+  ActiveProjectChangeWithDependenciesLive,
   FilesystemDocsBundleLive,
   ExtensionRuntimeSelectionLive,
   ExtensionStorageRepositoryLive,

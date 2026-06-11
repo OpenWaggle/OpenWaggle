@@ -126,6 +126,7 @@ const PACKAGE_VIEW: ExtensionManagerView = {
   projectPaths: ['/tmp/project'],
   packages: [SAMPLE_PACKAGE],
 }
+
 const TRUSTED_VIEW: ExtensionManagerView = {
   ...PACKAGE_VIEW,
   packages: [

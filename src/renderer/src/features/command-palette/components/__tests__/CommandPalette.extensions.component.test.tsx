@@ -97,6 +97,7 @@ describe('CommandPalette extension commands', () => {
           category: 'Sample',
           capability: 'sample.execute',
           method: 'run',
+          declaredScopes: ['project'],
           eligibility: {
             runtimeEnabled: true,
             enabled: true,
@@ -168,6 +169,57 @@ describe('CommandPalette extension commands', () => {
         capability: 'sample.execute',
         method: 'run',
         scope: { kind: 'project', projectPath: PROJECT_PATH },
+        payload: {},
+      })
+    })
+  })
+
+  it('uses app scope for app-only extension commands when a project is active', async () => {
+    apiMock.listExtensionContributions.mockResolvedValueOnce({
+      projectPaths: [PROJECT_PATH],
+      entries: [
+        {
+          extensionId: 'sample-extension',
+          extensionName: 'Sample Extension',
+          extensionVersion: '1.0.0',
+          scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND, label: 'Global' },
+          packagePath: '/tmp/extensions/sample-extension',
+          manifestPath: '/tmp/extensions/sample-extension/openwaggle.extension.json',
+          contentHash: 'abcdef',
+          projectPaths: [PROJECT_PATH],
+          appliesToAllRequestedProjects: true,
+          family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.COMMANDS,
+          contributionId: 'sample.app',
+          title: 'Run app extension',
+          label: 'Run app extension',
+          category: 'Sample',
+          capability: 'sample.execute',
+          method: 'run',
+          declaredScopes: ['app'],
+          eligibility: {
+            runtimeEnabled: true,
+            enabled: true,
+            trusted: true,
+            sdkCompatible: true,
+            updateAvailable: false,
+            disabledProjectPaths: [],
+          },
+          diagnostics: [],
+        },
+      ],
+    })
+
+    renderWithQueryClient()
+
+    fireEvent.click(await screen.findByRole('button', { name: /run app extension/i }))
+
+    await waitFor(() => {
+      expect(apiMock.invokeExtension).toHaveBeenCalledWith({
+        extensionId: 'sample-extension',
+        contributionId: 'sample.app',
+        capability: 'sample.execute',
+        method: 'run',
+        scope: { kind: 'app' },
         payload: {},
       })
     })
@@ -270,6 +322,8 @@ describe('CommandPalette extension commands', () => {
       panel: 'extension-side-panel',
       sidePanelExtensionId: 'sample-extension',
       sidePanelId: 'sample.panel',
+      sidePanelPackagePath: '/tmp/extensions/sample-extension',
+      sidePanelContentHash: 'abcdef',
     })
   })
 })

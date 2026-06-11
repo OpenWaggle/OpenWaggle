@@ -63,6 +63,13 @@ export class ExtensionBuildRunnerError extends Data.TaggedError('ExtensionBuildR
   readonly cause?: unknown
 }> {}
 
+export class ExtensionPackageRepositoryError extends Data.TaggedError(
+  'ExtensionPackageRepositoryError',
+)<{
+  readonly operation: string
+  readonly cause?: unknown
+}> {}
+
 export class DocsBundleError extends Data.TaggedError('DocsBundleError')<{
   readonly operation: string
   readonly cause?: unknown

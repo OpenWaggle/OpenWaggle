@@ -191,7 +191,7 @@ export function packageToSummary(input: {
       ? manifestToSummary(input.extensionPackage.manifest)
       : null,
     buildPlan: buildPlanToView(input.extensionPackage, input.lifecycle),
-    requirements: requirementsToView(input.extensionPackage),
+    requirements: requirementsToView(input.extensionPackage, input.lifecycle),
     contentHash: input.extensionPackage.contentHash,
     sdkCompatibility: sdkCompatibilityToView(input.extensionPackage.sdkCompatibility),
     lifecycle: input.lifecycle

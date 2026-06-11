@@ -177,4 +177,50 @@ describe('extension contribution registration guard', () => {
       ],
     })
   })
+
+  it('rejects runtime registration that requests a capability outside the manifest', () => {
+    const extensionPackage = makePackage({
+      id: 'runtime-new-capability-extension',
+      name: 'Runtime New Capability Extension',
+      scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND },
+      capabilities: [
+        {
+          id: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.STORAGE,
+          methods: [OPENWAGGLE_EXTENSION_BROKER.METHOD.GET],
+          scopes: ['project'],
+        },
+      ],
+      contributions: {
+        settingsSections: [],
+      },
+    })
+    const registration = decodeRegistration({
+      family: 'settingsSections',
+      contribution: {
+        id: 'runtime.settings',
+        title: 'Runtime Settings',
+        runtime: OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE,
+        execution: OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.HOST_RENDERER,
+        entry: 'dist/settings.js',
+        capability: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
+        method: OPENWAGGLE_EXTENSION_BROKER.METHOD.GET_SETTINGS,
+      },
+    })
+
+    const authorization = authorizeRuntimeContributionRegistration({
+      extensionPackage,
+      registration,
+    })
+
+    expect(authorization).toEqual({
+      _tag: 'rejected',
+      diagnostics: [
+        expect.objectContaining({
+          severity: OPENWAGGLE_EXTENSION.DIAGNOSTIC.SEVERITY.ERROR,
+          code: OPENWAGGLE_EXTENSION.DIAGNOSTIC.CODE.CONTRIBUTION_REGISTRATION_FAILED,
+          message: expect.stringContaining('does not declare that capability'),
+        }),
+      ],
+    })
+  })
 })

@@ -18,6 +18,10 @@ import type {
   ExtensionPackageScope,
 } from '../extensions/types'
 import {
+  findManifestCapabilityDeclaration,
+  getDeclaredScopes,
+} from './extension-contribution-authorization-model'
+import {
   isEntryContribution,
   type ManifestCommandContribution,
   type ManifestEntryContribution,
@@ -163,6 +167,22 @@ function entryContributionMetadata(contribution: ManifestEntryContribution) {
   }
 }
 
+function declaredScopesForContribution(input: {
+  readonly extensionPackage: DiscoveredExtensionPackage
+  readonly contribution: ManifestCommandContribution | ManifestEntryContribution
+}) {
+  if (input.contribution.capability === undefined) {
+    return undefined
+  }
+
+  const declaration = findManifestCapabilityDeclaration({
+    manifest: input.extensionPackage.manifest,
+    capability: input.contribution.capability,
+  })
+
+  return declaration ? [...getDeclaredScopes(declaration)] : undefined
+}
+
 function contributionToEntry(
   input: ContributionEntryInput,
 ): ExtensionContributionRegistryEntry | null {
@@ -201,10 +221,12 @@ function contributionToEntry(
     diagnostics: eligibility.diagnostics,
   }
 
+  const declaredScopes = declaredScopesForContribution(input)
   const brokerBindings = {
     ...(contribution.capability !== undefined ? { capability: contribution.capability } : {}),
     ...(contribution.method !== undefined ? { method: contribution.method } : {}),
     ...(contribution.methods !== undefined ? { methods: contribution.methods } : {}),
+    ...(declaredScopes !== undefined ? { declaredScopes } : {}),
   }
 
   if (isEntryContribution(contribution)) {

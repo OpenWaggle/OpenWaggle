@@ -5,6 +5,7 @@ import type { SessionDetail, SessionTree } from '@shared/types/session'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import type { DiscoveredExtensionPackage, ExtensionLifecycleState } from '../../extensions/types'
+import { ActiveProjectChangeService } from '../../ports/active-project-change-service'
 import { DocsBundleService } from '../../ports/docs-bundle-service'
 import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from '../../ports/extension-manager-service'
@@ -129,6 +130,7 @@ function makeBrokerLayer(input: {
   readonly storageItems: ExtensionStorageItem[]
   readonly capturedLogs: CapturedLog[]
   readonly currentProjectPath: string | null
+  readonly reconciledProjectPaths: string[]
 }) {
   const projectOverrides = input.projectOverrides ?? []
 
@@ -136,6 +138,12 @@ function makeBrokerLayer(input: {
     makeLoggerLayer(input.capturedLogs),
     makeExtensionStorageRepositoryLayer(input.storageItems),
     makeBrokerSettingsLayer(input.currentProjectPath),
+    Layer.succeed(ActiveProjectChangeService, {
+      reconcileTrustedMainExtensions: (projectPath) =>
+        Effect.sync(() => {
+          input.reconciledProjectPaths.push(projectPath ?? '<none>')
+        }),
+    }),
     Layer.succeed(DocsBundleService, {
       getBundlePath: () => Effect.succeed(DOCS_BUNDLE_PATH),
       loadBundle: () =>
@@ -248,6 +256,7 @@ export async function runBroker(input: {
   readonly storageItems?: readonly ExtensionStorageItem[]
   readonly capturedLogs?: CapturedLog[]
   readonly currentProjectPath?: string | null
+  readonly reconciledProjectPaths?: string[]
 }) {
   const harness = makeBrokerHarness(input)
   return harness.run(input.invocation)
@@ -262,9 +271,11 @@ export function makeBrokerHarness(input: {
   readonly storageItems?: readonly ExtensionStorageItem[]
   readonly capturedLogs?: CapturedLog[]
   readonly currentProjectPath?: string | null
+  readonly reconciledProjectPaths?: string[]
 }) {
   clearExtensionContributionRegistryCacheForTests()
   const capturedLogs = input.capturedLogs ?? []
+  const reconciledProjectPaths = input.reconciledProjectPaths ?? []
   const storageItems = [...(input.storageItems ?? [])]
   const layer = makeBrokerLayer({
     packages: input.packages ?? [],
@@ -275,6 +286,7 @@ export function makeBrokerHarness(input: {
     storageItems,
     capturedLogs,
     currentProjectPath: input.currentProjectPath ?? PROJECT_PATH,
+    reconciledProjectPaths,
   })
 
   return {
@@ -283,5 +295,6 @@ export function makeBrokerHarness(input: {
         invokeExtensionCapability(invocation, { now: () => TIMESTAMP }).pipe(Effect.provide(layer)),
       ),
     storageItems: () => storageItems.map((item) => item),
+    reconciledProjectPaths: () => reconciledProjectPaths.map((projectPath) => projectPath),
   }
 }

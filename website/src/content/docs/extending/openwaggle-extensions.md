@@ -96,18 +96,20 @@ export async function mount(context) {
 
 The lifecycle for a user or agent is:
 
-1. Create or copy the package directory into `<project>/.openwaggle/extensions/<extension-id>/`.
-2. Ensure `openwaggle.extension.json` lists every source file, built artifact, capability, network origin, runtime requirement, and contribution.
-3. If `install.source` is `prebuilt`, ship the built files already present in `builtArtifacts`.
-4. If `install.source` is `local-build`, declare `build.command` and `build.outputs`, then use Settings > Extensions to approve and run the build.
-5. Open Settings > Extensions and refresh discovery.
-6. Inspect the package path, SDK range, content hash, install source, build command, capabilities, network origins, trusted local code, and diagnostics.
-7. Trust the extension. Trust pins the current package identity, SDK range, version, and content hash.
-8. Enable the extension.
-9. Reload the extension registry so eligible contributions can appear on their surfaces.
-10. Update the extension by replacing package files and bumping the version. OpenWaggle treats the changed content hash as an explicit update; approve the update, then enable and reload again if the update flow disables runtime loading.
-11. Disable the extension from Settings > Extensions to stop all contributions without deleting files. For global extensions, use project availability controls to disable only one project.
-12. Remove the extension from runtime discovery by disabling it, untrusting it when appropriate, deleting its package directory, and refreshing Settings > Extensions. Future Extension Manager remove UI should perform the same package removal plus any explicit user-approved cleanup of lifecycle or extension-owned storage records.
+1. Create or generate a complete package proposal with the manifest and every file that should exist in the package directory.
+2. Review the package scope: project-local packages live under `<project>/.openwaggle/extensions/<extension-id>/`; global packages live under OpenWaggle app data `extensions/<extension-id>/` and affect every project unless a project opts out.
+3. If an agent is creating or updating the package, approve the exact proposal before OpenWaggle writes files. The approval is tied to the extension id, scope, operation, file paths, and file contents. Global package writes require a second global-impact confirmation.
+4. Ensure `openwaggle.extension.json` lists every source file, built artifact, capability, network origin, runtime requirement, and contribution.
+5. If `install.source` is `prebuilt`, ship the built files already present in `builtArtifacts`.
+6. If `install.source` is `local-build`, declare `build.command` and `build.outputs`, then use Settings > Extensions to approve and run the build.
+7. Open Settings > Extensions and refresh discovery.
+8. Inspect the package path, SDK range, content hash, install source, build command, capabilities, network origins, trusted local code, and diagnostics.
+9. Trust the extension. Trust pins the current package identity, SDK range, version, and content hash.
+10. Enable the extension.
+11. Reload the extension registry so eligible contributions can appear on their surfaces.
+12. Update the extension by replacing the package with a new approved proposal and bumping the version. OpenWaggle treats the changed content hash as an explicit update; approve the update, then enable and reload again if the update flow disables runtime loading.
+13. Disable the extension from Settings > Extensions to stop all contributions without deleting files. For global extensions, use project availability controls to disable only one project.
+14. Remove the extension through an approved remove workflow or by disabling it, deleting its package directory, and refreshing discovery. The remove workflow unregisters contributions, tears down runtime/module access, deletes lifecycle trust and enablement pins, and removes the package directory. Extension-owned storage cleanup should be a separate explicit user choice when data deletion matters.
 
 ## Model
 
@@ -264,6 +266,22 @@ The trust review should make these privileges visible:
 - Brokered capabilities: `capabilities` declares SDK capabilities, methods, and scopes such as `openwaggle.storage` with `get`, `set`, and `list` for `project` scope.
 
 Trust pins the current package content hash. Editing manifest files, source files, built artifacts, or the build plan changes the hash and creates an explicit update path. Extension updates are user-approved; they are not silent runtime swaps.
+
+## Agent-Created And Agent-Updated Packages
+
+Agents may help author project-local or global extension packages, but package writes are not an extension SDK capability. Extension code cannot directly modify another extension package through OpenWaggle. The supported path is an OpenWaggle-owned workflow:
+
+1. The agent proposes the package id, scope, operation (`create`, `update`, or `remove`), manifest, declared permissions, build plan, and full file list.
+2. OpenWaggle calculates a proposal hash from the operation, extension id, scope, file paths, and file contents.
+3. The user reviews the proposal and approves that exact hash.
+4. For global packages, the user also confirms the global impact because the package can affect every project where it is enabled.
+5. OpenWaggle writes, replaces, or removes the package, then refreshes discovery and lifecycle state.
+
+Project-local extension source can be committed and shared with the project. Trust records, enablement, permission grants, build approvals, project opt-outs, lifecycle pins, and extension storage remain user-local.
+
+An approved update replaces the package directory as a full package. Stale files that are not in the new package proposal are removed. Runtime loading is disabled until the updated package is reviewed, trusted or update-approved, enabled, and reloaded again.
+
+An approved remove tears down the runtime path before returning the new Extension Manager view. Registered contributions disappear from the contribution registry, sandboxed module access is denied, and Pi runtime package selection no longer includes the removed package.
 
 ## State And Actions
 

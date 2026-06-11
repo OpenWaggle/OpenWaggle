@@ -6,7 +6,14 @@ export const Route = createFileRoute('/sessions/$sessionId')({
   validateSearch: (search) => parseChatRouteSearch(search),
   search: {
     middlewares: [
-      retainSearchParams<ChatRouteSearch>(['diff', 'panel', 'sidePanelExtensionId', 'sidePanelId']),
+      retainSearchParams<ChatRouteSearch>([
+        'diff',
+        'panel',
+        'sidePanelExtensionId',
+        'sidePanelId',
+        'sidePanelPackagePath',
+        'sidePanelContentHash',
+      ]),
     ],
   },
   component: ChatSessionRouteView,

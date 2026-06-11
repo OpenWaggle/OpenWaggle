@@ -9,6 +9,8 @@ import type {
 export interface ExtensionSidePanelTarget {
   readonly extensionId: string
   readonly sidePanelId: string
+  readonly packagePath?: string
+  readonly contentHash?: string
 }
 
 export interface ResolvedExtensionSidePanelContribution {
@@ -45,12 +47,20 @@ function normalizeSidePanelId(sidePanelId: string) {
   return sidePanelId.trim()
 }
 
-function sidePanelEntriesForExtension(
+function sidePanelEntriesForTarget(
   registry: ExtensionContributionRegistryView,
-  extensionId: string,
+  target: {
+    readonly extensionId: string
+    readonly packagePath?: string
+    readonly contentHash?: string
+  },
 ) {
   return registry.entries.filter(
-    (entry) => entry.family === SIDE_PANEL_FAMILY && entry.extensionId === extensionId,
+    (entry) =>
+      entry.family === SIDE_PANEL_FAMILY &&
+      entry.extensionId === target.extensionId &&
+      (target.packagePath === undefined || entry.packagePath === target.packagePath) &&
+      (target.contentHash === undefined || entry.contentHash === target.contentHash),
   )
 }
 
@@ -96,6 +106,8 @@ export function resolveExtensionSidePanelContribution({
 }): ExtensionSidePanelResolution {
   const extensionId = target.extensionId.trim()
   const sidePanelId = normalizeSidePanelId(target.sidePanelId)
+  const packagePath = target.packagePath?.trim()
+  const contentHash = target.contentHash?.trim()
 
   if (extensionId.length === 0 || sidePanelId.length === 0) {
     return {
@@ -106,7 +118,11 @@ export function resolveExtensionSidePanelContribution({
     }
   }
 
-  const extensionSidePanelEntries = sidePanelEntriesForExtension(registry, extensionId)
+  const extensionSidePanelEntries = sidePanelEntriesForTarget(registry, {
+    extensionId,
+    ...(packagePath ? { packagePath } : {}),
+    ...(contentHash ? { contentHash } : {}),
+  })
   if (extensionSidePanelEntries.length === 0) {
     return {
       status: 'not-found',

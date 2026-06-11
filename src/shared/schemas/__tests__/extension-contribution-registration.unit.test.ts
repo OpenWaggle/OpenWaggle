@@ -1,3 +1,4 @@
+import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
 import { safeDecodeUnknown } from '@shared/schema'
 import {
   extensionContributionRegistrationSchema,
@@ -61,6 +62,39 @@ describe('extension contribution registration schemas', () => {
         'list',
       ])
     }
+  })
+
+  it('rejects unsupported methods on built-in broker capability declarations', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      capabilities: [
+        {
+          id: OPENWAGGLE_EXTENSION_BROKER.CAPABILITY.SETTINGS,
+          methods: ['delete-all-settings'],
+          scopes: ['app'],
+        },
+      ],
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.issues.join('\n')).toContain('does not support method "delete-all-settings"')
+    }
+  })
+
+  it('keeps extension-owned custom capability methods extensible', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      capabilities: [
+        {
+          id: 'sample.custom',
+          methods: ['delete-all-settings'],
+          scopes: ['project'],
+        },
+      ],
+    })
+
+    expect(result.success).toBe(true)
   })
 
   it('accepts a dynamic registration envelope for manifest contribution families', () => {

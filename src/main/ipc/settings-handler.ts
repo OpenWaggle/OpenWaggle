@@ -6,6 +6,7 @@ import { THINKING_LEVELS } from '@shared/types/settings'
 import * as Effect from 'effect/Effect'
 import { testCredentials } from '../application/provider-test-service'
 import { createLogger } from '../logger'
+import { ActiveProjectChangeService } from '../ports/active-project-change-service'
 import { SessionTreePreferencesService } from '../ports/session-tree-preferences-service'
 import { SettingsService } from '../services/settings-service'
 import { validateProjectPath } from './project-path-validation'
@@ -130,6 +131,10 @@ function registerSettingsCrudHandlers() {
         favoriteModels: result.data.favoriteModels?.map(SupportedModelId),
         enabledModels: result.data.enabledModels?.map(SupportedModelId),
       })
+      if (result.data.projectPath !== undefined) {
+        const projectChanges = yield* ActiveProjectChangeService
+        yield* projectChanges.reconcileTrustedMainExtensions(projectPathValidation.value)
+      }
       return { ok: true } satisfies { ok: true }
     }),
   )

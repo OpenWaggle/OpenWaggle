@@ -1,3 +1,4 @@
+export { ExtensionAgentLoopStatusWidgets } from './components/ExtensionAgentLoopStatusWidgets'
 export {
   CUSTOM_INTERACTION_RESPONSE_ACTION_ID,
   CUSTOM_INTERACTION_UNAVAILABLE_ACTION_ID,
@@ -21,6 +22,14 @@ export {
   ExtensionSidePanelSurfaceContent,
 } from './components/ExtensionSidePanelSurface'
 export { useExtensionSidePanelContributions } from './hooks/useExtensionSidePanelContributions'
+export {
+  agentLoopAuxiliarySurfacePayload,
+  agentLoopInputKey,
+  type ExtensionAgentLoopAuxiliaryContribution,
+  type ExtensionAgentLoopAuxiliaryPlacement,
+  interactionSurfaceInput,
+  resolveExtensionAgentLoopAuxiliaryContributions,
+} from './lib/extension-agent-loop-auxiliary-surfaces'
 export type {
   ExtensionAgentLoopResolution,
   ExtensionAgentLoopSurfaceKind,

@@ -141,6 +141,13 @@ async function bootstrapServicesAndWindow() {
   await runtimeModule.runAppEffect(agentRunServiceModule.reconcileInterruptedAgentRuns())
   startupMark('interrupted-runs-reconciled')
 
+  const trustedMainActivationModule = await import(
+    './application/extension-trusted-main-activation-service'
+  )
+  await runtimeModule.runAppEffect(
+    trustedMainActivationModule.activateTrustedMainExtensionsForActiveProject(),
+  )
+
   await registerIpcHandlersOnce()
   startupMark('ipc-handlers-registered')
 

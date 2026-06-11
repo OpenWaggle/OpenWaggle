@@ -17,6 +17,7 @@ import {
   makePackage,
   PROJECT_PATH,
 } from './extension-contribution-registry-test-utils'
+import { TrustedMainActivationDependenciesTestLayer } from './extension-trusted-main-activation-test-layer'
 
 const extensionPackage = makePackage({
   id: 'teardown-extension',
@@ -56,6 +57,7 @@ function makeTeardownHarness(lifecycle: ExtensionLifecycleState) {
         get: () => Effect.succeed(null),
         upsert: () => Effect.void,
       }),
+      TrustedMainActivationDependenciesTestLayer,
     ),
     getStoredLifecycle: () => storedLifecycle,
   }
@@ -194,6 +196,7 @@ describe('extension lifecycle teardown', () => {
         get: () => Effect.succeed(null),
         upsert: () => Effect.void,
       }),
+      TrustedMainActivationDependenciesTestLayer,
     )
 
     const enabledPackagePaths = await Effect.runPromise(

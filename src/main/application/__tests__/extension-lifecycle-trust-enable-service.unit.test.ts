@@ -12,6 +12,7 @@ import {
   setExtensionEnabled,
   setExtensionTrusted,
 } from '../extension-lifecycle-service'
+import { TrustedMainActivationDependenciesTestLayer } from './extension-trusted-main-activation-test-layer'
 
 const PROJECT_PATH = '/tmp/project'
 
@@ -85,6 +86,7 @@ function makeTestHarness({
         get: () => Effect.succeed(null),
         upsert: () => Effect.void,
       }),
+      TrustedMainActivationDependenciesTestLayer,
     ),
     getStoredLifecycle: () => storedLifecycle,
   }

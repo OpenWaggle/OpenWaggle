@@ -5,6 +5,7 @@ import { ManifestBadges } from './ExtensionManifestBadges'
 import { PackageActions } from './ExtensionPackageCardActions'
 import { PackageStatusPills, PackageTrustIcon } from './ExtensionPackageCardStatus'
 import { PackageMetadata } from './ExtensionPackageMetadata'
+import { ExtensionPackageRequirements } from './ExtensionPackageRequirements'
 import type { PackageContributionSummary } from './extension-contribution-summary-model'
 import {
   type ExtensionPackageCardActions,
@@ -46,6 +47,7 @@ export function ExtensionPackageCard({
         extensionPackage={extensionPackage}
         contributionSummary={contributionSummary}
       />
+      <ExtensionPackageRequirements requirements={extensionPackage.requirements} />
       <PackageActions
         extensionPackage={extensionPackage}
         busy={busy}

@@ -174,6 +174,7 @@ describe('invokeExtensionCapability OpenWaggle capabilities', () => {
   it('routes safe app actions without granting direct store access', async () => {
     const extensionPackage = makeOpenWaggleBrokerPackage()
     const selectedProjectPath = await makeExistingProjectPath()
+    const reconciledProjectPaths: string[] = []
     const result = await runBroker({
       invocation: makeInvocation({
         contributionId: ACTION_CONTRIBUTION_ID,
@@ -184,6 +185,7 @@ describe('invokeExtensionCapability OpenWaggle capabilities', () => {
       packages: [extensionPackage],
       lifecycles: [makeLifecycle(extensionPackage)],
       currentProjectPath: PROJECT_PATH,
+      reconciledProjectPaths,
     })
 
     expect(result).toMatchObject({
@@ -200,6 +202,7 @@ describe('invokeExtensionCapability OpenWaggle capabilities', () => {
         timestamp: TIMESTAMP,
       },
     })
+    expect(reconciledProjectPaths).toEqual([selectedProjectPath])
   })
 
   it('rejects project selection paths that fail normal project validation', async () => {

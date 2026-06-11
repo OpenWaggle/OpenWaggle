@@ -25,6 +25,7 @@ import {
   makePackage,
   PROJECT_PATH,
 } from './extension-contribution-registry-test-utils'
+import { TrustedMainActivationDependenciesTestLayer } from './extension-trusted-main-activation-test-layer'
 
 const projectPackage = makePackage({
   id: 'teardown-cache-extension',
@@ -73,6 +74,7 @@ function makeCacheHarness(input: {
             storedProjectOverride = state
           }),
       }),
+      TrustedMainActivationDependenciesTestLayer,
     ),
     setPackages: (packages: readonly DiscoveredExtensionPackage[]) => {
       storedPackages = packages

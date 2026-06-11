@@ -35,16 +35,22 @@ describe('parseChatRouteSearch', () => {
       panel: 'extension-side-panel',
       sidePanelExtensionId: 'sample-extension',
       sidePanelId: 'sample.side-panel',
+      sidePanelPackagePath: '/tmp/extensions/sample-extension',
+      sidePanelContentHash: 'abcdef',
     })
 
     expect(search).toEqual({
       panel: 'extension-side-panel',
       sidePanelExtensionId: 'sample-extension',
       sidePanelId: 'sample.side-panel',
+      sidePanelPackagePath: '/tmp/extensions/sample-extension',
+      sidePanelContentHash: 'abcdef',
     })
     expect(extensionSidePanelTargetFromSearch(search)).toEqual({
       extensionId: 'sample-extension',
       sidePanelId: 'sample.side-panel',
+      packagePath: '/tmp/extensions/sample-extension',
+      contentHash: 'abcdef',
     })
   })
 
@@ -69,6 +75,8 @@ describe('parseChatRouteSearch', () => {
         panel: 'diff',
         sidePanelExtensionId: 'sample-extension',
         sidePanelId: 'sample.side-panel',
+        sidePanelPackagePath: '/tmp/extensions/sample-extension',
+        sidePanelContentHash: 'abcdef',
       }),
     ).toEqual({ panel: 'diff' })
   })

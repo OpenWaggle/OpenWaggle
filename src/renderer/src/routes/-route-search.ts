@@ -7,6 +7,8 @@ export type ChatRightPanel = ChatBuiltInRightPanel | typeof EXTENSION_SIDE_PANEL
 export interface ChatExtensionSidePanelTarget {
   readonly extensionId: string
   readonly sidePanelId: string
+  readonly packagePath?: string
+  readonly contentHash?: string
 }
 
 export interface ChatRouteSearch {
@@ -16,18 +18,24 @@ export interface ChatRouteSearch {
   readonly panel?: ChatRightPanel
   readonly sidePanelExtensionId?: string
   readonly sidePanelId?: string
+  readonly sidePanelPackagePath?: string
+  readonly sidePanelContentHash?: string
 }
 
 export interface ChatBuiltInRouteSearch extends ChatRouteSearch {
   readonly panel?: ChatBuiltInRightPanel
   readonly sidePanelExtensionId?: undefined
   readonly sidePanelId?: undefined
+  readonly sidePanelPackagePath?: undefined
+  readonly sidePanelContentHash?: undefined
 }
 
 export interface ChatExtensionSidePanelRouteSearch extends ChatRouteSearch {
   readonly panel: typeof EXTENSION_SIDE_PANEL_ROUTE_PANEL
   readonly sidePanelExtensionId: string
   readonly sidePanelId: string
+  readonly sidePanelPackagePath?: string
+  readonly sidePanelContentHash?: string
 }
 
 function parseSearchString(value: unknown) {
@@ -62,6 +70,8 @@ export function parseChatRouteSearch(search: Record<string, unknown>): ChatRoute
   if (panel === EXTENSION_SIDE_PANEL_ROUTE_PANEL) {
     const sidePanelExtensionId = parseSearchToken(search.sidePanelExtensionId)
     const sidePanelId = parseSearchToken(search.sidePanelId)
+    const sidePanelPackagePath = parseSearchToken(search.sidePanelPackagePath)
+    const sidePanelContentHash = parseSearchToken(search.sidePanelContentHash)
 
     if (sidePanelExtensionId && sidePanelId) {
       return {
@@ -69,6 +79,8 @@ export function parseChatRouteSearch(search: Record<string, unknown>): ChatRoute
         panel,
         sidePanelExtensionId,
         sidePanelId,
+        ...(sidePanelPackagePath ? { sidePanelPackagePath } : {}),
+        ...(sidePanelContentHash ? { sidePanelContentHash } : {}),
       }
     }
 
@@ -95,6 +107,8 @@ export function extensionSidePanelTargetFromSearch(
   return {
     extensionId: search.sidePanelExtensionId,
     sidePanelId: search.sidePanelId,
+    ...(search.sidePanelPackagePath ? { packagePath: search.sidePanelPackagePath } : {}),
+    ...(search.sidePanelContentHash ? { contentHash: search.sidePanelContentHash } : {}),
   }
 }
 

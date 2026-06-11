@@ -1,6 +1,7 @@
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
 import { safeDecodeUnknown } from '@shared/schema'
 import {
+  extensionBrokerMethodSchema,
   extensionInvokeFailureCodeSchema,
   extensionInvokeInputSchema,
   extensionInvokeOutcomeSchema,
@@ -98,6 +99,14 @@ describe('extension broker schemas', () => {
   it('accepts every broker outcome configured in constants', () => {
     const results = Object.values(OPENWAGGLE_EXTENSION_BROKER.OUTCOME).map((outcome) =>
       safeDecodeUnknown(extensionInvokeOutcomeSchema, outcome),
+    )
+
+    expect(results.every((result) => result.success)).toBe(true)
+  })
+
+  it('keeps built-in broker capability methods schema-decodable', () => {
+    const results = OPENWAGGLE_EXTENSION_BROKER.CAPABILITY_METHODS.flatMap((descriptor) =>
+      descriptor.methods.map((method) => safeDecodeUnknown(extensionBrokerMethodSchema, method)),
     )
 
     expect(results.every((result) => result.success)).toBe(true)

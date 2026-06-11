@@ -107,6 +107,39 @@ describe('resolveExtensionSidePanelContribution', () => {
     })
   })
 
+  it('can target a specific side panel package when duplicate contribution ids exist', () => {
+    const globalEntry = sidePanelEntry({
+      scope: {
+        kind: OPENWAGGLE_EXTENSION.SCOPE.GLOBAL_KIND,
+        label: 'Global',
+      },
+      packagePath: '/tmp/user-data/extensions/sample-extension',
+      manifestPath: '/tmp/user-data/extensions/sample-extension/openwaggle.extension.json',
+      contentHash: 'global-hash',
+      title: 'Global side panel',
+    })
+    const projectEntry = sidePanelEntry({
+      contentHash: 'project-hash',
+      title: 'Project side panel',
+    })
+
+    const resolution = resolveExtensionSidePanelContribution({
+      registry: registry([globalEntry, projectEntry]),
+      target: {
+        extensionId: 'sample-extension',
+        sidePanelId: 'sample.side-panel',
+        packagePath: projectEntry.packagePath,
+        contentHash: projectEntry.contentHash,
+      },
+      requestedProjectPaths: [PROJECT_PATH],
+    })
+
+    expect(resolution).toMatchObject({
+      status: 'available',
+      contribution: { entry: projectEntry },
+    })
+  })
+
   it('blocks side panel entries that are not eligible for the active project', () => {
     const resolution = resolveExtensionSidePanelContribution({
       registry: registry([

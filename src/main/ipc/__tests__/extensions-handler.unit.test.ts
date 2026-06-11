@@ -5,6 +5,7 @@ import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { TrustedMainActivationDependenciesTestLayer } from '../../application/__tests__/extension-trusted-main-activation-test-layer'
 import type { DiscoveredExtensionPackage, ExtensionLifecycleState } from '../../extensions/types'
 import { ExtensionLifecycleRepository } from '../../ports/extension-lifecycle-repository'
 import { ExtensionManagerService } from '../../ports/extension-manager-service'
@@ -66,6 +67,7 @@ function makeTestLayer(lifecycle: ExtensionLifecycleState | null = null) {
       get: () => Effect.succeed(null),
       upsert: () => Effect.void,
     }),
+    TrustedMainActivationDependenciesTestLayer,
   )
 }
 

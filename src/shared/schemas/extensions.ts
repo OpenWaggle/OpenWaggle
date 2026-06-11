@@ -1,5 +1,6 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { Schema, type SchemaType } from '@shared/schema'
+import { validateBrokerCapabilityDeclaration } from './extension-broker-capability-methods'
 import { isNetworkOrigin } from './extension-network-origin'
 import {
   isBuildCommand,
@@ -80,7 +81,7 @@ export const extensionCapabilityDeclarationSchema = Schema.Struct({
   id: extensionContributionIdSchema,
   methods: Schema.optional(Schema.mutable(Schema.Array(extensionContributionIdSchema))),
   scopes: Schema.optional(Schema.mutable(Schema.Array(extensionCapabilityScopeSchema))),
-})
+}).pipe(Schema.filter(validateBrokerCapabilityDeclaration))
 
 const extensionContributionBrokerBindingSchema = {
   capability: Schema.optional(extensionContributionIdSchema),

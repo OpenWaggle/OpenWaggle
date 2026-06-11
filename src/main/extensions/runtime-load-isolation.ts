@@ -15,7 +15,13 @@ interface LoadAttemptFailure {
 type LoadAttemptResult<Result> = LoadAttemptSuccess<Result> | LoadAttemptFailure
 
 function packagePaths(selections: readonly RuntimeLoadSelection[]) {
-  return selections.map((selection) => selection.packagePath)
+  const paths: string[] = []
+  for (const selection of selections) {
+    if (!paths.includes(selection.packagePath)) {
+      paths.push(selection.packagePath)
+    }
+  }
+  return paths
 }
 
 async function captureLoadResult<Result>(

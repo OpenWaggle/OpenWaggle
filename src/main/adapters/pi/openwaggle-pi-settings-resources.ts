@@ -62,6 +62,20 @@ function prependResourceRoots(
   return result
 }
 
+function isJsonObject(value: JsonValue): value is JsonObject {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function getPackageSource(value: JsonValue): string | null {
+  if (typeof value === 'string') {
+    return value
+  }
+  if (isJsonObject(value) && typeof value.source === 'string') {
+    return value.source
+  }
+  return null
+}
+
 function segmentsToPath(segments: readonly string[]) {
   return join(...segments)
 }
@@ -80,6 +94,59 @@ function toPiExtensionPath(projectPath: string, packagePath: string) {
   return isInsideProject(projectPath, normalizedPackagePath)
     ? relative(join(projectPath, PI_CONFIG_DIR), normalizedPackagePath)
     : normalizedPackagePath
+}
+
+function resolvePackageSourcePath(projectPath: string, source: string) {
+  return isAbsolute(source) ? source : join(projectPath, PI_CONFIG_DIR, source)
+}
+
+function packageSourceIdentity(projectPath: string, source: string) {
+  return `local:${resolve(resolvePackageSourcePath(projectPath, source))}`
+}
+
+function packageEntryIdentity(projectPath: string, entry: JsonValue) {
+  const source = getPackageSource(entry)
+  return source === null ? null : packageSourceIdentity(projectPath, source)
+}
+
+function getImplicitOpenWaggleExtensionPackageSources(
+  projectPath: string,
+  options: OpenWaggleResourcePrecedenceOptions,
+) {
+  return (options.enabledOpenWaggleExtensionPackagePaths ?? []).map((packagePath) =>
+    toPiExtensionPath(projectPath, packagePath),
+  )
+}
+
+function prependPackageSources(
+  projectPath: string,
+  configured: JsonValue | undefined,
+  packageSources: readonly string[],
+) {
+  const result: JsonValue[] = []
+  const seen = new Set<string>()
+
+  function addPackage(entry: JsonValue) {
+    const identity = packageEntryIdentity(projectPath, entry)
+    if (identity !== null) {
+      if (seen.has(identity)) {
+        return
+      }
+      seen.add(identity)
+    }
+    result.push(entry)
+  }
+
+  for (const packageSource of packageSources) {
+    addPackage(packageSource)
+  }
+  if (Array.isArray(configured)) {
+    for (const configuredPackage of configured) {
+      addPackage(configuredPackage)
+    }
+  }
+
+  return result
 }
 
 function getImplicitResourceRoots(kind: ResourceKind) {
@@ -111,16 +178,11 @@ function getImplicitResourceRoots(kind: ResourceKind) {
   ]
 }
 
-function getImplicitExtensionResourceRoots(
-  projectPath: string,
-  options: OpenWaggleResourcePrecedenceOptions,
-) {
+function getImplicitExtensionResourceRoots(options: OpenWaggleResourcePrecedenceOptions) {
   const openWaggleExtensionRoots =
     options.enabledOpenWaggleExtensionPackagePaths === undefined
       ? [segmentsToPath(OPENWAGGLE_RESOURCE_ROOTS.extensions)]
-      : options.enabledOpenWaggleExtensionPackagePaths.map((packagePath) =>
-          toPiExtensionPath(projectPath, packagePath),
-        )
+      : []
 
   return [
     ...openWaggleExtensionRoots,
@@ -129,14 +191,20 @@ function getImplicitExtensionResourceRoots(
   ]
 }
 
-function getRemovableImplicitExtensionResourceRoots(
+function getRemovableImplicitExtensionResourceRoots(options: OpenWaggleResourcePrecedenceOptions) {
+  return [
+    segmentsToPath(OPENWAGGLE_RESOURCE_ROOTS.extensions),
+    ...getImplicitExtensionResourceRoots(options),
+  ]
+}
+
+function getRemovableImplicitOpenWaggleExtensionPackageSources(
   projectPath: string,
   options: OpenWaggleResourcePrecedenceOptions,
 ) {
-  return [
-    segmentsToPath(OPENWAGGLE_RESOURCE_ROOTS.extensions),
-    ...getImplicitExtensionResourceRoots(projectPath, options),
-  ]
+  return getImplicitOpenWaggleExtensionPackageSources(projectPath, options).map((source) =>
+    packageSourceIdentity(projectPath, source),
+  )
 }
 
 export function withOpenWaggleResourcePrecedence(
@@ -144,13 +212,19 @@ export function withOpenWaggleResourcePrecedence(
   settings: JsonObject,
   options: OpenWaggleResourcePrecedenceOptions = {},
 ) {
+  const packageSources = getImplicitOpenWaggleExtensionPackageSources(projectPath, options)
   return {
     ...settings,
+    ...(packageSources.length > 0
+      ? {
+          packages: prependPackageSources(projectPath, settings.packages, packageSources),
+        }
+      : {}),
     skills: prependResourceRoots(projectPath, settings.skills, getImplicitResourceRoots('skills')),
     extensions: prependResourceRoots(
       projectPath,
       settings.extensions,
-      getImplicitExtensionResourceRoots(projectPath, options),
+      getImplicitExtensionResourceRoots(options),
     ),
     prompts: prependResourceRoots(
       projectPath,
@@ -173,7 +247,7 @@ function removeImplicitResourceRoots(
 
   const implicitRoots = new Set(
     (kind === 'extensions'
-      ? getRemovableImplicitExtensionResourceRoots(projectPath, options)
+      ? getRemovableImplicitExtensionResourceRoots(options)
       : getImplicitResourceRoots(kind)
     ).map((root) => resolveResourcePath(projectPath, root)),
   )
@@ -183,12 +257,39 @@ function removeImplicitResourceRoots(
   return filtered.length > 0 ? filtered : undefined
 }
 
+function removeImplicitPackageSources(
+  projectPath: string,
+  configured: JsonValue | undefined,
+  options: OpenWaggleResourcePrecedenceOptions,
+) {
+  const implicitPackageSources = new Set(
+    getRemovableImplicitOpenWaggleExtensionPackageSources(projectPath, options),
+  )
+  if (implicitPackageSources.size === 0) {
+    return { shouldUpdate: false } as const
+  }
+
+  if (!Array.isArray(configured)) {
+    return { shouldUpdate: true, packages: undefined } as const
+  }
+
+  const filtered = configured.filter((entry) => {
+    const identity = packageEntryIdentity(projectPath, entry)
+    return identity === null || !implicitPackageSources.has(identity)
+  })
+  return {
+    shouldUpdate: true,
+    packages: filtered.length > 0 ? filtered : undefined,
+  } as const
+}
+
 export function withoutImplicitOpenWaggleResourcePrecedence(
   projectPath: string,
   settings: JsonObject,
   options: OpenWaggleResourcePrecedenceOptions = {},
 ) {
   const next: JsonObject = { ...settings }
+  const packagesResult = removeImplicitPackageSources(projectPath, settings.packages, options)
   const skills = removeImplicitResourceRoots(projectPath, settings.skills, 'skills', options)
   const extensions = removeImplicitResourceRoots(
     projectPath,
@@ -199,6 +300,13 @@ export function withoutImplicitOpenWaggleResourcePrecedence(
   const prompts = removeImplicitResourceRoots(projectPath, settings.prompts, 'prompts', options)
   const themes = removeImplicitResourceRoots(projectPath, settings.themes, 'themes', options)
 
+  if (packagesResult.shouldUpdate) {
+    if (packagesResult.packages) {
+      next.packages = packagesResult.packages
+    } else {
+      delete next.packages
+    }
+  }
   if (skills) {
     next.skills = skills
   } else {
