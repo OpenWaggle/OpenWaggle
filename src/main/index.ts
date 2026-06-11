@@ -145,7 +145,7 @@ async function bootstrapServicesAndWindow() {
     './application/extension-trusted-main-activation-service'
   )
   await runtimeModule.runAppEffect(
-    trustedMainActivationModule.activateTrustedMainExtensionsForActiveProject(),
+    trustedMainActivationModule.activateTrustedMainExtensionsForActiveProjectSafely(),
   )
 
   await registerIpcHandlersOnce()

@@ -1,16 +1,48 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { Schema, type SchemaType } from '@shared/schema'
-import { validateBrokerCapabilityDeclaration } from './extension-broker-capability-methods'
+import {
+  extensionCapabilityDeclarationSchema,
+  extensionContributionIdSchema,
+  extensionContributionsSchema,
+  extensionRelativePathSchema,
+} from './extension-contributions'
 import { isNetworkOrigin } from './extension-network-origin'
 import {
   isBuildCommand,
-  isContributionId,
   isExtensionId,
   isNonEmptyTrimmed,
-  isPortableRelativePath,
   isRuntimeRequirementBinary,
   isSemverVersion,
 } from './extension-schema-primitives'
+
+export type {
+  ExtensionCapabilityDeclaration,
+  ExtensionCommandContribution,
+  ExtensionContributionRegistration,
+  ExtensionContributions,
+  ExtensionContributionUnregistration,
+  ExtensionEntryContribution,
+} from './extension-contributions'
+export {
+  extensionCapabilityDeclarationSchema,
+  extensionCapabilityScopeSchema,
+  extensionCommandContributionFamilySchema,
+  extensionCommandContributionRegistrationSchema,
+  extensionCommandContributionSchema,
+  extensionContributionFamilySchema,
+  extensionContributionIdSchema,
+  extensionContributionRegistrationSchema,
+  extensionContributionRuntimeSchema,
+  extensionContributionsSchema,
+  extensionContributionUnregistrationSchema,
+  extensionExecutionPlacementSchema,
+  extensionRelativePathSchema,
+  extensionRouteContributionRegistrationSchema,
+  extensionRouteContributionSchema,
+  extensionSlotContributionFamilySchema,
+  extensionSlotContributionRegistrationSchema,
+  extensionSlotContributionSchema,
+} from './extension-contributions'
 
 const nonEmptyStringSchema = Schema.String.pipe(Schema.filter(isNonEmptyTrimmed))
 
@@ -18,40 +50,11 @@ export const extensionIdSchema = Schema.String.pipe(
   Schema.minLength(1),
   Schema.filter(isExtensionId),
 )
-export const extensionContributionIdSchema = Schema.String.pipe(
-  Schema.minLength(1),
-  Schema.filter(isContributionId),
-)
-export const extensionRelativePathSchema = Schema.String.pipe(
-  Schema.minLength(1),
-  Schema.filter(isPortableRelativePath),
-)
 export const extensionSemverVersionSchema = Schema.String.pipe(
   Schema.minLength(1),
   Schema.filter(isSemverVersion),
 )
 
-export const extensionCapabilityScopeSchema = Schema.Literal(
-  ...OPENWAGGLE_EXTENSION.CAPABILITY_SCOPES,
-)
-export const extensionContributionRuntimeSchema = Schema.Literal(
-  ...OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIMES,
-)
-export const extensionExecutionPlacementSchema = Schema.Literal(
-  ...OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENTS,
-)
-export const extensionContributionFamilySchema = Schema.Literal(
-  ...OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILIES,
-)
-export const extensionCommandContributionFamilySchema = Schema.Literal(
-  ...OPENWAGGLE_EXTENSION.COMMAND_CONTRIBUTION_FAMILIES,
-)
-export const extensionEntryContributionFamilySchema = Schema.Literal(
-  ...OPENWAGGLE_EXTENSION.ENTRY_CONTRIBUTION_FAMILIES,
-)
-export const extensionSlotContributionFamilySchema = Schema.Literal(
-  ...OPENWAGGLE_EXTENSION.SLOT_CONTRIBUTION_FAMILIES,
-)
 export const extensionInstallSourceSchema = Schema.Literal(...OPENWAGGLE_EXTENSION.INSTALL_SOURCES)
 export const extensionRuntimeRequirementTypeSchema = Schema.Literal(
   ...OPENWAGGLE_EXTENSION.RUNTIME_REQUIREMENT_TYPES,
@@ -76,110 +79,6 @@ export const extensionListContributionsInputSchema = Schema.Struct({
   projectPaths: Schema.optional(extensionViewProjectPathsSchema),
   sessionId: Schema.optional(nonEmptyStringSchema),
 })
-
-export const extensionCapabilityDeclarationSchema = Schema.Struct({
-  id: extensionContributionIdSchema,
-  methods: Schema.optional(Schema.mutable(Schema.Array(extensionContributionIdSchema))),
-  scopes: Schema.optional(Schema.mutable(Schema.Array(extensionCapabilityScopeSchema))),
-}).pipe(Schema.filter(validateBrokerCapabilityDeclaration))
-
-const extensionContributionBrokerBindingSchema = {
-  capability: Schema.optional(extensionContributionIdSchema),
-  method: Schema.optional(extensionContributionIdSchema),
-  methods: Schema.optional(Schema.mutable(Schema.Array(extensionContributionIdSchema))),
-}
-
-const extensionContributionTargetSchema = Schema.Struct({
-  projectPaths: Schema.optional(Schema.mutable(Schema.Array(nonEmptyStringSchema))),
-  sessionIds: Schema.optional(Schema.mutable(Schema.Array(nonEmptyStringSchema))),
-})
-
-const extensionContributionTargetBindingSchema = {
-  target: Schema.optional(extensionContributionTargetSchema),
-}
-
-const extensionContributionMatchSchema = Schema.Struct({
-  toolNames: Schema.optional(Schema.mutable(Schema.Array(nonEmptyStringSchema))),
-  customMessageNames: Schema.optional(Schema.mutable(Schema.Array(nonEmptyStringSchema))),
-  interactionKinds: Schema.optional(Schema.mutable(Schema.Array(nonEmptyStringSchema))),
-})
-
-const extensionContributionMatchBindingSchema = {
-  matches: Schema.optional(extensionContributionMatchSchema),
-}
-
-export const extensionCommandContributionSchema = Schema.Struct({
-  id: extensionContributionIdSchema,
-  title: nonEmptyStringSchema.pipe(Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH)),
-  category: Schema.optional(
-    nonEmptyStringSchema.pipe(Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH)),
-  ),
-  ...extensionContributionTargetBindingSchema,
-  ...extensionContributionBrokerBindingSchema,
-})
-
-export const extensionRouteContributionSchema = Schema.Struct({
-  id: extensionContributionIdSchema,
-  title: nonEmptyStringSchema.pipe(Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH)),
-  runtime: extensionContributionRuntimeSchema,
-  execution: extensionExecutionPlacementSchema,
-  entry: extensionRelativePathSchema,
-  ...extensionContributionTargetBindingSchema,
-  ...extensionContributionMatchBindingSchema,
-  ...extensionContributionBrokerBindingSchema,
-})
-
-export const extensionSlotContributionSchema = Schema.Struct({
-  id: extensionContributionIdSchema,
-  title: nonEmptyStringSchema.pipe(Schema.maxLength(OPENWAGGLE_EXTENSION.LIMITS.NAME_MAX_LENGTH)),
-  runtime: extensionContributionRuntimeSchema,
-  execution: extensionExecutionPlacementSchema,
-  entry: extensionRelativePathSchema,
-  ...extensionContributionTargetBindingSchema,
-  ...extensionContributionMatchBindingSchema,
-  ...extensionContributionBrokerBindingSchema,
-})
-
-export const extensionContributionsSchema = Schema.Struct({
-  commands: Schema.optional(Schema.mutable(Schema.Array(extensionCommandContributionSchema))),
-  slashCommands: Schema.optional(Schema.mutable(Schema.Array(extensionCommandContributionSchema))),
-  routes: Schema.optional(Schema.mutable(Schema.Array(extensionRouteContributionSchema))),
-  settingsSections: Schema.optional(Schema.mutable(Schema.Array(extensionSlotContributionSchema))),
-  sidePanels: Schema.optional(Schema.mutable(Schema.Array(extensionSlotContributionSchema))),
-  dialogs: Schema.optional(Schema.mutable(Schema.Array(extensionSlotContributionSchema))),
-  transcriptRenderers: Schema.optional(
-    Schema.mutable(Schema.Array(extensionSlotContributionSchema)),
-  ),
-  toolRenderers: Schema.optional(Schema.mutable(Schema.Array(extensionSlotContributionSchema))),
-  customMessageRenderers: Schema.optional(
-    Schema.mutable(Schema.Array(extensionSlotContributionSchema)),
-  ),
-  interactionRenderers: Schema.optional(
-    Schema.mutable(Schema.Array(extensionSlotContributionSchema)),
-  ),
-  statusWidgets: Schema.optional(Schema.mutable(Schema.Array(extensionSlotContributionSchema))),
-})
-
-export const extensionCommandContributionRegistrationSchema = Schema.Struct({
-  family: extensionCommandContributionFamilySchema,
-  contribution: extensionCommandContributionSchema,
-})
-
-export const extensionRouteContributionRegistrationSchema = Schema.Struct({
-  family: Schema.Literal(OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.ROUTES),
-  contribution: extensionRouteContributionSchema,
-})
-
-export const extensionSlotContributionRegistrationSchema = Schema.Struct({
-  family: extensionSlotContributionFamilySchema,
-  contribution: extensionSlotContributionSchema,
-})
-
-export const extensionContributionRegistrationSchema = Schema.Union(
-  extensionCommandContributionRegistrationSchema,
-  extensionRouteContributionRegistrationSchema,
-  extensionSlotContributionRegistrationSchema,
-)
 
 export const extensionRuntimeRequirementSchema = Schema.Struct({
   id: extensionContributionIdSchema,
@@ -318,13 +217,4 @@ export const extensionReloadInputSchema = Schema.Struct({
 })
 
 export type OpenWaggleExtensionManifest = SchemaType<typeof openWaggleExtensionManifestSchema>
-export type ExtensionCapabilityDeclaration = SchemaType<typeof extensionCapabilityDeclarationSchema>
-export type ExtensionCommandContribution = SchemaType<typeof extensionCommandContributionSchema>
-export type ExtensionContributions = SchemaType<typeof extensionContributionsSchema>
-export type ExtensionContributionRegistration = SchemaType<
-  typeof extensionContributionRegistrationSchema
->
 export type ExtensionDocsTopicDeclaration = SchemaType<typeof extensionDocsTopicDeclarationSchema>
-export type ExtensionEntryContribution =
-  | SchemaType<typeof extensionRouteContributionSchema>
-  | SchemaType<typeof extensionSlotContributionSchema>

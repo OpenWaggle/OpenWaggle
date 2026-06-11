@@ -1,7 +1,9 @@
 import { OPENWAGGLE_EXTENSION_BROKER } from '@shared/constants/extension-broker'
+import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import { safeDecodeUnknown } from '@shared/schema'
 import {
   extensionContributionRegistrationSchema,
+  extensionContributionUnregistrationSchema,
   openWaggleExtensionManifestSchema,
 } from '@shared/schemas/extensions'
 import { describe, expect, it } from 'vitest'
@@ -125,5 +127,38 @@ describe('extension contribution registration schemas', () => {
     if (!result.success) {
       expect(result.issues.join('\n')).toContain('contribution.runtime')
     }
+  })
+
+  it('rejects contribution entries that start with the reserved runtime context segment', () => {
+    const result = safeDecodeUnknown(openWaggleExtensionManifestSchema, {
+      ...validManifest,
+      contributions: {
+        routes: [
+          {
+            id: 'sample.context-route',
+            title: 'Sample Context Route',
+            runtime: 'federated-module',
+            execution: 'host-renderer',
+            entry: `${OPENWAGGLE_EXTENSION.RUNTIME_MODULE_PROTOCOL.MODULE_CONTEXT_SEGMENT}/route.js`,
+          },
+        ],
+      },
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.issues.join('\n')).toContain(
+        `reserved "${OPENWAGGLE_EXTENSION.RUNTIME_MODULE_PROTOCOL.MODULE_CONTEXT_SEGMENT}"`,
+      )
+    }
+  })
+
+  it('accepts a dynamic unregistration envelope for manifest contribution families', () => {
+    const result = safeDecodeUnknown(extensionContributionUnregistrationSchema, {
+      family: 'toolRenderers',
+      contributionId: 'sample.tool',
+    })
+
+    expect(result.success).toBe(true)
   })
 })

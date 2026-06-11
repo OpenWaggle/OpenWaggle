@@ -18,6 +18,7 @@ import { SessionProjectionRepository } from '../../ports/session-projection-repo
 import { SessionRepository } from '../../ports/session-repository'
 import type { AppLoggerService } from '../../services/logger-service'
 import { AppLogger } from '../../services/logger-service'
+import { SettingsService } from '../../services/settings-service'
 import { makeSessionDetail } from './extension-capability-broker-session-test-utils'
 import { makeBrokerSettingsLayer } from './extension-capability-broker-settings-test-utils'
 import { makeExtensionStorageRepositoryLayer } from './extension-capability-broker-storage-repository-test-utils'
@@ -189,11 +190,29 @@ function makeSessionLayers() {
   )
 }
 
+function makeSettingsLayer(input: {
+  readonly projectPath: string | null
+  readonly failure?: Error
+}) {
+  if (input.failure === undefined) {
+    return makeBrokerSettingsLayer(input.projectPath)
+  }
+
+  const failure = input.failure
+  return Layer.succeed(SettingsService, {
+    get: () => Effect.die(failure),
+    update: () => Effect.void,
+    initialize: () => Effect.void,
+    flushForTests: () => Effect.void,
+  })
+}
+
 export function makeTrustedMainActivationHarness(input: {
   readonly packages: readonly DiscoveredExtensionPackage[]
   readonly lifecycles: readonly ExtensionLifecycleState[]
   readonly projectOverrides?: readonly ExtensionProjectOverrideState[]
   readonly settingsProjectPath?: string | null
+  readonly settingsGetFailure?: Error
 }) {
   let lifecycles = [...input.lifecycles]
   let projectOverrides = [...(input.projectOverrides ?? [])]
@@ -209,7 +228,7 @@ export function makeTrustedMainActivationHarness(input: {
     makeLoggerLayer(capturedLogs),
     makeDocsBundleLayer(),
     makeExtensionStorageRepositoryLayer([]),
-    makeBrokerSettingsLayer(settingsProjectPath),
+    makeSettingsLayer({ projectPath: settingsProjectPath, failure: input.settingsGetFailure }),
     makeSessionLayers(),
     Layer.succeed(ExtensionManagerService, {
       listPackages: () => Effect.succeed(input.packages),

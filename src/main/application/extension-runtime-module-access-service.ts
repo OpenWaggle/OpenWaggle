@@ -7,6 +7,7 @@ export interface ExtensionRuntimeModuleAccessInput {
   readonly packagePath: string
   readonly contentHash: string
   readonly projectPaths: readonly string[]
+  readonly sessionId?: string
 }
 
 function requestedProjectsAreCovered(
@@ -30,12 +31,16 @@ function entryCanServeRuntimeModule(
     entry.eligibility.trusted &&
     entry.eligibility.sdkCompatible !== false &&
     !entry.eligibility.updateAvailable &&
+    (entry.sessionId === undefined || entry.sessionId === input.sessionId) &&
     requestedProjectsAreCovered(entry, input.projectPaths)
   )
 }
 
 export function isExtensionRuntimeModuleAccessAllowed(input: ExtensionRuntimeModuleAccessInput) {
-  return listExtensionContributionRegistryView({ projectPaths: input.projectPaths }).pipe(
+  return listExtensionContributionRegistryView({
+    projectPaths: input.projectPaths,
+    ...(input.sessionId !== undefined ? { sessionId: input.sessionId } : {}),
+  }).pipe(
     Effect.map((registry) =>
       registry.entries.some((entry) => entryCanServeRuntimeModule(entry, input)),
     ),

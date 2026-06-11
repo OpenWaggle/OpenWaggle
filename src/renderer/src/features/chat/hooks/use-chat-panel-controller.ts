@@ -106,7 +106,7 @@ export function useChatPanelSections(): ChatPanelSections {
   const { catalog } = useSkills(projectPath)
   const extensionProjectPaths = projectPath ? [projectPath] : []
   const extensionContributionsQuery = useQuery(
-    extensionContributionsQueryOptions(extensionProjectPaths),
+    extensionContributionsQueryOptions(extensionProjectPaths, { sessionId: activeSessionId }),
   )
   const extensionRegistry = extensionContributionsQuery.data ?? null
 

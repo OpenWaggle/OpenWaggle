@@ -37,6 +37,7 @@ function runAccessCheck(input: {
   readonly enabled?: boolean
   readonly projectDisabled?: boolean
   readonly contentHash?: string
+  readonly sessionId?: string
 }) {
   const lifecycle = makeLifecycle(input.extensionPackage, {
     trusted: input.trusted,
@@ -58,6 +59,7 @@ function runAccessCheck(input: {
       packagePath: input.extensionPackage.packagePath,
       contentHash: input.contentHash ?? contentHash(input.extensionPackage),
       projectPaths: [PROJECT_PATH],
+      ...(input.sessionId !== undefined ? { sessionId: input.sessionId } : {}),
     }).pipe(
       Effect.provide(
         makeContributionRegistryTestLayer({
@@ -130,5 +132,23 @@ describe('isExtensionRuntimeModuleAccessAllowed', () => {
     })
 
     await expect(runAccessCheck({ extensionPackage, projectDisabled: true })).resolves.toBe(false)
+  })
+
+  it('allows session-targeted federated modules only for the matching session context', async () => {
+    const extensionPackage = makePackage({
+      id: 'sample-extension',
+      name: 'Sample Extension',
+      scope: { kind: OPENWAGGLE_EXTENSION.SCOPE.PROJECT_KIND, projectPath: PROJECT_PATH },
+      contributions: {
+        routes: ROUTE_CONTRIBUTIONS.routes.map((route) => ({
+          ...route,
+          target: { sessionIds: ['session-1'] },
+        })),
+      },
+    })
+
+    await expect(runAccessCheck({ extensionPackage })).resolves.toBe(false)
+    await expect(runAccessCheck({ extensionPackage, sessionId: 'session-2' })).resolves.toBe(false)
+    await expect(runAccessCheck({ extensionPackage, sessionId: 'session-1' })).resolves.toBe(true)
   })
 })

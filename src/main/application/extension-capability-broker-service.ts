@@ -177,6 +177,9 @@ function findContributionEntry(input: {
   return Effect.gen(function* () {
     const registry = yield* listExtensionContributionRegistryView({
       projectPaths: input.projectPath ? [input.projectPath] : [],
+      ...(input.invocation.scope.kind === 'session' || input.invocation.scope.kind === 'branch'
+        ? { sessionId: input.invocation.scope.sessionId }
+        : {}),
     })
     return (
       registry.entries.find(

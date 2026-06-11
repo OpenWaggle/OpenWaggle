@@ -102,6 +102,7 @@ describe('listExtensionContributionRegistryView contribution targets', () => {
     expect(withoutSession.entries).toEqual([])
     expect(wrongSession.entries).toEqual([])
     expect(matchingSession.entries.map((entry) => entry.contributionId)).toEqual(['session.run'])
+    expect(expectFirstEntry(matchingSession).sessionId).toBe('session-1')
   })
 
   it('carries manifest network origins into contribution entries', async () => {

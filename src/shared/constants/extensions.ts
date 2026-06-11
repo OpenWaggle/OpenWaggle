@@ -218,6 +218,7 @@ export const OPENWAGGLE_EXTENSION = {
     SCHEME: 'openwaggle-extension',
     HOST: 'runtime',
     MODULE_PATH_PREFIX: '/module',
+    MODULE_CONTEXT_SEGMENT: '__context__',
   },
   CAPABILITY_SCOPES: ['app', 'project', 'session', 'branch'] as const,
   CONTRIBUTION_FAMILY: EXTENSION_CONTRIBUTION_FAMILY,

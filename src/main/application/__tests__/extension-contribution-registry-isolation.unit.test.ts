@@ -195,7 +195,7 @@ describe('listExtensionContributionRegistryView failure isolation', () => {
     ])
   })
 
-  it('surfaces diagnostics when contribution registry construction fails', async () => {
+  it('keeps healthy contribution families when one family fails to register', async () => {
     const packageWithBrokenContributions = withContributions(
       makePackage({
         id: 'broken-registry-extension',
@@ -206,11 +206,25 @@ describe('listExtensionContributionRegistryView failure isolation', () => {
         },
       }),
       fromAny(
-        Object.defineProperty({}, 'commands', {
-          get() {
-            throw new Error('command contribution slot failed')
+        Object.defineProperty(
+          {
+            settingsSections: [
+              {
+                id: 'broken-registry.settings',
+                title: 'Healthy Settings',
+                runtime: OPENWAGGLE_EXTENSION.CONTRIBUTION_RUNTIME.FEDERATED_MODULE,
+                execution: OPENWAGGLE_EXTENSION.EXECUTION_PLACEMENT.HOST_RENDERER,
+                entry: 'dist/settings.js',
+              },
+            ],
           },
-        }),
+          'commands',
+          {
+            get() {
+              throw new Error('command contribution slot failed')
+            },
+          },
+        ),
       ),
     )
 
@@ -220,7 +234,9 @@ describe('listExtensionContributionRegistryView failure isolation', () => {
       projectPaths: [PROJECT_PATH],
     })
 
-    expect(registry.entries).toEqual([])
+    expect(registry.entries.map((entry) => entry.contributionId)).toEqual([
+      'broken-registry.settings',
+    ])
     expect(registry.diagnostics).toEqual([
       expect.objectContaining({
         severity: OPENWAGGLE_EXTENSION.DIAGNOSTIC.SEVERITY.ERROR,

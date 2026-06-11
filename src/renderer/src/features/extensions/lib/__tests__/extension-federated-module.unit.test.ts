@@ -56,6 +56,25 @@ describe('extension federated module helpers', () => {
     )
   })
 
+  it('includes session context for session-targeted extension modules', () => {
+    const moduleUrl = createExtensionModuleUrl({ ...ENTRY, sessionId: 'session-1' })
+
+    expect(moduleUrl).toBe(
+      'openwaggle-extension://runtime/module/%2Ftmp%2Fproject%2F.openwaggle%2Fextensions%2Fsample-extension/abcdef/%5B%22%2Ftmp%2Fproject%22%5D/__context__/%7B%22sessionId%22%3A%22session-1%22%7D/dist/settings.js',
+    )
+  })
+
+  it('keeps session context when session modules import relative chunks', () => {
+    const moduleUrl = createExtensionModuleUrl({ ...ENTRY, sessionId: 'session-1' })
+    if (!moduleUrl) {
+      throw new Error('Expected module URL.')
+    }
+
+    expect(new URL('./chunk.js', moduleUrl).href).toBe(
+      'openwaggle-extension://runtime/module/%2Ftmp%2Fproject%2F.openwaggle%2Fextensions%2Fsample-extension/abcdef/%5B%22%2Ftmp%2Fproject%22%5D/__context__/%7B%22sessionId%22%3A%22session-1%22%7D/dist/chunk.js',
+    )
+  })
+
   it('returns null when a visual registry entry has no module entry path', () => {
     expect(createExtensionModuleUrl({ ...ENTRY, entryPath: undefined })).toBeNull()
   })

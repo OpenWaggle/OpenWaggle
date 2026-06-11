@@ -1,4 +1,5 @@
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
+import type { ExtensionInvokeScope } from '@shared/types/extension-broker'
 import type {
   ExtensionContributionRegistryEntry,
   ExtensionContributionRegistryView,
@@ -20,6 +21,42 @@ export interface ExtensionCommandActionInput {
 
 export type InvokeExtensionCommand = (input: ExtensionCommandActionInput) => void
 export type CanInvokeExtensionCommand = (entry: ExtensionContributionRegistryEntry) => boolean
+
+export function resolveExtensionCommandInvocationScope(input: {
+  readonly entry: ExtensionContributionRegistryEntry
+  readonly projectPath: string | null | undefined
+  readonly sessionId?: string | null
+}): ExtensionInvokeScope | null {
+  const { entry, projectPath, sessionId } = input
+  const declaredScopes = entry.declaredScopes
+
+  if (declaredScopes === undefined) {
+    return projectPath ? { kind: 'project', projectPath } : { kind: 'app' }
+  }
+
+  if (
+    projectPath &&
+    sessionId &&
+    declaredScopes.includes('session') &&
+    entry.projectPaths.includes(projectPath)
+  ) {
+    return { kind: 'session', projectPath, sessionId }
+  }
+
+  if (
+    projectPath &&
+    declaredScopes.includes('project') &&
+    entry.projectPaths.includes(projectPath)
+  ) {
+    return { kind: 'project', projectPath }
+  }
+
+  if (declaredScopes.includes('app')) {
+    return { kind: 'app' }
+  }
+
+  return null
+}
 
 export interface ExtensionSlashCommandActionInput {
   readonly entry: ExtensionContributionRegistryEntry

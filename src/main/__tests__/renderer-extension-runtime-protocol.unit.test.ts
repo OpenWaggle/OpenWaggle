@@ -151,6 +151,66 @@ describe('extension runtime protocol', () => {
     ).toContain('dist/route.js')
   })
 
+  it('passes session context into runtime module access checks', async () => {
+    const { EXTENSION_RUNTIME_PROTOCOL, registerExtensionRuntimeProtocolOnce } =
+      await loadRendererProtocol()
+    const projectPath = path.join(tmpRoot, 'project')
+    const extensionPackage = await writeExtensionPackage({
+      projectPath,
+      scope: 'project',
+      builtArtifacts: ['dist/route.js'],
+      tmpRoot,
+    })
+    const access = allowRuntimeModuleAccess()
+
+    registerExtensionRuntimeProtocolOnce(access)
+
+    const routeUrl = runtimeModuleUrl({
+      packagePath: extensionPackage.packagePath,
+      contentHash: extensionPackage.contentHash,
+      relativePath: 'dist/route.js',
+      projectPaths: [projectPath],
+      sessionId: 'session-1',
+    })
+
+    expect(
+      await (await dispatchProtocolRequest(EXTENSION_RUNTIME_PROTOCOL, routeUrl)).text(),
+    ).toContain('dist/route.js')
+    expect(access.isExtensionRuntimeModuleAllowed).toHaveBeenCalledWith({
+      packagePath: extensionPackage.packagePath,
+      contentHash: extensionPackage.contentHash,
+      projectPaths: [projectPath],
+      sessionId: 'session-1',
+    })
+  })
+
+  it('keeps session context when session modules import relative chunks', async () => {
+    const { EXTENSION_RUNTIME_PROTOCOL, registerExtensionRuntimeProtocolOnce } =
+      await loadRendererProtocol()
+    const projectPath = path.join(tmpRoot, 'project')
+    const extensionPackage = await writeExtensionPackage({
+      projectPath,
+      scope: 'project',
+      builtArtifacts: ['dist/route.js', 'dist/chunk.js'],
+      tmpRoot,
+    })
+
+    registerExtensionRuntimeProtocolOnce(allowRuntimeModuleAccess())
+
+    const routeUrl = runtimeModuleUrl({
+      packagePath: extensionPackage.packagePath,
+      contentHash: extensionPackage.contentHash,
+      relativePath: 'dist/route.js',
+      projectPaths: [projectPath],
+      sessionId: 'session-1',
+    })
+    const chunkUrl = new URL('./chunk.js', routeUrl).href
+
+    expect(
+      await (await dispatchProtocolRequest(EXTENSION_RUNTIME_PROTOCOL, chunkUrl)).text(),
+    ).toContain('dist/chunk.js')
+  })
+
   it('rejects stale hashes and package files outside the manifest hash input', async () => {
     const { EXTENSION_RUNTIME_PROTOCOL, registerExtensionRuntimeProtocolOnce } =
       await loadRendererProtocol()

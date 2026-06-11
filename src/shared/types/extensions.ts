@@ -285,6 +285,7 @@ export interface ExtensionContributionRegistryEntry {
   readonly manifestPath: string
   readonly contentHash: string
   readonly projectPaths: readonly string[]
+  readonly sessionId?: string
   readonly appliesToAllRequestedProjects: boolean
   readonly family: ExtensionContributionFamily
   readonly contributionId: string

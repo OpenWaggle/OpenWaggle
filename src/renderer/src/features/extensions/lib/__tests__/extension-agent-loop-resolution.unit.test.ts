@@ -92,6 +92,19 @@ describe('resolveExtensionAgentLoopContribution', () => {
     })
   })
 
+  it('does not treat missing Pi event matches as a wildcard renderer binding', () => {
+    const resolution = resolveExtensionAgentLoopContribution({
+      registry: registry([entry({ matches: undefined })]),
+      target: { surface: 'tool', toolName: 'sample.tool' },
+      requestedProjectPaths: [PROJECT_PATH],
+    })
+
+    expect(resolution).toMatchObject({
+      status: 'not-found',
+      title: 'Extension renderer not available',
+    })
+  })
+
   it('matches custom-message and interaction renderers by their specific match lists', () => {
     const customEntry = entry({
       family: OPENWAGGLE_EXTENSION.CONTRIBUTION_FAMILY.CUSTOM_MESSAGE_RENDERERS,

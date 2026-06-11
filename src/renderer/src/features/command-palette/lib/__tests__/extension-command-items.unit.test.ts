@@ -11,6 +11,7 @@ import {
   type InsertExtensionSlashCommand,
   type InvokeExtensionCommand,
   type OpenExtensionSidePanel,
+  resolveExtensionCommandInvocationScope,
 } from '../extension-command-items'
 
 function commandEntry(
@@ -48,6 +49,49 @@ function commandEntry(
     ...overrides,
   }
 }
+
+describe('resolveExtensionCommandInvocationScope', () => {
+  it('uses app scope for app-only commands when a project is active', () => {
+    const scope = resolveExtensionCommandInvocationScope({
+      entry: commandEntry({ declaredScopes: ['app'] }),
+      projectPath: '/tmp/project',
+    })
+
+    expect(scope).toEqual({ kind: 'app' })
+  })
+
+  it('uses project scope for project-capable commands in the active project', () => {
+    const scope = resolveExtensionCommandInvocationScope({
+      entry: commandEntry({ declaredScopes: ['app', 'project'] }),
+      projectPath: '/tmp/project',
+    })
+
+    expect(scope).toEqual({ kind: 'project', projectPath: '/tmp/project' })
+  })
+
+  it('prefers session scope for session-capable commands on a session route', () => {
+    const scope = resolveExtensionCommandInvocationScope({
+      entry: commandEntry({ declaredScopes: ['app', 'project', 'session'] }),
+      projectPath: '/tmp/project',
+      sessionId: 'session-1',
+    })
+
+    expect(scope).toEqual({
+      kind: 'session',
+      projectPath: '/tmp/project',
+      sessionId: 'session-1',
+    })
+  })
+
+  it('does not expose session-only commands outside a session route', () => {
+    const scope = resolveExtensionCommandInvocationScope({
+      entry: commandEntry({ declaredScopes: ['session'] }),
+      projectPath: '/tmp/project',
+    })
+
+    expect(scope).toBeNull()
+  })
+})
 
 describe('createExtensionCommandItems', () => {
   it('maps executable command contributions to command palette items', () => {

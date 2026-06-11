@@ -19,12 +19,26 @@ export function runtimeModuleUrl(input: {
   readonly contentHash: string
   readonly relativePath: string
   readonly projectPaths?: readonly string[]
+  readonly sessionId?: string
 }) {
   const encodedPackagePath = encodeURIComponent(input.packagePath)
   const encodedContentHash = encodeURIComponent(input.contentHash)
   const encodedProjectPaths = encodeURIComponent(JSON.stringify(input.projectPaths ?? []))
+  const contextSegments =
+    input.sessionId !== undefined
+      ? [
+          OPENWAGGLE_EXTENSION.RUNTIME_MODULE_PROTOCOL.MODULE_CONTEXT_SEGMENT,
+          encodeURIComponent(JSON.stringify({ sessionId: input.sessionId })),
+        ]
+      : []
   const encodedRelativePath = input.relativePath.split('/').map(encodeURIComponent).join('/')
-  return `openwaggle-extension://runtime/module/${encodedPackagePath}/${encodedContentHash}/${encodedProjectPaths}/${encodedRelativePath}`
+  return [
+    `openwaggle-extension://runtime/module/${encodedPackagePath}`,
+    encodedContentHash,
+    encodedProjectPaths,
+    ...contextSegments,
+    encodedRelativePath,
+  ].join('/')
 }
 
 export async function writeExtensionPackage(input: {

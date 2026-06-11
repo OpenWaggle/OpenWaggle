@@ -15,6 +15,20 @@ import {
 import { createPackageStorageSdk, type ExtensionPackageStorageSdk } from './extension-sdk-storage'
 
 export type {
+  CreateOpenWaggleExtensionSurfaceContextInput,
+  OpenWaggleExtensionMountCleanup,
+  OpenWaggleExtensionMountContext,
+  OpenWaggleExtensionMountResult,
+  OpenWaggleExtensionSdk,
+  OpenWaggleExtensionSurfaceContext,
+  OpenWaggleExtensionSurfaceSdk,
+  OpenWaggleFederatedModule,
+} from './extension-context'
+export {
+  createNoopExtensionSurfaceSdk,
+  createOpenWaggleExtensionSurfaceContext,
+} from './extension-context'
+export type {
   ExtensionBrokerTransport,
   ExtensionOperationSuccess,
   ExtensionSdkIdentity,
@@ -40,6 +54,34 @@ export type {
   ExtensionStorageScopeSdk,
   ExtensionStorageSetOperationResult,
 } from './extension-sdk-storage'
+export type {
+  CreateOpenWaggleExtensionThemeOptions,
+  ExtensionThemeCssVariableResolver,
+  OpenWaggleExtensionColorScheme,
+  OpenWaggleExtensionTheme,
+  OpenWaggleExtensionThemeCssVariableEntry,
+  OpenWaggleExtensionThemeCssVariables,
+  OpenWaggleExtensionThemeTokens,
+} from './extension-theme'
+export {
+  createOpenWaggleExtensionTheme,
+  extensionThemeCssVariableEntries,
+  isOpenWaggleExtensionTheme,
+  OPENWAGGLE_EXTENSION_THEME_CSS_VARIABLES,
+} from './extension-theme'
+export type {
+  CreateOpenWaggleExtensionUiStylesheetOptions,
+  OpenWaggleExtensionClassNamePart,
+  OpenWaggleExtensionUiButtonVariant,
+  OpenWaggleExtensionUiTone,
+} from './extension-ui'
+export {
+  createOpenWaggleExtensionUiStylesheet,
+  extensionThemeCssVariableDeclarations,
+  OPENWAGGLE_EXTENSION_UI_ATTRIBUTES,
+  OPENWAGGLE_EXTENSION_UI_CLASS_NAMES,
+  openWaggleExtensionClassName,
+} from './extension-ui'
 
 export interface ExtensionBrokerSdk {
   readonly invoke: (request: ExtensionSdkInvokeRequest) => Promise<ExtensionInvokeResult>

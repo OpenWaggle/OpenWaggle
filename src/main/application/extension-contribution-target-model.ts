@@ -3,6 +3,7 @@ import type { ExtensionContributionTargetView } from '@shared/types/extensions'
 export interface ContributionTargetResolution {
   readonly target?: ExtensionContributionTargetView
   readonly projectPaths: readonly string[]
+  readonly sessionId?: string
 }
 
 interface ResolveContributionTargetInput {
@@ -47,18 +48,19 @@ function normalizeTarget(
   }
 }
 
-function targetAllowsSession(input: {
+function targetSessionId(input: {
   readonly target: ExtensionContributionTargetView | undefined
   readonly requestedSessionId: string | undefined
 }) {
   const sessionIds = input.target?.sessionIds
   if (sessionIds === undefined) {
-    return true
+    return undefined
   }
 
-  return (
-    input.requestedSessionId !== undefined && sessionIds.includes(input.requestedSessionId.trim())
-  )
+  const requestedSessionId = input.requestedSessionId?.trim()
+  return requestedSessionId !== undefined && sessionIds.includes(requestedSessionId)
+    ? requestedSessionId
+    : null
 }
 
 function targetProjectPaths(input: {
@@ -87,7 +89,8 @@ export function resolveContributionTarget(
   input: ResolveContributionTargetInput,
 ): ContributionTargetResolution | null {
   const target = normalizeTarget(input.target)
-  if (!targetAllowsSession({ target, requestedSessionId: input.requestedSessionId })) {
+  const sessionId = targetSessionId({ target, requestedSessionId: input.requestedSessionId })
+  if (sessionId === null) {
     return null
   }
 
@@ -99,5 +102,9 @@ export function resolveContributionTarget(
 
   return projectPaths === null
     ? null
-    : { projectPaths, ...(target !== undefined ? { target } : {}) }
+    : {
+        projectPaths,
+        ...(sessionId !== undefined ? { sessionId } : {}),
+        ...(target !== undefined ? { target } : {}),
+      }
 }

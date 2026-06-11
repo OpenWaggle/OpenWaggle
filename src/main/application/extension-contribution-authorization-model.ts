@@ -2,7 +2,6 @@ import { match } from '@diegogbrisa/ts-match'
 import { OPENWAGGLE_EXTENSION } from '@shared/constants/extensions'
 import type {
   ExtensionCapabilityDeclaration,
-  ExtensionContributionRegistration,
   OpenWaggleExtensionManifest,
 } from '@shared/schemas/extensions'
 import type { ExtensionContributionFamily } from '@shared/types/extensions'
@@ -61,7 +60,7 @@ function contributionCapabilityBinding(
     : { _tag: 'bound', capability: contribution.capability, methods }
 }
 
-function contributionDiagnostic(input: {
+export function contributionDiagnostic(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly family: ExtensionContributionFamily
   readonly contributionId?: string
@@ -117,7 +116,7 @@ export function manifestDeclaresContributionFamily(input: {
   return getManifestFamilyContributions(input.manifest.contributions, input.family) !== undefined
 }
 
-function familyDiagnostics(input: {
+export function familyDiagnostics(input: {
   readonly extensionPackage: DiscoveredExtensionPackage
   readonly family: ExtensionContributionFamily
   readonly contributionId?: string
@@ -228,15 +227,4 @@ export function authorizeContributionRegistration(input: {
   ]
 
   return diagnostics.length === 0 ? { _tag: 'authorized' } : { _tag: 'rejected', diagnostics }
-}
-
-export function authorizeRuntimeContributionRegistration(input: {
-  readonly extensionPackage: DiscoveredExtensionPackage
-  readonly registration: ExtensionContributionRegistration
-}): ContributionRegistrationAuthorization {
-  return authorizeContributionRegistration({
-    extensionPackage: input.extensionPackage,
-    family: input.registration.family,
-    contribution: input.registration.contribution,
-  })
 }

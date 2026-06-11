@@ -183,6 +183,17 @@ function declaredScopesForContribution(input: {
   return declaration ? [...getDeclaredScopes(declaration)] : undefined
 }
 
+function brokerBindingsForContribution(input: ContributionEntryInput) {
+  const { contribution } = input
+  const declaredScopes = declaredScopesForContribution(input)
+  return {
+    ...(contribution.capability !== undefined ? { capability: contribution.capability } : {}),
+    ...(contribution.method !== undefined ? { method: contribution.method } : {}),
+    ...(contribution.methods !== undefined ? { methods: contribution.methods } : {}),
+    ...(declaredScopes !== undefined ? { declaredScopes } : {}),
+  }
+}
+
 function contributionToEntry(
   input: ContributionEntryInput,
 ): ExtensionContributionRegistryEntry | null {
@@ -207,6 +218,7 @@ function contributionToEntry(
     manifestPath: extensionPackage.manifestPath,
     contentHash: eligibility.contentHash,
     projectPaths: targetResolution.projectPaths,
+    ...(targetResolution.sessionId !== undefined ? { sessionId: targetResolution.sessionId } : {}),
     appliesToAllRequestedProjects:
       targetResolution.projectPaths.length === input.requestedProjectPaths.length,
     family: input.family,
@@ -221,13 +233,7 @@ function contributionToEntry(
     diagnostics: eligibility.diagnostics,
   }
 
-  const declaredScopes = declaredScopesForContribution(input)
-  const brokerBindings = {
-    ...(contribution.capability !== undefined ? { capability: contribution.capability } : {}),
-    ...(contribution.method !== undefined ? { method: contribution.method } : {}),
-    ...(contribution.methods !== undefined ? { methods: contribution.methods } : {}),
-    ...(declaredScopes !== undefined ? { declaredScopes } : {}),
-  }
+  const brokerBindings = brokerBindingsForContribution(input)
 
   if (isEntryContribution(contribution)) {
     return {

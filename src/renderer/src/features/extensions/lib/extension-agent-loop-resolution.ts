@@ -64,12 +64,16 @@ function normalized(value: string | undefined) {
   return trimmed && trimmed.length > 0 ? trimmed : undefined
 }
 
-function includesIfDeclared(values: readonly string[] | undefined, requested: string | undefined) {
-  if (values === undefined || values.length === 0) {
-    return true
-  }
-
-  return requested !== undefined && values.includes(requested)
+function includesDeclaredMatch(
+  values: readonly string[] | undefined,
+  requested: string | undefined,
+) {
+  return (
+    values !== undefined &&
+    values.length > 0 &&
+    requested !== undefined &&
+    values.includes(requested)
+  )
 }
 
 function disabledForRequestedProject(
@@ -119,21 +123,21 @@ export function extensionAgentLoopEntryMatchesTarget(
 
   if (
     target.surface === 'tool' &&
-    !includesIfDeclared(entry.matches?.toolNames, normalized(target.toolName))
+    !includesDeclaredMatch(entry.matches?.toolNames, normalized(target.toolName))
   ) {
     return false
   }
 
   if (
     target.surface === 'custom-message' &&
-    !includesIfDeclared(entry.matches?.customMessageNames, normalized(target.customMessageName))
+    !includesDeclaredMatch(entry.matches?.customMessageNames, normalized(target.customMessageName))
   ) {
     return false
   }
 
   if (
     target.surface === 'interaction' &&
-    !includesIfDeclared(entry.matches?.interactionKinds, normalized(target.interactionKind))
+    !includesDeclaredMatch(entry.matches?.interactionKinds, normalized(target.interactionKind))
   ) {
     return false
   }

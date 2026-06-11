@@ -33,6 +33,20 @@ export type OpenWaggleExtensionSdk = ExtensionBrokerSdk & {
   readonly surface: OpenWaggleExtensionSurfaceSdk
 }
 
+export interface OpenWaggleExtensionMountContext extends OpenWaggleExtensionSurfaceContext {
+  readonly root: HTMLElement
+  readonly sdk: OpenWaggleExtensionSdk
+}
+
+export type OpenWaggleExtensionMountCleanup = () => void
+export type OpenWaggleExtensionMountResult = undefined | OpenWaggleExtensionMountCleanup
+
+export interface OpenWaggleFederatedModule {
+  readonly mount: (
+    context: OpenWaggleExtensionMountContext,
+  ) => OpenWaggleExtensionMountResult | Promise<OpenWaggleExtensionMountResult>
+}
+
 export interface CreateOpenWaggleExtensionSurfaceContextInput {
   readonly entry: ExtensionContributionRegistryEntry
   readonly surfacePayload?: JsonValue

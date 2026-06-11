@@ -34,6 +34,8 @@ const MODULE_PACKAGE_SEGMENT_OFFSET = MODULE_PREFIX_SEGMENTS.length
 const MODULE_HASH_SEGMENT_OFFSET = MODULE_PACKAGE_SEGMENT_OFFSET + 1
 const MODULE_PROJECT_PATHS_SEGMENT_OFFSET = MODULE_HASH_SEGMENT_OFFSET + 1
 const MODULE_FILE_SEGMENT_OFFSET = MODULE_PROJECT_PATHS_SEGMENT_OFFSET + 1
+const MODULE_CONTEXT_VALUE_SEGMENT_OFFSET = MODULE_FILE_SEGMENT_OFFSET + 1
+const MODULE_CONTEXT_FILE_SEGMENT_OFFSET = MODULE_CONTEXT_VALUE_SEGMENT_OFFSET + 1
 
 let extensionRuntimeProtocolRegistered = false
 
@@ -41,6 +43,11 @@ export interface RegisterExtensionRuntimeProtocolDependencies {
   readonly isExtensionRuntimeModuleAllowed?: (
     input: ExtensionRuntimeModuleAccessInput,
   ) => Promise<boolean>
+}
+
+interface RuntimeModuleContext {
+  readonly fileSegmentOffset: number
+  readonly sessionId?: string
 }
 
 function hasProjectExtensionRootSegments(packagePath: string) {
@@ -106,6 +113,73 @@ function decodeProjectPaths(projectPathsContext: string) {
   return projectPaths
 }
 
+function moduleContextSessionId(parsedContext: unknown) {
+  if (typeof parsedContext !== 'object' || parsedContext === null || Array.isArray(parsedContext)) {
+    return null
+  }
+
+  if (!('sessionId' in parsedContext)) {
+    return undefined
+  }
+
+  const sessionId = parsedContext.sessionId
+  if (typeof sessionId !== 'string') {
+    return null
+  }
+
+  const trimmedSessionId = sessionId.trim()
+  return trimmedSessionId.length > 0 ? trimmedSessionId : null
+}
+
+function decodeModuleContext(
+  contextSegment: string,
+): Omit<RuntimeModuleContext, 'fileSegmentOffset'> | null {
+  const decodedContext = decodePathSegment(contextSegment)
+  if (decodedContext === null) {
+    return null
+  }
+
+  let parsedContext: unknown
+  try {
+    parsedContext = parseJsonUnknown(decodedContext)
+  } catch {
+    return null
+  }
+
+  const sessionId = moduleContextSessionId(parsedContext)
+  if (sessionId === null) {
+    return null
+  }
+
+  return {
+    ...(sessionId !== undefined ? { sessionId } : {}),
+  }
+}
+
+function runtimeModuleContext(pathSegments: readonly string[]): RuntimeModuleContext | null {
+  if (
+    pathSegments[MODULE_FILE_SEGMENT_OFFSET] !==
+    OPENWAGGLE_EXTENSION.RUNTIME_MODULE_PROTOCOL.MODULE_CONTEXT_SEGMENT
+  ) {
+    return { fileSegmentOffset: MODULE_FILE_SEGMENT_OFFSET }
+  }
+
+  const contextSegment = pathSegments[MODULE_CONTEXT_VALUE_SEGMENT_OFFSET]
+  if (!contextSegment) {
+    return null
+  }
+
+  const context = decodeModuleContext(contextSegment)
+  if (context === null) {
+    return null
+  }
+
+  return {
+    fileSegmentOffset: MODULE_CONTEXT_FILE_SEGMENT_OFFSET,
+    ...(context.sessionId !== undefined ? { sessionId: context.sessionId } : {}),
+  }
+}
+
 function hasRuntimeModulePathPrefix(segments: readonly string[]) {
   return MODULE_PREFIX_SEGMENTS.every((segment, index) => segments[index] === segment)
 }
@@ -126,7 +200,12 @@ function parseExtensionModuleRequest(requestUrl: string) {
   const packagePath = pathSegments[MODULE_PACKAGE_SEGMENT_OFFSET]
   const contentHash = pathSegments[MODULE_HASH_SEGMENT_OFFSET]
   const projectPathsContext = pathSegments[MODULE_PROJECT_PATHS_SEGMENT_OFFSET]
-  const fileSegments = pathSegments.slice(MODULE_FILE_SEGMENT_OFFSET)
+  const moduleContext = runtimeModuleContext(pathSegments)
+  if (moduleContext === null) {
+    return null
+  }
+
+  const fileSegments = pathSegments.slice(moduleContext.fileSegmentOffset)
   if (!packagePath || !contentHash || !projectPathsContext || fileSegments.length === 0) {
     return null
   }
@@ -152,6 +231,7 @@ function parseExtensionModuleRequest(requestUrl: string) {
     contentHash: decodedContentHash,
     relativePath: decodedFileSegments.join(OPENWAGGLE_EXTENSION.PATH.POSIX_SEPARATOR),
     projectPaths,
+    ...(moduleContext.sessionId !== undefined ? { sessionId: moduleContext.sessionId } : {}),
   }
 }
 
@@ -168,7 +248,7 @@ async function resolveExtensionModuleFilePath(
     return null
   }
 
-  const { contentHash, packagePath, projectPaths, relativePath } = moduleRequest
+  const { contentHash, packagePath, projectPaths, relativePath, sessionId } = moduleRequest
   const resolvedPackagePath = resolve(packagePath)
   if (!isAllowedExtensionPackagePath(resolvedPackagePath)) {
     return null
@@ -203,6 +283,7 @@ async function resolveExtensionModuleFilePath(
     packagePath: resolvedPackagePath,
     contentHash,
     projectPaths,
+    ...(sessionId !== undefined ? { sessionId } : {}),
   })
   if (!runtimeModuleAllowed) {
     return null

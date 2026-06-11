@@ -6,7 +6,10 @@ import type {
 } from '@shared/types/extensions'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ExtensionAgentLoopSurface } from '../ExtensionAgentLoopSurface'
+import {
+  CUSTOM_INTERACTION_UNAVAILABLE_ACTION_ID,
+  ExtensionAgentLoopSurface,
+} from '../ExtensionAgentLoopSurface'
 
 const apiMock = vi.hoisted(() => ({
   registerExtensionFrame: vi.fn(),
@@ -146,6 +149,8 @@ describe('ExtensionAgentLoopSurface', () => {
   })
 
   it('renders an explicit custom interaction failure when no desktop renderer matches', () => {
+    const onAction = vi.fn()
+
     render(
       <ExtensionAgentLoopSurface
         input={{
@@ -159,6 +164,7 @@ describe('ExtensionAgentLoopSurface', () => {
             state: 'pending',
             actions: [],
           },
+          onAction,
         }}
         projectPaths={[PROJECT_PATH]}
         registry={{ projectPaths: [PROJECT_PATH], entries: [] }}
@@ -170,6 +176,13 @@ describe('ExtensionAgentLoopSurface', () => {
       screen.getByText(/does not execute Pi TUI custom components inside Electron/),
     ).toBeInTheDocument()
     expect(screen.getByText('custom-interaction')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reject interaction' }))
+
+    expect(onAction).toHaveBeenCalledWith(
+      'custom-interaction',
+      CUSTOM_INTERACTION_UNAVAILABLE_ACTION_ID,
+    )
   })
 
   it('mounts matching custom interaction renderer contributions', async () => {

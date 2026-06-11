@@ -20,6 +20,10 @@ function encodeProjectPathsContext(projectPaths: readonly string[]) {
   return encodePathSegment(JSON.stringify(projectPaths))
 }
 
+function encodeSessionContext(sessionId: string) {
+  return encodePathSegment(JSON.stringify({ sessionId }))
+}
+
 export function createExtensionModuleUrl(entry: ExtensionContributionRegistryEntry) {
   if (!entry.entryPath) {
     return null
@@ -29,6 +33,10 @@ export function createExtensionModuleUrl(entry: ExtensionContributionRegistryEnt
   const encodedPackagePath = encodePathSegment(entry.packagePath)
   const encodedContentHash = encodePathSegment(entry.contentHash)
   const encodedProjectPaths = encodeProjectPathsContext(entry.projectPaths)
+  const contextSegments =
+    entry.sessionId !== undefined
+      ? [protocol.MODULE_CONTEXT_SEGMENT, encodeSessionContext(entry.sessionId)]
+      : []
   const encodedEntryPath = encodeRelativePath(entry.entryPath)
 
   return [
@@ -36,6 +44,7 @@ export function createExtensionModuleUrl(entry: ExtensionContributionRegistryEnt
     encodedPackagePath,
     encodedContentHash,
     encodedProjectPaths,
+    ...contextSegments,
     encodedEntryPath,
   ].join('/')
 }

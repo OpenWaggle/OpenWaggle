@@ -167,6 +167,55 @@ Use theme tokens from `context.theme` instead of importing OpenWaggle CSS intern
 
 The SDK/context boundary is also the safety boundary. A renderer module can request brokered actions through `context.sdk`, but it must not import writable OpenWaggle stores, renderer feature files, Electron IPC helpers, or Pi SDK internals.
 
+## Optional Shared Author Modules
+
+The required runtime contract is still `mount(context)`. OpenWaggle also exposes shared author modules for extensions that want typed helpers without adopting a UI framework:
+
+- `extension-sdk` exports the broker SDK factory, operation result types, storage helpers, OpenWaggle state/actions/settings/docs helpers, and the public `OpenWaggleExtensionMountContext` / `OpenWaggleFederatedModule` types.
+- `extension-theme` exports semantic theme tokens, CSS variable names, fallback token creation, and helpers for serializing host theme values.
+- `extension-ui` exports framework-neutral class names, data attributes, a class-name join helper, and a small CSS stylesheet generator built from OpenWaggle theme variables.
+
+These modules are plain TypeScript and DOM helpers. They do not import React, React DOM, renderer feature code, Zustand stores, Electron IPC helpers, or Pi SDK internals.
+
+The modules are optional. Extension modules can ignore them and use only the objects passed in `context`. If an extension build consumes the helpers, keep them bundled into the extension artifact or resolve them through the OpenWaggle-provided author-module mechanism for that installed SDK version. Do not import source paths from an arbitrary OpenWaggle checkout as a runtime dependency for a distributed extension.
+
+Plain DOM example:
+
+```js
+import {
+  createOpenWaggleExtensionUiStylesheet,
+  OPENWAGGLE_EXTENSION_UI_CLASS_NAMES as ui,
+} from 'openwaggle/extension-ui'
+
+export async function mount(context) {
+  const style = document.createElement('style')
+  style.textContent = createOpenWaggleExtensionUiStylesheet({
+    theme: context.theme,
+  })
+
+  const panel = document.createElement('section')
+  panel.className = `${ui.root} ${ui.panel} ${ui.stack}`
+
+  const heading = document.createElement('h2')
+  heading.className = ui.heading
+  heading.textContent = context.contribution.title
+
+  const body = document.createElement('p')
+  body.className = ui.text
+  body.textContent = `Mounted for ${context.extension.name}`
+
+  panel.append(heading, body)
+  context.root.append(style, panel)
+
+  return () => {
+    style.remove()
+    panel.remove()
+  }
+}
+```
+
+The import specifier shown above names the public helper module conceptually. First-party fixtures in this repository can resolve the same helpers from `@shared/extension-ui`; external extension distribution should use the versioned author package or import-map/export path provided by the installed OpenWaggle SDK once that packaging surface exists. The stable part for runtime compatibility is the mount context and brokered SDK capability contract.
+
 ## How An Extension Appears On Screen
 
 Think of an extension like a toy that needs a safe play table.
@@ -452,6 +501,7 @@ Extension authors can ship independently when they stay inside the existing publ
 - Add or change Pi-native tools, custom messages, resource roots, and runtime behavior supported by Pi and declared in the extension package.
 - Add or change usage of existing brokered SDK capabilities, methods, and scopes already supported by the installed OpenWaggle SDK.
 - Add or change package-owned storage keys and package-owned configuration.
+- Add or change extension-owned UI code that uses existing optional SDK/theme/UI helper modules and still mounts through the same `mount(context)` contract.
 - Add or remove declared network origins, local build commands, or runtime requirements, subject to user approval.
 
 An OpenWaggle app update is required when the extension needs a new host contract:
@@ -460,6 +510,7 @@ An OpenWaggle app update is required when the extension needs a new host contrac
 - A new visual runtime besides `federated-module`.
 - A new execution placement besides the supported placements.
 - A new SDK capability, method, scope, DTO shape, action, or settings schema.
+- A new shared SDK/theme/UI helper export that must be supplied by OpenWaggle instead of being bundled with the extension.
 - A new fallback renderer for an OpenWaggle-owned standard interaction primitive.
 - A new Pi interaction primitive that OpenWaggle must understand as a first-class desktop interaction.
 - A change to extension trust semantics, package discovery roots, content-hash calculation, network approval, CSP/protocol behavior, or build approval rules.

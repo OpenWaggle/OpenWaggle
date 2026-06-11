@@ -38,8 +38,13 @@ function extensionPackagesQueryKey(
 
 function extensionContributionsKey(
   projectPaths: readonly string[],
+  sessionId?: string,
 ): readonly ['extensionContributions', ...string[]] {
-  return [EXTENSION_CONTRIBUTIONS_QUERY_KEY, ...projectPaths]
+  return [
+    EXTENSION_CONTRIBUTIONS_QUERY_KEY,
+    ...projectPaths,
+    ...(sessionId !== undefined ? [`session:${sessionId}`] : []),
+  ]
 }
 
 function listExtensionPackages(input: ExtensionListPackagesInput): Promise<ExtensionManagerView> {
@@ -50,6 +55,16 @@ function listExtensionContributions(
   input: ExtensionListContributionsInput,
 ): Promise<ExtensionContributionRegistryView> {
   return extensionApi.listExtensionContributions(input)
+}
+
+function extensionContributionsInput(input: {
+  readonly projectPaths: readonly string[]
+  readonly sessionId?: string
+}): ExtensionListContributionsInput {
+  return {
+    projectPaths: input.projectPaths,
+    ...(input.sessionId !== undefined ? { sessionId: input.sessionId } : {}),
+  }
 }
 
 function setExtensionTrusted(input: ExtensionSetTrustedInput): Promise<ExtensionManagerView> {
@@ -107,17 +122,20 @@ export function extensionPackagesQueryOptions(
 
 export function extensionContributionsQueryOptions(
   projectPaths: readonly string[],
+  options: { readonly sessionId?: string | null } = {},
 ): OpenWaggleQueryOptions<
   ExtensionContributionRegistryView,
   Error,
   ExtensionContributionRegistryView,
   ReturnType<typeof extensionContributionsKey>
 > {
-  const queryKey = extensionContributionsKey(projectPaths)
+  const sessionId = options.sessionId ?? undefined
+  const queryKey = extensionContributionsKey(projectPaths, sessionId)
 
   return queryOptions({
     queryKey,
-    queryFn: () => listExtensionContributions({ projectPaths }),
+    queryFn: () =>
+      listExtensionContributions(extensionContributionsInput({ projectPaths, sessionId })),
   })
 }
 
